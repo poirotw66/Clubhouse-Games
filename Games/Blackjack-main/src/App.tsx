@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card as CardType, GameState, PlayerHand } from './types';
 import { createDeck, calculateScore, isBlackjack } from './utils/deck';
 import { Card } from './components/Card';
 import { motion, AnimatePresence } from 'motion/react';
-import { Coins, RotateCcw, Play } from 'lucide-react';
+import { Coins, RotateCcw, Play, Trophy, XCircle, Minus } from 'lucide-react';
 
 export default function App() {
   const [deck, setDeck] = useState<CardType[]>([]);
@@ -268,6 +268,18 @@ export default function App() {
     }
   };
 
+  const resultPrompt = useMemo((): 'win' | 'lose' | 'push' | null => {
+    if (gameState !== 'gameOver' || playerHands.length === 0) return null;
+    const hasWon = playerHands.some(h => h.status === 'won' || h.status === 'blackjack');
+    const hasLost = playerHands.some(h => h.status === 'lost' || h.status === 'busted');
+    const hasPush = playerHands.some(h => h.status === 'push');
+    if (hasWon && !hasLost) return 'win';
+    if (hasLost && !hasWon) return 'lose';
+    if (hasPush && !hasWon && !hasLost) return 'push';
+    if (hasWon && hasLost) return 'push';
+    return hasWon ? 'win' : hasLost ? 'lose' : 'push';
+  }, [gameState, playerHands]);
+
   const isBankrupt = balance === 0 && (gameState === 'gameOver' || gameState === 'betting');
   const resetAndPlayAgain = () => {
     setBalance(1000);
@@ -503,6 +515,59 @@ export default function App() {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {gameState === 'gameOver' && resultPrompt && !isBankrupt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            aria-live="polite"
+            aria-label={resultPrompt === 'win' ? 'You win' : resultPrompt === 'lose' ? 'You lose' : 'Push'}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+              className={`w-full max-w-sm rounded-2xl shadow-2xl border-2 p-6 sm:p-8 text-center ${
+                resultPrompt === 'win'
+                  ? 'bg-emerald-900/95 border-emerald-400/50 shadow-emerald-500/20'
+                  : resultPrompt === 'lose'
+                    ? 'bg-red-950/95 border-red-400/50 shadow-red-500/20'
+                    : 'bg-slate-800/95 border-slate-400/50 shadow-slate-500/20'
+              }`}
+            >
+              <div className="flex justify-center mb-3">
+                {resultPrompt === 'win' && <Trophy className="w-12 h-12 sm:w-14 sm:h-14 text-amber-400" aria-hidden />}
+                {resultPrompt === 'lose' && <XCircle className="w-12 h-12 sm:w-14 sm:h-14 text-red-400" aria-hidden />}
+                {resultPrompt === 'push' && <Minus className="w-12 h-12 sm:w-14 sm:h-14 text-slate-400" aria-hidden />}
+              </div>
+              <h2 className={`text-xl sm:text-2xl font-black tracking-widest uppercase mb-1 ${
+                resultPrompt === 'win' ? 'text-emerald-300' : resultPrompt === 'lose' ? 'text-red-300' : 'text-slate-300'
+              }`}>
+                {resultPrompt === 'win' ? 'You Win!' : resultPrompt === 'lose' ? 'You Lose' : 'Push'}
+              </h2>
+              {message && (
+                <p className="text-sm sm:text-base text-white/80 mb-5 mt-1">{message}</p>
+              )}
+              <button
+                onClick={() => {
+                  setGameState('betting');
+                  setPlayerHands([]);
+                  setDealerCards([]);
+                  setMessage('');
+                }}
+                className="px-6 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 font-black text-sm tracking-widest transition-colors cursor-pointer"
+              >
+                NEW GAME
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
