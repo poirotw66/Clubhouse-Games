@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clubhouse Games｜遊戲總覽</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&family=Noto+Sans+TC:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config({
+      theme: {
+        extend: {
+          colors: {
+            primary: '#7C3AED',
+            secondary: '#A78BFA',
+            cta: '#F43F5E',
+            dream: '#0F0F23',
+            dreamCard: 'rgba(30, 27, 75, 0.6)',
+          },
+          fontFamily: {
+            heading: ['Russo One', 'sans-serif'],
+            body: ['Chakra Petch', 'sans-serif'],
+            tc: ['Noto Sans TC', 'sans-serif'],
+          },
+          boxShadow: {
+            glow: '0 0 20px rgba(124, 58, 237, 0.3), 0 0 40px rgba(124, 58, 237, 0.15)',
+            glowHover: '0 0 28px rgba(124, 58, 237, 0.45), 0 0 56px rgba(124, 58, 237, 0.2)',
+            ctaGlow: '0 0 16px rgba(244, 63, 94, 0.4)',
+          },
+        },
+      },
+    });
+  </script>
+  <style>
+    :root {
+      --bg: #0F0F23;
+      --text: #E2E8F0;
+      --muted: #94A3B8;
+      --primary: #7C3AED;
+      --secondary: #A78BFA;
+      --cta: #F43F5E;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-body, 'Chakra Petch'), system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      min-height: 100vh;
+    }
+    .font-tc { font-family: 'Noto Sans TC', sans-serif; }
+    .font-heading { font-family: 'Russo One', sans-serif; }
+
+    /* Dreamy gradient orbs (decorative background) */
+    .dream-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+    }
+    .dream-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    .dream-orb-1 { width: 40vw; height: 40vw; background: var(--primary); top: -10%; right: -5%; }
+    .dream-orb-2 { width: 30vw; height: 30vw; background: var(--secondary); bottom: 10%; left: -10%; }
+    .dream-orb-3 { width: 20vw; height: 20vw; background: var(--cta); top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.15; }
+
+    /* Card hover: color/opacity transition, no layout shift */
+    .game-card {
+      transition: box-shadow 0.2s ease-out, border-color 0.2s ease-out, transform 0.2s ease-out;
+    }
+    .game-card:hover {
+      box-shadow: 0 0 28px rgba(124, 58, 237, 0.25), 0 0 56px rgba(124, 58, 237, 0.1);
+      border-color: rgba(167, 139, 250, 0.5);
+    }
+    .game-card:focus-within {
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+    .link-spec { transition: color 0.2s ease-out, opacity 0.2s ease-out; }
+    .link-spec:hover { color: var(--secondary); }
+    .link-play {
+      transition: color 0.2s ease-out, box-shadow 0.2s ease-out, opacity 0.2s ease-out;
+    }
+    .link-play:hover {
+      color: #F87171;
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
+    }
+    .btn-nav {
+      transition: background-color 0.2s ease-out, color 0.2s ease-out;
+    }
+    .btn-nav:hover { background: rgba(167, 139, 250, 0.2); color: var(--secondary); }
+    .btn-nav:focus-visible { outline: 2px solid var(--secondary); outline-offset: 2px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .dream-orb { animation: none; }
+      .game-card, .link-spec, .link-play, .btn-nav { transition: none; }
+    }
+  </style>
+</head>
+<body class="antialiased">
+  <div class="dream-bg" aria-hidden="true">
+    <div class="dream-orb dream-orb-1"></div>
+    <div class="dream-orb dream-orb-2"></div>
+    <div class="dream-orb dream-orb-3"></div>
+  </div>
+
+  <header class="sticky top-0 z-10 backdrop-blur-md bg-dream/80 border-b border-white/10">
+    <nav class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <a href="#" class="font-heading text-xl sm:text-2xl text-white tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">Clubhouse Games</a>
+      <div class="flex gap-2">
+        <a href="README.md" class="btn-nav inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-300 cursor-pointer focus:outline-none">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          <span class="hidden sm:inline">README</span>
+        </a>
+        <a href="docs/PROJECT-STRUCTURE.md" class="btn-nav inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-300 cursor-pointer focus:outline-none">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+          <span class="hidden sm:inline">架構</span>
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <!-- Hero -->
+    <section class="mb-12 sm:mb-16 text-center">
+      <h1 class="font-heading text-4xl sm:text-5xl lg:text-6xl text-white tracking-wide mb-3">Clubhouse Games</h1>
+      <p class="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto font-tc">
+        遊戲總覽選單 · 點選「規格」查看玩法，點選「進入遊戲」開始遊玩（已實作項目）。
+      </p>
+    </section>
+
+    <!-- Features: Game categories as cards -->
+    <section class="space-y-8" aria-label="遊戲分類">
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-cards">
+        <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
+          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+          01 紙牌類型
+        </h2>
+        <ul class="space-y-1" role="list">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">二十一點</span>
+            <span class="flex gap-3 flex-wrap">
+              <a href="01-cards/blackjack.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Blackjack-main/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+            </span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">花牌</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/hanafuda.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">大富豪</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/president.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">快速接龍</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/speed-solitaire.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">排七</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/sevens.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">連環新接龍</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/freecell.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">德州撲克</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/texas-holdem.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">比大小</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/war.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">最後一張牌</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/last-card.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">接龍</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/klondike.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
+            <span class="font-tc text-slate-200 min-w-[8rem]">記憶卡牌</span>
+            <span class="flex gap-3 flex-wrap"><a href="01-cards/memory-cards.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span>
+          </li>
+        </ul>
+      </article>
+
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-board">
+        <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
+          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+          02 棋盤類型
+        </h2>
+        <ul class="space-y-1" role="list">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">播棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/mancala.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">雙陸棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/backgammon.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">黑白棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/reversi.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">西洋跳棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/checkers.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">四子棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/connect-four.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">英國十字戲</span><span class="flex gap-3 flex-wrap"><a href="02-board/ludo.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">西洋棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/chess.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">將棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/shogi.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">兔子和獵犬</span><span class="flex gap-3 flex-wrap"><a href="02-board/hare-and-hounds.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">五子棋／5五將棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/gomoku.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">直棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/nine-mens-morris.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">六貫棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/rithmomachy.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">中國跳棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/chinese-checkers.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">點格棋</span><span class="flex gap-3 flex-wrap"><a href="02-board/dots-and-boxes.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+        </ul>
+      </article>
+
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-tiles">
+        <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
+          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
+          03 牌張類型
+        </h2>
+        <ul class="space-y-1" role="list">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">西洋骨牌</span><span class="flex gap-3 flex-wrap"><a href="03-tiles-dice/dominoes.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">日式麻將</span><span class="flex gap-3 flex-wrap"><a href="03-tiles-dice/japanese-mahjong.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">快艇骰子</span><span class="flex gap-3 flex-wrap"><a href="03-tiles-dice/yahtzee.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">麻將對對消</span><span class="flex gap-3 flex-wrap"><a href="03-tiles-dice/mahjong-solitaire.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+        </ul>
+      </article>
+
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-sports">
+        <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
+          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          04 運動機檯類型
+        </h2>
+        <ul class="space-y-1" role="list">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">高爾夫球</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/golf.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">飛鏢</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/darts.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">氣墊球</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/air-hockey.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">撞球</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/billiards.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">保齡球</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/bowling.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">射靶</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/target-shooting.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">釣魚</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/fishing.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">玩具網球</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/toy-tennis.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">玩具足球</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/toy-football.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">玩具冰壺</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/toy-curling.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">玩具拳擊</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/toy-boxing.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">玩具棒球</span><span class="flex gap-3 flex-wrap"><a href="04-sports-arcade/toy-baseball.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+        </ul>
+      </article>
+
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-puzzle">
+        <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
+          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
+          05 串聯拼砌類型
+        </h2>
+        <ul class="space-y-1" role="list">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">章魚燒</span><span class="flex gap-3 flex-wrap"><a href="05-puzzle/takoyaki.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">滑塊益智</span><span class="flex gap-3 flex-wrap"><a href="05-puzzle/sliding-puzzle.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">6連珠益智</span><span class="flex gap-3 flex-wrap"><a href="05-puzzle/six-puzzle.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+        </ul>
+      </article>
+
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-minigames">
+        <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
+          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 010-4V7a2 2 0 00-2-2H5z" /></svg>
+          06 迷你遊戲類型
+        </h2>
+        <ul class="space-y-1" role="list">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">彈戲</span><span class="flex gap-3 flex-wrap"><a href="06-minigames/pachinko.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">軌道車</span><span class="flex gap-3 flex-wrap"><a href="06-minigames/slot-cars.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">猜顏色</span><span class="flex gap-3 flex-wrap"><a href="06-minigames/guess-the-color.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">豬尾巴</span><span class="flex gap-3 flex-wrap"><a href="06-minigames/pigs-tail.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">坦克對決</span><span class="flex gap-3 flex-wrap"><a href="06-minigames/tank-battle.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0"><span class="font-tc text-slate-200 min-w-[8rem]">協力坦克</span><span class="flex gap-3 flex-wrap"><a href="06-minigames/coop-tanks.md" class="link-spec text-secondary cursor-pointer">規格</a><span class="text-slate-500 text-sm">尚未實作</span></span></li>
+        </ul>
+      </article>
+    </section>
+
+    <footer class="mt-12 sm:mt-16 pt-8 border-t border-white/10 text-slate-500 text-sm">
+      <p class="font-tc">
+        規格文件與架構說明：<a href="README.md" class="text-secondary cursor-pointer hover:text-secondary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">README</a>
+        · <a href="docs/PROJECT-STRUCTURE.md" class="text-secondary cursor-pointer hover:text-secondary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">專案架構與部署指南</a>
+      </p>
+    </footer>
+  </main>
+</body>
+</html>

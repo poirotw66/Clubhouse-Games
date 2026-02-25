@@ -1,0 +1,5 @@
+{
+  "name": "Blackjack",
+  "description": "A classic Blackjack card game with betting, splitting, and double down features.",
+  "requestFramePermissions": []
+}

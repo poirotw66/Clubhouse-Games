@@ -1,0 +1,11 @@
+{
+  "name": "clubhouse-games",
+  "private": true,
+  "description": "Game specs and game overview menu; subprojects under Games/",
+  "scripts": {
+    "dev": "node server.mjs",
+    "build:game": "node scripts/build-game.mjs",
+    "build:pages": "node scripts/build-for-pages.mjs"
+  },
+  "devDependencies": {}
+}

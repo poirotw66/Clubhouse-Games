@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clubhouse Games｜遊戲總覽</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --card: #24283b;
+      --text: #c0caf5;
+      --muted: #565f89;
+      --accent: #7aa2f7;
+      --done: #9ece6a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Noto Sans TC", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 1.5rem;
+      max-width: 56rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem; }
+    section { margin-bottom: 2.5rem; }
+    .category-title {
+      font-size: 1.1rem;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--muted);
+    }
+    ul { list-style: none; padding: 0; margin: 0; }
+    .game-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(86, 95, 137, 0.3);
+    }
+    .game-item:last-child { border-bottom: none; }
+    .game-name { min-width: 8rem; }
+    .game-links { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .game-links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .game-links a:hover { text-decoration: underline; }
+    .game-links .play { color: var(--done); }
+    .game-links .na { color: var(--muted); font-size: 0.85rem; }
+    footer { margin-top: 2rem; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>Clubhouse Games</h1>
+  <p class="subtitle">遊戲總覽選單 · 點選「規格」查看玩法，點選「進入遊戲」開始遊玩（已實作項目）。</p>
+
+  <section>
+    <h2 class="category-title">01 紙牌類型</h2>
+    <ul>
+      <li class="game-item"><span class="game-name">二十一點</span><span class="game-links"><a href="01-cards/blackjack.md">規格</a><a class="play" href="Games/Blackjack-main/">進入遊戲</a></span></li>
+      <li class="game-item"><span class="game-name">花牌</span><span class="game-links"><a href="01-cards/hanafuda.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">大富豪</span><span class="game-links"><a href="01-cards/president.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">快速接龍</span><span class="game-links"><a href="01-cards/speed-solitaire.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">排七</span><span class="game-links"><a href="01-cards/sevens.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">連環新接龍</span><span class="game-links"><a href="01-cards/freecell.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">德州撲克</span><span class="game-links"><a href="01-cards/texas-holdem.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">比大小</span><span class="game-links"><a href="01-cards/war.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">最後一張牌</span><span class="game-links"><a href="01-cards/last-card.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">接龍</span><span class="game-links"><a href="01-cards/klondike.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">記憶卡牌</span><span class="game-links"><a href="01-cards/memory-cards.md">規格</a><span class="na">尚未實作</span></span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="category-title">02 棋盤類型</h2>
+    <ul>
+      <li class="game-item"><span class="game-name">播棋</span><span class="game-links"><a href="02-board/mancala.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">雙陸棋</span><span class="game-links"><a href="02-board/backgammon.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">黑白棋</span><span class="game-links"><a href="02-board/reversi.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">西洋跳棋</span><span class="game-links"><a href="02-board/checkers.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">四子棋</span><span class="game-links"><a href="02-board/connect-four.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">英國十字戲</span><span class="game-links"><a href="02-board/ludo.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">西洋棋</span><span class="game-links"><a href="02-board/chess.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">將棋</span><span class="game-links"><a href="02-board/shogi.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">兔子和獵犬</span><span class="game-links"><a href="02-board/hare-and-hounds.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">五子棋／5五將棋</span><span class="game-links"><a href="02-board/gomoku.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">直棋</span><span class="game-links"><a href="02-board/nine-mens-morris.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">六貫棋</span><span class="game-links"><a href="02-board/rithmomachy.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">中國跳棋</span><span class="game-links"><a href="02-board/chinese-checkers.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">點格棋</span><span class="game-links"><a href="02-board/dots-and-boxes.md">規格</a><span class="na">尚未實作</span></span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="category-title">03 牌張類型</h2>
+    <ul>
+      <li class="game-item"><span class="game-name">西洋骨牌</span><span class="game-links"><a href="03-tiles-dice/dominoes.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">日式麻將</span><span class="game-links"><a href="03-tiles-dice/japanese-mahjong.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">快艇骰子</span><span class="game-links"><a href="03-tiles-dice/yahtzee.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">麻將對對消</span><span class="game-links"><a href="03-tiles-dice/mahjong-solitaire.md">規格</a><span class="na">尚未實作</span></span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="category-title">04 運動機檯類型</h2>
+    <ul>
+      <li class="game-item"><span class="game-name">高爾夫球</span><span class="game-links"><a href="04-sports-arcade/golf.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">飛鏢</span><span class="game-links"><a href="04-sports-arcade/darts.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">氣墊球</span><span class="game-links"><a href="04-sports-arcade/air-hockey.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">撞球</span><span class="game-links"><a href="04-sports-arcade/billiards.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">保齡球</span><span class="game-links"><a href="04-sports-arcade/bowling.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">射靶</span><span class="game-links"><a href="04-sports-arcade/target-shooting.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">釣魚</span><span class="game-links"><a href="04-sports-arcade/fishing.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">玩具網球</span><span class="game-links"><a href="04-sports-arcade/toy-tennis.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">玩具足球</span><span class="game-links"><a href="04-sports-arcade/toy-football.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">玩具冰壺</span><span class="game-links"><a href="04-sports-arcade/toy-curling.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">玩具拳擊</span><span class="game-links"><a href="04-sports-arcade/toy-boxing.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">玩具棒球</span><span class="game-links"><a href="04-sports-arcade/toy-baseball.md">規格</a><span class="na">尚未實作</span></span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="category-title">05 串聯拼砌類型</h2>
+    <ul>
+      <li class="game-item"><span class="game-name">章魚燒</span><span class="game-links"><a href="05-puzzle/takoyaki.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">滑塊益智</span><span class="game-links"><a href="05-puzzle/sliding-puzzle.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">6連珠益智</span><span class="game-links"><a href="05-puzzle/six-puzzle.md">規格</a><span class="na">尚未實作</span></span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="category-title">06 迷你遊戲類型</h2>
+    <ul>
+      <li class="game-item"><span class="game-name">彈戲</span><span class="game-links"><a href="06-minigames/pachinko.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">軌道車</span><span class="game-links"><a href="06-minigames/slot-cars.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">猜顏色</span><span class="game-links"><a href="06-minigames/guess-the-color.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">豬尾巴</span><span class="game-links"><a href="06-minigames/pigs-tail.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">坦克對決</span><span class="game-links"><a href="06-minigames/tank-battle.md">規格</a><span class="na">尚未實作</span></span></li>
+      <li class="game-item"><span class="game-name">協力坦克</span><span class="game-links"><a href="06-minigames/coop-tanks.md">規格</a><span class="na">尚未實作</span></span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>規格文件與架構說明：<a href="README.md">README</a> · <a href="docs/PROJECT-STRUCTURE.md">專案架構與部署指南</a></p>
+  </footer>
+</body>
+</html>
