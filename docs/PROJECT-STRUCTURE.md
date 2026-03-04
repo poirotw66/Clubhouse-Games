@@ -19,7 +19,8 @@ Clubhouse-Games/
 ├── 05-puzzle/              # 串聯拼砌類規格（.md）
 ├── 06-minigames/           # 迷你遊戲類規格（.md）
 └── Games/                  # 各遊戲實作（每款一子資料夾）
-    └── Blackjack-main/     # 已實作：二十一點
+    ├── Blackjack-main/     # 已實作：二十一點
+    └── Mystery-Liquid-Sort/ # 已實作：神秘液體排序
         ├── index.html
         ├── package.json
         ├── vite.config.ts
@@ -42,13 +43,13 @@ Clubhouse-Games/
 | 專案名 | 可與規格檔名對應（如 `blackjack`、`klondike`），或保留既有名稱（如 `Blackjack-main`） |
 | 建置輸出 | 建議將 Vite/Webpack 的 `dist` 建置到該子資料夾內，或由 CI 將 `dist` 內容複製到 `Games/<名>/` 供 GitHub Pages 提供 |
 
-### 現有範例：Blackjack
+### 現有範例：Blackjack、Mystery-Liquid-Sort
 
-- 路徑：`Games/Blackjack-main/`
-- 技術：Vite + React + TypeScript
-- 建置：在根目錄執行 `npm run build:game Blackjack-main`，或進入該目錄執行 `npm run build`；輸出至 `Games/Blackjack-main/dist/`。
-- **本地單一服務**：`server.mjs` 會把 `/Games/Blackjack-main/` 的請求對應到 `Games/Blackjack-main/dist/`，故 Vite 需設定 `base: '/Games/Blackjack-main/'`，建置後資源路徑才會正確。
-- **GitHub Pages**：部署時可將 `dist/` 內容複製到 `Games/Blackjack-main/`（或由 CI 建置並輸出到該路徑），並在 Vite 建置時使用 `base: '/Clubhouse-Games/Games/Blackjack-main/'`。
+- **Blackjack**：路徑 `Games/Blackjack-main/`；技術 Vite + React + TypeScript。
+- **Mystery-Liquid-Sort**：路徑 `Games/Mystery-Liquid-Sort/`；技術 Vite + React + TypeScript；規格見 `05-puzzle/mystery-liquid-sort.md`。
+- 建置：在根目錄執行 `npm run build:game Blackjack-main` 或 `npm run build:game Mystery-Liquid-Sort`，或進入該目錄執行 `npm run build`；輸出至 `Games/<名>/dist/`。
+- **本地單一服務**：`server.mjs` 會把 `/Games/<名>/` 的請求對應到 `Games/<名>/dist/`；Vite 建議使用 `base: process.env.BASE_URL || './'`，本地以相對路徑即可。
+- **GitHub Pages**：執行 `npm run build:pages`（或 CI）時會設定 `BASE_URL=/Clubhouse-Games/Games/<名>/`，建置後將 `dist/` 內容複製到輸出之 `Games/<名>/`。
 
 ---
 
@@ -116,6 +117,7 @@ Clubhouse-Games/
 | 紙牌 | 01-cards/blackjack.md | Blackjack-main（已實作） |
 | 紙牌 | 01-cards/klondike.md | klondike |
 | 紙牌 | 01-cards/hanafuda.md | hanafuda |
+| 益智 | 05-puzzle/mystery-liquid-sort.md | Mystery-Liquid-Sort（已實作） |
 | … | … | … |
 
 其餘遊戲依相同規則：規格在對應類別資料夾，實作在 `Games/<專案名>/`，選單同時連結規格與遊戲入口。
