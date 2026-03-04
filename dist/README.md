@@ -5,7 +5,7 @@
 - **遊戲總覽選單**：[index.html](index.html)（站台首頁，可選取遊戲進入）
 - **架構與部署**：[docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md)（文件架構、Games 放置約定）
 - **GitHub Pages 建置與部署**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（建置流程、CI、本地 build:pages）
-- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)
+- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
 ### 本地啟動（單一服務）
 
@@ -15,10 +15,13 @@
    ```bash
    npm install
    cd Games/Blackjack-main && npm install && cd ../..
+   cd Games/Mystery-Liquid-Sort && npm install && cd ../..
    ```
-2. 建置要玩的遊戲（例如二十一點）：
+2. 建置要玩的遊戲（例如二十一點或神秘液體排序）：
    ```bash
    npm run build:game Blackjack-main
+   # 或
+   npm run build:game Mystery-Liquid-Sort
    ```
 3. 啟動：
    ```bash
@@ -96,6 +99,7 @@
 - [ ] [六塊拼圖](05-puzzle/six-puzzle.md)
 - [ ] [滑動拼圖](05-puzzle/sliding-puzzle.md)
 - [ ] [章魚燒](05-puzzle/takoyaki.md)
+- [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
 ## 06-迷你遊戲
 - [ ] [合作坦克](06-minigames/coop-tanks.md)

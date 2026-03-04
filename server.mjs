@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
+const REPO_NAME = process.env.REPO_NAME || 'Clubhouse-Games';
 
 const MIME = {
   '.html': 'text/html',
@@ -73,7 +74,11 @@ function serveGameDist(res, gameDir, reqPath) {
 
 export const requestListener = (req, res) => {
   const url = new URL(req.url || '/', `http://localhost:${PORT}`);
-  const reqPath = decodeURIComponent(url.pathname);
+  const rawPath = decodeURIComponent(url.pathname);
+
+  const repoPrefix = `/${REPO_NAME}`;
+  const hasRepoPrefix = rawPath === repoPrefix || rawPath.startsWith(repoPrefix + '/');
+  const reqPath = hasRepoPrefix ? rawPath.slice(repoPrefix.length) || '/' : rawPath;
 
   if (reqPath.startsWith('/Games/')) {
     const rest = reqPath.slice('/Games/'.length);
@@ -84,7 +89,8 @@ export const requestListener = (req, res) => {
       if (subPath === '/' && !reqPath.endsWith('/')) {
         const distIndex = path.join(__dirname, 'Games', gameDir, 'dist', 'index.html');
         if (fs.existsSync(distIndex)) {
-          res.writeHead(301, { Location: reqPath + '/' });
+          const prefix = hasRepoPrefix ? repoPrefix : '';
+          res.writeHead(301, { Location: prefix + reqPath + '/' });
           res.end();
           return;
         }

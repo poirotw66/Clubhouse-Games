@@ -5,7 +5,7 @@
 - **遊戲總覽選單**：[index.html](index.html)（站台首頁，可選取遊戲進入）
 - **架構與部署**：[docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md)（文件架構、Games 放置約定）
 - **GitHub Pages 建置與部署**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（建置流程、CI、本地 build:pages）
-- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
+- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；連環新接龍（FreeCell） → [Games/FreeCell/](Games/FreeCell/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
 ### 本地啟動（單一服務）
 
@@ -47,8 +47,8 @@
 # 俱樂部遊戲
 
 ## 01-紙牌遊戲
-- [ ] [二十一點](01-cards/blackjack.md)
-- [ ] [接龍](01-cards/freecell.md)
+- [x] [二十一點](01-cards/blackjack.md) → [Games/Blackjack-main/](Games/Blackjack-main/)
+- [x] [連環新接龍（FreeCell）](01-cards/freecell.md) → [Games/FreeCell/](Games/FreeCell/)
 - [ ] [花札](01-cards/hanafuda.md)
 - [ ] [克朗代克接龍](01-cards/klondike.md)
 - [ ] [最後一張牌](01-cards/last-card.md)
