@@ -5,7 +5,7 @@
 - **遊戲總覽選單**：[index.html](index.html)（站台首頁，可選取遊戲進入）
 - **架構與部署**：[docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md)（文件架構、Games 放置約定）
 - **GitHub Pages 建置與部署**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（建置流程、CI、本地 build:pages）
-- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；連環新接龍（FreeCell） → [Games/FreeCell/](Games/FreeCell/)；最後一張牌（Last Card） → [Games/Last-Card/](Games/Last-Card/)；接龍（Klondike） → [Games/Klondike/](Games/Klondike/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
+- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；連環新接龍（FreeCell） → [Games/FreeCell/](Games/FreeCell/)；最後一張牌（Last Card） → [Games/Last-Card/](Games/Last-Card/)；接龍（Klondike） → [Games/Klondike/](Games/Klondike/)；羽毛球接殺訓練（Block the Smash） → [Games/Block-the-smash/](Games/Block-the-smash/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
 ### 本地啟動（單一服務）
 
@@ -94,6 +94,7 @@
 - [ ] [玩具冰壺](04-sports-arcade/toy-curling.md)
 - [ ] [玩具足球](04-sports-arcade/toy-football.md)
 - [ ] [玩具網球](04-sports-arcade/toy-tennis.md)
+- [x] [羽毛球接殺訓練](04-sports-arcade/badminton-smash.md) → [Games/Block-the-smash/](Games/Block-the-smash/)
 
 ## 05-益智遊戲
 - [ ] [六塊拼圖](05-puzzle/six-puzzle.md)
