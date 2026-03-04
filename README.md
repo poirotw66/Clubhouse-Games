@@ -5,7 +5,7 @@
 - **遊戲總覽選單**：[index.html](index.html)（站台首頁，可選取遊戲進入）
 - **架構與部署**：[docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md)（文件架構、Games 放置約定）
 - **GitHub Pages 建置與部署**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（建置流程、CI、本地 build:pages）
-- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；連環新接龍（FreeCell） → [Games/FreeCell/](Games/FreeCell/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
+- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；連環新接龍（FreeCell） → [Games/FreeCell/](Games/FreeCell/)；最後一張牌（Last Card） → [Games/Last-Card/](Games/Last-Card/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
 ### 本地啟動（單一服務）
 
@@ -51,7 +51,7 @@
 - [x] [連環新接龍（FreeCell）](01-cards/freecell.md) → [Games/FreeCell/](Games/FreeCell/)
 - [ ] [花札](01-cards/hanafuda.md)
 - [ ] [克朗代克接龍](01-cards/klondike.md)
-- [ ] [最後一張牌](01-cards/last-card.md)
+- [x] [最後一張牌](01-cards/last-card.md) → [Games/Last-Card/](Games/Last-Card/)
 - [ ] [記憶牌](01-cards/memory-cards.md)
 - [ ] [總統](01-cards/president.md)
 - [ ] [七並](01-cards/sevens.md)
