@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Fredoka', sans-serif;
+  background-color: #1a1a2e;
+  overflow: hidden;
+  touch-action: none;
+  /* Prevent text selection on mobile for better UX */
+  -webkit-user-select: none;
+  user-select: none;
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior-y: none;
+}
+
+/* Safe area support for iPhone notch and home indicator */
+@supports (padding: max(0px)) {
+  .safe-top {
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+  }
+  .safe-bottom {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+  .safe-left {
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+  .safe-right {
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
+/* Minimum touch target size (44x44px for accessibility) */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Improved touch feedback */
+.touch-active {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.touch-active:active {
+  transform: scale(0.95);
+}
+
+/* Unified Design System - Card Style */
+.card-unified {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth transitions for unified feel */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

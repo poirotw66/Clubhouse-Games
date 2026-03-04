@@ -1,0 +1,5 @@
+{
+  "name": "Last Card (Crazy Eights)",
+  "description": "A web-based implementation of the classic card game Last Card (Crazy Eights) where you play against 3 AI opponents.",
+  "requestFramePermissions": []
+}

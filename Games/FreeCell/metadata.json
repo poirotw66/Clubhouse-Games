@@ -1,0 +1,5 @@
+{
+  "name": "FreeCell Solitaire",
+  "description": "A classic FreeCell solitaire game with auto-move, undo, and an optional solving bot.",
+  "requestFramePermissions": []
+}
