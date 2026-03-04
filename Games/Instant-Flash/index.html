@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Instant Flash: Iai Training Grounds</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap');
+      
+      body {
+        font-family: 'Zen Kaku Gothic New', sans-serif;
+        background-color: #0f172a;
+        color: #e2e8f0;
+        overflow: hidden; /* Prevent scrolling during gameplay */
+        user-select: none; /* Prevent text selection */
+        -webkit-user-select: none;
+      }
+      
+      .font-display {
+        font-family: 'Orbitron', sans-serif;
+      }
+
+      /* Custom animations for game feel */
+      @keyframes flash-red {
+        0%, 100% { opacity: 0; }
+        50% { opacity: 1; }
+      }
+      
+      .animate-flash-red {
+        animation: flash-red 0.1s ease-in-out;
+      }
+
+      .crt-overlay {
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        background-size: 100% 2px, 3px 100%;
+        pointer-events: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
