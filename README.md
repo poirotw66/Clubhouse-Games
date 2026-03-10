@@ -63,7 +63,7 @@
 ## 02-棋盤遊戲
 - [ ] [播棋](02-board/mancala.md)
 - [ ] [雙陸棋](02-board/backgammon.md)
-- [ ] [黑白棋](02-board/reversi.md)
+- [x] [黑白棋](02-board/reversi.md) → [Games/Reversi/](Games/Reversi/)
 - [ ] [西洋跳棋](02-board/checkers.md)
 - [ ] [四子棋](02-board/connect-four.md)
 - [ ] [英國十字戲](02-board/ludo.md)
