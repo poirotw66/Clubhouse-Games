@@ -102,7 +102,7 @@
 - [ ] [章魚燒](05-puzzle/takoyaki.md)
 - [ ] [滑塊益智](05-puzzle/sliding-puzzle.md)
 - [ ] [6連珠益智](05-puzzle/six-puzzle.md)
-- [ ] [俄羅斯方塊](05-puzzle/tetris.md)
+- [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
 
 ## 06-迷你遊戲
 - [ ] [彈戲](06-minigames/pachinko.md)

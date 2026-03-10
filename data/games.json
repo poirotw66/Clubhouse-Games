@@ -84,7 +84,7 @@
         { "name": "章魚燒", "specPath": "05-puzzle/takoyaki.md" },
         { "name": "滑塊益智", "specPath": "05-puzzle/sliding-puzzle.md" },
         { "name": "6連珠益智", "specPath": "05-puzzle/six-puzzle.md" },
-        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md" }
+        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" }
       ]
     },
     {
