@@ -105,3 +105,46 @@ export function getWinner(board: Board): Piece | 'draw' {
   if (white > black) return 'white';
   return 'draw';
 }
+
+/** Position weights for heuristic: corners best, then edges. */
+const SQUARE_WEIGHT = [
+  [100, -20, 10, 5, 5, 10, -20, 100],
+  [-20, -50, -2, -2, -2, -2, -50, -20],
+  [10, -2, 1, 0, 0, 1, -2, 10],
+  [5, -2, 0, 0, 0, 0, -2, 5],
+  [5, -2, 0, 0, 0, 0, -2, 5],
+  [10, -2, 1, 0, 0, 1, -2, 10],
+  [-20, -50, -2, -2, -2, -2, -50, -20],
+  [100, -20, 10, 5, 5, 10, -20, 100],
+];
+
+/**
+ * Pick a legal move for the bot using position weights.
+ * Prefers corners and edges, avoids giving opponent corners when possible.
+ */
+export function getBestMove(board: Board, color: Piece): [number, number] | null {
+  const moves = getLegalMoves(board, color);
+  if (moves.length === 0) return null;
+  const opp: Piece = color === 'black' ? 'white' : 'black';
+  let bestScore = -Infinity;
+  let best: [number, number] = moves[0];
+  for (const [r, c] of moves) {
+    const next = applyMove(board, r, c, color);
+    let score = SQUARE_WEIGHT[r][c];
+    for (let i = 0; i < SIZE; i++) {
+      for (let j = 0; j < SIZE; j++) {
+        if (next[i][j] === color) score += SQUARE_WEIGHT[i][j];
+        else if (next[i][j] === opp) score -= SQUARE_WEIGHT[i][j];
+      }
+    }
+    const oppMoves = getLegalMoves(next, opp);
+    for (const [or, oc] of oppMoves) {
+      if (SQUARE_WEIGHT[or][oc] >= 100) score -= 80;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = [r, c];
+    }
+  }
+  return best;
+}
