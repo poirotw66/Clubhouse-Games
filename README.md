@@ -40,7 +40,7 @@
 | 棋盤類型 | [02-board/](02-board/) | 14 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 4 |
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 13 |
-| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 4 |
+| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 5 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 7 |
 <!-- /GENERATED_TABLE -->
 
@@ -102,6 +102,7 @@
 - [ ] [章魚燒](05-puzzle/takoyaki.md)
 - [ ] [滑塊益智](05-puzzle/sliding-puzzle.md)
 - [ ] [6連珠益智](05-puzzle/six-puzzle.md)
+- [ ] [俄羅斯方塊](05-puzzle/tetris.md)
 
 ## 06-迷你遊戲
 - [ ] [彈戲](06-minigames/pachinko.md)

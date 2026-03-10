@@ -83,7 +83,8 @@
         { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
         { "name": "章魚燒", "specPath": "05-puzzle/takoyaki.md" },
         { "name": "滑塊益智", "specPath": "05-puzzle/sliding-puzzle.md" },
-        { "name": "6連珠益智", "specPath": "05-puzzle/six-puzzle.md" }
+        { "name": "6連珠益智", "specPath": "05-puzzle/six-puzzle.md" },
+        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md" }
       ]
     },
     {
