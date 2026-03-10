@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Build one game into its dist/ folder. Usage: npm run build:game Blackjack-main
- * The game must have base in vite.config set to /Games/<name>/ so assets load under the single dev server.
+ * Each game should use base: process.env.BASE_URL || './' in vite.config so that:
+ * - Local dev: no BASE_URL is set, base is relative and works under server.mjs (Games/<name>/dist/).
+ * - GitHub Pages: build-for-pages.mjs sets BASE_URL=/${REPO_NAME}/Games/<name>/ when building.
  */
 
 import { spawnSync } from 'child_process';

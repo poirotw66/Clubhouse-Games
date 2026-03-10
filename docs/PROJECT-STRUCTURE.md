@@ -8,8 +8,10 @@
 
 ```
 Clubhouse-Games/
-├── index.html              # 遊戲總覽選單（站台首頁，點選後進入各遊戲）
-├── README.md               # 專案說明與規格索引
+├── index.html              # 遊戲總覽選單（由 data/games.json 經 scripts/generate-from-data.mjs 產生）
+├── README.md               # 專案說明與規格索引（遊戲清單同上，由 data 產生）
+├── data/
+│   └── games.json          # 單一資料來源：分類與遊戲列表（規格路徑、是否已實作、遊戲資料夾名）
 ├── docs/
 │   └── PROJECT-STRUCTURE.md   # 本文件：架構與部署指南
 ├── 01-cards/               # 紙牌類規格（.md）
@@ -30,7 +32,7 @@ Clubhouse-Games/
 
 - **規格文件**：僅放在 `01-cards/`～`06-minigames/`，不包含程式碼。  
 - **遊戲實作**：每款遊戲一個獨立子專案，放在 `Games/<遊戲專案名>/`。  
-- **總覽選單**：根目錄 `index.html` 為 GitHub Pages 首頁，列出所有遊戲並連結至規格與遊戲入口。
+- **總覽選單**：根目錄 `index.html` 為 GitHub Pages 首頁，列出所有遊戲並連結至規格與遊戲入口；選單與 README 遊戲清單由 `data/games.json` 驅動，執行 `npm run generate` 可重新產生。
 - **本地單一服務**：根目錄執行 `npm run dev` 只會啟動 **一個** Node 伺服器（`server.mjs`），提供選單與靜態檔；各遊戲從 `Games/<名>/dist/` 提供（需先 `npm run build:game <名>`）。不會因遊戲變多而開多個服務。
 
 ---
@@ -101,12 +103,11 @@ Clubhouse-Games/
    - 若有 `metadata.json` 或類似設定，可一併加入（方便未來擴充選單資訊）。
 
 3. **建置與路徑**  
-   - 在該遊戲的 `vite.config.ts` 設定 `base: '/Clubhouse-Games/Games/<專案名>/'`。  
+   - 在該遊戲的 `vite.config.ts` 使用 `base: process.env.BASE_URL || './'`，不要寫死絕對路徑。本地執行 `npm run build:game <名>` 時不帶 `BASE_URL`，產物以相對路徑在 dev server 下正常載入；部署時由 `build-for-pages.mjs` 或 CI 設定 `BASE_URL=/${REPO_NAME}/Games/<專案名>/` 再建置。  
    - 建置後將 `dist` 內容部署到 `Games/<專案名>/`（手動或 CI）。
 
 4. **總覽選單**  
-   - 在根目錄 `index.html` 中，將該遊戲的「進入遊戲」改為連結到 `Games/<專案名>/`（若選單為靜態維護）。  
-   - 若日後改為由 JSON 等資料驅動選單，則在資料來源中新增該遊戲的 path 與名稱即可。
+   - 選單與 README 遊戲清單由 `data/games.json` 驅動。在 `data/games.json` 對應類別的 `games` 陣列中新增一筆 `{ "name": "顯示名稱", "specPath": "01-cards/xxx.md", "gameFolder": "專案資料夾名" }`（未實作則省略 `gameFolder`），然後執行 `npm run generate` 更新 `index.html` 與 `README.md`。`npm run build:pages` 會自動先執行 generate。
 
 ---
 
