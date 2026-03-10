@@ -191,7 +191,6 @@ export default function App() {
         }
         if (key === ' ') {
           event.preventDefault();
-          // Hard drop
           let piece = prev.active;
           let rows = 0;
           while (true) {
@@ -200,11 +199,9 @@ export default function App() {
             piece = moved;
             rows += 1;
           }
-          return {
-            ...prev,
-            active: piece,
-            // Lock will be handled by lockPieceAndContinue
-          };
+          // Directly lock after hard drop
+          lockPieceAndContinue(rows);
+          return { ...prev, active: piece };
         }
         if (key === 'c' || key === 'C' || key === 'Shift') {
           event.preventDefault();
