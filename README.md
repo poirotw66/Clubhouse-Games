@@ -105,9 +105,9 @@
 - [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
 
 ## 06-迷你遊戲
-- [ ] [彈戲](06-minigames/pachinko.md)
-- [ ] [軌道車](06-minigames/slot-cars.md)
-- [ ] [猜顏色](06-minigames/guess-the-color.md)
+- [x] [彈戲](06-minigames/pachinko.md) → [Games/Pachinko/](Games/Pachinko/)
+- [x] [軌道車](06-minigames/slot-cars.md) → [Games/Slot-Cars/](Games/Slot-Cars/)
+- [x] [猜顏色](06-minigames/guess-the-color.md) → [Games/Guess-the-Color/](Games/Guess-the-Color/)
 - [ ] [豬尾巴](06-minigames/pigs-tail.md)
 - [ ] [坦克對決](06-minigames/tank-battle.md)
 - [ ] [協力坦克](06-minigames/coop-tanks.md)

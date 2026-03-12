@@ -93,9 +93,9 @@
       "readmeTitle": "06-迷你遊戲",
       "htmlId": "category-minigames",
       "games": [
-        { "name": "彈戲", "specPath": "06-minigames/pachinko.md" },
-        { "name": "軌道車", "specPath": "06-minigames/slot-cars.md" },
-        { "name": "猜顏色", "specPath": "06-minigames/guess-the-color.md" },
+        { "name": "彈戲", "specPath": "06-minigames/pachinko.md", "gameFolder": "Pachinko" },
+        { "name": "軌道車", "specPath": "06-minigames/slot-cars.md", "gameFolder": "Slot-Cars" },
+        { "name": "猜顏色", "specPath": "06-minigames/guess-the-color.md", "gameFolder": "Guess-the-Color" },
         { "name": "豬尾巴", "specPath": "06-minigames/pigs-tail.md" },
         { "name": "坦克對決", "specPath": "06-minigames/tank-battle.md" },
         { "name": "協力坦克", "specPath": "06-minigames/coop-tanks.md" },
