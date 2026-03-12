@@ -1,0 +1,5 @@
+{
+  "name": "玩具棒球 (Toy Baseball)",
+  "description": "一個模擬棒球打擊與投球的運動機檯遊戲。玩家可以體驗打擊時機與投球策略，在三局比賽中爭取最高得分。",
+  "requestFramePermissions": []
+}

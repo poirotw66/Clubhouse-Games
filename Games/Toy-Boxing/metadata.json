@@ -1,0 +1,5 @@
+{
+  "name": "玩具拳擊 (Toy Boxing)",
+  "description": "一個模擬拳擊對戰的機檯風格遊戲，支持雙人對戰或挑戰電腦。包含體力條、計分系統與多回合制。",
+  "requestFramePermissions": []
+}

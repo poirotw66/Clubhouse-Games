@@ -33,19 +33,20 @@
 
 ## 目錄結構
 
+<!-- GENERATED_TABLE -->
 | 類別 | 資料夾 | 遊戲數 |
 |------|--------|--------|
 | 紙牌類型 | [01-cards/](01-cards/) | 11 |
 | 棋盤類型 | [02-board/](02-board/) | 14 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 4 |
-| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 12 |
-| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 3 |
-| 迷你遊戲類型 | [06-minigames/](06-minigames/) | 6 |
-
-
+| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 13 |
+| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 5 |
+| 迷你遊戲類型 | [06-minigames/](06-minigames/) | 7 |
+<!-- /GENERATED_TABLE -->
 
 # 俱樂部遊戲
 
+<!-- GENERATED_GAMES_CHECKLIST -->
 ## 01-紙牌遊戲
 - [x] [二十一點](01-cards/blackjack.md) → [Games/Blackjack-main/](Games/Blackjack-main/)
 - [x] [連環新接龍（FreeCell）](01-cards/freecell.md) → [Games/FreeCell/](Games/FreeCell/)
@@ -60,53 +61,55 @@
 - [ ] [戰爭](01-cards/war.md)
 
 ## 02-棋盤遊戲
-- [ ] [西洋雙陸棋](02-board/backgammon.md)
-- [ ] [西洋跳棋](02-board/checkers.md)
+- [ ] [播棋](02-board/mancala.md)
+- [ ] [雙陸棋](02-board/backgammon.md)
+- [x] [黑白棋](02-board/reversi.md) → [Games/Reversi/](Games/Reversi/)
+- [x] [西洋跳棋](02-board/checkers.md) → [Games/Checkers/](Games/Checkers/)
+- [x] [四子棋](02-board/connect-four.md) → [Games/Connect-Four/](Games/Connect-Four/)
+- [ ] [英國十字戲](02-board/ludo.md)
 - [ ] [西洋棋](02-board/chess.md)
-- [ ] [中國跳棋](02-board/chinese-checkers.md)
-- [ ] [四子棋](02-board/connect-four.md)
-- [ ] [連點成方](02-board/dots-and-boxes.md)
-- [ ] [五子棋](02-board/gomoku.md)
-- [ ] [野兔與獵犬](02-board/hare-and-hounds.md)
-- [ ] [飛行棋](02-board/ludo.md)
-- [ ] [曼卡拉](02-board/mancala.md)
-- [ ] [九子棋](02-board/nine-mens-morris.md)
-- [ ] [黑白棋](02-board/reversi.md)
-- [ ] [數字棋](02-board/rithmomachy.md)
 - [ ] [將棋](02-board/shogi.md)
+- [ ] [兔子和獵犬](02-board/hare-and-hounds.md)
+- [ ] [五子棋／5五將棋](02-board/gomoku.md)
+- [ ] [直棋](02-board/nine-mens-morris.md)
+- [ ] [六貫棋](02-board/rithmomachy.md)
+- [ ] [中國跳棋](02-board/chinese-checkers.md)
+- [ ] [點格棋](02-board/dots-and-boxes.md)
 
 ## 03-牌塊與骰子
-- [ ] [骨牌](03-tiles-dice/dominoes.md)
-- [ ] [日本麻將](03-tiles-dice/japanese-mahjong.md)
-- [ ] [麻將接龍](03-tiles-dice/mahjong-solitaire.md)
-- [ ] [大富翁骰子](03-tiles-dice/yahtzee.md)
+- [ ] [西洋骨牌](03-tiles-dice/dominoes.md)
+- [ ] [日式麻將](03-tiles-dice/japanese-mahjong.md)
+- [ ] [快艇骰子](03-tiles-dice/yahtzee.md)
+- [ ] [麻將對對消](03-tiles-dice/mahjong-solitaire.md)
 
 ## 04-運動與街機
-- [ ] [空氣曲棍球](04-sports-arcade/air-hockey.md)
+- [ ] [高爾夫球](04-sports-arcade/golf.md)
+- [ ] [飛鏢](04-sports-arcade/darts.md)
+- [ ] [氣墊球](04-sports-arcade/air-hockey.md)
 - [ ] [撞球](04-sports-arcade/billiards.md)
 - [ ] [保齡球](04-sports-arcade/bowling.md)
-- [ ] [飛鏢](04-sports-arcade/darts.md)
+- [ ] [射靶](04-sports-arcade/target-shooting.md)
 - [ ] [釣魚](04-sports-arcade/fishing.md)
-- [ ] [高爾夫](04-sports-arcade/golf.md)
-- [ ] [射擊靶](04-sports-arcade/target-shooting.md)
-- [ ] [玩具棒球](04-sports-arcade/toy-baseball.md)
-- [ ] [玩具拳擊](04-sports-arcade/toy-boxing.md)
-- [ ] [玩具冰壺](04-sports-arcade/toy-curling.md)
-- [ ] [玩具足球](04-sports-arcade/toy-football.md)
 - [ ] [玩具網球](04-sports-arcade/toy-tennis.md)
+- [ ] [玩具足球](04-sports-arcade/toy-football.md)
+- [ ] [玩具冰壺](04-sports-arcade/toy-curling.md)
+- [x] [玩具拳擊](04-sports-arcade/toy-boxing.md) → [Games/Toy-Boxing/](Games/Toy-Boxing/)
+- [x] [玩具棒球](04-sports-arcade/toy-baseball.md) → [Games/Toy-Baseball/](Games/Toy-Baseball/)
 - [x] [羽毛球接殺訓練](04-sports-arcade/badminton-smash.md) → [Games/Block-the-smash/](Games/Block-the-smash/)
 
 ## 05-益智遊戲
-- [ ] [六塊拼圖](05-puzzle/six-puzzle.md)
-- [ ] [滑動拼圖](05-puzzle/sliding-puzzle.md)
-- [ ] [章魚燒](05-puzzle/takoyaki.md)
 - [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
+- [ ] [章魚燒](05-puzzle/takoyaki.md)
+- [ ] [滑塊益智](05-puzzle/sliding-puzzle.md)
+- [ ] [6連珠益智](05-puzzle/six-puzzle.md)
+- [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
 
 ## 06-迷你遊戲
-- [ ] [合作坦克](06-minigames/coop-tanks.md)
+- [ ] [彈戲](06-minigames/pachinko.md)
+- [ ] [軌道車](06-minigames/slot-cars.md)
 - [ ] [猜顏色](06-minigames/guess-the-color.md)
-- [ ] [彈珠台](06-minigames/pachinko.md)
 - [ ] [豬尾巴](06-minigames/pigs-tail.md)
-- [ ] [軌道賽車](06-minigames/slot-cars.md)
-- [ ] [坦克大戰](06-minigames/tank-battle.md)
+- [ ] [坦克對決](06-minigames/tank-battle.md)
+- [ ] [協力坦克](06-minigames/coop-tanks.md)
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
+<!-- /GENERATED_GAMES_CHECKLIST -->

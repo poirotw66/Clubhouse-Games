@@ -93,8 +93,8 @@
 - [ ] [玩具網球](04-sports-arcade/toy-tennis.md)
 - [ ] [玩具足球](04-sports-arcade/toy-football.md)
 - [ ] [玩具冰壺](04-sports-arcade/toy-curling.md)
-- [ ] [玩具拳擊](04-sports-arcade/toy-boxing.md)
-- [ ] [玩具棒球](04-sports-arcade/toy-baseball.md)
+- [x] [玩具拳擊](04-sports-arcade/toy-boxing.md) → [Games/Toy-Boxing/](Games/Toy-Boxing/)
+- [x] [玩具棒球](04-sports-arcade/toy-baseball.md) → [Games/Toy-Baseball/](Games/Toy-Baseball/)
 - [x] [羽毛球接殺訓練](04-sports-arcade/badminton-smash.md) → [Games/Block-the-smash/](Games/Block-the-smash/)
 
 ## 05-益智遊戲
