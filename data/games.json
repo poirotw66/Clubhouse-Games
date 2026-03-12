@@ -97,7 +97,7 @@
         { "name": "軌道車", "specPath": "06-minigames/slot-cars.md", "gameFolder": "Slot-Cars" },
         { "name": "猜顏色", "specPath": "06-minigames/guess-the-color.md", "gameFolder": "Guess-the-Color" },
         { "name": "豬尾巴", "specPath": "06-minigames/pigs-tail.md" },
-        { "name": "坦克對決", "specPath": "06-minigames/tank-battle.md" },
+        { "name": "坦克對決", "specPath": "06-minigames/tank-battle.md", "gameFolder": "Tank-Battle" },
         { "name": "協力坦克", "specPath": "06-minigames/coop-tanks.md" },
         { "name": "武士反應訓練", "specPath": "06-minigames/instant-flash.md", "gameFolder": "Instant-Flash" }
       ]

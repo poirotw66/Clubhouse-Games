@@ -109,7 +109,7 @@
 - [x] [軌道車](06-minigames/slot-cars.md) → [Games/Slot-Cars/](Games/Slot-Cars/)
 - [x] [猜顏色](06-minigames/guess-the-color.md) → [Games/Guess-the-Color/](Games/Guess-the-Color/)
 - [ ] [豬尾巴](06-minigames/pigs-tail.md)
-- [ ] [坦克對決](06-minigames/tank-battle.md)
+- [x] [坦克對決](06-minigames/tank-battle.md) → [Games/Tank-Battle/](Games/Tank-Battle/)
 - [ ] [協力坦克](06-minigames/coop-tanks.md)
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
 <!-- /GENERATED_GAMES_CHECKLIST -->
