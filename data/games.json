@@ -47,9 +47,9 @@
       "readmeTitle": "03-牌塊與骰子",
       "htmlId": "category-tiles",
       "games": [
-        { "name": "西洋骨牌", "specPath": "03-tiles-dice/dominoes.md" },
+        { "name": "西洋骨牌", "specPath": "03-tiles-dice/dominoes.md", "gameFolder": "Dominoes" },
         { "name": "日式麻將", "specPath": "03-tiles-dice/japanese-mahjong.md" },
-        { "name": "快艇骰子", "specPath": "03-tiles-dice/yahtzee.md" },
+        { "name": "快艇骰子", "specPath": "03-tiles-dice/yahtzee.md", "gameFolder": "Yahtzee" },
         { "name": "麻將對對消", "specPath": "03-tiles-dice/mahjong-solitaire.md" }
       ]
     },
@@ -66,8 +66,8 @@
         { "name": "保齡球", "specPath": "04-sports-arcade/bowling.md" },
         { "name": "射靶", "specPath": "04-sports-arcade/target-shooting.md" },
         { "name": "釣魚", "specPath": "04-sports-arcade/fishing.md" },
-        { "name": "玩具網球", "specPath": "04-sports-arcade/toy-tennis.md" },
-        { "name": "玩具足球", "specPath": "04-sports-arcade/toy-football.md" },
+        { "name": "玩具網球", "specPath": "04-sports-arcade/toy-tennis.md", "gameFolder": "Toy-Tennis" },
+        { "name": "玩具足球", "specPath": "04-sports-arcade/toy-football.md", "gameFolder": "Toy-Football" },
         { "name": "玩具冰壺", "specPath": "04-sports-arcade/toy-curling.md" },
         { "name": "玩具拳擊", "specPath": "04-sports-arcade/toy-boxing.md", "gameFolder": "Toy-Boxing" },
         { "name": "玩具棒球", "specPath": "04-sports-arcade/toy-baseball.md", "gameFolder": "Toy-Baseball" },
@@ -81,7 +81,7 @@
       "htmlId": "category-puzzle",
       "games": [
         { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
-        { "name": "章魚燒", "specPath": "05-puzzle/takoyaki.md" },
+        { "name": "章魚燒", "specPath": "05-puzzle/takoyaki.md", "gameFolder": "Takoyaki" },
         { "name": "滑塊益智", "specPath": "05-puzzle/sliding-puzzle.md" },
         { "name": "6連珠益智", "specPath": "05-puzzle/six-puzzle.md" },
         { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" }

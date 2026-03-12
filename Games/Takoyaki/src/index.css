@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+
+.steam-container {
+  position: relative;
+  width: 60%;
+  height: 40%;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+.steam {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  animation: steam 1.5s ease-out infinite;
+  bottom: 0;
+}
+.steam.s1 { left: 20%; animation-delay: 0s; }
+.steam.s2 { left: 50%; transform: translateX(-50%); animation-delay: 0.3s; }
+.steam.s3 { right: 20%; left: auto; animation-delay: 0.6s; }
+
+@keyframes steam {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  50% { opacity: 0.5; }
+  100% { opacity: 0; transform: translateY(-14px) scale(1.4); }
+}

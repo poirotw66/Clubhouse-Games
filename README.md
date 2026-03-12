@@ -77,9 +77,9 @@
 - [ ] [點格棋](02-board/dots-and-boxes.md)
 
 ## 03-牌塊與骰子
-- [ ] [西洋骨牌](03-tiles-dice/dominoes.md)
+- [x] [西洋骨牌](03-tiles-dice/dominoes.md) → [Games/Dominoes/](Games/Dominoes/)
 - [ ] [日式麻將](03-tiles-dice/japanese-mahjong.md)
-- [ ] [快艇骰子](03-tiles-dice/yahtzee.md)
+- [x] [快艇骰子](03-tiles-dice/yahtzee.md) → [Games/Yahtzee/](Games/Yahtzee/)
 - [ ] [麻將對對消](03-tiles-dice/mahjong-solitaire.md)
 
 ## 04-運動與街機
@@ -90,8 +90,8 @@
 - [ ] [保齡球](04-sports-arcade/bowling.md)
 - [ ] [射靶](04-sports-arcade/target-shooting.md)
 - [ ] [釣魚](04-sports-arcade/fishing.md)
-- [ ] [玩具網球](04-sports-arcade/toy-tennis.md)
-- [ ] [玩具足球](04-sports-arcade/toy-football.md)
+- [x] [玩具網球](04-sports-arcade/toy-tennis.md) → [Games/Toy-Tennis/](Games/Toy-Tennis/)
+- [x] [玩具足球](04-sports-arcade/toy-football.md) → [Games/Toy-Football/](Games/Toy-Football/)
 - [ ] [玩具冰壺](04-sports-arcade/toy-curling.md)
 - [x] [玩具拳擊](04-sports-arcade/toy-boxing.md) → [Games/Toy-Boxing/](Games/Toy-Boxing/)
 - [x] [玩具棒球](04-sports-arcade/toy-baseball.md) → [Games/Toy-Baseball/](Games/Toy-Baseball/)
@@ -99,7 +99,7 @@
 
 ## 05-益智遊戲
 - [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
-- [ ] [章魚燒](05-puzzle/takoyaki.md)
+- [x] [章魚燒](05-puzzle/takoyaki.md) → [Games/Takoyaki/](Games/Takoyaki/)
 - [ ] [滑塊益智](05-puzzle/sliding-puzzle.md)
 - [ ] [6連珠益智](05-puzzle/six-puzzle.md)
 - [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
