@@ -1,83 +1,83 @@
-# Clubhouse Games 遊戲規格總覽
+# Clubhouse Games — Game Specifications Overview
 
-本專案收錄各款遊戲的規格與玩法說明文件，供後續開發使用；遊戲實作置於 `Games/` 下，可透過 **遊戲總覽選單** 進入各遊戲並部署於 GitHub Pages。
+This project collects specification and gameplay documents for each game, for use in subsequent development. Game implementations live under `Games/` and are accessible via the **Game Overview Menu**, with deployment on GitHub Pages.
 
-- **遊戲總覽選單**：[index.html](index.html)（站台首頁，可選取遊戲進入）
-- **架構與部署**：[docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md)（文件架構、Games 放置約定）
-- **GitHub Pages 建置與部署**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（建置流程、CI、本地 build:pages）
-- **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；連環新接龍（FreeCell） → [Games/FreeCell/](Games/FreeCell/)；最後一張牌（Last Card） → [Games/Last-Card/](Games/Last-Card/)；接龍（Klondike） → [Games/Klondike/](Games/Klondike/)；羽毛球接殺訓練（Block the Smash） → [Games/Block-the-smash/](Games/Block-the-smash/)；武士反應訓練（Instant Flash） → [Games/Instant-Flash/](Games/Instant-Flash/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
+- **Game Overview Menu**: [index.html](index.html) (site homepage; select a game to enter)
+- **Architecture and Deployment**: [docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md) (document structure, Games folder conventions)
+- **GitHub Pages Build and Deployment**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (build process, CI, local build:pages)
+- **Implemented examples**: Blackjack → [Games/Blackjack-main/](Games/Blackjack-main/); FreeCell → [Games/FreeCell/](Games/FreeCell/); Last Card → [Games/Last-Card/](Games/Last-Card/); Klondike → [Games/Klondike/](Games/Klondike/); Block the Smash → [Games/Block-the-smash/](Games/Block-the-smash/); Instant Flash → [Games/Instant-Flash/](Games/Instant-Flash/); Mystery Liquid Sort → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
-### 本地啟動（單一服務）
+### Local Development (Single Server)
 
-只會啟動 **一個** 開發伺服器，選單與所有已建置的遊戲都由同一個 port 提供。
+Only **one** development server is started; the menu and all built games are served from the same port.
 
-1. 在專案根目錄安裝依賴（子專案需各自安裝一次）：
+1. Install dependencies in the project root (sub-projects need to be installed separately):
    ```bash
    npm install
    cd Games/Blackjack-main && npm install && cd ../..
    cd Games/Mystery-Liquid-Sort && npm install && cd ../..
    ```
-2. 建置要玩的遊戲（例如二十一點或神秘液體排序）：
+2. Build the game(s) you want to play (e.g. Blackjack or Mystery Liquid Sort):
    ```bash
    npm run build:game Blackjack-main
-   # 或
+   # or
    npm run build:game Mystery-Liquid-Sort
    ```
-3. 啟動：
+3. Start the server:
    ```bash
    npm run dev
    ```
-4. 開啟 **http://localhost:3000**：總覽選單；點「進入遊戲」可進入已建置的遊戲（如二十一點）。
+4. Open **http://localhost:3000**: you will see the overview menu; click "Enter Game" to open a built game (e.g. Blackjack).
 
-之後新增的遊戲也是先 `npm run build:game <資料夾名>` 再從選單進入，不會變成 51 個服務。
+New games are also built first with `npm run build:game <folder-name>`, then entered from the menu—you do not need to run 51 separate services.
 
-## 目錄結構
+## Directory Structure
 
 <!-- GENERATED_TABLE -->
-| 類別 | 資料夾 | 遊戲數 |
-|------|--------|--------|
-| 紙牌類型 | [01-cards/](01-cards/) | 4 |
-| 棋盤類型 | [02-board/](02-board/) | 3 |
-| 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 2 |
-| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 5 |
-| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 3 |
-| 迷你遊戲類型 | [06-minigames/](06-minigames/) | 5 |
+| Category | Folder | Count |
+|----------|--------|-------|
+| Card Games | [01-cards/](01-cards/) | 4 |
+| Board Games | [02-board/](02-board/) | 3 |
+| Tiles & Dice | [03-tiles-dice/](03-tiles-dice/) | 2 |
+| Sports & Arcade | [04-sports-arcade/](04-sports-arcade/) | 5 |
+| Puzzle | [05-puzzle/](05-puzzle/) | 3 |
+| Minigames | [06-minigames/](06-minigames/) | 5 |
 <!-- /GENERATED_TABLE -->
 
-# 俱樂部遊戲
+# Clubhouse Games
 
 <!-- GENERATED_GAMES_CHECKLIST -->
-## 01-紙牌遊戲
-- [x] [二十一點](01-cards/blackjack.md) → [Games/Blackjack-main/](Games/Blackjack-main/)
-- [x] [連環新接龍（FreeCell）](01-cards/freecell.md) → [Games/FreeCell/](Games/FreeCell/)
-- [x] [克朗代克接龍](01-cards/klondike.md) → [Games/Klondike/](Games/Klondike/)
-- [x] [最後一張牌](01-cards/last-card.md) → [Games/Last-Card/](Games/Last-Card/)
+## 01 — Card Games
+- [x] [Blackjack](01-cards/blackjack.md) → [Games/Blackjack-main/](Games/Blackjack-main/)
+- [x] [FreeCell](01-cards/freecell.md) → [Games/FreeCell/](Games/FreeCell/)
+- [x] [Klondike](01-cards/klondike.md) → [Games/Klondike/](Games/Klondike/)
+- [x] [Last Card](01-cards/last-card.md) → [Games/Last-Card/](Games/Last-Card/)
 
-## 02-棋盤遊戲
-- [x] [黑白棋](02-board/reversi.md) → [Games/Reversi/](Games/Reversi/)
-- [x] [西洋跳棋](02-board/checkers.md) → [Games/Checkers/](Games/Checkers/)
-- [x] [四子棋](02-board/connect-four.md) → [Games/Connect-Four/](Games/Connect-Four/)
+## 02 — Board Games
+- [x] [Reversi](02-board/reversi.md) → [Games/Reversi/](Games/Reversi/)
+- [x] [Checkers](02-board/checkers.md) → [Games/Checkers/](Games/Checkers/)
+- [x] [Connect Four](02-board/connect-four.md) → [Games/Connect-Four/](Games/Connect-Four/)
 
-## 03-牌塊與骰子
-- [x] [西洋骨牌](03-tiles-dice/dominoes.md) → [Games/Dominoes/](Games/Dominoes/)
-- [x] [快艇骰子](03-tiles-dice/yahtzee.md) → [Games/Yahtzee/](Games/Yahtzee/)
+## 03 — Tiles & Dice
+- [x] [Dominoes](03-tiles-dice/dominoes.md) → [Games/Dominoes/](Games/Dominoes/)
+- [x] [Yahtzee](03-tiles-dice/yahtzee.md) → [Games/Yahtzee/](Games/Yahtzee/)
 
-## 04-運動與街機
-- [x] [玩具網球](04-sports-arcade/toy-tennis.md) → [Games/Toy-Tennis/](Games/Toy-Tennis/)
-- [x] [玩具足球](04-sports-arcade/toy-football.md) → [Games/Toy-Football/](Games/Toy-Football/)
-- [x] [玩具拳擊](04-sports-arcade/toy-boxing.md) → [Games/Toy-Boxing/](Games/Toy-Boxing/)
-- [x] [玩具棒球](04-sports-arcade/toy-baseball.md) → [Games/Toy-Baseball/](Games/Toy-Baseball/)
-- [x] [羽毛球接殺訓練](04-sports-arcade/badminton-smash.md) → [Games/Block-the-smash/](Games/Block-the-smash/)
+## 04 — Sports & Arcade
+- [x] [Toy Tennis](04-sports-arcade/toy-tennis.md) → [Games/Toy-Tennis/](Games/Toy-Tennis/)
+- [x] [Toy Football](04-sports-arcade/toy-football.md) → [Games/Toy-Football/](Games/Toy-Football/)
+- [x] [Toy Boxing](04-sports-arcade/toy-boxing.md) → [Games/Toy-Boxing/](Games/Toy-Boxing/)
+- [x] [Toy Baseball](04-sports-arcade/toy-baseball.md) → [Games/Toy-Baseball/](Games/Toy-Baseball/)
+- [x] [Block the Smash](04-sports-arcade/badminton-smash.md) → [Games/Block-the-smash/](Games/Block-the-smash/)
 
-## 05-益智遊戲
-- [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
-- [x] [章魚燒](05-puzzle/takoyaki.md) → [Games/Takoyaki/](Games/Takoyaki/)
-- [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
+## 05 — Puzzle
+- [x] [Mystery Liquid Sort](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
+- [x] [Takoyaki](05-puzzle/takoyaki.md) → [Games/Takoyaki/](Games/Takoyaki/)
+- [x] [Tetris](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
 
-## 06-迷你遊戲
-- [x] [彈戲](06-minigames/pachinko.md) → [Games/Pachinko/](Games/Pachinko/)
-- [x] [軌道車](06-minigames/slot-cars.md) → [Games/Slot-Cars/](Games/Slot-Cars/)
-- [x] [猜顏色](06-minigames/guess-the-color.md) → [Games/Guess-the-Color/](Games/Guess-the-Color/)
-- [x] [坦克對決](06-minigames/tank-battle.md) → [Games/Tank-Battle/](Games/Tank-Battle/)
-- [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
+## 06 — Minigames
+- [x] [Pachinko](06-minigames/pachinko.md) → [Games/Pachinko/](Games/Pachinko/)
+- [x] [Slot Cars](06-minigames/slot-cars.md) → [Games/Slot-Cars/](Games/Slot-Cars/)
+- [x] [Guess the Color](06-minigames/guess-the-color.md) → [Games/Guess-the-Color/](Games/Guess-the-Color/)
+- [x] [Tank Battle](06-minigames/tank-battle.md) → [Games/Tank-Battle/](Games/Tank-Battle/)
+- [x] [Instant Flash](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
 <!-- /GENERATED_GAMES_CHECKLIST -->
