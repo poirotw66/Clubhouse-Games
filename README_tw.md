@@ -1,5 +1,7 @@
 # Clubhouse Games 遊戲規格總覽
 
+![Clubhouse Games](title-image.png)
+
 本專案收錄各款遊戲的規格與玩法說明文件，供後續開發使用；遊戲實作置於 `Games/` 下，可透過 **遊戲總覽選單** 進入各遊戲並部署於 GitHub Pages。
 
 - **遊戲總覽選單**：[index.html](index.html)（站台首頁，可選取遊戲進入）
