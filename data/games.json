@@ -8,15 +8,8 @@
       "games": [
         { "name": "二十一點", "specPath": "01-cards/blackjack.md", "gameFolder": "Blackjack-main" },
         { "name": "連環新接龍（FreeCell）", "specPath": "01-cards/freecell.md", "gameFolder": "FreeCell" },
-        { "name": "花札", "specPath": "01-cards/hanafuda.md" },
         { "name": "克朗代克接龍", "specPath": "01-cards/klondike.md", "gameFolder": "Klondike" },
-        { "name": "最後一張牌", "specPath": "01-cards/last-card.md", "gameFolder": "Last-Card" },
-        { "name": "記憶牌", "specPath": "01-cards/memory-cards.md" },
-        { "name": "總統", "specPath": "01-cards/president.md" },
-        { "name": "七並", "specPath": "01-cards/sevens.md" },
-        { "name": "速戰接龍", "specPath": "01-cards/speed-solitaire.md" },
-        { "name": "德州撲克", "specPath": "01-cards/texas-holdem.md" },
-        { "name": "戰爭", "specPath": "01-cards/war.md" }
+        { "name": "最後一張牌", "specPath": "01-cards/last-card.md", "gameFolder": "Last-Card" }
       ]
     },
     {
@@ -25,20 +18,9 @@
       "readmeTitle": "02-棋盤遊戲",
       "htmlId": "category-board",
       "games": [
-        { "name": "播棋", "specPath": "02-board/mancala.md" },
-        { "name": "雙陸棋", "specPath": "02-board/backgammon.md" },
         { "name": "黑白棋", "specPath": "02-board/reversi.md", "gameFolder": "Reversi" },
         { "name": "西洋跳棋", "specPath": "02-board/checkers.md", "gameFolder": "Checkers" },
-        { "name": "四子棋", "specPath": "02-board/connect-four.md", "gameFolder": "Connect-Four" },
-        { "name": "英國十字戲", "specPath": "02-board/ludo.md" },
-        { "name": "西洋棋", "specPath": "02-board/chess.md" },
-        { "name": "將棋", "specPath": "02-board/shogi.md" },
-        { "name": "兔子和獵犬", "specPath": "02-board/hare-and-hounds.md" },
-        { "name": "五子棋／5五將棋", "specPath": "02-board/gomoku.md" },
-        { "name": "直棋", "specPath": "02-board/nine-mens-morris.md" },
-        { "name": "六貫棋", "specPath": "02-board/rithmomachy.md" },
-        { "name": "中國跳棋", "specPath": "02-board/chinese-checkers.md" },
-        { "name": "點格棋", "specPath": "02-board/dots-and-boxes.md" }
+        { "name": "四子棋", "specPath": "02-board/connect-four.md", "gameFolder": "Connect-Four" }
       ]
     },
     {
@@ -48,9 +30,7 @@
       "htmlId": "category-tiles",
       "games": [
         { "name": "西洋骨牌", "specPath": "03-tiles-dice/dominoes.md", "gameFolder": "Dominoes" },
-        { "name": "日式麻將", "specPath": "03-tiles-dice/japanese-mahjong.md" },
-        { "name": "快艇骰子", "specPath": "03-tiles-dice/yahtzee.md", "gameFolder": "Yahtzee" },
-        { "name": "麻將對對消", "specPath": "03-tiles-dice/mahjong-solitaire.md" }
+        { "name": "快艇骰子", "specPath": "03-tiles-dice/yahtzee.md", "gameFolder": "Yahtzee" }
       ]
     },
     {
@@ -59,16 +39,8 @@
       "readmeTitle": "04-運動與街機",
       "htmlId": "category-sports",
       "games": [
-        { "name": "高爾夫球", "specPath": "04-sports-arcade/golf.md" },
-        { "name": "飛鏢", "specPath": "04-sports-arcade/darts.md" },
-        { "name": "氣墊球", "specPath": "04-sports-arcade/air-hockey.md" },
-        { "name": "撞球", "specPath": "04-sports-arcade/billiards.md" },
-        { "name": "保齡球", "specPath": "04-sports-arcade/bowling.md" },
-        { "name": "射靶", "specPath": "04-sports-arcade/target-shooting.md" },
-        { "name": "釣魚", "specPath": "04-sports-arcade/fishing.md" },
         { "name": "玩具網球", "specPath": "04-sports-arcade/toy-tennis.md", "gameFolder": "Toy-Tennis" },
         { "name": "玩具足球", "specPath": "04-sports-arcade/toy-football.md", "gameFolder": "Toy-Football" },
-        { "name": "玩具冰壺", "specPath": "04-sports-arcade/toy-curling.md" },
         { "name": "玩具拳擊", "specPath": "04-sports-arcade/toy-boxing.md", "gameFolder": "Toy-Boxing" },
         { "name": "玩具棒球", "specPath": "04-sports-arcade/toy-baseball.md", "gameFolder": "Toy-Baseball" },
         { "name": "羽毛球接殺訓練", "specPath": "04-sports-arcade/badminton-smash.md", "gameFolder": "Block-the-smash" }
@@ -82,8 +54,6 @@
       "games": [
         { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
         { "name": "章魚燒", "specPath": "05-puzzle/takoyaki.md", "gameFolder": "Takoyaki" },
-        { "name": "滑塊益智", "specPath": "05-puzzle/sliding-puzzle.md" },
-        { "name": "6連珠益智", "specPath": "05-puzzle/six-puzzle.md" },
         { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" }
       ]
     },
@@ -96,9 +66,7 @@
         { "name": "彈戲", "specPath": "06-minigames/pachinko.md", "gameFolder": "Pachinko" },
         { "name": "軌道車", "specPath": "06-minigames/slot-cars.md", "gameFolder": "Slot-Cars" },
         { "name": "猜顏色", "specPath": "06-minigames/guess-the-color.md", "gameFolder": "Guess-the-Color" },
-        { "name": "豬尾巴", "specPath": "06-minigames/pigs-tail.md" },
         { "name": "坦克對決", "specPath": "06-minigames/tank-battle.md", "gameFolder": "Tank-Battle" },
-        { "name": "協力坦克", "specPath": "06-minigames/coop-tanks.md" },
         { "name": "武士反應訓練", "specPath": "06-minigames/instant-flash.md", "gameFolder": "Instant-Flash" }
       ]
     }
