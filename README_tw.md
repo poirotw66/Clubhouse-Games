@@ -15,15 +15,13 @@
 
 1. 在專案根目錄安裝依賴（子專案需各自安裝一次）：
    ```bash
-   npm install
-   cd Games/Blackjack-main && npm install && cd ../..
-   cd Games/Mystery-Liquid-Sort && npm install && cd ../..
+   npm run setup
    ```
-2. 建置要玩的遊戲（例如二十一點或神秘液體排序）：
+2. 建置要玩的遊戲，或一次建置全部：
    ```bash
    npm run build:game Blackjack-main
    # 或
-   npm run build:game Mystery-Liquid-Sort
+   npm run build:all
    ```
 3. 啟動：
    ```bash
