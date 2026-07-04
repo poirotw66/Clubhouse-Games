@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import type { YahtzeeState, CategoryKey } from './utils/yahtzeeLogic';
 import {
   createInitialState,
@@ -61,6 +62,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4 min-w-0">
+      <BackToMenu />
       <header className="w-full max-w-3xl flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold tracking-tight">快艇骰子 Yahtzee</h1>

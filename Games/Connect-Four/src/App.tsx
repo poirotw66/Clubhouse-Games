@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import type { Board, PieceColor } from './utils/connect4Logic';
 import {
   createInitialBoard,
@@ -122,6 +123,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4 min-w-0">
+      <BackToMenu />
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold tracking-tight">四子棋 Connect Four</h1>

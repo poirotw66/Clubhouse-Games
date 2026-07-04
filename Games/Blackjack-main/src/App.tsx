@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { Card as CardType, GameState, PlayerHand } from './types';
 import { createDeck, calculateScore, isBlackjack } from './utils/deck';
 import { Card } from './components/Card';
@@ -292,6 +293,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen h-screen max-h-screen bg-emerald-900 flex flex-col items-center justify-between p-2 sm:p-3 md:p-4 font-sans text-white overflow-hidden relative">
+      <BackToMenu />
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-800/50 blur-3xl"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-950/50 blur-3xl"></div>

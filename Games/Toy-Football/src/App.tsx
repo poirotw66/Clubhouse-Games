@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
 import type { GameState } from './utils/gameEngine';
@@ -93,6 +94,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4">
+      <BackToMenu />
       <header className="w-full max-w-4xl flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold tracking-tight">玩具足球 Toy Football</h1>
         <div className="flex items-center gap-2">

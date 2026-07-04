@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import {
   COLORS,
@@ -53,6 +54,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4">
+      <BackToMenu />
       <header className="w-full max-w-md flex justify-between items-center mb-3">
         <h1 className="text-xl font-bold tracking-tight">猜顏色 Guess the Color</h1>
         <div className="flex items-center gap-2">

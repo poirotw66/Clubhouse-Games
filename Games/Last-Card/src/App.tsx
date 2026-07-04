@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { useGame, SUITS } from './hooks/useGame';
 import { PlayingCard } from './components/PlayingCard';
 import { Opponent } from './components/Opponent';
@@ -60,6 +61,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-emerald-900 text-white overflow-hidden flex flex-col font-sans selection:bg-emerald-500/30">
+      <BackToMenu />
       {/* Header */}
       <header className="p-4 flex justify-between items-center bg-black/30 backdrop-blur-sm border-b border-white/10 z-10">
         <div className="flex items-center gap-3">

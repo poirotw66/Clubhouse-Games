@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import {
   createInitialState,
   startGame,
@@ -53,6 +54,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-950 via-amber-900/30 to-amber-950 text-amber-100 flex flex-col items-center p-4">
+      <BackToMenu />
       <header className="w-full max-w-2xl flex justify-between items-center mb-2">
         <h1 className="text-2xl font-bold tracking-tight text-amber-100 drop-shadow-sm">
           章魚燒 Takoyaki

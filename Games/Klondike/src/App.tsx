@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { Card } from './components/Card';
 import { EmptySlot } from './components/EmptySlot';
 import { GameState, DragSource, CardType } from './types';
@@ -425,6 +426,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-emerald-800 text-white p-4 md:p-8 font-sans select-none">
+      <BackToMenu />
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">

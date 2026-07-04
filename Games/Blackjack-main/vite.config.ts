@@ -14,9 +14,14 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@clubhouse/shared': path.resolve(__dirname, '../../shared'),
+        'react': path.resolve(__dirname, 'node_modules/react'),
+        'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
+        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
       },
     },
     server: {
+      fs: { allow: [path.resolve(__dirname, '../..')] },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

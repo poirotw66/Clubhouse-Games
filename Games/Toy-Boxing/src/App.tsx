@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trophy, Timer, Heart, Shield, Zap, User, Monitor, Play, RotateCcw } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -813,6 +814,7 @@ export default function ToyBoxing() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30">
+      <BackToMenu />
       {/* Header / HUD */}
       <header className="max-w-5xl mx-auto p-6 flex justify-between items-center border-b border-white/10">
         <div className="flex items-center gap-4">

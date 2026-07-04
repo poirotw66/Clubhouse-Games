@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import {
   createInitialState,
   startGame,
@@ -62,6 +63,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4">
+      <BackToMenu />
       <header className="w-full max-w-md flex justify-between items-center mb-2">
         <h1 className="text-xl font-bold tracking-tight">彈戲 Pachinko</h1>
         <div className="flex items-center gap-2">

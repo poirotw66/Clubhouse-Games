@@ -9,6 +9,7 @@ export default defineConfig(() => {
   return {
     base,
     server: {
+      fs: { allow: [path.resolve(__dirname, '../..')] },
       port: 3000,
       host: '0.0.0.0',
     },
@@ -16,6 +17,10 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@clubhouse/shared': path.resolve(__dirname, '../../shared'),
+        'react': path.resolve(__dirname, 'node_modules/react'),
+        'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
+        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
       },
     },
     build: {
