@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { RefreshCw, Pause, Play, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Cell, ActivePiece, TetrominoType } from './utils/tetrisLogic';
 import {
@@ -291,6 +292,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-4 min-w-0">
+      <BackToMenu />
       <header className="w-full max-w-5xl flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold tracking-tight">俄羅斯方塊 Tetris</h1>

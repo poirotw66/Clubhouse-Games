@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import type { Board, Piece } from './utils/reversiLogic';
 import {
   createInitialBoard,
@@ -199,6 +200,7 @@ export default function App() {
   if (gameMode === null) {
     return (
       <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center justify-center p-4 min-w-0">
+        <BackToMenu />
         <h1 className="text-2xl font-bold tracking-tight mb-8">黑白棋 Reversi</h1>
         <div className="flex flex-col gap-4 w-full max-w-xs">
           <button

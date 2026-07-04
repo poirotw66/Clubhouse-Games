@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@clubhouse/shared/*": [
+        "../../shared/*"
       ]
     },
     "allowImportingTsExtensions": true,

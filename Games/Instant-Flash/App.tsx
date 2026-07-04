@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import GameCanvas from './components/GameCanvas';
 import Results from './components/Results';
 import { GameState, GameStats } from './types';
@@ -20,6 +21,7 @@ export default function App() {
 
   return (
     <div className="w-full h-screen bg-slate-950 flex flex-col overflow-hidden font-sans text-slate-200 select-none">
+      <BackToMenu />
       
       {/* Scanline Overlay */}
       <div className="fixed inset-0 crt-overlay z-50 pointer-events-none opacity-20"></div>

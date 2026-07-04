@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { Trophy, Play, RotateCcw, ChevronRight, ChevronLeft, Target, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -793,6 +794,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950">
+      <BackToMenu />
       <div className="relative bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
         {/* Scoreboard */}
         <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-start">

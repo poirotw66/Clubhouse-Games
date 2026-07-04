@@ -4,6 +4,7 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { createRoot } from 'react-dom/client';
 
 const styles = {
@@ -230,6 +231,7 @@ function App() {
 
   return (
     <div style={styles.container}>
+      <BackToMenu />
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
         @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }

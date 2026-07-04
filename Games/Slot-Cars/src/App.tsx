@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import {
   TRACK_WIDTH,
@@ -85,6 +86,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4">
+      <BackToMenu />
       <header className="w-full max-w-3xl flex justify-between items-center mb-3">
         <h1 className="text-xl font-bold tracking-tight">軌道車 Slot Cars</h1>
         <div className="flex items-center gap-2">

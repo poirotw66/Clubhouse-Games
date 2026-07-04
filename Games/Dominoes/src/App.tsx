@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import type { DominoesState, PlayerId } from './utils/dominoesLogic';
 import {
   createInitialState,
@@ -103,6 +104,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4 min-w-0">
+      <BackToMenu />
       <header className="w-full max-w-2xl flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold tracking-tight">西洋骨牌 Dominoes</h1>
