@@ -154,6 +154,16 @@ export default function ToyBoxing() {
   });
 
   const keysPressed = useRef<Set<string>>(new Set());
+  const gameStateRef = useRef(gameState);
+  const countdownRef = useRef(countdown);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  useEffect(() => {
+    countdownRef.current = countdown;
+  }, [countdown]);
 
   // --- Input Handling ---
   useEffect(() => {
@@ -171,13 +181,34 @@ export default function ToyBoxing() {
   useEffect(() => {
     let animationFrameId: number;
     let lastTime = performance.now();
+    let lastUiSync = 0;
+
+    const syncUi = (force = false) => {
+      const now = performance.now();
+      if (!force && now - lastUiSync < 100) {
+        return;
+      }
+      lastUiSync = now;
+      const eng = engineRef.current;
+      setUiState({
+        playerHealth: isNaN(eng.player.health) ? 0 : eng.player.health,
+        playerStamina: isNaN(eng.player.stamina) ? 0 : eng.player.stamina,
+        playerSuper: isNaN(eng.player.superMeter) ? 0 : eng.player.superMeter,
+        playerScore: eng.player.score,
+        cpuHealth: isNaN(eng.cpu.health) ? 0 : eng.cpu.health,
+        cpuStamina: isNaN(eng.cpu.stamina) ? 0 : eng.cpu.stamina,
+        cpuSuper: isNaN(eng.cpu.superMeter) ? 0 : eng.cpu.superMeter,
+        cpuScore: eng.cpu.score,
+        timeLeft: isNaN(eng.timeLeft) ? 0 : eng.timeLeft,
+        round: eng.round,
+      });
+    };
 
     const update = (time: number) => {
       const deltaTime = Math.min((time - lastTime) / 1000, 0.1) * engineRef.current.timeScale;
       lastTime = time;
 
-      if (gameState === 'playing' && countdown === null) {
-        // Update Timer
+      if (gameStateRef.current === 'playing' && countdownRef.current === null) {
         engineRef.current.timeLeft -= deltaTime;
         if (engineRef.current.timeLeft <= 0) {
           engineRef.current.timeLeft = 0;
@@ -188,50 +219,32 @@ export default function ToyBoxing() {
           engineRef.current.screenShake -= deltaTime * 5;
         }
 
-        // Update Engine
         const { player, cpu } = engineRef.current;
         engineRef.current.player = updateBoxerLogic(player, cpu, keysPressed.current, deltaTime);
         engineRef.current.cpu = updateCpuLogic(cpu, player, deltaTime);
-        
+
         checkCollisions();
 
-        // Update Particles
         engineRef.current.particles = engineRef.current.particles
-          .map(p => ({
+          .map((p) => ({
             ...p,
             x: p.x + p.vx,
             y: p.y + p.vy,
-            vy: p.vy + 0.2, // Gravity
-            life: p.life - 0.02
+            vy: p.vy + 0.2,
+            life: p.life - 0.02,
           }))
-          .filter(p => p.life > 0);
+          .filter((p) => p.life > 0);
 
-        // Sync to UI State
-        setUiState({
-          playerHealth: isNaN(engineRef.current.player.health) ? 0 : engineRef.current.player.health,
-          playerStamina: isNaN(engineRef.current.player.stamina) ? 0 : engineRef.current.player.stamina,
-          playerSuper: isNaN(engineRef.current.player.superMeter) ? 0 : engineRef.current.player.superMeter,
-          playerScore: engineRef.current.player.score,
-          cpuHealth: isNaN(engineRef.current.cpu.health) ? 0 : engineRef.current.cpu.health,
-          cpuStamina: isNaN(engineRef.current.cpu.stamina) ? 0 : engineRef.current.cpu.stamina,
-          cpuSuper: isNaN(engineRef.current.cpu.superMeter) ? 0 : engineRef.current.cpu.superMeter,
-          cpuScore: engineRef.current.cpu.score,
-          timeLeft: isNaN(engineRef.current.timeLeft) ? 0 : engineRef.current.timeLeft,
-          round: engineRef.current.round
-        });
+        syncUi();
       }
 
       render();
       animationFrameId = requestAnimationFrame(update);
     };
 
-    console.log("Game loop effect running. State:", gameState);
     animationFrameId = requestAnimationFrame(update);
-    return () => {
-      console.log("Cleaning up game loop effect");
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, [gameState, countdown]);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
 
   // Initial render
   useEffect(() => {
@@ -239,7 +252,6 @@ export default function ToyBoxing() {
   }, []);
 
   const handleRoundEnd = () => {
-    console.log("Round ended. Current round:", engineRef.current.round);
     if (engineRef.current.round >= 3 || engineRef.current.player.health <= 0 || engineRef.current.cpu.health <= 0) {
       setGameState('game_over');
       determineWinner();
@@ -250,7 +262,6 @@ export default function ToyBoxing() {
 
   const determineWinner = () => {
     const { player, cpu } = engineRef.current;
-    console.log("Determining winner. Player health:", player.health, "CPU health:", cpu.health);
     if (player.health <= 0) setWinner('CPU');
     else if (cpu.health <= 0) setWinner('Player 1');
     else if (player.score > cpu.score) setWinner('Player 1');
@@ -259,7 +270,6 @@ export default function ToyBoxing() {
   };
 
   const startNewGame = () => {
-    console.log("startNewGame triggered");
     engineRef.current = {
       player: createInitialBoxer('player'),
       cpu: createInitialBoxer('cpu'),
@@ -276,7 +286,6 @@ export default function ToyBoxing() {
   };
 
   const nextRound = () => {
-    console.log("nextRound triggered");
     engineRef.current.player = { 
       ...engineRef.current.player, 
       health: Math.min(engineRef.current.player.health + 30, 100), 

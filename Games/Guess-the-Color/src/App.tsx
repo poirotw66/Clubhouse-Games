@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import {
-  PANEL_WIDTH,
-  PANEL_HEIGHT,
   COLORS,
   createInitialState,
   startGame,
@@ -22,6 +20,9 @@ export default function App() {
   const lastTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (state.phase !== 'showing' && state.phase !== 'answering') {
+      return;
+    }
     const loop = (time: number) => {
       if (lastTimeRef.current === null) {
         lastTimeRef.current = time;
@@ -31,9 +32,10 @@ export default function App() {
       setState((prev) => updateState(prev, dt));
       rafRef.current = requestAnimationFrame(loop);
     };
+    lastTimeRef.current = null;
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, []);
+  }, [state.phase]);
 
   const handleStart = () => {
     lastTimeRef.current = null;
@@ -233,81 +235,4 @@ export default function App() {
       )}
     </div>
   );
-}
-
-function drawScene(ctx: CanvasRenderingContext2D, state: SlotCarsState): void {
-  ctx.clearRect(0, 0, TRACK_WIDTH, TRACK_HEIGHT);
-
-  ctx.fillStyle = '#022c22';
-  ctx.fillRect(0, 0, TRACK_WIDTH, TRACK_HEIGHT);
-
-  ctx.strokeStyle = '#1f2933';
-  ctx.lineWidth = 40;
-  ctx.beginPath();
-  for (let i = 0; i <= 64; i++) {
-    const t = (i / 64) * 2 * Math.PI;
-    const x = TRACK_WIDTH / 2 + Math.cos(t) * 220;
-    const y = TRACK_HEIGHT / 2 + Math.sin(t) * 130;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-
-  ctx.setLineDash([14, 10]);
-  ctx.strokeStyle = '#9ca3af';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = 0; i <= 64; i++) {
-    const t = (i / 64) * 2 * Math.PI;
-    const x = TRACK_WIDTH / 2 + Math.cos(t) * 220;
-    const y = TRACK_HEIGHT / 2 + Math.sin(t) * 130;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  const startPos = sampleCarPosition(0, 0);
-  ctx.strokeStyle = '#f97316';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(startPos.x - 12, startPos.y - 20);
-  ctx.lineTo(startPos.x - 12, startPos.y + 20);
-  ctx.moveTo(startPos.x + 12, startPos.y - 20);
-  ctx.lineTo(startPos.x + 12, startPos.y + 20);
-  ctx.stroke();
-
-  drawCar(ctx, state.cpu.progress, -8, '#f97316', 'CPU');
-  drawCar(ctx, state.player.progress, 22, '#3b82f6', 'YOU');
-}
-
-function drawCar(
-  ctx: CanvasRenderingContext2D,
-  progress: number,
-  laneOffset: number,
-  color: string,
-  label: string
-): void {
-  const pos = sampleCarPosition(progress, laneOffset);
-  ctx.save();
-  const angle = (progress / 1000) * 2 * Math.PI;
-  ctx.translate(pos.x, pos.y);
-  ctx.rotate(angle);
-
-  ctx.fillStyle = '#020617';
-  ctx.fillRect(-10, -7, 20, 14);
-
-  ctx.fillStyle = color;
-  ctx.fillRect(-12, -6, 24, 12);
-
-  ctx.fillStyle = '#e5e7eb';
-  ctx.fillRect(-4, -4, 8, 8);
-
-  ctx.restore();
-
-  ctx.fillStyle = '#e5e7eb';
-  ctx.font = '10px system-ui';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(label, pos.x, pos.y - 14);
 }
