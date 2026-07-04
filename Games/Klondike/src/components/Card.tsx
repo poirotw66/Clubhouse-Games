@@ -5,23 +5,24 @@ interface CardProps {
   card?: CardType;
   isDraggable?: boolean;
   isDragging?: boolean;
+  isSelected?: boolean;
   isPlayableToFoundation?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   onDoubleClick?: () => void;
+  onClick?: () => void;
   className?: string;
   faceDown?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isPlayableToFoundation, onDragStart, onDragEnd, onDoubleClick, className = '', faceDown }) => {
+export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSelected, isPlayableToFoundation, onDragStart, onDragEnd, onDoubleClick, onClick, className = '', faceDown }) => {
   // 蓋牌狀態
   if (!card || faceDown || !card.faceUp) {
     return (
       <div 
-        className={`w-24 h-36 rounded-xl border-2 border-white/10 bg-blue-900 shadow-md flex items-center justify-center ${className}`}
+        className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-white/10 bg-blue-900 shadow-md flex items-center justify-center touch-manipulation ${className}`}
       >
-        {/* 簡單的卡背圖案 */}
-        <div className="w-20 h-32 rounded-lg border border-white/20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.1)_10px,rgba(255,255,255,0.1)_20px)]"></div>
+        <div className="w-12 h-20 sm:w-20 sm:h-32 rounded-lg border border-white/20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.1)_10px,rgba(255,255,255,0.1)_20px)]"></div>
       </div>
     );
   }
@@ -40,7 +41,12 @@ export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isPla
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDoubleClick={onDoubleClick}
-      className={`w-24 h-36 rounded-xl border border-gray-300 bg-white flex flex-col justify-between p-2 shadow-md ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400' : ''} ${isRed ? 'text-red-600' : 'text-gray-900'} ${isPlayableToFoundation && !isDragging ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]' : ''} ${isDragging ? 'opacity-50 ring-4 ring-yellow-400 scale-105 shadow-2xl z-50' : ''} ${className}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      role={onClick ? 'button' : undefined}
+      className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-gray-300 bg-white flex flex-col justify-between p-1.5 sm:p-2 shadow-md touch-manipulation ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400' : ''} ${isRed ? 'text-red-600' : 'text-gray-900'} ${isPlayableToFoundation && !isDragging && !isSelected ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]' : ''} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 shadow-2xl z-50' : ''} ${isDragging ? 'opacity-50' : ''} ${className}`}
     >
       {/* 左上角 */}
       <div className="flex flex-col items-center w-6">

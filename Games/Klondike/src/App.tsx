@@ -3,7 +3,7 @@ import { Card } from './components/Card';
 import { EmptySlot } from './components/EmptySlot';
 import { GameState, DragSource, CardType } from './types';
 import { dealGame, shuffleDeck } from './utils/deck';
-import { canMoveToTableau, canMoveToFoundation } from './utils/gameLogic';
+import { canMoveToTableau, canMoveToFoundation, rankValues } from './utils/gameLogic';
 import { RotateCcw, Undo2, Bot, Square } from 'lucide-react';
 
 export default function App() {
@@ -11,7 +11,77 @@ export default function App() {
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [isGameOverNoMoves, setIsGameOverNoMoves] = useState(false);
   const [draggingSource, setDraggingSource] = useState<DragSource | null>(null);
+  const [selectedSource, setSelectedSource] = useState<DragSource | null>(null);
   const noProgressCount = useRef(0);
+
+  const sourcesEqual = (a: DragSource, b: DragSource): boolean => {
+    if (a.type !== b.type) return false;
+    if (a.type === 'tableau' && b.type === 'tableau') {
+      return a.colIndex === b.colIndex && a.cardIndex === b.cardIndex;
+    }
+    if (a.type === 'foundation' && b.type === 'foundation') {
+      return a.pileIndex === b.pileIndex;
+    }
+    return a.type === 'waste' && b.type === 'waste';
+  };
+
+  const isValidTableauStack = (col: CardType[], startIndex: number): boolean => {
+    for (let i = startIndex; i < col.length; i++) {
+      if (!col[i].faceUp) return false;
+      if (i === startIndex) continue;
+      const prev = col[i - 1];
+      const curr = col[i];
+      if (prev.color === curr.color) return false;
+      if (rankValues[prev.rank] - 1 !== rankValues[curr.rank]) return false;
+    }
+    return true;
+  };
+
+  const canSelectSource = (source: DragSource): boolean => {
+    const state = gameState;
+    if (source.type === 'waste') {
+      return state.waste.length > 0;
+    }
+    if (source.type === 'foundation') {
+      return state.foundation[source.pileIndex].length > 0;
+    }
+    const col = state.tableau[source.colIndex];
+    return col.length > 0 && col[source.cardIndex].faceUp && isValidTableauStack(col, source.cardIndex);
+  };
+
+  const handleCardTap = (source: DragSource) => {
+    if (isAutoPlaying) return;
+
+    if (selectedSource) {
+      if (sourcesEqual(selectedSource, source)) {
+        setSelectedSource(null);
+        return;
+      }
+      if (source.type === 'tableau') {
+        attemptMove(selectedSource, { type: 'tableau', index: source.colIndex });
+      } else if (source.type === 'foundation') {
+        attemptMove(selectedSource, { type: 'foundation', index: source.pileIndex });
+      }
+      setSelectedSource(null);
+      return;
+    }
+
+    if (canSelectSource(source)) {
+      setSelectedSource(source);
+    }
+  };
+
+  const handleFoundationZoneTap = (pileIndex: number) => {
+    if (isAutoPlaying || !selectedSource) return;
+    attemptMove(selectedSource, { type: 'foundation', index: pileIndex });
+    setSelectedSource(null);
+  };
+
+  const handleTableauZoneTap = (colIndex: number) => {
+    if (isAutoPlaying || !selectedSource) return;
+    attemptMove(selectedSource, { type: 'tableau', index: colIndex });
+    setSelectedSource(null);
+  };
 
   const saveHistory = (state: GameState) => {
     return {
@@ -468,14 +538,14 @@ export default function App() {
               {gameState.stock.length > 0 ? (
                 <Card faceDown />
               ) : (
-                <div className="w-24 h-36 rounded-xl border-2 border-black/20 flex items-center justify-center hover:bg-black/10 transition-colors">
+                <div className="w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-black/20 flex items-center justify-center hover:bg-black/10 transition-colors touch-manipulation">
                   <RotateCcw className="text-black/30" size={32} />
                 </div>
               )}
             </div>
             
             {/* Waste */}
-            <div className="relative w-24 h-36 shrink-0">
+            <div className="relative w-16 h-24 sm:w-24 sm:h-36 shrink-0">
               {gameState.waste.length === 0 ? (
                 <EmptySlot />
               ) : (
@@ -484,20 +554,23 @@ export default function App() {
                   const displayIndex = index - Math.max(0, gameState.waste.length - 3);
                   const isTop = index === gameState.waste.length - 1;
                   const playableToFoundation = isTop && checkCanMoveToFoundation(card);
+                  const wasteSource: DragSource = { type: 'waste' };
                   return (
                     <div 
                       key={card.id} 
                       className="absolute top-0 left-0"
-                      style={{ transform: `translateX(${displayIndex * 20}px)` }}
+                      style={{ transform: `translateX(${displayIndex * 12}px)` }}
                     >
                       <Card 
                         card={card} 
                         isDraggable={isTop}
                         isDragging={draggingSource?.type === 'waste' && isTop}
+                        isSelected={selectedSource?.type === 'waste' && isTop}
                         isPlayableToFoundation={playableToFoundation}
-                        onDragStart={(e) => isTop && handleDragStart(e, { type: 'waste' })}
+                        onDragStart={(e) => isTop && handleDragStart(e, wasteSource)}
                         onDragEnd={handleDragEnd}
-                        onDoubleClick={() => isTop && handleDoubleClick({ type: 'waste' })}
+                        onClick={() => isTop && handleCardTap(wasteSource)}
+                        onDoubleClick={() => isTop && handleDoubleClick(wasteSource)}
                       />
                     </div>
                   );
@@ -511,22 +584,28 @@ export default function App() {
             {gameState.foundation.map((pile, index) => (
               <div 
                 key={`foundation-${index}`}
-                className="relative w-24 h-36 shrink-0"
+                className="relative w-16 h-24 sm:w-24 sm:h-36 shrink-0"
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDropOnFoundation(e, index)}
+                onClick={() => handleFoundationZoneTap(index)}
               >
                 <EmptySlot />
-                {pile.map((card, cardIndex) => (
+                {pile.map((card, cardIndex) => {
+                  const isTop = cardIndex === pile.length - 1;
+                  const foundationSource: DragSource = { type: 'foundation', pileIndex: index };
+                  return (
                   <div key={card.id} className="absolute top-0 left-0">
                     <Card 
                       card={card}
-                      isDraggable={cardIndex === pile.length - 1}
-                      isDragging={draggingSource?.type === 'foundation' && draggingSource.pileIndex === index && cardIndex === pile.length - 1}
-                      onDragStart={(e) => handleDragStart(e, { type: 'foundation', pileIndex: index })}
+                      isDraggable={isTop}
+                      isDragging={draggingSource?.type === 'foundation' && draggingSource.pileIndex === index && isTop}
+                      isSelected={selectedSource?.type === 'foundation' && selectedSource.pileIndex === index && isTop}
+                      onDragStart={(e) => handleDragStart(e, foundationSource)}
                       onDragEnd={handleDragEnd}
+                      onClick={() => isTop && handleCardTap(foundationSource)}
                     />
                   </div>
-                ))}
+                );})}
               </div>
             ))}
           </div>
@@ -537,28 +616,36 @@ export default function App() {
           {gameState.tableau.map((col, colIndex) => (
             <div 
               key={`tableau-${colIndex}`}
-              className="relative w-24 min-h-[60vh] shrink-0"
+              className="relative w-16 sm:w-24 min-h-[50vh] shrink-0"
               onDragOver={handleDragOver}
               onDrop={(e) => handleDropOnTableau(e, colIndex)}
+              onClick={() => col.length === 0 && handleTableauZoneTap(colIndex)}
             >
-              <EmptySlot />
+              {col.length === 0 && <EmptySlot onClick={() => handleTableauZoneTap(colIndex)} />}
               {col.map((card, cardIndex) => {
                 const isBottom = cardIndex === col.length - 1;
                 const playableToFoundation = isBottom && checkCanMoveToFoundation(card);
+                const tableauSource: DragSource = { type: 'tableau', colIndex, cardIndex };
+                const isSelected =
+                  selectedSource?.type === 'tableau' &&
+                  selectedSource.colIndex === colIndex &&
+                  cardIndex >= selectedSource.cardIndex;
                 return (
                   <div 
                     key={card.id} 
                     className="absolute top-0 left-0"
-                    style={{ top: `${col.slice(0, cardIndex).reduce((acc, c) => acc + (c.faceUp ? 28 : 12), 0)}px` }}
+                    style={{ top: `${col.slice(0, cardIndex).reduce((acc, c) => acc + (c.faceUp ? 20 : 10), 0)}px` }}
                   >
                     <Card 
                       card={card}
                       isDraggable={card.faceUp}
                       isDragging={draggingSource?.type === 'tableau' && draggingSource.colIndex === colIndex && cardIndex >= draggingSource.cardIndex}
+                      isSelected={isSelected}
                       isPlayableToFoundation={playableToFoundation}
-                      onDragStart={(e) => card.faceUp && handleDragStart(e, { type: 'tableau', colIndex, cardIndex })}
+                      onDragStart={(e) => card.faceUp && handleDragStart(e, tableauSource)}
                       onDragEnd={handleDragEnd}
-                      onDoubleClick={() => card.faceUp && handleDoubleClick({ type: 'tableau', colIndex, cardIndex })}
+                      onClick={() => card.faceUp && handleCardTap(tableauSource)}
+                      onDoubleClick={() => card.faceUp && handleDoubleClick(tableauSource)}
                     />
                   </div>
                 );

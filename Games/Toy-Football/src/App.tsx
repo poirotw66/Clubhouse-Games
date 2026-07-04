@@ -3,6 +3,36 @@ import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
 import type { GameState } from './utils/gameEngine';
 
+function TouchButton({
+  label,
+  ariaLabel,
+  onPress,
+  onRelease,
+}: {
+  label: string;
+  ariaLabel: string;
+  onPress: () => void;
+  onRelease: () => void;
+}) {
+  const release = () => onRelease();
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className="min-w-11 min-h-11 px-4 rounded-xl bg-slate-700 active:bg-slate-500 text-white font-bold touch-manipulation select-none"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onPress();
+      }}
+      onPointerUp={release}
+      onPointerLeave={release}
+      onPointerCancel={release}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
@@ -195,8 +225,67 @@ export default function App() {
         )}
       </div>
 
-      <p className="mt-4 text-slate-400 text-sm">
-        ↑↓←→ 或 WASD 移動／選擇踢球方向 · 空白鍵 踢球
+      <div className="mt-4 md:hidden flex flex-col items-center gap-3 touch-manipulation select-none">
+        <TouchButton
+          label="↑"
+          ariaLabel="Move up"
+          onPress={() => {
+            keysRef.current.up = true;
+          }}
+          onRelease={() => {
+            keysRef.current.up = false;
+          }}
+        />
+        <div className="flex gap-3">
+          <TouchButton
+            label="←"
+            ariaLabel="Move left"
+            onPress={() => {
+              keysRef.current.left = true;
+            }}
+            onRelease={() => {
+              keysRef.current.left = false;
+            }}
+          />
+          <TouchButton
+            label="↓"
+            ariaLabel="Move down"
+            onPress={() => {
+              keysRef.current.down = true;
+            }}
+            onRelease={() => {
+              keysRef.current.down = false;
+            }}
+          />
+          <TouchButton
+            label="→"
+            ariaLabel="Move right"
+            onPress={() => {
+              keysRef.current.right = true;
+            }}
+            onRelease={() => {
+              keysRef.current.right = false;
+            }}
+          />
+        </div>
+        <TouchButton
+          label="踢"
+          ariaLabel="Kick ball"
+          onPress={() => {
+            const k = keysRef.current;
+            k.kickDirX = (k.right ? 1 : 0) - (k.left ? 1 : 0);
+            k.kickDirY = (k.down ? 1 : 0) - (k.up ? 1 : 0);
+            k.kick = true;
+          }}
+          onRelease={() => {
+            keysRef.current.kick = false;
+          }}
+        />
+      </div>
+
+      <p className="mt-4 text-slate-400 text-sm text-center">
+        <span className="hidden md:inline">↑↓←→ 或 WASD 移動／選擇踢球方向 · 空白鍵 踢球</span>
+        <span className="md:hidden">使用下方方向鍵移動，「踢」按鈕射門</span>
       </p>
 
       {showRules && (

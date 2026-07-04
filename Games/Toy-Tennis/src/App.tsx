@@ -3,6 +3,36 @@ import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
 import type { GameState } from './utils/gameEngine';
 
+function TouchButton({
+  label,
+  ariaLabel,
+  onPress,
+  onRelease,
+}: {
+  label: string;
+  ariaLabel: string;
+  onPress: () => void;
+  onRelease: () => void;
+}) {
+  const release = () => onRelease();
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className="min-w-11 min-h-11 px-5 rounded-xl bg-slate-700 active:bg-slate-500 text-white text-xl font-bold touch-manipulation select-none"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onPress();
+      }}
+      onPointerUp={release}
+      onPointerLeave={release}
+      onPointerCancel={release}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
@@ -159,8 +189,32 @@ export default function App() {
         )}
       </div>
 
-      <p className="mt-4 text-slate-400 text-sm">
-        ↑ ↓ 或 W / S 移動球拍
+      <div className="flex justify-center gap-6 mt-4 md:hidden">
+        <TouchButton
+          label="↑"
+          ariaLabel="Move paddle up"
+          onPress={() => {
+            keysRef.current.up = true;
+          }}
+          onRelease={() => {
+            keysRef.current.up = false;
+          }}
+        />
+        <TouchButton
+          label="↓"
+          ariaLabel="Move paddle down"
+          onPress={() => {
+            keysRef.current.down = true;
+          }}
+          onRelease={() => {
+            keysRef.current.down = false;
+          }}
+        />
+      </div>
+
+      <p className="mt-4 text-slate-400 text-sm text-center">
+        <span className="hidden md:inline">↑ ↓ 或 W / S 移動球拍</span>
+        <span className="md:hidden">使用下方按鈕移動球拍</span>
       </p>
 
       {showRules && (

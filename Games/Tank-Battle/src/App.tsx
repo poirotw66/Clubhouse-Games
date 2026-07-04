@@ -3,6 +3,60 @@ import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
 import type { GameState, InputState } from './utils/gameEngine';
 
+function TouchButton({
+  label,
+  ariaLabel,
+  onPress,
+  onRelease,
+}: {
+  label: string;
+  ariaLabel: string;
+  onPress: () => void;
+  onRelease: () => void;
+}) {
+  const release = () => onRelease();
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className="min-w-11 min-h-11 px-3 rounded-xl bg-slate-700 active:bg-slate-500 text-white font-bold touch-manipulation select-none"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onPress();
+      }}
+      onPointerUp={release}
+      onPointerLeave={release}
+      onPointerCancel={release}
+    >
+      {label}
+    </button>
+  );
+}
+
+function AimButton({
+  label,
+  ariaLabel,
+  onAim,
+}: {
+  label: string;
+  ariaLabel: string;
+  onAim: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className="min-w-11 min-h-11 px-3 rounded-xl bg-amber-800 active:bg-amber-600 text-white font-bold touch-manipulation select-none"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onAim();
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
@@ -208,8 +262,106 @@ export default function App() {
         )}
       </div>
 
-      <p className="mt-4 text-slate-400 text-sm">
-        WASD 控制坦克前進／後退與轉向 · 方向鍵 瞄準砲塔方向 · 空白鍵 發射砲彈
+      <div className="mt-4 md:hidden w-full max-w-md grid grid-cols-2 gap-4 touch-manipulation select-none">
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">移動</p>
+          <TouchButton
+            label="↑"
+            ariaLabel="Move forward"
+            onPress={() => {
+              keysRef.current.up = true;
+            }}
+            onRelease={() => {
+              keysRef.current.up = false;
+            }}
+          />
+          <div className="flex gap-2">
+            <TouchButton
+              label="←"
+              ariaLabel="Turn left"
+              onPress={() => {
+                keysRef.current.left = true;
+              }}
+              onRelease={() => {
+                keysRef.current.left = false;
+              }}
+            />
+            <TouchButton
+              label="↓"
+              ariaLabel="Move backward"
+              onPress={() => {
+                keysRef.current.down = true;
+              }}
+              onRelease={() => {
+                keysRef.current.down = false;
+              }}
+            />
+            <TouchButton
+              label="→"
+              ariaLabel="Turn right"
+              onPress={() => {
+                keysRef.current.right = true;
+              }}
+              onRelease={() => {
+                keysRef.current.right = false;
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">砲塔</p>
+          <AimButton
+            label="↑"
+            ariaLabel="Aim up"
+            onAim={() => {
+              keysRef.current.kickDirX = 0;
+              keysRef.current.kickDirY = -1;
+            }}
+          />
+          <div className="flex gap-2">
+            <AimButton
+              label="←"
+              ariaLabel="Aim left"
+              onAim={() => {
+                keysRef.current.kickDirX = -1;
+                keysRef.current.kickDirY = 0;
+              }}
+            />
+            <AimButton
+              label="↓"
+              ariaLabel="Aim down"
+              onAim={() => {
+                keysRef.current.kickDirX = 0;
+                keysRef.current.kickDirY = 1;
+              }}
+            />
+            <AimButton
+              label="→"
+              ariaLabel="Aim right"
+              onAim={() => {
+                keysRef.current.kickDirX = 1;
+                keysRef.current.kickDirY = 0;
+              }}
+            />
+          </div>
+          <TouchButton
+            label="開火"
+            ariaLabel="Fire cannon"
+            onPress={() => {
+              keysRef.current.kick = true;
+            }}
+            onRelease={() => {
+              keysRef.current.kick = false;
+            }}
+          />
+        </div>
+      </div>
+
+      <p className="mt-4 text-slate-400 text-sm text-center max-w-lg">
+        <span className="hidden md:inline">
+          WASD 控制坦克前進／後退與轉向 · 方向鍵 瞄準砲塔方向 · 空白鍵 發射砲彈
+        </span>
+        <span className="md:hidden">左側移動、右側瞄準與開火</span>
       </p>
 
       {showRules && (
