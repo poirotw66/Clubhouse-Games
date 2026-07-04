@@ -4,35 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Clubhouse Games｜遊戲總覽</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/menu.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&family=Noto+Sans+TC:wght@400;500;600&display=swap" rel="stylesheet" />
-  <script>
-    tailwind.config({
-      theme: {
-        extend: {
-          colors: {
-            primary: '#7C3AED',
-            secondary: '#A78BFA',
-            cta: '#F43F5E',
-            dream: '#0F0F23',
-            dreamCard: 'rgba(30, 27, 75, 0.6)',
-          },
-          fontFamily: {
-            heading: ['Russo One', 'sans-serif'],
-            body: ['Chakra Petch', 'sans-serif'],
-            tc: ['Noto Sans TC', 'sans-serif'],
-          },
-          boxShadow: {
-            glow: '0 0 20px rgba(124, 58, 237, 0.3), 0 0 40px rgba(124, 58, 237, 0.15)',
-            glowHover: '0 0 28px rgba(124, 58, 237, 0.45), 0 0 56px rgba(124, 58, 237, 0.2)',
-            ctaGlow: '0 0 16px rgba(244, 63, 94, 0.4)',
-          },
-        },
-      },
-    });
-  </script>
   <style>
     :root {
       --bg: #0F0F23;
@@ -158,7 +133,7 @@
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">二十一點</span>
             <span class="flex gap-3 flex-wrap">
               <a href="01-cards/blackjack.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -166,7 +141,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">連環新接龍（FreeCell）</span>
             <span class="flex gap-3 flex-wrap">
               <a href="01-cards/freecell.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -174,7 +149,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">克朗代克接龍</span>
             <span class="flex gap-3 flex-wrap">
               <a href="01-cards/klondike.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -182,7 +157,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">最後一張牌</span>
             <span class="flex gap-3 flex-wrap">
               <a href="01-cards/last-card.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -200,7 +175,7 @@
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">黑白棋</span>
             <span class="flex gap-3 flex-wrap">
               <a href="02-board/reversi.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -208,7 +183,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">西洋跳棋</span>
             <span class="flex gap-3 flex-wrap">
               <a href="02-board/checkers.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -216,7 +191,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">四子棋</span>
             <span class="flex gap-3 flex-wrap">
               <a href="02-board/connect-four.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -234,7 +209,7 @@
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">西洋骨牌</span>
             <span class="flex gap-3 flex-wrap">
               <a href="03-tiles-dice/dominoes.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -242,7 +217,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">快艇骰子</span>
             <span class="flex gap-3 flex-wrap">
               <a href="03-tiles-dice/yahtzee.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -260,7 +235,7 @@
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">玩具網球</span>
             <span class="flex gap-3 flex-wrap">
               <a href="04-sports-arcade/toy-tennis.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -268,7 +243,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">玩具足球</span>
             <span class="flex gap-3 flex-wrap">
               <a href="04-sports-arcade/toy-football.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -276,7 +251,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">玩具拳擊</span>
             <span class="flex gap-3 flex-wrap">
               <a href="04-sports-arcade/toy-boxing.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -284,7 +259,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">玩具棒球</span>
             <span class="flex gap-3 flex-wrap">
               <a href="04-sports-arcade/toy-baseball.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -292,7 +267,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">羽毛球接殺訓練</span>
             <span class="flex gap-3 flex-wrap">
               <a href="04-sports-arcade/badminton-smash.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -310,7 +285,7 @@
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">神秘液體排序</span>
             <span class="flex gap-3 flex-wrap">
               <a href="05-puzzle/mystery-liquid-sort.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -318,7 +293,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">章魚燒</span>
             <span class="flex gap-3 flex-wrap">
               <a href="05-puzzle/takoyaki.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -326,7 +301,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">俄羅斯方塊</span>
             <span class="flex gap-3 flex-wrap">
               <a href="05-puzzle/tetris.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -344,7 +319,7 @@
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">彈戲</span>
             <span class="flex gap-3 flex-wrap">
               <a href="06-minigames/pachinko.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -352,7 +327,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">軌道車</span>
             <span class="flex gap-3 flex-wrap">
               <a href="06-minigames/slot-cars.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -360,7 +335,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">猜顏色</span>
             <span class="flex gap-3 flex-wrap">
               <a href="06-minigames/guess-the-color.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -368,7 +343,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">坦克對決</span>
             <span class="flex gap-3 flex-wrap">
               <a href="06-minigames/tank-battle.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
@@ -376,7 +351,7 @@
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 sm:py-2 border-b border-white/5 last:border-0">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
             <span class="font-tc text-slate-200 min-w-[8rem]">武士反應訓練</span>
             <span class="flex gap-3 flex-wrap">
               <a href="06-minigames/instant-flash.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>

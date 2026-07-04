@@ -18,6 +18,7 @@ const OUT_DIR = process.env.OUT_DIR || path.join(root, 'dist');
 
 const STATIC_COPY = [
   'index.html',
+  'assets',
   'README.md',
   'docs',
   '01-cards',

@@ -41,3 +41,13 @@ for (const name of gameFolders) {
 }
 
 console.log(`\nDone. Installed root + ${gameFolders.length} game(s).`);
+
+console.log('\n=== build menu CSS ===');
+const cssResult = spawnSync('npm', ['run', 'build:css'], {
+  cwd: root,
+  stdio: 'inherit',
+  shell: true,
+});
+if (cssResult.status !== 0) {
+  process.exit(cssResult.status ?? 1);
+}
