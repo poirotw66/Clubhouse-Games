@@ -87,7 +87,7 @@ Clubhouse-Games/
   - 依六大類列出所有遊戲（紙牌、棋盤、牌張、運動機檯、串聯拼砌、迷你遊戲）。
   - 每個遊戲提供：
     - **規格**：連結到對應 `.md`（如 `01-cards/blackjack.md`）。
-    - **進入遊戲**：連結到 `Games/<專案資料夾名>/`；若尚未實作，可顯示「尚未實作」或隱藏連結。
+    - **進入遊戲**：連結到 `Games/<專案資料夾名>/`。
 - 你已實作的 **二十一點** 連結至 `Games/Blackjack-main/`，其餘遊戲可先連到規格，待實作後再在選單中補上遊戲連結。
 
 ---
@@ -107,21 +107,13 @@ Clubhouse-Games/
    - 建置後將 `dist` 內容部署到 `Games/<專案名>/`（手動或 CI）。
 
 4. **總覽選單**  
-   - 選單與 README 遊戲清單由 `data/games.json` 驅動。在 `data/games.json` 對應類別的 `games` 陣列中新增一筆 `{ "name": "顯示名稱", "specPath": "01-cards/xxx.md", "gameFolder": "專案資料夾名" }`（未實作則省略 `gameFolder`），然後執行 `npm run generate` 更新 `index.html` 與 `README.md`。`npm run build:pages` 會自動先執行 generate。
+   - 選單與 README 遊戲清單由 `data/games.json` 驅動。在 `data/games.json` 對應類別的 `games` 陣列中新增一筆 `{ "name": "顯示名稱", "specPath": "01-cards/xxx.md", "gameFolder": "專案資料夾名" }`，然後執行 `npm run generate` 更新 `index.html` 與 `README.md`。`npm run build:pages` 會自動先執行 generate。
 
 ---
 
-## 六、規格與遊戲對照（節錄）
+## 六、規格與遊戲對照
 
-| 類別 | 規格檔（.md） | 建議遊戲路徑（Games/） |
-|------|----------------|--------------------------|
-| 紙牌 | 01-cards/blackjack.md | Blackjack-main（已實作） |
-| 紙牌 | 01-cards/klondike.md | klondike |
-| 紙牌 | 01-cards/hanafuda.md | hanafuda |
-| 益智 | 05-puzzle/mystery-liquid-sort.md | Mystery-Liquid-Sort（已實作） |
-| … | … | … |
-
-其餘遊戲依相同規則：規格在對應類別資料夾，實作在 `Games/<專案名>/`，選單同時連結規格與遊戲入口。
+每款已實作遊戲在對應類別資料夾有規格 `.md`，並在 `Games/<專案名>/` 有前端實作；完整清單見 [data/games.json](../data/games.json) 與 [README.md](../README.md)。
 
 ---
 
