@@ -407,7 +407,7 @@ export default function App() {
                   onDoubleClick={() =>
                     card && handleDoubleClick({ zone: "freeCell", index: i })
                   }
-                  draggable={!!card}
+                  draggable={false}
                   onDragStart={(e) => handleDragStart(e, { zone: "freeCell", index: i })}
                   onDragOver={(e) => handleDragOver(e, { zone: "freeCell", index: i })}
                   onDrop={(e) => handleDrop(e, { zone: "freeCell", index: i })}
@@ -508,7 +508,7 @@ export default function App() {
                             cardIndex,
                           })
                         }
-                        draggable={isSelectable}
+                        draggable={false}
                         onDragStart={(e) => handleDragStart(e, { zone: "tableau", index: colIndex, cardIndex })}
                         onDragOver={(e) => handleDragOver(e, { zone: "tableau", index: colIndex, cardIndex })}
                         onDrop={(e) => handleDrop(e, { zone: "tableau", index: colIndex, cardIndex })}
