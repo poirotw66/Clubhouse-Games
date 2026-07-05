@@ -9,7 +9,8 @@
     "build:css": "tailwindcss -i styles/menu.input.css -o assets/menu.css --minify",
     "build:game": "node scripts/build-game.mjs",
     "build:all": "node scripts/build-all.mjs",
-    "build:pages": "node scripts/generate-from-data.mjs && npm run build:css && node scripts/build-for-pages.mjs"
+    "build:pages": "node scripts/generate-from-data.mjs && npm run build:css && node scripts/build-for-pages.mjs",
+    "check:versions": "node scripts/check-game-versions.mjs"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
