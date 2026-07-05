@@ -525,47 +525,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
 
       </div>
 
-      <style>{`
-        .clip-path-hakama {
-            clip-path: polygon(10% 0, 90% 0, 100% 100%, 0% 100%);
-        }
-        .clip-path-shuriken {
-            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-        }
-        .clip-path-kunai {
-            clip-path: polygon(0 40%, 70% 40%, 100% 50%, 70% 60%, 0 60%);
-        }
-        .animate-spin-fast {
-            animation: spin 0.2s linear infinite;
-        }
-        .animate-slash-path {
-            stroke-dasharray: 100;
-            stroke-dashoffset: 100;
-            animation: slash 0.1s linear forwards;
-        }
-        
-        /* Hit Animation */
-        @keyframes hit-shake {
-          0% { transform: translateX(0) rotate(0); }
-          15% { transform: translateX(-15px) rotate(-10deg) skewX(-10deg); filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5); }
-          30% { transform: translateX(10px) rotate(5deg) skewX(5deg); }
-          45% { transform: translateX(-10px) rotate(-5deg); filter: none; opacity: 0.5; }
-          60% { transform: translateX(5px) rotate(2deg); }
-          75% { transform: translateX(-2px); opacity: 1; }
-          100% { transform: translateX(0) rotate(0); }
-        }
-        .animate-hit {
-          animation: hit-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        @keyframes slash {
-            to { stroke-dashoffset: 0; }
-        }
-      `}</style>
     </div>
   );
 };
