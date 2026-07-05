@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { CardType, GameState, Player, Suit } from '../types';
+import { shuffleArray } from '@clubhouse/shared/shuffle';
 
 export const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 export const RANKS: CardType['rank'][] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -11,16 +12,7 @@ function createDeck(): CardType[] {
       deck.push({ id: `${suit}-${rank}-${Math.random().toString(36).substr(2, 9)}`, suit, rank });
     }
   }
-  return shuffle(deck);
-}
-
-function shuffle(array: any[]) {
-  const newArray = [...array];
-  for (let i = newArray.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-  }
-  return newArray;
+  return shuffleArray(deck);
 }
 
 const INITIAL_HAND_SIZE = 5;
@@ -94,7 +86,7 @@ export function useGame() {
       if (currentDeck.length === 0) {
         if (currentDiscard.length <= 1) break;
         const topCard = currentDiscard.pop()!;
-        currentDeck = shuffle(currentDiscard);
+        currentDeck = shuffleArray(currentDiscard);
         currentDiscard = [topCard];
       }
       if (currentDeck.length > 0) {

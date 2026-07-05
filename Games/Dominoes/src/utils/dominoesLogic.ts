@@ -4,6 +4,8 @@
  * Win: empty hand. Block: no one can play, lower pip sum wins.
  */
 
+import { shuffleArray } from '@clubhouse/shared/shuffle';
+
 export interface Tile {
   id: number;
   left: number;
@@ -47,16 +49,6 @@ export function createSet(): Tile[] {
     }
   }
   return tiles;
-}
-
-/** Fisher–Yates shuffle. */
-function shuffle<T>(arr: T[]): T[] {
-  const out = [...arr];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
 }
 
 /** Pip sum of a tile. */
@@ -144,7 +136,7 @@ function drawOne(boneyard: Tile[]): [Tile[], Tile | null] {
 
 /** Create initial state: shuffled set, 7 each, first tile played by player with highest double (or 6-6, 5-5, ...). */
 export function createInitialState(): DominoesState {
-  const shuffled = shuffle(createSet());
+  const shuffled = shuffleArray(createSet());
   const hand0: Tile[] = shuffled.slice(0, HAND_SIZE);
   const hand1: Tile[] = shuffled.slice(HAND_SIZE, HAND_SIZE * 2);
   const boneyard = shuffled.slice(HAND_SIZE * 2);

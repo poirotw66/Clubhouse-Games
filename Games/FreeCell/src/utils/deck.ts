@@ -1,4 +1,5 @@
 import { Card, Suit } from "../types";
+import { shuffleArray } from "@clubhouse/shared/shuffle";
 
 export const SUITS: Suit[] = ["spades", "hearts", "diamonds", "clubs"];
 
@@ -19,16 +20,11 @@ export function createDeck(): Card[] {
 }
 
 export function shuffle(deck: Card[]): Card[] {
-  const newDeck = [...deck];
-  for (let i = newDeck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
-  }
-  return newDeck;
+  return shuffleArray(deck);
 }
 
 export function dealGame(): { tableaus: Card[][] } {
-  const deck = shuffle(createDeck());
+  const deck = shuffleArray(createDeck());
   const tableaus: Card[][] = Array.from({ length: 8 }, () => []);
 
   for (let i = 0; i < 52; i++) {
