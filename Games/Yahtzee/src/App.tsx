@@ -126,7 +126,7 @@ export default function App() {
                 type="button"
                 onClick={() => handleToggleKept(i)}
                 disabled={state.phase !== 'rolling' || state.rollCount === 0}
-                className={`w-14 h-14 rounded-xl border-2 flex items-center justify-center text-2xl font-bold transition-colors ${
+                className={`w-16 h-16 min-w-[44px] min-h-[44px] rounded-xl border-2 flex items-center justify-center text-2xl font-bold transition-colors touch-manipulation active:scale-95 ${
                   state.kept[i]
                     ? 'border-amber-400 bg-amber-500/30 text-amber-100'
                     : 'border-slate-500 bg-slate-700 text-white'

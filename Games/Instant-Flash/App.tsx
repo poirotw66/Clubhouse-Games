@@ -20,7 +20,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-screen bg-slate-950 flex flex-col overflow-hidden font-sans text-slate-200 select-none">
+    <div className="w-full min-h-dvh h-screen bg-slate-950 flex flex-col overflow-hidden font-sans text-slate-200 select-none">
       <BackToMenu />
       
       {/* Scanline Overlay */}
@@ -60,6 +60,7 @@ export default function App() {
                      <li>Release <strong className="text-white">IMMEDIATELY</strong> as the attack hits.</li>
                      <li>Release too early = Miss. Too late = Damage.</li>
                  </ol>
+                 <p className="md:hidden text-emerald-400/90 text-xs mt-4 text-center">觸控：按住螢幕待機，放開即反擊</p>
              </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import {
   TRACK_WIDTH,
@@ -161,8 +162,26 @@ export default function App() {
       </div>
 
       <p className="mt-3 text-slate-300 text-sm text-center">
-        長按空白鍵或 ↑ 加速，鬆開則減速。彎道前記得收油，避免脫軌！
+        <span className="hidden md:inline">長按空白鍵或 ↑ 加速，鬆開則減速。彎道前記得收油，避免脫軌！</span>
+        <span className="md:hidden">按住下方「加速」鈕，彎道前鬆開減速</span>
       </p>
+
+      {state.phase === 'running' && (
+        <div className={touchControlsWrapClass}>
+          <TouchButton
+            label="加速"
+            ariaLabel="Accelerate"
+            wide
+            accent
+            onPress={() => {
+              inputRef.current.throttle = 1;
+            }}
+            onRelease={() => {
+              inputRef.current.throttle = 0;
+            }}
+          />
+        </div>
+      )}
 
       {state.phase === 'menu' && (
         <div

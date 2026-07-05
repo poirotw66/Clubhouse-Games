@@ -318,10 +318,10 @@ export default function App() {
       </div>
 
       <p className="text-amber-200 text-sm mb-4">{statusMessage}</p>
+      <p className="text-amber-200/70 text-xs mb-2 md:hidden">點選棋子再點目的地移動</p>
 
       <div
-        className="inline-block p-2 rounded-xl bg-amber-900/80 shadow-lg box-border"
-        style={{ width: 320, height: 320, minWidth: 280, minHeight: 280 }}
+        className="inline-block p-2 rounded-xl bg-amber-900/80 shadow-lg box-border w-full max-w-[min(92vw,360px)] aspect-square"
       >
         <div
           className="grid w-full h-full rounded-lg overflow-hidden"
@@ -343,8 +343,8 @@ export default function App() {
                 type="button"
                 onClick={() => handleCellClick(r, c)}
                 className={`
-                  flex items-center justify-center
-                  ${dark ? 'bg-amber-800 hover:bg-amber-700' : 'bg-amber-200'}
+                  flex items-center justify-center touch-manipulation
+                  ${dark ? 'bg-amber-800 hover:bg-amber-700 active:bg-amber-600' : 'bg-amber-200'}
                   ${isSelected ? 'ring-2 ring-amber-400 ring-inset' : ''}
                   ${isLanding ? 'bg-amber-500/60 hover:bg-amber-500/80' : ''}
                 `}

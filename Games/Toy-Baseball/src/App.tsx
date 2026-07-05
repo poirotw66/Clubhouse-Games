@@ -5,6 +5,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { Trophy, Play, RotateCcw, ChevronRight, ChevronLeft, Target, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -792,6 +793,20 @@ export default function App() {
     engineRef.current?.handlePitch(type, loc);
   };
 
+  const setSwingDirection = (dir: 'left' | 'center' | 'right') => {
+    const engine = engineRef.current;
+    if (!engine || engine.state.mode !== 'playing' || !engine.isPlayerBatting) return;
+    engine.state.swingDir = dir;
+    engine.onStateChange(engine.state);
+  };
+
+  const handleBattingSwing = () => {
+    const engine = engineRef.current;
+    if (engine?.state.mode === 'playing' && engine.isPlayerBatting) {
+      engine.handleSwing();
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950">
       <BackToMenu />
@@ -925,10 +940,11 @@ export default function App() {
         {gameState.mode === 'playing' && (
           <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
             {gameState.halfInning === 0 ? (
+              <>
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className="bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 flex flex-col items-center gap-2"
+                className="bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 flex flex-col items-center gap-2 hidden md:flex"
               >
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -947,6 +963,15 @@ export default function App() {
                   <span className={`text-[10px] font-bold uppercase tracking-widest ${gameState.swingDir === 'right' ? 'text-blue-400' : 'text-zinc-600'}`}>Push (右)</span>
                 </div>
               </motion.div>
+              <div className={`${touchControlsWrapClass} pointer-events-auto`}>
+                <div className="flex gap-2 w-full justify-center">
+                  <TouchButton label="← 拉" ariaLabel="Pull left" onClick={() => setSwingDirection('left')} />
+                  <TouchButton label="中" ariaLabel="Center" onClick={() => setSwingDirection('center')} />
+                  <TouchButton label="推 →" ariaLabel="Push right" onClick={() => setSwingDirection('right')} />
+                </div>
+                <TouchButton label="揮棒" ariaLabel="Swing" wide accent onClick={handleBattingSwing} />
+              </div>
+              </>
             ) : (
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
