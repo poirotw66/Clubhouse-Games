@@ -139,7 +139,7 @@ export default function App() {
                   type="button"
                   disabled={disabled}
                   onClick={() => handleChoice(index)}
-                  className={`h-16 rounded-xl border transition-transform duration-150 ${
+                  className={`h-16 min-h-[48px] rounded-xl border transition-transform duration-150 touch-manipulation active:scale-95 ${
                     disabled
                       ? 'opacity-60 cursor-default'
                       : 'cursor-pointer hover:scale-[1.03]'

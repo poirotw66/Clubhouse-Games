@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trophy, Timer, Heart, Shield, Zap, User, Monitor, Play, RotateCcw } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -995,8 +996,35 @@ export default function ToyBoxing() {
           </AnimatePresence>
         </div>
 
+        {gameState === 'playing' && (
+          <div className={`${touchControlsWrapClass} mt-4`}>
+            <div className="flex gap-2 justify-center w-full">
+              <TouchButton
+                label="←"
+                ariaLabel="Move left"
+                onPress={() => keysPressed.current.add('KeyA')}
+                onRelease={() => keysPressed.current.delete('KeyA')}
+              />
+              <TouchButton
+                label="→"
+                ariaLabel="Move right"
+                onPress={() => keysPressed.current.add('KeyD')}
+                onRelease={() => keysPressed.current.delete('KeyD')}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center w-full">
+              <TouchButton label="J" ariaLabel="Jab" onPress={() => keysPressed.current.add('KeyJ')} onRelease={() => keysPressed.current.delete('KeyJ')} />
+              <TouchButton label="K" ariaLabel="Hook" onPress={() => keysPressed.current.add('KeyK')} onRelease={() => keysPressed.current.delete('KeyK')} />
+              <TouchButton label="S" ariaLabel="Block" onPress={() => keysPressed.current.add('KeyS')} onRelease={() => keysPressed.current.delete('KeyS')} />
+              <TouchButton label="W" ariaLabel="Dodge" onPress={() => keysPressed.current.add('KeyW')} onRelease={() => keysPressed.current.delete('KeyW')} />
+              <TouchButton label="I" ariaLabel="Parry" onPress={() => keysPressed.current.add('KeyI')} onRelease={() => keysPressed.current.delete('KeyI')} />
+              <TouchButton label="L" ariaLabel="Super" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
+            </div>
+          </div>
+        )}
+
         {/* Controls Guide */}
-        <div className="mt-8 grid grid-cols-3 gap-6">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
             <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
               <Zap className="w-4 h-4" /> Movement

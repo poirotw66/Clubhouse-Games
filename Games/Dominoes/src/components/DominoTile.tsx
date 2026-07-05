@@ -25,12 +25,12 @@ export function DominoTile({
 }: DominoTileProps) {
   const left = displayLeft ?? tile.left;
   const right = displayRight ?? tile.right;
-  const w = size === 'small' ? 'w-8' : 'w-12';
-  const h = size === 'small' ? 'h-16' : 'h-24';
+  const w = size === 'small' ? 'w-8' : 'w-14 sm:w-12';
+  const h = size === 'small' ? 'h-16' : 'h-28 sm:h-24';
   const pipSize = size === 'small' ? 'text-xs' : 'text-lg';
-  const root = `rounded border-2 bg-white text-slate-800 flex items-center justify-center gap-0.5 ${w} ${h} ${
+  const root = `rounded border-2 bg-white text-slate-800 flex items-center justify-center gap-0.5 touch-manipulation ${w} ${h} ${
     highlight ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-800' : 'border-slate-400'
-  } ${onClick ? 'cursor-pointer hover:border-amber-500' : ''}`;
+  } ${onClick ? 'cursor-pointer hover:border-amber-500 active:scale-95' : ''}`;
   const half = `flex flex-col items-center justify-center flex-1 min-w-0 ${pipSize} font-bold`;
   if (vertical) {
     return (

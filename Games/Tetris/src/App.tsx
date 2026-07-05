@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { RefreshCw, Pause, Play, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Cell, ActivePiece, TetrominoType } from './utils/tetrisLogic';
 import {
@@ -269,6 +270,49 @@ export default function App() {
     });
   };
 
+  const handleMoveLeft = () => {
+    setState((prev) => {
+      if (!prev.active || prev.gameOver || prev.paused) return prev;
+      const moved = movePiece(prev.board, prev.active, 0, -1);
+      return moved ? { ...prev, active: moved } : prev;
+    });
+  };
+
+  const handleMoveRight = () => {
+    setState((prev) => {
+      if (!prev.active || prev.gameOver || prev.paused) return prev;
+      const moved = movePiece(prev.board, prev.active, 0, 1);
+      return moved ? { ...prev, active: moved } : prev;
+    });
+  };
+
+  const handleRotateCW = () => {
+    setState((prev) => {
+      if (!prev.active || prev.gameOver || prev.paused) return prev;
+      return { ...prev, active: tryRotateWithKick(prev.board, prev.active, 1) };
+    });
+  };
+
+  const handleHoldPiece = () => {
+    setState((prev) => {
+      if (!prev.active || prev.gameOver || prev.paused || !prev.canHold) return prev;
+      const currentType = prev.active.type;
+      if (prev.hold === null) {
+        const next = nextFromQueue(prev.queue);
+        const active = spawnPiece(next.type);
+        if (collides(prev.board, active)) {
+          return { ...prev, active: null, queue: next.remaining, hold: currentType, gameOver: true };
+        }
+        return { ...prev, active, queue: next.remaining, hold: currentType, canHold: false };
+      }
+      const active = spawnPiece(prev.hold);
+      if (collides(prev.board, active)) {
+        return { ...prev, active: null, hold: currentType, gameOver: true };
+      }
+      return { ...prev, active, hold: currentType, canHold: false };
+    });
+  };
+
   const handleTogglePause = () => {
     setState((prev) => ({ ...prev, paused: !prev.paused }));
   };
@@ -458,6 +502,20 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      <div className={touchControlsWrapClass}>
+        <div className="flex gap-2 w-full justify-center">
+          <TouchButton label="←" ariaLabel="Move left" onClick={handleMoveLeft} />
+          <TouchButton label="↓" ariaLabel="Soft drop" onClick={handleSoftDrop} />
+          <TouchButton label="→" ariaLabel="Move right" onClick={handleMoveRight} />
+        </div>
+        <div className="flex gap-2 w-full justify-center flex-wrap">
+          <TouchButton label="旋轉" ariaLabel="Rotate" onClick={handleRotateCW} />
+          <TouchButton label="Hard" ariaLabel="Hard drop" onClick={handleHardDropClick} accent />
+          <TouchButton label="Hold" ariaLabel="Hold piece" onClick={handleHoldPiece} />
+        </div>
+      </div>
+      <p className="md:hidden text-xs text-slate-500 mt-2 text-center">使用下方按鈕操作方塊</p>
     </div>
   );
 }

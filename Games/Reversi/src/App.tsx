@@ -356,15 +356,10 @@ export default function App() {
       </div>
 
       <p className="text-emerald-200 text-sm mb-4">{statusMessage}</p>
+      <p className="text-emerald-200/70 text-xs mb-2 md:hidden">點選合法位置下子</p>
 
       <div
-        className="inline-block p-2 rounded-xl bg-emerald-900/80 shadow-lg box-border"
-        style={{
-          width: 320,
-          height: 320,
-          minWidth: 280,
-          minHeight: 280,
-        }}
+        className="inline-block p-2 rounded-xl bg-emerald-900/80 shadow-lg box-border w-full max-w-[min(92vw,360px)] aspect-square"
       >
         <div
           className="grid gap-0.5 bg-stone-800 rounded-lg p-1 w-full h-full"
@@ -385,8 +380,8 @@ export default function App() {
                 onClick={() => handleCellClick(r, c)}
                 disabled={state.phase !== 'playing' || !humanCanClick || (humanCanClick && !isLegal)}
                 className={`
-                  w-full aspect-square rounded-md flex items-center justify-center
-                  transition-colors duration-150
+                  w-full aspect-square rounded-md flex items-center justify-center touch-manipulation
+                  transition-colors duration-150 active:scale-95
                   ${cell ? 'cursor-default' : ''}
                 ${showLegalHints && isLegal && !cell ? 'bg-emerald-600/40 hover:bg-emerald-500/50' : 'bg-emerald-800/60'}
                 ${showLegalHints && !isLegal && state.phase === 'playing' ? 'hover:bg-emerald-700/70' : ''}

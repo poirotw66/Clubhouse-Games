@@ -145,14 +145,14 @@ export default function App() {
               step="0.05"
               value={state.launchPower}
               onChange={(e) => handlePowerChange(parseFloat(e.target.value))}
-              className="flex-1 h-3 rounded-full appearance-none bg-slate-700 accent-amber-500"
+              className="flex-1 h-3 min-h-[44px] rounded-full appearance-none bg-slate-700 accent-amber-500 touch-manipulation"
             />
             <span className="text-xs text-slate-500 w-8">強</span>
           </div>
           <button
             type="button"
             onClick={handleLaunch}
-            className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold transition-colors"
+            className="w-full py-3 min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-500 font-bold transition-colors touch-manipulation active:scale-[0.98]"
           >
             發射
           </button>

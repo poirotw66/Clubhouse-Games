@@ -232,10 +232,10 @@ export default function App() {
       </div>
 
       <p className="text-slate-200 text-sm mb-4">{statusMessage}</p>
+      <p className="text-slate-400 text-xs mb-2 md:hidden">點選上方欄位落子</p>
 
       <div
-        className="inline-block p-3 rounded-xl bg-blue-900 shadow-lg"
-        style={{ width: 320, minWidth: 280 }}
+        className="inline-block p-3 rounded-xl bg-blue-900 shadow-lg w-full max-w-[min(92vw,360px)]"
       >
         {/* Column headers (drop targets) */}
         <div
@@ -251,7 +251,7 @@ export default function App() {
               onMouseLeave={() => setHoverCol(null)}
               disabled={state.phase !== 'playing' || !legalSet.has(c)}
               className={`
-                h-10 rounded-t-lg flex items-center justify-center transition-colors
+                h-12 min-h-[48px] rounded-t-lg flex items-center justify-center transition-colors touch-manipulation
                 ${legalSet.has(c) ? 'bg-slate-600 hover:bg-slate-500' : 'bg-slate-800 cursor-not-allowed'}
                 ${hoverCol === c && legalSet.has(c) ? 'ring-2 ring-white/50' : ''}
               `}

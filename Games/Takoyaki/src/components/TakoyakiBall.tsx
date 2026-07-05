@@ -48,7 +48,7 @@ export function TakoyakiBall({ slot, onClick, disabled }: TakoyakiBallProps) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="relative w-full aspect-square min-w-[72px] min-h-[72px] rounded-full border-2 border-amber-800/80 overflow-visible focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-amber-950 transition-transform active:scale-95 disabled:active:scale-100"
+      className="relative w-full aspect-square min-w-[72px] min-h-[72px] rounded-full border-2 border-amber-800/80 overflow-visible focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-amber-950 transition-transform active:scale-95 disabled:active:scale-100 touch-manipulation"
       style={{
         background: 'radial-gradient(ellipse 80% 60% at 50% 80%, #422006, #1c1917 70%)',
         boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.4)',
