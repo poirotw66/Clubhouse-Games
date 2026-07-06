@@ -8,84 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&family=Noto+Sans+TC:wght@400;500;600&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #0F0F23;
-      --text: #E2E8F0;
-      --muted: #94A3B8;
-      --primary: #7C3AED;
-      --secondary: #A78BFA;
-      --cta: #F43F5E;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: var(--font-body, 'Chakra Petch'), system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      margin: 0;
-      min-height: 100vh;
-    }
-    .font-tc { font-family: 'Noto Sans TC', sans-serif; }
-    .font-heading { font-family: 'Russo One', sans-serif; }
-
-    /* Dreamy gradient orbs (decorative background) */
-    .dream-bg {
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      overflow: hidden;
-    }
-    .dream-orb {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.35;
-      pointer-events: none;
-    }
-    .dream-orb-1 { width: 40vw; height: 40vw; background: var(--primary); top: -10%; right: -5%; }
-    .dream-orb-2 { width: 30vw; height: 30vw; background: var(--secondary); bottom: 10%; left: -10%; }
-    .dream-orb-3 { width: 20vw; height: 20vw; background: var(--cta); top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.15; }
-
-    /* Card hover: color/opacity transition, no layout shift */
-    .game-card {
-      transition: box-shadow 0.2s ease-out, border-color 0.2s ease-out;
-    }
-    .game-card:hover {
-      box-shadow: 0 0 28px rgba(124, 58, 237, 0.25), 0 0 56px rgba(124, 58, 237, 0.1);
-      border-color: rgba(167, 139, 250, 0.5);
-    }
-    .game-card:focus-within {
-      box-shadow: 0 0 0 2px var(--primary);
-    }
-    .game-card li {
-      transition: background-color 0.15s ease-out;
-      border-radius: 0.5rem;
-    }
-    .game-card li:hover {
-      background: rgba(255, 255, 255, 0.05);
-    }
-    .link-spec { transition: color 0.2s ease-out; }
-    .link-spec:hover { color: var(--secondary); }
-    .link-play {
-      transition: color 0.2s ease-out, box-shadow 0.2s ease-out;
-    }
-    .link-play:hover {
-      color: #F87171;
-      box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
-    }
-    .btn-nav {
-      transition: background-color 0.2s ease-out, color 0.2s ease-out;
-      cursor: pointer;
-    }
-    .btn-nav:hover { background: rgba(167, 139, 250, 0.2); color: var(--secondary); }
-    .btn-nav:focus-visible { outline: 2px solid var(--secondary); outline-offset: 2px; }
-
-    @media (prefers-reduced-motion: reduce) {
-      .dream-orb { animation: none; }
-      .game-card, .game-card li, .link-spec, .link-play, .btn-nav { transition: none; }
-    }
-  </style>
 </head>
 <body class="antialiased">
   <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-20 focus:px-4 focus:py-2 focus:rounded-lg focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-dream bg-dream text-secondary font-medium">
@@ -118,244 +40,280 @@
     <section class="mb-10 sm:mb-14 text-center">
       <p class="font-tc text-secondary text-sm uppercase tracking-widest mb-2" aria-hidden="true">遊戲總覽</p>
       <h1 class="font-heading text-4xl sm:text-5xl lg:text-6xl text-white tracking-wide mb-3">Clubhouse Games</h1>
-      <p class="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto font-tc">
-        點選「規格」查看玩法，「進入遊戲」開始遊玩。
+      <p class="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto font-tc mb-6">
+        搜尋或依分類挑選遊戲，點「進入遊戲」即可開始。
       </p>
+      <div class="flex flex-wrap justify-center gap-3" aria-label="概覽">
+        <span class="stat-badge font-tc"><strong id="game-count-stat">22</strong> 款遊戲</span>
+        <span class="stat-badge font-tc"><strong>6</strong> 大分類</span>
+      </div>
+    </section>
+
+    <section class="menu-toolbar mb-8 sm:mb-10" aria-label="搜尋與篩選">
+      <div class="search-field">
+        <label for="game-search" class="sr-only">搜尋遊戲</label>
+        <input
+          type="search"
+          id="game-search"
+          class="search-input"
+          placeholder="搜尋遊戲名稱…"
+          autocomplete="off"
+          enterkeyhint="search"
+        />
+        <button type="button" id="search-clear" class="search-clear" hidden aria-label="清除搜尋">×</button>
+      </div>
+      <nav id="category-nav" class="category-nav" aria-label="快速跳轉分類">
+        <!-- GENERATED_CATEGORY_NAV -->
+        <a href="#category-cards" class="category-pill">紙牌</a>
+        <a href="#category-board" class="category-pill">棋盤</a>
+        <a href="#category-tiles" class="category-pill">牌張</a>
+        <a href="#category-sports" class="category-pill">運動</a>
+        <a href="#category-puzzle" class="category-pill">益智</a>
+        <a href="#category-minigames" class="category-pill">迷你</a>
+        <!-- /GENERATED_CATEGORY_NAV -->
+      </nav>
+      <p id="search-status" class="text-slate-500 text-sm text-center sm:text-left min-h-[1.25rem]" role="status" aria-live="polite"></p>
     </section>
 
     <!-- Features: Game categories as cards -->
     <section class="space-y-8 lg:grid lg:grid-cols-2 lg:gap-8 lg:space-y-0 lg:items-start" aria-label="遊戲分類">
     <!-- GENERATED_GAMES_MENU -->
-      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-cards">
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-cards" data-category="cards">
         <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
           <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-          01 紙牌類型
+          <span class="font-tc">01 紙牌類型</span>
+          <span class="category-count" aria-label="4 款遊戲">4</span>
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">二十一點</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="01-cards/blackjack.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Blackjack-main/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="二十一點 Blackjack-main blackjack">
+            <span class="game-row-name">二十一點</span>
+            <span class="game-row-actions">
+              <a href="01-cards/blackjack.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Blackjack-main/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">連環新接龍（FreeCell）</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="01-cards/freecell.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/FreeCell/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="連環新接龍（FreeCell） FreeCell freecell">
+            <span class="game-row-name">連環新接龍（FreeCell）</span>
+            <span class="game-row-actions">
+              <a href="01-cards/freecell.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/FreeCell/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">克朗代克接龍</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="01-cards/klondike.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Klondike/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="克朗代克接龍 Klondike klondike">
+            <span class="game-row-name">克朗代克接龍</span>
+            <span class="game-row-actions">
+              <a href="01-cards/klondike.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Klondike/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">最後一張牌</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="01-cards/last-card.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Last-Card/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="最後一張牌 Last-Card last-card">
+            <span class="game-row-name">最後一張牌</span>
+            <span class="game-row-actions">
+              <a href="01-cards/last-card.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Last-Card/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
         </ul>
       </article>
 
-      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-board">
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-board" data-category="board">
         <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
           <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-          02 棋盤類型
+          <span class="font-tc">02 棋盤類型</span>
+          <span class="category-count" aria-label="3 款遊戲">3</span>
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">黑白棋</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="02-board/reversi.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Reversi/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="黑白棋 Reversi reversi">
+            <span class="game-row-name">黑白棋</span>
+            <span class="game-row-actions">
+              <a href="02-board/reversi.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Reversi/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">西洋跳棋</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="02-board/checkers.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Checkers/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="西洋跳棋 Checkers checkers">
+            <span class="game-row-name">西洋跳棋</span>
+            <span class="game-row-actions">
+              <a href="02-board/checkers.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Checkers/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">四子棋</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="02-board/connect-four.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Connect-Four/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="四子棋 Connect-Four connect-four">
+            <span class="game-row-name">四子棋</span>
+            <span class="game-row-actions">
+              <a href="02-board/connect-four.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Connect-Four/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
         </ul>
       </article>
 
-      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-tiles">
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-tiles" data-category="tiles">
         <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
           <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
-          03 牌張類型
+          <span class="font-tc">03 牌張類型</span>
+          <span class="category-count" aria-label="2 款遊戲">2</span>
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">西洋骨牌</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="03-tiles-dice/dominoes.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Dominoes/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="西洋骨牌 Dominoes dominoes">
+            <span class="game-row-name">西洋骨牌</span>
+            <span class="game-row-actions">
+              <a href="03-tiles-dice/dominoes.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Dominoes/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">快艇骰子</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="03-tiles-dice/yahtzee.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Yahtzee/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="快艇骰子 Yahtzee yahtzee">
+            <span class="game-row-name">快艇骰子</span>
+            <span class="game-row-actions">
+              <a href="03-tiles-dice/yahtzee.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Yahtzee/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
         </ul>
       </article>
 
-      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-sports">
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-sports" data-category="sports">
         <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
           <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          04 運動機檯類型
+          <span class="font-tc">04 運動機檯類型</span>
+          <span class="category-count" aria-label="5 款遊戲">5</span>
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">玩具網球</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="04-sports-arcade/toy-tennis.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Toy-Tennis/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="玩具網球 Toy-Tennis toy-tennis">
+            <span class="game-row-name">玩具網球</span>
+            <span class="game-row-actions">
+              <a href="04-sports-arcade/toy-tennis.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Toy-Tennis/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">玩具足球</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="04-sports-arcade/toy-football.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Toy-Football/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="玩具足球 Toy-Football toy-football">
+            <span class="game-row-name">玩具足球</span>
+            <span class="game-row-actions">
+              <a href="04-sports-arcade/toy-football.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Toy-Football/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">玩具拳擊</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="04-sports-arcade/toy-boxing.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Toy-Boxing/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="玩具拳擊 Toy-Boxing toy-boxing">
+            <span class="game-row-name">玩具拳擊</span>
+            <span class="game-row-actions">
+              <a href="04-sports-arcade/toy-boxing.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Toy-Boxing/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">玩具棒球</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="04-sports-arcade/toy-baseball.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Toy-Baseball/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="玩具棒球 Toy-Baseball toy-baseball">
+            <span class="game-row-name">玩具棒球</span>
+            <span class="game-row-actions">
+              <a href="04-sports-arcade/toy-baseball.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Toy-Baseball/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">羽毛球接殺訓練</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="04-sports-arcade/badminton-smash.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Block-the-smash/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="羽毛球接殺訓練 Block-the-smash badminton-smash">
+            <span class="game-row-name">羽毛球接殺訓練</span>
+            <span class="game-row-actions">
+              <a href="04-sports-arcade/badminton-smash.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Block-the-smash/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
         </ul>
       </article>
 
-      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-puzzle">
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-puzzle" data-category="puzzle">
         <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
           <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
-          05 串聯拼砌類型
+          <span class="font-tc">05 串聯拼砌類型</span>
+          <span class="category-count" aria-label="3 款遊戲">3</span>
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">神秘液體排序</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="05-puzzle/mystery-liquid-sort.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Mystery-Liquid-Sort/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="神秘液體排序 Mystery-Liquid-Sort mystery-liquid-sort">
+            <span class="game-row-name">神秘液體排序</span>
+            <span class="game-row-actions">
+              <a href="05-puzzle/mystery-liquid-sort.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Mystery-Liquid-Sort/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">章魚燒</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="05-puzzle/takoyaki.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Takoyaki/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="章魚燒 Takoyaki takoyaki">
+            <span class="game-row-name">章魚燒</span>
+            <span class="game-row-actions">
+              <a href="05-puzzle/takoyaki.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Takoyaki/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">俄羅斯方塊</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="05-puzzle/tetris.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Tetris/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="俄羅斯方塊 Tetris tetris">
+            <span class="game-row-name">俄羅斯方塊</span>
+            <span class="game-row-actions">
+              <a href="05-puzzle/tetris.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Tetris/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
         </ul>
       </article>
 
-      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-minigames">
+      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="category-minigames" data-category="minigames">
         <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
           <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 010-4V7a2 2 0 00-2-2H5z" /></svg>
-          06 迷你遊戲類型
+          <span class="font-tc">06 迷你遊戲類型</span>
+          <span class="category-count" aria-label="5 款遊戲">5</span>
         </h2>
         <ul class="space-y-1" role="list">
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">彈戲</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="06-minigames/pachinko.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Pachinko/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="彈戲 Pachinko pachinko">
+            <span class="game-row-name">彈戲</span>
+            <span class="game-row-actions">
+              <a href="06-minigames/pachinko.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Pachinko/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">軌道車</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="06-minigames/slot-cars.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Slot-Cars/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="軌道車 Slot-Cars slot-cars">
+            <span class="game-row-name">軌道車</span>
+            <span class="game-row-actions">
+              <a href="06-minigames/slot-cars.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Slot-Cars/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">猜顏色</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="06-minigames/guess-the-color.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Guess-the-Color/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="猜顏色 Guess-the-Color guess-the-color">
+            <span class="game-row-name">猜顏色</span>
+            <span class="game-row-actions">
+              <a href="06-minigames/guess-the-color.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Guess-the-Color/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">坦克對決</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="06-minigames/tank-battle.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Tank-Battle/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="坦克對決 Tank-Battle tank-battle">
+            <span class="game-row-name">坦克對決</span>
+            <span class="game-row-actions">
+              <a href="06-minigames/tank-battle.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Tank-Battle/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">武士反應訓練</span>
-            <span class="flex gap-3 flex-wrap">
-              <a href="06-minigames/instant-flash.md" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
-              <a href="Games/Instant-Flash/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>
+          <li class="game-row" data-search="武士反應訓練 Instant-Flash instant-flash">
+            <span class="game-row-name">武士反應訓練</span>
+            <span class="game-row-actions">
+              <a href="06-minigames/instant-flash.md" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>
+              <a href="Games/Instant-Flash/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>
             </span>
           </li>
 
@@ -371,5 +329,6 @@
       </p>
     </footer>
   </main>
+  <script src="assets/menu.js" defer></script>
 </body>
 </html>
