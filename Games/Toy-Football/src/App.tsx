@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
-import type { GameState } from './utils/gameEngine';
+import type { CpuDifficulty, GameState } from './utils/gameEngine';
+
+const DIFFICULTY_OPTIONS: { id: CpuDifficulty; label: string }[] = [
+  { id: 'easy', label: '簡單' },
+  { id: 'normal', label: '普通' },
+  { id: 'hard', label: '困難' },
+];
 
 function TouchButton({
   label,
@@ -42,6 +48,7 @@ export default function App() {
     return e.getInitialState();
   });
   const [showRules, setShowRules] = useState(false);
+  const [difficulty, setDifficulty] = useState<CpuDifficulty>('normal');
 
   const keysRef = useRef({
     up: false,
@@ -113,7 +120,10 @@ export default function App() {
     };
   }, []);
 
-  const handleStart = () => engineRef.current?.start();
+  const handleStart = () => {
+    engineRef.current?.setDifficulty(difficulty);
+    engineRef.current?.start();
+  };
   const handleReset = () => engineRef.current?.reset();
 
   const formatTime = (s: number) => {
@@ -188,6 +198,22 @@ export default function App() {
             <p className="text-slate-300 text-sm max-w-sm text-center">
               90 秒內進球多者勝。方向鍵或 WASD 移動，空白鍵踢球；踢球方向由目前按住的方位決定（不按則朝對方球門）。
             </p>
+            <div className="flex gap-2" role="group" aria-label="Difficulty">
+              {DIFFICULTY_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setDifficulty(option.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    difficulty === option.id
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={handleStart}
@@ -306,6 +332,7 @@ export default function App() {
               <li>方向鍵或 WASD 移動，靠近球時按空白鍵踢球；踢球方向由按住的方向鍵決定（可斜向），不按則朝對方球門。</li>
               <li>球進入對方球門即得 1 分，球重置至中場。</li>
               <li>90 秒結束後進球多者勝；平手則和局。</li>
+              <li>開始前可選電腦難度；困難模式下電腦會更積極防守與射門。</li>
             </ul>
             <button
               type="button"

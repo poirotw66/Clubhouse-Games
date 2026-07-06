@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import {
-  COLORS,
   createInitialState,
   startGame,
   updateState,
   submitAnswer,
+  getRoundDifficulty,
   type GuessColorState,
 } from './utils/slotCarsLogic';
 
@@ -51,6 +51,11 @@ export default function App() {
   const handleChoice = (index: number) => {
     setState((prev) => submitAnswer(prev, index));
   };
+
+  const roundConfig =
+    state.round > 0 ? getRoundDifficulty(state.round) : getRoundDifficulty(1);
+  const gridCols =
+    roundConfig.choiceCount <= 6 ? 3 : roundConfig.choiceCount <= 8 ? 4 : 3;
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4">
@@ -123,14 +128,16 @@ export default function App() {
               className="w-28 h-28 rounded-2xl shadow-lg transition-colors duration-150"
               style={{
                 backgroundColor:
-                  state.phase === 'showing' ? COLORS[state.targetIndex] : '#020617',
+                  state.phase === 'showing'
+                    ? state.choiceColors[state.targetIndex]
+                    : '#020617',
               }}
             />
           </div>
         </div>
         <div className="px-4 pb-4">
-          <div className="grid grid-cols-3 gap-3">
-            {COLORS.map((color, index) => {
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
+            {state.choiceColors.map((color, index) => {
               const disabled =
                 state.phase !== 'answering' && state.phase !== 'showing';
               return (
@@ -164,8 +171,8 @@ export default function App() {
         >
           <h2 className="text-2xl font-bold">開始猜顏色</h2>
           <p className="text-slate-300 text-sm max-w-sm text-center">
-            每題會先顯示一塊顏色，稍後顏色會隱藏。請在限時內從六個顏色選項中點出剛才顯示的那一個，共 {state.maxRounds}{' '}
-            題，盡量多答對、拚高分吧！
+            每題會先顯示一塊顏色，稍後顏色會隱藏。請在限時內從選項中點出剛才顯示的那一個，共 {state.maxRounds}{' '}
+            題；越後面顯示時間越短、選項越多且更相似，盡量多答對、拚高分吧！
           </p>
           <button
             type="button"
@@ -220,7 +227,7 @@ export default function App() {
             <ul className="text-sm text-slate-200 space-y-2 list-disc pl-4">
               <li>遊戲會依序出 {state.maxRounds} 題，每題先顯示一塊顏色。</li>
               <li>
-                顏色出現約 0.8 秒後會隱藏，你須在限時內從六個顏色按鈕中，點選剛才那個顏色。
+                顏色出現時間會隨回合縮短，答題限時也會變緊；後期選項增至 8～9 個且含相似色干擾。
               </li>
               <li>答對可得分，連續答對會有額外連擊加成；答錯或超時則該題 0 分且連擊歸零。</li>
               <li>所有題目結束後結算總分與最長連擊，挑戰自己能拿到多高分吧！</li>

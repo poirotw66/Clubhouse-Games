@@ -12,8 +12,14 @@ const BALL_RADIUS = 8;
 const BALL_SPEED = 380;
 const PADDLE_SPEED = 320;
 const WINNING_POINTS = 7;
-const CPU_REACTION = 0.4;
-const CPU_ERROR = 25;
+
+export type CpuDifficulty = 'easy' | 'normal' | 'hard';
+
+const CPU_PARAMS: Record<CpuDifficulty, { reaction: number; error: number }> = {
+  easy: { reaction: 0.28, error: 42 },
+  normal: { reaction: 0.4, error: 25 },
+  hard: { reaction: 0.62, error: 12 },
+};
 
 export type GameMode = 'menu' | 'playing' | 'gameOver';
 
@@ -36,10 +42,19 @@ export interface GameState {
 export class GameEngine {
   state: GameState;
   onStateChange: (s: GameState) => void;
+  difficulty: CpuDifficulty;
 
-  constructor(onStateChange: (s: GameState) => void) {
+  constructor(
+    onStateChange: (s: GameState) => void,
+    difficulty: CpuDifficulty = 'normal'
+  ) {
     this.onStateChange = onStateChange;
+    this.difficulty = difficulty;
     this.state = this.getInitialState();
+  }
+
+  setDifficulty(difficulty: CpuDifficulty): void {
+    this.difficulty = difficulty;
   }
 
   getInitialState(): GameState {
@@ -109,10 +124,11 @@ export class GameEngine {
     const rightPaddleX = CANVAS_WIDTH - PADDLE_MARGIN - PADDLE_WIDTH;
 
     // CPU paddle: move toward ball with delay and error
+    const cpu = CPU_PARAMS[this.difficulty];
     const cpuTarget = this.state.ballY - PADDLE_HEIGHT / 2;
     const diff = cpuTarget - this.state.paddleCpuY;
-    const error = (Math.random() - 0.5) * 2 * CPU_ERROR;
-    this.state.paddleCpuY += (diff * CPU_REACTION + error) * dt * PADDLE_SPEED;
+    const error = (Math.random() - 0.5) * 2 * cpu.error;
+    this.state.paddleCpuY += (diff * cpu.reaction + error) * dt * PADDLE_SPEED;
     this.state.paddleCpuY = Math.max(
       0,
       Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, this.state.paddleCpuY)
