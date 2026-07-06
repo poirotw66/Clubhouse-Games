@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { useGame, SUITS } from './hooks/useGame';
+import { pickBotCard } from './utils/botStrategy';
 import { PlayingCard } from './components/PlayingCard';
 import { Opponent } from './components/Opponent';
 import { RulesModal } from './components/RulesModal';
@@ -29,32 +30,41 @@ export default function App() {
     if (currentPlayer.isHuman) return;
 
     const timer = setTimeout(() => {
-      const validCards = currentPlayer.hand.filter(c => isValidPlay(c, activeSuit, topCard, drawPenalty));
+      const validCards = currentPlayer.hand.filter((c) => isValidPlay(c, activeSuit, topCard, drawPenalty));
+      const chosen = pickBotCard(currentPlayer.hand, validCards, {
+        activeSuit,
+        topCard,
+        drawPenalty,
+        hasDrawnThisTurn,
+        direction,
+        currentPlayerIndex,
+        players,
+      });
 
       if (drawPenalty > 0) {
-        if (validCards.length > 0) {
-          playCard(currentPlayer.id, validCards[0].id);
+        if (chosen) {
+          playCard(currentPlayer.id, chosen.id);
         } else {
           handleDraw(currentPlayer.id);
         }
-      } else {
-        if (!hasDrawnThisTurn) {
-          if (validCards.length > 0) {
-            const non8s = validCards.filter(c => c.rank !== '8');
-            const cardToPlay = non8s.length > 0 ? non8s[0] : validCards[0];
-            playCard(currentPlayer.id, cardToPlay.id);
-          } else {
-            handleDraw(currentPlayer.id);
-          }
-        } else {
-          if (validCards.length > 0) {
-            playCard(currentPlayer.id, validCards[0].id);
-          } else {
-            passTurn(currentPlayer.id);
-          }
-        }
+        return;
       }
-    }, 1500);
+
+      if (!hasDrawnThisTurn) {
+        if (chosen) {
+          playCard(currentPlayer.id, chosen.id);
+        } else {
+          handleDraw(currentPlayer.id);
+        }
+        return;
+      }
+
+      if (chosen) {
+        playCard(currentPlayer.id, chosen.id);
+      } else {
+        passTurn(currentPlayer.id);
+      }
+    }, 600);
 
     return () => clearTimeout(timer);
   }, [currentPlayerIndex, status, hasDrawnThisTurn, players, activeSuit, topCard, drawPenalty, playCard, handleDraw, passTurn, isValidPlay]);

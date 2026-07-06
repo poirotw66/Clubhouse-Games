@@ -192,21 +192,100 @@ export function isDarkSquare(r: number, c: number): boolean {
   return isDark(r, c);
 }
 
-/** Simple bot: prefer capture moves, then longer capture sequences; otherwise pick first legal move. */
+/** Bot: forced captures with longest chain; otherwise minimax for quiet moves. */
 export function pickBotMove(
   board: Board,
   color: PieceColor,
-  continuationFrom: [number, number] | null
+  continuationFrom: [number, number] | null,
 ): Move | null {
   const moves = continuationFrom
     ? getLegalMovesFrom(board, color, continuationFrom[0], continuationFrom[1])
     : getLegalMoves(board, color);
   if (moves.length === 0) return null;
+
   const captures = moves.filter((m) => m.path.length > 2);
-  const pool = captures.length > 0 ? captures : moves;
-  let best = pool[0];
-  for (const m of pool) {
-    if (m.path.length > best.path.length) best = m;
+  if (captures.length > 0) {
+    return captures.reduce((best, move) => {
+      if (move.path.length !== best.path.length) {
+        return move.path.length > best.path.length ? move : best;
+      }
+      const moveKing = promotesKing(board, move, color);
+      const bestKing = promotesKing(board, best, color);
+      if (moveKing !== bestKing) return moveKing ? move : best;
+      return move;
+    });
+  }
+
+  const DEPTH = 3;
+  let best = moves[0];
+  let bestScore = -Infinity;
+  for (const move of moves) {
+    const next = applyMove(board, move);
+    const score = -minimaxCheckers(next, DEPTH - 1, -Infinity, Infinity, color, opponent(color));
+    if (score > bestScore) {
+      bestScore = score;
+      best = move;
+    }
   }
   return best;
+}
+
+function promotesKing(board: Board, move: Move, color: PieceColor): boolean {
+  const [lastR] = move.path[move.path.length - 1];
+  const piece = board[move.from[0]][move.from[1]];
+  if (!piece || piece.king) return false;
+  return (color === 'black' && lastR === 0) || (color === 'white' && lastR === SIZE - 1);
+}
+
+function evaluateCheckers(board: Board, color: PieceColor): number {
+  const opp = opponent(color);
+  const counts = countPieces(board);
+  const mine = color === 'black' ? counts.black : counts.white;
+  const theirs = color === 'black' ? counts.white : counts.black;
+  let score = (mine - theirs) * 120;
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+      const sign = piece.color === color ? 1 : -1;
+      score += piece.king ? 35 * sign : 12 * sign;
+      if (!piece.king) {
+        if (piece.color === 'black' && r === SIZE - 1) score += 6 * sign;
+        if (piece.color === 'white' && r === 0) score += 6 * sign;
+      }
+    }
+  }
+
+  score += (getLegalMoves(board, color).length - getLegalMoves(board, opp).length) * 4;
+  return score;
+}
+
+function minimaxCheckers(
+  board: Board,
+  depth: number,
+  alpha: number,
+  beta: number,
+  player: PieceColor,
+  turn: PieceColor,
+): number {
+  const winner = getWinner(board, turn);
+  if (winner === player) return 8_000 + depth;
+  if (winner === opponent(player)) return -8_000 - depth;
+  if (depth === 0) return evaluateCheckers(board, player);
+
+  const moves = getLegalMoves(board, turn);
+  if (moves.length === 0) {
+    return turn === player ? -8_000 : 8_000;
+  }
+
+  let value = -Infinity;
+  for (const move of moves) {
+    const next = applyMove(board, move);
+    const score = -minimaxCheckers(next, depth - 1, -beta, -alpha, player, opponent(turn));
+    value = Math.max(value, score);
+    alpha = Math.max(alpha, value);
+    if (alpha >= beta) break;
+  }
+  return value;
 }

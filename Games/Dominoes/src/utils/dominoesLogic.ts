@@ -292,12 +292,40 @@ export function getValidMoves(
   return moves;
 }
 
-/** Pick a random valid move for bot. */
+/** Score and pick the best domino move for the bot. */
 export function pickBotMove(
   hand: Tile[],
-  chain: PlacedTile[]
+  chain: PlacedTile[],
+  opponentHandSize: number = 7,
 ): { tileId: number; end: 'left' | 'right' } | null {
   const moves = getValidMoves(hand, chain);
   if (moves.length === 0) return null;
-  return moves[Math.floor(Math.random() * moves.length)];
+
+  const tileById = new Map(hand.map((t) => [t.id, t]));
+  let best = moves[0];
+  let bestScore = -Infinity;
+
+  for (const move of moves) {
+    const tile = tileById.get(move.tileId);
+    if (!tile) continue;
+
+    let score = tileSum(tile);
+    if (tile.left === tile.right) {
+      score += 24 + tile.left * 2;
+    }
+
+    const ends = getChainEnds(chain);
+    if (ends && opponentHandSize <= 3) {
+      const endPip = move.end === 'left' ? ends.left : ends.right;
+      const outward = getOutwardPip(tile, endPip) ?? 0;
+      score += outward * 3;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = move;
+    }
+  }
+
+  return best;
 }
