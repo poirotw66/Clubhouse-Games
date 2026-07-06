@@ -119,32 +119,71 @@ const SQUARE_WEIGHT = [
 ];
 
 /**
- * Pick a legal move for the bot using position weights.
- * Prefers corners and edges, avoids giving opponent corners when possible.
+ * Pick a legal move for the bot using minimax (depth 4) + mobility.
  */
 export function getBestMove(board: Board, color: Piece): [number, number] | null {
   const moves = getLegalMoves(board, color);
   if (moves.length === 0) return null;
-  const opp: Piece = color === 'black' ? 'white' : 'black';
+
+  const DEPTH = 4;
+  let best = moves[0];
   let bestScore = -Infinity;
-  let best: [number, number] = moves[0];
+
   for (const [r, c] of moves) {
     const next = applyMove(board, r, c, color);
-    let score = SQUARE_WEIGHT[r][c];
-    for (let i = 0; i < SIZE; i++) {
-      for (let j = 0; j < SIZE; j++) {
-        if (next[i][j] === color) score += SQUARE_WEIGHT[i][j];
-        else if (next[i][j] === opp) score -= SQUARE_WEIGHT[i][j];
-      }
-    }
-    const oppMoves = getLegalMoves(next, opp);
-    for (const [or, oc] of oppMoves) {
-      if (SQUARE_WEIGHT[or][oc] >= 100) score -= 80;
-    }
+    const score = -minimax(next, DEPTH - 1, -Infinity, Infinity, color, opponent(color));
     if (score > bestScore) {
       bestScore = score;
       best = [r, c];
     }
   }
   return best;
+}
+
+function evaluateBoard(board: Board, color: Piece): number {
+  const opp = opponent(color);
+  let score = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] === color) score += SQUARE_WEIGHT[r][c];
+      else if (board[r][c] === opp) score -= SQUARE_WEIGHT[r][c];
+    }
+  }
+  const myMobility = getLegalMoves(board, color).length;
+  const oppMobility = getLegalMoves(board, opp).length;
+  score += (myMobility - oppMobility) * 8;
+  return score;
+}
+
+function minimax(
+  board: Board,
+  depth: number,
+  alpha: number,
+  beta: number,
+  player: Piece,
+  turn: Piece,
+): number {
+  if (depth === 0) return evaluateBoard(board, player);
+
+  let moves = getLegalMoves(board, turn);
+  if (moves.length === 0) {
+    const passMoves = getLegalMoves(board, opponent(turn));
+    if (passMoves.length === 0) {
+      const winner = getWinner(board);
+      if (winner === player) return 10_000;
+      if (winner === opponent(player)) return -10_000;
+      return 0;
+    }
+    return minimax(board, depth - 1, alpha, beta, player, opponent(turn));
+  }
+
+  let value = -Infinity;
+  for (const [r, c] of moves) {
+    const next = applyMove(board, r, c, turn);
+    const score = -minimax(next, depth - 1, -beta, -alpha, player, opponent(turn));
+    value = Math.max(value, score);
+    alpha = Math.max(alpha, value);
+    if (alpha >= beta) break;
+  }
+  return value;
 }

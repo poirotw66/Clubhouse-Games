@@ -44,7 +44,8 @@ export default function App() {
     const timer = setTimeout(() => {
       const hand = state.hands[1];
       if (canPlay(hand, state.chain)) {
-        const move = pickBotMove(hand, state.chain);
+        const oppId: PlayerId = state.currentPlayer === 0 ? 1 : 0;
+        const move = pickBotMove(hand, state.chain, state.hands[oppId].length);
         if (move) {
           const next = playTile(state, 1, move.tileId, move.end);
           if (next) setState(next);
