@@ -1,3 +1,195 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #0f0f23;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --primary: #7c3aed;
+    --secondary: #a78bfa;
+    --cta: #f43f5e;
+    --header-offset: 5.5rem;
+  }
+
+  body {
+    font-family: 'Chakra Petch', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .font-tc {
+    font-family: 'Noto Sans TC', sans-serif;
+  }
+
+  .font-heading {
+    font-family: 'Russo One', sans-serif;
+  }
+}
+
+@layer components {
+  .dream-bg {
+    @apply fixed inset-0 -z-10 overflow-hidden;
+  }
+
+  .dream-orb {
+    @apply absolute rounded-full pointer-events-none;
+    filter: blur(80px);
+    opacity: 0.35;
+  }
+
+  .dream-orb-1 {
+    width: 40vw;
+    height: 40vw;
+    background: var(--primary);
+    top: -10%;
+    right: -5%;
+  }
+
+  .dream-orb-2 {
+    width: 30vw;
+    height: 30vw;
+    background: var(--secondary);
+    bottom: 10%;
+    left: -10%;
+  }
+
+  .dream-orb-3 {
+    width: 20vw;
+    height: 20vw;
+    background: var(--cta);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.15;
+  }
+
+  .stat-badge {
+    @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm text-slate-300 border border-white/10 bg-dreamCard backdrop-blur-sm;
+  }
+
+  .stat-badge strong {
+    @apply text-white text-lg font-heading tabular-nums;
+  }
+
+  .menu-toolbar {
+    @apply flex flex-col gap-4 p-4 sm:p-5 rounded-2xl border border-white/10 bg-dreamCard/80 backdrop-blur-md;
+  }
+
+  .search-field {
+    @apply relative w-full max-w-xl mx-auto sm:mx-0;
+  }
+
+  .search-input {
+    @apply w-full rounded-xl border border-white/10 bg-dream/80 text-slate-100 placeholder:text-slate-500 px-4 py-3 pr-10 text-base font-tc focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+  }
+
+  .search-clear {
+    @apply absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-xl leading-none;
+  }
+
+  .category-nav {
+    @apply flex flex-wrap justify-center sm:justify-start gap-2;
+  }
+
+  .category-pill {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-sm font-tc text-slate-300 border border-white/10 bg-dream/60 transition-colors hover:text-secondary hover:border-secondary/40 hover:bg-secondary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+    scroll-margin-top: var(--header-offset);
+  }
+
+  .category-pill.is-active {
+    @apply text-white border-secondary/50 bg-secondary/20;
+  }
+
+  .category-pill.is-muted {
+    @apply opacity-40 pointer-events-none;
+  }
+
+  .game-card {
+    @apply transition-[box-shadow,border-color] duration-200 ease-out;
+    scroll-margin-top: var(--header-offset);
+  }
+
+  .game-card:hover {
+    box-shadow: 0 0 28px rgba(124, 58, 237, 0.25), 0 0 56px rgba(124, 58, 237, 0.1);
+    border-color: rgba(167, 139, 250, 0.5);
+  }
+
+  .game-card:focus-within {
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+
+  .game-card[hidden] {
+    display: none;
+  }
+
+  .category-count {
+    @apply ml-auto text-xs font-tc text-slate-500 tabular-nums px-2 py-0.5 rounded-full border border-white/10 bg-dream/50;
+  }
+
+  .game-row {
+    @apply grid grid-cols-1 sm:grid-cols-[1fr_auto] sm:items-center gap-2 sm:gap-4 py-2.5 px-2 -mx-2 border-b border-white/5 last:border-0 rounded-lg transition-colors duration-150;
+  }
+
+  .game-row:hover {
+    @apply bg-white/5;
+  }
+
+  .game-row[hidden] {
+    display: none;
+  }
+
+  .game-row-name {
+    @apply font-tc text-slate-200 text-base;
+  }
+
+  .game-row-actions {
+    @apply flex items-center gap-2 sm:gap-3 flex-wrap;
+  }
+
+  .link-spec {
+    @apply text-secondary text-sm transition-colors duration-200;
+  }
+
+  .link-spec:hover {
+    color: var(--secondary);
+  }
+
+  .link-play {
+    @apply inline-flex items-center justify-center min-h-[2.25rem] px-3.5 rounded-lg text-cta font-medium text-sm border border-cta/30 bg-cta/10 transition-[color,box-shadow,background-color] duration-200;
+  }
+
+  .link-play:hover {
+    @apply text-red-400 bg-cta/20;
+    box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
+  }
+
+  .btn-nav {
+    @apply transition-[background-color,color] duration-200 cursor-pointer;
+  }
+
+  .btn-nav:hover {
+    @apply bg-secondary/20 text-secondary;
+  }
+
+  .btn-nav:focus-visible {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dream-orb {
+    animation: none;
+  }
+
+  .game-card,
+  .game-row,
+  .link-spec,
+  .link-play,
+  .btn-nav,
+  .category-pill {
+    transition: none;
+  }
+}

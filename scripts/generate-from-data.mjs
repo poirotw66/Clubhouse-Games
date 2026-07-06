@@ -33,26 +33,49 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+function categoryShortLabel(title) {
+  const short = title.replace(/^\d+\s+/, '').replace(/類型$/, '');
+  const aliases = {
+    運動機檯: '運動',
+    串聯拼砌: '益智',
+    迷你遊戲: '迷你',
+  };
+  return aliases[short] ?? short;
+}
+
+function generateCategoryNavHtml(categories) {
+  return categories
+    .map(
+      (cat) =>
+        `        <a href="#${escapeHtml(cat.htmlId)}" class="category-pill">${escapeHtml(categoryShortLabel(cat.title))}</a>`
+    )
+    .join('\n');
+}
+
 function generateMenuHtml(categories) {
   const out = [];
   for (const cat of categories) {
     const svgContent = CATEGORY_SVG[cat.id] ?? '';
     const innerSvg = svgContent.startsWith('<path') ? svgContent : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${svgContent}" />`;
-    out.push(`      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="${escapeHtml(cat.htmlId)}">
+    out.push(`      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="${escapeHtml(cat.htmlId)}" data-category="${escapeHtml(cat.id)}">
         <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
           <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">${innerSvg}</svg>
-          ${escapeHtml(cat.title)}
+          <span class="font-tc">${escapeHtml(cat.title)}</span>
+          <span class="category-count" aria-label="${cat.games.length} 款遊戲">${cat.games.length}</span>
         </h2>
         <ul class="space-y-1" role="list">`);
     for (const game of cat.games) {
       const hasPlay = !!game.gameFolder;
       const playLink = hasPlay
-        ? `<a href="Games/${game.gameFolder}/" class="link-play text-cta font-medium cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">進入遊戲</a>`
-        : '<span class="text-slate-500 text-sm">尚未實作</span>';
-      const specLink = `<a href="${escapeHtml(game.specPath)}" class="link-spec text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>`;
-      out.push(`          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 border-b border-white/5 last:border-0">
-            <span class="font-tc text-slate-200 min-w-[8rem]">${escapeHtml(game.name)}</span>
-            <span class="flex gap-3 flex-wrap">
+        ? `<a href="Games/${escapeHtml(game.gameFolder)}/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>`
+        : '<span class="text-slate-500 text-sm font-tc">尚未實作</span>';
+      const specLink = `<a href="${escapeHtml(game.specPath)}" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>`;
+      const searchTerms = [game.name, game.gameFolder, game.specPath.split('/').pop()?.replace('.md', '')]
+        .filter(Boolean)
+        .join(' ');
+      out.push(`          <li class="game-row" data-search="${escapeHtml(searchTerms)}">
+            <span class="game-row-name">${escapeHtml(game.name)}</span>
+            <span class="game-row-actions">
               ${specLink}
               ${playLink}
             </span>
@@ -108,9 +131,11 @@ if (CATEGORY_SVG.sports.includes(' /><path ')) {
   // already split in the object
 }
 const menuHtml = generateMenuHtml(categories);
+const categoryNavHtml = generateCategoryNavHtml(categories);
 
 let indexContent = fs.readFileSync(INDEX_PATH, 'utf8');
 indexContent = replaceBetween(indexContent, '    <!-- GENERATED_GAMES_MENU -->', '    <!-- /GENERATED_GAMES_MENU -->', menuHtml);
+indexContent = replaceBetween(indexContent, '        <!-- GENERATED_CATEGORY_NAV -->', '        <!-- /GENERATED_CATEGORY_NAV -->', categoryNavHtml);
 fs.writeFileSync(INDEX_PATH, indexContent);
 console.log('Updated index.html');
 
