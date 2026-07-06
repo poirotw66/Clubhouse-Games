@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
+import { playError, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import {
   createInitialState,
   startGame,
@@ -15,9 +18,26 @@ import type { TakoyakiState } from './utils/takoyakiLogic';
 import { TakoyakiBall } from './components/TakoyakiBall';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 
+const BRONZE_TARGET = 120;
+const SILVER_TARGET = 250;
+const GOLD_TARGET = 400;
+
+function getMedalLabel(score: number): string {
+  if (score >= GOLD_TARGET) return '金牌';
+  if (score >= SILVER_TARGET) return '銀牌';
+  if (score >= BRONZE_TARGET) return '銅牌';
+  return '再接再厲';
+}
+
 export default function App() {
   const [state, setState] = useState<TakoyakiState>(createInitialState);
   const [showRules, setShowRules] = useState(false);
+  const [flash, setFlash] = useState<{
+    text: string;
+    tone: 'good' | 'bad' | 'neutral';
+    key: number;
+  } | null>(null);
+  const lastPhaseRef = useRef(state.phase);
   const lastTick = useRef(0);
   const rafId = useRef(0);
 
@@ -34,15 +54,40 @@ export default function App() {
     return () => cancelAnimationFrame(rafId.current);
   }, [state.phase]);
 
+  useEffect(() => {
+    if (state.phase === 'gameOver' && lastPhaseRef.current !== 'gameOver') {
+      if (state.score >= BRONZE_TARGET) playWin();
+    }
+    lastPhaseRef.current = state.phase;
+  }, [state.phase, state.score]);
+
   const handleStart = useCallback(() => {
+    setFlash(null);
     setState(startGame(state));
   }, []);
 
   const handleFlip = useCallback((index: number) => {
-    setState((s) => flipSlot(s, index));
+    setState((current) => {
+      const next = flipSlot(current, index);
+      const gained = next.score - current.score;
+      const slot = next.slots[index];
+      if (gained > 0) {
+        playScore();
+        setFlash({ text: `+${gained}`, tone: 'good', key: Date.now() });
+      } else if (slot.type === 'result') {
+        if (slot.result === 'burnt') {
+          playError();
+          setFlash({ text: '燒焦', tone: 'bad', key: Date.now() });
+        } else if (slot.result === 'raw') {
+          setFlash({ text: '未熟', tone: 'neutral', key: Date.now() });
+        }
+      }
+      return next;
+    });
   }, []);
 
   const handleReset = useCallback(() => {
+    setFlash(null);
     setState(createInitialState());
   }, []);
 
@@ -101,7 +146,7 @@ export default function App() {
       )}
 
       <div
-        className="grill-pan inline-block p-5 rounded-3xl shadow-2xl"
+        className="grill-pan relative inline-block p-5 rounded-3xl shadow-2xl"
         style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${GRILL_COLS}, 1fr)`,
@@ -121,6 +166,14 @@ export default function App() {
             disabled={state.phase !== 'playing' || slot.type !== 'cooking'}
           />
         ))}
+        {flash && (
+          <ScoreFlash
+            text={flash.text}
+            tone={flash.tone}
+            flashKey={flash.key}
+            onDone={() => setFlash(null)}
+          />
+        )}
       </div>
 
       <p className="mt-5 text-amber-400/95 text-sm text-center max-w-sm leading-relaxed">
@@ -152,22 +205,17 @@ export default function App() {
       )}
 
       {state.phase === 'gameOver' && (
-        <div
-          className="fixed inset-0 bg-black/75 flex flex-col items-center justify-center gap-5 z-10"
-          role="dialog"
-          aria-label="Game over"
-        >
-          <h2 className="text-2xl font-bold text-amber-100">時間到！</h2>
-          <p className="text-4xl font-bold text-amber-400 tabular-nums">總分 {state.score}</p>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="flex items-center gap-2 px-8 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 font-medium text-amber-950 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            再玩一局
-          </button>
-        </div>
+        <ResultOverlay
+          title="時間到！"
+          badge={getMedalLabel(state.score)}
+          variant={state.score >= BRONZE_TARGET ? 'win' : 'neutral'}
+          stats={[
+            { label: '總分', value: state.score },
+            { label: '最長連擊', value: state.combo },
+          ]}
+          subtitle={`銅牌 ${BRONZE_TARGET}／銀牌 ${SILVER_TARGET}／金牌 ${GOLD_TARGET}`}
+          onPrimary={handleReset}
+        />
       )}
 
       {showRules && (

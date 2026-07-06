@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
+import { playLose, playScore } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { RefreshCw, Pause, Play, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Cell, ActivePiece, TetrominoType } from './utils/tetrisLogic';
@@ -64,7 +67,13 @@ function getInitialGameState(): GameState {
 
 export default function App() {
   const [state, setState] = useState<GameState>(getInitialGameState);
+  const [flash, setFlash] = useState<{
+    text: string;
+    tone: 'good' | 'neutral';
+    key: number;
+  } | null>(null);
   const lastDropTimeRef = useRef<number>(performance.now());
+  const wasGameOverRef = useRef(false);
 
   const spawnNext = useCallback((board: Cell[][], queue: TetrominoType[], hold: TetrominoType | null) => {
     const { type, remaining } = nextFromQueue(queue);
@@ -100,6 +109,18 @@ export default function App() {
         else if (linesCleared === 3) addScore += 500 * newLevel;
         else if (linesCleared === 4) addScore += 800 * newLevel;
         if (hardDropRows > 0) addScore += hardDropRows * 2;
+
+        if (linesCleared > 0) {
+          const popupText = linesCleared === 4 ? 'TETRIS!' : `+${addScore}`;
+          queueMicrotask(() => {
+            playScore();
+            setFlash({
+              text: popupText,
+              tone: linesCleared >= 3 ? 'good' : 'neutral',
+              key: Date.now(),
+            });
+          });
+        }
 
         const spawned = spawnNext(cleared.board, prev.queue, prev.hold);
 
@@ -140,6 +161,18 @@ export default function App() {
         else if (linesCleared === 3) addScore += 500 * newLevel;
         else if (linesCleared === 4) addScore += 800 * newLevel;
 
+        if (linesCleared > 0) {
+          const popupText = linesCleared === 4 ? 'TETRIS!' : `+${addScore}`;
+          queueMicrotask(() => {
+            playScore();
+            setFlash({
+              text: popupText,
+              tone: linesCleared >= 3 ? 'good' : 'neutral',
+              key: Date.now(),
+            });
+          });
+        }
+
         const spawned = spawnNext(cleared.board, prev.queue, prev.hold);
 
         return {
@@ -159,6 +192,20 @@ export default function App() {
       return { ...prev, active: moved };
     });
   }, [spawnNext]);
+
+  useEffect(() => {
+    if (state.gameOver && !wasGameOverRef.current) {
+      playLose();
+    }
+    wasGameOverRef.current = state.gameOver;
+  }, [state.gameOver]);
+
+  const handleRestart = () => {
+    setFlash(null);
+    wasGameOverRef.current = false;
+    setState(getInitialGameState());
+    lastDropTimeRef.current = performance.now();
+  };
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -355,7 +402,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => setState(getInitialGameState())}
+            onClick={handleRestart}
             className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600"
           >
             <RefreshCw className="w-4 h-4" />
@@ -400,7 +447,15 @@ export default function App() {
         </aside>
 
         {/* Center: board */}
-        <main className="flex-1 flex justify-center">
+        <main className="flex-1 flex justify-center relative">
+          {flash && (
+            <ScoreFlash
+              text={flash.text}
+              tone={flash.tone}
+              flashKey={flash.key}
+              onDone={() => setFlash(null)}
+            />
+          )}
           <div className="inline-block rounded-xl bg-slate-900/90 p-2 border border-slate-800 shadow-lg">
             <div
               className="grid gap-0.5 bg-slate-900 rounded-lg p-1"
@@ -516,6 +571,19 @@ export default function App() {
         </div>
       </div>
       <p className="md:hidden text-xs text-slate-500 mt-2 text-center">使用下方按鈕操作方塊</p>
+
+      {state.gameOver && (
+        <ResultOverlay
+          title="遊戲結束"
+          variant="lose"
+          stats={[
+            { label: '分數', value: state.score },
+            { label: '消除行數', value: state.lines },
+            { label: '等級', value: state.level },
+          ]}
+          onPrimary={handleRestart}
+        />
+      )}
     </div>
   );
 }

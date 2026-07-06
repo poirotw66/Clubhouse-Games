@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
+import { playError, playGoal, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
 import type { CpuDifficulty, GameState } from './utils/gameEngine';
@@ -49,6 +52,11 @@ export default function App() {
   });
   const [showRules, setShowRules] = useState(false);
   const [difficulty, setDifficulty] = useState<CpuDifficulty>('normal');
+  const [flash, setFlash] = useState<{
+    text: string;
+    tone: 'good' | 'bad';
+    key: number;
+  } | null>(null);
 
   const keysRef = useRef({
     up: false,
@@ -59,9 +67,33 @@ export default function App() {
     kickDirX: 0,
     kickDirY: 0,
   });
+  const prevScoresRef = useRef({ player: 0, cpu: 0 });
+  const prevModeRef = useRef<GameState['mode']>('menu');
 
   useEffect(() => {
-    const engine = new GameEngine((state) => setGameState({ ...state }));
+    const handleStateChange = (state: GameState) => {
+      if (state.mode === 'playing') {
+        if (state.scorePlayer > prevScoresRef.current.player) {
+          setFlash({ text: 'GOAL!', tone: 'good', key: Date.now() });
+          playGoal();
+        } else if (state.scoreCpu > prevScoresRef.current.cpu) {
+          setFlash({ text: '被進球', tone: 'bad', key: Date.now() });
+          playError();
+        }
+      }
+      if (state.mode === 'gameOver' && prevModeRef.current !== 'gameOver') {
+        if (state.scorePlayer > state.scoreCpu) playWin();
+        else if (state.scorePlayer < state.scoreCpu) playLose();
+      }
+      prevScoresRef.current = {
+        player: state.scorePlayer,
+        cpu: state.scoreCpu,
+      };
+      prevModeRef.current = state.mode;
+      setGameState({ ...state });
+    };
+
+    const engine = new GameEngine(handleStateChange);
     engineRef.current = engine;
     setGameState({ ...engine.state });
 
@@ -121,10 +153,18 @@ export default function App() {
   }, []);
 
   const handleStart = () => {
+    prevScoresRef.current = { player: 0, cpu: 0 };
+    prevModeRef.current = 'menu';
+    setFlash(null);
     engineRef.current?.setDifficulty(difficulty);
     engineRef.current?.start();
   };
-  const handleReset = () => engineRef.current?.reset();
+  const handleReset = () => {
+    prevScoresRef.current = { player: 0, cpu: 0 };
+    prevModeRef.current = 'menu';
+    setFlash(null);
+    engineRef.current?.reset();
+  };
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -188,6 +228,15 @@ export default function App() {
           </div>
         </div>
 
+        {flash && (
+          <ScoreFlash
+            text={flash.text}
+            tone={flash.tone}
+            flashKey={flash.key}
+            onDone={() => setFlash(null)}
+          />
+        )}
+
         {gameState.mode === 'menu' && (
           <div
             className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center gap-6"
@@ -226,30 +275,30 @@ export default function App() {
         )}
 
         {gameState.mode === 'gameOver' && (
-          <div
-            className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4"
-            role="dialog"
-            aria-label="Game over"
-          >
-            <h2 className="text-2xl font-bold">
-              {gameState.scorePlayer > gameState.scoreCpu
+          <ResultOverlay
+            title={
+              gameState.scorePlayer > gameState.scoreCpu
                 ? '你贏了！'
                 : gameState.scorePlayer < gameState.scoreCpu
                   ? '電腦獲勝'
-                  : '平手'}
-            </h2>
-            <p className="text-slate-300">
-              {gameState.scorePlayer} : {gameState.scoreCpu}
-            </p>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex items-center gap-2 px-6 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 font-medium"
-            >
-              <RefreshCw className="w-4 h-4" />
-              再玩一局
-            </button>
-          </div>
+                  : '平手'
+            }
+            variant={
+              gameState.scorePlayer > gameState.scoreCpu
+                ? 'win'
+                : gameState.scorePlayer < gameState.scoreCpu
+                  ? 'lose'
+                  : 'neutral'
+            }
+            stats={[
+              { label: '比分', value: `${gameState.scorePlayer} : ${gameState.scoreCpu}` },
+              {
+                label: '難度',
+                value: DIFFICULTY_OPTIONS.find((o) => o.id === difficulty)?.label ?? '普通',
+              },
+            ]}
+            onPrimary={handleReset}
+          />
         )}
       </div>
 
