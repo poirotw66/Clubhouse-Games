@@ -12,6 +12,7 @@ export const PERFECT_HIGH = 0.88;
 export const COOK_SPEED_MIN = 0.35;
 export const COOK_SPEED_MAX = 0.6;
 export const SPAWN_INTERVAL = 1.8;
+export const SPAWN_INTERVAL_MIN = 0.85;
 export const RESULT_DISPLAY_TIME = 0.8;
 export const PERFECT_POINTS = 15;
 export const COMBO_BONUS = 5;
@@ -30,6 +31,23 @@ export interface TakoyakiState {
   combo: number;
   slots: SlotState[];
   spawnTimer: number;
+}
+
+/** Spawn rate and cook speed ramp as the match progresses. */
+export function getSpawnInterval(timeLeft: number): number {
+  const elapsed = GAME_DURATION - timeLeft;
+  const progress = Math.min(1, elapsed / GAME_DURATION);
+  return SPAWN_INTERVAL - progress * (SPAWN_INTERVAL - SPAWN_INTERVAL_MIN);
+}
+
+export function getCookSpeedRange(timeLeft: number): { min: number; max: number } {
+  const elapsed = GAME_DURATION - timeLeft;
+  const progress = Math.min(1, elapsed / GAME_DURATION);
+  const boost = progress * 0.22;
+  return {
+    min: COOK_SPEED_MIN + boost,
+    max: COOK_SPEED_MAX + boost * 0.9,
+  };
 }
 
 export function createInitialState(): TakoyakiState {
@@ -89,11 +107,13 @@ export function update(state: TakoyakiState, dt: number): TakoyakiState {
 
   next.spawnTimer -= dt;
   if (next.spawnTimer <= 0) {
-    next.spawnTimer = SPAWN_INTERVAL;
+    next.spawnTimer = getSpawnInterval(next.timeLeft);
     const empty = getEmptyIndices(next.slots);
     if (empty.length > 0) {
       const idx = empty[Math.floor(Math.random() * empty.length)];
-      const speed = COOK_SPEED_MIN + Math.random() * (COOK_SPEED_MAX - COOK_SPEED_MIN);
+      const speedRange = getCookSpeedRange(next.timeLeft);
+      const speed =
+        speedRange.min + Math.random() * (speedRange.max - speedRange.min);
       const newSlots = [...next.slots];
       newSlots[idx] = { type: 'cooking', progress: 0, speed };
       next.slots = newSlots;

@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
-import type { GameState } from './utils/gameEngine';
+import type { CpuDifficulty, GameState } from './utils/gameEngine';
+
+const DIFFICULTY_OPTIONS: { id: CpuDifficulty; label: string }[] = [
+  { id: 'easy', label: '簡單' },
+  { id: 'normal', label: '普通' },
+  { id: 'hard', label: '困難' },
+];
 
 function TouchButton({
   label,
@@ -42,6 +48,7 @@ export default function App() {
     return e.getInitialState();
   });
   const [showRules, setShowRules] = useState(false);
+  const [difficulty, setDifficulty] = useState<CpuDifficulty>('normal');
 
   const keysRef = useRef({ up: false, down: false });
 
@@ -90,7 +97,10 @@ export default function App() {
     };
   }, []);
 
-  const handleStart = () => engineRef.current?.start();
+  const handleStart = () => {
+    engineRef.current?.setDifficulty(difficulty);
+    engineRef.current?.start();
+  };
   const handleReset = () => engineRef.current?.reset();
 
   return (
@@ -155,6 +165,22 @@ export default function App() {
             <p className="text-slate-300 text-sm max-w-xs text-center">
               使用 ↑↓ 或 W / S 移動球拍，先得 7 分且領先 2 分者獲勝
             </p>
+            <div className="flex gap-2" role="group" aria-label="Difficulty">
+              {DIFFICULTY_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setDifficulty(option.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    difficulty === option.id
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={handleStart}
@@ -234,6 +260,7 @@ export default function App() {
               <li>玩家控制左側球拍，電腦控制右側。將球擊回對方場內。</li>
               <li>球碰到己方球拍可反彈；未接到則對方得 1 分。</li>
               <li>先得 7 分且領先 2 分者贏得一局（例如 7-5、8-6）。</li>
+              <li>開始前可選電腦難度：簡單、普通或困難。</li>
               <li>使用鍵盤 ↑↓ 或 W / S 上下移動球拍。</li>
             </ul>
             <button

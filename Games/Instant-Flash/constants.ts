@@ -35,3 +35,33 @@ export const COLOR_PERFECT = '#3b82f6'; // blue-500
 export const COLOR_GOOD = '#eab308'; // yellow-500
 export const COLOR_FAIL = '#ef4444'; // red-500
 export const COLOR_NEUTRAL = '#94a3b8'; // slate-400
+
+/** Difficulty ramps with score and combo — windows tighten, attacks speed up. */
+export function getDifficultyTier(score: number, combo: number): number {
+  return Math.min(6, Math.floor(score / 4000) + Math.floor(combo / 8));
+}
+
+export function getTimingWindows(score: number, combo: number): {
+  perfect: number;
+  good: number;
+} {
+  const tier = getDifficultyTier(score, combo);
+  return {
+    perfect: Math.max(55, WINDOW_PERFECT - tier * 10),
+    good: Math.max(160, WINDOW_GOOD - tier * 18),
+  };
+}
+
+export function getAttackDelayRange(score: number): { min: number; max: number } {
+  const tier = Math.min(5, Math.floor(score / 6000));
+  const cut = tier * 140;
+  return {
+    min: Math.max(550, WARNING_DURATION_MIN - cut),
+    max: Math.max(1100, WARNING_DURATION_MAX - cut),
+  };
+}
+
+export function getProjectileDurationScale(score: number): number {
+  const tier = Math.min(4, Math.floor(score / 8000));
+  return Math.max(0.72, 1 - tier * 0.07);
+}

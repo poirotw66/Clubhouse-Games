@@ -1,5 +1,10 @@
 import type { SlotState } from '../utils/takoyakiLogic';
-import { getProgressPercent, isInPerfectZone } from '../utils/takoyakiLogic';
+import {
+  getProgressPercent,
+  isInPerfectZone,
+  PERFECT_LOW,
+  PERFECT_HIGH,
+} from '../utils/takoyakiLogic';
 
 interface TakoyakiBallProps {
   slot: SlotState;
@@ -112,7 +117,15 @@ export function TakoyakiBall({ slot, onClick, disabled }: TakoyakiBallProps) {
               style={{ margin: '0 8%' }}
             >
               <div
-                className={`h-full rounded-b-full transition-all duration-75 ${inZone ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                className="absolute inset-y-0 bg-emerald-500/30 pointer-events-none"
+                style={{
+                  left: `${PERFECT_LOW * 100}%`,
+                  width: `${(PERFECT_HIGH - PERFECT_LOW) * 100}%`,
+                }}
+                aria-hidden
+              />
+              <div
+                className={`relative h-full rounded-b-full transition-all duration-75 ${inZone ? 'bg-emerald-500' : 'bg-amber-500'}`}
                 style={{ width: `${percent}%` }}
               />
             </div>

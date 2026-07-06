@@ -18,6 +18,17 @@ const GOAL_RIGHT = CANVAS_WIDTH;
 const MATCH_DURATION = 90;
 const RESTART_AFTER_GOAL = 1.2;
 
+export type CpuDifficulty = 'easy' | 'normal' | 'hard';
+
+const CPU_PARAMS: Record<
+  CpuDifficulty,
+  { moveMult: number; kickMult: number; defendWeight: number; kickError: number }
+> = {
+  easy: { moveMult: 0.55, kickMult: 0.72, defendWeight: 0.35, kickError: 80 },
+  normal: { moveMult: 0.75, kickMult: 0.85, defendWeight: 0.55, kickError: 60 },
+  hard: { moveMult: 0.92, kickMult: 1.0, defendWeight: 0.8, kickError: 35 },
+};
+
 export type GameMode = 'menu' | 'playing' | 'gameOver';
 
 export interface GameState {
@@ -43,10 +54,19 @@ function dist(ax: number, ay: number, bx: number, by: number): number {
 export class GameEngine {
   state: GameState;
   onStateChange: (s: GameState) => void;
+  difficulty: CpuDifficulty;
 
-  constructor(onStateChange: (s: GameState) => void) {
+  constructor(
+    onStateChange: (s: GameState) => void,
+    difficulty: CpuDifficulty = 'normal'
+  ) {
     this.onStateChange = onStateChange;
+    this.difficulty = difficulty;
     this.state = this.getInitialState();
+  }
+
+  setDifficulty(difficulty: CpuDifficulty): void {
+    this.difficulty = difficulty;
   }
 
   getInitialState(): GameState {
@@ -150,18 +170,32 @@ export class GameEngine {
       keys.kick = false;
     }
 
-    // CPU: move toward ball, kick when close
+    // CPU: chase ball, defend when deep, kick when close
+    const cpu = CPU_PARAMS[this.difficulty];
+    const ballOnPlayerHalf = this.state.ballX < CANVAS_WIDTH * 0.48;
+    let targetX = this.state.ballX;
+    let targetY = this.state.ballY;
+
+    if (ballOnPlayerHalf && Math.abs(this.state.ballVx) < 120) {
+      targetX = 130 + (this.state.ballX - 130) * (1 - cpu.defendWeight);
+      targetY =
+        this.state.cpuY * cpu.defendWeight + this.state.ballY * (1 - cpu.defendWeight);
+    }
+
     const cpuToBall = dist(this.state.cpuX, this.state.cpuY, this.state.ballX, this.state.ballY);
     if (cpuToBall < PLAYER_RADIUS + BALL_RADIUS + 20) {
       const towardGoalX = 50 - this.state.ballX;
       const towardGoalY = CANVAS_HEIGHT / 2 - this.state.ballY;
       const len = Math.hypot(towardGoalX, towardGoalY) || 1;
-      this.state.ballVx = (towardGoalX / len) * (KICK_POWER * 0.85) + (Math.random() - 0.5) * 60;
-      this.state.ballVy = (towardGoalY / len) * (KICK_POWER * 0.85) + (Math.random() - 0.5) * 60;
+      const kickPower = KICK_POWER * cpu.kickMult;
+      this.state.ballVx =
+        (towardGoalX / len) * kickPower + (Math.random() - 0.5) * cpu.kickError;
+      this.state.ballVy =
+        (towardGoalY / len) * kickPower + (Math.random() - 0.5) * cpu.kickError;
     } else {
-      const moveSpeed = PLAYER_SPEED * 0.75 * dt;
-      const dx = this.state.ballX - this.state.cpuX;
-      const dy = this.state.ballY - this.state.cpuY;
+      const moveSpeed = PLAYER_SPEED * cpu.moveMult * dt;
+      const dx = targetX - this.state.cpuX;
+      const dy = targetY - this.state.cpuY;
       const len = Math.hypot(dx, dy) || 1;
       this.state.cpuX += (dx / len) * moveSpeed;
       this.state.cpuY += (dy / len) * moveSpeed;

@@ -1,20 +1,19 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameState, PlayerStance, EnemyState, CounterResult, GameStats, ProjectileType } from '../types';
 import { 
-  WARNING_DURATION_MIN, 
-  WARNING_DURATION_MAX, 
   DURATION_SHURIKEN,
   DURATION_KUNAI,
   DURATION_BOMB,
   DURATION_SICKLE,
-  WINDOW_PERFECT, 
-  WINDOW_GOOD,
   HIT_STOP_DURATION,
   DAMAGE_PLAYER_HIT,
   DAMAGE_PLAYER_BLOCK,
   HEAL_PERFECT,
   SCORE_PERFECT,
-  SCORE_GOOD
+  SCORE_GOOD,
+  getTimingWindows,
+  getAttackDelayRange,
+  getProjectileDurationScale,
 } from '../constants';
 import { audioController } from '../services/audioService';
 
@@ -60,25 +59,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
 
   const scheduleNextAttack = useCallback(() => {
     const now = performance.now();
-    const delay = Math.random() * (WARNING_DURATION_MAX - WARNING_DURATION_MIN) + WARNING_DURATION_MIN;
+    const delayRange = getAttackDelayRange(stats.current.score);
+    const delay =
+      Math.random() * (delayRange.max - delayRange.min) + delayRange.min;
     nextAttackTime.current = now + delay;
     enemyState.current = EnemyState.IDLE;
     projectileProgress.current = 0;
+
+    const durationScale = getProjectileDurationScale(stats.current.score);
 
     // Randomize Projectile Type
     const rand = Math.random();
     if (rand < 0.4) {
       currentProjectileType.current = ProjectileType.SHURIKEN;
-      currentProjectileDuration.current = DURATION_SHURIKEN;
+      currentProjectileDuration.current = DURATION_SHURIKEN * durationScale;
     } else if (rand < 0.65) {
       currentProjectileType.current = ProjectileType.KUNAI;
-      currentProjectileDuration.current = DURATION_KUNAI;
+      currentProjectileDuration.current = DURATION_KUNAI * durationScale;
     } else if (rand < 0.85) {
       currentProjectileType.current = ProjectileType.BOMB;
-      currentProjectileDuration.current = DURATION_BOMB;
+      currentProjectileDuration.current = DURATION_BOMB * durationScale;
     } else {
       currentProjectileType.current = ProjectileType.SICKLE;
-      currentProjectileDuration.current = DURATION_SICKLE;
+      currentProjectileDuration.current = DURATION_SICKLE * durationScale;
     }
 
   }, []);
@@ -103,8 +106,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
   const handleCounter = useCallback((diff: number) => {
     const absDiff = Math.abs(diff);
     let result = CounterResult.MISS;
+    const windows = getTimingWindows(stats.current.score, stats.current.combo);
 
-    if (absDiff <= WINDOW_PERFECT) {
+    if (absDiff <= windows.perfect) {
       result = CounterResult.PERFECT;
       audioController.playPerfectCounter();
       stats.current.score += SCORE_PERFECT + (stats.current.combo * 100);
@@ -117,7 +121,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
       setTimeout(() => setBgInvert(false), 150);
       hitStopTimer.current = HIT_STOP_DURATION; 
 
-    } else if (absDiff <= WINDOW_GOOD) {
+    } else if (absDiff <= windows.good) {
       result = CounterResult.GOOD;
       audioController.playGoodCounter();
       stats.current.score += SCORE_GOOD + (stats.current.combo * 10);
@@ -244,7 +248,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
         }
         
         // Miss condition (Late - Player did nothing)
-        if (time > impactTime.current + WINDOW_GOOD) {
+        const missWindow = getTimingWindows(stats.current.score, stats.current.combo).good;
+        if (time > impactTime.current + missWindow) {
             takeDamage(DAMAGE_PLAYER_HIT);
             stats.current.combo = 0;
             stats.current.misses++;
