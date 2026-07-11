@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
-import { playError, playScore, playWin, playLose } from '@clubhouse/shared/synthAudio';
+import { playError, playPaddleHit, playScore, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
 import type { CpuDifficulty, GameState } from './utils/gameEngine';
@@ -64,9 +64,13 @@ export default function App() {
 
   useEffect(() => {
     const handleStateChange = (state: GameState) => {
+      if (state.lastHitBy) {
+        playPaddleHit();
+      }
       if (state.mode === 'playing') {
         if (state.scorePlayer > prevScoresRef.current.player) {
-          setFlash({ text: '+1', tone: 'good', key: Date.now() });
+          const rallyMsg = state.lastPointRally >= 5 ? '精彩得分！' : '+1';
+          setFlash({ text: rallyMsg, tone: 'good', key: Date.now() });
           playScore();
         } else if (state.scoreCpu > prevScoresRef.current.cpu) {
           setFlash({ text: '對手得分', tone: 'bad', key: Date.now() });
@@ -186,6 +190,23 @@ export default function App() {
               {gameState.scorePlayer}
             </span>
           </div>
+          <div className="flex flex-col items-center gap-1">
+            {gameState.matchStatus === 'deuce' && (
+              <span className="text-xs font-semibold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-600/50">
+                Deuce 決勝分
+              </span>
+            )}
+            {gameState.matchStatus === 'playerMatchPoint' && (
+              <span className="text-xs font-semibold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-600/50">
+                賽末點
+              </span>
+            )}
+            {gameState.matchStatus === 'cpuMatchPoint' && (
+              <span className="text-xs font-semibold text-red-300 bg-red-950/80 px-2 py-0.5 rounded-full border border-red-600/50">
+                對手賽末點
+              </span>
+            )}
+          </div>
           <div className="bg-slate-900/80 px-4 py-2 rounded-lg border border-white/20">
             <span className="text-slate-400 text-sm block">電腦</span>
             <span className="text-3xl font-bold text-red-400 tabular-nums">
@@ -193,6 +214,24 @@ export default function App() {
             </span>
           </div>
         </div>
+
+        {gameState.rallyHits >= 3 &&
+          gameState.pointEndTimer <= 0 &&
+          gameState.mode === 'playing' && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
+              <span className="text-sm font-semibold text-yellow-200/90 bg-black/40 px-3 py-1 rounded-full tabular-nums">
+                來回 {gameState.rallyHits} 拍
+              </span>
+            </div>
+          )}
+
+        {gameState.pointEndTimer > 0 && gameState.mode === 'playing' && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <span className="text-lg font-bold text-white/95 bg-black/50 px-5 py-2 rounded-xl">
+              準備發球…
+            </span>
+          </div>
+        )}
 
         {flash && (
           <ScoreFlash
@@ -300,7 +339,8 @@ export default function App() {
             <ul className="text-sm text-slate-200 space-y-2 list-disc pl-4">
               <li>玩家控制左側球拍，電腦控制右側。將球擊回對方場內。</li>
               <li>球碰到己方球拍可反彈；未接到則對方得 1 分。</li>
-              <li>先得 7 分且領先 2 分者贏得一局（例如 7-5、8-6）。</li>
+              <li>長時間來回時球速會逐漸加快；拍邊擊球角度更刁鑽。</li>
+              <li>6 比 6 平手後須領先 2 分才獲勝；賽末點會在畫面提示。</li>
               <li>開始前可選電腦難度：簡單、普通或困難。</li>
               <li>使用鍵盤 ↑↓ 或 W / S 上下移動球拍。</li>
             </ul>
