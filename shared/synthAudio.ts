@@ -69,3 +69,8 @@ export function playLose(): void {
 export function playError(): void {
   playTone(180, 'square', 0.15, 0, 0.05);
 }
+
+export function playPaddleHit(): void {
+  playTone(320, 'triangle', 0.06, 0, 0.06);
+  playTone(480, 'sine', 0.04, 0.02, 0.04);
+}
