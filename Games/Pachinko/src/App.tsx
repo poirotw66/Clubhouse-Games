@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playGoal, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import {
   createInitialState,
   startGame,
@@ -34,6 +36,8 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const lastTick = useRef(0);
   const rafId = useRef(0);
+  const lastPhaseRef = useRef(state.phase);
+  const lastScoreRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (state.phase !== 'playing') return;
@@ -56,9 +60,27 @@ export default function App() {
     draw(ctx, state);
   }, [state]);
 
+  useEffect(() => {
+    if (state.phase === 'gameOver' && lastPhaseRef.current !== 'gameOver') {
+      if (state.score >= BRONZE_TARGET) playWin();
+    }
+    lastPhaseRef.current = state.phase;
+  }, [state.phase, state.score]);
+
+  useEffect(() => {
+    if (state.lastScore !== null && state.lastScore !== lastScoreRef.current) {
+      if (state.jackpotJustTriggered) playGoal();
+      else playScore();
+    }
+    lastScoreRef.current = state.lastScore;
+  }, [state.lastScore, state.jackpotJustTriggered]);
+
   const handleStart = () => setState(startGame(state));
   const handleReset = () => setState(createInitialState());
-  const handleLaunch = () => setState((s) => launch(s));
+  const handleLaunch = () => {
+    playMove();
+    setState((s) => launch(s));
+  };
   const handlePowerChange = (p: number) => setState((s) => setLaunchPower(s, p));
 
   return (
@@ -187,31 +209,14 @@ export default function App() {
       )}
 
       {state.phase === 'gameOver' && (
-        <div
-          className="fixed inset-0 bg-black/75 flex flex-col items-center justify-center gap-4 z-10"
-          role="dialog"
-          aria-label="Game over"
-        >
-          <h2 className="text-2xl font-bold">彈珠用盡</h2>
-          <p className="text-3xl font-bold text-amber-400">總分 {state.score}</p>
-          <p className="text-sm text-slate-200">
-            本局評價：<span className="font-semibold text-amber-300">{getMedalLabel(state.score)}</span>
-          </p>
-          <div className="text-xs text-slate-400 text-center max-w-xs">
-            <p>
-              銅牌：{BRONZE_TARGET} 分以上／銀牌：{SILVER_TARGET} 分以上／金牌：{GOLD_TARGET} 分以上。
-            </p>
-            <p>多多利用中央洞 Jackpot，拚高分吧！</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="flex items-center gap-2 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium"
-          >
-            <RefreshCw className="w-4 h-4" />
-            再玩一局
-          </button>
-        </div>
+        <ResultOverlay
+          title="彈珠用盡"
+          badge={getMedalLabel(state.score)}
+          variant={state.score >= BRONZE_TARGET ? 'win' : 'neutral'}
+          stats={[{ label: '總分', value: state.score }]}
+          subtitle={`銅牌 ${BRONZE_TARGET}／銀牌 ${SILVER_TARGET}／金牌 ${GOLD_TARGET}`}
+          onPrimary={handleReset}
+        />
       )}
 
       {showRules && (

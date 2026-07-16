@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playError, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import {
@@ -27,6 +29,9 @@ export default function App() {
   const inputRef = useRef<SlotCarsInput>({ throttle: 0 });
   const lastTimeRef = useRef<number | null>(null);
   const rafIdRef = useRef(0);
+  const lastPhaseRef = useRef(state.phase);
+  const lastPlayerLapRef = useRef(state.player.lap);
+  const lastCrashedRef = useRef(state.player.crashed);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -69,6 +74,24 @@ export default function App() {
     if (!ctx) return;
     drawScene(ctx, state);
   }, [state]);
+
+  useEffect(() => {
+    if (state.phase === 'results' && lastPhaseRef.current !== 'results') {
+      if (state.winner === 'player') playWin();
+      else if (state.winner === 'cpu') playLose();
+    }
+    lastPhaseRef.current = state.phase;
+  }, [state.phase, state.winner]);
+
+  useEffect(() => {
+    if (state.player.lap > lastPlayerLapRef.current) playScore();
+    lastPlayerLapRef.current = state.player.lap;
+  }, [state.player.lap]);
+
+  useEffect(() => {
+    if (state.player.crashed && !lastCrashedRef.current) playError();
+    lastCrashedRef.current = state.player.crashed;
+  }, [state.player.crashed]);
 
   const handleStart = () => {
     lastTimeRef.current = null;
@@ -205,37 +228,38 @@ export default function App() {
       )}
 
       {state.phase === 'results' && (
-        <div
-          className="fixed inset-0 bg-black/75 flex flex-col items-center justify-center gap-4 z-10"
-          role="dialog"
-          aria-label="Race results"
-        >
-          <h2 className="text-2xl font-bold">
-            {state.winner === 'player'
+        <ResultOverlay
+          title={
+            state.winner === 'player'
               ? '你贏了！'
               : state.winner === 'cpu'
                 ? '電腦獲勝'
-                : '平手'}
-          </h2>
-          <div className="text-sm text-slate-200 space-y-1 text-center">
-            <p>
-              玩家：{state.player.lap} 圈 · 最佳單圈{' '}
-              {state.player.bestLapTime ? formatSeconds(state.player.bestLapTime) : '--:--'}
-            </p>
-            <p>
-              電腦：{state.cpu.lap} 圈 · 最佳單圈{' '}
-              {state.cpu.bestLapTime ? formatSeconds(state.cpu.bestLapTime) : '--:--'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="flex items-center gap-2 px-6 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-medium"
-          >
-            <RefreshCw className="w-4 h-4" />
-            再跑一場
-          </button>
-        </div>
+                : '平手'
+          }
+          variant={
+            state.winner === 'player' ? 'win' : state.winner === 'cpu' ? 'lose' : 'neutral'
+          }
+          stats={[
+            {
+              label: '玩家圈數',
+              value: `${state.player.lap}/${state.lapTarget}`,
+            },
+            {
+              label: '玩家最佳單圈',
+              value: state.player.bestLapTime ? formatSeconds(state.player.bestLapTime) : '—',
+            },
+            {
+              label: '電腦圈數',
+              value: `${state.cpu.lap}/${state.lapTarget}`,
+            },
+            {
+              label: '電腦最佳單圈',
+              value: state.cpu.bestLapTime ? formatSeconds(state.cpu.bestLapTime) : '—',
+            },
+          ]}
+          primaryLabel="再跑一場"
+          onPrimary={handleReset}
+        />
       )}
 
       {showRules && (

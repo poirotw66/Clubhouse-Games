@@ -1,5 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playGoal, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import type { YahtzeeState, CategoryKey } from './utils/yahtzeeLogic';
 import {
   createInitialState,
@@ -8,6 +10,7 @@ import {
   fillCategory,
   totalScore,
   isYahtzee,
+  getScoreForCategory,
 } from './utils/yahtzeeLogic';
 import { ScoreSheet } from './components/ScoreSheet';
 import { RefreshCw, BookOpen, User, Users } from 'lucide-react';
@@ -20,6 +23,14 @@ export default function App() {
     createInitialState(1)
   );
   const [showRules, setShowRules] = useState(false);
+  const lastPhaseRef = useRef(state.phase);
+
+  useEffect(() => {
+    if (state.phase === 'gameOver' && lastPhaseRef.current !== 'gameOver') {
+      playWin();
+    }
+    lastPhaseRef.current = state.phase;
+  }, [state.phase]);
 
   const handleNewGame = useCallback((mode: GameMode) => {
     setGameMode(mode);
@@ -27,11 +38,13 @@ export default function App() {
   }, []);
 
   const handleRoll = useCallback(() => {
+    playMove();
     setState(rollDice(state));
   }, [state]);
 
   const handleToggleKept = useCallback(
     (index: number) => {
+      playMove();
       setState(toggleKept(state, index));
     },
     [state]
@@ -39,6 +52,18 @@ export default function App() {
 
   const handleChooseCategory = useCallback(
     (category: CategoryKey, useJoker: boolean) => {
+      const card = state.scoreCards[state.currentPlayerIndex];
+      const isJoker =
+        useJoker &&
+        state.rolledYahtzeeThisTurn &&
+        category.type === 'lower' &&
+        ['fullHouse', 'smallStraight', 'largeStraight'].includes(category.value);
+      const gained = getScoreForCategory(state.dice, category, card, isJoker);
+      if (isYahtzee(state.dice) && category.type === 'lower' && category.value === 'yahtzee') {
+        playGoal();
+      } else if (gained > 0) {
+        playScore();
+      }
       setState(fillCategory(state, category, useJoker));
     },
     [state]
@@ -186,24 +211,27 @@ export default function App() {
       </section>
 
       {state.phase === 'gameOver' && (
-        <div className="mt-6 text-center">
-          {state.numPlayers === 2 && (
-            <p className="text-lg font-medium text-slate-200">
-              {totalScore(state.scoreCards[0]) > totalScore(state.scoreCards[1])
+        <ResultOverlay
+          title={
+            state.numPlayers === 1
+              ? '遊戲結束'
+              : totalScore(state.scoreCards[0]) > totalScore(state.scoreCards[1])
                 ? '玩家 1 獲勝'
                 : totalScore(state.scoreCards[0]) < totalScore(state.scoreCards[1])
                   ? '玩家 2 獲勝'
-                  : '平手'}
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={() => handleNewGame(gameMode)}
-            className="mt-3 px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium transition-colors"
-          >
-            再玩一局
-          </button>
-        </div>
+                  : '平手'
+          }
+          variant="neutral"
+          stats={
+            state.numPlayers === 1
+              ? [{ label: '總分', value: totalScore(state.scoreCards[0]) }]
+              : [
+                  { label: '玩家 1', value: totalScore(state.scoreCards[0]) },
+                  { label: '玩家 2', value: totalScore(state.scoreCards[1]) },
+                ]
+          }
+          onPrimary={() => handleNewGame(gameMode)}
+        />
       )}
 
       {showRules && (
