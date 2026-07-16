@@ -78,6 +78,37 @@ export function hasWonAt(board: Board, row: number, col: number, color: PieceCol
   return false;
 }
 
+/** Cells belonging to a winning four-in-a-row, if any. */
+export function getWinningCells(board: Board): Set<string> | null {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const color = board[r][c];
+      if (!color || !hasWonAt(board, r, c, color)) continue;
+      for (const [dr, dc] of DIRECTIONS) {
+        const line: [number, number][] = [[r, c]];
+        let rr = r + dr;
+        let cc = c + dc;
+        while (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && board[rr][cc] === color) {
+          line.push([rr, cc]);
+          rr += dr;
+          cc += dc;
+        }
+        rr = r - dr;
+        cc = c - dc;
+        while (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && board[rr][cc] === color) {
+          line.unshift([rr, cc]);
+          rr -= dr;
+          cc -= dc;
+        }
+        if (line.length >= 4) {
+          return new Set(line.map(([row, col]) => `${row},${col}`));
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /** True if every cell is filled. */
 export function isBoardFull(board: Board): boolean {
   return board.every((row) => row.every((cell) => cell !== null));

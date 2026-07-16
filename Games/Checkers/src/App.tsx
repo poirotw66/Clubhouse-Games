@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCapture, playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import type { Board, PieceColor, Move } from './utils/checkersLogic';
 import {
   createInitialBoard,
@@ -69,6 +71,7 @@ export default function App() {
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const [showRules, setShowRules] = useState(false);
   const botScheduled = useRef(false);
+  const prevPhaseRef = useRef<GamePhase>('playing');
 
   const isBotTurn =
     gameMode === 'bot' &&
@@ -97,6 +100,8 @@ export default function App() {
         return;
       }
       const nextBoard = applyMove(state.board, move);
+      if (move.path.length > 2) playCapture();
+      else playMove();
       const [lastR, lastC] = move.path[move.path.length - 1];
       const moreCaptures = getLegalMovesFrom(nextBoard, botColor, lastR, lastC).filter(
         (m) => m.path.length > 2
@@ -126,6 +131,18 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isBotTurn, state.board, state.currentTurn, state.continuationFrom, playerSide]);
 
+  useEffect(() => {
+    if (state.phase !== 'over' || prevPhaseRef.current === 'over') {
+      prevPhaseRef.current = state.phase;
+      return;
+    }
+    if (gameMode === 'bot' && state.winner) {
+      if (state.winner === playerSide) playWin();
+      else playLose();
+    }
+    prevPhaseRef.current = state.phase;
+  }, [state.phase, state.winner, gameMode, playerSide]);
+
   const handleCellClick = useCallback(
     (r: number, c: number) => {
       if (state.phase !== 'playing' || !humanCanPlay || isBotTurn) return;
@@ -138,6 +155,8 @@ export default function App() {
         );
         if (!move) return;
         const nextBoard = applyMove(state.board, move);
+        if (move.path.length > 2) playCapture();
+        else playMove();
         const [lastR, lastC] = move.path[move.path.length - 1];
         const moreCaptures = getLegalMovesFrom(nextBoard, state.currentTurn, lastR, lastC).filter(
           (m) => m.path.length > 2
@@ -206,6 +225,24 @@ export default function App() {
           : state.currentTurn === 'black'
             ? '黑方下子'
             : '白方下子';
+
+  const resultTitle =
+    state.phase === 'over' && state.winner
+      ? gameMode === 'bot'
+        ? state.winner === playerSide
+          ? '你贏了！'
+          : '電腦獲勝'
+        : state.winner === 'black'
+          ? '黑方獲勝'
+          : '白方獲勝'
+      : '';
+
+  const resultVariant =
+    gameMode === 'bot' && state.winner
+      ? state.winner === playerSide
+        ? 'win'
+        : 'lose'
+      : 'neutral';
 
   return (
     <div className="min-h-screen bg-amber-950 text-white flex flex-col items-center p-4 min-w-0">
@@ -374,18 +411,22 @@ export default function App() {
       </div>
 
       {state.phase === 'over' && (
-        <div className="mt-6 text-center">
-          <p className="text-lg font-medium text-amber-200">
-            {state.winner === 'black' ? '黑方獲勝' : '白方獲勝'}
-          </p>
-          <button
-            type="button"
-            onClick={handleNewGame}
-            className="mt-3 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium transition-colors"
-          >
-            再玩一局
-          </button>
-        </div>
+        <ResultOverlay
+          title={resultTitle}
+          variant={resultVariant}
+          stats={[
+            { label: '黑子', value: black },
+            { label: '白子', value: white },
+            {
+              label: '模式',
+              value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰',
+            },
+          ]}
+          onPrimary={() => {
+            handleNewGame();
+            prevPhaseRef.current = 'playing';
+          }}
+        />
       )}
 
       {showRules && (

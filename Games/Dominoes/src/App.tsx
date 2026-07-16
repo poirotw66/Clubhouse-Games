@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import type { DominoesState, PlayerId } from './utils/dominoesLogic';
 import {
   createInitialState,
@@ -22,6 +24,7 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const botScheduled = useRef(false);
+  const prevPhaseRef = useRef(state.phase);
 
   const currentHand = state.hands[state.currentPlayer];
   const playable = getPlayableTiles(currentHand, state.chain);
@@ -48,7 +51,10 @@ export default function App() {
         const move = pickBotMove(hand, state.chain, state.hands[oppId].length);
         if (move) {
           const next = playTile(state, 1, move.tileId, move.end);
-          if (next) setState(next);
+          if (next) {
+            playMove();
+            setState(next);
+          }
         }
       } else if (state.boneyard.length > 2) {
         setState(drawTiles(state, 1));
@@ -60,12 +66,27 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isBotTurn, state.phase, state.currentPlayer, state.chain, state.hands[1], state.boneyard.length]);
 
+  useEffect(() => {
+    if (state.phase === 'playing') {
+      prevPhaseRef.current = 'playing';
+      return;
+    }
+    if (prevPhaseRef.current === 'playing') {
+      if (gameMode === 'bot' && state.winner !== null) {
+        if (state.winner === 0) playWin();
+        else playLose();
+      }
+    }
+    prevPhaseRef.current = state.phase;
+  }, [state.phase, state.winner, gameMode]);
+
   const handlePlayAt = useCallback(
     (end: 'left' | 'right') => {
       if (state.phase !== 'playing' || !selectedTileId) return;
       if (gameMode === 'bot' && state.currentPlayer !== 0) return;
       const next = playTile(state, state.currentPlayer, selectedTileId, end);
       if (next) {
+        playMove();
         setState(next);
         setSelectedTileId(null);
       }
@@ -102,6 +123,30 @@ export default function App() {
             ? '輪到你'
             : '電腦思考中…'
           : `玩家 ${state.currentPlayer + 1} 的回合`;
+
+  const humanWon =
+    gameMode === 'bot' && state.winner === 0;
+  const resultTitle =
+    state.phase === 'won'
+      ? gameMode === 'bot'
+        ? humanWon
+          ? '你贏了！'
+          : '電腦獲勝'
+        : `玩家 ${(state.winner as PlayerId) + 1} 獲勝`
+      : state.phase === 'blocked'
+        ? gameMode === 'bot'
+          ? humanWon
+            ? '你贏了！'
+            : '電腦獲勝'
+          : `玩家 ${(state.winner as PlayerId) + 1} 獲勝`
+        : '';
+
+  const resultVariant =
+    gameMode === 'bot' && state.winner !== null
+      ? state.winner === 0
+        ? 'win'
+        : 'lose'
+      : 'neutral';
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4 min-w-0">
@@ -271,20 +316,28 @@ export default function App() {
         )}
 
       {state.phase !== 'playing' && (
-        <div className="mt-6 text-center">
-          <p className="text-lg font-medium text-slate-200">
-            {state.phase === 'won'
-              ? `玩家 ${(state.winner as PlayerId) + 1} 獲勝`
-              : `阻塞：玩家 ${(state.winner as PlayerId) + 1} 手牌點數較少獲勝`}
-          </p>
-          <button
-            type="button"
-            onClick={handleNewGame}
-            className="mt-3 px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium transition-colors"
-          >
-            再玩一局
-          </button>
-        </div>
+        <ResultOverlay
+          title={resultTitle}
+          subtitle={
+            state.phase === 'blocked'
+              ? `手牌點數：${handSum(state.hands[0])} vs ${handSum(state.hands[1])}`
+              : undefined
+          }
+          badge={state.phase === 'blocked' ? '阻塞和局' : '出完手牌'}
+          variant={resultVariant}
+          stats={[
+            { label: '玩家 1 手牌', value: handSum(state.hands[0]) },
+            { label: '玩家 2 手牌', value: handSum(state.hands[1]) },
+            {
+              label: '模式',
+              value: gameMode === 'bot' ? '對戰電腦' : '雙人',
+            },
+          ]}
+          onPrimary={() => {
+            handleNewGame();
+            prevPhaseRef.current = 'playing';
+          }}
+        />
       )}
 
       {showRules && (

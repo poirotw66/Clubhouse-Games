@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import type { Board, Piece } from './utils/reversiLogic';
 import {
   createInitialBoard,
@@ -75,6 +77,7 @@ export default function App() {
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
   const botScheduled = useRef(false);
+  const prevPhaseRef = useRef<GamePhase>('playing');
 
   const legalMoves = state.phase === 'playing' ? getLegalMoves(state.board, state.currentTurn) : [];
   const legalSet = new Set(legalMoves.map(([r, c]) => `${r},${c}`));
@@ -144,6 +147,7 @@ export default function App() {
       }
       const [r, c] = best;
       const nextBoard = applyMove(state.board, r, c, botColor);
+      playMove();
       const nextTurn: Piece = botColor === 'black' ? 'white' : 'black';
       const nextMessage = nextTurn === 'black' ? '黑方下子' : '白方下子';
       applyMoveAndAdvance(nextBoard, nextTurn, nextMessage);
@@ -152,12 +156,25 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isBotTurn, state.board, state.currentTurn, playerSide, state.phase, applyMoveAndAdvance]);
 
+  useEffect(() => {
+    if (state.phase !== 'over' || prevPhaseRef.current === 'over') {
+      prevPhaseRef.current = state.phase;
+      return;
+    }
+    if (gameMode === 'bot' && state.winner && state.winner !== 'draw') {
+      if (state.winner === playerSide) playWin();
+      else playLose();
+    }
+    prevPhaseRef.current = state.phase;
+  }, [state.phase, state.winner, gameMode, playerSide]);
+
   const handleCellClick = useCallback(
     (r: number, c: number) => {
       if (state.phase !== 'playing' || isBotTurn) return;
       if (gameMode === 'bot' && state.currentTurn !== playerSide) return;
       if (!legalSet.has(`${r},${c}`)) return;
       const nextBoard = applyMove(state.board, r, c, state.currentTurn);
+      playMove();
       const nextTurn: Piece = state.currentTurn === 'black' ? 'white' : 'black';
       const nextMessage =
         gameMode === 'bot'
@@ -301,6 +318,13 @@ export default function App() {
   const humanCanClick = state.phase === 'playing' && isHumanTurn && !isBotTurn;
   const showLegalHints = humanCanClick;
 
+  const resultVariant =
+    gameMode === 'bot' && state.winner && state.winner !== 'draw'
+      ? state.winner === playerSide
+        ? 'win'
+        : 'lose'
+      : 'neutral';
+
   return (
     <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center p-4 min-w-0">
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
@@ -420,28 +444,24 @@ export default function App() {
       )}
 
       {state.phase === 'over' && (
-        <div className="mt-6 text-center">
-          <p className="text-lg font-medium text-amber-200">{gameOverMessage}</p>
-          <div className="flex flex-col sm:flex-row gap-2 justify-center mt-3">
-            <button
-              type="button"
-              onClick={() => {
-                setState(getInitialState());
-                botScheduled.current = false;
-              }}
-              className="px-6 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-medium transition-colors"
-            >
-              再玩一局
-            </button>
-            <button
-              type="button"
-              onClick={handleNewGame}
-              className="px-6 py-2 rounded-lg bg-stone-600 hover:bg-stone-500 font-medium transition-colors"
-            >
-              返回主選單
-            </button>
-          </div>
-        </div>
+        <ResultOverlay
+          title={gameOverMessage || '對局結束'}
+          variant={resultVariant}
+          badge={state.winner === 'draw' ? '和局' : undefined}
+          stats={[
+            { label: '黑子', value: black },
+            { label: '白子', value: white },
+            {
+              label: '模式',
+              value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰',
+            },
+          ]}
+          onPrimary={() => {
+            setState(getInitialState());
+            botScheduled.current = false;
+            prevPhaseRef.current = 'playing';
+          }}
+        />
       )}
 
       {showRules && (
