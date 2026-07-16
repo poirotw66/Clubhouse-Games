@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCard, playScore, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import { useGame, SUITS } from './hooks/useGame';
 import { pickBotCard } from './utils/botStrategy';
 import { PlayingCard } from './components/PlayingCard';
@@ -18,6 +20,26 @@ export default function App() {
   const { gameState, playCard, handleDraw, passTurn, resetGame, nextRound, isValidPlay } = useGame();
   const { players, currentPlayerIndex, discardPile, deck, activeSuit, status, winner, roundWinner, pendingCard, drawPenalty, direction, hasDrawnThisTurn, round, lastRoundPenalties } = gameState;
   const [showRules, setShowRules] = useState(false);
+  const prevStatusRef = useRef(status);
+  const prevDiscardLenRef = useRef(discardPile.length);
+
+  useEffect(() => {
+    if (discardPile.length > prevDiscardLenRef.current) {
+      playCard();
+    }
+    prevDiscardLenRef.current = discardPile.length;
+  }, [discardPile.length]);
+
+  useEffect(() => {
+    if (status === 'round-over' && prevStatusRef.current !== 'round-over') {
+      if (roundWinner === 'You') playScore();
+    }
+    if (status === 'game-over' && prevStatusRef.current !== 'game-over') {
+      if (winner === 'You') playWin();
+      else playLose();
+    }
+    prevStatusRef.current = status;
+  }, [status, roundWinner, winner]);
 
   const humanPlayer = players[0];
   const isHumanTurn = currentPlayerIndex === 0 && status === 'playing';
@@ -235,95 +257,38 @@ export default function App() {
         </div>
       )}
 
-      {/* Round Over Modal */}
+      {/* Round Over */}
       {status === 'round-over' && (
-        <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white text-center border border-slate-700 shadow-2xl transform scale-100 animate-in zoom-in-95 duration-300">
-            <div className="text-5xl mb-4">{roundWinner === 'You' ? '🎉' : '👏'}</div>
-            <h2 className="text-3xl font-black mb-2 text-emerald-400">Round {round} Over!</h2>
-            <p className="text-slate-300 mb-6 text-lg"><span className="font-bold text-white">{roundWinner}</span> won the round.</p>
-            
-            <div className="bg-black/50 rounded-2xl p-4 mb-8 space-y-3 text-left border border-white/5">
-              <div className="flex justify-between text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-2 border-b border-white/10 pb-2">
-                <span>Player</span>
-                <div className="flex gap-4 text-right">
-                  <span className="w-16 text-center">Penalty</span>
-                  <span className="w-12 text-center">Total</span>
-                </div>
-              </div>
-              {players.map(p => {
-                const isWinner = p.name === roundWinner;
-                const penalty = lastRoundPenalties[p.id];
-                return (
-                  <div key={p.id} className={`flex justify-between items-center px-2 py-2 rounded-lg transition-colors ${isWinner ? 'bg-emerald-900/40 border border-emerald-500/30' : 'hover:bg-white/5'}`}>
-                    <span className={`font-bold ${isWinner ? 'text-emerald-400' : 'text-slate-200'}`}>
-                      {p.name} {isWinner && '👑'}
-                    </span>
-                    <div className="flex gap-4 text-right font-mono items-center">
-                      <span className={`w-16 text-center text-sm ${penalty > 0 ? 'text-red-400 font-bold' : 'text-emerald-400'}`}>
-                        {penalty > 0 ? `+${penalty}` : '0'}
-                      </span>
-                      <span className="w-12 text-center font-black text-white text-lg">{p.score}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <button 
-              onClick={nextRound} 
-              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-full font-bold text-lg transition-all w-full shadow-[0_0_20px_rgba(5,150,105,0.4)] hover:shadow-[0_0_30px_rgba(5,150,105,0.6)] hover:-translate-y-1"
-            >
-              Start Round {round + 1}
-            </button>
-          </div>
-        </div>
+        <ResultOverlay
+          title={`第 ${round} 局結束`}
+          subtitle={`${roundWinner} 贏得本局`}
+          badge={roundWinner === 'You' ? '本局獲勝' : undefined}
+          variant={roundWinner === 'You' ? 'win' : 'neutral'}
+          stats={players.map((p) => ({
+            label: p.name,
+            value: `${p.score} 分${lastRoundPenalties[p.id] > 0 ? ` (+${lastRoundPenalties[p.id]})` : ''}`,
+          }))}
+          primaryLabel={`開始第 ${round + 1} 局`}
+          onPrimary={nextRound}
+        />
       )}
 
-      {/* Game Over Modal */}
+      {/* Game Over */}
       {status === 'game-over' && (
-        <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white text-center border border-slate-700 shadow-2xl transform scale-100 animate-in zoom-in-95 duration-300">
-            <div className="text-6xl mb-6">{winner === 'You' ? '🏆' : '💀'}</div>
-            <h2 className="text-4xl font-black mb-3 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              {winner === 'You' ? 'Victory!' : 'Game Over'}
-            </h2>
-            <p className="text-slate-400 mb-8 text-lg">
-              <span className="font-bold text-white">{winner}</span> wins the game with the lowest score!
-            </p>
-            
-            <div className="bg-black/50 rounded-2xl p-4 mb-8 space-y-2 text-left border border-white/5">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-2 border-b border-white/10 pb-2">
-                Final Standings
-              </div>
-              {[...players].sort((a, b) => a.score - b.score).map((p, i) => {
-                const isWinner = p.name === winner;
-                return (
-                  <div key={p.id} className={`flex justify-between items-center px-3 py-3 rounded-lg transition-colors ${isWinner ? 'bg-yellow-500/20 border border-yellow-500/30' : 'bg-white/5 hover:bg-white/10'}`}>
-                    <div className="flex items-center gap-3">
-                      <span className={`font-black w-6 text-center ${i === 0 ? 'text-yellow-400 text-xl' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-600' : 'text-slate-600'}`}>
-                        {i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : '4th'}
-                      </span>
-                      <span className={`font-bold text-lg ${isWinner ? 'text-yellow-400' : 'text-slate-200'}`}>
-                        {p.name} {isWinner && '👑'}
-                      </span>
-                    </div>
-                    <span className={`font-mono font-black text-xl ${isWinner ? 'text-yellow-400' : 'text-white'}`}>
-                      {p.score} <span className="text-xs font-normal opacity-50">pts</span>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <button 
-              onClick={resetGame} 
-              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 rounded-full font-bold text-lg transition-all w-full shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:shadow-[0_0_30px_rgba(79,70,229,0.6)] hover:-translate-y-1"
-            >
-              Play New Game
-            </button>
-          </div>
-        </div>
+        <ResultOverlay
+          title={winner === 'You' ? '你贏了！' : '遊戲結束'}
+          subtitle={`${winner} 以最低分獲勝`}
+          badge={winner === 'You' ? '總冠軍' : undefined}
+          variant={winner === 'You' ? 'win' : 'lose'}
+          stats={[...players]
+            .sort((a, b) => a.score - b.score)
+            .map((p, i) => ({
+              label: `${i + 1}. ${p.name}`,
+              value: `${p.score} 分`,
+            }))}
+          primaryLabel="再玩一局"
+          onPrimary={resetGame}
+        />
       )}
 
       {/* Rules Modal */}

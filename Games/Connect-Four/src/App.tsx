@@ -1,5 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import type { Board, PieceColor } from './utils/connect4Logic';
 import {
   createInitialBoard,
@@ -8,6 +10,7 @@ import {
   dropPiece,
   hasWonAt,
   isBoardFull,
+  getWinningCells,
   COLS,
   ROWS,
 } from './utils/connect4Logic';
@@ -40,6 +43,7 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const botScheduled = useRef(false);
+  const prevPhaseRef = useRef<GamePhase>('playing');
 
   const legalCols = state.phase === 'playing' ? getLegalColumns(state.board) : [];
   const legalSet = new Set(legalCols);
@@ -69,6 +73,7 @@ export default function App() {
       const won = hasWonAt(nextBoard, dropRow, col, botColor);
       const full = isBoardFull(nextBoard);
       const nextTurn: PieceColor = botColor === 'red' ? 'yellow' : 'red';
+      playMove();
       setState({
         board: nextBoard,
         currentTurn: nextTurn,
@@ -80,6 +85,23 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isBotTurn, state.board, playerSide]);
 
+  useEffect(() => {
+    if (state.phase !== 'over' || prevPhaseRef.current === 'over') {
+      prevPhaseRef.current = state.phase;
+      return;
+    }
+    if (gameMode === 'bot' && state.winner && state.winner !== 'draw') {
+      if (state.winner === playerSide) playWin();
+      else playLose();
+    }
+    prevPhaseRef.current = state.phase;
+  }, [state.phase, state.winner, gameMode, playerSide]);
+
+  const winningCells = useMemo(
+    () => (state.phase === 'over' && state.winner && state.winner !== 'draw' ? getWinningCells(state.board) : null),
+    [state.phase, state.winner, state.board]
+  );
+
   const handleColumnClick = useCallback(
     (col: number) => {
       if (state.phase !== 'playing' || !legalSet.has(col)) return;
@@ -90,6 +112,7 @@ export default function App() {
       const won = hasWonAt(nextBoard, dropRow, col, state.currentTurn);
       const full = isBoardFull(nextBoard);
       const nextTurn: PieceColor = state.currentTurn === 'red' ? 'yellow' : 'red';
+      playMove();
       setState({
         board: nextBoard,
         currentTurn: nextTurn,
@@ -120,6 +143,26 @@ export default function App() {
         : state.currentTurn === 'red'
           ? '紅方下子'
           : '黃方下子';
+
+  const resultTitle =
+    state.phase === 'over' && state.winner
+      ? state.winner === 'draw'
+        ? '和局'
+        : gameMode === 'bot'
+          ? state.winner === playerSide
+            ? '你贏了！'
+            : '電腦獲勝'
+          : state.winner === 'red'
+            ? '紅方獲勝'
+            : '黃方獲勝'
+      : '';
+
+  const resultVariant =
+    gameMode === 'bot' && state.winner && state.winner !== 'draw'
+      ? state.winner === playerSide
+        ? 'win'
+        : 'lose'
+      : 'neutral';
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4 min-w-0">
@@ -280,17 +323,20 @@ export default function App() {
             const row = Math.floor(i / COLS);
             const col = i % COLS;
             const cell = state.board[row][col];
+            const isWinning = winningCells?.has(`${row},${col}`);
             return (
               <div
                 key={`${row}-${col}`}
-                className="rounded-full bg-slate-800 flex items-center justify-center aspect-square max-w-full"
+                className={`rounded-full bg-slate-800 flex items-center justify-center aspect-square max-w-full ${
+                  isWinning ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-blue-800' : ''
+                }`}
                 style={{ minHeight: 0 }}
               >
                 {cell && (
                   <span
                     className={`w-[90%] h-[90%] rounded-full ${
                       cell === 'red' ? 'bg-red-500 ring-2 ring-red-400' : 'bg-yellow-400 ring-2 ring-yellow-300'
-                    }`}
+                    } ${isWinning ? 'shadow-[0_0_12px_rgba(251,191,36,0.9)]' : ''}`}
                   />
                 )}
               </div>
@@ -300,18 +346,21 @@ export default function App() {
       </div>
 
       {state.phase === 'over' && (
-        <div className="mt-6 text-center">
-          <p className="text-lg font-medium text-slate-200">
-            {state.winner === 'draw' ? '和局' : state.winner === 'red' ? '紅方獲勝' : '黃方獲勝'}
-          </p>
-          <button
-            type="button"
-            onClick={handleNewGame}
-            className="mt-3 px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium transition-colors"
-          >
-            再玩一局
-          </button>
-        </div>
+        <ResultOverlay
+          title={resultTitle}
+          variant={resultVariant}
+          badge={state.winner === 'draw' ? '和局' : undefined}
+          stats={[
+            {
+              label: '模式',
+              value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰',
+            },
+          ]}
+          onPrimary={() => {
+            handleNewGame();
+            prevPhaseRef.current = 'playing';
+          }}
+        />
       )}
 
       {showRules && (

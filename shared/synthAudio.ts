@@ -74,3 +74,21 @@ export function playPaddleHit(): void {
   playTone(320, 'triangle', 0.06, 0, 0.06);
   playTone(480, 'sine', 0.04, 0.02, 0.04);
 }
+
+/** Soft tap for placing a piece or tile on the board. */
+export function playMove(): void {
+  playTone(440, 'sine', 0.06, 0, 0.07);
+  playTone(550, 'triangle', 0.05, 0.03, 0.05);
+}
+
+/** Card slap / play from hand. */
+export function playCard(): void {
+  playTone(520, 'triangle', 0.05, 0, 0.08);
+  playTone(780, 'sine', 0.07, 0.04, 0.06);
+}
+
+/** Jump capture in checkers or similar. */
+export function playCapture(): void {
+  playTone(280, 'square', 0.08, 0, 0.07);
+  playTone(420, 'triangle', 0.1, 0.06, 0.06);
+}
