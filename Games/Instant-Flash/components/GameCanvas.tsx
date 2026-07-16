@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { GameState, PlayerStance, EnemyState, CounterResult, GameStats, ProjectileType } from '../types';
+import { PlayerStance, EnemyState, CounterResult, GameStats, ProjectileType } from '../types';
 import { 
   DURATION_SHURIKEN,
   DURATION_KUNAI,
@@ -15,7 +15,13 @@ import {
   getAttackDelayRange,
   getProjectileDurationScale,
 } from '../constants';
-import { audioController } from '../services/audioService';
+import {
+  playCapture,
+  playError,
+  playGoal,
+  playMove,
+  playScore,
+} from '@clubhouse/shared/synthAudio';
 
 interface GameCanvasProps {
   onGameOver: (stats: GameStats) => void;
@@ -110,7 +116,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
 
     if (absDiff <= windows.perfect) {
       result = CounterResult.PERFECT;
-      audioController.playPerfectCounter();
+      playGoal();
       stats.current.score += SCORE_PERFECT + (stats.current.combo * 100);
       stats.current.combo++;
       stats.current.perfects++;
@@ -123,7 +129,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
 
     } else if (absDiff <= windows.good) {
       result = CounterResult.GOOD;
-      audioController.playGoodCounter();
+      playScore();
       stats.current.score += SCORE_GOOD + (stats.current.combo * 10);
       stats.current.combo++;
       stats.current.goods++;
@@ -135,7 +141,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
       stats.current.combo = 0;
       stats.current.misses++;
       takeDamage(DAMAGE_PLAYER_HIT);
-      audioController.playDamage();
+      playError();
       setScreenShake(true);
       setTimeout(() => setScreenShake(false), 300);
       
@@ -166,14 +172,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
     if (playerStance.current === PlayerStance.SLASHING) return;
 
     playerStance.current = PlayerStance.SHEATHED;
-    audioController.playSheathe();
+    playMove();
   }, [gameActive]);
 
   const handlePointerUp = useCallback(() => {
     if (!gameActive || playerStance.current !== PlayerStance.SHEATHED) return;
 
     playerStance.current = PlayerStance.SLASHING;
-    audioController.playSlash();
+    playCapture();
 
     const now = performance.now();
     
@@ -256,7 +262,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
             setFeedback({ text: 'HIT', type: CounterResult.MISS });
             setScreenShake(true);
             setTimeout(() => setScreenShake(false), 300);
-            audioController.playDamage();
+            playError();
             
             triggerHitAnimation();
             scheduleNextAttack();
