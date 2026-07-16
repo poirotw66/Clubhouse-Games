@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import GameCanvas from './components/GameCanvas';
-import Results from './components/Results';
 import { GameState, GameStats } from './types';
 import { Sword, Info } from 'lucide-react';
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   const [lastStats, setLastStats] = useState<GameStats | null>(null);
+  const previousStateRef = useRef<GameState>(GameState.MENU);
 
   const startGame = () => {
     setGameState(GameState.PLAYING);
@@ -18,6 +20,14 @@ export default function App() {
     setLastStats(stats);
     setGameState(GameState.GAMEOVER);
   };
+
+  useEffect(() => {
+    if (gameState === GameState.GAMEOVER && previousStateRef.current !== GameState.GAMEOVER && lastStats) {
+      if (lastStats.score >= 5000) playWin();
+      else playLose();
+    }
+    previousStateRef.current = gameState;
+  }, [gameState, lastStats]);
 
   return (
     <div className="w-full min-h-dvh h-screen bg-slate-950 flex flex-col overflow-hidden font-sans text-slate-200 select-none">
@@ -73,9 +83,21 @@ export default function App() {
         onGameOver={handleGameOver} 
       />
 
-      {/* Results Overlay */}
       {gameState === GameState.GAMEOVER && lastStats && (
-        <Results stats={lastStats} onRestart={startGame} />
+        <ResultOverlay
+          title={lastStats.score >= 5000 ? '修練成功！' : '修練結束'}
+          subtitle="Perfect Window: ±150ms · Good Window: ±350ms"
+          badge={lastStats.score >= 10000 ? '宗師' : lastStats.score >= 5000 ? '上級' : '見習'}
+          variant={lastStats.score >= 5000 ? 'win' : 'lose'}
+          stats={[
+            { label: '總分', value: lastStats.score.toLocaleString() },
+            { label: '最高連段', value: lastStats.maxCombo },
+            { label: 'Perfect', value: lastStats.perfects },
+            { label: 'Good', value: lastStats.goods },
+          ]}
+          primaryLabel="再試一次"
+          onPrimary={startGame}
+        />
       )}
     </div>
   );

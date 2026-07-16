@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playWin } from '@clubhouse/shared/synthAudio';
 import { GameState, BottleData, GameMode } from '../types';
 import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO } from '../constants';
 import { generateLevel, canPour, pourLiquid, checkLevelComplete, shuffleBottles, revealHiddenLayers, checkDeadlock, checkStateRepetition } from '../services/gameLogic';
@@ -91,6 +93,18 @@ export default function Game() {
 
     // State to track the specific match being processed { bottleId, orderIndex }
     const [processingMatch, setProcessingMatch] = useState<{ bottleId: string; orderIndex: number } | null>(null);
+    const [celebratedWin, setCelebratedWin] = useState(false);
+
+    useEffect(() => {
+        if (gameState.isWin && !celebratedWin) {
+            playWin();
+            setCelebratedWin(true);
+            return;
+        }
+        if (!gameState.isWin && celebratedWin) {
+            setCelebratedWin(false);
+        }
+    }, [gameState.isWin, celebratedWin]);
 
     // (Removed initial startLevel call as it's now done in useState initializer)
 
@@ -579,29 +593,19 @@ export default function Game() {
             />
 
             {gameState.isWin && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-500 safe-top safe-bottom safe-left safe-right">
-                    <div className="bg-white/10 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-white/20 shadow-2xl flex flex-col items-center text-center max-w-sm mx-3 md:mx-4">
-                        <div className="text-5xl md:text-6xl mb-3 md:mb-4">🏆</div>
-                        <h2 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-400 mb-2">
-                            AWESOME!
-                        </h2>
-                        <p className="text-gray-300 mb-6 md:mb-8 text-sm md:text-base">完成訂單！</p>
-
-                        <button
-                            onClick={handleNextLevel}
-                            className="touch-target w-full py-3.5 md:py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg md:rounded-xl text-lg md:text-xl font-bold shadow-lg active:scale-95 transition-transform touch-active"
-                        >
-                            {gameState.mode === 'adventure' ? '下一關' : '再來一局'}
-                        </button>
-
-                        <button
-                            onClick={() => navigate('/')}
-                            className="touch-target mt-3 md:mt-4 text-white/50 active:text-white underline text-xs md:text-sm py-2"
-                        >
-                            回首頁
-                        </button>
-                    </div>
-                </div>
+                <ResultOverlay
+                    title="完成訂單！"
+                    subtitle={gameState.mode === 'adventure' ? `第 ${gameState.level} 關完成` : `${gameState.difficultyLabel ?? 'Quick Play'} 完成`}
+                    badge="Awesome!"
+                    variant="win"
+                    stats={[
+                        { label: '關卡', value: gameState.level },
+                        { label: '金幣', value: gameState.coins },
+                        { label: '瓶子數', value: gameState.bottles.length },
+                    ]}
+                    primaryLabel={gameState.mode === 'adventure' ? '下一關' : '再來一局'}
+                    onPrimary={handleNextLevel}
+                />
             )}
         </div>
     );
