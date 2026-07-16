@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playWin } from '@clubhouse/shared/synthAudio';
 import { GameState, BottleData, GameMode } from '../types';
 import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO } from '../constants';
 import { generateLevel, canPour, pourLiquid, checkLevelComplete, shuffleBottles, revealHiddenLayers, checkDeadlock, checkStateRepetition } from '../services/gameLogic';
@@ -97,7 +96,7 @@ export default function Game() {
 
     useEffect(() => {
         if (gameState.isWin && !celebratedWin) {
-            playWin();
+            sounds.win();
             setCelebratedWin(true);
             return;
         }
@@ -168,7 +167,8 @@ export default function Game() {
 
         if (match) {
             setProcessingMatch(match);
-            setTimeout(() => sounds.win(), 100);
+            // Order delivery sting only — level win fanfare plays once via isWin effect.
+            setTimeout(() => sounds.score(), 100);
         }
     }, [gameState.bottles, gameState.orders, gameState.isWin, processingMatch]);
 
