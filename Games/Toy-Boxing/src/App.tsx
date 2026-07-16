@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCapture, playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trophy, Timer, Heart, Shield, Zap, User, Monitor, Play, RotateCcw } from 'lucide-react';
@@ -19,48 +21,6 @@ const BOXER_HEIGHT = 120;
 const GROUND_Y = 350;
 const MOVE_SPEED = 4;
 const ROUND_TIME = 60; // seconds
-
-// --- Sound Utility ---
-const playSound = (type: 'hit' | 'block' | 'parry' | 'super') => {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    const now = ctx.currentTime;
-
-    if (type === 'parry') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.exponentialRampToValueAtTime(440, now + 0.1);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-      osc.start(now);
-      osc.stop(now + 0.2);
-    } else if (type === 'hit') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(150, now);
-      osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-      osc.start(now);
-      osc.stop(now + 0.1);
-    } else if (type === 'super') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(100, now);
-      osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
-      osc.start(now);
-      osc.stop(now + 0.4);
-    }
-  } catch (e) {
-    // Audio context might be blocked or not supported
-  }
-};
 
 enum Action {
   IDLE = 'IDLE',
@@ -126,6 +86,7 @@ export default function ToyBoxing() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'round_end' | 'game_over'>('menu');
   const [winner, setWinner] = useState<string | null>(null);
+  const prevGameStateRef = useRef<'menu' | 'playing' | 'round_end' | 'game_over'>('menu');
   const [countdown, setCountdown] = useState<number | null>(null);
   
   // Use refs for the game engine to keep it stable
@@ -253,6 +214,14 @@ export default function ToyBoxing() {
     render();
   }, []);
 
+  useEffect(() => {
+    if (gameState === 'game_over' && prevGameStateRef.current !== 'game_over') {
+      if (winner === 'Player 1') playWin();
+      else if (winner === 'CPU') playLose();
+    }
+    prevGameStateRef.current = gameState;
+  }, [gameState, winner]);
+
   const handleRoundEnd = () => {
     if (engineRef.current.round >= 3 || engineRef.current.player.health <= 0 || engineRef.current.cpu.health <= 0) {
       setGameState('game_over');
@@ -361,7 +330,7 @@ export default function ToyBoxing() {
         next.stamina -= 25;
       }
       else if (keys.has('KeyL') && next.superMeter >= 100) {
-        playSound('super');
+        playGoal();
         next.action = Action.HOOK; // Reuse hook animation for super
         next.actionTimer = 0.6;
         next.superMeter = 0;
@@ -417,7 +386,7 @@ export default function ToyBoxing() {
           next.stamina -= 25;
         }
         else if (rand < 0.01 && next.superMeter >= 100) {
-          playSound('super');
+          playGoal();
           next.action = Action.HOOK;
           next.actionTimer = 0.6;
           next.superMeter = 0;
@@ -483,7 +452,7 @@ export default function ToyBoxing() {
       if (inRange && defender.action !== Action.DODGE) {
         // Parry Check
         if (defender.action === Action.PARRY) {
-          playSound('parry');
+          playCapture();
           spawnParticles(attackerHandX, defender.y + 30, '#60a5fa', true); // Blue flash for parry
           engineRef.current.screenShake = 0.8;
           engineRef.current.parryEffect = { x: defender.x + BOXER_WIDTH / 2, y: defender.y - 20, life: 1.0 };
@@ -502,9 +471,8 @@ export default function ToyBoxing() {
         }
 
         const isBlocked = defender.action === Action.BLOCK;
-        if (isSuper) playSound('super');
-        else if (isBlocked) playSound('hit');
-        else playSound('hit');
+        if (isSuper) playGoal();
+        else playCapture();
         
         // Counter Hit Check
         const isCounter = defender.action === Action.JAB || defender.action === Action.HOOK;
@@ -972,26 +940,19 @@ export default function ToyBoxing() {
             )}
 
             {gameState === 'game_over' && (
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="absolute inset-0 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center"
-              >
-                <Trophy className="w-20 h-20 text-amber-400 mb-6" />
-                <h2 className="text-6xl font-black italic mb-2 uppercase">Match Over</h2>
-                <div className="text-3xl font-bold text-blue-400 mb-8 uppercase tracking-widest">
-                  Winner: {winner}
-                </div>
-                <div className="flex gap-4">
-                  <button 
-                    onClick={startNewGame}
-                    className="flex items-center gap-2 px-8 py-4 bg-white text-black rounded-2xl font-black uppercase tracking-widest hover:bg-neutral-200 transition-all"
-                  >
-                    <RotateCcw className="w-5 h-5" />
-                    Rematch
-                  </button>
-                </div>
-              </motion.div>
+              <ResultOverlay
+                title={
+                  winner === 'Player 1' ? '你贏了！' : winner === 'CPU' ? '電腦獲勝' : '平手'
+                }
+                variant={
+                  winner === 'Player 1' ? 'win' : winner === 'CPU' ? 'lose' : 'neutral'
+                }
+                stats={[
+                  { label: '你的分數', value: uiState.playerScore },
+                  { label: '電腦分數', value: uiState.cpuScore },
+                ]}
+                onPrimary={startNewGame}
+              />
             )}
           </AnimatePresence>
         </div>
