@@ -5,6 +5,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playError, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { Trophy, Play, RotateCcw, ChevronRight, ChevronLeft, Target, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -721,9 +723,27 @@ export default function App() {
     const tempEngine = new GameEngine(() => {});
     return tempEngine.getInitialState();
   });
+  const prevModeRef = useRef<GameMode>('menu');
+  const prevScoreRef = useRef({ away: 0, home: 0 });
+  const prevResultRef = useRef('');
 
   useEffect(() => {
     const engine = new GameEngine((state) => {
+      if (state.score.away > prevScoreRef.current.away) playScore();
+      if (state.score.home > prevScoreRef.current.home) playError();
+      if (state.resultText && state.resultText !== prevResultRef.current) {
+        if (state.resultText.includes('HOME RUN')) playGoal();
+        else if (state.resultText.includes('OUT') || state.resultText.includes('STRIKEOUT')) {
+          playError();
+        }
+      }
+      if (state.mode === 'gameOver' && prevModeRef.current !== 'gameOver') {
+        if (state.score.away > state.score.home) playWin();
+        else if (state.score.away < state.score.home) playLose();
+      }
+      prevModeRef.current = state.mode;
+      prevScoreRef.current = { ...state.score };
+      prevResultRef.current = state.resultText || '';
       setGameState({ ...state });
     });
     engineRef.current = engine;
@@ -905,34 +925,27 @@ export default function App() {
           )}
 
           {gameState.mode === 'gameOver' && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center z-20"
-            >
-              <h2 className="text-5xl font-bold mb-4 italic">比賽結束</h2>
-              <div className="flex gap-12 mb-12 items-center">
-                <div className="text-center">
-                  <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Away</p>
-                  <p className="text-7xl font-mono font-bold">{gameState.score.away}</p>
-                </div>
-                <div className="text-4xl text-zinc-700 font-bold">VS</div>
-                <div className="text-center">
-                  <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Home</p>
-                  <p className="text-7xl font-mono font-bold">{gameState.score.home}</p>
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-yellow-500 mb-12">
-                {gameState.score.away > gameState.score.home ? '🏆 玩家獲勝！' : gameState.score.away < gameState.score.home ? '💻 電腦獲勝！' : '🤝 平手！'}
-              </p>
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-8 py-3 rounded-full font-bold transition-colors"
-              >
-                <RotateCcw className="w-5 h-5" />
-                重新開始
-              </button>
-            </motion.div>
+            <ResultOverlay
+              title={
+                gameState.score.away > gameState.score.home
+                  ? '你贏了！'
+                  : gameState.score.away < gameState.score.home
+                    ? '電腦獲勝'
+                    : '平手'
+              }
+              variant={
+                gameState.score.away > gameState.score.home
+                  ? 'win'
+                  : gameState.score.away < gameState.score.home
+                    ? 'lose'
+                    : 'neutral'
+              }
+              stats={[
+                { label: '客隊（你）', value: gameState.score.away },
+                { label: '主隊（電腦）', value: gameState.score.home },
+              ]}
+              onPrimary={handleReset}
+            />
           )}
         </AnimatePresence>
 

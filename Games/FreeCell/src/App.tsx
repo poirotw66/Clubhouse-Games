@@ -1,5 +1,7 @@
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import React, { useState, useEffect } from "react";
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCard, playError, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import React, { useState, useEffect, useRef } from "react";
 import { GameState, Position, Card, Suit } from "./types";
 import { dealGame, SUITS } from "./utils/deck";
 import {
@@ -36,6 +38,15 @@ export default function App() {
   const [isBotPlaying, setIsBotPlaying] = useState(false);
   const [isSolving, setIsSolving] = useState(false);
   const [solutionPath, setSolutionPath] = useState<{ source: Position, dest: Position }[] | null>(null);
+  const prevWonRef = useRef(false);
+  const prevLostRef = useRef(false);
+
+  useEffect(() => {
+    if (hasWon && !prevWonRef.current) playWin();
+    if (hasLost && !prevLostRef.current && !hasWon) playError();
+    prevWonRef.current = hasWon;
+    prevLostRef.current = hasLost;
+  }, [hasWon, hasLost]);
 
   useEffect(() => {
     if (checkWin(gameState)) {
@@ -78,6 +89,8 @@ export default function App() {
   }, [gameState, selectedPos, autoMove, hasWon, hasLost, isBotPlaying, isSolving, solutionPath]);
 
   const handleMove = (source: Position, dest: Position) => {
+    if (dest.zone === 'foundation') playScore();
+    else playCard();
     setGameState((prev) => {
       const nextState = executeMove(prev, source, dest);
       return {
@@ -349,46 +362,23 @@ export default function App() {
         </div>
 
         {hasWon && (
-          <div className="mb-8 p-6 bg-emerald-50 border border-emerald-200 rounded-2xl text-center animate-in fade-in slide-in-from-top-4">
-            <h2 className="text-2xl font-serif font-bold text-emerald-900 mb-2">
-              Victory
-            </h2>
-            <p className="text-emerald-700 mb-4">
-              You have successfully solved this game.
-            </p>
-            <button
-              onClick={startNewGame}
-              className="px-6 py-2 bg-emerald-600 text-white font-medium rounded-full hover:bg-emerald-700 transition-colors shadow-sm"
-            >
-              Play Again
-            </button>
-          </div>
+          <ResultOverlay
+            title="過關！"
+            variant="win"
+            subtitle="你成功解開這局 FreeCell"
+            stats={[{ label: '步數', value: gameState.history.length }]}
+            onPrimary={startNewGame}
+          />
         )}
 
         {hasLost && !hasWon && (
-          <div className="mb-8 p-6 bg-rose-50 border border-rose-200 rounded-2xl text-center animate-in fade-in slide-in-from-top-4">
-            <h2 className="text-2xl font-serif font-bold text-rose-900 mb-2">
-              No More Moves
-            </h2>
-            <p className="text-rose-700 mb-4">
-              There are no valid moves left. Try undoing or start a new game.
-            </p>
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={undo}
-                disabled={gameState.history.length === 0}
-                className="px-6 py-2 bg-white border border-rose-200 text-rose-700 font-medium rounded-full hover:bg-rose-50 transition-colors disabled:opacity-50 shadow-sm"
-              >
-                Undo Move
-              </button>
-              <button
-                onClick={startNewGame}
-                className="px-6 py-2 bg-rose-600 text-white font-medium rounded-full hover:bg-rose-700 transition-colors shadow-sm"
-              >
-                New Game
-              </button>
-            </div>
-          </div>
+          <ResultOverlay
+            title="無法再移動"
+            variant="lose"
+            subtitle="沒有合法步數了，試試復原或開新局"
+            primaryLabel="新遊戲"
+            onPrimary={startNewGame}
+          />
         )}
 
         {/* Top Row: Free Cells & Foundations */}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCard, playError, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { Card } from './components/Card';
 import { EmptySlot } from './components/EmptySlot';
 import { GameState, DragSource, CardType } from './types';
@@ -14,6 +16,8 @@ export default function App() {
   const [draggingSource, setDraggingSource] = useState<DragSource | null>(null);
   const [selectedSource, setSelectedSource] = useState<DragSource | null>(null);
   const noProgressCount = useRef(0);
+  const prevWonRef = useRef(false);
+  const prevNoMovesRef = useRef(false);
 
   const sourcesEqual = (a: DragSource, b: DragSource): boolean => {
     if (a.type !== b.type) return false;
@@ -126,6 +130,8 @@ export default function App() {
 
       return nextState;
     });
+    if (target.type === 'foundation') playScore();
+    else playMove();
   };
 
   const attemptMove = (source: DragSource, target: { type: 'tableau' | 'foundation', index: number }) => {
@@ -239,6 +245,7 @@ export default function App() {
 
       return nextState;
     });
+    playCard();
   };
 
   const recycleWaste = () => {
@@ -254,6 +261,7 @@ export default function App() {
 
       return nextState;
     });
+    playCard();
   };
 
   const undo = () => {
@@ -342,6 +350,16 @@ export default function App() {
       setIsGameOverNoMoves(false);
     }
   }, [gameState, isGameWon]);
+
+  useEffect(() => {
+    if (isGameWon && !prevWonRef.current) playWin();
+    prevWonRef.current = isGameWon;
+  }, [isGameWon]);
+
+  useEffect(() => {
+    if (isGameOverNoMoves && !prevNoMovesRef.current) playError();
+    prevNoMovesRef.current = isGameOverNoMoves;
+  }, [isGameOverNoMoves]);
 
   const reshuffleBoard = () => {
     setGameState(prevState => {
@@ -659,36 +677,22 @@ export default function App() {
       
       {/* Win Modal */}
       {isGameWon && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white text-gray-900 p-8 rounded-2xl text-center shadow-2xl">
-            <h2 className="text-4xl font-bold mb-4">You Won!</h2>
-            <p className="text-lg mb-8">Congratulations on completing the game.</p>
-            <button onClick={() => setGameState(dealGame())} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">
-              Play Again
-            </button>
-          </div>
-        </div>
+        <ResultOverlay
+          title="你贏了！"
+          variant="win"
+          subtitle="恭喜完成接龍"
+          onPrimary={() => setGameState(dealGame())}
+        />
       )}
 
-      {/* No Moves Modal */}
       {isGameOverNoMoves && !isGameWon && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-white text-gray-900 p-8 rounded-2xl text-center shadow-2xl max-w-md w-full mx-4">
-            <h2 className="text-3xl font-bold mb-4 text-red-600">No More Moves!</h2>
-            <p className="text-lg mb-8 text-gray-600">It looks like there are no valid moves left. What would you like to do?</p>
-            <div className="flex flex-col gap-3">
-              <button onClick={reshuffleBoard} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors w-full">
-                Reshuffle Board
-              </button>
-              <button onClick={() => { setGameState(dealGame()); setIsGameOverNoMoves(false); }} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors w-full">
-                New Game
-              </button>
-              <button onClick={() => { undo(); setIsGameOverNoMoves(false); }} disabled={gameState.history.length === 0} className="px-6 py-3 bg-gray-200 text-gray-800 rounded-xl font-bold hover:bg-gray-300 transition-colors w-full disabled:opacity-50">
-                Undo Last Move
-              </button>
-            </div>
-          </div>
-        </div>
+        <ResultOverlay
+          title="無法再移動"
+          variant="lose"
+          subtitle="也可從上方工具列開新局或復原"
+          primaryLabel="重新洗牌"
+          onPrimary={reshuffleBoard}
+        />
       )}
     </div>
   );

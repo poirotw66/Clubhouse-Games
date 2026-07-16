@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCard, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { Card as CardType, GameState, PlayerHand } from './types';
 import { createDeck, calculateScore, isBlackjack } from './utils/deck';
 import { Card } from './components/Card';
 import { motion, AnimatePresence } from 'motion/react';
-import { Coins, RotateCcw, Play, Trophy, XCircle, Minus } from 'lucide-react';
+import { Coins, RotateCcw, Play } from 'lucide-react';
 
 export default function App() {
   const [deck, setDeck] = useState<CardType[]>([]);
@@ -15,6 +17,7 @@ export default function App() {
   const [playerHands, setPlayerHands] = useState<PlayerHand[]>([]);
   const [activeHandIndex, setActiveHandIndex] = useState(0);
   const [message, setMessage] = useState('');
+  const prevGameStateRef = useRef<GameState>('betting');
 
   useEffect(() => {
     setDeck(createDeck(6));
@@ -85,6 +88,7 @@ export default function App() {
       setActiveHandIndex(0);
       setMessage('');
     }
+    playCard();
   };
 
   const advanceHand = (hands: PlayerHand[]) => {
@@ -114,6 +118,7 @@ export default function App() {
     } else {
       setPlayerHands(newHands);
     }
+    playCard();
   };
 
   const stand = () => {
@@ -281,6 +286,14 @@ export default function App() {
     return hasWon ? 'win' : hasLost ? 'lose' : 'push';
   }, [gameState, playerHands]);
 
+  useEffect(() => {
+    if (gameState === 'gameOver' && prevGameStateRef.current !== 'gameOver') {
+      if (resultPrompt === 'win') playWin();
+      else if (resultPrompt === 'lose') playLose();
+    }
+    prevGameStateRef.current = gameState;
+  }, [gameState, resultPrompt]);
+
   const isBankrupt = balance === 0 && (gameState === 'gameOver' || gameState === 'betting');
   const resetAndPlayAgain = () => {
     setBalance(1000);
@@ -423,18 +436,16 @@ export default function App() {
       </div>
 
       <div className="w-full max-w-xl bg-black/40 p-3 sm:p-4 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg z-10 shrink-0">
-        {isBankrupt ? (
-          <div className="flex flex-col items-center gap-3 py-2">
-            <p className="text-lg sm:text-xl font-bold text-amber-400 text-center">No chips left. Game Over.</p>
-            <button
-              onClick={resetAndPlayAgain}
-              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2"
-            >
-              <RotateCcw className="w-5 h-5" />
-              Play Again
-            </button>
-          </div>
-        ) : gameState === 'betting' ? (
+        {isBankrupt && (
+          <ResultOverlay
+            title="籌碼用盡"
+            variant="lose"
+            subtitle="遊戲結束"
+            primaryLabel="重新開始"
+            onPrimary={resetAndPlayAgain}
+          />
+        )}
+        {!isBankrupt && gameState === 'betting' ? (
           <div className="flex flex-col items-center gap-2 sm:gap-3">
             <div className="text-white/50 text-xs font-bold uppercase tracking-widest">Place Your Bet</div>
             <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
@@ -518,58 +529,26 @@ export default function App() {
         )}
       </div>
 
-      <AnimatePresence>
-        {gameState === 'gameOver' && resultPrompt && !isBankrupt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            aria-live="polite"
-            aria-label={resultPrompt === 'win' ? 'You win' : resultPrompt === 'lose' ? 'You lose' : 'Push'}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-              className={`w-full max-w-sm rounded-2xl shadow-2xl border-2 p-6 sm:p-8 text-center ${
-                resultPrompt === 'win'
-                  ? 'bg-emerald-900/95 border-emerald-400/50 shadow-emerald-500/20'
-                  : resultPrompt === 'lose'
-                    ? 'bg-red-950/95 border-red-400/50 shadow-red-500/20'
-                    : 'bg-slate-800/95 border-slate-400/50 shadow-slate-500/20'
-              }`}
-            >
-              <div className="flex justify-center mb-3">
-                {resultPrompt === 'win' && <Trophy className="w-12 h-12 sm:w-14 sm:h-14 text-amber-400" aria-hidden />}
-                {resultPrompt === 'lose' && <XCircle className="w-12 h-12 sm:w-14 sm:h-14 text-red-400" aria-hidden />}
-                {resultPrompt === 'push' && <Minus className="w-12 h-12 sm:w-14 sm:h-14 text-slate-400" aria-hidden />}
-              </div>
-              <h2 className={`text-xl sm:text-2xl font-black tracking-widest uppercase mb-1 ${
-                resultPrompt === 'win' ? 'text-emerald-300' : resultPrompt === 'lose' ? 'text-red-300' : 'text-slate-300'
-              }`}>
-                {resultPrompt === 'win' ? 'You Win!' : resultPrompt === 'lose' ? 'You Lose' : 'Push'}
-              </h2>
-              {message && (
-                <p className="text-sm sm:text-base text-white/80 mb-5 mt-1">{message}</p>
-              )}
-              <button
-                onClick={() => {
-                  setGameState('betting');
-                  setPlayerHands([]);
-                  setDealerCards([]);
-                  setMessage('');
-                }}
-                className="px-6 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 font-black text-sm tracking-widest transition-colors cursor-pointer"
-              >
-                NEW GAME
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {gameState === 'gameOver' && resultPrompt && !isBankrupt && (
+        <ResultOverlay
+          title={
+            resultPrompt === 'win' ? '你贏了！' : resultPrompt === 'lose' ? '你輸了' : '和局'
+          }
+          subtitle={message || undefined}
+          variant={resultPrompt === 'win' ? 'win' : resultPrompt === 'lose' ? 'lose' : 'neutral'}
+          stats={[
+            { label: '餘額', value: `$${balance}` },
+            { label: '本局下注', value: `$${currentBet}` },
+          ]}
+          primaryLabel="下一局"
+          onPrimary={() => {
+            setGameState('betting');
+            setPlayerHands([]);
+            setDealerCards([]);
+            setMessage('');
+          }}
+        />
+      )}
     </div>
   );
 }
