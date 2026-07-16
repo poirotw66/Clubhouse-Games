@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playError, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import {
   createInitialState,
@@ -14,11 +16,24 @@ function formatScore(score: number): string {
   return score.toString().padStart(4, '0');
 }
 
+const BRONZE_TARGET = 400;
+const SILVER_TARGET = 700;
+const GOLD_TARGET = 1000;
+
+function getMedalLabel(score: number): string {
+  if (score >= GOLD_TARGET) return '金牌';
+  if (score >= SILVER_TARGET) return '銀牌';
+  if (score >= BRONZE_TARGET) return '銅牌';
+  return '再接再厲';
+}
+
 export default function App() {
   const [state, setState] = useState<GuessColorState>(createInitialState);
   const [showRules, setShowRules] = useState(false);
   const rafRef = useRef(0);
   const lastTimeRef = useRef<number | null>(null);
+  const lastPhaseRef = useRef(state.phase);
+  const lastCorrectRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (state.phase !== 'showing' && state.phase !== 'answering') {
@@ -37,6 +52,19 @@ export default function App() {
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
   }, [state.phase]);
+
+  useEffect(() => {
+    if (state.phase === 'results' && lastPhaseRef.current !== 'results') {
+      if (state.score >= BRONZE_TARGET) playWin();
+    }
+    lastPhaseRef.current = state.phase;
+  }, [state.phase, state.score]);
+
+  useEffect(() => {
+    if (state.lastCorrect === true && lastCorrectRef.current !== true) playScore();
+    else if (state.lastCorrect === false && lastCorrectRef.current !== false) playError();
+    lastCorrectRef.current = state.lastCorrect;
+  }, [state.lastCorrect]);
 
   const handleStart = () => {
     lastTimeRef.current = null;
@@ -186,31 +214,17 @@ export default function App() {
       )}
 
       {state.phase === 'results' && (
-        <div
-          className="fixed inset-0 bg-black/75 flex flex-col items-center justify-center gap-4 z-10"
-          role="dialog"
-          aria-label="Game results"
-        >
-          <h2 className="text-2xl font-bold">
-            挑戰結束！
-          </h2>
-          <div className="text-sm text-slate-200 space-y-1 text-center">
-            <p>
-              總分：<span className="font-mono text-lg">{formatScore(state.score)}</span>
-            </p>
-            <p>
-              最長連擊：{state.streak} 題
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="flex items-center gap-2 px-6 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-medium"
-          >
-            <RefreshCw className="w-4 h-4" />
-            再玩一次
-          </button>
-        </div>
+        <ResultOverlay
+          title="挑戰結束！"
+          badge={getMedalLabel(state.score)}
+          variant={state.score >= BRONZE_TARGET ? 'win' : 'neutral'}
+          stats={[
+            { label: '總分', value: formatScore(state.score) },
+            { label: '最長連擊', value: `${state.streak} 題` },
+          ]}
+          subtitle={`銅牌 ${BRONZE_TARGET}／銀牌 ${SILVER_TARGET}／金牌 ${GOLD_TARGET}`}
+          onPrimary={handleReset}
+        />
       )}
 
       {showRules && (

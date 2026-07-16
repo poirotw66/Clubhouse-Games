@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCapture, playError, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
 import { BookOpen, Play, RefreshCw } from 'lucide-react';
 import { GameEngine, CANVAS_WIDTH, CANVAS_HEIGHT } from './utils/gameEngine';
-import type { GameState, InputState } from './utils/gameEngine';
+import type { GameState, InputState, GameMode } from './utils/gameEngine';
 
 function TouchButton({
   label,
@@ -67,6 +69,9 @@ export default function App() {
   });
   const [showRules, setShowRules] = useState(false);
 
+  const prevModeRef = useRef<GameMode>('menu');
+  const prevKillsRef = useRef({ player: 0, cpu: 0 });
+
   const keysRef = useRef<InputState>({
     up: false,
     down: false,
@@ -78,7 +83,17 @@ export default function App() {
   });
 
   useEffect(() => {
-    const engine = new GameEngine((state) => setGameState({ ...state }));
+    const engine = new GameEngine((state) => {
+      if (state.player.kills > prevKillsRef.current.player) playCapture();
+      if (state.cpu.kills > prevKillsRef.current.cpu) playError();
+      if (state.mode === 'gameOver' && prevModeRef.current !== 'gameOver') {
+        if (state.winner === 'player') playWin();
+        else if (state.winner === 'cpu') playLose();
+      }
+      prevModeRef.current = state.mode;
+      prevKillsRef.current = { player: state.player.kills, cpu: state.cpu.kills };
+      setGameState({ ...state });
+    });
     engineRef.current = engine;
     setGameState({ ...engine.state });
 
@@ -131,6 +146,7 @@ export default function App() {
       } else if (e.code === 'Space') {
         e.preventDefault();
         keysRef.current.kick = true;
+        playMove();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -237,30 +253,27 @@ export default function App() {
         )}
 
         {gameState.mode === 'gameOver' && (
-          <div
-            className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4"
-            role="dialog"
-            aria-label="Game over"
-          >
-            <h2 className="text-2xl font-bold">
-              {gameState.winner === 'player'
+          <ResultOverlay
+            title={
+              gameState.winner === 'player'
                 ? '你贏了！'
                 : gameState.winner === 'cpu'
                   ? '電腦獲勝'
-                  : '平手'}
-            </h2>
-            <p className="text-slate-300">
-              玩家 {gameState.player.kills} : {gameState.cpu.kills} 電腦
-            </p>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex items-center gap-2 px-6 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 font-medium"
-            >
-              <RefreshCw className="w-4 h-4" />
-              再玩一局
-            </button>
-          </div>
+                  : '平手'
+            }
+            variant={
+              gameState.winner === 'player'
+                ? 'win'
+                : gameState.winner === 'cpu'
+                  ? 'lose'
+                  : 'neutral'
+            }
+            stats={[
+              { label: '擊毀數', value: `${gameState.player.kills} : ${gameState.cpu.kills}` },
+            ]}
+            subtitle="玩家 : 電腦"
+            onPrimary={handleReset}
+          />
         )}
       </div>
 
