@@ -46,6 +46,8 @@ function readPkg(name) {
 function checkGame(name) {
   const pkg = readPkg(name);
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  // Dependency-free static games (no React, no bundler) have nothing to pin.
+  if (!deps.react && !deps.vite) return [];
   const isVite5 = VITE5_GAMES.has(name);
   const baseline = isVite5 ? VITE5_BASELINE : VITE6_BASELINE;
   const expected = { ...baseline, ...(EXCEPTIONS[name] ?? {}) };
