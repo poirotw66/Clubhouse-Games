@@ -1,0 +1,10 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="海灣帆航">
+  <rect width="200" height="200" rx="28" fill="#0a2744"/>
+  <path d="M42 148h116l-12 22H54z" fill="#1a3a5c"/>
+  <path d="M48 148h104l-10 16H58z" fill="#0d2138"/>
+  <rect x="98" y="38" width="4" height="110" fill="#c8d0d8"/>
+  <path d="M102 42 L158 138 H102 Z" fill="#f4f6f8"/>
+  <path d="M98 58 L62 128 H98 Z" fill="#e8eef4"/>
+  <path d="M28 162 C58 148 88 148 118 162 S178 176 200 162" stroke="#3db8a8" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M20 178 C52 164 86 164 120 178 S174 192 200 178" stroke="#2a8f9a" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.85"/>
+</svg>

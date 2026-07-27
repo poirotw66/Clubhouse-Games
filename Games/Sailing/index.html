@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>海灣帆航｜Clubhouse Games</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="gl" aria-label="帆船遊戲畫面"></canvas>
+
+    <div id="boot-error" class="boot-error" hidden></div>
+
+    <div id="title-overlay" class="title-overlay">
+      <img src="./title-logo.svg" alt="" width="120" height="120" class="title-logo" />
+      <h1 class="title-brand">海灣帆航</h1>
+      <p class="title-tag">依序穿過固定閘門，競速完成本圈</p>
+      <button type="button" id="btn-start" class="btn primary">開始航行</button>
+      <p class="title-hint">← → 轉舵 · Z 收帆 · X 放帆 · C 自動調帆 · 避開風向盤紅區</p>
+    </div>
+
+    <header class="top-bar">
+      <div class="brand-chip">
+        <img src="./title-logo.svg" alt="" width="36" height="36" />
+        <span>海灣帆航</span>
+      </div>
+      <div class="hud-stats">
+        <div class="stat"><span class="label">航速</span><span id="hud-speed">0.0 kn</span></div>
+        <div class="stat"><span class="label">航向</span><span id="hud-point">—</span></div>
+      </div>
+      <div class="top-actions">
+        <button type="button" id="btn-autotrim" class="btn ghost active" aria-pressed="true">自動調帆</button>
+        <button type="button" id="btn-help" class="btn ghost">說明</button>
+        <button type="button" id="btn-restart" class="btn ghost">重開</button>
+      </div>
+    </header>
+
+    <aside class="race-panel" aria-live="polite">
+      <div class="stat"><span class="label">下一門</span><span id="hud-mark">—</span></div>
+      <div class="stat"><span class="label">距離</span><span id="hud-dist">—</span></div>
+      <div class="stat"><span class="label">進度</span><span id="hud-progress">0 / 5</span></div>
+      <div class="stat"><span class="label">時間</span><span id="hud-time">0:00.0</span></div>
+      <div class="stat"><span class="label">最佳</span><span id="hud-best">—</span></div>
+      <ol id="hud-splits" class="splits"></ol>
+    </aside>
+
+    <div class="nav-stack">
+      <div class="cp-compass" title="下一檢查點方向（上方為船首）">
+        <div class="rose-ring small">
+          <span class="rose-n">船首</span>
+          <div id="cp-arrow" class="cp-arrow"></div>
+        </div>
+        <span class="rose-label">下一門</span>
+      </div>
+
+      <div class="wind-rose" title="箭頭指向風吹來的方向；紅區＝頂風無法前進">
+        <div class="rose-ring wind">
+          <span class="rose-n">船首 ▲</span>
+          <span class="rose-hint left">左</span>
+          <span class="rose-hint right">右</span>
+          <div id="wind-needle" class="wind-needle">
+            <span class="wind-from-tag">風</span>
+          </div>
+          <div class="boat-pip"></div>
+        </div>
+        <div class="wind-meta">
+          <span id="hud-awa">相對風 —°</span>
+          <span id="hud-wind">— m/s</span>
+          <span id="hud-wind-tip" class="wind-tip">—</span>
+        </div>
+      </div>
+
+      <div class="trim-panel">
+        <div class="trim-head">
+          <span>帆角</span>
+          <span id="hud-trim">—</span>
+        </div>
+        <div class="trim-track" aria-hidden="true">
+          <div id="trim-ideal" class="trim-ideal"></div>
+          <div id="trim-fill" class="trim-fill"></div>
+        </div>
+        <div class="trim-keys">
+          <span><kbd>Z</kbd>/<kbd>↑</kbd> 收帆</span>
+          <span><kbd>X</kbd>/<kbd>↓</kbd> 放帆</span>
+          <span><kbd>C</kbd> 自動</span>
+        </div>
+      </div>
+
+      <canvas id="minimap" width="148" height="148" aria-label="航線小地圖"></canvas>
+    </div>
+
+    <div class="key-strip" aria-hidden="true">
+      <span><kbd>←</kbd><kbd>→</kbd> 轉舵</span>
+      <span><kbd>Z</kbd> 收帆</span>
+      <span><kbd>X</kbd> 放帆</span>
+      <span><kbd>C</kbd> 自動調帆</span>
+      <span><kbd>R</kbd> 重開</span>
+    </div>
+
+    <div id="countdown" class="countdown">3</div>
+    <div id="toast" class="toast" role="status"></div>
+
+    <div class="touch-pad">
+      <div class="pad left">
+        <button type="button" class="touch-btn" data-hold="rudderLeft">← 左轉</button>
+        <button type="button" class="touch-btn" data-hold="rudderRight">右轉 →</button>
+      </div>
+      <div class="pad right">
+        <button type="button" class="touch-btn" data-hold="trimIn">收帆 Z</button>
+        <button type="button" class="touch-btn" data-hold="trimOut">放帆 X</button>
+      </div>
+    </div>
+
+    <div id="help-panel" class="panel" hidden>
+      <h2>操作說明</h2>
+      <ul>
+        <li><kbd>←</kbd> <kbd>→</kbd> 或 <kbd>A</kbd> <kbd>D</kbd>：轉舵</li>
+        <li><kbd>Z</kbd> / <kbd>↑</kbd>：收帆（帆靠近中線，搶風時用）</li>
+        <li><kbd>X</kbd> / <kbd>↓</kbd>：放帆（帆打開，順風時用）</li>
+        <li><kbd>C</kbd> 或 <kbd>T</kbd>：開關自動調帆（手動按 Z/X 會自動關閉）</li>
+        <li>拖曳畫面：環顧　·　<kbd>R</kbd>：重開</li>
+      </ul>
+      <p>右上<strong>風向盤</strong>：箭頭指「風吹來的方向」，上方是船首。紅色扇形是頂風區——指針進紅區就沒有推力，轉舵讓指針離開紅區。綠色閘門為下一檢查點，依序穿過即完賽。</p>
+      <button type="button" id="btn-help-close" class="btn primary">關閉</button>
+    </div>
+
+    <div id="finish-panel" class="panel finish" hidden>
+      <h2>完賽！</h2>
+      <p>全程 <strong id="finish-time">—</strong></p>
+      <p>最佳 <strong id="finish-best">—</strong></p>
+      <ol id="finish-splits" class="splits finish-splits"></ol>
+      <button type="button" id="btn-finish-restart" class="btn primary">再航一趟</button>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
