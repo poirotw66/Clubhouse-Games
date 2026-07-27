@@ -49,7 +49,8 @@
       "htmlId": "category-puzzle",
       "games": [
         { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
-        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" }
+        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" },
+        { "name": "蛇窟迴廊（Roguelike 貪吃蛇）", "specPath": "05-puzzle/roguelike-snake.md", "gameFolder": "Roguelike-Snake" }
       ]
     },
     {
