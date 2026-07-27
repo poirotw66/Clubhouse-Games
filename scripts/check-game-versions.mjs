@@ -29,16 +29,8 @@ const VITE5_GAMES = new Set([
   'Checkers',
   'Connect-Four',
   'Dominoes',
-  'Guess-the-Color',
-  'Pachinko',
   'Reversi',
-  'Slot-Cars',
-  'Takoyaki',
-  'Tank-Battle',
   'Tetris',
-  'Toy-Football',
-  'Toy-Tennis',
-  'Yahtzee',
 ]);
 
 const EXCEPTIONS = {

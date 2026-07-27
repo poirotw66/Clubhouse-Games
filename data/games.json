@@ -8,8 +8,7 @@
       "games": [
         { "name": "二十一點", "specPath": "01-cards/blackjack.md", "gameFolder": "Blackjack-main" },
         { "name": "連環新接龍（FreeCell）", "specPath": "01-cards/freecell.md", "gameFolder": "FreeCell" },
-        { "name": "克朗代克接龍", "specPath": "01-cards/klondike.md", "gameFolder": "Klondike" },
-        { "name": "最後一張牌", "specPath": "01-cards/last-card.md", "gameFolder": "Last-Card" }
+        { "name": "克朗代克接龍", "specPath": "01-cards/klondike.md", "gameFolder": "Klondike" }
       ]
     },
     {
@@ -29,8 +28,7 @@
       "readmeTitle": "03-牌塊與骰子",
       "htmlId": "category-tiles",
       "games": [
-        { "name": "西洋骨牌", "specPath": "03-tiles-dice/dominoes.md", "gameFolder": "Dominoes" },
-        { "name": "快艇骰子", "specPath": "03-tiles-dice/yahtzee.md", "gameFolder": "Yahtzee" }
+        { "name": "西洋骨牌", "specPath": "03-tiles-dice/dominoes.md", "gameFolder": "Dominoes" }
       ]
     },
     {
@@ -39,8 +37,6 @@
       "readmeTitle": "04-運動與街機",
       "htmlId": "category-sports",
       "games": [
-        { "name": "玩具網球", "specPath": "04-sports-arcade/toy-tennis.md", "gameFolder": "Toy-Tennis" },
-        { "name": "玩具足球", "specPath": "04-sports-arcade/toy-football.md", "gameFolder": "Toy-Football" },
         { "name": "玩具拳擊", "specPath": "04-sports-arcade/toy-boxing.md", "gameFolder": "Toy-Boxing" },
         { "name": "玩具棒球", "specPath": "04-sports-arcade/toy-baseball.md", "gameFolder": "Toy-Baseball" },
         { "name": "羽毛球接殺訓練", "specPath": "04-sports-arcade/badminton-smash.md", "gameFolder": "Block-the-smash" }
@@ -53,7 +49,6 @@
       "htmlId": "category-puzzle",
       "games": [
         { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
-        { "name": "章魚燒", "specPath": "05-puzzle/takoyaki.md", "gameFolder": "Takoyaki" },
         { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" }
       ]
     },
@@ -63,10 +58,6 @@
       "readmeTitle": "06-迷你遊戲",
       "htmlId": "category-minigames",
       "games": [
-        { "name": "彈戲", "specPath": "06-minigames/pachinko.md", "gameFolder": "Pachinko" },
-        { "name": "軌道車", "specPath": "06-minigames/slot-cars.md", "gameFolder": "Slot-Cars" },
-        { "name": "猜顏色", "specPath": "06-minigames/guess-the-color.md", "gameFolder": "Guess-the-Color" },
-        { "name": "坦克對決", "specPath": "06-minigames/tank-battle.md", "gameFolder": "Tank-Battle" },
         { "name": "武士反應訓練", "specPath": "06-minigames/instant-flash.md", "gameFolder": "Instant-Flash" }
       ]
     }

@@ -7,7 +7,7 @@ This project collects specification and gameplay documents for each game, for us
 - **Game Overview Menu**: [index.html](index.html) (site homepage; select a game to enter)
 - **Architecture and Deployment**: [docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md) (document structure, Games folder conventions)
 - **GitHub Pages Build and Deployment**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (build process, CI, local build:pages)
-- **Implemented examples**: Blackjack → [Games/Blackjack-main/](Games/Blackjack-main/); FreeCell → [Games/FreeCell/](Games/FreeCell/); Last Card → [Games/Last-Card/](Games/Last-Card/); Klondike → [Games/Klondike/](Games/Klondike/); Block the Smash → [Games/Block-the-smash/](Games/Block-the-smash/); Instant Flash → [Games/Instant-Flash/](Games/Instant-Flash/); Mystery Liquid Sort → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
+- **Implemented examples**: Blackjack → [Games/Blackjack-main/](Games/Blackjack-main/); FreeCell → [Games/FreeCell/](Games/FreeCell/); Klondike → [Games/Klondike/](Games/Klondike/); Block the Smash → [Games/Block-the-smash/](Games/Block-the-smash/); Instant Flash → [Games/Instant-Flash/](Games/Instant-Flash/); Mystery Liquid Sort → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
 ### Local Development (Single Server)
 
@@ -36,12 +36,12 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 <!-- GENERATED_TABLE -->
 | 類別 | 資料夾 | 遊戲數 |
 |------|--------|--------|
-| 紙牌類型 | [01-cards/](01-cards/) | 4 |
+| 紙牌類型 | [01-cards/](01-cards/) | 3 |
 | 棋盤類型 | [02-board/](02-board/) | 3 |
-| 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 2 |
-| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 5 |
-| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 3 |
-| 迷你遊戲類型 | [06-minigames/](06-minigames/) | 5 |
+| 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
+| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 3 |
+| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 2 |
+| 迷你遊戲類型 | [06-minigames/](06-minigames/) | 1 |
 <!-- /GENERATED_TABLE -->
 
 # Clubhouse Games
@@ -51,7 +51,6 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 - [x] [二十一點](01-cards/blackjack.md) → [Games/Blackjack-main/](Games/Blackjack-main/)
 - [x] [連環新接龍（FreeCell）](01-cards/freecell.md) → [Games/FreeCell/](Games/FreeCell/)
 - [x] [克朗代克接龍](01-cards/klondike.md) → [Games/Klondike/](Games/Klondike/)
-- [x] [最後一張牌](01-cards/last-card.md) → [Games/Last-Card/](Games/Last-Card/)
 
 ## 02-棋盤遊戲
 - [x] [黑白棋](02-board/reversi.md) → [Games/Reversi/](Games/Reversi/)
@@ -60,24 +59,16 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 
 ## 03-牌塊與骰子
 - [x] [西洋骨牌](03-tiles-dice/dominoes.md) → [Games/Dominoes/](Games/Dominoes/)
-- [x] [快艇骰子](03-tiles-dice/yahtzee.md) → [Games/Yahtzee/](Games/Yahtzee/)
 
 ## 04-運動與街機
-- [x] [玩具網球](04-sports-arcade/toy-tennis.md) → [Games/Toy-Tennis/](Games/Toy-Tennis/)
-- [x] [玩具足球](04-sports-arcade/toy-football.md) → [Games/Toy-Football/](Games/Toy-Football/)
 - [x] [玩具拳擊](04-sports-arcade/toy-boxing.md) → [Games/Toy-Boxing/](Games/Toy-Boxing/)
 - [x] [玩具棒球](04-sports-arcade/toy-baseball.md) → [Games/Toy-Baseball/](Games/Toy-Baseball/)
 - [x] [羽毛球接殺訓練](04-sports-arcade/badminton-smash.md) → [Games/Block-the-smash/](Games/Block-the-smash/)
 
 ## 05-益智遊戲
 - [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
-- [x] [章魚燒](05-puzzle/takoyaki.md) → [Games/Takoyaki/](Games/Takoyaki/)
 - [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
 
 ## 06-迷你遊戲
-- [x] [彈戲](06-minigames/pachinko.md) → [Games/Pachinko/](Games/Pachinko/)
-- [x] [軌道車](06-minigames/slot-cars.md) → [Games/Slot-Cars/](Games/Slot-Cars/)
-- [x] [猜顏色](06-minigames/guess-the-color.md) → [Games/Guess-the-Color/](Games/Guess-the-Color/)
-- [x] [坦克對決](06-minigames/tank-battle.md) → [Games/Tank-Battle/](Games/Tank-Battle/)
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
 <!-- /GENERATED_GAMES_CHECKLIST -->
