@@ -13,17 +13,17 @@
 import { clamp, damp, angleDelta, lerp } from './math.js';
 import { sampleWater } from './shaderChunks.js';
 
-export const NO_GO = (38 * Math.PI) / 180;      // can't point closer than this
-const NO_GO_SOFT = (52 * Math.PI) / 180;        // full power by here
+export const NO_GO = (32 * Math.PI) / 180;      // can't point closer than this
+const NO_GO_SOFT = (48 * Math.PI) / 180;        // full power by here
 const STALL = (24 * Math.PI) / 180;             // angle of attack at peak lift
 const MAX_TRIM = (88 * Math.PI) / 180;
 const MIN_TRIM = (6 * Math.PI) / 180;
 
-const POWER = 0.016;          // sail force scale
-const DRAG_FWD = 0.05;        // hull resistance (quadratic)
+const POWER = 0.021;          // sail force scale
+const DRAG_FWD = 0.045;       // hull resistance (quadratic)
 const DRAG_LAT = 0.9;         // keel resistance to leeway
-const TURN_RATE = 1.05;
-const MAX_HEEL = (32 * Math.PI) / 180;
+const TURN_RATE = 1.55;
+const MAX_HEEL = (28 * Math.PI) / 180;
 
 /** Lift coefficient: rises to a peak at STALL, then falls away. */
 function liftCoef(alpha) {
@@ -137,9 +137,9 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp) {
   // --- trim -----------------------------------------------------------------
   const ideal = clamp(beta * 0.52, MIN_TRIM, MAX_TRIM);
   if (input.autoTrim) {
-    boat.trim += (ideal - boat.trim) * damp(3.2, dt);
+    boat.trim += (ideal - boat.trim) * damp(5.5, dt);
   } else if (input.trimDelta) {
-    boat.trim = clamp(boat.trim + input.trimDelta * 0.9 * dt, MIN_TRIM, MAX_TRIM);
+    boat.trim = clamp(boat.trim + input.trimDelta * 1.35 * dt, MIN_TRIM, MAX_TRIM);
   }
 
   // --- sail forces ----------------------------------------------------------
@@ -178,13 +178,13 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp) {
   boat.surge = Math.max(boat.surge, -1.2);
 
   // --- steering -------------------------------------------------------------
-  boat.rudder += (input.rudder * 0.6 - boat.rudder) * damp(7, dt);
-  // Rudder authority needs flow over the blade, so it fades as you stall.
-  const authority = clamp(Math.abs(boat.surge) / 2.2, 0, 1);
-  // Weather helm: heeled boats want to round up into the wind.
-  const weatherHelm = -Math.sin(awa) * boat.heel * 0.22;
+  boat.rudder += (input.rudder * 0.75 - boat.rudder) * damp(9, dt);
+  // Rudder needs flow, but keep a floor so you can still turn out of irons.
+  const authority = clamp(0.4 + Math.abs(boat.surge) / 1.8, 0, 1.25);
+  // Weather helm: mild so beginners aren't constantly fighting the boat.
+  const weatherHelm = -Math.sin(awa) * boat.heel * 0.08;
   const targetYaw = (boat.rudder * TURN_RATE * authority + weatherHelm) * Math.sign(boat.surge >= 0 ? 1 : -1);
-  boat.yawRate += (targetYaw - boat.yawRate) * damp(4.5, dt);
+  boat.yawRate += (targetYaw - boat.yawRate) * damp(6, dt);
   boat.heading += boat.yawRate * dt;
 
   // --- attitude -------------------------------------------------------------

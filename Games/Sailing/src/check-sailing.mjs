@@ -37,4 +37,14 @@ wind.update = () => {}; // freeze
   assert(boat.surge > 1.5, `expected boat to keep speed, got ${boat.surge}`);
 }
 
+// From a standstill in irons, rudder must still yaw the boat so players can escape.
+{
+  const boat = createBoatState(Math.PI);
+  boat.surge = 0;
+  for (let i = 0; i < 120; i++) {
+    stepSailing(boat, wind, { rudder: 1, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 1);
+  }
+  assert(Math.abs(boat.heading - Math.PI) > 0.25, `expected turn out of irons, heading=${boat.heading}`);
+}
+
 console.log('check-sailing: ok');

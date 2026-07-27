@@ -6,11 +6,12 @@ export function createInput(root) {
   let dragging = false;
   let lastX = 0;
 
+  const STEER = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyZ', 'KeyX']);
+
   const onKey = (e, down) => {
     if (e.repeat && down) return;
     keys[down ? 'add' : 'delete'](e.code);
-    // Don't steal space from buttons.
-    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) {
+    if (STEER.has(e.code) || e.code === 'KeyA' || e.code === 'KeyD' || e.code === 'KeyQ' || e.code === 'KeyE') {
       e.preventDefault();
     }
   };
@@ -19,7 +20,6 @@ export function createInput(root) {
   window.addEventListener('keyup', (e) => onKey(e, false));
   window.addEventListener('blur', () => keys.clear());
 
-  // Touch / mouse look: drag on the canvas to glance left/right.
   const canvas = root.querySelector('#gl');
   const startDrag = (x) => {
     dragging = true;
@@ -36,7 +36,7 @@ export function createInput(root) {
   };
 
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.touch-pad')) return;
+    if (e.target.closest('.touch-pad, .key-strip, button')) return;
     canvas.setPointerCapture(e.pointerId);
     startDrag(e.clientX);
   });
@@ -44,7 +44,6 @@ export function createInput(root) {
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
 
-  // Soften look-yaw back to centre when not dragging.
   let autoTrim = true;
   const held = {
     rudderLeft: false,
@@ -65,12 +64,24 @@ export function createInput(root) {
     });
     el.addEventListener('pointerup', () => set(false));
     el.addEventListener('pointercancel', () => set(false));
-    el.addEventListener('pointerleave', () => set(false));
+    el.addEventListener('lostpointercapture', () => set(false));
   });
 
-  root.querySelector('#btn-autotrim')?.addEventListener('click', () => {
+  const syncAutoBtn = () => {
+    const btn = root.querySelector('#btn-autotrim');
+    if (!btn) return;
+    btn.classList.toggle('active', autoTrim);
+    btn.setAttribute('aria-pressed', autoTrim ? 'true' : 'false');
+    btn.textContent = autoTrim ? '自動調帆 ON' : '自動調帆 OFF';
+  };
+
+  const toggleAuto = () => {
     autoTrim = !autoTrim;
-  });
+    syncAutoBtn();
+  };
+
+  root.querySelector('#btn-autotrim')?.addEventListener('click', toggleAuto);
+  syncAutoBtn();
 
   return {
     get autoTrim() {
@@ -78,31 +89,49 @@ export function createInput(root) {
     },
     set autoTrim(v) {
       autoTrim = v;
+      syncAutoBtn();
     },
     get lookYaw() {
       return lookYaw;
     },
-    /** Consume one-shot actions (toggle autotrim, restart, etc.). */
     consumePress(code) {
       if (!keys.has(code)) return false;
       keys.delete(code);
       return true;
     },
     sample(dt) {
-      // Ease look back when idle.
       if (!dragging) lookYaw *= Math.exp(-2.2 * dt);
 
       let rudder = 0;
       if (keys.has('ArrowLeft') || keys.has('KeyA') || held.rudderLeft) rudder -= 1;
       if (keys.has('ArrowRight') || keys.has('KeyD') || held.rudderRight) rudder += 1;
 
+      // Sheet in / out: Z X, Q E, ↑ ↓, [ ]
       let trimDelta = 0;
-      if (keys.has('KeyQ') || keys.has('BracketLeft') || held.trimIn) trimDelta -= 1;
-      if (keys.has('KeyE') || keys.has('BracketRight') || held.trimOut) trimDelta += 1;
+      if (
+        keys.has('KeyQ') || keys.has('KeyZ') || keys.has('ArrowUp')
+        || keys.has('BracketLeft') || keys.has('Comma') || held.trimIn
+      ) {
+        trimDelta -= 1;
+      }
+      if (
+        keys.has('KeyE') || keys.has('KeyX') || keys.has('ArrowDown')
+        || keys.has('BracketRight') || keys.has('Period') || held.trimOut
+      ) {
+        trimDelta += 1;
+      }
 
-      if (keys.has('KeyT')) {
+      if (keys.has('KeyT') || keys.has('KeyC') || keys.has('KeyF')) {
         keys.delete('KeyT');
-        autoTrim = !autoTrim;
+        keys.delete('KeyC');
+        keys.delete('KeyF');
+        toggleAuto();
+      }
+
+      // Manual trim disables auto so the keys always "do something".
+      if (trimDelta && autoTrim) {
+        autoTrim = false;
+        syncAutoBtn();
       }
 
       return {
