@@ -40,7 +40,7 @@
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 3 |
-| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 2 |
+| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 3 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 1 |
 <!-- /GENERATED_TABLE -->
 
@@ -68,6 +68,7 @@
 ## 05-益智遊戲
 - [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 - [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
+- [x] [魔法氣泡](05-puzzle/puyo-puyo.md) → [Games/Puyo-Puyo/](Games/Puyo-Puyo/)
 
 ## 06-迷你遊戲
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)

@@ -49,7 +49,8 @@
       "htmlId": "category-puzzle",
       "games": [
         { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
-        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" }
+        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" },
+        { "name": "魔法氣泡", "specPath": "05-puzzle/puyo-puyo.md", "gameFolder": "Puyo-Puyo" }
       ]
     },
     {

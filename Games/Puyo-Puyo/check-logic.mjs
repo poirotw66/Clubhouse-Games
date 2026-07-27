@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+
+const logicPath = path.join(process.cwd(), 'src/js/logic.js');
+const source = fs.readFileSync(logicPath, 'utf8');
+const context = { window: {}, console };
+vm.runInNewContext(source, context, { filename: logicPath });
+
+const L = context.window.PuyoLogic;
+
+function runTests() {
+  const board = L.createBoard();
+  board[12][0] = 'red';
+  board[12][1] = 'red';
+  board[12][2] = 'red';
+  board[12][3] = 'red';
+  board[11][1] = L.GARBAGE;
+  board[11][2] = L.GARBAGE;
+
+  const groups = L.findGroups(board);
+  assert.equal(groups.length, 1, 'expected one red group to pop');
+  const cleared = L.clearGroups(board, groups);
+  assert.equal(cleared[12][0], null);
+  assert.equal(cleared[12][3], null);
+  assert.equal(cleared[11][1], null, 'adjacent garbage should clear with the pop');
+  assert.equal(cleared[11][2], null, 'adjacent garbage should clear with the pop');
+
+  const garbageBoard = L.withGarbage(L.createBoard(), 8);
+  const garbageCells = garbageBoard.flat().filter(function (cell) { return cell === L.GARBAGE; }).length;
+  assert.equal(garbageCells, 8, 'garbage count should match requested amount');
+  assert.equal(L.findGroups(garbageBoard).length, 0, 'garbage alone must not pop');
+
+  const placements = L.enumeratePlacements(L.createBoard(), {
+    row: L.HIDDEN_ROWS,
+    col: L.SPAWN_COL,
+    rot: 0,
+    axis: 'red',
+    child: 'blue',
+  });
+  assert.ok(placements.length >= 10, 'empty board should have many legal placements');
+
+  const icons = L.garbagePreviewIcons(547);
+  assert.equal(icons[0].kind, 'moon', '360+ should start with moon/crown units');
+  assert.equal(icons.reduce(function (sum, icon) { return sum + icon.value; }, 0), 547);
+
+  const setupBoard = L.createBoard();
+  setupBoard[12][0] = 'red';
+  setupBoard[12][1] = 'red';
+  setupBoard[12][2] = 'red';
+  assert.ok(L.setupPotential(setupBoard) > 0, 'three connected puyos should count as setup');
+}
+
+runTests();
+console.log('Puyo logic checks passed.');

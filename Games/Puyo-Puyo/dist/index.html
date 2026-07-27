@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>魔法氣泡 Puyo Puyo｜Clubhouse Games</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="back-to-menu" href="../../" aria-label="Back to menu">← 返回總覽</a>
+
+    <div class="page">
+      <header class="page-header">
+        <div class="title-group">
+          <h1>魔法氣泡 Puyo Puyo</h1>
+          <span class="badge" id="mode-badge">1P vs CPU · 6×12 · 連鎖送垃圾</span>
+        </div>
+        <div class="header-actions">
+          <label class="select-field">
+            <span>模式</span>
+            <select id="match-mode">
+              <option value="cpu" selected>1P vs CPU</option>
+              <option value="versus">1P vs 2P</option>
+            </select>
+          </label>
+          <label class="select-field">
+            <span>色數</span>
+            <select id="color-count">
+              <option value="4" selected>4 色（入門）</option>
+              <option value="5">5 色（進階）</option>
+            </select>
+          </label>
+          <label class="select-field" id="difficulty-field">
+            <span>難度</span>
+            <select id="cpu-difficulty">
+              <option value="easy">Easy</option>
+              <option value="normal" selected>Normal</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+          <button type="button" id="btn-mute" class="ghost-button" aria-pressed="false">🔊 音效</button>
+          <button type="button" id="btn-pause" class="ghost-button">
+            <span id="btn-pause-label">暫停</span>
+          </button>
+          <button type="button" id="btn-restart" class="ghost-button">重新開始</button>
+        </div>
+      </header>
+
+      <p class="match-status" id="match-status">你使用方向鍵移動、Z/X 旋轉、Space 落下；CPU 會自動思考並反擊。</p>
+
+      <main class="versus-layout">
+        <section class="player-card player-card-p1">
+          <div class="player-card-header">
+            <div>
+              <h2>1P</h2>
+              <p id="p1-status" class="status-text">等待開局</p>
+            </div>
+            <div class="player-badge">玩家 1</div>
+          </div>
+          <div class="ojama-tray" id="p1-ojama" aria-label="1P 垃圾預告"></div>
+          <div class="field-wrap">
+            <div class="field-frame">
+              <canvas id="p1-field" aria-label="1P 場地" role="img"></canvas>
+              <div id="p1-chain-popup" class="chain-popup" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="player-info-grid">
+            <section class="panel stats">
+              <div class="stat-row"><span>分數</span><span id="p1-score" class="mono">0</span></div>
+              <div class="stat-row"><span>目前連鎖</span><span id="p1-chain" class="mono">0</span></div>
+              <div class="stat-row"><span>最大連鎖</span><span id="p1-max-chain" class="mono">0</span></div>
+              <div class="stat-row"><span>消除數</span><span id="p1-cleared" class="mono">0</span></div>
+              <div class="stat-row"><span>等級</span><span id="p1-level" class="mono">1</span></div>
+              <div class="stat-row"><span>待收垃圾</span><span id="p1-garbage" class="mono">0</span></div>
+            </section>
+            <section class="panel next-panel">
+              <h3>NEXT</h3>
+              <canvas id="p1-next" aria-label="1P 下一組氣泡預覽" role="img"></canvas>
+            </section>
+          </div>
+        </section>
+
+        <section class="player-card player-card-p2">
+          <div class="player-card-header">
+            <div>
+              <h2 id="p2-title">CPU</h2>
+              <p id="p2-status" class="status-text">等待開局</p>
+            </div>
+            <div class="player-badge cpu-badge" id="p2-badge">自動對手</div>
+          </div>
+          <div class="ojama-tray" id="p2-ojama" aria-label="2P 垃圾預告"></div>
+          <div class="field-wrap">
+            <div class="field-frame">
+              <canvas id="p2-field" aria-label="2P 場地" role="img"></canvas>
+              <div id="p2-chain-popup" class="chain-popup" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="player-info-grid">
+            <section class="panel stats">
+              <div class="stat-row"><span>分數</span><span id="p2-score" class="mono">0</span></div>
+              <div class="stat-row"><span>目前連鎖</span><span id="p2-chain" class="mono">0</span></div>
+              <div class="stat-row"><span>最大連鎖</span><span id="p2-max-chain" class="mono">0</span></div>
+              <div class="stat-row"><span>消除數</span><span id="p2-cleared" class="mono">0</span></div>
+              <div class="stat-row"><span>等級</span><span id="p2-level" class="mono">1</span></div>
+              <div class="stat-row"><span>待收垃圾</span><span id="p2-garbage" class="mono">0</span></div>
+            </section>
+            <section class="panel next-panel">
+              <h3>NEXT</h3>
+              <canvas id="p2-next" aria-label="2P 下一組氣泡預覽" role="img"></canvas>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <section class="panel controls-panel">
+        <h2>操作</h2>
+        <div class="controls-grid">
+          <div>
+            <h3>1P</h3>
+            <ul class="controls-list">
+              <li><kbd>←</kbd> <kbd>→</kbd> 左右移動</li>
+              <li><kbd>↓</kbd> 加速落下</li>
+              <li><kbd>Z</kbd> 逆時針 · <kbd>X</kbd>/<kbd>↑</kbd> 順時針</li>
+              <li><kbd>Space</kbd> 瞬間落下</li>
+            </ul>
+          </div>
+          <div id="p2-controls">
+            <h3>2P</h3>
+            <ul class="controls-list" id="p2-controls-list">
+              <li>CPU 自動操作</li>
+            </ul>
+          </div>
+          <div>
+            <h3>共用</h3>
+            <ul class="controls-list">
+              <li><kbd>P</kbd> 暫停 · <kbd>R</kbd> 重來</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div class="touch-controls">
+        <div class="touch-row">
+          <button type="button" id="touch-left" class="touch-button" aria-label="Move left">←</button>
+          <button type="button" id="touch-down" class="touch-button" aria-label="Soft drop">↓</button>
+          <button type="button" id="touch-right" class="touch-button" aria-label="Move right">→</button>
+        </div>
+        <div class="touch-row">
+          <button type="button" id="touch-rotate-ccw" class="touch-button" aria-label="Rotate counter-clockwise">↺</button>
+          <button type="button" id="touch-rotate-cw" class="touch-button" aria-label="Rotate clockwise">↻</button>
+          <button type="button" id="touch-drop" class="touch-button accent" aria-label="Hard drop">落下</button>
+        </div>
+      </div>
+
+      <p class="tip">
+        同色氣泡上下左右相連 <strong>4 顆</strong> 即消除。垃圾會先顯示預告
+        （小／大／石／星／月／冠），再於對手出塊前分批落下。
+      </p>
+    </div>
+
+    <div id="result-overlay" class="result-overlay" role="dialog" aria-modal="true" aria-label="對戰結束" hidden>
+      <div class="result-card">
+        <h2 id="result-title">對戰結束</h2>
+        <p id="result-summary" class="result-summary">勝負已分。</p>
+        <dl class="result-stats">
+          <div><dt>1P 分數</dt><dd id="result-p1-score" class="mono">0</dd></div>
+          <div><dt>1P 最大連鎖</dt><dd id="result-p1-chain" class="mono">0</dd></div>
+          <div><dt id="result-p2-label">CPU 分數</dt><dd id="result-p2-score" class="mono">0</dd></div>
+          <div><dt id="result-p2-chain-label">CPU 最大連鎖</dt><dd id="result-p2-chain" class="mono">0</dd></div>
+        </dl>
+        <button type="button" id="result-restart" class="primary-button">再玩一局</button>
+      </div>
+    </div>
+
+    <script src="js/logic.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
