@@ -39,7 +39,9 @@
       "games": [
         { "name": "玩具拳擊", "specPath": "04-sports-arcade/toy-boxing.md", "gameFolder": "Toy-Boxing" },
         { "name": "玩具棒球", "specPath": "04-sports-arcade/toy-baseball.md", "gameFolder": "Toy-Baseball" },
-        { "name": "羽毛球接殺訓練", "specPath": "04-sports-arcade/badminton-smash.md", "gameFolder": "Block-the-smash" }
+        { "name": "羽毛球接殺訓練", "specPath": "04-sports-arcade/badminton-smash.md", "gameFolder": "Block-the-smash" },
+        { "name": "積木賽車", "specPath": "04-sports-arcade/brick-kart-racing.md", "gameFolder": "Brick-Kart-Racing" },
+        { "name": "海灣帆航", "specPath": "04-sports-arcade/sailing.md", "gameFolder": "Sailing" }
       ]
     },
     {
@@ -50,6 +52,7 @@
       "games": [
         { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
         { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" },
+        { "name": "蛇窟迴廊（Roguelike 貪吃蛇）", "specPath": "05-puzzle/roguelike-snake.md", "gameFolder": "Roguelike-Snake" },
         { "name": "魔法氣泡", "specPath": "05-puzzle/puyo-puyo.md", "gameFolder": "Puyo-Puyo" }
       ]
     },
