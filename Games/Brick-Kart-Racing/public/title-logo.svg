@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 190">
+  <defs>
+    <rect id="brick" width="80" height="30" rx="4" />
+    <circle id="stud" r="8" />
+  </defs>
+
+  <g transform="translate(10, 40)">
+    <use href="#brick" fill="#d8352a" x="0" y="60" />
+    <circle fill="#d8352a" cx="15" cy="60" r="8" />
+    <circle fill="#d8352a" cx="40" cy="60" r="8" />
+    <circle fill="#d8352a" cx="65" cy="60" r="8" />
+    <use href="#brick" fill="#f4c024" x="0" y="25" />
+    <circle fill="#f4c024" cx="15" cy="25" r="8" />
+    <circle fill="#f4c024" cx="40" cy="25" r="8" />
+    <circle fill="#f4c024" cx="65" cy="25" r="8" />
+    <use href="#brick" fill="#2f6fd8" x="0" y="-10" />
+    <circle fill="#2f6fd8" cx="15" cy="-10" r="8" />
+    <circle fill="#2f6fd8" cx="40" cy="-10" r="8" />
+    <circle fill="#2f6fd8" cx="65" cy="-10" r="8" />
+  </g>
+
+  <g transform="translate(558, 40)">
+    <use href="#brick" fill="#2fa04a" x="0" y="60" />
+    <circle fill="#2fa04a" cx="15" cy="60" r="8" />
+    <circle fill="#2fa04a" cx="40" cy="60" r="8" />
+    <circle fill="#2fa04a" cx="65" cy="60" r="8" />
+    <use href="#brick" fill="#d8352a" x="0" y="25" />
+    <circle fill="#d8352a" cx="15" cy="25" r="8" />
+    <circle fill="#d8352a" cx="40" cy="25" r="8" />
+    <circle fill="#d8352a" cx="65" cy="25" r="8" />
+    <use href="#brick" fill="#f4c024" x="0" y="-10" />
+    <circle fill="#f4c024" cx="15" cy="-10" r="8" />
+    <circle fill="#f4c024" cx="40" cy="-10" r="8" />
+    <circle fill="#f4c024" cx="65" cy="-10" r="8" />
+  </g>
+
+  <text x="320" y="88" font-family="system-ui, sans-serif" font-weight="900" font-size="72" text-anchor="middle" fill="#ffffff" stroke="#0b1120" stroke-width="7" paint-order="stroke fill">BRICK KART</text>
+  <text x="320" y="132" font-family="system-ui, sans-serif" font-weight="900" font-size="30" text-anchor="middle" letter-spacing="14" fill="#f4c024">RACING</text>
+
+  <g transform="translate(0, 178)">
+    <rect width="640" height="12" fill="#fff"/>
+    <path d="M0 0h12v12H0z M24 0h12v12H24z M48 0h12v12H48z M72 0h12v12H72z M96 0h12v12H96z M120 0h12v12H120z M144 0h12v12H144z M168 0h12v12H168z M192 0h12v12H192z M216 0h12v12H216z M240 0h12v12H240z M264 0h12v12H264z M288 0h12v12H288z M312 0h12v12H312z M336 0h12v12H336z M360 0h12v12H360z M384 0h12v12H384z M408 0h12v12H408z M432 0h12v12H432z M456 0h12v12H456z M480 0h12v12H480z M504 0h12v12H504z M528 0h12v12H528z M552 0h12v12H552z M576 0h12v12H576z M600 0h12v12H600z M624 0h12v12H624z" fill="#000"/>
+  </g>
+</svg>

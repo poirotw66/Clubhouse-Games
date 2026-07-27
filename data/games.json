@@ -39,7 +39,8 @@
       "games": [
         { "name": "玩具拳擊", "specPath": "04-sports-arcade/toy-boxing.md", "gameFolder": "Toy-Boxing" },
         { "name": "玩具棒球", "specPath": "04-sports-arcade/toy-baseball.md", "gameFolder": "Toy-Baseball" },
-        { "name": "羽毛球接殺訓練", "specPath": "04-sports-arcade/badminton-smash.md", "gameFolder": "Block-the-smash" }
+        { "name": "羽毛球接殺訓練", "specPath": "04-sports-arcade/badminton-smash.md", "gameFolder": "Block-the-smash" },
+        { "name": "積木賽車", "specPath": "04-sports-arcade/brick-kart-racing.md", "gameFolder": "Brick-Kart-Racing" }
       ]
     },
     {
