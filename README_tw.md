@@ -39,7 +39,7 @@
 | 紙牌類型 | [01-cards/](01-cards/) | 3 |
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
-| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 3 |
+| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 4 |
 | 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 2 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 1 |
 <!-- /GENERATED_TABLE -->
@@ -64,6 +64,7 @@
 - [x] [玩具拳擊](04-sports-arcade/toy-boxing.md) → [Games/Toy-Boxing/](Games/Toy-Boxing/)
 - [x] [玩具棒球](04-sports-arcade/toy-baseball.md) → [Games/Toy-Baseball/](Games/Toy-Baseball/)
 - [x] [羽毛球接殺訓練](04-sports-arcade/badminton-smash.md) → [Games/Block-the-smash/](Games/Block-the-smash/)
+- [x] [積木賽車](04-sports-arcade/brick-kart-racing.md) → [Games/Brick-Kart-Racing/](Games/Brick-Kart-Racing/)
 
 ## 05-益智遊戲
 - [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
