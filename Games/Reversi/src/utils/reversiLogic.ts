@@ -52,12 +52,28 @@ function getFlipsInDirection(
   return [];
 }
 
-/** Whether placing color at (r,c) flips at least one piece. */
+/**
+ * Whether placing color at (r,c) flips at least one piece. This is the hottest
+ * function in the bot search, so it walks each direction directly instead of
+ * building the flip lists it would only measure and throw away.
+ */
 export function isLegalMove(board: Board, r: number, c: number, color: Piece): boolean {
   if (board[r][c] !== null) return false;
   for (const [dr, dc] of DIRECTIONS) {
-    const flips = getFlipsInDirection(board, r, c, color, dr, dc);
-    if (flips.length > 0) return true;
+    let i = r + dr;
+    let j = c + dc;
+    let seenOpponent = false;
+    while (i >= 0 && i < SIZE && j >= 0 && j < SIZE) {
+      const cell = board[i][j];
+      if (cell === null) break;
+      if (cell === color) {
+        if (seenOpponent) return true;
+        break;
+      }
+      seenOpponent = true;
+      i += dr;
+      j += dc;
+    }
   }
   return false;
 }
@@ -106,7 +122,41 @@ export function getWinner(board: Board): Piece | 'draw' {
   return 'draw';
 }
 
-/** Position weights for heuristic: corners best, then edges. */
+/* ------------------------------------------------------------------ *
+ * Bot
+ * ------------------------------------------------------------------ */
+
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy: '簡單',
+  normal: '普通',
+  hard: '困難',
+};
+
+type DifficultyConfig = {
+  /** Plies of lookahead in the midgame. */
+  depth: number;
+  /** Chance of playing a random legal move instead of the best one. */
+  blunderRate: number;
+  /** Solve exactly once this many empty squares remain (0 = never). */
+  exactEmpties: number;
+  /** Weight on mobility relative to square values. */
+  mobilityWeight: number;
+};
+
+const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
+  // Shallow and openly fallible, so a first-time player can win.
+  easy: { depth: 1, blunderRate: 0.35, exactEmpties: 0, mobilityWeight: 2 },
+  // Roughly the strength this bot has always played at.
+  normal: { depth: 4, blunderRate: 0.05, exactEmpties: 8, mobilityWeight: 8 },
+  // Deeper, values mobility more, and plays the ending out perfectly.
+  // 10 empties keeps the exact solve well under a visible pause; 12 can spike
+  // past 400ms, and the search is synchronous so that would stall the UI.
+  hard: { depth: 6, blunderRate: 0, exactEmpties: 10, mobilityWeight: 14 },
+};
+
+/** Position weights: corners best, squares next to them worst. */
 const SQUARE_WEIGHT = [
   [100, -20, 10, 5, 5, 10, -20, 100],
   [-20, -50, -2, -2, -2, -2, -50, -20],
@@ -118,72 +168,143 @@ const SQUARE_WEIGHT = [
   [100, -20, 10, 5, 5, 10, -20, 100],
 ];
 
-/**
- * Pick a legal move for the bot using minimax (depth 4) + mobility.
- */
-export function getBestMove(board: Board, color: Piece): [number, number] | null {
-  const moves = getLegalMoves(board, color);
-  if (moves.length === 0) return null;
+const CORNERS: [number, number][] = [[0, 0], [0, 7], [7, 0], [7, 7]];
+const WIN_SCORE = 100_000;
 
-  const DEPTH = 4;
-  let best = moves[0];
-  let bestScore = -Infinity;
-
-  for (const [r, c] of moves) {
-    const next = applyMove(board, r, c, color);
-    const score = -minimax(next, DEPTH - 1, -Infinity, Infinity, color, opponent(color));
-    if (score > bestScore) {
-      bestScore = score;
-      best = [r, c];
-    }
+function countEmpties(board: Board): number {
+  let n = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) if (board[r][c] === null) n++;
   }
-  return best;
+  return n;
 }
 
-function evaluateBoard(board: Board, color: Piece): number {
-  const opp = opponent(color);
+/**
+ * Heuristic score of `board` from `me`'s point of view. Every search value is
+ * expressed this way — relative to the side whose turn it is — which is what
+ * lets the negamax below flip signs on each ply.
+ */
+function evaluate(board: Board, me: Piece, mobilityWeight: number, myMoves: number): number {
+  const opp = opponent(me);
   let score = 0;
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      if (board[r][c] === color) score += SQUARE_WEIGHT[r][c];
+      if (board[r][c] === me) score += SQUARE_WEIGHT[r][c];
       else if (board[r][c] === opp) score -= SQUARE_WEIGHT[r][c];
     }
   }
-  const myMobility = getLegalMoves(board, color).length;
-  const oppMobility = getLegalMoves(board, opp).length;
-  score += (myMobility - oppMobility) * 8;
+  const oppMoves = getLegalMoves(board, opp).length;
+  score += (myMoves - oppMoves) * mobilityWeight;
+
+  // Held corners are permanent, so weigh them well above their square value.
+  for (const [r, c] of CORNERS) {
+    if (board[r][c] === me) score += 25;
+    else if (board[r][c] === opp) score -= 25;
+  }
   return score;
 }
 
-function minimax(
+/** Final disc difference from `me`'s point of view, scaled to dwarf the heuristic. */
+function finalScore(board: Board, me: Piece): number {
+  const { black, white } = countPieces(board);
+  const diff = me === 'black' ? black - white : white - black;
+  return diff * 1000;
+}
+
+/** Corners first, then by square value — cheap ordering that prunes a lot. */
+function orderMoves(moves: [number, number][]): [number, number][] {
+  return [...moves].sort((a, b) => {
+    const aCorner = SQUARE_WEIGHT[a[0]][a[1]] === 100 ? 1 : 0;
+    const bCorner = SQUARE_WEIGHT[b[0]][b[1]] === 100 ? 1 : 0;
+    if (aCorner !== bCorner) return bCorner - aCorner;
+    return SQUARE_WEIGHT[b[0]][b[1]] - SQUARE_WEIGHT[a[0]][a[1]];
+  });
+}
+
+/**
+ * Negamax with alpha-beta. Returns the value of `board` from `turn`'s point of
+ * view; `exact` searches to the end of the game scoring by disc difference.
+ */
+function negamax(
   board: Board,
   depth: number,
   alpha: number,
   beta: number,
-  player: Piece,
   turn: Piece,
+  mobilityWeight: number,
+  exact: boolean,
 ): number {
-  if (depth === 0) return evaluateBoard(board, player);
+  const moves = getLegalMoves(board, turn);
+  const stuck = moves.length === 0;
 
-  let moves = getLegalMoves(board, turn);
-  if (moves.length === 0) {
-    const passMoves = getLegalMoves(board, opponent(turn));
-    if (passMoves.length === 0) {
-      const winner = getWinner(board);
-      if (winner === player) return 10_000;
-      if (winner === opponent(player)) return -10_000;
-      return 0;
-    }
-    return minimax(board, depth - 1, alpha, beta, player, opponent(turn));
+  // Both sides stuck means the game is over, at any depth.
+  if (stuck && getLegalMoves(board, opponent(turn)).length === 0) {
+    if (exact) return finalScore(board, turn);
+    const winner = getWinner(board);
+    if (winner === turn) return WIN_SCORE;
+    if (winner === opponent(turn)) return -WIN_SCORE;
+    return 0;
+  }
+
+  // The cutoff must come before the pass branch below, and must test `<= 0`:
+  // a pass costs a ply without making a move, so depth can skip past 0 and an
+  // `=== 0` test would let the search run away to the end of the game.
+  // `moves` is already in hand, so the eval reuses it rather than rescanning.
+  if (!exact && depth <= 0) return evaluate(board, turn, mobilityWeight, moves.length);
+
+  // Only this side passes: the turn flips, so the value flips with it.
+  if (stuck) {
+    return -negamax(board, depth - 1, -beta, -alpha, opponent(turn), mobilityWeight, exact);
   }
 
   let value = -Infinity;
-  for (const [r, c] of moves) {
+  for (const [r, c] of orderMoves(moves)) {
     const next = applyMove(board, r, c, turn);
-    const score = -minimax(next, depth - 1, -beta, -alpha, player, opponent(turn));
-    value = Math.max(value, score);
-    alpha = Math.max(alpha, value);
+    const score = -negamax(next, depth - 1, -beta, -alpha, opponent(turn), mobilityWeight, exact);
+    if (score > value) value = score;
+    if (value > alpha) alpha = value;
     if (alpha >= beta) break;
   }
   return value;
+}
+
+/**
+ * Pick a move for the bot. `difficulty` controls lookahead, how much the bot
+ * values mobility, when it switches to a perfect endgame search, and how often
+ * it deliberately plays something other than its best move.
+ */
+export function getBestMove(
+  board: Board,
+  color: Piece,
+  difficulty: Difficulty = 'normal',
+): [number, number] | null {
+  const moves = getLegalMoves(board, color);
+  if (moves.length === 0) return null;
+  if (moves.length === 1) return moves[0];
+
+  const config = DIFFICULTY[difficulty];
+
+  if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+
+  const empties = countEmpties(board);
+  const exact = config.exactEmpties > 0 && empties <= config.exactEmpties;
+  const depth = exact ? empties : config.depth;
+
+  let best = moves[0];
+  let bestScore = -Infinity;
+  let alpha = -Infinity;
+  for (const [r, c] of orderMoves(moves)) {
+    const next = applyMove(board, r, c, color);
+    const score = -negamax(
+      next, depth - 1, -Infinity, -alpha, opponent(color), config.mobilityWeight, exact,
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      best = [r, c];
+      if (score > alpha) alpha = score;
+    }
+  }
+  return best;
 }
