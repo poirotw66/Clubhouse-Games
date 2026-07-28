@@ -25,12 +25,21 @@ const CATEGORY_SVG = {
   minigames: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 010-4V7a2 2 0 00-2-2H5z',
 };
 
+const DEFAULT_ACCENT = '#a78bfa';
+
 function escapeHtml(s) {
-  return s
+  return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function categoryIconSvg(categoryId) {
+  const svgContent = CATEGORY_SVG[categoryId] ?? '';
+  return svgContent.startsWith('<path')
+    ? svgContent
+    : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${svgContent}" />`;
 }
 
 function categoryShortLabel(title) {
@@ -43,45 +52,79 @@ function categoryShortLabel(title) {
   return aliases[short] ?? short;
 }
 
+/** Filter buttons: an "all" pill plus one per category. */
 function generateCategoryNavHtml(categories) {
-  return categories
-    .map(
-      (cat) =>
-        `        <a href="#${escapeHtml(cat.htmlId)}" class="category-pill">${escapeHtml(categoryShortLabel(cat.title))}</a>`
-    )
-    .join('\n');
+  const total = categories.reduce((sum, cat) => sum + cat.games.length, 0);
+  const all = `        <button type="button" class="filter-pill is-active" data-filter="all" aria-pressed="true">
+          全部<span class="filter-pill-count">${total}</span>
+        </button>`;
+  const rest = categories.map(
+    (cat) =>
+      `        <button type="button" class="filter-pill" data-filter="${escapeHtml(cat.id)}" aria-pressed="false" style="--accent: ${escapeHtml(cat.accent ?? DEFAULT_ACCENT)}">
+          ${escapeHtml(categoryShortLabel(cat.title))}<span class="filter-pill-count">${cat.games.length}</span>
+        </button>`
+  );
+  return [all, ...rest].join('\n');
 }
 
 function generateMenuHtml(categories) {
   const out = [];
   for (const cat of categories) {
-    const svgContent = CATEGORY_SVG[cat.id] ?? '';
-    const innerSvg = svgContent.startsWith('<path') ? svgContent : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${svgContent}" />`;
-    out.push(`      <article class="game-card rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm p-5 sm:p-6 lg:p-7" id="${escapeHtml(cat.htmlId)}" data-category="${escapeHtml(cat.id)}">
-        <h2 class="flex items-center gap-2 text-secondary font-heading text-lg sm:text-xl mb-4 pb-2 border-b border-white/10">
-          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">${innerSvg}</svg>
-          <span class="font-tc">${escapeHtml(cat.title)}</span>
-          <span class="category-count" aria-label="${cat.games.length} 款遊戲">${cat.games.length}</span>
-        </h2>
-        <ul class="space-y-1" role="list">`);
+    const accent = cat.accent ?? DEFAULT_ACCENT;
+    const shortLabel = categoryShortLabel(cat.title);
+    out.push(`      <section class="game-group" id="${escapeHtml(cat.htmlId)}" data-category="${escapeHtml(cat.id)}" style="--accent: ${escapeHtml(accent)}" aria-labelledby="${escapeHtml(cat.htmlId)}-title">
+        <div class="group-head">
+          <span class="group-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${categoryIconSvg(cat.id)}</svg>
+          </span>
+          <h2 class="group-title font-tc" id="${escapeHtml(cat.htmlId)}-title">${escapeHtml(cat.title)}</h2>
+          <span class="group-count" aria-label="共 ${cat.games.length} 款遊戲">${cat.games.length}</span>
+        </div>
+        <ul class="game-grid" role="list">`);
+
     for (const game of cat.games) {
       const hasPlay = !!game.gameFolder;
-      const playLink = hasPlay
-        ? `<a href="Games/${escapeHtml(game.gameFolder)}/" class="link-play cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded-lg">進入遊戲</a>`
-        : '<span class="text-slate-500 text-sm font-tc">尚未實作</span>';
-      const specLink = `<a href="${escapeHtml(game.specPath)}" class="link-spec cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream rounded">規格</a>`;
-      const searchTerms = [game.name, game.gameFolder, game.specPath.split('/').pop()?.replace('.md', '')]
+      const searchTerms = [
+        game.name,
+        game.en,
+        shortLabel,
+        game.gameFolder,
+        game.specPath.split('/').pop()?.replace('.md', ''),
+      ]
         .filter(Boolean)
         .join(' ');
-      out.push(`          <li class="game-row" data-search="${escapeHtml(searchTerms)}">
-            <span class="game-row-name">${escapeHtml(game.name)}</span>
-            <span class="game-row-actions">
-              ${specLink}
-              ${playLink}
-            </span>
+
+      const action = hasPlay
+        ? `<a href="Games/${escapeHtml(game.gameFolder)}/" class="tile-play" data-game="${escapeHtml(game.name)}">
+                進入遊戲
+                <svg class="tile-play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5-5 5M6 12h12" /></svg>
+                <span class="sr-only">：${escapeHtml(game.name)}</span>
+              </a>`
+        : '<span class="tile-play is-disabled">尚未實作</span>';
+
+      const players = game.players
+        ? `<span class="tile-players font-tc" aria-label="遊玩人數 ${escapeHtml(game.players)}">${escapeHtml(game.players)}</span>`
+        : '';
+
+      out.push(`          <li class="game-tile${hasPlay ? '' : ' is-todo'}" data-search="${escapeHtml(searchTerms)}" data-name="${escapeHtml(game.name)}"${hasPlay ? ` data-folder="${escapeHtml(game.gameFolder)}"` : ''}>
+            <div class="tile-head">
+              <span class="tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${categoryIconSvg(cat.id)}</svg>
+              </span>
+              <div class="tile-titles">
+                <h3 class="tile-name font-tc">${escapeHtml(game.name)}</h3>
+                ${game.en ? `<p class="tile-en">${escapeHtml(game.en)}</p>` : ''}
+              </div>
+              ${players}
+            </div>
+            ${game.desc ? `<p class="tile-desc font-tc">${escapeHtml(game.desc)}</p>` : ''}
+            <div class="tile-foot">
+              ${action}
+              <a href="${escapeHtml(game.specPath)}" class="tile-spec">規格<span class="sr-only">：${escapeHtml(game.name)}</span></a>
+            </div>
           </li>`);
     }
-    out.push('        </ul>\n      </article>');
+    out.push('        </ul>\n      </section>');
   }
   return out.join('\n\n');
 }
@@ -126,16 +169,17 @@ function replaceBetween(content, startMark, endMark, replacement) {
 const data = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
 const categories = data.categories;
 
-// Fix sports SVG: it has two path elements
-if (CATEGORY_SVG.sports.includes(' /><path ')) {
-  // already split in the object
-}
 const menuHtml = generateMenuHtml(categories);
 const categoryNavHtml = generateCategoryNavHtml(categories);
+const totalGames = categories.reduce((sum, cat) => sum + cat.games.length, 0);
 
 let indexContent = fs.readFileSync(INDEX_PATH, 'utf8');
 indexContent = replaceBetween(indexContent, '    <!-- GENERATED_GAMES_MENU -->', '    <!-- /GENERATED_GAMES_MENU -->', menuHtml);
 indexContent = replaceBetween(indexContent, '        <!-- GENERATED_CATEGORY_NAV -->', '        <!-- /GENERATED_CATEGORY_NAV -->', categoryNavHtml);
+// Keep the no-JS stat counts truthful even before menu.js runs.
+indexContent = indexContent
+  .replace(/(id="game-count-stat"[^>]*>)[^<]*/, `$1${totalGames}`)
+  .replace(/(id="category-count-stat"[^>]*>)[^<]*/, `$1${categories.length}`);
 fs.writeFileSync(INDEX_PATH, indexContent);
 console.log('Updated index.html');
 

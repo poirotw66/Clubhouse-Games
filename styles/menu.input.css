@@ -10,7 +10,13 @@
     --primary: #7c3aed;
     --secondary: #a78bfa;
     --cta: #f43f5e;
-    --header-offset: 5.5rem;
+    --accent: #a78bfa;
+    /* Header + sticky toolbar, so `#category-*` deep links land below both. */
+    --header-offset: 11rem;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
@@ -26,9 +32,25 @@
   .font-heading {
     font-family: 'Russo One', sans-serif;
   }
+
+  kbd {
+    @apply inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded-md border border-white/15 bg-white/5 text-[0.7rem] text-slate-300 font-body;
+  }
 }
 
 @layer components {
+  /* ---------- shared ---------- */
+
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+  }
+
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-dream bg-dream text-secondary font-medium font-tc;
+  }
+
+  /* ---------- background ---------- */
+
   .dream-bg {
     @apply fixed inset-0 -z-10 overflow-hidden;
   }
@@ -37,6 +59,7 @@
     @apply absolute rounded-full pointer-events-none;
     filter: blur(80px);
     opacity: 0.35;
+    animation: orb-drift 22s ease-in-out infinite alternate;
   }
 
   .dream-orb-1 {
@@ -53,6 +76,8 @@
     background: var(--secondary);
     bottom: 10%;
     left: -10%;
+    animation-duration: 28s;
+    animation-delay: -6s;
   }
 
   .dream-orb-3 {
@@ -61,135 +86,482 @@
     background: var(--cta);
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
     opacity: 0.15;
+    animation: none;
+    transform: translate(-50%, -50%);
   }
 
-  .stat-badge {
-    @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm text-slate-300 border border-white/10 bg-dreamCard backdrop-blur-sm;
+  /* ---------- header ---------- */
+
+  /* On phones the toolbar is the control worth pinning, so the header scrolls
+     away and only the search + filters stay put. */
+  .site-header {
+    @apply relative sm:sticky sm:top-0 z-30 border-b border-white/10 bg-dream/80 backdrop-blur-md;
   }
 
-  .stat-badge strong {
-    @apply text-white text-lg font-heading tabular-nums;
+  .site-nav {
+    @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-3;
   }
 
-  .menu-toolbar {
-    @apply flex flex-col gap-4 p-4 sm:p-5 rounded-2xl border border-white/10 bg-dreamCard/80 backdrop-blur-md;
+  .brand {
+    @apply inline-flex items-center gap-2.5 rounded-lg text-white;
   }
 
-  .search-field {
-    @apply relative w-full max-w-xl mx-auto sm:mx-0;
+  .brand-mark {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-lg border border-secondary/30 bg-secondary/10 text-secondary shrink-0;
   }
 
-  .search-input {
-    @apply w-full rounded-xl border border-white/10 bg-dream/80 text-slate-100 placeholder:text-slate-500 px-4 py-3 pr-10 text-base font-tc focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+  .brand-mark svg {
+    @apply w-5 h-5;
   }
 
-  .search-clear {
-    @apply absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-xl leading-none;
-  }
-
-  .category-nav {
-    @apply flex flex-wrap justify-center sm:justify-start gap-2;
-  }
-
-  .category-pill {
-    @apply inline-flex items-center px-3 py-1.5 rounded-full text-sm font-tc text-slate-300 border border-white/10 bg-dream/60 transition-colors hover:text-secondary hover:border-secondary/40 hover:bg-secondary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
-    scroll-margin-top: var(--header-offset);
-  }
-
-  .category-pill.is-active {
-    @apply text-white border-secondary/50 bg-secondary/20;
-  }
-
-  .category-pill.is-muted {
-    @apply opacity-40 pointer-events-none;
-  }
-
-  .game-card {
-    @apply transition-[box-shadow,border-color] duration-200 ease-out;
-    scroll-margin-top: var(--header-offset);
-  }
-
-  .game-card:hover {
-    box-shadow: 0 0 28px rgba(124, 58, 237, 0.25), 0 0 56px rgba(124, 58, 237, 0.1);
-    border-color: rgba(167, 139, 250, 0.5);
-  }
-
-  .game-card:focus-within {
-    box-shadow: 0 0 0 2px var(--primary);
-  }
-
-  .game-card[hidden] {
-    display: none;
-  }
-
-  .category-count {
-    @apply ml-auto text-xs font-tc text-slate-500 tabular-nums px-2 py-0.5 rounded-full border border-white/10 bg-dream/50;
-  }
-
-  .game-row {
-    @apply grid grid-cols-1 sm:grid-cols-[1fr_auto] sm:items-center gap-2 sm:gap-4 py-2.5 px-2 -mx-2 border-b border-white/5 last:border-0 rounded-lg transition-colors duration-150;
-  }
-
-  .game-row:hover {
-    @apply bg-white/5;
-  }
-
-  .game-row[hidden] {
-    display: none;
-  }
-
-  .game-row-name {
-    @apply font-tc text-slate-200 text-base;
-  }
-
-  .game-row-actions {
-    @apply flex items-center gap-2 sm:gap-3 flex-wrap;
-  }
-
-  .link-spec {
-    @apply text-secondary text-sm transition-colors duration-200;
-  }
-
-  .link-spec:hover {
-    color: var(--secondary);
-  }
-
-  .link-play {
-    @apply inline-flex items-center justify-center min-h-[2.25rem] px-3.5 rounded-lg text-cta font-medium text-sm border border-cta/30 bg-cta/10 transition-[color,box-shadow,background-color] duration-200;
-  }
-
-  .link-play:hover {
-    @apply text-red-400 bg-cta/20;
-    box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
+  .brand-text {
+    @apply font-heading text-base sm:text-xl tracking-wide;
   }
 
   .btn-nav {
-    @apply transition-[background-color,color] duration-200 cursor-pointer;
+    @apply inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg text-sm text-slate-300 cursor-pointer transition-[background-color,color] duration-200;
   }
 
   .btn-nav:hover {
-    @apply bg-secondary/20 text-secondary;
+    @apply bg-secondary/15 text-secondary;
   }
 
-  .btn-nav:focus-visible {
-    outline: 2px solid var(--secondary);
-    outline-offset: 2px;
+  /* ---------- page ---------- */
+
+  .page {
+    @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-12 sm:pb-16;
+  }
+
+  /* ---------- hero ---------- */
+
+  .hero {
+    @apply text-center mb-8 sm:mb-10;
+  }
+
+  .hero-eyebrow {
+    @apply inline-block text-secondary text-xs sm:text-sm tracking-[0.3em] uppercase mb-3;
+  }
+
+  .hero-title {
+    @apply font-heading text-4xl sm:text-5xl lg:text-6xl tracking-wide mb-3 text-transparent bg-clip-text;
+    background-image: linear-gradient(120deg, #ffffff 0%, #ddd6fe 45%, #a78bfa 100%);
+  }
+
+  .hero-sub {
+    @apply text-slate-400 text-sm sm:text-lg max-w-2xl mx-auto mb-6;
+  }
+
+  .hero-stats {
+    @apply flex flex-wrap justify-center gap-2 sm:gap-3;
+  }
+
+  .stat-badge {
+    @apply inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs sm:text-sm text-slate-300 border border-white/10 bg-dreamCard backdrop-blur-sm;
+  }
+
+  .stat-badge strong {
+    @apply text-white text-base sm:text-lg font-heading tabular-nums;
+  }
+
+  /* ---------- recently played ---------- */
+
+  .recent {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-2 mb-5 px-4 py-3 rounded-2xl border border-white/10 bg-dreamCard/60 backdrop-blur-sm;
+  }
+
+  .recent[hidden] {
+    display: none;
+  }
+
+  .recent-title {
+    @apply text-xs sm:text-sm text-slate-400 shrink-0;
+  }
+
+  .recent-list {
+    @apply flex flex-wrap items-center gap-2 min-w-0;
+  }
+
+  .recent-chip {
+    @apply inline-flex items-center gap-1.5 max-w-[14rem] px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-200 border border-secondary/25 bg-secondary/10 truncate transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+  }
+
+  .recent-chip:hover {
+    @apply border-secondary/50 bg-secondary/20 text-white;
+  }
+
+  .recent-clear {
+    @apply ml-auto text-xs text-slate-400 rounded px-2 py-1 transition-colors duration-200 hover:text-white;
+  }
+
+  /* ---------- toolbar ---------- */
+
+  /* Search and filters need JS, so don't show dead controls without it —
+     the full category listing below stays perfectly usable on its own. */
+  .no-js .menu-toolbar {
+    display: none;
+  }
+
+  /* Pinned to the top on phones; below the 4rem header from sm up. */
+  .menu-toolbar {
+    @apply sticky top-0 sm:top-16 z-20 flex flex-col gap-2.5 sm:gap-3 p-2.5 sm:p-4 mb-6 sm:mb-8 rounded-2xl border border-white/10 bg-dream/90 backdrop-blur-md shadow-lg shadow-black/20;
+  }
+
+  .search-field {
+    @apply relative w-full;
+  }
+
+  .search-icon {
+    @apply absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none;
+  }
+
+  .search-input {
+    @apply w-full rounded-xl border border-white/10 bg-dreamCard/70 text-slate-100 placeholder:text-slate-400 pl-11 pr-20 py-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+    transition: border-color 200ms ease;
+  }
+
+  .search-input:hover {
+    @apply border-white/20;
+  }
+
+  .search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .search-kbd {
+    @apply absolute right-3.5 top-1/2 -translate-y-1/2 hidden sm:inline-flex;
+  }
+
+  .search-field:focus-within .search-kbd,
+  .search-field.has-value .search-kbd {
+    @apply sm:hidden;
+  }
+
+  .search-clear {
+    @apply absolute right-2.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-400 transition-colors duration-200 hover:text-white hover:bg-white/10;
+  }
+
+  .search-clear svg {
+    @apply w-4 h-4;
+  }
+
+  .search-clear[hidden] {
+    display: none;
+  }
+
+  .category-nav {
+    @apply flex flex-nowrap sm:flex-wrap gap-2 overflow-x-auto sm:overflow-visible -mx-1 px-1 pb-1 sm:pb-0;
+    scrollbar-width: none;
+    /* Fades the right edge on phones to show the row keeps scrolling. */
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent 100%);
+  }
+
+  @screen sm {
+    .category-nav {
+      mask-image: none;
+    }
+  }
+
+  .category-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-pill {
+    @apply inline-flex shrink-0 items-center gap-1.5 min-h-[2.25rem] px-3.5 rounded-full text-sm text-slate-300 border border-white/10 bg-dreamCard/60 cursor-pointer transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+  }
+
+  .filter-pill:hover {
+    color: #fff;
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .filter-pill.is-active {
+    color: #fff;
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .filter-pill-count {
+    @apply text-[0.7rem] tabular-nums text-slate-400 px-1.5 py-0.5 rounded-full bg-black/25;
+  }
+
+  .filter-pill.is-active .filter-pill-count {
+    @apply text-white bg-black/30;
+  }
+
+  .search-status {
+    @apply text-slate-400 text-xs sm:text-sm min-h-[1.25rem];
+  }
+
+  .search-status:empty {
+    @apply hidden;
+  }
+
+  /* ---------- category groups ---------- */
+
+  .game-groups {
+    @apply space-y-8 sm:space-y-10;
+  }
+
+  .game-group {
+    scroll-margin-top: var(--header-offset);
+  }
+
+  .game-group[hidden] {
+    display: none;
+  }
+
+  .group-head {
+    @apply flex items-center gap-2.5 mb-3 sm:mb-4 pb-2.5 border-b border-white/10;
+  }
+
+  .group-icon {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0;
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .group-icon svg {
+    @apply w-[1.15rem] h-[1.15rem];
+  }
+
+  .group-title {
+    @apply text-base sm:text-lg font-medium text-slate-100;
+  }
+
+  .group-count {
+    @apply ml-auto text-xs tabular-nums text-slate-400 px-2 py-0.5 rounded-full border border-white/10 bg-dreamCard/60;
+  }
+
+  /* ---------- game tiles ---------- */
+
+  .game-grid {
+    @apply grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .game-tile {
+    @apply relative flex flex-col gap-2.5 sm:gap-3 p-4 sm:p-5 rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm;
+    transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  }
+
+  .game-tile::before {
+    content: '';
+    @apply absolute inset-x-0 top-0 h-px rounded-t-2xl opacity-60;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .game-tile:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow: 0 12px 32px -12px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .game-tile:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .game-tile[hidden] {
+    display: none;
+  }
+
+  .game-tile.is-todo {
+    @apply opacity-70;
+  }
+
+  .tile-head {
+    @apply flex items-start gap-3;
+  }
+
+  .tile-icon {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-xl shrink-0;
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .tile-icon svg {
+    @apply w-5 h-5;
+  }
+
+  .tile-titles {
+    @apply min-w-0;
+  }
+
+  .tile-name {
+    @apply text-base sm:text-[1.05rem] font-medium text-slate-100 leading-snug;
+  }
+
+  .tile-en {
+    @apply text-xs text-slate-400 tracking-wide mt-0.5;
+  }
+
+  .tile-players {
+    @apply ml-auto shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[0.7rem] text-slate-400 border border-white/10 bg-black/20 whitespace-nowrap;
+  }
+
+  .tile-desc {
+    @apply text-sm leading-relaxed text-slate-400 mb-auto;
+  }
+
+  .tile-foot {
+    @apply flex items-center gap-3 pt-3 border-t border-white/10;
+  }
+
+  .tile-play {
+    @apply inline-flex items-center justify-center gap-1.5 min-h-[2.5rem] px-4 rounded-xl text-cta font-medium text-sm border border-cta/30 bg-cta/10 cursor-pointer transition-[color,background-color,box-shadow] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cta focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+  }
+
+  /* Stretched link: the whole tile is clickable, the spec link stays on top. */
+  a.tile-play::after {
+    content: '';
+    @apply absolute inset-0 rounded-2xl;
+  }
+
+  .game-tile:hover a.tile-play {
+    @apply text-white bg-cta/25 border-cta/50;
+    box-shadow: 0 0 14px rgba(244, 63, 94, 0.3);
+  }
+
+  a.tile-play:hover {
+    @apply text-white bg-cta/25 border-cta/50;
+  }
+
+  .tile-play-icon {
+    @apply w-4 h-4 transition-transform duration-200;
+  }
+
+  .game-tile:hover .tile-play-icon {
+    transform: translateX(2px);
+  }
+
+  .tile-play.is-disabled {
+    @apply text-slate-400 border-white/10 bg-white/5 cursor-not-allowed;
+  }
+
+  .tile-spec {
+    @apply relative z-10 inline-flex items-center min-h-[2.5rem] px-2 -mx-2 rounded-lg text-secondary text-sm cursor-pointer transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-dream;
+  }
+
+  .tile-spec:hover {
+    @apply text-white underline underline-offset-4;
+  }
+
+  /* ---------- empty state ---------- */
+
+  .empty-state {
+    @apply flex flex-col items-center text-center py-14 px-6 rounded-2xl border border-dashed border-white/10 bg-dreamCard/40;
+  }
+
+  .empty-state[hidden] {
+    display: none;
+  }
+
+  .empty-icon {
+    @apply w-10 h-10 text-slate-600 mb-3;
+  }
+
+  .empty-title {
+    @apply text-slate-200 text-base sm:text-lg mb-1;
+  }
+
+  .empty-hint {
+    @apply text-slate-400 text-sm mb-5;
+  }
+
+  .btn-reset {
+    @apply inline-flex items-center justify-center min-h-[2.5rem] px-5 rounded-xl text-sm text-secondary border border-secondary/40 bg-secondary/10 cursor-pointer transition-colors duration-200;
+  }
+
+  .btn-reset:hover {
+    @apply bg-secondary/20 text-white;
+  }
+
+  /* ---------- footer ---------- */
+
+  .site-footer {
+    @apply mt-12 sm:mt-16 pt-8 border-t border-white/10 text-slate-400 text-sm space-y-2;
+  }
+
+  .footer-link {
+    @apply text-secondary rounded cursor-pointer transition-colors duration-200 hover:text-white;
+  }
+
+  .footer-hint {
+    @apply text-xs text-slate-400 hidden sm:block;
+  }
+
+  /* ---------- back to top ---------- */
+
+  .back-to-top {
+    @apply fixed bottom-5 right-5 z-30 inline-flex items-center justify-center w-11 h-11 rounded-full text-secondary border border-white/10 bg-dream/90 backdrop-blur-md shadow-lg cursor-pointer transition-[background-color,color,opacity] duration-200;
+  }
+
+  .back-to-top:hover {
+    @apply bg-secondary/20 text-white;
+  }
+
+  .back-to-top svg {
+    @apply w-5 h-5;
+  }
+
+  .back-to-top[hidden] {
+    display: none;
+  }
+}
+
+@keyframes orb-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-4vw, 3vh, 0) scale(1.12);
+  }
+}
+
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .game-tile {
+    animation: tile-in 320ms ease-out both;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .dream-orb {
     animation: none;
   }
 
-  .game-card,
-  .game-row,
-  .link-spec,
-  .link-play,
+  .game-tile,
+  .tile-spec,
+  .tile-play,
+  .tile-play-icon,
   .btn-nav,
-  .category-pill {
+  .btn-reset,
+  .filter-pill,
+  .recent-chip,
+  .back-to-top,
+  .search-input {
     transition: none;
+    animation: none;
+  }
+
+  .game-tile:hover {
+    transform: none;
   }
 }

@@ -5,10 +5,32 @@
       "title": "01 紙牌類型",
       "readmeTitle": "01-紙牌遊戲",
       "htmlId": "category-cards",
+      "accent": "#f59e0b",
       "games": [
-        { "name": "二十一點", "specPath": "01-cards/blackjack.md", "gameFolder": "Blackjack-main" },
-        { "name": "連環新接龍（FreeCell）", "specPath": "01-cards/freecell.md", "gameFolder": "FreeCell" },
-        { "name": "克朗代克接龍", "specPath": "01-cards/klondike.md", "gameFolder": "Klondike" }
+        {
+          "name": "二十一點",
+          "en": "Blackjack",
+          "desc": "讓手牌點數逼近 21 又不爆牌，跟莊家比大小的經典賭桌牌戲。",
+          "players": "1 人",
+          "specPath": "01-cards/blackjack.md",
+          "gameFolder": "Blackjack-main"
+        },
+        {
+          "name": "連環新接龍（FreeCell）",
+          "en": "FreeCell",
+          "desc": "四個暫存格、全部攤開的牌面，幾乎每一局都有解的純策略接龍。",
+          "players": "1 人",
+          "specPath": "01-cards/freecell.md",
+          "gameFolder": "FreeCell"
+        },
+        {
+          "name": "克朗代克接龍",
+          "en": "Klondike",
+          "desc": "紅黑交替遞減接龍，把 52 張牌依花色全數收上 foundation。",
+          "players": "1 人",
+          "specPath": "01-cards/klondike.md",
+          "gameFolder": "Klondike"
+        }
       ]
     },
     {
@@ -16,10 +38,32 @@
       "title": "02 棋盤類型",
       "readmeTitle": "02-棋盤遊戲",
       "htmlId": "category-board",
+      "accent": "#38bdf8",
       "games": [
-        { "name": "黑白棋", "specPath": "02-board/reversi.md", "gameFolder": "Reversi" },
-        { "name": "西洋跳棋", "specPath": "02-board/checkers.md", "gameFolder": "Checkers" },
-        { "name": "四子棋", "specPath": "02-board/connect-four.md", "gameFolder": "Connect-Four" }
+        {
+          "name": "黑白棋",
+          "en": "Reversi",
+          "desc": "在 8×8 盤上夾住對手棋子翻面，終局時己色較多者獲勝。",
+          "players": "2 人",
+          "specPath": "02-board/reversi.md",
+          "gameFolder": "Reversi"
+        },
+        {
+          "name": "西洋跳棋",
+          "en": "Checkers",
+          "desc": "斜向跳吃、能連跳就必須連跳，抵達底線升王的格盤棋。",
+          "players": "2 人",
+          "specPath": "02-board/checkers.md",
+          "gameFolder": "Checkers"
+        },
+        {
+          "name": "四子棋",
+          "en": "Connect Four",
+          "desc": "在 7×6 格網輪流投下棋子，橫豎斜先連成四子者獲勝。",
+          "players": "2 人",
+          "specPath": "02-board/connect-four.md",
+          "gameFolder": "Connect-Four"
+        }
       ]
     },
     {
@@ -27,8 +71,16 @@
       "title": "03 牌張類型",
       "readmeTitle": "03-牌塊與骰子",
       "htmlId": "category-tiles",
+      "accent": "#34d399",
       "games": [
-        { "name": "西洋骨牌", "specPath": "03-tiles-dice/dominoes.md", "gameFolder": "Dominoes" }
+        {
+          "name": "西洋骨牌",
+          "en": "Dominoes",
+          "desc": "把點數相同的一端接上牌線，先出完手牌或比總點數計分。",
+          "players": "2–4 人",
+          "specPath": "03-tiles-dice/dominoes.md",
+          "gameFolder": "Dominoes"
+        }
       ]
     },
     {
@@ -36,12 +88,48 @@
       "title": "04 運動機檯類型",
       "readmeTitle": "04-運動與街機",
       "htmlId": "category-sports",
+      "accent": "#fb7185",
       "games": [
-        { "name": "玩具拳擊", "specPath": "04-sports-arcade/toy-boxing.md", "gameFolder": "Toy-Boxing" },
-        { "name": "玩具棒球", "specPath": "04-sports-arcade/toy-baseball.md", "gameFolder": "Toy-Baseball" },
-        { "name": "羽毛球接殺訓練", "specPath": "04-sports-arcade/badminton-smash.md", "gameFolder": "Block-the-smash" },
-        { "name": "積木賽車", "specPath": "04-sports-arcade/brick-kart-racing.md", "gameFolder": "Brick-Kart-Racing" },
-        { "name": "海灣帆航", "specPath": "04-sports-arcade/sailing.md", "gameFolder": "Sailing" }
+        {
+          "name": "玩具拳擊",
+          "en": "Toy Boxing",
+          "desc": "刺拳勾拳搭配閃避與格擋，先清空對手體力條的一方獲勝。",
+          "players": "1–2 人",
+          "specPath": "04-sports-arcade/toy-boxing.md",
+          "gameFolder": "Toy-Boxing"
+        },
+        {
+          "name": "玩具棒球",
+          "en": "Toy Baseball",
+          "desc": "抓準揮棒時機擊出安打或全壘打，打完約定局數比得分。",
+          "players": "1–2 人",
+          "specPath": "04-sports-arcade/toy-baseball.md",
+          "gameFolder": "Toy-Baseball"
+        },
+        {
+          "name": "羽毛球接殺訓練",
+          "en": "Block the Smash",
+          "desc": "對手殺球來襲時移動球拍精準擋下，鍛鍊反應與判斷。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/badminton-smash.md",
+          "gameFolder": "Block-the-smash"
+        },
+        {
+          "name": "積木賽車",
+          "en": "Brick Kart Racing",
+          "desc": "Mode-7 偽 3D 積木卡丁車，靠飄移蓄力與道具磚競速三圈。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/brick-kart-racing.md",
+          "gameFolder": "Brick-Kart-Racing"
+        },
+        {
+          "name": "海灣帆航",
+          "en": "Sailing",
+          "desc": "在 WebGL2 海面上依相對風調帆操舵，依序繞過浮標完成賽程。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/sailing.md",
+          "gameFolder": "Sailing"
+        }
       ]
     },
     {
@@ -49,11 +137,40 @@
       "title": "05 串聯拼砌類型",
       "readmeTitle": "05-益智遊戲",
       "htmlId": "category-puzzle",
+      "accent": "#a78bfa",
       "games": [
-        { "name": "神秘液體排序", "specPath": "05-puzzle/mystery-liquid-sort.md", "gameFolder": "Mystery-Liquid-Sort" },
-        { "name": "俄羅斯方塊", "specPath": "05-puzzle/tetris.md", "gameFolder": "Tetris" },
-        { "name": "蛇窟迴廊（Roguelike 貪吃蛇）", "specPath": "05-puzzle/roguelike-snake.md", "gameFolder": "Roguelike-Snake" },
-        { "name": "魔法氣泡", "specPath": "05-puzzle/puyo-puyo.md", "gameFolder": "Puyo-Puyo" }
+        {
+          "name": "神秘液體排序",
+          "en": "Mystery Liquid Sort",
+          "desc": "在瓶子之間傾倒彩色液體，讓每個瓶子只剩下單一顏色。",
+          "players": "1 人",
+          "specPath": "05-puzzle/mystery-liquid-sort.md",
+          "gameFolder": "Mystery-Liquid-Sort"
+        },
+        {
+          "name": "俄羅斯方塊",
+          "en": "Tetris",
+          "desc": "SRS 旋轉搭配 Hold 與 Next 預覽，堆疊消行挑戰高分。",
+          "players": "1 人",
+          "specPath": "05-puzzle/tetris.md",
+          "gameFolder": "Tetris"
+        },
+        {
+          "name": "蛇窟迴廊（Roguelike 貪吃蛇）",
+          "en": "Roguelike Snake",
+          "desc": "貪吃蛇融合 Roguelike 遺物構築，一路深入十五層地窟。",
+          "players": "1 人",
+          "specPath": "05-puzzle/roguelike-snake.md",
+          "gameFolder": "Roguelike-Snake"
+        },
+        {
+          "name": "魔法氣泡",
+          "en": "Puyo Puyo",
+          "desc": "同色氣泡相連四顆即消除，事先埋設形狀引爆長連鎖。",
+          "players": "1–2 人",
+          "specPath": "05-puzzle/puyo-puyo.md",
+          "gameFolder": "Puyo-Puyo"
+        }
       ]
     },
     {
@@ -61,8 +178,16 @@
       "title": "06 迷你遊戲類型",
       "readmeTitle": "06-迷你遊戲",
       "htmlId": "category-minigames",
+      "accent": "#f472b6",
       "games": [
-        { "name": "武士反應訓練", "specPath": "06-minigames/instant-flash.md", "gameFolder": "Instant-Flash" }
+        {
+          "name": "武士反應訓練",
+          "en": "Instant Flash",
+          "desc": "提示閃現的瞬間出刀，考驗居合一閃般的極限反應。",
+          "players": "1 人",
+          "specPath": "06-minigames/instant-flash.md",
+          "gameFolder": "Instant-Flash"
+        }
       ]
     }
   ]

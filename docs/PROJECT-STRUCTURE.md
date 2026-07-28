@@ -84,11 +84,17 @@ Clubhouse-Games/
 ## 四、總覽選單（index.html）行為
 
 - 根目錄的 `index.html` 為 **遊戲總覽選單**：
-  - 依六大類列出所有遊戲（紙牌、棋盤、牌張、運動機檯、串聯拼砌、迷你遊戲）。
-  - 每個遊戲提供：
+  - 依六大類列出所有遊戲（紙牌、棋盤、牌張、運動機檯、串聯拼砌、迷你遊戲），每一類有專屬強調色。
+  - 每款遊戲為一張卡片，顯示中文名、英文名、一句玩法簡介與遊玩人數，並提供：
     - **規格**：連結到對應 `.md`（如 `01-cards/blackjack.md`）。
-    - **進入遊戲**：連結到 `Games/<專案資料夾名>/`。
-- 你已實作的 **二十一點** 連結至 `Games/Blackjack-main/`，其餘遊戲可先連到規格，待實作後再在選單中補上遊戲連結。
+    - **進入遊戲**：連結到 `Games/<專案資料夾名>/`；卡片本身即為此連結的點擊範圍（stretched link），整張卡都可點。
+  - 尚未實作的遊戲顯示「尚未實作」而非進入連結。
+- 選單互動（`assets/menu.js`）：
+  - **搜尋**：比對中文名、英文名、分類與資料夾名；按 <kbd>/</kbd> 或 <kbd>Ctrl/⌘</kbd>+<kbd>K</kbd> 聚焦、<kbd>Esc</kbd> 清除。
+  - **分類篩選**：點分類膠囊只顯示該類，再點一次取消。
+  - **網址同步**：搜尋與篩選寫入 `?q=` 與 `?cat=`，可直接分享或重新整理還原（例：`?q=snake&cat=puzzle`）。
+  - **最近遊玩**：點過「進入遊戲」的前四款存在 `localStorage`（鍵名 `clubhouse:recent-games`），下次回首頁顯示於頂端，可一鍵清除。
+  - 以上皆為漸進增強：JS 未載入時仍是一份完整可用的分類遊戲清單。
 
 ---
 
@@ -107,7 +113,21 @@ Clubhouse-Games/
    - 建置後將 `dist` 內容部署到 `Games/<專案名>/`（手動或 CI）。
 
 4. **總覽選單**  
-   - 選單與 README 遊戲清單由 `data/games.json` 驅動。在 `data/games.json` 對應類別的 `games` 陣列中新增一筆 `{ "name": "顯示名稱", "specPath": "01-cards/xxx.md", "gameFolder": "專案資料夾名" }`，然後執行 `npm run generate` 更新 `index.html` 與 `README.md`。`npm run build:pages` 會自動先執行 generate。
+   - 選單與 README 遊戲清單由 `data/games.json` 驅動。在對應類別的 `games` 陣列中新增一筆：
+
+     ```json
+     {
+       "name": "顯示名稱",
+       "en": "English Name",
+       "desc": "一句話玩法簡介，約 20–30 字。",
+       "players": "1 人",
+       "specPath": "01-cards/xxx.md",
+       "gameFolder": "專案資料夾名"
+     }
+     ```
+
+     `name` 與 `specPath` 為必填；`en`、`desc`、`players` 省略時卡片會自動略過該欄位；`gameFolder` 省略代表尚未實作。類別層級的 `accent` 為該類的強調色（CSS 變數 `--accent`）。
+   - 然後執行 `npm run generate` 更新 `index.html` 與 `README.md`；若改動的是 `styles/menu.input.css`，再執行 `npm run build:css` 產生 `assets/menu.css`。`npm run build:pages` 會自動先執行 generate 與 build:css。
 
 ---
 
