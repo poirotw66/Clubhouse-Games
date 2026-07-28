@@ -104,6 +104,38 @@ body {
   opacity: 0.7;
 }
 
+/* Every other game in the collection has this same pill in the top-left, so
+   it stays put here too. z-index clears the title overlay (40) and the boot
+   error screen (50): those are exactly the moments a player is most likely to
+   want out, and both cover the whole viewport. */
+.back-to-menu {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eaf6ff;
+  text-decoration: none;
+  background: rgba(7, 24, 36, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(234, 246, 255, 0.25);
+  border-radius: 999px;
+  touch-action: manipulation;
+}
+
+.back-to-menu:hover,
+.back-to-menu:focus-visible {
+  background: rgba(7, 24, 36, 0.8);
+  border-color: rgba(234, 246, 255, 0.5);
+}
+
 .top-bar {
   position: fixed;
   top: 0;
@@ -113,7 +145,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1rem 0.75rem 8.75rem;
   background: linear-gradient(180deg, rgba(7, 24, 36, 0.75), transparent);
   pointer-events: none;
 }
@@ -848,7 +880,19 @@ body {
 
   .top-bar {
     gap: 0.5rem;
-    padding: 0.75rem 0.6rem;
+    padding: 0.75rem 0.6rem 0.75rem 3.4rem;
+  }
+
+  /* The row needs every pixel here, so the pill shrinks to just the arrow.
+     aria-label on the link still names it for screen readers. */
+  .back-to-menu-label {
+    display: none;
+  }
+
+  .back-to-menu {
+    min-width: 34px;
+    justify-content: center;
+    padding: 6px 10px;
   }
 
   /* Buys back the width the fourth button needs. The point of sail is already
