@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
-import { playLose, playScore } from '@clubhouse/shared/synthAudio';
+import { playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { RefreshCw, Pause, Play, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Cell, ActivePiece, TetrominoType } from './utils/tetrisLogic';
+import type { Cell, ActivePiece, TetrominoType, Mode } from './utils/tetrisLogic';
 import {
   BOARD_SIZE,
   createEmptyBoard,
@@ -18,7 +18,11 @@ import {
   tryRotateWithKick,
   getCellsForActive,
   getShapeMatrix,
+  MODES,
+  isGoalMet,
 } from './utils/tetrisLogic';
+
+const MODE_ORDER: Mode[] = ['marathon', 'sprint', 'ultra'];
 
 interface GameState {
   board: Cell[][];
@@ -31,9 +35,39 @@ interface GameState {
   level: number;
   gameOver: boolean;
   paused: boolean;
+  /** Set when a mode's goal is met, as opposed to topping out. */
+  cleared: boolean;
+  /** Playing time in ms, excluding anything spent paused. */
+  elapsedMs: number;
 }
 
 const GRAVITY_LEVEL_INTERVAL = 800;
+const BEST_KEY = 'clubhouse:tetris-best';
+
+/** m:ss.s — tenths matter when the whole point is beating your last run. */
+function formatTime(ms: number): string {
+  const totalSeconds = Math.max(0, ms) / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
+}
+
+function readBest(): Partial<Record<Mode, number>> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BEST_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeBest(next: Partial<Record<Mode, number>>) {
+  try {
+    localStorage.setItem(BEST_KEY, JSON.stringify(next));
+  } catch {
+    /* storage unavailable; records are a nice-to-have */
+  }
+}
 
 function nextFromQueue(queue: TetrominoType[]): { type: TetrominoType; remaining: TetrominoType[] } {
   if (queue.length === 0) {
@@ -62,11 +96,66 @@ function getInitialGameState(): GameState {
     level: 1,
     gameOver: false,
     paused: false,
+    cleared: false,
+    elapsedMs: 0,
+  };
+}
+
+/**
+ * Merge the active piece, clear any full lines and spawn the next piece.
+ * Both the gravity path and the hard-drop path land here, and it is also where
+ * a mode's line goal is detected, so the two paths cannot drift apart.
+ */
+function lockPiece(
+  prev: GameState,
+  mode: Mode,
+  hardDropRows: number,
+  spawnNext: (
+    board: Cell[][],
+    queue: TetrominoType[],
+    hold: TetrominoType | null,
+  ) => { board: Cell[][]; active: ActivePiece | null; queue: TetrominoType[]; gameOver: boolean },
+  onClear: (linesCleared: number, addScore: number) => void,
+): GameState {
+  if (!prev.active) return prev;
+  const merged = mergePiece(prev.board, prev.active);
+  const cleared = clearLines(merged);
+  const linesCleared = cleared.linesCleared;
+  const newLines = prev.lines + linesCleared;
+  const newLevel = 1 + Math.floor(newLines / 10);
+
+  let addScore = 0;
+  if (linesCleared === 1) addScore += 100 * newLevel;
+  else if (linesCleared === 2) addScore += 300 * newLevel;
+  else if (linesCleared === 3) addScore += 500 * newLevel;
+  else if (linesCleared === 4) addScore += 800 * newLevel;
+  if (hardDropRows > 0) addScore += hardDropRows * 2;
+
+  if (linesCleared > 0) onClear(linesCleared, addScore);
+
+  const goalMet = isGoalMet(mode, newLines, prev.elapsedMs);
+
+  const spawned = spawnNext(cleared.board, prev.queue, prev.hold);
+
+  return {
+    ...prev,
+    board: spawned.board,
+    active: goalMet ? null : spawned.active,
+    queue: spawned.queue,
+    hold: prev.hold,
+    canHold: true,
+    score: prev.score + addScore,
+    lines: newLines,
+    level: newLevel,
+    cleared: goalMet,
+    gameOver: goalMet || spawned.gameOver,
   };
 }
 
 export default function App() {
+  const [mode, setMode] = useState<Mode>('marathon');
   const [state, setState] = useState<GameState>(getInitialGameState);
+  const [best, setBest] = useState<Partial<Record<Mode, number>>>(readBest);
   const [flash, setFlash] = useState<{
     text: string;
     tone: 'good' | 'neutral';
@@ -74,6 +163,20 @@ export default function App() {
   } | null>(null);
   const lastDropTimeRef = useRef<number>(performance.now());
   const wasGameOverRef = useRef(false);
+  // Wall-clock anchor for the run timer; reset on start and after each unpause.
+  const runStartRef = useRef<number>(performance.now());
+
+  const showClearFlash = useCallback((linesCleared: number, addScore: number) => {
+    const popupText = linesCleared === 4 ? 'TETRIS!' : `+${addScore}`;
+    queueMicrotask(() => {
+      playScore();
+      setFlash({
+        text: popupText,
+        tone: linesCleared >= 3 ? 'good' : 'neutral',
+        key: Date.now(),
+      });
+    });
+  }, []);
 
   const spawnNext = useCallback((board: Cell[][], queue: TetrominoType[], hold: TetrominoType | null) => {
     const { type, remaining } = nextFromQueue(queue);
@@ -96,116 +199,90 @@ export default function App() {
 
   const lockPieceAndContinue = useCallback(
     (hardDropRows: number) => {
-      setState((prev) => {
-        if (!prev.active) return prev;
-        const merged = mergePiece(prev.board, prev.active);
-        const cleared = clearLines(merged);
-        const linesCleared = cleared.linesCleared;
-        const newLines = prev.lines + linesCleared;
-        const newLevel = 1 + Math.floor(newLines / 10);
-        let addScore = 0;
-        if (linesCleared === 1) addScore += 100 * newLevel;
-        else if (linesCleared === 2) addScore += 300 * newLevel;
-        else if (linesCleared === 3) addScore += 500 * newLevel;
-        else if (linesCleared === 4) addScore += 800 * newLevel;
-        if (hardDropRows > 0) addScore += hardDropRows * 2;
-
-        if (linesCleared > 0) {
-          const popupText = linesCleared === 4 ? 'TETRIS!' : `+${addScore}`;
-          queueMicrotask(() => {
-            playScore();
-            setFlash({
-              text: popupText,
-              tone: linesCleared >= 3 ? 'good' : 'neutral',
-              key: Date.now(),
-            });
-          });
-        }
-
-        const spawned = spawnNext(cleared.board, prev.queue, prev.hold);
-
-        return {
-          ...prev,
-          board: spawned.board,
-          active: spawned.active,
-          queue: spawned.queue,
-          hold: prev.hold,
-          canHold: true,
-          score: prev.score + addScore,
-          lines: newLines,
-          level: newLevel,
-          gameOver: spawned.gameOver,
-        };
-      });
+      setState((prev) => lockPiece(prev, mode, hardDropRows, spawnNext, showClearFlash));
       lastDropTimeRef.current = performance.now();
     },
-    [spawnNext],
+    [mode, spawnNext, showClearFlash],
   );
 
   const handleSoftDrop = useCallback(() => {
     setState((prev) => {
       if (!prev.active || prev.gameOver || prev.paused) return prev;
       const moved = movePiece(prev.board, prev.active, 1, 0);
-      if (!moved) {
-        // Lock piece
-        const now = performance.now();
-        lastDropTimeRef.current = now;
-        const merged = mergePiece(prev.board, prev.active);
-        const cleared = clearLines(merged);
-        const linesCleared = cleared.linesCleared;
-        const newLines = prev.lines + linesCleared;
-        const newLevel = 1 + Math.floor(newLines / 10);
-        let addScore = 0;
-        if (linesCleared === 1) addScore += 100 * newLevel;
-        else if (linesCleared === 2) addScore += 300 * newLevel;
-        else if (linesCleared === 3) addScore += 500 * newLevel;
-        else if (linesCleared === 4) addScore += 800 * newLevel;
-
-        if (linesCleared > 0) {
-          const popupText = linesCleared === 4 ? 'TETRIS!' : `+${addScore}`;
-          queueMicrotask(() => {
-            playScore();
-            setFlash({
-              text: popupText,
-              tone: linesCleared >= 3 ? 'good' : 'neutral',
-              key: Date.now(),
-            });
-          });
-        }
-
-        const spawned = spawnNext(cleared.board, prev.queue, prev.hold);
-
-        return {
-          ...prev,
-          board: spawned.board,
-          active: spawned.active,
-          queue: spawned.queue,
-          hold: prev.hold,
-          canHold: true,
-          score: prev.score + addScore,
-          lines: newLines,
-          level: newLevel,
-          gameOver: spawned.gameOver,
-        };
-      }
       lastDropTimeRef.current = performance.now();
+      if (!moved) return lockPiece(prev, mode, 0, spawnNext, showClearFlash);
       return { ...prev, active: moved };
     });
-  }, [spawnNext]);
+  }, [mode, spawnNext, showClearFlash]);
 
   useEffect(() => {
     if (state.gameOver && !wasGameOverRef.current) {
-      playLose();
+      // Finishing a sprint or running out ultra's clock also ends the game,
+      // and neither of those deserves the topped-out sting.
+      if (state.cleared) playWin();
+      else playLose();
     }
     wasGameOverRef.current = state.gameOver;
-  }, [state.gameOver]);
+  }, [state.gameOver, state.cleared]);
 
-  const handleRestart = () => {
+  const startRun = useCallback((nextMode: Mode) => {
+    setMode(nextMode);
     setFlash(null);
     wasGameOverRef.current = false;
     setState(getInitialGameState());
-    lastDropTimeRef.current = performance.now();
-  };
+    const now = performance.now();
+    lastDropTimeRef.current = now;
+    runStartRef.current = now;
+  }, []);
+
+  const handleRestart = () => startRun(mode);
+
+  // Run timer. Ticks only while playing, so pausing does not burn ultra's clock.
+  useEffect(() => {
+    if (state.gameOver || state.paused) return;
+    runStartRef.current = performance.now() - state.elapsedMs;
+    const id = window.setInterval(() => {
+      setState((prev) => {
+        if (prev.gameOver || prev.paused) return prev;
+        const elapsedMs = performance.now() - runStartRef.current;
+        if (isGoalMet(mode, prev.lines, elapsedMs)) {
+          const limit = MODES[mode].timeLimitMs;
+          return {
+            ...prev,
+            elapsedMs: limit ?? elapsedMs,
+            active: null,
+            cleared: true,
+            gameOver: true,
+          };
+        }
+        return { ...prev, elapsedMs };
+      });
+    }, 100);
+    return () => window.clearInterval(id);
+    // `elapsedMs` is deliberately not a dependency: it changes every tick and
+    // would restart the interval each time. It is only read to re-anchor the
+    // clock when play resumes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.gameOver, state.paused, mode]);
+
+  // Record the run once it ends: fastest time for sprint, highest score elsewhere.
+  useEffect(() => {
+    if (!state.gameOver) return;
+    const config = MODES[mode];
+    const value = config.recordKind === 'time' ? state.elapsedMs : state.score;
+    // A sprint only counts if the 40 lines were actually finished.
+    if (config.recordKind === 'time' && !state.cleared) return;
+    setBest((prev) => {
+      const current = prev[mode];
+      const better =
+        current === undefined ||
+        (config.rank === 'fastest' ? value < current : value > current);
+      if (!better) return prev;
+      const next = { ...prev, [mode]: value };
+      writeBest(next);
+      return next;
+    });
+  }, [state.gameOver, state.cleared, state.elapsedMs, state.score, mode]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -387,9 +464,27 @@ export default function App() {
       <header className="w-full max-w-5xl flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold tracking-tight">俄羅斯方塊 Tetris</h1>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700">
-            單人現代版 · 10×20 · 7-bag
-          </span>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="遊戲模式">
+            {MODE_ORDER.map((id) => {
+              const selected = mode === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => startRun(id)}
+                  aria-pressed={selected}
+                  title={MODES[id].blurb}
+                  className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                    selected
+                      ? 'bg-sky-500/20 text-sky-100 border-sky-400'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  {MODES[id].label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-xs sm:text-sm">
           <button
@@ -430,6 +525,34 @@ export default function App() {
             <div className="flex justify-between">
               <span>等級</span>
               <span className="font-mono">{state.level}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>{MODES[mode].timeLimitMs !== null ? '剩餘時間' : '用時'}</span>
+              <span className="font-mono tabular-nums">
+                {formatTime(
+                  MODES[mode].timeLimitMs !== null
+                    ? MODES[mode].timeLimitMs! - state.elapsedMs
+                    : state.elapsedMs,
+                )}
+              </span>
+            </div>
+            {MODES[mode].lineGoal !== null && (
+              <div className="flex justify-between">
+                <span>剩餘行數</span>
+                <span className="font-mono tabular-nums">
+                  {Math.max(0, MODES[mode].lineGoal! - state.lines)}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
+              <span>最佳</span>
+              <span className="font-mono tabular-nums">
+                {best[mode] === undefined
+                  ? '—'
+                  : MODES[mode].recordKind === 'time'
+                    ? formatTime(best[mode]!)
+                    : best[mode]}
+              </span>
             </div>
           </div>
           <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
@@ -574,12 +697,29 @@ export default function App() {
 
       {state.gameOver && (
         <ResultOverlay
-          title="遊戲結束"
-          variant="lose"
+          title={
+            state.cleared
+              ? mode === 'sprint'
+                ? `完成 40 行！${formatTime(state.elapsedMs)}`
+                : '時間到'
+              : '遊戲結束'
+          }
+          variant={state.cleared ? 'win' : 'lose'}
           stats={[
             { label: '分數', value: state.score },
             { label: '消除行數', value: state.lines },
-            { label: '等級', value: state.level },
+            MODES[mode].recordKind === 'time'
+              ? { label: '用時', value: formatTime(state.elapsedMs) }
+              : { label: '等級', value: state.level },
+            {
+              label: '最佳',
+              value:
+                best[mode] === undefined
+                  ? '—'
+                  : MODES[mode].recordKind === 'time'
+                    ? formatTime(best[mode]!)
+                    : String(best[mode]),
+            },
           ]}
           onPrimary={handleRestart}
         />
