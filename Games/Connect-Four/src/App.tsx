@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
-import type { Board, PieceColor } from './utils/connect4Logic';
+import type { Board, PieceColor, Difficulty } from './utils/connect4Logic';
 import {
   createInitialBoard,
   getLegalColumns,
@@ -14,7 +14,7 @@ import {
   COLS,
   ROWS,
 } from './utils/connect4Logic';
-import { pickBotColumn } from './utils/connect4Logic';
+import { pickBotColumn, DIFFICULTY_LABELS } from './utils/connect4Logic';
 import { RefreshCw, BookOpen, Users } from 'lucide-react';
 
 type GamePhase = 'playing' | 'over';
@@ -39,6 +39,7 @@ function getInitialState(): GameState {
 export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('two');
   const [playerSide, setPlayerSide] = useState<PieceColor>('red');
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
   const [hoverCol, setHoverCol] = useState<number | null>(null);
@@ -58,7 +59,7 @@ export default function App() {
     botScheduled.current = true;
     const timer = setTimeout(() => {
       const botColor: PieceColor = playerSide === 'red' ? 'yellow' : 'red';
-      const col = pickBotColumn(state.board, botColor);
+      const col = pickBotColumn(state.board, botColor, difficulty);
       if (col === null) {
         botScheduled.current = false;
         return;
@@ -83,7 +84,7 @@ export default function App() {
       botScheduled.current = false;
     }, 500);
     return () => clearTimeout(timer);
-  }, [isBotTurn, state.board, playerSide]);
+  }, [isBotTurn, state.board, playerSide, difficulty]);
 
   useEffect(() => {
     if (state.phase !== 'over' || prevPhaseRef.current === 'over') {
@@ -273,6 +274,39 @@ export default function App() {
           <span>電腦（你執黃）</span>
         </button>
       </div>
+
+      {gameMode === 'bot' && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-4 text-xs"
+          role="group"
+          aria-label="電腦難度"
+        >
+          <span className="text-slate-400">電腦難度</span>
+          {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => {
+            const selected = difficulty === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setDifficulty(id);
+                  setState(getInitialState());
+                  setHoverCol(null);
+                  botScheduled.current = false;
+                }}
+                aria-pressed={selected}
+                className={`px-3 py-1.5 rounded-full border transition-colors ${
+                  selected
+                    ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                    : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {DIFFICULTY_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <p className="text-slate-200 text-sm mb-4">{statusMessage}</p>
       <p className="text-slate-400 text-xs mb-2 md:hidden">點選上方欄位落子</p>
