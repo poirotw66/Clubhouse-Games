@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playCapture, playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
-import type { Board, PieceColor, Move } from './utils/checkersLogic';
+import type { Board, PieceColor, Move, Difficulty } from './utils/checkersLogic';
 import {
   createInitialBoard,
   getLegalMoves,
@@ -12,6 +12,7 @@ import {
   getWinner,
   isDarkSquare,
   pickBotMove,
+  DIFFICULTY_LABELS,
 } from './utils/checkersLogic';
 import { RefreshCw, BookOpen, Users } from 'lucide-react';
 
@@ -67,6 +68,7 @@ function getOriginSet(moves: Move[]): Set<string> {
 export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('two');
   const [playerSide, setPlayerSide] = useState<PieceColor>('black');
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [state, setState] = useState<GameState>(getInitialState);
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const [showRules, setShowRules] = useState(false);
@@ -94,7 +96,7 @@ export default function App() {
     botScheduled.current = true;
     const timer = setTimeout(() => {
       const botColor: PieceColor = playerSide === 'black' ? 'white' : 'black';
-      const move = pickBotMove(state.board, botColor, state.continuationFrom);
+      const move = pickBotMove(state.board, botColor, state.continuationFrom, difficulty);
       if (!move) {
         botScheduled.current = false;
         return;
@@ -129,7 +131,7 @@ export default function App() {
       botScheduled.current = false;
     }, BOT_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [isBotTurn, state.board, state.currentTurn, state.continuationFrom, playerSide]);
+  }, [isBotTurn, state.board, state.currentTurn, state.continuationFrom, playerSide, difficulty]);
 
   useEffect(() => {
     if (state.phase !== 'over' || prevPhaseRef.current === 'over') {
@@ -353,6 +355,39 @@ export default function App() {
           <span>電腦（你執白）</span>
         </button>
       </div>
+
+      {gameMode === 'bot' && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-4 text-xs"
+          role="group"
+          aria-label="電腦難度"
+        >
+          <span className="text-stone-400">電腦難度</span>
+          {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => {
+            const selected = difficulty === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setDifficulty(id);
+                  setState(getInitialState());
+                  setSelected(null);
+                  botScheduled.current = false;
+                }}
+                aria-pressed={selected}
+                className={`px-3 py-1.5 rounded-full border transition-colors ${
+                  selected
+                    ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+                    : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
+                }`}
+              >
+                {DIFFICULTY_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <p className="text-amber-200 text-sm mb-4">{statusMessage}</p>
       <p className="text-amber-200/70 text-xs mb-2 md:hidden">點選棋子再點目的地移動</p>
