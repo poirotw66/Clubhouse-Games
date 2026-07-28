@@ -7,3 +7,37 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+
+/*
+ * Completed rows flash white and blow out before they collapse. The row stays
+ * on the board for CLEAR_ANIM_MS in App.tsx, which this is timed to match.
+ */
+@keyframes tetris-row-clear {
+  0% {
+    transform: scaleY(1);
+    filter: brightness(1);
+  }
+  35% {
+    transform: scaleY(1.12);
+    filter: brightness(3.2) saturate(0.25);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.9);
+  }
+  100% {
+    transform: scaleY(0.1);
+    filter: brightness(4) saturate(0);
+    opacity: 0.15;
+  }
+}
+
+.tetris-clearing {
+  animation: tetris-row-clear 220ms ease-out forwards;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The rows still get a beat of highlight, they just do not move. */
+  .tetris-clearing {
+    animation: none;
+    filter: brightness(2.5);
+  }
+}

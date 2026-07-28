@@ -411,3 +411,47 @@ export function isGoalMet(mode: Mode, lines: number, elapsedMs: number): boolean
   if (config.timeLimitMs !== null && elapsedMs >= config.timeLimitMs) return true;
   return false;
 }
+
+/* ---------------- Presentation ---------------- */
+
+/** Tailwind background class per tetromino, shared by the board, Hold and Next. */
+export const TETROMINO_COLOR: Record<TetrominoType, string> = {
+  I: 'bg-cyan-400',
+  O: 'bg-yellow-300',
+  T: 'bg-purple-400',
+  S: 'bg-emerald-400',
+  Z: 'bg-red-500',
+  J: 'bg-blue-500',
+  L: 'bg-orange-400',
+};
+
+/**
+ * The occupied cells of a piece, trimmed to its bounding box, so a preview can
+ * draw the shape centred instead of floating inside the 4×4 spawn matrix.
+ */
+export function getTrimmedShape(type: TetrominoType): boolean[][] {
+  const matrix = getShapeMatrix(type, 0);
+  let top = matrix.length;
+  let bottom = -1;
+  let left = matrix[0].length;
+  let right = -1;
+
+  for (let r = 0; r < matrix.length; r++) {
+    for (let c = 0; c < matrix[r].length; c++) {
+      if (!matrix[r][c]) continue;
+      if (r < top) top = r;
+      if (r > bottom) bottom = r;
+      if (c < left) left = c;
+      if (c > right) right = c;
+    }
+  }
+  if (bottom < 0) return [];
+
+  const out: boolean[][] = [];
+  for (let r = top; r <= bottom; r++) {
+    const row: boolean[] = [];
+    for (let c = left; c <= right; c++) row.push(Boolean(matrix[r][c]));
+    out.push(row);
+  }
+  return out;
+}
