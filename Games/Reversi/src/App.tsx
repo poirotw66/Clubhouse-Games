@@ -360,6 +360,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center p-4 min-w-0">
+      <BackToMenu />
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
         <div className="flex items-baseline gap-2 min-w-0">
           <h1 className="text-xl font-bold tracking-tight">黑白棋 Reversi</h1>

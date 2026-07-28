@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
-import type { DominoesState, PlayerId } from './utils/dominoesLogic';
+import type { DominoesState, PlayerId, Difficulty } from './utils/dominoesLogic';
 import {
   createInitialState,
   playTile,
@@ -12,6 +12,7 @@ import {
   getValidMoves,
   pickBotMove,
   handSum,
+  DIFFICULTY_LABELS,
 } from './utils/dominoesLogic';
 import { DominoTile, PlacedDominoTile } from './components/DominoTile';
 import { RefreshCw, BookOpen, Users, Bot } from 'lucide-react';
@@ -20,6 +21,7 @@ type GameMode = 'two' | 'bot';
 
 export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('two');
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [state, setState] = useState<DominoesState>(createInitialState);
   const [showRules, setShowRules] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
@@ -48,7 +50,7 @@ export default function App() {
       const hand = state.hands[1];
       if (canPlay(hand, state.chain)) {
         const oppId: PlayerId = state.currentPlayer === 0 ? 1 : 0;
-        const move = pickBotMove(hand, state.chain, state.hands[oppId].length);
+        const move = pickBotMove(hand, state.chain, state.hands[oppId].length, difficulty);
         if (move) {
           const next = playTile(state, 1, move.tileId, move.end);
           if (next) {
@@ -64,7 +66,7 @@ export default function App() {
       botScheduled.current = false;
     }, 600);
     return () => clearTimeout(timer);
-  }, [isBotTurn, state.phase, state.currentPlayer, state.chain, state.hands[1], state.boneyard.length]);
+  }, [isBotTurn, state.phase, state.currentPlayer, state.chain, state.hands[1], state.boneyard.length, difficulty]);
 
   useEffect(() => {
     if (state.phase === 'playing') {
@@ -208,6 +210,37 @@ export default function App() {
           <span>對戰電腦</span>
         </button>
       </div>
+
+      {gameMode === 'bot' && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-4 text-xs"
+          role="group"
+          aria-label="電腦難度"
+        >
+          <span className="text-slate-400">電腦難度</span>
+          {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => {
+            const selected = difficulty === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setDifficulty(id);
+                  handleNewGame();
+                }}
+                aria-pressed={selected}
+                className={`px-3 py-1.5 rounded-full border transition-colors ${
+                  selected
+                    ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                    : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {DIFFICULTY_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <p className="text-slate-200 text-sm mb-4">{statusMessage}</p>
 

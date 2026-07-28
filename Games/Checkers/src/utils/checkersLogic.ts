@@ -192,16 +192,47 @@ export function isDarkSquare(r: number, c: number): boolean {
   return isDark(r, c);
 }
 
-/** Bot: forced captures with longest chain; otherwise minimax for quiet moves. */
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy: '簡單',
+  normal: '普通',
+  hard: '困難',
+};
+
+type DifficultyConfig = {
+  /** Plies of lookahead for quiet moves. */
+  depth: number;
+  /** Chance of playing a random legal move instead of the best one. */
+  blunderRate: number;
+};
+
+const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
+  // Two plies, not one: captures are forced in draughts, so a one-ply bot
+  // walks pieces onto squares it can be jumped from and loses to random play.
+  // Two plies sees the reply, and the blunder rate does the softening instead.
+  easy: { depth: 2, blunderRate: 0.35 },
+  normal: { depth: 4, blunderRate: 0.05 },
+  hard: { depth: 6, blunderRate: 0 },
+};
+
+const WIN_SCORE = 8_000;
+
+/**
+ * Bot: forced captures take the longest chain; quiet moves come from search.
+ * `difficulty` sets the lookahead and how often the bot deliberately errs.
+ */
 export function pickBotMove(
   board: Board,
   color: PieceColor,
   continuationFrom: [number, number] | null,
+  difficulty: Difficulty = 'normal',
 ): Move | null {
   const moves = continuationFrom
     ? getLegalMovesFrom(board, color, continuationFrom[0], continuationFrom[1])
     : getLegalMoves(board, color);
   if (moves.length === 0) return null;
+  if (moves.length === 1) return moves[0];
 
   const captures = moves.filter((m) => m.path.length > 2);
   if (captures.length > 0) {
@@ -216,18 +247,60 @@ export function pickBotMove(
     });
   }
 
-  const DEPTH = 3;
-  let best = moves[0];
+  const config = DIFFICULTY[difficulty];
+  if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+
+  // Ties broken at random so the same difficulty does not replay move for move.
+  let best: Move[] = [];
   let bestScore = -Infinity;
   for (const move of moves) {
     const next = applyMove(board, move);
-    const score = -minimaxCheckers(next, DEPTH - 1, -Infinity, Infinity, color, opponent(color));
+    const score = -minimaxCheckers(next, config.depth - 1, -Infinity, Infinity, opponent(color));
     if (score > bestScore) {
       bestScore = score;
-      best = move;
+      best = [move];
+    } else if (score === bestScore) {
+      best.push(move);
     }
   }
-  return best;
+  return best.length ? best[Math.floor(Math.random() * best.length)] : moves[0];
+}
+
+/**
+ * Negamax with alpha-beta. Every value — leaf, win, loss — is from `turn`'s
+ * point of view, which is what makes the per-ply negation above correct. The
+ * previous version scored all of them from the root player's fixed view, so at
+ * an odd depth the leaves came back inverted and the bot chose its worst move.
+ */
+function minimaxCheckers(
+  board: Board,
+  depth: number,
+  alpha: number,
+  beta: number,
+  turn: PieceColor,
+): number {
+  const moves = getLegalMoves(board, turn);
+
+  // No moves means the side to move has lost, whatever the depth.
+  if (moves.length === 0) {
+    const { black, white } = countPieces(board);
+    if (black === 0 && white === 0) return 0;
+    return -WIN_SCORE - depth;
+  }
+
+  if (depth <= 0) return evaluateCheckers(board, turn);
+
+  let value = -Infinity;
+  for (const move of moves) {
+    const next = applyMove(board, move);
+    const score = -minimaxCheckers(next, depth - 1, -beta, -alpha, opponent(turn));
+    if (score > value) value = score;
+    if (value > alpha) alpha = value;
+    if (alpha >= beta) break;
+  }
+  return value;
 }
 
 function promotesKing(board: Board, move: Move, color: PieceColor): boolean {
@@ -261,31 +334,3 @@ function evaluateCheckers(board: Board, color: PieceColor): number {
   return score;
 }
 
-function minimaxCheckers(
-  board: Board,
-  depth: number,
-  alpha: number,
-  beta: number,
-  player: PieceColor,
-  turn: PieceColor,
-): number {
-  const winner = getWinner(board, turn);
-  if (winner === player) return 8_000 + depth;
-  if (winner === opponent(player)) return -8_000 - depth;
-  if (depth === 0) return evaluateCheckers(board, player);
-
-  const moves = getLegalMoves(board, turn);
-  if (moves.length === 0) {
-    return turn === player ? -8_000 : 8_000;
-  }
-
-  let value = -Infinity;
-  for (const move of moves) {
-    const next = applyMove(board, move);
-    const score = -minimaxCheckers(next, depth - 1, -beta, -alpha, player, opponent(turn));
-    value = Math.max(value, score);
-    alpha = Math.max(alpha, value);
-    if (alpha >= beta) break;
-  }
-  return value;
-}
