@@ -51,7 +51,7 @@
         {
           "name": "西洋跳棋",
           "en": "Checkers",
-          "desc": "斜向跳吃、能連跳就必須連跳，抵達底線升王的格盤棋。",
+          "desc": "斜向跳吃、能連跳就必須連跳，可選三段電腦難度對戰。",
           "players": "2 人",
           "specPath": "02-board/checkers.md",
           "gameFolder": "Checkers"
