@@ -24,6 +24,7 @@ const DRAG_FWD = 0.045;       // hull resistance (quadratic)
 const DRAG_LAT = 0.9;         // keel resistance to leeway
 const TURN_RATE = 1.55;
 const MAX_HEEL = (28 * Math.PI) / 180;
+const ASSIST_STEERAGE = 1.3;  // m/s floor in easy mode
 
 /**
  * Lift coefficient: rises to a peak at STALL, then bleeds away post-stall.
@@ -108,8 +109,9 @@ export function createWind(seed = 1) {
 /**
  * Advance the boat one step.
  * input: { rudder: -1..1, trimDelta: -1..1, autoTrim: bool }
+ * assist: truthy in easy mode — keeps a little steerage way on (see below).
  */
-export function stepSailing(boat, wind, input, dt, time, waveAmp) {
+export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false) {
   const forwardX = Math.sin(boat.heading);
   const forwardZ = Math.cos(boat.heading);
   // Starboard (right of the bow) in a +Y-up right-handed frame.
@@ -186,6 +188,14 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp) {
   boat.surge += (drive - resist + boat.sway * boat.yawRate) * dt;
   boat.sway += (side - lateralResist - boat.surge * boat.yawRate) * dt;
   boat.surge = Math.max(boat.surge, -1.2);
+
+  // Easy mode never lets the boat sit dead in the water: a bad angle costs you
+  // time instead of taking the rudder away and leaving you stuck with nothing
+  // to do. Well under the speed any real point of sail gives, so it can't be
+  // used to make progress — it only buys back steerage.
+  if (assist && boat.surge < ASSIST_STEERAGE) {
+    boat.surge += (ASSIST_STEERAGE - boat.surge) * 0.9 * dt;
+  }
 
   // --- steering -------------------------------------------------------------
   boat.rudder += (input.rudder * 0.75 - boat.rudder) * damp(9, dt);

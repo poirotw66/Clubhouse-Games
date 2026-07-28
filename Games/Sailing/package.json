@@ -7,6 +7,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
+    "check": "node src/check-sailing.mjs && node src/check-gates.mjs && node src/check-assist.mjs",
     "clean": "rm -rf dist"
   },
   "devDependencies": {

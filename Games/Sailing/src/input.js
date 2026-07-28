@@ -83,6 +83,39 @@ export function createInput(root) {
   root.querySelector('#btn-autotrim')?.addEventListener('click', toggleAuto);
   syncAutoBtn();
 
+  // Easy mode: navigation assist on/off. Owned here so the button, the key and
+  // the stored preference stay in one place; main.js reads `easy`.
+  let easy = true;
+  let onEasyChange = () => {};
+
+  const syncEasyBtn = () => {
+    const btn = root.querySelector('#btn-easy');
+    if (!btn) return;
+    btn.classList.toggle('active', easy);
+    btn.setAttribute('aria-pressed', easy ? 'true' : 'false');
+    btn.textContent = easy ? '簡單模式 ON' : '簡單模式 OFF';
+  };
+
+  const toggleEasy = () => {
+    easy = !easy;
+    syncEasyBtn();
+    onEasyChange(easy);
+  };
+
+  root.querySelector('#btn-easy')?.addEventListener('click', toggleEasy);
+  syncEasyBtn();
+
+  // One-key tack. Latched rather than held: main.js consumes it and drives the
+  // turn itself, so a single tap commits to the whole manoeuvre.
+  let tackRequested = false;
+  const requestTack = () => {
+    tackRequested = true;
+  };
+  root.querySelector('#btn-tack')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    requestTack();
+  });
+
   return {
     get autoTrim() {
       return autoTrim;
@@ -90,6 +123,22 @@ export function createInput(root) {
     set autoTrim(v) {
       autoTrim = v;
       syncAutoBtn();
+    },
+    get easy() {
+      return easy;
+    },
+    set easy(v) {
+      easy = v;
+      syncEasyBtn();
+    },
+    set onEasyChange(fn) {
+      onEasyChange = fn;
+    },
+    /** True once per requested tack. */
+    consumeTack() {
+      if (!tackRequested) return false;
+      tackRequested = false;
+      return true;
     },
     get lookYaw() {
       return lookYaw;
@@ -119,6 +168,11 @@ export function createInput(root) {
         || keys.has('BracketRight') || keys.has('Period') || held.trimOut
       ) {
         trimDelta += 1;
+      }
+
+      if (keys.has('Space')) {
+        keys.delete('Space');
+        requestTack();
       }
 
       if (keys.has('KeyT') || keys.has('KeyC') || keys.has('KeyF')) {

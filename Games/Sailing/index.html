@@ -19,7 +19,8 @@
       <h1 class="title-brand">海灣帆航</h1>
       <p class="title-tag">依序穿過固定閘門，競速完成本圈</p>
       <button type="button" id="btn-start" class="btn primary">開始航行</button>
-      <p class="title-hint">← → 轉舵 · Z 收帆 · X 放帆 · C 自動調帆 · 避開風向盤紅區</p>
+      <p class="title-hint">← → 轉舵 · 空白鍵換舷 · Z 收帆 · X 放帆 · C 自動調帆</p>
+      <p class="title-hint">簡單模式已開啟：跟著羅盤上的<strong>綠色箭頭</strong>轉舵即可</p>
     </div>
 
     <header class="top-bar">
@@ -32,6 +33,7 @@
         <div class="stat"><span class="label">航向</span><span id="hud-point">—</span></div>
       </div>
       <div class="top-actions">
+        <button type="button" id="btn-easy" class="btn ghost active" aria-pressed="true">簡單模式</button>
         <button type="button" id="btn-autotrim" class="btn ghost active" aria-pressed="true">自動調帆</button>
         <button type="button" id="btn-help" class="btn ghost">說明</button>
         <button type="button" id="btn-restart" class="btn ghost">重開</button>
@@ -48,12 +50,14 @@
     </aside>
 
     <div class="nav-stack">
-      <div class="cp-compass" title="下一檢查點方向（上方為船首）">
+      <div class="cp-compass" title="白色＝閘門方向；綠色＝建議航向（上方為船首）">
         <div class="rose-ring small">
           <span class="rose-n">船首</span>
           <div id="cp-arrow" class="cp-arrow"></div>
+          <div id="cp-guide" class="cp-guide" hidden></div>
         </div>
         <span class="rose-label">下一門</span>
+        <span id="hud-guide" class="guide-tip" hidden>—</span>
       </div>
 
       <div class="wind-rose" title="箭頭指向風吹來的方向；紅區＝頂風無法前進">
@@ -94,6 +98,7 @@
 
     <div class="key-strip" aria-hidden="true">
       <span><kbd>←</kbd><kbd>→</kbd> 轉舵</span>
+      <span><kbd>空白</kbd> 換舷</span>
       <span><kbd>Z</kbd> 收帆</span>
       <span><kbd>X</kbd> 放帆</span>
       <span><kbd>C</kbd> 自動調帆</span>
@@ -109,6 +114,7 @@
         <button type="button" class="touch-btn" data-hold="rudderRight">右轉 →</button>
       </div>
       <div class="pad right">
+        <button type="button" id="btn-tack" class="touch-btn accent">一鍵換舷</button>
         <button type="button" class="touch-btn" data-hold="trimIn">收帆 Z</button>
         <button type="button" class="touch-btn" data-hold="trimOut">放帆 X</button>
       </div>
@@ -121,9 +127,11 @@
         <li><kbd>Z</kbd> / <kbd>↑</kbd>：收帆（帆靠近中線，搶風時用）</li>
         <li><kbd>X</kbd> / <kbd>↓</kbd>：放帆（帆打開，順風時用）</li>
         <li><kbd>C</kbd> 或 <kbd>T</kbd>：開關自動調帆（手動按 Z/X 會自動關閉）</li>
+        <li><kbd>空白鍵</kbd>：一鍵換舷（自動把船轉到風的另一側）</li>
         <li>拖曳畫面：環顧　·　<kbd>R</kbd>：重開</li>
       </ul>
       <p>右上<strong>風向盤</strong>：箭頭指「風吹來的方向」，上方是船首。紅色扇形是頂風區——指針進紅區就沒有推力，轉舵讓指針離開紅區。綠色閘門為下一檢查點，依序穿過即完賽。</p>
+      <p><strong>簡單模式</strong>（預設開啟）：「下一門」羅盤上會多一支<strong>綠色箭頭</strong>，那是<em>建議航向</em>——照著轉就對了。閘門在上風處時無法直接航向它，綠色箭頭會自動指出該走哪一側搶風，下方文字會顯示「搶風：左舷／右舷」。此模式下船也不會完全停住，隨時還能轉舵。關掉後只剩白色的閘門方向箭頭，需要自己判斷搶風角度。</p>
       <button type="button" id="btn-help-close" class="btn primary">關閉</button>
     </div>
 

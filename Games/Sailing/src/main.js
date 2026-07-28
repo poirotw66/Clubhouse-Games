@@ -6,6 +6,7 @@ import { createOcean } from './ocean.js';
 import { createSolidProgram } from './solid.js';
 import { createBoat } from './boat.js';
 import { createBoatState, createWind, stepSailing, pointOfSail, NO_GO } from './sailing.js';
+import { createAssist, steerTo, wrap } from './assist.js';
 import { createCamera } from './camera.js';
 import { createInput } from './input.js';
 import { createCourse, createMarks } from './marks.js';
@@ -13,6 +14,7 @@ import { clamp } from './math.js';
 
 const WAVE_AMP = 1.0;
 const BEST_KEY = 'sailing-best-v2';
+const EASY_KEY = 'sailing-easy';
 const SUN_DIR = (() => {
   const a = (28 * Math.PI) / 180;
   const e = (42 * Math.PI) / 180;
@@ -73,6 +75,19 @@ function startGame(gl, canvas) {
   const marks = createMarks(gl, solid, course);
   const camera = createCamera();
   const input = createInput(document.body);
+  const assist = createAssist();
+
+  // Easy mode defaults on — this is a casual collection, and the beat is not
+  // readable without the guidance arrow. Only an explicit opt-out is stored.
+  input.easy = localStorage.getItem(EASY_KEY) !== 'off';
+  input.onEasyChange = (on) => {
+    localStorage.setItem(EASY_KEY, on ? 'on' : 'off');
+    showToast(on ? '簡單模式：跟著綠色箭頭轉舵' : '簡單模式關閉');
+  };
+
+  // Set while a one-key tack is being driven; holds the target heading.
+  let tackTarget = null;
+  let tackTimer = 0;
   const minimap = $('#minimap');
   const miniCtx = minimap.getContext('2d');
 
@@ -81,6 +96,7 @@ function startGame(gl, canvas) {
   boat.z = course.start.z;
   boat.surge = 3.2;
   marks.reset(boat);
+  assist.reset(boat, wind);
 
   /** @type {'countdown'|'racing'|'finished'} */
   let phase = 'countdown';
@@ -112,6 +128,9 @@ function startGame(gl, canvas) {
     auto: $('#btn-autotrim'),
     compass: $('#wind-needle'),
     arrow: $('#cp-arrow'),
+    guide: $('#cp-guide'),
+    guideTip: $('#hud-guide'),
+    tackBtn: $('#btn-tack'),
     toast: $('#toast'),
     countdown: $('#countdown'),
     finish: $('#finish-panel'),
@@ -204,6 +223,8 @@ function startGame(gl, canvas) {
     boat.z = course.start.z;
     boat.surge = 3.2;
     marks.reset(boat);
+    assist.reset(boat, wind);
+    tackTarget = null;
     phase = 'countdown';
     countdown = 3.2;
     raceTime = 0;
@@ -232,6 +253,39 @@ function startGame(gl, canvas) {
 
   let last = performance.now();
   let hudAcc = 0;
+
+  /**
+   * Easy-mode guidance: a second arrow on the checkpoint rose showing the
+   * heading to actually steer, plus what to do about it in words. When the gate
+   * is upwind the two arrows disagree — that gap *is* the lesson.
+   */
+  function updateGuide() {
+    const gate = marks.nextGate;
+    const on = Boolean(input.easy && gate && phase !== 'finished');
+    hud.guide.hidden = !on;
+    hud.guideTip.hidden = !on;
+    if (hud.tackBtn) hud.tackBtn.hidden = !input.easy;
+    if (!on) return;
+
+    const rec = assist.recommend(boat, wind, gate);
+    const rel = wrap(rec.heading - boat.heading);
+    hud.guide.style.transform = `rotate(${(rel * 180) / Math.PI}deg)`;
+
+    const deg = (rel * 180) / Math.PI;
+    const aligned = Math.abs(deg) < 8;
+    // Which side the wind sits on for the recommended heading, using the same
+    // sign convention as the apparent-wind readout.
+    const side = wrap(wind.from - rec.heading) >= 0 ? '右' : '左';
+
+    let text;
+    if (tackTarget !== null) text = '換舷中…';
+    else if (!aligned) text = `向${deg > 0 ? '右' : '左'}轉 ${Math.abs(deg).toFixed(0)}°`;
+    else if (rec.beating) text = `搶風中（${side}舷）· 空白鍵換舷`;
+    else text = '航向正確';
+
+    hud.guideTip.textContent = text;
+    hud.guideTip.classList.toggle('good', aligned);
+  }
 
   function updateHud(dt) {
     hudAcc += dt;
@@ -291,7 +345,31 @@ function startGame(gl, canvas) {
     const bearing = marks.bearingToNext(boat);
     hud.arrow.style.transform = `rotate(${(bearing * 180) / Math.PI}deg)`;
 
+    updateGuide();
     drawMinimap();
+  }
+
+  /**
+   * One-key tack: latch the heading on the other side of the wind and steer to
+   * it. Hands control back the moment the boat settles, the player touches the
+   * rudder, or the manoeuvre runs long — an assist that fights you is worse
+   * than none.
+   */
+  function applyTackAssist(controls, dt) {
+    if (input.consumeTack() && input.easy) {
+      tackTarget = assist.otherTack(boat, wind);
+      tackTimer = 8;
+      showToast('換舷中…');
+    }
+    if (tackTarget === null) return controls;
+
+    tackTimer -= dt;
+    const settled = Math.abs(wrap(tackTarget - boat.heading)) < 0.1;
+    if (settled || tackTimer <= 0 || controls.rudder !== 0 || !input.easy) {
+      tackTarget = null;
+      return controls;
+    }
+    return { ...controls, rudder: steerTo(boat, tackTarget) };
   }
 
   function frame(now) {
@@ -321,7 +399,8 @@ function startGame(gl, canvas) {
       // Soft hold during countdown — slight steer allowed to line up.
       const raw = input.sample(dt);
       controls = { rudder: raw.rudder * 0.35, trimDelta: 0, autoTrim: true };
-      stepSailing(boat, wind, controls, dt, now * 0.001, WAVE_AMP);
+      controls = applyTackAssist(controls, dt);
+      stepSailing(boat, wind, controls, dt, now * 0.001, WAVE_AMP, input.easy);
       if (countdown <= 0) {
         phase = 'racing';
         raceTime = 0;
@@ -329,8 +408,8 @@ function startGame(gl, canvas) {
         showToast('計時開始！穿過綠色閘門');
       }
     } else if (phase === 'racing') {
-      controls = input.sample(dt);
-      stepSailing(boat, wind, controls, dt, now * 0.001, WAVE_AMP);
+      controls = applyTackAssist(input.sample(dt), dt);
+      stepSailing(boat, wind, controls, dt, now * 0.001, WAVE_AMP, input.easy);
       raceTime += dt;
 
       const cleared = marks.tryClear(boat);
