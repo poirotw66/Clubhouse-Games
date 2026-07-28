@@ -114,21 +114,10 @@ export function isBoardFull(board: Board): boolean {
   return board.every((row) => row.every((cell) => cell !== null));
 }
 
-const SEARCH_DEPTH = 6;
 const WIN_SCORE = 1_000_000;
 
 function opponent(color: PieceColor): PieceColor {
   return color === 'red' ? 'yellow' : 'red';
-}
-
-function findWinner(board: Board): PieceColor | null {
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const cell = board[r][c];
-      if (cell && hasWonAt(board, r, c, cell)) return cell;
-    }
-  }
-  return null;
 }
 
 function scoreWindow(cells: Cell[], player: PieceColor): number {
@@ -191,51 +180,104 @@ function orderColumns(cols: number[]): number[] {
   return [...cols].sort((a, b) => centerOrder.indexOf(a) - centerOrder.indexOf(b));
 }
 
+/**
+ * Negamax with alpha-beta. Returns the value of `board` from `turn`'s point of
+ * view — including the terminal scores, which is what lets each ply negate the
+ * value it gets back. Deeper wins score lower so the bot prefers a fast finish.
+ */
 function negamax(
   board: Board,
   depth: number,
   alpha: number,
   beta: number,
-  player: PieceColor,
   turn: PieceColor,
+  lastRow: number,
+  lastCol: number,
 ): number {
-  const winner = findWinner(board);
-  if (winner === player) return WIN_SCORE + depth;
-  if (winner === opponent(player)) return -WIN_SCORE - depth;
-  if (depth === 0 || isBoardFull(board)) return evaluateBoard(board, player);
+  // Only the piece just dropped can have completed a line, so check that one
+  // cell rather than rescanning all 42. Whoever dropped it is not `turn`, so a
+  // win here is always a loss from `turn`'s point of view.
+  if (hasWonAt(board, lastRow, lastCol, board[lastRow][lastCol] as PieceColor)) {
+    return -WIN_SCORE - depth;
+  }
+  if (depth <= 0 || isBoardFull(board)) return evaluateBoard(board, turn);
 
   const legal = orderColumns(getLegalColumns(board));
-  if (legal.length === 0) return evaluateBoard(board, player);
+  if (legal.length === 0) return evaluateBoard(board, turn);
 
   let value = -Infinity;
   for (const col of legal) {
+    const row = getDropRow(board, col);
+    if (row === null) continue;
     const next = dropPiece(board, col, turn);
     if (!next) continue;
-    const score = -negamax(next, depth - 1, -beta, -alpha, player, opponent(turn));
-    value = Math.max(value, score);
-    alpha = Math.max(alpha, value);
+    const score = -negamax(next, depth - 1, -beta, -alpha, opponent(turn), row, col);
+    if (score > value) value = score;
+    if (value > alpha) alpha = value;
     if (alpha >= beta) break;
   }
   return value;
 }
 
-/** Negamax bot: sees forks and multi-move threats beyond immediate win/block. */
-export function pickBotColumn(board: Board, color: PieceColor): number | null {
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy: '簡單',
+  normal: '普通',
+  hard: '困難',
+};
+
+type DifficultyConfig = {
+  /** Plies of lookahead. */
+  depth: number;
+  /** Chance of ignoring the search and dropping in a random column. */
+  blunderRate: number;
+};
+
+const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
+  // Sees an immediate win or block, not much further.
+  easy: { depth: 2, blunderRate: 0.3 },
+  normal: { depth: 4, blunderRate: 0.05 },
+  // Deep enough to build and see forks. Held at 6 because the search blocks
+  // the main thread and 7 can spike past half a second in sharp positions.
+  hard: { depth: 6, blunderRate: 0 },
+};
+
+/**
+ * Pick a column for the bot. Ties are broken at random so repeated games
+ * against the same difficulty do not replay move for move.
+ */
+export function pickBotColumn(
+  board: Board,
+  color: PieceColor,
+  difficulty: Difficulty = 'normal',
+): number | null {
   const legal = getLegalColumns(board);
   if (legal.length === 0) return null;
+  if (legal.length === 1) return legal[0];
 
-  const ordered = orderColumns(legal);
-  let bestCol = ordered[0];
+  const config = DIFFICULTY[difficulty];
+  if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
+    return legal[Math.floor(Math.random() * legal.length)];
+  }
+
+  // Full window at the root: a narrowed one returns bounds rather than exact
+  // values, which would make the equal-score test below pick up false ties.
+  let best: number[] = [];
   let bestScore = -Infinity;
-
-  for (const col of ordered) {
+  for (const col of orderColumns(legal)) {
+    const row = getDropRow(board, col);
+    if (row === null) continue;
     const next = dropPiece(board, col, color);
     if (!next) continue;
-    const score = -negamax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, color, opponent(color));
+    const score = -negamax(next, config.depth - 1, -Infinity, Infinity, opponent(color), row, col);
     if (score > bestScore) {
       bestScore = score;
-      bestCol = col;
+      best = [col];
+    } else if (score === bestScore) {
+      best.push(col);
     }
   }
-  return bestCol;
+  if (best.length === 0) return legal[0];
+  return best[Math.floor(Math.random() * best.length)];
 }

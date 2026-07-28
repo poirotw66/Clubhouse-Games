@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
-import type { Board, Piece } from './utils/reversiLogic';
+import type { Board, Piece, Difficulty } from './utils/reversiLogic';
 import {
   createInitialBoard,
   getLegalMoves,
@@ -10,11 +10,18 @@ import {
   countPieces,
   getWinner,
   getBestMove,
+  DIFFICULTY_LABELS,
 } from './utils/reversiLogic';
 import { RefreshCw, BookOpen, Users } from 'lucide-react';
 
 const SIZE = 8;
 const BOT_DELAY_MS = 500;
+
+const DIFFICULTIES: { id: Difficulty; blurb: string }[] = [
+  { id: 'easy', blurb: '只看一步，偶爾失誤' },
+  { id: 'normal', blurb: '看四步，會搶角' },
+  { id: 'hard', blurb: '看六步，殘局全解' },
+];
 
 type GamePhase = 'playing' | 'over';
 type GameMode = 'two' | 'bot';
@@ -74,6 +81,7 @@ function passTurn(state: GameState): GameState {
 export default function App() {
   const [gameMode, setGameMode] = useState<GameMode | null>(null);
   const [playerSide, setPlayerSide] = useState<Piece>('black');
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
   const botScheduled = useRef(false);
@@ -139,7 +147,7 @@ export default function App() {
         botScheduled.current = false;
         return;
       }
-      const best = getBestMove(state.board, botColor);
+      const best = getBestMove(state.board, botColor, difficulty);
       if (!best) {
         setState((s) => passTurn(s));
         botScheduled.current = false;
@@ -154,7 +162,7 @@ export default function App() {
       botScheduled.current = false;
     }, BOT_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [isBotTurn, state.board, state.currentTurn, playerSide, state.phase, applyMoveAndAdvance]);
+  }, [isBotTurn, state.board, state.currentTurn, playerSide, state.phase, difficulty, applyMoveAndAdvance]);
 
   useEffect(() => {
     if (state.phase !== 'over' || prevPhaseRef.current === 'over') {
@@ -237,7 +245,32 @@ export default function App() {
             規則說明
           </button>
         </div>
-        <p className="mt-8 text-stone-400 text-sm">對戰電腦：選擇執子</p>
+        <p className="mt-8 text-stone-400 text-sm">對戰電腦：選擇難度</p>
+        <div className="flex gap-2 mt-3 w-full max-w-xs" role="group" aria-label="電腦難度">
+          {DIFFICULTIES.map(({ id, blurb }) => {
+            const selected = difficulty === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setDifficulty(id)}
+                aria-pressed={selected}
+                title={blurb}
+                className={`flex-1 px-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                  selected
+                    ? 'bg-emerald-700 border-emerald-400 text-white'
+                    : 'bg-stone-800 border-stone-600 text-stone-300 hover:bg-stone-700'
+                }`}
+              >
+                {DIFFICULTY_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-stone-500 text-xs">
+          {DIFFICULTIES.find((d) => d.id === difficulty)?.blurb}
+        </p>
+        <p className="mt-5 text-stone-400 text-sm">選擇執子開始</p>
         <div className="flex gap-4 mt-3">
           <button
             type="button"
@@ -328,7 +361,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center p-4 min-w-0">
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold tracking-tight">黑白棋 Reversi</h1>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h1 className="text-xl font-bold tracking-tight">黑白棋 Reversi</h1>
+          {gameMode === 'bot' && (
+            <span className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-800/60 border border-emerald-600/50 text-xs text-emerald-100">
+              電腦・{DIFFICULTY_LABELS[difficulty]}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"

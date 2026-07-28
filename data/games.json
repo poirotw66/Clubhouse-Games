@@ -43,7 +43,7 @@
         {
           "name": "黑白棋",
           "en": "Reversi",
-          "desc": "在 8×8 盤上夾住對手棋子翻面，終局時己色較多者獲勝。",
+          "desc": "在 8×8 盤上夾住對手棋子翻面，可選三段電腦難度對戰。",
           "players": "2 人",
           "specPath": "02-board/reversi.md",
           "gameFolder": "Reversi"
@@ -59,7 +59,7 @@
         {
           "name": "四子棋",
           "en": "Connect Four",
-          "desc": "在 7×6 格網輪流投下棋子，橫豎斜先連成四子者獲勝。",
+          "desc": "輪流投子先連成四顆者勝，可選三段電腦難度對戰。",
           "players": "2 人",
           "specPath": "02-board/connect-four.md",
           "gameFolder": "Connect-Four"
@@ -150,7 +150,7 @@
         {
           "name": "俄羅斯方塊",
           "en": "Tetris",
-          "desc": "SRS 旋轉搭配 Hold 與 Next 預覽，堆疊消行挑戰高分。",
+          "desc": "SRS 旋轉搭配 Hold 與 Next，另有衝刺 40 行與限時兩分模式。",
           "players": "1 人",
           "specPath": "05-puzzle/tetris.md",
           "gameFolder": "Tetris"

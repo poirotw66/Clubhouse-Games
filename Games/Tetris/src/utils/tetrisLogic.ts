@@ -354,3 +354,60 @@ export function movePiece(
   return moved;
 }
 
+
+
+/* ---------------- Game modes ---------------- */
+
+export type Mode = 'marathon' | 'sprint' | 'ultra';
+
+interface ModeConfig {
+  label: string;
+  blurb: string;
+  /** Stop once this many lines are cleared (sprint). */
+  lineGoal: number | null;
+  /** Stop after this long (ultra). */
+  timeLimitMs: number | null;
+  /** What counts as a better run when comparing against the stored best. */
+  rank: 'fastest' | 'highest';
+  /** Unit shown next to the best record. */
+  recordKind: 'time' | 'score';
+}
+
+export const MODES: Record<Mode, ModeConfig> = {
+  marathon: {
+    label: '無盡',
+    blurb: '一直玩到頂，等級隨行數上升',
+    lineGoal: null,
+    timeLimitMs: null,
+    rank: 'highest',
+    recordKind: 'score',
+  },
+  sprint: {
+    label: '衝刺 40 行',
+    blurb: '清完 40 行，比誰快',
+    lineGoal: 40,
+    timeLimitMs: null,
+    rank: 'fastest',
+    recordKind: 'time',
+  },
+  ultra: {
+    label: '限時 2 分',
+    blurb: '兩分鐘內拿到最高分',
+    lineGoal: null,
+    timeLimitMs: 2 * 60 * 1000,
+    rank: 'highest',
+    recordKind: 'score',
+  },
+};
+
+/**
+ * Whether a run has met its mode's goal — 40 lines for sprint, the clock for
+ * ultra, never for marathon. Both the piece-lock path and the run timer ask
+ * this, so the two cannot disagree about when a run is finished.
+ */
+export function isGoalMet(mode: Mode, lines: number, elapsedMs: number): boolean {
+  const config = MODES[mode];
+  if (config.lineGoal !== null && lines >= config.lineGoal) return true;
+  if (config.timeLimitMs !== null && elapsedMs >= config.timeLimitMs) return true;
+  return false;
+}
