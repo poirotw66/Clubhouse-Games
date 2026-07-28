@@ -7,6 +7,7 @@ import { createSolidProgram } from './solid.js';
 import { createBoat } from './boat.js';
 import { createBoatState, createWind, stepSailing, pointOfSail, NO_GO } from './sailing.js';
 import { createAssist, steerTo, wrap } from './assist.js';
+import { createCoach } from './coach.js';
 import { createCamera } from './camera.js';
 import { createInput } from './input.js';
 import { createCourse, createMarks, gatePosts } from './marks.js';
@@ -76,6 +77,7 @@ function startGame(gl, canvas) {
   const camera = createCamera();
   const input = createInput(document.body);
   const assist = createAssist();
+  const coach = createCoach();
 
   // Easy mode defaults on — this is a casual collection, and the beat is not
   // readable without the guidance arrow. Only an explicit opt-out is stored.
@@ -131,6 +133,11 @@ function startGame(gl, canvas) {
     guide: $('#cp-guide'),
     guideTip: $('#hud-guide'),
     tackBtn: $('#btn-tack'),
+    windCue: $('#wind-cue'),
+    windCueArrow: $('#wind-cue .wind-cue-arrow'),
+    windCueLabel: $('#wind-cue-label'),
+    coach: $('#coach'),
+    coachText: $('#coach-text'),
     toast: $('#toast'),
     countdown: $('#countdown'),
     finish: $('#finish-panel'),
@@ -348,6 +355,8 @@ function startGame(gl, canvas) {
     boat.surge = 3.2;
     marks.reset(boat);
     assist.reset(boat, wind);
+    coach.reset();
+    hud.coach.hidden = true;
     tackTarget = null;
     phase = 'countdown';
     countdown = 3.2;
@@ -409,6 +418,67 @@ function startGame(gl, canvas) {
 
     hud.guideTip.textContent = text;
     hud.guideTip.classList.toggle('good', aligned);
+  }
+
+  /** Coarse description of where the wind sits relative to the bow. */
+  function windQuarter(awaDeg) {
+    const a = Math.abs(awaDeg);
+    const side = awaDeg >= 0 ? '右' : '左';
+    if (a < 32) return '正前方';
+    if (a < 75) return `${side}前方`;
+    if (a < 115) return `正${side}側`;
+    if (a < 155) return `${side}後方`;
+    return '正後方';
+  }
+
+  /**
+   * Wind arrow pinned over the bow. Rotation is taken against the *camera's*
+   * heading, not the boat's: the camera eases toward the boat and carries the
+   * player's look bias, so using the boat heading would make the arrow drift
+   * off true whenever you turn or drag the view.
+   */
+  function updateWindCue() {
+    const cue = hud.windCue;
+    if (!cue) return;
+    if (phase === 'finished') {
+      cue.hidden = true;
+      return;
+    }
+
+    // A little ahead of the bow and above the deck, so it clears the sails.
+    const px = boat.x + Math.sin(boat.heading) * 5.2;
+    const pz = boat.z + Math.cos(boat.heading) * 5.2;
+    const ndc = camera.project(px, boat.waterY + 3.4, pz);
+    if (!ndc) {
+      cue.hidden = true;
+      return;
+    }
+
+    cue.hidden = false;
+    cue.style.left = `${(ndc.x * 0.5 + 0.5) * 100}%`;
+    cue.style.top = `${(1 - (ndc.y * 0.5 + 0.5)) * 100}%`;
+
+    const blowing = wind.from + Math.PI;              // the way the air is going
+    const screenAngle = wrap(blowing - camera.viewHeading);
+    hud.windCueArrow.style.transform = `rotate(${(screenAngle * 180) / Math.PI}deg)`;
+
+    const awaDeg = (boat.awa * 180) / Math.PI;
+    const inIrons = Math.abs(boat.awa) < NO_GO;
+    const luffing = boat.luffing > 0.35;
+    cue.classList.toggle('nogo', inIrons);
+    cue.classList.toggle('good', !inIrons && !luffing);
+
+    // With auto-trim on, the sheet is not the player's problem — tell them
+    // where the wind is instead of asking for a trim they cannot make.
+    let label = `風從${windQuarter(awaDeg)}`;
+    if (inIrons) label = '頂風・轉舵離開';
+    else if (luffing && !input.autoTrim) label = '帆在抖・收帆 Z';
+    else if (!input.autoTrim) {
+      const a = Math.abs(awaDeg);
+      if (a < 75) label = `${label}・收帆 Z`;
+      else if (a > 115) label = `${label}・放帆 X`;
+    }
+    hud.windCueLabel.textContent = label;
   }
 
   function updateHud(dt) {
@@ -473,6 +543,36 @@ function startGame(gl, canvas) {
     drawMinimap();
   }
 
+  /** Ask the coach whether the player is stuck, and show the one instruction. */
+  function updateCoach(dt) {
+    const gate = marks.nextGate;
+    const guideTurn = input.easy && gate
+      ? assist.recommend(boat, wind, gate).turn
+      : 0;
+
+    const hint = coach.update({
+      racing: phase === 'racing',
+      awa: boat.awa,
+      noGo: NO_GO,
+      speed: boat.speed,
+      luffing: boat.luffing,
+      autoTrim: input.autoTrim,
+      easy: input.easy,
+      guideTurn,
+      distToGate: gate ? marks.distanceToNext(boat) : 0,
+    }, dt);
+
+    if (!hint) {
+      hud.coach.hidden = true;
+      return;
+    }
+    if (hud.coach.dataset.hint !== hint.id) {
+      hud.coach.dataset.hint = hint.id;
+      hud.coachText.textContent = hint.text;
+    }
+    hud.coach.hidden = false;
+  }
+
   /**
    * One-key tack: latch the heading on the other side of the wind and steer to
    * it. Hands control back the moment the boat settles, the player touches the
@@ -535,6 +635,7 @@ function startGame(gl, canvas) {
       controls = applyTackAssist(input.sample(dt), dt);
       stepSailing(boat, wind, controls, dt, now * 0.001, WAVE_AMP, input.easy);
       raceTime += dt;
+      updateCoach(dt);
 
       const cleared = marks.tryClear(boat);
       if (cleared) {
@@ -543,6 +644,8 @@ function startGame(gl, canvas) {
         const left = course.gates.length - marks.nextIndex;
         if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
           phase = 'finished';
+          coach.reset();
+          hud.coach.hidden = true;
           if (bestTime == null || raceTime < bestTime) {
             bestTime = raceTime;
             localStorage.setItem(BEST_KEY, String(bestTime));
@@ -585,6 +688,7 @@ function startGame(gl, canvas) {
     marks.update(now * 0.001, WAVE_AMP);
     camera.update(boat, input.lookYaw, dt);
     camera.commit();
+    updateWindCue();
 
     const roll = boat.heel + (boat.waveRoll || 0) * 0.65;
     boatMesh.update({

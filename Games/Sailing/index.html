@@ -105,6 +105,18 @@
       <span><kbd>R</kbd> 重開</span>
     </div>
 
+    <!-- Wind arrow pinned over the bow: which way the air is moving, right
+         where the player is already looking. -->
+    <div id="wind-cue" class="wind-cue" hidden aria-hidden="true">
+      <div class="wind-cue-arrow"></div>
+      <span id="wind-cue-label" class="wind-cue-label">—</span>
+    </div>
+
+    <div id="coach" class="coach" hidden role="status">
+      <span class="coach-mark">!</span>
+      <span id="coach-text"></span>
+    </div>
+
     <div id="countdown" class="countdown">3</div>
     <div id="toast" class="toast" role="status"></div>
 
@@ -131,6 +143,8 @@
         <li>拖曳畫面：環顧　·　<kbd>R</kbd>：重開</li>
       </ul>
       <p>右上<strong>風向盤</strong>：箭頭指「風吹來的方向」，上方是船首。紅色扇形是頂風區——指針進紅區就沒有推力，轉舵讓指針離開紅區。綠色閘門為下一檢查點，依序穿過即完賽。</p>
+      <p><strong>船頭的橘色箭頭</strong>：指的是「風往哪裡吹」，也就是空氣流動的方向。箭頭下方會寫出風相對於船首的位置（例如「風從左後方」），手動調帆時還會直接告訴你該收帆還是放帆。箭頭變紅＝已經頂風，先轉舵離開。</p>
+      <p><strong>卡住時</strong>畫面下方會跳出橘框提示，告訴你當下該按哪個鍵。它只在狀況持續一段時間後才出現，換舷途中短暫頂風不會跳。</p>
       <p><strong>簡單模式</strong>（預設開啟）：「下一門」羅盤上會多一支<strong>綠色箭頭</strong>，那是<em>建議航向</em>——照著轉就對了。閘門在上風處時無法直接航向它，綠色箭頭會自動指出該走哪一側搶風，下方文字會顯示「搶風：左舷／右舷」。此模式下船也不會完全停住，隨時還能轉舵。關掉後只剩白色的閘門方向箭頭，需要自己判斷搶風角度。</p>
       <button type="button" id="btn-help-close" class="btn primary">關閉</button>
     </div>

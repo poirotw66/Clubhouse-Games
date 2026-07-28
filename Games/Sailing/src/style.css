@@ -618,6 +618,111 @@ body {
   display: none;
 }
 
+/* --- wind cue over the bow ------------------------------------------------
+   Anchored to the projected bow position each frame, so it sits on the boat
+   rather than at a fixed point on screen. The arrow points the way the air is
+   travelling; the label says what to do about it. */
+.wind-cue {
+  position: fixed;
+  z-index: 9;
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.wind-cue[hidden] {
+  display: none;
+}
+
+.wind-cue-arrow {
+  width: 44px;
+  height: 44px;
+  /* Points "up" (screen -Y) at rotation 0; main.js rotates it into view space. */
+  clip-path: polygon(50% 0, 100% 46%, 68% 46%, 68% 100%, 32% 100%, 32% 46%, 0 46%);
+  background: linear-gradient(180deg, #ffc978, #e0670f);
+  /* Tight dark shadows trace the clip-path silhouette, which is the only thing
+     keeping this readable when it passes over the white sail. */
+  filter:
+    drop-shadow(0 0 1.5px rgba(3, 14, 22, 0.95))
+    drop-shadow(0 0 3px rgba(3, 14, 22, 0.65))
+    drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5));
+}
+
+.wind-cue.nogo .wind-cue-arrow {
+  background: linear-gradient(180deg, #ff8f7a, #e02a16);
+}
+
+.wind-cue.good .wind-cue-arrow {
+  background: linear-gradient(180deg, #6fe9cf, #12857b);
+}
+
+.wind-cue-label {
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(6, 22, 34, 0.72);
+  border: 1px solid var(--line);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+}
+
+.wind-cue.nogo .wind-cue-label {
+  color: #ffb4a2;
+  border-color: rgba(255, 90, 70, 0.6);
+}
+
+/* --- coach banner --------------------------------------------------------- */
+.coach {
+  position: fixed;
+  z-index: 21;
+  /* Centred with auto margins rather than left:50% + translate: a fixed box
+     offset to 50% can only shrink-wrap into the remaining half of the screen,
+     which forced the text into a narrow column max-width could not widen. */
+  left: 0;
+  right: 0;
+  bottom: 7.2rem;
+  margin-inline: auto;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: min(90vw, 30rem);
+  padding: 0.6rem 1rem;
+  border-radius: 14px;
+  background: rgba(6, 22, 34, 0.92);
+  border: 1px solid rgba(255, 190, 90, 0.55);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  animation: coach-in 0.25s ease;
+}
+
+.coach[hidden] {
+  display: none;
+}
+
+.coach-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffbe5a;
+  color: #06212c;
+  font-weight: 700;
+}
+
+@keyframes coach-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .panel {
   position: fixed;
   z-index: 30;
@@ -698,12 +803,20 @@ body {
     display: none;
   }
 
+  /* Sits above the coach banner: when the player is stuck, the instruction
+     matters more than the split times. */
   .race-panel {
     top: auto;
-    bottom: 6.5rem;
+    bottom: 11rem;
     left: 0.75rem;
-    max-height: 40vh;
+    max-height: 32vh;
     overflow: auto;
+  }
+
+  .coach {
+    bottom: 5.2rem;
+    max-width: calc(100vw - 1.5rem);
+    font-size: 0.8rem;
   }
 
   .nav-stack {

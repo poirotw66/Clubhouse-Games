@@ -23,6 +23,30 @@ export function createCamera() {
     invViewProj,
 
     /**
+     * Where the camera is looking, as a world heading. Screen-space overlays
+     * need this rather than the boat's heading: the camera eases toward the
+     * boat and carries the player's look bias, so the two differ whenever the
+     * boat is turning.
+     */
+    get viewHeading() {
+      return yaw + Math.PI;
+    },
+
+    /**
+     * World point → normalised device coords. Returns null when the point is
+     * behind the camera, where the perspective divide would mirror it back
+     * into view.
+     */
+    project(x, y, z) {
+      const m = viewProj;
+      const cx = m[0] * x + m[4] * y + m[8] * z + m[12];
+      const cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+      const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+      if (cw <= 1e-4) return null;
+      return { x: cx / cw, y: cy / cw };
+    },
+
+    /**
      * Follow the boat. lookYawBias lets the player peek (mouse / touch drag).
      */
     update(boat, lookYawBias, dt) {
