@@ -33,6 +33,8 @@ const VITE5_GAMES = new Set([
   'Tetris',
 ]);
 
+const REACT_KEYS = ['react', 'react-dom', '@vitejs/plugin-react'];
+
 const EXCEPTIONS = {
   'Instant-Flash': { react: '^19.2.3', 'react-dom': '^19.2.3' },
   'Block-the-smash': { react: '^19.2.0', 'react-dom': '^19.2.0' },
@@ -51,6 +53,13 @@ function checkGame(name) {
   const isVite5 = VITE5_GAMES.has(name);
   const baseline = isVite5 ? VITE5_BASELINE : VITE6_BASELINE;
   const expected = { ...baseline, ...(EXCEPTIONS[name] ?? {}) };
+
+  // Vanilla games bundle with Vite but ship no React, so only their vite pin
+  // applies. Keying off "declares none of the trio" rather than "no react"
+  // still catches a React game that drops one of the three.
+  if (!REACT_KEYS.some((key) => deps[key])) {
+    for (const key of REACT_KEYS) delete expected[key];
+  }
 
   const mismatches = [];
   for (const [key, value] of Object.entries(expected)) {
