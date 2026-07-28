@@ -1,6 +1,7 @@
 // ponytail: assert-based self-check for the sailing force model (no test framework).
 // Run: node --experimental-vm-modules src/check-sailing.mjs  (or import from a tiny harness)
-// Ceiling: only covers no-go / beam-reach drive sign, not full integration.
+// Ceiling: covers no-go / beam-reach drive sign and the shape of the speed
+// polar, not full integration.
 
 import { createBoatState, createWind, stepSailing, pointOfSail, NO_GO } from './sailing.js';
 
@@ -45,6 +46,43 @@ wind.update = () => {}; // freeze
     stepSailing(boat, wind, { rudder: 1, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 1);
   }
   assert(Math.abs(boat.heading - Math.PI) > 0.25, `expected turn out of irons, heading=${boat.heading}`);
+}
+
+// --- shape of the speed polar ------------------------------------------------
+// Steady-state speed at a true wind angle, heading pinned so this measures the
+// force model rather than the steering.
+function steadySpeed(twaDeg) {
+  const boat = createBoatState(Math.PI - (twaDeg * Math.PI) / 180);
+  const heading = boat.heading;
+  boat.surge = 1;
+  for (let i = 0; i < 3000; i++) {
+    boat.heading = heading;
+    boat.yawRate = 0;
+    stepSailing(boat, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0);
+  }
+  return boat.speed;
+}
+
+{
+  const polar = {};
+  for (const twa of [45, 60, 90, 110, 130, 150, 180]) polar[twa] = steadySpeed(twa);
+
+  // A reach is the quickest point of sail — the whole reason to bear away.
+  const fastest = Object.keys(polar).reduce((a, b) => (polar[a] > polar[b] ? a : b));
+  assert(Number(fastest) >= 60 && Number(fastest) <= 110,
+    `expected a reach to be fastest, got TWA ${fastest} (${JSON.stringify(polar)})`);
+
+  // Auto-trim must keep the sail working as the wind moves aft. Trimming to a
+  // fixed fraction of the apparent wind angle stalls it here and guts the reach.
+  assert(polar[110] > polar[45],
+    `broad reach should beat close-hauled, got ${polar[110].toFixed(2)} vs ${polar[45].toFixed(2)}`);
+  assert(polar[130] > polar[180],
+    `broad reach should beat a dead run, got ${polar[130].toFixed(2)} vs ${polar[180].toFixed(2)}`);
+
+  // No dead band between the reach and the run: bearing away must never be a
+  // speed *gain*, or the boat feels broken to steer.
+  assert(polar[150] >= polar[180] - 0.15,
+    `dead band at TWA 150: ${polar[150].toFixed(2)} vs run ${polar[180].toFixed(2)}`);
 }
 
 console.log('check-sailing: ok');

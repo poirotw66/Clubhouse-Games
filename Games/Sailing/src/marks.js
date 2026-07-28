@@ -100,11 +100,15 @@ export function createCourse() {
     { id: 4, name: '終點門', x: 0, z: 55, facing: 0, halfWidth: 14, isFinish: true },
   ];
 
-  // Rolling start just before the start gate, already on a reach.
+  // Rolling start just before the start gate, already on a reach. The heading
+  // is set across the breeze (~65° off the wind) rather than up it: the old
+  // one pointed 19° off the wind, so the race opened with the boat head to
+  // wind, losing way and showing "cannot advance" before the player had
+  // touched anything.
   const start = {
-    x: 28,
-    z: 78,
-    heading: Math.PI + 0.55,
+    x: 30,
+    z: 64,
+    heading: (-103 * Math.PI) / 180,
   };
 
   return { start, gates };

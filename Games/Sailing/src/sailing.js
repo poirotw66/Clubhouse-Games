@@ -25,12 +25,18 @@ const DRAG_LAT = 0.9;         // keel resistance to leeway
 const TURN_RATE = 1.55;
 const MAX_HEEL = (28 * Math.PI) / 180;
 
-/** Lift coefficient: rises to a peak at STALL, then falls away. */
+/**
+ * Lift coefficient: rises to a peak at STALL, then bleeds away post-stall.
+ * The decay runs out to broadside rather than to 2·STALL, because cutting lift
+ * to exactly zero at 48° left a dead band on the deeper angles — the sail
+ * stopped working before drag took over, so bearing away could *gain* speed.
+ */
 function liftCoef(alpha) {
   const a = Math.abs(alpha);
   if (a <= 0) return 0;
-  const t = clamp(a / (STALL * 2), 0, 1);
-  return 1.55 * Math.sin(Math.PI * t);
+  if (a <= STALL) return 1.55 * Math.sin((Math.PI / 2) * (a / STALL));
+  const t = clamp((a - STALL) / (Math.PI / 2 - STALL), 0, 1);
+  return 1.55 * Math.pow(1 - t, 1.3);
 }
 
 /** Drag coefficient: small when attached, flat-plate when broadside. */
@@ -135,7 +141,11 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp) {
   }
 
   // --- trim -----------------------------------------------------------------
-  const ideal = clamp(beta * 0.52, MIN_TRIM, MAX_TRIM);
+  // Ease the sheet as the wind moves aft, holding the sail near its peak-lift
+  // angle of attack. A fixed fraction of beta can't do this: it only hits the
+  // peak at one point of sail and stalls the sail everywhere else, which
+  // hollows out the reach where the boat should be quickest.
+  const ideal = clamp(beta - STALL, MIN_TRIM, MAX_TRIM);
   if (input.autoTrim) {
     boat.trim += (ideal - boat.trim) * damp(5.5, dt);
   } else if (input.trimDelta) {
