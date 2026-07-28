@@ -9,7 +9,7 @@ import { createBoatState, createWind, stepSailing, pointOfSail, NO_GO } from './
 import { createAssist, steerTo, wrap } from './assist.js';
 import { createCamera } from './camera.js';
 import { createInput } from './input.js';
-import { createCourse, createMarks } from './marks.js';
+import { createCourse, createMarks, gatePosts } from './marks.js';
 import { clamp } from './math.js';
 
 const WAVE_AMP = 1.0;
@@ -156,65 +156,189 @@ function startGame(gl, canvas) {
     }).join('');
   }
 
-  function drawMinimap() {
-    const w = minimap.width;
-    const h = minimap.height;
-    const ctx = miniCtx;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(6, 22, 34, 0.55)';
-    ctx.fillRect(0, 0, w, h);
+  // Backing store is drawn at 2x so the waypoint numbers stay crisp.
+  const MINI_SCALE = 2;
 
-    // Fit course bounds.
+  // Fixed frame from the course itself. Fitting the boat in as well made the
+  // scale creep every frame, so nothing on the map held still long enough to
+  // be read; the boat is clamped to the edge instead on the rare occasions it
+  // sails outside.
+  const COURSE_BOUNDS = (() => {
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const g of course.gates) {
       minX = Math.min(minX, g.x); maxX = Math.max(maxX, g.x);
       minZ = Math.min(minZ, g.z); maxZ = Math.max(maxZ, g.z);
     }
-    minX = Math.min(minX, boat.x) - 40;
-    maxX = Math.max(maxX, boat.x) + 40;
-    minZ = Math.min(minZ, boat.z) - 40;
-    maxZ = Math.max(maxZ, boat.z) + 40;
-    const pad = 12;
-    const sx = (w - pad * 2) / (maxX - minX || 1);
-    const sz = (h - pad * 2) / (maxZ - minZ || 1);
-    const s = Math.min(sx, sz);
-    const ox = pad + (w - pad * 2 - (maxX - minX) * s) * 0.5;
-    const oz = pad + (h - pad * 2 - (maxZ - minZ) * s) * 0.5;
-    const tx = (x) => ox + (x - minX) * s;
-    const tz = (z) => oz + (z - minZ) * s;
+    const m = 42;
+    return { minX: minX - m, maxX: maxX + m, minZ: minZ - m, maxZ: maxZ + m };
+  })();
 
-    // Path
-    ctx.strokeStyle = 'rgba(232,244,246,0.25)';
-    ctx.lineWidth = 2;
+  const GATE_LABELS = ['起', '1', '2', '3'];
+
+  /**
+   * Arrowhead at (px, pz) pointing along world heading `h`, in map space.
+   * Built from explicit vectors rather than ctx.rotate: the map draws +z
+   * downward, which ctx.rotate does not compose with the way the obvious
+   * `rotate(heading)` suggests — that flips the marker in z, so the boat
+   * pointed north while sailing south.
+   */
+  function markerPath(ctx, px, pz, h, len, halfW) {
+    const fx = Math.sin(h);
+    const fz = Math.cos(h);
     ctx.beginPath();
+    ctx.moveTo(px + fx * len, pz + fz * len);
+    ctx.lineTo(px - fx * len * 0.6 + fz * halfW, pz - fz * len * 0.6 - fx * halfW);
+    ctx.lineTo(px - fx * len * 0.6 - fz * halfW, pz - fz * len * 0.6 + fx * halfW);
+    ctx.closePath();
+  }
+
+  function drawMinimap() {
+    const ctx = miniCtx;
+    const w = minimap.width / MINI_SCALE;
+    const h = minimap.height / MINI_SCALE;
+    ctx.setTransform(MINI_SCALE, 0, 0, MINI_SCALE, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(6, 22, 34, 0.66)';
+    ctx.fillRect(0, 0, w, h);
+
+    const { minX, maxX, minZ, maxZ } = COURSE_BOUNDS;
+    const pad = 14;
+    const s = Math.min((w - pad * 2) / (maxX - minX), (h - pad * 2) / (maxZ - minZ));
+    const ox = (w - (maxX - minX) * s) * 0.5;
+    const oz = (h - (maxZ - minZ) * s) * 0.5;
+    const tx = (x) => ox + (clamp(x, minX, maxX) - minX) * s;
+    const tz = (z) => oz + (clamp(z, minZ, maxZ) - minZ) * s;
+
+    const nextIndex = marks.nextIndex;
+
+    // --- legs, with an arrowhead so the lap reads as a direction ------------
+    for (let j = 0; j < course.gates.length - 1; j++) {
+      const a = course.gates[j];
+      const b = course.gates[j + 1];
+      const done = nextIndex > j + 1;
+      const active = nextIndex === j + 1;
+
+      const ax = tx(a.x), az = tz(a.z), bx = tx(b.x), bz = tz(b.z);
+      ctx.strokeStyle = active ? 'rgba(44,181,168,0.95)'
+        : done ? 'rgba(232,244,246,0.16)' : 'rgba(232,244,246,0.34)';
+      ctx.lineWidth = active ? 2.4 : 1.5;
+      ctx.setLineDash(done ? [3, 3] : []);
+      ctx.beginPath();
+      ctx.moveTo(ax, az);
+      ctx.lineTo(bx, bz);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Arrowhead at the midpoint, pointing the way round.
+      const ang = Math.atan2(bz - az, bx - ax);
+      const mx = (ax + bx) / 2;
+      const mz = (az + bz) / 2;
+      ctx.save();
+      ctx.translate(mx, mz);
+      ctx.rotate(ang);
+      ctx.fillStyle = active ? 'rgba(44,181,168,0.95)' : 'rgba(232,244,246,0.4)';
+      ctx.beginPath();
+      ctx.moveTo(5, 0);
+      ctx.lineTo(-3, 3.4);
+      ctx.lineTo(-3, -3.4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // --- gates: the opening you sail through, then a numbered marker --------
     course.gates.forEach((g, i) => {
-      if (i === 0) ctx.moveTo(tx(g.x), tz(g.z));
-      else ctx.lineTo(tx(g.x), tz(g.z));
+      if (g.isFinish) return;                       // shares its spot with the start
+      const finishNext = marks.nextGate?.isFinish;
+      const isNext = i === nextIndex || (finishNext && i === 0);
+      const done = i < nextIndex && !(finishNext && i === 0);
+
+      // The opening itself, with a post at each end: these are gates you sail
+      // between, and a bare dot never said that.
+      const p = gatePosts(g);
+      const lx = tx(p.left.x), lz = tz(p.left.z);
+      const rx2 = tx(p.right.x), rz2 = tz(p.right.z);
+      const tint = isNext ? '#2cb5a8' : done ? 'rgba(160,170,180,0.5)' : 'rgba(240,122,42,0.9)';
+
+      ctx.strokeStyle = tint;
+      ctx.lineWidth = isNext ? 3 : 2;
+      ctx.beginPath();
+      ctx.moveTo(lx, lz);
+      ctx.lineTo(rx2, rz2);
+      ctx.stroke();
+
+      ctx.fillStyle = tint;
+      for (const [qx, qz] of [[lx, lz], [rx2, rz2]]) {
+        ctx.beginPath();
+        ctx.arc(qx, qz, isNext ? 3.2 : 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const cx = tx(g.x);
+      const cz = tz(g.z);
+      const r = isNext ? 9 : 7;
+
+      if (isNext) {                                  // halo, so the target pops
+        ctx.fillStyle = 'rgba(44,181,168,0.28)';
+        ctx.beginPath();
+        ctx.arc(cx, cz, r + 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = isNext ? '#2cb5a8' : done ? 'rgba(120,132,140,0.85)' : '#f07a2a';
+      ctx.beginPath();
+      ctx.arc(cx, cz, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = isNext || !done ? '#06212c' : 'rgba(232,244,246,0.75)';
+      ctx.font = '700 10px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(finishNext && i === 0 ? '終' : GATE_LABELS[i] ?? String(i), cx, cz + 0.5);
     });
+
+    // --- boat, plus the heading easy mode is asking for ---------------------
+    const bx = tx(boat.x);
+    const bz = tz(boat.z);
+
+    if (input.easy && marks.nextGate && phase !== 'finished') {
+      const rec = assist.recommend(boat, wind, marks.nextGate);
+      ctx.strokeStyle = 'rgba(142,247,210,0.9)';
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(bx, bz);
+      ctx.lineTo(bx + Math.sin(rec.heading) * 22, bz + Math.cos(rec.heading) * 22);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    markerPath(ctx, bx, bz, boat.heading, 8, 5.5);
+    ctx.fillStyle = '#e8f4f6';
+    ctx.strokeStyle = 'rgba(6,22,34,0.9)';
+    ctx.lineWidth = 1.2;
+    ctx.fill();
     ctx.stroke();
 
-    course.gates.forEach((g, i) => {
-      if (g.isFinish) return;
-      const next = i === marks.nextIndex || (marks.nextGate?.isFinish && i === 0);
-      const done = i < marks.nextIndex;
-      ctx.fillStyle = next ? '#2cb5a8' : done ? 'rgba(160,170,180,0.7)' : '#f07a2a';
-      ctx.beginPath();
-      ctx.arc(tx(g.x), tz(g.z), next ? 5 : 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // Boat
-    ctx.save();
-    ctx.translate(tx(boat.x), tz(boat.z));
-    ctx.rotate(boat.heading);
-    ctx.fillStyle = '#e8f4f6';
+    // --- wind, so the beat legs make sense at a glance ----------------------
+    const wx = w - 17;
+    const wz = 15;
+    const blowing = wind.from + Math.PI;       // the way the wind is going
+    ctx.strokeStyle = 'rgba(240,122,42,0.9)';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(0, -7);
-    ctx.lineTo(5, 6);
-    ctx.lineTo(-5, 6);
-    ctx.closePath();
+    ctx.moveTo(wx - Math.sin(blowing) * 8, wz - Math.cos(blowing) * 8);
+    ctx.lineTo(wx + Math.sin(blowing) * 4, wz + Math.cos(blowing) * 4);
+    ctx.stroke();
+    markerPath(ctx, wx + Math.sin(blowing) * 4, wz + Math.cos(blowing) * 4, blowing, 5, 3.6);
+    ctx.fillStyle = 'rgba(240,122,42,0.9)';
     ctx.fill();
-    ctx.restore();
+
+    ctx.fillStyle = 'rgba(240,122,42,0.95)';
+    ctx.font = '700 8px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('風', wx, wz + 15);
   }
 
   function resetRace() {

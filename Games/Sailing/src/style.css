@@ -524,8 +524,9 @@ body {
 }
 
 #minimap {
-  width: 148px;
-  height: 148px;
+  /* Backing store is 2x this, so the waypoint numbers render crisp. */
+  width: 172px;
+  height: 172px;
   border-radius: 14px;
   border: 1px solid var(--line);
   background: rgba(6, 22, 34, 0.55);
@@ -711,8 +712,8 @@ body {
   }
 
   #minimap {
-    width: 110px;
-    height: 110px;
+    width: 132px;
+    height: 132px;
   }
 
   .splits {

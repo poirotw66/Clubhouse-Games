@@ -68,6 +68,40 @@ const assist = createAssist();
   }
 }
 
+// Following the arrow must always *close on the mark*. Steering somewhere
+// sailable is not enough — the chosen tack has to be the one that gains
+// ground, or the guidance sends you the long way round a beat.
+{
+  const boat = at(0, 0, 0);
+  const marks = [];
+  for (let a = 0; a < 360; a += 15) {
+    const r = (a * Math.PI) / 180;
+    marks.push([Math.sin(r) * 180, Math.cos(r) * 180]);
+  }
+  for (const [mx, mz] of marks) {
+    for (const startHeading of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      const b = at(0, 0, startHeading);
+      assist.reset(b, wind);
+      const rec = assist.recommend(b, wind, { x: mx, z: mz });
+
+      const test = createBoatState(rec.heading);
+      test.surge = 1;
+      for (let i = 0; i < 1200; i++) {
+        test.heading = rec.heading;
+        test.yawRate = 0;
+        stepSailing(test, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0);
+      }
+      // Velocity made good along the bearing to the mark.
+      const len = Math.hypot(mx, mz);
+      const vmg = test.speed * (Math.sin(rec.heading) * (mx / len)
+        + Math.cos(rec.heading) * (mz / len));
+      assert(vmg > 0.3,
+        `guidance toward (${mx.toFixed(0)},${mz.toFixed(0)}) from heading `
+        + `${D(startHeading).toFixed(0)}° makes VMG ${vmg.toFixed(2)} m/s`);
+    }
+  }
+}
+
 // The recommendation must not chatter when the mark sits dead upwind, or the
 // arrow becomes unfollowable.
 {
