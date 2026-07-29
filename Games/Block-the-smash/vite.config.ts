@@ -27,12 +27,18 @@ export default defineConfig(({ mode }) => {
         'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
       },
     },
-    optimizeDeps: {
-      exclude: ['three'],
-    },
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
+      // The drill is a second entry, not a static file: this is what lets vite
+      // bundle three from node_modules instead of the game fetching it from a
+      // CDN at runtime.
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+          game: path.resolve(__dirname, 'game.html'),
+        },
+      },
     },
   };
 });

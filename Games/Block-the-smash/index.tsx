@@ -25,7 +25,9 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '12px 20px',
+    // Left padding clears the fixed back-to-menu pill, which otherwise sits
+    // on top of the title.
+    padding: '12px 20px 12px 130px',
     background: '#000',
     zIndex: 20,
     borderBottom: '1px solid #222',
@@ -151,7 +153,8 @@ function App() {
   const [handedness, setHandedness] = useState<'left' | 'right'>('right');
   const [muted, setMuted] = useState(false);
 
-  const [gameHtml, setGameHtml] = useState<string | null>(null);
+  // The drill only becomes reachable once its own page has loaded and can
+  // receive the postMessage settings below.
   const [isLoading, setIsLoading] = useState(true);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -178,49 +181,22 @@ function App() {
       iframe.contentWindow.postMessage({ type: 'SET_HANDEDNESS', payload: handedness }, '*');
       iframe.contentWindow.postMessage({ type: 'SET_MUTE', payload: muted }, '*');
     }
-  }, [showDisclaimer, handedness, muted, gameHtml]);
+  }, [showDisclaimer, handedness, muted, isLoading]);
 
+  // The drill posts GAME_READY once its renderer is up. The iframe's own load
+  // event is only a fallback: a slow webfont can hold it at "interactive"
+  // indefinitely, which used to hide a perfectly running game behind the
+  // loading overlay.
   useEffect(() => {
-    let isMounted = true;
-    const baseUrl = import.meta.env.BASE_URL;
-    const url = `${baseUrl}init/gemini3.html`;
-
-    const loadGame = async () => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to load game');
-        let html = await response.text();
-
-        const baseTag = `<base href="${baseUrl}init/">`;
-        if (html.includes('<head')) {
-          html = html.replace(/<head[^>]*>/i, `$&${baseTag}`);
-        } else {
-          html = `${baseTag}${html}`;
-        }
-
-        if (isMounted) {
-          setGameHtml(html);
-          setIsLoading(false);
-        }
-      } catch (e) {
-        console.error(e);
-        if (isMounted) {
-          setGameHtml(
-            '<div style="color:white;display:flex;height:100%;justify-content:center;align-items:center;font-family:sans-serif;">Failed to load game engine.</div>',
-          );
-          setIsLoading(false);
-        }
-      }
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GAME_READY') setIsLoading(false);
     };
-
-    loadGame();
-
-    return () => {
-      isMounted = false;
-    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
   }, []);
 
   const handleIFrameLoad = () => {
+    setIsLoading(false);
     const iframe = iframeRef.current;
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage({ type: 'PAUSE_GAME', payload: showDisclaimer }, '*');
@@ -256,22 +232,20 @@ function App() {
       </div>
 
       <div style={styles.gameWrapper}>
-        {(isLoading || !gameHtml) && (
+        {isLoading && (
           <div style={styles.loadingContainer}>
             <div style={styles.loadingText}>Initializing System...</div>
           </div>
         )}
 
-        {!isLoading && gameHtml && (
-          <iframe
-            ref={iframeRef}
-            srcDoc={gameHtml}
-            style={styles.iframe}
-            title="Game Canvas"
-            sandbox="allow-scripts allow-pointer-lock allow-same-origin allow-forms"
-            onLoad={handleIFrameLoad}
-          />
-        )}
+        <iframe
+          ref={iframeRef}
+          src={`${import.meta.env.BASE_URL}game.html`}
+          style={{ ...styles.iframe, visibility: isLoading ? 'hidden' : 'visible' }}
+          title="Game Canvas"
+          sandbox="allow-scripts allow-pointer-lock allow-same-origin allow-forms"
+          onLoad={handleIFrameLoad}
+        />
       </div>
 
       {showDisclaimer && (
