@@ -31,6 +31,12 @@ interface GameState {
   continuationFrom: [number, number] | null;
 }
 
+/** Stores the full path of the last completed move for highlighting. */
+interface LastMove {
+  path: [number, number][];
+  captured: number; // how many pieces were taken
+}
+
 function getInitialState(): GameState {
   return {
     board: createInitialBoard(),
@@ -64,6 +70,15 @@ function getOriginSet(moves: Move[]): Set<string> {
   return set;
 }
 
+/** All squares visited by the selected move candidate(s) — for path preview. */
+function getPathSet(moves: Move[]): Set<string> {
+  const set = new Set<string>();
+  for (const m of moves) {
+    for (const [r, c] of m.path) set.add(`${r},${c}`);
+  }
+  return set;
+}
+
 // ── Piece component ──────────────────────────────────────────────────────────
 
 interface PieceProps {
@@ -71,21 +86,26 @@ interface PieceProps {
   king: boolean;
   selected: boolean;
   capturer: boolean;
+  lastMoveDest: boolean;
 }
 
-function Piece({ color, king, selected, capturer }: PieceProps) {
+function Piece({ color, king, selected, capturer, lastMoveDest }: PieceProps) {
   const base =
     color === 'black'
       ? 'bg-gradient-to-br from-stone-600 to-stone-900 shadow-inner'
       : 'bg-gradient-to-br from-amber-50 to-amber-200 shadow-inner';
+
   const ring =
     selected
       ? 'ring-4 ring-amber-300 ring-offset-1 ring-offset-transparent'
-      : capturer
-        ? 'ring-3 ring-rose-400 ring-offset-1 ring-offset-transparent'
-        : color === 'black'
-          ? 'ring-2 ring-stone-500'
-          : 'ring-2 ring-amber-400';
+      : lastMoveDest
+        ? 'ring-3 ring-yellow-400/80 ring-offset-1 ring-offset-transparent'
+        : capturer
+          ? 'ring-3 ring-rose-400 ring-offset-1 ring-offset-transparent'
+          : color === 'black'
+            ? 'ring-2 ring-stone-500'
+            : 'ring-2 ring-amber-400';
+
   const textColor = color === 'black' ? 'text-amber-200' : 'text-stone-700';
 
   return (
@@ -103,6 +123,26 @@ function Piece({ color, king, selected, capturer }: PieceProps) {
   );
 }
 
+// ── Captured pieces row ───────────────────────────────────────────────────────
+
+function CapturedRow({ color, count }: { color: PieceColor; count: number }) {
+  if (count === 0) return null;
+  return (
+    <div className="flex items-center gap-0.5 flex-wrap">
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className={`w-3 h-3 rounded-full flex-shrink-0 ${
+            color === 'black'
+              ? 'bg-stone-700 ring-1 ring-stone-500'
+              : 'bg-amber-100 ring-1 ring-amber-400'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -113,8 +153,14 @@ export default function App() {
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const [showRules, setShowRules] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [lastMove, setLastMove] = useState<LastMove | null>(null);
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
+
+  // Total pieces each side has captured (= 12 - opponent's remaining)
+  const { black, white } = countPieces(state.board);
+  const blackCaptured = 12 - white; // black captured white pieces
+  const whiteCaptured = 12 - black; // white captured black pieces
 
   const isBotTurn =
     gameMode === 'bot' &&
@@ -127,13 +173,26 @@ export default function App() {
   const movesFromSelected = selected
     ? moves.filter((m) => m.from[0] === selected[0] && m.from[1] === selected[1])
     : [];
+
+  // Landing squares: after select narrow to that piece; for forced capture show all destinations upfront.
   const landingSet =
     selected != null
       ? getLandingSet(movesFromSelected)
       : mustCapture
         ? getLandingSet(moves)
         : new Set<string>();
-  const { black, white } = countPieces(state.board);
+
+  // Path preview: all squares visited by the candidate move(s) from the selected piece.
+  const pathSet = selected != null ? getPathSet(movesFromSelected) : new Set<string>();
+
+  // Last-move highlight sets
+  const lastMovePathSet = lastMove
+    ? new Set(lastMove.path.map(([r, c]) => `${r},${c}`))
+    : new Set<string>();
+  const lastMoveDest = lastMove
+    ? `${lastMove.path[lastMove.path.length - 1][0]},${lastMove.path[lastMove.path.length - 1][1]}`
+    : null;
+
   const humanCanPlay =
     gameMode === 'two' || (gameMode === 'bot' && state.currentTurn === playerSide);
 
@@ -164,10 +223,12 @@ export default function App() {
       );
       if (moreCaptures.length > 0) {
         setState({ board: nextBoard, currentTurn: botColor, phase: 'playing', winner: null, continuationFrom: [lastR, lastC] });
+        // Don't update lastMove during multi-jump continuation; wait for final landing.
       } else {
         const nextTurn: PieceColor = botColor === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn);
         setState({ board: nextBoard, currentTurn: nextTurn, phase: winner ? 'over' : 'playing', winner, continuationFrom: null });
+        setLastMove({ path: move.path, captured: move.path.length - 1 });
       }
       setSelected(null);
       botScheduled.current = false;
@@ -196,10 +257,12 @@ export default function App() {
       );
       if (moreCaptures.length > 0) {
         setState({ board: nextBoard, currentTurn: state.currentTurn, phase: 'playing', winner: null, continuationFrom: [lastR, lastC] });
+        // mid-jump: don't clear lastMove yet
       } else {
         const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn);
         setState({ board: nextBoard, currentTurn: nextTurn, phase: winner ? 'over' : 'playing', winner, continuationFrom: null });
+        setLastMove({ path: move.path, captured: move.path.length - 1 });
       }
       setSelected(null);
     },
@@ -241,6 +304,7 @@ export default function App() {
   const resetGame = useCallback(() => {
     setState(getInitialState());
     setSelected(null);
+    setLastMove(null);
     botScheduled.current = false;
   }, []);
 
@@ -249,7 +313,7 @@ export default function App() {
   const isMyTurn = humanCanPlay && !isBotTurn && state.phase === 'playing';
   const bannerBg =
     state.phase === 'over'
-      ? 'bg-stone-700/60'
+      ? 'bg-stone-700/60 border-stone-600/30'
       : isBotTurn
         ? 'bg-sky-900/50 border-sky-600/40'
         : mustCapture
@@ -316,35 +380,55 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Score bar ── */}
-      <div className="w-full max-w-[420px] flex items-center justify-between mb-3 px-1">
-        {/* Black player */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 ${
+      {/* ── Score bar with captured pieces ── */}
+      <div className="w-full max-w-[420px] flex items-stretch justify-between gap-2 mb-3 px-1">
+        {/* Black side */}
+        <div className={`flex-1 flex flex-col gap-1 px-3 py-2 rounded-xl border transition-all duration-200 ${
           state.phase === 'playing' && state.currentTurn === 'black'
             ? 'bg-stone-700/60 border-amber-400/60 shadow-md'
             : 'bg-stone-900/40 border-stone-700/40'
         }`}>
-          <span className="w-5 h-5 rounded-full bg-gradient-to-br from-stone-600 to-stone-900 ring-2 ring-stone-500 shadow-inner flex-shrink-0" />
-          <span className="text-sm font-semibold">黑</span>
-          <span className="text-lg font-bold tabular-nums leading-none">{black}</span>
+          <div className="flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full bg-gradient-to-br from-stone-600 to-stone-900 ring-2 ring-stone-500 shadow-inner flex-shrink-0" />
+            <span className="text-sm font-semibold">黑</span>
+            <span className="text-lg font-bold tabular-nums leading-none ml-auto">{black}</span>
+          </div>
+          {/* Captured white pieces */}
+          {blackCaptured > 0 && (
+            <div className="mt-0.5">
+              <CapturedRow color="white" count={blackCaptured} />
+            </div>
+          )}
         </div>
 
-        {/* Turn indicator dot */}
-        <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
-          state.phase === 'playing'
-            ? state.currentTurn === 'black' ? 'bg-stone-300 shadow-[0_0_6px_2px_rgba(255,255,255,0.3)]' : 'bg-amber-200 shadow-[0_0_6px_2px_rgba(251,191,36,0.4)]'
-            : 'bg-stone-600'
-        }`} />
+        {/* Turn indicator */}
+        <div className="flex flex-col items-center justify-center gap-1 px-1">
+          <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
+            state.phase === 'playing'
+              ? state.currentTurn === 'black'
+                ? 'bg-stone-300 shadow-[0_0_6px_2px_rgba(255,255,255,0.3)]'
+                : 'bg-amber-200 shadow-[0_0_6px_2px_rgba(251,191,36,0.4)]'
+              : 'bg-stone-600'
+          }`} />
+        </div>
 
-        {/* White player */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 ${
+        {/* White side */}
+        <div className={`flex-1 flex flex-col gap-1 px-3 py-2 rounded-xl border transition-all duration-200 ${
           state.phase === 'playing' && state.currentTurn === 'white'
             ? 'bg-amber-900/40 border-amber-400/60 shadow-md'
             : 'bg-stone-900/40 border-stone-700/40'
         }`}>
-          <span className="text-lg font-bold tabular-nums leading-none">{white}</span>
-          <span className="text-sm font-semibold">白</span>
-          <span className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-50 to-amber-200 ring-2 ring-amber-400 shadow-inner flex-shrink-0" />
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold tabular-nums leading-none">{white}</span>
+            <span className="text-sm font-semibold ml-auto">白</span>
+            <span className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-50 to-amber-200 ring-2 ring-amber-400 shadow-inner flex-shrink-0" />
+          </div>
+          {/* Captured black pieces */}
+          {whiteCaptured > 0 && (
+            <div className="mt-0.5 flex justify-end">
+              <CapturedRow color="black" count={whiteCaptured} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -400,6 +484,22 @@ export default function App() {
                 const isSelected = selected !== null && selected[0] === r && selected[1] === c;
                 const isLanding = dark && landingSet.has(cellKey);
                 const isCapturer = mustCapture && originSet.has(cellKey);
+                const isPath = dark && !isLanding && !isSelected && pathSet.has(cellKey);
+                const isLastMovePath = !isSelected && !isLanding && lastMovePathSet.has(cellKey);
+                const isPieceDest = lastMoveDest === cellKey;
+
+                // Cell background priority: selected > landing > path > last-move > default
+                const cellBg = isSelected
+                  ? 'bg-amber-600/70 hover:bg-amber-600/80'
+                  : isLanding
+                    ? 'bg-emerald-700/70 hover:bg-emerald-600/80'
+                    : isPath
+                      ? 'bg-amber-700/50'
+                      : isLastMovePath
+                        ? 'bg-yellow-800/40'
+                        : dark
+                          ? 'bg-amber-800 hover:bg-amber-700 active:bg-amber-600'
+                          : 'bg-amber-100';
 
                 return (
                   <button
@@ -408,10 +508,7 @@ export default function App() {
                     onClick={() => handleCellClick(r, c)}
                     className={[
                       'relative flex items-center justify-center touch-manipulation transition-colors duration-100',
-                      dark ? 'bg-amber-800' : 'bg-amber-100',
-                      dark && !isLanding ? 'hover:bg-amber-700 active:bg-amber-600' : '',
-                      isLanding ? 'bg-emerald-700/70 hover:bg-emerald-600/80' : '',
-                      isSelected ? 'bg-amber-600/70 hover:bg-amber-600/80' : '',
+                      cellBg,
                     ].join(' ')}
                     style={{ minWidth: 0, minHeight: 0 }}
                     aria-label={
@@ -420,10 +517,17 @@ export default function App() {
                         : dark ? `Empty ${COL_LABELS[c]}${SIZE - r}` : 'Light square'
                     }
                   >
-                    {/* Landing dot */}
+                    {/* Landing dot (empty target square) */}
                     {isLanding && !piece && (
                       <span
                         className="absolute w-[35%] h-[35%] rounded-full bg-emerald-300/80 pointer-events-none"
+                        aria-hidden
+                      />
+                    )}
+                    {/* Path waypoint dot (intermediate squares) */}
+                    {isPath && !piece && (
+                      <span
+                        className="absolute w-[20%] h-[20%] rounded-full bg-amber-300/60 pointer-events-none"
                         aria-hidden
                       />
                     )}
@@ -434,6 +538,7 @@ export default function App() {
                         king={piece.king}
                         selected={isSelected}
                         capturer={isCapturer && !isSelected}
+                        lastMoveDest={isPieceDest && !isSelected}
                       />
                     )}
                     {/* Selected ring overlay */}
@@ -466,7 +571,6 @@ export default function App() {
 
         {settingsOpen && (
           <div className="mt-1 p-4 rounded-xl bg-stone-900/70 border border-stone-700/30 space-y-3 text-xs">
-            {/* Mode */}
             <div>
               <p className="text-stone-400 mb-1.5">對戰模式</p>
               <div className="flex gap-2">
@@ -474,7 +578,7 @@ export default function App() {
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => { setGameMode(mode); resetGame(); }}
+                    onClick={() => { setGameMode(mode); resetGame(); setSettingsOpen(false); }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors ${
                       gameMode === mode
                         ? 'border-amber-400 bg-amber-500/20 text-amber-100'
@@ -488,7 +592,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Side (bot only) */}
             {gameMode === 'bot' && (
               <div>
                 <p className="text-stone-400 mb-1.5">執子顏色</p>
@@ -497,7 +600,7 @@ export default function App() {
                     <button
                       key={side}
                       type="button"
-                      onClick={() => { setPlayerSide(side); resetGame(); }}
+                      onClick={() => { setPlayerSide(side); resetGame(); setSettingsOpen(false); }}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors ${
                         playerSide === side
                           ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
@@ -512,7 +615,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Difficulty (bot only) */}
             {gameMode === 'bot' && (
               <div>
                 <p className="text-stone-400 mb-1.5">電腦難度</p>
@@ -521,7 +623,7 @@ export default function App() {
                     <button
                       key={id}
                       type="button"
-                      onClick={() => { setDifficulty(id); resetGame(); }}
+                      onClick={() => { setDifficulty(id); resetGame(); setSettingsOpen(false); }}
                       className={`px-3 py-1.5 rounded-full border transition-colors ${
                         difficulty === id
                           ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
@@ -544,9 +646,10 @@ export default function App() {
           title={resultTitle}
           variant={resultVariant}
           stats={[
-            { label: '黑子', value: black },
-            { label: '白子', value: white },
-            { label: '模式', value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰' },
+            { label: '黑子剩餘', value: black },
+            { label: '白子剩餘', value: white },
+            { label: '黑方吃子', value: blackCaptured },
+            { label: '白方吃子', value: whiteCaptured },
           ]}
           onPrimary={() => { resetGame(); prevPhaseRef.current = 'playing'; }}
         />
