@@ -33,10 +33,6 @@ export default function App() {
   const playableIds = new Set(playable.map((t) => t.id));
   const ends = getChainEnds(state.chain);
   const canPlayAny = playable.length > 0;
-  const mustDraw =
-    state.phase === 'playing' &&
-    !canPlayAny &&
-    state.boneyard.length > 2;
 
   const isBotTurn =
     gameMode === 'bot' &&

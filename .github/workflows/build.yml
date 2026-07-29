@@ -25,8 +25,22 @@ jobs:
       - name: Verify game dependency versions
         run: node scripts/check-game-versions.mjs
 
+      # Typecheck and per-game logic checks. These existed in the games'
+      # package.json for a long time but nothing ran them, so a bot that had
+      # been picking its worst move for months went unnoticed.
+      - name: Typecheck games
+        run: npm run lint:all
+
+      - name: Run game logic checks
+        run: npm run check:all
+
       - name: Build all games
         run: npm run build:all
+
+      # Catches a game that would fetch its engine from a CDN at runtime:
+      # the build succeeds, then the game shows a black screen offline.
+      - name: Check built games for runtime CDN dependencies
+        run: npm run check:no-cdn
 
       - name: Build for GitHub Pages
         env:
