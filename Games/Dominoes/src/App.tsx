@@ -312,13 +312,14 @@ export default function App() {
               ))}
             </div>
           ) : (
-            <div className="flex gap-2 flex-wrap justify-center">
+            <div className="flex gap-2 flex-wrap justify-center items-end pb-4">
               {currentHand.map((t) => (
                 <DominoTile
                   key={t.id}
                   tile={t}
                   vertical={false}
                   highlight={playableIds.has(t.id) && selectedTileId === t.id}
+                  playable={playableIds.has(t.id) && selectedTileId !== t.id}
                   size="normal"
                   onClick={() => {
                     if (!playableIds.has(t.id)) return;

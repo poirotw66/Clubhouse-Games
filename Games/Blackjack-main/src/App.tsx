@@ -294,7 +294,8 @@ export default function App() {
     prevGameStateRef.current = gameState;
   }, [gameState, resultPrompt]);
 
-  const isBankrupt = balance === 0 && (gameState === 'gameOver' || gameState === 'betting');
+  // Bankrupt = no money left and no active bet that could still win back
+  const isBankrupt = balance === 0 && currentBet === 0 && gameState === 'betting';
   const resetAndPlayAgain = () => {
     setBalance(1000);
     setCurrentBet(0);
@@ -436,16 +437,19 @@ export default function App() {
       </div>
 
       <div className="w-full max-w-xl bg-black/40 p-3 sm:p-4 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg z-10 shrink-0">
-        {isBankrupt && (
-          <ResultOverlay
-            title="籌碼用盡"
-            variant="lose"
-            subtitle="遊戲結束"
-            primaryLabel="重新開始"
-            onPrimary={resetAndPlayAgain}
-          />
-        )}
-        {!isBankrupt && gameState === 'betting' ? (
+        {isBankrupt ? (
+          <div className="flex flex-col items-center gap-3 py-2">
+            <p className="text-red-400 font-bold tracking-widest uppercase text-sm">籌碼用盡</p>
+            <p className="text-white/50 text-xs">你已經沒有籌碼了</p>
+            <button
+              onClick={resetAndPlayAgain}
+              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2"
+            >
+              <RotateCcw className="w-5 h-5" />
+              重新開始（$1000）
+            </button>
+          </div>
+        ) : gameState === 'betting' ? (
           <div className="flex flex-col items-center gap-2 sm:gap-3">
             <div className="text-white/50 text-xs font-bold uppercase tracking-widest">Place Your Bet</div>
             <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
@@ -529,7 +533,7 @@ export default function App() {
         )}
       </div>
 
-      {gameState === 'gameOver' && resultPrompt && !isBankrupt && (
+      {gameState === 'gameOver' && resultPrompt && (
         <ResultOverlay
           title={
             resultPrompt === 'win' ? '你贏了！' : resultPrompt === 'lose' ? '你輸了' : '和局'
@@ -540,12 +544,16 @@ export default function App() {
             { label: '餘額', value: `$${balance}` },
             { label: '本局下注', value: `$${currentBet}` },
           ]}
-          primaryLabel="下一局"
+          primaryLabel={balance === 0 ? '重新開始（$1000）' : '下一局'}
           onPrimary={() => {
-            setGameState('betting');
-            setPlayerHands([]);
-            setDealerCards([]);
-            setMessage('');
+            if (balance === 0) {
+              resetAndPlayAgain();
+            } else {
+              setGameState('betting');
+              setPlayerHands([]);
+              setDealerCards([]);
+              setMessage('');
+            }
           }}
         />
       )}

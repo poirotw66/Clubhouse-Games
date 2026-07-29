@@ -7,8 +7,10 @@ interface DominoTileProps {
   displayRight?: number;
   /** If true, show vertical (narrow) for board; false = horizontal for hand. */
   vertical?: boolean;
-  /** Highlight as playable or selected. */
+  /** Tile is currently selected. */
   highlight?: boolean;
+  /** Tile can be played but is not yet selected. */
+  playable?: boolean;
   onClick?: () => void;
   /** Smaller for board chain. */
   size?: 'normal' | 'small';
@@ -20,6 +22,7 @@ export function DominoTile({
   displayRight,
   vertical = false,
   highlight = false,
+  playable = false,
   onClick,
   size = 'normal',
 }: DominoTileProps) {
@@ -28,29 +31,38 @@ export function DominoTile({
   const w = size === 'small' ? 'w-8' : 'w-14 sm:w-12';
   const h = size === 'small' ? 'h-16' : 'h-28 sm:h-24';
   const pipSize = size === 'small' ? 'text-xs' : 'text-lg';
-  const root = `rounded border-2 bg-white text-slate-800 flex items-center justify-center gap-0.5 touch-manipulation ${w} ${h} ${
-    highlight ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-800' : 'border-slate-400'
-  } ${onClick ? 'cursor-pointer hover:border-amber-500 active:scale-95' : ''}`;
+
+  const ringStyle = highlight
+    ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-800 border-amber-400'
+    : playable
+      ? 'border-amber-500/60 hover:border-amber-400 hover:ring-2 hover:ring-amber-400/40 hover:ring-offset-1 hover:ring-offset-slate-800'
+      : 'border-slate-400';
+
+  const root = `rounded border-2 bg-white text-slate-800 flex items-center justify-center gap-0.5 touch-manipulation transition-all duration-150 ${w} ${h} ${ringStyle} ${
+    onClick ? 'cursor-pointer active:scale-95' : ''
+  }`;
+
+  // Lift selected tile upward via wrapper translate
+  const liftStyle = highlight ? '-translate-y-3 drop-shadow-lg' : playable ? '-translate-y-1' : '';
+
   const half = `flex flex-col items-center justify-center flex-1 min-w-0 ${pipSize} font-bold`;
-  if (vertical) {
-    return (
-      <div
-        role={onClick ? 'button' : undefined}
-        className={`${root} flex-col`}
-        onClick={onClick}
-        onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
-        tabIndex={onClick ? 0 : undefined}
-      >
-        <div className={half}>{left}</div>
-        <div className="w-full border-t border-slate-300" />
-        <div className={half}>{right}</div>
-      </div>
-    );
-  }
-  return (
+
+  const inner = vertical ? (
     <div
       role={onClick ? 'button' : undefined}
-      className={`${root} flex-row`}
+      className={`${root} flex-col ${liftStyle}`}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
+      <div className={half}>{left}</div>
+      <div className="w-full border-t border-slate-300" />
+      <div className={half}>{right}</div>
+    </div>
+  ) : (
+    <div
+      role={onClick ? 'button' : undefined}
+      className={`${root} flex-row ${liftStyle}`}
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -59,6 +71,8 @@ export function DominoTile({
       <div className={half}>{right}</div>
     </div>
   );
+
+  return inner;
 }
 
 /** Board chain tile: horizontal, small, with display orientation. */

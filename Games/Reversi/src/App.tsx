@@ -84,6 +84,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
+  const [lastMove, setLastMove] = useState<[number, number] | null>(null);
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
 
@@ -156,6 +157,7 @@ export default function App() {
       const [r, c] = best;
       const nextBoard = applyMove(state.board, r, c, botColor);
       playMove();
+      setLastMove([r, c]);
       const nextTurn: Piece = botColor === 'black' ? 'white' : 'black';
       const nextMessage = nextTurn === 'black' ? '黑方下子' : '白方下子';
       applyMoveAndAdvance(nextBoard, nextTurn, nextMessage);
@@ -183,6 +185,7 @@ export default function App() {
       if (!legalSet.has(`${r},${c}`)) return;
       const nextBoard = applyMove(state.board, r, c, state.currentTurn);
       playMove();
+      setLastMove([r, c]);
       const nextTurn: Piece = state.currentTurn === 'black' ? 'white' : 'black';
       const nextMessage =
         gameMode === 'bot'
@@ -207,6 +210,7 @@ export default function App() {
     setGameMode(null);
     setPlayerSide('black');
     setState(getInitialState());
+    setLastMove(null);
     botScheduled.current = false;
   }, []);
 
@@ -438,6 +442,7 @@ export default function App() {
             const c = i % SIZE;
             const cell = state.board[r][c];
             const isLegal = legalSet.has(`${r},${c}`);
+            const isLastMove = lastMove !== null && lastMove[0] === r && lastMove[1] === c;
             return (
               <button
                 key={`${r}-${c}`}
@@ -448,9 +453,10 @@ export default function App() {
                   w-full aspect-square rounded-md flex items-center justify-center touch-manipulation
                   transition-colors duration-150 active:scale-95
                   ${cell ? 'cursor-default' : ''}
-                ${showLegalHints && isLegal && !cell ? 'bg-emerald-600/40 hover:bg-emerald-500/50' : 'bg-emerald-800/60'}
-                ${showLegalHints && !isLegal && state.phase === 'playing' ? 'hover:bg-emerald-700/70' : ''}
+                  ${showLegalHints && isLegal && !cell ? 'bg-emerald-600/40 hover:bg-emerald-500/50' : 'bg-emerald-800/60'}
+                  ${showLegalHints && !isLegal && state.phase === 'playing' ? 'hover:bg-emerald-700/70' : ''}
                   ${state.phase !== 'playing' ? 'cursor-default' : ''}
+                  ${isLastMove ? 'ring-2 ring-yellow-400/70 ring-inset' : ''}
                 `}
                 aria-label={
                   cell ? `Row ${r + 1} col ${c + 1} ${cell}` : isLegal ? `Place at ${r + 1},${c + 1}` : `Empty ${r + 1},${c + 1}`
@@ -458,11 +464,11 @@ export default function App() {
               >
                 {cell && (
                   <span
-                    className={`w-[85%] h-[85%] rounded-full shadow-inner ${
+                    className={`w-[85%] h-[85%] rounded-full shadow-inner transition-all duration-150 ${
                       cell === 'black'
                         ? 'bg-stone-900 ring-2 ring-stone-600'
                         : 'bg-white ring-2 ring-stone-400'
-                    }`}
+                    } ${isLastMove ? 'ring-4 ring-yellow-400/80' : ''}`}
                   />
                 )}
                 {!cell && showLegalHints && isLegal && (
