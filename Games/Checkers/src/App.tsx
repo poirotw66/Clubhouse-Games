@@ -82,13 +82,33 @@ export default function App() {
 
   const moves = state.phase === 'playing' ? getMovesForState(state) : [];
   const originSet = getOriginSet(moves);
+  const mustCapture = moves.length > 0 && moves[0].path.length > 2;
   const movesFromSelected = selected
     ? moves.filter((m) => m.from[0] === selected[0] && m.from[1] === selected[1])
     : [];
-  const landingFromSelected = getLandingSet(movesFromSelected);
+  // Forced capture: show destinations immediately; after select, narrow to that piece.
+  const landingSet =
+    selected != null
+      ? getLandingSet(movesFromSelected)
+      : mustCapture
+        ? getLandingSet(moves)
+        : new Set<string>();
   const { black, white } = countPieces(state.board);
   const humanCanPlay =
     gameMode === 'two' || (gameMode === 'bot' && state.currentTurn === playerSide);
+
+  const autoSelectKey = state.continuationFrom
+    ? `${state.continuationFrom[0]},${state.continuationFrom[1]}`
+    : mustCapture && originSet.size === 1
+      ? (originSet.values().next().value as string)
+      : null;
+
+  // Auto-select the only capturer / the piece mid multi-jump.
+  useEffect(() => {
+    if (state.phase !== 'playing' || !humanCanPlay || isBotTurn || !autoSelectKey) return;
+    const [r, c] = autoSelectKey.split(',').map(Number);
+    setSelected((prev) => (prev?.[0] === r && prev?.[1] === c ? prev : [r, c]));
+  }, [state.phase, autoSelectKey, humanCanPlay, isBotTurn]);
 
   useEffect(() => {
     if (!isBotTurn || botScheduled.current) return;
@@ -144,55 +164,73 @@ export default function App() {
     prevPhaseRef.current = state.phase;
   }, [state.phase, state.winner, gameMode, playerSide]);
 
+  const applyPlayerMove = useCallback(
+    (move: Move) => {
+      const nextBoard = applyMove(state.board, move);
+      if (move.path.length > 2) playCapture();
+      else playMove();
+      const [lastR, lastC] = move.path[move.path.length - 1];
+      const moreCaptures = getLegalMovesFrom(nextBoard, state.currentTurn, lastR, lastC).filter(
+        (m) => m.path.length > 2
+      );
+      if (moreCaptures.length > 0) {
+        setState({
+          board: nextBoard,
+          currentTurn: state.currentTurn,
+          phase: 'playing',
+          winner: null,
+          continuationFrom: [lastR, lastC],
+        });
+      } else {
+        const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
+        const winner = getWinner(nextBoard, nextTurn);
+        setState({
+          board: nextBoard,
+          currentTurn: nextTurn,
+          phase: winner ? 'over' : 'playing',
+          winner,
+          continuationFrom: null,
+        });
+      }
+      setSelected(null);
+    },
+    [state.board, state.currentTurn]
+  );
+
   const handleCellClick = useCallback(
     (r: number, c: number) => {
       if (state.phase !== 'playing' || !humanCanPlay || isBotTurn) return;
       if (!isDarkSquare(r, c)) return;
       const piece = state.board[r][c];
-      const isLanding = landingFromSelected.has(`${r},${c}`);
-      if (isLanding && selected) {
-        const move = movesFromSelected.find(
+      const cellKey = `${r},${c}`;
+      const isLanding = landingSet.has(cellKey);
+      if (isLanding) {
+        const candidates = (selected ? movesFromSelected : moves).filter(
           (m) => m.path[m.path.length - 1][0] === r && m.path[m.path.length - 1][1] === c
         );
-        if (!move) return;
-        const nextBoard = applyMove(state.board, move);
-        if (move.path.length > 2) playCapture();
-        else playMove();
-        const [lastR, lastC] = move.path[move.path.length - 1];
-        const moreCaptures = getLegalMovesFrom(nextBoard, state.currentTurn, lastR, lastC).filter(
-          (m) => m.path.length > 2
-        );
-        if (moreCaptures.length > 0) {
-          setState({
-            board: nextBoard,
-            currentTurn: state.currentTurn,
-            phase: 'playing',
-            winner: null,
-            continuationFrom: [lastR, lastC],
-          });
-          setSelected(null);
-        } else {
-          const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
-          const winner = getWinner(nextBoard, nextTurn);
-          setState({
-            board: nextBoard,
-            currentTurn: nextTurn,
-            phase: winner ? 'over' : 'playing',
-            winner,
-            continuationFrom: null,
-          });
-          setSelected(null);
+        if (candidates.length === 1) {
+          applyPlayerMove(candidates[0]);
+          return;
         }
+        if (candidates.length > 1 && selected) {
+          applyPlayerMove(candidates[0]);
+          return;
+        }
+        // Ambiguous landing (multiple pieces can jump here): pick an origin first.
         return;
       }
       if (piece && piece.color === state.currentTurn) {
         if (state.continuationFrom && (r !== state.continuationFrom[0] || c !== state.continuationFrom[1]))
           return;
-        const hasMoves = originSet.has(`${r},${c}`);
-        if (hasMoves) setSelected(selected?.[0] === r && selected?.[1] === c ? null : [r, c]);
+        const hasMoves = originSet.has(cellKey);
+        if (hasMoves) {
+          // During forced capture, don't deselect the only capturer by toggling.
+          if (mustCapture && selected?.[0] === r && selected?.[1] === c) return;
+          setSelected(selected?.[0] === r && selected?.[1] === c ? null : [r, c]);
+        }
         return;
       }
-      setSelected(null);
+      if (!mustCapture) setSelected(null);
     },
     [
       state.phase,
@@ -200,9 +238,14 @@ export default function App() {
       state.currentTurn,
       state.continuationFrom,
       selected,
-      landingFromSelected,
+      landingSet,
       movesFromSelected,
+      moves,
       originSet,
+      mustCapture,
+      humanCanPlay,
+      isBotTurn,
+      applyPlayerMove,
     ]
   );
 
@@ -218,14 +261,16 @@ export default function App() {
         ? '黑方獲勝'
         : '白方獲勝'
       : state.continuationFrom
-        ? '請繼續跳吃'
-        : gameMode === 'bot'
-          ? state.currentTurn === playerSide
-            ? '輪到你下子'
-            : '電腦思考中…'
-          : state.currentTurn === 'black'
-            ? '黑方下子'
-            : '白方下子';
+        ? '請繼續跳吃（亮格為落點）'
+        : mustCapture && humanCanPlay && !isBotTurn
+          ? '必須吃子 — 亮格為落點'
+          : gameMode === 'bot'
+            ? state.currentTurn === playerSide
+              ? '輪到你下子'
+              : '電腦思考中…'
+            : state.currentTurn === 'black'
+              ? '黑方下子'
+              : '白方下子';
 
   const resultTitle =
     state.phase === 'over' && state.winner
@@ -406,18 +451,21 @@ export default function App() {
             const c = i % SIZE;
             const dark = isDarkSquare(r, c);
             const piece = state.board[r][c];
+            const cellKey = `${r},${c}`;
             const isSelected = selected !== null && selected[0] === r && selected[1] === c;
-            const isLanding = dark && landingFromSelected.has(`${r},${c}`);
+            const isLanding = dark && landingSet.has(cellKey);
+            const isCapturer = mustCapture && originSet.has(cellKey);
             return (
               <button
                 key={`${r}-${c}`}
                 type="button"
                 onClick={() => handleCellClick(r, c)}
                 className={`
-                  flex items-center justify-center touch-manipulation
+                  relative flex items-center justify-center touch-manipulation
                   ${dark ? 'bg-amber-800 hover:bg-amber-700 active:bg-amber-600' : 'bg-amber-200'}
                   ${isSelected ? 'ring-2 ring-amber-400 ring-inset' : ''}
-                  ${isLanding ? 'bg-amber-500/60 hover:bg-amber-500/80' : ''}
+                  ${isLanding ? 'bg-emerald-500/55 hover:bg-emerald-400/70' : ''}
+                  ${isCapturer && !isSelected ? 'ring-2 ring-rose-400 ring-inset' : ''}
                 `}
                 style={{ minWidth: 0, minHeight: 0 }}
                 aria-label={
@@ -428,11 +476,18 @@ export default function App() {
                       : 'Light square'
                 }
               >
+                {isLanding && !piece && (
+                  <span
+                    className="absolute w-1/3 h-1/3 rounded-full bg-emerald-300/90 pointer-events-none"
+                    aria-hidden
+                  />
+                )}
                 {dark && piece && (
                   <span
                     className={`
                       w-[85%] h-[85%] rounded-full flex items-center justify-center text-xs font-bold
                       ${piece.color === 'black' ? 'bg-stone-800 ring-2 ring-stone-600 text-amber-200' : 'bg-amber-100 ring-2 ring-amber-300 text-stone-800'}
+                      ${isCapturer ? 'animate-pulse' : ''}
                     `}
                   >
                     {piece.king ? 'K' : ''}
