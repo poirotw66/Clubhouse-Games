@@ -14,10 +14,11 @@ import {
   pickBotMove,
   DIFFICULTY_LABELS,
 } from './utils/checkersLogic';
-import { RefreshCw, BookOpen, Users } from 'lucide-react';
+import { RefreshCw, BookOpen, Users, Bot, ChevronDown } from 'lucide-react';
 
 const SIZE = 8;
 const BOT_DELAY_MS = 500;
+const COL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 type GamePhase = 'playing' | 'over';
 type GameMode = 'two' | 'bot';
@@ -48,7 +49,6 @@ function getMovesForState(state: GameState): Move[] {
   return getLegalMoves(state.board, state.currentTurn);
 }
 
-/** Landing squares of current legal moves (for highlighting). */
 function getLandingSet(moves: Move[]): Set<string> {
   const set = new Set<string>();
   for (const m of moves) {
@@ -58,12 +58,52 @@ function getLandingSet(moves: Move[]): Set<string> {
   return set;
 }
 
-/** Origin squares that have at least one legal move. */
 function getOriginSet(moves: Move[]): Set<string> {
   const set = new Set<string>();
   for (const m of moves) set.add(`${m.from[0]},${m.from[1]}`);
   return set;
 }
+
+// ── Piece component ──────────────────────────────────────────────────────────
+
+interface PieceProps {
+  color: PieceColor;
+  king: boolean;
+  selected: boolean;
+  capturer: boolean;
+}
+
+function Piece({ color, king, selected, capturer }: PieceProps) {
+  const base =
+    color === 'black'
+      ? 'bg-gradient-to-br from-stone-600 to-stone-900 shadow-inner'
+      : 'bg-gradient-to-br from-amber-50 to-amber-200 shadow-inner';
+  const ring =
+    selected
+      ? 'ring-4 ring-amber-300 ring-offset-1 ring-offset-transparent'
+      : capturer
+        ? 'ring-3 ring-rose-400 ring-offset-1 ring-offset-transparent'
+        : color === 'black'
+          ? 'ring-2 ring-stone-500'
+          : 'ring-2 ring-amber-400';
+  const textColor = color === 'black' ? 'text-amber-200' : 'text-stone-700';
+
+  return (
+    <span
+      className={`
+        w-[80%] h-[80%] rounded-full flex items-center justify-center
+        font-bold select-none ${base} ${ring} ${textColor}
+        ${capturer && !selected ? 'animate-pulse' : ''}
+        transition-all duration-150
+      `}
+      style={{ fontSize: 'clamp(8px, 2vw, 14px)' }}
+    >
+      {king ? '♔' : ''}
+    </span>
+  );
+}
+
+// ── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('two');
@@ -72,6 +112,7 @@ export default function App() {
   const [state, setState] = useState<GameState>(getInitialState);
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const [showRules, setShowRules] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
 
@@ -86,7 +127,6 @@ export default function App() {
   const movesFromSelected = selected
     ? moves.filter((m) => m.from[0] === selected[0] && m.from[1] === selected[1])
     : [];
-  // Forced capture: show destinations immediately; after select, narrow to that piece.
   const landingSet =
     selected != null
       ? getLandingSet(movesFromSelected)
@@ -103,7 +143,6 @@ export default function App() {
       ? (originSet.values().next().value as string)
       : null;
 
-  // Auto-select the only capturer / the piece mid multi-jump.
   useEffect(() => {
     if (state.phase !== 'playing' || !humanCanPlay || isBotTurn || !autoSelectKey) return;
     const [r, c] = autoSelectKey.split(',').map(Number);
@@ -116,35 +155,19 @@ export default function App() {
     const timer = setTimeout(() => {
       const botColor: PieceColor = playerSide === 'black' ? 'white' : 'black';
       const move = pickBotMove(state.board, botColor, state.continuationFrom, difficulty);
-      if (!move) {
-        botScheduled.current = false;
-        return;
-      }
+      if (!move) { botScheduled.current = false; return; }
       const nextBoard = applyMove(state.board, move);
-      if (move.path.length > 2) playCapture();
-      else playMove();
+      if (move.path.length > 2) playCapture(); else playMove();
       const [lastR, lastC] = move.path[move.path.length - 1];
       const moreCaptures = getLegalMovesFrom(nextBoard, botColor, lastR, lastC).filter(
         (m) => m.path.length > 2
       );
       if (moreCaptures.length > 0) {
-        setState({
-          board: nextBoard,
-          currentTurn: botColor,
-          phase: 'playing',
-          winner: null,
-          continuationFrom: [lastR, lastC],
-        });
+        setState({ board: nextBoard, currentTurn: botColor, phase: 'playing', winner: null, continuationFrom: [lastR, lastC] });
       } else {
         const nextTurn: PieceColor = botColor === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn);
-        setState({
-          board: nextBoard,
-          currentTurn: nextTurn,
-          phase: winner ? 'over' : 'playing',
-          winner,
-          continuationFrom: null,
-        });
+        setState({ board: nextBoard, currentTurn: nextTurn, phase: winner ? 'over' : 'playing', winner, continuationFrom: null });
       }
       setSelected(null);
       botScheduled.current = false;
@@ -158,8 +181,7 @@ export default function App() {
       return;
     }
     if (gameMode === 'bot' && state.winner) {
-      if (state.winner === playerSide) playWin();
-      else playLose();
+      if (state.winner === playerSide) playWin(); else playLose();
     }
     prevPhaseRef.current = state.phase;
   }, [state.phase, state.winner, gameMode, playerSide]);
@@ -167,30 +189,17 @@ export default function App() {
   const applyPlayerMove = useCallback(
     (move: Move) => {
       const nextBoard = applyMove(state.board, move);
-      if (move.path.length > 2) playCapture();
-      else playMove();
+      if (move.path.length > 2) playCapture(); else playMove();
       const [lastR, lastC] = move.path[move.path.length - 1];
       const moreCaptures = getLegalMovesFrom(nextBoard, state.currentTurn, lastR, lastC).filter(
         (m) => m.path.length > 2
       );
       if (moreCaptures.length > 0) {
-        setState({
-          board: nextBoard,
-          currentTurn: state.currentTurn,
-          phase: 'playing',
-          winner: null,
-          continuationFrom: [lastR, lastC],
-        });
+        setState({ board: nextBoard, currentTurn: state.currentTurn, phase: 'playing', winner: null, continuationFrom: [lastR, lastC] });
       } else {
         const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn);
-        setState({
-          board: nextBoard,
-          currentTurn: nextTurn,
-          phase: winner ? 'over' : 'playing',
-          winner,
-          continuationFrom: null,
-        });
+        setState({ board: nextBoard, currentTurn: nextTurn, phase: winner ? 'over' : 'playing', winner, continuationFrom: null });
       }
       setSelected(null);
     },
@@ -208,23 +217,16 @@ export default function App() {
         const candidates = (selected ? movesFromSelected : moves).filter(
           (m) => m.path[m.path.length - 1][0] === r && m.path[m.path.length - 1][1] === c
         );
-        if (candidates.length === 1) {
+        if (candidates.length >= 1 && (candidates.length === 1 || selected)) {
           applyPlayerMove(candidates[0]);
           return;
         }
-        if (candidates.length > 1 && selected) {
-          applyPlayerMove(candidates[0]);
-          return;
-        }
-        // Ambiguous landing (multiple pieces can jump here): pick an origin first.
         return;
       }
       if (piece && piece.color === state.currentTurn) {
-        if (state.continuationFrom && (r !== state.continuationFrom[0] || c !== state.continuationFrom[1]))
-          return;
+        if (state.continuationFrom && (r !== state.continuationFrom[0] || c !== state.continuationFrom[1])) return;
         const hasMoves = originSet.has(cellKey);
         if (hasMoves) {
-          // During forced capture, don't deselect the only capturer by toggling.
           if (mustCapture && selected?.[0] === r && selected?.[1] === c) return;
           setSelected(selected?.[0] === r && selected?.[1] === c ? null : [r, c]);
         }
@@ -232,273 +234,311 @@ export default function App() {
       }
       if (!mustCapture) setSelected(null);
     },
-    [
-      state.phase,
-      state.board,
-      state.currentTurn,
-      state.continuationFrom,
-      selected,
-      landingSet,
-      movesFromSelected,
-      moves,
-      originSet,
-      mustCapture,
-      humanCanPlay,
-      isBotTurn,
-      applyPlayerMove,
-    ]
+    [state.phase, state.board, state.currentTurn, state.continuationFrom, selected,
+      landingSet, movesFromSelected, moves, originSet, mustCapture, humanCanPlay, isBotTurn, applyPlayerMove]
   );
 
-  const handleNewGame = useCallback(() => {
+  const resetGame = useCallback(() => {
     setState(getInitialState());
     setSelected(null);
     botScheduled.current = false;
   }, []);
 
-  const statusMessage =
+  // ── Status banner ──────────────────────────────────────────────────────────
+
+  const isMyTurn = humanCanPlay && !isBotTurn && state.phase === 'playing';
+  const bannerBg =
     state.phase === 'over'
-      ? state.winner === 'black'
-        ? '黑方獲勝'
-        : '白方獲勝'
+      ? 'bg-stone-700/60'
+      : isBotTurn
+        ? 'bg-sky-900/50 border-sky-600/40'
+        : mustCapture
+          ? 'bg-rose-900/50 border-rose-500/40'
+          : state.continuationFrom
+            ? 'bg-amber-900/60 border-amber-500/40'
+            : 'bg-stone-800/60 border-stone-600/30';
+
+  const bannerText =
+    state.phase === 'over'
+      ? state.winner === 'black' ? '⚫ 黑方獲勝' : '⚪ 白方獲勝'
       : state.continuationFrom
-        ? '請繼續跳吃（亮格為落點）'
-        : mustCapture && humanCanPlay && !isBotTurn
-          ? '必須吃子 — 亮格為落點'
-          : gameMode === 'bot'
-            ? state.currentTurn === playerSide
-              ? '輪到你下子'
-              : '電腦思考中…'
-            : state.currentTurn === 'black'
-              ? '黑方下子'
-              : '白方下子';
+        ? '🔁 繼續跳吃'
+        : mustCapture && isMyTurn
+          ? '⚠️ 必須吃子'
+          : isBotTurn
+            ? '🤖 電腦思考中…'
+            : gameMode === 'bot'
+              ? state.currentTurn === playerSide
+                ? '👆 輪到你下子'
+                : ''
+              : state.currentTurn === 'black'
+                ? '⚫ 黑方下子'
+                : '⚪ 白方下子';
 
   const resultTitle =
     state.phase === 'over' && state.winner
       ? gameMode === 'bot'
-        ? state.winner === playerSide
-          ? '你贏了！'
-          : '電腦獲勝'
-        : state.winner === 'black'
-          ? '黑方獲勝'
-          : '白方獲勝'
+        ? state.winner === playerSide ? '你贏了！' : '電腦獲勝'
+        : state.winner === 'black' ? '黑方獲勝' : '白方獲勝'
       : '';
 
   const resultVariant =
     gameMode === 'bot' && state.winner
-      ? state.winner === playerSide
-        ? 'win'
-        : 'lose'
+      ? state.winner === playerSide ? 'win' : 'lose'
       : 'neutral';
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="min-h-screen bg-amber-950 text-white flex flex-col items-center p-4 min-w-0">
+    <div className="min-h-screen bg-amber-950 text-white flex flex-col items-center p-3 pb-6 min-w-0">
       <BackToMenu />
-      <header className="w-full max-w-lg flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold tracking-tight">西洋跳棋 Checkers</h1>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-stone-900 text-stone-200 border border-stone-600">
-            {gameMode === 'bot' ? '對戰電腦' : '雙人對戰'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
+
+      {/* ── Header ── */}
+      <header className="w-full max-w-[420px] flex justify-between items-center mb-3 mt-1">
+        <h1 className="text-lg font-bold tracking-tight">西洋跳棋</h1>
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setShowRules(true)}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="Rules"
-            aria-label="Rules"
+            aria-label="規則說明"
           >
-            <BookOpen className="w-5 h-5" />
+            <BookOpen className="w-4 h-4" />
           </button>
           <button
             type="button"
-            onClick={handleNewGame}
+            onClick={resetGame}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="New game"
-            aria-label="New game"
+            aria-label="新遊戲"
           >
-            <RefreshCw className="w-5 h-5" />
+            <RefreshCw className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      <div className="flex items-center justify-center gap-6 mb-4 text-sm">
-        <div
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-            state.phase === 'playing' && state.currentTurn === 'black'
-              ? 'bg-amber-600/30 ring-2 ring-amber-400'
-              : 'bg-stone-800/50'
-          }`}
-        >
-          <span className="w-4 h-4 rounded-full bg-stone-800 ring-2 ring-stone-600" />
-          <span>黑 {black}</span>
+      {/* ── Score bar ── */}
+      <div className="w-full max-w-[420px] flex items-center justify-between mb-3 px-1">
+        {/* Black player */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 ${
+          state.phase === 'playing' && state.currentTurn === 'black'
+            ? 'bg-stone-700/60 border-amber-400/60 shadow-md'
+            : 'bg-stone-900/40 border-stone-700/40'
+        }`}>
+          <span className="w-5 h-5 rounded-full bg-gradient-to-br from-stone-600 to-stone-900 ring-2 ring-stone-500 shadow-inner flex-shrink-0" />
+          <span className="text-sm font-semibold">黑</span>
+          <span className="text-lg font-bold tabular-nums leading-none">{black}</span>
         </div>
-        <div
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-            state.phase === 'playing' && state.currentTurn === 'white'
-              ? 'bg-amber-600/30 ring-2 ring-amber-400'
-              : 'bg-stone-800/50'
-          }`}
-        >
-          <span className="w-4 h-4 rounded-full bg-amber-100 ring-2 ring-amber-300" />
-          <span>白 {white}</span>
+
+        {/* Turn indicator dot */}
+        <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
+          state.phase === 'playing'
+            ? state.currentTurn === 'black' ? 'bg-stone-300 shadow-[0_0_6px_2px_rgba(255,255,255,0.3)]' : 'bg-amber-200 shadow-[0_0_6px_2px_rgba(251,191,36,0.4)]'
+            : 'bg-stone-600'
+        }`} />
+
+        {/* White player */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 ${
+          state.phase === 'playing' && state.currentTurn === 'white'
+            ? 'bg-amber-900/40 border-amber-400/60 shadow-md'
+            : 'bg-stone-900/40 border-stone-700/40'
+        }`}>
+          <span className="text-lg font-bold tabular-nums leading-none">{white}</span>
+          <span className="text-sm font-semibold">白</span>
+          <span className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-50 to-amber-200 ring-2 ring-amber-400 shadow-inner flex-shrink-0" />
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
-        <button
-          type="button"
-          onClick={() => {
-            setGameMode('two');
-            setState(getInitialState());
-            setSelected(null);
-            botScheduled.current = false;
-          }}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-full border ${
-            gameMode === 'two'
-              ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-              : 'border-stone-600 bg-stone-900 text-stone-300'
-          }`}
-        >
-          <Users className="w-3 h-3" />
-          <span>雙人對戰</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setGameMode('bot');
-            setPlayerSide('black');
-            setState(getInitialState());
-            setSelected(null);
-            botScheduled.current = false;
-          }}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-full border ${
-            gameMode === 'bot' && playerSide === 'black'
-              ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
-              : 'border-stone-600 bg-stone-900 text-stone-300'
-          }`}
-        >
-          <span className="w-3 h-3 rounded-full bg-stone-800 ring-2 ring-stone-500" />
-          <span>電腦（你執黑）</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setGameMode('bot');
-            setPlayerSide('white');
-            setState(getInitialState());
-            setSelected(null);
-            botScheduled.current = false;
-          }}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-full border ${
-            gameMode === 'bot' && playerSide === 'white'
-              ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
-              : 'border-stone-600 bg-stone-900 text-stone-300'
-          }`}
-        >
-          <span className="w-3 h-3 rounded-full bg-amber-100 ring-2 ring-amber-300" />
-          <span>電腦（你執白）</span>
-        </button>
       </div>
 
-      {gameMode === 'bot' && (
-        <div
-          className="flex flex-wrap items-center justify-center gap-2 mb-4 text-xs"
-          role="group"
-          aria-label="電腦難度"
-        >
-          <span className="text-stone-400">電腦難度</span>
-          {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => {
-            const selected = difficulty === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setDifficulty(id);
-                  setState(getInitialState());
-                  setSelected(null);
-                  botScheduled.current = false;
-                }}
-                aria-pressed={selected}
-                className={`px-3 py-1.5 rounded-full border transition-colors ${
-                  selected
-                    ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
-                    : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
-                }`}
-              >
-                {DIFFICULTY_LABELS[id]}
-              </button>
-            );
-          })}
+      {/* ── Status banner ── */}
+      {bannerText && (
+        <div className={`w-full max-w-[420px] mb-3 py-2 px-4 rounded-xl border text-sm font-medium text-center transition-all duration-200 ${bannerBg}`}>
+          {bannerText}
         </div>
       )}
 
-      <p className="text-amber-200 text-sm mb-4">{statusMessage}</p>
-      <p className="text-amber-200/70 text-xs mb-2 md:hidden">點選棋子再點目的地移動</p>
-
-      <div
-        className="inline-block p-2 rounded-xl bg-amber-900/80 shadow-lg box-border w-full max-w-[min(92vw,360px)] aspect-square"
-      >
+      {/* ── Board with coordinates ── */}
+      <div className="w-full max-w-[420px]">
+        {/* Column labels */}
         <div
-          className="grid w-full h-full rounded-lg overflow-hidden"
-          style={{
-            gridTemplateColumns: `repeat(${SIZE}, 1fr)`,
-            gridTemplateRows: `repeat(${SIZE}, 1fr)`,
-          }}
+          className="grid mb-0.5 pl-5 pr-1"
+          style={{ gridTemplateColumns: `repeat(${SIZE}, 1fr)` }}
         >
-          {Array.from({ length: SIZE * SIZE }, (_, i) => {
-            const r = Math.floor(i / SIZE);
-            const c = i % SIZE;
-            const dark = isDarkSquare(r, c);
-            const piece = state.board[r][c];
-            const cellKey = `${r},${c}`;
-            const isSelected = selected !== null && selected[0] === r && selected[1] === c;
-            const isLanding = dark && landingSet.has(cellKey);
-            const isCapturer = mustCapture && originSet.has(cellKey);
-            return (
-              <button
-                key={`${r}-${c}`}
-                type="button"
-                onClick={() => handleCellClick(r, c)}
-                className={`
-                  relative flex items-center justify-center touch-manipulation
-                  ${dark ? 'bg-amber-800 hover:bg-amber-700 active:bg-amber-600' : 'bg-amber-200'}
-                  ${isSelected ? 'ring-2 ring-amber-400 ring-inset' : ''}
-                  ${isLanding ? 'bg-emerald-500/55 hover:bg-emerald-400/70' : ''}
-                  ${isCapturer && !isSelected ? 'ring-2 ring-rose-400 ring-inset' : ''}
-                `}
-                style={{ minWidth: 0, minHeight: 0 }}
-                aria-label={
-                  piece
-                    ? `${piece.color} ${piece.king ? 'king' : 'man'} at ${r + 1},${c + 1}`
-                    : dark
-                      ? `Empty at ${r + 1},${c + 1}`
-                      : 'Light square'
-                }
-              >
-                {isLanding && !piece && (
-                  <span
-                    className="absolute w-1/3 h-1/3 rounded-full bg-emerald-300/90 pointer-events-none"
-                    aria-hidden
-                  />
-                )}
-                {dark && piece && (
-                  <span
-                    className={`
-                      w-[85%] h-[85%] rounded-full flex items-center justify-center text-xs font-bold
-                      ${piece.color === 'black' ? 'bg-stone-800 ring-2 ring-stone-600 text-amber-200' : 'bg-amber-100 ring-2 ring-amber-300 text-stone-800'}
-                      ${isCapturer ? 'animate-pulse' : ''}
-                    `}
+          {COL_LABELS.map((l) => (
+            <span key={l} className="text-center text-[9px] text-amber-500/60 font-mono select-none">
+              {l}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex">
+          {/* Row labels */}
+          <div className="flex flex-col justify-around pr-1 w-4 flex-shrink-0">
+            {Array.from({ length: SIZE }, (_, r) => (
+              <span key={r} className="text-[9px] text-amber-500/60 font-mono select-none text-right leading-none">
+                {SIZE - r}
+              </span>
+            ))}
+          </div>
+
+          {/* Board */}
+          <div
+            className="flex-1 rounded-xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.5)] border border-amber-900/60"
+            style={{ aspectRatio: '1' }}
+          >
+            <div
+              className="grid w-full h-full"
+              style={{
+                gridTemplateColumns: `repeat(${SIZE}, 1fr)`,
+                gridTemplateRows: `repeat(${SIZE}, 1fr)`,
+              }}
+            >
+              {Array.from({ length: SIZE * SIZE }, (_, i) => {
+                const r = Math.floor(i / SIZE);
+                const c = i % SIZE;
+                const dark = isDarkSquare(r, c);
+                const piece = state.board[r][c];
+                const cellKey = `${r},${c}`;
+                const isSelected = selected !== null && selected[0] === r && selected[1] === c;
+                const isLanding = dark && landingSet.has(cellKey);
+                const isCapturer = mustCapture && originSet.has(cellKey);
+
+                return (
+                  <button
+                    key={cellKey}
+                    type="button"
+                    onClick={() => handleCellClick(r, c)}
+                    className={[
+                      'relative flex items-center justify-center touch-manipulation transition-colors duration-100',
+                      dark ? 'bg-amber-800' : 'bg-amber-100',
+                      dark && !isLanding ? 'hover:bg-amber-700 active:bg-amber-600' : '',
+                      isLanding ? 'bg-emerald-700/70 hover:bg-emerald-600/80' : '',
+                      isSelected ? 'bg-amber-600/70 hover:bg-amber-600/80' : '',
+                    ].join(' ')}
+                    style={{ minWidth: 0, minHeight: 0 }}
+                    aria-label={
+                      piece
+                        ? `${piece.color} ${piece.king ? 'king' : 'man'} at ${COL_LABELS[c]}${SIZE - r}`
+                        : dark ? `Empty ${COL_LABELS[c]}${SIZE - r}` : 'Light square'
+                    }
                   >
-                    {piece.king ? 'K' : ''}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                    {/* Landing dot */}
+                    {isLanding && !piece && (
+                      <span
+                        className="absolute w-[35%] h-[35%] rounded-full bg-emerald-300/80 pointer-events-none"
+                        aria-hidden
+                      />
+                    )}
+                    {/* Piece */}
+                    {dark && piece && (
+                      <Piece
+                        color={piece.color}
+                        king={piece.king}
+                        selected={isSelected}
+                        capturer={isCapturer && !isSelected}
+                      />
+                    )}
+                    {/* Selected ring overlay */}
+                    {isSelected && (
+                      <span className="absolute inset-0 ring-2 ring-amber-300 ring-inset pointer-events-none rounded-[1px]" aria-hidden />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* ── Settings accordion ── */}
+      <div className="w-full max-w-[420px] mt-4">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-stone-800/60 border border-stone-700/40 text-sm text-stone-300 hover:bg-stone-800/80 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            {gameMode === 'bot' ? <Bot className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+            {gameMode === 'bot'
+              ? `對戰電腦 · ${playerSide === 'black' ? '執黑' : '執白'} · ${DIFFICULTY_LABELS[difficulty]}`
+              : '雙人對戰'}
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${settingsOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {settingsOpen && (
+          <div className="mt-1 p-4 rounded-xl bg-stone-900/70 border border-stone-700/30 space-y-3 text-xs">
+            {/* Mode */}
+            <div>
+              <p className="text-stone-400 mb-1.5">對戰模式</p>
+              <div className="flex gap-2">
+                {(['two', 'bot'] as GameMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => { setGameMode(mode); resetGame(); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors ${
+                      gameMode === mode
+                        ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                        : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
+                    }`}
+                  >
+                    {mode === 'two' ? <Users className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
+                    {mode === 'two' ? '雙人對戰' : '對戰電腦'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Side (bot only) */}
+            {gameMode === 'bot' && (
+              <div>
+                <p className="text-stone-400 mb-1.5">執子顏色</p>
+                <div className="flex gap-2">
+                  {(['black', 'white'] as PieceColor[]).map((side) => (
+                    <button
+                      key={side}
+                      type="button"
+                      onClick={() => { setPlayerSide(side); resetGame(); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors ${
+                        playerSide === side
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+                          : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
+                      }`}
+                    >
+                      <span className={`w-3 h-3 rounded-full ring-1 ${side === 'black' ? 'bg-stone-800 ring-stone-500' : 'bg-amber-100 ring-amber-400'}`} />
+                      {side === 'black' ? '執黑' : '執白'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Difficulty (bot only) */}
+            {gameMode === 'bot' && (
+              <div>
+                <p className="text-stone-400 mb-1.5">電腦難度</p>
+                <div className="flex gap-2">
+                  {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => { setDifficulty(id); resetGame(); }}
+                      className={`px-3 py-1.5 rounded-full border transition-colors ${
+                        difficulty === id
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+                          : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
+                      }`}
+                    >
+                      {DIFFICULTY_LABELS[id]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Result overlay ── */}
       {state.phase === 'over' && (
         <ResultOverlay
           title={resultTitle}
@@ -506,18 +546,13 @@ export default function App() {
           stats={[
             { label: '黑子', value: black },
             { label: '白子', value: white },
-            {
-              label: '模式',
-              value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰',
-            },
+            { label: '模式', value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰' },
           ]}
-          onPrimary={() => {
-            handleNewGame();
-            prevPhaseRef.current = 'playing';
-          }}
+          onPrimary={() => { resetGame(); prevPhaseRef.current = 'playing'; }}
         />
       )}
 
+      {/* ── Rules modal ── */}
       {showRules && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
@@ -530,7 +565,7 @@ export default function App() {
             <ul className="text-sm text-stone-200 space-y-2 list-disc pl-4">
               <li>僅使用深色格；雙方各 12 子，黑方先手。</li>
               <li>兵斜向移動一格至空格；可跳過對方一子至後方空格並吃掉，可連續跳吃且必須跳完。</li>
-              <li>兵到達對方底線升為王（K）；王可斜向一格任意方向移動與吃子。</li>
+              <li>兵到達對方底線升為王（♔）；王可斜向一格任意方向移動與吃子。</li>
               <li>若可吃子則必須吃；無合法移動的一方輸。</li>
             </ul>
             <button
