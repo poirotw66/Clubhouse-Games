@@ -81,7 +81,6 @@ export default function App() {
     state.currentTurn === (playerSide === 'black' ? 'white' : 'black');
 
   const moves = state.phase === 'playing' ? getMovesForState(state) : [];
-  const landingSet = getLandingSet(moves);
   const originSet = getOriginSet(moves);
   const movesFromSelected = selected
     ? moves.filter((m) => m.from[0] === selected[0] && m.from[1] === selected[1])

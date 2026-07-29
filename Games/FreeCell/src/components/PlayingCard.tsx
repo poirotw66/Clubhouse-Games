@@ -74,7 +74,11 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       draggable={draggable}
-      onDragStart={onDragStart}
+      // The card uses native HTML5 drag-and-drop, but motion.div declares its
+      // own onDragStart for gesture dragging. Without a `drag` prop set, motion
+      // forwards this straight to the DOM, so the runtime behaviour is the
+      // native one — only the two type signatures collide.
+      onDragStart={onDragStart as unknown as React.ComponentProps<typeof motion.div>['onDragStart']}
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={cn(

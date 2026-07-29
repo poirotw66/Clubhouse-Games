@@ -4,7 +4,7 @@ import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import { playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { RefreshCw, Pause, Play, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Pause, Play, RotateCw, ChevronLeft } from 'lucide-react';
 import { PieceIcon } from './components/PieceIcon';
 import type { Cell, ActivePiece, TetrominoType, Mode } from './utils/tetrisLogic';
 import {
@@ -141,7 +141,7 @@ function lockPiece(
   spawnNext: (
     board: Cell[][],
     queue: TetrominoType[],
-    hold: TetrominoType | null,
+    _hold: TetrominoType | null,
   ) => { board: Cell[][]; active: ActivePiece | null; queue: TetrominoType[]; gameOver: boolean },
   onClear: (linesCleared: number, addScore: number) => void,
 ): GameState {
@@ -237,7 +237,9 @@ export default function App() {
     });
   }, []);
 
-  const spawnNext = useCallback((board: Cell[][], queue: TetrominoType[], hold: TetrominoType | null) => {
+  // `hold` is part of the callback shape lockPiece expects; spawning does not
+  // consult it, since a hold swap goes through holdPiece instead.
+  const spawnNext = useCallback((board: Cell[][], queue: TetrominoType[], _hold: TetrominoType | null) => {
     const { type, remaining } = nextFromQueue(queue);
     const active = spawnPiece(type);
     if (collides(board, active)) {

@@ -10,11 +10,18 @@
     "build:game": "node scripts/build-game.mjs",
     "build:all": "node scripts/build-all.mjs",
     "build:pages": "node scripts/generate-from-data.mjs && npm run build:css && node scripts/build-for-pages.mjs",
-    "check:versions": "node scripts/check-game-versions.mjs"
+    "check:versions": "node scripts/check-game-versions.mjs",
+    "lint:all": "node scripts/run-in-games.mjs lint",
+    "check:all": "node scripts/run-in-games.mjs check",
+    "check:no-cdn": "node scripts/check-no-cdn.mjs"
   },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.4.49",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.17"
   }
 }

@@ -15,8 +15,12 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    // shared/ lives outside this package; its own react types resolve from
+    // the repo root, which is where that code lives.
+    "paths": {
+      "@/*": ["./src/*"],
+      "@clubhouse/shared/*": ["../../shared/*"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

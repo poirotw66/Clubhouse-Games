@@ -179,7 +179,12 @@ export function countPieces(board: Board): { black: number; white: number } {
   return { black, white };
 }
 
-export function getWinner(board: Board, currentTurn: PieceColor): PieceColor | 'draw' | null {
+/**
+ * Winner, or null while the game is live. Draughts does have drawn positions
+ * (repetition, no captures for N moves) but none of them are tracked here, so
+ * this never reports one — the signature used to claim it could.
+ */
+export function getWinner(board: Board, currentTurn: PieceColor): PieceColor | null {
   const moves = getLegalMoves(board, currentTurn);
   if (moves.length > 0) return null;
   const { black, white } = countPieces(board);
