@@ -782,100 +782,100 @@ export default function ToyBoxing() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30 overflow-x-hidden">
       <BackToMenu />
-      {/* Header / HUD */}
-      <header className="max-w-5xl mx-auto p-6 flex justify-between items-center border-b border-white/10">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20">
-            <User className="w-6 h-6" />
+      {/* Header / HUD — stack on phone so the fixed w-48 bars can't force ~770px width */}
+      <header className="max-w-5xl mx-auto p-4 sm:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center border-b border-white/10">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="p-2.5 sm:p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20 shrink-0">
+            <User className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
             <h2 className="text-sm font-bold uppercase tracking-widest text-blue-400">Player 1</h2>
-            <div className="flex items-center gap-2">
-              <div className="w-48 h-3 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-full max-w-48 h-3 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
                 <motion.div 
                   className="h-full bg-emerald-500" 
                   animate={{ width: `${uiState.playerHealth}%` }}
                 />
               </div>
-              <span className="text-xs font-mono w-8">{Math.ceil(uiState.playerHealth)}</span>
+              <span className="text-xs font-mono w-8 shrink-0">{Math.ceil(uiState.playerHealth)}</span>
             </div>
             {/* Stamina & Super Bars */}
-            <div className="flex gap-2">
-              <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div className="flex gap-2 max-w-48">
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
                 <motion.div 
                   className="h-full bg-amber-400" 
                   animate={{ width: `${uiState.playerStamina}%` }}
                 />
               </div>
-              <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
                 <motion.div 
                   className={`h-full ${uiState.playerSuper >= 100 ? 'bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]' : 'bg-fuchsia-800'}`} 
                   animate={{ width: `${uiState.playerSuper}%` }}
                 />
               </div>
             </div>
-            <p className="text-xl font-black mt-1 tracking-tighter italic">SCORE: {uiState.playerScore}</p>
+            <p className="text-lg sm:text-xl font-black mt-1 tracking-tighter italic">SCORE: {uiState.playerScore}</p>
           </div>
         </div>
 
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center shrink-0 self-center">
           <div className="flex items-center gap-2 text-amber-400 mb-1">
             <Trophy className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-widest">Round {uiState.round}</span>
           </div>
-          <div className="bg-neutral-900 px-6 py-2 rounded-2xl border border-white/10 flex items-center gap-3 shadow-inner">
+          <div className="bg-neutral-900 px-4 sm:px-6 py-2 rounded-2xl border border-white/10 flex items-center gap-3 shadow-inner">
             <Timer className="w-5 h-5 text-neutral-500" />
-            <span className="text-3xl font-black font-mono tabular-nums">
+            <span className="text-2xl sm:text-3xl font-black font-mono tabular-nums">
               {Math.floor(uiState.timeLeft / 60)}:{(uiState.timeLeft % 60).toFixed(0).padStart(2, '0')}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-right">
-          <div className="flex flex-col gap-1 text-right items-end">
+        <div className="flex items-center gap-3 sm:gap-4 text-right min-w-0 flex-1 md:justify-end">
+          <div className="flex flex-col gap-1 text-right items-end min-w-0 flex-1">
             <h2 className="text-sm font-bold uppercase tracking-widest text-red-400">CPU</h2>
-            <div className="flex items-center gap-2 flex-row-reverse">
-              <div className="w-48 h-3 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
+            <div className="flex items-center gap-2 flex-row-reverse min-w-0 w-full justify-start">
+              <div className="w-full max-w-48 h-3 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
                 <motion.div 
                   className="h-full bg-rose-500" 
                   animate={{ width: `${uiState.cpuHealth}%` }}
                 />
               </div>
-              <span className="text-xs font-mono w-8">{Math.ceil(uiState.cpuHealth)}</span>
+              <span className="text-xs font-mono w-8 shrink-0">{Math.ceil(uiState.cpuHealth)}</span>
             </div>
             {/* Stamina & Super Bars */}
-            <div className="flex gap-2 flex-row-reverse">
-              <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div className="flex gap-2 flex-row-reverse max-w-48 ml-auto">
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
                 <motion.div 
                   className="h-full bg-amber-400" 
                   animate={{ width: `${uiState.cpuStamina}%` }}
                 />
               </div>
-              <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
                 <motion.div 
                   className={`h-full ${uiState.cpuSuper >= 100 ? 'bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]' : 'bg-fuchsia-800'}`} 
                   animate={{ width: `${uiState.cpuSuper}%` }}
                 />
               </div>
             </div>
-            <p className="text-xl font-black mt-1 tracking-tighter italic">SCORE: {uiState.cpuScore}</p>
+            <p className="text-lg sm:text-xl font-black mt-1 tracking-tighter italic">SCORE: {uiState.cpuScore}</p>
           </div>
-          <div className="p-3 bg-red-600 rounded-xl shadow-lg shadow-red-900/20">
-            <Monitor className="w-6 h-6" />
+          <div className="p-2.5 sm:p-3 bg-red-600 rounded-xl shadow-lg shadow-red-900/20 shrink-0">
+            <Monitor className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
       </header>
 
       {/* Game Area */}
-      <main className="max-w-5xl mx-auto mt-8 relative">
-        <div className="relative bg-neutral-900 rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+      <main className="max-w-5xl mx-auto mt-4 sm:mt-8 px-2 sm:px-0 relative w-full">
+        <div className="relative bg-neutral-900 rounded-3xl overflow-hidden border border-white/10 shadow-2xl w-full">
           <canvas 
             ref={canvasRef} 
             width={CANVAS_WIDTH} 
             height={CANVAS_HEIGHT}
-            className="w-full h-auto block"
+            className="w-full max-w-full h-auto block"
           />
 
           {/* Overlays */}

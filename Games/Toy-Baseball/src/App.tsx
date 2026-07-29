@@ -828,19 +828,20 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950 overflow-x-hidden w-full">
       <BackToMenu />
-      <div className="relative bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+      {/* Cap the fixed 800px canvas so phone viewports are not forced ~802px wide */}
+      <div className="relative w-full max-w-[800px] bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
         {/* Scoreboard */}
-        <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-start">
-          <div className="flex gap-8">
+        <div className="absolute top-0 left-0 right-0 p-3 sm:p-6 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-start gap-2">
+          <div className="flex gap-4 sm:gap-8 min-w-0">
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Away (Player)</span>
-              <span className="text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
+              <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Home (CPU)</span>
-              <span className="text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
+              <span className="text-3xl sm:text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
             </div>
           </div>
 
@@ -876,7 +877,7 @@ export default function App() {
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="block"
+          className="block w-full max-w-full h-auto"
         />
 
         {/* Overlays */}
@@ -1043,7 +1044,7 @@ export default function App() {
         )}
       </div>
 
-      <div className="mt-8 text-zinc-500 text-xs flex gap-8 font-medium">
+      <div className="mt-8 text-zinc-500 text-xs flex flex-wrap gap-4 sm:gap-8 font-medium justify-center">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-blue-500" />
           <span>打擊方 (Away)</span>

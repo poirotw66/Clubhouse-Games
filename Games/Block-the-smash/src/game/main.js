@@ -417,13 +417,14 @@ const particlePool = new Pool(() => {
 
 
 // --- INPUT HANDLING ---
+// Pointer events cover mouse + touch; phones never get mousemove alone.
 
-window.addEventListener('mousemove', (e) => {
-    state.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    state.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-});
+function updatePointer(clientX, clientY) {
+    state.mouse.x = (clientX / window.innerWidth) * 2 - 1;
+    state.mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+}
 
-window.addEventListener('mousedown', () => {
+function trySwing() {
     AudioSys.init(); // Ensure audio context is ready
 
     if (!state.swinging && state.isRunning && !state.isPaused) {
@@ -431,6 +432,26 @@ window.addEventListener('mousedown', () => {
         state.swingTime = 0;
         AudioSys.playSwoosh();
     }
+}
+
+window.addEventListener('pointermove', (e) => {
+    updatePointer(e.clientX, e.clientY);
+});
+
+window.addEventListener('pointerdown', (e) => {
+    // Keep the page from scrolling while dragging the racket on touch devices.
+    if (e.pointerType === 'touch') e.preventDefault();
+    updatePointer(e.clientX, e.clientY);
+    trySwing();
+}, { passive: false });
+
+// Keep mouse fallbacks for older browsers that never fire pointer events.
+window.addEventListener('mousemove', (e) => {
+    updatePointer(e.clientX, e.clientY);
+});
+
+window.addEventListener('mousedown', () => {
+    trySwing();
 });
 
 // --- GAME FUNCTIONS ---

@@ -297,10 +297,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-stone-800 p-2 sm:p-4 md:p-8 font-sans select-none overflow-x-hidden">
+    <div className="min-h-screen bg-[#FDFCF8] text-stone-800 p-2 pt-14 sm:p-4 sm:pt-16 md:p-8 md:pt-14 font-sans select-none overflow-x-hidden">
       <BackToMenu />
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
+        {/* Header — top padding clears the fixed back-to-menu pill on desktop too */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight text-stone-900">
             FreeCell
