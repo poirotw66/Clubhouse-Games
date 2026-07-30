@@ -11,13 +11,6 @@ import { fileURLToPath } from 'url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gamesDir = path.join(root, 'Games');
 
-const VITE5_BASELINE = {
-  react: '^18.3.1',
-  'react-dom': '^18.3.1',
-  vite: '^5.4.21',
-  '@vitejs/plugin-react': '^4.3.4',
-};
-
 const VITE6_BASELINE = {
   react: '^19.0.0',
   'react-dom': '^19.0.0',
@@ -25,19 +18,13 @@ const VITE6_BASELINE = {
   '@vitejs/plugin-react': '^5.0.4',
 };
 
-const VITE5_GAMES = new Set([
-  'Checkers',
-  'Connect-Four',
-  'Dominoes',
-  'Reversi',
-  'Tetris',
-]);
-
 const REACT_KEYS = ['react', 'react-dom', '@vitejs/plugin-react'];
 
+/** Games that intentionally pin a different React/Vite range. */
 const EXCEPTIONS = {
   'Instant-Flash': { react: '^19.2.3', 'react-dom': '^19.2.3' },
   'Block-the-smash': { react: '^19.2.0', 'react-dom': '^19.2.0' },
+  // Still on React 18 until a separate Capacitor/compat pass.
   'Mystery-Liquid-Sort': { react: '^18.3.1', 'react-dom': '^18.3.1' },
 };
 
@@ -50,9 +37,7 @@ function checkGame(name) {
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   // Dependency-free static games (no React, no bundler) have nothing to pin.
   if (!deps.react && !deps.vite) return [];
-  const isVite5 = VITE5_GAMES.has(name);
-  const baseline = isVite5 ? VITE5_BASELINE : VITE6_BASELINE;
-  const expected = { ...baseline, ...(EXCEPTIONS[name] ?? {}) };
+  const expected = { ...VITE6_BASELINE, ...(EXCEPTIONS[name] ?? {}) };
 
   // Vanilla games bundle with Vite but ship no React, so only their vite pin
   // applies. Keying off "declares none of the trio" rather than "no react"
