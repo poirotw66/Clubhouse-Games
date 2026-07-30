@@ -37,18 +37,23 @@ export default function App() {
       <div className="fixed inset-0 crt-overlay z-50 pointer-events-none opacity-20"></div>
 
       {gameState === GameState.MENU && (
-        <div className="absolute inset-0 flex items-center justify-center z-40 bg-[url('https://images.unsplash.com/photo-1514539079130-25950c84af65?q=80&w=2069&auto=format&fit=crop')] bg-cover bg-center">
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"></div>
-          
+        <div className="absolute inset-0 flex items-center justify-center z-40 overflow-hidden">
+          {/* Local dojo atmosphere — no CDN image (unsplash + 80% black wash looked broken). */}
+          <div className="absolute inset-0 bg-[#12182a]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#3d4f6f_0%,_transparent_55%)] opacity-70" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,_#0f766e55_0%,_transparent_40%),radial-gradient(circle_at_80%_70%,_#7f1d1d44_0%,_transparent_35%)]" />
+          <div className="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent" />
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-amber-200/10 blur-3xl" />
+
           <div className="relative z-10 text-center max-w-md p-8 animate-fade-in">
-             <div className="mb-6 inline-block p-4 rounded-full bg-slate-800/50 border border-slate-600 shadow-2xl">
+             <div className="mb-6 inline-block p-4 rounded-full bg-slate-800/70 border border-emerald-500/40 shadow-2xl shadow-emerald-900/40">
                 <Sword size={48} className="text-emerald-400" />
              </div>
              
              <h1 className="text-5xl md:text-6xl font-display font-black text-transparent bg-clip-text bg-gradient-to-br from-emerald-300 to-cyan-500 mb-2 drop-shadow-sm">
                INSTANT FLASH
              </h1>
-             <p className="text-slate-400 font-display tracking-[0.3em] mb-12 text-sm">IAI TRAINING GROUNDS</p>
+             <p className="text-slate-300 font-display tracking-[0.3em] mb-12 text-sm">IAI TRAINING GROUNDS</p>
              
              <div className="space-y-4">
                  <button 
@@ -60,7 +65,7 @@ export default function App() {
                  </button>
              </div>
 
-             <div className="mt-12 text-left bg-slate-900/80 p-6 rounded-lg border border-slate-700/50 text-sm text-slate-400 leading-relaxed">
+             <div className="mt-12 text-left bg-slate-900/85 p-6 rounded-lg border border-slate-600/60 text-sm text-slate-300 leading-relaxed shadow-xl">
                  <div className="flex items-center gap-2 mb-2 text-emerald-400 font-bold uppercase">
                     <Info size={16} /> How to Play
                  </div>
@@ -76,12 +81,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Game Layer - Key ensures fresh instance on restart */}
-      <GameCanvas 
-        key={gameState === GameState.PLAYING ? 'playing' : 'menu'}
-        gameActive={gameState === GameState.PLAYING} 
-        onGameOver={handleGameOver} 
-      />
+      {/* Only mount the arena while playing — avoids a black GameCanvas bleeding through the menu. */}
+      {gameState !== GameState.MENU && (
+        <GameCanvas
+          key={gameState === GameState.PLAYING ? 'playing' : 'over'}
+          gameActive={gameState === GameState.PLAYING}
+          onGameOver={handleGameOver}
+        />
+      )}
 
       {gameState === GameState.GAMEOVER && lastStats && (
         <ResultOverlay
