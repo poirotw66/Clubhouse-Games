@@ -41,7 +41,7 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 5 |
 | 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 4 |
-| 迷你遊戲類型 | [06-minigames/](06-minigames/) | 1 |
+| 迷你遊戲類型 | [06-minigames/](06-minigames/) | 2 |
 <!-- /GENERATED_TABLE -->
 
 # Clubhouse Games
@@ -75,4 +75,5 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 
 ## 06-迷你遊戲
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
+- [x] [色感記憶](06-minigames/dialed-color.md) → [Games/Dialed-Color/](Games/Dialed-Color/)
 <!-- /GENERATED_GAMES_CHECKLIST -->
