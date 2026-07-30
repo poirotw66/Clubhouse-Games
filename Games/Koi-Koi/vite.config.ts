@@ -23,6 +23,7 @@ export default defineConfig(() => {
         react: resolvePkg('react'),
         'react/jsx-runtime': path.join(resolvePkg('react'), 'jsx-runtime.js'),
         'react-dom': resolvePkg('react-dom'),
+        tailwindcss: resolvePkg('tailwindcss'),
       },
     },
     server: {

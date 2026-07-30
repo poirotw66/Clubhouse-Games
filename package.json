@@ -9,7 +9,7 @@
     "dev": "node server.mjs",
     "setup": "node scripts/setup.mjs",
     "generate": "node scripts/generate-from-data.mjs",
-    "build:css": "tailwindcss -i styles/menu.input.css -o assets/menu.css --minify",
+    "build:css": "npx --yes -p tailwindcss@3.4.17 -p postcss@8.4.49 -p autoprefixer@10.4.21 tailwindcss -i styles/menu.input.css -o assets/menu.css --minify",
     "build:game": "node scripts/build-game.mjs",
     "build:all": "node scripts/build-all.mjs",
     "build:pages": "node scripts/generate-from-data.mjs && npm run build:css && node scripts/build-for-pages.mjs",
@@ -21,10 +21,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.4.49",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwindcss": "^3.4.17"
+    "react-dom": "^19.0.0"
   }
 }
