@@ -21,12 +21,7 @@ const VITE6_BASELINE = {
 const REACT_KEYS = ['react', 'react-dom', '@vitejs/plugin-react'];
 
 /** Games that intentionally pin a different React/Vite range. */
-const EXCEPTIONS = {
-  'Instant-Flash': { react: '^19.2.3', 'react-dom': '^19.2.3' },
-  'Block-the-smash': { react: '^19.2.0', 'react-dom': '^19.2.0' },
-  // Still on React 18 until a separate Capacitor/compat pass.
-  'Mystery-Liquid-Sort': { react: '^18.3.1', 'react-dom': '^18.3.1' },
-};
+const EXCEPTIONS = {};
 
 function readPkg(name) {
   return JSON.parse(fs.readFileSync(path.join(gamesDir, name, 'package.json'), 'utf8'));
