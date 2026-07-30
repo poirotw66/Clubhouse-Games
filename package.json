@@ -2,6 +2,9 @@
   "name": "clubhouse-games",
   "private": true,
   "description": "Game specs and game overview menu; subprojects under Games/",
+  "workspaces": [
+    "Games/*"
+  ],
   "scripts": {
     "dev": "node server.mjs",
     "setup": "node scripts/setup.mjs",

@@ -1,11 +1,20 @@
+import { createRequire } from 'node:module';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
+const require = createRequire(path.resolve(__dirname, 'package.json'));
+function resolvePkg(name: string): string {
+  return path.dirname(require.resolve(`${name}/package.json`));
+}
+
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
+    // Prevent Vite from walking up to root postcss.config.js (Tailwind v3).
+    css: { postcss: { plugins: [] } },
     base: process.env.BASE_URL || './',
     plugins: [react(), tailwindcss()],
     define: {
@@ -15,9 +24,9 @@ export default defineConfig(({mode}) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
         '@clubhouse/shared': path.resolve(__dirname, '../../shared'),
-        'react': path.resolve(__dirname, 'node_modules/react'),
-        'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
-        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+        'react': resolvePkg('react'),
+        'react/jsx-runtime': path.join(resolvePkg('react'), 'jsx-runtime.js'),
+        'react-dom': resolvePkg('react-dom'),
       },
     },
     server: {

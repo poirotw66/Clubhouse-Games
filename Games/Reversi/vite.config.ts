@@ -1,6 +1,13 @@
+import { createRequire } from 'node:module';
 import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const require = createRequire(path.resolve(__dirname, 'package.json'));
+function resolvePkg(name: string): string {
+  return path.dirname(require.resolve(`${name}/package.json`));
+}
+
 
 export default defineConfig(() => {
   const base = process.env.BASE_URL ?? './';
@@ -15,9 +22,9 @@ export default defineConfig(() => {
     resolve: {
       alias: { '@': path.resolve(__dirname, '.'),
         '@clubhouse/shared': path.resolve(__dirname, '../../shared'),
-        'react': path.resolve(__dirname, 'node_modules/react'),
-        'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
-        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'), },
+        'react': resolvePkg('react'),
+        'react/jsx-runtime': path.join(resolvePkg('react'), 'jsx-runtime.js'),
+        'react-dom': resolvePkg('react-dom'), },
     },
     build: {
       outDir: 'dist',

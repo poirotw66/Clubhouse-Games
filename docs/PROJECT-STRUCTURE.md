@@ -33,6 +33,7 @@ Clubhouse-Games/
 - **規格文件**：僅放在 `01-cards/`～`06-minigames/`，不包含程式碼。  
 - **遊戲實作**：每款遊戲一個獨立子專案，放在 `Games/<遊戲專案名>/`。  
 - **總覽選單**：根目錄 `index.html` 為 GitHub Pages 首頁，列出所有遊戲並連結至規格與遊戲入口；選單與 README 遊戲清單由 `data/games.json` 驅動，執行 `npm run generate` 可重新產生。
+- **npm workspaces**：根目錄 `package.json` 以 `"workspaces": ["Games/*"]` 管理各遊戲依賴；執行一次 `npm run setup`（根目錄 `npm install`）即可，不必再進每個 `Games/<名>/` 各自安裝。唯一的 lockfile 是根目錄 `package-lock.json`。
 - **本地單一服務**：根目錄執行 `npm run dev` 只會啟動 **一個** Node 伺服器（`server.mjs`），提供選單與靜態檔；各遊戲從 `Games/<名>/dist/` 提供（需先 `npm run build:game <名>`）。不會因遊戲變多而開多個服務。
 
 ---

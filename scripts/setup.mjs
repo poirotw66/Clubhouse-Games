@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Install root and all game subproject dependencies under Games/.
+ * Install all workspace dependencies once at the repo root.
+ * Games live under Games/* as npm workspaces — no per-game npm install.
  * Usage: npm run setup
  */
 
@@ -20,27 +21,19 @@ function getGameFolders() {
   );
 }
 
-function runInstall(cwd, label) {
-  console.log(`\n=== ${label} ===`);
-  const result = spawnSync('npm', ['install'], {
-    cwd,
-    stdio: 'inherit',
-    shell: true,
-  });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
-  }
+console.log('\n=== root (npm workspaces) ===');
+const result = spawnSync('npm', ['install'], {
+  cwd: root,
+  stdio: 'inherit',
+  shell: true,
+});
+if (result.status !== 0) {
+  console.error('Failed: npm install at root');
+  process.exit(result.status ?? 1);
 }
-
-runInstall(root, 'root');
 
 const gameFolders = getGameFolders();
-for (const name of gameFolders) {
-  runInstall(path.join(root, 'Games', name), `Games/${name}`);
-}
-
-console.log(`\nDone. Installed root + ${gameFolders.length} game(s).`);
+console.log(`\nDone. Installed root + ${gameFolders.length} workspace game(s).`);
 
 console.log('\n=== build menu CSS ===');
 const cssResult = spawnSync('npm', ['run', 'build:css'], {

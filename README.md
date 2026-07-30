@@ -13,7 +13,7 @@ This project collects specification and gameplay documents for each game, for us
 
 Only **one** development server is started; the menu and all built games are served from the same port.
 
-1. Install dependencies in the project root (sub-projects need to be installed separately):
+1. Install dependencies once at the repo root (npm workspaces covers every game):
    ```bash
    npm run setup
    ```
