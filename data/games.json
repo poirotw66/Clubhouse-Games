@@ -30,6 +30,14 @@
           "players": "1 人",
           "specPath": "01-cards/klondike.md",
           "gameFolder": "Klondike"
+        },
+        {
+          "name": "花牌 Koi-Koi",
+          "en": "Koi-Koi",
+          "desc": "日本花札對戰：配對取牌、組成役得分，可喊 Koi-Koi 繼續博更高分。",
+          "players": "1 人",
+          "specPath": "01-cards/koi-koi.md",
+          "gameFolder": "Koi-Koi"
         }
       ]
     },

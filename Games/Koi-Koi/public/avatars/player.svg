@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Player avatar">
+  <defs>
+    <linearGradient id="playerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8e8d8"/>
+      <stop offset="100%" stop-color="#e8c4a8"/>
+    </linearGradient>
+    <linearGradient id="playerKimono" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8b2942"/>
+      <stop offset="100%" stop-color="#5c1830"/>
+    </linearGradient>
+    <linearGradient id="playerHair" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a1810"/>
+      <stop offset="100%" stop-color="#1a0f08"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="url(#playerBg)" stroke="#b8860b" stroke-width="4"/>
+  <circle cx="100" cy="100" r="88" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.5"/>
+  <ellipse cx="100" cy="118" rx="52" ry="58" fill="url(#playerKimono)"/>
+  <path d="M58 118 Q100 92 142 118 L142 170 Q100 158 58 170 Z" fill="#f5e6d3"/>
+  <path d="M48 125 Q100 108 152 125" fill="none" stroke="#d4af37" stroke-width="2"/>
+  <circle cx="100" cy="78" r="34" fill="#f5d5c0"/>
+  <ellipse cx="100" cy="62" rx="38" ry="28" fill="url(#playerHair)"/>
+  <path d="M62 58 Q68 42 82 48 Q76 62 62 58" fill="url(#playerHair)"/>
+  <path d="M138 58 Q132 42 118 48 Q124 62 138 58" fill="url(#playerHair)"/>
+  <circle cx="88" cy="80" r="4" fill="#2a1810"/>
+  <circle cx="112" cy="80" r="4" fill="#2a1810"/>
+  <path d="M94 92 Q100 98 106 92" fill="none" stroke="#c45c5c" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="126" cy="52" r="8" fill="#c41e3a"/>
+  <circle cx="126" cy="52" r="4" fill="#ffd700"/>
+  <path d="M120 44 L132 44 L126 36 Z" fill="#c41e3a"/>
+</svg>

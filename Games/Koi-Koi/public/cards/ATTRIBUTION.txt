@@ -1,0 +1,11 @@
+Hanafuda card artwork (placeholder deck)
+
+Source: Wikimedia Commons — Category "SVG Hanafuda with traditional colors (black border)"
+Author: Louie Mantia (https://commons.wikimedia.org/wiki/User:Louiemantia)
+License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/
+
+This is a temporary placeholder set. Replace with custom themed artwork later while
+keeping the same filename pattern (public/cards/{card-id}.svg).
+
+Download script: scripts/download-card-images.sh

@@ -36,7 +36,7 @@
 <!-- GENERATED_TABLE -->
 | 類別 | 資料夾 | 遊戲數 |
 |------|--------|--------|
-| 紙牌類型 | [01-cards/](01-cards/) | 3 |
+| 紙牌類型 | [01-cards/](01-cards/) | 4 |
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 5 |
@@ -51,6 +51,7 @@
 - [x] [二十一點](01-cards/blackjack.md) → [Games/Blackjack-main/](Games/Blackjack-main/)
 - [x] [連環新接龍（FreeCell）](01-cards/freecell.md) → [Games/FreeCell/](Games/FreeCell/)
 - [x] [克朗代克接龍](01-cards/klondike.md) → [Games/Klondike/](Games/Klondike/)
+- [x] [花牌 Koi-Koi](01-cards/koi-koi.md) → [Games/Koi-Koi/](Games/Koi-Koi/)
 
 ## 02-棋盤遊戲
 - [x] [黑白棋](02-board/reversi.md) → [Games/Reversi/](Games/Reversi/)

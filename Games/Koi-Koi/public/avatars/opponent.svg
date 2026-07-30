@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Opponent avatar">
+  <defs>
+    <linearGradient id="opponentBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a2a4a"/>
+      <stop offset="100%" stop-color="#0f1828"/>
+    </linearGradient>
+    <linearGradient id="opponentKimono" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2d4a3e"/>
+      <stop offset="100%" stop-color="#1a3028"/>
+    </linearGradient>
+    <linearGradient id="opponentHair" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c8c8d0"/>
+      <stop offset="100%" stop-color="#9090a0"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="url(#opponentBg)" stroke="#8b7355" stroke-width="4"/>
+  <circle cx="100" cy="100" r="88" fill="none" stroke="#c0a060" stroke-width="1" opacity="0.4"/>
+  <ellipse cx="100" cy="118" rx="52" ry="58" fill="url(#opponentKimono)"/>
+  <path d="M58 118 Q100 92 142 118 L142 170 Q100 158 58 170 Z" fill="#e8e0d0"/>
+  <path d="M48 125 Q100 108 152 125" fill="none" stroke="#c0a060" stroke-width="2"/>
+  <circle cx="100" cy="78" r="34" fill="#e8dcc8"/>
+  <ellipse cx="100" cy="58" rx="36" ry="24" fill="url(#opponentHair)"/>
+  <path d="M64 70 Q72 48 100 44 Q128 48 136 70" fill="url(#opponentHair)"/>
+  <ellipse cx="88" cy="78" rx="5" ry="6" fill="#2a2030"/>
+  <ellipse cx="112" cy="78" rx="5" ry="6" fill="#2a2030"/>
+  <path d="M94 94 Q100 88 106 94" fill="none" stroke="#6a5040" stroke-width="2" stroke-linecap="round"/>
+  <path d="M78 68 Q88 64 98 68" fill="none" stroke="#6a6068" stroke-width="2"/>
+  <path d="M102 68 Q112 64 122 68" fill="none" stroke="#6a6068" stroke-width="2"/>
+  <path d="M148 55 Q160 45 168 58 Q158 68 148 55" fill="#f0e8d8" opacity="0.9"/>
+  <text x="100" y="188" text-anchor="middle" fill="#c0a060" font-size="14" font-family="serif">+ </text>
+</svg>
