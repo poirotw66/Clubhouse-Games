@@ -269,8 +269,10 @@ export function createGameWorld(): GameWorld {
 
     camera.position.set(camX + shakeX, camY + shakeY, camZ);
     const lookX = trackOffset(z + CAMERA_LOOK_AHEAD) + laneBody.x * 0.2;
+    // lookAt then local roll — never assign rotation.z after lookAt (Euler rewrite
+    // drops the ~π roll baked into +Z chase cams and flips the view upside-down).
     camera.lookAt(lookX, 1.2, z + CAMERA_LOOK_AHEAD);
-    camera.rotation.z = camRoll;
+    camera.rotateZ(camRoll);
 
     rim.position.set(ox + laneBody.x, 2.5, z + 2);
   }
