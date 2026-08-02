@@ -19,7 +19,8 @@ export const OBSTACLE_DESPAWN_BEHIND = 12;
 export const OBSTACLE_MIN_GAP = 14;
 export const OBSTACLE_MAX_GAP = 28;
 
-export const NEAR_MISS_WINDOW = 1.35;
+/** Adjacent-lane pass counts as near-miss (lane spacing is LANE_WIDTH). */
+export const NEAR_MISS_WINDOW = 2.85;
 export const NEAR_MISS_SCORE = 120;
 export const DISTANCE_SCORE_PER_M = 2.5;
 

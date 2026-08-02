@@ -18,35 +18,27 @@ export function GameCanvas({
   worldRef,
 }: GameCanvasProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
+  const onHudRef = useRef(onHud);
+  const onGameOverRef = useRef(onGameOver);
+  onHudRef.current = onHud;
+  onGameOverRef.current = onGameOver;
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+
     const world = createGameWorld();
     worldRef.current = world;
-    world.onHud(onHud);
-    world.onGameOver(onGameOver);
+    world.onHud((hud) => onHudRef.current(hud));
+    world.onGameOver((result) => onGameOverRef.current(result));
     world.mount(host);
+    world.start();
+
     return () => {
       world.unmount();
-      worldRef.current = null;
+      if (worldRef.current === world) worldRef.current = null;
     };
-    // Mount once; callbacks read via refs below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const world = worldRef.current;
-    if (!world) return;
-    world.onHud(onHud);
-    world.onGameOver(onGameOver);
-  }, [onHud, onGameOver, worldRef]);
-
-  useEffect(() => {
-    const world = worldRef.current;
-    if (!world || !running) return;
-    world.start();
-  }, [running, worldRef]);
+  }, [worldRef]);
 
   useEffect(() => {
     const world = worldRef.current;
@@ -54,11 +46,5 @@ export function GameCanvas({
     world.setPaused(paused);
   }, [paused, running, worldRef]);
 
-  return (
-    <div
-      ref={hostRef}
-      className="absolute inset-0 z-0"
-      aria-hidden="true"
-    />
-  );
+  return <div ref={hostRef} className="absolute inset-0 z-0" aria-hidden="true" />;
 }

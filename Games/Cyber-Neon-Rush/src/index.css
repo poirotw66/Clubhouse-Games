@@ -46,6 +46,7 @@ body,
   right: 0;
   z-index: 9000;
   pointer-events: none;
+  isolation: isolate;
   padding: 0.65rem 0.85rem 0.5rem;
   background: linear-gradient(
     180deg,

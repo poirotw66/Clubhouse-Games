@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
 import { Scoreboard } from './components/Scoreboard';
@@ -78,7 +77,7 @@ export default function App(): ReactElement {
         } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
           e.preventDefault();
           nudge(1);
-        } else if (e.code === 'Space' || e.code === 'KeyP') {
+        } else if (e.code === 'KeyP' || e.code === 'Escape') {
           e.preventDefault();
           setScreen((s) => (s === 'paused' ? 'playing' : 'paused'));
         }
@@ -143,7 +142,7 @@ export default function App(): ReactElement {
               開始疾馳
             </button>
             <p className="hint">
-              鍵盤 ← → 或 A D 切道・空白鍵暫停
+              鍵盤 ← → 或 A D 切道・P / Esc 暫停
               <br />
               最佳分數 {hud.bestScore || '—'} ・ 最遠 {hud.bestDistance || '—'} m
             </p>
@@ -155,7 +154,7 @@ export default function App(): ReactElement {
         <div className="menu-shell" style={{ background: 'rgba(5,8,22,0.55)' }}>
           <div className="menu-card">
             <h2 className="font-display text-3xl neon-text mb-2">暫停</h2>
-            <p className="hint">空白鍵或 P 繼續</p>
+            <p className="hint">按 P 或 Esc 繼續</p>
             <button type="button" className="cta" onClick={() => setScreen('playing')}>
               繼續疾馳
             </button>
@@ -170,20 +169,43 @@ export default function App(): ReactElement {
       />
 
       {screen === 'gameover' && result && (
-        <ResultOverlay
-          title="衝撞出局"
-          subtitle={result.isNewBest ? '新紀錄！霓虹夜空記住了你的車軌。' : '再來一趟，閃得更漂亮。'}
-          badge={result.isNewBest ? 'NEW BEST' : undefined}
-          variant={result.isNewBest ? 'win' : 'lose'}
-          stats={[
-            { label: '分數', value: result.score.toLocaleString('zh-Hant') },
-            { label: '距離', value: `${result.distance} m` },
-            { label: '閃避', value: result.avoids },
-            { label: '最高連擊', value: result.maxCombo },
-          ]}
-          primaryLabel="再玩一局"
-          onPrimary={startRun}
-        />
+        <div
+          className="fixed inset-0 z-[9500] flex items-center justify-center bg-[#020617]/92 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="衝撞出局"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-cyan-400/40 bg-slate-950/95 p-6 sm:p-8 shadow-[0_0_40px_rgba(34,211,238,0.25)] text-center">
+            {result.isNewBest && (
+              <p className="mb-2 text-sm font-semibold tracking-wide text-amber-300 uppercase font-display">
+                NEW BEST
+              </p>
+            )}
+            <h2 className="font-display text-3xl font-bold mb-2 text-fuchsia-300 neon-text">衝撞出局</h2>
+            <p className="text-slate-300 text-sm mb-4">
+              {result.isNewBest ? '新紀錄！霓虹夜空記住了你的車軌。' : '再來一趟，閃得更漂亮。'}
+            </p>
+            <dl className="mb-6 grid gap-2 text-sm">
+              {[
+                { label: '分數', value: result.score.toLocaleString('zh-Hant') },
+                { label: '距離', value: `${result.distance} m` },
+                { label: '閃避', value: String(result.avoids) },
+                { label: '最高連擊', value: String(result.maxCombo) },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="flex justify-between rounded-lg bg-slate-900/90 px-3 py-2 border border-cyan-500/20"
+                >
+                  <dt className="text-slate-400">{stat.label}</dt>
+                  <dd className="font-mono font-semibold text-white tabular-nums">{stat.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <button type="button" className="cta" onClick={startRun}>
+              再玩一局
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

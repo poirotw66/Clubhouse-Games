@@ -24,9 +24,8 @@ import { createLaneBody, laneBodyRoll, stepLaneBody, type LaneBody } from './lan
 import {
   createCarMesh,
   createCityBlocks,
-  createLaneStripes,
   createObstacleMesh,
-  createTrackRibbon,
+  createRoadChunk,
   type ObstacleKind,
 } from './meshes';
 import {
@@ -72,22 +71,20 @@ export function createGameWorld(): GameWorld {
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x050816, 1);
-  renderer.shadowMap.enabled = true;
+  // Shadows off: VM/software GL stalls hard on shadow-map ReadPixels.
+  renderer.shadowMap.enabled = false;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x050816, 0.012);
+  scene.fog = new THREE.FogExp2(0x050816, 0.009);
 
   const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 400);
   const clock = new THREE.Clock();
 
-  const hemi = new THREE.HemisphereLight(0x67e8f9, 0x1e1b4b, 0.55);
-  scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xf0abfc, 1.1);
+  scene.add(new THREE.HemisphereLight(0x67e8f9, 0x1e1b4b, 0.75));
+  const key = new THREE.DirectionalLight(0xf0abfc, 1.15);
   key.position.set(8, 18, 4);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
   scene.add(key);
-  const rim = new THREE.PointLight(0x22d3ee, 1.4, 40);
+  const rim = new THREE.PointLight(0x22d3ee, 1.6, 48);
   scene.add(rim);
 
   const car = createCarMesh();
@@ -117,6 +114,7 @@ export function createGameWorld(): GameWorld {
   let hudCb: ((hud: HudSnapshot) => void) | null = null;
   let overCb: ((result: RunResult) => void) | null = null;
   let lastHudEmit = 0;
+  let tickErrorLogged = false;
 
   const resizeObserver = new ResizeObserver(() => resize());
 
@@ -129,60 +127,36 @@ export function createGameWorld(): GameWorld {
     camera.updateProjectionMatrix();
   }
 
-  function rebuildRoad(): void {
-    while (roadCursor < z + TRACK_AHEAD) {
-      const from = roadCursor;
-      const to = roadCursor + TRACK_SEGMENT_LENGTH;
-      roadGroup.add(createTrackRibbon(from, to));
-      roadGroup.add(createLaneStripes(from, to));
-      // Soft shoulder rails
-      for (const side of [-1, 1] as const) {
-        const rail = new THREE.Mesh(
-          new THREE.BoxGeometry(0.12, 0.35, TRACK_SEGMENT_LENGTH),
-          new THREE.MeshStandardMaterial({
-            color: 0x22d3ee,
-            emissive: 0x22d3ee,
-            emissiveIntensity: 0.9,
-          }),
-        );
-        const mid = (from + to) / 2;
-        const ox = trackOffset(mid);
-        const heading = trackHeading(mid);
-        const lx = Math.cos(heading);
-        const half = 3.7;
-        rail.position.set(ox + lx * side * half, 0.2, mid);
-        rail.rotation.y = -heading;
-        roadGroup.add(rail);
-      }
-      roadCursor = to;
-    }
-    // Cull far-behind chunks (ponytail: O(n) child scan; n stays bounded by window size).
-    const cullZ = z - TRACK_BEHIND - 20;
-    for (let i = roadGroup.children.length - 1; i >= 0; i--) {
-      const child = roadGroup.children[i];
-      const maxZ = objectMaxZ(child);
+  function disposeObject(obj: THREE.Object3D): void {
+    obj.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry?.dispose();
+      const mat = m.material;
+      if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
+      else mat?.dispose();
+    });
+  }
+
+  function cullGroup(group: THREE.Group, cullZ: number): void {
+    for (let i = group.children.length - 1; i >= 0; i--) {
+      const child = group.children[i];
+      const maxZ = Number(child.userData.maxZ ?? -Infinity);
       if (maxZ < cullZ) {
-        roadGroup.remove(child);
+        group.remove(child);
         disposeObject(child);
       }
     }
   }
 
-  function objectMaxZ(obj: THREE.Object3D): number {
-    let maxZ = -Infinity;
-    const mesh = obj as THREE.Mesh;
-    if (mesh.isMesh && mesh.geometry) {
-      const geo = mesh.geometry as THREE.BufferGeometry;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      if (geo.boundingBox) {
-        maxZ = Math.max(maxZ, geo.boundingBox.max.z + mesh.position.z);
-      }
+  function rebuildRoad(): void {
+    while (roadCursor < z + TRACK_AHEAD) {
+      const from = roadCursor;
+      const to = roadCursor + TRACK_SEGMENT_LENGTH;
+      roadGroup.add(createRoadChunk(from, to));
+      roadCursor = to;
     }
-    obj.traverse((o) => {
-      if (o !== obj) maxZ = Math.max(maxZ, o.position.z);
-    });
-    if (maxZ === -Infinity) maxZ = obj.position.z;
-    return maxZ;
+    cullGroup(roadGroup, z - TRACK_BEHIND - 16);
   }
 
   function rebuildCity(): void {
@@ -190,32 +164,7 @@ export function createGameWorld(): GameWorld {
       cityGroup.add(createCityBlocks(cityCursor));
       cityCursor += 80;
     }
-    const cullZ = z - TRACK_BEHIND - 40;
-    for (let i = cityGroup.children.length - 1; i >= 0; i--) {
-      const chunk = cityGroup.children[i] as THREE.Group;
-      let maxZ = -Infinity;
-      chunk.traverse((o) => {
-        if ((o as THREE.Mesh).isMesh) maxZ = Math.max(maxZ, o.position.z);
-      });
-      if (maxZ < cullZ) {
-        cityGroup.remove(chunk);
-        chunk.traverse((o) => {
-          const m = o as THREE.Mesh;
-          if (m.isMesh) {
-            m.geometry.dispose();
-            const mat = m.material;
-            if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
-            else mat.dispose();
-          }
-        });
-      }
-    }
-  }
-
-  function acquireObstacle(kind: ObstacleKind): THREE.Group {
-    const mesh = createObstacleMesh(kind);
-    scene.add(mesh);
-    return mesh;
+    cullGroup(cityGroup, z - TRACK_BEHIND - 40);
   }
 
   function spawnObstacles(): void {
@@ -223,12 +172,20 @@ export function createGameWorld(): GameWorld {
       const kindRoll = Math.random();
       const kind: ObstacleKind =
         kindRoll < 0.4 ? 'barrier' : kindRoll < 0.75 ? 'cone' : 'drone';
-      const lane = Math.floor(Math.random() * 3);
-      // Occasionally twin obstacles on two lanes.
-      const lanes = Math.random() < 0.28 ? [lane, (lane + 1 + Math.floor(Math.random() * 2)) % 3] : [lane];
-      const unique = [...new Set(lanes)];
+      // Prefer side lanes early so the opening stretch is readable.
+      let lane = Math.floor(Math.random() * 3);
+      if (nextObstacleZ < 120 && lane === 1) {
+        lane = Math.random() < 0.5 ? 0 : 2;
+      }
+      const lanes =
+        Math.random() < 0.28
+          ? [lane, (lane + 1 + Math.floor(Math.random() * 2)) % 3]
+          : [lane];
+      // Never block all three lanes.
+      const unique = [...new Set(lanes)].slice(0, 2);
       for (const L of unique) {
-        const mesh = acquireObstacle(kind);
+        const mesh = createObstacleMesh(kind);
+        scene.add(mesh);
         const obs: Obstacle = {
           mesh,
           z: nextObstacleZ,
@@ -252,11 +209,18 @@ export function createGameWorld(): GameWorld {
     const ox = trackOffset(obs.z);
     const heading = trackHeading(obs.z);
     const lx = Math.cos(heading);
-    const lz = Math.sin(heading);
     const lateral = laneToX(obs.lane);
-    obs.mesh.position.set(ox + lx * lateral, 0, obs.z + lz * lateral * 0.01);
+    obs.mesh.position.set(ox + lx * lateral, 0, obs.z);
     obs.mesh.rotation.y = -heading;
     obs.mesh.visible = true;
+  }
+
+  function clearGroup(group: THREE.Group): void {
+    while (group.children.length) {
+      const c = group.children[0];
+      group.remove(c);
+      disposeObject(c);
+    }
   }
 
   function resetRun(): void {
@@ -266,28 +230,21 @@ export function createGameWorld(): GameWorld {
     score = createScoreState();
     result = null;
     phase = 'running';
-    nextObstacleZ = 36;
+    nextObstacleZ = 70;
     roadCursor = -TRACK_BEHIND;
     cityCursor = -TRACK_BEHIND;
     shake = 0;
     camX = trackOffset(0);
     camRoll = 0;
+    tickErrorLogged = false;
 
     for (const obs of obstacles) {
       scene.remove(obs.mesh);
       disposeObject(obs.mesh);
     }
     obstacles.length = 0;
-    while (roadGroup.children.length) {
-      const c = roadGroup.children[0];
-      roadGroup.remove(c);
-      disposeObject(c);
-    }
-    while (cityGroup.children.length) {
-      const c = cityGroup.children[0];
-      cityGroup.remove(c);
-      disposeObject(c);
-    }
+    clearGroup(roadGroup);
+    clearGroup(cityGroup);
     rebuildRoad();
     rebuildCity();
     spawnObstacles();
@@ -295,31 +252,17 @@ export function createGameWorld(): GameWorld {
     emitHud(true);
   }
 
-  function disposeObject(obj: THREE.Object3D): void {
-    obj.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) {
-        m.geometry?.dispose();
-        const mat = m.material;
-        if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
-        else mat?.dispose();
-      }
-    });
-  }
-
   function updateCamera(dt: number): void {
     const ox = trackOffset(z);
     const slope = trackSlope(z);
     const curv = trackCurvature(z);
-    const heading = trackHeading(z);
 
     const targetCamX = ox + laneBody.x * 0.35 - slope * 4 * CAMERA_SWAY_GAIN;
     camX += (targetCamX - camX) * Math.min(1, CAMERA_FOLLOW * dt);
     const targetRoll = -curv * 18 * CAMERA_ROLL_GAIN - laneBody.vx * 0.02;
     camRoll += (targetRoll - camRoll) * Math.min(1, 8 * dt);
 
-    const back = CAMERA_BACK;
-    const camZ = z - back;
+    const camZ = z - CAMERA_BACK;
     const camY = CAMERA_HEIGHT + Math.abs(laneBody.vx) * 0.02;
     const shakeX = (Math.random() - 0.5) * shake;
     const shakeY = (Math.random() - 0.5) * shake * 0.5;
@@ -330,7 +273,6 @@ export function createGameWorld(): GameWorld {
     camera.rotation.z = camRoll;
 
     rim.position.set(ox + laneBody.x, 2.5, z + 2);
-    void heading;
   }
 
   function updateCar(dt: number): void {
@@ -338,12 +280,9 @@ export function createGameWorld(): GameWorld {
     const ox = trackOffset(z);
     const heading = trackHeading(z);
     const lx = Math.cos(heading);
-    const lz = Math.sin(heading);
-    car.position.set(ox + lx * laneBody.x, 0, z);
-    car.rotation.y = -heading;
-    car.rotation.z = laneBodyRoll(laneBody);
-    // Subtle bob
-    car.position.y = Math.sin(performance.now() * 0.01) * 0.03;
+    car.position.set(ox + lx * laneBody.x, 0.02, z);
+    car.rotation.set(0, -heading, laneBodyRoll(laneBody));
+    car.position.y = 0.02 + Math.sin(performance.now() * 0.01) * 0.03;
   }
 
   function updateObstacles(dt: number): void {
@@ -399,28 +338,32 @@ export function createGameWorld(): GameWorld {
 
   function tick(): void {
     raf = requestAnimationFrame(tick);
-    const dt = Math.min(0.05, clock.getDelta());
-    if (phase === 'running') {
-      speed = Math.min(MAX_SPEED, BASE_SPEED + z * SPEED_RAMP_PER_METER);
-      const step = speed * dt;
-      z += step;
-      addDistanceScore(score, step);
-      updateCar(dt);
-      updateObstacles(dt);
-      spawnObstacles();
-      rebuildRoad();
-      rebuildCity();
-      if (shake > 0) shake = Math.max(0, shake - dt);
-    } else if (phase === 'over') {
-      if (shake > 0) shake = Math.max(0, shake - dt * 0.5);
-      updateCar(0);
-    } else {
-      // paused — still ease camera slightly
-      updateCar(0);
+    try {
+      const dt = Math.min(0.05, clock.getDelta());
+      if (phase === 'running') {
+        speed = Math.min(MAX_SPEED, BASE_SPEED + z * SPEED_RAMP_PER_METER);
+        const step = speed * dt;
+        z += step;
+        addDistanceScore(score, step);
+        updateCar(dt);
+        updateObstacles(dt);
+        spawnObstacles();
+        rebuildRoad();
+        rebuildCity();
+        if (shake > 0) shake = Math.max(0, shake - dt);
+      } else {
+        updateCar(0);
+        if (shake > 0) shake = Math.max(0, shake - dt * 0.5);
+      }
+      updateCamera(dt);
+      emitHud();
+      renderer.render(scene, camera);
+    } catch (err) {
+      if (!tickErrorLogged) {
+        tickErrorLogged = true;
+        console.error('Cyber Neon Rush tick error', err);
+      }
     }
-    updateCamera(dt);
-    renderer.render(scene, camera);
-    emitHud();
   }
 
   return {
@@ -447,6 +390,13 @@ export function createGameWorld(): GameWorld {
         mountedEl.removeChild(renderer.domElement);
       }
       mountedEl = null;
+      clearGroup(roadGroup);
+      clearGroup(cityGroup);
+      for (const obs of obstacles) {
+        scene.remove(obs.mesh);
+        disposeObject(obs.mesh);
+      }
+      obstacles.length = 0;
       renderer.dispose();
     },
     start() {
