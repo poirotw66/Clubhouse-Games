@@ -25,11 +25,13 @@ export const NEAR_MISS_SCORE = 120;
 export const DISTANCE_SCORE_PER_M = 2.5;
 
 export const CAMERA_FOLLOW = 10;
-export const CAMERA_LOOK_AHEAD = 18;
-export const CAMERA_HEIGHT = 4.2;
-export const CAMERA_BACK = 9.5;
-export const CAMERA_SWAY_GAIN = 0.55;
-export const CAMERA_ROLL_GAIN = 0.22;
+export const CAMERA_LOOK_AHEAD = 16;
+/** Higher chase cam so the road clearly fills the lower frame. */
+export const CAMERA_HEIGHT = 7.2;
+export const CAMERA_BACK = 11;
+export const CAMERA_LOOK_Y = 0.6;
+export const CAMERA_SWAY_GAIN = 0.45;
+export const CAMERA_ROLL_GAIN = 0.12;
 
 export const BEST_SCORE_KEY = 'cyber-neon-rush:best-score';
 export const BEST_DISTANCE_KEY = 'cyber-neon-rush:best-distance';

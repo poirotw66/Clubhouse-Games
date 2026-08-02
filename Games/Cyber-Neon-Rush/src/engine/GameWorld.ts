@@ -5,6 +5,7 @@ import {
   CAMERA_FOLLOW,
   CAMERA_HEIGHT,
   CAMERA_LOOK_AHEAD,
+  CAMERA_LOOK_Y,
   CAMERA_ROLL_GAIN,
   CAMERA_SWAY_GAIN,
   MAX_SPEED,
@@ -89,6 +90,21 @@ export function createGameWorld(): GameWorld {
 
   const car = createCarMesh();
   scene.add(car);
+
+  // Huge ground disc so "down" reads clearly under the neon track.
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(400, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x020617,
+      metalness: 0.1,
+      roughness: 0.95,
+      emissive: 0x01030a,
+      emissiveIntensity: 0.4,
+    }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.05;
+  scene.add(ground);
 
   const roadGroup = new THREE.Group();
   scene.add(roadGroup);
@@ -252,6 +268,8 @@ export function createGameWorld(): GameWorld {
     emitHud(true);
   }
 
+  const _camUp = new THREE.Vector3();
+
   function updateCamera(dt: number): void {
     const ox = trackOffset(z);
     const slope = trackSlope(z);
@@ -259,7 +277,12 @@ export function createGameWorld(): GameWorld {
 
     const targetCamX = ox + laneBody.x * 0.35 - slope * 4 * CAMERA_SWAY_GAIN;
     camX += (targetCamX - camX) * Math.min(1, CAMERA_FOLLOW * dt);
-    const targetRoll = -curv * 18 * CAMERA_ROLL_GAIN - laneBody.vx * 0.02;
+    // Keep bank gentle — large euler rolls are how +Z chase cams flip upside-down.
+    const targetRoll = THREE.MathUtils.clamp(
+      -curv * 18 * CAMERA_ROLL_GAIN - laneBody.vx * 0.015,
+      -0.2,
+      0.2,
+    );
     camRoll += (targetRoll - camRoll) * Math.min(1, 8 * dt);
 
     const camZ = z - CAMERA_BACK;
@@ -268,13 +291,19 @@ export function createGameWorld(): GameWorld {
     const shakeY = (Math.random() - 0.5) * shake * 0.5;
 
     camera.position.set(camX + shakeX, camY + shakeY, camZ);
+    camera.up.set(0, 1, 0);
     const lookX = trackOffset(z + CAMERA_LOOK_AHEAD) + laneBody.x * 0.2;
-    // lookAt then local roll — never assign rotation.z after lookAt (Euler rewrite
-    // drops the ~π roll baked into +Z chase cams and flips the view upside-down).
-    camera.lookAt(lookX, 1.2, z + CAMERA_LOOK_AHEAD);
+    // Never assign camera.rotation.z after lookAt — that Euler rewrite flips +Z chase cams.
+    camera.lookAt(lookX, CAMERA_LOOK_Y, z + CAMERA_LOOK_AHEAD);
+    // Safety net: if local up points down, force upright before applying bank.
+    _camUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    if (_camUp.y < 0) {
+      camera.rotateZ(Math.PI);
+    }
     camera.rotateZ(camRoll);
 
     rim.position.set(ox + laneBody.x, 2.5, z + 2);
+    ground.position.set(ox, -0.05, z);
   }
 
   function updateCar(dt: number): void {

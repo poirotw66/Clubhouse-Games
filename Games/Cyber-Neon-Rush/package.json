@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "check": "node src/engine/check-physics.mjs"
+    "check": "node src/engine/check-physics.mjs && node src/engine/check-camera.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
