@@ -224,7 +224,8 @@ function createTrackRibbon(fromZ: number, toZ: number): THREE.Mesh {
 
   for (let i = 0; i < steps; i++) {
     const a = i * 2;
-    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    // CCW when viewed from +Y so road normals point upward.
+    indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
   }
 
   const geo = new THREE.BufferGeometry();
@@ -241,7 +242,7 @@ function createTrackRibbon(fromZ: number, toZ: number): THREE.Mesh {
       roughness: 0.65,
       emissive: new THREE.Color(0x082f49),
       emissiveIntensity: 0.55,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
     }),
   );
 }
