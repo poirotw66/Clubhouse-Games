@@ -137,6 +137,14 @@
           "players": "1 人",
           "specPath": "04-sports-arcade/sailing.md",
           "gameFolder": "Sailing"
+        },
+        {
+          "name": "霓虹疾馳",
+          "en": "Cyber Neon Rush",
+          "desc": "3D 賽博龐克無限跑酷：彎曲霓虹賽道、靈敏切道避障與頂部動態計分板。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/cyber-neon-rush.md",
+          "gameFolder": "Cyber-Neon-Rush"
         }
       ]
     },

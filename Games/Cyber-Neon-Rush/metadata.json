@@ -1,0 +1,5 @@
+{
+  "name": "霓虹疾馳 (Cyber Neon Rush)",
+  "description": "以汽車為主角的 3D 賽博龐克無限跑酷。Three.js 渲染彎曲霓虹賽道，攝影機隨曲率平滑晃動，高靈敏切道閃避動態障礙，頂部動態計分板即時反映距離與避障表現。",
+  "requestFramePermissions": []
+}
