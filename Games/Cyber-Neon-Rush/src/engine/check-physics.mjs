@@ -9,7 +9,8 @@ const LANE_SPRING = 140;
 const LANE_DAMPING = 18;
 
 function laneToX(lane) {
-  return (lane - 1) * LANE_WIDTH;
+  // Match constants.ts: screen-left = +X for +Z chase camera.
+  return (1 - lane) * LANE_WIDTH;
 }
 
 function stepLaneBody(body, dt) {
@@ -35,11 +36,13 @@ function trackCurvature(z) {
   );
 }
 
-// Lane switch from center → left should settle within ~0.35s and overshoot little.
+// Lane switch from center → left (lane 0) should settle within ~0.35s.
 const body = { x: laneToX(1), vx: 0, targetLane: 0 };
 const dt = 1 / 60;
 for (let i = 0; i < 21; i++) stepLaneBody(body, dt);
 assert.ok(Math.abs(body.x - laneToX(0)) < 0.15, `lane not snappy enough: x=${body.x}`);
+assert.ok(laneToX(0) > 0, 'lane 0 (left) must be +X for +Z chase screen-left');
+assert.ok(laneToX(2) < 0, 'lane 2 (right) must be -X for +Z chase screen-right');
 
 // Track must bend (non-zero offset / curvature somewhere ahead).
 let maxAbsOffset = 0;
