@@ -168,6 +168,36 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
   return g;
 }
 
+/** Collectible neon ring — drive through for a speed burst. */
+export function createBoostRing(): THREE.Group {
+  const g = new THREE.Group();
+  const tor = new THREE.Mesh(
+    new THREE.TorusGeometry(1.05, 0.12, 10, 28),
+    new THREE.MeshStandardMaterial({
+      color: 0xa3e635,
+      emissive: NEON_LIME,
+      emissiveIntensity: 2.2,
+      metalness: 0.4,
+      roughness: 0.25,
+    }),
+  );
+  tor.rotation.y = Math.PI / 2;
+  tor.position.y = 1.1;
+  g.add(tor);
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 12, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xfef08a,
+      emissive: 0xfacc15,
+      emissiveIntensity: 2.5,
+    }),
+  );
+  core.position.y = 1.1;
+  g.add(core);
+  g.userData.spin = tor;
+  return g;
+}
+
 /** One road chunk: ribbon + stripes + rails, tagged with userData.maxZ for safe culling. */
 export function createRoadChunk(fromZ: number, toZ: number): THREE.Group {
   const group = new THREE.Group();

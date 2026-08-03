@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { playLose, playWin } from '@clubhouse/shared/synthAudio';
+import { playCapture, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
 import { Scoreboard } from './components/Scoreboard';
 import { TouchControls } from './components/TouchControls';
@@ -27,6 +27,10 @@ const EMPTY_HUD: HudSnapshot = {
   nearMissFlash: 0,
   bestScore: 0,
   bestDistance: 0,
+  fever: false,
+  boostT: 0,
+  toast: null,
+  pickups: 0,
 };
 
 export default function App(): ReactElement {
@@ -40,7 +44,15 @@ export default function App(): ReactElement {
   const [runId, setRunId] = useState(0);
   const worldRef = useRef<GameWorld | null>(null);
 
+  const toastRef = useRef<string | null>(null);
+
   const onHud = useCallback((next: HudSnapshot) => {
+    if (next.toast && next.toast !== toastRef.current) {
+      if (next.toast === 'perfect' || next.toast === 'fever') playGoal();
+      else if (next.toast === 'boost') playCapture();
+      else playScore();
+    }
+    toastRef.current = next.toast;
     setHud(next);
   }, []);
 
@@ -135,8 +147,8 @@ export default function App(): ReactElement {
               CYBER NEON RUSH
             </p>
             <p className="hint">
-              在彎曲霓虹賽道上無限狂奔。左右切道閃避障礙，擦身而過可累積連擊倍率。
-              攝影機會隨賽道曲率平滑晃動。
+              左右切道閃避障礙，擦身而過可累積連擊；鑽過霓虹加速環可爆發 NITRO。
+              連擊滿 5 進入 FEVER，倍率與車速一起狂飆。
             </p>
             <button type="button" className="cta" onClick={startRun}>
               開始疾馳
@@ -190,6 +202,7 @@ export default function App(): ReactElement {
                 { label: '分數', value: result.score.toLocaleString('zh-Hant') },
                 { label: '距離', value: `${result.distance} m` },
                 { label: '閃避', value: String(result.avoids) },
+                { label: 'NITRO', value: String(result.pickups) },
                 { label: '最高連擊', value: String(result.maxCombo) },
               ].map((stat) => (
                 <div

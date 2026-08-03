@@ -88,6 +88,59 @@ body,
   box-shadow: 0 0 22px rgba(163, 230, 53, 0.35);
 }
 
+.scoreboard.fever .score-cell {
+  border-color: rgba(244, 114, 182, 0.55);
+  box-shadow: 0 0 22px rgba(244, 114, 182, 0.2);
+}
+
+.score-toast {
+  pointer-events: none;
+  margin: 0.55rem auto 0;
+  width: fit-content;
+  padding: 0.35rem 1rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.18em;
+  color: #f8fafc;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
+  animation: toast-pop 0.85s ease-out both;
+}
+
+.toast-perfect {
+  color: #a3e635;
+  text-shadow: 0 0 14px rgba(163, 230, 53, 0.9);
+}
+
+.toast-boost {
+  color: #facc15;
+  text-shadow: 0 0 14px rgba(250, 204, 21, 0.9);
+}
+
+.toast-fever {
+  color: #f472b6;
+  text-shadow: 0 0 16px rgba(244, 114, 182, 0.95);
+  letter-spacing: 0.28em;
+}
+
+@keyframes toast-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.06);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(1);
+  }
+}
+
 .score-label {
   font-size: 0.65rem;
   letter-spacing: 0.14em;

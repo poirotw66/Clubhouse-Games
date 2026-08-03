@@ -3,11 +3,13 @@ export const LANE_WIDTH = 2.4;
 export const ROAD_HALF_WIDTH = (LANE_COUNT * LANE_WIDTH) / 2;
 
 export const BASE_SPEED = 28;
-export const MAX_SPEED = 62;
-export const SPEED_RAMP_PER_METER = 0.035;
+export const MAX_SPEED = 68;
+export const SPEED_RAMP_PER_METER = 0.04;
+export const BOOST_SPEED = 18;
+export const BOOST_DURATION = 1.35;
 
 /** High-stiffness spring for snappy lane changes. */
-export const LANE_SPRING = 140;
+export const LANE_SPRING = 160;
 export const LANE_DAMPING = 18;
 
 export const TRACK_SEGMENT_LENGTH = 8;
@@ -16,13 +18,20 @@ export const TRACK_BEHIND = 40;
 
 export const OBSTACLE_SPAWN_AHEAD = 180;
 export const OBSTACLE_DESPAWN_BEHIND = 12;
-export const OBSTACLE_MIN_GAP = 14;
-export const OBSTACLE_MAX_GAP = 28;
+export const OBSTACLE_MIN_GAP = 12;
+export const OBSTACLE_MAX_GAP = 26;
 
 /** Adjacent-lane pass counts as near-miss (lane spacing is LANE_WIDTH). */
 export const NEAR_MISS_WINDOW = 2.85;
-export const NEAR_MISS_SCORE = 120;
+export const PERFECT_MISS_WINDOW = 1.55;
+export const NEAR_MISS_SCORE = 100;
+export const PERFECT_MISS_SCORE = 220;
+export const BOOST_SCORE = 180;
 export const DISTANCE_SCORE_PER_M = 2.5;
+
+/** Combo fades if no near-miss / pickup within this many seconds. */
+export const COMBO_DECAY_SEC = 3.2;
+export const FEVER_COMBO = 5;
 
 export const CAMERA_FOLLOW = 10;
 export const CAMERA_LOOK_AHEAD = 16;

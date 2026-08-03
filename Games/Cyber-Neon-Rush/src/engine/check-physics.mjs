@@ -54,4 +54,10 @@ for (let z = 0; z < 400; z += 2) {
 assert.ok(maxAbsOffset > 5, 'track should weave laterally');
 assert.ok(maxAbsCurv > 0.001, 'track should have measurable curvature for camera sway');
 
+function comboMultiplier(combo) {
+  const base = 1 + Math.min(combo, 12) * 0.18;
+  return combo >= 5 ? base + 0.5 : base;
+}
+assert.ok(comboMultiplier(5) > comboMultiplier(4), 'fever should raise multiplier');
+
 console.log('check-physics: ok');
