@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import {
   BASE_SPEED,
+  BOOST_DURATION,
+  BOOST_SPEED,
   CAMERA_BACK,
   CAMERA_FOLLOW,
   CAMERA_HEIGHT,
@@ -14,6 +16,7 @@ import {
   OBSTACLE_MAX_GAP,
   OBSTACLE_MIN_GAP,
   OBSTACLE_SPAWN_AHEAD,
+  PERFECT_MISS_WINDOW,
   SPEED_RAMP_PER_METER,
   TRACK_AHEAD,
   TRACK_BEHIND,
@@ -23,6 +26,7 @@ import {
 } from './constants';
 import { createLaneBody, laneBodyRoll, stepLaneBody, type LaneBody } from './lanePhysics';
 import {
+  createBoostRing,
   createCarMesh,
   createCityBlocks,
   createObstacleMesh,
@@ -34,7 +38,10 @@ import {
   breakCombo,
   createScoreState,
   finalizeRun,
+  isFever,
+  registerBoostPickup,
   registerNearMiss,
+  tickScoreTimers,
   toHud,
   type HudSnapshot,
   type RunResult,
@@ -49,6 +56,13 @@ interface Obstacle {
   lane: number;
   kind: ObstacleKind;
   scored: boolean;
+  alive: boolean;
+}
+
+interface Pickup {
+  mesh: THREE.Group;
+  z: number;
+  lane: number;
   alive: boolean;
 }
 
@@ -112,14 +126,17 @@ export function createGameWorld(): GameWorld {
   scene.add(cityGroup);
 
   const obstacles: Obstacle[] = [];
+  const pickups: Pickup[] = [];
 
   let laneBody: LaneBody = createLaneBody(1);
   let z = 0;
   let speed = BASE_SPEED;
+  let boostT = 0;
   let phase: GamePhase = 'paused';
   let score = createScoreState();
   let result: RunResult | null = null;
   let nextObstacleZ = 40;
+  let patternStep = 0;
   let roadCursor = -TRACK_BEHIND;
   let cityCursor = -TRACK_BEHIND;
   let camX = 0;
@@ -183,41 +200,81 @@ export function createGameWorld(): GameWorld {
     cullGroup(cityGroup, z - TRACK_BEHIND - 40);
   }
 
+  function addObstacle(atZ: number, lane: number, kind: ObstacleKind): void {
+    const mesh = createObstacleMesh(kind);
+    scene.add(mesh);
+    const obs: Obstacle = { mesh, z: atZ, lane, kind, scored: false, alive: true };
+    placeObstacle(obs);
+    obstacles.push(obs);
+  }
+
+  function addPickup(atZ: number, lane: number): void {
+    const mesh = createBoostRing();
+    scene.add(mesh);
+    const p: Pickup = { mesh, z: atZ, lane, alive: true };
+    placePickup(p);
+    pickups.push(p);
+  }
+
+  function placePickup(p: Pickup): void {
+    const ox = trackOffset(p.z);
+    const heading = trackHeading(p.z);
+    const lx = Math.cos(heading);
+    const lateral = laneToX(p.lane);
+    p.mesh.position.set(ox + lx * lateral, 0, p.z);
+    p.mesh.rotation.y = -heading;
+  }
+
+  /** Wave patterns: gate / zigzag / stagger / dual+pickup — always leave an open lane. */
   function spawnObstacles(): void {
     while (nextObstacleZ < z + OBSTACLE_SPAWN_AHEAD) {
+      const difficulty = Math.min(1, nextObstacleZ / 600);
       const kindRoll = Math.random();
       const kind: ObstacleKind =
-        kindRoll < 0.4 ? 'barrier' : kindRoll < 0.75 ? 'cone' : 'drone';
-      // Prefer side lanes early so the opening stretch is readable.
-      let lane = Math.floor(Math.random() * 3);
-      if (nextObstacleZ < 120 && lane === 1) {
-        lane = Math.random() < 0.5 ? 0 : 2;
+        kindRoll < 0.35 ? 'barrier' : kindRoll < 0.7 ? 'cone' : 'drone';
+
+      const wave = patternStep % 4;
+      patternStep += 1;
+
+      if (nextObstacleZ < 90) {
+        // Opening: single side obstacle, readable.
+        addObstacle(nextObstacleZ, Math.random() < 0.5 ? 0 : 2, kind);
+      } else if (wave === 0) {
+        // Gate: block two lanes, leave one open.
+        const open = Math.floor(Math.random() * 3);
+        for (let L = 0; L < 3; L++) {
+          if (L !== open) addObstacle(nextObstacleZ, L, kind);
+        }
+        if (Math.random() < 0.55 + difficulty * 0.2) {
+          addPickup(nextObstacleZ + 6, open);
+        }
+      } else if (wave === 1) {
+        // Zigzag singles.
+        const start = Math.floor(Math.random() * 3);
+        addObstacle(nextObstacleZ, start, kind);
+        addObstacle(nextObstacleZ + 9, (start + 1) % 3, kind);
+        addObstacle(nextObstacleZ + 18, (start + 2) % 3, kind);
+        nextObstacleZ += 28;
+        continue;
+      } else if (wave === 2) {
+        // Stagger twin on alternating sides.
+        const a = Math.random() < 0.5 ? 0 : 2;
+        addObstacle(nextObstacleZ, a, kind);
+        addObstacle(nextObstacleZ, 1, kind === 'drone' ? 'cone' : kind);
+        if (Math.random() < 0.4) addPickup(nextObstacleZ + 8, a === 0 ? 2 : 0);
+      } else {
+        // Single pressure + boost bait in another lane.
+        const blocked = Math.floor(Math.random() * 3);
+        addObstacle(nextObstacleZ, blocked, kind);
+        const bait = (blocked + 1 + Math.floor(Math.random() * 2)) % 3;
+        addPickup(nextObstacleZ + 4, bait);
       }
-      const lanes =
-        Math.random() < 0.28
-          ? [lane, (lane + 1 + Math.floor(Math.random() * 2)) % 3]
-          : [lane];
-      // Never block all three lanes.
-      const unique = [...new Set(lanes)].slice(0, 2);
-      for (const L of unique) {
-        const mesh = createObstacleMesh(kind);
-        scene.add(mesh);
-        const obs: Obstacle = {
-          mesh,
-          z: nextObstacleZ,
-          lane: L,
-          kind,
-          scored: false,
-          alive: true,
-        };
-        placeObstacle(obs);
-        obstacles.push(obs);
-      }
+
       const gap =
         OBSTACLE_MIN_GAP +
         Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP) -
-        Math.min(8, z * 0.01);
-      nextObstacleZ += Math.max(10, gap);
+        difficulty * 8;
+      nextObstacleZ += Math.max(9, gap);
     }
   }
 
@@ -242,11 +299,13 @@ export function createGameWorld(): GameWorld {
   function resetRun(): void {
     z = 0;
     speed = BASE_SPEED;
+    boostT = 0;
     laneBody = createLaneBody(1);
     score = createScoreState();
     result = null;
     phase = 'running';
-    nextObstacleZ = 70;
+    nextObstacleZ = 55;
+    patternStep = 0;
     roadCursor = -TRACK_BEHIND;
     cityCursor = -TRACK_BEHIND;
     shake = 0;
@@ -259,6 +318,11 @@ export function createGameWorld(): GameWorld {
       disposeObject(obs.mesh);
     }
     obstacles.length = 0;
+    for (const p of pickups) {
+      scene.remove(p.mesh);
+      disposeObject(p.mesh);
+    }
+    pickups.length = 0;
     clearGroup(roadGroup);
     clearGroup(cityGroup);
     rebuildRoad();
@@ -311,9 +375,11 @@ export function createGameWorld(): GameWorld {
     const ox = trackOffset(z);
     const heading = trackHeading(z);
     const lx = Math.cos(heading);
+    const trailBoost = boostT > 0 ? 0.08 : 0;
     car.position.set(ox + lx * laneBody.x, 0.02, z);
     car.rotation.set(0, -heading, laneBodyRoll(laneBody));
-    car.position.y = 0.02 + Math.sin(performance.now() * 0.01) * 0.03;
+    car.position.y = 0.02 + Math.sin(performance.now() * 0.01) * 0.03 + trailBoost;
+    car.scale.setScalar(boostT > 0 ? 1.06 : 1);
   }
 
   function updateObstacles(dt: number): void {
@@ -336,7 +402,8 @@ export function createGameWorld(): GameWorld {
         obs.scored = true;
         const lateral = Math.abs(laneBody.x - laneToX(obs.lane));
         if (lateral < NEAR_MISS_WINDOW) {
-          registerNearMiss(score);
+          registerNearMiss(score, lateral < PERFECT_MISS_WINDOW);
+          shake = Math.max(shake, lateral < PERFECT_MISS_WINDOW ? 0.12 : 0.06);
         }
       }
     }
@@ -349,10 +416,40 @@ export function createGameWorld(): GameWorld {
     }
   }
 
+  function updatePickups(dt: number): void {
+    for (const p of pickups) {
+      if (!p.alive) continue;
+      if (p.mesh.userData.spin) {
+        (p.mesh.userData.spin as THREE.Object3D).rotation.z += dt * 4;
+      }
+      p.mesh.position.y = Math.sin(performance.now() * 0.006 + p.z) * 0.15;
+      const dz = p.z - z;
+      if (dz < 1.1 && dz > -0.8) {
+        const carX = trackOffset(z) + laneBody.x;
+        const pX = trackOffset(p.z) + laneToX(p.lane);
+        if (Math.abs(carX - pX) < 1.35) {
+          p.alive = false;
+          p.mesh.visible = false;
+          registerBoostPickup(score);
+          boostT = BOOST_DURATION;
+          shake = Math.max(shake, 0.1);
+        }
+      }
+    }
+    for (let i = pickups.length - 1; i >= 0; i--) {
+      if (!pickups[i].alive || pickups[i].z < z - OBSTACLE_DESPAWN_BEHIND) {
+        scene.remove(pickups[i].mesh);
+        disposeObject(pickups[i].mesh);
+        pickups.splice(i, 1);
+      }
+    }
+  }
+
   function triggerCrash(): void {
     if (phase !== 'running') return;
     phase = 'over';
     shake = 0.45;
+    boostT = 0;
     breakCombo(score);
     result = finalizeRun(score);
     overCb?.(result);
@@ -363,8 +460,7 @@ export function createGameWorld(): GameWorld {
     const now = performance.now();
     if (!force && now - lastHudEmit < 50) return;
     lastHudEmit = now;
-    if (score.nearMissFlash > 0) score.nearMissFlash = Math.max(0, score.nearMissFlash - 0.08);
-    hudCb?.(toHud(score, speed));
+    hudCb?.(toHud(score, speed, boostT));
   }
 
   function tick(): void {
@@ -372,12 +468,19 @@ export function createGameWorld(): GameWorld {
     try {
       const dt = Math.min(0.05, clock.getDelta());
       if (phase === 'running') {
-        speed = Math.min(MAX_SPEED, BASE_SPEED + z * SPEED_RAMP_PER_METER);
+        if (boostT > 0) boostT = Math.max(0, boostT - dt);
+        const feverBonus = isFever(score.combo) ? 4 : 0;
+        speed = Math.min(
+          MAX_SPEED + (boostT > 0 ? 8 : 0),
+          BASE_SPEED + z * SPEED_RAMP_PER_METER + (boostT > 0 ? BOOST_SPEED : 0) + feverBonus,
+        );
         const step = speed * dt;
         z += step;
         addDistanceScore(score, step);
+        tickScoreTimers(score, dt);
         updateCar(dt);
         updateObstacles(dt);
+        updatePickups(dt);
         spawnObstacles();
         rebuildRoad();
         rebuildCity();
@@ -428,6 +531,11 @@ export function createGameWorld(): GameWorld {
         disposeObject(obs.mesh);
       }
       obstacles.length = 0;
+      for (const p of pickups) {
+        scene.remove(p.mesh);
+        disposeObject(p.mesh);
+      }
+      pickups.length = 0;
       renderer.dispose();
     },
     start() {
@@ -443,7 +551,7 @@ export function createGameWorld(): GameWorld {
       laneBody.targetLane = clampLane(laneBody.targetLane + dir);
     },
     getHud() {
-      return toHud(score, speed);
+      return toHud(score, speed, boostT);
     },
     getPhase() {
       return phase;
