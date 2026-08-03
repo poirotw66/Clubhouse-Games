@@ -36,8 +36,13 @@ export const CAMERA_ROLL_GAIN = 0.12;
 export const BEST_SCORE_KEY = 'cyber-neon-rush:best-score';
 export const BEST_DISTANCE_KEY = 'cyber-neon-rush:best-distance';
 
+/**
+ * Lane 0 = screen-left, lane 2 = screen-right.
+ * +Z chase cams in Three.js map world +X to screen-left (local +X = world -X),
+ * so left lanes must use positive X.
+ */
 export function laneToX(lane: number): number {
-  return (lane - 1) * LANE_WIDTH;
+  return (1 - lane) * LANE_WIDTH;
 }
 
 export function clampLane(lane: number): number {
