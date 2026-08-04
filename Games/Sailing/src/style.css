@@ -967,6 +967,97 @@ body {
   50% { transform: translateY(4px); opacity: 1; }
 }
 
+/* --- speed readout -------------------------------------------------------- */
+.speed-readout {
+  position: fixed;
+  z-index: 14;
+  left: 50%;
+  bottom: 6.4rem;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 0.12rem;
+  min-width: 8.5rem;
+  padding: 0.45rem 1rem 0.55rem;
+  border-radius: 16px;
+  background: linear-gradient(165deg, rgba(6, 28, 40, 0.88), rgba(4, 18, 28, 0.92));
+  border: 1px solid rgba(62, 255, 208, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: rgba(157, 255, 234, 0.75);
+}
+
+.speed-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  line-height: 1;
+}
+
+.speed-value {
+  font-family: "Outfit", "Noto Sans TC", sans-serif;
+  font-size: 2.35rem;
+  font-weight: 700;
+  color: #e8fff8;
+  text-shadow: 0 0 18px rgba(62, 255, 208, 0.35);
+}
+
+.speed-unit {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #3dffd0;
+}
+
+.speed-ms {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(232, 244, 246, 0.55);
+}
+
+.speed-bar {
+  width: 100%;
+  height: 4px;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.speed-bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1ec9a8, #3dffd0, #ffe066);
+  box-shadow: 0 0 8px rgba(62, 255, 208, 0.65);
+  transition: width 0.08s linear;
+}
+
+.speed-readout.boosting {
+  border-color: rgba(255, 224, 102, 0.65);
+  box-shadow:
+    0 0 0 2px rgba(255, 224, 102, 0.18),
+    0 10px 28px rgba(0, 0, 0, 0.4),
+    0 0 24px rgba(62, 255, 208, 0.35);
+}
+
+.speed-readout.boosting .speed-value {
+  color: #ffe066;
+  text-shadow: 0 0 18px rgba(255, 224, 102, 0.55);
+}
+
+.speed-readout.boosting .speed-unit {
+  color: #ffe066;
+}
+
 /* --- coach banner --------------------------------------------------------- */
 .coach {
   position: fixed;
@@ -1075,6 +1166,10 @@ body {
 
   .touch-pad {
     display: flex;
+  }
+
+  .speed-readout {
+    bottom: 11.5rem;
   }
 
   .key-strip {

@@ -141,17 +141,17 @@ const assist = createAssist();
   for (let i = 0; i < 600; i++) {
     stepSailing(idle, wind, { rudder: 0, trimDelta: 0, autoTrim: true, holdCourse: false }, 1 / 60, i / 60, 0, true);
   }
-  assert(idle.surge > 2.5, `arcade cruise too slow: ${idle.surge.toFixed(2)}`);
-  assert(idle.surge < 6.5, `arcade cruise too fast without boost: ${idle.surge.toFixed(2)}`);
+  assert(idle.surge > 6.5, `arcade cruise too slow: ${idle.surge.toFixed(2)}`);
+  assert(idle.surge < 12, `arcade cruise too fast without boost: ${idle.surge.toFixed(2)}`);
 
   const boost = createBoatState(Math.PI / 2);
   boost.surge = 0;
   for (let i = 0; i < 600; i++) {
     stepSailing(boost, wind, { rudder: 0, trimDelta: 0, autoTrim: true, holdCourse: true }, 1 / 60, i / 60, 0, true);
   }
-  assert(boost.surge > idle.surge + 1.5,
+  assert(boost.surge > idle.surge + 4,
     `boost should clearly beat cruise: ${boost.surge.toFixed(2)} vs ${idle.surge.toFixed(2)}`);
-  assert(boost.surge < 12, `boost too fast: ${boost.surge.toFixed(2)}`);
+  assert(boost.surge < 22, `boost too fast: ${boost.surge.toFixed(2)}`);
 
   const hard = createBoatState(Math.PI);
   hard.surge = 0;

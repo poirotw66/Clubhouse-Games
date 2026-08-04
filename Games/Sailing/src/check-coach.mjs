@@ -13,7 +13,7 @@ const base = {
   racing: true,
   awa: Math.PI / 2,
   noGo: NO_GO,
-  speed: 4,
+  speed: 8,
   luffing: 0,
   autoTrim: true,
   easy: true,

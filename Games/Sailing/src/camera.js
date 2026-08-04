@@ -61,10 +61,10 @@ export function createCamera() {
       pitch = clamp(pitch, 0.12, 0.55);
 
       // Pull back + widen FOV with speed so the water rushes past.
-      const speedBoost = clamp(boat.speed / 7, 0, 1.35);
-      const dist = distance + speedBoost * 7;
-      const h = height + speedBoost * 1.8;
-      const wantFov = ((52 + speedBoost * 14) * Math.PI) / 180;
+      const speedBoost = clamp(boat.speed / 14, 0, 1.45);
+      const dist = distance + speedBoost * 9;
+      const h = height + speedBoost * 2.2;
+      const wantFov = ((52 + speedBoost * 16) * Math.PI) / 180;
       fov += (wantFov - fov) * damp(4.0, dt);
 
       const behindX = Math.sin(yaw);

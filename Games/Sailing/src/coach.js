@@ -78,7 +78,7 @@ export function createCoach() {
       const holds = {
         irons: Math.abs(state.awa) < state.noGo,
         luffing: state.luffing > 0.4 && !state.autoTrim,
-        stalled: state.speed < (state.easy ? 3.2 : 1),
+        stalled: state.speed < (state.easy ? 5.5 : 1),
         receding: recede >= 12,
         offCourse: state.easy && Math.abs(state.guideTurn) > 0.9,
       };

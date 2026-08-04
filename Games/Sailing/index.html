@@ -133,6 +133,17 @@
       <div class="gate-beacon-arrow" aria-hidden="true"></div>
     </div>
 
+    <!-- Big speed readout — always on while racing. -->
+    <div id="speed-readout" class="speed-readout" aria-live="polite">
+      <span class="speed-label">航行速率</span>
+      <div class="speed-main">
+        <span id="speed-value" class="speed-value">0.0</span>
+        <span class="speed-unit">kn</span>
+      </div>
+      <span id="speed-ms" class="speed-ms">0.0 m/s</span>
+      <div class="speed-bar" aria-hidden="true"><i id="speed-bar-fill"></i></div>
+    </div>
+
     <div id="coach" class="coach" hidden role="status">
       <span class="coach-mark">!</span>
       <span id="coach-text"></span>

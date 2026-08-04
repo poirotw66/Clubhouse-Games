@@ -104,7 +104,7 @@ function startGame(gl, canvas) {
   let boat = createBoatState(course.start.heading);
   boat.x = course.start.x;
   boat.z = course.start.z;
-  boat.surge = 5.5;
+  boat.surge = 9.0;
   marks.reset(boat);
   assist.reset(boat, wind);
 
@@ -156,6 +156,10 @@ function startGame(gl, canvas) {
     gateBeacon: $('#gate-beacon'),
     gateBeaconName: $('#gate-beacon-name'),
     gateBeaconDist: $('#gate-beacon-dist'),
+    speedReadout: $('#speed-readout'),
+    speedValue: $('#speed-value'),
+    speedMs: $('#speed-ms'),
+    speedBarFill: $('#speed-bar-fill'),
     coach: $('#coach'),
     coachText: $('#coach-text'),
     toast: $('#toast'),
@@ -393,7 +397,7 @@ function startGame(gl, canvas) {
     boat = createBoatState(course.start.heading);
     boat.x = course.start.x;
     boat.z = course.start.z;
-    boat.surge = 5.5;
+    boat.surge = 9.0;
     marks.reset(boat);
     assist.reset(boat, wind);
     coach.reset();
@@ -601,13 +605,25 @@ function startGame(gl, canvas) {
     }
   }
 
+  function updateSpeedReadout() {
+    const el = hud.speedReadout;
+    if (!el) return;
+    const kn = boat.speed * 1.94384;
+    const ms = boat.speed;
+    if (hud.speedValue) hud.speedValue.textContent = kn.toFixed(1);
+    if (hud.speedMs) hud.speedMs.textContent = `${ms.toFixed(1)} m/s`;
+    if (hud.speed) hud.speed.textContent = `${kn.toFixed(1)} kn`;
+    const pct = clamp(ms / 20.5, 0, 1) * 100;
+    if (hud.speedBarFill) hud.speedBarFill.style.width = `${pct}%`;
+    el.classList.toggle('boosting', Boolean(input.holdingCourse && input.easy));
+  }
+
   function updateHud(dt) {
     hudAcc += dt;
     if (hudAcc < 0.08 && dt !== 0) return;
     hudAcc = 0;
 
     const kn = boat.speed * 1.94384;
-    hud.speed.textContent = `${kn.toFixed(1)} kn`;
     hud.wind.textContent = `真風 ${wind.speed.toFixed(1)} m/s`;
     hud.point.textContent = pointOfSail(boat.awa).label;
 
@@ -787,7 +803,7 @@ function startGame(gl, canvas) {
         if (cleared.perfect) {
           perfectGates += 1;
           raceTime = Math.max(0, raceTime - 1.2);
-          boat.surge = Math.min(11.5, boat.surge + 2.8);
+          boat.surge = Math.min(20.5, boat.surge + 4.0);
           showToast(`完美穿門！−1.2s · 加速（完美 ${perfectGates}）`);
         } else if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
           // finish handled below
@@ -848,6 +864,7 @@ function startGame(gl, canvas) {
     camera.commit();
     updateWindCue();
     updateGateBeacon();
+    updateSpeedReadout();
 
     const roll = boat.heel + (boat.waveRoll || 0) * 0.65;
     boatMesh.update({

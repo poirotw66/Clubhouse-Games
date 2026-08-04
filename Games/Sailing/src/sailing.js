@@ -19,15 +19,16 @@ const STALL = (24 * Math.PI) / 180;             // angle of attack at peak lift
 const MAX_TRIM = (88 * Math.PI) / 180;
 const MIN_TRIM = (6 * Math.PI) / 180;
 
-const POWER = 0.028;          // sail force scale
-const DRAG_FWD = 0.038;       // hull resistance (quadratic)
-const DRAG_LAT = 0.9;         // keel resistance to leeway
 const TURN_RATE = 1.7;
-const TURN_RATE_ARCADE = 2.55;
+const TURN_RATE_ARCADE = 2.85;
 const MAX_HEEL = (28 * Math.PI) / 180;
-// Arcade cruise when not boosting — player must hold ↑ for full speed.
-const ARCADE_CRUISE = 4.2;
-const ARCADE_BOOST = 9.5;
+// Arcade cruise / boost — raised so the bay race doesn't crawl.
+const ARCADE_CRUISE = 9.0;
+const ARCADE_BOOST = 17.5;
+const ARCADE_MAX = 20.5;
+const POWER = 0.038;          // sail force scale (hard mode a bit quicker too)
+const DRAG_FWD = 0.034;       // hull resistance (quadratic)
+const DRAG_LAT = 0.9;         // keel resistance to leeway
 
 /**
  * Lift coefficient: rises to a peak at STALL, then bleeds away post-stall.
@@ -194,7 +195,7 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
   const dragScale = assist ? 0.78 : 1;
   const resist = (DRAG_FWD * boat.surge * Math.abs(boat.surge)
     + 0.18 * boat.surge
-    + 0.022 * Math.pow(Math.max(0, Math.abs(boat.surge) - (assist ? 7.5 : 5.6)), 3)
+    + 0.022 * Math.pow(Math.max(0, Math.abs(boat.surge) - (assist ? 14.5 : 6.8)), 3)
       * Math.sign(boat.surge || 1)) * dragScale;
 
   const lateralResist = DRAG_LAT * boat.sway * Math.abs(boat.sway) + 2.6 * boat.sway;
@@ -207,12 +208,13 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
   // but pointing into the wind never kills you — it only slows the motor.
   if (assist) {
     const boosting = Boolean(input.holdCourse);
-    // 0 in deep irons → 1 on a beam reach.
-    const windBonus = clamp((beta - (12 * Math.PI) / 180) / ((70 * Math.PI) / 180), 0.55, 1.2);
+    // Soft wind flavour only — apparent-wind shift must not throttle the motor
+    // back to a crawl once the boat is already moving.
+    const windBonus = clamp((beta - (8 * Math.PI) / 180) / ((100 * Math.PI) / 180), 0.9, 1.12);
     const target = (boosting ? ARCADE_BOOST : ARCADE_CRUISE) * windBonus;
-    boat.surge += (target - boat.surge) * (boosting ? 3.2 : 2.0) * dt;
+    boat.surge += (target - boat.surge) * (boosting ? 3.6 : 2.4) * dt;
     boat.sway *= Math.exp(-2.6 * dt);
-    boat.surge = Math.min(boat.surge, 11.5);
+    boat.surge = Math.min(boat.surge, ARCADE_MAX);
   }
 
   // --- steering -------------------------------------------------------------
