@@ -8,8 +8,18 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playError, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { Trophy, Play, RotateCcw, ChevronRight, ChevronLeft, Target, Zap } from 'lucide-react';
+import { Trophy, Play, Target, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  DERBY_SWINGS,
+  DIFFICULTY,
+  DIFFICULTY_LABELS,
+  PLAY_MODE_LABELS,
+  cpuSwingTargetY,
+  gradeFairLanding,
+  type Difficulty,
+  type PlayMode,
+} from './difficulty';
 
 // --- Constants & Types ---
 
@@ -27,6 +37,8 @@ type BallState = 'idle' | 'pitching' | 'flying';
 
 interface GameState {
   mode: GameMode;
+  playMode: PlayMode;
+  difficulty: Difficulty;
   inning: number;
   halfInning: number; // 0: Top, 1: Bottom
   score: { away: number; home: number };
@@ -48,6 +60,18 @@ interface GameState {
   resultText: string;
   resultTimer: number;
   lastHitType: 'foul' | 'fair' | null;
+  contactQuality: number;
+  /** Countdown before the next CPU pitch (avoids stacking setTimeouts). */
+  cpuPitchTimer: number | null;
+  /** CPU has locked a swing decision for this pitch. */
+  cpuSwingLocked: boolean;
+  cpuSwingTargetY: number | null;
+  cpuWillSwing: boolean;
+  derbySwingsLeft: number;
+  derbyHrs: number;
+  derbyBestDist: number;
+  /** True when the current plate appearance is finished. */
+  atBatOver: boolean;
 }
 
 // --- Game Engine ---
@@ -64,6 +88,8 @@ class GameEngine {
   getInitialState(): GameState {
     return {
       mode: 'menu',
+      playMode: 'match',
+      difficulty: 'normal',
       inning: 1,
       halfInning: 0,
       score: { away: 0, home: 0 },
@@ -85,16 +111,46 @@ class GameEngine {
       resultText: '',
       resultTimer: 0,
       lastHitType: null,
+      contactQuality: 0.5,
+      cpuPitchTimer: null,
+      cpuSwingLocked: false,
+      cpuSwingTargetY: null,
+      cpuWillSwing: false,
+      derbySwingsLeft: DERBY_SWINGS,
+      derbyHrs: 0,
+      derbyBestDist: 0,
+      atBatOver: false,
     };
   }
 
+  get cfg() {
+    return DIFFICULTY[this.state.difficulty];
+  }
+
   reset() {
+    const handedness = this.state.handedness;
+    const difficulty = this.state.difficulty;
+    const playMode = this.state.playMode;
     this.state = this.getInitialState();
+    this.state.handedness = handedness;
+    this.state.difficulty = difficulty;
+    this.state.playMode = playMode;
     this.onStateChange(this.state);
   }
 
-  start() {
+  start(playMode?: PlayMode, difficulty?: Difficulty) {
+    if (playMode) this.state.playMode = playMode;
+    if (difficulty) this.state.difficulty = difficulty;
     this.state.mode = 'playing';
+    this.state.inning = 1;
+    this.state.halfInning = 0;
+    this.state.score = { away: 0, home: 0 };
+    this.state.outs = 0;
+    this.state.bases = [false, false, false];
+    this.state.derbySwingsLeft = DERBY_SWINGS;
+    this.state.derbyHrs = 0;
+    this.state.derbyBestDist = 0;
+    if (this.state.playMode === 'derby') this.state.halfInning = 0;
     this.nextBatter();
     this.onStateChange(this.state);
   }
@@ -102,6 +158,12 @@ class GameEngine {
   nextBatter() {
     this.state.strikes = 0;
     this.state.balls = 0;
+    this.state.atBatOver = false;
+    this.readyNextPitch();
+  }
+
+  /** Same batter, next pitch — keeps the count. */
+  readyNextPitch() {
     this.state.ballPos = null;
     this.state.ballVel = null;
     this.state.ballState = 'idle';
@@ -109,36 +171,47 @@ class GameEngine {
     this.state.pitchType = null;
     this.state.pitchLoc = null;
     this.state.swingTime = null;
+    this.state.cpuPitchTimer = null;
+    this.state.cpuSwingLocked = false;
+    this.state.cpuSwingTargetY = null;
+    this.state.cpuWillSwing = false;
+    this.state.contactQuality = 0.5;
   }
 
   get isPlayerBatting() {
-    return this.state.halfInning === 0; // Player is Away team
+    if (this.state.playMode === 'derby') return true;
+    return this.state.halfInning === 0;
   }
 
   handlePitch(type: PitchType, loc: PitchLoc) {
     if (this.state.ballState !== 'idle' || this.state.ballPos) return;
+    if (this.state.resultTimer > 0) return;
 
     this.state.isPitching = true;
     this.state.ballState = 'pitching';
     this.state.pitchType = type;
     this.state.pitchLoc = loc;
-    this.state.ballPos = { x: 400, y: 150, z: 20 }; // Pitcher mound
-    
+    this.state.ballPos = { x: 400, y: 150, z: 20 };
+    this.state.cpuPitchTimer = null;
+    this.state.cpuSwingLocked = false;
+    this.state.cpuSwingTargetY = null;
+    this.state.cpuWillSwing = false;
+
     const speed = type === 'fast' ? 500 : 300;
     let targetX = 400;
     if (loc === 'left') targetX = 370;
     if (loc === 'right') targetX = 430;
 
     const dx = targetX - 400;
-    const dy = 450 - 150; // Home plate is at y=450
+    const dy = 450 - 150;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    
+
     this.state.ballVel = {
       x: (dx / dist) * speed,
       y: (dy / dist) * speed,
-      z: -5 // Slight downward pitch
+      z: -5,
     };
-    
+
     this.onStateChange(this.state);
   }
 
@@ -155,32 +228,65 @@ class GameEngine {
       this.state.resultTimer -= dt;
       if (this.state.resultTimer <= 0) {
         this.state.resultText = '';
-        this.nextBatter();
+        if (this.state.atBatOver || this.state.playMode === 'derby') {
+          this.nextBatter();
+        } else {
+          this.readyNextPitch();
+        }
       }
       this.onStateChange(this.state);
       return;
     }
 
-    // CPU Pitching Logic
-    if (this.isPlayerBatting && this.state.ballState === 'idle') {
-      // Simple delay before CPU pitches
-      setTimeout(() => {
-        if (this.state.mode === 'playing' && this.isPlayerBatting && this.state.ballState === 'idle') {
-          const types: PitchType[] = ['fast', 'slow'];
+    // CPU Pitching — single countdown, never stacks timers.
+    if (this.isPlayerBatting && this.state.ballState === 'idle' && this.state.resultTimer <= 0) {
+      if (this.state.cpuPitchTimer === null) {
+        const { cpuPitchDelayMin, cpuPitchDelayMax } = this.cfg;
+        this.state.cpuPitchTimer =
+          cpuPitchDelayMin + Math.random() * (cpuPitchDelayMax - cpuPitchDelayMin);
+      } else {
+        this.state.cpuPitchTimer -= dt;
+        if (this.state.cpuPitchTimer <= 0) {
+          this.state.cpuPitchTimer = null;
+          const type: PitchType = Math.random() < this.cfg.cpuFastPitchChance ? 'fast' : 'slow';
           const locs: PitchLoc[] = ['left', 'center', 'right'];
-          this.handlePitch(
-            types[Math.floor(Math.random() * types.length)],
-            locs[Math.floor(Math.random() * locs.length)]
-          );
+          // Harder CPU throws more strikes into center / edges mix.
+          const loc =
+            this.state.difficulty === 'easy'
+              ? locs[Math.floor(Math.random() * 3)]
+              : Math.random() < 0.45
+                ? 'center'
+                : locs[Math.floor(Math.random() * 3)];
+          this.handlePitch(type, loc);
         }
-      }, 1000);
+      }
     }
 
-    // CPU Batting Logic
+    // CPU Batting — lock aim once, swing at target Y (timing), match direction.
     if (!this.isPlayerBatting && this.state.ballState === 'pitching' && this.state.swingTime === null) {
-      if (this.state.ballPos && this.state.ballPos.y > 420 && this.state.ballPos.y < 460) {
-        if (Math.random() > 0.4) {
-          this.state.swingDir = ['left', 'center', 'right'][Math.floor(Math.random() * 3)] as SwingDir;
+      const ball = this.state.ballPos;
+      if (ball) {
+        if (!this.state.cpuSwingLocked && ball.y > 360) {
+          this.state.cpuSwingLocked = true;
+          const takeBall =
+            this.state.pitchLoc !== 'center' && Math.random() < this.cfg.cpuTakeBall;
+          this.state.cpuWillSwing = !takeBall && Math.random() < this.cfg.cpuSwingRate;
+          this.state.cpuSwingTargetY = cpuSwingTargetY(this.cfg.cpuAimSkill, Math.random);
+          if (this.state.cpuWillSwing) {
+            if (Math.random() < this.cfg.cpuAimDir && this.state.pitchLoc) {
+              this.state.swingDir = this.state.pitchLoc;
+            } else {
+              this.state.swingDir = (['left', 'center', 'right'] as SwingDir[])[
+                Math.floor(Math.random() * 3)
+              ];
+            }
+          }
+        }
+        if (
+          this.state.cpuWillSwing
+          && this.state.cpuSwingTargetY !== null
+          && ball.y >= this.state.cpuSwingTargetY
+        ) {
           this.handleSwing();
         }
       }
@@ -215,8 +321,7 @@ class GameEngine {
           const dist = Math.sqrt(
             Math.pow(this.state.ballPos.x - 400, 2) + Math.pow(this.state.ballPos.y - 450, 2)
           );
-          // Radius increased from 30 to 60 for easier hitting
-          if (dist < 60) {
+          if (dist < this.cfg.hitRadius) {
             this.processHitPhysics();
             return;
           }
@@ -265,10 +370,15 @@ class GameEngine {
     if (this.state.swingDir === 'left') dirBias = -0.5;
     if (this.state.swingDir === 'right') dirBias = 0.5;
 
-    const angleOffset = timing * 5 + dirBias; 
-    const powerFactor = Math.max(0.2, 1 - Math.abs(timing) * 4);
+    // Reward matching swing direction to pitch location.
+    const locMatch =
+      this.state.pitchLoc && this.state.swingDir === this.state.pitchLoc ? 0.12 : 0;
+
+    const angleOffset = timing * 5 + dirBias;
+    const powerFactor = Math.max(0.15, 1 - Math.abs(timing) * 4);
     const rand = Math.random();
-    const hitScore = powerFactor * 0.8 + rand * 0.2;
+    const hitScore = Math.min(1, powerFactor * 0.75 + rand * 0.15 + locMatch);
+    this.state.contactQuality = hitScore;
 
     const speed = 400 + hitScore * 400;
     const baseAngle = -Math.PI / 2;
@@ -277,9 +387,9 @@ class GameEngine {
     this.state.ballVel = {
       x: Math.cos(finalAngle) * speed,
       y: Math.sin(finalAngle) * speed,
-      z: 150 + hitScore * 250 // Vertical launch
+      z: 150 + hitScore * 250,
     };
-    
+
     this.onStateChange(this.state);
   }
 
@@ -290,8 +400,9 @@ class GameEngine {
 
     const x = this.state.ballPos?.x || 400;
     const y = this.state.ballPos?.y || 450;
+    const dist = Math.sqrt(Math.pow(x - 400, 2) + Math.pow(y - 450, 2));
+    const quality = this.state.contactQuality;
 
-    // Precise Foul check (V-shape from home plate)
     const isFoul = Math.abs(x - 400) > Math.abs(y - 450) + 5 || x < 0 || x > 800;
 
     if (type === 'HR') {
@@ -299,51 +410,65 @@ class GameEngine {
         result = '界外球 (FOUL)';
         hitType = 'foul';
         this.state.strikes = Math.min(2, this.state.strikes + 1);
+      } else if (quality < 0.35) {
+        // Weak loft that clears the wall visually still dies as a deep out in arcade.
+        result = '牆前接殺 (OUT)';
+        hitType = 'fair';
+        this.state.outs++;
       } else {
         result = '全壘打 (HOME RUN!)';
         hitType = 'fair';
         bases = 4;
-      }
-    } else {
-      if (isFoul) {
-        result = '界外球 (FOUL)';
-        hitType = 'foul';
-        this.state.strikes = Math.min(2, this.state.strikes + 1);
-      } else {
-        hitType = 'fair';
-        // Distance from home - Increased for deeper outfield
-        const dist = Math.sqrt(Math.pow(x - 400, 2) + Math.pow(y - 450, 2));
-        if (dist > 450) {
-          result = '三壘安打 (3B)';
-          bases = 3;
-        } else if (dist > 300) {
-          result = '二壘安打 (2B)';
-          bases = 2;
-        } else if (dist > 180) {
-          result = '一壘安打 (1B)';
-          bases = 1;
-        } else {
-          result = '接殺出局 (OUT)';
-          this.state.outs++;
+        if (this.state.playMode === 'derby') {
+          this.state.derbyHrs += 1;
+          this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
         }
+      }
+    } else if (isFoul) {
+      result = '界外球 (FOUL)';
+      hitType = 'foul';
+      this.state.strikes = Math.min(2, this.state.strikes + 1);
+    } else {
+      hitType = 'fair';
+      const graded = gradeFairLanding(dist, quality, this.cfg);
+      result = graded.result;
+      bases = graded.bases;
+      if (bases === 0) this.state.outs++;
+      if (this.state.playMode === 'derby') {
+        this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
       }
     }
 
     if (bases > 0) this.advanceRunners(bases);
-    
+
     this.state.ballPos = null;
     this.state.ballVel = null;
     this.state.ballState = 'idle';
     this.state.resultText = result;
     this.state.resultTimer = 2.5;
     this.state.lastHitType = hitType;
-    this.checkInningEnd();
+
+    // Fair balls and outs end the at-bat; fouls keep the same batter.
+    this.state.atBatOver = hitType === 'fair' || bases > 0 || result.includes('OUT');
+
+    if (this.state.playMode === 'derby') {
+      if (hitType === 'foul' || hitType === 'fair') {
+        this.state.derbySwingsLeft = Math.max(0, this.state.derbySwingsLeft - 1);
+      }
+      this.state.atBatOver = true;
+      if (this.state.derbySwingsLeft <= 0) {
+        this.state.mode = 'gameOver';
+      }
+    } else {
+      this.checkInningEnd();
+    }
   }
 
   processMiss() {
-    // Determine if it was a strike or ball based on location
-    const isStrike = this.state.pitchLoc === 'center' || (Math.random() > 0.5);
-    
+    const loc = this.state.pitchLoc;
+    const isStrike =
+      loc === 'center' || (loc !== null && Math.random() > 0.55);
+
     if (this.state.swingTime !== null) {
       this.state.strikes++;
       this.state.resultText = '揮棒落空 (STRIKE)';
@@ -355,22 +480,40 @@ class GameEngine {
       this.state.resultText = '壞球 (BALL)';
     }
 
-    // Rule: 3 Strikes = 1 Out
+    if (this.state.playMode === 'derby') {
+      this.state.derbySwingsLeft = Math.max(0, this.state.derbySwingsLeft - 1);
+      this.state.strikes = 0;
+      this.state.balls = 0;
+      this.state.resultTimer = 1.2;
+      this.state.ballPos = null;
+      this.state.ballVel = null;
+      this.state.ballState = 'idle';
+      this.state.isPitching = false;
+      this.state.atBatOver = true;
+      if (this.state.derbySwingsLeft <= 0) this.state.mode = 'gameOver';
+      return;
+    }
+
+    this.state.atBatOver = false;
     if (this.state.strikes >= 3) {
       this.state.outs++;
       this.state.resultText = '三振出局 (STRIKEOUT)';
       this.state.strikes = 0;
       this.state.balls = 0;
-    } 
-    // Rule: 4 Balls = Walk
-    else if (this.state.balls >= 4) {
+      this.state.atBatOver = true;
+    } else if (this.state.balls >= 4) {
       this.advanceRunners(1);
       this.state.resultText = '四壞保送 (WALK)';
       this.state.strikes = 0;
       this.state.balls = 0;
+      this.state.atBatOver = true;
     }
 
     this.state.resultTimer = 1.5;
+    this.state.ballPos = null;
+    this.state.ballVel = null;
+    this.state.ballState = 'idle';
+    this.state.isPitching = false;
     this.checkInningEnd();
   }
 
@@ -738,7 +881,10 @@ export default function App() {
         }
       }
       if (state.mode === 'gameOver' && prevModeRef.current !== 'gameOver') {
-        if (state.score.away > state.score.home) playWin();
+        if (state.playMode === 'derby') {
+          if (state.derbyHrs > 0) playWin();
+          else playLose();
+        } else if (state.score.away > state.score.home) playWin();
         else if (state.score.away < state.score.home) playLose();
       }
       prevModeRef.current = state.mode;
@@ -802,11 +948,27 @@ export default function App() {
   }, []);
 
   const handleStart = () => {
-    engineRef.current?.start();
+    const eng = engineRef.current;
+    if (!eng) return;
+    eng.start(eng.state.playMode, eng.state.difficulty);
   };
 
   const handleReset = () => {
     engineRef.current?.reset();
+  };
+
+  const setMenuPlayMode = (playMode: PlayMode) => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    eng.state.playMode = playMode;
+    eng.onStateChange(eng.state);
+  };
+
+  const setMenuDifficulty = (difficulty: Difficulty) => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    eng.state.difficulty = difficulty;
+    eng.onStateChange(eng.state);
   };
 
   const handlePitch = (type: PitchType, loc: PitchLoc) => {
@@ -834,23 +996,40 @@ export default function App() {
       <div className="relative w-full max-w-[800px] bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
         {/* Scoreboard */}
         <div className="absolute top-0 left-0 right-0 p-3 sm:p-6 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-start gap-2">
-          <div className="flex gap-4 sm:gap-8 min-w-0">
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Away (Player)</span>
-              <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
+          {gameState.playMode === 'derby' ? (
+            <div className="flex gap-4 sm:gap-8 min-w-0">
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">全壘打</span>
+                <span className="text-3xl sm:text-4xl font-mono font-bold text-yellow-400">{gameState.derbyHrs}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">剩餘揮棒</span>
+                <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.derbySwingsLeft}</span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Home (CPU)</span>
-              <span className="text-3xl sm:text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
+          ) : (
+            <div className="flex gap-4 sm:gap-8 min-w-0">
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Away (Player)</span>
+                <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Home (CPU)</span>
+                <span className="text-3xl sm:text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
               <span className="text-xs font-bold text-zinc-400">
-                {gameState.inning} 局 {gameState.halfInning === 0 ? '上' : '下'}
+                {gameState.playMode === 'derby'
+                  ? `全壘打大賽 · ${DIFFICULTY_LABELS[gameState.difficulty]}`
+                  : `${gameState.inning} 局 ${gameState.halfInning === 0 ? '上' : '下'} · ${DIFFICULTY_LABELS[gameState.difficulty]}`}
               </span>
             </div>
+            {gameState.playMode !== 'derby' && (
+              <>
             <div className="flex gap-1 mt-2">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className={`w-2 h-2 rounded-full ${i < gameState.outs ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-zinc-800'}`} />
@@ -869,6 +1048,8 @@ export default function App() {
               ))}
               <span className="text-[10px] text-zinc-500 ml-1 font-bold uppercase">Balls</span>
             </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -887,14 +1068,55 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20"
+              className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-start sm:justify-center z-20 p-4 overflow-y-auto"
             >
-              <Trophy className="w-20 h-20 text-yellow-500 mb-6" />
-              <h1 className="text-6xl font-bold tracking-tighter mb-2 italic">TOY BASEBALL</h1>
-              <p className="text-zinc-400 mb-8 text-sm tracking-widest uppercase">玩具棒球機檯</p>
-              
-              <div className="flex gap-4 mb-8">
+              <Trophy className="w-14 h-14 sm:w-20 sm:h-20 text-yellow-500 mb-3 sm:mb-6" />
+              <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">TOY BASEBALL</h1>
+              <p className="text-zinc-400 mb-4 text-sm tracking-widest uppercase">玩具棒球機檯</p>
+
+              <div className="w-full max-w-md mb-3">
+                <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold text-center mb-2">模式</p>
+                <div className="flex gap-2 justify-center">
+                  {(['match', 'derby'] as PlayMode[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMenuPlayMode(m)}
+                      className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                        gameState.playMode === m
+                          ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.45)]'
+                          : 'bg-zinc-800 text-zinc-400'
+                      }`}
+                    >
+                      {PLAY_MODE_LABELS[m]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="w-full max-w-md mb-3">
+                <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold text-center mb-2">難度</p>
+                <div className="flex gap-2 justify-center">
+                  {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setMenuDifficulty(d)}
+                      className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                        gameState.difficulty === d
+                          ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                          : 'bg-zinc-800 text-zinc-400'
+                      }`}
+                    >
+                      {DIFFICULTY_LABELS[d]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-4 mb-5">
                 <button
+                  type="button"
                   onClick={() => {
                     engineRef.current!.state.handedness = 'right';
                     setGameState({ ...engineRef.current!.state });
@@ -904,6 +1126,7 @@ export default function App() {
                   右打 (R)
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     engineRef.current!.state.handedness = 'left';
                     setGameState({ ...engineRef.current!.state });
@@ -914,12 +1137,19 @@ export default function App() {
                 </button>
               </div>
 
+              <p className="text-zinc-500 text-xs mb-4 text-center max-w-sm">
+                {gameState.playMode === 'derby'
+                  ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。對準時機＋方向。`
+                  : '三局制對戰電腦。打者抓時機揮棒；投手選球路。'}
+              </p>
+
               <button
+                type="button"
                 onClick={handleStart}
                 className="group relative flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold text-xl hover:scale-105 transition-all active:scale-95"
               >
                 <Play className="fill-current" />
-                開始比賽
+                {gameState.playMode === 'derby' ? '開始大賽' : '開始比賽'}
                 <div className="absolute -inset-1 bg-white/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             </motion.div>
@@ -928,24 +1158,42 @@ export default function App() {
           {gameState.mode === 'gameOver' && (
             <ResultOverlay
               title={
-                gameState.score.away > gameState.score.home
-                  ? '你贏了！'
-                  : gameState.score.away < gameState.score.home
-                    ? '電腦獲勝'
-                    : '平手'
+                gameState.playMode === 'derby'
+                  ? gameState.derbyHrs > 0
+                    ? `轟出 ${gameState.derbyHrs} 支全壘打！`
+                    : '沒有全壘打…再來一次！'
+                  : gameState.score.away > gameState.score.home
+                    ? '你贏了！'
+                    : gameState.score.away < gameState.score.home
+                      ? '電腦獲勝'
+                      : '平手'
               }
               variant={
-                gameState.score.away > gameState.score.home
-                  ? 'win'
-                  : gameState.score.away < gameState.score.home
-                    ? 'lose'
+                gameState.playMode === 'derby'
+                  ? gameState.derbyHrs > 0
+                    ? 'win'
                     : 'neutral'
+                  : gameState.score.away > gameState.score.home
+                    ? 'win'
+                    : gameState.score.away < gameState.score.home
+                      ? 'lose'
+                      : 'neutral'
               }
-              stats={[
-                { label: '客隊（你）', value: gameState.score.away },
-                { label: '主隊（電腦）', value: gameState.score.home },
-              ]}
+              stats={
+                gameState.playMode === 'derby'
+                  ? [
+                      { label: '全壘打', value: gameState.derbyHrs },
+                      { label: '最遠距離', value: Math.round(gameState.derbyBestDist) },
+                      { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
+                    ]
+                  : [
+                      { label: '客隊（你）', value: gameState.score.away },
+                      { label: '主隊（電腦）', value: gameState.score.home },
+                      { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
+                    ]
+              }
               onPrimary={handleReset}
+              primaryLabel="回選單"
             />
           )}
         </AnimatePresence>
@@ -953,7 +1201,7 @@ export default function App() {
         {/* Controls Overlay */}
         {gameState.mode === 'playing' && (
           <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
-            {gameState.halfInning === 0 ? (
+            {gameState.playMode === 'derby' || gameState.halfInning === 0 ? (
               <>
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
