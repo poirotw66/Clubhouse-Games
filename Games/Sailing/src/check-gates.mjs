@@ -1,7 +1,7 @@
 // ponytail: gate crossing self-check (no test framework).
 
 import { createCourse, gateLocal } from './marks.js';
-import { createWind, NO_GO } from './sailing.js';
+import { createWind } from './sailing.js';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -64,9 +64,7 @@ const hit = marks.tryClear(boat);
 assert(hit && hit.index === 0, 'expected start gate clear');
 assert(marks.nextIndex === 1, 'should advance to checkpoint 1');
 
-// The race must not open in the no-go zone. A start heading up the wind leaves
-// the boat losing way and reading "cannot advance" before the player has
-// touched anything, which reads as the game being broken.
+// First course opens downwind so beginners aren't fighting the wind on GO.
 {
   const w = createWind(1); // main.js seeds the wind with 1
   w.update(0);
@@ -75,10 +73,10 @@ assert(marks.nextIndex === 1, 'should advance to checkpoint 1');
     Math.cos(course.start.heading - w.from)
   );
   const twa = Math.abs(off);
-  assert(twa > NO_GO + 0.15,
-    `start is in the no-go zone: TWA ${((twa * 180) / Math.PI).toFixed(0)}°`);
-  assert(twa < Math.PI * 0.75,
-    `start should be a reach, not a run: TWA ${((twa * 180) / Math.PI).toFixed(0)}°`);
+  assert(twa > (150 * Math.PI) / 180,
+    `start should be a run (downwind): TWA ${((twa * 180) / Math.PI).toFixed(0)}°`);
+  assert(twa <= Math.PI + 0.01,
+    `start TWA out of range: ${((twa * 180) / Math.PI).toFixed(0)}°`);
 }
 
 console.log('check-gates: ok');

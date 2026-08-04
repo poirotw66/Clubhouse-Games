@@ -82,10 +82,13 @@ export function createBoatState(startHeading = 0) {
 }
 
 export function createWind(seed = 1) {
+  // 80°: matches the course start heading (−100°) so leg 1 opens as a run
+  // (wind at your back) — easiest default for the first course.
+  const DOWNWIND_FROM = (80 * Math.PI) / 180;
   return {
-    baseFrom: Math.PI,       // direction the wind blows FROM
+    baseFrom: DOWNWIND_FROM, // direction the wind blows FROM
     baseSpeed: 7.0,
-    from: Math.PI,
+    from: DOWNWIND_FROM,
     speed: 7.0,
     seed,
     update(time) {

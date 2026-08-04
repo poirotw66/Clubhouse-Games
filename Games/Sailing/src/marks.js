@@ -9,8 +9,10 @@ import { sampleWater } from './shaderChunks.js';
 const ORANGE = [0.95, 0.42, 0.12];
 const WHITE = [0.96, 0.96, 0.94];
 const POLE = [0.75, 0.78, 0.8];
-const NEXT = [0.35, 0.95, 0.75];
+const NEXT = [0.15, 1.0, 0.72];
+const NEXT_HOT = [0.85, 1.0, 0.35];
 const DONE = [0.55, 0.6, 0.65];
+const BEAM = [0.2, 1.0, 0.85];
 
 function buildBuoyMesh(gl, program, stripeCount = 6) {
   const data = [];
@@ -76,12 +78,40 @@ function buildBuoyMesh(gl, program, stripeCount = 6) {
   }
 
   const flagY = height + poleH - 0.1;
+  // Bigger, brighter flag so the target gate reads from far away.
   indices.push(
-    push([0, flagY, 0], [0, 0, 1], [0, 0], WHITE),
-    push([0, flagY - 0.55, 0], [0, 0, 1], [0, 1], WHITE),
-    push([1.05, flagY - 0.28, 0], [0, 0, 1], [1, 0.5], WHITE)
+    push([0, flagY + 0.15, 0], [0, 0, 1], [0, 0], [0.15, 1.0, 0.55]),
+    push([0, flagY - 0.85, 0], [0, 0, 1], [0, 1], [0.15, 1.0, 0.55]),
+    push([1.55, flagY - 0.35, 0], [0, 0, 1], [1, 0.5], [1.0, 0.95, 0.2])
   );
 
+  return createMesh(gl, program, new Float32Array(data), new Uint32Array(indices), SOLID_ATTRIBUTES);
+}
+
+/** Thin glowing bar spanning a gate opening (unit X from -1..1). */
+function buildGateBeamMesh(gl, program) {
+  const data = [];
+  const indices = [];
+  let v = 0;
+  const push = (p, n, c) => {
+    data.push(p[0], p[1], p[2], n[0], n[1], n[2], 0, 0, c[0], c[1], c[2]);
+    return v++;
+  };
+  const y0 = 1.2;
+  const y1 = 2.4;
+  const z = 0.08;
+  // Front face
+  const a = push([-1, y0, z], [0, 0, 1], BEAM);
+  const b = push([1, y0, z], [0, 0, 1], BEAM);
+  const c = push([1, y1, z], [0, 0, 1], BEAM);
+  const d = push([-1, y1, z], [0, 0, 1], BEAM);
+  indices.push(a, b, c, a, c, d);
+  // Back face
+  const e = push([-1, y0, -z], [0, 0, -1], BEAM);
+  const f = push([1, y0, -z], [0, 0, -1], BEAM);
+  const g = push([1, y1, -z], [0, 0, -1], BEAM);
+  const h = push([-1, y1, -z], [0, 0, -1], BEAM);
+  indices.push(e, g, f, e, h, g);
   return createMesh(gl, program, new Float32Array(data), new Uint32Array(indices), SOLID_ATTRIBUTES);
 }
 
@@ -101,7 +131,8 @@ export function createCourse() {
     { id: 5, name: '終點門', x: 0, z: 40, facing: 0, halfWidth: 16, isFinish: true },
   ];
 
-  // Rolling start on a beam reach, pointed roughly at the first gate.
+  // Rolling start pointed at the first gate. Wind (see createWind) is set so
+  // this heading is a run — first course opens downwind.
   const start = {
     x: 22,
     z: 48,
@@ -139,9 +170,10 @@ function gateLocal(boat, gate) {
 
 export function createMarks(gl, solid, course) {
   const mesh = buildBuoyMesh(gl, solid.program);
+  const beamMesh = buildGateBeamMesh(gl, solid.program);
   const posts = [];
   for (const gate of course.gates) {
-    // Finish reuses the start posts visually — skip duplicate draw for id 4.
+    // Finish reuses the start posts visually — skip duplicate draw.
     if (gate.isFinish) continue;
     const p = gatePosts(gate);
     posts.push({ gateId: gate.id, x: p.left.x, z: p.left.z });
@@ -152,10 +184,13 @@ export function createMarks(gl, solid, course) {
     model: mat4.create(),
     normal: new Float32Array(9),
   }));
+  const beamModel = mat4.create();
+  const beamNormal = new Float32Array(9);
 
   let nextIndex = 0;
   // Track which side of the *current* gate the boat was on last frame.
   let prevAlong = null;
+  let animTime = 0;
 
   return {
     get nextIndex() {
@@ -178,8 +213,8 @@ export function createMarks(gl, solid, course) {
     },
 
     /**
-     * Returns { cleared: gate, index } when the boat crosses the next gate
-     * in the forward direction within the posts; otherwise null.
+     * Returns { cleared, index, accuracy, perfect } when the boat crosses the
+     * next gate in the forward direction within the posts; otherwise null.
      */
     tryClear(boat) {
       if (nextIndex >= course.gates.length) return null;
@@ -213,30 +248,77 @@ export function createMarks(gl, solid, course) {
     },
 
     update(time, waveAmp) {
+      animTime = time;
       posts.forEach((p, i) => {
         const s = sampleWater(p.x, p.z, time, waveAmp);
         const pitch = Math.atan(-s.nz) * 0.35;
         const roll = Math.atan(s.nx) * 0.35;
-        mat4.compose(models[i].model, [p.x, s.y - 0.35, p.z], 0, pitch, roll, 1);
+        const next = course.gates[nextIndex];
+        const isNext =
+          p.gateId === nextIndex ||
+          (next?.isFinish && p.gateId === 0);
+        // Next-gate posts loom larger so they read as the target.
+        const scale = isNext ? 1.75 : 1;
+        mat4.compose(models[i].model, [p.x, s.y - 0.35, p.z], 0, pitch, roll, scale);
         mat4.normalMatrix(models[i].normal, models[i].model);
       });
+
+      const gate = course.gates[nextIndex];
+      if (gate) {
+        const vis = gate.isFinish ? course.gates[0] : gate;
+        const s = sampleWater(vis.x, vis.z, time, waveAmp);
+        // Span the opening: unit beam is X=-1..1, scale X by halfWidth.
+        const t = mat4.fromTranslation(mat4.create(), [vis.x, s.y, vis.z]);
+        const ry = mat4.fromRotationY(mat4.create(), vis.facing);
+        const sc = mat4.fromScaling(mat4.create(), [vis.halfWidth, 1.35, 1]);
+        const tmp = mat4.create();
+        mat4.multiply(tmp, t, ry);
+        mat4.multiply(beamModel, tmp, sc);
+        mat4.normalMatrix(beamNormal, beamModel);
+      }
     },
 
     draw(solidPass) {
       const next = course.gates[nextIndex];
+      const pulse = 0.55 + 0.45 * Math.sin(animTime * 7);
+
       posts.forEach((p, i) => {
         let tint = [1, 1, 1];
+        let roughness = 0.35;
         const isNext =
           p.gateId === nextIndex ||
           (next?.isFinish && p.gateId === 0);
         const isDone =
           p.gateId < nextIndex && !(next?.isFinish && p.gateId === 0);
-        if (isNext) tint = NEXT;
-        else if (isDone) tint = DONE;
+        if (isNext) {
+          tint = [
+            NEXT[0] + (NEXT_HOT[0] - NEXT[0]) * pulse,
+            NEXT[1],
+            NEXT[2] + (NEXT_HOT[2] - NEXT[2]) * (1 - pulse),
+          ];
+          roughness = 0.12;
+        } else if (isDone) {
+          tint = DONE;
+        }
         solidPass.setTransform(models[i].model, models[i].normal);
-        solidPass.setMaterial({ tint, roughness: 0.35 });
+        solidPass.setMaterial({
+          tint,
+          roughness,
+          translucency: isNext ? 0.45 * pulse : 0,
+        });
         mesh.draw();
       });
+
+      // Glowing bar across the active gate opening.
+      if (next) {
+        solidPass.setTransform(beamModel, beamNormal);
+        solidPass.setMaterial({
+          tint: [0.25 + 0.75 * pulse, 1, 0.55 + 0.45 * pulse],
+          roughness: 0.08,
+          translucency: 0.7,
+        });
+        beamMesh.draw();
+      }
     },
 
     /** Bearing from boat to next gate center, relative to boat heading (−PI..PI). */

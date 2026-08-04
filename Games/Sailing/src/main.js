@@ -153,6 +153,9 @@ function startGame(gl, canvas) {
     courseCueArrow: $('#course-cue-arrow'),
     goBtn: $('#btn-go'),
     keyGo: document.querySelector('.key-go'),
+    gateBeacon: $('#gate-beacon'),
+    gateBeaconName: $('#gate-beacon-name'),
+    gateBeaconDist: $('#gate-beacon-dist'),
     coach: $('#coach'),
     coachText: $('#coach-text'),
     toast: $('#toast'),
@@ -543,6 +546,61 @@ function startGame(gl, canvas) {
     hud.windCueLabel.textContent = label;
   }
 
+  /**
+   * Float a loud "下一門" flag over the next gate. Clamps to the screen edge
+   * with a yellow tint when the opening is off-camera.
+   */
+  function updateGateBeacon() {
+    const el = hud.gateBeacon;
+    if (!el) return;
+    const gate = marks.nextGate;
+    if (!gate || phase === 'finished') {
+      el.hidden = true;
+      return;
+    }
+
+    const vis = gate.isFinish ? course.gates[0] : gate;
+    const worldY = boat.waterY + 5.8;
+    const ndc = camera.project(vis.x, worldY, vis.z);
+
+    let sx;
+    let sy;
+    let offscreen = false;
+
+    if (!ndc) {
+      offscreen = true;
+      const bearing = Math.atan2(vis.x - boat.x, vis.z - boat.z);
+      const rel = wrap(bearing - camera.viewHeading);
+      sx = 0.5 + Math.sin(rel) * 0.42;
+      sy = 0.5 + Math.max(0.12, Math.cos(rel) * -0.35);
+    } else {
+      sx = ndc.x * 0.5 + 0.5;
+      sy = 1 - (ndc.y * 0.5 + 0.5);
+      if (sx < 0.06 || sx > 0.94 || sy < 0.08 || sy > 0.88) {
+        offscreen = true;
+        const dx = sx - 0.5;
+        const dy = sy - 0.5;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = dx / len;
+        const ny = dy / len;
+        const tx = Math.abs(nx) > 1e-4 ? 0.42 / Math.abs(nx) : Infinity;
+        const ty = Math.abs(ny) > 1e-4 ? 0.38 / Math.abs(ny) : Infinity;
+        const t = Math.min(tx, ty);
+        sx = 0.5 + nx * t;
+        sy = 0.5 + ny * t;
+      }
+    }
+
+    el.hidden = false;
+    el.classList.toggle('offscreen', offscreen);
+    el.style.left = `${clamp(sx, 0.07, 0.93) * 100}%`;
+    el.style.top = `${clamp(sy, 0.1, 0.86) * 100}%`;
+    if (hud.gateBeaconName) hud.gateBeaconName.textContent = gate.name;
+    if (hud.gateBeaconDist) {
+      hud.gateBeaconDist.textContent = `${marks.distanceToNext(boat).toFixed(0)} m`;
+    }
+  }
+
   function updateHud(dt) {
     hudAcc += dt;
     if (hudAcc < 0.08 && dt !== 0) return;
@@ -789,6 +847,7 @@ function startGame(gl, canvas) {
     camera.update(boat, input.lookYaw, dt);
     camera.commit();
     updateWindCue();
+    updateGateBeacon();
 
     const roll = boat.heel + (boat.waveRoll || 0) * 0.65;
     boatMesh.update({
