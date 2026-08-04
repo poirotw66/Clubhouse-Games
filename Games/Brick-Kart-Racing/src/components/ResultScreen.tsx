@@ -10,6 +10,9 @@ interface Props {
   trackId: string;
   bestLap: number;
   isNewRecord: boolean;
+  timeTrial?: boolean;
+  mirror?: boolean;
+  itemsEnabled?: boolean;
   onRetry: () => void;
   onMenu: () => void;
 }
@@ -20,6 +23,9 @@ export function ResultScreen({
   trackId,
   bestLap,
   isNewRecord,
+  timeTrial = false,
+  mirror = false,
+  itemsEnabled = true,
   onRetry,
   onMenu,
 }: Props) {
@@ -28,20 +34,31 @@ export function ResultScreen({
   const track = TRACKS.find((t) => t.id === trackId);
   const won = player.place === 1;
   const character = CHARACTERS.find((c) => c.id === player.charId)!;
+  const flags = [
+    timeTrial ? '計時賽' : '對戰賽',
+    mirror ? '鏡像' : null,
+    !timeTrial && !itemsEnabled ? '無道具' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="absolute inset-0 z-30 grid place-items-center overflow-y-auto bg-slate-950/85 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
         <p className="text-center text-xs font-bold tracking-[0.3em] text-amber-400">
-          {track?.name} · 完賽
+          {track?.name}
+          {mirror ? ' · 鏡像' : ''} · 完賽
         </p>
+        <p className="mt-1 text-center text-[11px] text-slate-500">{flags}</p>
         <div className="my-2 flex justify-center">
           <BrickPreview bricks={kartBricks(character)} size={110} spin={won} yaw={0.6} />
         </div>
         <h2
-          className={`text-center text-3xl font-black ${won ? 'text-amber-300' : 'text-slate-100'}`}
+          className={`text-center text-3xl font-black ${
+            timeTrial || won ? 'text-amber-300' : 'text-slate-100'
+          }`}
         >
-          {won ? '冠軍！' : `第 ${player.place} 名`}
+          {timeTrial ? '計時完賽' : won ? '冠軍！' : `第 ${player.place} 名`}
         </h2>
         {isNewRecord && (
           <p className="mt-1 text-center text-sm font-bold text-emerald-300">🏁 新的最佳單圈紀錄</p>
@@ -60,30 +77,32 @@ export function ResultScreen({
           </div>
         </dl>
 
-        <ol className="mb-5 space-y-1">
-          {standings.map((r) => {
-            const c = CHARACTERS.find((ch) => ch.id === r.charId)!;
-            return (
-              <li
-                key={r.index}
-                className={`flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm ${
-                  r.isPlayer ? 'bg-amber-400/15 font-bold text-amber-200' : 'text-slate-300'
-                }`}
-              >
-                <span className="w-5 text-right tabular-nums">{r.place}</span>
-                <span
-                  className="h-3.5 w-3.5 shrink-0 rounded-sm"
-                  style={{background: c.body}}
-                  aria-hidden
-                />
-                <span className="flex-1 truncate">{r.name}</span>
-                <span className="font-mono text-xs text-slate-400">
-                  {r.finished ? formatTime(r.finishTime) : '未完賽'}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+        {!timeTrial && (
+          <ol className="mb-5 space-y-1">
+            {standings.map((r) => {
+              const c = CHARACTERS.find((ch) => ch.id === r.charId)!;
+              return (
+                <li
+                  key={r.index}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm ${
+                    r.isPlayer ? 'bg-amber-400/15 font-bold text-amber-200' : 'text-slate-300'
+                  }`}
+                >
+                  <span className="w-5 text-right tabular-nums">{r.place}</span>
+                  <span
+                    className="h-3.5 w-3.5 shrink-0 rounded-sm"
+                    style={{background: c.body}}
+                    aria-hidden
+                  />
+                  <span className="flex-1 truncate">{r.name}</span>
+                  <span className="font-mono text-xs text-slate-400">
+                    {r.finished ? formatTime(r.finishTime) : '未完賽'}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
 
         <div className="flex gap-3">
           <button

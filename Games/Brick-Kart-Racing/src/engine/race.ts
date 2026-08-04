@@ -1,7 +1,16 @@
 import {CHARACTERS, DIFFICULTIES, type DifficultyId} from '../data/characters';
 import {LAP_TOTAL, RACER_COUNT, SURFACE_BOOST, SURFACE_GRASS} from './constants';
+import {
+  bestLapKey,
+  DEFAULT_RACE_OPTIONS,
+  type RaceMode,
+  type RaceOptions,
+} from './raceOptions';
 import {indexDelta, lateralOffset, nearestIndex, pointAt} from './spline';
 import {getTrackAssets, surfaceAt, type TrackAssets} from './trackAssets';
+
+export type {RaceMode, RaceOptions};
+export {bestLapKey, DEFAULT_RACE_OPTIONS};
 
 export type ItemId = 'boost' | 'oil' | 'homing' | 'shield';
 
@@ -100,6 +109,9 @@ export interface RaceState {
   time: number;
   laps: number;
   difficulty: DifficultyId;
+  mode: RaceMode;
+  mirror: boolean;
+  itemsEnabled: boolean;
   events: string[];
   playerIndex: number;
 }
@@ -149,15 +161,17 @@ export function createRace(
   trackId: string,
   playerCharId: string,
   difficulty: DifficultyId,
-  laps = LAP_TOTAL,
+  options: RaceOptions = DEFAULT_RACE_OPTIONS,
 ): RaceState {
-  const assets = getTrackAssets(trackId);
+  const laps = options.laps ?? LAP_TOTAL;
+  const assets = getTrackAssets(trackId, options.mirror);
   const n = assets.centerline.points.length;
+  const count = options.mode === 'timeTrial' ? 1 : RACER_COUNT;
 
   const roster = [playerCharId, ...CHARACTERS.filter((c) => c.id !== playerCharId).map((c) => c.id)];
   const racers: Racer[] = [];
-  for (let i = 0; i < RACER_COUNT; i++) {
-    const spot = assets.grid[i];
+  for (let i = 0; i < count; i++) {
+    const spot = assets.grid[Math.min(i, assets.grid.length - 1)];
     const gridIdx = nearestIndex(assets.centerline, spot.x, spot.y, -1);
     const c = char(roster[i % roster.length]);
     racers.push({
@@ -210,10 +224,12 @@ export function createRace(
     time: 0,
     laps,
     difficulty,
+    mode: options.mode,
+    mirror: options.mirror,
+    itemsEnabled: options.mode === 'timeTrial' ? false : options.itemsEnabled,
     events: [],
     playerIndex: 0,
   };
-  // Seed the standings from the grid so the HUD is right during the countdown.
   updatePlaces(state);
   return state;
 }
@@ -661,6 +677,7 @@ function stepProjectiles(state: RaceState, dt: number): void {
 }
 
 function stepItemBricks(state: RaceState, dt: number): void {
+  if (!state.itemsEnabled) return;
   const spots = state.assets.itemSpots;
   for (let i = 0; i < spots.length; i++) {
     if (state.itemRespawn[i] > 0) {

@@ -17,7 +17,16 @@ import {
   updateEngine,
 } from './engine/audio';
 import {LAP_TOTAL} from './engine/constants';
-import {createRace, driftLevel, stepRace, type RaceInput, type RaceState} from './engine/race';
+import {
+  bestLapKey,
+  createRace,
+  DEFAULT_RACE_OPTIONS,
+  driftLevel,
+  stepRace,
+  type RaceInput,
+  type RaceOptions,
+  type RaceState,
+} from './engine/race';
 import {
   createCamera,
   createRenderContext,
@@ -51,6 +60,8 @@ const EMPTY_HUD: HudSnapshot = {
   countdown: 3.6,
   phase: 'countdown',
   lapFlash: 0,
+  itemsEnabled: true,
+  timeTrial: false,
 };
 
 export default function App() {
@@ -58,6 +69,7 @@ export default function App() {
   const [charId, setCharId] = useState(CHARACTERS[0].id);
   const [trackId, setTrackId] = useState(TRACKS[0].id);
   const [difficulty, setDifficulty] = useState<DifficultyId>('normal');
+  const [raceOptions, setRaceOptions] = useState<RaceOptions>(DEFAULT_RACE_OPTIONS);
   const [bestTimes, setBestTimes] = useState<Record<string, number>>(() => loadBestTimes());
 
   const [loading, setLoading] = useState(false);
@@ -132,7 +144,7 @@ export default function App() {
     if (!canvas) return;
 
     const rc = createRenderContext(canvas);
-    const state = createRace(trackId, charId, difficulty, LAP_TOTAL);
+    const state = createRace(trackId, charId, difficulty, raceOptions);
     const cam = createCamera(state.racers[state.playerIndex]);
     lapFlashRef.current = 0;
 
@@ -144,6 +156,7 @@ export default function App() {
     let hudTimer = 0;
     let nextTick = 3;
     let finishedHandled = false;
+    const recordKey = bestLapKey(trackId, raceOptions);
 
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -192,13 +205,13 @@ export default function App() {
           const laps = player.lapTimes.filter((t) => t > 0);
           const best = laps.length ? Math.min(...laps) : 0;
           const prev = loadBestTimes();
-          const record = best > 0 && (!prev[trackId] || best < prev[trackId]);
+          const record = best > 0 && (!prev[recordKey] || best < prev[recordKey]);
           if (record) {
-            const next = {...prev, [trackId]: best};
+            const next = {...prev, [recordKey]: best};
             localStorage.setItem(BEST_KEY, JSON.stringify(next));
             setBestTimes(next);
           }
-          playFinish(player.place === 1);
+          playFinish(state.mode === 'timeTrial' || player.place === 1);
           setResult({state, bestLap: best, record});
         }
       }
@@ -225,6 +238,8 @@ export default function App() {
           countdown: state.countdown,
           phase: state.phase,
           lapFlash: Math.max(0, lapFlashRef.current),
+          itemsEnabled: state.itemsEnabled,
+          timeTrial: state.mode === 'timeTrial',
         });
         const mini = minimapRef.current;
         if (mini) drawMinimap(mini.getContext('2d')!, state, mini.width);
@@ -236,7 +251,7 @@ export default function App() {
       cancelAnimationFrame(raf);
       stopEngine();
     };
-  }, [screen, loading, trackId, charId, difficulty]);
+  }, [screen, loading, trackId, charId, difficulty, raceOptions]);
 
   const startRace = useCallback(() => {
     setResult(null);
@@ -269,10 +284,12 @@ export default function App() {
           charId={charId}
           trackId={trackId}
           difficulty={difficulty}
+          options={raceOptions}
           bestTimes={bestTimes}
           onChar={setCharId}
           onTrack={setTrackId}
           onDifficulty={setDifficulty}
+          onOptions={(patch) => setRaceOptions((o) => ({...o, ...patch}))}
           onStart={startRace}
         />
       </>
@@ -306,7 +323,7 @@ export default function App() {
               onPause={() => setPaused((p) => !p)}
               onMute={toggleMute}
             />
-            <TouchControls onHold={handleHold} />
+            <TouchControls onHold={handleHold} showItem={hud.itemsEnabled} />
           </>
         )}
 
@@ -341,6 +358,9 @@ export default function App() {
             trackId={trackId}
             bestLap={result.bestLap}
             isNewRecord={result.record}
+            timeTrial={result.state.mode === 'timeTrial'}
+            mirror={result.state.mirror}
+            itemsEnabled={result.state.itemsEnabled}
             onRetry={startRace}
             onMenu={backToMenu}
           />

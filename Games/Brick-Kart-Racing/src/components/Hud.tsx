@@ -18,6 +18,8 @@ export interface HudSnapshot {
   countdown: number;
   phase: string;
   lapFlash: number;
+  itemsEnabled: boolean;
+  timeTrial: boolean;
 }
 
 const ITEM_LABEL: Record<ItemId, string> = {
@@ -131,21 +133,29 @@ export function Hud({
       </div>
 
       {/* Item slot */}
-      <div className="absolute left-3 top-28">
-        <ItemSlot item={snap.item} roll={snap.itemRoll} />
-        {snap.shields > 0 && (
-          <p className="mt-1 text-center text-[11px] font-bold text-cyan-300 drop-shadow">
-            盾 × {snap.shields}
-          </p>
-        )}
-      </div>
+      {snap.itemsEnabled && (
+        <div className="absolute left-3 top-28">
+          <ItemSlot item={snap.item} roll={snap.itemRoll} />
+          {snap.shields > 0 && (
+            <p className="mt-1 text-center text-[11px] font-bold text-cyan-300 drop-shadow">
+              盾 × {snap.shields}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Place + speed */}
       <div className="absolute bottom-3 right-3 text-right">
-        <p className="text-5xl font-black leading-none text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
-          {snap.place}
-          <span className="text-xl text-amber-300">{PLACE_SUFFIX[snap.place] ?? 'th'}</span>
-        </p>
+        {snap.timeTrial ? (
+          <p className="text-2xl font-black leading-none text-amber-300 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
+            計時賽
+          </p>
+        ) : (
+          <p className="text-5xl font-black leading-none text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
+            {snap.place}
+            <span className="text-xl text-amber-300">{PLACE_SUFFIX[snap.place] ?? 'th'}</span>
+          </p>
+        )}
         <div className="mt-1 h-2 w-36 overflow-hidden rounded-full bg-slate-950/55">
           <div
             className={`h-full rounded-full transition-[width] duration-100 ${

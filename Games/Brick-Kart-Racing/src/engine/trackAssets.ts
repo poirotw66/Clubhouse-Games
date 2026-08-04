@@ -292,12 +292,21 @@ function buildGrid(line: Centerline): TrackAssets['grid'] {
 
 const cache = new Map<string, TrackAssets>();
 
-export function getTrackAssets(trackId: string): TrackAssets {
-  const cached = cache.get(trackId);
+/** Mirror control points across the world centre (left ↔ right). */
+function maybeMirrorPoints(pts: Vec2[], mirror: boolean): Vec2[] {
+  if (!mirror) return pts;
+  const cx = WORLD_SIZE / 2;
+  return pts.map((p) => ({x: cx * 2 - p.x, y: p.y}));
+}
+
+export function getTrackAssets(trackId: string, mirror = false): TrackAssets {
+  const key = mirror ? `${trackId}|mir` : trackId;
+  const cached = cache.get(key);
   if (cached) return cached;
 
   const def = TRACKS.find((t) => t.id === trackId) ?? TRACKS[0];
-  const centerline = buildCenterline(trackControlPoints(def), CENTERLINE_SAMPLES);
+  const rawPts = maybeMirrorPoints(trackControlPoints(def), mirror);
+  const centerline = buildCenterline(rawPts, CENTERLINE_SAMPLES);
   const canvas = buildTexture(def, centerline);
   const ctx = canvas.getContext('2d')!;
   const pixels = ctx.getImageData(0, 0, WORLD_SIZE, WORLD_SIZE).data;
@@ -315,7 +324,7 @@ export function getTrackAssets(trackId: string): TrackAssets {
     itemSpots: buildItemSpots(def, centerline),
     grid: buildGrid(centerline),
   };
-  cache.set(trackId, assets);
+  cache.set(key, assets);
   return assets;
 }
 

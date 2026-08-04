@@ -244,6 +244,7 @@ export function renderFrame(rc: RenderContext, state: RaceState, cam: Camera): v
 
   const spin = state.time * 2.2;
   state.assets.itemSpots.forEach((spot, i) => {
+    if (!state.itemsEnabled) return;
     if (state.itemRespawn[i] > 0) return;
     const bob = Math.sin(state.time * 3 + i) * 5;
     push(spot.x, spot.y, (sx, sy, scale, alpha) => {

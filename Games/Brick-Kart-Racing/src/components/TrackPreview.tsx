@@ -6,10 +6,11 @@ import {buildCenterline} from '../engine/spline';
 interface Props {
   def: TrackDef;
   size?: number;
+  mirror?: boolean;
 }
 
 /** Overhead silhouette of the lap, drawn from the same spline the race uses. */
-export function TrackPreview({def, size = 132}: Props) {
+export function TrackPreview({def, size = 132, mirror = false}: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -22,7 +23,14 @@ export function TrackPreview({def, size = 132}: Props) {
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, px, px);
 
-    const line = buildCenterline(trackControlPoints(def), 240);
+    let pts = trackControlPoints(def);
+    if (mirror) {
+      // Match race mirroring (flip around world centre, then fit to preview).
+      const mid =
+        pts.reduce((s, p) => s + p.x, 0) / Math.max(1, pts.length);
+      pts = pts.map((p) => ({x: mid * 2 - p.x, y: p.y}));
+    }
+    const line = buildCenterline(pts, 240);
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
@@ -59,7 +67,7 @@ export function TrackPreview({def, size = 132}: Props) {
     ctx.fillStyle = '#f5f6f8';
     const s = px * 0.05;
     ctx.fillRect(ox + start.x * scale - s / 2, oy + start.y * scale - s / 2, s, s);
-  }, [def, size]);
+  }, [def, size, mirror]);
 
   return <canvas ref={ref} style={{width: size, height: size}} aria-hidden />;
 }

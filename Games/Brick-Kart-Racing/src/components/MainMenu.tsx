@@ -2,7 +2,7 @@ import {useMemo} from 'react';
 import {CHARACTERS, DIFFICULTIES, type DifficultyId} from '../data/characters';
 import {TRACKS} from '../data/tracks';
 import {kartBricks} from '../engine/models';
-import {formatTime} from '../engine/race';
+import {bestLapKey, formatTime, type RaceMode, type RaceOptions} from '../engine/race';
 import {BrickPreview} from './BrickPreview';
 import {TrackPreview} from './TrackPreview';
 
@@ -10,10 +10,12 @@ interface Props {
   charId: string;
   trackId: string;
   difficulty: DifficultyId;
+  options: RaceOptions;
   bestTimes: Record<string, number>;
   onChar: (id: string) => void;
   onTrack: (id: string) => void;
   onDifficulty: (id: DifficultyId) => void;
+  onOptions: (patch: Partial<RaceOptions>) => void;
   onStart: () => void;
 }
 
@@ -29,25 +31,56 @@ function StatBar({label, value}: {label: string; value: number}) {
   );
 }
 
+function ToggleChip({
+  active,
+  label,
+  onClick,
+  disabled,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex-1 rounded-xl border-2 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? 'border-amber-400 bg-amber-400 text-slate-950'
+          : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function MainMenu({
   charId,
   trackId,
   difficulty,
+  options,
   bestTimes,
   onChar,
   onTrack,
   onDifficulty,
+  onOptions,
   onStart,
 }: Props) {
   const character = CHARACTERS.find((c) => c.id === charId) ?? CHARACTERS[0];
   const bricks = useMemo(() => kartBricks(character), [character]);
+  const timeTrial = options.mode === 'timeTrial';
+  const itemsOn = !timeTrial && options.itemsEnabled;
 
   return (
     <div className="min-h-full w-full overflow-y-auto bg-slate-950 px-4 py-14 text-slate-100">
       <div className="mx-auto w-full max-w-4xl">
         <header className="mb-8 text-center">
           <p className="text-xs font-bold tracking-[0.35em] text-amber-400">CLUBHOUSE GAMES</p>
-          {/* Served from public/, so a page-relative src works under any base. */}
           <img
             src="./title-logo.svg"
             alt="Brick Kart Racing"
@@ -56,8 +89,46 @@ export function MainMenu({
           <h1 className="mt-1 text-3xl font-black tracking-tight">
             <span className="text-amber-400">積木</span>賽車
           </h1>
-          <p className="mt-2 text-sm text-slate-400">飄移蓄力、道具攻防，搶下 3 圈第一名</p>
+          <p className="mt-2 text-sm text-slate-400">
+            {timeTrial ? '獨自刷新單圈 — 無對手、無道具' : '飄移蓄力、道具攻防，搶下 3 圈第一名'}
+          </p>
         </header>
+
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-bold tracking-widest text-slate-400">賽事模式</h2>
+          <div className="flex gap-3">
+            <ToggleChip
+              label="對戰賽"
+              active={options.mode === 'versus'}
+              onClick={() => onOptions({mode: 'versus' as RaceMode})}
+            />
+            <ToggleChip
+              label="計時賽"
+              active={timeTrial}
+              onClick={() => onOptions({mode: 'timeTrial' as RaceMode, itemsEnabled: false})}
+            />
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-bold tracking-widest text-slate-400">變化規則</h2>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <ToggleChip
+              label={options.mirror ? '鏡像賽道 ON' : '鏡像賽道'}
+              active={options.mirror}
+              onClick={() => onOptions({mirror: !options.mirror})}
+            />
+            <ToggleChip
+              label={itemsOn ? '道具 ON' : '道具 OFF'}
+              active={itemsOn}
+              disabled={timeTrial}
+              onClick={() => onOptions({itemsEnabled: !options.itemsEnabled})}
+            />
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            計時賽固定關閉道具與電腦對手；鏡像會左右翻轉賽道。
+          </p>
+        </section>
 
         <section className="mb-6">
           <h2 className="mb-3 text-sm font-bold tracking-widest text-slate-400">選擇車手</h2>
@@ -86,7 +157,7 @@ export function MainMenu({
           </div>
         </section>
 
-        <section className="mb-6 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <section className="mb-6 grid gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:grid-cols-[auto_1fr] sm:items-center">
           <div className="flex justify-center">
             <BrickPreview bricks={bricks} size={150} spin />
           </div>
@@ -107,7 +178,7 @@ export function MainMenu({
           <div className="grid gap-3 sm:grid-cols-3">
             {TRACKS.map((t) => {
               const active = t.id === trackId;
-              const best = bestTimes[t.id];
+              const best = bestTimes[bestLapKey(t.id, options)];
               return (
                 <button
                   key={t.id}
@@ -121,9 +192,12 @@ export function MainMenu({
                   }`}
                 >
                   <div className="flex justify-center">
-                    <TrackPreview def={t} size={116} />
+                    <TrackPreview def={t} size={116} mirror={options.mirror} />
                   </div>
-                  <p className="mt-1 font-bold">{t.name}</p>
+                  <p className="mt-1 font-bold">
+                    {t.name}
+                    {options.mirror ? ' · 鏡像' : ''}
+                  </p>
                   <p className="text-xs text-slate-400">{t.subtitle}</p>
                   <p className="mt-1 text-xs text-amber-400">
                     {'★'.repeat(t.difficulty)}
@@ -138,33 +212,35 @@ export function MainMenu({
           </div>
         </section>
 
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-bold tracking-widest text-slate-400">難度</h2>
-          <div className="flex gap-3">
-            {DIFFICULTIES.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => onDifficulty(d.id)}
-                aria-pressed={d.id === difficulty}
-                className={`flex-1 rounded-xl border-2 py-2 font-bold transition ${
-                  d.id === difficulty
-                    ? 'border-amber-400 bg-amber-400 text-slate-950'
-                    : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600'
-                }`}
-              >
-                {d.name}
-              </button>
-            ))}
-          </div>
-        </section>
+        {!timeTrial && (
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-bold tracking-widest text-slate-400">難度</h2>
+            <div className="flex gap-3">
+              {DIFFICULTIES.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => onDifficulty(d.id)}
+                  aria-pressed={d.id === difficulty}
+                  className={`flex-1 rounded-xl border-2 py-2 font-bold transition ${
+                    d.id === difficulty
+                      ? 'border-amber-400 bg-amber-400 text-slate-950'
+                      : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600'
+                  }`}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         <button
           type="button"
           onClick={onStart}
           className="w-full rounded-2xl bg-amber-400 py-4 text-xl font-black text-slate-950 shadow-lg shadow-amber-500/20 transition hover:bg-amber-300 active:scale-[0.99]"
         >
-          開始比賽
+          {timeTrial ? '開始計時' : '開始比賽'}
         </button>
 
         <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-400">
@@ -173,7 +249,7 @@ export function MainMenu({
             <li>← → 轉向</li>
             <li>↑ / Z 加速，↓ 煞車</li>
             <li>Shift 飄移（放開觸發小噴射）</li>
-            <li>空白鍵 使用道具</li>
+            <li>{itemsOn ? '空白鍵 使用道具' : '本模式無道具'}</li>
             <li>P 暫停，M 靜音</li>
             <li>手機：畫面左右下方的觸控按鍵</li>
           </ul>

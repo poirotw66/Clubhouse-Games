@@ -4,6 +4,7 @@ export type ControlKey = 'left' | 'right' | 'throttle' | 'brake' | 'drift' | 'it
 
 interface Props {
   onHold: (key: ControlKey, down: boolean) => void;
+  showItem?: boolean;
 }
 
 function Pad({
@@ -44,7 +45,7 @@ function Pad({
 }
 
 /** On-screen driving controls; shown on coarse-pointer devices. */
-export function TouchControls({onHold}: Props) {
+export function TouchControls({onHold, showItem = true}: Props) {
   return (
     <div className="pointer-events-none absolute inset-0 lg:hidden">
       <div className="pointer-events-auto absolute bottom-4 left-4 flex gap-3">
@@ -53,7 +54,9 @@ export function TouchControls({onHold}: Props) {
       </div>
       <div className="pointer-events-auto absolute bottom-4 right-4 flex items-end gap-3">
         <div className="flex flex-col gap-3">
-          <Pad label="道具" ariaLabel="使用道具" keyName="item" onHold={onHold} className="h-14 w-16 text-xs" />
+          {showItem && (
+            <Pad label="道具" ariaLabel="使用道具" keyName="item" onHold={onHold} className="h-14 w-16 text-xs" />
+          )}
           <Pad label="煞車" ariaLabel="煞車" keyName="brake" onHold={onHold} className="h-14 w-16 text-xs" />
         </div>
         <div className="flex flex-col gap-3">
