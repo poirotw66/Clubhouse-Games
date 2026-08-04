@@ -12,14 +12,45 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 // --- GAME CONFIGURATION ---
-/** Slowest smash shown on the HUD, in km/h — a solid club-level smash. */
 const DISPLAY_SPEED_MIN = 280;
-/** Fastest shown. The men's singles record is 565 km/h; stay just under it. */
 const DISPLAY_SPEED_MAX = 550;
 
+const DIFFICULTY = {
+    easy: {
+        id: 'easy',
+        speedMul: 0.78,
+        spawnMul: 1.2,
+        aimSpread: 8,
+        tierBoost: [0, 50, 100],
+        doubleChance: 0,
+    },
+    normal: {
+        id: 'normal',
+        speedMul: 1,
+        spawnMul: 1,
+        aimSpread: 12,
+        tierBoost: [0, 80, 150],
+        doubleChance: 0.08,
+    },
+    hard: {
+        id: 'hard',
+        speedMul: 1.22,
+        spawnMul: 0.78,
+        aimSpread: 18,
+        tierBoost: [40, 120, 200],
+        doubleChance: 0.18,
+    },
+};
+
+const PHASES = [
+    { id: 'warm', label: '熱身', until: 0.33 },
+    { id: 'pressure', label: '加壓', until: 0.66 },
+    { id: 'chaos', label: '混戰', until: 1.01 },
+];
+
 const CONFIG = {
-    baseSpeed: 400, // HYPERSONIC: Increased from 220 to 400
-    dragFactor: 0.008, // Reduced drag to maintain higher velocity
+    baseSpeed: 400,
+    dragFactor: 0.008,
     racketBoundX: 18,
     racketBoundY: 10,
     colors: {
@@ -28,7 +59,7 @@ const CONFIG = {
         racketFrame: 0x3366cc,
         racketString: 0xeeeeee,
         shuttle: 0xffffff,
-        trail: 0x00ffff // Cyan trail
+        trail: 0x00ffff
     }
 };
 
@@ -110,6 +141,22 @@ const AudioSys = {
         gain.connect(this.ctx.destination);
         osc.start();
         osc.stop(t + 0.2);
+    },
+
+    playMiss: function() {
+        if (this.muted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, t);
+        osc.frequency.exponentialRampToValueAtTime(60, t + 0.18);
+        gain.gain.setValueAtTime(0.35, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(t + 0.22);
     }
 };
 
@@ -118,20 +165,27 @@ let lastOut = 0; // for pink noise generation
 // --- STATE ---
 let state = {
     hits: 0,
+    misses: 0,
+    blocks: 0,
+    combo: 0,
+    maxCombo: 0,
     maxBalls: 25,
     spawnedBalls: 0,
-    isRunning: false, // Wait for countdown
+    difficulty: 'normal',
+    phaseIndex: 0,
+    isRunning: false,
     isPaused: false,
     isInCountdown: false,
     mouse: { x: 0, y: 0 },
     swinging: false,
     swingTime: 0,
-    swingDuration: 0.15, // Fast snap
+    swingDuration: 0.15,
     handedness: 'right',
     lastSpawnTime: 0,
     shake: 0,
     flash: 0,
-    muted: false
+    muted: false,
+    toastTimer: 0,
 };
 
 window.addEventListener('message', (e) => {
@@ -151,7 +205,12 @@ window.addEventListener('message', (e) => {
          AudioSys.muted = state.muted;
      }
      if (e.data && e.data.type === 'START_MATCH') {
-         startMatch(e.data.payload);
+         const payload = e.data.payload;
+         if (payload && typeof payload === 'object') {
+             startMatch(payload.balls ?? 25, payload.difficulty ?? 'normal');
+         } else {
+             startMatch(payload, 'normal');
+         }
      }
 });
 
@@ -484,22 +543,70 @@ function runCountdown(callback) {
     }, 800);
 }
 
-function startMatch(ballCount) {
+function diffCfg() {
+    return DIFFICULTY[state.difficulty] || DIFFICULTY.normal;
+}
+
+function phaseProgress() {
+    return state.maxBalls > 0 ? state.spawnedBalls / state.maxBalls : 0;
+}
+
+function phaseTier() {
+    const p = phaseProgress();
+    if (p < 0.33) return 0;
+    if (p < 0.66) return 1;
+    return 2;
+}
+
+function updatePhaseBanner() {
+    const tier = phaseTier();
+    if (tier !== state.phaseIndex) {
+        state.phaseIndex = tier;
+        showToast(PHASES[tier].label, 'good');
+    }
+    const el = document.getElementById('phase-banner');
+    if (el) el.textContent = PHASES[tier].label;
+}
+
+function showToast(text, kind) {
+    const el = document.getElementById('hit-toast');
+    if (!el) return;
+    el.textContent = text;
+    el.className = kind === 'bad' ? 'bad show' : 'good show';
+    state.toastTimer = 0.55;
+}
+
+function updateComboHud() {
+    const el = document.getElementById('combo-hud');
+    const val = document.getElementById('combo-val');
+    if (!el || !val) return;
+    val.textContent = String(state.combo);
+    el.classList.toggle('active', state.combo >= 2);
+}
+
+function startMatch(ballCount, difficulty = 'normal') {
     state.maxBalls = ballCount;
+    state.difficulty = DIFFICULTY[difficulty] ? difficulty : 'normal';
     state.spawnedBalls = 0;
     state.hits = 0;
+    state.misses = 0;
+    state.blocks = 0;
+    state.combo = 0;
+    state.maxCombo = 0;
+    state.phaseIndex = 0;
     state.isRunning = false;
     state.swinging = false;
 
     document.getElementById('score-val').innerText = '0';
     document.getElementById('max-val').innerText = state.maxBalls;
+    document.getElementById('miss-val').innerText = '0';
     document.getElementById('game-over').style.display = 'none';
     document.getElementById('speed-val').innerText = '0';
+    updatePhaseBanner();
+    updateComboHud();
     document.body.style.cursor = 'none';
 
-    // Clean up scene objects
     shuttlePool.reset();
-    // Also hide trails and shadows from pool that might be lingering
     shuttlePool.pool.forEach(s => {
         if(s.userData.trail) s.userData.trail.visible = false;
         if(s.userData.shadow) s.userData.shadow.visible = false;
@@ -508,10 +615,9 @@ function startMatch(ballCount) {
     particlePool.reset();
     AudioSys.init();
 
-    // Run Countdown then start
     runCountdown(() => {
         state.isRunning = true;
-        state.lastSpawnTime = clock.getElapsedTime(); // Reset timer so it waits a bit
+        state.lastSpawnTime = clock.getElapsedTime();
     });
 }
 
@@ -522,69 +628,74 @@ function spawnShuttle() {
     if (!s) return;
 
     state.spawnedBalls++;
+    updatePhaseBanner();
 
-    // REALISTIC SMASH SPAWN
-    // Origin: Back court (Z < -60), High (Y > 15)
-    // Target: Player Body/Side (Z=5, Y=-1 to -3)
-
-    const originZ = -90 - (Math.random() * 30); // Deep back court
-    const originY = 18 + (Math.random() * 6); // High jump smash height
-    const originX = (Math.random() - 0.5) * 40; // Anywhere on back line
+    const cfg = diffCfg();
+    const tier = phaseTier();
+    const originZ = -90 - (Math.random() * 30);
+    const originY = 18 + (Math.random() * 6);
+    const originX = (Math.random() - 0.5) * 40;
 
     s.position.set(originX, originY, originZ);
 
-    // Target Logic: Aim for player body or just wide
-    // Player is roughly at X=4 or X=-4, Y=-2.5
     const playerX = (state.handedness === 'right') ? 4 : -4;
-    // Add some variance (target hunting)
-    const targetX = playerX + (Math.random() - 0.5) * 12; // Radius around player
-    const targetY = -2.5 + (Math.random() * 2); // Knee/Waist height
-    const targetZ = 5; // Behind racket hit plane
+    const spread = cfg.aimSpread + tier * 3;
+    const targetX = playerX + (Math.random() - 0.5) * spread;
+    const targetY = -2.5 + (Math.random() * 2);
+    const targetZ = 5;
 
-    const dir = new THREE.Vector3(targetX - originX, targetY - originY, targetZ - originZ).normalize(); 
+    const dir = new THREE.Vector3(targetX - originX, targetY - originY, targetZ - originZ).normalize();
 
-    // High initial speed
-    const initialSpeed = CONFIG.baseSpeed + (state.hits * 1.5); 
+    const progress = phaseProgress();
+    const initialSpeed =
+        CONFIG.baseSpeed * cfg.speedMul
+        + cfg.tierBoost[tier]
+        + progress * 90;
 
     s.userData.velocity.copy(dir).multiplyScalar(initialSpeed);
     s.userData.rotSpeed = Math.random() * 10;
     s.userData.returning = false;
-    s.userData.history = []; // Reset Trail History
+    s.userData.scored = false;
+    s.userData.history = [];
 
-    // Show Trail & Shadow
     if(s.userData.trail) s.userData.trail.visible = true;
     if(s.userData.shadow) s.userData.shadow.visible = true;
 
     s.rotation.set(-Math.PI/2, 0, 0);
 
-    // -- SPEED DISPLAY LOGIC --
-    // The readout is flavour, but it should still be a badminton number. The
-    // old multiplier put the very first shuttle at 600 km/h — past Tan Boon
-    // Heong's 565 km/h record — and climbed from there. Map the internal
-    // scalar onto a real range instead, so a drill ramps from a hard smash to
-    // a near-record one and stops there.
-    const ramp = state.maxBalls > 1 ? Math.min(1, state.hits / (state.maxBalls - 1)) : 1;
+    const ramp = Math.min(1, (tier / 2) * 0.55 + progress * 0.45);
     const kmh = Math.round(DISPLAY_SPEED_MIN + (DISPLAY_SPEED_MAX - DISPLAY_SPEED_MIN) * ramp);
     document.getElementById('speed-val').innerText = kmh;
 
-    // Pop Animation
     const speedDisplay = document.getElementById('speed-display');
     speedDisplay.style.transform = 'scale(1.3)';
     setTimeout(() => {
         speedDisplay.style.transform = 'scale(1)';
     }, 100);
+
+    // Hard chaos: occasional second shuttle for pressure.
+    if (
+        tier === 2
+        && cfg.doubleChance > 0
+        && Math.random() < cfg.doubleChance
+        && state.spawnedBalls < state.maxBalls
+    ) {
+        setTimeout(() => {
+            if (state.isRunning) spawnShuttle();
+        }, 180);
+    }
 }
 
 function createFeatherExplosion(pos, count = 8) {
-    for(let i=0; i<count; i++) {
+    for (let i = 0; i < count; i++) {
         const p = particlePool.get();
-        if(p) {
+        if (p) {
             p.position.copy(pos);
-            p.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
+            p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
             p.userData.velocity.set(
                 (Math.random() - 0.5) * 15,
                 (Math.random() - 0.5) * 15,
-                (Math.random() - 0.5) * 15 + 10 
+                (Math.random() - 0.5) * 15 + 10,
             );
             p.userData.life = 0.6;
             p.scale.setScalar(1);
@@ -592,13 +703,38 @@ function createFeatherExplosion(pos, count = 8) {
     }
 }
 
-function updateScore(points) {
-    state.hits += points;
-    document.getElementById('score-val').innerText = state.hits;
+function registerMiss(s) {
+    if (s.userData.scored) return;
+    s.userData.scored = true;
+    state.misses += 1;
+    state.combo = 0;
+    updateComboHud();
+    document.getElementById('miss-val').innerText = String(state.misses);
+    AudioSys.playMiss();
+    showToast('漏接!', 'bad');
+    state.shake = Math.max(state.shake, 0.35);
 }
 
-/** Personal best accuracy, kept per drill length. */
-const BEST_KEY = 'clubhouse:block-the-smash-best';
+function updateScore(points) {
+    state.hits += points;
+    state.combo += 1;
+    state.maxCombo = Math.max(state.maxCombo, state.combo);
+    document.getElementById('score-val').innerText = state.hits;
+    updateComboHud();
+    if (state.combo >= 3) showToast(`連擋 x${state.combo}`, 'good');
+    else showToast('擋下!', 'good');
+}
+
+function gradeFromAccuracy(acc) {
+    if (acc >= 92) return { grade: 'S', title: '完美防守', cls: 'grade-s' };
+    if (acc >= 80) return { grade: 'A', title: '穩如鐵牆', cls: 'grade-a' };
+    if (acc >= 65) return { grade: 'B', title: '防守合格', cls: 'grade-b' };
+    if (acc >= 45) return { grade: 'C', title: '還差一口氣', cls: 'grade-c' };
+    return { grade: 'D', title: '再練一場', cls: 'grade-d' };
+}
+
+/** Personal best accuracy, kept per drill length + difficulty. */
+const BEST_KEY = 'clubhouse:block-the-smash-best-v2';
 
 function readBest() {
     try {
@@ -612,34 +748,65 @@ function readBest() {
 function finishMatch() {
     state.isRunning = false;
 
-    document.getElementById('final-hits').innerText = state.hits + " / " + state.maxBalls;
-    const acc = Math.round((state.hits / state.maxBalls) * 100);
-    document.getElementById('final-accuracy').innerText = acc + "%";
+    const denom = Math.max(1, state.maxBalls);
+    // Success rate: active smash returns over balls in the drill.
+    const acc = Math.round((state.hits / denom) * 100);
+    const grade = gradeFromAccuracy(acc);
 
-    // A drill you cannot compare against your last one is just a stopwatch.
+    document.getElementById('final-hits').innerText = `${state.hits} / ${state.maxBalls}`;
+    document.getElementById('final-misses').innerText = String(state.misses);
+    document.getElementById('final-accuracy').innerText = acc + '%';
+    document.getElementById('final-combo').innerText = String(state.maxCombo);
+
+    const gradeEl = document.getElementById('grade-banner');
+    gradeEl.textContent = grade.grade;
+    gradeEl.className = grade.cls;
+    document.getElementById('result-title').textContent = grade.title;
+
     const best = readBest();
-    const key = String(state.maxBalls);
+    const key = `${state.difficulty}:${state.maxBalls}`;
     const previous = typeof best[key] === 'number' ? best[key] : null;
+    let isRecord = false;
     if (previous === null || acc > previous) {
         best[key] = acc;
+        isRecord = previous !== null ? acc > previous : acc > 0;
         try {
             localStorage.setItem(BEST_KEY, JSON.stringify(best));
         } catch {
-            /* storage unavailable — the record is a nice-to-have */
+            /* ignore */
         }
     }
     const shown = previous === null ? acc : Math.max(previous, acc);
-    document.getElementById('final-best').innerText = shown + "%";
+    document.getElementById('final-best').innerText = shown + '%';
+    const recordEl = document.getElementById('new-record');
+    if (recordEl) recordEl.style.display = isRecord && acc > (previous ?? -1) ? 'block' : 'none';
 
     document.getElementById('game-over').style.display = 'block';
     document.body.style.cursor = 'auto';
+
+    try {
+        parent.postMessage({
+            type: 'DRILL_OVER',
+            payload: { hits: state.hits, misses: state.misses, accuracy: acc, grade: grade.grade },
+        }, '*');
+    } catch {
+        /* opened directly */
+    }
 }
 
 function replayDrill() {
-    startMatch(state.maxBalls);
+    startMatch(state.maxBalls, state.difficulty);
 }
 
 document.getElementById('restart-btn').addEventListener('click', replayDrill);
+document.getElementById('menu-btn')?.addEventListener('click', () => {
+    document.getElementById('game-over').style.display = 'none';
+    try {
+        parent.postMessage({ type: 'SHOW_MENU' }, '*');
+    } catch {
+        /* no parent */
+    }
+});
 
 // --- MAIN LOOP ---
 const clock = new THREE.Clock();
@@ -652,6 +819,14 @@ function animate() {
     const now = clock.getElapsedTime();
 
     if (state.isRunning) {
+        if (state.toastTimer > 0) {
+            state.toastTimer -= delta;
+            if (state.toastTimer <= 0) {
+                const toast = document.getElementById('hit-toast');
+                if (toast) toast.classList.remove('show');
+            }
+        }
+
         // JUICE: Camera Shake
         if (state.shake > 0) {
             camera.position.set(
@@ -719,8 +894,11 @@ function animate() {
             wristPivot.rotation.x = Math.sin(now * 4) * 0.05;
         }
 
-        // Spawn Shuttles
-        const spawnDelay = Math.max(0.4, 0.9 - (state.hits * 0.02)); // FASTER SPAWN: Adjusted spawn rate for higher intensity
+        // Spawn paced by phase + difficulty (not only hit count).
+        const cfg = diffCfg();
+        const tier = phaseTier();
+        const baseDelay = (0.95 - tier * 0.18) * cfg.spawnMul;
+        const spawnDelay = Math.max(0.32, baseDelay);
         if (now - state.lastSpawnTime > spawnDelay) {
             spawnShuttle();
             state.lastSpawnTime = now;
@@ -795,31 +973,32 @@ function animate() {
                  if (s.position.distanceTo(sweetSpot) < hitRadius) {
 
                       s.userData.returning = true;
+                      s.userData.scored = true;
 
                       if (state.swinging) {
-                           // ACTIVE SMASH RETURN
                            createFeatherExplosion(s.position, 12);
-                           s.userData.velocity.z = -Math.abs(s.userData.velocity.z) * 1.0 - 15; // Fast return
-                           s.userData.velocity.y = Math.abs(s.userData.velocity.y) + 12; // High arc
+                           s.userData.velocity.z = -Math.abs(s.userData.velocity.z) * 1.0 - 15;
+                           s.userData.velocity.y = Math.abs(s.userData.velocity.y) + 12;
                            s.userData.velocity.x += (Math.random() - 0.5) * 10;
 
-                           // JUICE EFFECTS
                            AudioSys.playHit('smash');
-                           state.shake = 0.5; // Trigger screen shake
-                           state.flash = 0.8; // Trigger flash
+                           state.shake = 0.5;
+                           state.flash = 0.8;
 
                            updateScore(1);
                       } else {
-                           // PASSIVE BLOCK / DROP
+                           // Passive block — save, but breaks smash combo.
                            createFeatherExplosion(s.position, 3);
                            s.userData.velocity.set(
-                               (Math.random() - 0.5) * 8, // Side drift
-                               5, // Small pop up
-                               5  // Weak forward bounce
+                               (Math.random() - 0.5) * 8,
+                               5,
+                               5
                            );
-
-                           // SFX
+                           state.blocks += 1;
+                           state.combo = 0;
+                           updateComboHud();
                            AudioSys.playHit('block');
+                           showToast('輕擋', 'good');
                       }
                  }
             }
@@ -830,13 +1009,13 @@ function animate() {
                      if(s.userData.trail) s.userData.trail.visible = false;
                      if(s.userData.shadow) s.userData.shadow.visible = false;
                  }
-                 // Gravity effect
                  const gravity = (s.userData.velocity.z > 0 && s.userData.velocity.z < 10) ? 40 : 20;
                  s.userData.velocity.y -= gravity * delta;
                  continue;
             }
 
             if (s.position.z > 20) {
+                registerMiss(s);
                 shuttlePool.release(s);
                 if(s.userData.trail) s.userData.trail.visible = false;
                 if(s.userData.shadow) s.userData.shadow.visible = false;

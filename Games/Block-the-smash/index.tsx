@@ -152,9 +152,7 @@ function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [handedness, setHandedness] = useState<'left' | 'right'>('right');
   const [muted, setMuted] = useState(false);
-
-  // The drill only becomes reachable once its own page has loaded and can
-  // receive the postMessage settings below.
+  const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
   const [isLoading, setIsLoading] = useState(true);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -170,7 +168,10 @@ function App() {
   const startMatch = (count: number) => {
     setShowDisclaimer(false);
     if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ type: 'START_MATCH', payload: count }, '*');
+      iframeRef.current.contentWindow.postMessage(
+        { type: 'START_MATCH', payload: { balls: count, difficulty } },
+        '*',
+      );
     }
   };
 
@@ -183,13 +184,15 @@ function App() {
     }
   }, [showDisclaimer, handedness, muted, isLoading]);
 
-  // The drill posts GAME_READY once its renderer is up. The iframe's own load
-  // event is only a fallback: a slow webfont can hold it at "interactive"
-  // indefinitely, which used to hide a perfectly running game behind the
-  // loading overlay.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'GAME_READY') setIsLoading(false);
+      if (event.data?.type === 'SHOW_MENU') {
+        setShowDisclaimer(true);
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({ type: 'PAUSE_GAME', payload: true }, '*');
+        }
+      }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
@@ -205,6 +208,25 @@ function App() {
     }
   };
 
+  const diffBtn = (id: 'easy' | 'normal' | 'hard', label: string) => (
+    <button
+      type="button"
+      key={id}
+      style={{
+        ...styles.modeBtn,
+        flex: 1,
+        fontSize: '16px',
+        padding: '12px',
+        background: difficulty === id ? '#fff' : 'rgba(255,255,255,0.08)',
+        color: difficulty === id ? '#000' : '#ccc',
+        border: difficulty === id ? 'none' : '1px solid rgba(255,255,255,0.15)',
+      }}
+      onClick={() => setDifficulty(id)}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div style={styles.container}>
       <BackToMenu />
@@ -217,16 +239,16 @@ function App() {
 
       <div style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={styles.title}>BADMINTON DEFENDER</div>
+          <div style={styles.title}>羽毛球接殺</div>
         </div>
 
         <div style={styles.buttonGroup}>
           <button type="button" style={styles.button(false)} onClick={toggleMute}>
-            {muted ? 'SOUND OFF' : 'SOUND ON'}
+            {muted ? '靜音' : '音效'}
           </button>
           <div style={{ width: 1, height: 20, background: '#333', margin: '0 8px' }} />
           <button type="button" style={styles.button(false)} onClick={toggleHandedness}>
-            {handedness === 'left' ? 'LEFT HAND' : 'RIGHT HAND'}
+            {handedness === 'left' ? '左手' : '右手'}
           </button>
         </div>
       </div>
@@ -234,7 +256,7 @@ function App() {
       <div style={styles.gameWrapper}>
         {isLoading && (
           <div style={styles.loadingContainer}>
-            <div style={styles.loadingText}>Initializing System...</div>
+            <div style={styles.loadingText}>載入球場…</div>
           </div>
         )}
 
@@ -251,25 +273,34 @@ function App() {
       {showDisclaimer && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
-            <h2 style={styles.modalHeader}>DEFENSE DRILL</h2>
+            <h2 style={styles.modalHeader}>接殺訓練</h2>
             <div style={{ ...styles.modalSub, fontSize: '15px', color: '#ccc' }}>
               <p style={{ marginBottom: '12px' }}>
-                <strong>Objective:</strong> Return the shuttlecocks! Don&apos;t let them pass.
+                <strong>目標：</strong>拖曳移動球拍，在殺球來到時點擊揮拍擋回。會分成熱身→加壓→混戰三波。
               </p>
 
-              <p style={{ marginBottom: '24px' }}>
-                <strong>Select Drill Duration:</strong>
+              <p style={{ marginBottom: '10px' }}>
+                <strong>難度</strong>
+              </p>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                {diffBtn('easy', '簡單')}
+                {diffBtn('normal', '普通')}
+                {diffBtn('hard', '困難')}
+              </div>
+
+              <p style={{ marginBottom: '12px' }}>
+                <strong>球數</strong>
               </p>
 
               <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                 <button type="button" style={styles.modeBtn} onClick={() => startMatch(10)}>
-                  10 BALLS
+                  10 球
                 </button>
                 <button type="button" style={styles.modeBtn} onClick={() => startMatch(25)}>
-                  25 BALLS
+                  25 球
                 </button>
                 <button type="button" style={styles.modeBtn} onClick={() => startMatch(50)}>
-                  50 BALLS
+                  50 球
                 </button>
               </div>
             </div>

@@ -119,30 +119,119 @@
         #stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
+            gap: 12px;
+            margin-bottom: 20px;
         }
         .stat-box {
             background: rgba(255,255,255,0.1);
             padding: 10px;
             border-radius: 4px;
         }
+        .stat-box.wide {
+            grid-column: 1 / -1;
+        }
         .stat-val {
-            font-size: 40px;
+            font-size: 36px;
             color: #fff;
             line-height: 1;
         }
         .stat-label {
-            font-size: 16px;
+            font-size: 14px;
             color: #aaa;
             text-transform: uppercase;
         }
+        #grade-banner {
+            font-size: 72px;
+            font-weight: 800;
+            line-height: 1;
+            margin: 0 0 4px 0;
+            letter-spacing: 0.08em;
+            text-shadow: 0 0 24px rgba(255, 220, 80, 0.45);
+        }
+        #grade-banner.grade-s { color: #ffe566; }
+        #grade-banner.grade-a { color: #7dffb3; }
+        #grade-banner.grade-b { color: #7ec8ff; }
+        #grade-banner.grade-c { color: #ffb86b; }
+        #grade-banner.grade-d { color: #ff7a7a; }
+        #result-title {
+            color: #fff;
+            font-size: 36px;
+            margin: 0 0 16px 0;
+            text-transform: uppercase;
+            line-height: 1.1;
+        }
+        #new-record {
+            display: none;
+            color: #ffe566;
+            font-size: 18px;
+            letter-spacing: 0.12em;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+        #end-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        #end-actions button.secondary {
+            background: transparent;
+            color: #fff;
+            border: 2px solid rgba(255,255,255,0.55);
+        }
+        #phase-banner {
+            position: absolute;
+            top: 88px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 16px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.45);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #b8ffe0;
+            font-size: 20px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+        #hit-toast {
+            position: absolute;
+            top: 42%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            font-size: 56px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            opacity: 0;
+            pointer-events: none;
+            text-transform: uppercase;
+            transition: opacity 0.12s ease, transform 0.12s ease;
+        }
+        #hit-toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        #hit-toast.good { color: #7dffb3; text-shadow: 0 0 20px rgba(125,255,179,0.55); }
+        #hit-toast.bad { color: #ff6b6b; text-shadow: 0 0 20px rgba(255,80,80,0.55); }
+        #combo-hud {
+            position: absolute;
+            bottom: 70px;
+            right: 28px;
+            text-align: right;
+            color: #ffe566;
+            font-size: 28px;
+            font-weight: 700;
+            text-shadow: 0 0 12px rgba(255,220,80,0.4);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #combo-hud.active { opacity: 1; }
         button {
             background: #fff;
             border: none;
             color: #004d00;
-            padding: 10px 40px;
-            font-size: 32px;
+            padding: 10px 28px;
+            font-size: 28px;
             font-family: 'Teko', 'Oswald', 'Arial Narrow', system-ui, sans-serif;
             font-weight: 700;
             cursor: pointer;
@@ -174,39 +263,58 @@
 
     <div id="ui-layer">
         <div id="score-board">
-            HITS: <span id="score-val">0</span> / <span id="max-val">25</span>
+            擋下: <span id="score-val">0</span> / <span id="max-val">25</span>
+            <span style="margin-left:12px;color:#ff8a8a;font-size:0.75em">漏接 <span id="miss-val">0</span></span>
         </div>
 
+        <div id="phase-banner">熱身</div>
+
         <div id="speed-display">
-            <div class="speed-label">INCOMING</div>
+            <div class="speed-label">來球</div>
             <div>
                 <span class="speed-value" id="speed-val">0</span>
                 <span class="speed-unit">KM/H</span>
             </div>
         </div>
+
+        <div id="combo-hud">連擋 <span id="combo-val">0</span></div>
+        <div id="hit-toast"></div>
         
         <div id="countdown"></div>
 
         <div id="game-over">
-            <h1>DRILL COMPLETE</h1>
+            <div id="grade-banner" class="grade-b">B</div>
+            <h1 id="result-title">訓練結束</h1>
+            <div id="new-record">新紀錄！</div>
             <div id="stats-grid">
                 <div class="stat-box">
                     <div class="stat-val" id="final-hits">0</div>
-                    <div class="stat-label">Hits</div>
+                    <div class="stat-label">主動殺回</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="final-misses">0</div>
+                    <div class="stat-label">漏接</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-val" id="final-accuracy">0%</div>
-                    <div class="stat-label">Accuracy</div>
+                    <div class="stat-label">成功率</div>
                 </div>
                 <div class="stat-box">
+                    <div class="stat-val" id="final-combo">0</div>
+                    <div class="stat-label">最高連擋</div>
+                </div>
+                <div class="stat-box wide">
                     <div class="stat-val" id="final-best">—</div>
-                    <div class="stat-label">Best</div>
+                    <div class="stat-label">此設定最佳成功率</div>
                 </div>
             </div>
-            <button id="restart-btn">REPLAY DRILL</button>
+            <div id="end-actions">
+                <button type="button" id="restart-btn">再練一場</button>
+                <button type="button" id="menu-btn" class="secondary">換設定</button>
+            </div>
         </div>
 
-        <div id="instructions">DRAG to Move &nbsp;|&nbsp; TAP / CLICK to Smash</div>
+        <div id="instructions">拖曳移動球拍 · 點擊／輕觸揮拍擋殺</div>
     </div>
 
     <script type="module" src="/src/game/main.js"></script>
