@@ -10,7 +10,7 @@
 // zone, best speed on a reach, and a big heeling force when close-hauled that
 // you pay for in leeway.
 
-import { clamp, damp, angleDelta, lerp } from './math.js';
+import { clamp, damp, angleDelta } from './math.js';
 import { sampleWater } from './shaderChunks.js';
 
 export const NO_GO = (32 * Math.PI) / 180;      // can't point closer than this
@@ -19,12 +19,15 @@ const STALL = (24 * Math.PI) / 180;             // angle of attack at peak lift
 const MAX_TRIM = (88 * Math.PI) / 180;
 const MIN_TRIM = (6 * Math.PI) / 180;
 
-const POWER = 0.021;          // sail force scale
-const DRAG_FWD = 0.045;       // hull resistance (quadratic)
+const POWER = 0.028;          // sail force scale
+const DRAG_FWD = 0.038;       // hull resistance (quadratic)
 const DRAG_LAT = 0.9;         // keel resistance to leeway
-const TURN_RATE = 1.55;
+const TURN_RATE = 1.7;
+const TURN_RATE_ARCADE = 2.55;
 const MAX_HEEL = (28 * Math.PI) / 180;
-const ASSIST_STEERAGE = 1.3;  // m/s floor in easy mode
+// Arcade cruise when not boosting — player must hold ↑ for full speed.
+const ARCADE_CRUISE = 4.2;
+const ARCADE_BOOST = 9.5;
 
 /**
  * Lift coefficient: rises to a peak at STALL, then bleeds away post-stall.
@@ -148,15 +151,22 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
   // peak at one point of sail and stalls the sail everywhere else, which
   // hollows out the reach where the boat should be quickest.
   const ideal = clamp(beta - STALL, MIN_TRIM, MAX_TRIM);
-  if (input.autoTrim) {
-    boat.trim += (ideal - boat.trim) * damp(5.5, dt);
+  // Easy / arcade: always lock the sail to the ideal angle — player never
+  // manages the sheet.
+  if (assist || input.autoTrim) {
+    const rate = assist ? 18 : 5.5;
+    boat.trim += (ideal - boat.trim) * damp(rate, dt);
+    if (assist) boat.trim = ideal; // snap — no lagging sheet in easy mode
   } else if (input.trimDelta) {
     boat.trim = clamp(boat.trim + input.trimDelta * 1.35 * dt, MIN_TRIM, MAX_TRIM);
   }
 
   // --- sail forces ----------------------------------------------------------
   const alpha = beta - boat.trim;         // angle of attack on the sail
-  const noGo = smoothstep(NO_GO, NO_GO_SOFT, beta);
+  // Easy mode almost removes the dead zone — slightly-off still pulls hard.
+  const noGoLo = assist ? (8 * Math.PI) / 180 : NO_GO;
+  const noGoHi = assist ? (30 * Math.PI) / 180 : NO_GO_SOFT;
+  const noGo = smoothstep(noGoLo, noGoHi, beta);
 
   let cl = 0;
   let cd = dragCoef(alpha);
@@ -173,15 +183,16 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
   }
 
   const heelFactor = Math.cos(boat.heel);
-  const q = POWER * apparentSpeed * apparentSpeed;
-  const drive = q * (cl * Math.sin(beta) - cd * Math.cos(beta)) * heelFactor;
+  const q = POWER * (assist ? 1.35 : 1.15) * apparentSpeed * apparentSpeed;
+  let drive = q * (cl * Math.sin(beta) - cd * Math.cos(beta)) * heelFactor;
   const side = q * (cl * Math.cos(beta) + cd * Math.sin(beta)) * heelFactor * Math.sign(cross || 1);
 
   // --- hull -----------------------------------------------------------------
-  const resist = DRAG_FWD * boat.surge * Math.abs(boat.surge)
-    + 0.22 * boat.surge
-    // Wave-making resistance climbs steeply near hull speed.
-    + 0.030 * Math.pow(Math.max(0, Math.abs(boat.surge) - 5.6), 3) * Math.sign(boat.surge || 1);
+  const dragScale = assist ? 0.78 : 1;
+  const resist = (DRAG_FWD * boat.surge * Math.abs(boat.surge)
+    + 0.18 * boat.surge
+    + 0.022 * Math.pow(Math.max(0, Math.abs(boat.surge) - (assist ? 7.5 : 5.6)), 3)
+      * Math.sign(boat.surge || 1)) * dragScale;
 
   const lateralResist = DRAG_LAT * boat.sway * Math.abs(boat.sway) + 2.6 * boat.sway;
 
@@ -189,22 +200,27 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
   boat.sway += (side - lateralResist - boat.surge * boat.yawRate) * dt;
   boat.surge = Math.max(boat.surge, -1.2);
 
-  // Easy mode never lets the boat sit dead in the water: a bad angle costs you
-  // time instead of taking the rudder away and leaving you stuck with nothing
-  // to do. Well under the speed any real point of sail gives, so it can't be
-  // used to make progress — it only buys back steerage.
-  if (assist && boat.surge < ASSIST_STEERAGE) {
-    boat.surge += (ASSIST_STEERAGE - boat.surge) * 0.9 * dt;
+  // Arcade easy: motor boat you STEER. Wind still gives a bonus on a reach,
+  // but pointing into the wind never kills you — it only slows the motor.
+  if (assist) {
+    const boosting = Boolean(input.holdCourse);
+    // 0 in deep irons → 1 on a beam reach.
+    const windBonus = clamp((beta - (12 * Math.PI) / 180) / ((70 * Math.PI) / 180), 0.55, 1.2);
+    const target = (boosting ? ARCADE_BOOST : ARCADE_CRUISE) * windBonus;
+    boat.surge += (target - boat.surge) * (boosting ? 3.2 : 2.0) * dt;
+    boat.sway *= Math.exp(-2.6 * dt);
+    boat.surge = Math.min(boat.surge, 11.5);
   }
 
   // --- steering -------------------------------------------------------------
-  boat.rudder += (input.rudder * 0.75 - boat.rudder) * damp(9, dt);
+  const turnRate = assist ? TURN_RATE_ARCADE : TURN_RATE;
+  boat.rudder += (input.rudder * (assist ? 1.0 : 0.75) - boat.rudder) * damp(assist ? 14 : 9, dt);
   // Rudder needs flow, but keep a floor so you can still turn out of irons.
-  const authority = clamp(0.4 + Math.abs(boat.surge) / 1.8, 0, 1.25);
+  const authority = clamp(0.55 + Math.abs(boat.surge) / 1.6, 0, 1.45);
   // Weather helm: mild so beginners aren't constantly fighting the boat.
-  const weatherHelm = -Math.sin(awa) * boat.heel * 0.08;
-  const targetYaw = (boat.rudder * TURN_RATE * authority + weatherHelm) * Math.sign(boat.surge >= 0 ? 1 : -1);
-  boat.yawRate += (targetYaw - boat.yawRate) * damp(6, dt);
+  const weatherHelm = assist ? 0 : -Math.sin(awa) * boat.heel * 0.08;
+  const targetYaw = (boat.rudder * turnRate * authority + weatherHelm) * Math.sign(boat.surge >= 0 ? 1 : -1);
+  boat.yawRate += (targetYaw - boat.yawRate) * damp(assist ? 10 : 6, dt);
   boat.heading += boat.yawRate * dt;
 
   // --- attitude -------------------------------------------------------------

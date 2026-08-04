@@ -91,24 +91,21 @@ function buildBuoyMesh(gl, program, stripeCount = 6) {
  * halfWidth = lateral half-span of the gate line.
  */
 export function createCourse() {
-  // Closed loop: start gate → windward → reach → leeward → finish (= start).
+  // Tight arcade loop: gates close enough that you are always aiming at something.
   const gates = [
-    { id: 0, name: '起航門', x: 0, z: 55, facing: Math.PI, halfWidth: 14, isStart: true },
-    { id: 1, name: '檢查點 1', x: -95, z: -30, facing: -Math.PI * 0.65, halfWidth: 13 },
-    { id: 2, name: '檢查點 2', x: -20, z: -175, facing: -Math.PI * 0.15, halfWidth: 14 },
-    { id: 3, name: '檢查點 3', x: 115, z: -55, facing: Math.PI * 0.55, halfWidth: 13 },
-    { id: 4, name: '終點門', x: 0, z: 55, facing: 0, halfWidth: 14, isFinish: true },
+    { id: 0, name: '起航門', x: 0, z: 40, facing: Math.PI, halfWidth: 16, isStart: true },
+    { id: 1, name: '檢查點 1', x: -55, z: 5, facing: -Math.PI * 0.7, halfWidth: 16 },
+    { id: 2, name: '檢查點 2', x: -35, z: -70, facing: -Math.PI * 0.2, halfWidth: 16 },
+    { id: 3, name: '檢查點 3', x: 40, z: -95, facing: Math.PI * 0.35, halfWidth: 16 },
+    { id: 4, name: '檢查點 4', x: 70, z: -25, facing: Math.PI * 0.75, halfWidth: 16 },
+    { id: 5, name: '終點門', x: 0, z: 40, facing: 0, halfWidth: 16, isFinish: true },
   ];
 
-  // Rolling start just before the start gate, already on a reach. The heading
-  // is set across the breeze (~65° off the wind) rather than up it: the old
-  // one pointed 19° off the wind, so the race opened with the boat head to
-  // wind, losing way and showing "cannot advance" before the player had
-  // touched anything.
+  // Rolling start on a beam reach, pointed roughly at the first gate.
   const start = {
-    x: 30,
-    z: 64,
-    heading: (-103 * Math.PI) / 180,
+    x: 22,
+    z: 48,
+    heading: (-100 * Math.PI) / 180,
   };
 
   return { start, gates };
@@ -197,17 +194,22 @@ export function createMarks(gl, solid, course) {
       const within = Math.abs(local.across) <= gate.halfWidth * 1.05;
       // Cross from behind (negative along) to ahead (positive along).
       const crossed = prevAlong < 0.4 && local.along >= 0.4 && within;
+      const accuracy = gate.halfWidth > 0
+        ? Math.abs(local.across) / gate.halfWidth
+        : 1;
       prevAlong = local.along;
 
       if (!crossed) return null;
 
       const cleared = gate;
       const index = nextIndex;
+      // 0 = dead centre, 1 = clipping a post.
+      const perfect = accuracy < 0.38;
       nextIndex += 1;
       if (nextIndex < course.gates.length) {
         prevAlong = gateLocal(boat, course.gates[nextIndex]).along;
       }
-      return { cleared, index };
+      return { cleared, index, accuracy, perfect };
     },
 
     update(time, waveAmp) {

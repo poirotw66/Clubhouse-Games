@@ -14,7 +14,8 @@ import { createCourse, createMarks, gatePosts } from './marks.js';
 import { clamp } from './math.js';
 
 const WAVE_AMP = 1.0;
-const BEST_KEY = 'sailing-best-v2';
+const WAVE_AMP_EASY = 0.45;
+const BEST_KEY = 'sailing-best-v3';
 const EASY_KEY = 'sailing-easy';
 const SUN_DIR = (() => {
   const a = (28 * Math.PI) / 180;
@@ -84,21 +85,33 @@ function startGame(gl, canvas) {
   input.easy = localStorage.getItem(EASY_KEY) !== 'off';
   input.onEasyChange = (on) => {
     localStorage.setItem(EASY_KEY, on ? 'on' : 'off');
-    showToast(on ? '簡單模式：跟著綠色箭頭轉舵' : '簡單模式關閉');
+    if (on) {
+      input.autoTrim = true;
+      showToast('簡單模式：按住 ↑ 加速，← → 轉彎衝閘門！');
+    } else {
+      showToast('簡單模式關閉');
+    }
+    syncEasyUi();
   };
 
   // Set while a one-key tack is being driven; holds the target heading.
   let tackTarget = null;
   let tackTimer = 0;
+  let perfectGates = 0;
   const minimap = $('#minimap');
   const miniCtx = minimap.getContext('2d');
 
   let boat = createBoatState(course.start.heading);
   boat.x = course.start.x;
   boat.z = course.start.z;
-  boat.surge = 3.2;
+  boat.surge = 5.5;
   marks.reset(boat);
   assist.reset(boat, wind);
+
+  // Store base gate widths so easy mode can widen without rebuilding posts.
+  for (const g of course.gates) {
+    if (g._half == null) g._half = g.halfWidth;
+  }
 
   /** @type {'countdown'|'racing'|'finished'} */
   let phase = 'countdown';
@@ -136,6 +149,10 @@ function startGame(gl, canvas) {
     windCue: $('#wind-cue'),
     windCueArrow: $('#wind-cue .wind-cue-arrow'),
     windCueLabel: $('#wind-cue-label'),
+    courseCue: $('#course-cue'),
+    courseCueArrow: $('#course-cue-arrow'),
+    goBtn: $('#btn-go'),
+    keyGo: document.querySelector('.key-go'),
     coach: $('#coach'),
     coachText: $('#coach-text'),
     toast: $('#toast'),
@@ -146,11 +163,32 @@ function startGame(gl, canvas) {
     finishSplits: $('#finish-splits'),
   };
 
+  function syncEasyUi() {
+    const easy = input.easy;
+    document.body.classList.toggle('easy-mode', easy);
+    for (const g of course.gates) {
+      g.halfWidth = easy ? g._half * 1.25 : g._half;
+    }
+    if (hud.goBtn) hud.goBtn.hidden = !easy;
+    if (hud.tackBtn) hud.tackBtn.hidden = !easy;
+    document.querySelectorAll('[data-hold="trimIn"], [data-hold="trimOut"]').forEach((el) => {
+      el.hidden = easy;
+    });
+    const trimPanel = document.querySelector('.trim-panel');
+    if (trimPanel) trimPanel.hidden = easy;
+    if (hud.auto) hud.auto.hidden = easy;
+    const windRose = document.querySelector('.wind-rose');
+    if (windRose) windRose.hidden = easy;
+  }
+
   function showToast(text) {
     hud.toast.textContent = text;
     hud.toast.classList.add('show');
     toastTimer = 2.2;
   }
+
+  if (input.easy) input.autoTrim = true;
+  syncEasyUi();
 
   function renderSplits() {
     const gates = course.gates;
@@ -309,7 +347,7 @@ function startGame(gl, canvas) {
     const bz = tz(boat.z);
 
     if (input.easy && marks.nextGate && phase !== 'finished') {
-      const rec = assist.recommend(boat, wind, marks.nextGate);
+      const rec = assist.recommend(boat, wind, marks.nextGate, input.easy);
       ctx.strokeStyle = 'rgba(142,247,210,0.9)';
       ctx.lineWidth = 1.8;
       ctx.setLineDash([4, 3]);
@@ -352,12 +390,13 @@ function startGame(gl, canvas) {
     boat = createBoatState(course.start.heading);
     boat.x = course.start.x;
     boat.z = course.start.z;
-    boat.surge = 3.2;
+    boat.surge = 5.5;
     marks.reset(boat);
     assist.reset(boat, wind);
     coach.reset();
     hud.coach.hidden = true;
     tackTarget = null;
+    perfectGates = 0;
     phase = 'countdown';
     countdown = 3.2;
     raceTime = 0;
@@ -397,27 +436,25 @@ function startGame(gl, canvas) {
     const on = Boolean(input.easy && gate && phase !== 'finished');
     hud.guide.hidden = !on;
     hud.guideTip.hidden = !on;
-    if (hud.tackBtn) hud.tackBtn.hidden = !input.easy;
     if (!on) return;
 
-    const rec = assist.recommend(boat, wind, gate);
+    const rec = assist.recommend(boat, wind, gate, true);
     const rel = wrap(rec.heading - boat.heading);
     hud.guide.style.transform = `rotate(${(rel * 180) / Math.PI}deg)`;
 
     const deg = (rel * 180) / Math.PI;
-    const aligned = Math.abs(deg) < 8;
-    // Which side the wind sits on for the recommended heading, using the same
-    // sign convention as the apparent-wind readout.
+    const aligned = Math.abs(deg) < 12;
     const side = wrap(wind.from - rec.heading) >= 0 ? '右' : '左';
 
     let text;
     if (tackTarget !== null) text = '換舷中…';
-    else if (!aligned) text = `向${deg > 0 ? '右' : '左'}轉 ${Math.abs(deg).toFixed(0)}°`;
-    else if (rec.beating) text = `搶風中（${side}舷）· 空白鍵換舷`;
-    else text = '航向正確';
+    else if (rec.approach) text = '對準閘門衝！';
+    else if (!aligned) text = `向${deg > 0 ? '右' : '左'}轉對準`;
+    else if (rec.beating) text = `對準中（${side}舷）· 按 ↑`;
+    else text = '航向正確 · 按 ↑ 衝刺';
 
     hud.guideTip.textContent = text;
-    hud.guideTip.classList.toggle('good', aligned);
+    hud.guideTip.classList.toggle('good', aligned || Boolean(rec.approach));
   }
 
   /** Coarse description of where the wind sits relative to the bow. */
@@ -432,10 +469,8 @@ function startGame(gl, canvas) {
   }
 
   /**
-   * Wind arrow pinned over the bow. Rotation is taken against the *camera's*
-   * heading, not the boat's: the camera eases toward the boat and carries the
-   * player's look bias, so using the boat heading would make the arrow drift
-   * off true whenever you turn or drag the view.
+   * Bow cues: orange wind arrow + (in easy mode) green forward-course arrow.
+   * Rotations use the camera heading so dragging the view does not skew them.
    */
   function updateWindCue() {
     const cue = hud.windCue;
@@ -459,24 +494,51 @@ function startGame(gl, canvas) {
     cue.style.top = `${(1 - (ndc.y * 0.5 + 0.5)) * 100}%`;
 
     const blowing = wind.from + Math.PI;              // the way the air is going
-    const screenAngle = wrap(blowing - camera.viewHeading);
-    hud.windCueArrow.style.transform = `rotate(${(screenAngle * 180) / Math.PI}deg)`;
+    const windScreen = wrap(blowing - camera.viewHeading);
+    hud.windCueArrow.style.transform = `rotate(${(windScreen * 180) / Math.PI}deg)`;
+
+    const holding = input.holdingCourse;
+    const gate = marks.nextGate;
+    const showCourse = Boolean(input.easy && gate);
+    if (hud.courseCue) hud.courseCue.hidden = !showCourse;
+
+    let courseLabel = '';
+    if (showCourse && hud.courseCueArrow) {
+      const rec = assist.recommend(boat, wind, gate, true);
+      const courseScreen = wrap(rec.heading - camera.viewHeading);
+      const scale = holding ? 1.12 : 1;
+      hud.courseCueArrow.style.transform =
+        `rotate(${(courseScreen * 180) / Math.PI}deg) scale(${scale})`;
+      const side = wrap(wind.from - rec.heading) >= 0 ? '右' : '左';
+      courseLabel = rec.approach
+        ? '前進・衝向閘門'
+        : rec.beating
+          ? `前進・搶風${side}舷`
+          : '前進・直指閘門';
+    }
 
     const awaDeg = (boat.awa * 180) / Math.PI;
     const inIrons = Math.abs(boat.awa) < NO_GO;
     const luffing = boat.luffing > 0.35;
     cue.classList.toggle('nogo', inIrons);
     cue.classList.toggle('good', !inIrons && !luffing);
+    cue.classList.toggle('holding', holding);
+    hud.goBtn?.classList.toggle('holding', holding);
+    hud.keyGo?.classList.toggle('holding', holding);
 
-    // With auto-trim on, the sheet is not the player's problem — tell them
-    // where the wind is instead of asking for a trim they cannot make.
-    let label = `風從${windQuarter(awaDeg)}`;
-    if (inIrons) label = '頂風・轉舵離開';
+    let label = courseLabel || `風從${windQuarter(awaDeg)}`;
+    if (input.easy && courseLabel) {
+      label = holding ? `${courseLabel}・加速中` : `${courseLabel}・按 ↑ 加速`;
+    } else if (inIrons) label = showCourse ? '頂風・轉開再加速' : '頂風・轉舵離開';
     else if (luffing && !input.autoTrim) label = '帆在抖・收帆 Z';
     else if (!input.autoTrim) {
       const a = Math.abs(awaDeg);
-      if (a < 75) label = `${label}・收帆 Z`;
-      else if (a > 115) label = `${label}・放帆 X`;
+      const windBit = `風從${windQuarter(awaDeg)}`;
+      if (a < 75) label = courseLabel ? `${courseLabel}・收帆 Z` : `${windBit}・收帆 Z`;
+      else if (a > 115) label = courseLabel ? `${courseLabel}・放帆 X` : `${windBit}・放帆 X`;
+      else if (!courseLabel) label = windBit;
+    } else if (!courseLabel) {
+      label = `風從${windQuarter(awaDeg)}`;
     }
     hud.windCueLabel.textContent = label;
   }
@@ -547,7 +609,7 @@ function startGame(gl, canvas) {
   function updateCoach(dt) {
     const gate = marks.nextGate;
     const guideTurn = input.easy && gate
-      ? assist.recommend(boat, wind, gate).turn
+      ? assist.recommend(boat, wind, gate, true).turn
       : 0;
 
     const hint = coach.update({
@@ -575,9 +637,8 @@ function startGame(gl, canvas) {
 
   /**
    * One-key tack: latch the heading on the other side of the wind and steer to
-   * it. Hands control back the moment the boat settles, the player touches the
-   * rudder, or the manoeuvre runs long — an assist that fights you is worse
-   * than none.
+   * it. Hands control back when settled, the player touches the rudder, or the
+   * timer runs out.
    */
   function applyTackAssist(controls, dt) {
     if (input.consumeTack() && input.easy) {
@@ -589,11 +650,28 @@ function startGame(gl, canvas) {
 
     tackTimer -= dt;
     const settled = Math.abs(wrap(tackTarget - boat.heading)) < 0.1;
-    if (settled || tackTimer <= 0 || controls.rudder !== 0 || !input.easy) {
+    if (settled || tackTimer <= 0 || (controls.rudder !== 0 && !controls.holdCourse) || !input.easy) {
       tackTarget = null;
       return controls;
     }
     return { ...controls, rudder: steerTo(boat, tackTarget) };
+  }
+
+  /**
+   * Easy mode is an arcade racer: YOU steer, ↑ boosts. Guidance arrow is a
+   * hint only — no autopilot (watching a boat drive itself is not a game).
+   * Space still does a one-key tack for when you want to flip quickly.
+   */
+  function applyEasyHelms(controls, dt) {
+    if (!input.easy) return controls;
+    // Lock auto-trim on and ignore sheet keys — sail always at peak angle.
+    input.autoTrim = true;
+    controls = applyTackAssist(controls, dt);
+    return { ...controls, autoTrim: true, trimDelta: 0 };
+  }
+
+  function waveAmpNow() {
+    return input.easy ? WAVE_AMP_EASY : WAVE_AMP;
   }
 
   function frame(now) {
@@ -613,7 +691,13 @@ function startGame(gl, canvas) {
     const aspect = resize(gl, canvas);
     camera.resize(aspect);
     wind.update(now * 0.001);
+    // Easy mode: almost flat calm so the boat tracks the autopilot cleanly.
+    if (input.easy) {
+      wind.speed = wind.baseSpeed * 0.92 + (wind.speed - wind.baseSpeed) * 0.15;
+      wind.from = wind.baseFrom + (wind.from - wind.baseFrom) * 0.25;
+    }
 
+    const waves = waveAmpNow();
     let controls = { rudder: 0, trimDelta: 0, autoTrim: true };
     if (phase === 'countdown') {
       countdown -= dt;
@@ -622,18 +706,18 @@ function startGame(gl, canvas) {
       hud.countdown.textContent = n > 0 ? String(n) : 'GO';
       // Soft hold during countdown — slight steer allowed to line up.
       const raw = input.sample(dt);
-      controls = { rudder: raw.rudder * 0.35, trimDelta: 0, autoTrim: true };
-      controls = applyTackAssist(controls, dt);
-      stepSailing(boat, wind, controls, dt, now * 0.001, WAVE_AMP, input.easy);
+      controls = { rudder: raw.rudder * 0.35, trimDelta: 0, autoTrim: true, holdCourse: raw.holdCourse };
+      controls = applyEasyHelms(controls, dt);
+      stepSailing(boat, wind, controls, dt, now * 0.001, waves, input.easy);
       if (countdown <= 0) {
         phase = 'racing';
         raceTime = 0;
         hud.countdown.hidden = true;
-        showToast('計時開始！穿過綠色閘門');
+        showToast(input.easy ? '按住 ↑ 加速！← → 轉彎衝過綠色閘門' : '計時開始！穿過綠色閘門');
       }
     } else if (phase === 'racing') {
-      controls = applyTackAssist(input.sample(dt), dt);
-      stepSailing(boat, wind, controls, dt, now * 0.001, WAVE_AMP, input.easy);
+      controls = applyEasyHelms(input.sample(dt), dt);
+      stepSailing(boat, wind, controls, dt, now * 0.001, waves, input.easy);
       raceTime += dt;
       updateCoach(dt);
 
@@ -642,6 +726,16 @@ function startGame(gl, canvas) {
         splits.push({ name: cleared.cleared.name, time: raceTime });
         renderSplits();
         const left = course.gates.length - marks.nextIndex;
+        if (cleared.perfect) {
+          perfectGates += 1;
+          raceTime = Math.max(0, raceTime - 1.2);
+          boat.surge = Math.min(11.5, boat.surge + 2.8);
+          showToast(`完美穿門！−1.2s · 加速（完美 ${perfectGates}）`);
+        } else if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
+          // finish handled below
+        } else {
+          showToast(`${cleared.cleared.name} · ${formatTime(raceTime)} · 剩 ${left} 門`);
+        }
         if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
           phase = 'finished';
           coach.reset();
@@ -653,12 +747,17 @@ function startGame(gl, canvas) {
           hud.finish.hidden = false;
           hud.finishTime.textContent = formatTime(raceTime);
           hud.finishBest.textContent = formatTime(bestTime);
-          hud.finishSplits.innerHTML = splits
+          const perfectLine = perfectGates > 0
+            ? `<li><span>完美穿門</span><span>${perfectGates} 次</span></li>`
+            : '';
+          hud.finishSplits.innerHTML = perfectLine + splits
             .map((s) => `<li><span>${s.name}</span><span>${formatTime(s.time)}</span></li>`)
             .join('');
-          showToast(`完賽 ${formatTime(raceTime)}`);
-        } else {
-          showToast(`${cleared.cleared.name} · ${formatTime(raceTime)} · 剩 ${left} 門`);
+          showToast(
+            perfectGates > 0
+              ? `完賽 ${formatTime(raceTime)} · 完美 ${perfectGates}`
+              : `完賽 ${formatTime(raceTime)}`
+          );
         }
       }
     } else {
@@ -669,23 +768,24 @@ function startGame(gl, canvas) {
         { rudder: controls.rudder * 0.5, trimDelta: 0, autoTrim: true },
         dt,
         now * 0.001,
-        WAVE_AMP
+        waves,
+        input.easy
       );
     }
 
     wakeAcc += dt;
-    if (wakeAcc > 0.08) {
+    if (wakeAcc > 0.06) {
       wakeAcc = 0;
-      const strength = clamp(boat.speed / 6, 0, 1) * 0.9;
+      const strength = clamp(boat.speed / 5, 0, 1.25) * 1.15;
       if (strength > 0.05) {
         wake.unshift({ x: boat.x, z: boat.z, strength });
-        if (wake.length > 32) wake.pop();
+        if (wake.length > 40) wake.pop();
       }
-      for (const w of wake) w.strength *= 0.965;
+      for (const w of wake) w.strength *= 0.955;
     }
     ocean.setWake(wake);
 
-    marks.update(now * 0.001, WAVE_AMP);
+    marks.update(now * 0.001, waves);
     camera.update(boat, input.lookYaw, dt);
     camera.commit();
     updateWindCue();
@@ -708,7 +808,7 @@ function startGame(gl, canvas) {
 
     const env = {
       time: now * 0.001,
-      waveAmp: WAVE_AMP,
+      waveAmp: waves,
       sunDir: SUN_DIR,
       horizonColor: HORIZON,
       deepColor: DEEP,

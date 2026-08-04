@@ -1,5 +1,6 @@
 // Chase camera that hangs off the stern and softens pitch/roll so the horizon
-// stays readable while the boat heels.
+// stays readable while the boat heels. Pulls back and widens FOV with speed so
+// the water feels like it is rushing past.
 
 import { mat4, damp, clamp } from './math.js';
 
@@ -16,6 +17,8 @@ export function createCamera() {
   let pitch = 0.28;
   let distance = 16;
   let height = 5.5;
+  let fov = (52 * Math.PI) / 180;
+  let aspect = 1;
 
   return {
     position,
@@ -57,9 +60,12 @@ export function createCamera() {
       pitch += (desiredPitch - pitch) * damp(3.0, dt);
       pitch = clamp(pitch, 0.12, 0.55);
 
-      const speedBoost = clamp(boat.speed / 8, 0, 1);
-      const dist = distance + speedBoost * 4;
-      const h = height + speedBoost * 1.2;
+      // Pull back + widen FOV with speed so the water rushes past.
+      const speedBoost = clamp(boat.speed / 7, 0, 1.35);
+      const dist = distance + speedBoost * 7;
+      const h = height + speedBoost * 1.8;
+      const wantFov = ((52 + speedBoost * 14) * Math.PI) / 180;
+      fov += (wantFov - fov) * damp(4.0, dt);
 
       const behindX = Math.sin(yaw);
       const behindZ = Math.cos(yaw);
@@ -67,20 +73,24 @@ export function createCamera() {
       const eyeX = boat.x + behindX * dist * Math.cos(pitch);
       const eyeZ = boat.z + behindZ * dist * Math.cos(pitch);
 
-      position[0] += (eyeX - position[0]) * damp(5.5, dt);
-      position[1] += (eyeY - position[1]) * damp(5.5, dt);
-      position[2] += (eyeZ - position[2]) * damp(5.5, dt);
+      // Slightly lag the eye so acceleration reads as a punch.
+      const follow = 4.2 + speedBoost * 1.4;
+      position[0] += (eyeX - position[0]) * damp(follow, dt);
+      position[1] += (eyeY - position[1]) * damp(follow, dt);
+      position[2] += (eyeZ - position[2]) * damp(follow, dt);
 
-      target[0] = boat.x + Math.sin(boat.heading) * 4;
+      target[0] = boat.x + Math.sin(boat.heading) * (4 + speedBoost * 2);
       target[1] = boat.waterY + 1.4;
-      target[2] = boat.z + Math.cos(boat.heading) * 4;
+      target[2] = boat.z + Math.cos(boat.heading) * (4 + speedBoost * 2);
     },
 
-    resize(aspect) {
-      mat4.perspective(proj, (52 * Math.PI) / 180, aspect, 0.4, 1400);
+    resize(a) {
+      aspect = a;
+      mat4.perspective(proj, fov, aspect, 0.4, 1400);
     },
 
     commit() {
+      mat4.perspective(proj, fov, aspect, 0.4, 1400);
       mat4.lookAt(view, position, target, up);
       mat4.multiply(viewProj, proj, view);
       mat4.invert(invViewProj, viewProj);
@@ -89,6 +99,7 @@ export function createCamera() {
     /** Snap immediately behind the boat (used on reset). */
     snap(boat) {
       yaw = boat.heading + Math.PI;
+      fov = (52 * Math.PI) / 180;
       const behindX = Math.sin(yaw);
       const behindZ = Math.cos(yaw);
       position[0] = boat.x + behindX * distance;

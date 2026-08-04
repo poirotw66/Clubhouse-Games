@@ -21,10 +21,10 @@
     <div id="title-overlay" class="title-overlay">
       <img src="./title-logo.svg" alt="" width="120" height="120" class="title-logo" />
       <h1 class="title-brand">海灣帆航</h1>
-      <p class="title-tag">依序穿過固定閘門，競速完成本圈</p>
+      <p class="title-tag">按住加速、轉彎衝過閘門 — 海灣競速</p>
       <button type="button" id="btn-start" class="btn primary">開始航行</button>
-      <p class="title-hint">← → 轉舵 · 空白鍵換舷 · Z 收帆 · X 放帆 · C 自動調帆</p>
-      <p class="title-hint">簡單模式已開啟：跟著羅盤上的<strong>綠色箭頭</strong>轉舵即可</p>
+      <p class="title-hint"><strong>↑ 加速</strong> · <strong>← → 轉彎</strong> · 從閘門正中穿過有時間獎勵</p>
+      <p class="title-hint">簡單模式＝街機手感（不用懂風帆）；關掉才是真實帆船物理</p>
     </div>
 
     <header class="top-bar">
@@ -91,8 +91,8 @@
           <div id="trim-fill" class="trim-fill"></div>
         </div>
         <div class="trim-keys">
-          <span><kbd>Z</kbd>/<kbd>↑</kbd> 收帆</span>
-          <span><kbd>X</kbd>/<kbd>↓</kbd> 放帆</span>
+          <span><kbd>Z</kbd> 收帆</span>
+          <span><kbd>X</kbd> 放帆</span>
           <span><kbd>C</kbd> 自動</span>
         </div>
       </div>
@@ -101,18 +101,24 @@
     </div>
 
     <div class="key-strip" aria-hidden="true">
-      <span><kbd>←</kbd><kbd>→</kbd> 轉舵</span>
+      <span class="key-go"><kbd>↑</kbd> 加速</span>
+      <span><kbd>←</kbd><kbd>→</kbd> 轉彎</span>
       <span><kbd>空白</kbd> 換舷</span>
-      <span><kbd>Z</kbd> 收帆</span>
-      <span><kbd>X</kbd> 放帆</span>
-      <span><kbd>C</kbd> 自動調帆</span>
       <span><kbd>R</kbd> 重開</span>
     </div>
 
-    <!-- Wind arrow pinned over the bow: which way the air is moving, right
-         where the player is already looking. -->
+    <!-- Bow cues: green = recommended forward course, orange = wind flow. -->
     <div id="wind-cue" class="wind-cue" hidden aria-hidden="true">
-      <div class="wind-cue-arrow"></div>
+      <div class="cue-arrows">
+        <div id="course-cue" class="cue-item course" hidden>
+          <div id="course-cue-arrow" class="course-cue-arrow"></div>
+          <span class="cue-badge go">前進</span>
+        </div>
+        <div class="cue-item wind">
+          <div class="wind-cue-arrow"></div>
+          <span class="cue-badge wind">風</span>
+        </div>
+      </div>
       <span id="wind-cue-label" class="wind-cue-label">—</span>
     </div>
 
@@ -130,6 +136,11 @@
         <button type="button" class="touch-btn" data-hold="rudderRight">右轉 →</button>
       </div>
       <div class="pad right">
+        <button type="button" id="btn-go" class="touch-btn go-forward" data-hold="holdCourse" aria-label="加速">
+          <span class="go-arrow" aria-hidden="true">▲</span>
+          <span class="go-text">加速</span>
+          <span class="go-key">↑</span>
+        </button>
         <button type="button" id="btn-tack" class="touch-btn accent">一鍵換舷</button>
         <button type="button" class="touch-btn" data-hold="trimIn">收帆 Z</button>
         <button type="button" class="touch-btn" data-hold="trimOut">放帆 X</button>
@@ -139,17 +150,15 @@
     <div id="help-panel" class="panel" hidden>
       <h2>操作說明</h2>
       <ul>
-        <li><kbd>←</kbd> <kbd>→</kbd> 或 <kbd>A</kbd> <kbd>D</kbd>：轉舵</li>
-        <li><kbd>Z</kbd> / <kbd>↑</kbd>：收帆（帆靠近中線，搶風時用）</li>
-        <li><kbd>X</kbd> / <kbd>↓</kbd>：放帆（帆打開，順風時用）</li>
-        <li><kbd>C</kbd> 或 <kbd>T</kbd>：開關自動調帆（手動按 Z/X 會自動關閉）</li>
-        <li><kbd>空白鍵</kbd>：一鍵換舷（自動把船轉到風的另一側）</li>
+        <li><kbd>↑</kbd> 或 <kbd>W</kbd>：<strong>加速</strong>（簡單模式必按，放開會變慢）</li>
+        <li><kbd>←</kbd> <kbd>→</kbd> 或 <kbd>A</kbd> <kbd>D</kbd>：轉彎對準下一扇綠色閘門</li>
+        <li><kbd>空白鍵</kbd>：快速換舷（急轉）</li>
+        <li>從閘門<strong>正中央</strong>穿過：扣時間 + 瞬間加速</li>
         <li>拖曳畫面：環顧　·　<kbd>R</kbd>：重開</li>
       </ul>
-      <p>右上<strong>風向盤</strong>：箭頭指「風吹來的方向」，上方是船首。紅色扇形是頂風區——指針進紅區就沒有推力，轉舵讓指針離開紅區。綠色閘門為下一檢查點，依序穿過即完賽。</p>
-      <p><strong>船頭的橘色箭頭</strong>：指的是「風往哪裡吹」，也就是空氣流動的方向。箭頭下方會寫出風相對於船首的位置（例如「風從左後方」），手動調帆時還會直接告訴你該收帆還是放帆。箭頭變紅＝已經頂風，先轉舵離開。</p>
-      <p><strong>卡住時</strong>畫面下方會跳出橘框提示，告訴你當下該按哪個鍵。它只在狀況持續一段時間後才出現，換舷途中短暫頂風不會跳。</p>
-      <p><strong>簡單模式</strong>（預設開啟）：「下一門」羅盤上會多一支<strong>綠色箭頭</strong>，那是<em>建議航向</em>——照著轉就對了。閘門在上風處時無法直接航向它，綠色箭頭會自動指出該走哪一側搶風，下方文字會顯示「搶風：左舷／右舷」。此模式下船也不會完全停住，隨時還能轉舵。關掉後只剩白色的閘門方向箭頭，需要自己判斷搶風角度。</p>
+      <p><strong>簡單模式</strong>（預設）：街機競速 — 船往哪指就往哪開，按 ↑ 才會快。<strong>帆角會自動調到最佳攻角</strong>，不用管收放帆。綠箭頭提示下一門方向。</p>
+      <p><strong>關閉簡單模式</strong>：改玩真實相對風與調帆，頂風區無法前進。</p>
+      <p><strong>船頭提示</strong>：綠色「前進」＝建議航向；橘色「風」＝風向。</p>
       <button type="button" id="btn-help-close" class="btn primary">關閉</button>
     </div>
 

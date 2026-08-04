@@ -134,16 +134,24 @@ const assist = createAssist();
   }
 }
 
-// The easy-mode steerage floor has to rescue a boat stuck head to wind, while
-// staying far too slow to be a way of actually getting anywhere.
+// Easy arcade: cruise without boost, faster when holding ↑.
 {
-  const stuck = createBoatState(Math.PI);
-  stuck.surge = 0;
+  const idle = createBoatState(Math.PI / 2);
+  idle.surge = 0;
   for (let i = 0; i < 600; i++) {
-    stepSailing(stuck, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, true);
+    stepSailing(idle, wind, { rudder: 0, trimDelta: 0, autoTrim: true, holdCourse: false }, 1 / 60, i / 60, 0, true);
   }
-  assert(stuck.surge > 0.9, `easy mode should keep steerage way, got ${stuck.surge.toFixed(2)}`);
-  assert(stuck.surge < 1.6, `steerage floor is too fast to be a rescue: ${stuck.surge.toFixed(2)}`);
+  assert(idle.surge > 2.5, `arcade cruise too slow: ${idle.surge.toFixed(2)}`);
+  assert(idle.surge < 6.5, `arcade cruise too fast without boost: ${idle.surge.toFixed(2)}`);
+
+  const boost = createBoatState(Math.PI / 2);
+  boost.surge = 0;
+  for (let i = 0; i < 600; i++) {
+    stepSailing(boost, wind, { rudder: 0, trimDelta: 0, autoTrim: true, holdCourse: true }, 1 / 60, i / 60, 0, true);
+  }
+  assert(boost.surge > idle.surge + 1.5,
+    `boost should clearly beat cruise: ${boost.surge.toFixed(2)} vs ${idle.surge.toFixed(2)}`);
+  assert(boost.surge < 12, `boost too fast: ${boost.surge.toFixed(2)}`);
 
   const hard = createBoatState(Math.PI);
   hard.surge = 0;
@@ -151,6 +159,16 @@ const assist = createAssist();
     stepSailing(hard, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, false);
   }
   assert(hard.surge < 0.6, `normal mode should still go dead in irons, got ${hard.surge.toFixed(2)}`);
+}
+
+// Arcade guidance: when close to an upwind mark, aim straight at it.
+{
+  const boat = at(0, -150, Math.PI);
+  assist.reset(boat, wind);
+  const rec = assist.recommend(boat, wind, { x: 0, z: -200 }, true);
+  assert(rec.approach, 'arcade should enter final approach near the mark');
+  assert(Math.abs(wrap(rec.heading - Math.atan2(0, -50))) < 0.05,
+    'arcade approach should point at the mark');
 }
 
 console.log('check-assist: ok');

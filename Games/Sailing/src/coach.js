@@ -12,7 +12,7 @@ export const HINTS = [
   {
     id: 'irons',
     dwell: 2.5,
-    text: '頂風了：船頭正對著風，帆吃不到風。按空白鍵換舷，或轉舵讓綠色箭頭朝正上方。',
+    text: '頂風偏慢：轉開一點再按 ↑，橫風會更快。',
   },
   {
     id: 'luffing',
@@ -21,18 +21,18 @@ export const HINTS = [
   },
   {
     id: 'stalled',
-    dwell: 3.5,
-    text: '船快停住了：轉舵離開風向盤的紅色扇形，速度就會回來。',
+    dwell: 2.5,
+    text: '太慢了！按住 ↑ 加速，← → 對準綠色箭頭。',
   },
   {
     id: 'receding',
     dwell: 12,
-    text: '正在遠離下一個閘門：閘門在上風處時無法直接開過去，跟著綠色箭頭走 Z 字。',
+    text: '跑偏了：看船頭綠箭頭，轉彎對準下一門再加速。',
   },
   {
     id: 'offCourse',
     dwell: 6,
-    text: '航向和建議路線差很多：跟著羅盤上的綠色箭頭轉舵。',
+    text: '航向偏了：← → 把綠箭頭轉到正上方，再按 ↑。',
   },
 ];
 
@@ -78,9 +78,9 @@ export function createCoach() {
       const holds = {
         irons: Math.abs(state.awa) < state.noGo,
         luffing: state.luffing > 0.4 && !state.autoTrim,
-        stalled: state.speed < 1,
+        stalled: state.speed < (state.easy ? 3.2 : 1),
         receding: recede >= 12,
-        offCourse: state.easy && Math.abs(state.guideTurn) > 1.05,
+        offCourse: state.easy && Math.abs(state.guideTurn) > 0.9,
       };
 
       for (const h of HINTS) {

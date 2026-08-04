@@ -6,7 +6,9 @@ export function createInput(root) {
   let dragging = false;
   let lastX = 0;
 
-  const STEER = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyZ', 'KeyX']);
+  // ArrowUp / W = hold course (easy-mode forward assist), not trim — beginners
+  // reach for ↑ expecting "go", and binding it to sheet-in was the opposite.
+  const STEER = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyW', 'KeyZ', 'KeyX']);
 
   const onKey = (e, down) => {
     if (e.repeat && down) return;
@@ -50,6 +52,7 @@ export function createInput(root) {
     rudderRight: false,
     trimIn: false,
     trimOut: false,
+    holdCourse: false,
   };
 
   root.querySelectorAll('[data-hold]').forEach((el) => {
@@ -76,6 +79,12 @@ export function createInput(root) {
   };
 
   const toggleAuto = () => {
+    // Easy mode owns the sheet — don't let the player turn auto-trim off.
+    if (easy) {
+      autoTrim = true;
+      syncAutoBtn();
+      return;
+    }
     autoTrim = !autoTrim;
     syncAutoBtn();
   };
@@ -143,6 +152,15 @@ export function createInput(root) {
     get lookYaw() {
       return lookYaw;
     },
+    /** True while ↑ / W / 前進 pad is held. */
+    get holdingCourse() {
+      return (
+        keys.has('ArrowUp')
+        || keys.has('KeyW')
+        || keys.has('ArrowDown')
+        || held.holdCourse
+      );
+    },
     consumePress(code) {
       if (!keys.has(code)) return false;
       keys.delete(code);
@@ -155,20 +173,22 @@ export function createInput(root) {
       if (keys.has('ArrowLeft') || keys.has('KeyA') || held.rudderLeft) rudder -= 1;
       if (keys.has('ArrowRight') || keys.has('KeyD') || held.rudderRight) rudder += 1;
 
-      // Sheet in / out: Z X, Q E, ↑ ↓, [ ]
+      // Sheet in / out: Z X, Q E, [ ] — not arrow keys (those are helm / go).
       let trimDelta = 0;
       if (
-        keys.has('KeyQ') || keys.has('KeyZ') || keys.has('ArrowUp')
+        keys.has('KeyQ') || keys.has('KeyZ')
         || keys.has('BracketLeft') || keys.has('Comma') || held.trimIn
       ) {
         trimDelta -= 1;
       }
       if (
-        keys.has('KeyE') || keys.has('KeyX') || keys.has('ArrowDown')
+        keys.has('KeyE') || keys.has('KeyX')
         || keys.has('BracketRight') || keys.has('Period') || held.trimOut
       ) {
         trimDelta += 1;
       }
+
+      const holdCourse = this.holdingCourse;
 
       if (keys.has('Space')) {
         keys.delete('Space');
@@ -183,15 +203,17 @@ export function createInput(root) {
       }
 
       // Manual trim disables auto so the keys always "do something".
-      if (trimDelta && autoTrim) {
+      // Easy mode keeps auto-trim locked — Z/X are ignored there.
+      if (trimDelta && autoTrim && !easy) {
         autoTrim = false;
         syncAutoBtn();
       }
 
       return {
         rudder,
-        trimDelta,
-        autoTrim,
+        trimDelta: easy ? 0 : trimDelta,
+        autoTrim: easy || holdCourse ? true : autoTrim,
+        holdCourse,
       };
     },
   };

@@ -646,20 +646,103 @@ body {
   font-weight: 700;
 }
 
+/* Primary "go forward" control — larger and louder than the other pad buttons. */
+.touch-btn.go-forward {
+  width: 88px;
+  height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  border-radius: 20px;
+  border: 2px solid #3dffd0;
+  background: linear-gradient(180deg, #1ec9a8 0%, #0d7a6e 100%);
+  color: #042018;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow:
+    0 0 0 3px rgba(62, 255, 208, 0.28),
+    0 8px 22px rgba(14, 120, 100, 0.55);
+  animation: go-pulse 1.6s ease-in-out infinite;
+}
+
+.touch-btn.go-forward .go-arrow {
+  font-size: 1.35rem;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.touch-btn.go-forward .go-text {
+  font-size: 0.95rem;
+}
+
+.touch-btn.go-forward .go-key {
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.touch-btn.go-forward:active,
+.touch-btn.go-forward.holding {
+  animation: none;
+  background: linear-gradient(180deg, #6ff5d4 0%, #18a892 100%);
+  box-shadow:
+    0 0 0 4px rgba(62, 255, 208, 0.55),
+    0 0 28px rgba(62, 255, 208, 0.65);
+  transform: scale(1.04);
+}
+
+@keyframes go-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 3px rgba(62, 255, 208, 0.28),
+      0 8px 22px rgba(14, 120, 100, 0.55);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(62, 255, 208, 0.45),
+      0 8px 28px rgba(62, 255, 208, 0.55);
+  }
+}
+
 .touch-btn[hidden] {
   display: none;
 }
 
-/* --- wind cue over the bow ------------------------------------------------
-   Anchored to the projected bow position each frame, so it sits on the boat
-   rather than at a fixed point on screen. The arrow points the way the air is
-   travelling; the label says what to do about it. */
+.key-strip .key-go {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(62, 255, 208, 0.65);
+  background: rgba(30, 201, 168, 0.28);
+  color: #b8fff0;
+  font-weight: 700;
+}
+
+.key-strip .key-go.holding {
+  background: rgba(62, 255, 208, 0.5);
+  color: #042018;
+  box-shadow: 0 0 14px rgba(62, 255, 208, 0.55);
+}
+
+.key-strip .key-go kbd {
+  background: rgba(4, 32, 24, 0.55);
+  color: #b8fff0;
+  border-color: rgba(62, 255, 208, 0.45);
+}
+
+.key-strip .key-go.holding kbd {
+  background: #042018;
+  color: #6ff5d4;
+}
+
+/* --- bow cues: course (green) + wind (orange) ----------------------------- */
 .wind-cue {
   position: fixed;
   z-index: 9;
   display: grid;
   justify-items: center;
-  gap: 0.2rem;
+  gap: 0.28rem;
   transform: translate(-50%, -50%);
   pointer-events: none;
   transition: opacity 0.25s ease;
@@ -669,18 +752,65 @@ body {
   display: none;
 }
 
-.wind-cue-arrow {
+.cue-arrows {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.cue-item {
+  display: grid;
+  justify-items: center;
+  gap: 0.18rem;
+}
+
+.wind-cue-arrow,
+.course-cue-arrow {
   width: 44px;
   height: 44px;
   /* Points "up" (screen -Y) at rotation 0; main.js rotates it into view space. */
   clip-path: polygon(50% 0, 100% 46%, 68% 46%, 68% 100%, 32% 100%, 32% 46%, 0 46%);
-  background: linear-gradient(180deg, #ffc978, #e0670f);
-  /* Tight dark shadows trace the clip-path silhouette, which is the only thing
-     keeping this readable when it passes over the white sail. */
   filter:
     drop-shadow(0 0 1.5px rgba(3, 14, 22, 0.95))
     drop-shadow(0 0 3px rgba(3, 14, 22, 0.65))
     drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5));
+}
+
+.wind-cue-arrow {
+  background: linear-gradient(180deg, #ffc978, #e0670f);
+}
+
+.course-cue-arrow {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(180deg, #7dffd4, #0f9f88);
+  filter:
+    drop-shadow(0 0 2px rgba(3, 14, 22, 0.95))
+    drop-shadow(0 0 10px rgba(62, 255, 208, 0.75))
+    drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5));
+}
+
+.cue-badge {
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.cue-badge.go {
+  color: #042018;
+  background: #3dffd0;
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 12px rgba(62, 255, 208, 0.55);
+}
+
+.cue-badge.wind {
+  color: #ffe0b8;
+  background: rgba(6, 22, 34, 0.78);
+  border-color: rgba(255, 160, 70, 0.55);
 }
 
 .wind-cue.nogo .wind-cue-arrow {
@@ -689,6 +819,13 @@ body {
 
 .wind-cue.good .wind-cue-arrow {
   background: linear-gradient(180deg, #6fe9cf, #12857b);
+}
+
+.wind-cue.holding .course-cue-arrow {
+  filter:
+    drop-shadow(0 0 2px rgba(3, 14, 22, 0.95))
+    drop-shadow(0 0 16px rgba(62, 255, 208, 0.95))
+    drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5));
 }
 
 .wind-cue-label {
@@ -705,6 +842,12 @@ body {
 .wind-cue.nogo .wind-cue-label {
   color: #ffb4a2;
   border-color: rgba(255, 90, 70, 0.6);
+}
+
+.wind-cue.holding .wind-cue-label {
+  color: #b8fff0;
+  border-color: rgba(62, 255, 208, 0.65);
+  background: rgba(8, 48, 42, 0.85);
 }
 
 /* --- coach banner --------------------------------------------------------- */
@@ -905,6 +1048,20 @@ body {
     width: 58px;
     height: 58px;
     font-size: 0.72rem;
+  }
+
+  .touch-btn.go-forward {
+    width: 72px;
+    height: 78px;
+    font-size: inherit;
+  }
+
+  .touch-btn.go-forward .go-arrow {
+    font-size: 1.15rem;
+  }
+
+  .touch-btn.go-forward .go-text {
+    font-size: 0.82rem;
   }
 
   /* Keyboard hints are dead weight on a touch device, and they were sitting on
