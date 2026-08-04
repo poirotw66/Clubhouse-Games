@@ -31,6 +31,17 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       hmr: process.env.DISABLE_HMR !== 'true',
     },
-    build: { outDir: 'dist', assetsDir: 'assets' },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            three: ['three'],
+            react: ['react', 'react-dom'],
+          },
+        },
+      },
+    },
   };
 });
