@@ -1,4 +1,4 @@
-import { Card, GameState, Position, Suit } from "../types";
+import type { Card, GameState, Position, Suit } from "../types";
 
 export const INITIAL_FOUNDATIONS: Record<Suit, number> = {
   spades: 0,
@@ -247,21 +247,9 @@ export function getHintMove(state: GameState): { source: Position, dest: Positio
 
   if (validMoves.length === 0) return null;
 
-  // Sort by score descending
+  // Prefer highest-score move; stable order for hints and check script.
   validMoves.sort((a, b) => b.score - a.score);
-
-  // To prevent infinite loops, randomly pick from the top scoring moves
-  const bestScore = validMoves[0].score;
-  const topMoves = validMoves.filter(m => m.score >= bestScore - 5);
-  
-  // Try to avoid reversing the last move if possible (basic check)
-  if (state.history.length > 0) {
-    const lastState = state.history[state.history.length - 1];
-    // A real loop prevention would be more complex, but this is a simple heuristic
-  }
-
-  const randomMove = topMoves[Math.floor(Math.random() * topMoves.length)];
-  return { source: randomMove.source, dest: randomMove.dest };
+  return { source: validMoves[0].source, dest: validMoves[0].dest };
 }
 
 export function checkLoss(state: GameState): boolean {

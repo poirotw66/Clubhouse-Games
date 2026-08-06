@@ -7,7 +7,8 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "check": "node --experimental-strip-types src/check-checkers.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.546.0",

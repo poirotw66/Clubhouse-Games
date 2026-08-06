@@ -7,6 +7,7 @@ export interface PlayingCardProps {
   card?: CardType | null;
   isSelected?: boolean;
   isSelectable?: boolean;
+  isHinted?: boolean;
   onClick?: () => void;
   onDoubleClick?: () => void;
   className?: string;
@@ -33,6 +34,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   card,
   isSelected,
   isSelectable,
+  isHinted,
   onClick,
   onDoubleClick,
   className,
@@ -47,6 +49,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       <div
         className={cn(
           "w-full aspect-[2/3] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100/50 flex items-center justify-center",
+          isHinted && "ring-4 ring-sky-400 bg-sky-50/80",
           className,
         )}
         onClick={onClick}
@@ -86,6 +89,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
         isRed ? "text-rose-600" : "text-stone-800",
         isSelectable && "hover:-translate-y-2 hover:shadow-[0_8px_16px_rgba(0,0,0,0.12)] transition-all duration-200",
         isSelected && "ring-2 ring-stone-800 -translate-y-3 shadow-[0_12px_24px_rgba(0,0,0,0.15)] z-50",
+        isHinted && !isSelected && "ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.55)] z-40",
         className,
       )}
     >

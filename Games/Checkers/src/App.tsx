@@ -14,11 +14,13 @@ import {
   pickBotMove,
   DIFFICULTY_LABELS,
 } from './utils/checkersLogic';
-import { RefreshCw, BookOpen, Users, Bot, ChevronDown } from 'lucide-react';
+import { RefreshCw, BookOpen, Users, Bot, ChevronDown, Undo2, Lightbulb } from 'lucide-react';
 
 const SIZE = 8;
 const BOT_DELAY_MS = 500;
 const COL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+const STREAK_KEY = 'clubhouse-checkers-win-streak';
+const MARGIN_KEY = 'clubhouse-checkers-best-margin';
 
 type GamePhase = 'playing' | 'over';
 type GameMode = 'two' | 'bot';
@@ -37,6 +39,16 @@ interface LastMove {
   captured: number; // how many pieces were taken
 }
 
+interface HistoryEntry {
+  state: GameState;
+  lastMove: LastMove | null;
+}
+
+function readStoredInt(key: string): number {
+  const n = Number(localStorage.getItem(key));
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 function getInitialState(): GameState {
   return {
     board: createInitialBoard(),
@@ -45,6 +57,12 @@ function getInitialState(): GameState {
     winner: null,
     continuationFrom: null,
   };
+}
+
+/** Capture hop when consecutive path squares are two rows apart. */
+function isCaptureMove(move: Move): boolean {
+  if (move.path.length < 2) return false;
+  return Math.abs(move.path[1][0] - move.path[0][0]) === 2;
 }
 
 function getMovesForState(state: GameState): Move[] {
@@ -154,8 +172,13 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [hintMove, setHintMove] = useState<Move | null>(null);
+  const [winStreak, setWinStreak] = useState(() => readStoredInt(STREAK_KEY));
+  const [bestMargin, setBestMargin] = useState(() => readStoredInt(MARGIN_KEY));
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
+  const statsRecordedRef = useRef(false);
 
   // Total pieces each side has captured (= 12 - opponent's remaining)
   const { black, white } = countPieces(state.board);
@@ -169,7 +192,7 @@ export default function App() {
 
   const moves = state.phase === 'playing' ? getMovesForState(state) : [];
   const originSet = getOriginSet(moves);
-  const mustCapture = moves.length > 0 && moves[0].path.length > 2;
+  const mustCapture = moves.length > 0 && isCaptureMove(moves[0]);
   const movesFromSelected = selected
     ? moves.filter((m) => m.from[0] === selected[0] && m.from[1] === selected[1])
     : [];
@@ -216,10 +239,10 @@ export default function App() {
       const move = pickBotMove(state.board, botColor, state.continuationFrom, difficulty);
       if (!move) { botScheduled.current = false; return; }
       const nextBoard = applyMove(state.board, move);
-      if (move.path.length > 2) playCapture(); else playMove();
+      if (isCaptureMove(move)) playCapture(); else playMove();
       const [lastR, lastC] = move.path[move.path.length - 1];
       const moreCaptures = getLegalMovesFrom(nextBoard, botColor, lastR, lastC).filter(
-        (m) => m.path.length > 2
+        (m) => isCaptureMove(m)
       );
       if (moreCaptures.length > 0) {
         setState({ board: nextBoard, currentTurn: botColor, phase: 'playing', winner: null, continuationFrom: [lastR, lastC] });
@@ -228,7 +251,10 @@ export default function App() {
         const nextTurn: PieceColor = botColor === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn);
         setState({ board: nextBoard, currentTurn: nextTurn, phase: winner ? 'over' : 'playing', winner, continuationFrom: null });
-        setLastMove({ path: move.path, captured: move.path.length - 1 });
+        setLastMove({
+          path: move.path,
+          captured: isCaptureMove(move) ? move.path.length - 1 : 0,
+        });
       }
       setSelected(null);
       botScheduled.current = false;
@@ -244,16 +270,42 @@ export default function App() {
     if (gameMode === 'bot' && state.winner) {
       if (state.winner === playerSide) playWin(); else playLose();
     }
+    // Replay hook: vs-bot win streak + best piece margin.
+    if (gameMode === 'bot' && !statsRecordedRef.current) {
+      statsRecordedRef.current = true;
+      const margin = Math.abs(black - white);
+      if (state.winner === playerSide) {
+        setWinStreak((s) => {
+          const next = s + 1;
+          localStorage.setItem(STREAK_KEY, String(next));
+          return next;
+        });
+        setBestMargin((m) => {
+          const next = Math.max(m, margin);
+          localStorage.setItem(MARGIN_KEY, String(next));
+          return next;
+        });
+      } else {
+        setWinStreak(0);
+        localStorage.setItem(STREAK_KEY, '0');
+      }
+    }
     prevPhaseRef.current = state.phase;
-  }, [state.phase, state.winner, gameMode, playerSide]);
+  }, [state.phase, state.winner, gameMode, playerSide, black, white]);
 
   const applyPlayerMove = useCallback(
     (move: Move) => {
+      // Snapshot only at the start of a turn so one undo rolls back the whole
+      // human sequence plus any following bot reply.
+      if (!state.continuationFrom) {
+        setHistory((h) => [...h, { state, lastMove }]);
+      }
+      setHintMove(null);
       const nextBoard = applyMove(state.board, move);
-      if (move.path.length > 2) playCapture(); else playMove();
+      if (isCaptureMove(move)) playCapture(); else playMove();
       const [lastR, lastC] = move.path[move.path.length - 1];
       const moreCaptures = getLegalMovesFrom(nextBoard, state.currentTurn, lastR, lastC).filter(
-        (m) => m.path.length > 2
+        (m) => isCaptureMove(m)
       );
       if (moreCaptures.length > 0) {
         setState({ board: nextBoard, currentTurn: state.currentTurn, phase: 'playing', winner: null, continuationFrom: [lastR, lastC] });
@@ -262,11 +314,14 @@ export default function App() {
         const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn);
         setState({ board: nextBoard, currentTurn: nextTurn, phase: winner ? 'over' : 'playing', winner, continuationFrom: null });
-        setLastMove({ path: move.path, captured: move.path.length - 1 });
+        setLastMove({
+          path: move.path,
+          captured: isCaptureMove(move) ? move.path.length - 1 : 0,
+        });
       }
       setSelected(null);
     },
-    [state.board, state.currentTurn]
+    [state, lastMove]
   );
 
   const handleCellClick = useCallback(
@@ -291,6 +346,7 @@ export default function App() {
         const hasMoves = originSet.has(cellKey);
         if (hasMoves) {
           if (mustCapture && selected?.[0] === r && selected?.[1] === c) return;
+          setHintMove(null);
           setSelected(selected?.[0] === r && selected?.[1] === c ? null : [r, c]);
         }
         return;
@@ -305,8 +361,45 @@ export default function App() {
     setState(getInitialState());
     setSelected(null);
     setLastMove(null);
+    setHistory([]);
+    setHintMove(null);
     botScheduled.current = false;
+    statsRecordedRef.current = false;
+    prevPhaseRef.current = 'playing';
   }, []);
+
+  const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
+  const canHint =
+    state.phase === 'playing' &&
+    humanCanPlay &&
+    !isBotTurn &&
+    moves.length > 0;
+
+  const handleUndo = useCallback(() => {
+    // ponytail: no undo after game over — streak already written.
+    if (!canUndo) return;
+    const prev = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setState(prev.state);
+    setLastMove(prev.lastMove);
+    setSelected(null);
+    setHintMove(null);
+    botScheduled.current = false;
+  }, [canUndo, history]);
+
+  const handleHint = useCallback(() => {
+    if (!canHint) return;
+    // Hard tier: zero blunder rate so the hint is a real recommendation.
+    const best = pickBotMove(state.board, state.currentTurn, state.continuationFrom, 'hard');
+    if (best) setHintMove(best);
+  }, [canHint, state.board, state.currentTurn, state.continuationFrom]);
+
+  const hintPathSet = hintMove
+    ? new Set(hintMove.path.map(([r, c]) => `${r},${c}`))
+    : new Set<string>();
+  const hintDest = hintMove
+    ? `${hintMove.path[hintMove.path.length - 1][0]},${hintMove.path[hintMove.path.length - 1][1]}`
+    : null;
 
   // ── Status banner ──────────────────────────────────────────────────────────
 
@@ -361,6 +454,26 @@ export default function App() {
       <header className="w-full max-w-[420px] flex justify-between items-center mb-3 mt-1">
         <h1 className="text-lg font-bold tracking-tight">西洋跳棋</h1>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            title="悔棋"
+            aria-label="悔棋"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleHint}
+            disabled={!canHint}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            title="提示"
+            aria-label="提示"
+          >
+            <Lightbulb className="w-4 h-4" />
+          </button>
           <button
             type="button"
             onClick={() => setShowRules(true)}
@@ -432,6 +545,12 @@ export default function App() {
         </div>
       </div>
 
+      {gameMode === 'bot' && (
+        <p className="w-full max-w-[420px] text-stone-500 text-xs mb-2 px-1">
+          連勝 {winStreak} · 最佳勝差 {bestMargin}
+        </p>
+      )}
+
       {/* ── Status banner ── */}
       {bannerText && (
         <div className={`w-full max-w-[420px] mb-3 py-2 px-4 rounded-xl border text-sm font-medium text-center transition-all duration-200 ${bannerBg}`}>
@@ -487,19 +606,25 @@ export default function App() {
                 const isPath = dark && !isLanding && !isSelected && pathSet.has(cellKey);
                 const isLastMovePath = !isSelected && !isLanding && lastMovePathSet.has(cellKey);
                 const isPieceDest = lastMoveDest === cellKey;
+                const isHintPath = hintPathSet.has(cellKey);
+                const isHintDest = hintDest === cellKey;
 
-                // Cell background priority: selected > landing > path > last-move > default
+                // Cell background priority: selected > landing > hint > path > last-move > default
                 const cellBg = isSelected
                   ? 'bg-amber-600/70 hover:bg-amber-600/80'
                   : isLanding
                     ? 'bg-emerald-700/70 hover:bg-emerald-600/80'
-                    : isPath
-                      ? 'bg-amber-700/50'
-                      : isLastMovePath
-                        ? 'bg-yellow-800/40'
-                        : dark
-                          ? 'bg-amber-800 hover:bg-amber-700 active:bg-amber-600'
-                          : 'bg-amber-100';
+                    : isHintDest
+                      ? 'bg-sky-600/50 hover:bg-sky-500/60'
+                      : isHintPath
+                        ? 'bg-sky-800/40'
+                        : isPath
+                          ? 'bg-amber-700/50'
+                          : isLastMovePath
+                            ? 'bg-yellow-800/40'
+                            : dark
+                              ? 'bg-amber-800 hover:bg-amber-700 active:bg-amber-600'
+                              : 'bg-amber-100';
 
                 return (
                   <button
@@ -540,6 +665,10 @@ export default function App() {
                         capturer={isCapturer && !isSelected}
                         lastMoveDest={isPieceDest && !isSelected}
                       />
+                    )}
+                    {/* Hint destination ring */}
+                    {isHintDest && !isSelected && (
+                      <span className="absolute inset-0 ring-2 ring-sky-300 ring-inset pointer-events-none rounded-[1px]" aria-hidden />
                     )}
                     {/* Selected ring overlay */}
                     {isSelected && (
@@ -634,6 +763,9 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                <p className="mt-2 text-stone-500">
+                  連勝 {winStreak} · 最佳勝差 {bestMargin}
+                </p>
               </div>
             )}
           </div>
@@ -650,8 +782,14 @@ export default function App() {
             { label: '白子剩餘', value: white },
             { label: '黑方吃子', value: blackCaptured },
             { label: '白方吃子', value: whiteCaptured },
+            ...(gameMode === 'bot'
+              ? [
+                  { label: '連勝', value: winStreak },
+                  { label: '最佳勝差', value: bestMargin },
+                ]
+              : []),
           ]}
-          onPrimary={() => { resetGame(); prevPhaseRef.current = 'playing'; }}
+          onPrimary={() => { resetGame(); }}
         />
       )}
 

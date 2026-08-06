@@ -4,7 +4,15 @@
  * Win: empty hand. Block: no one can play, lower pip sum wins.
  */
 
-import { shuffleArray } from '@clubhouse/shared/shuffle';
+// ponytail: local shuffle so check-dominoes.mjs can import under strip-types without Vite aliases.
+function shuffleArray<T>(items: readonly T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 export interface Tile {
   id: number;

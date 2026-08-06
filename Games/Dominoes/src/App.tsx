@@ -15,14 +15,38 @@ import {
   DIFFICULTY_LABELS,
 } from './utils/dominoesLogic';
 import { DominoTile, PlacedDominoTile } from './components/DominoTile';
-import { RefreshCw, BookOpen, Users, Bot } from 'lucide-react';
+import { RefreshCw, BookOpen, Users, Bot, Undo2, Lightbulb } from 'lucide-react';
 
 type GameMode = 'two' | 'bot';
+
+const STREAK_KEY = 'clubhouse-dominoes-win-streak';
+
+function loadStreak(): number {
+  try {
+    const n = Number(localStorage.getItem(STREAK_KEY));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveStreak(n: number): void {
+  try {
+    localStorage.setItem(STREAK_KEY, String(Math.max(0, Math.floor(n))));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
 
 export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('two');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [state, setState] = useState<DominoesState>(createInitialState);
+  const [history, setHistory] = useState<DominoesState[]>([]);
+  const [hintMove, setHintMove] = useState<{ tileId: number; end: 'left' | 'right' } | null>(
+    null,
+  );
+  const [winStreak, setWinStreak] = useState(loadStreak);
   const [showRules, setShowRules] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const botScheduled = useRef(false);
@@ -39,6 +63,10 @@ export default function App() {
     state.phase === 'playing' &&
     state.currentPlayer === 1;
 
+  const humanCanAct =
+    state.phase === 'playing' &&
+    (gameMode === 'two' || state.currentPlayer === 0);
+
   useEffect(() => {
     if (!isBotTurn || botScheduled.current) return;
     botScheduled.current = true;
@@ -54,8 +82,6 @@ export default function App() {
             setState(next);
           }
         }
-      } else if (state.boneyard.length > 2) {
-        setState(drawTiles(state, 1));
       } else {
         setState(drawTiles(state, 1));
       }
@@ -71,12 +97,27 @@ export default function App() {
     }
     if (prevPhaseRef.current === 'playing') {
       if (gameMode === 'bot' && state.winner !== null) {
-        if (state.winner === 0) playWin();
-        else playLose();
+        if (state.winner === 0) {
+          playWin();
+          setWinStreak((prev) => {
+            const next = prev + 1;
+            saveStreak(next);
+            return next;
+          });
+        } else {
+          playLose();
+          setWinStreak(0);
+          saveStreak(0);
+        }
       }
     }
     prevPhaseRef.current = state.phase;
   }, [state.phase, state.winner, gameMode]);
+
+  const pushHistory = useCallback(() => {
+    // Snapshot before the human action so one undo also rolls back a following bot reply.
+    setHistory((h) => [...h, state]);
+  }, [state]);
 
   const handlePlayAt = useCallback(
     (end: 'left' | 'right') => {
@@ -84,23 +125,60 @@ export default function App() {
       if (gameMode === 'bot' && state.currentPlayer !== 0) return;
       const next = playTile(state, state.currentPlayer, selectedTileId, end);
       if (next) {
+        pushHistory();
         playMove();
         setState(next);
         setSelectedTileId(null);
+        setHintMove(null);
       }
     },
-    [state, selectedTileId, gameMode]
+    [state, selectedTileId, gameMode, pushHistory]
   );
 
   const handleDraw = useCallback(() => {
     if (state.phase !== 'playing' || canPlayAny || state.boneyard.length <= 2) return;
+    if (gameMode === 'bot' && state.currentPlayer !== 0) return;
+    pushHistory();
+    setHintMove(null);
     setState(drawTiles(state, state.currentPlayer));
-  }, [state, canPlayAny]);
+  }, [state, canPlayAny, gameMode, pushHistory]);
+
+  const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
+
+  const handleUndo = useCallback(() => {
+    // ponytail: no undo after game over — streak already written.
+    if (!canUndo) return;
+    const prev = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setState(prev);
+    setSelectedTileId(null);
+    setHintMove(null);
+    botScheduled.current = false;
+  }, [canUndo, history]);
+
+  const handleHint = useCallback(() => {
+    if (!humanCanAct || !canPlayAny) return;
+    // Hard tier: zero blunder rate so the hint is a real recommendation.
+    const oppId: PlayerId = state.currentPlayer === 0 ? 1 : 0;
+    const move = pickBotMove(
+      state.hands[state.currentPlayer],
+      state.chain,
+      state.hands[oppId].length,
+      'hard',
+    );
+    if (move) {
+      setHintMove(move);
+      setSelectedTileId(move.tileId);
+    }
+  }, [humanCanAct, canPlayAny, state]);
 
   const handleNewGame = useCallback(() => {
     setState(createInitialState());
+    setHistory([]);
     setSelectedTileId(null);
+    setHintMove(null);
     botScheduled.current = false;
+    prevPhaseRef.current = 'playing';
   }, []);
 
   const isValidEnd = useCallback(
@@ -146,21 +224,53 @@ export default function App() {
         : 'lose'
       : 'neutral';
 
+  const endHintClass = (end: 'left' | 'right') =>
+    hintMove &&
+    selectedTileId === hintMove.tileId &&
+    hintMove.end === end
+      ? 'border-sky-400 bg-sky-500/20 text-sky-200'
+      : 'border-slate-500 bg-slate-800/50 text-slate-400';
+
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4 min-w-0">
       <BackToMenu />
       <header className="w-full max-w-2xl flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-bold tracking-tight">西洋骨牌 Dominoes</h1>
           <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
             {gameMode === 'bot' ? '對戰電腦' : '雙人'}
           </span>
+          {gameMode === 'bot' && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-200 border border-amber-700/60">
+              連勝 {winStreak}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation"
+            title="悔棋"
+            aria-label="悔棋"
+          >
+            <Undo2 className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleHint}
+            disabled={!humanCanAct || !canPlayAny}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation"
+            title="提示"
+            aria-label="提示"
+          >
+            <Lightbulb className="w-5 h-5" />
+          </button>
           <button
             type="button"
             onClick={() => setShowRules(true)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation"
             title="Rules"
             aria-label="Rules"
           >
@@ -169,7 +279,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleNewGame}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation"
             title="New game"
             aria-label="New game"
           >
@@ -253,7 +363,7 @@ export default function App() {
                 (gameMode === 'bot' && state.currentPlayer !== 0) ||
                 !isValidEnd(selectedTileId, 'left')
               }
-              className="flex flex-col items-center justify-center w-10 h-20 rounded border-2 border-dashed border-slate-500 bg-slate-800/50 text-slate-400 disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors"
+              className={`flex flex-col items-center justify-center w-10 h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation ${endHintClass('left')}`}
               title="Play on left"
               aria-label={`Play selected tile on left (${ends.left})`}
             >
@@ -276,7 +386,7 @@ export default function App() {
                 (gameMode === 'bot' && state.currentPlayer !== 0) ||
                 !isValidEnd(selectedTileId, 'right')
               }
-              className="flex flex-col items-center justify-center w-10 h-20 rounded border-2 border-dashed border-slate-500 bg-slate-800/50 text-slate-400 disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors"
+              className={`flex flex-col items-center justify-center w-10 h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation ${endHintClass('right')}`}
               title="Play on right"
               aria-label={`Play selected tile on right (${ends.right})`}
             >
@@ -319,11 +429,13 @@ export default function App() {
                   tile={t}
                   vertical={false}
                   highlight={playableIds.has(t.id) && selectedTileId === t.id}
-                  playable={playableIds.has(t.id) && selectedTileId !== t.id}
+                  hint={hintMove?.tileId === t.id && selectedTileId !== t.id}
+                  playable={playableIds.has(t.id) && selectedTileId !== t.id && hintMove?.tileId !== t.id}
                   size="normal"
                   onClick={() => {
                     if (!playableIds.has(t.id)) return;
                     setSelectedTileId(selectedTileId === t.id ? null : t.id);
+                    if (hintMove && hintMove.tileId !== t.id) setHintMove(null);
                   }}
                 />
               ))}
@@ -339,7 +451,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleDraw}
-            className="mt-4 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium transition-colors"
+            className="mt-4 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium transition-colors touch-manipulation"
           >
             抽牌
           </button>
@@ -362,10 +474,12 @@ export default function App() {
               label: '模式',
               value: gameMode === 'bot' ? '對戰電腦' : '雙人',
             },
+            ...(gameMode === 'bot'
+              ? [{ label: '連勝', value: String(winStreak) }]
+              : []),
           ]}
           onPrimary={() => {
             handleNewGame();
-            prevPhaseRef.current = 'playing';
           }}
         />
       )}
@@ -390,7 +504,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium"
+              className="mt-4 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium touch-manipulation"
             >
               關閉
             </button>

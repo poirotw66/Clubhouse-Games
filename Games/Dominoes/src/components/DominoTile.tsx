@@ -11,6 +11,8 @@ interface DominoTileProps {
   highlight?: boolean;
   /** Tile can be played but is not yet selected. */
   playable?: boolean;
+  /** Hint recommendation highlight (sky), distinct from selection. */
+  hint?: boolean;
   onClick?: () => void;
   /** Smaller for board chain. */
   size?: 'normal' | 'small';
@@ -23,6 +25,7 @@ export function DominoTile({
   vertical = false,
   highlight = false,
   playable = false,
+  hint = false,
   onClick,
   size = 'normal',
 }: DominoTileProps) {
@@ -34,16 +37,24 @@ export function DominoTile({
 
   const ringStyle = highlight
     ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-800 border-amber-400'
-    : playable
-      ? 'border-amber-500/60 hover:border-amber-400 hover:ring-2 hover:ring-amber-400/40 hover:ring-offset-1 hover:ring-offset-slate-800'
-      : 'border-slate-400';
+    : hint
+      ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-800 border-sky-400'
+      : playable
+        ? 'border-amber-500/60 hover:border-amber-400 hover:ring-2 hover:ring-amber-400/40 hover:ring-offset-1 hover:ring-offset-slate-800'
+        : 'border-slate-400';
 
   const root = `rounded border-2 bg-white text-slate-800 flex items-center justify-center gap-0.5 touch-manipulation transition-all duration-150 ${w} ${h} ${ringStyle} ${
     onClick ? 'cursor-pointer active:scale-95' : ''
   }`;
 
   // Lift selected tile upward via wrapper translate
-  const liftStyle = highlight ? '-translate-y-3 drop-shadow-lg' : playable ? '-translate-y-1' : '';
+  const liftStyle = highlight
+    ? '-translate-y-3 drop-shadow-lg'
+    : hint
+      ? '-translate-y-2'
+      : playable
+        ? '-translate-y-1'
+        : '';
 
   const half = `flex flex-col items-center justify-center flex-1 min-w-0 ${pipSize} font-bold`;
 

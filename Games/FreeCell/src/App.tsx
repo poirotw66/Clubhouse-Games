@@ -11,35 +11,87 @@ import {
   checkWin,
   checkLoss,
   isValidSequence,
+  getHintMove,
 } from "./utils/gameLogic";
 import { solveGame } from "./utils/solver";
 import { PlayingCard } from "./components/PlayingCard";
 import { RulesModal } from "./components/RulesModal";
-import { Undo2, RotateCcw, Info, Bot, Loader2 } from "lucide-react";
+import { Undo2, RotateCcw, Info, Bot, Loader2, Lightbulb, RefreshCw } from "lucide-react";
+
+const STATS_KEY = "clubhouse-freecell-stats";
+const AUTO_MOVE_KEY = "clubhouse-freecell-auto-move";
+
+interface Stats {
+  wins: number;
+  bestTimeSec: number | null;
+}
+
+function loadStats(): Stats {
+  try {
+    const raw = localStorage.getItem(STATS_KEY);
+    if (!raw) return { wins: 0, bestTimeSec: null };
+    const parsed = JSON.parse(raw) as Partial<Stats>;
+    return {
+      wins: Number(parsed.wins) || 0,
+      bestTimeSec: parsed.bestTimeSec == null ? null : Number(parsed.bestTimeSec),
+    };
+  } catch {
+    return { wins: 0, bestTimeSec: null };
+  }
+}
+
+function loadAutoMove(): boolean {
+  const raw = localStorage.getItem(AUTO_MOVE_KEY);
+  if (raw === null) return true;
+  return raw === "1";
+}
+
+function formatTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function emptyGame(tableaus: Card[][]): GameState {
+  return {
+    freeCells: [null, null, null, null],
+    foundations: { spades: 0, hearts: 0, diamonds: 0, clubs: 0 },
+    tableaus,
+    history: [],
+  };
+}
+
+function positionsEqual(a: Position, b: Position): boolean {
+  return a.zone === b.zone && a.index === b.index && a.cardIndex === b.cardIndex;
+}
 
 export default function App() {
-  const [gameState, setGameState] = useState<GameState>(() => {
-    const { tableaus } = dealGame();
-    return {
-      freeCells: [null, null, null, null],
-      foundations: { spades: 0, hearts: 0, diamonds: 0, clubs: 0 },
-      tableaus,
-      history: [],
-    };
-  });
-
+  const initialDeal = dealGame();
+  const [gameState, setGameState] = useState<GameState>(() => emptyGame(initialDeal.tableaus));
+  const [dealSeed, setDealSeed] = useState(initialDeal.seed);
   const [selectedPos, setSelectedPos] = useState<Position | null>(null);
-  const [autoMove, setAutoMove] = useState(true);
+  const [hint, setHint] = useState<{ source: Position; dest: Position } | null>(null);
+  const [autoMove, setAutoMove] = useState(loadAutoMove);
+  const [stats, setStats] = useState<Stats>(loadStats);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [hasWon, setHasWon] = useState(false);
   const [hasLost, setHasLost] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
-  
-  // Bot states
+
   const [isBotPlaying, setIsBotPlaying] = useState(false);
   const [isSolving, setIsSolving] = useState(false);
-  const [solutionPath, setSolutionPath] = useState<{ source: Position, dest: Position }[] | null>(null);
+  const [solutionPath, setSolutionPath] = useState<{ source: Position; dest: Position }[] | null>(null);
   const prevWonRef = useRef(false);
   const prevLostRef = useRef(false);
+  const timerActiveRef = useRef(true);
+  const statsRecordedRef = useRef(false);
+
+  const clearHint = () => setHint(null);
+
+  const changeAutoMove = (enabled: boolean) => {
+    setAutoMove(enabled);
+    localStorage.setItem(AUTO_MOVE_KEY, enabled ? "1" : "0");
+  };
 
   useEffect(() => {
     if (hasWon && !prevWonRef.current) playWin();
@@ -62,9 +114,29 @@ export default function App() {
   }, [gameState]);
 
   useEffect(() => {
+    if (!timerActiveRef.current || hasWon || hasLost) return;
+    const id = window.setInterval(() => setElapsedSec((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [hasWon, hasLost, dealSeed]);
+
+  useEffect(() => {
+    if (!hasWon || statsRecordedRef.current) return;
+    statsRecordedRef.current = true;
+    timerActiveRef.current = false;
+    setStats((prev) => {
+      const next: Stats = {
+        wins: prev.wins + 1,
+        bestTimeSec:
+          prev.bestTimeSec == null ? elapsedSec : Math.min(prev.bestTimeSec, elapsedSec),
+      };
+      localStorage.setItem(STATS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [hasWon, elapsedSec]);
+
+  useEffect(() => {
     if (hasWon || hasLost || isSolving) return;
-    
-    // Priority 1: Safe auto-move to foundation (if enabled)
+
     if (autoMove && !isBotPlaying) {
       const safeMove = getSafeFoundationMoves(gameState);
       if (safeMove && !selectedPos) {
@@ -75,13 +147,12 @@ export default function App() {
       }
     }
 
-    // Priority 2: Bot playing from solution path
     if (isBotPlaying && solutionPath && solutionPath.length > 0) {
       const timer = setTimeout(() => {
         const move = solutionPath[0];
         handleMove(move.source, move.dest);
-        setSolutionPath(prev => prev ? prev.slice(1) : null);
-      }, 300); // 300ms delay between bot moves
+        setSolutionPath((prev) => (prev ? prev.slice(1) : null));
+      }, 300);
       return () => clearTimeout(timer);
     } else if (isBotPlaying && solutionPath && solutionPath.length === 0) {
       setIsBotPlaying(false);
@@ -89,7 +160,8 @@ export default function App() {
   }, [gameState, selectedPos, autoMove, hasWon, hasLost, isBotPlaying, isSolving, solutionPath]);
 
   const handleMove = (source: Position, dest: Position) => {
-    if (dest.zone === 'foundation') playScore();
+    clearHint();
+    if (dest.zone === "foundation") playScore();
     else playCard();
     setGameState((prev) => {
       const nextState = executeMove(prev, source, dest);
@@ -101,6 +173,7 @@ export default function App() {
   };
 
   const undo = () => {
+    clearHint();
     setGameState((prev) => {
       if (prev.history.length === 0) return prev;
       const prevState = prev.history[prev.history.length - 1];
@@ -112,21 +185,57 @@ export default function App() {
     setSelectedPos(null);
     setSolutionPath(null);
     setIsBotPlaying(false);
+    setHasWon(false);
+    setHasLost(false);
+    timerActiveRef.current = true;
+    statsRecordedRef.current = false;
   };
 
-  const startNewGame = () => {
-    const { tableaus } = dealGame();
-    setGameState({
-      freeCells: [null, null, null, null],
-      foundations: { spades: 0, hearts: 0, diamonds: 0, clubs: 0 },
-      tableaus,
-      history: [],
-    });
+  const resetBoard = (tableaus: Card[][], seed: number) => {
+    setGameState(emptyGame(tableaus));
+    setDealSeed(seed);
     setSelectedPos(null);
+    setHint(null);
     setHasWon(false);
     setHasLost(false);
     setIsBotPlaying(false);
     setSolutionPath(null);
+    setElapsedSec(0);
+    timerActiveRef.current = true;
+    statsRecordedRef.current = false;
+  };
+
+  const startNewGame = () => {
+    const deal = dealGame();
+    resetBoard(deal.tableaus, deal.seed);
+  };
+
+  const redealSame = () => {
+    const deal = dealGame(dealSeed);
+    resetBoard(deal.tableaus, deal.seed);
+  };
+
+  const showHint = () => {
+    if (hasWon || isBotPlaying || isSolving) return;
+    const move = getHintMove(gameState);
+    setHint(move);
+    if (!move) playError();
+  };
+
+  const isSourceHinted = (pos: Position, cardIndex?: number): boolean => {
+    if (!hint) return false;
+    const src = hint.source;
+    if (src.zone !== pos.zone || src.index !== pos.index) return false;
+    if (src.zone === "tableau") {
+      const idx = cardIndex ?? pos.cardIndex ?? 0;
+      return idx >= (src.cardIndex ?? 0);
+    }
+    return true;
+  };
+
+  const isDestHinted = (pos: Position): boolean => {
+    if (!hint) return false;
+    return hint.dest.zone === pos.zone && hint.dest.index === pos.index;
   };
 
   const toggleBot = async () => {
@@ -134,14 +243,12 @@ export default function App() {
       setIsBotPlaying(false);
       setSolutionPath(null);
     } else {
+      clearHint();
       setIsBotPlaying(true);
       if (!solutionPath || solutionPath.length === 0) {
         setIsSolving(true);
-        // Add a small delay so UI can render the "Thinking..." state
         setTimeout(async () => {
-          const path = await solveGame(gameState, (nodes) => {
-            // Optional: could update a progress bar here
-          });
+          const path = await solveGame(gameState, () => {});
           setIsSolving(false);
           if (path) {
             setSolutionPath(path);
@@ -161,13 +268,10 @@ export default function App() {
 
   const handleCardClick = (pos: Position, hasCard: boolean) => {
     if (hasWon || isBotPlaying || isSolving) return;
+    clearHint();
 
     if (selectedPos) {
-      if (
-        selectedPos.zone === pos.zone &&
-        selectedPos.index === pos.index &&
-        selectedPos.cardIndex === pos.cardIndex
-      ) {
+      if (positionsEqual(selectedPos, pos)) {
         setSelectedPos(null);
         return;
       }
@@ -220,6 +324,7 @@ export default function App() {
 
   const handleDoubleClick = (pos: Position) => {
     if (hasWon || isBotPlaying || isSolving) return;
+    clearHint();
 
     if (canMove(gameState, pos, { zone: "foundation", index: 0 })) {
       handleMove(pos, { zone: "foundation", index: 0 });
@@ -230,9 +335,7 @@ export default function App() {
 
     const emptyFreeCellIndex = gameState.freeCells.findIndex((c) => c === null);
     if (emptyFreeCellIndex !== -1) {
-      if (
-        canMove(gameState, pos, { zone: "freeCell", index: emptyFreeCellIndex })
-      ) {
+      if (canMove(gameState, pos, { zone: "freeCell", index: emptyFreeCellIndex })) {
         handleMove(pos, { zone: "freeCell", index: emptyFreeCellIndex });
         setSelectedPos(null);
         clearBotState();
@@ -246,8 +349,7 @@ export default function App() {
       e.preventDefault();
       return;
     }
-    
-    // Only allow dragging if it's a valid sequence
+
     if (pos.zone === "tableau") {
       const col = gameState.tableaus[pos.index];
       const cardsToMove = col.slice(pos.cardIndex);
@@ -256,14 +358,14 @@ export default function App() {
         return;
       }
     }
-    
+
+    clearHint();
     setSelectedPos(pos);
     e.dataTransfer.effectAllowed = "move";
-    // We need to set some data for drag and drop to work in Firefox
     e.dataTransfer.setData("text/plain", JSON.stringify(pos));
   };
 
-  const handleDragOver = (e: React.DragEvent, pos: Position) => {
+  const handleDragOver = (e: React.DragEvent, _pos: Position) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
   };
@@ -272,7 +374,6 @@ export default function App() {
     e.preventDefault();
     if (hasWon || !selectedPos || isBotPlaying || isSolving) return;
 
-    // Don't drop on itself
     if (
       selectedPos.zone === destPos.zone &&
       selectedPos.index === destPos.index &&
@@ -282,7 +383,6 @@ export default function App() {
       return;
     }
 
-    // Adjust destination for tableau drops (always drop on the column)
     let actualDest = destPos;
     if (destPos.zone === "tableau") {
       actualDest = { zone: "tableau", index: destPos.index };
@@ -292,7 +392,7 @@ export default function App() {
       handleMove(selectedPos, actualDest);
       clearBotState();
     }
-    
+
     setSelectedPos(null);
   };
 
@@ -300,63 +400,91 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFCF8] text-stone-800 p-2 pt-14 sm:p-4 sm:pt-16 md:p-8 md:pt-14 font-sans select-none overflow-x-hidden">
       <BackToMenu />
       <div className="max-w-6xl mx-auto">
-        {/* Header — top padding clears the fixed back-to-menu pill on desktop too */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight text-stone-900">
-            FreeCell
-          </h1>
+          <div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight text-stone-900">
+              FreeCell
+            </h1>
+            <p className="text-sm text-stone-500 mt-1 tabular-nums">
+              局號 {dealSeed}
+              {" · "}
+              時間 {formatTime(elapsedSec)}
+              {" · "}
+              勝場 {stats.wins}
+              {" · "}
+              最佳 {stats.bestTimeSec == null ? "—" : formatTime(stats.bestTimeSec)}
+            </p>
+          </div>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3 items-center">
             <label className="hidden sm:flex items-center gap-2 text-sm font-medium text-stone-500 cursor-pointer hover:text-stone-800 transition-colors px-2">
               <input
                 type="checkbox"
                 checked={autoMove}
-                onChange={(e) => setAutoMove(e.target.checked)}
+                onChange={(e) => changeAutoMove(e.target.checked)}
                 className="rounded border-stone-300 text-stone-900 focus:ring-stone-900"
               />
-              Auto-move
+              自動收牌
             </label>
             <button
               onClick={() => setIsRulesOpen(true)}
               className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 transition-colors shadow-sm flex items-center gap-2"
-              title="Rules"
+              title="規則"
             >
               <Info size={16} />
-              <span className="hidden sm:inline">Rules</span>
+              <span className="hidden sm:inline">規則</span>
+            </button>
+            <button
+              onClick={showHint}
+              disabled={hasWon || isBotPlaying || isSolving}
+              className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
+              title="提示"
+            >
+              <Lightbulb size={16} />
+              <span className="hidden sm:inline">提示</span>
             </button>
             <button
               onClick={toggleBot}
               disabled={isSolving}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 shadow-sm ${
-                isSolving 
-                  ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
-                  : isBotPlaying 
-                    ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200' 
-                    : 'bg-stone-900 text-white hover:bg-stone-800'
+                isSolving
+                  ? "bg-stone-200 text-stone-500 cursor-not-allowed"
+                  : isBotPlaying
+                    ? "bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200"
+                    : "bg-stone-900 text-white hover:bg-stone-800"
               }`}
-              title="Auto Play (Solve)"
+              title="自動解答"
             >
               {isSolving ? <Loader2 size={16} className="animate-spin" /> : <Bot size={16} />}
               <span className="hidden sm:inline">
-                {isSolving ? 'Thinking...' : isBotPlaying ? 'Stop Bot' : 'Solve Game'}
+                {isSolving ? "思考中…" : isBotPlaying ? "停止" : "解答"}
               </span>
             </button>
             <button
               onClick={undo}
               disabled={gameState.history.length === 0 || isBotPlaying || isSolving}
               className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
-              title="Undo"
+              title="復原"
             >
               <Undo2 size={16} />
-              <span className="hidden sm:inline">Undo</span>
+              <span className="hidden sm:inline">復原</span>
+            </button>
+            <button
+              onClick={redealSame}
+              disabled={isSolving}
+              className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
+              title="重新發同局"
+            >
+              <RefreshCw size={16} />
+              <span className="hidden sm:inline">同局重發</span>
             </button>
             <button
               onClick={startNewGame}
               disabled={isSolving}
               className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
-              title="New Game"
+              title="新遊戲"
             >
               <RotateCcw size={16} />
-              <span className="hidden sm:inline">New Game</span>
+              <span className="hidden sm:inline">新遊戲</span>
             </button>
           </div>
         </div>
@@ -366,7 +494,16 @@ export default function App() {
             title="過關！"
             variant="win"
             subtitle="你成功解開這局 FreeCell"
-            stats={[{ label: '步數', value: gameState.history.length }]}
+            stats={[
+              { label: "本局時間", value: formatTime(elapsedSec) },
+              { label: "步數", value: gameState.history.length },
+              { label: "勝場", value: stats.wins },
+              {
+                label: "最佳時間",
+                value: stats.bestTimeSec == null ? "—" : formatTime(stats.bestTimeSec),
+              },
+            ]}
+            primaryLabel="新遊戲"
             onPrimary={startNewGame}
           />
         )}
@@ -375,40 +512,35 @@ export default function App() {
           <ResultOverlay
             title="無法再移動"
             variant="lose"
-            subtitle="沒有合法步數了，試試復原或開新局"
+            subtitle="沒有合法步數了，試試復原、同局重發或開新局"
             primaryLabel="新遊戲"
             onPrimary={startNewGame}
           />
         )}
 
-        {/* Top Row: Free Cells & Foundations */}
         <div className="flex justify-between mb-8">
-          {/* Free Cells */}
           <div className="flex gap-1 sm:gap-2 md:gap-4 w-[48%]">
-            {gameState.freeCells.map((card, i) => (
-              <div key={`fc-${i}`} className="flex-1">
-                <PlayingCard
-                  card={card}
-                  isSelected={
-                    selectedPos?.zone === "freeCell" && selectedPos.index === i
-                  }
-                  isSelectable={!!card}
-                  onClick={() =>
-                    handleCardClick({ zone: "freeCell", index: i }, !!card)
-                  }
-                  onDoubleClick={() =>
-                    card && handleDoubleClick({ zone: "freeCell", index: i })
-                  }
-                  draggable={false}
-                  onDragStart={(e) => handleDragStart(e, { zone: "freeCell", index: i })}
-                  onDragOver={(e) => handleDragOver(e, { zone: "freeCell", index: i })}
-                  onDrop={(e) => handleDrop(e, { zone: "freeCell", index: i })}
-                />
-              </div>
-            ))}
+            {gameState.freeCells.map((card, i) => {
+              const pos: Position = { zone: "freeCell", index: i };
+              return (
+                <div key={`fc-${i}`} className="flex-1">
+                  <PlayingCard
+                    card={card}
+                    isSelected={selectedPos?.zone === "freeCell" && selectedPos.index === i}
+                    isSelectable={!!card}
+                    isHinted={isSourceHinted(pos) || (!card && isDestHinted(pos))}
+                    onClick={() => handleCardClick(pos, !!card)}
+                    onDoubleClick={() => card && handleDoubleClick(pos)}
+                    draggable={false}
+                    onDragStart={(e) => handleDragStart(e, pos)}
+                    onDragOver={(e) => handleDragOver(e, pos)}
+                    onDrop={(e) => handleDrop(e, pos)}
+                  />
+                </div>
+              );
+            })}
           </div>
 
-          {/* Foundations */}
           <div className="flex gap-1 sm:gap-2 md:gap-4 w-[48%] justify-end">
             {SUITS.map((suit, i) => {
               const rank = gameState.foundations[suit];
@@ -419,29 +551,28 @@ export default function App() {
                       suit,
                       rank,
                       color:
-                        suit === "hearts" || suit === "diamonds"
-                          ? "red"
-                          : "black",
+                        suit === "hearts" || suit === "diamonds" ? "red" : "black",
                     } as Card)
                   : null;
 
-              const suitSymbols = {
+              const suitSymbols: Record<Suit, string> = {
                 spades: "♠",
                 hearts: "♥",
                 diamonds: "♦",
                 clubs: "♣",
               };
 
+              const pos: Position = { zone: "foundation", index: i };
+
               return (
                 <div key={`fd-${suit}`} className="flex-1">
                   <PlayingCard
                     card={card}
                     placeholder={suitSymbols[suit]}
-                    onClick={() =>
-                      handleCardClick({ zone: "foundation", index: i }, false)
-                    }
-                    onDragOver={(e) => handleDragOver(e, { zone: "foundation", index: i })}
-                    onDrop={(e) => handleDrop(e, { zone: "foundation", index: i })}
+                    isHinted={isDestHinted(pos)}
+                    onClick={() => handleCardClick(pos, false)}
+                    onDragOver={(e) => handleDragOver(e, pos)}
+                    onDrop={(e) => handleDrop(e, pos)}
                   />
                 </div>
               );
@@ -449,21 +580,22 @@ export default function App() {
           </div>
         </div>
 
-        {/* Tableaus */}
         <div className="grid grid-cols-8 gap-1 sm:gap-2 md:gap-4">
           {gameState.tableaus.map((col, colIndex) => (
             <div key={`tab-${colIndex}`} className="flex flex-col">
               {col.length === 0 ? (
                 <PlayingCard
                   card={null}
+                  isHinted={isDestHinted({ zone: "tableau", index: colIndex })}
                   onClick={() =>
-                    handleCardClick(
-                      { zone: "tableau", index: colIndex, cardIndex: 0 },
-                      false,
-                    )
+                    handleCardClick({ zone: "tableau", index: colIndex, cardIndex: 0 }, false)
                   }
-                  onDragOver={(e) => handleDragOver(e, { zone: "tableau", index: colIndex, cardIndex: 0 })}
-                  onDrop={(e) => handleDrop(e, { zone: "tableau", index: colIndex, cardIndex: 0 })}
+                  onDragOver={(e) =>
+                    handleDragOver(e, { zone: "tableau", index: colIndex, cardIndex: 0 })
+                  }
+                  onDrop={(e) =>
+                    handleDrop(e, { zone: "tableau", index: colIndex, cardIndex: 0 })
+                  }
                 />
               ) : (
                 col.map((card, cardIndex) => {
@@ -472,38 +604,34 @@ export default function App() {
                     selectedPos.index === colIndex &&
                     cardIndex >= selectedPos.cardIndex!;
 
-                  // Check if this card is part of a valid sequence from here to the bottom
                   const isSelectable = isValidSequence(col.slice(cardIndex));
+                  const pos: Position = {
+                    zone: "tableau",
+                    index: colIndex,
+                    cardIndex,
+                  };
+                  const isLast = cardIndex === col.length - 1;
 
                   return (
                     <div
                       key={card.id}
-                      className={
-                        cardIndex > 0 ? "-mt-[115%] relative" : "relative"
-                      }
+                      className={cardIndex > 0 ? "-mt-[115%] relative" : "relative"}
                       style={{ zIndex: cardIndex }}
                     >
                       <PlayingCard
                         card={card}
                         isSelected={isSelected}
                         isSelectable={isSelectable}
-                        onClick={() =>
-                          handleCardClick(
-                            { zone: "tableau", index: colIndex, cardIndex },
-                            true,
-                          )
+                        isHinted={
+                          isSourceHinted(pos, cardIndex) ||
+                          (isLast && isDestHinted({ zone: "tableau", index: colIndex }))
                         }
-                        onDoubleClick={() =>
-                          handleDoubleClick({
-                            zone: "tableau",
-                            index: colIndex,
-                            cardIndex,
-                          })
-                        }
+                        onClick={() => handleCardClick(pos, true)}
+                        onDoubleClick={() => handleDoubleClick(pos)}
                         draggable={false}
-                        onDragStart={(e) => handleDragStart(e, { zone: "tableau", index: colIndex, cardIndex })}
-                        onDragOver={(e) => handleDragOver(e, { zone: "tableau", index: colIndex, cardIndex })}
-                        onDrop={(e) => handleDrop(e, { zone: "tableau", index: colIndex, cardIndex })}
+                        onDragStart={(e) => handleDragStart(e, pos)}
+                        onDragOver={(e) => handleDragOver(e, pos)}
+                        onDrop={(e) => handleDrop(e, pos)}
                       />
                     </div>
                   );
@@ -513,7 +641,7 @@ export default function App() {
           ))}
         </div>
       </div>
-      
+
       <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
     </div>
   );
