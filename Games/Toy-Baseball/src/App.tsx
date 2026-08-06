@@ -20,6 +20,13 @@ import {
   type Difficulty,
   type PlayMode,
 } from './difficulty';
+import {
+  loadBests,
+  saveBests,
+  updateDerbyBests,
+  updateMatchBests,
+  type BaseballBests,
+} from './stats';
 
 // --- Constants & Types ---
 
@@ -869,6 +876,7 @@ export default function App() {
   const prevModeRef = useRef<GameMode>('menu');
   const prevScoreRef = useRef({ away: 0, home: 0 });
   const prevResultRef = useRef('');
+  const [bests, setBests] = useState<BaseballBests>(() => loadBests());
 
   useEffect(() => {
     const engine = new GameEngine((state) => {
@@ -884,8 +892,16 @@ export default function App() {
         if (state.playMode === 'derby') {
           if (state.derbyHrs > 0) playWin();
           else playLose();
-        } else if (state.score.away > state.score.home) playWin();
-        else if (state.score.away < state.score.home) playLose();
+          const next = updateDerbyBests(loadBests(), state.derbyHrs, state.derbyBestDist);
+          saveBests(next);
+          setBests(next);
+        } else {
+          if (state.score.away > state.score.home) playWin();
+          else if (state.score.away < state.score.home) playLose();
+          const next = updateMatchBests(loadBests(), state.score.away, state.score.home);
+          saveBests(next);
+          setBests(next);
+        }
       }
       prevModeRef.current = state.mode;
       prevScoreRef.current = { ...state.score };
@@ -1137,10 +1153,18 @@ export default function App() {
                 </button>
               </div>
 
-              <p className="text-zinc-500 text-xs mb-4 text-center max-w-sm">
+              <p className="text-zinc-500 text-xs mb-3 text-center max-w-sm">
                 {gameState.playMode === 'derby'
                   ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。對準時機＋方向。`
                   : '三局制對戰電腦。打者抓時機揮棒；投手選球路。'}
+              </p>
+
+              <p className="text-zinc-400 text-xs mb-4 text-center font-medium">
+                {gameState.playMode === 'derby'
+                  ? `個人最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
+                  : `個人最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak}${
+                      bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
+                    }`}
               </p>
 
               <button
@@ -1184,11 +1208,15 @@ export default function App() {
                   ? [
                       { label: '全壘打', value: gameState.derbyHrs },
                       { label: '最遠距離', value: Math.round(gameState.derbyBestDist) },
+                      { label: '最佳全壘打', value: bests.derbyBestHrs },
+                      { label: '最佳最遠', value: Math.round(bests.derbyBestDist) },
                       { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
                     ]
                   : [
                       { label: '客隊（你）', value: gameState.score.away },
                       { label: '主隊（電腦）', value: gameState.score.home },
+                      { label: '勝場', value: bests.matchWins },
+                      { label: '連勝', value: bests.matchWinStreak },
                       { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
                     ]
               }

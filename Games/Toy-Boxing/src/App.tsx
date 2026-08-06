@@ -22,6 +22,14 @@ import {
   type Difficulty,
 } from './cpuAi';
 import { BOXER_HEIGHT, BOXER_WIDTH, drawToyBoxer } from './drawBoxer';
+import {
+  loadStats,
+  recordResult,
+  saveStats,
+  withDifficulty,
+  type CareerStats,
+  type FightOutcome,
+} from './stats';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -109,10 +117,22 @@ export default function ToyBoxing() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [playerCharId, setPlayerCharId] = useState<CharacterId>('bot');
   const [cpuCharId, setCpuCharId] = useState<CharacterId>('bear');
-  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+  const [careerStats, setCareerStats] = useState<CareerStats>(() => loadStats());
+  const [difficulty, setDifficulty] = useState<Difficulty>(
+    () => loadStats().lastDifficulty,
+  );
 
   const settingsRef = useRef({ difficulty, playerCharId, cpuCharId });
   settingsRef.current = { difficulty, playerCharId, cpuCharId };
+
+  const chooseDifficulty = (d: Difficulty) => {
+    setDifficulty(d);
+    setCareerStats((prev) => {
+      const next = withDifficulty(prev, d);
+      saveStats(next);
+      return next;
+    });
+  };
 
   const engineRef = useRef({
     player: createBoxer('player', 'bot'),
@@ -249,6 +269,17 @@ export default function ToyBoxing() {
     if (gameState === 'game_over' && prevGameStateRef.current !== 'game_over') {
       if (winner === 'player') playWin();
       else if (winner === 'cpu') playLose();
+
+      // Always vs CPU in this build — gate here if 2P is added later.
+      if (winner === 'player' || winner === 'cpu' || winner === 'draw') {
+        const outcome: FightOutcome =
+          winner === 'player' ? 'win' : winner === 'cpu' ? 'loss' : 'draw';
+        setCareerStats((prev) => {
+          const next = recordResult(prev, outcome);
+          saveStats(next);
+          return next;
+        });
+      }
     }
     prevGameStateRef.current = gameState;
   }, [gameState, winner]);
@@ -854,6 +885,10 @@ export default function ToyBoxing() {
                 <p className="text-neutral-400 max-w-lg mb-4 text-center text-sm">
                   選角色與難度後開戰。WASD 移動・J/K 出拳・S 格擋・W 閃避・I 格檔反擊・L 必殺
                 </p>
+                <p className="text-amber-400/90 text-sm font-bold mb-4 tracking-wide">
+                  連勝 {careerStats.winStreak} · 勝 {careerStats.wins} · 負 {careerStats.losses}
+                  {careerStats.draws > 0 ? ` · 和 ${careerStats.draws}` : ''}
+                </p>
 
                 <div className="w-full max-w-2xl mb-4">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2">
@@ -902,7 +937,7 @@ export default function ToyBoxing() {
                       <button
                         key={d}
                         type="button"
-                        onClick={() => setDifficulty(d)}
+                        onClick={() => chooseDifficulty(d)}
                         className={cn(
                           'px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wider border transition-all',
                           difficulty === d
@@ -961,6 +996,8 @@ export default function ToyBoxing() {
                   { label: uiState.playerName, value: uiState.playerScore },
                   { label: uiState.cpuName, value: uiState.cpuScore },
                   { label: '難度', value: DIFFICULTY_LABELS[difficulty] },
+                  { label: '連勝', value: careerStats.winStreak },
+                  { label: '生涯勝場', value: careerStats.wins },
                 ]}
                 onPrimary={() => setGameState('menu')}
                 primaryLabel="再選一局"

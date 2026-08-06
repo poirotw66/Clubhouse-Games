@@ -4,6 +4,14 @@ import {
   gradeFairLanding,
   cpuSwingTargetY,
 } from './difficulty.ts';
+import {
+  EMPTY_BESTS,
+  STORAGE_KEY,
+  loadBests,
+  saveBests,
+  updateDerbyBests,
+  updateMatchBests,
+} from './stats.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -27,6 +35,45 @@ assert(DIFFICULTY.hard.cpuPitchDelayMax < DIFFICULTY.easy.cpuPitchDelayMin, 'har
 {
   const y = cpuSwingTargetY(1, () => 0.5);
   assert(Math.abs(y - 448) < 1, `perfect skill should aim ~448, got ${y}`);
+}
+
+// Match: win bumps wins/streak/best runs; loss clears streak.
+{
+  const afterWin = updateMatchBests(EMPTY_BESTS, 5, 2);
+  assert(afterWin.matchWins === 1, 'win should count');
+  assert(afterWin.matchWinStreak === 1, 'win should start streak');
+  assert(afterWin.matchBestRuns === 5, 'win should record runs');
+  const afterLoss = updateMatchBests(afterWin, 1, 3);
+  assert(afterLoss.matchWins === 1, 'loss should keep career wins');
+  assert(afterLoss.matchWinStreak === 0, 'loss should clear streak');
+  assert(afterLoss.matchBestRuns === 5, 'loss should keep best runs');
+  const afterTie = updateMatchBests(afterWin, 2, 2);
+  assert(afterTie.matchWinStreak === 0, 'tie should clear streak');
+}
+
+// Derby: keep max HRs and distance only.
+{
+  const a = updateDerbyBests(EMPTY_BESTS, 2, 400);
+  const b = updateDerbyBests(a, 1, 500);
+  assert(b.derbyBestHrs === 2, 'derby should keep max HRs');
+  assert(b.derbyBestDist === 500, 'derby should keep max distance');
+}
+
+// Load/save round-trip via injectable memory storage.
+{
+  const mem = new Map();
+  const storage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => {
+      mem.set(k, v);
+    },
+  };
+  assert(loadBests(storage).matchWins === 0, 'empty storage should yield empty bests');
+  const written = updateMatchBests(EMPTY_BESTS, 4, 0);
+  saveBests(written, storage);
+  assert(mem.has(STORAGE_KEY), 'save should write storage key');
+  const loaded = loadBests(storage);
+  assert(loaded.matchWins === 1 && loaded.matchBestRuns === 4, 'load should restore match bests');
 }
 
 console.log('check-baseball: ok');
