@@ -1,10 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, animate } from 'motion/react';
-import { Play, Layers, RotateCcw, ChevronRight, Info, Shield, Eye } from 'lucide-react';
+import { Play, Layers, RotateCcw, ChevronRight, Info, Shield, Eye, TrendingUp } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { GameState, GameMode, Color } from './types';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import { calculateScore } from './score.mjs';
+import { GameState, GameMode, Color, BestRecords } from './types';
 
-const SHOW_DURATION = 2000;
+const BEST_KEY = 'clubhouse-dialed-color-bests';
+const SHOW_MS_DEFAULT = 2000;
+/** Ascent: shorter flash each stage. */
+const ASCENT_SHOW_MS = [2000, 1500, 1100, 800, 550] as const;
+const ASCENT_PASS = 650;
+const ASCENT_LEVELS = ASCENT_SHOW_MS.length;
 
 let lastHue = -1;
 
@@ -46,6 +54,25 @@ const scoreVerdict = (score: number): string => {
   return '這局偏離很大，再試一次。';
 };
 
+function loadBests(): BestRecords {
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    if (!raw) return { bestScore: 0, bestAverage: 0, bestAscentLevel: 0 };
+    const parsed = JSON.parse(raw) as Partial<BestRecords>;
+    return {
+      bestScore: Number(parsed.bestScore) || 0,
+      bestAverage: Number(parsed.bestAverage) || 0,
+      bestAscentLevel: Number(parsed.bestAscentLevel) || 0,
+    };
+  } catch {
+    return { bestScore: 0, bestAverage: 0, bestAscentLevel: 0 };
+  }
+}
+
+function saveBests(next: BestRecords): void {
+  localStorage.setItem(BEST_KEY, JSON.stringify(next));
+}
+
 function AnimatedNumber({ value }: { value: number }) {
   const [displayValue, setDisplayValue] = useState(0);
 
@@ -59,14 +86,6 @@ function AnimatedNumber({ value }: { value: number }) {
   }, [value]);
 
   return <span>{displayValue}</span>;
-}
-
-function calculateScore(c1: Color, c2: Color): number {
-  const dh = Math.min(Math.abs(c1.h - c2.h), 360 - Math.abs(c1.h - c2.h)) / 180;
-  const ds = Math.abs(c1.s - c2.s) / 100;
-  const dl = Math.abs(c1.l - c2.l) / 100;
-  const distance = Math.sqrt(dh * dh + ds * ds + dl * dl);
-  return Math.max(0, Math.floor(999 * (1 - distance)));
 }
 
 function ColorComparison({ target, guess }: { target: Color; guess: Color }) {
@@ -149,8 +168,15 @@ export default function App() {
   const [currentColor, setCurrentColor] = useState<Color>({ h: 180, s: 50, l: 50 });
   const [showTarget, setShowTarget] = useState(false);
   const [showModal, setShowModal] = useState<'privacy' | 'scoring' | null>(null);
+  const [bests, setBests] = useState<BestRecords>(() => loadBests());
+  const [showResultOverlay, setShowResultOverlay] = useState(false);
+  const [ascentFailed, setAscentFailed] = useState(false);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const [showGen, setShowGen] = useState(0);
 
-  const totalColors = gameMode === 'single' ? 1 : 5;
+  const totalColors = gameMode === 'single' ? 1 : gameMode === 'challenge' ? 5 : ASCENT_LEVELS;
+  const showDurationMs =
+    gameMode === 'ascent' ? ASCENT_SHOW_MS[Math.min(currentStep, ASCENT_LEVELS - 1)] : SHOW_MS_DEFAULT;
 
   const ambientHue = useMemo(() => {
     if (gameState === 'showing' && targetColors[currentStep]) return targetColors[currentStep].h;
@@ -159,15 +185,23 @@ export default function App() {
     return 28;
   }, [gameState, targetColors, currentStep, currentColor.h]);
 
+  const beginShowing = () => {
+    setShowGen((g) => g + 1);
+    setGameState('showing');
+  };
+
   const startGame = (mode: GameMode) => {
-    const count = mode === 'single' ? 1 : 5;
+    const count = mode === 'single' ? 1 : mode === 'challenge' ? 5 : ASCENT_LEVELS;
     const colors = Array.from({ length: count }, generateRandomColor);
     setGameMode(mode);
     setTargetColors(colors);
     setUserGuesses([]);
     setCurrentStep(0);
     setCurrentColor({ h: 180, s: 50, l: 50 });
-    setGameState('showing');
+    setAscentFailed(false);
+    setIsNewBest(false);
+    setShowResultOverlay(false);
+    beginShowing();
   };
 
   const flashTarget = () => {
@@ -177,32 +211,97 @@ export default function App() {
 
   useEffect(() => {
     if (gameState !== 'showing') return;
-    const timer = window.setInterval(() => {
-      setCurrentStep((prev) => {
-        if (prev >= totalColors - 1) {
+
+    if (gameMode === 'challenge') {
+      setCurrentStep(0);
+      let step = 0;
+      const timer = window.setInterval(() => {
+        step += 1;
+        if (step >= totalColors) {
           window.clearInterval(timer);
+          setCurrentStep(0);
           setGameState('guessing');
-          return 0;
+          return;
         }
-        return prev + 1;
-      });
-    }, SHOW_DURATION);
-    return () => window.clearInterval(timer);
-  }, [gameState, totalColors]);
+        setCurrentStep(step);
+      }, SHOW_MS_DEFAULT);
+      return () => window.clearInterval(timer);
+    }
+
+    const timer = window.setTimeout(() => setGameState('guessing'), showDurationMs);
+    return () => window.clearTimeout(timer);
+  }, [gameState, showGen, gameMode, showDurationMs, totalColors]);
+
+  const finishRun = (guesses: Color[], failed: boolean) => {
+    const scores = guesses.map((g, i) => calculateScore(targetColors[i], g));
+    const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    const maxRound = scores.length ? Math.max(...scores) : 0;
+    // Cleared stages only (failed round does not count as cleared).
+    const ascentLevel = failed ? Math.max(0, guesses.length - 1) : guesses.length;
+
+    const next: BestRecords = { ...bests };
+    let newBest = false;
+    if (maxRound > next.bestScore) {
+      next.bestScore = maxRound;
+      newBest = true;
+    }
+    if (!failed && avg > next.bestAverage) {
+      next.bestAverage = avg;
+      newBest = true;
+    }
+    if (gameMode === 'ascent' && ascentLevel > next.bestAscentLevel) {
+      next.bestAscentLevel = ascentLevel;
+      newBest = true;
+    }
+    setBests(next);
+    saveBests(next);
+    setIsNewBest(newBest);
+    setAscentFailed(failed);
+    setShowResultOverlay(true);
+    setGameState('results');
+
+    if (failed) playLose();
+    else if (newBest || avg >= 700) playWin();
+    else playLose();
+  };
 
   const handleGuess = () => {
+    playScore();
     const newGuesses = [...userGuesses, currentColor];
     setUserGuesses(newGuesses);
+    const roundScore = calculateScore(targetColors[currentStep], currentColor);
+
+    if (gameMode === 'ascent') {
+      if (roundScore < ASCENT_PASS) {
+        finishRun(newGuesses, true);
+        return;
+      }
+      if (currentStep >= ASCENT_LEVELS - 1) {
+        finishRun(newGuesses, false);
+        return;
+      }
+      setCurrentStep(currentStep + 1);
+      setCurrentColor({ h: 180, s: 50, l: 50 });
+      beginShowing();
+      return;
+    }
+
     if (currentStep < totalColors - 1) {
       setCurrentStep(currentStep + 1);
       setCurrentColor({ h: 180, s: 50, l: 50 });
     } else {
-      setGameState('results');
+      finishRun(newGuesses, false);
     }
   };
 
   const totalScore = userGuesses.reduce((acc, guess, i) => acc + calculateScore(targetColors[i], guess), 0);
-  const averageScore = userGuesses.length ? Math.round(totalScore / totalColors) : 0;
+  const averageScore = userGuesses.length ? Math.round(totalScore / userGuesses.length) : 0;
+  const overlayVariant = ascentFailed ? 'lose' : averageScore >= 700 ? 'win' : 'neutral';
+  const overlayTitle = ascentFailed
+    ? `闖關失敗 · 第 ${userGuesses.length} 關`
+    : gameMode === 'ascent'
+      ? '闖關成功'
+      : '本局結果';
 
   return (
     <div
@@ -253,6 +352,12 @@ export default function App() {
                 <p className="text-[var(--color-muted)] text-base sm:text-lg leading-relaxed max-w-sm mx-auto">
                   人很難精準記住顏色。看兩秒，再用滑桿重現——測測你的色感。
                 </p>
+                {(bests.bestScore > 0 || bests.bestAverage > 0) && (
+                  <p className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
+                    最佳單分 {bests.bestScore} · 最佳平均 {bests.bestAverage}
+                    {bests.bestAscentLevel > 0 ? ` · 闖關 ${bests.bestAscentLevel}/${ASCENT_LEVELS}` : ''}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-3 max-w-xs mx-auto w-full">
@@ -263,6 +368,10 @@ export default function App() {
                 <button type="button" onClick={() => startGame('challenge')} className="btn-secondary w-full">
                   <Layers size={17} />
                   五色連續
+                </button>
+                <button type="button" onClick={() => startGame('ascent')} className="btn-secondary w-full">
+                  <TrendingUp size={17} />
+                  闖關模式
                 </button>
               </div>
 
@@ -279,13 +388,17 @@ export default function App() {
 
           {gameState === 'showing' && (
             <motion.div
-              key="showing"
+              key={`showing-${currentStep}-${gameMode}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="flex flex-col items-center gap-8 w-full max-w-md"
             >
-              <p className="kicker">記住這顏色 · {currentStep + 1} / {totalColors}</p>
+              <p className="kicker">
+                {gameMode === 'ascent'
+                  ? `闖關 · 第 ${currentStep + 1} / ${ASCENT_LEVELS} 關 · ${(showDurationMs / 1000).toFixed(1)} 秒`
+                  : `記住這顏色 · ${currentStep + 1} / ${totalColors}`}
+              </p>
               <motion.div
                 key={currentStep}
                 initial={{ scale: 0.92, opacity: 0 }}
@@ -296,10 +409,10 @@ export default function App() {
               />
               <div className="progress-rail">
                 <motion.div
-                  key={`bar-${currentStep}`}
+                  key={`bar-${currentStep}-${showDurationMs}`}
                   initial={{ width: '0%' }}
                   animate={{ width: '100%' }}
-                  transition={{ duration: SHOW_DURATION / 1000, ease: 'linear' }}
+                  transition={{ duration: showDurationMs / 1000, ease: 'linear' }}
                   className="progress-fill"
                 />
               </div>
@@ -316,9 +429,13 @@ export default function App() {
               className="max-w-md w-full space-y-8"
             >
               <div className="flex justify-between items-center px-1">
-                <p className="kicker">重現 · {currentStep + 1} / {totalColors}</p>
+                <p className="kicker">
+                  {gameMode === 'ascent'
+                    ? `重現 · 第 ${currentStep + 1} 關（需 ${ASCENT_PASS}+）`
+                    : `重現 · ${currentStep + 1} / ${totalColors}`}
+                </p>
                 <div className="flex gap-2" aria-hidden>
-                  {targetColors.map((_, i) => (
+                  {targetColors.slice(0, gameMode === 'ascent' ? ASCENT_LEVELS : totalColors).map((_, i) => (
                     <span
                       key={i}
                       className={`step-dot ${i === currentStep ? 'is-active' : i < currentStep ? 'is-done' : ''}`}
@@ -385,7 +502,13 @@ export default function App() {
                     提示
                   </button>
                   <button type="button" onClick={handleGuess} className="btn-primary flex-[1.6]">
-                    {currentStep < totalColors - 1 ? '下一色' : '看結果'}
+                    {gameMode === 'ascent'
+                      ? currentStep < ASCENT_LEVELS - 1
+                        ? '提交'
+                        : '通關結算'
+                      : currentStep < totalColors - 1
+                        ? '下一色'
+                        : '看結果'}
                     <ChevronRight size={17} />
                   </button>
                 </div>
@@ -418,19 +541,26 @@ export default function App() {
                   transition={{ delay: 1.1 }}
                   className="text-[var(--color-muted)] text-base max-w-sm mx-auto"
                 >
-                  {scoreVerdict(averageScore)}
+                  {ascentFailed
+                    ? `未達 ${ASCENT_PASS} 分門檻，停在第 ${userGuesses.length} 關。`
+                    : scoreVerdict(averageScore)}
                 </motion.p>
+                <p className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
+                  最佳單分 {bests.bestScore} · 最佳平均 {bests.bestAverage}
+                </p>
               </div>
 
               <div
                 className={`grid gap-4 ${
-                  gameMode === 'single'
+                  userGuesses.length === 1
                     ? 'grid-cols-1 max-w-[14rem] mx-auto'
-                    : 'grid-cols-2 sm:grid-cols-5'
+                    : userGuesses.length <= 3
+                      ? 'grid-cols-2 sm:grid-cols-3'
+                      : 'grid-cols-2 sm:grid-cols-5'
                 }`}
               >
-                {targetColors.map((target, i) => {
-                  const guess = userGuesses[i];
+                {userGuesses.map((guess, i) => {
+                  const target = targetColors[i];
                   const score = calculateScore(target, guess);
                   const targetHsb = hslToHsb(target.h, target.s, target.l);
                   const guessHsb = hslToHsb(guess.h, guess.s, guess.l);
@@ -466,6 +596,25 @@ export default function App() {
         </AnimatePresence>
       </div>
 
+      {gameState === 'results' && showResultOverlay && (
+        <ResultOverlay
+          title={overlayTitle}
+          subtitle={scoreVerdict(averageScore)}
+          badge={isNewBest ? '新紀錄' : gameMode === 'ascent' ? '闖關' : undefined}
+          variant={overlayVariant}
+          stats={[
+            { label: '平均分', value: averageScore },
+            { label: '最佳單分', value: bests.bestScore },
+            { label: '最佳平均', value: bests.bestAverage },
+            ...(gameMode === 'ascent'
+              ? [{ label: '本局關卡', value: `${userGuesses.length} / ${ASCENT_LEVELS}` }]
+              : []),
+          ]}
+          primaryLabel="查看色差"
+          onPrimary={() => setShowResultOverlay(false)}
+        />
+      )}
+
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -490,7 +639,7 @@ export default function App() {
               <p className="text-sm text-[var(--color-muted)] leading-relaxed">
                 {showModal === 'privacy'
                   ? '不蒐集個人資料。分數僅存在你的瀏覽器本機，不會上傳。'
-                  : '分數依猜測色與目標色在 HSL 空間的距離計算。完全一致為 999 分；多色模式取各回合平均。'}
+                  : '分數依猜測色與目標色在 HSL 空間的距離計算。完全一致為 999 分；多色模式取各回合平均。闖關模式每關顯示時間漸短，需達 650 分才能進入下一關。'}
               </p>
               <button type="button" onClick={() => setShowModal(null)} className="btn-primary w-full">
                 關閉

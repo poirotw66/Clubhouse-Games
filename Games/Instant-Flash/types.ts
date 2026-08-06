@@ -1,3 +1,5 @@
+export type PlayMode = 'practice' | 'challenge';
+
 export enum GameState {
   MENU = 'MENU',
   PLAYING = 'PLAYING',

@@ -3,25 +3,52 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playCard, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { Card as CardType, GameState, PlayerHand } from './types';
-import { createDeck, calculateScore, isBlackjack } from './utils/deck';
+import { createDeck } from './utils/deck';
+import {
+  calculateScore,
+  isBlackjack,
+  dealerShouldHit,
+  resolveInsurancePayout,
+  surrenderRefund,
+  loadBalance,
+  saveBalance,
+  loadDealerRule,
+  saveDealerRule,
+  DEFAULT_BALANCE,
+  type DealerRule,
+} from './utils/rules';
 import { Card } from './components/Card';
 import { motion, AnimatePresence } from 'motion/react';
 import { Coins, RotateCcw, Play } from 'lucide-react';
 
+const isTenValue = (rank: string): boolean =>
+  ['10', 'J', 'Q', 'K'].includes(rank);
+
 export default function App() {
   const [deck, setDeck] = useState<CardType[]>([]);
-  const [balance, setBalance] = useState(1000);
+  const [balance, setBalance] = useState(() => loadBalance());
   const [currentBet, setCurrentBet] = useState(10);
   const [gameState, setGameState] = useState<GameState>('betting');
   const [dealerCards, setDealerCards] = useState<CardType[]>([]);
   const [playerHands, setPlayerHands] = useState<PlayerHand[]>([]);
   const [activeHandIndex, setActiveHandIndex] = useState(0);
   const [message, setMessage] = useState('');
+  const [dealerRule, setDealerRule] = useState<DealerRule>(() => loadDealerRule());
+  const [insuranceBet, setInsuranceBet] = useState(0);
+  const [peekPending, setPeekPending] = useState(false);
   const prevGameStateRef = useRef<GameState>('betting');
 
   useEffect(() => {
     setDeck(createDeck(6));
   }, []);
+
+  useEffect(() => {
+    saveBalance(balance);
+  }, [balance]);
+
+  useEffect(() => {
+    saveDealerRule(dealerRule);
+  }, [dealerRule]);
 
   const placeBet = (amount: number) => {
     if (gameState !== 'betting') return;
@@ -34,15 +61,53 @@ export default function App() {
     setCurrentBet(0);
   };
 
+  const revealDealer = (cards: CardType[]): CardType[] =>
+    cards.map((c, i) => (i === 1 ? { ...c, isHidden: false } : c));
+
+  /** Peek hole card when Ace/10 up. Returns false if round ended on dealer BJ. */
+  const resolveDealerPeek = (
+    cards: CardType[],
+    hands: PlayerHand[],
+    insured: number,
+  ): boolean => {
+    const revealed = revealDealer(cards);
+    setDealerCards(revealed);
+    setPeekPending(false);
+
+    if (!isBlackjack(revealed)) {
+      const payout = resolveInsurancePayout(insured, false);
+      if (payout > 0) setBalance(prev => prev + payout);
+      setInsuranceBet(0);
+      return true;
+    }
+
+    const payout = resolveInsurancePayout(insured, true);
+    if (payout > 0) setBalance(prev => prev + payout);
+    setInsuranceBet(0);
+
+    const lostHands = hands.map(h =>
+      h.status === 'playing' || h.status === 'stood' ? { ...h, status: 'lost' as const } : h,
+    );
+    setPlayerHands(lostHands);
+    setMessage(
+      insured > 0
+        ? '莊家 Blackjack。保險賠付 2:1。'
+        : '莊家 Blackjack。',
+    );
+    setGameState('gameOver');
+    return false;
+  };
+
   const deal = () => {
     if (currentBet === 0 || currentBet > balance) return;
-    
+
     let currentDeck = [...deck];
     if (currentDeck.length < 20) {
       currentDeck = createDeck(6);
     }
 
     setBalance(prev => prev - currentBet);
+    setInsuranceBet(0);
 
     const pCard1 = currentDeck.pop()!;
     const dCard1 = currentDeck.pop()!;
@@ -50,45 +115,113 @@ export default function App() {
     const dCard2 = { ...currentDeck.pop()!, isHidden: true };
 
     setDeck(currentDeck);
-    
+
     const initialPlayerCards = [pCard1, pCard2];
     const initialDealerCards = [dCard1, dCard2];
-    
     setDealerCards(initialDealerCards);
-    
+
     const isPlayerBJ = isBlackjack(initialPlayerCards);
-    const dealerPeeks = dCard1.rank === 'A' || ['10', 'J', 'Q', 'K'].includes(dCard1.rank);
-    let isDealerBJ = false;
-    
-    if (dealerPeeks) {
-      isDealerBJ = isBlackjack([{...dCard1, isHidden: false}, {...dCard2, isHidden: false}]);
+    const upIsAce = dCard1.rank === 'A';
+    const upIsTen = isTenValue(dCard1.rank);
+    const dealerPeeks = upIsAce || upIsTen;
+
+    // Player BJ: peek immediately (even money / insurance skipped — ponytail).
+    if (isPlayerBJ) {
+      const revealed = revealDealer(initialDealerCards);
+      const isDealerBJ = isBlackjack(revealed);
+      setDealerCards(revealed);
+      setPeekPending(false);
+
+      if (isDealerBJ) {
+        setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'push' }]);
+        setBalance(prev => prev + currentBet);
+        setMessage('Push! Both have Blackjack.');
+      } else {
+        const winAmount = currentBet * 2.5;
+        setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'blackjack' }]);
+        setBalance(prev => prev + winAmount);
+        setMessage('Blackjack! You win 3:2.');
+      }
+      setGameState('gameOver');
+      playCard();
+      return;
     }
 
-    if (isPlayerBJ && isDealerBJ) {
-      setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'push' }]);
-      setDealerCards([{...dCard1}, {...dCard2, isHidden: false}]);
-      setBalance(prev => prev + currentBet);
-      setMessage('Push! Both have Blackjack.');
-      setGameState('gameOver');
-    } else if (isPlayerBJ) {
-      const winAmount = currentBet * 2.5;
-      setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'blackjack' }]);
-      setDealerCards([{...dCard1}, {...dCard2, isHidden: false}]);
-      setBalance(prev => prev + winAmount);
-      setMessage('Blackjack! You win 3:2.');
-      setGameState('gameOver');
-    } else if (isDealerBJ) {
-      setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'lost' }]);
-      setDealerCards([{...dCard1}, {...dCard2, isHidden: false}]);
-      setMessage('Dealer has Blackjack.');
-      setGameState('gameOver');
-    } else {
-      setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'playing' }]);
+    const hand: PlayerHand = {
+      id: '1',
+      cards: initialPlayerCards,
+      bet: currentBet,
+      status: 'playing',
+    };
+    setPlayerHands([hand]);
+    setActiveHandIndex(0);
+    setMessage('');
+
+    if (upIsAce) {
+      setPeekPending(true);
+      setGameState('insurance');
+      setMessage('莊家 Ace — 是否買保險？');
+    } else if (dealerPeeks) {
+      setPeekPending(true);
       setGameState('playing');
-      setActiveHandIndex(0);
-      setMessage('');
+    } else {
+      setPeekPending(false);
+      setGameState('playing');
     }
     playCard();
+  };
+
+  const takeInsurance = () => {
+    if (gameState !== 'insurance') return;
+    const hand = playerHands[0];
+    if (!hand) return;
+    const cost = Math.floor(hand.bet / 2);
+    if (balance < cost) return;
+
+    setBalance(prev => prev - cost);
+    setInsuranceBet(cost);
+    setMessage('');
+
+    if (!resolveDealerPeek(dealerCards, playerHands, cost)) return;
+    setGameState('playing');
+  };
+
+  const declineInsurance = () => {
+    if (gameState !== 'insurance') return;
+    setMessage('');
+    if (!resolveDealerPeek(dealerCards, playerHands, 0)) return;
+    setGameState('playing');
+  };
+
+  const surrender = () => {
+    if (gameState !== 'playing' && gameState !== 'insurance') return;
+    const hand = playerHands[activeHandIndex];
+    if (!hand || hand.cards.length !== 2) return;
+    if (hand.status !== 'playing') return;
+
+    // Early surrender: before dealer peek when Ace/10 showing.
+    const refund = surrenderRefund(hand.bet);
+    const newHands = [...playerHands];
+    newHands[activeHandIndex] = { ...hand, status: 'surrendered' };
+    setPlayerHands(newHands);
+    setBalance(prev => prev + refund);
+    setInsuranceBet(0);
+    setPeekPending(false);
+    setDealerCards(revealDealer(dealerCards));
+    setMessage(`投降 — 取回半注 $${refund}`);
+    setGameState('gameOver');
+  };
+
+  const canSurrender = (): boolean => {
+    if (gameState !== 'playing' && gameState !== 'insurance') return false;
+    const hand = playerHands[activeHandIndex];
+    return !!hand && hand.status === 'playing' && hand.cards.length === 2;
+  };
+
+  /** Run pending peek before first play action. */
+  const ensurePeeked = (): boolean => {
+    if (!peekPending) return true;
+    return resolveDealerPeek(dealerCards, playerHands, insuranceBet);
   };
 
   const advanceHand = (hands: PlayerHand[]) => {
@@ -102,15 +235,16 @@ export default function App() {
 
   const hit = () => {
     if (gameState !== 'playing') return;
-    
+    if (!ensurePeeked()) return;
+
     const currentDeck = [...deck];
     const card = currentDeck.pop()!;
     setDeck(currentDeck);
-    
+
     const newHands = [...playerHands];
     const activeHand = newHands[activeHandIndex];
     activeHand.cards.push(card);
-    
+
     const score = calculateScore(activeHand.cards);
     if (score > 21) {
       activeHand.status = 'busted';
@@ -123,6 +257,7 @@ export default function App() {
 
   const stand = () => {
     if (gameState !== 'playing') return;
+    if (!ensurePeeked()) return;
     const newHands = [...playerHands];
     newHands[activeHandIndex].status = 'stood';
     advanceHand(newHands);
@@ -130,27 +265,28 @@ export default function App() {
 
   const doubleDown = () => {
     if (gameState !== 'playing') return;
+    if (!ensurePeeked()) return;
     const activeHand = playerHands[activeHandIndex];
     if (activeHand.cards.length !== 2) return;
     if (balance < activeHand.bet) return;
-    
+
     setBalance(prev => prev - activeHand.bet);
-    
+
     const currentDeck = [...deck];
     const card = currentDeck.pop()!;
     setDeck(currentDeck);
-    
+
     const newHands = [...playerHands];
     newHands[activeHandIndex].bet *= 2;
     newHands[activeHandIndex].cards.push(card);
-    
+
     const score = calculateScore(newHands[activeHandIndex].cards);
     if (score > 21) {
       newHands[activeHandIndex].status = 'busted';
     } else {
       newHands[activeHandIndex].status = 'stood';
     }
-    
+
     advanceHand(newHands);
   };
 
@@ -159,7 +295,7 @@ export default function App() {
     const hand = playerHands[activeHandIndex];
     if (hand.cards.length !== 2) return false;
     if (balance < hand.bet) return false;
-    
+
     const val1 = ['J', 'Q', 'K'].includes(hand.cards[0].rank) ? '10' : hand.cards[0].rank;
     const val2 = ['J', 'Q', 'K'].includes(hand.cards[1].rank) ? '10' : hand.cards[1].rank;
     return val1 === val2;
@@ -167,82 +303,86 @@ export default function App() {
 
   const split = () => {
     if (!canSplit()) return;
-    
+    if (!ensurePeeked()) return;
+
     const currentDeck = [...deck];
     const hand = playerHands[activeHandIndex];
-    
+
     setBalance(prev => prev - hand.bet);
-    
+
     const card1 = hand.cards[0];
     const card2 = hand.cards[1];
-    
+
     const newCard1 = currentDeck.pop()!;
     const newCard2 = currentDeck.pop()!;
-    
+
     setDeck(currentDeck);
-    
+
     const newHand1: PlayerHand = {
       id: hand.id + '-1',
       cards: [card1, newCard1],
       bet: hand.bet,
-      status: 'playing'
+      status: 'playing',
     };
-    
+
     const newHand2: PlayerHand = {
       id: hand.id + '-2',
       cards: [card2, newCard2],
       bet: hand.bet,
-      status: 'playing'
+      status: 'playing',
     };
-    
+
     const newHands = [...playerHands];
     newHands.splice(activeHandIndex, 1, newHand1, newHand2);
-    
+
     setPlayerHands(newHands);
   };
 
   useEffect(() => {
-    if (gameState === 'dealerTurn') {
-      const playDealer = async () => {
-        let currentDealerCards = [...dealerCards];
-        currentDealerCards[1].isHidden = false;
-        setDealerCards([...currentDealerCards]);
-        
-        const allBusted = playerHands.every(h => h.status === 'busted');
-        
-        if (!allBusted) {
-          let currentDeck = [...deck];
-          let dScore = calculateScore(currentDealerCards);
-          
-          while (dScore < 17) {
-            await new Promise(r => setTimeout(r, 800));
-            const card = currentDeck.pop()!;
-            currentDealerCards.push(card);
-            setDealerCards([...currentDealerCards]);
-            dScore = calculateScore(currentDealerCards);
-          }
-          setDeck(currentDeck);
+    if (gameState !== 'dealerTurn') return;
+
+    const playDealer = async () => {
+      let currentDealerCards = [...dealerCards];
+      currentDealerCards = revealDealer(currentDealerCards);
+      setDealerCards([...currentDealerCards]);
+
+      const needsDealerPlay = playerHands.some(
+        h => h.status === 'stood' || h.status === 'playing',
+      );
+
+      if (needsDealerPlay) {
+        let currentDeck = [...deck];
+        const hitSoft17 = dealerRule === 'H17';
+
+        while (dealerShouldHit(currentDealerCards, hitSoft17)) {
+          await new Promise(r => setTimeout(r, 800));
+          const card = currentDeck.pop()!;
+          currentDealerCards.push(card);
+          setDealerCards([...currentDealerCards]);
         }
-        
-        settleBets(currentDealerCards);
-      };
-      
-      playDealer();
-    }
+        setDeck(currentDeck);
+      }
+
+      settleBets(currentDealerCards);
+    };
+
+    playDealer();
+    // ponytail: only re-run when entering dealerTurn
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState]);
 
   const settleBets = (finalDealerCards: CardType[]) => {
     const dScore = calculateScore(finalDealerCards);
     const dBusted = dScore > 21;
-    
+
     let totalWinnings = 0;
-    const newHands = [...playerHands];
-    
+    const newHands = playerHands.map(hand => ({ ...hand }));
+
     newHands.forEach(hand => {
-      if (hand.status === 'busted') return;
-      
+      if (hand.status === 'busted' || hand.status === 'surrendered') return;
+
       const pScore = calculateScore(hand.cards);
-      
+
       if (dBusted || pScore > dScore) {
         hand.status = 'won';
         totalWinnings += hand.bet * 2;
@@ -253,20 +393,22 @@ export default function App() {
         totalWinnings += hand.bet;
       }
     });
-    
+
     setPlayerHands(newHands);
     if (totalWinnings > 0) {
       setBalance(prev => prev + totalWinnings);
     }
     setGameState('gameOver');
-    
+
     if (dBusted) {
       setMessage('Dealer busted! You win.');
     } else {
       const wins = newHands.filter(h => h.status === 'won').length;
-      const losses = newHands.filter(h => h.status === 'lost' || h.status === 'busted').length;
+      const losses = newHands.filter(
+        h => h.status === 'lost' || h.status === 'busted' || h.status === 'surrendered',
+      ).length;
       const pushes = newHands.filter(h => h.status === 'push').length;
-      
+
       if (wins > 0 && losses === 0) setMessage('You win!');
       else if (losses > 0 && wins === 0) setMessage('Dealer wins.');
       else if (pushes > 0) setMessage('Push.');
@@ -277,7 +419,9 @@ export default function App() {
   const resultPrompt = useMemo((): 'win' | 'lose' | 'push' | null => {
     if (gameState !== 'gameOver' || playerHands.length === 0) return null;
     const hasWon = playerHands.some(h => h.status === 'won' || h.status === 'blackjack');
-    const hasLost = playerHands.some(h => h.status === 'lost' || h.status === 'busted');
+    const hasLost = playerHands.some(
+      h => h.status === 'lost' || h.status === 'busted' || h.status === 'surrendered',
+    );
     const hasPush = playerHands.some(h => h.status === 'push');
     if (hasWon && !hasLost) return 'win';
     if (hasLost && !hasWon) return 'lose';
@@ -294,16 +438,24 @@ export default function App() {
     prevGameStateRef.current = gameState;
   }, [gameState, resultPrompt]);
 
-  // Bankrupt = no money left and no active bet that could still win back
   const isBankrupt = balance === 0 && currentBet === 0 && gameState === 'betting';
   const resetAndPlayAgain = () => {
-    setBalance(1000);
+    setBalance(DEFAULT_BALANCE);
     setCurrentBet(0);
     setGameState('betting');
     setPlayerHands([]);
     setDealerCards([]);
     setMessage('');
+    setInsuranceBet(0);
+    setPeekPending(false);
   };
+
+  const toggleDealerRule = () => {
+    if (gameState !== 'betting') return;
+    setDealerRule(prev => (prev === 'H17' ? 'S17' : 'H17'));
+  };
+
+  const insuranceCost = playerHands[0] ? Math.floor(playerHands[0].bet / 2) : 0;
 
   return (
     <div className="min-h-screen h-screen max-h-screen bg-emerald-900 flex flex-col items-center justify-between p-2 sm:p-3 md:p-4 font-sans text-white overflow-hidden relative">
@@ -319,17 +471,25 @@ export default function App() {
             <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
           </div>
           <div>
-            <div className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wider font-bold">Balance</div>
+            <div className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wider font-bold">餘額</div>
             <div className="text-base sm:text-lg font-bold text-emerald-400">${balance}</div>
           </div>
         </div>
         <div className="text-center">
           <h1 className="text-sm sm:text-base font-black tracking-widest uppercase text-white/90">Blackjack</h1>
-          <div className="text-[10px] text-white/40 tracking-wider">3 : 2</div>
+          <button
+            type="button"
+            onClick={toggleDealerRule}
+            disabled={gameState !== 'betting'}
+            className="text-[10px] text-white/50 tracking-wider hover:text-amber-300 disabled:opacity-40 disabled:hover:text-white/50 transition-colors"
+            title="下注階段可切換莊家軟 17 規則"
+          >
+            {dealerRule === 'H17' ? '莊家 H17（軟17要牌）' : '莊家 S17（軟17停牌）'}
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-right">
-            <div className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wider font-bold">Bet</div>
+            <div className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wider font-bold">下注</div>
             <div className="text-base sm:text-lg font-bold text-amber-400">${currentBet}</div>
           </div>
           <div className="p-1.5 bg-amber-500/20 rounded-lg border border-amber-500/30">
@@ -422,7 +582,7 @@ export default function App() {
                     {hand.status !== 'playing' && (
                       <div className={`px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                         hand.status === 'won' || hand.status === 'blackjack' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' :
-                        hand.status === 'lost' || hand.status === 'busted' ? 'bg-red-500/20 text-red-400 border border-red-500/50' :
+                        hand.status === 'lost' || hand.status === 'busted' || hand.status === 'surrendered' ? 'bg-red-500/20 text-red-400 border border-red-500/50' :
                         'bg-gray-500/20 text-gray-300 border border-gray-500/50'
                       }`}>
                         {hand.status}
@@ -482,6 +642,30 @@ export default function App() {
               </button>
             </div>
           </div>
+        ) : gameState === 'insurance' ? (
+          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+            <button
+              onClick={takeInsurance}
+              disabled={balance < insuranceCost}
+              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            >
+              保險 ${insuranceCost}
+            </button>
+            <button
+              onClick={declineInsurance}
+              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            >
+              不保險
+            </button>
+            {canSurrender() && (
+              <button
+                onClick={surrender}
+                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+              >
+                投降
+              </button>
+            )}
+          </div>
         ) : gameState === 'playing' ? (
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
             <button onClick={hit} className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all">
@@ -505,6 +689,14 @@ export default function App() {
                 SPLIT
               </button>
             )}
+            {canSurrender() && (
+              <button
+                onClick={surrender}
+                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+              >
+                投降
+              </button>
+            )}
           </div>
         ) : gameState === 'gameOver' ? (
           <div className="flex justify-center">
@@ -514,6 +706,8 @@ export default function App() {
                 setPlayerHands([]);
                 setDealerCards([]);
                 setMessage('');
+                setInsuranceBet(0);
+                setPeekPending(false);
               }}
               className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2"
             >
@@ -553,6 +747,8 @@ export default function App() {
               setPlayerHands([]);
               setDealerCards([]);
               setMessage('');
+              setInsuranceBet(0);
+              setPeekPending(false);
             }
           }}
         />

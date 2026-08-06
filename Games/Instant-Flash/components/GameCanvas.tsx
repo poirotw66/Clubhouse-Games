@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { PlayerStance, EnemyState, CounterResult, GameStats, ProjectileType } from '../types';
+import { PlayerStance, EnemyState, CounterResult, GameStats, ProjectileType, PlayMode } from '../types';
 import { 
   DURATION_SHURIKEN,
   DURATION_KUNAI,
@@ -11,6 +11,7 @@ import {
   HEAL_PERFECT,
   SCORE_PERFECT,
   SCORE_GOOD,
+  MAX_HP,
   getTimingWindows,
   getAttackDelayRange,
   getProjectileDurationScale,
@@ -26,9 +27,10 @@ import {
 interface GameCanvasProps {
   onGameOver: (stats: GameStats) => void;
   gameActive: boolean;
+  playMode: PlayMode;
 }
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMode }) => {
   // --- Refs for Game Loop State ---
   const lastFrameTime = useRef<number>(0);
   const nextAttackTime = useRef<number>(0);
@@ -37,7 +39,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
   const enemyState = useRef<EnemyState>(EnemyState.IDLE);
   const playerStance = useRef<PlayerStance>(PlayerStance.IDLE);
   const hitStopTimer = useRef<number>(0);
-  const hp = useRef<number>(100);
+  const hp = useRef<number>(MAX_HP);
+  const isPractice = playMode === 'practice';
   
   // Projectile State
   const currentProjectileType = useRef<ProjectileType>(ProjectileType.SHURIKEN);
@@ -95,9 +98,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
   const takeDamage = useCallback((amount: number) => {
     hp.current = Math.max(0, hp.current - amount);
     if (hp.current <= 0) {
+      if (isPractice) {
+        // Infinite lives: refill and keep training.
+        hp.current = MAX_HP;
+        return;
+      }
       onGameOver(stats.current);
     }
-  }, [onGameOver]);
+  }, [onGameOver, isPractice]);
 
   const triggerHitAnimation = useCallback(() => {
     playerStance.current = PlayerStance.HIT;
@@ -120,7 +128,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
       stats.current.score += SCORE_PERFECT + (stats.current.combo * 100);
       stats.current.combo++;
       stats.current.perfects++;
-      hp.current = Math.min(100, hp.current + HEAL_PERFECT);
+      hp.current = Math.min(MAX_HP, hp.current + HEAL_PERFECT);
       
       // FX
       setBgInvert(true);
@@ -385,33 +393,50 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive }) => {
       <div className="absolute bottom-0 w-full h-28 bg-gradient-to-t from-[#0c101c] via-slate-800/40 to-transparent border-t border-slate-500/20"></div>
 
       {/* UI Layer */}
-      <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start pointer-events-none z-20">
-        <div className="flex flex-col gap-2">
+      <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-20">
+        <div className="flex flex-col gap-2 pointer-events-none">
             <div className="flex items-center gap-2">
                 <div className="w-64 h-6 bg-slate-800 border border-slate-600 skew-x-[-10deg] relative overflow-hidden">
                     <div 
                         className={`h-full transition-all duration-300 ease-out ${hp.current < 30 ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-emerald-500 to-emerald-300'}`}
-                        style={{ width: `${hp.current}%` }}
+                        style={{ width: `${(hp.current / MAX_HP) * 100}%` }}
                     />
                 </div>
                 <span className={`font-display font-bold text-xl ${hp.current < 30 ? 'text-red-500' : 'text-emerald-400'}`}>
                     {Math.ceil(hp.current)}
                 </span>
             </div>
-            <div className="text-slate-500 text-xs font-display tracking-widest">HP // VITALITY</div>
+            <div className="text-slate-500 text-xs font-display tracking-widest">
+              {isPractice ? '練習 · 無限生命' : 'HP // 體力'}
+            </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-right pointer-events-none">
             <div className="font-display text-5xl font-black italic text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-500">
                 {stats.current.score.toLocaleString()}
             </div>
             {stats.current.combo > 1 && (
                 <div className="text-amber-400 font-display font-bold text-2xl animate-bounce">
-                    {stats.current.combo} CHAIN
+                    {stats.current.combo} 連段
                 </div>
             )}
         </div>
       </div>
+
+      {isPractice && gameActive && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onGameOver(stats.current);
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 px-5 py-2 rounded-lg bg-slate-800/90 border border-emerald-500/50 text-emerald-300 font-display text-sm tracking-wider hover:bg-slate-700 pointer-events-auto"
+        >
+          結束練習
+        </button>
+      )}
 
       {/* GAME WORLD */}
       <div className="relative w-full max-w-5xl h-[500px] flex items-end justify-between px-16 pb-24 pointer-events-none z-10">

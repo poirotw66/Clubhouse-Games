@@ -12,10 +12,12 @@ import {
   getBestMove,
   DIFFICULTY_LABELS,
 } from './utils/reversiLogic';
-import { RefreshCw, BookOpen, Users } from 'lucide-react';
+import { RefreshCw, BookOpen, Users, Undo2, Lightbulb } from 'lucide-react';
 
 const SIZE = 8;
 const BOT_DELAY_MS = 500;
+const STREAK_KEY = 'clubhouse-reversi-win-streak';
+const MARGIN_KEY = 'clubhouse-reversi-best-margin';
 
 const DIFFICULTIES: { id: Difficulty; blurb: string }[] = [
   { id: 'easy', blurb: '只看一步，偶爾失誤' },
@@ -32,6 +34,16 @@ interface GameState {
   phase: GamePhase;
   winner: Piece | 'draw' | null;
   message: string;
+}
+
+interface HistoryEntry {
+  state: GameState;
+  lastMove: [number, number] | null;
+}
+
+function readStoredInt(key: string): number {
+  const n = Number(localStorage.getItem(key));
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
 function getInitialState(): GameState {
@@ -85,8 +97,13 @@ export default function App() {
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
   const [lastMove, setLastMove] = useState<[number, number] | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [hintCell, setHintCell] = useState<[number, number] | null>(null);
+  const [winStreak, setWinStreak] = useState(() => readStoredInt(STREAK_KEY));
+  const [bestMargin, setBestMargin] = useState(() => readStoredInt(MARGIN_KEY));
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
+  const statsRecordedRef = useRef(false);
 
   const legalMoves = state.phase === 'playing' ? getLegalMoves(state.board, state.currentTurn) : [];
   const legalSet = new Set(legalMoves.map(([r, c]) => `${r},${c}`));
@@ -95,6 +112,10 @@ export default function App() {
     gameMode === 'bot' &&
     state.phase === 'playing' &&
     state.currentTurn === (playerSide === 'black' ? 'white' : 'black');
+
+  const pushHistory = useCallback(() => {
+    setHistory((h) => [...h, { state, lastMove }]);
+  }, [state, lastMove]);
 
   const applyMoveAndAdvance = useCallback(
     (nextBoard: Board, nextTurn: Piece, nextMessage: string) => {
@@ -175,14 +196,36 @@ export default function App() {
       if (state.winner === playerSide) playWin();
       else playLose();
     }
+    // Replay hook: vs-bot endgame margin + win streak.
+    if (gameMode === 'bot' && !statsRecordedRef.current) {
+      statsRecordedRef.current = true;
+      const margin = Math.abs(black - white);
+      if (state.winner === playerSide) {
+        setWinStreak((s) => {
+          const next = s + 1;
+          localStorage.setItem(STREAK_KEY, String(next));
+          return next;
+        });
+        setBestMargin((m) => {
+          const next = Math.max(m, margin);
+          localStorage.setItem(MARGIN_KEY, String(next));
+          return next;
+        });
+      } else {
+        setWinStreak(0);
+        localStorage.setItem(STREAK_KEY, '0');
+      }
+    }
     prevPhaseRef.current = state.phase;
-  }, [state.phase, state.winner, gameMode, playerSide]);
+  }, [state.phase, state.winner, gameMode, playerSide, black, white]);
 
   const handleCellClick = useCallback(
     (r: number, c: number) => {
       if (state.phase !== 'playing' || isBotTurn) return;
       if (gameMode === 'bot' && state.currentTurn !== playerSide) return;
       if (!legalSet.has(`${r},${c}`)) return;
+      pushHistory();
+      setHintCell(null);
       const nextBoard = applyMove(state.board, r, c, state.currentTurn);
       playMove();
       setLastMove([r, c]);
@@ -197,34 +240,85 @@ export default function App() {
             : '白方下子';
       applyMoveAndAdvance(nextBoard, nextTurn, nextMessage);
     },
-    [state.phase, state.currentTurn, state.board, isBotTurn, gameMode, playerSide, legalSet, applyMoveAndAdvance]
+    [
+      state.phase,
+      state.currentTurn,
+      state.board,
+      isBotTurn,
+      gameMode,
+      playerSide,
+      legalSet,
+      applyMoveAndAdvance,
+      pushHistory,
+    ]
   );
 
   const handlePass = useCallback(() => {
     if (state.phase !== 'playing' || legalMoves.length > 0) return;
     if (gameMode === 'bot' && state.currentTurn !== playerSide) return;
+    pushHistory();
+    setHintCell(null);
     setState((s) => passTurn(s));
-  }, [state.phase, state.currentTurn, legalMoves.length, gameMode, playerSide]);
+  }, [state.phase, state.currentTurn, legalMoves.length, gameMode, playerSide, pushHistory]);
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0 || isBotTurn || state.phase === 'over') return;
+    const prev = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setState(prev.state);
+    setLastMove(prev.lastMove);
+    setHintCell(null);
+    botScheduled.current = false;
+  }, [history, isBotTurn, state.phase]);
+
+  const handleHint = useCallback(() => {
+    if (state.phase !== 'playing' || isBotTurn) return;
+    if (gameMode === 'bot' && state.currentTurn !== playerSide) return;
+    if (legalMoves.length === 0) return;
+    // Hard tier: zero blunder rate so the hint is a real recommendation.
+    const best = getBestMove(state.board, state.currentTurn, 'hard');
+    if (best) setHintCell(best);
+  }, [state.phase, state.board, state.currentTurn, isBotTurn, gameMode, playerSide, legalMoves.length]);
 
   const handleNewGame = useCallback(() => {
     setGameMode(null);
     setPlayerSide('black');
     setState(getInitialState());
     setLastMove(null);
+    setHistory([]);
+    setHintCell(null);
     botScheduled.current = false;
+    statsRecordedRef.current = false;
+    prevPhaseRef.current = 'playing';
   }, []);
 
   const startTwoPlayer = useCallback(() => {
     setGameMode('two');
     setState(getInitialState());
+    setHistory([]);
+    setHintCell(null);
+    setLastMove(null);
+    statsRecordedRef.current = false;
+    prevPhaseRef.current = 'playing';
   }, []);
 
   const startVsBot = useCallback((side: Piece) => {
     setGameMode('bot');
     setPlayerSide(side);
     setState(getInitialState());
+    setHistory([]);
+    setHintCell(null);
+    setLastMove(null);
     botScheduled.current = false;
+    statsRecordedRef.current = false;
+    prevPhaseRef.current = 'playing';
   }, []);
+
+  const statsLine = (
+    <p className="mt-4 text-stone-400 text-xs">
+      連勝 {winStreak} · 最佳勝差 {bestMargin}
+    </p>
+  );
 
   if (gameMode === null) {
     return (
@@ -295,6 +389,7 @@ export default function App() {
             <span className="text-xs text-stone-400">後手</span>
           </button>
         </div>
+        {statsLine}
         {showRules && (
           <div
             className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
@@ -354,6 +449,8 @@ export default function App() {
     gameMode === 'two' || (gameMode === 'bot' && state.currentTurn === playerSide);
   const humanCanClick = state.phase === 'playing' && isHumanTurn && !isBotTurn;
   const showLegalHints = humanCanClick;
+  const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
+  const canHint = humanCanClick && legalMoves.length > 0;
 
   const resultVariant =
     gameMode === 'bot' && state.winner && state.winner !== 'draw'
@@ -361,6 +458,8 @@ export default function App() {
         ? 'win'
         : 'lose'
       : 'neutral';
+
+  const endMargin = Math.abs(black - white);
 
   return (
     <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center p-4 min-w-0">
@@ -377,10 +476,30 @@ export default function App() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            title="悔棋"
+            aria-label="悔棋"
+          >
+            <Undo2 className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleHint}
+            disabled={!canHint}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            title="提示"
+            aria-label="提示"
+          >
+            <Lightbulb className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
             onClick={() => setShowRules(true)}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="Rules"
-            aria-label="Rules"
+            title="規則"
+            aria-label="規則"
           >
             <BookOpen className="w-5 h-5" />
           </button>
@@ -388,15 +507,15 @@ export default function App() {
             type="button"
             onClick={handleNewGame}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="New game"
-            aria-label="New game"
+            title="新對局"
+            aria-label="新對局"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      <div className="flex items-center justify-center gap-6 mb-4 text-sm">
+      <div className="flex items-center justify-center gap-6 mb-2 text-sm">
         <div
           className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
             state.phase === 'playing' && state.currentTurn === 'black'
@@ -424,6 +543,12 @@ export default function App() {
         )}
       </div>
 
+      {gameMode === 'bot' && (
+        <p className="text-stone-500 text-xs mb-2">
+          連勝 {winStreak} · 最佳勝差 {bestMargin}
+        </p>
+      )}
+
       <p className="text-emerald-200 text-sm mb-4">{statusMessage}</p>
       <p className="text-emerald-200/70 text-xs mb-2 md:hidden">點選合法位置下子</p>
 
@@ -443,6 +568,7 @@ export default function App() {
             const cell = state.board[r][c];
             const isLegal = legalSet.has(`${r},${c}`);
             const isLastMove = lastMove !== null && lastMove[0] === r && lastMove[1] === c;
+            const isHint = hintCell !== null && hintCell[0] === r && hintCell[1] === c;
             return (
               <button
                 key={`${r}-${c}`}
@@ -457,9 +583,16 @@ export default function App() {
                   ${showLegalHints && !isLegal && state.phase === 'playing' ? 'hover:bg-emerald-700/70' : ''}
                   ${state.phase !== 'playing' ? 'cursor-default' : ''}
                   ${isLastMove ? 'ring-2 ring-yellow-400/70 ring-inset' : ''}
+                  ${isHint ? 'ring-2 ring-sky-300 ring-inset bg-sky-500/40' : ''}
                 `}
                 aria-label={
-                  cell ? `Row ${r + 1} col ${c + 1} ${cell}` : isLegal ? `Place at ${r + 1},${c + 1}` : `Empty ${r + 1},${c + 1}`
+                  cell
+                    ? `Row ${r + 1} col ${c + 1} ${cell}`
+                    : isHint
+                      ? `Hint at ${r + 1},${c + 1}`
+                      : isLegal
+                        ? `Place at ${r + 1},${c + 1}`
+                        : `Empty ${r + 1},${c + 1}`
                 }
               >
                 {cell && (
@@ -471,8 +604,11 @@ export default function App() {
                     } ${isLastMove ? 'ring-4 ring-yellow-400/80' : ''}`}
                   />
                 )}
-                {!cell && showLegalHints && isLegal && (
+                {!cell && showLegalHints && isLegal && !isHint && (
                   <span className="w-2 h-2 rounded-full bg-emerald-300/60" aria-hidden />
+                )}
+                {!cell && isHint && (
+                  <span className="w-3 h-3 rounded-full bg-sky-200/90" aria-hidden />
                 )}
               </button>
             );
@@ -498,14 +634,26 @@ export default function App() {
           stats={[
             { label: '黑子', value: black },
             { label: '白子', value: white },
-            {
-              label: '模式',
-              value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰',
-            },
+            { label: '勝差', value: endMargin },
+            ...(gameMode === 'bot'
+              ? [
+                  { label: '連勝', value: winStreak },
+                  { label: '最佳勝差', value: bestMargin },
+                ]
+              : [
+                  {
+                    label: '模式',
+                    value: '雙人對戰',
+                  },
+                ]),
           ]}
           onPrimary={() => {
             setState(getInitialState());
+            setHistory([]);
+            setHintCell(null);
+            setLastMove(null);
             botScheduled.current = false;
+            statsRecordedRef.current = false;
             prevPhaseRef.current = 'playing';
           }}
         />

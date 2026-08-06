@@ -6,6 +6,7 @@ interface CardProps {
   isDraggable?: boolean;
   isDragging?: boolean;
   isSelected?: boolean;
+  isHinted?: boolean;
   isPlayableToFoundation?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
@@ -15,12 +16,12 @@ interface CardProps {
   faceDown?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSelected, isPlayableToFoundation, onDragStart, onDragEnd, onDoubleClick, onClick, className = '', faceDown }) => {
-  // 蓋牌狀態
+export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSelected, isHinted, isPlayableToFoundation, onDragStart, onDragEnd, onDoubleClick, onClick, className = '', faceDown }) => {
+  // Face-down / stock back
   if (!card || faceDown || !card.faceUp) {
     return (
       <div 
-        className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-white/10 bg-blue-900 shadow-md flex items-center justify-center touch-manipulation ${className}`}
+        className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-white/10 bg-blue-900 shadow-md flex items-center justify-center touch-manipulation ${isHinted ? 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.7)]' : ''} ${className}`}
       >
         <div className="w-12 h-20 sm:w-20 sm:h-32 rounded-lg border border-white/20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.1)_10px,rgba(255,255,255,0.1)_20px)]"></div>
       </div>
@@ -46,7 +47,7 @@ export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSel
         onClick?.();
       }}
       role={onClick ? 'button' : undefined}
-      className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-gray-300 bg-white flex flex-col justify-between p-1.5 sm:p-2 shadow-md touch-manipulation ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400' : ''} ${isRed ? 'text-red-600' : 'text-gray-900'} ${isPlayableToFoundation && !isDragging && !isSelected ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]' : ''} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 shadow-2xl z-50' : ''} ${isDragging ? 'opacity-50' : ''} ${className}`}
+      className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-gray-300 bg-white flex flex-col justify-between p-1.5 sm:p-2 shadow-md touch-manipulation ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400' : ''} ${isRed ? 'text-red-600' : 'text-gray-900'} ${isPlayableToFoundation && !isDragging && !isSelected && !isHinted ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]' : ''} ${isHinted && !isSelected ? 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.7)] z-40' : ''} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 shadow-2xl z-50' : ''} ${isDragging ? 'opacity-50' : ''} ${className}`}
     >
       {/* 左上角 */}
       <div className="flex flex-col items-center w-6">

@@ -89,14 +89,22 @@ export function getLegalMoves(board: Board, color: Piece): [number, number][] {
   return moves;
 }
 
+/** Cells that would flip if color placed at (r,c). Empty when the move is illegal. */
+export function getFlips(board: Board, r: number, c: number, color: Piece): [number, number][] {
+  if (board[r][c] !== null) return [];
+  const flips: [number, number][] = [];
+  for (const [dr, dc] of DIRECTIONS) {
+    flips.push(...getFlipsInDirection(board, r, c, color, dr, dc));
+  }
+  return flips;
+}
+
 /** Apply move at (r,c) for color; return new board. */
 export function applyMove(board: Board, r: number, c: number, color: Piece): Board {
+  const flips = getFlips(board, r, c, color);
   const next = board.map((row) => [...row]);
   next[r][c] = color;
-  for (const [dr, dc] of DIRECTIONS) {
-    const flips = getFlipsInDirection(board, r, c, color, dr, dc);
-    for (const [i, j] of flips) next[i][j] = color;
-  }
+  for (const [i, j] of flips) next[i][j] = color;
   return next;
 }
 

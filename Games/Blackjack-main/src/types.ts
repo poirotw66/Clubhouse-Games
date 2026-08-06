@@ -16,4 +16,4 @@ export interface PlayerHand {
   status: HandStatus;
 }
 
-export type GameState = 'betting' | 'playing' | 'dealerTurn' | 'gameOver';
+export type GameState = 'betting' | 'insurance' | 'playing' | 'dealerTurn' | 'gameOver';

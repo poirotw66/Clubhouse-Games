@@ -1,5 +1,7 @@
 export type GameState = 'landing' | 'showing' | 'guessing' | 'results';
-export type GameMode = 'single' | 'challenge';
+
+/** single = 1 color; challenge = 5 colors show-then-guess; ascent = staged progression */
+export type GameMode = 'single' | 'challenge' | 'ascent';
 
 export interface Color {
   h: number;
@@ -17,4 +19,10 @@ export interface GameData {
   targetColors: Color[];
   userGuesses: Color[];
   currentStep: number;
+}
+
+export interface BestRecords {
+  bestScore: number;
+  bestAverage: number;
+  bestAscentLevel: number;
 }
