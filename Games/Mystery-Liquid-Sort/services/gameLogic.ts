@@ -1,5 +1,5 @@
-import { BottleData, Color, Layer, Order } from '../types';
-import { getCapacityForLevel, LEVEL_COLORS } from '../constants';
+import type { BottleData, Color, Layer, Order } from '../types';
+import { getCapacityForLevel, LEVEL_COLORS } from '../constants.ts';
 
 // Helper to create a unique ID
 const uid = () => Math.random().toString(36).substr(2, 9);

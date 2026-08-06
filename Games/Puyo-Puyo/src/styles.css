@@ -529,6 +529,18 @@ kbd {
   font-size: 13px;
 }
 
+.career-stats {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.result-career {
+  margin: 0 0 16px;
+  color: var(--accent);
+}
+
 .result-stats {
   margin: 20px 0;
   display: flex;

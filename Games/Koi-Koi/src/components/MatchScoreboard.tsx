@@ -29,6 +29,9 @@ interface MatchScoreboardProps {
   botLabel: string;
   playerScore: number;
   botScore: number;
+  wins?: number;
+  losses?: number;
+  winStreak?: number;
 }
 
 export const MatchScoreboard: React.FC<MatchScoreboardProps> = ({
@@ -36,9 +39,20 @@ export const MatchScoreboard: React.FC<MatchScoreboardProps> = ({
   botLabel,
   playerScore,
   botScore,
+  wins,
+  losses,
+  winStreak,
 }) => (
-  <div className="grid grid-cols-2 gap-4 w-full max-w-xs">
-    <ScoreBar label={botLabel} score={botScore} accent="gold" />
-    <ScoreBar label={playerLabel} score={playerScore} accent="vermillion" />
+  <div className="flex flex-col gap-2 w-full max-w-xs">
+    <div className="grid grid-cols-2 gap-4 w-full">
+      <ScoreBar label={botLabel} score={botScore} accent="gold" />
+      <ScoreBar label={playerLabel} score={playerScore} accent="vermillion" />
+    </div>
+    {wins !== undefined && losses !== undefined && (
+      <p className="text-[10px] text-cream/50 text-center tracking-wide">
+        戰績 {wins}勝 {losses}敗
+        {winStreak !== undefined && winStreak > 0 ? ` · 連勝 ${winStreak}` : ''}
+      </p>
+    )}
   </div>
 );

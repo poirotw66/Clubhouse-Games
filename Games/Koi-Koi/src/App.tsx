@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, VolumeX, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Volume2, VolumeX, HelpCircle, Lightbulb } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { Card as CardComponent } from './components/Card';
 import { CharacterSelect } from './components/CharacterSelect';
@@ -11,8 +11,18 @@ import { getCharacterImageUrl } from './characters';
 import { useBgm } from './hooks/useBgm';
 import { useCharacterSelection } from './hooks/useCharacterSelection';
 import { useSfx } from './hooks/useSfx';
-import { Card, GameState, Phase, YakuResult } from './types';
+import { Card, GameState, Phase } from './types';
 import { deal, calculateYaku, getMatchingCards, resolveRoundScores, WIN_SCORE } from './utils/gameLogic';
+import {
+  Difficulty,
+  DIFFICULTY_LABELS,
+  getPlayerHint,
+  pickBotFieldMatch,
+  pickBotHandPlay,
+  shouldBotKoiKoi,
+  type HintChoice,
+} from './utils/botAi';
+import { loadStats, recordResult, saveStats, withDifficulty, type MatchStats } from './utils/stats';
 import { motion, AnimatePresence } from 'motion/react';
 
 const initialState: GameState = {
@@ -42,11 +52,26 @@ const initialState: GameState = {
 export default function App() {
   const [state, setState] = useState<GameState>(initialState);
   const [showRules, setShowRules] = useState(false);
+  const [stats, setStats] = useState<MatchStats>(() => loadStats());
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
+  const [hint, setHint] = useState<HintChoice | null>(null);
   const lockRef = useRef(false);
+  const statsRecordedRef = useRef(false);
+  const difficultyRef = useRef(difficulty);
+  difficultyRef.current = difficulty;
   const { character, characterId, setCharacterId } = useCharacterSelection();
   const { muted, toggleMute, unlock, currentTitle } = useBgm();
   const { play: playSfx } = useSfx();
   const playerAvatarUrl = getCharacterImageUrl(character);
+
+  const applyDifficulty = useCallback((next: Difficulty) => {
+    setDifficulty(next);
+    setStats(prev => {
+      const updated = withDifficulty(prev, next);
+      saveStats(updated);
+      return updated;
+    });
+  }, []);
 
   useEffect(() => {
     const handler = () => unlock();
@@ -60,9 +85,21 @@ export default function App() {
     }
   }, [state.phase]);
 
+  useEffect(() => {
+    if (state.phase !== 'game_over' || !state.winner || statsRecordedRef.current) return;
+    statsRecordedRef.current = true;
+    setStats(prev => {
+      const updated = recordResult(prev, state.winner === 'player' ? 'win' : 'loss');
+      saveStats(updated);
+      return updated;
+    });
+  }, [state.phase, state.winner]);
+
   const startGame = (isNextRound = false, resetMatch = false) => {
     if (lockRef.current) return;
     lockRef.current = true;
+    setHint(null);
+    if (resetMatch || !isNextRound) statsRecordedRef.current = false;
     const { deck, playerHand, botHand, field } = deal();
     setState(s => {
       const dealer = resetMatch ? 'player' : s.dealer;
@@ -84,6 +121,7 @@ export default function App() {
   };
 
   const endTurn = (nextPlayer: 'player' | 'bot') => {
+    setHint(null);
     setState(s => {
       // Check if hands are empty (round over, draw)
       if (s.playerHand.length === 0 && s.botHand.length === 0) {
@@ -132,10 +170,15 @@ export default function App() {
           message: `你組成了役！獲得 ${totalPoints} 分。要喊 Koi-Koi 繼續嗎？`,
         });
       } else {
-        // Bot logic for Koi-Koi
-        // Simple AI: If points < 5 and bot has cards, Koi-Koi. Else Agari.
-        const shouldKoiKoi = totalPoints < 5 && newState.botHand.length > 0;
-        if (shouldKoiKoi) {
+        const shouldContinue = shouldBotKoiKoi({
+          totalPoints,
+          botHandLength: newState.botHand.length,
+          botScore: newState.botScore,
+          playerScore: newState.playerScore,
+          playerKoiKoiCount: newState.koiKoiCount.player,
+          difficulty: difficultyRef.current,
+        });
+        if (shouldContinue) {
           setState({
             ...newState,
             botYaku: yaku,
@@ -209,9 +252,14 @@ export default function App() {
         nextState.message = `翻開了 ${drawnCard.name}，場上有兩張可配對，請選擇一張。`;
         setState(nextState);
       } else {
-        // Bot picks the first one
-        nextState.field = nextState.field.filter(c => c.id !== matches[0].id);
-        nextState.botCaptured = [...nextState.botCaptured, drawnCard, matches[0]];
+        const bestMatch = pickBotFieldMatch(
+          drawnCard,
+          matches,
+          nextState.botCaptured,
+          difficultyRef.current,
+        );
+        nextState.field = nextState.field.filter(c => c.id !== bestMatch.id);
+        nextState.botCaptured = [...nextState.botCaptured, drawnCard, bestMatch];
         nextState.message = `對手翻開了 ${drawnCard.name} 並配對成功！`;
         setState(nextState);
         setTimeout(() => handleYakuCheck('bot', nextState), 1500);
@@ -234,6 +282,7 @@ export default function App() {
   const handleHandCardClick = (card: Card) => {
     if (state.phase !== 'player_turn_hand' || lockRef.current) return;
     lockRef.current = true;
+    setHint(null);
 
     const matches = getMatchingCards(card, state.field);
     const newHand = state.playerHand.filter(c => c.id !== card.id);
@@ -297,6 +346,7 @@ export default function App() {
     if (state.phase === 'player_turn_hand_match' && state.selectedHandCard) {
       if (!state.matchingFieldCards.find(c => c.id === card.id)) return;
       lockRef.current = true;
+      setHint(null);
       playSfx('match');
 
       const nextState = {
@@ -313,6 +363,7 @@ export default function App() {
     } else if (state.phase === 'player_turn_draw_match' && state.drawnCard) {
       if (!state.matchingFieldCards.find(c => c.id === card.id)) return;
       lockRef.current = true;
+      setHint(null);
       playSfx('match');
 
       const nextState = {
@@ -331,6 +382,7 @@ export default function App() {
   const handleKoiKoi = () => {
     if (lockRef.current) return;
     lockRef.current = true;
+    setHint(null);
     setState(s => ({
       ...s,
       koiKoiCount: { ...s.koiKoiCount, player: s.koiKoiCount.player + 1 },
@@ -342,6 +394,7 @@ export default function App() {
   const handleAgari = () => {
     if (lockRef.current) return;
     lockRef.current = true;
+    setHint(null);
     let finalPoints = state.playerPoints;
     if (state.koiKoiCount.bot > 0) finalPoints *= 2;
 
@@ -361,34 +414,52 @@ export default function App() {
     }));
   };
 
+  const handleHint = () => {
+    if (state.phase === 'player_turn_hand') {
+      const next = getPlayerHint(state.playerHand, state.field, state.playerCaptured);
+      setHint(next);
+      return;
+    }
+    if (
+      (state.phase === 'player_turn_hand_match' || state.phase === 'player_turn_draw_match') &&
+      state.matchingFieldCards.length > 0
+    ) {
+      const played = state.selectedHandCard ?? state.drawnCard;
+      if (!played) return;
+      const best = pickBotFieldMatch(
+        played,
+        state.matchingFieldCards,
+        state.playerCaptured,
+        'hard',
+        () => 0,
+      );
+      setHint({
+        handCardId: state.selectedHandCard?.id ?? '',
+        fieldCardId: best.id,
+      });
+    }
+  };
+
   // Bot Logic
   useEffect(() => {
     if (state.phase === 'bot_turn') {
       const playBotTurn = async () => {
         await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // 1. Find a match from hand
-        let selectedCard = state.botHand[0];
-        let bestMatch: Card | null = null;
-        let matches: Card[] = [];
 
-        // Simple AI: Prefer matching Hikari, then Tane, then Tanzaku
-        const typeValues = { hikari: 4, tane: 3, tanzaku: 2, kasu: 1 };
-        let bestValue = -1;
-
-        for (const card of state.botHand) {
-          const fieldMatches = getMatchingCards(card, state.field);
-          if (fieldMatches.length > 0) {
-            const val = typeValues[card.type] + typeValues[fieldMatches[0].type];
-            if (val > bestValue) {
-              bestValue = val;
-              selectedCard = card;
-              matches = fieldMatches;
-              bestMatch = fieldMatches[0];
-            }
-          }
+        const choice = pickBotHandPlay(
+          state.botHand,
+          state.field,
+          state.botCaptured,
+          difficultyRef.current,
+        );
+        if (!choice) {
+          endTurn('player');
+          return;
         }
 
+        const selectedCard = choice.handCard;
+        const matches = choice.matches;
+        const bestMatch = choice.fieldMatch;
         const newHand = state.botHand.filter(c => c.id !== selectedCard.id);
         let nextState = { ...state, botHand: newHand };
 
@@ -408,14 +479,18 @@ export default function App() {
         }
 
         setState(nextState);
-        
-        // 2. Draw phase
+
         setTimeout(() => executeDrawPhase(nextState, 'bot'), 1500);
       };
 
       playBotTurn();
     }
   }, [state.phase]);
+
+  const canHint =
+    state.phase === 'player_turn_hand' ||
+    state.phase === 'player_turn_hand_match' ||
+    state.phase === 'player_turn_draw_match';
 
   const isPlayerActive = [
     'player_turn_hand',
@@ -458,6 +533,7 @@ export default function App() {
               <h1 className="font-display text-2xl sm:text-3xl font-bold text-gold tracking-wide">Koi-Koi</h1>
               <p className="text-sm text-cream/70 mt-1">
                 第 {state.round} 局 · 莊家：{state.dealer === 'player' ? character.name : '師匠'}
+                {state.phase !== 'idle' ? ` · ${DIFFICULTY_LABELS[difficulty]}` : ''}
               </p>
             </div>
             <div className="flex flex-col items-center gap-3 w-full sm:w-auto">
@@ -478,6 +554,9 @@ export default function App() {
                   botLabel="師匠"
                   playerScore={state.playerScore}
                   botScore={state.botScore}
+                  wins={stats.wins}
+                  losses={stats.losses}
+                  winStreak={stats.winStreak}
                 />
               )}
             </div>
@@ -519,9 +598,33 @@ export default function App() {
               />
             </div>
             <p className="text-cream/80 mb-1 font-display text-lg">歡迎來到花牌對局</p>
-            <p className="text-cream/50 text-sm mb-6 max-w-md mx-auto">
+            <p className="text-cream/50 text-sm mb-4 max-w-md mx-auto">
               扮演「{character.name}」與師匠一決高下，湊齊光牌、短冊與動物牌組成役。
             </p>
+            <p className="text-xs text-gold/70 mb-6">
+              戰績 {stats.wins}勝 {stats.losses}敗
+              {stats.winStreak > 0 ? ` · 連勝 ${stats.winStreak}` : ''}
+            </p>
+          </div>
+
+          <div className="wafu-panel rounded-2xl p-4 sm:p-6 w-full">
+            <p className="text-xs text-cream/60 mb-3 text-center tracking-wide">難度</p>
+            <div className="flex justify-center gap-2 mb-2">
+              {(['easy', 'normal', 'hard'] as Difficulty[]).map(id => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => applyDifficulty(id)}
+                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                    difficulty === id
+                      ? 'bg-gold/20 text-gold border border-gold/50'
+                      : 'text-cream/60 border border-gold/20 hover:border-gold/40 hover:text-cream'
+                  }`}
+                >
+                  {DIFFICULTY_LABELS[id]}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="wafu-panel rounded-2xl p-4 sm:p-6 w-full">
@@ -605,6 +708,7 @@ export default function App() {
                   card={c}
                   onClick={() => handleFieldCardClick(c)}
                   highlighted={state.matchingFieldCards.some(mc => mc.id === c.id)}
+                  hint={hint?.fieldCardId === c.id}
                 />
               ))}
             </div>
@@ -614,7 +718,21 @@ export default function App() {
           <div className="wafu-panel rounded-2xl p-3 sm:p-4">
             <div className="flex gap-3 sm:gap-4 items-end">
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gold/70 mb-2">你的手牌</p>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-xs text-gold/70">你的手牌</p>
+                  {canHint && (
+                    <button
+                      type="button"
+                      onClick={handleHint}
+                      className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors"
+                      aria-label="提示"
+                      title="提示"
+                    >
+                      <Lightbulb size={14} />
+                      提示
+                    </button>
+                  )}
+                </div>
                 <div className="flex gap-1 sm:gap-2 flex-wrap">
                   {state.playerHand.map(c => (
                     <CardComponent
@@ -622,6 +740,7 @@ export default function App() {
                       card={c}
                       onClick={() => handleHandCardClick(c)}
                       selected={state.selectedHandCard?.id === c.id}
+                      hint={hint?.handCardId === c.id}
                       className={state.phase === 'player_turn_hand' ? 'hover:-translate-y-2' : ''}
                     />
                   ))}
@@ -732,14 +851,20 @@ export default function App() {
               {state.winner === 'player' ? '恭喜獲勝！' : '師匠獲勝'}
             </h2>
             <p className="text-lg text-cream mb-4">{state.message}</p>
-            <div className="mb-6 flex justify-center">
+            <div className="mb-4 flex justify-center">
               <MatchScoreboard
                 playerLabel={character.name}
                 botLabel="師匠"
                 playerScore={state.playerScore}
                 botScore={state.botScore}
+                wins={stats.wins}
+                losses={stats.losses}
+                winStreak={stats.winStreak}
               />
             </div>
+            <p className="text-xs text-cream/50 mb-6">
+              難度：{DIFFICULTY_LABELS[difficulty]}
+            </p>
             <div className="mb-6">
               <CharacterSelect selectedId={characterId} onSelect={setCharacterId} compact />
             </div>

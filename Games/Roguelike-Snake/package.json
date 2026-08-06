@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "check": "npm run check:logic",
     "check:logic": "rm -rf .self-check && mkdir -p .self-check && printf '{\"type\":\"commonjs\"}' > .self-check/package.json && npx tsc --module CommonJS --moduleResolution Node --target ES2022 --outDir .self-check ./scripts/self-check.ts ./src/game/*.ts && node ./.self-check/scripts/self-check.js"
   },
   "dependencies": {

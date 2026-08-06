@@ -7,11 +7,13 @@ interface Props {
   onClick?: () => void;
   selected?: boolean;
   highlighted?: boolean;
+  /** Soft gold ring for hint recommendations (distinct from match highlight). */
+  hint?: boolean;
   hidden?: boolean;
   className?: string;
 }
 
-export const Card: React.FC<Props> = ({card, onClick, selected, highlighted, hidden, className = ''}) => {
+export const Card: React.FC<Props> = ({card, onClick, selected, highlighted, hint, hidden, className = ''}) => {
   const [imageFailed, setImageFailed] = useState(false);
 
   if (hidden) {
@@ -39,6 +41,7 @@ export const Card: React.FC<Props> = ({card, onClick, selected, highlighted, hid
       className={`relative w-16 h-24 sm:w-20 sm:h-32 rounded-sm border-2 overflow-hidden cursor-pointer shadow-md transition-all duration-200 bg-washi
         ${selected ? 'border-gold border-[3px] -translate-y-2 shadow-lg ring-2 ring-vermillion/50' : 'border-lacquer/80'}
         ${highlighted ? 'border-vermillion border-[3px] shadow-lg shadow-vermillion/30 animate-pulse' : ''}
+        ${hint && !highlighted && !selected ? 'border-gold border-[3px] shadow-lg shadow-gold/40 ring-2 ring-gold/50 animate-pulse' : ''}
         ${className}
       `}
     >

@@ -1,14 +1,17 @@
 
-export enum Color {
-  RED = '#ef4444',
-  BLUE = '#3b82f6',
-  GREEN = '#22c55e',
-  YELLOW = '#eab308',
-  PURPLE = '#a855f7',
-  ORANGE = '#f97316',
-  CYAN = '#06b6d4',
-  GRAY = '#9ca3af', // Placeholder for empty
-}
+// Const object (not enum) so Node --experimental-strip-types can import this module.
+export const Color = {
+  RED: '#ef4444',
+  BLUE: '#3b82f6',
+  GREEN: '#22c55e',
+  YELLOW: '#eab308',
+  PURPLE: '#a855f7',
+  ORANGE: '#f97316',
+  CYAN: '#06b6d4',
+  GRAY: '#9ca3af', // Placeholder for empty
+} as const;
+
+export type Color = (typeof Color)[keyof typeof Color];
 
 export type GameMode = 'adventure' | 'quick_play';
 

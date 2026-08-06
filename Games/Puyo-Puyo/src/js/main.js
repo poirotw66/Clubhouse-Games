@@ -69,6 +69,7 @@
 
   var ui = {
     matchStatus: document.getElementById('match-status'),
+    careerStats: document.getElementById('career-stats'),
     modeBadge: document.getElementById('mode-badge'),
     modeSelect: document.getElementById('match-mode'),
     difficultyField: document.getElementById('difficulty-field'),
@@ -81,6 +82,7 @@
     resultP2Score: document.getElementById('result-p2-score'),
     resultP2ChainLabel: document.getElementById('result-p2-chain-label'),
     resultP2Chain: document.getElementById('result-p2-chain'),
+    resultCareer: document.getElementById('result-career'),
     pauseButton: document.getElementById('btn-pause'),
     pauseLabel: document.getElementById('btn-pause-label'),
     muteButton: document.getElementById('btn-mute'),
@@ -90,6 +92,8 @@
     p2Badge: document.getElementById('p2-badge'),
     p2ControlsList: document.getElementById('p2-controls-list'),
   };
+
+  var career = L.mergeStats(null);
 
   var players = [
     createPlayerHandle('p1', '1P', false),
@@ -183,6 +187,50 @@
 
   function isVersusMode() {
     return match.mode === 'versus';
+  }
+
+  function formatCareerLine(stats) {
+    return '對 CPU：' + stats.wins + ' 勝 · ' + stats.losses + ' 敗 · 連勝 ' + stats.winStreak;
+  }
+
+  function refreshCareerUi() {
+    var line = formatCareerLine(career);
+    ui.careerStats.textContent = line;
+    ui.resultCareer.textContent = line;
+  }
+
+  function loadCareer() {
+    try {
+      var raw = global.localStorage.getItem(L.STATS_KEY);
+      if (!raw) return L.mergeStats(null);
+      return L.mergeStats(JSON.parse(raw));
+    } catch (err) {
+      return L.mergeStats(null);
+    }
+  }
+
+  function saveCareer() {
+    try {
+      global.localStorage.setItem(L.STATS_KEY, JSON.stringify(L.mergeStats(career)));
+    } catch (err) {
+      // ponytail: quota / private mode — skip persist
+    }
+  }
+
+  function persistPrefs() {
+    var difficulty = ui.difficultySelect.value;
+    var mode = ui.modeSelect.value === 'versus' ? 'versus' : 'cpu';
+    career = L.withPrefs(career, difficulty, mode);
+    saveCareer();
+  }
+
+  function applySavedPrefs() {
+    if (career.lastMode === 'versus' || career.lastMode === 'cpu') {
+      ui.modeSelect.value = career.lastMode;
+    }
+    if (career.lastDifficulty === 'easy' || career.lastDifficulty === 'normal' || career.lastDifficulty === 'hard') {
+      ui.difficultySelect.value = career.lastDifficulty;
+    }
   }
 
   function syncModeUi() {
@@ -281,6 +329,18 @@
       player.state.softDrop = false;
       updateStats(player);
     });
+
+    // Replay hook: only vs-CPU career counts (skip local 2P).
+    if (!isVersusMode()) {
+      career = L.recordCpuResult(career, winner === players[0]);
+      career = L.withPrefs(career, ui.difficultySelect.value, 'cpu');
+      saveCareer();
+      refreshCareerUi();
+      ui.resultCareer.hidden = false;
+    } else {
+      ui.resultCareer.hidden = true;
+    }
+
     A.playLose();
     ui.resultTitle.textContent = winner.label + ' 勝利';
     ui.resultSummary.textContent = summary;
@@ -898,14 +958,23 @@
   document.getElementById('btn-restart').addEventListener('click', resetMatch);
   document.getElementById('result-restart').addEventListener('click', resetMatch);
   ui.colorSelect.addEventListener('change', resetMatch);
-  ui.difficultySelect.addEventListener('change', resetMatch);
-  ui.modeSelect.addEventListener('change', resetMatch);
+  ui.difficultySelect.addEventListener('change', function () {
+    persistPrefs();
+    resetMatch();
+  });
+  ui.modeSelect.addEventListener('change', function () {
+    persistPrefs();
+    resetMatch();
+  });
 
   players.forEach(function (player) {
     setupCanvas(player.field, player.fieldCtx, L.COLS * CELL, L.ROWS * CELL);
     setupCanvas(player.next, player.nextCtx, PREVIEW_CELL * 1.5, PREVIEW_CELL * 6.2);
   });
 
+  career = loadCareer();
+  applySavedPrefs();
+  refreshCareerUi();
   resetMatch();
   global.requestAnimationFrame(frame);
 })(window);

@@ -1,4 +1,4 @@
-import { Color } from './types';
+import { Color } from './types.ts';
 
 /** Default capacity for UI/fallback (e.g. new bottle in quick play level 1). */
 export const DEFAULT_CAPACITY = 4;

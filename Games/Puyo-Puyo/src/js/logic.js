@@ -23,6 +23,74 @@
   var POP_SIZE = 4;
   var GARBAGE = 'garbage';
 
+  // Vs-CPU career stats (replay hook). 2P local matches are not counted.
+  var STATS_KEY = 'clubhouse-puyo-stats';
+  var DEFAULT_STATS = {
+    wins: 0,
+    losses: 0,
+    winStreak: 0,
+    lastDifficulty: 'normal',
+    lastMode: 'cpu',
+  };
+  var VALID_DIFFICULTIES = { easy: true, normal: true, hard: true };
+  var VALID_MODES = { cpu: true, versus: true };
+
+  function asNonNegInt(value) {
+    var n = Number(value);
+    if (!isFinite(n) || n < 0) return 0;
+    return Math.floor(n);
+  }
+
+  /** Merge partial / corrupt storage into a valid career-stats object. */
+  function mergeStats(raw) {
+    if (!raw || typeof raw !== 'object') {
+      return {
+        wins: DEFAULT_STATS.wins,
+        losses: DEFAULT_STATS.losses,
+        winStreak: DEFAULT_STATS.winStreak,
+        lastDifficulty: DEFAULT_STATS.lastDifficulty,
+        lastMode: DEFAULT_STATS.lastMode,
+      };
+    }
+    var lastDifficulty = typeof raw.lastDifficulty === 'string' && VALID_DIFFICULTIES[raw.lastDifficulty]
+      ? raw.lastDifficulty
+      : DEFAULT_STATS.lastDifficulty;
+    var lastMode = typeof raw.lastMode === 'string' && VALID_MODES[raw.lastMode]
+      ? raw.lastMode
+      : DEFAULT_STATS.lastMode;
+    return {
+      wins: asNonNegInt(raw.wins),
+      losses: asNonNegInt(raw.losses),
+      winStreak: asNonNegInt(raw.winStreak),
+      lastDifficulty: lastDifficulty,
+      lastMode: lastMode,
+    };
+  }
+
+  /** Apply a vs-CPU win or loss. Streak climbs on win, resets on loss. */
+  function recordCpuResult(stats, won) {
+    var next = mergeStats(stats);
+    if (won) {
+      next.wins += 1;
+      next.winStreak += 1;
+    } else {
+      next.losses += 1;
+      next.winStreak = 0;
+    }
+    return next;
+  }
+
+  function withPrefs(stats, difficulty, mode) {
+    var next = mergeStats(stats);
+    if (typeof difficulty === 'string' && VALID_DIFFICULTIES[difficulty]) {
+      next.lastDifficulty = difficulty;
+    }
+    if (typeof mode === 'string' && VALID_MODES[mode]) {
+      next.lastMode = mode;
+    }
+    return next;
+  }
+
   function createBoard() {
     var board = [];
     for (var r = 0; r < ROWS; r += 1) {
@@ -398,5 +466,12 @@
     isDead: isDead,
     garbagePreviewIcons: garbagePreviewIcons,
     setupPotential: setupPotential,
+
+    // Vs-CPU career stats (pure helpers; localStorage I/O lives in main.js).
+    STATS_KEY: STATS_KEY,
+    DEFAULT_STATS: DEFAULT_STATS,
+    mergeStats: mergeStats,
+    recordCpuResult: recordCpuResult,
+    withPrefs: withPrefs,
   };
 })(window);
