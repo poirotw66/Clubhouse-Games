@@ -2,6 +2,7 @@
 /**
  * Install all workspace dependencies once at the repo root.
  * Games live under Games/* as npm workspaces — no per-game npm install.
+ * Also refreshes the overview menu and menu CSS so `npm run dev` is usable.
  * Usage: npm run setup
  */
 
@@ -21,26 +22,32 @@ function getGameFolders() {
   );
 }
 
-console.log('\n=== root (npm workspaces) ===');
-const result = spawnSync('npm', ['install'], {
-  cwd: root,
-  stdio: 'inherit',
-  shell: true,
-});
-if (result.status !== 0) {
-  console.error('Failed: npm install at root');
-  process.exit(result.status ?? 1);
+function run(label, command, args) {
+  console.log(`\n=== ${label} ===`);
+  const result = spawnSync(command, args, {
+    cwd: root,
+    stdio: 'inherit',
+    shell: false,
+  });
+  if (result.status !== 0) {
+    console.error(`Failed: ${label}`);
+    process.exit(result.status ?? 1);
+  }
 }
+
+run('root (npm workspaces)', 'npm', ['install']);
 
 const gameFolders = getGameFolders();
-console.log(`\nDone. Installed root + ${gameFolders.length} workspace game(s).`);
+console.log(`\nInstalled root + ${gameFolders.length} workspace game(s).`);
 
-console.log('\n=== build menu CSS ===');
-const cssResult = spawnSync('npm', ['run', 'build:css'], {
-  cwd: root,
-  stdio: 'inherit',
-  shell: true,
-});
-if (cssResult.status !== 0) {
-  process.exit(cssResult.status ?? 1);
-}
+run('generate menu + README', 'npm', ['run', 'generate']);
+run('build menu CSS', 'npm', ['run', 'build:css']);
+
+console.log(`
+Setup complete.
+
+Next:
+  npm run build          # build every game into Games/<name>/dist/
+  npm run build:game X   # build one game (folder name under Games/)
+  npm run dev            # http://localhost:3000
+`);

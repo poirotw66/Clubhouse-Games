@@ -9,6 +9,7 @@
     "dev": "node server.mjs",
     "setup": "node scripts/setup.mjs",
     "generate": "node scripts/generate-from-data.mjs",
+    "build": "npm run build:all",
     "build:css": "npx --yes -p tailwindcss@3.4.17 -p postcss@8.4.49 -p autoprefixer@10.4.21 tailwindcss -i styles/menu.input.css -o assets/menu.css --minify",
     "build:game": "node scripts/build-game.mjs",
     "build:all": "node scripts/build-all.mjs",
