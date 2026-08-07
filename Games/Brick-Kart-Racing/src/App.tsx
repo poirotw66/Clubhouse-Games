@@ -21,7 +21,9 @@ import {
   bestLapKey,
   createRace,
   DEFAULT_RACE_OPTIONS,
+  driftFill,
   driftLevel,
+  formatTime,
   stepRace,
   type RaceInput,
   type RaceOptions,
@@ -56,10 +58,12 @@ const EMPTY_HUD: HudSnapshot = {
   itemRoll: 0,
   shields: 0,
   driftLevel: 0,
+  driftFill: 0,
   boosting: false,
   countdown: 3.6,
   phase: 'countdown',
   lapFlash: 0,
+  lapNote: '',
   itemsEnabled: true,
   timeTrial: false,
 };
@@ -94,6 +98,7 @@ export default function App() {
   const itemQueuedRef = useRef(false);
   const pausedRef = useRef(false);
   const lapFlashRef = useRef(0);
+  const lapNoteRef = useRef('');
 
   pausedRef.current = paused || result !== null;
 
@@ -147,6 +152,7 @@ export default function App() {
     const state = createRace(trackId, charId, difficulty, raceOptions);
     const cam = createCamera(state.racers[state.playerIndex]);
     lapFlashRef.current = 0;
+    lapNoteRef.current = '';
 
     startEngine();
     setMuted(isMuted());
@@ -186,7 +192,23 @@ export default function App() {
         }
 
         for (const ev of state.events) {
-          if (ev === 'lap') lapFlashRef.current = 1.2;
+          if (ev === 'lap') {
+            lapFlashRef.current = 1.4;
+            const player = state.racers[state.playerIndex];
+            const lastLap = player.lapTimes[player.lapTimes.length - 1] ?? 0;
+            const stored = loadBestTimes()[recordKey] ?? 0;
+            const sessionBest = player.lapTimes.slice(0, -1).filter((t) => t > 0);
+            const priorBest = sessionBest.length ? Math.min(...sessionBest) : 0;
+            if (lastLap > 0 && (!stored || lastLap < stored)) {
+              lapNoteRef.current = `新最佳！ ${formatTime(lastLap)}`;
+            } else if (lastLap > 0 && priorBest > 0 && lastLap < priorBest) {
+              lapNoteRef.current = `本場最快 ${formatTime(lastLap)}`;
+            } else if (lastLap > 0) {
+              lapNoteRef.current = formatTime(lastLap);
+            } else {
+              lapNoteRef.current = '';
+            }
+          }
           playEvent(ev);
         }
         state.events.length = 0;
@@ -234,10 +256,12 @@ export default function App() {
           itemRoll: player.itemRoll,
           shields: player.shields,
           driftLevel: player.drifting ? driftLevel(player.driftCharge) : 0,
+          driftFill: player.drifting ? driftFill(player.driftCharge) : 0,
           boosting: player.boostTime > 0,
           countdown: state.countdown,
           phase: state.phase,
           lapFlash: Math.max(0, lapFlashRef.current),
+          lapNote: lapNoteRef.current,
           itemsEnabled: state.itemsEnabled,
           timeTrial: state.mode === 'timeTrial',
         });

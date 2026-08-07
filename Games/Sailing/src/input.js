@@ -59,6 +59,7 @@ export function createInput(root) {
     const key = el.getAttribute('data-hold');
     const set = (v) => {
       held[key] = v;
+      el.classList.toggle('holding', v);
     };
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
@@ -120,10 +121,17 @@ export function createInput(root) {
   const requestTack = () => {
     tackRequested = true;
   };
-  root.querySelector('#btn-tack')?.addEventListener('click', (e) => {
+  const tackBtn = root.querySelector('#btn-tack');
+  tackBtn?.addEventListener('click', (e) => {
     e.preventDefault();
     requestTack();
   });
+  // Press flash for one-shot tack (not a hold control).
+  const flashTack = (on) => tackBtn?.classList.toggle('holding', on);
+  tackBtn?.addEventListener('pointerdown', () => flashTack(true));
+  tackBtn?.addEventListener('pointerup', () => flashTack(false));
+  tackBtn?.addEventListener('pointercancel', () => flashTack(false));
+  tackBtn?.addEventListener('lostpointercapture', () => flashTack(false));
 
   return {
     get autoTrim() {

@@ -12,6 +12,9 @@ interface ResultOverlayProps {
   stats?: ResultStat[];
   primaryLabel?: string;
   onPrimary: () => void;
+  /** Optional second action (e.g. 回選單). Shown only when `onSecondary` is set. */
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   variant?: 'win' | 'lose' | 'neutral';
 }
 
@@ -21,6 +24,9 @@ const VARIANT_TITLE: Record<NonNullable<ResultOverlayProps['variant']>, string> 
   neutral: 'text-slate-100',
 };
 
+const BTN_BASE =
+  'inline-flex items-center justify-center gap-2 w-full min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-colors touch-manipulation';
+
 export function ResultOverlay({
   title,
   subtitle,
@@ -28,6 +34,8 @@ export function ResultOverlay({
   stats = [],
   primaryLabel = '再玩一局',
   onPrimary,
+  secondaryLabel = '回選單',
+  onSecondary,
   variant = 'neutral',
 }: ResultOverlayProps): React.ReactElement {
   return (
@@ -60,13 +68,24 @@ export function ResultOverlay({
             ))}
           </dl>
         )}
-        <button
-          type="button"
-          onClick={onPrimary}
-          className="inline-flex items-center justify-center gap-2 w-full px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold transition-colors"
-        >
-          {primaryLabel}
-        </button>
+        <div className={`flex flex-col gap-2 ${stats.length === 0 ? 'mt-4' : ''}`}>
+          <button
+            type="button"
+            onClick={onPrimary}
+            className={`${BTN_BASE} bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700`}
+          >
+            {primaryLabel}
+          </button>
+          {onSecondary && (
+            <button
+              type="button"
+              onClick={onSecondary}
+              className={`${BTN_BASE} bg-slate-700/80 hover:bg-slate-600 active:bg-slate-700 border border-white/10 text-slate-100`}
+            >
+              {secondaryLabel}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

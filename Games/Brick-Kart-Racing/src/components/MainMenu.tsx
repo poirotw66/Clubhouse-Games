@@ -1,9 +1,10 @@
-import {useMemo} from 'react';
+import {useMemo, useState} from 'react';
 import {CHARACTERS, DIFFICULTIES, type DifficultyId} from '../data/characters';
 import {TRACKS} from '../data/tracks';
 import {kartBricks} from '../engine/models';
 import {bestLapKey, formatTime, type RaceMode, type RaceOptions} from '../engine/race';
 import {BrickPreview} from './BrickPreview';
+import {hasSeenHowTo, HowToOverlay} from './HowToOverlay';
 import {TrackPreview} from './TrackPreview';
 
 interface Props {
@@ -75,9 +76,13 @@ export function MainMenu({
   const bricks = useMemo(() => kartBricks(character), [character]);
   const timeTrial = options.mode === 'timeTrial';
   const itemsOn = !timeTrial && options.itemsEnabled;
+  const [showHowTo, setShowHowTo] = useState(() => !hasSeenHowTo());
 
   return (
     <div className="min-h-full w-full overflow-y-auto bg-slate-950 px-4 py-14 text-slate-100">
+      {showHowTo && (
+        <HowToOverlay itemsEnabled={itemsOn} onClose={() => setShowHowTo(false)} />
+      )}
       <div className="mx-auto w-full max-w-4xl">
         <header className="mb-8 text-center">
           <p className="text-xs font-bold tracking-[0.35em] text-amber-400">CLUBHOUSE GAMES</p>
@@ -92,6 +97,13 @@ export function MainMenu({
           <p className="mt-2 text-sm text-slate-400">
             {timeTrial ? '獨自刷新單圈 — 無對手、無道具' : '飄移蓄力、道具攻防，搶下 3 圈第一名'}
           </p>
+          <button
+            type="button"
+            onClick={() => setShowHowTo(true)}
+            className="mt-3 text-xs font-bold text-amber-400/90 underline-offset-2 hover:underline"
+          >
+            操作教學
+          </button>
         </header>
 
         <section className="mb-6">

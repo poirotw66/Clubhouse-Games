@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playCapture, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
 import { Scoreboard } from './components/Scoreboard';
 import { TouchControls } from './components/TouchControls';
 import type { GameWorld } from './engine/GameWorld';
-import { BEST_DISTANCE_KEY, BEST_SCORE_KEY } from './engine/constants';
+import { BEST_DISTANCE_KEY, BEST_SCORE_KEY, TIP_SEEN_KEY } from './engine/constants';
 import type { HudSnapshot, RunResult } from './engine/scoreSystem';
 import type { Screen } from './types';
 
@@ -15,6 +16,22 @@ function readStoredBest(key: string): number {
     return Number.isFinite(n) ? n : 0;
   } catch {
     return 0;
+  }
+}
+
+function hasSeenTip(): boolean {
+  try {
+    return localStorage.getItem(TIP_SEEN_KEY) === '1';
+  } catch {
+    return true;
+  }
+}
+
+function markTipSeen(): void {
+  try {
+    localStorage.setItem(TIP_SEEN_KEY, '1');
+  } catch {
+    /* private mode */
   }
 }
 
@@ -42,6 +59,8 @@ export default function App(): ReactElement {
   }));
   const [result, setResult] = useState<RunResult | null>(null);
   const [runId, setRunId] = useState(0);
+  const [showHowTo, setShowHowTo] = useState(false);
+  const [showTip, setShowTip] = useState(false);
   const worldRef = useRef<GameWorld | null>(null);
 
   const toastRef = useRef<string | null>(null);
@@ -59,24 +78,62 @@ export default function App(): ReactElement {
   const onGameOver = useCallback((r: RunResult) => {
     setResult(r);
     setScreen('gameover');
+    setShowTip(false);
     if (r.isNewBest || r.score >= 5000) playWin();
     else playLose();
+  }, []);
+
+  const dismissTip = useCallback(() => {
+    markTipSeen();
+    setShowTip(false);
   }, []);
 
   const startRun = () => {
     setResult(null);
     setHud(EMPTY_HUD);
+    setShowHowTo(false);
     setRunId((n) => n + 1);
     setScreen('playing');
+    if (!hasSeenTip()) setShowTip(true);
   };
 
   const nudge = useCallback((dir: -1 | 1) => {
     worldRef.current?.nudgeLane(dir);
   }, []);
 
+  const swipeStartX = useRef<number | null>(null);
+
+  const onSwipePointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (screen !== 'playing') return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, a, [role="dialog"]')) return;
+    swipeStartX.current = e.clientX;
+  }, [screen]);
+
+  const onSwipePointerUp = useCallback(
+    (e: PointerEvent<HTMLDivElement>) => {
+      if (swipeStartX.current == null) return;
+      const dx = e.clientX - swipeStartX.current;
+      swipeStartX.current = null;
+      if (Math.abs(dx) < 48) return;
+      nudge(dx < 0 ? -1 : 1);
+    },
+    [nudge],
+  );
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      if (showHowTo && e.code === 'Escape') {
+        e.preventDefault();
+        setShowHowTo(false);
+        return;
+      }
+      if (showTip && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) {
+        e.preventDefault();
+        dismissTip();
+        return;
+      }
       if (screen === 'menu' && (e.code === 'Space' || e.code === 'Enter')) {
         e.preventDefault();
         startRun();
@@ -101,13 +158,21 @@ export default function App(): ReactElement {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [screen, nudge]);
+  }, [screen, nudge, showHowTo, showTip, dismissTip]);
 
   const showCanvas = screen !== 'menu';
   const showBoard = screen === 'playing' || screen === 'paused' || screen === 'gameover';
+  const flashOpacity = Math.min(0.55, hud.nearMissFlash * 0.5);
 
   return (
-    <div className="relative w-full h-dvh overflow-hidden select-none">
+    <div
+      className="relative w-full h-dvh overflow-hidden select-none"
+      onPointerDown={onSwipePointerDown}
+      onPointerUp={onSwipePointerUp}
+      onPointerCancel={() => {
+        swipeStartX.current = null;
+      }}
+    >
       <BackToMenu />
 
       {showCanvas && (
@@ -132,6 +197,15 @@ export default function App(): ReactElement {
         />
       )}
 
+      {/* Near-miss / fever screen punch */}
+      {showBoard && flashOpacity > 0.02 && (
+        <div
+          className={`feedback-vignette ${hud.fever ? 'is-fever' : ''} ${hud.toast === 'perfect' ? 'is-perfect' : ''}`}
+          style={{ opacity: flashOpacity }}
+          aria-hidden="true"
+        />
+      )}
+
       <Scoreboard hud={hud} visible={showBoard} />
 
       {screen === 'menu' && (
@@ -153,11 +227,52 @@ export default function App(): ReactElement {
             <button type="button" className="cta" onClick={startRun}>
               開始疾馳
             </button>
+            <button type="button" className="cta-secondary" onClick={() => setShowHowTo(true)}>
+              操作教學
+            </button>
             <p className="hint">
               鍵盤 ← → 或 A D 切道・P / Esc 暫停
               <br />
               最佳分數 {hud.bestScore || '—'} ・ 最遠 {hud.bestDistance || '—'} m
             </p>
+          </div>
+        </div>
+      )}
+
+      {showHowTo && (
+        <div
+          className="howto-shell"
+          role="dialog"
+          aria-modal="true"
+          aria-label="操作教學"
+          onClick={() => setShowHowTo(false)}
+        >
+          <div className="howto-card" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-display text-2xl neon-text mb-3">操作教學</h2>
+            <ol className="howto-list">
+              <li>
+                <strong>切道</strong>
+                ：鍵盤 ← → / A D，或螢幕下方左右鍵；亦可左右滑動切換三車道。
+              </li>
+              <li>
+                <strong>NITRO</strong>
+                ：鑽過霓虹加速環獲得短暫爆發加速與加分。
+              </li>
+              <li>
+                <strong>擦身連擊</strong>
+                ：貼近障礙閃過可加分並累積連擊；更近的完美閃避分數更高。
+              </li>
+              <li>
+                <strong>FEVER</strong>
+                ：連擊滿 5 進入狂熱狀態，倍率與車速同時提升。
+              </li>
+            </ol>
+            <p className="hint" style={{ marginTop: '0.75rem' }}>
+              暫停：P 或 Esc
+            </p>
+            <button type="button" className="cta" onClick={() => setShowHowTo(false)}>
+              知道了
+            </button>
           </div>
         </div>
       )}
@@ -174,6 +289,18 @@ export default function App(): ReactElement {
         </div>
       )}
 
+      {showTip && screen === 'playing' && (
+        <div className="run-tip" role="status">
+          <p>
+            貼近障礙擦身而過可累積連擊；滿 5 進入 <span className="text-fuchsia-300">FEVER</span>。
+            鑽過加速環可爆發 <span className="text-amber-300">NITRO</span>。
+          </p>
+          <button type="button" className="run-tip-dismiss" onClick={dismissTip}>
+            知道了
+          </button>
+        </div>
+      )}
+
       <TouchControls
         visible={screen === 'playing'}
         onLeft={() => nudge(-1)}
@@ -181,44 +308,23 @@ export default function App(): ReactElement {
       />
 
       {screen === 'gameover' && result && (
-        <div
-          className="fixed inset-0 z-[9500] flex items-center justify-center bg-[#020617]/92 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="衝撞出局"
-        >
-          <div className="w-full max-w-sm rounded-2xl border border-cyan-400/40 bg-slate-950/95 p-6 sm:p-8 shadow-[0_0_40px_rgba(34,211,238,0.25)] text-center">
-            {result.isNewBest && (
-              <p className="mb-2 text-sm font-semibold tracking-wide text-amber-300 uppercase font-display">
-                NEW BEST
-              </p>
-            )}
-            <h2 className="font-display text-3xl font-bold mb-2 text-fuchsia-300 neon-text">衝撞出局</h2>
-            <p className="text-slate-300 text-sm mb-4">
-              {result.isNewBest ? '新紀錄！霓虹夜空記住了你的車軌。' : '再來一趟，閃得更漂亮。'}
-            </p>
-            <dl className="mb-6 grid gap-2 text-sm">
-              {[
-                { label: '分數', value: result.score.toLocaleString('zh-Hant') },
-                { label: '距離', value: `${result.distance} m` },
-                { label: '閃避', value: String(result.avoids) },
-                { label: 'NITRO', value: String(result.pickups) },
-                { label: '最高連擊', value: String(result.maxCombo) },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="flex justify-between rounded-lg bg-slate-900/90 px-3 py-2 border border-cyan-500/20"
-                >
-                  <dt className="text-slate-400">{stat.label}</dt>
-                  <dd className="font-mono font-semibold text-white tabular-nums">{stat.value}</dd>
-                </div>
-              ))}
-            </dl>
-            <button type="button" className="cta" onClick={startRun}>
-              再玩一局
-            </button>
-          </div>
-        </div>
+        <ResultOverlay
+          title="衝撞出局"
+          subtitle={
+            result.isNewBest ? '新紀錄！霓虹夜空記住了你的車軌。' : '再來一趟，閃得更漂亮。'
+          }
+          badge={result.isNewBest ? '新紀錄' : undefined}
+          variant={result.isNewBest ? 'win' : 'lose'}
+          stats={[
+            { label: '分數', value: result.score.toLocaleString('zh-Hant') },
+            { label: '距離', value: `${result.distance} m` },
+            { label: '閃避', value: String(result.avoids) },
+            { label: 'NITRO', value: String(result.pickups) },
+            { label: '最高連擊', value: String(result.maxCombo) },
+          ]}
+          primaryLabel="再試一次"
+          onPrimary={startRun}
+        />
       )}
     </div>
   );

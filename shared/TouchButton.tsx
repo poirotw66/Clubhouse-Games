@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const buttonStyle: React.CSSProperties = {
   minWidth: 44,
@@ -14,11 +14,17 @@ const buttonStyle: React.CSSProperties = {
   userSelect: 'none',
   WebkitUserSelect: 'none',
   cursor: 'pointer',
+  transition: 'filter 80ms ease, transform 80ms ease',
 };
 
 const accentStyle: React.CSSProperties = {
   ...buttonStyle,
   background: '#b45309',
+};
+
+const pressedStyle: React.CSSProperties = {
+  filter: 'brightness(0.82)',
+  transform: 'scale(0.96)',
 };
 
 interface TouchButtonProps {
@@ -41,16 +47,33 @@ export function TouchButton({
   accent = false,
   wide = false,
 }: TouchButtonProps): React.ReactElement {
-  const style = {
+  const [pressed, setPressed] = useState(false);
+
+  const style: React.CSSProperties = {
     ...(accent ? accentStyle : buttonStyle),
     ...(wide ? { minWidth: 88, flex: 1 } : null),
+    ...(pressed ? pressedStyle : null),
   };
 
-  const release = () => onRelease?.();
+  const setDown = () => setPressed(true);
+  const setUp = () => setPressed(false);
+  const release = () => {
+    setUp();
+    onRelease?.();
+  };
 
   if (onClick && !onPress) {
     return (
-      <button type="button" aria-label={ariaLabel} style={style} onClick={onClick}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        style={style}
+        onClick={onClick}
+        onPointerDown={setDown}
+        onPointerUp={setUp}
+        onPointerLeave={setUp}
+        onPointerCancel={setUp}
+      >
         {label}
       </button>
     );
@@ -63,6 +86,7 @@ export function TouchButton({
       style={style}
       onPointerDown={(e) => {
         e.preventDefault();
+        setDown();
         onPress?.();
       }}
       onPointerUp={release}

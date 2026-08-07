@@ -118,7 +118,8 @@ function bumpCombo(state: ScoreState): void {
 
 function setToast(state: ScoreState, toast: ToastKind): void {
   state.toast = toast;
-  state.toastTimer = 0.85;
+  // Fever / perfect linger a beat longer so the payoff reads clearly.
+  state.toastTimer = toast === 'fever' ? 1.25 : toast === 'perfect' ? 1.05 : 0.9;
 }
 
 export function addDistanceScore(state: ScoreState, deltaMeters: number): void {
@@ -156,7 +157,8 @@ export function tickScoreTimers(state: ScoreState, dt: number): void {
     if (state.toastTimer <= 0) state.toast = null;
   }
   if (state.nearMissFlash > 0) {
-    state.nearMissFlash = Math.max(0, state.nearMissFlash - dt * 1.8);
+    // Slower decay = longer HUD / vignette punch on near-miss.
+    state.nearMissFlash = Math.max(0, state.nearMissFlash - dt * 1.15);
   }
   if (state.combo <= 0) return;
   state.comboTimer -= dt;

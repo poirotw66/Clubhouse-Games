@@ -14,10 +14,14 @@ export interface HudSnapshot {
   itemRoll: number;
   shields: number;
   driftLevel: number;
+  /** 0–1 progress toward max drift charge while drifting. */
+  driftFill: number;
   boosting: boolean;
   countdown: number;
   phase: string;
   lapFlash: number;
+  /** Optional callout under lap banner (e.g. new best lap). */
+  lapNote: string;
   itemsEnabled: boolean;
   timeTrial: boolean;
 }
@@ -30,7 +34,8 @@ const ITEM_LABEL: Record<ItemId, string> = {
 };
 
 const PLACE_SUFFIX = ['', 'st', 'nd', 'rd', 'th'];
-const DRIFT_COLOR = ['transparent', '#4fc3ff', '#ff9a2e', '#c56bff'];
+const DRIFT_COLOR = ['#94a3b8', '#4fc3ff', '#ff9a2e', '#c56bff'];
+const DRIFT_LABEL = ['蓄力', '藍噴', '橘噴', '紫噴'];
 
 function ItemSlot({item, roll}: {item: ItemId | null; roll: number}) {
   // While the roulette spins, cycle the icon for a beat before it settles.
@@ -167,13 +172,26 @@ export function Hud({
         <p className="font-mono text-xs text-white/85">{Math.max(0, Math.round(snap.speed))} km/h</p>
       </div>
 
-      {/* Drift charge */}
-      {snap.driftLevel > 0 && (
-        <div className="absolute bottom-16 left-1/2 h-2.5 w-40 -translate-x-1/2 overflow-hidden rounded-full bg-slate-950/50">
-          <div
-            className="h-full w-full"
-            style={{background: DRIFT_COLOR[snap.driftLevel] ?? 'transparent'}}
-          />
+      {/* Drift charge — progressive fill + level label */}
+      {snap.driftFill > 0 && (
+        <div className="absolute bottom-16 left-1/2 w-48 -translate-x-1/2">
+          <p
+            className="mb-1 text-center text-xs font-black tracking-wider drop-shadow"
+            style={{color: DRIFT_COLOR[snap.driftLevel] ?? '#94a3b8'}}
+          >
+            {DRIFT_LABEL[snap.driftLevel] ?? '蓄力'}
+            {snap.driftLevel >= 3 ? ' MAX' : ''}
+          </p>
+          <div className="h-3 overflow-hidden rounded-full border border-white/20 bg-slate-950/60">
+            <div
+              className="h-full rounded-full transition-[width] duration-75"
+              style={{
+                width: `${Math.max(6, snap.driftFill * 100)}%`,
+                background: DRIFT_COLOR[snap.driftLevel] ?? '#94a3b8',
+                boxShadow: snap.driftLevel > 0 ? `0 0 10px ${DRIFT_COLOR[snap.driftLevel]}` : undefined,
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -193,9 +211,12 @@ export function Hud({
       {/* Lap banner */}
       {snap.lapFlash > 0 && (
         <div ref={lapFlashRef} className="absolute inset-x-0 top-1/3 grid place-items-center">
-          <p className="rounded-xl bg-amber-400/90 px-6 py-2 text-3xl font-black text-slate-950">
-            LAP {snap.lap}
-          </p>
+          <div className="rounded-xl bg-amber-400/90 px-6 py-2 text-center">
+            <p className="text-3xl font-black text-slate-950">第 {snap.lap} 圈</p>
+            {snap.lapNote ? (
+              <p className="text-sm font-bold text-emerald-900">{snap.lapNote}</p>
+            ) : null}
+          </div>
         </div>
       )}
     </div>

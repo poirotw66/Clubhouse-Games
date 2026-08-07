@@ -12,27 +12,28 @@ export const HINTS = [
   {
     id: 'irons',
     dwell: 2.5,
-    text: '頂風偏慢：轉開一點再按 ↑，橫風會更快。',
+    // No-go cone: boat sits in irons; teach "fall off" before boosting.
+    text: '正頂風（紅區）推不動：← → 轉開約 40° 離開紅區，再按住加速。',
   },
   {
     id: 'luffing',
     dwell: 3,
-    text: '帆在抖，沒吃滿風：按 Z 收帆，或按 C 交給自動調帆。',
+    text: '帆在抖＝沒吃滿風：按 Z 收帆到不再抖；或按 C 交給自動調帆。',
   },
   {
     id: 'stalled',
     dwell: 2.5,
-    text: '太慢了！按住 ↑ 加速，← → 對準綠色箭頭。',
+    text: '船幾乎停住了：按住加速（↑ 或螢幕「加速」），← → 對準綠箭頭。',
   },
   {
     id: 'receding',
     dwell: 12,
-    text: '跑偏了：看船頭綠箭頭，轉彎對準下一門再加速。',
+    text: '離下一門越來越遠：看船頭綠箭頭，轉彎對準閘門再開加速。',
   },
   {
     id: 'offCourse',
     dwell: 6,
-    text: '航向偏了：← → 把綠箭頭轉到正上方，再按 ↑。',
+    text: '航向偏了：← → 把綠箭頭轉到正上方（船首），再按住加速。',
   },
 ];
 

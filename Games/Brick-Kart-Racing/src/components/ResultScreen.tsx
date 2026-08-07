@@ -34,47 +34,70 @@ export function ResultScreen({
   const track = TRACKS.find((t) => t.id === trackId);
   const won = player.place === 1;
   const character = CHARACTERS.find((c) => c.id === player.charId)!;
-  const flags = [
-    timeTrial ? '計時賽' : '對戰賽',
-    mirror ? '鏡像' : null,
-    !timeTrial && !itemsEnabled ? '無道具' : null,
-  ]
+  const finishedLaps = player.lapTimes.filter((t) => t > 0);
+  const avgLap =
+    finishedLaps.length > 0
+      ? finishedLaps.reduce((a, b) => a + b, 0) / finishedLaps.length
+      : 0;
+
+  const badge = [track?.name, mirror ? '鏡像' : null, timeTrial ? '計時賽' : '對戰賽']
     .filter(Boolean)
     .join(' · ');
 
-  return (
-    <div className="absolute inset-0 z-30 grid place-items-center overflow-y-auto bg-slate-950/85 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
-        <p className="text-center text-xs font-bold tracking-[0.3em] text-amber-400">
-          {track?.name}
-          {mirror ? ' · 鏡像' : ''} · 完賽
-        </p>
-        <p className="mt-1 text-center text-[11px] text-slate-500">{flags}</p>
-        <div className="my-2 flex justify-center">
-          <BrickPreview bricks={kartBricks(character)} size={110} spin={won} yaw={0.6} />
-        </div>
-        <h2
-          className={`text-center text-3xl font-black ${
-            timeTrial || won ? 'text-amber-300' : 'text-slate-100'
-          }`}
-        >
-          {timeTrial ? '計時完賽' : won ? '冠軍！' : `第 ${player.place} 名`}
-        </h2>
-        {isNewRecord && (
-          <p className="mt-1 text-center text-sm font-bold text-emerald-300">🏁 新的最佳單圈紀錄</p>
-        )}
+  const title = timeTrial ? '計時完賽' : won ? '你拿下冠軍！' : `第 ${player.place} 名完賽`;
+  const subtitle = timeTrial
+    ? isNewRecord
+      ? '新的最佳單圈寫進本機紀錄了。'
+      : '再壓一點彎道，單圈還能更快。'
+    : won
+      ? isNewRecord
+        ? '冠軍兼最佳單圈——漂亮的一場。'
+        : '搶下第一名！要不要再比一場？'
+      : isNewRecord
+        ? '名次雖非第一，但單圈破了紀錄。'
+        : '差一點——調轉向時機再挑戰一次。';
 
-        <dl className="my-4 grid grid-cols-2 gap-2 text-center">
-          <div className="rounded-xl bg-slate-800/70 p-3">
-            <dt className="text-[11px] text-slate-400">總時間</dt>
-            <dd className="font-mono text-lg font-bold text-white">
-              {formatTime(player.finishTime)}
-            </dd>
-          </div>
-          <div className="rounded-xl bg-slate-800/70 p-3">
-            <dt className="text-[11px] text-slate-400">最佳單圈</dt>
-            <dd className="font-mono text-lg font-bold text-white">{formatTime(bestLap)}</dd>
-          </div>
+  const variant = timeTrial || won ? 'text-emerald-300' : 'text-slate-100';
+
+  const stats: {label: string; value: string}[] = [
+    {label: timeTrial ? '模式' : '名次', value: timeTrial ? '計時賽' : `第 ${player.place} 名`},
+    {label: '總時間', value: formatTime(player.finishTime)},
+    {label: '最佳單圈', value: formatTime(bestLap)},
+  ];
+  if (avgLap > 0) stats.push({label: '平均單圈', value: formatTime(avgLap)});
+  if (!timeTrial && !itemsEnabled) stats.push({label: '規則', value: '無道具'});
+
+  return (
+    <div
+      className="absolute inset-0 z-30 grid place-items-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl sm:p-8">
+        <p className="mb-2 text-center text-sm font-semibold tracking-wide text-amber-300">
+          {badge}
+        </p>
+        <div className="mb-2 flex justify-center">
+          <BrickPreview bricks={kartBricks(character)} size={96} spin={won || timeTrial} yaw={0.6} />
+        </div>
+        <h2 className={`mb-2 text-center text-2xl font-bold sm:text-3xl ${variant}`}>{title}</h2>
+        <p className="mb-1 text-center text-sm text-slate-300">{subtitle}</p>
+        {isNewRecord && (
+          <p className="mb-4 text-center text-sm font-bold text-emerald-300">新最佳單圈紀錄</p>
+        )}
+        {!isNewRecord && <div className="mb-4" />}
+
+        <dl className="mb-5 grid gap-2 text-sm">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="flex justify-between rounded-lg border border-white/5 bg-slate-800/80 px-3 py-2"
+            >
+              <dt className="text-slate-400">{stat.label}</dt>
+              <dd className="font-mono font-semibold tabular-nums text-white">{stat.value}</dd>
+            </div>
+          ))}
         </dl>
 
         {!timeTrial && (
@@ -104,22 +127,20 @@ export function ResultScreen({
           </ol>
         )}
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onMenu}
-            className="flex-1 rounded-xl border border-white/15 bg-slate-800 py-3 font-bold text-slate-200 transition hover:bg-slate-700"
-          >
-            回選單
-          </button>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="flex-1 rounded-xl bg-amber-400 py-3 font-black text-slate-950 transition hover:bg-amber-300"
-          >
-            再比一場
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-emerald-500"
+        >
+          再玩一局
+        </button>
+        <button
+          type="button"
+          onClick={onMenu}
+          className="mt-2 w-full rounded-xl border border-white/15 bg-slate-800 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-slate-700"
+        >
+          回選單
+        </button>
       </div>
     </div>
   );

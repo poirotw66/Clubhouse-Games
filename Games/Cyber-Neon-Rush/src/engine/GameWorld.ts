@@ -15,6 +15,8 @@ import {
   OBSTACLE_DESPAWN_BEHIND,
   OBSTACLE_MAX_GAP,
   OBSTACLE_MIN_GAP,
+  EARLY_SAFE_Z,
+  FIRST_OBSTACLE_Z,
   OBSTACLE_SPAWN_AHEAD,
   PERFECT_MISS_WINDOW,
   SPEED_RAMP_PER_METER,
@@ -236,8 +238,8 @@ export function createGameWorld(): GameWorld {
       const wave = patternStep % 4;
       patternStep += 1;
 
-      if (nextObstacleZ < 90) {
-        // Opening: single side obstacle, readable.
+      if (nextObstacleZ < EARLY_SAFE_Z) {
+        // Opening: single side obstacle, readable — gentler early pacing.
         addObstacle(nextObstacleZ, Math.random() < 0.5 ? 0 : 2, kind);
       } else if (wave === 0) {
         // Gate: block two lanes, leave one open.
@@ -270,10 +272,12 @@ export function createGameWorld(): GameWorld {
         addPickup(nextObstacleZ + 4, bait);
       }
 
+      const earlyBonus = nextObstacleZ < EARLY_SAFE_Z + 80 ? 6 : 0;
       const gap =
         OBSTACLE_MIN_GAP +
         Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP) -
-        difficulty * 8;
+        difficulty * 8 +
+        earlyBonus;
       nextObstacleZ += Math.max(9, gap);
     }
   }
@@ -304,7 +308,7 @@ export function createGameWorld(): GameWorld {
     score = createScoreState();
     result = null;
     phase = 'running';
-    nextObstacleZ = 55;
+    nextObstacleZ = FIRST_OBSTACLE_Z;
     patternStep = 0;
     roadCursor = -TRACK_BEHIND;
     cityCursor = -TRACK_BEHIND;
@@ -367,6 +371,15 @@ export function createGameWorld(): GameWorld {
     camera.rotateZ(camRoll);
 
     rim.position.set(ox + laneBody.x, 2.5, z + 2);
+    // Fever / near-miss punch: brighter magenta rim so the reward is visible in-world.
+    const flashBoost = score.nearMissFlash * 2.2;
+    if (isFever(score.combo)) {
+      rim.color.setHex(0xf472b6);
+      rim.intensity = 2.4 + flashBoost;
+    } else {
+      rim.color.setHex(0x22d3ee);
+      rim.intensity = 1.6 + flashBoost;
+    }
     ground.position.set(ox, -0.05, z);
   }
 
@@ -402,8 +415,10 @@ export function createGameWorld(): GameWorld {
         obs.scored = true;
         const lateral = Math.abs(laneBody.x - laneToX(obs.lane));
         if (lateral < NEAR_MISS_WINDOW) {
-          registerNearMiss(score, lateral < PERFECT_MISS_WINDOW);
-          shake = Math.max(shake, lateral < PERFECT_MISS_WINDOW ? 0.12 : 0.06);
+          const perfect = lateral < PERFECT_MISS_WINDOW;
+          registerNearMiss(score, perfect);
+          // Stronger cam punch so near-miss / perfect reads in the hands.
+          shake = Math.max(shake, perfect ? 0.22 : 0.14);
         }
       }
     }

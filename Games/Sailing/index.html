@@ -23,8 +23,20 @@
       <h1 class="title-brand">海灣帆航</h1>
       <p class="title-tag">按住加速、轉彎衝過閘門 — 海灣競速</p>
       <button type="button" id="btn-start" class="btn primary">開始航行</button>
-      <p class="title-hint"><strong>↑ 加速</strong> · <strong>← → 轉彎</strong> · 從閘門正中穿過有時間獎勵</p>
-      <p class="title-hint">簡單模式＝街機手感（不用懂風帆）；關掉才是真實帆船物理</p>
+      <p class="title-hint"><strong>加速</strong> · <strong>左右轉彎</strong> · 閘門正中穿過有時間獎勵</p>
+      <p class="title-hint">簡單模式＝街機手感；關掉才玩真實相對風與調帆</p>
+    </div>
+
+    <!-- One-shot first-run tip; dismissed into localStorage. -->
+    <div id="tutorial-tip" class="panel tutorial" hidden>
+      <h2>出航小抄</h2>
+      <ul>
+        <li><strong>風</strong>：相對風落在紅區＝正頂風，幾乎推不動，要轉開再加速。</li>
+        <li><strong>換舷</strong>：頂風要走 Z 字；簡單模式可點「一鍵換舷」。</li>
+        <li><strong>調帆</strong>：簡單模式自動吃風；真實模式帆抖就按 Z 收帆。</li>
+      </ul>
+      <p class="tutorial-easy">簡單模式：按住<strong>加速</strong>，左右轉彎對準綠箭頭，穿過綠色閘門。</p>
+      <button type="button" id="btn-tutorial-ok" class="btn primary">知道了，開航</button>
     </div>
 
     <header class="top-bar">
@@ -172,24 +184,38 @@
     <div id="help-panel" class="panel" hidden>
       <h2>操作說明</h2>
       <ul>
-        <li><kbd>↑</kbd> 或 <kbd>W</kbd>：<strong>加速</strong>（簡單模式必按，放開會變慢）</li>
-        <li><kbd>←</kbd> <kbd>→</kbd> 或 <kbd>A</kbd> <kbd>D</kbd>：轉彎對準下一扇綠色閘門</li>
-        <li><kbd>空白鍵</kbd>：快速換舷（急轉）</li>
+        <li><kbd>↑</kbd> / <kbd>W</kbd> 或螢幕<strong>加速</strong>：按住才會快（簡單模式）</li>
+        <li><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd> 或螢幕左右：轉彎對準綠色閘門</li>
+        <li><kbd>空白鍵</kbd> 或<strong>一鍵換舷</strong>：快速翻到另一舷</li>
         <li>從閘門<strong>正中央</strong>穿過：扣時間 + 瞬間加速</li>
-        <li>拖曳畫面：環顧　·　<kbd>R</kbd>：重開</li>
+        <li>拖曳畫面環顧　·　<kbd>R</kbd> 重開</li>
       </ul>
-      <p><strong>簡單模式</strong>（預設）：街機競速 — 船往哪指就往哪開，按 ↑ 才會快。<strong>帆角會自動調到最佳攻角</strong>，不用管收放帆。綠箭頭提示下一門方向。</p>
-      <p><strong>關閉簡單模式</strong>：改玩真實相對風與調帆，頂風區無法前進。</p>
-      <p><strong>船頭提示</strong>：綠色「前進」＝建議航向；橘色「風」＝風向。</p>
+      <p><strong>風與紅區</strong>：相對風落在羅盤紅區＝正頂風，幾乎無推力，轉開約 40° 再加速。</p>
+      <p><strong>簡單模式</strong>（預設）：街機競速，帆自動調好；綠箭頭＝建議航向。手機只靠螢幕按鈕即可完賽。</p>
+      <p><strong>關閉簡單模式</strong>：真實相對風與調帆；帆抖＝放太鬆，按 Z 收帆。</p>
       <button type="button" id="btn-help-close" class="btn primary">關閉</button>
     </div>
 
     <div id="finish-panel" class="panel finish" hidden>
-      <h2>完賽！</h2>
-      <p>全程 <strong id="finish-time">—</strong></p>
-      <p>最佳 <strong id="finish-best">—</strong></p>
+      <h2 id="finish-heading">完賽！</h2>
+      <p id="finish-record" class="finish-record" hidden>新紀錄</p>
+      <div class="finish-stats" aria-label="完賽成績">
+        <div class="finish-stat">
+          <span class="label">本次時間</span>
+          <strong id="finish-time">—</strong>
+        </div>
+        <div class="finish-stat">
+          <span class="label">歷史最佳</span>
+          <strong id="finish-best">—</strong>
+        </div>
+        <div class="finish-stat" id="finish-perfect-row" hidden>
+          <span class="label">完美穿門</span>
+          <strong id="finish-perfect">0</strong>
+        </div>
+      </div>
       <ol id="finish-splits" class="splits finish-splits"></ol>
       <button type="button" id="btn-finish-restart" class="btn primary">再航一趟</button>
+      <p class="finish-cta-hint">點上方按鈕重開，或按 <kbd>R</kbd></p>
     </div>
 
     <script type="module" src="/src/main.js"></script>

@@ -17,6 +17,7 @@ const WAVE_AMP = 1.0;
 const WAVE_AMP_EASY = 0.45;
 const BEST_KEY = 'sailing-best-v3';
 const EASY_KEY = 'sailing-easy';
+const TUTORIAL_KEY = 'sailing-tutorial-v1';
 const SUN_DIR = (() => {
   const a = (28 * Math.PI) / 180;
   const e = (42 * Math.PI) / 180;
@@ -165,9 +166,14 @@ function startGame(gl, canvas) {
     toast: $('#toast'),
     countdown: $('#countdown'),
     finish: $('#finish-panel'),
+    finishHeading: $('#finish-heading'),
+    finishRecord: $('#finish-record'),
     finishTime: $('#finish-time'),
     finishBest: $('#finish-best'),
+    finishPerfect: $('#finish-perfect'),
+    finishPerfectRow: $('#finish-perfect-row'),
     finishSplits: $('#finish-splits'),
+    tutorial: $('#tutorial-tip'),
   };
 
   function syncEasyUi() {
@@ -534,11 +540,16 @@ function startGame(gl, canvas) {
     hud.keyGo?.classList.toggle('holding', holding);
 
     let label = courseLabel || `風從${windQuarter(awaDeg)}`;
-    if (input.easy && courseLabel) {
-      label = holding ? `${courseLabel}・加速中` : `${courseLabel}・按 ↑ 加速`;
-    } else if (inIrons) label = showCourse ? '頂風・轉開再加速' : '頂風・轉舵離開';
-    else if (luffing && !input.autoTrim) label = '帆在抖・收帆 Z';
-    else if (!input.autoTrim) {
+    if (inIrons) {
+      // Loudest signal: irons overrides course chatter so the player falls off.
+      label = showCourse || input.easy
+        ? '頂風紅區・轉開再加速'
+        : '頂風紅區・← → 轉舵離開';
+    } else if (input.easy && courseLabel) {
+      label = holding ? `${courseLabel}・加速中` : `${courseLabel}・按住加速`;
+    } else if (luffing && !input.autoTrim) {
+      label = '帆在抖・收帆 Z';
+    } else if (!input.autoTrim) {
       const a = Math.abs(awaDeg);
       const windBit = `風從${windQuarter(awaDeg)}`;
       if (a < 75) label = courseLabel ? `${courseLabel}・收帆 Z` : `${windBit}・收帆 Z`;
@@ -631,13 +642,13 @@ function startGame(gl, canvas) {
     const awaAbs = Math.abs(awaDeg);
     hud.awa.textContent = `相對風 ${awaAbs.toFixed(0)}° ${awaDeg >= 0 ? '右' : '左'}`;
     let tip = '橫風：好走';
-    if (awaAbs < (NO_GO * 180) / Math.PI) tip = '頂風！快轉舵離開紅區';
+    if (awaAbs < (NO_GO * 180) / Math.PI) tip = '頂風紅區：轉開約 40° 才有推力';
     else if (awaAbs < 55) tip = '搶風：可走，略收帆';
     else if (awaAbs < 120) tip = '橫風／斜順：最快';
     else tip = '順風：可放帆';
-    if (boat.luffing > 0.35) tip = '帆在抖：按 Z 收帆';
+    if (boat.luffing > 0.35 && !input.autoTrim) tip = '帆在抖：按 Z 收帆吃滿風';
     hud.windTip.textContent = tip;
-    hud.windTip.classList.toggle('bad', awaAbs < (NO_GO * 180) / Math.PI || boat.luffing > 0.35);
+    hud.windTip.classList.toggle('bad', awaAbs < (NO_GO * 180) / Math.PI || (boat.luffing > 0.35 && !input.autoTrim));
     hud.windTip.classList.toggle('good', awaAbs >= 55 && awaAbs < 120 && boat.luffing < 0.2);
 
     const trimDeg = (boat.trim * 180) / Math.PI;
@@ -700,6 +711,7 @@ function startGame(gl, canvas) {
 
     if (!hint) {
       hud.coach.hidden = true;
+      hud.coach.dataset.hint = '';
       return;
     }
     if (hud.coach.dataset.hint !== hint.id) {
@@ -787,7 +799,11 @@ function startGame(gl, canvas) {
         phase = 'racing';
         raceTime = 0;
         hud.countdown.hidden = true;
-        showToast(input.easy ? '按住 ↑ 加速！← → 轉彎衝過綠色閘門' : '計時開始！穿過綠色閘門');
+        showToast(
+          input.easy
+            ? '按住加速！左右轉彎衝過綠色閘門'
+            : '計時開始！避開頂風紅區，穿過綠色閘門'
+        );
       }
     } else if (phase === 'racing') {
       controls = applyEasyHelms(input.sample(dt), dt);
@@ -814,23 +830,31 @@ function startGame(gl, canvas) {
           phase = 'finished';
           coach.reset();
           hud.coach.hidden = true;
-          if (bestTime == null || raceTime < bestTime) {
+          const isRecord = bestTime == null || raceTime < bestTime;
+          if (isRecord) {
             bestTime = raceTime;
             localStorage.setItem(BEST_KEY, String(bestTime));
           }
           hud.finish.hidden = false;
+          if (hud.finishHeading) {
+            hud.finishHeading.textContent = isRecord ? '完賽・新紀錄！' : '完賽！';
+          }
+          if (hud.finishRecord) hud.finishRecord.hidden = !isRecord;
           hud.finishTime.textContent = formatTime(raceTime);
           hud.finishBest.textContent = formatTime(bestTime);
-          const perfectLine = perfectGates > 0
-            ? `<li><span>完美穿門</span><span>${perfectGates} 次</span></li>`
-            : '';
-          hud.finishSplits.innerHTML = perfectLine + splits
+          if (hud.finishPerfectRow && hud.finishPerfect) {
+            hud.finishPerfectRow.hidden = perfectGates <= 0;
+            hud.finishPerfect.textContent = `${perfectGates} 次`;
+          }
+          hud.finishSplits.innerHTML = splits
             .map((s) => `<li><span>${s.name}</span><span>${formatTime(s.time)}</span></li>`)
             .join('');
           showToast(
-            perfectGates > 0
-              ? `完賽 ${formatTime(raceTime)} · 完美 ${perfectGates}`
-              : `完賽 ${formatTime(raceTime)}`
+            isRecord
+              ? `新紀錄 ${formatTime(raceTime)}！再航挑戰？`
+              : perfectGates > 0
+                ? `完賽 ${formatTime(raceTime)} · 完美 ${perfectGates}`
+                : `完賽 ${formatTime(raceTime)} · 再航一趟？`
           );
         }
       }
@@ -912,10 +936,23 @@ function startGame(gl, canvas) {
     requestAnimationFrame(frame);
   }
 
+  function dismissTutorial() {
+    localStorage.setItem(TUTORIAL_KEY, '1');
+    if (hud.tutorial) hud.tutorial.hidden = true;
+  }
+
+  function maybeShowTutorial() {
+    if (localStorage.getItem(TUTORIAL_KEY) === '1') return;
+    if (hud.tutorial) hud.tutorial.hidden = false;
+  }
+
+  $('#btn-tutorial-ok')?.addEventListener('click', dismissTutorial);
+
   const overlay = $('#title-overlay');
   const dismiss = () => {
     overlay?.classList.add('hidden');
     setTimeout(() => overlay?.remove(), 500);
+    maybeShowTutorial();
   };
   $('#btn-start')?.addEventListener('click', dismiss);
   window.addEventListener('keydown', (e) => {

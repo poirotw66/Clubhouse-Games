@@ -1,5 +1,9 @@
 # 積木賽車（Brick Kart Racing）
 
+## 操作教學
+
+首次進入選單會顯示可關閉的操作教學（轉向／飄移小噴／道具）；關閉後以 `localStorage`（`brick-kart-racing:howto-seen`）記住，亦可從標題下「操作教學」再次開啟。
+
 ## 類別
 
 運動機檯類型

@@ -44,6 +44,13 @@ export const CAMERA_ROLL_GAIN = 0.12;
 
 export const BEST_SCORE_KEY = 'cyber-neon-rush:best-score';
 export const BEST_DISTANCE_KEY = 'cyber-neon-rush:best-distance';
+/** First-run tip dismissed — do not show again. */
+export const TIP_SEEN_KEY = 'cyber-neon-rush:tip-seen';
+
+/** Opening stretch uses single-lane obstacles only (meters along track). */
+export const EARLY_SAFE_Z = 130;
+/** First obstacle appears after this many meters. */
+export const FIRST_OBSTACLE_Z = 72;
 
 /**
  * Lane 0 = screen-left, lane 2 = screen-right.

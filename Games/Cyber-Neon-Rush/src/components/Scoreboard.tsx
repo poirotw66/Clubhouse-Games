@@ -11,8 +11,8 @@ function formatMult(m: number): string {
 }
 
 const TOAST_LABEL: Record<Exclude<HudSnapshot['toast'], null>, string> = {
-  near: 'NEAR MISS',
-  perfect: 'PERFECT',
+  near: '擦身而過',
+  perfect: '完美閃避',
   boost: 'NITRO',
   fever: 'FEVER',
 };
@@ -22,7 +22,11 @@ export function Scoreboard({ hud, visible }: ScoreboardProps): ReactElement | nu
   const flash = hud.nearMissFlash > 0.05;
   const boosting = hud.boostT > 0.05;
   return (
-    <div className={`scoreboard ${hud.fever ? 'fever' : ''}`} aria-live="polite" aria-label="動態計分板">
+    <div
+      className={`scoreboard ${hud.fever ? 'fever' : ''} ${flash ? 'near-flash' : ''}`}
+      aria-live="polite"
+      aria-label="動態計分板"
+    >
       <div className="scoreboard-inner">
         <div className={`score-cell ${flash ? 'flash' : ''}`}>
           <div className="score-label">分數</div>

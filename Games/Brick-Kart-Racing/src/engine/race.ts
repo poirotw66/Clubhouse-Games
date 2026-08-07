@@ -114,6 +114,8 @@ export interface RaceState {
   itemsEnabled: boolean;
   events: string[];
   playerIndex: number;
+  /** Remaining soft launch assist (easy tier only). */
+  startAssist: number;
 }
 
 const BASE_TOP_SPEED = 330;
@@ -155,6 +157,12 @@ export function driftLevel(charge: number): number {
   let level = 0;
   for (let i = 0; i < DRIFT_LEVELS.length; i++) if (charge >= DRIFT_LEVELS[i].charge) level = i + 1;
   return level;
+}
+
+/** 0–1 fill toward max mini-turbo charge (for HUD meter). */
+export function driftFill(charge: number): number {
+  const max = DRIFT_LEVELS[DRIFT_LEVELS.length - 1].charge;
+  return Math.max(0, Math.min(1, charge / max));
 }
 
 export function createRace(
@@ -229,6 +237,7 @@ export function createRace(
     itemsEnabled: options.mode === 'timeTrial' ? false : options.itemsEnabled,
     events: [],
     playerIndex: 0,
+    startAssist: 0,
   };
   updatePlaces(state);
   return state;
@@ -460,6 +469,9 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
     const gap = (player.progress - r.progress) / n;
     topSpeed *= 1 + Math.max(-0.06, Math.min(0.1, gap * 0.22));
   }
+  // Easy tier: brief launch cushion so the player doesn't stall off the line.
+  const assist = r.isPlayer && state.startAssist > 0 ? 1.08 : 1;
+  topSpeed *= assist;
   if (r.boostTime > 0) {
     topSpeed *= BOOST_TOP_MULT;
     r.boostTime -= dt;
@@ -468,7 +480,9 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
   let vf = r.vx * fx + r.vy * fy;
   let vl = r.vx * rx + r.vy * ry;
 
-  const accelRate = r.boostTime > 0 ? BOOST_ACCEL : input.throttle ? BASE_ACCEL * c.accel : 0;
+  const accelRate =
+    (r.boostTime > 0 ? BOOST_ACCEL : input.throttle ? BASE_ACCEL * c.accel : 0) *
+    (r.isPlayer && state.startAssist > 0 ? 1.18 : 1);
   if (accelRate > 0) {
     // Acceleration never pushes past the current ceiling. Speed above it only
     // ever comes from a boost that has since expired, and bleeds off below.
@@ -716,6 +730,8 @@ export function stepRace(state: RaceState, playerInput: RaceInput, dt: number): 
       state.phase = 'racing';
       state.countdown = 0;
       state.events.push('go');
+      // Soft start assist on easy CPU tier only.
+      if (state.difficulty === 'easy') state.startAssist = 1.7;
     }
     // Karts stay put but the item roulette and shields keep animating.
     for (const r of state.racers) r.shieldAngle += dt * 3.4;
@@ -723,6 +739,7 @@ export function stepRace(state: RaceState, playerInput: RaceInput, dt: number): 
   }
 
   state.time += dt;
+  if (state.startAssist > 0) state.startAssist = Math.max(0, state.startAssist - dt);
 
   for (const r of state.racers) {
     if (r.finished) {
