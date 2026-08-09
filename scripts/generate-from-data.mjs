@@ -14,7 +14,10 @@ const root = path.join(__dirname, '..');
 
 const DATA_PATH = path.join(root, 'data', 'games.json');
 const INDEX_PATH = path.join(root, 'index.html');
-const README_PATH = path.join(root, 'README.md');
+// Both READMEs carry the same generated blocks; only the prose around them
+// differs. README_tw.md was left out here once and silently drifted a game
+// behind, so keep them in one list.
+const README_PATHS = [path.join(root, 'README.md'), path.join(root, 'README_tw.md')];
 
 const CATEGORY_SVG = {
   cards: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
@@ -185,8 +188,10 @@ console.log('Updated index.html');
 
 const tableMd = generateReadmeTable(categories);
 const checklistMd = generateReadmeChecklist(categories);
-let readmeContent = fs.readFileSync(README_PATH, 'utf8');
-readmeContent = replaceBetween(readmeContent, '<!-- GENERATED_TABLE -->', '<!-- /GENERATED_TABLE -->', tableMd.trim());
-readmeContent = replaceBetween(readmeContent, '<!-- GENERATED_GAMES_CHECKLIST -->', '<!-- /GENERATED_GAMES_CHECKLIST -->', checklistMd.trim());
-fs.writeFileSync(README_PATH, readmeContent);
-console.log('Updated README.md');
+for (const readmePath of README_PATHS) {
+  let readmeContent = fs.readFileSync(readmePath, 'utf8');
+  readmeContent = replaceBetween(readmeContent, '<!-- GENERATED_TABLE -->', '<!-- /GENERATED_TABLE -->', tableMd.trim());
+  readmeContent = replaceBetween(readmeContent, '<!-- GENERATED_GAMES_CHECKLIST -->', '<!-- /GENERATED_GAMES_CHECKLIST -->', checklistMd.trim());
+  fs.writeFileSync(readmePath, readmeContent);
+  console.log(`Updated ${path.basename(readmePath)}`);
+}
