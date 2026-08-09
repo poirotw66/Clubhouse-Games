@@ -186,6 +186,14 @@
           "players": "1–2 人",
           "specPath": "05-puzzle/puyo-puyo.md",
           "gameFolder": "Puyo-Puyo"
+        },
+        {
+          "name": "發條守城",
+          "en": "Clockwork Keep",
+          "desc": "塔就是牆的築迷宮塔防：改寫敵人最短路，但不得封死出口。",
+          "players": "1 人",
+          "specPath": "05-puzzle/clockwork-keep.md",
+          "gameFolder": "Clockwork-Keep"
         }
       ]
     },
