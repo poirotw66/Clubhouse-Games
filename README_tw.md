@@ -40,7 +40,7 @@
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 6 |
-| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 4 |
+| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 5 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 2 |
 <!-- /GENERATED_TABLE -->
 
@@ -74,6 +74,7 @@
 - [x] [俄羅斯方塊](05-puzzle/tetris.md) → [Games/Tetris/](Games/Tetris/)
 - [x] [蛇窟迴廊（Roguelike 貪吃蛇）](05-puzzle/roguelike-snake.md) → [Games/Roguelike-Snake/](Games/Roguelike-Snake/)
 - [x] [魔法氣泡](05-puzzle/puyo-puyo.md) → [Games/Puyo-Puyo/](Games/Puyo-Puyo/)
+- [x] [發條守城](05-puzzle/clockwork-keep.md) → [Games/Clockwork-Keep/](Games/Clockwork-Keep/)
 
 ## 06-迷你遊戲
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
