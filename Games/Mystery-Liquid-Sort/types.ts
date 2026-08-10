@@ -26,6 +26,13 @@ export interface BottleData {
   layers: Layer[];
   capacity: number;
   isCompleted: boolean; // True if full and single color
+  /**
+   * True when this bottle belongs to a board where liquid mixing (see
+   * services/gameLogic.ts: MIXING_MIN_LEVEL, MIX_RESULTS) is allowed.
+   * Optional and defaults to falsy — bottles built outside generateLevel
+   * (e.g. the "buy a bottle" power-up in Game.tsx) simply don't opt in.
+   */
+  mixingEnabled?: boolean;
 }
 
 export interface Order {
