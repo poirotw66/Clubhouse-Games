@@ -1,4 +1,4 @@
-import type { BottleData, Color, Layer, Order } from '../types';
+import { Color, type BottleData, type Layer, type Order } from '../types.ts';
 import { getCapacityForLevel, LEVEL_COLORS } from '../constants.ts';
 
 // Helper to create a unique ID
@@ -9,6 +9,50 @@ export const createLayer = (color: Color, isHidden: boolean = false): Layer => (
   isHidden,
   id: uid(),
 });
+
+// --- MIXING ---
+//
+// Three 1:1, volume-preserving mixing pairs. Mixing is deliberately
+// irreversible: there is no "unmix" move — pourLiquid only ever turns two
+// distinct colours into one new one, never the other way round.
+//
+// Rule for a colour that is BOTH a mix product AND an ordinary LEVEL_COLORS
+// entry (GREEN, PURPLE and ORANGE all are, at their respective tiers): a
+// unit produced by mixing is the exact same Color value as a unit placed
+// directly on the board — there is no separate "mixed orange" vs "real
+// orange". It satisfies orders and bottle-completion identically either
+// way. What generateLevel controls is only *how much* of that colour starts
+// pre-made on the board vs. must be produced by mixing (see
+// MIXING_MIN_LEVEL below).
+const MIX_RESULTS: Record<string, Color> = {};
+const MIX_COMPONENTS = new Map<Color, [Color, Color]>();
+function registerMix(a: Color, b: Color, result: Color) {
+  MIX_RESULTS[[a, b].sort().join('|')] = result;
+  MIX_COMPONENTS.set(result, [a, b]);
+}
+registerMix(Color.RED, Color.YELLOW, Color.ORANGE);
+registerMix(Color.BLUE, Color.YELLOW, Color.GREEN);
+registerMix(Color.RED, Color.BLUE, Color.PURPLE);
+
+function getMixResult(a: Color, b: Color): Color | undefined {
+  return MIX_RESULTS[[a, b].sort().join('|')];
+}
+
+/**
+ * Level tier at which mixing unlocks. Deliberately not the level>=10
+ * capacity bump to 6 itself (see getCapacityForLevel in constants.ts):
+ * levels 10-11 still run on a single spare bottle (extraBottles==1), which
+ * was already this generator's hardest band pre-mixing, and combined with
+ * the mix-only colour reservation below it made a solvable random layout
+ * rare enough that generation routinely blew the 100ms budget. Level 12 is
+ * where extraBottles jumps to 2 *and* capacity is still a flat 6 (even, so
+ * a mix-only colour's full capacity-worth is always evenly reachable as
+ * capacity/2 + capacity/2 of its two primary components — e.g. 3 red + 3
+ * yellow -> 6 orange). Below this tier the game stays a pure sorting game:
+ * no bottle ever carries mixingEnabled, so canPour never takes the mixing
+ * branch.
+ */
+export const MIXING_MIN_LEVEL = 12;
 
 /**
  * Checks if a move is valid.
@@ -26,8 +70,15 @@ export const canPour = (source: BottleData, target: BottleData): boolean => {
   // Cannot pour hidden layers
   if (sourceTop.isHidden) return false;
 
-  // Must match color
-  return sourceTop.color === targetTop.color;
+  // Same colour: always allowed (ordinary merge).
+  if (sourceTop.color === targetTop.color) return true;
+
+  // Different colours: allowed only as a mixing pour, and only on a board
+  // where mixing is unlocked (either bottle carries mixingEnabled — see the
+  // BottleData doc comment) and this exact pair is one of the 3 known
+  // mixing recipes.
+  if (!source.mixingEnabled && !target.mixingEnabled) return false;
+  return getMixResult(sourceTop.color, targetTop.color) !== undefined;
 };
 
 /**
@@ -44,6 +95,52 @@ export const pourLiquid = (
 
   const sourceTop = sourceLayers[sourceLayers.length - 1];
   const colorToMove = sourceTop.color;
+
+  // Mixing pour: source and target tops are different colours that form a
+  // known mixing pair (canPour already confirmed this is legal). The
+  // reaction is always 1:1 by volume (1 unit of each becomes 2 units of the
+  // mixed colour) — but, exactly like an ordinary same-colour pour moves a
+  // whole contiguous run in one action rather than one unit at a time, a
+  // single mixing pour reacts as many 1:1 pairs as fit in one go: as much of
+  // source's top run as target's top run can match, capped by target's free
+  // space (each reacted pair nets +1 layer in target). This keeps mixing a
+  // single deliberate, irreversible player decision per pour rather than a
+  // long forced sequence of 1-unit taps.
+  if (targetLayers.length > 0) {
+    const targetTop = targetLayers[targetLayers.length - 1];
+    if (targetTop.color !== colorToMove) {
+      const mixedColor = getMixResult(colorToMove, targetTop.color);
+      if (mixedColor) {
+        let sourceRun = 0;
+        for (let i = sourceLayers.length - 1; i >= 0 && sourceLayers[i].color === colorToMove && !sourceLayers[i].isHidden; i--) sourceRun++;
+        let targetRun = 0;
+        for (let i = targetLayers.length - 1; i >= 0 && targetLayers[i].color === targetTop.color; i--) targetRun++;
+        const freeSpace = target.capacity - targetLayers.length;
+        const pairs = Math.max(1, Math.min(sourceRun, targetRun, freeSpace));
+
+        for (let i = 0; i < pairs; i++) sourceLayers.pop();
+        for (let i = 0; i < pairs; i++) targetLayers.pop();
+        for (let i = 0; i < pairs * 2; i++) targetLayers.push(createLayer(mixedColor, false));
+
+        if (sourceLayers.length > 0) {
+          const newTopIndex = sourceLayers.length - 1;
+          if (sourceLayers[newTopIndex].isHidden) {
+            sourceLayers[newTopIndex] = { ...sourceLayers[newTopIndex], isHidden: false };
+          }
+        }
+
+        const isTargetCompleted =
+          targetLayers.length === target.capacity &&
+          targetLayers.every(l => l.color === targetLayers[0].color && !l.isHidden);
+
+        return {
+          newSource: { ...source, layers: sourceLayers },
+          newTarget: { ...target, layers: targetLayers, isCompleted: isTargetCompleted },
+          movedCount: pairs,
+        };
+      }
+    }
+  }
 
   let movedCount = 0;
 
@@ -119,6 +216,9 @@ export const shuffleBottles = (bottles: BottleData[]): BottleData[] => {
   if (incomplete.length === 0) return bottles;
 
   const capacity = incomplete[0].capacity;
+  // All bottles on one board share the same mixing tier; `.some` is just a
+  // lenient way to read that shared flag back off the incoming bottles.
+  const mixingEnabled = incomplete.some(b => b.mixingEnabled);
 
   const colorCounts = new Map<Color, number>();
   incomplete.forEach(b => b.layers.forEach(l => {
@@ -130,6 +230,7 @@ export const shuffleBottles = (bottles: BottleData[]): BottleData[] => {
   colors.forEach(color => {
     for (let i = 0; i < colorCounts.get(color)!; i++) colorPool.push(color);
   });
+  const requiredColors = new Set(colors);
 
   // Borrow ids from the incomplete bottles (shuffled) so the merge-back below
   // can match by id; the first `colors.length` get the redistributed pool,
@@ -143,14 +244,14 @@ export const shuffleBottles = (bottles: BottleData[]): BottleData[] => {
 
     const working: BottleData[] = slotIds.map((id, idx) => {
       if (idx < colors.length) {
-        return { id, layers: distribution[idx].map(c => createLayer(c, false)), capacity, isCompleted: false };
+        return { id, layers: distribution[idx].map(c => createLayer(c, false)), capacity, isCompleted: false, mixingEnabled };
       }
-      return { id, layers: [], capacity, isCompleted: false };
+      return { id, layers: [], capacity, isCompleted: false, mixingEnabled };
     });
 
-    const solution = findSolutionGreedy(working);
+    const solution = findSolutionGreedy(working, requiredColors);
     if (!solution) continue;
-    if (!verifySolutionByReplay(working, solution)) continue;
+    if (!verifySolutionByReplay(working, solution, requiredColors)) continue;
 
     const withHidden = applyHiddenLayers(working, SHUFFLE_HIDDEN_PROBABILITY);
     const byId = new Map(withHidden.map(b => [b.id, b]));
@@ -320,7 +421,7 @@ export const checkStateRepetition = (currentBottles: BottleData[], history: { bo
  * (practically unreachable) fallback below, and as the base case for the
  * empty-pool edge in shuffleBottles.
  */
-const createSolvedState = (numColors: number, extraBottles: number, capacity: number) => {
+const createSolvedState = (numColors: number, extraBottles: number, capacity: number, mixingEnabled: boolean = false) => {
   const activeColors = LEVEL_COLORS.slice(0, numColors);
   const bottles: BottleData[] = [];
 
@@ -333,7 +434,8 @@ const createSolvedState = (numColors: number, extraBottles: number, capacity: nu
       id: uid(),
       layers,
       capacity,
-      isCompleted: true
+      isCompleted: true,
+      mixingEnabled
     });
   });
 
@@ -342,7 +444,8 @@ const createSolvedState = (numColors: number, extraBottles: number, capacity: nu
       id: uid(),
       layers: [],
       capacity,
-      isCompleted: false
+      isCompleted: false,
+      mixingEnabled
     });
   }
 
@@ -398,6 +501,28 @@ interface SolutionMove {
 }
 
 /**
+ * True once every bottle is empty, or full and single-colour, AND the set
+ * of full bottles' colours exactly matches `requiredColors`. The colour
+ * check matters once mixing is in play: the three mixing recipes share
+ * primaries (RED+YELLOW, BLUE+YELLOW, RED+BLUE all draw from the same 3
+ * primaries), so a board can reach a fully mono-coloured state via the
+ * "wrong" recipe — e.g. mixing RED+YELLOW into ORANGE when ORANGE isn't
+ * one of this level's active colours — which is sorted but not actually a
+ * win (that liquid can never be un-mixed back into the RED or YELLOW an
+ * order still needs). Without this check, "every bottle mono" alone would
+ * accept that as solved, which is wrong once more than one mixing recipe
+ * is available on the same board.
+ */
+function boardMatchesColors(bottles: BottleData[], requiredColors: Set<Color>): boolean {
+  if (!bottles.every(b => b.layers.length === 0 || (b.layers.length === b.capacity && b.isCompleted))) {
+    return false;
+  }
+  const fullColors = bottles.filter(b => b.isCompleted).map(b => b.layers[0].color).sort();
+  const need = [...requiredColors].sort();
+  return fullColors.length === need.length && fullColors.every((c, i) => c === need[i]);
+}
+
+/**
  * Fast heuristic solver: depth-first search ordered by a simple "make
  * progress" heuristic (finish a bottle > merge into a matching run > pour
  * into empty), with a memoised visited set to avoid revisiting states and a
@@ -408,9 +533,15 @@ interface SolutionMove {
  * and it never claims a board is UNsolvable, only "didn't find one in
  * budget". Both cases just mean the caller tries a different random layout;
  * this function is never the thing that decides a board ships.
+ *
+ * `requiredColors` is the exact set of colours this board must end up
+ * sorted into (see boardMatchesColors) — on a non-mixing board this is
+ * always automatically satisfied by "every bottle mono" alone (colours
+ * can't transmute), but once mixing is possible it's load-bearing.
  */
 function findSolutionGreedy(
   bottles: BottleData[],
+  requiredColors: Set<Color>,
   maxNodes: number = SOLVE_MAX_NODES,
   maxMs: number = SOLVE_MAX_MS
 ): SolutionMove[] | null {
@@ -419,14 +550,36 @@ function findSolutionGreedy(
   const path: SolutionMove[] = [];
   let nodes = 0;
 
-  const isSolved = (state: BottleData[]) =>
-    state.every(b => b.layers.length === 0 || (b.layers.length === b.capacity && b.isCompleted));
-
   const stateKey = (state: BottleData[]) =>
     state.map(b => b.layers.map(l => l.color).join(',')).sort().join('|');
 
-  function scoreMove(source: BottleData, target: BottleData): number {
+  // Total units of `color` anywhere on the board right now (mixed or native).
+  function colorTotal(state: BottleData[], color: Color): number {
+    let total = 0;
+    for (const b of state) for (const l of b.layers) if (l.color === color) total++;
+    return total;
+  }
+
+  function scoreMove(state: BottleData[], source: BottleData, target: BottleData): number {
     const topColor = source.layers[source.layers.length - 1].color;
+
+    // Mixing pour: net growth on target is always exactly +1 (1 unit in,
+    // target's existing top 1 unit becomes 2), unlike a same-colour pour
+    // which can move a whole run at once.
+    if (target.layers.length > 0 && target.layers[target.layers.length - 1].color !== topColor) {
+      const mixedColor = getMixResult(topColor, target.layers[target.layers.length - 1].color);
+      if (mixedColor) {
+        // Off-target entirely (not needed anywhere), OR this colour's full
+        // capacity-worth already exists on the board (from direct placement
+        // and/or earlier mixing) — either way, producing more of it can
+        // never contribute to a win: every required colour needs exactly
+        // one bottle's worth, no more, and mixing never destroys liquid.
+        if (!requiredColors.has(mixedColor) || colorTotal(state, mixedColor) >= target.capacity) return -1;
+      }
+      if (target.layers.length + 1 === target.capacity) return 2; // finishes the target bottle
+      return 1; // produces 2 units of a colour that's otherwise unobtainable
+    }
+
     let run = 0;
     for (let i = source.layers.length - 1; i >= 0 && source.layers[i].color === topColor; i--) run++;
     if (target.layers.length + run === target.capacity) return 2; // finishes the target bottle
@@ -436,7 +589,7 @@ function findSolutionGreedy(
 
   function dfs(state: BottleData[]): boolean {
     if (nodes++ > maxNodes || Date.now() - start > maxMs) return false;
-    if (isSolved(state)) return true;
+    if (boardMatchesColors(state, requiredColors)) return true;
     const key = stateKey(state);
     if (visited.has(key)) return false;
     visited.add(key);
@@ -446,7 +599,7 @@ function findSolutionGreedy(
       if (source.isCompleted || source.layers.length === 0) continue;
       for (const target of state) {
         if (source.id === target.id) continue;
-        if (canPour(source, target)) moves.push({ source, target, score: scoreMove(source, target) });
+        if (canPour(source, target)) moves.push({ source, target, score: scoreMove(state, source, target) });
       }
     }
     moves.sort((a, b) => b.score - a.score);
@@ -467,13 +620,14 @@ function findSolutionGreedy(
 
 /**
  * Replays a claimed solution through the real `canPour`/`pourLiquid`, exactly
- * as a player would execute it, and checks it actually reaches a fully
- * sorted board (every bottle empty, or full and single-colour). This is the
+ * as a player would execute it, and checks it actually reaches a board sorted
+ * into exactly `requiredColors` (see boardMatchesColors — not just "every
+ * bottle mono", which mixing can satisfy via the wrong recipe). This is the
  * cheap, exact verification step: `findSolutionGreedy` already only takes
  * legal steps, so this should always pass, but a board only ships once this
  * has independently confirmed it — nothing ships on the solver's word alone.
  */
-function verifySolutionByReplay(bottles: BottleData[], moves: SolutionMove[]): boolean {
+function verifySolutionByReplay(bottles: BottleData[], moves: SolutionMove[], requiredColors: Set<Color>): boolean {
   const state = cloneBottles(bottles);
 
   for (const move of moves) {
@@ -492,7 +646,7 @@ function verifySolutionByReplay(bottles: BottleData[], moves: SolutionMove[]): b
     state[targetIdx] = newTarget;
   }
 
-  return state.every(b => b.layers.length === 0 || (b.layers.length === b.capacity && b.isCompleted));
+  return boardMatchesColors(state, requiredColors);
 }
 
 /**
@@ -518,14 +672,18 @@ function applyHiddenLayers(bottles: BottleData[], hiddenProbability: number): Bo
 // Per-attempt solver budget: generous relative to how fast the heuristic
 // actually finds solutions (sub-millisecond in the common case), but capped
 // so a single stubborn layout can't eat the whole generation budget.
-const SOLVE_MAX_NODES = 8000;
-const SOLVE_MAX_MS = 20;
+const SOLVE_MAX_NODES = 4000;
+const SOLVE_MAX_MS = 10;
 // Overall retry budget: bounds both attempt count and wall-clock time, so
 // generation always stays well inside the 100ms target even on the
 // hardest, lowest-spare-capacity tiers (levels 5-11), where a solvable
 // random layout is rarer and more attempts are typically needed.
 const GENERATE_MAX_ATTEMPTS = 150;
-const GENERATE_TIME_BUDGET_MS = 80;
+const GENERATE_TIME_BUDGET_MS = 65;
+// generateLevel's second (extraBottles+1) attempt gets this smaller,
+// separate window rather than a fresh GENERATE_TIME_BUDGET_MS — see the
+// comment at its call site for why.
+const RETRY_TIME_BUDGET_MS = 25;
 const SHUFFLE_HIDDEN_PROBABILITY = 0.15;
 
 /**
@@ -538,25 +696,26 @@ function tryGenerateLayout(
   extraBottles: number,
   capacity: number,
   colorPool: Color[],
-  hiddenProbability: number
+  hiddenProbability: number,
+  requiredColors: Set<Color>,
+  mixingEnabled: boolean = false,
+  deadline: number = Date.now() + GENERATE_TIME_BUDGET_MS
 ): BottleData[] | null {
-  const deadline = Date.now() + GENERATE_TIME_BUDGET_MS;
-
   for (let attempt = 0; attempt < GENERATE_MAX_ATTEMPTS && Date.now() < deadline; attempt++) {
     const distribution = distributeWithoutAdjacency(colorPool, numColors, capacity);
     if (!distribution) continue;
 
     const bottles: BottleData[] = [];
     for (let i = 0; i < numColors; i++) {
-      bottles.push({ id: uid(), layers: distribution[i].map(c => createLayer(c, false)), capacity, isCompleted: false });
+      bottles.push({ id: uid(), layers: distribution[i].map(c => createLayer(c, false)), capacity, isCompleted: false, mixingEnabled });
     }
     for (let i = 0; i < extraBottles; i++) {
-      bottles.push({ id: uid(), layers: [], capacity, isCompleted: false });
+      bottles.push({ id: uid(), layers: [], capacity, isCompleted: false, mixingEnabled });
     }
 
-    const solution = findSolutionGreedy(bottles);
+    const solution = findSolutionGreedy(bottles, requiredColors);
     if (!solution) continue;
-    if (!verifySolutionByReplay(bottles, solution)) continue;
+    if (!verifySolutionByReplay(bottles, solution, requiredColors)) continue;
 
     return applyHiddenLayers(bottles, hiddenProbability);
   }
@@ -591,25 +750,67 @@ export const generateLevel = (level: number): { bottles: BottleData[], orders: O
     hiddenProbability = Math.min(0.8, 0.2 + (level - 2) * 0.05);
   }
 
+  // Mixing unlocks at MIXING_MIN_LEVEL. When it's on, withhold ONE
+  // mix-producible secondary colour's units from the direct pour pool
+  // entirely, replacing them with capacity/2 units of each of its two
+  // primary components. That colour then literally does not exist on the
+  // board at deal time — the only way to get a full bottle of it is to
+  // mix — which is what creates the "order asks for orange, no orange
+  // exists yet, mixing costs red another order needs" tension. Every other
+  // active colour (including any other secondary that happens to be in
+  // play) is placed directly exactly as before: it's simultaneously
+  // ordinary sortable liquid AND still legal to mix if the player chooses
+  // to, per the mixing rule documented on canPour/pourLiquid.
+  const mixingEnabled = level >= MIXING_MIN_LEVEL;
+  let mixOnlyColor: Color | null = null;
+  if (mixingEnabled) {
+    const candidates = activeColors.filter(c => {
+      const components = MIX_COMPONENTS.get(c);
+      return components !== undefined && components.every(p => activeColors.includes(p));
+    });
+    if (candidates.length > 0) {
+      mixOnlyColor = candidates[Math.floor(Math.random() * candidates.length)];
+    }
+  }
+
   const colorPool: Color[] = [];
   for (const color of activeColors) {
-    for (let i = 0; i < capacity; i++) colorPool.push(color);
+    if (color === mixOnlyColor) {
+      const [a, b] = MIX_COMPONENTS.get(color)!;
+      // capacity is guaranteed even here: MIXING_MIN_LEVEL is chosen to
+      // coincide with getCapacityForLevel's jump to a flat 6.
+      for (let i = 0; i < capacity / 2; i++) {
+        colorPool.push(a);
+        colorPool.push(b);
+      }
+    } else {
+      for (let i = 0; i < capacity; i++) colorPool.push(color);
+    }
   }
+
+  const requiredColors = new Set(activeColors);
 
   // Levels 5-11 run on a single spare bottle, so a solvable random layout is
   // scarce enough there that the budget genuinely does run out: measured at
   // roughly 1 generation in 1500 on those tiers. Retry with one extra spare
-  // before giving up — that is still a real puzzle, just roomier.
+  // before giving up — that is still a real puzzle, just roomier. The first
+  // attempt gets the bulk of the budget; the retry gets its own smaller,
+  // *guaranteed* window rather than a fresh full GENERATE_TIME_BUDGET_MS
+  // (which would let two unlucky attempts in a row double the worst-case
+  // wall-clock time) or a window shared with the first (which would starve
+  // the retry to ~0ms whenever the first attempt used its whole budget,
+  // falling back to a trivial board far more often than necessary).
+  const firstDeadline = Date.now() + GENERATE_TIME_BUDGET_MS;
   const layout =
-    tryGenerateLayout(numColors, extraBottles, capacity, colorPool, hiddenProbability) ??
-    tryGenerateLayout(numColors, extraBottles + 1, capacity, colorPool, hiddenProbability);
+    tryGenerateLayout(numColors, extraBottles, capacity, colorPool, hiddenProbability, requiredColors, mixingEnabled, firstDeadline) ??
+    tryGenerateLayout(numColors, extraBottles + 1, capacity, colorPool, hiddenProbability, requiredColors, mixingEnabled, Date.now() + RETRY_TIME_BUDGET_MS);
 
   if (layout) return { bottles: layout, orders: buildOrders(activeColors) };
 
   // Both budgets exhausted. Nothing unverified ever ships, so the last resort
   // is the solved board itself: trivially solvable, and an instant win rather
   // than an impossible one.
-  const { bottles, activeColors: fallbackColors } = createSolvedState(numColors, extraBottles, capacity);
+  const { bottles, activeColors: fallbackColors } = createSolvedState(numColors, extraBottles, capacity, mixingEnabled);
   return { bottles, orders: buildOrders(fallbackColors) };
 };
 

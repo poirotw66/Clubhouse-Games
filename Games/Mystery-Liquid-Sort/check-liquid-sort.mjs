@@ -127,7 +127,9 @@ function bottle(id, layers, capacity = 4, isCompleted = false) {
 // us the generator's own intended solution works, not whether the shipped
 // board is solvable some other way, or whether the generator's notion of
 // "solved" actually matches the real game). Instead this is a from-scratch
-// BFS over the real move rules, with its own model of order delivery.
+// heuristic search over the real move rules (see findSortSolution), with
+// its own model of order delivery used to verify the found solution
+// actually wins (see isSolvable).
 
 /**
  * Faithful port of Game.tsx's `findMatch` + delivery effect: repeatedly
@@ -180,51 +182,198 @@ function getLegalMoves(bottles) {
   return moves;
 }
 
-/** Canonical state key: bottles are interchangeable, so sort by content (not id) to collapse equivalent states. */
-function stateKey(bottles, orders) {
-  const bottleReps = bottles
-    .map((b) => b.layers.map((l) => l.color).join(',') + '#' + (b.isCompleted ? 1 : 0))
-    .sort();
-  const orderRep = orders.map((o) => `${o.color}:${o.isCompleted ? 1 : 0}:${o.isLocked ? 1 : 0}`).join(',');
-  return bottleReps.join('|') + '||' + orderRep;
+/** Canonical bottle-only state key: bottles are interchangeable, so sort by content (not id) to collapse equivalent states. */
+function bottlesKey(bottles) {
+  return bottles.map((b) => b.layers.map((l) => l.color).join(',')).sort().join('|');
 }
 
 /**
- * BFS reachability search: is there ANY sequence of legal moves from this
- * board that completes every order? Returns 'solvable', 'unsolvable' (fully
- * explored, no solution), or 'exhausted' (node budget ran out — inconclusive).
+ * True once every bottle is empty, or full and single-colour, AND the set
+ * of full bottles' colours exactly matches `requiredColors` (one order's
+ * worth of liquid gives exactly one required colour, no more, no less).
+ * The colour match is NOT redundant with "every bottle sorted": the three
+ * mixing recipes share primaries (RED+YELLOW, BLUE+YELLOW, RED+BLUE all
+ * draw from the same 3 primaries), so a board can reach a fully mono-coloured
+ * state that used the "wrong" recipe — e.g. mixing RED+YELLOW into ORANGE
+ * when ORANGE isn't one of this level's active colours — which is sorted
+ * but permanently unsolvable (that liquid can never be un-mixed back into
+ * the RED or YELLOW an order still needs). Only a colour-matching sort
+ * actually wins.
  */
-function isSolvable(bottles, orders, maxNodes = 200000) {
-  const start = resolveDeliveries(bottles, orders);
-  if (start.orders.every((o) => o.isCompleted)) return 'solvable';
-
-  const visited = new Set([stateKey(start.bottles, start.orders)]);
-  const queue = [{ bottles: start.bottles, orders: start.orders }];
-  let head = 0;
-  let nodes = 0;
-
-  while (head < queue.length) {
-    if (nodes++ >= maxNodes) return 'exhausted';
-    const { bottles: curBottles, orders: curOrders } = queue[head++];
-
-    for (const move of getLegalMoves(curBottles)) {
-      const sourceIdx = curBottles.findIndex((b) => b.id === move.sourceId);
-      const targetIdx = curBottles.findIndex((b) => b.id === move.targetId);
-      const { newSource, newTarget } = pourLiquid(curBottles[sourceIdx], curBottles[targetIdx]);
-      const nextBottles = curBottles.slice();
-      nextBottles[sourceIdx] = newSource;
-      nextBottles[targetIdx] = newTarget;
-
-      const resolved = resolveDeliveries(nextBottles, curOrders);
-      if (resolved.orders.every((o) => o.isCompleted)) return 'solvable';
-
-      const key = stateKey(resolved.bottles, resolved.orders);
-      if (visited.has(key)) continue;
-      visited.add(key);
-      queue.push({ bottles: resolved.bottles, orders: resolved.orders });
-    }
+function isBoardWon(bottles, requiredColors) {
+  if (!bottles.every((b) => b.layers.length === 0 || (b.layers.length === b.capacity && b.isCompleted))) {
+    return false;
   }
-  return 'unsolvable';
+  const fullColors = bottles.filter((b) => b.isCompleted).map((b) => b.layers[0].color).sort();
+  const need = [...requiredColors].sort();
+  return fullColors.length === need.length && fullColors.every((c, i) => c === need[i]);
+}
+
+/** Total units of `color` anywhere on the board right now (mixed or native). */
+function colorTotal(bottles, color) {
+  let total = 0;
+  for (const b of bottles) for (const l of b.layers) if (l.color === color) total++;
+  return total;
+}
+
+// Independent copy of the 3 mixing recipes, for search-ordering purposes
+// only — the actual rule lives in (and is authoritatively enforced by)
+// gameLogic's canPour/pourLiquid, which this file imports and defers to for
+// every legality decision. Duplicating the recipe table here just lets the
+// heuristic recognise "this pour is a mix, and here's what it produces"
+// without reaching into gameLogic's internals.
+const MIX_RESULTS = {};
+function mixKey(a, b) { return [a, b].sort().join('|'); }
+MIX_RESULTS[mixKey(Color.RED, Color.YELLOW)] = Color.ORANGE;
+MIX_RESULTS[mixKey(Color.BLUE, Color.YELLOW)] = Color.GREEN;
+MIX_RESULTS[mixKey(Color.RED, Color.BLUE)] = Color.PURPLE;
+function getMixResult(a, b) { return MIX_RESULTS[mixKey(a, b)]; }
+
+/**
+ * Scores one legal move for search ordering — deliberately mirrors
+ * gameLogic's own internal scoreMove move-for-move (same "finish > grow a
+ * run > dump into empty" priority, same off-target/already-satisfied mixing
+ * penalty), because an earlier, looser approximation here ranked several of
+ * generateLevel's own successful moves *below* alternatives that led deep
+ * into dead-end territory — correct in the sense that the search still
+ * eventually backtracks and tries the right move, but slow enough that it
+ * didn't converge within any practical node budget. Matching the ordering
+ * that's independently known to navigate these boards well fixes that,
+ * while the SEARCH itself (memoisation, backtracking, the win condition in
+ * isBoardWon) stays a separate implementation from gameLogic's solver.
+ */
+function scoreMove(bottles, move, requiredColors) {
+  const sourceIdx = bottles.findIndex((b) => b.id === move.sourceId);
+  const targetIdx = bottles.findIndex((b) => b.id === move.targetId);
+  const source = bottles[sourceIdx];
+  const target = bottles[targetIdx];
+  const topColor = source.layers[source.layers.length - 1].color;
+
+  if (target.layers.length > 0 && target.layers[target.layers.length - 1].color !== topColor) {
+    const mixedColor = getMixResult(topColor, target.layers[target.layers.length - 1].color);
+    if (mixedColor && (!requiredColors.has(mixedColor) || colorTotal(bottles, mixedColor) >= target.capacity)) {
+      return { move, score: -1 }; // not needed at all, or this colour's quota is already met
+    }
+    if (target.layers.length + 1 === target.capacity) return { move, score: 2 };
+    return { move, score: 1 };
+  }
+
+  let run = 0;
+  for (let i = source.layers.length - 1; i >= 0 && source.layers[i].color === topColor; i--) run++;
+  if (target.layers.length + run === target.capacity) return { move, score: 2 };
+  if (target.layers.length > 0) return { move, score: 1 };
+  return { move, score: 0 };
+}
+
+/** Applies `move` to `bottles`, returning the resulting board. */
+function applyMove(bottles, move) {
+  const sourceIdx = bottles.findIndex((b) => b.id === move.sourceId);
+  const targetIdx = bottles.findIndex((b) => b.id === move.targetId);
+  const { newSource, newTarget } = pourLiquid(bottles[sourceIdx], bottles[targetIdx]);
+  const next = bottles.slice();
+  next[sourceIdx] = newSource;
+  next[targetIdx] = newTarget;
+  return next;
+}
+
+/**
+ * Heuristic-ordered DFS search (independent of gameLogic's own solver, and
+ * independent of generateLevel's own witness solution) for a legal-move
+ * sequence that reaches isBoardWon — the same set of colours gameLogic's
+ * generation targets, found by a fresh implementation (own heuristic, own
+ * memoisation).
+ *
+ * This board's colour accounting makes "every bottle sorted into exactly the
+ * required colours" and "every order delivered" the same event: each active
+ * colour totals exactly one bottle's worth of liquid (mixed or placed
+ * directly — mixing conserves volume by construction), so reaching that
+ * state necessarily produces exactly one full mono bottle per order colour,
+ * and delivers all of them. `isSolvable` below still replays the found path
+ * through the real order/lock/delivery model to confirm that identity holds
+ * rather than just asserting it.
+ *
+ * A plain unordered BFS over the order-aware state space was tried first,
+ * but once mixing pours are legal moves, tracking delivery/lock progress as
+ * part of the search state blows up the reachable-state graph combinatorially
+ * (many different delivery-timings collapse to the same underlying board,
+ * but count as distinct states) — full enumeration didn't converge even at
+ * ~2M nodes. Searching over bottle contents only (as this function does)
+ * removes that redundant bookkeeping and converges quickly, matching how
+ * fast gameLogic's own findSolutionGreedy already is on these boards.
+ */
+function findSortSolution(bottles, requiredColors, maxNodes, maxMs) {
+  const t0 = Date.now();
+  const deadEnds = new Set(); // states fully proven to have no solution
+  const onPath = new Set();   // states on the current DFS stack (cycle guard)
+  const path = [];
+  let nodes = 0;
+  let budgetExceeded = false;
+
+  function dfs(curBottles) {
+    if (budgetExceeded) return false;
+    if (nodes++ >= maxNodes || Date.now() - t0 > maxMs) {
+      budgetExceeded = true;
+      return false;
+    }
+    if (isBoardWon(curBottles, requiredColors)) return true;
+
+    const key = bottlesKey(curBottles);
+    if (deadEnds.has(key) || onPath.has(key)) return false;
+    onPath.add(key);
+
+    const moves = getLegalMoves(curBottles)
+      .map((move) => scoreMove(curBottles, move, requiredColors))
+      .sort((a, b) => b.score - a.score);
+
+    let solved = false;
+    for (const { move } of moves) {
+      path.push(move);
+      if (dfs(applyMove(curBottles, move))) {
+        solved = true;
+        break;
+      }
+      path.pop();
+      if (budgetExceeded) break;
+    }
+
+    onPath.delete(key);
+    if (!solved && !budgetExceeded) deadEnds.add(key);
+    return solved;
+  }
+
+  const found = dfs(bottles);
+  if (found) return { result: 'solvable', moves: path.slice() };
+  return { result: budgetExceeded ? 'exhausted' : 'unsolvable' };
+}
+
+/**
+ * Is there ANY sequence of legal moves from this board that completes every
+ * order? Finds a full-sort solution independently (see findSortSolution),
+ * then replays it move-by-move through the real order/lock/delivery model
+ * (resolveDeliveries — a faithful port of Game.tsx's own delivery effect)
+ * to confirm it actually wins, rather than just trusting the colour-
+ * accounting argument that the two are equivalent.
+ */
+function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
+  const requiredColors = new Set(orders.map((o) => o.color));
+  const search = findSortSolution(bottles, requiredColors, maxNodes, maxMs);
+  if (search.result !== 'solvable') return search.result;
+
+  let curBottles = bottles;
+  let curOrders = orders;
+  ({ bottles: curBottles, orders: curOrders } = resolveDeliveries(curBottles, curOrders));
+
+  for (const move of search.moves) {
+    const sourceIdx = curBottles.findIndex((b) => b.id === move.sourceId);
+    const targetIdx = curBottles.findIndex((b) => b.id === move.targetId);
+    const { newSource, newTarget } = pourLiquid(curBottles[sourceIdx], curBottles[targetIdx]);
+    const nextBottles = curBottles.slice();
+    nextBottles[sourceIdx] = newSource;
+    nextBottles[targetIdx] = newTarget;
+    ({ bottles: curBottles, orders: curOrders } = resolveDeliveries(nextBottles, curOrders));
+  }
+
+  return curOrders.every((o) => o.isCompleted) ? 'solvable' : 'unsolvable';
 }
 
 // generateLevel: every sampled level, across every difficulty tier, must be
