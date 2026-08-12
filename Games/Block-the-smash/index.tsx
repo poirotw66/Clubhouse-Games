@@ -16,7 +16,13 @@ const styles = {
     left: 0,
     width: '100%',
     height: '100%',
-    background: '#000',
+    backgroundColor: '#000',
+    backgroundImage: [
+      'linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.85))',
+      `url(${import.meta.env.BASE_URL}menu-bg.jpg)`,
+    ].join(', '),
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
     overflow: 'hidden',
     fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
@@ -28,7 +34,7 @@ const styles = {
     // Left padding clears the fixed back-to-menu pill, which otherwise sits
     // on top of the title.
     padding: '12px 20px 12px 130px',
-    background: '#000',
+    background: 'rgba(0,0,0,0.55)',
     zIndex: 20,
     borderBottom: '1px solid #222',
   },
@@ -88,7 +94,13 @@ const styles = {
     zIndex: 50,
   },
   modal: {
-    background: '#111',
+    backgroundColor: '#111',
+    backgroundImage: [
+      'linear-gradient(rgba(17,17,17,0.82), rgba(17,17,17,0.9))',
+      `url(${import.meta.env.BASE_URL}menu-bg.jpg)`,
+    ].join(', '),
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '24px',
     padding: '32px',

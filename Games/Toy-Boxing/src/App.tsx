@@ -12,6 +12,7 @@ import {
   characterPortraitUrl,
   getCharacter,
   pickCpuOpponent,
+  preloadFighterBodies,
   ringFloorImage,
   ringSkyImage,
   type CharacterDef,
@@ -25,6 +26,8 @@ import {
   type Difficulty,
 } from './cpuAi';
 import { BOXER_HEIGHT, BOXER_WIDTH, drawToyBoxer } from './drawBoxer';
+
+preloadFighterBodies();
 import {
   loadStats,
   recordResult,

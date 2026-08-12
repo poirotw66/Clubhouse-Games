@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ROAD_HALF_WIDTH, TRACK_SEGMENT_LENGTH } from './constants';
 import { trackOffset, trackHeading } from './trackPath';
-import { getBarrierMap, getRoadMap } from './textures';
+import { getBarrierMap, getCarMap, getConeMap, getDroneMap, getRoadMap } from './textures';
 
 const NEON_CYAN = 0x22d3ee;
 const NEON_MAGENTA = 0xf472b6;
@@ -15,11 +15,12 @@ export function createCarMesh(): THREE.Group {
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(1.5, 0.48, 2.6),
     new THREE.MeshStandardMaterial({
-      color: 0x155e75,
+      map: getCarMap(),
+      color: 0xffffff,
       metalness: 0.55,
       roughness: 0.3,
       emissive: NEON_CYAN,
-      emissiveIntensity: 0.55,
+      emissiveIntensity: 0.45,
     }),
   );
   body.position.y = 0.5;
@@ -122,9 +123,10 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const cone = new THREE.Mesh(
       new THREE.ConeGeometry(0.45, 1.1, 10),
       new THREE.MeshStandardMaterial({
-        color: 0xea580c,
+        map: getConeMap(),
+        color: 0xffffff,
         emissive: 0xfb923c,
-        emissiveIntensity: 1.1,
+        emissiveIntensity: 0.85,
       }),
     );
     cone.position.y = 0.55;
@@ -144,11 +146,12 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(1.2, 0.28, 1.2),
       new THREE.MeshStandardMaterial({
-        color: 0x0f172a,
+        map: getDroneMap(),
+        color: 0xffffff,
         metalness: 0.75,
         roughness: 0.2,
         emissive: NEON_CYAN,
-        emissiveIntensity: 0.75,
+        emissiveIntensity: 0.55,
       }),
     );
     body.position.y = 1.6;
