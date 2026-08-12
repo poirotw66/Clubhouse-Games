@@ -343,13 +343,52 @@
   }
 
   .game-tile {
-    @apply relative flex flex-col gap-2.5 sm:gap-3 p-4 sm:p-5 rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm;
+    @apply relative flex flex-col gap-2.5 sm:gap-3 p-4 sm:p-5 rounded-2xl border border-white/10 bg-dreamCard backdrop-blur-sm overflow-hidden;
     transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  }
+
+  .game-tile.has-cover {
+    @apply p-0 sm:p-0;
+  }
+
+  .game-tile.has-cover .tile-head,
+  .game-tile.has-cover .tile-desc,
+  .game-tile.has-cover .tile-foot {
+    @apply px-4 sm:px-5;
+  }
+
+  .game-tile.has-cover .tile-head {
+    @apply pt-3 sm:pt-4;
+  }
+
+  .game-tile.has-cover .tile-foot {
+    @apply pb-4 sm:pb-5;
+  }
+
+  .tile-cover {
+    @apply relative w-full overflow-hidden;
+    aspect-ratio: 4 / 3;
+    background: #0a0a18;
+  }
+
+  .tile-cover img {
+    @apply block w-full h-full object-cover;
+    transition: transform 320ms ease;
+  }
+
+  .game-tile:hover .tile-cover img {
+    transform: scale(1.04);
+  }
+
+  .tile-cover::after {
+    content: '';
+    @apply absolute inset-x-0 bottom-0 h-16 pointer-events-none;
+    background: linear-gradient(180deg, transparent, rgba(15, 15, 35, 0.85));
   }
 
   .game-tile::before {
     content: '';
-    @apply absolute inset-x-0 top-0 h-px rounded-t-2xl opacity-60;
+    @apply absolute inset-x-0 top-0 h-px rounded-t-2xl opacity-60 z-10;
     background: linear-gradient(90deg, transparent, var(--accent), transparent);
   }
 

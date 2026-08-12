@@ -1,6 +1,6 @@
 # Clubhouse Games — Game Specifications Overview
 
-![Clubhouse Games](title-image.png)
+![Clubhouse Games](title-image.jpg)
 
 This project collects specification and gameplay documents for each game, for use in subsequent development. Game implementations live under `Games/` and are accessible via the **Game Overview Menu**, with deployment on GitHub Pages.
 
