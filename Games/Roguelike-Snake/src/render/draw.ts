@@ -50,10 +50,12 @@ function drawSprite(
   return true;
 }
 
-// Preload combat art
+// Preload combat art + terrain plates
 for (const id of ['wisp', 'stalker', 'spitter', 'boss'] as const) {
   loadSprite(`enemies/${id}.jpg`);
 }
+loadSprite('dungeon-floor.jpg');
+loadSprite('wall.jpg');
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -86,15 +88,30 @@ function roundRect(
 }
 
 function drawTerrain(ctx: CanvasRenderingContext2D, state: GameState, cell: number): void {
+  const floor = loadSprite('dungeon-floor.jpg');
+  const wall = loadSprite('wall.jpg');
+  const floorReady = floor.complete && floor.naturalWidth > 0;
+  const wallReady = wall.complete && wall.naturalWidth > 0;
+
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {
       const px = x * cell;
       const py = y * cell;
       if (state.tiles[index(x, y)] === 1) {
-        ctx.fillStyle = COLORS.wall;
-        roundRect(ctx, px + 0.5, py + 0.5, cell - 1, cell - 1, cell * 0.22);
+        if (wallReady) {
+          ctx.drawImage(wall, px + 0.5, py + 0.5, cell - 1, cell - 1);
+          ctx.fillStyle = 'rgba(38, 50, 76, 0.35)';
+          roundRect(ctx, px + 0.5, py + 0.5, cell - 1, cell - 1, cell * 0.22);
+        } else {
+          ctx.fillStyle = COLORS.wall;
+          roundRect(ctx, px + 0.5, py + 0.5, cell - 1, cell - 1, cell * 0.22);
+        }
         ctx.fillStyle = COLORS.wallTop;
         roundRect(ctx, px + 2, py + 2, cell - 4, cell * 0.3, cell * 0.14);
+      } else if (floorReady) {
+        ctx.drawImage(floor, px, py, cell, cell);
+        ctx.fillStyle = (x + y) % 2 === 0 ? 'rgba(15, 23, 42, 0.28)' : 'rgba(17, 28, 51, 0.38)';
+        ctx.fillRect(px, py, cell, cell);
       } else {
         ctx.fillStyle = (x + y) % 2 === 0 ? COLORS.floorA : COLORS.floorB;
         ctx.fillRect(px, py, cell, cell);

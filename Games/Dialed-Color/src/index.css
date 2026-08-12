@@ -39,11 +39,7 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 80% 60% at 15% 20%, hsl(var(--ambient-h, 28) 45% 22% / 0.55), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 85% 75%, hsl(calc(var(--ambient-h, 28) + 140) 40% 18% / 0.45), transparent 50%),
-    radial-gradient(ellipse 50% 40% at 50% 100%, hsl(calc(var(--ambient-h, 28) + 40) 35% 14% / 0.35), transparent 45%),
-    linear-gradient(165deg, #1c1712 0%, #0f0d0b 55%, #12100e 100%);
+  background-color: #0f0d0b;
   transition: background 1.2s ease;
 }
 

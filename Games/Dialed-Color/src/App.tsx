@@ -308,7 +308,21 @@ export default function App() {
       className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden"
       style={{ ['--ambient-h' as string]: String(ambientHue) }}
     >
-      <div className="stage-bg" aria-hidden />
+      <div
+        className="stage-bg"
+        aria-hidden
+        style={{
+          backgroundImage: [
+            'radial-gradient(ellipse 80% 60% at 15% 20%, hsl(var(--ambient-h, 28) 45% 22% / 0.55), transparent 55%)',
+            'radial-gradient(ellipse 70% 50% at 85% 75%, hsl(calc(var(--ambient-h, 28) + 140) 40% 18% / 0.45), transparent 50%)',
+            'radial-gradient(ellipse 50% 40% at 50% 100%, hsl(calc(var(--ambient-h, 28) + 40) 35% 14% / 0.35), transparent 45%)',
+            'linear-gradient(165deg, rgba(28,23,18,0.72) 0%, rgba(15,13,11,0.78) 55%, rgba(18,16,14,0.8) 100%)',
+            `url(${import.meta.env.BASE_URL}studio-bg.jpg)`,
+          ].join(', '),
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
       <BackToMenu />
 
       <div className="stage-content w-full flex flex-col items-center justify-center py-10 sm:py-14">

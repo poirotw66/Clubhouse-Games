@@ -618,32 +618,36 @@ export default function App() {
                 const isHintDest = hintDest === cellKey;
 
                 // Cell background priority: selected > landing > hint > path > last-move > default
-                const cellBg = isSelected
-                  ? 'bg-amber-600/70 hover:bg-amber-600/80'
+                const tint = isSelected
+                  ? 'linear-gradient(rgba(217,119,6,0.7), rgba(217,119,6,0.75))'
                   : isLanding
-                    ? 'bg-emerald-700/70 hover:bg-emerald-600/80'
+                    ? 'linear-gradient(rgba(4,120,87,0.7), rgba(5,150,105,0.75))'
                     : isHintDest
-                      ? 'bg-sky-600/50 hover:bg-sky-500/60'
+                      ? 'linear-gradient(rgba(2,132,199,0.55), rgba(14,165,233,0.6))'
                       : isHintPath
-                        ? 'bg-sky-800/40'
+                        ? 'linear-gradient(rgba(7,89,133,0.45), rgba(7,89,133,0.5))'
                         : isPath
-                          ? 'bg-amber-700/50'
+                          ? 'linear-gradient(rgba(180,83,9,0.5), rgba(180,83,9,0.55))'
                           : isLastMovePath
-                            ? 'bg-yellow-800/40'
+                            ? 'linear-gradient(rgba(133,77,14,0.4), rgba(133,77,14,0.45))'
                             : dark
-                              ? 'bg-amber-800 hover:bg-amber-700 active:bg-amber-600'
-                              : 'bg-amber-100';
+                              ? 'linear-gradient(rgba(146,64,14,0.35), rgba(120,53,15,0.45))'
+                              : 'linear-gradient(rgba(255,251,235,0.85), rgba(254,243,199,0.9))';
 
                 return (
                   <button
                     key={cellKey}
                     type="button"
                     onClick={() => handleCellClick(r, c)}
-                    className={[
-                      'relative flex items-center justify-center touch-manipulation transition-colors duration-100',
-                      cellBg,
-                    ].join(' ')}
-                    style={{ minWidth: 0, minHeight: 0 }}
+                    className="relative flex items-center justify-center touch-manipulation transition-colors duration-100 bg-cover bg-center"
+                    style={{
+                      minWidth: 0,
+                      minHeight: 0,
+                      backgroundColor: dark ? '#92400e' : '#fef3c7',
+                      backgroundImage: dark
+                        ? [tint, `url(${import.meta.env.BASE_URL}square-dark.jpg)`].join(', ')
+                        : tint,
+                    }}
                     aria-label={
                       piece
                         ? `${piece.color} ${piece.king ? 'king' : 'man'} at ${COL_LABELS[c]}${SIZE - r}`

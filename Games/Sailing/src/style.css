@@ -65,9 +65,9 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  background:
-    radial-gradient(ellipse at 50% 20%, rgba(44, 181, 168, 0.22), transparent 55%),
-    linear-gradient(180deg, rgba(7, 24, 36, 0.55), rgba(7, 24, 36, 0.82));
+  background-color: #071824;
+  background-size: cover;
+  background-position: center;
   backdrop-filter: blur(6px);
   transition: opacity 0.4s ease, visibility 0.4s ease;
 }

@@ -305,7 +305,13 @@ export default function App() {
               : 'bg-slate-700/50'
           }`}
         >
-          <span className="w-4 h-4 rounded-full bg-red-500 ring-2 ring-red-400" />
+          <span
+            className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-red-400"
+            style={{
+              backgroundColor: '#ef4444',
+              backgroundImage: `url(${import.meta.env.BASE_URL}piece-red.jpg)`,
+            }}
+          />
           <span>紅</span>
         </div>
         <div
@@ -315,7 +321,13 @@ export default function App() {
               : 'bg-slate-700/50'
           }`}
         >
-          <span className="w-4 h-4 rounded-full bg-yellow-400 ring-2 ring-yellow-300" />
+          <span
+            className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-yellow-300"
+            style={{
+              backgroundColor: '#facc15',
+              backgroundImage: `url(${import.meta.env.BASE_URL}piece-yellow.jpg)`,
+            }}
+          />
           <span>黃</span>
         </div>
       </div>
@@ -404,7 +416,14 @@ export default function App() {
       <p className="text-slate-400 text-xs mb-2 md:hidden">點選上方欄位落子</p>
 
       <div
-        className="inline-block p-3 rounded-xl bg-blue-900 shadow-lg w-full max-w-[min(92vw,360px)]"
+        className="inline-block p-3 rounded-xl shadow-lg w-full max-w-[min(92vw,360px)] bg-cover bg-center"
+        style={{
+          backgroundColor: '#1e3a8a',
+          backgroundImage: [
+            'linear-gradient(rgba(30,58,138,0.55), rgba(30,58,138,0.7))',
+            `url(${import.meta.env.BASE_URL}frame.jpg)`,
+          ].join(', '),
+        }}
       >
         {/* Column headers (drop targets) */}
         <div
@@ -429,9 +448,11 @@ export default function App() {
             >
               {state.phase === 'playing' && legalSet.has(c) && !isBotTurn && (
                 <span
-                  className={`w-6 h-6 rounded-full ${
-                    state.currentTurn === 'red' ? 'bg-red-500/80' : 'bg-yellow-400/80'
-                  }`}
+                  className="w-6 h-6 rounded-full bg-cover bg-center opacity-80"
+                  style={{
+                    backgroundColor: state.currentTurn === 'red' ? '#ef4444' : '#facc15',
+                    backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
+                  }}
                 />
               )}
             </button>
@@ -439,11 +460,16 @@ export default function App() {
         </div>
         {/* Grid: row 0 at top */}
         <div
-          className="grid gap-1 rounded-b-lg overflow-hidden bg-blue-800 p-1"
+          className="grid gap-1 rounded-b-lg overflow-hidden p-1 bg-cover bg-center"
           style={{
             gridTemplateColumns: `repeat(${COLS}, 1fr)`,
             gridTemplateRows: `repeat(${ROWS}, 1fr)`,
             aspectRatio: `${COLS}/${ROWS}`,
+            backgroundColor: '#1e40af',
+            backgroundImage: [
+              'linear-gradient(rgba(30,64,175,0.5), rgba(30,64,175,0.65))',
+              `url(${import.meta.env.BASE_URL}frame.jpg)`,
+            ].join(', '),
           }}
         >
           {Array.from({ length: ROWS * COLS }, (_, i) => {
