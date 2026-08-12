@@ -24,6 +24,37 @@ const COLORS = {
   boss: '#f472b6',
 };
 
+const spriteCache = new Map<string, HTMLImageElement>();
+
+function loadSprite(path: string): HTMLImageElement {
+  let img = spriteCache.get(path);
+  if (!img) {
+    img = new Image();
+    img.decoding = 'async';
+    img.src = `${import.meta.env.BASE_URL}${path}`;
+    spriteCache.set(path, img);
+  }
+  return img;
+}
+
+function drawSprite(
+  ctx: CanvasRenderingContext2D,
+  path: string,
+  cx: number,
+  cy: number,
+  size: number,
+): boolean {
+  const img = loadSprite(path);
+  if (!img.complete || img.naturalWidth === 0) return false;
+  ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+  return true;
+}
+
+// Preload combat art
+for (const id of ['wisp', 'stalker', 'spitter', 'boss'] as const) {
+  loadSprite(`enemies/${id}.jpg`);
+}
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
@@ -190,6 +221,8 @@ function drawEnemy(
 ): void {
   const cx = (pos.x + 0.5) * cell;
   const cy = (pos.y + 0.5) * cell;
+  const size = cell * 0.85;
+  if (drawSprite(ctx, `enemies/${enemy.type}.jpg`, cx, cy, size)) return;
 
   if (enemy.type === 'wisp') {
     const wobble = Math.sin(now / 200 + enemy.id) * cell * 0.06;
@@ -247,19 +280,29 @@ function drawBoss(
   const size = cell * 3;
   const hit = now < boss.hitFlashUntil;
   const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+  const cx = x + size / 2;
+  const cy = y + size / 2;
 
   ctx.globalAlpha = 0.25 + pulse * 0.2;
   ctx.fillStyle = COLORS.boss;
   roundRect(ctx, x - cell * 0.2, y - cell * 0.2, size + cell * 0.4, size + cell * 0.4, cell * 0.6);
 
   ctx.globalAlpha = 1;
-  ctx.fillStyle = hit ? '#fff1f2' : '#3f1d38';
-  roundRect(ctx, x + 2, y + 2, size - 4, size - 4, cell * 0.5);
+  if (!drawSprite(ctx, 'enemies/boss.jpg', cx, cy, size - 4)) {
+    ctx.fillStyle = hit ? '#fff1f2' : '#3f1d38';
+    roundRect(ctx, x + 2, y + 2, size - 4, size - 4, cell * 0.5);
 
-  ctx.fillStyle = COLORS.boss;
-  ctx.beginPath();
-  ctx.arc(x + size / 2, y + size / 2, cell * (0.5 + pulse * 0.12), 0, Math.PI * 2);
-  ctx.fill();
+    ctx.fillStyle = COLORS.boss;
+    ctx.beginPath();
+    ctx.arc(cx, cy, cell * (0.5 + pulse * 0.12), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (hit) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#fff1f2';
+    roundRect(ctx, x + 2, y + 2, size - 4, size - 4, cell * 0.5);
+    ctx.restore();
+  }
 
   ctx.fillStyle = '#fecdd3';
   for (let i = 0; i < boss.maxHp; i++) {

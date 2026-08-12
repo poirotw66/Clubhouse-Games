@@ -48,10 +48,17 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
     return (
       <div
         className={cn(
-          "w-full aspect-[2/3] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100/50 flex items-center justify-center",
+          "w-full aspect-[2/3] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100/50 flex items-center justify-center overflow-hidden bg-cover bg-center",
           isHinted && "ring-4 ring-sky-400 bg-sky-50/80",
           className,
         )}
+        style={
+          placeholder
+            ? undefined
+            : {
+                backgroundImage: `linear-gradient(rgba(253,252,248,0.55), rgba(253,252,248,0.7)), url(${import.meta.env.BASE_URL}card-back.jpg)`,
+              }
+        }
         onClick={onClick}
         onDragOver={onDragOver}
         onDrop={onDrop}

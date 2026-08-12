@@ -1,4 +1,5 @@
 import { Dices, HeartPulse } from 'lucide-react';
+import { relicImageUrl } from '../artUrls';
 import { HEAL_COST, REROLL_COST } from '../game/config';
 import { RARITY_CLASS, RARITY_LABEL, RELIC_BY_ID } from '../game/relics';
 import type { RelicId } from '../game/types';
@@ -55,9 +56,13 @@ export function RelicPicker({
                 onClick={() => onChoose(id)}
                 className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-transform hover:-translate-y-1 hover:brightness-110 ${RARITY_CLASS[relic.rarity]}`}
               >
-                <span className="text-3xl" aria-hidden>
-                  {relic.icon}
-                </span>
+                <img
+                  src={relicImageUrl(id)}
+                  alt=""
+                  className="w-12 h-12 rounded-xl object-cover border border-white/10 shadow"
+                  draggable={false}
+                  aria-hidden
+                />
                 <span className="text-base font-bold">{relic.name}</span>
                 <span className="text-[11px] uppercase tracking-wider opacity-70">
                   {RARITY_LABEL[relic.rarity]}

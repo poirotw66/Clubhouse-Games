@@ -502,7 +502,16 @@ export default function App() {
   const isBotActive = state.phase === 'bot_turn';
 
   return (
-    <div className="min-h-screen flex flex-col items-center py-4 px-2 sm:px-6 pb-8">
+    <div
+      className="min-h-screen flex flex-col items-center py-4 px-2 sm:px-6 pb-8 bg-cover bg-center"
+      style={{
+        backgroundColor: '#0f1828',
+        backgroundImage: [
+          'linear-gradient(rgba(15,24,40,0.72), rgba(15,24,40,0.88))',
+          `url(${import.meta.env.BASE_URL}textures/room-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
       {/* Header */}
       <header className="w-full max-w-6xl mb-4">
@@ -673,7 +682,15 @@ export default function App() {
           </div>
 
           {/* Field */}
-          <div className="tatami-table rounded-2xl flex-1 flex flex-col items-center justify-center relative py-10 sm:py-12 min-h-[200px]">
+          <div
+            className="tatami-table rounded-2xl flex-1 flex flex-col items-center justify-center relative py-10 sm:py-12 min-h-[200px]"
+            style={{
+              backgroundImage: [
+                'linear-gradient(rgba(45,66,40,0.82), rgba(35,52,32,0.9))',
+                `url(${import.meta.env.BASE_URL}textures/tatami.jpg)`,
+              ].join(', '),
+            }}
+          >
             <div className="corner-ornament corner-ornament-tl" />
             <div className="corner-ornament corner-ornament-tr" />
             <div className="corner-ornament corner-ornament-bl" />

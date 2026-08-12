@@ -1,7 +1,15 @@
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { ENTRANCE, EXIT, GRID_H, GRID_W, TOWER_DEFS, type TowerType } from '../game/constants';
 import { makeEmptyOccupancy, reconstructPath, wouldSealExit } from '../game/pathfinding';
+import {
+  drawCenteredSprite,
+  enemySprite,
+  preloadBattlefieldSprites,
+  towerSprite,
+} from '../game/sprites';
 import type { Cell, Enemy, GameState } from '../game/types';
+
+preloadBattlefieldSprites();
 
 const CELL = 64;
 const BOARD_W = GRID_W * CELL;
@@ -162,13 +170,18 @@ function draw(
       ctx.stroke();
     }
     ctx.save();
-    ctx.fillStyle = TOWER_COLORS[t.type];
     ctx.strokeStyle = isSelected ? '#fff' : 'rgba(0,0,0,0.5)';
     ctx.lineWidth = isSelected ? 3 : 2;
     const size = CELL * 0.7;
+    const img = towerSprite(t.type);
+    if (!drawCenteredSprite(ctx, img, cx, cy, size)) {
+      ctx.fillStyle = TOWER_COLORS[t.type];
+      ctx.beginPath();
+      ctx.roundRect(cx - size / 2, cy - size / 2, size, size, 8);
+      ctx.fill();
+    }
     ctx.beginPath();
     ctx.roundRect(cx - size / 2, cy - size / 2, size, size, 8);
-    ctx.fill();
     ctx.stroke();
     ctx.restore();
 
@@ -186,21 +199,25 @@ function draw(
     const cx = e.worldX * CELL;
     const cy = e.worldY * CELL;
     const r = e.type === 'boss' ? 18 : e.type === 'ironclad' ? 14 : 10;
-    ctx.beginPath();
-    ctx.fillStyle = ENEMY_COLORS[e.type];
-    ctx.strokeStyle = e.flying ? '#ffffff' : 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 2;
-    if (e.flying) {
-      ctx.moveTo(cx, cy - r);
-      ctx.lineTo(cx + r, cy);
-      ctx.lineTo(cx, cy + r);
-      ctx.lineTo(cx - r, cy);
-      ctx.closePath();
-    } else {
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    const img = enemySprite(e.type);
+    const size = r * 2.4;
+    if (!drawCenteredSprite(ctx, img, cx, cy, size)) {
+      ctx.beginPath();
+      ctx.fillStyle = ENEMY_COLORS[e.type];
+      ctx.strokeStyle = e.flying ? '#ffffff' : 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 2;
+      if (e.flying) {
+        ctx.moveTo(cx, cy - r);
+        ctx.lineTo(cx + r, cy);
+        ctx.lineTo(cx, cy + r);
+        ctx.lineTo(cx - r, cy);
+        ctx.closePath();
+      } else {
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.stroke();
     }
-    ctx.fill();
-    ctx.stroke();
 
     // HP bar
     const barW = r * 2.2;
@@ -221,6 +238,22 @@ export function Battlefield({
   onCellClick,
 }: BattlefieldProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [spritesTick, setSpritesTick] = useState(0);
+
+  useEffect(() => {
+    preloadBattlefieldSprites();
+    const imgs = [
+      ...(['crossbow', 'grinder', 'frost', 'coil'] as const).map(towerSprite),
+      ...(['grunt', 'runner', 'ironclad', 'kite', 'boss'] as const).map(enemySprite),
+    ];
+    const bump = () => setSpritesTick((n) => n + 1);
+    for (const img of imgs) {
+      if (!img.complete) img.addEventListener('load', bump);
+    }
+    return () => {
+      for (const img of imgs) img.removeEventListener('load', bump);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -234,7 +267,7 @@ export function Battlefield({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     draw(ctx, state, hoverCell, selectedTowerType, selectedTowerId);
-  }, [state, hoverCell, selectedTowerType, selectedTowerId]);
+  }, [state, hoverCell, selectedTowerType, selectedTowerId, spritesTick]);
 
   function cellFromEvent(e: { clientX: number; clientY: number }): Cell | null {
     const canvas = canvasRef.current;
