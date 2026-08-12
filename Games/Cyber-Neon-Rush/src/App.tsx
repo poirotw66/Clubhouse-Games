@@ -189,10 +189,13 @@ export default function App(): ReactElement {
       {/* Idle neon backdrop on menu before WebGL mounts */}
       {screen === 'menu' && (
         <div
-          className="absolute inset-0 z-0"
+          className="absolute inset-0 z-0 bg-cover bg-center"
           style={{
-            background:
-              'radial-gradient(ellipse at 50% 30%, #1e1b4b 0%, #050816 55%), linear-gradient(160deg, #083344 0%, #050816 50%, #3b0764 100%)',
+            backgroundColor: '#050816',
+            backgroundImage: [
+              'linear-gradient(160deg, rgba(5,8,22,0.55) 0%, rgba(5,8,22,0.78) 55%, rgba(59,7,100,0.72) 100%)',
+              `url(${import.meta.env.BASE_URL}menu-bg.jpg)`,
+            ].join(', '),
           }}
         />
       )}

@@ -447,7 +447,16 @@ export default function App() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-amber-950 text-white flex flex-col items-center p-3 pb-6 min-w-0">
+    <div
+      className="min-h-screen text-white flex flex-col items-center p-3 pb-6 min-w-0 bg-cover bg-center"
+      style={{
+        backgroundColor: '#451a03',
+        backgroundImage: [
+          'linear-gradient(rgba(69,26,3,0.78), rgba(41,15,2,0.9))',
+          `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
 
       {/* ── Header ── */}

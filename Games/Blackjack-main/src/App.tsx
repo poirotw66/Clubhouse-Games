@@ -458,7 +458,16 @@ export default function App() {
   const insuranceCost = playerHands[0] ? Math.floor(playerHands[0].bet / 2) : 0;
 
   return (
-    <div className="min-h-screen h-screen max-h-screen bg-emerald-900 flex flex-col items-center justify-between p-2 sm:p-3 md:p-4 font-sans text-white overflow-hidden relative">
+    <div
+      className="min-h-screen h-screen max-h-screen flex flex-col items-center justify-between p-2 sm:p-3 md:p-4 font-sans text-white overflow-hidden relative bg-cover bg-center"
+      style={{
+        backgroundColor: '#064e3b',
+        backgroundImage: [
+          'linear-gradient(rgba(6,78,59,0.55), rgba(2,44,34,0.72))',
+          `url(${import.meta.env.BASE_URL}felt.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-800/50 blur-3xl"></div>

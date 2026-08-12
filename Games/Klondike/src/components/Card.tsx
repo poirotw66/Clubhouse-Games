@@ -20,11 +20,14 @@ export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSel
   // Face-down / stock back
   if (!card || faceDown || !card.faceUp) {
     return (
-      <div 
-        className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-white/10 bg-blue-900 shadow-md flex items-center justify-center touch-manipulation ${isHinted ? 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.7)]' : ''} ${className}`}
-      >
-        <div className="w-12 h-20 sm:w-20 sm:h-32 rounded-lg border border-white/20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.1)_10px,rgba(255,255,255,0.1)_20px)]"></div>
-      </div>
+      <div
+        className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-white/15 shadow-md touch-manipulation bg-cover bg-center ${isHinted ? 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.7)]' : ''} ${className}`}
+        style={{
+          backgroundColor: '#1e3a8a',
+          backgroundImage: `url(${import.meta.env.BASE_URL}card-back.jpg)`,
+        }}
+        aria-label="Face-down card"
+      />
     );
   }
 

@@ -380,11 +380,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
       onTouchStart={(e) => { e.preventDefault(); handlePointerDown(); }}
       onTouchEnd={(e) => { e.preventDefault(); handlePointerUp(); }}
     >
-      {/* Dynamic Background */}
+      {/* Dynamic Background — dojo plate under readability wash */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-600/40 via-slate-900/30 to-transparent"></div>
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-45"
+          style={{ backgroundImage: `url(${import.meta.env.BASE_URL}dojo-bg.jpg)` }}
+        />
+        <div className="w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-600/40 via-slate-900/50 to-slate-950/80"></div>
         <div className="absolute bottom-0 w-full h-1/3 bg-gradient-to-t from-slate-950 to-transparent opacity-80"></div>
-        {/* Moon / lantern glow */}
         <div className="absolute top-10 left-1/2 -translate-x-1/2 w-64 h-64 bg-amber-400/15 rounded-full blur-3xl"></div>
         <div className="absolute top-8 right-[18%] w-3 h-3 rounded-full bg-amber-100/80 shadow-[0_0_24px_8px_rgba(253,230,138,0.35)]"></div>
       </div>
