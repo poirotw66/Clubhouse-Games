@@ -304,7 +304,7 @@ export default function App() {
             setGameMode('two');
             handleNewGame();
           }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
             gameMode === 'two' ? 'border-sky-400 bg-sky-500/20 text-sky-100' : 'border-slate-600 bg-slate-800 text-slate-300'
           }`}
         >
@@ -317,7 +317,7 @@ export default function App() {
             setGameMode('bot');
             handleNewGame();
           }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
             gameMode === 'bot' ? 'border-amber-400 bg-amber-500/20 text-amber-100' : 'border-slate-600 bg-slate-800 text-slate-300'
           }`}
         >
@@ -344,7 +344,7 @@ export default function App() {
                   handleNewGame();
                 }}
                 aria-pressed={selected}
-                className={`px-3 py-1.5 rounded-full border transition-colors ${
+                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
                   selected
                     ? 'border-amber-400 bg-amber-500/20 text-amber-100'
                     : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'

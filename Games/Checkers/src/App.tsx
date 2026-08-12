@@ -720,7 +720,7 @@ export default function App() {
                     key={mode}
                     type="button"
                     onClick={() => { setGameMode(mode); resetGame(); setSettingsOpen(false); }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] rounded-full border transition-colors touch-manipulation ${
                       gameMode === mode
                         ? 'border-amber-400 bg-amber-500/20 text-amber-100'
                         : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
@@ -742,7 +742,7 @@ export default function App() {
                       key={side}
                       type="button"
                       onClick={() => { setPlayerSide(side); resetGame(); setSettingsOpen(false); }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] rounded-full border transition-colors touch-manipulation ${
                         playerSide === side
                           ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
                           : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
@@ -765,7 +765,7 @@ export default function App() {
                       key={id}
                       type="button"
                       onClick={() => { setDifficulty(id); resetGame(); setSettingsOpen(false); }}
-                      className={`px-3 py-1.5 rounded-full border transition-colors ${
+                      className={`px-3 py-1.5 min-h-[44px] rounded-full border transition-colors touch-manipulation ${
                         difficulty === id
                           ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
                           : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'

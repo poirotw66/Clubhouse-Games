@@ -519,7 +519,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowRules(true)}
-            className="absolute top-3 right-12 z-20 p-2 rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors"
+            className="absolute top-3 right-14 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors touch-manipulation"
             aria-label="遊戲規則"
             title="遊戲規則"
           >
@@ -528,7 +528,7 @@ export default function App() {
           <button
             type="button"
             onClick={toggleMute}
-            className="absolute top-3 right-3 z-20 p-2 rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors"
+            className="absolute top-3 right-3 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors touch-manipulation"
             aria-label={muted ? '開啟背景音樂' : '關閉背景音樂'}
             title={muted ? '開啟 BGM' : `BGM：${currentTitle}`}
           >
