@@ -1,5 +1,5 @@
 import { Dices, HeartPulse } from 'lucide-react';
-import { relicImageUrl } from '../game/art';
+import { relicImageUrl } from '../artUrls';
 import { HEAL_COST, REROLL_COST } from '../game/config';
 import { RARITY_CLASS, RARITY_LABEL, RELIC_BY_ID } from '../game/relics';
 import type { RelicId } from '../game/types';

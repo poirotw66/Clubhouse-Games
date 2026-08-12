@@ -1,4 +1,4 @@
-import type { RelicId } from './types';
+import type { RelicId } from './game/types';
 
 /** Vite base-aware public path for relic icons. */
 export function relicImageUrl(id: RelicId): string {

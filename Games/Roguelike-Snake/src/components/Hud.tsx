@@ -1,5 +1,5 @@
 import { Coins, Heart, Layers, Zap } from 'lucide-react';
-import { relicImageUrl } from '../game/art';
+import { relicImageUrl } from '../artUrls';
 import { RELIC_BY_ID } from '../game/relics';
 import type { Phase, RelicId } from '../game/types';
 
