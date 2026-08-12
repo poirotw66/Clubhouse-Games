@@ -9,6 +9,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import {
   CHARACTERS,
+  characterPortraitUrl,
   getCharacter,
   pickCpuOpponent,
   type CharacterDef,
@@ -750,12 +751,14 @@ export default function ToyBoxing() {
       )}
     >
       <div
-        className="mb-2 h-14 rounded-xl flex items-end justify-center overflow-hidden"
-        style={{ background: `linear-gradient(180deg, ${c.accent}33, transparent)` }}
+        className="mb-2 h-20 rounded-xl overflow-hidden bg-neutral-950"
+        style={{ background: `linear-gradient(180deg, ${c.accent}33, #0a0a0a)` }}
       >
-        <div
-          className="w-10 h-14 rounded-lg mb-1 border border-black/20"
-          style={{ background: c.body }}
+        <img
+          src={characterPortraitUrl(c.id)}
+          alt=""
+          className="w-full h-full object-cover object-top"
+          draggable={false}
         />
       </div>
       <div className="text-sm font-black tracking-tight">{c.name}</div>
@@ -768,9 +771,11 @@ export default function ToyBoxing() {
       <BackToMenu />
       <header className="max-w-5xl mx-auto p-4 sm:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center border-b border-white/10">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-          <div
-            className="p-2.5 sm:p-3 rounded-xl shadow-lg shrink-0 w-11 h-11"
-            style={{ background: getCharacter(playerCharId).body }}
+          <img
+            src={characterPortraitUrl(playerCharId)}
+            alt=""
+            className="rounded-xl shadow-lg shrink-0 w-11 h-11 object-cover border border-white/10"
+            draggable={false}
           />
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <h2 className="text-sm font-bold uppercase tracking-widest text-blue-400 truncate">
@@ -841,9 +846,11 @@ export default function ToyBoxing() {
               SCORE: {uiState.cpuScore}
             </p>
           </div>
-          <div
-            className="p-2.5 sm:p-3 rounded-xl shadow-lg shrink-0 w-11 h-11"
-            style={{ background: getCharacter(cpuCharId).body }}
+          <img
+            src={characterPortraitUrl(cpuCharId)}
+            alt=""
+            className="rounded-xl shadow-lg shrink-0 w-11 h-11 object-cover border border-white/10"
+            draggable={false}
           />
         </div>
       </header>

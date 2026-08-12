@@ -30,7 +30,7 @@ export interface BackgroundConfig {
 
 /**
  * Background configurations
- * Currently 12 existing backgrounds + 3 new Taiwan street backgrounds = 15 total
+ * Currently 12 gradient backgrounds + 9 image backgrounds = 21 total
  */
 export const BACKGROUNDS: BackgroundConfig[] = [
     // Existing 12 backgrounds (gradient-based)
@@ -176,6 +176,48 @@ export const BACKGROUNDS: BackgroundConfig[] = [
         type: 'image',
         imageUrl: publicAsset('backgrounds/taiwan-alley.jpg'),
         overlay: 'rgba(0,0,0,0.6)'
+    },
+    {
+        id: 16,
+        name: 'Alchemy Lab',
+        type: 'image',
+        imageUrl: publicAsset('backgrounds/alchemy-lab.jpg'),
+        overlay: 'rgba(0,0,0,0.55)'
+    },
+    {
+        id: 17,
+        name: 'Neon Arcade',
+        type: 'image',
+        imageUrl: publicAsset('backgrounds/neon-arcade.jpg'),
+        overlay: 'rgba(0,0,0,0.55)'
+    },
+    {
+        id: 18,
+        name: 'Aquarium',
+        type: 'image',
+        imageUrl: publicAsset('backgrounds/aquarium.jpg'),
+        overlay: 'rgba(0,0,0,0.5)'
+    },
+    {
+        id: 19,
+        name: 'Bamboo Garden',
+        type: 'image',
+        imageUrl: publicAsset('backgrounds/bamboo-garden.jpg'),
+        overlay: 'rgba(0,0,0,0.55)'
+    },
+    {
+        id: 20,
+        name: 'Neon Rooftop',
+        type: 'image',
+        imageUrl: publicAsset('backgrounds/neon-rooftop.jpg'),
+        overlay: 'rgba(0,0,0,0.55)'
+    },
+    {
+        id: 21,
+        name: 'Candy Shop',
+        type: 'image',
+        imageUrl: publicAsset('backgrounds/candy-shop.jpg'),
+        overlay: 'rgba(0,0,0,0.5)'
     }
 ];
 

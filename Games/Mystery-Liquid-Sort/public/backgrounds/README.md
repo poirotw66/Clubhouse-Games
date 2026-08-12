@@ -1,15 +1,9 @@
 # Background Images Directory
 
-Taiwan street backgrounds used by image-type entries in `utils/backgrounds.ts`:
+Image backgrounds used by `utils/backgrounds.ts` (paths via `publicAsset()` / Vite `BASE_URL`):
 
-1. `taiwan-night-market.jpg`
-2. `taipei-street.jpg`
-3. `taiwan-alley.jpg`
+Taiwan streets: `taiwan-night-market.jpg`, `taipei-street.jpg`, `taiwan-alley.jpg`
 
-Paths are resolved with Vite `BASE_URL` (see `publicAsset()` in `utils/backgrounds.ts`).
+Extra themes: `alchemy-lab.jpg`, `neon-arcade.jpg`, `aquarium.jpg`, `bamboo-garden.jpg`, `neon-rooftop.jpg`, `candy-shop.jpg`
 
-## Image Requirements
-
-- Format: JPG
-- Aspect: ~16:9
-- Target size: under ~250KB after compression
+Target: JPG ~16:9, under ~250KB after compression.
