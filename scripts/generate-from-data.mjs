@@ -109,7 +109,18 @@ function generateMenuHtml(categories) {
         ? `<span class="tile-players font-tc" aria-label="遊玩人數 ${escapeHtml(game.players)}">${escapeHtml(game.players)}</span>`
         : '';
 
-      out.push(`          <li class="game-tile${hasPlay ? '' : ' is-todo'}" data-search="${escapeHtml(searchTerms)}" data-name="${escapeHtml(game.name)}"${hasPlay ? ` data-folder="${escapeHtml(game.gameFolder)}"` : ''}>
+      const coverPath = game.gameFolder
+        ? path.join(root, 'assets', 'covers', `${game.gameFolder}.jpg`)
+        : '';
+      const hasCover = coverPath && fs.existsSync(coverPath);
+      const cover = hasCover
+        ? `<div class="tile-cover" aria-hidden="true">
+              <img src="assets/covers/${escapeHtml(game.gameFolder)}.jpg" alt="" width="640" height="480" loading="lazy" decoding="async" />
+            </div>`
+        : '';
+
+      out.push(`          <li class="game-tile${hasPlay ? '' : ' is-todo'}${hasCover ? ' has-cover' : ''}" data-search="${escapeHtml(searchTerms)}" data-name="${escapeHtml(game.name)}"${hasPlay ? ` data-folder="${escapeHtml(game.gameFolder)}"` : ''}>
+            ${cover}
             <div class="tile-head">
               <span class="tile-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${categoryIconSvg(cat.id)}</svg>
