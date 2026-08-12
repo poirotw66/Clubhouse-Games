@@ -324,43 +324,53 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
       >
           {/* === SHURIKEN (Standard) === */}
           {type === ProjectileType.SHURIKEN && (
-            <div className="w-8 h-8 relative">
-                <div className="absolute inset-0 bg-red-500 blur-md opacity-60"></div>
-                <div className="absolute inset-0 bg-white rotate-45 scale-50"></div>
-                <div className="absolute inset-0 bg-slate-200 clip-path-shuriken"></div>
-                {/* Trail */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-32 h-1 bg-gradient-to-l from-red-500/0 to-red-500/50 blur-sm transform translate-x-full rotate-[calc(-1*var(--tw-rotate))] origin-left"></div>
+            <div className="w-10 h-10 relative">
+                <div className="absolute inset-0 bg-red-500 blur-md opacity-50"></div>
+                <img
+                  src={`${import.meta.env.BASE_URL}projectiles/shuriken.jpg`}
+                  alt=""
+                  className="w-full h-full object-contain drop-shadow"
+                  draggable={false}
+                />
             </div>
           )}
 
           {/* === KUNAI (Fast, Linear) === */}
           {type === ProjectileType.KUNAI && (
-            <div className="w-12 h-3 relative">
-                <div className="absolute inset-0 bg-blue-300 blur-sm opacity-40"></div>
-                <div className="w-full h-full bg-slate-200 clip-path-kunai"></div>
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-48 h-0.5 bg-gradient-to-l from-white/0 to-white/50 blur-sm transform translate-x-full"></div>
+            <div className="w-14 h-14 relative">
+                <div className="absolute inset-0 bg-blue-300 blur-sm opacity-35"></div>
+                <img
+                  src={`${import.meta.env.BASE_URL}projectiles/kunai.jpg`}
+                  alt=""
+                  className="w-full h-full object-contain drop-shadow"
+                  draggable={false}
+                />
             </div>
           )}
 
           {/* === BOMB (Slow, Arcing) === */}
           {type === ProjectileType.BOMB && (
-            <div className="w-10 h-10 relative">
-                <div className="absolute inset-0 bg-black rounded-full shadow-lg"></div>
-                {/* Fuse */}
-                <div className="absolute -top-2 right-2 w-3 h-3 bg-orange-500 rounded-full animate-pulse blur-[1px]"></div>
-                {/* Shine */}
-                <div className="absolute top-2 left-2 w-3 h-3 bg-white/20 rounded-full"></div>
-                {/* Skull Mark */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/50 text-[10px] font-bold">☠</div>
+            <div className="w-12 h-12 relative">
+                <img
+                  src={`${import.meta.env.BASE_URL}projectiles/bomb.jpg`}
+                  alt=""
+                  className="w-full h-full object-contain drop-shadow"
+                  draggable={false}
+                />
+                <div className="absolute -top-1 right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse blur-[1px]"></div>
             </div>
           )}
 
           {/* === SICKLE (Wobbly, Wide) === */}
           {type === ProjectileType.SICKLE && (
             <div className="w-16 h-16 relative -translate-x-1/2 -translate-y-1/2">
-                <div className="absolute inset-0 border-4 border-slate-300 rounded-full border-r-transparent border-b-transparent transform rotate-45"></div>
-                <div className="absolute inset-2 border-4 border-slate-500 rounded-full border-l-transparent border-t-transparent opacity-50"></div>
-                <div className="absolute inset-0 bg-purple-500/20 blur-md rounded-full"></div>
+                <div className="absolute inset-0 bg-purple-500/25 blur-md rounded-full"></div>
+                <img
+                  src={`${import.meta.env.BASE_URL}projectiles/sickle.jpg`}
+                  alt=""
+                  className="w-full h-full object-contain drop-shadow"
+                  draggable={false}
+                />
             </div>
           )}
       </div>

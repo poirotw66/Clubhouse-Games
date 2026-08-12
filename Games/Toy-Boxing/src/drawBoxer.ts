@@ -1,6 +1,6 @@
 // Canvas toy silhouettes — readable characters, not flat rectangles.
 
-import type { CharacterDef } from './characters';
+import { drawFighterBody, type CharacterDef } from './characters';
 
 export const BOXER_WIDTH = 60;
 export const BOXER_HEIGHT = 120;
@@ -129,39 +129,60 @@ export function drawToyBoxer(ctx: CanvasRenderingContext2D, b: DrawBoxerState): 
     ctx.translate(Math.random() * 4 - 2, 0);
   }
 
-  // Body
-  ctx.fillStyle = char.body;
-  if (b.action === 'HIT') {
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#ffffff';
+  // Body — soft fighter plate when ready; else procedural silhouette.
+  const flashHit = b.action === 'HIT';
+  ctx.save();
+  ctx.scale(b.facing, 1);
+  const usedPlate = !flashHit && b.action !== 'STAGGER' && drawFighterBody(ctx, char.id, BOXER_WIDTH, BOXER_HEIGHT);
+  ctx.restore();
+  if (!usedPlate) {
+    ctx.fillStyle = char.body;
+    if (flashHit) {
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#ffffff';
+    } else if (b.action === 'PARRY') {
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = '#60a5fa';
+    } else if (b.action === 'STAGGER') {
+      ctx.fillStyle = '#71717a';
+    }
+    roundRect(ctx, -BOXER_WIDTH / 2, -BOXER_HEIGHT / 2, BOXER_WIDTH, BOXER_HEIGHT, 14);
+    ctx.fill();
+    if (b.action === 'PARRY') {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+
+    // Belly stripe
+    ctx.fillStyle = char.accent;
+    ctx.globalAlpha = 0.35;
+    roundRect(ctx, -18, -20, 36, 50, 10);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Head
+    ctx.fillStyle = char.head;
+    roundRect(ctx, -18, -BOXER_HEIGHT / 2 - 32, 36, 34, 12);
+    ctx.fill();
+    drawAccessory(ctx, char.id, char.accent, b.facing);
+
+    // Eyes
+    ctx.fillStyle = '#0f172a';
+    const eyeX = b.facing === 1 ? 4 : -12;
+    ctx.fillRect(eyeX, -BOXER_HEIGHT / 2 - 18, 6, 6);
+    ctx.fillRect(eyeX + (b.facing === 1 ? 10 : -10), -BOXER_HEIGHT / 2 - 18, 6, 6);
   } else if (b.action === 'PARRY') {
     ctx.shadowBlur = 20;
     ctx.shadowColor = '#60a5fa';
-  } else if (b.action === 'STAGGER') {
-    ctx.fillStyle = '#71717a';
-  }
-  roundRect(ctx, -BOXER_WIDTH / 2, -BOXER_HEIGHT / 2, BOXER_WIDTH, BOXER_HEIGHT, 14);
-  ctx.fill();
-  if (b.action === 'PARRY') {
+    roundRect(ctx, -BOXER_WIDTH / 2, -BOXER_HEIGHT / 2 - 28, BOXER_WIDTH, BOXER_HEIGHT + 36, 14);
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.shadowBlur = 0;
   }
-  ctx.shadowBlur = 0;
-
-  // Belly stripe
-  ctx.fillStyle = char.accent;
-  ctx.globalAlpha = 0.35;
-  roundRect(ctx, -18, -20, 36, 50, 10);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // Head
-  ctx.fillStyle = char.head;
-  roundRect(ctx, -18, -BOXER_HEIGHT / 2 - 32, 36, 34, 12);
-  ctx.fill();
-  drawAccessory(ctx, char.id, char.accent, b.facing);
 
   // Dizzy dots
   if (b.action === 'KO' || b.action === 'HIT' || b.action === 'STAGGER') {
@@ -178,12 +199,6 @@ export function drawToyBoxer(ctx: CanvasRenderingContext2D, b: DrawBoxerState): 
       ctx.fill();
     }
   }
-
-  // Eyes
-  ctx.fillStyle = '#0f172a';
-  const eyeX = b.facing === 1 ? 4 : -12;
-  ctx.fillRect(eyeX, -BOXER_HEIGHT / 2 - 18, 6, 6);
-  ctx.fillRect(eyeX + (b.facing === 1 ? 10 : -10), -BOXER_HEIGHT / 2 - 18, 6, 6);
 
   const gloveColor = char.glove;
 

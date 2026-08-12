@@ -47,6 +47,28 @@ export function ringFloorImage(): HTMLImageElement {
   return loadRingImage('ring-floor.jpg');
 }
 
+export function fighterBodyImage(id: CharacterId): HTMLImageElement {
+  return loadRingImage(`fighters/${id}.jpg`);
+}
+
+/** Soft full-body plate under procedural gloves / hit FX. */
+export function drawFighterBody(
+  ctx: CanvasRenderingContext2D,
+  id: CharacterId,
+  width: number,
+  height: number,
+): boolean {
+  const img = fighterBodyImage(id);
+  if (!img.complete || img.naturalWidth === 0) return false;
+  ctx.drawImage(img, -width / 2, -height / 2 - 28, width, height + 36);
+  return true;
+}
+
+/** Kick off fighter plate loads (safe to call often). */
+export function preloadFighterBodies(): void {
+  for (const id of ['bot', 'bear', 'bunny', 'dino'] as const) fighterBodyImage(id);
+}
+
 export const CHARACTERS: CharacterDef[] = [
   {
     id: 'bot',

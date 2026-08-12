@@ -646,7 +646,7 @@ export default function App() {
                       backgroundColor: dark ? '#92400e' : '#fef3c7',
                       backgroundImage: dark
                         ? [tint, `url(${import.meta.env.BASE_URL}square-dark.jpg)`].join(', ')
-                        : tint,
+                        : [tint, `url(${import.meta.env.BASE_URL}square-light.jpg)`].join(', '),
                     }}
                     aria-label={
                       piece
