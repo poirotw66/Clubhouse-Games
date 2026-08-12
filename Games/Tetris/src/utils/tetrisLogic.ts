@@ -425,6 +425,11 @@ export const TETROMINO_COLOR: Record<TetrominoType, string> = {
   L: 'bg-orange-400',
 };
 
+/** Plastic block tile URL (Vite BASE_URL aware). */
+export function tetrominoBlockUrl(type: TetrominoType): string {
+  return `${import.meta.env.BASE_URL}blocks/${type.toLowerCase()}.jpg`;
+}
+
 /**
  * The occupied cells of a piece, trimmed to its bounding box, so a preview can
  * draw the shape centred instead of floating inside the 4×4 spawn matrix.

@@ -22,6 +22,8 @@ body {
 body {
   min-height: 100vh;
   background:
+    linear-gradient(rgba(6, 4, 23, 0.55), rgba(6, 4, 23, 0.78)),
+    url("./art/stage-bg.jpg") center / cover no-repeat,
     radial-gradient(900px 520px at 50% -10%, rgba(122, 66, 214, 0.35), transparent 70%),
     var(--bg);
   color: var(--text);

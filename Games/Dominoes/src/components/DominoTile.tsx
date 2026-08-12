@@ -43,9 +43,16 @@ export function DominoTile({
         ? 'border-amber-500/60 hover:border-amber-400 hover:ring-2 hover:ring-amber-400/40 hover:ring-offset-1 hover:ring-offset-slate-800'
         : 'border-slate-400';
 
-  const root = `rounded border-2 bg-white text-slate-800 flex items-center justify-center gap-0.5 touch-manipulation transition-all duration-150 ${w} ${h} ${ringStyle} ${
+  const root = `rounded border-2 text-slate-900 flex items-center justify-center gap-0.5 touch-manipulation transition-all duration-150 bg-cover bg-center ${w} ${h} ${ringStyle} ${
     onClick ? 'cursor-pointer active:scale-95' : ''
   }`;
+  const faceStyle = {
+    backgroundColor: '#f8fafc',
+    backgroundImage: [
+      'linear-gradient(rgba(248,250,252,0.55), rgba(248,250,252,0.7))',
+      `url(${import.meta.env.BASE_URL}tile-face.jpg)`,
+    ].join(', '),
+  };
 
   // Lift selected tile upward via wrapper translate
   const liftStyle = highlight
@@ -62,23 +69,25 @@ export function DominoTile({
     <div
       role={onClick ? 'button' : undefined}
       className={`${root} flex-col ${liftStyle}`}
+      style={faceStyle}
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
       <div className={half}>{left}</div>
-      <div className="w-full border-t border-slate-300" />
+      <div className="w-full border-t border-slate-400/60" />
       <div className={half}>{right}</div>
     </div>
   ) : (
     <div
       role={onClick ? 'button' : undefined}
       className={`${root} flex-row ${liftStyle}`}
+      style={faceStyle}
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      <div className={`${half} border-r border-slate-300`}>{left}</div>
+      <div className={`${half} border-r border-slate-400/60`}>{left}</div>
       <div className={half}>{right}</div>
     </div>
   );
