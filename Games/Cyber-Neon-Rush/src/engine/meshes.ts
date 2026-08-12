@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ROAD_HALF_WIDTH, TRACK_SEGMENT_LENGTH } from './constants';
 import { trackOffset, trackHeading } from './trackPath';
+import { getBarrierMap, getRoadMap } from './textures';
 
 const NEON_CYAN = 0x22d3ee;
 const NEON_MAGENTA = 0xf472b6;
@@ -97,11 +98,12 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const block = new THREE.Mesh(
       new THREE.BoxGeometry(1.8, 1.1, 0.7),
       new THREE.MeshStandardMaterial({
-        color: 0x831843,
+        map: getBarrierMap(),
+        color: 0xffffff,
         metalness: 0.45,
         roughness: 0.35,
         emissive: NEON_MAGENTA,
-        emissiveIntensity: 0.9,
+        emissiveIntensity: 0.75,
       }),
     );
     block.position.y = 0.55;
@@ -233,11 +235,13 @@ function createTrackRibbon(fromZ: number, toZ: number): THREE.Mesh {
   const half = ROAD_HALF_WIDTH + 0.35;
   const positions: number[] = [];
   const colors: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
+  const span = Math.max(0.001, toZ - fromZ);
 
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const z = fromZ + (toZ - fromZ) * t;
+    const z = fromZ + span * t;
     const ox = trackOffset(z);
     const heading = trackHeading(z);
     const lx = Math.cos(heading);
@@ -250,6 +254,9 @@ function createTrackRibbon(fromZ: number, toZ: number): THREE.Mesh {
     const edge = i % 2 === 0 ? 0.12 : 0.18;
     colors.push(0.08 + edge, 0.14 + edge, 0.28 + edge);
     colors.push(0.08 + edge, 0.14 + edge, 0.28 + edge);
+
+    const v = (z - fromZ) / span;
+    uvs.push(0, v, 1, v);
   }
 
   for (let i = 0; i < steps; i++) {
@@ -261,17 +268,23 @@ function createTrackRibbon(fromZ: number, toZ: number): THREE.Mesh {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+
+  const map = getRoadMap().clone();
+  map.needsUpdate = true;
+  map.repeat.set(1.2, Math.max(1, span / 8));
 
   return new THREE.Mesh(
     geo,
     new THREE.MeshStandardMaterial({
+      map,
       vertexColors: true,
       metalness: 0.25,
       roughness: 0.65,
       emissive: new THREE.Color(0x082f49),
-      emissiveIntensity: 0.55,
+      emissiveIntensity: 0.45,
       side: THREE.FrontSide,
     }),
   );

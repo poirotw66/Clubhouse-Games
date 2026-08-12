@@ -392,8 +392,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
         <div className="absolute top-8 right-[18%] w-3 h-3 rounded-full bg-amber-100/80 shadow-[0_0_24px_8px_rgba(253,230,138,0.35)]"></div>
       </div>
       
-      {/* Floor */}
-      <div className="absolute bottom-0 w-full h-28 bg-gradient-to-t from-[#0c101c] via-slate-800/40 to-transparent border-t border-slate-500/20"></div>
+      {/* Floor — dojo planks */}
+      <div
+        className="absolute bottom-0 w-full h-32 bg-cover bg-bottom border-t border-slate-500/20"
+        style={{
+          backgroundImage: [
+            'linear-gradient(to top, rgba(12,16,28,0.92), rgba(12,16,28,0.35) 55%, transparent)',
+            `url(${import.meta.env.BASE_URL}floor.jpg)`,
+          ].join(', '),
+        }}
+      />
 
       {/* UI Layer */}
       <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-20">
@@ -456,40 +464,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
              )}
 
              {/* Player Silhouette Container */}
-             <div className={`relative w-24 h-48 flex flex-col items-center transition-all duration-200 origin-bottom 
-                 ${isSheathed ? 'scale-y-[0.85] translate-y-6 rotate-3' : ''}
+             <div className={`relative w-28 h-52 flex flex-col items-center transition-all duration-200 origin-bottom 
+                 ${isSheathed ? 'scale-y-[0.92] translate-y-3 rotate-2' : ''}
                  ${isHit ? 'opacity-80' : ''}
              `}>
-                
-                {/* Head */}
-                <div className="w-10 h-10 bg-slate-300 rounded-full z-20 relative shadow-[0_0_0_2px_rgba(15,23,42,0.8),0_0_12px_rgba(52,211,153,0.25)]">
-                    {/* Headband/Ties */}
-                    <div className={`absolute top-2 -left-8 w-12 h-2 bg-emerald-500/80 rounded-full origin-right transition-transform duration-500 ${isSheathed ? 'rotate-12' : '-rotate-6'}`}></div>
-                    <div className="absolute top-2 -left-6 w-10 h-1 bg-emerald-300/50 rounded-full origin-right rotate-12"></div>
-                    <div className="absolute top-3 left-2 w-1.5 h-1.5 bg-slate-800 rounded-full"></div>
-                    <div className="absolute top-3 right-2 w-1.5 h-1.5 bg-slate-800 rounded-full"></div>
-                </div>
-
-                {/* Torso */}
-                <div className="w-16 h-20 bg-slate-500 -mt-2 z-10 rounded-sm flex justify-center relative shadow-lg border border-slate-400/40">
-                    {/* Scarf/Armor Detail */}
-                    <div className="w-full h-full bg-gradient-to-b from-slate-400 to-slate-600 opacity-80"></div>
-                    <div className="absolute inset-x-2 top-3 h-1 bg-emerald-400/50 rounded-full"></div>
-                    {isSheathed && <div className="absolute top-4 w-full h-1 bg-cyan-300/50 blur-sm"></div>} {/* Focus glint */}
-                </div>
-
-                {/* Hakama (Pants) */}
-                <div className="w-24 h-24 bg-slate-600 -mt-2 clip-path-hakama relative border-t border-slate-400/30">
-                     <div className="absolute inset-0 bg-gradient-to-b from-slate-500 to-slate-800 opacity-90"></div>
-                </div>
-                
-                {/* Arms / Sword */}
-                <div className="absolute top-10 left-1/2 -translate-x-1/2 w-32 h-32 pointer-events-none">
-                     {/* Sword Handle */}
-                     <div className={`absolute left-0 top-10 w-20 h-2 bg-amber-200 origin-right transition-all duration-100 shadow-[0_0_8px_rgba(253,230,138,0.5)] ${isSheathed ? 'rotate-[-20deg] translate-x-2' : 'rotate-[120deg] -translate-y-10 translate-x-10 opacity-0'}`}></div>
-                     {/* Hand */}
-                     <div className={`absolute left-4 top-10 w-4 h-4 bg-slate-200 rounded-full ${isSheathed ? 'translate-y-1' : ''}`}></div>
-                </div>
+                <img
+                  src={`${import.meta.env.BASE_URL}player.jpg`}
+                  alt=""
+                  draggable={false}
+                  className={`w-full h-full object-contain drop-shadow-[0_8px_24px_rgba(16,185,129,0.35)] select-none ${
+                    isSheathed ? 'brightness-110 contrast-110' : ''
+                  }`}
+                />
 
                 {/* Sword Flash Effect (SVG) */}
                 {isSlashing && (
@@ -521,33 +507,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
 
         {/* === ENEMY (NINJA) === */}
         <div className="relative">
-             <div className={`relative w-24 h-48 flex flex-col items-center transition-all duration-200 ${isEnemyAttacking ? 'translate-x-10 skew-x-12' : ''}`}>
-                
-                {/* Head / Hood */}
-                <div className="w-10 h-10 bg-rose-950 rounded-full z-20 relative shadow-[0_0_0_2px_rgba(127,29,29,0.9),0_0_16px_rgba(239,68,68,0.35)]">
-                    {/* Eyes */}
-                    <div className="absolute top-3 left-2 w-1.5 h-1 bg-red-400 rounded-full shadow-[0_0_6px_red]"></div>
-                    <div className="absolute top-3 right-2 w-1.5 h-1 bg-red-400 rounded-full shadow-[0_0_6px_red]"></div>
-                    {isEnemyAttacking && <div className="absolute top-3 left-2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_red] animate-ping"></div>}
-                </div>
-
-                {/* Body */}
-                <div className="w-14 h-24 bg-rose-900 -mt-2 z-10 rounded-sm flex justify-center relative border border-rose-700/50 shadow-lg">
-                    {/* Mesh Armor Pattern */}
-                    <div className="w-full h-full opacity-25 bg-[radial-gradient(circle,white_1px,transparent_1px)] bg-[length:4px_4px]"></div>
-                    <div className="absolute inset-x-1 top-4 h-px bg-red-400/40"></div>
-                </div>
-
-                {/* Legs */}
-                <div className="flex w-full justify-between px-2 -mt-2">
-                    <div className="w-4 h-20 bg-rose-950 -rotate-3 rounded-b-lg border border-rose-800/40"></div>
-                    <div className="w-4 h-20 bg-rose-950 rotate-3 rounded-b-lg border border-rose-800/40"></div>
-                </div>
-
+             <div className={`relative w-28 h-52 flex flex-col items-center transition-all duration-200 ${isEnemyAttacking ? 'translate-x-8 skew-x-6' : ''}`}>
+                <img
+                  src={`${import.meta.env.BASE_URL}enemy.jpg`}
+                  alt=""
+                  draggable={false}
+                  className={`w-full h-full object-contain drop-shadow-[0_8px_24px_rgba(239,68,68,0.4)] select-none ${
+                    isEnemyAttacking ? 'brightness-125 saturate-150' : ''
+                  }`}
+                />
+                {isEnemyAttacking && (
+                  <div className="absolute top-6 left-1/2 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full shadow-[0_0_12px_red] animate-ping" />
+                )}
                 {/* Arm Throwing Animation State */}
-                <div className={`absolute top-8 -left-4 w-20 h-4 bg-rose-900 origin-right transition-transform duration-100 border border-rose-700/40 ${isEnemyAttacking ? 'rotate-[160deg]' : 'rotate-45'}`}>
-                     {/* Hand */}
-                     <div className="absolute left-0 w-4 h-4 bg-rose-200 rounded-full"></div>
+                <div className={`absolute top-16 -left-2 w-20 h-3 bg-rose-900/90 origin-right transition-transform duration-100 border border-rose-700/40 rounded-full ${isEnemyAttacking ? 'rotate-[160deg]' : 'rotate-45'}`}>
+                     <div className="absolute left-0 w-3.5 h-3.5 bg-rose-200 rounded-full -translate-y-0.5"></div>
                 </div>
              </div>
              

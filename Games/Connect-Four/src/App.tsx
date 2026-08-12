@@ -232,7 +232,16 @@ export default function App() {
       : 'neutral';
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-4 min-w-0">
+    <div
+      className="min-h-screen text-white flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
+      style={{
+        backgroundColor: '#0f172a',
+        backgroundImage: [
+          'linear-gradient(rgba(15,23,42,0.72), rgba(15,23,42,0.88))',
+          `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
         <div className="flex items-center gap-2 flex-wrap">

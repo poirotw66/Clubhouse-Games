@@ -20,6 +20,12 @@ export interface CharacterDef {
   staminaRegen: number;
 }
 
+/** Vite base-aware portrait URL for select UI / HUD. */
+export function characterPortraitUrl(id: CharacterId): string {
+  const base = import.meta.env.BASE_URL ?? '/';
+  return `${base}portraits/${id}.jpg`;
+}
+
 export const CHARACTERS: CharacterDef[] = [
   {
     id: 'bot',
