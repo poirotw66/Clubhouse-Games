@@ -12,9 +12,11 @@ import {
   SCORE_PERFECT,
   SCORE_GOOD,
   MAX_HP,
+  INTENSITY_LABELS,
   getTimingWindows,
   getAttackDelayRange,
   getProjectileDurationScale,
+  type PracticeIntensity,
 } from '../constants';
 import {
   playCapture,
@@ -28,9 +30,16 @@ interface GameCanvasProps {
   onGameOver: (stats: GameStats) => void;
   gameActive: boolean;
   playMode: PlayMode;
+  /** Practice intensity floor; challenge mode should stay 0. */
+  baseTier?: PracticeIntensity;
 }
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMode }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({
+  onGameOver,
+  gameActive,
+  playMode,
+  baseTier = 0,
+}) => {
   // --- Refs for Game Loop State ---
   const lastFrameTime = useRef<number>(0);
   const nextAttackTime = useRef<number>(0);
@@ -40,6 +49,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
   const playerStance = useRef<PlayerStance>(PlayerStance.IDLE);
   const hitStopTimer = useRef<number>(0);
   const hp = useRef<number>(MAX_HP);
+  const baseTierRef = useRef<PracticeIntensity>(baseTier);
+  baseTierRef.current = baseTier;
   const isPractice = playMode === 'practice';
   
   // Projectile State
@@ -68,14 +79,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
 
   const scheduleNextAttack = useCallback(() => {
     const now = performance.now();
-    const delayRange = getAttackDelayRange(stats.current.score);
+    const tier = baseTierRef.current;
+    const delayRange = getAttackDelayRange(stats.current.score, tier);
     const delay =
       Math.random() * (delayRange.max - delayRange.min) + delayRange.min;
     nextAttackTime.current = now + delay;
     enemyState.current = EnemyState.IDLE;
     projectileProgress.current = 0;
 
-    const durationScale = getProjectileDurationScale(stats.current.score);
+    const durationScale = getProjectileDurationScale(stats.current.score, tier);
 
     // Randomize Projectile Type
     const rand = Math.random();
@@ -120,7 +132,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
   const handleCounter = useCallback((diff: number) => {
     const absDiff = Math.abs(diff);
     let result = CounterResult.MISS;
-    const windows = getTimingWindows(stats.current.score, stats.current.combo);
+    const windows = getTimingWindows(
+      stats.current.score,
+      stats.current.combo,
+      baseTierRef.current,
+    );
 
     if (absDiff <= windows.perfect) {
       result = CounterResult.PERFECT;
@@ -262,7 +278,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
         }
         
         // Miss condition (Late - Player did nothing)
-        const missWindow = getTimingWindows(stats.current.score, stats.current.combo).good;
+        const missWindow = getTimingWindows(
+          stats.current.score,
+          stats.current.combo,
+          baseTierRef.current,
+        ).good;
         if (time > impactTime.current + missWindow) {
             takeDamage(DAMAGE_PLAYER_HIT);
             stats.current.combo = 0;
@@ -428,7 +448,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onGameOver, gameActive, playMod
                 </span>
             </div>
             <div className="text-slate-500 text-xs font-display tracking-widest">
-              {isPractice ? '練習 · 無限生命' : 'HP // 體力'}
+              {isPractice
+                ? `練習 · ${INTENSITY_LABELS[baseTier]} · 無限生命`
+                : 'HP // 體力'}
             </div>
         </div>
 

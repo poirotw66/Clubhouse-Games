@@ -10,6 +10,9 @@ import {
   dealerShouldHit,
   resolveInsurancePayout,
   surrenderRefund,
+  evenMoneyPayout,
+  blackjackPayout,
+  formatHandTotal,
   loadBalance,
   saveBalance,
   loadDealerRule,
@@ -125,25 +128,33 @@ export default function App() {
     const upIsTen = isTenValue(dCard1.rank);
     const dealerPeeks = upIsAce || upIsTen;
 
-    // Player BJ: peek immediately (even money / insurance skipped — ponytail).
+    // Player BJ vs dealer Ace: offer even money before peek.
     if (isPlayerBJ) {
+      setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'playing' }]);
+      setActiveHandIndex(0);
+      setPeekPending(false);
+      playCard();
+
+      if (upIsAce) {
+        setGameState('evenMoney');
+        setMessage('Blackjack — 接受均分（1:1）或繼續比牌？');
+        return;
+      }
+
       const revealed = revealDealer(initialDealerCards);
       const isDealerBJ = isBlackjack(revealed);
       setDealerCards(revealed);
-      setPeekPending(false);
 
       if (isDealerBJ) {
         setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'push' }]);
         setBalance(prev => prev + currentBet);
         setMessage('Push! Both have Blackjack.');
       } else {
-        const winAmount = currentBet * 2.5;
         setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'blackjack' }]);
-        setBalance(prev => prev + winAmount);
+        setBalance(prev => prev + blackjackPayout(currentBet));
         setMessage('Blackjack! You win 3:2.');
       }
       setGameState('gameOver');
-      playCard();
       return;
     }
 
@@ -169,6 +180,36 @@ export default function App() {
       setGameState('playing');
     }
     playCard();
+  };
+
+  const takeEvenMoney = () => {
+    if (gameState !== 'evenMoney') return;
+    const hand = playerHands[0];
+    if (!hand) return;
+    const payout = evenMoneyPayout(hand.bet);
+    setPlayerHands([{ ...hand, status: 'blackjack' }]);
+    setBalance(prev => prev + payout);
+    setDealerCards(revealDealer(dealerCards));
+    setMessage(`均分 1:1 — 贏得 $${hand.bet}`);
+    setGameState('gameOver');
+  };
+
+  const declineEvenMoney = () => {
+    if (gameState !== 'evenMoney') return;
+    const hand = playerHands[0];
+    if (!hand) return;
+    const revealed = revealDealer(dealerCards);
+    setDealerCards(revealed);
+    if (isBlackjack(revealed)) {
+      setPlayerHands([{ ...hand, status: 'push' }]);
+      setBalance(prev => prev + hand.bet);
+      setMessage('Push! Both have Blackjack.');
+    } else {
+      setPlayerHands([{ ...hand, status: 'blackjack' }]);
+      setBalance(prev => prev + blackjackPayout(hand.bet));
+      setMessage('Blackjack! You win 3:2.');
+    }
+    setGameState('gameOver');
   };
 
   const takeInsurance = () => {
@@ -530,7 +571,7 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               className="bg-black/60 px-2.5 py-1 rounded-full text-xs font-bold border border-white/10"
             >
-              {calculateScore(dealerCards)}
+              {formatHandTotal(dealerCards)}
             </motion.div>
           )}
         </div>
@@ -583,7 +624,7 @@ export default function App() {
                   </div>
                   <div className="flex flex-wrap justify-center items-center gap-1.5 mt-0.5">
                     <div className="bg-black/60 px-2 py-1 rounded-full text-xs font-bold border border-white/10">
-                      {calculateScore(hand.cards)}
+                      {formatHandTotal(hand.cards)}
                     </div>
                     <div className="bg-amber-500/10 text-amber-400 px-2 py-1 rounded-full text-xs font-bold border border-amber-500/30">
                       ${hand.bet}
@@ -650,6 +691,23 @@ export default function App() {
                 DEAL
               </button>
             </div>
+          </div>
+        ) : gameState === 'evenMoney' ? (
+          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={takeEvenMoney}
+              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            >
+              均分 1:1
+            </button>
+            <button
+              type="button"
+              onClick={declineEvenMoney}
+              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            >
+              繼續比牌
+            </button>
           </div>
         ) : gameState === 'insurance' ? (
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">

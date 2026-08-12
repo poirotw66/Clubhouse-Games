@@ -8,6 +8,8 @@ import {
   getValidMoves,
   isValidPlay,
   playTile,
+  pass,
+  drawTiles,
   handSum,
   tileSum,
 } from './utils/dominoesLogic.ts';
@@ -98,6 +100,7 @@ const placed = (t, displayLeft, displayRight) => ({ tile: t, displayLeft, displa
     boneyard: [tile(10, 0, 0), tile(11, 0, 1)],
     phase: 'playing',
     winner: null,
+    ruleVariant: 'draw',
   };
   const next = playTile(state, 0, 7, 'right');
   assert(next, 'final play should succeed');
@@ -116,6 +119,41 @@ const placed = (t, displayLeft, displayRight) => ({ tile: t, displayLeft, displa
   // Mirror passTurn winner rule: sum0 <= sum1 → player 0.
   const winner = handSum(hand0) <= handSum(hand1) ? 0 : 1;
   assert(winner === 0, 'blocked: lower pip sum wins');
+}
+
+// Block variant: stuck player passes (no draw); both stuck → blocked.
+{
+  const chain = [placed(tile(1, 6, 6), 6, 6)];
+  const state = {
+    currentPlayer: 0,
+    hands: [[tile(2, 1, 2)], [tile(3, 3, 4)]],
+    chain,
+    boneyard: [tile(4, 0, 0), tile(5, 0, 1), tile(6, 0, 2)],
+    phase: 'playing',
+    winner: null,
+    ruleVariant: 'block',
+  };
+  assert(pass(state, 0) !== null, 'block: may pass when stuck');
+  const afterPass = pass(state, 0);
+  assert(afterPass.phase === 'blocked', 'block: both stuck ends the round');
+  assert(drawTiles(state, 0).phase === 'blocked', 'block: drawTiles redirects to pass');
+}
+
+// Draw variant: cannot pass while boneyard still has drawable tiles.
+{
+  const chain = [placed(tile(1, 6, 6), 6, 6)];
+  const state = {
+    currentPlayer: 0,
+    hands: [[tile(2, 1, 2)], [tile(3, 3, 4)]],
+    chain,
+    boneyard: [tile(4, 0, 0), tile(5, 0, 1), tile(6, 5, 5)],
+    phase: 'playing',
+    winner: null,
+    ruleVariant: 'draw',
+  };
+  assert(pass(state, 0) === null, 'draw: pass blocked while boneyard > 2');
+  const drawn = drawTiles(state, 0);
+  assert(drawn.hands[0].length >= 2, 'draw: pulls until playable or yard left at 2');
 }
 
 console.log('check-dominoes: ok');

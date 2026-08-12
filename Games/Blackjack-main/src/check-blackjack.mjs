@@ -6,6 +6,9 @@ import {
   dealerShouldHit,
   resolveInsurancePayout,
   surrenderRefund,
+  evenMoneyPayout,
+  blackjackPayout,
+  formatHandTotal,
 } from './utils/rules.ts';
 
 function assert(cond, msg) {
@@ -24,6 +27,12 @@ assert(calculateScore([card('A'), card('6')]) === 17, 'A+6 is 17');
 assert(isSoftHand([card('A'), card('6')]) === true, 'A+6 is soft');
 assert(isSoftHand([card('10'), card('7')]) === false, '10+7 is hard');
 assert(calculateScore([card('K'), { ...card('5'), isHidden: true }]) === 10, 'hidden card ignored');
+assert(formatHandTotal([card('A'), card('6')]) === '軟 17', 'soft total label');
+assert(formatHandTotal([card('10'), card('7')]) === '17', 'hard total label');
+
+// --- Even money / BJ payout (stake already deducted) ---
+assert(evenMoneyPayout(100) === 200, 'even money is 1:1');
+assert(blackjackPayout(100) === 250, 'blackjack is 3:2');
 
 // --- Insurance 2:1 ---
 assert(resolveInsurancePayout(50, true) === 150, 'insurance win returns 3× stake');

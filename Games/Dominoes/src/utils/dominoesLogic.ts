@@ -29,6 +29,9 @@ export interface PlacedTile {
 
 export type PlayerId = 0 | 1;
 
+/** Draw = pull from boneyard when stuck; Block = pass instead. */
+export type RuleVariant = 'draw' | 'block';
+
 export interface DominoesState {
   /** Current player (0 or 1). */
   currentPlayer: PlayerId;
@@ -42,6 +45,8 @@ export interface DominoesState {
   phase: 'playing' | 'won' | 'blocked';
   /** Set when phase is 'won' (who emptied hand) or 'blocked' (who had lower pip sum). */
   winner: PlayerId | null;
+  /** Draw vs Block rule set. */
+  ruleVariant: RuleVariant;
 }
 
 const BONEYARD_LEAVE = 2;
@@ -143,7 +148,7 @@ function drawOne(boneyard: Tile[]): [Tile[], Tile | null] {
 }
 
 /** Create initial state: shuffled set, 7 each, first tile played by player with highest double (or 6-6, 5-5, ...). */
-export function createInitialState(): DominoesState {
+export function createInitialState(ruleVariant: RuleVariant = 'draw'): DominoesState {
   const shuffled = shuffleArray(createSet());
   const hand0: Tile[] = shuffled.slice(0, HAND_SIZE);
   const hand1: Tile[] = shuffled.slice(HAND_SIZE, HAND_SIZE * 2);
@@ -195,6 +200,7 @@ export function createInitialState(): DominoesState {
     boneyard,
     phase: 'playing',
     winner: null,
+    ruleVariant,
   };
 }
 
@@ -228,6 +234,10 @@ export function playTile(
 /** Draw from boneyard (until can play or boneyard has <= BONEYARD_LEAVE). Returns new state. */
 export function drawTiles(state: DominoesState, player: PlayerId): DominoesState {
   if (state.phase !== 'playing' || state.currentPlayer !== player) return state;
+  // Block variant never draws — stuck players pass instead.
+  if (state.ruleVariant === 'block') {
+    return pass(state, player) ?? state;
+  }
   let s = state;
   while (s.boneyard.length > BONEYARD_LEAVE && !canPlay(s.hands[player], s.chain)) {
     const [newBoneyard, drawn] = drawOne(s.boneyard);
@@ -246,12 +256,14 @@ export function drawTiles(state: DominoesState, player: PlayerId): DominoesState
   return s;
 }
 
-/** Pass turn to other player. If next cannot play and boneyard <= 2, declare block. */
+/** Pass turn to other player. Block when next also cannot play (block rules, or draw with empty yard). */
 function passTurn(state: DominoesState): DominoesState {
   const next: PlayerId = state.currentPlayer === 0 ? 1 : 0;
   const nextCanPlay = canPlay(state.hands[next], state.chain);
   const boneyardExhausted = state.boneyard.length <= BONEYARD_LEAVE;
-  if (!nextCanPlay && boneyardExhausted) {
+  const declareBlock =
+    !nextCanPlay && (state.ruleVariant === 'block' || boneyardExhausted);
+  if (declareBlock) {
     const sum0 = handSum(state.hands[0]);
     const sum1 = handSum(state.hands[1]);
     const winner: PlayerId = sum0 <= sum1 ? 0 : 1;
@@ -265,10 +277,11 @@ function passTurn(state: DominoesState): DominoesState {
   return { ...state, currentPlayer: next };
 }
 
-/** After current player draws and still cannot play, call pass (or we do it inside drawTiles). */
+/** Pass when stuck. Draw variant requires the boneyard to be exhausted first. */
 export function pass(state: DominoesState, player: PlayerId): DominoesState | null {
   if (state.phase !== 'playing' || state.currentPlayer !== player) return null;
   if (canPlay(state.hands[player], state.chain)) return null;
+  if (state.ruleVariant === 'draw' && state.boneyard.length > BONEYARD_LEAVE) return null;
   return passTurn(state);
 }
 
