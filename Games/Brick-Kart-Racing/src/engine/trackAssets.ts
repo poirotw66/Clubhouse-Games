@@ -10,6 +10,46 @@ import {
 } from './constants';
 import {buildCenterline, pointAt, type Centerline, type Vec2} from './spline';
 
+const textureImageCache = new Map<string, HTMLImageElement>();
+
+function loadPublicImage(path: string): HTMLImageElement {
+  let img = textureImageCache.get(path);
+  if (!img) {
+    img = new Image();
+    img.decoding = 'async';
+    img.src = `${import.meta.env.BASE_URL}${path}`;
+    textureImageCache.set(path, img);
+  }
+  return img;
+}
+
+function getTrackAlbedo(trackId: string): HTMLImageElement {
+  return loadPublicImage(`tracks/${trackId}-albedo.jpg`);
+}
+
+export function getTrackSkyImage(trackId: string): HTMLImageElement {
+  return loadPublicImage(`tracks/${trackId}-sky.jpg`);
+}
+
+function awaitImage(img: HTMLImageElement): Promise<void> {
+  if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    img.addEventListener('load', () => resolve(), {once: true});
+    img.addEventListener('error', () => resolve(), {once: true});
+  });
+}
+
+/** Load Mode-7 plates, then drop cached tracks so albedo is baked in. */
+export async function preloadTrackArt(): Promise<void> {
+  const waits: Promise<void>[] = [];
+  for (const t of TRACKS) {
+    waits.push(awaitImage(getTrackAlbedo(t.id)));
+    waits.push(awaitImage(getTrackSkyImage(t.id)));
+  }
+  await Promise.all(waits);
+  cache.clear();
+}
+
 /** Surface lookups do not need full texture precision. */
 const MASK_SCALE = 2;
 const CENTERLINE_SAMPLES = 720;
@@ -153,8 +193,17 @@ function buildTexture(def: TrackDef, line: Centerline): HTMLCanvasElement {
   ctx.fillStyle = th.ground;
   ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
 
+  const albedo = getTrackAlbedo(def.id);
+  if (albedo && albedo.complete && albedo.naturalWidth > 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.72;
+    ctx.drawImage(albedo, 0, 0, WORLD_SIZE, WORLD_SIZE);
+    ctx.restore();
+  }
+
   // Loose patches so the ground is not a flat slab of colour.
   ctx.fillStyle = th.groundAlt;
+  ctx.globalAlpha = 0.55;
   for (let i = 0; i < 160; i++) {
     const x = rand() * WORLD_SIZE;
     const y = rand() * WORLD_SIZE;
@@ -162,6 +211,7 @@ function buildTexture(def: TrackDef, line: Centerline): HTMLCanvasElement {
     const h = 60 + rand() * 220;
     ctx.fillRect(Math.round(x / STUD_PX) * STUD_PX, Math.round(y / STUD_PX) * STUD_PX, w, h);
   }
+  ctx.globalAlpha = 1;
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';

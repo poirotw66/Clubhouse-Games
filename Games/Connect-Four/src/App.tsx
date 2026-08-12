@@ -463,16 +463,22 @@ export default function App() {
               >
                 {cell && (
                   <span
-                    className={`w-[90%] h-[90%] rounded-full ${
-                      cell === 'red' ? 'bg-red-500 ring-2 ring-red-400' : 'bg-yellow-400 ring-2 ring-yellow-300'
+                    className={`w-[90%] h-[90%] rounded-full bg-cover bg-center ${
+                      cell === 'red' ? 'ring-2 ring-red-400' : 'ring-2 ring-yellow-300'
                     } ${isWinning ? 'shadow-[0_0_12px_rgba(251,191,36,0.9)]' : ''}`}
+                    style={{
+                      backgroundColor: cell === 'red' ? '#ef4444' : '#facc15',
+                      backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
+                    }}
                   />
                 )}
                 {!cell && isHintCell && (
                   <span
-                    className={`w-[70%] h-[70%] rounded-full opacity-50 ${
-                      state.currentTurn === 'red' ? 'bg-red-500' : 'bg-yellow-400'
-                    }`}
+                    className="w-[70%] h-[70%] rounded-full opacity-50 bg-cover bg-center"
+                    style={{
+                      backgroundColor: state.currentTurn === 'red' ? '#ef4444' : '#facc15',
+                      backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
+                    }}
                   />
                 )}
               </div>

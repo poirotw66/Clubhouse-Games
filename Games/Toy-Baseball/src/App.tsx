@@ -27,6 +27,7 @@ import {
   updateMatchBests,
   type BaseballBests,
 } from './stats';
+import { fieldDirtImage, fieldGrassImage, fieldSkyImage } from './fieldArt';
 
 // --- Constants & Types ---
 
@@ -573,19 +574,16 @@ class GameEngine {
   draw(ctx: CanvasRenderingContext2D) {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // 1. Draw Field Base (Dark Grass)
-    ctx.fillStyle = '#2e7d32'; 
-    ctx.beginPath();
-    ctx.moveTo(400, 550);
-    ctx.lineTo(-400, 100);
-    ctx.lineTo(400, -600);
-    ctx.lineTo(1200, 100);
-    ctx.closePath();
-    ctx.fill();
+    // Sky plate behind the diamond
+    const sky = fieldSkyImage();
+    if (sky.complete && sky.naturalWidth > 0) {
+      ctx.drawImage(sky, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
 
-    // 2. Draw Checkered Grass Pattern
+    // 1. Draw Field Base (textured grass)
     ctx.save();
-    // Clip to field
     ctx.beginPath();
     ctx.moveTo(400, 550);
     ctx.lineTo(-400, 100);
@@ -593,19 +591,42 @@ class GameEngine {
     ctx.lineTo(1200, 100);
     ctx.closePath();
     ctx.clip();
-
-    ctx.fillStyle = '#388e3c';
-    const gridSize = 40;
-    for (let x = -400; x < 1200; x += gridSize * 2) {
-      for (let y = -600; y < 600; y += gridSize * 2) {
-        ctx.fillRect(x, y, gridSize, gridSize);
-        ctx.fillRect(x + gridSize, y + gridSize, gridSize, gridSize);
+    const grass = fieldGrassImage();
+    if (grass.complete && grass.naturalWidth > 0) {
+      const pattern = ctx.createPattern(grass, 'repeat');
+      if (pattern) {
+        ctx.fillStyle = pattern;
+        ctx.fillRect(-400, -600, 1600, 1200);
+      }
+      ctx.fillStyle = 'rgba(46, 125, 50, 0.28)';
+      ctx.fillRect(-400, -600, 1600, 1200);
+    } else {
+      ctx.fillStyle = '#2e7d32';
+      ctx.fillRect(-400, -600, 1600, 1200);
+      ctx.fillStyle = '#388e3c';
+      const gridSize = 40;
+      for (let x = -400; x < 1200; x += gridSize * 2) {
+        for (let y = -600; y < 600; y += gridSize * 2) {
+          ctx.fillRect(x, y, gridSize, gridSize);
+          ctx.fillRect(x + gridSize, y + gridSize, gridSize, gridSize);
+        }
       }
     }
     ctx.restore();
 
+    const dirt = fieldDirtImage();
+    const fillDirt = () => {
+      if (dirt.complete && dirt.naturalWidth > 0) {
+        const pattern = ctx.createPattern(dirt, 'repeat');
+        if (pattern) ctx.fillStyle = pattern;
+        else ctx.fillStyle = '#c19a6b';
+      } else {
+        ctx.fillStyle = '#c19a6b';
+      }
+    };
+
     // 3. Draw Warning Track (Tan Arc)
-    ctx.fillStyle = '#c19a6b';
+    fillDirt();
     ctx.beginPath();
     ctx.arc(400, 450, 650, Math.PI * 1.25, Math.PI * 1.75);
     ctx.lineTo(400, 450);
@@ -619,7 +640,7 @@ class GameEngine {
     ctx.stroke();
 
     // 5. Draw Infield Dirt Diamond (Base Paths)
-    ctx.fillStyle = '#d2b48c';
+    fillDirt();
     ctx.beginPath();
     ctx.moveTo(400, 490); // Home area dirt
     ctx.lineTo(550, 300); // Path to 1st
@@ -634,17 +655,28 @@ class GameEngine {
     ctx.fill();
 
     // 6. Draw Infield Grass (The "Diamond" inside the paths)
-    ctx.fillStyle = '#388e3c';
+    ctx.save();
     ctx.beginPath();
     ctx.moveTo(400, 420);
     ctx.lineTo(500, 300);
     ctx.lineTo(400, 200);
     ctx.lineTo(300, 300);
     ctx.closePath();
-    ctx.fill();
+    ctx.clip();
+    if (grass.complete && grass.naturalWidth > 0) {
+      const pattern = ctx.createPattern(grass, 'repeat');
+      if (pattern) ctx.fillStyle = pattern;
+      ctx.fillRect(250, 150, 300, 300);
+      ctx.fillStyle = 'rgba(56, 142, 60, 0.35)';
+      ctx.fillRect(250, 150, 300, 300);
+    } else {
+      ctx.fillStyle = '#388e3c';
+      ctx.fillRect(250, 150, 300, 300);
+    }
+    ctx.restore();
 
     // 7. Draw Pitcher's Mound
-    ctx.fillStyle = '#c19a6b';
+    fillDirt();
     ctx.beginPath();
     ctx.arc(400, 250, 25, 0, Math.PI * 2);
     ctx.fill();
