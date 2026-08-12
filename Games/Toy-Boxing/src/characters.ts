@@ -26,6 +26,27 @@ export function characterPortraitUrl(id: CharacterId): string {
   return `${base}portraits/${id}.jpg`;
 }
 
+const ringImageCache = new Map<string, HTMLImageElement>();
+
+function loadRingImage(path: string): HTMLImageElement {
+  let img = ringImageCache.get(path);
+  if (!img) {
+    img = new Image();
+    img.decoding = 'async';
+    img.src = `${import.meta.env.BASE_URL ?? '/'}${path}`;
+    ringImageCache.set(path, img);
+  }
+  return img;
+}
+
+export function ringSkyImage(): HTMLImageElement {
+  return loadRingImage('ring-sky.jpg');
+}
+
+export function ringFloorImage(): HTMLImageElement {
+  return loadRingImage('ring-floor.jpg');
+}
+
 export const CHARACTERS: CharacterDef[] = [
   {
     id: 'bot',

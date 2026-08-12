@@ -12,6 +12,8 @@ import {
   characterPortraitUrl,
   getCharacter,
   pickCpuOpponent,
+  ringFloorImage,
+  ringSkyImage,
   type CharacterDef,
   type CharacterId,
 } from './characters';
@@ -646,12 +648,29 @@ export default function ToyBoxing() {
       ctx.translate(Math.random() * amt - amt / 2, Math.random() * amt - amt / 2);
     }
 
-    // Ring floor + ropes
-    const floor = ctx.createLinearGradient(0, GROUND_Y, 0, CANVAS_HEIGHT);
-    floor.addColorStop(0, '#334155');
-    floor.addColorStop(1, '#1e293b');
-    ctx.fillStyle = floor;
-    ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
+    // Ring floor + sky plates
+    const skyImg = ringSkyImage();
+    if (skyImg.complete && skyImg.naturalWidth > 0) {
+      ctx.drawImage(skyImg, 0, 0, CANVAS_WIDTH, GROUND_Y);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.25)';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
+    } else {
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.06)';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
+    }
+
+    const floorImg = ringFloorImage();
+    if (floorImg.complete && floorImg.naturalWidth > 0) {
+      ctx.drawImage(floorImg, 0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+      ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
+    } else {
+      const floor = ctx.createLinearGradient(0, GROUND_Y, 0, CANVAS_HEIGHT);
+      floor.addColorStop(0, '#334155');
+      floor.addColorStop(1, '#1e293b');
+      ctx.fillStyle = floor;
+      ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
+    }
 
     ctx.strokeStyle = '#94a3b8';
     ctx.lineWidth = 4;
@@ -661,10 +680,6 @@ export default function ToyBoxing() {
       ctx.lineTo(CANVAS_WIDTH, GROUND_Y - 40 - i * 40);
       ctx.stroke();
     }
-
-    // Soft arena glow
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.06)';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
 
     const paint = (b: Boxer) => {
       drawToyBoxer(ctx, {

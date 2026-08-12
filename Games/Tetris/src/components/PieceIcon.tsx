@@ -1,4 +1,4 @@
-import { TETROMINO_COLOR, getTrimmedShape } from '../utils/tetrisLogic';
+import { TETROMINO_COLOR, tetrominoBlockUrl, getTrimmedShape } from '../utils/tetrisLogic';
 import type { TetrominoType } from '../utils/tetrisLogic';
 
 interface PieceIconProps {
@@ -14,6 +14,11 @@ interface PieceIconProps {
 export function PieceIcon({ type, cell = 12 }: PieceIconProps) {
   const shape = getTrimmedShape(type);
   const color = TETROMINO_COLOR[type];
+  const tile = {
+    backgroundImage: `url(${tetrominoBlockUrl(type)})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  };
 
   return (
     <div
@@ -27,7 +32,7 @@ export function PieceIcon({ type, cell = 12 }: PieceIconProps) {
           <div
             key={`${r}-${c}`}
             className={`rounded-[2px] ${filled ? color : 'bg-transparent'}`}
-            style={{ width: cell, height: cell }}
+            style={filled ? { width: cell, height: cell, ...tile } : { width: cell, height: cell }}
           />
         )),
       )}

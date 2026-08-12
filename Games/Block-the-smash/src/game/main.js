@@ -217,8 +217,7 @@ window.addEventListener('message', (e) => {
 // --- SETUP SCENE ---
 const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(CONFIG.colors.court);
-scene.fog = new THREE.Fog(CONFIG.colors.court, 30, 120);
+// Sky texture + fog applied in ASSETS block below once textures load.
 
 // Camera setup for "Defensive Crouch" stance 
 // Lower Y (1.0) simulates defensive crouch eye level
@@ -246,6 +245,31 @@ composer.addPass(renderScene);
 composer.addPass(bloomPass);
 
 // --- ASSETS ---
+const textureLoader = new THREE.TextureLoader();
+const assetBase = import.meta.env.BASE_URL ?? './';
+
+const skyTex = textureLoader.load(`${assetBase}textures/sky.jpg`);
+skyTex.colorSpace = THREE.SRGBColorSpace;
+scene.background = skyTex;
+scene.fog = new THREE.Fog(CONFIG.colors.court, 40, 140);
+
+const courtTex = textureLoader.load(`${assetBase}textures/court.jpg`);
+courtTex.colorSpace = THREE.SRGBColorSpace;
+courtTex.wrapS = courtTex.wrapT = THREE.RepeatWrapping;
+courtTex.repeat.set(8, 8);
+const court = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshStandardMaterial({
+    map: courtTex,
+    color: 0xffffff,
+    roughness: 0.9,
+    metalness: 0.05,
+  }),
+);
+court.rotation.x = -Math.PI / 2;
+court.position.y = -5.01;
+scene.add(court);
+
 const gridHelper = new THREE.GridHelper(200, 20, CONFIG.colors.lines, 0x225533);
 gridHelper.position.y = -5; // Floor level
 scene.add(gridHelper);

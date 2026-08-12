@@ -5,7 +5,6 @@ import {kartBricks} from '../engine/models';
 import {bestLapKey, formatTime, type RaceMode, type RaceOptions} from '../engine/race';
 import {BrickPreview} from './BrickPreview';
 import {hasSeenHowTo, HowToOverlay} from './HowToOverlay';
-import {TrackPreview} from './TrackPreview';
 
 interface Props {
   charId: string;
@@ -79,7 +78,16 @@ export function MainMenu({
   const [showHowTo, setShowHowTo] = useState(() => !hasSeenHowTo());
 
   return (
-    <div className="min-h-full w-full overflow-y-auto bg-slate-950 px-4 py-14 text-slate-100">
+    <div
+      className="min-h-full w-full overflow-y-auto px-4 py-14 text-slate-100 bg-cover bg-center"
+      style={{
+        backgroundColor: '#020617',
+        backgroundImage: [
+          'linear-gradient(rgba(2,6,23,0.78), rgba(2,6,23,0.9))',
+          `url(${import.meta.env.BASE_URL}menu-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
       {showHowTo && (
         <HowToOverlay itemsEnabled={itemsOn} onClose={() => setShowHowTo(false)} />
       )}
@@ -160,7 +168,12 @@ export function MainMenu({
                   }`}
                 >
                   <div className="flex justify-center">
-                    <BrickPreview bricks={kartBricks(c)} size={84} yaw={0.6} />
+                    <img
+                      src={`${import.meta.env.BASE_URL}portraits/${c.id}.jpg`}
+                      alt=""
+                      className="h-[84px] w-[84px] rounded-xl object-cover border border-white/10"
+                      draggable={false}
+                    />
                   </div>
                   <p className="mt-1 text-center text-sm font-bold">{c.name}</p>
                 </button>
@@ -203,8 +216,13 @@ export function MainMenu({
                       : 'border-slate-800 bg-slate-900 hover:border-slate-600'
                   }`}
                 >
-                  <div className="flex justify-center">
-                    <TrackPreview def={t} size={116} mirror={options.mirror} />
+                  <div className="flex justify-center overflow-hidden rounded-xl">
+                    <img
+                      src={`${import.meta.env.BASE_URL}tracks/${t.id}.jpg`}
+                      alt=""
+                      className="h-[116px] w-full object-cover"
+                      draggable={false}
+                    />
                   </div>
                   <p className="mt-1 font-bold">
                     {t.name}

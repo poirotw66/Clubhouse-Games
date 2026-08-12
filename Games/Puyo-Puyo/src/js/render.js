@@ -15,6 +15,17 @@
     garbage: { base: '#c9d1dc', light: '#f8fbff', dark: '#6d7582' },
   };
 
+  var PUYO_IMAGES = {};
+  ['red', 'green', 'blue', 'yellow', 'purple', 'garbage'].forEach(function (color) {
+    var img = new Image();
+    img.decoding = 'async';
+    img.src = './art/puyo/' + color + '.jpg';
+    PUYO_IMAGES[color] = img;
+  });
+  var STAGE_IMAGE = new Image();
+  STAGE_IMAGE.decoding = 'async';
+  STAGE_IMAGE.src = './art/stage-bg.jpg';
+
   function paletteFor(color) {
     return PALETTE[color] || PALETTE.red;
   }
@@ -48,6 +59,17 @@
   }
 
   function drawBody(ctx, cx, cy, radius, color) {
+    var img = PUYO_IMAGES[color];
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(img, cx - radius, cy - radius, radius * 2, radius * 2);
+      ctx.restore();
+      return true;
+    }
     var pal = paletteFor(color);
     var gradient = ctx.createRadialGradient(
       cx - radius * 0.35, cy - radius * 0.4, radius * 0.15,
@@ -65,6 +87,7 @@
     ctx.beginPath();
     ctx.ellipse(cx - radius * 0.34, cy - radius * 0.44, radius * 0.26, radius * 0.17, -0.6, 0, Math.PI * 2);
     ctx.fill();
+    return false;
   }
 
   function drawEyes(ctx, cx, cy, radius) {
@@ -118,8 +141,8 @@
         }
       }
 
-      drawBody(ctx, cx, cy, cell * 0.46 * scale, sprite.color);
-      if (sprite.eyes !== false) drawEyes(ctx, cx, cy, cell * 0.46 * scale);
+      var usedSprite = drawBody(ctx, cx, cy, cell * 0.46 * scale, sprite.color);
+      if (sprite.eyes !== false && !usedSprite) drawEyes(ctx, cx, cy, cell * 0.46 * scale);
       ctx.restore();
     });
   }
@@ -129,11 +152,17 @@
     var height = rows * cell;
     ctx.clearRect(0, 0, width, height);
 
-    var backdrop = ctx.createLinearGradient(0, 0, 0, height);
-    backdrop.addColorStop(0, '#1b1440');
-    backdrop.addColorStop(1, '#120d2c');
-    ctx.fillStyle = backdrop;
-    ctx.fillRect(0, 0, width, height);
+    if (STAGE_IMAGE.complete && STAGE_IMAGE.naturalWidth > 0) {
+      ctx.drawImage(STAGE_IMAGE, 0, 0, width, height);
+      ctx.fillStyle = 'rgba(18, 13, 44, 0.45)';
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      var backdrop = ctx.createLinearGradient(0, 0, 0, height);
+      backdrop.addColorStop(0, '#1b1440');
+      backdrop.addColorStop(1, '#120d2c');
+      ctx.fillStyle = backdrop;
+      ctx.fillRect(0, 0, width, height);
+    }
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;

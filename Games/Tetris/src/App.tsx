@@ -19,6 +19,7 @@ import {
   tryRotateWithKick,
   getCellsForActive,
   TETROMINO_COLOR,
+  tetrominoBlockUrl,
   MODES,
   isGoalMet,
 } from './utils/tetrisLogic';
@@ -602,7 +603,16 @@ export default function App() {
       : '使用方向鍵與空白鍵操作；C/Hold 暫存';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-4 min-w-0">
+    <div
+      className="min-h-screen text-slate-50 flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
+      style={{
+        backgroundColor: '#020617',
+        backgroundImage: [
+          'linear-gradient(rgba(2,6,23,0.78), rgba(2,6,23,0.9))',
+          `url(${import.meta.env.BASE_URL}menu-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
       <header className="w-full max-w-5xl flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
@@ -725,13 +735,18 @@ export default function App() {
               onDone={() => setFlash(null)}
             />
           )}
-          <div className="inline-block rounded-xl bg-slate-900/90 p-2 border border-slate-800 shadow-lg">
+          <div className="inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm">
             <div
-              className="grid gap-0.5 bg-slate-900 rounded-lg p-1"
+              className="grid gap-0.5 rounded-lg p-1 bg-cover bg-center"
               style={{
                 gridTemplateColumns: `repeat(${BOARD_SIZE.cols}, minmax(0, 1fr))`,
                 gridTemplateRows: `repeat(${BOARD_SIZE.rows}, minmax(0, 1fr))`,
                 width: 'min(70vw, 320px)',
+                backgroundColor: '#0f172a',
+                backgroundImage: [
+                  'linear-gradient(rgba(15,23,42,0.55), rgba(15,23,42,0.72))',
+                  `url(${import.meta.env.BASE_URL}well-bg.jpg)`,
+                ].join(', '),
               }}
             >
               {Array.from({ length: BOARD_SIZE.rows * BOARD_SIZE.cols }, (_, index) => {
@@ -743,19 +758,26 @@ export default function App() {
                   getCellsForActive(state.active).some((p) => p.row === row && p.col === col);
                 const isGhost = ghostCells.has(`${row},${col}`) && !cell;
                 const isClearing = state.clearing?.includes(row) ?? false;
-                let bg = 'bg-slate-800';
+                let bg = 'bg-slate-800/40';
+                let tileStyle: { backgroundImage: string; backgroundSize: string; backgroundPosition: string } | undefined;
                 if (cell || isActive) {
                   const type = (cell || state.active?.type) as TetrominoType;
                   bg = TETROMINO_COLOR[type];
+                  tileStyle = {
+                    backgroundImage: `url(${tetrominoBlockUrl(type)})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  };
                 } else if (isGhost) {
                   bg = 'bg-slate-500/30';
                 }
                 return (
                   <div
                     key={`${row}-${col}`}
-                    className={`aspect-square rounded-[3px] ${bg} border border-slate-900${
+                    className={`aspect-square rounded-[3px] ${bg} border border-slate-900/80${
                       isClearing ? ' tetris-clearing' : ''
                     }`}
+                    style={tileStyle}
                   />
                 );
               })}
