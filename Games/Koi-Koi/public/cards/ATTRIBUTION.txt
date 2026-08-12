@@ -1,11 +1,10 @@
-Hanafuda card artwork (placeholder deck)
+Hanafuda card artwork (custom deck)
 
-Source: Wikimedia Commons — Category "SVG Hanafuda with traditional colors (black border)"
-Author: Louie Mantia (https://commons.wikimedia.org/wiki/User:Louiemantia)
-License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
-https://creativecommons.org/licenses/by-sa/4.0/
+Custom woodblock-inspired JPG faces for all 48 month cards plus the card back.
+Filenames match the deck ids in src/constants.ts:
 
-This is a temporary placeholder set. Replace with custom themed artwork later while
-keeping the same filename pattern (public/cards/{card-id}.svg).
+  public/cards/{month}-{index}.jpg   e.g. 1-1.jpg … 12-4.jpg
+  public/cards/back.jpg
 
-Download script: scripts/download-card-images.sh
+Previous Wikimedia SVG placeholder set (Louie Mantia, CC BY-SA 4.0) was removed
+when this custom deck landed.
