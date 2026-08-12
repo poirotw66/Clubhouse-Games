@@ -45,6 +45,7 @@ Clubhouse-Games/
 | 路徑 | `Games/<專案資料夾名>/`，例如 `Games/Blackjack-main/`、`Games/Klondike/` |
 | 專案名 | 可與規格檔名對應（如 `blackjack`、`klondike`），或保留既有名稱（如 `Blackjack-main`） |
 | 建置輸出 | 建議將 Vite/Webpack 的 `dist` 建置到該子資料夾內，或由 CI 將 `dist` 內容複製到 `Games/<名>/` 供 GitHub Pages 提供 |
+| 空殼資料夾 | 不要建立沒有 `package.json` 的 `Games/*` 別名（例如空的 `Blackjack`、`Solitaire-Klondike`、`Sailing-Adventure`）；正式路徑分別為 `Blackjack-main`、`Klondike`、`Sailing`。`npm run check:versions` 會拒絕這類空殼。 |
 
 ### 現有範例：Blackjack、Mystery-Liquid-Sort
 

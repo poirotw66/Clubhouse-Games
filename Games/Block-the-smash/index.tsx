@@ -61,7 +61,8 @@ const styles = {
     background: active ? '#ffffff' : 'rgba(255, 255, 255, 0.05)',
     color: active ? '#000000' : '#ffffff',
     border: '1px solid ' + (active ? '#ffffff' : 'rgba(255, 255, 255, 0.1)'),
-    padding: '6px 16px',
+    padding: '10px 16px',
+    minHeight: 44,
     borderRadius: '100px',
     fontSize: '13px',
     fontWeight: '600' as const,
@@ -71,6 +72,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
+    touchAction: 'manipulation' as const,
   }),
   title: {
     color: '#fff',

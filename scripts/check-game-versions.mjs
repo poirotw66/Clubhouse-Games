@@ -52,10 +52,22 @@ function checkGame(name) {
 }
 
 const failures = [];
+const emptyStubs = [];
 for (const name of fs.readdirSync(gamesDir)) {
-  if (!fs.existsSync(path.join(gamesDir, name, 'package.json'))) continue;
+  const dir = path.join(gamesDir, name);
+  if (!fs.statSync(dir).isDirectory()) continue;
+  if (!fs.existsSync(path.join(dir, 'package.json'))) {
+    emptyStubs.push(name);
+    continue;
+  }
   const mismatches = checkGame(name);
   if (mismatches.length > 0) failures.push({ name, mismatches });
+}
+
+if (emptyStubs.length > 0) {
+  console.error('Games/ folders without package.json (remove empty stubs):\n');
+  for (const name of emptyStubs) console.error(`  - Games/${name}/`);
+  process.exit(1);
 }
 
 if (failures.length > 0) {

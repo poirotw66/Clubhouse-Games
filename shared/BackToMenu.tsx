@@ -20,8 +20,8 @@ const CSS = `
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 32px;
-  padding: 6px 12px;
+  min-height: 44px;
+  padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;

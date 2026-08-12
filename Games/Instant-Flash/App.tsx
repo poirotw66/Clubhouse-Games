@@ -143,7 +143,7 @@ export default function App() {
           subtitle={
             isPractice
               ? '練習不計入個人最佳'
-              : 'Perfect 窗：依難度收斂 · Good 窗：依難度收斂'
+              : 'Perfect／Good 判定窗會隨連段收斂'
           }
           badge={
             isPractice

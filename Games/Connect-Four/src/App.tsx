@@ -338,7 +338,7 @@ export default function App() {
             setGameMode('two');
             resetBoard();
           }}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-full border touch-manipulation ${
+          className={`flex items-center gap-1 px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
             gameMode === 'two'
               ? 'border-sky-400 bg-sky-500/20 text-sky-100'
               : 'border-slate-600 bg-slate-800 text-slate-300'
@@ -354,7 +354,7 @@ export default function App() {
             setPlayerSide('red');
             resetBoard();
           }}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-full border touch-manipulation ${
+          className={`flex items-center gap-1 px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
             gameMode === 'bot' && playerSide === 'red'
               ? 'border-amber-400 bg-amber-500/20 text-amber-100'
               : 'border-slate-600 bg-slate-800 text-slate-300'
@@ -370,7 +370,7 @@ export default function App() {
             setPlayerSide('yellow');
             resetBoard();
           }}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-full border touch-manipulation ${
+          className={`flex items-center gap-1 px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
             gameMode === 'bot' && playerSide === 'yellow'
               ? 'border-amber-400 bg-amber-500/20 text-amber-100'
               : 'border-slate-600 bg-slate-800 text-slate-300'
@@ -399,7 +399,7 @@ export default function App() {
                   resetBoard();
                 }}
                 aria-pressed={selected}
-                className={`px-3 py-1.5 rounded-full border transition-colors touch-manipulation ${
+                className={`px-3 py-1.5 min-h-[44px] rounded-full border transition-colors touch-manipulation ${
                   selected
                     ? 'border-amber-400 bg-amber-500/20 text-amber-100'
                     : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'

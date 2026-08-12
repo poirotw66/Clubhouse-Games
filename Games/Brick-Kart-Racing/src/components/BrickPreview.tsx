@@ -48,8 +48,13 @@ export function BrickPreview({yaw = 0.62, size = 160, className, spin = false, b
 
     if (spin) {
       let last = performance.now();
+      let hidden = document.hidden;
+      const onVis = () => {
+        hidden = document.hidden;
+      };
+      document.addEventListener('visibilitychange', onVis);
       const tick = (now: number) => {
-        if (now - last > 70) {
+        if (!hidden && now - last > 70) {
           frame = (frame + 1) % angles;
           last = now;
           draw();
@@ -57,6 +62,10 @@ export function BrickPreview({yaw = 0.62, size = 160, className, spin = false, b
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
+      return () => {
+        cancelAnimationFrame(raf);
+        document.removeEventListener('visibilitychange', onVis);
+      };
     }
     return () => cancelAnimationFrame(raf);
   }, [bricks, yaw, size, spin]);

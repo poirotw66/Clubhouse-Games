@@ -17,7 +17,8 @@ import {
   DrawCount,
   HintMove,
 } from './utils/gameLogic';
-import { RotateCcw, Undo2, Bot, Square, Lightbulb } from 'lucide-react';
+import { RotateCcw, Undo2, Bot, Square, Lightbulb, Info } from 'lucide-react';
+import { RulesModal } from './components/RulesModal';
 
 const STATS_KEY = 'clubhouse-klondike-stats';
 const DRAW_KEY = 'clubhouse-klondike-draw';
@@ -63,6 +64,7 @@ export default function App() {
   const [draggingSource, setDraggingSource] = useState<DragSource | null>(null);
   const [selectedSource, setSelectedSource] = useState<DragSource | null>(null);
   const [hint, setHint] = useState<HintMove | null>(null);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
   const noProgressCount = useRef(0);
   const autoCompleteIdle = useRef(0);
   const prevWonRef = useRef(false);
@@ -722,9 +724,18 @@ export default function App() {
             </div>
             <button
               type="button"
+              onClick={() => setIsRulesOpen(true)}
+              className="flex items-center gap-2 min-h-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 transition-colors touch-manipulation"
+              title="規則"
+            >
+              <Info size={20} />
+              <span className="hidden sm:inline">規則</span>
+            </button>
+            <button
+              type="button"
               onClick={showHint}
               disabled={isBusy || isGameWon}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 min-h-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
             >
               <Lightbulb size={20} />
               <span className="hidden sm:inline">提示</span>
@@ -934,6 +945,8 @@ export default function App() {
           onPrimary={reshuffleBoard}
         />
       )}
+
+      <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
     </div>
   );
 }
