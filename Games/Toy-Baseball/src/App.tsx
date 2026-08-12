@@ -27,7 +27,7 @@ import {
   updateMatchBests,
   type BaseballBests,
 } from './stats';
-import { fieldDirtImage, fieldGrassImage, fieldSkyImage } from './fieldArt';
+import { fieldDirtImage, fieldGrassImage, fieldSkyImage, drawBatterSprite, drawPitcherSprite } from './fieldArt';
 
 // --- Constants & Types ---
 
@@ -757,26 +757,27 @@ class GameEngine {
     drawBase(250, 300, this.state.bases[2]); // 3rd
 
     // 12. Pitcher & Batter
-    ctx.fillStyle = '#ef4444'; // Pitcher
-    ctx.beginPath();
-    ctx.arc(400, 250, 15, 0, Math.PI * 2);
-    ctx.fill();
+    if (!drawPitcherSprite(ctx, 400, 250, 32)) {
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(400, 250, 15, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Batter
     const batterX = this.state.handedness === 'right' ? 365 : 435;
     const batterY = 485;
-    
-    // Draw Batter Body
-    ctx.fillStyle = '#3b82f6'; 
-    ctx.beginPath();
-    ctx.arc(batterX, batterY, 15, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Batter Head
-    ctx.fillStyle = '#fcd34d';
-    ctx.beginPath();
-    ctx.arc(batterX, batterY - 5, 8, 0, Math.PI * 2);
-    ctx.fill();
+
+    if (!drawBatterSprite(ctx, batterX, batterY - 2, 38)) {
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath();
+      ctx.arc(batterX, batterY, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fcd34d';
+      ctx.beginPath();
+      ctx.arc(batterX, batterY - 5, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Bat Visual
     const batPivotX = this.state.handedness === 'right' ? batterX + 12 : batterX - 12;

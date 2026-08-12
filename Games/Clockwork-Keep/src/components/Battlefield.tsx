@@ -3,6 +3,7 @@ import { ENTRANCE, EXIT, GRID_H, GRID_W, TOWER_DEFS, type TowerType } from '../g
 import { makeEmptyOccupancy, reconstructPath, wouldSealExit } from '../game/pathfinding';
 import {
   drawCenteredSprite,
+  boardFloorImage,
   enemySprite,
   preloadBattlefieldSprites,
   towerSprite,
@@ -74,9 +75,18 @@ function draw(
 ): void {
   ctx.clearRect(0, 0, BOARD_W, BOARD_H);
 
-  // Panel background
+  // Panel background — soft wooden floor plate under the grid.
   ctx.fillStyle = '#1c1409';
   ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+  const floor = boardFloorImage();
+  if (floor.complete && floor.naturalWidth > 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.82;
+    ctx.drawImage(floor, 0, 0, BOARD_W, BOARD_H);
+    ctx.restore();
+    ctx.fillStyle = 'rgba(28, 20, 9, 0.35)';
+    ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+  }
 
   // Grid cells
   for (let y = 0; y < state.gridH; y++) {
@@ -84,7 +94,12 @@ function draw(
       const isRock = state.rocks.some((r) => r.x === x && r.y === y);
       const isEntrance = x === ENTRANCE.x && y === ENTRANCE.y;
       const isExit = x === EXIT.x && y === EXIT.y;
-      ctx.fillStyle = isRock ? '#3f2f18' : (x + y) % 2 === 0 ? '#2a2013' : '#251c10';
+      // Soft checker wash so pathfinding cells stay readable over the plate.
+      ctx.fillStyle = isRock
+        ? 'rgba(63, 47, 24, 0.72)'
+        : (x + y) % 2 === 0
+          ? 'rgba(42, 32, 19, 0.28)'
+          : 'rgba(37, 28, 16, 0.38)';
       ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
       ctx.strokeStyle = 'rgba(255,255,255,0.06)';
       ctx.strokeRect(x * CELL + 0.5, y * CELL + 0.5, CELL - 1, CELL - 1);

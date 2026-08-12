@@ -949,6 +949,14 @@ function startGame(gl, canvas) {
   $('#btn-tutorial-ok')?.addEventListener('click', dismissTutorial);
 
   const overlay = $('#title-overlay');
+  if (overlay) {
+    // ponytail: public plate + CSS wash; relative URL matches other Sailing textures.
+    overlay.style.backgroundImage = [
+      'radial-gradient(ellipse at 50% 20%, rgba(44, 181, 168, 0.22), transparent 55%)',
+      'linear-gradient(180deg, rgba(7, 24, 36, 0.55), rgba(7, 24, 36, 0.82))',
+      "url('./menu-bg.jpg')",
+    ].join(', ');
+  }
   const dismiss = () => {
     overlay?.classList.add('hidden');
     setTimeout(() => overlay?.remove(), 500);

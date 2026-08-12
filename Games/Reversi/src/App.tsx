@@ -619,14 +619,24 @@ export default function App() {
                 disabled={state.phase !== 'playing' || !humanCanClick || (humanCanClick && !isLegal)}
                 className={`
                   w-full aspect-square rounded-md flex items-center justify-center touch-manipulation
-                  transition-colors duration-150 active:scale-95
+                  transition-colors duration-150 active:scale-95 bg-cover bg-center
                   ${cell ? 'cursor-default' : ''}
-                  ${showLegalHints && isLegal && !cell ? 'bg-emerald-600/40 hover:bg-emerald-500/50' : 'bg-emerald-800/60'}
-                  ${showLegalHints && !isLegal && state.phase === 'playing' ? 'hover:bg-emerald-700/70' : ''}
+                  ${showLegalHints && isLegal && !cell ? 'hover:brightness-110' : ''}
                   ${state.phase !== 'playing' ? 'cursor-default' : ''}
                   ${isLastMove ? 'ring-2 ring-yellow-400/70 ring-inset' : ''}
-                  ${isHint ? 'ring-2 ring-sky-300 ring-inset bg-sky-500/40' : ''}
+                  ${isHint ? 'ring-2 ring-sky-300 ring-inset' : ''}
                 `}
+                style={{
+                  backgroundColor: '#065f46',
+                  backgroundImage: [
+                    isHint
+                      ? 'linear-gradient(rgba(14,165,233,0.45), rgba(14,165,233,0.5))'
+                      : showLegalHints && isLegal && !cell
+                        ? 'linear-gradient(rgba(5,150,105,0.45), rgba(5,150,105,0.55))'
+                        : 'linear-gradient(rgba(6,95,70,0.35), rgba(6,78,59,0.5))',
+                    `url(${import.meta.env.BASE_URL}cell.jpg)`,
+                  ].join(', '),
+                }}
                 aria-label={
                   cell
                     ? `Row ${r + 1} col ${c + 1} ${cell}`

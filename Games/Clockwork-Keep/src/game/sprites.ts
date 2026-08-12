@@ -22,6 +22,10 @@ export function enemySprite(type: Enemy['type']): HTMLImageElement {
   return load(`enemies/${type}.jpg`);
 }
 
+export function boardFloorImage(): HTMLImageElement {
+  return load('board-floor.jpg');
+}
+
 /** Draw centered sprite; returns false if not ready yet (caller may fall back). */
 export function drawCenteredSprite(
   ctx: CanvasRenderingContext2D,
@@ -37,6 +41,7 @@ export function drawCenteredSprite(
 
 /** Kick off loads so first draw rarely falls back. */
 export function preloadBattlefieldSprites(): void {
+  boardFloorImage();
   for (const t of ['crossbow', 'grinder', 'frost', 'coil'] as const) towerSprite(t);
   for (const e of ['grunt', 'runner', 'ironclad', 'kite', 'boss'] as const) enemySprite(e);
 }
