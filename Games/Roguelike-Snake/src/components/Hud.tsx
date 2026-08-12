@@ -1,4 +1,5 @@
 import { Coins, Heart, Layers, Zap } from 'lucide-react';
+import { relicImageUrl } from '../game/art';
 import { RELIC_BY_ID } from '../game/relics';
 import type { Phase, RelicId } from '../game/types';
 
@@ -111,7 +112,13 @@ export function Hud({ hud, seedLabel }: HudProps) {
               title={RELIC_BY_ID[id].text}
               className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/70 px-2 py-0.5 text-xs"
             >
-              <span aria-hidden>{RELIC_BY_ID[id].icon}</span>
+              <img
+                src={relicImageUrl(id)}
+                alt=""
+                className="w-4 h-4 rounded object-cover"
+                draggable={false}
+                aria-hidden
+              />
               {RELIC_BY_ID[id].name}
             </span>
           ))}

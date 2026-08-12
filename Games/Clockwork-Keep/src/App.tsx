@@ -479,6 +479,12 @@ export default function App(): ReactElement {
               }`}
               title={`${def.name}（快捷鍵 ${i + 1}）`}
             >
+              <img
+                src={`${import.meta.env.BASE_URL}towers/${type}.jpg`}
+                alt=""
+                className="w-9 h-9 rounded-lg object-cover border border-amber-900/40 mb-0.5"
+                draggable={false}
+              />
               <span className="font-semibold">{def.name}</span>
               <span className="font-mono">{cost}G</span>
             </button>

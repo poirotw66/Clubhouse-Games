@@ -1025,13 +1025,29 @@ export default function App() {
             </div>
           ) : (
             <div className="flex gap-4 sm:gap-8 min-w-0">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Away (Player)</span>
-                <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
+              <div className="flex items-center gap-2">
+                <img
+                  src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
+                  alt=""
+                  className="w-9 h-9 rounded-lg object-cover border border-blue-400/40"
+                  draggable={false}
+                />
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Away (Player)</span>
+                  <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Home (CPU)</span>
-                <span className="text-3xl sm:text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Home (CPU)</span>
+                  <span className="text-3xl sm:text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
+                </div>
+                <img
+                  src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
+                  alt=""
+                  className="w-9 h-9 rounded-lg object-cover border border-red-400/40"
+                  draggable={false}
+                />
               </div>
             </div>
           )}
@@ -1084,9 +1100,30 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-start sm:justify-center z-20 p-4 overflow-y-auto"
+              className="absolute inset-0 backdrop-blur-sm flex flex-col items-center justify-start sm:justify-center z-20 p-4 overflow-y-auto bg-cover bg-center"
+              style={{
+                backgroundColor: '#09090b',
+                backgroundImage: [
+                  'linear-gradient(rgba(9,9,11,0.82), rgba(9,9,11,0.92))',
+                  `url(${import.meta.env.BASE_URL}menu-hero.jpg)`,
+                ].join(', '),
+              }}
             >
-              <Trophy className="w-14 h-14 sm:w-20 sm:h-20 text-yellow-500 mb-3 sm:mb-6" />
+              <div className="flex items-center gap-3 mb-3 sm:mb-6">
+                <img
+                  src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
+                  alt=""
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-white/15 shadow-lg"
+                  draggable={false}
+                />
+                <Trophy className="w-10 h-10 sm:w-14 sm:h-14 text-yellow-500" />
+                <img
+                  src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
+                  alt=""
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-white/15 shadow-lg"
+                  draggable={false}
+                />
+              </div>
               <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">TOY BASEBALL</h1>
               <p className="text-zinc-400 mb-4 text-sm tracking-widest uppercase">玩具棒球機檯</p>
 

@@ -397,7 +397,16 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-stone-800 p-2 pt-14 sm:p-4 sm:pt-16 md:p-8 md:pt-14 font-sans select-none overflow-x-hidden">
+    <div
+      className="min-h-screen text-stone-800 p-2 pt-14 sm:p-4 sm:pt-16 md:p-8 md:pt-14 font-sans select-none overflow-x-hidden bg-cover bg-center"
+      style={{
+        backgroundColor: '#FDFCF8',
+        backgroundImage: [
+          'linear-gradient(rgba(253,252,248,0.88), rgba(253,252,248,0.94))',
+          `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
