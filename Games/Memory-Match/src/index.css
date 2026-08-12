@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: "Noto Serif TC", "Songti TC", serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}

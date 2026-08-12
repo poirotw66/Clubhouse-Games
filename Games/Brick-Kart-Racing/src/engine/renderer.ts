@@ -16,9 +16,12 @@ import {groundStartRow, hexToRgb, projectPoint, renderGround, type Camera} from 
 import {driftLevel, type RaceState, type Racer} from './race';
 import {frameFor, getSprites} from './sprites';
 import type {SpriteSheet} from './brickModel';
+import {getTrackSkyImage} from './trackAssets';
 
 const HILL_STRIP_WIDTH = Math.round(FOCAL * Math.PI * 2);
 const HILL_STRIP_HEIGHT = 150;
+const SKY_PLATE_W = 512;
+const SKY_PLATE_H = 256;
 
 interface Backdrop {
   sky: HTMLCanvasElement;
@@ -42,14 +45,22 @@ function buildBackdrop(def: TrackDef): Backdrop {
   const th = def.theme;
 
   const sky = document.createElement('canvas');
-  sky.width = 1;
-  sky.height = 256;
+  sky.width = SKY_PLATE_W;
+  sky.height = SKY_PLATE_H;
   const sctx = sky.getContext('2d')!;
-  const grad = sctx.createLinearGradient(0, 0, 0, 256);
+  const grad = sctx.createLinearGradient(0, 0, 0, SKY_PLATE_H);
   grad.addColorStop(0, th.skyTop);
   grad.addColorStop(1, th.skyBottom);
   sctx.fillStyle = grad;
-  sctx.fillRect(0, 0, 1, 256);
+  sctx.fillRect(0, 0, SKY_PLATE_W, SKY_PLATE_H);
+
+  const skyPhoto = getTrackSkyImage(def.id);
+  if (skyPhoto.complete && skyPhoto.naturalWidth > 0) {
+    sctx.save();
+    sctx.globalAlpha = 0.88;
+    sctx.drawImage(skyPhoto, 0, 0, SKY_PLATE_W, SKY_PLATE_H);
+    sctx.restore();
+  }
 
   const hills = document.createElement('canvas');
   hills.width = HILL_STRIP_WIDTH;
@@ -90,6 +101,11 @@ function buildBackdrop(def: TrackDef): Backdrop {
 
 function getBackdrop(def: TrackDef): Backdrop {
   return backdrops.get(def.id) ?? buildBackdrop(def);
+}
+
+/** Drop sky caches after track art preload so photo skies bake in. */
+export function clearBackdrops(): void {
+  backdrops.clear();
 }
 
 export function createCamera(player: Racer): Camera {
@@ -195,7 +211,7 @@ export function renderFrame(rc: RenderContext, state: RaceState, cam: Camera): v
   const horizonRow = Math.max(0, Math.min(H, Math.round(cam.horizon)));
 
   // --- Sky and backdrop -----------------------------------------------------
-  ctx.drawImage(bd.sky, 0, 0, 1, 256, 0, 0, W, horizonRow + 2);
+  ctx.drawImage(bd.sky, 0, 0, bd.sky.width, bd.sky.height, 0, 0, W, horizonRow + 2);
 
   let offset = -((cam.angle / (Math.PI * 2)) * HILL_STRIP_WIDTH) % HILL_STRIP_WIDTH;
   if (offset > 0) offset -= HILL_STRIP_WIDTH;

@@ -384,7 +384,13 @@ export default function App() {
             onClick={() => startVsBot('black')}
             className="flex flex-col items-center gap-1 px-6 py-4 rounded-xl bg-stone-800 hover:bg-stone-700 border-2 border-stone-600 transition-colors"
           >
-            <span className="w-10 h-10 rounded-full bg-stone-900 ring-2 ring-stone-500" />
+            <span
+              className="w-10 h-10 rounded-full ring-2 ring-stone-500 bg-cover bg-center"
+              style={{
+                backgroundColor: '#1c1917',
+                backgroundImage: `url(${import.meta.env.BASE_URL}piece-black.jpg)`,
+              }}
+            />
             <span className="font-medium">執黑</span>
             <span className="text-xs text-stone-400">先手</span>
           </button>
@@ -393,7 +399,13 @@ export default function App() {
             onClick={() => startVsBot('white')}
             className="flex flex-col items-center gap-1 px-6 py-4 rounded-xl bg-stone-800 hover:bg-stone-700 border-2 border-stone-600 transition-colors"
           >
-            <span className="w-10 h-10 rounded-full bg-white ring-2 ring-stone-400" />
+            <span
+              className="w-10 h-10 rounded-full ring-2 ring-stone-400 bg-cover bg-center"
+              style={{
+                backgroundColor: '#f8fafc',
+                backgroundImage: `url(${import.meta.env.BASE_URL}piece-white.jpg)`,
+              }}
+            />
             <span className="font-medium">執白</span>
             <span className="text-xs text-stone-400">後手</span>
           </button>
@@ -541,7 +553,13 @@ export default function App() {
               : 'bg-stone-800/50'
           }`}
         >
-          <span className="w-4 h-4 rounded-full bg-stone-900 ring-2 ring-stone-600" />
+          <span
+            className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-stone-600"
+            style={{
+              backgroundColor: '#1c1917',
+              backgroundImage: `url(${import.meta.env.BASE_URL}piece-black.jpg)`,
+            }}
+          />
           <span>{gameMode === 'bot' && playerSide === 'black' ? '你' : '黑'} {black}</span>
         </div>
         <div
@@ -551,7 +569,13 @@ export default function App() {
               : 'bg-stone-800/50'
           }`}
         >
-          <span className="w-4 h-4 rounded-full bg-white ring-2 ring-stone-400" />
+          <span
+            className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-stone-400"
+            style={{
+              backgroundColor: '#f8fafc',
+              backgroundImage: `url(${import.meta.env.BASE_URL}piece-white.jpg)`,
+            }}
+          />
           <span>{gameMode === 'bot' && playerSide === 'white' ? '你' : '白'} {white}</span>
         </div>
         {gameMode === 'bot' && (
@@ -615,11 +639,13 @@ export default function App() {
               >
                 {cell && (
                   <span
-                    className={`w-[85%] h-[85%] rounded-full shadow-inner transition-all duration-150 ${
-                      cell === 'black'
-                        ? 'bg-stone-900 ring-2 ring-stone-600'
-                        : 'bg-white ring-2 ring-stone-400'
+                    className={`w-[85%] h-[85%] rounded-full shadow-inner transition-all duration-150 bg-cover bg-center ${
+                      cell === 'black' ? 'ring-2 ring-stone-600' : 'ring-2 ring-stone-400'
                     } ${isLastMove ? 'ring-4 ring-yellow-400/80' : ''}`}
+                    style={{
+                      backgroundColor: cell === 'black' ? '#1c1917' : '#f8fafc',
+                      backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
+                    }}
                   />
                 )}
                 {!cell && showLegalHints && isLegal && !isHint && (

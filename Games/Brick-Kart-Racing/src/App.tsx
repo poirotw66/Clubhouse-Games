@@ -30,12 +30,14 @@ import {
   type RaceState,
 } from './engine/race';
 import {
+  clearBackdrops,
   createCamera,
   createRenderContext,
   drawMinimap,
   renderFrame,
   updateCamera,
 } from './engine/renderer';
+import {preloadTrackArt} from './engine/trackAssets';
 
 const BEST_KEY = 'brick-kart-racing:best-laps';
 
@@ -101,6 +103,10 @@ export default function App() {
   const lapNoteRef = useRef('');
 
   pausedRef.current = paused || result !== null;
+
+  useEffect(() => {
+    void preloadTrackArt();
+  }, []);
 
   const handleHold = useCallback((key: ControlKey, down: boolean) => {
     touchRef.current[key] = down;
@@ -283,8 +289,11 @@ export default function App() {
     setHud(EMPTY_HUD);
     setLoading(true);
     setScreen('race');
-    // Let the loading frame paint before building the 2048² track texture.
-    setTimeout(() => setLoading(false), 60);
+    // Wait for albedo/sky plates so Mode-7 bake includes them, then drop caches.
+    void preloadTrackArt().then(() => {
+      clearBackdrops();
+      setLoading(false);
+    });
   }, []);
 
   const backToMenu = useCallback(() => {

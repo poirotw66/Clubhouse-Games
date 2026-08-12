@@ -194,6 +194,22 @@
           "players": "1 人",
           "specPath": "05-puzzle/clockwork-keep.md",
           "gameFolder": "Clockwork-Keep"
+        },
+        {
+          "name": "數字推盤",
+          "en": "Fifteen Puzzle",
+          "desc": "經典 4×4 滑塊推盤，將數字 1–15 排回正確順序。",
+          "players": "1 人",
+          "specPath": "05-puzzle/fifteen-puzzle.md",
+          "gameFolder": "Fifteen-Puzzle"
+        },
+        {
+          "name": "記憶配對",
+          "en": "Memory Match",
+          "desc": "翻開兩張卡配對圖案，全部配對即過關。",
+          "players": "1 人",
+          "specPath": "05-puzzle/memory-match.md",
+          "gameFolder": "Memory-Match"
         }
       ]
     },

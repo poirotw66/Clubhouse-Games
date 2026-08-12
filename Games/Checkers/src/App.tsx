@@ -108,11 +108,6 @@ interface PieceProps {
 }
 
 function Piece({ color, king, selected, capturer, lastMoveDest }: PieceProps) {
-  const base =
-    color === 'black'
-      ? 'bg-gradient-to-br from-stone-600 to-stone-900 shadow-inner'
-      : 'bg-gradient-to-br from-amber-50 to-amber-200 shadow-inner';
-
   const ring =
     selected
       ? 'ring-4 ring-amber-300 ring-offset-1 ring-offset-transparent'
@@ -130,11 +125,15 @@ function Piece({ color, king, selected, capturer, lastMoveDest }: PieceProps) {
     <span
       className={`
         w-[80%] h-[80%] rounded-full flex items-center justify-center
-        font-bold select-none ${base} ${ring} ${textColor}
+        font-bold select-none bg-cover bg-center shadow-inner ${ring} ${textColor}
         ${capturer && !selected ? 'animate-pulse' : ''}
         transition-all duration-150
       `}
-      style={{ fontSize: 'clamp(8px, 2vw, 14px)' }}
+      style={{
+        fontSize: 'clamp(8px, 2vw, 14px)',
+        backgroundColor: color === 'black' ? '#44403c' : '#fef3c7',
+        backgroundImage: `url(${import.meta.env.BASE_URL}piece-${color}.jpg)`,
+      }}
     >
       {king ? '♔' : ''}
     </span>
@@ -150,11 +149,11 @@ function CapturedRow({ color, count }: { color: PieceColor; count: number }) {
       {Array.from({ length: count }, (_, i) => (
         <span
           key={i}
-          className={`w-3 h-3 rounded-full flex-shrink-0 ${
-            color === 'black'
-              ? 'bg-stone-700 ring-1 ring-stone-500'
-              : 'bg-amber-100 ring-1 ring-amber-400'
-          }`}
+          className="w-3 h-3 rounded-full flex-shrink-0 bg-cover bg-center ring-1 ring-black/20"
+          style={{
+            backgroundColor: color === 'black' ? '#44403c' : '#fef3c7',
+            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${color}.jpg)`,
+          }}
         />
       ))}
     </div>
