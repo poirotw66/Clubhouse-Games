@@ -322,7 +322,16 @@ export default function App() {
 
   if (gameMode === null) {
     return (
-      <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center justify-center p-4 min-w-0">
+      <div
+        className="min-h-screen text-white flex flex-col items-center justify-center p-4 min-w-0 bg-cover bg-center"
+        style={{
+          backgroundColor: '#022c22',
+          backgroundImage: [
+            'linear-gradient(rgba(2,44,34,0.78), rgba(2,26,18,0.88))',
+            `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
         <BackToMenu />
         <h1 className="text-2xl font-bold tracking-tight mb-8">黑白棋 Reversi</h1>
         <div className="flex flex-col gap-4 w-full max-w-xs">
@@ -462,7 +471,16 @@ export default function App() {
   const endMargin = Math.abs(black - white);
 
   return (
-    <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center p-4 min-w-0">
+    <div
+      className="min-h-screen text-white flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
+      style={{
+        backgroundColor: '#022c22',
+        backgroundImage: [
+          'linear-gradient(rgba(2,44,34,0.78), rgba(2,26,18,0.88))',
+          `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
         <div className="flex items-baseline gap-2 min-w-0">

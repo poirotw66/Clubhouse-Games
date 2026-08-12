@@ -678,7 +678,16 @@ export default function App() {
   }, [isAutoPlaying, gameState, isGameWon, isAutoCompleting]);
 
   return (
-    <div className="min-h-screen bg-emerald-800 text-white p-4 md:p-8 font-sans select-none">
+    <div
+      className="min-h-screen text-white p-4 md:p-8 font-sans select-none bg-cover bg-center"
+      style={{
+        backgroundColor: '#065f46',
+        backgroundImage: [
+          'linear-gradient(rgba(6,95,70,0.55), rgba(6,78,59,0.75))',
+          `url(${import.meta.env.BASE_URL}felt.jpg)`,
+        ].join(', '),
+      }}
+    >
       <BackToMenu />
       <div className="max-w-5xl mx-auto">
         <div className="flex flex-wrap justify-between items-center gap-3 mb-6">

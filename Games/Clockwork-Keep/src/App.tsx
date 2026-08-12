@@ -265,9 +265,18 @@ export default function App(): ReactElement {
   // ── Setup screen ─────────────────────────────────────────────────────────
   if (screen === 'setup' || !state) {
     return (
-      <div className="min-h-screen bg-[#120c06] text-amber-50 flex flex-col items-center justify-center p-4">
+      <div
+        className="min-h-screen text-amber-50 flex flex-col items-center justify-center p-4 bg-cover bg-center"
+        style={{
+          backgroundColor: '#120c06',
+          backgroundImage: [
+            'linear-gradient(rgba(18,12,6,0.72), rgba(18,12,6,0.88))',
+            `url(${import.meta.env.BASE_URL}setup-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
         <BackToMenu />
-        <div className="w-full max-w-md bg-[#1c1409] border border-amber-900/50 rounded-2xl p-6 shadow-2xl">
+        <div className="w-full max-w-md bg-[#1c1409]/92 border border-amber-900/50 rounded-2xl p-6 shadow-2xl backdrop-blur-sm">
           <h1 className="text-2xl font-bold mb-1">發條守城</h1>
           <p className="text-amber-200/70 text-sm mb-6">
             塔就是牆：擺塔改寫敵人的最短路，但不得完全封死出口。

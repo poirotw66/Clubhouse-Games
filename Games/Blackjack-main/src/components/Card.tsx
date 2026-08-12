@@ -8,9 +8,14 @@ interface CardProps {
 export const Card: React.FC<CardProps> = ({ card }) => {
   if (card.isHidden) {
     return (
-      <div className="w-16 h-24 sm:w-[4.5rem] sm:h-28 md:w-20 md:h-32 rounded-lg border-2 border-white/20 bg-blue-900 bg-[repeating-linear-gradient(45deg,transparent,transparent_8px,rgba(255,255,255,0.1)_8px,rgba(255,255,255,0.1)_16px)] shadow-xl flex items-center justify-center touch-manipulation">
-        <div className="w-8 h-12 sm:w-10 sm:h-14 border-2 border-white/20 rounded"></div>
-      </div>
+      <div
+        className="w-16 h-24 sm:w-[4.5rem] sm:h-28 md:w-20 md:h-32 rounded-lg border-2 border-white/25 shadow-xl overflow-hidden touch-manipulation bg-cover bg-center"
+        style={{
+          backgroundColor: '#1e3a8a',
+          backgroundImage: `url(${import.meta.env.BASE_URL}card-back.jpg)`,
+        }}
+        aria-label="Hidden card"
+      />
     );
   }
 

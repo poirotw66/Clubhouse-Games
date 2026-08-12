@@ -3,6 +3,13 @@
  * Supports multiple background types: gradients and images
  */
 
+/** Vite base-aware public asset path (works under GitHub Pages subpaths). */
+function publicAsset(path: string): string {
+    const base = import.meta.env.BASE_URL ?? '/';
+    const normalized = path.replace(/^\//, '');
+    return `${base}${normalized}`;
+}
+
 export interface BackgroundConfig {
     id: number;
     name: string;
@@ -153,21 +160,21 @@ export const BACKGROUNDS: BackgroundConfig[] = [
         id: 13,
         name: 'Taiwan Night Market',
         type: 'image',
-        imageUrl: '/backgrounds/taiwan-night-market.jpg',
+        imageUrl: publicAsset('backgrounds/taiwan-night-market.jpg'),
         overlay: 'rgba(0,0,0,0.6)' // Dark overlay for text readability
     },
     {
         id: 14,
         name: 'Taipei Street',
         type: 'image',
-        imageUrl: '/backgrounds/taipei-street.jpg',
+        imageUrl: publicAsset('backgrounds/taipei-street.jpg'),
         overlay: 'rgba(0,0,0,0.6)'
     },
     {
         id: 15,
         name: 'Traditional Taiwan Alley',
         type: 'image',
-        imageUrl: '/backgrounds/taiwan-alley.jpg',
+        imageUrl: publicAsset('backgrounds/taiwan-alley.jpg'),
         overlay: 'rgba(0,0,0,0.6)'
     }
 ];

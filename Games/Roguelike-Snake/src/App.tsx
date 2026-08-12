@@ -287,7 +287,16 @@ export default function App() {
 
   if (screen === 'title' || !hud) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center justify-center p-4 pt-16">
+      <div
+        className="min-h-screen text-slate-50 flex flex-col items-center justify-center p-4 pt-16 bg-cover bg-center"
+        style={{
+          backgroundColor: '#020617',
+          backgroundImage: [
+            'linear-gradient(rgba(2,6,23,0.72), rgba(2,6,23,0.88))',
+            `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
         <BackToMenu />
         <TitleScreen best={best} onStart={startRun} />
       </div>

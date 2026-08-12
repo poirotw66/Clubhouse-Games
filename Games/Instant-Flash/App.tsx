@@ -62,10 +62,13 @@ export default function App() {
 
       {gameState === GameState.MENU && (
         <div className="absolute inset-0 flex items-center justify-center z-40 overflow-hidden">
-          {/* Local dojo atmosphere — no CDN image (unsplash + 80% black wash looked broken). */}
-          <div className="absolute inset-0 bg-[#12182a]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#3d4f6f_0%,_transparent_55%)] opacity-70" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,_#0f766e55_0%,_transparent_40%),radial-gradient(circle_at_80%_70%,_#7f1d1d44_0%,_transparent_35%)]" />
+          {/* Local dojo atmosphere (generated asset in public/ — no CDN). */}
+          <div
+            className="absolute inset-0 bg-[#12182a] bg-cover bg-center"
+            style={{ backgroundImage: `url(${import.meta.env.BASE_URL}dojo-bg.jpg)` }}
+          />
+          <div className="absolute inset-0 bg-slate-950/55" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#3d4f6f55_0%,_transparent_55%)]" />
           <div className="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent" />
           <div className="absolute top-16 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-amber-200/10 blur-3xl" />
 
