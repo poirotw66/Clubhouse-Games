@@ -9,20 +9,20 @@ const WINDOW_GOOD = 300;
 const WARNING_DURATION_MIN = 1000;
 const WARNING_DURATION_MAX = 2200;
 
-function getDifficultyTier(score, combo) {
-  return Math.min(6, Math.floor(score / 4000) + Math.floor(combo / 8));
+function getDifficultyTier(score, combo, baseTier = 0) {
+  return Math.min(6, baseTier + Math.floor(score / 4000) + Math.floor(combo / 8));
 }
 
-function getTimingWindows(score, combo) {
-  const tier = getDifficultyTier(score, combo);
+function getTimingWindows(score, combo, baseTier = 0) {
+  const tier = getDifficultyTier(score, combo, baseTier);
   return {
     perfect: Math.max(55, WINDOW_PERFECT - tier * 10),
     good: Math.max(160, WINDOW_GOOD - tier * 18),
   };
 }
 
-function getAttackDelayRange(score) {
-  const tier = Math.min(5, Math.floor(score / 6000));
+function getAttackDelayRange(score, baseTier = 0) {
+  const tier = Math.min(5, baseTier + Math.floor(score / 6000));
   const cut = tier * 140;
   return {
     min: Math.max(550, WARNING_DURATION_MIN - cut),
@@ -30,8 +30,8 @@ function getAttackDelayRange(score) {
   };
 }
 
-function getProjectileDurationScale(score) {
-  const tier = Math.min(4, Math.floor(score / 8000));
+function getProjectileDurationScale(score, baseTier = 0) {
+  const tier = Math.min(4, baseTier + Math.floor(score / 8000));
   return Math.max(0.72, 1 - tier * 0.07);
 }
 
@@ -48,8 +48,16 @@ assert.deepEqual(getTimingWindows(8000, 0), { perfect: 100, good: 264 });
 // Combo ramp: combo 16 → floor(16/8)=2
 assert.equal(getDifficultyTier(0, 16), 2);
 
+// Practice intensity floor
+assert.equal(getDifficultyTier(0, 0, 2), 2);
+assert.equal(getDifficultyTier(0, 0, 4), 4);
+assert.deepEqual(getTimingWindows(0, 0, 2), { perfect: 100, good: 264 });
+assert.deepEqual(getAttackDelayRange(0, 2), { min: 720, max: 1920 });
+assert.ok(Math.abs(getProjectileDurationScale(0, 2) - 0.86) < 1e-9);
+
 // Cap at tier 6 — floors (55 / 160) exist for further ramp; at max tier windows are still above floor
 assert.equal(getDifficultyTier(999999, 999), 6);
+assert.equal(getDifficultyTier(8000, 0, 4), 6);
 const capped = getTimingWindows(999999, 999);
 assert.equal(capped.perfect, 60, 'tier-6 perfect = 120 - 60');
 assert.equal(capped.good, 192, 'tier-6 good = 300 - 108');
@@ -70,8 +78,13 @@ assert.equal(getProjectileDurationScale(999999), 0.72);
 // Perfect must stay stricter than good at every tier
 for (let score = 0; score <= 40000; score += 4000) {
   for (let combo = 0; combo <= 48; combo += 8) {
-    const w = getTimingWindows(score, combo);
-    assert.ok(w.perfect < w.good, `perfect < good at score=${score} combo=${combo}`);
+    for (const baseTier of [0, 2, 4]) {
+      const w = getTimingWindows(score, combo, baseTier);
+      assert.ok(
+        w.perfect < w.good,
+        `perfect < good at score=${score} combo=${combo} base=${baseTier}`,
+      );
+    }
   }
 }
 

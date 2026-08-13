@@ -2,36 +2,55 @@ import { useCallback, useEffect, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playError, playScore, playWin } from '@clubhouse/shared/synthAudio';
-import { allMatched, buildDeck, type MemoryCard } from './memoryLogic';
+import {
+  allMatched,
+  buildDeck,
+  loadBestMoves,
+  saveBestMoves,
+  type MemoryCard,
+  type PairCount,
+} from './memoryLogic';
+
+const PAIR_OPTIONS: { count: PairCount; label: string }[] = [
+  { count: 4, label: '簡單 · 4 對' },
+  { count: 6, label: '普通 · 6 對' },
+];
 
 export default function App() {
-  const [cards, setCards] = useState<MemoryCard[]>(() => buildDeck());
+  const [pairCount, setPairCount] = useState<PairCount>(6);
+  const [cards, setCards] = useState<MemoryCard[]>(() => buildDeck(6));
   const [flipped, setFlipped] = useState<number[]>([]);
   const [locks, setLocks] = useState(false);
   const [moves, setMoves] = useState(0);
   const [won, setWon] = useState(false);
+  const [best, setBest] = useState<number | null>(() => loadBestMoves(6));
+  const [newRecord, setNewRecord] = useState(false);
 
-  const restart = useCallback(() => {
-    setCards(buildDeck());
+  const restart = useCallback((count: PairCount = pairCount) => {
+    setPairCount(count);
+    setCards(buildDeck(count));
     setFlipped([]);
     setLocks(false);
     setMoves(0);
     setWon(false);
-  }, []);
+    setNewRecord(false);
+    setBest(loadBestMoves(count));
+  }, [pairCount]);
 
   useEffect(() => {
     if (!won && allMatched(cards)) {
       setWon(true);
       playWin();
+      const saved = saveBestMoves(pairCount, moves);
+      setBest(saved);
+      setNewRecord(saved === moves);
     }
-  }, [cards, won]);
+  }, [cards, won, moves, pairCount]);
 
   useEffect(() => {
     if (flipped.length !== 2) return;
     const [a, b] = flipped;
-    const faceA = cards[a].face;
-    const faceB = cards[b].face;
-    const match = faceA === faceB;
+    const match = cards[a].face === cards[b].face;
     setLocks(true);
     setMoves((m) => m + 1);
     const t = window.setTimeout(() => {
@@ -47,8 +66,7 @@ export default function App() {
       setLocks(false);
     }, match ? 280 : 650);
     return () => window.clearTimeout(t);
-    // ponytail: only react to a completed pair; tile faces are fixed for the deal
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cards faces stable until match paint
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- faces fixed for the deal
   }, [flipped]);
 
   const onCard = (index: number) => {
@@ -58,6 +76,8 @@ export default function App() {
     if (flipped.length >= 2) return;
     setFlipped((f) => [...f, index]);
   };
+
+  const gridCols = pairCount === 4 ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-4';
 
   return (
     <div
@@ -74,8 +94,27 @@ export default function App() {
     >
       <BackToMenu />
       <h1 className="text-2xl font-bold tracking-wide">記憶配對</h1>
-      <p className="text-sm text-slate-300">翻牌次數：{moves}</p>
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 w-[min(94vw,420px)]">
+      <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="難度">
+        {PAIR_OPTIONS.map(({ count, label }) => (
+          <button
+            key={count}
+            type="button"
+            onClick={() => restart(count)}
+            className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+              pairCount === count
+                ? 'border-sky-400 bg-sky-500/25 text-sky-100'
+                : 'border-slate-600 bg-slate-800/80 text-slate-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm text-slate-300">
+        翻牌次數：{moves}
+        {best != null ? ` · 最佳：${best}` : ''}
+      </p>
+      <div className={`grid ${gridCols} gap-2 w-[min(94vw,420px)]`}>
         {cards.map((card, i) => {
           const show = card.matched || flipped.includes(i);
           return (
@@ -106,8 +145,8 @@ export default function App() {
       </div>
       <button
         type="button"
-        onClick={restart}
-        className="min-h-[44px] px-5 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium"
+        onClick={() => restart()}
+        className="min-h-[44px] px-5 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium touch-manipulation"
       >
         重開一局
       </button>
@@ -115,8 +154,13 @@ export default function App() {
         <ResultOverlay
           title="全部配對！"
           variant="win"
-          stats={[{ label: '翻牌次數', value: moves }]}
-          onPrimary={restart}
+          badge={newRecord ? '新紀錄' : undefined}
+          stats={[
+            { label: '翻牌次數', value: moves },
+            { label: '配對數', value: pairCount },
+            { label: '最佳', value: best ?? moves },
+          ]}
+          onPrimary={() => restart()}
         />
       )}
     </div>

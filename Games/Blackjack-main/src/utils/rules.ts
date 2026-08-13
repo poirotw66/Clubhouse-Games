@@ -76,6 +76,18 @@ export const resolveInsurancePayout = (
 /** Early surrender: half the main bet returned. */
 export const surrenderRefund = (bet: number): number => Math.floor(bet / 2);
 
+/** Even money: take 1:1 on player blackjack vs dealer Ace (stake already deducted). */
+export const evenMoneyPayout = (bet: number): number => bet * 2;
+
+/** Blackjack 3:2 payout including returned stake (stake already deducted). */
+export const blackjackPayout = (bet: number): number => bet * 2.5;
+
+/** Display total; soft hands show Traditional Chinese「軟」prefix. */
+export const formatHandTotal = (cards: Card[]): string => {
+  const score = calculateScore(cards);
+  return isSoftHand(cards) ? `軟 ${score}` : String(score);
+};
+
 export const BALANCE_STORAGE_KEY = 'clubhouse-blackjack-balance';
 export const DEALER_RULE_STORAGE_KEY = 'clubhouse-blackjack-dealer-rule';
 export const DEFAULT_BALANCE = 1000;

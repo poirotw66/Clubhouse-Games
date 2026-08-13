@@ -4,6 +4,7 @@ import {
   isSolvable,
   isSolved,
   neighborsOfEmpty,
+  scrambleBoard,
   slide,
   shuffledBoard,
   solvedBoard,
@@ -27,6 +28,13 @@ for (let i = 0; i < 20; i++) {
   const b = shuffledBoard(rand);
   assert.ok(isSolvable(b));
   assert.ok(!isSolved(b));
+}
+for (const tier of ['easy', 'normal', 'hard']) {
+  for (let i = 0; i < 10; i++) {
+    const b = scrambleBoard(/** @type {any} */ (tier), rand);
+    assert.ok(isSolvable(b));
+    assert.ok(!isSolved(b));
+  }
 }
 
 console.log('fifteen-puzzle check ok');

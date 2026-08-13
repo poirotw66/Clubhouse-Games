@@ -73,3 +73,87 @@ export function shuffledBoard(rand: () => number = Math.random): Board {
   const b = solvedBoard();
   return slide(b, SIZE * SIZE - 2)!;
 }
+
+export type ScrambleTier = 'easy' | 'normal' | 'hard';
+
+const SCRAMBLE_SLIDES: Record<ScrambleTier, number> = {
+  easy: 20,
+  normal: 50,
+  hard: 0, // full shuffle
+};
+
+/** N random legal slides from solved (always solvable). Hard → full shuffle. */
+export function scrambleBoard(
+  tier: ScrambleTier,
+  rand: () => number = Math.random,
+): Board {
+  if (tier === 'hard') return shuffledBoard(rand);
+  let board = solvedBoard();
+  let lastEmpty = emptyIndex(board);
+  for (let i = 0; i < SCRAMBLE_SLIDES[tier]; i++) {
+    const opts = neighborsOfEmpty(board).filter((idx) => idx !== lastEmpty);
+    const pick = opts[Math.floor(rand() * opts.length)] ?? neighborsOfEmpty(board)[0];
+    const prevEmpty = emptyIndex(board);
+    board = slide(board, pick)!;
+    lastEmpty = prevEmpty;
+  }
+  return isSolved(board) ? scrambleBoard(tier, rand) : board;
+}
+
+export type PlayMode = 'classic' | 'sprint';
+
+export const SPRINT_LIMIT_SEC = 90;
+
+const BEST_KEY = 'clubhouse-fifteen-best';
+
+export function loadBestMoves(tier: ScrambleTier): number | null {
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    const v = parsed[`moves-${tier}`];
+    return typeof v === 'number' && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveBestMoves(tier: ScrambleTier, moves: number): number | null {
+  const prev = loadBestMoves(tier);
+  if (prev !== null && moves >= prev) return prev;
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    parsed[`moves-${tier}`] = moves;
+    localStorage.setItem(BEST_KEY, JSON.stringify(parsed));
+  } catch {
+    /* ignore */
+  }
+  return moves;
+}
+
+export function loadBestSprintSec(tier: ScrambleTier): number | null {
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    const v = parsed[`sprint-${tier}`];
+    return typeof v === 'number' && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveBestSprintSec(tier: ScrambleTier, sec: number): number | null {
+  const prev = loadBestSprintSec(tier);
+  if (prev !== null && sec >= prev) return prev;
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    parsed[`sprint-${tier}`] = sec;
+    localStorage.setItem(BEST_KEY, JSON.stringify(parsed));
+  } catch {
+    /* ignore */
+  }
+  return sec;
+}

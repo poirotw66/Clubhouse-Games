@@ -2,11 +2,12 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
-import type { DominoesState, PlayerId, Difficulty } from './utils/dominoesLogic';
+import type { DominoesState, PlayerId, Difficulty, RuleVariant } from './utils/dominoesLogic';
 import {
   createInitialState,
   playTile,
   drawTiles,
+  pass,
   getChainEnds,
   getPlayableTiles,
   getValidMoves,
@@ -38,10 +39,16 @@ function saveStreak(n: number): void {
   }
 }
 
+const RULE_LABELS: Record<RuleVariant, string> = {
+  draw: '摸牌制',
+  block: '封鎖制',
+};
+
 export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('two');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
-  const [state, setState] = useState<DominoesState>(createInitialState);
+  const [ruleVariant, setRuleVariant] = useState<RuleVariant>('draw');
+  const [state, setState] = useState<DominoesState>(() => createInitialState('draw'));
   const [history, setHistory] = useState<DominoesState[]>([]);
   const [hintMove, setHintMove] = useState<{ tileId: number; end: 'left' | 'right' } | null>(
     null,
@@ -82,13 +89,19 @@ export default function App() {
             setState(next);
           }
         }
-      } else {
+      } else if (state.ruleVariant === 'draw') {
         setState(drawTiles(state, 1));
+      } else {
+        const next = pass(state, 1);
+        if (next) setState(next);
       }
       botScheduled.current = false;
     }, 600);
-    return () => clearTimeout(timer);
-  }, [isBotTurn, state.phase, state.currentPlayer, state.chain, state.hands[1], state.boneyard.length, difficulty]);
+    return () => {
+      clearTimeout(timer);
+      botScheduled.current = false;
+    };
+  }, [isBotTurn, state, difficulty]);
 
   useEffect(() => {
     if (state.phase === 'playing') {
@@ -136,11 +149,22 @@ export default function App() {
   );
 
   const handleDraw = useCallback(() => {
-    if (state.phase !== 'playing' || canPlayAny || state.boneyard.length <= 2) return;
+    if (state.phase !== 'playing' || canPlayAny) return;
+    if (state.ruleVariant !== 'draw' || state.boneyard.length <= 2) return;
     if (gameMode === 'bot' && state.currentPlayer !== 0) return;
     pushHistory();
     setHintMove(null);
     setState(drawTiles(state, state.currentPlayer));
+  }, [state, canPlayAny, gameMode, pushHistory]);
+
+  const handlePass = useCallback(() => {
+    if (state.phase !== 'playing' || canPlayAny) return;
+    if (gameMode === 'bot' && state.currentPlayer !== 0) return;
+    const next = pass(state, state.currentPlayer);
+    if (!next) return;
+    pushHistory();
+    setHintMove(null);
+    setState(next);
   }, [state, canPlayAny, gameMode, pushHistory]);
 
   const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
@@ -172,14 +196,15 @@ export default function App() {
     }
   }, [humanCanAct, canPlayAny, state]);
 
-  const handleNewGame = useCallback(() => {
-    setState(createInitialState());
+  const handleNewGame = useCallback((nextVariant: RuleVariant = ruleVariant) => {
+    setRuleVariant(nextVariant);
+    setState(createInitialState(nextVariant));
     setHistory([]);
     setSelectedTileId(null);
     setHintMove(null);
     botScheduled.current = false;
     prevPhaseRef.current = 'playing';
-  }, []);
+  }, [ruleVariant]);
 
   const isValidEnd = useCallback(
     (tileId: number, end: 'left' | 'right') => {
@@ -249,6 +274,9 @@ export default function App() {
           <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
             {gameMode === 'bot' ? '對戰電腦' : '雙人'}
           </span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
+            {RULE_LABELS[ruleVariant]}
+          </span>
           {gameMode === 'bot' && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-200 border border-amber-700/60">
               連勝 {winStreak}
@@ -287,7 +315,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={handleNewGame}
+            onClick={() => handleNewGame()}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation"
             title="New game"
             aria-label="New game"
@@ -297,7 +325,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex items-center gap-4 mb-2 text-sm">
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-2 text-sm">
         <button
           type="button"
           onClick={() => {
@@ -324,6 +352,32 @@ export default function App() {
           <Bot className="w-4 h-4" />
           <span>對戰電腦</span>
         </button>
+      </div>
+
+      <div
+        className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
+        role="group"
+        aria-label="規則變體"
+      >
+        <span className="text-slate-400">規則</span>
+        {(['draw', 'block'] as RuleVariant[]).map((id) => {
+          const selected = ruleVariant === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => handleNewGame(id)}
+              aria-pressed={selected}
+              className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                selected
+                  ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+                  : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {RULE_LABELS[id]}
+            </button>
+          );
+        })}
       </div>
 
       {gameMode === 'bot' && (
@@ -417,7 +471,11 @@ export default function App() {
             : `玩家 ${state.currentPlayer + 1} 手牌`}
           {state.phase === 'playing' && state.currentPlayer === 0 && gameMode === 'bot' && (
             <span className="ml-2 text-amber-400">
-              {canPlayAny ? '選一張牌再點左/右端出牌' : '無法出牌，請抽牌'}
+              {canPlayAny
+                ? '選一張牌再點左/右端出牌'
+                : ruleVariant === 'draw'
+                  ? '無法出牌，請抽牌'
+                  : '無法出牌，請跳過'}
             </span>
           )}
         </p>
@@ -452,17 +510,30 @@ export default function App() {
           ))}
       </div>
 
-      {/* Draw button: current player cannot play and boneyard > 2 */}
       {state.phase === 'playing' &&
         !canPlayAny &&
-        state.boneyard.length > 2 &&
-        (gameMode === 'two' || state.currentPlayer === 0) && (
+        (gameMode === 'two' || state.currentPlayer === 0) &&
+        ruleVariant === 'draw' &&
+        state.boneyard.length > 2 && (
           <button
             type="button"
             onClick={handleDraw}
             className="mt-4 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium transition-colors touch-manipulation"
           >
             抽牌
+          </button>
+        )}
+
+      {state.phase === 'playing' &&
+        !canPlayAny &&
+        (gameMode === 'two' || state.currentPlayer === 0) &&
+        (ruleVariant === 'block' || state.boneyard.length <= 2) && (
+          <button
+            type="button"
+            onClick={handlePass}
+            className="mt-4 px-6 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 font-medium transition-colors touch-manipulation"
+          >
+            跳過
           </button>
         )}
 
@@ -483,6 +554,7 @@ export default function App() {
               label: '模式',
               value: gameMode === 'bot' ? '對戰電腦' : '雙人',
             },
+            { label: '規則', value: RULE_LABELS[ruleVariant] },
             ...(gameMode === 'bot'
               ? [{ label: '連勝', value: String(winStreak) }]
               : []),
@@ -502,12 +574,16 @@ export default function App() {
         >
           <div className="bg-slate-800 rounded-xl max-w-md max-h-[85vh] overflow-y-auto p-6 text-left">
             <h2 id="dominoes-rules-title" className="text-lg font-bold mb-3">
-              規則說明（阻擋／抽牌型）
+              規則說明（{RULE_LABELS[ruleVariant]}）
             </h2>
             <ul className="text-sm text-slate-200 space-y-2 list-disc pl-4">
               <li>雙六組 28 張牌，每人 7 張，其餘為牌堆。</li>
               <li>輪流出牌：選一張手牌與桌面線的「左端」或「右端」點數相同的一邊相接。</li>
-              <li>無法出牌時從牌堆抽牌，直到能出或牌堆剩 2 張不抽。</li>
+              <li>
+                {ruleVariant === 'draw'
+                  ? '摸牌制：無法出牌時從牌堆抽牌，直到能出或牌堆剩 2 張；之後才能跳過。'
+                  : '封鎖制：無法出牌時直接跳過（不摸牌）；雙方都無法出牌即阻塞結算。'}
+              </li>
               <li>先出完手牌者勝；若阻塞（雙方皆無法出牌），手牌點數和較少者勝。</li>
             </ul>
             <button

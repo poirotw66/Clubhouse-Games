@@ -36,24 +36,44 @@ export const COLOR_GOOD = '#eab308'; // yellow-500
 export const COLOR_FAIL = '#ef4444'; // red-500
 export const COLOR_NEUTRAL = '#94a3b8'; // slate-400
 
+/** Practice intensity floor added into the dynamic tier ramp. */
+export type PracticeIntensity = 0 | 2 | 4;
+
+export const INTENSITY_LABELS: Record<PracticeIntensity, string> = {
+  0: '輕鬆',
+  2: '標準',
+  4: '高壓',
+};
+
 /** Difficulty ramps with score and combo — windows tighten, attacks speed up. */
-export function getDifficultyTier(score: number, combo: number): number {
-  return Math.min(6, Math.floor(score / 4000) + Math.floor(combo / 8));
+export function getDifficultyTier(
+  score: number,
+  combo: number,
+  baseTier: number = 0,
+): number {
+  return Math.min(6, baseTier + Math.floor(score / 4000) + Math.floor(combo / 8));
 }
 
-export function getTimingWindows(score: number, combo: number): {
+export function getTimingWindows(
+  score: number,
+  combo: number,
+  baseTier: number = 0,
+): {
   perfect: number;
   good: number;
 } {
-  const tier = getDifficultyTier(score, combo);
+  const tier = getDifficultyTier(score, combo, baseTier);
   return {
     perfect: Math.max(55, WINDOW_PERFECT - tier * 10),
     good: Math.max(160, WINDOW_GOOD - tier * 18),
   };
 }
 
-export function getAttackDelayRange(score: number): { min: number; max: number } {
-  const tier = Math.min(5, Math.floor(score / 6000));
+export function getAttackDelayRange(
+  score: number,
+  baseTier: number = 0,
+): { min: number; max: number } {
+  const tier = Math.min(5, baseTier + Math.floor(score / 6000));
   const cut = tier * 140;
   return {
     min: Math.max(550, WARNING_DURATION_MIN - cut),
@@ -61,7 +81,10 @@ export function getAttackDelayRange(score: number): { min: number; max: number }
   };
 }
 
-export function getProjectileDurationScale(score: number): number {
-  const tier = Math.min(4, Math.floor(score / 8000));
+export function getProjectileDurationScale(
+  score: number,
+  baseTier: number = 0,
+): number {
+  const tier = Math.min(4, baseTier + Math.floor(score / 8000));
   return Math.max(0.72, 1 - tier * 0.07);
 }
