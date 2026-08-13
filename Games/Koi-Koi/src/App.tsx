@@ -12,7 +12,7 @@ import { useBgm } from './hooks/useBgm';
 import { useCharacterSelection } from './hooks/useCharacterSelection';
 import { useSfx } from './hooks/useSfx';
 import { Card, GameState, Phase } from './types';
-import { deal, calculateYaku, getMatchingCards, resolveRoundScores, WIN_SCORE } from './utils/gameLogic';
+import { deal, calculateYaku, getMatchingCards, resolveRoundScores, WIN_SCORE_OPTIONS, WIN_SCORE_LABELS, type WinScore } from './utils/gameLogic';
 import {
   Difficulty,
   DIFFICULTY_LABELS,
@@ -22,7 +22,14 @@ import {
   shouldBotKoiKoi,
   type HintChoice,
 } from './utils/botAi';
-import { loadStats, recordResult, saveStats, withDifficulty, type MatchStats } from './utils/stats';
+import {
+  loadStats,
+  recordResult,
+  saveStats,
+  withDifficulty,
+  withWinScore,
+  type MatchStats,
+} from './utils/stats';
 import { motion, AnimatePresence } from 'motion/react';
 
 const initialState: GameState = {
@@ -54,11 +61,14 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [stats, setStats] = useState<MatchStats>(() => loadStats());
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
+  const [winScore, setWinScore] = useState<WinScore>(() => loadStats().lastWinScore);
   const [hint, setHint] = useState<HintChoice | null>(null);
   const lockRef = useRef(false);
   const statsRecordedRef = useRef(false);
   const difficultyRef = useRef(difficulty);
   difficultyRef.current = difficulty;
+  const winScoreRef = useRef(winScore);
+  winScoreRef.current = winScore;
   const { character, characterId, setCharacterId } = useCharacterSelection();
   const { muted, toggleMute, unlock, currentTitle } = useBgm();
   const { play: playSfx } = useSfx();
@@ -68,6 +78,15 @@ export default function App() {
     setDifficulty(next);
     setStats(prev => {
       const updated = withDifficulty(prev, next);
+      saveStats(updated);
+      return updated;
+    });
+  }, []);
+
+  const applyWinScore = useCallback((next: WinScore) => {
+    setWinScore(next);
+    setStats(prev => {
+      const updated = withWinScore(prev, next);
       saveStats(updated);
       return updated;
     });
@@ -127,7 +146,13 @@ export default function App() {
       if (s.playerHand.length === 0 && s.botHand.length === 0) {
         const playerGain = s.dealer === 'player' ? 1 : 0;
         const botGain = s.dealer === 'bot' ? 1 : 0;
-        const resolved = resolveRoundScores(s.playerScore, s.botScore, playerGain, botGain);
+        const resolved = resolveRoundScores(
+          s.playerScore,
+          s.botScore,
+          playerGain,
+          botGain,
+          winScoreRef.current,
+        );
         playSfx(resolved.winner ? 'win' : 'draw');
         return {
           ...s,
@@ -136,7 +161,7 @@ export default function App() {
           playerScore: resolved.playerScore,
           botScore: resolved.botScore,
           message: resolved.winner
-            ? `流局！莊家獲得 1 分親權。${resolved.winner === 'player' ? '你先達 ' + WIN_SCORE + ' 分獲勝！' : '師匠先達 ' + WIN_SCORE + ' 分獲勝！'}`
+            ? `流局！莊家獲得 1 分親權。${resolved.winner === 'player' ? '你先達 ' + winScoreRef.current + ' 分獲勝！' : '師匠先達 ' + winScoreRef.current + ' 分獲勝！'}`
             : '流局！莊家獲得 1 分親權。',
         };
       }
@@ -177,6 +202,7 @@ export default function App() {
           playerScore: newState.playerScore,
           playerKoiKoiCount: newState.koiKoiCount.player,
           difficulty: difficultyRef.current,
+          winScore: winScoreRef.current,
         });
         if (shouldContinue) {
           setState({
@@ -191,7 +217,13 @@ export default function App() {
           let finalPoints = totalPoints;
           if (newState.koiKoiCount.player > 0) finalPoints *= 2;
 
-          const resolved = resolveRoundScores(newState.playerScore, newState.botScore, 0, finalPoints);
+          const resolved = resolveRoundScores(
+            newState.playerScore,
+            newState.botScore,
+            0,
+            finalPoints,
+            winScoreRef.current,
+          );
           if (resolved.winner) playSfx('win');
 
           setState({
@@ -203,7 +235,7 @@ export default function App() {
             phase: resolved.phase,
             winner: resolved.winner,
             message: resolved.winner === 'bot'
-              ? `對手結束了遊戲！獲得 ${finalPoints} 分，先達 ${WIN_SCORE} 分獲勝！`
+              ? `對手結束了遊戲！獲得 ${finalPoints} 分，先達 ${winScoreRef.current} 分獲勝！`
               : `對手結束了遊戲！獲得 ${finalPoints} 分。`,
             dealer: 'bot',
           });
@@ -398,7 +430,13 @@ export default function App() {
     let finalPoints = state.playerPoints;
     if (state.koiKoiCount.bot > 0) finalPoints *= 2;
 
-    const resolved = resolveRoundScores(state.playerScore, state.botScore, finalPoints, 0);
+    const resolved = resolveRoundScores(
+      state.playerScore,
+      state.botScore,
+      finalPoints,
+      0,
+      winScoreRef.current,
+    );
     if (resolved.winner) playSfx('win');
 
     setState(s => ({
@@ -408,7 +446,7 @@ export default function App() {
       phase: resolved.phase,
       winner: resolved.winner,
       message: resolved.winner === 'player'
-        ? `你結束了遊戲！獲得 ${finalPoints} 分，先達 ${WIN_SCORE} 分獲勝！`
+        ? `你結束了遊戲！獲得 ${finalPoints} 分，先達 ${winScoreRef.current} 分獲勝！`
         : `你結束了遊戲！獲得 ${finalPoints} 分。`,
       dealer: 'player',
     }));
@@ -542,7 +580,7 @@ export default function App() {
               <h1 className="font-display text-2xl sm:text-3xl font-bold text-gold tracking-wide">Koi-Koi</h1>
               <p className="text-sm text-cream/70 mt-1">
                 第 {state.round} 局 · 莊家：{state.dealer === 'player' ? character.name : '師匠'}
-                {state.phase !== 'idle' ? ` · ${DIFFICULTY_LABELS[difficulty]}` : ''}
+                {state.phase !== 'idle' ? ` · ${DIFFICULTY_LABELS[difficulty]} · ${WIN_SCORE_LABELS[winScore]}` : ''}
               </p>
             </div>
             <div className="flex flex-col items-center gap-3 w-full sm:w-auto">
@@ -563,6 +601,7 @@ export default function App() {
                   botLabel="師匠"
                   playerScore={state.playerScore}
                   botScore={state.botScore}
+                  winScore={winScore}
                   wins={stats.wins}
                   losses={stats.losses}
                   winStreak={stats.winStreak}
@@ -631,6 +670,23 @@ export default function App() {
                   }`}
                 >
                   {DIFFICULTY_LABELS[id]}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-cream/60 mb-3 mt-4 text-center tracking-wide">對局長度</p>
+            <div className="flex justify-center gap-2 mb-2">
+              {WIN_SCORE_OPTIONS.map(target => (
+                <button
+                  key={target}
+                  type="button"
+                  onClick={() => applyWinScore(target)}
+                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                    winScore === target
+                      ? 'bg-gold/20 text-gold border border-gold/50'
+                      : 'text-cream/60 border border-gold/20 hover:border-gold/40 hover:text-cream'
+                  }`}
+                >
+                  {WIN_SCORE_LABELS[target]}
                 </button>
               ))}
             </div>
@@ -874,13 +930,14 @@ export default function App() {
                 botLabel="師匠"
                 playerScore={state.playerScore}
                 botScore={state.botScore}
+                winScore={winScore}
                 wins={stats.wins}
                 losses={stats.losses}
                 winStreak={stats.winStreak}
               />
             </div>
             <p className="text-xs text-cream/50 mb-6">
-              難度：{DIFFICULTY_LABELS[difficulty]}
+              難度：{DIFFICULTY_LABELS[difficulty]} · {WIN_SCORE_LABELS[winScore]}
             </p>
             <div className="mb-6">
               <CharacterSelect selectedId={characterId} onSelect={setCharacterId} compact />
@@ -895,7 +952,7 @@ export default function App() {
         </div>
       )}
 
-      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+      {showRules && <RulesModal winScore={winScore} onClose={() => setShowRules(false)} />}
 
       <footer className="mt-6 max-w-6xl text-center text-[10px] text-cream/40 px-4">
         牌面圖素材：Louie Mantia ·{' '}

@@ -139,16 +139,34 @@ export function getMatchingCards(card: Card, field: Card[]): Card[] {
 
 export const WIN_SCORE = 12;
 
-export function getMatchWinner(playerScore: number, botScore: number): 'player' | 'bot' | null {
-  const playerWins = playerScore >= WIN_SCORE;
-  const botWins = botScore >= WIN_SCORE;
+export type WinScore = 7 | 12 | 20;
+
+export const WIN_SCORE_OPTIONS: WinScore[] = [7, 12, 20];
+
+export const WIN_SCORE_LABELS: Record<WinScore, string> = {
+  7: '先達 7',
+  12: '先達 12',
+  20: '先達 20',
+};
+
+export function isWinScore(value: unknown): value is WinScore {
+  return value === 7 || value === 12 || value === 20;
+}
+
+export function getMatchWinner(
+  playerScore: number,
+  botScore: number,
+  winScore: number = WIN_SCORE,
+): 'player' | 'bot' | null {
+  const playerWins = playerScore >= winScore;
+  const botWins = botScore >= winScore;
   if (!playerWins && !botWins) return null;
   if (playerWins && botWins) return playerScore >= botScore ? 'player' : 'bot';
   return playerWins ? 'player' : 'bot';
 }
 
-export function scoreToWin(currentScore: number): number {
-  return Math.max(0, WIN_SCORE - currentScore);
+export function scoreToWin(currentScore: number, winScore: number = WIN_SCORE): number {
+  return Math.max(0, winScore - currentScore);
 }
 
 export interface RoundResolution {
@@ -163,10 +181,11 @@ export function resolveRoundScores(
   botScore: number,
   playerGain: number,
   botGain: number,
+  winScore: number = WIN_SCORE,
 ): RoundResolution {
   const nextPlayer = playerScore + playerGain;
   const nextBot = botScore + botGain;
-  const winner = getMatchWinner(nextPlayer, nextBot);
+  const winner = getMatchWinner(nextPlayer, nextBot, winScore);
   return {
     playerScore: nextPlayer,
     botScore: nextBot,

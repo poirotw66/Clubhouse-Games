@@ -29,6 +29,7 @@
     wins: 0,
     losses: 0,
     winStreak: 0,
+    bestMaxChain: 0,
     lastDifficulty: 'normal',
     lastMode: 'cpu',
   };
@@ -48,6 +49,7 @@
         wins: DEFAULT_STATS.wins,
         losses: DEFAULT_STATS.losses,
         winStreak: DEFAULT_STATS.winStreak,
+        bestMaxChain: DEFAULT_STATS.bestMaxChain,
         lastDifficulty: DEFAULT_STATS.lastDifficulty,
         lastMode: DEFAULT_STATS.lastMode,
       };
@@ -62,6 +64,7 @@
       wins: asNonNegInt(raw.wins),
       losses: asNonNegInt(raw.losses),
       winStreak: asNonNegInt(raw.winStreak),
+      bestMaxChain: asNonNegInt(raw.bestMaxChain),
       lastDifficulty: lastDifficulty,
       lastMode: lastMode,
     };
@@ -77,6 +80,14 @@
       next.losses += 1;
       next.winStreak = 0;
     }
+    return next;
+  }
+
+  /** Track personal-best max chain from a finished match (win or lose). */
+  function noteMaxChain(stats, chain) {
+    var next = mergeStats(stats);
+    var n = asNonNegInt(chain);
+    if (n > next.bestMaxChain) next.bestMaxChain = n;
     return next;
   }
 
@@ -472,6 +483,7 @@
     DEFAULT_STATS: DEFAULT_STATS,
     mergeStats: mergeStats,
     recordCpuResult: recordCpuResult,
+    noteMaxChain: noteMaxChain,
     withPrefs: withPrefs,
   };
 })(window);

@@ -7,7 +7,7 @@ import {
   shouldBotKoiKoi,
   getPlayerHint,
 } from './botAi';
-import { DEFAULT_STATS, mergeStats, recordResult, withDifficulty } from './stats';
+import { DEFAULT_STATS, mergeStats, recordResult, withDifficulty, withWinScore } from './stats';
 
 function card(id: string) {
   const found = DECK.find(entry => entry.id === id);
@@ -138,6 +138,7 @@ describe('mergeStats', () => {
       losses: 2,
       winStreak: 1,
       lastDifficulty: 'normal',
+      lastWinScore: 12,
     });
   });
 
@@ -146,22 +147,46 @@ describe('mergeStats', () => {
       'hard',
     );
   });
+
+  it('defaults and preserves lastWinScore', () => {
+    expect(mergeStats({}).lastWinScore).toBe(12);
+    expect(mergeStats({ lastWinScore: 7 }).lastWinScore).toBe(7);
+    expect(mergeStats({ lastWinScore: 99 }).lastWinScore).toBe(12);
+  });
 });
 
 describe('recordResult', () => {
   it('increments wins and streak on win', () => {
     const next = recordResult({ ...DEFAULT_STATS, wins: 1, winStreak: 1 }, 'win');
-    expect(next).toEqual({ wins: 2, losses: 0, winStreak: 2, lastDifficulty: 'normal' });
+    expect(next).toEqual({
+      wins: 2,
+      losses: 0,
+      winStreak: 2,
+      lastDifficulty: 'normal',
+      lastWinScore: 12,
+    });
   });
 
   it('resets streak on loss', () => {
     const next = recordResult({ ...DEFAULT_STATS, wins: 2, winStreak: 2 }, 'loss');
-    expect(next).toEqual({ wins: 2, losses: 1, winStreak: 0, lastDifficulty: 'normal' });
+    expect(next).toEqual({
+      wins: 2,
+      losses: 1,
+      winStreak: 0,
+      lastDifficulty: 'normal',
+      lastWinScore: 12,
+    });
   });
 });
 
 describe('withDifficulty', () => {
   it('updates lastDifficulty only', () => {
     expect(withDifficulty(DEFAULT_STATS, 'easy').lastDifficulty).toBe('easy');
+  });
+});
+
+describe('withWinScore', () => {
+  it('updates lastWinScore only', () => {
+    expect(withWinScore(DEFAULT_STATS, 20).lastWinScore).toBe(20);
   });
 });
