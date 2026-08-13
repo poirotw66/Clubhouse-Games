@@ -19,12 +19,14 @@ import {
   FIRST_OBSTACLE_Z,
   OBSTACLE_SPAWN_AHEAD,
   PERFECT_MISS_WINDOW,
+  RUSH_TUNING,
   SPEED_RAMP_PER_METER,
   TRACK_AHEAD,
   TRACK_BEHIND,
   TRACK_SEGMENT_LENGTH,
   clampLane,
   laneToX,
+  type RushDifficulty,
 } from './constants';
 import { createLaneBody, laneBodyRoll, stepLaneBody, type LaneBody } from './lanePhysics';
 import {
@@ -81,7 +83,13 @@ export interface GameWorld {
   onGameOver(cb: (result: RunResult) => void): void;
 }
 
-export function createGameWorld(): GameWorld {
+export function createGameWorld(difficulty: RushDifficulty = 'normal'): GameWorld {
+  const tuning = RUSH_TUNING[difficulty];
+  const baseSpeed = BASE_SPEED * tuning.speedMul;
+  const maxSpeed = MAX_SPEED * tuning.maxSpeedMul;
+  const minGap = OBSTACLE_MIN_GAP * tuning.gapMul;
+  const maxGap = OBSTACLE_MAX_GAP * tuning.gapMul;
+
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
     powerPreference: 'high-performance',
@@ -132,10 +140,10 @@ export function createGameWorld(): GameWorld {
 
   let laneBody: LaneBody = createLaneBody(1);
   let z = 0;
-  let speed = BASE_SPEED;
+  let speed = baseSpeed;
   let boostT = 0;
   let phase: GamePhase = 'paused';
-  let score = createScoreState();
+  let score = createScoreState(difficulty);
   let result: RunResult | null = null;
   let nextObstacleZ = 40;
   let patternStep = 0;
@@ -230,7 +238,7 @@ export function createGameWorld(): GameWorld {
   /** Wave patterns: gate / zigzag / stagger / dual+pickup — always leave an open lane. */
   function spawnObstacles(): void {
     while (nextObstacleZ < z + OBSTACLE_SPAWN_AHEAD) {
-      const difficulty = Math.min(1, nextObstacleZ / 600);
+      const progress = Math.min(1, nextObstacleZ / 600);
       const kindRoll = Math.random();
       const kind: ObstacleKind =
         kindRoll < 0.35 ? 'barrier' : kindRoll < 0.7 ? 'cone' : 'drone';
@@ -247,7 +255,7 @@ export function createGameWorld(): GameWorld {
         for (let L = 0; L < 3; L++) {
           if (L !== open) addObstacle(nextObstacleZ, L, kind);
         }
-        if (Math.random() < 0.55 + difficulty * 0.2) {
+        if (Math.random() < 0.55 + progress * 0.2) {
           addPickup(nextObstacleZ + 6, open);
         }
       } else if (wave === 1) {
@@ -274,10 +282,7 @@ export function createGameWorld(): GameWorld {
 
       const earlyBonus = nextObstacleZ < EARLY_SAFE_Z + 80 ? 6 : 0;
       const gap =
-        OBSTACLE_MIN_GAP +
-        Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP) -
-        difficulty * 8 +
-        earlyBonus;
+        minGap + Math.random() * (maxGap - minGap) - progress * 8 + earlyBonus;
       nextObstacleZ += Math.max(9, gap);
     }
   }
@@ -302,10 +307,10 @@ export function createGameWorld(): GameWorld {
 
   function resetRun(): void {
     z = 0;
-    speed = BASE_SPEED;
+    speed = baseSpeed;
     boostT = 0;
     laneBody = createLaneBody(1);
-    score = createScoreState();
+    score = createScoreState(difficulty);
     result = null;
     phase = 'running';
     nextObstacleZ = FIRST_OBSTACLE_Z;
@@ -486,8 +491,8 @@ export function createGameWorld(): GameWorld {
         if (boostT > 0) boostT = Math.max(0, boostT - dt);
         const feverBonus = isFever(score.combo) ? 4 : 0;
         speed = Math.min(
-          MAX_SPEED + (boostT > 0 ? 8 : 0),
-          BASE_SPEED + z * SPEED_RAMP_PER_METER + (boostT > 0 ? BOOST_SPEED : 0) + feverBonus,
+          maxSpeed + (boostT > 0 ? 8 : 0),
+          baseSpeed + z * SPEED_RAMP_PER_METER + (boostT > 0 ? BOOST_SPEED : 0) + feverBonus,
         );
         const step = speed * dt;
         z += step;

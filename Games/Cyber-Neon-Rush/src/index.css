@@ -329,6 +329,34 @@ body,
   background: rgba(34, 211, 238, 0.15);
 }
 
+.mode-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.mode-chip {
+  min-height: 44px;
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(8, 15, 35, 0.7);
+  color: #a5f3fc;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.mode-chip.is-active {
+  border-color: rgba(244, 114, 182, 0.75);
+  background: rgba(244, 114, 182, 0.18);
+  color: #fce7f3;
+}
+
 .hint {
   margin-top: 1rem;
   font-size: 0.85rem;

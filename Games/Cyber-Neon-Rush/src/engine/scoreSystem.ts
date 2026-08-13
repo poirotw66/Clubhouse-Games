@@ -1,12 +1,15 @@
 import {
   BEST_DISTANCE_KEY,
   BEST_SCORE_KEY,
+  BESTS_KEY,
   BOOST_SCORE,
   COMBO_DECAY_SEC,
   DISTANCE_SCORE_PER_M,
   FEVER_COMBO,
   NEAR_MISS_SCORE,
   PERFECT_MISS_SCORE,
+  RUSH_DIFFICULTIES,
+  type RushDifficulty,
 } from './constants';
 
 export type ToastKind = 'near' | 'perfect' | 'boost' | 'fever' | null;
@@ -35,6 +38,10 @@ export interface RunResult {
   isNewBest: boolean;
 }
 
+export type ModeBest = { score: number; distance: number };
+
+export type BestsMap = Record<RushDifficulty, ModeBest>;
+
 export type ScoreState = {
   score: number;
   distance: number;
@@ -49,9 +56,56 @@ export type ScoreState = {
   feverLatched: boolean;
   bestScore: number;
   bestDistance: number;
+  difficulty: RushDifficulty;
 };
 
-export function createScoreState(): ScoreState {
+function emptyBests(): BestsMap {
+  return {
+    chill: { score: 0, distance: 0 },
+    normal: { score: 0, distance: 0 },
+    rush: { score: 0, distance: 0 },
+  };
+}
+
+function readLegacy(key: string): number {
+  try {
+    const raw = localStorage.getItem(key);
+    const n = raw == null ? 0 : Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function loadBests(): BestsMap {
+  const bests = emptyBests();
+  try {
+    const raw = localStorage.getItem(BESTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Record<RushDifficulty, Partial<ModeBest>>>;
+      for (const d of RUSH_DIFFICULTIES) {
+        const row = parsed[d];
+        if (!row) continue;
+        bests[d] = {
+          score: Number(row.score) || 0,
+          distance: Number(row.distance) || 0,
+        };
+      }
+      return bests;
+    }
+  } catch {
+    /* fall through to legacy */
+  }
+  // Migrate legacy single bests into normal.
+  bests.normal = {
+    score: readLegacy(BEST_SCORE_KEY),
+    distance: readLegacy(BEST_DISTANCE_KEY),
+  };
+  return bests;
+}
+
+export function createScoreState(difficulty: RushDifficulty = 'normal'): ScoreState {
+  const bests = loadBests();
   return {
     score: 0,
     distance: 0,
@@ -64,33 +118,31 @@ export function createScoreState(): ScoreState {
     toast: null,
     toastTimer: 0,
     feverLatched: false,
-    bestScore: readBest(BEST_SCORE_KEY),
-    bestDistance: readBest(BEST_DISTANCE_KEY),
+    bestScore: bests[difficulty].score,
+    bestDistance: bests[difficulty].distance,
+    difficulty,
   };
 }
 
-function readBest(key: string): number {
-  try {
-    const raw = localStorage.getItem(key);
-    const n = raw == null ? 0 : Number(raw);
-    return Number.isFinite(n) ? n : 0;
-  } catch {
-    return 0;
-  }
-}
-
-export function persistBests(score: number, distance: number): boolean {
+export function persistBests(
+  score: number,
+  distance: number,
+  difficulty: RushDifficulty,
+): boolean {
   let isNewBest = false;
   try {
-    const prev = readBest(BEST_SCORE_KEY);
-    if (score > prev) {
-      localStorage.setItem(BEST_SCORE_KEY, String(Math.floor(score)));
+    const bests = loadBests();
+    const prev = bests[difficulty];
+    if (score > prev.score) {
+      bests[difficulty] = {
+        score: Math.floor(score),
+        distance: Math.max(prev.distance, Math.floor(distance)),
+      };
       isNewBest = true;
+    } else if (distance > prev.distance) {
+      bests[difficulty] = { ...prev, distance: Math.floor(distance) };
     }
-    const prevDist = readBest(BEST_DISTANCE_KEY);
-    if (distance > prevDist) {
-      localStorage.setItem(BEST_DISTANCE_KEY, String(Math.floor(distance)));
-    }
+    localStorage.setItem(BESTS_KEY, JSON.stringify(bests));
   } catch {
     /* private mode */
   }
@@ -118,7 +170,6 @@ function bumpCombo(state: ScoreState): void {
 
 function setToast(state: ScoreState, toast: ToastKind): void {
   state.toast = toast;
-  // Fever / perfect linger a beat longer so the payoff reads clearly.
   state.toastTimer = toast === 'fever' ? 1.25 : toast === 'perfect' ? 1.05 : 0.9;
 }
 
@@ -157,7 +208,6 @@ export function tickScoreTimers(state: ScoreState, dt: number): void {
     if (state.toastTimer <= 0) state.toast = null;
   }
   if (state.nearMissFlash > 0) {
-    // Slower decay = longer HUD / vignette punch on near-miss.
     state.nearMissFlash = Math.max(0, state.nearMissFlash - dt * 1.15);
   }
   if (state.combo <= 0) return;
@@ -187,7 +237,7 @@ export function toHud(state: ScoreState, speed: number, boostT: number): HudSnap
 }
 
 export function finalizeRun(state: ScoreState): RunResult {
-  const isNewBest = persistBests(state.score, state.distance);
+  const isNewBest = persistBests(state.score, state.distance, state.difficulty);
   return {
     score: Math.floor(state.score),
     distance: Math.floor(state.distance),

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameState, BottleData, GameMode } from '../types';
-import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO } from '../constants';
+import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO, persistQpBestMoves, loadQpBestMoves } from '../constants';
 import { generateLevel, canPour, pourLiquid, checkLevelComplete, shuffleBottles, revealHiddenLayers, checkDeadlock, checkStateRepetition } from '../services/gameLogic';
 import { loadCoins, saveCoins } from '../services/economyService';
 import { useDailyMissions } from '../hooks/useDailyMissions';
@@ -93,17 +93,27 @@ export default function Game() {
     // State to track the specific match being processed { bottleId, orderIndex }
     const [processingMatch, setProcessingMatch] = useState<{ bottleId: string; orderIndex: number } | null>(null);
     const [celebratedWin, setCelebratedWin] = useState(false);
+    const [qpBestMoves, setQpBestMoves] = useState<number | null>(() => {
+      if (initialMode !== 'quick_play' || !initialDifficultyLabel) return null;
+      const best = loadQpBestMoves()[initialDifficultyLabel];
+      return best ?? null;
+    });
 
     useEffect(() => {
         if (gameState.isWin && !celebratedWin) {
             sounds.win();
             setCelebratedWin(true);
+            if (gameState.mode === 'quick_play' && gameState.difficultyLabel) {
+              const moves = gameState.history.length;
+              const best = persistQpBestMoves(gameState.difficultyLabel, moves);
+              setQpBestMoves(best);
+            }
             return;
         }
         if (!gameState.isWin && celebratedWin) {
             setCelebratedWin(false);
         }
-    }, [gameState.isWin, celebratedWin]);
+    }, [gameState.isWin, celebratedWin, gameState.mode, gameState.difficultyLabel, gameState.history.length]);
 
     // (Removed initial startLevel call as it's now done in useState initializer)
 
@@ -602,6 +612,10 @@ export default function Game() {
                         { label: '關卡', value: gameState.level },
                         { label: '金幣', value: gameState.coins },
                         { label: '瓶子數', value: gameState.bottles.length },
+                        { label: '倒次', value: gameState.history.length },
+                        ...(gameState.mode === 'quick_play' && qpBestMoves != null
+                          ? [{ label: '最佳倒次', value: qpBestMoves }]
+                          : []),
                     ]}
                     primaryLabel={gameState.mode === 'adventure' ? '下一關' : '再來一局'}
                     onPrimary={handleNextLevel}
