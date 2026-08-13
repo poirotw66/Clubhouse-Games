@@ -1,4 +1,5 @@
 import type { Difficulty } from './botAi';
+import { isWinScore, type WinScore } from './gameLogic';
 
 export const STATS_KEY = 'clubhouse-koi-koi-stats';
 
@@ -9,6 +10,7 @@ export interface MatchStats {
   losses: number;
   winStreak: number;
   lastDifficulty: Difficulty;
+  lastWinScore: WinScore;
 }
 
 export const DEFAULT_STATS: MatchStats = {
@@ -16,6 +18,7 @@ export const DEFAULT_STATS: MatchStats = {
   losses: 0,
   winStreak: 0,
   lastDifficulty: 'normal',
+  lastWinScore: 12,
 };
 
 const DIFFICULTIES: ReadonlySet<string> = new Set(['easy', 'normal', 'hard']);
@@ -39,6 +42,7 @@ export function mergeStats(raw: unknown): MatchStats {
     losses: asNonNegInt(o.losses),
     winStreak: asNonNegInt(o.winStreak),
     lastDifficulty,
+    lastWinScore: isWinScore(o.lastWinScore) ? o.lastWinScore : DEFAULT_STATS.lastWinScore,
   };
 }
 
@@ -59,6 +63,10 @@ export function recordResult(stats: MatchStats, outcome: MatchOutcome): MatchSta
 
 export function withDifficulty(stats: MatchStats, difficulty: Difficulty): MatchStats {
   return { ...stats, lastDifficulty: difficulty };
+}
+
+export function withWinScore(stats: MatchStats, winScore: WinScore): MatchStats {
+  return { ...stats, lastWinScore: winScore };
 }
 
 type StorageLike = {

@@ -171,6 +171,23 @@ function App() {
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const BEST_KEY = 'clubhouse:block-the-smash-best-v2';
+
+  const readBest = (diff: string, balls: number): number | null => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(BEST_KEY) || '{}') as Record<string, unknown>;
+      const v = parsed[`${diff}:${balls}`];
+      return typeof v === 'number' && Number.isFinite(v) ? v : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const formatBest = (balls: number): string => {
+    const best = readBest(difficulty, balls);
+    return best == null ? '尚無紀錄' : `最佳 ${best}%`;
+  };
+
   const toggleHandedness = () => {
     setHandedness((prev) => (prev === 'left' ? 'right' : 'left'));
   };
@@ -307,15 +324,25 @@ function App() {
               </p>
 
               <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                <button type="button" style={styles.modeBtn} onClick={() => startMatch(10)}>
-                  10 球
-                </button>
-                <button type="button" style={styles.modeBtn} onClick={() => startMatch(25)}>
-                  25 球
-                </button>
-                <button type="button" style={styles.modeBtn} onClick={() => startMatch(50)}>
-                  50 球
-                </button>
+                {([10, 25, 50] as const).map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    style={{
+                      ...styles.modeBtn,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                    onClick={() => startMatch(count)}
+                  >
+                    <span>{count} 球</span>
+                    <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 500, textTransform: 'none' }}>
+                      {formatBest(count)}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

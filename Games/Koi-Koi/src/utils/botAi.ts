@@ -208,6 +208,7 @@ export interface KoiKoiContext {
   playerScore: number;
   playerKoiKoiCount: number;
   difficulty: Difficulty;
+  winScore?: number;
 }
 
 /**
@@ -217,16 +218,17 @@ export function shouldBotKoiKoi(ctx: KoiKoiContext): boolean {
   if (ctx.botHandLength <= 0) return false;
 
   const config = DIFFICULTY[ctx.difficulty];
+  const winScore = ctx.winScore ?? WIN_SCORE;
 
   if (ctx.difficulty === 'hard') {
     // Bank if this finish wins the match, or points are already strong.
     const finishPoints =
       ctx.playerKoiKoiCount > 0 ? ctx.totalPoints * 2 : ctx.totalPoints;
-    if (ctx.botScore + finishPoints >= WIN_SCORE) return false;
+    if (ctx.botScore + finishPoints >= winScore) return false;
     if (ctx.totalPoints >= 7) return false;
     if (ctx.botHandLength <= 2 && ctx.totalPoints >= 3) return false;
     // Opponent is close — take the points rather than risk a reverse.
-    if (ctx.playerScore >= WIN_SCORE - 3 && ctx.totalPoints >= 3) return false;
+    if (ctx.playerScore >= winScore - 3 && ctx.totalPoints >= 3) return false;
     return ctx.totalPoints < config.koiKoiPointCap || ctx.botHandLength >= 4;
   }
 

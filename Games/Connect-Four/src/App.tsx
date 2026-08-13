@@ -28,6 +28,7 @@ interface GameState {
 }
 
 const STREAK_KEY = 'clubhouse-connect4-win-streak';
+const BEST_STREAK_KEY = 'clubhouse-connect4-best-streak';
 
 function loadStreak(): number {
   try {
@@ -41,6 +42,23 @@ function loadStreak(): number {
 function saveStreak(n: number): void {
   try {
     localStorage.setItem(STREAK_KEY, String(Math.max(0, Math.floor(n))));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function loadBestStreak(): number {
+  try {
+    const n = Number(localStorage.getItem(BEST_STREAK_KEY));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveBestStreak(n: number): void {
+  try {
+    localStorage.setItem(BEST_STREAK_KEY, String(Math.max(0, Math.floor(n))));
   } catch {
     /* ignore quota / private mode */
   }
@@ -63,6 +81,7 @@ export default function App() {
   const [history, setHistory] = useState<GameState[]>([]);
   const [hintCol, setHintCol] = useState<number | null>(null);
   const [winStreak, setWinStreak] = useState(loadStreak);
+  const [bestStreak, setBestStreak] = useState(loadBestStreak);
   const [showRules, setShowRules] = useState(false);
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const botScheduled = useRef(false);
@@ -126,6 +145,11 @@ export default function App() {
         setWinStreak((prev) => {
           const next = prev + 1;
           saveStreak(next);
+          setBestStreak((best) => {
+            const nb = Math.max(best, next);
+            if (nb !== best) saveBestStreak(nb);
+            return nb;
+          });
           return next;
         });
       } else {
@@ -251,7 +275,7 @@ export default function App() {
           </span>
           {gameMode === 'bot' && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-200 border border-amber-700/60">
-              連勝 {winStreak}
+              連勝 {winStreak} · 最佳 {bestStreak}
             </span>
           )}
         </div>
@@ -524,7 +548,10 @@ export default function App() {
               value: gameMode === 'bot' ? '對戰電腦' : '雙人對戰',
             },
             ...(gameMode === 'bot'
-              ? [{ label: '連勝', value: String(winStreak) }]
+              ? [
+                  { label: '連勝', value: String(winStreak) },
+                  { label: '最佳連勝', value: String(bestStreak) },
+                ]
               : []),
           ]}
           onPrimary={() => {

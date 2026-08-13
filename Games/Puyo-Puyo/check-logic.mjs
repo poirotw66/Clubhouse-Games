@@ -60,6 +60,7 @@ function runTests() {
     assert.equal(m.winStreak, 0, 'negative streak clamped');
     assert.equal(m.lastDifficulty, 'normal', 'bad difficulty → normal');
     assert.equal(m.lastMode, 'cpu', 'bad mode → cpu');
+    assert.equal(m.bestMaxChain, 0, 'missing bestMaxChain → 0');
     assert.equal(L.mergeStats(null).wins, 0, 'null → defaults');
     assert.equal(L.mergeStats('nope').wins, 0, 'non-object → defaults');
   }
@@ -73,6 +74,9 @@ function runTests() {
     assert.equal(s.losses, 1);
     assert.equal(s.winStreak, 0);
     assert.equal(s.wins, 2);
+    s = L.noteMaxChain(s, 5);
+    s = L.noteMaxChain(s, 3);
+    assert.equal(s.bestMaxChain, 5, 'keeps higher chain');
     s = L.withPrefs(s, 'hard', 'versus');
     assert.equal(s.lastDifficulty, 'hard');
     assert.equal(s.lastMode, 'versus');

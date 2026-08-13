@@ -90,6 +90,11 @@ describe('getMatchWinner', () => {
     expect(getMatchWinner(14, 12)).toBe('player');
     expect(getMatchWinner(12, 15)).toBe('bot');
   });
+
+  it('respects a custom win score', () => {
+    expect(getMatchWinner(7, 5, 7)).toBe('player');
+    expect(getMatchWinner(6, 5, 7)).toBeNull();
+  });
 });
 
 describe('scoreToWin', () => {
@@ -98,6 +103,7 @@ describe('scoreToWin', () => {
     expect(scoreToWin(7)).toBe(5);
     expect(scoreToWin(12)).toBe(0);
     expect(scoreToWin(15)).toBe(0);
+    expect(scoreToWin(0, 7)).toBe(7);
   });
 });
 
@@ -136,6 +142,12 @@ describe('resolveRoundScores', () => {
 
     expect(result.playerScore).toBe(12);
     expect(result.botScore).toBe(10);
+    expect(result.phase).toBe('game_over');
+    expect(result.winner).toBe('player');
+  });
+
+  it('uses a custom win score', () => {
+    const result = resolveRoundScores(5, 4, 2, 0, 7);
     expect(result.phase).toBe('game_over');
     expect(result.winner).toBe('player');
   });

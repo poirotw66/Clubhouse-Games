@@ -1,11 +1,11 @@
 import React from 'react';
-import {WIN_SCORE} from '../utils/gameLogic';
 
 interface RulesModalProps {
   onClose: () => void;
+  winScore: number;
 }
 
-export const RulesModal: React.FC<RulesModalProps> = ({onClose}) => {
+export const RulesModal: React.FC<RulesModalProps> = ({onClose, winScore}) => {
   return (
     <div
       className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -31,7 +31,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({onClose}) => {
 
         <section className="mb-4 text-sm text-cream/80 space-y-2">
           <h3 className="font-display text-gold text-base">整場勝負</h3>
-          <p>先累積 <strong className="text-gold">{WIN_SCORE} 分</strong> 者獲勝。流局時莊家得 1 分親權。</p>
+          <p>先累積 <strong className="text-gold">{winScore} 分</strong> 者獲勝（可選 7／12／20）。流局時莊家得 1 分親權。</p>
         </section>
 
         <section className="mb-6 text-sm text-cream/80">

@@ -25,20 +25,36 @@ const DRAW_KEY = 'clubhouse-klondike-draw';
 
 interface Stats {
   wins: number;
-  bestTimeSec: number | null;
+  /** Best clear time (seconds) keyed by draw mode. */
+  bestByDraw: { '1': number | null; '3': number | null };
+}
+
+function emptyBests(): Stats['bestByDraw'] {
+  return { '1': null, '3': null };
 }
 
 function loadStats(): Stats {
   try {
     const raw = localStorage.getItem(STATS_KEY);
-    if (!raw) return { wins: 0, bestTimeSec: null };
-    const parsed = JSON.parse(raw) as Partial<Stats>;
+    if (!raw) return { wins: 0, bestByDraw: emptyBests() };
+    const parsed = JSON.parse(raw) as Partial<Stats> & { bestTimeSec?: number | null };
+    const bestByDraw = emptyBests();
+    if (parsed.bestByDraw && typeof parsed.bestByDraw === 'object') {
+      const b = parsed.bestByDraw as Record<string, unknown>;
+      for (const key of ['1', '3'] as const) {
+        const v = b[key];
+        bestByDraw[key] = v == null || !Number.isFinite(Number(v)) ? null : Number(v);
+      }
+    } else if (parsed.bestTimeSec != null && Number.isFinite(Number(parsed.bestTimeSec))) {
+      // Legacy single best → attribute to draw-1.
+      bestByDraw['1'] = Number(parsed.bestTimeSec);
+    }
     return {
       wins: Number(parsed.wins) || 0,
-      bestTimeSec: parsed.bestTimeSec == null ? null : Number(parsed.bestTimeSec),
+      bestByDraw,
     };
   } catch {
-    return { wins: 0, bestTimeSec: null };
+    return { wins: 0, bestByDraw: emptyBests() };
   }
 }
 
@@ -51,6 +67,10 @@ function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function bestForDraw(stats: Stats, draw: DrawCount): number | null {
+  return stats.bestByDraw[String(draw) as '1' | '3'];
 }
 
 export default function App() {
@@ -90,9 +110,12 @@ export default function App() {
   }, []);
 
   const changeDrawCount = (n: DrawCount) => {
+    if (n === drawCount) return;
     setDrawCount(n);
     localStorage.setItem(DRAW_KEY, String(n));
     clearHint();
+    // Restart so the timer matches the selected draw mode.
+    startNewGame();
   };
 
   const sourcesEqual = (a: DragSource, b: DragSource): boolean => {
@@ -451,17 +474,21 @@ export default function App() {
       setIsAutoCompleting(false);
       setIsAutoPlaying(false);
       setStats((prev) => {
+        const key = String(drawCount) as '1' | '3';
+        const prevBest = prev.bestByDraw[key];
         const next: Stats = {
           wins: prev.wins + 1,
-          bestTimeSec:
-            prev.bestTimeSec == null ? elapsedSec : Math.min(prev.bestTimeSec, elapsedSec),
+          bestByDraw: {
+            ...prev.bestByDraw,
+            [key]: prevBest == null ? elapsedSec : Math.min(prevBest, elapsedSec),
+          },
         };
         localStorage.setItem(STATS_KEY, JSON.stringify(next));
         return next;
       });
     }
     prevWonRef.current = isGameWon;
-  }, [isGameWon, elapsedSec]);
+  }, [isGameWon, elapsedSec, drawCount]);
 
   useEffect(() => {
     if (isGameOverNoMoves && !prevNoMovesRef.current) playError();
@@ -700,7 +727,10 @@ export default function App() {
               {' · '}
               勝場 {stats.wins}
               {' · '}
-              最佳 {stats.bestTimeSec == null ? '—' : formatTime(stats.bestTimeSec)}
+              最佳（翻 {drawCount}）{' '}
+              {bestForDraw(stats, drawCount) == null
+                ? '—'
+                : formatTime(bestForDraw(stats, drawCount)!)}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
@@ -928,8 +958,11 @@ export default function App() {
             { label: '本局時間', value: formatTime(elapsedSec) },
             { label: '勝場', value: stats.wins },
             {
-              label: '最佳時間',
-              value: stats.bestTimeSec == null ? '—' : formatTime(stats.bestTimeSec),
+              label: `最佳時間（翻 ${drawCount}）`,
+              value:
+                bestForDraw(stats, drawCount) == null
+                  ? '—'
+                  : formatTime(bestForDraw(stats, drawCount)!),
             },
           ]}
           onPrimary={startNewGame}

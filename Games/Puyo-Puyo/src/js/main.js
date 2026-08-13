@@ -190,7 +190,16 @@
   }
 
   function formatCareerLine(stats) {
-    return '對 CPU：' + stats.wins + ' 勝 · ' + stats.losses + ' 敗 · 連勝 ' + stats.winStreak;
+    return (
+      '對 CPU：' +
+      stats.wins +
+      ' 勝 · ' +
+      stats.losses +
+      ' 敗 · 連勝 ' +
+      stats.winStreak +
+      ' · 最高連鎖 ' +
+      stats.bestMaxChain
+    );
   }
 
   function refreshCareerUi() {
@@ -333,6 +342,7 @@
     // Replay hook: only vs-CPU career counts (skip local 2P).
     if (!isVersusMode()) {
       career = L.recordCpuResult(career, winner === players[0]);
+      career = L.noteMaxChain(career, players[0].state.maxChain);
       career = L.withPrefs(career, ui.difficultySelect.value, 'cpu');
       saveCareer();
       refreshCareerUi();
