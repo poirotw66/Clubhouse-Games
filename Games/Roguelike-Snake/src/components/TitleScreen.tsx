@@ -19,6 +19,14 @@ const RULES: Array<[string, string]> = [
 export function TitleScreen({ best, onStart }: TitleScreenProps) {
   const [seed, setSeed] = useState('');
 
+  const todaySeed = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+  };
+
   return (
     <div className="w-full max-w-lg mx-auto text-center">
       <p className="text-xs uppercase tracking-[0.3em] text-emerald-400 mb-2">Roguelike Snake</p>
@@ -42,7 +50,7 @@ export function TitleScreen({ best, onStart }: TitleScreenProps) {
       <label className="block text-left text-xs text-slate-400 mb-1" htmlFor="seed-input">
         種子（可留空隨機；相同種子＝相同地窟）
       </label>
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-2">
         <input
           id="seed-input"
           value={seed}
@@ -56,6 +64,22 @@ export function TitleScreen({ best, onStart }: TitleScreenProps) {
           className="rounded-xl border border-slate-700 bg-slate-800 px-3 text-sm hover:bg-slate-700"
         >
           清除
+        </button>
+      </div>
+      <div className="flex gap-2 mb-5">
+        <button
+          type="button"
+          onClick={() => setSeed(todaySeed())}
+          className="flex-1 min-h-[44px] rounded-xl border border-emerald-700/60 bg-emerald-900/40 px-3 text-sm text-emerald-200 hover:bg-emerald-800/50"
+        >
+          今日種子
+        </button>
+        <button
+          type="button"
+          onClick={() => onStart(todaySeed())}
+          className="flex-1 min-h-[44px] rounded-xl border border-emerald-600 bg-emerald-700/50 px-3 text-sm text-emerald-100 hover:bg-emerald-600/60"
+        >
+          開始今日挑戰
         </button>
       </div>
 

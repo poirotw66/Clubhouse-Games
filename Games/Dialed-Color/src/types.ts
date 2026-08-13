@@ -22,7 +22,11 @@ export interface GameData {
 }
 
 export interface BestRecords {
-  bestScore: number;
-  bestAverage: number;
+  /** Personal-best single-round score keyed by flash duration ms. */
+  bestScoreByMs: Record<string, number>;
+  /** Personal-best challenge average keyed by flash duration ms. */
+  bestAverageByMs: Record<string, number>;
   bestAscentLevel: number;
 }
+
+export type ShowMs = 1000 | 2000 | 3000;

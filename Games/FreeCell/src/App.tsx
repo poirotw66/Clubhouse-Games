@@ -20,24 +20,46 @@ import { Undo2, RotateCcw, Info, Bot, Loader2, Lightbulb, RefreshCw } from "luci
 
 const STATS_KEY = "clubhouse-freecell-stats";
 const AUTO_MOVE_KEY = "clubhouse-freecell-auto-move";
+const MODE_KEY = "clubhouse-freecell-mode";
+const TIMED_LIMIT_SEC = 300;
+
+type PlayMode = "classic" | "timed";
 
 interface Stats {
   wins: number;
-  bestTimeSec: number | null;
+  bestByMode: { classic: number | null; timed: number | null };
+}
+
+function emptyBests(): Stats["bestByMode"] {
+  return { classic: null, timed: null };
 }
 
 function loadStats(): Stats {
   try {
     const raw = localStorage.getItem(STATS_KEY);
-    if (!raw) return { wins: 0, bestTimeSec: null };
-    const parsed = JSON.parse(raw) as Partial<Stats>;
+    if (!raw) return { wins: 0, bestByMode: emptyBests() };
+    const parsed = JSON.parse(raw) as Partial<Stats> & { bestTimeSec?: number | null };
+    const bestByMode = emptyBests();
+    if (parsed.bestByMode && typeof parsed.bestByMode === "object") {
+      const b = parsed.bestByMode as Record<string, unknown>;
+      for (const key of ["classic", "timed"] as const) {
+        const v = b[key];
+        bestByMode[key] = v == null || !Number.isFinite(Number(v)) ? null : Number(v);
+      }
+    } else if (parsed.bestTimeSec != null && Number.isFinite(Number(parsed.bestTimeSec))) {
+      bestByMode.classic = Number(parsed.bestTimeSec);
+    }
     return {
       wins: Number(parsed.wins) || 0,
-      bestTimeSec: parsed.bestTimeSec == null ? null : Number(parsed.bestTimeSec),
+      bestByMode,
     };
   } catch {
-    return { wins: 0, bestTimeSec: null };
+    return { wins: 0, bestByMode: emptyBests() };
   }
+}
+
+function loadPlayMode(): PlayMode {
+  return localStorage.getItem(MODE_KEY) === "timed" ? "timed" : "classic";
 }
 
 function loadAutoMove(): boolean {
@@ -69,6 +91,8 @@ export default function App() {
   const initialDeal = dealGame();
   const [gameState, setGameState] = useState<GameState>(() => emptyGame(initialDeal.tableaus));
   const [dealSeed, setDealSeed] = useState(initialDeal.seed);
+  const [seedDraft, setSeedDraft] = useState(String(initialDeal.seed));
+  const [playMode, setPlayMode] = useState<PlayMode>(loadPlayMode);
   const [selectedPos, setSelectedPos] = useState<Position | null>(null);
   const [hint, setHint] = useState<{ source: Position; dest: Position } | null>(null);
   const [autoMove, setAutoMove] = useState(loadAutoMove);
@@ -76,6 +100,7 @@ export default function App() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [hasWon, setHasWon] = useState(false);
   const [hasLost, setHasLost] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
 
   const [isBotPlaying, setIsBotPlaying] = useState(false);
@@ -95,15 +120,16 @@ export default function App() {
 
   useEffect(() => {
     if (hasWon && !prevWonRef.current) playWin();
-    if (hasLost && !prevLostRef.current && !hasWon) playError();
+    if ((hasLost || timedOut) && !prevLostRef.current && !hasWon) playError();
     prevWonRef.current = hasWon;
-    prevLostRef.current = hasLost;
-  }, [hasWon, hasLost]);
+    prevLostRef.current = hasLost || timedOut;
+  }, [hasWon, hasLost, timedOut]);
 
   useEffect(() => {
     if (checkWin(gameState)) {
       setHasWon(true);
       setHasLost(false);
+      setTimedOut(false);
       setIsBotPlaying(false);
     } else {
       setHasWon(false);
@@ -114,28 +140,40 @@ export default function App() {
   }, [gameState]);
 
   useEffect(() => {
-    if (!timerActiveRef.current || hasWon || hasLost) return;
+    if (!timerActiveRef.current || hasWon || hasLost || timedOut) return;
     const id = window.setInterval(() => setElapsedSec((s) => s + 1), 1000);
     return () => window.clearInterval(id);
-  }, [hasWon, hasLost, dealSeed]);
+  }, [hasWon, hasLost, timedOut, dealSeed]);
+
+  useEffect(() => {
+    if (playMode !== "timed" || hasWon || hasLost || timedOut) return;
+    if (elapsedSec >= TIMED_LIMIT_SEC) {
+      setTimedOut(true);
+      setIsBotPlaying(false);
+      timerActiveRef.current = false;
+    }
+  }, [elapsedSec, playMode, hasWon, hasLost, timedOut]);
 
   useEffect(() => {
     if (!hasWon || statsRecordedRef.current) return;
     statsRecordedRef.current = true;
     timerActiveRef.current = false;
     setStats((prev) => {
+      const prevBest = prev.bestByMode[playMode];
       const next: Stats = {
         wins: prev.wins + 1,
-        bestTimeSec:
-          prev.bestTimeSec == null ? elapsedSec : Math.min(prev.bestTimeSec, elapsedSec),
+        bestByMode: {
+          ...prev.bestByMode,
+          [playMode]: prevBest == null ? elapsedSec : Math.min(prevBest, elapsedSec),
+        },
       };
       localStorage.setItem(STATS_KEY, JSON.stringify(next));
       return next;
     });
-  }, [hasWon, elapsedSec]);
+  }, [hasWon, elapsedSec, playMode]);
 
   useEffect(() => {
-    if (hasWon || hasLost || isSolving) return;
+    if (hasWon || hasLost || timedOut || isSolving) return;
 
     if (autoMove && !isBotPlaying) {
       const safeMove = getSafeFoundationMoves(gameState);
@@ -157,7 +195,7 @@ export default function App() {
     } else if (isBotPlaying && solutionPath && solutionPath.length === 0) {
       setIsBotPlaying(false);
     }
-  }, [gameState, selectedPos, autoMove, hasWon, hasLost, isBotPlaying, isSolving, solutionPath]);
+  }, [gameState, selectedPos, autoMove, hasWon, hasLost, timedOut, isBotPlaying, isSolving, solutionPath]);
 
   const handleMove = (source: Position, dest: Position) => {
     clearHint();
@@ -194,10 +232,12 @@ export default function App() {
   const resetBoard = (tableaus: Card[][], seed: number) => {
     setGameState(emptyGame(tableaus));
     setDealSeed(seed);
+    setSeedDraft(String(seed));
     setSelectedPos(null);
     setHint(null);
     setHasWon(false);
     setHasLost(false);
+    setTimedOut(false);
     setIsBotPlaying(false);
     setSolutionPath(null);
     setElapsedSec(0);
@@ -215,8 +255,26 @@ export default function App() {
     resetBoard(deal.tableaus, deal.seed);
   };
 
+  const dealFromSeedDraft = () => {
+    const n = Number(seedDraft.trim());
+    if (!Number.isInteger(n) || n < 1) return;
+    const deal = dealGame(n);
+    resetBoard(deal.tableaus, deal.seed);
+  };
+
+  const changePlayMode = (mode: PlayMode) => {
+    if (mode === playMode) return;
+    setPlayMode(mode);
+    localStorage.setItem(MODE_KEY, mode);
+    startNewGame();
+  };
+
+  const modeBest = stats.bestByMode[playMode];
+  const showLoss = (hasLost || timedOut) && !hasWon;
+  const inputLocked = hasWon || timedOut || isBotPlaying || isSolving;
+
   const showHint = () => {
-    if (hasWon || isBotPlaying || isSolving) return;
+    if (inputLocked) return;
     const move = getHintMove(gameState);
     setHint(move);
     if (!move) playError();
@@ -267,7 +325,7 @@ export default function App() {
   };
 
   const handleCardClick = (pos: Position, hasCard: boolean) => {
-    if (hasWon || isBotPlaying || isSolving) return;
+    if (inputLocked) return;
     clearHint();
 
     if (selectedPos) {
@@ -323,7 +381,7 @@ export default function App() {
   };
 
   const handleDoubleClick = (pos: Position) => {
-    if (hasWon || isBotPlaying || isSolving) return;
+    if (inputLocked) return;
     clearHint();
 
     if (canMove(gameState, pos, { zone: "foundation", index: 0 })) {
@@ -345,7 +403,7 @@ export default function App() {
   };
 
   const handleDragStart = (e: React.DragEvent, pos: Position) => {
-    if (hasWon || isBotPlaying || isSolving) {
+    if (inputLocked) {
       e.preventDefault();
       return;
     }
@@ -372,7 +430,7 @@ export default function App() {
 
   const handleDrop = (e: React.DragEvent, destPos: Position) => {
     e.preventDefault();
-    if (hasWon || !selectedPos || isBotPlaying || isSolving) return;
+    if (inputLocked || !selectedPos) return;
 
     if (
       selectedPos.zone === destPos.zone &&
@@ -417,14 +475,63 @@ export default function App() {
             <p className="text-sm text-stone-500 mt-1 tabular-nums">
               局號 {dealSeed}
               {" · "}
-              時間 {formatTime(elapsedSec)}
+              {playMode === "timed"
+                ? `剩餘 ${formatTime(Math.max(0, TIMED_LIMIT_SEC - elapsedSec))}`
+                : `時間 ${formatTime(elapsedSec)}`}
               {" · "}
               勝場 {stats.wins}
               {" · "}
-              最佳 {stats.bestTimeSec == null ? "—" : formatTime(stats.bestTimeSec)}
+              最佳 {modeBest == null ? "—" : formatTime(modeBest)}
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3 items-center">
+            <div className="flex rounded-full overflow-hidden border border-stone-200 bg-white shadow-sm">
+              <button
+                type="button"
+                onClick={() => changePlayMode("classic")}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  playMode === "classic" ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-50"
+                }`}
+              >
+                經典
+              </button>
+              <button
+                type="button"
+                onClick={() => changePlayMode("timed")}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  playMode === "timed" ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-50"
+                }`}
+              >
+                限時 5 分
+              </button>
+            </div>
+            <form
+              className="flex items-center gap-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                dealFromSeedDraft();
+              }}
+            >
+              <label className="sr-only" htmlFor="freecell-seed">
+                局號
+              </label>
+              <input
+                id="freecell-seed"
+                type="text"
+                inputMode="numeric"
+                value={seedDraft}
+                onChange={(e) => setSeedDraft(e.target.value)}
+                className="w-24 px-2 py-2 text-sm rounded-full border border-stone-200 bg-white tabular-nums"
+                disabled={isSolving}
+              />
+              <button
+                type="submit"
+                disabled={isSolving}
+                className="px-3 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-40 shadow-sm"
+              >
+                發此局
+              </button>
+            </form>
             <label className="hidden sm:flex items-center gap-2 text-sm font-medium text-stone-500 cursor-pointer hover:text-stone-800 transition-colors px-2">
               <input
                 type="checkbox"
@@ -444,7 +551,7 @@ export default function App() {
             </button>
             <button
               onClick={showHint}
-              disabled={hasWon || isBotPlaying || isSolving}
+              disabled={inputLocked}
               className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
               title="提示"
             >
@@ -502,14 +609,14 @@ export default function App() {
           <ResultOverlay
             title="過關！"
             variant="win"
-            subtitle="你成功解開這局 FreeCell"
+            subtitle={playMode === "timed" ? "限時模式過關" : "你成功解開這局 FreeCell"}
             stats={[
               { label: "本局時間", value: formatTime(elapsedSec) },
               { label: "步數", value: gameState.history.length },
               { label: "勝場", value: stats.wins },
               {
-                label: "最佳時間",
-                value: stats.bestTimeSec == null ? "—" : formatTime(stats.bestTimeSec),
+                label: playMode === "timed" ? "最佳時間（限時）" : "最佳時間（經典）",
+                value: modeBest == null ? "—" : formatTime(modeBest),
               },
             ]}
             primaryLabel="新遊戲"
@@ -517,11 +624,15 @@ export default function App() {
           />
         )}
 
-        {hasLost && !hasWon && (
+        {showLoss && (
           <ResultOverlay
-            title="無法再移動"
+            title={timedOut ? "時間到" : "無法再移動"}
             variant="lose"
-            subtitle="沒有合法步數了，試試復原、同局重發或開新局"
+            subtitle={
+              timedOut
+                ? "限時 5 分鐘已用完，試試同局重發或開新局"
+                : "沒有合法步數了，試試復原、同局重發或開新局"
+            }
             primaryLabel="新遊戲"
             onPrimary={startNewGame}
           />

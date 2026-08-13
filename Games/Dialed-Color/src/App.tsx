@@ -5,10 +5,15 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { calculateScore } from './score.mjs';
-import { GameState, GameMode, Color, BestRecords } from './types';
+import { GameState, GameMode, Color, BestRecords, ShowMs } from './types';
 
 const BEST_KEY = 'clubhouse-dialed-color-bests';
-const SHOW_MS_DEFAULT = 2000;
+const SHOW_MS_OPTIONS: ShowMs[] = [3000, 2000, 1000];
+const SHOW_MS_LABELS: Record<ShowMs, string> = {
+  3000: '3 秒',
+  2000: '2 秒',
+  1000: '1 秒',
+};
 /** Ascent: shorter flash each stage. */
 const ASCENT_SHOW_MS = [2000, 1500, 1100, 800, 550] as const;
 const ASCENT_PASS = 650;
@@ -54,18 +59,43 @@ const scoreVerdict = (score: number): string => {
   return '這局偏離很大，再試一次。';
 };
 
+function emptyMsMap(): Record<string, number> {
+  return { '1000': 0, '2000': 0, '3000': 0 };
+}
+
 function loadBests(): BestRecords {
   try {
     const raw = localStorage.getItem(BEST_KEY);
-    if (!raw) return { bestScore: 0, bestAverage: 0, bestAscentLevel: 0 };
-    const parsed = JSON.parse(raw) as Partial<BestRecords>;
+    if (!raw) {
+      return { bestScoreByMs: emptyMsMap(), bestAverageByMs: emptyMsMap(), bestAscentLevel: 0 };
+    }
+    const parsed = JSON.parse(raw) as Partial<BestRecords> & {
+      bestScore?: number;
+      bestAverage?: number;
+    };
+    const bestScoreByMs = emptyMsMap();
+    const bestAverageByMs = emptyMsMap();
+    if (parsed.bestScoreByMs && typeof parsed.bestScoreByMs === 'object') {
+      for (const key of Object.keys(bestScoreByMs)) {
+        bestScoreByMs[key] = Number(parsed.bestScoreByMs[key]) || 0;
+      }
+    } else if (parsed.bestScore) {
+      bestScoreByMs['2000'] = Number(parsed.bestScore) || 0;
+    }
+    if (parsed.bestAverageByMs && typeof parsed.bestAverageByMs === 'object') {
+      for (const key of Object.keys(bestAverageByMs)) {
+        bestAverageByMs[key] = Number(parsed.bestAverageByMs[key]) || 0;
+      }
+    } else if (parsed.bestAverage) {
+      bestAverageByMs['2000'] = Number(parsed.bestAverage) || 0;
+    }
     return {
-      bestScore: Number(parsed.bestScore) || 0,
-      bestAverage: Number(parsed.bestAverage) || 0,
+      bestScoreByMs,
+      bestAverageByMs,
       bestAscentLevel: Number(parsed.bestAscentLevel) || 0,
     };
   } catch {
-    return { bestScore: 0, bestAverage: 0, bestAscentLevel: 0 };
+    return { bestScoreByMs: emptyMsMap(), bestAverageByMs: emptyMsMap(), bestAscentLevel: 0 };
   }
 }
 
@@ -162,6 +192,7 @@ function ColorSlider({
 export default function App() {
   const [gameState, setGameState] = useState<GameState>('landing');
   const [gameMode, setGameMode] = useState<GameMode>('single');
+  const [showMs, setShowMs] = useState<ShowMs>(2000);
   const [targetColors, setTargetColors] = useState<Color[]>([]);
   const [userGuesses, setUserGuesses] = useState<Color[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -176,7 +207,10 @@ export default function App() {
 
   const totalColors = gameMode === 'single' ? 1 : gameMode === 'challenge' ? 5 : ASCENT_LEVELS;
   const showDurationMs =
-    gameMode === 'ascent' ? ASCENT_SHOW_MS[Math.min(currentStep, ASCENT_LEVELS - 1)] : SHOW_MS_DEFAULT;
+    gameMode === 'ascent' ? ASCENT_SHOW_MS[Math.min(currentStep, ASCENT_LEVELS - 1)] : showMs;
+  const msKey = String(showMs);
+  const bestScore = bests.bestScoreByMs[msKey] || 0;
+  const bestAverage = bests.bestAverageByMs[msKey] || 0;
 
   const ambientHue = useMemo(() => {
     if (gameState === 'showing' && targetColors[currentStep]) return targetColors[currentStep].h;
@@ -224,13 +258,13 @@ export default function App() {
           return;
         }
         setCurrentStep(step);
-      }, SHOW_MS_DEFAULT);
+      }, showMs);
       return () => window.clearInterval(timer);
     }
 
     const timer = window.setTimeout(() => setGameState('guessing'), showDurationMs);
     return () => window.clearTimeout(timer);
-  }, [gameState, showGen, gameMode, showDurationMs, totalColors]);
+  }, [gameState, showGen, gameMode, showDurationMs, showMs, totalColors]);
 
   const finishRun = (guesses: Color[], failed: boolean) => {
     const scores = guesses.map((g, i) => calculateScore(targetColors[i], g));
@@ -239,15 +273,22 @@ export default function App() {
     // Cleared stages only (failed round does not count as cleared).
     const ascentLevel = failed ? Math.max(0, guesses.length - 1) : guesses.length;
 
-    const next: BestRecords = { ...bests };
+    const next: BestRecords = {
+      bestScoreByMs: { ...bests.bestScoreByMs },
+      bestAverageByMs: { ...bests.bestAverageByMs },
+      bestAscentLevel: bests.bestAscentLevel,
+    };
     let newBest = false;
-    if (maxRound > next.bestScore) {
-      next.bestScore = maxRound;
-      newBest = true;
-    }
-    if (!failed && avg > next.bestAverage) {
-      next.bestAverage = avg;
-      newBest = true;
+    if (gameMode !== 'ascent') {
+      const key = String(showMs);
+      if (maxRound > (next.bestScoreByMs[key] || 0)) {
+        next.bestScoreByMs[key] = maxRound;
+        newBest = true;
+      }
+      if (!failed && avg > (next.bestAverageByMs[key] || 0)) {
+        next.bestAverageByMs[key] = avg;
+        newBest = true;
+      }
     }
     if (gameMode === 'ascent' && ascentLevel > next.bestAscentLevel) {
       next.bestAscentLevel = ascentLevel;
@@ -366,10 +407,31 @@ export default function App() {
                 <p className="text-[var(--color-muted)] text-base sm:text-lg leading-relaxed max-w-sm mx-auto">
                   人很難精準記住顏色。看兩秒，再用滑桿重現——測測你的色感。
                 </p>
-                {(bests.bestScore > 0 || bests.bestAverage > 0) && (
+                <div className="flex justify-center gap-2" role="group" aria-label="記憶秒數">
+                  {SHOW_MS_OPTIONS.map((ms) => {
+                    const selected = showMs === ms;
+                    return (
+                      <button
+                        key={ms}
+                        type="button"
+                        onClick={() => setShowMs(ms)}
+                        aria-pressed={selected}
+                        className={`min-h-[44px] px-3 py-2 text-sm rounded-lg border transition-colors ${
+                          selected
+                            ? 'border-[var(--color-paper)] bg-[var(--color-paper)]/15 text-[var(--color-paper)]'
+                            : 'border-[var(--color-line)] text-[var(--color-muted)] hover:border-[var(--color-paper)]/40'
+                        }`}
+                      >
+                        {SHOW_MS_LABELS[ms]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {(bestScore > 0 || bestAverage > 0 || bests.bestAscentLevel > 0) && (
                   <p className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
-                    最佳單分 {bests.bestScore} · 最佳平均 {bests.bestAverage}
+                    最佳單分 {bestScore} · 最佳平均 {bestAverage}
                     {bests.bestAscentLevel > 0 ? ` · 闖關 ${bests.bestAscentLevel}/${ASCENT_LEVELS}` : ''}
+                    <span className="opacity-70"> · {SHOW_MS_LABELS[showMs]}</span>
                   </p>
                 )}
               </div>
@@ -560,7 +622,8 @@ export default function App() {
                     : scoreVerdict(averageScore)}
                 </motion.p>
                 <p className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
-                  最佳單分 {bests.bestScore} · 最佳平均 {bests.bestAverage}
+                  最佳單分 {bestScore} · 最佳平均 {bestAverage}
+                  {gameMode !== 'ascent' ? ` · ${SHOW_MS_LABELS[showMs]}` : ''}
                 </p>
               </div>
 
@@ -618,11 +681,11 @@ export default function App() {
           variant={overlayVariant}
           stats={[
             { label: '平均分', value: averageScore },
-            { label: '最佳單分', value: bests.bestScore },
-            { label: '最佳平均', value: bests.bestAverage },
+            { label: '最佳單分', value: bestScore },
+            { label: '最佳平均', value: bestAverage },
             ...(gameMode === 'ascent'
               ? [{ label: '本局關卡', value: `${userGuesses.length} / ${ASCENT_LEVELS}` }]
-              : []),
+              : [{ label: '記憶秒數', value: SHOW_MS_LABELS[showMs] }]),
           ]}
           primaryLabel="查看色差"
           onPrimary={() => setShowResultOverlay(false)}
