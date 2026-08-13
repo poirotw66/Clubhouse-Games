@@ -17,6 +17,7 @@ import { RefreshCw, BookOpen, Users, Undo2, Lightbulb } from 'lucide-react';
 const SIZE = 8;
 const BOT_DELAY_MS = 500;
 const STREAK_KEY = 'clubhouse-reversi-win-streak';
+const BEST_STREAK_KEY = 'clubhouse-reversi-best-streak';
 const MARGIN_KEY = 'clubhouse-reversi-best-margin';
 
 const DIFFICULTIES: { id: Difficulty; blurb: string }[] = [
@@ -100,6 +101,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [hintCell, setHintCell] = useState<[number, number] | null>(null);
   const [winStreak, setWinStreak] = useState(() => readStoredInt(STREAK_KEY));
+  const [bestStreak, setBestStreak] = useState(() => readStoredInt(BEST_STREAK_KEY));
   const [bestMargin, setBestMargin] = useState(() => readStoredInt(MARGIN_KEY));
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
@@ -204,6 +206,11 @@ export default function App() {
         setWinStreak((s) => {
           const next = s + 1;
           localStorage.setItem(STREAK_KEY, String(next));
+          setBestStreak((best) => {
+            const nb = Math.max(best, next);
+            if (nb !== best) localStorage.setItem(BEST_STREAK_KEY, String(nb));
+            return nb;
+          });
           return next;
         });
         setBestMargin((m) => {
@@ -316,7 +323,7 @@ export default function App() {
 
   const statsLine = (
     <p className="mt-4 text-stone-400 text-xs">
-      連勝 {winStreak} · 最佳勝差 {bestMargin}
+      連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
     </p>
   );
 
@@ -545,6 +552,34 @@ export default function App() {
         </div>
       </header>
 
+      {gameMode === 'bot' && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-3 text-xs"
+          role="group"
+          aria-label="電腦難度"
+        >
+          <span className="text-stone-400">難度</span>
+          {DIFFICULTIES.map(({ id }) => {
+            const selected = difficulty === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setDifficulty(id)}
+                aria-pressed={selected}
+                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                  selected
+                    ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
+                    : 'border-stone-600 bg-stone-800 text-stone-300 hover:bg-stone-700'
+                }`}
+              >
+                {DIFFICULTY_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex items-center justify-center gap-6 mb-2 text-sm">
         <div
           className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
@@ -587,7 +622,7 @@ export default function App() {
 
       {gameMode === 'bot' && (
         <p className="text-stone-500 text-xs mb-2">
-          連勝 {winStreak} · 最佳勝差 {bestMargin}
+          連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
         </p>
       )}
 
@@ -692,6 +727,7 @@ export default function App() {
             ...(gameMode === 'bot'
               ? [
                   { label: '連勝', value: winStreak },
+                  { label: '最佳連勝', value: bestStreak },
                   { label: '最佳勝差', value: bestMargin },
                 ]
               : [
