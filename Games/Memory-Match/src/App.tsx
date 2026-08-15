@@ -138,7 +138,7 @@ export default function App() {
                       backgroundImage: `url(${import.meta.env.BASE_URL}card-back.jpg)`,
                     }
               }
-              aria-label={show ? card.face : 'Face-down card'}
+              aria-label={show ? card.face : '背面牌'}
             />
           );
         })}

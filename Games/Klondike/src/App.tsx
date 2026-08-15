@@ -739,7 +739,7 @@ export default function App() {
                 type="button"
                 onClick={() => changeDrawCount(1)}
                 disabled={isBusy}
-                className={`px-3 py-2 text-sm transition-colors ${drawCount === 1 ? 'bg-white text-emerald-900 font-semibold' : 'bg-black/20 hover:bg-black/30'}`}
+                className={`min-h-[44px] min-w-[44px] px-3 py-2 text-sm transition-colors touch-manipulation ${drawCount === 1 ? 'bg-white text-emerald-900 font-semibold' : 'bg-black/20 hover:bg-black/30'}`}
               >
                 翻 1
               </button>
@@ -747,7 +747,7 @@ export default function App() {
                 type="button"
                 onClick={() => changeDrawCount(3)}
                 disabled={isBusy}
-                className={`px-3 py-2 text-sm transition-colors ${drawCount === 3 ? 'bg-white text-emerald-900 font-semibold' : 'bg-black/20 hover:bg-black/30'}`}
+                className={`min-h-[44px] min-w-[44px] px-3 py-2 text-sm transition-colors touch-manipulation ${drawCount === 3 ? 'bg-white text-emerald-900 font-semibold' : 'bg-black/20 hover:bg-black/30'}`}
               >
                 翻 3
               </button>

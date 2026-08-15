@@ -26,7 +26,7 @@ export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSel
           backgroundColor: '#1e3a8a',
           backgroundImage: `url(${import.meta.env.BASE_URL}card-back.jpg)`,
         }}
-        aria-label="Face-down card"
+        aria-label="背面牌"
       />
     );
   }

@@ -226,8 +226,8 @@ export default function App(): ReactElement {
               CYBER NEON RUSH
             </p>
             <p className="hint">
-              左右切道閃避障礙，擦身而過可累積連擊；鑽過霓虹加速環可爆發 NITRO。
-              連擊滿 5 進入 FEVER，倍率與車速一起狂飆。
+              左右切道閃避障礙，擦身而過可累積連擊；鑽過霓虹加速環可爆發硝基。
+              連擊滿 5 進入狂熱，倍率與車速一起狂飆。
             </p>
             <div className="mode-chips" role="group" aria-label="難度">
               {RUSH_DIFFICULTIES.map((id) => {
@@ -277,7 +277,7 @@ export default function App(): ReactElement {
                 ：鍵盤 ← → / A D，或螢幕下方左右鍵；亦可左右滑動切換三車道。
               </li>
               <li>
-                <strong>NITRO</strong>
+                <strong>硝基</strong>
                 ：鑽過霓虹加速環獲得短暫爆發加速與加分。
               </li>
               <li>
@@ -285,7 +285,7 @@ export default function App(): ReactElement {
                 ：貼近障礙閃過可加分並累積連擊；更近的完美閃避分數更高。
               </li>
               <li>
-                <strong>FEVER</strong>
+                <strong>狂熱</strong>
                 ：連擊滿 5 進入狂熱狀態，倍率與車速同時提升。
               </li>
             </ol>
@@ -314,8 +314,8 @@ export default function App(): ReactElement {
       {showTip && screen === 'playing' && (
         <div className="run-tip" role="status">
           <p>
-            貼近障礙擦身而過可累積連擊；滿 5 進入 <span className="text-fuchsia-300">FEVER</span>。
-            鑽過加速環可爆發 <span className="text-amber-300">NITRO</span>。
+            貼近障礙擦身而過可累積連擊；滿 5 進入 <span className="text-fuchsia-300">狂熱</span>。
+            鑽過加速環可爆發 <span className="text-amber-300">硝基</span>。
           </p>
           <button type="button" className="run-tip-dismiss" onClick={dismissTip}>
             知道了
@@ -342,7 +342,7 @@ export default function App(): ReactElement {
             { label: '分數', value: result.score.toLocaleString('zh-Hant') },
             { label: '距離', value: `${result.distance} m` },
             { label: '閃避', value: String(result.avoids) },
-            { label: 'NITRO', value: String(result.pickups) },
+            { label: '硝基', value: String(result.pickups) },
             { label: '最高連擊', value: String(result.maxCombo) },
           ]}
           primaryLabel="再試一次"

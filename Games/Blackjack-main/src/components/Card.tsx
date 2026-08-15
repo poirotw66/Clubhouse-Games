@@ -14,7 +14,7 @@ export const Card: React.FC<CardProps> = ({ card }) => {
           backgroundColor: '#1e3a8a',
           backgroundImage: `url(${import.meta.env.BASE_URL}card-back.jpg)`,
         }}
-        aria-label="Hidden card"
+        aria-label="隱藏牌"
       />
     );
   }

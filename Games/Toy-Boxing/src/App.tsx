@@ -1040,13 +1040,13 @@ export default function ToyBoxing() {
             <div className="flex gap-2 justify-center w-full">
               <TouchButton
                 label="←"
-                ariaLabel="Move left"
+                ariaLabel="向左"
                 onPress={() => keysPressed.current.add('KeyA')}
                 onRelease={() => keysPressed.current.delete('KeyA')}
               />
               <TouchButton
                 label="→"
-                ariaLabel="Move right"
+                ariaLabel="向右"
                 onPress={() => keysPressed.current.add('KeyD')}
                 onRelease={() => keysPressed.current.delete('KeyD')}
               />
