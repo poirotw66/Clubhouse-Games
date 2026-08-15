@@ -30,3 +30,36 @@ export const COST_UNDO = 50;
 export const COST_ADD_BOTTLE = 200;
 export const COST_REVEAL = 150; // Cost to reveal hidden layers
 export const COST_CLEAR = 300;
+
+/** Quick-play best pour counts keyed by difficulty label (lower is better). */
+export const QP_BEST_MOVES_KEY = 'mls-qp-best-moves-v1';
+
+export function loadQpBestMoves(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(QP_BEST_MOVES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out[k] = Math.floor(n);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Persist min pour count for a QP label; returns the best after update. */
+export function persistQpBestMoves(label: string, moves: number): number {
+  const bests = loadQpBestMoves();
+  const prev = bests[label];
+  const next = prev == null ? moves : Math.min(prev, moves);
+  bests[label] = next;
+  try {
+    localStorage.setItem(QP_BEST_MOVES_KEY, JSON.stringify(bests));
+  } catch {
+    /* private mode */
+  }
+  return next;
+}

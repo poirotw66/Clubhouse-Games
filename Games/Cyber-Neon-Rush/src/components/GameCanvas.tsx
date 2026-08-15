@@ -1,8 +1,10 @@
 import { useEffect, useRef, type MutableRefObject, type ReactElement } from 'react';
 import { createGameWorld, type GameWorld } from '../engine/GameWorld';
+import type { RushDifficulty } from '../engine/constants';
 import type { HudSnapshot, RunResult } from '../engine/scoreSystem';
 
 interface GameCanvasProps {
+  difficulty: RushDifficulty;
   running: boolean;
   paused: boolean;
   onHud: (hud: HudSnapshot) => void;
@@ -11,6 +13,7 @@ interface GameCanvasProps {
 }
 
 export function GameCanvas({
+  difficulty,
   running,
   paused,
   onHud,
@@ -27,7 +30,7 @@ export function GameCanvas({
     const host = hostRef.current;
     if (!host) return;
 
-    const world = createGameWorld();
+    const world = createGameWorld(difficulty);
     worldRef.current = world;
     world.onHud((hud) => onHudRef.current(hud));
     world.onGameOver((result) => onGameOverRef.current(result));
@@ -38,7 +41,7 @@ export function GameCanvas({
       world.unmount();
       if (worldRef.current === world) worldRef.current = null;
     };
-  }, [worldRef]);
+  }, [worldRef, difficulty]);
 
   useEffect(() => {
     const world = worldRef.current;

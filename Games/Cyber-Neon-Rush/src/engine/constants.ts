@@ -8,6 +8,33 @@ export const SPEED_RAMP_PER_METER = 0.04;
 export const BOOST_SPEED = 18;
 export const BOOST_DURATION = 1.35;
 
+export type RushDifficulty = 'chill' | 'normal' | 'rush';
+
+export const RUSH_DIFFICULTIES: RushDifficulty[] = ['chill', 'normal', 'rush'];
+
+export const RUSH_DIFFICULTY_LABELS: Record<RushDifficulty, string> = {
+  chill: '悠閒',
+  normal: '標準',
+  rush: '狂飆',
+};
+
+/** Speed / spawn tuning relative to the normal baseline. */
+export const RUSH_TUNING: Record<
+  RushDifficulty,
+  { speedMul: number; gapMul: number; maxSpeedMul: number }
+> = {
+  chill: { speedMul: 0.78, gapMul: 1.28, maxSpeedMul: 0.85 },
+  normal: { speedMul: 1, gapMul: 1, maxSpeedMul: 1 },
+  rush: { speedMul: 1.22, gapMul: 0.78, maxSpeedMul: 1.12 },
+};
+
+export const BESTS_KEY = 'cyber-neon-rush:bests-v2';
+/** Legacy single-best keys (migrated into `normal`). */
+export const BEST_SCORE_KEY = 'cyber-neon-rush:best-score';
+export const BEST_DISTANCE_KEY = 'cyber-neon-rush:best-distance';
+/** First-run tip dismissed — do not show again. */
+export const TIP_SEEN_KEY = 'cyber-neon-rush:tip-seen';
+
 /** High-stiffness spring for snappy lane changes. */
 export const LANE_SPRING = 160;
 export const LANE_DAMPING = 18;
@@ -41,11 +68,6 @@ export const CAMERA_BACK = 11;
 export const CAMERA_LOOK_Y = 0.6;
 export const CAMERA_SWAY_GAIN = 0.45;
 export const CAMERA_ROLL_GAIN = 0.12;
-
-export const BEST_SCORE_KEY = 'cyber-neon-rush:best-score';
-export const BEST_DISTANCE_KEY = 'cyber-neon-rush:best-distance';
-/** First-run tip dismissed — do not show again. */
-export const TIP_SEEN_KEY = 'cyber-neon-rush:tip-seen';
 
 /** Opening stretch uses single-lane obstacles only (meters along track). */
 export const EARLY_SAFE_Z = 130;

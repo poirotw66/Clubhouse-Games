@@ -20,7 +20,14 @@ const SIZE = 8;
 const BOT_DELAY_MS = 500;
 const COL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 const STREAK_KEY = 'clubhouse-checkers-win-streak';
+const BEST_STREAK_KEY = 'clubhouse-checkers-best-streak';
 const MARGIN_KEY = 'clubhouse-checkers-best-margin';
+
+const DIFFICULTIES: { id: Difficulty; blurb: string }[] = [
+  { id: 'easy', blurb: '淺看一步，偶爾失誤' },
+  { id: 'normal', blurb: '中度搜尋，會吃子' },
+  { id: 'hard', blurb: '深搜，少犯錯' },
+];
 
 type GamePhase = 'playing' | 'over';
 type GameMode = 'two' | 'bot';
@@ -174,6 +181,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [hintMove, setHintMove] = useState<Move | null>(null);
   const [winStreak, setWinStreak] = useState(() => readStoredInt(STREAK_KEY));
+  const [bestStreak, setBestStreak] = useState(() => readStoredInt(BEST_STREAK_KEY));
   const [bestMargin, setBestMargin] = useState(() => readStoredInt(MARGIN_KEY));
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
@@ -277,6 +285,11 @@ export default function App() {
         setWinStreak((s) => {
           const next = s + 1;
           localStorage.setItem(STREAK_KEY, String(next));
+          setBestStreak((best) => {
+            const nb = Math.max(best, next);
+            if (nb !== best) localStorage.setItem(BEST_STREAK_KEY, String(nb));
+            return nb;
+          });
           return next;
         });
         setBestMargin((m) => {
@@ -554,8 +567,36 @@ export default function App() {
       </div>
 
       {gameMode === 'bot' && (
+        <div
+          className="w-full max-w-[420px] flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
+          role="group"
+          aria-label="電腦難度"
+        >
+          <span className="text-stone-400">難度</span>
+          {DIFFICULTIES.map(({ id }) => {
+            const selected = difficulty === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => { setDifficulty(id); resetGame(); }}
+                aria-pressed={selected}
+                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                  selected
+                    ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
+                    : 'border-stone-600 bg-stone-800 text-stone-300 hover:bg-stone-700'
+                }`}
+              >
+                {DIFFICULTY_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {gameMode === 'bot' && (
         <p className="w-full max-w-[420px] text-stone-500 text-xs mb-2 px-1">
-          連勝 {winStreak} · 最佳勝差 {bestMargin}
+          連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
         </p>
       )}
 
@@ -776,7 +817,7 @@ export default function App() {
                   ))}
                 </div>
                 <p className="mt-2 text-stone-500">
-                  連勝 {winStreak} · 最佳勝差 {bestMargin}
+                  連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
                 </p>
               </div>
             )}
@@ -797,6 +838,7 @@ export default function App() {
             ...(gameMode === 'bot'
               ? [
                   { label: '連勝', value: winStreak },
+                  { label: '最佳連勝', value: bestStreak },
                   { label: '最佳勝差', value: bestMargin },
                 ]
               : []),

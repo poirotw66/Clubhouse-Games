@@ -10,7 +10,7 @@ import { useDailyMissions } from '../hooks/useDailyMissions';
 import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
 import { getSavedBackground } from '../utils/backgrounds';
 import { DailyMissions } from './DailyMissions';
-import { INITIAL_COINS } from '../constants';
+import { INITIAL_COINS, loadQpBestMoves } from '../constants';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -32,6 +32,7 @@ export const Home: React.FC = () => {
 
   // Get saved level for "Continue" text
   const savedLevel = parseInt(localStorage.getItem('mls_level') || '1', 10);
+  const qpBests = useMemo(() => loadQpBestMoves(), [showDifficultyModal]);
 
   // Decorative bottles data
   const decorativeBottles: BottleData[] = [
@@ -212,25 +213,29 @@ export const Home: React.FC = () => {
                         <DifficultyOption 
                             label="EASY" 
                             subLabel="3 Colors • Cap 4 • Some ?" 
-                            color="bg-green-500" 
+                            color="bg-green-500"
+                            bestMoves={qpBests.EASY}
                             onClick={() => handleQuickPlayClick(4, "EASY")} 
                         />
                         <DifficultyOption 
                             label="MEDIUM" 
                             subLabel="4 Colors • Cap 5 • More ?" 
-                            color="bg-yellow-500" 
+                            color="bg-yellow-500"
+                            bestMoves={qpBests.MEDIUM}
                             onClick={() => handleQuickPlayClick(9, "MEDIUM")} 
                         />
                         <DifficultyOption 
                             label="HARD" 
                             subLabel="5 Colors • Cap 6 • Many ?" 
-                            color="bg-orange-500" 
+                            color="bg-orange-500"
+                            bestMoves={qpBests.HARD}
                             onClick={() => handleQuickPlayClick(15, "HARD")} 
                         />
                         <DifficultyOption 
                             label="EXPERT" 
                             subLabel="6 Colors • Cap 6 • Max ?" 
-                            color="bg-red-600" 
+                            color="bg-red-600"
+                            bestMoves={qpBests.EXPERT}
                             onClick={() => handleQuickPlayClick(25, "EXPERT")} 
                         />
                     </div>
@@ -245,9 +250,10 @@ export const Home: React.FC = () => {
 const DifficultyOption: React.FC<{ 
     label: string, 
     subLabel: string, 
-    color: string, 
+    color: string,
+    bestMoves?: number,
     onClick: () => void 
-}> = ({ label, subLabel, color, onClick }) => (
+}> = ({ label, subLabel, color, bestMoves, onClick }) => (
     <button 
         onClick={onClick}
         className="w-full group flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all active:scale-95"
@@ -257,6 +263,11 @@ const DifficultyOption: React.FC<{
             <div className="text-left">
                 <div className="text-lg font-bold text-white group-hover:text-yellow-300 transition-colors">{label}</div>
                 <div className="text-xs text-white/40 font-mono">{subLabel}</div>
+                {bestMoves != null && bestMoves > 0 && (
+                  <div className="text-[10px] text-emerald-300/80 font-mono mt-0.5">
+                    BEST {bestMoves} MOVES
+                  </div>
+                )}
             </div>
         </div>
         <Trophy size={18} className="text-white/20 group-hover:text-white/80 transition-colors" />

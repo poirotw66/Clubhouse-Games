@@ -15,7 +15,8 @@ import { clamp } from './math.js';
 
 const WAVE_AMP = 1.0;
 const WAVE_AMP_EASY = 0.45;
-const BEST_KEY = 'sailing-best-v3';
+const BEST_KEY_LEGACY = 'sailing-best-v3';
+const BESTS_KEY = 'sailing-bests-v4';
 const EASY_KEY = 'sailing-easy';
 const TUTORIAL_KEY = 'sailing-tutorial-v1';
 const SUN_DIR = (() => {
@@ -41,6 +42,41 @@ function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = sec - m * 60;
   return `${m}:${s.toFixed(1).padStart(4, '0')}`;
+}
+
+/** @returns {{ easy: number|null, pro: number|null }} */
+function loadSailingBests() {
+  try {
+    const raw = localStorage.getItem(BESTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        easy: typeof parsed.easy === 'number' ? parsed.easy : null,
+        pro: typeof parsed.pro === 'number' ? parsed.pro : null,
+      };
+    }
+  } catch {
+    /* fall through */
+  }
+  // Migrate legacy single best into easy (default mode).
+  const legacy = Number(localStorage.getItem(BEST_KEY_LEGACY) || '');
+  return {
+    easy: Number.isFinite(legacy) && legacy > 0 ? legacy : null,
+    pro: null,
+  };
+}
+
+function persistSailingBest(mode, time) {
+  const bests = loadSailingBests();
+  const prev = bests[mode];
+  if (prev != null && time >= prev) return false;
+  bests[mode] = time;
+  try {
+    localStorage.setItem(BESTS_KEY, JSON.stringify(bests));
+  } catch {
+    /* private mode */
+  }
+  return true;
 }
 
 function boot() {
@@ -84,15 +120,19 @@ function startGame(gl, canvas) {
   // Easy mode defaults on — this is a casual collection, and the beat is not
   // readable without the guidance arrow. Only an explicit opt-out is stored.
   input.easy = localStorage.getItem(EASY_KEY) !== 'off';
+  let sailingBests = loadSailingBests();
   input.onEasyChange = (on) => {
     localStorage.setItem(EASY_KEY, on ? 'on' : 'off');
+    sailingBests = loadSailingBests();
+    bestTime = on ? sailingBests.easy : sailingBests.pro;
     if (on) {
       input.autoTrim = true;
       showToast('簡單模式：按住 ↑ 加速，← → 轉彎衝閘門！');
     } else {
-      showToast('簡單模式關閉');
+      showToast('專業模式：自己控帆，挑戰更短完賽時間');
     }
     syncEasyUi();
+    updateHud(0);
   };
 
   // Set while a one-key tack is being driven; holds the target heading.
@@ -120,7 +160,7 @@ function startGame(gl, canvas) {
   let raceTime = 0;
   /** @type {{ name: string, time: number }[]} */
   let splits = [];
-  let bestTime = Number(localStorage.getItem(BEST_KEY) || '') || null;
+  let bestTime = input.easy ? sailingBests.easy : sailingBests.pro;
   let toastTimer = 0;
 
   const wake = [];
@@ -830,10 +870,13 @@ function startGame(gl, canvas) {
           phase = 'finished';
           coach.reset();
           hud.coach.hidden = true;
-          const isRecord = bestTime == null || raceTime < bestTime;
+          const mode = input.easy ? 'easy' : 'pro';
+          const isRecord = persistSailingBest(mode, raceTime);
           if (isRecord) {
-            bestTime = raceTime;
-            localStorage.setItem(BEST_KEY, String(bestTime));
+            sailingBests = loadSailingBests();
+            bestTime = sailingBests[mode];
+          } else {
+            bestTime = sailingBests[mode];
           }
           hud.finish.hidden = false;
           if (hud.finishHeading) {

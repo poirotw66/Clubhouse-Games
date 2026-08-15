@@ -6,18 +6,14 @@ import { GameCanvas } from './components/GameCanvas';
 import { Scoreboard } from './components/Scoreboard';
 import { TouchControls } from './components/TouchControls';
 import type { GameWorld } from './engine/GameWorld';
-import { BEST_DISTANCE_KEY, BEST_SCORE_KEY, TIP_SEEN_KEY } from './engine/constants';
-import type { HudSnapshot, RunResult } from './engine/scoreSystem';
+import {
+  RUSH_DIFFICULTIES,
+  RUSH_DIFFICULTY_LABELS,
+  TIP_SEEN_KEY,
+  type RushDifficulty,
+} from './engine/constants';
+import { loadBests, type HudSnapshot, type RunResult } from './engine/scoreSystem';
 import type { Screen } from './types';
-
-function readStoredBest(key: string): number {
-  try {
-    const n = Number(localStorage.getItem(key));
-    return Number.isFinite(n) ? n : 0;
-  } catch {
-    return 0;
-  }
-}
 
 function hasSeenTip(): boolean {
   try {
@@ -52,10 +48,13 @@ const EMPTY_HUD: HudSnapshot = {
 
 export default function App(): ReactElement {
   const [screen, setScreen] = useState<Screen>('menu');
+  const [difficulty, setDifficulty] = useState<RushDifficulty>('normal');
+  const [bests, setBests] = useState(() => loadBests());
+  const modeBest = bests[difficulty];
   const [hud, setHud] = useState<HudSnapshot>(() => ({
     ...EMPTY_HUD,
-    bestScore: readStoredBest(BEST_SCORE_KEY),
-    bestDistance: readStoredBest(BEST_DISTANCE_KEY),
+    bestScore: modeBest.score,
+    bestDistance: modeBest.distance,
   }));
   const [result, setResult] = useState<RunResult | null>(null);
   const [runId, setRunId] = useState(0);
@@ -79,6 +78,7 @@ export default function App(): ReactElement {
     setResult(r);
     setScreen('gameover');
     setShowTip(false);
+    setBests(loadBests());
     if (r.isNewBest || r.score >= 5000) playWin();
     else playLose();
   }, []);
@@ -90,7 +90,8 @@ export default function App(): ReactElement {
 
   const startRun = () => {
     setResult(null);
-    setHud(EMPTY_HUD);
+    const b = loadBests()[difficulty];
+    setHud({ ...EMPTY_HUD, bestScore: b.score, bestDistance: b.distance });
     setShowHowTo(false);
     setRunId((n) => n + 1);
     setScreen('playing');
@@ -158,7 +159,7 @@ export default function App(): ReactElement {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [screen, nudge, showHowTo, showTip, dismissTip]);
+  }, [screen, nudge, showHowTo, showTip, dismissTip, difficulty]);
 
   const showCanvas = screen !== 'menu';
   const showBoard = screen === 'playing' || screen === 'paused' || screen === 'gameover';
@@ -178,6 +179,7 @@ export default function App(): ReactElement {
       {showCanvas && (
         <GameCanvas
           key={runId}
+          difficulty={difficulty}
           running={screen === 'playing' || screen === 'paused' || screen === 'gameover'}
           paused={screen === 'paused' || screen === 'gameover'}
           onHud={onHud}
@@ -227,6 +229,22 @@ export default function App(): ReactElement {
               左右切道閃避障礙，擦身而過可累積連擊；鑽過霓虹加速環可爆發 NITRO。
               連擊滿 5 進入 FEVER，倍率與車速一起狂飆。
             </p>
+            <div className="mode-chips" role="group" aria-label="難度">
+              {RUSH_DIFFICULTIES.map((id) => {
+                const selected = difficulty === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`mode-chip${selected ? ' is-active' : ''}`}
+                    aria-pressed={selected}
+                    onClick={() => setDifficulty(id)}
+                  >
+                    {RUSH_DIFFICULTY_LABELS[id]}
+                  </button>
+                );
+              })}
+            </div>
             <button type="button" className="cta" onClick={startRun}>
               開始疾馳
             </button>
@@ -236,7 +254,8 @@ export default function App(): ReactElement {
             <p className="hint">
               鍵盤 ← → 或 A D 切道・P / Esc 暫停
               <br />
-              最佳分數 {hud.bestScore || '—'} ・ 最遠 {hud.bestDistance || '—'} m
+              {RUSH_DIFFICULTY_LABELS[difficulty]} ・ 最佳分數 {modeBest.score || '—'} ・ 最遠{' '}
+              {modeBest.distance || '—'} m
             </p>
           </div>
         </div>
@@ -319,6 +338,7 @@ export default function App(): ReactElement {
           badge={result.isNewBest ? '新紀錄' : undefined}
           variant={result.isNewBest ? 'win' : 'lose'}
           stats={[
+            { label: '難度', value: RUSH_DIFFICULTY_LABELS[difficulty] },
             { label: '分數', value: result.score.toLocaleString('zh-Hant') },
             { label: '距離', value: `${result.distance} m` },
             { label: '閃避', value: String(result.avoids) },
