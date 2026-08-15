@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
-import { ATTR_LABELS, POSITIONS, grade, gradeColor } from '../game/config';
+import { ATTR_LABELS, POSITIONS, formatMoney, grade, gradeColor } from '../game/config';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
 import { CareerTable } from './CareerTable';
@@ -72,6 +72,35 @@ export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.Re
           )}
         </dl>
       </section>
+
+      <section className="bl-card mt-4 p-4">
+        <h2 className="text-sm font-bold text-slate-200">收入</h2>
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-center">
+          <Stat label="生涯總收入" value={formatMoney(summary.earnings)} accent />
+          <Stat label="生涯最高年薪" value={formatMoney(summary.peakSalary)} />
+        </dl>
+      </section>
+
+      {state.milestones.length > 0 && (
+        <section className="bl-card mt-4 p-4">
+          <h2 className="text-sm font-bold text-slate-200">
+            生涯紀錄
+            <span className="ml-2 text-xs font-normal text-slate-500">{state.milestones.length} 項</span>
+          </h2>
+          <ul className="mt-2 space-y-1.5">
+            {state.milestones.map((milestone, index) => (
+              <li key={index} className="flex items-baseline gap-2 text-xs">
+                <span className="shrink-0 font-mono text-slate-500">
+                  {milestone.year}・{milestone.age}歲
+                </span>
+                <span className={milestone.kind === 'feat' ? 'text-sky-200' : 'text-slate-300'}>
+                  {milestone.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {summary.awardCounts.length > 0 && (
         <section className="bl-card mt-4 p-4">

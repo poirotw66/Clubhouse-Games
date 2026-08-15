@@ -1,6 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { acknowledge, createGame, resolve, rollOrigins } from '../src/game/engine.js';
 import { overall } from '../src/game/config.js';
+import { careerTotals } from '../src/game/milestones.js';
 import { traitEffects } from '../src/game/traits.js';
 import type { Decision, GameState, Position } from '../src/game/types.js';
 
@@ -172,6 +173,86 @@ function expectOneShotDecisionsAreNotRepeated(): void {
   assert.equal(new Set(keys).size, keys.length, 'a one-shot decision was answered twice');
 }
 
+/** Money must only ever accumulate, and never in leagues that do not pay. */
+function expectFinanceIsCoherent(): void {
+  for (const seed of ['money001', 'money002', 'money003']) {
+    for (const position of ['OF', 'P'] as Position[]) {
+      const state = playRun(seed, position, cyclingChoice);
+      assert.ok(state.finance.earnings >= 0, 'negative career earnings');
+      assert.ok(state.finance.peakSalary >= 0, 'negative peak salary');
+      assert.ok(
+        state.finance.earnings >= state.finance.peakSalary || state.finance.peakSalary === 0,
+        'career earnings smaller than a single season of it',
+      );
+      if (state.summary!.totals.seasons > 0) {
+        assert.equal(state.summary!.earnings, Math.round(state.finance.earnings));
+      }
+      // High school and college pay nothing, so a run that never turned pro
+      // must not have banked a salary.
+      const everPaid = state.history.some((h) => h.league !== 'hs' && h.league !== 'college');
+      if (!everPaid) assert.equal(state.finance.earnings, 0, 'unpaid career earned money');
+    }
+  }
+}
+
+/** Earnings must actually reward a better career, not just a longer one. */
+function expectBetterCareersEarnMore(): void {
+  const lazy = playRun('earn0001', 'OF', (decision) => {
+    const ids = enabled(decision);
+    return ids.find((id) => id === 'rest') ?? ids[0];
+  });
+  const engaged = playRun('earn0001', 'OF', cyclingChoice);
+  assert.ok(
+    engaged.finance.earnings > lazy.finance.earnings,
+    `an engaged run should out-earn a lazy one (${engaged.finance.earnings} vs ${lazy.finance.earnings})`,
+  );
+}
+
+/** Milestones must be real: every one has to be backed by the record book. */
+function expectMilestonesMatchHistory(): void {
+  const state = playRun('stone001', 'OF', cyclingChoice);
+  const totals = careerTotals(state.history);
+  for (const milestone of state.milestones) {
+    assert.ok(milestone.text.length > 0, 'empty milestone text');
+    assert.ok(milestone.age >= 16 && milestone.age <= 45, `milestone at impossible age ${milestone.age}`);
+    const match = /生涯通算 (\d+) 支安打/.exec(milestone.text);
+    if (match) {
+      assert.ok(
+        totals.hits >= Number(match[1]),
+        `claimed ${match[1]} career hits but finished with ${totals.hits}`,
+      );
+    }
+  }
+  // No milestone should ever be filed twice.
+  const keys = state.milestones.map((m) => `${m.kind}:${m.text}:${m.year}`);
+  assert.equal(new Set(keys).size, keys.length, 'a milestone was recorded twice');
+}
+
+/** Players have to change clubs sometimes, or trades and free agency are dead code. */
+function expectPlayersChangeTeams(): void {
+  let moved = 0;
+  const seeds = ['move0001', 'move0002', 'move0003', 'move0004', 'move0005', 'move0006'];
+  for (const seed of seeds) {
+    const state = playRun(seed, 'OF', cyclingChoice);
+    const pro = state.history.filter((h) => h.league !== 'hs');
+    if (new Set(pro.map((h) => h.team)).size > 1) moved += 1;
+  }
+  assert.ok(moved > 0, 'no player in six careers ever changed team');
+}
+
+/** The event pool must drain before anything repeats. */
+function expectEventsDoNotRepeatEarly(): void {
+  const state = playRun('event001', 'OF', cyclingChoice);
+  const seen = state.seenEvents;
+  const unique = new Set(seen).size;
+  assert.ok(
+    unique >= Math.min(seen.length, 20),
+    `only ${unique} distinct events across ${seen.length} firings`,
+  );
+  // Nothing should repeat while the pool still had unseen entries to offer.
+  assert.ok(unique >= seen.length - 6, `too many repeats: ${seen.length - unique}`);
+}
+
 const checks: [string, () => void][] = [
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
@@ -182,6 +263,11 @@ const checks: [string, () => void][] = [
   ['overall ignores off-role attributes', expectOverallIgnoresOffRoleAttributes],
   ['trait effects stack', expectTraitEffectsStack],
   ['one-shot decisions are not repeated', expectOneShotDecisionsAreNotRepeated],
+  ['finance is coherent', expectFinanceIsCoherent],
+  ['better careers earn more', expectBetterCareersEarnMore],
+  ['milestones match history', expectMilestonesMatchHistory],
+  ['players change teams', expectPlayersChangeTeams],
+  ['events do not repeat early', expectEventsDoNotRepeatEarly],
 ];
 
 let failed = 0;

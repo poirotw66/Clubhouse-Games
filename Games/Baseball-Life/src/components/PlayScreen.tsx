@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
-import { ATTR_LABELS, LEAGUES } from '../game/config';
+import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
 import { deltaLabel } from '../game/engine';
 import { describeLine } from '../game/season';
 import { traitById } from '../game/traits';
@@ -47,6 +47,32 @@ interface Props {
 export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): React.ReactElement {
   const [showCareer, setShowCareer] = useState(false);
   const { report, decision } = state;
+
+  // A career is 30+ turns of clicking, so the whole loop is playable from the
+  // keyboard: a digit picks an option, Enter/Space advances the report.
+  const pickable = report ? [] : (decision?.options ?? []).filter((o) => !o.disabled);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+
+      if (report) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onAcknowledge();
+        }
+        return;
+      }
+      const index = Number(event.key) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < pickable.length) {
+        event.preventDefault();
+        onChoose(pickable[index].id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [report, pickable, onChoose, onAcknowledge]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-14">
@@ -108,6 +134,25 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
                 </p>
               )}
 
+              {report.milestones.length > 0 && (
+                <ul className="mt-3 space-y-1 rounded-lg border border-sky-400/40 bg-sky-500/10 p-3">
+                  {report.milestones.map((milestone, index) => (
+                    <li key={index} className="text-xs font-semibold text-sky-100">
+                      🏆 {milestone.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {report.income !== null && report.income > 0 && (
+                <p className="mt-3 text-xs text-emerald-300">
+                  本季收入 {formatMoney(report.income)}
+                  <span className="ml-2 text-slate-500">
+                    生涯累計 {formatMoney(state.finance.earnings)}
+                  </span>
+                </p>
+              )}
+
               <DeltaList deltas={report.deltas} />
 
               {report.traitsUnlocked.length > 0 && (
@@ -131,6 +176,9 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
                 onClick={onAcknowledge}
                 className="mt-4 w-full rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
               />
+              <p className="mt-2 hidden text-center text-[10px] text-slate-500 sm:block">
+                按 Enter 或空白鍵繼續
+              </p>
             </section>
           ) : (
             decision && (
@@ -138,7 +186,9 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
                 <p className="text-[11px] tracking-wider text-slate-500">{decision.title}</p>
                 <h2 className="mt-1 text-base leading-relaxed text-slate-200">{decision.prompt}</h2>
                 <div className="mt-4 flex flex-col gap-2">
-                  {decision.options.map((option) => (
+                  {decision.options.map((option) => {
+                    const hotkey = pickable.findIndex((o) => o.id === option.id);
+                    return (
                     <button
                       key={option.id}
                       type="button"
@@ -146,7 +196,14 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
                       onClick={() => onChoose(option.id)}
                       className="bl-choice min-h-16 px-4 py-3 text-left"
                     >
-                      <span className="block text-base font-bold text-slate-100">{option.label}</span>
+                      <span className="flex items-baseline gap-2">
+                        {hotkey >= 0 && (
+                          <kbd className="hidden shrink-0 rounded border border-slate-600 bg-slate-900/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-400 sm:inline-block">
+                            {hotkey + 1}
+                          </kbd>
+                        )}
+                        <span className="text-base font-bold text-slate-100">{option.label}</span>
+                      </span>
                       <span className="mt-0.5 block text-xs leading-snug text-slate-400">
                         {option.disabled && option.disabledReason
                           ? `${option.hint}（${option.disabledReason}）`
@@ -165,7 +222,8 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
                         </span>
                       )}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )

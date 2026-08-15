@@ -2,13 +2,16 @@ import {
   ATTR_LABELS,
   IS_PITCHER,
   LEAGUES,
+  LEAGUE_PAY,
   META_LABELS,
   ORIGINS,
   TEAMS,
   attrsForPosition,
+  formatMoney,
   overall,
 } from './config';
 import type { Origin } from './config';
+import { careerMilestones, careerTotals, seasonFeats } from './milestones';
 import { INJURIES, pickEvent } from './events';
 import { noise, pick, randInt, seedFromCode, streamRng } from './rng';
 import { describeLine, simulateSeason, simulateTournament } from './season';
@@ -22,6 +25,7 @@ import type {
   LeagueId,
   LogEntry,
   Meta,
+  Milestone,
   Option,
   Position,
   SeasonRecord,
@@ -150,10 +154,12 @@ export function createGame(input: CreateInput): GameState {
     team: pick(streamRng(seed, 'hs-team'), TEAMS.hs),
     attrs,
     meta,
+    finance: { salary: 0, earnings: 0, endorsements: 0, peakSalary: 0 },
     injury: null,
     potential: rollPotential(attrs, seed, input.position),
     history: [],
     traits: [],
+    milestones: [],
     counters: {
       earlySixes: 0,
       restTurns: 0,
@@ -167,6 +173,7 @@ export function createGame(input: CreateInput): GameState {
     },
     log: [],
     choices: [],
+    seenEvents: [],
     decision: null,
     report: null,
     retired: false,
@@ -530,6 +537,33 @@ function pendingOffer(state: GameState): Decision | null {
     };
   }
 
+  // Free agency: nine years of service buys the right to pick an employer.
+  const faKey = 'fa';
+  if (
+    state.league === 'cpbl' &&
+    state.counters.proSeasons >= 9 &&
+    state.age <= 35 &&
+    unhandled(faKey)
+  ) {
+    return {
+      kind: 'offer',
+      key: faKey,
+      title: '取得自由球員資格',
+      prompt: `第 ${state.counters.proSeasons} 個球季結束，你拿到了自由球員資格。桌上有幾份合約。`,
+      options: [
+        { id: 'fa-move', label: '接受他隊的高薪合約', hint: '薪水大幅提高，但要重新適應一切。' },
+        { id: 'fa-stay', label: '留在原球隊', hint: '加薪幅度小一點，換來球迷與球團的敬意。' },
+        {
+          id: 'fa-overseas',
+          label: '用自由身挑戰日職',
+          hint: rating >= 64 ? '這可能是最後一次機會了。' : '沒有海外球團遞出合約。',
+          disabled: rating < 64,
+          disabledReason: '需要綜合能力 64 以上',
+        },
+      ],
+    };
+  }
+
   const promoteKey = `promote:${state.year}`;
   if (state.league === 'milb' && rating >= 64 && unhandled(promoteKey)) {
     return {
@@ -606,6 +640,8 @@ export function resolve(state: GameState, optionId: string): GameState {
           deltas: {},
           season: null,
           traitsUnlocked: [],
+          milestones: [],
+          income: null,
           tone: 'good',
         };
         applyDeltas(next, { mind: 4 });
@@ -653,6 +689,8 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
     deltas: {},
     season: null,
     traitsUnlocked: [],
+    milestones: [],
+    income: null,
     tone: flavor.tone,
   };
 
@@ -678,7 +716,8 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
 
   // Flavour event, injuries and ageing all land after the year is played.
   const event = pickEvent(state, rng(state, 'event'));
-  if (event && rng(state, 'event-fire')() < 0.55) {
+  if (event && rng(state, 'event-fire')() < 0.65) {
+    state.seenEvents.push(event.id);
     report.lines.push(event.text);
     applyDeltas(state, event.deltas ?? {});
     (Object.entries(event.deltas ?? {}) as [DeltaKey, number][]).forEach(([key, value]) => {
@@ -774,6 +813,61 @@ function runTournament(state: GameState, report: TurnReport, name: string, optio
   report.lines.push(`${outcome}　${describeLine(result.line)}`);
 }
 
+// ---------------------------------------------------------------------------
+// Money
+// ---------------------------------------------------------------------------
+
+/**
+ * Next season's contract. Ability sets the band, last season's results move you
+ * inside it, and service time adds the seniority every league pays for.
+ */
+function salaryFor(state: GameState, quality: number): number {
+  const pay = LEAGUE_PAY[state.league];
+  if (pay === 0) return 0;
+  const edge = overall(state.attrs, state.position) - LEAGUES[state.league].baseline;
+  // Steep in the band players actually occupy: a league-average regular sits
+  // near 1.0 and a star reaches roughly double, rather than the whole roster
+  // bunching up at the bottom of the scale.
+  const skill = clamp(0.3 + (edge + 12) / 14, 0.15, 2.6);
+  const results = 0.7 + quality * 0.8;
+  const service = clamp(0.55 + state.counters.proSeasons * 0.06, 0.55, 1.25);
+  return Math.max(round(pay * 0.12), round(pay * skill * results * service));
+}
+
+/** Endorsements only start once enough people know the name. */
+function endorsementFor(state: GameState): number {
+  if (state.meta.fame < 35) return 0;
+  return round(Math.pow(state.meta.fame - 30, 1.7) / 9);
+}
+
+function payFor(state: GameState, report: TurnReport, quality: number): void {
+  if (LEAGUE_PAY[state.league] === 0) {
+    state.finance.salary = 0;
+    state.finance.endorsements = 0;
+    return;
+  }
+  // A salary of 0 means the player just arrived in this league; price the
+  // first contract off current ability rather than last year's results.
+  if (state.finance.salary === 0) state.finance.salary = salaryFor(state, 0.35);
+
+  const endorsements = endorsementFor(state);
+  const income = state.finance.salary + endorsements;
+  state.finance.endorsements = endorsements;
+  state.finance.earnings += income;
+  state.finance.peakSalary = Math.max(state.finance.peakSalary, state.finance.salary);
+  report.income = income;
+
+  // Next year's deal is negotiated on the back of the season just played.
+  state.finance.salary = salaryFor(state, quality);
+}
+
+/** Moving leagues voids the contract, so the next one is priced from scratch. */
+function moveTo(state: GameState, league: LeagueId, team: string): void {
+  state.league = league;
+  state.team = team;
+  state.finance.salary = 0;
+}
+
 function runSeason(state: GameState, report: TurnReport): void {
   const effects = traitEffects(state.traits);
   const r = rng(state, 'season');
@@ -832,6 +926,7 @@ function runSeason(state: GameState, report: TurnReport): void {
     awards,
     note: intlNote ?? undefined,
   };
+  const totalsBefore = careerTotals(state.history);
   state.history.push(record);
   report.season = record;
   report.lines.push(describeLine(result.line));
@@ -840,6 +935,9 @@ function runSeason(state: GameState, report: TurnReport): void {
     if (report.tone === 'normal') report.tone = 'good';
   }
   if (intlNote) report.lines.push(intlNote);
+
+  recordMilestones(state, report, result.line, result.quality, totalsBefore);
+  payFor(state, report, result.quality);
 
   if (state.stage === 'pro') {
     state.counters.proSeasons += 1;
@@ -857,6 +955,56 @@ function runSeason(state: GameState, report: TurnReport): void {
   }
 
   applyDecline(state, report, effects.decline);
+  checkTrade(state, report);
+}
+
+/**
+ * Career totals crossing a round number, plus the one-off feats. Both go into
+ * the turn report so the moment lands where the player is looking.
+ */
+function recordMilestones(
+  state: GameState,
+  report: TurnReport,
+  line: SeasonRecord['line'],
+  quality: number,
+  totalsBefore: ReturnType<typeof careerTotals>,
+): void {
+  if (state.league === 'hs') return;
+  const found: Milestone[] = [
+    ...careerMilestones(totalsBefore, careerTotals(state.history), state),
+    ...seasonFeats(state, line, quality, rng(state, 'feats')),
+  ];
+  if (found.length === 0) return;
+  state.milestones.push(...found);
+  found.forEach((m) => report.lines.push(`【紀錄】${m.text}`));
+  report.milestones.push(...found);
+  applyDeltas(state, { fame: Math.min(12, found.length * 4) });
+  if (report.tone === 'normal' || report.tone === 'good') report.tone = 'great';
+}
+
+/**
+ * Trades are the main reason a career is not spent at one club. Clubs move a
+ * player who has stopped clearing the bar, and occasionally shake things up
+ * for no reason the player is told about.
+ */
+function checkTrade(state: GameState, report: TurnReport): void {
+  if (state.stage !== 'pro') return;
+  const roster = TEAMS[state.league].filter((t) => t !== state.team);
+  if (roster.length === 0) return;
+
+  const r = rng(state, 'trade');
+  const struggling = state.counters.badSeasons > 0;
+  const chance = 0.05 + (struggling ? 0.14 : 0) + (state.age >= 31 ? 0.05 : 0);
+  if (r() >= chance) return;
+
+  const from = state.team;
+  moveTo(state, state.league, pick(r, roster));
+  applyDeltas(state, { mind: -3, fame: -2 });
+  report.lines.push(
+    struggling
+      ? `季後被 ${from} 交易到 ${state.team}。你是被讓出去的那一個。`
+      : `一筆突然的交易把你從 ${from} 送到 ${state.team}。`,
+  );
 }
 
 function applyDecline(state: GameState, report: TurnReport, declineMul: number): void {
@@ -967,24 +1115,29 @@ function resolvePath(state: GameState, optionId: string): void {
     deltas: {},
     season: null,
     traitsUnlocked: [],
+    milestones: [],
+    income: null,
     tone: 'normal',
   };
 
   if (optionId === 'path-college' || optionId === 'path-corp') {
     const league: LeagueId = optionId === 'path-college' ? 'college' : 'corp';
     state.stage = 'amateur';
-    state.league = league;
-    state.team = pick(r, TEAMS[league]);
+    moveTo(state, league, pick(r, TEAMS[league]));
     report.headline = optionId === 'path-college' ? '升學' : '進入社會人球隊';
     report.lines.push(`你成為 ${state.team} 的一員，繼續在 ${LEAGUES[league].label} 磨練。`);
     report.tone = 'good';
   } else if (optionId === 'path-overseas') {
     state.stage = 'pro';
-    state.league = 'milb';
-    state.team = pick(r, TEAMS.milb);
+    moveTo(state, 'milb', pick(r, TEAMS.milb));
+    const bonus = 900;
+    state.finance.earnings += bonus;
     applyDeltas(state, { fame: 18, mind: -4 });
     report.headline = '簽下小聯盟合約';
-    report.lines.push(`你飛去了地球另一端，落腳在 ${state.team}。語言、食物、球風，全都要重新學。`);
+    report.lines.push(
+      `你飛去了地球另一端，落腳在 ${state.team}，簽約金 ${formatMoney(bonus)}。語言、食物、球風，全都要重新學。`,
+    );
+    report.income = bonus;
     report.tone = 'great';
   } else if (optionId === 'path-quit') {
     retire(state, '沒有被任何球團選上。你把球具收好，走進另一種人生。');
@@ -994,28 +1147,37 @@ function resolvePath(state: GameState, optionId: string): void {
     const score = draftScore(state, r);
     let rank: number;
     let note: string;
+    // The signing bonus is where draft position stops being a bragging right
+    // and becomes money — a first pick banks more before his debut than a
+    // development pick earns in five years.
+    let bonus = 0;
     if (score >= 88) {
       rank = 1;
+      bonus = 1200;
       note = '第一指名！鎂光燈全部打在你身上。';
       applyDeltas(state, { fame: 30, mind: 5 });
       report.tone = 'great';
     } else if (score >= 76) {
       rank = 1;
+      bonus = 700;
       note = '第一輪中選，球團說你是即戰力。';
       applyDeltas(state, { fame: 18, mind: 3 });
       report.tone = 'great';
     } else if (score >= 66) {
       rank = 2;
+      bonus = 350;
       note = '第二輪中選，是需要時間培養的潛力股。';
       applyDeltas(state, { fame: 10 });
       report.tone = 'good';
     } else if (score >= 55) {
       rank = 4;
+      bonus = 150;
       note = '中後段輪次被點名，至少門是開的。';
       applyDeltas(state, { fame: 4 });
       report.tone = 'good';
     } else if (score >= 46) {
       rank = 9;
+      bonus = 30;
       note = '育成選秀最後才聽到自己的名字，薪水很薄。';
       applyDeltas(state, { mind: -3 });
     } else {
@@ -1032,16 +1194,19 @@ function resolvePath(state: GameState, optionId: string): void {
         return;
       }
       state.stage = 'amateur';
-      state.league = 'corp';
-      state.team = pick(r, TEAMS.corp);
+      moveTo(state, 'corp', pick(r, TEAMS.corp));
       report.headline = '選秀落選';
       report.lines.push(note, `你先到 ${state.team} 落腳，等下一次機會。`);
     } else {
       state.stage = 'pro';
-      state.league = 'cpbl';
-      state.team = pick(r, TEAMS.cpbl);
+      moveTo(state, 'cpbl', pick(r, TEAMS.cpbl));
+      state.finance.earnings += bonus;
+      report.income = bonus;
       report.headline = `${state.team} 指名`;
-      report.lines.push(note, `你穿上 ${state.team} 的球衣，職業生涯正式開始。`);
+      report.lines.push(
+        note,
+        `你穿上 ${state.team} 的球衣，簽約金 ${formatMoney(bonus)}，職業生涯正式開始。`,
+      );
     }
   }
 
@@ -1059,38 +1224,68 @@ function resolveOffer(state: GameState, optionId: string): void {
     deltas: {},
     season: null,
     traitsUnlocked: [],
+    milestones: [],
+    income: null,
     tone: 'good',
   };
 
   switch (optionId) {
     case 'offer-npb':
-      state.league = 'npb';
-      state.team = pick(r, TEAMS.npb);
+      moveTo(state, 'npb', pick(r, TEAMS.npb));
       applyDeltas(state, { fame: 16, mind: -3 });
       report.headline = '旅日';
       report.lines.push(`${state.team} 把你買下。日本的訓練量讓你第一個月幾乎站不起來。`);
       break;
     case 'offer-mlb':
-      state.league = 'milb';
-      state.team = pick(r, TEAMS.milb);
+      moveTo(state, 'milb', pick(r, TEAMS.milb));
       applyDeltas(state, { fame: 14, mind: -5 });
       report.headline = '旅美';
       report.lines.push(`你選了最難的一條路，從 ${state.team} 的長途巴士開始。`);
       break;
     case 'offer-promote':
-      state.league = 'mlb';
-      state.team = pick(r, TEAMS.mlb);
+      moveTo(state, 'mlb', pick(r, TEAMS.mlb));
       applyDeltas(state, { fame: 25, mind: 8 });
       report.headline = '登上大聯盟';
       report.lines.push(`${state.team} 把你叫上來了。走出球員通道的那一刻，草皮綠得不真實。`);
       report.tone = 'great';
       break;
     case 'offer-return':
-      state.league = 'cpbl';
-      state.team = pick(r, TEAMS.cpbl);
+      moveTo(state, 'cpbl', pick(r, TEAMS.cpbl));
       applyDeltas(state, { fame: 8, mind: 5 });
       report.headline = '回到中職';
       report.lines.push(`${state.team} 為你辦了記者會。球迷還記得你。`);
+      break;
+    case 'fa-move': {
+      const from = state.team;
+      const rivals = TEAMS.cpbl.filter((t) => t !== from);
+      // A free-agent deal is negotiated, not assigned, so it is priced off the
+      // player's market value rather than reset like a league move.
+      const deal = round(Math.max(salaryFor(state, 0.75), state.finance.salary) * 1.6);
+      state.team = pick(r, rivals);
+      state.finance.salary = deal;
+      applyDeltas(state, { fame: 6, mind: -4 });
+      report.headline = '轉隊';
+      report.lines.push(
+        `你離開 ${from}，簽進 ${state.team}，年薪 ${formatMoney(deal)}。有些球迷把你的球衣燒了。`,
+      );
+      break;
+    }
+    case 'fa-stay': {
+      const deal = round(Math.max(salaryFor(state, 0.75), state.finance.salary) * 1.25);
+      state.finance.salary = deal;
+      applyDeltas(state, { fame: 12, mind: 8 });
+      report.headline = '續留';
+      report.lines.push(
+        `你在記者會上說「我想在這裡打完」。年薪 ${formatMoney(deal)}，比別隊開的少，你沒有多解釋。`,
+      );
+      report.tone = 'great';
+      break;
+    }
+    case 'fa-overseas':
+      moveTo(state, 'npb', pick(r, TEAMS.npb));
+      applyDeltas(state, { fame: 14, mind: -3 });
+      report.headline = '以自由身旅日';
+      report.lines.push(`三十幾歲才第一次出國打球。${state.team} 給了你這個機會。`);
       break;
     default:
       report.headline = '留下';
@@ -1130,6 +1325,8 @@ function retire(state: GameState, reason: string, into?: TurnReport): void {
     deltas: {},
     season: null,
     traitsUnlocked: [],
+    milestones: [],
+    income: null,
     tone: 'normal',
   };
 }
@@ -1187,6 +1384,10 @@ export function buildSummary(state: GameState): Summary {
   // same range — otherwise every pitcher retires a tier below what they earned.
   const batting = totals.hits * 0.35 + totals.hr * 1.7 + totals.rbi * 0.3 + totals.sb * 0.35;
   const pitching = totals.wins * 8 + totals.so * 0.4 + totals.saves * 4;
+  // Feats are the moments voters remember; career marks are already implied by
+  // the counting stats, so only the one-off feats add credit here.
+  const feats = state.milestones.filter((m) => m.kind === 'feat').length;
+
   const hofScore = Math.max(
     0,
     round(
@@ -1194,6 +1395,7 @@ export function buildSummary(state: GameState): Summary {
         pitching +
         titles * 26 +
         mvp * 55 +
+        feats * 18 +
         state.meta.fame * 2.2 +
         state.counters.intlStrong * 30 +
         leagueBonus,
@@ -1226,6 +1428,8 @@ export function buildSummary(state: GameState): Summary {
     hofScore,
     verdict,
     epitaph,
+    earnings: round(state.finance.earnings),
+    peakSalary: round(state.finance.peakSalary),
     totals,
     awardCounts: [...awardCounts.entries()]
       .map(([name, count]) => ({ name, count }))
