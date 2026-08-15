@@ -145,6 +145,14 @@
           "players": "1 人",
           "specPath": "04-sports-arcade/cyber-neon-rush.md",
           "gameFolder": "Cyber-Neon-Rush"
+        },
+        {
+          "name": "棒球人生",
+          "en": "Baseball Life",
+          "desc": "從高一春天到引退的文字型棒球生涯模擬，用骰子與選擇養成球員，種子碼可分享同一個世界。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/baseball-life.md",
+          "gameFolder": "Baseball-Life"
         }
       ]
     },
