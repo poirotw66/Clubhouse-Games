@@ -1,6 +1,7 @@
 import React from 'react';
 import { Settings, Heart } from 'lucide-react';
 import { GameMode } from '../types';
+import { qpDifficultyLabel } from '../constants';
 
 interface TopBarProps {
   level: number;
@@ -16,11 +17,11 @@ export const TopBar: React.FC<TopBarProps> = ({ level, mode, difficultyLabel, co
       {/* Left: Level/Difficulty Card - Unified Design */}
       <div className="flex-1 min-w-0 flex items-center">
         <div className="bg-white/10 backdrop-blur-xl rounded-2xl px-3 md:px-4 py-2 md:py-2.5 border border-white/20 shadow-lg flex flex-col items-start min-w-0 w-full">
-          <div className="text-yellow-400/90 text-[10px] md:text-xs font-bold tracking-wider uppercase mb-0.5 drop-shadow-md">
-            {mode === 'adventure' ? 'LEVEL' : 'DIFFICULTY'}
+          <div className="text-yellow-400/90 text-[10px] md:text-xs font-bold tracking-wider mb-0.5 drop-shadow-md">
+            {mode === 'adventure' ? '關卡' : '難度'}
           </div>
           <h1 className="text-white text-base md:text-2xl font-black drop-shadow-md font-mono truncate max-w-full">
-            {mode === 'adventure' ? level : difficultyLabel}
+            {mode === 'adventure' ? level : qpDifficultyLabel(difficultyLabel)}
           </h1>
         </div>
       </div>

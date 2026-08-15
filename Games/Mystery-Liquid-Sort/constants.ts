@@ -34,6 +34,23 @@ export const COST_CLEAR = 300;
 /** Quick-play best pour counts keyed by difficulty label (lower is better). */
 export const QP_BEST_MOVES_KEY = 'mls-qp-best-moves-v1';
 
+/** Stable storage ids for quick-play difficulties (do not localize these keys). */
+export const QP_DIFFICULTY_IDS = ['EASY', 'MEDIUM', 'HARD', 'EXPERT'] as const;
+export type QpDifficultyId = (typeof QP_DIFFICULTY_IDS)[number];
+
+export const QP_DIFFICULTY_LABELS: Record<QpDifficultyId, string> = {
+  EASY: '簡單',
+  MEDIUM: '普通',
+  HARD: '困難',
+  EXPERT: '專家',
+};
+
+export function qpDifficultyLabel(id: string | undefined): string {
+  if (!id) return '自訂';
+  if (id in QP_DIFFICULTY_LABELS) return QP_DIFFICULTY_LABELS[id as QpDifficultyId];
+  return id;
+}
+
 export function loadQpBestMoves(): Record<string, number> {
   try {
     const raw = localStorage.getItem(QP_BEST_MOVES_KEY);

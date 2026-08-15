@@ -28,7 +28,7 @@ export const DailyMissions: React.FC<DailyMissionsProps> = ({ isOpen, onClose, m
               </div>
               <div>
                   <h2 className="text-lg md:text-xl font-black text-white tracking-wide">{t('mission.daily_title', locale)}</h2>
-                  <p className="text-blue-100 text-[10px] md:text-xs font-mono">DAILY MISSIONS</p>
+                  <p className="text-blue-100 text-[10px] md:text-xs font-mono">每日挑戰</p>
               </div>
            </div>
            <button 

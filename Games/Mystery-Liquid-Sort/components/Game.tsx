@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameState, BottleData, GameMode } from '../types';
-import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO, persistQpBestMoves, loadQpBestMoves } from '../constants';
+import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO, persistQpBestMoves, loadQpBestMoves, qpDifficultyLabel } from '../constants';
 import { generateLevel, canPour, pourLiquid, checkLevelComplete, shuffleBottles, revealHiddenLayers, checkDeadlock, checkStateRepetition } from '../services/gameLogic';
 import { loadCoins, saveCoins } from '../services/economyService';
 import { useDailyMissions } from '../hooks/useDailyMissions';
@@ -25,6 +25,7 @@ export default function Game() {
     // Extract initial params from navigation state
     const initialMode: GameMode = location.state?.mode || 'adventure';
     const initialDifficulty = location.state?.difficultyLevel || 1;
+    // Storage/nav id stays English (EASY/…); display via qpDifficultyLabel.
     const initialDifficultyLabel = location.state?.difficultyLabel || 'CUSTOM';
 
     // Initialize state
@@ -605,8 +606,12 @@ export default function Game() {
             {gameState.isWin && (
                 <ResultOverlay
                     title="完成訂單！"
-                    subtitle={gameState.mode === 'adventure' ? `第 ${gameState.level} 關完成` : `${gameState.difficultyLabel ?? 'Quick Play'} 完成`}
-                    badge="Awesome!"
+                    subtitle={
+                      gameState.mode === 'adventure'
+                        ? `第 ${gameState.level} 關完成`
+                        : `${qpDifficultyLabel(gameState.difficultyLabel)} 完成`
+                    }
+                    badge="太棒了！"
                     variant="win"
                     stats={[
                         { label: '關卡', value: gameState.level },
