@@ -29,7 +29,7 @@ export function TitleScreen({ best, onStart }: TitleScreenProps) {
 
   return (
     <div className="w-full max-w-lg mx-auto text-center">
-      <p className="text-xs uppercase tracking-[0.3em] text-emerald-400 mb-2">Roguelike Snake</p>
+      <p className="text-xs tracking-[0.3em] text-emerald-400 mb-2">肉鴿貪食蛇</p>
       <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-2">蛇窟迴廊</h1>
       <p className="text-slate-400 text-sm mb-6">
         深入 {MAX_FLOOR} 層地窟，一路構築你的蛇。死亡即結束，但每一局都不一樣。

@@ -627,7 +627,7 @@ export default function App() {
                   onClick={() => startRun(id)}
                   aria-pressed={selected}
                   title={MODES[id].blurb}
-                  className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                  className={`text-xs min-h-[44px] px-3 py-2 rounded-full border transition-colors touch-manipulation ${
                     selected
                       ? 'bg-sky-500/20 text-sky-100 border-sky-400'
                       : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
@@ -643,7 +643,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleTogglePause}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600"
+            className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 touch-manipulation"
           >
             {state.paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
             <span>{state.paused ? '繼續' : '暫停'}</span>
@@ -651,7 +651,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleRestart}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600"
+            className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 touch-manipulation"
           >
             <RefreshCw className="w-4 h-4" />
             <span>重新開始</span>
@@ -820,12 +820,12 @@ export default function App() {
 
       <div className={touchControlsWrapClass}>
         <div className="flex gap-2 w-full justify-center">
-          <TouchButton label="←" ariaLabel="Move left" onClick={() => applyMove(0, -1)} />
-          <TouchButton label="↓" ariaLabel="Soft drop" onClick={() => applyMove(1, 0)} />
-          <TouchButton label="→" ariaLabel="Move right" onClick={() => applyMove(0, 1)} />
+          <TouchButton label="←" ariaLabel="向左" onClick={() => applyMove(0, -1)} />
+          <TouchButton label="↓" ariaLabel="軟降" onClick={() => applyMove(1, 0)} />
+          <TouchButton label="→" ariaLabel="向右" onClick={() => applyMove(0, 1)} />
         </div>
         <div className="flex gap-2 w-full justify-center flex-wrap">
-          <TouchButton label="旋轉" ariaLabel="Rotate" onClick={() => applyRotate(1)} />
+          <TouchButton label="旋轉" ariaLabel="旋轉" onClick={() => applyRotate(1)} />
           <TouchButton label="落下" ariaLabel="瞬間落下" onClick={hardDrop} accent />
           <TouchButton label="暫存" ariaLabel="暫存方塊" onClick={holdPiece} />
         </div>

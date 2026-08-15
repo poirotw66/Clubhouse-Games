@@ -172,7 +172,7 @@ export default function App() {
                 ].join(', '),
                 color: '#0f172a',
               }}
-              aria-label={`Tile ${tile}`}
+              aria-label={`第 ${tile} 格`}
             >
               {tile}
             </button>

@@ -26,6 +26,16 @@ import {
   playScore,
 } from '@clubhouse/shared/synthAudio';
 
+/** User-facing hit feedback; CounterResult enum values stay English ids. */
+const COUNTER_FEEDBACK_LABEL: Record<CounterResult, string> = {
+  [CounterResult.NONE]: '',
+  [CounterResult.PERFECT]: '完美',
+  [CounterResult.GOOD]: '不錯',
+  [CounterResult.EARLY]: '太早',
+  [CounterResult.LATE]: '太晚',
+  [CounterResult.MISS]: '失誤',
+};
+
 interface GameCanvasProps {
   onGameOver: (stats: GameStats) => void;
   gameActive: boolean;
@@ -179,7 +189,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       result
     });
 
-    setFeedback({ text: result, type: result });
+    setFeedback({ text: COUNTER_FEEDBACK_LABEL[result], type: result });
     setTimeout(() => setFeedback(null), 800);
 
     // Reset Enemy
@@ -287,7 +297,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             takeDamage(DAMAGE_PLAYER_HIT);
             stats.current.combo = 0;
             stats.current.misses++;
-            setFeedback({ text: 'HIT', type: CounterResult.MISS });
+            setFeedback({ text: '命中', type: CounterResult.MISS });
             setScreenShake(true);
             setTimeout(() => setScreenShake(false), 300);
             playError();

@@ -48,7 +48,7 @@ function ToggleChip({
       disabled={disabled}
       onClick={onClick}
       aria-pressed={active}
-      className={`flex-1 rounded-xl border-2 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`flex-1 min-h-[44px] rounded-xl border-2 py-2 text-sm font-bold transition touch-manipulation disabled:cursor-not-allowed disabled:opacity-40 ${
         active
           ? 'border-amber-400 bg-amber-400 text-slate-950'
           : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600'
@@ -252,7 +252,7 @@ export function MainMenu({
                   type="button"
                   onClick={() => onDifficulty(d.id)}
                   aria-pressed={d.id === difficulty}
-                  className={`flex-1 rounded-xl border-2 py-2 font-bold transition ${
+                  className={`flex-1 min-h-[44px] rounded-xl border-2 py-2 font-bold transition touch-manipulation ${
                     d.id === difficulty
                       ? 'border-amber-400 bg-amber-400 text-slate-950'
                       : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600'
