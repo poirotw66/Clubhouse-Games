@@ -10,10 +10,15 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="klondike-rules-title"
+    >
       <div className="bg-emerald-950 border border-white/15 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col text-emerald-50">
         <div className="flex justify-between items-center p-6 border-b border-white/10">
-          <h2 className="text-2xl font-bold">遊戲規則</h2>
+          <h2 id="klondike-rules-title" className="text-2xl font-bold">遊戲規則</h2>
           <button
             type="button"
             onClick={onClose}

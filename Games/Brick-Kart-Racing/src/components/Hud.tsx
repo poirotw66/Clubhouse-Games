@@ -123,7 +123,7 @@ export function Hud({
           type="button"
           onClick={onPause}
           aria-label="暫停"
-          className="h-9 w-9 rounded-lg bg-slate-950/55 text-sm font-bold text-white backdrop-blur-sm"
+          className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-lg bg-slate-950/55 text-sm font-bold text-white backdrop-blur-sm touch-manipulation"
         >
           ‖
         </button>
@@ -131,7 +131,7 @@ export function Hud({
           type="button"
           onClick={onMute}
           aria-label={muted ? '開啟音效' : '關閉音效'}
-          className="h-9 w-9 rounded-lg bg-slate-950/55 text-sm font-bold text-white backdrop-blur-sm"
+          className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-lg bg-slate-950/55 text-sm font-bold text-white backdrop-blur-sm touch-manipulation"
         >
           {muted ? '✕' : '♪'}
         </button>

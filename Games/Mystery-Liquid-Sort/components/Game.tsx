@@ -511,21 +511,21 @@ export default function Game() {
                         <button
                             onClick={() => navigate('/')}
                             className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-white/10 backdrop-blur-xl flex items-center justify-center text-white/70 active:bg-white/20 transition-all border border-white/20 shadow-lg touch-active"
-                            aria-label="Home"
+                            aria-label="回主頁"
                         >
                             <Home size={18} className="md:w-5 md:h-5" />
                         </button>
                         <button
                             onClick={handleRestart}
                             className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-white/10 backdrop-blur-xl flex items-center justify-center text-white/70 active:bg-white/20 transition-all border border-white/20 shadow-lg touch-active"
-                            aria-label="Restart"
+                            aria-label="重新開始"
                         >
                             <RotateCcw size={18} className="md:w-5 md:h-5" />
                         </button>
                         <button
                             onClick={openMissionModal}
                             className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg border border-white/20 relative touch-active"
-                            aria-label="Daily Missions"
+                            aria-label="每日任務"
                         >
                             <ClipboardList size={18} className="md:w-5 md:h-5" />
                             {hasNotifications && (

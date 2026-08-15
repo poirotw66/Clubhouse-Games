@@ -883,7 +883,12 @@ export default function App() {
 
       {/* Round end modal */}
       {state.phase === 'round_end' && (
-        <div className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="koi-koi-round-title"
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -893,14 +898,15 @@ export default function App() {
             <div className="corner-ornament corner-ornament-tr" />
             <div className="corner-ornament corner-ornament-bl" />
             <div className="corner-ornament corner-ornament-br" />
-            <h2 className="font-display text-3xl font-bold text-gold mb-4">回合結束</h2>
+            <h2 id="koi-koi-round-title" className="font-display text-3xl font-bold text-gold mb-4">回合結束</h2>
             <p className="text-lg text-cream mb-6">{state.message}</p>
             <div className="mb-6">
               <CharacterSelect selectedId={characterId} onSelect={setCharacterId} compact />
             </div>
             <button
+              type="button"
               onClick={() => startGame(true)}
-              className="wafu-btn-gold px-8 py-4 rounded-xl text-lg"
+              className="wafu-btn-gold px-8 py-4 min-h-[44px] rounded-xl text-lg touch-manipulation"
             >
               下一局
             </button>
@@ -910,7 +916,12 @@ export default function App() {
 
       {/* Game over modal */}
       {state.phase === 'game_over' && (
-        <div className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="koi-koi-over-title"
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -920,7 +931,7 @@ export default function App() {
             <div className="corner-ornament corner-ornament-tr" />
             <div className="corner-ornament corner-ornament-bl" />
             <div className="corner-ornament corner-ornament-br" />
-            <h2 className="font-display text-3xl font-bold text-gold mb-2">
+            <h2 id="koi-koi-over-title" className="font-display text-3xl font-bold text-gold mb-2">
               {state.winner === 'player' ? '恭喜獲勝！' : '師匠獲勝'}
             </h2>
             <p className="text-lg text-cream mb-4">{state.message}</p>
@@ -943,8 +954,9 @@ export default function App() {
               <CharacterSelect selectedId={characterId} onSelect={setCharacterId} compact />
             </div>
             <button
+              type="button"
               onClick={() => startGame(false, true)}
-              className="wafu-btn-gold px-8 py-4 rounded-xl text-lg"
+              className="wafu-btn-gold px-8 py-4 min-h-[44px] rounded-xl text-lg touch-manipulation"
             >
               再來一局
             </button>

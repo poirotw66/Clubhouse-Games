@@ -284,7 +284,7 @@ export default function App() {
             type="button"
             onClick={handleUndo}
             disabled={!canUndo}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation inline-flex items-center justify-center"
             title="悔棋"
             aria-label="悔棋"
           >
@@ -294,7 +294,7 @@ export default function App() {
             type="button"
             onClick={handleHint}
             disabled={!humanCanAct}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation inline-flex items-center justify-center"
             title="提示"
             aria-label="提示"
           >
@@ -303,7 +303,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowRules(true)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
             title="規則"
             aria-label="規則"
           >
@@ -312,7 +312,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleNewGame}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
             title="新局"
             aria-label="新局"
           >

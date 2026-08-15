@@ -9,6 +9,9 @@ export const RulesModal: React.FC<RulesModalProps> = ({onClose, winScore}) => {
   return (
     <div
       className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="koi-koi-rules-title"
       onClick={onClose}
     >
       <div
@@ -20,7 +23,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({onClose, winScore}) => {
         <div className="corner-ornament corner-ornament-bl" />
         <div className="corner-ornament corner-ornament-br" />
 
-        <h2 className="font-display text-2xl font-bold text-gold mb-4">遊戲規則</h2>
+        <h2 id="koi-koi-rules-title" className="font-display text-2xl font-bold text-gold mb-4">遊戲規則</h2>
 
         <section className="mb-4 text-sm text-cream/80 space-y-2">
           <h3 className="font-display text-gold text-base">基本流程</h3>
@@ -48,7 +51,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({onClose, winScore}) => {
           </ul>
         </section>
 
-        <button onClick={onClose} className="wafu-btn-gold w-full py-3 rounded-xl">
+        <button type="button" onClick={onClose} className="wafu-btn-gold w-full py-3 min-h-[44px] rounded-xl touch-manipulation">
           關閉
         </button>
       </div>

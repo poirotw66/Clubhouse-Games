@@ -366,21 +366,26 @@ export default function App() {
         )}
 
         {paused && !result && (
-          <div className="absolute inset-0 z-20 grid place-items-center bg-slate-950/80 backdrop-blur-sm">
+          <div
+            className="absolute inset-0 z-20 grid place-items-center bg-slate-950/80 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kart-pause-title"
+          >
             <div className="w-full max-w-xs rounded-2xl border border-white/10 bg-slate-900 p-6 text-center">
-              <h2 className="mb-4 text-2xl font-black text-white">暫停</h2>
+              <h2 id="kart-pause-title" className="mb-4 text-2xl font-black text-white">暫停</h2>
               <div className="space-y-2">
                 <button
                   type="button"
                   onClick={() => setPaused(false)}
-                  className="w-full rounded-xl bg-amber-400 py-3 font-black text-slate-950"
+                  className="w-full min-h-[44px] rounded-xl bg-amber-400 py-3 font-black text-slate-950 touch-manipulation"
                 >
                   繼續比賽
                 </button>
                 <button
                   type="button"
                   onClick={backToMenu}
-                  className="w-full rounded-xl border border-white/15 bg-slate-800 py-3 font-bold text-slate-200"
+                  className="w-full min-h-[44px] rounded-xl border border-white/15 bg-slate-800 py-3 font-bold text-slate-200 touch-manipulation"
                 >
                   回選單
                 </button>

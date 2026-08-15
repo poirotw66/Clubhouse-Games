@@ -31,7 +31,7 @@ export const TopBar: React.FC<TopBarProps> = ({ level, mode, difficultyLabel, co
           <button
             onClick={onSettings}
             className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-white/10 backdrop-blur-xl flex items-center justify-center text-white/70 active:bg-white/20 transition-all border border-white/20 shadow-lg touch-active"
-            aria-label="Settings"
+            aria-label="設定"
           >
             <Settings size={18} className="md:w-5 md:h-5" />
           </button>

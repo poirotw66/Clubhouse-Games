@@ -479,7 +479,7 @@ export default function App() {
             type="button"
             onClick={handleUndo}
             disabled={!canUndo}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent touch-manipulation inline-flex items-center justify-center"
             title="悔棋"
             aria-label="悔棋"
           >
@@ -489,7 +489,7 @@ export default function App() {
             type="button"
             onClick={handleHint}
             disabled={!canHint}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent touch-manipulation inline-flex items-center justify-center"
             title="提示"
             aria-label="提示"
           >
@@ -498,7 +498,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowRules(true)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
             aria-label="規則說明"
           >
             <BookOpen className="w-4 h-4" />
@@ -506,7 +506,7 @@ export default function App() {
           <button
             type="button"
             onClick={resetGame}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
             aria-label="新遊戲"
           >
             <RefreshCw className="w-4 h-4" />

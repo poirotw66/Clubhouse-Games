@@ -103,7 +103,7 @@ export const Home: React.FC = () => {
                   onClick={openMissionModal}
                   className="touch-target w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg border border-white/20 relative active:scale-95 transition-transform animate-fade-in-down touch-active"
                   style={{ animationDelay: '0.1s' }}
-                  aria-label="Daily Missions"
+                  aria-label="每日任務"
               >
                   <ClipboardList size={20} className="md:w-5 md:h-5" />
                   {hasNotifications && (

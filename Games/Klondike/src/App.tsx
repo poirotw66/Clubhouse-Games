@@ -755,8 +755,9 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsRulesOpen(true)}
-              className="flex items-center gap-2 min-h-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 transition-colors touch-manipulation"
+              className="flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 transition-colors touch-manipulation"
               title="規則"
+              aria-label="規則"
             >
               <Info size={20} />
               <span className="hidden sm:inline">規則</span>
@@ -765,7 +766,8 @@ export default function App() {
               type="button"
               onClick={showHint}
               disabled={isBusy || isGameWon}
-              className="flex items-center gap-2 min-h-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+              className="flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+              aria-label="提示"
             >
               <Lightbulb size={20} />
               <span className="hidden sm:inline">提示</span>
@@ -778,7 +780,8 @@ export default function App() {
                 noProgressCount.current = 0;
                 clearHint();
               }}
-              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors ${isAutoPlaying ? 'bg-red-500/80 hover:bg-red-500' : 'bg-blue-500/80 hover:bg-blue-500'}`}
+              className={`flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 sm:px-4 py-2 rounded-lg transition-colors touch-manipulation ${isAutoPlaying ? 'bg-red-500/80 hover:bg-red-500' : 'bg-blue-500/80 hover:bg-blue-500'}`}
+              aria-label={isAutoPlaying ? '停止自動' : '自動玩'}
             >
               {isAutoPlaying ? <Square size={20} /> : <Bot size={20} />}
               <span className="hidden sm:inline">{isAutoPlaying ? '停止' : '自動'}</span>
@@ -787,14 +790,16 @@ export default function App() {
               type="button"
               onClick={undo}
               disabled={gameState.history.length === 0 || isBusy}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+              aria-label="復原"
             >
               <Undo2 size={20} /> <span className="hidden sm:inline">復原</span>
             </button>
             <button
               type="button"
               onClick={startNewGame}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
+              className="flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 sm:px-4 py-2 bg-black/20 rounded-lg hover:bg-black/30 transition-colors touch-manipulation"
+              aria-label="新局"
             >
               <RotateCcw size={20} /> <span className="hidden sm:inline">新局</span>
             </button>

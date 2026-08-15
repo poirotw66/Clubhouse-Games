@@ -148,11 +148,11 @@ export default function App() {
       if (isDealerBJ) {
         setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'push' }]);
         setBalance(prev => prev + currentBet);
-        setMessage('Push! Both have Blackjack.');
+        setMessage('和局！雙方皆 Blackjack。');
       } else {
         setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'blackjack' }]);
         setBalance(prev => prev + blackjackPayout(currentBet));
-        setMessage('Blackjack! You win 3:2.');
+        setMessage('Blackjack！贏得 3:2。');
       }
       setGameState('gameOver');
       return;
@@ -203,11 +203,11 @@ export default function App() {
     if (isBlackjack(revealed)) {
       setPlayerHands([{ ...hand, status: 'push' }]);
       setBalance(prev => prev + hand.bet);
-      setMessage('Push! Both have Blackjack.');
+      setMessage('和局！雙方皆 Blackjack。');
     } else {
       setPlayerHands([{ ...hand, status: 'blackjack' }]);
       setBalance(prev => prev + blackjackPayout(hand.bet));
-      setMessage('Blackjack! You win 3:2.');
+      setMessage('Blackjack！贏得 3:2。');
     }
     setGameState('gameOver');
   };
@@ -442,7 +442,7 @@ export default function App() {
     setGameState('gameOver');
 
     if (dBusted) {
-      setMessage('Dealer busted! You win.');
+      setMessage('莊家爆牌！你贏了。');
     } else {
       const wins = newHands.filter(h => h.status === 'won').length;
       const losses = newHands.filter(
@@ -450,10 +450,10 @@ export default function App() {
       ).length;
       const pushes = newHands.filter(h => h.status === 'push').length;
 
-      if (wins > 0 && losses === 0) setMessage('You win!');
-      else if (losses > 0 && wins === 0) setMessage('Dealer wins.');
-      else if (pushes > 0) setMessage('Push.');
-      else setMessage('Game Over.');
+      if (wins > 0 && losses === 0) setMessage('你贏了！');
+      else if (losses > 0 && wins === 0) setMessage('莊家贏了。');
+      else if (pushes > 0) setMessage('和局。');
+      else setMessage('本局結束。');
     }
   };
 
@@ -550,7 +550,7 @@ export default function App() {
 
       <div className="flex-1 min-h-0 w-full max-w-xl flex flex-col items-center justify-center gap-3 sm:gap-4 py-2 relative z-10 overflow-hidden">
         <div className="flex flex-col items-center gap-1 sm:gap-2 shrink-0 min-h-0">
-          <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">Dealer</div>
+          <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">莊家</div>
           <div className="flex -space-x-4 sm:-space-x-5 md:-space-x-6">
             <AnimatePresence>
               {dealerCards.map((card, i) => (
@@ -603,7 +603,7 @@ export default function App() {
                   className={`flex flex-col items-center gap-1 sm:gap-2 transition-all duration-300 ${activeHandIndex === i && gameState === 'playing' ? 'scale-105' : 'opacity-90'}`}
                 >
                   <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">
-                    Player {playerHands.length > 1 ? i + 1 : ''}
+                    玩家 {playerHands.length > 1 ? i + 1 : ''}
                   </div>
                   <div className="relative">
                     {activeHandIndex === i && gameState === 'playing' && (
@@ -652,6 +652,7 @@ export default function App() {
             <p className="text-red-400 font-bold tracking-widest uppercase text-sm">籌碼用盡</p>
             <p className="text-white/50 text-xs">你已經沒有籌碼了</p>
             <button
+              type="button"
               onClick={resetAndPlayAgain}
               className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2"
             >
@@ -661,14 +662,15 @@ export default function App() {
           </div>
         ) : gameState === 'betting' ? (
           <div className="flex flex-col items-center gap-2 sm:gap-3">
-            <div className="text-white/50 text-xs font-bold uppercase tracking-widest">Place Your Bet</div>
+            <div className="text-white/50 text-xs font-bold tracking-widest">下注金額</div>
             <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
               {[10, 25, 50, 100, 500].map(amount => (
                 <button
                   key={amount}
+                  type="button"
                   onClick={() => placeBet(amount)}
                   disabled={currentBet + amount > balance}
-                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-amber-300 to-amber-600 border-2 border-amber-200 shadow-lg text-amber-950 font-black text-sm flex items-center justify-center hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-amber-300 to-amber-600 border-2 border-amber-200 shadow-lg text-amber-950 font-black text-sm flex items-center justify-center hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-30 disabled:cursor-not-allowed transition-all touch-manipulation"
                 >
                   ${amount}
                 </button>
@@ -676,19 +678,21 @@ export default function App() {
             </div>
             <div className="flex justify-center gap-2 w-full max-w-sm mt-1">
               <button
+                type="button"
                 onClick={clearBet}
-                className="flex-1 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors flex items-center justify-center gap-1.5 touch-manipulation"
               >
                 <RotateCcw className="w-4 h-4" />
-                CLEAR
+                清除
               </button>
               <button
+                type="button"
                 onClick={deal}
                 disabled={currentBet === 0 || currentBet > balance}
-                className="flex-[2] py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
+                className="flex-[2] py-2.5 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 touch-manipulation"
               >
                 <Play className="w-5 h-5 fill-current" />
-                DEAL
+                發牌
               </button>
             </div>
           </div>
@@ -697,14 +701,14 @@ export default function App() {
             <button
               type="button"
               onClick={takeEvenMoney}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
             >
               均分 1:1
             </button>
             <button
               type="button"
               onClick={declineEvenMoney}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
             >
               繼續比牌
             </button>
@@ -712,22 +716,25 @@ export default function App() {
         ) : gameState === 'insurance' ? (
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
             <button
+              type="button"
               onClick={takeInsurance}
               disabled={balance < insuranceCost}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
             >
               保險 ${insuranceCost}
             </button>
             <button
+              type="button"
               onClick={declineInsurance}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
             >
               不保險
             </button>
             {canSurrender() && (
               <button
+                type="button"
                 onClick={surrender}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
               >
                 投降
               </button>
@@ -735,31 +742,34 @@ export default function App() {
           </div>
         ) : gameState === 'playing' ? (
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-            <button onClick={hit} className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all">
-              HIT
+            <button type="button" onClick={hit} className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation">
+              要牌
             </button>
-            <button onClick={stand} className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all">
-              STAND
+            <button type="button" onClick={stand} className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation">
+              停牌
             </button>
             <button
+              type="button"
               onClick={doubleDown}
               disabled={playerHands[activeHandIndex].cards.length !== 2 || balance < playerHands[activeHandIndex].bet}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
             >
-              DOUBLE
+              加倍
             </button>
             {canSplit() && (
               <button
+                type="button"
                 onClick={split}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
               >
-                SPLIT
+                分牌
               </button>
             )}
             {canSurrender() && (
               <button
+                type="button"
                 onClick={surrender}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
               >
                 投降
               </button>
@@ -768,6 +778,7 @@ export default function App() {
         ) : gameState === 'gameOver' ? (
           <div className="flex justify-center">
             <button
+              type="button"
               onClick={() => {
                 setGameState('betting');
                 setPlayerHands([]);
@@ -776,19 +787,19 @@ export default function App() {
                 setInsuranceBet(0);
                 setPeekPending(false);
               }}
-              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2"
+              className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 touch-manipulation"
             >
               <RotateCcw className="w-5 h-5" />
-              NEW GAME
+              再下一局
             </button>
           </div>
         ) : (
           <div className="flex justify-center items-center h-12">
-            <div className="flex items-center gap-2 text-white/60 font-bold tracking-widest uppercase text-sm">
+            <div className="flex items-center gap-2 text-white/60 font-bold tracking-widest text-sm">
               <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
               <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
               <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              <span className="ml-1">Dealer&apos;s Turn</span>
+              <span className="ml-1">莊家回合</span>
             </div>
           </div>
         )}

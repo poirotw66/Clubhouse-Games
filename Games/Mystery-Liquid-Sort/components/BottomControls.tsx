@@ -18,6 +18,7 @@ const ControlButton: React.FC<{
 }> = ({ onClick, icon, colorClass, cost, label }) => (
   <div className="flex flex-col items-center gap-1.5 group">
     <button
+      type="button"
       onClick={onClick}
       className={`
         relative touch-target w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-white
@@ -53,28 +54,28 @@ export const BottomControls: React.FC<BottomControlsProps> = ({ onShuffle, onUnd
           icon={<Shuffle size={24} strokeWidth={2.5} />} 
           colorClass="bg-blue-500" 
           cost={COST_SHUFFLE} 
-          label="Shuffle"
+          label="洗牌"
         />
         <ControlButton 
           onClick={onUndo} 
           icon={<RotateCcw size={24} strokeWidth={2.5} />} 
           colorClass="bg-orange-500" 
           cost={COST_UNDO} 
-          label="Undo"
+          label="復原"
         />
         <ControlButton 
           onClick={onAddBottle} 
           icon={<Plus size={28} strokeWidth={3} />} 
           colorClass="bg-green-500" 
           cost={COST_ADD_BOTTLE} 
-          label="Add"
+          label="加瓶子"
         />
         <ControlButton 
           onClick={onReveal} 
           icon={<Eye size={24} strokeWidth={2.5} />} 
           colorClass="bg-purple-500" 
           cost={COST_REVEAL} 
-          label="Reveal"
+          label="揭開"
         />
       </div>
     </div>

@@ -402,7 +402,7 @@ export default function App(): ReactElement {
             type="button"
             onClick={handleUndo}
             disabled={!canUndo}
-            className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 transition-colors"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 transition-colors touch-manipulation inline-flex items-center justify-center"
             aria-label="撤銷"
             title="撤銷 (Z)"
           >
@@ -411,7 +411,7 @@ export default function App(): ReactElement {
           <button
             type="button"
             onClick={togglePause}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
             aria-label="暫停"
             title="暫停 (P)"
           >
