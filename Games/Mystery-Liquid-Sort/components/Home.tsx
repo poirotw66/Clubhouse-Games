@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Zap, X, Trophy, Map, Star, ClipboardList, Heart } from 'lucide-react';
+import { Play, Zap, X, Trophy, Map, ClipboardList, Heart } from 'lucide-react';
 import { Bottle } from './Bottle';
 import { Background } from './Background';
 import { BottleData, Color } from '../types';
@@ -10,7 +10,19 @@ import { useDailyMissions } from '../hooks/useDailyMissions';
 import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
 import { getSavedBackground } from '../utils/backgrounds';
 import { DailyMissions } from './DailyMissions';
-import { INITIAL_COINS, loadQpBestMoves } from '../constants';
+import { INITIAL_COINS, loadQpBestMoves, QP_DIFFICULTY_LABELS, type QpDifficultyId } from '../constants';
+
+const QP_OPTIONS: {
+  id: QpDifficultyId;
+  level: number;
+  subLabel: string;
+  color: string;
+}[] = [
+  { id: 'EASY', level: 4, subLabel: '3 色・容量 4・少量 ?', color: 'bg-green-500' },
+  { id: 'MEDIUM', level: 9, subLabel: '4 色・容量 5・較多 ?', color: 'bg-yellow-500' },
+  { id: 'HARD', level: 15, subLabel: '5 色・容量 6・大量 ?', color: 'bg-orange-500' },
+  { id: 'EXPERT', level: 25, subLabel: '6 色・容量 6・最多 ?', color: 'bg-red-600' },
+];
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -75,8 +87,8 @@ export const Home: React.FC = () => {
       navigate('/game', { state: { mode: 'adventure' } });
   };
 
-  const handleQuickPlayClick = (difficultyLevel: number, label: string) => {
-      navigate('/game', { state: { mode: 'quick_play', difficultyLevel, difficultyLabel: label } });
+  const handleQuickPlayClick = (difficultyLevel: number, id: QpDifficultyId) => {
+      navigate('/game', { state: { mode: 'quick_play', difficultyLevel, difficultyLabel: id } });
   };
 
   // Get saved background preference
@@ -103,7 +115,7 @@ export const Home: React.FC = () => {
                   onClick={openMissionModal}
                   className="touch-target w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg border border-white/20 relative active:scale-95 transition-transform animate-fade-in-down touch-active"
                   style={{ animationDelay: '0.1s' }}
-                  aria-label="Daily Missions"
+                  aria-label="每日任務"
               >
                   <ClipboardList size={20} className="md:w-5 md:h-5" />
                   {hasNotifications && (
@@ -117,10 +129,10 @@ export const Home: React.FC = () => {
             {/* Title Section - Mobile Optimized */}
             <div className="text-center space-y-1 md:space-y-2 animate-fade-in-down px-2">
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)] tracking-tight">
-                    MYSTERY
+                    神秘液體排序
                 </h1>
-                <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white/90 tracking-wide drop-shadow-md">
-                    LIQUID SORT
+                <h2 className="text-sm md:text-base font-bold text-white/70 tracking-[0.2em] drop-shadow-md">
+                    MYSTERY LIQUID SORT
                 </h2>
             </div>
 
@@ -150,9 +162,9 @@ export const Home: React.FC = () => {
                             <Map className="w-5 h-5 md:w-6 md:h-6 text-white" />
                         </div>
                         <div className="flex flex-col items-start">
-                            <span className="text-lg md:text-xl font-bold tracking-wide text-white">ADVENTURE</span>
-                            <span className="text-blue-200 text-[10px] md:text-xs font-mono">
-                                {savedLevel > 1 ? `CONTINUE LEVEL ${savedLevel}` : 'START JOURNEY'}
+                            <span className="text-lg md:text-xl font-bold tracking-wide text-white">冒險模式</span>
+                            <span className="text-blue-200 text-[10px] md:text-xs">
+                                {savedLevel > 1 ? `繼續第 ${savedLevel} 關` : '開始旅程'}
                             </span>
                         </div>
                     </div>
@@ -169,8 +181,8 @@ export const Home: React.FC = () => {
                             <Zap className="w-5 h-5 md:w-6 md:h-6 text-white" />
                         </div>
                         <div className="flex flex-col items-start">
-                            <span className="text-lg md:text-xl font-bold tracking-wide text-white">QUICK PLAY</span>
-                            <span className="text-emerald-100 text-[10px] md:text-xs font-mono">SELECT DIFFICULTY</span>
+                            <span className="text-lg md:text-xl font-bold tracking-wide text-white">快速遊玩</span>
+                            <span className="text-emerald-100 text-[10px] md:text-xs">選擇難度</span>
                         </div>
                     </div>
                     <Play className="w-5 h-5 md:w-6 md:h-6 text-white/50 group-active:text-white transition-colors" />
@@ -180,7 +192,7 @@ export const Home: React.FC = () => {
 
             {/* Footer */}
             <div className="absolute bottom-4 text-white/20 text-xs">
-                v1.1.0 • React Liquid Engine
+                v1.1.0
             </div>
         </div>
 
@@ -196,48 +208,37 @@ export const Home: React.FC = () => {
 
         {/* Difficulty Selection Modal */}
         {showDifficultyModal && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-4">
+            <div
+              className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mls-diff-title"
+            >
                 <div className="w-full max-w-sm bg-[#2d2d44] border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
                     
                     {/* Close Button */}
                     <button 
+                        type="button"
                         onClick={() => setShowDifficultyModal(false)}
-                        className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+                        className="absolute top-4 right-4 min-h-[44px] min-w-[44px] text-white/40 hover:text-white transition-colors touch-manipulation"
+                        aria-label="關閉"
                     >
                         <X size={24} />
                     </button>
 
-                    <h3 className="text-2xl font-black text-white mb-6 text-center">SELECT DIFFICULTY</h3>
+                    <h3 id="mls-diff-title" className="text-2xl font-black text-white mb-6 text-center">選擇難度</h3>
 
                     <div className="space-y-3">
-                        <DifficultyOption 
-                            label="EASY" 
-                            subLabel="3 Colors • Cap 4 • Some ?" 
-                            color="bg-green-500"
-                            bestMoves={qpBests.EASY}
-                            onClick={() => handleQuickPlayClick(4, "EASY")} 
-                        />
-                        <DifficultyOption 
-                            label="MEDIUM" 
-                            subLabel="4 Colors • Cap 5 • More ?" 
-                            color="bg-yellow-500"
-                            bestMoves={qpBests.MEDIUM}
-                            onClick={() => handleQuickPlayClick(9, "MEDIUM")} 
-                        />
-                        <DifficultyOption 
-                            label="HARD" 
-                            subLabel="5 Colors • Cap 6 • Many ?" 
-                            color="bg-orange-500"
-                            bestMoves={qpBests.HARD}
-                            onClick={() => handleQuickPlayClick(15, "HARD")} 
-                        />
-                        <DifficultyOption 
-                            label="EXPERT" 
-                            subLabel="6 Colors • Cap 6 • Max ?" 
-                            color="bg-red-600"
-                            bestMoves={qpBests.EXPERT}
-                            onClick={() => handleQuickPlayClick(25, "EXPERT")} 
-                        />
+                        {QP_OPTIONS.map((opt) => (
+                          <DifficultyOption
+                            key={opt.id}
+                            label={QP_DIFFICULTY_LABELS[opt.id]}
+                            subLabel={opt.subLabel}
+                            color={opt.color}
+                            bestMoves={qpBests[opt.id]}
+                            onClick={() => handleQuickPlayClick(opt.level, opt.id)}
+                          />
+                        ))}
                     </div>
                 </div>
             </div>
@@ -264,8 +265,8 @@ const DifficultyOption: React.FC<{
                 <div className="text-lg font-bold text-white group-hover:text-yellow-300 transition-colors">{label}</div>
                 <div className="text-xs text-white/40 font-mono">{subLabel}</div>
                 {bestMoves != null && bestMoves > 0 && (
-                  <div className="text-[10px] text-emerald-300/80 font-mono mt-0.5">
-                    BEST {bestMoves} MOVES
+                  <div className="text-[10px] text-emerald-300/80 mt-0.5">
+                    最佳 {bestMoves} 步
                   </div>
                 )}
             </div>

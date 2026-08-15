@@ -28,13 +28,13 @@ export const DailyMissions: React.FC<DailyMissionsProps> = ({ isOpen, onClose, m
               </div>
               <div>
                   <h2 className="text-lg md:text-xl font-black text-white tracking-wide">{t('mission.daily_title', locale)}</h2>
-                  <p className="text-blue-100 text-[10px] md:text-xs font-mono">DAILY MISSIONS</p>
+                  <p className="text-blue-100 text-[10px] md:text-xs font-mono">每日挑戰</p>
               </div>
            </div>
            <button 
              onClick={onClose}
              className="touch-target w-9 h-9 md:w-8 md:h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 active:bg-white/20 active:text-white transition-colors touch-active"
-             aria-label="Close"
+             aria-label="關閉"
            >
              <X size={20} className="md:w-[18px] md:h-[18px]" />
            </button>

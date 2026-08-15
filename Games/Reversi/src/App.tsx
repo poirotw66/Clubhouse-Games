@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import type { Board, Piece, Difficulty } from './utils/reversiLogic';
 import {
@@ -340,7 +341,7 @@ export default function App() {
         }}
       >
         <BackToMenu />
-        <h1 className="text-2xl font-bold tracking-tight mb-8">黑白棋 Reversi</h1>
+        <h1 className="text-2xl font-bold tracking-tight mb-8">黑白棋</h1>
         <div className="flex flex-col gap-4 w-full max-w-xs">
           <button
             type="button"
@@ -503,7 +504,7 @@ export default function App() {
       <BackToMenu />
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
         <div className="flex items-baseline gap-2 min-w-0">
-          <h1 className="text-xl font-bold tracking-tight">黑白棋 Reversi</h1>
+          <h1 className="text-xl font-bold tracking-tight">黑白棋</h1>
           {gameMode === 'bot' && (
             <span className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-800/60 border border-emerald-600/50 text-xs text-emerald-100">
               電腦・{DIFFICULTY_LABELS[difficulty]}
@@ -511,44 +512,36 @@ export default function App() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={!canUndo}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+          <TouchButton
+            label={<Undo2 className="w-5 h-5" />}
+            ariaLabel="悔棋"
             title="悔棋"
-            aria-label="悔棋"
-          >
-            <Undo2 className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleHint}
-            disabled={!canHint}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            disabled={!canUndo}
+            onClick={handleUndo}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          <TouchButton
+            label={<Lightbulb className="w-5 h-5" />}
+            ariaLabel="提示"
             title="提示"
-            aria-label="提示"
-          >
-            <Lightbulb className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowRules(true)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            disabled={!canHint}
+            onClick={handleHint}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          <TouchButton
+            label={<BookOpen className="w-5 h-5" />}
+            ariaLabel="規則"
             title="規則"
-            aria-label="規則"
-          >
-            <BookOpen className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleNewGame}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            onClick={() => setShowRules(true)}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          <TouchButton
+            label={<RefreshCw className="w-5 h-5" />}
+            ariaLabel="新對局"
             title="新對局"
-            aria-label="新對局"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
+            onClick={handleNewGame}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
         </div>
       </header>
 
@@ -674,12 +667,12 @@ export default function App() {
                 }}
                 aria-label={
                   cell
-                    ? `Row ${r + 1} col ${c + 1} ${cell}`
+                    ? `第 ${r + 1} 列 ${c + 1} 欄 ${cell === 'black' ? '黑' : '白'}`
                     : isHint
-                      ? `Hint at ${r + 1},${c + 1}`
+                      ? `提示：第 ${r + 1} 列 ${c + 1} 欄`
                       : isLegal
-                        ? `Place at ${r + 1},${c + 1}`
-                        : `Empty ${r + 1},${c + 1}`
+                        ? `可下於第 ${r + 1} 列 ${c + 1} 欄`
+                        : `空格第 ${r + 1} 列 ${c + 1} 欄`
                 }
               >
                 {cell && (

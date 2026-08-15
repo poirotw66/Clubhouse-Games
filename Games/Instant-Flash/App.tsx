@@ -85,7 +85,7 @@ export default function App() {
              </div>
 
              <h1 className="text-5xl md:text-6xl font-display font-black text-transparent bg-clip-text bg-gradient-to-br from-emerald-300 to-cyan-500 mb-2 drop-shadow-sm">
-               INSTANT FLASH
+               剎那一閃
              </h1>
              <p className="text-slate-300 font-display tracking-[0.3em] mb-8 text-sm">武士反應訓練</p>
 

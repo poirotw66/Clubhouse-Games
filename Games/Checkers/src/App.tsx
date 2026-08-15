@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { playCapture, playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
 import type { Board, PieceColor, Move, Difficulty } from './utils/checkersLogic';
 import {
@@ -475,42 +476,34 @@ export default function App() {
       <header className="w-full max-w-[420px] flex justify-between items-center mb-3 mt-1">
         <h1 className="text-lg font-bold tracking-tight">西洋跳棋</h1>
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={!canUndo}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+          <TouchButton
+            label={<Undo2 className="w-4 h-4" />}
+            ariaLabel="悔棋"
             title="悔棋"
-            aria-label="悔棋"
-          >
-            <Undo2 className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleHint}
-            disabled={!canHint}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            disabled={!canUndo}
+            onClick={handleUndo}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          <TouchButton
+            label={<Lightbulb className="w-4 h-4" />}
+            ariaLabel="提示"
             title="提示"
-            aria-label="提示"
-          >
-            <Lightbulb className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
+            disabled={!canHint}
+            onClick={handleHint}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          <TouchButton
+            label={<BookOpen className="w-4 h-4" />}
+            ariaLabel="規則說明"
             onClick={() => setShowRules(true)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            aria-label="規則說明"
-          >
-            <BookOpen className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          <TouchButton
+            label={<RefreshCw className="w-4 h-4" />}
+            ariaLabel="新遊戲"
             onClick={resetGame}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            aria-label="新遊戲"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
         </div>
       </header>
 

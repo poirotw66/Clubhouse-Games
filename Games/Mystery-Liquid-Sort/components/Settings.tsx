@@ -38,7 +38,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           <button
             onClick={onClose}
             className="touch-target w-9 h-9 md:w-8 md:h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 active:bg-white/20 active:text-white transition-colors touch-active"
-            aria-label="Close"
+            aria-label="關閉"
           >
             <X size={20} className="md:w-[18px] md:h-[18px]" />
           </button>

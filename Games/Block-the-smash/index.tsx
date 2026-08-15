@@ -302,9 +302,14 @@ function App() {
       </div>
 
       {showDisclaimer && (
-        <div style={styles.modalOverlay}>
+        <div
+          style={styles.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="smash-start-title"
+        >
           <div style={styles.modal}>
-            <h2 style={styles.modalHeader}>接殺訓練</h2>
+            <h2 id="smash-start-title" style={styles.modalHeader}>接殺訓練</h2>
             <div style={{ ...styles.modalSub, fontSize: '15px', color: '#ccc' }}>
               <p style={{ marginBottom: '12px' }}>
                 <strong>目標：</strong>拖曳移動球拍，在殺球來到時點擊揮拍擋回。會分成熱身→加壓→混戰三波。

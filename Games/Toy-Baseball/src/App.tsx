@@ -426,7 +426,7 @@ class GameEngine {
         hitType = 'fair';
         this.state.outs++;
       } else {
-        result = '全壘打 (HOME RUN!)';
+        result = '全壘打！';
         hitType = 'fair';
         bases = 4;
         if (this.state.playMode === 'derby') {
@@ -919,7 +919,7 @@ export default function App() {
       if (state.score.away > prevScoreRef.current.away) playScore();
       if (state.score.home > prevScoreRef.current.home) playError();
       if (state.resultText && state.resultText !== prevResultRef.current) {
-        if (state.resultText.includes('HOME RUN')) playGoal();
+        if (state.resultText.includes('全壘打')) playGoal();
         else if (state.resultText.includes('OUT') || state.resultText.includes('STRIKEOUT')) {
           playError();
         }
@@ -1070,13 +1070,13 @@ export default function App() {
                   draggable={false}
                 />
                 <div className="flex flex-col">
-                  <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Away (Player)</span>
+                  <span className="text-[10px] tracking-widest text-zinc-500 font-bold">客場（你）</span>
                   <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Home (CPU)</span>
+                  <span className="text-[10px] tracking-widest text-zinc-500 font-bold">主場（電腦）</span>
                   <span className="text-3xl sm:text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
                 </div>
                 <img
@@ -1161,7 +1161,7 @@ export default function App() {
                   draggable={false}
                 />
               </div>
-              <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">TOY BASEBALL</h1>
+              <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">玩具棒球</h1>
               <p className="text-zinc-400 mb-4 text-sm tracking-widest uppercase">玩具棒球機檯</p>
 
               <div className="w-full max-w-md mb-3">
@@ -1330,11 +1330,11 @@ export default function App() {
               </motion.div>
               <div className={`${touchControlsWrapClass} pointer-events-auto`}>
                 <div className="flex gap-2 w-full justify-center">
-                  <TouchButton label="← 拉" ariaLabel="Pull left" onClick={() => setSwingDirection('left')} />
-                  <TouchButton label="中" ariaLabel="Center" onClick={() => setSwingDirection('center')} />
-                  <TouchButton label="推 →" ariaLabel="Push right" onClick={() => setSwingDirection('right')} />
+                  <TouchButton label="← 拉" ariaLabel="向左打" onClick={() => setSwingDirection('left')} />
+                  <TouchButton label="中" ariaLabel="打中間" onClick={() => setSwingDirection('center')} />
+                  <TouchButton label="推 →" ariaLabel="向右打" onClick={() => setSwingDirection('right')} />
                 </div>
-                <TouchButton label="揮棒" ariaLabel="Swing" wide accent onClick={handleBattingSwing} />
+                <TouchButton label="揮棒" ariaLabel="揮棒" wide accent onClick={handleBattingSwing} />
               </div>
               </>
             ) : (

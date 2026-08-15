@@ -11,7 +11,7 @@ export const TargetArea: React.FC<TargetAreaProps> = ({ orders }) => {
     <div className="w-full flex flex-col items-center mb-4 md:mb-6 px-3 md:px-4">
       {/* Header - Unified Card Style */}
       <div className="w-full max-w-lg flex justify-between items-center mb-3 bg-white/10 backdrop-blur-xl rounded-2xl px-4 py-2.5 border border-white/20 shadow-lg">
-        <span className="text-white/90 text-xs md:text-sm font-bold tracking-wider uppercase drop-shadow-md">Customer Orders</span>
+        <span className="text-white/90 text-xs md:text-sm font-bold tracking-wider drop-shadow-md">顧客訂單</span>
         <div className="flex items-center gap-2 bg-white/10 rounded-xl px-2.5 py-1 border border-white/20">
           <span className="text-white/90 font-mono text-xs md:text-sm tabular-nums">
             {orders.filter(o => o.isCompleted).length} / {orders.length}
@@ -51,7 +51,7 @@ export const TargetArea: React.FC<TargetAreaProps> = ({ orders }) => {
                   {!order.isCompleted && !order.isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center opacity-60 animate-pulse">
                         <div className="w-5 h-5 md:w-6 md:h-6 rounded-full mb-1 shadow-md" style={{ backgroundColor: order.color }}></div>
-                        <span className="text-[9px] md:text-[10px] text-white font-bold uppercase tracking-wider">Need</span>
+                        <span className="text-[9px] md:text-[10px] text-white font-bold tracking-wider">需要</span>
                     </div>
                   )}
 

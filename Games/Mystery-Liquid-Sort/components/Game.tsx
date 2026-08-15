@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameState, BottleData, GameMode } from '../types';
-import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO, persistQpBestMoves, loadQpBestMoves } from '../constants';
+import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO, persistQpBestMoves, loadQpBestMoves, qpDifficultyLabel } from '../constants';
 import { generateLevel, canPour, pourLiquid, checkLevelComplete, shuffleBottles, revealHiddenLayers, checkDeadlock, checkStateRepetition } from '../services/gameLogic';
 import { loadCoins, saveCoins } from '../services/economyService';
 import { useDailyMissions } from '../hooks/useDailyMissions';
@@ -25,6 +25,7 @@ export default function Game() {
     // Extract initial params from navigation state
     const initialMode: GameMode = location.state?.mode || 'adventure';
     const initialDifficulty = location.state?.difficultyLevel || 1;
+    // Storage/nav id stays English (EASY/…); display via qpDifficultyLabel.
     const initialDifficultyLabel = location.state?.difficultyLabel || 'CUSTOM';
 
     // Initialize state
@@ -511,21 +512,21 @@ export default function Game() {
                         <button
                             onClick={() => navigate('/')}
                             className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-white/10 backdrop-blur-xl flex items-center justify-center text-white/70 active:bg-white/20 transition-all border border-white/20 shadow-lg touch-active"
-                            aria-label="Home"
+                            aria-label="回主頁"
                         >
                             <Home size={18} className="md:w-5 md:h-5" />
                         </button>
                         <button
                             onClick={handleRestart}
                             className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-white/10 backdrop-blur-xl flex items-center justify-center text-white/70 active:bg-white/20 transition-all border border-white/20 shadow-lg touch-active"
-                            aria-label="Restart"
+                            aria-label="重新開始"
                         >
                             <RotateCcw size={18} className="md:w-5 md:h-5" />
                         </button>
                         <button
                             onClick={openMissionModal}
                             className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg border border-white/20 relative touch-active"
-                            aria-label="Daily Missions"
+                            aria-label="每日任務"
                         >
                             <ClipboardList size={18} className="md:w-5 md:h-5" />
                             {hasNotifications && (
@@ -605,8 +606,12 @@ export default function Game() {
             {gameState.isWin && (
                 <ResultOverlay
                     title="完成訂單！"
-                    subtitle={gameState.mode === 'adventure' ? `第 ${gameState.level} 關完成` : `${gameState.difficultyLabel ?? 'Quick Play'} 完成`}
-                    badge="Awesome!"
+                    subtitle={
+                      gameState.mode === 'adventure'
+                        ? `第 ${gameState.level} 關完成`
+                        : `${qpDifficultyLabel(gameState.difficultyLabel)} 完成`
+                    }
+                    badge="太棒了！"
                     variant="win"
                     stats={[
                         { label: '關卡', value: gameState.level },

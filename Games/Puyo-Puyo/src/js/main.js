@@ -27,7 +27,7 @@
   // Hard leans into setupPotential / future chains; Easy pops early and plays slow.
   var DIFFICULTY_PRESETS = {
     easy: {
-      label: 'Easy',
+      label: '簡單',
       lookahead: 1,
       cpuMin: 140,
       cpuMax: 230,
@@ -40,7 +40,7 @@
       noise: 90,
     },
     normal: {
-      label: 'Normal',
+      label: '普通',
       lookahead: 2,
       cpuMin: 90,
       cpuMax: 160,
@@ -53,7 +53,7 @@
       noise: 18,
     },
     hard: {
-      label: 'Hard',
+      label: '困難',
       lookahead: 2,
       cpuMin: 45,
       cpuMax: 95,
@@ -190,10 +190,12 @@
   }
 
   function formatCareerLine(stats, difficulty) {
-    var mode = L.modeOf(stats, difficulty || stats.lastDifficulty);
+    var diffId = difficulty || stats.lastDifficulty;
+    var preset = DIFFICULTY_PRESETS[diffId] || DIFFICULTY_PRESETS.normal;
+    var mode = L.modeOf(stats, diffId);
     return (
       '對 CPU（' +
-      (difficulty || stats.lastDifficulty) +
+      preset.label +
       '）：' +
       mode.wins +
       ' 勝 · ' +

@@ -470,7 +470,7 @@ export default function App() {
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight text-stone-900">
-              FreeCell
+              空當接龍
             </h1>
             <p className="text-sm text-stone-500 mt-1 tabular-nums">
               局號 {dealSeed}
@@ -542,26 +542,31 @@ export default function App() {
               自動收牌
             </label>
             <button
+              type="button"
               onClick={() => setIsRulesOpen(true)}
-              className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 transition-colors shadow-sm flex items-center gap-2"
+              className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 transition-colors shadow-sm flex items-center justify-center gap-2 touch-manipulation"
               title="規則"
+              aria-label="規則"
             >
               <Info size={16} />
               <span className="hidden sm:inline">規則</span>
             </button>
             <button
+              type="button"
               onClick={showHint}
               disabled={inputLocked}
-              className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
+              className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center justify-center gap-2 touch-manipulation"
               title="提示"
+              aria-label="提示"
             >
               <Lightbulb size={16} />
               <span className="hidden sm:inline">提示</span>
             </button>
             <button
+              type="button"
               onClick={toggleBot}
               disabled={isSolving}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 shadow-sm ${
+              className={`min-h-[44px] min-w-[44px] px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm touch-manipulation ${
                 isSolving
                   ? "bg-stone-200 text-stone-500 cursor-not-allowed"
                   : isBotPlaying
@@ -569,6 +574,7 @@ export default function App() {
                     : "bg-stone-900 text-white hover:bg-stone-800"
               }`}
               title="自動解答"
+              aria-label={isSolving ? "思考中" : isBotPlaying ? "停止解答" : "自動解答"}
             >
               {isSolving ? <Loader2 size={16} className="animate-spin" /> : <Bot size={16} />}
               <span className="hidden sm:inline">
@@ -576,28 +582,34 @@ export default function App() {
               </span>
             </button>
             <button
+              type="button"
               onClick={undo}
               disabled={gameState.history.length === 0 || isBotPlaying || isSolving}
-              className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
+              className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center justify-center gap-2 touch-manipulation"
               title="復原"
+              aria-label="復原"
             >
               <Undo2 size={16} />
               <span className="hidden sm:inline">復原</span>
             </button>
             <button
+              type="button"
               onClick={redealSame}
               disabled={isSolving}
-              className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
+              className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center justify-center gap-2 touch-manipulation"
               title="重新發同局"
+              aria-label="重新發同局"
             >
               <RefreshCw size={16} />
               <span className="hidden sm:inline">同局重發</span>
             </button>
             <button
+              type="button"
               onClick={startNewGame}
               disabled={isSolving}
-              className="px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-2"
+              className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 transition-colors shadow-sm flex items-center justify-center gap-2 touch-manipulation"
               title="新遊戲"
+              aria-label="新遊戲"
             >
               <RotateCcw size={16} />
               <span className="hidden sm:inline">新遊戲</span>
@@ -609,7 +621,7 @@ export default function App() {
           <ResultOverlay
             title="過關！"
             variant="win"
-            subtitle={playMode === "timed" ? "限時模式過關" : "你成功解開這局 FreeCell"}
+            subtitle={playMode === "timed" ? "限時模式過關" : "你成功解開這局空當接龍"}
             stats={[
               { label: "本局時間", value: formatTime(elapsedSec) },
               { label: "步數", value: gameState.history.length },

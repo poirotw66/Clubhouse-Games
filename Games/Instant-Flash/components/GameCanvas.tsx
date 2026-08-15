@@ -526,9 +526,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
              {/* Prompt */}
              <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 w-40 text-center">
                 {isSheathed ? (
-                    <span className="text-blue-400 font-display text-sm tracking-widest animate-pulse drop-shadow-md">FOCUS...</span>
+                    <span className="text-blue-400 font-display text-sm tracking-widest animate-pulse drop-shadow-md">集中…</span>
                 ) : (
-                    <span className="text-slate-400 text-xs font-display tracking-widest">HOLD SPACE</span>
+                    <span className="text-slate-400 text-xs font-display tracking-widest">按住空白鍵</span>
                 )}
              </div>
         </div>
