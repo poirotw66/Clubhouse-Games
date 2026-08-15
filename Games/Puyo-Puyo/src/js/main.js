@@ -976,6 +976,7 @@
   ui.colorSelect.addEventListener('change', resetMatch);
   ui.difficultySelect.addEventListener('change', function () {
     persistPrefs();
+    refreshCareerUi();
     resetMatch();
   });
   ui.modeSelect.addEventListener('change', function () {
