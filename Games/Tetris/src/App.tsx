@@ -600,7 +600,7 @@ export default function App() {
     ? '遊戲結束'
     : state.paused
       ? '暫停中'
-      : '使用方向鍵與空白鍵操作；C/Hold 暫存';
+      : '使用方向鍵與空白鍵操作；C 暫存';
 
   return (
     <div
@@ -616,7 +616,7 @@ export default function App() {
       <BackToMenu />
       <header className="w-full max-w-5xl flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold tracking-tight">俄羅斯方塊 Tetris</h1>
+          <h1 className="text-xl font-bold tracking-tight">俄羅斯方塊</h1>
           <div className="flex flex-wrap gap-1" role="group" aria-label="遊戲模式">
             {MODE_ORDER.map((id) => {
               const selected = mode === id;
@@ -709,7 +709,7 @@ export default function App() {
             </div>
           </div>
           <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
-            <h2 className="text-xs font-semibold text-slate-300 mb-2">Hold</h2>
+            <h2 className="text-xs font-semibold text-slate-300 mb-2">暫存</h2>
             <div
               className={`w-full aspect-square bg-slate-800 rounded-lg flex items-center justify-center transition-opacity ${
                 state.canHold ? '' : 'opacity-40'
@@ -794,8 +794,8 @@ export default function App() {
             </div>
             <div className="mt-1 flex justify-center gap-3 text-xs text-slate-400">
               <span>↓：加速落下</span>
-              <span>Space：Hard Drop</span>
-              <span>C：Hold</span>
+              <span>空白鍵：瞬間落下</span>
+              <span>C：暫存</span>
             </div>
           </div>
         </main>
@@ -803,7 +803,7 @@ export default function App() {
         {/* Right: Next queue */}
         <aside className="sm:w-32 flex flex-col gap-3 text-xs sm:text-sm">
           <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
-            <h2 className="text-xs font-semibold text-slate-300 mb-2">Next</h2>
+            <h2 className="text-xs font-semibold text-slate-300 mb-2">下一個</h2>
             <div className="space-y-2">
               {state.queue.slice(0, 5).map((t, index) => (
                 <div
@@ -826,8 +826,8 @@ export default function App() {
         </div>
         <div className="flex gap-2 w-full justify-center flex-wrap">
           <TouchButton label="旋轉" ariaLabel="Rotate" onClick={() => applyRotate(1)} />
-          <TouchButton label="Hard" ariaLabel="Hard drop" onClick={hardDrop} accent />
-          <TouchButton label="Hold" ariaLabel="Hold piece" onClick={holdPiece} />
+          <TouchButton label="落下" ariaLabel="瞬間落下" onClick={hardDrop} accent />
+          <TouchButton label="暫存" ariaLabel="暫存方塊" onClick={holdPiece} />
         </div>
       </div>
       <p className="md:hidden text-xs text-slate-500 mt-2 text-center">使用下方按鈕操作方塊</p>

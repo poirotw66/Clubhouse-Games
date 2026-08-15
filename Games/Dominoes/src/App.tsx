@@ -270,7 +270,7 @@ export default function App() {
       <BackToMenu />
       <header className="w-full max-w-2xl flex justify-between items-center mb-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-xl font-bold tracking-tight">西洋骨牌 Dominoes</h1>
+          <h1 className="text-xl font-bold tracking-tight">西洋骨牌</h1>
           <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
             {gameMode === 'bot' ? '對戰電腦' : '雙人'}
           </span>
@@ -427,8 +427,8 @@ export default function App() {
                 !isValidEnd(selectedTileId, 'left')
               }
               className={`flex flex-col items-center justify-center w-10 h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation ${endHintClass('left')}`}
-              title="Play on left"
-              aria-label={`Play selected tile on left (${ends.left})`}
+              title="出在左端"
+              aria-label={`出在左端（${ends.left}）`}
             >
               <span className="text-lg font-bold">{ends.left}</span>
               <span className="text-xs">左</span>
@@ -450,8 +450,8 @@ export default function App() {
                 !isValidEnd(selectedTileId, 'right')
               }
               className={`flex flex-col items-center justify-center w-10 h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation ${endHintClass('right')}`}
-              title="Play on right"
-              aria-label={`Play selected tile on right (${ends.right})`}
+              title="出在右端"
+              aria-label={`出在右端（${ends.right}）`}
             >
               <span className="text-lg font-bold">{ends.right}</span>
               <span className="text-xs">右</span>

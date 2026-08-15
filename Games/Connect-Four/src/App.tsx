@@ -269,7 +269,7 @@ export default function App() {
       <BackToMenu />
       <header className="w-full max-w-lg flex justify-between items-center mb-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-xl font-bold tracking-tight">四子棋 Connect Four</h1>
+          <h1 className="text-xl font-bold tracking-tight">四子棋</h1>
           <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
             {gameMode === 'bot' ? '對戰電腦' : '雙人對戰'}
           </span>
@@ -468,7 +468,7 @@ export default function App() {
                 ${hoverCol === c && legalSet.has(c) && !isBotTurn ? 'ring-2 ring-white/50' : ''}
                 ${hintCol === c ? 'ring-2 ring-emerald-400 bg-emerald-600/40' : ''}
               `}
-              aria-label={`Drop in column ${c + 1}`}
+              aria-label={`投入第 ${c + 1} 欄`}
             >
               {state.phase === 'playing' && legalSet.has(c) && !isBotTurn && (
                 <span

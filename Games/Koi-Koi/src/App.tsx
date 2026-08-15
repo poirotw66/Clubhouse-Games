@@ -577,7 +577,7 @@ export default function App() {
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 relative z-10">
             <div className="text-center sm:text-left">
               <p className="text-gold/80 text-xs tracking-[0.3em] mb-1">花札</p>
-              <h1 className="font-display text-2xl sm:text-3xl font-bold text-gold tracking-wide">Koi-Koi</h1>
+              <h1 className="font-display text-2xl sm:text-3xl font-bold text-gold tracking-wide">花牌</h1>
               <p className="text-sm text-cream/70 mt-1">
                 第 {state.round} 局 · 莊家：{state.dealer === 'player' ? character.name : '師匠'}
                 {state.phase !== 'idle' ? ` · ${DIFFICULTY_LABELS[difficulty]} · ${WIN_SCORE_LABELS[winScore]}` : ''}

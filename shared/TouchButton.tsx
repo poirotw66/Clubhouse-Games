@@ -27,6 +27,17 @@ const pressedStyle: React.CSSProperties = {
   transform: 'scale(0.96)',
 };
 
+/** Base size/touch rules when the caller supplies Tailwind/`className` styling. */
+const classedBaseStyle: React.CSSProperties = {
+  minWidth: 44,
+  minHeight: 44,
+  touchAction: 'manipulation',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  cursor: 'pointer',
+  transition: 'filter 80ms ease, transform 80ms ease',
+};
+
 interface TouchButtonProps {
   label: React.ReactNode;
   ariaLabel: string;
@@ -35,6 +46,10 @@ interface TouchButtonProps {
   onClick?: () => void;
   accent?: boolean;
   wide?: boolean;
+  /** When set, skips the default slate chrome so callers can theme with CSS. */
+  className?: string;
+  disabled?: boolean;
+  title?: string;
 }
 
 /** On-screen control for mobile; supports hold (onPress/onRelease) or tap (onClick). */
@@ -46,20 +61,34 @@ export function TouchButton({
   onClick,
   accent = false,
   wide = false,
+  className,
+  disabled = false,
+  title,
 }: TouchButtonProps): React.ReactElement {
   const [pressed, setPressed] = useState(false);
 
-  const style: React.CSSProperties = {
-    ...(accent ? accentStyle : buttonStyle),
-    ...(wide ? { minWidth: 88, flex: 1 } : null),
-    ...(pressed ? pressedStyle : null),
-  };
+  const style: React.CSSProperties = className
+    ? {
+        ...classedBaseStyle,
+        ...(wide ? { minWidth: 88, flex: 1 } : null),
+        ...(pressed && !disabled ? pressedStyle : null),
+        ...(disabled ? { opacity: 0.4, cursor: 'not-allowed' } : null),
+      }
+    : {
+        ...(accent ? accentStyle : buttonStyle),
+        ...(wide ? { minWidth: 88, flex: 1 } : null),
+        ...(pressed && !disabled ? pressedStyle : null),
+        ...(disabled ? { opacity: 0.4, cursor: 'not-allowed' } : null),
+      };
 
-  const setDown = () => setPressed(true);
+  const setDown = () => {
+    if (disabled) return;
+    setPressed(true);
+  };
   const setUp = () => setPressed(false);
   const release = () => {
     setUp();
-    onRelease?.();
+    if (!disabled) onRelease?.();
   };
 
   if (onClick && !onPress) {
@@ -67,8 +96,13 @@ export function TouchButton({
       <button
         type="button"
         aria-label={ariaLabel}
+        title={title}
+        disabled={disabled}
+        className={className}
         style={style}
-        onClick={onClick}
+        onClick={() => {
+          if (!disabled) onClick();
+        }}
         onPointerDown={setDown}
         onPointerUp={setUp}
         onPointerLeave={setUp}
@@ -83,8 +117,12 @@ export function TouchButton({
     <button
       type="button"
       aria-label={ariaLabel}
+      title={title}
+      disabled={disabled}
+      className={className}
       style={style}
       onPointerDown={(e) => {
+        if (disabled) return;
         e.preventDefault();
         setDown();
         onPress?.();

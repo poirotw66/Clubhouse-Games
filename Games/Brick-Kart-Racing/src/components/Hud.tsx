@@ -101,14 +101,14 @@ export function Hud({
     <div className="pointer-events-none absolute inset-0 select-none">
       {/* Lap / time */}
       <div className="absolute left-3 top-3 rounded-xl bg-slate-950/55 px-3 py-2 backdrop-blur-sm">
-        <p className="text-[11px] font-bold tracking-widest text-amber-300">LAP</p>
+        <p className="text-[11px] font-bold tracking-widest text-amber-300">圈數</p>
         <p className="-mt-1 text-2xl font-black leading-tight text-white">
           {snap.lap}
           <span className="text-base text-white/60">/{snap.laps}</span>
         </p>
         <p className="font-mono text-xs text-white/80">{formatTime(snap.time)}</p>
         {snap.bestLap > 0 && (
-          <p className="font-mono text-[10px] text-amber-300/90">BEST {formatTime(snap.bestLap)}</p>
+          <p className="font-mono text-[10px] text-amber-300/90">最佳 {formatTime(snap.bestLap)}</p>
         )}
       </div>
 

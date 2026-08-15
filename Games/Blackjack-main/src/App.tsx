@@ -526,7 +526,7 @@ export default function App() {
           </div>
         </div>
         <div className="text-center">
-          <h1 className="text-sm sm:text-base font-black tracking-widest uppercase text-white/90">Blackjack</h1>
+          <h1 className="text-sm sm:text-base font-black tracking-widest text-white/90">二十一點</h1>
           <button
             type="button"
             onClick={toggleDealerRule}

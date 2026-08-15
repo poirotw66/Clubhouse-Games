@@ -470,7 +470,7 @@ export default function App() {
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight text-stone-900">
-              FreeCell
+              空當接龍
             </h1>
             <p className="text-sm text-stone-500 mt-1 tabular-nums">
               局號 {dealSeed}
@@ -621,7 +621,7 @@ export default function App() {
           <ResultOverlay
             title="過關！"
             variant="win"
-            subtitle={playMode === "timed" ? "限時模式過關" : "你成功解開這局 FreeCell"}
+            subtitle={playMode === "timed" ? "限時模式過關" : "你成功解開這局空當接龍"}
             stats={[
               { label: "本局時間", value: formatTime(elapsedSec) },
               { label: "步數", value: gameState.history.length },

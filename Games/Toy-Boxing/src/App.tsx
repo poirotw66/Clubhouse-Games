@@ -819,7 +819,7 @@ export default function ToyBoxing() {
               </div>
             </div>
             <p className="text-lg sm:text-xl font-black mt-1 tracking-tighter italic">
-              SCORE: {uiState.playerScore}
+              分數：{uiState.playerScore}
             </p>
           </div>
         </div>
@@ -827,7 +827,7 @@ export default function ToyBoxing() {
         <div className="flex flex-col items-center shrink-0 self-center">
           <div className="flex items-center gap-2 text-amber-400 mb-1">
             <Trophy className="w-4 h-4" />
-            <span className="text-xs font-bold uppercase tracking-widest">Round {uiState.round}</span>
+            <span className="text-xs font-bold tracking-widest">第 {uiState.round} 回合</span>
           </div>
           <div className="text-[10px] text-neutral-500 mb-1 uppercase tracking-widest">
             {DIFFICULTY_LABELS[difficulty]}
@@ -863,7 +863,7 @@ export default function ToyBoxing() {
               </div>
             </div>
             <p className="text-lg sm:text-xl font-black mt-1 tracking-tighter italic">
-              SCORE: {uiState.cpuScore}
+              分數：{uiState.cpuScore}
             </p>
           </div>
           <img
@@ -998,14 +998,14 @@ export default function ToyBoxing() {
                 animate={{ scale: 1, opacity: 1 }}
                 className="absolute inset-0 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center"
               >
-                <h2 className="text-5xl font-black italic mb-2 uppercase">Round {uiState.round} Over</h2>
+                <h2 className="text-5xl font-black italic mb-2">第 {uiState.round} 回合結束</h2>
                 <p className="text-neutral-300 mb-8">準備下一回合…</p>
                 <button
                   type="button"
                   onClick={nextRound}
-                  className="px-8 py-4 bg-amber-500 text-black rounded-2xl font-black uppercase tracking-widest hover:bg-amber-400 transition-all"
+                  className="px-8 py-4 bg-amber-500 text-black rounded-2xl font-black tracking-widest hover:bg-amber-400 transition-all"
                 >
-                  Next Round
+                  下一回合
                 </button>
               </motion.div>
             )}
@@ -1052,59 +1052,59 @@ export default function ToyBoxing() {
               />
             </div>
             <div className="flex flex-wrap gap-2 justify-center w-full">
-              <TouchButton label="J" ariaLabel="Jab" onPress={() => keysPressed.current.add('KeyJ')} onRelease={() => keysPressed.current.delete('KeyJ')} />
-              <TouchButton label="K" ariaLabel="Hook" onPress={() => keysPressed.current.add('KeyK')} onRelease={() => keysPressed.current.delete('KeyK')} />
-              <TouchButton label="S" ariaLabel="Block" onPress={() => keysPressed.current.add('KeyS')} onRelease={() => keysPressed.current.delete('KeyS')} />
-              <TouchButton label="W" ariaLabel="Dodge" onPress={() => keysPressed.current.add('KeyW')} onRelease={() => keysPressed.current.delete('KeyW')} />
-              <TouchButton label="I" ariaLabel="Parry" onPress={() => keysPressed.current.add('KeyI')} onRelease={() => keysPressed.current.delete('KeyI')} />
-              <TouchButton label="L" ariaLabel="Super" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
+              <TouchButton label="J" ariaLabel="刺拳" onPress={() => keysPressed.current.add('KeyJ')} onRelease={() => keysPressed.current.delete('KeyJ')} />
+              <TouchButton label="K" ariaLabel="勾拳" onPress={() => keysPressed.current.add('KeyK')} onRelease={() => keysPressed.current.delete('KeyK')} />
+              <TouchButton label="S" ariaLabel="格擋" onPress={() => keysPressed.current.add('KeyS')} onRelease={() => keysPressed.current.delete('KeyS')} />
+              <TouchButton label="W" ariaLabel="閃避" onPress={() => keysPressed.current.add('KeyW')} onRelease={() => keysPressed.current.delete('KeyW')} />
+              <TouchButton label="I" ariaLabel="撥招" onPress={() => keysPressed.current.add('KeyI')} onRelease={() => keysPressed.current.delete('KeyI')} />
+              <TouchButton label="L" ariaLabel="必殺" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
             </div>
           </div>
         )}
 
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Zap className="w-4 h-4" /> Movement
+            <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
+              <Zap className="w-4 h-4" /> 移動
             </h3>
             <div className="flex gap-2">
               <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">A</kbd>
               <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">D</kbd>
-              <span className="text-sm text-neutral-400 ml-2 self-center">Left / Right</span>
+              <span className="text-sm text-neutral-400 ml-2 self-center">左／右</span>
             </div>
           </div>
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Shield className="w-4 h-4" /> Defense
+            <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
+              <Shield className="w-4 h-4" /> 防禦
             </h3>
             <div className="flex gap-2">
               <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">W</kbd>
               <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">S</kbd>
               <kbd className="px-3 py-2 bg-blue-900/50 border-blue-500/50 rounded-lg border font-mono text-sm text-blue-400">I</kbd>
-              <span className="text-sm text-neutral-400 ml-2 self-center">Dodge / Block / Parry</span>
+              <span className="text-sm text-neutral-400 ml-2 self-center">閃避／格擋／撥招</span>
             </div>
           </div>
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Heart className="w-4 h-4" /> Offense
+            <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
+              <Heart className="w-4 h-4" /> 攻擊
             </h3>
             <div className="flex flex-col gap-3">
               <div className="flex gap-2 items-center">
                 <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">J</kbd>
                 <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">K</kbd>
-                <span className="text-sm text-neutral-400 ml-2">Jab / Hook</span>
+                <span className="text-sm text-neutral-400 ml-2">刺拳／勾拳</span>
               </div>
               <div className="flex gap-2 items-center">
                 <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">L</kbd>
-                <span className="text-sm text-fuchsia-400 ml-2 font-bold">SUPER MOVE</span>
+                <span className="text-sm text-fuchsia-400 ml-2 font-bold">必殺</span>
               </div>
             </div>
           </div>
         </div>
       </main>
 
-      <footer className="max-w-5xl mx-auto mt-12 pb-12 text-center text-neutral-600 text-xs uppercase tracking-[0.2em]">
-        Toy Boxing • 選角色・選難度・進擂台
+      <footer className="max-w-5xl mx-auto mt-12 pb-12 text-center text-neutral-600 text-xs tracking-[0.2em]">
+        玩具拳擊 · 選角色・選難度・進擂台
       </footer>
     </div>
   );
