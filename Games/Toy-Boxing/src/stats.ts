@@ -6,23 +6,29 @@ export const STATS_KEY = 'clubhouse-toy-boxing-stats';
 
 export type FightOutcome = 'win' | 'loss' | 'draw';
 
-export interface CareerStats {
+export interface ModeStats {
   wins: number;
   losses: number;
   draws: number;
   winStreak: number;
-  lastDifficulty: Difficulty;
+  bestWinStreak: number;
 }
 
-export const DEFAULT_STATS: CareerStats = {
+export interface CareerStats {
+  lastDifficulty: Difficulty;
+  byDifficulty: Record<Difficulty, ModeStats>;
+}
+
+export const EMPTY_MODE: ModeStats = {
   wins: 0,
   losses: 0,
   draws: 0,
   winStreak: 0,
-  lastDifficulty: 'normal',
+  bestWinStreak: 0,
 };
 
-const DIFFICULTIES: ReadonlySet<string> = new Set(['easy', 'normal', 'hard']);
+const DIFFICULTY_LIST: Difficulty[] = ['easy', 'normal', 'hard'];
+const DIFFICULTIES: ReadonlySet<string> = new Set(DIFFICULTY_LIST);
 
 function asNonNegInt(value: unknown): number {
   const n = Number(value);
@@ -30,47 +36,91 @@ function asNonNegInt(value: unknown): number {
   return Math.floor(n);
 }
 
-/** Merge partial / corrupt storage into a valid CareerStats. */
-export function mergeStats(raw: unknown): CareerStats {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_STATS };
-  const o = raw as Partial<CareerStats>;
-  const lastDifficulty =
-    typeof o.lastDifficulty === 'string' && DIFFICULTIES.has(o.lastDifficulty)
-      ? (o.lastDifficulty as Difficulty)
-      : DEFAULT_STATS.lastDifficulty;
+function emptyByDifficulty(): Record<Difficulty, ModeStats> {
+  return {
+    easy: { ...EMPTY_MODE },
+    normal: { ...EMPTY_MODE },
+    hard: { ...EMPTY_MODE },
+  };
+}
+
+function normalizeMode(raw: unknown): ModeStats {
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_MODE };
+  const o = raw as Partial<ModeStats>;
+  const winStreak = asNonNegInt(o.winStreak);
   return {
     wins: asNonNegInt(o.wins),
     losses: asNonNegInt(o.losses),
     draws: asNonNegInt(o.draws),
-    winStreak: asNonNegInt(o.winStreak),
-    lastDifficulty,
+    winStreak,
+    bestWinStreak: Math.max(asNonNegInt(o.bestWinStreak), winStreak),
   };
 }
 
-export function recordResult(stats: CareerStats, outcome: FightOutcome): CareerStats {
-  if (outcome === 'win') {
-    return {
-      ...stats,
-      wins: stats.wins + 1,
-      winStreak: stats.winStreak + 1,
-    };
+/** Merge partial / corrupt storage into a valid CareerStats. */
+export function mergeStats(raw: unknown): CareerStats {
+  const byDifficulty = emptyByDifficulty();
+  if (!raw || typeof raw !== 'object') {
+    return { lastDifficulty: 'normal', byDifficulty };
   }
-  if (outcome === 'loss') {
-    return {
-      ...stats,
-      losses: stats.losses + 1,
-      winStreak: 0,
-    };
+  const o = raw as Record<string, unknown>;
+  const lastDifficulty =
+    typeof o.lastDifficulty === 'string' && DIFFICULTIES.has(o.lastDifficulty)
+      ? (o.lastDifficulty as Difficulty)
+      : 'normal';
+
+  if (o.byDifficulty && typeof o.byDifficulty === 'object') {
+    const map = o.byDifficulty as Partial<Record<Difficulty, unknown>>;
+    for (const d of DIFFICULTY_LIST) {
+      byDifficulty[d] = normalizeMode(map[d]);
+    }
+    return { lastDifficulty, byDifficulty };
+  }
+
+  // Legacy flat career → migrate into normal.
+  byDifficulty.normal = normalizeMode({
+    wins: o.wins,
+    losses: o.losses,
+    draws: o.draws,
+    winStreak: o.winStreak,
+    bestWinStreak: o.winStreak,
+  });
+  return { lastDifficulty, byDifficulty };
+}
+
+export function modeStats(stats: CareerStats, difficulty: Difficulty): ModeStats {
+  return stats.byDifficulty[difficulty] ?? { ...EMPTY_MODE };
+}
+
+export function recordResult(
+  stats: CareerStats,
+  outcome: FightOutcome,
+  difficulty: Difficulty = stats.lastDifficulty,
+): CareerStats {
+  const merged = mergeStats(stats);
+  const d = DIFFICULTIES.has(difficulty) ? difficulty : merged.lastDifficulty;
+  const mode = { ...merged.byDifficulty[d] };
+  if (outcome === 'win') {
+    mode.wins += 1;
+    mode.winStreak += 1;
+    mode.bestWinStreak = Math.max(mode.bestWinStreak, mode.winStreak);
+  } else if (outcome === 'loss') {
+    mode.losses += 1;
+    mode.winStreak = 0;
+  } else {
+    mode.draws += 1;
+    mode.winStreak = 0;
   }
   return {
-    ...stats,
-    draws: stats.draws + 1,
-    winStreak: 0,
+    lastDifficulty: d,
+    byDifficulty: { ...merged.byDifficulty, [d]: mode },
   };
 }
 
 export function withDifficulty(stats: CareerStats, difficulty: Difficulty): CareerStats {
-  return { ...stats, lastDifficulty: difficulty };
+  const merged = mergeStats(stats);
+  const d = DIFFICULTIES.has(difficulty) ? difficulty : merged.lastDifficulty;
+  return { ...merged, lastDifficulty: d };
 }
 
 type StorageLike = {
@@ -88,13 +138,13 @@ function defaultStorage(): StorageLike | null {
 }
 
 export function loadStats(storage: StorageLike | null = defaultStorage()): CareerStats {
-  if (!storage) return { ...DEFAULT_STATS };
+  if (!storage) return mergeStats(null);
   try {
     const raw = storage.getItem(STATS_KEY);
-    if (!raw) return { ...DEFAULT_STATS };
+    if (!raw) return mergeStats(null);
     return mergeStats(JSON.parse(raw));
   } catch {
-    return { ...DEFAULT_STATS };
+    return mergeStats(null);
   }
 }
 
@@ -109,3 +159,6 @@ export function saveStats(
     // ponytail: quota / private mode — skip persist
   }
 }
+
+/** @deprecated use mergeStats(null); kept for check imports */
+export const DEFAULT_STATS: CareerStats = mergeStats(null);

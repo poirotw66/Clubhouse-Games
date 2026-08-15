@@ -24,6 +24,7 @@ import {
   driftFill,
   driftLevel,
   formatTime,
+  migrateBestTimesMap,
   stepRace,
   type RaceInput,
   type RaceOptions,
@@ -43,7 +44,11 @@ const BEST_KEY = 'brick-kart-racing:best-laps';
 
 function loadBestTimes(): Record<string, number> {
   try {
-    return JSON.parse(localStorage.getItem(BEST_KEY) ?? '{}');
+    const map = JSON.parse(localStorage.getItem(BEST_KEY) ?? '{}') as Record<string, number>;
+    if (migrateBestTimesMap(map)) {
+      localStorage.setItem(BEST_KEY, JSON.stringify(map));
+    }
+    return map;
   } catch {
     return {};
   }
@@ -168,7 +173,7 @@ export default function App() {
     let hudTimer = 0;
     let nextTick = 3;
     let finishedHandled = false;
-    const recordKey = bestLapKey(trackId, raceOptions);
+    const recordKey = bestLapKey(trackId, raceOptions, difficulty);
 
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);

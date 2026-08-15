@@ -7,7 +7,9 @@ import {
 import {
   EMPTY_BESTS,
   STORAGE_KEY,
+  STORAGE_KEY_V2,
   loadBests,
+  loadBestsMap,
   saveBests,
   updateDerbyBests,
   updateMatchBests,
@@ -42,10 +44,12 @@ assert(DIFFICULTY.hard.cpuPitchDelayMax < DIFFICULTY.easy.cpuPitchDelayMin, 'har
   const afterWin = updateMatchBests(EMPTY_BESTS, 5, 2);
   assert(afterWin.matchWins === 1, 'win should count');
   assert(afterWin.matchWinStreak === 1, 'win should start streak');
+  assert(afterWin.matchBestWinStreak === 1, 'win should set best streak');
   assert(afterWin.matchBestRuns === 5, 'win should record runs');
   const afterLoss = updateMatchBests(afterWin, 1, 3);
   assert(afterLoss.matchWins === 1, 'loss should keep career wins');
   assert(afterLoss.matchWinStreak === 0, 'loss should clear streak');
+  assert(afterLoss.matchBestWinStreak === 1, 'loss should keep best streak');
   assert(afterLoss.matchBestRuns === 5, 'loss should keep best runs');
   const afterTie = updateMatchBests(afterWin, 2, 2);
   assert(afterTie.matchWinStreak === 0, 'tie should clear streak');
@@ -59,7 +63,7 @@ assert(DIFFICULTY.hard.cpuPitchDelayMax < DIFFICULTY.easy.cpuPitchDelayMin, 'har
   assert(b.derbyBestDist === 500, 'derby should keep max distance');
 }
 
-// Load/save round-trip via injectable memory storage.
+// Load/save round-trip keyed by difficulty + legacy migrate.
 {
   const mem = new Map();
   const storage = {
@@ -68,12 +72,19 @@ assert(DIFFICULTY.hard.cpuPitchDelayMax < DIFFICULTY.easy.cpuPitchDelayMin, 'har
       mem.set(k, v);
     },
   };
-  assert(loadBests(storage).matchWins === 0, 'empty storage should yield empty bests');
+  assert(loadBests('normal', storage).matchWins === 0, 'empty storage should yield empty bests');
   const written = updateMatchBests(EMPTY_BESTS, 4, 0);
-  saveBests(written, storage);
-  assert(mem.has(STORAGE_KEY), 'save should write storage key');
-  const loaded = loadBests(storage);
-  assert(loaded.matchWins === 1 && loaded.matchBestRuns === 4, 'load should restore match bests');
+  saveBests('hard', written, storage);
+  assert(mem.has(STORAGE_KEY_V2), 'save should write v2 key');
+  assert(loadBests('hard', storage).matchWins === 1, 'hard slot restored');
+  assert(loadBests('easy', storage).matchWins === 0, 'other slot empty');
+
+  mem.clear();
+  mem.set(STORAGE_KEY, JSON.stringify({ matchWins: 2, matchWinStreak: 2, matchBestRuns: 7 }));
+  const migrated = loadBestsMap(storage);
+  assert(migrated.normal.matchWins === 2, 'legacy → normal');
+  assert(migrated.hard.matchWins === 0, 'legacy does not fill hard');
+  assert(mem.has(STORAGE_KEY_V2), 'migration writes v2');
 }
 
 console.log('check-baseball: ok');

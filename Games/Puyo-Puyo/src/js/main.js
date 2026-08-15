@@ -189,21 +189,27 @@
     return match.mode === 'versus';
   }
 
-  function formatCareerLine(stats) {
+  function formatCareerLine(stats, difficulty) {
+    var mode = L.modeOf(stats, difficulty || stats.lastDifficulty);
     return (
-      '對 CPU：' +
-      stats.wins +
+      '對 CPU（' +
+      (difficulty || stats.lastDifficulty) +
+      '）：' +
+      mode.wins +
       ' 勝 · ' +
-      stats.losses +
+      mode.losses +
       ' 敗 · 連勝 ' +
-      stats.winStreak +
+      mode.winStreak +
+      ' · 最佳連勝 ' +
+      mode.bestWinStreak +
       ' · 最高連鎖 ' +
-      stats.bestMaxChain
+      mode.bestMaxChain
     );
   }
 
   function refreshCareerUi() {
-    var line = formatCareerLine(career);
+    var difficulty = ui.difficultySelect ? ui.difficultySelect.value : career.lastDifficulty;
+    var line = formatCareerLine(career, difficulty);
     ui.careerStats.textContent = line;
     ui.resultCareer.textContent = line;
   }
@@ -341,8 +347,8 @@
 
     // Replay hook: only vs-CPU career counts (skip local 2P).
     if (!isVersusMode()) {
-      career = L.recordCpuResult(career, winner === players[0]);
-      career = L.noteMaxChain(career, players[0].state.maxChain);
+      career = L.recordCpuResult(career, winner === players[0], ui.difficultySelect.value);
+      career = L.noteMaxChain(career, players[0].state.maxChain, ui.difficultySelect.value);
       career = L.withPrefs(career, ui.difficultySelect.value, 'cpu');
       saveCareer();
       refreshCareerUi();

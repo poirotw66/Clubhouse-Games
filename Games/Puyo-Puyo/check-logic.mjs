@@ -55,28 +55,31 @@ function runTests() {
   assert.equal(L.STATS_KEY, 'clubhouse-puyo-stats');
   {
     const m = L.mergeStats({ wins: 3, winStreak: -2, lastDifficulty: 'nightmare', lastMode: 'coop' });
-    assert.equal(m.wins, 3, 'wins kept');
-    assert.equal(m.losses, 0, 'missing losses → 0');
-    assert.equal(m.winStreak, 0, 'negative streak clamped');
+    assert.equal(m.byDifficulty.normal.wins, 3, 'legacy wins → normal');
+    assert.equal(m.byDifficulty.normal.losses, 0, 'missing losses → 0');
+    assert.equal(m.byDifficulty.normal.winStreak, 0, 'negative streak clamped');
     assert.equal(m.lastDifficulty, 'normal', 'bad difficulty → normal');
     assert.equal(m.lastMode, 'cpu', 'bad mode → cpu');
-    assert.equal(m.bestMaxChain, 0, 'missing bestMaxChain → 0');
-    assert.equal(L.mergeStats(null).wins, 0, 'null → defaults');
-    assert.equal(L.mergeStats('nope').wins, 0, 'non-object → defaults');
+    assert.equal(m.byDifficulty.normal.bestMaxChain, 0, 'missing bestMaxChain → 0');
+    assert.equal(L.mergeStats(null).byDifficulty.easy.wins, 0, 'null → defaults');
+    assert.equal(L.mergeStats('nope').byDifficulty.hard.wins, 0, 'non-object → defaults');
   }
   {
     let s = L.mergeStats(null);
-    s = L.recordCpuResult(s, true);
-    s = L.recordCpuResult(s, true);
-    assert.equal(s.wins, 2);
-    assert.equal(s.winStreak, 2);
-    s = L.recordCpuResult(s, false);
-    assert.equal(s.losses, 1);
-    assert.equal(s.winStreak, 0);
-    assert.equal(s.wins, 2);
-    s = L.noteMaxChain(s, 5);
-    s = L.noteMaxChain(s, 3);
-    assert.equal(s.bestMaxChain, 5, 'keeps higher chain');
+    s = L.recordCpuResult(s, true, 'hard');
+    s = L.recordCpuResult(s, true, 'hard');
+    assert.equal(L.modeOf(s, 'hard').wins, 2);
+    assert.equal(L.modeOf(s, 'hard').winStreak, 2);
+    assert.equal(L.modeOf(s, 'hard').bestWinStreak, 2);
+    assert.equal(L.modeOf(s, 'easy').wins, 0, 'other difficulty untouched');
+    s = L.recordCpuResult(s, false, 'hard');
+    assert.equal(L.modeOf(s, 'hard').losses, 1);
+    assert.equal(L.modeOf(s, 'hard').winStreak, 0);
+    assert.equal(L.modeOf(s, 'hard').bestWinStreak, 2);
+    assert.equal(L.modeOf(s, 'hard').wins, 2);
+    s = L.noteMaxChain(s, 5, 'hard');
+    s = L.noteMaxChain(s, 3, 'hard');
+    assert.equal(L.modeOf(s, 'hard').bestMaxChain, 5, 'keeps higher chain');
     s = L.withPrefs(s, 'hard', 'versus');
     assert.equal(s.lastDifficulty, 'hard');
     assert.equal(s.lastMode, 'versus');

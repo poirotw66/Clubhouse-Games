@@ -203,7 +203,7 @@ export function MainMenu({
           <div className="grid gap-3 sm:grid-cols-3">
             {TRACKS.map((t) => {
               const active = t.id === trackId;
-              const best = bestTimes[bestLapKey(t.id, options)];
+              const best = bestTimes[bestLapKey(t.id, options, difficulty)];
               return (
                 <button
                   key={t.id}
