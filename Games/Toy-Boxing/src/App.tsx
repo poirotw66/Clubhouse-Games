@@ -30,6 +30,7 @@ import { BOXER_HEIGHT, BOXER_WIDTH, drawToyBoxer } from './drawBoxer';
 preloadFighterBodies();
 import {
   loadStats,
+  modeStats,
   recordResult,
   saveStats,
   withDifficulty,
@@ -130,6 +131,7 @@ export default function ToyBoxing() {
 
   const settingsRef = useRef({ difficulty, playerCharId, cpuCharId });
   settingsRef.current = { difficulty, playerCharId, cpuCharId };
+  const careerMode = modeStats(careerStats, difficulty);
 
   const chooseDifficulty = (d: Difficulty) => {
     setDifficulty(d);
@@ -281,14 +283,14 @@ export default function ToyBoxing() {
         const outcome: FightOutcome =
           winner === 'player' ? 'win' : winner === 'cpu' ? 'loss' : 'draw';
         setCareerStats((prev) => {
-          const next = recordResult(prev, outcome);
+          const next = recordResult(prev, outcome, difficulty);
           saveStats(next);
           return next;
         });
       }
     }
     prevGameStateRef.current = gameState;
-  }, [gameState, winner]);
+  }, [gameState, winner, difficulty]);
 
   const handleRoundEnd = () => {
     if (
@@ -911,8 +913,9 @@ export default function ToyBoxing() {
                   選角色與難度後開戰。WASD 移動・J/K 出拳・S 格擋・W 閃避・I 格檔反擊・L 必殺
                 </p>
                 <p className="text-amber-400/90 text-sm font-bold mb-4 tracking-wide">
-                  連勝 {careerStats.winStreak} · 勝 {careerStats.wins} · 負 {careerStats.losses}
-                  {careerStats.draws > 0 ? ` · 和 ${careerStats.draws}` : ''}
+                  {DIFFICULTY_LABELS[difficulty]} · 連勝 {careerMode.winStreak} · 最佳連勝{' '}
+                  {careerMode.bestWinStreak} · 勝 {careerMode.wins} · 負 {careerMode.losses}
+                  {careerMode.draws > 0 ? ` · 和 ${careerMode.draws}` : ''}
                 </p>
 
                 <div className="w-full max-w-2xl mb-4">
@@ -1021,8 +1024,9 @@ export default function ToyBoxing() {
                   { label: uiState.playerName, value: uiState.playerScore },
                   { label: uiState.cpuName, value: uiState.cpuScore },
                   { label: '難度', value: DIFFICULTY_LABELS[difficulty] },
-                  { label: '連勝', value: careerStats.winStreak },
-                  { label: '生涯勝場', value: careerStats.wins },
+                  { label: '連勝', value: careerMode.winStreak },
+                  { label: '最佳連勝', value: careerMode.bestWinStreak },
+                  { label: '生涯勝場', value: careerMode.wins },
                 ]}
                 onPrimary={() => setGameState('menu')}
                 primaryLabel="再選一局"

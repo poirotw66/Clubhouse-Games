@@ -25,16 +25,21 @@
 
   // Vs-CPU career stats (replay hook). 2P local matches are not counted.
   var STATS_KEY = 'clubhouse-puyo-stats';
-  var DEFAULT_STATS = {
+  var EMPTY_MODE = {
     wins: 0,
     losses: 0,
     winStreak: 0,
+    bestWinStreak: 0,
     bestMaxChain: 0,
+  };
+  var DEFAULT_STATS = {
     lastDifficulty: 'normal',
     lastMode: 'cpu',
+    byDifficulty: null,
   };
   var VALID_DIFFICULTIES = { easy: true, normal: true, hard: true };
   var VALID_MODES = { cpu: true, versus: true };
+  var DIFFICULTY_IDS = ['easy', 'normal', 'hard'];
 
   function asNonNegInt(value) {
     var n = Number(value);
@@ -42,16 +47,34 @@
     return Math.floor(n);
   }
 
+  function emptyByDifficulty() {
+    return {
+      easy: Object.assign({}, EMPTY_MODE),
+      normal: Object.assign({}, EMPTY_MODE),
+      hard: Object.assign({}, EMPTY_MODE),
+    };
+  }
+
+  function normalizeMode(raw) {
+    if (!raw || typeof raw !== 'object') return Object.assign({}, EMPTY_MODE);
+    var streak = asNonNegInt(raw.winStreak);
+    return {
+      wins: asNonNegInt(raw.wins),
+      losses: asNonNegInt(raw.losses),
+      winStreak: streak,
+      bestWinStreak: Math.max(asNonNegInt(raw.bestWinStreak), streak),
+      bestMaxChain: asNonNegInt(raw.bestMaxChain),
+    };
+  }
+
   /** Merge partial / corrupt storage into a valid career-stats object. */
   function mergeStats(raw) {
+    var byDifficulty = emptyByDifficulty();
     if (!raw || typeof raw !== 'object') {
       return {
-        wins: DEFAULT_STATS.wins,
-        losses: DEFAULT_STATS.losses,
-        winStreak: DEFAULT_STATS.winStreak,
-        bestMaxChain: DEFAULT_STATS.bestMaxChain,
         lastDifficulty: DEFAULT_STATS.lastDifficulty,
         lastMode: DEFAULT_STATS.lastMode,
+        byDifficulty: byDifficulty,
       };
     }
     var lastDifficulty = typeof raw.lastDifficulty === 'string' && VALID_DIFFICULTIES[raw.lastDifficulty]
@@ -60,34 +83,64 @@
     var lastMode = typeof raw.lastMode === 'string' && VALID_MODES[raw.lastMode]
       ? raw.lastMode
       : DEFAULT_STATS.lastMode;
-    return {
-      wins: asNonNegInt(raw.wins),
-      losses: asNonNegInt(raw.losses),
-      winStreak: asNonNegInt(raw.winStreak),
-      bestMaxChain: asNonNegInt(raw.bestMaxChain),
-      lastDifficulty: lastDifficulty,
-      lastMode: lastMode,
-    };
+
+    if (raw.byDifficulty && typeof raw.byDifficulty === 'object') {
+      for (var i = 0; i < DIFFICULTY_IDS.length; i += 1) {
+        var id = DIFFICULTY_IDS[i];
+        byDifficulty[id] = normalizeMode(raw.byDifficulty[id]);
+      }
+      return { lastDifficulty: lastDifficulty, lastMode: lastMode, byDifficulty: byDifficulty };
+    }
+
+    // Legacy flat career → migrate into normal.
+    byDifficulty.normal = normalizeMode({
+      wins: raw.wins,
+      losses: raw.losses,
+      winStreak: raw.winStreak,
+      bestWinStreak: raw.winStreak,
+      bestMaxChain: raw.bestMaxChain,
+    });
+    return { lastDifficulty: lastDifficulty, lastMode: lastMode, byDifficulty: byDifficulty };
+  }
+
+  function modeOf(stats, difficulty) {
+    var merged = mergeStats(stats);
+    var d = typeof difficulty === 'string' && VALID_DIFFICULTIES[difficulty]
+      ? difficulty
+      : merged.lastDifficulty;
+    return merged.byDifficulty[d] || Object.assign({}, EMPTY_MODE);
   }
 
   /** Apply a vs-CPU win or loss. Streak climbs on win, resets on loss. */
-  function recordCpuResult(stats, won) {
+  function recordCpuResult(stats, won, difficulty) {
     var next = mergeStats(stats);
+    var d = typeof difficulty === 'string' && VALID_DIFFICULTIES[difficulty]
+      ? difficulty
+      : next.lastDifficulty;
+    var mode = Object.assign({}, next.byDifficulty[d]);
     if (won) {
-      next.wins += 1;
-      next.winStreak += 1;
+      mode.wins += 1;
+      mode.winStreak += 1;
+      if (mode.winStreak > mode.bestWinStreak) mode.bestWinStreak = mode.winStreak;
     } else {
-      next.losses += 1;
-      next.winStreak = 0;
+      mode.losses += 1;
+      mode.winStreak = 0;
     }
+    next.byDifficulty[d] = mode;
+    next.lastDifficulty = d;
     return next;
   }
 
   /** Track personal-best max chain from a finished match (win or lose). */
-  function noteMaxChain(stats, chain) {
+  function noteMaxChain(stats, chain, difficulty) {
     var next = mergeStats(stats);
+    var d = typeof difficulty === 'string' && VALID_DIFFICULTIES[difficulty]
+      ? difficulty
+      : next.lastDifficulty;
+    var mode = Object.assign({}, next.byDifficulty[d]);
     var n = asNonNegInt(chain);
-    if (n > next.bestMaxChain) next.bestMaxChain = n;
+    if (n > mode.bestMaxChain) mode.bestMaxChain = n;
+    next.byDifficulty[d] = mode;
     return next;
   }
 
@@ -480,8 +533,9 @@
 
     // Vs-CPU career stats (pure helpers; localStorage I/O lives in main.js).
     STATS_KEY: STATS_KEY,
-    DEFAULT_STATS: DEFAULT_STATS,
+    DEFAULT_STATS: mergeStats(null),
     mergeStats: mergeStats,
+    modeOf: modeOf,
     recordCpuResult: recordCpuResult,
     noteMaxChain: noteMaxChain,
     withPrefs: withPrefs,

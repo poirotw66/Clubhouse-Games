@@ -3,6 +3,7 @@ import {LAP_TOTAL, RACER_COUNT, SURFACE_BOOST, SURFACE_GRASS} from './constants'
 import {
   bestLapKey,
   DEFAULT_RACE_OPTIONS,
+  migrateBestTimesMap,
   type RaceMode,
   type RaceOptions,
 } from './raceOptions';
@@ -10,7 +11,7 @@ import {indexDelta, lateralOffset, nearestIndex, pointAt} from './spline';
 import {getTrackAssets, surfaceAt, type TrackAssets} from './trackAssets';
 
 export type {RaceMode, RaceOptions};
-export {bestLapKey, DEFAULT_RACE_OPTIONS};
+export {bestLapKey, DEFAULT_RACE_OPTIONS, migrateBestTimesMap};
 
 export type ItemId = 'boost' | 'oil' | 'homing' | 'shield';
 

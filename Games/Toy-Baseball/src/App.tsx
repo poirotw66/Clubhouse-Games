@@ -22,10 +22,12 @@ import {
 } from './difficulty';
 import {
   loadBests,
+  loadBestsMap,
   saveBests,
   updateDerbyBests,
   updateMatchBests,
   type BaseballBests,
+  type BestsMap,
 } from './stats';
 import { fieldDirtImage, fieldGrassImage, fieldSkyImage, drawBatterSprite, drawPitcherSprite } from './fieldArt';
 
@@ -909,7 +911,8 @@ export default function App() {
   const prevModeRef = useRef<GameMode>('menu');
   const prevScoreRef = useRef({ away: 0, home: 0 });
   const prevResultRef = useRef('');
-  const [bests, setBests] = useState<BaseballBests>(() => loadBests());
+  const [bestsMap, setBestsMap] = useState<BestsMap>(() => loadBestsMap());
+  const bests: BaseballBests = bestsMap[gameState.difficulty] ?? bestsMap.normal;
 
   useEffect(() => {
     const engine = new GameEngine((state) => {
@@ -922,18 +925,19 @@ export default function App() {
         }
       }
       if (state.mode === 'gameOver' && prevModeRef.current !== 'gameOver') {
+        const diff = state.difficulty;
         if (state.playMode === 'derby') {
           if (state.derbyHrs > 0) playWin();
           else playLose();
-          const next = updateDerbyBests(loadBests(), state.derbyHrs, state.derbyBestDist);
-          saveBests(next);
-          setBests(next);
+          const next = updateDerbyBests(loadBests(diff), state.derbyHrs, state.derbyBestDist);
+          saveBests(diff, next);
+          setBestsMap(loadBestsMap());
         } else {
           if (state.score.away > state.score.home) playWin();
           else if (state.score.away < state.score.home) playLose();
-          const next = updateMatchBests(loadBests(), state.score.away, state.score.home);
-          saveBests(next);
-          setBests(next);
+          const next = updateMatchBests(loadBests(diff), state.score.away, state.score.home);
+          saveBests(diff, next);
+          setBestsMap(loadBestsMap());
         }
       }
       prevModeRef.current = state.mode;
@@ -1231,8 +1235,8 @@ export default function App() {
 
               <p className="text-zinc-400 text-xs mb-4 text-center font-medium">
                 {gameState.playMode === 'derby'
-                  ? `個人最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
-                  : `個人最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak}${
+                  ? `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
+                  : `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak} · 最佳連勝 ${bests.matchBestWinStreak}${
                       bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
                     }`}
               </p>
@@ -1287,6 +1291,7 @@ export default function App() {
                       { label: '主隊（電腦）', value: gameState.score.home },
                       { label: '勝場', value: bests.matchWins },
                       { label: '連勝', value: bests.matchWinStreak },
+                      { label: '最佳連勝', value: bests.matchBestWinStreak },
                       { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
                     ]
               }
