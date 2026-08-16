@@ -1,4 +1,14 @@
-export type Position = 'P' | 'C' | 'IF' | 'OF';
+/** 'TW' is the two-way player: trains and plays both ways every season. */
+export type Position = 'P' | 'C' | 'IF' | 'OF' | 'TW';
+
+export type PitchId = 'slider' | 'curve' | 'forkball' | 'changeup' | 'cutter' | 'sinker';
+
+export interface PitchSlot {
+  id: PitchId;
+  level: number;
+}
+
+export type Arsenal = PitchSlot[];
 
 export type LeagueId = 'hs' | 'college' | 'corp' | 'cpbl' | 'milb' | 'npb' | 'mlb';
 
@@ -69,6 +79,8 @@ export interface SeasonRecord {
   league: LeagueId;
   team: string;
   line: StatLine;
+  /** A two-way player's other half — pitching when `line` is batting. */
+  secondary?: StatLine;
   awards: string[];
   note?: string;
 }
@@ -202,6 +214,8 @@ export interface GameState {
   attrs: Attributes;
   meta: Meta;
   finance: Finance;
+  /** Pitch repertoire; empty for a position player. Drives `attrs.breaking`. */
+  arsenal: Arsenal;
   injury: Injury | null;
 
   /** Latent ceiling per attribute — training past it yields almost nothing. */

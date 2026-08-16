@@ -2,6 +2,7 @@ import * as assert from 'node:assert/strict';
 import { acknowledge, createGame, resolve, rollOrigins } from '../src/game/engine.js';
 import { overall } from '../src/game/config.js';
 import { careerTotals } from '../src/game/milestones.js';
+import { breakingFromArsenal } from '../src/game/pitches.js';
 import { traitEffects } from '../src/game/traits.js';
 import type { Decision, GameState, Position } from '../src/game/types.js';
 
@@ -85,7 +86,7 @@ function expectHighSchoolLength(): void {
 
 /** Values must never leave their ranges, however extreme the run. */
 function expectValuesStayInRange(): void {
-  const positions: Position[] = ['P', 'C', 'IF', 'OF'];
+  const positions: Position[] = ['P', 'C', 'IF', 'OF', 'TW'];
   for (const position of positions) {
     for (const seed of ['range001', 'range002', 'range003']) {
       const state = playRun(seed, position, cyclingChoice);
@@ -96,7 +97,11 @@ function expectValuesStayInRange(): void {
       Object.entries(state.meta).forEach(([key, value]) => {
         assert.ok(value >= 0 && value <= 100, `meta ${key}=${value} out of range`);
       });
-      state.history.forEach((record) => {
+      const lines = state.history.flatMap((r) =>
+        r.secondary ? [r.line, r.secondary] : [r.line],
+      );
+      lines.forEach((line) => {
+        const record = { line };
         if (record.line.kind === 'batter') {
           const { avg, obp, slg, ab, hits, games } = record.line;
           assert.ok(avg >= 0 && avg <= 0.45, `avg ${avg} out of range`);
@@ -253,6 +258,77 @@ function expectEventsDoNotRepeatEarly(): void {
   assert.ok(unique >= seen.length - 6, `too many repeats: ${seen.length - unique}`);
 }
 
+/** A two-way player must actually play both ways, every season. */
+function expectTwoWayPlaysBothWays(): void {
+  const state = playRun('twoway01', 'TW', cyclingChoice);
+  const seasons = state.history;
+  assert.ok(seasons.length > 0, 'two-way run recorded no seasons');
+  for (const record of seasons) {
+    assert.ok(record.secondary, `${record.year} has no second line for a two-way player`);
+    assert.equal(record.line.kind, 'batter', 'the headline two-way line should be batting');
+    assert.equal(record.secondary!.kind, 'pitcher', 'the second two-way line should be pitching');
+  }
+  // Both halves have to reach the career totals.
+  const summary = state.summary!;
+  const battedHits = seasons
+    .filter((r) => r.league !== 'hs')
+    .reduce((sum, r) => sum + (r.line.kind === 'batter' ? r.line.hits : 0), 0);
+  const struckOut = seasons
+    .filter((r) => r.league !== 'hs')
+    .reduce((sum, r) => sum + (r.secondary?.kind === 'pitcher' ? r.secondary.so : 0), 0);
+  assert.equal(summary.totals.hits, battedHits, 'two-way batting not counted in summary');
+  assert.equal(summary.totals.so, struckOut, 'two-way pitching not counted in summary');
+}
+
+/** Splitting training ten ways should cost something. */
+function expectTwoWayIsHarder(): void {
+  let twoWayWins = 0;
+  const seeds = ['tw0001', 'tw0002', 'tw0003', 'tw0004'];
+  for (const seed of seeds) {
+    const specialist = playRun(seed, 'OF', cyclingChoice);
+    const twoWay = playRun(seed, 'TW', cyclingChoice);
+    if (twoWay.summary!.hofScore > specialist.summary!.hofScore) twoWayWins += 1;
+  }
+  assert.ok(
+    twoWayWins < seeds.length,
+    'the two-way route beat the specialist on every seed — the workload tax is not biting',
+  );
+}
+
+/** `breaking` is derived, so it must always match the arsenal it came from. */
+function expectBreakingTracksArsenal(): void {
+  for (const seed of ['arse0001', 'arse0002', 'arse0003']) {
+    const state = playRun(seed, 'P', cyclingChoice);
+    assert.ok(state.arsenal.length > 0, 'a pitcher finished with no pitches at all');
+    assert.equal(
+      state.attrs.breaking,
+      breakingFromArsenal(state.arsenal),
+      'breaking rating drifted away from the arsenal',
+    );
+    state.arsenal.forEach((slot) => {
+      assert.ok(slot.level >= 0 && slot.level <= 99, `pitch ${slot.id} level ${slot.level} out of range`);
+    });
+    // No pitch should ever be learned twice.
+    const ids = state.arsenal.map((p) => p.id);
+    assert.equal(new Set(ids).size, ids.length, 'the same pitch was learned twice');
+  }
+  // Position players carry no arsenal at all.
+  const batter = playRun('arse0001', 'OF', cyclingChoice);
+  assert.equal(batter.arsenal.length, 0, 'a position player somehow learned a pitch');
+}
+
+/** Ageing has to be able to take a pitch away, not be undone by the next sync. */
+function expectDeclineReachesTheArsenal(): void {
+  const state = playRun('decl0001', 'P', cyclingChoice);
+  const peak = Math.max(...state.history.map(() => 0), state.potential.breaking);
+  assert.ok(peak > 0, 'no potential recorded');
+  assert.equal(
+    state.attrs.breaking,
+    breakingFromArsenal(state.arsenal),
+    'breaking and arsenal disagree after a full career of decline',
+  );
+}
+
 const checks: [string, () => void][] = [
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
@@ -268,6 +344,10 @@ const checks: [string, () => void][] = [
   ['milestones match history', expectMilestonesMatchHistory],
   ['players change teams', expectPlayersChangeTeams],
   ['events do not repeat early', expectEventsDoNotRepeatEarly],
+  ['two-way plays both ways', expectTwoWayPlaysBothWays],
+  ['two-way is harder than specialising', expectTwoWayIsHarder],
+  ['breaking tracks the arsenal', expectBreakingTracksArsenal],
+  ['decline reaches the arsenal', expectDeclineReachesTheArsenal],
 ];
 
 let failed = 0;

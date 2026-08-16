@@ -11,8 +11,36 @@ export function CareerTable({ history }: { history: SeasonRecord[] }): React.Rea
     return <p className="px-1 py-3 text-xs text-slate-500">還沒有任何出賽紀錄。</p>;
   }
 
-  // A career can switch roles only by switching player, so one look decides
-  // which set of columns the whole table shows.
+  // A two-way player has two records to show, so the table is rendered twice —
+  // one pass per half — rather than trying to cram ten columns into one row.
+  if (history.some((r) => r.secondary)) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h3 className="mb-1.5 text-xs font-bold text-slate-400">打擊成績</h3>
+          <RoleTable history={history.map((r) => ({ ...r, secondary: undefined }))} />
+        </div>
+        <div>
+          <h3 className="mb-1.5 text-xs font-bold text-slate-400">投球成績</h3>
+          <RoleTable
+            history={history
+              .filter((r) => r.secondary)
+              .map((r) => ({ ...r, line: r.secondary!, secondary: undefined, awards: [] }))}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return <RoleTable history={history} />;
+}
+
+function RoleTable({ history }: { history: SeasonRecord[] }): React.ReactElement {
+  if (history.length === 0) {
+    return <p className="px-1 py-3 text-xs text-slate-500">還沒有任何出賽紀錄。</p>;
+  }
+
+  // Within one table every row is the same kind, so one look picks the columns.
   const pitching = history[0].line.kind === 'pitcher';
 
   return (

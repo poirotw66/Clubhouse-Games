@@ -7,9 +7,29 @@ export const POSITIONS: { id: Position; label: string; blurb: string }[] = [
   { id: 'C', label: '捕手', blurb: '守備與配球撐起球隊，打擊起步慢但生涯長。' },
   { id: 'IF', label: '內野手', blurb: '守備範圍與臂力並重，打擊全面者最搶手。' },
   { id: 'OF', label: '外野手', blurb: '速度與長打的舞台，跑得動就有機會站上先發。' },
+  {
+    id: 'TW',
+    label: '二刀流',
+    blurb: '投打兼修。十項能力一起練，成長被攤薄，但每季留下兩份成績單。',
+  },
 ];
 
-export const IS_PITCHER: Record<Position, boolean> = { P: true, C: false, IF: false, OF: false };
+/** True when the player pitches at all — a two-way player does. */
+export const IS_PITCHER: Record<Position, boolean> = {
+  P: true,
+  C: false,
+  IF: false,
+  OF: false,
+  TW: true,
+};
+
+export const IS_TWO_WAY: Record<Position, boolean> = {
+  P: false,
+  C: false,
+  IF: false,
+  OF: false,
+  TW: true,
+};
 
 /** Attributes surfaced in the UI, in display order, split by role. */
 export const BATTER_ATTRS: AttrKey[] = ['contact', 'power', 'speed', 'fielding', 'eye'];
@@ -177,7 +197,28 @@ export function gradeColor(value: number): string {
 }
 
 export function attrsForPosition(position: Position): AttrKey[] {
+  if (IS_TWO_WAY[position]) return [...BATTER_ATTRS, ...PITCHER_ATTRS];
   return IS_PITCHER[position] ? PITCHER_ATTRS : BATTER_ATTRS;
+}
+
+function batterOverall(attrs: Attributes, position: Position): number {
+  const defenseWeight = position === 'C' ? 0.24 : position === 'IF' ? 0.2 : 0.15;
+  const offenseScale = 1 - defenseWeight;
+  return (
+    (attrs.contact * 0.42 + attrs.power * 0.28 + attrs.eye * 0.18 + attrs.speed * 0.12) *
+      offenseScale +
+    attrs.fielding * defenseWeight
+  );
+}
+
+function pitcherOverall(attrs: Attributes): number {
+  return (
+    attrs.velocity * 0.28 +
+    attrs.control * 0.28 +
+    attrs.breaking * 0.24 +
+    attrs.stamina * 0.12 +
+    attrs.guts * 0.08
+  );
 }
 
 /**
@@ -186,20 +227,19 @@ export function attrsForPosition(position: Position): AttrKey[] {
  * contact rating never inflates their draft stock.
  */
 export function overall(attrs: Attributes, position: Position): number {
-  if (IS_PITCHER[position]) {
-    return (
-      attrs.velocity * 0.28 +
-      attrs.control * 0.28 +
-      attrs.breaking * 0.24 +
-      attrs.stamina * 0.12 +
-      attrs.guts * 0.08
-    );
+  if (IS_TWO_WAY[position]) {
+    // A two-way player is valued on their stronger half plus a premium for the
+    // other one — a roster spot that does two jobs is worth more than either.
+    // The premium is small enough that being mediocre at both loses to being
+    // good at one, which is what makes the route a real gamble.
+    const bat = batterOverall(attrs, 'OF');
+    const pitch = pitcherOverall(attrs);
+    return Math.min(99, Math.max(bat, pitch) + Math.min(bat, pitch) * 0.35);
   }
-  const defenseWeight = position === 'C' ? 0.24 : position === 'IF' ? 0.2 : 0.15;
-  const offenseScale = 1 - defenseWeight;
-  return (
-    (attrs.contact * 0.42 + attrs.power * 0.28 + attrs.eye * 0.18 + attrs.speed * 0.12) *
-      offenseScale +
-    attrs.fielding * defenseWeight
-  );
+  return IS_PITCHER[position] ? pitcherOverall(attrs) : batterOverall(attrs, position);
+}
+
+/** The two halves separately — the season sim needs each on its own. */
+export function halfOveralls(attrs: Attributes): { bat: number; pitch: number } {
+  return { bat: batterOverall(attrs, 'OF'), pitch: pitcherOverall(attrs) };
 }
