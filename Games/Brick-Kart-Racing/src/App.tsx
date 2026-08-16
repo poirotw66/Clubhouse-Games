@@ -113,6 +113,15 @@ export default function App() {
     void preloadTrackArt();
   }, []);
 
+  // The menu and the race replace each other in the same document, and 開始比賽
+  // sits at the bottom of a menu roughly four screens tall. Today the race
+  // screen happens to fit the viewport, so the browser clamps the leftover
+  // scroll to 0 by itself — reset it explicitly so that stays true if the race
+  // HUD ever grows past one screen.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
+
   const handleHold = useCallback((key: ControlKey, down: boolean) => {
     touchRef.current[key] = down;
     if (key === 'item' && down) itemQueuedRef.current = true;
