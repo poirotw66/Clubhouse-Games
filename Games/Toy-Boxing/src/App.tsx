@@ -273,6 +273,14 @@ export default function ToyBoxing() {
     render();
   }, []);
 
+  // The menu, the ring and the result overlay all live in the same document, so
+  // switching between them leaves the window wherever the previous one was
+  // scrolled to. The start button sits at the bottom of a tall menu, which meant
+  // the first round began with the top of the ring already above the viewport.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [gameState]);
+
   useEffect(() => {
     if (gameState === 'game_over' && prevGameStateRef.current !== 'game_over') {
       if (winner === 'player') playWin();

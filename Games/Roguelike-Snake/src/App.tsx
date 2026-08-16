@@ -107,6 +107,14 @@ export default function App() {
     null,
   );
 
+  // The title screen and the run replace each other in place, so the window
+  // keeps the other screen's scroll position. The overlap is only the dozen
+  // pixels the title screen overflows by, but it is enough to clip the top of
+  // the board on a short viewport.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
+
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);

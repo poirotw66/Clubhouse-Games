@@ -40,7 +40,7 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 8 |
-| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 7 |
+| 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 8 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 2 |
 <!-- /GENERATED_TABLE -->
 
@@ -79,6 +79,7 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 - [x] [發條守城](05-puzzle/clockwork-keep.md) → [Games/Clockwork-Keep/](Games/Clockwork-Keep/)
 - [x] [數字推盤](05-puzzle/fifteen-puzzle.md) → [Games/Fifteen-Puzzle/](Games/Fifteen-Puzzle/)
 - [x] [記憶配對](05-puzzle/memory-match.md) → [Games/Memory-Match/](Games/Memory-Match/)
+- [x] [走透透](05-puzzle/every-corner.md) → [Games/Every-Corner/](Games/Every-Corner/)
 
 ## 06-迷你遊戲
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
