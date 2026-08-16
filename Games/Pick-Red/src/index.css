@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+  background:
+    radial-gradient(1100px 520px at 50% -10%, #123024 0%, transparent 62%),
+    #0a1410;
+  color: #e6efe9;
+  overscroll-behavior: none;
+}
+
+/* The felt the table cards sit on. */
+.pr-felt {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(74, 222, 128, 0.09) 0%, transparent 70%),
+    rgba(6, 24, 17, 0.72);
+  border: 1px solid rgba(74, 222, 128, 0.16);
+}
+
+.pr-card {
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+/* Selecting a hand card lifts it, so the committed choice is unmistakable
+   before the capture target is picked. */
+.pr-card-selected {
+  transform: translateY(-10px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+.pr-card-target {
+  animation: pr-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes pr-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.65); }
+  50% { box-shadow: 0 0 0 7px rgba(250, 204, 21, 0); }
+}
+
+.pr-land {
+  animation: pr-land 380ms ease-out;
+}
+
+@keyframes pr-land {
+  from { transform: scale(0.7) translateY(-16px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-card,
+  .pr-card-target,
+  .pr-land {
+    animation: none;
+    transition: none;
+  }
+}
