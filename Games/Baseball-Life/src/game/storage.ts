@@ -1,8 +1,11 @@
+import { EMPTY_PROGRESS } from './achievements';
+import type { AchievementProgress } from './achievements';
 import { STORAGE_KEY } from './config';
 import type { GameState } from './types';
 
 const SAVE_KEY = `${STORAGE_KEY}:save`;
 const ARCHIVE_KEY = `${STORAGE_KEY}:archive`;
+const ACHIEVEMENTS_KEY = `${STORAGE_KEY}:achievements`;
 
 export interface ArchiveEntry {
   seedCode: string;
@@ -60,6 +63,35 @@ export function loadArchive(): ArchiveEntry[] {
     return Array.isArray(parsed) ? parsed.slice(0, 20) : [];
   } catch {
     return [];
+  }
+}
+
+export function loadAchievements(): AchievementProgress {
+  try {
+    const raw = window.localStorage.getItem(ACHIEVEMENTS_KEY);
+    if (!raw) return EMPTY_PROGRESS;
+    const parsed = JSON.parse(raw) as Partial<AchievementProgress>;
+    // Merged field by field so a save written before a new collection existed
+    // still loads, rather than throwing away everything the player earned.
+    return {
+      unlocked: parsed.unlocked ?? {},
+      traitsSeen: parsed.traitsSeen ?? [],
+      pitchesMastered: parsed.pitchesMastered ?? [],
+      positionsPlayed: parsed.positionsPlayed ?? [],
+      leaguesPlayed: parsed.leaguesPlayed ?? [],
+      careers: Number(parsed.careers) || 0,
+      bestHof: Number(parsed.bestHof) || 0,
+    };
+  } catch {
+    return EMPTY_PROGRESS;
+  }
+}
+
+export function saveAchievements(progress: AchievementProgress): void {
+  try {
+    window.localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(progress));
+  } catch {
+    // Best effort only.
   }
 }
 

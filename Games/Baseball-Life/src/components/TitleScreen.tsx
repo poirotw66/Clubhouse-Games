@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import { ACHIEVEMENTS, progressOf } from '../game/achievements';
+import type { AchievementProgress } from '../game/achievements';
 import { normalizeSeedCode, randomSeedCode } from '../game/rng';
 import type { ArchiveEntry } from '../game/storage';
 import { traitById } from '../game/traits';
@@ -8,12 +10,22 @@ interface Props {
   initialSeed: string;
   hasSave: boolean;
   archive: ArchiveEntry[];
+  achievements: AchievementProgress;
   onStart: (seedCode: string) => void;
   onContinue: () => void;
 }
 
-export function TitleScreen({ initialSeed, hasSave, archive, onStart, onContinue }: Props): React.ReactElement {
+export function TitleScreen({
+  initialSeed,
+  hasSave,
+  archive,
+  achievements,
+  onStart,
+  onContinue,
+}: Props): React.ReactElement {
   const [seed, setSeed] = useState(initialSeed);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const earned = ACHIEVEMENTS.filter((a) => achievements.unlocked[a.id]).length;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 px-4 py-14">
@@ -69,6 +81,62 @@ export function TitleScreen({ initialSeed, hasSave, archive, onStart, onContinue
           />
         )}
       </div>
+
+      {achievements.careers > 0 && (
+        <section className="bl-card p-4">
+          <button
+            type="button"
+            onClick={() => setShowAchievements((v) => !v)}
+            aria-expanded={showAchievements}
+            className="flex min-h-11 w-full items-center justify-between text-left"
+          >
+            <span className="text-sm font-bold text-slate-300">
+              成就
+              <span className="ml-2 font-mono text-xs font-normal text-amber-300">
+                {earned}/{ACHIEVEMENTS.length}
+              </span>
+            </span>
+            <span className="text-xs text-slate-400">{showAchievements ? '收起 ▲' : '展開 ▼'}</span>
+          </button>
+
+          <div className="mt-2 h-1.5 w-full rounded-full bg-slate-700/70">
+            <div
+              className="h-full rounded-full bg-amber-400 transition-[width] duration-300"
+              style={{ width: `${(earned / ACHIEVEMENTS.length) * 100}%` }}
+            />
+          </div>
+
+          {showAchievements && (
+            <ul className="mt-3 space-y-2">
+              {ACHIEVEMENTS.map((achievement) => {
+                const done = Boolean(achievements.unlocked[achievement.id]);
+                const count = progressOf(achievement.id, achievements);
+                return (
+                  <li key={achievement.id} className="flex items-start gap-2.5">
+                    <span aria-hidden="true" className="text-base leading-tight">
+                      {done ? '🏅' : '🔒'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-xs font-bold ${done ? 'text-amber-200' : 'text-slate-400'}`}
+                      >
+                        {achievement.label}
+                        {achievement.goal !== undefined && count !== null && (
+                          <span className="ml-2 font-mono text-[10px] font-normal text-slate-500">
+                            {Math.min(count, achievement.goal)}/{achievement.goal}
+                          </span>
+                        )}
+                      </p>
+                      {/* Locked descriptions stay visible: they are the to-do list. */}
+                      <p className="text-[11px] leading-snug text-slate-500">{achievement.desc}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       {archive.length > 0 && (
         <section className="bl-card p-4">

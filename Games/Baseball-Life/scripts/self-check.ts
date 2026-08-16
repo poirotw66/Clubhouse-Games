@@ -1,5 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { acknowledge, createGame, resolve, rollOrigins } from '../src/game/engine.js';
+import { ACHIEVEMENTS, EMPTY_PROGRESS, evaluate, progressOf } from '../src/game/achievements.js';
 import { overall } from '../src/game/config.js';
 import { careerTotals } from '../src/game/milestones.js';
 import { breakingFromArsenal } from '../src/game/pitches.js';
@@ -329,6 +330,76 @@ function expectDeclineReachesTheArsenal(): void {
   );
 }
 
+/** Achievement ids are storage keys, so a duplicate would silently merge two. */
+function expectAchievementIdsAreUnique(): void {
+  const ids = ACHIEVEMENTS.map((a) => a.id);
+  assert.equal(new Set(ids).size, ids.length, 'two achievements share an id');
+  ACHIEVEMENTS.forEach((a) => {
+    assert.ok(a.label.length > 0 && a.desc.length > 0, `${a.id} is missing label or description`);
+    if (a.goal !== undefined) {
+      assert.ok(a.goal > 0, `${a.id} has a non-positive goal`);
+      assert.notEqual(progressOf(a.id, EMPTY_PROGRESS), null, `${a.id} has a goal but no progress`);
+    }
+  });
+}
+
+/** Progress has to survive across careers, which is the whole point. */
+function expectAchievementsAccumulate(): void {
+  let progress = EMPTY_PROGRESS;
+  const runs = [
+    playRun('ach00001', 'OF', cyclingChoice),
+    playRun('ach00002', 'P', cyclingChoice),
+    playRun('ach00003', 'TW', cyclingChoice),
+  ];
+
+  for (const run of runs) {
+    const result = evaluate(run, progress);
+    progress = result.progress;
+  }
+
+  assert.equal(progress.careers, 3, 'career counter did not accumulate');
+  assert.equal(progress.positionsPlayed.length, 3, 'positions played did not accumulate');
+  assert.ok(progress.leaguesPlayed.includes('hs'), 'high school not recorded as a league played');
+  assert.ok(progress.bestHof > 0, 'best hall-of-fame score never recorded');
+
+  // Collections are sets: replaying the same career must not double-count.
+  const again = evaluate(runs[0], progress);
+  assert.equal(again.progress.positionsPlayed.length, 3, 'positions played double-counted');
+  assert.equal(again.progress.careers, 4, 'career counter should still tick');
+}
+
+/** An achievement must never be handed out twice. */
+function expectAchievementsUnlockOnce(): void {
+  const run = playRun('ach00004', 'OF', cyclingChoice);
+  const first = evaluate(run, EMPTY_PROGRESS);
+  const second = evaluate(run, first.progress);
+  for (const achievement of first.unlocked) {
+    assert.ok(
+      !second.unlocked.some((a) => a.id === achievement.id),
+      `${achievement.id} was unlocked twice`,
+    );
+    assert.equal(
+      first.progress.unlocked[achievement.id],
+      run.seedCode,
+      'unlock was not stamped with the seed that earned it',
+    );
+  }
+}
+
+/** Ten finished careers must complete the ten-careers collection, and no more. */
+function expectCollectionGoalsFire(): void {
+  let progress = EMPTY_PROGRESS;
+  let unlockedTenCareers = 0;
+  for (let i = 0; i < 11; i++) {
+    const run = playRun(`career${i}`, 'OF', cyclingChoice);
+    const result = evaluate(run, progress);
+    progress = result.progress;
+    if (result.unlocked.some((a) => a.id === 'ten-careers')) unlockedTenCareers += 1;
+  }
+  assert.equal(unlockedTenCareers, 1, 'the ten-careers achievement did not fire exactly once');
+  assert.ok(progress.unlocked['ten-careers'], 'ten-careers never recorded as unlocked');
+}
+
 const checks: [string, () => void][] = [
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
@@ -348,6 +419,10 @@ const checks: [string, () => void][] = [
   ['two-way is harder than specialising', expectTwoWayIsHarder],
   ['breaking tracks the arsenal', expectBreakingTracksArsenal],
   ['decline reaches the arsenal', expectDeclineReachesTheArsenal],
+  ['achievement ids are unique', expectAchievementIdsAreUnique],
+  ['achievements accumulate across careers', expectAchievementsAccumulate],
+  ['achievements unlock only once', expectAchievementsUnlockOnce],
+  ['collection goals fire exactly once', expectCollectionGoalsFire],
 ];
 
 let failed = 0;
