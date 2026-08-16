@@ -47,6 +47,14 @@ export default function App(): React.ReactElement {
     if (state && !state.retired) saveGame(state);
   }, [state]);
 
+  // Screens are swapped in place, so the window keeps whatever scroll position
+  // the last one left behind. The buttons that move between screens sit at the
+  // bottom of long pages, which meant the next screen opened part-way down with
+  // its header scrolled off above the viewport.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
+
   const finish = useCallback((finished: GameState) => {
     if (!finished.summary) return;
     setArchive(
