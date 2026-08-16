@@ -8,8 +8,10 @@ Games/**/.git-embedded/
 dist/
 
 # Transient output of each game's `npm run check:logic` (compiled game logic
-# plus the self-check runner). Regenerated on every run.
+# plus the self-check runner). Regenerated on every run. `.balance/` is the
+# same thing for Pick-Red's `npm run balance`.
 .self-check/
+.balance/
 
 Games/.DS_Store
 .DS_Store
