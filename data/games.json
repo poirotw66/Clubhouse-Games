@@ -226,6 +226,14 @@
           "players": "1 人",
           "specPath": "05-puzzle/memory-match.md",
           "gameFolder": "Memory-Match"
+        },
+        {
+          "name": "走透透",
+          "en": "Every Corner",
+          "desc": "依序經過每個數字並走滿整個盤面的單筆路徑解謎，題目即時生成且保證唯一解，另有每日挑戰。",
+          "players": "1 人",
+          "specPath": "05-puzzle/every-corner.md",
+          "gameFolder": "Every-Corner"
         }
       ]
     },
