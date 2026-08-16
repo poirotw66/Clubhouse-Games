@@ -74,6 +74,16 @@ export default function App() {
   const { play: playSfx } = useSfx();
   const playerAvatarUrl = getCharacterImageUrl(character);
 
+  // The setup screen and the table replace each other in the same document, so
+  // the window keeps whatever scroll position the other one left behind — and
+  // 開始對局 sits at the bottom of a tall setup screen. Keyed on the *screen*
+  // rather than on `phase`, because phase also changes on every turn and
+  // yanking the page mid-hand would be worse than the bug.
+  const onSetupScreen = state.phase === 'idle';
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [onSetupScreen]);
+
   const applyDifficulty = useCallback((next: Difficulty) => {
     setDifficulty(next);
     setStats(prev => {
