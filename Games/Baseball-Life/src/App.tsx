@@ -3,7 +3,17 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { POSITIONS } from './game/config';
 import { acknowledge, createGame, resolve } from './game/engine';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
-import { clearGame, loadArchive, loadGame, pushArchive, saveGame } from './game/storage';
+import { evaluate } from './game/achievements';
+import type { Achievement, AchievementProgress } from './game/achievements';
+import {
+  clearGame,
+  loadAchievements,
+  loadArchive,
+  loadGame,
+  pushArchive,
+  saveAchievements,
+  saveGame,
+} from './game/storage';
 import type { ArchiveEntry } from './game/storage';
 import type { GameState, Position } from './game/types';
 import { CreateScreen } from './components/CreateScreen';
@@ -29,6 +39,8 @@ export default function App(): React.ReactElement {
   const [state, setState] = useState<GameState | null>(null);
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
+  const [achievements, setAchievements] = useState<AchievementProgress>(() => loadAchievements());
+  const [justUnlocked, setJustUnlocked] = useState<Achievement[]>([]);
 
   // Persist after every turn so a closed tab does not cost a career.
   useEffect(() => {
@@ -47,6 +59,12 @@ export default function App(): React.ReactElement {
         traits: finished.traits,
       }),
     );
+    // Achievements read the freshly loaded progress rather than component state
+    // so that a second tab finishing a career cannot silently roll this one back.
+    const result = evaluate(finished, loadAchievements());
+    saveAchievements(result.progress);
+    setAchievements(result.progress);
+    setJustUnlocked(result.unlocked);
     clearGame();
     setSaved(null);
   }, []);
@@ -96,6 +114,7 @@ export default function App(): React.ReactElement {
           initialSeed={seedCode}
           hasSave={saved !== null}
           archive={archive}
+          achievements={achievements}
           onStart={(code) => {
             setSeedCode(code);
             setScreen('create');
@@ -125,6 +144,7 @@ export default function App(): React.ReactElement {
       {screen === 'summary' && state && (
         <SummaryScreen
           state={state}
+          unlocked={justUnlocked}
           onRestart={backToTitle}
           onSameSeed={() => {
             setState(null);

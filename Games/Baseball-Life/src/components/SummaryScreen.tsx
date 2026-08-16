@@ -8,6 +8,7 @@ import {
   grade,
   gradeColor,
 } from '../game/config';
+import type { Achievement } from '../game/achievements';
 import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
@@ -16,11 +17,12 @@ import { ShareCard } from './ShareCard';
 
 interface Props {
   state: GameState;
+  unlocked: Achievement[];
   onRestart: () => void;
   onSameSeed: () => void;
 }
 
-export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.ReactElement {
+export function SummaryScreen({ state, unlocked, onRestart, onSameSeed }: Props): React.ReactElement {
   const [copied, setCopied] = useState(false);
   const summary = state.summary;
   if (!summary) return <p className="p-8 text-slate-300">生涯資料遺失了。</p>;
@@ -91,6 +93,30 @@ export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.Re
           )}
         </dl>
       </section>
+
+      {unlocked.length > 0 && (
+        <section className="mt-6 rounded-2xl border border-amber-400/50 bg-amber-500/10 p-4">
+          <h2 className="text-sm font-bold text-amber-200">
+            解鎖成就
+            <span className="ml-2 font-mono text-xs font-normal text-amber-300/70">
+              +{unlocked.length}
+            </span>
+          </h2>
+          <ul className="mt-3 space-y-2">
+            {unlocked.map((achievement) => (
+              <li key={achievement.id} className="flex items-start gap-2.5">
+                <span aria-hidden="true" className="text-lg leading-none">
+                  🏅
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-amber-100">{achievement.label}</p>
+                  <p className="text-xs text-amber-200/75">{achievement.desc}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="bl-card mt-4 p-4">
         <h2 className="text-sm font-bold text-slate-200">收入</h2>
