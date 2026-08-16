@@ -9,6 +9,7 @@ import {
   gradeColor,
   overall,
 } from '../game/config';
+import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
 
@@ -106,6 +107,28 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
                 </li>
               );
             })}
+          </ul>
+        </div>
+      )}
+
+      {state.arsenal.length > 0 && (
+        <div className="mt-3 border-t border-slate-700/60 pt-3">
+          <p className="text-[10px] tracking-wider text-slate-500">球種</p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {[...state.arsenal]
+              .sort((a, b) => b.level - a.level)
+              .map((slot) => (
+                <li
+                  key={slot.id}
+                  title={pitchInfo(slot.id).blurb}
+                  className="rounded-md bg-slate-800/80 px-2 py-0.5 text-[11px] text-slate-300"
+                >
+                  {pitchInfo(slot.id).label}
+                  <span className="ml-1 font-bold" style={{ color: gradeColor(slot.level) }}>
+                    {grade(slot.level)}
+                  </span>
+                </li>
+              ))}
           </ul>
         </div>
       )}

@@ -25,9 +25,7 @@ const EMPTY: Totals = { hits: 0, hr: 0, rbi: 0, sb: 0, wins: 0, so: 0, saves: 0 
 /** Only professional and amateur play counts; high-school games do not. */
 export function careerTotals(history: SeasonRecord[]): Totals {
   const totals: Totals = { ...EMPTY };
-  for (const record of history) {
-    if (record.league === 'hs') continue;
-    const line = record.line;
+  const add = (line: SeasonRecord['line']) => {
     if (line.kind === 'batter') {
       totals.hits += line.hits;
       totals.hr += line.hr;
@@ -38,6 +36,12 @@ export function careerTotals(history: SeasonRecord[]): Totals {
       totals.so += line.so;
       totals.saves += line.saves;
     }
+  };
+  for (const record of history) {
+    if (record.league === 'hs') continue;
+    add(record.line);
+    // A two-way player's other half counts towards the record book too.
+    if (record.secondary) add(record.secondary);
   }
   return totals;
 }

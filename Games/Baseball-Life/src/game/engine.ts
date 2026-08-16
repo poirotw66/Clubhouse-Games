@@ -1,6 +1,7 @@
 import {
   ATTR_LABELS,
   IS_PITCHER,
+  IS_TWO_WAY,
   LEAGUES,
   LEAGUE_PAY,
   META_LABELS,
@@ -8,13 +9,15 @@ import {
   TEAMS,
   attrsForPosition,
   formatMoney,
+  halfOveralls,
   overall,
 } from './config';
+import { PITCHES, learnablePitches, pitchInfo, syncBreaking } from './pitches';
 import type { Origin } from './config';
 import { careerMilestones, careerTotals, seasonFeats } from './milestones';
 import { INJURIES, pickEvent } from './events';
 import { noise, pick, randInt, seedFromCode, streamRng } from './rng';
-import { describeLine, simulateSeason, simulateTournament } from './season';
+import { describeLine, simulateSeason, simulateTournament, simulateTwoWay } from './season';
 import { newlyUnlocked, traitById, traitEffects } from './traits';
 import type {
   AttrKey,
@@ -22,13 +25,16 @@ import type {
   Decision,
   DeltaKey,
   GameState,
+  Arsenal,
   LeagueId,
   LogEntry,
   Meta,
   Milestone,
   Option,
+  PitchId,
   Position,
   SeasonRecord,
+  StatLine,
   Summary,
   TurnReport,
 } from './types';
@@ -111,6 +117,16 @@ function rollPotential(attrs: Attributes, seed: number, position: Position): Att
   return out;
 }
 
+/**
+ * Every young pitcher shows up with one breaking ball they half-trust. Which
+ * one comes from the seed, so the same world hands out the same first pitch.
+ */
+function startingArsenal(seed: number, breaking: number): Arsenal {
+  const r = streamRng(seed, 'arsenal');
+  const first = pick(r, PITCHES.filter((p) => p.difficulty <= 1.1));
+  return [{ id: first.id, level: Math.max(12, breaking) }];
+}
+
 export interface CreateInput {
   seedCode: string;
   name: string;
@@ -155,6 +171,7 @@ export function createGame(input: CreateInput): GameState {
     attrs,
     meta,
     finance: { salary: 0, earnings: 0, endorsements: 0, peakSalary: 0 },
+    arsenal: IS_PITCHER[input.position] ? startingArsenal(seed, attrs.breaking) : [],
     injury: null,
     potential: rollPotential(attrs, seed, input.position),
     history: [],
@@ -182,6 +199,9 @@ export function createGame(input: CreateInput): GameState {
     handled: [],
   };
 
+  // `breaking` is derived, never trained directly, so seed it from the arsenal.
+  if (state.arsenal.length > 0) syncBreaking(state);
+
   pushLog(state, '入部', `${state.team} 棒球部，${origin.label}。你的棒球人生從這個春天開始。`, 'normal');
   state.decision = buildDecision(state);
   return state;
@@ -195,9 +215,34 @@ function pushLog(state: GameState, label: string, text: string, tone: LogEntry['
   state.log.push({ id: state.log.length, label, text, tone });
 }
 
+/**
+ * `breaking` is a projection of the arsenal, so writing to it directly would
+ * be silently undone by the next sync. Every change to it — a training gain, a
+ * flavour event that hands the pitcher a new grip, ageing, a shoulder tear —
+ * has to move the underlying pitches instead.
+ *
+ * A gain sharpens the pitch they already trust; a loss dulls everything.
+ * The 1.6 factor is the inverse of the 0.6 weight the best pitch carries in
+ * `breakingFromArsenal`, so a +6 to the aggregate really is worth about +6.
+ */
+function adjustArsenal(state: GameState, change: number): void {
+  if (state.arsenal.length === 0 || change === 0) return;
+  if (change > 0) {
+    const best = [...state.arsenal].sort((a, b) => b.level - a.level)[0];
+    best.level = clamp(round(best.level + change * 1.6), 0, 99);
+  } else {
+    state.arsenal.forEach((slot) => {
+      slot.level = clamp(round(slot.level + change), 0, 99);
+    });
+  }
+  syncBreaking(state);
+}
+
 function applyDeltas(state: GameState, deltas: Partial<Attributes & Meta>): void {
   (Object.entries(deltas) as [string, number][]).forEach(([key, value]) => {
-    if (key in state.attrs) {
+    if (key === 'breaking' && state.arsenal.length > 0) {
+      adjustArsenal(state, value);
+    } else if (key in state.attrs) {
       const k = key as AttrKey;
       state.attrs[k] = clamp(state.attrs[k] + value, 0, 99);
     } else if (key in state.meta) {
@@ -286,6 +331,37 @@ interface TrainingOption extends Option {
   fatigue: number;
   meta?: Partial<Meta>;
   rest?: boolean;
+  /** Develops one pitch, or 'new' to add one to the repertoire. */
+  pitch?: PitchId | 'new';
+}
+
+function developPitch(
+  state: GameState,
+  option: TrainingOption,
+  dice: number,
+  r: () => number,
+  report: TurnReport,
+): void {
+  const effects = traitEffects(state.traits);
+  const scale = DICE_MULT[dice] * growthAgeFactor(state.age) * effects.growth;
+
+  if (option.pitch === 'new') {
+    const candidates = learnablePitches(state.arsenal);
+    if (candidates.length === 0) return;
+    const info = candidates[0];
+    const level = clamp(round((14 * scale) / info.difficulty), 4, 45);
+    state.arsenal.push({ id: info.id, level });
+    report.lines.push(`練成了新球種：${info.label}。${info.blurb}`);
+  } else {
+    const slot = state.arsenal.find((p) => p.id === option.pitch);
+    if (!slot) return;
+    const info = pitchInfo(slot.id);
+    const headroom = clamp((state.potential.breaking - slot.level) / 22, 0.12, 1);
+    const gain = round((option.power * scale * headroom * (0.85 + r() * 0.3)) / info.difficulty);
+    slot.level = clamp(slot.level + gain, 0, 99);
+    report.lines.push(`${info.label}的握法更確實了（${slot.level}）。`);
+  }
+  syncBreaking(state);
 }
 
 function batterDrills(): TrainingOption[] {
@@ -298,14 +374,43 @@ function batterDrills(): TrainingOption[] {
   ];
 }
 
-function pitcherDrills(): TrainingOption[] {
-  return [
+function pitcherDrills(state: GameState): TrainingOption[] {
+  const drills: TrainingOption[] = [
     { id: 'longtoss', label: '長傳與球速強化', hint: '球速', focus: ['velocity'], power: 9.0, fatigue: 12 },
     { id: 'bullpen', label: '牛棚控球練習', hint: '控球', focus: ['control'], power: 8.4, fatigue: 8 },
-    { id: 'breaking', label: '變化球研發', hint: '變化球 · 控球', focus: ['breaking', 'control'], power: 7.4, fatigue: 7 },
     { id: 'stamina', label: '長跑與投球數累積', hint: '續航力', focus: ['stamina'], power: 8.6, fatigue: 11, meta: { body: 4 } },
     { id: 'mental', label: '配球與心理訓練', hint: '膽識', focus: ['guts'], power: 7.4, fatigue: 3, meta: { mind: 5 } },
   ];
+
+  // Sharpening the pitch you already trust versus adding one you do not: the
+  // first raises your ceiling slowly, the second widens the repertoire, and
+  // the aggregate rating rewards having two or three real weapons.
+  const best = [...state.arsenal].sort((a, b) => b.level - a.level)[0];
+  if (best) {
+    const info = pitchInfo(best.id);
+    drills.push({
+      id: `pitch-${best.id}`,
+      label: `精進${info.label}`,
+      hint: `目前 ${best.level}・${info.blurb}`,
+      focus: [],
+      power: 8.8,
+      fatigue: 7,
+      pitch: best.id,
+    });
+  }
+  const next = learnablePitches(state.arsenal)[0];
+  if (next) {
+    drills.push({
+      id: 'pitch-new',
+      label: `學習新球種：${next.label}`,
+      hint: next.blurb,
+      focus: [],
+      power: 0,
+      fatigue: 9,
+      pitch: 'new',
+    });
+  }
+  return drills;
 }
 
 const REST_OPTION: TrainingOption = {
@@ -336,8 +441,17 @@ function shuffled<T>(items: readonly T[], r: () => number): T[] {
 }
 
 function trainingOptions(state: GameState): TrainingOption[] {
-  const drills = IS_PITCHER[state.position] ? pitcherDrills() : batterDrills();
   const r = streamRng(state.seed, `drills:${state.turnIndex}`);
+  if (IS_TWO_WAY[state.position]) {
+    // Two drills from each side plus rest: the two-way player is always being
+    // asked which half of themselves to feed this season.
+    return [
+      ...shuffled(batterDrills(), r).slice(0, 2),
+      ...shuffled(pitcherDrills(state), r).slice(0, 2),
+      REST_OPTION,
+    ];
+  }
+  const drills = IS_PITCHER[state.position] ? pitcherDrills(state) : batterDrills();
   return [...shuffled(drills, r).slice(0, 3), REST_OPTION];
 }
 
@@ -697,7 +811,16 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
   if (state.age < 22 && dice === 6) state.counters.earlySixes += 1;
   if (option.rest) state.counters.restTurns += 1;
 
+  // Pitch work moves the arsenal; `breaking` follows from it, so the delta is
+  // read back off the derived rating rather than applied to it.
+  const breakingBefore = state.attrs.breaking;
+  if (option.pitch) developPitch(state, option, dice, r, report);
+
   const deltas = applyTraining(state, option.focus, dice, option.power, r);
+  if (option.pitch) {
+    const change = state.attrs.breaking - breakingBefore;
+    if (change !== 0) deltas.breaking = (deltas.breaking ?? 0) + change;
+  }
   deltas.fatigue = (deltas.fatigue ?? 0) + option.fatigue;
   Object.entries(option.meta ?? {}).forEach(([key, value]) => {
     const k = key as keyof Meta;
@@ -758,18 +881,26 @@ function runTournament(state: GameState, report: TurnReport, name: string, optio
   const intensity = optionId === 't-allin' ? 1.25 : optionId === 't-protect' ? 0.75 : 1;
   const r = rng(state, 'tournament');
 
+  const tournamentInput = {
+    attrs: state.attrs,
+    meta: state.meta,
+    position: state.position,
+    league: 'hs' as const,
+    health: state.injury ? 0.4 : 1,
+    clutch: effects.clutch * intensity,
+    rng: r,
+  };
+  const games = randInt(r, 3, 6);
+  const twoWay = IS_TWO_WAY[state.position];
+  // The two-way high schooler is the ace and the cleanup hitter, so the
+  // tournament produces both lines just like a professional season does.
   const result = simulateTournament(
-    {
-      attrs: state.attrs,
-      meta: state.meta,
-      position: state.position,
-      league: 'hs',
-      health: state.injury ? 0.4 : 1,
-      clutch: effects.clutch * intensity,
-      rng: r,
-    },
-    randInt(r, 3, 6),
+    twoWay ? { ...tournamentInput, role: 'batter' } : tournamentInput,
+    games,
   );
+  const secondary = twoWay
+    ? simulateTournament({ ...tournamentInput, role: 'pitcher' }, games).line
+    : undefined;
 
   const rating = overall(state.attrs, state.position);
   const runScore = rating * intensity + state.meta.mind * 0.25 + noise(r, 18);
@@ -805,12 +936,14 @@ function runTournament(state: GameState, report: TurnReport, name: string, optio
     league: 'hs',
     team: state.team,
     line: result.line,
+    secondary,
     awards: runScore >= 78 ? ['最有價值球員'] : [],
     note: outcome,
   };
   state.history.push(record);
   report.season = record;
   report.lines.push(`${outcome}　${describeLine(result.line)}`);
+  if (secondary) report.lines.push(describeLine(secondary));
 }
 
 // ---------------------------------------------------------------------------
@@ -873,7 +1006,7 @@ function runSeason(state: GameState, report: TurnReport): void {
   const r = rng(state, 'season');
   const health = state.injury ? (state.injury.severity === 'minor' ? 0.7 : 0.35) : 1;
 
-  const result = simulateSeason({
+  const input = {
     attrs: state.attrs,
     meta: state.meta,
     position: state.position,
@@ -881,7 +1014,27 @@ function runSeason(state: GameState, report: TurnReport): void {
     health,
     clutch: effects.clutch,
     rng: r,
-  });
+  };
+
+  let secondary: StatLine | undefined;
+  let result;
+  if (IS_TWO_WAY[state.position]) {
+    const both = simulateTwoWay(input);
+    // The batting line leads and pitching rides along as the secondary, so the
+    // rest of the engine keeps treating `line` as the headline performance.
+    result = both.batting;
+    secondary = both.pitching.line;
+    result.awards = [...both.batting.awards, ...both.pitching.awards];
+    // Being merely adequate at both should not read as an MVP season, so the
+    // combined quality leans on the stronger half rather than summing them.
+    result.quality = Math.min(
+      1,
+      Math.max(both.batting.quality, both.pitching.quality) * 0.75 +
+        Math.min(both.batting.quality, both.pitching.quality) * 0.5,
+    );
+  } else {
+    result = simulateSeason(input);
+  }
 
   const awards = [...result.awards];
   if (state.stage === 'pro' && state.counters.proSeasons === 0 && result.quality >= 0.5 && r() < 0.6) {
@@ -923,6 +1076,7 @@ function runSeason(state: GameState, report: TurnReport): void {
     league: state.league,
     team: state.team,
     line: result.line,
+    secondary,
     awards,
     note: intlNote ?? undefined,
   };
@@ -930,13 +1084,14 @@ function runSeason(state: GameState, report: TurnReport): void {
   state.history.push(record);
   report.season = record;
   report.lines.push(describeLine(result.line));
+  if (secondary) report.lines.push(describeLine(secondary));
   if (awards.length > 0) {
     report.lines.push(`獲獎：${awards.join('、')}`);
     if (report.tone === 'normal') report.tone = 'good';
   }
   if (intlNote) report.lines.push(intlNote);
 
-  recordMilestones(state, report, result.line, result.quality, totalsBefore);
+  recordMilestones(state, report, result.line, secondary, result.quality, totalsBefore);
   payFor(state, report, result.quality);
 
   if (state.stage === 'pro') {
@@ -966,6 +1121,7 @@ function recordMilestones(
   state: GameState,
   report: TurnReport,
   line: SeasonRecord['line'],
+  secondary: StatLine | undefined,
   quality: number,
   totalsBefore: ReturnType<typeof careerTotals>,
 ): void {
@@ -973,6 +1129,9 @@ function recordMilestones(
   const found: Milestone[] = [
     ...careerMilestones(totalsBefore, careerTotals(state.history), state),
     ...seasonFeats(state, line, quality, rng(state, 'feats')),
+    // A two-way player can throw a no-hitter and hit for the cycle in the same
+    // year, so both halves get their own shot at a feat.
+    ...(secondary ? seasonFeats(state, secondary, quality, rng(state, 'feats2')) : []),
   ];
   if (found.length === 0) return;
   state.milestones.push(...found);
@@ -1015,13 +1174,19 @@ function applyDecline(state: GameState, report: TurnReport, declineMul: number):
   // a gentler curve let training offset the loss and produced 22-season
   // careers for everyone.
   const severity = (state.age - onset + 1) * 0.8 * declineMul;
+  const breakingBefore = state.attrs.breaking;
   attrsForPosition(state.position).forEach((key) => {
     const loss = round(severity * (0.6 + r() * 0.9));
-    if (loss > 0) {
-      state.attrs[key] = clamp(state.attrs[key] - loss, 0, 99);
-      report.deltas[key] = (report.deltas[key] ?? 0) - loss;
+    if (loss <= 0) return;
+    if (key === 'breaking') {
+      adjustArsenal(state, -loss);
+      return;
     }
+    state.attrs[key] = clamp(state.attrs[key] - loss, 0, 99);
+    report.deltas[key] = (report.deltas[key] ?? 0) - loss;
   });
+  const breakingLoss = breakingBefore - state.attrs.breaking;
+  if (breakingLoss !== 0) report.deltas.breaking = (report.deltas.breaking ?? 0) - breakingLoss;
   applyDeltas(state, { body: -round(2 * declineMul) });
 }
 
@@ -1066,11 +1231,18 @@ function checkInjury(state: GameState, report: TurnReport, fatigueCost: number):
   // take something permanent away.
   const cost = injury.severity === 'career' ? 7 : injury.severity === 'major' ? 4 : 0;
   if (cost > 0) {
+    const breakingBefore = state.attrs.breaking;
     attrsForPosition(state.position).forEach((key) => {
       const loss = round(cost * (0.5 + r() * 0.8));
+      if (key === 'breaking') {
+        adjustArsenal(state, -loss);
+        return;
+      }
       state.attrs[key] = clamp(state.attrs[key] - loss, 0, 99);
       report.deltas[key] = (report.deltas[key] ?? 0) - loss;
     });
+    const breakingLoss = breakingBefore - state.attrs.breaking;
+    if (breakingLoss !== 0) report.deltas.breaking = (report.deltas.breaking ?? 0) - breakingLoss;
   }
   applyDeltas(state, { body: -6, mind: -4 });
   report.lines.push(`受傷：${injury.name}。${injury.seasons > 0 ? '需要長期復健。' : '所幸不算嚴重。'}`);
@@ -1351,22 +1523,29 @@ export function buildSummary(state: GameState): Summary {
   let ab = 0;
   let earnedRunSum = 0;
 
-  pro.forEach((record) => {
-    totals.games += record.line.games;
-    if (record.line.kind === 'batter') {
-      ab += record.line.ab;
-      totals.hits += record.line.hits;
-      totals.hr += record.line.hr;
-      totals.rbi += record.line.rbi;
-      totals.sb += record.line.sb;
+  const accumulate = (line: SeasonRecord['line']) => {
+    if (line.kind === 'batter') {
+      ab += line.ab;
+      totals.hits += line.hits;
+      totals.hr += line.hr;
+      totals.rbi += line.rbi;
+      totals.sb += line.sb;
     } else {
-      totals.wins += record.line.wins;
-      totals.losses += record.line.losses;
-      totals.saves += record.line.saves;
-      totals.so += record.line.so;
-      totals.ip += record.line.ip;
-      earnedRunSum += (record.line.era * record.line.ip) / 9;
+      totals.wins += line.wins;
+      totals.losses += line.losses;
+      totals.saves += line.saves;
+      totals.so += line.so;
+      totals.ip += line.ip;
+      earnedRunSum += (line.era * line.ip) / 9;
     }
+  };
+
+  pro.forEach((record) => {
+    // Games are counted once per season: a two-way player's appearances as
+    // pitcher are largely the same days they also batted.
+    totals.games += record.line.games;
+    accumulate(record.line);
+    if (record.secondary) accumulate(record.secondary);
   });
   totals.avg = ab > 0 ? totals.hits / ab : 0;
   totals.ip = Math.round(totals.ip * 10) / 10;

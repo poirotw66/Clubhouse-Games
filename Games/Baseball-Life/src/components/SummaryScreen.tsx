@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
-import { ATTR_LABELS, POSITIONS, formatMoney, grade, gradeColor } from '../game/config';
+import {
+  ATTR_LABELS,
+  POSITIONS,
+  attrsForPosition,
+  formatMoney,
+  grade,
+  gradeColor,
+} from '../game/config';
+import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
 import { CareerTable } from './CareerTable';
+import { ShareCard } from './ShareCard';
 
 interface Props {
   state: GameState;
@@ -16,6 +25,7 @@ export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.Re
   const summary = state.summary;
   if (!summary) return <p className="p-8 text-slate-300">生涯資料遺失了。</p>;
 
+  const isTwoWay = state.position === 'TW';
   const isPitcher = state.position === 'P';
   const positionLabel = POSITIONS.find((p) => p.id === state.position)?.label ?? '';
   const shareUrl = `${window.location.origin}${window.location.pathname}?seed=${encodeURIComponent(state.seedCode)}`;
@@ -55,7 +65,16 @@ export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.Re
         <dl className="mt-3 grid grid-cols-3 gap-3 text-center sm:grid-cols-6">
           <Stat label="球季" value={String(totals.seasons)} />
           <Stat label="出賽" value={String(totals.games)} />
-          {isPitcher ? (
+          {isTwoWay ? (
+            <>
+              <Stat label="安打" value={String(totals.hits)} />
+              <Stat label="全壘打" value={String(totals.hr)} />
+              <Stat label="打率" value={totals.avg.toFixed(3).replace(/^0/, '')} accent />
+              <Stat label="勝-敗" value={`${totals.wins}-${totals.losses}`} />
+              <Stat label="奪三振" value={String(totals.so)} />
+              <Stat label="防禦率" value={totals.era.toFixed(2)} accent />
+            </>
+          ) : isPitcher ? (
             <>
               <Stat label="勝" value={String(totals.wins)} />
               <Stat label="敗" value={String(totals.losses)} />
@@ -142,10 +161,7 @@ export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.Re
       <section className="bl-card mt-4 p-4">
         <h2 className="text-sm font-bold text-slate-200">最終能力</h2>
         <div className="mt-2 flex flex-wrap gap-2">
-          {(isPitcher
-            ? (['velocity', 'control', 'breaking', 'stamina', 'guts'] as const)
-            : (['contact', 'power', 'speed', 'fielding', 'eye'] as const)
-          ).map((key) => (
+          {attrsForPosition(state.position).map((key) => (
             <span key={key} className="rounded-lg bg-slate-800/80 px-2.5 py-1 text-xs text-slate-300">
               {ATTR_LABELS[key]}
               <span className="ml-1.5 font-bold" style={{ color: gradeColor(state.attrs[key]) }}>
@@ -154,6 +170,26 @@ export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.Re
             </span>
           ))}
         </div>
+        {state.arsenal.length > 0 && (
+          <div className="mt-3 border-t border-slate-700/60 pt-3">
+            <p className="text-[10px] tracking-wider text-slate-500">最終球種</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[...state.arsenal]
+                .sort((a, b) => b.level - a.level)
+                .map((slot) => (
+                  <span
+                    key={slot.id}
+                    className="rounded-lg bg-slate-800/80 px-2.5 py-1 text-xs text-slate-300"
+                  >
+                    {pitchInfo(slot.id).label}
+                    <span className="ml-1.5 font-bold" style={{ color: gradeColor(slot.level) }}>
+                      {grade(slot.level)}
+                    </span>
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="bl-card mt-4 p-4">
@@ -162,6 +198,8 @@ export function SummaryScreen({ state, onRestart, onSameSeed }: Props): React.Re
           <CareerTable history={state.history} />
         </div>
       </section>
+
+      <ShareCard state={state} />
 
       <section className="bl-card mt-4 p-4">
         <h2 className="text-sm font-bold text-slate-200">分享這個世界</h2>

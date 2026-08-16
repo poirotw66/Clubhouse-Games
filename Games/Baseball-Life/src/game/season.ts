@@ -1,4 +1,4 @@
-import { IS_PITCHER, LEAGUES, overall } from './config';
+import { IS_PITCHER, IS_TWO_WAY, LEAGUES, halfOveralls, overall } from './config';
 import { noise } from './rng';
 import type {
   Attributes,
@@ -30,6 +30,11 @@ export interface SeasonInput {
   health: number;
   clutch: number;
   rng: () => number;
+  /**
+   * Forces which half to simulate. Only a two-way player needs it — everyone
+   * else is unambiguous from their position.
+   */
+  role?: 'batter' | 'pitcher';
 }
 
 export interface SeasonResult {
@@ -174,11 +179,43 @@ function simulatePitcher(input: SeasonInput, pt: number): SeasonResult {
 }
 
 export function simulateSeason(input: SeasonInput): SeasonResult {
-  const rating = overall(input.attrs, input.position);
+  const twoWay = IS_TWO_WAY[input.position];
+  // A two-way player has to be told which half to play; defaulting them to
+  // pitcher (which IS_PITCHER would do) would silently drop their bat.
+  const asPitcher = input.role ? input.role === 'pitcher' : !twoWay && IS_PITCHER[input.position];
+
+  let rating: number;
+  if (twoWay) {
+    const halves = halfOveralls(input.attrs);
+    rating = asPitcher ? halves.pitch : halves.bat;
+  } else {
+    rating = overall(input.attrs, input.position);
+  }
+
   const pt = playingTime(rating, LEAGUES[input.league].baseline, input.meta, input.health);
-  return IS_PITCHER[input.position]
-    ? simulatePitcher(input, pt)
-    : simulateBatter(input, pt);
+  return asPitcher ? simulatePitcher(input, pt) : simulateBatter(input, pt);
+}
+
+/**
+ * A two-way player's two seasons. Each half is judged on its own rating — a
+ * great arm does not get you at-bats — and both run at a reduced workload,
+ * because the same body cannot carry a full rotation slot and an everyday
+ * lineup spot. That tax is the cost of the route.
+ */
+export const TWO_WAY_WORKLOAD = 0.72;
+
+export function simulateTwoWay(input: SeasonInput): {
+  batting: SeasonResult;
+  pitching: SeasonResult;
+} {
+  const { bat, pitch } = halfOveralls(input.attrs);
+  const baseline = LEAGUES[input.league].baseline;
+  const batPt = playingTime(bat, baseline, input.meta, input.health) * TWO_WAY_WORKLOAD;
+  const pitchPt = playingTime(pitch, baseline, input.meta, input.health) * TWO_WAY_WORKLOAD;
+  return {
+    batting: simulateBatter({ ...input, role: 'batter' }, batPt),
+    pitching: simulatePitcher({ ...input, role: 'pitcher' }, pitchPt),
+  };
 }
 
 /**
