@@ -65,6 +65,30 @@ export const TEAMS: Record<LeagueId, string[]> = {
   mlb: ['紐約帝國', '洛杉磯星光', '芝加哥鋼鐵', '西雅圖潮汐', '德州牛仔', '亞特蘭大雷鳥'],
 };
 
+/**
+ * What a solid regular earns in each league, in 萬元 (NT$10,000). Everything
+ * else — rookies, stars, bench players — scales off these.
+ */
+export const LEAGUE_PAY: Record<LeagueId, number> = {
+  hs: 0,
+  college: 0,
+  corp: 55,
+  cpbl: 320,
+  milb: 45,
+  npb: 2600,
+  mlb: 9000,
+};
+
+/** 萬元 → readable Chinese, rolling over into 億 past 10,000. */
+export function formatMoney(wan: number): string {
+  const value = Math.round(wan);
+  if (value <= 0) return '0 萬';
+  if (value < 10000) return `${value.toLocaleString('en-US')} 萬`;
+  const yi = Math.floor(value / 10000);
+  const rest = value % 10000;
+  return rest === 0 ? `${yi} 億` : `${yi} 億 ${rest.toLocaleString('en-US')} 萬`;
+}
+
 export interface Origin {
   id: string;
   label: string;

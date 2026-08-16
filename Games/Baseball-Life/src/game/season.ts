@@ -61,7 +61,10 @@ function playingTime(rating: number, baseline: number, meta: Meta, health: numbe
 function simulateBatter(input: SeasonInput, pt: number): SeasonResult {
   const { attrs, league, rng, clutch } = input;
   const info = LEAGUES[league];
-  const games = Math.round(info.games * pt);
+  // Playing time is a function of ability alone, so a player whose attributes
+  // have plateaued posted byte-identical game and at-bat counts year after
+  // year. Rest days, slumps and knocks make that variance real.
+  const games = Math.min(info.games, Math.round(info.games * pt * (0.9 + rng() * 0.2)));
   const ab = Math.max(0, Math.round(games * (league === 'hs' ? 3.1 : 3.7)));
 
   const contactScore = attrs.contact * 0.75 + attrs.eye * 0.25;
@@ -110,9 +113,10 @@ function simulatePitcher(input: SeasonInput, pt: number): SeasonResult {
   const info = LEAGUES[league];
   const starter = attrs.stamina >= 52;
 
+  const variance = 0.88 + rng() * 0.24;
   const games = starter
-    ? Math.round((info.games / 6.4) * pt)
-    : Math.round(info.games * 0.45 * pt);
+    ? Math.round((info.games / 6.4) * pt * variance)
+    : Math.round(info.games * 0.45 * pt * variance);
   const ip = starter
     ? Math.round(games * (4.1 + attrs.stamina * 0.028) * 10) / 10
     : Math.round(games * 1.05 * 10) / 10;

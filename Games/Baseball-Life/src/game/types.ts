@@ -119,7 +119,30 @@ export interface TurnReport {
   deltas: Partial<Attributes & Meta>;
   season: SeasonRecord | null;
   traitsUnlocked: string[];
+  milestones: Milestone[];
+  /** Money earned this turn, in 萬元; null outside a paid season. */
+  income: number | null;
   tone: LogEntry['tone'];
+}
+
+/** All money is in 萬元 (units of NT$10,000) to keep the numbers readable. */
+export interface Finance {
+  /** This season's salary. 0 while in high school or college. */
+  salary: number;
+  /** Everything earned so far: salary, signing bonus and endorsements. */
+  earnings: number;
+  /** Last season's endorsement income, shown alongside salary. */
+  endorsements: number;
+  /** Highest salary ever drawn, kept for the career summary. */
+  peakSalary: number;
+}
+
+export interface Milestone {
+  year: number;
+  age: number;
+  text: string;
+  /** Career totals crossing a round number vs. a one-off feat in a game. */
+  kind: 'career' | 'feat';
 }
 
 export interface Counters {
@@ -140,6 +163,9 @@ export interface Summary {
   hofScore: number;
   verdict: string;
   epitaph: string;
+  /** Career earnings in 萬元. */
+  earnings: number;
+  peakSalary: number;
   totals: {
     seasons: number;
     games: number;
@@ -175,6 +201,7 @@ export interface GameState {
 
   attrs: Attributes;
   meta: Meta;
+  finance: Finance;
   injury: Injury | null;
 
   /** Latent ceiling per attribute — training past it yields almost nothing. */
@@ -182,9 +209,12 @@ export interface GameState {
 
   history: SeasonRecord[];
   traits: string[];
+  milestones: Milestone[];
   counters: Counters;
   log: LogEntry[];
   choices: string[];
+  /** Event ids already shown, so the pool drains before anything repeats. */
+  seenEvents: string[];
 
   decision: Decision | null;
   report: TurnReport | null;

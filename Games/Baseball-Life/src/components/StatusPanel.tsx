@@ -4,6 +4,7 @@ import {
   LEAGUES,
   META_LABELS,
   attrsForPosition,
+  formatMoney,
   grade,
   gradeColor,
   overall,
@@ -107,6 +108,19 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
             })}
           </ul>
         </div>
+      )}
+
+      {(state.finance.salary > 0 || state.finance.earnings > 0) && (
+        <dl className="mt-3 flex items-baseline justify-between border-t border-slate-700/60 pt-3 text-[11px]">
+          <div>
+            <dt className="inline text-slate-500">年薪 </dt>
+            <dd className="inline font-mono text-emerald-300">{formatMoney(state.finance.salary)}</dd>
+          </div>
+          <div>
+            <dt className="inline text-slate-500">生涯收入 </dt>
+            <dd className="inline font-mono text-slate-300">{formatMoney(state.finance.earnings)}</dd>
+          </div>
+        </dl>
       )}
 
       <p className="mt-3 text-[11px] text-slate-500">

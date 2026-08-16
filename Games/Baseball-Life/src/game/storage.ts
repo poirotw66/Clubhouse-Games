@@ -26,11 +26,19 @@ export function loadGame(): GameState | null {
     const raw = window.localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as GameState;
-    // Guard against a save written by an older build of the game.
-    if (!parsed || typeof parsed.seedCode !== 'string' || !parsed.attrs || !Array.isArray(parsed.handled)) {
-      return null;
-    }
-    return parsed;
+    // Guard against a save written by an older build. Every field added since
+    // the first release is checked, because the engine reads them unguarded —
+    // a stale save missing `finance` would crash on the first turn instead of
+    // simply starting over.
+    const intact =
+      parsed &&
+      typeof parsed.seedCode === 'string' &&
+      !!parsed.attrs &&
+      !!parsed.finance &&
+      Array.isArray(parsed.handled) &&
+      Array.isArray(parsed.milestones) &&
+      Array.isArray(parsed.seenEvents);
+    return intact ? parsed : null;
   } catch {
     return null;
   }
