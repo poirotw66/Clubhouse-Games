@@ -42,7 +42,7 @@
         {
           "name": "撿紅點",
           "en": "Pick Red",
-          "desc": "湊十撿牌的台灣傳統紙牌：黑牌一分不值，只是拿來換紅牌的工具。",
+          "desc": "湊十撿牌的台灣傳統紙牌：黑牌一分不值，只是拿來換紅牌的工具。2～4 人。",
           "players": "1 人",
           "specPath": "01-cards/pick-red.md",
           "gameFolder": "Pick-Red"

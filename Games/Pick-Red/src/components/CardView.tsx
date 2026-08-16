@@ -9,6 +9,7 @@ interface Props {
   target?: boolean;
   landed?: boolean;
   dimmed?: boolean;
+  blackAces?: boolean;
   onClick?: () => void;
   label?: string;
 }
@@ -32,11 +33,12 @@ export function CardView({
   target,
   landed,
   dimmed,
+  blackAces = false,
   onClick,
   label,
 }: Props): React.ReactElement {
   const red = isRed(card);
-  const points = pointsOf(card);
+  const points = pointsOf(card, blackAces);
   const interactive = Boolean(onClick);
 
   const className = [

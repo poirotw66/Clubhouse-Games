@@ -26,22 +26,41 @@ export function isRed(card: Card): boolean {
 }
 
 /**
- * Red point value. Black cards score zero — they exist purely as tools for
- * capturing red ones, which is the whole shape of the game: half the deck is
- * currency with no value of its own.
+ * Red point value.
+ *
+ * The band is **9 and up**, not 10 and up: a red nine is worth ten, the same as
+ * a red king. That one card is the difference between a deck totalling 208 and
+ * one totalling 210, and 210 is why every account of this game quotes 105 as
+ * the line — it is exactly half. A 208-point deck would have no such number.
+ *
+ * Black cards score nothing (unless the black-ace variant is on). They exist
+ * purely as tools for capturing red ones, which is the shape of the game: half
+ * the deck is currency with no value of its own.
  */
-export function pointsOf(card: Card): number {
-  if (!isRed(card)) return 0;
+export function pointsOf(card: Card, blackAces = false): number {
+  if (!isRed(card)) {
+    if (!blackAces || card.rank !== 1) return 0;
+    return card.suit === 'clubs' ? 40 : 30;
+  }
   if (card.rank === 1) return 20;
-  if (card.rank >= 10) return 10;
+  if (card.rank >= 9) return 10;
   return card.rank;
 }
 
-/** 40 + 88 + 80. Asserted in the self-checks rather than trusted. */
-export const TOTAL_POINTS = 208;
+/** 40 + 100 + 70. Asserted in the self-checks rather than trusted. */
+export const TOTAL_POINTS = 210;
 
-/** Above this and the rest of the deck cannot catch you. */
-export const WINNING_POINTS = 105;
+/** 黑桃A 30 + 梅花A 40 on top, for the variant. */
+export const BLACK_ACE_POINTS = 70;
+
+/**
+ * The 標準分: an even share of the deck. Two players split 210 at 105, three at
+ * exactly 70. Beat it and you are 合格, fall short and you are not; the winner
+ * is whoever holds the most.
+ */
+export function parScore(players: number, blackAces = false): number {
+  return (TOTAL_POINTS + (blackAces ? BLACK_ACE_POINTS : 0)) / players;
+}
 
 /**
  * The 湊十 rule, and the one place a port of this game can quietly go wrong.
@@ -82,8 +101,8 @@ export function shuffle(cards: readonly Card[], r: () => number): Card[] {
   return out;
 }
 
-export function sumPoints(cards: readonly Card[]): number {
-  return cards.reduce((total, card) => total + pointsOf(card), 0);
+export function sumPoints(cards: readonly Card[], blackAces = false): number {
+  return cards.reduce((total, card) => total + pointsOf(card, blackAces), 0);
 }
 
 /** Every table card the given card could capture. */

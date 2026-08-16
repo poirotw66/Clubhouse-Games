@@ -11,7 +11,13 @@ export interface Card {
   rank: Rank;
 }
 
-export type Side = 'player' | 'cpu';
+/** Seat 0 is always the human; 1 and up are CPUs, in turn order. */
+export type Seat = number;
+
+export const HUMAN: Seat = 0;
+
+/** 2, 3 or 4. Hands always total 24 cards, so all three deals balance. */
+export type PlayerCount = 2 | 3 | 4;
 
 export type DifficultyId = 'easy' | 'normal' | 'hard';
 
@@ -19,42 +25,48 @@ export type DifficultyId = 'easy' | 'normal' | 'hard';
 export type CpuBrain = 'careless' | 'sharp';
 
 /**
- * A turn is two phases and the player only acts in the first. Keeping them as
- * explicit states rather than resolving both at once is what lets the UI show
- * the flip as a separate beat — otherwise the half of the game nobody controls
- * would be invisible.
+ * A turn is two halves and both can present a choice, because the real game
+ * lets whoever flipped a card decide which table card it takes — same as when
+ * they played one from hand.
  */
 export type Phase =
-  | 'player_play' // waiting for the player to choose a hand card
-  | 'player_pick' // that card matched several table cards; waiting for the choice
-  | 'flip' // a card has been flipped and is being resolved
-  | 'cpu_play'
+  | 'play' // the seat on turn must play a hand card
+  | 'pick_play' // that card matched several table cards
+  | 'flip' // the pile card is being revealed
+  | 'pick_flip' // the flipped card matched several table cards
   | 'over';
 
 export interface CaptureEvent {
-  by: Side;
+  by: Seat;
   /** The card that was played or flipped. */
   played: Card;
   /** The table card it took, or null when nothing matched. */
   taken: Card | null;
   source: 'hand' | 'pile';
   points: number;
-  /** The table as it stood before this card landed. What the CPU reasons from. */
+  /** The table as it stood before this card landed. */
   tableBefore: Card[];
+}
+
+export interface Rules {
+  players: PlayerCount;
+  /** 黑桃A 30 分、梅花A 40 分 — a common house rule, off by default. */
+  blackAces: boolean;
 }
 
 export interface GameState {
   seedCode: string;
+  rules: Rules;
   difficulty: DifficultyId;
-  /** Who played the first hand card. Moving second is worth about seven points. */
-  leader: Side;
+  /** Who played the first hand card. Playing later in the order is an edge. */
+  leader: Seat;
   phase: Phase;
-  turn: Side;
-  hands: Record<Side, Card[]>;
-  captured: Record<Side, Card[]>;
+  turn: Seat;
+  hands: Card[][];
+  captured: Card[][];
   table: Card[];
   pile: Card[];
-  /** Set while phase is 'player_pick': the card awaiting a capture choice. */
+  /** Set while a pick is outstanding: the card awaiting a capture choice. */
   pending: Card | null;
   log: CaptureEvent[];
   /** Cards highlighted by the last resolution, for the UI to animate. */
@@ -62,9 +74,13 @@ export interface GameState {
 }
 
 export interface Outcome {
-  playerPoints: number;
-  cpuPoints: number;
+  /** Points by seat. */
+  scores: number[];
+  /** An even share of the deck: 105 at two players, exactly 70 at three. */
+  par: number;
   /** Points on cards abandoned on the table — they belong to nobody. */
   wastedPoints: number;
+  /** Seats holding the highest score; more than one means a tie. */
+  winners: Seat[];
   result: 'win' | 'loss' | 'draw';
 }

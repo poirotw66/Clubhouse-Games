@@ -1,4 +1,4 @@
-import type { DifficultyId } from './types';
+import type { DifficultyId, PlayerCount } from './types';
 
 const KEY = 'pick-red:stats:v1';
 
@@ -10,6 +10,8 @@ export interface Stats {
   streak: number;
   bestStreak: number;
   lastDifficulty: DifficultyId;
+  lastPlayers: PlayerCount;
+  lastBlackAces: boolean;
 }
 
 export const EMPTY_STATS: Stats = {
@@ -20,6 +22,8 @@ export const EMPTY_STATS: Stats = {
   streak: 0,
   bestStreak: 0,
   lastDifficulty: 'normal',
+  lastPlayers: 2,
+  lastBlackAces: false,
 };
 
 const DIFFICULTIES = new Set<string>(['easy', 'normal', 'hard']);
@@ -48,6 +52,10 @@ export function loadStats(): Stats {
       lastDifficulty: DIFFICULTIES.has(parsed.lastDifficulty as string)
         ? (parsed.lastDifficulty as DifficultyId)
         : 'normal',
+      lastPlayers: ([2, 3, 4] as unknown[]).includes(parsed.lastPlayers)
+        ? (parsed.lastPlayers as PlayerCount)
+        : 2,
+      lastBlackAces: parsed.lastBlackAces === true,
     };
   } catch {
     return EMPTY_STATS;

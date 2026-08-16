@@ -1,34 +1,47 @@
-import { SUITS, buildDeck, capturableBy, pointsOf, shuffle, sumPoints } from './cards';
+import { SUITS, buildDeck, capturableBy, parScore, pointsOf, shuffle, sumPoints } from './cards';
 import { seedFromCode, streamRng } from './rng';
-import type { Card, CardId, DifficultyId, GameState, Outcome, Side } from './types';
-
-export const HAND_SIZE = 12;
-export const TABLE_SIZE = 4;
+import { HUMAN } from './types';
+import type { Card, CardId, DifficultyId, GameState, Outcome, Rules, Seat } from './types';
 
 /**
- * 12 + 12 + 4 + 24 = 52, and each player plays twelve cards while flipping one
- * each time, so the pile is consumed exactly. That the deal balances to the
- * card is not a coincidence to rely on silently — the self-checks assert it.
+ * The hands always total 24 cards however many are playing, which is what makes
+ * every deal balance: 24 in hands + 4 on the table + 24 in the pile = 52, and
+ * since every hand card is followed by one flip, the pile is consumed exactly.
  */
-export const PILE_SIZE = 52 - HAND_SIZE * 2 - TABLE_SIZE;
+export const DEALT_TOTAL = 24;
+export const TABLE_SIZE = 4;
+export const PILE_SIZE = 52 - DEALT_TOTAL - TABLE_SIZE;
 
-export function deal(seedCode: string, difficulty: DifficultyId, leader: Side = 'player'): GameState {
+export function handSize(players: number): number {
+  return DEALT_TOTAL / players;
+}
+
+export function deal(
+  seedCode: string,
+  difficulty: DifficultyId,
+  rules: Rules,
+  leader: Seat = HUMAN,
+): GameState {
   const r = streamRng(seedFromCode(seedCode), 'deal');
   const deck = shuffle(buildDeck(), r);
+  const size = handSize(rules.players);
+
+  const hands: Card[][] = [];
+  for (let seat = 0; seat < rules.players; seat++) {
+    hands.push(deck.slice(seat * size, (seat + 1) * size));
+  }
 
   return {
     seedCode,
+    rules,
     difficulty,
     leader,
-    phase: leader === 'player' ? 'player_play' : 'cpu_play',
+    phase: 'play',
     turn: leader,
-    hands: {
-      player: deck.slice(0, HAND_SIZE),
-      cpu: deck.slice(HAND_SIZE, HAND_SIZE * 2),
-    },
-    captured: { player: [], cpu: [] },
-    table: deck.slice(HAND_SIZE * 2, HAND_SIZE * 2 + TABLE_SIZE),
-    pile: deck.slice(HAND_SIZE * 2 + TABLE_SIZE),
+    hands,
+    captured: hands.map(() => []),
+    table: deck.slice(DEALT_TOTAL, DEALT_TOTAL + TABLE_SIZE),
+    pile: deck.slice(DEALT_TOTAL + TABLE_SIZE),
     pending: null,
     log: [],
     spotlight: [],
@@ -38,8 +51,8 @@ export function deal(seedCode: string, difficulty: DifficultyId, leader: Side = 
 function clone(state: GameState): GameState {
   return {
     ...state,
-    hands: { player: [...state.hands.player], cpu: [...state.hands.cpu] },
-    captured: { player: [...state.captured.player], cpu: [...state.captured.cpu] },
+    hands: state.hands.map((hand) => [...hand]),
+    captured: state.captured.map((pile) => [...pile]),
     table: [...state.table],
     pile: [...state.pile],
     log: [...state.log],
@@ -49,17 +62,16 @@ function clone(state: GameState): GameState {
 const SUIT_ORDER = new Map(SUITS.map((suit, index) => [suit, index]));
 
 /**
- * Which table card to take when several match and nobody is choosing — the
- * flip, and the easy CPU. Highest points first; the rank and suit tie-breaks
- * exist only so the result is reproducible from the seed rather than depending
- * on array order.
+ * The default capture when nobody is choosing. Highest points first; the rank
+ * and suit tie-breaks exist only so the result is reproducible from the seed
+ * rather than depending on array order.
  */
-export function bestCapture(card: Card, table: readonly Card[]): Card | null {
+export function bestCapture(card: Card, table: readonly Card[], blackAces = false): Card | null {
   const options = capturableBy(card, table);
   if (options.length === 0) return null;
   return [...options].sort(
     (a, b) =>
-      pointsOf(b) - pointsOf(a) ||
+      pointsOf(b, blackAces) - pointsOf(a, blackAces) ||
       b.rank - a.rank ||
       (SUIT_ORDER.get(a.suit) ?? 0) - (SUIT_ORDER.get(b.suit) ?? 0),
   )[0];
@@ -72,7 +84,7 @@ export function bestCapture(card: Card, table: readonly Card[]): Card | null {
  */
 function resolve(
   state: GameState,
-  side: Side,
+  seat: Seat,
   played: Card,
   taken: Card | null,
   source: 'hand' | 'pile',
@@ -81,127 +93,147 @@ function resolve(
 
   if (taken) {
     state.table = state.table.filter((card) => card.id !== taken.id);
-    state.captured[side].push(played, taken);
+    state.captured[seat].push(played, taken);
     state.spotlight = [played.id, taken.id];
   } else {
     state.table.push(played);
     state.spotlight = [played.id];
   }
+
   state.log.push({
-    by: side,
+    by: seat,
     played,
     taken,
     source,
-    points: pointsOf(played) + (taken ? pointsOf(taken) : 0),
+    points:
+      pointsOf(played, state.rules.blackAces) +
+      (taken ? pointsOf(taken, state.rules.blackAces) : 0),
     tableBefore,
   });
 }
 
 function isFinished(state: GameState): boolean {
-  return state.hands.player.length === 0 && state.hands.cpu.length === 0 && state.pile.length === 0;
+  return state.hands.every((hand) => hand.length === 0) && state.pile.length === 0;
 }
 
-/** After a flip, hand play passes to the other side. */
+/** After a flip, play passes to the next seat in order. */
 function advanceTurn(state: GameState): void {
   if (isFinished(state)) {
     state.phase = 'over';
-    state.turn = 'player';
     return;
   }
-  state.turn = state.turn === 'player' ? 'cpu' : 'player';
-  state.phase = state.turn === 'player' ? 'player_play' : 'cpu_play';
+  state.turn = (state.turn + 1) % state.rules.players;
+  state.phase = 'play';
 }
 
 /**
- * The player commits a hand card. When it matches more than one table card the
- * state parks in 'player_pick' instead of choosing for them — which of two
- * equal-ranked cards you take is a real decision, because the one you leave
- * behind stays available to the opponent.
+ * The seat on turn commits a hand card. When it matches more than one table
+ * card the state parks in 'pick_play' instead of choosing for them — which of
+ * two equal-ranked cards you take is a real decision, because the one you leave
+ * behind stays available to everyone else.
  */
 export function playCard(state: GameState, cardId: CardId): GameState {
-  if (state.phase !== 'player_play') return state;
-  const card = state.hands.player.find((c) => c.id === cardId);
+  if (state.phase !== 'play') return state;
+  const seat = state.turn;
+  const card = state.hands[seat].find((c) => c.id === cardId);
   if (!card) return state;
 
   const next = clone(state);
-  next.hands.player = next.hands.player.filter((c) => c.id !== cardId);
+  next.hands[seat] = next.hands[seat].filter((c) => c.id !== cardId);
 
   const options = capturableBy(card, next.table);
   if (options.length > 1) {
     next.pending = card;
-    next.phase = 'player_pick';
+    next.phase = 'pick_play';
     next.spotlight = options.map((c) => c.id);
     return next;
   }
 
-  resolve(next, 'player', card, options[0] ?? null, 'hand');
-  next.phase = 'flip';
-  return next;
-}
-
-/** Resolve a parked 'player_pick' against the chosen table card. */
-export function choosePick(state: GameState, tableCardId: CardId): GameState {
-  if (state.phase !== 'player_pick' || !state.pending) return state;
-  const taken = state.table.find((c) => c.id === tableCardId);
-  if (!taken || !capturableBy(state.pending, [taken]).length) return state;
-
-  const next = clone(state);
-  resolve(next, 'player', next.pending!, taken, 'hand');
-  next.pending = null;
+  resolve(next, seat, card, options[0] ?? null, 'hand');
   next.phase = 'flip';
   return next;
 }
 
 /**
- * The half of the turn nobody controls. Kept as its own step so the UI can show
- * it landing rather than folding it into the play and making the game look like
- * it captured two cards at once.
+ * Reveal the pile card. It parks in 'pick_flip' on a multi-way match for the
+ * same reason a hand card does: in the real game the person who turned the card
+ * over decides what it takes.
  */
 export function flip(state: GameState): GameState {
   if (state.phase !== 'flip') return state;
   const next = clone(state);
   const card = next.pile.shift();
 
-  if (card) {
-    resolve(next, next.turn, card, bestCapture(card, next.table), 'pile');
+  if (!card) {
+    advanceTurn(next);
+    return next;
   }
+
+  const options = capturableBy(card, next.table);
+  if (options.length > 1) {
+    next.pending = card;
+    next.phase = 'pick_flip';
+    next.spotlight = options.map((c) => c.id);
+    return next;
+  }
+
+  resolve(next, next.turn, card, options[0] ?? null, 'pile');
   advanceTurn(next);
   return next;
 }
 
-/** Apply a CPU hand card that some strategy already picked. */
-export function applyCpuPlay(state: GameState, card: Card, taken: Card | null): GameState {
+/** Resolve an outstanding pick against the chosen table card. */
+export function choosePick(state: GameState, tableCardId: CardId): GameState {
+  if (state.phase !== 'pick_play' && state.phase !== 'pick_flip') return state;
+  if (!state.pending) return state;
+
+  const taken = state.table.find((c) => c.id === tableCardId);
+  if (!taken || !capturableBy(state.pending, [taken]).length) return state;
+
+  const fromPile = state.phase === 'pick_flip';
   const next = clone(state);
-  next.hands.cpu = next.hands.cpu.filter((c) => c.id !== card.id);
-  resolve(next, 'cpu', card, taken, 'hand');
+  resolve(next, next.turn, next.pending!, taken, fromPile ? 'pile' : 'hand');
+  next.pending = null;
+
+  if (fromPile) advanceTurn(next);
+  else next.phase = 'flip';
+  return next;
+}
+
+/** Apply a hand card that some CPU strategy already picked. */
+export function applyPlay(state: GameState, card: Card, taken: Card | null): GameState {
+  const next = clone(state);
+  next.hands[next.turn] = next.hands[next.turn].filter((c) => c.id !== card.id);
+  resolve(next, next.turn, card, taken, 'hand');
   next.phase = 'flip';
   return next;
 }
 
-export function score(state: GameState, side: Side): number {
-  return sumPoints(state.captured[side]);
+export function score(state: GameState, seat: Seat): number {
+  return sumPoints(state.captured[seat], state.rules.blackAces);
 }
 
 export function outcome(state: GameState): Outcome {
-  const playerPoints = score(state, 'player');
-  const cpuPoints = score(state, 'cpu');
+  const scores = state.captured.map((pile) => sumPoints(pile, state.rules.blackAces));
+  const best = Math.max(...scores);
+  const winners = scores.flatMap((points, seat) => (points === best ? [seat] : []));
+
   return {
-    playerPoints,
-    cpuPoints,
-    // Cards abandoned on the table belong to nobody, so the two scores do not
-    // have to add up to 208 and both players can finish under the winning line.
-    wastedPoints: sumPoints(state.table),
-    result: playerPoints > cpuPoints ? 'win' : playerPoints < cpuPoints ? 'loss' : 'draw',
+    scores,
+    par: parScore(state.rules.players, state.rules.blackAces),
+    // Cards abandoned on the table belong to nobody, so the scores do not have
+    // to add up to the deck total.
+    wastedPoints: sumPoints(state.table, state.rules.blackAces),
+    winners,
+    result: !winners.includes(HUMAN) ? 'loss' : winners.length > 1 ? 'draw' : 'win',
   };
 }
 
 /** Every card in the game, wherever it currently sits. Used by the invariants. */
 export function allCards(state: GameState): Card[] {
   return [
-    ...state.hands.player,
-    ...state.hands.cpu,
-    ...state.captured.player,
-    ...state.captured.cpu,
+    ...state.hands.flat(),
+    ...state.captured.flat(),
     ...state.table,
     ...state.pile,
     ...(state.pending ? [state.pending] : []),

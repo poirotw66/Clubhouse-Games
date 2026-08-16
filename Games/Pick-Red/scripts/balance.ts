@@ -1,48 +1,66 @@
 import { capturableBy, pointsOf } from '../src/game/cards.js';
-import { deal, applyCpuPlay, choosePick, flip, playCard, outcome } from '../src/game/engine.js';
-import { DIFFICULTIES, chooseMove, difficultyInfo } from '../src/game/cpu.js';
-import type { CpuBrain, DifficultyId, GameState } from '../src/game/types.js';
+import { applyPlay, choosePick, deal, flip, outcome, playCard } from '../src/game/engine.js';
+import { DIFFICULTIES, chooseMove, difficultyInfo, leaderFor } from '../src/game/cpu.js';
+import { HUMAN } from '../src/game/types.js';
+import type { CpuBrain, DifficultyId, GameState, PlayerCount } from '../src/game/types.js';
 
-/** Run a CPU brain in the player's seat, so seat and brain can be varied apart. */
-function mirrored(s: GameState): GameState {
-  return { ...s, hands: { player: s.hands.cpu, cpu: s.hands.player },
-    captured: { player: s.captured.cpu, cpu: s.captured.player } };
-}
+/**
+ * Reproduces every measured number quoted in the README.
+ *
+ * The human seat is driven by a CPU brain so that seat and brain can be varied
+ * independently — the whole point being that the seat turns out to matter more.
+ */
+function run(seedCode: string, difficulty: DifficultyId, players: PlayerCount, humanBrain: CpuBrain) {
+  const cpuBrain = difficultyInfo(difficulty).brain;
+  let state = deal(seedCode, difficulty, { players, blackAces: false }, leaderFor(difficulty, players));
+  let guard = 0;
 
-function run(seedCode: string, difficulty: DifficultyId, humanBrain: CpuBrain) {
-  const info = difficultyInfo(difficulty);
-  let s = deal(seedCode, difficulty, info.leader);
-  let g = 0;
-  while (s.phase !== 'over' && g++ < 300) {
-    if (s.phase === 'flip') { s = flip(s); continue; }
-    if (s.phase === 'player_play' || s.phase === 'player_pick') {
-      const m = chooseMove(mirrored(s), humanBrain);
-      s = playCard(s, m.card.id);
-      if (s.phase === 'player_pick') {
-        const opts = capturableBy(s.pending!, s.table).sort((a, b) => pointsOf(b) - pointsOf(a));
-        s = choosePick(s, opts[0].id);
-      }
+  while (state.phase !== 'over' && guard++ < 400) {
+    if (state.phase === 'flip') {
+      state = flip(state);
       continue;
     }
-    const m = chooseMove(s, info.brain);
-    s = applyCpuPlay(s, m.card, m.taken);
+
+    if (state.phase === 'pick_play' || state.phase === 'pick_flip') {
+      const best = [...capturableBy(state.pending!, state.table)].sort(
+        (a, b) => pointsOf(b) - pointsOf(a),
+      )[0];
+      state = choosePick(state, best.id);
+      continue;
+    }
+
+    const brain = state.turn === HUMAN ? humanBrain : cpuBrain;
+    const move = chooseMove(state, brain);
+    state = state.turn === HUMAN ? playCard(state, move.card.id) : applyPlay(state, move.card, move.taken);
   }
-  return outcome(s);
+
+  return outcome(state);
 }
 
-const N = 1500;
-console.log('difficulty  seat    cpuBrain   playerAvg  cpuAvg  playerWin%  draw%');
-for (const d of DIFFICULTIES) {
-  for (const human of ['sharp'] as CpuBrain[]) {
-    let p = 0, c = 0, w = 0, dr = 0;
+const N = Number(process.env.N ?? 1500);
+
+console.log(`${N} deals per row. The human seat plays the sharp brain throughout.\n`);
+console.log('players  difficulty  seat  playerAvg  par     win%   合格%');
+
+for (const players of [2, 3, 4] as PlayerCount[]) {
+  for (const info of DIFFICULTIES) {
+    let points = 0;
+    let wins = 0;
+    let passes = 0;
+    let par = 0;
+
     for (let i = 0; i < N; i++) {
-      const o = run(`lad-${i}`, d.id, human);
-      p += o.playerPoints; c += o.cpuPoints;
-      if (o.result === 'win') w++; else if (o.result === 'draw') dr++;
+      const result = run(`lad-${i}`, info.id, players, 'sharp');
+      points += result.scores[HUMAN];
+      par = result.par;
+      if (result.result === 'win') wins++;
+      if (result.scores[HUMAN] > result.par) passes++;
     }
+
     console.log(
-      `${d.label.padEnd(12)}${(d.leader === 'cpu' ? '後手' : '先手').padEnd(8)}${d.brain.padEnd(11)}` +
-      `${(p/N).toFixed(1).padStart(9)}${(c/N).toFixed(1).padStart(8)}${((w/N)*100).toFixed(1).padStart(12)}${((dr/N)*100).toFixed(1).padStart(7)}`,
+      `${String(players).padEnd(9)}${info.label.padEnd(12)}${(info.humanLast ? '後' : '先').padEnd(6)}` +
+        `${(points / N).toFixed(1).padStart(9)}${String(par).padStart(7)}` +
+        `${((wins / N) * 100).toFixed(1).padStart(8)}${((passes / N) * 100).toFixed(1).padStart(8)}`,
     );
   }
 }

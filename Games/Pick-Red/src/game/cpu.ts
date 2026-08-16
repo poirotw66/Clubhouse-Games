@@ -1,7 +1,8 @@
-import { capturableBy, pointsOf } from './cards';
+import { pointsOf } from './cards';
 import { bestCapture } from './engine';
 import { seedFromCode, streamRng } from './rng';
-import type { Card, CpuBrain, DifficultyId, GameState, Side } from './types';
+import { HUMAN } from './types';
+import type { Card, CpuBrain, DifficultyId, GameState, Seat } from './types';
 
 export interface CpuMove {
   card: Card;
@@ -9,57 +10,47 @@ export interface CpuMove {
 }
 
 /**
- * Difficulty is **which seat you get**, not how clever the CPU is.
+ * Difficulty is **where you sit**, not how clever the CPU is.
  *
  * That is not the design this started with. Three brains were built — greedy,
- * greedy-plus-safe-discard, and a card counter that tracks which ranks the
+ * greedy-plus-safe-discard, and a card counter tracking which ranks each
  * opponent has proved it cannot take — and measured head to head over 800 deals
  * per pairing. The first step is worth about 3.5 points. **The second is worth
  * zero**: the counter finished at 100.8 where the plain one finished at 101.1,
  * and sweeping its one free parameter across 0–25 never moved it off that line.
  *
- * Meanwhile the seat is worth seven points. With identical brains the player who
- * moves *second* wins 55–58% of the time, because the first player has to commit
- * a card to a table the second player then gets to answer. That is a bigger
- * effect than every strategy difference put together, so it is what the
- * difficulty selector controls, with the discard quality riding along on the
- * easy end.
+ * Meanwhile the seat is worth seven points. With identical brains the seat that
+ * plays *later* wins 55–58% of the time, because playing earlier means
+ * committing a card to a table the later seats then get to answer. That is a
+ * bigger effect than every strategy difference put together, so it is what the
+ * difficulty selector controls, with discard quality riding along on the easy
+ * end.
  */
 export interface DifficultyInfo {
   id: DifficultyId;
   label: string;
   blurb: string;
   brain: CpuBrain;
-  /** Who plays the first hand card. Moving second is the better seat. */
-  leader: Side;
+  /** true seats the human last in the order — the better seat. */
+  humanLast: boolean;
 }
 
 export const DIFFICULTIES: DifficultyInfo[] = [
-  {
-    id: 'easy',
-    label: '簡單',
-    blurb: '你後手，而且對手沒得撿時亂丟。',
-    brain: 'careless',
-    leader: 'cpu',
-  },
-  {
-    id: 'normal',
-    label: '普通',
-    blurb: '你後手，但對手不會白送紅牌。',
-    brain: 'sharp',
-    leader: 'cpu',
-  },
-  {
-    id: 'hard',
-    label: '困難',
-    blurb: '換你先手——每一張都要先攤給對手看。',
-    brain: 'sharp',
-    leader: 'player',
-  },
+  { id: 'easy', label: '簡單', blurb: '你最後出牌，對手沒得撿時亂丟。', brain: 'careless', humanLast: true },
+  { id: 'normal', label: '普通', blurb: '你最後出牌，但對手不會白送紅牌。', brain: 'sharp', humanLast: true },
+  { id: 'hard', label: '困難', blurb: '換你先出——每一張都要先攤給別人看。', brain: 'sharp', humanLast: false },
 ];
 
 export function difficultyInfo(id: DifficultyId): DifficultyInfo {
   return DIFFICULTIES.find((d) => d.id === id) ?? DIFFICULTIES[1];
+}
+
+/**
+ * Who plays first. Seating the human last means every other seat commits before
+ * they do; seating them first means the reverse.
+ */
+export function leaderFor(id: DifficultyId, players: number): Seat {
+  return difficultyInfo(id).humanLast ? (HUMAN + 1) % players : HUMAN;
 }
 
 /**
@@ -68,16 +59,19 @@ export function difficultyInfo(id: DifficultyId): DifficultyInfo {
  * brains actually differ.
  */
 function chooseDiscard(state: GameState, brain: CpuBrain): Card {
-  const hand = state.hands.cpu;
+  const hand = state.hands[state.turn];
 
   if (brain === 'careless') {
-    const r = streamRng(seedFromCode(state.seedCode), `cpu-discard:${state.log.length}`);
+    const r = streamRng(seedFromCode(state.seedCode), `discard:${state.turn}:${state.log.length}`);
     return hand[Math.floor(r() * hand.length)];
   }
 
   // Never hand over a red card while a black one will do. Everything more
   // elaborate than this measured the same or worse.
-  return [...hand].sort((a, b) => pointsOf(a) - pointsOf(b) || a.rank - b.rank)[0];
+  return [...hand].sort(
+    (a, b) =>
+      pointsOf(a, state.rules.blackAces) - pointsOf(b, state.rules.blackAces) || a.rank - b.rank,
+  )[0];
 }
 
 /**
@@ -89,18 +83,21 @@ function chooseDiscard(state: GameState, brain: CpuBrain): Card {
  * behind, and swept over both its weights across 400 deals per cell. **Every
  * combination played worse than plain greedy**, by 8 to 20 points, and the trend
  * ran monotonically toward "never decline" — which is the sweep answering the
- * question. Declining only pays when your model of the opponent's hand is good,
- * and with two dozen cards unseen it is not.
+ * question. Declining only pays when your model of the other hands is good, and
+ * with two dozen cards unseen it is not.
  */
 export function chooseMove(state: GameState, brain: CpuBrain): CpuMove {
-  const capturing = state.hands.cpu
-    .map((card) => ({ card, taken: bestCapture(card, state.table) }))
+  const blackAces = state.rules.blackAces;
+  const capturing = state.hands[state.turn]
+    .map((card) => ({ card, taken: bestCapture(card, state.table, blackAces) }))
     .filter((move): move is CpuMove => move.taken !== null);
 
   if (capturing.length > 0) {
     return [...capturing].sort(
       (a, b) =>
-        pointsOf(b.taken!) + pointsOf(b.card) - (pointsOf(a.taken!) + pointsOf(a.card)) ||
+        pointsOf(b.taken!, blackAces) +
+        pointsOf(b.card, blackAces) -
+        (pointsOf(a.taken!, blackAces) + pointsOf(a.card, blackAces)) ||
         b.taken!.rank - a.taken!.rank,
     )[0];
   }
@@ -111,9 +108,4 @@ export function chooseMove(state: GameState, brain: CpuBrain): CpuMove {
 /** Convenience for callers that only hold a difficulty. */
 export function chooseMoveFor(state: GameState): CpuMove {
   return chooseMove(state, difficultyInfo(state.difficulty).brain);
-}
-
-/** Exposed so the UI can explain why a hand card is or is not playable. */
-export function capturesFor(card: Card, table: readonly Card[]): Card[] {
-  return capturableBy(card, table);
 }
