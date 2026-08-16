@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #123a2e 0%, transparent 60%),
+    #06120e;
+  color: #e2e8f0;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* The infield-dirt accent used for headings and primary actions. */
+.dy-accent {
+  color: #fbbf24;
+}
+
+.dy-card {
+  background: rgba(13, 32, 26, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+}
+
+.dy-choice {
+  background: rgba(17, 40, 33, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+  transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+}
+
+.dy-choice:not(:disabled):hover,
+.dy-choice:not(:disabled):focus-visible {
+  border-color: rgba(52, 211, 153, 0.75);
+  background: rgba(24, 56, 45, 0.95);
+  transform: translateY(-1px);
+}
+
+.dy-choice:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* The die rolls in briefly so the result lands rather than just appearing. */
+@keyframes dy-roll {
+  0% { transform: rotate(-28deg) scale(0.7); opacity: 0; }
+  60% { transform: rotate(8deg) scale(1.08); opacity: 1; }
+  100% { transform: rotate(0deg) scale(1); opacity: 1; }
+}
+
+.dy-die {
+  animation: dy-roll 380ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dy-die { animation: none; }
+  .dy-choice:not(:disabled):hover { transform: none; }
+}
+
+/* Scrollable career table on narrow screens without moving the page itself. */
+.dy-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

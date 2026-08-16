@@ -153,6 +153,14 @@
           "players": "1 人",
           "specPath": "04-sports-arcade/baseball-life.md",
           "gameFolder": "Baseball-Life"
+        },
+        {
+          "name": "球團王朝",
+          "en": "Dynasty",
+          "desc": "中職球團經營：十年任期內與董事會協商期望、靠模糊的球探報告下注選秀，在薪資帽與球迷熱度之間建立王朝。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/dynasty.md",
+          "gameFolder": "Dynasty"
         }
       ]
     },
