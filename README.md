@@ -36,7 +36,7 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 <!-- GENERATED_TABLE -->
 | 類別 | 資料夾 | 遊戲數 |
 |------|--------|--------|
-| 紙牌類型 | [01-cards/](01-cards/) | 5 |
+| 紙牌類型 | [01-cards/](01-cards/) | 6 |
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 8 |
@@ -53,6 +53,7 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 - [x] [克朗代克接龍](01-cards/klondike.md) → [Games/Klondike/](Games/Klondike/)
 - [x] [花牌 Koi-Koi](01-cards/koi-koi.md) → [Games/Koi-Koi/](Games/Koi-Koi/)
 - [x] [撿紅點](01-cards/pick-red.md) → [Games/Pick-Red/](Games/Pick-Red/)
+- [x] [大老二](01-cards/big-two.md) → [Games/Big-Two/](Games/Big-Two/)
 
 ## 02-棋盤遊戲
 - [x] [黑白棋](02-board/reversi.md) → [Games/Reversi/](Games/Reversi/)

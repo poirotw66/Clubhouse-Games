@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+  background:
+    radial-gradient(1100px 520px at 50% -10%, #1b2450 0%, transparent 62%),
+    #0b0f1f;
+  color: #e6eaf5;
+  overscroll-behavior: none;
+}
+
+.bt-felt {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(129, 140, 248, 0.10) 0%, transparent 70%),
+    rgba(10, 16, 38, 0.7);
+  border: 1px solid rgba(129, 140, 248, 0.18);
+}
+
+.bt-card {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+/* Selected cards lift out of the fan, so a five-card selection reads as one
+   group rather than five separate taps. */
+.bt-card-selected {
+  transform: translateY(-12px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* The hand overlaps so thirteen cards fit a phone; each card still gets a
+   44px-tall tap target because the overlap is horizontal only. */
+.bt-hand > * + * {
+  margin-left: -0.85rem;
+}
+
+@media (min-width: 640px) {
+  .bt-hand > * + * {
+    margin-left: -0.35rem;
+  }
+}
+
+.bt-played {
+  animation: bt-land 260ms ease-out;
+}
+
+@keyframes bt-land {
+  from { transform: translateY(-14px) scale(0.92); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-card,
+  .bt-played {
+    animation: none;
+    transition: none;
+  }
+}

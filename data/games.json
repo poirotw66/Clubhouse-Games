@@ -46,6 +46,14 @@
           "players": "1 人",
           "specPath": "01-cards/pick-red.md",
           "gameFolder": "Pick-Red"
+        },
+        {
+          "name": "大老二",
+          "en": "Big Two",
+          "desc": "2 最大、3 最小的四人出牌競速：張數要跟檯面一樣，所以領出權才是真正的資源。",
+          "players": "1 人",
+          "specPath": "01-cards/big-two.md",
+          "gameFolder": "Big-Two"
         }
       ]
     },
