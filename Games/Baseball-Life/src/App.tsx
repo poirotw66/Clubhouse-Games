@@ -37,6 +37,11 @@ export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('title');
   const [seedCode, setSeedCode] = useState(seedFromUrl);
   const [state, setState] = useState<GameState | null>(null);
+  // Undo stack. This is safe rather than a re-roll: `rng()` in the engine seeds
+  // every random draw on (purpose, turnIndex, choices.length), so stepping back
+  // and picking the *same* option reproduces the identical outcome. It undoes a
+  // misclick, not a bad roll.
+  const [history, setHistory] = useState<GameState[]>([]);
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
   const [achievements, setAchievements] = useState<AchievementProgress>(() => loadAchievements());
@@ -80,6 +85,7 @@ export default function App(): React.ReactElement {
   const handleCreate = useCallback(
     (input: { name: string; position: Position; originId: string }) => {
       setState(createGame({ seedCode, ...input }));
+      setHistory([]);
       setScreen('play');
     },
     [seedCode],
@@ -87,10 +93,23 @@ export default function App(): React.ReactElement {
 
   const handleChoose = useCallback(
     (optionId: string) => {
-      if (state) setState(resolve(state, optionId));
+      if (!state) return;
+      // Twenty steps is well over a high-school year of turns — enough to walk
+      // back a mistake, bounded so a full career does not hold forty-plus
+      // complete game states.
+      setHistory((prev) => [...prev.slice(-19), state]);
+      setState(resolve(state, optionId));
     },
     [state],
   );
+
+  const handleUndo = useCallback(() => {
+    setHistory((prev) => {
+      if (prev.length === 0) return prev;
+      setState(prev[prev.length - 1]);
+      return prev.slice(0, -1);
+    });
+  }, []);
 
   // Deliberately not a functional setState: archiving and screen changes are
   // side effects, and StrictMode runs updaters twice, which would file the
@@ -110,6 +129,7 @@ export default function App(): React.ReactElement {
     clearGame();
     setSaved(null);
     setState(null);
+    setHistory([]);
     setSeedCode(randomSeedCode());
     setScreen('title');
   }, []);
@@ -130,6 +150,7 @@ export default function App(): React.ReactElement {
           onContinue={() => {
             if (!saved) return;
             setState(saved);
+            setHistory([]);
             setSeedCode(saved.seedCode);
             setScreen('play');
           }}
@@ -145,6 +166,8 @@ export default function App(): React.ReactElement {
           state={state}
           onChoose={handleChoose}
           onAcknowledge={handleAcknowledge}
+          onUndo={handleUndo}
+          canUndo={history.length > 0}
           onQuit={backToTitle}
         />
       )}

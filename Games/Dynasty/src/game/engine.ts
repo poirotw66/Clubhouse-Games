@@ -10,6 +10,7 @@ import {
 } from './config';
 import { applyTrust, defaultExpectation, negotiable, review, shouldFire } from './board';
 import { pickEvent } from './events';
+import { buildContext, pickSituation, situationById } from './situations';
 import { nextHeat, settle } from './finance';
 import { ability, agePlayer, generatePlayer, marketSalary, resetIds, tradeValue } from './players';
 import { pick, randInt, seedFromCode, streamRng } from './rng';
@@ -138,6 +139,8 @@ export function createGame(input: CreateInput): GameState {
     log: [],
     decisions: [],
     seenEvents: [],
+    seenSituations: [],
+    blockSituation: null,
     decision: null,
     report: null,
     over: false,
@@ -241,31 +244,29 @@ function buildDecision(state: GameState): Decision {
       };
 
     case 'block': {
-      const best = farm(team).sort((a, b) => ability(b) - ability(a))[0];
-      const options: Option[] = [
-        { id: 'blk-hold', label: '維持現狀', hint: '不做調整，把陣容交給教練團。' },
-        {
-          id: 'blk-promote',
-          label: best ? `把 ${best.name} 升上一軍` : '升上新秀',
-          hint: best
-            ? `二軍最好的一位（能力 ${Math.round(ability(best))}）。年輕球員上一軍會拖慢成長。`
-            : '二軍沒有可升的人。',
-          disabled: !best,
-          disabledReason: '二軍沒有球員',
-        },
-        { id: 'blk-rest', label: '輪休主力', hint: '這個區塊戰力略降，換來士氣與健康。' },
-        {
-          id: 'blk-market',
-          label: '加碼行銷',
-          hint: `花 400 萬換球迷熱度 +5。目前熱度 ${state.heat}。`,
-          cost: 400,
-        },
-      ];
+      // Every block is a situation drawn from the club's actual state rather
+      // than the same four-option menu forty times a tenure. Seeded on year and
+      // block only — not on `decisions.length`, which differs between building
+      // the decision and resolving it.
+      const ctx = buildContext(state, team, finishOf(state.teams, state.teamId), BLOCKS - state.block - 1);
+      const situation = pickSituation(
+        ctx,
+        state.seenSituations,
+        streamRng(state.seed, `situation:${state.year}:${state.block}`),
+      );
+      state.blockSituation = situation.id;
+      const built = situation.build(ctx);
+
       return {
         phase: 'block',
         title: `${state.year} 年 例行賽 第 ${state.block + 1}/${BLOCKS} 段`,
-        prompt: `目前戰績 ${team.wins} 勝 ${team.losses} 敗，聯盟第 ${finishOf(state.teams, state.teamId)}。`,
-        options,
+        prompt: `${team.wins} 勝 ${team.losses} 敗，聯盟第 ${ctx.standing}。${built.prompt}`,
+        options: built.options.map((option) => ({
+          id: option.id,
+          label: option.label,
+          hint: option.hint,
+          cost: option.effects.cash && option.effects.cash < 0 ? -option.effects.cash : undefined,
+        })),
       };
     }
 
@@ -465,23 +466,48 @@ function resolveBlock(state: GameState, optionId: string, report: Report): void 
   const team = humanTeam(state);
   let blockBonus = 0;
 
-  if (optionId === 'blk-promote') {
-    const best = farm(team).sort((a, b) => ability(b) - ability(a))[0];
-    if (best) {
-      best.level = 'major';
-      // Rushing a young player costs development, exactly as the spec warns.
-      if (best.age <= 21) state.farmBoost *= 0.5;
-      rebalance(team);
-      report.lines.push(`${best.name} 升上一軍。${best.age <= 21 ? '他還太年輕，這一年的成長會被拖慢。' : ''}`);
+  const situation = state.blockSituation ? situationById(state.blockSituation) : undefined;
+  if (situation) {
+    if (!state.seenSituations.includes(situation.id)) state.seenSituations.push(situation.id);
+
+    // Rebuild with the same context the decision was built from; the situation
+    // rng is keyed on year and block, so this reproduces exactly.
+    const ctx = buildContext(state, team, finishOf(state.teams, state.teamId), BLOCKS - state.block - 1);
+    const chosen = situation.build(ctx).options.find((o) => o.id === optionId);
+
+    if (chosen) {
+      const fx = chosen.effects;
+      if (fx.cash) state.finance.cash += fx.cash;
+      if (fx.heat) state.heat = clamp(state.heat + fx.heat, 0, 100);
+      if (fx.trust) applyTrust(state, fx.trust);
+      if (fx.morale) state.morale = clamp(state.morale + fx.morale, -6, 6);
+      if (fx.farmLevel) state.farmLevel = clamp(state.farmLevel + fx.farmLevel, 1, 5);
+      if (fx.farmBoost) state.farmBoost *= fx.farmBoost;
+      if (fx.blockBonus) blockBonus += fx.blockBonus;
+
+      if (chosen.playerEffect === 'promote' && ctx.prospect) {
+        const player = team.players.find((p) => p.id === ctx.prospect!.id);
+        if (player) {
+          player.level = 'major';
+          if (player.age <= 21) state.farmBoost *= 0.5;
+          rebalance(team);
+        }
+      } else if (chosen.playerEffect === 'injure-star' && ctx.star) {
+        // The gamble the option advertised: a real chance of losing him.
+        const roll = streamRng(state.seed, `gamble:${state.year}:${state.block}`)();
+        const player = team.players.find((p) => p.id === ctx.star!.id);
+        if (player && roll < 0.4) {
+          player.injuredSeasons = Math.max(player.injuredSeasons, 1);
+          rebalance(team);
+          report.lines.push(`${player.name} 的手肘撐不住了，本季報銷。`);
+          report.tone = 'bad';
+        } else {
+          report.lines.push('他撐過去了，這一次。');
+        }
+      }
+
+      report.lines.push(chosen.outcome);
     }
-  } else if (optionId === 'blk-rest') {
-    blockBonus = -1;
-    state.morale = clamp(state.morale + 2, -6, 6);
-    report.lines.push('主力輪休，這一段戰力略降，但休息室的氣氛好了不少。');
-  } else if (optionId === 'blk-market') {
-    state.finance.cash -= 400;
-    state.heat = clamp(state.heat + 5, 0, 100);
-    report.lines.push('加碼行銷，球迷熱度上升。');
   }
 
   playBlock({

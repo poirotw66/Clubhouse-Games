@@ -26,6 +26,11 @@ export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('title');
   const [seedCode, setSeedCode] = useState(seedFromUrl);
   const [state, setState] = useState<GameState | null>(null);
+  // Undo stack. This is safe rather than a re-roll: the engine seeds every
+  // random draw on (purpose, year, phase, block, decisions.length), so stepping
+  // back and picking the *same* option reproduces the identical outcome. It
+  // undoes a misclick, not a bad roll.
+  const [history, setHistory] = useState<GameState[]>([]);
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
 
@@ -59,10 +64,22 @@ export default function App(): React.ReactElement {
 
   const handleChoose = useCallback(
     (optionId: string) => {
-      if (state) setState(resolve(state, optionId));
+      if (!state) return;
+      // Twenty steps is a season and a half — enough to walk back a mistake,
+      // bounded so a ten-year tenure does not hold forty full league states.
+      setHistory((prev) => [...prev.slice(-19), state]);
+      setState(resolve(state, optionId));
     },
     [state],
   );
+
+  const handleUndo = useCallback(() => {
+    setHistory((prev) => {
+      if (prev.length === 0) return prev;
+      setState(prev[prev.length - 1]);
+      return prev.slice(0, -1);
+    });
+  }, []);
 
   // Not a functional setState: archiving and screen changes are side effects,
   // and StrictMode runs updaters twice.
@@ -80,6 +97,7 @@ export default function App(): React.ReactElement {
     clearGame();
     setSaved(null);
     setState(null);
+    setHistory([]);
     setSeedCode(randomSeedCode());
     setScreen('title');
   }, []);
@@ -95,11 +113,13 @@ export default function App(): React.ReactElement {
           onStart={(code, gmName, teamId) => {
             setSeedCode(code);
             setState(createGame({ seedCode: code, gmName, teamId }));
+            setHistory([]);
             setScreen('play');
           }}
           onContinue={() => {
             if (!saved) return;
             setState(saved);
+            setHistory([]);
             setSeedCode(saved.seedCode);
             setScreen('play');
           }}
@@ -111,6 +131,8 @@ export default function App(): React.ReactElement {
           state={state}
           onChoose={handleChoose}
           onAcknowledge={handleAcknowledge}
+          onUndo={handleUndo}
+          canUndo={history.length > 0}
           onQuit={backToTitle}
         />
       )}
