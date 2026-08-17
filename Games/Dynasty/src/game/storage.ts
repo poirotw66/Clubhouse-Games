@@ -35,6 +35,7 @@ export function loadGame(): GameState | null {
       Array.isArray(parsed.history) &&
       Array.isArray(parsed.ledgers) &&
       Array.isArray(parsed.seenEvents) &&
+      Array.isArray(parsed.seenSituations) &&
       !!parsed.board &&
       !!parsed.finance;
     return intact ? parsed : null;

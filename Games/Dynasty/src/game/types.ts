@@ -178,6 +178,10 @@ export interface GameState {
   log: LogEntry[];
   decisions: string[];
   seenEvents: string[];
+  /** Regular-season situations already shown, so a tenure does not repeat one. */
+  seenSituations: string[];
+  /** Which situation the current block decision was built from. */
+  blockSituation: string | null;
 
   decision: Decision | null;
   report: Report | null;

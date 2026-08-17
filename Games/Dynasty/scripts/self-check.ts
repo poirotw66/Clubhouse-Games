@@ -7,6 +7,7 @@ import { priceElasticity } from '../src/game/finance.js';
 import { scoutBand, bandWidthFor } from '../src/game/scouting.js';
 import { negotiable } from '../src/game/board.js';
 import { createRng } from '../src/game/rng.js';
+import { SITUATIONS, buildContext, pickSituation } from '../src/game/situations.js';
 import type { Decision, GameState } from '../src/game/types.js';
 
 const GUARD = 400;
@@ -221,6 +222,138 @@ function expectMoneyFormatting(): void {
   assert.ok(formatMoney(-2500).startsWith('−'), 'a deficit must read as negative');
 }
 
+
+/**
+ * The rule that fixed the regular season: **no option is free.**
+ *
+ * The first version put the same four choices in front of the player forty
+ * times a tenure, and one of them was literally "維持現狀：不做調整". A decision
+ * whose safe answer is "do nothing", asked forty times, is a next button in a
+ * costume. Every option now has to move at least one number, and this check is
+ * what keeps that true as situations get added.
+ */
+function expectNoFreeOptions(): void {
+  assert.ok(SITUATIONS.length >= 25, `only ${SITUATIONS.length} situations; a tenure has 40 blocks`);
+  assert.equal(
+    new Set(SITUATIONS.map((s) => s.id)).size,
+    SITUATIONS.length,
+    'two situations share an id',
+  );
+
+  const state = createGame({ seedCode: 'sit00001', gmName: '測試', teamId: 'dolphins' });
+  const team = state.teams.find((t) => t.id === state.teamId)!;
+
+  for (const standing of [1, 3, 6]) {
+    for (const blocksLeft of [3, 0]) {
+      const ctx = buildContext(state, team, standing, blocksLeft);
+      for (const situation of SITUATIONS) {
+        const built = situation.build(ctx);
+        assert.ok(built.prompt.length > 10, `${situation.id}: prompt is too thin`);
+        assert.ok(built.options.length >= 2, `${situation.id}: needs at least two options`);
+        assert.equal(
+          new Set(built.options.map((o) => o.id)).size,
+          built.options.length,
+          `${situation.id}: duplicate option ids`,
+        );
+
+        for (const option of built.options) {
+          const fx = option.effects;
+          const moves =
+            (fx.cash ?? 0) !== 0 ||
+            (fx.heat ?? 0) !== 0 ||
+            (fx.trust ?? 0) !== 0 ||
+            (fx.morale ?? 0) !== 0 ||
+            (fx.farmLevel ?? 0) !== 0 ||
+            (fx.blockBonus ?? 0) !== 0 ||
+            (fx.farmBoost ?? 1) !== 1 ||
+            option.playerEffect !== undefined;
+          assert.ok(moves, `${situation.id}/${option.id} changes nothing — a free "do nothing"`);
+          assert.ok(option.outcome.length > 4, `${situation.id}/${option.id}: no outcome line`);
+        }
+
+        // At least one option has to hurt somewhere, or it is not a trade-off.
+        const hasDownside = built.options.some((o) => {
+          const fx = o.effects;
+          return (
+            (fx.cash ?? 0) < 0 ||
+            (fx.heat ?? 0) < 0 ||
+            (fx.trust ?? 0) < 0 ||
+            (fx.morale ?? 0) < 0 ||
+            (fx.blockBonus ?? 0) < 0 ||
+            (fx.farmBoost ?? 1) < 1
+          );
+        });
+        assert.ok(hasDownside, `${situation.id}: every option is upside only`);
+      }
+    }
+  }
+}
+
+/** A ten-year run has to actually show variety rather than one situation. */
+function expectSituationVariety(): void {
+  const state = playTenure('var00001', 'dolphins', cyclingChoice);
+  assert.ok(
+    state.seenSituations.length >= 18,
+    `a tenure only showed ${state.seenSituations.length} distinct situations`,
+  );
+  assert.equal(
+    new Set(state.seenSituations).size,
+    state.seenSituations.length,
+    'a situation was recorded twice as seen',
+  );
+
+  // Unseen-first has to hold: no repeat until the eligible pool is exhausted.
+  const fresh = createGame({ seedCode: 'var00002', gmName: '測試', teamId: 'dolphins' });
+  const team = fresh.teams.find((t) => t.id === fresh.teamId)!;
+  const ctx = buildContext(fresh, team, 3, 2);
+  // Pick the target from the situations that are actually eligible in this
+  // context — a conditional one that does not apply is not a candidate at all.
+  const eligible = SITUATIONS.filter((s) => !s.condition || s.condition(ctx));
+  assert.ok(eligible.length > 1, 'not enough situations are eligible on a fresh league');
+  const target = eligible[eligible.length - 1];
+  const seen = SITUATIONS.filter((s) => s.id !== target.id).map((s) => s.id);
+  assert.equal(
+    pickSituation(ctx, seen, createRng(5)).id,
+    target.id,
+    'pickSituation did not prefer the one unseen situation',
+  );
+}
+
+/**
+ * The property that makes undo honest.
+ *
+ * Randomness is seeded on (purpose, year, phase, block, decisions.length), so
+ * stepping back and choosing the *same* option has to land on the identical
+ * state. Otherwise undo would be a re-roll and every bad outcome could be
+ * shopped away.
+ */
+function expectUndoIsNotAReroll(): void {
+  let state = createGame({ seedCode: 'undo0001', gmName: '測試', teamId: 'dolphins' });
+
+  for (let step = 0; step < 24; step++) {
+    if (state.over || !state.decision || state.decision.options.length === 0) break;
+    const optionId = enabled(state.decision)[0];
+
+    const once = resolve(state, optionId);
+    const twice = resolve(state, optionId);
+    assert.equal(twice.finance.cash, once.finance.cash, `step ${step}: cash differed on replay`);
+    assert.equal(twice.heat, once.heat, `step ${step}: heat differed on replay`);
+    assert.equal(twice.morale, once.morale, `step ${step}: morale differed on replay`);
+    assert.deepEqual(
+      twice.report?.lines,
+      once.report?.lines,
+      `step ${step}: the report differed on replay`,
+    );
+    assert.deepEqual(
+      twice.teams.map((t) => `${t.wins}-${t.losses}`),
+      once.teams.map((t) => `${t.wins}-${t.losses}`),
+      `step ${step}: standings differed on replay`,
+    );
+
+    state = acknowledge(once);
+  }
+}
+
 const checks: [string, () => void][] = [
   ['deterministic tenures', expectDeterministicTenures],
   ['seeds and choices matter', expectSeedsAndChoicesMatter],
@@ -235,6 +368,9 @@ const checks: [string, () => void][] = [
   ['negotiation costs trust', expectNegotiationCosts],
   ['overall matches 棒球人生', expectOverallMatchesBaseballLife],
   ['money formatting', expectMoneyFormatting],
+  ['no free options', expectNoFreeOptions],
+  ['situation variety', expectSituationVariety],
+  ['undo is not a re-roll', expectUndoIsNotAReroll],
 ];
 
 let failed = 0;

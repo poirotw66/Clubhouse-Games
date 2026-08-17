@@ -53,15 +53,29 @@ interface Props {
   state: GameState;
   onChoose: (optionId: string) => void;
   onAcknowledge: () => void;
+  onUndo: () => void;
+  canUndo: boolean;
   onQuit: () => void;
 }
 
-export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): React.ReactElement {
+export function PlayScreen({
+  state,
+  onChoose,
+  onAcknowledge,
+  onUndo,
+  canUndo,
+  onQuit,
+}: Props): React.ReactElement {
   const [showRoster, setShowRoster] = useState(false);
   const { report, decision } = state;
   const team = humanTeam(state);
 
-  const pickable = report ? [] : (decision?.options ?? []).filter((o) => !o.disabled);
+  // The report is the outcome of the last choice and sits *above* the next
+  // decision rather than in front of it. It used to be a separate screen with a
+  // 繼續 button, which cost 99 dismissal clicks in a ten-year tenure — half of
+  // all the clicking in the game was closing a box.
+  const ended = state.over;
+  const pickable = ended ? [] : (decision?.options ?? []).filter((o) => !o.disabled);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -73,7 +87,12 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
         setShowRoster((v) => !v);
         return;
       }
-      if (report) {
+      if (event.key === 'Backspace' && canUndo) {
+        event.preventDefault();
+        onUndo();
+        return;
+      }
+      if (ended) {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onAcknowledge();
@@ -88,7 +107,7 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [report, pickable, onChoose, onAcknowledge]);
+  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-14">
@@ -114,7 +133,7 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
         <Dashboard state={state} />
 
         <div className="flex flex-col gap-4">
-          {report ? (
+          {report && (
             <section
               className="dy-card p-4"
               style={{ borderColor: TONE_RING[report.tone] }}
@@ -153,17 +172,18 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
 
               {report.ledger && <Ledger ledger={report.ledger} />}
 
-              <TouchButton
-                label={state.over ? '看任期總結' : '繼續'}
-                ariaLabel={state.over ? '看任期總結' : '繼續下一個階段'}
-                onClick={onAcknowledge}
-                className="mt-4 w-full rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
-              />
-              <p className="mt-2 hidden text-center text-[10px] text-slate-500 sm:block">
-                按 Enter 或空白鍵繼續・按 R 開關名單
-              </p>
+              {ended && (
+                <TouchButton
+                  label="看任期總結"
+                  ariaLabel="看任期總結"
+                  onClick={onAcknowledge}
+                  className="mt-4 w-full rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
+                />
+              )}
             </section>
-          ) : (
+          )}
+
+          {!ended &&
             decision && (
               <section className="dy-card p-4">
                 <p className="text-[11px] tracking-wider text-slate-500">{decision.title}</p>
@@ -210,9 +230,22 @@ export function PlayScreen({ state, onChoose, onAcknowledge, onQuit }: Props): R
                     );
                   })}
                 </div>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={onUndo}
+                    disabled={!canUndo}
+                    className="min-h-11 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-35"
+                  >
+                    ← 上一步
+                  </button>
+                  <p className="hidden text-right text-[10px] text-slate-500 sm:block">
+                    按 1–{Math.max(pickable.length, 1)} 選擇・Backspace 上一步・R 開關名單
+                  </p>
+                </div>
               </section>
-            )
-          )}
+            )}
 
           <section className="dy-card p-4">
             <button
