@@ -26,6 +26,130 @@ const isPitcher = (s: GameState) => s.position === 'P';
 const isBatter = (s: GameState) => s.position !== 'P';
 
 export const EVENTS: RandomEvent[] = [
+  // ---------------------------------------------------------------------------
+  // Pro life, deliberately unconditional and spread across the age range.
+  //
+  // The pro pool had 38 entries but 17 of them carry conditions, so the set
+  // actually eligible on a given turn came to a median of 13 — which is why
+  // raising the per-turn fire rate to 0.85 made events repeat before the pool
+  // was used up. These widen that set rather than adding another narrow branch.
+  // ---------------------------------------------------------------------------
+  {
+    id: 'pro-bus-hours',
+    stages: ['pro'],
+    weight: 9,
+    text: '客場巴士在國道上堵了三個小時。你學會了在椅背上睡著，也學會了誰打呼。',
+    deltas: { body: -2, mind: 3 },
+    tone: 'normal',
+  },
+  {
+    id: 'pro-locker-neighbour',
+    stages: ['pro'],
+    weight: 9,
+    text: '置物櫃旁邊那位老將開始教你怎麼看投手的出手點，講了整個球季。',
+    deltas: { eye: 3, mind: 3 },
+    tone: 'good',
+  },
+  {
+    id: 'pro-night-cage',
+    stages: ['pro'],
+    weight: 10,
+    text: '比賽輸掉之後你一個人留在打擊籠揮到管理員來趕人。',
+    deltas: { contact: 2, power: 2, fatigue: 6 },
+    tone: 'normal',
+  },
+  {
+    id: 'pro-kid-letter',
+    stages: ['pro'],
+    weight: 8,
+    text: '有個小朋友寄手寫信來，說他也想當球員。你回了一張簽名照。',
+    deltas: { mind: 5, fame: 2 },
+    tone: 'good',
+  },
+  {
+    id: 'pro-slump-tape',
+    stages: ['pro'],
+    weight: 10,
+    text: '連續二十打席沒有安打。你把自己的影片一格一格看了三個晚上。',
+    deltas: { mind: -3, eye: 3 },
+    tone: 'bad',
+  },
+  {
+    id: 'pro-weights-summer',
+    stages: ['pro'],
+    weight: 9,
+    text: '整個休賽季都在重訓室。體脂降下來，肩膀寬了一圈。',
+    deltas: { body: 5, power: 2, velocity: 2 },
+    tone: 'good',
+  },
+  {
+    id: 'pro-teammate-traded',
+    stages: ['pro'],
+    weight: 9,
+    text: '交易截止日，跟你最好的隊友被送走了。他把手套留給你。',
+    deltas: { mind: -4, fielding: 2 },
+    tone: 'bad',
+  },
+  {
+    id: 'pro-media-training',
+    stages: ['pro'],
+    weight: 8,
+    text: '球團請人來上媒體應對課。你終於學會不要在鏡頭前說「還可以」。',
+    deltas: { mind: 3, fame: 3 },
+    tone: 'good',
+  },
+  {
+    id: 'pro-typhoon-double',
+    stages: ['pro'],
+    weight: 8,
+    text: '颱風延賽補成雙重賽，一天打十八局。第二場的腿完全不是自己的。',
+    deltas: { fatigue: 12, stamina: 3 },
+    tone: 'normal',
+  },
+  {
+    id: 'pro-new-glove',
+    stages: ['pro'],
+    weight: 8,
+    text: '手套廠師傅照你的手掌重做了一副。第一次接球就知道差別在哪。',
+    deltas: { fielding: 4 },
+    tone: 'good',
+    minAge: 23,
+  },
+  {
+    id: 'pro-off-season-job',
+    stages: ['pro'],
+    weight: 7,
+    text: '休賽季去親戚的工廠幫忙搬貨。薪水不多，但握力變好了。',
+    deltas: { body: 3, power: 2, mind: 2 },
+    tone: 'normal',
+    maxAge: 27,
+  },
+  {
+    id: 'pro-veteran-role',
+    stages: ['pro'],
+    weight: 9,
+    text: '你成了休息室裡年紀最大的那幾個。年輕人開始問你問題，你發現自己答得出來。',
+    deltas: { mind: 6, fame: 2 },
+    tone: 'good',
+    minAge: 31,
+  },
+  {
+    id: 'pro-cold-night',
+    stages: ['pro'],
+    weight: 8,
+    text: '十二月的季末，場邊溫度十度。手指凍到握不緊球棒。',
+    deltas: { fatigue: 8, contact: -1 },
+    tone: 'bad',
+  },
+  {
+    id: 'pro-family-stand',
+    stages: ['pro'],
+    weight: 8,
+    text: '家人第一次全部到場看你比賽。你那天多看了兩次看台。',
+    deltas: { mind: 7 },
+    tone: 'great',
+  },
+
   // ---------------------------------------------------------------- 高中 ----
   {
     id: 'hs-senior-mentor',

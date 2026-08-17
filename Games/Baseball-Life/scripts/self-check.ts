@@ -1,5 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { acknowledge, createGame, resolve, rollOrigins } from '../src/game/engine.js';
+import { EVENTS } from '../src/game/events.js';
 import { ACHIEVEMENTS, EMPTY_PROGRESS, evaluate, progressOf } from '../src/game/achievements.js';
 import { overall } from '../src/game/config.js';
 import { careerTotals } from '../src/game/milestones.js';
@@ -408,6 +409,43 @@ function expectCollectionGoalsFire(): void {
  * land on the identical state. Otherwise undo would be a re-roll and every
  * bad outcome could be shopped away.
  */
+/**
+ * A career has to actually reach the content that was written for it.
+ *
+ * The audit that started this: 66 events existed, but a career was 22 decisions
+ * and surfaced 12 of them — 19% — because the professional stage, the point of
+ * the game, ran one turn a season while high school ran four. A pro year is
+ * three turns now, and this pins the result so the pacing cannot quietly
+ * regress back to a highlight reel nobody sees.
+ *
+ * Measured with a policy that trains rather than one that cycles blindly, since
+ * a career cut short by deliberately bad choices tells you nothing about how
+ * much content the game holds.
+ */
+function expectCareersReachTheContent(): void {
+  const positions: Position[] = ['P', 'C', 'IF', 'OF'];
+  let turns = 0;
+  let seen = 0;
+  let runs = 0;
+
+  for (let i = 0; i < 16; i++) {
+    const state = playRun(`reach-${i}`, positions[i % positions.length], firstChoice);
+    turns += state.choices.length;
+    seen += new Set(state.seenEvents).size;
+    runs += 1;
+  }
+
+  const avgTurns = turns / runs;
+  const avgSeen = seen / runs;
+  const share = avgSeen / EVENTS.length;
+
+  assert.ok(avgTurns >= 40, `an average career is only ${avgTurns.toFixed(1)} decisions long`);
+  assert.ok(
+    share >= 0.42,
+    `a career only surfaces ${(share * 100).toFixed(0)}% of the ${EVENTS.length} events`,
+  );
+}
+
 function expectUndoIsNotAReroll(): void {
   const origins = rollOrigins('undo0001');
   let state = createGame({ seedCode: 'undo0001', name: '測試員', position: 'OF', originId: origins[0].id });
@@ -451,6 +489,7 @@ const checks: [string, () => void][] = [
   ['achievements accumulate across careers', expectAchievementsAccumulate],
   ['achievements unlock only once', expectAchievementsUnlockOnce],
   ['collection goals fire exactly once', expectCollectionGoalsFire],
+  ['careers reach the content', expectCareersReachTheContent],
   ['undo is not a re-roll', expectUndoIsNotAReroll],
 ];
 

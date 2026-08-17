@@ -906,13 +906,15 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
 
   // Flavour event, injuries and ageing all land after the turn is played.
   //
-  // The rate is deliberately the same everywhere. A pro year is three turns now
-  // rather than one, so the same per-turn chance already triples how much of the
-  // pool a career surfaces. Raising it on top of that (0.85 was tried) draws
-  // faster than the age-tiered pool can serve and events start repeating before
-  // the tier is used up — the `events do not repeat early` check catches it.
+  // The rate is what the pool can actually serve, and that was measured rather
+  // than picked. A pro year is three turns now rather than one, so at 0.65 the
+  // old pool was already near its limit: the set eligible on a given turn came
+  // to a median of 13 once conditions were applied, and 0.85 made events repeat
+  // before it was used up. Fourteen unconditional pro events later the eligible
+  // set is a median of 26 and 0.8 is comfortable. The `events do not repeat
+  // early` check is what draws the line.
   const event = pickEvent(state, rng(state, 'event'));
-  const eventChance = 0.65;
+  const eventChance = 0.8;
   if (event && rng(state, 'event-fire')() < eventChance) {
     state.seenEvents.push(event.id);
     report.lines.push(event.text);
