@@ -11,6 +11,14 @@ import {
 import { applyTrust, defaultExpectation, negotiable, review, shouldFire } from './board';
 import { pickEvent } from './events';
 import { buildContext, pickSituation, situationById } from './situations';
+import {
+  budgetScenarioById,
+  buildBudgetContext,
+  buildTrainingContext,
+  pickBudgetScenario,
+  pickTrainingScenario,
+  trainingScenarioById,
+} from './plans';
 import { nextHeat, settle } from './finance';
 import { ability, agePlayer, generatePlayer, marketSalary, resetIds, tradeValue } from './players';
 import { pick, randInt, seedFromCode, streamRng } from './rng';
@@ -34,6 +42,9 @@ import type {
 import { TENURE } from './types';
 
 const START_YEAR = 2026;
+
+/** Re-shops allowed per trade deadline. Without a cap the phase never ends. */
+const DEADLINE_SHOPS = 2;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
@@ -141,6 +152,11 @@ export function createGame(input: CreateInput): GameState {
     seenEvents: [],
     seenSituations: [],
     blockSituation: null,
+    deadlineShops: 0,
+    seenTrainingScenarios: [],
+    trainingScenario: null,
+    seenBudgetScenarios: [],
+    budgetScenario: null,
     decision: null,
     report: null,
     over: false,
@@ -155,35 +171,6 @@ export function createGame(input: CreateInput): GameState {
 // ---------------------------------------------------------------------------
 // Decisions
 // ---------------------------------------------------------------------------
-
-const TRAINING_PLANS: {
-  id: string;
-  label: string;
-  hint: string;
-  cost: number;
-  bonus: number;
-  farmBoost: number;
-  morale: number;
-}[] = [
-  { id: 'train-lean', label: '節流', hint: '不編訓練預算。省下錢，但戰力與士氣都掉。', cost: 0, bonus: -1, farmBoost: 0.9, morale: -2 },
-  { id: 'train-balanced', label: '均衡強化', hint: '五個部門平均分配。', cost: 1200, bonus: 1.5, farmBoost: 1, morale: 0 },
-  { id: 'train-offense', label: '打線優先', hint: '重壓打擊與體能，戰力提升最多。', cost: 1600, bonus: 2.2, farmBoost: 0.95, morale: 1 },
-  { id: 'train-farm', label: '農場優先', hint: '把錢投到二軍。一軍沒有立即幫助，新秀成長加速。', cost: 1000, bonus: 0, farmBoost: 1.45, morale: 0 },
-];
-
-const BUDGET_PLANS: {
-  id: string;
-  label: string;
-  hint: string;
-  ticketPrice: number;
-  marketing: number;
-  scouting: number;
-}[] = [
-  { id: 'budget-cheap', label: '親民票價', hint: '票價 250 元、行銷 400 萬、球探 200 萬。看台會滿，收入單價低。', ticketPrice: 250, marketing: 400, scouting: 200 },
-  { id: 'budget-standard', label: '標準營運', hint: '票價 350 元、行銷 800 萬、球探 500 萬。', ticketPrice: 350, marketing: 800, scouting: 500 },
-  { id: 'budget-premium', label: '高單價路線', hint: '票價 500 元、行銷 1,200 萬、球探 500 萬。單價高但趕客。', ticketPrice: 500, marketing: 1200, scouting: 500 },
-  { id: 'budget-scout', label: '押注球探', hint: '票價 350 元、行銷 400 萬、球探 1,000 萬。選秀看得最清楚。', ticketPrice: 350, marketing: 400, scouting: 1000 },
-];
 
 function scoutLabel(spend: number): string {
   let label = SCOUT_TIERS[0].label;
@@ -229,19 +216,32 @@ function buildDecision(state: GameState): Decision {
       };
     }
 
-    case 'spring':
+    case 'spring': {
+      // Drawn from the club's actual state, the same way a block situation is
+      // — a title defence, a relegation scare, an empty bank account and a
+      // stacked farm system do not get the same four lines every year.
+      const ctx = buildTrainingContext(state, team);
+      const scenario = pickTrainingScenario(
+        ctx,
+        state.seenTrainingScenarios,
+        streamRng(state.seed, `training:${state.year}`),
+      );
+      state.trainingScenario = scenario.id;
+      const built = scenario.build(ctx);
+
       return {
         phase: 'spring',
         title: `${state.year} 年 春訓`,
-        prompt: `目前資金 ${formatMoney(state.finance.cash)}。今年的訓練預算怎麼編？`,
-        options: TRAINING_PLANS.map((plan) => ({
-          id: plan.id,
-          label: plan.label,
-          hint: plan.hint,
-          cost: plan.cost,
-          detail: [`費用 ${formatMoney(plan.cost)}`],
+        prompt: `目前資金 ${formatMoney(state.finance.cash)}。${built.prompt}`,
+        options: built.options.map((option) => ({
+          id: option.id,
+          label: option.label,
+          hint: option.hint,
+          cost: option.effects.cost,
+          detail: [`費用 ${formatMoney(option.effects.cost)}`],
         })),
       };
+    }
 
     case 'block': {
       // Every block is a situation drawn from the club's actual state rather
@@ -281,11 +281,22 @@ function buildDecision(state: GameState): Decision {
           `得到：${offer.in.map((p) => `${p.name} ${p.age}歲 能力${Math.round(ability(p))}${p.age <= 22 ? `（潛力 ${p.band.low}–${p.band.high}）` : ''}`).join('、')}`,
         ],
       }));
+      // Capped, and unavailable when the money is not there.
+      //
+      // Re-shopping deliberately stays on the deadline phase so a fresh batch of
+      // offers can be built. With no cap that made the deadline an unbounded
+      // loop: a player could keep paying 300 萬 forever without the game ever
+      // advancing, and since bankruptcy is only tested at season end, cash could
+      // run arbitrarily negative — a max-spend policy reached −113,450 inside
+      // the first year and the tenure never finished at all.
+      const shopsLeft = DEADLINE_SHOPS - state.deadlineShops;
       options.push({
         id: 'trade-shop',
-        label: '再詢價一輪',
+        label: `再詢價一輪（還可 ${Math.max(0, shopsLeft)} 次）`,
         hint: '花 300 萬請球團重新接觸其他隊，換一批提案。',
         cost: 300,
+        disabled: shopsLeft <= 0 || state.finance.cash < 300,
+        disabledReason: shopsLeft <= 0 ? '今年詢價次數用完了' : '資金不足',
       });
       options.push({ id: 'trade-pass', label: '不交易', hint: '維持現有陣容。' });
       return {
@@ -344,17 +355,30 @@ function buildDecision(state: GameState): Decision {
       };
     }
 
-    case 'budget':
+    case 'budget': {
+      // Same treatment as spring training: a champion cashing in on the
+      // afterglow, a relegated club trying to win fans back, a broke club and
+      // a rebuilding one each see a different, contextual menu.
+      const ctx = buildBudgetContext(state, team);
+      const scenario = pickBudgetScenario(
+        ctx,
+        state.seenBudgetScenarios,
+        streamRng(state.seed, `budget:${state.year}`),
+      );
+      state.budgetScenario = scenario.id;
+      const built = scenario.build(ctx);
+
       return {
         phase: 'budget',
         title: `${state.year} 年 季後預算`,
-        prompt: `為下個球季設定票價、行銷與球探。目前熱度 ${state.heat}、資金 ${formatMoney(state.finance.cash)}。`,
-        options: BUDGET_PLANS.map((plan) => ({
-          id: plan.id,
-          label: plan.label,
-          hint: plan.hint,
+        prompt: built.prompt,
+        options: built.options.map((option) => ({
+          id: option.id,
+          label: option.label,
+          hint: option.hint,
         })),
       };
+    }
 
     default:
       return { phase: 'over', title: '任期結束', prompt: '', options: [] };
@@ -451,13 +475,27 @@ function resolveBoard(state: GameState, optionId: string, report: Report): void 
 }
 
 function resolveSpring(state: GameState, optionId: string, report: Report): void {
-  const plan = TRAINING_PLANS.find((p) => p.id === optionId) ?? TRAINING_PLANS[1];
-  state.finance.training = plan.cost;
-  state.finance.cash -= plan.cost;
-  state.trainingBonus = plan.bonus;
-  state.farmBoost = plan.farmBoost;
-  state.morale = clamp(state.morale + plan.morale, -6, 6);
-  report.lines.push(`訓練預算 ${formatMoney(plan.cost)}，戰力修正 ${plan.bonus >= 0 ? '+' : ''}${plan.bonus}。`);
+  const team = humanTeam(state);
+  const scenario = state.trainingScenario ? trainingScenarioById(state.trainingScenario) : undefined;
+  // Rebuild with the same context the decision was built from, the way
+  // resolveBlock rebuilds its situation — the rng that picked the scenario is
+  // keyed on the year alone, so this reproduces exactly.
+  const ctx = buildTrainingContext(state, team);
+  const option = scenario?.build(ctx).options.find((o) => o.id === optionId);
+  const effects = option?.effects ?? { cost: 1200, bonus: 1.5, farmBoost: 1, morale: 0 };
+
+  if (scenario && !state.seenTrainingScenarios.includes(scenario.id)) {
+    state.seenTrainingScenarios.push(scenario.id);
+  }
+
+  state.finance.training = effects.cost;
+  state.finance.cash -= effects.cost;
+  state.trainingBonus = effects.bonus;
+  state.farmBoost = effects.farmBoost;
+  state.morale = clamp(state.morale + effects.morale, -6, 6);
+  report.lines.push(
+    `訓練預算 ${formatMoney(effects.cost)}，戰力修正 ${effects.bonus >= 0 ? '+' : ''}${effects.bonus}。`,
+  );
   state.phase = 'block';
   state.block = 0;
 }
@@ -535,6 +573,7 @@ function resolveBlock(state: GameState, optionId: string, report: Report): void 
 
 function resolveDeadline(state: GameState, optionId: string, report: Report): void {
   if (optionId === 'trade-shop') {
+    state.deadlineShops += 1;
     state.finance.cash -= 300;
     report.lines.push('球團重新接觸了一輪，桌上換了一批提案。');
     // Staying on the deadline phase re-runs buildDecision with a fresh stream,
@@ -634,12 +673,23 @@ function releasePlayer(state: GameState, team: Team, player: Player): void {
 }
 
 function resolveBudget(state: GameState, optionId: string, report: Report): void {
-  const plan = BUDGET_PLANS.find((p) => p.id === optionId) ?? BUDGET_PLANS[1];
-  state.finance.ticketPrice = plan.ticketPrice;
-  state.finance.marketing = plan.marketing;
-  state.finance.scouting = plan.scouting;
+  const team = humanTeam(state);
+  const scenario = state.budgetScenario ? budgetScenarioById(state.budgetScenario) : undefined;
+  // Same rebuild-from-id pattern as spring training: the scenario rng is
+  // keyed on the year alone, so this reproduces the exact menu shown.
+  const ctx = buildBudgetContext(state, team);
+  const option = scenario?.build(ctx).options.find((o) => o.id === optionId);
+  const effects = option?.effects ?? { ticketPrice: 350, marketing: 800, scouting: 500 };
+
+  if (scenario && !state.seenBudgetScenarios.includes(scenario.id)) {
+    state.seenBudgetScenarios.push(scenario.id);
+  }
+
+  state.finance.ticketPrice = effects.ticketPrice;
+  state.finance.marketing = effects.marketing;
+  state.finance.scouting = effects.scouting;
   report.lines.push(
-    `下季票價 ${plan.ticketPrice} 元、行銷 ${formatMoney(plan.marketing)}、球探 ${formatMoney(plan.scouting)}（${scoutLabel(plan.scouting)}）。`,
+    `下季票價 ${effects.ticketPrice} 元、行銷 ${formatMoney(effects.marketing)}、球探 ${formatMoney(effects.scouting)}（${scoutLabel(effects.scouting)}）。`,
   );
   advanceYear(state, report);
 }
@@ -748,6 +798,7 @@ function advanceYear(state: GameState, report: Report): void {
 
   state.year += 1;
   state.block = 0;
+  state.deadlineShops = 0;
   state.morale = 0;
   state.trainingBonus = 0;
   resetRecords(state.teams);

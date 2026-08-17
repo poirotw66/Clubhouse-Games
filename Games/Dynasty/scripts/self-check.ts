@@ -8,6 +8,12 @@ import { scoutBand, bandWidthFor } from '../src/game/scouting.js';
 import { negotiable } from '../src/game/board.js';
 import { createRng } from '../src/game/rng.js';
 import { SITUATIONS, buildContext, pickSituation } from '../src/game/situations.js';
+import {
+  BUDGET_SCENARIOS,
+  TRAINING_SCENARIOS,
+  buildBudgetContext,
+  buildTrainingContext,
+} from '../src/game/plans.js';
 import type { Decision, GameState } from '../src/game/types.js';
 
 const GUARD = 400;
@@ -58,17 +64,37 @@ function expectSeedsAndChoicesMatter(): void {
 
 /** A completed tenure is exactly ten seasons unless the GM was fired. */
 function expectTenureLength(): void {
+  // This check used to assert that a fired GM served *fewer* than ten seasons.
+  // That is not an invariant, it was an accident of the old balance: `endSeason`
+  // tests for a sacking before `advanceYear` closes out the term, so losing the
+  // board in your tenth year fires you at the finish line — which is a better
+  // ending than a bland "term expired", not a bug. What the check should defend
+  // is that a tenure never exceeds ten seasons and that mid-term sackings still
+  // happen at all.
+  let firedEarly = 0;
+
   for (const club of CLUBS) {
     const state = playTenure('len00001', club.id, cyclingChoice);
     const summary = state.summary;
     assert.ok(summary, `${club.id} produced no summary`);
-    if (summary!.fired) {
-      assert.ok(state.history.length < 10, 'a fired GM should not have served ten seasons');
-    } else {
-      assert.equal(state.history.length, 10, `${club.id} served ${state.history.length} seasons`);
+    assert.ok(
+      state.history.length <= 10,
+      `${club.id} served ${state.history.length} seasons, more than the ten-year term`,
+    );
+    if (!summary!.fired) {
+      assert.equal(state.history.length, 10, `${club.id} survived but only served ${state.history.length}`);
+    } else if (state.history.length < 10) {
+      firedEarly += 1;
     }
     assert.equal(summary!.seasonsServed, state.history.length, 'summary season count mismatch');
   }
+
+  // If nobody is ever sacked mid-term the board has stopped being a threat.
+  const anyFiredEarly = CLUBS.some((club) => {
+    const state = playTenure('len00002', club.id, firstChoice);
+    return state.summary?.fired && state.history.length < 10;
+  });
+  assert.ok(firedEarly > 0 || anyFiredEarly, 'no club ever sacked its GM mid-term');
 }
 
 /** Every season must add up: 120 games, a real finish, a real ledger. */
@@ -320,6 +346,266 @@ function expectSituationVariety(): void {
 }
 
 /**
+ * The same "no free option" discipline `expectNoFreeOptions` holds the block
+ * situations to, extended to the spring-training and post-season-budget
+ * scenarios in `plans.ts`. Training options must move at least one number and
+ * at least one option per scenario has to hurt somewhere; budget options must
+ * always spend real money on marketing and scouting — there is no zero-cost
+ * operating plan — and the offers inside one scenario must be a genuine
+ * trade-off rather than four labels wrapped around identical numbers.
+ */
+function expectNoFreePlans(): void {
+  assert.ok(TRAINING_SCENARIOS.length >= 5, `only ${TRAINING_SCENARIOS.length} spring-training scenarios`);
+  assert.equal(
+    new Set(TRAINING_SCENARIOS.map((s) => s.id)).size,
+    TRAINING_SCENARIOS.length,
+    'two training scenarios share an id',
+  );
+  assert.ok(BUDGET_SCENARIOS.length >= 5, `only ${BUDGET_SCENARIOS.length} budget scenarios`);
+  assert.equal(
+    new Set(BUDGET_SCENARIOS.map((s) => s.id)).size,
+    BUDGET_SCENARIOS.length,
+    'two budget scenarios share an id',
+  );
+
+  const state = createGame({ seedCode: 'pln00001', gmName: '測試', teamId: 'dolphins' });
+  const team = state.teams.find((t) => t.id === state.teamId)!;
+  const baseTraining = buildTrainingContext(state, team);
+  const baseBudget = buildBudgetContext(state, team);
+
+  const dummyRecord = {
+    year: 2026, wins: 40, losses: 80, finish: 5, playoffResult: '未晉級' as const,
+    expectation: 'hold' as const, met: false, net: 0, heat: 50, trust: 50,
+  };
+
+  // Enough club situations to trip every scenario's condition at least once.
+  const trainingFlagSets: Partial<typeof baseTraining>[] = [
+    {},
+    { wonTitle: true, lastRecord: { ...dummyRecord, finish: 1, playoffResult: '總冠軍' } },
+    { sank: true, lastRecord: { ...dummyRecord, finish: 5 } },
+    { broke: true, cash: 200 },
+    { starHeavy: true },
+    { farmHeavy: true },
+    { aging: true },
+  ];
+
+  for (const flags of trainingFlagSets) {
+    const ctx = { ...baseTraining, ...flags };
+    for (const scenario of TRAINING_SCENARIOS) {
+      const built = scenario.build(ctx);
+      assert.ok(built.prompt.length > 8, `${scenario.id}: prompt is too thin`);
+      assert.ok(built.options.length >= 2, `${scenario.id}: needs at least two options`);
+      assert.equal(
+        new Set(built.options.map((o) => o.id)).size,
+        built.options.length,
+        `${scenario.id}: duplicate option ids`,
+      );
+
+      for (const option of built.options) {
+        const fx = option.effects;
+        const moves = fx.cost !== 0 || fx.bonus !== 0 || fx.farmBoost !== 1 || fx.morale !== 0;
+        assert.ok(moves, `${scenario.id}/${option.id} changes nothing — a free "do nothing"`);
+      }
+
+      const hasDownside = built.options.some((o) => {
+        const fx = o.effects;
+        return fx.cost > 0 || fx.bonus < 0 || fx.farmBoost < 1 || fx.morale < 0;
+      });
+      assert.ok(hasDownside, `${scenario.id}: every option is upside only`);
+    }
+  }
+
+  const budgetFlagSets: Partial<typeof baseBudget>[] = [
+    {},
+    { wonTitle: true },
+    { sank: true },
+    { broke: true, cash: 200 },
+    { boomingFans: true, heat: 80 },
+    { rebuildMandate: true },
+    { contending: true },
+  ];
+
+  for (const flags of budgetFlagSets) {
+    const ctx = { ...baseBudget, ...flags };
+    for (const scenario of BUDGET_SCENARIOS) {
+      const built = scenario.build(ctx);
+      assert.ok(built.prompt.length > 8, `${scenario.id}: prompt is too thin`);
+      assert.ok(built.options.length >= 2, `${scenario.id}: needs at least two options`);
+      assert.equal(
+        new Set(built.options.map((o) => o.id)).size,
+        built.options.length,
+        `${scenario.id}: duplicate option ids`,
+      );
+
+      const offers = built.options.map(
+        (o) => `${o.effects.ticketPrice}|${o.effects.marketing}|${o.effects.scouting}`,
+      );
+      assert.equal(
+        new Set(offers).size,
+        offers.length,
+        `${scenario.id}: two options offer identical numbers`,
+      );
+
+      for (const option of built.options) {
+        const fx = option.effects;
+        assert.ok(fx.marketing > 0, `${scenario.id}/${option.id}: a free marketing budget`);
+        assert.ok(fx.scouting > 0, `${scenario.id}/${option.id}: a free scouting budget`);
+        assert.ok(fx.ticketPrice > 0, `${scenario.id}/${option.id}: a free ticket`);
+      }
+
+      // A real trade-off, not four cosmetically different labels wrapped
+      // around the same numbers — something in the offer has to vary.
+      const prices = new Set(built.options.map((o) => o.effects.ticketPrice));
+      const spends = new Set(built.options.map((o) => o.effects.marketing + o.effects.scouting));
+      assert.ok(prices.size > 1 || spends.size > 1, `${scenario.id}: every option spends the same way`);
+    }
+  }
+}
+
+/**
+ * The measured problem this rewrite fixes: `spring` and `budget` used to show
+ * the exact same four options ten years running. A tenure now has to show at
+ * least 6 distinct option sets in each phase — measured directly off the
+ * label sets the player actually sees, not assumed from the scenario count.
+ */
+/**
+ * Difficulty must not drift.
+ *
+ * Replacing the two fixed plan menus with a scenario pool silently made the
+ * game noticeably easier — end-of-tenure cash rose about 46% and the firing rate
+ * fell from 37% to 23% — because several new options were cheap *and* helpful,
+ * and several let a club charge a premium ticket price without paying for the
+ * marketing to fill the seats. Nothing else in this file noticed: the books
+ * still balanced, the curves were still monotonic, every roster stayed legal.
+ *
+ * So the band is pinned here. It is deliberately wide enough not to be flaky
+ * and narrow enough that a change of that size fails.
+ */
+/**
+ * No phase may loop for ever.
+ *
+ * "再詢價一輪" at the trade deadline deliberately stays on the same phase so a
+ * fresh batch of offers can be built, and it had no cap. A player who kept
+ * choosing it paid 300 萬 a click while the game never advanced, and because
+ * bankruptcy is only tested at season end — which was never reached — cash ran
+ * arbitrarily negative. A policy of always taking the most expensive option
+ * reached −113,450 inside the first year and never finished a single season.
+ *
+ * Nothing else here noticed, because every other check drives the game with a
+ * policy that happens to move it forward. This one deliberately picks the most
+ * expensive option every time, which is exactly the policy that gets stuck.
+ */
+function expectEveryPhaseTerminates(): void {
+  // Ten years, seven phases a year, four blocks, plus the capped re-shops:
+  // comfortably under 200 decisions. A stuck phase blows past this instantly.
+  const CEILING = 200;
+
+  for (const club of CLUBS) {
+    let state = createGame({ seedCode: 'loop0001', gmName: '測試', teamId: club.id });
+    let step = 0;
+    while (!state.over && step < CEILING) {
+      const decision = state.decision;
+      if (!decision || decision.phase === 'over') break;
+      const options = decision.options.filter((o) => !o.disabled);
+      assert.ok(options.length > 0, `${club.id}: no legal option at ${decision.phase}`);
+      const priciest = [...options].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))[0];
+      state = acknowledge(resolve(state, priciest.id));
+      step += 1;
+    }
+    assert.ok(
+      state.over,
+      `${club.id}: a max-spend policy never finished the tenure — stuck after ${step} decisions`,
+    );
+    assert.ok(state.history.length > 0, `${club.id}: not a single season completed`);
+  }
+}
+
+function expectDifficultyBand(): void {
+  const seeds = Array.from({ length: 40 }, (_, i) => `band-${i}`);
+  let fired = 0;
+  let cash = 0;
+
+  for (const seedCode of seeds) {
+    // Cheapest-option policy: the most forgiving way to play, so if even this
+    // is being fired too rarely the club economy has gone slack.
+    const end = playTenure(seedCode, 'dolphins', (decision) => {
+      const options = decision.options.filter((o) => !o.disabled);
+      return [...options].sort((a, b) => (a.cost ?? 0) - (b.cost ?? 0))[0].id;
+    });
+    if (end.summary?.fired) fired += 1;
+    cash += end.finance.cash;
+  }
+
+  const firedPct = (fired / seeds.length) * 100;
+  const avgCash = cash / seeds.length;
+
+  assert.ok(
+    firedPct >= 20 && firedPct <= 55,
+    `hoarding cash got fired ${firedPct.toFixed(0)}% of the time — outside the 20-55% band`,
+  );
+  assert.ok(
+    avgCash > 8000 && avgCash < 45000,
+    `average end-of-tenure cash ${avgCash.toFixed(0)} is outside the 8,000-45,000 band`,
+  );
+}
+
+function expectPlanVariety(): void {
+  const runs: [string, string][] = [
+    ['pv-00001', 'dolphins'],
+    ['pv-00002', 'lions'],
+    ['pv-00003', 'eagles'],
+    ['pv-00004', 'volcano'],
+    ['pv-00005', 'cannons'],
+  ];
+
+  for (const [seedCode, teamId] of runs) {
+    let state = createGame({ seedCode, gmName: '測試', teamId });
+    const springSets = new Set<string>();
+    const budgetSets = new Set<string>();
+    let springTurns = 0;
+    let budgetTurns = 0;
+    let step = 0;
+    while (!state.over && step < GUARD) {
+      const decision = state.decision;
+      if (!decision || decision.phase === 'over' || decision.options.length === 0) break;
+      const fingerprint = [...decision.options.map((o) => o.label)].sort().join('|');
+      if (decision.phase === 'spring') {
+        springSets.add(fingerprint);
+        springTurns += 1;
+      }
+      if (decision.phase === 'budget') {
+        budgetSets.add(fingerprint);
+        budgetTurns += 1;
+      }
+      state = acknowledge(resolve(state, cyclingChoice(decision, step)));
+      step += 1;
+    }
+
+    // Measured against how many times the phase actually came up, not against a
+    // flat six. A GM fired after four seasons only gets four springs, and the
+    // first version of this check failed on exactly that — reporting a variety
+    // problem when the real story was a short tenure. Full ten-year runs come
+    // in at 8-10 distinct sets out of 10.
+    for (const [label, sets, turns] of [
+      ['spring', springSets, springTurns],
+      ['budget', budgetSets, budgetTurns],
+    ] as [string, Set<string>, number][]) {
+      assert.ok(turns > 0, `${teamId}/${seedCode}: ${label} never came up at all`);
+      const target = Math.min(6, turns);
+      assert.ok(
+        sets.size >= target,
+        `${teamId}/${seedCode}: ${label} showed ${sets.size} distinct option sets in ${turns} turns (needed ${target})`,
+      );
+      // Near-total freshness is the real bar: repeats should be rare.
+      assert.ok(
+        sets.size >= Math.ceil(turns * 0.7),
+        `${teamId}/${seedCode}: ${label} repeated too often — ${sets.size} distinct in ${turns} turns`,
+      );
+    }
+  }
+}
+
+/**
  * The property that makes undo honest.
  *
  * Randomness is seeded on (purpose, year, phase, block, decisions.length), so
@@ -370,6 +656,10 @@ const checks: [string, () => void][] = [
   ['money formatting', expectMoneyFormatting],
   ['no free options', expectNoFreeOptions],
   ['situation variety', expectSituationVariety],
+  ['no free training/budget plans', expectNoFreePlans],
+  ['spring/budget plan variety', expectPlanVariety],
+  ['every phase terminates', expectEveryPhaseTerminates],
+  ['difficulty band holds', expectDifficultyBand],
   ['undo is not a re-roll', expectUndoIsNotAReroll],
 ];
 
