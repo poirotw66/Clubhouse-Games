@@ -42,6 +42,20 @@ import type {
 const START_YEAR = 2010;
 const HS_TURNS = 11;
 
+/**
+ * High school runs on four turns a year; the professional stage used to run on
+ * one, which meant the part of the game the career is actually about handed
+ * out a quarter as many decisions as the part meant to set it up. A pro year
+ * is now three turns — 春訓・球季・球季後 — and every per-turn effect below is
+ * divided by this so a full pro season still moves attributes, fatigue and
+ * fame by the same total amount it always did.
+ */
+const PRO_TURNS_PER_YEAR = 3;
+const PRO_TURN_SCALE = 1 / PRO_TURNS_PER_YEAR;
+const PRO_PHASE_LABELS = ['春訓', '球季', '球季後'] as const;
+/** Passive fatigue recovery between turns, split evenly across a pro year. */
+const FATIGUE_RECOVERY = 6;
+
 /** Turn 0–10 are the three high-school years; 夏 turns are the tournaments. */
 interface HsTurn {
   label: string;
@@ -167,6 +181,7 @@ export function createGame(input: CreateInput): GameState {
     turnIndex: 0,
     stage: 'highschool',
     league: 'hs',
+    proTurn: 0,
     team: pick(streamRng(seed, 'hs-team'), TEAMS.hs),
     attrs,
     meta,
@@ -252,6 +267,25 @@ function applyDeltas(state: GameState, deltas: Partial<Attributes & Meta>): void
   });
 }
 
+/**
+ * Flavour-event deltas fire on the same per-turn cadence as training, so a pro
+ * turn scales them down the same way — otherwise three turns of events a year
+ * would hand out three times the fame and attribute swing a single event was
+ * ever balanced for.
+ */
+function scaleDeltas(
+  deltas: Partial<Attributes & Meta> | undefined,
+  scale: number,
+): Partial<Attributes & Meta> {
+  if (!deltas) return {};
+  if (scale === 1) return { ...deltas };
+  const out: Partial<Attributes & Meta> = {};
+  (Object.entries(deltas) as [keyof (Attributes & Meta), number][]).forEach(([key, value]) => {
+    out[key] = round(value * scale);
+  });
+  return out;
+}
+
 export function deltaLabel(key: string): string {
   if (key in ATTR_LABELS) return ATTR_LABELS[key as AttrKey];
   if (key in META_LABELS) return META_LABELS[key as keyof Meta];
@@ -260,6 +294,10 @@ export function deltaLabel(key: string): string {
 
 function turnLabel(state: GameState): string {
   if (state.stage === 'highschool') return HS_SCHEDULE[Math.min(state.turnIndex, HS_TURNS - 1)].label;
+  if (state.stage === 'pro') {
+    const phase = PRO_PHASE_LABELS[state.proTurn] ?? PRO_PHASE_LABELS[0];
+    return `${state.year} 年${phase}（${state.age} 歲）`;
+  }
   return `${state.year} 年球季（${state.age} 歲）`;
 }
 
@@ -341,9 +379,10 @@ function developPitch(
   dice: number,
   r: () => number,
   report: TurnReport,
+  turnScale: number,
 ): void {
   const effects = traitEffects(state.traits);
-  const scale = DICE_MULT[dice] * growthAgeFactor(state.age) * effects.growth;
+  const scale = DICE_MULT[dice] * growthAgeFactor(state.age) * effects.growth * turnScale;
 
   if (option.pitch === 'new') {
     const candidates = learnablePitches(state.arsenal);
@@ -592,29 +631,46 @@ function buildDecision(state: GameState): Decision {
   }
 
   // --- Professional ---
-  const offer = pendingOffer(state);
-  if (offer) return offer;
+  // Offers and the retirement prompt are season-level business — trades,
+  // contracts, a call from the front office — so they only surface once a
+  // year, at the 球季後 slot, exactly as often as when a pro year was one turn.
+  if (state.proTurn === 2) {
+    const offer = pendingOffer(state);
+    if (offer) return offer;
 
-  const retireKey = `retire:${state.year}`;
-  if (shouldOfferRetirement(state) && !state.handled.includes(retireKey)) {
-    return {
-      kind: 'retire',
-      key: retireKey,
-      title: '去留',
-      prompt: `${state.age} 歲。身體、數字、合約，每一樣都在提醒你時間到了。`,
-      options: [
-        { id: 'retire-yes', label: '宣布引退', hint: '在還能好好走下球場的時候離開。' },
-        { id: 'retire-no', label: '再打一年', hint: '不甘心。至少再站上去一次。' },
-      ],
-    };
+    const retireKey = `retire:${state.year}`;
+    if (shouldOfferRetirement(state) && !state.handled.includes(retireKey)) {
+      return {
+        kind: 'retire',
+        key: retireKey,
+        title: '去留',
+        prompt: `${state.age} 歲。身體、數字、合約，每一樣都在提醒你時間到了。`,
+        options: [
+          { id: 'retire-yes', label: '宣布引退', hint: '在還能好好走下球場的時候離開。' },
+          { id: 'retire-no', label: '再打一年', hint: '不甘心。至少再站上去一次。' },
+        ],
+      };
+    }
   }
 
   return {
     kind: 'training',
     title: turnLabel(state),
-    prompt: `${state.team}（${LEAGUES[state.league].label}）。休賽期的重點是？`,
+    prompt: proPrompt(state),
     options: proOptions(state).map((o) => ({ ...o })),
   };
+}
+
+/** Preparation, in-season handling, offseason — a different question each turn. */
+function proPrompt(state: GameState): string {
+  switch (state.proTurn) {
+    case 1:
+      return '球季已經開打。這段時間，你想怎麼安排自己？';
+    case 2:
+      return '球季結束了。休賽期的重點，你想放在哪裡？';
+    default:
+      return `${state.team}（${LEAGUES[state.league].label}）。春訓的重點，你想放在哪裡？`;
+  }
 }
 
 /**
@@ -808,42 +864,61 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
     tone: flavor.tone,
   };
 
+  // A pro year is three turns now, not one, so every per-turn effect below is
+  // scaled to a third — three turns' worth of training, fatigue and event
+  // impact has to sum to the same season total one big turn used to produce.
+  // High school and amateur are unaffected (scale stays 1).
+  const turnScale = state.stage === 'pro' ? PRO_TURN_SCALE : 1;
+  // 球季 is the one turn a pro year actually plays games in; 春訓 and 球季後
+  // are preparation and reflection around it.
+  const playsSeason = state.stage === 'amateur' || (state.stage === 'pro' && state.proTurn === 1);
+
   if (state.age < 22 && dice === 6) state.counters.earlySixes += 1;
-  if (option.rest) state.counters.restTurns += 1;
+  if (option.rest) state.counters.restTurns += turnScale;
 
   // Pitch work moves the arsenal; `breaking` follows from it, so the delta is
   // read back off the derived rating rather than applied to it.
   const breakingBefore = state.attrs.breaking;
-  if (option.pitch) developPitch(state, option, dice, r, report);
+  if (option.pitch) developPitch(state, option, dice, r, report, turnScale);
 
-  const deltas = applyTraining(state, option.focus, dice, option.power, r);
+  const deltas = applyTraining(state, option.focus, dice, option.power * turnScale, r);
   if (option.pitch) {
     const change = state.attrs.breaking - breakingBefore;
     if (change !== 0) deltas.breaking = (deltas.breaking ?? 0) + change;
   }
-  deltas.fatigue = (deltas.fatigue ?? 0) + option.fatigue;
+  const fatigueDelta = round(option.fatigue * turnScale);
+  deltas.fatigue = (deltas.fatigue ?? 0) + fatigueDelta;
   Object.entries(option.meta ?? {}).forEach(([key, value]) => {
     const k = key as keyof Meta;
-    deltas[k] = (deltas[k] ?? 0) + (value as number);
+    deltas[k] = (deltas[k] ?? 0) + round((value as number) * turnScale);
   });
   applyDeltas(state, deltas);
   report.deltas = deltas;
 
-  // The turn's competition: a high-school tournament, or a full pro season.
+  // The turn's competition: a high-school tournament, a full amateur season,
+  // or — for the pro stage — just the 球季 turn, since 春訓/球季後 play no games.
   if (state.stage === 'highschool') {
     const turn = HS_SCHEDULE[state.turnIndex];
     if (turn.tournament) runTournament(state, report, turn.tournament, option.id);
-  } else {
+  } else if (playsSeason) {
     runSeason(state, report);
   }
 
-  // Flavour event, injuries and ageing all land after the year is played.
+  // Flavour event, injuries and ageing all land after the turn is played.
+  //
+  // The rate is deliberately the same everywhere. A pro year is three turns now
+  // rather than one, so the same per-turn chance already triples how much of the
+  // pool a career surfaces. Raising it on top of that (0.85 was tried) draws
+  // faster than the age-tiered pool can serve and events start repeating before
+  // the tier is used up — the `events do not repeat early` check catches it.
   const event = pickEvent(state, rng(state, 'event'));
-  if (event && rng(state, 'event-fire')() < 0.65) {
+  const eventChance = 0.65;
+  if (event && rng(state, 'event-fire')() < eventChance) {
     state.seenEvents.push(event.id);
     report.lines.push(event.text);
-    applyDeltas(state, event.deltas ?? {});
-    (Object.entries(event.deltas ?? {}) as [DeltaKey, number][]).forEach(([key, value]) => {
+    const eventDeltas = scaleDeltas(event.deltas, turnScale);
+    applyDeltas(state, eventDeltas);
+    (Object.entries(eventDeltas) as [DeltaKey, number][]).forEach(([key, value]) => {
       report.deltas[key] = (report.deltas[key] ?? 0) + value;
     });
     if (event.tone === 'great' || (event.tone === 'good' && report.tone === 'normal')) {
@@ -851,7 +926,9 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
     }
   }
 
-  checkInjury(state, report, option.fatigue);
+  // Injury recovery only ticks once a year, on the same turn the season plays,
+  // so a one-season injury does not heal three times over in a single year.
+  checkInjury(state, report, fatigueDelta, turnScale, state.stage !== 'pro' || playsSeason);
   checkTraits(state, report);
   advanceTime(state);
   if (!state.retired) checkRelease(state, report);
@@ -1190,12 +1267,22 @@ function applyDecline(state: GameState, report: TurnReport, declineMul: number):
   applyDeltas(state, { body: -round(2 * declineMul) });
 }
 
-function checkInjury(state: GameState, report: TurnReport, fatigueCost: number): void {
+function checkInjury(
+  state: GameState,
+  report: TurnReport,
+  fatigueCost: number,
+  turnScale: number,
+  tickRecovery: boolean,
+): void {
   if (state.injury) {
-    state.injury.seasonsLeft -= 1;
-    if (state.injury.seasonsLeft <= 0) {
-      report.lines.push(`${state.injury.name}復健完成，你回到球場上。`);
-      state.injury = null;
+    if (tickRecovery) {
+      state.injury.seasonsLeft -= 1;
+      if (state.injury.seasonsLeft <= 0) {
+        report.lines.push(`${state.injury.name}復健完成，你回到球場上。`);
+        state.injury = null;
+      } else {
+        report.lines.push(`${state.injury.name}仍在復健中。`);
+      }
     } else {
       report.lines.push(`${state.injury.name}仍在復健中。`);
     }
@@ -1203,7 +1290,9 @@ function checkInjury(state: GameState, report: TurnReport, fatigueCost: number):
   }
 
   const effects = traitEffects(state.traits);
-  const base = state.stage === 'highschool' ? 0.035 : 0.065;
+  // The base rate is per-year; a pro turn only carries a third of the year's
+  // risk, so three turns add up to roughly the same annual chance as before.
+  const base = (state.stage === 'highschool' ? 0.035 : 0.065) * turnScale;
   const chance =
     base *
     effects.injury *
@@ -1251,7 +1340,11 @@ function checkInjury(state: GameState, report: TurnReport, fatigueCost: number):
 
 function advanceTime(state: GameState): void {
   state.turnIndex += 1;
-  state.meta.fatigue = clamp(state.meta.fatigue - 6, 0, 100);
+  // Passive recovery between turns is a per-year amount too, split across a
+  // pro year's three turns so it does not triple.
+  const recovery = state.stage === 'pro' ? round(FATIGUE_RECOVERY / PRO_TURNS_PER_YEAR) : FATIGUE_RECOVERY;
+  state.meta.fatigue = clamp(state.meta.fatigue - recovery, 0, 100);
+
   if (state.stage === 'highschool') {
     // Three high-school years pass over eleven turns; age ticks each spring.
     const turn = HS_SCHEDULE[Math.min(state.turnIndex, HS_TURNS - 1)];
@@ -1265,6 +1358,18 @@ function advanceTime(state: GameState): void {
     }
     return;
   }
+
+  if (state.stage === 'pro') {
+    // Age and year only turn over once the offseason turn rolls into next
+    // spring's — the same once-a-year cadence a single pro turn used to have.
+    state.proTurn = (state.proTurn + 1) % PRO_TURNS_PER_YEAR;
+    if (state.proTurn === 0) {
+      state.age += 1;
+      state.year += 1;
+    }
+    return;
+  }
+
   state.age += 1;
   state.year += 1;
 }
@@ -1301,6 +1406,7 @@ function resolvePath(state: GameState, optionId: string): void {
     report.tone = 'good';
   } else if (optionId === 'path-overseas') {
     state.stage = 'pro';
+    state.proTurn = 0;
     moveTo(state, 'milb', pick(r, TEAMS.milb));
     const bonus = 900;
     state.finance.earnings += bonus;
@@ -1371,6 +1477,7 @@ function resolvePath(state: GameState, optionId: string): void {
       report.lines.push(note, `你先到 ${state.team} 落腳，等下一次機會。`);
     } else {
       state.stage = 'pro';
+      state.proTurn = 0;
       moveTo(state, 'cpbl', pick(r, TEAMS.cpbl));
       state.finance.earnings += bonus;
       report.income = bonus;

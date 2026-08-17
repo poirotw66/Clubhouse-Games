@@ -210,6 +210,12 @@ export interface GameState {
   stage: Stage;
   league: LeagueId;
   team: string;
+  /**
+   * 0/1/2 = 春訓・球季・球季後 within the current pro year. Only meaningful
+   * while `stage === 'pro'`; a pro season is three turns, not one, so this is
+   * what tells `buildDecision` which third of the year is being played.
+   */
+  proTurn: number;
 
   attrs: Attributes;
   meta: Meta;

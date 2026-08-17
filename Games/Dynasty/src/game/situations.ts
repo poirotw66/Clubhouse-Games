@@ -885,6 +885,41 @@ export function buildContext(
 }
 
 /**
+ * Weighted, unseen-first picker: filter to what's eligible, prefer what has
+ * never been shown this tenure, then roll weighted among the survivors.
+ *
+ * Shared between the regular-season situations here and the spring-training /
+ * post-season-budget scenarios in `plans.ts` — same rule in both places: show
+ * what hasn't been shown yet, weighted by how common it should be, and only
+ * repeat once the eligible pool is exhausted.
+ */
+export interface WeightedChoice<Ctx> {
+  id: string;
+  weight: number;
+  condition?: (ctx: Ctx) => boolean;
+}
+
+export function pickWeighted<Ctx, T extends WeightedChoice<Ctx>>(
+  items: T[],
+  ctx: Ctx,
+  seen: string[],
+  rng: () => number,
+): T {
+  const eligible = items.filter((s) => !s.condition || s.condition(ctx));
+  const pool = eligible.length > 0 ? eligible : items;
+  const unseen = pool.filter((s) => !seen.includes(s.id));
+  const from = unseen.length > 0 ? unseen : pool;
+
+  const total = from.reduce((sum, s) => sum + s.weight, 0);
+  let roll = rng() * total;
+  for (const item of from) {
+    roll -= item.weight;
+    if (roll <= 0) return item;
+  }
+  return from[from.length - 1];
+}
+
+/**
  * Choose the situation for this block, unseen ones first.
  *
  * Forty blocks a tenure against thirty situations means a run sees most of them
@@ -896,18 +931,7 @@ export function pickSituation(
   seen: string[],
   rng: () => number,
 ): Situation {
-  const eligible = SITUATIONS.filter((s) => !s.condition || s.condition(ctx));
-  const pool = eligible.length > 0 ? eligible : SITUATIONS;
-  const unseen = pool.filter((s) => !seen.includes(s.id));
-  const from = unseen.length > 0 ? unseen : pool;
-
-  const total = from.reduce((sum, s) => sum + s.weight, 0);
-  let roll = rng() * total;
-  for (const situation of from) {
-    roll -= situation.weight;
-    if (roll <= 0) return situation;
-  }
-  return from[from.length - 1];
+  return pickWeighted(SITUATIONS, ctx, seen, rng);
 }
 
 export function situationById(id: string): Situation | undefined {

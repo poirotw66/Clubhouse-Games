@@ -40,7 +40,11 @@ export function loadGame(): GameState | null {
       !!parsed.finance &&
       Array.isArray(parsed.handled) &&
       Array.isArray(parsed.milestones) &&
-      Array.isArray(parsed.seenEvents);
+      Array.isArray(parsed.seenEvents) &&
+      // Added when the pro stage became three turns a year — a save from
+      // before that would misread `proTurn` as `undefined` and desync the
+      // 春訓/球季/球季後 cycle, so a save missing it starts over instead.
+      typeof parsed.proTurn === 'number';
     return intact ? parsed : null;
   } catch {
     return null;

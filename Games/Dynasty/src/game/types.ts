@@ -182,6 +182,14 @@ export interface GameState {
   seenSituations: string[];
   /** Which situation the current block decision was built from. */
   blockSituation: string | null;
+  /** Spring-training scenarios already shown, so a tenure does not repeat one. */
+  seenTrainingScenarios: string[];
+  /** Which scenario the current spring-training decision was built from. */
+  trainingScenario: string | null;
+  /** Post-season budget scenarios already shown, so a tenure does not repeat one. */
+  seenBudgetScenarios: string[];
+  /** Which scenario the current budget decision was built from. */
+  budgetScenario: string | null;
 
   decision: Decision | null;
   report: Report | null;
