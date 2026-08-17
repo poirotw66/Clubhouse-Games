@@ -2,6 +2,30 @@ import type { RelicId } from './types';
 
 export type Rarity = 'common' | 'rare' | 'legendary' | 'consumable';
 
+/**
+ * Numeric levers a relic can pull without touching the engine.
+ *
+ * Every relic in the first eighteen was a bespoke `hasRelic` branch somewhere in
+ * `engine.ts`, which is why the pool never grew: adding one meant editing the
+ * simulation. With fifteen picks a run and eighteen relics, a run saw **17.7 of
+ * them — 98% of the pool** — and two runs shared 72% of their build, which for a
+ * roguelike means every run is the same run.
+ *
+ * These keys are read once each by the engine and summed, so a relic that only
+ * moves numbers is now a single row of data.
+ */
+export type ModKey =
+  | 'speedPct'      // negative is faster
+  | 'scorePct'
+  | 'growth'
+  | 'energyMax'
+  | 'energyGainPct'
+  | 'dashDistance'
+  | 'goldenPct'
+  | 'invulnMs'
+  | 'maxHp'
+  | 'coinPct';
+
 export interface RelicDef {
   id: RelicId;
   name: string;
@@ -10,9 +34,45 @@ export interface RelicDef {
   text: string;
   /** Consumables can be offered (and taken) more than once. */
   repeatable?: boolean;
+  /** Data-only effects. Bespoke relics keep their branches in the engine. */
+  mods?: Partial<Record<ModKey, number>>;
 }
 
 export const RELICS: RelicDef[] = [
+  // ---------------------------------------------------------------------------
+  // Data-only relics.
+  //
+  // These pull the numeric levers in `ModKey` and need no engine change, which
+  // is the point: with eighteen relics and fifteen picks a run saw 98% of the
+  // pool and two runs shared 72% of their build. Breadth is what a roguelike
+  // runs on, and breadth was expensive because every relic used to be a branch.
+  // ---------------------------------------------------------------------------
+  { id: 'scales', name: '厚鱗', icon: '🛡️', rarity: 'common', text: '受傷後無敵時間 +0.6 秒。', mods: { invulnMs: 600 } },
+  { id: 'coil', name: '盤蜷', icon: '🌾', rarity: 'common', text: '果實成長 +1，移動速度 −6%。', mods: { growth: 1, speedPct: 6 } },
+  { id: 'venom', name: '毒牙', icon: '🐍', rarity: 'common', text: '所有分數 +20%。', mods: { scorePct: 20 } },
+  { id: 'husk', name: '空殼', icon: '🥚', rarity: 'common', text: '果實不再增長，分數 +45%。', mods: { growth: -1, scorePct: 45 } },
+  { id: 'ember', name: '餘燼', icon: '🔥', rarity: 'common', text: '能量上限 +25。', mods: { energyMax: 25 } },
+  { id: 'frost', name: '霜紋', icon: '❄️', rarity: 'common', text: '移動速度 −8%，分數 +15%。', mods: { speedPct: 8, scorePct: 15 } },
+  { id: 'tide', name: '潮汐鱗', icon: '🌊', rarity: 'common', text: '移動速度 +8%。', mods: { speedPct: -8 } },
+  { id: 'hunger', name: '飢渴', icon: '🍜', rarity: 'common', text: '果實成長 +1。', mods: { growth: 1 } },
+  { id: 'patience', name: '忍', icon: '🧘', rarity: 'common', text: '移動速度 −15%，分數 +40%。', mods: { speedPct: 15, scorePct: 40 } },
+  { id: 'mirror', name: '鏡鱗', icon: '🪟', rarity: 'common', text: '金蘋果出現率 +60%。', mods: { goldenPct: 60 } },
+  { id: 'lantern', name: '提燈', icon: '🏮', rarity: 'common', text: '金幣獲取 +40%。', mods: { coinPct: 40 } },
+  { id: 'anchor', name: '沉錨', icon: '⚓', rarity: 'common', text: '移動速度 −20%，能量上限 +50。', mods: { speedPct: 20, energyMax: 50 } },
+  { id: 'kite', name: '風箏骨', icon: '🪁', rarity: 'common', text: '衝刺距離 +1。', mods: { dashDistance: 1 } },
+  { id: 'saltline', name: '鹽線', icon: '🧂', rarity: 'common', text: '能量獲取 +35%。', mods: { energyGainPct: 35 } },
+  { id: 'moulting', name: '換皮', icon: '🧻', rarity: 'rare', text: '最大 HP +1。', mods: { maxHp: 1 } },
+  { id: 'burrow', name: '穴居', icon: '🕳️', rarity: 'rare', text: '移動速度 +14%，果實不再增長。', mods: { speedPct: -14, growth: -1 } },
+  { id: 'crest', name: '冠羽', icon: '🪶', rarity: 'rare', text: '分數 +35%，能量上限 +20。', mods: { scorePct: 35, energyMax: 20 } },
+  { id: 'tremor', name: '震顫', icon: '💥', rarity: 'rare', text: '衝刺距離 +2，移動速度 −6%。', mods: { dashDistance: 2, speedPct: 6 } },
+  { id: 'dust', name: '塵翳', icon: '🌫️', rarity: 'rare', text: '受傷後無敵時間 +1 秒，分數 −10%。', mods: { invulnMs: 1000, scorePct: -10 } },
+  { id: 'gilded', name: '鎏金鱗', icon: '✨', rarity: 'rare', text: '金蘋果出現率 +120%，金幣 +30%。', mods: { goldenPct: 120, coinPct: 30 } },
+  { id: 'ration', name: '乾糧', icon: '🍞', rarity: 'rare', text: '能量獲取 +60%，衝刺距離 +1。', mods: { energyGainPct: 60, dashDistance: 1 } },
+  { id: 'whetstone', name: '磨石', icon: '🪨', rarity: 'rare', text: '移動速度 +10%，分數 +20%。', mods: { speedPct: -10, scorePct: 20 } },
+  { id: 'compass', name: '羅盤', icon: '🧭', rarity: 'legendary', text: '金蘋果出現率 +200%。', mods: { goldenPct: 200 } },
+  { id: 'lodestone', name: '磁髓', icon: '🧿', rarity: 'legendary', text: '最大 HP +1，移動速度 +10%。', mods: { maxHp: 1, speedPct: -10 } },
+  { id: 'tallow', name: '獸脂燭', icon: '🕯️', rarity: 'legendary', text: '分數 +80%，最大 HP −1。', mods: { scorePct: 80, maxHp: -1 } },
+  { id: 'vigil', name: '長夜守望', icon: '🌙', rarity: 'legendary', text: '無敵時間 +1.5 秒，能量上限 +40。', mods: { invulnMs: 1500, energyMax: 40 } },
   { id: 'shed', name: '蛇蛻', icon: '🪞', rarity: 'common', text: '受傷時不再縮短蛇身。' },
   { id: 'swift', name: '疾風鱗', icon: '💨', rarity: 'common', text: '移動速度 +12%。' },
   { id: 'torpor', name: '遲滯符', icon: '🐌', rarity: 'common', text: '移動速度 −12%，所有分數 +30%。' },
