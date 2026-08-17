@@ -400,6 +400,34 @@ function expectCollectionGoalsFire(): void {
   assert.ok(progress.unlocked['ten-careers'], 'ten-careers never recorded as unlocked');
 }
 
+/**
+ * The property that makes undo honest.
+ *
+ * `rng()` in the engine seeds every random draw on (purpose, turnIndex,
+ * choices.length), so stepping back and choosing the *same* option has to
+ * land on the identical state. Otherwise undo would be a re-roll and every
+ * bad outcome could be shopped away.
+ */
+function expectUndoIsNotAReroll(): void {
+  const origins = rollOrigins('undo0001');
+  let state = createGame({ seedCode: 'undo0001', name: '測試員', position: 'OF', originId: origins[0].id });
+
+  for (let step = 0; step < 24; step++) {
+    if (state.retired || !state.decision || state.decision.options.length === 0) break;
+    const optionId = enabled(state.decision)[0];
+
+    const once = resolve(state, optionId);
+    const twice = resolve(state, optionId);
+    assert.deepEqual(twice.attrs, once.attrs, `step ${step}: attributes differed on replay`);
+    assert.equal(twice.finance.earnings, once.finance.earnings, `step ${step}: earnings differed on replay`);
+    assert.equal(twice.finance.salary, once.finance.salary, `step ${step}: salary differed on replay`);
+    assert.equal(twice.meta.fame, once.meta.fame, `step ${step}: fame differed on replay`);
+    assert.deepEqual(twice.report?.lines, once.report?.lines, `step ${step}: the report differed on replay`);
+
+    state = acknowledge(once);
+  }
+}
+
 const checks: [string, () => void][] = [
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
@@ -423,6 +451,7 @@ const checks: [string, () => void][] = [
   ['achievements accumulate across careers', expectAchievementsAccumulate],
   ['achievements unlock only once', expectAchievementsUnlockOnce],
   ['collection goals fire exactly once', expectCollectionGoalsFire],
+  ['undo is not a re-roll', expectUndoIsNotAReroll],
 ];
 
 let failed = 0;
