@@ -40,7 +40,8 @@ import {
   isWall,
   samePos,
 } from './level';
-import { rollRelicChoices } from './relics';
+import { RELIC_BY_ID, rollRelicChoices } from './relics';
+import type { ModKey } from './relics';
 import { createRng } from './rng';
 import type {
   Boss,
@@ -71,6 +72,21 @@ const OPPOSITE: Record<Dir, Dir> = {
 const ALL_DIRS: Dir[] = ['up', 'right', 'down', 'left'];
 
 const BOSS_ANCHOR: Vec = { x: CENTER, y: CENTER - 6 };
+
+/**
+ * Total of one numeric lever across everything the run is carrying.
+ *
+ * Read once per site so a relic that only moves numbers needs no engine change
+ * at all — which is what lets the pool actually grow. See `ModKey`.
+ */
+export function relicMod(state: GameState, key: ModKey): number {
+  let total = 0;
+  for (const id of state.relics) {
+    const value = RELIC_BY_ID[id]?.mods?.[key];
+    if (value) total += value;
+  }
+  return total;
+}
 
 export function hasRelic(state: GameState, id: RelicId): boolean {
   return state.relics.includes(id);
@@ -105,14 +121,16 @@ function computeInterval(state: GameState): number {
   let ms = Math.max(MIN_MOVE_MS, BASE_MOVE_MS - (state.floor - 1) * FLOOR_SPEEDUP_MS);
   if (hasRelic(state, 'swift')) ms *= 0.88;
   if (hasRelic(state, 'torpor')) ms *= 1.12;
-  return ms;
+  ms *= 1 + relicMod(state, 'speedPct') / 100;
+  return Math.max(MIN_MOVE_MS * 0.6, ms);
 }
 
 function scoreMultiplier(state: GameState): number {
   let mult = 1 + state.floor * 0.1;
   if (hasRelic(state, 'torpor')) mult *= 1.3;
   if (hasRelic(state, 'gluttony')) mult *= 1.25;
-  return mult;
+  mult *= 1 + relicMod(state, 'scorePct') / 100;
+  return Math.max(0.1, mult);
 }
 
 function addScore(state: GameState, base: number, scaled = true): void {
@@ -155,7 +173,10 @@ function pickCell(state: GameState, cells: Vec[], minHeadDistance: number): Vec 
 }
 
 function rollFruitType(state: GameState): FruitType {
-  const golden = (0.1 + state.floor * 0.01) * (hasRelic(state, 'alchemy') ? 2 : 1);
+  const golden =
+    (0.1 + state.floor * 0.01) *
+    (hasRelic(state, 'alchemy') ? 2 : 1) *
+    (1 + relicMod(state, 'goldenPct') / 100);
   const cursed = state.floor >= 3 ? 0.1 : 0;
   const roll = state.rng();
   if (roll < golden) return 'golden';
@@ -386,7 +407,10 @@ function hurt(state: GameState, force = false): void {
   state.hp -= 1;
   if (!hasRelic(state, 'shed')) truncate(state, HURT_SHRINK);
   state.invulnUntil =
-    state.time + INVULN_MS + (hasRelic(state, 'hourglass') ? HOURGLASS_BONUS_MS : 0);
+    state.time +
+    INVULN_MS +
+    (hasRelic(state, 'hourglass') ? HOURGLASS_BONUS_MS : 0) +
+    relicMod(state, 'invulnMs');
   addEffect(state, 'ring', state.snake[0], '#f87171', 2, 500);
   state.events.push({ type: 'hurt' });
 
@@ -416,7 +440,7 @@ function removeEnemy(state: GameState, index: number, reward: boolean): void {
   addEffect(state, 'burst', enemy.pos, '#fbbf24', 1, 340);
   if (!reward) return;
   state.kills += 1;
-  state.coins += 1;
+  state.coins += 1 + Math.round(relicMod(state, 'coinPct') / 100);
   addScore(state, SCORE_KILL);
   state.events.push({ type: 'kill' });
 }
@@ -441,9 +465,11 @@ function eatFruit(state: GameState, fruit: Fruit): void {
     addScore(state, 5, false);
     state.events.push({ type: 'cursed' });
   } else {
-    if (!ascetic) state.growth += 1 + (hasRelic(state, 'gluttony') ? 1 : 0);
+    if (!ascetic) {
+      state.growth += Math.max(0, 1 + (hasRelic(state, 'gluttony') ? 1 : 0) + relicMod(state, 'growth'));
+    }
     if (fruit.type === 'golden') {
-      state.coins += 3;
+      state.coins += 3 + Math.round((3 * relicMod(state, 'coinPct')) / 100);
       addScore(state, SCORE_FRUIT * 2);
       state.events.push({ type: 'golden' });
     } else {
@@ -452,7 +478,10 @@ function eatFruit(state: GameState, fruit: Fruit): void {
     }
   }
 
-  state.energy = Math.min(state.maxEnergy, state.energy + energyGain);
+  state.energy = Math.min(
+    state.maxEnergy,
+    state.energy + energyGain * (1 + relicMod(state, 'energyGainPct') / 100),
+  );
   state.eaten += 1;
   state.echoCount += 1;
   addEffect(state, 'burst', fruit.pos, fruit.type === 'golden' ? '#fcd34d' : '#4ade80', 1, 320);
@@ -762,7 +791,8 @@ export function dash(state: GameState): void {
   state.invulnUntil = Math.max(state.invulnUntil, state.dashUntil);
   state.events.push({ type: 'dash' });
 
-  const distance = DASH_DISTANCE + (hasRelic(state, 'core') ? 1 : 0);
+  const distance =
+    DASH_DISTANCE + (hasRelic(state, 'core') ? 1 : 0) + relicMod(state, 'dashDistance');
   for (let step = 0; step < distance; step++) {
     const head = state.snake[0];
     const target = resolveTarget(state, head, state.dir);
@@ -788,6 +818,19 @@ export function dash(state: GameState): void {
 }
 
 function applyRelic(state: GameState, id: RelicId): void {
+  // Data-only relics land their one-shot levers here. `maxHp` and `energyMax`
+  // cannot be summed on read like speed or score, because the pools they raise
+  // are stateful — the value has to move when the relic is taken.
+  const mods = RELIC_BY_ID[id]?.mods;
+  if (mods?.maxHp) {
+    state.maxHp = Math.max(1, state.maxHp + mods.maxHp);
+    state.hp = Math.min(state.maxHp, Math.max(1, state.hp + Math.max(0, mods.maxHp)));
+  }
+  if (mods?.energyMax) {
+    state.maxEnergy += mods.energyMax;
+    state.energy = Math.min(state.maxEnergy, state.energy + mods.energyMax);
+  }
+
   switch (id) {
     case 'heart':
       state.maxHp += 1;
