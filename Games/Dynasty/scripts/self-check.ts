@@ -481,6 +481,45 @@ function expectNoFreePlans(): void {
  * So the band is pinned here. It is deliberately wide enough not to be flaky
  * and narrow enough that a change of that size fails.
  */
+/**
+ * No phase may loop for ever.
+ *
+ * "再詢價一輪" at the trade deadline deliberately stays on the same phase so a
+ * fresh batch of offers can be built, and it had no cap. A player who kept
+ * choosing it paid 300 萬 a click while the game never advanced, and because
+ * bankruptcy is only tested at season end — which was never reached — cash ran
+ * arbitrarily negative. A policy of always taking the most expensive option
+ * reached −113,450 inside the first year and never finished a single season.
+ *
+ * Nothing else here noticed, because every other check drives the game with a
+ * policy that happens to move it forward. This one deliberately picks the most
+ * expensive option every time, which is exactly the policy that gets stuck.
+ */
+function expectEveryPhaseTerminates(): void {
+  // Ten years, seven phases a year, four blocks, plus the capped re-shops:
+  // comfortably under 200 decisions. A stuck phase blows past this instantly.
+  const CEILING = 200;
+
+  for (const club of CLUBS) {
+    let state = createGame({ seedCode: 'loop0001', gmName: '測試', teamId: club.id });
+    let step = 0;
+    while (!state.over && step < CEILING) {
+      const decision = state.decision;
+      if (!decision || decision.phase === 'over') break;
+      const options = decision.options.filter((o) => !o.disabled);
+      assert.ok(options.length > 0, `${club.id}: no legal option at ${decision.phase}`);
+      const priciest = [...options].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))[0];
+      state = acknowledge(resolve(state, priciest.id));
+      step += 1;
+    }
+    assert.ok(
+      state.over,
+      `${club.id}: a max-spend policy never finished the tenure — stuck after ${step} decisions`,
+    );
+    assert.ok(state.history.length > 0, `${club.id}: not a single season completed`);
+  }
+}
+
 function expectDifficultyBand(): void {
   const seeds = Array.from({ length: 40 }, (_, i) => `band-${i}`);
   let fired = 0;
@@ -619,6 +658,7 @@ const checks: [string, () => void][] = [
   ['situation variety', expectSituationVariety],
   ['no free training/budget plans', expectNoFreePlans],
   ['spring/budget plan variety', expectPlanVariety],
+  ['every phase terminates', expectEveryPhaseTerminates],
   ['difficulty band holds', expectDifficultyBand],
   ['undo is not a re-roll', expectUndoIsNotAReroll],
 ];

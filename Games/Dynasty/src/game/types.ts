@@ -182,6 +182,8 @@ export interface GameState {
   seenSituations: string[];
   /** Which situation the current block decision was built from. */
   blockSituation: string | null;
+  /** Re-shops used at this year's trade deadline. Capped — see engine.ts. */
+  deadlineShops: number;
   /** Spring-training scenarios already shown, so a tenure does not repeat one. */
   seenTrainingScenarios: string[];
   /** Which scenario the current spring-training decision was built from. */

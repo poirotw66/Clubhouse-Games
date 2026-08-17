@@ -43,6 +43,9 @@ import { TENURE } from './types';
 
 const START_YEAR = 2026;
 
+/** Re-shops allowed per trade deadline. Without a cap the phase never ends. */
+const DEADLINE_SHOPS = 2;
+
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
@@ -149,6 +152,7 @@ export function createGame(input: CreateInput): GameState {
     seenEvents: [],
     seenSituations: [],
     blockSituation: null,
+    deadlineShops: 0,
     seenTrainingScenarios: [],
     trainingScenario: null,
     seenBudgetScenarios: [],
@@ -277,11 +281,22 @@ function buildDecision(state: GameState): Decision {
           `得到：${offer.in.map((p) => `${p.name} ${p.age}歲 能力${Math.round(ability(p))}${p.age <= 22 ? `（潛力 ${p.band.low}–${p.band.high}）` : ''}`).join('、')}`,
         ],
       }));
+      // Capped, and unavailable when the money is not there.
+      //
+      // Re-shopping deliberately stays on the deadline phase so a fresh batch of
+      // offers can be built. With no cap that made the deadline an unbounded
+      // loop: a player could keep paying 300 萬 forever without the game ever
+      // advancing, and since bankruptcy is only tested at season end, cash could
+      // run arbitrarily negative — a max-spend policy reached −113,450 inside
+      // the first year and the tenure never finished at all.
+      const shopsLeft = DEADLINE_SHOPS - state.deadlineShops;
       options.push({
         id: 'trade-shop',
-        label: '再詢價一輪',
+        label: `再詢價一輪（還可 ${Math.max(0, shopsLeft)} 次）`,
         hint: '花 300 萬請球團重新接觸其他隊，換一批提案。',
         cost: 300,
+        disabled: shopsLeft <= 0 || state.finance.cash < 300,
+        disabledReason: shopsLeft <= 0 ? '今年詢價次數用完了' : '資金不足',
       });
       options.push({ id: 'trade-pass', label: '不交易', hint: '維持現有陣容。' });
       return {
@@ -558,6 +573,7 @@ function resolveBlock(state: GameState, optionId: string, report: Report): void 
 
 function resolveDeadline(state: GameState, optionId: string, report: Report): void {
   if (optionId === 'trade-shop') {
+    state.deadlineShops += 1;
     state.finance.cash -= 300;
     report.lines.push('球團重新接觸了一輪，桌上換了一批提案。');
     // Staying on the deadline phase re-runs buildDecision with a fresh stream,
@@ -782,6 +798,7 @@ function advanceYear(state: GameState, report: Report): void {
 
   state.year += 1;
   state.block = 0;
+  state.deadlineShops = 0;
   state.morale = 0;
   state.trainingBonus = 0;
   resetRecords(state.teams);
