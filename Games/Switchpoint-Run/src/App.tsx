@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameCanvas } from './components/GameCanvas';
-import { FIXED_DT } from './game/constants';
+import { FIXED_DT,
+  MAX_BUFFER,
+} from './game/constants';
 import { createRun, finalScore, step } from './game/engine';
 import { randomSeedCode } from './game/rng';
 import type { PlayerInput, RunState } from './game/types';
@@ -205,7 +207,10 @@ export default function App(): React.ReactElement {
 
   const s = hud;
   const ended = s?.phase === 'caught';
-  const bufferPct = s ? Math.max(0, Math.min(100, (s.buffer / 260) * 100)) : 0;
+  // Scaled against MAX_BUFFER, not a magic number. It was 260 while the buffer
+  // could reach 430, so the bar saturated at 100% and stopped moving for the
+  // top 40% of the player's only life-or-death resource.
+  const bufferPct = s ? Math.max(0, Math.min(100, (s.buffer / MAX_BUFFER) * 100)) : 0;
   const bufferColor = bufferPct < 22 ? 'bg-red-500' : bufferPct < 50 ? 'bg-amber-400' : 'bg-emerald-400';
 
   return (
