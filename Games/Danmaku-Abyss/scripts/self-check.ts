@@ -7,7 +7,15 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { FIELD_H, FIELD_W, FIXED_DT, STAGE_COUNT } from '../src/game/constants.js';
+import {
+  FIELD_H,
+  FIELD_W,
+  FIXED_DT,
+  GRAZE_DECAY_PER_SEC,
+  GRAZE_MAX_MULT,
+  GRAZE_STEP,
+  STAGE_COUNT,
+} from '../src/game/constants.js';
 import {
   createRun,
   fireRate,
@@ -188,6 +196,38 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   );
   assert.ok(fireRate({ ...fix, focus: true }) > fireRate(base), 'fixative must pay off while focused');
   ok(`all ${declaredConditions().length} declared conditions are evaluated and change behaviour`);
+}
+
+// ── 4c) The graze multiplier has to be reachable ─────────────────────────────
+//
+// A multiplier that cannot rise is not a scoring system, it is a constant, and
+// nothing errors when it happens. This shipped: GRAZE_STEP 0.004 against
+// GRAZE_DECAY_PER_SEC 0.12 puts break-even at thirty grazes per second, while
+// the balance harness measures real play at 0.74/sec. The multiplier sat at
+// 1.00 for every run ever played, half the distance spine did nothing, and two
+// upgrades keyed to a high multiplier could never activate.
+//
+// Note what did NOT catch it: the bomb check below asserts the multiplier is 1
+// after bombing, and passed the whole time for the wrong reason.
+{
+  const breakEven = GRAZE_DECAY_PER_SEC / GRAZE_STEP;
+  assert.ok(
+    breakEven < 2,
+    `the multiplier needs ${breakEven.toFixed(1)} grazes/sec just to hold steady — ` +
+      `measured play manages about 0.74, so it could never rise`,
+  );
+  assert.ok(
+    breakEven > 0.2,
+    `break-even at ${breakEven.toFixed(2)} grazes/sec means the multiplier climbs whatever you do`,
+  );
+
+  // And it must actually climb in the engine, not just on paper.
+  let s = createRun('GRAZE1');
+  s = { ...s, grazeMult: 1 };
+  const climbed = Math.min(GRAZE_MAX_MULT, 1 + GRAZE_STEP * 60 - GRAZE_DECAY_PER_SEC * 2);
+  assert.ok(climbed > 1.5, 'sixty grazes over two seconds should visibly move the multiplier');
+  assert.ok(GRAZE_MAX_MULT > 2, 'the cap must leave room above the grazeHigh threshold of 2');
+  ok(`the graze multiplier is reachable (break-even ${breakEven.toFixed(2)} grazes/sec, cap ${GRAZE_MAX_MULT}x)`);
 }
 
 // ── 5) The distance spine ────────────────────────────────────────────────────

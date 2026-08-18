@@ -82,10 +82,27 @@ export const CAPTURE_BONUS = 3000;
 export const SCORE_PER_LIFE = 5000;
 export const SCORE_PER_BOMB = 1500;
 
-/** Graze multiplier: starts at 1, each graze adds this, decays toward 1 when you play safe. */
-export const GRAZE_STEP = 0.004;
+/**
+ * Graze multiplier: starts at 1, each graze adds GRAZE_STEP, and it bleeds back
+ * toward 1 at GRAZE_DECAY_PER_SEC while you play safe.
+ *
+ * The break-even graze rate is DECAY / STEP. The first numbers here were
+ * 0.004 and 0.12, which puts break-even at THIRTY GRAZES PER SECOND — the
+ * harness measures real play at 0.74/sec, so the multiplier was pinned at 1.00
+ * for the entire length of every run that has ever been played.
+ *
+ * That silently deleted half the game. The whole design rests on two curves
+ * pushing you forward — damage rises as you close, and the graze multiplier
+ * rises as you close — and the second one never moved. Score was never
+ * multiplied, and the two upgrades keyed to a high multiplier could never
+ * activate under any circumstances.
+ *
+ * These put break-even at 0.8 grazes/sec, just above the 0.74 a careful pilot
+ * manages, so hanging back bleeds the multiplier and pushing in builds it.
+ */
+export const GRAZE_STEP = 0.05;
 export const GRAZE_MAX_MULT = 4;
-export const GRAZE_DECAY_PER_SEC = 0.12;
+export const GRAZE_DECAY_PER_SEC = 0.04;
 
 export type AimMode = 'fixed' | 'aimed' | 'rotating';
 export type Waveform = 'linear' | 'spiral' | 'accel' | 'reverse';

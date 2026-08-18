@@ -124,6 +124,7 @@ function pilot(s: RunState, bombPolicy: BombPolicy, stance: Stance = 'keepBack')
 interface RunResult {
   stage: number;
   startStage: number;
+  peakGraze: number;
   won: boolean;
   score: number;
   lives: number;
@@ -161,6 +162,7 @@ function playRun(seedCode: string, bombPolicy: BombPolicy, pickIndex = 0, startS
     bombsUsed: Math.max(0, startBombs - s.bombs),
     captures: s.captures,
     grazeCount: s.grazeCount,
+    peakGraze: s.grazeMult,
     seconds: s.elapsed,
     taken: s.upgrades,
     offered,
@@ -214,6 +216,7 @@ function fullRun(seedCode: string): RunResult {
   return {
     stage: s.stage,
     startStage: 1,
+    peakGraze: s.grazeMult,
     won: s.phase === 'won',
     score: s.score,
     lives: s.lives,
@@ -232,7 +235,7 @@ function mean(xs: number[]): number {
 
 // ── 1) How far a run gets, and how long it takes ─────────────────────────────
 console.log('=== 一趟能走多遠（相同駕駛、八個種子）===\n');
-console.log('靈擊策略 | 平均到達  通關率  平均分數   平均時長  平均擦彈  Capture');
+console.log('靈擊策略 | 平均到達  通關率  平均分數   平均時長  平均擦彈  倍率  Capture');
 for (const policy of ['never', 'panic'] as BombPolicy[]) {
   const rs = SEEDS.map((s) => playRun(s, policy));
   const label = policy === 'never' ? '從不使用' : '危險就按';
