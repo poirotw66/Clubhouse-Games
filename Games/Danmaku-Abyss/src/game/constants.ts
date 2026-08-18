@@ -82,12 +82,46 @@ export const CAPTURE_BONUS = 3000;
 export const SCORE_PER_LIFE = 5000;
 export const SCORE_PER_BOMB = 1500;
 
-/** Graze multiplier: starts at 1, each graze adds this, decays toward 1 when you play safe. */
-export const GRAZE_STEP = 0.004;
+/**
+ * Graze multiplier: starts at 1, each graze adds GRAZE_STEP, and it bleeds back
+ * toward 1 at GRAZE_DECAY_PER_SEC while you play safe.
+ *
+ * The break-even graze rate is DECAY / STEP. The first numbers here were
+ * 0.004 and 0.12, which puts break-even at THIRTY GRAZES PER SECOND — the
+ * harness measures real play at 0.74/sec, so the multiplier was pinned at 1.00
+ * for the entire length of every run that has ever been played.
+ *
+ * That silently deleted half the game. The whole design rests on two curves
+ * pushing you forward — damage rises as you close, and the graze multiplier
+ * rises as you close — and the second one never moved. Score was never
+ * multiplied, and the two upgrades keyed to a high multiplier could never
+ * activate under any circumstances.
+ *
+ * These put break-even at 0.8 grazes/sec, just above the 0.74 a careful pilot
+ * manages, so hanging back bleeds the multiplier and pushing in builds it.
+ */
+export const GRAZE_STEP = 0.05;
 export const GRAZE_MAX_MULT = 4;
-export const GRAZE_DECAY_PER_SEC = 0.12;
+export const GRAZE_DECAY_PER_SEC = 0.04;
 
 export type AimMode = 'fixed' | 'aimed' | 'rotating';
+
+/**
+ * How a volley is laid out.
+ *
+ * 'radial' fires from the emitter outward — every pattern in the first version
+ * was one of these, and they all fill space without denying it. The balance
+ * harness showed why that matters: raising density stopped working as a
+ * difficulty lever entirely, because the build scales with the danger. More
+ * bullets means more grazes, a higher multiplier, the graze-keyed upgrades
+ * firing, and cards dying sooner — so extra danger partly cancels itself.
+ *
+ * 'wall' spans the field with a single gap. You cannot out-damage a wall that
+ * is already on screen and no amount of fire rate widens the gap, so it applies
+ * pressure the feedback loop cannot absorb. It also asks a different question:
+ * not "can you react" but "are you already in the right place".
+ */
+export type VolleyPattern = 'radial' | 'wall';
 export type Waveform = 'linear' | 'spiral' | 'accel' | 'reverse';
 
 /**
@@ -106,6 +140,10 @@ export interface Emitter {
   /** Radians/sec added to the emitter's base angle between volleys. */
   angularVel: number;
   aim: AimMode;
+  /** Defaults to 'radial' when omitted. */
+  pattern?: VolleyPattern;
+  /** Wall only: how many bullet slots are left open. Wider is kinder. */
+  gap?: number;
   waveform: Waveform;
   /** Seconds between volleys. */
   interval: number;
@@ -124,4 +162,14 @@ export interface SpellCard {
   timeLimit: number;
   hp: number;
   emitters: Emitter[];
+  /**
+   * Extra emitters that switch on once the card's HP drops below a fraction.
+   *
+   * Without these a card is a loop: whatever it opens with is what it does for
+   * thirty seconds, and the only thing that changes is your patience. A phase
+   * turns the card into an arc — the pattern you solved stops being the whole
+   * problem, and pushing damage becomes a decision rather than a formality,
+   * because breaking a threshold is what makes it worse.
+   */
+  phases?: Array<{ belowHpFrac: number; emitters: Emitter[] }>;
 }

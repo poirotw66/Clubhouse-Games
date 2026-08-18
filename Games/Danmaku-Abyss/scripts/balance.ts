@@ -48,7 +48,24 @@ const DIRS: Array<[number, number]> = (() => {
 const LOOKAHEAD = 0.35;
 const SAMPLES = 5;
 
-function pilot(s: RunState, bombPolicy: BombPolicy): PlayerInput {
+/**
+ * Where on the field a pilot wants to sit when nothing is threatening it.
+ * `keepBack` is the ordinary careful player; `hug` pushes up into the boss,
+ * taking the damage and graze bonuses the distance spine pays for and eating
+ * far more danger for them.
+ *
+ * A single pilot cannot answer "does the build matter": it plays the same way
+ * whatever you give it, so an upgrade that rewards a different STANCE looks
+ * worthless. Ranking the pool under both stances is what shows whether the
+ * picks create playstyles or just bigger numbers.
+ */
+type Stance = 'keepBack' | 'hug';
+
+function homeY(stance: Stance): number {
+  return stance === 'hug' ? 210 : FIELD_H - 140;
+}
+
+function pilot(s: RunState, bombPolicy: BombPolicy, stance: Stance = 'keepBack'): PlayerInput {
   const hit = hitboxRadius(s);
   const near = s.bullets.filter((b) => Math.hypot(b.x - s.px, b.y - s.py) < 150);
 
@@ -88,7 +105,7 @@ function pilot(s: RunState, bombPolicy: BombPolicy): PlayerInput {
     // and toward the middle horizontally so it does not paint itself into a
     // corner during a quiet moment.
     const safety = Math.min(worst === Infinity ? 200 : worst, 200);
-    const home = -Math.abs(endX - FIELD_W / 2) * 0.02 - Math.abs(endY - (FIELD_H - 140)) * 0.02;
+    const home = -Math.abs(endX - FIELD_W / 2) * 0.02 - Math.abs(endY - homeY(stance)) * 0.02;
     const score = safety + home;
     if (score > bestScore) {
       bestScore = score;
@@ -107,6 +124,7 @@ function pilot(s: RunState, bombPolicy: BombPolicy): PlayerInput {
 interface RunResult {
   stage: number;
   startStage: number;
+  peakGraze: number;
   won: boolean;
   score: number;
   lives: number;
@@ -118,7 +136,7 @@ interface RunResult {
   offered: string[];
 }
 
-function playRun(seedCode: string, bombPolicy: BombPolicy, pickIndex = 0, startStage = 1): RunResult {
+function playRun(seedCode: string, bombPolicy: BombPolicy, pickIndex = 0, startStage = 1, stance: Stance = 'keepBack'): RunResult {
   let s = createRun(seedCode, startStage);
   const startBombs = s.bombs;
   const offered: string[] = [];
@@ -130,7 +148,7 @@ function playRun(seedCode: string, bombPolicy: BombPolicy, pickIndex = 0, startS
       s = takeUpgrade(s, s.offered[pickIndex % s.offered.length]);
       continue;
     }
-    s = step(s, pilot(s, bombPolicy), FIXED_DT);
+    s = step(s, pilot(s, bombPolicy, stance), FIXED_DT);
     guard += 1;
     if (guard > 200_000) break;
   }
@@ -144,6 +162,7 @@ function playRun(seedCode: string, bombPolicy: BombPolicy, pickIndex = 0, startS
     bombsUsed: Math.max(0, startBombs - s.bombs),
     captures: s.captures,
     grazeCount: s.grazeCount,
+    peakGraze: s.grazeMult,
     seconds: s.elapsed,
     taken: s.upgrades,
     offered,
@@ -197,6 +216,7 @@ function fullRun(seedCode: string): RunResult {
   return {
     stage: s.stage,
     startStage: 1,
+    peakGraze: s.grazeMult,
     won: s.phase === 'won',
     score: s.score,
     lives: s.lives,
@@ -215,7 +235,7 @@ function mean(xs: number[]): number {
 
 // ── 1) How far a run gets, and how long it takes ─────────────────────────────
 console.log('=== 一趟能走多遠（相同駕駛、八個種子）===\n');
-console.log('靈擊策略 | 平均到達  通關率  平均分數   平均時長  平均擦彈  Capture');
+console.log('靈擊策略 | 平均到達  通關率  平均分數   平均時長  平均擦彈  倍率  Capture');
 for (const policy of ['never', 'panic'] as BombPolicy[]) {
   const rs = SEEDS.map((s) => playRun(s, policy));
   const label = policy === 'never' ? '從不使用' : '危險就按';
@@ -224,7 +244,8 @@ for (const policy of ['never', 'panic'] as BombPolicy[]) {
       `${((rs.filter((r) => r.won).length / rs.length) * 100).toFixed(0)}%   ` +
       `${Math.round(mean(rs.map((r) => r.score))).toString().padStart(8)}   ` +
       `${mean(rs.map((r) => r.seconds)).toFixed(0).padStart(5)}s   ` +
-      `${Math.round(mean(rs.map((r) => r.grazeCount))).toString().padStart(6)}   ` +
+      `${Math.round(mean(rs.map((r) => r.grazeCount))).toString().padStart(6)}  ` +
+      `×${mean(rs.map((r) => r.peakGraze)).toFixed(2)}  ` +
       `${mean(rs.map((r) => r.captures)).toFixed(1)}`,
   );
 }
@@ -293,42 +314,99 @@ console.log('\n=== 強化池：一趟看到多少、兩趟重複多少（走完�
   );
 }
 
-// ── 4) Does any one upgrade dominate? ────────────────────────────────────────
+// ── 4) Does the build matter, and does it matter DIFFERENTLY per playstyle? ──
 //
-// Forced single-upgrade runs: take only this upgrade whenever it is offered,
-// otherwise take the first option. A pick that is far ahead of the field is
-// the coil problem from Clockwork-Keep, where one tower cleared everything and
-// the other three were decoration.
-console.log('\n=== 單一強化是不是碾壓其他 ===\n');
+// Forced single-upgrade runs: take this upgrade whenever offered, otherwise the
+// first option. Run under both stances.
+//
+// Two questions, and the second is the one that measures depth:
+//   - is any single pick running away with it?
+//   - does the ranking CHANGE between a careful pilot and one that hugs the
+//     boss? If the same picks win under both, the pool is just numbers; if the
+//     order moves, the picks are creating playstyles.
+//
+// The first pass had no conditional upgrades at all and the strongest and
+// weakest picks were 0.50 stages apart — the choice barely registered.
+console.log('\n=== 強化是不是真的有差，以及對不同打法是不是不同的差 ===\n');
 {
-  // Two seeds and a tick cap: the predictive pilot is expensive and a full
-  // 24-upgrade sweep over long runs takes minutes. Ranking only needs enough
-  // signal to spot a runaway pick.
-  const rows: Array<{ id: string; stage: number; score: number }> = [];
-  for (const u of UPGRADES) {
-    const rs = SEEDS.slice(0, 2).map((seedCode) => {
-      let s = createRun(seedCode);
-      let guard = 0;
-      while (s.phase === 'playing' || s.phase === 'upgrade') {
-        if (s.phase === 'upgrade') {
-          const want = s.offered.includes(u.id) ? u.id : s.offered[0];
-          s = takeUpgrade(s, want);
-          continue;
+  // The upgrade under test is INJECTED into the first offer rather than waited
+  // for. Hoping it turns up does not work: 32 upgrades against at most 15
+  // offers means most runs never see the one being measured, so every such row
+  // falls through to the same offered[0] path and scores identically. The first
+  // version of this measurement produced four different upgrades tied at
+  // exactly 84255 points, which was not a coincidence — it was four rows that
+  // had never taken the upgrade they were named after. Ranking that is ranking
+  // noise about which picks happened to appear.
+  //
+  // Taking it on the first screen and offered[0] thereafter isolates one
+  // upgrade while keeping every other choice identical across all rows.
+  const rank = (stance: Stance): Array<{ id: string; score: number }> => {
+    const rows = UPGRADES.map((u) => {
+      const scores = SEEDS.slice(0, 3).map((seedCode) => {
+        let s = createRun(seedCode);
+        let taken = false;
+        let guard = 0;
+        while (s.phase === 'playing' || s.phase === 'upgrade') {
+          if (s.phase === 'upgrade') {
+            if (!taken) {
+              taken = true;
+              s = takeUpgrade({ ...s, offered: [u.id, ...s.offered.filter((x) => x !== u.id)].slice(0, 3) }, u.id);
+            } else {
+              s = takeUpgrade(s, s.offered[0]);
+            }
+            continue;
+          }
+          s = step(s, pilot(s, 'never', stance), FIXED_DT);
+          if (++guard > 40_000) break;
         }
-        s = step(s, pilot(s, 'never'), FIXED_DT);
-        if (++guard > 40_000) break;
-      }
-      return { stage: s.stage, score: s.score };
+        return s.score;
+      });
+      return { id: u.id, score: mean(scores) };
     });
-    rows.push({ id: u.id, stage: mean(rs.map((r) => r.stage)), score: mean(rs.map((r) => r.score)) });
+    rows.sort((a, b) => b.score - a.score);
+    return rows;
+  };
+
+  // Guard the guard: if rows tie in bulk the measurement has gone degenerate
+  // again and nothing below it means anything.
+  const tieCheck = (rows: Array<{ score: number }>): number =>
+    rows.length - new Set(rows.map((r) => Math.round(r.score))).size;
+
+  const back = rank('keepBack');
+  const hug = rank('hug');
+  const ties = tieCheck(back);
+  if (ties > UPGRADES.length * 0.25) {
+    console.log(`  ⚠ ${ties}/${UPGRADES.length} 列分數重複 —— 量測退化了，下面的排名沒有意義`);
   }
-  rows.sort((a, b) => b.stage - a.stage || b.score - a.score);
-  console.log('  最強的五個：');
-  for (const r of rows.slice(0, 5)) console.log(`    ${r.id.padEnd(14)} 到達 ${r.stage.toFixed(2)}  分數 ${Math.round(r.score)}`);
-  console.log('  最弱的五個：');
-  for (const r of rows.slice(-5)) console.log(`    ${r.id.padEnd(14)} 到達 ${r.stage.toFixed(2)}  分數 ${Math.round(r.score)}`);
-  const spread = rows[0].stage - rows[rows.length - 1].stage;
-  console.log(`  最強與最弱的階段差距：${spread.toFixed(2)}`);
+  const posBack = new Map(back.map((r, i) => [r.id, i]));
+  const posHug = new Map(hug.map((r, i) => [r.id, i]));
+
+  console.log('  保守打法前五        貼身打法前五');
+  for (let i = 0; i < 5; i++) {
+    console.log(`    ${back[i].id.padEnd(14)}${Math.round(back[i].score).toString().padStart(7)}   ${hug[i].id.padEnd(14)}${Math.round(hug[i].score).toString().padStart(7)}`);
+  }
+
+  const spread = back[0].score / Math.max(1, back[back.length - 1].score);
+  console.log(`\n  最強 / 最弱的分數比：${spread.toFixed(2)}x`);
+
+  // How much the ranking moves between stances, as mean absolute rank shift.
+  let shift = 0;
+  for (const u of UPGRADES) shift += Math.abs((posBack.get(u.id) ?? 0) - (posHug.get(u.id) ?? 0));
+  const meanShift = shift / UPGRADES.length;
+  console.log(`  兩種打法之間的平均排名位移：${meanShift.toFixed(1)} 名（共 ${UPGRADES.length} 個）`);
+
+  const movers = UPGRADES.map((u) => ({
+    id: u.id,
+    d: (posBack.get(u.id) ?? 0) - (posHug.get(u.id) ?? 0),
+  }))
+    .sort((a, b) => b.d - a.d)
+    .slice(0, 4);
+  console.log('  貼身打法下提升最多的：' + movers.map((m) => `${m.id}(+${m.d})`).join('、'));
+  console.log(
+    meanShift < 3
+      ? '  ⚠ 兩種打法的排名幾乎一樣 —— 強化只是數字，不構成流派'
+      : '  ✓ 不同打法偏好不同強化 —— 選擇有方向性',
+  );
 }
 
 // ── 5) The difficulty curve, per stage, measured independently ───────────────

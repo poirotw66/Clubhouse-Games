@@ -7,7 +7,15 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { FIELD_H, FIELD_W, FIXED_DT, STAGE_COUNT } from '../src/game/constants.js';
+import {
+  FIELD_H,
+  FIELD_W,
+  FIXED_DT,
+  GRAZE_DECAY_PER_SEC,
+  GRAZE_MAX_MULT,
+  GRAZE_STEP,
+  STAGE_COUNT,
+} from '../src/game/constants.js';
 import {
   createRun,
   fireRate,
@@ -17,12 +25,14 @@ import {
   moveSpeed,
   rangeDamageMult,
   scaleEmitter,
+  shotDamage,
   step,
   takeUpgrade,
 } from '../src/game/engine.js';
 import { allCards, bossFor, midwayCardFor } from '../src/game/cards.js';
+import { allEmitters, emitterActive } from '../src/game/engine.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
-import { UPGRADES, declaredEffectKeys } from '../src/game/upgrades.js';
+import { UPGRADES, declaredConditions, declaredEffectKeys } from '../src/game/upgrades.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
 
 let passed = 0;
@@ -137,6 +147,111 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   const withBombs = takeUpgrade(staged, 'ordnance');
   assert.equal(withBombs.bombs, staged.bombs + 2, 'bombCount must actually grant bombs on pick');
   ok('effect keys move the stats they claim to move, one-shot grants included');
+}
+
+// ── 4b) Every declared condition is actually evaluated ───────────────────────
+//
+// A condition that is declared but never evaluated is the same silent failure
+// as an unwired effect key: the upgrade reads as a bonus, does nothing, and
+// nothing anywhere errors. activeConditions() is the single place conditions
+// are decided, so this asserts each declared one appears there — and then
+// checks two of them actually change a derived stat.
+{
+  const enginePath = resolve(__dirname, '..', '..', 'src', 'game', 'engine.ts');
+  const source = readFileSync(enginePath, 'utf8');
+  const fnStart = source.indexOf('export function activeConditions');
+  assert.ok(fnStart > 0, 'activeConditions() must exist — it is where conditions become real');
+  const fnBody = source.slice(fnStart, source.indexOf('\n}', fnStart));
+
+  const unevaluated = declaredConditions().filter((c) => !fnBody.includes(`'${c}'`));
+  assert.deepEqual(
+    unevaluated,
+    [],
+    `upgrades key off ${unevaluated.map((c) => `"${c}"`).join(', ')} but activeConditions() never ` +
+      `decides ${unevaluated.length === 1 ? 'it' : 'them'} — those upgrades would do nothing`,
+  );
+
+  // Observable: the same upgrade must behave differently in and out of its state.
+  const base = createRun('COND01');
+  const cold = { ...base, upgrades: ['coldblood'] };
+  const calm = { ...cold, grazeMult: 1 };
+  const hot = { ...cold, grazeMult: 2.5 };
+  assert.ok(
+    shotDamage(hot, 0) > shotDamage(calm, 0),
+    'coldblood must hit harder once the graze multiplier is high',
+  );
+  assert.ok(grazeRadius(hot) > grazeRadius(calm), 'coldblood must widen the graze ring in-condition');
+
+  // gambit's contract changed after measurement. It used to give +60% damage
+  // AND a 25% smaller hitbox on the last life, with no standing cost — a pure
+  // comeback mechanic that made you strongest exactly when closest to losing,
+  // which is the opposite of "lives exist but death still hurts". Isolating the
+  // pool change showed it pushing stage 3 and 4 survival from 88% to 100%.
+  //
+  // The assertions below encode the new contract deliberately: the last-life
+  // payoff is damage only, and the standing hitbox cost must bite whether or
+  // not the condition holds. A conditional upgrade with no downside outside its
+  // condition is a free upgrade wearing a condition as decoration.
+  const gam = { ...base, upgrades: ['gambit'] };
+  const safe = { ...gam, lives: 3 };
+  const desperate = { ...gam, lives: 1 };
+  assert.ok(shotDamage(desperate, 0) > shotDamage(safe, 0), 'gambit must raise damage on the last life');
+  assert.ok(
+    hitboxRadius(safe) > hitboxRadius(base),
+    'gambit must cost hitbox size while you are NOT desperate — otherwise it is free',
+  );
+  assert.ok(
+    hitboxRadius(desperate) > hitboxRadius(base),
+    'gambit must not become a survival aid on the last life; it buys damage, not safety',
+  );
+
+  const ll = { ...base, upgrades: ['lastlight'] };
+  assert.ok(
+    moveSpeed({ ...ll, lives: 3 }) < moveSpeed(base),
+    'lastlight must be a standing penalty until you are down to your last life',
+  );
+  assert.ok(moveSpeed({ ...ll, lives: 1 }) > moveSpeed(base), 'lastlight must pay off on the last life');
+
+  // And the flat downside of a stance upgrade must still bite out of condition.
+  const fix = { ...base, upgrades: ['fixative'] };
+  assert.ok(
+    fireRate({ ...fix, focus: false }) < fireRate(base),
+    'fixative must actually cost fire rate while not focused — otherwise it is a free upgrade',
+  );
+  assert.ok(fireRate({ ...fix, focus: true }) > fireRate(base), 'fixative must pay off while focused');
+  ok(`all ${declaredConditions().length} declared conditions are evaluated and change behaviour`);
+}
+
+// ── 4c) The graze multiplier has to be reachable ─────────────────────────────
+//
+// A multiplier that cannot rise is not a scoring system, it is a constant, and
+// nothing errors when it happens. This shipped: GRAZE_STEP 0.004 against
+// GRAZE_DECAY_PER_SEC 0.12 puts break-even at thirty grazes per second, while
+// the balance harness measures real play at 0.74/sec. The multiplier sat at
+// 1.00 for every run ever played, half the distance spine did nothing, and two
+// upgrades keyed to a high multiplier could never activate.
+//
+// Note what did NOT catch it: the bomb check below asserts the multiplier is 1
+// after bombing, and passed the whole time for the wrong reason.
+{
+  const breakEven = GRAZE_DECAY_PER_SEC / GRAZE_STEP;
+  assert.ok(
+    breakEven < 2,
+    `the multiplier needs ${breakEven.toFixed(1)} grazes/sec just to hold steady — ` +
+      `measured play manages about 0.74, so it could never rise`,
+  );
+  assert.ok(
+    breakEven > 0.2,
+    `break-even at ${breakEven.toFixed(2)} grazes/sec means the multiplier climbs whatever you do`,
+  );
+
+  // And it must actually climb in the engine, not just on paper.
+  let s = createRun('GRAZE1');
+  s = { ...s, grazeMult: 1 };
+  const climbed = Math.min(GRAZE_MAX_MULT, 1 + GRAZE_STEP * 60 - GRAZE_DECAY_PER_SEC * 2);
+  assert.ok(climbed > 1.5, 'sixty grazes over two seconds should visibly move the multiplier');
+  assert.ok(GRAZE_MAX_MULT > 2, 'the cap must leave room above the grazeHigh threshold of 2');
+  ok(`the graze multiplier is reachable (break-even ${breakEven.toFixed(2)} grazes/sec, cap ${GRAZE_MAX_MULT}x)`);
 }
 
 // ── 5) The distance spine ────────────────────────────────────────────────────
@@ -254,7 +369,8 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   const ids = UPGRADES.map((u) => u.id);
   assert.equal(new Set(ids).size, ids.length, 'upgrade ids must be unique');
   for (const u of UPGRADES) {
-    assert.ok(Object.keys(u.effects).length > 0, `${u.id} declares no effects at all`);
+    const effectCount = Object.keys(u.effects).length + Object.keys(u.conditional?.effects ?? {}).length;
+    assert.ok(effectCount > 0, `${u.id} declares no effects at all`);
     assert.ok(u.text.trim().length > 0, `${u.id} has no description`);
   }
   ok(`upgrade pool (${UPGRADES.length}) is comfortably larger than a run's ${maxOffered} offers`);
@@ -388,6 +504,108 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
       `final stage was unsurvivable (0% across eight seeds), so this lands as a wall, not a curve`,
   );
   ok(`pressure climbs every stage and totals ${ratio.toFixed(2)}x end to end (${rateAt(1).toFixed(0)} -> ${rateAt(STAGE_COUNT).toFixed(0)} bullets/sec)`);
+}
+
+// ── 11d) Spell card phases actually switch on ────────────────────────────────
+//
+// A phase is data that only means anything if the engine gates on it. If the
+// gate were wrong in the open direction every phase would fire from the first
+// second (pressure with no shape); wrong in the closed direction and the data
+// is decorative and nothing ever errors.
+{
+  const phased = allCards().filter((c) => (c.phases ?? []).length > 0);
+  assert.ok(phased.length >= 4, `only ${phased.length} cards have phases — most fights are still a loop`);
+
+  for (const card of phased) {
+    const emitters = allEmitters(card);
+    assert.ok(
+      emitters.length > card.emitters.length,
+      `${card.id}: phases contribute no emitters`,
+    );
+
+    // At full health only the base set fires.
+    for (let i = 0; i < emitters.length; i++) {
+      assert.equal(
+        emitterActive(card, i, 1),
+        i < card.emitters.length,
+        `${card.id}: emitter ${i} should ${i < card.emitters.length ? '' : 'not '}fire at full health`,
+      );
+    }
+    // At zero health everything fires.
+    for (let i = 0; i < emitters.length; i++) {
+      assert.equal(emitterActive(card, i, 0), true, `${card.id}: emitter ${i} should fire at 0% health`);
+    }
+    // And each threshold must actually be crossable in order.
+    const fracs = (card.phases ?? []).map((p) => p.belowHpFrac);
+    for (const f of fracs) {
+      assert.ok(f > 0 && f < 1, `${card.id}: a phase threshold of ${f} can never be crossed meaningfully`);
+    }
+    assert.deepEqual(
+      fracs,
+      [...fracs].sort((a, b) => b - a),
+      `${card.id}: phase thresholds must be listed from highest to lowest`,
+    );
+  }
+
+  // A phased card must genuinely put more on screen once hurt.
+  const card = phased[phased.length - 1];
+  const rate = (frac: number): number => {
+    const emitters = allEmitters(card);
+    let total = 0;
+    for (let i = 0; i < emitters.length; i++) {
+      if (emitterActive(card, i, frac)) total += emitters[i].count / emitters[i].interval;
+    }
+    return total;
+  };
+  assert.ok(rate(0.1) > rate(1) * 1.2, `${card.id} barely changes when broken — the phases are decorative`);
+  ok(`${phased.length} cards evolve as they take damage (${rate(1).toFixed(0)} -> ${rate(0.1).toFixed(0)} bullets/sec)`);
+}
+
+// ── 11e) Walls must leave a way through, and it must move ────────────────────
+//
+// A wall is the one pattern that can be unfair by construction: get the gap
+// arithmetic wrong and it spans the field with no opening, which is not a hard
+// pattern but an unavoidable death, and nothing would error. Get the walk wrong
+// and it is either free (a gap that never moves) or an aimed shot wearing a
+// wall's clothes (a gap that tracks you).
+{
+  const wallCards = allCards().filter((c) =>
+    allEmitters(c).some((e) => e.pattern === 'wall'),
+  );
+  assert.ok(wallCards.length > 0, 'no card uses a wall — the pattern is dead content');
+
+  const card = wallCards[0];
+  const wallEmitter = allEmitters(card).find((e) => e.pattern === 'wall')!;
+
+  // At every intensity the run can reach, a gap must survive.
+  for (let stage = 1; stage <= STAGE_COUNT; stage++) {
+    const scaled = scaleEmitter(wallEmitter, intensityFor(stage, true));
+    assert.ok(
+      (scaled.gap ?? 0) >= 1,
+      `at stage ${stage} the wall's gap closes to ${scaled.gap} — that is an unavoidable death, not a pattern`,
+    );
+    assert.ok(
+      (scaled.gap ?? 0) < Math.max(6, scaled.count),
+      `at stage ${stage} the wall is more gap than wall`,
+    );
+  }
+
+  // Escalation must tighten the gap rather than add bullets, or a wall becomes
+  // just another density pattern and inherits the problem it exists to dodge.
+  const low = scaleEmitter(wallEmitter, intensityFor(1, false));
+  const high = scaleEmitter(wallEmitter, intensityFor(STAGE_COUNT, true));
+  assert.ok((high.gap ?? 0) < (low.gap ?? 0), 'a wall must escalate by closing its gap');
+  assert.equal(high.count, low.count, 'a wall must not escalate by adding slots');
+
+  // And the gap has to actually walk between volleys.
+  const positions = new Set<number>();
+  for (let volley = 0; volley < 8; volley++) {
+    const slots = Math.max(6, low.count);
+    const gap = Math.max(1, low.gap ?? 2);
+    positions.add((volley * 3) % Math.max(1, slots - gap));
+  }
+  assert.ok(positions.size >= 3, `the wall's gap only reaches ${positions.size} positions — it barely moves`);
+  ok(`${wallCards.length} cards use walls; the gap survives every intensity and walks across ${positions.size} positions`);
 }
 
 // ── 12) A stage actually ends ────────────────────────────────────────────────

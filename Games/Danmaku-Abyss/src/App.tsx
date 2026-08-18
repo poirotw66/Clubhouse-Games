@@ -3,9 +3,9 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameCanvas } from './components/GameCanvas';
 import { FIELD_H, FIELD_W, FIXED_DT, STAGE_COUNT } from './game/constants';
-import { createRun, step, takeUpgrade } from './game/engine';
+import { activeConditions, createRun, step, takeUpgrade } from './game/engine';
 import { randomSeedCode } from './game/rng';
-import { UPGRADE_BY_ID } from './game/upgrades';
+import { CONDITION_TEXT, UPGRADE_BY_ID } from './game/upgrades';
 import type { PlayerInput, RunState } from './game/types';
 
 type Screen = 'menu' | 'playing';
@@ -247,6 +247,13 @@ export default function App(): React.ReactElement {
   const s = hud;
   const ended = s && (s.phase === 'lost' || s.phase === 'won');
   const boss = s?.enemies.find((e) => e.isBoss);
+  // Only the conditions this run's picks actually key off are worth showing.
+  const watched = new Set(
+    (s?.upgrades ?? []).map((id) => UPGRADE_BY_ID[id]?.conditional?.when).filter(Boolean) as string[],
+  );
+  const liveConditions = s
+    ? [...activeConditions(s)].filter((c) => watched.has(c))
+    : [];
 
   return (
     <div className="h-screen w-screen flex flex-col">
@@ -265,6 +272,19 @@ export default function App(): React.ReactElement {
           <span className="tabular-nums">{(s?.score ?? 0).toLocaleString('zh-Hant')}</span>
         </div>
       </div>
+
+      {/* Conditions your picks care about, lit only while they hold. A
+          conditional upgrade is a decision about how to play, which needs the
+          state to be visible — otherwise the bonus is invisible bookkeeping. */}
+      {s && liveConditions.length > 0 && (
+        <div className="shrink-0 px-3 pb-1 flex gap-2 flex-wrap text-[11px]">
+          {liveConditions.map((c) => (
+            <span key={c} className="px-2 py-0.5 rounded-full border border-fuchsia-400/50 text-fuchsia-200">
+              {CONDITION_TEXT[c]}
+            </span>
+          ))}
+        </div>
+      )}
 
       {boss?.card && (
         <div className="da-card-banner shrink-0 px-3 pb-1 flex justify-between text-xs text-fuchsia-200">
@@ -310,6 +330,11 @@ export default function App(): React.ReactElement {
                     >
                       <span className="font-semibold">{u.name}</span>
                       <span className="block text-slate-400 text-sm mt-0.5">{u.text}</span>
+                      {u.conditional && (
+                        <span className="block mt-1 text-[11px] text-fuchsia-300/80">
+                          條件：{CONDITION_TEXT[u.conditional.when]}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
