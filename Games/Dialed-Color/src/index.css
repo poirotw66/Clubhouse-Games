@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Tailwind v4 only auto-scans this game's own directory, so classes used by the
+   shared components (ResultOverlay, BackToMenu, ScoreFlash, TouchButton) were
+   never generated here — they only appeared by luck, when this game's own
+   markup happened to use the same class. That is why end-of-run overlays could
+   render with no `fixed`/`z-30`, as a static block underneath the board. */
+@source '../../../shared';
+
 @theme {
   --font-display: "Fraunces", ui-serif, Georgia, serif;
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;

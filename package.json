@@ -17,7 +17,8 @@
     "check:versions": "node scripts/check-game-versions.mjs",
     "lint:all": "node scripts/run-in-games.mjs lint",
     "check:all": "node scripts/run-in-games.mjs check",
-    "check:no-cdn": "node scripts/check-no-cdn.mjs"
+    "check:no-cdn": "node scripts/check-no-cdn.mjs",
+    "check:shared-styles": "node scripts/check-shared-styles.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
