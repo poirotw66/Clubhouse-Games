@@ -165,6 +165,17 @@ export function intensityFor(stage: number, boss: boolean): number {
 /** Tightens an authored emitter by the run's current intensity. */
 export function scaleEmitter(e: Emitter, intensity: number): Emitter {
   const k = intensity;
+  if (e.pattern === 'wall') {
+    // A wall escalates by closing its gap, never by adding slots: more slots on
+    // a fixed field width just puts smaller bullets in the same places, while a
+    // narrower gap is what actually raises the demand.
+    return {
+      ...e,
+      gap: Math.max(1, Math.round((e.gap ?? 3) - (k - 1) * 0.45)),
+      interval: Math.max(0.4, e.interval / (0.9 + 0.1 * k)),
+      speed: e.speed * (0.85 + 0.15 * k),
+    };
+  }
   return {
     ...e,
     count: Math.max(1, Math.round(e.count * (0.75 + 0.32 * k))),
@@ -318,8 +329,47 @@ function fireVolley(s: RunState): void {
 
 // ── Bullets ──────────────────────────────────────────────────────────────────
 
-function emitFrom(s: RunState, e: Enemy, emitter: Emitter, index: number): void {
+/**
+ * Lays a wall of bullets across the field with one gap, travelling down.
+ *
+ * The gap walks from volley to volley rather than tracking the player: a gap
+ * that follows you is just an aimed shot, and a gap that stays put is free
+ * after the first one. Walking it forces repositioning on a schedule you can
+ * read but cannot ignore.
+ */
+function emitWall(s: RunState, e: Enemy, scaled: Emitter, volley: number): void {
+  const slots = Math.max(6, scaled.count);
+  const gap = Math.max(1, scaled.gap ?? 2);
+  const span = Math.max(1, slots - gap);
+  const gapStart = ((volley * 3) % span) | 0;
+  const stepX = FIELD_W / (slots - 1);
+
+  for (let i = 0; i < slots; i++) {
+    if (i >= gapStart && i < gapStart + gap) continue;
+    s.bullets.push({
+      id: s.nextId++,
+      x: i * stepX,
+      y: e.y,
+      angle: Math.PI / 2,
+      speed: scaled.speed,
+      r: scaled.bulletR,
+      hue: scaled.hue,
+      age: 0,
+      lifetime: scaled.lifetime,
+      waveform: scaled.waveform,
+      curl: 0,
+      grazed: false,
+      isWall: true,
+    });
+  }
+}
+
+function emitFrom(s: RunState, e: Enemy, emitter: Emitter, index: number, volley: number): void {
   const scaled = scaleEmitter(emitter, s.intensity);
+  if (scaled.pattern === 'wall') {
+    emitWall(s, e, scaled, volley);
+    return;
+  }
   let base: number;
   if (scaled.aim === 'aimed') {
     base = Math.atan2(s.py - e.y, s.px - e.x);
@@ -519,7 +569,9 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
       e.emitterClocks[i] += dt;
       while (e.emitterClocks[i] >= scaled.interval) {
         e.emitterClocks[i] -= scaled.interval;
-        emitFrom(s, e, em, i);
+        // Volley index drives the wall's gap walk, derived from elapsed time
+        // so it stays a pure function of the run.
+        emitFrom(s, e, em, i, Math.floor(e.cardElapsed / scaled.interval));
       }
     }
   }

@@ -561,6 +561,53 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   ok(`${phased.length} cards evolve as they take damage (${rate(1).toFixed(0)} -> ${rate(0.1).toFixed(0)} bullets/sec)`);
 }
 
+// ── 11e) Walls must leave a way through, and it must move ────────────────────
+//
+// A wall is the one pattern that can be unfair by construction: get the gap
+// arithmetic wrong and it spans the field with no opening, which is not a hard
+// pattern but an unavoidable death, and nothing would error. Get the walk wrong
+// and it is either free (a gap that never moves) or an aimed shot wearing a
+// wall's clothes (a gap that tracks you).
+{
+  const wallCards = allCards().filter((c) =>
+    allEmitters(c).some((e) => e.pattern === 'wall'),
+  );
+  assert.ok(wallCards.length > 0, 'no card uses a wall — the pattern is dead content');
+
+  const card = wallCards[0];
+  const wallEmitter = allEmitters(card).find((e) => e.pattern === 'wall')!;
+
+  // At every intensity the run can reach, a gap must survive.
+  for (let stage = 1; stage <= STAGE_COUNT; stage++) {
+    const scaled = scaleEmitter(wallEmitter, intensityFor(stage, true));
+    assert.ok(
+      (scaled.gap ?? 0) >= 1,
+      `at stage ${stage} the wall's gap closes to ${scaled.gap} — that is an unavoidable death, not a pattern`,
+    );
+    assert.ok(
+      (scaled.gap ?? 0) < Math.max(6, scaled.count),
+      `at stage ${stage} the wall is more gap than wall`,
+    );
+  }
+
+  // Escalation must tighten the gap rather than add bullets, or a wall becomes
+  // just another density pattern and inherits the problem it exists to dodge.
+  const low = scaleEmitter(wallEmitter, intensityFor(1, false));
+  const high = scaleEmitter(wallEmitter, intensityFor(STAGE_COUNT, true));
+  assert.ok((high.gap ?? 0) < (low.gap ?? 0), 'a wall must escalate by closing its gap');
+  assert.equal(high.count, low.count, 'a wall must not escalate by adding slots');
+
+  // And the gap has to actually walk between volleys.
+  const positions = new Set<number>();
+  for (let volley = 0; volley < 8; volley++) {
+    const slots = Math.max(6, low.count);
+    const gap = Math.max(1, low.gap ?? 2);
+    positions.add((volley * 3) % Math.max(1, slots - gap));
+  }
+  assert.ok(positions.size >= 3, `the wall's gap only reaches ${positions.size} positions — it barely moves`);
+  ok(`${wallCards.length} cards use walls; the gap survives every intensity and walks across ${positions.size} positions`);
+}
+
 // ── 12) A stage actually ends ────────────────────────────────────────────────
 //
 // Spell cards time out on their own, so an idle player who never fires a shot

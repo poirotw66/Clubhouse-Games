@@ -29,6 +29,11 @@
  */
 import type { Emitter, SpellCard } from './constants';
 
+/** A field-spanning wall with a walking gap. Escalates by closing the gap, not by adding bullets. */
+function wall(e: Partial<Emitter>): Emitter {
+  return em({ pattern: 'wall', count: 14, gap: 3, speed: 105, interval: 2.2, lifetime: 9, bulletR: 5, ...e });
+}
+
 function em(e: Partial<Emitter>): Emitter {
   return {
     count: 8,
@@ -55,6 +60,10 @@ const MIDWAY: Emitter[][] = [
   [em({ count: 5, spread: 1.5, speed: 105, waveform: 'accel', interval: 1.6, hue: 320 })],
   [em({ count: 7, spread: Math.PI * 2, speed: 95, angularVel: 2.1, aim: 'rotating', interval: 0.8, hue: 160 })],
   [em({ count: 4, spread: 1.1, speed: 120, waveform: 'reverse', interval: 1.8, hue: 45, lifetime: 7 })],
+  // Taught in the midway, alone and slow, before any boss combines it with a
+  // ring. A mechanic first met inside a dense pattern reads as unfair rather
+  // than as a rule.
+  [wall({ speed: 88, interval: 2.8, gap: 4, hue: 210 })],
 ];
 
 export function midwayCardFor(stage: number, salt: number): SpellCard {
@@ -143,7 +152,7 @@ const BOSSES: Boss[] = [
           em({ count: 4, spread: 0.6, speed: 175, aim: 'aimed', interval: 0.85, delay: 1, hue: 350 }),
         ]),
         phases: [
-          { belowHpFrac: 0.55, emitters: [em({ count: 10, spread: Math.PI * 2, speed: 88, waveform: 'spiral', angularVel: 1.7, interval: 0.75, hue: 265 })] },
+          { belowHpFrac: 0.55, emitters: [wall({ speed: 96, interval: 2.4, gap: 3, hue: 195 })] },
           { belowHpFrac: 0.25, emitters: [em({ count: 5, spread: 0.8, speed: 160, aim: 'aimed', interval: 0.9, hue: 20, bulletR: 3.2 })] },
         ],
       },
@@ -166,7 +175,7 @@ const BOSSES: Boss[] = [
           em({ count: 12, spread: Math.PI * 2, speed: 78, waveform: 'spiral', angularVel: -2.0, interval: 0.6, delay: 1.5, hue: 265 }),
         ]),
         phases: [
-          { belowHpFrac: 0.5, emitters: [em({ count: 3, spread: 0.3, speed: 200, aim: 'aimed', interval: 0.8, hue: 0, bulletR: 3 })] },
+          { belowHpFrac: 0.5, emitters: [wall({ speed: 108, interval: 2.1, gap: 3, hue: 35 })] },
           { belowHpFrac: 0.2, emitters: [em({ count: 8, spread: Math.PI * 2, speed: 100, angularVel: 3.2, aim: 'rotating', interval: 0.55, hue: 45 })] },
         ],
       },
@@ -190,7 +199,13 @@ const BOSSES: Boss[] = [
         ]),
         phases: [
           { belowHpFrac: 0.66, emitters: [em({ count: 4, spread: 0.42, speed: 195, aim: 'aimed', interval: 0.7, hue: 0, bulletR: 3.2 })] },
-          { belowHpFrac: 0.33, emitters: [em({ count: 9, spread: Math.PI * 2, speed: 96, angularVel: -2.8, aim: 'rotating', interval: 0.6, hue: 175 })] },
+          {
+            belowHpFrac: 0.33,
+            emitters: [
+              em({ count: 9, spread: Math.PI * 2, speed: 96, angularVel: -2.8, aim: 'rotating', interval: 0.6, hue: 175 }),
+              wall({ speed: 118, interval: 1.9, gap: 3, hue: 265 }),
+            ],
+          },
         ],
       },
     ],

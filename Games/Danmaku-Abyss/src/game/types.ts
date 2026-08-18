@@ -21,6 +21,13 @@ export interface Bullet {
   curl: number;
   /** Whether this bullet has already been counted toward the graze multiplier. */
   grazed: boolean;
+  /**
+   * Part of a field-spanning wall. Drawn differently on purpose: a row that
+   * denies the whole screen except one gap has to be readable at a glance as a
+   * different kind of threat from a spray, or the pattern reads as unfair
+   * rather than as a rule you can play around.
+   */
+  isWall?: boolean;
 }
 
 export interface Enemy {

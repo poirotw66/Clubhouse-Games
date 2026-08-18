@@ -105,6 +105,23 @@ export const GRAZE_MAX_MULT = 4;
 export const GRAZE_DECAY_PER_SEC = 0.04;
 
 export type AimMode = 'fixed' | 'aimed' | 'rotating';
+
+/**
+ * How a volley is laid out.
+ *
+ * 'radial' fires from the emitter outward — every pattern in the first version
+ * was one of these, and they all fill space without denying it. The balance
+ * harness showed why that matters: raising density stopped working as a
+ * difficulty lever entirely, because the build scales with the danger. More
+ * bullets means more grazes, a higher multiplier, the graze-keyed upgrades
+ * firing, and cards dying sooner — so extra danger partly cancels itself.
+ *
+ * 'wall' spans the field with a single gap. You cannot out-damage a wall that
+ * is already on screen and no amount of fire rate widens the gap, so it applies
+ * pressure the feedback loop cannot absorb. It also asks a different question:
+ * not "can you react" but "are you already in the right place".
+ */
+export type VolleyPattern = 'radial' | 'wall';
 export type Waveform = 'linear' | 'spiral' | 'accel' | 'reverse';
 
 /**
@@ -123,6 +140,10 @@ export interface Emitter {
   /** Radians/sec added to the emitter's base angle between volleys. */
   angularVel: number;
   aim: AimMode;
+  /** Defaults to 'radial' when omitted. */
+  pattern?: VolleyPattern;
+  /** Wall only: how many bullet slots are left open. Wider is kinder. */
+  gap?: number;
   waveform: Waveform;
   /** Seconds between volleys. */
   interval: number;

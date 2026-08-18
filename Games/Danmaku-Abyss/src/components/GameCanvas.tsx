@@ -93,23 +93,31 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
       }
 
       // Bullets, batched by hue bucket so the whole screen is a few fills.
+      // Wall bullets get their own buckets (offset by 1000) so they can be
+      // drawn as bright squares instead of soft circles.
       const buckets = new Map<number, typeof s.bullets>();
       for (const b of s.bullets) {
-        const key = Math.round(b.hue / 30) * 30;
+        const key = Math.round(b.hue / 30) * 30 + (b.isWall ? 1000 : 0);
         const list = buckets.get(key);
         if (list) list.push(b);
         else buckets.set(key, [b]);
       }
-      for (const [hue, list] of buckets) {
+      for (const [key, list] of buckets) {
+        const isWall = key >= 1000;
+        const hue = key - (isWall ? 1000 : 0);
         ctx.beginPath();
         for (const b of list) {
-          ctx.moveTo(b.x + b.r, b.y);
-          ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          if (isWall) {
+            ctx.rect(b.x - b.r, b.y - b.r * 0.72, b.r * 2, b.r * 1.44);
+          } else {
+            ctx.moveTo(b.x + b.r, b.y);
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          }
         }
-        ctx.fillStyle = `hsla(${hue}, 90%, 72%, 0.95)`;
+        ctx.fillStyle = isWall ? `hsla(${hue}, 95%, 80%, 0.98)` : `hsla(${hue}, 90%, 72%, 0.95)`;
         ctx.fill();
-        ctx.lineWidth = 1.4;
-        ctx.strokeStyle = `hsla(${hue}, 95%, 92%, 0.85)`;
+        ctx.lineWidth = isWall ? 2 : 1.4;
+        ctx.strokeStyle = `hsla(${hue}, 100%, ${isWall ? 96 : 92}%, ${isWall ? 1 : 0.85})`;
         ctx.stroke();
       }
 
