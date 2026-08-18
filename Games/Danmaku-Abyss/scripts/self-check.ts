@@ -341,6 +341,55 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   ok(`late cards are not hand-escalated (${first} -> ${last} bullets), the scalar supplies ${ratio.toFixed(1)}x`);
 }
 
+// ── 11c) Pressure must climb by a slope, not a cliff ─────────────────────────
+//
+// Bullets-per-second is count divided by interval, so scaling both compounds
+// and the last stage takes the worst of it. Three cadence settings were run
+// through the balance harness, and the end-to-end pressure ratio separates
+// them cleanly:
+//
+//   0.90 + 0.10k   3.46x from stage 1 to 5   38% survival on stage 5
+//   0.72 + 0.24k   4.29x                      0% survival on stage 5
+//   0.55 + 0.40x   5.15x                      worse still
+//
+// The bound below sits between the setting measured as playable and the one
+// measured as a wall. It is not a guess at what feels fair — it is the line the
+// measurements actually drew.
+//
+// An earlier version of this check compared CONSECUTIVE stages instead, and it
+// could not fail: intensity only rises 0.55 per stage, so no single step ever
+// doubles regardless of how brutal the cadence is. Reintroducing the 0% setting
+// left all checks green. A check that cannot go red for the bug it names is
+// worse than no check, because it manufactures confidence.
+{
+  const rateAt = (stage: number): number => {
+    const k = intensityFor(stage, true);
+    let total = 0;
+    for (const card of bossFor(stage).cards) {
+      for (const e of card.emitters) {
+        const sc = scaleEmitter(e, k);
+        total += sc.count / sc.interval;
+      }
+    }
+    return total / bossFor(stage).cards.length;
+  };
+
+  for (let stage = 2; stage <= STAGE_COUNT; stage++) {
+    assert.ok(
+      rateAt(stage) > rateAt(stage - 1),
+      `stage ${stage} must apply more pressure than stage ${stage - 1}`,
+    );
+  }
+
+  const ratio = rateAt(STAGE_COUNT) / rateAt(1);
+  assert.ok(
+    ratio < 4,
+    `pressure grows ${ratio.toFixed(2)}x from stage 1 to ${STAGE_COUNT} — measured at 4.29x the ` +
+      `final stage was unsurvivable (0% across eight seeds), so this lands as a wall, not a curve`,
+  );
+  ok(`pressure climbs every stage and totals ${ratio.toFixed(2)}x end to end (${rateAt(1).toFixed(0)} -> ${rateAt(STAGE_COUNT).toFixed(0)} bullets/sec)`);
+}
+
 // ── 12) A stage actually ends ────────────────────────────────────────────────
 //
 // Spell cards time out on their own, so an idle player who never fires a shot

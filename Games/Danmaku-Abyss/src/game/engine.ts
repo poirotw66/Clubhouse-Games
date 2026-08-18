@@ -122,7 +122,13 @@ export function scaleEmitter(e: Emitter, intensity: number): Emitter {
   return {
     ...e,
     count: Math.max(1, Math.round(e.count * (0.75 + 0.32 * k))),
-    interval: Math.max(0.05, e.interval / (0.72 + 0.24 * k)),
+    // Bullets-per-second is count divided by interval, so scaling both
+    // aggressively makes the pressure grow quadratically and the last stage
+    // lands as a wall. Measured at 0.72 + 0.24k: survival ran 100/100/100/88/0%
+    // across the five stages. Letting count carry the escalation and easing the
+    // cadence gives 100/100/88/88/38% — still clearly the hardest stage, but a
+    // slope instead of a cliff.
+    interval: Math.max(0.05, e.interval / (0.90 + 0.10 * k)),
     speed: e.speed * (0.8 + 0.2 * k),
     // Aimed volleys become more common with intensity: a fixed spray you can
     // stand still against turns into something that follows you.
