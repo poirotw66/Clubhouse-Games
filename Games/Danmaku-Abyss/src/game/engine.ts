@@ -40,8 +40,54 @@ import {
 } from './constants';
 import { bossFor, midwayCardFor } from './cards';
 import { hashString, shuffle, streamRng } from './rng';
-import { UPGRADES, UPGRADE_BY_ID, effect } from './upgrades';
+import {
+  UPGRADES,
+  UPGRADE_BY_ID,
+  conditionalEffect,
+  effect,
+  type Condition,
+} from './upgrades';
 import type { Bullet, Enemy, PlayerInput, PowerFragment, RunState } from './types';
+
+// ── Conditions ───────────────────────────────────────────────────────────────
+
+/**
+ * Which conditional states hold right now. Every Condition an upgrade can key
+ * off is decided here and nowhere else, so there is exactly one place to check
+ * when asking whether a condition is real — the self-check asserts each
+ * declared condition appears in this function.
+ *
+ * A condition that is declared but never evaluated is the same silent failure
+ * as an unwired effect key: the upgrade reads as a bonus, does nothing, and
+ * produces no error anywhere.
+ */
+export function activeConditions(s: RunState): Set<Condition> {
+  const active = new Set<Condition>();
+  if (s.grazeMult >= 2) active.add('grazeHigh');
+  if (s.lives <= 1) active.add('lastLife');
+  if (s.focus) active.add('focused');
+  if (s.bombs <= 0) active.add('bombless');
+  if (s.powerTier >= MAX_POWER_TIER) active.add('fullPower');
+
+  for (const e of s.enemies) {
+    if (e.entryTo) continue;
+    if (Math.hypot(e.x - s.px, e.y - s.py) < 120) {
+      active.add('pointBlank');
+      break;
+    }
+  }
+  return active;
+}
+
+/**
+ * The value of one effect key for this state: the flat contribution plus
+ * whatever the currently-true conditions add. Everything downstream reads
+ * through here rather than `effect` directly, so a conditional upgrade cannot
+ * be silently ignored by one call site.
+ */
+export function effectNow(s: RunState, key: Parameters<typeof effect>[1]): number {
+  return effect(s.upgrades, key) + conditionalEffect(s.upgrades, key, activeConditions(s));
+}
 
 // ── Derived player stats ─────────────────────────────────────────────────────
 //
@@ -50,35 +96,35 @@ import type { Bullet, Enemy, PlayerInput, PowerFragment, RunState } from './type
 // reads makes the upgrade's text a silent lie.
 
 export function hitboxRadius(s: RunState): number {
-  return Math.max(1, BASE_HITBOX_R * (1 + effect(s.upgrades, 'hitboxPct')));
+  return Math.max(1, BASE_HITBOX_R * (1 + effectNow(s, 'hitboxPct')));
 }
 
 export function grazeRadius(s: RunState): number {
-  return BASE_GRAZE_R * (1 + effect(s.upgrades, 'grazeRangePct'));
+  return BASE_GRAZE_R * (1 + effectNow(s, 'grazeRangePct'));
 }
 
 export function moveSpeed(s: RunState): number {
   return s.focus
-    ? FOCUS_SPEED * (1 + effect(s.upgrades, 'focusSpeedPct'))
-    : FAST_SPEED * (1 + effect(s.upgrades, 'fastSpeedPct'));
+    ? FOCUS_SPEED * (1 + effectNow(s, 'focusSpeedPct'))
+    : FAST_SPEED * (1 + effectNow(s, 'fastSpeedPct'));
 }
 
 /** Volleys per second, rising with power tier and fireRatePct. */
 export function fireRate(s: RunState): number {
   const base = 5.5 + s.powerTier * 1.1;
-  return Math.max(1, base * (1 + effect(s.upgrades, 'fireRatePct')));
+  return Math.max(1, base * (1 + effectNow(s, 'fireRatePct')));
 }
 
 export function shotsPerVolley(s: RunState): number {
-  return Math.max(1, 1 + Math.floor(s.powerTier / 2) + effect(s.upgrades, 'shotWidth'));
+  return Math.max(1, 1 + Math.floor(s.powerTier / 2) + effectNow(s, 'shotWidth'));
 }
 
 export function invulnAfterDeath(s: RunState): number {
-  return Math.max(0.4, RESPAWN_INVULN_SEC + effect(s.upgrades, 'invulnSec'));
+  return Math.max(0.4, RESPAWN_INVULN_SEC + effectNow(s, 'invulnSec'));
 }
 
 export function cardTimeBonus(s: RunState): number {
-  return effect(s.upgrades, 'cardTimeSec');
+  return effectNow(s, 'cardTimeSec');
 }
 
 /**
@@ -88,21 +134,21 @@ export function cardTimeBonus(s: RunState): number {
  */
 export function rangeDamageMult(s: RunState, dist: number): number {
   const t = Math.min(1, Math.max(0, dist / DAMAGE_FALLOFF_RANGE));
-  const near = DAMAGE_NEAR_MULT * (1 + effect(s.upgrades, 'nearBonusPct'));
+  const near = DAMAGE_NEAR_MULT * (1 + effectNow(s, 'nearBonusPct'));
   return near + (DAMAGE_FAR_MULT - near) * t;
 }
 
 export function shotDamage(s: RunState, dist: number): number {
   const base = 8 + s.powerTier * 3;
-  return base * (1 + effect(s.upgrades, 'damagePct')) * rangeDamageMult(s, dist);
+  return base * (1 + effectNow(s, 'damagePct')) * rangeDamageMult(s, dist);
 }
 
 export function grazeGain(s: RunState): number {
-  return GRAZE_STEP * (1 + effect(s.upgrades, 'grazeGainPct'));
+  return GRAZE_STEP * (1 + effectNow(s, 'grazeGainPct'));
 }
 
 export function fragmentPull(s: RunState): number {
-  return effect(s.upgrades, 'fragmentPullPct');
+  return effectNow(s, 'fragmentPullPct');
 }
 
 // ── Difficulty ───────────────────────────────────────────────────────────────
@@ -216,13 +262,34 @@ function makeEnemy(
     card,
     cardIndex: 0,
     cardElapsed: 0,
-    emitterClocks: card ? card.emitters.map(() => 0) : [],
-    emitterAngles: card ? card.emitters.map(() => 0) : [],
+    emitterClocks: card ? allEmitters(card).map(() => 0) : [],
+    emitterAngles: card ? allEmitters(card).map(() => 0) : [],
     entryTo,
     entryFrom: entryTo ? { x, y } : null,
     entryT: 0,
     score: isBoss ? KILL_SCORE * 20 : KILL_SCORE,
   };
+}
+
+/**
+ * A card's emitters as one flat list: the base set first, then each phase's in
+ * order. Indices are stable for the card's whole life, so an emitter's volley
+ * clock and rotation survive a phase switching on — rebuilding the array per
+ * phase would reset every rotating pattern mid-fight.
+ */
+export function allEmitters(card: SpellCard): Emitter[] {
+  return [...card.emitters, ...(card.phases ?? []).flatMap((p) => p.emitters)];
+}
+
+/** Whether the emitter at `index` is firing right now, given how hurt the boss is. */
+export function emitterActive(card: SpellCard, index: number, hpFrac: number): boolean {
+  if (index < card.emitters.length) return true;
+  let cursor = card.emitters.length;
+  for (const phase of card.phases ?? []) {
+    if (index < cursor + phase.emitters.length) return hpFrac <= phase.belowHpFrac;
+    cursor += phase.emitters.length;
+  }
+  return false;
 }
 
 // ── Player shots ─────────────────────────────────────────────────────────────
@@ -399,7 +466,7 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
   if (input.bomb && s.bombs > 0 && s.invuln <= 0) {
     s.bombs -= 1;
     s.bullets = [];
-    s.invuln = BOMB_INVULN_SEC + effect(s.upgrades, 'invulnSec');
+    s.invuln = BOMB_INVULN_SEC + effectNow(s, 'invulnSec');
     // Bailing out costs the multiplier you built by staying close.
     if (BOMB_CLEARS_GRAZE) s.grazeMult = 1;
   }
@@ -441,9 +508,12 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
     }
     if (!e.card) continue;
     e.cardElapsed += dt;
-    for (let i = 0; i < e.card.emitters.length; i++) {
-      const em = e.card.emitters[i];
+    const emitters = allEmitters(e.card);
+    const hpFrac = e.maxHp > 0 ? Math.max(0, e.hp / e.maxHp) : 0;
+    for (let i = 0; i < emitters.length; i++) {
+      const em = emitters[i];
       if (e.cardElapsed < em.delay) continue;
+      if (!emitterActive(e.card, i, hpFrac)) continue;
       const scaled = scaleEmitter(em, s.intensity);
       e.emitterAngles[i] += scaled.angularVel * dt;
       e.emitterClocks[i] += dt;

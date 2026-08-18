@@ -9,6 +9,15 @@
  * shorter gaps, faster, and odd fixed sprays start tracking the player. So a
  * stage-1 card met again at stage 5 is the same idea turned vicious.
  *
+ * Each boss's final card also carries PHASES: emitters that switch on as its HP
+ * falls. Without them a card is a loop — whatever it opens with is what it does
+ * for its whole timer, and the only thing that changes is your patience. With
+ * them, breaking a threshold is what makes the fight worse, so pushing damage
+ * becomes a decision instead of a formality. Note that some emitters moved from
+ * the base set INTO a phase rather than being added on top: the last two cards
+ * already ran three emitters at once from the opening second, which was
+ * pressure without shape.
+ *
  * The first draft of this file broke that rule while claiming it: stage-1 rings
  * were authored at 10-14 bullets and stage-5 rings at 24-26, so hand-written
  * escalation multiplied the scalar's escalation. The balance harness measured
@@ -85,10 +94,13 @@ const BOSSES: Boss[] = [
       // Stage 1 used to stop at two cards while every other stage had three,
       // which made the opening stage noticeably shorter than the rest for no
       // designed reason.
-      card('lamp-3', '灼符「殘照」', 1450, 36, [
-        em({ count: 11, spread: Math.PI * 2, speed: 86, angularVel: 1.9, aim: 'rotating', interval: 0.6, hue: 35 }),
-        em({ count: 4, spread: 0.7, speed: 145, aim: 'aimed', interval: 1.2, delay: 2.5, hue: 200 }),
-      ]),
+      {
+        ...card('lamp-3', '灼符「殘照」', 1450, 36, [
+          em({ count: 11, spread: Math.PI * 2, speed: 86, angularVel: 1.9, aim: 'rotating', interval: 0.6, hue: 35 }),
+          em({ count: 4, spread: 0.7, speed: 145, aim: 'aimed', interval: 1.2, delay: 2.5, hue: 200 }),
+        ]),
+        phases: [{ belowHpFrac: 0.5, emitters: [em({ count: 6, spread: 1.4, speed: 118, waveform: 'accel', interval: 1.1, hue: 320 })] }],
+      },
     ],
   },
   {
@@ -102,10 +114,16 @@ const BOSSES: Boss[] = [
         em({ count: 12, spread: Math.PI * 2, speed: 88, angularVel: -1.8, aim: 'rotating', interval: 0.5, hue: 170 }),
         em({ count: 6, spread: 1.6, speed: 110, waveform: 'accel', interval: 1.4, delay: 3, hue: 30 }),
       ]),
-      card('tide-3', '深符「暗流」', 1700, 38, [
-        em({ count: 13, spread: Math.PI * 2, speed: 76, waveform: 'spiral', angularVel: 1.3, interval: 0.62, hue: 245 }),
-        em({ count: 3, spread: 0.34, speed: 185, aim: 'aimed', interval: 0.95, delay: 1.5, hue: 15, bulletR: 3.2 }),
-      ]),
+      {
+        ...card('tide-3', '深符「暗流」', 1700, 38, [
+          em({ count: 13, spread: Math.PI * 2, speed: 76, waveform: 'spiral', angularVel: 1.3, interval: 0.62, hue: 245 }),
+          em({ count: 3, spread: 0.34, speed: 185, aim: 'aimed', interval: 0.95, delay: 1.5, hue: 15, bulletR: 3.2 }),
+        ]),
+        phases: [
+          { belowHpFrac: 0.6, emitters: [em({ count: 7, spread: 2.0, speed: 104, waveform: 'reverse', interval: 1.3, hue: 190 })] },
+          { belowHpFrac: 0.3, emitters: [em({ count: 9, spread: Math.PI * 2, speed: 92, angularVel: -2.2, aim: 'rotating', interval: 0.8, hue: 330 })] },
+        ],
+      },
     ],
   },
   {
@@ -119,10 +137,16 @@ const BOSSES: Boss[] = [
         em({ count: 13, spread: Math.PI * 2, speed: 92, waveform: 'spiral', angularVel: -1.6, interval: 0.52, hue: 210 }),
         em({ count: 5, spread: 1.0, speed: 135, waveform: 'reverse', interval: 1.25, delay: 2, hue: 50 }),
       ]),
-      card('frost-3', '凍符「靜止的雨」', 2100, 40, [
-        em({ count: 14, spread: Math.PI * 2, speed: 68, waveform: 'reverse', interval: 1.5, hue: 195, lifetime: 10 }),
-        em({ count: 4, spread: 0.6, speed: 175, aim: 'aimed', interval: 0.85, delay: 1, hue: 350 }),
-      ]),
+      {
+        ...card('frost-3', '凍符「靜止的雨」', 2100, 40, [
+          em({ count: 14, spread: Math.PI * 2, speed: 68, waveform: 'reverse', interval: 1.5, hue: 195, lifetime: 10 }),
+          em({ count: 4, spread: 0.6, speed: 175, aim: 'aimed', interval: 0.85, delay: 1, hue: 350 }),
+        ]),
+        phases: [
+          { belowHpFrac: 0.55, emitters: [em({ count: 10, spread: Math.PI * 2, speed: 88, waveform: 'spiral', angularVel: 1.7, interval: 0.75, hue: 265 })] },
+          { belowHpFrac: 0.25, emitters: [em({ count: 5, spread: 0.8, speed: 160, aim: 'aimed', interval: 0.9, hue: 20, bulletR: 3.2 })] },
+        ],
+      },
     ],
   },
   {
@@ -136,11 +160,16 @@ const BOSSES: Boss[] = [
         em({ count: 13, spread: Math.PI * 2, speed: 88, angularVel: 3.0, aim: 'rotating', interval: 0.45, hue: 12 }),
         em({ count: 8, spread: 2.0, speed: 105, waveform: 'spiral', angularVel: 1.1, interval: 0.9, delay: 2.5, hue: 300 }),
       ]),
-      card('ember-3', '滅符「回燒」', 2600, 40, [
-        em({ count: 10, spread: 1.8, speed: 145, waveform: 'reverse', interval: 0.95, hue: 35, lifetime: 9 }),
-        em({ count: 12, spread: Math.PI * 2, speed: 78, waveform: 'spiral', angularVel: -2.0, interval: 0.6, delay: 1.5, hue: 265 }),
-        em({ count: 3, spread: 0.3, speed: 200, aim: 'aimed', interval: 0.8, delay: 4, hue: 0, bulletR: 3 }),
-      ]),
+      {
+        ...card('ember-3', '滅符「回燒」', 2600, 40, [
+          em({ count: 10, spread: 1.8, speed: 145, waveform: 'reverse', interval: 0.95, hue: 35, lifetime: 9 }),
+          em({ count: 12, spread: Math.PI * 2, speed: 78, waveform: 'spiral', angularVel: -2.0, interval: 0.6, delay: 1.5, hue: 265 }),
+        ]),
+        phases: [
+          { belowHpFrac: 0.5, emitters: [em({ count: 3, spread: 0.3, speed: 200, aim: 'aimed', interval: 0.8, hue: 0, bulletR: 3 })] },
+          { belowHpFrac: 0.2, emitters: [em({ count: 8, spread: Math.PI * 2, speed: 100, angularVel: 3.2, aim: 'rotating', interval: 0.55, hue: 45 })] },
+        ],
+      },
     ],
   },
   {
@@ -154,11 +183,16 @@ const BOSSES: Boss[] = [
         em({ count: 14, spread: 2.6, speed: 120, waveform: 'reverse', interval: 0.85, hue: 275, lifetime: 9 }),
         em({ count: 12, spread: Math.PI * 2, speed: 92, angularVel: -2.6, aim: 'rotating', interval: 0.48, hue: 210 }),
       ]),
-      card('abyss-3', '終符「深淵回望」', 3400, 45, [
-        em({ count: 14, spread: Math.PI * 2, speed: 86, waveform: 'spiral', angularVel: 2.2, interval: 0.45, hue: 265 }),
-        em({ count: 8, spread: 2.2, speed: 128, waveform: 'accel', interval: 0.8, delay: 2, hue: 320 }),
-        em({ count: 4, spread: 0.42, speed: 195, aim: 'aimed', interval: 0.7, delay: 3.5, hue: 0, bulletR: 3.2 }),
-      ]),
+      {
+        ...card('abyss-3', '終符「深淵回望」', 3400, 45, [
+          em({ count: 14, spread: Math.PI * 2, speed: 86, waveform: 'spiral', angularVel: 2.2, interval: 0.45, hue: 265 }),
+          em({ count: 8, spread: 2.2, speed: 128, waveform: 'accel', interval: 0.8, delay: 2, hue: 320 }),
+        ]),
+        phases: [
+          { belowHpFrac: 0.66, emitters: [em({ count: 4, spread: 0.42, speed: 195, aim: 'aimed', interval: 0.7, hue: 0, bulletR: 3.2 })] },
+          { belowHpFrac: 0.33, emitters: [em({ count: 9, spread: Math.PI * 2, speed: 96, angularVel: -2.8, aim: 'rotating', interval: 0.6, hue: 175 })] },
+        ],
+      },
     ],
   },
 ];

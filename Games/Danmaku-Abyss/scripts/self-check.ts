@@ -17,12 +17,14 @@ import {
   moveSpeed,
   rangeDamageMult,
   scaleEmitter,
+  shotDamage,
   step,
   takeUpgrade,
 } from '../src/game/engine.js';
 import { allCards, bossFor, midwayCardFor } from '../src/game/cards.js';
+import { allEmitters, emitterActive } from '../src/game/engine.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
-import { UPGRADES, declaredEffectKeys } from '../src/game/upgrades.js';
+import { UPGRADES, declaredConditions, declaredEffectKeys } from '../src/game/upgrades.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
 
 let passed = 0;
@@ -137,6 +139,55 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   const withBombs = takeUpgrade(staged, 'ordnance');
   assert.equal(withBombs.bombs, staged.bombs + 2, 'bombCount must actually grant bombs on pick');
   ok('effect keys move the stats they claim to move, one-shot grants included');
+}
+
+// ── 4b) Every declared condition is actually evaluated ───────────────────────
+//
+// A condition that is declared but never evaluated is the same silent failure
+// as an unwired effect key: the upgrade reads as a bonus, does nothing, and
+// nothing anywhere errors. activeConditions() is the single place conditions
+// are decided, so this asserts each declared one appears there — and then
+// checks two of them actually change a derived stat.
+{
+  const enginePath = resolve(__dirname, '..', '..', 'src', 'game', 'engine.ts');
+  const source = readFileSync(enginePath, 'utf8');
+  const fnStart = source.indexOf('export function activeConditions');
+  assert.ok(fnStart > 0, 'activeConditions() must exist — it is where conditions become real');
+  const fnBody = source.slice(fnStart, source.indexOf('\n}', fnStart));
+
+  const unevaluated = declaredConditions().filter((c) => !fnBody.includes(`'${c}'`));
+  assert.deepEqual(
+    unevaluated,
+    [],
+    `upgrades key off ${unevaluated.map((c) => `"${c}"`).join(', ')} but activeConditions() never ` +
+      `decides ${unevaluated.length === 1 ? 'it' : 'them'} — those upgrades would do nothing`,
+  );
+
+  // Observable: the same upgrade must behave differently in and out of its state.
+  const base = createRun('COND01');
+  const cold = { ...base, upgrades: ['coldblood'] };
+  const calm = { ...cold, grazeMult: 1 };
+  const hot = { ...cold, grazeMult: 2.5 };
+  assert.ok(
+    shotDamage(hot, 0) > shotDamage(calm, 0),
+    'coldblood must hit harder once the graze multiplier is high',
+  );
+  assert.ok(grazeRadius(hot) > grazeRadius(calm), 'coldblood must widen the graze ring in-condition');
+
+  const gam = { ...base, upgrades: ['gambit'] };
+  const safe = { ...gam, lives: 3 };
+  const desperate = { ...gam, lives: 1 };
+  assert.ok(hitboxRadius(desperate) < hitboxRadius(safe), 'gambit must shrink the hitbox on the last life');
+  assert.ok(shotDamage(desperate, 0) > shotDamage(safe, 0), 'gambit must raise damage on the last life');
+
+  // And the flat downside of a stance upgrade must still bite out of condition.
+  const fix = { ...base, upgrades: ['fixative'] };
+  assert.ok(
+    fireRate({ ...fix, focus: false }) < fireRate(base),
+    'fixative must actually cost fire rate while not focused — otherwise it is a free upgrade',
+  );
+  assert.ok(fireRate({ ...fix, focus: true }) > fireRate(base), 'fixative must pay off while focused');
+  ok(`all ${declaredConditions().length} declared conditions are evaluated and change behaviour`);
 }
 
 // ── 5) The distance spine ────────────────────────────────────────────────────
@@ -254,7 +305,8 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   const ids = UPGRADES.map((u) => u.id);
   assert.equal(new Set(ids).size, ids.length, 'upgrade ids must be unique');
   for (const u of UPGRADES) {
-    assert.ok(Object.keys(u.effects).length > 0, `${u.id} declares no effects at all`);
+    const effectCount = Object.keys(u.effects).length + Object.keys(u.conditional?.effects ?? {}).length;
+    assert.ok(effectCount > 0, `${u.id} declares no effects at all`);
     assert.ok(u.text.trim().length > 0, `${u.id} has no description`);
   }
   ok(`upgrade pool (${UPGRADES.length}) is comfortably larger than a run's ${maxOffered} offers`);
@@ -388,6 +440,61 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
       `final stage was unsurvivable (0% across eight seeds), so this lands as a wall, not a curve`,
   );
   ok(`pressure climbs every stage and totals ${ratio.toFixed(2)}x end to end (${rateAt(1).toFixed(0)} -> ${rateAt(STAGE_COUNT).toFixed(0)} bullets/sec)`);
+}
+
+// ── 11d) Spell card phases actually switch on ────────────────────────────────
+//
+// A phase is data that only means anything if the engine gates on it. If the
+// gate were wrong in the open direction every phase would fire from the first
+// second (pressure with no shape); wrong in the closed direction and the data
+// is decorative and nothing ever errors.
+{
+  const phased = allCards().filter((c) => (c.phases ?? []).length > 0);
+  assert.ok(phased.length >= 4, `only ${phased.length} cards have phases — most fights are still a loop`);
+
+  for (const card of phased) {
+    const emitters = allEmitters(card);
+    assert.ok(
+      emitters.length > card.emitters.length,
+      `${card.id}: phases contribute no emitters`,
+    );
+
+    // At full health only the base set fires.
+    for (let i = 0; i < emitters.length; i++) {
+      assert.equal(
+        emitterActive(card, i, 1),
+        i < card.emitters.length,
+        `${card.id}: emitter ${i} should ${i < card.emitters.length ? '' : 'not '}fire at full health`,
+      );
+    }
+    // At zero health everything fires.
+    for (let i = 0; i < emitters.length; i++) {
+      assert.equal(emitterActive(card, i, 0), true, `${card.id}: emitter ${i} should fire at 0% health`);
+    }
+    // And each threshold must actually be crossable in order.
+    const fracs = (card.phases ?? []).map((p) => p.belowHpFrac);
+    for (const f of fracs) {
+      assert.ok(f > 0 && f < 1, `${card.id}: a phase threshold of ${f} can never be crossed meaningfully`);
+    }
+    assert.deepEqual(
+      fracs,
+      [...fracs].sort((a, b) => b - a),
+      `${card.id}: phase thresholds must be listed from highest to lowest`,
+    );
+  }
+
+  // A phased card must genuinely put more on screen once hurt.
+  const card = phased[phased.length - 1];
+  const rate = (frac: number): number => {
+    const emitters = allEmitters(card);
+    let total = 0;
+    for (let i = 0; i < emitters.length; i++) {
+      if (emitterActive(card, i, frac)) total += emitters[i].count / emitters[i].interval;
+    }
+    return total;
+  };
+  assert.ok(rate(0.1) > rate(1) * 1.2, `${card.id} barely changes when broken — the phases are decorative`);
+  ok(`${phased.length} cards evolve as they take damage (${rate(1).toFixed(0)} -> ${rate(0.1).toFixed(0)} bullets/sec)`);
 }
 
 // ── 12) A stage actually ends ────────────────────────────────────────────────

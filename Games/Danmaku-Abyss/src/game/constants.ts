@@ -124,4 +124,14 @@ export interface SpellCard {
   timeLimit: number;
   hp: number;
   emitters: Emitter[];
+  /**
+   * Extra emitters that switch on once the card's HP drops below a fraction.
+   *
+   * Without these a card is a loop: whatever it opens with is what it does for
+   * thirty seconds, and the only thing that changes is your patience. A phase
+   * turns the card into an arc — the pattern you solved stops being the whole
+   * problem, and pushing damage becomes a decision rather than a formality,
+   * because breaking a threshold is what makes it worse.
+   */
+  phases?: Array<{ belowHpFrac: number; emitters: Emitter[] }>;
 }

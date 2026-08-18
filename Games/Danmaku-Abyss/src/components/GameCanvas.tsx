@@ -73,11 +73,22 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
         ctx.fill();
         if (e.isBoss) {
           const w = 220;
+          const x0 = FIELD_W / 2 - w / 2;
           const frac = Math.max(0, e.hp / e.maxHp);
           ctx.fillStyle = 'rgba(255,255,255,0.18)';
-          ctx.fillRect(FIELD_W / 2 - w / 2, 14, w, 5);
+          ctx.fillRect(x0, 14, w, 5);
           ctx.fillStyle = '#f9a8d4';
-          ctx.fillRect(FIELD_W / 2 - w / 2, 14, w * frac, 5);
+          ctx.fillRect(x0, 14, w * frac, 5);
+
+          // Phase thresholds are drawn onto the health bar. A card that grows a
+          // new emitter at 50% is only a decision if you can see the line
+          // coming — otherwise the fight just gets inexplicably worse.
+          for (const phase of e.card?.phases ?? []) {
+            const px = x0 + w * phase.belowHpFrac;
+            const passed = frac <= phase.belowHpFrac;
+            ctx.fillStyle = passed ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)';
+            ctx.fillRect(px - 0.75, 11, 1.5, 11);
+          }
         }
       }
 
