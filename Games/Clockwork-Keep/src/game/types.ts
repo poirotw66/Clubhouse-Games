@@ -55,6 +55,14 @@ export interface Enemy {
 export interface WaveSpawnEntry {
   type: EnemyType;
   delaySec: number; // seconds after wave start
+  /**
+   * The endless HP scaling of the wave this entry belongs to, captured when the
+   * entry is built. Pinning it here rather than reading it off the live wave
+   * number is what keeps overlapping waves coherent: when the player stacks
+   * wave N+1 on top of wave N, the leftovers of wave N must still spawn at wave
+   * N's strength.
+   */
+  hpMult: number;
 }
 
 export type GamePhase = 'prep' | 'wave' | 'won' | 'lost';

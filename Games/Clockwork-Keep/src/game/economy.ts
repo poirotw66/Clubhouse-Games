@@ -3,7 +3,7 @@
  * GameState here, so check-economy.mjs can exercise them directly.
  */
 import {
-  EARLY_CALL_BONUS_PER_SEC,
+  OVERLAP_CALL_BONUS_PER_ENEMY,
   SCORE_PER_LIFE,
   SCORE_PER_UNSPENT_GOLD,
   SELL_REFUND_RATE,
@@ -18,9 +18,13 @@ export function waveClearBonus(waveNumber: number): number {
   return WAVE_CLEAR_BONUS_BASE + WAVE_CLEAR_BONUS_PER_WAVE * waveNumber;
 }
 
-/** Bonus for calling the next wave before the prep timer runs out, floored to an integer. */
-export function earlyCallBonus(remainingSec: number): number {
-  return Math.floor(Math.max(0, remainingSec) * EARLY_CALL_BONUS_PER_SEC);
+/**
+ * Bonus for stacking the next wave on top of the one still running. Scales with
+ * how much of the current wave is unresolved (alive on the board + not yet
+ * spawned), so the payout is proportional to the risk taken.
+ */
+export function overlapCallBonus(unresolvedEnemies: number): number {
+  return Math.floor(Math.max(0, unresolvedEnemies) * OVERLAP_CALL_BONUS_PER_ENEMY);
 }
 
 /** Sell refund: 70% of everything invested in the tower (purchase + upgrades), floored. */

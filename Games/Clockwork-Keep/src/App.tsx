@@ -23,6 +23,7 @@ import {
   placeTower,
   sellTower,
   startNextWave,
+  overlapOffer,
   step,
   undoLast,
   upgradeTower,
@@ -221,14 +222,13 @@ export default function App(): ReactElement {
     applyResult(undoLast(cur), playMove);
   }, [applyResult]);
 
-  const handleStartWave = useCallback(
-    (early: boolean) => {
-      const cur = stateRef.current;
-      if (!cur) return;
-      applyResult(startNextWave(cur, { early }), playCard);
-    },
-    [applyResult],
-  );
+  // One command for both meanings: during prep it just skips the countdown,
+  // during a wave it stacks the next wave on top for a per-enemy gold bonus.
+  const handleStartWave = useCallback(() => {
+    const cur = stateRef.current;
+    if (!cur) return;
+    applyResult(startNextWave(cur), playCard);
+  }, [applyResult]);
 
   const togglePause = useCallback(() => setPaused((p) => !p), []);
 
@@ -245,7 +245,7 @@ export default function App(): ReactElement {
       }
       if (e.code === 'Space') {
         e.preventDefault();
-        handleStartWave(true);
+        handleStartWave();
         return;
       }
       if (e.key === 'z' || e.key === 'Z') {
@@ -368,7 +368,7 @@ export default function App(): ReactElement {
             <ul className="mt-2 space-y-1 list-disc pl-4">
               <li>點擊底部塔欄選塔（或按 1–4），點擊格子放置</li>
               <li>點擊已放置的塔可升級或售出</li>
-              <li>空白鍵：提前召喚下一波（可獲得加成金幣）</li>
+              <li>空白鍵：戰鬥中按下可「強行加壓」——把下一波直接疊上來，依場上未解決的敵人數換取金幣</li>
               <li>Z：撤銷本波尚未開始前的最後一次放置／升級</li>
               <li>P／Esc：暫停</li>
             </ul>
@@ -381,6 +381,7 @@ export default function App(): ReactElement {
   // ── Playing screen ───────────────────────────────────────────────────────
   const selectedTower = selectedTowerId != null ? state.towers.find((t) => t.id === selectedTowerId) ?? null : null;
   const canUndo = state.phase === 'prep' && state.lastReversible != null;
+  const overlap = overlapOffer(state);
   const waveLabel = state.endless ? `第 ${state.wave} 波（無盡）` : `第 ${state.wave} / ${TOTAL_WAVES} 波`;
   const enemiesLeft = state.pendingSpawns.length + state.enemies.length;
   const isOver = state.phase === 'won' || state.phase === 'lost';
@@ -443,14 +444,24 @@ export default function App(): ReactElement {
               準備中… {Math.max(0, Math.ceil(state.prepTimer))}s
             </span>
             <TouchButton
-              label={`召喚下一波（+${Math.floor(Math.max(0, state.prepTimer) * 6)} 金）`}
-              ariaLabel="召喚下一波"
+              label="開始下一波"
+              ariaLabel="開始下一波"
               accent
-              onClick={() => handleStartWave(true)}
+              onClick={handleStartWave}
             />
           </>
         ) : (
-          <span className="text-amber-200/80">戰鬥中… 剩餘敵人 {enemiesLeft}</span>
+          <>
+            <span className="text-amber-200/80">戰鬥中… 剩餘敵人 {enemiesLeft}</span>
+            <TouchButton
+              label={overlap.available ? `強行加壓（+${overlap.bonus} 金）` : '強行加壓'}
+              ariaLabel="把下一波直接疊到這一波上面"
+              title={overlap.reason}
+              accent
+              disabled={!overlap.available}
+              onClick={handleStartWave}
+            />
+          </>
         )}
       </div>
 

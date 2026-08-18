@@ -11,6 +11,7 @@ import {
   ENEMY_DEFS,
   ENTRANCE,
   EXIT,
+  OVERLAP_CALL_SCORE_MULT_BONUS,
   PREP_TIME_SEC,
   TOTAL_WAVES,
   TOWER_DEFS,
@@ -29,7 +30,7 @@ import {
   splashTargets,
   tickSlowEffects,
 } from './combat.ts';
-import { calculateScore, earlyCallBonus, purchaseCost, sellRefund, upgradeCost, waveClearBonus } from './economy.ts';
+import { calculateScore, overlapCallBonus, purchaseCost, sellRefund, upgradeCost, waveClearBonus } from './economy.ts';
 import {
   computeFlowField,
   distanceToExit,
@@ -207,18 +208,89 @@ export function undoLast(state: GameState): CommandResult {
   return { state: next, ok: true };
 }
 
-/** Begin the next wave: from `prep`, either at timer-zero (auto) or via player call (possibly early). */
-export function startNextWave(state: GameState, opts: { early?: boolean } = {}): CommandResult {
-  if (state.phase !== 'prep') return { state, ok: false, reason: '尚未進入準備階段' };
+/** Enemies of the current wave that are neither dead nor already through the exit, plus those not yet spawned. */
+export function unresolvedCount(state: GameState): number {
+  const onBoard = state.enemies.filter((e) => !e.dead && !e.reachedExit).length;
+  return onBoard + state.pendingSpawns.length;
+}
+
+export interface OverlapOffer {
+  /** Whether 強行加壓 would be accepted right now. */
+  available: boolean;
+  /** Gold the call would pay. 0 when unavailable. */
+  bonus: number;
+  /** Why it is unavailable, for the button's tooltip. */
+  reason?: string;
+}
+
+/**
+ * The single source of truth for whether 強行加壓 can be called and what it
+ * pays. Both the command and the button read this.
+ *
+ * It exists because they did not: the button enabled itself whenever anything
+ * was unresolved (which includes enemies that have not spawned yet) while the
+ * command additionally required the wave to have finished spawning. The button
+ * was therefore live during every wave's opening seconds, advertising a bonus,
+ * and clicking it did nothing at all — no error, no feedback, the wave counter
+ * simply did not move.
+ */
+export function overlapOffer(state: GameState): OverlapOffer {
+  if (state.phase !== 'wave') return { available: false, bonus: 0, reason: '戰鬥中才能加壓' };
+  if (state.pendingSpawns.length > 0) {
+    return { available: false, bonus: 0, reason: '這一波還沒完全湧出' };
+  }
+  const unresolved = unresolvedCount(state);
+  if (unresolved === 0) return { available: false, bonus: 0, reason: '這一波已經清完了' };
+  return { available: true, bonus: overlapCallBonus(unresolved) };
+}
+
+/**
+ * Starts the next wave. Two very different things go through here:
+ *
+ * - From `prep`: the ordinary start, whether the countdown ran out or the player
+ *   skipped it. This pays nothing. Skipping an empty countdown is a convenience,
+ *   not a decision, and it used to pay 6 gold per remaining second — 56% of a
+ *   run's whole income for no cost at all.
+ * - From `wave`: 強行加壓, allowed only once the current wave has finished
+ *   spawning. The next wave is stacked on top of the survivors and pays out per
+ *   enemy still on the board. This is the version with teeth:
+ *   the leftovers keep coming while the new wave starts arriving immediately,
+ *   and the two waves collapse into one clear bonus instead of two.
+ */
+export function startNextWave(state: GameState): CommandResult {
+  if (state.phase !== 'prep' && state.phase !== 'wave') {
+    return { state, ok: false, reason: '遊戲已結束' };
+  }
 
   const next = cloneState(state);
-  const early = Boolean(opts.early) && next.prepTimer > 0;
-  if (early) {
-    next.gold += earlyCallBonus(next.prepTimer);
-    next.waveScoreMult = 1.5; // EARLY_CALL_SCORE_MULT_BONUS applied on top of the base 1x
-  } else {
-    next.waveScoreMult = 1;
+
+  if (state.phase === 'wave') {
+    // The gate lives in overlapOffer so the button cannot disagree with it.
+    // Without it the call can be spammed every frame: each press stacks another
+    // wave and pays another bonus, so a player could hold the button and arrive
+    // at wave 20 in twenty frames, before a single enemy had spawned — measured
+    // at 32,828 points off 19 kills. Requiring the current wave to have fully
+    // spawned caps the stack at one wave deep and makes chaining impossible,
+    // because calling immediately refills the pending queue.
+    const offer = overlapOffer(state);
+    if (!offer.available) {
+      return { state, ok: false, reason: offer.reason };
+    }
+    next.gold += offer.bonus;
+    next.waveScoreMult = 1 + OVERLAP_CALL_SCORE_MULT_BONUS;
+    next.wave += 1;
+    // Leftover entries keep their original absolute delays (waveElapsed keeps
+    // running, so they fire on their original schedule); the incoming wave is
+    // offset to "now".
+    next.pendingSpawns = [
+      ...next.pendingSpawns,
+      ...getWaveSpawns(next.wave).map((s) => ({ ...s, delaySec: next.waveElapsed + s.delaySec })),
+    ];
+    next.lastReversible = null;
+    return { state: next, ok: true };
   }
+
+  next.waveScoreMult = 1;
   next.wave += 1;
   next.pendingSpawns = getWaveSpawns(next.wave).map((s) => ({ ...s }));
   next.waveElapsed = 0;
@@ -230,9 +302,9 @@ export function startNextWave(state: GameState, opts: { early?: boolean } = {}):
 
 // ── Enemy factory ────────────────────────────────────────────────────────────
 
-function spawnEnemy(state: GameState, type: EnemyType, field: FlowField): Enemy {
+function spawnEnemy(state: GameState, type: EnemyType, waveHpMult: number, field: FlowField): Enemy {
   const def = ENEMY_DEFS[type];
-  const hpMult = DIFFICULTIES[state.difficulty].enemyHpMult;
+  const hpMult = DIFFICULTIES[state.difficulty].enemyHpMult * waveHpMult;
   const hp = Math.round(def.hp * hpMult);
   const spawnOrder = state.nextSpawnOrder;
 
@@ -377,7 +449,7 @@ export function step(state: GameState, dt: number): GameState {
   if (next.phase === 'prep') {
     next.prepTimer -= dt;
     if (next.prepTimer <= 0) {
-      return startNextWave(next, { early: false }).state;
+      return startNextWave(next).state;
     }
     return next;
   }
@@ -391,7 +463,7 @@ export function step(state: GameState, dt: number): GameState {
   const field = computeFlowField(occupancy, next.gridW, next.gridH, EXIT);
   for (const spawn of next.pendingSpawns) {
     if (spawn.delaySec <= next.waveElapsed) {
-      const enemy = spawnEnemy(next, spawn.type, field);
+      const enemy = spawnEnemy(next, spawn.type, spawn.hpMult, field);
       next.enemies.push(enemy);
       next.nextEnemyId += 1;
       next.nextSpawnOrder += 1;
@@ -433,6 +505,11 @@ export function step(state: GameState, dt: number): GameState {
       continue;
     }
     if (!e.reachedExit) {
+      // Kill gold is the spec's first listed gold source (擊殺獎勵) and was
+      // simply never wired up: killReward only ever reached killScore, so
+      // killing things paid points and no money. The score multiplier is
+      // deliberately *not* applied here — it multiplies score, not income.
+      next.gold += e.killReward;
       next.killScore += e.killReward * next.waveScoreMult;
       next.kills += 1;
     }

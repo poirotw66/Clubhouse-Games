@@ -8,13 +8,22 @@ import assert from 'node:assert/strict';
 import {
   calculateScore,
   cumulativeCost,
-  earlyCallBonus,
+  overlapCallBonus,
   purchaseCost,
   sellRefund,
   upgradeCost,
   waveClearBonus,
 } from './game/economy.ts';
-import { createInitialState, placeTower, startNextWave, step } from './game/engine.ts';
+import {
+  createInitialState,
+  overlapOffer,
+  placeTower,
+  startNextWave,
+  step,
+  unresolvedCount,
+} from './game/engine.ts';
+import { isBossWave, waveHpMultiplier } from './game/waves.ts';
+import { ENEMY_DEFS, TOTAL_WAVES } from './game/constants.ts';
 
 // ── Kill / wave rewards ──────────────────────────────────────────────────────
 {
@@ -23,13 +32,164 @@ import { createInitialState, placeTower, startNextWave, step } from './game/engi
   assert.ok(waveClearBonus(10) > waveClearBonus(1), 'clear bonus should grow with wave number');
 }
 
-// ── Early-call bonus ─────────────────────────────────────────────────────────
+// ── Overlap-call bonus ───────────────────────────────────────────────────────
 {
-  assert.equal(earlyCallBonus(15), 90, `15s remaining -> 90 gold, got ${earlyCallBonus(15)}`);
-  assert.equal(earlyCallBonus(0), 0, 'no remaining time should give no bonus');
-  assert.equal(earlyCallBonus(-3), 0, 'a negative remaining time must clamp to 0, never pay out');
-  assert.equal(earlyCallBonus(7.6), Math.floor(7.6 * 6), 'bonus must floor to an integer gold amount');
-  assert.equal(Number.isInteger(earlyCallBonus(7.6)), true, 'early-call bonus must always be an integer');
+  assert.equal(overlapCallBonus(0), 0, 'calling with nothing unresolved must pay nothing');
+  assert.equal(overlapCallBonus(-3), 0, 'a negative count must clamp to 0, never pay out');
+  assert.ok(overlapCallBonus(10) > overlapCallBonus(3), 'a more dangerous board must pay more');
+  assert.equal(Number.isInteger(overlapCallBonus(7)), true, 'the bonus must always be an integer');
+}
+
+// ── Starting a wave from prep must be free ───────────────────────────────────
+//
+// This is the invariant the old early-call bonus violated. Prep time has no
+// opportunity cost — no income accrues during it and towers can be built
+// mid-wave anyway — so paying for skipping the countdown made pressing the
+// button strictly dominant on every wave of every run, worth 56% of a run's
+// entire income for nothing. If starting a wave from prep ever pays again,
+// this fails.
+{
+  let state = createInitialState('standard', 'open', false);
+  for (let w = 0; w < 3; w++) {
+    const goldBefore = state.gold;
+    const r = startNextWave(state);
+    assert.ok(r.ok, `starting wave ${w + 1} should succeed: ${r.reason}`);
+    assert.equal(
+      r.state.gold,
+      goldBefore,
+      `starting a wave from prep must not pay gold (wave ${w + 1}), got ${r.state.gold - goldBefore}`,
+    );
+    assert.equal(r.state.waveScoreMult, 1, 'an ordinary wave start must not bump the score multiplier');
+    // Run the wave out so the next iteration starts from prep again.
+    let guard = 0;
+    while (r.state.phase === 'wave' && guard < 200000) {
+      state = step(guard === 0 ? r.state : state, 1 / 60);
+      if (state.phase !== 'wave') break;
+      guard += 1;
+    }
+    if (state.phase !== 'prep') break;
+  }
+}
+
+// ── 強行加壓 cannot be spammed ────────────────────────────────────────────────
+//
+// Without the "current wave must have finished spawning" gate, the call could
+// be repeated every frame: each press stacked another wave and paid another
+// bonus, so twenty presses reached wave 20 before a single enemy had spawned —
+// measured at 32,828 points off 19 kills. Pressing repeatedly must not advance
+// the wave counter more than once.
+{
+  let state = createInitialState('standard', 'open', false);
+  state = startNextWave(state).state;
+  const waveAtStart = state.wave;
+  let accepted = 0;
+  for (let i = 0; i < 50; i++) {
+    const r = startNextWave(state);
+    if (r.ok) {
+      accepted += 1;
+      state = r.state;
+    }
+  }
+  assert.equal(accepted, 0, `spamming the call while the wave is still spawning must be refused, ${accepted} got through`);
+  assert.equal(state.wave, waveAtStart, 'a refused call must not advance the wave counter');
+}
+
+// ── The button and the command must never disagree ───────────────────────────
+//
+// They did. The button enabled itself whenever anything was unresolved, which
+// counts enemies that have not spawned yet; the command additionally required
+// the wave to have finished spawning. So through every wave's opening seconds
+// the button was live, advertised a bonus, and did nothing when pressed — the
+// wave counter simply did not move, with no error and no feedback. Verified in
+// the browser before this check existed: click at wave 1, and at +0/60/150/400/
+// 1000ms the label still read 第 1 / 20 波 with the button still enabled.
+//
+// Walking a whole wave tick by tick, `overlapOffer` must agree with what
+// `startNextWave` actually does, on every single tick.
+{
+  let state = createInitialState('standard', 'open', false);
+  state = placeTower(state, 3, 4, 'crossbow').state;
+  state = startNextWave(state).state;
+
+  let ticks = 0;
+  let sawUnavailable = false;
+  let sawAvailable = false;
+  while (state.phase === 'wave' && ticks < 200000) {
+    const offer = overlapOffer(state);
+    const attempt = startNextWave(state);
+    assert.equal(
+      offer.available,
+      attempt.ok,
+      `tick ${ticks}: button says ${offer.available ? 'enabled' : 'disabled'} but the command ` +
+        `${attempt.ok ? 'accepted' : `refused (${attempt.reason})`}`,
+    );
+    if (offer.available) {
+      sawAvailable = true;
+      assert.equal(
+        attempt.state.gold - state.gold,
+        offer.bonus,
+        `tick ${ticks}: the button advertised ${offer.bonus} gold but the call paid ` +
+          `${attempt.state.gold - state.gold}`,
+      );
+    } else {
+      sawUnavailable = true;
+    }
+    state = step(state, 1 / 60);
+    ticks += 1;
+  }
+  // A run where the offer never flipped would pass the agreement test without
+  // testing anything.
+  assert.ok(sawUnavailable, 'the sweep must include ticks where the call is refused');
+  assert.ok(sawAvailable, 'the sweep must include ticks where the call is allowed');
+}
+
+// ── Kills pay gold, not only score ───────────────────────────────────────────
+//
+// The spec lists three gold sources (擊殺獎勵、波次結算、提前召喚加成) and the
+// engine implemented two: every enemy carried a killReward that only ever
+// reached killScore. Measured at 0% of a run's income.
+{
+  let state = createInitialState('standard', 'open', false);
+  for (const [x, y] of [[3, 4], [3, 3], [5, 4], [5, 3]]) {
+    state = placeTower(state, x, y, 'crossbow').state;
+  }
+  const goldAfterBuilding = state.gold;
+  state = startNextWave(state).state;
+  let guard = 0;
+  while (state.kills === 0 && state.phase === 'wave' && guard < 200000) {
+    state = step(state, 1 / 60);
+    guard += 1;
+  }
+  assert.ok(state.kills > 0, 'the fixture should have killed something');
+  assert.ok(
+    state.gold > goldAfterBuilding,
+    `killing enemies must pay gold; gold went ${goldAfterBuilding} -> ${state.gold} across ${state.kills} kills`,
+  );
+  assert.ok(
+    state.gold - goldAfterBuilding >= ENEMY_DEFS.grunt.killReward,
+    'the payout should be at least one grunt bounty',
+  );
+}
+
+// ── Endless mode has to keep escalating ──────────────────────────────────────
+//
+// BOSS_WAVES was the literal Set([10, 20]), so endless mode had no bosses at
+// all from wave 21 on — the only enemy with real HP and armor silently stopped
+// appearing in the mode that never ends. Enemy HP never scaled either.
+{
+  assert.ok(isBossWave(10) && isBossWave(20), 'the challenge table keeps its two bosses');
+  assert.ok(isBossWave(30) && isBossWave(40) && isBossWave(100), 'endless mode must keep producing bosses');
+  assert.ok(!isBossWave(15) && !isBossWave(0), 'bosses only land on the interval');
+
+  for (let w = 1; w <= TOTAL_WAVES; w++) {
+    assert.equal(waveHpMultiplier(w), 1, `the 20-wave table must be untouched by endless scaling (wave ${w})`);
+  }
+  assert.ok(waveHpMultiplier(21) > 1, 'scaling must begin immediately past the table');
+  assert.ok(
+    waveHpMultiplier(40) > waveHpMultiplier(30),
+    'scaling must keep compounding, or a defense that survives one wave survives them all',
+  );
+  assert.ok(waveHpMultiplier(60) > 5, `wave 60 should be far harder than wave 20, got ${waveHpMultiplier(60)}x`);
 }
 
 // ── Sell refund: 70%, floored to an integer ─────────────────────────────────
@@ -77,8 +237,8 @@ import { createInitialState, placeTower, startNextWave, step } from './game/engi
 // ── Full headless simulation: several waves, exact pinned outcome ──────────
 //
 // This is the regression test the pure-logic split exists for: build a small
-// fixed defense, early-call every wave, run the fixed-timestep reducer start
-// to finish through wave 5, and assert the precise final numbers. Any change
+// fixed defense, run every wave start to finish through wave 5 on the
+// fixed-timestep reducer, and assert the precise final numbers. Any change
 // to spawn timing, targeting, damage, or economy that shifts this outcome
 // will fail here immediately, without a browser.
 function simulateThroughWave(targetWave) {
@@ -100,7 +260,7 @@ function simulateThroughWave(targetWave) {
   let guard = 0;
   while (!(state.wave >= targetWave && state.phase === 'prep') && state.phase !== 'lost' && guard < 200000) {
     if (state.phase === 'prep') {
-      const r = startNextWave(state, { early: true });
+      const r = startNextWave(state);
       assert.ok(r.ok, `startNextWave should succeed: ${r.reason}`);
       state = r.state;
     } else {
@@ -119,10 +279,13 @@ function simulateThroughWave(targetWave) {
   assert.equal(outcome.wave, 5, `sim should have reached exactly wave 5, got ${outcome.wave}`);
   assert.equal(outcome.enemies.length, 0, 'no enemies should remain once a wave is cleared');
   assert.equal(outcome.lives, 16, `pinned outcome: lives, got ${outcome.lives}`);
-  assert.equal(outcome.gold, 630, `pinned outcome: gold, got ${outcome.gold}`);
+  // Re-pinned when the economy changed: kills now pay gold, and starting a wave
+  // from prep no longer pays a bonus. Gold 630 -> 389 is those two together —
+  // 450 of free early-call money removed, 209 of kill bounty added.
+  assert.equal(outcome.gold, 389, `pinned outcome: gold, got ${outcome.gold}`);
   assert.equal(outcome.kills, 50, `pinned outcome: kills, got ${outcome.kills}`);
-  assert.ok(Math.abs(outcome.killScore - 313.5) < 1e-9, `pinned outcome: killScore, got ${outcome.killScore}`);
-  assert.ok(Math.abs(outcome.score - 1183.5) < 1e-9, `pinned outcome: score, got ${outcome.score}`);
+  assert.ok(Math.abs(outcome.killScore - 209) < 1e-9, `pinned outcome: killScore, got ${outcome.killScore}`);
+  assert.ok(Math.abs(outcome.score - 838) < 1e-9, `pinned outcome: score, got ${outcome.score}`);
 
   // Determinism: an identical command/timestep sequence must reproduce the
   // exact same final state, every time — this is what makes the simulation
