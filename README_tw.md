@@ -39,7 +39,7 @@
 | 紙牌類型 | [01-cards/](01-cards/) | 6 |
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
-| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 9 |
+| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 10 |
 | 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 8 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 2 |
 <!-- /GENERATED_TABLE -->
@@ -73,6 +73,7 @@
 - [x] [棒球人生](04-sports-arcade/baseball-life.md) → [Games/Baseball-Life/](Games/Baseball-Life/)
 - [x] [球團王朝](04-sports-arcade/dynasty.md) → [Games/Dynasty/](Games/Dynasty/)
 - [x] [彈幕深淵](04-sports-arcade/danmaku-abyss.md) → [Games/Danmaku-Abyss/](Games/Danmaku-Abyss/)
+- [x] [岔道疾走](04-sports-arcade/switchpoint-run.md) → [Games/Switchpoint-Run/](Games/Switchpoint-Run/)
 
 ## 05-益智遊戲
 - [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
