@@ -177,6 +177,14 @@
           "players": "1 人",
           "specPath": "04-sports-arcade/dynasty.md",
           "gameFolder": "Dynasty"
+        },
+        {
+          "name": "彈幕深淵",
+          "en": "Danmaku Abyss",
+          "desc": "Roguelike 縱捲彈幕射擊：傷害與擦彈都隨距離上升，逼你站到最危險的位置；五個階段逐步構築戰機，敵方彈幕沿一條連續的強度曲線越來越變態。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/danmaku-abyss.md",
+          "gameFolder": "Danmaku-Abyss"
         }
       ]
     },
