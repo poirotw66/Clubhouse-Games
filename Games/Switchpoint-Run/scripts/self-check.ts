@@ -22,6 +22,7 @@ import {
   MIN_SAME_LANE_SPACING,
   SLIDE_DURATION,
   SPEED_MULT,
+  MAX_BUFFER,
   START_BUFFER,
   densityFloor,
   laneCenterX,
@@ -360,7 +361,25 @@ function clearBranchPerfectly(templateId: string): boolean {
   assert.ok(samples.length >= 3, 'the outrun run ended too early to sample a trend');
   const [, firstBuf] = samples[0];
   const [, lastBuf] = samples[samples.length - 1];
-  assert.ok(lastBuf > firstBuf, `buffer went from ${firstBuf.toFixed(0)} to ${lastBuf.toFixed(0)} over the run — flawless play should be building buffer, not merely surviving`);
+  // Originally this asserted the buffer keeps GROWING under flawless play. That
+  // encoded the very behaviour that turned out to be the game's central defect:
+  // buffer is the integral of (player speed - train speed), so an unbounded
+  // lead meant a chase that resolves permanently. Measured before the cap,
+  // buffer ran to 6,645 past distance 9,000 and 7 of 8 fastest-policy runs never
+  // died at all — they ran out the harness's session window.
+  //
+  // What actually matters is that flawless play is REWARDED (it reaches the
+  // ceiling and stays pinned there) without ever being made safe forever. Both
+  // halves are asserted, because dropping either one brings back a defect: no
+  // floor and perfect play is pointless, no ceiling and the chase ends.
+  assert.ok(
+    lastBuf >= MAX_BUFFER - 1,
+    `flawless play only reached ${lastBuf.toFixed(0)} of ${MAX_BUFFER} buffer — perfect execution should pin the ceiling`,
+  );
+  assert.ok(
+    lastBuf <= MAX_BUFFER,
+    `buffer reached ${lastBuf.toFixed(0)}, above the ${MAX_BUFFER} ceiling — an uncapped lead ends the chase permanently`,
+  );
   ok(`a flawless always-fastest pilot survives the full ${(OUTRUN_GUARD / 60).toFixed(0)}s measurement window with buffer trending up (${firstBuf.toFixed(0)} -> ${lastBuf.toFixed(0)}) — the train is genuinely beatable`);
 }
 

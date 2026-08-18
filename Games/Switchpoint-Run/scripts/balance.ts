@@ -18,7 +18,13 @@
  * enter differs between policies. Comparing policies that also differed in
  * how well they executed would measure the pilot, not the choice.
  */
-import { FIXED_DT, JUMP_DURATION, SLIDE_DURATION } from '../src/game/constants.js';
+import {
+  FIXED_DT,
+  JUMP_DURATION,
+  MAX_BUFFER,
+  PLAYER_BASE_SPEED,
+  SLIDE_DURATION,
+} from '../src/game/constants.js';
 import { BRANCH_TEMPLATES } from '../src/game/branches.js';
 import { createRun, currentSpeed, finalScore, step } from '../src/game/engine.js';
 import { hashString, streamRng, type Rng } from '../src/game/rng.js';
@@ -79,7 +85,30 @@ const SEEDS = ['ALPHA1', 'BRAVO2', 'CHARL3', 'DELTA4', 'ECHO55', 'FOXTR6', 'GOLF
  * a bot that literally cannot fail proves nothing about density either. */
 const MISTAKE_RATE = 0.18;
 
-type ChoicePolicy = 'fastest' | 'safest' | 'reward' | 'blind' | 'informed';
+/**
+ * How sharply the mistake rate rises with speed.
+ *
+ * A FLAT rate asserts that a player dodges equally well at any speed, and for a
+ * runner that is simply false: the faster you travel, the less time passes
+ * between an obstacle becoming readable and the moment you must have acted.
+ *
+ * It also quietly decides the answer to the question this harness exists to
+ * ask. With a flat rate, speed's only cost is the obstacle density that comes
+ * with it — so once a pilot handles density, going fast is free and "always
+ * fastest" wins by construction. Measured with the flat rate: fastest 81,424
+ * against bank 45,439 and informed 65,994, i.e. every attempt to use a slow
+ * branch lost. That result was a property of the pilot's model, not of the
+ * game.
+ */
+const REACTION_EXPONENT = 1.8;
+
+/** Per-obstacle mistake probability at the speed the player is actually doing. */
+function mistakeRateAt(speed: number): number {
+  const rel = Math.max(0.2, speed / PLAYER_BASE_SPEED);
+  return Math.min(0.85, MISTAKE_RATE * rel ** REACTION_EXPONENT);
+}
+
+type ChoicePolicy = 'fastest' | 'safest' | 'reward' | 'blind' | 'informed' | 'bank';
 
 /**
  * Canonical, criterion-free tie-break: sorted by template id, take the
@@ -109,6 +138,16 @@ function chooseBranch(pj: Junction, policy: ChoicePolicy, buffer: number, execR:
       // Ignores every field in the preview, including density and reward —
       // this is the floor the "informed" policy has to beat.
       return branches[Math.floor(execR() * branches.length)];
+    // Does a slow branch ever have a correct moment? With the buffer capped, a
+    // decel branch at a full buffer costs speed you were not able to bank
+    // anyway. If this does not beat 'fastest', the whole decel tier is dead
+    // content and "no branch is strictly best" is not actually true.
+    case 'bank': {
+      if (buffer >= MAX_BUFFER * 0.92) {
+        return branches.reduce((a, b) => (b.density < a.density ? b : a));
+      }
+      return branches.reduce((a, b) => (b.speedMult > a.speedMult ? b : a));
+    }
     case 'informed': {
       if (buffer < 90) return branches.reduce((a, b) => (b.density < a.density ? b : a));
       if (buffer > 190) return branches.reduce((a, b) => (b.speedMult > a.speedMult ? b : a));
@@ -198,7 +237,9 @@ function playRun(seedCode: string, policy: ChoicePolicy, sampleEvery = 250): Run
         const key = `${branch.startDistance}:${upcoming.offset}:${upcoming.lane}`;
         let mistake = verdicts.get(key);
         if (mistake === undefined) {
-          mistake = execR() < MISTAKE_RATE;
+          // Rolled at the speed the player is actually travelling, so a fast
+          // branch is intrinsically harder to execute and not merely denser.
+          mistake = execR() < mistakeRateAt(currentSpeed(s));
           verdicts.set(key, mistake);
         }
         if (!mistake) {
@@ -257,8 +298,9 @@ const policyResults: Record<ChoicePolicy, RunResult[]> = {
   reward: [],
   blind: [],
   informed: [],
+  bank: [],
 };
-for (const policy of ['fastest', 'safest', 'reward'] as ChoicePolicy[]) {
+for (const policy of ['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]) {
   const rs = SEEDS.map((seed) => playRun(seed, policy));
   policyResults[policy] = rs;
   console.log(
@@ -271,7 +313,7 @@ for (const policy of ['fastest', 'safest', 'reward'] as ChoicePolicy[]) {
   );
 }
 {
-  const dists = (['fastest', 'safest', 'reward'] as ChoicePolicy[]).map((p) => mean(policyResults[p].map((r) => r.distance)));
+  const dists = (['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]).map((p) => mean(policyResults[p].map((r) => r.distance)));
   const spread = maxOf(dists) / minOf(dists);
   console.log(`\n  最遠/最近策略的距離比：${spread.toFixed(2)}x`);
   // Guard against degenerate measurement: if two policies' per-seed distances
@@ -280,18 +322,42 @@ for (const policy of ['fastest', 'safest', 'reward'] as ChoicePolicy[]) {
   // pick differently for, collapsing to the same run).
   let ties = 0;
   for (let i = 0; i < SEEDS.length; i++) {
-    const vals = (['fastest', 'safest', 'reward'] as ChoicePolicy[]).map((p) => Math.round(policyResults[p][i].distance));
+    const vals = (['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]).map((p) => Math.round(policyResults[p][i].distance));
     if (new Set(vals).size < vals.length) ties += 1;
   }
   if (ties > SEEDS.length * 0.5) {
     console.log(`  ⚠ ${ties}/${SEEDS.length} 個種子三種策略距離幾乎相同 —— 量測可能退化了`);
   }
+  // The raw max/min ratio is the wrong verdict on its own, because one of the
+  // policies is a deliberate strawman: 'safest' always picks the slowest branch,
+  // which keeps the player under train pace and is therefore fatal by design —
+  // the game requires you to sometimes go fast. Including it makes the spread
+  // look catastrophic no matter how well the real choices are balanced, and
+  // excluding it quietly would be worse: dropping the losing row to make a
+  // number look good is exactly how a broken result gets reported as fine.
+  //
+  // So: report both, and judge on the policies that are actually viable.
+  const VIABLE_FLOOR = 8000;
+  const viable = (['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]).filter(
+    (p) => mean(policyResults[p].map((r) => r.distance)) >= VIABLE_FLOOR,
+  );
+  const viableDists = viable.map((p) => mean(policyResults[p].map((r) => r.distance)));
+  const viableSpread = viableDists.length > 1 ? maxOf(viableDists) / minOf(viableDists) : Infinity;
   console.log(
-    spread > 2.2
-      ? '  ⚠ 有一種策略明顯碾壓其他 —— 密度沒有真的在為速度/收益付費'
-      : spread < 1.03
-        ? '  ⚠ 三種策略幾乎沒有差異 —— 選擇可能不構成真正的決策'
-        : '  ✓ 三種策略落在可比較區間，沒有一種碾壓其他',
+    `  可行策略（平均距離 ≥ ${VIABLE_FLOOR}）：${viable.join('、')} —— 彼此差距 ${viableSpread.toFixed(2)}x`,
+  );
+  const nonViable = (['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]).filter((p) => !viable.includes(p));
+  if (nonViable.length > 0) {
+    console.log(`  不可行：${nonViable.join('、')}（單調策略，速度低於列車必然被追上）`);
+  }
+  console.log(
+    viable.length < 2
+      ? '  ⚠ 只有一種策略可行 —— 路線選擇不構成決策'
+      : viableSpread > 2.2
+        ? '  ⚠ 可行策略之間仍有一種碾壓其他 —— 密度沒有真的在為速度/收益付費'
+        : viableSpread < 1.03
+          ? '  ⚠ 可行策略幾乎沒有差異 —— 選擇可能不構成真正的決策'
+          : '  ✓ 可行策略落在可比較區間，沒有一種碾壓其他',
   );
 }
 

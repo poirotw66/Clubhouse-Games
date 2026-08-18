@@ -91,6 +91,28 @@ export const BRANCH_TEMPLATES: BranchTemplate[] = [
   template('floodgate', '溢洪道', 'accel', 'supply', 980, 11, ['wall', 'hurdle', 'beam'], 3000),
   template('graveyard-shift', '夜班軌', 'hold', 'supply', 900, 5, ['hurdle', 'wall', 'beam', 'wall'], 3000),
   template('last-chance', '末班道', 'decel', 'supply', 800, 3, ['beam', 'wall', 'hurdle'], 3000),
+
+  // ── Widening the pool ──────────────────────────────────────────────────────
+  //
+  // Fourteen templates against a run that clears twenty to seventy junctions
+  // meant a run was offered 95% of the pool and two runs repeated 62% of what
+  // they took. That is the shape of the failure Roguelike-Snake shipped with —
+  // 18 relics for 15 picks, 98% offered, 72% overlap — where every run is the
+  // same run. These add variety in SHAPE (obstacle ordering and segment length)
+  // at existing speed/reward tiers rather than inventing new tiers, so the
+  // density floors and the balance conclusions above still hold.
+  template('gravel-run', '碎石道', 'decel', 'none', 720, 2, ['beam', 'wall'], 0),
+  template('long-tangent', '長直線', 'hold', 'none', 1000, 4, ['wall', 'hurdle'], 0),
+  template('short-spur', '短岔線', 'accel', 'none', 700, 9, ['hurdle', 'beam'], 0),
+  template('coal-siding', '運煤側線', 'decel', 'supply', 860, 3, ['hurdle', 'beam', 'wall'], 0),
+  template('signal-box', '號誌所', 'hold', 'score', 900, 6, ['wall', 'beam', 'hurdle'], 1400),
+  template('cutting', '塹道', 'accel', 'none', 880, 10, ['wall', 'beam', 'hurdle'], 1400),
+  template('tank-track', '給水軌', 'hold', 'supply', 940, 5, ['beam', 'hurdle', 'wall'], 1400),
+  template('switchback', '之字道', 'decel', 'score', 820, 4, ['beam', 'wall', 'hurdle', 'wall'], 1400),
+  template('mainline-dash', '幹線衝刺', 'accel', 'score', 1080, 13, ['beam', 'wall', 'hurdle'], 3000),
+  template('night-mail', '夜郵軌', 'hold', 'score', 980, 6, ['hurdle', 'beam', 'wall', 'beam'], 3000),
+  template('breakwater', '防波道', 'accel', 'supply', 1000, 11, ['beam', 'hurdle', 'wall'], 3000),
+  template('final-siding', '終端側線', 'decel', 'none', 760, 1, ['beam'], 3000),
 ];
 
 export function eligibleTemplates(distance: number): BranchTemplate[] {

@@ -84,6 +84,24 @@ export function trainPace(elapsed: number): number {
  * preview — see README for the measured buffer curve. */
 export const START_BUFFER = 240;
 
+/**
+ * The most the train can ever fall behind.
+ *
+ * Buffer is the integral of (player speed - train speed), and without a ceiling
+ * a player who stays faster than the train pulls away without bound. Measured
+ * before this existed: buffer averaged 241 over the first 1000 distance and
+ * 6,645 past 9,000, and 7 of 8 runs on the fastest policy did not die at all —
+ * they ran out the harness's session cap. A chase that resolves permanently is
+ * not a chase, and it took the rest of the design with it: the "safest" branch
+ * tier was dead content precisely because the train was no longer a threat.
+ *
+ * Capping it turns the lead into a resource you spend rather than one you bank,
+ * and it hands the slow branches their purpose back — at a full buffer the
+ * speed loss on a decel branch costs nothing you were using, so slow-and-safe
+ * becomes the correct read exactly when you are ahead.
+ */
+export const MAX_BUFFER = 430;
+
 // ── Obstacles & execution ───────────────────────────────────────────────────
 
 export type ObstacleKind = 'hurdle' | 'beam' | 'wall';

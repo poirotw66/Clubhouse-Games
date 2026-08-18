@@ -25,6 +25,7 @@ import {
   SCORE_MULT_STEP,
   SLIDE_DURATION,
   SPEED_MULT,
+  MAX_BUFFER,
   START_BUFFER,
   SUPPLY_BUFFER_GAIN,
   playerBasePace,
@@ -215,7 +216,7 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
   // value, read once already this tick), so there is no discretization gap
   // between the two sides of this comparison the way there was when the ramp
   // was keyed off distance and one side raced ahead of the other.
-  s.buffer += (speed - trainPace(s.elapsed)) * dt;
+  s.buffer = Math.min(MAX_BUFFER, s.buffer + (speed - trainPace(s.elapsed)) * dt);
 
   // 5) Resolve the active branch: obstacles crossed this tick, the reward
   // point if any, and completion.
@@ -248,7 +249,7 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
       branch.rewardAbsDistance <= s.distance
     ) {
       branch.rewardCollected = true;
-      if (branch.reward === 'supply') s.buffer += SUPPLY_BUFFER_GAIN;
+      if (branch.reward === 'supply') s.buffer = Math.min(MAX_BUFFER, s.buffer + SUPPLY_BUFFER_GAIN);
       else if (branch.reward === 'score') s.scoreMult += SCORE_MULT_STEP;
     }
 
