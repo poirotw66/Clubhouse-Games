@@ -1,6 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap');
 @import 'tailwindcss';
 
+/* Tailwind v4 only auto-scans this game's own directory, so classes used by the
+   shared components (ResultOverlay, BackToMenu, ScoreFlash, TouchButton) were
+   never generated here — they only appeared by luck, when this game's own
+   markup happened to use the same class. That left the end-of-run overlay with
+   no `fixed`/`z-30`, so it rendered as a static block underneath the canvas and
+   the 再試一次 button was unreachable. */
+@source '../../../shared';
+
 :root {
   --bg-deep: #050816;
   --neon-cyan: #22d3ee;

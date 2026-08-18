@@ -5,7 +5,12 @@
  * mode keeps calling buildWaveSpawns for wave numbers beyond that using the
  * same formula, so scaling stays deterministic past the 20-wave table too.
  */
-import { BOSS_WAVES, TOTAL_WAVES, type EnemyType } from './constants.ts';
+import {
+  BOSS_WAVE_INTERVAL,
+  ENDLESS_HP_GROWTH_PER_WAVE,
+  TOTAL_WAVES,
+  type EnemyType,
+} from './constants.ts';
 import type { WaveSpawnEntry } from './types.ts';
 
 const SPAWN_SPACING_SEC = 0.55;
@@ -13,6 +18,25 @@ const SPAWN_SPACING_SEC = 0.55;
 interface CompositionEntry {
   type: EnemyType;
   count: number;
+}
+
+/**
+ * Bosses recur on every multiple of BOSS_WAVE_INTERVAL, forever. This used to
+ * be a literal `Set([10, 20])`, which meant endless mode had no bosses at all
+ * from wave 21 on — the only enemy with meaningful HP and armor silently
+ * stopped appearing in the mode that never ends.
+ */
+export function isBossWave(waveNumber: number): boolean {
+  return waveNumber > 0 && waveNumber % BOSS_WAVE_INTERVAL === 0;
+}
+
+/**
+ * HP multiplier applied on top of the difficulty multiplier. Flat 1 through the
+ * 20-wave table, compounding after it so endless runs eventually end.
+ */
+export function waveHpMultiplier(waveNumber: number): number {
+  if (waveNumber <= TOTAL_WAVES) return 1;
+  return ENDLESS_HP_GROWTH_PER_WAVE ** (waveNumber - TOTAL_WAVES);
 }
 
 /** Deterministic enemy-count formula per wave. No RNG — same wave number always yields the same counts. */
@@ -23,7 +47,7 @@ export function waveComposition(waveNumber: number): CompositionEntry[] {
   if (waveNumber >= 3) comp.push({ type: 'runner', count: 2 + Math.floor(waveNumber / 3) });
   if (waveNumber >= 6) comp.push({ type: 'ironclad', count: 1 + Math.floor(waveNumber / 5) });
   if (waveNumber >= 4) comp.push({ type: 'kite', count: 1 + Math.floor(waveNumber / 4) });
-  if (BOSS_WAVES.has(waveNumber)) comp.push({ type: 'boss', count: 1 });
+  if (isBossWave(waveNumber)) comp.push({ type: 'boss', count: 1 });
   return comp;
 }
 
@@ -53,7 +77,8 @@ export function buildWaveSpawns(waveNumber: number): WaveSpawnEntry[] {
     for (let i = 0; i < b.count; i++) order.push(b.type);
   }
 
-  return order.map((type, i) => ({ type, delaySec: i * SPAWN_SPACING_SEC }));
+  const hpMult = waveHpMultiplier(waveNumber);
+  return order.map((type, i) => ({ type, delaySec: i * SPAWN_SPACING_SEC, hpMult }));
 }
 
 /** Precomputed spawn lists for the 20-wave challenge table. */

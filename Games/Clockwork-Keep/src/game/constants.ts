@@ -165,12 +165,44 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
 };
 
 export const TOTAL_WAVES = 20;
-export const BOSS_WAVES = new Set([10, 20]);
+
+/** A boss shows up on every wave that is a multiple of this. */
+export const BOSS_WAVE_INTERVAL = 10;
+
+/**
+ * Per-wave HP scaling for endless mode, compounding once past the 20-wave
+ * table. It is exactly 1 for waves 1..20, so the challenge mode's balance is
+ * untouched and the two modes stay independently tunable.
+ *
+ * Endless needs *some* compounding curve rather than flat stats: the board is
+ * 12x8, so the number of towers — and therefore the player's maximum possible
+ * DPS — has a hard ceiling, while enemy counts grow forever. Without this, an
+ * air-covered defense that survives wave 25 survives every wave after it, and
+ * "endless" measures patience rather than skill.
+ */
+export const ENDLESS_HP_GROWTH_PER_WAVE = 1.07;
 
 export const PREP_TIME_SEC = 15;
-export const EARLY_CALL_BONUS_PER_SEC = 6;
-/** Score multiplier bump applied to the wave that was called in early. */
-export const EARLY_CALL_SCORE_MULT_BONUS = 0.5;
+
+/**
+ * Gold paid per still-unresolved enemy when the next wave is called on top of
+ * the one already running.
+ *
+ * This replaces a per-remaining-second bonus for calling early during prep,
+ * which was measured as 56% of a run's entire income while costing the player
+ * nothing whatsoever: no income accrues during prep and towers can be built
+ * mid-wave anyway, so prep time had no opportunity cost and pressing the button
+ * the instant it appeared was strictly dominant on every wave of every run.
+ *
+ * A button that is always correct is not a decision. Paying for *overlap*
+ * instead is what the spec's "主動壓縮時間換取資源" actually describes: the
+ * bonus scales with how dangerous the board is when you call, and the danger
+ * is real, because both waves are now walking at you at once.
+ */
+export const OVERLAP_CALL_BONUS_PER_ENEMY = 8;
+
+/** Score multiplier bump applied while waves are stacked on top of each other. */
+export const OVERLAP_CALL_SCORE_MULT_BONUS = 0.5;
 
 export const SELL_REFUND_RATE = 0.7;
 

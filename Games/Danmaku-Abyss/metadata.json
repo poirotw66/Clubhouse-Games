@@ -1,0 +1,5 @@
+{
+  "name": "彈幕深淵 Danmaku Abyss",
+  "description": "Roguelike 縱捲彈幕射擊：傷害與擦彈都隨距離上升，逼你站到最危險的位置；五個階段逐步構築戰機，敵方彈幕沿連續強度曲線越來越變態。",
+  "requestFramePermissions": []
+}
