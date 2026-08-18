@@ -244,7 +244,8 @@ for (const policy of ['never', 'panic'] as BombPolicy[]) {
       `${((rs.filter((r) => r.won).length / rs.length) * 100).toFixed(0)}%   ` +
       `${Math.round(mean(rs.map((r) => r.score))).toString().padStart(8)}   ` +
       `${mean(rs.map((r) => r.seconds)).toFixed(0).padStart(5)}s   ` +
-      `${Math.round(mean(rs.map((r) => r.grazeCount))).toString().padStart(6)}   ` +
+      `${Math.round(mean(rs.map((r) => r.grazeCount))).toString().padStart(6)}  ` +
+      `×${mean(rs.map((r) => r.peakGraze)).toFixed(2)}  ` +
       `${mean(rs.map((r) => r.captures)).toFixed(1)}`,
   );
 }

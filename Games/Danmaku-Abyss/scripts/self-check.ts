@@ -182,11 +182,35 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   );
   assert.ok(grazeRadius(hot) > grazeRadius(calm), 'coldblood must widen the graze ring in-condition');
 
+  // gambit's contract changed after measurement. It used to give +60% damage
+  // AND a 25% smaller hitbox on the last life, with no standing cost — a pure
+  // comeback mechanic that made you strongest exactly when closest to losing,
+  // which is the opposite of "lives exist but death still hurts". Isolating the
+  // pool change showed it pushing stage 3 and 4 survival from 88% to 100%.
+  //
+  // The assertions below encode the new contract deliberately: the last-life
+  // payoff is damage only, and the standing hitbox cost must bite whether or
+  // not the condition holds. A conditional upgrade with no downside outside its
+  // condition is a free upgrade wearing a condition as decoration.
   const gam = { ...base, upgrades: ['gambit'] };
   const safe = { ...gam, lives: 3 };
   const desperate = { ...gam, lives: 1 };
-  assert.ok(hitboxRadius(desperate) < hitboxRadius(safe), 'gambit must shrink the hitbox on the last life');
   assert.ok(shotDamage(desperate, 0) > shotDamage(safe, 0), 'gambit must raise damage on the last life');
+  assert.ok(
+    hitboxRadius(safe) > hitboxRadius(base),
+    'gambit must cost hitbox size while you are NOT desperate — otherwise it is free',
+  );
+  assert.ok(
+    hitboxRadius(desperate) > hitboxRadius(base),
+    'gambit must not become a survival aid on the last life; it buys damage, not safety',
+  );
+
+  const ll = { ...base, upgrades: ['lastlight'] };
+  assert.ok(
+    moveSpeed({ ...ll, lives: 3 }) < moveSpeed(base),
+    'lastlight must be a standing penalty until you are down to your last life',
+  );
+  assert.ok(moveSpeed({ ...ll, lives: 1 }) > moveSpeed(base), 'lastlight must pay off on the last life');
 
   // And the flat downside of a stance upgrade must still bite out of condition.
   const fix = { ...base, upgrades: ['fixative'] };

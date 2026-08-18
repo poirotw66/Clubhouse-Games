@@ -123,9 +123,15 @@ export const UPGRADES: UpgradeDef[] = [
     conditional: { when: 'pointBlank', effects: { damagePct: 0.7 } },
   },
   {
-    id: 'gambit', name: '賭命', text: '剩最後一條命時，傷害 +60%、判定點 −25%。', rarity: 'epic',
-    effects: {},
-    conditional: { when: 'lastLife', effects: { damagePct: 0.6, hitboxPct: -0.25 } },
+    id: 'gambit', name: '賭命', text: '剩最後一條命時傷害 +35%；平時判定點 +10%。', rarity: 'epic',
+    // Trimmed after measurement. At +60% damage and -25% hitbox this was a pure
+    // comeback mechanic: it made you strongest exactly when you were closest to
+    // losing, which is the opposite of "lives exist but death still hurts".
+    // Isolating the pool change showed stage 3 and 4 survival pushed from 88%
+    // to 100% and the bot cleared every run. It now carries a standing cost so
+    // taking it is a bet rather than a safety net.
+    effects: { hitboxPct: 0.1 },
+    conditional: { when: 'lastLife', effects: { damagePct: 0.35 } },
   },
   {
     id: 'fixative', name: '定影', text: '集中模式中射速 +45%，非集中時 −15%。', rarity: 'rare',
@@ -153,9 +159,11 @@ export const UPGRADES: UpgradeDef[] = [
     conditional: { when: 'grazeHigh', effects: { fireRatePct: 0.5 } },
   },
   {
-    id: 'lastlight', name: '殘照', text: '剩最後一條命時，符卡計時 +10 秒、移動 +25%。', rarity: 'rare',
-    effects: {},
-    conditional: { when: 'lastLife', effects: { cardTimeSec: 10, focusSpeedPct: 0.25, fastSpeedPct: 0.25 } },
+    id: 'lastlight', name: '殘照', text: '剩最後一條命時移動 +25%；平時移動 −8%。', rarity: 'rare',
+    // The card-timer half was removed: extra time on the clock while on your
+    // last life is help precisely when failing should be closest.
+    effects: { focusSpeedPct: -0.08, fastSpeedPct: -0.08 },
+    conditional: { when: 'lastLife', effects: { focusSpeedPct: 0.33, fastSpeedPct: 0.33 } },
   },
 ];
 
