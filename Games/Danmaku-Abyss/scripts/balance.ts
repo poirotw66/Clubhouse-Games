@@ -325,14 +325,31 @@ console.log('\n=== 強化池：一趟看到多少、兩趟重複多少（走完�
 // weakest picks were 0.50 stages apart — the choice barely registered.
 console.log('\n=== 強化是不是真的有差，以及對不同打法是不是不同的差 ===\n');
 {
+  // The upgrade under test is INJECTED into the first offer rather than waited
+  // for. Hoping it turns up does not work: 32 upgrades against at most 15
+  // offers means most runs never see the one being measured, so every such row
+  // falls through to the same offered[0] path and scores identically. The first
+  // version of this measurement produced four different upgrades tied at
+  // exactly 84255 points, which was not a coincidence — it was four rows that
+  // had never taken the upgrade they were named after. Ranking that is ranking
+  // noise about which picks happened to appear.
+  //
+  // Taking it on the first screen and offered[0] thereafter isolates one
+  // upgrade while keeping every other choice identical across all rows.
   const rank = (stance: Stance): Array<{ id: string; score: number }> => {
     const rows = UPGRADES.map((u) => {
-      const scores = SEEDS.slice(0, 2).map((seedCode) => {
+      const scores = SEEDS.slice(0, 3).map((seedCode) => {
         let s = createRun(seedCode);
+        let taken = false;
         let guard = 0;
         while (s.phase === 'playing' || s.phase === 'upgrade') {
           if (s.phase === 'upgrade') {
-            s = takeUpgrade(s, s.offered.includes(u.id) ? u.id : s.offered[0]);
+            if (!taken) {
+              taken = true;
+              s = takeUpgrade({ ...s, offered: [u.id, ...s.offered.filter((x) => x !== u.id)].slice(0, 3) }, u.id);
+            } else {
+              s = takeUpgrade(s, s.offered[0]);
+            }
             continue;
           }
           s = step(s, pilot(s, 'never', stance), FIXED_DT);
@@ -346,8 +363,17 @@ console.log('\n=== 強化是不是真的有差，以及對不同打法是不是�
     return rows;
   };
 
+  // Guard the guard: if rows tie in bulk the measurement has gone degenerate
+  // again and nothing below it means anything.
+  const tieCheck = (rows: Array<{ score: number }>): number =>
+    rows.length - new Set(rows.map((r) => Math.round(r.score))).size;
+
   const back = rank('keepBack');
   const hug = rank('hug');
+  const ties = tieCheck(back);
+  if (ties > UPGRADES.length * 0.25) {
+    console.log(`  ⚠ ${ties}/${UPGRADES.length} 列分數重複 —— 量測退化了，下面的排名沒有意義`);
+  }
   const posBack = new Map(back.map((r, i) => [r.id, i]));
   const posHug = new Map(hug.map((r, i) => [r.id, i]));
 
