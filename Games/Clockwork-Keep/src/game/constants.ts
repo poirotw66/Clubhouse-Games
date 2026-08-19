@@ -35,10 +35,29 @@ export interface DifficultyConfig {
   enemyHpMult: number;
 }
 
+/**
+ * The three settings sit on the part of the HP curve that actually responds.
+ *
+ * enemyHpMult is a narrow lever, and the old values 0.8 / 1.0 / 1.3 had two of
+ * the three outside its working range entirely. Sweeping it against lives lost
+ * (the game is fully deterministic, so each of these is an exact value rather
+ * than an estimate):
+ *
+ *   0.80  0.90  1.00  1.05 | 1.10 | 1.15  1.20 | 1.25  1.30  1.40
+ *      0     0     0     0 |    5 |   12    13 |   12    12    11
+ *
+ * Nothing at all below 1.05, everything between 1.05 and 1.20, and a genuine
+ * plateau above it that even reverses slightly by 1.40. So relaxed at 0.8 and
+ * standard at 1.0 were the SAME experience — both flawless clears — and only
+ * harsh did anything, from the far side of the plateau.
+ *
+ * Spread across the responsive band the three now cost 0 / 5 / 12 lives.
+ * expectDifficultiesDiffer() in check-economy.mjs holds them apart.
+ */
 export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
-  relaxed: { startingGold: 260, startingLives: 26, enemyHpMult: 0.8 },
-  standard: { startingGold: 200, startingLives: 20, enemyHpMult: 1.0 },
-  harsh: { startingGold: 150, startingLives: 14, enemyHpMult: 1.3 },
+  relaxed: { startingGold: 260, startingLives: 24, enemyHpMult: 1.0 },
+  standard: { startingGold: 200, startingLives: 20, enemyHpMult: 1.1 },
+  harsh: { startingGold: 150, startingLives: 14, enemyHpMult: 1.2 },
 };
 
 export type MapId = 'open' | 'corridor';
