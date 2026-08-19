@@ -457,26 +457,29 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   ok(`late cards are not hand-escalated (${first} -> ${last} bullets), the scalar supplies ${ratio.toFixed(1)}x`);
 }
 
-// ── 11c) Pressure must climb by a slope, not a cliff ─────────────────────────
+// ── 11c) Pressure must land inside the measured playable band ────────────────
 //
-// Bullets-per-second is count divided by interval, so scaling both compounds
-// and the last stage takes the worst of it. Three cadence settings were run
-// through the balance harness, and the end-to-end pressure ratio separates
-// them cleanly:
+// The end-to-end pressure ratio (bullets/sec at the last stage over the first)
+// is the one number that summarises the whole difficulty curve. A controlled
+// sweep — everything held fixed, only the intensity slope varied, eight seeds,
+// measured both with the normal upgrade pool and with the upgrade list
+// stripped entirely:
 //
-//   0.90 + 0.10k   3.46x from stage 1 to 5   38% survival on stage 5
-//   0.72 + 0.24k   4.29x                      0% survival on stage 5
-//   0.55 + 0.40x   5.15x                      worse still
+//   slope    ratio    clear rate (upgrades / none)
+//   +0.55    3.28x    100% / 100%      no failure state at all
+//   +0.85    4.34x     88% /  63%      a real but achievable challenge
+//   +1.15    5.51x     13% /   0%      a wall
 //
-// The bound below sits between the setting measured as playable and the one
-// measured as a wall. It is not a guess at what feels fair — it is the line the
-// measurements actually drew.
+// So the band is roughly 3.6x to 5.0x, and the check is TWO-SIDED. The
+// previous version only had a ceiling, and that is exactly why the shipped
+// build sat at 3.28x with a 100% clear rate for as long as it did: nothing
+// was watching for "too easy", so the defect could not trip anything.
 //
-// An earlier version of this check compared CONSECUTIVE stages instead, and it
-// could not fail: intensity only rises 0.55 per stage, so no single step ever
-// doubles regardless of how brutal the cadence is. Reintroducing the 0% setting
-// left all checks green. A check that cannot go red for the bug it names is
-// worse than no check, because it manufactures confidence.
+// The old ceiling was also stale rather than merely wrong. It was anchored on
+// "4.29x was unsurvivable", measured when the pool was 24 flat scalars. After
+// the conditional upgrades went in, essentially that same ratio measures 88%
+// clear. A threshold calibrated against one version of the content does not
+// survive a change to the content — re-derive it, do not nudge it.
 {
   const rateAt = (stage: number): number => {
     const k = intensityFor(stage, true);
@@ -499,11 +502,16 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
 
   const ratio = rateAt(STAGE_COUNT) / rateAt(1);
   assert.ok(
-    ratio < 4,
-    `pressure grows ${ratio.toFixed(2)}x from stage 1 to ${STAGE_COUNT} — measured at 4.29x the ` +
-      `final stage was unsurvivable (0% across eight seeds), so this lands as a wall, not a curve`,
+    ratio >= 3.6,
+    `pressure only grows ${ratio.toFixed(2)}x from stage 1 to ${STAGE_COUNT} — measured at 3.28x the ` +
+      `run cleared 100% of the time with and without upgrades, i.e. there is no failure state`,
   );
-  ok(`pressure climbs every stage and totals ${ratio.toFixed(2)}x end to end (${rateAt(1).toFixed(0)} -> ${rateAt(STAGE_COUNT).toFixed(0)} bullets/sec)`);
+  assert.ok(
+    ratio <= 5.0,
+    `pressure grows ${ratio.toFixed(2)}x from stage 1 to ${STAGE_COUNT} — measured at 5.51x the clear ` +
+      `rate fell to 13%, which is a wall rather than a curve`,
+  );
+  ok(`pressure lands inside the measured playable band at ${ratio.toFixed(2)}x (3.6-5.0)`);
 }
 
 // ── 11d) Spell card phases actually switch on ────────────────────────────────
