@@ -96,7 +96,15 @@ export function TitleScreen({ initialSeed, hasSave, archive, onStart, onContinue
               }
             >
               <span className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-bold text-slate-100">{club.name}</span>
+                <span className="flex items-center gap-2 min-w-0">
+                  <img
+                    src={`${import.meta.env.BASE_URL}clubs/${club.id}.svg`}
+                    alt={club.name}
+                    aria-hidden="true"
+                    className="w-5 h-5 flex-none"
+                  />
+                  <span className="text-sm font-bold text-slate-100 truncate">{club.name}</span>
+                </span>
                 <span className="shrink-0 font-mono text-[10px] text-slate-500">
                   戰力 {club.strength >= 0 ? `+${club.strength}` : club.strength}・資金{' '}
                   {(club.cash / 10000).toFixed(1)} 億
