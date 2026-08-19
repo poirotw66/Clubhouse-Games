@@ -76,7 +76,33 @@ function chooseSafeLane(obstacles: ActiveBranch['obstacles'], avoidLane: number,
   return best;
 }
 
-const SEEDS = ['ALPHA1', 'BRAVO2', 'CHARL3', 'DELTA4', 'ECHO55', 'FOXTR6', 'GOLF77', 'HOTEL8'];
+/**
+ * Eight seeds cannot support the comparisons this file makes, and the sibling
+ * game's harness proved it the hard way: at eight seeds its per-stage survival
+ * read 63/38/50, and at twenty-four the same stages read 25/71/54 — the small
+ * sample had the hardest case marked as the easiest of the three.
+ *
+ * Distances here are continuous rather than binary, so the relevant number is
+ * the standard error of the mean across seeds. It is printed next to every
+ * average, because a figure shown without its error bar invites someone to
+ * explain its wobble, and doing exactly that produced a conclusion this repo
+ * had to publicly retract.
+ */
+const SEEDS: string[] = (() => {
+  const named = ['ALPHA1', 'BRAVO2', 'CHARL3', 'DELTA4', 'ECHO55', 'FOXTR6', 'GOLF77', 'HOTEL8'];
+  const out = [...named];
+  for (let i = 0; out.length < 24; i++) out.push(`SEED${String(i).padStart(3, '0')}`);
+  return out;
+})();
+
+/** Mean plus a rough 95% interval (1.96 standard errors), for continuous measures. */
+function meanCI(xs: number[]): { mean: number; half: number } {
+  const n = xs.length;
+  if (n === 0) return { mean: 0, half: 0 };
+  const m = xs.reduce((a, b) => a + b, 0) / n;
+  const variance = xs.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, n - 1);
+  return { mean: m, half: 1.96 * Math.sqrt(variance / n) };
+}
 
 /** How often the execution pilot fails the correct action on an obstacle it
  * has already committed to, independent of which policy is choosing branches.
@@ -291,7 +317,7 @@ function maxOf(xs: number[]): number {
 
 // ── 1) Does any single choice policy dominate? ────────────────────────────────
 console.log(`=== 路線策略：永遠選最快 / 永遠選最安全 / 永遠選補給（同一個 ${SESSION_GUARD / 60}s 場次上限，相同執行失誤率）===\n`);
-console.log('策略       平均距離   平均分數   平均秒數  平均撞擊  清過的岔道  撐滿場次');
+console.log(`策略       平均距離（${SEEDS.length} 種子，±95%）  平均分數   平均秒數  平均撞擊  清過的岔道  撐滿場次`);
 const policyResults: Record<ChoicePolicy, RunResult[]> = {
   fastest: [],
   safest: [],
@@ -303,8 +329,9 @@ const policyResults: Record<ChoicePolicy, RunResult[]> = {
 for (const policy of ['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]) {
   const rs = SEEDS.map((seed) => playRun(seed, policy));
   policyResults[policy] = rs;
+  const dci = meanCI(rs.map((r) => r.distance));
   console.log(
-    `${policy.padEnd(10)} ${mean(rs.map((r) => r.distance)).toFixed(0).padStart(8)}   ` +
+    `${policy.padEnd(10)} ${dci.mean.toFixed(0).padStart(8)} ±${dci.half.toFixed(0).padEnd(6)}` +
       `${Math.round(mean(rs.map((r) => r.score))).toString().padStart(8)}   ` +
       `${mean(rs.map((r) => r.elapsed)).toFixed(0).padStart(7)}s  ` +
       `${mean(rs.map((r) => r.hitsTotal)).toFixed(1).padStart(8)}  ` +
@@ -349,6 +376,25 @@ for (const policy of ['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]) 
   const nonViable = (['fastest', 'safest', 'reward', 'bank'] as ChoicePolicy[]).filter((p) => !viable.includes(p));
   if (nonViable.length > 0) {
     console.log(`  不可行：${nonViable.join('、')}（單調策略，速度低於列車必然被追上）`);
+  }
+  // Whether the viable policies are actually DISTINGUISHABLE, not just whether
+  // their point estimates differ. Two averages 1.37x apart mean nothing if
+  // their intervals overlap — that is the trap the sibling game fell into, and
+  // the ratio alone cannot see it.
+  const viableCIs = viable.map((p) => ({ p, ci: meanCI(policyResults[p].map((r) => r.distance)) }));
+  let separated = 0;
+  let pairs = 0;
+  for (let i = 0; i < viableCIs.length; i++) {
+    for (let j = i + 1; j < viableCIs.length; j++) {
+      const a = viableCIs[i].ci;
+      const b = viableCIs[j].ci;
+      pairs += 1;
+      if (a.mean - a.half > b.mean + b.half || b.mean - b.half > a.mean + a.half) separated += 1;
+    }
+  }
+  console.log(`  可行策略中區間不重疊的配對：${separated}/${pairs}`);
+  if (pairs > 0 && separated === 0) {
+    console.log('  ⚠ 沒有任何一對可行策略的區間分得開 —— 「差距 1.37x」這種說法撐不住');
   }
   console.log(
     viable.length < 2

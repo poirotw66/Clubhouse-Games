@@ -1,5 +1,18 @@
 /**
  * Balance measurement harness. Not a pass/fail test — it prints numbers.
+ *
+ * NOTE ON SAMPLE SIZE: there is deliberately no seed list here, and adding one
+ * would be cargo-culting. This game contains no randomness at all — no
+ * Math.random and no seeded generator anywhere under src/game/ — waves are a
+ * pure function of the wave number, and targeting ties break on spawn order.
+ * One run per configuration therefore produces an EXACT value, not an estimate
+ * with a sampling error, and a confidence interval on it would be meaningless.
+ *
+ * That is worth stating because sibling harnesses in this repo do need seeds
+ * and intervals, and one of them shipped conclusions that flipped when its
+ * sample grew from 8 seeds to 24. The right question is never "does this print
+ * error bars" but "does this quantity have sampling error at all".
+ *
  * Run: node --experimental-strip-types src/balance.mjs
  *
  * The whole point is to hold everything constant except ONE variable at a
@@ -38,9 +51,8 @@ const SLOTS = [
  * a 20-wave attempt having built 3 towers against the non-overlapping run's 16.
  * That measured the harness, not the mechanic.
  *
- * Fills the slot list
- * first, then pour the rest into upgrades, cheapest upgrade first. Deliberately
- * dumb and identical across every row of the table.
+ * Fills the slot list first, then pours the rest into upgrades, cheapest
+ * upgrade first. Deliberately dumb and identical across every row of the table.
  */
 function spend(state, mix) {
   let s = state;
@@ -80,8 +92,9 @@ function spend(state, mix) {
   return s;
 }
 
-/** Plays one full run and reports where it ended plus where its gold came from. */
 /**
+ * Plays one full run and reports where it ended plus where its gold came from.
+ *
  * `overlap` is the policy for 強行加壓 — stacking the next wave on top of the
  * running one:
  *   'never'  — always let a wave finish first.
