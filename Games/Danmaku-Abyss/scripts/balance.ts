@@ -169,7 +169,35 @@ function playRun(seedCode: string, bombPolicy: BombPolicy, pickIndex = 0, startS
   };
 }
 
-const SEEDS = ['ALPHA1', 'BRAVO2', 'CHARL3', 'DELTA4', 'ECHO55', 'FOXTR6', 'GOLF77', 'HOTEL8'];
+/**
+ * Eight seeds is not enough to compare survival rates, and this harness spent a
+ * long time pretending otherwise.
+ *
+ * At p around 0.5, eight samples carry a 95% interval of roughly +/-34
+ * percentage points. Every per-stage number this file printed was therefore a
+ * wide interval wearing a precise-looking label, and stage-to-stage comparisons
+ * off those numbers were mostly reading noise. Re-measuring stages 3-5 at 24
+ * seeds moved them from 63/38/50 to 25/71/54 — the 8-seed run had the hardest
+ * stage marked as the easiest of the three.
+ *
+ * Twenty-four is still not many, which is exactly why survivalCI() prints the
+ * interval alongside every rate. A measurement shown without its error bar
+ * invites someone to explain its wobble, and doing that produced a conclusion
+ * this repo had to publicly retract.
+ */
+const SEEDS: string[] = (() => {
+  const named = ['ALPHA1', 'BRAVO2', 'CHARL3', 'DELTA4', 'ECHO55', 'FOXTR6', 'GOLF77', 'HOTEL8'];
+  const out = [...named];
+  for (let i = 0; out.length < 24; i++) out.push(`SEED${String(i).padStart(3, '0')}`);
+  return out;
+})();
+
+/** A rate plus its rough 95% interval, in percentage points. */
+function survivalCI(successes: number, n: number): string {
+  const p = n > 0 ? successes / n : 0;
+  const halfWidth = 1.96 * Math.sqrt((p * (1 - p)) / Math.max(1, n)) * 100;
+  return `${(p * 100).toFixed(0).padStart(3)}% ±${halfWidth.toFixed(0)}pp`;
+}
 
 /**
  * Equips a run the way a player who actually reached that stage would be:
@@ -189,7 +217,16 @@ function equip(s: RunState, stage: number): RunState {
   return {
     ...s,
     upgrades: picks,
-    powerTier: Math.min(4, 1 + Math.floor((stage - 1) * 0.8)),
+    // Power tier taken from what real runs actually carry, not from a linear
+    // ramp. Measured over full runs: 1.35 / 3.11 / 3.79 / 3.89 / 3.88 by stage.
+    // Players reach nearly the cap by stage 3 and sit there; the old model
+    // (1 + floor((stage-1)*0.8), i.e. 1/1/2/3/4) under-powered stages 2 and 3
+    // by roughly two whole tiers and only matched reality at stage 5.
+    //
+    // That distortion invented a defect: with the ramp, stage 3 measured 38%
+    // survival against stage 2's 96%, which reads as a cliff in the difficulty
+    // curve. It was a cliff in the harness's model of the player.
+    powerTier: [1, 3, 4, 4, 4][Math.min(4, Math.max(0, stage - 1))],
   };
 }
 
@@ -234,7 +271,7 @@ function mean(xs: number[]): number {
 }
 
 // ── 1) How far a run gets, and how long it takes ─────────────────────────────
-console.log('=== 一趟能走多遠（相同駕駛、八個種子）===\n');
+console.log(`=== 一趟能走多遠（相同駕駛、${SEEDS.length} 個種子）===\n`);
 console.log('靈擊策略 | 平均到達  通關率  平均分數   平均時長  平均擦彈  倍率  Capture');
 for (const policy of ['never', 'panic'] as BombPolicy[]) {
   const rs = SEEDS.map((s) => playRun(s, policy));
@@ -415,7 +452,7 @@ console.log('\n=== 強化是不是真的有差，以及對不同打法是不是�
 // surviving the ones before it. This is the curve the spec promises: it must
 // climb, and it must not cliff.
 console.log('\n=== 每個階段單獨量測（直接從該階段開始，同一個駕駛）===\n');
-console.log('階段 | 存活率  平均秒數  子彈峰值  Capture');
+console.log(`階段 | 存活率（${SEEDS.length} 種子）  平均秒數  子彈峰值  Capture`);
 for (let stage = 1; stage <= STAGE_COUNT; stage++) {
   let survived = 0;
   const secs: number[] = [];
@@ -437,7 +474,7 @@ for (let stage = 1; stage <= STAGE_COUNT; stage++) {
     captures += s.captures;
   }
   console.log(
-    `  ${stage}  | ${((survived / SEEDS.length) * 100).toFixed(0).padStart(4)}%  ` +
+    `  ${stage}  | ${survivalCI(survived, SEEDS.length)}  ` +
       `${mean(secs).toFixed(0).padStart(7)}s  ${Math.round(Math.max(...peaks)).toString().padStart(7)}  ` +
       `${(captures / SEEDS.length).toFixed(1)}`,
   );
