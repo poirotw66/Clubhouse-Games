@@ -7,6 +7,47 @@ import type { GameState } from '../game/types';
 const WIDTH = 720;
 const HEIGHT = 1000;
 
+let shareBg: HTMLImageElement | null = null;
+
+function shareBackground(): HTMLImageElement {
+  if (!shareBg) {
+    shareBg = new Image();
+    shareBg.decoding = 'async';
+    shareBg.src = `${import.meta.env.BASE_URL}title-bg.jpg`;
+  }
+  return shareBg;
+}
+
+function drawBackground(ctx: CanvasRenderingContext2D): void {
+  const bg = shareBackground();
+  if (bg.complete && bg.naturalWidth > 0) {
+    const imgAspect = bg.naturalWidth / bg.naturalHeight;
+    const canvasAspect = WIDTH / HEIGHT;
+    if (imgAspect > canvasAspect) {
+      const drawWidth = HEIGHT * imgAspect;
+      ctx.drawImage(bg, (WIDTH - drawWidth) / 2, 0, drawWidth, HEIGHT);
+    } else {
+      const drawHeight = WIDTH / imgAspect;
+      ctx.drawImage(bg, 0, (HEIGHT - drawHeight) / 2, WIDTH, drawHeight);
+    }
+  } else {
+    const fallback = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+    fallback.addColorStop(0, '#12283f');
+    fallback.addColorStop(0.45, '#0a1526');
+    fallback.addColorStop(1, '#070d17');
+    ctx.fillStyle = fallback;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    return;
+  }
+
+  const overlay = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  overlay.addColorStop(0, 'rgba(7, 13, 23, 0.55)');
+  overlay.addColorStop(0.45, 'rgba(7, 13, 23, 0.75)');
+  overlay.addColorStop(1, 'rgba(7, 13, 23, 0.92)');
+  ctx.fillStyle = overlay;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+}
+
 interface Stat {
   label: string;
   value: string;
@@ -58,12 +99,7 @@ function draw(canvas: HTMLCanvasElement, state: GameState): void {
   const sans = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif';
   const positionLabel = POSITIONS.find((p) => p.id === state.position)?.label ?? '';
 
-  const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-  bg.addColorStop(0, '#12283f');
-  bg.addColorStop(0.45, '#0a1526');
-  bg.addColorStop(1, '#070d17');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  drawBackground(ctx);
 
   ctx.strokeStyle = 'rgba(251,191,36,0.35)';
   ctx.lineWidth = 2;
@@ -182,7 +218,17 @@ export function ShareCard({ state }: { state: GameState }): React.ReactElement {
   const [status, setStatus] = useState<'idle' | 'saved' | 'failed'>('idle');
 
   useEffect(() => {
-    if (canvasRef.current) draw(canvasRef.current, state);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const render = () => draw(canvas, state);
+    render();
+
+    const bg = shareBackground();
+    if (!bg.complete) {
+      bg.addEventListener('load', render);
+      return () => bg.removeEventListener('load', render);
+    }
   }, [state]);
 
   const download = useCallback(() => {
