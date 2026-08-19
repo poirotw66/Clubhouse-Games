@@ -18,11 +18,20 @@ export function TitleScreen({ initialSeed, hasSave, archive, onStart, onContinue
   const [teamId, setTeamId] = useState(CLUBS[4].id);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 pb-16 pt-14">
-      <header className="mt-3 text-center">
-        <p className="text-sm tracking-[0.4em] text-slate-400">DYNASTY</p>
+    <div
+      className="dy-title-shell"
+      style={{
+        backgroundImage: [
+          'linear-gradient(rgba(6, 18, 14, 0.52), rgba(6, 18, 14, 0.94))',
+          `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 pb-16 pt-14">
+      <header className="dy-title-hero mt-3 text-center">
+        <p className="text-sm tracking-[0.4em] text-slate-300">DYNASTY</p>
         <h1 className="mt-2 text-4xl font-black text-emerald-300 sm:text-5xl">球團王朝</h1>
-        <p className="mt-3 text-sm leading-relaxed text-slate-300">
+        <p className="mt-3 text-sm leading-relaxed text-slate-200">
           你是總管，任期十年。
           <br />
           贏球要花錢，而錢來自贏球。董事會的耐心是有限的。
@@ -138,6 +147,7 @@ export function TitleScreen({ initialSeed, hasSave, archive, onStart, onContinue
           </ul>
         </section>
       )}
+      </div>
     </div>
   );
 }

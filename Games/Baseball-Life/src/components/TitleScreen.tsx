@@ -28,11 +28,20 @@ export function TitleScreen({
   const earned = ACHIEVEMENTS.filter((a) => achievements.unlocked[a.id]).length;
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 px-4 py-14">
-      <header className="text-center">
-        <p className="text-sm tracking-[0.4em] text-slate-400">BASEBALL LIFE</p>
+    <div
+      className="bl-title-shell"
+      style={{
+        backgroundImage: [
+          'linear-gradient(rgba(7, 13, 23, 0.55), rgba(7, 13, 23, 0.92))',
+          `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+        ].join(', '),
+      }}
+    >
+      <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 px-4 py-14">
+      <header className="bl-title-hero text-center">
+        <p className="text-sm tracking-[0.4em] text-slate-300">BASEBALL LIFE</p>
         <h1 className="mt-2 text-4xl font-black text-amber-300 sm:text-5xl">棒球人生</h1>
-        <p className="mt-3 text-sm leading-relaxed text-slate-300">
+        <p className="mt-3 text-sm leading-relaxed text-slate-200">
           16 歲的春天，你走進高中棒球部。
           <br />
           三年的練習、四場全國賽、一次選秀，決定接下來的二十年。
@@ -164,6 +173,7 @@ export function TitleScreen({
           </ul>
         </section>
       )}
+      </div>
     </div>
   );
 }

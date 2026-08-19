@@ -22,6 +22,21 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+.bl-title-shell {
+  background-color: #070d17;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.bl-title-hero {
+  padding: 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 1.5rem;
+  background: linear-gradient(rgba(15, 27, 45, 0.48), rgba(15, 27, 45, 0.22));
+  backdrop-filter: blur(2px);
+}
+
 /* The infield-dirt accent used for headings and primary actions. */
 .bl-accent {
   color: #fbbf24;
