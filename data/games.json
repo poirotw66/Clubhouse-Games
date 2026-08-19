@@ -185,6 +185,14 @@
           "players": "1 人",
           "specPath": "04-sports-arcade/danmaku-abyss.md",
           "gameFolder": "Danmaku-Abyss"
+        },
+        {
+          "name": "岔道疾走",
+          "en": "Switchpoint Run",
+          "desc": "鐵道路線抉擇跑酷：每個道岔的支線內容都提前預覽，速度與收益都要用密度換，後方列車只在你選錯或執行差時才追上來。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/switchpoint-run.md",
+          "gameFolder": "Switchpoint-Run"
         }
       ]
     },
