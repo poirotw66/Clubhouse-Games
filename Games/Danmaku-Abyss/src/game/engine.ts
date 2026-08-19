@@ -159,7 +159,23 @@ export function fragmentPull(s: RunState): number {
  * tiers. Boss fights sit a step above their stage's midway.
  */
 export function intensityFor(stage: number, boss: boolean): number {
-  return 1 + (stage - 1) * 0.55 + (boss ? 0.35 : 0);
+  // Raised from 0.55 after a controlled measurement. Holding everything else
+  // fixed and varying only this slope, over eight seeds:
+  //
+  //            no upgrades        normal upgrades
+  //   +0.55    100% / 3.0 lives   100% / 2.9   <- shipped, no failure state
+  //   +0.85     63% / 1.1          88% / 1.6
+  //   +1.15      0% / 0.0          13% / 0.1
+  //
+  // Perfectly monotonic in clear rate. An earlier note in this repo claimed the
+  // lever had "saturated" and that adding danger cancelled itself through a
+  // graze-to-combat feedback loop. That was wrong: it was built on the LIVES
+  // figure wobbling (2.6 -> 2.9 -> 2.0 across three slopes), which is the
+  // noisier of the two measures over eight seeds, while the clear rate was
+  // monotone the whole time. The control that settled it was running with the
+  // upgrade list stripped entirely — with nothing for the supposed loop to run
+  // through, raising the slope still took clear rate from 100% to 63% to 0%.
+  return 1 + (stage - 1) * 0.85 + (boss ? 0.35 : 0);
 }
 
 /** Tightens an authored emitter by the run's current intensity. */

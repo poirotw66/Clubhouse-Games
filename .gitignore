@@ -12,6 +12,12 @@ dist/
 # same thing for Pick-Red's `npm run balance`.
 .self-check/
 .balance/
+# Ad-hoc measurement runners get their own outDir so they never collide with a
+# balance run in progress; same throwaway status as the two above.
+.ct/
+.sweep/
+.pp/
+.isweep/
 
 Games/.DS_Store
 .DS_Store
