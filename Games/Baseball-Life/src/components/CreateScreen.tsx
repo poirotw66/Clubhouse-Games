@@ -3,6 +3,7 @@ import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { POSITIONS } from '../game/config';
 import { rollOrigins } from '../game/engine';
 import type { Position } from '../game/types';
+import { sceneBackgroundStyle } from '../sceneBackground';
 
 interface Props {
   seedCode: string;
@@ -19,8 +20,9 @@ export function CreateScreen({ seedCode, onCreate, onBack }: Props): React.React
   const [originId, setOriginId] = useState(origins[0].id);
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-5 px-4 py-14">
-      <header className="mt-3">
+    <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle()}>
+      <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-5 px-4 py-14">
+      <header className="bl-title-hero mt-3">
         <p className="text-xs tracking-[0.3em] text-slate-500">
           種子碼 <span className="font-mono text-amber-300">{seedCode}</span>
         </p>
@@ -93,6 +95,7 @@ export function CreateScreen({ seedCode, onCreate, onBack }: Props): React.React
           onClick={() => onCreate({ name, position, originId })}
           className="flex-1 rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
         />
+      </div>
       </div>
     </div>
   );

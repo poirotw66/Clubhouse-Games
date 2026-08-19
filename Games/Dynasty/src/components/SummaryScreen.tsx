@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { CLUBS, EXPECTATIONS, formatMoney } from '../game/config';
 import type { GameState } from '../game/types';
+import { sceneBackgroundStyle } from '../sceneBackground';
 
 interface Props {
   state: GameState;
@@ -25,8 +26,9 @@ export function SummaryScreen({ state, onRestart }: Props): React.ReactElement {
   const club = CLUBS.find((c) => c.id === state.teamId);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-14">
-      <header className="mt-3 text-center">
+    <div className="dy-title-shell min-h-screen" style={sceneBackgroundStyle()}>
+      <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-14">
+      <header className="dy-title-hero mt-3 text-center">
         <p className="text-xs tracking-[0.3em] text-slate-500">TENURE OVER</p>
         <h1 className="mt-2 text-3xl font-black text-slate-100">
           {state.gmName}
@@ -116,6 +118,7 @@ export function SummaryScreen({ state, onRestart }: Props): React.ReactElement {
           onClick={onRestart}
           className="w-full rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
         />
+      </div>
       </div>
     </div>
   );
