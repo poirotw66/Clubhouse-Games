@@ -21,6 +21,7 @@ import {
   startNextWave,
   step,
   unresolvedCount,
+  upgradeTower,
 } from './game/engine.ts';
 import { isBossWave, waveHpMultiplier } from './game/waves.ts';
 import { ENEMY_DEFS, TOTAL_WAVES } from './game/constants.ts';
@@ -278,20 +279,132 @@ function simulateThroughWave(targetWave) {
   assert.equal(outcome.phase, 'prep', 'sim should have cleared wave 5 and returned to prep for wave 6');
   assert.equal(outcome.wave, 5, `sim should have reached exactly wave 5, got ${outcome.wave}`);
   assert.equal(outcome.enemies.length, 0, 'no enemies should remain once a wave is cleared');
-  assert.equal(outcome.lives, 16, `pinned outcome: lives, got ${outcome.lives}`);
-  // Re-pinned when the economy changed: kills now pay gold, and starting a wave
-  // from prep no longer pays a bonus. Gold 630 -> 389 is those two together —
-  // 450 of free early-call money removed, 209 of kill bounty added.
-  assert.equal(outcome.gold, 389, `pinned outcome: gold, got ${outcome.gold}`);
-  assert.equal(outcome.kills, 50, `pinned outcome: kills, got ${outcome.kills}`);
-  assert.ok(Math.abs(outcome.killScore - 209) < 1e-9, `pinned outcome: killScore, got ${outcome.killScore}`);
-  assert.ok(Math.abs(outcome.score - 838) < 1e-9, `pinned outcome: score, got ${outcome.score}`);
+  assert.equal(outcome.lives, 13, `pinned outcome: lives, got ${outcome.lives}`);
+  // Re-pinned again when standard's enemyHpMult moved 1.0 -> 1.1 to put it on
+  // the part of the difficulty curve that responds at all. Tougher enemies mean
+  // fewer die inside this five-wave fixture, so lives, kills and gold all fall.
+  assert.equal(outcome.gold, 377, `pinned outcome: gold, got ${outcome.gold}`);
+  assert.equal(outcome.kills, 47, `pinned outcome: kills, got ${outcome.kills}`);
+  assert.ok(Math.abs(outcome.killScore - 197) < 1e-9, `pinned outcome: killScore, got ${outcome.killScore}`);
+  assert.ok(Math.abs(outcome.score - 769) < 1e-9, `pinned outcome: score, got ${outcome.score}`);
 
   // Determinism: an identical command/timestep sequence must reproduce the
   // exact same final state, every time — this is what makes the simulation
   // usable as a balance tool as well as a regression test.
   const replay = simulateThroughWave(5);
   assert.equal(JSON.stringify(outcome), JSON.stringify(replay), 'identical input sequence must yield an identical outcome');
+}
+
+// ── The three difficulties must actually be three different games ───────────
+//
+// This game had no difficulty guard of any kind. Everything asserted rules or
+// pinned a regression value; nothing asked whether the settings produced
+// different experiences. They did not: relaxed and standard were both flawless
+// clears, losing zero lives, because enemyHpMult does nothing below about 1.05
+// and both sat under it.
+//
+// The check is TWO-SIDED on purpose. A guard that only catches "too hard" is
+// what let three identical difficulties ship — the failure mode was excess
+// ease, and nothing was watching for it. Measured lives lost, on a fully
+// deterministic run so these are exact values rather than estimates:
+//
+//   relaxed 0 of 24   standard 5 of 20   harsh 12 of 14
+{
+  // The pilot has to keep spending, the way the balance harness's does. The
+  // first version of this check built eight towers up front and then never
+  // banked another coin; every difficulty lost every life, so all three
+  // saturated at total defeat and the check could not tell them apart. A
+  // check's model of the player decides what it is able to measure at all.
+  const SLOTS = [[4, 3], [4, 5], [6, 3], [6, 5], [2, 3], [2, 5], [8, 3], [8, 5],
+                 [3, 3], [3, 5], [5, 3], [5, 5], [7, 3], [7, 5], [9, 3], [9, 5]];
+  const MIX = ['crossbow', 'grinder', 'frost', 'coil'];
+  const spendAll = (start) => {
+    let s = start;
+    for (let again = true; again;) {
+      again = false;
+      const i = s.towers.length;
+      if (i < SLOTS.length) {
+        const type = MIX[i % MIX.length];
+        if (s.gold >= purchaseCost(type)) {
+          const r = placeTower(s, SLOTS[i][0], SLOTS[i][1], type);
+          if (r.ok) { s = r.state; again = true; continue; }
+        }
+      }
+      const up = s.towers
+        .filter((t) => t.level < 2)
+        .map((t) => ({ t, cost: upgradeCost(t.type, t.level) }))
+        .filter((c) => c.cost !== null && c.cost <= s.gold)
+        .sort((a, b) => a.cost - b.cost || a.t.id - b.t.id);
+      if (up.length > 0) {
+        const r = upgradeTower(s, up[0].t.id);
+        if (r.ok) { s = r.state; again = true; }
+      }
+    }
+    return s;
+  };
+
+  const outcomes = ['relaxed', 'standard', 'harsh'].map((difficulty) => {
+    let state = createInitialState(difficulty, 'open', false);
+    const startLives = state.lives;
+    let guard = 0;
+    while (state.phase !== 'lost' && state.phase !== 'won' && guard < 400000) {
+      state = spendAll(state);
+      if (state.phase === 'prep') {
+        const r = startNextWave(state);
+        if (!r.ok) break;
+        state = r.state;
+      } else {
+        // Uses 強行加壓 as well, matching the balance harness's policy. Without
+        // it this pilot lost all fourteen lives on harsh — and the first version
+        // of this check PASSED that, because the too-hard guard was only
+        // applied to relaxed. A guard that allows the hardest setting to be
+        // unwinnable is half a guard.
+        if (state.pendingSpawns.length === 0 && unresolvedCount(state) > 0 && state.wave < TOTAL_WAVES) {
+          const r = startNextWave(state);
+          if (r.ok) state = r.state;
+        }
+        state = step(state, 1 / 60);
+      }
+      guard += 1;
+    }
+    return { difficulty, lost: startLives - state.lives, startLives, won: state.phase === 'won' };
+  });
+
+  const [relaxed, standard, harsh] = outcomes;
+
+  // Ordering: each step up must cost strictly more than the one below it.
+  assert.ok(
+    standard.lost > relaxed.lost,
+    `standard cost ${standard.lost} lives and relaxed cost ${relaxed.lost} — they are the same game`,
+  );
+  assert.ok(
+    harsh.lost > standard.lost,
+    `harsh cost ${harsh.lost} lives and standard cost ${standard.lost} — they are the same game`,
+  );
+
+  // The too-easy side: the hardest setting must genuinely threaten the player.
+  assert.ok(
+    harsh.lost >= harsh.startLives * 0.4,
+    `harsh only cost ${harsh.lost} of ${harsh.startLives} lives — the hardest setting is not a threat`,
+  );
+
+  // The too-hard side, and it has to cover the HARDEST setting, not just the
+  // gentlest. Every difficulty must still be winnable by a competent pilot.
+  for (const o of outcomes) {
+    assert.ok(
+      o.won,
+      `${o.difficulty} was not cleared at all (lost ${o.lost} of ${o.startLives} lives) — ` +
+        `a difficulty setting that cannot be won is not a difficulty setting`,
+    );
+  }
+  assert.ok(
+    relaxed.lost <= relaxed.startLives * 0.5,
+    `relaxed cost ${relaxed.lost} of ${relaxed.startLives} lives — that is not a gentle setting`,
+  );
+  console.log(
+    `check-economy: difficulties cost ${relaxed.lost}/${relaxed.startLives}, ` +
+      `${standard.lost}/${standard.startLives}, ${harsh.lost}/${harsh.startLives} lives`,
+  );
 }
 
 console.log('check-economy: ok');
