@@ -12,6 +12,7 @@ import type { Achievement } from '../game/achievements';
 import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
+import { sceneBackgroundStyle } from '../sceneBackground';
 import { CareerTable } from './CareerTable';
 import { ShareCard } from './ShareCard';
 
@@ -48,8 +49,9 @@ export function SummaryScreen({ state, unlocked, onRestart, onSameSeed }: Props)
   const totals = summary.totals;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-14">
-      <header className="mt-3 text-center">
+    <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle()}>
+      <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-14">
+      <header className="bl-title-hero mt-3 text-center">
         <p className="text-xs tracking-[0.3em] text-slate-500">CAREER OVER</p>
         <h1 className="mt-2 text-3xl font-black text-slate-100">
           {state.name}
@@ -254,6 +256,7 @@ export function SummaryScreen({ state, unlocked, onRestart, onSameSeed }: Props)
           onClick={onRestart}
           className="flex-1 rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
         />
+      </div>
       </div>
     </div>
   );
