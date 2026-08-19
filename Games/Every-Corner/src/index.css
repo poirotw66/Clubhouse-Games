@@ -22,6 +22,21 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+.ec-title-shell {
+  background-color: #0c0916;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.ec-title-hero {
+  padding: 1.25rem;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 1.5rem;
+  background: linear-gradient(rgba(36, 26, 61, 0.48), rgba(36, 26, 61, 0.22));
+  backdrop-filter: blur(2px);
+}
+
 /* The infield-dirt accent used for headings and primary actions. */
 .ec-accent {
   color: #fbbf24;
