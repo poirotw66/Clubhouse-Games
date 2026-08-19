@@ -161,10 +161,18 @@ export default function App(): React.ReactElement {
 
   if (screen === 'title') {
     return (
-      <>
+      <div
+        className="ec-title-shell min-h-screen"
+        style={{
+          backgroundImage: [
+            'linear-gradient(rgba(12, 9, 22, 0.52), rgba(12, 9, 22, 0.94))',
+            `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
         <BackToMenu />
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 pb-16 pt-14">
-          <header className="mt-3 text-center">
+          <header className="ec-title-hero mt-3 text-center">
             <p className="text-sm tracking-[0.4em] text-slate-400">EVERY CORNER</p>
             <h1 className="mt-2 text-4xl font-black text-violet-300 sm:text-5xl">走透透</h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-300">
@@ -255,7 +263,7 @@ export default function App(): React.ReactElement {
             />
           )}
         </div>
-      </>
+      </div>
     );
   }
 

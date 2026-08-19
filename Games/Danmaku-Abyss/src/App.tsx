@@ -216,12 +216,20 @@ export default function App(): React.ReactElement {
 
   if (screen === 'menu') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center">
+      <div
+        className="da-title-shell min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center"
+        style={{
+          backgroundImage: [
+            'linear-gradient(rgba(5, 6, 15, 0.55), rgba(5, 6, 15, 0.92))',
+            `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
         <BackToMenu />
-        <div>
+        <header className="da-title-hero">
           <h1 className="text-4xl font-bold tracking-wide text-fuchsia-200">彈幕深淵</h1>
           <p className="mt-2 text-slate-400 text-sm">Danmaku Abyss</p>
-        </div>
+        </header>
         <div className="da-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-slate-300">
           <p className="mb-3 text-slate-200 font-semibold">靠得越近，打得越痛，也死得越快。</p>
           <ul className="space-y-1.5 list-disc list-inside">

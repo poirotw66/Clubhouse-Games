@@ -29,6 +29,21 @@ body {
   touch-action: none;
 }
 
+.da-title-shell {
+  background-color: #05060f;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.da-title-hero {
+  padding: 1.25rem;
+  border: 1px solid rgba(192, 132, 252, 0.2);
+  border-radius: 1.5rem;
+  background: linear-gradient(rgba(27, 23, 70, 0.48), rgba(27, 23, 70, 0.22));
+  backdrop-filter: blur(2px);
+}
+
 .da-panel {
   background: rgba(10, 12, 34, 0.82);
   border: 1px solid rgba(129, 140, 248, 0.22);
