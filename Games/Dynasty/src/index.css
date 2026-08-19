@@ -22,6 +22,21 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+.dy-title-shell {
+  background-color: #06120e;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.dy-title-hero {
+  padding: 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 1.5rem;
+  background: linear-gradient(rgba(13, 32, 26, 0.52), rgba(13, 32, 26, 0.22));
+  backdrop-filter: blur(2px);
+}
+
 /* The infield-dirt accent used for headings and primary actions. */
 .dy-accent {
   color: #fbbf24;
