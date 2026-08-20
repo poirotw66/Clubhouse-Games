@@ -1,0 +1,5 @@
+{
+  "name": "幣潮 Coin Cascade",
+  "description": "推幣機：沒掉下去的幣會留在台面上成為之後要被推的地形，投在哪裡是佈局而非隨機動作。無頭可重播、有 RTP 量測。",
+  "requestFramePermissions": []
+}

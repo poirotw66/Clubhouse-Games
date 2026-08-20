@@ -291,6 +291,14 @@
           "players": "1 人",
           "specPath": "06-minigames/dialed-color.md",
           "gameFolder": "Dialed-Color"
+        },
+        {
+          "name": "幣潮",
+          "en": "Coin Cascade",
+          "desc": "推幣機：沒掉下去的幣會留在台面上成為之後要被推的地形，投在哪裡是佈局而非隨機動作，彩池觸發區與連鎖雪崩都要自己安排。",
+          "players": "1 人",
+          "specPath": "06-minigames/coin-cascade.md",
+          "gameFolder": "Coin-Cascade"
         }
       ]
     }
