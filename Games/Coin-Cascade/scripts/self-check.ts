@@ -11,6 +11,8 @@ import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  COIN_R,
+  DROP_COOLDOWN_TICKS,
   CASCADE_MIN,
   FIXED_DT,
   MAX_COINS_ON_SHELF,
@@ -232,6 +234,137 @@ function playTo(
   assert.equal(s.phase, 'playing', 'an idle player who never drops must not be force-ended — there is no time limit by design');
   assert.equal(s.creditsRemaining, STARTING_CREDITS, 'credits must not drain on their own');
   ok('an idle table never force-ends the run (no time limit) and never drains credits on its own');
+}
+
+// ── 6b) Missed coins have to become terrain, not a rigid column ──────────
+//
+// The whole design rests on "a coin that does not fall stays as terrain for
+// the coins after it". That was false for the most natural way to play.
+// Repeated drops at one fixed x landed at *bit-identical* x, so every contact
+// normal was exactly vertical and the pair separated purely along y. The
+// result was a one-dimensional conveyor: 50 seeds byte-identical, lateral
+// spread sd 0.00, 209 of 220 coins returned — a 97.73% RTP at every lane,
+// centre included, insensitive to seed, specials and initial shelf alike.
+//
+// Nothing in the suite could see it. The lane-comparison check below measured
+// 95/83/95 against a 40pp tolerance, because a rigid column is equally
+// degenerate wherever you put it — comparing lanes cannot detect a defect
+// that affects all lanes. The RTP band check passed too, since 97.73% is
+// under its 115% ceiling.
+//
+// The first attempt at a replacement asserted the emergent statistic (the
+// pile must be wide) from a single seed, and it did NOT go red against the
+// original engine: that fixture's jackpot token happened to sit in the drop
+// lane and knock the column apart. It was measuring one lucky fixture, which
+// is the same mistake one layer up. So assert the mechanism instead — two
+// coins asked for the same x must not come to rest at the same x — which has
+// nothing to sample and cannot get lucky.
+{
+  let s = createRun('STACK01');
+  const laneX = (WALL_X0 + WALL_X1) / 2;
+  const settled: number[] = [];
+  for (let drops = 0; drops < 6; drops++) {
+    s = step(s, { dropX: laneX, drop: true, special: 'normal' }, FIXED_DT);
+    for (let i = 0; i < DROP_COOLDOWN_TICKS; i++) s = step(s, IDLE, FIXED_DT);
+  }
+  for (const c of s.coins) if (c.kind !== 'trigger') settled.push(c.x);
+  assert.ok(settled.length >= 4, `only ${settled.length} coins stayed on the shelf — too few to say anything about stacking`);
+  const exact = new Set(settled.map((x) => x.toFixed(9)));
+  assert.equal(
+    exact.size,
+    settled.length,
+    `${settled.length - exact.size} of ${settled.length} coins asked for the same drop x came to rest at a bit-identical x — their contact normals are exactly vertical, so they separate purely along y and can never push each other sideways. The stack is a rigid column, not terrain, and the shelf behaves as a one-dimensional conveyor.`,
+  );
+  ok(`coins dropped into the same lane come to rest at distinct x (${settled.length} coins, ${exact.size} distinct) — stacks are terrain, not a rigid column`);
+}
+
+// And the emergent consequence, across seeds rather than one fixture: a lane
+// played for a while must leave a pile with real width.
+{
+  const laneX = (WALL_X0 + WALL_X1) / 2;
+  const spreads: number[] = [];
+  for (const seed of ['PILE001', 'PILE002', 'PILE003', 'PILE004']) {
+    let s = createRun(seed);
+    let drops = 0;
+    while (s.phase === 'playing' && drops < 60) {
+      const drop = s.cooldown === 0 && s.creditsRemaining > 0;
+      if (drop) drops += 1;
+      s = step(s, { dropX: laneX, drop, special: 'normal' }, FIXED_DT);
+    }
+    const xs = s.coins.filter((c) => c.kind !== 'trigger').map((c) => c.x);
+    const mean = xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+    spreads.push(Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (xs.length || 1)));
+  }
+  const narrowest = Math.min(...spreads);
+  assert.ok(
+    narrowest > COIN_R,
+    `the narrowest of ${spreads.length} seeds left a pile only ${narrowest.toFixed(2)} units wide (under one coin radius) — coins are stacking in a line instead of heaping into terrain`,
+  );
+  ok(`a played lane leaves a pile with real width on every seed (narrowest ${narrowest.toFixed(1)} units, widest ${Math.max(...spreads).toFixed(1)})`);
+}
+
+// ── 6c) The jackpot is reachable by aiming, and neither policy dominates ──
+//
+// The pot's trigger sits at a seeded x and fires only by being walked off the
+// front edge, so it rewards aiming at it. Measured against a pilot that drops
+// at a fixed spot it fired 0.10 times a session, and that got written up as a
+// dead mechanic — the pilot had simply never aimed at it once. Measuring a
+// decision with a pilot that does not take the decision answers a different
+// question.
+//
+// Aiming at it turned out to fire the pot in every session, so the mechanic
+// was alive the whole time. But the first version of this check then asserted
+// that chasing the pot COSTS return, on a 1pp gap over 6 seeds. At 16 seeds
+// the sign flipped, and across four different 16-seed sets the margin ran
+// -4.87 / -0.98 / +1.40 / +3.78 pp: it is noise around zero, and any
+// assertion on its sign is an assertion about which seeds were picked.
+//
+// Near-parity is the right outcome — neither policy should dominate — so what
+// gets asserted is the band, two-sided, plus the two things that are actually
+// stable: the pot is reachable when you try, and it is a real share of what a
+// chaser earns rather than a decoration on top of ordinary play.
+{
+  const play = (seed: string, aim: 'pot' | 'fixed'): RunState => {
+    let s = createRun(seed);
+    let guard = 0;
+    const centre = (WALL_X0 + WALL_X1) / 2;
+    while (s.phase === 'playing' && guard++ < 400_000) {
+      const drop = s.cooldown === 0 && s.creditsRemaining > 0;
+      s = step(s, { dropX: aim === 'pot' ? s.triggerZoneX : centre, drop, special: 'normal' }, FIXED_DT);
+    }
+    return s;
+  };
+  const SEEDS = Array.from({ length: 16 }, (_, i) => `POT${String(i).padStart(3, '0')}`);
+  const chase = SEEDS.map((x) => play(x, 'pot'));
+  const ignore = SEEDS.map((x) => play(x, 'fixed'));
+  const avg = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const chaseBursts = avg(chase.map((s) => s.jackpotBursts));
+  const never = chase.filter((s) => s.jackpotBursts === 0).length;
+  const chaseRtp = avg(chase.map((s) => s.score / s.creditsSpent)) * 100;
+  const ignoreRtp = avg(ignore.map((s) => s.score / s.creditsSpent)) * 100;
+  const potShare = avg(chase.map((s) => s.potAwarded / Math.max(1, s.score)));
+
+  assert.ok(
+    never === 0 && chaseBursts >= 2,
+    `a player aiming every drop at the pot's trigger fired it ${chaseBursts.toFixed(2)} times per session (${never}/${SEEDS.length} sessions never at all) — the pot is unreachable even when it is the only thing you are playing for, so it is decoration rather than a goal`,
+  );
+  assert.ok(
+    Math.abs(chaseRtp - ignoreRtp) < 8,
+    `chasing the pot returned ${chaseRtp.toFixed(1)}% against ${ignoreRtp.toFixed(1)}% for ignoring it, a ${Math.abs(chaseRtp - ignoreRtp).toFixed(1)}pp gap — one of the two policies now dominates the other outright, so there is no decision left in whether to play for the pot`,
+  );
+  // Measured at 28-29%. The threshold is under it rather than over: POT_CUT_RATE
+  // is what sets this share, and it is already at the value where the two
+  // policies' returns sit on top of each other — funding the pot harder buys a
+  // bigger share only by making chasing it strictly better (measured: 0.22 ->
+  // chasing wins by 1.8pp, 0.30 -> by 6.1pp). So a third of the chaser's score
+  // is what parity affords, and this guards it against drifting to a garnish.
+  assert.ok(
+    potShare > 0.2,
+    `the pot supplied only ${(potShare * 100).toFixed(0)}% of a pot-chaser's score — it is a garnish on ordinary play rather than a different way to play, so nothing is actually being traded off`,
+  );
+  ok(
+    `the pot is reachable by aiming (${chaseBursts.toFixed(1)} bursts/session in ${SEEDS.length}/${SEEDS.length} seeds, vs ${avg(ignore.map((s) => s.jackpotBursts)).toFixed(1)} without) and neither policy dominates (${chaseRtp.toFixed(1)}% vs ${ignoreRtp.toFixed(1)}% RTP, pot is ${(potShare * 100).toFixed(0)}% of the chaser's score)`,
+  );
 }
 
 // ── 7) No drop lane strictly dominates ────────────────────────────────────

@@ -65,9 +65,9 @@ function seeds(prefix: string, count: number): string[] {
 // property of the machine; that is the entire point of measuring it this
 // way instead of hand-waving a number.
 
-type Lane = 'left' | 'centre' | 'right' | 'random';
+type Lane = 'left' | 'centre' | 'right' | 'random' | 'jackpot';
 
-function laneX(lane: Lane, r: () => number): number {
+function laneX(lane: Lane, r: () => number, triggerX: number): number {
   const margin = 22;
   switch (lane) {
     case 'left':
@@ -78,6 +78,11 @@ function laneX(lane: Lane, r: () => number): number {
       return (WALL_X0 + WALL_X1) / 2;
     case 'random':
       return WALL_X0 + r() * (WALL_X1 - WALL_X0);
+    case 'jackpot':
+      // Aims at wherever the pot's trigger token currently sits. Not a lane at
+      // all — a policy — and the only pilot here that plays *for* a mechanic
+      // rather than at a fixed spot. §5 explains why its absence mattered.
+      return triggerX;
   }
 }
 
@@ -108,7 +113,7 @@ function playSession(seedCode: string, lane: Lane, specialRate = 0.12): SessionR
       if (roll < specialRate * 0.5) special = 'heavy';
       else if (roll < specialRate) special = 'ball';
     }
-    s = step(s, { dropX: laneX(lane, r), drop, special }, FIXED_DT);
+    s = step(s, { dropX: laneX(lane, r, s.triggerZoneX), drop, special }, FIXED_DT);
     if (drop) recoveredByTick.push([s.tick, s.coinsRecovered]);
   }
 
@@ -166,16 +171,20 @@ function main(): void {
   console.log('\n--- 2) Lane comparison (left / centre / right / random) ---\n');
   const laneSeeds = seeds('LANE', 50);
   const lanes: Lane[] = ['left', 'centre', 'right', 'random'];
-  const laneRtp: Record<Lane, number[]> = { left: [], centre: [], right: [], random: [] };
-  const laneCoinsPerCredit: Record<Lane, number[]> = { left: [], centre: [], right: [], random: [] };
+  const laneRtp: Partial<Record<Lane, number[]>> = {};
+  const laneCoinsPerCredit: Partial<Record<Lane, number[]>> = {};
+  for (const lane of lanes) {
+    laneRtp[lane] = [];
+    laneCoinsPerCredit[lane] = [];
+  }
   for (const lane of lanes) {
     for (const seed of laneSeeds) {
       const res = playSession(seed, lane, 0); // no specials here — isolate the lane's own effect
-      laneRtp[lane].push(res.score / res.creditsSpent);
-      laneCoinsPerCredit[lane].push(res.coinsRecovered / res.creditsSpent);
+      laneRtp[lane]!.push(res.score / res.creditsSpent);
+      laneCoinsPerCredit[lane]!.push(res.coinsRecovered / res.creditsSpent);
     }
   }
-  const laneStats = lanes.map((l) => ({ lane: l, rtp: meanCI(laneRtp[l]), coins: meanCI(laneCoinsPerCredit[l]) }));
+  const laneStats = lanes.map((l) => ({ lane: l, rtp: meanCI(laneRtp[l]!), coins: meanCI(laneCoinsPerCredit[l]!) }));
   for (const { lane, rtp: r, coins } of laneStats) {
     console.log(`  ${lane.padEnd(7)} RTP ${fmtMean({ ...r, mean: r.mean * 100, halfWidth: r.halfWidth * 100 }, 2)}%   coins/credit ${fmtMean(coins, 3)}`);
   }
@@ -253,19 +262,37 @@ function main(): void {
   console.log(`  sessions with >=1 near-miss: ${fmtRate(rateCI(sessionsWithAnyNearMiss, dopSeeds.length))}`);
 
   // ── 5) Jackpot ────────────────────────────────────────────────────────
-  // Same reasoning as §4: the trigger coin only reaches the edge by being
-  // walked forward with everything else, which needs a pile to push against.
+  //
+  // Measured against two pilots, because measuring it against one produced a
+  // false defect. The pot's trigger token sits at a seeded x and only fires by
+  // being walked off the front edge, so a pilot that drops at a fixed spot
+  // reaches it only when the seed happens to put it in that spot. Reported
+  // from that pilot alone, the pot fired 0.10 times a session and got written
+  // up as a dead mechanic — when what had actually been measured was a pilot
+  // that never once aimed at it.
+  //
+  // The pot is not a lane, it is a decision, so the honest measurement is a
+  // pilot that takes the decision against one that declines it. Both are
+  // printed. The gap between them is the mechanic; the RTP column is its
+  // price, and it must be a real price — a pot that pays more AND returns more
+  // is not a decision either.
   console.log('\n--- 5) Jackpot ---\n');
   const jpSeeds = seeds('JP', 70);
-  const burstsPerSession: number[] = [];
-  const potAwardedPerSession: number[] = [];
-  for (const seed of jpSeeds) {
-    const res = playSession(seed, 'centre', 0.1);
-    burstsPerSession.push(res.jackpotBursts);
-    potAwardedPerSession.push(res.potAwarded);
+  for (const [label, lane] of [['ignores the pot (centre)', 'centre'], ['chases the pot', 'jackpot']] as const) {
+    const bursts: number[] = [];
+    const awarded: number[] = [];
+    const rtps: number[] = [];
+    for (const seed of jpSeeds) {
+      const res = playSession(seed, lane as Lane, 0.1);
+      bursts.push(res.jackpotBursts);
+      awarded.push(res.potAwarded);
+      rtps.push((res.score / res.creditsSpent) * 100);
+    }
+    const anyBurst = bursts.filter((b) => b > 0).length;
+    console.log(`  ${label.padEnd(24)} bursts/session ${fmtMean(meanCI(bursts), 2)}`);
+    console.log(`  ${' '.repeat(24)} sessions with >=1: ${fmtRate(rateCI(anyBurst, jpSeeds.length))}`);
+    console.log(`  ${' '.repeat(24)} pot credits ${fmtMean(meanCI(awarded), 2)}   RTP ${fmtMean(meanCI(rtps), 2)}%`);
   }
-  console.log(`  jackpot bursts per session: ${fmtMean(meanCI(burstsPerSession), 2)}`);
-  console.log(`  pot credits awarded per session: ${fmtMean(meanCI(potAwardedPerSession), 2)}`);
 
   console.log('\n' + '='.repeat(60));
   console.log('Reminder: this script prints numbers. It does not pass or fail — see npm run check for that.');

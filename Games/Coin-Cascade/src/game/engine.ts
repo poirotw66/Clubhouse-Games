@@ -48,6 +48,8 @@ import {
   TRIGGER_ZONE_MARGIN,
   WALL_X0,
   WALL_X1,
+  SPAWN_JITTER,
+  LATERAL_SLIDE,
 } from './constants';
 import { hashString, streamRng } from './rng';
 import type { Coin, CoinKind, FallEvent, PlayerInput, RunState, TickEvents } from './types';
@@ -196,9 +198,15 @@ function resolvePairs(list: Working[]): void {
       const totalMass = a.mass + b.mass;
       const aShare = (b.mass / totalMass) * overlap;
       const bShare = (a.mass / totalMass) * overlap;
-      a.x -= nx * aShare;
+      // Only a fraction of the horizontal correction is applied: a coin lying
+      // on the shelf resists being slid sideways, while nothing resists it
+      // being shoved forward. Applying it in full is frictionless in x, so
+      // every lateral nudge propagates undamped and the pile flattens into a
+      // single-layer fan that stops transmitting the plate's push forward.
+      const fx = nx * LATERAL_SLIDE;
+      a.x -= fx * aShare;
       a.y -= ny * aShare;
-      b.x += nx * bShare;
+      b.x += fx * bShare;
       b.y += ny * bShare;
     }
   }
@@ -274,7 +282,11 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     } else {
       const kind: CoinKind = special;
       const r = coinRadius(kind);
-      const x = Math.min(WALL_X1 - (COIN_R - r), Math.max(WALL_X0 - (COIN_R - r), input.dropX));
+      // Chute slop, deterministic from (tick, id) rather than an RNG stream so
+      // replays stay bit-identical. Without it, repeated drops at one x stack
+      // into a perfectly aligned rigid column — see SPAWN_JITTER's note.
+      const slop = ((hashString(`slop:${tick}:${nextCoinId}`) % 2001) / 1000 - 1) * SPAWN_JITTER;
+      const x = Math.min(WALL_X1 - (COIN_R - r), Math.max(WALL_X0 - (COIN_R - r), input.dropX + slop));
       work.push({ id: nextCoinId, kind, x, y: SPAWN_Y, r, mass: coinMass(kind), teeterSince: -1 });
       nextCoinId += 1;
       creditsSpent += cost;
