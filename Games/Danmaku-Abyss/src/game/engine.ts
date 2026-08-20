@@ -37,6 +37,8 @@ import {
   START_LIVES,
   type Emitter,
   type SpellCard,
+  FIXED_HOMING_AT_MAX,
+  FIXED_HOMING_FULL_K,
 } from './constants';
 import { bossFor, midwayCardFor } from './cards';
 import { hashString, shuffle, streamRng } from './rng';
@@ -203,9 +205,17 @@ export function scaleEmitter(e: Emitter, intensity: number): Emitter {
     // slope instead of a cliff.
     interval: Math.max(0.05, e.interval / (0.90 + 0.10 * k)),
     speed: e.speed * (0.8 + 0.2 * k),
-    // Aimed volleys become more common with intensity: a fixed spray you can
-    // stand still against turns into something that follows you.
-    aim: e.aim === 'fixed' && k > 2.4 && e.count % 2 === 1 ? 'aimed' : e.aim,
+    // A fixed spray you can stand still against leans toward the ship as the
+    // run escalates. This used to be a hard swap to 'aimed' above k = 2.4, for
+    // odd-count emitters only; see FIXED_HOMING_AT_MAX for why both halves of
+    // that were wrong. The lean is continuous in k and applies to every fixed
+    // emitter, so the escalation is a slope with no stage boundary in it and no
+    // dependence on how many bullets the pattern happens to be authored with.
+    homing:
+      e.aim === 'fixed'
+        ? FIXED_HOMING_AT_MAX *
+          Math.max(0, Math.min(1, (k - 1) / (FIXED_HOMING_FULL_K - 1)))
+        : 0,
   };
 }
 
@@ -392,7 +402,15 @@ function emitFrom(s: RunState, e: Enemy, emitter: Emitter, index: number, volley
   } else if (scaled.aim === 'rotating') {
     base = e.emitterAngles[index];
   } else {
-    base = Math.PI / 2; // straight down the field
+    // Straight down the field as authored, rotated toward the ship by the
+    // intensity-derived lean. Taken along the shortest arc so a player standing
+    // to the emitter's left and one standing to its right are treated the same.
+    const down = Math.PI / 2;
+    const toward = Math.atan2(s.py - e.y, s.px - e.x);
+    let delta = toward - down;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    base = down + delta * (scaled.homing ?? 0);
   }
 
   const n = scaled.count;

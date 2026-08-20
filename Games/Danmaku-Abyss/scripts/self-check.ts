@@ -7,6 +7,7 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { Emitter } from '../src/game/constants.js';
 import {
   FIELD_H,
   FIELD_W,
@@ -292,6 +293,76 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.ok(high.interval < low.interval, 'higher intensity must shorten the gap between volleys');
   assert.ok(high.speed > low.speed, 'higher intensity must speed bullets up');
   ok('intensity rises monotonically and tightens count, cadence and speed together');
+}
+
+// ── 6b) The escalation is a slope with no step in it ─────────────────────────
+//
+// The check above compares the two ENDPOINTS of the intensity range, which a
+// step function passes trivially — and one did. scaleEmitter carried
+//
+//   aim: e.aim === 'fixed' && k > 2.4 && e.count % 2 === 1 ? 'aimed' : e.aim
+//
+// so every fixed spray in the game stopped ignoring the ship and started
+// homing on it, all at once, at a single threshold. Intensity runs 1.00 / 1.85
+// / 2.70 / 3.55 / 4.40 by stage, so k > 2.4 lands between stage 2 and stage 3
+// and nowhere else. Measured survival either side: 92% at stage 2, 46% at
+// stage 3, back to 79% at stage 4 — a spike, not a curve. It also selected on
+// the parity of the authored bullet count, so 8 of 21 fixed emitters converted
+// and 13 never did, meaning a pattern written with 14 bullets instead of 13
+// silently lost its homing.
+//
+// Endpoints cannot see a step. Sampling can. Every knob scaleEmitter turns is
+// swept finely across the whole intensity range, and no single increment may
+// account for a large share of that knob's total travel.
+{
+  const emitter = bossFor(1).cards[0].emitters[0];
+  const K0 = 1;
+  const K1 = intensityFor(STAGE_COUNT, true);
+  const STEPS = 80;
+  const samples = Array.from({ length: STEPS + 1 }, (_, i) =>
+    scaleEmitter({ ...emitter, aim: 'fixed' }, K0 + ((K1 - K0) * i) / STEPS),
+  );
+
+  // 'lean' is not a field — it is how far a volley's base angle ends up turned
+  // toward the ship, which is what a player actually experiences. Expressing it
+  // as a number is the point: a swap from aim 'fixed' to 'aimed' is invisible
+  // to a sweep over numeric fields (it is a string), but it is a jump from a
+  // little lean to a full one, and this is where that shows up.
+  const leanOf = (e: Emitter): number => (e.aim === 'aimed' ? 1 : e.aim === 'fixed' ? (e.homing ?? 0) : 0);
+
+  for (const knob of ['count', 'interval', 'speed', 'homing', 'lean'] as const) {
+    const vs = samples.map((e) => (knob === 'lean' ? leanOf(e) : ((e[knob] ?? 0) as number)));
+    const travel = Math.max(...vs) - Math.min(...vs);
+    if (travel === 0) continue;
+    let biggest = 0;
+    let at = 0;
+    for (let i = 1; i < vs.length; i++) {
+      const jump = Math.abs(vs[i] - vs[i - 1]);
+      if (jump > biggest) {
+        biggest = jump;
+        at = K0 + ((K1 - K0) * i) / STEPS;
+      }
+    }
+    assert.ok(
+      biggest / travel < 0.15,
+      `scaleEmitter's '${knob}' makes ${((biggest / travel) * 100).toFixed(0)}% of its entire travel in one 1/${STEPS} increment of intensity, at k=${at.toFixed(2)} — that is a step in a function whose job is a slope, and it puts a difficulty cliff at whichever stage boundary it happens to land near`,
+    );
+  }
+
+  // The same defect wearing its other face: whether a pattern homes must not
+  // depend on how many bullets it was authored with.
+  const odd = scaleEmitter({ ...emitter, aim: 'fixed', count: 13 }, K1);
+  const even = scaleEmitter({ ...emitter, aim: 'fixed', count: 14 }, K1);
+  assert.equal(
+    odd.aim,
+    even.aim,
+    `a 13-bullet spray and a 14-bullet one resolve to different aim modes ('${odd.aim}' vs '${even.aim}') at the same intensity — aiming is keyed on the parity of an authored count, so adding one bullet to a pattern changes whether it chases the player`,
+  );
+  assert.ok(
+    Math.abs((odd.homing ?? 0) - (even.homing ?? 0)) < 1e-9,
+    `homing differs between a 13- and a 14-bullet spray at the same intensity (${odd.homing} vs ${even.homing})`,
+  );
+  ok(`the escalation is continuous across the whole intensity range and independent of authored bullet parity`);
 }
 
 // ── 7) Bombs are not free ────────────────────────────────────────────────────

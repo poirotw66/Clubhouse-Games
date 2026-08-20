@@ -452,33 +452,83 @@ console.log('\n=== 強化是不是真的有差，以及對不同打法是不是�
 // surviving the ones before it. This is the curve the spec promises: it must
 // climb, and it must not cliff.
 console.log('\n=== 每個階段單獨量測（直接從該階段開始，同一個駕駛）===\n');
-console.log(`階段 | 存活率（${SEEDS.length} 種子）  平均秒數  子彈峰值  Capture`);
+console.log(`階段 | 存活率（${SEEDS.length} 種子）  平均秒數  子彈均值  瞄準彈佔比  Capture`);
+// Where deaths actually happen, keyed by the spell card that was running.
+const killsByCard = new Map<number, Map<string, number>>();
 for (let stage = 1; stage <= STAGE_COUNT; stage++) {
   let survived = 0;
   const secs: number[] = [];
-  const peaks: number[] = [];
+  const meanCounts: number[] = [];
+  const aimedShares: number[] = [];
+  const killers = new Map<string, number>();
   let captures = 0;
   for (const seedCode of SEEDS) {
     let s = equip(createRun(seedCode, stage), stage);
     const startLives = s.lives;
-    let peak = 0;
     let guard = 0;
+    const counts: number[] = [];
+    const aimed: number[] = [];
     while (s.phase === 'playing' && guard < 200_000) {
+      const before = s.lives;
+      // The card that is on screen when the hit lands, read before the step.
+      const cardId = s.enemies.find((e) => e.isBoss)?.card?.id ?? 'midway';
       s = step(s, pilot(s, 'never'), FIXED_DT);
-      peak = Math.max(peak, s.bullets.length);
+      if (s.lives < before) killers.set(cardId, (killers.get(cardId) ?? 0) + 1);
+      // Sampled rather than every tick: the question is what the screen looks
+      // like on average, and 2Hz is plenty for that over a 30s+ card.
+      if (guard % 30 === 0) {
+        counts.push(s.bullets.length);
+        // A bullet counts as "closing" if it is heading at the ship rather than
+        // merely present. Total bullet count treats a ring drifting away and a
+        // needle on your face as the same number, which is the whole reason the
+        // peak column could not explain the survival gap.
+        const closing = s.bullets.filter((b) => {
+          const dx = s.px - b.x;
+          const dy = s.py - b.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const vx = Math.cos(b.angle) * b.speed;
+          const vy = Math.sin(b.angle) * b.speed;
+          return (dx / d) * vx + (dy / d) * vy > b.speed * 0.75 && d < 260;
+        }).length;
+        aimed.push(s.bullets.length > 0 ? closing / s.bullets.length : 0);
+      }
       guard += 1;
     }
     if (s.lives === startLives) survived += 1;
     secs.push(s.elapsed);
-    peaks.push(peak);
+    meanCounts.push(mean(counts));
+    aimedShares.push(mean(aimed));
     captures += s.captures;
   }
+  killsByCard.set(stage, killers);
   console.log(
     `  ${stage}  | ${survivalCI(survived, SEEDS.length)}  ` +
-      `${mean(secs).toFixed(0).padStart(7)}s  ${Math.round(Math.max(...peaks)).toString().padStart(7)}  ` +
+      `${mean(secs).toFixed(0).padStart(7)}s  ${Math.round(mean(meanCounts)).toString().padStart(7)}  ` +
+      `${(mean(aimedShares) * 100).toFixed(1).padStart(9)}%  ` +
       `${(captures / SEEDS.length).toFixed(1)}`,
   );
 }
+
+// Where each stage's deaths land.
+//
+// The survival column alone once produced a false anomaly: stage 3's bullet
+// peak read 334 against stage 2's 335 while it killed twice as often, and that
+// got written up as "density is not what kills". Two things were wrong with
+// the question. The peak column was Math.max across seeds — a single extreme
+// sample, not a distribution — and total bullet count treats a ring drifting
+// away and a needle on your face as the same number.
+//
+// This says which card the hit was taken on, which turns the question from
+// "why is this stage hard" into "which twenty seconds of it are hard".
+console.log('\n=== 死在哪一張符卡 ===\n');
+for (let stage = 1; stage <= STAGE_COUNT; stage++) {
+  const killers = killsByCard.get(stage) ?? new Map<string, number>();
+  const total = [...killers.values()].reduce((a, b) => a + b, 0);
+  const top = [...killers.entries()].sort((a, b) => b[1] - a[1]);
+  const shown = top.slice(0, 3).map(([id, n]) => `${id} ${((n / Math.max(1, total)) * 100).toFixed(0)}%`);
+  console.log(`  ${stage}  | 共 ${String(total).padStart(3)} 次  ${shown.join('   ')}`);
+}
+
 
 // Keep the unused-import checker honest about streamRng: it is the engine's
 // source of run-to-run variety and this file asserts nothing about it directly.
