@@ -437,6 +437,76 @@ function expectDifficultiesDiffer(): void {
   assert.equal(new Set(logs).size, 3, 'two difficulties played an identical game');
 }
 
+/**
+ * The three tiers must be ORDERED, not merely distinguishable.
+ *
+ * expectDifficultiesDiffer above asserts the three brains produce different
+ * move logs on one seed. Three equally strong brains pass that trivially — it
+ * separates "these are not the same code path" from nothing at all, and says
+ * nothing about which one wins. This repo has already shipped a game whose
+ * three difficulty settings were measurably two, guarded by a check of exactly
+ * that shape.
+ *
+ * So: seat each tier against a field of the tier below it and require it to win
+ * more, with the interval on the DIFFERENCE clearing zero. The difference is
+ * the right quantity — checking whether the two per-cell intervals overlap is a
+ * strictly more conservative test and calls real effects absent. Measured here,
+ * hard against a normal field is 34.0% vs normal's 27.5%: those two intervals
+ * overlap, while their difference is 6.5pp [0.1, 12.9].
+ *
+ * DEALS is set from that measurement rather than picked. The weakest of the six
+ * comparisons is hard-over-normal against a normal field; at 400 deals it sits
+ * at 2.0 SE (a coin-flip away from flaking), at 1,600 it firms to 7.2pp
+ * [4.1, 10.4]. 1,000 puts it near 3.5 SE, which is enough margin for a check
+ * that must not flake while staying quick.
+ */
+function expectDifficultiesAreOrdered(): void {
+  const DEALS = 1000;
+
+  const winRate = (subject: DifficultyId, field: DifficultyId): number => {
+    let wins = 0;
+    let counted = 0;
+    for (let i = 0; i < DEALS; i++) {
+      const brains: DifficultyId[] = [subject, field, field, field];
+      let state = deal(`order-${i}`, subject, rules('topCard'));
+      let guard = 0;
+      while (state.phase === 'playing' && guard++ < 400) {
+        const move = chooseMove({ ...state, difficulty: brains[state.turn] });
+        if (move === null) {
+          assert.ok(canPass(state), 'a seat declined to move when passing was illegal');
+          state = pass(state);
+          continue;
+        }
+        state = play(state, move.cards);
+      }
+      const end = outcome(state);
+      // Never divide by DEALS regardless of how many deals actually resolved;
+      // an unfinished deal would otherwise drag the rate down silently.
+      if (!end) continue;
+      counted += 1;
+      if (end.winner === 0) wins += 1;
+    }
+    assert.ok(counted > DEALS * 0.99, `${DEALS - counted} of ${DEALS} deals never reached an outcome`);
+    return wins / counted;
+  };
+
+  for (const [stronger, weaker] of [
+    ['hard', 'normal'],
+    ['normal', 'easy'],
+  ] as const) {
+    const field: DifficultyId = weaker;
+    const pa = winRate(stronger, field);
+    const pb = winRate(weaker, field);
+    const se = Math.sqrt((pa * (1 - pa)) / DEALS + (pb * (1 - pb)) / DEALS);
+    const diff = (pa - pb) * 100;
+    const halfWidth = 1.96 * se * 100;
+    assert.ok(
+      diff - halfWidth > 0,
+      `against a ${field} field, '${stronger}' won ${(pa * 100).toFixed(1)}% against '${weaker}' at ${(pb * 100).toFixed(1)}% — a difference of ${diff.toFixed(1)}pp with a 95% interval of [${(diff - halfWidth).toFixed(1)}, ${(diff + halfWidth).toFixed(1)}], which does not clear zero. The tiers are distinguishable but not ordered: picking a harder setting does not measurably make the opponents better.`,
+    );
+  }
+}
+
 /** Streaks reset on a loss; chips accumulate both ways. */
 function expectStatsTracking(): void {
   let stats = EMPTY_STATS;
@@ -470,6 +540,7 @@ const CHECKS: [string, () => void][] = [
   ['determinism', expectDeterminism],
   ['turns to empty', expectTurnsToEmpty],
   ['difficulties differ', expectDifficultiesDiffer],
+  ['difficulties are ordered, not just different', expectDifficultiesAreOrdered],
   ['stats tracking', expectStatsTracking],
 ];
 
