@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { DIFFICULTIES, DIFFICULTY_ORDER, generate } from '../src/game/generate.js';
-import { buildNeighbours, cellCount, isHamiltonianPath, snakePath, wallKey } from '../src/game/grid.js';
+import { buildNeighbours, cellCount, isHamiltonianPath, routeTo, snakePath, wallKey } from '../src/game/grid.js';
 import { randomHamiltonianPath } from '../src/game/hamiltonian.js';
 import { solve } from '../src/game/solve.js';
 import { analyse, computeHint } from '../src/game/hint.js';
@@ -239,7 +239,86 @@ function expectStreakCounting(): void {
   assert.match(dateKey(new Date('2026-08-16T10:00:00Z')), /^\d{4}-\d{2}-\d{2}$/);
 }
 
+/**
+ * A drag has to work at the speed people actually drag.
+ *
+ * The board used to accept only a cell orthogonally adjacent to the end of the
+ * line. A pointermove arrives about every 16ms, and a finger crossing a 6x6
+ * board in half a second covers roughly two cells between events, so most of a
+ * real gesture was silently discarded. Measured in a browser against a puzzle's
+ * own verified solution: tracing it with one sample per cell drew all 36 cells
+ * and solved, tracing the SAME shape with two cells per sample drew 1. The
+ * board did not respond unless you crawled — which is what "unplayable" meant.
+ *
+ * Nothing headless could see it, because the rule lived in a pointer handler.
+ * routeTo() is that rule extracted, so it can be checked here.
+ */
+function expectDragRoutingFollowsTheFinger(): void {
+  const size = { rows: 5, cols: 5 };
+  const open = buildNeighbours(size, []);
+  const cell = (r: number, c: number): number => r * size.cols + c;
+
+  // Two cells ahead in a straight line: unambiguous, so fill in the gap.
+  assert.deepEqual(
+    routeTo(size, open, [cell(0, 0)], cell(0, 2)),
+    [cell(0, 1), cell(0, 2)],
+    'a straight jump of two cells must fill in the cell it swept over',
+  );
+
+  // Three ahead, still straight, still one route.
+  assert.deepEqual(
+    routeTo(size, open, [cell(2, 0)], cell(2, 3)),
+    [cell(2, 1), cell(2, 2), cell(2, 3)],
+    'a straight jump of three cells must fill in both cells between',
+  );
+
+  // Diagonal: two equally short ways round, which is a cut corner. Refusing is
+  // the point — guessing which side the finger went is worse than leaving it.
+  assert.deepEqual(
+    routeTo(size, open, [cell(0, 0)], cell(1, 1)),
+    [],
+    'a cut corner has two equal routes and must not be guessed at',
+  );
+
+  // A wall makes the same corner unambiguous again, so it should route.
+  const walled = buildNeighbours(size, [wallKey(cell(0, 0), cell(0, 1))]);
+  assert.deepEqual(
+    routeTo(size, walled, [cell(0, 0)], cell(1, 1)),
+    [cell(1, 0), cell(1, 1)],
+    'with one side walled off the corner has a single route and must be taken',
+  );
+
+  // Never route through cells already on the line, and never across a wall.
+  assert.deepEqual(
+    routeTo(size, open, [cell(0, 0), cell(0, 1)], cell(0, 2)),
+    [cell(0, 2)],
+    'an adjacent target is still just one step',
+  );
+  const blocked = buildNeighbours(size, [wallKey(cell(0, 1), cell(0, 2))]);
+  assert.deepEqual(
+    routeTo(size, blocked, [cell(0, 0)], cell(0, 2)),
+    [],
+    'a wall in the swept gap must stop the route, not be jumped',
+  );
+
+  // A flick across the board must not conjure a corridor the player never drew.
+  assert.deepEqual(
+    routeTo(size, open, [cell(0, 0)], cell(4, 4)),
+    [],
+    'a target far away must be ignored rather than routed to',
+  );
+
+  // The end of the line and cells already used are not targets.
+  assert.deepEqual(routeTo(size, open, [cell(1, 1)], cell(1, 1)), [], 'the current end is not a move');
+  assert.deepEqual(
+    routeTo(size, open, [cell(0, 0), cell(0, 1), cell(0, 2)], cell(0, 1)),
+    [],
+    'a cell already on the line must not be routed to',
+  );
+}
+
 const checks: [string, () => void][] = [
+  ['drag routing follows the finger', expectDragRoutingFollowsTheFinger],
   ['backbite preserves the invariant', expectBackbitePreservesInvariant],
   ['backbite actually mixes', expectBackbiteMixes],
   ['puzzles are uniquely solvable', expectPuzzlesAreUniquelySolvable],
