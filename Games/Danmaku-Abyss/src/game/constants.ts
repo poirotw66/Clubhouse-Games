@@ -140,6 +140,12 @@ export interface Emitter {
   /** Radians/sec added to the emitter's base angle between volleys. */
   angularVel: number;
   aim: AimMode;
+  /**
+   * How far a 'fixed' volley's base angle is rotated from straight-down toward
+   * the ship, 0..1. Never authored — scaleEmitter() derives it from the run's
+   * intensity. See FIXED_HOMING_AT_MAX.
+   */
+  homing?: number;
   /** Defaults to 'radial' when omitted. */
   pattern?: VolleyPattern;
   /** Wall only: how many bullet slots are left open. Wider is kinder. */
@@ -154,6 +160,53 @@ export interface Emitter {
   bulletR: number;
   hue: number;
 }
+
+/**
+ * How far a plain 'fixed' volley leans toward the ship at the very top of the
+ * intensity range. Emitters authored as 'aimed' are unaffected; this is only
+ * about what happens to the straight-down sprays as a run escalates.
+ *
+ * This replaces a boolean:
+ *
+ *   aim: e.aim === 'fixed' && k > 2.4 && e.count % 2 === 1 ? 'aimed' : e.aim
+ *
+ * which had two problems, both of which showed up as a difficulty anomaly at
+ * stage 3 that took a while to name.
+ *
+ * First, `k > 2.4` is a step, inside a function whose whole job is to produce a
+ * slope. Intensity runs 1.00 / 1.85 / 2.70 / 3.55 / 4.40 by stage (plus 0.35
+ * for a boss), so the switch lands *between stage 2 and stage 3* and nowhere
+ * else. Every fixed spray in the game went from ignoring the player to homing
+ * on them, all at once, at exactly one stage boundary.
+ *
+ * Second, `e.count % 2 === 1` selects on the parity of the authored bullet
+ * count — 8 of the 21 fixed emitters are odd and convert, 13 are even and never
+ * do. Whether a ring chases you depends on whether it was written with 13
+ * bullets or 14, which is not a difficulty dimension; it means adding one
+ * bullet to a pattern silently removes its homing.
+ *
+ * Swept against per-stage survival (24 seeds; the intervals are ±11-20pp, so
+ * these are shapes, not precise values):
+ *
+ *   lean     s1   s2   s3   s4   s5
+ *   boolean  92   92   46   79   54   <- the old switch
+ *   0.15     92   92   58   92   46
+ *   0.28     92   83   75   88   50   <- this
+ *   0.40     92   96   92   83   67
+ *   0.46      -    -    -   67    -
+ *   0.52      -    -    -   17    -
+ *   0.55      -    -   92    8   54
+ *
+ * Stage 4 is smooth from 0.15 to 0.46 and then falls off a cliff, entirely
+ * onto ember-1 (60% -> 94% -> 93% of that stage's deaths). I could not explain
+ * that cliff: ember-1's only fixed emitter is a full 2*PI ring, whose coverage
+ * should be invariant under exactly this rotation. 0.28 sits well inside the
+ * smooth region, but the cliff is real and unexplained rather than absent.
+ */
+export const FIXED_HOMING_AT_MAX = 0.28;
+
+/** Intensity at which FIXED_HOMING_AT_MAX is reached; the ramp is linear from 1. */
+export const FIXED_HOMING_FULL_K = 4.75;
 
 export interface SpellCard {
   id: string;

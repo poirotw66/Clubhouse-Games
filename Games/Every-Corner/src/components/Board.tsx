@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { colOf, rowOf, wallKey } from '../game/grid';
+import { buildNeighbours, colOf, rowOf, routeTo, wallKey } from '../game/grid';
 import type { CellId, Puzzle } from '../game/types';
 
 interface Props {
@@ -21,6 +21,8 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
   const { size } = puzzle;
   const svgRef = useRef<SVGSVGElement>(null);
   const drawing = useRef(false);
+  /** Last pointer position, so a fast drag can be walked cell by cell. */
+  const lastPoint = useRef<{ x: number; y: number } | null>(null);
   const pathRef = useRef(path);
   pathRef.current = path;
 
@@ -29,6 +31,8 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
   const height = size.rows * cellSize;
   const neighbourSet = useRef(new Set(puzzle.walls));
   neighbourSet.current = new Set(puzzle.walls);
+  const neighbours = useRef(buildNeighbours(size, puzzle.walls));
+  neighbours.current = buildNeighbours(size, puzzle.walls);
 
   const centre = (cell: CellId) => ({
     x: colOf(size, cell) * cellSize + cellSize / 2,
@@ -71,22 +75,72 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
       const last = current[current.length - 1];
       const dr = Math.abs(rowOf(size, cell) - rowOf(size, last));
       const dc = Math.abs(colOf(size, cell) - colOf(size, last));
-      if (dr + dc !== 1) return;
-      if (neighbourSet.current.has(wallKey(last, cell))) return;
+      if (dr + dc === 1) {
+        if (neighbourSet.current.has(wallKey(last, cell))) return;
+        onPathChange([...current, cell]);
+        return;
+      }
 
-      onPathChange([...current, cell]);
+      // Not next to the end of the line — which is the ordinary case at any
+      // real drag speed, not an error. routeTo() decides what the gesture meant;
+      // see its note in grid.ts for what it refuses to guess at.
+      const route = routeTo(size, neighbours.current, current, cell);
+      if (route.length > 0) onPathChange([...current, ...route]);
     },
     [onPathChange, puzzle.checkpoints, size],
+  );
+
+  /**
+   * Feeds every cell the pointer swept over since the last event, not just the
+   * one it happens to be sitting on now.
+   *
+   * extend() only accepts a cell orthogonally adjacent to the end of the path,
+   * which is correct — but a pointermove arrives roughly every 16ms, and a
+   * finger crossing a 6x6 board in half a second moves about two cells between
+   * events. Feeding it only the current cell meant every one of those events
+   * was silently rejected and the line stopped following the finger. Measured
+   * against a puzzle's own verified solution: sampling once per cell drew all
+   * 36 of 36, sampling every two cells drew 1. Not "harder to draw" — the board
+   * simply did not respond unless you crawled.
+   *
+   * Walking the straight segment between the two pointer positions at a third
+   * of a cell at a time hands extend() an adjacent cell each step, so it keeps
+   * all its own rules (walls, no crossing, no revisiting) and just stops
+   * missing the cells in between. Backtracking over several cells at once falls
+   * out of the same loop, since each intermediate cell is in turn the one
+   * before the path's end.
+   */
+  const sweepTo = useCallback(
+    (x: number, y: number) => {
+      const from = lastPoint.current;
+      lastPoint.current = { x, y };
+      if (!from) {
+        const cell = cellAt(x, y);
+        if (cell !== null) extend(cell);
+        return;
+      }
+      const svg = svgRef.current;
+      const box = svg?.getBoundingClientRect();
+      const cellPx = box ? box.width / size.cols : 40;
+      const dx = x - from.x;
+      const dy = y - from.y;
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (cellPx / 3)));
+      for (let i = 1; i <= steps; i++) {
+        const cell = cellAt(from.x + (dx * i) / steps, from.y + (dy * i) / steps);
+        if (cell !== null) extend(cell);
+      }
+    },
+    [cellAt, extend, size.cols],
   );
 
   useEffect(() => {
     const onMove = (event: PointerEvent) => {
       if (!drawing.current) return;
-      const cell = cellAt(event.clientX, event.clientY);
-      if (cell !== null) extend(cell);
+      sweepTo(event.clientX, event.clientY);
     };
     const onUp = () => {
       drawing.current = false;
+      lastPoint.current = null;
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -96,7 +150,7 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [cellAt, extend]);
+  }, [sweepTo]);
 
   const points = path.map(centre);
   const polyline = points.map((p) => `${p.x},${p.y}`).join(' ');
@@ -111,6 +165,7 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
       onPointerDown={(event) => {
         event.preventDefault();
         drawing.current = true;
+        lastPoint.current = { x: event.clientX, y: event.clientY };
         const cell = cellAt(event.clientX, event.clientY);
         if (cell !== null) extend(cell);
       }}
