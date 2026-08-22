@@ -21,10 +21,22 @@ body {
   overscroll-behavior: none;
 }
 
+.bt-title-shell {
+  background-color: #0b0f1f;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.bt-title-hero {
+  padding: 1.25rem;
+  border: 1px solid rgba(129, 140, 248, 0.2);
+  border-radius: 1.5rem;
+  background: linear-gradient(rgba(27, 36, 80, 0.48), rgba(27, 36, 80, 0.22));
+  backdrop-filter: blur(2px);
+}
+
 .bt-felt {
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(129, 140, 248, 0.10) 0%, transparent 70%),
-    rgba(10, 16, 38, 0.7);
   border: 1px solid rgba(129, 140, 248, 0.18);
 }
 

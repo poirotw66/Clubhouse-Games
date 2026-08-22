@@ -18,6 +18,7 @@ import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { EMPTY_STATS, loadStats, recordResult, saveStats } from './game/storage';
 import { HAND_SIZE, HUMAN, SEATS } from './game/types';
 import type { Card, DifficultyId, GameState, Play, Seat, StraightRule } from './game/types';
+import { feltBackgroundStyle, titleBackgroundStyle } from './artBackground';
 
 type Screen = 'setup' | 'game';
 
@@ -283,7 +284,11 @@ function Opponent({
 
 function Table({ state }: { state: GameState }): React.ReactElement {
   return (
-    <section className="bt-felt rounded-2xl p-4 min-h-[7rem] flex flex-col items-center justify-center gap-2" aria-label="檯面">
+    <section
+      className="bt-felt rounded-2xl p-4 min-h-[7rem] flex flex-col items-center justify-center gap-2"
+      style={feltBackgroundStyle()}
+      aria-label="檯面"
+    >
       {state.table ? (
         <>
           <div className="flex gap-1 bt-played">
@@ -446,18 +451,18 @@ function Setup({
   onStart: () => void;
 }): React.ReactElement {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
+    <div className="bt-title-shell min-h-screen flex flex-col items-center justify-center px-4 py-16" style={titleBackgroundStyle()}>
       <BackToMenu />
 
       <div className="w-full max-w-md flex flex-col gap-5">
-        <header className="text-center">
+        <header className="bt-title-hero text-center">
           <h1 className="text-4xl font-black tracking-tight">大老二</h1>
           <p className="text-indigo-200/60 text-sm mt-1">
             四人各 {HAND_SIZE} 張，先出完的贏．2 最大，3 最小
           </p>
         </header>
 
-        <section className="bt-felt rounded-2xl p-4 text-sm">
+        <section className="bt-felt rounded-2xl p-4 text-sm" style={feltBackgroundStyle()}>
           <h2 className="font-bold mb-2 text-indigo-200">三件事就會玩</h2>
           <ul className="text-indigo-100/70 leading-relaxed list-disc pl-4 space-y-1">
             <li>
