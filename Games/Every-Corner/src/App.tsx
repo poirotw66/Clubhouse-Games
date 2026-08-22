@@ -31,7 +31,9 @@ export default function App(): React.ReactElement {
   const [hintsUsed, setHintsUsed] = useState(0);
   const [hintStep, setHintStep] = useState(0);
   const [hintMessage, setHintMessage] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState<CellId | null>(null);
+  const [revealed, setRevealed] = useState<CellId[]>([]);
+  /** Set when the player asks to see the answer; the run then counts as unsolved. */
+  const [gaveUp, setGaveUp] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [dailyRecords, setDailyRecords] = useState(() => loadDaily());
   const [resumable, setResumable] = useState(() => loadGame());
@@ -41,25 +43,37 @@ export default function App(): React.ReactElement {
   const startedAt = useRef<number>(0);
 
   const total = puzzle ? cellCount(puzzle.size) : 0;
-  const solved = puzzle !== null && path.length === total && path.length > 0;
+  const complete = puzzle !== null && path.length === total && path.length > 0;
+  /** Filling the board only counts as solving it if the player was not shown the answer. */
+  const solved = complete && !gaveUp;
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
 
   // Tick only while a puzzle is open and unsolved.
+  //
+  // The clock is derived from a single anchor rather than accumulated tick by
+  // tick. Accumulating (`elapsed += now - lastTick`) ran at exactly half speed:
+  // measured against wall time it showed 0:07 after 15 seconds, gaining one
+  // second per two. Anything that mounts the effect twice, fires two intervals
+  // against one shared `lastTick`, or drops a tick corrupts a running total,
+  // and the error only ever loses time. Storing the instant the clock reads
+  // zero and subtracting has none of those failure modes: a missed tick costs
+  // nothing, and re-mounting recomputes the same anchor.
   useEffect(() => {
-    if (screen !== 'play' || solved) return;
-    startedAt.current = Date.now();
-    const id = window.setInterval(() => {
-      setElapsedMs((ms) => ms + (Date.now() - startedAt.current));
-      startedAt.current = Date.now();
-    }, 1000);
+    if (screen !== 'play' || complete) return;
+    startedAt.current = Date.now() - elapsedMs;
+    const tick = () => setElapsedMs(Date.now() - startedAt.current);
+    const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
-  }, [screen, solved]);
+    // elapsedMs is deliberately not a dependency: it is what this effect
+    // writes, and re-anchoring on every write is how the old version lost time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, complete]);
 
   useEffect(() => {
-    if (screen === 'play' && puzzle && !solved) {
+    if (screen === 'play' && puzzle && !complete) {
       saveGame({
         seedCode: puzzle.seedCode,
         difficulty: puzzle.difficulty,
@@ -90,7 +104,8 @@ export default function App(): React.ReactElement {
       setElapsedMs(restore?.elapsedMs ?? 0);
       setHintStep(0);
       setHintMessage(null);
-      setRevealed(null);
+      setRevealed([]);
+      setGaveUp(false);
       recorded.current = false;
       setSeedCode(code);
       setDifficulty(level);
@@ -106,7 +121,7 @@ export default function App(): React.ReactElement {
     const hint = computeHint(puzzle, path, kind);
     setHintMessage(hint.message);
     setPath(path.slice(0, hint.keepLength));
-    setRevealed(hint.nextCell);
+    setRevealed(hint.revealCells);
     setHintsUsed((n) => n + 1);
     setHintStep((s) => Math.min(s + 1, HINT_SEQUENCE.length - 1));
   }, [puzzle, path, hintStep]);
@@ -300,7 +315,7 @@ export default function App(): React.ReactElement {
             revealed={revealed}
             onPathChange={(next) => {
               setPath(next);
-              setRevealed(null);
+              setRevealed([]);
             }}
             solved={solved}
           />
@@ -324,7 +339,7 @@ export default function App(): React.ReactElement {
               ariaLabel="清空路線重畫"
               onClick={() => {
                 setPath([]);
-                setRevealed(null);
+                setRevealed([]);
                 setHintMessage(null);
               }}
               className="rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-200"
@@ -333,16 +348,57 @@ export default function App(): React.ReactElement {
               label="提示"
               ariaLabel="給我提示"
               onClick={useHint}
-              disabled={solved}
+              disabled={complete}
               className="rounded-lg border border-amber-500/50 bg-amber-500/15 px-3 text-xs font-bold text-amber-200"
+            />
+            <TouchButton
+              label="看答案"
+              ariaLabel="放棄並看答案"
+              onClick={() => {
+                setGaveUp(true);
+                setPath(puzzle.solution);
+                setRevealed([]);
+                setHintMessage(null);
+              }}
+              disabled={complete}
+              className="rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-400"
             />
           </div>
         </div>
 
-        {hintMessage && !solved && (
+        {hintMessage && !complete && (
           <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
             {hintMessage}
           </p>
+        )}
+
+        {gaveUp && (
+          <section className="mt-4 rounded-2xl border border-slate-600 bg-slate-800/60 p-4 text-center">
+            <p className="text-lg font-black text-slate-200">這是答案</p>
+            <p className="mt-1 text-sm text-slate-400">
+              沒有計入紀錄。看一遍它怎麼繞過去，下一題會好一點。
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <TouchButton
+                label="再試同一題"
+                ariaLabel="重畫同一題"
+                onClick={() => open(puzzle.seedCode, puzzle.difficulty, isDaily)}
+                className="flex-1 rounded-xl bg-violet-500 px-4 text-sm font-black text-slate-950"
+              />
+              <TouchButton
+                label="換一題"
+                ariaLabel="換一題"
+                onClick={() => open(randomSeedCode(), puzzle.difficulty, false)}
+                className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
+              />
+              <TouchButton
+                label="回選單"
+                ariaLabel="回到選單"
+                onClick={() => setScreen('title')}
+                className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
+              />
+            </div>
+          </section>
         )}
 
         {solved && (

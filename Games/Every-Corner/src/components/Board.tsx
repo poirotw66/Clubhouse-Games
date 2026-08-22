@@ -5,7 +5,7 @@ import type { CellId, Puzzle } from '../game/types';
 interface Props {
   puzzle: Puzzle;
   path: CellId[];
-  revealed: CellId | null;
+  revealed: CellId[];
   onPathChange: (path: CellId[]) => void;
   solved: boolean;
 }
@@ -167,7 +167,22 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
         drawing.current = true;
         lastPoint.current = { x: event.clientX, y: event.clientY };
         const cell = cellAt(event.clientX, event.clientY);
-        if (cell !== null) extend(cell);
+        if (cell === null) return;
+
+        // Tapping a number the line already passes through winds back to it and
+        // leaves you drawing from there. Undoing thirty steps one at a time to
+        // fix a wrong turn near checkpoint 3 is not a decision, it is a chore,
+        // and the numbers are the only landmarks on the board worth aiming at.
+        // Drawing stays armed, so the same gesture can continue straight into
+        // the new route without lifting a finger.
+        const index = pathRef.current.indexOf(cell);
+        if (index !== -1 && puzzle.checkpoints[cell] !== undefined) {
+          if (index < pathRef.current.length - 1) {
+            onPathChange(pathRef.current.slice(0, index + 1));
+          }
+          return;
+        }
+        extend(cell);
       }}
     >
       {Array.from({ length: size.rows * size.cols }, (_, cell) => {
@@ -183,8 +198,8 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
             height={cellSize - GAP}
             rx={12}
             fill={onPath ? 'rgba(167,139,250,0.14)' : 'rgba(148,163,184,0.08)'}
-            stroke={cell === revealed ? '#fbbf24' : 'transparent'}
-            strokeWidth={cell === revealed ? 5 : 0}
+            stroke={revealed.includes(cell) ? '#fbbf24' : 'transparent'}
+            strokeWidth={revealed.includes(cell) ? 5 : 0}
           />
         );
       })}
