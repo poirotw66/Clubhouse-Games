@@ -164,12 +164,20 @@ export default function App(): React.ReactElement {
 
   if (screen === 'menu') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center">
+      <div
+        className="sr-title-shell min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center"
+        style={{
+          backgroundImage: [
+            'linear-gradient(rgba(5, 9, 10, 0.55), rgba(5, 9, 10, 0.92))',
+            `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
         <BackToMenu />
-        <div>
-          <h1 className="text-4xl font-bold tracking-wide text-emerald-200">岔道疾走</h1>
+        <header className="sr-title-hero">
+          <h1 className="sr-display sr-glow-title text-4xl font-extrabold tracking-wide text-emerald-200">岔道疾走</h1>
           <p className="mt-2 text-slate-400 text-sm">Switchpoint Run</p>
-        </div>
+        </header>
         <div className="sr-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-slate-300">
           <p className="mb-3 text-slate-200 font-semibold">距離不是靠跑，是靠選對路線。</p>
           <ul className="space-y-1.5 list-disc list-inside">
@@ -196,7 +204,7 @@ export default function App(): React.ReactElement {
           <button
             type="button"
             onClick={() => startRun()}
-            className="min-h-[44px] px-8 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white"
+            className="sr-cta min-h-[44px] px-8 py-3 rounded-xl font-semibold text-white"
           >
             扳道出發
           </button>
@@ -211,30 +219,37 @@ export default function App(): React.ReactElement {
   // could reach 430, so the bar saturated at 100% and stopped moving for the
   // top 40% of the player's only life-or-death resource.
   const bufferPct = s ? Math.max(0, Math.min(100, (s.buffer / MAX_BUFFER) * 100)) : 0;
-  const bufferColor = bufferPct < 22 ? 'bg-red-500' : bufferPct < 50 ? 'bg-amber-400' : 'bg-emerald-400';
+  const bufferTone =
+    bufferPct < 22 ? 'text-red-400' : bufferPct < 50 ? 'text-amber-300' : 'text-emerald-400';
+  const bufferFill =
+    bufferPct < 22 ? '#f87171' : bufferPct < 50 ? '#fbbf24' : '#34d399';
 
   return (
     <div className="h-screen w-screen flex flex-col">
       <BackToMenu />
 
       {/* HUD */}
-      <div className="shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
-        <div className="flex gap-3">
-          <span>距離 <b className="text-slate-100 tabular-nums">{Math.round(s?.distance ?? 0)}</b></span>
-          <span>分數 <b className="text-emerald-300 tabular-nums">{s ? finalScore(s) : 0}</b></span>
+      <div className="sr-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
+        <div className="flex gap-2 flex-wrap">
+          <span className="sr-hud-chip">距離 <b className="text-slate-100 tabular-nums">{Math.round(s?.distance ?? 0)}</b></span>
+          <span className="sr-hud-chip">分數 <b className="text-emerald-300 tabular-nums">{s ? finalScore(s) : 0}</b></span>
         </div>
-        <div className="flex gap-3">
-          <span>倍率 <b className="text-amber-300">×{(s?.scoreMult ?? 1).toFixed(2)}</b></span>
-          <span>連續無傷 <b className="text-sky-300 tabular-nums">{s?.noHitStreak ?? 0}</b></span>
+        <div className="flex gap-2 flex-wrap justify-end">
+          <span className="sr-hud-chip">倍率 <b className="text-amber-300">×{(s?.scoreMult ?? 1).toFixed(2)}</b></span>
+          <span className="sr-hud-chip">連續無傷 <b className="text-sky-300 tabular-nums">{s?.noHitStreak ?? 0}</b></span>
         </div>
       </div>
 
       {/* Buffer gauge: the single number the whole game is played against. */}
       <div className="shrink-0 px-3 pb-2">
-        <div className="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+        <div className="mb-1 flex justify-between text-[10px] text-slate-500">
+          <span>與列車間距</span>
+          <span className={bufferTone}>{Math.round(bufferPct)}%</span>
+        </div>
+        <div className="sr-buffer">
           <div
-            className={`h-full ${bufferColor} transition-[width] duration-150`}
-            style={{ width: `${bufferPct}%` }}
+            className="sr-buffer-fill"
+            style={{ width: `${bufferPct}%`, background: bufferFill, color: bufferFill }}
           />
         </div>
       </div>
