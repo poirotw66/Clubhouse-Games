@@ -36,7 +36,7 @@ export interface Progress {
   solved: boolean;
 }
 
-export type HintKind = 'locate' | 'rewind' | 'reveal';
+export type HintKind = 'locate' | 'rewind' | 'reveal' | 'segment';
 
 export interface Hint {
   kind: HintKind;
@@ -45,6 +45,8 @@ export interface Hint {
   keepLength: number;
   /** The next cell of the canonical solution, when the hint reveals it. */
   nextCell: CellId | null;
+  /** Cells to highlight on the board; empty when the hint only says something. */
+  revealCells: CellId[];
 }
 
 export interface DailyRecord {
