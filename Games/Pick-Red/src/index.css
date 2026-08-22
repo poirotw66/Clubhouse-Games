@@ -21,11 +21,23 @@ body {
   overscroll-behavior: none;
 }
 
+.pr-title-shell {
+  background-color: #0a1410;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.pr-title-hero {
+  padding: 1.25rem;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 1.5rem;
+  background: linear-gradient(rgba(18, 48, 36, 0.48), rgba(18, 48, 36, 0.22));
+  backdrop-filter: blur(2px);
+}
+
 /* The felt the table cards sit on. */
 .pr-felt {
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(74, 222, 128, 0.09) 0%, transparent 70%),
-    rgba(6, 24, 17, 0.72);
   border: 1px solid rgba(74, 222, 128, 0.16);
 }
 

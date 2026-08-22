@@ -8,6 +8,7 @@ import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { EMPTY_STATS, loadStats, recordResult, saveStats } from './game/storage';
 import { HUMAN } from './game/types';
 import type { Card, DifficultyId, GameState, PlayerCount, Seat } from './game/types';
+import { feltBackgroundStyle, titleBackgroundStyle } from './artBackground';
 
 type Screen = 'setup' | 'game';
 
@@ -198,7 +199,7 @@ export default function App(): React.ReactElement {
           ),
         )}
 
-        <section className="pr-felt rounded-2xl p-3 sm:p-4" aria-label="桌面">
+        <section className="pr-felt rounded-2xl p-3 sm:p-4" style={feltBackgroundStyle()} aria-label="桌面">
           <div className="flex items-center justify-between mb-2 text-xs text-emerald-200/70">
             <span>桌面 {state.table.length} 張</span>
             <span className="flex items-center gap-2">
@@ -491,18 +492,18 @@ function Setup({
   onStart: () => void;
 }): React.ReactElement {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
+    <div className="pr-title-shell min-h-screen flex flex-col items-center justify-center px-4 py-16" style={titleBackgroundStyle()}>
       <BackToMenu />
 
       <div className="w-full max-w-md flex flex-col gap-5">
-        <header className="text-center">
+        <header className="pr-title-hero text-center">
           <h1 className="text-4xl font-black tracking-tight">撿紅點</h1>
           <p className="text-emerald-200/60 text-sm mt-1">
             湊十撿牌，只有紅牌算分．全場 {TOTAL_POINTS} 分，過標準分即合格
           </p>
         </header>
 
-        <section className="pr-felt rounded-2xl p-4 text-sm">
+        <section className="pr-felt rounded-2xl p-4 text-sm" style={feltBackgroundStyle()}>
           <h2 className="font-bold mb-2 text-emerald-200">怎麼配對</h2>
           <p className="text-emerald-100/70 leading-relaxed">
             <strong className="text-emerald-300">A～9 相加等於 10</strong>
