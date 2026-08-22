@@ -227,7 +227,7 @@ export default function App(): React.ReactElement {
       >
         <BackToMenu />
         <header className="da-title-hero">
-          <h1 className="text-4xl font-bold tracking-wide text-fuchsia-200">彈幕深淵</h1>
+          <h1 className="da-display da-glow-title text-4xl font-extrabold tracking-wide text-fuchsia-200">彈幕深淵</h1>
           <p className="mt-2 text-slate-400 text-sm">Danmaku Abyss</p>
         </header>
         <div className="da-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-slate-300">
@@ -244,7 +244,7 @@ export default function App(): React.ReactElement {
         <button
           type="button"
           onClick={startRun}
-          className="min-h-[44px] px-8 py-3 rounded-xl font-semibold bg-fuchsia-600 hover:bg-fuchsia-500 active:bg-fuchsia-700 text-white"
+          className="da-cta min-h-[44px] px-8 py-3 rounded-xl font-semibold text-white"
         >
           潛入深淵
         </button>
@@ -268,16 +268,16 @@ export default function App(): React.ReactElement {
       <BackToMenu />
 
       {/* HUD */}
-      <div className="shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
-        <div className="flex gap-3">
-          <span>階段 <b className="text-slate-100">{Math.min(s?.stage ?? 1, STAGE_COUNT)}/{STAGE_COUNT}</b></span>
-          <span>殘機 <b className="text-rose-300">{'♥'.repeat(Math.max(0, s?.lives ?? 0)) || '—'}</b></span>
-          <span>靈擊 <b className="text-amber-300">{'✦'.repeat(Math.max(0, s?.bombs ?? 0)) || '—'}</b></span>
+      <div className="da-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
+        <div className="flex gap-2 flex-wrap">
+          <span className="da-hud-chip">階段 <b className="text-slate-100">{Math.min(s?.stage ?? 1, STAGE_COUNT)}/{STAGE_COUNT}</b></span>
+          <span className="da-hud-chip">殘機 <b className="text-rose-300">{'♥'.repeat(Math.max(0, s?.lives ?? 0)) || '—'}</b></span>
+          <span className="da-hud-chip">靈擊 <b className="text-amber-300">{'✦'.repeat(Math.max(0, s?.bombs ?? 0)) || '—'}</b></span>
         </div>
-        <div className="flex gap-3">
-          <span>火力 <b className="text-sky-300">{s?.powerTier ?? 1}</b></span>
-          <span>擦彈 <b className="text-fuchsia-300">×{(s?.grazeMult ?? 1).toFixed(2)}</b></span>
-          <span className="tabular-nums">{(s?.score ?? 0).toLocaleString('zh-Hant')}</span>
+        <div className="flex gap-2 flex-wrap justify-end">
+          <span className="da-hud-chip">火力 <b className="text-sky-300">{s?.powerTier ?? 1}</b></span>
+          <span className="da-hud-chip">擦彈 <b className="text-fuchsia-300">×{(s?.grazeMult ?? 1).toFixed(2)}</b></span>
+          <span className="da-hud-chip da-display tabular-nums text-slate-100">{(s?.score ?? 0).toLocaleString('zh-Hant')}</span>
         </div>
       </div>
 

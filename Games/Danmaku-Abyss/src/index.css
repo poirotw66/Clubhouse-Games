@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Noto+Sans+TC:wght@400;700;900&display=swap');
 @import 'tailwindcss';
 
 /* Tailwind v4 only auto-scans this game's own directory, so classes used by the
@@ -8,6 +9,10 @@
 
 :root {
   color-scheme: dark;
+  --da-fuchsia: #e879f9;
+  --da-ice: #7dd3fc;
+  --da-deep: #05060f;
+  --da-panel: rgba(10, 12, 34, 0.82);
 }
 
 html,
@@ -20,33 +25,71 @@ body,
 }
 
 body {
-  background: radial-gradient(1200px 600px at 50% -10%, #1b1746 0%, transparent 60%), #05060f;
+  background: radial-gradient(1200px 600px at 50% -10%, #1b1746 0%, transparent 60%), var(--da-deep);
   color: #e2e8f0;
-  font-family: system-ui, -apple-system, 'Noto Sans TC', sans-serif;
-  /* The play area is a fixed-aspect field; the page itself must never scroll,
-     or a drag aimed at the ship pans the document instead. */
+  font-family: 'Noto Sans TC', system-ui, -apple-system, sans-serif;
   overflow: hidden;
   touch-action: none;
 }
 
+.da-display {
+  font-family: Orbitron, 'Noto Sans TC', system-ui, sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.da-glow-title {
+  text-shadow:
+    0 0 18px rgba(232, 121, 249, 0.55),
+    0 0 42px rgba(125, 211, 252, 0.25);
+}
+
 .da-title-shell {
-  background-color: #05060f;
+  background-color: var(--da-deep);
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
 }
 
 .da-title-hero {
-  padding: 1.25rem;
-  border: 1px solid rgba(192, 132, 252, 0.2);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(192, 132, 252, 0.28);
   border-radius: 1.5rem;
-  background: linear-gradient(rgba(27, 23, 70, 0.48), rgba(27, 23, 70, 0.22));
-  backdrop-filter: blur(2px);
+  background: linear-gradient(rgba(27, 23, 70, 0.55), rgba(27, 23, 70, 0.22));
+  backdrop-filter: blur(4px);
+  box-shadow: 0 0 40px rgba(168, 85, 247, 0.12);
 }
 
 .da-panel {
-  background: rgba(10, 12, 34, 0.82);
-  border: 1px solid rgba(129, 140, 248, 0.22);
+  background: var(--da-panel);
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.da-cta {
+  background: linear-gradient(120deg, #c026d3, #7c3aed 55%, #0891b2);
+  box-shadow: 0 0 24px rgba(192, 38, 211, 0.35);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.da-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 32px rgba(192, 38, 211, 0.5);
+}
+
+.da-hud {
+  background: linear-gradient(180deg, rgba(5, 6, 15, 0.72), rgba(5, 6, 15, 0.28));
+  border-bottom: 1px solid rgba(168, 85, 247, 0.18);
+  backdrop-filter: blur(6px);
+}
+
+.da-hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.55);
 }
 
 .da-card-banner {
@@ -61,5 +104,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .da-card-banner {
     animation: none;
+  }
+  .da-cta:hover {
+    transform: none;
   }
 }
