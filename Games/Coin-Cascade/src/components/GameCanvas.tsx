@@ -368,9 +368,9 @@ export function GameCanvas({ stateRef, chuteXRef, paused, reducedMotion }: Props
       ctx.translate(0, 70);
 
       drawCabinet(ctx, shelfImg);
-  drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
-  drawEdgeBonusZones(ctx);
-  drawPusher(ctx, s.tick, metalImg);
+      drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
+      drawEdgeBonusZones(ctx);
+      drawPusher(ctx, s.tick, metalImg);
 
       // Spawn edge sparkles when a coin starts teetering (render-only juice).
       if (!reducedMotion) {
