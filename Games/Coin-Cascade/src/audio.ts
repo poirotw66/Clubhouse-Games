@@ -190,3 +190,24 @@ export function playReject(): void {
   osc.start();
   osc.stop(c.currentTime + 0.11);
 }
+
+/** Short sparkle when a timing or edge bonus lands. */
+export function playBonus(): void {
+  if (muted) return;
+  const c = ac();
+  if (!c) return;
+  const when = c.currentTime;
+  for (const [i, freq] of [880, 1174.66].entries()) {
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0, when + i * 0.04);
+    gain.gain.linearRampToValueAtTime(0.07, when + i * 0.04 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + i * 0.04 + 0.14);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(when + i * 0.04);
+    osc.stop(when + i * 0.04 + 0.16);
+  }
+}

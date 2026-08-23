@@ -68,8 +68,16 @@ export const SOLVER_ITERATIONS = 8;
 // forward stroke rides the *entire* stroke — the "推板後退時投＝吃滿整個推程"
 // timing decision the spec calls out only exists because of this placement.
 export const SPAWN_Y = PUSHER_BACK_Y;
-export const DROP_COOLDOWN_TICKS = 50; // ~0.83s: enough that spamming drops every tick is not possible
+export const DROP_COOLDOWN_TICKS = 44; // ~0.73s: snappier drops while still blocking per-tick spam
 export const MAX_COINS_ON_SHELF = 260;
+
+/** Hex-grid spacing for the prefilled opening shelf (top-down plan view). */
+export const INITIAL_SHELF_ROW_SPACING = COIN_R * 1.82;
+export const INITIAL_SHELF_COL_SPACING = COIN_R * 1.88;
+export const INITIAL_SHELF_Y0 = PUSHER_BACK_Y + PUSHER_THICK + COIN_R + 2;
+export const INITIAL_SHELF_Y1 = SHELF_LEN - COIN_R - 6;
+/** Idle physics ticks after grid placement so the pile settles before the player acts. */
+export const INITIAL_SETTLE_TICKS = 200;
 
 export const COST: Record<'normal' | 'heavy' | 'ball' | 'vibrate', number> = {
   normal: 1,
@@ -113,7 +121,16 @@ export const FALL_VALUE = 1;
 
 // ── Cascade ────────────────────────────────────────────────────────────
 export const CASCADE_MIN = 3;
-export const CASCADE_BONUS_PER_EXTRA = 0.5;
+/** Extra score per coin beyond CASCADE_MIN when a forward stroke finalises a cascade. */
+export const CASCADE_BONUS_PER_EXTRA = 0.65;
+
+/** Bonus score when a well-timed drop's coin falls off the edge. */
+export const TIMING_BONUS = 1;
+/** triangleWave must be at or below this for a drop to count as well-timed (plate at the back). */
+export const TIMING_WAVE_MAX = 0.14;
+
+/** Distance from a side wall shown as the high-risk edge lane in the UI. */
+export const EDGE_MARGIN = 28;
 
 // ── Jackpot ────────────────────────────────────────────────────────────
 export const POT_BASE = 8;

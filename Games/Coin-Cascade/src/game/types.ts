@@ -14,6 +14,10 @@ export interface Coin {
   y: number;
   /** Set the tick a coin first overhangs the front edge, cleared once it stops. Drives the near-miss highlight. */
   teeterSince: number;
+  /** True when dropped while the pusher was at the back — earns TIMING_BONUS on recovery. */
+  wellTimed?: boolean;
+  /** Machine-owned coin from the opening pile; falls count for juice/stats but not score. */
+  prefilled?: boolean;
 }
 
 export type Phase = 'playing' | 'ended';
@@ -31,6 +35,8 @@ export interface FallEvent {
   readonly coinId: number;
   readonly kind: CoinKind;
   readonly x: number;
+  readonly timingBonus?: boolean;
+  readonly prefilled?: boolean;
 }
 
 /** One tick's worth of things that happened, for the presentation layer to react to (sound, flashes). Cleared every step. */
@@ -41,6 +47,8 @@ export interface TickEvents {
   readonly jackpotBurst: number;
   readonly shook: boolean;
   readonly rejectedDrop: boolean;
+  /** Count of TIMING_BONUS awards this tick. */
+  readonly timingBonuses: number;
 }
 
 export interface RunState {
@@ -71,6 +79,7 @@ export interface RunState {
   readonly longestCascade: number;
   readonly nearMissCount: number;
   readonly shakesUsed: number;
+  readonly timingBonusCount: number;
 
   /**
    * A cascade is scored per push-STROKE ("推程"), not per physics tick — it
