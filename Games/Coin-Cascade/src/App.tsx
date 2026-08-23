@@ -235,12 +235,20 @@ export default function App(): React.ReactElement {
 
   if (screen === 'menu') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center">
+      <div
+        className="cc-title-shell min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center"
+        style={{
+          backgroundImage: [
+            'linear-gradient(rgba(11, 8, 6, 0.55), rgba(11, 8, 6, 0.92))',
+            `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
         <BackToMenu />
-        <div>
-          <h1 className="text-4xl font-bold tracking-wide text-amber-200">幣潮</h1>
+        <header className="cc-title-hero">
+          <h1 className="cc-display cc-glow-title text-4xl font-extrabold tracking-wide text-amber-200">幣潮</h1>
           <p className="mt-2 text-slate-400 text-sm">Coin Cascade</p>
-        </div>
+        </header>
         <div className="cc-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-amber-50">
           <p className="mb-3 text-amber-200 font-semibold">沒掉下去的幣，就是你自己蓋的地形。</p>
           <ul className="space-y-1.5 list-disc list-inside">
@@ -259,11 +267,7 @@ export default function App(): React.ReactElement {
             最佳分數 {best.toLocaleString('zh-Hant')} ・ 最長連鎖 {bestCascade}
           </p>
         )}
-        <button
-          type="button"
-          onClick={startRun}
-          className="min-h-[44px] px-8 py-3 rounded-xl font-semibold bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-amber-950"
-        >
+        <button type="button" onClick={startRun} className="cc-cta min-h-[44px] px-8 py-3 rounded-xl font-semibold">
           投幣開始
         </button>
       </div>
@@ -278,19 +282,21 @@ export default function App(): React.ReactElement {
       <BackToMenu />
 
       {/* HUD */}
-      <div className="shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-amber-50 flex-wrap gap-1">
-        <div className="flex gap-3">
-          <span>
+      <div className="cc-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-amber-50 flex-wrap gap-1">
+        <div className="flex gap-2 flex-wrap">
+          <span className="cc-hud-chip">
             投幣 <b className="text-amber-200">{s?.creditsRemaining ?? 0}</b>
           </span>
-          <span>
+          <span className="cc-hud-chip">
             彩池 <b className="text-fuchsia-300">{Math.round(s?.pot ?? 0)}</b>
           </span>
-          <span>
+          <span className="cc-hud-chip">
             連鎖 <b className="text-sky-300">{s?.longestCascade ?? 0}</b>
           </span>
         </div>
-        <div className="tabular-nums text-base font-semibold text-amber-200">{(s?.score ?? 0).toLocaleString('zh-Hant')}</div>
+        <div className="cc-hud-chip cc-display tabular-nums text-base font-semibold text-amber-200">
+          {(s?.score ?? 0).toLocaleString('zh-Hant')}
+        </div>
       </div>
 
       {banner && (
@@ -329,9 +335,9 @@ export default function App(): React.ReactElement {
               specialRef.current = next;
               setSpecial(next);
             }}
-            className={`min-h-[44px] min-w-[92px] px-3 rounded-xl font-semibold border text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800/80 ${
+            className={`cc-special min-h-[44px] min-w-[92px] px-3 rounded-xl font-semibold border text-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800/80 ${
               special === k
-                ? 'bg-amber-500 border-amber-300 text-amber-950'
+                ? 'is-on bg-amber-500 border-amber-300 text-amber-950'
                 : 'bg-slate-800/80 border-white/10 text-amber-100 hover:bg-slate-700/80'
             }`}
           >

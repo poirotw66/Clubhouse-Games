@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Noto+Sans+TC:wght@400;700;900&display=swap');
 @import 'tailwindcss';
 
 /* Tailwind v4 only auto-scans this game's own directory, so classes used by the
@@ -8,6 +9,10 @@
 
 :root {
   color-scheme: dark;
+  --cc-amber: #fbbf24;
+  --cc-gold: #fde68a;
+  --cc-deep: #0b0806;
+  --cc-panel: rgba(28, 20, 10, 0.82);
 }
 
 html,
@@ -20,18 +25,80 @@ body,
 }
 
 body {
-  background: radial-gradient(1100px 600px at 50% -10%, #241a08 0%, transparent 60%), #0b0806;
+  background: radial-gradient(1100px 600px at 50% -10%, #3a2710 0%, transparent 60%), var(--cc-deep);
   color: #f1e7d6;
-  font-family: system-ui, -apple-system, 'Noto Sans TC', sans-serif;
-  /* The shelf is a fixed-aspect play area; the page itself must never scroll,
-     or a drag/tap aimed at the shelf pans the document instead. */
+  font-family: 'Noto Sans TC', system-ui, -apple-system, sans-serif;
   overflow: hidden;
   touch-action: none;
 }
 
+.cc-display {
+  font-family: Orbitron, 'Noto Sans TC', system-ui, sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.cc-glow-title {
+  text-shadow:
+    0 0 18px rgba(251, 191, 36, 0.55),
+    0 0 42px rgba(245, 158, 11, 0.28);
+}
+
+.cc-title-shell {
+  background-color: var(--cc-deep);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.cc-title-hero {
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 1.5rem;
+  background: linear-gradient(rgba(58, 39, 16, 0.55), rgba(58, 39, 16, 0.22));
+  backdrop-filter: blur(4px);
+  box-shadow: 0 0 40px rgba(251, 191, 36, 0.12);
+}
+
 .cc-panel {
-  background: rgba(28, 20, 10, 0.82);
+  background: var(--cc-panel);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.cc-cta {
+  background: linear-gradient(120deg, #d97706, #f59e0b 55%, #fbbf24);
+  color: #1c1006;
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.4);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.cc-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 32px rgba(245, 158, 11, 0.55);
+}
+
+.cc-hud {
+  background: linear-gradient(180deg, rgba(11, 8, 6, 0.78), rgba(11, 8, 6, 0.28));
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+  backdrop-filter: blur(6px);
+}
+
+.cc-hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
   border: 1px solid rgba(251, 191, 36, 0.22);
+  background: rgba(28, 20, 10, 0.65);
+}
+
+.cc-special {
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.cc-special.is-on {
+  box-shadow: 0 0 18px rgba(251, 191, 36, 0.45);
 }
 
 .cc-jackpot-flash {
@@ -40,6 +107,7 @@ body {
 
 .cc-cascade-banner {
   animation: cc-banner 480ms ease-out;
+  text-shadow: 0 0 16px rgba(251, 191, 36, 0.55);
 }
 
 @keyframes cc-flash {
@@ -66,5 +134,9 @@ body {
   .cc-jackpot-flash,
   .cc-cascade-banner {
     animation: none;
+  }
+  .cc-cta:hover,
+  .cc-special {
+    transform: none;
   }
 }
