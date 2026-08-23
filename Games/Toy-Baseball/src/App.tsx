@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { ScoreFlash, type ScoreFlashTone } from '@clubhouse/shared/ScoreFlash';
 import { playError, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { Trophy, Play, Target, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -30,6 +31,53 @@ import {
   type BestsMap,
 } from './stats';
 import { fieldDirtImage, fieldGrassImage, fieldSkyImage, drawBatterSprite, drawPitcherSprite } from './fieldArt';
+
+function resultFlashTone(text: string): ScoreFlashTone {
+  if (text.includes('全壘打') || text.includes('安打') || text.includes('保送')) return 'good';
+  if (text.includes('OUT') || text.includes('三振')) return 'bad';
+  return 'neutral';
+}
+
+function BaseDiamond({ bases }: { bases: [boolean, boolean, boolean] }): React.ReactElement {
+  const baseClass = (active: boolean) =>
+    `w-2.5 h-2.5 rotate-45 border transition-colors ${
+      active
+        ? 'bg-amber-400 border-amber-300 shadow-[0_0_6px_rgba(251,191,36,0.7)]'
+        : 'bg-zinc-800/80 border-zinc-600'
+    }`;
+
+  return (
+    <div className="relative w-10 h-10 shrink-0" aria-label="壘包">
+      <div className={`absolute left-1/2 top-0 -translate-x-1/2 ${baseClass(bases[1])}`} />
+      <div className={`absolute left-0 bottom-1 ${baseClass(bases[2])}`} />
+      <div className={`absolute right-0 bottom-1 ${baseClass(bases[0])}`} />
+    </div>
+  );
+}
+
+function CountRow({
+  count,
+  max,
+  activeClass,
+  label,
+}: {
+  count: number;
+  max: number;
+  activeClass: string;
+  label: string;
+}): React.ReactElement {
+  return (
+    <div className="flex items-center gap-1">
+      {[...Array(max)].map((_, i) => (
+        <div
+          key={i}
+          className={`w-2 h-2 rounded-full transition-colors ${i < count ? activeClass : 'bg-zinc-800'}`}
+        />
+      ))}
+      <span className="text-[10px] text-zinc-500 ml-0.5 font-bold">{label}</span>
+    </div>
+  );
+}
 
 // --- Constants & Types ---
 
@@ -866,29 +914,6 @@ class GameEngine {
       ctx.stroke();
     }
 
-    // Result Overlay
-    if (this.state.resultText) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,0.75)';
-      ctx.fillRect(0, 240, CANVAS_WIDTH, 120);
-      
-      // Foul/Fair Indicator
-      if (this.state.lastHitType) {
-        ctx.fillStyle = this.state.lastHitType === 'fair' ? '#4ade80' : '#f87171';
-        ctx.font = 'bold 20px Inter, sans-serif';
-        ctx.fillText(this.state.lastHitType.toUpperCase(), CANVAS_WIDTH / 2, 270);
-      }
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 42px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.shadowBlur = 15;
-      ctx.fillText(this.state.resultText, CANVAS_WIDTH / 2, 310);
-      ctx.restore();
-    }
-
     // Hit Flash Effect
     if (this.state.hitEffect > 0) {
       ctx.fillStyle = `rgba(255, 255, 255, ${this.state.hitEffect * 0.4})`;
@@ -911,14 +936,36 @@ export default function App() {
   const prevModeRef = useRef<GameMode>('menu');
   const prevScoreRef = useRef({ away: 0, home: 0 });
   const prevResultRef = useRef('');
+  const flashKeyRef = useRef(0);
+  const [flash, setFlash] = useState<{ text: string; tone: ScoreFlashTone; key: number } | null>(null);
   const [bestsMap, setBestsMap] = useState<BestsMap>(() => loadBestsMap());
   const bests: BaseballBests = bestsMap[gameState.difficulty] ?? bestsMap.normal;
+
+  const isPlayerBatting =
+    gameState.playMode === 'derby' || gameState.halfInning === 0;
+  const canPitch =
+    gameState.mode === 'playing'
+    && !isPlayerBatting
+    && gameState.ballState === 'idle'
+    && gameState.resultTimer <= 0;
+  const waitingForCpuPitch =
+    gameState.mode === 'playing'
+    && isPlayerBatting
+    && gameState.ballState === 'idle'
+    && gameState.resultTimer <= 0
+    && gameState.cpuPitchTimer !== null;
 
   useEffect(() => {
     const engine = new GameEngine((state) => {
       if (state.score.away > prevScoreRef.current.away) playScore();
       if (state.score.home > prevScoreRef.current.home) playError();
       if (state.resultText && state.resultText !== prevResultRef.current) {
+        flashKeyRef.current += 1;
+        setFlash({
+          text: state.resultText,
+          tone: resultFlashTone(state.resultText),
+          key: flashKeyRef.current,
+        });
         if (state.resultText.includes('全壘打')) playGoal();
         else if (state.resultText.includes('OUT') || state.resultText.includes('STRIKEOUT')) {
           playError();
@@ -1006,6 +1053,12 @@ export default function App() {
     eng.start(eng.state.playMode, eng.state.difficulty);
   };
 
+  const handleRematch = () => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    eng.start(eng.state.playMode, eng.state.difficulty);
+  };
+
   const handleReset = () => {
     engineRef.current?.reset();
   };
@@ -1043,367 +1096,383 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950 overflow-x-hidden w-full">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-zinc-950 overflow-x-hidden w-full">
       <BackToMenu />
-      {/* Cap the fixed 800px canvas so phone viewports are not forced ~802px wide */}
-      <div className="relative w-full max-w-[800px] bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
-        {/* Scoreboard */}
-        <div className="absolute top-0 left-0 right-0 p-3 sm:p-6 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-start gap-2">
-          {gameState.playMode === 'derby' ? (
-            <div className="flex gap-4 sm:gap-8 min-w-0">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">全壘打</span>
-                <span className="text-3xl sm:text-4xl font-mono font-bold text-yellow-400">{gameState.derbyHrs}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">剩餘揮棒</span>
-                <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.derbySwingsLeft}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-4 sm:gap-8 min-w-0">
-              <div className="flex items-center gap-2">
-                <img
-                  src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
-                  alt=""
-                  className="w-9 h-9 rounded-lg object-cover border border-blue-400/40"
-                  draggable={false}
-                />
+      <div className="w-full max-w-[800px] flex flex-col gap-3">
+        <div className="relative w-full bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+          {/* Scoreboard */}
+          <div className="absolute top-0 left-0 right-0 p-3 sm:p-5 bg-gradient-to-b from-black/85 via-black/50 to-transparent z-10 flex justify-between items-start gap-2 pointer-events-none">
+            {gameState.playMode === 'derby' ? (
+              <div className="flex gap-4 sm:gap-6 min-w-0">
                 <div className="flex flex-col">
-                  <span className="text-[10px] tracking-widest text-zinc-500 font-bold">客場（你）</span>
-                  <span className="text-3xl sm:text-4xl font-mono font-bold text-blue-400">{gameState.score.away}</span>
+                  <span className="text-[10px] tracking-widest text-zinc-500 font-bold">全壘打</span>
+                  <span className="text-2xl sm:text-4xl font-mono font-bold text-yellow-400 tabular-nums">
+                    {gameState.derbyHrs}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] tracking-widest text-zinc-500 font-bold">剩餘揮棒</span>
+                  <span className="text-2xl sm:text-4xl font-mono font-bold text-blue-400 tabular-nums">
+                    {gameState.derbySwingsLeft}
+                  </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] tracking-widest text-zinc-500 font-bold">主場（電腦）</span>
-                  <span className="text-3xl sm:text-4xl font-mono font-bold text-red-400">{gameState.score.home}</span>
+            ) : (
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
+                    alt=""
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover border border-blue-400/40"
+                    draggable={false}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] tracking-widest text-zinc-500 font-bold">客場（你）</span>
+                    <span className="text-2xl sm:text-4xl font-mono font-bold text-blue-400 tabular-nums">
+                      {gameState.score.away}
+                    </span>
+                  </div>
                 </div>
-                <img
-                  src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
-                  alt=""
-                  className="w-9 h-9 rounded-lg object-cover border border-red-400/40"
-                  draggable={false}
-                />
+                <BaseDiamond bases={gameState.bases} />
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] tracking-widest text-zinc-500 font-bold">主場（電腦）</span>
+                    <span className="text-2xl sm:text-4xl font-mono font-bold text-red-400 tabular-nums">
+                      {gameState.score.home}
+                    </span>
+                  </div>
+                  <img
+                    src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
+                    alt=""
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover border border-red-400/40"
+                    draggable={false}
+                  />
+                </div>
               </div>
+            )}
+
+            <div className="flex flex-col items-end gap-1.5">
+              {gameState.mode === 'playing' && (
+                <span
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                    isPlayerBatting
+                      ? 'bg-blue-500/20 border-blue-400/40 text-blue-200'
+                      : 'bg-red-500/20 border-red-400/40 text-red-200'
+                  }`}
+                >
+                  {isPlayerBatting ? '你的回合：打擊' : '你的回合：投球'}
+                </span>
+              )}
+              <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+                <span className="text-[11px] sm:text-xs font-bold text-zinc-300">
+                  {gameState.playMode === 'derby'
+                    ? `全壘打大賽 · ${DIFFICULTY_LABELS[gameState.difficulty]}`
+                    : `${gameState.inning} 局 ${gameState.halfInning === 0 ? '上' : '下'} · ${DIFFICULTY_LABELS[gameState.difficulty]}`}
+                </span>
+              </div>
+              {gameState.playMode !== 'derby' && (
+                <div className="flex flex-col items-end gap-0.5">
+                  <CountRow count={gameState.outs} max={3} activeClass="bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" label="出局" />
+                  <CountRow count={gameState.strikes} max={3} activeClass="bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]" label="好球" />
+                  <CountRow count={gameState.balls} max={4} activeClass="bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" label="壞球" />
+                </div>
+              )}
             </div>
+          </div>
+
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_WIDTH}
+            height={CANVAS_HEIGHT}
+            className="block w-full max-w-full h-auto"
+          />
+
+          {flash && gameState.mode === 'playing' && (
+            <ScoreFlash
+              text={flash.text}
+              tone={flash.tone}
+              flashKey={flash.key}
+              onDone={() => setFlash(null)}
+            />
           )}
 
-          <div className="flex flex-col items-end gap-1">
-            <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-              <span className="text-xs font-bold text-zinc-400">
-                {gameState.playMode === 'derby'
-                  ? `全壘打大賽 · ${DIFFICULTY_LABELS[gameState.difficulty]}`
-                  : `${gameState.inning} 局 ${gameState.halfInning === 0 ? '上' : '下'} · ${DIFFICULTY_LABELS[gameState.difficulty]}`}
-              </span>
-            </div>
-            {gameState.playMode !== 'derby' && (
-              <>
-            <div className="flex gap-1 mt-2">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className={`w-2 h-2 rounded-full ${i < gameState.outs ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-zinc-800'}`} />
-              ))}
-              <span className="text-[10px] text-zinc-500 ml-1 font-bold uppercase">Outs</span>
-            </div>
-            <div className="flex gap-1">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className={`w-2 h-2 rounded-full ${i < gameState.strikes ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]' : 'bg-zinc-800'}`} />
-              ))}
-              <span className="text-[10px] text-zinc-500 ml-1 font-bold uppercase">Strikes</span>
-            </div>
-            <div className="flex gap-1">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className={`w-2 h-2 rounded-full ${i < gameState.balls ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-zinc-800'}`} />
-              ))}
-              <span className="text-[10px] text-zinc-500 ml-1 font-bold uppercase">Balls</span>
-            </div>
-              </>
-            )}
-          </div>
-        </div>
+          <AnimatePresence>
+            {gameState.mode === 'menu' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 backdrop-blur-sm flex flex-col items-center justify-start sm:justify-center z-20 p-4 overflow-y-auto bg-cover bg-center"
+                style={{
+                  backgroundColor: '#09090b',
+                  backgroundImage: [
+                    'linear-gradient(rgba(9,9,11,0.82), rgba(9,9,11,0.92))',
+                    `url(${import.meta.env.BASE_URL}menu-hero.jpg)`,
+                  ].join(', '),
+                }}
+              >
+                <div className="flex items-center gap-3 mb-3 sm:mb-6">
+                  <img
+                    src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
+                    alt=""
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-white/15 shadow-lg"
+                    draggable={false}
+                  />
+                  <Trophy className="w-10 h-10 sm:w-14 sm:h-14 text-yellow-500" />
+                  <img
+                    src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
+                    alt=""
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-white/15 shadow-lg"
+                    draggable={false}
+                  />
+                </div>
+                <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">玩具棒球</h1>
+                <p className="text-zinc-400 mb-5 text-sm tracking-widest">打擊時機 × 球路選擇</p>
 
-        {/* Game Canvas */}
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
-          className="block w-full max-w-full h-auto"
-        />
-
-        {/* Overlays */}
-        <AnimatePresence>
-          {gameState.mode === 'menu' && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 backdrop-blur-sm flex flex-col items-center justify-start sm:justify-center z-20 p-4 overflow-y-auto bg-cover bg-center"
-              style={{
-                backgroundColor: '#09090b',
-                backgroundImage: [
-                  'linear-gradient(rgba(9,9,11,0.82), rgba(9,9,11,0.92))',
-                  `url(${import.meta.env.BASE_URL}menu-hero.jpg)`,
-                ].join(', '),
-              }}
-            >
-              <div className="flex items-center gap-3 mb-3 sm:mb-6">
-                <img
-                  src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
-                  alt=""
-                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-white/15 shadow-lg"
-                  draggable={false}
-                />
-                <Trophy className="w-10 h-10 sm:w-14 sm:h-14 text-yellow-500" />
-                <img
-                  src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
-                  alt=""
-                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-white/15 shadow-lg"
-                  draggable={false}
-                />
-              </div>
-              <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">玩具棒球</h1>
-              <p className="text-zinc-400 mb-4 text-sm tracking-widest uppercase">玩具棒球機檯</p>
-
-              <div className="w-full max-w-md mb-3">
-                <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold text-center mb-2">模式</p>
-                <div className="flex gap-2 justify-center">
+                <div className="w-full max-w-md mb-4 grid grid-cols-2 gap-2">
                   {(['match', 'derby'] as PlayMode[]).map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => setMenuPlayMode(m)}
-                      className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border font-bold text-sm transition-all ${
                         gameState.playMode === m
-                          ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.45)]'
-                          : 'bg-zinc-800 text-zinc-400'
+                          ? 'bg-yellow-500/15 border-yellow-400/50 text-yellow-200 shadow-[0_0_20px_rgba(234,179,8,0.15)]'
+                          : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:border-white/20'
                       }`}
                     >
+                      {m === 'match' ? <Target className="w-6 h-6" /> : <Trophy className="w-6 h-6" />}
                       {PLAY_MODE_LABELS[m]}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              <div className="w-full max-w-md mb-3">
-                <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold text-center mb-2">難度</p>
-                <div className="flex gap-2 justify-center">
-                  {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+                <div className="w-full max-w-md mb-4">
+                  <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">難度</p>
+                  <div className="flex gap-2 justify-center">
+                    {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setMenuDifficulty(d)}
+                        className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                          gameState.difficulty === d
+                            ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                        }`}
+                      >
+                        {DIFFICULTY_LABELS[d]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mb-5 w-full max-w-md">
+                  {(['right', 'left'] as const).map((hand) => (
                     <button
-                      key={d}
+                      key={hand}
                       type="button"
-                      onClick={() => setMenuDifficulty(d)}
-                      className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${
-                        gameState.difficulty === d
+                      onClick={() => {
+                        engineRef.current!.state.handedness = hand;
+                        setGameState({ ...engineRef.current!.state });
+                      }}
+                      className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${
+                        gameState.handedness === hand
                           ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]'
-                          : 'bg-zinc-800 text-zinc-400'
+                          : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
                       }`}
                     >
-                      {DIFFICULTY_LABELS[d]}
+                      {hand === 'right' ? '右打' : '左打'}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              <div className="flex gap-4 mb-5">
+                <p className="text-zinc-500 text-xs mb-3 text-center max-w-sm leading-relaxed">
+                  {gameState.playMode === 'derby'
+                    ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。對準時機並選對拉打／推打方向。`
+                    : '三局制對戰電腦。上半局你打、下半局你投；好球帶內揮棒，球路要迷惑對手。'}
+                </p>
+
+                <p className="text-zinc-400 text-xs mb-5 text-center font-medium">
+                  {gameState.playMode === 'derby'
+                    ? `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
+                    : `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak} · 最佳連勝 ${bests.matchBestWinStreak}${
+                        bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
+                      }`}
+                </p>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    engineRef.current!.state.handedness = 'right';
-                    setGameState({ ...engineRef.current!.state });
-                  }}
-                  className={`px-6 py-2 rounded-full font-bold transition-all ${gameState.handedness === 'right' ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-zinc-800 text-zinc-500'}`}
+                  onClick={handleStart}
+                  className="group relative flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold text-xl hover:scale-105 transition-all active:scale-95 min-h-[52px]"
                 >
-                  右打 (R)
+                  <Play className="fill-current" />
+                  {gameState.playMode === 'derby' ? '開始大賽' : '開始比賽'}
+                  <div className="absolute -inset-1 bg-white/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    engineRef.current!.state.handedness = 'left';
-                    setGameState({ ...engineRef.current!.state });
-                  }}
-                  className={`px-6 py-2 rounded-full font-bold transition-all ${gameState.handedness === 'left' ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-zinc-800 text-zinc-500'}`}
-                >
-                  左打 (L)
-                </button>
-              </div>
+              </motion.div>
+            )}
 
-              <p className="text-zinc-500 text-xs mb-3 text-center max-w-sm">
-                {gameState.playMode === 'derby'
-                  ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。對準時機＋方向。`
-                  : '三局制對戰電腦。打者抓時機揮棒；投手選球路。'}
-              </p>
-
-              <p className="text-zinc-400 text-xs mb-4 text-center font-medium">
-                {gameState.playMode === 'derby'
-                  ? `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
-                  : `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak} · 最佳連勝 ${bests.matchBestWinStreak}${
-                      bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
-                    }`}
-              </p>
-
-              <button
-                type="button"
-                onClick={handleStart}
-                className="group relative flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold text-xl hover:scale-105 transition-all active:scale-95"
-              >
-                <Play className="fill-current" />
-                {gameState.playMode === 'derby' ? '開始大賽' : '開始比賽'}
-                <div className="absolute -inset-1 bg-white/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            </motion.div>
-          )}
-
-          {gameState.mode === 'gameOver' && (
-            <ResultOverlay
-              title={
-                gameState.playMode === 'derby'
-                  ? gameState.derbyHrs > 0
-                    ? `轟出 ${gameState.derbyHrs} 支全壘打！`
-                    : '沒有全壘打…再來一次！'
-                  : gameState.score.away > gameState.score.home
-                    ? '你贏了！'
-                    : gameState.score.away < gameState.score.home
-                      ? '電腦獲勝'
-                      : '平手'
-              }
-              variant={
-                gameState.playMode === 'derby'
-                  ? gameState.derbyHrs > 0
-                    ? 'win'
-                    : 'neutral'
-                  : gameState.score.away > gameState.score.home
-                    ? 'win'
-                    : gameState.score.away < gameState.score.home
-                      ? 'lose'
+            {gameState.mode === 'gameOver' && (
+              <ResultOverlay
+                title={
+                  gameState.playMode === 'derby'
+                    ? gameState.derbyHrs > 0
+                      ? `轟出 ${gameState.derbyHrs} 支全壘打！`
+                      : '沒有全壘打…再來一次！'
+                    : gameState.score.away > gameState.score.home
+                      ? '你贏了！'
+                      : gameState.score.away < gameState.score.home
+                        ? '電腦獲勝'
+                        : '平手'
+                }
+                variant={
+                  gameState.playMode === 'derby'
+                    ? gameState.derbyHrs > 0
+                      ? 'win'
                       : 'neutral'
-              }
-              stats={
-                gameState.playMode === 'derby'
-                  ? [
-                      { label: '全壘打', value: gameState.derbyHrs },
-                      { label: '最遠距離', value: Math.round(gameState.derbyBestDist) },
-                      { label: '最佳全壘打', value: bests.derbyBestHrs },
-                      { label: '最佳最遠', value: Math.round(bests.derbyBestDist) },
-                      { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
-                    ]
-                  : [
-                      { label: '客隊（你）', value: gameState.score.away },
-                      { label: '主隊（電腦）', value: gameState.score.home },
-                      { label: '勝場', value: bests.matchWins },
-                      { label: '連勝', value: bests.matchWinStreak },
-                      { label: '最佳連勝', value: bests.matchBestWinStreak },
-                      { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
-                    ]
-              }
-              onPrimary={handleReset}
-              primaryLabel="回選單"
-            />
-          )}
-        </AnimatePresence>
+                    : gameState.score.away > gameState.score.home
+                      ? 'win'
+                      : gameState.score.away < gameState.score.home
+                        ? 'lose'
+                        : 'neutral'
+                }
+                stats={
+                  gameState.playMode === 'derby'
+                    ? [
+                        { label: '全壘打', value: gameState.derbyHrs },
+                        { label: '最遠距離', value: Math.round(gameState.derbyBestDist) },
+                        { label: '最佳全壘打', value: bests.derbyBestHrs },
+                        { label: '最佳最遠', value: Math.round(bests.derbyBestDist) },
+                        { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
+                      ]
+                    : [
+                        { label: '客隊（你）', value: gameState.score.away },
+                        { label: '主隊（電腦）', value: gameState.score.home },
+                        { label: '勝場', value: bests.matchWins },
+                        { label: '連勝', value: bests.matchWinStreak },
+                        { label: '最佳連勝', value: bests.matchBestWinStreak },
+                        { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
+                      ]
+                }
+                onPrimary={handleRematch}
+                primaryLabel="再玩一局"
+                onSecondary={handleReset}
+                secondaryLabel="回選單"
+              />
+            )}
+          </AnimatePresence>
+        </div>
 
-        {/* Controls Overlay */}
         {gameState.mode === 'playing' && (
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
-            {gameState.playMode === 'derby' || gameState.halfInning === 0 ? (
+          <motion.div
+            initial={{ y: 12, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="w-full flex flex-col gap-2"
+          >
+            {waitingForCpuPitch && (
+              <p className="text-center text-xs text-zinc-400 animate-pulse">投手準備中…</p>
+            )}
+
+            {isPlayerBatting ? (
               <>
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 flex flex-col items-center gap-2 hidden md:flex"
-              >
-                <div className="flex items-center gap-4">
+                <div className="hidden md:flex items-center justify-center gap-3 bg-zinc-900/80 border border-white/10 rounded-2xl px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <kbd className="bg-zinc-800 px-3 py-1 rounded-md font-mono text-sm border border-white/10">SPACE</kbd>
-                    <span className="text-sm font-bold text-zinc-300">揮棒打擊</span>
+                    <kbd className="bg-zinc-800 px-2.5 py-1 rounded-md font-mono text-xs border border-white/10">空白鍵</kbd>
+                    <span className="text-sm font-bold text-zinc-300">揮棒</span>
                   </div>
                   <div className="w-px h-4 bg-white/10" />
                   <div className="flex items-center gap-2">
-                    <kbd className="bg-zinc-800 px-3 py-1 rounded-md font-mono text-sm border border-white/10">← →</kbd>
-                    <span className="text-sm font-bold text-zinc-300">調整方向</span>
+                    <kbd className="bg-zinc-800 px-2.5 py-1 rounded-md font-mono text-xs border border-white/10">← →</kbd>
+                    <span className="text-sm font-bold text-zinc-300">方向</span>
+                  </div>
+                  <div className="w-px h-4 bg-white/10" />
+                  <div className="flex gap-3">
+                    {(['left', 'center', 'right'] as const).map((dir) => (
+                      <span
+                        key={dir}
+                        className={`text-[10px] font-bold tracking-widest ${
+                          gameState.swingDir === dir ? 'text-blue-400' : 'text-zinc-600'
+                        }`}
+                      >
+                        {dir === 'left' ? '拉打' : dir === 'center' ? '中路' : '推打'}
+                      </span>
+                    ))}
                   </div>
                 </div>
-                <div className="flex gap-4 mt-1">
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${gameState.swingDir === 'left' ? 'text-blue-400' : 'text-zinc-600'}`}>Pull (左)</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${gameState.swingDir === 'center' ? 'text-blue-400' : 'text-zinc-600'}`}>Center (中)</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${gameState.swingDir === 'right' ? 'text-blue-400' : 'text-zinc-600'}`}>Push (右)</span>
+
+                <div className="flex justify-center gap-2">
+                  {(['left', 'center', 'right'] as const).map((dir) => (
+                    <button
+                      key={dir}
+                      type="button"
+                      onClick={() => setSwingDirection(dir)}
+                      className={`flex-1 max-w-[120px] min-h-[44px] rounded-xl font-bold text-sm transition-all touch-manipulation ${
+                        gameState.swingDir === dir
+                          ? 'bg-blue-500/25 border border-blue-400/50 text-blue-200'
+                          : 'bg-zinc-800 border border-white/10 text-zinc-400'
+                      }`}
+                    >
+                      {dir === 'left' ? '← 拉打' : dir === 'center' ? '中路' : '推打 →'}
+                    </button>
+                  ))}
                 </div>
-              </motion.div>
-              <div className={`${touchControlsWrapClass} pointer-events-auto`}>
-                <div className="flex gap-2 w-full justify-center">
-                  <TouchButton label="← 拉" ariaLabel="向左打" onClick={() => setSwingDirection('left')} />
-                  <TouchButton label="中" ariaLabel="打中間" onClick={() => setSwingDirection('center')} />
-                  <TouchButton label="推 →" ariaLabel="向右打" onClick={() => setSwingDirection('right')} />
+
+                <div className={`${touchControlsWrapClass} !mt-0`}>
+                  <TouchButton label="揮棒" ariaLabel="揮棒" wide accent onClick={handleBattingSwing} />
                 </div>
-                <TouchButton label="揮棒" ariaLabel="揮棒" wide accent onClick={handleBattingSwing} />
-              </div>
               </>
             ) : (
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="bg-black/60 backdrop-blur-md p-6 rounded-3xl border border-white/10 flex flex-col gap-4 pointer-events-auto"
-              >
-                <div className="flex gap-2 justify-center">
-                  <button
-                    onClick={() => handlePitch('fast', 'left')}
-                    className="flex flex-col items-center gap-1 p-3 bg-zinc-800 hover:bg-blue-600 rounded-xl transition-colors group"
-                  >
-                    <Zap className="w-5 h-5 text-blue-400 group-hover:text-white" />
-                    <span className="text-[10px] font-bold">快速左</span>
-                  </button>
-                  <button
-                    onClick={() => handlePitch('fast', 'center')}
-                    className="flex flex-col items-center gap-1 p-3 bg-zinc-800 hover:bg-blue-600 rounded-xl transition-colors group"
-                  >
-                    <Target className="w-5 h-5 text-blue-400 group-hover:text-white" />
-                    <span className="text-[10px] font-bold">快速中</span>
-                  </button>
-                  <button
-                    onClick={() => handlePitch('fast', 'right')}
-                    className="flex flex-col items-center gap-1 p-3 bg-zinc-800 hover:bg-blue-600 rounded-xl transition-colors group"
-                  >
-                    <Zap className="w-5 h-5 text-blue-400 group-hover:text-white" />
-                    <span className="text-[10px] font-bold">快速右</span>
-                  </button>
+              <>
+                <p className="text-center text-xs text-zinc-500">
+                  {canPitch ? '選擇球速與進壘位置' : '球進行中…'}
+                </p>
+                <div className="grid grid-cols-3 gap-2 w-full max-w-md mx-auto">
+                  {(
+                    [
+                      { type: 'fast' as PitchType, loc: 'left' as PitchLoc, label: '快速左', icon: Zap, tone: 'blue' },
+                      { type: 'fast' as PitchType, loc: 'center' as PitchLoc, label: '快速中', icon: Target, tone: 'blue' },
+                      { type: 'fast' as PitchType, loc: 'right' as PitchLoc, label: '快速右', icon: Zap, tone: 'blue' },
+                      { type: 'slow' as PitchType, loc: 'left' as PitchLoc, label: '慢速左', icon: ChevronLeft, tone: 'emerald' },
+                      { type: 'slow' as PitchType, loc: 'center' as PitchLoc, label: '慢速中', icon: Target, tone: 'emerald' },
+                      { type: 'slow' as PitchType, loc: 'right' as PitchLoc, label: '慢速右', icon: ChevronRight, tone: 'emerald' },
+                    ] as const
+                  ).map(({ type, loc, label, icon: Icon, tone }) => (
+                    <button
+                      key={`${type}-${loc}`}
+                      type="button"
+                      disabled={!canPitch}
+                      onClick={() => handlePitch(type, loc)}
+                      className={`flex flex-col items-center justify-center gap-1 min-h-[52px] p-2 rounded-xl border transition-all touch-manipulation ${
+                        canPitch
+                          ? tone === 'blue'
+                            ? 'bg-zinc-800 border-white/10 hover:bg-blue-600 hover:border-blue-400/40 active:scale-95'
+                            : 'bg-zinc-800 border-white/10 hover:bg-emerald-600 hover:border-emerald-400/40 active:scale-95'
+                          : 'bg-zinc-900/60 border-white/5 opacity-40 cursor-not-allowed'
+                      }`}
+                    >
+                      <Icon className={`w-5 h-5 ${tone === 'blue' ? 'text-blue-400' : 'text-emerald-400'}`} />
+                      <span className="text-[10px] font-bold">{label}</span>
+                    </button>
+                  ))}
                 </div>
-                <div className="flex gap-2 justify-center">
-                  <button
-                    onClick={() => handlePitch('slow', 'left')}
-                    className="flex flex-col items-center gap-1 p-3 bg-zinc-800 hover:bg-emerald-600 rounded-xl transition-colors group"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-emerald-400 group-hover:text-white" />
-                    <span className="text-[10px] font-bold">慢速左</span>
-                  </button>
-                  <button
-                    onClick={() => handlePitch('slow', 'center')}
-                    className="flex flex-col items-center gap-1 p-3 bg-zinc-800 hover:bg-emerald-600 rounded-xl transition-colors group"
-                  >
-                    <Target className="w-5 h-5 text-emerald-400 group-hover:text-white" />
-                    <span className="text-[10px] font-bold">慢速中</span>
-                  </button>
-                  <button
-                    onClick={() => handlePitch('slow', 'right')}
-                    className="flex flex-col items-center gap-1 p-3 bg-zinc-800 hover:bg-emerald-600 rounded-xl transition-colors group"
-                  >
-                    <ChevronRight className="w-5 h-5 text-emerald-400 group-hover:text-white" />
-                    <span className="text-[10px] font-bold">慢速右</span>
-                  </button>
-                </div>
-              </motion.div>
+              </>
             )}
+          </motion.div>
+        )}
+
+        {gameState.mode !== 'playing' && (
+          <div className="text-zinc-500 text-xs flex flex-wrap gap-4 sm:gap-8 font-medium justify-center">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <span>打擊方（客場）</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span>投球方（主場）</span>
+            </div>
           </div>
         )}
-      </div>
-
-      <div className="mt-8 text-zinc-500 text-xs flex flex-wrap gap-4 sm:gap-8 font-medium justify-center">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-blue-500" />
-          <span>打擊方 (Away)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-red-500" />
-          <span>投球方 (Home)</span>
-        </div>
       </div>
     </div>
   );
