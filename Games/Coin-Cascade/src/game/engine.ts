@@ -52,6 +52,12 @@ import {
   WALL_X0,
   WALL_X1,
   SPAWN_JITTER,
+  FIXED_DT,
+  INITIAL_SETTLE_TICKS,
+  INITIAL_SHELF_COL_SPACING,
+  INITIAL_SHELF_ROW_SPACING,
+  INITIAL_SHELF_Y0,
+  INITIAL_SHELF_Y1,
   LATERAL_SLIDE,
 } from './constants';
 import { hashString, streamRng } from './rng';
@@ -125,24 +131,50 @@ function triggerZoneXFor(seed: number, burstIndex: number): number {
   return lo + r() * (hi - lo);
 }
 
-export function createRun(seedCode: string): RunState {
-  const seed = hashString(seedCode);
-  const triggerZoneX = triggerZoneXFor(seed, 0);
-  const trigger: Coin = {
-    id: 1,
+const IDLE_INPUT: PlayerInput = { dropX: (WALL_X0 + WALL_X1) / 2, drop: false, special: 'normal' };
+
+/** Deterministic hex grid that fills the shelf like a real coin-pusher tray. */
+function buildInitialShelf(seed: number, triggerZoneX: number): Coin[] {
+  const r = streamRng(seed, 'initial-shelf');
+  const coins: Coin[] = [];
+  let id = 1;
+  const triggerY = SHELF_LEN * 0.52;
+
+  coins.push({
+    id: id++,
     kind: 'trigger',
     x: triggerZoneX,
-    y: SHELF_LEN * 0.3,
+    y: triggerY,
     teeterSince: -1,
-  };
+  });
 
+  let row = 0;
+  for (let y = INITIAL_SHELF_Y0; y <= INITIAL_SHELF_Y1; y += INITIAL_SHELF_ROW_SPACING) {
+    const stagger = (row % 2) * (INITIAL_SHELF_COL_SPACING * 0.5);
+    for (let x = WALL_X0 + COIN_R + stagger; x <= WALL_X1 - COIN_R; x += INITIAL_SHELF_COL_SPACING) {
+      const jx = (r() - 0.5) * SPAWN_JITTER * 1.6;
+      const jy = (r() - 0.5) * SPAWN_JITTER * 0.8;
+      const cx = x + jx;
+      const cy = y + jy;
+      const dx = cx - triggerZoneX;
+      const dy = cy - triggerY;
+      if (dx * dx + dy * dy < (COIN_R * 3.2) ** 2) continue;
+      coins.push({ id: id++, kind: 'normal', x: cx, y: cy, teeterSince: -1, prefilled: true });
+    }
+    row += 1;
+  }
+  return coins;
+}
+
+function emptyRunState(seedCode: string, seed: number, triggerZoneX: number, coins: Coin[]): RunState {
+  const nextCoinId = coins.reduce((max, c) => Math.max(max, c.id), 0) + 1;
   return {
     seed,
     seedCode,
     tick: 0,
     phase: 'playing',
-    coins: [trigger],
-    nextCoinId: 2,
+    coins,
+    nextCoinId,
     cooldown: 0,
     ticksSinceLastDrop: 0,
     creditsRemaining: STARTING_CREDITS,
@@ -159,9 +191,22 @@ export function createRun(seedCode: string): RunState {
     shakesUsed: 0,
     timingBonusCount: 0,
     strokeFallen: 0,
-    strokeWasForward: true, // the run starts at the trough, about to move forward
+    strokeWasForward: true,
     events: NO_EVENTS,
   };
+}
+
+export function createRun(seedCode: string): RunState {
+  const seed = hashString(seedCode);
+  const triggerZoneX = triggerZoneXFor(seed, 0);
+  const initialCoins = buildInitialShelf(seed, triggerZoneX);
+  let state = emptyRunState(seedCode, seed, triggerZoneX, initialCoins);
+
+  for (let i = 0; i < INITIAL_SETTLE_TICKS; i++) {
+    state = step(state, IDLE_INPUT, FIXED_DT);
+  }
+
+  return { ...state, events: NO_EVENTS };
 }
 
 // ── Solver internals ────────────────────────────────────────────────────
@@ -175,6 +220,7 @@ interface Working {
   mass: number;
   teeterSince: number;
   wellTimed: boolean;
+  prefilled: boolean;
 }
 
 function clampWalls(w: Working): void {
@@ -252,6 +298,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     mass: coinMass(c.kind),
     teeterSince: c.teeterSince,
     wellTimed: c.wellTimed ?? false,
+    prefilled: c.prefilled ?? false,
   }));
 
   let cooldown = Math.max(0, state.cooldown - 1);
@@ -322,6 +369,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
         mass: coinMass(kind),
         teeterSince: -1,
         wellTimed: isWellTimedDrop(state.tick),
+        prefilled: false,
       });
       nextCoinId += 1;
       creditsSpent += cost;
@@ -363,6 +411,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
         kind: w.kind,
         x: w.x,
         timingBonus: w.wellTimed,
+        prefilled: w.prefilled,
       });
     } else remaining.push(w);
   }
@@ -389,14 +438,17 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
         mass: coinMass('trigger'),
         teeterSince: -1,
         wellTimed: false,
+        prefilled: false,
       };
       nextCoinId += 1;
     } else {
-      score += FALL_VALUE;
       coinsRecovered += 1;
-      if (f.timingBonus) {
-        score += TIMING_BONUS;
-        timingBonuses += 1;
+      if (!f.prefilled) {
+        score += FALL_VALUE;
+        if (f.timingBonus) {
+          score += TIMING_BONUS;
+          timingBonuses += 1;
+        }
       }
     }
   }
@@ -452,6 +504,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
       y: w.y,
       teeterSince,
       ...(w.wellTimed ? { wellTimed: true } : {}),
+      ...(w.prefilled ? { prefilled: true } : {}),
     };
   });
 

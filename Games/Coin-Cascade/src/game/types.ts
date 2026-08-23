@@ -16,6 +16,8 @@ export interface Coin {
   teeterSince: number;
   /** True when dropped while the pusher was at the back — earns TIMING_BONUS on recovery. */
   wellTimed?: boolean;
+  /** Machine-owned coin from the opening pile; falls count for juice/stats but not score. */
+  prefilled?: boolean;
 }
 
 export type Phase = 'playing' | 'ended';
@@ -34,6 +36,7 @@ export interface FallEvent {
   readonly kind: CoinKind;
   readonly x: number;
   readonly timingBonus?: boolean;
+  readonly prefilled?: boolean;
 }
 
 /** One tick's worth of things that happened, for the presentation layer to react to (sound, flashes). Cleared every step. */

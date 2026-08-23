@@ -71,6 +71,14 @@ export const SPAWN_Y = PUSHER_BACK_Y;
 export const DROP_COOLDOWN_TICKS = 44; // ~0.73s: snappier drops while still blocking per-tick spam
 export const MAX_COINS_ON_SHELF = 260;
 
+/** Hex-grid spacing for the prefilled opening shelf (top-down plan view). */
+export const INITIAL_SHELF_ROW_SPACING = COIN_R * 1.82;
+export const INITIAL_SHELF_COL_SPACING = COIN_R * 1.88;
+export const INITIAL_SHELF_Y0 = PUSHER_BACK_Y + PUSHER_THICK + COIN_R + 2;
+export const INITIAL_SHELF_Y1 = SHELF_LEN - COIN_R - 6;
+/** Idle physics ticks after grid placement so the pile settles before the player acts. */
+export const INITIAL_SETTLE_TICKS = 200;
+
 export const COST: Record<'normal' | 'heavy' | 'ball' | 'vibrate', number> = {
   normal: 1,
   heavy: 2,

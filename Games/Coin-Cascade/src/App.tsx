@@ -271,8 +271,8 @@ export default function App(): React.ReactElement {
         <div className="cc-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-amber-50">
           <p className="mb-3 text-amber-200 font-semibold">沒掉下去的幣，就是你自己蓋的地形。</p>
           <ul className="space-y-1.5 list-disc list-inside">
-            <li>投下的幣被推板推向前緣；掉下去回收計分，沒掉下去就留在台面上。</li>
-            <li>點擊台面上方任一橫向位置即在該處投幣；鍵盤用 ←→ 移動、空白鍵投幣。</li>
+            <li>檯面一開始就是滿的——推落檯面上的幣回收計分；你投下的幣沒掉下去就留在檯面當地形。</li>
+            <li>點擊檯面上方任一橫向位置即在該處投幣；鍵盤用 ←→ 移動、空白鍵投幣。</li>
             <li>
               <b>1</b> 重幣（推力大但佔位）、<b>2</b> 滾珠（不易堆積）、<b>3</b> 震動（能鬆動死角，但也會搖散你自己的牆）。
             </li>

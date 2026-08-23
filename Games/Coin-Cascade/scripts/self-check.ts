@@ -15,6 +15,7 @@ import {
   DROP_COOLDOWN_TICKS,
   CASCADE_MIN,
   FIXED_DT,
+  INITIAL_SETTLE_TICKS,
   MAX_COINS_ON_SHELF,
   SHELF_LEN,
   STARTING_CREDITS,
@@ -79,6 +80,19 @@ function playTo(
   const c = createRun('OTHER1');
   assert.notEqual(c.seed, a.seed, 'different seed codes must give different seeds');
   ok('different seed codes give different runs');
+}
+
+// ── 1b) Opening shelf is packed like a real coin pusher ───────────────────
+{
+  const a = createRun('FULL001');
+  const b = createRun('FULL001');
+  assert.equal(JSON.stringify(a.coins.map((c) => ({ id: c.id, x: c.x, y: c.y, kind: c.kind }))), JSON.stringify(b.coins.map((c) => ({ id: c.id, x: c.x, y: c.y, kind: c.kind }))), 'initial shelf layout must be seed-deterministic after settle');
+  assert.ok(a.coins.length >= 80, `opening shelf only has ${a.coins.length} coins — should read as a full tray`);
+  assert.ok(
+    a.coins.some((c) => c.kind === 'trigger'),
+    'opening shelf must still include the pot trigger token',
+  );
+  ok(`opening shelf is packed (${a.coins.length} coins after ${INITIAL_SETTLE_TICKS} settle ticks, seed-stable)`);
 }
 
 // ── 2) step() must not mutate its input ──────────────────────────────────
