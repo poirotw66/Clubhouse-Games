@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameCanvas } from './components/GameCanvas';
-import { COST, FIXED_DT, SHELF_LEN, SHELF_W, WALL_X0, WALL_X1 } from './game/constants';
-import { createRun, step } from './game/engine';
+import { CASCADE_MIN, COST, DROP_COOLDOWN_TICKS, FIXED_DT, SHELF_LEN, SHELF_W, TIMING_WAVE_MAX, WALL_X0, WALL_X1 } from './game/constants';
+import { createRun, dropTimingQuality, pusherDirection, step, triangleWave } from './game/engine';
 import { randomSeedCode } from './game/rng';
 import type { PlayerInput, RunState } from './game/types';
 import * as audio from './audio';
@@ -20,6 +20,19 @@ const SPECIAL_LABEL: Record<Special, string> = {
   ball: '滾珠',
   vibrate: '震動',
 };
+
+function cascadeLabel(size: number): string {
+  if (size >= 8) return `雪崩 x${size}！`;
+  if (size >= 5) return `大連鎖 x${size}！`;
+  return `連鎖 x${size}！`;
+}
+
+function timingHint(tick: number): string {
+  const q = dropTimingQuality(tick);
+  if (q === 'perfect') return '完美時機';
+  if (q === 'good') return '尚可';
+  return '推程中';
+}
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -146,26 +159,32 @@ export default function App(): React.ReactElement {
       let budget = 8;
       while (accRef.current >= FIXED_DT && budget-- > 0) {
         accRef.current -= FIXED_DT;
+        const wantedDrop = dropRequestRef.current;
         const input: PlayerInput = {
           dropX: chuteXRef.current,
-          drop: dropRequestRef.current,
+          drop: wantedDrop,
           special: specialRef.current,
         };
         dropRequestRef.current = false;
         next = step(next, input, FIXED_DT);
 
         const ev = next.events;
+        if (wantedDrop && !ev.rejectedDrop && !ev.shook) audio.playDrop();
         if (ev.fallen.length > 0) {
           const simultaneous = ev.fallen.filter((f) => f.kind !== 'trigger').length;
           if (simultaneous > 0) audio.playCoinFall(simultaneous);
         }
-        if (ev.cascadeFinalized >= 1) {
+        if (ev.cascadeFinalized >= CASCADE_MIN) {
           audio.playCascade(ev.cascadeFinalized);
-          setBanner({ text: `連鎖 x${ev.cascadeFinalized}！`, key: next.tick });
+          setBanner({ text: cascadeLabel(ev.cascadeFinalized), key: next.tick });
         }
         if (ev.jackpotBurst > 0) {
           audio.playJackpot();
           setBanner({ text: `彩池爆開！+${Math.round(ev.jackpotBurst)}`, key: next.tick + 0.5 });
+        }
+        if (ev.timingBonuses > 0) {
+          audio.playBonus();
+          setBanner({ text: `完美時機 +${ev.timingBonuses}`, key: next.tick + 0.25 });
         }
         if (ev.shook) audio.playShake();
         if (ev.rejectedDrop) audio.playReject();
@@ -258,7 +277,8 @@ export default function App(): React.ReactElement {
               <b>1</b> 重幣（推力大但佔位）、<b>2</b> 滾珠（不易堆積）、<b>3</b> 震動（能鬆動死角，但也會搖散你自己的牆）。
             </li>
             <li>台面上有彩池觸發區——把觸發幣一路推下去，彩池整池爆開。</li>
-            <li>一次推程掉落 3 枚以上觸發連鎖演出；沒有一種投法在所有情況下都最好。</li>
+            <li>一次推程掉落 3 枚以上觸發連鎖；<b>推板在後方時投幣</b>可吃滿整段推程並獲得時機加分。</li>
+            <li>靠邊緣落幣風險高、落幣率也高；沒有一種投法在所有情況下都最好。</li>
             <li>不設時間限制，投幣數用盡即結束。</li>
           </ul>
         </div>
@@ -276,6 +296,11 @@ export default function App(): React.ReactElement {
 
   const s = hud;
   const ended = s?.phase === 'ended';
+  const pusherWave = s ? triangleWave(s.tick) : 0;
+  const pusherFwd = s ? pusherDirection(s.tick) === 1 : true;
+  const timing = s ? dropTimingQuality(s.tick) : 'late';
+  const cooldownPct = s ? 1 - s.cooldown / DROP_COOLDOWN_TICKS : 1;
+  const strokeActive = s?.strokeWasForward && (s.strokeFallen > 0 || pusherFwd);
 
   return (
     <div className="h-screen w-screen flex flex-col">
@@ -293,11 +318,39 @@ export default function App(): React.ReactElement {
           <span className="cc-hud-chip">
             連鎖 <b className="text-sky-300">{s?.longestCascade ?? 0}</b>
           </span>
+          {strokeActive && (
+            <span className="cc-hud-chip cc-stroke-meter">
+              本推程 <b className="text-emerald-300">+{s?.strokeFallen ?? 0}</b>
+            </span>
+          )}
         </div>
         <div className="cc-hud-chip cc-display tabular-nums text-base font-semibold text-amber-200">
           {(s?.score ?? 0).toLocaleString('zh-Hant')}
         </div>
       </div>
+
+      {/* Pusher cycle + drop readiness */}
+      {s && !ended && (
+        <div className="cc-cycle-row shrink-0 px-3 pb-1 flex items-center gap-2 text-[10px] sm:text-xs text-amber-100/90">
+          <span className="shrink-0 opacity-80">推板</span>
+          <div className="cc-cycle-track flex-1 relative h-2 rounded-full overflow-hidden">
+            <div
+              className="cc-cycle-sweet"
+              style={{ width: `${(TIMING_WAVE_MAX * 100).toFixed(1)}%` }}
+              aria-hidden
+            />
+            <div
+              className={`cc-cycle-marker ${timing === 'perfect' ? 'is-perfect' : ''}`}
+              style={{ left: `${(pusherWave * 100).toFixed(1)}%` }}
+              aria-hidden
+            />
+          </div>
+          <span className={`cc-timing-label shrink-0 ${timing === 'perfect' ? 'is-perfect' : timing === 'good' ? 'is-good' : ''}`}>
+            {timingHint(s.tick)}
+          </span>
+          <span className={`cc-cooldown-dot shrink-0 ${cooldownPct >= 1 ? 'is-ready' : ''}`} title={cooldownPct >= 1 ? '可投幣' : '冷卻中'} />
+        </div>
+      )}
 
       {banner && (
         <div key={banner.key} className="cc-cascade-banner shrink-0 px-3 pb-1 text-center text-sm font-semibold text-amber-200">
@@ -358,6 +411,7 @@ export default function App(): React.ReactElement {
             { label: '回收幣數', value: s.coinsRecovered },
             { label: '彩池爆開', value: `${s.jackpotBursts} 次 / +${Math.round(s.potAwarded)}` },
             { label: '最長連鎖', value: `${s.longestCascade} 枚` },
+            { label: '時機加分', value: s.timingBonusCount },
             { label: '近失次數', value: s.nearMissCount },
             { label: '種子碼', value: s.seedCode },
           ]}

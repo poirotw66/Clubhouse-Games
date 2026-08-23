@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
+  EDGE_MARGIN,
   PUSHER_THICK,
   PUSHER_X0,
   PUSHER_X1,
@@ -116,6 +117,17 @@ function drawCabinet(ctx: CanvasRenderingContext2D, shelf: HTMLImageElement | nu
   ctx.moveTo(WALL_X0, SHELF_LEN);
   ctx.lineTo(WALL_X1, SHELF_LEN);
   ctx.stroke();
+}
+
+function drawEdgeBonusZones(ctx: CanvasRenderingContext2D): void {
+  const h = SHELF_LEN - 12;
+  for (const x0 of [WALL_X0, WALL_X1 - EDGE_MARGIN]) {
+    const wash = ctx.createLinearGradient(x0, 0, x0 + (x0 === WALL_X0 ? EDGE_MARGIN : -EDGE_MARGIN), 0);
+    wash.addColorStop(0, 'rgba(52, 211, 153, 0.14)');
+    wash.addColorStop(1, 'rgba(52, 211, 153, 0)');
+    ctx.fillStyle = wash;
+    ctx.fillRect(x0 === WALL_X0 ? WALL_X0 : WALL_X1 - EDGE_MARGIN, 8, EDGE_MARGIN, h);
+  }
 }
 
 function drawTriggerZone(ctx: CanvasRenderingContext2D, zoneX: number, tick: number, reduced: boolean): void {
@@ -356,8 +368,9 @@ export function GameCanvas({ stateRef, chuteXRef, paused, reducedMotion }: Props
       ctx.translate(0, 70);
 
       drawCabinet(ctx, shelfImg);
-      drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
-      drawPusher(ctx, s.tick, metalImg);
+  drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
+  drawEdgeBonusZones(ctx);
+  drawPusher(ctx, s.tick, metalImg);
 
       // Spawn edge sparkles when a coin starts teetering (render-only juice).
       if (!reducedMotion) {
@@ -388,6 +401,14 @@ export function GameCanvas({ stateRef, chuteXRef, paused, reducedMotion }: Props
       const ordered = [...s.coins].sort((a, b) => a.y - b.y);
       for (const coin of ordered) {
         drawCoinFace(ctx, coin, goldImg, s.tick);
+        if (coin.wellTimed) {
+          const r = coinRadius(coin.kind) + 3;
+          ctx.beginPath();
+          ctx.arc(coin.x, coin.y, r, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(52, 211, 153, 0.55)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
       }
 
       // Near-miss pulse ring
