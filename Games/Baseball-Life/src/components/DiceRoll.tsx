@@ -36,8 +36,12 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-const TUMBLE_TICKS = 8;
-const TUMBLE_INTERVAL_MS = 70;
+function randomFace(): number {
+  return 1 + Math.floor(Math.random() * 6);
+}
+
+const TUMBLE_TICKS = 9;
+const TUMBLE_INTERVAL_MS = 75;
 
 interface Props {
   /** The final, seed-derived face (1–6). */
@@ -53,16 +57,20 @@ interface Props {
  * same career.
  */
 export function DiceRoll({ value, rollKey }: Props): React.ReactElement {
-  const [face, setFace] = useState(value);
-  const [rolling, setRolling] = useState(false);
+  // Seed the first paint from the reduced-motion preference so the die starts
+  // mid-tumble (a random face) rather than briefly flashing the real result.
+  const [reduce] = useState(prefersReducedMotion);
+  const [face, setFace] = useState(() => (reduce ? value : randomFace()));
+  const [rolling, setRolling] = useState(!reduce);
 
   useEffect(() => {
-    if (prefersReducedMotion()) {
+    if (reduce) {
       setFace(value);
       setRolling(false);
       return;
     }
     setRolling(true);
+    setFace(randomFace());
     let ticks = 0;
     const timer = window.setInterval(() => {
       ticks += 1;
@@ -71,11 +79,11 @@ export function DiceRoll({ value, rollKey }: Props): React.ReactElement {
         setFace(value);
         setRolling(false);
       } else {
-        setFace(1 + Math.floor(Math.random() * 6));
+        setFace(randomFace());
       }
     }, TUMBLE_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [rollKey, value]);
+  }, [rollKey, value, reduce]);
 
   const tone = diceTone(value);
   const shownFace = rolling ? face : value;
