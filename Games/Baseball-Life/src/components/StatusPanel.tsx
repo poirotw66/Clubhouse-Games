@@ -83,6 +83,17 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
         ))}
       </div>
 
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+        <span className="text-[11px] font-semibold text-amber-200">{META_LABELS.destiny}</span>
+        <div className="h-1.5 flex-1 rounded-full bg-slate-700/70">
+          <div
+            className="h-full rounded-full bg-amber-400 transition-[width] duration-300"
+            style={{ width: `${Math.max(2, state.meta.destiny)}%` }}
+          />
+        </div>
+        <span className="font-mono text-xs font-bold text-amber-300">{state.meta.destiny}</span>
+      </div>
+
       {state.injury && (
         <p className="mt-3 rounded-lg bg-rose-950/60 px-3 py-2 text-xs text-rose-200">
           傷勢：{state.injury.name}
