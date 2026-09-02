@@ -1,6 +1,5 @@
 node_modules/
-.cursor/*
-!.cursor/environment.json
+.cursor
 Games/**/.git-embedded/
 .env
 

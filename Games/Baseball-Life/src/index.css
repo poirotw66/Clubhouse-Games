@@ -67,19 +67,36 @@ body {
   cursor: not-allowed;
 }
 
-/* The die rolls in briefly so the result lands rather than just appearing. */
-@keyframes bl-roll {
-  0% { transform: rotate(-28deg) scale(0.7); opacity: 0; }
-  60% { transform: rotate(8deg) scale(1.08); opacity: 1; }
-  100% { transform: rotate(0deg) scale(1); opacity: 1; }
+/* The die tumbles through a few faces, then drops onto the real result so the
+   roll reads as a moment of suspense rather than a value that just appears. */
+@keyframes bl-die-tumble {
+  0% { transform: translateY(-35%) rotate(-90deg); }
+  25% { transform: translateY(0) rotate(40deg); }
+  50% { transform: translateY(-28%) rotate(170deg); }
+  75% { transform: translateY(0) rotate(300deg); }
+  100% { transform: translateY(-22%) rotate(430deg); }
 }
 
-.bl-die {
-  animation: bl-roll 380ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+.bl-die-rolling {
+  display: inline-block;
+  animation: bl-die-tumble 210ms linear infinite;
+}
+
+@keyframes bl-die-drop {
+  0% { transform: translateY(-60%) scale(0.6); opacity: 0.2; }
+  55% { transform: translateY(8%) scale(1.2); opacity: 1; }
+  78% { transform: translateY(-4%) scale(0.94); }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.bl-die-land {
+  display: inline-block;
+  animation: bl-die-drop 380ms cubic-bezier(0.2, 0.9, 0.3, 1.35);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bl-die { animation: none; }
+  .bl-die-rolling,
+  .bl-die-land { animation: none; }
   .bl-choice:not(:disabled):hover { transform: none; }
 }
 

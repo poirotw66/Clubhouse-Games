@@ -6,9 +6,8 @@ import { describeLine } from '../game/season';
 import { traitById } from '../game/traits';
 import type { AttrKey, GameState, TurnReport } from '../game/types';
 import { CareerTable } from './CareerTable';
+import { DiceRoll } from './DiceRoll';
 import { StatusPanel } from './StatusPanel';
-
-const DIE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 const TONE_RING: Record<TurnReport['tone'], string> = {
   normal: 'rgba(148,163,184,0.35)',
@@ -126,13 +125,10 @@ export function PlayScreen({
               <p className="text-[11px] tracking-wider text-slate-500">{report.label}</p>
               <div className="mt-1 flex items-center gap-3">
                 {report.dice !== null && (
-                  <span
-                    key={`${state.turnIndex}-${state.choices.length}`}
-                    className="bl-die text-4xl leading-none text-amber-300"
-                    aria-label={`骰出 ${report.dice} 點`}
-                  >
-                    {DIE_FACES[report.dice]}
-                  </span>
+                  <DiceRoll
+                    value={report.dice}
+                    rollKey={`${state.turnIndex}-${state.choices.length}`}
+                  />
                 )}
                 <h2 className="text-lg font-bold text-slate-100">{report.headline}</h2>
               </div>

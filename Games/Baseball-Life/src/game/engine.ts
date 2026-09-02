@@ -315,7 +315,9 @@ function rollDice(state: GameState, r: () => number): number {
   return clamp(dice, 1, 6);
 }
 
-const DICE_MULT = [0, 0.15, 0.55, 0.85, 1.15, 1.5, 2.1];
+/** Growth multiplier per die face. Exported so the UI can show the player
+ * exactly what a roll was worth without duplicating the balance numbers. */
+export const DICE_MULT = [0, 0.15, 0.55, 0.85, 1.15, 1.5, 2.1];
 
 const DICE_FLAVOR: Record<number, { text: string; tone: LogEntry['tone'] }> = {
   1: { text: '完全抓不到感覺，練了等於沒練。', tone: 'bad' },
