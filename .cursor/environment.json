@@ -1,0 +1,17 @@
+{
+  "name": "Clubhouse Games",
+  "install": "npm run setup && npm run build:all",
+  "terminals": [
+    {
+      "name": "dev server",
+      "command": "npm run dev",
+      "description": "Single dev server on port 3000 serving the game overview menu (repo root) and every built game from Games/<name>/dist/."
+    }
+  ],
+  "ports": [
+    {
+      "name": "dev server",
+      "port": 3000
+    }
+  ]
+}
