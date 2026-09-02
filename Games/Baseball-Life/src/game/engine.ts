@@ -167,6 +167,7 @@ export function createGame(input: CreateInput): GameState {
     mind: clamp(45 + (origin.meta?.mind ?? 0), 0, 100),
     fame: clamp(3 + (origin.meta?.fame ?? 0), 0, 100),
     fatigue: 0,
+    destiny: DESTINY_START,
   };
 
   const state: GameState = {
@@ -318,6 +319,23 @@ function rollDice(state: GameState, r: () => number): number {
 /** Growth multiplier per die face. Exported so the UI can show the player
  * exactly what a roll was worth without duplicating the balance numbers. */
 export const DICE_MULT = [0, 0.15, 0.55, 0.85, 1.15, 1.5, 2.1];
+
+/**
+ * 天命 economy. It trickles in every training turn, a natural six tops it up,
+ * and the player may pour it into a turn to force a perfect roll. The cost is
+ * high enough that a full career only affords a handful of interventions, so
+ * it stays a decisive moment rather than a way to erase the dice entirely.
+ */
+export const DESTINY_START = 20;
+export const DESTINY_MAX = 100;
+export const DESTINY_COST = 40;
+const DESTINY_GAIN_PER_TURN = 5;
+const DESTINY_SIX_BONUS = 8;
+
+/** Whether the player can afford to pour 天命 into a training turn right now. */
+export function canSpendDestiny(state: GameState): boolean {
+  return state.decision?.kind === 'training' && state.meta.destiny >= DESTINY_COST;
+}
 
 const DICE_FLAVOR: Record<number, { text: string; tone: LogEntry['tone'] }> = {
   1: { text: '完全抓不到感覺，練了等於沒練。', tone: 'bad' },
@@ -781,7 +799,7 @@ function shouldOfferRetirement(state: GameState): boolean {
 // Resolution
 // ---------------------------------------------------------------------------
 
-export function resolve(state: GameState, optionId: string): GameState {
+export function resolve(state: GameState, optionId: string, useDestiny = false): GameState {
   const next: GameState = structuredClone(state);
   const decision = next.decision;
   if (!decision || next.retired) return next;
@@ -793,7 +811,9 @@ export function resolve(state: GameState, optionId: string): GameState {
 
   switch (decision.kind) {
     case 'training':
-      resolveTraining(next, option as TrainingOption);
+      // The spend is honoured only when it can actually be paid for, so a
+      // stale toggle can never push 天命 negative.
+      resolveTraining(next, option as TrainingOption, useDestiny && state.meta.destiny >= DESTINY_COST);
       break;
     case 'path':
       resolvePath(next, optionId);
@@ -848,16 +868,21 @@ function checkTraits(state: GameState, report?: TurnReport): void {
   });
 }
 
-function resolveTraining(state: GameState, option: TrainingOption): void {
+function resolveTraining(state: GameState, option: TrainingOption, useDestiny = false): void {
   const r = rng(state, 'train');
-  const dice = rollDice(state, r);
+  // 天命 forces a perfect roll. The override is deterministic (no dice drawn),
+  // so replaying the same choice with the same spend rebuilds the same turn.
+  const dice = useDestiny ? 6 : rollDice(state, r);
   const flavor = DICE_FLAVOR[dice];
 
   const report: TurnReport = {
     label: turnLabel(state),
     dice,
+    destinyUsed: useDestiny,
     headline: option.label,
-    lines: [flavor.text],
+    lines: useDestiny
+      ? [`你傾注天命（−${DESTINY_COST}），強行扭轉了這一次的骰。`, flavor.text]
+      : [flavor.text],
     deltas: {},
     season: null,
     traitsUnlocked: [],
@@ -865,6 +890,13 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
     income: null,
     tone: flavor.tone,
   };
+
+  // 天命 bookkeeping. Spending, the passive trickle and the natural-six top-up
+  // all move the pool directly rather than through report.deltas, so a "+5 天命"
+  // pill does not clutter every single turn.
+  if (useDestiny) state.meta.destiny = clamp(state.meta.destiny - DESTINY_COST, 0, DESTINY_MAX);
+  else if (dice === 6) state.meta.destiny = clamp(state.meta.destiny + DESTINY_SIX_BONUS, 0, DESTINY_MAX);
+  state.meta.destiny = clamp(state.meta.destiny + DESTINY_GAIN_PER_TURN, 0, DESTINY_MAX);
 
   // A pro year is three turns now, not one, so every per-turn effect below is
   // scaled to a third — three turns' worth of training, fatigue and event
@@ -875,7 +907,9 @@ function resolveTraining(state: GameState, option: TrainingOption): void {
   // are preparation and reflection around it.
   const playsSeason = state.stage === 'amateur' || (state.stage === 'pro' && state.proTurn === 1);
 
-  if (state.age < 22 && dice === 6) state.counters.earlySixes += 1;
+  // A forced six is bought, not earned, so it does not count toward 天才 — that
+  // trait stays a reward for a genuinely lucky (or high-心志) youth.
+  if (!useDestiny && state.age < 22 && dice === 6) state.counters.earlySixes += 1;
   if (option.rest) state.counters.restTurns += turnScale;
 
   // Pitch work moves the arsenal; `breaking` follows from it, so the delta is

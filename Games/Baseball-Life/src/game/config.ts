@@ -53,6 +53,7 @@ export const META_LABELS = {
   mind: '心志',
   fame: '人氣',
   fatigue: '疲勞',
+  destiny: '天命',
 } as const;
 
 export interface LeagueInfo {

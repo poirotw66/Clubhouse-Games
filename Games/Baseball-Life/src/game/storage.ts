@@ -29,6 +29,11 @@ export function loadGame(): GameState | null {
     const raw = window.localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as GameState;
+    // 天命 was added after some saves were written; default it rather than
+    // discarding an in-progress career that predates the mechanic.
+    if (parsed?.meta && typeof parsed.meta.destiny !== 'number') {
+      parsed.meta.destiny = 20;
+    }
     // Guard against a save written by an older build. Every field added since
     // the first release is checked, because the engine reads them unguarded —
     // a stale save missing `finance` would crash on the first turn instead of

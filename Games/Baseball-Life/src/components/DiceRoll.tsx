@@ -48,6 +48,8 @@ interface Props {
   value: number;
   /** Changes every roll so the animation replays on each new training turn. */
   rollKey: string;
+  /** True when the player spent 天命 to force this roll. */
+  intervened?: boolean;
 }
 
 /**
@@ -56,7 +58,7 @@ interface Props {
  * deterministic simulation, so the same seed and choices still rebuild the
  * same career.
  */
-export function DiceRoll({ value, rollKey }: Props): React.ReactElement {
+export function DiceRoll({ value, rollKey, intervened = false }: Props): React.ReactElement {
   // Seed the first paint from the reduced-motion preference so the die starts
   // mid-tumble (a random face) rather than briefly flashing the real result.
   const [reduce] = useState(prefersReducedMotion);
@@ -106,6 +108,11 @@ export function DiceRoll({ value, rollKey }: Props): React.ReactElement {
       >
         成長 ×{DICE_MULT[value].toFixed(2)}
       </span>
+      {intervened && !rolling && (
+        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+          天命
+        </span>
+      )}
     </div>
   );
 }

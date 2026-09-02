@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
-import { deltaLabel } from '../game/engine';
+import { DESTINY_COST, deltaLabel } from '../game/engine';
 import { describeLine } from '../game/season';
 import { traitById } from '../game/traits';
 import type { AttrKey, GameState, TurnReport } from '../game/types';
@@ -38,7 +38,7 @@ function DeltaList({ deltas }: { deltas: TurnReport['deltas'] }): React.ReactEle
 
 interface Props {
   state: GameState;
-  onChoose: (optionId: string) => void;
+  onChoose: (optionId: string, useDestiny?: boolean) => void;
   onAcknowledge: () => void;
   onUndo: () => void;
   canUndo: boolean;
@@ -54,7 +54,17 @@ export function PlayScreen({
   onQuit,
 }: Props): React.ReactElement {
   const [showCareer, setShowCareer] = useState(false);
+  // Whether the next training choice will pour 天命 into a forced perfect roll.
+  const [useDestiny, setUseDestiny] = useState(false);
   const { report, decision } = state;
+  const canAffordDestiny = state.meta.destiny >= DESTINY_COST;
+  const destinyArmed = useDestiny && canAffordDestiny;
+
+  // A fresh decision starts with 天命 disarmed, so the toggle never silently
+  // carries over from a turn the player already resolved.
+  useEffect(() => {
+    setUseDestiny(false);
+  }, [state.choices.length, state.turnIndex]);
 
   // The report is the outcome of the last choice and sits *above* the next
   // decision rather than in front of it. It used to be a separate screen with
@@ -83,12 +93,12 @@ export function PlayScreen({
       const index = Number(event.key) - 1;
       if (Number.isInteger(index) && index >= 0 && index < pickable.length) {
         event.preventDefault();
-        onChoose(pickable[index].id);
+        onChoose(pickable[index].id, destinyArmed);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo]);
+  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo, destinyArmed]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-14">
@@ -128,6 +138,7 @@ export function PlayScreen({
                   <DiceRoll
                     value={report.dice}
                     rollKey={`${state.turnIndex}-${state.choices.length}`}
+                    intervened={report.destinyUsed}
                   />
                 )}
                 <h2 className="text-lg font-bold text-slate-100">{report.headline}</h2>
@@ -199,6 +210,35 @@ export function PlayScreen({
               <section className="bl-card p-4">
                 <p className="text-[11px] tracking-wider text-slate-500">{decision.title}</p>
                 <h2 className="mt-1 text-base leading-relaxed text-slate-200">{decision.prompt}</h2>
+
+                {decision.kind === 'training' && (
+                  <button
+                    type="button"
+                    onClick={() => setUseDestiny((v) => !v)}
+                    disabled={!canAffordDestiny}
+                    aria-pressed={destinyArmed}
+                    className={`mt-3 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                      destinyArmed
+                        ? 'border-amber-400 bg-amber-500/15 shadow-[0_0_18px_rgba(251,191,36,0.35)]'
+                        : 'border-slate-700 bg-slate-900/50'
+                    }`}
+                  >
+                    <span className="flex flex-col">
+                      <span className="text-sm font-bold text-amber-200">
+                        傾注天命{destinyArmed ? '　已啟動' : ''}
+                      </span>
+                      <span className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                        {canAffordDestiny
+                          ? `消耗 ${DESTINY_COST} 天命，強行讓這次訓練骰出 6（大成功）`
+                          : `天命不足：需 ${DESTINY_COST}，目前 ${state.meta.destiny}`}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-mono text-xs font-bold text-amber-300">
+                      天命 {state.meta.destiny}
+                    </span>
+                  </button>
+                )}
+
                 <div className="mt-4 flex flex-col gap-2">
                   {decision.options.map((option) => {
                     const hotkey = pickable.findIndex((o) => o.id === option.id);
@@ -207,7 +247,7 @@ export function PlayScreen({
                       key={option.id}
                       type="button"
                       disabled={option.disabled}
-                      onClick={() => onChoose(option.id)}
+                      onClick={() => onChoose(option.id, destinyArmed)}
                       className="bl-choice min-h-16 px-4 py-3 text-left"
                     >
                       <span className="flex items-baseline gap-2">
