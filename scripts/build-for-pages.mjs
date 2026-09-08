@@ -37,6 +37,11 @@ function cpRecursive(src, dest) {
       cpRecursive(path.join(src, name), path.join(dest, name));
     }
   } else {
+    // Original cover masters stay in the repository; the site uses derivatives.
+    if (path.dirname(src) === path.join(root, 'assets', 'covers') && src.endsWith('.jpg')) {
+      const derivative = path.join(path.dirname(src), 'optimized', `${path.basename(src, '.jpg')}-640.jpg`);
+      if (fs.existsSync(derivative)) return;
+    }
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.copyFileSync(src, dest);
   }
@@ -79,7 +84,7 @@ for (const name of gameFolders) {
     cwd: gameDir,
     env: { ...process.env, BASE_URL: baseUrl },
     stdio: 'inherit',
-    shell: true,
+    shell: false,
   });
   if (result.status !== 0) {
     console.error('Build failed for', name);
@@ -87,6 +92,9 @@ for (const name of gameFolders) {
   }
   const distDir = path.join(gameDir, 'dist');
   const outGameDir = path.join(OUT_DIR, 'Games', name);
+  if (!fs.existsSync(path.join(distDir, 'index.html'))) {
+    throw new Error(`${name} built without dist/index.html`);
+  }
   if (fs.existsSync(distDir)) {
     fs.mkdirSync(path.join(OUT_DIR, 'Games'), { recursive: true });
     cpRecursive(distDir, outGameDir);

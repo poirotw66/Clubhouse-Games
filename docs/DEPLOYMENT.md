@@ -1,111 +1,68 @@
-# GitHub Pages 建置與部署流程
+# GitHub Pages 建置與驗證
 
-本專案以 **單一建置產物** 部署到 GitHub Pages：選單、規格文件與所有遊戲的建置結果會輸出到一個 `dist/` 目錄，由 CI 上傳並發布。
+選單、規格與所有遊戲輸出到根目錄 `dist/`。唯一的 CI 工作流程是
+`.github/workflows/build.yml`：PR 執行驗證；推送 main 或在 main 手動執行 Build，
+驗證成功後才部署同一份產物。部署 job 透過 `needs: build` 等待所有檢查。
 
----
+## 本地執行
 
-## 一、建置流程概覽
-
-```
-push to main (或手動觸發)
-    → GitHub Actions: deploy-pages workflow
-    → Install dependencies (各 Games/<name>)
-    → scripts/build-for-pages.mjs
-        ├── 複製靜態：index.html, README, docs, 01-cards…06-minigames → dist/
-        └── 對每個 Games/<name>：
-                ├── 設定 BASE_URL=/${REPO_NAME}/Games/<name>/
-                ├── npm run build（Vite 產出到 Games/<name>/dist/）
-                └── 複製 dist/ → dist/Games/<name>/
-    → 上傳 dist/ 為 pages artifact
-    → 部署到 GitHub Pages
-```
-
-- **REPO_NAME**：來自 repository 名稱（例如 `Clubhouse-Games`），用來組成每個遊戲的 `base`（例如 `/Clubhouse-Games/Games/Blackjack-main/`）。
-- 各遊戲的 Vite 需支援 **BASE_URL**：`vite.config` 使用 `base: process.env.BASE_URL || './'`，本地開發用相對路徑，CI 建置時帶入絕對路徑。
-
----
-
-## 二、本地建置（與 CI 一致）
-
-在專案根目錄執行：
+使用 Node 22，所有依賴只從根目錄 lockfile 安裝：
 
 ```bash
-# 可選：先為要建置的遊戲安裝依賴
-cd Games/Blackjack-main && npm install && cd ../..
-
-# 建置整站（預設輸出到根目錄 dist/）
-REPO_NAME=Clubhouse-Games npm run build:pages
-```
-
-或使用 npm script（需先設定 REPO_NAME，或依預設 `Clubhouse-Games`）：
-
-```bash
+npm ci
+npx playwright install --only-shell chromium
+npm run check:versions
+npm run check:shared-styles
+npm run lint:all
+npm run check:all
 npm run build:pages
+npm run check:no-cdn -- --pages
+npm run test:browser
 ```
 
-產出目錄為 **dist/**，內容可直接給靜態網站或上傳到任一 Pages 環境使用。
+`npm run setup` 也使用 `npm ci`，並產生選單及其圖片、CSS。
+新增依賴時使用 npm install 更新根目錄 package-lock.json，請勿新增子專案 lockfile。
+如果出現 Tailwind 3 專案載入 Tailwind 4 的錯誤，先以根目錄 `npm ci` 重建依賴；
+不要為了本機缺少套件而修改遊戲的 PostCSS 版本。
 
----
+## 發布順序
 
-## 三、GitHub Actions 部署
+1. `npm ci` 與安裝 Chromium。
+2. 依賴版本、共用樣式、型別及遊戲邏輯檢查。
+3. `npm run build:pages`：產生封面、選單與 README，編譯 CSS，建置全部遊戲一次。
+4. 掃描 `dist/Games/` 的實際發布產物，拒絕缺少遊戲或外部 CDN 程式引用。
+5. 在桌面 Chromium 與手機觸控模擬執行瀏覽器測試。
+6. 僅 main 的非 PR 執行可上傳並部署已通過驗證的 Pages artifact。
 
-### 1. 啟用 GitHub Pages
+失敗時上傳 `test-results/`，包含失敗測試的 screenshot 與 trace。
+在 GitHub Settings → Pages，將 Source 設為 GitHub Actions。
 
-- 到儲存庫 **Settings → Pages**。
-- **Source** 選 **GitHub Actions**（不要選 branch）。
+## 子路徑與預覽
 
-### 2. 觸發部署
+`REPO_NAME` 預設為 `Clubhouse-Games`，CI 使用 repository 名稱。每款遊戲以
+`BASE_URL=/${REPO_NAME}/Games/<folder>/` 建置。自訂名稱時，建置與測試必須一致：
 
-- **push 到 `main`** 會自動跑 `.github/workflows/deploy-pages.yml`。
-- 或到 **Actions → Deploy to GitHub Pages → Run workflow** 手動觸發。
-
-### 3. 工作流程步驟摘要
-
-| 步驟 | 說明 |
-|------|------|
-| Checkout | 取出目前程式碼 |
-| Setup Node | Node 20、npm cache |
-| Install root deps | `npm ci \|\| npm install`（可略，腳本不依賴根目錄套件） |
-| Install game deps | 對每個 `Games/*/package.json` 執行 `npm ci` 或 `npm install` |
-| Build for Pages | `REPO_NAME=${{ github.event.repository.name }}` 執行 `node scripts/build-for-pages.mjs` |
-| Upload artifact | 上傳 `dist/` 為 pages artifact |
-| Deploy | `actions/deploy-pages` 部署到 GitHub Pages |
-
-部署完成後，站台網址為：
-
-`https://<username>.github.io/<REPO_NAME>/`
-
-例如：`https://myuser.github.io/Clubhouse-Games/`  
-選單在首頁，二十一點在：`https://myuser.github.io/Clubhouse-Games/Games/Blackjack-main/`。
-
----
-
-## 四、新增遊戲時要注意的事
-
-1. **遊戲目錄**：放在 `Games/<專案名>/`，內含 `package.json` 與 Vite 專案。
-2. **Vite base**：在該遊戲的 `vite.config` 使用  
-   `base: process.env.BASE_URL || './'`  
-   不要寫死絕對路徑，以利本地與 Pages 共用同一份設定。
-3. **自動納入建置**：`build-for-pages.mjs` 會掃描 `Games/` 下所有含 `package.json` 的資料夾並依序建置、複製到 `dist/Games/<名>/`，無需改 workflow。
-4. **子專案依賴**：CI 會對每個 `Games/*` 執行 `npm ci` 或 `npm install`，請在該目錄提供 `package.json`（若有 `package-lock.json` 可一併提交以加快安裝）。
-
----
-
-## 五、僅部署部分遊戲
-
-若只想建置部分遊戲，可改 `build-for-pages.mjs` 的 `getGameFolders()`，改為讀取環境變數白名單，例如：
-
-```js
-const ONLY_GAMES = process.env.ONLY_GAMES ? process.env.ONLY_GAMES.split(',') : null;
-// 在 getGameFolders 回傳時若 ONLY_GAMES 存在則 filter 只保留在名單內的資料夾
+```bash
+REPO_NAME=My-Games npm run build:pages
+REPO_NAME=My-Games npm run test:browser
+REPO_NAME=My-Games npm run preview:pages
 ```
 
-CI 中可設 `ONLY_GAMES: 'Blackjack-main,klondike'` 等，依需求調整。
+預覽網址為 `http://127.0.0.1:4173/My-Games/`。預覽伺服器只提供 `dist/`，
+缺少資產會回傳 404，不會回傳首頁掩蓋問題。
+`npm run dev` 仍提供原有本地開發入口；瀏覽器測試不使用該開發伺服器。
 
----
+## 圖片與瀏覽器測試範圍
 
-## 六、參考
+`assets/covers/*.jpg` 是保留的原圖。`npm run generate` 自動產生
+`assets/covers/optimized/` 中的 320px／640px WebP 與 640px JPEG fallback。
+生成檔不納入版本控制；建置會排除有替代圖片的原始封面。每張 WebP 上限為
+150 KiB，JPEG 上限為 200 KiB，超過時建置失敗。
 
-- [GitHub Pages: Building and testing (Actions)](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publish-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow)
-- [actions/deploy-pages](https://github.com/actions/deploy-pages)
-- 專案架構：[PROJECT-STRUCTURE.md](PROJECT-STRUCTURE.md)
+瀏覽器測試涵蓋全部目錄遊戲的進入與返回、選單搜尋／分類／網址恢復、
+響應式圖片載入，以及記憶配對和四子棋的實際操作／重開。手機情境使用觸控。
+測試收集 JavaScript 例外與站內資產錯誤；可選用的 Google Fonts 在測試中回傳空樣式，
+避免外部字型服務影響結果。這些基本測試不等於逐款完整玩法或實機效能驗證。
+
+新增遊戲時，將 package.json、規格與 JPG 封面加入目錄並更新 data/games.json；
+建置與基本導航測試會自動納入。新增複雜互動時，在 tests/browser 補上對應情境。

@@ -35,7 +35,7 @@ function run(label, command, args) {
   }
 }
 
-run('root (npm workspaces)', 'npm', ['install']);
+run('root (npm workspaces, locked dependencies)', 'npm', ['ci']);
 
 const gameFolders = getGameFolders();
 console.log(`\nInstalled root + ${gameFolders.length} workspace game(s).`);
