@@ -223,7 +223,7 @@
       display: flex;
       flex-direction: column;
       min-height: 240px;
-      padding: 22px;
+      padding: 0;
       background: var(--surface);
       border: 1px solid var(--line);
       overflow: hidden;
@@ -236,6 +236,7 @@
       position: absolute;
       inset: 0 auto 0 0;
       width: 4px;
+      z-index: 2;
       background: var(--accent, var(--ink));
     }
 
@@ -245,16 +246,45 @@
       box-shadow: 0 18px 40px rgba(26, 28, 22, 0.08);
     }
 
+    .card:hover .thumb img {
+      transform: scale(1.04);
+    }
+
     .card[data-category="game"] { --accent: var(--game); }
     .card[data-category="webmcp"] { --accent: var(--webmcp); }
     .card[data-category="landing"] { --accent: var(--landing); }
+
+    .thumb {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, #d8d4c6, #ece8db);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+      transition: transform 0.5s var(--ease);
+    }
+
+    .card-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: 18px 20px 20px;
+    }
 
     .card-top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
-      margin-bottom: 28px;
+      margin-bottom: 14px;
     }
 
     .tag {
@@ -565,15 +595,20 @@
         a.dataset.category = item.category;
         a.style.animationDelay = `${Math.min(index, 10) * 0.04}s`;
         a.innerHTML = `
-          <div class="card-top">
-            <span class="tag">${labels[item.category]}</span>
-            <span class="size">${formatBytes(item.bytes)}</span>
+          <div class="thumb">
+            <img src="thumbs/${item.id}.webp" alt="${item.title} screenshot" loading="lazy" width="1280" height="800">
           </div>
-          <h2>${item.title}</h2>
-          <p>${item.blurb}</p>
-          <div class="card-foot">
-            <span>Open demo</span>
-            <span aria-hidden="true">→</span>
+          <div class="card-body">
+            <div class="card-top">
+              <span class="tag">${labels[item.category]}</span>
+              <span class="size">${formatBytes(item.bytes)}</span>
+            </div>
+            <h2>${item.title}</h2>
+            <p>${item.blurb}</p>
+            <div class="card-foot">
+              <span>Open demo</span>
+              <span aria-hidden="true">→</span>
+            </div>
           </div>
         `;
         grid.appendChild(a);
