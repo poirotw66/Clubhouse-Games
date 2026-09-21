@@ -1,0 +1,1373 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101116">
+<title>WebMCP Pizza / Burger Builder</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #101116;
+  --panel: #191b23;
+  --panel2: #20232d;
+  --border: #30333f;
+  --text: #f3f2f7;
+  --muted: #a8adbf;
+  --orange: #ffae69;
+  --violet: #b8a1ff;
+  --green: #8cdec0;
+  --radius: 20px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(ellipse at 12% 0%, #28203288, transparent 40%), var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+button, input, select { font: inherit; }
+button, select { cursor: pointer; }
+button {
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: #242630;
+  border-radius: 10px;
+  padding: 9px 13px;
+  transition: background .16s, border-color .16s, transform .16s;
+}
+button:hover:not(:disabled) { background: #303440; border-color: #606577; }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: .42; cursor: not-allowed; }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible {
+  outline: 3px solid var(--violet); outline-offset: 3px;
+}
+button.primary { background: var(--orange); color: #251709; border-color: transparent; font-weight: 750; }
+button.primary:hover:not(:disabled) { background: #ffc28c; }
+button.subtle { background: transparent; }
+button.small { font-size: 12px; padding: 6px 10px; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: clamp(21px, 2.4vw, 31px); letter-spacing: -.9px; line-height: 1.2; }
+h2 { font-size: 18px; letter-spacing: -.4px; }
+h3 { font-size: 14px; }
+small, .muted { color: var(--muted); }
+code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.shell { max-width: 1440px; margin: auto; padding: 32px; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 28px; }
+.eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--violet); margin-bottom: 10px; }
+.header p { color: var(--muted); margin-top: 9px; }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.badge {
+  display: inline-flex; align-items: center; gap: 8px; border: 1px solid #53505a;
+  border-radius: 30px; padding: 7px 12px; background: #29252e; color: #e2c5a7;
+  font-size: 12px; font-weight: 650;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.badge.connected { background: #192e29; border-color: #305247; color: var(--green); }
+.badge.error { color: #ffadad; }
+.card { background: linear-gradient(135deg, #1e2029ec, #171920f5); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.preview-card { position: sticky; top: 22px; }
+.card-heading { padding: 21px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.live-label { color: var(--green); display: flex; align-items: center; gap: 7px; font-size: 11px; }
+.preview-stage {
+  position: relative; min-height: 430px; aspect-ratio: 1.12;
+  display: grid; place-items: center; isolation: isolate;
+  background: radial-gradient(ellipse at 50% 48%, #9a5b2729, transparent 61%);
+  overflow: hidden;
+}
+.preview-stage::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background-image: linear-gradient(#ffffff03 1px, transparent 1px), linear-gradient(90deg, #ffffff03 1px, transparent 1px);
+  background-size: 32px 32px; mask-image: radial-gradient(ellipse, black, transparent 75%);
+}
+.preview-stage::after {
+  content: ""; width: 79%; aspect-ratio: 1; border: 1px solid #ffffff07;
+  border-radius: 50%; position: absolute; z-index: -1;
+  box-shadow: 0 0 0 35px #ffffff02, 0 0 0 70px #ffffff015;
+}
+.food-art { width: 100%; max-width: 580px; display: block; overflow: visible; }
+.food-enter { animation: foodEnter .3s ease both; transform-origin: center; }
+@keyframes foodEnter { from { opacity: .6; transform: translateY(5px) scale(.985); } to { opacity: 1; transform: none; } }
+.stage-note { position: absolute; top: 9px; left: 24px; color: #9198ac; font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; }
+.stage-tag { position: absolute; right: 22px; bottom: 15px; padding: 5px 10px; border: 1px solid #ffffff13; border-radius: 7px; color: #bbb7c6; font-size: 11px; background: #171920c9; }
+.preview-caption { padding: 10px 26px 22px; }
+.preview-caption h2 { font-size: 26px; margin-bottom: 5px; }
+.preview-caption p { color: var(--muted); min-height: 42px; font-size: 13px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); }
+.stat { padding: 17px 20px; }
+.stat + .stat { border-left: 1px solid var(--border); }
+.stat span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.stat strong { display: block; margin-top: 4px; font-size: 15px; }
+.shared-note { margin: 16px 22px 21px; padding: 12px 14px; border: 1px solid #b8a1ff22; background: #b8a1ff08; border-radius: 10px; font-size: 12px; color: #c9bfe8; display: flex; gap: 10px; }
+.controls-card { padding: 23px; }
+.control-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 17px; }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 5px; border-radius: 13px; background: #101218; border: 1px solid #30323d; margin-bottom: 22px; }
+.segmented button { border: 1px solid transparent; background: transparent; font-weight: 700; padding: 11px; }
+.segmented button[aria-pressed="true"] { background: #353040; border-color: #65547f; color: #e5daff; box-shadow: 0 3px 12px #0003; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field { display: grid; gap: 6px; color: #b9bed0; font-size: 12px; }
+select, input {
+  color: var(--text); background: #11141b; border: 1px solid #383b48;
+  border-radius: 9px; padding: 10px 11px; width: 100%; min-width: 0;
+}
+.section-label { margin: 22px 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.section-label span { font-size: 11px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip { font-size: 12px; border-radius: 8px; padding: 7px 10px; display: inline-flex; align-items: center; gap: 6px; background: #20232b; }
+.chip[aria-pressed="true"] { color: #ffcfaa; border-color: #a36d45; background: #4a30234f; }
+.swatch { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; box-shadow: 0 0 0 2px #0002; }
+.chip .check { font-size: 12px; width: 10px; color: #b1b5c6; }
+.chip[aria-pressed="true"] .check { color: var(--orange); }
+.preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-row button { font-size: 11px; padding: 7px 9px; background: #b8a1ff08; border-color: #b8a1ff28; color: #d9caff; }
+.utility-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border); }
+.summary-card { background: #12151c; border: 1px solid var(--border); border-radius: 13px; padding: 17px; margin-top: 20px; }
+.summary-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.status { font-size: 10px; color: var(--green); background: #8cdec00c; border: 1px solid #8cdec030; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+.status.empty { color: var(--muted); border-color: var(--border); background: #ffffff05; }
+.status.ordered { color: #171f1c; background: var(--green); }
+.summary-text { color: #c1c5d1; font-size: 12px; margin-top: 12px; }
+.summary-text .ingredients { color: var(--muted); margin-top: 5px; }
+.price-details { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.price-details summary { cursor: pointer; }
+.price-line { display: flex; justify-content: space-between; gap: 12px; padding-top: 4px; }
+.checkout-row { display: flex; align-items: end; gap: 15px; margin-top: 16px; }
+.quantity-control { width: 90px; }
+.quantity-control label { display: block; font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.quantity-control input { padding: 8px 10px; }
+.total { flex: 1; text-align: right; }
+.total small { display: block; font-size: 10px; }
+.total strong { font-size: 28px; line-height: 1.2; letter-spacing: -.8px; }
+.order-button { width: 100%; margin-top: 14px; padding: 11px; }
+.demo-note { text-align: center; font-size: 10px; color: #9096aa; margin-top: 8px; }
+.lower-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; margin-top: 22px; }
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 22px 13px; }
+.panel-header h2 { font-size: 16px; }
+.panel-subtitle { color: var(--muted); font-size: 11px; padding: 0 22px 13px; }
+.log { height: 310px; overflow: auto; padding: 0 17px 16px; }
+.log-entry { display: grid; grid-template-columns: 66px 66px minmax(0, 1fr); gap: 9px; padding: 10px 6px; border-bottom: 1px solid #ffffff07; font-size: 11px; align-items: start; }
+.log-time { color: #8f97aa; font-size: 10px; padding-top: 2px; }
+.log-source { font-size: 9px; font-weight: 700; padding: 3px 4px; text-align: center; border-radius: 4px; background: #9eadcc15; color: #b5c9ed; }
+.log-source.webmcp { background: #b8a1ff18; color: var(--violet); }
+.log-source.system { background: #8cdec013; color: var(--green); }
+.log-message { overflow-wrap: anywhere; color: #d1d4de; }
+.last-ai { font-size: 11px; color: #c6b9e8; padding: 12px 22px; background: #b8a1ff07; border-top: 1px solid var(--border); overflow-wrap: anywhere; min-height: 41px; }
+.tool-list { height: 310px; overflow: auto; padding: 0 17px 16px; }
+.tool { padding: 10px 6px; border-bottom: 1px solid #ffffff08; }
+.tool summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.tool summary::-webkit-details-marker { display: none; }
+.tool summary::before { content: "›"; color: #838a9c; }
+.tool[open] summary::before { transform: rotate(90deg); }
+.tool code { color: #d7c6ff; font-size: 11px; overflow-wrap: anywhere; }
+.tool-kind { margin-left: auto; font-size: 9px; padding: 2px 5px; background: #ffae6910; color: var(--orange); border-radius: 4px; flex-shrink: 0; }
+.tool-kind.read { color: var(--green); background: #8cdec010; }
+.tool p { color: var(--muted); font-size: 11px; margin: 6px 0 0 13px; }
+.tool pre { font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; background: #101219; border-radius: 8px; padding: 12px; margin: 10px 0 0; color: #a5bbd5; }
+.inspector-footer { min-height: 41px; border-top: 1px solid var(--border); padding: 12px 22px; color: var(--muted); font-size: 11px; }
+.prompts { padding: 0 22px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.prompt { text-align: left; font-size: 12px; font-weight: 400; line-height: 1.55; background: #ffffff03; color: #cbd0df; padding: 12px 14px; display: flex; gap: 10px; }
+.prompt::before { content: "↗"; color: var(--violet); font-size: 16px; }
+.how { margin-top: 22px; padding: 24px; }
+.how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-top: 16px; }
+.how ol { margin: 0; padding-left: 19px; color: var(--muted); font-size: 12px; }
+.how li { padding-bottom: 6px; }
+.diagram { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px; border: 1px solid var(--border); background: #11131a; border-radius: 12px; font-size: 11px; }
+.diagram-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center; width: 100%; }
+.diagram-branch { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.diagram-node { border: 1px solid #b8a1ff3d; border-radius: 6px; padding: 6px 12px; background: #b8a1ff0b; color: #d8cafa; }
+.diagram-node.engine { width: 80%; text-align: center; background: #ffae6910; color: var(--orange); border-color: #ffae6935; }
+.diagram-node.output { border-color: #8cdec030; color: var(--green); background: #8cdec008; }
+.arrow { color: #737b8f; }
+footer { text-align: center; padding: 25px 8px 0; color: #858da2; font-size: 11px; }
+#toasts { position: fixed; bottom: 24px; right: 24px; z-index: 100; display: flex; flex-direction: column; gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { padding: 14px 17px; background: #282d38f5; border: 1px solid #697083; box-shadow: 0 10px 35px #0007; border-radius: 12px; color: #f2f4fc; backdrop-filter: blur(15px); font-size: 13px; animation: foodEnter .2s ease; }
+.toast.ai { border-color: #a286d4; }
+.toast.error { border-color: #de8a8a; color: #ffc4c4; }
+.empty-art { color: #a0a6b9; text-align: center; padding: 30px; }
+.empty-art .empty-circle { width: 200px; height: 200px; border: 2px dashed #565363; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 22px; font-size: 50px; color: #777184; background: #ffffff02; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (min-width: 1200px) { .preview-stage { min-height: 490px; } }
+@media (max-width: 960px) {
+  .shell { padding: 22px; }
+  .workspace { gap: 16px; grid-template-columns: minmax(0, .9fr) minmax(0, 1fr); }
+  .controls-card { padding: 18px; }
+  .preview-stage { min-height: 340px; }
+  .stat { padding: 13px 12px; }
+  .stat strong { font-size: 12px; }
+  .lower-grid { gap: 16px; }
+  .checkout-row { gap: 10px; }
+}
+@media (max-width: 740px) {
+  .shell { padding: 18px 14px; }
+  .header { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .header-right { align-items: flex-start; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .workspace, .lower-grid, .how-grid { grid-template-columns: 1fr; }
+  .preview-card { position: static; }
+  .preview-stage { min-height: 0; aspect-ratio: 1.3; max-height: 450px; }
+  .food-art { max-height: 450px; }
+  .preview-caption p { min-height: 0; }
+  .prompts { grid-template-columns: 1fr; }
+  .how { padding: 20px; }
+  .card-heading { padding: 18px 20px; }
+  .stat strong { font-size: 14px; }
+  #toasts { bottom: 16px; right: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="header">
+    <div>
+      <div class="eyebrow">Browser-native capabilities · interactive kitchen</div>
+      <h1>WebMCP Pizza / Burger Builder</h1>
+      <p>Build food through UI or AI tools.</p>
+    </div>
+    <div class="header-right">
+      <span id="mcpBadge" class="badge" role="status"><span class="dot"></span><span>Checking WebMCP…</span></span>
+      <small class="mono" style="font-size:10px">One state. Two ways to build.</small>
+    </div>
+  </header>
+
+  <main>
+    <div class="workspace">
+      <section class="card preview-card" aria-labelledby="previewHeading">
+        <div class="card-heading">
+          <h2 id="previewHeading">Your creation</h2>
+          <span class="live-label"><span class="dot"></span> LIVE PREVIEW</span>
+        </div>
+        <div class="preview-stage">
+          <span class="stage-note">Made of state, not clicks</span>
+          <div id="foodPreview" style="width:100%"></div>
+          <span class="stage-tag" id="stageTag"></span>
+        </div>
+        <div class="preview-caption">
+          <div class="eyebrow" id="previewEyebrow"></div>
+          <h2 id="previewTitle"></h2>
+          <p id="previewDescription"></p>
+        </div>
+        <div class="stats">
+          <div class="stat"><span>Configuration</span><strong id="previewSize"></strong></div>
+          <div class="stat"><span id="ingredientStatLabel">Toppings</span><strong id="previewCount"></strong></div>
+          <div class="stat"><span>Per item</span><strong id="previewPrice"></strong></div>
+        </div>
+        <div class="shared-note">
+          <span aria-hidden="true">⌘</span>
+          <span><strong>A shared capability layer.</strong> Human controls and AI tools call the same BuilderEngine. No DOM automation.</span>
+        </div>
+      </section>
+
+      <section class="card controls-card" aria-labelledby="builderHeading">
+        <div class="control-top">
+          <h2 id="builderHeading">Make it yours</h2>
+          <span class="mono muted" style="font-size:10px">DRAFTS AUTO-PRESERVED</span>
+        </div>
+        <div id="builderControls"></div>
+        <div id="orderSummary"></div>
+      </section>
+    </div>
+
+    <div class="lower-grid">
+      <section class="card" aria-labelledby="activityHeading">
+        <div class="panel-header">
+          <h2 id="activityHeading">Activity Log</h2>
+          <span class="mono muted" id="logCount" style="font-size:10px"></span>
+        </div>
+        <p class="panel-subtitle">A transparent audit trail · UI, WebMCP, and System · newest first</p>
+        <div id="activityLog" class="log" role="log" aria-label="Recent builder actions" aria-live="off"></div>
+        <div class="last-ai" id="lastAI">Last AI action: waiting for an agent.</div>
+      </section>
+
+      <section class="card" aria-labelledby="inspectorHeading">
+        <div class="panel-header">
+          <h2 id="inspectorHeading">WebMCP Tool Inspector</h2>
+          <button type="button" class="small subtle" id="refreshTools">↻ Refresh Tools</button>
+        </div>
+        <p class="panel-subtitle" id="inspectorSubtitle">Structured capabilities · expand a tool to inspect its schema</p>
+        <div id="toolList" class="tool-list"></div>
+        <div class="inspector-footer" id="inspectorFooter"></div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:22px" aria-labelledby="promptsHeading">
+      <div class="panel-header">
+        <h2 id="promptsHeading">Try asking your AI agent</h2>
+        <span class="muted" style="font-size:11px">Click to copy</span>
+      </div>
+      <p class="panel-subtitle">Use these in a WebMCP-capable agent connected to this page. These buttons copy prompts; they do not simulate an AI.</p>
+      <div id="prompts" class="prompts"></div>
+    </section>
+
+    <section class="card how" aria-labelledby="howHeading">
+      <h2 id="howHeading">How WebMCP works</h2>
+      <div class="how-grid">
+        <div>
+          <ol>
+            <li>The page exposes structured food-building tools.</li>
+            <li>An AI agent discovers those tools.</li>
+            <li>The agent calls them with structured arguments.</li>
+            <li>The shared <code>BuilderEngine</code> updates application state.</li>
+            <li>The UI immediately reflects the same state.</li>
+          </ol>
+          <p class="muted" style="font-size:12px;margin-top:12px">
+            Tools describe intent: <code>pizza_add_topping({topping: "mushroom"})</code>,
+            not coordinates or selectors. Validation, pricing, undo, and rendering are identical for human and agent actions.
+          </p>
+          <p class="muted" style="font-size:11px;margin-top:12px">
+            Everything runs locally in this tab. Orders are demo confirmations only.
+            No server, payments, remote API, or network connection is required for the builder.
+            Drafts last for this page session.
+          </p>
+        </div>
+        <div class="diagram" aria-label="AI Agent through WebMCP Tools and Human UI both feed BuilderEngine, which updates Application State and Food UI">
+          <div class="diagram-inputs">
+            <div class="diagram-branch">
+              <span class="diagram-node">AI Agent</span>
+              <span class="arrow">↓</span>
+              <span class="diagram-node">WebMCP Tools</span>
+              <span class="arrow">↓</span>
+            </div>
+            <div class="diagram-branch" style="justify-content:flex-end">
+              <span class="diagram-node">Human UI</span>
+              <span class="arrow">↓</span>
+            </div>
+          </div>
+          <span class="diagram-node engine">BuilderEngine · validate / mutate / undo</span>
+          <span class="arrow">↓</span>
+          <span class="diagram-node output">Application State · one source of truth</span>
+          <span class="arrow">↓</span>
+          <span class="diagram-node output">Food UI · preview + price + summary</span>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>Built for humans. Exposed as capabilities. Shared with agents.</footer>
+</div>
+
+<div id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+<div id="stateAnnouncement" class="sr-only" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* ─── Domain catalog ─────────────────────────────────────────────────────── */
+const clone = value => JSON.parse(JSON.stringify(value));
+const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({
+  "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+}[c]));
+const LABELS = {
+  hand_tossed: "Hand Tossed", white_sauce: "White Sauce",
+  spicy_sauce: "Spicy Sauce", jalapeno: "Jalapeño", bell_pepper: "Bell Pepper",
+  whole_wheat: "Whole Wheat", lettuce_wrap: "Lettuce Wrap", plant_based: "Plant-Based",
+  bbq: "BBQ", special_sauce: "Special Sauce", spicy_mayo: "Spicy Mayo",
+  fried_egg: "Fried Egg", meat_lovers: "Meat Lovers", veggie_supreme: "Veggie Supreme",
+  classic_cheeseburger: "Classic Cheeseburger", bacon_deluxe: "Bacon Deluxe",
+  spicy_chicken: "Spicy Chicken Burger", veggie_burger: "Veggie Burger",
+  cheeseLevel: "Cheese level"
+};
+const label = value => LABELS[value] || String(value).split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+const money = cents => new Intl.NumberFormat("en-US", {style:"currency", currency:"USD"}).format(cents / 100);
+
+const OPTIONS = {
+  pizza: {
+    size: ["small", "medium", "large"],
+    crust: ["thin", "hand_tossed", "pan"],
+    sauce: ["tomato", "white_sauce", "pesto", "spicy_sauce"],
+    cheeseLevel: ["light", "normal", "extra"],
+    topping: ["pepperoni", "sausage", "bacon", "ham", "mushroom", "onion", "olive", "pineapple", "jalapeno", "bell_pepper", "tomato", "corn"],
+    preset: ["margherita", "hawaiian", "meat_lovers", "veggie_supreme"]
+  },
+  burger: {
+    size: ["single", "double", "triple"],
+    bun: ["sesame", "brioche", "whole_wheat", "lettuce_wrap"],
+    patty: ["beef", "chicken", "fish", "plant_based"],
+    cheese: ["none", "cheddar", "american", "swiss", "mozzarella"],
+    sauce: ["ketchup", "mustard", "mayo", "bbq", "special_sauce", "spicy_mayo"],
+    ingredient: ["lettuce", "tomato", "onion", "pickles", "bacon", "fried_egg", "jalapeno", "avocado", "mushroom"],
+    preset: ["classic_cheeseburger", "bacon_deluxe", "spicy_chicken", "veggie_burger"]
+  }
+};
+
+const PRESETS = {
+  pizza: {
+    margherita: {size:"medium", crust:"thin", sauce:"tomato", cheeseLevel:"extra", toppings:["tomato"]},
+    hawaiian: {size:"medium", crust:"hand_tossed", sauce:"tomato", cheeseLevel:"normal", toppings:["ham", "pineapple"]},
+    meat_lovers: {size:"large", crust:"pan", sauce:"tomato", cheeseLevel:"extra", toppings:["pepperoni", "sausage", "bacon", "ham"]},
+    veggie_supreme: {size:"large", crust:"hand_tossed", sauce:"pesto", cheeseLevel:"normal", toppings:["mushroom", "onion", "olive", "bell_pepper", "tomato"]}
+  },
+  burger: {
+    classic_cheeseburger: {size:"single", bun:"sesame", patty:"beef", cheese:"american", sauce:"ketchup", ingredients:["lettuce", "tomato", "onion", "pickles"]},
+    bacon_deluxe: {size:"double", bun:"brioche", patty:"beef", cheese:"cheddar", sauce:"special_sauce", ingredients:["bacon", "lettuce", "tomato"]},
+    spicy_chicken: {size:"single", bun:"brioche", patty:"chicken", cheese:"cheddar", sauce:"spicy_mayo", ingredients:["lettuce", "jalapeno", "pickles"]},
+    veggie_burger: {size:"single", bun:"whole_wheat", patty:"plant_based", cheese:"none", sauce:"mustard", ingredients:["lettuce", "tomato", "avocado", "mushroom"]}
+  }
+};
+
+const SWATCHES = {
+  pepperoni:"#d9503b", sausage:"#976045", bacon:"#cf7954", ham:"#ef9391",
+  mushroom:"#c9b797", onion:"#be9cdb", olive:"#66646c", pineapple:"#ffd451",
+  jalapeno:"#5baf58", bell_pepper:"#66c878", tomato:"#ee6554", corn:"#f5d465",
+  lettuce:"#87c95a", pickles:"#9eb957", fried_egg:"#ffcf50", avocado:"#9fcc66"
+};
+
+function newDraft(product, empty = false) {
+  const common = {quantity:1, empty, order:null};
+  return product === "pizza"
+    ? {...common, size:"medium", crust:"hand_tossed", sauce:"tomato", cheeseLevel:"normal", toppings:[]}
+    : {...common, size:"single", bun:"sesame", patty:"beef", cheese:"cheddar", sauce:"special_sauce", ingredients:[]};
+}
+function newAppState() {
+  return {activeProductType:"pizza", pizza:newDraft("pizza"), burger:newDraft("burger")};
+}
+function draftStatus(draft) {
+  return draft.empty ? "Empty" : draft.order ? "Ordered" : "Ready to Order";
+}
+function priceDraft(product, draft) {
+  const items = [];
+  const add = (description, cents) => items.push({description, amountCents:cents, amount:cents / 100});
+  if (!draft.empty) {
+    if (product === "pizza") {
+      add(`${label(draft.size)} pizza base`, {small:900, medium:1200, large:1500}[draft.size]);
+      if (draft.crust === "pan") add("Pan crust", 200);
+      if (draft.cheeseLevel === "extra") add("Extra cheese", 200);
+      for (const topping of draft.toppings) {
+        add(label(topping), ["pepperoni", "sausage", "bacon", "ham"].includes(topping) ? 175 : 125);
+      }
+    } else {
+      add("Single burger base", 700);
+      const extra = {single:0, double:1, triple:2}[draft.size];
+      if (extra) add(`${extra} additional ${extra === 1 ? "patty" : "patties"}`, extra * 300);
+      const bunCost = {sesame:0, brioche:100, whole_wheat:50, lettuce_wrap:0}[draft.bun];
+      if (bunCost) add(`${label(draft.bun)} bun`, bunCost);
+      const pattyCost = {beef:0, chicken:50, fish:100, plant_based:150}[draft.patty] * (extra + 1);
+      if (pattyCost) add(`${label(draft.patty)} upgrade (${extra + 1})`, pattyCost);
+      if (draft.cheese !== "none") add(`${label(draft.cheese)} cheese`, 75);
+      for (const ingredient of draft.ingredients) {
+        add(label(ingredient), {bacon:200, avocado:150, fried_egg:150, mushroom:75}[ingredient] || 50);
+      }
+    }
+  }
+  const unitCents = items.reduce((sum, item) => sum + item.amountCents, 0);
+  return {
+    product, currency:"USD", lineItems:items, quantity:draft.quantity,
+    unitPriceCents:unitCents, totalCents:unitCents * draft.quantity,
+    unitPrice:unitCents / 100, totalPrice:unitCents * draft.quantity / 100,
+    note:"Local demo pricing. Sauce and standard base options included. No taxes, delivery, or payment."
+  };
+}
+function describeDraft(product, draft) {
+  if (draft.empty) return "Empty draft. Choose an option, add an ingredient, or apply a preset to start.";
+  if (product === "pizza") return `${label(draft.size)} · ${label(draft.crust)} crust · ${label(draft.sauce)} · ${label(draft.cheeseLevel)} cheese`;
+  return `${label(draft.size)} · ${label(draft.bun)}${draft.bun === "lettuce_wrap" ? "" : " bun"} · ${label(draft.patty)} · ${draft.cheese === "none" ? "No cheese" : label(draft.cheese)} · ${label(draft.sauce)}`;
+}
+
+/* Tool definitions are the shared, validated capability contract.
+   Both UIController and WebMCPAdapter invoke these through BuilderEngine. */
+const TOOL_DEFINITIONS = [];
+function defineTool(name, description, properties = {}, readOnly = false, consequential = false) {
+  TOOL_DEFINITIONS.push({
+    name, description,
+    inputSchema: {type:"object", properties, required:Object.keys(properties), additionalProperties:false},
+    annotations: {readOnlyHint:readOnly, consequentialHint:consequential, untrustedContentHint:false}
+  });
+}
+const enumProperty = values => ({type:"string", enum:values});
+defineTool("food_get_state",
+  "Get both preserved drafts, active product, configuration, quantity, computed prices, order summary and readiness, recent action history, undo depth, and last AI action.", {}, true);
+defineTool("food_set_product",
+  "Switch the visible builder to pizza or burger. Preserve both complete drafts, quantities, and order confirmations.",
+  {product:enumProperty(["pizza", "burger"])});
+
+for (const product of ["pizza", "burger"]) {
+  const fields = product === "pizza" ? ["size", "crust", "sauce", "cheeseLevel"] : ["size", "bun", "patty", "cheese", "sauce"];
+  for (const field of fields) {
+    const suffix = field === "cheeseLevel" ? "cheese_level" : field;
+    defineTool(`${product}_set_${suffix}`,
+      `Set the ${product} ${label(field).toLowerCase()}. Activate ${product} mode, preserve the other draft, start an empty build if needed, and invalidate any previous confirmation for this draft.`,
+      {[field]:enumProperty(OPTIONS[product][field])});
+  }
+  const item = product === "pizza" ? "topping" : "ingredient";
+  defineTool(`${product}_add_${item}`,
+    `Add one ${item} to the ${product} draft and show ${product} mode. Additions are unique; adding an existing ${item} does not duplicate or increase its price. Starts an empty build with default base options.`,
+    {[item]:enumProperty(OPTIONS[product][item])});
+  defineTool(`${product}_remove_${item}`,
+    `Remove a ${item} from the ${product} draft and show ${product} mode. Removing an absent item is safe. Preserve base options, quantity, and the other product draft.`,
+    {[item]:enumProperty(OPTIONS[product][item])});
+  defineTool(`${product}_apply_preset`,
+    `Replace the ${product} configuration with the named complete preset and show ${product} mode. Preserve this draft's quantity and the other draft. The entire preset is one undoable action.`,
+    {preset:enumProperty(OPTIONS[product].preset)});
+  defineTool(`${product}_randomize`,
+    `Create a ready ${product} with randomized valid base options and a unique selection of ${item}s. Activate ${product}, preserve its quantity and the other draft. One undoable action.`);
+  defineTool(`${product}_clear`,
+    `Clear the ${product} draft to Empty, remove all ${item}s and its order confirmation, restore default base selectors and quantity 1, and activate ${product}. No charge until the build is started again.`);
+}
+defineTool("food_set_quantity",
+  "Set the quantity for the active product draft to an integer from 1 to 20. Does not start an empty draft. Editing an ordered draft clears its prior confirmation.",
+  {quantity:{type:"integer", minimum:1, maximum:20}});
+defineTool("food_get_price",
+  "Return USD unit price, quantity, total, and line-item charges for the active draft, plus independently computed pricing for both preserved drafts.", {}, true);
+defineTool("food_place_order",
+  "Confirm the active, non-empty draft as a LOCAL DEMO order. Sets Ordered status, retains the build, and emits a success notification. No purchase, payment, delivery, or backend. Rejects empty or already ordered builds.", {}, false, true);
+defineTool("food_reset_current",
+  "Reset only the active product to Empty with default base selectors, no ingredients, quantity 1, and no order confirmation. Preserve the inactive draft. Undoable.");
+defineTool("food_reset_all",
+  "Reset both drafts to Empty, default base selectors and quantity 1; remove both confirmations and activate pizza. Preserve audit history. Undoable as one action.");
+defineTool("food_undo",
+  "Revert the most recent successful state-changing UI or WebMCP action, including product switches, presets, resets, and local order confirmations. Retain audit history. Up to 40 undo snapshots; reads and no-ops do not consume undo.");
+defineTool("food_get_available_options",
+  "Return all valid products, base option enums, toppings, ingredients, preset names and full preset configurations, quantity limits, and clear/reset semantics. Use these values instead of guessing.", {}, true);
+
+const TOOL_MAP = new Map(TOOL_DEFINITIONS.map(tool => [tool.name, tool]));
+
+function validateArguments(definition, args) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Arguments must be a JSON object.");
+  const schema = definition.inputSchema;
+  for (const key of Object.keys(args)) {
+    if (!Object.prototype.hasOwnProperty.call(schema.properties, key)) throw new Error(`Unknown argument: ${key}.`);
+  }
+  for (const key of schema.required) {
+    if (!Object.prototype.hasOwnProperty.call(args, key)) throw new Error(`Missing required argument: ${key}.`);
+  }
+  for (const [key, rule] of Object.entries(schema.properties)) {
+    const value = args[key];
+    if (rule.type === "string" && typeof value !== "string") throw new Error(`${key} must be a string.`);
+    if (rule.enum && !rule.enum.includes(value)) throw new Error(`${key} must be one of: ${rule.enum.join(", ")}.`);
+    if (rule.type === "integer" && (!Number.isInteger(value) || value < rule.minimum || value > rule.maximum)) {
+      throw new Error(`${key} must be an integer from ${rule.minimum} to ${rule.maximum}.`);
+    }
+  }
+}
+
+/* ─── ActivityLogger / shared state engine ────────────────────────────────── */
+class ActivityLogger {
+  constructor() { this.entries = []; this.lastAIAction = null; }
+  append(source, action, args = {}, success = true, detail = "") {
+    const entry = {timestamp:new Date().toISOString(), source, action, arguments:clone(args), success, detail};
+    this.entries.push(entry);
+    if (this.entries.length > 50) this.entries.shift();
+    if (source === "WebMCP") this.lastAIAction = clone(entry);
+    return entry;
+  }
+}
+
+class BuilderEngine {
+  constructor() {
+    this.state = newAppState();
+    this.undoStack = [];
+    this.logger = new ActivityLogger();
+    this.listeners = new Set();
+    this.orderSequence = 0;
+  }
+  subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  emit(event) {
+    for (const listener of this.listeners) {
+      try { listener(event); } catch (error) { console.error("Builder subscriber failed:", error); }
+    }
+  }
+  system(message, detail = "") {
+    this.logger.append("System", message, {}, true, detail);
+    this.emit({name:message, source:"System", readOnly:true, ok:true});
+  }
+  getState() {
+    const s = clone(this.state);
+    const product = s.activeProductType;
+    for (const type of ["pizza", "burger"]) {
+      s[type].status = draftStatus(s[type]);
+      s[type].readyToOrder = !s[type].empty && !s[type].order;
+      s[type].pricing = priceDraft(type, s[type]);
+    }
+    const draft = s[product];
+    return {
+      ...s,
+      quantity:draft.quantity,
+      totalPrice:draft.pricing.totalPrice,
+      currency:"USD",
+      isEmpty:draft.empty,
+      readyToOrder:draft.readyToOrder,
+      status:draft.status,
+      orderSummary:{
+        product, mainOptions:describeDraft(product, draft),
+        ingredients:clone(draft[product === "pizza" ? "toppings" : "ingredients"]),
+        quantity:draft.quantity, unitPrice:draft.pricing.unitPrice,
+        totalPrice:draft.pricing.totalPrice, currency:"USD",
+        status:draft.status, order:clone(draft.order)
+      },
+      historySummary:{
+        undoDepth:this.undoStack.length, undoLimit:40,
+        lastUndoableAction:this.undoStack.at(-1)?.action || null,
+        activityCount:this.logger.entries.length, activityLimit:50
+      },
+      actionHistory:clone(this.logger.entries),
+      lastAIAction:clone(this.logger.lastAIAction)
+    };
+  }
+  invoke(name, args = {}, source = "UI") {
+    const definition = TOOL_MAP.get(name);
+    try {
+      if (!definition) throw new Error(`Unknown tool: ${name}.`);
+      validateArguments(definition, args);
+      let data;
+      let changed = false;
+      if (definition.annotations.readOnlyHint) {
+        this.logger.append(source, name, args);
+        if (name === "food_get_state") data = this.getState();
+        if (name === "food_get_price") {
+          data = {
+            current:priceDraft(this.state.activeProductType, this.state[this.state.activeProductType]),
+            drafts:{pizza:priceDraft("pizza", this.state.pizza), burger:priceDraft("burger", this.state.burger)}
+          };
+        }
+        if (name === "food_get_available_options") {
+          data = {
+            products:["pizza", "burger"], options:clone(OPTIONS), presets:clone(PRESETS),
+            quantity:{minimum:1, maximum:20, perDraft:true},
+            ingredientPolicy:"Unique on/off selections; no duplicated toppings or ingredients.",
+            productTools:"Product-specific write tools also activate their product.",
+            clearAndReset:"Empty build, default base selectors, quantity 1, no charge. Editing a base option, adding an ingredient, randomizing, or applying a preset starts the build.",
+            pricing:"USD, per-item charges multiplied by draft quantity. Empty drafts cost zero.",
+            orderBehavior:"Local demo confirmation only. Editing a draft invalidates its confirmation."
+          };
+        }
+      } else if (name === "food_undo") {
+        if (!this.undoStack.length) throw new Error("There is no state-changing action to undo.");
+        const previous = this.undoStack.pop();
+        this.state = previous.snapshot;
+        changed = true;
+        this.logger.append(source, name, args, true, `Reverted ${previous.action}`);
+      } else {
+        const before = clone(this.state);
+        const next = clone(this.state);
+        this.mutate(next, name, args);
+        changed = JSON.stringify(next) !== JSON.stringify(before);
+        if (changed) {
+          this.undoStack.push({action:name, snapshot:before});
+          if (this.undoStack.length > 40) this.undoStack.shift();
+          this.state = next;
+        }
+        this.logger.append(source, name, args, true, changed ? "" : "No state change");
+        if (name === "food_place_order") {
+          this.logger.append("System", "Order placed", {}, true, this.state[this.state.activeProductType].order.id + " · local demo only");
+        }
+      }
+      if (!definition.annotations.readOnlyHint) data = this.getState();
+      const result = {ok:true, action:name, changed, data};
+      this.emit({name, args:clone(args), source, readOnly:definition.annotations.readOnlyHint, ok:true, changed, result});
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Avoid copying potentially invalid, circular tool arguments into the audit log.
+      this.logger.append(source, name, {}, false, message);
+      const result = {ok:false, action:name, error:{code:"INVALID_ACTION", message}};
+      this.emit({name, source, ok:false, error:message, result});
+      return result;
+    }
+  }
+  mutate(next, name, args) {
+    const active = next.activeProductType;
+    if (name === "food_set_product") { next.activeProductType = args.product; return; }
+    if (name === "food_reset_all") {
+      next.activeProductType = "pizza";
+      next.pizza = newDraft("pizza", true);
+      next.burger = newDraft("burger", true);
+      return;
+    }
+    if (name === "food_reset_current") { next[active] = newDraft(active, true); return; }
+    if (name === "food_set_quantity") {
+      if (next[active].quantity !== args.quantity) {
+        next[active].quantity = args.quantity;
+        next[active].order = null;
+      }
+      return;
+    }
+    if (name === "food_place_order") {
+      const draft = next[active];
+      if (draft.empty) throw new Error("Build a pizza or burger before placing an order.");
+      if (draft.order) throw new Error("This draft is already ordered. Edit it or undo to create another confirmation.");
+      draft.order = {
+        id:`DEMO-${String(++this.orderSequence).padStart(4, "0")}`,
+        placedAt:new Date().toISOString(),
+        totalPrice:priceDraft(active, draft).totalPrice,
+        quantity:draft.quantity, currency:"USD", localDemo:true
+      };
+      return;
+    }
+    const product = name.startsWith("pizza_") ? "pizza" : "burger";
+    next.activeProductType = product;
+    const operation = name.slice(product.length + 1);
+    const draft = next[product];
+    const listKey = product === "pizza" ? "toppings" : "ingredients";
+    const itemKey = product === "pizza" ? "topping" : "ingredient";
+    const touch = () => { draft.empty = false; draft.order = null; };
+    if (operation.startsWith("set_")) {
+      const field = operation.slice(4) === "cheese_level" ? "cheeseLevel" : operation.slice(4);
+      if (draft[field] !== args[field] || draft.empty) { draft[field] = args[field]; touch(); }
+    } else if (operation === `add_${itemKey}`) {
+      if (!draft[listKey].includes(args[itemKey])) {
+        draft[listKey].push(args[itemKey]); touch();
+      }
+    } else if (operation === `remove_${itemKey}`) {
+      if (draft[listKey].includes(args[itemKey])) {
+        draft[listKey] = draft[listKey].filter(item => item !== args[itemKey]); touch();
+      }
+    } else if (operation === "clear") {
+      next[product] = newDraft(product, true);
+    } else if (operation === "apply_preset") {
+      next[product] = {...newDraft(product), ...clone(PRESETS[product][args.preset]), quantity:draft.quantity};
+    } else if (operation === "randomize") {
+      const random = values => values[Math.floor(Math.random() * values.length)];
+      const fresh = newDraft(product);
+      const fields = product === "pizza" ? ["size", "crust", "sauce", "cheeseLevel"] : ["size", "bun", "patty", "cheese", "sauce"];
+      for (const field of fields) fresh[field] = random(OPTIONS[product][field]);
+      const pool = [...OPTIONS[product][itemKey]];
+      const count = 3 + Math.floor(Math.random() * 3);
+      fresh[listKey] = [];
+      for (let i = 0; i < count; i++) fresh[listKey].push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      fresh.quantity = draft.quantity;
+      next[product] = fresh;
+    } else {
+      throw new Error(`Unimplemented capability: ${name}.`);
+    }
+  }
+}
+
+/* ─── FoodRenderer: deterministic, layered SVG illustrations ──────────────── */
+class FoodRenderer {
+  constructor(element) { this.element = element; this.signature = ""; }
+  render(state) {
+    const product = state.activeProductType;
+    const draft = state[product];
+    const visualDraft = clone(draft);
+    delete visualDraft.pricing;
+    delete visualDraft.status;
+    delete visualDraft.readyToOrder;
+    delete visualDraft.order;
+    delete visualDraft.quantity;
+    const signature = product + JSON.stringify(visualDraft);
+    this.element.setAttribute("role", "img");
+    this.element.setAttribute("aria-label", `${label(product)} preview. ${describeDraft(product, draft)}. ${draft[product === "pizza" ? "toppings" : "ingredients"].map(label).join(", ") || "No added ingredients"}.`);
+    if (signature === this.signature) return;
+    this.signature = signature;
+    this.element.innerHTML = draft.empty
+      ? `<div class="empty-art food-enter"><div class="empty-circle" aria-hidden="true">+</div><h3>A fresh start</h3><p style="font-size:12px;margin-top:7px">Choose a preset or an ingredient to build your ${product}.</p></div>`
+      : product === "pizza" ? this.pizza(draft) : this.burger(draft);
+  }
+
+  pizza(d) {
+    const sauce = {tomato:"#ba3e27", white_sauce:"#e9ce9e", pesto:"#6a8939", spicy_sauce:"#c63722"}[d.sauce];
+    const scale = {small:.82, medium:.93, large:1}[d.size];
+    const inner = {thin:170, hand_tossed:161, pan:150}[d.crust];
+    const cheese = {light:"#e6b653", normal:"#f2c868", extra:"#f9db83"}[d.cheeseLevel];
+    let marks = "";
+    for (let i = 0; i < 90; i++) {
+      const a = i * 2.39996, r = Math.sqrt((i + .5) / 90) * (inner - 10);
+      marks += `<ellipse cx="${Math.cos(a) * r}" cy="${Math.sin(a) * r}" rx="${2 + (i % 4)}" ry="${1.4 + (i % 3)}" fill="${i % 3 ? "#bb762f" : "#fff2ac"}" opacity="${i % 3 ? ".28" : ".52"}" transform="rotate(${i * 11} ${Math.cos(a) * r} ${Math.sin(a) * r})"/>`;
+    }
+    let crustMarks = "";
+    for (let i = 0; i < 46; i++) {
+      const a = i / 46 * Math.PI * 2;
+      const r = 175 + Math.sin(i * 7) * 3;
+      crustMarks += `<ellipse cx="${Math.cos(a) * r}" cy="${Math.sin(a) * r}" rx="${3 + i % 5}" ry="2.7" fill="#8d481f" opacity=".23" transform="rotate(${i / 46 * 360 + 90} ${Math.cos(a) * r} ${Math.sin(a) * r})"/>`;
+    }
+    const pieces = {
+      pepperoni:`<circle r="13" fill="#762818" opacity=".35" cy="2"/><circle r="12" fill="url(#pepperoni)" stroke="#9c3422" stroke-width="1.5"/><path d="M-7-5l3 2m7-5l2 2m-7 9l2-2m5 6l2-3" stroke="#f4ac75" stroke-width="2.5" stroke-linecap="round" opacity=".8"/><circle cx="-5" cy="5" r="1.5" fill="#6f291c"/>`,
+      sausage:`<path d="M-10-4L-5-10 4-9 11-2 8 8-1 11-10 5Z" fill="#805138" stroke="#503320" stroke-width="2"/><path d="M-5-5l4 2m5-1l1 4m-8 5l4-1" stroke="#c89d69" stroke-width="3" stroke-linecap="round"/>`,
+      bacon:`<path d="M-14-4L-7-8 0-3 7-6 15-1 11 7 3 4-4 8-15 2Z" fill="#a3452d" stroke="#7e3625"/><path d="M-12-1l6-2 6 4 7-3 6 3" fill="none" stroke="#eab18a" stroke-width="3"/>`,
+      ham:`<rect x="-10" y="-8" width="20" height="16" rx="3" fill="#e58d85" stroke="#b95858" stroke-width="1.5"/><path d="M-7-5L5 4M-4-6L8 3" stroke="#f9bab0" stroke-width="2" opacity=".7"/>`,
+      mushroom:`<path d="M-4 0L-5 12Q0 15 5 12L4 0" fill="#e6cf9e" stroke="#927451" stroke-width="1.5"/><path d="M-14 2Q-14-13 0-13Q14-13 14 2Q0 9-14 2" fill="#c7ad81" stroke="#806342" stroke-width="1.5"/><path d="M-10 1Q0 6 10 1" fill="none" stroke="#796044" stroke-width="2"/><path d="M-8-5Q-5-10 0-10" stroke="#efdcaf" stroke-width="2" fill="none"/>`,
+      onion:`<ellipse rx="13" ry="10" fill="none" stroke="#744574" stroke-width="5"/><ellipse rx="13" ry="10" fill="none" stroke="#e3bddd" stroke-width="2.8"/><ellipse rx="7" ry="5" fill="none" stroke="#f2d8e8" stroke-width="1.4"/>`,
+      olive:`<ellipse rx="9" ry="8" fill="#282c25" stroke="#55593c" stroke-width="1.5"/><ellipse rx="3.5" ry="3" fill="#d6a44d"/><path d="M-5-4Q-1-7 3-5" fill="none" stroke="#90916e" stroke-width="1.8"/>`,
+      pineapple:`<path d="M-10-8L9-6 6 10-8 8Z" fill="#ffd963" stroke="#d49a27" stroke-width="1.5"/><path d="M-6-5L5-4M-6 0L4 1M-5 5L3 6" stroke="#fff1a2" stroke-width="2.5"/>`,
+      jalapeno:`<ellipse rx="10" ry="8" fill="#70a345" stroke="#35592b" stroke-width="2"/><ellipse rx="5" ry="4" fill="#a3c36a"/><path d="M-3-1l1 2m5-3v2" stroke="#f1e6a8" stroke-width="2.5" stroke-linecap="round"/>`,
+      bell_pepper:`<path d="M-11 9Q-17-4-6-11Q4-16 13-5" fill="none" stroke="#235b32" stroke-width="7" stroke-linecap="round"/><path d="M-11 8Q-15-3-5-10Q4-13 12-5" fill="none" stroke="#6bb95b" stroke-width="4" stroke-linecap="round"/>`,
+      tomato:`<circle r="13" fill="#e46140" stroke="#b63825" stroke-width="2"/><path d="M0 0L-8-8M0 0L10-3M0 0L-2 11" stroke="#ffc079" stroke-width="2"/><path d="M-5-3l-1 3m10-1l2 2m-7 5l2 1" stroke="#f9de8e" stroke-width="2" stroke-linecap="round"/>`,
+      corn:`<ellipse rx="5.5" ry="8" fill="#ffd950" stroke="#d4a22c"/><path d="M-2-5Q-4-1-2 2" stroke="#fff4ae" stroke-width="2" fill="none"/>`
+    };
+    let toppings = "";
+    for (const topping of d.toppings) {
+      const index = OPTIONS.pizza.topping.indexOf(topping);
+      const count = topping === "corn" ? 14 : topping === "olive" ? 10 : 7;
+      for (let i = 0; i < count; i++) {
+        const a = i * 2.39996 + index * 1.731;
+        const fraction = ((i * .618034 + index * .127 + .13) % 1);
+        const r = Math.sqrt(.035 + fraction * .94) * (inner - 21);
+        const x = Math.cos(a) * r, y = Math.sin(a) * r;
+        toppings += `<g transform="translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${(i * 67 + index * 31) % 360})" filter="url(#ingredientShadow)">${pieces[topping]}</g>`;
+      }
+    }
+    const cheeseOpacity = {light:.54, normal:.91, extra:1}[d.cheeseLevel];
+    return `<svg class="food-art food-enter" viewBox="0 0 520 470" aria-hidden="true">
+      <defs>
+        <radialGradient id="plate"><stop stop-color="#373b42"/><stop offset=".8" stop-color="#232831"/><stop offset=".92" stop-color="#414750"/><stop offset="1" stop-color="#20242b"/></radialGradient>
+        <radialGradient id="crust" cx=".42" cy=".3"><stop stop-color="#f6d18a"/><stop offset=".73" stop-color="#e7aa54"/><stop offset=".88" stop-color="#c88335"/><stop offset=".96" stop-color="#e3a551"/><stop offset="1" stop-color="#895024"/></radialGradient>
+        <radialGradient id="cheese"><stop stop-color="#ffe49b"/><stop offset=".65" stop-color="${cheese}"/><stop offset="1" stop-color="#d59c40"/></radialGradient>
+        <radialGradient id="pepperoni" cx=".35" cy=".3"><stop stop-color="#e97449"/><stop offset=".72" stop-color="#c9482b"/><stop offset="1" stop-color="#9b3020"/></radialGradient>
+        <filter id="pizzaShadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#000" flood-opacity=".5"/></filter>
+        <filter id="ingredientShadow" x="-50%" y="-50%" width="200%" height="210%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#5b3015" flood-opacity=".43"/></filter>
+      </defs>
+      <ellipse cx="260" cy="402" rx="165" ry="22" fill="#000" opacity=".18"/>
+      <g transform="translate(260 235) scale(${scale} ${scale * .93})">
+        <circle r="211" fill="url(#plate)" stroke="#626873" stroke-opacity=".2" filter="url(#pizzaShadow)"/>
+        <circle r="198" fill="none" stroke="#73777e" stroke-opacity=".13"/>
+        <g filter="url(#pizzaShadow)">
+          <circle r="187" fill="url(#crust)"/>
+          <circle r="181" fill="none" stroke="#ffda91" stroke-width="2" opacity=".3"/>
+          ${crustMarks}
+          <circle r="${inner + 5}" fill="#934220" opacity=".8"/>
+          <circle r="${inner + 2}" fill="${sauce}"/>
+          <circle r="${inner - 5}" fill="url(#cheese)" opacity="${cheeseOpacity}"/>
+          ${d.cheeseLevel === "extra" ? `<path d="M-132-58Q-150-8-119 29T-58 126M57-120Q123-96 133-31T94 93" fill="none" stroke="#ffe8ad" stroke-width="13" opacity=".35" stroke-linecap="round"/>` : ""}
+          ${marks}
+          ${d.sauce === "pesto" ? `<path d="M-75-113q33 16 49-5M65 105q40-15 40-36M-110 25q20-12 18-38" stroke="#64893e" stroke-width="6" stroke-linecap="round" opacity=".65" fill="none"/>` : ""}
+          ${toppings}
+        </g>
+      </g>
+    </svg>`;
+  }
+
+  burger(d) {
+    const pattyCount = {single:1, double:2, triple:3}[d.size];
+    const topBunColor = {sesame:"#e2a54f", brioche:"#bf6e29", whole_wheat:"#a77342", lettuce_wrap:"#69a847"}[d.bun];
+    const bunHighlight = {sesame:"#f7d38a", brioche:"#f0bb67", whole_wheat:"#d6b075", lettuce_wrap:"#acd975"}[d.bun];
+    const pattyColor = {beef:"#583321", chicken:"#b37832", fish:"#d09b46", plant_based:"#675333"}[d.patty];
+    const pattyLight = {beef:"#8a5736", chicken:"#dfb365", fish:"#edcb77", plant_based:"#95834f"}[d.patty];
+    const cheeseColor = {cheddar:"#ffb92e", american:"#f4cb4c", swiss:"#ead397", mozzarella:"#f7ebc2", none:"transparent"}[d.cheese];
+    const sauceColor = {ketchup:"#c3472a", mustard:"#e9be38", mayo:"#f0e4c6", bbq:"#613324", special_sauce:"#e49b66", spicy_mayo:"#f09c72"}[d.sauce];
+    const heights = {lettuce:18, tomato:19, onion:14, pickles:13, bacon:16, fried_egg:23, jalapeno:13, avocado:21, mushroom:18};
+    const layers = [
+      ...d.ingredients.map(type => ({type, height:heights[type]})),
+      {type:"sauce", height:9}
+    ];
+    for (let i = 0; i < pattyCount; i++) {
+      if (d.cheese !== "none") layers.push({type:"cheese", height:13});
+      layers.push({type:"patty", height:38});
+    }
+    const layerHeight = layers.reduce((sum, layer) => sum + layer.height, 0);
+    const totalHeight = 94 + layerHeight + 39;
+    const scale = Math.min(1.1, 360 / totalHeight);
+    const top = 233 - totalHeight * scale / 2;
+    let body = "";
+    let y = 90;
+    const lettucePath = `M-151 6Q-144-4-130 1L-113-6-91 2-71-5-53 2-31-5-10 2 10-4 30 2 51-5 73 1 91-5 111 1 130-4 149 4 154 13 139 19 122 14 104 20 86 13 65 19 44 13 23 18 4 12-17 19-39 12-62 18-81 13-104 19-124 13-143 19Z`;
+    for (const layer of layers) {
+      let art = "";
+      switch (layer.type) {
+        case "lettuce":
+          art = `<path d="${lettucePath}" fill="url(#lettuce)" stroke="#537e32" stroke-width="1.2"/><path d="M-130 8Q-55 3 0 9T135 8" stroke="#b7df76" fill="none" stroke-width="2" opacity=".75"/>`;
+          break;
+        case "tomato":
+          art = `<rect x="-140" y="1" width="280" height="17" rx="8" fill="#b63725"/><ellipse cy="3" rx="138" ry="7" fill="#f27757"/><path d="M-122 10H120" stroke="#ea634b" stroke-width="4"/><path d="M-103 5h13m40 0h14m52 0h12m41 0h11" stroke="#ffcb8e" stroke-width="3" stroke-linecap="round"/>`;
+          break;
+        case "onion":
+          art = `<ellipse cy="6" rx="139" ry="10" fill="#a47eab"/><ellipse cy="3" rx="134" ry="8" fill="#edd6ed"/><ellipse cy="3" rx="114" ry="5" fill="#b995be"/><ellipse cy="3" rx="91" ry="3" fill="#efdaee"/><path d="M-136 7Q0 22 136 7" stroke="#775280" stroke-width="2" fill="none"/>`;
+          break;
+        case "pickles":
+        case "jalapeno":
+          for (let j = 0; j < 5; j++) {
+            const x = -108 + j * 54;
+            art += `<ellipse cx="${x}" cy="6" rx="32" ry="9" fill="${layer.type === "pickles" ? "#759547" : "#3f793b"}" stroke="#365c30" stroke-width="2"/><ellipse cx="${x}" cy="3" rx="27" ry="6" fill="${layer.type === "pickles" ? "#b7c86a" : "#82b855"}"/><path d="M${x-13} 2l4 2m8-3l3 3m7-2l3 1" stroke="#e5df9d" stroke-width="2" stroke-linecap="round"/>`;
+          }
+          break;
+        case "bacon":
+          art = `<path d="M-150 2L-119-3-83 4-48-2-15 5 17-2 53 4 90-3 124 2 149-1 144 14 117 17 85 11 53 17 18 11-15 17-49 10-82 16-119 10-147 15Z" fill="#a44c2e" stroke="#673121"/><path d="M-140 6L-119 3-83 10-48 3-15 11 17 4 53 10 90 3 124 9 141 6" stroke="#efb08b" fill="none" stroke-width="4"/>`;
+          break;
+        case "fried_egg":
+          art = `<path d="M-139 10Q-142-1-108 0Q-74-9-42 0Q-7-8 23-1Q60-9 87 0Q141-7 144 11Q118 24 79 19Q31 25-2 18Q-55 27-91 18Q-125 24-139 10Z" fill="#f4ecd8" stroke="#d5bd8c"/><ellipse cx="14" cy="7" rx="37" ry="13" fill="#f6bf32"/><ellipse cx="8" cy="3" rx="22" ry="6" fill="#ffdb64"/>`;
+          break;
+        case "avocado":
+          for (let j = 0; j < 4; j++) {
+            art += `<path d="M${-139+j*65} 12Q${-114+j*65}-11 ${-66+j*65} 3Q${-95+j*65} 27 ${-139+j*65} 12Z" fill="#a9cd69" stroke="#518348" stroke-width="3"/><path d="M${-130+j*65} 11Q${-108+j*65} 0 ${-78+j*65} 5" stroke="#d1df91" stroke-width="5" fill="none"/>`;
+          }
+          break;
+        case "mushroom":
+          for (let j = 0; j < 5; j++) {
+            const x = -112 + j * 55;
+            art += `<path d="M${x-5} 7v10h12V7" fill="#d4b98b"/><path d="M${x-26} 8Q${x-23}-7 ${x}-5Q${x+24}-6 ${x+27} 8Q${x} 18 ${x-26} 8" fill="#b09670" stroke="#735239" stroke-width="2"/><path d="M${x-17} 3Q${x-5}-3 ${x+6} 0" stroke="#e4cda3" stroke-width="2" fill="none"/>`;
+          }
+          break;
+        case "sauce":
+          art = `<path d="M-137 0Q0-5 139 0L140 6Q129 15 121 7L87 8Q78 22 70 8L-20 7Q-32 15-40 7L-95 8Q-105 18-114 7L-136 7Z" fill="${sauceColor}" stroke="#000" stroke-opacity=".1"/>`;
+          break;
+        case "cheese":
+          art = `<path d="M-146 0Q0-7 146 0L137 12 81 11 53 30 26 12-64 10-108 24-132 11Z" fill="${cheeseColor}" stroke="#b9842a" stroke-opacity=".6"/><path d="M-135 2Q0-2 134 2" fill="none" stroke="#fff3b1" stroke-width="2" opacity=".6"/>`;
+          if (d.cheese === "swiss") art += `<ellipse cx="-43" cy="5" rx="10" ry="4" fill="#bca260"/><ellipse cx="92" cy="6" rx="7" ry="3" fill="#bca260"/>`;
+          break;
+        case "patty": {
+          art = `<rect x="-145" y="0" width="290" height="37" rx="16" fill="url(#patty)" stroke="#35261b" stroke-width="2"/><ellipse cy="4" rx="139" ry="10" fill="${pattyLight}"/><path d="M-130 27Q-60 33 0 29T130 26" fill="none" stroke="#322316" stroke-width="3" opacity=".5"/>`;
+          for (let j = 0; j < 34; j++) {
+            const x = -131 + (j * 47 % 260), yy = 3 + (j * 13 % 25);
+            art += `<ellipse cx="${x}" cy="${yy}" rx="${2 + j % 4}" ry="1.6" fill="${j % 2 ? "#33271c" : pattyLight}" opacity=".65"/>`;
+          }
+          for (let j = 0; j < 6; j++) art += `<path d="M${-112+j*43} 1l-13 24" stroke="#332419" stroke-width="4" opacity=".28"/>`;
+          break;
+        }
+      }
+      body += `<g transform="translate(0 ${y})">${art}</g>`;
+      y += layer.height;
+    }
+    let seeds = "";
+    const seedCount = d.bun === "sesame" ? 40 : d.bun === "whole_wheat" ? 55 : 0;
+    for (let i = 0; i < seedCount; i++) {
+      const a = i * 2.39996, r = Math.sqrt((i + .5) / seedCount);
+      const x = Math.cos(a) * r * 130, sy = 48 + Math.sin(a) * r * 34;
+      seeds += `<ellipse cx="${x.toFixed(2)}" cy="${sy.toFixed(2)}" rx="${d.bun === "sesame" ? 3.3 : 1.8}" ry="${d.bun === "sesame" ? 1.4 : 1.3}" fill="${i % 4 ? "#f8dfa0" : "#8d542e"}" transform="rotate(${i*39} ${x} ${sy})" opacity=".87"/>`;
+    }
+    const wrap = d.bun === "lettuce_wrap";
+    const topBun = wrap
+      ? `<path d="M-151 83Q-162 48-121 37Q-115 9-76 20Q-46-8-14 15Q22-7 51 15Q91 3 109 28Q155 27 151 76L134 94 109 83 79 94 49 84 18 94-13 84-45 95-77 82-110 94-136 82Z" fill="url(#lettuce)" stroke="#4b7733" stroke-width="2"/><path d="M-123 69Q-10 47 128 72M-73 27L-53 67M20 21L12 61M97 35L68 65" fill="none" stroke="#c0df87" stroke-width="3" opacity=".65"/>`
+      : `<path d="M-151 79C-153 31-97 0-16-1C78-4 149 26 152 77Q151 96 119 98H-119Q-150 96-151 79Z" fill="url(#bun)" stroke="#865126" stroke-width="1.5"/><path d="M-136 81Q0 96 139 80" stroke="#ffe2a4" stroke-width="3" opacity=".35" fill="none"/><path d="M-112 36Q-67 8-8 11" fill="none" stroke="#ffdc95" stroke-width="8" stroke-linecap="round" opacity="${d.bun === "brioche" ? ".5" : ".22"}"/>${seeds}`;
+    const bottomBun = wrap
+      ? `<g transform="translate(0 ${y})"><path d="${lettucePath}" fill="url(#lettuce)" stroke="#4e8036" stroke-width="2"/><path d="M-139 18Q-80 45 0 36Q94 43 140 16" fill="#66973e"/><path d="M-111 23Q0 36 111 23" stroke="#a8cf70" fill="none" stroke-width="2"/></g>`
+      : `<g transform="translate(0 ${y})"><path d="M-147 0Q0-10 147 0L142 20Q133 42 0 42Q-133 42-142 20Z" fill="url(#bunBottom)" stroke="#855024" stroke-width="1.5"/><ellipse cy="1" rx="146" ry="10" fill="#edc47a"/><path d="M-128 24Q0 44 128 24" stroke="#e2a758" opacity=".6" stroke-width="3" fill="none"/></g>`;
+    return `<svg class="food-art food-enter" viewBox="0 0 520 470" aria-hidden="true">
+      <defs>
+        <linearGradient id="bun" x2=".18" y2="1"><stop stop-color="${bunHighlight}"/><stop offset=".6" stop-color="${topBunColor}"/><stop offset="1" stop-color="#985122"/></linearGradient>
+        <linearGradient id="bunBottom" x2="0" y2="1"><stop stop-color="${bunHighlight}"/><stop offset=".5" stop-color="${topBunColor}"/><stop offset="1" stop-color="#915226"/></linearGradient>
+        <linearGradient id="patty" x2="0" y2="1"><stop stop-color="${pattyLight}"/><stop offset=".4" stop-color="${pattyColor}"/><stop offset="1" stop-color="#3d2b1e"/></linearGradient>
+        <linearGradient id="lettuce" x2="0" y2="1"><stop stop-color="#acd76b"/><stop offset=".55" stop-color="#73af4d"/><stop offset="1" stop-color="#467835"/></linearGradient>
+        <filter id="burgerShadow" x="-30%" y="-20%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="10" flood-opacity=".45"/></filter>
+      </defs>
+      <ellipse cx="260" cy="423" rx="202" ry="24" fill="#252b34" stroke="#49505b" stroke-opacity=".5"/>
+      <ellipse cx="260" cy="419" rx="177" ry="16" fill="#181d24" stroke="#414650" stroke-opacity=".4"/>
+      <ellipse cx="260" cy="413" rx="141" ry="13" fill="#000" opacity=".3"/>
+      <g transform="translate(260 ${top}) scale(${scale})" filter="url(#burgerShadow)">
+        ${bottomBun}
+        ${body}
+        ${topBun}
+      </g>
+    </svg>`;
+  }
+}
+
+/* ─── Presentation: human controls invoke domain capabilities directly ────── */
+class UIController {
+  constructor(engine) {
+    this.engine = engine;
+    this.renderer = new FoodRenderer(document.getElementById("foodPreview"));
+    this.controls = document.getElementById("builderControls");
+    this.summary = document.getElementById("orderSummary");
+    this.bind();
+    engine.subscribe(event => {
+      this.render();
+      if (!event.ok) this.toast(event.error, "error");
+      else if (!event.readOnly) {
+        this.toast(this.actionMessage(event), event.source === "WebMCP" ? "ai" : "");
+        document.getElementById("stateAnnouncement").textContent =
+          `${event.source === "WebMCP" ? "AI agent: " : ""}${this.actionMessage(event)}. ${this.engine.getState().status}.`;
+      }
+    });
+    this.render();
+    this.renderPrompts();
+  }
+  bind() {
+    document.querySelector(".controls-card").addEventListener("click", event => {
+      const button = event.target.closest("button[data-tool]");
+      if (!button || button.disabled) return;
+      this.engine.invoke(button.dataset.tool, JSON.parse(button.dataset.args || "{}"), "UI");
+    });
+    document.querySelector(".controls-card").addEventListener("change", event => {
+      const input = event.target.closest("[data-field-tool]");
+      if (!input) return;
+      const value = input.dataset.key === "quantity" ? Number(input.value) : input.value;
+      this.engine.invoke(input.dataset.fieldTool, {[input.dataset.key]:value}, "UI");
+    });
+  }
+  actionMessage(event) {
+    const prefix = event.source === "WebMCP" ? "AI Agent · " : "";
+    const n = event.name, a = event.args || {};
+    if (n === "food_place_order") return prefix + "Order placed! Local demo confirmation saved.";
+    if (n === "food_set_product") return prefix + `Switched to ${label(a.product)}. Drafts preserved.`;
+    if (n === "food_undo") return prefix + "Last action undone.";
+    if (n.startsWith("food_reset")) return prefix + "Reset complete.";
+    if (n.endsWith("_apply_preset")) return prefix + `${label(a.preset)} preset applied.`;
+    if (n.endsWith("_randomize")) return prefix + `A new random ${n.split("_")[0]} is ready.`;
+    if (n.endsWith("_clear")) return prefix + `${label(n.split("_")[0])} cleared.`;
+    if (n.includes("_add_")) return prefix + `Added ${label(a.topping || a.ingredient)}.`;
+    if (n.includes("_remove_")) return prefix + `Removed ${label(a.topping || a.ingredient)}.`;
+    if (n === "food_set_quantity") return prefix + `Quantity set to ${a.quantity}.`;
+    const [key, value] = Object.entries(a)[0] || ["build", "updated"];
+    return prefix + `${label(key)} set to ${label(value)}.`;
+  }
+  toast(message, type = "") {
+    const container = document.getElementById("toasts");
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    while (container.children.length > 4) container.firstElementChild.remove();
+    setTimeout(() => toast.remove(), 4400);
+  }
+  button(tool, args, text, extra = "") {
+    return `<button type="button" data-tool="${tool}" data-args="${escapeHTML(JSON.stringify(args))}" ${extra}>${text}</button>`;
+  }
+  render() {
+    const state = this.engine.getState();
+    const product = state.activeProductType, draft = state[product];
+    const itemKey = product === "pizza" ? "topping" : "ingredient";
+    const list = draft[product === "pizza" ? "toppings" : "ingredients"];
+    const focused = document.activeElement;
+    const focusID = (this.controls.contains(focused) || this.summary.contains(focused)) ? focused.id : "";
+    const priceOpen = !!document.getElementById("priceBreakdown")?.open;
+
+    this.renderer.render(state);
+    document.getElementById("stageTag").textContent = `${draft.empty ? "EMPTY DRAFT" : label(draft.size)} · ${draft.quantity} ${draft.quantity === 1 ? "item" : "items"}`;
+    document.getElementById("previewEyebrow").textContent = `${product === "pizza" ? "Oven-ready ideas" : "Stack something great"} / ${draft.status}`;
+    document.getElementById("previewTitle").textContent = draft.empty ? `Your next ${product} starts here.` : product === "pizza" ? "A little slice of possibility." : "Built one layer at a time.";
+    document.getElementById("previewDescription").textContent = describeDraft(product, draft);
+    document.getElementById("previewSize").textContent = draft.empty ? "Not started" : label(draft.size);
+    document.getElementById("ingredientStatLabel").textContent = product === "pizza" ? "Toppings" : "Extras";
+    document.getElementById("previewCount").textContent = `${list.length} selected`;
+    document.getElementById("previewPrice").textContent = money(draft.pricing.unitPriceCents);
+
+    const fields = product === "pizza" ? ["size", "crust", "sauce", "cheeseLevel"] : ["size", "bun", "patty", "cheese", "sauce"];
+    this.controls.innerHTML = `
+      <div class="segmented" role="group" aria-label="Product type">
+        ${["pizza", "burger"].map(type => this.button("food_set_product", {product:type},
+          `${type === "pizza" ? "◔" : "☰"} &nbsp; ${label(type)}`,
+          `id="product-${type}" aria-pressed="${product === type}" aria-label="${label(type)} Builder"`)).join("")}
+      </div>
+      <div class="field-grid">
+        ${fields.map(field => `<label class="field" for="field-${field}">${label(field)}
+          <select id="field-${field}" data-field-tool="${product}_set_${field === "cheeseLevel" ? "cheese_level" : field}" data-key="${field}">
+            ${OPTIONS[product][field].map(option => `<option value="${option}" ${draft[field] === option ? "selected" : ""}>${label(option)}</option>`).join("")}
+          </select></label>`).join("")}
+      </div>
+      <div class="section-label"><h3>${product === "pizza" ? "Toppings" : "The finishing layers"}</h3><span>${list.length} selected · tap to toggle</span></div>
+      <div class="chips" role="group" aria-label="${label(product)} ${itemKey}s">
+        ${OPTIONS[product][itemKey].map(item => {
+          const selected = list.includes(item);
+          return this.button(`${product}_${selected ? "remove" : "add"}_${itemKey}`, {[itemKey]:item},
+            `<span class="swatch" style="background:${SWATCHES[item]}"></span>${label(item)}<span class="check" aria-hidden="true">${selected ? "✓" : "+"}</span>`,
+            `id="ingredient-${item}" class="chip" aria-pressed="${selected}" aria-label="${label(item)}"`);
+        }).join("")}
+      </div>
+      <div class="section-label"><h3>Chef's shortcuts</h3><span>One action. A whole new build.</span></div>
+      <div class="preset-row" role="group" aria-label="${label(product)} presets">
+        ${OPTIONS[product].preset.map(preset => this.button(`${product}_apply_preset`, {preset}, label(preset), `id="preset-${preset}"`)).join("")}
+      </div>
+      <div class="utility-row">
+        ${this.button(`${product}_randomize`, {}, "⤨ Random", `id="random" class="small"`)}
+        ${this.button(`${product}_clear`, {}, "Clear", `id="clear" class="small subtle" aria-label="Clear ${product}"`)}
+        ${this.button("food_reset_current", {}, "Reset Current Product", `id="reset-current" class="small subtle"`)}
+        ${this.button("food_reset_all", {}, "Reset All", `id="reset-all" class="small subtle"`)}
+        ${this.button("food_undo", {}, "↶ Undo", `id="undo" class="small subtle" ${state.historySummary.undoDepth ? "" : "disabled"} aria-label="Undo most recent state change"`)}
+      </div>`;
+
+    const statusClass = draft.empty ? "empty" : draft.order ? "ordered" : "";
+    this.summary.innerHTML = `
+      <section class="summary-card" aria-labelledby="summaryHeading">
+        <div class="summary-top"><h3 id="summaryHeading">${label(product)} order summary</h3><span class="status ${statusClass}">${draft.status}</span></div>
+        <div class="summary-text">
+          <div>${escapeHTML(describeDraft(product, draft))}</div>
+          <div class="ingredients">${draft.empty ? "No item configured." : list.length ? list.map(label).join(" · ") : `No additional ${itemKey}s.`}</div>
+          ${draft.order ? `<div style="color:var(--green);margin-top:8px">✓ ${draft.order.id} confirmed · ${money(Math.round(draft.order.totalPrice * 100))} · local demo</div>` : ""}
+        </div>
+        <details class="price-details" id="priceBreakdown" ${priceOpen ? "open" : ""}>
+          <summary>Price breakdown · ${money(draft.pricing.unitPriceCents)} per item</summary>
+          ${draft.pricing.lineItems.map(item => `<div class="price-line"><span>${escapeHTML(item.description)}</span><span>${money(item.amountCents)}</span></div>`).join("")}
+          <div class="price-line"><span>Quantity</span><span>× ${draft.quantity}</span></div>
+          <div class="price-line"><span>Total · USD</span><span>${money(draft.pricing.totalCents)}</span></div>
+        </details>
+        <div class="checkout-row">
+          <div class="quantity-control"><label for="quantity">QUANTITY · 1–20</label>
+            <input id="quantity" type="number" min="1" max="20" step="1" value="${draft.quantity}" data-field-tool="food_set_quantity" data-key="quantity" aria-label="Order quantity, 1 to 20">
+          </div>
+          <div class="total"><small>TOTAL · USD</small><strong>${money(draft.pricing.totalCents)}</strong></div>
+        </div>
+        ${this.button("food_place_order", {}, draft.order ? "✓ Order confirmed" : "Place Order →",
+          `id="place-order" class="primary order-button" ${draft.empty || draft.order ? "disabled" : ""}`)}
+        <p class="demo-note">Demo order only · no payment or delivery · edit to update your build</p>
+      </section>`;
+
+    if (focusID) {
+      const target = document.getElementById(focusID);
+      if (target && !target.disabled) target.focus({preventScroll:true});
+    }
+    this.renderActivity(state);
+  }
+  renderActivity(state) {
+    document.getElementById("logCount").textContent = `${state.actionHistory.length} / 50 ENTRIES`;
+    document.getElementById("activityLog").innerHTML = [...state.actionHistory].reverse().map(entry => {
+      const time = new Date(entry.timestamp).toLocaleTimeString("en-GB", {hour12:false});
+      const args = Object.keys(entry.arguments).length ? " " + JSON.stringify(entry.arguments) : "";
+      return `<div class="log-entry"><time class="log-time mono" datetime="${entry.timestamp}">${time}</time>
+        <span class="log-source ${entry.source.toLowerCase()}">${entry.source}</span>
+        <span class="log-message mono" ${entry.success ? "" : 'style="color:#f5aaaa"'}>
+          ${escapeHTML(entry.action + args)}${entry.detail ? `<br><span class="muted">${escapeHTML(entry.detail)}</span>` : ""}
+        </span></div>`;
+    }).join("");
+    document.getElementById("lastAI").textContent = state.lastAIAction
+      ? `Last AI action: ${state.lastAIAction.action}${state.lastAIAction.success ? "" : " (rejected)"}`
+      : "Last AI action: waiting for an agent. Human actions are never labeled as AI.";
+  }
+  renderPrompts() {
+    const prompts = [
+      "Build a large pizza with thin crust, extra cheese, pepperoni, mushroom, and onion.",
+      "Remove the onion and add jalapeño.",
+      "Switch to burger mode and make a double bacon cheeseburger.",
+      "Show me the current order summary.",
+      "Clear the burger and make a veggie burger.",
+      "Randomize a pizza and tell me the price.",
+      "Place the current order.",
+      "Compare my current burger and pizza drafts.",
+      "Build a Hawaiian pizza, then remove pineapple.",
+      "Make a spicy chicken burger with avocado and no onion."
+    ];
+    const container = document.getElementById("prompts");
+    for (const prompt of prompts) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "prompt";
+      button.textContent = prompt;
+      button.setAttribute("aria-label", `Copy prompt: ${prompt}`);
+      button.addEventListener("click", async () => {
+        try {
+          if (!navigator.clipboard || !window.isSecureContext) throw new Error("Clipboard unavailable");
+          await navigator.clipboard.writeText(prompt);
+          this.toast("Prompt copied. Paste it into your connected AI agent.");
+        } catch {
+          // Local files and insecure contexts may not grant clipboard access.
+          window.prompt("Copy this prompt for your AI agent:", prompt);
+        }
+      });
+      container.appendChild(button);
+    }
+  }
+}
+
+/* ─── WebMCPAdapter: actual document.modelContext registration ────────────── */
+class WebMCPAdapter {
+  constructor(engine, ui) {
+    this.engine = engine;
+    this.ui = ui;
+    this.supported = "modelContext" in document;
+    this.registered = new Set();
+    this.registrationPromise = null;
+    this.failures = [];
+    this.inspectionSequence = 0;
+    document.getElementById("refreshTools").addEventListener("click", () => this.refreshInspector());
+    if (!this.supported) {
+      this.setBadge("WebMCP Unsupported", "");
+      console.info("[WebMCP] document.modelContext is unavailable. Human controls remain fully functional; tools are not registered. Use a WebMCP-capable browser/agent to connect.");
+    } else {
+      this.setBadge("WebMCP Connected", "connected");
+    }
+    this.renderInspector("Page-defined tool catalog. Registration begins after app initialization.");
+  }
+  setBadge(text, className) {
+    const badge = document.getElementById("mcpBadge");
+    badge.className = `badge ${className}`;
+    badge.innerHTML = `<span class="dot"></span><span>${escapeHTML(text)}</span>`;
+  }
+  initialize() {
+    // The same promise is reused on every call: no duplicate registration.
+    if (!this.registrationPromise) this.registrationPromise = this.registerAll();
+    return this.registrationPromise;
+  }
+  async registerAll() {
+    if (!this.supported) {
+      this.engine.system("WebMCP unsupported", "document.modelContext not exposed; human builder is fully available.");
+      await this.refreshInspector();
+      return;
+    }
+    try {
+      if (!document.modelContext || typeof document.modelContext.registerTool !== "function") {
+        throw new Error("document.modelContext exists, but registerTool is unavailable.");
+      }
+      for (const definition of TOOL_DEFINITIONS) {
+        if (this.registered.has(definition.name)) continue;
+        try {
+          await document.modelContext.registerTool({
+            name:definition.name,
+            description:definition.description,
+            inputSchema:clone(definition.inputSchema),
+            annotations:clone(definition.annotations),
+            execute:async (args = {}) => {
+              // Direct domain invocation. No querying buttons, click simulation, or DOM automation.
+              const result = this.engine.invoke(definition.name, args, "WebMCP");
+              return {
+                content:[{type:"text", text:JSON.stringify(result)}],
+                ...(result.ok ? {} : {isError:true})
+              };
+            }
+          });
+          this.registered.add(definition.name);
+        } catch (error) {
+          this.failures.push({name:definition.name, message:String(error?.message || error)});
+          console.error(`[WebMCP] Could not register ${definition.name}:`, error);
+        }
+      }
+      if (this.failures.length) {
+        this.setBadge("WebMCP Connected · Partial", "error");
+        this.engine.system("WebMCP registration incomplete", `${this.registered.size}/${TOOL_DEFINITIONS.length} tools registered. See console for errors.`);
+      } else {
+        this.setBadge("WebMCP Connected", "connected");
+        this.engine.system("WebMCP connected", `${this.registered.size} structured tools registered through document.modelContext.`);
+        console.info(`[WebMCP] Registered ${this.registered.size} tools through document.modelContext.`);
+      }
+    } catch (error) {
+      this.setBadge("WebMCP Connection Error", "error");
+      this.engine.system("WebMCP initialization failed", String(error?.message || error));
+      console.error("[WebMCP] Initialization failed; human UI remains usable:", error);
+    }
+    await this.refreshInspector();
+  }
+  async refreshInspector() {
+    const request = ++this.inspectionSequence;
+    let note = this.supported
+      ? "Registration tracked by this page; getTools() is not available in this browser."
+      : "WebMCP is unsupported. Showing available definitions, not registered tools.";
+    let discovered = null;
+    if (this.supported) {
+      try {
+        if (typeof document.modelContext?.getTools === "function") {
+          const result = await document.modelContext.getTools();
+          const tools = Array.isArray(result) ? result : result?.tools;
+          if (Array.isArray(tools)) {
+            discovered = new Set(tools.map(tool => typeof tool === "string" ? tool : tool.name));
+            note = "Browser tool discovery refreshed via document.modelContext.getTools().";
+          } else {
+            note = "getTools() returned an unfamiliar shape. Showing the verified local registration manifest.";
+          }
+        }
+      } catch (error) {
+        note = "Browser discovery unavailable. Showing the local registration manifest.";
+        console.info("[WebMCP Inspector] Graceful getTools fallback:", error);
+      }
+    }
+    if (request === this.inspectionSequence) this.renderInspector(note, discovered);
+  }
+  renderInspector(note, discovered = null) {
+    const openNames = new Set([...document.querySelectorAll("#toolList details[open]")].map(el => el.dataset.name));
+    document.getElementById("toolList").innerHTML = TOOL_DEFINITIONS.map(definition => {
+      const read = definition.annotations.readOnlyHint;
+      const registration = !this.supported ? "Definition only · unsupported"
+        : discovered?.has(definition.name) ? "Discovered in browser"
+        : this.registered.has(definition.name) ? "Registered by this page" : "Not registered";
+      return `<details class="tool" data-name="${definition.name}" ${openNames.has(definition.name) ? "open" : ""}>
+        <summary><code>${definition.name}</code><span class="tool-kind ${read ? "read" : ""}">${read ? "READ" : "WRITE"}</span></summary>
+        <p>${escapeHTML(definition.description)}</p>
+        <pre>${escapeHTML(JSON.stringify({registration, inputSchema:definition.inputSchema, annotations:definition.annotations}, null, 2))}</pre>
+      </details>`;
+    }).join("");
+    document.getElementById("inspectorSubtitle").textContent =
+      `${this.registered.size} registered / ${TOOL_DEFINITIONS.length} defined · expand a tool for schema and registration status`;
+    document.getElementById("inspectorFooter").textContent = note;
+  }
+}
+
+/* ─── Isolated, non-destructive console self-checks ────────────────────────── */
+function runSelfChecks() {
+  let passed = 0, failed = 0;
+  const test = (name, callback) => {
+    try {
+      const engine = new BuilderEngine();
+      const call = (tool, args = {}) => {
+        const result = engine.invoke(tool, args, "System");
+        if (!result.ok) throw new Error(result.error.message);
+        return result;
+      };
+      callback(engine, call);
+      passed++;
+      console.info(`✓ ${name}`);
+    } catch (error) {
+      failed++;
+      console.error(`✗ ${name}`, error);
+    }
+  };
+  const assert = (condition, message) => { if (!condition) throw new Error(message); };
+  console.groupCollapsed("BuilderEngine self-checks · isolated test states");
+  test("Switching products preserves drafts", (e, call) => {
+    call("pizza_add_topping", {topping:"pepperoni"});
+    call("food_set_product", {product:"burger"});
+    call("burger_add_ingredient", {ingredient:"avocado"});
+    call("food_set_product", {product:"pizza"});
+    assert(e.state.pizza.toppings.includes("pepperoni") && e.state.burger.ingredients.includes("avocado"), "Draft was lost.");
+  });
+  test("Adding and removing a topping updates state and price", (e, call) => {
+    const base = e.getState().totalPrice;
+    call("pizza_add_topping", {topping:"pepperoni"});
+    assert(e.getState().totalPrice > base, "Topping price was not added.");
+    call("pizza_remove_topping", {topping:"pepperoni"});
+    assert(!e.state.pizza.toppings.length && e.getState().totalPrice === base, "Topping was not removed.");
+  });
+  test("Premium burger ingredients increase price", (e, call) => {
+    call("food_set_product", {product:"burger"});
+    const base = e.getState().totalPrice;
+    call("burger_add_ingredient", {ingredient:"bacon"});
+    assert(e.getState().totalPrice === base + 2, "Bacon surcharge incorrect.");
+  });
+  test("Burger preset applies expected fields", (e, call) => {
+    call("burger_apply_preset", {preset:"spicy_chicken"});
+    assert(e.state.burger.patty === "chicken" && e.state.burger.sauce === "spicy_mayo" && e.state.burger.ingredients.includes("jalapeno"), "Preset fields incorrect.");
+  });
+  test("Hawaiian preset applies ham and pineapple", (e, call) => {
+    call("pizza_apply_preset", {preset:"hawaiian"});
+    assert(e.state.pizza.toppings.includes("ham") && e.state.pizza.toppings.includes("pineapple"), "Hawaiian incorrect.");
+  });
+  test("Reset current clears only the active draft", (e, call) => {
+    call("pizza_apply_preset", {preset:"hawaiian"});
+    const pizza = clone(e.state.pizza);
+    call("burger_apply_preset", {preset:"bacon_deluxe"});
+    call("food_reset_current");
+    assert(e.state.burger.empty && JSON.stringify(e.state.pizza) === JSON.stringify(pizza), "Inactive draft changed.");
+  });
+  test("Reset all clears both drafts", (e, call) => {
+    call("pizza_add_topping", {topping:"mushroom"});
+    call("burger_add_ingredient", {ingredient:"bacon"});
+    call("food_reset_all");
+    assert(e.state.pizza.empty && e.state.burger.empty && !e.state.pizza.toppings.length && !e.state.burger.ingredients.length && e.getState().totalPrice === 0, "Reset did not clear both.");
+  });
+  test("Undo restores one complete prior snapshot", (e, call) => {
+    call("pizza_add_topping", {topping:"onion"});
+    const before = clone(e.state);
+    call("burger_apply_preset", {preset:"bacon_deluxe"});
+    call("food_undo");
+    assert(JSON.stringify(e.state) === JSON.stringify(before), "Undo did not restore snapshot.");
+  });
+  test("Orders are visible, preserved, and undoable", (e, call) => {
+    call("food_place_order");
+    assert(e.getState().status === "Ordered" && !!e.state.pizza.order, "Order not recorded.");
+    call("food_undo");
+    assert(e.getState().readyToOrder && !e.state.pizza.order, "Undo did not revert order.");
+  });
+  test("Invalid inputs are rejected without mutating domain state", (e) => {
+    const before = JSON.stringify(e.state);
+    const invalidQuantity = e.invoke("food_set_quantity", {quantity:21}, "System");
+    const invalidTopping = e.invoke("pizza_add_topping", {topping:"not_food"}, "System");
+    assert(!invalidQuantity.ok && !invalidTopping.ok && JSON.stringify(e.state) === before && !e.undoStack.length, "Invalid input changed state.");
+  });
+  test("Read tools and duplicate additions do not consume undo", (e, call) => {
+    call("pizza_add_topping", {topping:"olive"});
+    const depth = e.undoStack.length;
+    call("pizza_add_topping", {topping:"olive"});
+    call("food_get_state");
+    call("food_get_price");
+    assert(e.undoStack.length === depth && e.state.pizza.toppings.length === 1, "No-op or read consumed undo.");
+  });
+  test("Quantity multiplies the current draft, preserving other quantity", (e, call) => {
+    call("food_set_quantity", {quantity:3});
+    assert(e.getState().totalPrice === 36, "Quantity pricing incorrect.");
+    call("food_set_product", {product:"burger"});
+    assert(e.state.burger.quantity === 1 && e.state.pizza.quantity === 3, "Quantities are not independent.");
+  });
+  assert(TOOL_DEFINITIONS.length === 28, "Expected exactly 28 capability definitions.");
+  console.info(`Self-checks complete: ${passed} passed, ${failed} failed. Live application state was not used.`);
+  console.groupEnd();
+}
+
+/* ─── Initialization: UI first, real WebMCP registration afterward ────────── */
+const engine = new BuilderEngine();
+engine.logger.append("System", "Builder initialized", {}, true, "Medium pizza · shared state ready · local demo.");
+const ui = new UIController(engine);
+const webMCP = new WebMCPAdapter(engine, ui);
+runSelfChecks();
+void webMCP.initialize();
+</script>
+</body>
+</html>

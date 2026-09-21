@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#173f35">
+<title>WebMCP AI Smart Home</title>
+<style>
+/* DESIGN SYSTEM */
+:root{
+  --bg:#f4f5f0;--paper:#fff;--ink:#20372f;--muted:#77837c;--line:#e4e9e1;
+  --green:#224c3e;--lime:#d7edac;--accent:#638844;--orange:#ba7c4a;
+  --shadow:0 6px 28px #25463206;--radius:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+button,select,input,textarea{outline-offset:4px}
+:focus-visible{outline:3px solid #8caf62}
+button:disabled{cursor:not-allowed;opacity:.45}
+button{color:inherit}
+h1,h2,h3,p{margin:0}
+h2{font-size:17px;letter-spacing:-.4px}
+h3{font-size:14px}
+small,.muted{color:var(--muted)}
+button{border:1px solid var(--line);background:white;border-radius:10px;padding:8px 12px;transition:background .18s,transform .18s}
+button:hover:not(:disabled){background:#edf3e6}
+button:active:not(:disabled){transform:translateY(1px)}
+.primary{background:var(--green);border-color:var(--green);color:white}
+.primary:hover:not(:disabled){background:#35614e}
+.ghost{background:transparent}
+.flex{display:flex;align-items:center;gap:10px}
+.between{justify-content:space-between}
+.wrap{flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;gap:6px;border-radius:7px;background:#f0f4ec;padding:4px 8px;font-size:10px;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+.dot{height:6px;width:6px;border-radius:50%;display:inline-block;background:#86a75c;flex-shrink:0}
+.upper{font-size:10px;letter-spacing:1.6px;font-weight:700;text-transform:uppercase}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);min-width:0}
+.panel-head{padding:21px 24px 17px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel-head p{font-size:12px;color:var(--muted);margin-top:3px}
+.icon{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;flex-shrink:0}
+.app{max-width:1536px;margin:auto;padding:28px 38px 32px}
+header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:25px}
+.brand-icon{width:47px;height:47px;border-radius:14px;background:var(--green);color:var(--lime);display:grid;place-items:center}
+.brand-icon svg{width:26px;height:26px}
+h1{font-size:24px;letter-spacing:-1px;font-weight:680}
+.subtitle{font-size:12px;color:var(--muted);margin-top:2px}
+.connection{padding:8px 11px;border:1px solid #dce5d5;background:#f0f5e9;border-radius:100px;font-size:11px;white-space:nowrap}
+.connection.unsupported{background:#f1f0eb;border-color:#e1e0d8;color:#77796e}
+.connection.unsupported .dot{background:#aaa99a}
+.header-actions{display:flex;gap:10px;align-items:center}
+.avatar{width:35px;height:35px;border-radius:50%;background:#e7e7dc;display:grid;place-items:center;font-size:11px;font-weight:700;border:3px solid white}
+.status-row{display:flex;align-items:center;gap:22px;padding:0 0 20px;font-size:12px;color:var(--muted)}
+.status-row strong{color:var(--ink);font-weight:600}
+.status-row .scene-status{margin-left:auto}
+.status-row .divider{height:13px;width:1px;background:#d6ddd2}
+.welcome{display:flex;align-items:flex-end;justify-content:space-between;margin:6px 0 19px;gap:16px}
+.welcome h2{font-size:28px;letter-spacing:-1.1px;font-weight:550}
+.welcome p{font-size:12px;color:var(--muted);margin-top:4px}
+.weather{display:flex;align-items:center;gap:10px;font-size:12px}
+.weather .sun{font-size:30px;color:#a78c49}
+.weather strong{font-size:19px;font-weight:500}
+.main-grid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(335px,1fr);gap:20px;align-items:start}
+.floor-panel{overflow:hidden}
+.floor-toolbar{display:flex;justify-content:space-between;align-items:center;padding:0 24px 12px;font-size:11px;color:var(--muted)}
+.floor-tabs{display:flex;background:#f3f5ef;border-radius:9px;padding:3px;gap:3px}
+.floor-tabs span{padding:4px 9px;border-radius:6px}
+.floor-tabs .active{background:white;color:var(--ink);box-shadow:0 1px 5px #00000008}
+.floor-scroll{padding:9px 22px 16px;overflow:auto;background:radial-gradient(ellipse at center,#e9ede0 0%,#f8f9f4 68%)}
+.floor{position:relative;display:grid;grid-template-columns:1.45fr 1fr 1fr;grid-template-rows:230px 185px;gap:7px;padding:10px;background:#d8ddce;border:2px solid #c7cfbe;border-radius:13px;box-shadow:0 14px 25px #263c2310;min-width:520px;isolation:isolate}
+.room{position:relative;padding:0;overflow:hidden;border:2px solid transparent;border-radius:4px;transition:background .5s,box-shadow .5s;border-color:#f8faf050;text-align:left;min-width:0;cursor:pointer;background:#bcc7b3}
+.room:hover:not(:disabled){background:var(--room-bg,#dfe6d0)}
+.room.selected{border-color:#476847;box-shadow:inset 0 0 0 2px #ffffff80;z-index:2}
+.room::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 28px,#5964470a 29px 30px);pointer-events:none}
+.room.lit{background:var(--room-bg,#e4e9d7)}
+.room.lit:hover{background:var(--room-bg,#e4e9d7)}
+.room:not(.lit){background:#b3bcae}
+.room .ambient-glow{position:absolute;inset:0;opacity:.14;pointer-events:none;transition:background .5s}
+.room.living_room{grid-column:1;grid-row:1 / 3}
+.room.bedroom{grid-column:2 / 4;grid-row:1}
+.room.kitchen{grid-column:2;grid-row:2}
+.room.study{grid-column:3;grid-row:2}
+.floor-extension{display:grid;grid-template-columns:1.45fr 1fr 1fr;gap:7px;min-width:520px;margin-top:-7px;padding:0 10px 10px;background:#d8ddce;border:2px solid #c7cfbe;border-top:0;border-radius:0 0 13px 13px}
+.floor-extension .room{height:112px}
+.floor-extension .entrance{grid-column:1}
+.floor-extension .bathroom{grid-column:2}
+.floor-note{display:flex;flex-direction:column;justify-content:center;padding:9px;color:#6b7963;font-size:10px;gap:3px}
+.floor-note strong{font-size:12px}
+.room-label{position:absolute;left:12px;top:10px;z-index:5;pointer-events:none}
+.room-label strong{display:block;font-size:12px;font-weight:650}
+.room-label small{font-size:10px;color:#53654e}
+.room-readout{position:absolute;bottom:9px;left:11px;right:9px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;pointer-events:none;z-index:5}
+.room-chip{font-size:9px;background:#ffffffb8;border:1px solid #ffffffa0;padding:2px 5px;border-radius:5px;backdrop-filter:blur(3px)}
+.room-chip.on{color:#385b27}
+.room-selected-dot{display:none;position:absolute;top:13px;right:11px;width:7px;height:7px;background:#4c7448;border:2px solid #fff;border-radius:50%}
+.selected .room-selected-dot{display:block}
+.furniture{position:absolute;pointer-events:none;color:#617258}
+.rug{background:#dad8c5;border:1px solid #b9bea9;border-radius:7px;box-shadow:inset 0 0 0 5px #dedfcc;transform:rotate(0deg)}
+.sofa{background:#839075;border:2px solid #727f64;border-radius:8px;box-shadow:3px 5px 5px #35482c14}
+.sofa::before{content:"";position:absolute;inset:8px 8px 6px;border:1px solid #a5ae98;border-radius:3px;background:repeating-linear-gradient(0deg,transparent 0 32px,#6e7e6120 33px 34px)}
+.sofa::after{content:"";position:absolute;left:5px;top:6px;width:16px;height:20px;background:#bac3a5;box-shadow:0 61px 0 #b9bfab;border-radius:3px;transform:rotate(6deg)}
+.coffee-table{background:#ae9776;border:3px solid #c2b393;border-radius:50%;box-shadow:3px 5px 5px #35482c18}
+.coffee-table::after{content:"";position:absolute;left:8px;top:7px;width:13px;height:18px;background:#e1dfc8;transform:rotate(-13deg);border:1px solid #c4c6b1}
+.plant{width:26px;height:26px;background:#729257;border:4px solid #bcc8a4;border-radius:50%;box-shadow:5px -3px 0 -2px #8da675,-4px -5px 0 -2px #739162}
+.tv{background:#2e4136;border:4px solid #7c876e;border-radius:4px;transition:background .4s,box-shadow .4s}
+.tv.active{background:linear-gradient(135deg,#7b9bb4,#a7cabc 48%,#5b747c);box-shadow:0 0 18px #8dbeaaa0}
+.bed{background:#f2f0e3;border:2px solid #aaa991;border-radius:5px;box-shadow:3px 5px 7px #35482c15}
+.bed::before{content:"";position:absolute;top:9px;left:9px;right:9px;height:30px;border-radius:4px;background:linear-gradient(90deg,#fffef6 47%,#d5d5c4 48%,#d5d5c4 52%,#fffef6 53%);border:1px solid #dddccc}
+.bed::after{content:"";position:absolute;bottom:0;left:0;right:0;height:56%;background:#a8b39a;border-top:6px solid #c0c7b1;border-radius:0 0 3px 3px}
+.nightstand{background:#ac9b7d;border:2px solid #c6bda6;border-radius:3px}
+.desk{background:#baa98a;border:2px solid #cebea0;border-radius:4px}
+.monitor{background:#334b40;border:3px solid #6f7966;border-radius:3px}
+.monitor.active{background:#99bba4;box-shadow:0 0 9px #bdedc060}
+.chair{background:#819079;border:2px solid #6d7c65;border-radius:5px}
+.counter{background:#e8e7d8;border:2px solid #a5af9a;box-shadow:inset 0 0 0 4px #d6d7c6;border-radius:4px}
+.hob{background:#515e4c;border:2px solid #83907a;border-radius:3px;display:grid;grid-template-columns:1fr 1fr;padding:3px;gap:3px}
+.hob i{border:1px solid #adb5a0;border-radius:50%}
+.sink{background:#b1bcae;border:3px solid #e4e6da;border-radius:6px;box-shadow:0 0 0 1px #84917b}
+.window{position:absolute;background:#c6decc;border:3px solid #f3f5e9;box-shadow:0 0 0 1px #9ead94;overflow:hidden;pointer-events:none}
+.window .cover{position:absolute;top:0;bottom:0;left:0;background:repeating-linear-gradient(90deg,#8b9880 0 5px,#a5b097 6px 9px);transition:width .6s}
+.window::after{content:"";position:absolute;left:49%;width:2px;top:0;bottom:0;background:#eff4e6}
+.ac{width:43px;height:12px;background:#eff1e5;border:1px solid #a4b299;border-radius:3px;position:absolute;pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:8px;color:#5e7754}
+.ac.active::after{content:"≋";position:absolute;top:6px;font-size:27px;color:#709e93;animation:airflow 2.5s infinite}
+.coffee{background:#5d6c54;border:2px solid #b4b7a1;border-radius:3px}
+.coffee.active::after{content:"♨";position:absolute;font-size:21px;color:#fff;left:-1px;top:-24px;animation:steam 2s infinite}
+.tub{background:#f6f5e9;border:4px solid #d0d6c5;border-radius:24px;box-shadow:0 0 0 1px #a3b095}
+.door-arc{position:absolute;border:1px dashed #87977d;border-bottom:3px solid #899879;border-radius:100% 0 0 0;width:52px;height:48px}
+.lamp-dot{position:absolute;width:11px;height:11px;border-radius:50%;background:#7d8974;border:2px solid #adb79c;pointer-events:none}
+.lamp-dot.active{background:#fff4bd;border-color:#ecdfa4;box-shadow:0 0 18px 8px #fff4bd65}
+.floor-legend{display:flex;justify-content:space-between;gap:10px;padding:16px 24px;font-size:10px;color:var(--muted)}
+.legend-dot{height:7px;width:7px;border-radius:50%;background:#c6d99f;display:inline-block;margin-right:5px}
+.room-tabs{display:none;gap:6px;overflow:auto;padding:0 20px 14px}
+.room-tabs button{white-space:nowrap;font-size:11px}
+.room-tabs .active{background:var(--green);color:white}
+.environment{display:grid;grid-template-columns:repeat(3,1fr);margin:0 20px 16px;padding:12px 0;background:#f6f8f2;border:1px solid #eaf0e2;border-radius:12px}
+.environment>div{text-align:center;border-right:1px solid #e4eadc}
+.environment>div:last-child{border:0}
+.environment strong{font-size:19px;font-weight:550;display:block}
+.environment small{font-size:10px}
+.control-list{padding:0 18px 18px;max-height:525px;overflow:auto;scrollbar-width:thin;scrollbar-color:#d3ddca transparent}
+.device-card{padding:13px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:#fff;transition:box-shadow .3s}
+.device-card:last-child{margin-bottom:0}
+.device-top{display:flex;align-items:center;gap:9px}
+.device-icon{width:33px;height:33px;display:grid;place-items:center;background:#f3f5ef;border-radius:10px;color:#87967b}
+.device-card.on .device-icon{background:#ecf3df;color:#6c874c}
+.device-info{flex:1;min-width:0}
+.device-name{font-size:12px;font-weight:600}
+.device-meta{font-size:9px;color:var(--muted);display:flex;gap:5px;align-items:center}
+.device-meta .dot{width:4px;height:4px}
+.offline-dot{background:#b9967b}
+.toggle{width:34px;height:20px;padding:0;border:0;border-radius:30px;background:#dbe1d6;position:relative;flex-shrink:0}
+.toggle::after{content:"";width:14px;height:14px;border-radius:50%;background:white;position:absolute;left:3px;top:3px;box-shadow:0 1px 3px #0002;transition:transform .2s}
+.toggle[aria-checked=true]{background:#7b9855}
+.toggle[aria-checked=true]::after{transform:translateX(14px)}
+.device-controls{margin-top:11px;display:flex;flex-direction:column;gap:8px}
+.control-line{display:flex;align-items:center;gap:9px;font-size:10px;color:#77826e}
+.control-line label{min-width:66px}
+.control-line input[type=range]{min-width:0;width:100%;height:4px;accent-color:#809951;cursor:pointer;margin:7px 0}
+.control-line output{font-size:10px;color:#526543;min-width:43px;text-align:right;font-variant-numeric:tabular-nums}
+.control-line select{width:100%;min-width:0;border:1px solid #e4e9df;border-radius:6px;padding:4px 6px;font-size:10px;background:#f8faf5;color:var(--ink)}
+.colors{display:flex;gap:7px;align-items:center}
+.color-button{width:17px;height:17px;border:2px solid white;border-radius:50%;padding:0;box-shadow:0 0 0 1px #d7dfd0}
+.color-button.chosen{box-shadow:0 0 0 2px #567342}
+.presets{display:flex;gap:5px}
+.presets button{font-size:10px;padding:3px 8px;flex:1;background:#f7f9f3}
+.room-actions{padding:0 20px 14px;display:flex;gap:6px}
+.room-actions button{font-size:10px;flex:1}
+.scene-panel{margin-top:20px}
+.scene-list{display:grid;grid-template-columns:repeat(8,1fr);gap:9px;padding:0 23px 23px}
+.scene-button{padding:13px 5px 11px;display:flex;flex-direction:column;align-items:center;gap:8px;border-radius:12px;font-size:11px;background:#fafbf8}
+.scene-button svg{width:22px;height:22px;color:#7a8b70}
+.scene-button.active{background:var(--green);color:#f5faec;border-color:var(--green)}
+.scene-button.active svg{color:var(--lime)}
+.bottom-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:20px;margin-top:20px;align-items:start}
+.activity-list{height:252px;overflow:auto;padding:0 20px 15px;scrollbar-width:thin}
+.activity-item{padding:11px 0;border-top:1px solid #edf0e9}
+.activity-meta{display:flex;align-items:center;gap:7px;font-size:9px;color:var(--muted);margin-bottom:4px}
+.source{font-size:8px;letter-spacing:.4px;padding:2px 5px;border-radius:4px;background:#edf1e7;font-weight:700;color:#728162}
+.source.WebMCP{color:#6572a0;background:#f0effc}
+.source.UI{color:#538067;background:#eaf2e9}
+.activity-item code{font-size:10px;color:#526647;word-break:break-word}
+.activity-summary{font-size:10px;color:var(--muted);margin-top:2px}
+.energy-content{padding:0 23px 20px}
+.energy-reading{display:flex;align-items:baseline;gap:6px}
+.energy-reading strong{font-size:38px;font-weight:500;letter-spacing:-1.5px}
+.energy-reading span{color:var(--muted);font-size:13px}
+.energy-meter{display:flex;gap:3px;height:30px;align-items:flex-end;margin:17px 0 8px}
+.energy-meter i{flex:1;border-radius:3px 3px 0 0;background:#eaf0e0;height:100%}
+.energy-meter i.filled{background:#94af70}
+.energy-detail{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);padding-bottom:13px;border-bottom:1px solid var(--line)}
+.consumer{display:flex;justify-content:space-between;font-size:11px;padding-top:9px;gap:8px}
+.consumer span:last-child{color:var(--muted);white-space:nowrap}
+.signals{padding:0 22px 20px;display:flex;flex-direction:column;gap:12px}
+.signal{font-size:11px;display:flex;gap:9px;align-items:flex-start}
+.signal svg{width:15px;height:15px;color:#899b71;margin-top:1px}
+.signal.warning{color:#a0774e}
+.technical-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;margin-top:20px}
+.tool-list{height:275px;overflow:auto;padding:0 22px 12px;scrollbar-width:thin}
+.tool{padding:11px 0;border-bottom:1px solid #edf0e9}
+.tool-name{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.tool code{font-size:11px;overflow-wrap:anywhere}
+.tool p{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6}
+.badge{font-size:8px;font-weight:700;letter-spacing:.6px;padding:3px 5px;border-radius:4px;background:#edf2e6;color:#68834e}
+.badge.WRITE{background:#f5eee1;color:#9b7f48}
+.badge.SENSITIVE{background:#f8eae4;color:#ad7056}
+.inspector-note{font-size:10px;color:var(--muted);padding:12px 22px;background:#f8faf4;border-top:1px solid var(--line);border-radius:0 0 20px 20px}
+.mission{background:var(--green);color:#f0f5e8;border:0;overflow:hidden}
+.mission .panel-head{padding-bottom:10px}
+.mission .tag{background:#ffffff15;color:#d7edac;font-size:9px}
+.mission h2{font-size:22px;letter-spacing:-.8px;line-height:1.3;margin:8px 23px 18px;max-width:280px}
+.mission-route{display:flex;gap:10px;padding:0 23px;flex-wrap:wrap}
+.mission-room{flex:1;min-width:100px;font-size:10px;border-top:1px solid #ffffff22;padding-top:10px;color:#bfd0bd}
+.mission-room strong{display:block;color:#eef5e2;font-weight:500;font-size:11px;margin-bottom:5px}
+.mission-code{margin:18px 23px 15px;background:#14392e;border:1px solid #ffffff12;padding:10px;border-radius:9px;font-size:11px;color:#d3e7ad;overflow-wrap:anywhere}
+.mission-footer{padding:0 23px 22px;display:flex;align-items:center;gap:10px}
+.mission-footer button{background:#d7edac;color:#28472b;border:0;font-size:11px}
+.mission-footer small{font-size:9px;color:#c0d0b6}
+.prompt-panel{margin-top:20px}
+.prompts{display:flex;flex-wrap:wrap;gap:8px;padding:0 23px 23px}
+.prompt{font-size:11px;border-radius:20px;padding:8px 12px;background:#fafbf7;text-align:left}
+.prompt::after{content:" ↗";color:#8b9c7a}
+.how{margin-top:20px}
+.how-content{padding:0 24px 24px}
+.architecture{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f6f8f1;border:1px solid #e5ecdc;border-radius:12px;padding:17px;font-size:11px}
+.architecture span{padding:6px 9px;background:white;border:1px solid #e1e7db;border-radius:6px}
+.architecture .engine{background:var(--green);color:var(--lime);border-color:var(--green)}
+.architecture b{font-weight:400;color:#a1ad96}
+.human-route{font-size:11px;color:#718164;margin-top:9px}
+.comparison{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
+.comparison>div{border:1px solid var(--line);border-radius:12px;padding:16px}
+.comparison h3{font-size:12px;margin-bottom:8px}
+.comparison p{font-size:11px;color:var(--muted);line-height:1.9}
+.comparison code{font-size:12px;color:#527545}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:19px}
+.step{display:flex;gap:9px;font-size:11px;color:var(--muted)}
+.step b{color:#719151;font-size:12px}
+.shared-note{font-size:12px;text-align:center;color:#587040;margin-top:20px;font-weight:600}
+footer{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:10px;padding:22px 3px 0}
+#toasts{position:fixed;right:24px;bottom:24px;z-index:100;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 32px));pointer-events:none}
+.toast{background:#203e32;color:#f4f8ed;padding:13px 18px;border:1px solid #4a6852;box-shadow:0 8px 24px #18392125;border-radius:12px;font-size:12px;animation:toast-in .25s ease}
+.toast.error{background:#744c3d;border-color:#a78165}
+.agent-highlight{animation:agent-glow .9s ease!important}
+.scene-highlight{animation:scene-glow .8s ease!important}
+dialog{border:1px solid #dce5d4;border-radius:20px;padding:25px;max-width:420px;width:calc(100% - 32px);color:var(--ink);box-shadow:0 20px 80px #0003}
+dialog::backdrop{background:#172e2966;backdrop-filter:blur(3px)}
+dialog p{font-size:13px;color:var(--muted);margin:12px 0 22px}
+dialog .flex{justify-content:flex-end}
+details.console{margin:0 22px 16px;font-size:11px}
+details.console summary{cursor:pointer;color:#6c8159;padding:10px 0}
+.console select,.console textarea{display:block;width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:#f8faf5;font-size:11px;color:var(--ink)}
+.console textarea{font-family:ui-monospace,monospace;min-height:88px;resize:vertical}
+.console pre{max-height:180px;overflow:auto;background:#f3f6ee;padding:10px;border-radius:8px;font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.console button{font-size:11px}
+@keyframes agent-glow{0%,100%{box-shadow:inset 0 0 0 0 #a6a1f0}35%{box-shadow:inset 0 0 0 3px #a6a1f0,0 0 16px #a6a1f066}}
+@keyframes scene-glow{50%{box-shadow:inset 0 0 0 3px #b8d88c,0 0 14px #b8d88c60}}
+@keyframes airflow{0%,100%{opacity:.35;transform:translateY(0)}50%{opacity:.75;transform:translateY(3px)}}
+@keyframes steam{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:.9;transform:translateY(-4px)}}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:1250px){.floor{grid-template-rows:245px 190px}.control-list{max-height:545px}}
+@media(max-width:1050px){.app{padding:24px}.main-grid{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr)}.scene-list{grid-template-columns:repeat(4,1fr)}.bottom-grid{grid-template-columns:1fr 1fr}.bottom-grid .panel:last-child{grid-column:1 / -1}.signals{display:grid;grid-template-columns:1fr 1fr}.floor-scroll{padding:9px 12px 16px}.header-actions .avatar{display:none}}
+@media(max-width:800px){.main-grid{grid-template-columns:1fr}.control-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:none}.device-card{margin:0}.room-tabs{display:flex}.technical-grid{grid-template-columns:1fr}.status-row{gap:13px;flex-wrap:wrap}.status-row .scene-status{margin-left:0}.header-actions .reset-label{display:none}.steps{grid-template-columns:1fr 1fr}.floor{grid-template-rows:240px 180px}}
+@media(max-width:540px){.app{padding:18px 12px}header{align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:20px}h1{font-size:21px}.brand-icon{width:40px;height:40px}.header-actions{width:100%;justify-content:space-between}.header-actions .reset-label{display:inline}.welcome h2{font-size:24px}.weather{font-size:10px}.weather strong{font-size:16px}.weather .sun{font-size:24px}.status-row{font-size:10px;gap:10px}.bottom-grid{grid-template-columns:1fr}.bottom-grid .panel:last-child{grid-column:auto}.signals{display:flex}.control-list{grid-template-columns:1fr}.scene-list{gap:7px;padding:0 15px 16px}.panel-head{padding:18px}.scene-button{font-size:10px}.floor-scroll{padding:8px 12px 14px}.floor-legend{padding:12px;font-size:9px}.comparison,.steps{grid-template-columns:1fr}.floor-toolbar{padding-left:18px;padding-right:18px}.welcome{align-items:center}.panel-head h2{font-size:16px}footer{flex-direction:column}.environment{margin-left:18px;margin-right:18px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<!-- Reusable inline vector icons: no external assets. -->
+<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+<defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3Z M9 20v-7h6v7"/></symbol>
+<symbol id="i-light" viewBox="0 0 24 24"><path d="M9 18h6m-5 3h4M8 14a6 6 0 1 1 8 0c-1 1-1 2-1 2H9s0-1-1-2Z M12 1v1M3 5l2 2m14 0 2-2"/></symbol>
+<symbol id="i-climate" viewBox="0 0 24 24"><path d="M12 2v20M3 7l18 10M3 17 21 7M9 4l3 3 3-3M9 20l3-3 3 3M4 10l4-1-1-4m10 14-1-4 4-1M4 14l4 1-1 4m10-14-1 4 4 1"/></symbol>
+<symbol id="i-media" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4m-2-13 5 3-5 3Z"/></symbol>
+<symbol id="i-curtain" viewBox="0 0 24 24"><path d="M3 3h18M4 4v16h6L6 12c4-2 5-5 5-8m9 0v16h-6l4-8c-4-2-5-5-5-8M6 12H4m14 0h2"/></symbol>
+<symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M10 10C3 3 15 0 14 7l-1 3m1 1c9-3 9 9 3 6l-4-3m-2 0c-2 9-12 2-6-1l5-1"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="13" rx="2"/><path d="m16 10 5-3v11l-5-3Z"/></symbol>
+<symbol id="i-plug" viewBox="0 0 24 24"><path d="M8 3v5m8-5v5M6 8h12v5a6 6 0 0 1-12 0Zm6 11v3"/></symbol>
+<symbol id="i-coffee" viewBox="0 0 24 24"><path d="M4 9h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5Zm13 1h2a3 3 0 0 1 0 6h-2M8 6V3m5 3V2M3 22h16"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15A9 9 0 0 1 9 3a9 9 0 1 0 11 12Z"/></symbol>
+<symbol id="i-away" viewBox="0 0 24 24"><path d="M10 3H4v18h6m3-14 5 5-5 5m-5-5h13"/></symbol>
+<symbol id="i-focus" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><circle cx="12" cy="12" r="4"/></symbol>
+<symbol id="i-dinner" viewBox="0 0 24 24"><path d="M4 3v6a3 3 0 0 0 6 0V3M7 3v18m13 0V3c-6 3-6 10 0 10"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/></symbol>
+<symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3C8 2 1 8 6 16s16 1 14-13ZM4 21 16 8"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-8Z"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M8 5 3 10l5 5M3 10h11a6 6 0 0 1 0 12"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></symbol>
+<symbol id="i-water" viewBox="0 0 24 24"><path d="M12 2S5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13Z"/></symbol>
+</defs>
+</svg>
+
+<div class="app">
+<header>
+  <div class="flex">
+    <div class="brand-icon"><svg class="icon"><use href="#i-home"/></svg></div>
+    <div><h1>WebMCP AI Smart Home</h1><p class="subtitle">Control your home through UI or AI tools.</p></div>
+  </div>
+  <div class="header-actions">
+    <span id="connection" class="connection unsupported"><span class="dot"></span> WebMCP Unsupported</span>
+    <button id="undo-button" title="Undo the last logical action" aria-label="Undo last action"><svg class="icon"><use href="#i-undo"/></svg></button>
+    <button id="reset-button" class="ghost"><span class="reset-label">Reset Demo</span></button>
+    <div class="avatar" title="Local demo home">JD</div>
+  </div>
+</header>
+
+<div class="status-row" id="status-row"></div>
+<div class="welcome">
+  <div><div class="upper muted" style="margin-bottom:5px">THE CONNECTED HOME / LIVE DEMO</div><h2>A little more in harmony.</h2><p>One home. Two ways to make it yours.</p></div>
+  <div class="weather"><span class="sun">☀</span><div><strong>24°</strong> <span>Clear skies</span><br><small>Outdoor · simulated</small></div></div>
+</div>
+
+<main>
+<div class="main-grid">
+  <section class="panel floor-panel" aria-labelledby="floor-title">
+    <div class="panel-head"><div><h2 id="floor-title">Your home, at a glance</h2><p>Select a room to explore its devices.</p></div><span class="tag"><span class="dot"></span> LIVE STATE</span></div>
+    <div class="floor-toolbar"><div class="floor-tabs"><span class="active">Floor plan</span><span>Level 01</span></div><span>North ↑ &nbsp; · &nbsp; 112 m²</span></div>
+    <div class="floor-scroll" tabindex="0" aria-label="Interactive floor plan. Scroll horizontally on small screens.">
+      <div class="floor" id="floor-main"></div>
+      <div class="floor-extension" id="floor-extension"></div>
+    </div>
+    <div class="floor-legend"><span><i class="legend-dot"></i>Light on &nbsp; <i class="legend-dot" style="background:#9aa893"></i>Light off</span><span>Shared state · updates instantly</span></div>
+  </section>
+  <section class="panel" aria-labelledby="control-title">
+    <div class="panel-head"><div><div class="upper muted" style="margin-bottom:3px">SMART HOME CONTROL PANEL</div><h2 id="control-title">Living Room</h2></div><span class="tag" id="room-device-count"></span></div>
+    <div class="room-tabs" id="room-tabs" aria-label="Select a room"></div>
+    <div class="environment" id="environment"></div>
+    <div class="room-actions"><button id="room-lights-on">All lights on</button><button id="room-lights-off">All lights off</button></div>
+    <div class="control-list" id="controls"></div>
+  </section>
+</div>
+
+<section class="panel scene-panel" aria-labelledby="scenes-title">
+  <div class="panel-head"><div><h2 id="scenes-title">Set the scene</h2><p>A single intention. A home that responds.</p></div><span class="tag" id="scene-caption">HOME</span></div>
+  <div class="scene-list" id="scenes"></div>
+</section>
+
+<div class="bottom-grid">
+  <section class="panel">
+    <div class="panel-head"><div><h2>Agent Activity</h2><p>Every action. One shared source of truth.</p></div><span class="tag" id="activity-count">0 EVENTS</span></div>
+    <div class="activity-list" id="activity-list" role="log" aria-label="Latest home actions" aria-live="polite"></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><h2>Energy overview</h2><p>Estimated from active devices</p></div><svg class="icon" style="color:#819c57"><use href="#i-bolt"/></svg></div>
+    <div class="energy-content" id="energy"></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><h2>Home Signals</h2><p>The details that matter, right now.</p></div><span class="dot"></span></div>
+    <div class="signals" id="signals"></div>
+  </section>
+</div>
+
+<div class="technical-grid">
+  <section class="panel">
+    <div class="panel-head"><div><h2>WebMCP Tool Inspector</h2><p id="tool-count">Structured capabilities, not simulated clicks.</p></div><button id="refresh-tools" style="font-size:10px">Refresh Tools</button></div>
+    <div class="tool-list" id="tool-list"></div>
+    <details class="console">
+      <summary>Local capability playground</summary>
+      <p class="muted" style="margin-bottom:9px">Test the same capability handlers without an AI connection. These calls are correctly logged as UI.</p>
+      <label for="play-tool">Capability</label><select id="play-tool"></select>
+      <label for="play-input">JSON arguments</label><textarea id="play-input" spellcheck="false">{}</textarea>
+      <button class="primary" id="play-run">Execute locally</button>
+      <pre id="play-result" aria-live="polite">Select a tool to inspect its input.</pre>
+    </details>
+    <div class="inspector-note" id="inspector-note">Local capability catalog · native WebMCP connection detected separately</div>
+  </section>
+  <section class="panel mission">
+    <div class="panel-head"><span class="tag">✧ AGENT MISSION</span><span style="font-size:10px;color:#b7cda7">ONE INTENT → MANY ACTIONS</span></div>
+    <h2>“Prepare the house<br>for bedtime.”</h2>
+    <div class="mission-route">
+      <div class="mission-room"><strong>Bedroom</strong>25°C comfort<br>Curtain closed<br>Bedside light at 15%</div>
+      <div class="mission-room"><strong>Living Room</strong>Lights off<br>TV off<br>Climate off</div>
+      <div class="mission-room"><strong>Entrance</strong>Door locked<br>Security preserved</div>
+    </div>
+    <div class="mission-code"><code>scene_activate({ "scene": "sleep" })</code></div>
+    <div class="mission-footer"><button id="mission-run">Run bedtime scene &nbsp; →</button><small>Local UI demonstration<br>Same engine, same result.</small></div>
+  </section>
+</div>
+
+<section class="panel prompt-panel">
+  <div class="panel-head"><div><h2>Try asking your AI agent</h2><p>Copy an intention into a WebMCP-enabled agent. No built-in language model or external service.</p></div><svg class="icon"><use href="#i-code"/></svg></div>
+  <div class="prompts" id="prompts"></div>
+</section>
+
+<section class="panel how">
+  <div class="panel-head"><div><h2>How WebMCP powers this home</h2><p>The agent doesn’t need to find a switch. The application exposes what it can do.</p></div><span class="tag">BUILT FOR AGENTS</span></div>
+  <div class="how-content">
+    <div class="architecture"><span>Natural Language</span><b>→</b><span>AI Agent</span><b>→</b><span>WebMCP Tools</span><b>→</b><span class="engine">SmartHomeEngine</span><b>→</b><span>Shared Home State</span><b>→</b><span>Floor Plan + UI</span></div>
+    <p class="human-route">Human User → Device Controls → <strong>the same SmartHomeEngine</strong> → the same shared state</p>
+    <div class="comparison">
+      <div><h3>Traditional Browser Agent</h3><p>“Turn on Movie Mode”<br>Inspect DOM → find scene controls → find Movie button → click → wait → inspect the page again</p></div>
+      <div style="background:#f8fbf3;border-color:#dbe7ca"><h3>WebMCP Agent</h3><code>scene_activate({ "scene": "movie" })</code><p>Structured intent. Validated changes. Immediate UI updates.<br>No DOM inspection. No synthetic clicks.</p></div>
+    </div>
+    <div class="steps">
+      <div class="step"><b>01</b><span>The page exposes structured device and scene capabilities.</span></div>
+      <div class="step"><b>02</b><span>An AI agent discovers the available tools and their schemas.</span></div>
+      <div class="step"><b>03</b><span>The agent interprets your natural-language intent.</span></div>
+      <div class="step"><b>04</b><span>It selects a suitable tool or a coordinated scene.</span></div>
+      <div class="step"><b>05</b><span>SmartHomeEngine validates and changes shared state atomically.</span></div>
+      <div class="step"><b>06</b><span>The floor plan, controls, signals, and energy instantly reflect it.</span></div>
+    </div>
+    <p class="shared-note">Humans and AI operate through the same smart-home capability layer.</p>
+  </div>
+</section>
+</main>
+<footer><span>WebMCP AI Smart Home &nbsp; / &nbsp; A browser-native capability showcase</span><span>Fictional home · Local persistence · No real devices connected</span></footer>
+</div>
+<div id="toasts" role="status" aria-live="polite"></div>
+<dialog id="confirm-dialog" aria-labelledby="confirm-title">
+  <h2 id="confirm-title">Unlock the entrance?</h2>
+  <p>This is a security-sensitive action. Explicit confirmation is required before the shared home state can be unlocked.</p>
+  <div class="flex"><button id="confirm-cancel">Cancel</button><button id="confirm-unlock" class="primary">Confirm unlock</button></div>
+</dialog>
+
+<script>
+"use strict";
+
+/* CONFIG & UTILITIES */
+const STORAGE_KEY = "webmcp-smart-home-v1";
+const clone = value => JSON.parse(JSON.stringify(value));
+const $ = id => document.getElementById(id);
+const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+const pretty = value => String(value).replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+const COLORS = {warm:"#efd69c",white:"#edf2e4",purple:"#b798df",blue:"#88b6dc",green:"#95b887",red:"#d89787"};
+const CLIMATE_MODES = ["cool","heat","fan","dry","eco","auto"];
+const FAN_SPEEDS = ["auto","low","medium","high"];
+const MEDIA_SOURCES = ["streaming","hdmi","bluetooth","radio"];
+const RANGES = {brightness:[0,100],colorTemperature:[2700,6500],targetTemperature:[16,30],volume:[0,100],position:[0,100],targetHumidity:[30,70]};
+function fail(message, extra={}) { const e = new Error(message); Object.assign(e,extra); throw e; }
+function assert(condition,message,extra) { if(!condition) fail(message,extra); }
+function toast(message,error=false) {
+  const el=document.createElement("div");
+  el.className="toast"+(error?" error":""); el.textContent=message;
+  $("toasts").append(el); setTimeout(()=>el.remove(),4000);
+}
+
+/* ROOM DATA & ENVIRONMENT */
+const ROOMS = [
+  {id:"living_room",name:"Living Room",environment:{temperature:23.4,humidity:55,airQuality:21}},
+  {id:"bedroom",name:"Bedroom",environment:{temperature:25.1,humidity:62,airQuality:18}},
+  {id:"kitchen",name:"Kitchen",environment:{temperature:24.2,humidity:49,airQuality:28}},
+  {id:"study",name:"Study",environment:{temperature:23.8,humidity:51,airQuality:19}},
+  {id:"bathroom",name:"Bathroom",environment:{temperature:24.6,humidity:65,airQuality:23}},
+  {id:"entrance",name:"Entrance",environment:{temperature:22.7,humidity:48,airQuality:20}}
+];
+const ROOM_IDS=ROOMS.map(r=>r.id);
+const roomName=id=>ROOMS.find(r=>r.id===id)?.name || id;
+
+/* DEVICE DATA */
+const DEVICE_DATA=[];
+function device(id,name,room,type,power,state={},online=true,powerCap=true) {
+  DEVICE_DATA.push({id,name,room,type,online,power,capabilities:[...(powerCap?["power"]:[]),...Object.keys(state)],state});
+}
+function light(id,name,room,power,brightness=75,colorTemperature=4200) {
+  device(id,name,room,"light",power,{brightness,colorTemperature});
+}
+function climate(id,room,power,targetTemperature) {
+  device(id,"Air Conditioner",room,"climate",power,{targetTemperature,mode:"cool",fanSpeed:"auto"});
+}
+function curtain(id,room,position) {
+  device(id,"Window Curtain",room,"curtain",false,{position},true,false);
+}
+light("living-light-main","Main Light","living_room",true,75);
+device("living-light-ambient","Ambient Light","living_room","light",true,{brightness:45,color:"warm"});
+climate("living-ac","living_room",true,23);
+device("living-tv","Television","living_room","media",false,{volume:25,source:"streaming"});
+curtain("living-curtain","living_room",80);
+device("living-air-purifier","Air Purifier","living_room","purifier",true,{fanSpeed:"auto",mode:"auto"});
+light("bedroom-light","Main Light","bedroom",false,65);
+light("bedroom-bedside-light","Bedside Light","bedroom",false,30,3000);
+climate("bedroom-ac","bedroom",true,25);
+curtain("bedroom-curtain","bedroom",35);
+device("bedroom-humidifier","Humidifier","bedroom","humidifier",false,{targetHumidity:55,mode:"auto"});
+device("bedroom-speaker","Bedroom Speaker","bedroom","media",false,{volume:15,source:"bluetooth"});
+light("kitchen-light","Ceiling Light","kitchen",true,80);
+device("kitchen-hood","Range Hood","kitchen","appliance",false,{fanSpeed:"low"});
+device("kitchen-coffee-machine","Coffee Machine","kitchen","appliance",false,{});
+device("kitchen-smart-plug","Countertop Plug","kitchen","plug",false,{});
+light("study-light","Ceiling Light","study",false,80);
+light("study-desk-light","Desk Light","study",true,70);
+climate("study-ac","study",false,24);
+device("study-monitor","Desk Monitor","study","display",true,{});
+device("study-speaker","Study Speaker","study","media",false,{volume:20,source:"bluetooth"});
+light("bathroom-light","Vanity Light","bathroom",false,80);
+device("bathroom-fan","Extraction Fan","bathroom","fan",false,{speed:"low"});
+device("bathroom-heater","Bathroom Heater","bathroom","appliance",false,{},false);
+light("entrance-light","Hallway Light","entrance",true,55);
+device("entrance-lock","Entrance Lock","entrance","lock",false,{locked:true},true,false);
+device("entrance-camera","Entrance Camera","entrance","camera",true,{recording:true},false);
+
+/* SCENE DEFINITIONS */
+const SCENES = [
+  {id:"home",name:"Home",icon:"home",description:"Comfortable everyday lighting and climate. Entrance security is preserved."},
+  {id:"away",name:"Away",icon:"away",description:"Shut down nonsecurity devices, partially close curtains, and lock the entrance."},
+  {id:"sleep",name:"Sleep",icon:"moon",description:"Prepare for bedtime: dim bedside light, cool bedroom to 25°C, close its curtain, turn off distractions, and lock up."},
+  {id:"movie",name:"Movie",icon:"media",description:"A cinema-ready living room with dim purple ambient light, closed curtains, TV on, and comfortable climate."},
+  {id:"focus",name:"Focus",icon:"focus",description:"Bright study lighting, 24°C climate, monitor on, and living-room distractions off."},
+  {id:"dinner",name:"Dinner",icon:"dinner",description:"Light the kitchen, warm the living-room lighting, and turn off the TV."},
+  {id:"morning",name:"Morning",icon:"sun",description:"Open the bedroom curtain, gently light the bedroom, and start the coffee machine."},
+  {id:"energy_saver",name:"Energy Saver",icon:"leaf",description:"Reduce lighting and unnecessary consumption, switch active AC units to eco, and turn off media and appliances."}
+];
+class SceneEngine {
+  static build(engine, scene) {
+    assert(SCENES.some(s=>s.id===scene),"Unknown scene: "+scene);
+    const patches=new Map();
+    const set=(id,changes)=> {
+      const d=engine.device(id);
+      if(d.online) patches.set(id,{...(patches.get(id)||{}),...changes});
+    };
+    const each=(predicate,changes)=>engine.devices().filter(d=>d.online&&predicate(d)).forEach(d=>set(d.id,typeof changes==="function"?changes(d):changes));
+    const livingNormal=()=>{
+      set("living-light-main",{power:true,brightness:75,colorTemperature:4200});
+      set("living-light-ambient",{power:true,brightness:45,color:"warm"});
+      set("living-ac",{power:true,targetTemperature:23,mode:"cool"});
+    };
+    switch(scene) {
+      case "home":
+        livingNormal();
+        set("bedroom-light",{power:true,brightness:65});
+        set("bedroom-bedside-light",{power:false});
+        set("bedroom-ac",{power:true,targetTemperature:25,mode:"auto"});
+        set("living-curtain",{position:80});
+        set("bedroom-curtain",{position:35});
+        set("entrance-light",{power:true,brightness:55});
+        break;
+      case "away":
+        each(d=>d.capabilities.includes("power")&&!["camera","lock"].includes(d.type),{power:false});
+        each(d=>d.type==="curtain",{position:25});
+        set("entrance-lock",{locked:true});
+        break;
+      case "sleep":
+        each(d=>d.capabilities.includes("power")&&!["camera","lock"].includes(d.type),{power:false});
+        set("bedroom-bedside-light",{power:true,brightness:15,colorTemperature:2700});
+        set("bedroom-ac",{power:true,targetTemperature:25,mode:"cool",fanSpeed:"low"});
+        set("bedroom-curtain",{position:0});
+        set("living-curtain",{position:0});
+        set("bedroom-speaker",{power:false,volume:10});
+        set("entrance-lock",{locked:true});
+        break;
+      case "movie":
+        set("living-light-main",{power:false});
+        set("living-light-ambient",{power:true,brightness:20,color:"purple"});
+        set("living-curtain",{position:0});
+        set("living-tv",{power:true,volume:25,source:"streaming"});
+        set("living-ac",{power:true,targetTemperature:23,mode:"cool"});
+        break;
+      case "focus":
+        set("study-light",{power:true,brightness:100,colorTemperature:5000});
+        set("study-desk-light",{power:true,brightness:80,colorTemperature:4500});
+        set("study-ac",{power:true,targetTemperature:24,mode:"cool"});
+        set("study-monitor",{power:true});
+        set("study-speaker",{power:false});
+        set("living-tv",{power:false});
+        set("living-light-ambient",{power:false});
+        set("living-light-main",{power:false});
+        break;
+      case "dinner":
+        set("kitchen-light",{power:true,brightness:85,colorTemperature:3500});
+        set("living-light-main",{power:true,brightness:55,colorTemperature:2700});
+        set("living-light-ambient",{power:true,brightness:40,color:"warm"});
+        set("living-tv",{power:false});
+        break;
+      case "morning":
+        set("bedroom-curtain",{position:100});
+        set("bedroom-light",{power:true,brightness:50,colorTemperature:4200});
+        set("bedroom-bedside-light",{power:false});
+        set("bedroom-ac",{power:true,targetTemperature:24,mode:"auto"});
+        set("kitchen-coffee-machine",{power:true});
+        set("kitchen-light",{power:true,brightness:80});
+        set("living-light-main",{power:true,brightness:75});
+        break;
+      case "energy_saver":
+        each(d=>["media","display","plug","appliance","purifier","humidifier","fan"].includes(d.type),{power:false});
+        each(d=>d.type==="light",d=>({power:d.room==="living_room"&&d.id==="living-light-main",brightness:30}));
+        each(d=>d.type==="climate"&&d.power,{mode:"eco",targetTemperature:26});
+        break;
+    }
+    return [...patches].map(([deviceId,changes])=>({deviceId,changes}));
+  }
+}
+
+/* ENERGY ENGINE — modeled draw, not a meter or actual historical consumption */
+class EnergyEngine {
+  static watts(d) {
+    if(!d.online||!d.power) return 0;
+    const base={light:d.id.includes("ambient")||d.id.includes("bedside")?8:12,climate:900,media:d.id==="living-tv"?120:15,purifier:35,humidifier:25,plug:60,display:80,fan:28,camera:8,appliance:d.id.includes("coffee")?1000:d.id.includes("heater")?800:100};
+    let w=base[d.type]||0;
+    if(d.type==="light") w*=d.state.brightness/100;
+    if(d.type==="climate") w*=d.state.mode==="eco"?.55:d.state.mode==="fan"?.09:1;
+    return Math.round(w*10)/10;
+  }
+  static calculate(devices) {
+    const consumers=devices.map(d=>({deviceId:d.id,name:roomName(d.room)+" · "+d.name,watts:this.watts(d)})).filter(d=>d.watts>0).sort((a,b)=>b.watts-a.watts);
+    const currentWatts=Math.round(consumers.reduce((n,d)=>n+d.watts,0)*10)/10;
+    return {currentWatts,estimatedDailyKWh:Math.round(currentWatts*6/1000*100)/100,estimationMethod:"Current modeled load × 6 equivalent active hours; a projection, not measured history.",topConsumers:consumers};
+  }
+}
+
+/* UNDO MANAGER */
+class UndoManager {
+  constructor(){this.stack=[]}
+  push(snapshot){this.stack.push(clone(snapshot));if(this.stack.length>50)this.stack.shift()}
+  pop(){assert(this.stack.length>0,"There is no action to undo.");return this.stack.pop()}
+}
+
+/* SMART HOME ENGINE — shared domain state, never DOM interaction */
+class SmartHomeEngine {
+  constructor() {
+    this._state={rooms:clone(ROOMS),devices:clone(DEVICE_DATA),currentScene:"home"};
+    this.initial=clone(this._state);
+    this.undoManager=new UndoManager();
+    this.listeners=new Set();
+  }
+  devices(){return clone(this._state.devices)}
+  device(id) {
+    const d=this._state.devices.find(d=>d.id===id);
+    assert(d,"Unknown device ID: "+id);
+    return clone(d);
+  }
+  room(id) {
+    assert(ROOM_IDS.includes(id),"Unknown room: "+id);
+    return {...clone(this._state.rooms.find(r=>r.id===id)),devices:this.devices().filter(d=>d.room===id)};
+  }
+  snapshot(){return clone(this._state)}
+  energy(){return EnergyEngine.calculate(this._state.devices)}
+  security(){
+    return {locks:this.devices().filter(d=>d.type==="lock"),cameras:this.devices().filter(d=>d.type==="camera"),
+      allEntrancesLocked:this.devices().filter(d=>d.type==="lock").every(d=>d.online&&d.state.locked),
+      warning:this.devices().some(d=>["lock","camera"].includes(d.type)&&!d.online)?"A security device is offline; the home is not fully monitored.":null};
+  }
+  getState(){return {...this.snapshot(),energy:this.energy(),security:this.security()}}
+  summary() {
+    const ds=this.devices(), active=ds.filter(d=>d.online&&d.power),offline=ds.filter(d=>!d.online);
+    const lights=active.filter(d=>d.type==="light").length;
+    const locked=this.security().allEntrancesLocked;
+    return {text:`${lights} lights on; ${active.length} powered devices online. Entrance ${locked?"locked":"not confirmed locked"}. ${offline.length} devices offline. Estimated load ${this.energy().currentWatts} W.`,
+      currentScene:this._state.currentScene,activeDevices:active,temperatures:this._state.rooms.map(r=>({room:r.id,...r.environment})),
+      climate:ds.filter(d=>d.type==="climate").map(d=>({deviceId:d.id,power:d.power,...d.state})),
+      locks:this.security().locks,openCurtains:ds.filter(d=>d.type==="curtain"&&d.state.position>0),
+      offlineDevices:offline,energy:this.energy(),notableConditions:[this.security().warning].filter(Boolean)};
+  }
+  validateChanges(d,changes,{availability=true}={}) {
+    assert(changes&&typeof changes==="object"&&!Array.isArray(changes),"Changes must be an object.");
+    if(availability) assert(d.online,`${d.name} is currently offline.`);
+    const keys=Object.keys(changes).filter(k=>k!=="confirm");
+    assert(keys.length>0,"Provide at least one mutable field.");
+    for(const key of Object.keys(changes)) {
+      if(key==="confirm"){assert(typeof changes[key]==="boolean","confirm must be a boolean.");continue}
+      assert(d.capabilities.includes(key),`${d.name} does not support ${key}.`);
+      const value=changes[key];
+      if(["power","locked","recording"].includes(key)) assert(typeof value==="boolean",`${key} must be a boolean.`);
+      else if(RANGES[key]) {
+        const [min,max]=RANGES[key];
+        assert(typeof value==="number"&&Number.isFinite(value)&&value>=min&&value<=max,`${key} must be between ${min} and ${max}.`);
+      } else if(key==="color") assert(Object.hasOwn(COLORS,value),"Unsupported color. Use "+Object.keys(COLORS).join(", ")+".");
+      else if(["speed","fanSpeed"].includes(key)) assert(FAN_SPEEDS.includes(value),"Unsupported fan speed.");
+      else if(key==="mode") assert((d.type==="climate"?CLIMATE_MODES:["auto","eco","quiet","manual"]).includes(value),"Unsupported mode for "+d.name+".");
+      else if(key==="source") assert(MEDIA_SOURCES.includes(value),"Unsupported media source.");
+      else fail("Unsupported mutable field: "+key);
+    }
+    if(changes.locked===false) assert(changes.confirm===true,"Unlocking the entrance requires explicit confirmation.",{requiresConfirmation:true});
+  }
+  batch(updates,source="UI",scene="custom",action="home_batch_update") {
+    assert(Array.isArray(updates)&&updates.length>0,"updates must be a nonempty array.");
+    assert(updates.length<=100,"A batch is limited to 100 updates.");
+    const seen=new Set();
+    // Validate the entire transaction before taking a snapshot or touching live state.
+    for(const update of updates) {
+      assert(update&&typeof update.deviceId==="string","Each update needs a deviceId.");
+      assert(!seen.has(update.deviceId),"Duplicate device IDs are not allowed in a batch.");
+      seen.add(update.deviceId);
+      this.validateChanges(this.device(update.deviceId),update.changes);
+    }
+    const next=this.snapshot(),changedDevices=[];
+    for(const {deviceId,changes} of updates) {
+      const d=next.devices.find(d=>d.id===deviceId),before=JSON.stringify(d);
+      for(const [key,value] of Object.entries(changes)) {
+        if(key==="confirm")continue;
+        if(key==="power")d.power=value;else d.state[key]=value;
+      }
+      if(JSON.stringify(d)!==before)changedDevices.push(deviceId);
+    }
+    // A manual no-op does not invalidate a scene or consume an undo entry.
+    if(changedDevices.length===0 && (scene==="custom"||scene===next.currentScene)) {
+      return {success:true,changedDevices:[],scene:next.currentScene,message:"The home already matches the requested values."};
+    }
+    next.currentScene=scene;
+    this.undoManager.push(this._state);this._state=next;
+    this.emit({source,action,changedDevices,scene});
+    return {success:true,scene,changedDevices,devices:changedDevices.map(id=>this.device(id))};
+  }
+  setDevice(deviceId,changes,source="UI",type=null,action="device_set_power") {
+    const d=this.device(deviceId);
+    if(type) assert((Array.isArray(type)?type:[type]).includes(d.type),`${d.name} is not a supported ${Array.isArray(type)?type.join("/"):type} device.`);
+    return this.batch([{deviceId,changes}],source,"custom",action);
+  }
+  setLights(room,changes,source="UI") {
+    if(room)assert(ROOM_IDS.includes(room),"Unknown room: "+room);
+    if("brightness" in changes&& !room)assert(changes.power===true,"Whole-home brightness is only accepted when power is true.");
+    const lights=this.devices().filter(d=>d.type==="light"&&(!room||d.room===room));
+    assert(lights.length,"No matching lights.");
+    return this.batch(lights.map(d=>({deviceId:d.id,changes})),source,"custom",room?"room_set_lights":"home_set_all_lights");
+  }
+  curtains(position,source="UI"){
+    return this.batch(this.devices().filter(d=>d.type==="curtain").map(d=>({deviceId:d.id,changes:{position}})),source,"custom",position?"home_open_all_curtains":"home_close_all_curtains");
+  }
+  lockAll(source="UI"){
+    return this.batch(this.devices().filter(d=>d.type==="lock"&&d.online).map(d=>({deviceId:d.id,changes:{locked:true}})),source,"custom","home_lock_all");
+  }
+  nonessential(source="UI"){
+    const targets=this.devices().filter(d=>d.online&&d.capabilities.includes("power")&&["light","media","display","plug","appliance","purifier","humidifier","fan"].includes(d.type));
+    return this.batch(targets.map(d=>({deviceId:d.id,changes:{power:false}})),source,"custom","home_turn_off_nonessential_devices");
+  }
+  activateScene(scene,source="UI") {
+    const result=this.batch(SceneEngine.build(this,scene),source,scene,"scene_activate");
+    return {...result,skippedOfflineDevices:this.devices().filter(d=>!d.online).map(d=>d.id)};
+  }
+  undo(source="UI"){
+    const old=this.snapshot(),previous=this.undoManager.pop();
+    this._state=previous;
+    const changedDevices=previous.devices.filter(d=>JSON.stringify(d)!==JSON.stringify(old.devices.find(x=>x.id===d.id))).map(d=>d.id);
+    this.emit({source,action:"home_undo",changedDevices,scene:previous.currentScene});
+    return {success:true,scene:previous.currentScene,changedDevices,state:this.getState()};
+  }
+  reset(source="UI"){
+    this.undoManager.push(this._state);this._state=clone(this.initial);
+    const changedDevices=this.devices().map(d=>d.id);
+    this.emit({source,action:"home_reset_demo",changedDevices,scene:"home"});
+    return {success:true,changedDevices,state:this.getState()};
+  }
+  subscribe(fn){this.listeners.add(fn)}
+  emit(event){for(const fn of this.listeners){try{fn(event)}catch(e){console.error("Home subscriber failed:",e)}}}
+  restore(saved) {
+    assert(saved&&saved.version===1,"Invalid saved-state version.");
+    assert(ROOM_IDS.includes(saved.selectedRoom),"Invalid selected room.");
+    const s=saved.state;
+    assert(s&&[...SCENES.map(s=>s.id),"custom"].includes(s.currentScene),"Invalid saved scene.");
+    assert(Array.isArray(s.devices)&&s.devices.length===this.initial.devices.length,"Invalid saved device list.");
+    const ids=new Set(),next=clone(this.initial);
+    for(const persisted of s.devices) {
+      assert(persisted&&typeof persisted.id==="string"&&!ids.has(persisted.id),"Invalid or duplicate saved device.");
+      ids.add(persisted.id);
+      const base=this.device(persisted.id);
+      assert(persisted.type===base.type&&persisted.room===base.room&&persisted.online===base.online,"Invalid saved device metadata.");
+      assert(typeof persisted.power==="boolean","Invalid saved power.");
+      assert(persisted.state&&JSON.stringify(Object.keys(persisted.state).sort())===JSON.stringify(Object.keys(base.state).sort()),"Invalid saved capabilities.");
+      const changes={...persisted.state,...(base.capabilities.includes("power")?{power:persisted.power}:{}),...(persisted.state.locked===false?{confirm:true}:{})};
+      this.validateChanges(base,changes,{availability:false});
+      const target=next.devices.find(d=>d.id===base.id);
+      target.power=base.capabilities.includes("power")?persisted.power:base.power;
+      target.state=clone(persisted.state);
+    }
+    next.currentScene=s.currentScene;
+    this._state=next;
+    return saved.selectedRoom;
+  }
+}
+
+/* ACTIVITY LOGGER */
+class ActivityLogger {
+  constructor(){this.entries=[]}
+  add(source,action,summary,success=true) {
+    this.entries.unshift({timestamp:new Date().toLocaleTimeString("en-GB"),source,action,summary,success});
+    this.entries=this.entries.slice(0,50);this.render();
+  }
+  render(){
+    $("activity-count").textContent=this.entries.length+" EVENTS";
+    $("activity-list").innerHTML=this.entries.map(e=>`<div class="activity-item"><div class="activity-meta"><span>${e.timestamp}</span><span class="source ${e.source}">${e.source}</span>${!e.success?'<span style="color:#ad7056">REJECTED</span>':""}</div><code>${escapeHTML(e.action)}</code><div class="activity-summary">${escapeHTML(e.summary)}</div></div>`).join("");
+  }
+}
+
+/* JSON SCHEMA & TOOL VALIDATION */
+const schema = (properties={},required=[]) => ({type:"object",properties,required,additionalProperties:false});
+const str = description => ({type:"string",description});
+const bool = description => ({type:"boolean",description});
+const enumeration = (values,description) => ({type:"string",enum:values,description});
+const num = (min,max,description) => ({type:"number",minimum:min,maximum:max,description});
+const DEVICE_ID=str("Exact device ID. Discover IDs and supported capabilities with home_get_available_options.");
+const ROOM_ID=enumeration(ROOM_IDS,"Room identifier. This apartment has one floor; there is no downstairs room.");
+const CHANGE_FIELDS={
+  power:bool("True to turn on, false to turn off."),
+  brightness:num(0,100,"Light brightness in percent; does not implicitly turn the light on."),
+  colorTemperature:num(2700,6500,"White color temperature in kelvin."),
+  color:enumeration(Object.keys(COLORS),"Supported named RGB-style color."),
+  targetTemperature:num(16,30,"Climate target in degrees Celsius."),
+  mode:enumeration([...CLIMATE_MODES,"quiet","manual"],"Operating mode; validated against the device type."),
+  fanSpeed:enumeration(FAN_SPEEDS,"Fan speed."),
+  speed:enumeration(FAN_SPEEDS,"Extraction fan speed."),
+  position:num(0,100,"Curtain opening: 0 is fully closed, 100 is fully open."),
+  volume:num(0,100,"Media volume percentage."),
+  source:enumeration(MEDIA_SOURCES,"Media input source."),
+  locked:bool("True locks the entrance. False requires confirm: true."),
+  confirm:bool("Explicit user authorization for unlocking. Never infer consent."),
+  targetHumidity:num(30,70,"Humidifier target humidity percentage."),
+  recording:bool("Camera recording state.")
+};
+function validateSchema(value,s,path="input") {
+  if(s.type==="object") {
+    assert(value!==null&&typeof value==="object"&&!Array.isArray(value),path+" must be an object.");
+    for(const k of s.required||[])assert(Object.hasOwn(value,k),path+"."+k+" is required.");
+    if(s.additionalProperties===false)for(const k of Object.keys(value))assert(Object.hasOwn(s.properties,k),path+" contains unknown field: "+k);
+    for(const [k,v] of Object.entries(value))if(s.properties[k])validateSchema(v,s.properties[k],path+"."+k);
+  } else if(s.type==="array") {
+    assert(Array.isArray(value),path+" must be an array.");
+    if(s.minItems!==undefined)assert(value.length>=s.minItems,path+" must not be empty.");
+    if(s.maxItems!==undefined)assert(value.length<=s.maxItems,path+" has too many items.");
+    value.forEach((v,i)=>validateSchema(v,s.items,path+"["+i+"]"));
+  } else {
+    assert(typeof value===s.type,path+" must be a "+s.type+".");
+    if(s.type==="number"){
+      assert(Number.isFinite(value),path+" must be finite.");
+      if(s.minimum!==undefined)assert(value>=s.minimum,path+" must be at least "+s.minimum+".");
+      if(s.maximum!==undefined)assert(value<=s.maximum,path+" must be at most "+s.maximum+".");
+    }
+    if(s.enum)assert(s.enum.includes(value),path+" must be one of: "+s.enum.join(", ")+".");
+  }
+  if(s.anyOf)assert(s.anyOf.some(option=>(option.required||[]).every(k=>Object.hasOwn(value,k))),path+" requires at least one mutable field.");
+}
+function mutationSchema(fields,required=[]) {
+  const properties={deviceId:DEVICE_ID};
+  fields.forEach(k=>properties[k]=CHANGE_FIELDS[k]);
+  const s=schema(properties,["deviceId",...required]);
+  if(!required.length)s.anyOf=fields.filter(k=>k!=="confirm").map(k=>({required:[k]}));
+  return s;
+}
+
+/* CAPABILITY CATALOG — UI and native WebMCP share these exact handlers */
+function createTools(engine) {
+  const tools=[];
+  function add(name,description,inputSchema,kind,handler,example={}) {
+    tools.push({name,description,inputSchema,kind,handler,example,
+      annotations:{readOnlyHint:kind==="READ",consequentialHint:kind!=="READ",untrustedContentHint:false}});
+  }
+  const read=(name,description,handler,input=schema(),example={})=>add(name,description,input,"READ",handler,example);
+  read("home_get_state","Get the complete current shared smart-home state, including every room, environmental value, device capability and state, active scene, energy estimate, lock state, and online/offline status. Human changes are reflected immediately.",()=>engine.getState());
+  read("home_get_summary","Return a concise human-readable and structured overview of what is happening at home: active devices, temperatures, climate targets, locks, open curtains, offline devices, and notable conditions.",()=>engine.summary());
+  read("room_get_state","Inspect all devices and simulated environmental readings for one room. Use before reasoning about requests such as 'it is too hot in the bedroom'.",a=>engine.room(a.room),schema({room:ROOM_ID},["room"]),{room:"bedroom"});
+  read("device_get_state","Get one device's exact current state, type, capabilities, power, and availability. Use to inspect a device before issuing a supported mutation.",a=>engine.device(a.deviceId),schema({deviceId:DEVICE_ID},["deviceId"]),{deviceId:"living-ac"});
+  const setTool=(name,description,type,fields,required,kind,example)=>add(name,description,mutationSchema(fields,required),kind,(a,src)=>{
+    const {deviceId,...changes}=a;return engine.setDevice(deviceId,changes,src,type,name);
+  },example);
+  setTool("device_set_power","Turn a specific device on or off through the shared engine. Requires an online device with the power capability; curtains and smart locks do not support this tool.",null,["power"],["power"],"WRITE",{deviceId:"living-tv",power:false});
+  setTool("light_set","Control a specific smart light through structured state changes. Use power, brightness, color temperature, or named RGB-style color only where supported. At least one mutable field is required. Directly changes shared home state and immediately updates the floor plan and controls.","light",["power","brightness","colorTemperature","color"],[],"WRITE",{deviceId:"living-light-ambient",power:true,brightness:30,color:"purple"});
+  setTool("climate_set","Adjust an online air conditioner: power, 16–30°C target, operating mode, or fan speed. A target change does not implicitly turn power on. Use room_get_state first if you need environmental context.","climate",["power","targetTemperature","mode","fanSpeed"],[],"WRITE",{deviceId:"bedroom-ac",power:true,targetTemperature:24});
+  setTool("curtain_set","Set the opening percentage of one online curtain. Position 0 closes it completely, 50 is half-open, and 100 opens it fully. Updates the visible window covering immediately.","curtain",["position"],["position"],"WRITE",{deviceId:"bedroom-curtain",position:0});
+  setTool("media_set","Control an online TV or speaker's power, volume (0–100), or supported source. Use this for entertainment changes, not displays powered by a smart plug.","media",["power","volume","source"],[],"WRITE",{deviceId:"living-tv",power:true,volume:25,source:"streaming"});
+  setTool("lock_set","Lock or unlock a specific online smart lock. Locking is allowed normally. Unlocking is security-sensitive and requires explicit user authorization represented by confirm: true; never assume consent. Missing confirmation returns requiresConfirmation without changing state.","lock",["locked","confirm"],["locked"],"SENSITIVE",{deviceId:"entrance-lock",locked:true});
+  setTool("fan_set","Control an online extraction fan's power or speed (auto, low, medium, high). For climate fans use climate_set; for purifier fan speed use appliance_set.","fan",["power","speed"],[],"WRITE",{deviceId:"bathroom-fan",power:true,speed:"high"});
+  setTool("appliance_set","Control an online appliance, plug, display, purifier, or humidifier using its supported power, fan speed, mode, or humidity target capabilities. Offline devices are rejected. Inspect capabilities before sending optional fields.",["appliance","plug","display","purifier","humidifier"],["power","fanSpeed","mode","targetHumidity"],[],"WRITE",{deviceId:"kitchen-coffee-machine",power:true});
+  add("scene_activate","Activate a predefined coordinated scene atomically. Prefer this tool for high-level intent: going to bed → sleep; going out → away; watching a movie → movie; deep work → focus; dining → dinner; waking up → morning; saving power → energy_saver. All planned online device changes commit together and one undo restores the entire prior state. Known offline devices are explicitly reported as skipped; scenes never unlock the entrance.",schema({scene:enumeration(SCENES.map(s=>s.id),"Predefined scene ID.")},["scene"]),"WRITE",(a,s)=>engine.activateScene(a.scene,s),{scene:"sleep"});
+  read("scene_get_available","List all predefined scenes and their intent-oriented descriptions. Prefer an existing scene instead of many individual calls when it matches the user's request.",()=>({scenes:clone(SCENES)}));
+  const roomLightsSchema=schema({room:ROOM_ID,power:CHANGE_FIELDS.power,brightness:CHANGE_FIELDS.brightness},["room"]);
+  roomLightsSchema.anyOf=[{required:["power"]},{required:["brightness"]}];
+  add("room_set_lights","Control all lights in one room together with power and/or brightness. Every target is validated first, including availability; one invalid target rejects the whole operation without partial changes.",roomLightsSchema,"WRITE",(a,s)=>{const {room,...changes}=a;return engine.setLights(room,changes,s)},{room:"study",power:true,brightness:80});
+  add("home_set_all_lights","Set power on every home light atomically. Optionally set brightness when power is true. Every target is validated first; this does not affect media, climate, curtains, or security.",schema({power:CHANGE_FIELDS.power,brightness:CHANGE_FIELDS.brightness},["power"]),"WRITE",(a,s)=>engine.setLights(null,a,s),{power:false});
+  add("home_close_all_curtains","Close every curtain to position 0 in one atomic, undoable action. An unavailable target rejects the operation; no synthetic UI interaction is performed.",schema(),"WRITE",(a,s)=>engine.curtains(0,s));
+  add("home_open_all_curtains","Fully open every curtain to position 100 in one atomic, undoable action. All targets are validated before shared state changes.",schema(),"WRITE",(a,s)=>engine.curtains(100,s));
+  add("home_lock_all","Lock all available smart locks as one undoable action. Unavailable locks are reported as skipped; query security status to assess overall security. This tool never unlocks a door.",schema(),"WRITE",(a,s)=>({...engine.lockAll(s),skippedOfflineDevices:engine.devices().filter(d=>d.type==="lock"&&!d.online).map(d=>d.id)}));
+  add("home_turn_off_nonessential_devices","Turn off available nonessential lights, media, displays, plugs, appliances, fans, purifiers, and humidifiers atomically. Preserve all air conditioners and security devices. Suitable for reducing energy without turning off AC; inspect energy afterwards rather than promising a wattage target.",schema(),"WRITE",(a,s)=>engine.nonessential(s));
+  read("home_get_energy_usage","Return current estimated watts, projected daily kWh, the estimation method, and ranked active device consumers. Calculated from the same device state shown in the UI; not real utility measurements.",()=>engine.energy());
+  read("home_get_offline_devices","List all unavailable devices with full state. Mutations targeting offline devices fail explicitly; do not assume that stored power means an offline device is reachable.",()=>({devices:engine.devices().filter(d=>!d.online)}));
+  read("home_get_security_status","Return lock states, camera power and recording state, device availability, and security warnings. A locked entrance does not imply full monitoring when a camera is offline.",()=>engine.security());
+  add("home_batch_update","Apply up to 100 unique device updates as one atomic transaction and one undo step. Validate IDs, all field capabilities and ranges, availability, and unlocking confirmation before applying anything. Any invalid update rejects the entire batch. For unlocking, put confirm: true inside that update's changes; obtain user consent first.",schema({updates:{type:"array",minItems:1,maxItems:100,items:schema({deviceId:DEVICE_ID,changes:{...schema(CHANGE_FIELDS),anyOf:Object.keys(CHANGE_FIELDS).filter(k=>k!=="confirm").map(k=>({required:[k]}))}},["deviceId","changes"])}},["updates"]),"SENSITIVE",(a,s)=>engine.batch(a.updates,s),{updates:[{deviceId:"living-tv",changes:{power:false}},{deviceId:"living-light-main",changes:{brightness:20}}]});
+  read("home_get_available_options","Discover valid rooms, device IDs, per-device capabilities and availability, scenes, climate modes, appliance modes, fan speeds, media sources, supported colors, and numeric ranges. Use this to avoid guessing fields or inventing a downstairs floor.",()=>({rooms:clone(ROOMS),devices:engine.devices().map(({id,name,room,type,online,capabilities})=>({id,name,room,type,online,capabilities})),scenes:clone(SCENES),climateModes:CLIMATE_MODES,applianceModes:["auto","eco","quiet","manual"],fanSpeeds:FAN_SPEEDS,mediaSources:MEDIA_SOURCES,colors:Object.keys(COLORS),ranges:RANGES,layout:"Single-floor apartment; no downstairs.",security:"Unlock requires confirm:true, including in batch changes."}));
+  add("home_undo","Undo the latest logical mutation, including an entire scene, room action, batch, or reset. Restores the previous shared snapshot. If restoration would unlock the entrance, confirm: true is required after explicit user consent.",schema({confirm:CHANGE_FIELDS.confirm}),"SENSITIVE",(a,s)=>{
+    const previous=engine.undoManager.stack.at(-1);
+    if(previous) {
+      const wouldUnlock=previous.devices.some(d=>d.type==="lock"&&!d.state.locked&&engine.device(d.id).state.locked);
+      assert(!wouldUnlock||a.confirm===true,"Undo would unlock the entrance and requires explicit confirmation.",{requiresConfirmation:true});
+    }
+    return engine.undo(s);
+  });
+  add("home_reset_demo","Restore the original fictional demo devices and Home scene. Clears modifications but preserves this reset as one undoable action. Does not contact real devices or services.",schema(),"WRITE",(a,s)=>engine.reset(s));
+  return tools;
+}
+
+/* SHARED CAPABILITY EXECUTOR */
+class CapabilityLayer {
+  constructor(engine,logger){this.engine=engine;this.logger=logger;this.tools=createTools(engine)}
+  execute(name,args={},source="UI") {
+    try {
+      const tool=this.tools.find(t=>t.name===name);
+      assert(tool,"Unknown capability: "+name);
+      validateSchema(args,tool.inputSchema);
+      const data=tool.handler(clone(args),source);
+      const result=data&&Object.hasOwn(data,"success")?data:{success:true,...data};
+      const summary=tool.kind==="READ"?"Shared state queried.":name==="scene_activate"?`${pretty(args.scene)} scene · ${result.changedDevices?.length||0} devices changed.`:
+        name==="home_undo"?"Previous home snapshot restored.":name==="home_reset_demo"?"Original demo state restored.":JSON.stringify(args);
+      this.logger?.add(source,name,summary);
+      if(tool.kind!=="READ") {
+        const prefix=source==="WebMCP"?"AI Agent":"You";
+        let message=name==="scene_activate"?`${prefix} activated ${pretty(args.scene)} Scene`:
+          name==="home_undo"?`${prefix} restored the previous home state`:
+          name==="home_reset_demo"?"Demo restored to its original state":
+          name==="home_close_all_curtains"?`${prefix} closed all curtains`:
+          name==="home_open_all_curtains"?`${prefix} opened all curtains`:
+          name==="home_lock_all"?`${prefix} locked the entrance`:
+          args.deviceId?this.deviceMessage(prefix,args):`${prefix} updated ${result.changedDevices?.length||0} devices`;
+        if(this.logger)toast(message);
+      }
+      return clone(result);
+    } catch(e) {
+      const result={success:false,error:e.message,...(e.requiresConfirmation?{requiresConfirmation:true}:{})};
+      this.logger?.add(source,name,e.message,false);
+      if(this.logger)toast(e.message,true);
+      return result;
+    }
+  }
+  deviceMessage(prefix,a) {
+    const d=this.engine.device(a.deviceId),label=`${roomName(d.room)} ${d.name}`;
+    if("locked" in a)return `${prefix} ${a.locked?"locked":"unlocked"} the entrance`;
+    if("targetTemperature" in a)return `${prefix} set ${label} to ${a.targetTemperature}°C`;
+    if("position" in a)return `${prefix} set ${label} to ${a.position}% open`;
+    if("brightness" in a)return `${prefix} set ${label} to ${a.brightness}%`;
+    if("power" in a)return `${prefix} turned ${a.power?"on":"off"} ${label}`;
+    return `${prefix} updated ${label}`;
+  }
+}
+
+/* FLOOR PLAN — interactive DOM architecture with live state decoration */
+function furniture(room) {
+  const windowHTML=(style,id)=>`<div class="window" style="${style}"><div class="cover" data-curtain="${id}"></div></div>`;
+  switch(room) {
+    case "living_room":return `
+      ${windowHTML("left:20px;right:20px;top:0;height:9px","living-curtain")}
+      <div class="furniture rug" style="left:15%;top:27%;width:71%;height:45%"></div>
+      <div class="furniture sofa" style="left:10%;top:30%;width:29%;height:35%"></div>
+      <div class="furniture coffee-table" style="left:47%;top:42%;width:46px;height:59px"></div>
+      <div class="furniture tv" data-active="living-tv" style="right:10%;top:33%;width:12px;height:100px"></div>
+      <div class="furniture plant" style="right:12%;top:16%"></div>
+      <div class="furniture desk" style="left:15%;bottom:16%;width:53px;height:28px"></div>
+      <div class="furniture chair" style="left:25%;bottom:11%;width:23px;height:20px"></div>
+      <div class="lamp-dot" data-active="living-light-main" style="left:51%;top:24%"></div>
+      <div class="lamp-dot" data-active="living-light-ambient" style="right:12%;bottom:25%"></div>
+      <div class="ac" data-active="living-ac" style="left:16px;top:64px"></div>`;
+    case "bedroom":return `
+      ${windowHTML("right:0;top:25px;bottom:45px;width:10px","bedroom-curtain")}
+      <div class="furniture rug" style="left:34%;top:28%;width:45%;height:57%"></div>
+      <div class="furniture bed" style="left:42%;top:18%;width:29%;height:60%"></div>
+      <div class="furniture nightstand" style="left:30%;top:23%;width:26px;height:28px"></div>
+      <div class="furniture nightstand" style="left:74%;top:23%;width:26px;height:28px"></div>
+      <div class="lamp-dot" data-active="bedroom-bedside-light" style="left:calc(30% + 8px);top:calc(23% + 8px)"></div>
+      <div class="lamp-dot" data-active="bedroom-light" style="left:25%;top:58%"></div>
+      <div class="furniture counter" style="left:6%;bottom:23%;width:39px;height:43px"></div>
+      <div class="furniture plant" style="right:7%;bottom:24%"></div>
+      <div class="ac" data-active="bedroom-ac" style="left:16px;top:60px"></div>`;
+    case "kitchen":return `
+      <div class="furniture counter" style="left:10%;top:30%;width:79%;height:30px"></div>
+      <div class="furniture counter" style="right:10%;top:30%;width:30px;height:80px"></div>
+      <div class="furniture hob" style="left:17%;top:32%;width:27px;height:24px"><i></i><i></i><i></i><i></i></div>
+      <div class="furniture sink" style="left:49%;top:33%;width:25px;height:19px"></div>
+      <div class="furniture coffee" data-active="kitchen-coffee-machine" style="right:13%;top:61%;width:18px;height:21px"></div>
+      <div class="furniture desk" style="left:13%;bottom:25%;width:54px;height:30px"></div>
+      <div class="lamp-dot" data-active="kitchen-light" style="left:43%;top:59%"></div>`;
+    case "study":return `
+      <div class="furniture desk" style="right:10%;top:31%;width:78%;height:40px"></div>
+      <div class="furniture monitor" data-active="study-monitor" style="right:31%;top:32%;width:36px;height:19px"></div>
+      <div class="furniture chair" style="right:38%;top:59%;width:28px;height:28px"></div>
+      <div class="lamp-dot" data-active="study-desk-light" style="left:17%;top:40%"></div>
+      <div class="lamp-dot" data-active="study-light" style="left:23%;top:65%"></div>
+      <div class="ac" data-active="study-ac" style="right:9px;top:9px;width:30px"></div>
+      <div class="furniture plant" style="right:9%;bottom:20%;width:20px;height:20px"></div>`;
+    case "bathroom":return `
+      <div class="furniture tub" style="right:8%;top:19%;width:36px;height:66px"></div>
+      <div class="furniture sink" style="left:15%;top:45%;width:29px;height:22px"></div>
+      <div class="lamp-dot" data-active="bathroom-light" style="left:46%;top:48%"></div>`;
+    case "entrance":return `
+      <div class="furniture desk" style="left:12%;top:42%;width:24px;height:31px"></div>
+      <div class="door-arc" style="right:18%;top:24%"></div>
+      <div class="lamp-dot" data-active="entrance-light" style="left:40%;top:48%"></div>
+      <div class="furniture plant" style="left:14%;top:45%;width:18px;height:18px"></div>`;
+  }
+}
+class HomeRenderer {
+  constructor(engine,getSelected){this.engine=engine;this.getSelected=getSelected}
+  initializeFloor(){
+    for(const r of ROOMS) {
+      const button=document.createElement("button");
+      button.className="room "+r.id;button.dataset.room=r.id;
+      button.setAttribute("aria-label","Select "+r.name);
+      button.innerHTML=`<div class="ambient-glow"></div>${furniture(r.id)}<div class="room-label"><strong>${r.name}</strong><small data-temperature></small></div><span class="room-selected-dot"></span><div class="room-readout"></div>`;
+      (["entrance","bathroom"].includes(r.id)?$("floor-extension"):$("floor-main")).append(button);
+    }
+    $("floor-extension").insertAdjacentHTML("beforeend",`<div class="floor-note">${icon("home")}<strong>The Greenhouse</strong><span>A thoughtfully connected apartment.</span><span>Environment readings are simulated.</span></div>`);
+  }
+  render(event={}) {
+    const state=this.engine.snapshot(),ds=state.devices,selected=this.getSelected();
+    $("status-row").innerHTML=`<span class="flex" style="gap:6px">${icon("home")} <strong>Home</strong></span><i class="divider"></i><span><strong>${ROOMS.length}</strong> Rooms</span><span><strong>${ds.length}</strong> Devices</span><span><span class="dot"></span> <strong>${ds.filter(d=>d.online).length}</strong> Online</span><span class="scene-status">Current Scene: <strong>${pretty(state.currentScene)}</strong></span>`;
+    $("undo-button").disabled=this.engine.undoManager.stack.length===0;
+    $("scene-caption").textContent=pretty(state.currentScene).toUpperCase();
+    $("scenes").innerHTML=SCENES.map(s=>`<button class="scene-button ${s.id===state.currentScene?"active":""}" data-scene="${s.id}" aria-pressed="${s.id===state.currentScene}" title="${escapeHTML(s.description)}">${icon(s.icon)}<span>${s.name}</span></button>`).join("");
+    this.floor(state);
+    this.controls(selected);
+    this.energyAndSignals();
+    if(event.changedDevices?.length) {
+      const rooms=new Set(event.changedDevices.map(id=>this.engine.device(id).room));
+      const className=event.source==="WebMCP"?"agent-highlight":event.action==="scene_activate"?"scene-highlight":null;
+      if(className) {
+        const elements=[...document.querySelectorAll(".room")].filter(el=>rooms.has(el.dataset.room));
+        if(event.source==="WebMCP")for(const id of event.changedDevices){const el=$("card-"+id);if(el)elements.push(el,...el.querySelectorAll("input,select,button"))}
+        elements.forEach(el=>{el.classList.remove(className);void el.offsetWidth;el.classList.add(className);setTimeout(()=>el.classList.remove(className),950)});
+      }
+    }
+  }
+  floor(state) {
+    const ds=state.devices;
+    document.querySelectorAll(".room").forEach(el=>{
+      const id=el.dataset.room,room=state.rooms.find(r=>r.id===id),devices=ds.filter(d=>d.room===id);
+      const lights=devices.filter(d=>d.type==="light"&&d.power&&d.online);
+      const main=devices.find(d=>d.type==="light"&&!d.id.includes("ambient")&&!d.id.includes("bedside")&&!d.id.includes("desk"));
+      const brightness=main?.power&&main.online?main.state.brightness:0;
+      el.classList.toggle("lit",brightness>0);
+      el.style.setProperty("--room-bg",`hsl(76 23% ${72+brightness*.14}%)`);
+      el.classList.toggle("selected",this.getSelected()===id);
+      el.setAttribute("aria-pressed",String(this.getSelected()===id));
+      el.querySelector("[data-temperature]").textContent=room.environment.temperature.toFixed(1)+"°C";
+      const ambient=devices.find(d=>d.id==="living-light-ambient");
+      el.querySelector(".ambient-glow").style.background=ambient?.power?`radial-gradient(ellipse at 85% 65%,${COLORS[ambient.state.color]},transparent 85%)`:"transparent";
+      el.querySelector(".ambient-glow").style.opacity=ambient?.power?String(.2+ambient.state.brightness/200):"0";
+      const chips=[`${lights.length?lights.length+" light"+(lights.length>1?"s":"")+" on":"Lights off"}`];
+      const ac=devices.find(d=>d.type==="climate");
+      if(ac?.power)chips.push(`AC ${ac.state.targetTemperature}°`);
+      const tv=devices.find(d=>d.id==="living-tv");if(tv?.power)chips.push("TV on");
+      const curtain=devices.find(d=>d.type==="curtain");if(curtain)chips.push(curtain.state.position===0?"Curtain closed":`${curtain.state.position}% open`);
+      if(id==="entrance")chips.push(devices.find(d=>d.type==="lock").state.locked?"● Locked":"○ Unlocked");
+      if(id==="kitchen"&&devices.find(d=>d.id==="kitchen-coffee-machine").power)chips.push("Brewing");
+      if(id==="bathroom"&&devices.find(d=>d.type==="fan").power)chips.push("Fan on");
+      el.querySelector(".room-readout").innerHTML=chips.map(c=>`<span class="room-chip">${escapeHTML(c)}</span>`).join("");
+      el.querySelectorAll("[data-active]").forEach(node=>{
+        const d=ds.find(d=>d.id===node.dataset.active);
+        node.classList.toggle("active",d.power&&d.online);
+        if(node.classList.contains("ac"))node.textContent=d.power?d.state.targetTemperature+"°":"";
+        if(node.classList.contains("lamp-dot")&&d.state.color)node.style.background=d.power?COLORS[d.state.color]:"";
+      });
+      el.querySelectorAll("[data-curtain]").forEach(node=>{
+        const d=ds.find(d=>d.id===node.dataset.curtain);
+        node.style.width=(100-d.state.position)+"%";
+      });
+    });
+  }
+  controls(roomId) {
+    const r=this.engine.room(roomId),env=r.environment;
+    $("control-title").textContent=r.name;
+    $("room-device-count").textContent=r.devices.length+" DEVICES";
+    $("room-tabs").innerHTML=ROOMS.map(room=>`<button data-room="${room.id}" class="${room.id===roomId?"active":""}" aria-pressed="${room.id===roomId}">${room.name}</button>`).join("");
+    $("environment").innerHTML=`<div><strong>${env.temperature.toFixed(1)}°</strong><small>Temperature</small></div><div><strong>${env.humidity}<span style="font-size:12px">%</span></strong><small>Humidity</small></div><div><strong>${env.airQuality}</strong><small>AQI · Good</small></div>`;
+    const active=document.activeElement,focusId=active?.id,scroll=$("controls").scrollTop;
+    $("controls").innerHTML=r.devices.map(d=>this.deviceCard(d)).join("");
+    $("controls").scrollTop=scroll;
+    if(focusId&&$(focusId)&&active?.closest("#controls"))$(focusId).focus({preventScroll:true});
+  }
+  deviceCard(d) {
+    const typeIcon={light:"light",climate:"climate",curtain:"curtain",media:"media",lock:"lock",camera:"camera",purifier:"fan",humidifier:"water",fan:"fan",appliance:d.id.includes("coffee")?"coffee":"plug",plug:"plug",display:"media"}[d.type];
+    const off=d.online?"":"disabled",cap=k=>d.capabilities.includes(k);
+    const range=(key,title,min,max,unit,step=1)=>`<div class="control-line"><label for="${d.id}-${key}">${title}</label><input id="${d.id}-${key}" data-device="${d.id}" data-field="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${d.state[key]}" ${off}><output for="${d.id}-${key}">${d.state[key]}${unit}</output></div>`;
+    const select=(key,title,options)=>`<div class="control-line"><label for="${d.id}-${key}">${title}</label><select id="${d.id}-${key}" data-device="${d.id}" data-field="${key}" ${off}>${options.map(v=>`<option value="${v}" ${d.state[key]===v?"selected":""}>${pretty(v)}</option>`).join("")}</select></div>`;
+    let controls="";
+    if(cap("brightness"))controls+=range("brightness","Brightness",0,100,"%");
+    if(cap("colorTemperature"))controls+=range("colorTemperature","Warmth",2700,6500,"K",100);
+    if(cap("color"))controls+=`<div class="control-line"><span style="min-width:66px">Color</span><div class="colors">${Object.entries(COLORS).map(([name,color])=>`<button class="color-button ${d.state.color===name?"chosen":""}" style="background:${color}" data-device="${d.id}" data-color="${name}" aria-label="${d.name}: ${name}" aria-pressed="${d.state.color===name}" ${off}></button>`).join("")}</div><span style="font-size:9px">${pretty(d.state.color)}</span></div>`;
+    if(cap("targetTemperature"))controls+=range("targetTemperature","Target",16,30,"°C",.5);
+    if(cap("mode"))controls+=select("mode","Mode",d.type==="climate"?CLIMATE_MODES:["auto","eco","quiet","manual"]);
+    if(cap("fanSpeed"))controls+=select("fanSpeed","Fan speed",FAN_SPEEDS);
+    if(cap("speed"))controls+=select("speed","Speed",FAN_SPEEDS);
+    if(cap("position")) {
+      controls+=range("position","Opening",0,100,"%");
+      controls+=`<div class="presets">${[[100,"Open"],[50,"50%"],[0,"Close"]].map(([v,n])=>`<button data-device="${d.id}" data-position="${v}" ${off}>${n}</button>`).join("")}</div>`;
+    }
+    if(cap("volume"))controls+=range("volume","Volume",0,100,"%");
+    if(cap("source"))controls+=select("source","Source",MEDIA_SOURCES);
+    if(cap("targetHumidity"))controls+=range("targetHumidity","Target RH",30,70,"%");
+    if(cap("locked"))controls+=`<div class="flex between"><span style="font-size:11px">${d.state.locked?"● Locked · entrance secured":"○ Unlocked · entrance accessible"}</span><button data-device="${d.id}" data-lock="${!d.state.locked}" ${off} style="font-size:10px">${d.state.locked?"Unlock…":"Lock"}</button></div>`;
+    if(cap("recording"))controls+=`<div class="flex between" style="font-size:10px"><span>${d.online?(d.state.recording?"Recording enabled":"Recording disabled"):"Last known: recording enabled · unavailable"}</span><button class="toggle" role="switch" aria-label="${d.name} recording" aria-checked="${d.state.recording}" data-device="${d.id}" data-recording="${!d.state.recording}" ${off}></button></div>`;
+    if(!controls&&d.type==="appliance")controls=`<small style="font-size:10px">${!d.online?"Reconnect this device to control it.":d.power?(d.id.includes("coffee")?"Heating & brewing · simulated":"Operating"):"Standby"}</small>`;
+    return `<article class="device-card ${d.power&&d.online?"on":""}" id="card-${d.id}"><div class="device-top"><div class="device-icon">${icon(typeIcon)}</div><div class="device-info"><div class="device-name">${d.name}</div><div class="device-meta">${pretty(d.type)} <span>·</span><i class="dot ${d.online?"":"offline-dot"}"></i>${d.online?"Online":"Offline"}${cap("power")?" · "+(d.power?"On":"Off"):""}</div></div>${cap("power")?`<button id="${d.id}-power" class="toggle" role="switch" aria-checked="${d.power}" aria-label="${roomName(d.room)} ${d.name} power" data-device="${d.id}" data-power="${!d.power}" ${off}></button>`:""}</div>${controls?`<div class="device-controls">${controls}</div>`:""}</article>`;
+  }
+  energyAndSignals() {
+    const e=this.engine.energy(),ds=this.engine.devices(),top=e.topConsumers.slice(0,3);
+    const filled=Math.min(28,Math.ceil(e.currentWatts/4000*28));
+    $("energy").innerHTML=`<div class="upper muted" style="font-size:9px">CURRENT POWER</div><div class="energy-reading"><strong>${(e.currentWatts/1000).toFixed(2)}</strong><span>kW</span><span style="margin-left:auto;font-size:10px">${e.currentWatts} W</span></div><div class="energy-meter" aria-hidden="true">${Array.from({length:28},(_,i)=>`<i class="${i<filled?"filled":""}" style="height:${12+(i%7)*3}px"></i>`).join("")}</div><div class="energy-detail"><span>Today's estimated usage</span><strong>${e.estimatedDailyKWh.toFixed(2)} kWh</strong></div><div style="font-size:9px;color:#8a957e;margin-top:6px">Projection: current load × 6 active hours</div>${top.length?top.map(d=>`<div class="consumer"><span>${escapeHTML(d.name)}</span><span>${d.watts} W</span></div>`).join(""):'<div class="consumer">No online devices drawing power.</div>'}`;
+    const lights=ds.filter(d=>d.type==="light"&&d.power&&d.online).length;
+    const ac=this.engine.device("living-ac"),lock=this.engine.device("entrance-lock"),curtain=this.engine.device("bedroom-curtain"),tv=this.engine.device("living-tv");
+    const signals=[
+      ["light",`${lights} lights currently on`],
+      ["climate",`Living Room AC ${ac.power?"set to "+ac.state.targetTemperature+"°C":"is off"}`],
+      ["lock",`Entrance is ${lock.state.locked?"locked":"unlocked"}`],
+      ["plug",`${ds.filter(d=>!d.online).length} devices offline · camera monitoring unavailable`,"warning"],
+      ["bolt",`Estimated power usage: ${(e.currentWatts/1000).toFixed(2)} kW`],
+      ["curtain",`Bedroom curtain ${curtain.state.position===0?"is closed":curtain.state.position===100?"is fully open":"is "+curtain.state.position+"% open"}`],
+      ["media",`Living Room TV is ${tv.power?"on":"off"}`]
+    ];
+    $("signals").innerHTML=signals.map(([i,text,cls])=>`<div class="signal ${cls||""}">${icon(i)}<span>${text}</span></div>`).join("");
+  }
+}
+
+/* WEBMCP ADAPTER — native capability detection and idempotent registration */
+class WebMCPAdapter {
+  constructor(layer){this.layer=layer;this.registered=new Set();this.pending=null}
+  async connect(){
+    if(this.pending)return this.pending;
+    this.pending=this.register();
+    return this.pending;
+  }
+  async register(){
+    if(!("modelContext" in document)) {
+      console.info("WebMCP Unsupported: document.modelContext is unavailable. All smart-home controls and the local capability playground remain fully usable.");
+      this.status(false);return;
+    }
+    try {
+      const context=document.modelContext;
+      if(!context||typeof context.registerTool!=="function") {
+        console.info("WebMCP Unsupported: document.modelContext.registerTool is not available.");
+        this.status(false);return;
+      }
+      for(const tool of this.layer.tools) {
+        if(this.registered.has(tool.name))continue;
+        await document.modelContext.registerTool({
+          name:tool.name,
+          description:tool.description,
+          inputSchema:clone(tool.inputSchema),
+          annotations:{...tool.annotations},
+          execute:async args=>this.layer.execute(tool.name,args??{},"WebMCP")
+        });
+        this.registered.add(tool.name);
+      }
+      this.status(true);
+      logger.add("System","webmcp_connected",`${this.registered.size} native page capabilities registered.`);
+    } catch(e) {
+      this.status(false);
+      console.warn("WebMCP tool registration could not complete. UI remains available.",e);
+      logger.add("System","webmcp_registration",e.message,false);
+    }
+  }
+  status(connected) {
+    $("connection").className="connection"+(connected?"":" unsupported");
+    $("connection").innerHTML=`<span class="dot"></span> WebMCP ${connected?"Connected":"Unsupported"}`;
+    $("connection").title=connected?"Native page capabilities registered through document.modelContext":"This browser does not expose a usable native page capability API. The demo works locally.";
+    $("inspector-note").textContent=connected?`${this.registered.size} tools registered with document.modelContext · same engine as UI`:"Local capability catalog · native WebMCP unavailable · UI fully operational";
+  }
+  async refresh(){
+    let nativeCount=null;
+    try {
+      if("modelContext" in document&&typeof document.modelContext?.getTools==="function") {
+        const result=await document.modelContext.getTools();
+        const list=Array.isArray(result)?result:result?.tools;
+        if(Array.isArray(list))nativeCount=list.length;
+      }
+    } catch(e){console.info("Native tool discovery unavailable; showing local catalog.",e)}
+    renderTools();
+    $("tool-count").textContent=`${this.layer.tools.length} local capabilities${nativeCount!==null?" · "+nativeCount+" discovered via native API":""} · ${this.registered.size} registered`;
+    toast("Capability catalog refreshed");
+  }
+}
+
+/* PERSISTENCE */
+let selectedRoom="living_room";
+let persistenceWarning=false;
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,selectedRoom,state:engine.snapshot()}));
+  } catch(e) {
+    if(!persistenceWarning){console.warn("Local persistence unavailable; the home still works in memory.",e);persistenceWarning=true;logger.add("System","persistence_unavailable","Browser storage unavailable. Changes remain in memory.",false)}
+  }
+}
+
+/* UI CONTROLLER */
+let pendingConfirmation=null;
+function requestConfirmation(callback,title="Unlock the entrance?") {
+  pendingConfirmation=callback;$("confirm-title").textContent=title;
+  if(typeof $("confirm-dialog").showModal==="function")$("confirm-dialog").showModal();
+  else {if(window.confirm(title))callback();pendingConfirmation=null}
+}
+function runUI(name,args={}) {
+  return capabilities.execute(name,args,"UI");
+}
+function toolFor(d,key) {
+  if(key==="power")return "device_set_power";
+  return {light:"light_set",climate:"climate_set",curtain:"curtain_set",media:"media_set",lock:"lock_set",fan:"fan_set",camera:"home_batch_update"}[d.type]||"appliance_set";
+}
+function changeDevice(id,key,value) {
+  const d=engine.device(id),tool=toolFor(d,key);
+  if(tool==="home_batch_update")return runUI(tool,{updates:[{deviceId:id,changes:{[key]:value}}]});
+  return runUI(tool,{deviceId:id,[key]:value});
+}
+function selectRoom(room) {
+  if(!ROOM_IDS.includes(room))return;
+  selectedRoom=room;renderer.render();saveState();
+}
+function renderTools(){
+  $("tool-list").innerHTML=capabilities.tools.map(t=>`<div class="tool"><div class="tool-name"><code>${t.name}</code><span class="badge ${t.kind}">${t.kind}</span></div><p>${escapeHTML(t.description)}</p></div>`).join("");
+}
+function initializeUI(){
+  document.addEventListener("click",event=>{
+    const button=event.target.closest("button");
+    if(!button||button.disabled)return;
+    if(button.dataset.room)selectRoom(button.dataset.room);
+    if(button.dataset.scene)runUI("scene_activate",{scene:button.dataset.scene});
+    const id=button.dataset.device;if(!id)return;
+    if("power" in button.dataset)changeDevice(id,"power",button.dataset.power==="true");
+    if("color" in button.dataset)changeDevice(id,"color",button.dataset.color);
+    if("position" in button.dataset)changeDevice(id,"position",Number(button.dataset.position));
+    if("recording" in button.dataset)changeDevice(id,"recording",button.dataset.recording==="true");
+    if("lock" in button.dataset) {
+      const locked=button.dataset.lock==="true";
+      if(!locked)requestConfirmation(()=>runUI("lock_set",{deviceId:id,locked:false,confirm:true}));
+      else runUI("lock_set",{deviceId:id,locked:true});
+    }
+  });
+  $("controls").addEventListener("change",event=>{
+    const el=event.target;
+    if(el.dataset.field)changeDevice(el.dataset.device,el.dataset.field,el.type==="range"?Number(el.value):el.value);
+  });
+  // Drag previews remain focus-stable; a committed slider change is one undoable action.
+  $("controls").addEventListener("input",event=>{
+    const el=event.target;
+    if(el.type==="range"){
+      const unit={brightness:"%",colorTemperature:"K",targetTemperature:"°C",position:"%",volume:"%",targetHumidity:"%"}[el.dataset.field]||"";
+      el.parentElement.querySelector("output").textContent=el.value+unit;
+    }
+  });
+  $("room-lights-on").onclick=()=>runUI("room_set_lights",{room:selectedRoom,power:true});
+  $("room-lights-off").onclick=()=>runUI("room_set_lights",{room:selectedRoom,power:false});
+  $("mission-run").onclick=()=>runUI("scene_activate",{scene:"sleep"});
+  $("undo-button").onclick=()=>{
+    const prior=engine.undoManager.stack.at(-1);
+    const unlocks=prior?.devices.some(d=>d.type==="lock"&&!d.state.locked&&engine.device(d.id).state.locked);
+    if(unlocks)requestConfirmation(()=>runUI("home_undo",{confirm:true}),"Undo and unlock the entrance?");
+    else runUI("home_undo");
+  };
+  $("reset-button").onclick=()=>{selectedRoom="living_room";runUI("home_reset_demo")};
+  $("confirm-cancel").onclick=()=>{pendingConfirmation=null;$("confirm-dialog").close()};
+  $("confirm-unlock").onclick=()=>{const fn=pendingConfirmation;pendingConfirmation=null;$("confirm-dialog").close();fn?.()};
+  $("confirm-dialog").addEventListener("cancel",()=>pendingConfirmation=null);
+  $("refresh-tools").onclick=()=>adapter.refresh();
+  renderTools();
+  $("play-tool").innerHTML=capabilities.tools.map(t=>`<option value="${t.name}">${t.name} · ${t.kind}</option>`).join("");
+  $("play-tool").onchange=()=>{
+    const tool=capabilities.tools.find(t=>t.name===$("play-tool").value);
+    $("play-input").value=JSON.stringify(tool.example,null,2);
+    $("play-result").textContent="Input schema:\n"+JSON.stringify(tool.inputSchema,null,2);
+  };
+  $("play-run").onclick=()=>{
+    try {
+      const args=JSON.parse($("play-input").value);
+      $("play-result").textContent=JSON.stringify(runUI($("play-tool").value,args),null,2);
+    }catch(e){$("play-result").textContent=JSON.stringify({success:false,error:"Invalid JSON: "+e.message},null,2)}
+  };
+  const prompts=[
+    "I'm going to bed.","Set the house to Movie Mode.","Turn off every light downstairs.",
+    "Make the study ready for focused work.","Set the bedroom AC to 24°C.","Close every curtain.",
+    "Is my front door locked?","Which devices are using the most power?",
+    "Turn off unnecessary devices but keep the bedroom AC running.","Prepare the house for when I leave.",
+    "Open the bedroom curtain and start the coffee machine.","What's currently happening at home?",
+    "Turn the living room purple and dim the lights to 20%.","Make the house use less than 500 watts if possible."
+  ];
+  $("prompts").innerHTML=prompts.map(p=>`<button class="prompt" title="Copy prompt">${escapeHTML(p)}</button>`).join("");
+  $("prompts").addEventListener("click",async event=>{
+    const button=event.target.closest("button");if(!button)return;
+    const text=button.textContent;
+    try {
+      assert(navigator.clipboard?.writeText,"Clipboard unavailable");
+      await navigator.clipboard.writeText(text);
+      toast(text.includes("downstairs")?"Copied. This single-floor home requires the agent to clarify “downstairs”.":"Prompt copied. Paste into your WebMCP-enabled AI agent.");
+    } catch {
+      window.prompt("Copy this prompt into your AI agent:",text);
+    }
+  });
+}
+
+/* ISOLATED, NONDESTRUCTIVE CONSOLE SELF TESTS */
+function runSelfTests() {
+  let passed=0,failed=0;
+  const test=(name,fn)=>{try{fn();passed++;console.info("✓ "+name)}catch(e){failed++;console.error("✗ "+name,e)}};
+  const make=()=>{const e=new SmartHomeEngine();return {e,c:new CapabilityLayer(e,null)}};
+  const check=(v,m="Assertion failed")=>{if(!v)throw Error(m)};
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  console.groupCollapsed("WebMCP Smart Home · isolated self-tests");
+  test("Device power changes",()=>{const {e,c}=make();check(c.execute("device_set_power",{deviceId:"living-tv",power:true}).success);check(e.device("living-tv").power)});
+  test("Light brightness",()=>{const {e,c}=make();c.execute("light_set",{deviceId:"living-light-main",brightness:30});check(e.device("living-light-main").state.brightness===30)});
+  test("Climate range validation",()=>{const {e,c}=make(),before=e.snapshot();check(!c.execute("climate_set",{deviceId:"bedroom-ac",targetTemperature:31}).success);check(same(before,e.snapshot()))});
+  test("Curtain control",()=>{const {e,c}=make();c.execute("curtain_set",{deviceId:"bedroom-curtain",position:0});check(e.device("bedroom-curtain").state.position===0)});
+  test("Scene activation",()=>{const {e,c}=make();check(c.execute("scene_activate",{scene:"movie"}).success);check(e.device("living-tv").power&&!e.device("living-light-main").power&&e.device("living-light-ambient").state.color==="purple")});
+  test("Scene undo restores complete snapshot",()=>{const {e,c}=make(),before=e.snapshot();c.execute("scene_activate",{scene:"sleep"});c.execute("home_undo");check(same(before,e.snapshot()))});
+  test("Batch atomicity",()=>{const {e,c}=make(),before=e.snapshot();const r=c.execute("home_batch_update",{updates:[{deviceId:"living-tv",changes:{power:true}},{deviceId:"bedroom-ac",changes:{targetTemperature:60}}]});check(!r.success&&same(before,e.snapshot())&&e.undoManager.stack.length===0)});
+  test("Offline device rejection",()=>{const {e,c}=make();const r=c.execute("device_set_power",{deviceId:"bathroom-heater",power:true});check(!r.success&&r.error.includes("offline")&&!e.device("bathroom-heater").power)});
+  test("Unlock confirmation including batch bypass prevention",()=>{const {e,c}=make();check(c.execute("lock_set",{deviceId:"entrance-lock",locked:false}).requiresConfirmation);check(!c.execute("home_batch_update",{updates:[{deviceId:"entrance-lock",changes:{locked:false}}]}).success);check(e.device("entrance-lock").state.locked);check(c.execute("lock_set",{deviceId:"entrance-lock",locked:false,confirm:true}).success)});
+  test("Undo unlocking requires confirmation",()=>{const {c}=make();c.execute("lock_set",{deviceId:"entrance-lock",locked:false,confirm:true});c.execute("lock_set",{deviceId:"entrance-lock",locked:true});check(c.execute("home_undo").requiresConfirmation);check(c.execute("home_undo",{confirm:true}).success)});
+  test("Energy calculation",()=>{const {e,c}=make(),before=e.energy().currentWatts;c.execute("device_set_power",{deviceId:"kitchen-coffee-machine",power:true});check(Math.abs(e.energy().currentWatts-before-1000)<.001)});
+  test("Room state query reflects human mutation",()=>{const {c}=make();c.execute("climate_set",{deviceId:"bedroom-ac",targetTemperature:24},"UI");const r=c.execute("room_get_state",{room:"bedroom"},"WebMCP");check(r.devices.find(d=>d.id==="bedroom-ac").state.targetTemperature===24)});
+  test("Reset behavior",()=>{const {e,c}=make(),before=e.snapshot();c.execute("scene_activate",{scene:"away"});c.execute("home_reset_demo");check(same(before,e.snapshot()))});
+  test("Scene becomes Custom after manual change",()=>{const {e,c}=make();c.execute("scene_activate",{scene:"movie"});c.execute("light_set",{deviceId:"kitchen-light",power:false});check(e.snapshot().currentScene==="custom")});
+  test("Nonessential shutdown preserves climate",()=>{const {e,c}=make();c.execute("home_turn_off_nonessential_devices");check(e.device("bedroom-ac").power&&e.device("living-ac").power)});
+  test("Saved state validation and restoration",()=>{const {e,c}=make();c.execute("scene_activate",{scene:"sleep"});const other=new SmartHomeEngine();other.restore({version:1,selectedRoom:"bedroom",state:e.snapshot()});check(same(e.snapshot(),other.snapshot()));let rejected=false;try{other.restore({version:1,selectedRoom:"invalid",state:e.snapshot()})}catch{rejected=true}check(rejected)});
+  test("All scenes and tool schemas are runnable",()=>{for(const scene of SCENES){const {c}=make();check(c.execute("scene_activate",{scene:scene.id}).success,scene.id)}const {c}=make();for(const t of c.tools)check(t.description.length>50&&t.inputSchema.type==="object"&&typeof t.annotations.readOnlyHint==="boolean")});
+  console.info(`${passed} passed, ${failed} failed. Live state was not used or modified.`);
+  console.groupEnd();
+}
+
+/* INITIALIZATION */
+const engine=new SmartHomeEngine();
+const logger=new ActivityLogger();
+let restored=false;
+try {
+  const saved=localStorage.getItem(STORAGE_KEY);
+  if(saved){selectedRoom=engine.restore(JSON.parse(saved));restored=true}
+} catch(e) {
+  console.warn("Saved home was invalid or unavailable. Safely using original demo state.",e);
+  engine._state=clone(engine.initial);selectedRoom="living_room";
+}
+const capabilities=new CapabilityLayer(engine,logger);
+const renderer=new HomeRenderer(engine,()=>selectedRoom);
+const adapter=new WebMCPAdapter(capabilities);
+renderer.initializeFloor();
+initializeUI();
+engine.subscribe(event=>{
+  if(event.action==="home_reset_demo")selectedRoom="living_room";
+  renderer.render(event);
+  saveState();
+});
+renderer.render();
+logger.add("System",restored?"home_restored":"home_initialized",restored?"Validated local home state restored.":"27 devices across 6 rooms · 2 offline · shared capability engine ready.");
+runSelfTests();
+adapter.connect();
+
+// Useful for a technical demo in DevTools. No DOM clicks; no second state.
+// Example: await smartHome.call("scene_activate", {scene:"movie"})
+// Manual console calls are UI-originated, never falsely attributed to an agent.
+window.smartHome=Object.freeze({
+  call:(name,args={})=>capabilities.execute(name,args,"UI"),
+  getState:()=>engine.getState(),
+  getTools:()=>capabilities.tools.map(({name,description,inputSchema,annotations})=>clone({name,description,inputSchema,annotations})),
+  runSelfTests
+});
+</script>
+</body>
+</html>

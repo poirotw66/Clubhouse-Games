@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cinder Circuit — The Road Remembers</title>
+<style>
+:root{
+  --bg:#101516;--panel:#1b2221;--panel2:#242b27;--line:#495044;
+  --text:#dfdbc5;--muted:#959b87;--gold:#d8b46a;--green:#a8c796;
+  --red:#d77b69;--blue:#91b9bf;--purple:#c4a0dc;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--text);font:12px/1.5 "Courier New",monospace;
+  background-image:radial-gradient(ellipse at 45% 20%,#28322b66,transparent 70%);
+}
+body:after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:80;opacity:.13;
+  background:repeating-linear-gradient(transparent 0 3px,#000 3px 4px);
+}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button,.panel{border:1px solid var(--line);box-shadow:inset 0 0 0 2px #111714}
+button{background:#293028;padding:7px 11px;transition:background .15s,border-color .15s,transform .15s}
+button:hover:not(:disabled){background:#394133;border-color:var(--gold)}
+button:active:not(:disabled){transform:translateY(1px)}
+button.active{color:var(--gold);border-color:var(--gold);background:#39392b}
+button.primary{background:#b7995d;color:#161e19;border-color:#e7ce93;font-weight:bold}
+button.danger{border-color:#986253;color:#f0b297}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{font-family:Georgia,serif;font-weight:normal}
+small{color:var(--muted)}
+.app{max-width:1540px;padding:17px 24px 20px;margin:auto}
+.header{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.brandmark{font-size:32px;color:var(--gold);text-shadow:0 0 18px #c5a76755}
+h1{font-size:27px;letter-spacing:5px;line-height:1.05;color:#e6d7ac}
+.subtitle{font-size:10px;color:var(--muted);letter-spacing:3px;margin-top:6px}
+.controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.controls .divider{height:23px;width:1px;background:var(--line);margin:0 5px}
+.resource-strip{
+  display:flex;align-items:center;gap:24px;padding:8px 14px;margin-bottom:12px;
+  background:#191f1c;border-top:1px solid var(--line);border-bottom:1px solid #343e34;
+}
+.resource{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.resource i{font-style:normal;color:var(--gold);font-size:16px}
+.resource b{color:#ece6cf}
+.resource-strip .carried{margin-right:auto;letter-spacing:2px;color:var(--muted);font-size:10px}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:12px}
+.panel{background:linear-gradient(135deg,#222923,#191f1d);position:relative}
+.map-panel{min-width:0}
+.panel-title{
+  padding:10px 13px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid #41483d;letter-spacing:2px;font-size:10px;color:#babda5;
+}
+.map-stage{position:relative;height:clamp(370px,58vh,560px);overflow:hidden;background:#141c1b}
+#map{width:100%;height:100%;display:block;image-rendering:pixelated;touch-action:manipulation}
+.map-vignette{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 90px #050a0877}
+.map-tag{position:absolute;left:16px;top:13px;color:#9ca38b;font-size:10px;letter-spacing:2px;pointer-events:none}
+.map-tag span{color:#d4be83}
+.map-bottom{
+  min-height:39px;padding:9px 13px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border-top:1px solid #41483d;font-size:11px;
+}
+#status{color:var(--green)}
+.boss-area{width:200px;flex-shrink:0}
+.boss-label{display:flex;justify-content:space-between;font-size:9px;letter-spacing:1px;color:#b6a394;margin-bottom:4px}
+.bar{height:8px;background:#101513;border:1px solid #444c40;overflow:hidden}
+.bar>span{height:100%;display:block;transition:width .2s;background:var(--green)}
+.boss-area .bar>span{background:#a179ac}
+#combatHud{
+  position:absolute;left:50%;top:43%;transform:translate(-50%,-50%);width:260px;
+  background:#151c19ed;border:1px solid #887357;padding:14px 17px;text-align:center;
+  box-shadow:0 8px 30px #0008;pointer-events:none;display:none;
+}
+.eyebrow{font-size:9px;letter-spacing:3px;color:var(--gold)}
+#enemyName{font-family:Georgia,serif;font-size:22px;margin:3px 0 7px}
+#enemyHP{font-size:10px;color:#cebba3;margin-top:4px}
+#enemySpecial{font-size:10px;color:var(--red);margin-top:7px}
+#combatHud .bar>span{background:#c47c66}
+#loopBanner{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+  background:#11181399;pointer-events:none;opacity:0;transition:opacity .5s;
+}
+#loopBanner.show{opacity:1}
+#loopBanner strong{font:50px Georgia,serif;letter-spacing:10px;color:#e8d29e;text-shadow:0 2px 20px #000}
+#loopBanner small{letter-spacing:4px;margin-top:8px;color:#b6c3a5}
+#pauseVeil{
+  display:none;position:absolute;left:50%;top:18%;transform:translateX(-50%);
+  background:#131b18e8;padding:7px 22px;border:1px solid var(--gold);
+  color:var(--gold);letter-spacing:4px;pointer-events:none;
+}
+#notification{
+  position:absolute;bottom:15px;left:50%;transform:translate(-50%,12px);
+  width:max-content;max-width:88%;padding:9px 16px;border-left:2px solid var(--gold);
+  color:#ddd5b8;background:#18211def;opacity:0;transition:.3s;pointer-events:none;text-align:center;
+}
+#notification.show{opacity:1;transform:translate(-50%,0)}
+#hint{padding:7px 13px;background:#34352a66;color:#c6c7a9;font-size:11px;border-top:1px solid #444c3c;min-height:31px}
+#hint strong{color:var(--gold);margin-right:8px}
+.hero-panel{grid-column:2;grid-row:1/3;padding-bottom:8px;min-width:0}
+.hero-intro{display:flex;gap:13px;padding:14px}
+#portrait{width:65px;height:76px;background:#121b19;border:1px solid #5a624d;image-rendering:pixelated}
+.hero-intro h2{font-size:21px;color:#e0d3ae;margin:3px 0}
+.hero-intro p{font-size:10px;color:var(--muted)}
+.hero-health{padding:0 14px 12px}
+.hp-label{display:flex;justify-content:space-between;margin-bottom:5px;font-size:11px}
+.hp-label strong{color:var(--green)}
+.hero-health .bar{height:12px}
+.hero-health .bar>span{background:linear-gradient(90deg,#617e55,#a3bd7b)}
+.xp-row{display:flex;align-items:center;gap:8px;padding-top:8px;font-size:9px;color:var(--muted)}
+.xp-row .bar{height:4px;flex:1}
+.xp-row .bar>span{background:var(--gold)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;padding:10px 14px;border-top:1px solid #3b4437;border-bottom:1px solid #3b4437}
+.stat{display:flex;justify-content:space-between;font-size:11px}
+.stat span{color:var(--muted)}
+.stat b{font-weight:normal;color:#e1dcc0}
+.section-heading{padding:11px 14px 6px;display:flex;justify-content:space-between;font-size:9px;letter-spacing:2px;color:#b5b79c}
+#equipment{display:grid;gap:5px;padding:0 12px}
+.gear{
+  padding:7px 9px;display:flex;align-items:center;gap:9px;text-align:left;width:100%;
+  background:#171e1b;border:1px solid #3e493a;box-shadow:none;cursor:help;
+}
+.gear-icon{width:27px;font-size:22px;text-align:center;color:#bbad86}
+.gear-name{font-size:11px;line-height:1.3}
+.gear-slot{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.rarity-0{color:#c4c7b5}.rarity-1{color:#9dc58c}.rarity-2{color:#95c0da}.rarity-3{color:#c69cde}
+#loot{padding:0 12px;display:grid;gap:5px;min-height:33px}
+.loot-item{position:relative;display:flex;justify-content:space-between;align-items:center;text-align:left;padding:8px 9px;background:#273128;animation:lootIn .4s ease}
+.loot-item:before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:currentColor}
+.loot-item .comparison{font-size:16px}
+.loot-empty{font-size:10px;padding:4px 1px;color:#7f8b79}
+@keyframes lootIn{from{opacity:0;transform:translateX(15px)}to{opacity:1;transform:none}}
+.potion-row{margin:10px 13px 0;padding:7px 0;border-top:1px solid #3f493c;display:flex;justify-content:space-between;font-size:10px;color:#abb69b}
+#journal{padding:5px 13px;color:#8e9b85;font-size:10px;min-height:72px}
+.journal-entry{border-left:1px solid #4d5d46;padding-left:8px;margin:6px 0}
+.hand-panel{grid-column:1;min-width:0}
+.hand-header{display:flex;justify-content:space-between;align-items:center;padding:9px 13px}
+.hand-header strong{font-weight:normal;font-size:10px;letter-spacing:2px;color:#babc9f}
+.hand-header small{font-size:9px}
+#hand{display:flex;gap:8px;overflow-x:auto;padding:0 11px 11px;min-height:147px;scrollbar-color:#616b50 #18201b;scrollbar-width:thin}
+.card{
+  flex:0 0 121px;min-height:140px;position:relative;padding:8px 8px 7px;text-align:left;
+  border:1px solid #66694e;background:linear-gradient(150deg,#424936,#2b3329);
+  box-shadow:inset 0 0 0 3px #1d251d;user-select:none;cursor:grab;transition:.15s;
+}
+.card:hover{transform:translateY(-3px);background:#464d37}
+.card.selected{border-color:#ebd294;background:#52513a;box-shadow:inset 0 0 0 2px #8a7c50,0 0 14px #d0ab6530}
+.card-top{display:flex;align-items:center;justify-content:space-between}
+.card canvas{width:35px;height:35px;image-rendering:pixelated}
+.card-location{font-size:8px;letter-spacing:1px;color:#b7bea1;border:1px solid #626c50;padding:2px 3px}
+.card-title{font:15px/1.05 Georgia,serif;color:#e8dfb8;margin:6px 0}
+.card-effect{font-size:9px;line-height:1.3;color:#bec7a9}
+.card-footer{position:absolute;right:7px;bottom:5px;font-size:8px;color:#cab179}
+.footer{display:flex;justify-content:space-between;gap:15px;padding:10px 1px 0;font-size:9px;color:#758371;letter-spacing:1px}
+kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3px}
+#tooltip{
+  position:fixed;z-index:100;display:none;max-width:310px;white-space:pre-line;
+  background:#141d18f7;border:1px solid #93906b;padding:12px 14px;color:#dddcc1;
+  font-size:11px;box-shadow:0 5px 20px #0008;pointer-events:none;
+}
+.modal-backdrop{position:fixed;inset:0;z-index:60;background:#080e0de8;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-backdrop.show{display:flex}
+.modal{
+  width:100%;max-width:760px;max-height:94vh;overflow:auto;background:linear-gradient(150deg,#2b3328,#19221d);
+  border:1px solid #99936a;box-shadow:0 0 0 5px #121b16,0 20px 90px #0009;padding:30px;
+}
+.modal h2{font-size:36px;color:#e2c88e;letter-spacing:2px;margin:5px 0 10px}
+.modal p{color:#adb89e;margin:9px 0 15px}
+.modal .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:20px}
+.modal.compact{max-width:505px}
+.modal .explanation{background:#151e18;padding:12px 15px;border-left:2px solid #9c885d;color:#c8c9ae}
+.camp-bank{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0}
+.bank-cell{padding:10px;background:#141e18;border:1px solid #495340;font-size:10px;color:#a3ae91}
+.bank-cell b{display:block;font:24px Georgia,serif;color:#e0c78e}
+.upgrade-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.upgrade{text-align:left;padding:13px;background:#303a2c}
+.upgrade strong{font:18px Georgia,serif;display:block;color:#ded6ae}
+.upgrade span{display:block;font-size:10px;color:#b9c5a4;margin-top:5px}
+.upgrade .cost{color:#d3b67a}
+.result-line{padding:10px 0;border-top:1px solid #505b45;border-bottom:1px solid #505b45;color:#d8d2b2}
+.help-grid{display:grid;gap:12px;margin-top:18px}
+.help-grid strong{color:var(--gold)}
+@media(min-width:1400px){.card{flex-basis:130px}.app{padding-left:32px;padding-right:32px}}
+@media(max-width:1000px){
+  .app{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 260px}
+  .resource-strip{gap:15px}.resource span{display:none}h1{font-size:22px;letter-spacing:3px}
+  .controls button{padding:6px 8px}.subtitle{letter-spacing:2px}
+  .hand-header small{display:none}.boss-area{width:150px}
+}
+@media(max-width:720px){
+  .header{align-items:flex-start;flex-direction:column}.controls{width:100%}
+  .workspace{grid-template-columns:1fr}.hero-panel{grid-column:1;grid-row:3}
+  .hand-panel{grid-row:2}.map-stage{height:420px}.resource-strip{gap:14px;padding:8px}
+  .resource-strip .carried{font-size:8px}.map-bottom{font-size:9px}.boss-area{width:130px}
+  .hero-panel{display:grid;grid-template-columns:1fr 1fr}
+  .hero-panel>.panel-title{grid-column:1/3}.hero-intro{padding:10px}
+  .hero-health{padding:10px}.stats{grid-column:1/3}
+  .section-heading{grid-column:1/3}#equipment{grid-column:1/3;grid-template-columns:1fr 1fr}
+  #loot{grid-column:1/3;grid-template-columns:1fr 1fr}.potion-row,#journal{grid-column:1/3}
+  .footer{font-size:8px;letter-spacing:0}.modal{padding:20px}.modal h2{font-size:29px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="brand">
+      <div class="brandmark">♜</div>
+      <div><h1>CINDER CIRCUIT</h1><div class="subtitle">THE ROAD REMEMBERS</div></div>
+    </div>
+    <div class="controls">
+      <button id="helpBtn" data-tip="A short field guide.">?</button>
+      <button id="soundBtn" data-tip="Procedural sound. No external audio.">♪ OFF</button>
+      <span class="divider"></span>
+      <button id="pauseBtn" data-tip="Pause the expedition [Space]. You can place cards and equip items while paused.">Ⅱ PAUSE</button>
+      <button class="speed active" data-speed="1">×1</button>
+      <button class="speed" data-speed="2">×2</button>
+      <button class="speed" data-speed="4">×4</button>
+      <span class="divider"></span>
+      <button id="retreatBtn" class="danger" data-tip="Return to camp [R]. Keep 100% at camp, 60% elsewhere, or only 25% upon death.">↟ RETURN TO CAMP</button>
+    </div>
+  </header>
+
+  <div class="resource-strip">
+    <span class="carried">EXPEDITION HAUL</span>
+    <div class="resource" data-tip="Ancient Wood — used for camp upgrades and Ashstead healing."><i>♧</i><span>Ancient Wood</span><b id="res-wood">0</b></div>
+    <div class="resource" data-tip="Stone Shards — recovered from creatures and ruined roads."><i>◆</i><span>Stone Shards</span><b id="res-stone">0</b></div>
+    <div class="resource" data-tip="Spirit Dust — uncommon material for rituals and medicine."><i>✧</i><span>Spirit Dust</span><b id="res-dust">0</b></div>
+    <div class="resource" data-tip="Iron Fragments — strengthen your permanent starting weapon."><i>▰</i><span>Iron Fragments</span><b id="res-iron">0</b></div>
+  </div>
+
+  <main class="workspace">
+    <section class="panel map-panel">
+      <div class="panel-title"><span>01 / THE DROWNED VERGE</span><span id="loopLabel">CIRCUIT 01</span></div>
+      <div class="map-stage" id="mapStage">
+        <canvas id="map" aria-label="Expedition map. Select a card, then click a highlighted tile."></canvas>
+        <div class="map-vignette"></div>
+        <div class="map-tag"><span>↟</span> CAMP / NORTHWEST<br><span>◉</span> BELL SEAL / SOUTHEAST</div>
+        <div id="combatHud">
+          <div class="eyebrow" id="enemyKind">ENCOUNTER</div>
+          <div id="enemyName">Mossjaw</div>
+          <div class="bar"><span id="enemyBar"></span></div>
+          <div id="enemyHP"></div>
+          <div id="enemySpecial"></div>
+        </div>
+        <div id="loopBanner"><strong id="bannerTitle"></strong><small id="bannerSub"></small></div>
+        <div id="pauseVeil">PAUSED</div>
+        <div id="notification"></div>
+      </div>
+      <div class="map-bottom">
+        <span id="status">The Tallowbound walks alone.</span>
+        <div class="boss-area" data-tip="THE NINTH BELL&#10;Every placed card adds 5% awakening.&#10;At 100%, the keeper manifests on the southeast bell seal. Defeat it to win.">
+          <div class="boss-label"><span>THE BELL STIRS</span><span id="bossPercent">0%</span></div>
+          <div class="bar"><span id="bossBar" style="width:0"></span></div>
+        </div>
+      </div>
+      <div id="hint"><strong>FIELD NOTE</strong><span id="hintText">Your hero moves automatically. You shape the road.</span></div>
+    </section>
+
+    <aside class="panel hero-panel">
+      <div class="panel-title"><span>THE TRAVELLER</span><span id="heroLevel">LV 1</span></div>
+      <div class="hero-intro">
+        <canvas id="portrait" width="65" height="76"></canvas>
+        <div><div class="eyebrow">A FLAME IN THE FOG</div><h2>The Tallowbound</h2><p>No orders. Only onward.</p></div>
+      </div>
+      <div class="hero-health">
+        <div class="hp-label"><span>VITALITY</span><strong id="hpText">120 / 120</strong></div>
+        <div class="bar"><span id="hpBar" style="width:100%"></span></div>
+        <div class="xp-row"><span id="xpText">XP 0 / 10</span><div class="bar"><span id="xpBar"></span></div></div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="section-heading"><span>RELICS WORN</span><span>HOVER TO INSPECT</span></div>
+      <div id="equipment"></div>
+      <div class="section-heading"><span>RECOVERED EQUIPMENT</span><span>CLICK TO EQUIP</span></div>
+      <div id="loot"></div>
+      <div class="potion-row" data-tip="Ember draughts trigger automatically below 30% HP, healing 35% max HP. Refilled when passing camp."><span>EMBER DRAUGHTS</span><b id="potions">● ○</b></div>
+      <div class="section-heading"><span>TRAIL JOURNAL</span></div>
+      <div id="journal"></div>
+    </aside>
+
+    <section class="panel hand-panel">
+      <div class="hand-header"><strong>FRAGMENTS OF A WORLD <span id="handCount"></span></strong><small>CLICK / DRAG TO PLACE · RIGHT-CLICK TO SALVAGE · ESC TO CANCEL</small></div>
+      <div id="hand"></div>
+    </section>
+  </main>
+  <footer class="footer">
+    <span>YOU DO NOT COMMAND THE TRAVELLER. YOU DECIDE WHAT WAITS.</span>
+    <span><kbd>SPACE</kbd> PAUSE &nbsp; <kbd>1 2 3</kbd> SPEED &nbsp; <kbd>R</kbd> RETREAT</span>
+  </footer>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="retreatModal" class="modal-backdrop">
+  <div class="modal compact">
+    <div class="eyebrow">THE FIRE IS STILL LIT</div>
+    <h2>Leave the road?</h2>
+    <p id="retreatDescription"></p>
+    <div class="explanation" id="retreatEstimate"></div>
+    <div class="actions">
+      <button id="retreatNow" class="primary">Return now</button>
+      <button id="retreatAtCamp">At next camp · 100%</button>
+      <button id="retreatCancel">Stay</button>
+    </div>
+    <p style="font-size:10px;margin-bottom:0">Death preserves only 25%. Waiting for camp is not a guarantee of survival.</p>
+  </div>
+</div>
+
+<div id="campModal" class="modal-backdrop">
+  <div class="modal">
+    <div class="eyebrow">A SMALL FIRE AGAINST THE END</div>
+    <h2 id="campTitle">The Cinder Refuge</h2>
+    <p id="campStory"></p>
+    <div class="result-line" id="runResult"></div>
+    <div class="camp-bank" id="campBank"></div>
+    <div class="section-heading" style="padding-left:0;padding-top:0"><span>REBUILD THE REFUGE</span><span>PERMANENT · SAVED LOCALLY</span></div>
+    <div class="upgrade-grid" id="upgrades"></div>
+    <div class="actions"><button id="startBtn" class="primary">Light the wick · Begin expedition →</button></div>
+    <p id="saveNote" style="font-size:10px;margin-bottom:0"></p>
+  </div>
+</div>
+
+<div id="helpModal" class="modal-backdrop">
+  <div class="modal compact">
+    <div class="eyebrow">A FIELD GUIDE TO THE IMPOSSIBLE</div>
+    <h2>Build your own peril.</h2>
+    <div class="help-grid">
+      <div><strong>01 · Walk without orders.</strong><br>The traveller follows the road and fights automatically. Camp restores 40% HP and refills draughts each circuit.</div>
+      <div><strong>02 · Remember the world.</strong><br>Select or drag a card onto a highlighted cell. Road cards occupy the path; verge cards must touch it. Every card has a price.</div>
+      <div><strong>03 · Wear what survives.</strong><br>Click recovered equipment to replace a relic. Hover to compare. Arrows compare total weighted power, not your build.</div>
+      <div><strong>04 · Listen for the bell.</strong><br>Twenty placements awaken the Ninth Bell at the southeast seal. Its toll strikes through armor every six seconds.</div>
+      <div><strong>05 · Know when to leave.</strong><br>Camp retreat: 100% resources. Elsewhere: 60%. Death: 25%. You may arrange an automatic return at the next camp.</div>
+    </div>
+    <div class="actions"><button id="helpClose" class="primary">I will remember.</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ───────────────────────── Utilities & persistent refuge ───────────────────────── */
+const $ = id => document.getElementById(id);
+const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
+const rand = (a,b) => a + Math.random()*(b-a);
+const int = (a,b) => Math.floor(rand(a,b+1));
+const pick = a => a[int(0,a.length-1)];
+const emptyResources = () => ({wood:0,stone:0,dust:0,iron:0});
+const resourceNames = {wood:"Ancient Wood",stone:"Stone Shards",dust:"Spirit Dust",iron:"Iron Fragments"};
+const shortResource = {wood:"wood",stone:"stone",dust:"dust",iron:"iron"};
+const SAVE_KEY = "cinder-circuit-refuge-v1";
+let storageAvailable = true;
+function loadMeta(){
+  const base={bank:emptyResources(),upgrades:{vitality:0,forge:0,draught:0,dial:0},runs:0,wins:0,best:1,tutorial:false};
+  try{
+    const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
+    if(raw){
+      for(const k in base.bank) base.bank[k]=Math.max(0,Number(raw.bank?.[k])||0);
+      for(const k in base.upgrades) base.upgrades[k]=clamp(Number(raw.upgrades?.[k])||0,0,k==="dial"?1:5);
+      for(const k of ["runs","wins","best"]) base[k]=Math.max(base[k],Number(raw[k])||0);
+      base.tutorial=!!raw.tutorial;
+    }
+  }catch(e){storageAvailable=false}
+  return base;
+}
+let meta=loadMeta();
+function saveMeta(){
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify(meta))}
+  catch(e){storageAvailable=false}
+}
+let uid=0, game=null, paused=false, speed=1, selected=null, hoverCell=null;
+let modalPause=false, uiClock=0, worldTime=0;
+let journal=[], particles=[], floaters=[], shake=0;
+let notifyTimer=0, bannerTimer=0;
+let audio=null, soundOn=false;
+function sound(kind){
+  if(!soundOn)return;
+  try{
+    audio ||= new (window.AudioContext||window.webkitAudioContext)();
+    if(audio.state==="suspended") audio.resume();
+    const o=audio.createOscillator(),g=audio.createGain();
+    const tones={hit:[160,70,.065,"triangle"],hurt:[85,35,.11,"sawtooth"],loot:[520,880,.16,"sine"],place:[290,580,.22,"triangle"],heal:[440,690,.25,"sine"],bell:[155,75,.7,"sine"],death:[110,30,.5,"sawtooth"]};
+    const [from,to,dur,type]=tones[kind]||tones.hit;
+    o.type=type;o.frequency.setValueAtTime(from,audio.currentTime);
+    o.frequency.exponentialRampToValueAtTime(to,audio.currentTime+dur);
+    g.gain.setValueAtTime(.035,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);
+    o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+dur);
+  }catch(e){}
+}
+function log(text){
+  journal.unshift(text);journal=journal.slice(0,4);
+  $("journal").replaceChildren(...journal.map(t=>{let e=document.createElement("div");e.className="journal-entry";e.textContent=t;return e}));
+}
+function notify(text,time=4){
+  $("notification").textContent=text;$("notification").classList.add("show");notifyTimer=time;
+}
+function banner(title,sub){
+  $("bannerTitle").textContent=title;$("bannerSub").textContent=sub;
+  $("loopBanner").classList.add("show");bannerTimer=2.4;
+}
+
+/* ───────────────────────── Original pixel sprites ───────────────────────── */
+const SPRITES={
+  hero:[
+    "......gg........",
+    ".....gyyg.......",
+    "......yo........",
+    ".....kkk........",
+    "....kpppk.......",
+    "....kpwpkk......",
+    ".....pppk.......",
+    "....rrrrr.......",
+    "...rrrrrrr..s...",
+    "..rrrerrrr..s...",
+    "..prreeerpp.s...",
+    "...reeeerr..s...",
+    "...reeeerr..s...",
+    "...rrererr.ttt..",
+    "....rrerr...s...",
+    "....bb.bb.......",
+    "....bb.bb.......",
+    "...kkk.kkk......"
+  ],
+  moss:[
+    "................",
+    "....mmm.........",
+    "...mllmm...m....",
+    "..mllllmmmm.....",
+    "..llkllkllm.....",
+    ".mllwllwlllm....",
+    ".mlllllllldm....",
+    "..ldddddddl.....",
+    "...dwddwdd......",
+    "..mddddddm......",
+    ".mmllllllmm.....",
+    "...ll..ll.......",
+    "..ddd..ddd......"
+  ],
+  fast:[
+    "................",
+    "..r.........r...",
+    "...r..rrr..r....",
+    "....rrrrrrr.....",
+    "..rrrkrrrkrr....",
+    ".r..ryrrry..r...",
+    "r...rrrrrr...r..",
+    "...rrddddrr.....",
+    ".rr..dddd..rr...",
+    "r....dddd....r..",
+    "..rrr....rrr....",
+    ".r..........r..."
+  ],
+  armor:[
+    ".....ssss.......",
+    "....smmmmss.....",
+    "...smmmmmms.....",
+    "...ssyssyss.....",
+    "....smmmms......",
+    "...ssssssss.....",
+    "..ssmsmsmsss....",
+    ".sssmsmsmssss...",
+    ".sssmmmmmssss...",
+    ".sssmsmsmssss...",
+    "...ssssssss.....",
+    "....smmms.......",
+    "....ss.ss.......",
+    "...sss.sss......"
+  ],
+  mage:[
+    "......c.........",
+    ".....ccc........",
+    "....cbccc.......",
+    "...cbbbccc......",
+    "...bwwbbbc......",
+    "....bbbcc.......",
+    "...ccccccc......",
+    "..ccbccbccc..a..",
+    ".ccbbcbbccc.aaa.",
+    "..pbbcbbcp...a..",
+    "...bbcbbb....s..",
+    "..ccbcbbcc...s..",
+    ".cccbcbbccc..s..",
+    "..cc..cc.cc....."
+  ],
+  elite:[
+    "....g......g....",
+    "....gg....gg....",
+    ".....gggggg.....",
+    "....gddddddg....",
+    "...gdkddddkdg...",
+    "...gdwddddwdg...",
+    "....dddddddd....",
+    "...rrrrrrrrrr...",
+    "..rrgrrrrgrrrr..",
+    ".rrrgddddgrrrr..",
+    ".drrgddddgrrrd..",
+    "..rrrggggrrrr...",
+    "...rrrrrrrrr....",
+    "....dd..dd......",
+    "...ddd..ddd....."
+  ],
+  boss:[
+    ".......g........g.......",
+    ".......gg......gg.......",
+    "....g...gggggggg...g....",
+    "....gggggmmmmmmggggg....",
+    "......gmmmmmmmmmmg......",
+    ".....gmmkkmmkkmmmmg.....",
+    ".....gmmaamm aammg.....".replace(" ","m"),
+    "....gmmmmmmmmmmmmm g....".replace(" ",""),
+    "....gmmmmmkkmmmmmmg.....",
+    "...gmmmmmmmmmmmmmmmg....",
+    "...gmmmggggggggmmmmg....",
+    "..ggggggggggggggggggg...",
+    "..gdddddddddddddddddg...",
+    "....cccccccccccccc......",
+    "...ccbcbbccbbcbccbc.....",
+    "..ccbbccbccbccbbccbc....",
+    "..cbbccbbccbcccbbccc....",
+    ".ccbbccbccbbccbbccbcc...",
+    "..ccbbccbbccbbccbbcc....",
+    "...cc..ccc..ccc..cc.....",
+    "....c...c....c...c......"
+  ]
+};
+const PALETTES={
+  hero:{g:"#dca956",y:"#ffe3a0",o:"#b75d3a",k:"#222829",p:"#b8b4a0",w:"#f9e2a1",r:"#64877d",e:"#344d49",b:"#656651",s:"#c7ccb8",t:"#b49b64"},
+  moss:{m:"#465d42",l:"#82945a",k:"#24342c",w:"#e3cb7d",d:"#645d42"},
+  fast:{r:"#90655c",k:"#2a2e28",y:"#f0c875",d:"#5c4140"},
+  armor:{s:"#84958b",m:"#485c58",y:"#efb774"},
+  mage:{c:"#637d91",b:"#3c4d69",w:"#b8eddf",p:"#a9c3bc",a:"#8ee2da",s:"#878570"},
+  elite:{g:"#d2a65b",d:"#807260",k:"#33342d",w:"#f2ce83",r:"#875b60"},
+  boss:{g:"#b29a62",m:"#5b6d65",k:"#172e2c",a:"#b7f6d5",d:"#8f794d",c:"#4f6771",b:"#31474f"}
+};
+function drawSprite(ctx,type,x,y,s=2,opts={}){
+  const rows=SPRITES[type]||SPRITES.moss,pal=PALETTES[type]||PALETTES.moss;
+  const w=Math.max(...rows.map(r=>r.length))*s,h=rows.length*s;
+  ctx.save();ctx.translate(Math.round(x-w/2),Math.round(y-h));
+  if(opts.flip){ctx.translate(w,0);ctx.scale(-1,1)}
+  if(opts.alpha!==undefined)ctx.globalAlpha=opts.alpha;
+  for(let yy=0;yy<rows.length;yy++)for(let xx=0;xx<rows[yy].length;xx++){
+    const color=pal[rows[yy][xx]];if(color){ctx.fillStyle=opts.flash?"#e6e6c8":color;ctx.fillRect(xx*s,yy*s,s,s)}
+  }
+  ctx.restore();
+}
+function drawStructure(ctx,type,x,y,s=1,time=0){
+  ctx.save();ctx.translate(Math.round(x),Math.round(y));ctx.scale(s,s);
+  const rect=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
+  switch(type){
+    case "grove":
+      rect(-3,-7,6,22,"#695d42");
+      rect(-18,-16,36,12,"#48674b");rect(-14,-27,28,15,"#607c52");rect(-9,-37,18,14,"#839263");
+      rect(-9,-22,6,4,"#a4b979");rect(8,-12,5,3,"#839263");break;
+    case "cairn":
+      rect(-17,7,34,7,"#666a59");rect(-13,-3,27,10,"#8a8a73");rect(-9,-14,19,11,"#9d9a7f");
+      rect(-6,-24,13,10,"#d0c8a1");rect(-4,-21,3,4,"#343e34");rect(2,-21,3,4,"#343e34");
+      rect(-2,-15,3,5,"#393d32");break;
+    case "altar":
+      rect(-18,6,36,8,"#625b47");rect(-12,-7,24,14,"#8c7b59");rect(-16,-12,32,6,"#a99568");
+      rect(-8,-20,16,8,"#a8533f");rect(-5,-30,10,16,"#e4a15a");rect(-2,-35,5,18,"#ffe0a0");break;
+    case "hamlet":
+      rect(-17,-9,34,23,"#90866a");rect(-20,-14,40,8,"#624e40");rect(-14,-21,28,8,"#75614a");
+      rect(-7,-27,14,6,"#837353");rect(-5,1,10,13,"#303c34");rect(9,-5,5,6,"#ddbc72");
+      rect(-13,-5,5,6,"#d2ba83");rect(12,-28,5,13,"#737864");break;
+    case "burrow":
+      rect(-19,3,38,11,"#514e39");rect(-15,-6,30,14,"#67654a");rect(-9,-11,18,17,"#383c30");
+      rect(-8,2,16,12,"#151e1a");rect(-5,4,3,3,"#d0a36d");rect(3,4,3,3,"#d0a36d");
+      ctx.strokeStyle="#929582";ctx.lineWidth=1;
+      for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(-16+i*8,-8);ctx.lineTo(15-i*5,12);ctx.stroke()}break;
+    case "lantern":
+      rect(-3,-20,6,33,"#6c7a70");rect(-11,-24,22,5,"#8c9c84");rect(-8,-40,16,16,"#8cbcb0");
+      rect(-4,-36,8,10,"#d3f7d4");rect(-10,-44,20,4,"#566e66");rect(-13,12,26,4,"#687567");
+      ctx.globalAlpha=.1+.05*Math.sin(time*3);rect(-18,-47,36,30,"#b2ebc1");break;
+    case "basin":
+      rect(-16,3,32,11,"#768478");rect(-21,-1,42,8,"#a0a18b");rect(-16,-5,32,8,"#507e86");
+      rect(-10,-5,20,4,"#9dd9d1");rect(-3,-16,6,6,"#c8e7c2");rect(0,-23,3,4,"#c8e7c2");break;
+    case "bastion":
+      rect(-14,-31,28,45,"#717b69");rect(-19,10,38,7,"#505f52");
+      rect(-17,-38,9,13,"#939980");rect(-5,-38,10,13,"#939980");rect(9,-38,9,13,"#939980");
+      rect(-4,-20,8,12,"#273d34");rect(-11,1,7,4,"#939980");rect(4,-8,9,3,"#566554");break;
+    case "dial":
+      rect(-15,5,30,9,"#6b7054");rect(-4,-18,8,25,"#8e9972");
+      ctx.strokeStyle="#b7c483";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,-22,15,0,Math.PI*2);ctx.stroke();
+      rect(-2,-42,4,40,"#d0b980");rect(-20,-24,40,4,"#8da16c");break;
+    case "camp":
+      rect(-24,5,48,11,"#494b39");
+      for(let j=0;j<5;j++)rect(-22+j*4,-15+j*5,44-j*8,5,"#aa9670");
+      rect(-7,2,14,14,"#354236");rect(16,8,13,5,"#796443");
+      rect(19,0,7,10,"#edb060");rect(21,-4,3,9,"#ffe8b3");break;
+    case "seal":
+      ctx.strokeStyle="#8e7d66";ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(0,2,23,12,0,0,Math.PI*2);ctx.stroke();
+      rect(-3,-9,6,21,"#ac9471");rect(-10,-1,20,4,"#ac9471");break;
+  }
+  ctx.restore();
+}
+
+/* ───────────────────────── Map and world-building definitions ───────────────────────── */
+const W=770,H=630,TILE=70,COLS=11,ROWS=9;
+const ROUTE=[
+  [3,1],[4,1],[5,1],[6,1],[7,1],[8,2],[9,3],[9,4],[9,5],[8,6],
+  [7,7],[6,7],[5,7],[4,7],[3,7],[2,6],[1,5],[1,4],[1,3],[2,2]
+];
+const CARD_DEFS={
+  grove:{name:"Hushwood",where:"verge",short:"+3% attack speed.\nFoes strike 1% faster.",effect:"All hero attacks are 3% faster. All enemies attack 1% faster. Stacks with other Hushwoods.",color:"#9cba83"},
+  cairn:{name:"Ossuary Marker",where:"road",short:"Armored foe each loop.\nExtra stone on kills.",effect:"Spawns a Bell Husk here every circuit, including immediately. Kills here grant 2 extra Stone Shards.",color:"#c8bc92"},
+  altar:{name:"Cinder Altar",where:"verge",short:"+2 global attack.\nNearby foes hit harder.",effect:"+2 hero attack. Adjacent enemies deal 20% more damage per altar.",color:"#d5a071"},
+  hamlet:{name:"Ashstead",where:"road",short:"Heal 14% when passed.\nConsumes 1 wood.",effect:"On arrival, spends 1 Ancient Wood to heal 14% max HP. With no wood, heals only 4%. Cannot occupy camp or the seal.",color:"#c6b387"},
+  burrow:{name:"Threadmaw Den",where:"verge",short:"Spawns quick enemies.\nBetter card drops nearby.",effect:"Spawns a Needlekin on an adjacent road tile each circuit, including immediately. Adjacent kills have +25% card drop chance.",color:"#c69787"},
+  lantern:{name:"Veil Lantern",where:"verge",short:"Rarer loot nearby.\nDraws elite creatures.",effect:"Adjacent encounters have +15% elite chance. Loot there rolls one rarity tier higher. Every circuit it has a 45% chance to summon an elite nearby.",color:"#9fcac1"},
+  basin:{name:"Starglass Font",where:"road",short:"Heal 9% each pass.\nAll foes gain 4% HP.",effect:"Heals 9% max HP once per circuit when passed. All newly spawned enemies gain 4% max HP per font.",color:"#a9cccf"},
+  bastion:{name:"Rook Bastion",where:"verge",short:"+3 adjacent defense.\n−2% attack speed.",effect:"Hero gains +3 defense while on adjacent road tiles. Its oppressive shadow lowers global hero attack speed by 2%.",color:"#b5bd94"},
+  dial:{name:"Briar Orrery",where:"verge",short:"+4% critical chance.\n−5 maximum HP.",effect:"+4% hero critical chance and −5 max HP. Unlocked permanently at the refuge.",color:"#c0b483"}
+};
+const CARD_KEYS=Object.keys(CARD_DEFS).filter(k=>k!=="dial");
+function makeMap(){
+  const cells=[];
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const roadIndex=ROUTE.findIndex(p=>p[0]===x&&p[1]===y);
+    cells.push({x,y,roadIndex,structure:roadIndex===0?"camp":roadIndex===10?"seal":null,enemies:[],lastHeal:0,seed:Math.random()});
+  }
+  return cells;
+}
+const cellAt=(x,y)=>game?.map[y*COLS+x];
+const roadAt=i=>cellAt(...ROUTE[i]);
+const center=c=>({x:(c.x+.5)*TILE,y:(c.y+.5)*TILE});
+function neighbors(c){
+  return game.map.filter(n=>n!==c&&Math.abs(n.x-c.x)<=1&&Math.abs(n.y-c.y)<=1);
+}
+function nearbyCount(c,type){return neighbors(c).filter(n=>n.structure===type).length}
+function totalStructure(type){return game.map.filter(c=>c.structure===type).length}
+function validPlacement(c,key){
+  if(!c||!key||c.structure)return false;
+  return CARD_DEFS[key].where==="road" ? c.roadIndex>=0 : c.roadIndex<0&&neighbors(c).some(n=>n.roadIndex>=0);
+}
+function grantCard(key){
+  if(game.hand.length>=10){game.resources.wood++;return}
+  const pool=meta.upgrades.dial?[...CARD_KEYS,"dial"]:CARD_KEYS;
+  game.hand.push({id:++uid,key:key||pick(pool)});renderHand();
+}
+function placeCard(c){
+  const card=game.hand.find(c=>c.id===selected);
+  if(!card)return;
+  if(!validPlacement(c,card.key)){
+    notify("That memory will not take root here. Use a highlighted cell.",2.5);
+    if(c){let p=center(c);floating(p.x,p.y,"NOT HERE","#d9937b",18)}
+    return;
+  }
+  c.structure=card.key;game.hand=game.hand.filter(v=>v.id!==selected);selected=null;
+  game.placed++;game.bossProgress=clamp(game.bossProgress+5,0,100);
+  const p=center(c);burst(p.x,p.y,CARD_DEFS[card.key].color,22);
+  sound("place");log(CARD_DEFS[card.key].name+" remembered.");
+  if(card.key==="cairn")spawnEnemy(c,"armor");
+  if(card.key==="burrow")spawnNearby(c,"fast");
+  if(card.key==="lantern"&&Math.random()<.45)spawnNearby(c,"elite");
+  recalcHero();renderHand();
+  if(game.bossProgress>=100&&!game.bossSpawned)awakenBoss();
+  renderUI();
+}
+function spawnNearby(c,type){
+  const choices=neighbors(c).filter(n=>n.roadIndex>0&&n.roadIndex!==10&&n.enemies.length<3);
+  if(choices.length)spawnEnemy(pick(choices),type);
+}
+
+/* ───────────────────────── Hero, equipment and generated loot ───────────────────────── */
+const SLOT_NAMES={weapon:"Weapon",armor:"Armor",boots:"Boots",charm:"Charm"};
+const SLOT_ICONS={weapon:"†",armor:"◈",boots:"⌁",charm:"☼"};
+const RARITIES=["Common","Uncommon","Rare","Epic"];
+const STAT_NAMES={attack:"Attack",defense:"Defense",maxHp:"Max HP",speed:"Attack speed",evasion:"Evasion",crit:"Critical chance",vamp:"Life steal"};
+const PERCENT_STATS=["speed","evasion","crit","vamp"];
+const itemPower=it=>Object.entries(it.stats).reduce((sum,[k,v])=>sum+v*({attack:1,defense:1.8,maxHp:.15,speed:30,evasion:45,crit:28,vamp:65}[k]||1),0);
+function starterEquipment(){
+  return {
+    weapon:{id:++uid,slot:"weapon",name:"Wickkeeper's Nail",rarity:0,stats:{attack:4+meta.upgrades.forge*2}},
+    armor:{id:++uid,slot:"armor",name:"Mended Mosscoat",rarity:0,stats:{defense:1,maxHp:12}},
+    boots:{id:++uid,slot:"boots",name:"Roadworn Soles",rarity:0,stats:{speed:.03}},
+    charm:{id:++uid,slot:"charm",name:"Unlit Cinder",rarity:0,stats:{crit:.02}}
+  };
+}
+function createHero(){
+  return {hp:120,level:1,xp:0,nextXp:10,idx:0,progress:0,wait:1,
+    equipment:starterEquipment(),stats:{},potions:1+meta.upgrades.draught,flash:0,kills:0};
+}
+function recalcHero(adjustHP=false){
+  if(!game)return;
+  const h=game.hero,oldMax=h.stats.maxHp||0;
+  const s={maxHp:108*(1+meta.upgrades.vitality*.05)+(h.level-1)*9,attack:8+(h.level-1)*1.3,defense:1+(h.level-1)*.35,speed:1,evasion:.04,crit:.05,vamp:0};
+  for(const item of Object.values(h.equipment))for(const [k,v] of Object.entries(item.stats))s[k]+=v;
+  s.attack+=totalStructure("altar")*2;
+  s.speed+=totalStructure("grove")*.03-totalStructure("bastion")*.02;
+  s.crit+=totalStructure("dial")*.04;
+  s.maxHp-=totalStructure("dial")*5;
+  s.maxHp=Math.max(45,Math.round(s.maxHp));s.speed=clamp(s.speed,.55,3.5);
+  s.evasion=clamp(s.evasion,0,.45);s.crit=clamp(s.crit,0,.65);s.vamp=clamp(s.vamp,0,.35);
+  h.stats=s;
+  if(adjustHP&&s.maxHp>oldMax)h.hp+=s.maxHp-oldMax;
+  h.hp=clamp(h.hp,0,s.maxHp);
+}
+function localDefense(){
+  return game.hero.stats.defense+nearbyCount(roadAt(game.hero.idx),"bastion")*3;
+}
+function formatStat(k,v){
+  return (v>=0?"+":"")+(PERCENT_STATS.includes(k)?Math.round(v*100)+"%":Number(v.toFixed(1)));
+}
+function itemTooltip(it,compare=false){
+  let text=`${it.name}\n${RARITIES[it.rarity]} ${SLOT_NAMES[it.slot]}\n`;
+  for(const [k,v] of Object.entries(it.stats))text+=`\n${formatStat(k,v)} ${STAT_NAMES[k]}`;
+  if(compare){
+    const worn=game.hero.equipment[it.slot];
+    text+=`\n\nCompared with ${worn.name}:`;
+    const keys=new Set([...Object.keys(it.stats),...Object.keys(worn.stats)]);
+    for(const k of keys){
+      const diff=(it.stats[k]||0)-(worn.stats[k]||0);
+      if(Math.abs(diff)>.0001)text+=`\n${formatStat(k,diff)} ${STAT_NAMES[k]}`;
+    }
+    text+="\n\nClick to equip. Old relic is discarded.\nArrow: weighted overall power.";
+  }
+  return text;
+}
+function generateLoot(enemy,tile){
+  let r=Math.random(),rarity=r<.45?0:r<.78?1:r<.96?2:3;
+  if(enemy.type==="elite")rarity=Math.max(rarity,1);
+  if(nearbyCount(tile,"lantern"))rarity=Math.min(3,rarity+1);
+  const slot=pick(Object.keys(SLOT_NAMES)),p=1+game.loop*.6+rarity*1.3;
+  const names={
+    weapon:["Cleaver","Pike","Needle","Falchion","Crook"],
+    armor:["Shroud","Hauberk","Mantle","Carapace","Coat"],
+    boots:["Treads","Soles","Greaves","Waders","Striders"],
+    charm:["Locket","Idol","Tooth","Compass","Tear"]
+  };
+  const prefix=pick(["Sootbound","Vesper","Graveglass","Drowned","Copper","Hushed","Morrow","Briar"]);
+  const it={id:++uid,slot,rarity,name:prefix+" "+pick(names[slot]),stats:{}};
+  if(slot==="weapon")it.stats.attack=Math.round(3+p*1.6+rand(0,2));
+  if(slot==="armor"){it.stats.defense=Math.round(1+p*.7);it.stats.maxHp=Math.round(8+p*4)}
+  if(slot==="boots"){it.stats.speed=Number((.03+p*.012).toFixed(2));it.stats.evasion=Number((.01+p*.005).toFixed(2))}
+  if(slot==="charm"){it.stats.crit=Number((.025+p*.012).toFixed(2));it.stats.maxHp=Math.round(p*3)}
+  const choices=["attack","defense","maxHp","speed","evasion","crit","vamp"];
+  for(let n=0;n<rarity+1;n++){
+    const k=pick(choices.filter(k=>!(k in it.stats)));
+    if(!k)break;
+    it.stats[k]=PERCENT_STATS.includes(k)?Number((rand(.01,.02)+p*.005).toFixed(2)):Math.round(p*({attack:.8,defense:.45,maxHp:4}[k])+rand(0,2));
+  }
+  game.loot.unshift(it);
+  if(game.loot.length>4){
+    game.loot.pop();game.resources.iron++;
+    log("An unclaimed relic became 1 iron.");
+  }
+  sound("loot");renderLoot();
+}
+function equipItem(id){
+  if(game.phase!=="run")return;
+  const it=game.loot.find(i=>i.id===id);if(!it)return;
+  game.hero.equipment[it.slot]=it;
+  game.loot=game.loot.filter(i=>i.id!==id);
+  recalcHero(true);renderEquipment();renderLoot();renderUI();hideTooltip();
+  log("Equipped "+it.name+".");sound("place");
+}
+function gainXP(n){
+  const h=game.hero;h.xp+=n;
+  while(h.xp>=h.nextXp){
+    h.xp-=h.nextXp;h.level++;h.nextXp=Math.round(h.nextXp*1.4+3);
+    recalcHero(true);heal(18,"LEVEL UP");
+    notify("The wick burns brighter. Level "+h.level+".");log("Level "+h.level+" — strength remembered.");
+  }
+}
+
+/* ───────────────────────── Enemies and circuit spawning ───────────────────────── */
+const ENEMIES={
+  moss:{name:"Mossjaw",kind:"Feral / melee",hp:27,attack:7,defense:0,speed:.78,xp:4,color:"#9fb475"},
+  fast:{name:"Needlekin",kind:"Skitterer / fast",hp:23,attack:5,defense:0,speed:1.55,xp:4,color:"#c59888"},
+  armor:{name:"Bell Husk",kind:"Construct / armored",hp:38,attack:8,defense:4,speed:.68,xp:6,color:"#bbc4b0"},
+  mage:{name:"Pale Cantor",kind:"Apparition / magical",hp:29,attack:9,defense:0,speed:.9,xp:6,color:"#a5d4d8"},
+  elite:{name:"Gilt Devourer",kind:"Elite / lifedrinker",hp:67,attack:12,defense:3,speed:.92,xp:11,color:"#e0b570"},
+  boss:{name:"The Ninth Bell",kind:"Keeper of the unending road",hp:280,attack:16,defense:4,speed:.85,xp:40,color:"#c4ddb5"}
+};
+function makeEnemy(type,c){
+  const d=ENEMIES[type],scale=1+(game.loop-1)*.23;
+  const boss=type==="boss";
+  const hp=Math.round(d.hp*(boss?1+(game.loop-1)*.1:scale)*(1+totalStructure("basin")*.04));
+  return {id:++uid,type,name:d.name,hp,maxHp:hp,
+    attack:d.attack*(boss?1+(game.loop-1)*.13:scale)*(1+nearbyCount(c,"altar")*.2),
+    defense:d.defense+Math.floor((game.loop-1)*.45),
+    speed:d.speed*(1+totalStructure("grove")*.01),
+    xp:d.xp,flash:0,hitTimer:.75,heroTimer:.3,toll:6,attacks:0};
+}
+function spawnEnemy(c,type){
+  if(!c||c.roadIndex===0||c.enemies.length>=3)return;
+  if(!type){
+    const eliteChance=.015+(game.loop-1)*.008+nearbyCount(c,"lantern")*.15;
+    type=Math.random()<eliteChance?"elite":
+      game.loop===1?pick(["moss","moss","fast"]):pick(["moss","fast","armor","mage"]);
+  }
+  c.enemies.push(makeEnemy(type,c));
+}
+function spawnCircuit(initial=false){
+  if(initial){
+    [2,6,12,17].forEach((i,j)=>spawnEnemy(roadAt(i),j===2?"fast":"moss"));
+    return;
+  }
+  const count=Math.min(11,4+game.loop);
+  const candidates=game.map.filter(c=>c.roadIndex>0&&c.roadIndex!==10&&c.enemies.length<2);
+  for(let n=0;n<count&&candidates.length;n++){
+    const k=int(0,candidates.length-1),c=candidates.splice(k,1)[0];spawnEnemy(c);
+  }
+  for(const c of game.map){
+    if(c.structure==="cairn")spawnEnemy(c,"armor");
+    if(c.structure==="burrow")spawnNearby(c,"fast");
+    if(c.structure==="lantern"&&Math.random()<.45)spawnNearby(c,"elite");
+  }
+}
+function awakenBoss(){
+  game.bossSpawned=true;
+  const c=roadAt(10);c.enemies.unshift(makeEnemy("boss",c));
+  banner("THE NINTH BELL","THE KEEPER HAS HEARD YOU");
+  notify("A bell without a tongue begins to ring. The seal is occupied.",6);
+  log("The Ninth Bell manifests at the southeast seal.");
+  const p=center(c);burst(p.x,p.y,"#c4dcad",50);shake=8;sound("bell");
+}
+function nextCircuit(){
+  game.loop++;meta.best=Math.max(meta.best,game.loop);
+  for(const k in game.resources)game.resources[k]+=1+Math.floor(game.loop/2);
+  grantCard();grantCard();spawnCircuit();
+  game.hero.potions=1+meta.upgrades.draught;
+  heal(game.hero.stats.maxHp*.4,"CAMP");
+  game.hero.wait=2.2;
+  banner("LOOP "+game.loop,game.loop<3?"THE ROAD REMEMBERS MORE":"THE FOG HAS LEARNED YOUR NAME");
+  log("Circuit "+game.loop+". The refuge restores your flame.");
+  sound("bell");
+  if(game.returnAtCamp)finishRun("retreat",1);
+}
+
+/* ───────────────────────── Movement, automatic combat and rewards ───────────────────────── */
+function heroPosition(){
+  const h=game.hero,a=center(roadAt(h.idx)),b=center(roadAt((h.idx+1)%ROUTE.length));
+  return {x:a.x+(b.x-a.x)*h.progress,y:a.y+(b.y-a.y)*h.progress};
+}
+function heal(amount,label=""){
+  const h=game.hero,n=Math.min(h.stats.maxHp-h.hp,amount);
+  h.hp+=Math.max(0,n);
+  if(n>=1){
+    const p=heroPosition();floating(p.x,p.y-28,"+"+Math.round(n)+(label?" "+label:""),"#afcc96",14);
+    burst(p.x,p.y-16,"#a6c884",10);sound("heal");
+  }
+}
+function arrive(){
+  const h=game.hero,c=roadAt(h.idx);
+  if(h.idx===0){nextCircuit();return}
+  if(c.lastHeal!==game.loop){
+    if(c.structure==="hamlet"){
+      const funded=game.resources.wood>0;
+      if(funded)game.resources.wood--;
+      heal(h.stats.maxHp*(funded?.14:.04),"ASHSTEAD");c.lastHeal=game.loop;
+    }
+    if(c.structure==="basin"){heal(h.stats.maxHp*.09,"STARGLASS");c.lastHeal=game.loop}
+  }
+  h.wait=.2;
+}
+function updateMovement(dt){
+  const h=game.hero,c=roadAt(h.idx);
+  if(h.wait>0){h.wait-=dt;return}
+  if(h.progress===0&&c.enemies.length){startCombat(c);return}
+  h.progress+=dt/1.65;
+  if(h.progress>=1){
+    h.progress=0;h.idx=(h.idx+1)%ROUTE.length;arrive();
+  }
+}
+function startCombat(c){
+  const e=c.enemies.shift();game.combat={enemy:e,tile:c};
+  $("combatHud").style.display="block";
+  if(e.type==="boss"){
+    notify("THE TOLL — every six seconds, armor will not save you.",5);
+    sound("bell");shake=5;
+  }
+}
+function damageHero(amount,piercing=false){
+  const h=game.hero,p=heroPosition();
+  const damage=Math.max(1,Math.round(amount-(piercing?0:localDefense())));
+  h.hp=Math.max(0,h.hp-damage);h.flash=.16;
+  floating(p.x-14,p.y-42,"−"+damage,piercing?"#c7a1e4":"#e0997e",piercing?21:15);
+  burst(p.x,p.y-15,"#b97c61",6);shake=Math.max(shake,damage>14?5:2);sound("hurt");
+  if(h.hp>0&&h.hp<h.stats.maxHp*.3&&h.potions>0){
+    h.potions--;heal(h.stats.maxHp*.35,"DRAUGHT");log("An ember draught keeps the wick alive.");
+  }
+  if(h.hp<=0)finishRun("death",.25);
+  return damage;
+}
+function updateCombat(dt){
+  const combat=game.combat;if(!combat)return;
+  const e=combat.enemy,h=game.hero,p=heroPosition();
+  e.flash=Math.max(0,e.flash-dt);
+  e.heroTimer-=dt;e.hitTimer-=dt;
+  if(e.type==="boss"){
+    e.toll-=dt;
+    if(e.toll<=0){
+      e.toll=6;shake=10;sound("bell");burst(p.x,p.y-12,"#adcfbb",45);
+      damageHero(h.stats.maxHp*.16,true);
+      if(game.phase!=="run")return;
+      notify("THE NINTH TOLL · armor ignored",2);
+    }
+  }
+  if(e.heroTimer<=0){
+    e.heroTimer+=1/h.stats.speed;
+    const crit=Math.random()<h.stats.crit;
+    const dmg=Math.max(1,Math.round(h.stats.attack*rand(.9,1.1)*(crit?1.8:1)-e.defense));
+    e.hp=Math.max(0,e.hp-dmg);e.flash=.13;
+    floating(p.x+26,p.y-48,(crit?"✦ ":"")+dmg,crit?"#f6d58b":"#e0dbc3",crit?21:16);
+    burst(p.x+23,p.y-20,ENEMIES[e.type].color,crit?12:5);sound("hit");
+    if(crit)shake=Math.max(shake,3);
+    if(h.stats.vamp)heal(dmg*h.stats.vamp);
+    if(e.hp<=0){defeatEnemy(combat);return}
+  }
+  if(e.hitTimer<=0){
+    e.hitTimer+=1/e.speed;e.attacks++;
+    if(Math.random()<h.stats.evasion)floating(p.x-18,p.y-43,"DODGE","#a1caca",14);
+    else{
+      const damage=damageHero(e.attack*rand(.9,1.1),e.type==="mage");
+      if(e.type==="elite"&&game.phase==="run"){
+        e.hp=Math.min(e.maxHp,e.hp+damage*.25);
+        floating(p.x+25,p.y-35,"SIPHON","#d6b27e",11);
+      }
+    }
+  }
+}
+function defeatEnemy(combat){
+  const {enemy:e,tile}=combat,p=heroPosition();
+  game.hero.kills++;game.combat=null;game.hero.wait=.42;
+  $("combatHud").style.display="none";
+  burst(p.x+21,p.y-17,ENEMIES[e.type].color,24);
+  if(e.type==="boss"){
+    for(const k in game.resources)game.resources[k]+=15;
+    finishRun("victory",1);return;
+  }
+  const reward=1+Math.floor(game.loop/2)+(e.type==="elite"?2:0);
+  const material=e.type==="armor"?"iron":e.type==="mage"?"dust":e.type==="fast"?"wood":pick(["wood","stone"]);
+  game.resources[material]+=int(1,2)+reward;
+  game.resources[pick(["wood","stone","dust","iron"])]+=reward;
+  if(tile.structure==="cairn")game.resources.stone+=2;
+  gainXP(e.xp+Math.floor(game.loop/2));
+  const cardChance=.64+Math.min(.15,game.loop*.018)+nearbyCount(tile,"burrow")*.25;
+  if(Math.random()<cardChance)grantCard();
+  if(game.hero.kills===1||Math.random()<.64+(e.type==="elite"?.3:0))generateLoot(e,tile);
+  if(game.hero.kills===1)notify("A relic survived. Click it in the right panel to equip.",5);
+  log(e.name+" falls. +"+(reward+1)+" "+shortResource[material]+".");
+}
+
+/* ───────────────────────── Dynamic events ───────────────────────── */
+function randomEvent(){
+  if(game.combat?.enemy.type==="boss")return;
+  const roll=int(0,3);
+  if(roll===0){
+    const n=2+Math.floor(game.loop/2);game.resources.dust+=n;grantCard();
+    notify("A faceless peddler leaves a memory and "+n+" spirit dust.",5);
+    log("A peddler's gift. No price was named.");
+  }else if(roll===1){
+    game.fog=14;
+    notify("Cold fog swallows the eastern road. Enemy attacks quicken for 14 seconds.",5);
+    log("Eastern fog: enemies attack 15% faster.");
+  }else if(roll===2){
+    heal(game.hero.stats.maxHp*.08,"STRANGE LIGHT");
+    notify("A buried shrine glows beneath the soil. Your flame answers.",5);
+  }else{
+    const ahead=roadAt((game.hero.idx+int(3,7))%ROUTE.length);
+    if(ahead.roadIndex>0&&ahead.roadIndex!==10&&ahead.enemies.length<3){
+      spawnEnemy(ahead,"elite");notify("Something gilded has stepped onto the road ahead.",5);
+      log("An elite creature entered the circuit.");
+      const p=center(ahead);burst(p.x,p.y,"#d3b271",16);
+    }else{grantCard();notify("The mist yields a forgotten fragment.",3)}
+  }
+}
+
+/* ───────────────────────── Expedition, retreat, camp & upgrades ───────────────────────── */
+const UPGRADES={
+  vitality:{name:"Hearthroot Bed",desc:"+5% starting base HP per rank.",max:5,cost:n=>({wood:8+n*5,stone:5+n*3})},
+  forge:{name:"The Quiet Anvil",desc:"+2 starting weapon attack per rank.",max:5,cost:n=>({iron:6+n*5,stone:5+n*3})},
+  draught:{name:"Ember Apothecary",desc:"+1 automatic draught per circuit.",max:3,cost:n=>({dust:8+n*7,wood:6+n*5})},
+  dial:{name:"Briar Astrarium",desc:"Unlock Briar Orrery cards: critical power at a cost.",max:1,cost:()=>({dust:10,stone:8})}
+};
+function startRun(){
+  $("campModal").classList.remove("show");$("retreatModal").classList.remove("show");
+  paused=false;selected=null;hoverCell=null;journal=[];particles=[];floaters=[];
+  notifyTimer=0;bannerTimer=0;shake=0;
+  $("loopBanner").classList.remove("show");$("notification").classList.remove("show");
+  game={
+    phase:"run",map:makeMap(),hero:null,hand:[],loot:[],resources:emptyResources(),
+    loop:1,placed:0,bossProgress:0,bossSpawned:false,combat:null,returnAtCamp:false,
+    elapsed:0,eventTimer:32,fog:0,tutorialIndex:0,showTutorial:!meta.tutorial
+  };
+  game.hero=createHero();recalcHero();game.hero.hp=game.hero.stats.maxHp;
+  for(const k of CARD_KEYS)grantCard(k);
+  if(meta.upgrades.dial)grantCard("dial");
+  spawnCircuit(true);
+  meta.runs++;saveMeta();renderEquipment();renderLoot();renderHand();renderUI();
+  log("A new wick. The same impossible road.");
+  $("hint").style.display="block";
+  $("hintText").textContent=game.showTutorial?"Your hero moves automatically. You shape the road.":"Choose what grows. Equip what survives. Leave before the fire goes out.";
+  notify("The Tallowbound walks. You decide what waits.",4);
+  hideTooltip();
+}
+function isAtCamp(){return game.hero.idx===0&&game.hero.progress<.12&&!game.combat}
+function openRetreat(){
+  if(game.phase!=="run"||document.querySelector(".modal-backdrop.show"))return;
+  modalPause=paused;paused=true;
+  const atCamp=isAtCamp(),rate=atCamp?1:.6;
+  $("retreatDescription").textContent=atCamp?
+    "You stand beside the refuge fire. Leave now and keep everything you have gathered.":
+    "The refuge lies beyond the mist. Leave immediately with 60%, or risk the remaining road for a full return.";
+  $("retreatEstimate").textContent="Immediate return: "+Object.entries(game.resources).map(([k,v])=>Math.floor(v*rate)+" "+shortResource[k]).join(" · ");
+  $("retreatNow").textContent="Return now · "+Math.round(rate*100)+"%";
+  $("retreatAtCamp").style.display=atCamp?"none":"inline-block";
+  $("retreatModal").classList.add("show");hideTooltip();renderUI();
+}
+function closeRetreat(){
+  $("retreatModal").classList.remove("show");paused=modalPause;renderUI();
+}
+function finishRun(outcome,rate){
+  if(game.phase!=="run")return;
+  game.phase="camp";game.combat=null;selected=null;paused=false;
+  $("combatHud").style.display="none";$("retreatModal").classList.remove("show");
+  $("loopBanner").classList.remove("show");$("notification").classList.remove("show");
+  hideTooltip();
+  const kept=emptyResources();
+  for(const k in kept){kept[k]=Math.floor(game.resources[k]*rate);meta.bank[k]+=kept[k]}
+  meta.best=Math.max(meta.best,game.loop);meta.tutorial=true;
+  if(outcome==="victory")meta.wins++;
+  saveMeta();
+  const total=Object.values(kept).reduce((a,b)=>a+b,0);
+  $("campTitle").textContent=outcome==="victory"?"At last, a silent road.":outcome==="death"?"Even ash remembers.":"The Cinder Refuge";
+  $("campStory").textContent=outcome==="victory"?
+    "The Ninth Bell fractures without a sound. For one long moment, the road ends. Your traveller brings the whole haul home, and fifteen of each material from the keeper.":
+    outcome==="death"?
+    "The wick went dark. A wandering spark carried a quarter of your gathering back to the refuge. Another traveller will take the road.":
+    "You chose a small fire over an endless night. The world you remembered fades, but what you brought home can make the next journey kinder.";
+  $("runResult").textContent=`${outcome==="victory"?"VICTORY":outcome==="death"?"WICK EXTINGUISHED":"SAFE RETURN"} · Loop ${game.loop} · ${game.hero.kills} foes defeated · ${Math.round(rate*100)}% preserved · ${total} materials banked`;
+  $("saveNote").textContent=storageAvailable?
+    `Refuge saved in this browser · Expeditions ${meta.runs} · Victories ${meta.wins} · Best circuit ${meta.best}`:
+    "Browser storage is unavailable. Upgrades last for this session only.";
+  renderCamp();$("campModal").classList.add("show");sound(outcome==="death"?"death":"bell");
+  renderUI();
+}
+function renderCamp(){
+  $("campBank").replaceChildren(...Object.keys(meta.bank).map(k=>{
+    const d=document.createElement("div");d.className="bank-cell";
+    d.innerHTML=`<b>${meta.bank[k]}</b>${resourceNames[k]}`;return d;
+  }));
+  $("upgrades").replaceChildren(...Object.entries(UPGRADES).map(([key,u])=>{
+    const n=meta.upgrades[key],maxed=n>=u.max,cost=u.cost(n);
+    const b=document.createElement("button");b.className="upgrade";
+    const canAfford=Object.entries(cost).every(([k,v])=>meta.bank[k]>=v);
+    b.disabled=maxed||!canAfford;
+    b.innerHTML=`<strong>${u.name} <small>${n}/${u.max}</small></strong><span>${u.desc}</span><span class="cost">${maxed?"Fully restored":Object.entries(cost).map(([k,v])=>v+" "+shortResource[k]).join(" · ")}</span>`;
+    b.onclick=()=>{
+      if(meta.upgrades[key]>=u.max||!Object.entries(cost).every(([k,v])=>meta.bank[k]>=v))return;
+      for(const [k,v] of Object.entries(cost))meta.bank[k]-=v;
+      meta.upgrades[key]++;saveMeta();renderCamp();sound("place");
+    };
+    return b;
+  }));
+}
+
+/* ───────────────────────── Interface rendering and contextual hints ───────────────────────── */
+function renderEquipment(){
+  $("equipment").replaceChildren(...Object.entries(game.hero.equipment).map(([slot,it])=>{
+    const b=document.createElement("button");b.className="gear";b.dataset.tip=itemTooltip(it);
+    b.innerHTML=`<span class="gear-icon">${SLOT_ICONS[slot]}</span><div><div class="gear-name rarity-${it.rarity}">${it.name}</div><div class="gear-slot">${slot} · ${RARITIES[it.rarity]}</div></div>`;
+    return b;
+  }));
+}
+function renderLoot(){
+  if(!game.loot.length){$("loot").innerHTML='<div class="loot-empty">Nothing yet. The road will provide.</div>';return}
+  $("loot").replaceChildren(...game.loot.map(it=>{
+    const delta=itemPower(it)-itemPower(game.hero.equipment[it.slot]);
+    const b=document.createElement("button");b.className="loot-item rarity-"+it.rarity;
+    b.dataset.tip=itemTooltip(it,true);
+    b.innerHTML=`<div><div style="font-size:11px">${it.name}</div><small style="font-size:9px">${RARITIES[it.rarity]} · ${it.slot}</small></div><span class="comparison" style="color:${delta>=0?"#a8c98c":"#d3977d"}">${delta>.3?"↑":delta<-.3?"↓":"≈"}</span>`;
+    b.onclick=()=>equipItem(it.id);return b;
+  }));
+}
+function renderHand(){
+  $("handCount").textContent=`[${game.hand.length}/10]`;
+  $("hand").replaceChildren(...game.hand.map(card=>{
+    const d=CARD_DEFS[card.key],b=document.createElement("button");
+    b.className="card"+(selected===card.id?" selected":"");b.draggable=true;
+    b.dataset.tip=`${d.name}\n${d.where==="road"?"ROAD — an empty road tile.":"VERGE — an empty cell touching the road, including diagonals."}\n\n${d.effect}\n\n+5% Bell awakening on placement.\nRight-click to salvage for 1 wood.`;
+    b.setAttribute("aria-label",d.name+". "+d.effect);
+    b.innerHTML=`<div class="card-top"><canvas width="48" height="48"></canvas><span class="card-location">${d.where.toUpperCase()}</span></div><div class="card-title">${d.name}</div><div class="card-effect">${d.short.replace("\n","<br>")}</div><span class="card-footer">✧ +5</span>`;
+    drawStructure(b.querySelector("canvas").getContext("2d"),card.key,24,31,.72);
+    b.onclick=()=>{
+      if(game.phase!=="run")return;
+      selected=selected===card.id?null:card.id;renderHand();hideTooltip();
+      if(selected)notify(d.name+": choose a highlighted "+d.where+" cell.",2.5);
+    };
+    b.ondragstart=e=>{
+      if(game.phase!=="run"){e.preventDefault();return}
+      selected=card.id;e.dataTransfer.setData("text/plain",String(card.id));e.dataTransfer.effectAllowed="copy";
+      b.classList.add("selected");hideTooltip();
+    };
+    b.ondragend=()=>renderHand();
+    b.oncontextmenu=e=>{
+      e.preventDefault();if(game.phase!=="run")return;
+      game.hand=game.hand.filter(c=>c.id!==card.id);game.resources.wood++;
+      if(selected===card.id)selected=null;renderHand();renderUI();hideTooltip();
+      notify("A memory becomes kindling. +1 wood.",2);
+    };
+    return b;
+  }));
+}
+function renderUI(){
+  if(!game)return;
+  const h=game.hero,s=h.stats;
+  $("hpText").textContent=`${Math.ceil(h.hp)} / ${s.maxHp}`;
+  $("hpBar").style.width=clamp(h.hp/s.maxHp*100,0,100)+"%";
+  $("hpBar").style.filter=h.hp/s.maxHp<.3?"sepia(1) saturate(2) hue-rotate(310deg)":"none";
+  $("heroLevel").textContent="LV "+h.level;
+  $("xpText").textContent=`XP ${h.xp} / ${h.nextXp}`;$("xpBar").style.width=(h.xp/h.nextXp*100)+"%";
+  $("stats").innerHTML=[
+    ["Attack",s.attack.toFixed(1)],["Defense",localDefense().toFixed(1)],
+    ["Atk / sec",s.speed.toFixed(2)],["Evasion",Math.round(s.evasion*100)+"%"],
+    ["Critical",Math.round(s.crit*100)+"%"],["Life steal",Math.round(s.vamp*100)+"%"]
+  ].map(([k,v])=>`<div class="stat"><span>${k}</span><b>${v}</b></div>`).join("");
+  for(const k in game.resources)$("res-"+k).textContent=game.resources[k];
+  $("loopLabel").textContent="CIRCUIT "+String(game.loop).padStart(2,"0");
+  $("bossPercent").textContent=game.bossProgress+"%";$("bossBar").style.width=game.bossProgress+"%";
+  $("potions").textContent="● ".repeat(h.potions)+"○ ".repeat(Math.max(0,1+meta.upgrades.draught-h.potions));
+  $("pauseBtn").textContent=paused?"▶ RESUME":"Ⅱ PAUSE";$("pauseBtn").classList.toggle("active",paused);
+  $("pauseVeil").style.display=paused&&game.phase==="run"?"block":"none";
+  $("retreatBtn").textContent=game.returnAtCamp?"↟ RETURN QUEUED":"↟ RETURN TO CAMP";
+  $("status").textContent=game.phase!=="run"?"The refuge waits.":
+    selected?"Place a memory on a lit cell.":
+    game.returnAtCamp?"Returning at next camp · 100% haul":
+    game.combat?"Steel and silence. No commands needed.":
+    isAtCamp()?"At camp · retreat now to keep 100%.":
+    game.fog>0?"Eastern fog · foes attack 15% faster":
+    `Walking · ${game.hero.kills} foes fallen · retreat keeps 60%`;
+  if(game.combat){
+    const e=game.combat.enemy;
+    $("combatHud").style.display="block";
+    $("enemyKind").textContent=ENEMIES[e.type].kind;$("enemyName").textContent=e.name;
+    $("enemyBar").style.width=e.hp/e.maxHp*100+"%";
+    $("enemyHP").textContent=`${Math.ceil(e.hp)} / ${e.maxHp} HP · ${e.attack.toFixed(0)} ATK · ${e.defense} DEF`;
+    $("enemySpecial").textContent=e.type==="boss"?`NEXT PIERCING TOLL · ${Math.max(0,e.toll).toFixed(1)}s`:
+      e.type==="mage"?"Its song ignores armor.":e.type==="elite"?"Heals for 25% of damage dealt.":e.type==="armor"?"Iron plates blunt each strike.":e.type==="fast"?"Quick claws. A fragile body.":"Teeth beneath the moss.";
+  }else $("combatHud").style.display="none";
+}
+const HINTS=[
+  [0,"Your hero moves automatically. You shape the road."],
+  [7,"Defeat enemies to earn equipment and cards. Click recovered relics to equip."],
+  [16,"Place cards to reshape the world. Click a card, then a highlighted cell."],
+  [28,"More danger means better rewards. Every placement also awakens the keeper."],
+  [43,"Return to camp before the loop overwhelms you. Camp keeps 100%; the road keeps 60%."]
+];
+function updateTutorial(){
+  if(!game.showTutorial)return;
+  let i=HINTS.findLastIndex?HINTS.findLastIndex(h=>game.elapsed>=h[0]):0;
+  if(!HINTS.findLastIndex)for(let j=0;j<HINTS.length;j++)if(game.elapsed>=HINTS[j][0])i=j;
+  if(i!==game.tutorialIndex){game.tutorialIndex=i;$("hintText").textContent=HINTS[i][1]}
+  if(game.elapsed>57){meta.tutorial=true;saveMeta();game.showTutorial=false}
+}
+
+/* ───────────────────────── Canvas scene, particles and floating text ───────────────────────── */
+const canvas=$("map"),ctx=canvas.getContext("2d");
+let view={w:770,h:630,s:1,ox:0,oy:0,dpr:1};
+function resizeCanvas(){
+  const r=$("mapStage").getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);
+  canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);
+  view={w:r.width,h:r.height,dpr,s:Math.min(r.width/W,r.height/H),ox:0,oy:0};
+  view.ox=(view.w-W*view.s)/2;view.oy=(view.h-H*view.s)/2;
+  ctx.imageSmoothingEnabled=false;
+}
+window.addEventListener("resize",resizeCanvas);
+function floating(x,y,text,color,size=16){floaters.push({x,y,text,color,size,life:1.3,max:1.3,vx:rand(-5,5)})}
+function burst(x,y,color,n=12){
+  for(let i=0;i<n;i++)particles.push({x,y,vx:rand(-45,45),vy:rand(-65,15),life:rand(.35,.85),color,size:int(2,4)});
+}
+function updateEffects(dt){
+  for(const p of particles){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=50*dt}
+  particles=particles.filter(p=>p.life>0);
+  for(const f of floaters){f.life-=dt;f.y-=23*dt;f.x+=f.vx*dt}
+  floaters=floaters.filter(f=>f.life>0);
+  shake=Math.max(0,shake-dt*20);
+}
+function noise(x,y,seed=0){
+  const n=Math.sin(x*127.1+y*311.7+seed*78.3)*43758.5453;return n-Math.floor(n);
+}
+const terrain=document.createElement("canvas");terrain.width=W;terrain.height=H;
+function buildTerrain(){
+  const g=terrain.getContext("2d");
+  g.fillStyle="#1a2521";g.fillRect(0,0,W,H);
+  for(let y=0;y<H;y+=4)for(let x=0;x<W;x+=4){
+    const n=noise(x,y);
+    if(n>.84){g.fillStyle=n>.97?"#36402e":"#263329";g.fillRect(x,y,n>.96?4:2,2)}
+  }
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(ROUTE.some(p=>p[0]===x&&p[1]===y))continue;
+    const n=noise(x+1,y+2),px=x*TILE+TILE/2,py=y*TILE+TILE/2;
+    if(n>.65){
+      g.globalAlpha=.38;drawStructure(g,"grove",px+8,py+11,.6);g.globalAlpha=1;
+    }else if(n<.25){
+      g.fillStyle="#3c4737";g.fillRect(px-11,py+3,15,6);g.fillRect(px-5,py-2,10,7);
+      g.fillStyle="#59604a";g.fillRect(px-5,py-2,8,2);
+    }
+  }
+  // Broken observatory in the central wilderness.
+  const px=W/2,py=H/2+15;
+  g.fillStyle="#25372f";g.beginPath();g.ellipse(px,py+10,104,58,0,0,Math.PI*2);g.fill();
+  g.strokeStyle="#536047";g.lineWidth=3;
+  g.beginPath();g.ellipse(px,py+10,91,45,0,.2,5.9);g.stroke();
+  for(let i=0;i<11;i++){
+    const a=i/11*Math.PI*2;
+    g.fillStyle="#718069";g.fillRect(px+Math.cos(a)*91-3,py+10+Math.sin(a)*45-3,6,6);
+  }
+  g.fillStyle="#465b4b";g.fillRect(px-25,py-69,50,95);
+  g.fillStyle="#62715a";g.fillRect(px-25,py-69,10,95);
+  g.fillStyle="#2d4238";g.fillRect(px+11,py-69,14,95);
+  g.fillStyle="#1b2d26";g.fillRect(px-6,py-54,12,37);g.fillRect(px-18,py-18,36,7);
+  g.fillStyle="#435645";g.fillRect(px-39,py+24,77,12);
+  g.fillStyle="#68775a";g.fillRect(px-39,py+24,77,3);
+  g.fillStyle="#17281f";g.fillRect(px+3,py-69,22,14);
+  g.fillStyle="#9fac77";g.fillRect(px-3,py-47,6,19);
+}
+function drawRoad(){
+  ctx.lineCap="round";ctx.lineJoin="round";
+  ctx.beginPath();
+  ROUTE.forEach((p,i)=>{const c=center(cellAt(...p));i?ctx.lineTo(c.x,c.y):ctx.moveTo(c.x,c.y)});
+  const first=center(roadAt(0));ctx.lineTo(first.x,first.y);
+  ctx.strokeStyle="#131c17";ctx.lineWidth=49;ctx.stroke();
+  ctx.strokeStyle="#515543";ctx.lineWidth=39;ctx.stroke();
+  ctx.strokeStyle="#67644d";ctx.lineWidth=31;ctx.stroke();
+  for(let i=0;i<ROUTE.length;i++){
+    const c=roadAt(i),p=center(c);
+    ctx.fillStyle="#77745a";ctx.fillRect(p.x-23,p.y-19,46,38);
+    ctx.fillStyle="#62634e";ctx.fillRect(p.x-21,p.y-16,42,32);
+    ctx.fillStyle="#898267";ctx.fillRect(p.x-20,p.y-16,40,3);
+    ctx.fillStyle="#444b3c";ctx.fillRect(p.x-21,p.y+14,42,3);
+    for(let j=0;j<6;j++){
+      ctx.fillStyle=j%2?"#77765b":"#535b47";
+      ctx.fillRect(p.x-17+noise(i,j)*30,p.y-11+noise(j,i)*21,4+noise(i+4,j)*8,3);
+    }
+    ctx.fillStyle="#b0a07866";ctx.fillRect(p.x-2,p.y+23,4,3);
+  }
+}
+function drawScene(){
+  if(!game)return;
+  const d=view.dpr;ctx.setTransform(d,0,0,d,0,0);
+  ctx.fillStyle="#17221d";ctx.fillRect(0,0,view.w,view.h);
+  ctx.translate(view.ox+(shake?rand(-shake,shake):0),view.oy+(shake?rand(-shake,shake):0));ctx.scale(view.s,view.s);
+  ctx.drawImage(terrain,0,0);
+  const dusk=Math.min(.17,(game.loop-1)*.026);
+  ctx.fillStyle=`rgba(32,17,36,${dusk})`;ctx.fillRect(0,0,W,H);
+  // Faint wilderness grid.
+  ctx.strokeStyle="#7283600d";ctx.lineWidth=1;
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*TILE,0);ctx.lineTo(x*TILE,H);ctx.stroke()}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*TILE);ctx.lineTo(W,y*TILE);ctx.stroke()}
+  drawRoad();
+  if(!game.combat){
+    ctx.textAlign="center";ctx.fillStyle="#9aa989";ctx.font="10px monospace";
+    ctx.fillText("A ROAD WITHOUT DAWN",W/2,H/2+112);
+    ctx.fillStyle="#71836f";ctx.font="9px monospace";
+    ctx.fillText(game.bossSpawned?"THE KEEPER WAITS AT THE SEAL":`${game.placed} MEMORIES ROOTED · ${20-Math.min(20,game.placed)} UNTIL THE BELL`,W/2,H/2+130);
+  }
+  const card=game.hand.find(c=>c.id===selected);
+  if(card){
+    for(const c of game.map)if(validPlacement(c,card.key)){
+      ctx.fillStyle="rgba(166,189,111,"+(.08+.04*Math.sin(worldTime*4))+")";
+      ctx.fillRect(c.x*TILE+4,c.y*TILE+4,TILE-8,TILE-8);
+      ctx.strokeStyle="#a6b67488";ctx.strokeRect(c.x*TILE+5.5,c.y*TILE+5.5,TILE-11,TILE-11);
+      ctx.fillStyle="#b7c68d";const p=center(c);ctx.fillRect(p.x-2,p.y-2,4,4);
+    }
+  }
+  const objects=[];
+  for(const c of game.map){
+    const p=center(c);
+    if(c.structure)objects.push({y:p.y,draw:()=>drawStructure(ctx,c.structure,p.x,p.y+6,.85,worldTime)});
+    c.enemies.forEach((e,j)=>{
+      objects.push({y:p.y+10+j*3,draw:()=>{
+        ctx.fillStyle="#070e0b55";ctx.beginPath();ctx.ellipse(p.x+j*8,p.y+12,15,5,0,0,Math.PI*2);ctx.fill();
+        drawSprite(ctx,e.type,p.x+j*8-2,p.y+12+Math.sin(worldTime*2+e.id)*1.2,e.type==="boss"?1.8:1.65);
+        if(j===0&&c.enemies.length>1){ctx.fillStyle="#dfcba0";ctx.font="10px monospace";ctx.textAlign="center";ctx.fillText("×"+c.enemies.length,p.x+22,p.y-16)}
+      }});
+    });
+  }
+  const h=game.hero,p=heroPosition(),walking=!game.combat&&h.wait<=0&&!paused&&game.phase==="run";
+  objects.push({y:p.y+14,draw:()=>{
+    ctx.fillStyle="#090f0b77";ctx.beginPath();ctx.ellipse(p.x-6,p.y+13,14,5,0,0,Math.PI*2);ctx.fill();
+    if(game.combat){
+      const e=game.combat.enemy;
+      drawSprite(ctx,e.type,p.x+25+(e.flash?3:0),p.y+12,e.type==="boss"?2:1.9,{flash:e.flash>0});
+      const bw=40;ctx.fillStyle="#111c15";ctx.fillRect(p.x+5,p.y+18,bw,4);
+      ctx.fillStyle="#bd826a";ctx.fillRect(p.x+5,p.y+18,bw*e.hp/e.maxHp,3);
+    }
+    const bob=walking?Math.sin(worldTime*12*speed)*1.6:Math.sin(worldTime*2)*.6;
+    drawSprite(ctx,"hero",p.x-(game.combat?16:0),p.y+12+bob,1.95,{flash:h.flash>0});
+    ctx.fillStyle="#e4c38a";ctx.beginPath();ctx.moveTo(p.x-3,p.y-38);ctx.lineTo(p.x+3,p.y-38);ctx.lineTo(p.x,p.y-33);ctx.fill();
+  }});
+  objects.sort((a,b)=>a.y-b.y);objects.forEach(o=>o.draw());
+  if(card&&hoverCell){
+    const valid=validPlacement(hoverCell,card.key),p=center(hoverCell);
+    ctx.fillStyle=valid?"#d4cc7830":"#ca786632";ctx.fillRect(hoverCell.x*TILE+3,hoverCell.y*TILE+3,TILE-6,TILE-6);
+    ctx.strokeStyle=valid?"#e3d499":"#dc9680";ctx.lineWidth=2;ctx.strokeRect(hoverCell.x*TILE+3,hoverCell.y*TILE+3,TILE-6,TILE-6);
+    if(valid){ctx.globalAlpha=.62;drawStructure(ctx,card.key,p.x,p.y+5,.85,worldTime);ctx.globalAlpha=1}
+  }
+  // Slow bands of fog, kept translucent so the road remains readable.
+  for(let i=0;i<4;i++){
+    const fx=(worldTime*(5+i*2)+i*230)%(W+300)-150,fy=100+i*147;
+    const gradient=ctx.createRadialGradient(fx,fy,5,fx,fy,170);
+    gradient.addColorStop(0,game.fog>0?"#a5c4bc18":"#adc6b10b");gradient.addColorStop(1,"#adc6b100");
+    ctx.fillStyle=gradient;ctx.fillRect(fx-170,fy-170,340,340);
+  }
+  for(const q of particles){ctx.globalAlpha=Math.min(1,q.life*2);ctx.fillStyle=q.color;ctx.fillRect(Math.round(q.x),Math.round(q.y),q.size,q.size)}
+  ctx.globalAlpha=1;
+  for(const f of floaters){
+    ctx.globalAlpha=Math.min(1,f.life*2);ctx.font=`bold ${f.size}px monospace`;ctx.textAlign="center";
+    ctx.fillStyle="#101a14";ctx.fillText(f.text,f.x+1,f.y+2);ctx.fillStyle=f.color;ctx.fillText(f.text,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+  // Thin inner cartographic frame.
+  ctx.strokeStyle="#72815b33";ctx.lineWidth=1;ctx.strokeRect(9.5,9.5,W-19,H-19);
+}
+
+/* ───────────────────────── Inputs, dragging, tooltips, shortcuts ───────────────────────── */
+function mouseCell(e){
+  const r=canvas.getBoundingClientRect();
+  const x=(e.clientX-r.left-view.ox)/view.s,y=(e.clientY-r.top-view.oy)/view.s;
+  const gx=Math.floor(x/TILE),gy=Math.floor(y/TILE);
+  return gx>=0&&gx<COLS&&gy>=0&&gy<ROWS?cellAt(gx,gy):null;
+}
+function showTooltip(text,x,y){
+  if(!text)return hideTooltip();
+  const tip=$("tooltip");tip.textContent=text;tip.style.display="block";
+  tip.style.left=clamp(x+16,8,window.innerWidth-tip.offsetWidth-10)+"px";
+  tip.style.top=clamp(y+17,8,window.innerHeight-tip.offsetHeight-10)+"px";
+}
+function hideTooltip(){$("tooltip").style.display="none"}
+document.addEventListener("pointerover",e=>{
+  const el=e.target.closest("[data-tip]");
+  if(el)showTooltip(el.dataset.tip,e.clientX,e.clientY);
+});
+document.addEventListener("pointermove",e=>{
+  const el=e.target.closest("[data-tip]");
+  if(el)showTooltip(el.dataset.tip,e.clientX,e.clientY);
+});
+document.addEventListener("pointerout",e=>{
+  if(e.target.closest("[data-tip]"))hideTooltip();
+});
+canvas.addEventListener("pointermove",e=>{
+  hoverCell=mouseCell(e);
+  if(selected){hideTooltip();canvas.style.cursor=validPlacement(hoverCell,game.hand.find(c=>c.id===selected)?.key)?"copy":"not-allowed";return}
+  canvas.style.cursor="default";
+  if(!hoverCell){hideTooltip();return}
+  let text="";
+  if(hoverCell.structure){
+    const key=hoverCell.structure;
+    text=key==="camp"?"THE CINDER REFUGE\nOn each completed circuit: heal 40% HP and refill all draughts.\nRetreat here to keep 100% of your haul.":
+      key==="seal"?"THE BELL SEAL\nAt 100% awakening, the keeper waits here.\nTwenty placed cards will call it.":
+      CARD_DEFS[key].name+"\n"+CARD_DEFS[key].effect;
+  }
+  if(hoverCell.enemies.length)text+=(text?"\n\n":"")+"Waiting: "+hoverCell.enemies.map(e=>e.name+" ("+Math.ceil(e.hp)+" HP)").join(", ");
+  if(text)showTooltip(text,e.clientX,e.clientY);else hideTooltip();
+});
+canvas.addEventListener("pointerleave",()=>{hoverCell=null;hideTooltip()});
+canvas.addEventListener("click",e=>{if(game.phase==="run"&&selected)placeCard(mouseCell(e))});
+canvas.addEventListener("dragover",e=>{
+  if(!selected)return;e.preventDefault();e.dataTransfer.dropEffect="copy";hoverCell=mouseCell(e);
+});
+canvas.addEventListener("drop",e=>{e.preventDefault();if(game.phase==="run")placeCard(mouseCell(e));hoverCell=null});
+canvas.addEventListener("contextmenu",e=>{e.preventDefault();selected=null;renderHand()});
+function togglePause(){
+  if(game.phase!=="run"||document.querySelector(".modal-backdrop.show"))return;
+  paused=!paused;renderUI();
+}
+function setSpeed(n){
+  speed=n;document.querySelectorAll(".speed").forEach(b=>b.classList.toggle("active",Number(b.dataset.speed)===n));
+}
+$("pauseBtn").onclick=togglePause;
+document.querySelectorAll(".speed").forEach(b=>b.onclick=()=>setSpeed(Number(b.dataset.speed)));
+$("soundBtn").onclick=()=>{
+  soundOn=!soundOn;$("soundBtn").textContent=soundOn?"♪ ON":"♪ OFF";$("soundBtn").classList.toggle("active",soundOn);sound("heal");
+};
+$("retreatBtn").onclick=openRetreat;
+$("retreatCancel").onclick=closeRetreat;
+$("retreatNow").onclick=()=>finishRun("retreat",isAtCamp()?1:.6);
+$("retreatAtCamp").onclick=()=>{
+  game.returnAtCamp=true;closeRetreat();notify("Return arranged. Survive until the refuge to keep everything.",5);renderUI();
+};
+$("startBtn").onclick=startRun;
+$("helpBtn").onclick=()=>{
+  if(document.querySelector(".modal-backdrop.show"))return;
+  modalPause=paused;paused=true;$("helpModal").classList.add("show");hideTooltip();renderUI();
+};
+$("helpClose").onclick=()=>{$("helpModal").classList.remove("show");paused=modalPause;renderUI()};
+document.addEventListener("keydown",e=>{
+  if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+  if(e.code==="Space"){
+    e.preventDefault();if(!e.repeat)togglePause();
+  }
+  if(e.key==="Escape"){
+    if($("retreatModal").classList.contains("show"))closeRetreat();
+    else if($("helpModal").classList.contains("show"))$("helpClose").click();
+    else{selected=null;renderHand();hideTooltip()}
+  }
+  if(document.querySelector(".modal-backdrop.show"))return;
+  if(e.key==="1")setSpeed(1);if(e.key==="2")setSpeed(2);if(e.key==="3")setSpeed(4);
+  if(e.key.toLowerCase()==="r"&&!e.repeat)openRetreat();
+});
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden&&game?.phase==="run"){paused=true;renderUI()}
+});
+
+/* ───────────────────────── Fixed-step simulation & boot ───────────────────────── */
+function simulate(dt){
+  if(game.phase!=="run")return;
+  game.elapsed+=dt;game.hero.flash=Math.max(0,game.hero.flash-dt);
+  if(game.combat){
+    const fogBonus=game.fog>0?dt*.15:0;
+    game.combat.enemy.hitTimer-=fogBonus;
+    updateCombat(dt);
+  }else updateMovement(dt);
+  if(game.phase!=="run")return;
+  game.fog=Math.max(0,game.fog-dt);
+  game.eventTimer-=dt;
+  if(game.eventTimer<=0){game.eventTimer=rand(29,43);randomEvent()}
+  updateTutorial();
+}
+let previous=performance.now();
+function frame(now){
+  const dt=Math.min(.1,(now-previous)/1000);previous=now;worldTime+=dt;
+  if(game?.phase==="run"&&!paused){
+    let remaining=dt*speed;
+    while(remaining>0&&game.phase==="run"){
+      const step=Math.min(remaining,.035);simulate(step);remaining-=step;
+    }
+  }
+  updateEffects(dt*(paused?.35:Math.min(speed,2)));
+  if(notifyTimer>0){notifyTimer-=dt;if(notifyTimer<=0)$("notification").classList.remove("show")}
+  if(bannerTimer>0){bannerTimer-=dt;if(bannerTimer<=0)$("loopBanner").classList.remove("show")}
+  uiClock+=dt;if(uiClock>.1){renderUI();uiClock=0}
+  drawScene();requestAnimationFrame(frame);
+}
+buildTerrain();
+const portrait=$("portrait").getContext("2d");
+portrait.imageSmoothingEnabled=false;portrait.fillStyle="#15221c";portrait.fillRect(0,0,65,76);
+for(let i=0;i<65;i+=4){portrait.fillStyle=i%8?"#243229":"#1d2a22";portrait.fillRect(i,0,2,76)}
+drawSprite(portrait,"hero",34,72,3);
+startRun();resizeCanvas();requestAnimationFrame(frame);
+</script>
+</body>
+</html>

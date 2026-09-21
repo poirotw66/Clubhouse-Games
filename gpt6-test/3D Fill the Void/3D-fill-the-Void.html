@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f5f3ec" />
+  <title>Fill the Void — A Little Space to Solve</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --paper: #f5f3ec;
+      --ink: #283d38;
+      --muted: #858b7e;
+      --line: #dedfd4;
+      --accent: #ec795b;
+      --green: #547568;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "DM Sans", sans-serif;
+    }
+
+    button { font: inherit; cursor: pointer; }
+    button:disabled { cursor: default; opacity: .4; }
+    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+
+    header {
+      height: 100px;
+      max-width: 1440px;
+      margin: auto;
+      padding: 0 5%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 19px;
+      letter-spacing: -1px;
+    }
+
+    .brand-icon {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      transform: rotate(-9deg);
+    }
+
+    .brand-icon i { background: var(--green); border-radius: 3px; }
+    .brand-icon i:last-child { background: var(--accent); }
+
+    .header-note {
+      font-size: 10px;
+      letter-spacing: 2px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .level-badge {
+      font-size: 12px;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    main {
+      max-width: 1440px;
+      margin: auto;
+      padding: 46px 5% 22px;
+    }
+
+    .intro {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(42px, 5vw, 67px);
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: -4px;
+      margin: 0 0 14px;
+    }
+
+    .intro p { margin: 0; color: var(--muted); font-size: 14px; }
+    .level-name { text-align: right; }
+    .level-name span { display: block; }
+    .level-name .number { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
+    .level-name .name { font-family: "Space Grotesk"; font-size: 21px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 310px;
+      gap: 24px;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 510px;
+      height: min(62vh, 660px);
+      background: #eaece3;
+      border: 1px solid #e1e4d9;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+    .stage-top {
+      position: absolute;
+      top: 23px;
+      left: 25px;
+      right: 25px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.6px;
+      color: #79877b;
+    }
+
+    .stage-top span:first-child { display: flex; gap: 8px; align-items: center; }
+    .stage-top .dot { background: #78977c; }
+
+    #toast {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      max-width: 94%;
+      padding: 12px 20px;
+      border: 1px solid #ffffffa0;
+      border-radius: 40px;
+      background: #f8f9f0e0;
+      backdrop-filter: blur(12px);
+      color: #627166;
+      font-size: 12px;
+      pointer-events: none;
+      text-align: center;
+    }
+
+    .sidebar {
+      background: #fcfbf7;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 25px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 1.8px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .progress-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin: 13px 0;
+    }
+
+    .progress-heading strong {
+      font-size: 31px;
+      font-weight: 500;
+      font-family: "Space Grotesk";
+      letter-spacing: -1px;
+    }
+
+    #fraction { font-size: 11px; color: var(--muted); }
+
+    .progress-track {
+      height: 5px;
+      background: #e9ebe3;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 27px;
+    }
+
+    #progress-fill {
+      height: 100%;
+      width: 0;
+      background: var(--green);
+      transition: width .4s ease;
+      border-radius: 5px;
+    }
+
+    .pieces-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 13px;
+    }
+
+    #remaining { font-size: 10px; color: var(--muted); }
+
+    #pieces {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 17px;
+    }
+
+    .piece {
+      position: relative;
+      height: 78px;
+      background: #f0f1e9;
+      border: 1.5px solid transparent;
+      border-radius: 12px;
+      transition: background .15s, transform .15s, border-color .15s;
+      display: grid;
+      place-items: center;
+      padding: 13px;
+    }
+
+    .piece:not(:disabled):hover { transform: translateY(-3px); background: #e8ece1; }
+    .piece.selected { border-color: var(--green); background: #e5ebe0; }
+    .piece:disabled { opacity: .25; }
+    .piece svg { width: 100%; height: 100%; overflow: visible; }
+    .piece .check { position: absolute; right: 6px; top: 3px; font-size: 12px; }
+
+    .rotate {
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      width: 100%;
+      padding: 11px;
+      color: var(--ink);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    kbd {
+      font: 9px "DM Sans";
+      border: 1px solid #d5d9cc;
+      border-radius: 4px;
+      padding: 2px 5px;
+      color: var(--muted);
+    }
+
+    .help {
+      border-top: 1px solid var(--line);
+      margin-top: auto;
+      padding-top: 20px;
+    }
+
+    .help p {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.8;
+      margin: 0 0 16px;
+    }
+
+    .actions { display: flex; gap: 9px; }
+    .actions button {
+      flex: 1;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 10px 4px;
+      font-size: 11px;
+      color: var(--ink);
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .level-dots { display: flex; gap: 7px; }
+    .level-dot {
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: #d8ddcf;
+    }
+    .level-dot.active { width: 25px; border-radius: 8px; background: var(--green); }
+
+    #win {
+      position: absolute;
+      inset: 0;
+      background: #eef0e67a;
+      backdrop-filter: blur(7px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+
+    #win.visible { display: flex; }
+
+    .win-card {
+      width: min(330px, 88%);
+      padding: 35px;
+      background: #fcfbf5;
+      border: 1px solid white;
+      border-radius: 22px;
+      text-align: center;
+      box-shadow: 0 20px 70px #3447391a;
+    }
+
+    .win-icon { font-size: 42px; color: var(--green); }
+    .win-card h2 {
+      font: 500 32px "Space Grotesk";
+      letter-spacing: -1.5px;
+      margin: 12px 0;
+    }
+    .win-card p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+    #next {
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 20px;
+      margin-top: 13px;
+      color: white;
+      background: var(--green);
+      width: 100%;
+    }
+
+    @media (max-width: 850px) {
+      header { height: 76px; }
+      .header-note { display: none; }
+      main { padding-top: 30px; }
+      .layout { grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; }
+      .sidebar { padding: 18px; }
+      .stage { min-height: 480px; }
+      h1 { letter-spacing: -2.5px; }
+    }
+
+    @media (max-width: 650px) {
+      .layout { grid-template-columns: 1fr; }
+      .stage { height: 410px; min-height: 0; }
+      .level-name .name { font-size: 16px; }
+      .intro p { font-size: 12px; max-width: 220px; line-height: 1.6; }
+      .sidebar { padding: 20px; }
+      #pieces { grid-template-columns: repeat(5, 1fr); }
+      .piece { height: 65px; padding: 10px; }
+      .help { margin-top: 18px; }
+      .help p { margin-bottom: 12px; }
+      .progress-track { margin-bottom: 20px; }
+      footer { padding-bottom: 10px; }
+      .stage-top { left: 18px; right: 18px; font-size: 9px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      fill the void
+    </div>
+    <div class="header-note">A LITTLE SPACE TO SOLVE.</div>
+    <div class="level-badge"><span class="dot"></span><span id="level-badge">Level 01 / 05</span></div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div>
+        <div class="eyebrow">LESS SCROLLING. MORE SOLVING.</div>
+        <h1>Everything fits.</h1>
+        <p>A few little pieces. One satisfying whole.</p>
+      </div>
+      <div class="level-name">
+        <span class="number" id="level-number">PUZZLE 001</span>
+        <span class="name" id="level-name">A gentle beginning</span>
+      </div>
+    </section>
+
+    <div class="layout">
+      <section class="stage" aria-label="3D puzzle board">
+        <canvas id="canvas" aria-label="Select a piece, then tap an empty board square to place it"></canvas>
+
+        <div class="stage-top">
+          <span><i class="dot"></i> YOUR LITTLE CHALLENGE</span>
+          <span id="board-size">4 × 4 GRID</span>
+        </div>
+
+        <div id="toast" role="status">Choose a piece to get started</div>
+
+        <div id="win" role="dialog" aria-modal="true" aria-labelledby="win-title">
+          <div class="win-card">
+            <div class="win-icon">✦</div>
+            <div class="eyebrow">NOTHING OUT OF PLACE</div>
+            <h2 id="win-title">A perfect fit.</h2>
+            <p>You turned a little empty space into something complete.</p>
+            <button id="next">Next little challenge →</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="section-label">FILLING THE VOID</div>
+        <div class="progress-heading">
+          <strong id="percent">0<span style="font-size:18px">%</span></strong>
+          <span id="fraction">0 / 16 squares</span>
+        </div>
+        <div class="progress-track"><div id="progress-fill"></div></div>
+
+        <div class="pieces-heading">
+          <span class="section-label">YOUR PIECES</span>
+          <span id="remaining">5 remaining</span>
+        </div>
+
+        <div id="pieces"></div>
+
+        <button class="rotate" id="rotate" disabled>
+          <span style="font-size:18px">↻</span> Rotate piece <kbd>R</kbd>
+        </button>
+
+        <div class="help">
+          <p>
+            <strong style="color:var(--ink)">Find its little place.</strong><br>
+            Pick a piece, then tap the grid to place it.
+            Rotate until it feels right. No timer, no rush.
+          </p>
+          <div class="actions">
+            <button id="undo" disabled>↶ &nbsp; Undo</button>
+            <button id="reset">⟳ &nbsp; Start over</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      <span>TAKE YOUR TIME. MAKE SOME SPACE.</span>
+      <div class="level-dots" id="level-dots" aria-label="Choose level"></div>
+      <span>Made for a mindful minute.</span>
+    </footer>
+  </main>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+    const $ = id => document.getElementById(id);
+
+    // Each letter defines one connected piece in a known valid solution.
+    const levels = [
+      {
+        name: 'A gentle beginning',
+        rows: ['AABB', 'ACBD', 'ACCD', 'EEED']
+      },
+      {
+        name: 'A little more room',
+        rows: ['AABBC', 'ADBCC', 'ADDDE', 'FFFEE']
+      },
+      {
+        name: 'Room to wonder',
+        rows: ['AABBC', 'ADBCC', 'ADDDE', 'FFGEE', 'FGGGG']
+      },
+      {
+        name: 'Beautifully tangled',
+        rows: ['AAABBC', 'DABBCC', 'DDDEEC', 'FGGEHH', 'FFGGHH']
+      },
+      {
+        name: 'Everything, together',
+        rows: ['AAABBC', 'DABBCC', 'DDDEEC', 'FGGEHH', 'FFGIHH', 'JJGIII']
+      }
+    ];
+
+    const colors = [
+      '#e58b68', '#85a896', '#e1ba60', '#9392b5', '#79acba',
+      '#c7899c', '#a9b76f', '#d6a079', '#7b99c3', '#bd9bc6'
+    ];
+
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let levelIndex = 0;
+
+    try {
+      const saved = Number(localStorage.getItem('fill-void-level'));
+      if (Number.isInteger(saved) && saved >= 0 && saved < levels.length) {
+        levelIndex = saved;
+      }
+    } catch {}
+
+    let pieces = [];
+    let selected = null;
+    let occupied = [];
+    let history = [];
+    let width = 4;
+    let depth = 4;
+    let completed = false;
+    let hover = null;
+    let winTimer = null;
+    let boardGroup = null;
+    let pieceGroups = new Map();
+    const falling = [];
+
+    const canvas = $('canvas');
+    let renderer;
+
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    } catch {
+      $('toast').textContent = 'This game needs a browser with WebGL enabled.';
+      throw new Error('WebGL is not available.');
+    }
+
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.3;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-6, 6, 6, -6, .1, 80);
+    camera.position.set(8, 11, 10);
+    camera.lookAt(0, 0, 0);
+
+    scene.add(new THREE.AmbientLight('#ffffff', 1.7));
+
+    const sun = new THREE.DirectionalLight('#fff4dd', 3.3);
+    sun.position.set(-5, 12, 6);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -10;
+    sun.shadow.camera.right = 10;
+    sun.shadow.camera.top = 10;
+    sun.shadow.camera.bottom = -10;
+    sun.shadow.normalBias = .025;
+    sun.shadow.bias = -.0002;
+    sun.shadow.radius = 4;
+    scene.add(sun);
+
+    const fill = new THREE.DirectionalLight('#d8e5ff', 1.1);
+    fill.position.set(7, 5, -6);
+    scene.add(fill);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.ShadowMaterial({ opacity: .13 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -.66;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const cubeGeometry = new RoundedBoxGeometry(.965, .66, .965, 3, .07);
+    const floorGeometry = new RoundedBoxGeometry(.955, .085, .955, 2, .035);
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: '#b2beb0', roughness: .9
+    });
+
+    const ghostMaterial = new THREE.MeshStandardMaterial({
+      color: '#85a896',
+      transparent: true,
+      opacity: .48,
+      roughness: .6,
+      depthWrite: false
+    });
+
+    const ghost = new THREE.Group();
+    scene.add(ghost);
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const placementPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -.12);
+    const intersection = new THREE.Vector3();
+
+    function normalize(cells) {
+      const minX = Math.min(...cells.map(c => c[0]));
+      const minZ = Math.min(...cells.map(c => c[1]));
+      return cells.map(([x, z]) => [x - minX, z - minZ]);
+    }
+
+    function rotateCells(cells) {
+      return normalize(cells.map(([x, z]) => [-z, x]));
+    }
+
+    function worldPosition(x, z) {
+      return [x - (width - 1) / 2, z - (depth - 1) / 2];
+    }
+
+    function addBox(group, w, h, d, color, x, y, z) {
+      const geometry = new RoundedBoxGeometry(w, h, d, 3, .075);
+      const material = new THREE.MeshStandardMaterial({ color, roughness: .8 });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      return mesh;
+    }
+
+    function disposeBoard() {
+      if (!boardGroup) return;
+      scene.remove(boardGroup);
+      boardGroup.traverse(object => {
+        if (!object.isMesh) return;
+        if (object.geometry !== floorGeometry) object.geometry.dispose();
+        if (object.material !== floorMaterial) object.material.dispose();
+      });
+    }
+
+    function clearPlacedPieces() {
+      for (const group of pieceGroups.values()) {
+        scene.remove(group);
+        if (group.children[0]) group.children[0].material.dispose();
+      }
+      pieceGroups.clear();
+      falling.length = 0;
+    }
+
+    function buildBoard() {
+      disposeBoard();
+      boardGroup = new THREE.Group();
+      scene.add(boardGroup);
+
+      addBox(boardGroup, width + .65, .32, depth + .65,
+        '#d4d5bf', 0, -.48, 0);
+
+      addBox(boardGroup, width + .62, .36, .29,
+        '#ecebd8', 0, -.17, -(depth / 2 + .15));
+
+      addBox(boardGroup, width + .62, .36, .29,
+        '#ecebd8', 0, -.17, depth / 2 + .15);
+
+      addBox(boardGroup, .29, .36, depth,
+        '#ecebd8', -(width / 2 + .15), -.17, 0);
+
+      addBox(boardGroup, .29, .36, depth,
+        '#ecebd8', width / 2 + .15, -.17, 0);
+
+      for (let z = 0; z < depth; z++) {
+        for (let x = 0; x < width; x++) {
+          const cell = new THREE.Mesh(floorGeometry, floorMaterial);
+          const [wx, wz] = worldPosition(x, z);
+          cell.position.set(wx, -.26, wz);
+          cell.receiveShadow = true;
+          boardGroup.add(cell);
+        }
+      }
+    }
+
+    function svgFor(piece) {
+      const cells = piece.cells;
+      const w = Math.max(...cells.map(c => c[0])) + 1;
+      const h = Math.max(...cells.map(c => c[1])) + 1;
+
+      return `<svg viewBox="0 0 ${w * 20} ${h * 20}" aria-hidden="true">
+        ${cells.map(([x, z]) => `
+          <rect x="${x * 20 + 1}" y="${z * 20 + 2}"
+            width="18" height="18" rx="3" fill="${piece.color}"/>
+          <path d="M${x * 20 + 4} ${z * 20 + 5}h12"
+            stroke="white" stroke-opacity=".3" stroke-width="1.5"
+            stroke-linecap="round"/>
+        `).join('')}
+      </svg>`;
+    }
+
+    function renderPieces() {
+      $('pieces').innerHTML = '';
+
+      for (const piece of pieces) {
+        const button = document.createElement('button');
+        button.className = `piece${selected === piece.id ? ' selected' : ''}`;
+        button.disabled = piece.placed;
+        button.setAttribute('aria-label',
+          `Piece ${piece.id}, ${piece.cells.length} squares${piece.placed ? ', placed' : ''}`);
+        button.setAttribute('aria-pressed', String(selected === piece.id));
+        button.innerHTML = svgFor(piece) +
+          (piece.placed ? '<span class="check">✓</span>' : '');
+        button.addEventListener('click', () => selectPiece(piece.id));
+        $('pieces').appendChild(button);
+      }
+
+      $('rotate').disabled = selected === null || completed;
+    }
+
+    function updateProgress() {
+      const count = occupied.filter(cell => cell !== null).length;
+      const total = width * depth;
+      const percentage = Math.round(count / total * 100);
+
+      $('percent').innerHTML = `${percentage}<span style="font-size:18px">%</span>`;
+      $('fraction').textContent = `${count} / ${total} squares`;
+      $('progress-fill').style.width = `${percentage}%`;
+      $('remaining').textContent = `${pieces.filter(p => !p.placed).length} remaining`;
+      $('undo').disabled = history.length === 0;
+    }
+
+    function message(text) {
+      $('toast').textContent = text;
+    }
+
+    function selectPiece(id) {
+      if (completed) return;
+      selected = id;
+      renderPieces();
+      rebuildGhost();
+      updateGhost();
+      message('Tap a square to anchor the piece · R to rotate');
+    }
+
+    function rebuildGhost() {
+      ghost.clear();
+      const piece = pieces.find(p => p.id === selected);
+      if (!piece) {
+        ghost.visible = false;
+        return;
+      }
+
+      for (const [x, z] of piece.cells) {
+        const mesh = new THREE.Mesh(cubeGeometry, ghostMaterial);
+        mesh.position.set(x, .17, z);
+        ghost.add(mesh);
+      }
+    }
+
+    function canPlace(piece, x, z) {
+      return piece.cells.every(([dx, dz]) => {
+        const xx = x + dx;
+        const zz = z + dz;
+        return xx >= 0 && xx < width && zz >= 0 && zz < depth &&
+          occupied[zz * width + xx] === null;
+      });
+    }
+
+    function updateGhost() {
+      const piece = pieces.find(p => p.id === selected);
+
+      if (!piece || !hover || completed) {
+        ghost.visible = false;
+        canvas.style.cursor = selected ? 'crosshair' : 'default';
+        return;
+      }
+
+      const [x, z] = hover;
+      const [wx, wz] = worldPosition(x, z);
+      ghost.position.set(wx, 0, wz);
+      ghost.visible = true;
+
+      const valid = canPlace(piece, x, z);
+      ghostMaterial.color.set(valid ? piece.color : '#d76060');
+      ghostMaterial.opacity = valid ? .52 : .32;
+      canvas.style.cursor = valid ? 'pointer' : 'not-allowed';
+    }
+
+    function rotateSelected() {
+      const piece = pieces.find(p => p.id === selected);
+      if (!piece || completed) return;
+
+      piece.cells = rotateCells(piece.cells);
+      renderPieces();
+      rebuildGhost();
+      updateGhost();
+    }
+
+    function getCell(event) {
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+
+      if (!raycaster.ray.intersectPlane(placementPlane, intersection)) return null;
+
+      const x = Math.floor(intersection.x + width / 2);
+      const z = Math.floor(intersection.z + depth / 2);
+
+      return x >= 0 && x < width && z >= 0 && z < depth ? [x, z] : null;
+    }
+
+    function placePiece(x, z) {
+      const piece = pieces.find(p => p.id === selected);
+      if (!piece || completed) return;
+
+      if (!canPlace(piece, x, z)) {
+        message('Not quite — try rotating or another square');
+        return;
+      }
+
+      const material = new THREE.MeshStandardMaterial({
+        color: piece.color,
+        roughness: .47,
+        metalness: .025
+      });
+
+      const group = new THREE.Group();
+      const placedCells = piece.cells.map(([dx, dz]) => [x + dx, z + dz]);
+
+      for (const [cx, cz] of placedCells) {
+        occupied[cz * width + cx] = piece.id;
+        const [wx, wz] = worldPosition(cx, cz);
+        const cube = new THREE.Mesh(cubeGeometry, material);
+        cube.position.set(wx, .12, wz);
+        cube.castShadow = true;
+        cube.receiveShadow = true;
+        group.add(cube);
+      }
+
+      scene.add(group);
+      pieceGroups.set(piece.id, group);
+      group.position.y = reducedMotion ? 0 : 1.25;
+
+      if (!reducedMotion) {
+        falling.push({ group, start: performance.now(), duration: 330 });
+      }
+
+      history.push({ id: piece.id, cells: placedCells });
+      piece.placed = true;
+      selected = null;
+      ghost.visible = false;
+
+      renderPieces();
+      updateProgress();
+
+      if (occupied.every(cell => cell !== null)) {
+        completed = true;
+        message('Every little piece, exactly where it belongs.');
+        winTimer = setTimeout(() => {
+          $('win').classList.add('visible');
+          $('next').focus();
+        }, reducedMotion ? 0 : 650);
+      } else {
+        message('Lovely. Choose your next piece.');
+      }
+    }
+
+    function undo() {
+      if (!history.length) return;
+
+      clearTimeout(winTimer);
+      completed = false;
+      $('win').classList.remove('visible');
+
+      const last = history.pop();
+      for (const [x, z] of last.cells) occupied[z * width + x] = null;
+
+      const group = pieceGroups.get(last.id);
+      scene.remove(group);
+      group.children[0].material.dispose();
+      pieceGroups.delete(last.id);
+
+      for (let i = falling.length - 1; i >= 0; i--) {
+        if (falling[i].group === group) falling.splice(i, 1);
+      }
+
+      const piece = pieces.find(p => p.id === last.id);
+      piece.placed = false;
+      selectPiece(piece.id);
+      updateProgress();
+      message('A little rethink. Try this piece somewhere else.');
+    }
+
+    function loadLevel(index) {
+      clearTimeout(winTimer);
+      levelIndex = index;
+      completed = false;
+      selected = null;
+      hover = null;
+      history = [];
+      ghost.clear();
+      ghost.visible = false;
+      $('win').classList.remove('visible');
+      clearPlacedPieces();
+
+      const level = levels[index];
+      depth = level.rows.length;
+      width = level.rows[0].length;
+      occupied = Array(width * depth).fill(null);
+
+      const map = new Map();
+      level.rows.forEach((row, z) => {
+        [...row].forEach((id, x) => {
+          if (!map.has(id)) map.set(id, []);
+          map.get(id).push([x, z]);
+        });
+      });
+
+      pieces = [...map.entries()].map(([id, cells], i) => {
+        let shape = normalize(cells);
+        const turns = (i * 3 + index + 1) % 4;
+        for (let r = 0; r < turns; r++) shape = rotateCells(shape);
+        return { id, cells: shape, color: colors[i % colors.length], placed: false };
+      });
+
+      buildBoard();
+      renderPieces();
+      updateProgress();
+      resize();
+
+      $('level-badge').textContent =
+        `Level ${String(index + 1).padStart(2, '0')} / 05`;
+      $('level-number').textContent =
+        `PUZZLE ${String(index + 1).padStart(3, '0')}`;
+      $('level-name').textContent = level.name;
+      $('board-size').textContent = `${width} × ${depth} GRID`;
+      $('next').textContent = index === levels.length - 1
+        ? 'Play from the beginning ↻'
+        : 'Next little challenge →';
+
+      $('level-dots').innerHTML = '';
+      levels.forEach((item, i) => {
+        const button = document.createElement('button');
+        button.className = `level-dot${i === index ? ' active' : ''}`;
+        button.setAttribute('aria-label', `Level ${i + 1}: ${item.name}`);
+        if (i === index) button.setAttribute('aria-current', 'step');
+        button.addEventListener('click', () => loadLevel(i));
+        $('level-dots').appendChild(button);
+      });
+
+      message('Choose a piece to get started');
+
+      try { localStorage.setItem('fill-void-level', String(index)); } catch {}
+    }
+
+    function resize() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const aspect = rect.width / rect.height;
+      const span = Math.max(width, depth) * .76 + 1.15;
+      const vertical = aspect < 1 ? span / aspect : span;
+
+      camera.left = -vertical * aspect;
+      camera.right = vertical * aspect;
+      camera.top = vertical;
+      camera.bottom = -vertical;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(rect.width, rect.height, false);
+    }
+
+    let pointerDown = null;
+
+    canvas.addEventListener('pointerdown', event => {
+      pointerDown = { x: event.clientX, y: event.clientY };
+      hover = getCell(event);
+      updateGhost();
+    });
+
+    canvas.addEventListener('pointermove', event => {
+      hover = getCell(event);
+      updateGhost();
+    });
+
+    canvas.addEventListener('pointerup', event => {
+      if (!pointerDown) return;
+
+      const distance = Math.hypot(
+        event.clientX - pointerDown.x,
+        event.clientY - pointerDown.y
+      );
+      pointerDown = null;
+
+      if (distance > 12 || completed) return;
+
+      hover = getCell(event);
+      if (!hover) return;
+
+      if (selected === null) {
+        message('Pick a colored piece from your collection first');
+        return;
+      }
+
+      placePiece(...hover);
+
+      if (event.pointerType === 'touch') {
+        hover = null;
+        ghost.visible = false;
+      }
+    });
+
+    canvas.addEventListener('pointerleave', () => {
+      hover = null;
+      pointerDown = null;
+      updateGhost();
+    });
+
+    canvas.addEventListener('pointercancel', () => {
+      pointerDown = null;
+      hover = null;
+      updateGhost();
+    });
+
+    $('rotate').addEventListener('click', rotateSelected);
+    $('undo').addEventListener('click', undo);
+    $('reset').addEventListener('click', () => loadLevel(levelIndex));
+    $('next').addEventListener('click', () => loadLevel((levelIndex + 1) % levels.length));
+
+    window.addEventListener('keydown', event => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        rotateSelected();
+      }
+
+      if (event.key.toLowerCase() === 'z' && !$('win').classList.contains('visible')) {
+        event.preventDefault();
+        undo();
+      }
+
+      if (event.key === 'Escape') {
+        selected = null;
+        ghost.visible = false;
+        renderPieces();
+        message('Choose a piece to get started');
+      }
+    });
+
+    new ResizeObserver(resize).observe(canvas.parentElement);
+
+    function animate(time) {
+      requestAnimationFrame(animate);
+
+      for (let i = falling.length - 1; i >= 0; i--) {
+        const animation = falling[i];
+        const t = Math.min(1, (time - animation.start) / animation.duration);
+        animation.group.position.y = 1.25 * Math.pow(1 - t, 3);
+        if (t === 1) falling.splice(i, 1);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    loadLevel(levelIndex);
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

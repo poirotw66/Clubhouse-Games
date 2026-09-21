@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>不停號：合作鐵道</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#122522; --panel:#1b3430; --line:#36534a;
+  --text:#eff6dc; --muted:#a9bcaa; --gold:#ffd36d;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:system-ui,"Microsoft JhengHei",sans-serif;
+  overflow:hidden;
+}
+button {
+  border:0; border-radius:10px; padding:11px 18px;
+  background:var(--gold); color:#302a17;
+  font:700 14px inherit; cursor:pointer;
+}
+button:hover { filter:brightness(1.08); }
+button.secondary { background:#36534a; color:var(--text); }
+header {
+  height:76px; padding:12px 22px; display:flex;
+  align-items:center; gap:22px; border-bottom:1px solid var(--line);
+}
+.brand { min-width:190px; }
+.brand strong { display:block; font-size:21px; letter-spacing:2px; }
+.brand small { color:var(--muted); font-size:11px; letter-spacing:2px; }
+.stats { display:flex; gap:26px; flex:1; }
+.stat small { display:block; color:var(--muted); font-size:11px; margin-bottom:3px; }
+.stat b { font-size:21px; font-variant-numeric:tabular-nums; }
+.stat b span { font-size:12px; color:var(--muted); }
+.layout { display:flex; height:calc(100vh - 76px); }
+main { position:relative; flex:1; min-width:0; overflow:hidden; }
+canvas { display:block; width:100%; height:100%; }
+.tag {
+  position:absolute; top:16px; left:18px;
+  background:#122522e8; border:1px solid #597257;
+  border-radius:20px; padding:8px 14px;
+  font-size:12px; pointer-events:none;
+}
+#notice {
+  position:absolute; left:50%; top:65px;
+  transform:translateX(-50%); padding:10px 18px;
+  border-radius:10px; background:#122522eb;
+  color:var(--gold); text-align:center; font-size:14px;
+  opacity:0; transition:opacity .15s; pointer-events:none;
+  max-width:90%;
+}
+.legend {
+  position:absolute; bottom:18px; left:18px;
+  background:#122522df; border-radius:12px; padding:12px 15px;
+  font-size:12px; line-height:1.9; color:#dce8c9;
+  pointer-events:none;
+}
+aside {
+  width:274px; padding:20px 18px; overflow-y:auto;
+  background:var(--panel); border-left:1px solid var(--line);
+}
+h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
+.card {
+  border:1px solid var(--line); border-radius:12px;
+  padding:14px; margin-bottom:16px; background:#172e29;
+}
+.task { font-size:17px; color:var(--gold); font-weight:700; }
+.muted { font-size:12px; line-height:1.8; color:var(--muted); }
+.resource {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:7px 0; font-size:14px;
+}
+.resource b { color:var(--gold); }
+.bar { height:8px; background:#0d201d; border-radius:9px; overflow:hidden; margin:8px 0; }
+.bar i { display:block; height:100%; background:#65c7d3; width:100%; }
+.player {
+  margin:10px 0; padding:9px 10px; border-radius:8px;
+  background:#243e36; font-size:13px;
+}
+.key {
+  display:inline-block; min-width:22px; text-align:center;
+  padding:1px 5px; margin:2px 1px; border:1px solid #53665a;
+  border-bottom-width:3px; border-radius:5px; color:#eff6dc;
+}
+#upgrade { width:100%; margin:8px 0; }
+.overlay {
+  position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:center; background:#071611b8;
+  backdrop-filter:blur(5px); z-index:5;
+}
+.dialog {
+  width:min(570px,92%); max-height:94%; overflow:auto;
+  padding:32px; border:1px solid #627a59; border-radius:20px;
+  background:#1b342e; box-shadow:0 25px 90px #0006;
+}
+.eyebrow { font-size:11px; letter-spacing:3px; color:var(--gold); }
+.dialog h1 { font-size:38px; margin:12px 0; }
+.dialog p { font-size:14px; line-height:1.9; color:#cedcc4; }
+.dialog .actions { display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
+.hidden { display:none!important; }
+.danger { color:#ff9275!important; }
+@media(max-width:900px) {
+  aside { width:225px; padding:14px 12px; }
+  header { gap:12px; padding:10px 14px; }
+  .brand { min-width:140px; }
+  .brand strong { font-size:17px; }
+  .stats { gap:14px; }
+  .stat b { font-size:17px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <strong>不停號 🚂</strong>
+    <small>ONE MORE TRACK</small>
+  </div>
+  <div class="stats">
+    <div class="stat"><small>行駛距離</small><b id="distance">0 <span>m</span></b></div>
+    <div class="stat"><small>軌道剩餘時間</small><b id="runway">—</b></div>
+    <div class="stat"><small>火車速度</small><b id="speed">1.0×</b></div>
+    <div class="stat"><small>最佳紀錄</small><b id="best">0 <span>m</span></b></div>
+  </div>
+  <button class="secondary" id="pause">暫停</button>
+</header>
+
+<div class="layout">
+<main id="stage">
+  <canvas id="game"></canvas>
+  <div class="tag" id="region">區域 01 · 青翠林地</div>
+  <div id="notice"></div>
+  <div class="legend">
+    <b style="color:#ffd36d">◆ 黃色虛線：下一段可鋪位置</b><br>
+    靠近車廂互動：交貨／領取鐵軌<br>
+    河流上鋪軌：額外消耗倉庫木材 ×2
+  </div>
+  <div class="overlay" id="overlay">
+    <div class="dialog" id="dialog"></div>
+  </div>
+</main>
+
+<aside>
+  <div class="card">
+    <h3>眼前的工作</h3>
+    <div class="task" id="task">讓鐵路延伸下去</div>
+    <p class="muted" id="taskDetail">火車不會等待。合作，或者一起手忙腳亂。</p>
+  </div>
+
+  <div class="card">
+    <h3>製作車廂 · 共用倉庫</h3>
+    <div class="resource"><span>🪵 木材</span><b id="wood">0</b></div>
+    <div class="resource"><span>⛏ 礦石</span><b id="ore">0</b></div>
+    <div class="resource"><span>🛤 鐵軌</span><b id="rails">0</b></div>
+    <div class="bar"><i id="craftBar" style="background:#ffd36d;width:0"></i></div>
+    <div class="muted">自動製作：1 木材 + 1 礦石 → 3 鐵軌</div>
+  </div>
+
+  <div class="card">
+    <h3>冷卻車廂</h3>
+    <div class="resource"><span>💧 冷卻水</span><b id="water">100%</b></div>
+    <div class="bar"><i id="waterBar"></i></div>
+    <div class="muted">空手在河岸互動取水，再送回任一車廂。缺水會過熱。</div>
+  </div>
+
+  <div class="card">
+    <h3>合作隊員</h3>
+    <div id="players"></div>
+    <div class="muted">
+      <b style="color:#ffda72">P1</b>
+      <span class="key">WASD</span> 移動<br>
+      <span class="key">E</span> 採集／交貨／領軌
+      <span class="key">Q</span> 鋪軌
+      <span class="key">R</span> 丟下<br><br>
+      <b style="color:#a9ddff">P2</b>
+      <span class="key">↑↓←→</span> 移動<br>
+      <span class="key">Enter</span> 互動
+      <span class="key">/</span> 鋪軌
+      <span class="key">.</span> 丟下
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 id="upgradeTitle">車廂升級 · Lv.1</h3>
+    <div class="muted">提升製作速度、降低冷卻水消耗。站在車廂旁升級。</div>
+    <button id="upgrade">升級 · 6 木材 + 6 礦石</button>
+    <div class="muted">也可按 U。最多升級 3 次。</div>
+  </div>
+</aside>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+const $ = id => document.getElementById(id);
+const canvas = $("game"), ctx = canvas.getContext("2d");
+const stage = $("stage");
+const keys = new Set();
+const names = { wood:"木材", ore:"礦石", rail:"鐵軌", water:"水" };
+const colors = { wood:"#b98449", ore:"#bac5cc", rail:"#efcf75", water:"#79d9ee" };
+
+let W=900, H=650, scale=1, tileW=54, tileH=28;
+let state="menu", game=null, last=0, noticeTime=0;
+let best=0;
+try { best=Number(localStorage.getItem("unstoppable-best") || 0); } catch(e) {}
+$("best").innerHTML=best+" <span>m</span>";
+
+function resize() {
+  const r=stage.getBoundingClientRect();
+  W=r.width; H=r.height;
+  const dpr=Math.min(devicePixelRatio || 1,2);
+  canvas.width=Math.round(W*dpr);
+  canvas.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  scale=Math.max(.7,Math.min(1.12,W/1050));
+  tileW=54*scale; tileH=28*scale;
+}
+window.addEventListener("resize",resize);
+resize();
+
+function hash(x,y,n=0) {
+  let v=Math.imul(x|0,374761393)^Math.imul(y|0,668265263)^
+        Math.imul((game?.seed||42)+n,1442695041);
+  v=Math.imul(v^(v>>>13),1274126177);
+  return ((v^(v>>>16))>>>0)/4294967296;
+}
+const key=(x,y)=>`${x},${y}`;
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function tile(x,y) {
+  const k=key(x,y);
+  if(game.tiles.has(k)) return game.tiles.get(k);
+
+  let type="grass";
+  const zone=Math.max(0,Math.floor(x/45));
+  const riverX=26+Math.floor((x-24)/45)*45;
+  const bend=Math.round(Math.sin(y*.32)*1.5);
+  if(x>=24 && Math.abs(x-(riverX+bend))<1.1) type="water";
+  else {
+    const n=hash(x,y);
+    const density=Math.min(.45,.24+zone*.025);
+    if(n<density) type="tree";
+    else if(n<density+.14+Math.min(.09,zone*.012)) type="rock";
+  }
+
+  // 起始軌道與教學區保證通行。
+  if(x>=-9 && x<=19 && Math.abs(y)<=2) type="grass";
+  if(x>=4 && x<=10 && y===4) type="tree";
+  if(x>=6 && x<=12 && y===-4) type="rock";
+  if(x>=-1 && x<=2 && y>=5 && y<=7) type="water";
+
+  const t={x,y,type,hp:type==="rock"?3:2,variant:hash(x,y,3)};
+  game.tiles.set(k,t);
+  return t;
+}
+
+function start(count) {
+  game={
+    seed:Math.floor(Math.random()*999999), tiles:new Map(),
+    railSet:new Set(), path:[], progress:8, initialProgress:8,
+    bank:{wood:5,ore:5,rail:9}, water:100,
+    craft:0, crafting:false, level:0,
+    players:[], drops:[], particles:[],
+    camera:{x:7,y:0}, elapsed:0, score:0,
+    speed:.31, zone:0, shake:0, warning:false
+  };
+  for(let x=-6;x<=18;x++) {
+    game.path.push({x,y:0});
+    game.railSet.add(key(x,0));
+  }
+  for(let i=0;i<count;i++) {
+    game.players.push({
+      x:5+i*1.1,y:1.7+i*.3,
+      color:i?"#8ad5ff":"#ffcd62",
+      dark:i?"#397cab":"#be7040",
+      id:i+1,carry:null,amount:0,cooldown:0,buildCD:0,
+      action:null,walk:0
+    });
+  }
+  state="playing";
+  keys.clear();
+  $("overlay").classList.add("hidden");
+  $("pause").textContent="暫停";
+  notify("先到製作車廂領取鐵軌，再往黃色標記鋪路！",5);
+  updateUI();
+}
+
+function sample(at) {
+  const p=game.path;
+  at=clamp(at,0,p.length-1);
+  const i=Math.floor(at), f=at-i;
+  const a=p[i],b=p[Math.min(i+1,p.length-1)];
+  return {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f,
+          dx:b.x-a.x || (i>0?a.x-p[i-1].x:1),
+          dy:b.y-a.y || (i>0?a.y-p[i-1].y:0)};
+}
+function wagons() {
+  return [sample(game.progress),sample(game.progress-1.65),sample(game.progress-3.3)];
+}
+function nearTrain(p) {
+  return wagons().some(w=>dist(p,w)<2.15);
+}
+function notify(text,seconds=2.5) {
+  $("notice").textContent=text;
+  $("notice").style.opacity=1;
+  noticeTime=seconds;
+}
+function burst(x,y,text,color="#fff2b4") {
+  game.particles.push({x,y,text,color,life:1.1});
+}
+function solid(x,y) {
+  const tx=Math.round(x),ty=Math.round(y);
+  if(game.railSet.has(key(tx,ty))) return false;
+  const t=tile(tx,ty);
+  return t.type!=="grass";
+}
+function canStand(x,y) {
+  const r=.19;
+  return !solid(x-r,y-r)&&!solid(x+r,y-r)&&
+         !solid(x-r,y+r)&&!solid(x+r,y+r);
+}
+
+function interact(p) {
+  if(p.cooldown>0) return;
+  p.action=null;
+
+  // 帶著貨物靠近車廂，優先交貨。
+  if(p.carry && nearTrain(p)) {
+    if(p.carry==="water") {
+      game.water=Math.min(100,game.water+p.amount*24);
+      burst(p.x,p.y,"補水 +"+(p.amount*24)+"%","#9deaff");
+    } else {
+      game.bank[p.carry]+=p.amount;
+      burst(p.x,p.y,"交付 "+names[p.carry]+" ×"+p.amount);
+    }
+    p.carry=null;p.amount=0;p.cooldown=.65;
+    return;
+  }
+
+  // 空手優先撿取地上物資，可進行隊友接力。
+  const drop=game.drops.find(d=>dist(p,d)<1.1 &&
+    (!p.carry || p.carry===d.type) && p.amount<6);
+  if(drop) {
+    const n=Math.min(6-p.amount,drop.amount);
+    p.carry=drop.type;p.amount+=n;drop.amount-=n;
+    game.drops=game.drops.filter(d=>d.amount>0);
+    p.cooldown=.3;
+    burst(p.x,p.y,"拾取 "+names[p.carry]+" ×"+n);
+    return;
+  }
+
+  // 空手靠近車廂，領取已製作的鐵軌。
+  if(!p.carry && nearTrain(p)) {
+    if(game.bank.rail>0) {
+      p.carry="rail";p.amount=Math.min(6,game.bank.rail);
+      game.bank.rail-=p.amount;
+      p.cooldown=.65;
+      burst(p.x,p.y,"鐵軌 ×"+p.amount);
+    } else {
+      p.cooldown=.5;
+      notify("沒有成品鐵軌：把木材與礦石送進車廂。");
+    }
+    return;
+  }
+
+  let target=null,nearest=1.6;
+  for(let x=Math.round(p.x)-2;x<=Math.round(p.x)+2;x++) {
+    for(let y=Math.round(p.y)-2;y<=Math.round(p.y)+2;y++) {
+      const t=tile(x,y);
+      if(t.type==="grass" || game.railSet.has(key(x,y))) continue;
+      const type=t.type==="tree"?"wood":t.type==="rock"?"ore":"water";
+      if(p.carry && p.carry!==type) continue;
+      const d=dist(p,t);
+      if(d<nearest) {nearest=d;target=t;}
+    }
+  }
+
+  if(!target) {
+    p.cooldown=.4;
+    if(p.carry) notify("背包物品種類不同。先交貨，或丟下讓隊友接手。");
+    return;
+  }
+  if(p.amount>=6) {
+    p.cooldown=.5;notify("背包滿了！送回火車，或丟給隊友。");return;
+  }
+  p.action={x:target.x,y:target.y};
+  p.cooldown=.34;
+
+  if(target.type==="water") {
+    p.carry="water";p.amount=3;p.cooldown=.65;
+    burst(p.x,p.y,"裝滿水桶","#8de8ff");
+    return;
+  }
+
+  target.hp--;
+  burst(target.x,target.y,target.type==="tree"?"✦":"·",
+        target.type==="tree"?"#ccf29e":"#e5e8ed");
+  if(target.hp<=0) {
+    const type=target.type==="tree"?"wood":"ore";
+    const n=Math.min(2,6-p.amount);
+    p.carry=type;p.amount+=n;
+    if(n<2) game.drops.push({x:target.x,y:target.y,type,amount:2-n});
+    target.type="grass";
+    burst(target.x,target.y,"+"+n+" "+names[type]);
+  }
+}
+
+function buildTarget(p) {
+  const e=game.path[game.path.length-1];
+  const candidates=[
+    {x:e.x+1,y:e.y},{x:e.x,y:e.y+1},
+    {x:e.x,y:e.y-1},{x:e.x-1,y:e.y}
+  ].filter(t=>!game.railSet.has(key(t.x,t.y)));
+  candidates.sort((a,b)=>dist(p,a)-dist(p,b));
+  return candidates[0] || null;
+}
+function build(p) {
+  if(p.buildCD>0) return;
+  p.buildCD=.24;
+  if(p.carry!=="rail" || !p.amount) {
+    notify("先空手靠近車廂，互動領取鐵軌。");return;
+  }
+  const t=buildTarget(p);
+  if(!t || dist(p,t)>2.65) {
+    notify("靠近軌道最前端，再鋪下一段。");return;
+  }
+  const ground=tile(t.x,t.y);
+  if(ground.type==="tree" || ground.type==="rock") {
+    notify("前方有障礙！先採集清除，或站到另一側繞路。");return;
+  }
+  if(ground.type==="water") {
+    if(game.bank.wood<2) {
+      notify("架橋需要共用倉庫內的 2 份木材。");return;
+    }
+    game.bank.wood-=2;
+    burst(t.x,t.y,"橋梁完成","#a5e6f5");
+  } else burst(t.x,t.y,"+ 鐵軌");
+
+  game.path.push({x:t.x,y:t.y});
+  game.railSet.add(key(t.x,t.y));
+  p.amount--;
+  if(!p.amount) p.carry=null;
+}
+
+function dropItem(p) {
+  if(!p.carry) return;
+  game.drops.push({x:p.x,y:p.y,type:p.carry,amount:p.amount});
+  burst(p.x,p.y,"放下 "+names[p.carry]);
+  p.carry=null;p.amount=0;
+  p.cooldown=.4;
+}
+function upgrade() {
+  if(state!=="playing") return;
+  if(game.level>=3) {notify("所有車廂已完成升級！");return;}
+  if(!game.players.some(nearTrain)) {
+    notify("需要一位隊員站在車廂旁操作升級。");return;
+  }
+  const cost=6+game.level*3;
+  if(game.bank.wood<cost || game.bank.ore<cost) {
+    notify("升級需要 "+cost+" 木材與 "+cost+" 礦石。");return;
+  }
+  game.bank.wood-=cost;game.bank.ore-=cost;game.level++;
+  notify("升級完成！製作更快，冷卻水消耗更少。",4);
+}
+$("upgrade").onclick=upgrade;
+
+function gameOver(reason) {
+  state="over";
+  const score=Math.floor(game.score);
+  if(score>best) {
+    best=score;
+    try {localStorage.setItem("unstoppable-best",best);} catch(e) {}
+  }
+  showDialog(`
+    <div class="eyebrow">END OF THE LINE</div>
+    <h1>${reason==="water"?"鍋爐過熱了！":"啊，前面沒有軌道！"}</h1>
+    <p>${reason==="water"?"冷卻水耗盡，火車已無法繼續運作。":"不停號衝出了軌道。下一次，多留幾段緩衝吧。"}</p>
+    <div style="font-size:52px;font-weight:800;color:#ffd36d">${score}<span style="font-size:18px"> m</span></div>
+    <p>經過 ${game.zone+1} 個區域 · 合作 ${Math.floor(game.elapsed)} 秒<br>
+    最佳紀錄：${best} m</p>
+    <div class="actions">
+      <button id="again">再來一趟</button>
+      <button class="secondary" id="back">返回選單</button>
+    </div>`);
+  $("again").onclick=()=>start(game.players.length);
+  $("back").onclick=menu;
+}
+function showDialog(html) {
+  $("dialog").innerHTML=html;
+  $("overlay").classList.remove("hidden");
+}
+function menu() {
+  state="menu";
+  showDialog(`
+    <div class="eyebrow">A LITTLE TRAIN. A LOT OF PANIC.</div>
+    <h1>再鋪一段，<br>就來得及。</h1>
+    <p>這列火車不會停。砍樹、挖礦、把資源送回車廂，
+    然後帶著新鐵軌衝到最前面。</p>
+    <div class="card" style="margin-bottom:0">
+      <p style="margin:0">
+        <b style="color:#ffd36d">① 採集</b>　靠近樹木／岩石，按住互動鍵。<br>
+        <b style="color:#ffd36d">② 製作</b>　帶貨到車廂交付，車廂自動製軌。<br>
+        <b style="color:#ffd36d">③ 延伸</b>　空手領軌，在路線前端鋪設。<br>
+        <b style="color:#ffd36d">④ 補水</b>　在河岸裝水，再送回火車。
+      </p>
+    </div>
+    <p>一次只能搬一種物品，最多 6 份。站位決定鋪軌方向，
+    遇到河流可用倉庫木材架橋。<br>
+    <span style="color:#a9bcaa">桌面鍵盤遊戲 · 雙人共用一個鍵盤 · P 暫停</span></p>
+    <div class="actions">
+      <button id="solo">單人出發</button>
+      <button id="duo" class="secondary">雙人合作出發</button>
+    </div>`);
+  $("solo").onclick=()=>start(1);
+  $("duo").onclick=()=>start(2);
+}
+function togglePause() {
+  if(state==="playing") {
+    state="paused";keys.clear();
+    $("pause").textContent="繼續";
+    showDialog(`<div class="eyebrow">TAKE A BREATH</div>
+      <h1>先喘口氣。</h1><p>火車與世界已暫停。商量一下下一段路怎麼走。</p>
+      <div class="actions"><button id="resume">繼續前進</button></div>`);
+    $("resume").onclick=togglePause;
+  } else if(state==="paused") {
+    state="playing";
+    $("overlay").classList.add("hidden");
+    $("pause").textContent="暫停";
+  }
+}
+$("pause").onclick=togglePause;
+window.addEventListener("blur",()=>{keys.clear();if(state==="playing") togglePause();});
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden && state==="playing") togglePause();
+});
+
+window.addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(["arrowup","arrowdown","arrowleft","arrowright","enter","/"," ","."].includes(k))
+    e.preventDefault();
+  keys.add(k);
+  if(e.repeat) return;
+  if(k==="p" || k==="escape") togglePause();
+  if(state!=="playing") return;
+  if(k==="u") upgrade();
+  if(k==="r") dropItem(game.players[0]);
+  if(k==="." && game.players[1]) dropItem(game.players[1]);
+});
+window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+
+function update(dt) {
+  if(noticeTime>0) {
+    noticeTime-=dt;
+    if(noticeTime<=0) $("notice").style.opacity=0;
+  }
+  if(state!=="playing" || !game) return;
+  game.elapsed+=dt;
+  game.speed=.31+Math.min(.43,game.elapsed*.00085);
+  game.progress+=game.speed*dt;
+  game.score=(game.progress-game.initialProgress)*10;
+
+  const zone=Math.floor(game.score/160);
+  if(zone!==game.zone) {
+    game.zone=zone;
+    notify(zone%3===2?"進入乾燥區：冷卻水消耗增加！":
+      "新區域！火車更快了，別讓前方的軌道耗盡。",4);
+  }
+
+  const dry=game.zone%3===2;
+  game.water-=dt*(dry?1.05:.62)*(1-game.level*.16);
+
+  if(!game.crafting && game.bank.wood>0 && game.bank.ore>0) {
+    game.bank.wood--;game.bank.ore--;
+    game.crafting=true;game.craft=0;
+  }
+  if(game.crafting) {
+    game.craft+=dt/(2.2-game.level*.4);
+    if(game.craft>=1) {
+      game.bank.rail+=3;game.crafting=false;game.craft=0;
+      const w=sample(game.progress-1.65);
+      burst(w.x,w.y,"+3 鐵軌");
+    }
+  }
+
+  for(const p of game.players) {
+    p.cooldown=Math.max(0,p.cooldown-dt);
+    p.buildCD=Math.max(0,p.buildCD-dt);
+    if(p.cooldown<=0) p.action=null;
+    const c=p.id===1?
+      {l:"a",r:"d",u:"w",d:"s",a:"e",b:"q"}:
+      {l:"arrowleft",r:"arrowright",u:"arrowup",d:"arrowdown",a:"enter",b:"/"};
+    let sx=Number(keys.has(c.r))-Number(keys.has(c.l));
+    let sy=Number(keys.has(c.d))-Number(keys.has(c.u));
+    let dx=sx+sy,dy=sy-sx;
+    const n=Math.hypot(dx,dy);
+    if(n) {
+      const move=(p.carry?3.05:3.6)*dt;
+      dx=dx/n*move;dy=dy/n*move;
+      if(canStand(p.x+dx,p.y)) p.x+=dx;
+      if(canStand(p.x,p.y+dy)) p.y+=dy;
+
+      // 隊員之間輕微碰撞，保留合作時的擁擠感。
+      for(const other of game.players) {
+        if(other===p) continue;
+        const d=dist(p,other);
+        if(d<.45 && d>.001) {
+          const push=(.45-d)*.35;
+          const nx=p.x+(p.x-other.x)/d*push;
+          const ny=p.y+(p.y-other.y)/d*push;
+          if(canStand(nx,ny)) {p.x=nx;p.y=ny;}
+        }
+      }
+      p.walk+=dt*12;
+    } else p.walk=0;
+
+    if(keys.has(c.a)) interact(p);
+    if(keys.has(c.b)) build(p);
+  }
+
+  const engine=sample(game.progress);
+  const end=game.path[game.path.length-1];
+  // 鏡頭顧及火車、路線前端與兩名玩家。
+  const focus=[
+    {x:engine.x+3,y:engine.y},
+    {x:clamp(end.x,engine.x-7,engine.x+16),
+     y:clamp(end.y,engine.y-9,engine.y+9)},
+    ...game.players.map(p=>({
+      x:clamp(p.x,engine.x-10,engine.x+18),
+      y:clamp(p.y,engine.y-12,engine.y+12)
+    }))
+  ];
+  const cx=focus.reduce((s,p)=>s+p.x,0)/focus.length;
+  const cy=focus.reduce((s,p)=>s+p.y,0)/focus.length;
+  const lerp=1-Math.exp(-dt*2.2);
+  game.camera.x+=(cx-game.camera.x)*lerp;
+  game.camera.y+=(cy-game.camera.y)*lerp;
+
+  for(const p of game.particles) p.life-=dt;
+  game.particles=game.particles.filter(p=>p.life>0);
+
+  if(game.progress>=game.path.length-1) {gameOver("rail");return;}
+  if(game.water<=0) {game.water=0;gameOver("water");return;}
+  updateUI();
+}
+
+function updateUI() {
+  if(!game) return;
+  const runway=(game.path.length-1-game.progress)/game.speed;
+  $("distance").innerHTML=Math.floor(game.score)+" <span>m</span>";
+  $("runway").textContent=Math.max(0,runway).toFixed(0)+" 秒";
+  $("runway").className=runway<15?"danger":"";
+  $("speed").textContent=(game.speed/.31).toFixed(1)+"×";
+  $("best").innerHTML=best+" <span>m</span>";
+  $("wood").textContent=game.bank.wood;
+  $("ore").textContent=game.bank.ore;
+  $("rails").textContent=game.bank.rail;
+  $("water").textContent=Math.ceil(game.water)+"%";
+  $("water").className=game.water<25?"danger":"";
+  $("waterBar").style.width=game.water+"%";
+  $("waterBar").style.background=game.water<25?"#fa886d":"#65c7d3";
+  $("craftBar").style.width=game.craft*100+"%";
+  const biomes=["青翠林地","岩石丘陵","乾燥荒野"];
+  $("region").textContent="區域 "+String(game.zone+1).padStart(2,"0")+" · "+
+    biomes[game.zone%3]+(game.zone%3===2?" / 水耗增加":"");
+  $("players").innerHTML=game.players.map(p=>
+    `<div class="player"><b style="color:${p.color}">● P${p.id}</b>
+     <span style="float:right">${p.carry?names[p.carry]+" ×"+p.amount:"空手"}</span></div>`
+  ).join("");
+  $("upgradeTitle").textContent="車廂升級 · Lv."+(game.level+1);
+  const cost=6+game.level*3;
+  $("upgrade").textContent=game.level>=3?"已完成全部升級":
+    `升級 · ${cost} 木材 + ${cost} 礦石`;
+
+  let task="採集、交貨，維持產線";
+  let detail="木材與礦石各 1 份，可以製作 3 段鐵軌。記得預留架橋木材。";
+  if(runway<20) {
+    task="快鋪軌！只剩 "+Math.ceil(runway)+" 秒";
+    detail="帶鐵軌到路線最前端。站在希望延伸的一側，按鋪軌鍵。";
+  } else if(game.water<30) {
+    task="需要冷卻水！";
+    detail="空手到河岸互動取水，再靠近車廂交付。";
+  } else if(game.bank.rail>0 && !game.players.some(p=>p.carry==="rail")) {
+    task="領取鐵軌，延伸路線";
+    detail="空手靠近車廂互動領軌。黄色標記會依你的站位選擇延伸方向。";
+  } else if(!game.bank.wood) {
+    task="木材不夠了";
+    detail="靠近樹木按住互動鍵，採完後把木材送回車廂。";
+  } else if(!game.bank.ore) {
+    task="補充製軌礦石";
+    detail="靠近岩石按住互動鍵，交回火車才能繼續製作。";
+  }
+  $("task").textContent=task;
+  $("taskDetail").textContent=detail;
+}
+
+// ---------- 等角投影與繪圖 ----------
+function project(x,y,z=0) {
+  const c=game?.camera || {x:7,y:0};
+  return {
+    x:W*.5+((x-c.x)-(y-c.y))*tileW/2,
+    y:H*.48+((x-c.x)+(y-c.y))*tileH/2-z*scale
+  };
+}
+function unproject(sx,sy) {
+  const c=game.camera;
+  const a=(sx-W*.5)/(tileW/2),b=(sy-H*.48)/(tileH/2);
+  return {x:c.x+(a+b)/2,y:c.y+(b-a)/2};
+}
+function polygon(points,fill,stroke=null) {
+  ctx.beginPath();
+  points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+  ctx.closePath();
+  if(fill) {ctx.fillStyle=fill;ctx.fill();}
+  if(stroke) {ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}
+}
+function diamond(x,y,fill,stroke=null,r=.5,z=0) {
+  polygon([
+    project(x-r,y-r,z),project(x+r,y-r,z),
+    project(x+r,y+r,z),project(x-r,y+r,z)
+  ],fill,stroke);
+}
+function box(x,y,wx,wy,h,top,left,right,z=0) {
+  const a=project(x-wx,y-wy,z),b=project(x+wx,y-wy,z);
+  const c=project(x+wx,y+wy,z),d=project(x-wx,y+wy,z);
+  const A=project(x-wx,y-wy,z+h),B=project(x+wx,y-wy,z+h);
+  const C=project(x+wx,y+wy,z+h),D=project(x-wx,y+wy,z+h);
+  polygon([d,c,C,D],left);
+  polygon([b,c,C,B],right);
+  polygon([A,B,C,D],top);
+}
+function ellipse(x,y,rx,ry,fill) {
+  ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);
+  ctx.fillStyle=fill;ctx.fill();
+}
+function label(x,y,text,color="#f7f6df",size=12) {
+  ctx.font=`700 ${size*scale}px system-ui`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillStyle="#142b24";ctx.fillText(text,x+1,y+1);
+  ctx.fillStyle=color;ctx.fillText(text,x,y);
+}
+function drawTile(t) {
+  const dry=game.zone%3===2;
+  const palettes=dry?["#a5aa61","#aeb06a","#a1a45d","#b0b36b"]:
+    ["#80ad68","#89b56f","#7fa86a","#91b877"];
+  if(t.type==="water" && !game.railSet.has(key(t.x,t.y))) {
+    diamond(t.x,t.y,t.variant>.5?"#59aeb9":"#62b8c2","#6ebbc2");
+    const p=project(t.x,t.y);
+    ctx.strokeStyle="#a8e5e37a";ctx.lineWidth=1;
+    const drift=Math.sin(game.elapsed*1.5+t.x+t.y)*3;
+    ctx.beginPath();ctx.moveTo(p.x-7*scale+drift,p.y);
+    ctx.lineTo(p.x+4*scale+drift,p.y);ctx.stroke();
+  } else {
+    diamond(t.x,t.y,palettes[Math.floor(t.variant*4)],"#35573516");
+    if(t.type==="grass" && t.variant>.86 && !game.railSet.has(key(t.x,t.y))) {
+      const p=project(t.x,t.y);
+      ctx.fillStyle=dry?"#d9cf83":"#c6d88b";
+      ctx.fillRect(p.x,p.y,2*scale,2*scale);
+    }
+  }
+}
+function drawTree(t) {
+  const p=project(t.x,t.y);
+  ellipse(p.x,p.y+2*scale,16*scale,7*scale,"#244a343d");
+  box(t.x,t.y,.075,.075,19,"#b28350","#805a39","#674b32");
+  const h=34+t.variant*13;
+  for(let i=0;i<3;i++) {
+    const z=12+i*10,r=(17-i*3)*scale;
+    const q=project(t.x,t.y,z);
+    polygon([{x:q.x,y:q.y-(h-i*7)*scale*.63},
+      {x:q.x+r,y:q.y+4*scale},{x:q.x,y:q.y+10*scale},
+      {x:q.x-r,y:q.y+4*scale}],
+      ["#367b51","#428c56","#60a562"][i]);
+    polygon([{x:q.x,y:q.y-(h-i*7)*scale*.63},
+      {x:q.x,y:q.y+10*scale},{x:q.x-r,y:q.y+4*scale}],
+      ["#296344","#347749","#488e52"][i]);
+  }
+  if(t.hp<2) label(p.x,p.y-56*scale,"▰ ▱","#ffe6a0",10);
+}
+function drawRock(t) {
+  const p=project(t.x,t.y);
+  ellipse(p.x,p.y+3*scale,19*scale,8*scale,"#29433236");
+  const s=scale;
+  polygon([{x:p.x-18*s,y:p.y},{x:p.x-11*s,y:p.y-19*s},
+    {x:p.x+5*s,y:p.y-27*s},{x:p.x+19*s,y:p.y-11*s},
+    {x:p.x+17*s,y:p.y+4*s},{x:p.x-2*s,y:p.y+10*s}],"#758e94");
+  polygon([{x:p.x-11*s,y:p.y-19*s},{x:p.x+5*s,y:p.y-27*s},
+    {x:p.x+19*s,y:p.y-11*s},{x:p.x,y:p.y-7*s}],"#bacac5");
+  polygon([{x:p.x,y:p.y-7*s},{x:p.x+19*s,y:p.y-11*s},
+    {x:p.x+17*s,y:p.y+4*s},{x:p.x-2*s,y:p.y+10*s}],"#91a7a5");
+  if(t.hp<3) label(p.x,p.y-36*s,"▰".repeat(t.hp)+"▱".repeat(3-t.hp),"#edf4de",10);
+}
+function lineWorld(a,b,color,width) {
+  const A=project(a.x,a.y,2),B=project(b.x,b.y,2);
+  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
+  ctx.strokeStyle=color;ctx.lineWidth=width*scale;ctx.lineCap="round";ctx.stroke();
+}
+function drawRail(i) {
+  const a=game.path[i],prev=game.path[Math.max(0,i-1)],
+        next=game.path[Math.min(game.path.length-1,i+1)];
+  const t=tile(a.x,a.y);
+  diamond(a.x,a.y,t.type==="water"?"#b28b57":"#698572",null,.49,1);
+  const dirs=[];
+  if(i>0) dirs.push({x:prev.x-a.x,y:prev.y-a.y});
+  if(i<game.path.length-1) dirs.push({x:next.x-a.x,y:next.y-a.y});
+  if(dirs.length===1) dirs.push({x:-dirs[0].x,y:-dirs[0].y});
+
+  for(const d of dirs) {
+    const nx=-d.y,ny=d.x;
+    for(const f of [.05,.3,.5]) {
+      lineWorld(
+        {x:a.x+d.x*f+nx*.31,y:a.y+d.y*f+ny*.31},
+        {x:a.x+d.x*f-nx*.31,y:a.y+d.y*f-ny*.31},"#795b3d",5);
+    }
+    for(const side of [-1,1]) {
+      lineWorld(
+        {x:a.x+nx*.2*side,y:a.y+ny*.2*side},
+        {x:a.x+d.x*.52+nx*.2*side,y:a.y+d.y*.52+ny*.2*side},"#d3ddcf",3);
+    }
+  }
+}
+function drawWagon(w,i) {
+  const p=project(w.x,w.y);
+  ellipse(p.x,p.y+5*scale,24*scale,10*scale,"#183b354c");
+  const alongX=Math.abs(w.dx)>=Math.abs(w.dy);
+  const wx=alongX?.59:.34,wy=alongX?.34:.59;
+  box(w.x,w.y,wx,wy,6,"#4d5550","#293b35","#22342e",3);
+  box(w.x,w.y,wx*.9,wy*.9,14,
+    i===0?"#e27950":i===1?"#e6bc65":"#7dc3cc",
+    i===0?"#b24f37":i===1?"#a87e43":"#468c9c",
+    i===0?"#cb6140":i===1?"#bd9350":"#59a5b2",9);
+  if(i===0) {
+    box(w.x-w.dx*.27,w.y-w.dy*.27,.24,.24,17,
+      "#f5d47b","#bd8c4d","#d0a65d",23);
+    box(w.x+w.dx*.3,w.y+w.dy*.3,.1,.1,18,
+      "#56695e","#344c43","#2c4039",21);
+    const time=game.elapsed;
+    for(let n=0;n<4;n++) {
+      const age=(time*1.2+n*.25)%1;
+      const q=project(w.x+w.dx*.3-age*.55,w.y+w.dy*.3,44+age*36);
+      ctx.globalAlpha=(1-age)*.48;
+      ellipse(q.x,q.y,(5+age*11)*scale,(4+age*7)*scale,"#edf1df");
+    }
+    ctx.globalAlpha=1;
+  } else if(i===1) {
+    box(w.x,w.y,.21,.21,8,"#f5dea0","#b69865","#d7b873",23);
+    label(p.x,p.y-36*scale,"⚒","#463e2a",15);
+  } else {
+    box(w.x,w.y,.23,.23,7,"#b1e6e1","#6fb9c4","#85cbd0",23);
+    label(p.x,p.y-35*scale,"≈","#287c92",18);
+  }
+  if(game.level) label(p.x,p.y+16*scale,"★".repeat(game.level),"#ffdf7b",9);
+}
+function drawItem(x,y,type,amount,z=0) {
+  const p=project(x,y,z);
+  if(type==="wood") box(x,y,.23,.12,7,"#ddb777","#a97843","#ba8d50",z);
+  else if(type==="ore") box(x,y,.17,.17,10,"#d3dddd","#809b9f","#a5b9bd",z);
+  else if(type==="rail") {
+    box(x,y,.27,.18,5,"#e7d398","#8d734d","#ba975f",z);
+    const q=project(x,y,z+9);
+    label(q.x,q.y,"═","#f7edc8",22);
+  } else {
+    box(x,y,.17,.17,12,"#9be5e9","#3e9eb7","#6ac9d9",z);
+  }
+  if(amount) label(p.x,p.y-15*scale,String(amount),"#fff8da",10);
+}
+function drawPlayer(p) {
+  const q=project(p.x,p.y);
+  const bob=Math.sin(p.walk)*1.5;
+  ellipse(q.x,q.y+4*scale,12*scale,6*scale,"#193e345e");
+  box(p.x-.1,p.y,.065,.09,6,"#434e48","#293b33","#32443c",0);
+  box(p.x+.1,p.y,.065,.09,6,"#434e48","#293b33","#32443c",0);
+  box(p.x,p.y,.17,.16,15,p.color,p.dark,p.dark,5+bob);
+  const head=project(p.x,p.y,29+bob);
+  ellipse(head.x,head.y,8*scale,8*scale,"#ffe0b1");
+  ellipse(head.x,head.y-4*scale,10*scale,6*scale,p.color);
+  ctx.fillStyle="#394137";
+  ctx.fillRect(head.x+2*scale,head.y,2*scale,2*scale);
+  if(p.carry) drawItem(p.x,p.y,p.carry,p.amount,42+bob);
+  label(q.x,q.y-(p.carry?67:47)*scale,"P"+p.id,p.color,11);
+  if(p.action) {
+    const a=project(p.action.x,p.action.y,20);
+    ctx.strokeStyle="#fff0ac";ctx.lineWidth=3*scale;
+    ctx.beginPath();ctx.moveTo(q.x+8*scale,q.y-20*scale);
+    ctx.lineTo(a.x,a.y);ctx.stroke();
+  }
+}
+function drawGhost() {
+  const e=game.path[game.path.length-1];
+  const pulse=.45+Math.sin(game.elapsed*5)*.2;
+  const candidates=game.players.map(buildTarget).filter(Boolean);
+  if(!candidates.length) return;
+  const seen=new Set();
+  for(const t of candidates) {
+    if(seen.has(key(t.x,t.y))) continue;
+    seen.add(key(t.x,t.y));
+    const ground=tile(t.x,t.y);
+    const blocked=ground.type==="tree" || ground.type==="rock";
+    ctx.save();
+    ctx.globalAlpha=.8;
+    ctx.setLineDash([5*scale,4*scale]);
+    const points=[
+      project(t.x-.48,t.y-.48,3),project(t.x+.48,t.y-.48,3),
+      project(t.x+.48,t.y+.48,3),project(t.x-.48,t.y+.48,3)
+    ];
+    polygon(points,blocked?"#e96c5544":`rgba(255,220,110,${pulse*.5})`,
+      blocked?"#ffd0a5":"#ffe98e");
+    ctx.restore();
+    const p=project(t.x,t.y,7);
+    label(p.x,p.y,blocked?"!":"+",blocked?"#ffe0c1":"#fff3b0",18);
+  }
+  const p=project(e.x,e.y,18+Math.sin(game.elapsed*4)*3);
+  label(p.x,p.y,"▼","#ffe594",17);
+}
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle="#70976a";ctx.fillRect(0,0,W,H);
+  if(!game) {
+    ctx.fillStyle="#294e3d";ctx.fillRect(0,0,W,H);
+    for(let i=0;i<80;i++) {
+      const x=(i*127)%W,y=(i*89)%H;
+      polygon([{x,y:y-25},{x:x+20,y:y+15},{x:x-20,y:y+15}],
+        i%2?"#386d4e":"#417b54");
+    }
+    return;
+  }
+
+  const corners=[
+    unproject(-100,-120),unproject(W+100,-120),
+    unproject(-100,H+150),unproject(W+100,H+150)
+  ];
+  const minX=Math.floor(Math.min(...corners.map(p=>p.x)))-2;
+  const maxX=Math.ceil(Math.max(...corners.map(p=>p.x)))+2;
+  const minY=Math.floor(Math.min(...corners.map(p=>p.y)))-2;
+  const maxY=Math.ceil(Math.max(...corners.map(p=>p.y)))+2;
+  const visible=[];
+  for(let x=minX;x<=maxX;x++) for(let y=minY;y<=maxY;y++) {
+    const p=project(x,y);
+    if(p.x<-100 || p.x>W+100 || p.y<-80 || p.y>H+130) continue;
+    visible.push(tile(x,y));
+  }
+  visible.sort((a,b)=>(a.x+a.y)-(b.x+b.y));
+  for(const t of visible) drawTile(t);
+
+  // 只繪製鏡頭附近的軌道。
+  for(let i=0;i<game.path.length;i++) {
+    const t=game.path[i];
+    if(t.x>=minX&&t.x<=maxX&&t.y>=minY&&t.y<=maxY) drawRail(i);
+  }
+  drawGhost();
+
+  const objects=[];
+  for(const t of visible) {
+    if(t.type==="tree") objects.push({depth:t.x+t.y,draw:()=>drawTree(t)});
+    if(t.type==="rock") objects.push({depth:t.x+t.y,draw:()=>drawRock(t)});
+  }
+  game.drops.forEach(d=>objects.push({
+    depth:d.x+d.y,draw:()=>drawItem(d.x,d.y,d.type,d.amount,2)
+  }));
+  wagons().forEach((w,i)=>objects.push({
+    depth:w.x+w.y+.1,draw:()=>drawWagon(w,i)
+  }));
+  game.players.forEach(p=>objects.push({
+    depth:p.x+p.y+.15,draw:()=>drawPlayer(p)
+  }));
+  objects.sort((a,b)=>a.depth-b.depth);
+  objects.forEach(o=>o.draw());
+
+  for(const p of game.particles) {
+    const q=project(p.x,p.y,38+(1.1-p.life)*30);
+    ctx.globalAlpha=Math.min(1,p.life*2);
+    label(q.x,q.y,p.text,p.color,13);
+  }
+  ctx.globalAlpha=1;
+
+  // 離開畫面的隊員方向提示。
+  for(const p of game.players) {
+    const q=project(p.x,p.y);
+    if(q.x<20||q.x>W-20||q.y<20||q.y>H-20) {
+      const x=clamp(q.x,30,W-30),y=clamp(q.y,35,H-35);
+      ellipse(x,y,17,17,"#18372bec");
+      label(x,y,"P"+p.id,p.color,12);
+    }
+  }
+
+  const remaining=(game.path.length-1-game.progress)/game.speed;
+  if(remaining<15 && state==="playing") {
+    ctx.strokeStyle=`rgba(244,112,78,${.3+Math.sin(game.elapsed*7)*.15})`;
+    ctx.lineWidth=12;ctx.strokeRect(0,0,W,H);
+  }
+
+  const gradient=ctx.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,Math.max(W,H)*.7);
+  gradient.addColorStop(0,"#102a2000");
+  gradient.addColorStop(1,"#102a2040");
+  ctx.fillStyle=gradient;ctx.fillRect(0,0,W,H);
+}
+
+function frame(time) {
+  const dt=Math.min((time-last)/1000 || 0,.05);
+  last=time;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+menu();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
