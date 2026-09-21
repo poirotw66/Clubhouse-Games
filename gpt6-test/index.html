@@ -419,133 +419,10 @@
     <main class="grid" id="grid" aria-live="polite"></main>
     <div class="empty" id="empty">沒有符合的專案。</div>
 
-    <p class="foot">Open locally via a simple static server if file:// blocks fonts or relative links. Paths point at each folder’s HTML demo.</p>
+    <p class="foot">資料來自 <code>manifest.json</code>。請用本機 static server 開啟（例如 <code>python3 -m http.server 8765</code>）。每個 case 路徑為 <code>&lt;id&gt;/index.html</code>。</p>
   </div>
 
   <script>
-    const items = [
-      {
-        id: "webmcp-ai-smart-home",
-        title: "AI Smart Home",
-        category: "webmcp",
-        blurb: "人機共用同一 SmartHome state；WebMCP tools 直接驅動裝置。",
-        href: "webmcp-ai-smart-home/ai-smart-home.html",
-        bytes: 104917
-      },
-      {
-        id: "webmcp-mini-amazon",
-        title: "Mini Amazon",
-        category: "webmcp",
-        blurb: "電商目錄、購物車與訂單流程，AI 透過結構化 tools 操作。",
-        href: "webmcp-Mini Amazon/webmcp-Mini Amazon.html",
-        bytes: 110241
-      },
-      {
-        id: "webmcp-mini-tactical-dungeon",
-        title: "Mini Tactical Dungeon",
-        category: "webmcp",
-        blurb: "戰術地牢 demo：UI 與 agent 共用遊戲能力層。",
-        href: "webmcp-Mini Tactical Dungeon/Mini Tactical Dungeon.html",
-        bytes: 105758
-      },
-      {
-        id: "webmcp-mini-factory",
-        title: "Mini Factory",
-        category: "webmcp",
-        blurb: "工廠產線控制面板，展示 WebMCP 對應用狀態的雙向控制。",
-        href: "webmcp-mini-factory/mini-factory.html",
-        bytes: 100990
-      },
-      {
-        id: "webmcp-escape-room",
-        title: "Escape Room",
-        category: "webmcp",
-        blurb: "密室逃脫互動；agent 用 tools 調查與解謎，不靠點擊模擬。",
-        href: "webmcp-Escape Room/escape-room.html",
-        bytes: 92994
-      },
-      {
-        id: "webmcp-agent-trello",
-        title: "Agent Trello",
-        category: "webmcp",
-        blurb: "看板式任務板，人與 AI 共用同一套卡片／列表操作。",
-        href: "webmcp-Agent Trello/Agent Trello.html",
-        bytes: 88701
-      },
-      {
-        id: "webmcp-pizza",
-        title: "Pizza / Burger Builder",
-        category: "webmcp",
-        blurb: "食物組裝器：UI 與 WebMCP tools 同步同一份配方 state。",
-        href: "webmcp-pizza/webmcp-pizza.html",
-        bytes: 84921
-      },
-      {
-        id: "webmcp-rubiks-cube",
-        title: "Rubik’s Cube",
-        category: "webmcp",
-        blurb: "魔術方塊操作面；agent 透過結構化轉面指令操控。",
-        href: "webmcp-Rubik's Cube/Rubik's Cube.html",
-        bytes: 58773
-      },
-      {
-        id: "loop-hero",
-        title: "Loop Hero",
-        category: "game",
-        blurb: "循環路線建造式 Roguelike 風格 one-shot 遊戲。",
-        href: "loop-hero/loop-hero.html",
-        bytes: 76468
-      },
-      {
-        id: "archer",
-        title: "Archer",
-        category: "game",
-        blurb: "射箭／瞄準互動遊戲 one-shot 產出。",
-        href: "archer/archer.html",
-        bytes: 62492
-      },
-      {
-        id: "exhibition-web",
-        title: "Exhibition Web",
-        category: "landing",
-        blurb: "當代動力雕塑展網站，含捲動驅動的機械節奏互動。",
-        href: "Exhibition Web/Exhibition.html",
-        bytes: 59595
-      },
-      {
-        id: "3d-sailing",
-        title: "3D Sailing",
-        category: "game",
-        blurb: "瀏覽器內 3D 航行體驗。",
-        href: "3d-sailing/3d-sailing.html",
-        bytes: 40251
-      },
-      {
-        id: "train",
-        title: "Endless Train",
-        category: "game",
-        blurb: "永不停止的火車：採集、鋪軌、趕在出軌前前進。",
-        href: "train/train.html",
-        bytes: 35603
-      },
-      {
-        id: "3d-fill-the-void",
-        title: "3D Fill the Void",
-        category: "game",
-        blurb: "3D 空間填補／建造類互動小品。",
-        href: "3D Fill the Void/3D-fill-the-Void.html",
-        bytes: 30925
-      },
-      {
-        id: "borderland",
-        title: "Borderland",
-        category: "game",
-        blurb: "邊疆主題小遊戲 one-shot。",
-        href: "borderland/borderland.html",
-        bytes: 21227
-      }
-    ];
-
     const labels = {
       webmcp: "WebMCP",
       game: "Game",
@@ -557,19 +434,18 @@
     const q = document.getElementById("q");
     const filters = [...document.querySelectorAll(".filter")];
     let active = "all";
+    let items = [];
 
     function formatBytes(n) {
       if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB";
       return Math.round(n / 1024) + " KB";
     }
 
-    function encodeHref(path) {
-      return path.split("/").map(encodeURIComponent).join("/");
+    function updateStats() {
+      document.getElementById("stat-total").textContent = String(items.length);
+      document.getElementById("stat-webmcp").textContent = String(items.filter((i) => i.category === "webmcp").length);
+      document.getElementById("stat-games").textContent = String(items.filter((i) => i.category === "game").length);
     }
-
-    document.getElementById("stat-total").textContent = String(items.length);
-    document.getElementById("stat-webmcp").textContent = String(items.filter((i) => i.category === "webmcp").length);
-    document.getElementById("stat-games").textContent = String(items.filter((i) => i.category === "game").length);
 
     function visibleItems() {
       const query = q.value.trim().toLowerCase();
@@ -589,19 +465,19 @@
       list.forEach((item, index) => {
         const a = document.createElement("a");
         a.className = "card";
-        a.href = encodeHref(item.href);
+        a.href = item.href;
         a.target = "_blank";
         a.rel = "noopener noreferrer";
         a.dataset.category = item.category;
         a.style.animationDelay = `${Math.min(index, 10) * 0.04}s`;
         a.innerHTML = `
           <div class="thumb">
-            <img src="thumbs/${item.id}.webp" alt="${item.title} screenshot" loading="lazy" width="1280" height="800">
+            <img src="${item.thumb || `thumbs/${item.id}.webp`}" alt="${item.title} screenshot" loading="lazy" width="1280" height="800">
           </div>
           <div class="card-body">
             <div class="card-top">
-              <span class="tag">${labels[item.category]}</span>
-              <span class="size">${formatBytes(item.bytes)}</span>
+              <span class="tag">${labels[item.category] || item.category}</span>
+              <span class="size">${formatBytes(item.bytes || 0)}</span>
             </div>
             <h2>${item.title}</h2>
             <p>${item.blurb}</p>
@@ -624,7 +500,21 @@
     });
 
     q.addEventListener("input", render);
-    render();
+
+    fetch("manifest.json")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load manifest.json (${res.status})`);
+        return res.json();
+      })
+      .then((manifest) => {
+        items = Array.isArray(manifest.items) ? manifest.items : [];
+        updateStats();
+        render();
+      })
+      .catch((err) => {
+        empty.textContent = `無法載入 manifest.json。請用本機 static server 開啟（例如 python3 -m http.server）。${err.message ? " " + err.message : ""}`;
+        empty.classList.add("show");
+      });
   </script>
 </body>
 </html>

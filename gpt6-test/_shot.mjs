@@ -5,25 +5,17 @@ import { fileURLToPath } from "url";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(ROOT, "thumbs");
-const BASE = "http://127.0.0.1:8765";
+const BASE = process.env.GPT6_GALLERY_BASE || "http://127.0.0.1:8765";
 
-const items = [
-  { id: "webmcp-ai-smart-home", href: "webmcp-ai-smart-home/ai-smart-home.html" },
-  { id: "webmcp-mini-amazon", href: "webmcp-Mini Amazon/webmcp-Mini Amazon.html" },
-  { id: "webmcp-mini-tactical-dungeon", href: "webmcp-Mini Tactical Dungeon/Mini Tactical Dungeon.html" },
-  { id: "webmcp-mini-factory", href: "webmcp-mini-factory/mini-factory.html" },
-  { id: "webmcp-escape-room", href: "webmcp-Escape Room/escape-room.html" },
-  { id: "webmcp-agent-trello", href: "webmcp-Agent Trello/Agent Trello.html" },
-  { id: "webmcp-pizza", href: "webmcp-pizza/webmcp-pizza.html" },
-  { id: "webmcp-rubiks-cube", href: "webmcp-Rubik's Cube/Rubik's Cube.html" },
-  { id: "loop-hero", href: "loop-hero/loop-hero.html" },
-  { id: "archer", href: "archer/archer.html" },
-  { id: "exhibition-web", href: "Exhibition Web/Exhibition.html" },
-  { id: "3d-sailing", href: "3d-sailing/3d-sailing.html" },
-  { id: "train", href: "train/train.html" },
-  { id: "3d-fill-the-void", href: "3D Fill the Void/3D-fill-the-Void.html" },
-  { id: "borderland", href: "borderland/borderland.html" },
-];
+const manifest = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8"),
+);
+const items = Array.isArray(manifest.items) ? manifest.items : [];
+
+if (!items.length) {
+  console.error("manifest.json has no items");
+  process.exit(1);
+}
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -38,7 +30,8 @@ page.setDefaultTimeout(45000);
 const results = [];
 
 for (const item of items) {
-  const url = `${BASE}/${item.href.split("/").map(encodeURIComponent).join("/")}`;
+  const href = item.href || `${item.id}/index.html`;
+  const url = `${BASE}/${href}`;
   const outPath = path.join(OUT, `${item.id}.webp`);
   process.stdout.write(`SHOT ${item.id} ... `);
   try {
@@ -62,8 +55,6 @@ for (const item of items) {
       }
     }
     await page.screenshot({ path: outPath, type: "png" });
-    // Playwright writes PNG bytes even when path ends in .webp on some versions;
-    // re-encode to real WebP via sharp when available.
     try {
       const sharp = (await import("sharp")).default;
       const buf = fs.readFileSync(outPath);
