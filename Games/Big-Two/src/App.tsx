@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { CardBack, CardView } from './components/CardView';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCard, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
+import { CardView } from './components/CardView';
 import { LOWEST_CARD_ID, cardLabel } from './game/cards';
 import { TYPE_LABEL, detectPlay } from './game/plays';
 import {
@@ -17,7 +19,7 @@ import { DIFFICULTIES, chooseMove } from './game/cpu';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { EMPTY_STATS, loadStats, recordResult, saveStats } from './game/storage';
 import { HAND_SIZE, HUMAN, SEATS } from './game/types';
-import type { Card, DifficultyId, GameState, Play, Seat, StraightRule } from './game/types';
+import type { Card, DifficultyId, GameState, Play, StraightRule } from './game/types';
 import { feltBackgroundStyle, titleBackgroundStyle } from './artBackground';
 
 type Screen = 'setup' | 'game';
@@ -32,9 +34,12 @@ export default function App(): React.ReactElement {
   const [straights, setStraights] = useState<StraightRule>('topCard');
   const [seedInput, setSeedInput] = useState('');
   const [state, setState] = useState<GameState | null>(null);
+  const [history, setHistory] = useState<GameState[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [hint, setHint] = useState<Play | null>(null);
+  const [hintPass, setHintPass] = useState(false);
   const [recorded, setRecorded] = useState(false);
+  const resultSoundPlayed = useRef(false);
 
   useEffect(() => {
     const saved = loadStats();
@@ -51,9 +56,12 @@ export default function App(): React.ReactElement {
 
   const startGame = useCallback((id: DifficultyId, rule: StraightRule, seed: string) => {
     setState(deal(normalizeSeedCode(seed), id, { straights: rule }));
+    setHistory([]);
     setSelected([]);
     setHint(null);
+    setHintPass(false);
     setRecorded(false);
+    resultSoundPlayed.current = false;
     setScreen('game');
     setStats((prev) => {
       const next = { ...prev, lastDifficulty: id, lastStraights: rule };
@@ -81,6 +89,11 @@ export default function App(): React.ReactElement {
     if (!result || recorded) return;
     setRecorded(true);
     const won = result.winner === HUMAN;
+    if (!resultSoundPlayed.current) {
+      resultSoundPlayed.current = true;
+      if (won) playWin();
+      else playLose();
+    }
     const delta = won ? result.pot : -result.scores[HUMAN].penalty;
     setStats((prev) => {
       const next = recordResult(prev, won, delta);
@@ -117,6 +130,7 @@ export default function App(): React.ReactElement {
     (card: Card) => {
       if (!myTurn) return;
       setHint(null);
+      setHintPass(false);
       setSelected((prev) =>
         prev.includes(card.id) ? prev.filter((id) => id !== card.id) : [...prev, card.id],
       );
@@ -126,23 +140,47 @@ export default function App(): React.ReactElement {
 
   const submit = useCallback(() => {
     if (!state || !playable) return;
+    setHistory((h) => [...h, state]);
     setState(play(state, selectedCards));
+    playCard();
     setSelected([]);
     setHint(null);
+    setHintPass(false);
   }, [state, playable, selectedCards]);
 
   const doPass = useCallback(() => {
     if (!state || !canPass(state) || !myTurn) return;
+    setHistory((h) => [...h, state]);
     setState(pass(state));
+    playMove();
     setSelected([]);
     setHint(null);
+    setHintPass(false);
   }, [state, myTurn]);
+
+  const canUndo = Boolean(state) && history.length > 0 && myTurn && state!.phase === 'playing';
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    const prev = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setState(prev);
+    setSelected([]);
+    setHint(null);
+    setHintPass(false);
+  }, [canUndo, history]);
 
   const showHint = useCallback(() => {
     if (!state || !myTurn) return;
-    const options = playsFor(state);
-    if (options.length === 0) return;
-    const suggestion = options[0];
+    // Prefer the same policy the hard CPU uses so the hint is teachable.
+    const suggestion = chooseMove({ ...state, difficulty: 'hard' });
+    if (suggestion === null) {
+      setHint(null);
+      setHintPass(true);
+      setSelected([]);
+      return;
+    }
+    setHintPass(false);
     setHint(suggestion);
     setSelected(suggestion.cards.map((card) => card.id));
   }, [state, myTurn]);
@@ -214,9 +252,22 @@ export default function App(): React.ReactElement {
             type="button"
             onClick={doPass}
             disabled={!myTurn || !canPass(state)}
-            className="min-h-[48px] px-5 rounded-xl border border-slate-600 hover:bg-slate-800 disabled:opacity-40 font-bold"
+            className={`min-h-[48px] px-5 rounded-xl border font-bold disabled:opacity-40 ${
+              hintPass
+                ? 'border-sky-400 bg-sky-500/15 text-sky-200'
+                : 'border-slate-600 hover:bg-slate-800'
+            }`}
           >
             Pass
+          </button>
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="min-h-[48px] px-3 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:opacity-40 text-sm touch-manipulation"
+            title="復原"
+          >
+            復原
           </button>
           <button
             type="button"
@@ -234,6 +285,7 @@ export default function App(): React.ReactElement {
             onClick={() => {
               setSelected([]);
               setHint(null);
+              setHintPass(false);
             }}
             className="mx-auto text-xs text-slate-400 underline min-h-[44px]"
           >
@@ -243,11 +295,24 @@ export default function App(): React.ReactElement {
       </div>
 
       {result && (
-        <Result
-          result={result}
-          seedCode={state.seedCode}
-          onAgain={() => startGame(state.difficulty, state.rules.straights, randomSeedCode())}
-          onMenu={() => setScreen('setup')}
+        <ResultOverlay
+          title={result.winner === HUMAN ? '你贏了' : `${SEAT_NAMES[result.winner]}贏了`}
+          subtitle={
+            result.winner === HUMAN
+              ? `收 ${result.pot} 分．種子碼 ${state.seedCode}`
+              : `你賠 ${result.scores[HUMAN].penalty} 分．種子碼 ${state.seedCode}`
+          }
+          variant={result.winner === HUMAN ? 'win' : 'lose'}
+          stats={result.scores.map((entry) => ({
+            label: `${SEAT_NAMES[entry.seat]}${entry.seat === result.winner ? ' ★' : ''}`,
+            value: `${entry.penalty}（剩 ${entry.remaining}×${sizeMultiplier(entry.remaining)}${
+              entry.deuces > 0 ? `×${2 ** entry.deuces}` : ''
+            }）`,
+          }))}
+          primaryLabel="再來一局"
+          onPrimary={() => startGame(state.difficulty, state.rules.straights, randomSeedCode())}
+          secondaryLabel="設定"
+          onSecondary={() => setScreen('setup')}
         />
       )}
     </div>
@@ -347,87 +412,6 @@ function Status({
 
   return (
     <p className={`text-center text-sm font-bold min-h-[1.5rem] ${tone}`}>{message}</p>
-  );
-}
-
-function Result({
-  result,
-  seedCode,
-  onAgain,
-  onMenu,
-}: {
-  result: NonNullable<ReturnType<typeof outcome>>;
-  seedCode: string;
-  onAgain: () => void;
-  onMenu: () => void;
-}): React.ReactElement {
-  const won = result.winner === HUMAN;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="bt-result"
-    >
-      <div className="bg-slate-900 rounded-2xl p-6 max-w-sm w-full border border-indigo-500/30">
-        <h2 id="bt-result" className="text-3xl font-black mb-1 text-center">
-          {won ? '你贏了' : `${SEAT_NAMES[result.winner]}贏了`}
-        </h2>
-        <p className="text-center text-sm text-slate-400 mb-4">
-          {won ? `收 ${result.pot} 分` : `你賠 ${result.scores[HUMAN].penalty} 分`}
-        </p>
-
-        <table className="w-full text-sm mb-4">
-          <thead>
-            <tr className="text-[11px] text-slate-500">
-              <th className="text-left font-normal">座位</th>
-              <th className="text-right font-normal">剩牌</th>
-              <th className="text-right font-normal">倍率</th>
-              <th className="text-right font-normal">2</th>
-              <th className="text-right font-normal">牌分</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.scores.map((entry) => (
-              <tr key={entry.seat} className={entry.seat === HUMAN ? 'text-indigo-300 font-bold' : ''}>
-                <td className="text-left">
-                  {SEAT_NAMES[entry.seat]}
-                  {entry.seat === result.winner && ' 🏆'}
-                </td>
-                <td className="text-right tabular-nums">{entry.remaining}</td>
-                <td className="text-right tabular-nums text-slate-500">
-                  ×{sizeMultiplier(entry.remaining)}
-                </td>
-                <td className="text-right tabular-nums text-slate-500">
-                  {entry.deuces > 0 ? `×${2 ** entry.deuces}` : '—'}
-                </td>
-                <td className="text-right tabular-nums font-black">{entry.penalty}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <p className="text-[11px] text-slate-500 mb-4 text-center">種子碼 {seedCode}</p>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onAgain}
-            className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold"
-          >
-            再來一局
-          </button>
-          <button
-            type="button"
-            onClick={onMenu}
-            className="flex-1 min-h-[44px] rounded-xl border border-slate-600 hover:bg-slate-800"
-          >
-            設定
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
