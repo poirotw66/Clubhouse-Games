@@ -6,6 +6,7 @@ interface Props {
   card: Card;
   size?: 'sm' | 'md';
   selected?: boolean;
+  hinted?: boolean;
   target?: boolean;
   landed?: boolean;
   dimmed?: boolean;
@@ -40,6 +41,7 @@ export function CardView({
   card,
   size = 'md',
   selected,
+  hinted,
   target,
   landed,
   dimmed,
@@ -58,6 +60,7 @@ export function CardView({
     'bg-cover bg-center',
     red ? 'text-rose-700' : 'text-slate-800',
     selected ? 'pr-card-selected ring-4 ring-emerald-400' : '',
+    hinted && !selected ? 'ring-4 ring-sky-400' : '',
     target ? 'pr-card-target ring-4 ring-amber-300' : '',
     landed ? 'pr-land' : '',
     dimmed ? 'opacity-40' : '',
