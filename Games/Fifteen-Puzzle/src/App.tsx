@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import { playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import {
   SPRINT_LIMIT_SEC,
+  hintTileIndex,
   isSolved,
   loadBestMoves,
   loadBestSprintSec,
@@ -27,6 +28,7 @@ export default function App() {
   const [tier, setTier] = useState<ScrambleTier>('normal');
   const [mode, setMode] = useState<PlayMode>('classic');
   const [board, setBoard] = useState<Board>(() => scrambleBoard('normal'));
+  const [history, setHistory] = useState<Board[]>([]);
   const [moves, setMoves] = useState(0);
   const [won, setWon] = useState(false);
   const [lost, setLost] = useState(false);
@@ -34,16 +36,19 @@ export default function App() {
   const [bestMoves, setBestMoves] = useState<number | null>(() => loadBestMoves('normal'));
   const [bestSprint, setBestSprint] = useState<number | null>(() => loadBestSprintSec('normal'));
   const [newRecord, setNewRecord] = useState(false);
+  const [hintIndex, setHintIndex] = useState<number | null>(null);
 
   const restart = useCallback((nextTier: ScrambleTier = tier, nextMode: PlayMode = mode) => {
     setTier(nextTier);
     setMode(nextMode);
     setBoard(scrambleBoard(nextTier));
+    setHistory([]);
     setMoves(0);
     setWon(false);
     setLost(false);
     setElapsed(0);
     setNewRecord(false);
+    setHintIndex(null);
     setBestMoves(loadBestMoves(nextTier));
     setBestSprint(loadBestSprintSec(nextTier));
   }, [tier, mode]);
@@ -65,6 +70,7 @@ export default function App() {
   useEffect(() => {
     if (!won && !lost && isSolved(board)) {
       setWon(true);
+      setHintIndex(null);
       playWin();
       if (mode === 'classic') {
         const saved = saveBestMoves(tier, moves);
@@ -83,12 +89,32 @@ export default function App() {
     const next = slide(board, index);
     if (!next) return;
     playScore();
+    setHistory((h) => [...h, board]);
     setBoard(next);
     setMoves((m) => m + 1);
+    setHintIndex(null);
+  };
+
+  const handleUndo = () => {
+    if (won || lost || history.length === 0) return;
+    const prev = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setBoard(prev);
+    setMoves((m) => Math.max(0, m - 1));
+    setHintIndex(null);
+    playMove();
+  };
+
+  const handleHint = () => {
+    if (won || lost) return;
+    const idx = hintTileIndex(board);
+    setHintIndex(idx);
+    if (idx != null) playMove();
   };
 
   const movable = new Set(neighborsOfEmpty(board));
   const remain = Math.max(0, SPRINT_LIMIT_SEC - elapsed);
+  const canUndo = !won && !lost && history.length > 0;
 
   return (
     <div
@@ -161,9 +187,11 @@ export default function App() {
               type="button"
               onClick={() => onTile(i)}
               disabled={!movable.has(i)}
-              className={`rounded-lg font-bold text-xl sm:text-2xl touch-manipulation bg-cover bg-center border border-white/20 shadow ${
-                movable.has(i) ? 'hover:brightness-110 active:scale-95' : 'opacity-90'
-              }`}
+              className={`rounded-lg font-bold text-xl sm:text-2xl touch-manipulation bg-cover bg-center border shadow ${
+                hintIndex === i
+                  ? 'border-amber-300 ring-2 ring-amber-400/80'
+                  : 'border-white/20'
+              } ${movable.has(i) ? 'hover:brightness-110 active:scale-95' : 'opacity-90'}`}
               style={{
                 backgroundColor: '#cbd5e1',
                 backgroundImage: [
@@ -172,20 +200,38 @@ export default function App() {
                 ].join(', '),
                 color: '#0f172a',
               }}
-              aria-label={`第 ${tile} 格`}
+              aria-label={`第 ${tile} 格${hintIndex === i ? '（建議）' : ''}`}
             >
               {tile}
             </button>
           ),
         )}
       </div>
-      <button
-        type="button"
-        onClick={() => restart()}
-        className="min-h-[44px] px-5 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium touch-manipulation"
-      >
-        重開一局
-      </button>
+      <div className="flex flex-wrap justify-center gap-2">
+        <button
+          type="button"
+          onClick={handleUndo}
+          disabled={!canUndo}
+          className="min-h-[44px] px-5 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-40 font-medium touch-manipulation"
+        >
+          復原
+        </button>
+        <button
+          type="button"
+          onClick={handleHint}
+          disabled={won || lost}
+          className="min-h-[44px] px-5 rounded-xl border border-amber-500/50 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25 disabled:opacity-40 font-medium touch-manipulation"
+        >
+          提示
+        </button>
+        <button
+          type="button"
+          onClick={() => restart()}
+          className="min-h-[44px] px-5 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium touch-manipulation"
+        >
+          重開一局
+        </button>
+      </div>
       {won && (
         <ResultOverlay
           title="完成！"

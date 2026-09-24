@@ -57,6 +57,53 @@ export function slide(board: Board, tileIndex: number): Board | null {
   return next;
 }
 
+/** Goal index for tile `n` (1–15); empty belongs at the last cell. */
+export function goalIndex(tile: number): number {
+  return tile - 1;
+}
+
+export function manhattanSum(board: Board): number {
+  let sum = 0;
+  for (let i = 0; i < board.length; i++) {
+    const tile = board[i];
+    if (tile === null) continue;
+    const goal = goalIndex(tile);
+    sum +=
+      Math.abs(Math.floor(i / SIZE) - Math.floor(goal / SIZE)) +
+      Math.abs((i % SIZE) - (goal % SIZE));
+  }
+  return sum;
+}
+
+/**
+ * Suggest one legal slide: prefer placing a tile into its home cell when that
+ * move is available, otherwise pick the neighbor that most reduces Manhattan.
+ * Returns the tile index to tap, or null when already solved.
+ */
+export function hintTileIndex(board: Board): number | null {
+  if (isSolved(board)) return null;
+  const opts = neighborsOfEmpty(board);
+  if (opts.length === 0) return null;
+
+  for (const idx of opts) {
+    const tile = board[idx];
+    if (tile !== null && goalIndex(tile) === emptyIndex(board)) return idx;
+  }
+
+  let best = opts[0];
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const idx of opts) {
+    const next = slide(board, idx);
+    if (!next) continue;
+    const score = manhattanSum(next);
+    if (score < bestScore || (score === bestScore && idx < best)) {
+      bestScore = score;
+      best = idx;
+    }
+  }
+  return best;
+}
+
 /** Fisher–Yates shuffle until solvable and not already solved. */
 export function shuffledBoard(rand: () => number = Math.random): Board {
   for (let attempt = 0; attempt < 200; attempt++) {
