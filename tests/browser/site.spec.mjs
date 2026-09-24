@@ -104,3 +104,98 @@ test('connect four: play a win and use the result overlay to restart', async ({ 
   await expect(result).toHaveCount(0);
   await expect(page.getByRole('button', { name: '投入第 1 欄', exact: true })).toBeEnabled();
 });
+
+/** Touch vs click — same helper shape as Memory-Match / Connect-Four. */
+function activate(locator, isMobile) {
+  return isMobile ? locator.tap() : locator.click();
+}
+
+test('reversi: two-player mid-game, undo, and new-game menu', async ({ page, isMobile }) => {
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '雙人對戰' }), isMobile);
+  const opening = page.getByRole('button', { name: '可下於第 3 列 4 欄', exact: true });
+  await expect(opening).toBeVisible();
+  await activate(opening, isMobile);
+  await expect(page.getByRole('button', { name: '第 3 列 4 欄 黑', exact: true })).toBeVisible();
+  await activate(page.getByRole('button', { name: '悔棋' }), isMobile);
+  await expect(page.getByRole('button', { name: '可下於第 3 列 4 欄', exact: true })).toBeVisible();
+  await activate(page.getByRole('button', { name: '新對局' }), isMobile);
+  await expect(page.getByRole('button', { name: '雙人對戰' })).toBeVisible();
+});
+
+test('blackjack: bet, resolve a hand, and restart from the result overlay', async ({ page, isMobile }) => {
+  test.setTimeout(45_000);
+  await page.goto('./Games/Blackjack-main/');
+  await activate(page.getByRole('button', { name: '$10', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '發牌' }), isMobile);
+
+  // Insurance / even-money / stand / auto blackjack all lead to gameOver.
+  const dialog = page.getByRole('dialog');
+  await expect
+    .poll(
+      async () => {
+        if (await dialog.isVisible().catch(() => false)) return 'done';
+        for (const name of ['不保險', '均分 1:1', '繼續比牌', '停牌']) {
+          const button = page.getByRole('button', { name, exact: true });
+          if (await button.isVisible().catch(() => false)) {
+            await activate(button, isMobile);
+            return name;
+          }
+        }
+        return 'wait';
+      },
+      { timeout: 20_000 },
+    )
+    .not.toBe('wait');
+
+  await expect(dialog).toBeVisible({ timeout: 20_000 });
+  await expect(dialog).toHaveCSS('position', 'fixed');
+  const next = dialog.getByRole('button', { name: /下一局|重新開始/ });
+  await activate(next, isMobile);
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '發牌' })).toBeVisible();
+});
+
+test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, isMobile }) => {
+  test.setTimeout(45_000);
+  await page.goto('./Games/Pick-Red/');
+  await activate(page.getByRole('button', { name: /困難/ }), isMobile);
+  await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
+  await activate(page.getByRole('button', { name: '開始牌局', exact: true }), isMobile);
+
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  const queen = hand.getByRole('button', { name: '紅♦Q，10 分', exact: true });
+  await expect(queen).toBeVisible();
+  await activate(queen, isMobile);
+  await activate(queen, isMobile);
+  await expect(hand.getByRole('button')).toHaveCount(11);
+
+  // After the pile flip and one CPU turn, undo should restore the capture.
+  const undo = page.getByRole('button', { name: '復原', exact: true });
+  await expect(undo).toBeEnabled({ timeout: 15_000 });
+  await activate(undo, isMobile);
+  await expect(hand.getByRole('button', { name: '紅♦Q，10 分', exact: true })).toBeVisible();
+  await expect(hand.getByRole('button')).toHaveCount(12);
+});
+
+test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
+  test.setTimeout(45_000);
+  await page.goto('./Games/Big-Two/');
+  await page.getByPlaceholder(/例如/).fill('abc');
+  await activate(page.getByRole('button', { name: '開始牌局', exact: true }), isMobile);
+
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  const club3 = hand.getByRole('button', { name: '♣3', exact: true });
+  await expect(club3).toBeVisible();
+  await activate(club3, isMobile);
+  await activate(page.getByRole('button', { name: '出牌', exact: true }), isMobile);
+
+  const table = page.getByRole('region', { name: '檯面' });
+  await expect(table.getByRole('img', { name: '♣3' })).toBeVisible({ timeout: 5_000 });
+  await expect(hand.getByRole('button', { name: '♣3', exact: true })).toHaveCount(0);
+
+  const undo = page.getByRole('button', { name: '復原', exact: true });
+  await expect(undo).toBeEnabled({ timeout: 15_000 });
+  await activate(undo, isMobile);
+  await expect(hand.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
+});
