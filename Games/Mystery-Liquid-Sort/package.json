@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "tsc --noEmit",
     "check": "node --experimental-strip-types check-liquid-sort.mjs"
   },
   "dependencies": {
