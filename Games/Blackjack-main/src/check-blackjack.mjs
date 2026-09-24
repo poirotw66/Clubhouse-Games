@@ -10,6 +10,7 @@ import {
   blackjackPayout,
   formatHandTotal,
 } from './utils/rules.ts';
+import { recommendAction } from './utils/basicStrategy.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -55,5 +56,98 @@ assert(dealerShouldHit(hard17, false) === false, 'dealer stands hard 17 under S1
 assert(dealerShouldHit(soft17, true) === true, 'H17: hit soft 17');
 assert(dealerShouldHit(soft17, false) === false, 'S17: stand soft 17');
 assert(dealerShouldHit([card('A'), card('9')], true) === false, 'dealer stands soft 20');
+
+// --- Basic strategy hints ---
+const hand = (ranks) => ranks.map((r) => card(r));
+const up = (rank) => card(rank);
+
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['A', 'K']),
+    dealerUpcard: up('6'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+  }) === 'stand',
+  'soft/hard 21 stands',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['8', '8']),
+    dealerUpcard: up('5'),
+    canDouble: true,
+    canSplit: true,
+    canSurrender: true,
+  }) === 'split',
+  '8,8 splits',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['A', '7']),
+    dealerUpcard: up('5'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+  }) === 'double',
+  'soft 18 doubles vs 5',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['A', '7']),
+    dealerUpcard: up('5'),
+    canDouble: false,
+    canSplit: false,
+    canSurrender: true,
+  }) === 'stand',
+  'soft 18 stands when double blocked',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['10', '6']),
+    dealerUpcard: up('10'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+  }) === 'surrender',
+  'hard 16 surrenders vs 10',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['10', '6']),
+    dealerUpcard: up('10'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: false,
+  }) === 'hit',
+  'hard 16 hits vs 10 when surrender blocked',
+);
+assert(
+  recommendAction({
+    phase: 'insurance',
+    playerCards: hand(['10', '7']),
+    dealerUpcard: up('A'),
+    canDouble: false,
+    canSplit: false,
+    canSurrender: true,
+  }) === 'declineInsurance',
+  'never take insurance',
+);
+assert(
+  recommendAction({
+    phase: 'evenMoney',
+    playerCards: hand(['A', 'K']),
+    dealerUpcard: up('A'),
+    canDouble: false,
+    canSplit: false,
+    canSurrender: false,
+  }) === 'declineEvenMoney',
+  'decline even money',
+);
 
 console.log('check-blackjack: ok');
