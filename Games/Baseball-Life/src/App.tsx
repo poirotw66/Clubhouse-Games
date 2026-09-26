@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { POSITIONS } from './game/config';
 import { acknowledge, createGame, resolve } from './game/engine';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
@@ -46,6 +47,7 @@ export default function App(): React.ReactElement {
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
   const [achievements, setAchievements] = useState<AchievementProgress>(() => loadAchievements());
   const [justUnlocked, setJustUnlocked] = useState<Achievement[]>([]);
+  const summarySfxKey = useRef<string | null>(null);
 
   // Persist after every turn so a closed tab does not cost a career.
   useEffect(() => {
@@ -59,6 +61,22 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
+
+  // Career summary keeps its own long-form UI (not ResultOverlay); still share
+  // suite SFX so retirement lands with the same feedback as other games.
+  useEffect(() => {
+    if (screen !== 'summary' || !state?.summary) {
+      if (screen !== 'summary') summarySfxKey.current = null;
+      return;
+    }
+    const key = `${state.seedCode}:${state.summary.hofScore}:${state.summary.verdict}`;
+    if (summarySfxKey.current === key) return;
+    summarySfxKey.current = key;
+    const hof = state.summary.hofScore;
+    if (hof >= 1450) playWin();
+    else if (hof >= 380) playGoal();
+    else playLose();
+  }, [screen, state]);
 
   const finish = useCallback((finished: GameState) => {
     if (!finished.summary) return;
