@@ -15,6 +15,8 @@ npm run check:versions
 npm run check:shared-styles
 npm run lint:all
 npm run check:all
+# check:all / lint:all 預設依 CPU 數並行；可用 CHECK_JOBS 或
+# `node scripts/run-in-games.mjs check --jobs N` 調整。
 npm run build:pages
 npm run check:no-cdn -- --pages
 npm run test:browser

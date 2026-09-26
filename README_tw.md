@@ -31,6 +31,20 @@
 
 之後新增的遊戲也是先 `npm run build:game <資料夾名>` 再從選單進入，不會變成 51 個服務。
 
+### 本機檢查（check / lint）
+
+`npm run check:all` 與 `npm run lint:all` 會對每個有對應 script 的遊戲並行執行（預設工作數為 CPU 數；可用 `--jobs N` 或環境變數 `CHECK_JOBS` 調整）。輸出依遊戲緩衝後再印出，預設跑完全部再彙總失敗，品質門檻與 CI 相同。
+
+```bash
+npm run check:all
+# 等價於：
+node scripts/run-in-games.mjs check
+# 常用選項：
+node scripts/run-in-games.mjs check --jobs 4
+node scripts/run-in-games.mjs check --fail-fast
+node scripts/run-in-games.mjs check Coin Big-Two   # 只跑名稱符合的遊戲
+```
+
 ## 目錄結構
 
 <!-- GENERATED_TABLE -->
