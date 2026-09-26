@@ -92,13 +92,13 @@ export default function App(): React.ReactElement {
   );
 
   const handleChoose = useCallback(
-    (optionId: string) => {
+    (optionId: string, useDestiny = false) => {
       if (!state) return;
       // Twenty steps is well over a high-school year of turns — enough to walk
       // back a mistake, bounded so a full career does not hold forty-plus
       // complete game states.
       setHistory((prev) => [...prev.slice(-19), state]);
-      setState(resolve(state, optionId));
+      setState(resolve(state, optionId, useDestiny));
     },
     [state],
   );

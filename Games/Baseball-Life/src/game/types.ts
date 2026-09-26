@@ -36,6 +36,12 @@ export interface Meta {
   mind: number;
   fame: number;
   fatigue: number;
+  /**
+   * 天命：a spendable pool the player can pour into a training turn to force a
+   * perfect roll. It is the one place a human overrides the dice, so it accrues
+   * slowly and is capped — the rest of a life is still the seed's to decide.
+   */
+  destiny: number;
 }
 
 export interface Injury {
@@ -126,6 +132,8 @@ export interface LogEntry {
 export interface TurnReport {
   label: string;
   dice: number | null;
+  /** True when the player spent 天命 to force this turn's roll. */
+  destinyUsed?: boolean;
   headline: string;
   lines: string[];
   deltas: Partial<Attributes & Meta>;
