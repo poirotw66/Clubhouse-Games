@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { CLUBS } from './game/config';
 import { acknowledge, createGame, resolve } from './game/engine';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
@@ -33,6 +34,7 @@ export default function App(): React.ReactElement {
   const [history, setHistory] = useState<GameState[]>([]);
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
+  const summarySfxKey = useRef<string | null>(null);
 
   // Persist after every decision so a closed tab does not cost a tenure.
   useEffect(() => {
@@ -45,6 +47,26 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
+
+  // Tenure summary is a long-form page (not ResultOverlay); shared SFX still
+  // mark win / mid / fired outcomes so the suite feedback bar is met.
+  useEffect(() => {
+    if (screen !== 'summary' || !state?.summary) {
+      if (screen !== 'summary') summarySfxKey.current = null;
+      return;
+    }
+    const key = `${state.seedCode}:${state.summary.score}:${state.summary.verdict}`;
+    if (summarySfxKey.current === key) return;
+    summarySfxKey.current = key;
+    if (state.summary.fired) {
+      playLose();
+      return;
+    }
+    const score = state.summary.score;
+    if (score >= 1900) playWin();
+    else if (score >= 500) playGoal();
+    else playLose();
+  }, [screen, state]);
 
   const finish = useCallback((finished: GameState) => {
     if (!finished.summary) return;
