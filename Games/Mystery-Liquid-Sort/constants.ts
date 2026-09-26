@@ -14,7 +14,9 @@ export function getCapacityForLevel(level: number): number {
   return 6;
 }
 
-export const LEVEL_COLORS = [
+/** Playable pour colours (excludes Color.GRAY placeholder). Typed as Color[] so
+ *  Set/Array helpers accept full Color values without a GRAY-vs-literal clash. */
+export const LEVEL_COLORS: Color[] = [
   Color.RED,
   Color.BLUE,
   Color.GREEN,
