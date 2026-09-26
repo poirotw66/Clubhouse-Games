@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { createRoot } from 'react-dom/client';
 
 const styles = {
@@ -224,10 +225,18 @@ function App() {
           iframeRef.current.contentWindow.postMessage({ type: 'PAUSE_GAME', payload: true }, '*');
         }
       }
+      // Drill end UI lives in the iframe (no Tailwind for shared ResultOverlay).
+      // Parent still plays suite SFX so feedback matches the rest of Clubhouse.
+      if (event.data?.type === 'DRILL_OVER' && !muted) {
+        const grade = String(event.data.payload?.grade ?? '');
+        if (grade === 'S' || grade === 'A') playWin();
+        else if (grade === 'B') playGoal();
+        else playLose();
+      }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [muted]);
 
   const handleIFrameLoad = () => {
     setIsLoading(false);

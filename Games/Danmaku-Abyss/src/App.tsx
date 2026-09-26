@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
 import { FIELD_H, FIELD_W, FIXED_DT, STAGE_COUNT } from './game/constants';
 import { activeConditions, createRun, step, takeUpgrade } from './game/engine';
@@ -154,6 +155,20 @@ export default function App(): React.ReactElement {
       localStorage.setItem(BEST_KEY, String(hud.score));
     }
   }, [hud, best]);
+
+  // Shared suite SFX when the ResultOverlay appears (once per ended run).
+  const endSfxSeed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!hud || (hud.phase !== 'lost' && hud.phase !== 'won')) {
+      endSfxSeed.current = null;
+      return;
+    }
+    const key = `${hud.seedCode}:${hud.phase}:${hud.score}`;
+    if (endSfxSeed.current === key) return;
+    endSfxSeed.current = key;
+    if (hud.phase === 'won') playWin();
+    else playLose();
+  }, [hud]);
 
   const pick = useCallback((id: string) => {
     const s = stateRef.current;
