@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10151c">
+<title>WebMCP Mini Factory</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1016;--panel:#131b25;--panel2:#182330;--border:#293746;--text:#e1e9f1;--muted:#8c9eb1;--cyan:#5ed7e8;--orange:#ffad60;--green:#82e2ab;--yellow:#edcf78;--red:#ff8585;--shadow:0 12px 36px #0003}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 35% 0,#1b2a36 0,transparent 55%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,select,input,textarea{font:inherit;color:inherit;background:#172330;border:1px solid var(--border);border-radius:7px}
+button{cursor:pointer;padding:8px 12px;transition:background .15s,border-color .15s}
+button:hover{background:#243749;border-color:#536b7e}
+button:disabled{cursor:not-allowed;opacity:.45}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+button.active{color:var(--cyan);background:#19343f;border-color:#4a9ba9}
+h1,h2,h3,p{margin:0}h1{font-size:21px;letter-spacing:-.6px}h2{font-size:14px;font-weight:650}h3{font-size:12px}
+small,.muted{color:var(--muted)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+header{max-width:1530px;margin:auto;padding:22px 26px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}.brand-icon{width:43px;height:43px;border:1px solid #5ed7e855;background:#1d3542;border-radius:11px;display:grid;place-items:center;font-size:26px;color:var(--cyan)}
+.eyebrow{text-transform:uppercase;letter-spacing:1.7px;color:var(--muted);font-size:10px;font-weight:700}
+.header-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid var(--border);border-radius:5px;font-size:11px;white-space:nowrap}
+.badge.good{color:var(--green);background:#163028}.badge.warn{color:var(--yellow);background:#302d21}
+.dot{width:6px;height:6px;background:currentColor;border-radius:100%}
+main{max-width:1530px;padding:0 26px 30px;margin:auto}
+.top-note{padding:10px 14px;background:#14252e;border:1px solid #29434d;border-radius:8px;margin-bottom:17px;font-size:12px;color:#b3cdd8;display:flex;gap:10px;align-items:center}
+.top-note strong{color:var(--cyan)}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+.panel{background:linear-gradient(135deg,#17212c,#111922);border:1px solid var(--border);border-radius:11px;box-shadow:var(--shadow);overflow:hidden}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.panel-body{padding:15px 16px}
+.board-top{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:13px 15px;flex-wrap:wrap}
+.controls{display:flex;gap:5px;align-items:center}.controls button{padding:5px 10px;font-size:12px}
+.board-frame{padding:0 15px 15px}
+#board{position:relative;width:100%;aspect-ratio:10/8;isolation:isolate;background:radial-gradient(ellipse at 50% 40%,#26333b,#162129 75%);border:1px solid #35444d;border-radius:7px;overflow:hidden}
+#board::before{content:"";position:absolute;inset:0;z-index:-1;background-image:linear-gradient(#667d8c14 1px,transparent 1px),linear-gradient(90deg,#667d8c14 1px,transparent 1px);background-size:10% 12.5%;pointer-events:none}
+#cells,#machines,#belts{position:absolute;inset:0;width:100%;height:100%}
+#belts{pointer-events:none;overflow:visible;z-index:1}
+.cell{position:absolute;width:10%;height:12.5%;border:0;border-radius:0;background:none;padding:0;opacity:.8}
+.cell:hover{background:#5ed7e813;box-shadow:inset 0 0 0 1px #5ed7e855}
+.cell.node{background:radial-gradient(ellipse,#71838f33,transparent 65%)}
+.ore-patch{position:absolute;inset:20%;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;transform:rotate(-13deg);opacity:.6}
+.ore-patch i{background:#728795;clip-path:polygon(25% 0,85% 8%,100% 70%,35% 100%,0 45%);box-shadow:inset -3px -3px #0003}
+.node.copper .ore-patch i{background:#c27f50}
+#machines{pointer-events:none;z-index:2}
+.machine{pointer-events:auto;position:absolute;width:9.2%;height:11.5%;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:9px;border:1px solid #688194;background:linear-gradient(145deg,#3d5362,#23323e 60%,#1b2833);box-shadow:0 5px 0 #0a141d,0 8px 12px #0007,inset 0 1px #b0c9d644;transition:box-shadow .2s,border-color .2s}
+.machine::before{content:"";position:absolute;inset:6px;border:1px solid #b0cad211;border-radius:4px;pointer-events:none}
+.machine:hover{background:linear-gradient(145deg,#4b6373,#2a3d4a)}
+.machine.selected{outline:2px solid var(--cyan);outline-offset:3px}
+.machine.warning{border-color:#c4a666}
+.machine.OFFLINE{filter:saturate(.25);opacity:.65}
+.machine.smelter{background:linear-gradient(145deg,#665246,#352d29 65%);border-color:#9a7559}
+.machine.assembler{background:linear-gradient(145deg,#3d6362,#223c40 65%);border-color:#6a9290}
+.machine.storage{background:linear-gradient(145deg,#5b5b48,#363829 65%)}
+.machine.splitter{background:linear-gradient(145deg,#505573,#2c314c 65%)}
+.machine-art{width:61%;height:58%;filter:drop-shadow(0 3px 2px #0006)}
+.machine-name{font-size:clamp(6px,.66vw,10px);font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:#e7edf1;z-index:1;white-space:nowrap}
+.machine-level{position:absolute;right:4px;top:2px;font-size:clamp(6px,.65vw,10px);color:#d9e5ee}
+.status-dot{position:absolute;left:5px;top:5px;width:5px;height:5px;background:var(--muted);border-radius:50%}
+.WORKING .status-dot{background:var(--green);box-shadow:0 0 7px #82e2ab88}
+.STARVED .status-dot,.BLOCKED .status-dot{background:var(--yellow)}
+.machine-alert{position:absolute;left:-5px;bottom:-7px;font-size:12px;color:var(--yellow);text-shadow:0 1px 3px #000}
+.machine-progress{position:absolute;bottom:5px;width:65%;height:2px;background:#0005;border-radius:3px;overflow:hidden}
+.machine-progress i{display:block;height:100%;background:var(--cyan)}
+.smelter.WORKING .hot{fill:#ffad60;filter:drop-shadow(0 0 6px #ff923c);animation:glow 1.5s infinite alternate}
+.assembler.WORKING .rotor,.miner.WORKING .rotor{transform-origin:50% 50%;animation:rotate 3s linear infinite;transform-box:fill-box}
+@keyframes rotate{to{transform:rotate(360deg)}}@keyframes glow{to{opacity:.55}}
+.belt-bed{fill:none;stroke:#090f14;stroke-width:23;stroke-linecap:round;stroke-linejoin:round}
+.belt-rail{fill:none;stroke:#4a5a61;stroke-width:18;stroke-linejoin:round;stroke-linecap:round}
+.belt-tread{fill:none;stroke:#202c32;stroke-width:13;stroke-dasharray:3 7;stroke-linejoin:round}
+.belt-running{animation:tread 1s linear infinite}
+@keyframes tread{to{stroke-dashoffset:-40}}
+.belt-hit{fill:none;stroke:transparent;stroke-width:30;pointer-events:stroke;cursor:pointer}
+.belt-warn{fill:none;stroke:#edcf7866;stroke-width:26;stroke-linejoin:round}
+.belt-selected{fill:none;stroke:#5ed7e8;stroke-width:27;stroke-linejoin:round}
+.belt-label{fill:#c9d8dd;font-size:12px;font-family:monospace;paint-order:stroke;stroke:#101921;stroke-width:4px;pointer-events:none}
+.highlight{animation:highlight 1s ease-out}
+@keyframes highlight{0%,40%{filter:drop-shadow(0 0 12px #5ed7e8)}}
+.board-footer{display:flex;justify-content:space-between;gap:8px;margin-top:12px;font-size:10px;color:var(--muted);flex-wrap:wrap}
+.legend{display:flex;gap:12px;flex-wrap:wrap}.legend span{display:flex;align-items:center;gap:5px}
+.toolbar{display:flex;gap:6px;overflow-x:auto;padding:11px 14px;border-top:1px solid var(--border);background:#111a24}
+.tool-button{min-width:70px;flex:1;padding:8px 5px;display:flex;align-items:center;flex-direction:column;font-size:11px;gap:1px}
+.tool-button .glyph{font-size:20px;line-height:1.3}.tool-button small{font-size:9px}
+#hint{padding:10px 16px;background:#101923;font-size:11px;color:var(--muted);min-height:36px}
+.sidebar{display:grid;gap:16px}
+.mission{border-color:#3f665b}
+.mission .panel-head{border-color:#304e47;background:#1a302c66}
+.mission-title{color:var(--green);font-size:11px;letter-spacing:1.2px}
+.mission-values{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 12px}
+.metric-large{font-size:35px;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.metric-large.target{color:var(--green)}
+.unit{font-size:11px;color:var(--muted);letter-spacing:0}
+.progress{height:7px;background:#0b141a;border-radius:10px;overflow:hidden;margin:12px 0 8px}
+.progress>i{height:100%;display:block;background:linear-gradient(90deg,#4aa9b8,var(--green));transition:width .5s}
+.checks{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:5px;font-size:11px;color:var(--muted)}
+.checks li.done{color:var(--green)}
+.mission-sub{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.stat{padding:13px 15px;background:#121d27;border:1px solid var(--border);border-radius:9px}
+.stat-value{font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.7px}
+.stat-label{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.stat.gear{border-color:#386367}.stat.gear .stat-value{color:var(--cyan)}
+.inspector-empty{padding:26px 10px;color:var(--muted);text-align:center;font-size:12px}
+.inspector-title{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:12px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:11px;margin:10px 0}.kv span:nth-child(odd){color:var(--muted)}
+.kv span:nth-child(even){text-align:right;overflow-wrap:anywhere;max-width:190px}
+.buffer{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.buffer>div{padding:9px;background:#0f1821;border:1px solid #253340;border-radius:6px;font-size:11px;min-width:0;overflow-wrap:anywhere}
+.buffer label{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.inspector-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.inspector-actions button{font-size:11px;flex:1}
+.recipe-row{display:flex;align-items:center;gap:8px;font-size:11px}.recipe-row select{min-width:0;width:100%;padding:6px}
+.signals{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.signal{border-left:2px solid #a69360;background:#242a2688;padding:8px 10px;font-size:11px}
+.signal small{display:block;margin-top:3px;font-size:10px}
+.bottom-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:16px;margin-top:16px;align-items:start}
+.activity{height:267px;overflow:auto;padding:5px 12px;font-family:ui-monospace,monospace;font-size:10px}
+.log-row{display:grid;grid-template-columns:53px 49px 1fr;gap:5px;padding:7px 0;border-bottom:1px solid #26344088}
+.log-time{color:#708598}.source-WebMCP{color:var(--cyan)}.source-UI{color:var(--orange)}.source-System{color:var(--green)}.source-Factory{color:#ad9ae8}
+.log-message{overflow-wrap:anywhere}
+.graph-wrap{padding:14px 14px 8px}.graph-wrap svg{display:block;width:100%;height:155px}
+.graph-label{font-size:9px;fill:#8699ab;font-family:monospace}
+.graph-footer{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);padding:0 2px}
+.trail{padding:12px 15px;border-top:1px solid var(--border)}
+.trail-list{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.trail-chip{font-size:9px;padding:4px 7px;border:1px solid #31505b;border-radius:4px;color:#a9c9d0;background:#162b34}
+.tools-list{height:267px;overflow:auto;padding:4px 12px}
+.tool-entry{padding:9px 0;border-bottom:1px solid #273743;cursor:default}
+.tool-entry-head{display:flex;gap:8px;justify-content:space-between;align-items:center;font-family:monospace;font-size:10px;overflow-wrap:anywhere}
+.read-tag,.write-tag{font:8px/1.4 system-ui;letter-spacing:.5px;padding:2px 5px;border-radius:3px;background:#193730;color:var(--green)}
+.write-tag{color:var(--orange);background:#3a2b21}
+.tool-description{font-size:10px;color:var(--muted);margin-top:3px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.prompts{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.prompt{text-align:left;font-size:11px;color:#b8cbd8;padding:8px 10px;background:#152330;line-height:1.45}
+.prompt:hover{color:var(--cyan)}
+.comparison{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px}
+.comparison>div{padding:12px;border:1px solid var(--border);border-radius:7px;background:#0f1821}
+.comparison .mcp{border-color:#325964;background:#142a32}
+.flow-text{margin-top:10px;color:var(--muted);white-space:pre-line;line-height:1.7;font-size:10px}
+.mcp .flow-text{color:#b7dce2}
+.explanation{margin-top:16px}
+.explanation summary{padding:15px 16px;cursor:pointer;font-weight:600;font-size:13px}
+.explanation-body{padding:0 18px 18px;display:grid;grid-template-columns:1.2fr 1fr;gap:24px;font-size:12px;color:var(--muted)}
+.explanation-body ol{padding-left:20px;line-height:1.9}
+.architecture{font-family:monospace;white-space:pre-line;text-align:center;padding:15px;background:#0d1720;border:1px solid var(--border);border-radius:7px;font-size:11px;color:#aacbd5}
+.console-layout{padding:0 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.console-layout select,.console-layout textarea{width:100%;padding:8px;font:11px monospace;margin-bottom:8px}
+.console-layout textarea{height:120px;resize:vertical}
+pre{margin:0;background:#0d1620;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:225px;overflow:auto}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(100px);z-index:30;max-width:min(550px,90vw);padding:12px 20px;background:#203d48;border:1px solid #6097a5;border-radius:8px;box-shadow:var(--shadow);font-size:12px;transition:transform .2s;pointer-events:none}
+#toast.show{transform:translateX(-50%) translateY(0)}#toast.error{border-color:#c17d71;background:#422c2b}
+footer{padding:23px 0 0;color:var(--muted);font-size:10px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.flash{animation:metricFlash .8s}@keyframes metricFlash{50%{background:#24505b}}
+@media(min-width:1400px){.workspace{grid-template-columns:minmax(0,1fr) 355px}.machine-name{font-size:10px}}
+@media(max-width:1050px){.workspace{grid-template-columns:minmax(0,1fr) 300px}.bottom-grid{grid-template-columns:1fr 1fr}.bottom-grid>.panel:last-child{grid-column:1/-1}.tools-list{height:220px;display:grid;grid-template-columns:1fr 1fr;gap:0 20px}.tool-button{min-width:62px}.machine-name{font-size:7px}}
+@media(max-width:800px){main{padding:0 14px 24px}header{padding:17px 14px}.workspace{grid-template-columns:1fr}.sidebar{grid-template-columns:1fr 1fr}.sidebar>.panel:last-child{grid-column:1/-1}.machine-name{font-size:10px}.machine-level{font-size:10px}.info-grid{grid-template-columns:1fr}.board-frame{padding:0 10px 10px}}
+@media(max-width:520px){h1{font-size:19px}.brand-icon{width:37px;height:37px}.header-right{width:100%;justify-content:space-between}.top-note{font-size:11px;align-items:start}.sidebar{grid-template-columns:1fr}.bottom-grid{grid-template-columns:1fr}.stats{gap:6px}.stat{padding:10px 8px}.stat-value{font-size:21px}.stat-label{font-size:8px}.machine-name{font-size:6px;letter-spacing:0}.machine-level{font-size:7px}.machine{border-radius:5px}.machine-alert{font-size:9px}.machine::before{inset:3px}.status-dot{width:4px;height:4px;left:3px;top:3px}.machine-progress{bottom:3px}.board-top{padding:10px}.board-top .eyebrow{font-size:9px}.controls button{padding:6px 8px}.prompts{grid-template-columns:1fr}.explanation-body,.console-layout{grid-template-columns:1fr}.tools-list{display:block}.comparison{gap:7px}.comparison>div{padding:9px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="brand-icon" aria-hidden="true">⚙</div>
+    <div><div class="eyebrow">Shared capabilities. Real production.</div><h1>WebMCP Mini Factory</h1></div>
+  </div>
+  <div class="header-right">
+    <span id="mcpStatus" class="badge warn"><span class="dot"></span>WebMCP Unsupported</span>
+    <span class="badge"><span style="color:var(--orange)">◈</span> <strong id="credits">1,000</strong> credits</span>
+    <button id="undoButton" title="Undo one configuration change">↶ Undo</button>
+    <button id="resetButton">Reset Factory</button>
+  </div>
+</header>
+<main>
+  <div class="top-note"><strong>NOT A CLICK BOT</strong><span>The AI operates machines, recipes and resource flows—not screen coordinates. Human controls and WebMCP tools share one FactoryEngine.</span></div>
+  <div class="workspace">
+    <section>
+      <div class="panel">
+        <div class="board-top">
+          <div><h2>Production floor <span class="muted" style="font-weight:400">/ Sector 01</span></h2><div class="eyebrow" id="simClock">10 × 8 · deterministic simulation</div></div>
+          <div class="controls" aria-label="Simulation controls">
+            <button id="pauseButton" aria-label="Pause simulation">Ⅱ Pause</button>
+            <button class="speed active" data-speed="1" aria-label="Play at normal speed">1×</button>
+            <button class="speed" data-speed="2" aria-label="Play at double speed">2×</button>
+            <button class="speed" data-speed="4" aria-label="Play at quadruple speed">4×</button>
+          </div>
+        </div>
+        <div class="board-frame">
+          <div id="board" aria-label="Factory floor, 10 columns by 8 rows">
+            <div id="cells"></div>
+            <svg id="belts" viewBox="0 0 1000 800" aria-label="Conveyor connections"></svg>
+            <div id="machines"></div>
+          </div>
+          <div class="board-footer">
+            <div class="legend">
+              <span><i class="dot" style="color:var(--green)"></i>Working</span>
+              <span><i class="dot" style="color:var(--yellow)"></i>⚠ Starved / blocked</span>
+              <span><i class="dot" style="color:var(--muted)"></i>Idle / offline</span>
+            </div>
+            <span>Click a machine or belt to inspect</span>
+          </div>
+        </div>
+        <div class="toolbar" id="toolbar" aria-label="Build tools"></div>
+        <div id="hint" role="status">Inspect a machine to see its buffers, recipe and connections. Select Conveyor, then source and destination.</div>
+      </div>
+      <div class="stats" aria-label="Rolling production rates">
+        <div class="stat gear" id="gearStat"><div class="stat-label">⚙ Gears / min</div><div class="stat-value" id="gearRate">0.0</div></div>
+        <div class="stat"><div class="stat-label">▰ Iron plates / min</div><div class="stat-value" id="plateRate">0.0</div></div>
+        <div class="stat"><div class="stat-label">◆ Iron ore / min</div><div class="stat-value" id="oreRate">0.0</div></div>
+        <div class="stat"><div class="stat-label">▦ Circuits / min</div><div class="stat-value" id="circuitRate">0.0</div></div>
+      </div>
+    </section>
+    <aside class="sidebar">
+      <section class="panel mission">
+        <div class="panel-head"><h2 class="mission-title" id="missionTitle">AGENT MISSION</h2><span class="badge good" id="missionBadge">IN PROGRESS</span></div>
+        <div class="panel-body">
+          <p style="font-size:12px">Increase gear production to at least <strong>10 gears per minute.</strong></p>
+          <div class="mission-values">
+            <div><div class="eyebrow">Current</div><div class="metric-large"><span id="missionCurrent">0.0</span><span class="unit"> / min</span></div></div>
+            <div><div class="eyebrow">Target</div><div class="metric-large target">10<span class="unit"> / min</span></div></div>
+          </div>
+          <div class="progress" role="progressbar" aria-label="Mission throughput" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0" id="missionProgress"><i id="missionBar" style="width:0"></i></div>
+          <div class="mission-sub"><span>60s rolling production</span><span id="sustain">Hold target: 0 / 10s</span></div>
+          <ul class="checks" id="checklist"></ul>
+          <p class="muted" style="font-size:10px;margin-top:12px">Rates use simulation time. Allow a measurement window after changes; 4× helps. No automatic optimizer is running.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Machine inspector</h2><span class="eyebrow" id="inspectorType">LIVE STATE</span></div>
+        <div id="inspector" class="panel-body"><div class="inspector-empty">Select a machine or conveyor on the floor.</div></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Factory Signals</h2><span class="badge warn" id="signalCount">0 signals</span></div>
+        <div class="panel-body"><ul class="signals" id="signals"></ul></div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="bottom-grid">
+    <section class="panel">
+      <div class="panel-head"><h2>Agent Activity</h2><span class="eyebrow">OBSERVABLE ACTIONS</span></div>
+      <div id="activity" class="activity" role="log" aria-label="Factory activity"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Gear throughput</h2><span class="badge good" id="graphDelta">Live measurement</span></div>
+      <div class="graph-wrap">
+        <svg id="graph" viewBox="0 0 330 155" role="img" aria-label="Gear throughput over the last sixty simulation seconds"></svg>
+        <div class="graph-footer"><span>−60 simulation seconds</span><span>Now</span></div>
+      </div>
+      <div class="trail"><h3>Agent Decision Trail</h3><div id="trail" class="trail-list"><span class="muted" style="font-size:10px">Actual WebMCP calls appear here. No private reasoning is displayed.</span></div></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>WebMCP Tool Inspector</h2><button id="refreshTools" style="font-size:10px;padding:5px 8px">Refresh Tools</button></div>
+      <div class="tools-list" id="toolsList"></div>
+    </section>
+  </div>
+
+  <div class="info-grid">
+    <section class="panel">
+      <div class="panel-head"><h2>Try asking your AI agent</h2><span class="eyebrow">CLICK TO COPY</span></div>
+      <div class="panel-body"><div class="prompts" id="prompts"></div><p class="muted" style="font-size:10px;margin-top:12px">Use a WebMCP-capable browser and agent. These prompts are copied, not sent to an external service. Unsupported browsers can use all human controls and the capability console below.</p></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Capabilities, not coordinates</h2></div>
+      <div class="panel-body">
+        <div class="comparison">
+          <div><h3>Traditional browser agent</h3><div class="flow-text mono">inspect DOM
+↓ find machine
+↓ click machine
+↓ open upgrade menu
+↓ click upgrade
+↓ find conveyor tool
+↓ drag path
+↓ inspect production UI</div></div>
+          <div class="mcp"><h3 style="color:var(--cyan)">WebMCP agent</h3><div class="flow-text mono">factory_get_bottlenecks()
+↓
+machine_upgrade({
+  machineId: "smelter-1"
+})
+↓
+factory_get_throughput()
+↓
+measure and adapt</div></div>
+        </div>
+        <p style="font-size:12px;margin-top:14px;color:#bbd2de">“Where is the Upgrade button?”<br><strong style="color:var(--cyan)">→ “What capability does this factory expose?”</strong></p>
+      </div>
+    </section>
+  </div>
+
+  <details class="panel explanation">
+    <summary>How WebMCP powers this factory</summary>
+    <div class="explanation-body">
+      <div>
+        <ol>
+          <li>The factory exposes structured simulation capabilities.</li>
+          <li>The AI agent observes actual production metrics.</li>
+          <li>The agent identifies bottlenecks from resource flow and diagnostics.</li>
+          <li>The agent decides how to improve capacity and spend credits.</li>
+          <li>It invokes build, upgrade, recipe or conveyor tools.</li>
+          <li>FactoryEngine validates and updates the shared simulation.</li>
+          <li>Production changes in real time.</li>
+          <li>The agent measures results and adapts.</li>
+        </ol>
+        <p>WebMCP does not automate mouse interaction. It exposes meaningful operations on machines, recipes, connections, resources, capacity and throughput. The AI still provides observation, diagnosis, planning and optimization decisions.</p>
+        <p style="margin-top:10px">The initial factory is genuinely simulated for three minutes before display, establishing a roughly 4 gears/min baseline. Rates are measured over a fixed 60-second window. Mission completion requires that rolling rate and recent production remain at target for 10 simulation seconds. Stored layouts restart their measurement window.</p>
+        <p style="margin-top:10px">Belts use adjacent-cell routes, have finite transport capacity and travel time, and cannot cross. Splitters fairly alternate eligible outgoing belts. Storage holds and forwards any resource. Upgrade multipliers are 1× / 1.5× / 2× for machines and 1× / 2× / 3× for conveyors.</p>
+      </div>
+      <div class="architecture">Natural Language
+↓
+AI Agent
+↓
+Observe → Diagnose → Plan → Act
+↓
+WebMCP Tools
+↓
+FactoryEngine ← Human Controls
+↓
+Shared Simulation State
+↓
+Production + Factory UI
+↑
+Observe results and adapt</div>
+    </div>
+  </details>
+
+  <details class="panel explanation">
+    <summary>Shared capability console <span class="muted" style="font-weight:400">— invoke structured tools manually</span></summary>
+    <div class="console-layout">
+      <div><label for="consoleTool" class="eyebrow">Factory capability</label><select id="consoleTool"></select><label for="consoleInput" class="eyebrow">JSON arguments</label><textarea id="consoleInput" spellcheck="false">{}</textarea><button id="consoleRun">Run capability</button><small style="display:block;margin-top:8px">Calls the same engine. Manual invocations are logged as UI, never as an AI agent.</small></div>
+      <pre id="consoleOutput" aria-live="polite">Select a tool to inspect its schema and run it.</pre>
+    </div>
+  </details>
+  <footer><span>WEBMCP MINI FACTORY · Local simulation · No server · No real currency</span><span id="saveStatus">Layout saved locally when available</span></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* CONFIG, RESOURCE DATA, RECIPES, MACHINE DEFINITIONS */
+const CONFIG = {width:10,height:8,tick:.25,window:60,target:10,sustain:10,credits:1000,saveKey:"webmcp-mini-factory-v1"};
+const RESOURCES = {
+  iron_ore:{name:"Iron ore",color:"#b5c9d7",symbol:"◆"},
+  copper_ore:{name:"Copper ore",color:"#e6a273",symbol:"◆"},
+  iron_plate:{name:"Iron plate",color:"#c9e1ea",symbol:"▰"},
+  copper_plate:{name:"Copper plate",color:"#efb084",symbol:"▰"},
+  gear:{name:"Gear",color:"#8de5c1",symbol:"⚙"},
+  circuit:{name:"Circuit",color:"#a99de6",symbol:"▦"}
+};
+const RECIPES = {
+  iron_ore:{machine:"miner",inputs:{},outputs:{iron_ore:1},cycleTime:1.5},
+  copper_ore:{machine:"miner",inputs:{},outputs:{copper_ore:1},cycleTime:1.5},
+  iron_plate:{machine:"smelter",inputs:{iron_ore:1},outputs:{iron_plate:1},cycleTime:5},
+  copper_plate:{machine:"smelter",inputs:{copper_ore:1},outputs:{copper_plate:1},cycleTime:5},
+  gear:{machine:"assembler",inputs:{iron_plate:2},outputs:{gear:1},cycleTime:3},
+  circuit:{machine:"assembler",inputs:{iron_plate:1,copper_plate:2},outputs:{circuit:1},cycleTime:4}
+};
+const DEFINITIONS = {
+  miner:{name:"Miner",cost:200,capacity:12,icon:"⛏"},
+  smelter:{name:"Smelter",cost:180,capacity:12,icon:"♨"},
+  assembler:{name:"Assembler",cost:250,capacity:12,icon:"⚙"},
+  storage:{name:"Storage",cost:100,capacity:1000,icon:"▣"},
+  splitter:{name:"Splitter",cost:90,capacity:24,icon:"⑂"}
+};
+const NODES = [{x:1,y:2,resource:"iron_ore"},{x:1,y:5,resource:"iron_ore"},{x:4,y:6,resource:"copper_ore"},{x:8,y:0,resource:"copper_ore"}];
+const MACHINE_MULT = [0,1,1.5,2];
+const BELT_MULT = [0,1,2,3];
+const MACHINE_UPGRADE = [0,150,250];
+const BELT_UPGRADE = [0,60,100];
+const clone = x => JSON.parse(JSON.stringify(x));
+const sum = b => Object.values(b).reduce((a,n)=>a+n,0);
+const key = p => p.x+","+p.y;
+const same = (a,b) => a.x===b.x && a.y===b.y;
+const round = n => Math.round(n*10)/10;
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $ = id => document.getElementById(id);
+const assertValid = (condition,message,extra={}) => {if(!condition) throw Object.assign(new Error(message),extra)};
+const inside = p => Number.isInteger(p.x)&&Number.isInteger(p.y)&&p.x>=0&&p.x<10&&p.y>=0&&p.y<8;
+const isRelay = m => m.type==="storage"||m.type==="splitter";
+function newMachine(id,type,x,y,recipe=null){
+  return {id,type,x,y,online:true,level:1,recipe,inputBuffer:{},outputBuffer:{},capacity:DEFINITIONS[type].capacity,productionRate:0,efficiency:0,status:"IDLE",connections:{inputs:[],outputs:[]},progress:0,route:0};
+}
+function newConveyor(id,from,to,path,level=1){
+  return {id,fromMachineId:from,toMachineId:to,path,level,capacity:8*BELT_MULT[level],throughput:0,utilization:0,credit:0,items:[],transportedResource:null};
+}
+function initialState(){
+  const machines=[
+    newMachine("miner-1","miner",1,2,"iron_ore"),
+    newMachine("smelter-1","smelter",4,2,"iron_plate"),
+    newMachine("assembler-1","assembler",7,2,"gear"),
+    newMachine("storage-1","storage",8,5)
+  ];
+  return {version:1,credits:1000,time:0,speed:1,serial:2,machines,
+    conveyors:[
+      newConveyor("conveyor-1","miner-1","smelter-1",[{x:1,y:2},{x:2,y:2},{x:3,y:2},{x:4,y:2}],3),
+      newConveyor("conveyor-2","smelter-1","assembler-1",[{x:4,y:2},{x:5,y:2},{x:6,y:2},{x:7,y:2}],1),
+      newConveyor("conveyor-3","assembler-1","storage-1",[{x:7,y:2},{x:8,y:2},{x:8,y:3},{x:8,y:4},{x:8,y:5}],2)
+    ],
+    events:[],history:[],mission:{held:0,complete:false,completedAt:null},lastSample:0
+  };
+}
+
+/* ACTIVITY LOGGER */
+class ActivityLogger {
+  constructor(){this.entries=[];this.trail=[];this.version=0;this.onChange=null}
+  add(source,message){
+    this.entries.push({time:new Date().toLocaleTimeString("en-GB"),source,message});
+    this.entries=this.entries.slice(-50);this.version++;this.onChange?.();
+  }
+  decision(message){this.trail.push(message);this.trail=this.trail.slice(-7);this.version++}
+}
+
+/* UNDO MANAGER: configuration snapshots never restore the simulation clock or event history. */
+class UndoManager {
+  constructor(){this.stack=[]}
+  push(config){this.stack.push(config);if(this.stack.length>35)this.stack.shift()}
+  pop(){assertValid(this.stack.length,"Nothing to undo.");return this.stack.pop()}
+  clear(){this.stack=[]}
+}
+
+/* PRODUCTION ENGINE */
+class ProductionEngine {
+  static step(engine,dt){
+    const s=engine.s;
+    for(const m of s.machines){
+      m.capacity=DEFINITIONS[m.type].capacity*MACHINE_MULT[m.level];
+      if(!m.online){m.status="OFFLINE";continue}
+      if(isRelay(m)){
+        m.status=sum(m.inputBuffer)>=m.capacity?"BLOCKED":sum(m.inputBuffer)>0?"WORKING":"IDLE";continue;
+      }
+      const r=RECIPES[m.recipe];
+      if(!r){m.status="IDLE";continue}
+      if(sum(m.outputBuffer)+sum(r.outputs)>m.capacity){m.status="BLOCKED";continue}
+      if(Object.entries(r.inputs).some(([resource,n])=>(m.inputBuffer[resource]||0)<n)){m.status="STARVED";continue}
+      m.status="WORKING";
+      m.progress+=dt;
+      const cycle=r.cycleTime/MACHINE_MULT[m.level];
+      if(m.progress+1e-9>=cycle){
+        m.progress=Math.max(0,m.progress-cycle);
+        for(const [resource,n] of Object.entries(r.inputs)){
+          m.inputBuffer[resource]-=n;
+          engine.record({kind:"consumed",resource,n,machineId:m.id});
+        }
+        for(const [resource,n] of Object.entries(r.outputs)){
+          m.outputBuffer[resource]=(m.outputBuffer[resource]||0)+n;
+          engine.record({kind:"produced",resource,n,machineId:m.id});
+        }
+      }
+    }
+  }
+}
+
+/* FLOW ENGINE: finite-rate belts, actual in-flight items, fair output selection. */
+class FlowEngine {
+  static stock(m){return isRelay(m)?m.inputBuffer:m.outputBuffer}
+  static accepts(m,resource){
+    return isRelay(m)||Boolean(RECIPES[m.recipe]?.inputs[resource]);
+  }
+  static possibleOutputs(engine,m,visited=new Set()){
+    if(visited.has(m.id))return [];
+    visited.add(m.id);
+    if(!isRelay(m))return Object.keys(RECIPES[m.recipe]?.outputs||{});
+    const resources=new Set(Object.keys(m.inputBuffer));
+    for(const c of engine.s.conveyors.filter(c=>c.toMachineId===m.id)){
+      const source=engine.s.machines.find(a=>a.id===c.fromMachineId);
+      if(source)for(const r of this.possibleOutputs(engine,source,visited))resources.add(r);
+    }
+    return [...resources];
+  }
+  static step(engine,dt){
+    const s=engine.s;
+    for(const c of s.conveyors){
+      c.capacity=8*BELT_MULT[c.level];
+      c.credit=Math.min(1,c.credit+dt*c.capacity/60);
+      const dest=engine.machine(c.toMachineId);
+      for(const item of c.items)item.remaining=Math.max(0,item.remaining-dt);
+      while(c.items.length && c.items[0].remaining<=0){
+        const item=c.items[0];
+        if(!dest.online||!this.accepts(dest,item.resource)||sum(dest.inputBuffer)>=dest.capacity)break;
+        dest.inputBuffer[item.resource]=(dest.inputBuffer[item.resource]||0)+1;
+        c.transportedResource=item.resource;c.items.shift();
+        engine.record({kind:"flow",resource:item.resource,n:1,conveyorId:c.id,fromMachineId:c.fromMachineId,toMachineId:c.toMachineId});
+      }
+    }
+    for(const m of s.machines){
+      if(!m.online)continue;
+      const outgoing=s.conveyors.filter(c=>c.fromMachineId===m.id);
+      if(!outgoing.length)continue;
+      const start=m.route%outgoing.length;
+      for(let i=0;i<outgoing.length;i++){
+        const c=outgoing[(start+i)%outgoing.length];
+        if(c.credit<1-1e-9||c.items.length>=Math.max(2,c.path.length-1))continue;
+        const dest=engine.machine(c.toMachineId);
+        const stock=this.stock(m);
+        const resource=Object.keys(stock).find(r=>stock[r]>0&&this.accepts(dest,r));
+        if(!resource)continue;
+        const duration=(c.path.length-1)*.6;
+        stock[resource]--;c.credit=0;
+        c.items.push({resource,remaining:duration,duration});
+        c.transportedResource=resource;
+        m.route=(start+i+1)%outgoing.length;
+      }
+    }
+  }
+  static path(engine,from,to){
+    const blocked=new Set(engine.s.machines.filter(m=>m.id!==from.id&&m.id!==to.id).map(key));
+    for(const c of engine.s.conveyors)for(const p of c.path.slice(1,-1))blocked.add(key(p));
+    const queue=[[{x:from.x,y:from.y}]],seen=new Set([key(from)]);
+    for(let i=0;i<queue.length;i++){
+      const path=queue[i],last=path[path.length-1];
+      if(same(last,to))return path;
+      for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){
+        const p={x:last.x+dx,y:last.y+dy},k=key(p);
+        if(!inside(p)||seen.has(k)||blocked.has(k))continue;
+        seen.add(k);queue.push([...path,p]);
+      }
+    }
+    throw new Error("No valid conveyor path exists between these machines.");
+  }
+}
+
+/* MISSION ENGINE AND SIMULATION ENGINE */
+class MissionEngine {
+  static step(engine,dt){
+    const s=engine.s,rate=engine.rate("produced","gear");
+    const recent=engine.rate("produced","gear",null,10);
+    s.mission.held=rate>=CONFIG.target&&recent>=CONFIG.target?s.mission.held+dt:0;
+    if(!s.mission.complete&&s.mission.held>=CONFIG.sustain){
+      s.mission.complete=true;s.mission.completedAt=s.time;
+      engine.logger?.add("System","Mission complete — sustained gear production reached target.");
+      engine.logger?.decision("Target reached");
+    }
+  }
+}
+class SimulationEngine {
+  constructor(engine){this.engine=engine;this.timer=null}
+  step(dt=CONFIG.tick){
+    const e=this.engine,s=e.s;s.time+=dt;
+    ProductionEngine.step(e,dt);FlowEngine.step(e,dt);
+    s.events=s.events.filter(v=>v.t>s.time-60);
+    if(s.time-s.lastSample>=1){
+      s.lastSample=s.time;e.refreshMetrics();
+      const gear=e.rate("produced","gear");
+      s.history.push({t:s.time,value:gear});s.history=s.history.filter(p=>p.t>=s.time-60);
+      if(e.logger&&e.lastAnnouncedRate!==undefined&&Math.abs(gear-e.lastAnnouncedRate)>=2){
+        e.logger.add("Factory",`Gear throughput ${gear>=e.lastAnnouncedRate?"increased":"changed"} to ${gear.toFixed(1)}/min.`);
+        e.lastAnnouncedRate=gear;
+      }
+    }
+    MissionEngine.step(e,dt);
+  }
+  start(){
+    if(this.timer)return;
+    this.timer=setInterval(()=>{
+      for(let i=0;i<this.engine.s.speed;i++)this.step();
+      this.engine.onTick?.();
+    },CONFIG.tick*1000);
+  }
+}
+
+/* BOTTLENECK ANALYZER: diagnostics are derived from current buffers, capacities and observations. */
+class BottleneckAnalyzer {
+  static analyze(engine){
+    const s=engine.s,result=[],add=(type,id,message,observedRate,requiredRate,severity="medium",isConveyor=false)=>{
+      const b={type,severity,message,observedRate:round(observedRate),requiredRate:round(requiredRate)};
+      if(id)b[isConveyor?"conveyorId":"machineId"]=id;
+      result.push(b);
+    };
+    for(const m of s.machines){
+      const ins=s.conveyors.filter(c=>c.toMachineId===m.id),outs=s.conveyors.filter(c=>c.fromMachineId===m.id);
+      const r=RECIPES[m.recipe],rate=engine.rate("produced",null,m.id);
+      if(m.online&&r&&!outs.length)add("UNCONNECTED_MACHINE",m.id,`${m.id} has no output connection.`,0,engine.nominal(m));
+      if(m.online&&r&&Object.keys(r.inputs).length&&!ins.length)add("UNCONNECTED_MACHINE",m.id,`${m.id} has no material supply.`,0,engine.nominal(m),"high");
+      if(m.online&&m.status==="STARVED")add("INPUT_STARVATION",m.id,`${m.id} is waiting for ${Object.keys(r?.inputs||{}).filter(k=>(m.inputBuffer[k]||0)<r.inputs[k]).map(k=>RESOURCES[k].name).join(" + ")}.`,rate,engine.nominal(m));
+      if(m.status==="BLOCKED")add("OUTPUT_BLOCKED",m.id,`${m.id} ${isRelay(m)?"storage":"output buffer"} is full.`,rate,engine.nominal(m));
+      if(m.type==="storage"&&sum(m.inputBuffer)>=m.capacity*.85)add("OUTPUT_BLOCKED",m.id,`${m.id} is nearly full (${sum(m.inputBuffer)}/${m.capacity}).`,sum(m.inputBuffer),m.capacity,"high");
+      if(m.online&&m.recipe==="iron_plate"&&outs.some(c=>engine.machine(c.toMachineId).recipe==="gear")){
+        const combined=s.machines.filter(a=>a.online&&a.recipe==="iron_plate").reduce((n,a)=>n+engine.nominal(a),0);
+        if(combined<20)add("MACHINE_CAPACITY",m.id,`Total iron smelting capacity is ${round(combined)}/min; the mission needs at least 20 plates/min.`,combined,20,"high");
+      }
+    }
+    for(const c of s.conveyors){
+      const source=engine.machine(c.fromMachineId),dest=engine.machine(c.toMachineId);
+      const possible=FlowEngine.possibleOutputs(engine,source);
+      const demand=dest.recipe==="gear"?20:dest.recipe==="iron_plate"?20:possible.includes("gear")?10:0;
+      if(c.capacity<demand)add("CONVEYOR_CAPACITY",c.id,`${c.id} can carry ${c.capacity} items/min; this mission path needs ${demand}/min.`,c.throughput,demand,"high",true);
+      else if(c.utilization>=.9)add("CONVEYOR_CAPACITY",c.id,`${c.id} is ${Math.round(c.utilization*100)}% utilized.`,c.throughput,c.capacity,"medium",true);
+    }
+    const gear=engine.rate("produced","gear");
+    if(gear<10)add("INSUFFICIENT_PRODUCTION",null,`Gear production is ${round(10-gear)}/min below target.`,gear,10,"high");
+    return result.sort((a,b)=>(a.severity==="high"?0:1)-(b.severity==="high"?0:1));
+  }
+}
+
+/* FACTORY ENGINE: sole owner of shared simulation state and all application capabilities. */
+class FactoryEngine {
+  constructor({warm=true,logger=null,persistent=false}={}){
+    this.s=initialState();this.logger=logger;this.persistent=persistent;
+    this.undo=new UndoManager();this.simulation=new SimulationEngine(this);this.onChange=null;this.onTick=null;
+    if(warm)for(let i=0;i<180/CONFIG.tick;i++)this.simulation.step();
+    this.refreshMetrics();this.lastAnnouncedRate=this.rate("produced","gear");
+  }
+  machine(id){const m=this.s.machines.find(m=>m.id===id);assertValid(m,`Machine '${id}' does not exist.`);return m}
+  conveyor(id){const c=this.s.conveyors.find(c=>c.id===id);assertValid(c,`Conveyor '${id}' does not exist.`);return c}
+  record(event){this.s.events.push({t:this.s.time,...event})}
+  rate(kind,resource=null,id=null,window=60){
+    return this.s.events.filter(e=>e.kind===kind&&e.t>this.s.time-window&&(!resource||e.resource===resource)&&(!id||e.machineId===id||e.conveyorId===id)).reduce((n,e)=>n+e.n,0)*60/window;
+  }
+  nominal(m){return RECIPES[m.recipe]?60/RECIPES[m.recipe].cycleTime*MACHINE_MULT[m.level]:0}
+  refreshMetrics(){
+    for(const m of this.s.machines){
+      m.capacity=DEFINITIONS[m.type].capacity*MACHINE_MULT[m.level];
+      m.productionRate=this.rate("produced",null,m.id);
+      m.efficiency=this.nominal(m)?Math.min(1,m.productionRate/this.nominal(m)):0;
+      m.connections={
+        inputs:this.s.conveyors.filter(c=>c.toMachineId===m.id).map(c=>c.id),
+        outputs:this.s.conveyors.filter(c=>c.fromMachineId===m.id).map(c=>c.id)
+      };
+    }
+    for(const c of this.s.conveyors){
+      c.capacity=8*BELT_MULT[c.level];c.throughput=this.rate("flow",null,c.id);c.utilization=Math.min(1,c.throughput/c.capacity);
+    }
+  }
+  throughput(){
+    const out={window_seconds:60,measurement_age_seconds:Math.min(60,this.s.time),gear_target_per_min:10,production:{},consumption:{}};
+    for(const r of Object.keys(RESOURCES)){
+      const p=round(this.rate("produced",r)),c=round(this.rate("consumed",r));
+      out[r+"_per_min"]=p;out.production[r]=p;out.consumption[r]=c;
+    }
+    return out;
+  }
+  mission(){
+    const current=this.rate("produced","gear");
+    return {target:10,current:round(current),remainingGap:round(Math.max(0,10-current)),measurementWindowSeconds:60,sustainedSeconds:round(Math.min(10,this.s.mission.held)),requiredSustainedSeconds:10,complete:this.s.mission.complete,completedAt:this.s.mission.completedAt};
+  }
+  inspectMachine(id){
+    this.refreshMetrics();const m=this.machine(id);
+    return {...clone(m),nominalCapacityPerMin:round(this.nominal(m)),cycleTime:RECIPES[m.recipe]?round(RECIPES[m.recipe].cycleTime/MACHINE_MULT[m.level]):null,
+      inputRate:round(this.s.events.filter(e=>e.kind==="flow"&&e.toMachineId===m.id).reduce((n,e)=>n+e.n,0)),
+      outputRate:round(this.s.events.filter(e=>e.kind==="flow"&&e.fromMachineId===m.id).reduce((n,e)=>n+e.n,0)),
+      connectedInputs:this.s.conveyors.filter(c=>c.toMachineId===id).map(c=>({conveyorId:c.id,machineId:c.fromMachineId})),
+      connectedOutputs:this.s.conveyors.filter(c=>c.fromMachineId===id).map(c=>({conveyorId:c.id,machineId:c.toMachineId})),
+      upgradeCost:m.level<3?MACHINE_UPGRADE[m.level]:null
+    };
+  }
+  inspectConveyor(id){
+    this.refreshMetrics();const c=this.conveyor(id);
+    return {...clone(c),currentFlow:c.throughput,travelTimeSeconds:(c.path.length-1)*.6,upgradeCost:c.level<3?BELT_UPGRADE[c.level]:null};
+  }
+  state(){
+    this.refreshMetrics();
+    return {grid:{width:10,height:8,resourceNodes:clone(NODES)},credits:this.s.credits,simulation:{time:round(this.s.time),speed:this.s.speed,tickSeconds:.25},machines:this.s.machines.map(m=>this.inspectMachine(m.id)),conveyors:clone(this.s.conveyors),recipes:clone(RECIPES),metrics:this.throughput(),mission:this.mission(),resourceFlow:this.resourceFlow()};
+  }
+  resourceFlow(){
+    return this.s.conveyors.map(c=>({conveyorId:c.id,fromMachineId:c.fromMachineId,toMachineId:c.toMachineId,resources:FlowEngine.possibleOutputs(this,this.machine(c.fromMachineId)),transportedResource:c.transportedResource,measuredFlowPerMin:round(this.rate("flow",null,c.id)),capacity:c.capacity,inTransit:c.items.length}));
+  }
+  available(){
+    return {machineTypes:clone(DEFINITIONS),machineUpgradeCosts:{2:150,3:250},machineMultipliers:{1:1,2:1.5,3:2},conveyor:{costPerInteriorTile:15,minimumCost:15,capacityPerMin:{1:8,2:16,3:24},upgradeCosts:{2:60,3:100},routing:"Adjacent orthogonal cells; cannot cross machines or other belts."},bounds:{x:{min:0,max:9},y:{min:0,max:7}},resourceNodes:clone(NODES),recipes:clone(RECIPES),credits:this.s.credits,refundFraction:.5};
+  }
+  spend(cost){assertValid(this.s.credits>=cost,"Insufficient credits.",{required:cost,available:this.s.credits});this.s.credits-=cost}
+  nextId(type){
+    let i=1;while([...this.s.machines,...this.s.conveyors].some(m=>m.id===type+"-"+i))i++;
+    return type+"-"+i;
+  }
+  build({type,x,y}){
+    assertValid(DEFINITIONS[type],`Invalid machine type '${type}'.`);
+    assertValid(inside({x,y}),"Coordinates must be integer tiles inside x: 0–9, y: 0–7.");
+    assertValid(!this.s.machines.some(m=>m.x===x&&m.y===y),`Tile (${x},${y}) is already occupied.`);
+    assertValid(!this.s.conveyors.some(c=>c.path.slice(1,-1).some(p=>p.x===x&&p.y===y)),`Tile (${x},${y}) contains a conveyor.`);
+    const node=NODES.find(n=>n.x===x&&n.y===y);
+    if(type==="miner")assertValid(node,"Miners must be built on an iron or copper resource node.");
+    this.spend(DEFINITIONS[type].cost);
+    const m=newMachine(this.nextId(type),type,x,y,type==="miner"?node.resource:null);
+    this.s.machines.push(m);
+    return {machine:clone(m),machineId:m.id,cost:DEFINITIONS[type].cost};
+  }
+  remove({machineId}){
+    const m=this.machine(machineId),refund=Math.floor(DEFINITIONS[m.type].cost*.5);
+    this.s.conveyors=this.s.conveyors.filter(c=>c.fromMachineId!==machineId&&c.toMachineId!==machineId);
+    this.s.machines=this.s.machines.filter(a=>a.id!==machineId);this.s.credits+=refund;
+    return {machineId,refund,removedConnections:true};
+  }
+  recipe({machineId,recipe}){
+    const m=this.machine(machineId),r=RECIPES[recipe];
+    assertValid(r&&r.machine===m.type,`Recipe '${recipe}' is not supported by ${m.type}s.`);
+    if(m.type==="miner")assertValid(NODES.some(n=>same(n,m)&&n.resource===recipe),"Miner recipe must match the resource node.");
+    const old=m.recipe;m.recipe=recipe;
+    for(const c of this.s.conveyors){
+      if(c.toMachineId===machineId){
+        const outputs=FlowEngine.possibleOutputs(this,this.machine(c.fromMachineId));
+        assertValid(outputs.some(res=>FlowEngine.accepts(m,res)),"Disconnect incompatible incoming conveyors before changing recipe.");
+        assertValid(c.items.every(i=>FlowEngine.accepts(m,i.resource)),"An incompatible resource is still in transit.");
+      }
+      if(c.fromMachineId===machineId){
+        const dest=this.machine(c.toMachineId);
+        assertValid(Object.keys(r.outputs).some(res=>FlowEngine.accepts(dest,res)),"Disconnect incompatible outgoing conveyors before changing recipe.");
+      }
+    }
+    m.progress=0;return {machineId,previousRecipe:old,recipe,bufferPolicy:"Existing buffered materials are retained."};
+  }
+  power({machineId,enabled}){const m=this.machine(machineId);m.online=enabled;m.status=enabled?"IDLE":"OFFLINE";return {machineId,online:enabled}}
+  upgrade({machineId}){
+    const m=this.machine(machineId);assertValid(m.level<3,"Machine is already at maximum level.");
+    const cost=MACHINE_UPGRADE[m.level];this.spend(cost);m.level++;
+    return {machineId,level:m.level,cost,nominalCapacityPerMin:round(this.nominal(m))};
+  }
+  connect({fromMachineId,toMachineId}){
+    const from=this.machine(fromMachineId),to=this.machine(toMachineId);
+    assertValid(from!==to,"A conveyor cannot connect a machine to itself.");
+    assertValid(!this.s.conveyors.some(c=>c.fromMachineId===fromMachineId&&c.toMachineId===toMachineId),"These machines already have a direct connection.");
+    if(from.type==="splitter")assertValid(this.s.conveyors.filter(c=>c.fromMachineId===from.id).length<2,"A splitter supports two outputs.");
+    if(to.type==="splitter")assertValid(!this.s.conveyors.some(c=>c.toMachineId===to.id),"A splitter supports one input.");
+    const resources=FlowEngine.possibleOutputs(this,from);
+    assertValid((isRelay(from)&&resources.length===0&&to.type!=="miner")||resources.some(r=>FlowEngine.accepts(to,r)),"Source output is incompatible with destination recipe. Configure recipes first.");
+    const path=FlowEngine.path(this,from,to),cost=Math.max(1,path.length-2)*15;
+    this.spend(cost);
+    const c=newConveyor(this.nextId("conveyor"),from.id,to.id,path);this.s.conveyors.push(c);
+    return {conveyorId:c.id,path:clone(path),capacity:c.capacity,cost};
+  }
+  upgradeConveyor({conveyorId}){
+    const c=this.conveyor(conveyorId);assertValid(c.level<3,"Conveyor is already at maximum level.");
+    const cost=BELT_UPGRADE[c.level];this.spend(cost);c.level++;c.capacity=8*BELT_MULT[c.level];
+    return {conveyorId,level:c.level,capacity:c.capacity,cost};
+  }
+  disconnect({conveyorId}){
+    const c=this.conveyor(conveyorId),refund=Math.floor(Math.max(1,c.path.length-2)*15*.5);
+    this.s.conveyors=this.s.conveyors.filter(v=>v.id!==conveyorId);this.s.credits+=refund;
+    return {conveyorId,refund,inTransitItemsDiscarded:c.items.length};
+  }
+  configuration(){
+    return {version:1,credits:this.s.credits,
+      machines:this.s.machines.map(({id,type,x,y,online,level,recipe})=>({id,type,x,y,online,level,recipe})),
+      conveyors:this.s.conveyors.map(({id,fromMachineId,toMachineId,path,level})=>({id,fromMachineId,toMachineId,path:clone(path),level}))
+    };
+  }
+  applyConfiguration(config,preserveRuntime=true){
+    const oldMachines=this.s.machines,oldBelts=this.s.conveyors;
+    this.s.machines=config.machines.map(m=>{
+      const existing=preserveRuntime?oldMachines.find(v=>v.id===m.id&&v.type===m.type):null;
+      return {...(existing||newMachine(m.id,m.type,m.x,m.y,m.recipe)),...clone(m),progress:existing?.recipe===m.recipe?existing.progress:0};
+    });
+    this.s.conveyors=config.conveyors.map(c=>{
+      const existing=preserveRuntime?oldBelts.find(v=>v.id===c.id&&v.fromMachineId===c.fromMachineId&&v.toMachineId===c.toMachineId):null;
+      return {...(existing||newConveyor(c.id,c.fromMachineId,c.toMachineId,c.path,c.level)),...clone(c)};
+    });
+    this.s.credits=config.credits;this.s.mission.held=0;this.refreshMetrics();
+  }
+  reset(){
+    this.s=initialState();
+    for(let i=0;i<180/CONFIG.tick;i++)this.simulation.step();
+    this.refreshMetrics();this.lastAnnouncedRate=this.rate("produced","gear");
+    return {message:"Deterministic initial factory restored.",credits:this.s.credits};
+  }
+  invoke(name,args={},source="UI"){
+    const tool=TOOLS.find(t=>t.name===name);
+    let original=null,before=null;
+    try{
+      assertValid(tool,`Unknown factory capability '${name}'.`);
+      validateSchema(args,tool.inputSchema,"arguments");
+      this.logger?.add(source,`${name}${Object.keys(args).length?" "+JSON.stringify(args):"()"}`);
+      if(!tool.readOnly){
+        original=this.s;before=this.configuration();
+        this.s=clone(original);
+      }
+      const data=tool.run(this,args);
+      if(!tool.readOnly){
+        if(name==="factory_reset")this.undo.clear();
+        else if(name!=="factory_undo"&&name!=="simulation_set_speed")this.undo.push(before);
+        this.refreshMetrics();this.save();
+        if(source==="WebMCP"){
+          const labels={
+            machine_upgrade:"Upgraded "+args.machineId,machine_build:"Added "+data.machineId,
+            conveyor_connect:"Connected "+args.fromMachineId+" → "+args.toMachineId,
+            conveyor_upgrade:"Upgraded "+args.conveyorId,machine_set_recipe:"Configured "+args.machineId
+          };
+          this.logger?.decision(labels[name]||"Applied "+name);
+        }
+        this.logger?.add("System",`${name} succeeded${data.cost!==undefined?" · "+data.cost+" credits":""}.`);
+      }else if(source==="WebMCP"){
+        const labels={factory_get_throughput:"Checked production throughput",factory_get_bottlenecks:"Inspected derived bottlenecks",machine_inspect:"Inspected "+args.machineId,factory_get_state:"Observed shared factory state",factory_get_credits:"Checked available credits"};
+        if(labels[name])this.logger?.decision(labels[name]);
+      }
+      const result={success:true,...clone(data)};
+      this.onChange?.({name,args,result,source,mutation:!tool.readOnly});
+      return result;
+    }catch(error){
+      if(original)this.s=original;
+      const result={success:false,error:error.message};
+      if(error.required!==undefined){result.required=error.required;result.available=error.available}
+      this.logger?.add(source,`${name} rejected: ${error.message}`);
+      this.onChange?.({name,args,result,source,mutation:false});
+      return result;
+    }
+  }
+  save(){
+    if(!this.persistent)return;
+    try{localStorage.setItem(CONFIG.saveKey,JSON.stringify(this.configuration()));$("saveStatus").textContent="Layout saved locally · simulation remains on this device"}
+    catch{$("saveStatus").textContent="Local storage unavailable · factory still playable"}
+  }
+  load(){
+    try{
+      const raw=localStorage.getItem(CONFIG.saveKey);if(!raw)return false;
+      const config=JSON.parse(raw);validateSavedConfiguration(config);
+      this.s=initialState();this.s.events=[];this.s.history=[];this.s.time=0;
+      this.applyConfiguration(config,false);this.lastAnnouncedRate=0;
+      this.logger?.add("System","Saved layout restored. Rolling measurement window is warming up.");
+      return true;
+    }catch(error){
+      this.logger?.add("System","Saved layout unavailable or invalid; using deterministic initial factory.");
+      return false;
+    }
+  }
+}
+
+/* SCHEMA VALIDATION AND TOOL CATALOG */
+function validateSchema(value,schema,path){
+  if(schema.type==="object"){
+    assertValid(value!==null&&typeof value==="object"&&!Array.isArray(value),`${path} must be an object.`);
+    for(const name of schema.required||[])assertValid(Object.hasOwn(value,name),`${path}.${name} is required.`);
+    for(const name of Object.keys(value)){
+      assertValid(Object.hasOwn(schema.properties||{},name),`Unknown property ${path}.${name}.`);
+      validateSchema(value[name],schema.properties[name],path+"."+name);
+    }
+  }else if(schema.type==="array"){
+    assertValid(Array.isArray(value),`${path} must be an array.`);
+    assertValid(value.length>=(schema.minItems||0)&&value.length<=(schema.maxItems||100),`${path} has an invalid item count.`);
+    value.forEach((v,i)=>validateSchema(v,schema.items,`${path}[${i}]`));
+  }else{
+    assertValid(schema.type==="integer"?Number.isInteger(value):typeof value===schema.type,`${path} must be ${schema.type}.`);
+    if(schema.minimum!==undefined)assertValid(value>=schema.minimum,`${path} must be at least ${schema.minimum}.`);
+    if(schema.maximum!==undefined)assertValid(value<=schema.maximum,`${path} must be at most ${schema.maximum}.`);
+    if(schema.minLength)assertValid(value.length>=schema.minLength,`${path} cannot be empty.`);
+  }
+  if(schema.enum)assertValid(schema.enum.includes(value),`${path} must be one of: ${schema.enum.join(", ")}.`);
+}
+const str={type:"string",minLength:1};
+const machineId={...str,description:"Exact machine ID from machine_list or factory_get_state."};
+const conveyorId={...str,description:"Exact conveyor ID from conveyor_list."};
+const buildFields={
+  type:{type:"string",enum:Object.keys(DEFINITIONS),description:"Machine class. New smelters and assemblers require machine_set_recipe."},
+  x:{type:"integer",minimum:0,maximum:9,description:"Zero-based horizontal tile coordinate."},
+  y:{type:"integer",minimum:0,maximum:7,description:"Zero-based vertical tile coordinate."}
+};
+const objectSchema=properties=>({type:"object",properties,required:Object.keys(properties),additionalProperties:false});
+const TOOLS=[];
+function defineTool(name,description,readOnly,properties,run){
+  TOOLS.push({name,description,readOnly,inputSchema:objectSchema(properties),
+    annotations:{readOnlyHint:readOnly,consequentialHint:!readOnly,untrustedContentHint:false,destructiveHint:!readOnly,idempotentHint:readOnly},
+    run});
+}
+defineTool("factory_get_state","Get the current shared factory simulation: machines, buffers, statuses, levels, recipes, conveyors, resource flow, credits, rolling metrics, mission progress, resource nodes and simulation speed. Start here before making structural changes.",true,{},e=>e.state());
+defineTool("factory_get_summary","Return a concise health summary with actual production rates, active bottlenecks, material shortages, blocked machines, credits and mission progress. Use for 'How is my factory doing?'.",true,{},e=>({metrics:e.throughput(),bottlenecks:BottleneckAnalyzer.analyze(e),shortages:e.s.machines.filter(m=>m.status==="STARVED").map(m=>m.id),blockedMachines:e.s.machines.filter(m=>m.status==="BLOCKED").map(m=>m.id),credits:e.s.credits,mission:e.mission()}));
+defineTool("factory_get_throughput","Measure rolling production and consumption rates for all six resources over the last 60 simulation seconds. Values exactly match the live dashboard. After an improvement, allow simulation time to advance before re-measuring; 4× speed can shorten the wait.",true,{},e=>e.throughput());
+defineTool("factory_get_bottlenecks","Analyze actual factory capacities, buffers and flow. Return structured starvation, blocked output, insufficient smelting capacity, constrained conveyors, disconnected stages and target shortfall. Diagnostics inform decisions; this tool does not modify or optimize the factory.",true,{},e=>({bottlenecks:BottleneckAnalyzer.analyze(e)}));
+defineTool("machine_list","List every machine with its ID, type, coordinates, recipe, power, level, status, input/output buffers and connected conveyor IDs.",true,{},e=>{e.refreshMetrics();return {machines:clone(e.s.machines)}});
+defineTool("machine_inspect","Inspect one machine's live buffers, progress, efficiency, actual production, theoretical capacity, cycle time, connections and next upgrade cost. Use to verify whether capacity or missing materials limits it.",true,{machineId},(e,a)=>({machine:e.inspectMachine(a.machineId)}));
+defineTool("machine_build","Build a new machine on a valid empty tile, spending simulated credits. Miners require resource nodes. Smelters and assemblers start without a recipe; configure them and connect conveyors separately. Read factory_get_available_builds before choosing a location or cost.",false,buildFields,(e,a)=>e.build(a));
+defineTool("machine_delete","Delete an existing machine and all incident conveyors. Refund 50% of the machine's base construction cost; contained and in-transit resources are discarded. This changes the shared factory and may interrupt production.",false,{machineId},(e,a)=>e.remove(a));
+defineTool("machine_set_recipe","Configure a compatible production recipe. Miner recipes must match their node; smelters make plates and assemblers make gears or circuits. Incompatible existing connections are rejected; disconnect them first. Retains buffers and resets cycle progress.",false,{machineId,recipe:{type:"string",enum:Object.keys(RECIPES)}},(e,a)=>e.recipe(a));
+defineTool("machine_set_power","Enable or disable one machine without deleting its layout or buffers. Disabled machines neither produce, accept arriving resources nor send resources.",false,{machineId,enabled:{type:"boolean"}},(e,a)=>e.power(a));
+defineTool("machine_upgrade","Upgrade a machine by one level, to a maximum of 3. Production multipliers are 1×, 1.5× and 2×; levels 2 and 3 cost 150 and 250 credits. Storage and splitter upgrades increase buffer capacity. Inspect upstream supply and outgoing conveyors before spending.",false,{machineId},(e,a)=>e.upgrade(a));
+defineTool("conveyor_connect","Connect compatible source and destination machines with an automatically routed adjacent-cell orthogonal conveyor. Routes cannot cross machines or other belts. New belts carry 8 items/min and cost 15 credits per interior tile, minimum 15. Configure recipes first; inspect and upgrade belts when capacity is insufficient.",false,{fromMachineId:machineId,toMachineId:machineId},(e,a)=>e.connect(a));
+defineTool("conveyor_list","List all conveyor IDs, endpoints, paths, capacity, level, actual rolling throughput, utilization, resource type and in-flight items.",true,{},e=>{e.refreshMetrics();return {conveyors:clone(e.s.conveyors)}});
+defineTool("conveyor_inspect","Inspect a conveyor's capacity, measured flow, utilization, level, source, destination, transported resource, travel time, in-flight items and upgrade cost.",true,{conveyorId},(e,a)=>({conveyor:e.inspectConveyor(a.conveyorId)}));
+defineTool("conveyor_upgrade","Increase one conveyor's capacity by one level: 8 → 16 → 24 items/min. Level 2 costs 60 credits and level 3 costs 100. This only improves throughput when machines can supply and consume the additional material.",false,{conveyorId},(e,a)=>e.upgradeConveyor(a));
+defineTool("conveyor_disconnect","Remove one conveyor, discard its in-flight items and refund half its route construction cost. Endpoints remain in place. Use before rerouting or changing to incompatible recipes.",false,{conveyorId},(e,a)=>e.disconnect(a));
+defineTool("factory_get_recipes","Return deterministic ingredients, outputs, base cycle times and compatible machine classes. Machine levels shorten production cycles; belts and material supply may impose lower realized rates.",true,{},()=>({recipes:clone(RECIPES)}));
+defineTool("factory_get_available_builds","Return machine types and base costs, machine and conveyor upgrade costs, level multipliers, grid bounds, resource node locations, recipes, routing constraints and current credits. Use this instead of guessing legal placement or budget.",true,{},e=>e.available());
+defineTool("factory_get_resource_flow","Return source → conveyor → destination relationships with possible resources, recently transported resource, measured items/min, capacity and current in-transit count. Use to trace assembler shortages upstream.",true,{},e=>({flows:e.resourceFlow()}));
+defineTool("factory_get_machine_efficiency","Return rolling realized production divided by theoretical production capacity for each producer, plus status and actual rate. Relay machines report input/output rates instead of production efficiency.",true,{},e=>({machines:e.s.machines.map(m=>{const a=e.inspectMachine(m.id);return {machineId:m.id,status:m.status,efficiency:a.efficiency,productionRate:a.productionRate,nominalCapacityPerMin:a.nominalCapacityPerMin,inputRate:a.inputRate,outputRate:a.outputRate}})}));
+defineTool("factory_get_credits","Return the available simulated construction budget. No real currency is used and production does not generate additional credits.",true,{},e=>({credits:e.s.credits,currency:"simulated credits"}));
+defineTool("simulation_set_speed","Set deterministic simulation speed to 0 (paused), 1, 2 or 4. Higher speed advances production and the rolling measurement window faster without changing recipes or per-simulation-minute capacity.",false,{speed:{type:"integer",enum:[0,1,2,4]}},(e,a)=>{e.s.speed=a.speed;return {speed:a.speed,paused:a.speed===0}});
+defineTool("factory_batch_build","Atomically build multiple machines. All coordinates, occupancy, resource nodes and total credits are validated on an isolated draft before commit. If any build fails, no machine is added and no credits are spent. Configure recipes afterward.",false,{machines:{type:"array",minItems:1,maxItems:20,items:objectSchema(buildFields)}},(e,a)=>({builds:a.machines.map(m=>e.build(m))}));
+defineTool("factory_batch_upgrade","Atomically upgrade distinct machines by one level each. Reject duplicate IDs, missing machines, max-level machines or insufficient total credits without partially applying upgrades. Conveyor upgrades are separate.",false,{machineIds:{type:"array",minItems:1,maxItems:30,items:machineId}},(e,a)=>{
+  assertValid(new Set(a.machineIds).size===a.machineIds.length,"Batch upgrade IDs must be unique.");
+  const machines=a.machineIds.map(id=>e.machine(id));
+  assertValid(machines.every(m=>m.level<3),"One or more machines are already at maximum level.");
+  const total=machines.reduce((n,m)=>n+MACHINE_UPGRADE[m.level],0);
+  assertValid(e.s.credits>=total,"Insufficient credits.",{required:total,available:e.s.credits});
+  return {upgrades:a.machineIds.map(machineId=>e.upgrade({machineId})),totalCost:total};
+});
+defineTool("factory_get_mission","Return the 10 gears/min mission target, current 60-second rate, remaining gap, sustained target duration and latched completion state. Completion requires both rolling and recent production to stay at target for 10 simulation seconds.",true,{},e=>e.mission());
+defineTool("factory_undo","Undo the last logical construction/configuration mutation by restoring its layout, levels, recipes, power and credits. Does not rewind simulation time, production history, existing buffers or individual transfers. Deleted/re-created machines return with empty buffers. Reset clears undo history.",false,{},e=>{e.applyConfiguration(e.undo.pop());return {message:"Previous configuration restored. Simulation time was not rewound."}});
+defineTool("factory_reset","Restore the original deterministic, intentionally bottlenecked factory with 1000 credits and its simulated warm-up baseline. Clears construction undo history and overwrites the saved layout.",false,{},e=>e.reset());
+
+/* PERSISTENCE VALIDATION */
+function validateSavedConfiguration(c){
+  assertValid(c&&c.version===1&&Number.isInteger(c.credits)&&c.credits>=0&&c.credits<=100000,"Invalid saved budget or version.");
+  assertValid(Array.isArray(c.machines)&&c.machines.length<=80&&Array.isArray(c.conveyors)&&c.conveyors.length<=160,"Invalid saved entities.");
+  const ids=new Set(),occupied=new Set();
+  for(const m of c.machines){
+    assertValid(m&&DEFINITIONS[m.type]&&typeof m.id==="string"&&/^[a-z]+-\d+$/.test(m.id)&&!ids.has(m.id),"Invalid saved machine ID or type.");
+    assertValid(inside(m)&&!occupied.has(key(m)),"Invalid saved machine position.");
+    assertValid([1,2,3].includes(m.level)&&typeof m.online==="boolean","Invalid saved machine configuration.");
+    assertValid(m.recipe===null||(RECIPES[m.recipe]?.machine===m.type),"Invalid saved recipe.");
+    if(m.type==="miner")assertValid(NODES.some(n=>same(n,m)&&n.resource===m.recipe),"Invalid saved miner.");
+    ids.add(m.id);occupied.add(key(m));
+  }
+  const beltTiles=new Set(),pairs=new Set(),temp=new FactoryEngine({warm:false});
+  temp.s.machines=c.machines.map(m=>({...newMachine(m.id,m.type,m.x,m.y,m.recipe),...m}));
+  temp.s.conveyors=c.conveyors.map(v=>({...v,items:[]}));
+  for(const b of c.conveyors){
+    assertValid(b&&typeof b.id==="string"&&/^conveyor-\d+$/.test(b.id)&&!ids.has(b.id)&&[1,2,3].includes(b.level),"Invalid saved conveyor.");
+    const from=temp.machine(b.fromMachineId),to=temp.machine(b.toMachineId),pair=from.id+":"+to.id;
+    assertValid(from!==to&&!pairs.has(pair),"Invalid or duplicate saved connection.");pairs.add(pair);
+    assertValid(Array.isArray(b.path)&&b.path.length>=2&&b.path.length<=80&&same(b.path[0],from)&&same(b.path.at(-1),to),"Invalid saved path endpoints.");
+    const seen=new Set();
+    for(let i=0;i<b.path.length;i++){
+      const p=b.path[i];
+      assertValid(inside(p)&&!seen.has(key(p)),"Invalid saved path.");seen.add(key(p));
+      if(i)assertValid(Math.abs(p.x-b.path[i-1].x)+Math.abs(p.y-b.path[i-1].y)===1,"Non-adjacent saved belt.");
+      if(i>0&&i<b.path.length-1){
+        assertValid(!occupied.has(key(p))&&!beltTiles.has(key(p)),"Saved paths overlap.");beltTiles.add(key(p));
+      }
+    }
+    const resources=FlowEngine.possibleOutputs(temp,from);
+    assertValid((isRelay(from)&&!resources.length&&to.type!=="miner")||resources.some(r=>FlowEngine.accepts(to,r)),"Incompatible saved connection.");
+    ids.add(b.id);
+  }
+  for(const m of c.machines.filter(m=>m.type==="splitter")){
+    assertValid(c.conveyors.filter(b=>b.toMachineId===m.id).length<=1&&c.conveyors.filter(b=>b.fromMachineId===m.id).length<=2,"Invalid splitter connections.");
+  }
+}
+
+/* FACTORY RENDERER */
+const ART = {
+  miner:`<path d="M12 58h56v10H12z" fill="#192a36" stroke="#8ca5b5"/><path d="M21 50V15h12v35M51 50V15h12v35" fill="#496677" stroke="#9bb1bc" stroke-width="2"/><path d="M20 16h43v9H20z" fill="#a7bac5"/><g class="rotor"><path d="M35 29h14v23l-7 9-7-9z" fill="#b6d6df"/><path d="m34 32 17 6m-17 2 17 6m-17 2 15 6" stroke="#3d5764" stroke-width="3"/></g><path d="M13 61h54" stroke="#ffc079" stroke-width="3" stroke-dasharray="6 4"/>`,
+  smelter:`<path d="M21 17h40v45H21z" fill="#292c2d" stroke="#a0a0a0" stroke-width="2"/><path d="M25 7h8v16h-8M49 7h8v16h-8" fill="#76828a" stroke="#262d34"/><path d="M28 31h26v22H28z" fill="#764631" stroke="#d89865" stroke-width="3"/><path class="hot" d="m32 50 3-12 7 6 5-13 5 19z" fill="#a46a41"/><path d="M17 59h48v8H17z" fill="#a09c8e"/><path d="M15 23h7v28h-7M60 23h7v28h-7" fill="#665a50"/>`,
+  assembler:`<rect x="14" y="13" width="54" height="52" rx="5" fill="#23434a" stroke="#88b5b4" stroke-width="2"/><path d="M17 57h48M18 20h46" stroke="#6a8f91"/><g class="rotor"><path d="m37 24 9 0 2 6 6 2 5-3 6 8-5 5 0 6 5 3-5 8-6-3-6 2-1 6h-10l-2-6-6-2-5 3-6-8 5-4v-6l-5-4 5-8 6 3 6-2z" fill="#93b8b8" transform="translate(5 4) scale(.75)"/><circle cx="40" cy="39" r="9" fill="#25444b" stroke="#b3e5dd" stroke-width="2"/></g><circle cx="59" cy="57" r="3" fill="#80e5ad"/>`,
+  storage:`<path d="M14 20 39 8l28 12v42L39 73 14 59z" fill="#756f51" stroke="#c5b989" stroke-width="2"/><path d="m14 20 25 13 28-13M39 33v40" fill="none" stroke="#c5b989" stroke-width="2"/><path d="m23 16 28 13v39M53 14 27 27v39" stroke="#353b32" stroke-width="6"/><path d="m43 42 16-6v12l-16 6z" fill="#aabc9c"/>`,
+  splitter:`<rect x="13" y="14" width="54" height="50" rx="6" fill="#323955" stroke="#929abe" stroke-width="2"/><path d="M40 57V39M40 39 23 23M40 39 57 23" fill="none" stroke="#b4c9f3" stroke-width="7"/><path d="M22 34V22h12M46 22h12v12" fill="none" stroke="#b4c9f3" stroke-width="4"/>`
+};
+class FactoryRenderer {
+  constructor(engine,ui){
+    this.engine=engine;this.ui=ui;this.machineElements=new Map();this.lastConveyorSignature="";this.highlightIds=new Map();this.lastLogVersion=-1;
+    this.buildFloor();
+  }
+  buildFloor(){
+    $("cells").innerHTML="";
+    for(let y=0;y<8;y++)for(let x=0;x<10;x++){
+      const node=NODES.find(n=>n.x===x&&n.y===y),button=document.createElement("button");
+      button.className="cell"+(node?" node "+(node.resource==="copper_ore"?"copper":""):"");
+      button.style.left=x*10+"%";button.style.top=y*12.5+"%";
+      button.setAttribute("aria-label",`Tile (${x}, ${y})${node?", "+RESOURCES[node.resource].name+" deposit":", empty floor"}`);
+      button.title=`(${x}, ${y})${node?" · "+RESOURCES[node.resource].name+" deposit":""}`;
+      if(node)button.innerHTML=`<span class="ore-patch" aria-hidden="true">${"<i></i>".repeat(9)}</span>`;
+      button.onclick=()=>this.ui.tile(x,y);$("cells").append(button);
+    }
+  }
+  highlight(event){
+    const ids=new Set([event.args.machineId,event.args.conveyorId,event.result.machineId,event.result.conveyorId,...(event.args.machineIds||[])]);
+    for(const b of event.result.builds||[])ids.add(b.machineId);
+    for(const id of ids)if(id)this.highlightIds.set(id,performance.now()+950);
+    $("gearStat").classList.remove("flash");void $("gearStat").offsetWidth;$("gearStat").classList.add("flash");
+  }
+  render(){
+    const e=this.engine,s=e.s;e.refreshMetrics();
+    const bottlenecks=BottleneckAnalyzer.analyze(e),warningIds=new Set(bottlenecks.map(b=>b.machineId||b.conveyorId));
+    for(const [id,element] of this.machineElements)if(!s.machines.some(m=>m.id===id)){element.remove();this.machineElements.delete(id)}
+    for(const m of s.machines){
+      let element=this.machineElements.get(m.id);
+      if(!element){
+        element=document.createElement("button");
+        element.innerHTML=`<span class="status-dot"></span><span class="machine-level"></span><svg class="machine-art" viewBox="0 0 80 80" aria-hidden="true">${ART[m.type]}</svg><span class="machine-name"></span><span class="machine-alert"></span><span class="machine-progress"><i></i></span>`;
+        element.onclick=()=>this.ui.machine(m.id);
+        $("machines").append(element);this.machineElements.set(m.id,element);
+      }
+      element.className=`machine ${m.type} ${m.status}${this.ui.selected===m.id?" selected":""}${warningIds.has(m.id)?" warning":""}${(this.highlightIds.get(m.id)||0)>performance.now()?" highlight":""}`;
+      element.style.left=(m.x*10+.4)+"%";element.style.top=(m.y*12.5+.4)+"%";
+      element.querySelector(".machine-level").textContent="L"+m.level;
+      element.querySelector(".machine-name").textContent=m.type+" "+m.id.split("-").at(-1);
+      element.querySelector(".machine-alert").textContent=["STARVED","BLOCKED"].includes(m.status)?"⚠":"";
+      const cycle=RECIPES[m.recipe]?.cycleTime/MACHINE_MULT[m.level];
+      element.querySelector(".machine-progress i").style.width=(cycle?Math.min(100,m.progress/cycle*100):0)+"%";
+      element.setAttribute("aria-label",`${m.id}, ${m.status}, level ${m.level}, tile (${m.x}, ${m.y})`);
+      element.title=`${m.id} · ${m.status}\n${m.recipe||"No recipe"} · ${round(e.nominal(m))}/min capacity\n(${m.x}, ${m.y})`;
+      element.style.setProperty("animation-play-state",s.speed?"running":"paused");
+      element.querySelectorAll(".rotor,.hot").forEach(el=>el.style.animationPlayState=s.speed?"running":"paused");
+    }
+    this.renderBelts(warningIds);
+    this.renderMetrics();
+    this.renderInspector();
+    $("signals").innerHTML=bottlenecks.slice(0,5).map(b=>`<li class="signal">${esc(b.message)}<small>${esc(b.type.replaceAll("_"," "))} · ${b.observedRate} / ${b.requiredRate}${b.type==="OUTPUT_BLOCKED"?"":" per min"}</small></li>`).join("")||`<li style="color:var(--green);font-size:12px">✓ No active bottlenecks detected.</li>`;
+    $("signalCount").textContent=bottlenecks.length+" signals";
+    $("credits").textContent=s.credits.toLocaleString();
+    $("simClock").textContent=`10 × 8 · ${Math.floor(s.time/60)}:${String(Math.floor(s.time%60)).padStart(2,"0")} simulated · ${s.speed?s.speed+"× RUNNING":"PAUSED"}`;
+    $("pauseButton").textContent=s.speed?"Ⅱ Pause":"▶ Play";
+    $("pauseButton").setAttribute("aria-label",s.speed?"Pause simulation":"Play simulation");
+    document.querySelectorAll(".speed").forEach(b=>{b.classList.toggle("active",Number(b.dataset.speed)===s.speed);b.setAttribute("aria-pressed",String(Number(b.dataset.speed)===s.speed))});
+    $("undoButton").disabled=!e.undo.stack.length;
+    this.renderGraph();this.renderActivity();
+  }
+  renderBelts(warnings){
+    const s=this.engine.s;
+    const signature=s.conveyors.map(c=>`${c.id}:${c.level}:${this.ui.selected===c.id}:${warnings.has(c.id)}:${(this.highlightIds.get(c.id)||0)>performance.now()}:${s.speed>0}`).join("|");
+    if(signature!==this.lastConveyorSignature){
+      this.lastConveyorSignature=signature;
+      $("belts").innerHTML=s.conveyors.map(c=>{
+        const d=c.path.map((p,i)=>(i?"L":"M")+(p.x*100+50)+" "+(p.y*100+50)).join(" ");
+        const mid=c.path[Math.floor(c.path.length/2)];
+        return `<g data-id="${c.id}" class="${(this.highlightIds.get(c.id)||0)>performance.now()?"highlight":""}">
+          ${this.ui.selected===c.id?`<path d="${d}" class="belt-selected"/>`:warnings.has(c.id)?`<path d="${d}" class="belt-warn"/>`:""}
+          <path d="${d}" class="belt-bed"/><path d="${d}" class="belt-rail"/><path d="${d}" class="belt-tread ${s.speed?"belt-running":""}"/>
+          <g class="cargo"></g><text x="${mid.x*100+50}" y="${mid.y*100+29}" text-anchor="middle" class="belt-label">${c.capacity}/m${warnings.has(c.id)?" ⚠":""}</text>
+          <path d="${d}" class="belt-hit" tabindex="0" role="button" aria-label="${c.id}, capacity ${c.capacity} items per minute"><title>${c.id} · Click to inspect</title></path></g>`;
+      }).join("");
+      $("belts").querySelectorAll("[data-id]").forEach(g=>{
+        const hit=g.querySelector(".belt-hit");
+        hit.onclick=()=>this.ui.belt(g.dataset.id);
+        hit.onkeydown=event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();this.ui.belt(g.dataset.id)}};
+      });
+    }
+    for(const c of s.conveyors){
+      const cargo=$("belts").querySelector(`[data-id="${c.id}"] .cargo`);if(!cargo)continue;
+      cargo.innerHTML=c.items.map(item=>{
+        const distance=Math.max(0,Math.min(c.path.length-1,(1-item.remaining/item.duration)*(c.path.length-1)));
+        const i=Math.min(c.path.length-2,Math.floor(distance)),f=distance-i,a=c.path[i],b=c.path[i+1];
+        const x=(a.x+(b.x-a.x)*f)*100+50,y=(a.y+(b.y-a.y)*f)*100+50;
+        const r=RESOURCES[item.resource];
+        return `<g transform="translate(${x} ${y})"><rect x="-9" y="-9" width="18" height="18" rx="3" fill="#111d23" stroke="${r.color}" stroke-width="1.5"/><text text-anchor="middle" y="5" font-size="14" fill="${r.color}">${r.symbol}</text></g>`;
+      }).join("");
+    }
+  }
+  renderMetrics(){
+    const e=this.engine,t=e.throughput(),m=e.mission();
+    $("gearRate").textContent=t.gear_per_min.toFixed(1);$("plateRate").textContent=t.iron_plate_per_min.toFixed(1);
+    $("oreRate").textContent=t.iron_ore_per_min.toFixed(1);$("circuitRate").textContent=t.circuit_per_min.toFixed(1);
+    $("missionCurrent").textContent=m.current.toFixed(1);
+    $("missionBar").style.width=Math.min(100,m.current/10*100)+"%";
+    $("missionProgress").setAttribute("aria-valuenow",Math.min(10,m.current));
+    $("sustain").textContent=`Hold target: ${m.sustainedSeconds.toFixed(1)} / 10s`;
+    $("missionTitle").textContent=m.complete?"FACTORY OPTIMIZED":"AGENT MISSION";
+    $("missionBadge").textContent=m.complete?"MISSION COMPLETE":"IN PROGRESS";
+    const checks=[
+      [e.s.speed>0,"Factory running"],
+      [this.ui.diagnosed,"Identify bottleneck"],
+      [t.iron_plate_per_min>8,"Improve iron plate supply"],
+      [t.gear_per_min>4,"Increase gear throughput"],
+      [m.complete,"Reach sustained 10 gears/min"]
+    ];
+    $("checklist").innerHTML=checks.map(([done,label])=>`<li class="${done?"done":""}">${done?"☑":"☐"} ${label}</li>`).join("");
+    $("graphDelta").textContent=`${t.gear_per_min>=4?"+":""}${(t.gear_per_min-4).toFixed(1)} / min vs initial`;
+  }
+  bufferHTML(buffer){return Object.entries(buffer).filter(([,n])=>n>0).map(([r,n])=>`${RESOURCES[r].symbol} ${n} ${esc(RESOURCES[r].name)}`).join("<br>")||'<span class="muted">Empty</span>'}
+  renderInspector(){
+    const e=this.engine,id=this.ui.selected;
+    if(!id){$("inspector").innerHTML='<div class="inspector-empty">Select a machine or conveyor.<br>Inspect actual buffers and capacity before upgrading.</div>';return}
+    const m=e.s.machines.find(m=>m.id===id),c=e.s.conveyors.find(c=>c.id===id);
+    if(!m&&!c){this.ui.selected=null;this.renderInspector();return}
+    const active=document.activeElement;
+    if(active&&$("inspector").contains(active)&&active.tagName==="SELECT")return;
+    if(m){
+      const a=e.inspectMachine(id);
+      $("inspectorType").textContent=m.type.toUpperCase();
+      const compatible=Object.entries(RECIPES).filter(([,r])=>r.machine===m.type);
+      $("inspector").innerHTML=`
+        <div class="inspector-title"><strong class="mono" style="font-size:12px">${m.id.toUpperCase()}</strong><span class="badge ${m.status==="WORKING"?"good":"warn"}">${m.status}</span></div>
+        <div class="kv"><span>Position / level</span><span>(${m.x}, ${m.y}) · Level ${m.level}</span><span>Actual / capacity</span><span>${round(m.productionRate)} / ${a.nominalCapacityPerMin} per min</span><span>Efficiency / cycle</span><span>${Math.round(m.efficiency*100)}% · ${a.cycleTime??"—"}s</span><span>Input / output flow</span><span>${a.inputRate} / ${a.outputRate} per min</span><span>Buffer capacity</span><span>${m.capacity} items each</span></div>
+        ${compatible.length?`<div class="recipe-row"><label for="recipeSelect">Recipe</label><select id="recipeSelect"><option value="">Not configured</option>${compatible.map(([id])=>`<option value="${id}" ${m.recipe===id?"selected":""}>${RESOURCES[id].name}</option>`).join("")}</select></div>`:""}
+        <div class="buffer"><div><label>${isRelay(m)?"Contents":"Input buffer"}</label>${this.bufferHTML(m.inputBuffer)}</div><div><label>${isRelay(m)?"Capacity used":"Output buffer"}</label>${isRelay(m)?sum(m.inputBuffer)+" / "+m.capacity:this.bufferHTML(m.outputBuffer)}</div></div>
+        <div class="kv"><span>Connected inputs</span><span>${a.connectedInputs.map(c=>esc(c.machineId)+" · "+esc(c.conveyorId)).join("<br>")||"None"}</span><span>Connected outputs</span><span>${a.connectedOutputs.map(c=>esc(c.machineId)+" · "+esc(c.conveyorId)).join("<br>")||"None"}</span></div>
+        <div class="inspector-actions"><button id="inspectUpgrade" ${m.level>=3?"disabled":""}>↑ ${m.level>=3?"Max level":"Upgrade · "+a.upgradeCost}</button><button id="inspectPower">${m.online?"⏻ Stop":"▶ Start"}</button><button id="inspectDelete" title="Delete machine and incident belts">Delete</button></div>`;
+      if($("recipeSelect"))$("recipeSelect").onchange=event=>{
+        if(event.target.value)this.ui.call("machine_set_recipe",{machineId:id,recipe:event.target.value});
+        else this.ui.toast("Choose a valid recipe.",true);
+      };
+      $("inspectUpgrade").onclick=()=>this.ui.call("machine_upgrade",{machineId:id});
+      $("inspectPower").onclick=()=>this.ui.call("machine_set_power",{machineId:id,enabled:!m.online});
+      $("inspectDelete").onclick=()=>this.ui.call("machine_delete",{machineId:id});
+    }else{
+      const a=e.inspectConveyor(id);$("inspectorType").textContent="CONVEYOR";
+      $("inspector").innerHTML=`
+        <div class="inspector-title"><strong class="mono" style="font-size:12px">${id.toUpperCase()}</strong><span class="badge">LEVEL ${c.level}</span></div>
+        <div class="kv"><span>Source</span><span>${c.fromMachineId}</span><span>Destination</span><span>${c.toMachineId}</span><span>Capacity</span><span>${c.capacity} items/min</span><span>Actual flow</span><span>${round(c.throughput)} items/min</span><span>Utilization</span><span>${Math.round(c.utilization*100)}%</span><span>Resource</span><span>${RESOURCES[c.transportedResource]?.name||"No items yet"}</span><span>Items in transit</span><span>${c.items.length}</span><span>Travel time</span><span>${round(a.travelTimeSeconds)}s</span><span>Orthogonal route</span><span>${c.path.length-1} adjacent steps</span></div>
+        <div class="progress"><i style="width:${c.utilization*100}%"></i></div>
+        <div class="inspector-actions"><button id="beltUpgrade" ${c.level>=3?"disabled":""}>↑ ${c.level>=3?"Max level":"Upgrade · "+a.upgradeCost}</button><button id="beltDisconnect">Disconnect</button></div>`;
+      $("beltUpgrade").onclick=()=>this.ui.call("conveyor_upgrade",{conveyorId:id});
+      $("beltDisconnect").onclick=()=>this.ui.call("conveyor_disconnect",{conveyorId:id});
+    }
+  }
+  renderGraph(){
+    const s=this.engine.s,data=s.history,max=Math.max(16,...data.map(p=>p.value+2));
+    const x=t=>30+(t-(s.time-60))/60*288,y=v=>130-v/max*112;
+    const points=data.map(p=>`${x(p.t).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+    $("graph").innerHTML=`
+      <defs><linearGradient id="graphFill" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#5ed7e8" stop-opacity=".28"/><stop offset="1" stop-color="#5ed7e8" stop-opacity="0"/></linearGradient></defs>
+      ${[0,5,10,15].map(v=>`<line x1="30" x2="320" y1="${y(v)}" y2="${y(v)}" stroke="#304151" stroke-width=".6"/><text x="21" y="${y(v)+3}" text-anchor="end" class="graph-label">${v}</text>`).join("")}
+      <line x1="30" x2="320" y1="${y(10)}" y2="${y(10)}" stroke="#82e2ab" stroke-dasharray="4 4" opacity=".7"/><text x="316" y="${y(10)-5}" text-anchor="end" class="graph-label" style="fill:#82e2ab">TARGET 10</text>
+      ${data.length?`<polygon points="${x(data[0].t)},130 ${points} ${x(data.at(-1).t)},130" fill="url(#graphFill)"/><polyline points="${points}" fill="none" stroke="#5ed7e8" stroke-width="2.3" stroke-linejoin="round"/><circle cx="${x(data.at(-1).t)}" cy="${y(data.at(-1).value)}" r="3" fill="#9fecf4"/>`:""}
+      <text x="30" y="149" class="graph-label">gears / min · 60s rolling</text>`;
+  }
+  renderActivity(){
+    const logger=this.engine.logger;if(!logger||logger.version===this.lastLogVersion)return;
+    this.lastLogVersion=logger.version;
+    const box=$("activity"),nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<50;
+    box.innerHTML=logger.entries.map(v=>`<div class="log-row"><span class="log-time">${esc(v.time)}</span><span class="source-${v.source}">${v.source}</span><span class="log-message">${esc(v.message)}</span></div>`).join("");
+    if(nearBottom)box.scrollTop=box.scrollHeight;
+    if(logger.trail.length)$("trail").innerHTML=logger.trail.map(t=>`<span class="trail-chip">${esc(t)}</span>`).join("");
+  }
+}
+
+/* GRID INTERACTION, BUILD TOOLBAR, INSPECTOR AND SHARED UI ACTIONS */
+class UIController {
+  constructor(engine){
+    this.engine=engine;this.selected=null;this.tool="inspect";this.connectSource=null;this.diagnosed=false;this.toastTimer=null;this.renderer=null;
+    this.initializeControls();
+  }
+  toast(message,error=false){
+    $("toast").textContent=message;$("toast").className="show"+(error?" error":"");
+    clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>$("toast").className="",4000);
+  }
+  call(name,args={}){
+    const result=this.engine.invoke(name,args,"UI");
+    if(!result.success)this.toast(result.error,true);
+    else if(!TOOLS.find(t=>t.name===name)?.readOnly)this.toast(result.message||`${name.replaceAll("_"," ")} ✓${result.cost!==undefined?" · "+result.cost+" credits":""}`);
+    return result;
+  }
+  setTool(tool){
+    this.tool=tool;this.connectSource=null;
+    document.querySelectorAll(".tool-button").forEach(b=>{b.classList.toggle("active",b.dataset.tool===tool);b.setAttribute("aria-pressed",String(b.dataset.tool===tool))});
+    const hints={
+      inspect:"Inspect a machine or conveyor. All buffers, capacities and production rates are live.",
+      conveyor:"Connect conveyor: select the source machine, then the destination. Recipes must be compatible. Routes are orthogonal.",
+      delete:"Delete tool: select a machine or conveyor. Base construction cost is 50% refunded. Undo restores configuration."
+    };
+    $("hint").textContent=hints[tool]||`Build ${DEFINITIONS[tool].name} · ${DEFINITIONS[tool].cost} credits. Click an empty tile${tool==="miner"?" on a visible resource deposit":""}.`;
+  }
+  tile(x,y){
+    if(DEFINITIONS[this.tool]){
+      const r=this.call("machine_build",{type:this.tool,x,y});
+      if(r.success){this.selected=r.machineId;this.renderer.render()}
+    }else if(this.tool==="inspect"){this.selected=null;this.renderer.render()}
+    else this.toast("Select a machine"+(this.tool==="delete"?" or conveyor.":"."));
+  }
+  machine(id){
+    if(this.tool==="delete"){this.call("machine_delete",{machineId:id});return}
+    if(this.tool==="conveyor"){
+      if(!this.connectSource){this.connectSource=id;this.selected=id;$("hint").textContent=`Source: ${id}. Now select a compatible destination machine.`}
+      else{
+        const r=this.call("conveyor_connect",{fromMachineId:this.connectSource,toMachineId:id});
+        if(r.success){this.selected=r.conveyorId;this.connectSource=null;$("hint").textContent="Conveyor connected. Select another source, or switch to Inspect."}
+      }
+    }else{
+      this.selected=id;this.diagnosed=true;
+      this.call("machine_inspect",{machineId:id});
+    }
+    this.renderer.render();
+  }
+  belt(id){
+    if(this.tool==="delete")this.call("conveyor_disconnect",{conveyorId:id});
+    else{this.selected=id;this.diagnosed=true;this.call("conveyor_inspect",{conveyorId:id});this.renderer.render()}
+  }
+  initializeControls(){
+    const tools=[["inspect","⌖","Inspect","select"],...Object.entries(DEFINITIONS).map(([id,d])=>[id,d.icon,d.name,d.cost+" cr"]),["conveyor","⇢","Conveyor","15 / tile"],["delete","⌫","Delete","50% refund"]];
+    $("toolbar").innerHTML=tools.map(([id,icon,name,cost])=>`<button class="tool-button ${id==="inspect"?"active":""}" data-tool="${id}" aria-label="${name}, ${cost}" aria-pressed="${id==="inspect"}"><span class="glyph" aria-hidden="true">${icon}</span>${name}<small>${cost}</small></button>`).join("");
+    document.querySelectorAll(".tool-button").forEach(b=>b.onclick=()=>this.setTool(b.dataset.tool));
+    $("pauseButton").onclick=()=>this.call("simulation_set_speed",{speed:this.engine.s.speed?0:1});
+    document.querySelectorAll(".speed").forEach(b=>b.onclick=()=>this.call("simulation_set_speed",{speed:Number(b.dataset.speed)}));
+    $("undoButton").onclick=()=>this.call("factory_undo");
+    $("resetButton").onclick=()=>{if(confirm("Restore the initial factory? Your current layout and undo history will be replaced.")){this.selected=null;this.diagnosed=false;this.connectSource=null;this.call("factory_reset")}};
+    const prompts=[
+      "Increase gear production to at least 10 gears per minute.",
+      "Why is gear production so slow?",
+      "Find the biggest bottleneck in the factory.",
+      "Fix the assembler’s material shortage.",
+      "Which machine should I upgrade first?",
+      "Increase production using less than 400 credits.",
+      "Build a second smelting line.",
+      "Double gear production without deleting anything.",
+      "Optimize the factory while spending as little as possible.",
+      "Are any conveyors operating at full capacity?",
+      "Which machines are currently idle or starved?",
+      "Can this factory reach 10 gears/min with the credits we have?"
+    ];
+    for(const text of prompts){
+      const b=document.createElement("button");b.className="prompt";b.textContent="“"+text+"”";
+      b.onclick=async()=>{
+        try{await navigator.clipboard.writeText(text);this.toast("Prompt copied. Paste it into your WebMCP-capable agent.")}
+        catch{this.toast("Clipboard unavailable. The prompt is selected for copying.");const range=document.createRange();range.selectNodeContents(b);const selection=getSelection();selection.removeAllRanges();selection.addRange(range)}
+      };$("prompts").append(b);
+    }
+    $("consoleTool").innerHTML=TOOLS.map(t=>`<option value="${t.name}">${t.name} · ${t.readOnly?"READ":"WRITE"}</option>`).join("");
+    $("consoleTool").onchange=()=>{
+      const t=TOOLS.find(t=>t.name===$("consoleTool").value),example={};
+      for(const [key,schema] of Object.entries(t.inputSchema.properties)){
+        example[key]=key==="machineId"?"smelter-1":key==="fromMachineId"?"miner-1":key==="toMachineId"?"smelter-1":key==="conveyorId"?"conveyor-2":key==="recipe"?"iron_plate":key==="x"?5:key==="y"?3:key==="speed"?2:key==="enabled"?true:key==="machines"?[{type:"smelter",x:5,y:3}]:key==="machineIds"?["smelter-1"]:schema.enum?.[0]??"";
+      }
+      $("consoleInput").value=JSON.stringify(example,null,2);
+      $("consoleOutput").textContent=t.description+"\n\n"+JSON.stringify(t.inputSchema,null,2);
+    };
+    $("consoleRun").onclick=()=>{
+      try{$("consoleOutput").textContent=JSON.stringify(this.call($("consoleTool").value,JSON.parse($("consoleInput").value)),null,2)}
+      catch(error){$("consoleOutput").textContent=JSON.stringify({success:false,error:"Invalid JSON: "+error.message},null,2);this.toast("Invalid JSON arguments.",true)}
+    };
+  }
+}
+
+/* WEBMCP ADAPTER: no DOM interaction, no separate simulation state. */
+class WebMCPAdapter {
+  constructor(engine,ui){this.engine=engine;this.ui=ui;this.registered=new Set();this.registering=false}
+  async register(){
+    if(this.registering)return;this.registering=true;
+    try{
+      if(!("modelContext" in document)||!document.modelContext||typeof document.modelContext.registerTool!=="function"){
+        $("mcpStatus").className="badge warn";
+        $("mcpStatus").innerHTML='<span class="dot"></span>WebMCP Unsupported';
+        this.engine.logger.add("System","WebMCP unsupported. Human controls and shared capability console are fully available.");
+        return;
+      }
+      for(const tool of TOOLS){
+        if(this.registered.has(tool.name))continue;
+        await document.modelContext.registerTool({
+          name:tool.name,description:tool.description,inputSchema:clone(tool.inputSchema),annotations:clone(tool.annotations),
+          execute:async(args={})=>{
+            const result=this.engine.invoke(tool.name,args,"WebMCP");
+            return {content:[{type:"text",text:JSON.stringify(result)}],structuredContent:result,isError:!result.success};
+          }
+        });
+        this.registered.add(tool.name);
+      }
+      $("mcpStatus").className="badge good";
+      $("mcpStatus").innerHTML='<span class="dot"></span>WebMCP Connected';
+      this.engine.logger.add("System",`${this.registered.size} structured factory tools registered with document.modelContext.`);
+    }catch(error){
+      $("mcpStatus").className="badge warn";
+      $("mcpStatus").innerHTML='<span class="dot"></span>WebMCP registration error';
+      this.engine.logger.add("System","WebMCP registration: "+error.message+". Human controls remain available.");
+    }finally{this.registering=false;this.showTools()}
+  }
+  async showTools(refresh=false){
+    let remoteNames=null;
+    if(refresh&&"modelContext" in document&&typeof document.modelContext?.getTools==="function"){
+      try{
+        const response=await document.modelContext.getTools();
+        const list=Array.isArray(response)?response:response?.tools;
+        if(Array.isArray(list))remoteNames=new Set(list.map(t=>t.name));
+      }catch(error){this.engine.logger.add("System","Tool discovery unavailable; displaying local tool definitions.")}
+    }
+    $("toolsList").innerHTML=TOOLS.map(t=>`<div class="tool-entry" title="${esc(t.description)}"><div class="tool-entry-head"><span>${t.name}</span><span class="${t.readOnly?"read-tag":"write-tag"}">${t.readOnly?"READ":"WRITE"}</span></div><div class="tool-description">${esc(t.description.split(". ")[0])}.${remoteNames?remoteNames.has(t.name)?" · Browser registered":" · Local definition":""}</div></div>`).join("");
+    if(refresh)this.ui.toast(`${TOOLS.length} local capabilities${remoteNames?" · browser discovery refreshed":""}.`);
+  }
+}
+
+/* NON-DESTRUCTIVE SELF TESTS: isolated engines only. */
+function runSelfTests(){
+  let passed=0,failed=0;
+  const test=(name,fn)=>{
+    try{fn();passed++}
+    catch(error){failed++;console.error("[Mini Factory self-test] "+name,error)}
+  };
+  const check=(v,msg)=>{if(!v)throw new Error(msg||"Assertion failed")};
+  const fresh=()=>new FactoryEngine({warm:false});
+  const run=(e,n,a={})=>e.invoke(n,a,"System");
+  test("Machine build and credit deduction",()=>{
+    const e=fresh(),r=run(e,"machine_build",{type:"smelter",x:5,y:3});
+    check(r.success&&e.s.credits===820&&e.machine(r.machineId).type==="smelter");
+  });
+  test("Occupied tile rejection",()=>{
+    const e=fresh(),r=run(e,"machine_build",{type:"smelter",x:4,y:2});
+    check(!r.success&&e.s.credits===1000&&e.s.machines.length===4);
+  });
+  test("Machine delete and incident connections",()=>{
+    const e=fresh();check(run(e,"machine_delete",{machineId:"smelter-1"}).success);
+    check(e.s.machines.length===3&&e.s.conveyors.length===1&&e.s.credits===1090);
+  });
+  test("Recipe compatibility",()=>{
+    const e=fresh();check(!run(e,"machine_set_recipe",{machineId:"smelter-1",recipe:"gear"}).success);
+    check(e.machine("smelter-1").recipe==="iron_plate");
+  });
+  test("Machine upgrade",()=>{
+    const e=fresh();check(run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
+    check(e.machine("smelter-1").level===2&&e.s.credits===850);
+  });
+  test("Conveyor connection",()=>{
+    const e=fresh(),b=run(e,"machine_build",{type:"smelter",x:5,y:3});
+    run(e,"machine_set_recipe",{machineId:b.machineId,recipe:"iron_plate"});
+    const r=run(e,"conveyor_connect",{fromMachineId:"miner-1",toMachineId:b.machineId});
+    check(r.success&&r.path.every((p,i)=>!i||Math.abs(p.x-r.path[i-1].x)+Math.abs(p.y-r.path[i-1].y)===1));
+  });
+  test("Resource transfer",()=>{
+    const e=fresh();e.machine("miner-1").outputBuffer.iron_ore=2;e.machine("miner-1").online=true;
+    for(let i=0;i<24;i++)e.simulation.step();
+    check(e.s.events.some(v=>v.kind==="flow"&&v.resource==="iron_ore"));
+  });
+  test("Production cycle",()=>{
+    const e=fresh(),m=e.machine("smelter-1");m.inputBuffer.iron_ore=1;
+    for(let i=0;i<20;i++){e.s.time+=.25;ProductionEngine.step(e,.25)}
+    check((m.outputBuffer.iron_plate||0)===1);
+  });
+  test("Starvation detection",()=>{
+    const e=fresh();ProductionEngine.step(e,.25);check(e.machine("assembler-1").status==="STARVED");
+  });
+  test("Blocked detection",()=>{
+    const e=fresh(),m=e.machine("smelter-1");m.outputBuffer.iron_plate=12;m.inputBuffer.iron_ore=2;
+    ProductionEngine.step(e,.25);check(m.status==="BLOCKED");
+  });
+  test("Bottleneck analysis",()=>{
+    const e=fresh();check(BottleneckAnalyzer.analyze(e).some(b=>b.type==="CONVEYOR_CAPACITY"&&b.conveyorId==="conveyor-2"));
+  });
+  test("Rolling throughput calculation",()=>{
+    const e=fresh();e.s.time=100;e.s.events=[{t:99,kind:"produced",resource:"gear",n:4},{t:20,kind:"produced",resource:"gear",n:100}];
+    check(e.throughput().gear_per_min===4);
+  });
+  test("Batch build atomicity",()=>{
+    const e=fresh(),r=run(e,"factory_batch_build",{machines:[{type:"smelter",x:5,y:3},{type:"smelter",x:4,y:2}]});
+    check(!r.success&&e.s.credits===1000&&e.s.machines.length===4);
+  });
+  test("Batch upgrade atomicity",()=>{
+    const e=fresh();e.s.credits=200;
+    check(!run(e,"factory_batch_upgrade",{machineIds:["smelter-1","assembler-1"]}).success);
+    check(e.s.credits===200&&e.machine("smelter-1").level===1);
+  });
+  test("Undo does not rewind simulation",()=>{
+    const e=fresh();run(e,"machine_upgrade",{machineId:"smelter-1"});e.simulation.step();
+    const t=e.s.time;run(e,"factory_undo");
+    check(e.machine("smelter-1").level===1&&e.s.credits===1000&&e.s.time===t);
+  });
+  test("Reset",()=>{
+    const e=fresh();run(e,"machine_delete",{machineId:"smelter-1"});run(e,"factory_reset");
+    check(e.s.machines.length===4&&e.s.credits===1000&&e.s.time===180&&e.s.conveyors.length===3);
+  });
+  test("Saved configuration validation",()=>{
+    const e=fresh();validateSavedConfiguration(e.configuration());
+    const bad=e.configuration();bad.conveyors[0].path[1]={x:9,y:7};
+    let rejected=false;try{validateSavedConfiguration(bad)}catch{rejected=true}check(rejected);
+  });
+  test("Mission is attainable through normal capabilities",()=>{
+    const e=new FactoryEngine();
+    check(run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
+    check(run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
+    check(run(e,"conveyor_upgrade",{conveyorId:"conveyor-2"}).success);
+    check(run(e,"conveyor_upgrade",{conveyorId:"conveyor-2"}).success);
+    for(let i=0;i<240/.25;i++)e.simulation.step();
+    check(e.throughput().gear_per_min>=10&&e.mission().complete&&e.s.credits===440);
+  });
+  console.info(`[Mini Factory self-tests] ${passed} passed, ${failed} failed. Tests used isolated engines; live factory untouched.`);
+}
+
+/* INITIALIZATION */
+runSelfTests();
+const logger=new ActivityLogger();
+const factoryEngine=new FactoryEngine({logger:null,persistent:true});
+factoryEngine.logger=logger;
+factoryEngine.load();
+const ui=new UIController(factoryEngine);
+const renderer=new FactoryRenderer(factoryEngine,ui);ui.renderer=renderer;
+factoryEngine.onChange=event=>{
+  if(event.result.success){
+    if(["factory_get_bottlenecks","machine_inspect","conveyor_inspect"].includes(event.name))ui.diagnosed=true;
+    if(event.source==="WebMCP"&&event.mutation)renderer.highlight(event);
+    if(event.name==="factory_reset"){ui.selected=null;ui.diagnosed=false;ui.connectSource=null}
+  }
+  renderer.render();
+};
+factoryEngine.onTick=()=>renderer.render();
+logger.onChange=()=>renderer.renderActivity();
+logger.add("System","FactoryEngine ready. Human controls and WebMCP capabilities share the same state.");
+if(factoryEngine.s.time===180)logger.add("Factory",`Initial factory warmed up by deterministic simulation · ${factoryEngine.throughput().gear_per_min.toFixed(1)} gears/min.`);
+logger.add("System","Mission: sustain 10 gears/min. Inspect capacities and material flow before spending.");
+const webMCPAdapter=new WebMCPAdapter(factoryEngine,ui);
+$("refreshTools").onclick=async()=>{await webMCPAdapter.register();await webMCPAdapter.showTools(true)};
+renderer.render();
+webMCPAdapter.showTools();
+webMCPAdapter.register();
+factoryEngine.simulation.start();
+window.factoryEngine=factoryEngine;
+window.factoryTools=Object.fromEntries(TOOLS.map(t=>[t.name,(args={})=>factoryEngine.invoke(t.name,args,"UI")]));
+window.addEventListener("beforeunload",()=>factoryEngine.save());
+</script>
+</body>
+</html>

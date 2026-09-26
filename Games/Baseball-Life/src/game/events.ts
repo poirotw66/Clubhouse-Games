@@ -149,6 +149,38 @@ export const EVENTS: RandomEvent[] = [
     deltas: { mind: 7 },
     tone: 'great',
   },
+  {
+    id: 'pro-team-dinner',
+    stages: ['pro'],
+    weight: 9,
+    text: '球季中段全隊聚餐，一頓熱炒把連敗的悶氣吃掉了大半。',
+    deltas: { mind: 5, fatigue: -4 },
+    tone: 'good',
+  },
+  {
+    id: 'pro-new-stadium',
+    stages: ['pro'],
+    weight: 8,
+    text: '球團啟用新主場，草皮、燈光和打擊背景全都不一樣了。',
+    deltas: { mind: 3, fame: 2 },
+    tone: 'good',
+  },
+  {
+    id: 'pro-social-storm',
+    stages: ['pro'],
+    weight: 8,
+    text: '一次賽後訪問被斷章取義，社群整晚灌爆負評。你關掉了手機通知。',
+    deltas: { fame: -6, mind: -3 },
+    tone: 'bad',
+  },
+  {
+    id: 'pro-old-rival',
+    stages: ['pro'],
+    weight: 8,
+    text: '又碰上那個從高中纏鬥到職業的老對手。這一次的心理戰，你贏了。',
+    deltas: { guts: 4, mind: 3 },
+    tone: 'good',
+  },
 
   // ---------------------------------------------------------------- 高中 ----
   {
@@ -315,6 +347,37 @@ export const EVENTS: RandomEvent[] = [
     tone: 'great',
     minAge: 18,
   },
+  {
+    id: 'hs-captain',
+    stages: ['highschool'],
+    weight: 7,
+    text: '你被推選為隊長。從那天起，你發現自己連坐在板凳上都不敢鬆懈。',
+    deltas: { guts: 4, mind: 4, fame: 3 },
+    tone: 'good',
+    minAge: 17,
+  },
+  {
+    id: 'hs-borrowed-spikes',
+    stages: ['highschool'],
+    weight: 6,
+    text: '買不起新釘鞋，你穿學長那雙舊的撐完整季，腳跟磨出了厚繭。',
+    deltas: { body: 3, guts: 3, mind: 2 },
+  },
+  {
+    id: 'hs-rival-school',
+    stages: ['highschool'],
+    weight: 7,
+    text: '練習賽對上名門強校，第一次見識到什麼叫做「真正的差距」。',
+    deltas: { eye: 3, guts: 3, mind: 2 },
+  },
+  {
+    id: 'hs-summer-camp',
+    stages: ['highschool'],
+    weight: 7,
+    text: '暑假的棒球研習營，專業教練把你的動作一格一格拆開重練。',
+    deltas: { contact: 3, control: 3, eye: 2 },
+    tone: 'good',
+  },
 
   // ------------------------------------------------------------ 業餘階段 ----
   {
@@ -376,6 +439,21 @@ export const EVENTS: RandomEvent[] = [
     text: '你在健身房遇到一個退役的學長，他把整套課表寫給你。',
     deltas: { body: 8, power: 4, velocity: 4 },
     tone: 'good',
+  },
+  {
+    id: 'am-youth-coach',
+    stages: ['amateur'],
+    weight: 7,
+    text: '假日回母校帶少棒，教別人揮棒的同時，自己也重新想過一次基本功。',
+    deltas: { mind: 5, fielding: 2 },
+    tone: 'good',
+  },
+  {
+    id: 'am-tryout-camp',
+    stages: ['amateur'],
+    weight: 8,
+    text: '職棒球團辦了測試會，你在測速槍和碼表前把每一球都拚到極限。',
+    deltas: { fame: 6, guts: 3, fatigue: 8 },
   },
 
   // ------------------------------------------------- 職業：菜鳥期（≤23）----
@@ -444,6 +522,15 @@ export const EVENTS: RandomEvent[] = [
     tone: 'great',
     maxAge: 24,
     condition: isBatter,
+  },
+  {
+    id: 'pro-first-start',
+    stages: ['pro'],
+    weight: 8,
+    text: '一軍先發名單上第一次有你的名字。牛棚熱身時，你的手心全是汗。',
+    deltas: { guts: 5, mind: 5, fame: 4 },
+    tone: 'great',
+    maxAge: 24,
   },
 
   // --------------------------------------------- 職業：巔峰期（24–30）----
@@ -576,6 +663,26 @@ export const EVENTS: RandomEvent[] = [
     tone: 'good',
     minAge: 26,
   },
+  {
+    id: 'pro-glove-race',
+    stages: ['pro'],
+    weight: 7,
+    text: '整季守備幾乎零失誤，記者開始把你和金手套獎連在一起寫。',
+    deltas: { fielding: 4, fame: 5 },
+    tone: 'good',
+    minAge: 24,
+    condition: isBatter,
+  },
+  {
+    id: 'pro-mechanics-fix',
+    stages: ['pro'],
+    weight: 7,
+    text: '你和數據分析師關在室內練習場兩週，重建了投球力學，尾勁回來了。',
+    deltas: { velocity: 4, control: 3 },
+    tone: 'good',
+    minAge: 24,
+    condition: isPitcher,
+  },
 
   // ------------------------------------------------ 職業：老將期（31＋）----
   {
@@ -667,6 +774,15 @@ export const EVENTS: RandomEvent[] = [
     tone: 'bad',
     minAge: 34,
   },
+  {
+    id: 'pro-knee-drain',
+    stages: ['pro'],
+    weight: 7,
+    text: '膝蓋積水抽了第三次。你不再抱怨，開始學著跟疼痛好好相處。',
+    deltas: { body: -4, guts: 4, fatigue: 6 },
+    tone: 'bad',
+    minAge: 33,
+  },
 
   // ------------------------------------------------------ 職業：海外限定 ----
   {
@@ -720,6 +836,23 @@ export const EVENTS: RandomEvent[] = [
     text: '台灣的體育版每天報你的每一個打數，連被三振都上標題。',
     deltas: { fame: 8, mind: -3 },
     condition: (s) => s.league !== 'cpbl' && s.meta.fame >= 50,
+  },
+  {
+    id: 'pro-npb-anthem',
+    stages: ['pro'],
+    weight: 8,
+    text: '日職的應援團為你寫了一首專屬應援曲，整個外野看台跟著一起唱。',
+    deltas: { fame: 8, mind: 5 },
+    tone: 'great',
+    condition: (s) => s.league === 'npb',
+  },
+  {
+    id: 'pro-mlb-redeye',
+    stages: ['pro'],
+    weight: 8,
+    text: '大聯盟橫越三個時區的紅眼航班，落地幾個小時後就得站上打擊區。',
+    deltas: { fatigue: 12, guts: 3 },
+    condition: (s) => s.league === 'mlb',
   },
 ];
 

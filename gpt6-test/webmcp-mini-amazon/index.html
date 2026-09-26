@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#11151d">
+<title>WebMCP Mini Amazon · AgentMart</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1118;--panel:#151b25;--panel2:#1b2330;--line:#2a3443;--text:#edf2fa;--muted:#a2afc2;--accent:#b9f574;--accent2:#83d9cf;--danger:#ff9b9b;--radius:16px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select,textarea{font:inherit}button,a,input,select,textarea{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}button,input,select,textarea{border:1px solid var(--line);border-radius:9px}input,select,textarea{background:#0f151e;color:var(--text);padding:10px;min-width:0}input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex-shrink:0}button{background:var(--panel2);color:var(--text);padding:9px 13px;transition:background .15s,transform .15s}button:hover:not(:disabled){background:#303d50}button:active:not(:disabled){transform:translateY(1px)}button.primary{background:var(--accent);color:#19220f;font-weight:750;border-color:transparent}button.primary:hover:not(:disabled){background:#cdf99a}button.ghost{background:transparent}button.small{padding:6px 9px;font-size:12px}button.danger{color:var(--danger)}:focus-visible{outline:3px solid var(--accent2);outline-offset:3px}a{color:var(--accent2)}h1,h2,h3,p{margin:0}h2{font-size:17px}h3{font-size:15px}.muted{color:var(--muted)}.tiny{font-size:11px}.small-text{font-size:12px}.eyebrow{color:var(--accent);text-transform:uppercase;letter-spacing:1.8px;font-size:10px;font-weight:800}.row{display:flex;align-items:center;gap:9px}.between{justify-content:space-between}.wrap{flex-wrap:wrap}.stack{display:grid;gap:12px}.full{width:100%}.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:4px 9px;font-size:10px;white-space:nowrap;color:var(--muted)}.badge.good{color:var(--accent);background:#b9f5740b;border-color:#b9f57430}.dot{height:6px;width:6px;border-radius:100%;background:currentColor;display:inline-block}.panel{background:linear-gradient(140deg,#18202bcc,var(--panel));border:1px solid var(--line);border-radius:var(--radius)}.pad{padding:18px}.divider{height:1px;background:var(--line);margin:14px 0}
+header{position:sticky;top:0;z-index:15;background:#111720f2;backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}.header-inner{max-width:1760px;margin:auto;padding:17px 26px;display:flex;gap:25px;align-items:center}.brand{display:flex;gap:10px;align-items:center;flex-shrink:0}.brand-icon{background:var(--accent);color:#1b2513;font-size:23px;border-radius:11px;width:41px;height:41px;display:grid;place-items:center;font-weight:900}.brand-name{font-size:22px;letter-spacing:-1px;font-weight:800}.brand-name span{color:var(--accent)}.search{display:flex;flex:1;max-width:720px;background:#0d131c;border:1px solid #354255;border-radius:11px;align-items:center;padding:4px 4px 4px 14px;gap:9px}.search input{border:0;background:transparent;width:100%;padding:8px 0;outline-offset:0}.search button{padding:8px 18px}.header-actions{margin-left:auto;display:flex;align-items:center;gap:12px}.cart-count{background:var(--accent);color:#172011;min-width:21px;display:inline-grid;place-items:center;border-radius:5px;font-weight:800}.shell{max-width:1760px;padding:25px 26px 48px;margin:auto}.hero{display:grid;grid-template-columns:1.3fr 1fr;gap:35px;padding:27px 31px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 85% 0%,#5d7f3625,transparent 65%),linear-gradient(100deg,#1a2431,#171e28);margin-bottom:23px}.hero h1{font-size:clamp(25px,2.6vw,38px);line-height:1.15;letter-spacing:-1.2px;margin:9px 0 12px;max-width:650px}.hero h1 span{color:var(--accent)}.hero p{color:var(--muted);max-width:580px;font-size:13px}.pipeline{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:16px}.pipeline code{font-size:10px;background:#0d141d;padding:5px 7px;border:1px solid var(--line);border-radius:5px}.hero-right{border-left:1px solid #35402d;padding-left:28px;display:flex;flex-direction:column;justify-content:center}.hero-right blockquote{margin:8px 0 14px;font-size:18px;line-height:1.4;max-width:370px}.hero-right .row{gap:15px}
+.workspace{display:grid;grid-template-columns:205px minmax(0,1fr) 305px;gap:20px;align-items:start}.filters{padding:18px;position:sticky;top:93px}.filter-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}.field{display:grid;gap:7px;margin-bottom:16px}.field>span,.field>label{font-size:12px;color:var(--muted)}.price-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px}.price-fields label{display:grid;gap:5px;color:var(--muted);font-size:11px}.check{display:flex;align-items:center;gap:7px;font-size:12px;color:#c4cede;margin:7px 0}.feature-options{max-height:194px;overflow:auto;padding-right:4px}.filter-toggle{display:none}.section-top{margin:0 0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.section-top h2{font-size:20px;letter-spacing:-.4px}.section-top select{font-size:12px;padding:8px}.result-note{background:#83d9cf0d;border:1px solid #83d9cf44;border-radius:10px;padding:11px 14px;margin-bottom:15px;font-size:12px;color:var(--accent2)}[hidden]{display:none!important}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.product{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);display:flex;flex-direction:column;transition:border-color .2s,transform .2s;min-width:0}.product:hover{border-color:#556779;transform:translateY(-3px)}.product.agent-hit{animation:highlight 2s ease}.product-art{position:relative;background:#1c2633;height:157px;overflow:hidden}.product-art img{width:100%;height:100%;object-fit:cover;display:block}.product-art .badge{position:absolute;top:10px;left:10px;background:#0d151cce;color:var(--accent);border:0}.art-details{position:absolute;right:9px;bottom:9px;background:#121b25d9!important;font-size:10px;padding:5px 8px}.product-info{padding:14px;display:flex;flex-direction:column;flex:1}.product-brand{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:1.4px}.product-title{font-size:14px;font-weight:700;line-height:1.4;margin:4px 0 6px;min-height:39px;cursor:pointer}.rating{font-size:11px;color:var(--muted)}.rating b{color:#f4c97d}.price{font-size:20px;letter-spacing:-.7px;font-weight:800;margin:9px 0}.price del{font-size:11px;font-weight:400;color:var(--muted);letter-spacing:0;margin-left:6px}.chips{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:11px}.chip{font-size:9px;border:1px solid #354253;border-radius:5px;padding:2px 5px;color:#c2cede}.availability{font-size:10px;color:var(--accent2);margin-top:auto;margin-bottom:10px}.availability.low{color:#edc281}.product-bottom{display:flex;gap:8px;align-items:center}.product-bottom button{flex:1;font-size:12px;padding:8px 3px}.product-compare{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:3px}.empty{text-align:center;padding:45px 18px;grid-column:1/-1;color:var(--muted)}.empty strong{display:block;font-size:17px;color:var(--text);margin-bottom:7px}.right-rail{display:grid;gap:16px}.rail-title{font-size:15px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.cart-list{max-height:315px;overflow:auto}.cart-line{display:grid;grid-template-columns:43px 1fr auto;gap:9px;padding:11px 0;border-bottom:1px solid var(--line);align-items:start}.cart-line img{width:43px;height:43px;object-fit:cover;border-radius:7px;background:#253041}.cart-line h3{font-size:11px;line-height:1.4}.quantity-controls{display:flex;align-items:center;gap:7px;margin-top:6px}.quantity-controls button{padding:0;width:23px;height:23px;border-radius:5px;font-size:13px}.quantity-controls span{font-size:11px}.cart-line .line-price{font-size:11px;font-weight:700;text-align:right}.cart-line .remove{border:0;background:none;padding:4px;color:var(--muted);font-size:10px}.money-row{display:flex;justify-content:space-between;font-size:12px;margin:6px 0;gap:10px}.money-row.total{font-size:18px;font-weight:800;border-top:1px solid var(--line);padding-top:11px;margin-top:10px}.coupon-form{display:flex;gap:6px;margin:14px 0 7px}.coupon-form input{width:100%;font-size:11px}.coupon-form button{font-size:11px;padding:8px 10px}.coupon-status{font-size:11px;color:var(--accent2)}.cart-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.cart-meta div{background:#101720;border-radius:8px;padding:9px;font-size:10px;color:var(--muted)}.cart-meta strong{display:block;color:var(--text);font-size:12px;margin-bottom:2px}.signal{font-size:11px;padding:8px 0;border-bottom:1px solid #2a344380;display:flex;gap:9px;color:#c6d2e1}.signal:last-child{border:0}.signal::before{content:"✦";color:var(--accent)}.activity-list{max-height:276px;overflow:auto}.activity{padding:9px 0;border-bottom:1px solid #2a344380;font-size:10px}.activity-top{display:flex;gap:7px;align-items:center;color:var(--muted)}.source{font-size:9px;padding:1px 5px;background:#273346;border-radius:4px;color:#d1ddee}.source.ai{background:#b9f5741a;color:var(--accent)}.activity code{font-size:10px;color:var(--accent2)}.activity-summary{color:#c0ccdc;margin-top:4px;overflow-wrap:anywhere}.compare-bar{position:sticky;bottom:16px;z-index:8;display:flex;gap:10px;align-items:center;background:#24332cf5;border:1px solid #6b8753;padding:12px 16px;border-radius:12px;margin-top:16px;backdrop-filter:blur(12px)}.compare-bar span{flex:1;font-size:12px}.demo-bottom{margin-top:24px;display:grid;grid-template-columns:1.1fr 1fr;gap:20px}.prompt-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.prompt-btn{text-align:left;font-size:11px;color:#c3d0df;background:#121a25;padding:11px;display:flex;gap:8px;align-items:start}.prompt-btn span{color:var(--accent2);margin-left:auto}.flow-compare{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:14px}.flow-box{padding:13px;background:#101720;border:1px solid var(--line);border-radius:10px;font-size:11px}.flow-box.new{border-color:#b9f57442;background:#b9f57407}.flow-box p{color:var(--muted);margin-top:10px;line-height:2}.flow-box code{color:var(--accent);display:block;font-size:12px;margin:10px 0}.inspector{margin-top:20px}.inspector summary{padding:18px;cursor:pointer;font-size:15px;font-weight:700}.inspector-inner{padding:0 18px 18px}.tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:15px}.tool{padding:12px;border:1px solid var(--line);border-radius:9px;background:#111923;min-width:0}.tool code{font-size:11px;overflow-wrap:anywhere}.tool p{font-size:10px;color:var(--muted);margin-top:7px}.tool .badge{padding:1px 5px;font-size:8px}.footer{margin-top:25px;display:flex;gap:15px;justify-content:space-between;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+dialog{border:1px solid #43516a;border-radius:20px;background:#151d29;color:var(--text);max-width:min(930px,94vw);width:930px;max-height:90vh;padding:0;box-shadow:0 25px 100px #0009}dialog::backdrop{background:#05080dbe;backdrop-filter:blur(6px)}.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#151d29;z-index:2}.modal-body{padding:24px}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:27px}.detail-art{width:100%;border-radius:13px;background:#223042}.specs{width:100%;border-collapse:collapse;font-size:12px;margin-top:14px}.specs th,.specs td{text-align:left;padding:9px 0;border-bottom:1px solid var(--line);vertical-align:top}.specs th{font-weight:400;color:var(--muted);width:43%}.detail-add{display:flex;gap:9px;margin-top:17px}.detail-add input{width:72px}.detail-add button{flex:1}.compare-scroll{overflow:auto}.comparison{border-collapse:collapse;width:100%;min-width:520px;font-size:12px}.comparison th,.comparison td{text-align:left;padding:13px;border:1px solid var(--line);vertical-align:top;min-width:140px}.comparison th:first-child{min-width:95px;color:var(--muted);font-weight:400}.comparison img{width:100%;max-width:170px;border-radius:8px;margin-bottom:10px}.checkout-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:24px}.notice{border:1px solid #83d9cf38;background:#83d9cf09;border-radius:10px;padding:13px;color:#b8dedb;font-size:12px}.issue{color:var(--danger);font-size:12px;margin:8px 0}.order-success{text-align:center;padding:20px 0}.success-icon{display:grid;place-items:center;width:70px;height:70px;margin:0 auto 16px;background:#b9f57418;border:1px solid #b9f57455;border-radius:50%;font-size:35px;color:var(--accent)}.order-success h2{font-size:28px}.order-success p{margin:10px 0;color:var(--muted)}#toast-region{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:100;display:grid;gap:8px;width:min(460px,90vw);pointer-events:none}.toast{padding:13px 18px;background:#293a32;border:1px solid #769255;color:#e4f9d5;border-radius:11px;box-shadow:0 8px 40px #0006;animation:toast-in .2s ease;font-size:13px}.toast.error{background:#3b232a;border-color:#a3596b;color:#ffd5d5}.mobile-cart{display:none}.pulse{animation:pulse .7s ease}.filter-summary{display:none}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#3a4b60;border-radius:5px}@keyframes highlight{0%,60%{border-color:var(--accent);box-shadow:0 0 0 3px #b9f57440}100%{border-color:var(--line)}}@keyframes pulse{50%{transform:scale(1.2);background:#e2ffba}}@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:1650px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1250px){.workspace{grid-template-columns:180px minmax(0,1fr) 270px;gap:14px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.header-inner{gap:15px}.header-actions{gap:8px}.brand-subtitle{display:none}.pad{padding:15px}.shell{padding:20px}.hero{gap:20px}.filters{padding:14px}}
+@media(max-width:980px){.workspace{grid-template-columns:minmax(0,1fr) 285px}.filters{display:none;position:static;grid-column:1/-1}.filters.open{display:block}.filter-toggle{display:inline-block}.filter-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.feature-options{max-height:100px}.hero{grid-template-columns:1fr 1fr;padding:23px}.hero-right{padding-left:20px}.header-inner{padding:14px 18px;flex-wrap:wrap}.search{order:3;flex-basis:100%;max-width:none}.brand-subtitle{display:block}.tool-grid{grid-template-columns:repeat(2,1fr)}.demo-bottom{grid-template-columns:1fr}.hero h1{font-size:29px}}
+@media(max-width:680px){.shell{padding:14px 12px 90px}.header-inner{padding:12px;gap:10px}.brand-name{font-size:20px}.brand-icon{width:34px;height:34px;font-size:20px}.brand-subtitle{font-size:9px}.header-actions{gap:7px}.header-actions .cart-label{display:none}#mcp-status{font-size:8px;padding:4px 6px}.hero{grid-template-columns:1fr;gap:20px;padding:21px;margin-bottom:18px}.hero h1{font-size:29px}.hero-right{padding:16px 0 0;border-left:0;border-top:1px solid var(--line)}.hero-right blockquote{font-size:16px}.workspace{display:flex;flex-direction:column;gap:16px}.catalog-section,.right-rail,.filters{width:100%}.grid{gap:9px;grid-template-columns:repeat(2,minmax(0,1fr))}.product-info{padding:11px}.product-art{height:130px}.product-title{font-size:12px;min-height:34px}.price{font-size:17px}.price del{font-size:9px;margin-left:3px}.product-bottom{gap:3px;flex-wrap:wrap}.product-bottom button{flex-basis:100%}.product-compare{margin-top:3px}.chips .chip{font-size:8px}.right-rail{grid-template-columns:1fr}.filter-fields{grid-template-columns:1fr 1fr}.prompt-list{grid-template-columns:1fr 1fr}.tool-grid{grid-template-columns:1fr}.detail-grid,.checkout-grid{grid-template-columns:1fr}.detail-art{max-height:230px;object-fit:cover}.modal-body{padding:17px}.modal-head{padding:14px 17px}dialog{max-width:100vw;width:100vw;max-height:100dvh;height:100dvh;border-radius:0;margin:0}.mobile-cart{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:12;background:#17212ff5;backdrop-filter:blur(15px);padding:12px 17px;border-top:1px solid var(--line);align-items:center;justify-content:space-between;font-size:12px}#toast-region{bottom:85px}.compare-bar{bottom:75px}.footer{font-size:10px}.cart-list{max-height:400px}.section-top h2{font-size:18px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-icon" aria-hidden="true">a.</div>
+      <div><div class="brand-name">AgentMart<span> /</span></div><div class="brand-subtitle tiny muted">The storefront with a capability layer.</div></div>
+    </div>
+    <form class="search" id="search-form" role="search">
+      <span class="muted" aria-hidden="true">⌕</span>
+      <input id="search-input" type="search" aria-label="Search products" placeholder="Search your next desk upgrade…" autocomplete="off">
+      <button class="primary" type="submit">Search</button>
+    </form>
+    <div class="header-actions">
+      <span class="badge" id="mcp-status" role="status"><span class="dot"></span>Checking WebMCP</span>
+      <button data-action="open-cart" aria-label="View shopping cart"><span class="cart-label">Cart </span><span class="cart-count" id="cart-count">0</span></button>
+    </div>
+  </div>
+</header>
+<main class="shell">
+  <section class="hero panel">
+    <div>
+      <div class="eyebrow">WebMCP Mini Amazon · live commerce demo</div>
+      <h1>Great gear.<br>One store. <span>Two ways to shop.</span></h1>
+      <p>Browse it yourself, or ask your AI agent. Structured tools—not DOM inspection or simulated clicks. Every action shares the same CommerceEngine.</p>
+      <div class="pipeline" aria-label="Agent shopping workflow">
+        <code>product_search</code><span class="muted">→</span><code>product_compare</code><span class="muted">→</span><code>cart_add</code><span class="muted">→</span><code>checkout_prepare</code>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="eyebrow">◎ Agent mission</div>
+      <blockquote>“Build a complete work-from-home setup under NT$10,000.”</blockquote>
+      <div class="row wrap"><button class="small" data-action="copy-mission">Copy mission ↗</button><span class="tiny muted">Keyboard · mouse · webcam · stand</span></div>
+      <p class="tiny" style="margin-top:12px">Use a WebMCP-capable agent to run the mission. This page doesn't contain an LLM or a remote service.</p>
+    </div>
+  </section>
+
+  <div class="workspace">
+    <aside class="filters panel" id="filters-panel" aria-label="Product filters">
+      <div class="filter-heading"><h2>Filters</h2><button class="ghost small" data-action="clear-filters">Clear</button></div>
+      <div class="filter-fields">
+        <label class="field"><span>Category</span><select id="filter-category"><option value="">All departments</option></select></label>
+        <div class="field"><span>Price range · NT$</span><div class="price-fields"><label>Minimum<input id="filter-minPrice" type="number" min="0" placeholder="0"></label><label>Maximum<input id="filter-maxPrice" type="number" min="0" placeholder="Any"></label></div></div>
+        <label class="field"><span>Minimum rating</span><select id="filter-minRating"><option value="">Any rating</option><option value="4">4.0 & up</option><option value="4.5">4.5 & up</option><option value="4.7">4.7 & up</option></select></label>
+        <label class="field"><span>Brand</span><select id="filter-brand"><option value="">All brands</option></select></label>
+        <div class="field"><span>Availability & delivery</span><div>
+          <label class="check"><input type="checkbox" id="filter-inStockOnly">In stock only</label>
+          <label class="check"><input type="checkbox" id="filter-fast">Arrives within 2 days</label>
+          <label class="check"><input type="checkbox" id="filter-freeShippingOnly">Free shipping items</label>
+          <p class="tiny muted">Standard delivery is free on items/orders of NT$3,000+.</p>
+        </div></div>
+        <div class="field"><span>Features · match all</span><div class="feature-options" id="feature-options"></div></div>
+      </div>
+      <div class="divider"></div><p class="tiny muted">Fictional products. Real shared state.<br>All prices in New Taiwan Dollars.</p>
+    </aside>
+
+    <section class="catalog-section" aria-label="Product catalog">
+      <div class="section-top">
+        <div><div class="eyebrow">Curated for your everyday</div><h2>Your next upgrade <span id="result-count" class="muted small-text"></span></h2></div>
+        <div class="row"><button class="small filter-toggle" data-action="toggle-filters" aria-controls="filters-panel" aria-expanded="false">Filters</button><select id="sort-select" aria-label="Sort products"></select></div>
+      </div>
+      <div id="ai-search-note" class="result-note" role="status" hidden></div>
+      <div id="product-grid" class="grid"></div>
+      <div id="compare-bar" class="compare-bar" hidden></div>
+    </section>
+
+    <aside class="right-rail">
+      <section class="panel pad" id="cart-panel" aria-label="Shopping cart">
+        <div class="rail-title"><h2>Your cart <span id="cart-item-label" class="muted small-text"></span></h2><button class="ghost small" data-action="undo" title="Undo last cart, coupon, or compare change">↶ Undo</button></div>
+        <div id="cart-content"></div>
+      </section>
+      <section class="panel pad">
+        <div class="rail-title"><h2>✦ Shopping Signals</h2><span class="badge good">LIVE</span></div>
+        <div id="signals"></div>
+      </section>
+      <section class="panel pad">
+        <div class="rail-title"><h2>Commerce Activity</h2><span class="tiny muted">Latest 50</span></div>
+        <p class="tiny muted" style="margin-bottom:8px">UI and WebMCP → one shared engine</p>
+        <div id="activity-list" class="activity-list" aria-label="Recent commerce activity"></div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="demo-bottom">
+    <section class="panel pad">
+      <div class="row between"><h2>Try asking your AI agent</h2><span class="tiny muted">Click to copy</span></div>
+      <p class="small-text muted" style="margin-top:6px">Natural language in your agent. Structured capabilities here.</p>
+      <div id="prompt-list" class="prompt-list"></div>
+    </section>
+    <section class="panel pad">
+      <div class="eyebrow">Less navigation. More intention.</div>
+      <h2 style="margin-top:5px">A better interface for agents</h2>
+      <div class="flow-compare">
+        <div class="flow-box"><strong>Traditional browser agent</strong><p>Inspect DOM → Find search field<br>↓ Type text → Find filter<br>↓ Click option → Scroll<br>↓ Find product → Click Add to Cart</p><div class="divider"></div><span class="muted">Brittle, visual, many steps</span></div>
+        <div class="flow-box new"><strong>WebMCP agent</strong><code>product_search({...})</code><span class="muted">↓</span><code>cart_add({...})</code><div class="divider"></div><span style="color:var(--accent)">Direct, typed, shared state</span></div>
+      </div>
+      <div class="notice" style="margin-top:14px">The tools call domain methods directly. Human controls call those same methods. There is no separate “AI cart.”</div>
+    </section>
+  </div>
+
+  <details class="inspector panel">
+    <summary>WebMCP Tool Inspector <span class="small-text muted">/ 23 structured commerce capabilities</span></summary>
+    <div class="inspector-inner">
+      <div class="row between wrap"><p class="small-text muted" id="tool-status">Locally defined capabilities</p><button class="small" data-action="refresh-tools">Refresh Tools</button></div>
+      <div id="tool-grid" class="tool-grid"></div>
+      <div class="notice" style="margin-top:15px">No WebMCP support? The entire storefront still works. You can inspect <code>agentMart.tools</code> or call <code>agentMart.call("cart_get", {})</code> in the browser console. Local calls are labeled UI, not WebMCP.</div>
+    </div>
+  </details>
+  <footer class="footer"><span>AgentMart / WebMCP Mini Amazon · Fictional catalog · No payments, no backend, no tracking</span><button class="small ghost" data-action="reset">Reset Demo</button></footer>
+</main>
+<div class="mobile-cart"><span id="mobile-total">Your cart is empty</span><button class="primary small" data-action="open-cart">View cart →</button></div>
+<dialog id="main-dialog" aria-labelledby="modal-title">
+  <div class="modal-head"><h2 id="modal-title"></h2><button class="ghost" data-action="close-modal" aria-label="Close dialog">✕</button></div>
+  <div class="modal-body" id="modal-body"></div>
+</dialog>
+<div id="toast-region" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+"use strict";
+
+/* ==================== CONFIG & UTILITIES ==================== */
+const CONFIG = {
+  storageKey: "agentmart.webmcp.v1",
+  currency: "TWD",
+  sorts: {
+    recommended: "Recommended",
+    price_asc: "Price: Low to High",
+    price_desc: "Price: High to Low",
+    rating_desc: "Highest Rated",
+    reviews_desc: "Most Reviewed",
+    shipping_asc: "Fastest Shipping"
+  },
+  coupons: {
+    SAVE100: {code:"SAVE100", minimumSubtotal:1500, type:"fixed", value:100, description:"NT$100 off a subtotal of NT$1,500 or more."},
+    TECH10: {code:"TECH10", minimumSubtotal:3000, type:"percent", value:0.10, maximumDiscount:500, description:"10% off any merchandise at NT$3,000 or more; capped at NT$500."},
+    FREESHIP: {code:"FREESHIP", minimumSubtotal:0, type:"shipping", value:0, description:"Free standard or express shipping on a non-empty cart."}
+  }
+};
+const $ = selector => document.querySelector(selector);
+const $$ = selector => [...document.querySelectorAll(selector)];
+const clone = value => JSON.parse(JSON.stringify(value));
+const money = n => "NT$" + Math.round(n).toLocaleString("en-US");
+const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pretty = value => String(value).replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()).replace("75 Percent","75%").replace("Usb C","USB-C").replace("Rgb","RGB").replace("Anc","ANC").replace("Qhd","QHD").replace("4k","4K");
+const assertDomain = (condition, message, extra={}) => { if (!condition) throw Object.assign(new Error(message), {extra}); };
+const shippingLabel = days => days === 1 ? "Tomorrow" : `${days} days`;
+const mission = "Build a complete work-from-home setup under NT$10,000. Include a keyboard, mouse, webcam or headset, and laptop stand. Compare tradeoffs, add your choices, apply the best coupon, and prepare checkout without placing an order.";
+
+/* ==================== EMBEDDED PRODUCT ART ==================== */
+function productImage(category, index) {
+  const colors = ["#b9f574","#83d9cf","#aba2fa","#efbe8b","#8fbae8","#e4a6c4"];
+  const accent = colors[index % colors.length];
+  let art = "";
+  if(category==="keyboards"){
+    let keys="";
+    for(let r=0;r<4;r++)for(let c=0;c<13;c++)keys+=`<rect x="${68+c*15}" y="${76+r*14}" width="12" height="10" rx="2" fill="${(c+r)%11===0?accent:"#627287"}"/>`;
+    art=`<g transform="rotate(-9 160 110)"><rect x="52" y="59" width="221" height="100" rx="12" fill="#0b121e" stroke="#69768a" stroke-width="2"/><rect x="60" y="66" width="205" height="84" rx="7" fill="#293748"/>${keys}<rect x="117" y="132" width="79" height="9" rx="3" fill="${accent}"/></g>`;
+  } else if(category==="mice"){
+    art=`<g transform="rotate(19 160 110)"><path d="M112 118C112 68 127 43 160 43S208 68 208 118C208 158 191 175 160 175S112 158 112 118" fill="#38485b" stroke="#7c8b9d" stroke-width="2"/><path d="M160 45V100M114 104H206" fill="none" stroke="#101a28" stroke-width="3"/><rect x="155" y="65" width="10" height="25" rx="5" fill="${accent}"/><path d="M121 129Q160 166 199 129" fill="none" stroke="${accent}" stroke-width="2" opacity=".6"/></g>`;
+  } else if(category==="headphones"){
+    art=`<path d="M100 126V92A60 60 0 0 1 220 92V126" fill="none" stroke="#728297" stroke-width="18"/><path d="M103 90A57 57 0 0 1 217 90" fill="none" stroke="#273447" stroke-width="11"/><rect x="83" y="98" width="40" height="70" rx="17" fill="#344355" stroke="${accent}" stroke-width="2"/><rect x="197" y="98" width="40" height="70" rx="17" fill="#344355" stroke="${accent}" stroke-width="2"/><rect x="111" y="103" width="15" height="60" rx="7" fill="#0c1522"/><rect x="194" y="103" width="15" height="60" rx="7" fill="#0c1522"/>`;
+  } else if(category==="monitors"){
+    art=`<path d="M152 140V172H126V179H204V172H176V140" fill="#5e7087"/><rect x="43" y="35" width="239" height="121" rx="7" fill="#0d1420" stroke="#6a7b91" stroke-width="2"/><rect x="50" y="42" width="225" height="106" rx="2" fill="#1b354a"/><path d="M50 132L106 71L154 105L213 49L275 97V148H50Z" fill="${accent}" opacity=".65"/><path d="M50 148L130 107L184 133L243 79L275 109V148" fill="#638ab4"/><circle cx="163" cy="152" r="1.5" fill="${accent}"/>`;
+  } else if(category==="webcams"){
+    art=`<path d="M149 122L137 167H190L177 122" fill="#556579"/><rect x="88" y="67" width="149" height="72" rx="25" fill="#344255" stroke="#6c7e96" stroke-width="2"/><circle cx="162" cy="103" r="29" fill="#0a1421" stroke="#617488" stroke-width="4"/><circle cx="162" cy="103" r="18" fill="#203e57" stroke="${accent}" stroke-width="2"/><circle cx="169" cy="95" r="6" fill="#b4e1ec" opacity=".6"/><circle cx="214" cy="100" r="3" fill="${accent}"/>`;
+  } else if(category==="laptop_stands"){
+    art=`<path d="M90 151L191 102L233 146L150 183Z" fill="#566a7d"/><path d="M106 155L120 80L212 63L192 126" fill="none" stroke="#869aac" stroke-width="12"/><path d="M62 90L190 42L266 78L137 129Z" fill="#91a6b6" stroke="#bbcdd7" stroke-width="2"/><path d="M108 83L192 52L224 69L140 100Z" fill="#263e50"/><path d="M66 95L138 133L268 82" fill="none" stroke="${accent}" stroke-width="5"/>`;
+  } else if(category==="chargers"){
+    art=`<g transform="rotate(-12 160 110)"><rect x="112" y="52" width="99" height="119" rx="18" fill="#617486"/><path d="M134 52V30M185 52V30" stroke="#b9c6d0" stroke-width="9"/><rect x="124" y="64" width="75" height="90" rx="10" fill="#263749"/><rect x="136" y="83" width="23" height="9" rx="4" fill="${accent}"/><rect x="165" y="83" width="23" height="9" rx="4" fill="${accent}"/><path d="M162 108L153 124H166L159 140" fill="none" stroke="#abbecd" stroke-width="3"/></g>`;
+  } else if(category==="storage"){
+    art=`<g transform="rotate(-15 160 110)"><rect x="99" y="43" width="124" height="134" rx="13" fill="#3a4d62" stroke="#70869b" stroke-width="2"/><path d="M111 53V164M119 53V164M127 53V164M135 53V164" stroke="#233346" stroke-width="3"/><rect x="155" y="70" width="43" height="36" rx="6" fill="#223143"/><text x="176" y="93" text-anchor="middle" fill="${accent}" font-size="14" font-family="monospace">SSD</text><circle cx="183" cy="148" r="3" fill="${accent}"/><rect x="150" y="174" width="24" height="4" rx="2" fill="#8aa0b4"/></g>`;
+  } else if(category==="smart_home"){
+    art=`<ellipse cx="161" cy="177" rx="45" ry="9" fill="#46586a"/><path d="M155 109V173H168V109" fill="#7d91a3"/><path d="M105 113L126 48H197L220 113Z" fill="${accent}" opacity=".9"/><ellipse cx="162" cy="113" rx="58" ry="13" fill="#d5e8bb"/><ellipse cx="162" cy="120" rx="39" ry="6" fill="${accent}" opacity=".3"/><path d="M134 58H190" stroke="#fff" stroke-opacity=".3" stroke-width="3"/>`;
+  } else {
+    art=`<path d="M104 72C63 77 72 161 124 158H194C247 158 250 71 207 65" fill="none" stroke="#7b8fa4" stroke-width="13"/><path d="M104 72C63 77 72 161 124 158H194C247 158 250 71 207 65" fill="none" stroke="#a5b7c6" stroke-width="3"/><g transform="rotate(-15 105 70)"><rect x="95" y="43" width="24" height="42" rx="7" fill="${accent}"/><rect x="100" y="31" width="14" height="19" rx="3" fill="#c1cdd6"/></g><g transform="rotate(16 207 65)"><rect x="195" y="43" width="24" height="42" rx="7" fill="${accent}"/><rect x="200" y="31" width="14" height="19" rx="3" fill="#c1cdd6"/></g>`;
+  }
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="210" viewBox="0 0 320 210"><defs><radialGradient id="bg"><stop stop-color="#304151"/><stop offset="1" stop-color="#1c2633"/></radialGradient><filter id="s"><feDropShadow dx="0" dy="10" stdDeviation="8" flood-opacity=".3"/></filter></defs><rect width="320" height="210" fill="url(#bg)"/><circle cx="260" cy="38" r="80" fill="${accent}" opacity=".04"/><ellipse cx="160" cy="182" rx="91" ry="9" fill="#070e17" opacity=".35"/><g filter="url(#s)">${art}</g><path d="M20 185H48M20 180V190" stroke="#5a7185" opacity=".5"/></svg>`;
+  return "data:image/svg+xml;charset=UTF-8,"+encodeURIComponent(svg);
+}
+
+/* ==================== CATALOG DATA (30 PRODUCTS) ==================== */
+const SEEDS = [
+["P-101","NovaKey 75 Wireless","NovaForge","keyboards",2490,2990,4.8,342,18,["wireless","bluetooth","75_percent","hot_swappable","rgb","usb_c","mechanical"],1,"A compact mechanical keyboard with satisfying tactile switches and seamless three-device pairing.",{Layout:"75% / 81 keys",Switches:"Tactile, hot-swappable",Battery:"4,000 mAh",Connectivity:"2.4 GHz / Bluetooth / USB-C"}],
+["P-102","NovaKey Air 75","NovaForge","keyboards",2890,3490,4.9,218,8,["wireless","bluetooth","75_percent","low_profile","mechanical","usb_c"],1,"Low-profile mechanical precision in an aluminum frame, built for focused work.",{Layout:"75% / 84 keys",Switches:"Low-profile linear",Battery:"80 hours",Weight:"580 g"}],
+["P-103","TypeCraft Core","TypeCraft","keyboards",990,1290,4.3,587,42,["wired","mechanical","rgb","usb_c","full_size"],3,"An accessible full-size mechanical board with crisp switches and a dedicated number pad.",{Layout:"Full-size / 104 keys",Switches:"Blue clicky",Cable:"1.8 m USB-C",Frame:"Reinforced polymer"}],
+["P-104","HushBoard Office","TypeCraft","keyboards",1690,1990,4.6,169,14,["wireless","bluetooth","silent","ergonomic","full_size"],2,"A quiet, gently curved office keyboard with soft membrane keys and multi-device support.",{Layout:"Full-size / 108 keys",Switches:"Silent membrane",Battery:"12 months",Connectivity:"Bluetooth / 2.4 GHz"}],
+["P-105","Cobalt 75 Studio","CobaltLab","keyboards",2290,2690,4.7,276,2,["wireless","bluetooth","75_percent","mechanical","hot_swappable","rgb"],2,"A gasket-mounted mechanical board with a deep sound profile and programmable dial.",{Layout:"75% / 82 keys",Switches:"Linear, hot-swappable",Mount:"Silicone gasket",Battery:"3,000 mAh"}],
+["P-106","NovaKey Ultra Slim","NovaForge","keyboards",4290,4790,4.9,94,6,["wireless","bluetooth","low_profile","mechanical","usb_c"],4,"Premium low-profile switches and a machined metal body for an exceptionally tidy desk.",{Layout:"80% / 87 keys",Switches:"Optical low-profile",Frame:"CNC aluminum",Battery:"120 hours"}],
+["P-107","OrbitMouse Pro","OrbitWorks","mice",1790,2190,4.7,411,21,["wireless","ergonomic","bluetooth","usb_c"],1,"A sculpted wireless mouse with a thumb rest and a quiet, precise scroll wheel.",{Sensor:"4,000 DPI",Buttons:"7 programmable",Weight:"92 g",Battery:"70 days"}],
+["P-108","OrbitMouse Feather","OrbitWorks","mice",1490,1790,4.8,306,11,["wireless","lightweight","gaming","usb_c"],2,"A featherweight gaming mouse with a fast optical sensor and low-latency wireless.",{Sensor:"26,000 DPI",Polling:"1,000 Hz",Weight:"54 g",Battery:"90 hours"}],
+["P-109","ArcMouse Vertical","ArcDesk","mice",1290,1590,4.6,193,4,["wireless","ergonomic","bluetooth","silent"],1,"A comfortable 57-degree vertical design that encourages a relaxed wrist position.",{Angle:"57° vertical",Sensor:"2,400 DPI",Buttons:"6",Battery:"Rechargeable, 60 days"}],
+["P-110","PulseMouse Wired","CobaltLab","mice",590,790,4.2,654,35,["wired","gaming","rgb","lightweight"],3,"A dependable wired gaming mouse with adjustable sensitivity and an illuminated shell.",{Sensor:"12,000 DPI",Weight:"68 g",Cable:"1.8 m braided",Buttons:"6"}],
+["P-111","EchoBeat ANC","EchoForm","headphones",2990,3690,4.7,503,15,["wireless","bluetooth","anc","usb_c"],1,"Over-ear comfort with adaptive noise cancellation and rich, balanced sound.",{Drivers:"40 mm dynamic",Battery:"45 hours",Cancellation:"Adaptive ANC",Weight:"245 g"}],
+["P-112","EchoPods Mini","EchoForm","headphones",890,1190,4.3,812,28,["wireless","bluetooth","portable","usb_c"],2,"Pocket-friendly wireless earbuds with clear calls and a compact charging case.",{Drivers:"10 mm",Battery:"6 + 24 hours",Resistance:"IPX4",Weight:"4.5 g per earbud"}],
+["P-113","RiftSound Comms","CobaltLab","headphones",1590,1990,4.5,247,9,["wired","gaming","usb_c","microphone"],1,"A lightweight headset with a detachable microphone for calls and collaborative play.",{Drivers:"50 mm",Microphone:"Detachable cardioid",Connection:"USB-C / 3.5 mm",Weight:"220 g"}],
+["P-114","PixelView 24F","PixelNest","monitors",3990,4590,4.4,329,16,["fhd","ips","100hz","24_inch"],2,"A sharp and smooth 24-inch everyday display with a slim, three-sided bezel.",{Size:'24 inch',Resolution:"1920 × 1080",Panel:"IPS / 100 Hz",Inputs:"HDMI / DisplayPort"}],
+["P-115","PixelView 27Q","PixelNest","monitors",6990,7990,4.8,267,7,["qhd","ips","usb_c","27_inch","100hz"],1,"Room to think: a color-accurate QHD monitor with single-cable USB-C connectivity.",{Size:"27 inch",Resolution:"2560 × 1440",Panel:"IPS / 100 Hz",USB_C:"65 W power delivery"}],
+["P-116","VistaPanel 27Q","VistaWorks","monitors",7490,8490,4.7,134,3,["qhd","ips","27_inch","gaming","165hz"],2,"Fast QHD motion with a height-adjustable stand and vibrant wide-gamut color.",{Size:"27 inch",Resolution:"2560 × 1440",Panel:"IPS / 165 Hz",Response:"1 ms rated"}],
+["P-117","VistaPanel 32 Ultra","VistaWorks","monitors",12990,14990,4.9,88,0,["4k","ips","usb_c","32_inch","hdr"],5,"An expansive 4K canvas for detailed creative work and comfortable multitasking.",{Size:"32 inch",Resolution:"3840 × 2160",Panel:"IPS / 60 Hz",USB_C:"90 W power delivery"}],
+["P-118","CloudCam 4K","CloudFrame","webcams",2690,3190,4.7,186,12,["4k","usb_c","autofocus","microphone"],1,"Look sharp on every call with fast autofocus and a physical privacy shutter.",{Video:"4K / 30 fps",Field_of_view:"90°",Microphone:"Dual noise-reducing",Privacy:"Physical shutter"}],
+["P-119","CloudCam Everyday","CloudFrame","webcams",1190,1490,4.5,432,30,["fhd","usb_c","microphone"],2,"Reliable full-HD video and clear speech in a plug-and-play webcam.",{Video:"1080p / 30 fps",Field_of_view:"78°",Microphone:"Built-in stereo",Mount:"Universal monitor clip"}],
+["P-120","LiftStand Air","ArcDesk","laptop_stands",990,1290,4.8,569,24,["portable","ergonomic","aluminum","foldable"],1,"A folding aluminum laptop stand that raises your screen without weighing down your bag.",{Compatibility:"11–16 inch laptops",Positions:"6 height settings",Weight:"260 g",Capacity:"5 kg"}],
+["P-121","LiftStand Studio","ArcDesk","laptop_stands",1690,1990,4.7,154,5,["ergonomic","aluminum","adjustable"],3,"A stable, adjustable desktop platform with open airflow and a rotating base.",{Compatibility:"11–17 inch laptops",Rotation:"360°",Height:"5–25 cm",Capacity:"8 kg"}],
+["P-122","VoltHub 100W","VoltNest","chargers",1790,2290,4.8,381,17,["100w","usb_c","gan","portable"],1,"One compact GaN charger powers a laptop, phone, and accessories at your desk or on the move.",{Output:"100 W combined",Ports:"3 USB-C + 1 USB-A",Technology:"GaN",Input:"100–240 V"}],
+["P-123","VoltPocket 65W","VoltNest","chargers",990,1290,4.6,297,20,["65w","usb_c","gan","portable"],2,"A compact two-port charger with folding prongs and dependable laptop charging.",{Output:"65 W maximum",Ports:"2 USB-C",Weight:"110 g",Input:"100–240 V"}],
+["P-124","Nimbus SSD 2TB","NimbusData","storage",3590,4190,4.9,227,10,["2tb","usb_c","portable","ssd"],1,"Fast portable storage in a rugged metal enclosure for large projects and daily backups.",{Capacity:"2 TB",Read_speed:"1,050 MB/s",Interface:"USB 3.2 Gen 2",Resistance:"IP55"}],
+["P-125","Nimbus SSD 1TB","NimbusData","storage",1990,2490,4.7,464,22,["1tb","usb_c","portable","ssd"],2,"An everyday external SSD with room for your work and a cable included.",{Capacity:"1 TB",Read_speed:"1,000 MB/s",Interface:"USB 3.2 Gen 2",Weight:"48 g"}],
+["P-126","Aura Light Mini","LumaLiving","smart_home",790,990,4.4,208,18,["wireless","rgb","dimmable","usb_c"],1,"A compact ambient desk lamp with warm task lighting and colorful evening scenes.",{Brightness:"350 lumens",Color:"RGB + warm white",Control:"Touch / Bluetooth",Power:"USB-C / battery"}],
+["P-127","Aura Smart Plug Duo","LumaLiving","smart_home",690,890,4.5,345,25,["wifi","energy_monitoring","scheduling"],2,"A pair of smart plugs for local schedules and everyday energy awareness.",{Pack:"2 plugs",Wireless:"2.4 GHz Wi-Fi",Maximum:"10 A each",Metering:"Live power / daily energy"}],
+["P-128","FlexCable USB-C","FlexLine","accessories",290,390,4.6,1043,70,["usb_c","100w","braided","portable"],1,"A durable braided USB-C cable for charging laptops, phones, and desk accessories.",{Length:"2 m",Charging:"100 W / 5 A",Data:"USB 2.0 / 480 Mbps",Jacket:"Recycled braided nylon"}],
+["P-129","DeskWeave Mat","ArcDesk","accessories",590,790,4.7,389,13,["ergonomic","water_resistant","desk_mat"],2,"A soft, generously sized desk mat with a grippy base and stitched edges.",{Size:"80 × 40 cm",Thickness:"3 mm",Surface:"Woven fabric",Base:"Natural rubber"}],
+["P-130","LinkDock 7-in-1","VoltNest","accessories",1490,1890,4.5,176,0,["usb_c","4k","100w","portable","hub"],4,"A travel-friendly hub that connects your screen, cards, and peripherals through one cable.",{Ports:"HDMI / 2 USB-A / USB-C / SD / microSD / PD",Video:"4K / 30 Hz",Pass_through:"100 W PD",Cable:"18 cm USB-C"}]
+];
+const CATALOG = SEEDS.map((r,i) => {
+  const [id,name,brand,category,price,originalPrice,rating,reviewCount,stock,features,shippingDays,description,specs]=r;
+  return Object.freeze({id,name,brand,category,price,originalPrice,rating,reviewCount,stock,description,
+    features:Object.freeze(features),specs:Object.freeze(specs),
+    tags:Object.freeze([category.replace(/_/g," "),category==="keyboards"?"keyboard":category==="mice"?"mouse":category==="headphones"?"headset audio":category.replace(/s$/,""),...features.map(x=>x.replace(/_/g," ")),...Object.values(specs).map(String)]),
+    image:productImage(category,i),shippingDays,bestseller:reviewCount>=380,featured:[0,1,6,10,14,19,21,23].includes(i)});
+});
+const PRODUCT_MAP = new Map(CATALOG.map(p=>[p.id,p]));
+const OPTIONS = {
+  categories:[...new Set(CATALOG.map(p=>p.category))],
+  brands:[...new Set(CATALOG.map(p=>p.brand))].sort(),
+  features:[...new Set(CATALOG.flatMap(p=>p.features))].sort(),
+  sorts:CONFIG.sorts,
+  coupons:Object.values(CONFIG.coupons),
+  shippingOptions:[
+    {method:"standard",fee:80,freeAboveSubtotal:3000,delivery:"Slowest item's shippingDays"},
+    {method:"express",fee:150,delivery:"One day faster than standard, minimum one day"}
+  ],
+  priceRange:{min:Math.min(...CATALOG.map(p=>p.price)),max:Math.max(...CATALOG.map(p=>p.price))},
+  currency:"TWD",
+  freeShippingFilter:"Products priced at NT$3,000 or more qualify individually for free standard shipping."
+};
+
+/* ==================== SEARCH ENGINE ==================== */
+class SearchEngine {
+  static search(criteria={}) {
+    const normalize = s => String(s).toLowerCase().replace(/[_%-]/g," ").replace(/(\d+)\s*inch/g,"$1 inch");
+    const tokens=normalize(criteria.query||"").split(/\s+/).filter(Boolean);
+    let products=CATALOG.filter(p=>{
+      const text=normalize([p.name,p.brand,p.category,p.description,...p.features,...p.tags].join(" "));
+      return tokens.every(t=>text.includes(t)) &&
+        (!criteria.category||p.category===criteria.category) &&
+        (!criteria.brand||p.brand===criteria.brand) &&
+        (criteria.minPrice===undefined||p.price>=criteria.minPrice) &&
+        (criteria.maxPrice===undefined||p.price<=criteria.maxPrice) &&
+        (criteria.minRating===undefined||p.rating>=criteria.minRating) &&
+        (!criteria.inStockOnly||p.stock>0) &&
+        (!criteria.maxShippingDays||p.shippingDays<=criteria.maxShippingDays) &&
+        (!criteria.freeShippingOnly||p.price>=3000) &&
+        (criteria.features||[]).every(f=>p.features.includes(f));
+    });
+    const comparators={
+      recommended:(a,b)=>(Number(b.featured)*2+b.rating+Math.log10(b.reviewCount)/4)-(Number(a.featured)*2+a.rating+Math.log10(a.reviewCount)/4),
+      price_asc:(a,b)=>a.price-b.price,
+      price_desc:(a,b)=>b.price-a.price,
+      rating_desc:(a,b)=>b.rating-a.rating||b.reviewCount-a.reviewCount,
+      reviews_desc:(a,b)=>b.reviewCount-a.reviewCount,
+      shipping_asc:(a,b)=>a.shippingDays-b.shippingDays||b.rating-a.rating
+    };
+    products.sort((a,b)=>(comparators[criteria.sort||"recommended"](a,b))||a.id.localeCompare(b.id));
+    return {count:products.length,products:products.slice(0,criteria.limit??products.length)};
+  }
+}
+
+/* ==================== VALIDATION & TOOL DEFINITIONS ==================== */
+const str = (description, extra={}) => ({type:"string",description,...extra});
+const num = (description, extra={}) => ({type:"number",description,...extra});
+const integer = (description, extra={}) => ({type:"integer",description,...extra});
+const bool = description => ({type:"boolean",description});
+const objectSchema = (properties={},required=[]) => ({type:"object",properties,required,additionalProperties:false});
+const productIdSchema = str("Exact catalog product ID, obtainable from product_search or product_get.",{pattern:"^P-[0-9]{3}$"});
+const sortSchema = str("Ordering to use; recommended balances featured status, rating, and review evidence.",{enum:Object.keys(CONFIG.sorts)});
+const featureSchema = {type:"array",description:"All listed features must match. Discover exact values with store_get_available_options.",items:str("Catalog feature",{enum:OPTIONS.features}),uniqueItems:true,maxItems:OPTIONS.features.length};
+const filterProperties = {
+  category:str("Limit to one department.",{enum:OPTIONS.categories}),
+  brand:str("Limit to one fictional brand.",{enum:OPTIONS.brands}),
+  minPrice:num("Inclusive minimum unit price in NT$.",{minimum:0}),
+  maxPrice:num("Inclusive maximum unit price in NT$.",{minimum:0}),
+  minRating:num("Inclusive minimum customer rating.",{minimum:0,maximum:5}),
+  features:featureSchema,
+  inStockOnly:bool("Exclude products with zero stock when true."),
+  maxShippingDays:integer("Maximum standard delivery days for each product.",{minimum:1,maximum:30}),
+  freeShippingOnly:bool("Only products individually qualifying for free standard shipping: price >= NT$3,000.")
+};
+const searchProperties = {
+  query:str("Case-insensitive, all-token search over names, brands, categories, descriptions, features, and tags.",{maxLength:300}),
+  ...filterProperties,
+  sort:sortSchema,
+  limit:integer("Maximum products returned; count still reports all matches.",{minimum:1,maximum:100})
+};
+const TOOL_DEFS = [];
+function defineTool(name, description, properties={}, required=[], readOnly=false) {
+  TOOL_DEFS.push({
+    name,description,inputSchema:objectSchema(properties,required),
+    annotations:{readOnlyHint:readOnly,consequentialHint:name==="checkout_place_demo_order",untrustedContentHint:false}
+  });
+}
+defineTool("store_get_state","Get the complete shared storefront state: query, filters, sorting, visible product IDs, comparison selection, cart, coupon, pricing, and computed checkout readiness. Use this to synchronize with the human's current shopping context.",{},[],true);
+defineTool("product_search","Search the underlying product catalog using structured query text, category, brand, price range, rating, required features, stock, and shipping constraints. Use this to find products meeting a user's requirements, without inspecting the DOM. Does not change storefront filters; a WebMCP search displays an informational result banner.",searchProperties,[],true);
+defineTool("product_get","Retrieve full specifications, stock, price, features, description, and shipping days for one exact product ID. Use after search to investigate a candidate before recommending it.",{productId:productIdSchema},["productId"],true);
+defineTool("product_get_recommendations","Rank in-stock catalog products deterministically within an optional category and budget. Priorities may be feature names, rating, fast_shipping, or value. Returns numerical scores and evidence-based reasons; no external AI is used.",{
+  category:filterProperties.category,budget:num("Maximum unit price in NT$.",{minimum:0}),
+  priorities:{type:"array",items:str("Ranking priority",{enum:[...OPTIONS.features,"rating","fast_shipping","value"]}),uniqueItems:true,maxItems:20},
+  limit:integer("Maximum recommendations.",{minimum:1,maximum:30})
+},[],true);
+defineTool("product_compare","Compare one to three exact products side-by-side using prices, ratings, reviews, features, specifications, stock, and delivery. Replaces the shared comparison selection and opens the human-visible comparison panel. Pass an empty array to clear the selection.",{
+  productIds:{type:"array",items:productIdSchema,uniqueItems:true,maxItems:3}
+},["productIds"]);
+defineTool("store_get_available_options","Discover valid categories, brands, feature names, sorting values, price bounds, coupon eligibility rules, and shipping options. Call this rather than guessing enums or coupon savings.",{},[],true);
+defineTool("store_set_filters","Patch the shared storefront query and filters so the human-visible product grid reflects structured criteria. Omitted fields remain unchanged; an empty features array removes feature requirements. Clear filters first when starting a fresh search.",{
+  query:searchProperties.query,...filterProperties
+});
+defineTool("store_clear_filters","Clear the shared search query and all filters, restoring the full visible catalog. Preserves sort order, cart, coupon, and comparison selection.");
+defineTool("store_set_sort","Change the shared product-grid sorting immediately without modifying catalog records. Use price, rating, reviews, shipping, or recommended order.",{sort:sortSchema},["sort"]);
+defineTool("cart_get","Read all shared cart line items with quantities, prices, available stock, delivery, subtotal, coupon validity, discounts, shipping, savings, and estimated total.",{},[],true);
+defineTool("cart_add","Add a product to the shared cart, increasing its existing quantity if present. Quantity defaults to one. Validates product existence, positive integer quantity, and aggregate available stock before mutation.",{productId:productIdSchema,quantity:integer("Units to add; defaults to 1.",{minimum:1,maximum:999})},["productId"]);
+defineTool("cart_remove","Remove the entire line for one product from the shared cart. Returns a clear error if the product is unknown or not currently in the cart.",{productId:productIdSchema},["productId"]);
+defineTool("cart_set_quantity","Set the absolute quantity of an existing cart line. Zero removes it. Rejects negative, fractional, or above-stock quantities; use cart_add for a product not already in the cart.",{productId:productIdSchema,quantity:integer("New absolute quantity; zero removes the line.",{minimum:0,maximum:999})},["productId","quantity"]);
+defineTool("cart_clear","Remove every cart item and the active coupon in one undoable operation. Does not change storefront filters or comparison selection.");
+defineTool("cart_add_multiple","Atomically add several products to the shared cart. Every product and aggregate quantity, including repeated IDs and existing lines, is validated before committing. Any invalid item rejects the entire batch without partial changes.",{
+  items:{type:"array",minItems:1,maxItems:50,items:objectSchema({productId:productIdSchema,quantity:integer("Units to add; defaults to one.",{minimum:1,maximum:999})},["productId"])}
+},["items"]);
+defineTool("coupon_apply","Apply one case-insensitive fictional coupon, replacing the previous coupon only if valid. SAVE100 requires NT$1,500; TECH10 requires NT$3,000 and caps the 10% discount at NT$500; FREESHIP removes shipping. Requires a non-empty cart.",{code:str("SAVE100, TECH10, or FREESHIP; case-insensitive.",{minLength:1,maxLength:30})},["code"]);
+defineTool("coupon_remove","Remove the active coupon and immediately recompute shared cart pricing. This operation is undoable.");
+defineTool("checkout_get_summary","Read the current checkout summary with full cart lines, discounts, shipping fee and method, total, and estimated arrival. No real delivery or payment information is required.",{},[],true);
+defineTool("checkout_set_shipping","Select standard or express shipping for the shared order estimate. Standard costs NT$80 and is free at NT$3,000; express costs NT$150 and is one day faster, minimum one day. FREESHIP covers either method.",{method:str("Delivery method",{enum:["standard","express"]})},["method"]);
+defineTool("checkout_prepare","Validate the current cart for demo checkout without placing an order or mutating commerce state. Checks stock, quantities, coupon eligibility, shipping, and totals. Returns ready, issues, and the complete calculated summary.",{},[],true);
+defineTool("checkout_place_demo_order","Place a simulated order from the shared cart only when confirm is explicitly true and checkout validation passes. Creates a fake order ID, opens a success screen, clears the cart and coupon, and clears undo history. No charge, external service, or real payment is involved.",{confirm:{type:"boolean",const:true,description:"Must explicitly be true to authorize placing this demo order."}},["confirm"]);
+defineTool("store_undo","Undo the most recent cart, coupon, or comparison mutation and recompute shared pricing. Search and filters are not undone. Order placement and demo reset clear undo history.");
+defineTool("store_reset_demo","Reset query, filters, sorting, comparison, cart, coupon, shipping, checkout result, and undo history. Keep the embedded fictional catalog intact. Use to restart a live demonstration.");
+const TOOL_MAP = new Map(TOOL_DEFS.map(t=>[t.name,t]));
+
+function validateSchema(value,schema,path="input") {
+  if(schema.type==="object"){
+    assertDomain(value!==null && typeof value==="object" && !Array.isArray(value),`${path} must be an object.`);
+    for(const key of Object.keys(value)) assertDomain(Object.hasOwn(schema.properties,key),`${path}.${key} is not a supported field.`);
+    for(const key of schema.required||[]) assertDomain(Object.hasOwn(value,key),`${path}.${key} is required.`);
+    for(const [key,v] of Object.entries(value)) validateSchema(v,schema.properties[key],`${path}.${key}`);
+  } else if(schema.type==="array"){
+    assertDomain(Array.isArray(value),`${path} must be an array.`);
+    if(schema.minItems!==undefined)assertDomain(value.length>=schema.minItems,`${path} needs at least ${schema.minItems} item(s).`);
+    if(schema.maxItems!==undefined)assertDomain(value.length<=schema.maxItems,`${path} allows at most ${schema.maxItems} items.`);
+    if(schema.uniqueItems)assertDomain(new Set(value.map(x=>JSON.stringify(x))).size===value.length,`${path} must not contain duplicates.`);
+    value.forEach((v,i)=>validateSchema(v,schema.items,`${path}[${i}]`));
+  } else {
+    if(schema.type==="integer") assertDomain(Number.isSafeInteger(value),`${path} must be an integer.`);
+    else if(schema.type==="number")assertDomain(typeof value==="number"&&Number.isFinite(value),`${path} must be a finite number.`);
+    else assertDomain(typeof value===schema.type,`${path} must be a ${schema.type}.`);
+    if(schema.minimum!==undefined)assertDomain(value>=schema.minimum,`${path} must be at least ${schema.minimum}.`);
+    if(schema.maximum!==undefined)assertDomain(value<=schema.maximum,`${path} must be at most ${schema.maximum}.`);
+    if(schema.minLength!==undefined)assertDomain(value.length>=schema.minLength,`${path} must not be empty.`);
+    if(schema.maxLength!==undefined)assertDomain(value.length<=schema.maxLength,`${path} is too long.`);
+    if(schema.pattern)assertDomain(new RegExp(schema.pattern).test(value),`${path} must be a valid product ID such as P-101.`);
+  }
+  if(schema.enum)assertDomain(schema.enum.includes(value),`${path} must be one of: ${schema.enum.join(", ")}.`);
+  if(Object.hasOwn(schema,"const"))assertDomain(value===schema.const,`${path} must be ${schema.const}.`);
+}
+function validatePriceRange(c) {
+  assertDomain(c.minPrice===undefined||c.maxPrice===undefined||c.minPrice<=c.maxPrice,"Minimum price cannot exceed maximum price.");
+}
+
+/* ==================== CART, COUPON & CHECKOUT ENGINES ==================== */
+class CartEngine {
+  static validate(cart) {
+    const seen=new Set();
+    for(const line of cart){
+      const p=PRODUCT_MAP.get(line.productId);
+      assertDomain(p,`Product ${line.productId} does not exist.`);
+      assertDomain(!seen.has(p.id),"Duplicate cart line.");
+      seen.add(p.id);
+      assertDomain(Number.isSafeInteger(line.quantity)&&line.quantity>0,"Quantity must be a positive integer.");
+      assertDomain(line.quantity<=p.stock,`Requested quantity exceeds available stock for ${p.name}.`,{productId:p.id,availableStock:p.stock});
+    }
+  }
+  static addBatch(cart,items) {
+    const next=clone(cart);
+    for(const item of items){
+      assertDomain(PRODUCT_MAP.has(item.productId),`Product ${item.productId} does not exist.`);
+      const existing=next.find(x=>x.productId===item.productId);
+      if(existing)existing.quantity+=item.quantity??1;
+      else next.push({productId:item.productId,quantity:item.quantity??1});
+    }
+    CartEngine.validate(next);
+    return next;
+  }
+}
+class CouponEngine {
+  static evaluate(code,subtotal,itemCount,baseShipping){
+    if(!code)return {code:null,valid:true,discount:0,shippingDiscount:0,message:"No coupon applied."};
+    const rule=CONFIG.coupons[code];
+    if(!rule)return {code,valid:false,discount:0,shippingDiscount:0,message:"Unknown coupon code."};
+    if(!itemCount)return {code,valid:false,discount:0,shippingDiscount:0,message:"Add an item before applying a coupon."};
+    if(subtotal<rule.minimumSubtotal)return {code,valid:false,discount:0,shippingDiscount:0,message:`${code} requires a subtotal of ${money(rule.minimumSubtotal)} or more.`};
+    const discount=rule.type==="fixed"?rule.value:rule.type==="percent"?Math.min(rule.maximumDiscount,Math.round(subtotal*rule.value)):0;
+    const shippingDiscount=rule.type==="shipping"?baseShipping:0;
+    return {code,valid:true,discount,shippingDiscount,message:rule.description};
+  }
+}
+class CheckoutEngine {
+  static summary(state) {
+    const items=state.cart.map(line=>{
+      const p=PRODUCT_MAP.get(line.productId);
+      return {productId:p.id,name:p.name,quantity:line.quantity,unitPrice:p.price,originalPrice:p.originalPrice,lineTotal:p.price*line.quantity,availableStock:p.stock,shippingDays:p.shippingDays};
+    });
+    const itemCount=items.reduce((sum,i)=>sum+i.quantity,0);
+    const subtotal=items.reduce((sum,i)=>sum+i.lineTotal,0);
+    const baseShipping=!itemCount?0:state.shipping==="express"?150:subtotal>=3000?0:80;
+    const coupon=CouponEngine.evaluate(state.coupon,subtotal,itemCount,baseShipping);
+    const shipping=baseShipping-coupon.shippingDiscount;
+    const markdownSavings=items.reduce((sum,i)=>sum+(i.originalPrice-i.unitPrice)*i.quantity,0);
+    const estimatedDeliveryDays=itemCount?Math.max(1,Math.max(...items.map(i=>i.shippingDays))-(state.shipping==="express"?1:0)):null;
+    return {currency:"TWD",items,itemCount,subtotal,coupon,discount:coupon.discount,baseShipping,shippingDiscount:coupon.shippingDiscount,shipping,shippingMethod:state.shipping,tax:0,taxNote:"Demo prices are tax-inclusive.",total:subtotal-coupon.discount+shipping,markdownSavings,savings:markdownSavings+coupon.discount+coupon.shippingDiscount,estimatedDeliveryDays,deliveryNote:"Demo estimate; all items arrive together. Standard uses the slowest item's shippingDays; express is one day faster, minimum one day."};
+  }
+  static prepare(state) {
+    const issues=[];
+    if(!state.cart.length)issues.push("Your cart is empty.");
+    try{CartEngine.validate(state.cart);}catch(e){issues.push(e.message);}
+    if(!["standard","express"].includes(state.shipping))issues.push("Select a valid shipping method.");
+    const summary=CheckoutEngine.summary(state);
+    if(!summary.coupon.valid)issues.push(summary.coupon.message);
+    if(!Number.isFinite(summary.total)||summary.total<0)issues.push("The calculated total is invalid.");
+    return {ready:issues.length===0,issues,summary};
+  }
+}
+
+/* ==================== UNDO MANAGER & COMMERCE ENGINE ==================== */
+class UndoManager {
+  constructor(){this.history=[];}
+  push(state){
+    this.history.push(clone({cart:state.cart,coupon:state.coupon,compare:state.compare}));
+    if(this.history.length>40)this.history.shift();
+  }
+  pop(){assertDomain(this.history.length>0,"Nothing to undo.");return this.history.pop();}
+  clear(){this.history=[];}
+}
+const defaultState=()=>({query:"",filters:{},sort:"recommended",compare:[],cart:[],coupon:null,shipping:"standard",lastOrder:null});
+class CommerceEngine {
+  constructor({onEvent=null}={}){this.state=defaultState();this.undo=new UndoManager();this.onEvent=onEvent;}
+  product(id){const p=PRODUCT_MAP.get(id);assertDomain(p,`Product ${id} does not exist.`);return p;}
+  visible(){return SearchEngine.search({query:this.state.query,...this.state.filters,sort:this.state.sort});}
+  summary(){return CheckoutEngine.summary(this.state);}
+  checkpoint(){this.undo.push(this.state);}
+  execute(name,input={},source="UI"){
+    const tool=TOOL_MAP.get(name);
+    let result;
+    try{
+      assertDomain(tool,`Unknown tool: ${name}.`);
+      validateSchema(input,tool.inputSchema);
+      result={success:true,...this.dispatch(name,input)};
+      result=clone(result);
+    }catch(error){
+      result={success:false,error:error.message,...(error.extra||{})};
+    }
+    if(this.onEvent){
+      try{this.onEvent({name,input:clone(input),source,result,readOnly:tool?.annotations.readOnlyHint??true});}
+      catch(error){console.error("Presentation event failed; commerce result remains valid.",error);}
+    }
+    return result;
+  }
+  dispatch(name,a){
+    const s=this.state;
+    switch(name){
+      case "store_get_state": return {...clone(s),visibleProductIds:this.visible().products.map(p=>p.id),pricing:this.summary(),checkout:{...CheckoutEngine.prepare(s),lastOrder:s.lastOrder},undoAvailable:this.undo.history.length>0};
+      case "product_search": validatePriceRange(a);return SearchEngine.search(a);
+      case "product_get": return {product:this.product(a.productId)};
+      case "product_get_recommendations": {
+        const priorities=a.priorities||["rating","value"];
+        const products=SearchEngine.search({category:a.category,maxPrice:a.budget,inStockOnly:true}).products;
+        const ranked=products.map(p=>{
+          let score=p.rating*10+Math.min(5,Math.log10(p.reviewCount+1)*2);
+          const reasons=[`${p.rating}/5 from ${p.reviewCount} reviews`,`${money(p.price)}${a.budget!==undefined?" within budget":""}`];
+          for(const priority of priorities){
+            if(priority==="rating"){score+=p.rating*10;reasons.push("Customer rating prioritized");}
+            else if(priority==="fast_shipping"){score+=(6-p.shippingDays)*4;reasons.push(`Delivery in ${p.shippingDays} day(s)`);}
+            else if(priority==="value"){score+=30*(1-p.price/p.originalPrice);reasons.push(`${Math.round((1-p.price/p.originalPrice)*100)}% below original price`);}
+            else if(p.features.includes(priority)){score+=25;reasons.push(`Matches ${pretty(priority)}`);}
+          }
+          return {product:p,score:Math.round(score*100)/100,reasons};
+        }).sort((a,b)=>b.score-a.score||a.product.price-b.product.price);
+        return {count:ranked.length,recommendations:ranked.slice(0,a.limit??5),scoring:"Base: rating × 10 + capped review evidence. Matching feature +25; rating priority +rating × 10; fast_shipping +(6−days) × 4; value +markdown ratio × 30."};
+      }
+      case "product_compare": {
+        const products=a.productIds.map(id=>this.product(id));
+        this.checkpoint();s.compare=[...a.productIds];
+        return {productIds:s.compare,products,comparison:products.map(p=>({productId:p.id,name:p.name,price:p.price,rating:p.rating,reviewCount:p.reviewCount,features:p.features,specs:p.specs,shippingDays:p.shippingDays,stock:p.stock}))};
+      }
+      case "store_get_available_options":return clone(OPTIONS);
+      case "store_set_filters": {
+        const {query,...patch}=a;
+        const next={...s.filters,...patch};
+        validatePriceRange(next);
+        s.filters=next;if(query!==undefined)s.query=query;
+        return {query:s.query,filters:s.filters,...this.visible()};
+      }
+      case "store_clear_filters":s.query="";s.filters={};return {query:s.query,filters:s.filters,...this.visible()};
+      case "store_set_sort":s.sort=a.sort;return {sort:s.sort,...this.visible()};
+      case "cart_get":case "checkout_get_summary":return this.summary();
+      case "cart_add":case "cart_add_multiple": {
+        const next=CartEngine.addBatch(s.cart,name==="cart_add"?[a]:a.items);
+        this.checkpoint();s.cart=next;return this.summary();
+      }
+      case "cart_remove":case "cart_set_quantity":{
+        this.product(a.productId);
+        const line=s.cart.find(i=>i.productId===a.productId);
+        assertDomain(line,`Product ${a.productId} is not in your cart.`);
+        const qty=name==="cart_remove"?0:a.quantity;
+        const next=s.cart.map(i=>i.productId===a.productId?{...i,quantity:qty}:{...i}).filter(i=>i.quantity>0);
+        CartEngine.validate(next);this.checkpoint();s.cart=next;return this.summary();
+      }
+      case "cart_clear":this.checkpoint();s.cart=[];s.coupon=null;return this.summary();
+      case "coupon_apply":{
+        const code=a.code.trim().toUpperCase();
+        const summary=this.summary();
+        const evaluation=CouponEngine.evaluate(code,summary.subtotal,summary.itemCount,summary.baseShipping);
+        assertDomain(evaluation.valid,evaluation.message);
+        this.checkpoint();s.coupon=code;
+        const next=this.summary();
+        return {code,discount:next.discount,shippingDiscount:next.shippingDiscount,newTotal:next.total,summary:next};
+      }
+      case "coupon_remove":this.checkpoint();s.coupon=null;return this.summary();
+      case "checkout_set_shipping":s.shipping=a.method;return this.summary();
+      case "checkout_prepare":return CheckoutEngine.prepare(s);
+      case "checkout_place_demo_order":{
+        assertDomain(a.confirm===true,"confirm must be true to place a demo order.");
+        const preparation=CheckoutEngine.prepare(s);
+        assertDomain(preparation.ready,"Checkout is not ready.",{issues:preparation.issues});
+        const now=new Date();
+        const date=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+        let suffix;
+        try{suffix=String(1000+crypto.getRandomValues(new Uint32Array(1))[0]%9000);}catch{suffix=String(Math.floor(1000+Math.random()*9000));}
+        const order={id:`ORDER-${date}-${suffix}`,createdAt:now.toISOString(),demo:true,status:"Simulated • no payment charged",summary:preparation.summary,delivery:{recipient:"Alex Demo",address:"42 Example Lane, Demo City",note:"Fictional delivery information; no shipment is created."}};
+        s.lastOrder=clone(order);s.cart=[];s.coupon=null;this.undo.clear();
+        return {order};
+      }
+      case "store_undo":Object.assign(s,this.undo.pop());return {cart:s.cart,coupon:s.coupon,compare:s.compare,summary:this.summary()};
+      case "store_reset_demo":this.state=defaultState();this.undo.clear();return {state:clone(this.state)};
+      default:throw new Error(`Tool ${name} is not implemented.`);
+    }
+  }
+}
+
+/* ==================== PERSISTENCE ==================== */
+let persistenceWarned=false;
+function persist(engine) {
+  try{
+    const s=engine.state;
+    localStorage.setItem(CONFIG.storageKey,JSON.stringify({version:1,query:s.query,filters:s.filters,sort:s.sort,compare:s.compare,cart:s.cart,coupon:s.coupon,shipping:s.shipping}));
+  }catch(error){
+    if(!persistenceWarned){console.warn("AgentMart: storage unavailable; changes remain in memory.",error);persistenceWarned=true;toast("Browser storage is unavailable. This session works, but cannot persist after refresh.",true);}
+  }
+}
+function restore(engine) {
+  try{
+    const raw=localStorage.getItem(CONFIG.storageKey);
+    if(!raw)return false;
+    const saved=JSON.parse(raw);
+    assertDomain(saved&&saved.version===1,"Unrecognized saved state.");
+    validateSchema({query:saved.query,...saved.filters},TOOL_MAP.get("store_set_filters").inputSchema);
+    validatePriceRange(saved.filters);
+    validateSchema({sort:saved.sort},TOOL_MAP.get("store_set_sort").inputSchema);
+    validateSchema({productIds:saved.compare},TOOL_MAP.get("product_compare").inputSchema);
+    saved.compare.forEach(id=>engine.product(id));
+    assertDomain(Array.isArray(saved.cart),"Invalid stored cart.");
+    saved.cart.forEach(line=>validateSchema(line,objectSchema({productId:productIdSchema,quantity:integer("Quantity",{minimum:1,maximum:999})},["productId","quantity"])));
+    CartEngine.validate(saved.cart);
+    assertDomain(saved.coupon===null||Object.hasOwn(CONFIG.coupons,saved.coupon),"Invalid saved coupon.");
+    assertDomain(["standard","express"].includes(saved.shipping),"Invalid shipping method.");
+    engine.state={...defaultState(),query:saved.query,filters:clone(saved.filters),sort:saved.sort,compare:[...saved.compare],cart:clone(saved.cart),coupon:saved.coupon,shipping:saved.shipping};
+    return true;
+  }catch(error){
+    console.warn("AgentMart: invalid or inaccessible local storage; using safe defaults.",error);
+    engine.state=defaultState();
+    return false;
+  }
+}
+
+/* ==================== ACTIVITY LOGGER & TOASTS ==================== */
+class ActivityLogger {
+  constructor(){this.entries=[];}
+  add(source,action,summary){
+    this.entries.unshift({timestamp:new Date().toLocaleTimeString("en-GB"),source,action,summary});
+    this.entries=this.entries.slice(0,50);this.render();
+  }
+  render(){
+    $("#activity-list").innerHTML=this.entries.map(e=>`<div class="activity"><div class="activity-top"><time>${escapeHTML(e.timestamp)}</time><span class="source ${e.source==="WebMCP"?"ai":""}">${escapeHTML(e.source)}</span><code>${escapeHTML(e.action)}</code></div><div class="activity-summary">${escapeHTML(e.summary)}</div></div>`).join("");
+  }
+}
+function toast(message,error=false){
+  const el=document.createElement("div");el.className="toast"+(error?" error":"");el.textContent=message;
+  $("#toast-region").appendChild(el);setTimeout(()=>el.remove(),4600);
+}
+function activitySummary(event){
+  const {name,input:a,result:r}=event;
+  if(!r.success)return r.error;
+  if(name==="product_search")return `${JSON.stringify(a)} → ${r.count} matches`;
+  if(name==="cart_add")return `Added ${a.quantity??1} × ${PRODUCT_MAP.get(a.productId).name}`;
+  if(name==="cart_add_multiple")return `Added ${a.items.length} lines atomically`;
+  if(name==="cart_set_quantity")return `${a.productId} → quantity ${a.quantity}`;
+  if(name==="cart_remove")return `Removed ${a.productId}`;
+  if(name==="product_compare")return a.productIds.length?`Selected ${a.productIds.length}: ${a.productIds.join(", ")}`:"Comparison cleared";
+  if(name==="coupon_apply")return `${r.code} • savings ${money(r.discount+r.shippingDiscount)} • total ${money(r.newTotal)}`;
+  if(name==="checkout_prepare")return r.ready?"Checkout ready; no order placed":r.issues.join(" ");
+  if(name==="checkout_place_demo_order")return `${r.order.id} • ${money(r.order.summary.total)} • no payment charged`;
+  if(name==="cart_get"||name==="checkout_get_summary")return `${r.itemCount} items • ${money(r.total)}`;
+  if(name==="store_set_filters")return JSON.stringify(a);
+  if(name==="store_set_sort")return CONFIG.sorts[a.sort];
+  if(name==="checkout_set_shipping")return `${pretty(a.method)} • ${money(r.shipping)} shipping`;
+  if(name==="product_get")return r.product.name;
+  if(name==="product_get_recommendations")return `${r.recommendations.length} ranked recommendations`;
+  return ({cart_clear:"Cart and coupon cleared",coupon_remove:"Coupon removed",store_undo:"Previous commerce change restored",store_clear_filters:"Query and filters cleared",store_reset_demo:"Demo restored to its starting state",store_get_state:"Shared storefront state returned",store_get_available_options:"Valid options and coupon rules returned"})[name]||"Completed";
+}
+
+/* ==================== RENDERER ==================== */
+let engine, logger;
+let modalView=null;
+let searchNoteTimer;
+let lastFocusedElement=null;
+function bestCoupon(summary){
+  if(!summary.itemCount)return null;
+  return Object.keys(CONFIG.coupons).map(code=>{
+    const v=CouponEngine.evaluate(code,summary.subtotal,summary.itemCount,summary.baseShipping);
+    return {...v,saved:v.discount+v.shippingDiscount};
+  }).filter(v=>v.valid&&v.saved>0).sort((a,b)=>b.saved-a.saved||a.code.localeCompare(b.code))[0]||null;
+}
+const ProductRenderer = {
+  card(p){
+    const selected=engine.state.compare.includes(p.id);
+    return `<article class="product" data-product-card="${p.id}">
+      <div class="product-art"><img src="${p.image}" alt="Illustration of ${escapeHTML(p.name)}" loading="lazy">${p.bestseller?'<span class="badge">Bestseller</span>':p.featured?'<span class="badge">Editor’s pick</span>':""}<button class="art-details" data-action="details" data-id="${p.id}" aria-label="View details for ${escapeHTML(p.name)}">Details ↗</button></div>
+      <div class="product-info"><div class="product-brand">${escapeHTML(p.brand)}</div><h3 class="product-title">${escapeHTML(p.name)}</h3>
+      <div class="rating"><b>★ ${p.rating.toFixed(1)}</b> <span>(${p.reviewCount.toLocaleString()} reviews)</span></div>
+      <div class="price">${money(p.price)} <del>${money(p.originalPrice)}</del></div>
+      <div class="chips">${p.features.slice(0,3).map(f=>`<span class="chip">${pretty(f)}</span>`).join("")}</div>
+      <div class="availability ${p.stock<=2?"low":""}">${p.stock===0?"Out of stock":`${p.stock<=2?`Only ${p.stock} left`:`${p.stock} in stock`} · ${shippingLabel(p.shippingDays)} delivery`}</div>
+      <div class="product-bottom"><button class="primary" data-action="add" data-id="${p.id}" ${!p.stock?"disabled":""}>+ Add to cart</button><label class="product-compare"><input type="checkbox" data-compare="${p.id}" ${selected?"checked":""} aria-label="Compare ${escapeHTML(p.name)}">Compare</label></div></div></article>`;
+  },
+  render(){
+    const visible=engine.visible();
+    $("#result-count").textContent=`/ ${visible.count}`;
+    $("#product-grid").innerHTML=visible.products.length?visible.products.map(p=>this.card(p)).join(""):`<div class="panel empty"><strong>No matches this time.</strong><p>Try fewer features, a wider price range, or another query.</p><button style="margin-top:16px" data-action="clear-filters">Clear search & filters</button></div>`;
+  }
+};
+function totalsHTML(s){
+  return `<div class="money-row"><span class="muted">Subtotal</span><span>${money(s.subtotal)}</span></div>
+    <div class="money-row"><span class="muted">Coupon discount</span><span style="color:var(--accent)">−${money(s.discount)}</span></div>
+    <div class="money-row"><span class="muted">${pretty(s.shippingMethod)} shipping</span><span>${s.shipping?money(s.shipping):"Free"}${s.shippingDiscount?` <del class="muted tiny">${money(s.baseShipping)}</del>`:""}</span></div>
+    <div class="money-row total"><span>Total</span><span>${money(s.total)}</span></div>`;
+}
+function cartHTML(){
+  const s=engine.summary();
+  if(!s.itemCount)return `<div class="empty" style="padding:25px 8px"><div style="font-size:30px;margin-bottom:8px">⌑</div><strong>Your next setup starts here.</strong><p class="small-text">Add something you love—or let your agent find the right fit.</p></div><div class="divider"></div><p class="tiny muted">Try SAVE100 · TECH10 · FREESHIP<br>Only one coupon is active at a time.</p>`;
+  const best=bestCoupon(s);
+  return `<div class="cart-list">${s.items.map(i=>{
+    const p=PRODUCT_MAP.get(i.productId);
+    return `<div class="cart-line"><img src="${p.image}" alt=""><div><h3>${escapeHTML(i.name)}</h3><div class="quantity-controls"><button data-action="quantity" data-id="${i.productId}" data-quantity="${i.quantity-1}" aria-label="Decrease ${escapeHTML(i.name)} quantity">−</button><span>${i.quantity}</span><button data-action="quantity" data-id="${i.productId}" data-quantity="${i.quantity+1}" ${i.quantity>=p.stock?"disabled":""} aria-label="Increase ${escapeHTML(i.name)} quantity">+</button><span class="tiny muted">${shippingLabel(i.shippingDays)}</span></div></div><div class="line-price">${money(i.lineTotal)}<br><button class="remove" data-action="remove" data-id="${i.productId}" aria-label="Remove ${escapeHTML(i.name)}">Remove</button></div></div>`;
+  }).join("")}</div>
+    <form class="coupon-form"><input name="coupon" aria-label="Coupon code" placeholder="Coupon code" maxlength="30" autocomplete="off"><button type="submit">Apply</button></form>
+    ${s.coupon.code?`<div class="row between"><span class="coupon-status" style="${!s.coupon.valid?"color:var(--danger)":""}">${escapeHTML(s.coupon.code)} ${s.coupon.valid?"applied ✓":"not eligible"}</span><button class="ghost small" data-action="remove-coupon" aria-label="Remove coupon">✕</button></div>${!s.coupon.valid?`<p class="issue">${escapeHTML(s.coupon.message)}</p>`:""}`:`<p class="tiny muted">${best?`${best.code} can save ${money(best.saved)}`:"SAVE100 unlocks at NT$1,500"}</p>`}
+    <div style="margin-top:14px">${totalsHTML(s)}</div>
+    <div class="cart-meta"><div><strong>${money(s.savings)}</strong>Total savings vs. original</div><div><strong>${shippingLabel(s.estimatedDeliveryDays)}</strong>All items · estimated</div></div>
+    <button class="primary full" data-action="checkout">Checkout preview →</button>
+    <div class="row between" style="margin-top:10px"><span class="tiny muted">Demo only · no payment</span><button class="ghost small" data-action="clear-cart">Clear cart</button></div>`;
+}
+function renderCart(){
+  const s=engine.summary();
+  $("#cart-content").innerHTML=cartHTML();
+  $("#cart-count").textContent=s.itemCount;
+  $("#cart-item-label").textContent=s.itemCount?`(${s.itemCount})`:"";
+  $("#mobile-total").textContent=s.itemCount?`${s.itemCount} items · ${money(s.total)}`:"Your cart is empty";
+}
+function renderSignals(){
+  const s=engine.summary(),best=bestCoupon(s);
+  const wireless=SearchEngine.search({category:"keyboards",maxPrice:3000,features:["wireless"],inStockOnly:true}).count;
+  const nextDay=s.items.filter(i=>i.shippingDays===1).length;
+  const low=s.items.filter(i=>i.availableStock<=2).length;
+  const messages=[
+    `${wireless} wireless keyboards under NT$3,000 are in stock.`,
+    nextDay?`${nextDay} cart product${nextDay!==1?"s":""} offer next-day standard delivery.`:"Standard shipping is free at NT$3,000.",
+    best?`${best.code} is the best eligible coupon: save ${money(best.saved)}${s.coupon.code===best.code?" (active)":"."}`:"Add items to unlock personalized coupon suggestions.",
+    low?`${low} cart product${low!==1?"s":""} have only 2 or fewer units left.`:"A keyboard + mouse + webcam + stand can fit under NT$5,000."
+  ];
+  $("#signals").innerHTML=messages.map(m=>`<div class="signal">${escapeHTML(m)}</div>`).join("");
+}
+function setInputValue(id,value){
+  const el=$("#"+id);
+  if(document.activeElement!==el)el.value=value??"";
+}
+function syncFilters(){
+  const s=engine.state,f=s.filters;
+  setInputValue("search-input",s.query);
+  for(const key of ["category","brand","minPrice","maxPrice","minRating"]){
+    const el=$("#filter-"+key),value=f[key]??"";
+    if(el.tagName==="SELECT"&&value!==""&&![...el.options].some(o=>o.value===String(value)))el.add(new Option(String(value),String(value)));
+    setInputValue("filter-"+key,value);
+  }
+  $("#filter-inStockOnly").checked=!!f.inStockOnly;
+  $("#filter-fast").checked=f.maxShippingDays!==undefined;
+  $("#filter-fast").parentElement.lastChild.textContent=f.maxShippingDays?`Arrives within ${f.maxShippingDays} days`:"Arrives within 2 days";
+  $("#filter-freeShippingOnly").checked=!!f.freeShippingOnly;
+  $$("[data-feature]").forEach(el=>el.checked=(f.features||[]).includes(el.dataset.feature));
+  setInputValue("sort-select",s.sort);
+}
+function renderCompareBar(){
+  const ids=engine.state.compare;
+  $("#compare-bar").hidden=!ids.length;
+  $("#compare-bar").innerHTML=`<span><strong>${ids.length}/3 selected</strong> <span class="muted">· ${ids.map(id=>escapeHTML(PRODUCT_MAP.get(id).name)).join(" / ")}</span></span><button class="primary small" data-action="open-compare">Compare →</button><button class="ghost small" data-action="clear-compare" aria-label="Clear comparison">✕</button>`;
+}
+function renderAll(){
+  ProductRenderer.render();renderCart();renderSignals();syncFilters();renderCompareBar();
+  $$('[data-action="undo"]').forEach(b=>b.disabled=!engine.undo.history.length);
+  if(modalView)renderModal();
+}
+
+/* ==================== PRODUCT, COMPARE & CHECKOUT MODALS ==================== */
+function openModal(view){
+  lastFocusedElement=document.activeElement;
+  modalView=view;renderModal();
+  if(!$("#main-dialog").open)$("#main-dialog").showModal();
+}
+function closeModal(){
+  $("#main-dialog").close();modalView=null;
+  if(lastFocusedElement?.isConnected)lastFocusedElement.focus();
+}
+function compareHTML(){
+  const products=engine.state.compare.map(id=>PRODUCT_MAP.get(id));
+  if(!products.length)return '<div class="empty"><strong>No products selected</strong>Select up to three products to compare.</div>';
+  const rows=[
+    ["Price",p=>`<strong>${money(p.price)}</strong>`],
+    ["Rating",p=>`★ ${p.rating} / 5`],["Reviews",p=>p.reviewCount.toLocaleString()],
+    ["Features",p=>p.features.map(f=>pretty(f)).join(", ")],
+    ["Shipping",p=>`${shippingLabel(p.shippingDays)} · standard`],
+    ["Stock",p=>p.stock?`${p.stock} units available`:"Out of stock"]
+  ];
+  const specKeys=[...new Set(products.flatMap(p=>Object.keys(p.specs)))];
+  return `<p class="small-text muted" style="margin-bottom:14px">One shared selection. Compare up to three products.</p><div class="compare-scroll"><table class="comparison"><thead><tr><th scope="col">Product</th>${products.map(p=>`<th scope="col"><img src="${p.image}" alt=""><div>${escapeHTML(p.name)}</div><div class="tiny muted">${escapeHTML(p.brand)}</div></th>`).join("")}</tr></thead><tbody>
+    ${rows.map(([label,fn])=>`<tr><th scope="row">${label}</th>${products.map(p=>`<td>${fn(p)}</td>`).join("")}</tr>`).join("")}
+    ${specKeys.map(key=>`<tr><th scope="row">${pretty(key)}</th>${products.map(p=>`<td>${escapeHTML(p.specs[key]??"—")}</td>`).join("")}</tr>`).join("")}
+    <tr><th scope="row">Choose</th>${products.map(p=>`<td><button class="primary small" data-action="add" data-id="${p.id}" ${!p.stock?"disabled":""}>Add to cart</button></td>`).join("")}</tr></tbody></table></div>`;
+}
+function checkoutHTML(){
+  const prep=CheckoutEngine.prepare(engine.state),s=prep.summary;
+  return `<div class="checkout-grid"><div class="stack"><div class="notice"><strong>Simulation, not a purchase.</strong><br>No payment details, real address, network requests, or charges. All delivery estimates are fictional.</div><div class="panel pad"><h3>Demo delivery information</h3><p class="muted small-text" style="margin-top:8px">Alex Demo<br>42 Example Lane, Demo City<br>Fictional recipient · no personal data required</p></div>
+    <label class="field"><span>Shipping method</span><select id="checkout-shipping"><option value="standard" ${engine.state.shipping==="standard"?"selected":""}>Standard · NT$80 / free at NT$3,000</option><option value="express" ${engine.state.shipping==="express"?"selected":""}>Express · NT$150 / one day faster</option></select></label>
+    <p class="small-text muted">${s.itemCount?`All items estimated to arrive: ${shippingLabel(s.estimatedDeliveryDays)}. ${escapeHTML(s.deliveryNote)}`:"Add items before preparing an order."}</p>
+    <div role="status">${prep.ready?'<span class="badge good">✓ Checkout ready</span>':prep.issues.map(i=>`<p class="issue">${escapeHTML(i)}</p>`).join("")}</div>
+    ${!s.coupon.valid?'<button class="small" data-action="remove-coupon">Remove ineligible coupon</button>':""}
+    </div><div class="panel pad"><h3>Order summary</h3><div class="divider"></div>${s.items.map(i=>`<div class="money-row"><span>${escapeHTML(i.name)} × ${i.quantity}</span><strong>${money(i.lineTotal)}</strong></div>`).join("")}<div class="divider"></div>${totalsHTML(s)}<p class="tiny muted" style="margin:10px 0 17px">${s.coupon.code?`Coupon: ${escapeHTML(s.coupon.code)} · `:""}Tax included · no real payment</p><button class="primary full" data-action="place-order" ${!prep.ready?"disabled":""}>Place Demo Order</button><p class="tiny muted" style="margin-top:10px">This button explicitly confirms a simulated order.</p></div></div>`;
+}
+function renderModal(){
+  if(!modalView)return;
+  const body=$("#modal-body"),title=$("#modal-title");
+  if(modalView.type==="product"){
+    const p=PRODUCT_MAP.get(modalView.id);title.textContent="Product details";
+    body.innerHTML=`<div class="detail-grid"><div><img class="detail-art" src="${p.image}" alt="Illustration of ${escapeHTML(p.name)}"><table class="specs"><caption class="eyebrow" style="text-align:left;margin-top:18px">Full specifications</caption><tbody>${Object.entries(p.specs).map(([k,v])=>`<tr><th scope="row">${pretty(k)}</th><td>${escapeHTML(v)}</td></tr>`).join("")}</tbody></table></div><div><div class="eyebrow">${escapeHTML(p.brand)} / ${pretty(p.category)}</div><h2 style="font-size:29px;line-height:1.2;margin:10px 0">${escapeHTML(p.name)}</h2><div class="rating"><b>★ ${p.rating}</b> · ${p.reviewCount} reviews · ${p.id}</div><div class="price" style="font-size:28px;margin:18px 0">${money(p.price)} <del>${money(p.originalPrice)}</del></div><p class="muted">${escapeHTML(p.description)}</p><div class="chips" style="margin-top:18px">${p.features.map(f=>`<span class="chip">${pretty(f)}</span>`).join("")}</div><div class="divider"></div><p style="color:var(--accent2)">${p.stock?`${p.stock} in stock · ${shippingLabel(p.shippingDays)} standard delivery`:"Currently out of stock"}</p><p class="tiny muted" style="margin-top:6px">Free standard shipping at NT$3,000 per order.</p><form class="detail-add" data-product="${p.id}"><input type="number" name="quantity" aria-label="Quantity" min="1" max="${Math.max(1,p.stock)}" value="${modalView.quantity||1}" required><button class="primary" ${!p.stock?"disabled":""}>Add to cart</button></form><button class="ghost full" style="margin-top:9px" data-action="toggle-compare-product" data-id="${p.id}">${engine.state.compare.includes(p.id)?"Remove from comparison":"Add to comparison"}</button></div></div>`;
+  } else if(modalView.type==="compare"){title.textContent="Compare your shortlist";body.innerHTML=compareHTML();}
+  else if(modalView.type==="checkout"){title.textContent="Checkout preview";body.innerHTML=checkoutHTML();}
+  else if(modalView.type==="cart"){title.textContent="Your shared cart";body.innerHTML=cartHTML();}
+  else if(modalView.type==="order"){
+    const order=engine.state.lastOrder;
+    if(!order){closeModal();return;}
+    title.textContent="Demo order complete";
+    body.innerHTML=`<div class="order-success"><div class="success-icon">✓</div><div class="eyebrow">A capability, not a click sequence</div><h2 style="margin-top:8px">Your demo order is placed.</h2><p>${escapeHTML(order.id)}</p><span class="badge good">No payment charged · no shipment created</span></div><div class="panel pad" style="max-width:520px;margin:10px auto 20px">${order.summary.items.map(i=>`<div class="money-row"><span>${escapeHTML(i.name)} × ${i.quantity}</span><strong>${money(i.lineTotal)}</strong></div>`).join("")}<div class="divider"></div>${totalsHTML(order.summary)}<p class="tiny muted" style="margin-top:12px">Estimated delivery: ${shippingLabel(order.summary.estimatedDeliveryDays)} · ${pretty(order.summary.shippingMethod)}<br>${escapeHTML(order.delivery.address)} · fictional</p></div><div style="text-align:center"><button class="primary" data-action="close-modal">Keep exploring →</button><p class="tiny muted" style="margin-top:12px">Your cart is now clear. The catalog remains unchanged.</p></div>`;
+  } else if(modalView.type==="copy"){
+    title.textContent="Copy this agent prompt";
+    body.innerHTML=`<p class="muted small-text" style="margin-bottom:12px">Clipboard access isn't available in this browser context. Select and copy the prompt below.</p><textarea id="copy-fallback" class="full" rows="6" readonly>${escapeHTML(modalView.text)}</textarea>`;
+  }
+}
+
+/* ==================== SHARED EVENT PIPELINE ==================== */
+function handleCommerceEvent(event){
+  const {name,input,result,source,readOnly}=event;
+  logger.add(source,name,activitySummary(event));
+  if(!result.success){toast(result.error,true);return;}
+  if(!readOnly){persist(engine);renderAll();}
+  if(name==="product_compare"&&engine.state.compare.length)openModal({type:"compare"});
+  if(name==="checkout_place_demo_order"){
+    openModal({type:"order"});
+    logger.add("System","order_complete","Simulation complete. No external payment or delivery service contacted.");
+  }
+  if(name==="checkout_prepare"){
+    if(result.ready)logger.add("System","checkout_ready","Validated current cart. No order has been placed.");
+    if(source==="WebMCP")openModal({type:"checkout"});
+  }
+  if(name==="store_reset_demo"){
+    closeModal();$("#ai-search-note").hidden=true;clearTimeout(searchNoteTimer);
+  }
+  if(source==="WebMCP"){
+    if(name==="product_search"){
+      const terms=[input.query,...(input.features||[]).map(pretty),input.category&&pretty(input.category),input.maxPrice!==undefined&&`≤ ${money(input.maxPrice)}`,input.minRating&&`★ ≥ ${input.minRating}`].filter(Boolean);
+      $("#ai-search-note").textContent=`AI searched: ${terms.join(" + ")||"all products"} — ${result.count} matches found. Storefront filters are unchanged; the agent can use store_set_filters to show these results.`;
+      $("#ai-search-note").hidden=false;
+      clearTimeout(searchNoteTimer);searchNoteTimer=setTimeout(()=>$("#ai-search-note").hidden=true,16000);
+    }
+    if(!readOnly){
+      const ids=input.productIds||input.items?.map(i=>i.productId)||(input.productId?[input.productId]:[]);
+      ids.forEach(id=>{const card=document.querySelector(`[data-product-card="${id}"]`);if(card){card.classList.remove("agent-hit");void card.offsetWidth;card.classList.add("agent-hit");}});
+      const count=$("#cart-count");count.classList.remove("pulse");void count.offsetWidth;count.classList.add("pulse");
+      const message=name==="cart_add"?`AI Agent added ${PRODUCT_MAP.get(input.productId).name} to cart`:
+        name==="coupon_apply"?`AI Agent applied ${result.code}`:
+        name==="product_compare"?`AI Agent selected ${input.productIds.length} products for comparison`:
+        `AI Agent: ${activitySummary(event)}`;
+      toast(message);
+    }
+  }else if(!readOnly&&["cart_add","cart_add_multiple","coupon_apply","store_undo","store_reset_demo","cart_remove","cart_clear","coupon_remove"].includes(name)){
+    toast(activitySummary(event));
+  }
+}
+
+/* ==================== UI CONTROLLER ==================== */
+const UIController = {
+  call(name,input={}){return engine.execute(name,input,"UI");},
+  compareToggle(id,open=false){
+    const ids=engine.state.compare.includes(id)?engine.state.compare.filter(x=>x!==id):[...engine.state.compare,id];
+    // The same comparison capability opens its shared panel for either actor.
+    const result=this.call("product_compare",{productIds:ids});
+    if(!result.success)renderAll();
+  },
+  collectFilters(){
+    const a={query:$("#search-input").value.trim()};
+    for(const key of ["category","brand"]){const value=$("#filter-"+key).value;if(value)a[key]=value;}
+    for(const key of ["minPrice","maxPrice","minRating"]){const value=$("#filter-"+key).value;if(value!=="")a[key]=Number(value);}
+    a.inStockOnly=$("#filter-inStockOnly").checked;
+    a.freeShippingOnly=$("#filter-freeShippingOnly").checked;
+    if($("#filter-fast").checked)a.maxShippingDays=engine.state.filters.maxShippingDays||2;
+    a.features=$$("[data-feature]:checked").map(el=>el.dataset.feature);
+    return a;
+  },
+  applyFilters(){
+    const a=this.collectFilters();
+    // Validate first so removing omitted UI fields can never partially clear invalid criteria.
+    try{validateSchema(a,TOOL_MAP.get("store_set_filters").inputSchema);validatePriceRange(a);}
+    catch(e){toast(e.message,true);logger.add("UI","store_set_filters",e.message);return;}
+    // Passing a complete patch through one shared domain call clears deselected UI fields
+    // using canonical neutral values, preserving a single atomic filter update.
+    this.call("store_set_filters",{
+      query:a.query,
+      minPrice:a.minPrice??0,maxPrice:a.maxPrice??Number.MAX_SAFE_INTEGER,
+      minRating:a.minRating??0,features:a.features,
+      inStockOnly:a.inStockOnly,freeShippingOnly:a.freeShippingOnly,
+      maxShippingDays:a.maxShippingDays??30,
+      ...(a.category?{category:a.category}:{}),
+      ...(a.brand?{brand:a.brand}:{})
+    });
+  },
+  init(){
+    for(const c of OPTIONS.categories)$("#filter-category").add(new Option(pretty(c),c));
+    for(const b of OPTIONS.brands)$("#filter-brand").add(new Option(b,b));
+    for(const [value,label] of Object.entries(CONFIG.sorts))$("#sort-select").add(new Option(label,value));
+    $("#feature-options").innerHTML=OPTIONS.features.map(f=>`<label class="check"><input type="checkbox" data-feature="${f}">${pretty(f)}</label>`).join("");
+    $("#search-form").addEventListener("submit",e=>{e.preventDefault();this.call("store_set_filters",{query:$("#search-input").value.trim()});});
+    let searchTimer;
+    $("#search-input").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>this.call("store_set_filters",{query:$("#search-input").value.trim()}),300);});
+    $("#sort-select").addEventListener("change",e=>this.call("store_set_sort",{sort:e.target.value}));
+    $("#filters-panel").addEventListener("change",()=>this.replaceUIFilters());
+    document.addEventListener("change",e=>{
+      if(e.target.matches("[data-compare]"))this.compareToggle(e.target.dataset.compare);
+      if(e.target.id==="checkout-shipping")this.call("checkout_set_shipping",{method:e.target.value});
+    });
+    document.addEventListener("input",e=>{
+      if(e.target.closest(".detail-add")&&modalView?.type==="product")modalView.quantity=e.target.value;
+    });
+    document.addEventListener("submit",e=>{
+      if(e.target.matches(".coupon-form")){e.preventDefault();this.call("coupon_apply",{code:new FormData(e.target).get("coupon")});}
+      if(e.target.matches(".detail-add")){
+        e.preventDefault();
+        this.call("cart_add",{productId:e.target.dataset.product,quantity:Number(new FormData(e.target).get("quantity"))});
+      }
+    });
+    document.addEventListener("click",async e=>{
+      const b=e.target.closest("[data-action]");if(!b)return;
+      const id=b.dataset.id;
+      switch(b.dataset.action){
+        case "add":this.call("cart_add",{productId:id});break;
+        case "details":openModal({type:"product",id});break;
+        case "remove":this.call("cart_remove",{productId:id});break;
+        case "quantity":this.call("cart_set_quantity",{productId:id,quantity:Number(b.dataset.quantity)});break;
+        case "clear-cart":this.call("cart_clear");break;
+        case "remove-coupon":this.call("coupon_remove");break;
+        case "clear-filters":clearTimeout(searchTimer);this.call("store_clear_filters");break;
+        case "toggle-filters":{
+          const open=$("#filters-panel").classList.toggle("open");b.setAttribute("aria-expanded",String(open));break;
+        }
+        case "toggle-compare-product":this.compareToggle(id);break;
+        case "open-compare":openModal({type:"compare"});break;
+        case "clear-compare":this.call("product_compare",{productIds:[]});break;
+        case "open-cart":openModal({type:"cart"});break;
+        case "close-modal":closeModal();break;
+        case "checkout":this.call("checkout_prepare");openModal({type:"checkout"});break;
+        case "place-order":this.call("checkout_place_demo_order",{confirm:true});break;
+        case "undo":this.call("store_undo");break;
+        case "reset":clearTimeout(searchTimer);this.call("store_reset_demo");break;
+        case "copy-mission":await copyText(mission);break;
+        case "copy-prompt":await copyText(PROMPTS[Number(b.dataset.index)]);break;
+        case "refresh-tools":await adapter.refreshTools();break;
+      }
+    });
+    $("#main-dialog").addEventListener("cancel",e=>{e.preventDefault();closeModal();});
+    $("#main-dialog").addEventListener("click",e=>{if(e.target===$("#main-dialog")){const rect=e.target.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)closeModal();}});
+  },
+  replaceUIFilters(){
+    const criteria=this.collectFilters();
+    // UI needs replacement semantics (e.g. selecting "All brands").
+    // The engine supports an explicit internal capability for replacing filters,
+    // with the same validation, state, logging, and renderer path.
+    engine.replaceFilters(criteria,"UI");
+  }
+};
+// A domain-level replacement method is used by human filter controls; no UI owns state.
+// Structured agents can achieve the same result with store_clear_filters + store_set_filters.
+CommerceEngine.prototype.replaceFilters=function(criteria,source="UI"){
+  let result;
+  try{
+    validateSchema(criteria,TOOL_MAP.get("store_set_filters").inputSchema);
+    validatePriceRange(criteria);
+    const {query="",...filters}=criteria;
+    this.state.query=query;this.state.filters=clone(filters);
+    result={success:true,query,filters:clone(filters),...clone(this.visible())};
+  }catch(e){result={success:false,error:e.message,...(e.extra||{})};}
+  this.onEvent?.({name:"store_set_filters",input:criteria,source,result,readOnly:false});
+  return result;
+};
+const PROMPTS=[
+  "Find a wireless 75% mechanical keyboard under NT$3,000.",
+  "Compare the three highest-rated wireless keyboards under NT$3,000.",
+  "Add the best one to my cart.",
+  "Find me a keyboard and mouse combination under NT$5,000.",
+  "Show me all 27-inch QHD monitors under NT$8,000.",
+  "Find an ergonomic wireless mouse with at least a 4.5 rating.",
+  "Apply the best coupon available for my current cart.",
+  "Can everything in my cart arrive within two days?",
+  "Prepare checkout, but do not place the order.",
+  "Place my demo order.",
+  "What's the best-value product currently in my cart?",
+  "Remove the most expensive item from my cart."
+];
+async function copyText(text){
+  try{
+    if(!navigator.clipboard?.writeText)throw new Error("Clipboard unavailable.");
+    await navigator.clipboard.writeText(text);toast("Prompt copied. Paste it into your WebMCP-capable AI agent.");
+  }catch{
+    openModal({type:"copy",text});setTimeout(()=>{const el=$("#copy-fallback");el?.focus();el?.select();},20);
+  }
+}
+
+/* ==================== WEBMCP ADAPTER ==================== */
+class WebMCPAdapter {
+  constructor(engine){
+    this.engine=engine;this.registered=new Set();this.registering=null;this.context=null;this.runtimeTools=null;this.runtimeMessage="";
+  }
+  async connect(){
+    if(this.registering)return this.registering;
+    this.registering=this.registerAll();
+    try{return await this.registering;}finally{this.registering=null;}
+  }
+  async registerAll(){
+    // Requested page capability detection. Unsupported browsers remain fully usable.
+    if(!("modelContext" in document)){
+      this.setStatus(false,"WebMCP Unsupported");
+      console.info("AgentMart: WebMCP Unsupported — document.modelContext is not available. Human UI and local commerce capabilities remain fully functional.");
+      logger.add("System","webmcp_status","WebMCP Unsupported. Human shopping and local capability calls remain available.");
+      this.renderInspector();return;
+    }
+    try{
+      this.context=document.modelContext;
+      if(!this.context||typeof this.context.registerTool!=="function")throw new Error("document.modelContext.registerTool is unavailable.");
+      for(const definition of TOOL_DEFS){
+        if(this.registered.has(definition.name))continue;
+        await document.modelContext.registerTool({
+          ...definition,
+          execute:async input=>{
+            // No selectors, click simulation, or separate agent state.
+            return this.engine.execute(definition.name,input??{},"WebMCP");
+          }
+        });
+        this.registered.add(definition.name);
+      }
+      this.setStatus(true,"WebMCP Connected");
+      logger.add("System","webmcp_connected",`${this.registered.size} structured tools registered directly with document.modelContext.`);
+    }catch(error){
+      this.setStatus(false,this.registered.size?"WebMCP Partial":"WebMCP Unsupported");
+      console.warn("AgentMart: WebMCP registration unavailable or incomplete. Store remains usable.",error);
+      logger.add("System","webmcp_registration",`${this.registered.size}/${TOOL_DEFS.length} registered. ${error.message}`);
+    }
+    this.renderInspector();
+  }
+  setStatus(connected,text){
+    const badge=$("#mcp-status");badge.className="badge"+(connected?" good":"");
+    badge.innerHTML=`<span class="dot"></span>${escapeHTML(text)}`;
+  }
+  async refreshTools(){
+    this.runtimeTools=null;this.runtimeMessage="";
+    if(this.context&&typeof this.context.getTools==="function"){
+      try{
+        const response=await this.context.getTools();
+        const list=Array.isArray(response)?response:Array.isArray(response?.tools)?response.tools:null;
+        if(list){
+          this.runtimeTools=list;
+          this.runtimeMessage=`Runtime reports ${list.length} tools; ${list.filter(t=>TOOL_MAP.has(typeof t==="string"?t:t.name)).length} are AgentMart capabilities.`;
+        }else this.runtimeMessage="Runtime returned an unfamiliar listing; showing local definitions.";
+      }catch(error){
+        this.runtimeMessage="Runtime tool listing unavailable; showing local definitions.";
+        console.warn("AgentMart: getTools failed safely.",error);
+      }
+    }else this.runtimeMessage="getTools is unavailable; showing locally known capability definitions and registration status.";
+    this.renderInspector();toast("Tool inspector refreshed.");
+  }
+  renderInspector(){
+    $("#tool-status").textContent=`${this.registered.size}/${TOOL_DEFS.length} registered with WebMCP. ${this.runtimeMessage||"Definitions below are available locally in every browser."}`;
+    $("#tool-grid").innerHTML=TOOL_DEFS.map(t=>`<div class="tool"><div class="row between"><code>${t.name}</code><span class="badge ${t.annotations.readOnlyHint?"good":""}">${t.annotations.readOnlyHint?"READ":"WRITE"}</span></div><p>${escapeHTML(t.description)}</p><div class="tiny muted" style="margin-top:8px">${this.registered.has(t.name)?"● Registered":"○ Local definition · not registered"}</div></div>`).join("");
+  }
+}
+
+/* ==================== ISOLATED NON-DESTRUCTIVE SELF TESTS ==================== */
+function runSelfTests(){
+  const tests=[];
+  const test=(name,fn)=>{try{fn();tests.push({test:name,result:"PASS"});}catch(error){tests.push({test:name,result:"FAIL"});console.error(`AgentMart self-test FAILED: ${name}`,error);}};
+  const check=(condition,message="Assertion failed")=>{if(!condition)throw new Error(message);};
+  const fresh=()=>new CommerceEngine();
+  const call=(e,n,a={})=>e.execute(n,a,"System");
+  test("Product search is case-insensitive",()=>{
+    const r=call(fresh(),"product_search",{query:"WIRELESS keyboard"});check(r.success&&r.count>=4);check(r.products.every(p=>p.category==="keyboards"));
+  });
+  test("Price filter",()=>{
+    const r=call(fresh(),"product_search",{minPrice:1000,maxPrice:3000});check(r.count>0&&r.products.every(p=>p.price>=1000&&p.price<=3000));
+  });
+  test("Feature AND filter",()=>{
+    const r=call(fresh(),"product_search",{features:["wireless","75_percent"]});check(r.count===3&&r.products.every(p=>p.features.includes("wireless")&&p.features.includes("75_percent")));
+  });
+  test("Sorting preserves catalog",()=>{
+    const before=CATALOG.map(p=>p.id).join(),r=call(fresh(),"product_search",{sort:"price_asc"});
+    check(r.products.every((p,i,a)=>i===0||a[i-1].price<=p.price));check(before===CATALOG.map(p=>p.id).join());
+  });
+  test("Cart add and immediate shared read",()=>{
+    const e=fresh();check(call(e,"cart_add",{productId:"P-101"}).success);check(call(e,"cart_get").items[0].quantity===1);
+  });
+  test("Cart remove",()=>{
+    const e=fresh();call(e,"cart_add",{productId:"P-101"});check(call(e,"cart_remove",{productId:"P-101"}).itemCount===0);
+  });
+  test("Quantity update and zero removal",()=>{
+    const e=fresh();call(e,"cart_add",{productId:"P-101"});check(call(e,"cart_set_quantity",{productId:"P-101",quantity:2}).itemCount===2);check(call(e,"cart_set_quantity",{productId:"P-101",quantity:0}).itemCount===0);
+  });
+  test("Stock and quantity validation",()=>{
+    const e=fresh();check(!call(e,"cart_add",{productId:"P-105",quantity:3}).success);check(!call(e,"cart_add",{productId:"P-117"}).success);check(!call(e,"cart_add",{productId:"P-101",quantity:1.5}).success);check(e.state.cart.length===0);
+  });
+  test("Coupon calculation and case-insensitivity",()=>{
+    const e=fresh();call(e,"cart_add_multiple",{items:[{productId:"P-101"},{productId:"P-107"}]});
+    const r=call(e,"coupon_apply",{code:"tech10"});check(r.discount===428&&r.newTotal===3852);
+    check(call(e,"coupon_apply",{code:"SAVE100"}).discount===100);
+    call(e,"cart_add",{productId:"P-102"});check(call(e,"coupon_apply",{code:"TECH10"}).discount===500);
+    call(e,"checkout_set_shipping",{method:"express"});check(call(e,"coupon_apply",{code:"FREESHIP"}).shippingDiscount===150);
+  });
+  test("Comparison limit and unknown ID",()=>{
+    const e=fresh();check(call(e,"product_compare",{productIds:["P-101","P-102"]}).comparison.length===2);
+    check(!call(e,"product_compare",{productIds:["P-101","P-102","P-103","P-104"]}).success);
+    check(!call(e,"product_compare",{productIds:["P-999"]}).success);check(e.state.compare.length===2);
+  });
+  test("Checkout preparation is read-only",()=>{
+    const e=fresh();check(!call(e,"checkout_prepare").ready);call(e,"cart_add",{productId:"P-101"});
+    const before=JSON.stringify(e.state);check(call(e,"checkout_prepare").ready);check(JSON.stringify(e.state)===before);
+  });
+  test("Batch add atomicity including repeated IDs",()=>{
+    const e=fresh();call(e,"cart_add",{productId:"P-107"});const before=JSON.stringify(e.state);
+    check(!call(e,"cart_add_multiple",{items:[{productId:"P-101"},{productId:"P-999"}]}).success);
+    check(JSON.stringify(e.state)===before);
+    check(!call(e,"cart_add_multiple",{items:[{productId:"P-105",quantity:2},{productId:"P-105"}]}).success);
+    check(JSON.stringify(e.state)===before);
+  });
+  test("Undo cart, coupon, comparison",()=>{
+    const e=fresh();call(e,"cart_add",{productId:"P-101"});call(e,"coupon_apply",{code:"SAVE100"});call(e,"product_compare",{productIds:["P-102"]});
+    call(e,"store_undo");check(e.state.compare.length===0&&e.state.coupon==="SAVE100");
+    call(e,"store_undo");check(e.state.coupon===null&&e.state.cart.length===1);
+    call(e,"store_undo");check(e.state.cart.length===0);
+  });
+  test("Invalid filter patch is atomic",()=>{
+    const e=fresh();call(e,"store_set_filters",{minPrice:1000});const before=JSON.stringify(e.state);
+    check(!call(e,"store_set_filters",{maxPrice:500}).success);check(JSON.stringify(e.state)===before);
+  });
+  test("Coupon revalidation after cart changes",()=>{
+    const e=fresh();call(e,"cart_add",{productId:"P-101",quantity:2});call(e,"coupon_apply",{code:"TECH10"});call(e,"cart_set_quantity",{productId:"P-101",quantity:1});
+    check(!call(e,"checkout_prepare").ready);check(e.summary().discount===0);
+  });
+  test("Order requires explicit confirmation",()=>{
+    const e=fresh();call(e,"cart_add",{productId:"P-101"});
+    check(!call(e,"checkout_place_demo_order",{confirm:false}).success);check(e.state.cart.length===1);
+    const r=call(e,"checkout_place_demo_order",{confirm:true});check(r.order.demo&&e.state.cart.length===0&&e.undo.history.length===0);
+  });
+  console.groupCollapsed(`AgentMart isolated self-tests: ${tests.filter(t=>t.result==="PASS").length}/${tests.length} passed`);
+  console.table(tests);console.groupEnd();
+  return tests;
+}
+
+/* ==================== INITIALIZATION ==================== */
+logger=new ActivityLogger();
+engine=new CommerceEngine({onEvent:handleCommerceEvent});
+const restored=restore(engine);
+UIController.init();
+$("#prompt-list").innerHTML=PROMPTS.map((p,i)=>`<button class="prompt-btn" data-action="copy-prompt" data-index="${i}">${escapeHTML(p)}<span aria-hidden="true">↗</span></button>`).join("");
+renderAll();
+logger.add("System","store_initialized",`${CATALOG.length} fictional products loaded. ${restored?"Saved cart, filters, coupon, and comparison restored.":"Fresh demo state."}`);
+const adapter=new WebMCPAdapter(engine);
+adapter.renderInspector();
+window.agentMart=Object.freeze({
+  call:(name,input={})=>engine.execute(name,input,"UI"),
+  get tools(){return clone(TOOL_DEFS);},
+  get catalog(){return clone(CATALOG);},
+  get state(){return clone(engine.state);},
+  runSelfTests,
+  refreshTools:()=>adapter.refreshTools()
+});
+runSelfTests();
+adapter.connect();
+</script>
+</body>
+</html>

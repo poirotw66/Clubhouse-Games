@@ -8,12 +8,15 @@
   "scripts": {
     "dev": "node server.mjs",
     "setup": "node scripts/setup.mjs",
-    "generate": "node scripts/generate-from-data.mjs",
+    "generate": "npm run build:covers && node scripts/generate-from-data.mjs",
     "build": "npm run build:all",
-    "build:css": "npx --yes -p tailwindcss@3.4.17 -p postcss@8.4.49 -p autoprefixer@10.4.21 tailwindcss -i styles/menu.input.css -o assets/menu.css --minify",
+    "build:covers": "node scripts/build-covers.mjs",
+    "build:css": "tailwindcss -i styles/menu.input.css -o assets/menu.css --minify",
     "build:game": "node scripts/build-game.mjs",
     "build:all": "node scripts/build-all.mjs",
-    "build:pages": "node scripts/generate-from-data.mjs && npm run build:css && node scripts/build-for-pages.mjs",
+    "build:pages": "npm run generate && npm run build:css && node scripts/build-for-pages.mjs",
+    "preview:pages": "node scripts/preview-pages.mjs",
+    "test:browser": "playwright test",
     "check:versions": "node scripts/check-game-versions.mjs",
     "lint:all": "node scripts/run-in-games.mjs lint",
     "check:all": "node scripts/run-in-games.mjs check",
@@ -21,9 +24,14 @@
     "check:shared-styles": "node scripts/check-shared-styles.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "autoprefixer": "10.4.21",
+    "postcss": "8.5.25",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sharp": "0.35.4",
+    "tailwindcss": "3.4.19"
   }
 }

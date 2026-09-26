@@ -51,7 +51,7 @@ for (const name of games) {
   const result = spawnSync('npm', ['run', scriptName], {
     cwd: path.join(gamesDir, name),
     stdio: 'inherit',
-    shell: true,
+    shell: false,
   });
   if (result.status !== 0) failed.push(name);
 }

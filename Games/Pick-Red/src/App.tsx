@@ -1,16 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCapture, playCard, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { CardBack, CardView } from './components/CardView';
 import { BLACK_ACE_POINTS, TOTAL_POINTS, capturableBy, cardLabel, isRed, parScore, sumPoints } from './game/cards';
 import { DIFFICULTIES, chooseMove, difficultyInfo, leaderFor } from './game/cpu';
-import { applyPlay, choosePick, deal, flip, handSize, outcome, playCard, score } from './game/engine';
+import { applyPlay, choosePick, deal, flip, handSize, outcome, playCard as playHandCard, score } from './game/engine';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { EMPTY_STATS, loadStats, recordResult, saveStats } from './game/storage';
 import { HUMAN } from './game/types';
-import type { Card, DifficultyId, GameState, PlayerCount, Seat } from './game/types';
+import type { Card, DifficultyId, GameState, PlayerCount } from './game/types';
 import { feltBackgroundStyle, titleBackgroundStyle } from './artBackground';
 
 type Screen = 'setup' | 'game';
+
+interface HintHighlight {
+  handId: string | null;
+  tableId: string | null;
+}
 
 const FLIP_DELAY = 800;
 const CPU_DELAY = 650;
@@ -25,8 +32,11 @@ export default function App(): React.ReactElement {
   const [blackAces, setBlackAces] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const [state, setState] = useState<GameState | null>(null);
+  const [history, setHistory] = useState<GameState[]>([]);
   const [selected, setSelected] = useState<Card | null>(null);
+  const [hint, setHint] = useState<HintHighlight | null>(null);
   const [recorded, setRecorded] = useState(false);
+  const resultSoundPlayed = useRef(false);
 
   useEffect(() => {
     const saved = loadStats();
@@ -45,8 +55,11 @@ export default function App(): React.ReactElement {
   const startGame = useCallback(
     (id: DifficultyId, count: PlayerCount, aces: boolean, seed: string) => {
       setState(deal(normalizeSeedCode(seed), id, { players: count, blackAces: aces }, leaderFor(id, count)));
+      setHistory([]);
       setSelected(null);
+      setHint(null);
       setRecorded(false);
+      resultSoundPlayed.current = false;
       setScreen('game');
       setStats((prev) => {
         const next = { ...prev, lastDifficulty: id, lastPlayers: count, lastBlackAces: aces };
@@ -98,6 +111,11 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     if (!result || recorded) return;
     setRecorded(true);
+    if (!resultSoundPlayed.current) {
+      resultSoundPlayed.current = true;
+      if (result.result === 'win') playWin();
+      else if (result.result === 'loss') playLose();
+    }
     setStats((prev) => {
       const next = recordResult(prev, result.result, result.scores[HUMAN]);
       saveStats(next);
@@ -114,20 +132,39 @@ export default function App(): React.ReactElement {
     return selected ? capturableBy(selected, state.table) : [];
   }, [state, selected, pickPending, humanTurn]);
 
-  const commit = useCallback((card: Card, target?: Card) => {
-    setState((current) => {
-      if (!current) return current;
-      const played = playCard(current, card.id);
-      if (played.phase === 'pick_play' && target) return choosePick(played, target.id);
-      return played;
-    });
-    setSelected(null);
+  const pushHistory = useCallback((snapshot: GameState) => {
+    setHistory((prev) => [...prev, snapshot]);
   }, []);
+
+  const commit = useCallback(
+    (card: Card, target?: Card) => {
+      setState((current) => {
+        if (!current) return current;
+        pushHistory(current);
+        const played = playHandCard(current, card.id);
+        if (played.phase === 'pick_play' && target) return choosePick(played, target.id);
+        return played;
+      });
+      // Sound after the transition: multi-target parks in pick_play (soft card);
+      // a resolved capture uses the capture cue.
+      if (target) playCapture();
+      else {
+        const options = state ? capturableBy(card, state.table) : [];
+        if (options.length === 1) playCapture();
+        else if (options.length === 0) playCard();
+        else playCard();
+      }
+      setSelected(null);
+      setHint(null);
+    },
+    [pushHistory, state],
+  );
 
   const onHandCard = useCallback(
     (card: Card) => {
       if (!state || state.phase !== 'play' || !humanTurn) return;
       const options = capturableBy(card, state.table);
+      setHint(null);
 
       // Tapping the same card again confirms. With one target that is the whole
       // interaction; with several the player has to name the one they want.
@@ -146,14 +183,51 @@ export default function App(): React.ReactElement {
       if (!state || !humanTurn) return;
       if (!targets.some((t) => t.id === card.id)) return;
       if (pickPending) {
+        pushHistory(state);
         setState((current) => (current ? choosePick(current, card.id) : current));
+        playCapture();
         setSelected(null);
+        setHint(null);
         return;
       }
       if (selected) commit(selected, card);
     },
-    [commit, humanTurn, pickPending, selected, state, targets],
+    [commit, humanTurn, pickPending, pushHistory, selected, state, targets],
   );
+
+  const canUndo =
+    Boolean(state) &&
+    history.length > 0 &&
+    waitingOnHuman &&
+    state!.phase !== 'over' &&
+    state!.phase !== 'flip';
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    const prev = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    setState(prev);
+    setSelected(null);
+    setHint(null);
+  }, [canUndo, history]);
+
+  const handleHint = useCallback(() => {
+    if (!state || !waitingOnHuman) return;
+
+    if (pickPending) {
+      const options = capturableBy(state.pending!, state.table);
+      if (options.length === 0) return;
+      const best = [...options].sort(
+        (a, b) => sumPoints([b], state.rules.blackAces) - sumPoints([a], state.rules.blackAces),
+      )[0];
+      setHint({ handId: null, tableId: best.id });
+      return;
+    }
+
+    const move = chooseMove(state, 'sharp');
+    setSelected(move.card);
+    setHint({ handId: move.card.id, tableId: move.taken?.id ?? null });
+  }, [pickPending, state, waitingOnHuman]);
 
   if (screen === 'setup') {
     return (
@@ -184,7 +258,31 @@ export default function App(): React.ReactElement {
       <BackToMenu />
 
       <div className="w-full max-w-2xl flex flex-col gap-3">
-        <ScoreBar state={state} par={par} deckTotal={deckTotal} />
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <ScoreBar state={state} par={par} deckTotal={deckTotal} />
+          </div>
+          <div className="flex gap-1 shrink-0 pt-0.5">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold"
+              title="復原"
+            >
+              復原
+            </button>
+            <button
+              type="button"
+              onClick={handleHint}
+              disabled={!waitingOnHuman}
+              className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold"
+              title="提示"
+            >
+              提示
+            </button>
+          </div>
+        </div>
 
         {state.hands.map((_, seat) =>
           seat === HUMAN ? null : (
@@ -214,12 +312,14 @@ export default function App(): React.ReactElement {
             )}
             {state.table.map((card) => {
               const isTarget = humanTurn && targets.some((t) => t.id === card.id);
+              const isHinted = hint?.tableId === card.id;
               return (
                 <CardView
                   key={card.id}
                   card={card}
                   blackAces={state.rules.blackAces}
                   target={isTarget}
+                  hinted={isHinted}
                   landed={state.spotlight.includes(card.id)}
                   dimmed={(Boolean(selected) || pickPending) && !isTarget}
                   onClick={isTarget ? () => onTableCard(card) : undefined}
@@ -239,6 +339,7 @@ export default function App(): React.ReactElement {
                 card={card}
                 blackAces={state.rules.blackAces}
                 selected={selected?.id === card.id}
+                hinted={hint?.handId === card.id}
                 dimmed={pickPending}
                 onClick={waitingOnHuman && !pickPending ? () => onHandCard(card) : undefined}
               />
@@ -266,14 +367,25 @@ export default function App(): React.ReactElement {
       </div>
 
       {result && (
-        <Result
-          result={result}
-          seedCode={state.seedCode}
-          summary={`${info.label}．${state.rules.players} 人${state.rules.blackAces ? '．含黑A' : ''}`}
-          onAgain={() =>
+        <ResultOverlay
+          title={result.result === 'win' ? '你贏了' : result.result === 'draw' ? '平手' : '你輸了'}
+          subtitle={`${info.label}．${state.rules.players} 人${state.rules.blackAces ? '．含黑A' : ''}．標準分 ${result.par}．種子碼 ${state.seedCode}`}
+          variant={result.result === 'win' ? 'win' : result.result === 'loss' ? 'lose' : 'neutral'}
+          stats={[
+            ...result.scores.map((points, seat) => ({
+              label: `${SEAT_NAMES[seat]}${result.winners.includes(seat) ? ' ★' : ''}`,
+              value: `${points}${points > result.par ? ' 合格' : ''}`,
+            })),
+            ...(result.wastedPoints > 0
+              ? [{ label: '桌上作廢', value: `${result.wastedPoints} 分` }]
+              : []),
+          ]}
+          primaryLabel="再來一局"
+          onPrimary={() =>
             startGame(state.difficulty, state.rules.players, state.rules.blackAces, randomSeedCode())
           }
-          onMenu={() => setScreen('setup')}
+          secondaryLabel="設定"
+          onSecondary={() => setScreen('setup')}
         />
       )}
     </div>
@@ -393,77 +505,6 @@ function Status({
           {last.taken ? ` → 撿走 ${cardLabel(last.taken)}（+${last.points}）` : '，留在桌上'}
         </p>
       )}
-    </div>
-  );
-}
-
-function Result({
-  result,
-  seedCode,
-  summary,
-  onAgain,
-  onMenu,
-}: {
-  result: ReturnType<typeof outcome>;
-  seedCode: string;
-  summary: string;
-  onAgain: () => void;
-  onMenu: () => void;
-}): React.ReactElement {
-  const title = result.result === 'win' ? '你贏了' : result.result === 'draw' ? '平手' : '你輸了';
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="pr-result"
-    >
-      <div className="bg-slate-900 rounded-2xl p-6 max-w-sm w-full text-center border border-emerald-500/30">
-        <h2 id="pr-result" className="text-3xl font-black mb-3">
-          {title}
-        </h2>
-        <div className="flex flex-col gap-1 mb-3">
-          {result.scores.map((points, seat) => (
-            <p key={seat} className="flex justify-between text-sm">
-              <span className={seat === HUMAN ? 'text-emerald-300 font-bold' : 'text-slate-300'}>
-                {SEAT_NAMES[seat]}
-                {result.winners.includes(seat) && ' 🏆'}
-              </span>
-              <span className="tabular-nums font-black">
-                {points}
-                <span className={`ml-2 text-xs ${points > result.par ? 'text-emerald-400' : 'text-slate-500'}`}>
-                  {points > result.par ? '合格' : '不合格'}
-                </span>
-              </span>
-            </p>
-          ))}
-        </div>
-        {result.wastedPoints > 0 && (
-          <p className="text-xs text-amber-300/80 mb-2">
-            桌上作廢 {result.wastedPoints} 分（不算任何人）
-          </p>
-        )}
-        <p className="text-xs text-slate-400 mb-5">
-          {summary}．標準分 {result.par}．種子碼 {seedCode}
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onAgain}
-            className="flex-1 min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold"
-          >
-            再來一局
-          </button>
-          <button
-            type="button"
-            onClick={onMenu}
-            className="flex-1 min-h-[44px] rounded-xl border border-slate-600 hover:bg-slate-800"
-          >
-            設定
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

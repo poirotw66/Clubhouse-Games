@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -16,14 +24,20 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
-        run: npm run setup
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps --only-shell chromium
 
       - name: Verify game dependency versions
         run: node scripts/check-game-versions.mjs
+
+      - name: Verify shared styles
+        run: npm run check:shared-styles
 
       # Typecheck and per-game logic checks. These existed in the games'
       # package.json for a long time but nothing ran them, so a bot that had
@@ -34,15 +48,44 @@ jobs:
       - name: Run game logic checks
         run: npm run check:all
 
-      - name: Build all games
-        run: npm run build:all
-
-      # Catches a game that would fetch its engine from a CDN at runtime:
-      # the build succeeds, then the game shows a black screen offline.
-      - name: Check built games for runtime CDN dependencies
-        run: npm run check:no-cdn
-
       - name: Build for GitHub Pages
         env:
           REPO_NAME: ${{ github.event.repository.name }}
         run: npm run build:pages
+
+      - name: Check Pages artifact for runtime CDN dependencies
+        run: npm run check:no-cdn -- --pages
+
+      - name: Test Pages artifact in desktop and mobile browsers
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: npm run test:browser
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-results
+          path: test-results/
+          if-no-files-found: ignore
+
+      - name: Upload verified Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy verified artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

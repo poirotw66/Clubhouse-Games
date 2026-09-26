@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DUST RIOT — 荒土暴動</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;overflow:hidden;background:#1a1520;font-family:Arial,"Microsoft JhengHei",sans-serif}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none;color:#fff;display:none}
+.top{position:absolute;top:25px;left:30px}
+.brand{font-size:28px;font-weight:1000;font-style:italic;color:#ffdc61;
+text-shadow:3px 3px #17131c;letter-spacing:2px}
+.sub{font-size:11px;letter-spacing:4px;color:#e5caa5;margin-top:5px}
+#wave{position:absolute;right:30px;top:27px;text-align:right;
+font-weight:bold;font-size:18px;text-shadow:2px 2px #000}
+.bottom{position:absolute;left:30px;bottom:30px;width:270px}
+.label{font-size:12px;font-weight:bold;letter-spacing:3px}
+.bar{height:22px;background:#211b25;border:3px solid #201822;
+transform:skew(-12deg);margin:9px 0;box-shadow:3px 3px #0006}
+#health{height:100%;background:#ff654b;width:100%;transition:width .15s}
+#stats{font-size:12px;color:#fff1cf}
+#ammo{position:absolute;right:30px;bottom:30px;text-align:right;
+font-size:48px;font-weight:1000;text-shadow:3px 3px #201822}
+#ammo small{font-size:18px;color:#f4cf79}
+#weapon{font-size:12px;letter-spacing:3px;color:#f4cf79}
+#cross{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%)}
+#cross:before,#cross:after{content:"";position:absolute;background:#ffedbb;box-shadow:0 0 2px #000}
+#cross:before{width:2px;height:22px;left:10px}
+#cross:after{height:2px;width:22px;top:10px}
+#hit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+font-size:42px;color:#ffdd53;opacity:0}
+#notice{position:absolute;top:23%;width:100%;text-align:center;
+font-size:28px;font-weight:1000;color:#ffdf68;text-shadow:3px 3px #261b23}
+#damage{position:absolute;inset:0;box-shadow:inset 0 0 160px 50px #f32619;opacity:0}
+#controls{position:absolute;bottom:10px;width:100%;text-align:center;font-size:10px;color:#ffefc180}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+background:linear-gradient(110deg,#17111ee8,#35202a99);color:#fff}
+.panel{max-width:680px;padding:45px;border-left:8px solid #ffce48;
+background:#201922e8;box-shadow:14px 14px 0 #0005;transform:skew(-3deg)}
+.tag{color:#ffce48;letter-spacing:5px;font-size:12px;font-weight:bold}
+h1{font-size:clamp(48px,9vw,82px);line-height:.9;margin:22px 0;color:#ffd653;
+font-weight:1000;font-style:italic;text-shadow:5px 5px #bd563a}
+h2{margin:0 0 20px;letter-spacing:8px;font-size:20px}
+p{color:#d5c7bd;line-height:1.9;font-size:14px}
+button{border:3px solid #171119;background:#ffcf49;color:#201922;
+padding:15px 30px;font-size:18px;font-weight:1000;cursor:pointer;
+box-shadow:5px 5px 0 #b14d31;margin-top:14px}
+button:hover{background:#fff1a2}
+#status{font-size:12px;color:#e7b890;margin-top:18px}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="top"><div class="brand">DUST RIOT</div><div class="sub">WASTELAND SURVIVAL / 01</div></div>
+  <div id="wave"></div>
+  <div class="bottom">
+    <div class="label">VITALS // 生命值 <span id="hpText">100</span></div>
+    <div class="bar"><div id="health"></div></div>
+    <div id="stats"></div>
+  </div>
+  <div id="ammo"><span id="rounds">24</span><small> / ∞</small><div id="weapon">SCRAP-RIFLE // MK.04</div></div>
+  <div id="cross"></div><div id="hit">×</div>
+  <div id="notice"></div><div id="damage"></div>
+  <div id="controls">WASD 移動 · SHIFT 奔跑 · SPACE 跳躍 · R 換彈 · ESC 暫停</div>
+</div>
+<div id="overlay">
+  <div class="panel">
+    <div class="tag">INK. IRON. MAYHEM.</div>
+    <h1>DUST RIOT</h1><h2>荒 土 暴 動</h2>
+    <p id="description">廢土沒有英雄，只有還沒打空的彈匣。<br>
+    在荒漠前哨站擊退機械掠奪者，收集綠色補給，撐過更多波次。<br>
+    命中黃色頭部造成雙倍傷害；利用掩體避開紅色能量彈。</p>
+    <button id="start">進入荒土 →</button>
+    <div id="status">正在啟動引擎…</div>
+  </div>
+</div>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js";
+
+const $ = id => document.getElementById(id);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe5b681);
+scene.fog = new THREE.Fog(0xe5b681, 35, 115);
+
+const camera = new THREE.PerspectiveCamera(76, innerWidth / innerHeight, .08, 180);
+camera.rotation.order = "YXZ";
+scene.add(camera);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffe6b3, 0x695060, 2.3));
+const sun = new THREE.DirectionalLight(0xffedd0, 3);
+sun.position.set(-24, 45, 18);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left:-48, right:48, top:48, bottom:-48, far:130 });
+sun.shadow.normalBias = .04;
+scene.add(sun);
+
+const gradient = new THREE.DataTexture(
+  new Uint8Array([65,65,65, 150,150,150, 255,255,255]),
+  3, 1, THREE.RGBFormat
+);
+// 使用 RGBA 漸層，確保 WebGL2 相容。
+gradient.dispose();
+const bands = new THREE.DataTexture(new Uint8Array([
+  65,65,65,255, 150,150,150,255, 255,255,255,255
+]),3,1,THREE.RGBAFormat);
+bands.minFilter = bands.magFilter = THREE.NearestFilter;
+bands.needsUpdate = true;
+const mats = {};
+function mat(color) {
+  return mats[color] ||= new THREE.MeshToonMaterial({ color, gradientMap:bands });
+}
+const ink = new THREE.MeshBasicMaterial({ color:0x241d29, side:THREE.BackSide });
+const boxGeo = new THREE.BoxGeometry(1,1,1);
+const sphereGeo = new THREE.IcosahedronGeometry(1,0);
+
+function mesh(geo, color, scale, pos, parent=scene, outline=true) {
+  const m = new THREE.Mesh(geo, mat(color));
+  m.scale.set(...scale);
+  m.position.set(...pos);
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  if (outline) {
+    const edge = new THREE.Mesh(geo, ink);
+    edge.scale.setScalar(1.045);
+    m.add(edge);
+  }
+  return m;
+}
+function box(color, scale, pos, parent=scene, outline=true) {
+  return mesh(boxGeo,color,scale,pos,parent,outline);
+}
+
+const ground = box(0xc78d50,[100,.5,100],[0,-.3,0],scene,false);
+const obstacles = [], walls = [ground];
+function building(x,z,w,h,d,color) {
+  const body = box(color,[w,h,d],[x,h/2,z]);
+  walls.push(body);
+  obstacles.push(new THREE.Box3(
+    new THREE.Vector3(x-w/2,0,z-d/2),
+    new THREE.Vector3(x+w/2,h,z+d/2)
+  ));
+  box(0x51464a,[w+.35,.25,d+.35],[x,h+.12,z]);
+  for(let i=0;i<Math.floor(w/2);i++)
+    box(0x473d40,[.75,.65,.07],[x-w/2+1+i*2,h*.62,z+d/2+.05]);
+  return body;
+}
+
+building(-12,-10,9,5,7,0xb46c49);
+building(13,-14,8,7,8,0xba9162);
+building(-15,13,8,4,7,0x888773);
+building(14,12,10,5,6,0xae6346);
+building(0,-24,8,3,4,0x867764);
+building(-27,-2,5,8,9,0x9d6d51);
+building(28,0,5,6,9,0xa77652);
+
+// 水塔與生鏽管線
+const tower = new THREE.Group(); scene.add(tower); tower.position.set(13,7,-14);
+mesh(new THREE.CylinderGeometry(2,2,3,10),0x617b79,[1,1,1],[0,2.6,0],tower);
+for(const x of [-1.3,1.3]) for(const z of [-1.3,1.3])
+  box(0x423b3c,[.15,2,.15],[x,.6,z],tower);
+
+const signCanvas = document.createElement("canvas");
+signCanvas.width=512; signCanvas.height=160;
+const ctx=signCanvas.getContext("2d");
+ctx.fillStyle="#e4b648";ctx.fillRect(0,0,512,160);
+ctx.strokeStyle="#30262b";ctx.lineWidth=15;ctx.strokeRect(8,8,496,144);
+ctx.fillStyle="#30262b";ctx.font="900 68px Arial";ctx.textAlign="center";
+ctx.fillText("LAST STOP",256,87);
+ctx.font="bold 24px Arial";ctx.fillText("FUEL • SCRAP • BAD IDEAS",256,125);
+const sign = new THREE.Mesh(new THREE.PlaneGeometry(6,1.88),
+  new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide}));
+sign.position.set(-12,4,-6.43);scene.add(sign);
+
+// 可當掩體的貨箱
+for(const [x,z] of [[-5,6],[5,-5],[7,19],[-7,-19],[-21,6],[21,-7]]) {
+  building(x,z,2.3,1.7,2.1,0x697d76);
+  box(0xd9a84e,[2.4,.22,2.2],[x,.55,z]);
+}
+
+// 邊界岩壁
+for(let i=0;i<64;i++){
+  const a=i/64*Math.PI*2;
+  const r=46+Math.random()*5;
+  const m=mesh(sphereGeo,[0xaa7959,0xb98359,0x936c56][i%3],
+    [4+Math.random()*5,5+Math.random()*10,4+Math.random()*5],
+    [Math.sin(a)*r,2,Math.cos(a)*r]);
+  m.rotation.y=Math.random()*6;
+}
+for(let i=0;i<85;i++){
+  const x=(Math.random()-.5)*82,z=(Math.random()-.5)*82;
+  mesh(sphereGeo,0xa87c52,[.15+Math.random()*.5,.12+Math.random()*.25,.3],[x,.06,z],scene,false);
+}
+
+// 第一人稱武器
+const gun = new THREE.Group(); camera.add(gun);
+gun.position.set(.32,-.27,-.55);
+box(0xdab144,[.20,.20,.48],[0,0,0],gun);
+box(0x45474c,[.12,.12,.42],[0,.025,-.38],gun);
+box(0x242631,[.18,.16,.12],[0,.025,-.61],gun);
+box(0x694935,[.13,.27,.14],[.015,-.16,.08],gun);
+box(0x3c5860,[.13,.20,.18],[0,-.15,-.13],gun);
+box(0xf16937,[.215,.06,.20],[0,.02,-.10],gun);
+box(0x222b35,[.045,.075,.07],[0,.14,-.16],gun);
+box(0x73edee,[.022,.025,.025],[0,.18,-.16],gun,false);
+const muzzle = new THREE.Mesh(
+  new THREE.ConeGeometry(.105,.28,5),
+  new THREE.MeshBasicMaterial({color:0xffdd77})
+);
+muzzle.rotation.x=-Math.PI/2;
+muzzle.position.set(0,.025,-.8);
+gun.add(muzzle);muzzle.visible=false;
+gun.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;}});
+
+const player = {pos:new THREE.Vector3(0,1.7,18), hp:100, vy:0};
+let enemies=[], shots=[], effects=[], pickups=[];
+let wave=0,kills=0,score=0,ammo=24,reload=0;
+let fireWait=0,recoil=0,flash=0,hitTime=0,hurtTime=0,noticeTime=0,nextWave=0;
+let locked=false,started=false,dead=false,firing=false,spaceHeld=false;
+let yaw=0,pitch=0,elapsed=0;
+const keys={};
+const ray = new THREE.Raycaster();
+const v = new THREE.Vector3();
+const projectileGeo=new THREE.SphereGeometry(.16,6,4);
+const projectileMat=new THREE.MeshBasicMaterial({color:0xff472a});
+
+function blocked(x,z,r=.48) {
+  if(Math.hypot(x,z)>41)return true;
+  return obstacles.some(b => x>b.min.x-r && x<b.max.x+r && z>b.min.z-r && z<b.max.z+r);
+}
+function move(pos,dx,dz,r) {
+  if(!blocked(pos.x+dx,pos.z,r))pos.x+=dx;
+  if(!blocked(pos.x,pos.z+dz,r))pos.z+=dz;
+}
+function announce(text,time=2) {
+  $("notice").textContent=text;noticeTime=time;
+}
+function updateHUD(){
+  $("health").style.width=player.hp+"%";
+  $("hpText").textContent=Math.ceil(player.hp);
+  $("rounds").textContent=reload>0?"••":ammo;
+  $("weapon").textContent=reload>0?"RELOADING // 換彈中":"SCRAP-RIFLE // MK.04";
+  $("wave").innerHTML=`波次 ${String(wave).padStart(2,"0")}<br><small>敵人 ${enemies.length}</small>`;
+  $("stats").textContent=`擊殺 ${kills}　 /　 分數 ${score.toLocaleString()}`;
+}
+function spawnEnemy(){
+  let x,z,tries=0;
+  do{
+    const a=Math.random()*Math.PI*2,r=24+Math.random()*13;
+    x=Math.sin(a)*r;z=Math.cos(a)*r;tries++;
+  }while(tries<150&&(blocked(x,z,.8)||Math.hypot(x-player.pos.x,z-player.pos.z)<16));
+  if(blocked(x,z,.8))return;
+  const g=new THREE.Group();scene.add(g);g.position.set(x,0,z);
+  const e={g,hp:65+wave*7,speed:1.6+Math.min(wave*.14,1.8),
+    cooldown:1+Math.random()*2,phase:Math.random()*6,parts:[]};
+  const body=box(0xa94734,[.85,.95,.52],[0,1.3,0],g);
+  const head=box(0xf3bd49,[.55,.52,.50],[0,2.05,0],g);
+  box(0x282b35,[.44,.13,.05],[0,2.08,.275],g);
+  box(0xff492d,[.27,.055,.055],[0,2.09,.31],g,false);
+  for(const x of [-.52,.52]){
+    box(0x515361,[.25,.75,.28],[x,1.25,0],g);
+    const leg=box(0x3a414a,[.28,.73,.32],[x*.48,.4,0],g);
+    e.parts.push(leg);
+  }
+  box(0x292e38,[.23,.23,.7],[.55,1.13,.35],g);
+  g.traverse(o=>{
+    if(o.isMesh && o.material!==ink){
+      o.userData.enemy=e;o.userData.head=o===head;
+    }
+  });
+  enemies.push(e);
+}
+function beginWave(){
+  wave++;
+  for(let i=0;i<Math.min(3+wave*2,22);i++)spawnEnemy();
+  announce(`第 ${wave} 波 // 清理掠奪者`,2.8);
+  updateHUD();
+}
+function addPickup(pos){
+  const g=new THREE.Group();g.position.set(pos.x,.6,pos.z);scene.add(g);
+  box(0x51cf92,[.6,.45,.6],[0,0,0],g);
+  box(0xf3fff0,[.36,.09,.025],[0,0,.315],g,false);
+  box(0xf3fff0,[.09,.30,.025],[0,0,.32],g,false);
+  pickups.push({g,time:28});
+}
+function particles(pos,color,n=7){
+  for(let i=0;i<n;i++){
+    const m=new THREE.Mesh(boxGeo,mat(color));
+    m.scale.setScalar(.055+Math.random()*.09);m.position.copy(pos);scene.add(m);
+    effects.push({m,time:.35,vel:new THREE.Vector3(
+      (Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5
+    )});
+  }
+}
+function damageEnemy(e,amount,point){
+  e.hp-=amount;hitTime=.12;particles(point,0xffc44f);
+  if(e.hp<=0){
+    scene.remove(e.g);
+    enemies=enemies.filter(a=>a!==e);
+    kills++;score+=100+wave*15;
+    if(Math.random()<.45)addPickup(e.g.position);
+    particles(e.g.position.clone().add(new THREE.Vector3(0,1,0)),0xb84730,12);
+  }
+  updateHUD();
+}
+function startReload(){
+  if(reload>0||ammo===24||dead)return;
+  reload=1.35;updateHUD();
+}
+function shoot(){
+  if(fireWait>0||reload>0||dead)return;
+  if(ammo<=0){startReload();return;}
+  ammo--;fireWait=.115;recoil=Math.min(recoil+.065,.14);flash=.045;
+  camera.updateMatrixWorld(true);
+  ray.setFromCamera(new THREE.Vector2(0,0),camera);
+  const hits=ray.intersectObjects([...enemies.map(e=>e.g),...walls],true)
+    .filter(h=>h.object.material!==ink);
+  let end=ray.ray.at(85,new THREE.Vector3());
+  if(hits.length){
+    const h=hits[0];end=h.point;
+    if(h.object.userData.enemy)
+      damageEnemy(h.object.userData.enemy,h.object.userData.head?52:26,end);
+    else particles(end,0xffdaa0,3);
+  }
+  const origin=new THREE.Vector3(0,.025,-.8);
+  gun.localToWorld(origin);
+  const geo=new THREE.BufferGeometry().setFromPoints([origin,end]);
+  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0xffe8a5}));
+  scene.add(line);effects.push({m:line,time:.045,dispose:true});
+  updateHUD();
+}
+function hurt(amount){
+  if(dead)return;
+  player.hp=Math.max(0,player.hp-amount);hurtTime=.35;
+  updateHUD();
+  if(player.hp<=0){
+    dead=true;firing=false;
+    $("description").innerHTML=`你倒在了第 ${wave} 波。<br>擊殺 ${kills} 名掠奪者，獲得 ${score.toLocaleString()} 分。<br>再來一次，讓廢土記住你的名字。`;
+    $("start").textContent="重新出擊 →";
+    $("overlay").style.display="flex";
+    if(document.pointerLockElement)document.exitPointerLock();
+  }
+}
+function removeEffect(e){
+  scene.remove(e.m);
+  if(e.dispose){e.m.geometry.dispose();e.m.material.dispose();}
+}
+function reset(){
+  enemies.forEach(e=>scene.remove(e.g));
+  shots.forEach(s=>scene.remove(s.m));
+  effects.forEach(removeEffect);
+  pickups.forEach(p=>scene.remove(p.g));
+  enemies=[];shots=[];effects=[];pickups=[];
+  Object.keys(keys).forEach(k=>delete keys[k]);
+  player.pos.set(0,1.7,18);player.hp=100;player.vy=0;
+  wave=kills=score=reload=fireWait=recoil=nextWave=0;
+  hurtTime=hitTime=flash=0;ammo=24;yaw=pitch=0;
+  dead=false;started=true;firing=false;beginWave();
+}
+$("status").textContent="引擎就緒 · 點擊開始以鎖定滑鼠";
+$("start").onclick=async()=>{
+  if(!started||dead)reset();
+  try{await renderer.domElement.requestPointerLock();}
+  catch{$("status").textContent="無法鎖定滑鼠，請使用獨立瀏覽器頁面並再次點擊。";}
+};
+document.addEventListener("pointerlockchange",()=>{
+  locked=document.pointerLockElement===renderer.domElement;
+  $("hud").style.display=started?"block":"none";
+  $("overlay").style.display=locked?"none":"flex";
+  firing=false;
+  Object.keys(keys).forEach(k=>delete keys[k]);
+  spaceHeld=false;
+  if(!locked&&started&&!dead){
+    $("description").innerHTML="遊戲已暫停。<br>喘口氣，然後回去把彈匣打空。";
+    $("start").textContent="繼續戰鬥 →";
+  }
+});
+document.addEventListener("pointerlockerror",()=>{
+  $("status").textContent="滑鼠鎖定失敗：請在一般電腦瀏覽器分頁開啟此遊戲。";
+});
+document.addEventListener("mousemove",e=>{
+  if(!locked)return;
+  yaw-=e.movementX*.0022;
+  pitch=THREE.MathUtils.clamp(pitch-e.movementY*.0022,-1.4,1.4);
+});
+document.addEventListener("keydown",e=>{
+  if(!locked)return;
+  if(["Space","KeyW","KeyA","KeyS","KeyD"].includes(e.code))e.preventDefault();
+  keys[e.code]=true;
+  if(e.code==="KeyR")startReload();
+  if(e.code==="Space"&&!spaceHeld){
+    if(player.pos.y<=1.701)player.vy=6;
+    spaceHeld=true;
+  }
+});
+document.addEventListener("keyup",e=>{
+  keys[e.code]=false;if(e.code==="Space")spaceHeld=false;
+});
+document.addEventListener("mousedown",e=>{if(locked&&e.button===0)firing=true;});
+document.addEventListener("mouseup",e=>{if(e.button===0)firing=false;});
+window.addEventListener("blur",()=>{
+  firing=false;
+  if(document.pointerLockElement)document.exitPointerLock();
+});
+window.addEventListener("contextmenu",e=>e.preventDefault());
+window.addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+function update(dt){
+  elapsed+=dt;
+  fireWait=Math.max(0,fireWait-dt);
+  flash=Math.max(0,flash-dt);
+  recoil=THREE.MathUtils.damp(recoil,0,14,dt);
+  if(reload>0){
+    reload-=dt;
+    if(reload<=0){reload=0;ammo=24;updateHUD();}
+  }
+  let right=(keys.KeyD?1:0)-(keys.KeyA?1:0);
+  let forward=(keys.KeyW?1:0)-(keys.KeyS?1:0);
+  const len=Math.hypot(right,forward);
+  if(len){right/=len;forward/=len;}
+  const speed=(keys.ShiftLeft||keys.ShiftRight?9:5.8)*dt;
+  move(player.pos,
+    (Math.cos(yaw)*right-Math.sin(yaw)*forward)*speed,
+    (-Math.sin(yaw)*right-Math.cos(yaw)*forward)*speed,.45);
+  player.vy-=17*dt;player.pos.y+=player.vy*dt;
+  if(player.pos.y<1.7){player.pos.y=1.7;player.vy=0;}
+  camera.position.copy(player.pos);
+  if(len&&player.pos.y<=1.7)camera.position.y+=Math.sin(elapsed*13)*.035;
+  camera.rotation.set(pitch+recoil*.17,yaw,0);
+  gun.position.set(.32+(len?Math.sin(elapsed*8)*.012:0),-.27-recoil*.25,-.55+recoil);
+  gun.rotation.x=reload>0?-.65*Math.sin(reload/1.35*Math.PI):0;
+  muzzle.visible=flash>0;
+  if(firing)shoot();
+
+  for(const e of enemies){
+    const dx=player.pos.x-e.g.position.x,dz=player.pos.z-e.g.position.z;
+    const dist=Math.hypot(dx,dz);
+    e.g.rotation.y=Math.atan2(dx,dz);
+    if(dist>3.5){
+      const sx=dx/Math.max(dist,.01),sz=dz/Math.max(dist,.01);
+      const strafe=Math.sin(elapsed*.8+e.phase)*.55;
+      move(e.g.position,(sx+sz*strafe)*e.speed*dt,(sz-sx*strafe)*e.speed*dt,.65);
+    }
+    e.parts.forEach((leg,i)=>leg.rotation.x=Math.sin(elapsed*8+i*Math.PI+e.phase)*.32);
+    e.cooldown-=dt;
+    if(e.cooldown<=0&&dist<34){
+      e.cooldown=Math.max(.75,2-wave*.06)+Math.random()*.6;
+      const origin=e.g.position.clone().add(new THREE.Vector3(0,1.45,0));
+      const dir=player.pos.clone().sub(origin).normalize();
+      ray.set(origin,dir);
+      const obstruction=ray.intersectObjects(walls,false)[0];
+      if(!obstruction||obstruction.distance>origin.distanceTo(player.pos)){
+        const m=new THREE.Mesh(projectileGeo,projectileMat);
+        m.position.copy(origin);scene.add(m);
+        shots.push({m,vel:dir.multiplyScalar(11+Math.min(wave,8)),life:5});
+      }
+    }
+  }
+  for(let i=shots.length-1;i>=0;i--){
+    const s=shots[i],step=s.vel.clone().multiplyScalar(dt);
+    ray.set(s.m.position,step.clone().normalize());
+    const wall=ray.intersectObjects(walls,false)[0];
+    const end=s.m.position.clone().add(step);
+    const segment=new THREE.Line3(s.m.position,end);
+    const nearest=segment.closestPointToPoint(player.pos,true,new THREE.Vector3());
+    const hitPlayer=nearest.distanceTo(player.pos)<.55;
+    s.life-=dt;
+    const hitWall=wall&&wall.distance<=step.length();
+    if(hitPlayer&&!hitWall)hurt(11);
+    s.m.position.copy(end);
+    if(s.life<=0||hitPlayer||hitWall){
+      scene.remove(s.m);shots.splice(i,1);
+    }
+  }
+  for(let i=effects.length-1;i>=0;i--){
+    const e=effects[i];e.time-=dt;
+    if(e.vel){e.m.position.addScaledVector(e.vel,dt);e.vel.y-=9*dt;}
+    if(e.time<=0){removeEffect(e);effects.splice(i,1);}
+  }
+  for(let i=pickups.length-1;i>=0;i--){
+    const p=pickups[i];p.time-=dt;p.g.rotation.y+=dt*2;
+    p.g.position.y=.65+Math.sin(elapsed*3)*.13;
+    const near=Math.hypot(p.g.position.x-player.pos.x,p.g.position.z-player.pos.z)<1.3;
+    if(near&&player.hp<100){
+      player.hp=Math.min(100,player.hp+28);
+      announce("+28 生命值",.8);updateHUD();
+      p.time=0;
+    }
+    if(p.time<=0){scene.remove(p.g);pickups.splice(i,1);}
+  }
+  hitTime=Math.max(0,hitTime-dt);hurtTime=Math.max(0,hurtTime-dt);
+  $("hit").style.opacity=hitTime>0?1:0;
+  $("damage").style.opacity=hurtTime*.9;
+  noticeTime=Math.max(0,noticeTime-dt);
+  if(noticeTime===0)$("notice").textContent="";
+  if(enemies.length===0&&!dead){
+    if(nextWave===0){
+      nextWave=3;
+      player.hp=Math.min(100,player.hp+15);
+      announce("區域淨空 // +15 生命值",2.5);updateHUD();
+    }else{
+      nextWave-=dt;
+      if(nextWave<=0){nextWave=0;beginWave();}
+    }
+  }
+}
+
+camera.position.copy(player.pos);
+const clock=new THREE.Clock();
+function loop(){
+  requestAnimationFrame(loop);
+  const dt=Math.min(clock.getDelta(),.04);
+  if(locked&&!dead)update(dt);
+  renderer.render(scene,camera);
+}
+loop();
+</script>
+</body>
+</html>

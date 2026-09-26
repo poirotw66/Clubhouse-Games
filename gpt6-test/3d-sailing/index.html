@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Windward — A Sailing Time Trial</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+    :root {
+      --ink: #163d48;
+      --paper: #fffdf5;
+      --orange: #ff7448;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #afd9e0;
+      font-family: "DM Sans", sans-serif;
+      color: var(--ink);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #world {
+      position: fixed;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    button { font: inherit; cursor: pointer; }
+    button:focus-visible { outline: 3px solid #248aa5; outline-offset: 4px; }
+
+    .hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      padding: 30px 36px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      font: 700 27px "Space Grotesk", sans-serif;
+      letter-spacing: -1.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-mark {
+      width: 29px;
+      height: 32px;
+      background: var(--orange);
+      clip-path: polygon(80% 0, 80% 77%, 0 77%, 80% 0, 87% 85%, 100% 85%, 84% 100%, 10% 100%, 0 85%, 80% 85%);
+    }
+
+    .eyebrow {
+      font-size: 10px;
+      letter-spacing: 2.3px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .brand-sub { margin: 6px 0 0 40px; opacity: .65; }
+
+    .race-stats {
+      display: flex;
+      gap: 30px;
+      padding: 16px 24px;
+      border: 1px solid #ffffff80;
+      border-radius: 18px;
+      background: #fffdf5b8;
+      backdrop-filter: blur(14px);
+    }
+
+    .stat-value {
+      font: 600 29px "Space Grotesk", sans-serif;
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-value small { font-size: 15px; opacity: .45; }
+
+    #timer.urgent { color: #ce4f36; }
+
+    .objective {
+      position: absolute;
+      top: 128px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 18px;
+      border-radius: 100px;
+      background: #fffdf5e3;
+      box-shadow: 0 5px 25px #234d5210;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .objective-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--orange);
+      box-shadow: 0 0 0 4px #ff744820;
+    }
+
+    .bottom-left {
+      position: absolute;
+      left: 36px;
+      bottom: 30px;
+      width: 205px;
+    }
+
+    .instrument {
+      background: #fffdf5df;
+      border: 1px solid #ffffffa0;
+      border-radius: 20px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .speed-row {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      margin: 4px 0 14px;
+    }
+
+    #speed {
+      font: 600 49px "Space Grotesk", sans-serif;
+      line-height: 1;
+      letter-spacing: -3px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .unit { font-size: 11px; opacity: .6; }
+
+    .meter-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      font-weight: 700;
+      margin-top: 13px;
+    }
+
+    .meter {
+      height: 5px;
+      border-radius: 10px;
+      background: #163d4814;
+      margin-top: 7px;
+      overflow: hidden;
+    }
+
+    .meter > div {
+      height: 100%;
+      border-radius: inherit;
+      width: 65%;
+      transition: width .1s linear;
+    }
+
+    #power-bar { background: var(--orange); }
+    #wind-bar { background: #4aadb1; }
+
+    .wind-readout {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 15px;
+      font-size: 11px;
+    }
+
+    #wind-arrow {
+      display: inline-block;
+      font-size: 21px;
+      color: #248e9b;
+    }
+
+    .help {
+      margin-top: 12px;
+      font-size: 10px;
+      line-height: 1.9;
+      text-shadow: 0 1px 8px white;
+    }
+
+    kbd {
+      display: inline-block;
+      min-width: 18px;
+      padding: 1px 4px;
+      text-align: center;
+      border-radius: 4px;
+      background: #fffdf5bc;
+      font: 10px "DM Sans", sans-serif;
+    }
+
+    .map-panel {
+      position: absolute;
+      right: 36px;
+      bottom: 30px;
+      padding: 14px;
+      border-radius: 20px;
+      background: #fffdf5df;
+      border: 1px solid #ffffffa0;
+      backdrop-filter: blur(12px);
+    }
+
+    .map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .live { font-size: 9px; color: #499084; }
+
+    #map { display: block; width: 174px; height: 174px; }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      top: 25%;
+      transform: translate(-50%, 12px);
+      background: var(--ink);
+      color: var(--paper);
+      padding: 13px 22px;
+      border-radius: 12px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity .25s, transform .25s;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #183d4838;
+      backdrop-filter: blur(5px);
+      padding: 20px;
+    }
+
+    .overlay.hidden { display: none; }
+
+    .card {
+      width: 450px;
+      max-width: 100%;
+      padding: 42px;
+      background: var(--paper);
+      border-radius: 25px;
+      box-shadow: 0 30px 100px #163d4833;
+      text-align: center;
+    }
+
+    .card-icon {
+      font-size: 42px;
+      color: var(--orange);
+      margin-bottom: 20px;
+    }
+
+    .card h1 {
+      font: 600 58px/.95 "Space Grotesk", sans-serif;
+      letter-spacing: -3px;
+      margin: 17px 0 20px;
+    }
+
+    .card p {
+      font-size: 14px;
+      line-height: 1.8;
+      opacity: .75;
+      margin-bottom: 24px;
+    }
+
+    .rules {
+      display: flex;
+      justify-content: center;
+      gap: 19px;
+      padding: 18px 0;
+      margin-bottom: 22px;
+      border-top: 1px solid #163d4814;
+      border-bottom: 1px solid #163d4814;
+      font-size: 11px;
+    }
+
+    .rules strong {
+      display: block;
+      font: 600 21px "Space Grotesk", sans-serif;
+      margin-bottom: 5px;
+    }
+
+    .primary {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 17px 20px;
+      color: white;
+      background: var(--orange);
+      font-weight: 700;
+      box-shadow: 0 6px 0 #d95630;
+      transition: transform .15s;
+    }
+
+    .primary:hover { transform: translateY(-2px); }
+    .primary:active { transform: translateY(3px); }
+
+    .footnote {
+      font-size: 10px;
+      margin-top: 19px;
+      opacity: .5;
+    }
+
+    #touch-controls {
+      display: none;
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .touch-key {
+      border: 1px solid #ffffffa0;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: #fffdf5dc;
+      color: var(--ink);
+      font-size: 22px;
+      touch-action: none;
+    }
+
+    .touch-key:active { background: #ffc9aa; }
+
+    #loading {
+      position: fixed;
+      z-index: 20;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 30px;
+      text-align: center;
+      background: #fffdf5;
+      font: 500 18px "Space Grotesk", sans-serif;
+    }
+
+    @media (pointer: coarse) {
+      #touch-controls { display: flex; }
+      .help { display: none; }
+    }
+
+    @media (max-width: 650px) {
+      .hud { padding: 20px; }
+      .brand { font-size: 23px; }
+      .brand-sub { display: none; }
+      .race-stats { padding: 11px 15px; gap: 18px; }
+      .stat-value { font-size: 23px; }
+      .race-stats .eyebrow { font-size: 8px; }
+      .objective { top: 100px; font-size: 11px; }
+      .bottom-left { left: 15px; bottom: 90px; width: 144px; }
+      .instrument { padding: 14px; border-radius: 15px; }
+      #speed { font-size: 37px; }
+      .wind-readout { font-size: 9px; }
+      .map-panel { right: 15px; bottom: 90px; padding: 10px; }
+      #map { width: 115px; height: 115px; }
+      .map-header .eyebrow { font-size: 8px; }
+      .live { display: none; }
+      .card { padding: 30px 25px; }
+      .card h1 { font-size: 49px; }
+      .help { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Preparing the ocean…</div>
+  <canvas id="world" aria-label="3D sailing race"></canvas>
+
+  <main class="hud">
+    <header class="topbar">
+      <div>
+        <div class="brand"><span class="brand-mark"></span>windward.</div>
+        <div class="eyebrow brand-sub">Take the scenic route</div>
+      </div>
+
+      <div class="race-stats">
+        <div>
+          <div class="eyebrow">Checkpoints</div>
+          <div class="stat-value"><span id="checkpoint">00</span><small> / 08</small></div>
+        </div>
+        <div>
+          <div class="eyebrow">Time left</div>
+          <div class="stat-value" id="timer">3:00</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="objective">
+      <span class="objective-dot"></span>
+      <span id="objective">Sail through the orange gate</span>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <section class="bottom-left">
+      <div class="instrument">
+        <div class="eyebrow">Speed over water</div>
+        <div class="speed-row"><span id="speed">0.0</span><span class="unit">knots</span></div>
+
+        <div class="meter-label"><span>SAIL POWER</span><span id="power">65%</span></div>
+        <div class="meter"><div id="power-bar"></div></div>
+
+        <div class="meter-label"><span>WIND EFFICIENCY</span><span id="efficiency">0%</span></div>
+        <div class="meter"><div id="wind-bar"></div></div>
+
+        <div class="wind-readout">
+          <span id="wind-arrow">↑</span>
+          <span>SE breeze · auto-trim on</span>
+        </div>
+      </div>
+
+      <div class="help">
+        <kbd>W</kbd> <kbd>S</kbd> sail power &nbsp;
+        <kbd>A</kbd> <kbd>D</kbd> steer<br />
+        <kbd>SPACE</kbd> brake &nbsp; <kbd>R</kbd> restart
+      </div>
+    </section>
+
+    <aside class="map-panel">
+      <div class="map-header">
+        <span class="eyebrow">The archipelago</span>
+        <span class="live">● LIVE</span>
+      </div>
+      <canvas id="map" width="348" height="348" aria-label="Course minimap"></canvas>
+    </aside>
+
+    <div id="touch-controls" aria-label="Sailing controls">
+      <button class="touch-key" data-key="KeyA" aria-label="Steer left">←</button>
+      <button class="touch-key" data-key="KeyD" aria-label="Steer right">→</button>
+      <button class="touch-key" data-key="KeyS" aria-label="Reduce sail power">−</button>
+      <button class="touch-key" data-key="KeyW" aria-label="Increase sail power">+</button>
+    </div>
+  </main>
+
+  <section class="overlay" id="overlay">
+    <div class="card">
+      <div class="card-icon">◒</div>
+      <div class="eyebrow" id="card-label">A little ocean escape</div>
+      <h1 id="card-title">Find your<br />fair wind.</h1>
+      <p id="card-copy">
+        Follow the orange gates through a sunlit archipelago.
+        Catch the breeze, mind the islands, and make it home before time runs out.
+      </p>
+      <div class="rules">
+        <div><strong>08</strong>gates to pass</div>
+        <div><strong>03:00</strong>on the clock</div>
+        <div><strong>∞</strong>sea views</div>
+      </div>
+      <button class="primary" id="start">Set sail &nbsp; ↗</button>
+      <div class="footnote">W/S power · A/D steer · Space brake · R restart</div>
+    </div>
+  </section>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+    const $ = id => document.getElementById(id);
+
+    // All geometry and materials are procedural; no texture downloads.
+    const renderer = new THREE.WebGLRenderer({
+      canvas: $('world'),
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#b8dfe8');
+    scene.fog = new THREE.Fog('#b8dfe8', 190, 660);
+
+    const camera = new THREE.PerspectiveCamera(53, innerWidth / innerHeight, .1, 1400);
+    camera.position.set(0, 13, 68);
+
+    scene.add(new THREE.HemisphereLight('#eefcff', '#438d9c', 2.6));
+
+    const sun = new THREE.DirectionalLight('#fff1d0', 3.2);
+    sun.position.set(-90, 130, 60);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -100;
+    sun.shadow.camera.right = 100;
+    sun.shadow.camera.top = 100;
+    sun.shadow.camera.bottom = -100;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 350;
+    sun.shadow.normalBias = .08;
+    scene.add(sun);
+    scene.add(sun.target);
+
+    const materials = {
+      hull: new THREE.MeshStandardMaterial({ color: '#fff7e7', roughness: .65 }),
+      trim: new THREE.MeshStandardMaterial({ color: '#164a59', roughness: .55 }),
+      wood: new THREE.MeshStandardMaterial({ color: '#bb7951', roughness: .9 }),
+      sand: new THREE.MeshStandardMaterial({ color: '#e7d6a1', roughness: 1 }),
+      grass: new THREE.MeshStandardMaterial({ color: '#6fa789', roughness: 1 }),
+      rock: new THREE.MeshStandardMaterial({ color: '#7b9694', roughness: 1 }),
+      trunk: new THREE.MeshStandardMaterial({ color: '#90745b', roughness: 1 }),
+      leaf: new THREE.MeshStandardMaterial({ color: '#3b8975', roughness: 1 }),
+      orange: new THREE.MeshStandardMaterial({ color: '#ff7448', roughness: .6 }),
+      white: new THREE.MeshStandardMaterial({ color: '#fffdf1', roughness: .8 })
+    };
+
+    function mesh(geometry, material, parent, x=0, y=0, z=0) {
+      const m = new THREE.Mesh(geometry, material);
+      m.position.set(x, y, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
+    }
+
+    // Ocean: world-space waves and procedural foam/sun flecks.
+    const oceanUniforms = { uTime: { value: 0 } };
+    const ocean = new THREE.Mesh(
+      new THREE.PlaneGeometry(1800, 1800, 190, 190),
+      new THREE.ShaderMaterial({
+        uniforms: oceanUniforms,
+        vertexShader: `
+          uniform float uTime;
+          varying vec3 vWorld;
+          varying float vWave;
+          void main() {
+            vec3 p = position;
+            float h =
+              sin(p.x * .047 + uTime * 1.1) * .28 +
+              sin(p.y * .065 - uTime * .8) * .19 +
+              sin((p.x + p.y) * .11 + uTime * 1.4) * .09;
+            p.z += h;
+            vWave = h;
+            vec4 world = modelMatrix * vec4(p, 1.0);
+            vWorld = world.xyz;
+            gl_Position = projectionMatrix * viewMatrix * world;
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          varying vec3 vWorld;
+          varying float vWave;
+          void main() {
+            vec3 nearColor = vec3(.075, .53, .61);
+            vec3 farColor = vec3(.31, .66, .72);
+            float distanceFade = smoothstep(90., 620.,
+              distance(cameraPosition.xz, vWorld.xz));
+            vec3 color = mix(nearColor, farColor, distanceFade);
+            color += vWave * .085;
+
+            float a = sin(vWorld.x * .72 + vWorld.z * .38 + uTime * 1.2);
+            float b = sin(vWorld.z * 1.12 - vWorld.x * .21 - uTime * .9);
+            float fleck = pow(max(0., a * b), 24.);
+            color += fleck * .23 * (1. - distanceFade);
+
+            float ripple = sin(vWorld.x * .14 + vWorld.z * .2 + uTime);
+            color += smoothstep(.985, 1., ripple) * .022;
+
+            color = mix(color, vec3(.72,.875,.91), distanceFade * .62);
+            gl_FragColor = vec4(color, 1.);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }
+        `
+      })
+    );
+    ocean.rotation.x = -Math.PI / 2;
+    ocean.receiveShadow = true;
+    scene.add(ocean);
+
+    function waveHeight(x, z, t) {
+      return Math.sin(x * .047 + t * 1.1) * .28
+        + Math.sin(-z * .065 - t * .8) * .19
+        + Math.sin((x - z) * .11 + t * 1.4) * .09;
+    }
+
+    // Sailboat hull, drawn as elliptical cross-sections with a sharp bow.
+    const boat = new THREE.Group();
+    scene.add(boat);
+
+    const sections = [
+      [-3.3, .04], [-2.3, .86], [-.6, 1.23],
+      [1.3, 1.18], [2.55, .87]
+    ];
+    const vertices = [], indices = [];
+    sections.forEach(([z, w]) => {
+      vertices.push(-w, .64, z, w, .64, z, -w*.65, -.08, z, w*.65, -.08, z);
+    });
+    for (let i=0; i<sections.length-1; i++) {
+      const a=i*4, b=(i+1)*4;
+      indices.push(
+        a,b,a+1, a+1,b,b+1,
+        a,a+2,b, a+2,b+2,b,
+        a+1,b+1,a+3, a+3,b+1,b+3,
+        a+2,a+3,b+2, a+3,b+3,b+2
+      );
+    }
+    indices.push(0,1,2,1,3,2,16,18,17,17,18,19);
+
+    const hullGeometry = new THREE.BufferGeometry();
+    hullGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices,3));
+    hullGeometry.setIndex(indices);
+    hullGeometry.computeVertexNormals();
+    mesh(hullGeometry, materials.hull, boat);
+
+    const deckShape = new THREE.Shape();
+    deckShape.moveTo(0,-3.15);
+    deckShape.bezierCurveTo(1.45,-1.6,1.2,1.5,.83,2.5);
+    deckShape.lineTo(-.83,2.5);
+    deckShape.bezierCurveTo(-1.2,1.5,-1.45,-1.6,0,-3.15);
+    const deck = mesh(new THREE.ShapeGeometry(deckShape), materials.wood, boat,0,.665,0);
+    deck.rotation.x = Math.PI/2;
+    deck.material = materials.wood.clone();
+    deck.material.side = THREE.DoubleSide;
+
+    mesh(new THREE.BoxGeometry(1.25,.15,1.6), materials.trim, boat,0,.75,1.1);
+    mesh(new THREE.BoxGeometry(.92,.16,1.15), materials.hull, boat,0,.83,1.1);
+
+    mesh(new THREE.CylinderGeometry(.045,.065,7.9,8), materials.wood, boat,0,4.55,-.7);
+
+    function lineBetween(points, color, parent) {
+      const g = new THREE.BufferGeometry().setFromPoints(
+        points.map(p => new THREE.Vector3(...p))
+      );
+      const l = new THREE.Line(g, new THREE.LineBasicMaterial({
+        color, transparent:true, opacity:.65
+      }));
+      parent.add(l);
+      return l;
+    }
+
+    lineBetween([[0,.7,-3.1],[0,8.4,-.7],[0,.7,2.5]], '#f3e6cf', boat);
+    lineBetween([[-1.1,.7,0],[0,8.4,-.7],[1.1,.7,0]], '#f3e6cf', boat);
+
+    const sailPivot = new THREE.Group();
+    sailPivot.position.set(0,1.15,-.7);
+    boat.add(sailPivot);
+
+    // Curved triangular mainsail with a coral upper panel.
+    const sailVertices=[], sailColors=[], sailIndices=[];
+    const rows=18;
+    for (let row=0;row<=rows;row++) {
+      const t=row/rows;
+      const width=3.45*(1-t);
+      for (let col=0;col<=rows;col++) {
+        const u=col/rows;
+        sailVertices.push(Math.sin(u*Math.PI)*.46*(1-t), t*7, u*width);
+        const c = new THREE.Color(t>.70 ? '#ff8258' : '#fff9e9');
+        sailColors.push(c.r,c.g,c.b);
+      }
+    }
+    for(let r=0;r<rows;r++) for(let c=0;c<rows;c++){
+      const a=r*(rows+1)+c, b=a+rows+1;
+      sailIndices.push(a,a+1,b,a+1,b+1,b);
+    }
+    const sailGeo = new THREE.BufferGeometry();
+    sailGeo.setAttribute('position',new THREE.Float32BufferAttribute(sailVertices,3));
+    sailGeo.setAttribute('color',new THREE.Float32BufferAttribute(sailColors,3));
+    sailGeo.setIndex(sailIndices);
+    sailGeo.computeVertexNormals();
+    mesh(sailGeo,new THREE.MeshStandardMaterial({
+      vertexColors:true, side:THREE.DoubleSide, roughness:.93
+    }),sailPivot);
+    const boom=mesh(new THREE.CylinderGeometry(.045,.045,3.5,7),materials.wood,sailPivot,0,0,1.72);
+    boom.rotation.x=Math.PI/2;
+
+    const jibGeo = new THREE.BufferGeometry();
+    jibGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+      0,7.6,-.75, 0,1.1,-3.05, .42,1.2,-.95
+    ],3));
+    jibGeo.computeVertexNormals();
+    mesh(jibGeo, new THREE.MeshStandardMaterial({
+      color:'#fff9e9',side:THREE.DoubleSide,roughness:1
+    }),boat);
+
+    // Tiny skipper.
+    mesh(new THREE.SphereGeometry(.23,10,8),new THREE.MeshStandardMaterial({color:'#dba37a'}),boat,.35,1.55,1.45);
+    mesh(new THREE.CylinderGeometry(.23,.28,.55,8),materials.orange,boat,.35,1.08,1.45);
+    mesh(new THREE.CylinderGeometry(.32,.32,.07,12),materials.white,boat,.35,1.76,1.45);
+
+    // Deterministic scenery.
+    let seed=83;
+    function random(){
+      seed=(seed*1664525+1013904223)>>>0;
+      return seed/4294967296;
+    }
+
+    const islands = [
+      {x:-78,z:-72,r:24},
+      {x:108,z:14,r:30},
+      {x:298,z:-163,r:41},
+      {x:-190,z:95,r:37},
+      {x:32,z:254,r:43},
+      {x:-184,z:-220,r:46},
+      {x:282,z:207,r:36},
+      {x:52,z:-280,r:33}
+    ];
+
+    function palm(parent,x,z,scale){
+      const group=new THREE.Group();
+      group.position.set(x,2.4,z);
+      group.scale.setScalar(scale);
+      parent.add(group);
+      const trunk=mesh(new THREE.CylinderGeometry(.17,.31,5.8,7),materials.trunk,group,.35,2.8,0);
+      trunk.rotation.z=-.12;
+      for(let i=0;i<7;i++){
+        const leaf=new THREE.Group();
+        leaf.position.set(.7,5.6,0);
+        leaf.rotation.y=i*Math.PI*2/7;
+        group.add(leaf);
+        const shape=new THREE.Shape();
+        shape.moveTo(0,0);
+        shape.quadraticCurveTo(.9,-1.3,.1,-3.7);
+        shape.quadraticCurveTo(-.7,-1.5,0,0);
+        const frond=mesh(new THREE.ShapeGeometry(shape),materials.leaf,leaf);
+        frond.material=materials.leaf;
+        frond.material.side=THREE.DoubleSide;
+        frond.rotation.x=-Math.PI/2+.27;
+      }
+    }
+
+    for(const island of islands){
+      const group=new THREE.Group();
+      group.position.set(island.x,0,island.z);
+      scene.add(group);
+
+      const shore=mesh(new THREE.CylinderGeometry(island.r*.84,island.r,2.8,15),materials.sand,group,0,.25,0);
+      shore.rotation.y=random()*6;
+      const hill=mesh(new THREE.IcosahedronGeometry(1,1),materials.grass,group,0,1.2,0);
+      hill.scale.set(island.r*.8,island.r*.24,island.r*.77);
+
+      for(let i=0;i<7;i++){
+        const a=random()*Math.PI*2;
+        const d=island.r*(.3+random()*.38);
+        const rock=mesh(new THREE.DodecahedronGeometry(1,0),materials.rock,group,
+          Math.cos(a)*d,1.8,Math.sin(a)*d);
+        rock.scale.set(2+random()*3,2+random()*4,2+random()*3);
+        rock.rotation.set(random(),random(),random());
+      }
+      for(let i=0;i<5;i++){
+        const a=random()*Math.PI*2,d=random()*island.r*.48;
+        palm(group,Math.cos(a)*d,Math.sin(a)*d,.85+random()*.65);
+      }
+    }
+
+    // Distant soft, low-poly clouds.
+    const cloudMaterial=new THREE.MeshStandardMaterial({
+      color:'#fffaf0',roughness:1,flatShading:true
+    });
+    for(let i=0;i<22;i++){
+      const cloud=new THREE.Group();
+      cloud.position.set((random()-.5)*1100,65+random()*55,(random()-.5)*1100);
+      for(let j=0;j<4;j++){
+        const puff=mesh(new THREE.IcosahedronGeometry(1,1),cloudMaterial,cloud,j*9,random()*3,random()*4);
+        puff.scale.set(12+random()*8,5+random()*4,7+random()*5);
+        puff.castShadow=false;
+      }
+      scene.add(cloud);
+    }
+
+    const course=[
+      [0,-45],[90,-130],[205,-80],[220,70],
+      [95,155],[-45,90],[-115,-30],[-55,-130]
+    ];
+
+    const gates=[];
+    const activeColor=new THREE.Color('#ff7448');
+    const inactiveColor=new THREE.Color('#fff6df');
+    const completedColor=new THREE.Color('#70c4ab');
+
+    course.forEach(([x,z],index)=>{
+      const previous=index ? course[index-1] : [0,45];
+      const forward=new THREE.Vector2(x-previous[0],z-previous[1]).normalize();
+      const sideways=new THREE.Vector2(-forward.y,forward.x);
+      const group=new THREE.Group();
+      group.position.set(x,0,z);
+      scene.add(group);
+
+      const buoyMaterial=materials.orange.clone();
+      const buoys=[];
+      for(const side of [-1,1]){
+        const buoy=new THREE.Group();
+        buoy.position.set(sideways.x*10*side,0,sideways.y*10*side);
+        group.add(buoy);
+        mesh(new THREE.CylinderGeometry(.85,1.25,1.15,12),buoyMaterial,buoy,0,.55,0);
+        mesh(new THREE.CylinderGeometry(.89,.98,.3,12),materials.white,buoy,0,.7,0);
+        mesh(new THREE.CylinderGeometry(.06,.06,3.4,6),materials.wood,buoy,0,2,0);
+        const flag=mesh(new THREE.PlaneGeometry(1.45,.85),buoyMaterial,buoy,.72,3.25,0);
+        flag.material.side=THREE.DoubleSide;
+        buoys.push(buoy);
+      }
+
+      const ring=mesh(
+        new THREE.TorusGeometry(8.6,.11,6,64),
+        new THREE.MeshBasicMaterial({color:activeColor,transparent:true,opacity:.65}),
+        group,0,.15,0
+      );
+      ring.rotation.x=-Math.PI/2;
+      ring.castShadow=false;
+
+      const beacon=mesh(
+        new THREE.CylinderGeometry(.8,.8,26,12,1,true),
+        new THREE.MeshBasicMaterial({
+          color:activeColor,transparent:true,opacity:.10,
+          depthWrite:false,side:THREE.DoubleSide
+        }),
+        group,0,13,0
+      );
+      beacon.castShadow=false;
+
+      const arrow=new THREE.Group();
+      arrow.position.y=9;
+      group.add(arrow);
+      const pointer=mesh(new THREE.ConeGeometry(.8,1.4,3),
+        new THREE.MeshBasicMaterial({color:activeColor}),arrow);
+      pointer.rotation.z=Math.PI;
+
+      gates.push({group,buoys,buoyMaterial,ring,beacon,arrow});
+    });
+
+    // Reusable foam particles for the wake.
+    const wakeCount=150;
+    const wakePosition=new Float32Array(wakeCount*3);
+    const wakeLife=new Float32Array(wakeCount);
+    wakePosition.fill(0);
+    for(let i=0;i<wakeCount;i++) wakePosition[i*3+1]=-100;
+    const wakeGeometry=new THREE.BufferGeometry();
+    wakeGeometry.setAttribute('position',new THREE.BufferAttribute(wakePosition,3));
+    const wake=new THREE.Points(wakeGeometry,new THREE.PointsMaterial({
+      color:'#daf9ef',size:.55,transparent:true,opacity:.5,
+      depthWrite:false,sizeAttenuation:true
+    }));
+    scene.add(wake);
+    let wakeCursor=0,wakeAccumulator=0;
+
+    const keys={};
+    const controlledKeys=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyR'];
+    addEventListener('keydown',event=>{
+      if(controlledKeys.includes(event.code)) event.preventDefault();
+      keys[event.code]=true;
+      if(event.code==='KeyR' && !event.repeat) startGame();
+    });
+    addEventListener('keyup',event=>keys[event.code]=false);
+    addEventListener('blur',()=>Object.keys(keys).forEach(k=>keys[k]=false));
+
+    document.querySelectorAll('.touch-key').forEach(button=>{
+      button.addEventListener('pointerdown',event=>{
+        event.preventDefault();
+        button.setPointerCapture(event.pointerId);
+        keys[button.dataset.key]=true;
+      });
+      for(const name of ['pointerup','pointercancel','lostpointercapture']){
+        button.addEventListener(name,()=>keys[button.dataset.key]=false);
+      }
+    });
+
+    let state='intro';
+    let heading=0,speed=0,power=.65,efficiency=0;
+    let timeLeft=180,nextGate=0,collisionCooldown=0;
+    let elapsed=0,penalties=0,toastTimeout;
+    const position=new THREE.Vector3(0,0,45);
+    const wind=new THREE.Vector2(-.68,-.73).normalize();
+    const windHeading=Math.atan2(wind.x,-wind.y);
+    const desiredCamera=new THREE.Vector3();
+    const cameraLook=new THREE.Vector3(0,2,40);
+    const targetLook=new THREE.Vector3();
+
+    function showToast(text){
+      $('toast').textContent=text;
+      $('toast').classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),2300);
+    }
+
+    function updateGateAppearance(){
+      gates.forEach((g,i)=>{
+        const active=i===nextGate;
+        g.buoyMaterial.color.copy(i<nextGate?completedColor:active?activeColor:inactiveColor);
+        g.ring.visible=active;
+        g.beacon.visible=active;
+        g.arrow.visible=active;
+      });
+    }
+
+    function startGame(){
+      position.set(0,0,45);
+      heading=0;
+      speed=0;
+      power=.65;
+      timeLeft=180;
+      elapsed=0;
+      nextGate=0;
+      penalties=0;
+      collisionCooldown=0;
+      wakeLife.fill(0);
+      state='playing';
+      $('overlay').classList.add('hidden');
+      $('timer').classList.remove('urgent');
+      camera.position.set(0,13,68);
+      cameraLook.set(0,2,40);
+      updateGateAppearance();
+      showToast('Fair winds! Head for the orange gate.');
+    }
+
+    function endGame(won){
+      state=won?'won':'lost';
+      $('overlay').classList.remove('hidden');
+      $('card-label').textContent=won?'All gates cleared':'The ocean can wait';
+      $('card-title').innerHTML=won?'Beautiful<br />sailing.':'One more<br />voyage?';
+      $('card-copy').textContent=won
+        ? `You completed the course in ${formatTime(elapsed)}, with ${formatTime(timeLeft)} to spare${penalties ? ` and ${penalties} island collision${penalties===1?'':'s'}` : ' and no collisions'}. The sea looks good on you.`
+        : `You passed ${nextGate} of 8 gates. Try opening the sails on the straights and turning early. Your next fair wind is waiting.`;
+      $('start').innerHTML='Sail again &nbsp; ↗';
+    }
+
+    $('start').addEventListener('click',startGame);
+    updateGateAppearance();
+
+    function formatTime(seconds){
+      const s=Math.max(0,Math.ceil(seconds));
+      return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+    }
+
+    // A gate only counts when the boat crosses the line between its buoys.
+    function crossedGate(before,after,index){
+      const center=course[index];
+      const prev=index?course[index-1]:[0,45];
+      let nx=center[0]-prev[0],nz=center[1]-prev[1];
+      const len=Math.hypot(nx,nz);
+      nx/=len; nz/=len;
+      const a=(before.x-center[0])*nx+(before.z-center[1])*nz;
+      const b=(after.x-center[0])*nx+(after.z-center[1])*nz;
+      if(a===b || a*b>0) return false;
+      const t=a/(a-b);
+      if(t<0 || t>1) return false;
+      const x=before.x+(after.x-before.x)*t-center[0];
+      const z=before.z+(after.z-before.z)*t-center[1];
+      return Math.abs(x*(-nz)+z*nx)<9.2;
+    }
+
+    function updatePhysics(dt,t){
+      if(state!=='playing'){
+        speed*=Math.exp(-dt*2);
+        return;
+      }
+
+      elapsed+=dt;
+      timeLeft-=dt;
+      collisionCooldown=Math.max(0,collisionCooldown-dt);
+
+      const up=keys.KeyW||keys.ArrowUp;
+      const down=keys.KeyS||keys.ArrowDown;
+      power=THREE.MathUtils.clamp(power+((up?1:0)-(down?1:0))*dt*.42,0,1);
+
+      const steer=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+      heading+=steer*dt*(.35+Math.min(speed/10,1)*.83);
+
+      const fx=Math.sin(heading),fz=-Math.cos(heading);
+      const alignment=fx*wind.x+fz*wind.y;
+
+      // Forgiving arcade sailing: a beam reach is fastest, upwind is slower.
+      efficiency=THREE.MathUtils.clamp(.69+.28*alignment-.2*alignment*alignment,.22,1);
+      const gust=1+Math.sin(t*.35)*.07+Math.sin(t*.81)*.025;
+      const targetSpeed=power*(7+12*efficiency)*gust*(keys.Space?.10:1);
+      speed+=(targetSpeed-speed)*(1-Math.exp(-dt*(keys.Space?2.4:.42)));
+      speed*=Math.exp(-Math.abs(steer)*dt*.065);
+
+      const before=position.clone();
+      position.x+=fx*speed*dt;
+      position.z+=fz*speed*dt;
+
+      for(const island of islands){
+        const dx=position.x-island.x,dz=position.z-island.z;
+        const distance=Math.hypot(dx,dz);
+        const safeRadius=island.r+1.4;
+        if(distance<safeRadius){
+          const ux=distance>.001?dx/distance:1;
+          const uz=distance>.001?dz/distance:0;
+          position.x=island.x+ux*safeRadius;
+          position.z=island.z+uz*safeRadius;
+          speed*=.45;
+          if(collisionCooldown===0){
+            timeLeft-=4;
+            penalties++;
+            collisionCooldown=2.5;
+            showToast('Watch the shallows! −4 seconds');
+          }
+        }
+      }
+
+      // Keep the boat within the playable archipelago.
+      if(Math.abs(position.x)>540 || Math.abs(position.z)>540){
+        position.x=THREE.MathUtils.clamp(position.x,-540,540);
+        position.z=THREE.MathUtils.clamp(position.z,-540,540);
+        speed*=.95;
+        if(collisionCooldown===0){
+          showToast('Open ocean ahead — turn back toward the course');
+          collisionCooldown=3;
+        }
+      }
+
+      if(timeLeft<=0){
+        timeLeft=0;
+        endGame(false);
+        return;
+      }
+
+      if(nextGate<course.length && crossedGate(before,position,nextGate)){
+        nextGate++;
+        updateGateAppearance();
+        if(nextGate===course.length){
+          endGame(true);
+        }else{
+          showToast(`Gate ${nextGate} cleared · keep the wind in your sails`);
+        }
+      }
+    }
+
+    function updateBoat(dt,t){
+      boat.position.set(position.x,waveHeight(position.x,position.z,t)+.15,position.z);
+      boat.rotation.y=-heading;
+      const steer=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+      const heel=Math.sin(windHeading-heading)*.10*(speed/14)+steer*speed*.006;
+      boat.rotation.z=THREE.MathUtils.lerp(boat.rotation.z,heel+Math.sin(t*1.6)*.025,1-Math.exp(-dt*4));
+      boat.rotation.x=Math.sin(t*1.8)*.025;
+
+      const relativeWind=Math.sin(windHeading-heading);
+      const sailTarget=THREE.MathUtils.clamp(relativeWind*.9,-1.0,1.0);
+      sailPivot.rotation.y=THREE.MathUtils.lerp(sailPivot.rotation.y,sailTarget,1-Math.exp(-dt*2));
+
+      gates.forEach((g,i)=>{
+        g.buoys.forEach((b,j)=>{
+          const wx=g.group.position.x+b.position.x;
+          const wz=g.group.position.z+b.position.z;
+          b.position.y=waveHeight(wx,wz,t);
+          b.rotation.z=Math.sin(t*1.5+i+j)*.065;
+        });
+        g.ring.position.y=.27+Math.sin(t*1.8)*.06;
+        g.arrow.position.y=8.4+Math.sin(t*2.4)*.5;
+        g.arrow.rotation.y=t*.7;
+      });
+
+      wakeAccumulator+=dt*speed*3;
+      while(wakeAccumulator>=1){
+        wakeAccumulator--;
+        const i=wakeCursor++%wakeCount;
+        const side=(Math.random()-.5)*1.7;
+        wakePosition[i*3]=position.x-Math.sin(heading)*2.65+Math.cos(heading)*side;
+        wakePosition[i*3+2]=position.z+Math.cos(heading)*2.65+Math.sin(heading)*side;
+        wakeLife[i]=2.8;
+      }
+      for(let i=0;i<wakeCount;i++){
+        if(wakeLife[i]>0){
+          wakeLife[i]-=dt;
+          wakePosition[i*3]+=Math.cos(heading)*dt*.12*Math.sin(i);
+          wakePosition[i*3+1]=waveHeight(wakePosition[i*3],wakePosition[i*3+2],t)+.13;
+        }else{
+          wakePosition[i*3+1]=-100;
+        }
+      }
+      wakeGeometry.attributes.position.needsUpdate=true;
+    }
+
+    const mapContext=$('map').getContext('2d');
+    function drawMap(){
+      const ctx=mapContext;
+      const size=348;
+      const scale=.63;
+      const mx=x=>size/2+(x-45)*scale;
+      const my=z=>size/2+(z+15)*scale;
+
+      ctx.clearRect(0,0,size,size);
+      ctx.fillStyle='#d7eae5';
+      ctx.beginPath();
+      ctx.roundRect(0,0,size,size,18);
+      ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(0,0,size,size,18);
+      ctx.clip();
+
+      ctx.strokeStyle='#aacdc780';
+      ctx.lineWidth=1;
+      for(let i=0;i<size;i+=43.5){
+        ctx.beginPath();
+        ctx.moveTo(i,0);ctx.lineTo(i,size);
+        ctx.moveTo(0,i);ctx.lineTo(size,i);
+        ctx.stroke();
+      }
+
+      for(const island of islands){
+        ctx.fillStyle='#eee0b8';
+        ctx.beginPath();
+        ctx.ellipse(mx(island.x),my(island.z),island.r*scale,island.r*scale*.9,0,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle='#8db49a';
+        ctx.beginPath();
+        ctx.ellipse(mx(island.x),my(island.z),island.r*scale*.75,island.r*scale*.66,.2,0,Math.PI*2);
+        ctx.fill();
+      }
+
+      ctx.setLineDash([5,7]);
+      ctx.lineWidth=2;
+      ctx.strokeStyle='#568f9760';
+      ctx.beginPath();
+      ctx.moveTo(mx(0),my(45));
+      course.forEach(([x,z])=>ctx.lineTo(mx(x),my(z)));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      course.forEach(([x,z],i)=>{
+        ctx.beginPath();
+        ctx.arc(mx(x),my(z),i===nextGate?9:6,0,Math.PI*2);
+        ctx.fillStyle=i<nextGate?'#65ab96':i===nextGate?'#ff7448':'#fffdf5';
+        ctx.fill();
+        if(i===nextGate){
+          ctx.strokeStyle='#ff74484d';
+          ctx.lineWidth=5;
+          ctx.stroke();
+        }
+      });
+
+      ctx.save();
+      ctx.translate(mx(position.x),my(position.z));
+      ctx.rotate(heading);
+      ctx.fillStyle='#163d48';
+      ctx.strokeStyle='#fffdf5';
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(0,-11);
+      ctx.lineTo(7,8);
+      ctx.lineTo(0,4);
+      ctx.lineTo(-7,8);
+      ctx.closePath();
+      ctx.fill();ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle='#376b72';
+      ctx.font='bold 16px sans-serif';
+      ctx.fillText('N',size-27,25);
+      ctx.restore();
+    }
+
+    function updateHUD(){
+      $('speed').textContent=(speed*1.94384).toFixed(1);
+      $('power').textContent=`${Math.round(power*100)}%`;
+      $('power-bar').style.width=`${power*100}%`;
+      $('efficiency').textContent=`${Math.round(efficiency*100)}%`;
+      $('wind-bar').style.width=`${efficiency*100}%`;
+      $('checkpoint').textContent=String(nextGate).padStart(2,'0');
+      $('timer').textContent=formatTime(timeLeft);
+      $('timer').classList.toggle('urgent',timeLeft<30);
+      $('wind-arrow').style.transform=`rotate(${(windHeading-heading)*180/Math.PI}deg)`;
+
+      if(nextGate<course.length){
+        const [x,z]=course[nextGate];
+        const distance=Math.round(Math.hypot(x-position.x,z-position.z));
+        const bearing=Math.atan2(x-position.x,-(z-position.z))-heading;
+        const angle=Math.atan2(Math.sin(bearing),Math.cos(bearing));
+        const cue=Math.abs(angle)<.22?'Straight ahead':angle>0?'Bear right ↗':'↖ Bear left';
+        $('objective').textContent=`Gate ${nextGate+1} · ${distance} m · ${cue}`;
+      }else{
+        $('objective').textContent='Course complete · beautifully sailed';
+      }
+      drawMap();
+    }
+
+    addEventListener('resize',()=>{
+      camera.aspect=innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth,innerHeight);
+      renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+    });
+
+    const clock=new THREE.Clock();
+    let simulationTime=0,hudAccumulator=0;
+
+    function animate(){
+      requestAnimationFrame(animate);
+      // Pause the race while the tab is hidden; avoid a giant return-frame step.
+      const rawDt=clock.getDelta();
+      if(document.hidden) return;
+      const dt=Math.min(rawDt,.05);
+      simulationTime+=dt;
+      oceanUniforms.uTime.value=simulationTime;
+
+      updatePhysics(dt,simulationTime);
+      updateBoat(dt,simulationTime);
+
+      const distance=22+speed*.25;
+      desiredCamera.set(
+        position.x-Math.sin(heading)*distance,
+        12+speed*.13,
+        position.z+Math.cos(heading)*distance
+      );
+      camera.position.lerp(desiredCamera,1-Math.exp(-dt*2.3));
+      targetLook.set(
+        position.x+Math.sin(heading)*9,
+        2.2,
+        position.z-Math.cos(heading)*9
+      );
+      cameraLook.lerp(targetLook,1-Math.exp(-dt*3.8));
+      camera.lookAt(cameraLook);
+
+      sun.position.set(position.x-90,130,position.z+60);
+      sun.target.position.set(position.x,0,position.z);
+
+      hudAccumulator+=dt;
+      if(hudAccumulator>.08){
+        updateHUD();
+        hudAccumulator=0;
+      }
+      renderer.render(scene,camera);
+    }
+
+    $('loading').style.display='none';
+    updateHUD();
+    animate();
+  </script>
+
+  <script>
+    // Useful feedback if the CDN or WebGL initialization fails.
+    window.addEventListener('error', function () {
+      const loading = document.getElementById('loading');
+      if (loading && loading.style.display !== 'none') {
+        loading.textContent =
+          'Unable to launch. Check your internet connection and use a browser with WebGL enabled.';
+      }
+    });
+  </script>
+</body>
+</html>

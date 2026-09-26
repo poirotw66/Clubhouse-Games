@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { Board } from './components/Board';
 import { DAILY_DIFFICULTY, dailySeed, dateKey, formatDuration, summarise } from './game/daily';
@@ -85,15 +87,26 @@ export default function App(): React.ReactElement {
 
   // Record the daily result once, the moment it is finished.
   const recorded = useRef(false);
+  const sfxDone = useRef(false);
   useEffect(() => {
     if (!solved) return;
     clearGame();
     setResumable(null);
+    if (!sfxDone.current) {
+      sfxDone.current = true;
+      playWin();
+    }
     if (isDaily && !recorded.current) {
       recorded.current = true;
       setDailyRecords(recordDaily({ date: today, elapsedMs, hintsUsed }));
     }
   }, [solved, isDaily, today, elapsedMs, hintsUsed]);
+
+  useEffect(() => {
+    if (!gaveUp || sfxDone.current) return;
+    sfxDone.current = true;
+    playLose();
+  }, [gaveUp]);
 
   const open = useCallback(
     (code: string, level: DifficultyId, daily: boolean, restore?: { path: CellId[]; hintsUsed: number; elapsedMs: number }) => {
@@ -107,6 +120,7 @@ export default function App(): React.ReactElement {
       setRevealed([]);
       setGaveUp(false);
       recorded.current = false;
+      sfxDone.current = false;
       setSeedCode(code);
       setDifficulty(level);
       setIsDaily(daily);
@@ -124,6 +138,7 @@ export default function App(): React.ReactElement {
     setRevealed(hint.revealCells);
     setHintsUsed((n) => n + 1);
     setHintStep((s) => Math.min(s + 1, HINT_SEQUENCE.length - 1));
+    playScore();
   }, [puzzle, path, hintStep]);
 
   // Keyboard: arrows extend the path, Backspace steps back.
@@ -314,6 +329,7 @@ export default function App(): React.ReactElement {
             path={path}
             revealed={revealed}
             onPathChange={(next) => {
+              if (next.length > path.length) playMove();
               setPath(next);
               setRevealed([]);
             }}
@@ -331,7 +347,7 @@ export default function App(): React.ReactElement {
               label="退一步"
               ariaLabel="退回上一步"
               onClick={() => setPath((p) => p.slice(0, -1))}
-              disabled={path.length === 0}
+              disabled={path.length === 0 || complete}
               className="rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-200"
             />
             <TouchButton
@@ -342,6 +358,7 @@ export default function App(): React.ReactElement {
                 setRevealed([]);
                 setHintMessage(null);
               }}
+              disabled={complete}
               className="rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-200"
             />
             <TouchButton
@@ -373,59 +390,43 @@ export default function App(): React.ReactElement {
         )}
 
         {gaveUp && (
-          <section className="mt-4 rounded-2xl border border-slate-600 bg-slate-800/60 p-4 text-center">
-            <p className="text-lg font-black text-slate-200">這是答案</p>
-            <p className="mt-1 text-sm text-slate-400">
-              沒有計入紀錄。看一遍它怎麼繞過去，下一題會好一點。
-            </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <TouchButton
-                label="再試同一題"
-                ariaLabel="重畫同一題"
-                onClick={() => open(puzzle.seedCode, puzzle.difficulty, isDaily)}
-                className="flex-1 rounded-xl bg-violet-500 px-4 text-sm font-black text-slate-950"
-              />
-              <TouchButton
-                label="換一題"
-                ariaLabel="換一題"
-                onClick={() => open(randomSeedCode(), puzzle.difficulty, false)}
-                className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
-              />
-              <TouchButton
-                label="回選單"
-                ariaLabel="回到選單"
-                onClick={() => setScreen('title')}
-                className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
-              />
-            </div>
-          </section>
+          <ResultOverlay
+            title="這是答案"
+            subtitle="沒有計入紀錄。看一遍它怎麼繞過去，下一題會好一點。"
+            variant="neutral"
+            stats={[
+              { label: '用時', value: formatDuration(elapsedMs) },
+              { label: '提示', value: hintsUsed },
+              { label: '難度', value: DIFFICULTIES[puzzle.difficulty].label },
+            ]}
+            primaryLabel="再試同一題"
+            onPrimary={() => open(puzzle.seedCode, puzzle.difficulty, isDaily)}
+            secondaryLabel="換一題"
+            onSecondary={() => open(randomSeedCode(), puzzle.difficulty, false)}
+          />
         )}
 
         {solved && (
-          <section className="mt-4 rounded-2xl border border-emerald-400/50 bg-emerald-500/10 p-4 text-center">
-            <p className="text-lg font-black text-emerald-200">走透透了！</p>
-            <p className="mt-1 text-sm text-emerald-100/80">
-              {formatDuration(elapsedMs)}
-              {hintsUsed > 0 ? `・用了 ${hintsUsed} 次提示` : '・沒有用提示'}
-            </p>
-            {isDaily && stats.streak > 0 && (
-              <p className="mt-1 text-xs text-emerald-200/70">連續 {stats.streak} 天完成每日挑戰</p>
-            )}
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <TouchButton
-                label="換一題"
-                ariaLabel="換一題"
-                onClick={() => open(randomSeedCode(), puzzle.difficulty, false)}
-                className="flex-1 rounded-xl bg-emerald-500 px-4 text-sm font-black text-slate-950"
-              />
-              <TouchButton
-                label="回選單"
-                ariaLabel="回到選單"
-                onClick={() => setScreen('title')}
-                className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
-              />
-            </div>
-          </section>
+          <ResultOverlay
+            title="走透透了！"
+            subtitle={
+              isDaily && stats.streak > 0
+                ? `連續 ${stats.streak} 天完成每日挑戰`
+                : hintsUsed > 0
+                  ? `用了 ${hintsUsed} 次提示`
+                  : '沒有用提示'
+            }
+            variant="win"
+            stats={[
+              { label: '用時', value: formatDuration(elapsedMs) },
+              { label: '提示', value: hintsUsed },
+              { label: '難度', value: isDaily ? '今日挑戰' : DIFFICULTIES[puzzle.difficulty].label },
+            ]}
+            primaryLabel="換一題"
+            onPrimary={() => open(randomSeedCode(), puzzle.difficulty, false)}
+            secondaryLabel="回選單"
+            onSecondary={() => setScreen('title')}
+          />
         )}
 
         <p className="mt-4 hidden text-center text-[10px] text-slate-500 sm:block">

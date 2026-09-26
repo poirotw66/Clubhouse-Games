@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Volume2, VolumeX, HelpCircle, Lightbulb } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playCapture, playGoal, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
 import { Card as CardComponent } from './components/Card';
 import { CharacterSelect } from './components/CharacterSelect';
 import { MatchScoreboard } from './components/MatchScoreboard';
@@ -10,7 +12,6 @@ import { RulesModal } from './components/RulesModal';
 import { getCharacterImageUrl } from './characters';
 import { useBgm } from './hooks/useBgm';
 import { useCharacterSelection } from './hooks/useCharacterSelection';
-import { useSfx } from './hooks/useSfx';
 import { Card, GameState, Phase } from './types';
 import { deal, calculateYaku, getMatchingCards, resolveRoundScores, WIN_SCORE_OPTIONS, WIN_SCORE_LABELS, type WinScore } from './utils/gameLogic';
 import {
@@ -31,6 +32,16 @@ import {
   type MatchStats,
 } from './utils/stats';
 import { motion, AnimatePresence } from 'motion/react';
+
+type SfxKind = 'match' | 'yaku' | 'win' | 'draw' | 'lose';
+
+function playSfx(kind: SfxKind): void {
+  if (kind === 'match') playCapture();
+  else if (kind === 'yaku') playGoal();
+  else if (kind === 'win') playWin();
+  else if (kind === 'lose') playLose();
+  else playMove();
+}
 
 const initialState: GameState = {
   deck: [],
@@ -71,7 +82,6 @@ export default function App() {
   winScoreRef.current = winScore;
   const { character, characterId, setCharacterId } = useCharacterSelection();
   const { muted, toggleMute, unlock, currentTitle } = useBgm();
-  const { play: playSfx } = useSfx();
   const playerAvatarUrl = getCharacterImageUrl(character);
 
   // The setup screen and the table replace each other in the same document, so
@@ -163,7 +173,9 @@ export default function App() {
           botGain,
           winScoreRef.current,
         );
-        playSfx(resolved.winner ? 'win' : 'draw');
+        playSfx(
+          resolved.winner === 'player' ? 'win' : resolved.winner === 'bot' ? 'lose' : 'draw',
+        );
         return {
           ...s,
           phase: resolved.phase,
@@ -234,7 +246,9 @@ export default function App() {
             finalPoints,
             winScoreRef.current,
           );
-          if (resolved.winner) playSfx('win');
+          if (resolved.winner === 'player') playSfx('win');
+          else if (resolved.winner === 'bot') playSfx('lose');
+          else playSfx('draw');
 
           setState({
             ...newState,
@@ -447,7 +461,9 @@ export default function App() {
       0,
       winScoreRef.current,
     );
-    if (resolved.winner) playSfx('win');
+    if (resolved.winner === 'player') playSfx('win');
+    else if (resolved.winner === 'bot') playSfx('lose');
+    else playSfx('draw');
 
     setState(s => ({
       ...s,
@@ -891,87 +907,39 @@ export default function App() {
         </div>
       )}
 
-      {/* Round end modal */}
+      {/* Round end */}
       {state.phase === 'round_end' && (
-        <div
-          className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="koi-koi-round-title"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="wafu-modal rounded-2xl p-8 text-center max-w-md w-full relative"
-          >
-            <div className="corner-ornament corner-ornament-tl" />
-            <div className="corner-ornament corner-ornament-tr" />
-            <div className="corner-ornament corner-ornament-bl" />
-            <div className="corner-ornament corner-ornament-br" />
-            <h2 id="koi-koi-round-title" className="font-display text-3xl font-bold text-gold mb-4">回合結束</h2>
-            <p className="text-lg text-cream mb-6">{state.message}</p>
-            <div className="mb-6">
-              <CharacterSelect selectedId={characterId} onSelect={setCharacterId} compact />
-            </div>
-            <button
-              type="button"
-              onClick={() => startGame(true)}
-              className="wafu-btn-gold px-8 py-4 min-h-[44px] rounded-xl text-lg touch-manipulation"
-            >
-              下一局
-            </button>
-          </motion.div>
-        </div>
+        <ResultOverlay
+          title="回合結束"
+          subtitle={state.message}
+          variant="neutral"
+          stats={[
+            { label: character.name, value: state.playerScore },
+            { label: '師匠', value: state.botScore },
+            { label: '目標', value: winScore },
+          ]}
+          primaryLabel="下一局"
+          onPrimary={() => startGame(true)}
+        />
       )}
 
-      {/* Game over modal */}
+      {/* Game over */}
       {state.phase === 'game_over' && (
-        <div
-          className="fixed inset-0 bg-indigo-deep/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="koi-koi-over-title"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="wafu-modal rounded-2xl p-8 text-center max-w-md w-full relative"
-          >
-            <div className="corner-ornament corner-ornament-tl" />
-            <div className="corner-ornament corner-ornament-tr" />
-            <div className="corner-ornament corner-ornament-bl" />
-            <div className="corner-ornament corner-ornament-br" />
-            <h2 id="koi-koi-over-title" className="font-display text-3xl font-bold text-gold mb-2">
-              {state.winner === 'player' ? '恭喜獲勝！' : '師匠獲勝'}
-            </h2>
-            <p className="text-lg text-cream mb-4">{state.message}</p>
-            <div className="mb-4 flex justify-center">
-              <MatchScoreboard
-                playerLabel={character.name}
-                botLabel="師匠"
-                playerScore={state.playerScore}
-                botScore={state.botScore}
-                winScore={winScore}
-                wins={stats.wins}
-                losses={stats.losses}
-                winStreak={stats.winStreak}
-              />
-            </div>
-            <p className="text-xs text-cream/50 mb-6">
-              難度：{DIFFICULTY_LABELS[difficulty]} · {WIN_SCORE_LABELS[winScore]}
-            </p>
-            <div className="mb-6">
-              <CharacterSelect selectedId={characterId} onSelect={setCharacterId} compact />
-            </div>
-            <button
-              type="button"
-              onClick={() => startGame(false, true)}
-              className="wafu-btn-gold px-8 py-4 min-h-[44px] rounded-xl text-lg touch-manipulation"
-            >
-              再來一局
-            </button>
-          </motion.div>
-        </div>
+        <ResultOverlay
+          title={state.winner === 'player' ? '恭喜獲勝！' : '師匠獲勝'}
+          subtitle={state.message}
+          badge={`${DIFFICULTY_LABELS[difficulty]} · ${WIN_SCORE_LABELS[winScore]}`}
+          variant={state.winner === 'player' ? 'win' : 'lose'}
+          stats={[
+            { label: character.name, value: state.playerScore },
+            { label: '師匠', value: state.botScore },
+            { label: '勝場', value: stats.wins },
+            { label: '敗場', value: stats.losses },
+            { label: '連勝', value: stats.winStreak },
+          ]}
+          primaryLabel="再來一局"
+          onPrimary={() => startGame(false, true)}
+        />
       )}
 
       {showRules && <RulesModal winScore={winScore} onClose={() => setShowRules(false)} />}

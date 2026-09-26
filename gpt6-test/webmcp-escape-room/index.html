@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101319">
+<title>WebMCP Escape Room</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#101319;--panel:#191e27;--line:#2d3542;--text:#edf0f6;--muted:#a1adbf;
+  --gold:#e8c38a;--blue:#86b9ff;--green:#8cdec0;--violet:#bdabf5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 20% 0%,#222a3a 0,transparent 48%),var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+button,input,select{border:1px solid var(--line);border-radius:9px;background:#202733;color:var(--text)}
+button{padding:9px 13px;transition:background .18s,border-color .18s}
+button:hover:not(:disabled){background:#2d3746;border-color:#68778c}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:4px}
+button.primary{background:var(--gold);color:#211a12;border-color:var(--gold);font-weight:700}
+button.primary:hover{background:#f6d5a3}
+button.quiet{background:transparent}
+h1,h2,h3,p{margin:0}
+h1{font-size:25px;letter-spacing:-.8px;line-height:1.3}
+h2{font-size:16px;letter-spacing:-.25px}
+h3{font-size:14px}
+small,.muted{color:var(--muted)}
+code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+code{font-size:12px}
+.shell{max-width:1450px;margin:auto;padding:28px 32px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:26px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:47px;height:47px;display:grid;place-items:center;border:1px solid #716247;border-radius:13px;background:linear-gradient(145deg,#3f3628,#1c222b);font-size:25px;color:var(--gold)}
+.subtitle{color:var(--muted);margin-top:3px}
+.header-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);border-radius:30px;font-size:11px;font-weight:650;white-space:nowrap;background:#202631}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px #e8c38a44}
+.connected .dot{background:var(--green)}
+.connected{color:var(--green)}
+.eyebrow{font-size:10px;font-weight:750;letter-spacing:2px;color:var(--gold);text-transform:uppercase}
+.intro{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:17px}
+.intro p{font-size:12px;color:var(--muted)}
+.live-label{display:flex;align-items:center;gap:7px;color:var(--green);font-size:11px;white-space:nowrap}
+.live-label i{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.game-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+.panel{background:linear-gradient(135deg,#1d2430d9,#171c25f2);border:1px solid var(--line);border-radius:15px;box-shadow:0 12px 32px #0002;overflow:hidden}
+.panel-head{padding:17px 20px;display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line)}
+.scene-wrap{position:relative;background:#1b202a;overflow:hidden}
+.scene-wrap svg{width:100%;height:auto;display:block;aspect-ratio:900/600}
+.scene-overlay{position:absolute;top:19px;left:21px;pointer-events:none}
+.scene-overlay h2{font-size:20px;margin-top:4px}
+.scene-overlay p{font-size:11px;color:#aab4c5;margin-top:2px}
+.room-footer{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;gap:12px;color:var(--muted);font-size:11px;background:#141a23}
+.room-footer span:first-child{color:var(--gold)}
+.hotspot{cursor:pointer;outline:none}
+.hotspot .hit{fill:transparent;stroke:transparent;stroke-width:2;transition:stroke .2s,fill .2s}
+.hotspot:hover .hit{stroke:#e8c38a88;fill:#e8c38a08}
+.hotspot.selected .hit,.hotspot:focus-visible .hit{stroke:var(--gold);stroke-dasharray:6 4;fill:#e8c38a09}
+.hotspot .label{fill:#aeb9ca;font-size:10px;font-family:system-ui,sans-serif;letter-spacing:1.2px;transition:fill .2s}
+.hotspot:hover .label,.hotspot.selected .label{fill:#f7dba8}
+.hotspot .done{opacity:0;fill:var(--green);transition:opacity .25s}
+.hotspot.completed .done{opacity:1}
+.hotspot.ai .hit{stroke:var(--blue);stroke-width:3;animation:agentGlow 1s ease-in-out 2}
+@keyframes agentGlow{50%{fill:#86b9ff33;filter:drop-shadow(0 0 7px #86b9ff)}}
+.safe-face{transform-origin:326px 302px;transition:transform .55s}
+#obj-safe.is-open .safe-face{transform:translate(-7px,0) skewY(-8deg) scaleX(.35)}
+.drawer-face{transition:transform .4s}
+#obj-desk_drawer.is-open .drawer-face{transform:translate(-11px,15px)}
+.door-light{fill:#92754c;transition:fill .5s,filter .5s}
+#obj-exit_door.completed .door-light{fill:#8cdec0;filter:drop-shadow(0 0 8px #8cdec0)}
+.door-face{transform-origin:681px 245px;transition:transform .6s}
+#obj-exit_door.is-open .door-face{transform:skewY(-3deg) scaleX(.35)}
+.powered-display{opacity:0;transition:opacity .3s}
+#obj-keypad_box.completed .powered-display{opacity:1}
+.object-strip{padding:12px;display:flex;gap:7px;flex-wrap:wrap;border-top:1px solid var(--line)}
+.object-chip{padding:5px 9px;font-size:11px;border-radius:6px;background:#191f28}
+.object-chip.active{border-color:#bca06f;color:var(--gold);background:#352d2255}
+.object-chip .check{color:var(--green);margin-left:5px}
+.side{display:grid;gap:16px}
+.interaction-body{padding:20px;min-height:295px}
+.object-title{font-size:23px;letter-spacing:-.7px;margin:7px 0 9px}
+.object-description{font-size:13px;color:#c0cad8;min-height:65px}
+.state-row{display:flex;gap:6px;flex-wrap:wrap;margin:15px 0}
+.state-pill{font-size:10px;text-transform:uppercase;letter-spacing:.8px;padding:3px 8px;border:1px solid #3a4454;border-radius:5px;color:#c0cad8}
+.state-pill.good{color:var(--green);border-color:#396558}
+.actions{display:grid;gap:9px;margin-top:17px}
+.action-row{display:flex;gap:8px;align-items:center}
+.action-row>*{min-width:0}
+.action-row input,.action-row select{width:100%;padding:10px}
+.action-row input{letter-spacing:4px}
+.action-row button{white-space:nowrap}
+.clue{border-left:2px solid var(--gold);padding:9px 12px;margin-top:13px;background:#e8c38a09;color:#e9d4b2;font-size:12px}
+.contents{border-top:1px solid var(--line);margin-top:17px;padding-top:13px}
+.contents h3{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px}
+.take-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0;font-size:12px}
+.take-row button{padding:5px 10px;font-size:11px}
+.progress-body{padding:17px 20px}
+.progress-track{height:5px;border-radius:10px;background:#303846;overflow:hidden;margin:12px 0 17px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--green));transition:width .45s}
+.progress-item{display:flex;gap:9px;align-items:center;font-size:12px;margin:8px 0;color:var(--muted)}
+.progress-item.done{color:var(--green)}
+.progress-icon{width:17px;flex-shrink:0;font-size:13px}
+.progress-meta{border-top:1px solid var(--line);margin-top:14px;padding-top:11px;font-size:11px;color:var(--muted)}
+.inventory-panel{margin-top:18px}
+.inventory-body{padding:15px 18px;display:flex;gap:11px;flex-wrap:wrap;min-height:90px;align-items:center}
+.inventory-empty{font-size:12px;color:var(--muted)}
+.item-card{display:flex;gap:10px;align-items:center;text-align:left;padding:10px 13px;background:#222a35;min-width:140px}
+.item-icon{font-size:21px;color:var(--gold)}
+.item-card strong{font-size:12px;display:block}
+.item-card small{font-size:10px}
+.inventory-detail{margin:0 18px 16px;padding:12px;border:1px solid #4b4650;background:#272632;border-radius:9px;font-size:12px}
+.inventory-detail .action-row{margin-top:12px}
+.bottom-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:18px;margin-top:18px;align-items:start}
+.log-list{height:260px;overflow:auto;padding:10px 15px;font:11px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace}
+.log-entry{display:grid;grid-template-columns:59px 58px minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid #ffffff07}
+.log-entry time{color:#8b98aa}
+.log-source{color:var(--gold);font-size:10px}
+.log-source.webmcp{color:var(--blue)}
+.log-source.system{color:var(--green)}
+.log-text{overflow-wrap:anywhere;color:#c0cada}
+.log-entry.error .log-text{color:#ffacaa}
+.tools-list{height:260px;overflow:auto;padding:3px 17px}
+.tool{padding:11px 0;border-bottom:1px solid #ffffff0a}
+.tool-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tool-title code{color:#d2c8f2;overflow-wrap:anywhere}
+.tool p{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5}
+.read-write{font-size:9px;letter-spacing:.7px;border-radius:4px;padding:2px 5px;color:var(--blue);background:#86b9ff13}
+.read-write.write{color:var(--gold);background:#e8c38a13}
+.tool-note{padding:10px 17px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--line)}
+.panel-head button{font-size:11px;padding:5px 9px}
+.prompts{margin-top:18px;padding:20px}
+.prompt-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+.prompt-list button{font-size:11px;text-align:left;border-radius:30px;padding:7px 11px;background:#202631}
+.prompts>p{font-size:12px;color:var(--muted);margin-top:4px}
+.education{margin-top:24px;display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
+.education .panel{padding:23px}
+.education p,.education li{color:var(--muted);font-size:12px}
+.education p{margin-top:9px}
+.education ol{padding-left:19px;margin:12px 0}
+.flow{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:14px;font-size:10px}
+.flow b{border:1px solid #3f4b5f;border-radius:6px;padding:7px 9px;background:#222b38;font-weight:500}
+.flow .engine{color:var(--gold);border-color:#786546}
+.flow span{color:#8a99ad}
+.comparison{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:15px}
+.comparison h3{font-size:11px;color:var(--muted)}
+.comparison pre{font-size:11px;line-height:1.95;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0 0;color:#a8b4c5}
+.comparison .mcp pre,.comparison .mcp h3{color:var(--blue)}
+footer{display:flex;justify-content:space-between;gap:15px;margin-top:24px;color:#8290a4;font-size:10px;letter-spacing:.5px}
+.toasts{position:fixed;bottom:22px;right:22px;width:min(360px,calc(100% - 44px));display:grid;gap:9px;z-index:20;pointer-events:none}
+.toast{padding:13px 16px;border-radius:11px;border:1px solid #577163;background:#20332ef5;box-shadow:0 12px 40px #0006;color:#d1f4e7;font-size:12px;animation:toastIn .2s ease-out}
+.toast.error{background:#39272ff5;border-color:#865564;color:#ffd7db}
+.toast.ai-toast{border-color:#688bb9;background:#23354cf5;color:#d7e8ff}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}}
+.victory{display:none;margin-bottom:18px;padding:20px 24px;border:1px solid #487763;border-radius:14px;background:linear-gradient(110deg,#233d35,#1d2a37);align-items:center;justify-content:space-between;gap:15px}
+.victory.visible{display:flex}
+.victory h2{color:var(--green);font-size:22px}
+.victory p{color:#b4d2c4;font-size:12px;margin-top:4px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+[hidden]{display:none!important}
+@media(min-width:1250px){.scene-wrap svg{min-height:530px}}
+@media(max-width:1080px){.shell{padding:22px}.game-grid{grid-template-columns:minmax(0,1fr) 300px}.scene-overlay h2{font-size:17px}.scene-overlay{top:13px;left:16px}}
+@media(max-width:820px){.game-grid{grid-template-columns:1fr}.side{grid-template-columns:1.1fr 1fr;align-items:start}.interaction-body{min-height:260px}.bottom-grid,.education{grid-template-columns:1fr}.scene-wrap svg{min-height:0}header{align-items:flex-start}.header-actions{max-width:240px}.intro p{max-width:420px}}
+@media(max-width:540px){.shell{padding:17px 12px 30px}header{flex-direction:column;margin-bottom:20px;gap:15px}.header-actions{max-width:none;justify-content:flex-start;gap:7px;width:100%}.header-actions button{font-size:11px;padding:7px 10px}h1{font-size:23px}.intro{align-items:flex-start}.intro p{font-size:11px}.live-label{display:none}.side{grid-template-columns:1fr}.scene-overlay{top:10px;left:13px}.scene-overlay .eyebrow{font-size:8px}.scene-overlay h2{font-size:14px}.scene-overlay p{display:none}.room-footer{font-size:10px;padding:10px}.panel-head{padding:14px 16px}.interaction-body{min-height:0;padding:17px}.object-chip{font-size:10px}.education .panel{padding:18px}.comparison{gap:10px}.comparison pre{font-size:10px}.victory{padding:16px}.victory h2{font-size:18px}.victory button{font-size:11px}footer{flex-direction:column;gap:4px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">⌘</div>
+      <div><h1>WebMCP Escape Room</h1><p class="subtitle">Escape through UI or AI tools.</p></div>
+    </div>
+    <div class="header-actions">
+      <span id="connection" class="badge" role="status"><span class="dot"></span><span>Checking WebMCP</span></span>
+      <button id="undo-button" aria-label="Undo the last game action">↶ Undo</button>
+      <button id="reset-button" class="quiet" aria-label="Reset game to the beginning">Reset Game</button>
+    </div>
+  </header>
+
+  <div class="intro">
+    <div><div class="eyebrow">An interactive capability demo</div><p>One room. Two ways to play. The same shared game state.</p></div>
+    <div class="live-label"><i></i> Local-first · No server · No simulated clicks</div>
+  </div>
+
+  <section id="victory" class="victory" aria-label="Escape successful">
+    <div><div class="eyebrow">Room complete</div><h2>You found your way out.</h2><p>Every clue connected. Every action shared between player and agent.</p></div>
+    <button id="play-again" class="primary">Play again</button>
+  </section>
+
+  <main>
+    <div class="game-grid">
+      <section class="panel" aria-label="Interactive study">
+        <div class="scene-wrap">
+          <div class="scene-overlay"><div class="eyebrow">Room 01 / The quiet study</div><h2>A matter of time.</h2><p>Inspect the room. Follow the clues. Find the exit.</p></div>
+          <svg id="room-svg" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg" aria-labelledby="scene-title scene-desc">
+            <title id="scene-title">The quiet study escape room</title>
+            <desc id="scene-desc">A modern study containing twelve interactive objects. Select an object in the illustration or use the named object buttons below.</desc>
+            <defs>
+              <linearGradient id="wall" x2="0" y2="1"><stop stop-color="#2a3241"/><stop offset="1" stop-color="#1e2735"/></linearGradient>
+              <linearGradient id="floor" x2="0" y2="1"><stop stop-color="#3a3540"/><stop offset="1" stop-color="#171d29"/></linearGradient>
+              <linearGradient id="wood" x2="1" y2=".4"><stop stop-color="#82654e"/><stop offset=".5" stop-color="#68513f"/><stop offset="1" stop-color="#443a35"/></linearGradient>
+              <linearGradient id="door" x2="1" y2="0"><stop stop-color="#293546"/><stop offset=".7" stop-color="#344252"/><stop offset="1" stop-color="#26303e"/></linearGradient>
+              <linearGradient id="glass" x2=".8" y2="1"><stop stop-color="#324c60"/><stop offset="1" stop-color="#172737"/></linearGradient>
+              <linearGradient id="screen" x2="1" y2="1"><stop stop-color="#233f58"/><stop offset="1" stop-color="#172c3d"/></linearGradient>
+              <radialGradient id="lampGlow"><stop stop-color="#efc787" stop-opacity=".23"/><stop offset="1" stop-color="#efc787" stop-opacity="0"/></radialGradient>
+              <radialGradient id="ambient"><stop stop-color="#8eabd9" stop-opacity=".12"/><stop offset="1" stop-color="#8eabd9" stop-opacity="0"/></radialGradient>
+              <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#080d17" flood-opacity=".5"/></filter>
+              <pattern id="grain" width="45" height="24" patternUnits="userSpaceOnUse"><path d="M0 3H45M4 15H31" stroke="#ddd2be" stroke-opacity=".025"/></pattern>
+            </defs>
+            <!-- Architectural shell -->
+            <rect width="900" height="600" fill="url(#wall)"/>
+            <path d="M0 0H102V414L0 495Z" fill="#202938"/>
+            <path d="M849 0H900V495L849 414Z" fill="#18222f"/>
+            <path d="M102 414H849L900 495V600H0V495Z" fill="url(#floor)"/>
+            <path d="M102 408H849V420H102Z" fill="#111b26"/>
+            <path d="M0 489L102 408V420L0 505M849 408L900 489V505L849 420" fill="#111b26"/>
+            <g stroke="#b3a3a0" opacity=".08"><path d="M155 420L53 600M305 420L265 600M463 420L469 600M620 420L676 600M770 420L880 600"/><path d="M61 469H875M0 540H900"/></g>
+            <ellipse cx="420" cy="241" rx="400" ry="240" fill="url(#ambient)"/>
+            <path d="M124 44H828" stroke="#4b5667" opacity=".3"/>
+            <!-- Window, architectural decoration -->
+            <rect x="118" y="104" width="126" height="214" rx="3" fill="#121c2b" stroke="#455062" stroke-width="5"/>
+            <rect x="125" y="111" width="112" height="198" fill="url(#glass)"/>
+            <path d="M181 112V309M125 206H237" stroke="#394759" stroke-width="5"/>
+            <g fill="#879fb5" opacity=".15"><rect x="131" y="231" width="22" height="77"/><rect x="160" y="248" width="14" height="60"/><rect x="192" y="216" width="27" height="92"/><rect x="226" y="265" width="10" height="43"/></g>
+            <path d="M120 106H241L217 139H120Z" fill="#b4cce2" opacity=".04"/>
+
+            <!-- Exit -->
+            <g id="obj-exit_door" class="hotspot" data-object="exit_door" tabindex="0" role="button" aria-label="Select Exit Door">
+              <rect class="hit" x="662" y="133" width="137" height="311" rx="7"/>
+              <rect x="675" y="143" width="112" height="282" rx="3" fill="#101b23" stroke="#4b5867" stroke-width="4"/>
+              <rect class="door-light" x="681" y="148" width="100" height="271" opacity=".16"/>
+              <g class="door-face">
+                <rect x="682" y="150" width="98" height="270" fill="url(#door)"/>
+                <path d="M696 164V402M767 164V402" stroke="#677283" opacity=".22"/>
+                <rect x="744" y="279" width="22" height="41" rx="4" fill="#182330" stroke="#536273"/>
+                <rect class="door-light" x="750" y="284" width="10" height="3" rx="1"/>
+                <g fill="#798ca0"><circle cx="750" cy="294" r="1"/><circle cx="755" cy="294" r="1"/><circle cx="760" cy="294" r="1"/><circle cx="750" cy="299" r="1"/><circle cx="755" cy="299" r="1"/><circle cx="760" cy="299" r="1"/></g>
+                <path d="M756 310H739" stroke="#acb6bf" stroke-width="4" stroke-linecap="round"/>
+              </g>
+              <rect x="711" y="121" width="42" height="15" rx="3" fill="#293e3c"/>
+              <text x="732" y="132" text-anchor="middle" fill="#a8cfbd" font-size="8" letter-spacing="2">EXIT</text>
+              <text class="label" x="732" y="439" text-anchor="middle">EXIT DOOR</text>
+              <circle class="done" cx="788" cy="148" r="4"/>
+            </g>
+
+            <!-- Bookshelf -->
+            <g id="obj-bookshelf" class="hotspot" data-object="bookshelf" tabindex="0" role="button" aria-label="Select Bookshelf">
+              <rect class="hit" x="522" y="145" width="131" height="294" rx="7"/>
+              <rect x="537" y="158" width="103" height="257" rx="2" fill="#252630" stroke="#665344" stroke-width="7" filter="url(#shadow)"/>
+              <path d="M539 237H639M539 320H639" stroke="#80644d" stroke-width="7"/>
+              <g>
+                <rect x="546" y="177" width="11" height="56" fill="#526773"/><rect x="559" y="169" width="12" height="64" fill="#997c62"/>
+                <rect x="574" y="182" width="8" height="51" fill="#6a607f"/><rect x="586" y="174" width="15" height="59" fill="#4b656a"/>
+                <path d="M608 180L619 177L632 231L620 234Z" fill="#a98d64"/>
+                <path d="M549 185H554M562 180H568M589 184H598" stroke="#ccb994" opacity=".6"/>
+                <rect x="548" y="285" width="45" height="10" rx="1" fill="#806f81"/><rect x="551" y="297" width="47" height="9" rx="1" fill="#71888c"/>
+                <rect x="547" y="308" width="50" height="8" rx="1" fill="#a18a65"/>
+                <path d="M609 293L618 268L628 293Z" fill="none" stroke="#b49765" stroke-width="2"/>
+                <circle cx="618" cy="302" r="8" fill="none" stroke="#b49765" stroke-width="2"/>
+                <rect x="549" y="351" width="72" height="50" rx="3" fill="#414958"/><path d="M578 364H595" stroke="#99a5b2" stroke-width="3" stroke-linecap="round"/>
+              </g>
+              <text class="label" x="588" y="435" text-anchor="middle">BOOKSHELF</text>
+            </g>
+
+            <!-- Painting -->
+            <g id="obj-painting" class="hotspot" data-object="painting" tabindex="0" role="button" aria-label="Select Framed Picture">
+              <rect class="hit" x="269" y="126" width="154" height="132" rx="6"/>
+              <rect x="281" y="137" width="130" height="103" rx="2" fill="#a48a63" filter="url(#shadow)"/>
+              <rect x="286" y="142" width="120" height="93" fill="#1a2634" stroke="#dac39c" stroke-opacity=".4"/>
+              <circle cx="366" cy="169" r="14" fill="#c3a779"/>
+              <path d="M287 218L324 165L361 218Z" fill="#4a6171"/><path d="M330 225L365 187L405 225Z" fill="#74817f"/><path d="M287 224H405V234H287Z" fill="#263e49"/>
+              <rect x="329" y="247" width="35" height="6" rx="1" fill="#957b59"/>
+              <text class="label" x="346" y="122" text-anchor="middle">FRAMED PICTURE</text>
+              <circle class="done" cx="415" cy="138" r="4"/>
+            </g>
+
+            <!-- Clock: hands deliberately at 03:17 -->
+            <g id="obj-clock" class="hotspot" data-object="clock" tabindex="0" role="button" aria-label="Select Wall Clock">
+              <rect class="hit" x="433" y="89" width="93" height="117" rx="9"/>
+              <circle cx="479" cy="137" r="36" fill="#171e2b" stroke="#9c8868" stroke-width="4" filter="url(#shadow)"/>
+              <circle cx="479" cy="137" r="29" fill="#293341" stroke="#4d5662"/>
+              <g stroke="#bcc4ca" stroke-width="2"><path d="M479 111V116M505 137H500M479 163V158M453 137H458"/></g>
+              <path d="M479 137L498 140" stroke="#e8c38a" stroke-width="4" stroke-linecap="round"/>
+              <path d="M479 137L503 142" stroke="#e7e7df" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="479" cy="137" r="3" fill="#e8c38a"/>
+              <text class="label" x="479" y="193" text-anchor="middle">WALL CLOCK</text>
+              <circle class="done" cx="514" cy="108" r="4"/>
+            </g>
+
+            <!-- Rug -->
+            <g id="obj-rug" class="hotspot" data-object="rug" tabindex="0" role="button" aria-label="Select Rug">
+              <path class="hit" d="M302 467H649L758 567H194Z"/>
+              <path d="M310 477H640L732 554H220Z" fill="#444050" stroke="#676170" stroke-width="2"/>
+              <path d="M324 487H627L698 541H253Z" fill="none" stroke="#9d8d86" stroke-opacity=".4"/>
+              <path d="M354 496H603M295 530H665" stroke="#a79588" stroke-opacity=".25"/>
+              <path d="M470 491L504 514L470 537L435 514Z" fill="none" stroke="#a69586" stroke-opacity=".45"/>
+              <text class="label" x="473" y="574" text-anchor="middle">RUG</text>
+            </g>
+
+            <!-- Desk structural object, with separate drawer hotspot -->
+            <g id="obj-desk" class="hotspot" data-object="desk" tabindex="0" role="button" aria-label="Select Desk">
+              <path class="hit" d="M208 345H514V469H199Z"/>
+              <ellipse cx="355" cy="472" rx="166" ry="22" fill="#080d15" opacity=".25"/>
+              <path d="M222 362H234L230 471H218ZM489 362H500L507 471H495Z" fill="#33333a"/>
+              <path d="M214 345H497L517 365H201Z" fill="url(#wood)"/>
+              <path d="M201 365H517V376H201Z" fill="#44382f"/>
+              <path d="M217 349H491" stroke="#c19c74" opacity=".45"/>
+              <path d="M215 346H497L515 364H203Z" fill="url(#grain)"/>
+              <text class="label" x="269" y="462" text-anchor="middle">DESK</text>
+            </g>
+
+            <g id="obj-desk_drawer" class="hotspot" data-object="desk_drawer" tabindex="0" role="button" aria-label="Select Desk Drawer">
+              <rect class="hit" x="373" y="375" width="128" height="81" rx="5"/>
+              <rect x="382" y="378" width="108" height="48" fill="#171c26"/>
+              <g class="drawer-face">
+                <path d="M382 380H490V427H382Z" fill="#554539" stroke="#7b6350"/>
+                <path d="M418 393H452" stroke="#b99b70" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="436" cy="411" r="3" fill="#1d2128" stroke="#b99b70"/>
+              </g>
+              <text class="label" x="436" y="449" text-anchor="middle">DRAWER</text>
+              <circle class="done" cx="489" cy="383" r="4"/>
+            </g>
+
+            <!-- Safe -->
+            <g id="obj-safe" class="hotspot" data-object="safe" tabindex="0" role="button" aria-label="Select Digital Safe">
+              <rect class="hit" x="113" y="344" width="102" height="130" rx="7"/>
+              <path d="M124 358L135 345H204V445L194 456H124Z" fill="#242c37" stroke="#566170" filter="url(#shadow)"/>
+              <rect x="129" y="362" width="65" height="88" rx="3" fill="#111922"/>
+              <rect x="149" y="407" width="26" height="14" rx="3" fill="#aa8b53"/>
+              <g class="safe-face">
+                <rect x="124" y="358" width="72" height="97" rx="3" fill="#46505d" stroke="#6a7583"/>
+                <rect x="136" y="369" width="46" height="24" rx="3" fill="#202a34"/>
+                <text id="safe-screen" x="159" y="385" text-anchor="middle" fill="#e8c38a" font-family="monospace" font-size="10">LOCK</text>
+                <g fill="#9ca8b4"><circle cx="145" cy="403" r="2"/><circle cx="158" cy="403" r="2"/><circle cx="171" cy="403" r="2"/><circle cx="145" cy="414" r="2"/><circle cx="158" cy="414" r="2"/><circle cx="171" cy="414" r="2"/></g>
+                <path d="M149 435H172" stroke="#bfc3c5" stroke-width="4" stroke-linecap="round"/>
+              </g>
+              <text class="label" x="162" y="471" text-anchor="middle">DIGITAL SAFE</text>
+              <circle class="done" cx="207" cy="352" r="4"/>
+            </g>
+
+            <!-- Monitor -->
+            <g id="obj-monitor" class="hotspot" data-object="monitor" tabindex="0" role="button" aria-label="Select Monitor">
+              <rect class="hit" x="316" y="267" width="120" height="97" rx="6"/>
+              <rect x="324" y="275" width="103" height="64" rx="4" fill="#131c29" stroke="#5a6574" stroke-width="2"/>
+              <rect x="330" y="281" width="91" height="52" rx="1" fill="url(#screen)"/>
+              <path d="M345 298H380M345 306H402M345 314H388" stroke="#7cb0c2" stroke-opacity=".45" stroke-width="2"/>
+              <circle cx="408" cy="290" r="2" fill="#8cdec0"/>
+              <path d="M371 340V350M357 353H394" stroke="#758291" stroke-width="4"/>
+              <text class="label" x="377" y="265" text-anchor="middle">MONITOR</text>
+            </g>
+
+            <!-- Lamp -->
+            <ellipse cx="285" cy="331" rx="108" ry="75" fill="url(#lampGlow)" pointer-events="none"/>
+            <g id="obj-lamp" class="hotspot" data-object="lamp" tabindex="0" role="button" aria-label="Select Table Lamp">
+              <rect class="hit" x="244" y="270" width="70" height="94" rx="5"/>
+              <ellipse cx="280" cy="350" rx="19" ry="5" fill="#a68c66"/>
+              <path d="M280 347V305" stroke="#ab9574" stroke-width="4"/>
+              <path d="M263 279H294L305 308H252Z" fill="#b9a283"/>
+              <ellipse cx="279" cy="307" rx="26" ry="5" fill="#e8c992"/>
+              <text class="label" x="280" y="269" text-anchor="middle">LAMP</text>
+            </g>
+
+            <!-- Keypad box -->
+            <g id="obj-keypad_box" class="hotspot" data-object="keypad_box" tabindex="0" role="button" aria-label="Select Keypad Box">
+              <rect class="hit" x="438" y="296" width="80" height="66" rx="5"/>
+              <path d="M449 309L460 302H508V342L498 351H449Z" fill="#202b39" stroke="#75808d"/>
+              <rect x="455" y="316" width="36" height="13" rx="2" fill="#121c26"/>
+              <g class="powered-display"><rect x="456" y="317" width="34" height="11" rx="1" fill="#28534b"/><text x="473" y="325" text-anchor="middle" font-size="6" fill="#acf1d6">ONLINE</text></g>
+              <g fill="#8a99aa"><rect x="459" y="335" width="5" height="3"/><rect x="470" y="335" width="5" height="3"/><rect x="481" y="335" width="5" height="3"/></g>
+              <text class="label" x="478" y="291" text-anchor="middle">KEYPAD BOX</text>
+              <circle class="done" cx="513" cy="304" r="4"/>
+            </g>
+
+            <!-- Plant -->
+            <g id="obj-plant" class="hotspot" data-object="plant" tabindex="0" role="button" aria-label="Select Potted Plant">
+              <rect class="hit" x="788" y="279" width="93" height="219" rx="8"/>
+              <ellipse cx="834" cy="468" rx="38" ry="10" fill="#0b111b" opacity=".35"/>
+              <path d="M808 408H858L850 464Q834 473 817 464Z" fill="#8a8075"/>
+              <ellipse cx="833" cy="408" rx="25" ry="7" fill="#554f46"/>
+              <path d="M833 411V325M834 382L808 352M834 366L856 337M834 396L854 373" stroke="#687b60" stroke-width="3"/>
+              <path d="M833 350Q810 325 828 299Q846 316 833 350Z" fill="#738976"/>
+              <path d="M814 360Q784 353 791 321Q818 331 814 360Z" fill="#506f65"/>
+              <path d="M844 354Q840 321 869 310Q881 340 844 354Z" fill="#6a8975"/>
+              <path d="M836 394Q848 360 874 367Q870 394 836 394Z" fill="#547765"/>
+              <path d="M829 397Q800 399 794 373Q819 368 829 397Z" fill="#68846c"/>
+              <text class="label" x="833" y="490" text-anchor="middle">PLANT</text>
+            </g>
+          </svg>
+        </div>
+        <div class="room-footer"><span id="room-status">● Exit secured</span><span>Select an object to begin · Keyboard accessible</span></div>
+        <div id="object-strip" class="object-strip" aria-label="Room object shortcuts"></div>
+      </section>
+
+      <aside class="side">
+        <section class="panel" aria-labelledby="interaction-heading">
+          <div class="panel-head"><h2 id="interaction-heading">Object interaction</h2><span class="eyebrow" id="selected-number">01 / 12</span></div>
+          <div id="interaction" class="interaction-body"></div>
+        </section>
+        <section class="panel" aria-labelledby="progress-heading">
+          <div class="panel-head"><h2 id="progress-heading">Escape Progress</h2><span id="progress-count" class="mono muted"></span></div>
+          <div id="progress" class="progress-body"></div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel inventory-panel" aria-labelledby="inventory-heading">
+      <div class="panel-head"><h2 id="inventory-heading">Inventory <span id="inventory-count" class="muted"></span></h2><small>Inspect an item · Use it on an object</small></div>
+      <div id="inventory" class="inventory-body"></div>
+      <div id="inventory-detail" class="inventory-detail" hidden></div>
+    </section>
+
+    <div class="bottom-grid">
+      <section class="panel" aria-labelledby="log-heading">
+        <div class="panel-head"><h2 id="log-heading">Activity Log</h2><small>UI <span style="color:var(--gold)">●</span> &nbsp; WebMCP <span style="color:var(--blue)">●</span> &nbsp; System <span style="color:var(--green)">●</span></small></div>
+        <div id="activity-log" class="log-list" role="log" aria-label="Recent game activity"></div>
+      </section>
+      <section class="panel" aria-labelledby="tools-heading">
+        <div class="panel-head"><h2 id="tools-heading">WebMCP Tool Inspector</h2><button id="refresh-tools">Refresh Tools</button></div>
+        <div id="tool-note" class="tool-note">Preparing local capability definitions…</div>
+        <div id="tools" class="tools-list"></div>
+      </section>
+    </div>
+
+    <section class="panel prompts" aria-labelledby="prompts-heading">
+      <h2 id="prompts-heading">Try asking your AI agent</h2>
+      <p>Copy a prompt into a WebMCP-capable browser agent. These chips copy text; they do not run a simulated AI.</p>
+      <div id="prompts" class="prompt-list"></div>
+    </section>
+
+    <div class="education">
+      <section class="panel">
+        <div class="eyebrow">Capabilities, not coordinates</div>
+        <h2 style="margin-top:6px">How WebMCP powers this game</h2>
+        <ol>
+          <li>The page exposes structured game capabilities through <code>document.modelContext</code>.</li>
+          <li>An AI agent discovers the tools and reads the room state and clues.</li>
+          <li>It chooses domain actions: inspect, pick up, use an item, or enter a code.</li>
+          <li><strong>GameEngine</strong> validates the action and updates the shared state.</li>
+          <li>The escape-room UI immediately reflects those changes.</li>
+        </ol>
+        <div class="flow"><b>AI Agent</b><span>→</span><b>WebMCP Tools</b><span>→</span><b class="engine">GameEngine</b><span>→</span><b>Shared Game State</b><span>→</span><b>Escape Room UI</b></div>
+        <div class="flow"><b>Human Player</b><span>→</span><b>UI Controls</b><span>→</span><b class="engine">GameEngine</b></div>
+        <p><strong>Both use the exact same capability layer.</strong> The AI isn't clicking buttons or guessing the DOM. This demo has no bundled agent, external MCP server, or remote API.</p>
+      </section>
+      <section class="panel">
+        <h2>Two very different ways to act.</h2>
+        <div class="comparison">
+          <div><h3>Traditional Browser Agent</h3><pre>inspect DOM
+       ↓
+find hotspot
+       ↓
+click object
+       ↓
+read page
+       ↓
+guess next action</pre></div>
+          <div class="mcp"><h3>WebMCP Agent</h3><pre>room_get_state()
+       ↓
+object_inspect({
+  objectId: "clock"
+})
+       ↓
+code_enter({
+  objectId: "safe",
+  code: "0317"
+})</pre></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <footer><span>WEBMCP ESCAPE ROOM / A SHARED-STATE EXPERIMENT</span><span id="persistence-status">Progress saved locally · Deterministic puzzles</span></footer>
+</div>
+<div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+"use strict";
+
+/* ==================== CONFIG & UTILITIES ==================== */
+const CONFIG = { storageKey: "webmcp-escape-room.v1", version: 1, logLimit: 50 };
+const clone = value => JSON.parse(JSON.stringify(value));
+const $ = id => document.getElementById(id);
+const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+}[c]));
+const assertGame = (condition, message) => { if (!condition) throw new Error(message); };
+const action = (tool, args = {}) => ({tool, args});
+
+/* ==================== INITIAL ROOM DATA ==================== */
+function makeObject(id, name, type, description, extras = {}) {
+  return {id, name, type, visible:true, inspectable:true, interactable:true,
+    locked:false, open:false, openable:false, description, state:{}, contains:[], clues:[], ...extras};
+}
+function initialState() {
+  return {
+    version:CONFIG.version,
+    objects:{
+      exit_door:makeObject("exit_door","Exit Door","exit",
+        "A solid door with a four-digit keypad and a handle. The keypad is connected to the small box on the desk.",
+        {locked:true,openable:true}),
+      safe:makeObject("safe","Digital Safe","safe",
+        "A compact steel safe. Its display asks for four digits. A tiny engraving reads: TIME KEEPS THE SECRET.",
+        {locked:true,openable:true,contains:["brass_key","safe_note"],clues:["safe_engraving"]}),
+      desk:makeObject("desk","Desk","furniture",
+        "A walnut desk holds a monitor, lamp, and unpowered keypad box. A brass keyhole is set into its right-hand drawer. Inspect the drawer separately."),
+      desk_drawer:makeObject("desk_drawer","Desk Drawer","container",
+        "A shallow drawer with a brass keyhole. Something small shifts inside when you pull it.",
+        {locked:true,openable:true,contains:["battery","folded_note"]}),
+      clock:makeObject("clock","Wall Clock","clue",
+        "The clock is silent. Its hands are stopped at 03:17. A small label confirms: 03:17 — the moment everything paused.",
+        {clues:["stopped_time"]}),
+      painting:makeObject("painting","Framed Picture","clue",
+        "An abstract landscape in a brass frame. The plaque reads: “The time has stopped, but the secret hasn't. Four digits, no punctuation.”",
+        {clues:["painting_hint"]}),
+      bookshelf:makeObject("bookshelf","Bookshelf","furniture",
+        "Books on architecture and ciphers. One spine reads: “Order matters. A legend gives values; a note gives sequence.” No books or tools need to be removed.",
+        {clues:["order_hint"]}),
+      plant:makeObject("plant","Potted Plant","decoration",
+        "A healthy rubber plant in a ceramic pot. There is no key beneath it. Even in a puzzle room, some things are just plants."),
+      lamp:makeObject("lamp","Table Lamp","decoration",
+        "A warm pool of light falls across the desk. The lamp is plugged in and working; its power supply cannot be removed."),
+      monitor:makeObject("monitor","Monitor","terminal",
+        "The screen shows a welcome message: “The exit needs four digits. Restore the desk box, then translate the sequence. Everything you need is in this room.”"),
+      rug:makeObject("rug","Rug","decoration",
+        "A woven rug softens the floor. Its edges lift easily, but the floor beneath is solid. No hidden panel."),
+      keypad_box:makeObject("keypad_box","Keypad Box","device",
+        "A small decoder linked to the exit keypad. Its screen is dark. The exposed battery slot is empty; it takes one battery.",
+        {state:{powered:false}})
+    },
+    items:{
+      brass_key:{id:"brass_key",name:"Brass Key",description:"A small brass key, cut to fit the desk drawer.",usableOn:["desk_drawer"],discovered:false,source:"safe",icon:"⚿"},
+      safe_note:{id:"safe_note",name:"Small Note",description:"“The key opens the drawer. Inside: power, and the order in which to read it.”",usableOn:[],discovered:false,source:"safe",icon:"▤"},
+      battery:{id:"battery",name:"Battery",description:"A fresh battery. Its contacts match the slot in the keypad box.",usableOn:["keypad_box"],discovered:false,source:"desk_drawer",icon:"▣"},
+      folded_note:{id:"folded_note",name:"Folded Note",description:"“EXIT SEQUENCE: triangle → circle → square → diamond. Translate each symbol using the powered box. Enter the four digits at the exit door.”",usableOn:[],discovered:false,source:"desk_drawer",icon:"▱"}
+    },
+    inventory:[], usedItems:[], inspectedObjects:[], inspectedItems:[], cluesDiscovered:[],
+    selectedObject:"desk", escaped:false, lastAction:null, activityLog:[]
+  };
+}
+
+/* ==================== PUZZLE DEFINITIONS ==================== */
+const CLUES = {
+  stopped_time:{id:"stopped_time",source:"clock",text:"The clock is stopped at 03:17."},
+  painting_hint:{id:"painting_hint",source:"painting",text:"The safe's secret is the stopped time, written as four digits without punctuation."},
+  safe_engraving:{id:"safe_engraving",source:"safe",text:"The safe is engraved: TIME KEEPS THE SECRET."},
+  order_hint:{id:"order_hint",source:"bookshelf",text:"A legend gives values; a note gives sequence."},
+  safe_note:{id:"safe_note",source:"safe_note",text:"The key opens the drawer, which contains power and a sequence."},
+  symbol_order:{id:"symbol_order",source:"folded_note",text:"Exit sequence: triangle → circle → square → diamond."},
+  symbol_values:{id:"symbol_values",source:"keypad_box",text:"Decoder legend: circle = 4; diamond = 6; triangle = 8; square = 2. Use the note's order."}
+};
+
+class PuzzleEngine {
+  static code(state, objectId, code) {
+    assertGame(["safe","exit_door"].includes(objectId), "This object does not accept a code.");
+    assertGame(/^\d{4}$/.test(code), "Code must be exactly four digits, supplied as a string.");
+    const object = state.objects[objectId];
+    assertGame(object.locked, `${object.name} is already unlocked.`);
+    if (objectId === "exit_door") {
+      assertGame(state.objects.keypad_box.state.powered, "The exit decoder is unpowered. Insert a battery into the keypad box first.");
+    }
+    const expected = objectId === "safe" ? "0317" : "8426";
+    assertGame(code === expected, "Incorrect code. The lock remains secured.");
+    object.locked = false;
+    if (objectId === "safe") object.open = true;
+    return objectId === "safe" ? "Digital Safe unlocked and opened." : "Exit Door unlocked. Open it, then escape.";
+  }
+  static progress(state) {
+    const o = state.objects;
+    const steps = [
+      {id:"observe",label:"Discover the stopped time",done:state.cluesDiscovered.includes("stopped_time")},
+      {id:"safe",label:"Unlock the digital safe",done:!o.safe.locked},
+      {id:"drawer",label:"Unlock the desk drawer",done:!o.desk_drawer.locked},
+      {id:"power",label:"Power the decoder",done:o.keypad_box.state.powered},
+      {id:"exit",label:"Unlock the exit",done:!o.exit_door.locked},
+      {id:"escape",label:"Leave the study",done:state.escaped}
+    ];
+    const blockers = [];
+    if (o.safe.locked) blockers.push("The safe needs a four-digit code suggested by objects in the room.");
+    if (o.desk_drawer.locked) blockers.push("The desk drawer needs its brass key.");
+    if (!o.keypad_box.state.powered) blockers.push("The keypad box needs a battery.");
+    if (o.exit_door.locked) blockers.push("The exit needs a powered decoder and the correct four-digit sequence.");
+    else if (!o.exit_door.open) blockers.push("The exit door needs to be opened.");
+    else if (!state.escaped) blockers.push("Use exit_try_escape to leave through the open door.");
+    return {
+      steps,completed:steps.filter(s=>s.done).length,total:steps.length,
+      cluesDiscovered:state.cluesDiscovered.length,
+      lockedObjects:Object.values(o).filter(x=>x.locked).map(x=>x.id),
+      openedObjects:Object.values(o).filter(x=>x.open).map(x=>x.id),
+      inventoryCount:state.inventory.length,blockers,
+      objective:state.escaped ? "Escaped." : "Escape the room.",
+      escaped:state.escaped
+    };
+  }
+}
+
+/* ==================== INVENTORY ENGINE ==================== */
+class InventoryEngine {
+  static available(state, itemId) {
+    const item = state.items[itemId];
+    return !!item && !state.inventory.includes(itemId) && !state.usedItems.includes(itemId)
+      && state.objects[item.source].open && state.objects[item.source].visible;
+  }
+  static pickup(state, itemId) {
+    const item = state.items[itemId];
+    assertGame(item, "Unknown item ID.");
+    assertGame(!state.inventory.includes(itemId), `${item.name} is already in inventory.`);
+    assertGame(!state.usedItems.includes(itemId), `${item.name} has already been installed.`);
+    assertGame(this.available(state,itemId), `${item.name} is not accessible. Open its source container first.`);
+    item.discovered = true;
+    state.inventory.push(itemId);
+    return `${item.name} collected.`;
+  }
+  static requireHeld(state, itemId) {
+    const item = state.items[itemId];
+    assertGame(item, "Unknown item ID.");
+    assertGame(state.inventory.includes(itemId), `${item.name} is not in inventory.`);
+    return item;
+  }
+  static use(state, itemId, targetId) {
+    const item = this.requireHeld(state,itemId);
+    const target = state.objects[targetId];
+    assertGame(target && target.visible, "Unknown or unavailable target object.");
+    assertGame(item.usableOn.includes(targetId), `${item.name} cannot be used on ${target.name}.`);
+    if (itemId === "brass_key") {
+      assertGame(target.locked, "Desk Drawer is already unlocked.");
+      target.locked = false;
+      target.open = true;
+      return "Desk Drawer unlocked and opened with the Brass Key.";
+    }
+    assertGame(itemId === "battery" && !target.state.powered, "This item has no effect in the current state.");
+    target.state.powered = true;
+    state.inventory = state.inventory.filter(id=>id!==itemId);
+    state.usedItems.push(itemId);
+    return "Battery inserted. The keypad box is online; inspect its display.";
+  }
+}
+
+/* ==================== TOOL DEFINITIONS & INPUT SCHEMAS ==================== */
+const stringProperty = description => ({type:"string",minLength:1,maxLength:100,description});
+function toolDefinition(name, read, description, properties = {}) {
+  return {
+    name,read,description,
+    inputSchema:{type:"object",properties,required:Object.keys(properties),additionalProperties:false}
+  };
+}
+const objectIdSchema = stringProperty("Exact visible room object ID. Discover IDs with room_list_objects or game_get_available_options.");
+const itemIdSchema = stringProperty("Exact item ID. Discover accessible or held items with room_get_state or game_get_available_options.");
+const TOOLS = [
+  toolDefinition("room_get_state",true,"Get the complete current observable escape-room state: visible objects, selected object, inventory, discovered clues, open/locked states, available actions, progress, and escape status. Uninspected clues and contents of closed containers are not revealed."),
+  toolDefinition("room_get_objective",true,"Return the current objective and exact win condition. Start here when asked to escape the room."),
+  toolDefinition("room_list_objects",true,"List all currently visible room objects with stable IDs and short state summaries. Use the IDs directly in other tools; no DOM inspection is needed."),
+  toolDefinition("object_inspect",true,"Observe a visible room object to read its current description, clues, accessible contents, and available actions. Records observational discovery and selection in the UI, but does not alter locks, items, or puzzle mechanisms.",{objectId:objectIdSchema}),
+  toolDefinition("object_open",false,"Open a visible, openable, unlocked object. Containers expose collectible contents; opening the unlocked exit makes escape possible. Changes the same game state used by the human UI.",{objectId:objectIdSchema}),
+  toolDefinition("object_close",false,"Close a currently open container or exit door without relocking it. Contents in closed containers cannot be picked up.",{objectId:objectIdSchema}),
+  toolDefinition("object_unlock",false,"Use a held compatible key to unlock a lockable object. The brass key fits desk_drawer. This also opens the drawer. Code locks require code_enter instead.",{objectId:objectIdSchema,itemId:itemIdSchema}),
+  toolDefinition("code_enter",false,"Enter a four-digit string into safe or exit_door. Preserve leading zeroes. A correct safe code unlocks and opens it. The exit requires the keypad box to be powered; its correct code unlocks the door but does not escape.",{
+    objectId:objectIdSchema,code:{type:"string",pattern:"^[0-9]{4}$",description:"Exactly four decimal digits, as a string. Infer the code from room clues."}
+  }),
+  toolDefinition("item_pickup",false,"Collect an accessible item from an open source container into the shared inventory. Inspect or open the safe or drawer to discover their contents. Fails if hidden, already held, or already installed.",{itemId:itemIdSchema}),
+  toolDefinition("inventory_get",true,"Return all currently held inventory items, their inspection status, descriptions if inspected, and compatible targets. Installed items are listed separately."),
+  toolDefinition("item_inspect",true,"Read a held inventory item, including readable notes and symbol clues. Records observational discovery without consuming the item or changing puzzle mechanisms.",{itemId:itemIdSchema}),
+  toolDefinition("item_use",false,"Use a held item directly on a compatible room object. Use brass_key on desk_drawer to unlock and open it, or battery on keypad_box to power its decoder. Battery is installed and removed from inventory; the key is retained.",{itemId:itemIdSchema,targetId:objectIdSchema}),
+  toolDefinition("item_combine",false,"Check a proposed combination of two held, distinct items. This room requires no combinations, so valid pairs return a clear NO_COMBINATION result without consuming anything.",{itemA:itemIdSchema,itemB:itemIdSchema}),
+  toolDefinition("room_get_available_actions",true,"Return currently valid tool names and exact argument objects, including observable objects, accessible pickups, compatible item uses, open/close actions, and code targets. Code values are placeholders, not solutions."),
+  toolDefinition("puzzle_get_progress",true,"Return derived puzzle milestones, discovered-clue count, opened and locked objects, inventory count, remaining blockers, and escape status. Does not reveal undiscovered puzzle answers."),
+  toolDefinition("exit_try_escape",false,"Leave through the exit only after it has been unlocked and opened. Returns a clear blocker otherwise. On success marks the shared game as escaped and displays the completion banner."),
+  toolDefinition("game_undo",false,"Undo the most recent successful logical mutation, restoring the prior consistent locks, inventory, power, and puzzle state. Read observations and failed actions do not create undo steps. Undo history is limited to this browser session."),
+  toolDefinition("game_reset",false,"Destructively reset the entire room, inventory, discovered clues, selection, and puzzle progress to the starting state. Clears session undo history. Use only when the user requests a new game."),
+  toolDefinition("game_get_available_options",true,"Return valid visible object IDs, held and accessible item IDs, and supported action types. Use this to avoid guessing identifiers. Hidden items are not listed.")
+];
+const TOOL_MAP = Object.fromEntries(TOOLS.map(t=>[t.name,t]));
+
+function validateInput(name,args) {
+  const definition = TOOL_MAP[name];
+  assertGame(definition, `Unknown capability: ${name}.`);
+  assertGame(args !== null && typeof args === "object" && !Array.isArray(args), "Input must be a JSON object.");
+  const schema = definition.inputSchema;
+  for (const key of Object.keys(args)) assertGame(Object.hasOwn(schema.properties,key), `Unexpected argument: ${key}.`);
+  for (const key of schema.required) {
+    const rule = schema.properties[key], value = args[key];
+    assertGame(typeof value === "string", `${key} must be a string.`);
+    if (rule.minLength) assertGame(value.length >= rule.minLength, `${key} cannot be empty.`);
+    if (rule.maxLength) assertGame(value.length <= rule.maxLength, `${key} is too long.`);
+    if (rule.pattern) assertGame(new RegExp(rule.pattern).test(value), `${key} must contain exactly four digits.`);
+  }
+}
+
+/* ==================== UNDO MANAGER & ACTIVITY LOGGER ==================== */
+class UndoManager {
+  constructor(){this.history=[];}
+  push(state){
+    const snapshot=clone(state);
+    snapshot.activityLog=[];
+    snapshot.lastAction=null;
+    this.history.push(snapshot);
+    if(this.history.length>100)this.history.shift();
+  }
+  pop(){return this.history.pop();}
+  clear(){this.history=[];}
+  get available(){return this.history.length>0;}
+}
+class ActivityLogger {
+  static append(state,source,name,args,result) {
+    state.activityLog.push({
+      time:new Date().toISOString(),source,action:name,args:clone(args),
+      success:result.success,message:result.message || result.error || ""
+    });
+    state.activityLog=state.activityLog.slice(-CONFIG.logLimit);
+  }
+}
+
+/* ==================== GAME ENGINE — SINGLE SOURCE OF TRUTH ==================== */
+class GameEngine {
+  constructor(state = initialState()) {
+    this.state=clone(state);
+    this.undo=new UndoManager();
+    this.listeners=new Set();
+  }
+  subscribe(callback){this.listeners.add(callback);return ()=>this.listeners.delete(callback);}
+  emit(event){for(const callback of this.listeners){try{callback(event);}catch(error){console.error("Render/subscriber error:",error);}}}
+  getObject(id){
+    assertGame(Object.hasOwn(this.state.objects,id),"Unknown object ID.");
+    const object=this.state.objects[id];
+    assertGame(object.visible,"This object is not visible.");
+    return object;
+  }
+  discover(ids){for(const id of ids)if(!this.state.cluesDiscovered.includes(id))this.state.cluesDiscovered.push(id);}
+  description(id) {
+    const o=this.state.objects[id];
+    if(id==="keypad_box" && o.state.powered)
+      return "The decoder is online. Its legend reads: circle = 4; diamond = 6; triangle = 8; square = 2. A footer says: “Use the folded note's sequence, not the display order. Enter the result at the exit door.”";
+    if(id==="safe" && !o.locked)
+      return o.open ? "The safe door is open. Its contents are available below." : "The safe is unlocked but closed.";
+    if(id==="desk_drawer" && !o.locked)
+      return o.open ? "The drawer slides freely. Its contents are available below." : "The drawer is unlocked but closed.";
+    if(id==="exit_door" && !o.locked)
+      return this.state.escaped ? "Beyond the open doorway: freedom. You escaped the study." : o.open ? "The door is open. You can now leave the study." : "The lock has released. Open the door and use the handle to escape.";
+    return o.description;
+  }
+  itemView(id,force=false){
+    const item=this.state.items[id], inspected=this.state.inspectedItems.includes(id);
+    return {id:item.id,name:item.name,description:force||inspected?item.description:"Not yet inspected.",
+      usableOn:clone(item.usableOn),discovered:item.discovered,inspected,icon:item.icon};
+  }
+  objectView(id,force=false) {
+    const object=this.getObject(id),inspected=this.state.inspectedObjects.includes(id);
+    const clues=[...object.clues];
+    if(id==="keypad_box" && object.state.powered)clues.push("symbol_values");
+    return {
+      id:object.id,name:object.name,type:object.type,visible:object.visible,
+      inspectable:object.inspectable,interactable:object.interactable,locked:object.locked,
+      open:object.open,openable:object.openable,state:clone(object.state),inspected,
+      description:force||inspected?this.description(id):"Not yet inspected. Inspect this object for details and clues.",
+      contains:object.open?object.contains.filter(item=>InventoryEngine.available(this.state,item)).map(item=>({id:item,name:this.state.items[item].name})):[],
+      clues:clues.filter(key=>this.state.cluesDiscovered.includes(key)).map(key=>clone(CLUES[key])),
+      availableActions:this.availableActions(id)
+    };
+  }
+  availableActions(objectId=null) {
+    const s=this.state,result=[];
+    for(const object of Object.values(s.objects)){
+      if(!object.visible || objectId && objectId!==object.id)continue;
+      const id=object.id;
+      if(object.inspectable)result.push(action("object_inspect",{objectId:id}));
+      if(s.escaped)continue;
+      if(object.openable&&!object.locked)result.push(action(object.open?"object_close":"object_open",{objectId:id}));
+      if(object.locked&&(id==="safe" || id==="exit_door"&&s.objects.keypad_box.state.powered))
+        result.push({tool:"code_enter",args:{objectId:id,code:"<four digits>"},requires:"Infer the code from discovered clues."});
+      for(const itemId of s.inventory){
+        if(itemId==="brass_key"&&id==="desk_drawer"&&object.locked ||
+           itemId==="battery"&&id==="keypad_box"&&!object.state.powered)
+          result.push(action("item_use",{itemId,targetId:id}));
+      }
+      if(object.open)for(const itemId of object.contains)
+        if(InventoryEngine.available(s,itemId))result.push(action("item_pickup",{itemId}));
+      if(id==="exit_door"&&!object.locked&&object.open)result.push(action("exit_try_escape"));
+    }
+    if(!objectId){
+      for(const itemId of s.inventory)result.push(action("item_inspect",{itemId}));
+      if(this.undo.available)result.push(action("game_undo"));
+      result.push(action("game_reset"));
+    }
+    return result;
+  }
+  getState(){
+    const s=this.state;
+    return {
+      version:s.version,objects:Object.values(s.objects).filter(o=>o.visible).map(o=>this.objectView(o.id)),
+      inventory:s.inventory.map(id=>this.itemView(id)),installedItems:clone(s.usedItems),
+      cluesDiscovered:s.cluesDiscovered.map(id=>clone(CLUES[id])),
+      progress:PuzzleEngine.progress(s),doorState:{locked:s.objects.exit_door.locked,open:s.objects.exit_door.open},
+      escaped:s.escaped,selectedObject:s.selectedObject,lastAction:clone(s.lastAction),
+      activityLog:clone(s.activityLog),undoAvailable:this.undo.available
+    };
+  }
+  execute(name,args={},source="UI"){
+    let before=null,changed=false,message="",data=null,result,affected=null;
+    try {
+      validateInput(name,args);
+      const def=TOOL_MAP[name];
+      const s=this.state;
+      if(!def.read&&!["game_undo","game_reset","item_combine"].includes(name))
+        assertGame(!s.escaped,"The room is already escaped. Undo or reset to play again.");
+      if(args.objectId)affected=this.getObject(args.objectId).id;
+      if(args.targetId)affected=this.getObject(args.targetId).id;
+      for(const field of ["itemId","itemA","itemB"])
+        if(args[field])assertGame(Object.hasOwn(s.items,args[field]),"Unknown item ID.");
+      if(!affected&&args.itemId)affected=s.items[args.itemId].source;
+      if(!def.read)before=clone(s);
+
+      switch(name){
+        case "room_get_state": data=this.getState();break;
+        case "room_get_objective":
+          data={objective:s.escaped?"You have escaped the room.":"Escape the room.",
+            winCondition:"Unlock and open exit_door, then call exit_try_escape.",
+            guidance:"Inspect multiple objects. Collect items from open containers. Use inventory items directly on compatible targets."};break;
+        case "room_list_objects":
+          data={objects:Object.values(s.objects).filter(o=>o.visible).map(o=>({
+            id:o.id,name:o.name,type:o.type,locked:o.locked,open:o.open,inspected:s.inspectedObjects.includes(o.id)
+          }))};break;
+        case "object_inspect":{
+          const o=this.getObject(args.objectId);
+          assertGame(o.inspectable,"This object cannot be inspected.");
+          s.selectedObject=o.id;
+          if(!s.inspectedObjects.includes(o.id))s.inspectedObjects.push(o.id);
+          this.discover(o.clues);
+          if(o.id==="keypad_box"&&o.state.powered)this.discover(["symbol_values"]);
+          if(o.open)for(const id of o.contains)if(InventoryEngine.available(s,id))s.items[id].discovered=true;
+          data=this.objectView(o.id,true);message=`${o.name} inspected.`;break;
+        }
+        case "object_open":{
+          const o=this.getObject(args.objectId);
+          assertGame(o.openable,`${o.name} is not an openable object.`);
+          assertGame(!o.locked,`${o.name} is locked.`);
+          assertGame(!o.open,`${o.name} is already open.`);
+          o.open=true;changed=true;message=`${o.name} opened.`;break;
+        }
+        case "object_close":{
+          const o=this.getObject(args.objectId);
+          assertGame(o.openable&&o.open,`${o.name} is not open.`);
+          o.open=false;changed=true;message=`${o.name} closed.`;break;
+        }
+        case "object_unlock":
+          assertGame(args.itemId==="brass_key"&&args.objectId==="desk_drawer","This key and lock are incompatible. Code locks require code_enter.");
+          message=InventoryEngine.use(s,args.itemId,args.objectId);changed=true;break;
+        case "code_enter":
+          message=PuzzleEngine.code(s,args.objectId,args.code);changed=true;break;
+        case "item_pickup":
+          message=InventoryEngine.pickup(s,args.itemId);changed=true;data={item:this.itemView(args.itemId)};break;
+        case "inventory_get":
+          data={items:s.inventory.map(id=>this.itemView(id)),installedItems:s.usedItems.map(id=>({id,name:s.items[id].name}))};break;
+        case "item_inspect":{
+          const item=InventoryEngine.requireHeld(s,args.itemId);
+          if(!s.inspectedItems.includes(item.id))s.inspectedItems.push(item.id);
+          if(item.id==="folded_note")this.discover(["symbol_order"]);
+          if(item.id==="safe_note")this.discover(["safe_note"]);
+          data=this.itemView(item.id,true);message=`${item.name} inspected.`;break;
+        }
+        case "item_use":message=InventoryEngine.use(s,args.itemId,args.targetId);changed=true;break;
+        case "item_combine":
+          InventoryEngine.requireHeld(s,args.itemA);InventoryEngine.requireHeld(s,args.itemB);
+          assertGame(args.itemA!==args.itemB,"Choose two distinct inventory items.");
+          result={success:false,action:name,error:"This room has no item combinations. Use items directly on compatible room objects.",errorCode:"NO_COMBINATION"};break;
+        case "room_get_available_actions":data={actions:this.availableActions()};break;
+        case "puzzle_get_progress":data=PuzzleEngine.progress(s);break;
+        case "exit_try_escape":
+          affected="exit_door";
+          assertGame(!s.objects.exit_door.locked,"Exit Door is locked. Solve the decoder sequence first.");
+          assertGame(s.objects.exit_door.open,"Exit Door is unlocked but closed. Open it first.");
+          s.escaped=true;changed=true;message="Escape successful. You left the study.";break;
+        case "game_undo":{
+          assertGame(this.undo.available,"Nothing to undo in this session.");
+          const oldLog=s.activityLog;
+          this.state=this.undo.pop();this.state.activityLog=oldLog;
+          changed=true;affected=this.state.selectedObject;message="Last logical action undone.";break;
+        }
+        case "game_reset":{
+          const oldLog=s.activityLog;
+          this.state=initialState();this.state.activityLog=oldLog;
+          this.undo.clear();changed=true;affected=null;message="Room reset. A fresh start.";break;
+        }
+        case "game_get_available_options":
+          data={objectIds:Object.values(s.objects).filter(o=>o.visible).map(o=>o.id),
+            inventoryItemIds:clone(s.inventory),
+            accessibleItemIds:Object.keys(s.items).filter(id=>InventoryEngine.available(s,id)),
+            supportedActionTypes:TOOLS.map(t=>t.name)};break;
+      }
+
+      if(changed&&!["game_undo","game_reset"].includes(name)){
+        this.undo.push(before);
+        if(affected)this.state.selectedObject=affected;
+        for(const item of Object.values(this.state.items))
+          if(InventoryEngine.available(this.state,item.id))item.discovered=true;
+      }
+      if(!result)result={success:true,action:name,message:message||"Observation returned.",data};
+    }catch(error){
+      // A failed action is atomic: never leave partial world mutations behind.
+      if(before)this.state=before;
+      result={success:false,action:name,error:error instanceof Error?error.message:String(error),errorCode:"INVALID_ACTION"};
+    }
+    this.state.lastAction={source,tool:name,args:clone(args),success:result.success,time:new Date().toISOString()};
+    ActivityLogger.append(this.state,source,name,args,result);
+    if(changed&&result.success)ActivityLogger.append(this.state,"System","state_changed",{}, {success:true,message});
+    // Return post-action state, including this action's audit entry.
+    if(name==="room_get_state"&&result.success)result.data=this.getState();
+    if(changed&&result.success)result.data={
+      ...(result.data||{}),progress:PuzzleEngine.progress(this.state),
+      affectedObject:affected?this.objectView(affected):null,undoAvailable:this.undo.available
+    };
+    this.emit({name,args,source,result,changed,affected});
+    return result;
+  }
+  systemMessage(message){
+    ActivityLogger.append(this.state,"System","status",{}, {success:true,message});
+    this.emit({name:"system",source:"System",result:{success:true,message},changed:false});
+  }
+}
+
+/* ==================== PERSISTENCE ==================== */
+class Persistence {
+  static validate(value){
+    const base=initialState();
+    assertGame(value&&value.version===CONFIG.version,"Unsupported saved-state version.");
+    assertGame(value.objects&&value.items,"Missing state data.");
+    assertGame(Object.keys(value.objects).length===Object.keys(base.objects).length,"Invalid objects.");
+    assertGame(Object.keys(value.items).length===Object.keys(base.items).length,"Invalid items.");
+    for(const [id,original] of Object.entries(base.objects)){
+      const o=value.objects[id];
+      assertGame(o&&o.id===id&&o.name===original.name&&o.type===original.type,"Invalid saved object.");
+      for(const field of ["visible","inspectable","interactable","locked","open","openable"])
+        assertGame(typeof o[field]==="boolean","Invalid object flags.");
+      assertGame(o.visible&&o.inspectable&&o.interactable,"Invalid object visibility.");
+      assertGame(o.openable===original.openable&&(!o.open||o.openable&&!o.locked),"Invalid open state.");
+      assertGame(JSON.stringify(o.contains)===JSON.stringify(original.contains)&&JSON.stringify(o.clues)===JSON.stringify(original.clues),"Invalid object contents.");
+      assertGame(o.description===original.description,"Invalid object description.");
+      assertGame(o.state&&typeof o.state==="object","Invalid device state.");
+      if(id==="keypad_box")assertGame(typeof o.state.powered==="boolean","Invalid power state.");
+      else assertGame(Object.keys(o.state).length===0,"Invalid object state.");
+      if(!original.locked)assertGame(!o.locked,"Unexpected lock state.");
+    }
+    for(const [id,item] of Object.entries(base.items)){
+      const saved=value.items[id];
+      assertGame(saved&&typeof saved.discovered==="boolean","Invalid saved item.");
+      const a=clone(saved),b=clone(item);delete a.discovered;delete b.discovered;
+      assertGame(JSON.stringify(a)===JSON.stringify(b),"Invalid item definition.");
+    }
+    const validArray=(field,allowed)=>{
+      assertGame(Array.isArray(value[field])&&value[field].every(x=>typeof x==="string"&&allowed.includes(x))&&new Set(value[field]).size===value[field].length,`Invalid ${field}.`);
+    };
+    validArray("inventory",Object.keys(base.items));
+    validArray("usedItems",["battery"]);
+    validArray("inspectedItems",Object.keys(base.items));
+    validArray("inspectedObjects",Object.keys(base.objects));
+    validArray("cluesDiscovered",Object.keys(CLUES));
+    assertGame(typeof value.escaped==="boolean"&&Object.hasOwn(base.objects,value.selectedObject),"Invalid game status.");
+    const o=value.objects;
+    assertGame(!value.escaped||!o.exit_door.locked&&o.exit_door.open,"Invalid escaped state.");
+    assertGame(o.exit_door.locked||o.keypad_box.state.powered,"Exit lacks power.");
+    assertGame(o.keypad_box.state.powered===value.usedItems.includes("battery"),"Inconsistent installed battery.");
+    assertGame(!value.inventory.some(id=>value.usedItems.includes(id)),"Duplicate installed item.");
+    for(const id of [...value.inventory,...value.usedItems])
+      assertGame(!o[value.items[id].source].locked&&value.items[id].discovered,"Inaccessible collected item.");
+    if(!o.desk_drawer.locked)assertGame(value.inventory.includes("brass_key"),"Drawer unlocked without key.");
+    assertGame(Array.isArray(value.activityLog),"Invalid activity log.");
+    for(const entry of value.activityLog){
+      assertGame(entry&&["UI","WebMCP","System"].includes(entry.source)&&typeof entry.action==="string"&&typeof entry.message==="string"&&typeof entry.success==="boolean"&&Number.isFinite(Date.parse(entry.time))&&entry.args&&typeof entry.args==="object","Invalid log entry.");
+    }
+    // Keep only canonical state fields.
+    const clean=clone(base);
+    for(const key of Object.keys(base))if(Object.hasOwn(value,key))clean[key]=clone(value[key]);
+    clean.activityLog=clean.activityLog.slice(-CONFIG.logLimit);
+    assertGame(clean.lastAction===null || typeof clean.lastAction==="object","Invalid last action.");
+    return clean;
+  }
+  static load(){
+    try{
+      const raw=localStorage.getItem(CONFIG.storageKey);
+      if(!raw)return {state:initialState(),message:"Room initialized. Inspect objects to discover clues."};
+      return {state:this.validate(JSON.parse(raw)),message:"Saved room restored. Undo history starts fresh in this session."};
+    }catch(error){
+      console.warn("Escape Room: saved state unavailable or invalid; starting safely.",error);
+      return {state:initialState(),message:"Saved state unavailable or invalid. Started a clean room."};
+    }
+  }
+  static save(state){
+    try{
+      localStorage.setItem(CONFIG.storageKey,JSON.stringify(state));
+      $("persistence-status").textContent="Progress saved locally · Deterministic puzzles";
+    }catch(error){
+      $("persistence-status").textContent="Storage unavailable · Progress lasts for this session";
+      if(!this.warned){console.warn("Escape Room: localStorage is unavailable.",error);this.warned=true;}
+    }
+  }
+}
+
+/* ==================== ROOM RENDERER ==================== */
+class RoomRenderer {
+  constructor(engine){this.engine=engine;this.highlightTimers=new Map();}
+  render(){
+    const s=this.engine.state;
+    for(const o of Object.values(s.objects)){
+      const node=$("obj-"+o.id);
+      node.classList.toggle("selected",s.selectedObject===o.id);
+      node.classList.toggle("is-open",o.open);
+      const complete=(["safe","desk_drawer","exit_door"].includes(o.id)&&!o.locked)
+        || o.id==="keypad_box"&&o.state.powered
+        || ["clock","painting"].includes(o.id)&&s.inspectedObjects.includes(o.id);
+      node.classList.toggle("completed",!!complete);
+      node.setAttribute("aria-pressed",String(s.selectedObject===o.id));
+    }
+    $("safe-screen").textContent=s.objects.safe.locked?"LOCK":"OPEN";
+    $("room-status").textContent=s.escaped?"● Study escaped":s.objects.exit_door.locked?"● Exit secured":"● Exit unlocked";
+    $("room-status").style.color=s.objects.exit_door.locked?"var(--gold)":"var(--green)";
+    $("victory").classList.toggle("visible",s.escaped);
+    $("undo-button").disabled=!this.engine.undo.available;
+    $("object-strip").innerHTML=Object.values(s.objects).filter(o=>o.visible).map(o=>{
+      const done=(o.openable&&!o.locked)||o.state.powered;
+      return `<button class="object-chip ${s.selectedObject===o.id?"active":""}" data-select="${o.id}" aria-pressed="${s.selectedObject===o.id}" aria-label="Inspect ${escapeHTML(o.name)}">${escapeHTML(o.name)}${done?'<span class="check">✓</span>':""}</button>`;
+    }).join("");
+  }
+  highlight(id){
+    const node=$("obj-"+id);if(!node)return;
+    clearTimeout(this.highlightTimers.get(id));
+    node.classList.remove("ai");
+    void node.getBoundingClientRect();
+    node.classList.add("ai");
+    this.highlightTimers.set(id,setTimeout(()=>node.classList.remove("ai"),2100));
+  }
+}
+
+/* ==================== INTERACTION PANEL & UI CONTROLLER ==================== */
+class UIController {
+  constructor(engine,renderer){
+    this.engine=engine;this.renderer=renderer;this.selectedItem=null;
+    this.bind();
+    engine.subscribe(event=>{
+      if(event.name==="game_reset")this.selectedItem=null;
+      if(event.source==="WebMCP"&&event.name==="item_inspect"&&event.result.success)this.selectedItem=event.args.itemId;
+      this.render();
+      Persistence.save(engine.state);
+      if(event.source==="WebMCP"&&event.affected)renderer.highlight(event.affected);
+      if(event.source!=="System" && (event.changed || !event.result.success)){
+        const prefix=event.source==="WebMCP"?"AI Agent · ":"";
+        this.toast(prefix+(event.result.message||event.result.error),!event.result.success,event.source==="WebMCP");
+      }
+    });
+  }
+  run(name,args={}){return this.engine.execute(name,args,"UI");}
+  bind(){
+    $("room-svg").addEventListener("click",event=>{
+      const node=event.target.closest("[data-object]");
+      if(node)this.run("object_inspect",{objectId:node.dataset.object});
+    });
+    $("room-svg").addEventListener("keydown",event=>{
+      if(event.key!=="Enter"&&event.key!==" ")return;
+      const node=event.target.closest("[data-object]");
+      if(node){event.preventDefault();this.run("object_inspect",{objectId:node.dataset.object});}
+    });
+    $("object-strip").addEventListener("click",event=>{
+      const node=event.target.closest("[data-select]");
+      if(node)this.run("object_inspect",{objectId:node.dataset.select});
+    });
+    $("interaction").addEventListener("click",event=>{
+      const button=event.target.closest("button[data-tool]");if(!button)return;
+      const tool=button.dataset.tool;
+      if(tool==="item_pickup")this.run(tool,{itemId:button.dataset.item});
+      else if(tool==="item_use")this.run(tool,{itemId:button.dataset.item,targetId:this.engine.state.selectedObject});
+      else this.run(tool,tool==="exit_try_escape"?{}:{objectId:this.engine.state.selectedObject});
+    });
+    $("interaction").addEventListener("submit",event=>{
+      if(event.target.id!=="code-form")return;
+      event.preventDefault();
+      const input=event.target.elements.code;
+      const result=this.run("code_enter",{objectId:this.engine.state.selectedObject,code:input.value.trim()});
+      if(!result.success){
+        const next=$("code-input");if(next){next.focus();next.select();}
+      }
+    });
+    $("inventory").addEventListener("click",event=>{
+      const button=event.target.closest("[data-inspect-item]");if(!button)return;
+      this.selectedItem=button.dataset.inspectItem;
+      this.run("item_inspect",{itemId:this.selectedItem});
+    });
+    $("inventory-detail").addEventListener("submit",event=>{
+      event.preventDefault();
+      if(event.target.id==="inventory-use-form")
+        this.run("item_use",{itemId:this.selectedItem,targetId:event.target.elements.target.value});
+    });
+    $("inventory-detail").addEventListener("click",event=>{
+      if(event.target.closest("[data-hide-item]")){this.selectedItem=null;this.renderInventory();}
+    });
+    $("undo-button").addEventListener("click",()=>this.run("game_undo"));
+    const reset=()=>{if(confirm("Reset the room, inventory, clues, and undo history?"))this.run("game_reset");};
+    $("reset-button").addEventListener("click",reset);
+    $("play-again").addEventListener("click",reset);
+    const prompts=[
+      "Escape the room.","Inspect the room and tell me what stands out.",
+      "Check the clock and see if it relates to the safe.","What items do I currently have?",
+      "Open the safe if you can.","Use the brass key on the drawer.",
+      "Try solving the room step by step.","What is still blocking the exit?",
+      "Use the battery on anything that seems unpowered.","Attempt to escape now."
+    ];
+    $("prompts").innerHTML=prompts.map(p=>`<button data-prompt="${escapeHTML(p)}" aria-label="Copy prompt: ${escapeHTML(p)}">${escapeHTML(p)} ↗</button>`).join("");
+    $("prompts").addEventListener("click",async event=>{
+      const button=event.target.closest("[data-prompt]");if(!button)return;
+      const text=button.dataset.prompt;
+      try{
+        assertGame(navigator.clipboard&&navigator.clipboard.writeText,"Clipboard unavailable.");
+        await navigator.clipboard.writeText(text);
+        this.toast("Prompt copied. Paste it into your browser's AI agent.");
+      }catch{
+        window.prompt("Copy this prompt into your WebMCP-capable AI agent:",text);
+      }
+    });
+  }
+  render(){
+    this.renderer.render();this.renderInteraction();this.renderInventory();this.renderProgress();this.renderLog();
+  }
+  renderInteraction(){
+    const e=this.engine,s=e.state,id=s.selectedObject,o=e.objectView(id);
+    const allowed=o.availableActions;
+    const can=name=>allowed.some(a=>a.tool===name);
+    const stateLabels=[];
+    if(o.openable)stateLabels.push(o.locked?"Locked":"Unlocked",o.open?"Open":"Closed");
+    if(id==="keypad_box")stateLabels.push(o.state.powered?"Powered":"No battery");
+    if(!o.openable&&id!=="keypad_box")stateLabels.push(o.inspected?"Inspected":"Unexplored");
+    const buttons=[];
+    buttons.push(`<button data-tool="object_inspect">⌕ Inspect ${o.inspected?"again":""}</button>`);
+    if(can("object_open"))buttons.push('<button data-tool="object_open" class="primary">Open</button>');
+    if(can("object_close"))buttons.push('<button data-tool="object_close">Close</button>');
+    for(const a of allowed.filter(a=>a.tool==="item_use"))
+      buttons.push(`<button data-tool="item_use" data-item="${a.args.itemId}" class="primary">Use ${escapeHTML(s.items[a.args.itemId].name)}</button>`);
+    if(can("exit_try_escape"))buttons.push('<button data-tool="exit_try_escape" class="primary">Use handle · Escape →</button>');
+    $("selected-number").textContent=`${String(Object.keys(s.objects).indexOf(id)+1).padStart(2,"0")} / 12`;
+    $("interaction").innerHTML=`
+      <div class="eyebrow">${escapeHTML(o.type)} / <span class="mono">${id}</span></div>
+      <h3 class="object-title">${escapeHTML(o.name)}</h3>
+      <p class="object-description">${escapeHTML(o.description)}</p>
+      <div class="state-row">${stateLabels.map(label=>`<span class="state-pill ${["Unlocked","Powered","Open"].includes(label)?"good":""}">${label}</span>`).join("")}</div>
+      ${o.clues.map(c=>`<div class="clue">${escapeHTML(c.text)}</div>`).join("")}
+      <div class="actions">${buttons.join("")}
+        ${can("code_enter")?`<form id="code-form"><label for="code-input" class="sr-only">Four-digit code for ${escapeHTML(o.name)}</label><div class="action-row"><input id="code-input" name="code" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9]{4}" maxlength="4" minlength="4" required placeholder="· · · ·" aria-label="Four-digit code"><button class="primary" type="submit">Enter code</button></div></form>`:""}
+      </div>
+      ${o.contains.length?`<div class="contents"><h3>Available inside</h3>${o.contains.map(item=>`<div class="take-row"><span>${escapeHTML(item.name)}</span>${s.escaped?"":`<button data-tool="item_pickup" data-item="${item.id}" aria-label="Take ${escapeHTML(item.name)}">Take +</button>`}</div>`).join("")}</div>`:o.open&&o.type!=="exit"?'<div class="contents"><small>All items collected.</small></div>':""}
+      ${o.locked&&!can("code_enter")&&!allowed.some(a=>a.tool==="item_use")?`<p class="muted" style="font-size:11px;margin-top:14px">${id==="exit_door"?"Restore power to the keypad box first.":"Find a compatible key in the room."}</p>`:""}`;
+  }
+  renderInventory(){
+    const s=this.engine.state;
+    $("inventory-count").textContent=`/ ${s.inventory.length}`;
+    $("inventory").innerHTML=s.inventory.length?s.inventory.map(id=>{
+      const item=s.items[id];
+      return `<button class="item-card" data-inspect-item="${id}" aria-label="Inspect ${escapeHTML(item.name)}"><span class="item-icon" aria-hidden="true">${item.icon}</span><span><strong>${escapeHTML(item.name)}</strong><small>${s.inspectedItems.includes(id)?"Inspected · Select to use":"Select to inspect"}</small></span></button>`;
+    }).join(""):`<span class="inventory-empty">Your pockets are empty. Open containers and collect what you find.</span>`;
+    if(s.usedItems.length)$("inventory").insertAdjacentHTML("beforeend",'<span class="badge connected">✓ Battery installed in decoder</span>');
+    if(!this.selectedItem||!s.inventory.includes(this.selectedItem)){
+      this.selectedItem=null;$("inventory-detail").hidden=true;return;
+    }
+    const item=this.engine.itemView(this.selectedItem,true);
+    const compatible=this.engine.availableActions().filter(a=>a.tool==="item_use"&&a.args.itemId===item.id);
+    $("inventory-detail").hidden=false;
+    $("inventory-detail").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><strong>${escapeHTML(item.name)}</strong><button data-hide-item class="quiet" aria-label="Close inventory item details" style="padding:1px 7px">×</button></div><p style="color:#c7c6d9;margin-top:7px">${escapeHTML(item.description)}</p>
+      ${compatible.length?`<form id="inventory-use-form"><div class="action-row"><label for="item-target" class="sr-only">Target object</label><select name="target" id="item-target">${compatible.map(a=>`<option value="${a.args.targetId}">${escapeHTML(s.objects[a.args.targetId].name)}</option>`).join("")}</select><button class="primary">Use item</button></div></form>`:`<p class="muted" style="margin-top:8px;font-size:11px">${item.usableOn.length?"No compatible use remains in the current state.":"A readable clue. No need to use or combine it."}</p>`}`;
+  }
+  renderProgress(){
+    const p=PuzzleEngine.progress(this.engine.state);
+    $("progress-count").textContent=`${p.completed}/${p.total}`;
+    $("progress").innerHTML=`<div class="muted" style="font-size:12px">${p.escaped?"All paths lead outside.":"Follow the evidence, not the interface."}</div>
+      <div class="progress-track" role="progressbar" aria-label="Escape milestones" aria-valuenow="${p.completed}" aria-valuemin="0" aria-valuemax="${p.total}"><div class="progress-fill" style="width:${p.completed/p.total*100}%"></div></div>
+      ${p.steps.map(step=>`<div class="progress-item ${step.done?"done":""}"><span class="progress-icon">${step.done?"✓":"○"}</span><span>${step.label}</span></div>`).join("")}
+      <div class="progress-meta">${p.cluesDiscovered} clues discovered · ${p.lockedObjects.length} locked objects<br>Inventory: ${p.inventoryCount} items · ${this.engine.state.objects.exit_door.locked?"Exit still locked":p.escaped?"Escaped":"Exit unlocked"}</div>`;
+  }
+  renderLog(){
+    const node=$("activity-log"),nearBottom=node.scrollHeight-node.scrollTop-node.clientHeight<45;
+    node.innerHTML=this.engine.state.activityLog.map(entry=>{
+      const args=Object.keys(entry.args).length?" "+JSON.stringify(entry.args):"";
+      return `<div class="log-entry ${entry.success?"":"error"}"><time datetime="${escapeHTML(entry.time)}">${new Date(entry.time).toLocaleTimeString([], {hour12:false})}</time><span class="log-source ${entry.source.toLowerCase()}">${entry.source}</span><span class="log-text">${escapeHTML(entry.action+args)}${entry.source==="System"||!entry.success?`<br>${escapeHTML(entry.message)}`:""}</span></div>`;
+    }).join("");
+    if(nearBottom)node.scrollTop=node.scrollHeight;
+  }
+  toast(text,error=false,ai=false){
+    const node=document.createElement("div");
+    node.className=`toast ${error?"error":ai?"ai-toast":""}`;
+    node.textContent=text;
+    $("toasts").appendChild(node);
+    while($("toasts").children.length>4)$("toasts").firstElementChild.remove();
+    setTimeout(()=>node.remove(),4800);
+  }
+}
+
+/* ==================== WEBMCP ADAPTER ==================== */
+class WebMCPAdapter {
+  constructor(engine){
+    this.engine=engine;this.registered=new Set();this.registering=false;this.supported=false;
+    $("refresh-tools").addEventListener("click",()=>this.refreshTools());
+  }
+  badge(text,connected=false){
+    $("connection").classList.toggle("connected",connected);
+    $("connection").lastElementChild.textContent=text;
+  }
+  async initialize(){
+    if(this.registering||this.registered.size===TOOLS.length)return;
+    this.renderTools();
+    if(!("modelContext" in document)){
+      this.badge("WebMCP Unsupported");
+      console.info("WebMCP Escape Room: document.modelContext is not supported. Human play remains fully available. No MCP server or simulated agent is used.");
+      this.engine.systemMessage("WebMCP unsupported in this browser. All game capabilities remain playable through the UI.");
+      await this.refreshTools();return;
+    }
+    if(!document.modelContext || typeof document.modelContext.registerTool!=="function"){
+      this.badge("WebMCP Unsupported");
+      console.warn("WebMCP Escape Room: modelContext exists, but registerTool is unavailable.");
+      this.engine.systemMessage("WebMCP imperative tool registration is unavailable.");
+      await this.refreshTools();return;
+    }
+    this.supported=true;this.registering=true;
+    this.badge("WebMCP Connecting");
+    // Keep registration ownership on this page; repeated initialization never duplicates tools.
+    const registryKey=Symbol.for("webmcp.escapeRoom.registeredTools");
+    const registry=globalThis[registryKey]||(globalThis[registryKey]=new Map());
+    try{
+      for(const definition of TOOLS){
+        if(this.registered.has(definition.name))continue;
+        const existing=registry.get(definition.name);
+        if(existing&&existing.context===document.modelContext){
+          existing.engine=this.engine;
+          this.registered.add(definition.name);
+          continue;
+        }
+        const binding={context:document.modelContext,engine:this.engine};
+        await document.modelContext.registerTool({
+          name:definition.name,
+          description:definition.description,
+          inputSchema:clone(definition.inputSchema),
+          annotations:{
+            readOnlyHint:definition.read,
+            consequentialHint:!definition.read,
+            untrustedContentHint:false
+          },
+          execute:async input=>{
+            // Direct domain call. Never queries buttons, dispatches clicks, or reads the DOM.
+            const result=binding.engine.execute(definition.name,input===undefined?{}:input,"WebMCP");
+            return {
+              content:[{type:"text",text:JSON.stringify(result)}],
+              isError:!result.success
+            };
+          }
+        });
+        registry.set(definition.name,binding);
+        this.registered.add(definition.name);
+      }
+      this.badge("WebMCP Connected",true);
+      this.engine.systemMessage(`${this.registered.size} WebMCP tools registered. Human and agent share one GameEngine.`);
+      console.info("WebMCP Escape Room: connected; all tools registered through document.modelContext.",[...this.registered]);
+    }catch(error){
+      this.badge("WebMCP Registration Error");
+      console.error("WebMCP Escape Room: registration failed. Human play is unaffected.",error);
+      this.engine.systemMessage(`WebMCP registration incomplete (${this.registered.size}/${TOOLS.length}). Human play remains available.`);
+    }finally{
+      this.registering=false;await this.refreshTools();
+    }
+  }
+  renderTools(){
+    $("tools").innerHTML=TOOLS.map(t=>`<div class="tool"><div class="tool-title"><code>${t.name}</code><span class="read-write ${t.read?"":"write"}">${t.read?"READ":"WRITE"}</span></div><p>${escapeHTML(t.description)}</p></div>`).join("");
+  }
+  async refreshTools(){
+    this.renderTools();
+    let note=this.registered.size===TOOLS.length
+      ?`${this.registered.size} registered tools · READ tools may record observational discovery, never puzzle mutations.`
+      :`${TOOLS.length} local capability definitions · ${this.registered.size} registered with WebMCP${this.supported?"":" · browser support required for AI access"}.`;
+    try{
+      if("modelContext" in document && document.modelContext && typeof document.modelContext.getTools==="function"){
+        const discovered=await document.modelContext.getTools();
+        const list=Array.isArray(discovered)?discovered:Array.isArray(discovered?.tools)?discovered.tools:null;
+        if(list){
+          const names=new Set(list.map(tool=>typeof tool==="string"?tool:tool.name));
+          const found=TOOLS.filter(tool=>names.has(tool.name)).length;
+          note+=` Browser discovery reports ${found} room tools.`;
+        }else note+=" Browser returned a non-list discovery response; showing local registrations.";
+      }else if(this.registered.size)note+=" getTools unavailable; showing known registrations.";
+    }catch(error){
+      console.warn("WebMCP getTools unavailable; using local registration records.",error);
+      note+=" Discovery unavailable; showing known local definitions.";
+    }
+    $("tool-note").textContent=note;
+  }
+}
+
+/* ==================== NON-DESTRUCTIVE SELF TESTS ==================== */
+function runSelfTests(){
+  let count=0;
+  const test=(condition,label)=>{
+    count++;
+    if(!condition)throw new Error(label);
+  };
+  const engine=new GameEngine();
+  const call=(name,args={})=>engine.execute(name,args,"System");
+  try{
+    test(call("object_inspect",{objectId:"clock"}).data.description.includes("03:17"),"Object inspection exposes stopped time");
+    test(engine.state.cluesDiscovered.includes("stopped_time"),"Inspection records clue");
+    test(!call("code_enter",{objectId:"safe",code:"1111"}).success,"Wrong safe code fails");
+    test(engine.state.objects.safe.locked&&!engine.undo.available,"Failed code is atomic and creates no undo");
+    test(!call("item_pickup",{itemId:"brass_key"}).success,"Hidden item pickup blocked");
+    test(!call("exit_try_escape").success,"Escape blocked before completion");
+    test(!call("object_inspect",{objectId:"__proto__"}).success,"Invalid object ID rejected");
+    test(!call("code_enter",{objectId:"safe",code:317}).success,"Numeric codes rejected");
+    test(call("code_enter",{objectId:"safe",code:"0317"}).success,"Correct safe code works");
+    test(engine.state.objects.safe.open,"Safe opens");
+    test(call("item_pickup",{itemId:"brass_key"}).success,"Key pickup works");
+    test(call("game_undo").success&&!engine.state.inventory.includes("brass_key"),"Pickup undo restores item");
+    test(call("item_pickup",{itemId:"brass_key"}).success,"Pickup works after undo");
+    test(!call("item_use",{itemId:"brass_key",targetId:"keypad_box"}).success,"Incompatible item use blocked");
+    test(call("object_unlock",{objectId:"desk_drawer",itemId:"brass_key"}).success,"Correct key unlocks drawer");
+    test(call("item_pickup",{itemId:"battery"}).success,"Battery pickup works");
+    test(call("item_pickup",{itemId:"folded_note"}).success,"Note pickup works");
+    test(call("item_inspect",{itemId:"folded_note"}).data.description.includes("triangle"),"Note inspection exposes sequence");
+    test(call("item_use",{itemId:"battery",targetId:"keypad_box"}).success,"Battery powers decoder");
+    test(call("game_undo").success&&!engine.state.objects.keypad_box.state.powered&&engine.state.inventory.includes("battery"),"Battery undo is consistent");
+    test(call("item_use",{itemId:"battery",targetId:"keypad_box"}).success,"Battery can be reinstalled");
+    test(call("object_inspect",{objectId:"keypad_box"}).data.description.includes("triangle = 8"),"Powered decoder exposes legend");
+    test(!call("code_enter",{objectId:"exit_door",code:"4682"}).success,"Display order is not exit sequence");
+    test(call("code_enter",{objectId:"exit_door",code:"8426"}).success,"Correct exit sequence works");
+    test(!call("exit_try_escape").success,"Closed unlocked exit blocks escape");
+    test(call("object_open",{objectId:"exit_door"}).success,"Exit opens");
+    test(call("exit_try_escape").success&&engine.state.escaped,"Escape succeeds after puzzle completion");
+    test(call("room_get_state").data.escaped===engine.state.escaped,"Returned state agrees with engine");
+    test(Persistence.validate(clone(engine.state)).escaped,"Valid completed save accepted");
+    const broken=clone(engine.state);broken.inventory.push("battery");
+    let rejected=false;try{Persistence.validate(broken);}catch{rejected=true;}
+    test(rejected,"Corrupted inventory safely rejected");
+    test(call("game_undo").success&&!engine.state.escaped,"Escape can be undone");
+    test(call("game_reset").success&&engine.state.inventory.length===0&&engine.state.objects.safe.locked&&!engine.undo.available,"Reset restores room");
+    console.info(`WebMCP Escape Room: ${count} isolated self-tests passed. Live state was not touched.`);
+  }catch(error){
+    console.error(`WebMCP Escape Room self-test FAILED after ${count} checks:`,error);
+  }
+}
+
+/* ==================== INITIALIZATION ==================== */
+runSelfTests();
+const restored=Persistence.load();
+const gameEngine=new GameEngine(restored.state);
+const roomRenderer=new RoomRenderer(gameEngine);
+const uiController=new UIController(gameEngine,roomRenderer);
+const webMCPAdapter=new WebMCPAdapter(gameEngine);
+uiController.render();
+gameEngine.systemMessage(restored.message);
+webMCPAdapter.initialize();
+
+// Optional local debugging access. This is the real engine, not a simulated WebMCP transport.
+// Example: escapeRoom.call("room_get_state") returns the exact state rendered by the UI.
+Object.defineProperty(window,"escapeRoom",{
+  value:Object.freeze({
+    call:(name,args={})=>gameEngine.execute(name,args,"UI"),
+    getState:()=>gameEngine.getState(),
+    tools:()=>TOOLS.map(t=>({name:t.name,description:t.description,inputSchema:clone(t.inputSchema)}))
+  }),
+  writable:false,configurable:false
+});
+</script>
+</body>
+</html>

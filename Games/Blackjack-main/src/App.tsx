@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playCard, playLose, playWin } from '@clubhouse/shared/synthAudio';
@@ -20,12 +20,30 @@ import {
   DEFAULT_BALANCE,
   type DealerRule,
 } from './utils/rules';
+import { recommendAction, STRATEGY_LABELS } from './utils/basicStrategy';
 import { Card } from './components/Card';
 import { motion, AnimatePresence } from 'motion/react';
-import { Coins, RotateCcw, Play } from 'lucide-react';
+import { Coins, RotateCcw, Play, Undo2, Lightbulb } from 'lucide-react';
 
 const isTenValue = (rank: string): boolean =>
   ['10', 'J', 'Q', 'K'].includes(rank);
+
+interface RoundSnapshot {
+  deck: CardType[];
+  balance: number;
+  currentBet: number;
+  gameState: GameState;
+  dealerCards: CardType[];
+  playerHands: PlayerHand[];
+  activeHandIndex: number;
+  message: string;
+  insuranceBet: number;
+  peekPending: boolean;
+}
+
+function cloneHands(hands: PlayerHand[]): PlayerHand[] {
+  return hands.map(h => ({ ...h, cards: h.cards.map(c => ({ ...c })) }));
+}
 
 export default function App() {
   const [deck, setDeck] = useState<CardType[]>([]);
@@ -39,7 +57,54 @@ export default function App() {
   const [dealerRule, setDealerRule] = useState<DealerRule>(() => loadDealerRule());
   const [insuranceBet, setInsuranceBet] = useState(0);
   const [peekPending, setPeekPending] = useState(false);
+  const [history, setHistory] = useState<RoundSnapshot[]>([]);
+  const [hintLabel, setHintLabel] = useState<string | null>(null);
   const prevGameStateRef = useRef<GameState>('betting');
+
+  const clearHint = () => setHintLabel(null);
+
+  const pushHistory = useCallback(() => {
+    setHistory(prev => [
+      ...prev,
+      {
+        deck: deck.map(c => ({ ...c })),
+        balance,
+        currentBet,
+        gameState,
+        dealerCards: dealerCards.map(c => ({ ...c })),
+        playerHands: cloneHands(playerHands),
+        activeHandIndex,
+        message,
+        insuranceBet,
+        peekPending,
+      },
+    ]);
+  }, [
+    deck,
+    balance,
+    currentBet,
+    gameState,
+    dealerCards,
+    playerHands,
+    activeHandIndex,
+    message,
+    insuranceBet,
+    peekPending,
+  ]);
+
+  const restoreSnapshot = (snap: RoundSnapshot) => {
+    setDeck(snap.deck.map(c => ({ ...c })));
+    setBalance(snap.balance);
+    setCurrentBet(snap.currentBet);
+    setGameState(snap.gameState);
+    setDealerCards(snap.dealerCards.map(c => ({ ...c })));
+    setPlayerHands(cloneHands(snap.playerHands));
+    setActiveHandIndex(snap.activeHandIndex);
+    setMessage(snap.message);
+    setInsuranceBet(snap.insuranceBet);
+    setPeekPending(snap.peekPending);
+    clearHint();
+  };
 
   useEffect(() => {
     setDeck(createDeck(6));
@@ -109,6 +174,8 @@ export default function App() {
       currentDeck = createDeck(6);
     }
 
+    setHistory([]);
+    clearHint();
     setBalance(prev => prev - currentBet);
     setInsuranceBet(0);
 
@@ -186,6 +253,8 @@ export default function App() {
     if (gameState !== 'evenMoney') return;
     const hand = playerHands[0];
     if (!hand) return;
+    pushHistory();
+    clearHint();
     const payout = evenMoneyPayout(hand.bet);
     setPlayerHands([{ ...hand, status: 'blackjack' }]);
     setBalance(prev => prev + payout);
@@ -198,6 +267,8 @@ export default function App() {
     if (gameState !== 'evenMoney') return;
     const hand = playerHands[0];
     if (!hand) return;
+    pushHistory();
+    clearHint();
     const revealed = revealDealer(dealerCards);
     setDealerCards(revealed);
     if (isBlackjack(revealed)) {
@@ -219,6 +290,8 @@ export default function App() {
     const cost = Math.floor(hand.bet / 2);
     if (balance < cost) return;
 
+    pushHistory();
+    clearHint();
     setBalance(prev => prev - cost);
     setInsuranceBet(cost);
     setMessage('');
@@ -229,6 +302,8 @@ export default function App() {
 
   const declineInsurance = () => {
     if (gameState !== 'insurance') return;
+    pushHistory();
+    clearHint();
     setMessage('');
     if (!resolveDealerPeek(dealerCards, playerHands, 0)) return;
     setGameState('playing');
@@ -240,6 +315,8 @@ export default function App() {
     if (!hand || hand.cards.length !== 2) return;
     if (hand.status !== 'playing') return;
 
+    pushHistory();
+    clearHint();
     // Early surrender: before dealer peek when Ace/10 showing.
     const refund = surrenderRefund(hand.bet);
     const newHands = [...playerHands];
@@ -278,6 +355,8 @@ export default function App() {
     if (gameState !== 'playing') return;
     if (!ensurePeeked()) return;
 
+    pushHistory();
+    clearHint();
     const currentDeck = [...deck];
     const card = currentDeck.pop()!;
     setDeck(currentDeck);
@@ -299,6 +378,8 @@ export default function App() {
   const stand = () => {
     if (gameState !== 'playing') return;
     if (!ensurePeeked()) return;
+    pushHistory();
+    clearHint();
     const newHands = [...playerHands];
     newHands[activeHandIndex].status = 'stood';
     advanceHand(newHands);
@@ -311,6 +392,8 @@ export default function App() {
     if (activeHand.cards.length !== 2) return;
     if (balance < activeHand.bet) return;
 
+    pushHistory();
+    clearHint();
     setBalance(prev => prev - activeHand.bet);
 
     const currentDeck = [...deck];
@@ -346,6 +429,8 @@ export default function App() {
     if (!canSplit()) return;
     if (!ensurePeeked()) return;
 
+    pushHistory();
+    clearHint();
     const currentDeck = [...deck];
     const hand = playerHands[activeHandIndex];
 
@@ -489,11 +574,55 @@ export default function App() {
     setMessage('');
     setInsuranceBet(0);
     setPeekPending(false);
+    setHistory([]);
+    clearHint();
   };
 
   const toggleDealerRule = () => {
     if (gameState !== 'betting') return;
     setDealerRule(prev => (prev === 'H17' ? 'S17' : 'H17'));
+  };
+
+  const playerDecisionPhase =
+    gameState === 'playing' || gameState === 'insurance' || gameState === 'evenMoney';
+
+  const canUndo = history.length > 0 && playerDecisionPhase;
+
+  const handleUndo = () => {
+    if (!canUndo) return;
+    const prev = history[history.length - 1];
+    setHistory(h => h.slice(0, -1));
+    restoreSnapshot(prev);
+  };
+
+  const canHint = playerDecisionPhase && playerHands[activeHandIndex]?.status === 'playing';
+
+  const handleHint = () => {
+    if (!canHint) return;
+    const hand = playerHands[activeHandIndex];
+    const upcard = dealerCards[0];
+    if (!hand || !upcard) return;
+
+    const phase =
+      gameState === 'evenMoney'
+        ? 'evenMoney'
+        : gameState === 'insurance'
+          ? 'insurance'
+          : 'playing';
+
+    const action = recommendAction({
+      phase,
+      playerCards: hand.cards,
+      dealerUpcard: upcard,
+      canDouble:
+        phase === 'playing' &&
+        hand.cards.length === 2 &&
+        balance >= hand.bet,
+      canSplit: phase === 'playing' && canSplit(),
+      canSurrender: canSurrender(),
+    });
+    setHintLabel(STRATEGY_LABELS[action]);
+    setMessage(`提示：${STRATEGY_LABELS[action]}`);
   };
 
   const insuranceCost = playerHands[0] ? Math.floor(playerHands[0].bet / 2) : 0;
@@ -537,8 +666,30 @@ export default function App() {
             {dealerRule === 'H17' ? '莊家 H17（軟17要牌）' : '莊家 S17（軟17停牌）'}
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="text-right">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="min-h-[44px] min-w-[44px] px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-40 touch-manipulation flex flex-col items-center justify-center gap-0.5"
+            title="復原"
+            aria-label="復原"
+          >
+            <Undo2 className="w-4 h-4" />
+            <span className="text-[9px] font-bold tracking-wider">復原</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleHint}
+            disabled={!canHint}
+            className="min-h-[44px] min-w-[44px] px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-40 touch-manipulation flex flex-col items-center justify-center gap-0.5"
+            title="提示"
+            aria-label="提示"
+          >
+            <Lightbulb className={`w-4 h-4 ${hintLabel ? 'text-amber-300' : ''}`} />
+            <span className="text-[9px] font-bold tracking-wider">提示</span>
+          </button>
+          <div className="text-right hidden xs:block sm:block">
             <div className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wider font-bold">下注</div>
             <div className="text-base sm:text-lg font-bold text-amber-400">${currentBet}</div>
           </div>
@@ -701,14 +852,14 @@ export default function App() {
             <button
               type="button"
               onClick={takeEvenMoney}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '均分 1:1' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
             >
               均分 1:1
             </button>
             <button
               type="button"
               onClick={declineEvenMoney}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '繼續比牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
             >
               繼續比牌
             </button>
@@ -719,14 +870,14 @@ export default function App() {
               type="button"
               onClick={takeInsurance}
               disabled={balance < insuranceCost}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '買保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
             >
               保險 ${insuranceCost}
             </button>
             <button
               type="button"
               onClick={declineInsurance}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '不保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
             >
               不保險
             </button>
@@ -734,7 +885,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={surrender}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+                className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
               >
                 投降
               </button>
@@ -742,17 +893,17 @@ export default function App() {
           </div>
         ) : gameState === 'playing' ? (
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-            <button type="button" onClick={hit} className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation">
+            <button type="button" onClick={hit} className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '要牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}>
               要牌
             </button>
-            <button type="button" onClick={stand} className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation">
+            <button type="button" onClick={stand} className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '停牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}>
               停牌
             </button>
             <button
               type="button"
               onClick={doubleDown}
               disabled={playerHands[activeHandIndex].cards.length !== 2 || balance < playerHands[activeHandIndex].bet}
-              className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '加倍' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
             >
               加倍
             </button>
@@ -760,7 +911,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={split}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+                className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '分牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
               >
                 分牌
               </button>
@@ -769,7 +920,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={surrender}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation"
+                className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
               >
                 投降
               </button>
@@ -786,6 +937,8 @@ export default function App() {
                 setMessage('');
                 setInsuranceBet(0);
                 setPeekPending(false);
+                setHistory([]);
+                clearHint();
               }}
               className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 touch-manipulation"
             >
@@ -827,6 +980,8 @@ export default function App() {
               setMessage('');
               setInsuranceBet(0);
               setPeekPending(false);
+              setHistory([]);
+              clearHint();
             }
           }}
         />

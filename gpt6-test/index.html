@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1a1c16">
+  <title>GPT-6 One-Shot Gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1a1c16;
+      --paper: #f2efe6;
+      --muted: #6e7264;
+      --line: #d4d0c2;
+      --surface: #fffdf7;
+      --acid: #c8f542;
+      --ember: #e85d04;
+      --webmcp: #1f6f5b;
+      --game: #3d4a8f;
+      --landing: #8a5a2b;
+      --pad: clamp(20px, 4vw, 56px);
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      background:
+        radial-gradient(1200px 600px at 90% -10%, rgba(200, 245, 66, 0.18), transparent 55%),
+        radial-gradient(900px 500px at -10% 20%, rgba(232, 93, 4, 0.08), transparent 50%),
+        linear-gradient(180deg, #ebe7db 0%, var(--paper) 40%, #e7e3d6 100%);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image:
+        linear-gradient(rgba(26, 28, 22, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26, 28, 22, 0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      z-index: 0;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+    h1, h2, p { margin: 0; }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: var(--pad);
+      padding-bottom: 80px;
+    }
+
+    .mast {
+      display: grid;
+      gap: 28px;
+      padding-bottom: 36px;
+      border-bottom: 1px solid var(--line);
+      animation: rise 0.7s var(--ease) both;
+    }
+
+    @media (min-width: 860px) {
+      .mast {
+        grid-template-columns: 1.4fr 0.8fr;
+        align-items: end;
+        gap: 48px;
+      }
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .kicker::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      background: var(--acid);
+      box-shadow: 0 0 0 4px rgba(200, 245, 66, 0.25);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    h1 {
+      font-family: Syne, sans-serif;
+      font-size: clamp(2.4rem, 7vw, 4.6rem);
+      font-weight: 800;
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      max-width: 12ch;
+    }
+
+    .lede {
+      max-width: 36ch;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 16px 14px;
+      background: rgba(255, 253, 247, 0.72);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+
+    .stat b {
+      display: block;
+      font-family: Syne, sans-serif;
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat span {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 28px 0 22px;
+      animation: rise 0.7s var(--ease) 0.08s both;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter {
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.7);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: background 0.25s var(--ease), border-color 0.25s var(--ease), transform 0.25s var(--ease);
+    }
+
+    .filter:hover { transform: translateY(-1px); border-color: var(--ink); }
+    .filter[aria-pressed="true"] {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--paper);
+    }
+
+    .search {
+      flex: 1 1 220px;
+      max-width: 320px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.85);
+    }
+
+    .search input {
+      width: 100%;
+      border: 0;
+      outline: none;
+      background: transparent;
+      font: inherit;
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    .search input::placeholder { color: #9a9e90; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    @media (min-width: 640px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (min-width: 980px) {
+      .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-height: 240px;
+      padding: 0;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      overflow: hidden;
+      transition: transform 0.35s var(--ease), border-color 0.35s var(--ease), box-shadow 0.35s var(--ease);
+      animation: rise 0.65s var(--ease) both;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      z-index: 2;
+      background: var(--accent, var(--ink));
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: color-mix(in srgb, var(--accent, var(--ink)) 55%, var(--line));
+      box-shadow: 0 18px 40px rgba(26, 28, 22, 0.08);
+    }
+
+    .card:hover .thumb img {
+      transform: scale(1.04);
+    }
+
+    .card[data-category="game"] { --accent: var(--game); }
+    .card[data-category="webmcp"] { --accent: var(--webmcp); }
+    .card[data-category="landing"] { --accent: var(--landing); }
+
+    .thumb {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, #d8d4c6, #ece8db);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+      transition: transform 0.5s var(--ease);
+    }
+
+    .card-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: 18px 20px 20px;
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: 1px solid color-mix(in srgb, var(--accent, var(--ink)) 35%, var(--line));
+      color: color-mix(in srgb, var(--accent, var(--ink)) 80%, var(--ink));
+      background: color-mix(in srgb, var(--accent, var(--ink)) 8%, white);
+    }
+
+    .size {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .card h2 {
+      font-family: Syne, sans-serif;
+      font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 12px;
+      line-height: 1.65;
+      color: var(--muted);
+      margin-bottom: auto;
+    }
+
+    .card-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .card-foot span:last-child {
+      transition: transform 0.3s var(--ease);
+    }
+
+    .card:hover .card-foot span:last-child {
+      transform: translateX(4px);
+    }
+
+    .empty {
+      display: none;
+      grid-column: 1 / -1;
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      background: rgba(255, 253, 247, 0.5);
+      font-size: 13px;
+    }
+
+    .empty.show { display: block; }
+
+    .foot {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      animation: rise 0.7s var(--ease) 0.12s both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.85); opacity: 0.7; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <div class="kicker">GPT-6 · One-Shot Lab</div>
+        <h1>One-Shot Gallery</h1>
+      </div>
+      <div>
+        <p class="lede">點開任一成果直接預覽。這是 GPT-6 單次生成（one-shot）的可點選索引，依類型篩選與搜尋。</p>
+        <div class="stats" style="margin-top: 22px;">
+          <div class="stat"><b id="stat-total">0</b><span>Total</span></div>
+          <div class="stat"><b id="stat-webmcp">0</b><span>WebMCP</span></div>
+          <div class="stat"><b id="stat-games">0</b><span>Games</span></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="filters" role="group" aria-label="Filter by category">
+        <button class="filter" type="button" data-filter="all" aria-pressed="true">All</button>
+        <button class="filter" type="button" data-filter="webmcp" aria-pressed="false">WebMCP</button>
+        <button class="filter" type="button" data-filter="game" aria-pressed="false">Games</button>
+        <button class="filter" type="button" data-filter="landing" aria-pressed="false">Landing</button>
+      </div>
+      <label class="search">
+        <span aria-hidden="true">/</span>
+        <input id="q" type="search" placeholder="搜尋專案…" autocomplete="off">
+      </label>
+    </div>
+
+    <main class="grid" id="grid" aria-live="polite"></main>
+    <div class="empty" id="empty">沒有符合的專案。</div>
+
+    <p class="foot">資料來自 <code>manifest.json</code>。請用本機 static server 開啟（例如 <code>python3 -m http.server 8765</code>）。每個 case 路徑為 <code>&lt;id&gt;/index.html</code>。</p>
+  </div>
+
+  <script>
+    const labels = {
+      webmcp: "WebMCP",
+      game: "Game",
+      landing: "Landing"
+    };
+
+    const grid = document.getElementById("grid");
+    const empty = document.getElementById("empty");
+    const q = document.getElementById("q");
+    const filters = [...document.querySelectorAll(".filter")];
+    let active = "all";
+    let items = [];
+
+    function formatBytes(n) {
+      if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB";
+      return Math.round(n / 1024) + " KB";
+    }
+
+    function updateStats() {
+      document.getElementById("stat-total").textContent = String(items.length);
+      document.getElementById("stat-webmcp").textContent = String(items.filter((i) => i.category === "webmcp").length);
+      document.getElementById("stat-games").textContent = String(items.filter((i) => i.category === "game").length);
+    }
+
+    function visibleItems() {
+      const query = q.value.trim().toLowerCase();
+      return items.filter((item) => {
+        const catOk = active === "all" || item.category === active;
+        const text = `${item.title} ${item.blurb} ${item.id}`.toLowerCase();
+        const qOk = !query || text.includes(query);
+        return catOk && qOk;
+      });
+    }
+
+    function render() {
+      const list = visibleItems();
+      grid.innerHTML = "";
+      empty.classList.toggle("show", list.length === 0);
+
+      list.forEach((item, index) => {
+        const a = document.createElement("a");
+        a.className = "card";
+        a.href = item.href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.dataset.category = item.category;
+        a.style.animationDelay = `${Math.min(index, 10) * 0.04}s`;
+        a.innerHTML = `
+          <div class="thumb">
+            <img src="${item.thumb || `thumbs/${item.id}.webp`}" alt="${item.title} screenshot" loading="lazy" width="1280" height="800">
+          </div>
+          <div class="card-body">
+            <div class="card-top">
+              <span class="tag">${labels[item.category] || item.category}</span>
+              <span class="size">${formatBytes(item.bytes || 0)}</span>
+            </div>
+            <h2>${item.title}</h2>
+            <p>${item.blurb}</p>
+            <div class="card-foot">
+              <span>Open demo</span>
+              <span aria-hidden="true">→</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(a);
+      });
+    }
+
+    filters.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        active = btn.dataset.filter;
+        filters.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+        render();
+      });
+    });
+
+    q.addEventListener("input", render);
+
+    fetch("manifest.json")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load manifest.json (${res.status})`);
+        return res.json();
+      })
+      .then((manifest) => {
+        items = Array.isArray(manifest.items) ? manifest.items : [];
+        updateStats();
+        render();
+      })
+      .catch((err) => {
+        empty.textContent = `無法載入 manifest.json。請用本機 static server 開啟（例如 python3 -m http.server）。${err.message ? " " + err.message : ""}`;
+        empty.classList.add("show");
+      });
+  </script>
+</body>
+</html>

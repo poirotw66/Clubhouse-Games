@@ -113,9 +113,13 @@ function generateMenuHtml(categories) {
         ? path.join(root, 'assets', 'covers', `${game.gameFolder}.jpg`)
         : '';
       const hasCover = coverPath && fs.existsSync(coverPath);
+      const optimized = `assets/covers/optimized/${escapeHtml(game.gameFolder)}`;
       const cover = hasCover
         ? `<div class="tile-cover" aria-hidden="true">
-              <img src="assets/covers/${escapeHtml(game.gameFolder)}.jpg" alt="" width="640" height="480" loading="lazy" decoding="async" />
+              <picture class="block h-full">
+                <source type="image/webp" srcset="${optimized}-320.webp 320w, ${optimized}-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
+                <img src="${optimized}-640.jpg" alt="" width="640" height="480" loading="lazy" decoding="async" />
+              </picture>
             </div>`
         : '';
 

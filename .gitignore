@@ -24,3 +24,8 @@ Games/.DS_Store
 
 # Single lockfile at repo root (npm workspaces). Do not reintroduce per-game locks.
 Games/*/package-lock.json
+
+# Generated responsive covers and browser diagnostics.
+assets/covers/optimized/
+test-results/
+playwright-report/

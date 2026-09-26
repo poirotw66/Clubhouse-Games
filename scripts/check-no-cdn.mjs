@@ -20,6 +20,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
+const pages = process.argv.includes('--pages');
 
 /** Hosts that serve executable JavaScript. */
 const CODE_CDN = /https?:\/\/(unpkg\.com|cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|esm\.sh|skypack\.dev|jspm\.dev|ga\.jspm\.io)\/[^\s"'`)]*/g;
@@ -38,16 +39,18 @@ function walk(dir, out = []) {
 
 const gamesDir = path.join(root, 'Games');
 if (!fs.existsSync(gamesDir)) {
-  console.log('No Games/ directory.');
-  process.exit(0);
+  throw new Error('No Games/ directory.');
 }
 
 const offenders = [];
 let scannedGames = 0;
 
 for (const name of fs.readdirSync(gamesDir)) {
-  const dist = path.join(gamesDir, name, 'dist');
-  if (!fs.existsSync(dist)) continue;
+  if (!fs.existsSync(path.join(gamesDir, name, 'package.json'))) continue;
+  const dist = pages ? path.join(root, 'dist', 'Games', name) : path.join(gamesDir, name, 'dist');
+  if (!fs.existsSync(path.join(dist, 'index.html'))) {
+    throw new Error(`Missing built game: ${dist}/index.html. Build all games before checking.`);
+  }
   scannedGames += 1;
 
   for (const file of walk(dist)) {
