@@ -143,6 +143,15 @@ h1 {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.ghost-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ghost-button:disabled:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
 .select-field {
   display: inline-flex;
   align-items: center;

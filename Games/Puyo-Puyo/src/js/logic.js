@@ -169,6 +169,50 @@
     return board.map(function (row) { return row.slice(); });
   }
 
+  function clonePair(pair) {
+    if (!pair) return null;
+    return {
+      row: pair.row,
+      col: pair.col,
+      rot: pair.rot,
+      axis: pair.axis,
+      child: pair.child,
+    };
+  }
+
+  /**
+   * Lock a pair and fully resolve gravity / pops. Used by CPU planning and Hint.
+   * Returns chain / score / attack (garbage units at GARBAGE_RATE=70) / setupPotential.
+   */
+  function simulateLock(board, placement, garbageRate) {
+    var rate = garbageRate || 70;
+    var testBoard = lockPair(board, placement);
+    var chain = 0;
+    var totalScore = 0;
+    var totalCleared = 0;
+
+    while (true) {
+      testBoard = applyGravity(testBoard).board;
+      var groups = findGroups(testBoard);
+      if (groups.length === 0) break;
+      chain += 1;
+      var step = stepScore(groups, chain);
+      totalScore += step.score;
+      totalCleared += step.cleared;
+      testBoard = clearGroups(testBoard, groups);
+    }
+
+    if (chain > 0 && isBoardEmpty(testBoard)) totalScore += ALL_CLEAR_BONUS;
+    return {
+      board: testBoard,
+      chain: chain,
+      score: totalScore,
+      cleared: totalCleared,
+      attack: Math.floor(totalScore / rate),
+      setup: setupPotential(testBoard),
+    };
+  }
+
   function randomColor(colorCount) {
     return ALL_COLORS[Math.floor(Math.random() * colorCount)];
   }
@@ -510,7 +554,9 @@
     ALL_CLEAR_BONUS: ALL_CLEAR_BONUS,
     createBoard: createBoard,
     cloneBoard: cloneBoard,
+    clonePair: clonePair,
     createPair: createPair,
+    simulateLock: simulateLock,
     childPos: childPos,
     isFree: isFree,
     fits: fits,

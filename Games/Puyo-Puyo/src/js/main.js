@@ -86,12 +86,20 @@
     pauseButton: document.getElementById('btn-pause'),
     pauseLabel: document.getElementById('btn-pause-label'),
     muteButton: document.getElementById('btn-mute'),
+    undoButton: document.getElementById('btn-undo'),
+    hintButton: document.getElementById('btn-hint'),
     colorSelect: document.getElementById('color-count'),
     difficultySelect: document.getElementById('cpu-difficulty'),
     p2Title: document.getElementById('p2-title'),
     p2Badge: document.getElementById('p2-badge'),
     p2ControlsList: document.getElementById('p2-controls-list'),
   };
+
+  var UNDO_LIMIT = 40;
+  var HINT_MS = 3800;
+  var undoStack = [];
+  var hintCells = null;
+  var hintUntil = 0;
 
   var career = L.mergeStats(null);
 
@@ -171,6 +179,134 @@
       cpuPlan: null,
       cpuTimer: 0,
     };
+  }
+
+  function cloneSettle(settle) {
+    if (!settle) return null;
+    return {
+      moves: settle.moves.map(function (move) {
+        return {
+          col: move.col,
+          fromRow: move.fromRow,
+          toRow: move.toRow,
+          color: move.color,
+        };
+      }),
+      targetBoard: L.cloneBoard(settle.targetBoard),
+      elapsed: settle.elapsed,
+      duration: settle.duration,
+    };
+  }
+
+  function clonePop(pop) {
+    if (!pop) return null;
+    return {
+      groups: pop.groups.map(function (group) {
+        return {
+          color: group.color,
+          cells: group.cells.map(function (cell) {
+            return { r: cell.r, c: cell.c };
+          }),
+        };
+      }),
+      elapsed: pop.elapsed,
+    };
+  }
+
+  /** Deep copy of one side's runtime state for the undo stack. */
+  function clonePlayerState(state) {
+    return {
+      board: L.cloneBoard(state.board),
+      pair: L.clonePair(state.pair),
+      queue: state.queue.map(L.clonePair),
+      colorCount: state.colorCount,
+      score: state.score,
+      chain: state.chain,
+      maxChain: state.maxChain,
+      totalCleared: state.totalCleared,
+      level: state.level,
+      phase: state.phase,
+      over: state.over,
+      fallProgress: state.fallProgress,
+      lockTimer: state.lockTimer,
+      softDrop: false,
+      settle: cloneSettle(state.settle),
+      pop: clonePop(state.pop),
+      incomingGarbage: state.incomingGarbage,
+      garbageJustDropped: state.garbageJustDropped,
+      outgoingGarbage: state.outgoingGarbage,
+      cpuPlan: state.cpuPlan
+        ? { targetCol: state.cpuPlan.targetCol, targetRot: state.cpuPlan.targetRot }
+        : null,
+      cpuTimer: state.cpuTimer,
+    };
+  }
+
+  function clearHint() {
+    hintCells = null;
+    hintUntil = 0;
+  }
+
+  function refreshAssistButtons() {
+    if (ui.undoButton) {
+      ui.undoButton.disabled = match.over || undoStack.length === 0;
+    }
+    if (ui.hintButton) {
+      ui.hintButton.disabled = match.over || match.paused || !canControl(players[0]);
+    }
+  }
+
+  function pushUndoSnapshot() {
+    undoStack.push({
+      p1: clonePlayerState(players[0].state),
+      p2: clonePlayerState(players[1].state),
+    });
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    refreshAssistButtons();
+  }
+
+  function undoLast() {
+    if (match.over || undoStack.length === 0) return false;
+    var snap = undoStack.pop();
+    players[0].state = snap.p1;
+    players[1].state = snap.p2;
+    das[0].direction = 0;
+    das[0].timer = 0;
+    das[1].direction = 0;
+    das[1].timer = 0;
+    clearHint();
+    players.forEach(function (player) {
+      hidePopup(player);
+      updateStats(player);
+    });
+    updateMatchStatus();
+    refreshAssistButtons();
+    A.playMove();
+    return true;
+  }
+
+  function showHint() {
+    if (match.over || match.paused || !canControl(players[0])) return false;
+    var state = players[0].state;
+    var best = bestPlacementFor(
+      state.board,
+      state.pair,
+      state.queue,
+      Math.max(2, match.difficulty.lookahead),
+      state.incomingGarbage
+    );
+    if (!best) return false;
+    var landing = best.placement;
+    var child = L.childPos(landing);
+    hintCells = [
+      { row: landing.row, col: landing.col, color: landing.axis },
+      { row: child.row, col: child.col, color: landing.child },
+    ];
+    hintUntil = global.performance.now() + HINT_MS;
+    players[0].status.textContent = '提示：建議落點已標示（金色）';
+    A.playMove();
+    refreshAssistButtons();
+    return true;
   }
 
   function opponentOf(player) {
@@ -289,6 +425,8 @@
     das[0].timer = 0;
     das[1].direction = 0;
     das[1].timer = 0;
+    undoStack = [];
+    clearHint();
     ui.pauseLabel.textContent = '暫停';
     ui.overlay.hidden = true;
     syncModeUi();
@@ -301,6 +439,7 @@
       updateStats(player);
     });
     updateMatchStatus();
+    refreshAssistButtons();
   }
 
   function spawnNext(player) {
@@ -369,6 +508,7 @@
     ui.resultP2Chain.textContent = String(players[1].state.maxChain);
     ui.overlay.hidden = false;
     updateMatchStatus();
+    refreshAssistButtons();
   }
 
   function canControl(player) {
@@ -408,6 +548,8 @@
   }
 
   function lockCurrent(player) {
+    if (!player.isCpu) pushUndoSnapshot();
+    clearHint();
     var state = player.state;
     state.board = L.lockPair(state.board, state.pair);
     state.pair = null;
@@ -549,6 +691,7 @@
     ui.pauseLabel.textContent = match.paused ? '繼續' : '暫停';
     players.forEach(updateStats);
     updateMatchStatus();
+    refreshAssistButtons();
   }
 
   function toggleMute() {
@@ -654,31 +797,7 @@
   }
 
   function resolvePlacement(board, placement) {
-    var testBoard = L.lockPair(board, placement);
-    var chain = 0;
-    var totalScore = 0;
-    var totalCleared = 0;
-
-    while (true) {
-      testBoard = L.applyGravity(testBoard).board;
-      var groups = L.findGroups(testBoard);
-      if (groups.length === 0) break;
-      chain += 1;
-      var step = L.stepScore(groups, chain);
-      totalScore += step.score;
-      totalCleared += step.cleared;
-      testBoard = L.clearGroups(testBoard, groups);
-    }
-
-    if (chain > 0 && L.isBoardEmpty(testBoard)) totalScore += L.ALL_CLEAR_BONUS;
-    return {
-      board: testBoard,
-      chain: chain,
-      score: totalScore,
-      cleared: totalCleared,
-      attack: Math.floor(totalScore / GARBAGE_RATE),
-      setup: L.setupPotential(testBoard),
-    };
+    return L.simulateLock(board, placement, GARBAGE_RATE);
   }
 
   function evaluatePlacement(board, placement, queue, depth, incomingGarbage) {
@@ -754,7 +873,10 @@
   }
 
   function update(dt) {
-    if (match.over || match.paused) return;
+    if (match.over || match.paused) {
+      refreshAssistButtons();
+      return;
+    }
     updateDasFor(0, dt);
     if (isVersusMode()) updateDasFor(1, dt);
 
@@ -779,6 +901,7 @@
     resolveGarbage();
     players.forEach(updateStats);
     updateMatchStatus();
+    refreshAssistButtons();
   }
 
   function easeOutQuad(t) {
@@ -870,6 +993,12 @@
       );
     }
 
+    if (player === players[0] && hintCells && hintUntil > global.performance.now()) {
+      R.drawHint(player.fieldCtx, hintCells, CELL, 0);
+    } else if (player === players[0] && hintCells) {
+      clearHint();
+    }
+
     R.drawSprites(player.fieldCtx, buildSprites(player), CELL, 0);
     drawNext(player);
   }
@@ -903,6 +1032,7 @@
   var HANDLED_KEYS = {
     ArrowLeft: true, ArrowRight: true, ArrowDown: true, ArrowUp: true, ' ': true,
     z: true, Z: true, x: true, X: true, p: true, P: true, r: true, R: true,
+    u: true, U: true, h: true, H: true,
     a: true, A: true, d: true, D: true, s: true, S: true,
     q: true, Q: true, e: true, E: true, w: true, W: true,
     Shift: true,
@@ -938,6 +1068,8 @@
     else if (isVersusMode() && key === 'Shift') hardDrop(players[1]);
     else if (key === 'p' || key === 'P') togglePause();
     else if (key === 'r' || key === 'R') resetMatch();
+    else if (key === 'u' || key === 'U') undoLast();
+    else if (key === 'h' || key === 'H') showHint();
   });
 
   document.addEventListener('keyup', function (event) {
@@ -971,9 +1103,13 @@
   bindTouch('touch-rotate-ccw', function () { rotate(players[0], -1); });
   bindTouch('touch-rotate-cw', function () { rotate(players[0], 1); });
   bindTouch('touch-drop', function () { hardDrop(players[0]); });
+  bindTouch('touch-undo', function () { undoLast(); });
+  bindTouch('touch-hint', function () { showHint(); });
 
   ui.pauseButton.addEventListener('click', togglePause);
   ui.muteButton.addEventListener('click', toggleMute);
+  if (ui.undoButton) ui.undoButton.addEventListener('click', undoLast);
+  if (ui.hintButton) ui.hintButton.addEventListener('click', showHint);
   document.getElementById('btn-restart').addEventListener('click', resetMatch);
   document.getElementById('result-restart').addEventListener('click', resetMatch);
   ui.colorSelect.addEventListener('change', resetMatch);

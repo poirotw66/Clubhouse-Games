@@ -39,6 +39,8 @@
             </select>
           </label>
           <button type="button" id="btn-mute" class="ghost-button" aria-pressed="false">🔊 音效</button>
+          <button type="button" id="btn-undo" class="ghost-button" disabled>復原</button>
+          <button type="button" id="btn-hint" class="ghost-button">提示</button>
           <button type="button" id="btn-pause" class="ghost-button">
             <span id="btn-pause-label">暫停</span>
           </button>
@@ -135,6 +137,7 @@
             <h3>共用</h3>
             <ul class="controls-list">
               <li><kbd>P</kbd> 暫停 · <kbd>R</kbd> 重來</li>
+              <li><kbd>U</kbd> 復原上一步 · <kbd>H</kbd> 提示落點</li>
             </ul>
           </div>
         </div>
@@ -150,6 +153,10 @@
           <button type="button" id="touch-rotate-ccw" class="touch-button" aria-label="逆時針旋轉">↺</button>
           <button type="button" id="touch-rotate-cw" class="touch-button" aria-label="順時針旋轉">↻</button>
           <button type="button" id="touch-drop" class="touch-button accent" aria-label="瞬間落下">落下</button>
+        </div>
+        <div class="touch-row">
+          <button type="button" id="touch-undo" class="touch-button" aria-label="復原">復原</button>
+          <button type="button" id="touch-hint" class="touch-button" aria-label="提示">提示</button>
         </div>
       </div>
 
