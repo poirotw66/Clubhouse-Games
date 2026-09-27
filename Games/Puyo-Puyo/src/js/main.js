@@ -359,7 +359,8 @@
       ui.resultCareer.hidden = true;
     }
 
-    A.playLose();
+    if (winner === players[0]) A.playWin();
+    else A.playLose();
     ui.resultTitle.textContent = winner.label + ' 勝利';
     ui.resultSummary.textContent = summary;
     ui.resultP1Score.textContent = String(players[0].state.score);
