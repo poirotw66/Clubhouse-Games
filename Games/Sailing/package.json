@@ -13,5 +13,8 @@
   },
   "devDependencies": {
     "vite": "^6.2.0"
+  },
+  "dependencies": {
+    "@clubhouse/shared": "*"
   }
 }
