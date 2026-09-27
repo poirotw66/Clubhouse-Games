@@ -12,6 +12,7 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    // @clubhouse/shared → workspace package (shared/); see shared/tsconfig.paths.json
     "paths": {
       "@/*": ["./*"],
       "@clubhouse/shared/*": ["../../shared/*"]

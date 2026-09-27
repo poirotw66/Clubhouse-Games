@@ -11,6 +11,7 @@
     "check": "node --experimental-strip-types check-liquid-sort.mjs"
   },
   "dependencies": {
+    "@clubhouse/shared": "*",
     "@capacitor/android": "^8.0.2",
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",

@@ -12,6 +12,7 @@
     "check": "node --experimental-strip-types src/check-cpu.mjs && node --experimental-strip-types src/check-stats.mjs"
   },
   "dependencies": {
+    "@clubhouse/shared": "*",
     "@tailwindcss/vite": "^4.1.14",
     "clsx": "^2.1.1",
     "lucide-react": "^0.546.0",

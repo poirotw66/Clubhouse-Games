@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { clubhouseSharedAlias } from '@clubhouse/shared/vite-alias';
 
 const require = createRequire(path.resolve(__dirname, 'package.json'));
 function resolvePkg(name: string): string {
@@ -20,8 +21,8 @@ export default defineConfig(() => {
     plugins: [react()],
     resolve: {
       alias: {
+        ...clubhouseSharedAlias(),
         '@': path.resolve(__dirname, '.'),
-        '@clubhouse/shared': path.resolve(__dirname, '../../shared'),
         'react': resolvePkg('react'),
         'react/jsx-runtime': path.join(resolvePkg('react'), 'jsx-runtime.js'),
         'react-dom': resolvePkg('react-dom'),

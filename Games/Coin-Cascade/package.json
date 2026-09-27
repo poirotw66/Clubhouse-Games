@@ -15,6 +15,7 @@
     "balance": "rm -rf .balance && mkdir -p .balance && printf '{\"type\":\"commonjs\"}' > .balance/package.json && npx tsc --module CommonJS --moduleResolution Node --target ES2022 --outDir .balance ./scripts/balance.ts ./src/game/*.ts && node ./.balance/scripts/balance.js"
   },
   "dependencies": {
+    "@clubhouse/shared": "*",
     "@tailwindcss/vite": "^4.1.14",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

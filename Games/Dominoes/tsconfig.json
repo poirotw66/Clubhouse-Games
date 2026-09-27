@@ -15,8 +15,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    // shared/ lives outside this package; its own react types resolve from
-    // the repo root, which is where that code lives.
+    // @clubhouse/shared is the workspace package at ../../shared (see shared/tsconfig.paths.json).
     "paths": {
       "@clubhouse/shared/*": ["../../shared/*"]
     }
