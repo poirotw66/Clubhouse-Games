@@ -7,4 +7,4 @@
 ## 備註
 
 - 不走 `Games/` Vite workspace；Pages 部署時整包複製 `gpt6-astra/`。
-- `3d-sailing`、`3d-fill-the-void`、`borderland` 執行期自 jsDelivr 載入 Three.js，未納入主線 `check:no-cdn`（該檢查只掃 `Games/*/dist`）。
+- `3d-sailing`、`3d-fill-the-void`、`borderland` 使用本機 `gpt6-astra/vendor/three/`（three@0.170.0）；`check:no-cdn` 會掃描 `gpt6-astra`。
