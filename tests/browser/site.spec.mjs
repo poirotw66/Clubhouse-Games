@@ -252,8 +252,9 @@ test('dialed-color: single-color round through result overlay and replay', async
   await activate(dialog.getByRole('button', { name: '查看色差', exact: true }), isMobile);
   await expect(dialog).toHaveCount(0);
 
+  // 再玩一次 restarts the same mode (showing → guessing), not the landing screen.
   await activate(page.getByRole('button', { name: '再玩一次', exact: true }), isMobile);
-  await expect(page.getByRole('button', { name: '單色挑戰', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '看結果', exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ page, isMobile }) => {
