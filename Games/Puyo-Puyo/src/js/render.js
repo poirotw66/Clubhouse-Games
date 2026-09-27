@@ -214,6 +214,33 @@
     ctx.restore();
   }
 
+  /** Hint landing cells: warm gold ring + soft fill so the suggestion stays readable. */
+  function drawHint(ctx, cells, cell, hiddenRows) {
+    ctx.save();
+    cells.forEach(function (item) {
+      var y = (item.row - hiddenRows) * cell;
+      var cx = item.col * cell + cell / 2;
+      var cy = y + cell / 2;
+      var radius = cell * 0.42;
+      ctx.fillStyle = 'rgba(255, 196, 31, 0.22)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 210, 80, 0.95)';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      if (item.color) {
+        ctx.globalAlpha = 0.35;
+        drawBody(ctx, cx, cy, cell * 0.38, item.color);
+        ctx.globalAlpha = 1;
+      }
+    });
+    ctx.restore();
+  }
+
   /** Small standalone pair used by the Next preview; child on top, axis below. */
   function drawPreviewPair(ctx, x, y, cell, pair) {
     var pad = cell * 0.1;
@@ -239,6 +266,7 @@
     drawFieldBackground: drawFieldBackground,
     drawFieldMarkers: drawFieldMarkers,
     drawGhost: drawGhost,
+    drawHint: drawHint,
     drawSprites: drawSprites,
     drawPreviewPair: drawPreviewPair,
     roundRect: roundRect,

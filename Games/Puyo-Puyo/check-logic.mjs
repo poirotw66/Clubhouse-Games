@@ -84,6 +84,48 @@ function runTests() {
     assert.equal(s.lastDifficulty, 'hard');
     assert.equal(s.lastMode, 'versus');
   }
+
+  // Undo helpers: clonePair / simulateLock for Hint ranking.
+  {
+    const pair = { row: 1, col: 2, rot: 0, axis: 'red', child: 'blue' };
+    const cloned = L.clonePair(pair);
+    assert.equal(cloned.row, pair.row);
+    assert.equal(cloned.col, pair.col);
+    assert.equal(cloned.rot, pair.rot);
+    assert.equal(cloned.axis, pair.axis);
+    assert.equal(cloned.child, pair.child);
+    cloned.col = 5;
+    assert.equal(pair.col, 2, 'clonePair must not share refs');
+    assert.equal(L.clonePair(null), null);
+  }
+  {
+    // A red vertical drop onto three reds should pop; an empty-column solo stack should not.
+    const board = L.createBoard();
+    board[12][0] = 'red';
+    board[11][0] = 'red';
+    board[10][0] = 'red';
+    const popPlacement = L.dropPair(board, {
+      row: L.HIDDEN_ROWS,
+      col: 0,
+      rot: 0,
+      axis: 'red',
+      child: 'green',
+    });
+    const popResult = L.simulateLock(board, popPlacement, 70);
+    assert.ok(popResult.chain >= 1, 'stacking a fourth red should start a chain');
+    assert.ok(popResult.score > 0);
+
+    const quietPlacement = L.dropPair(board, {
+      row: L.HIDDEN_ROWS,
+      col: 3,
+      rot: 0,
+      axis: 'blue',
+      child: 'yellow',
+    });
+    const quietResult = L.simulateLock(board, quietPlacement, 70);
+    assert.equal(quietResult.chain, 0, 'far-column drop should not pop');
+    assert.ok(popResult.score > quietResult.score, 'hint ranking prefers the pop');
+  }
 }
 
 runTests();
