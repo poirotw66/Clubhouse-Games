@@ -79,28 +79,19 @@ function generateCategoryNavHtml(categories) {
   return [all, ...rest].join('\n');
 }
 
-/** Homepage Astra hub strip: gallery link + in-page jump. Empty when no astra category. */
+/** Quiet Astra hub row (below toolbar): gallery + in-page jump. Empty when no astra category. */
 function generateAstraZoneHtml(categories) {
   const astra = categories.find((cat) => cat.id === 'astra');
   if (!astra) return '';
   const accent = astra.accent ?? '#64748b';
   const count = astra.games.length;
-  const icon = categoryIconSvg('astra');
   return `    <section class="astra-zone" id="astra-zone" aria-labelledby="astra-zone-title" style="--accent: ${escapeHtml(accent)}">
-      <div class="astra-zone-main">
-        <span class="astra-zone-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${icon}</svg>
-        </span>
-        <div class="astra-zone-copy">
-          <h2 id="astra-zone-title" class="astra-zone-title font-tc">Astra 專區</h2>
-          <p class="astra-zone-sub font-tc">GPT-6 one-shot 實驗畫廊 · ${count} 款，也可從下方分類篩選。</p>
-        </div>
+      <div class="astra-zone-copy">
+        <h2 id="astra-zone-title" class="astra-zone-title font-tc">Astra</h2>
+        <p class="astra-zone-sub font-tc">GPT-6 實驗畫廊 · ${count} 款</p>
       </div>
       <div class="astra-zone-actions">
-        <a href="gpt6-astra/" class="astra-zone-cta focus-ring font-tc">
-          進入畫廊
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5-5 5M6 12h12" /></svg>
-        </a>
+        <a href="gpt6-astra/" class="astra-zone-cta focus-ring font-tc">進入畫廊</a>
         <a href="#category-astra" class="astra-zone-list focus-ring font-tc">本頁清單</a>
       </div>
     </section>`;
