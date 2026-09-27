@@ -1,11 +1,10 @@
+import { clubhouseSharedTailwindContent } from '@clubhouse/shared/tailwind-content';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    // The shared components (ResultOverlay, BackToMenu, ScoreFlash, TouchButton)
-    // live outside this game's folder. Without this glob their classes are only
-    // generated when this game's own markup happens to use the same ones, which
-    // is how overlays ended up rendering with no `fixed`/`z-30`.
-    '../../shared/**/*.{js,ts,jsx,tsx}',
+    // Scan @clubhouse/shared via absolute globs (see shared/tailwind-content.mjs).
+    ...clubhouseSharedTailwindContent(),
     './index.html',
     './*.{tsx,ts,jsx,js}',
     './components/**/*.{tsx,ts,jsx,js}',

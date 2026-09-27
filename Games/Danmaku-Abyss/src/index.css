@@ -1,11 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Noto+Sans+TC:wght@400;700;900&display=swap');
 @import 'tailwindcss';
 
-/* Tailwind v4 only auto-scans this game's own directory, so classes used by the
-   shared components (ResultOverlay, BackToMenu, ScoreFlash, TouchButton) would
-   never be generated here — they would only appear by luck, when this game's
-   own markup happened to use the same class. */
-@source '../../../shared';
+/* Scan @clubhouse/shared via shared/tailwind-source.css (path-depth independent @source). */
+@import "../../../shared/tailwind-source.css";
 
 :root {
   color-scheme: dark;
