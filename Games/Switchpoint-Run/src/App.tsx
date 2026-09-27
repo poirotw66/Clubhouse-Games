@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { playError, playLose, playMove, playScore } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
 import { FIXED_DT,
   MAX_BUFFER,
@@ -159,6 +160,38 @@ export default function App(): React.ReactElement {
       localStorage.setItem(BEST_SCORE_KEY, String(score));
     }
   }, [hud, bestDistance, bestScore]);
+
+  // End SFX once per caught run (ResultOverlay is lose-only).
+  const endSfxKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!hud || hud.phase !== 'caught') {
+      endSfxKey.current = null;
+      return;
+    }
+    const key = `${hud.seedCode}:${Math.round(hud.distance)}:${finalScore(hud)}`;
+    if (endSfxKey.current === key) return;
+    endSfxKey.current = key;
+    playLose();
+  }, [hud]);
+
+  // Move / score feedback while running (lane change, branch clear, pickup).
+  const sfxSnap = useRef<{ branches: number; hits: number; lane: number } | null>(null);
+  useEffect(() => {
+    if (!hud || hud.phase !== 'playing') {
+      sfxSnap.current = null;
+      return;
+    }
+    const prev = sfxSnap.current;
+    sfxSnap.current = {
+      branches: hud.branchesCleared,
+      hits: hud.hitsTotal,
+      lane: hud.lane,
+    };
+    if (!prev) return;
+    if (hud.lane !== prev.lane) playMove();
+    if (hud.branchesCleared > prev.branches) playScore();
+    if (hud.hitsTotal > prev.hits) playError();
+  }, [hud]);
 
   // ── Screens ────────────────────────────────────────────────────────────────
 
