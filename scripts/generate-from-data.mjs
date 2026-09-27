@@ -79,17 +79,49 @@ function generateCategoryNavHtml(categories) {
   return [all, ...rest].join('\n');
 }
 
+/** Homepage Astra hub strip: gallery link + in-page jump. Empty when no astra category. */
+function generateAstraZoneHtml(categories) {
+  const astra = categories.find((cat) => cat.id === 'astra');
+  if (!astra) return '';
+  const accent = astra.accent ?? '#64748b';
+  const count = astra.games.length;
+  const icon = categoryIconSvg('astra');
+  return `    <section class="astra-zone" id="astra-zone" aria-labelledby="astra-zone-title" style="--accent: ${escapeHtml(accent)}">
+      <div class="astra-zone-main">
+        <span class="astra-zone-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${icon}</svg>
+        </span>
+        <div class="astra-zone-copy">
+          <h2 id="astra-zone-title" class="astra-zone-title font-tc">Astra 專區</h2>
+          <p class="astra-zone-sub font-tc">GPT-6 one-shot 實驗畫廊 · ${count} 款，也可從下方分類篩選。</p>
+        </div>
+      </div>
+      <div class="astra-zone-actions">
+        <a href="gpt6-astra/" class="astra-zone-cta focus-ring font-tc">
+          進入畫廊
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5-5 5M6 12h12" /></svg>
+        </a>
+        <a href="#category-astra" class="astra-zone-list focus-ring font-tc">本頁清單</a>
+      </div>
+    </section>`;
+}
+
 function generateMenuHtml(categories) {
   const out = [];
   for (const cat of categories) {
     const accent = cat.accent ?? DEFAULT_ACCENT;
     const shortLabel = categoryShortLabel(cat.title);
+    const hubLink =
+      cat.id === 'astra'
+        ? `
+          <a href="gpt6-astra/" class="group-hub focus-ring font-tc">畫廊</a>`
+        : '';
     out.push(`      <section class="game-group" id="${escapeHtml(cat.htmlId)}" data-category="${escapeHtml(cat.id)}" style="--accent: ${escapeHtml(accent)}" aria-labelledby="${escapeHtml(cat.htmlId)}-title">
         <div class="group-head">
           <span class="group-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${categoryIconSvg(cat.id)}</svg>
           </span>
-          <h2 class="group-title font-tc" id="${escapeHtml(cat.htmlId)}-title">${escapeHtml(cat.title)}</h2>
+          <h2 class="group-title font-tc" id="${escapeHtml(cat.htmlId)}-title">${escapeHtml(cat.title)}</h2>${hubLink}
           <span class="group-count" aria-label="共 ${cat.games.length} 款遊戲">${cat.games.length}</span>
         </div>
         <ul class="game-grid" role="list">`);
@@ -212,11 +244,13 @@ const categories = data.categories;
 
 const menuHtml = generateMenuHtml(categories);
 const categoryNavHtml = generateCategoryNavHtml(categories);
+const astraZoneHtml = generateAstraZoneHtml(categories);
 const totalGames = categories.reduce((sum, cat) => sum + cat.games.length, 0);
 
 let indexContent = fs.readFileSync(INDEX_PATH, 'utf8');
 indexContent = replaceBetween(indexContent, '    <!-- GENERATED_GAMES_MENU -->', '    <!-- /GENERATED_GAMES_MENU -->', menuHtml);
 indexContent = replaceBetween(indexContent, '        <!-- GENERATED_CATEGORY_NAV -->', '        <!-- /GENERATED_CATEGORY_NAV -->', categoryNavHtml);
+indexContent = replaceBetween(indexContent, '    <!-- GENERATED_ASTRA_ZONE -->', '    <!-- /GENERATED_ASTRA_ZONE -->', astraZoneHtml);
 // Keep the no-JS stat counts truthful even before menu.js runs.
 indexContent = indexContent
   .replace(/(id="game-count-stat"[^>]*>)[^<]*/, `$1${totalGames}`)

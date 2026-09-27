@@ -88,6 +88,20 @@ test('Astra playPath tiles are listed and point at gpt6-astra/', async ({ page }
   await expect(tile.locator('.tile-play')).toHaveAttribute('href', first.playPath);
 });
 
+test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
+  await page.goto('./');
+  const navAstra = page.locator('.site-nav a[href="gpt6-astra/"]');
+  await expect(navAstra).toBeVisible();
+  const zone = page.locator('#astra-zone');
+  await expect(zone).toBeVisible();
+  await expect(zone.getByRole('link', { name: '進入畫廊' })).toHaveAttribute('href', 'gpt6-astra/');
+  await expect(zone.getByRole('link', { name: '本頁清單' })).toHaveAttribute('href', '#category-astra');
+  await expect(page.locator('#category-astra .group-hub')).toHaveAttribute('href', 'gpt6-astra/');
+  await zone.getByRole('link', { name: '進入畫廊' }).click();
+  await expect(page).toHaveURL(/\/gpt6-astra\/?$/);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+});
+
 test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Memory-Match/');
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
