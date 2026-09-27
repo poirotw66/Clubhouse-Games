@@ -53,6 +53,21 @@
 - 雙方都無法取勝（如殘局無解）→ 和局。
 - 美式 8×8 在雙方完美下法下已證明為和局。
 
+## 數位版模式（Clubhouse）
+
+本館實作路徑：[Games/Checkers/](../Games/Checkers/)，規則採 **美式 8×8**。對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作 |
+|------|--------|
+| 模式／變體 | **雙人對戰**／**對戰電腦**；電腦三角難度；可選執黑／執白 |
+| Replay hook | 對戰電腦時本機紀錄 **連勝**、**最佳連勝**、**最大勝差**（敗北或和局連勝歸零） |
+| Undo／Hint | **悔棋**（整手回合快照，含對手回手）；**提示**（困難級建議路徑高亮） |
+| Feedback | `ResultOverlay` + `@clubhouse/shared/synthAudio`（含吃子音） |
+| Touch | 選子／落點與工具列可觸控 |
+| Check | `npm run check` → `src/check-checkers.mjs` |
+
+`localStorage` 鍵：`clubhouse-checkers-win-streak`、`clubhouse-checkers-best-streak`、`clubhouse-checkers-best-margin`。
+
 ## 常見變體或可選規則
 
 - **American / English (8×8)**：12 子，短王（一次一格），兵僅向前跳。
