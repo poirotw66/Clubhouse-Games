@@ -27,6 +27,9 @@ const STATIC_COPY = [
   '04-sports-arcade',
   '05-puzzle',
   '06-minigames',
+  '07-astra',
+  // Static GPT-6 / Astra one-shots (no Vite build); linked via playPath in games.json.
+  'gpt6-astra',
 ];
 
 function cpRecursive(src, dest) {

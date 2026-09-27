@@ -11,7 +11,14 @@ await fs.mkdir(output, { recursive: true });
 let originalBytes = 0;
 let webpBytes = 0;
 for (const { gameFolder } of categories.flatMap((category) => category.games)) {
+  if (!gameFolder) continue;
   const input = path.join(source, `${gameFolder}.jpg`);
+  try {
+    await fs.access(input);
+  } catch {
+    console.warn(`skip cover (missing): ${gameFolder}.jpg`);
+    continue;
+  }
   originalBytes += (await fs.stat(input)).size;
   for (const width of [320, 640]) {
     const result = await sharp(input).rotate().resize(width, width * 3 / 4, { fit: 'cover' })

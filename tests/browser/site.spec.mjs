@@ -3,6 +3,9 @@ import fs from 'node:fs';
 
 const { categories } = JSON.parse(fs.readFileSync(new URL('../../data/games.json', import.meta.url)));
 const games = categories.flatMap((category) => category.games);
+// Workspace Vite games under Games/ — Astra static demos use playPath and may
+// lack shared chrome / pull optional CDNs, so they are listed in the menu only.
+const workspaceGames = games.filter((game) => game.gameFolder && !game.playPath);
 
 // Track runtime exceptions and local asset errors throughout each interaction.
 test.beforeEach(async ({ page, baseURL }) => {
@@ -59,7 +62,7 @@ test('menu search, shared URL, categories and responsive covers', async ({ page 
   await expect(page.locator('.game-tile:visible')).toHaveCount(games.length);
 });
 
-for (const game of games) {
+for (const game of workspaceGames) {
   test(`${game.gameFolder}: loads from the menu and returns`, async ({ page }) => {
     await page.goto('./');
     await page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`).click();
@@ -73,6 +76,17 @@ for (const game of games) {
     await expect(page.locator('#recent-list')).toContainText(game.name);
   });
 }
+
+test('Astra playPath tiles are listed and point at gpt6-astra/', async ({ page }) => {
+  const astra = games.filter((game) => game.playPath);
+  expect(astra.length).toBeGreaterThan(0);
+  await page.goto('./');
+  await page.locator('[data-filter="astra"]').click();
+  await expect(page.locator('.game-tile:visible')).toHaveCount(astra.length);
+  const first = astra[0];
+  const tile = page.locator(`.game-tile[data-folder="${first.gameFolder}"]`);
+  await expect(tile.locator('.tile-play')).toHaveAttribute('href', first.playPath);
+});
 
 test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Memory-Match/');

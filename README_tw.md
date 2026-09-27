@@ -2,11 +2,12 @@
 
 ![Clubhouse Games](title-image.jpg)
 
-本專案收錄各款遊戲的規格與玩法說明文件，供後續開發使用；遊戲實作置於 `Games/` 下，可透過 **遊戲總覽選單** 進入各遊戲並部署於 GitHub Pages。
+本專案收錄各款遊戲的規格與玩法說明文件，供後續開發使用；遊戲實作置於 `Games/` 下，可透過 **遊戲總覽選單** 進入各遊戲並部署於 GitHub Pages。GPT-6／Astra one-shot 靜態實驗位於 `gpt6-astra/`，已接入總覽選單的「07 Astra」分類。
 
 - **遊戲總覽選單**：[index.html](index.html)（站台首頁，可選取遊戲進入）
 - **架構與部署**：[docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md)（文件架構、Games 放置約定）
 - **GitHub Pages 建置與部署**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（建置流程、CI、本地 build:pages）
+- **Astra 實驗館**：[gpt6-astra/](gpt6-astra/)（靜態 one-shot；規格摘要見 [07-astra/](07-astra/)）
 - **已實作範例**：二十一點 → [Games/Blackjack-main/](Games/Blackjack-main/)；連環新接龍（FreeCell） → [Games/FreeCell/](Games/FreeCell/)；接龍（Klondike） → [Games/Klondike/](Games/Klondike/)；羽毛球接殺訓練（Block the Smash） → [Games/Block-the-smash/](Games/Block-the-smash/)；武士反應訓練（Instant Flash） → [Games/Instant-Flash/](Games/Instant-Flash/)；神秘液體排序 → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)
 
 ### 本地啟動（單一服務）
@@ -56,6 +57,7 @@ node scripts/run-in-games.mjs check Coin Big-Two   # 只跑名稱符合的遊戲
 | 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 10 |
 | 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 8 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 3 |
+| Astra 實驗 | [07-astra/](07-astra/) | 15 |
 <!-- /GENERATED_TABLE -->
 
 # 俱樂部遊戲
@@ -103,4 +105,21 @@ node scripts/run-in-games.mjs check Coin Big-Two   # 只跑名稱符合的遊戲
 - [x] [武士反應訓練](06-minigames/instant-flash.md) → [Games/Instant-Flash/](Games/Instant-Flash/)
 - [x] [色感記憶](06-minigames/dialed-color.md) → [Games/Dialed-Color/](Games/Dialed-Color/)
 - [x] [幣潮](06-minigames/coin-cascade.md) → [Games/Coin-Cascade/](Games/Coin-Cascade/)
+
+## 07-Astra（GPT-6）
+- [x] [AI 智慧家庭](07-astra/webmcp-ai-smart-home.md) → [gpt6-astra/webmcp-ai-smart-home/](gpt6-astra/webmcp-ai-smart-home/)
+- [x] [迷你電商](07-astra/webmcp-mini-amazon.md) → [gpt6-astra/webmcp-mini-amazon/](gpt6-astra/webmcp-mini-amazon/)
+- [x] [迷你戰術地牢](07-astra/webmcp-mini-tactical-dungeon.md) → [gpt6-astra/webmcp-mini-tactical-dungeon/](gpt6-astra/webmcp-mini-tactical-dungeon/)
+- [x] [迷你工廠](07-astra/webmcp-mini-factory.md) → [gpt6-astra/webmcp-mini-factory/](gpt6-astra/webmcp-mini-factory/)
+- [x] [密室逃脫](07-astra/webmcp-escape-room.md) → [gpt6-astra/webmcp-escape-room/](gpt6-astra/webmcp-escape-room/)
+- [x] [Agent 看板](07-astra/webmcp-agent-trello.md) → [gpt6-astra/webmcp-agent-trello/](gpt6-astra/webmcp-agent-trello/)
+- [x] [披薩／漢堡組裝](07-astra/webmcp-pizza.md) → [gpt6-astra/webmcp-pizza/](gpt6-astra/webmcp-pizza/)
+- [x] [魔術方塊](07-astra/webmcp-rubiks-cube.md) → [gpt6-astra/webmcp-rubiks-cube/](gpt6-astra/webmcp-rubiks-cube/)
+- [x] [循環之路](07-astra/loop-hero.md) → [gpt6-astra/loop-hero/](gpt6-astra/loop-hero/)
+- [x] [弓箭手](07-astra/archer.md) → [gpt6-astra/archer/](gpt6-astra/archer/)
+- [x] [動力雕塑展](07-astra/exhibition-web.md) → [gpt6-astra/exhibition-web/](gpt6-astra/exhibition-web/)
+- [x] [3D 航行](07-astra/3d-sailing.md) → [gpt6-astra/3d-sailing/](gpt6-astra/3d-sailing/)
+- [x] [無盡火車](07-astra/train.md) → [gpt6-astra/train/](gpt6-astra/train/)
+- [x] [3D 填空](07-astra/3d-fill-the-void.md) → [gpt6-astra/3d-fill-the-void/](gpt6-astra/3d-fill-the-void/)
+- [x] [邊疆](07-astra/borderland.md) → [gpt6-astra/borderland/](gpt6-astra/borderland/)
 <!-- /GENERATED_GAMES_CHECKLIST -->

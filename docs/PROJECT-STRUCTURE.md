@@ -20,6 +20,8 @@ Clubhouse-Games/
 ├── 04-sports-arcade/       # 運動機檯類規格（.md）
 ├── 05-puzzle/              # 串聯拼砌類規格（.md）
 ├── 06-minigames/           # 迷你遊戲類規格（.md）
+├── 07-astra/               # Astra／GPT-6 one-shot 規格摘要（.md）
+├── gpt6-astra/             # Astra 靜態實驗館（單頁 HTML，經 playPath 接入總覽選單）
 └── Games/                  # 各遊戲實作（每款一子資料夾）
     ├── Blackjack-main/     # 已實作：二十一點
     └── Mystery-Liquid-Sort/ # 已實作：神秘液體排序
@@ -30,11 +32,11 @@ Clubhouse-Games/
         └── dist/           # 建置輸出（部署時將此目錄內容對外提供）
 ```
 
-- **規格文件**：僅放在 `01-cards/`～`06-minigames/`，不包含程式碼。  
-- **遊戲實作**：每款遊戲一個獨立子專案，放在 `Games/<遊戲專案名>/`。  
+- **規格文件**：僅放在 `01-cards/`～`07-astra/`，不包含程式碼。  
+- **遊戲實作**：主線每款遊戲一個獨立子專案，放在 `Games/<遊戲專案名>/`；Astra 實驗為靜態樹 `gpt6-astra/<id>/`，由 `data/games.json` 的 `playPath` 指向。  
 - **總覽選單**：根目錄 `index.html` 為 GitHub Pages 首頁，列出所有遊戲並連結至規格與遊戲入口；選單與 README 遊戲清單由 `data/games.json` 驅動，執行 `npm run generate` 可重新產生。
 - **npm workspaces**：根目錄 `package.json` 以 `"workspaces": ["Games/*", "shared"]` 管理各遊戲與共用套件 `@clubhouse/shared`；執行一次 `npm run setup`（根目錄 `npm ci`）即可，不必再進每個 `Games/<名>/` 各自安裝。唯一的 lockfile 是根目錄 `package-lock.json`，Node 版本由 `.nvmrc` 指定。各遊戲透過 Vite alias helper（`@clubhouse/shared/vite-alias`）與 `tsconfig` paths 解析 `@clubhouse/shared/<module>` 匯入。
-- **本地單一服務**：根目錄執行 `npm run dev` 只會啟動 **一個** Node 伺服器（`server.mjs`），提供選單與靜態檔；各遊戲從 `Games/<名>/dist/` 提供（需先 `npm run build:game <名>`）。不會因遊戲變多而開多個服務。
+- **本地單一服務**：根目錄執行 `npm run dev` 只會啟動 **一個** Node 伺服器（`server.mjs`），提供選單與靜態檔；各遊戲從 `Games/<名>/dist/` 提供（需先 `npm run build:game <名>`）。Astra 靜態頁可直接由根目錄路徑提供，無需建置。
 
 ---
 
@@ -86,10 +88,10 @@ Clubhouse-Games/
 ## 四、總覽選單（index.html）行為
 
 - 根目錄的 `index.html` 為 **遊戲總覽選單**：
-  - 依六大類列出所有遊戲（紙牌、棋盤、牌張、運動機檯、串聯拼砌、迷你遊戲），每一類有專屬強調色。
+  - 依分類列出所有遊戲（紙牌、棋盤、牌張、運動機檯、串聯拼砌、迷你遊戲、Astra），每一類有專屬強調色。
   - 每款遊戲為一張卡片，顯示中文名、英文名、一句玩法簡介與遊玩人數，並提供：
     - **規格**：連結到對應 `.md`（如 `01-cards/blackjack.md`）。
-    - **進入遊戲**：連結到 `Games/<專案資料夾名>/`；卡片本身即為此連結的點擊範圍（stretched link），整張卡都可點。
+    - **進入遊戲**：主線連結到 `Games/<專案資料夾名>/`；Astra 實驗連結到 `gpt6-astra/<id>/`（`games.json` 的 `playPath`）。卡片本身即為此連結的點擊範圍（stretched link），整張卡都可點。
   - 尚未實作的遊戲顯示「尚未實作」而非進入連結。
 - 選單互動（`assets/menu.js`）：
   - **搜尋**：比對中文名、英文名、分類與資料夾名；按 <kbd>/</kbd> 或 <kbd>Ctrl/⌘</kbd>+<kbd>K</kbd> 聚焦、<kbd>Esc</kbd> 清除。
@@ -128,7 +130,7 @@ Clubhouse-Games/
      }
      ```
 
-     `name` 與 `specPath` 為必填；`en`、`desc`、`players` 省略時卡片會自動略過該欄位；`gameFolder` 省略代表尚未實作。類別層級的 `accent` 為該類的強調色（CSS 變數 `--accent`）。
+     `name` 與 `specPath` 為必填；`en`、`desc`、`players` 省略時卡片會自動略過該欄位；`gameFolder` 省略代表尚未實作。若實作不在 `Games/`（例如 Astra 靜態樹），改填 `playPath`（如 `gpt6-astra/loop-hero/`），並仍可用 `gameFolder` 作為封面／`data-folder` 識別碼。類別層級的 `accent` 為該類的強調色（CSS 變數 `--accent`）。
    - 然後執行 `npm run generate` 更新 `index.html` 與 `README.md`；若改動的是 `styles/menu.input.css`，再執行 `npm run build:css` 產生 `assets/menu.css`。`npm run build:pages` 會自動先執行 generate 與 build:css。
 
 ---
