@@ -199,3 +199,93 @@ test('big-two: seeded opener plays ♣3, then undo after the table updates', asy
   await activate(undo, isMobile);
   await expect(hand.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
 });
+
+test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {
+  await page.goto('./Games/Fifteen-Puzzle/');
+  await activate(page.getByRole('button', { name: '簡單', exact: true }), isMobile);
+  await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
+
+  const movable = page.getByRole('button', { name: /第 \d+ 格/ }).and(page.locator(':enabled'));
+  await expect(movable.first()).toBeVisible();
+  await activate(movable.first(), isMobile);
+  await expect(page.getByText('步數：1', { exact: false })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '復原', exact: true }), isMobile);
+  await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '重開一局', exact: true }), isMobile);
+  await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first()).toBeVisible();
+});
+
+test('checkers: two-player opening move, undo, and new game', async ({ page, isMobile }) => {
+  await page.goto('./Games/Checkers/');
+  // Default mode is 雙人對戰; black opens from A3 → B4.
+  const opener = page.getByRole('button', { name: 'black man at A3', exact: true });
+  await expect(opener).toBeVisible();
+  await activate(opener, isMobile);
+  await activate(page.getByRole('button', { name: 'Empty B4', exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: 'black man at B4', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'black man at A3', exact: true })).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '悔棋', exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: 'black man at A3', exact: true })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '新遊戲', exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: 'black man at A3', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'black man at B4', exact: true })).toHaveCount(0);
+});
+
+test('dialed-color: single-color round through result overlay and replay', async ({ page, isMobile }) => {
+  test.setTimeout(45_000);
+  await page.goto('./Games/Dialed-Color/');
+  await activate(page.getByRole('button', { name: '1 秒', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '單色挑戰', exact: true }), isMobile);
+
+  const seeResult = page.getByRole('button', { name: '看結果', exact: true });
+  await expect(seeResult).toBeVisible({ timeout: 10_000 });
+  await activate(seeResult, isMobile);
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCSS('position', 'fixed');
+  await activate(dialog.getByRole('button', { name: '查看色差', exact: true }), isMobile);
+  await expect(dialog).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '再玩一次', exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: '單色挑戰', exact: true })).toBeVisible();
+});
+
+test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ page, isMobile }) => {
+  test.setTimeout(45_000);
+  await page.goto('./Games/Every-Corner/');
+  await activate(page.getByRole('button', { name: /輕鬆/ }), isMobile);
+  await page.locator('#seed-input').fill('pw1');
+  await activate(page.getByRole('button', { name: '用這組種子碼開始', exact: true }), isMobile);
+
+  const board = page.getByRole('img', { name: /的盤面/ });
+  await expect(board).toBeVisible();
+  await expect(board).toHaveAttribute('aria-label', /已走 0 格/);
+
+  // First arrow places the path on checkpoint 1; second extends one cell when free.
+  await page.keyboard.press('ArrowRight');
+  await expect(board).toHaveAttribute('aria-label', /已走 1 格/, { timeout: 5_000 });
+  await page.keyboard.press('ArrowRight');
+  await expect
+    .poll(async () => (await board.getAttribute('aria-label')) ?? '', { timeout: 5_000 })
+    .toMatch(/已走 [12] 格/);
+
+  const stepped = /已走 2 格/.test((await board.getAttribute('aria-label')) ?? '');
+  if (stepped) {
+    await activate(page.getByRole('button', { name: '退回上一步', exact: true }), isMobile);
+    await expect(board).toHaveAttribute('aria-label', /已走 1 格/);
+  }
+
+  await activate(page.getByRole('button', { name: '放棄並看答案', exact: true }), isMobile);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCSS('position', 'fixed');
+  await activate(dialog.getByRole('button', { name: '再試同一題', exact: true }), isMobile);
+  await expect(dialog).toHaveCount(0);
+  await expect(board).toHaveAttribute('aria-label', /已走 0 格/);
+});
