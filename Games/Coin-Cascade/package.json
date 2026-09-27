@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit",
     "check": "npm run check:logic",
     "check:logic": "rm -rf .self-check && mkdir -p .self-check && printf '{\"type\":\"commonjs\"}' > .self-check/package.json && npx tsc --module CommonJS --moduleResolution Node --target ES2022 --outDir .self-check ./scripts/self-check.ts ./src/game/*.ts && node ./.self-check/scripts/self-check.js",
+    "check:heavy": "COIN_CASCADE_CHECK_HEAVY=1 npm run check:logic",
     "balance": "rm -rf .balance && mkdir -p .balance && printf '{\"type\":\"commonjs\"}' > .balance/package.json && npx tsc --module CommonJS --moduleResolution Node --target ES2022 --outDir .balance ./scripts/balance.ts ./src/game/*.ts && node ./.balance/scripts/balance.js"
   },
   "dependencies": {
