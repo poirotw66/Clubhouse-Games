@@ -9,5 +9,8 @@
     "lint": "node ../../scripts/lint-js-syntax.mjs",
     "check": "node check-logic.mjs",
     "dev": "node build.mjs"
+  },
+  "dependencies": {
+    "@clubhouse/shared": "*"
   }
 }

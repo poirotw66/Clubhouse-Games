@@ -1,0 +1,44 @@
+{
+  "name": "@clubhouse/shared",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Shared UI chrome and utilities for Clubhouse Games",
+  "type": "module",
+  "exports": {
+    "./BackToMenu": "./BackToMenu.tsx",
+    "./ResultOverlay": "./ResultOverlay.tsx",
+    "./ScoreFlash": "./ScoreFlash.tsx",
+    "./TouchButton": "./TouchButton.tsx",
+    "./synthAudio": "./synthAudio.ts",
+    "./shuffle": "./shuffle.ts",
+    "./vite-alias": "./vite-alias.mjs",
+    "./tsconfig.paths.json": "./tsconfig.paths.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "*.tsx",
+    "*.ts",
+    "*.mjs",
+    "tsconfig.paths.json"
+  ],
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "lint": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "~5.8.2"
+  }
+}

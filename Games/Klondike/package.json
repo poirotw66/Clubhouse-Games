@@ -12,6 +12,7 @@
     "check": "node --experimental-strip-types src/check-klondike.mjs"
   },
   "dependencies": {
+    "@clubhouse/shared": "*",
     "@tailwindcss/vite": "^4.1.14",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

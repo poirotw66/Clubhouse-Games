@@ -11,6 +11,7 @@
     "check": "node check-instant-flash.mjs"
   },
   "dependencies": {
+    "@clubhouse/shared": "*",
     "@tailwindcss/vite": "^4.1.14",
     "react-dom": "^19.0.0",
     "react": "^19.0.0",

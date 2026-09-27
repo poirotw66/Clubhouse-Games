@@ -40,6 +40,7 @@ function walk(dir, out = []) {
  * objects) and are therefore safe to import with no scanning config at all.
  */
 const SHARED_DIR = join(ROOT, 'shared');
+// Only scan UI/source modules from the @clubhouse/shared package (skip helpers).
 const tailwindDependent = readdirSync(SHARED_DIR)
   .filter((f) => /\.(tsx?|jsx?)$/.test(f))
   .filter((f) => /className="[^"]+"/.test(readFileSync(join(SHARED_DIR, f), 'utf8')))

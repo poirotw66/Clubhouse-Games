@@ -3,7 +3,8 @@
   "private": true,
   "description": "Game specs and game overview menu; subprojects under Games/",
   "workspaces": [
-    "Games/*"
+    "Games/*",
+    "shared"
   ],
   "scripts": {
     "dev": "node server.mjs",
