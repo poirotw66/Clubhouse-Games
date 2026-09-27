@@ -301,6 +301,151 @@
           "gameFolder": "Coin-Cascade"
         }
       ]
+    },
+    {
+      "id": "astra",
+      "title": "07 Astra 實驗",
+      "readmeTitle": "07-Astra（GPT-6）",
+      "htmlId": "category-astra",
+      "accent": "#64748b",
+      "folder": "07-astra",
+      "games": [
+        {
+          "name": "AI 智慧家庭",
+          "en": "AI Smart Home",
+          "desc": "人機共用同一 SmartHome 狀態；WebMCP tools 直接驅動裝置。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-ai-smart-home.md",
+          "gameFolder": "Astra-webmcp-ai-smart-home",
+          "playPath": "gpt6-astra/webmcp-ai-smart-home/"
+        },
+        {
+          "name": "迷你電商",
+          "en": "Mini Amazon",
+          "desc": "電商目錄、購物車與訂單流程，AI 透過結構化 tools 操作。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-mini-amazon.md",
+          "gameFolder": "Astra-webmcp-mini-amazon",
+          "playPath": "gpt6-astra/webmcp-mini-amazon/"
+        },
+        {
+          "name": "迷你戰術地牢",
+          "en": "Mini Tactical Dungeon",
+          "desc": "戰術地牢 demo：UI 與 agent 共用遊戲能力層。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-mini-tactical-dungeon.md",
+          "gameFolder": "Astra-webmcp-mini-tactical-dungeon",
+          "playPath": "gpt6-astra/webmcp-mini-tactical-dungeon/"
+        },
+        {
+          "name": "迷你工廠",
+          "en": "Mini Factory",
+          "desc": "工廠產線控制面板，展示 WebMCP 對應用狀態的雙向控制。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-mini-factory.md",
+          "gameFolder": "Astra-webmcp-mini-factory",
+          "playPath": "gpt6-astra/webmcp-mini-factory/"
+        },
+        {
+          "name": "密室逃脫",
+          "en": "Escape Room",
+          "desc": "密室逃脫互動；agent 用 tools 調查與解謎，不靠點擊模擬。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-escape-room.md",
+          "gameFolder": "Astra-webmcp-escape-room",
+          "playPath": "gpt6-astra/webmcp-escape-room/"
+        },
+        {
+          "name": "Agent 看板",
+          "en": "Agent Trello",
+          "desc": "看板式任務板，人與 AI 共用同一套卡片／列表操作。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-agent-trello.md",
+          "gameFolder": "Astra-webmcp-agent-trello",
+          "playPath": "gpt6-astra/webmcp-agent-trello/"
+        },
+        {
+          "name": "披薩／漢堡組裝",
+          "en": "Pizza / Burger Builder",
+          "desc": "食物組裝器：UI 與 WebMCP tools 同步同一份配方狀態。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-pizza.md",
+          "gameFolder": "Astra-webmcp-pizza",
+          "playPath": "gpt6-astra/webmcp-pizza/"
+        },
+        {
+          "name": "魔術方塊",
+          "en": "Rubik’s Cube",
+          "desc": "魔術方塊操作面；agent 透過結構化轉面指令操控。",
+          "players": "1 人",
+          "specPath": "07-astra/webmcp-rubiks-cube.md",
+          "gameFolder": "Astra-webmcp-rubiks-cube",
+          "playPath": "gpt6-astra/webmcp-rubiks-cube/"
+        },
+        {
+          "name": "循環之路",
+          "en": "Loop Hero",
+          "desc": "循環路線建造式 Roguelike 風格 one-shot 遊戲。",
+          "players": "1 人",
+          "specPath": "07-astra/loop-hero.md",
+          "gameFolder": "Astra-loop-hero",
+          "playPath": "gpt6-astra/loop-hero/"
+        },
+        {
+          "name": "弓箭手",
+          "en": "Archer",
+          "desc": "射箭／瞄準互動遊戲 one-shot 產出。",
+          "players": "1 人",
+          "specPath": "07-astra/archer.md",
+          "gameFolder": "Astra-archer",
+          "playPath": "gpt6-astra/archer/"
+        },
+        {
+          "name": "動力雕塑展",
+          "en": "Exhibition Web",
+          "desc": "當代動力雕塑展網站，含捲動驅動的機械節奏互動。",
+          "players": "1 人",
+          "specPath": "07-astra/exhibition-web.md",
+          "gameFolder": "Astra-exhibition-web",
+          "playPath": "gpt6-astra/exhibition-web/"
+        },
+        {
+          "name": "3D 航行",
+          "en": "3D Sailing",
+          "desc": "瀏覽器內 3D 航行體驗（執行期依賴 Three.js CDN）。",
+          "players": "1 人",
+          "specPath": "07-astra/3d-sailing.md",
+          "gameFolder": "Astra-3d-sailing",
+          "playPath": "gpt6-astra/3d-sailing/"
+        },
+        {
+          "name": "無盡火車",
+          "en": "Endless Train",
+          "desc": "永不停止的火車：採集、鋪軌、趕在出軌前前進。",
+          "players": "1 人",
+          "specPath": "07-astra/train.md",
+          "gameFolder": "Astra-train",
+          "playPath": "gpt6-astra/train/"
+        },
+        {
+          "name": "3D 填空",
+          "en": "3D Fill the Void",
+          "desc": "3D 空間填補／建造類互動小品（執行期依賴 Three.js CDN）。",
+          "players": "1 人",
+          "specPath": "07-astra/3d-fill-the-void.md",
+          "gameFolder": "Astra-3d-fill-the-void",
+          "playPath": "gpt6-astra/3d-fill-the-void/"
+        },
+        {
+          "name": "邊疆",
+          "en": "Borderland",
+          "desc": "邊疆主題 3D 射擊小品（執行期依賴 Three.js CDN）。",
+          "players": "1 人",
+          "specPath": "07-astra/borderland.md",
+          "gameFolder": "Astra-borderland",
+          "playPath": "gpt6-astra/borderland/"
+        }
+      ]
     }
   ]
 }

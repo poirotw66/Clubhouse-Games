@@ -26,6 +26,7 @@ const CATEGORY_SVG = {
   sports: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />',
   puzzle: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z',
   minigames: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 010-4V7a2 2 0 00-2-2H5z',
+  astra: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
 };
 
 const DEFAULT_ACCENT = '#a78bfa';
@@ -51,8 +52,16 @@ function categoryShortLabel(title) {
     運動機檯: '運動',
     串聯拼砌: '益智',
     迷你遊戲: '迷你',
+    'Astra 實驗': 'Astra',
   };
   return aliases[short] ?? short;
+}
+
+/** Menu / README play href: optional playPath for static trees outside Games/. */
+function playHref(game) {
+  if (game.playPath) return game.playPath.replace(/^\//, '').replace(/\/?$/, '/');
+  if (game.gameFolder) return `Games/${game.gameFolder}/`;
+  return '';
 }
 
 /** Filter buttons: an "all" pill plus one per category. */
@@ -86,19 +95,22 @@ function generateMenuHtml(categories) {
         <ul class="game-grid" role="list">`);
 
     for (const game of cat.games) {
-      const hasPlay = !!game.gameFolder;
+      const href = playHref(game);
+      const hasPlay = !!href;
+      const folderKey = game.gameFolder || href.replace(/\/$/, '').split('/').pop();
       const searchTerms = [
         game.name,
         game.en,
         shortLabel,
         game.gameFolder,
+        game.playPath,
         game.specPath.split('/').pop()?.replace('.md', ''),
       ]
         .filter(Boolean)
         .join(' ');
 
       const action = hasPlay
-        ? `<a href="Games/${escapeHtml(game.gameFolder)}/" class="tile-play" data-game="${escapeHtml(game.name)}">
+        ? `<a href="${escapeHtml(href)}" class="tile-play" data-game="${escapeHtml(game.name)}">
                 進入遊戲
                 <svg class="tile-play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5-5 5M6 12h12" /></svg>
                 <span class="sr-only">：${escapeHtml(game.name)}</span>
@@ -123,7 +135,7 @@ function generateMenuHtml(categories) {
             </div>`
         : '';
 
-      out.push(`          <li class="game-tile${hasPlay ? '' : ' is-todo'}${hasCover ? ' has-cover' : ''}" data-search="${escapeHtml(searchTerms)}" data-name="${escapeHtml(game.name)}"${hasPlay ? ` data-folder="${escapeHtml(game.gameFolder)}"` : ''}>
+      out.push(`          <li class="game-tile${hasPlay ? '' : ' is-todo'}${hasCover ? ' has-cover' : ''}" data-search="${escapeHtml(searchTerms)}" data-name="${escapeHtml(game.name)}"${folderKey ? ` data-folder="${escapeHtml(folderKey)}"` : ''}>
             ${cover}
             <div class="tile-head">
               <span class="tile-icon" aria-hidden="true">
@@ -147,9 +159,19 @@ function generateMenuHtml(categories) {
   return out.join('\n\n');
 }
 
+const CATEGORY_FOLDERS = {
+  cards: '01-cards',
+  board: '02-board',
+  tiles: '03-tiles-dice',
+  sports: '04-sports-arcade',
+  puzzle: '05-puzzle',
+  minigames: '06-minigames',
+  astra: '07-astra',
+};
+
 function generateReadmeTable(categories) {
   const rows = categories.map((c) => {
-    const folder = c.id === 'cards' ? '01-cards' : c.id === 'board' ? '02-board' : c.id === 'tiles' ? '03-tiles-dice' : c.id === 'sports' ? '04-sports-arcade' : c.id === 'puzzle' ? '05-puzzle' : '06-minigames';
+    const folder = c.folder || CATEGORY_FOLDERS[c.id] || '06-minigames';
     const label = c.title.replace(/^\d+\s+/, '');
     return `| ${label} | [${folder}/](${folder}/) | ${c.games.length} |`;
   });
@@ -166,8 +188,9 @@ function generateReadmeChecklist(categories) {
   for (const cat of categories) {
     out.push(`## ${cat.readmeTitle}`);
     for (const game of cat.games) {
-      const done = game.gameFolder ? 'x' : ' ';
-      const playPart = game.gameFolder ? ` → [Games/${game.gameFolder}/](Games/${game.gameFolder}/)` : '';
+      const href = playHref(game);
+      const done = href ? 'x' : ' ';
+      const playPart = href ? ` → [${href}](${href})` : '';
       out.push(`- [${done}] [${game.name}](${game.specPath})${playPart}`);
     }
     out.push('');

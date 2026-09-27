@@ -31,8 +31,8 @@ npm run test:browser
 
 1. `npm ci` 與安裝 Chromium。
 2. 依賴版本、共用樣式、型別及遊戲邏輯檢查。
-3. `npm run build:pages`：產生封面、選單與 README，編譯 CSS，建置全部遊戲一次。
-4. 掃描 `dist/Games/` 的實際發布產物，拒絕缺少遊戲或外部 CDN 程式引用。
+3. `npm run build:pages`：產生封面、選單與 README，編譯 CSS，建置全部遊戲一次；並複製靜態樹（含 `07-astra/`、`gpt6-astra/`）。
+4. 掃描 `dist/Games/` 的實際發布產物，拒絕缺少遊戲或外部 CDN 程式引用（Astra 靜態頁不在此掃描範圍）。
 5. 在桌面 Chromium 與手機觸控模擬執行瀏覽器測試。
 6. 僅 main 的非 PR 執行可上傳並部署已通過驗證的 Pages artifact。
 

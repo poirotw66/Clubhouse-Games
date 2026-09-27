@@ -149,7 +149,7 @@
 
   /** Only ever trust stored links that point at a game folder. */
   function isGameHref(href) {
-    return typeof href === 'string' && /^Games\/[\w.-]+\/$/.test(href);
+    return typeof href === 'string' && /^(Games|gpt6-astra)\/[\w.-]+\/$/.test(href);
   }
 
   function readRecent() {
