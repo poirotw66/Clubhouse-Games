@@ -11,6 +11,7 @@
     "check": "node src/check-smash.mjs"
   },
   "dependencies": {
+    "@clubhouse/shared": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.160.0"

@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
+import { clubhouseSharedAlias } from '@clubhouse/shared/vite-alias';
 
 const require = createRequire(path.resolve(__dirname, 'package.json'));
 function resolvePkg(name: string): string {
@@ -23,8 +24,8 @@ export default defineConfig(({mode}) => {
     },
     resolve: {
       alias: {
+        ...clubhouseSharedAlias(),
         '@': path.resolve(__dirname, '.'),
-        '@clubhouse/shared': path.resolve(__dirname, '../../shared'),
         'react': resolvePkg('react'),
         'react/jsx-runtime': path.join(resolvePkg('react'), 'jsx-runtime.js'),
         'react-dom': resolvePkg('react-dom'),

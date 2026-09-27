@@ -13,6 +13,7 @@
     "check:logic": "rm -rf .self-check && mkdir -p .self-check && printf '{\"type\":\"commonjs\"}' > .self-check/package.json && npx tsc --module CommonJS --moduleResolution Node --target ES2022 --outDir .self-check ./scripts/self-check.ts ./src/game/*.ts && node ./.self-check/scripts/self-check.js"
   },
   "dependencies": {
+    "@clubhouse/shared": "*",
     "@tailwindcss/vite": "^4.1.14",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
