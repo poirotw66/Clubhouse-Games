@@ -12,6 +12,7 @@ import { createCamera } from './camera.js';
 import { createInput } from './input.js';
 import { createCourse, createMarks, gatePosts } from './marks.js';
 import { clamp } from './math.js';
+import { sfxFinish, sfxGateClear } from './sfx.js';
 
 const WAVE_AMP = 1.0;
 const WAVE_AMP_EASY = 0.45;
@@ -860,10 +861,12 @@ function startGame(gl, canvas) {
           perfectGates += 1;
           raceTime = Math.max(0, raceTime - 1.2);
           boat.surge = Math.min(20.5, boat.surge + 4.0);
+          sfxGateClear(true);
           showToast(`完美穿門！−1.2s · 加速（完美 ${perfectGates}）`);
         } else if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
           // finish handled below
         } else {
+          sfxGateClear(false);
           showToast(`${cleared.cleared.name} · ${formatTime(raceTime)} · 剩 ${left} 門`);
         }
         if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
@@ -878,6 +881,7 @@ function startGame(gl, canvas) {
           } else {
             bestTime = sailingBests[mode];
           }
+          sfxFinish(isRecord);
           hud.finish.hidden = false;
           if (hud.finishHeading) {
             hud.finishHeading.textContent = isRecord ? '完賽・新紀錄！' : '完賽！';

@@ -1,10 +1,13 @@
 /**
- * WebAudio blips, mirroring shared/synthAudio.ts so this game sounds like the rest of the suite.
- * Plain script (no bundler) — exposed as window.PuyoAudio.
+ * Thin plain-JS bridge onto ClubhouseSynthAudio (bundled from
+ * shared/synthAudio.ts by build.mjs). Game-specific blips (rotate / land / pop)
+ * stay local; win / lose / move / all-clear come from the shared kit.
+ * Exposed as window.PuyoAudio.
  */
 (function (global) {
   'use strict';
 
+  var Shared = global.ClubhouseSynthAudio;
   var AudioContextCtor = global.AudioContext || global.webkitAudioContext;
   var context = null;
   var muted = false;
@@ -36,23 +39,30 @@
     oscillator.stop(start + duration + 0.05);
   }
 
-  /** Soft tap when the pair shifts sideways. */
+  function callShared(name) {
+    if (muted || !Shared || typeof Shared[name] !== 'function') return;
+    Shared[name]();
+  }
+
   function playMove() {
-    playTone(440, 'sine', 0.05, 0, 0.05);
+    callShared('playMove');
   }
 
   function playRotate() {
+    if (muted) return;
     playTone(560, 'triangle', 0.05, 0, 0.05);
     playTone(700, 'sine', 0.04, 0.03, 0.035);
   }
 
   function playLand() {
+    if (muted) return;
     playTone(220, 'triangle', 0.07, 0, 0.06);
     playTone(160, 'sine', 0.09, 0.02, 0.05);
   }
 
   /** Pop pitch climbs with the chain number, the way the arcade games do it. */
   function playPop(chain) {
+    if (muted) return;
     var step = Math.min(chain - 1, 11);
     var base = 523.25 * Math.pow(2, step / 12);
     playTone(base, 'triangle', 0.1, 0, 0.09);
@@ -60,15 +70,15 @@
   }
 
   function playAllClear() {
-    playTone(523.25, 'triangle', 0.35, 0, 0.1);
-    playTone(659.25, 'triangle', 0.35, 0.1, 0.09);
-    playTone(783.99, 'triangle', 0.35, 0.2, 0.08);
-    playTone(1046.5, 'triangle', 0.55, 0.3, 0.07);
+    callShared('playWin');
+  }
+
+  function playWin() {
+    callShared('playWin');
   }
 
   function playLose() {
-    playTone(220, 'sawtooth', 0.25, 0, 0.06);
-    playTone(165, 'sawtooth', 0.35, 0.12, 0.05);
+    callShared('playLose');
   }
 
   function setMuted(value) {
@@ -85,6 +95,7 @@
     playLand: playLand,
     playPop: playPop,
     playAllClear: playAllClear,
+    playWin: playWin,
     playLose: playLose,
     setMuted: setMuted,
     isMuted: isMuted,
