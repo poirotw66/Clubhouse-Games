@@ -9,6 +9,13 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
+/** Short player-facing blurbs so the three tiers feel distinct on the setup screen. */
+export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
+  easy: '常亂出手，愛喊 Koi-Koi',
+  normal: '會湊役，適度結算',
+  hard: '少失誤，懂得及時收分',
+};
+
 const TYPE_VALUE: Record<CardType, number> = {
   hikari: 4,
   tane: 3,
@@ -25,13 +32,20 @@ type DifficultyConfig = {
   yakuWeight: number;
   /** Koi-Koi if points are below this threshold (easy/normal). */
   koiKoiPointCap: number;
+  /** Flat bonus for any capture over dumping — lower on easy so dumps compete. */
+  captureBias: number;
 };
 
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
-  easy: { randomRate: 0.45, dumpLowValue: false, yakuWeight: 0, koiKoiPointCap: 8 },
-  normal: { randomRate: 0.08, dumpLowValue: true, yakuWeight: 10, koiKoiPointCap: 5 },
-  hard: { randomRate: 0, dumpLowValue: true, yakuWeight: 100, koiKoiPointCap: 3 },
+  easy: { randomRate: 0.55, dumpLowValue: false, yakuWeight: 0, koiKoiPointCap: 9, captureBias: 15 },
+  normal: { randomRate: 0.1, dumpLowValue: true, yakuWeight: 20, koiKoiPointCap: 5, captureBias: 50 },
+  hard: { randomRate: 0, dumpLowValue: true, yakuWeight: 100, koiKoiPointCap: 3, captureBias: 80 },
 };
+
+/** Exported for check harnesses that assert the three tiers stay spread apart. */
+export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
+  return DIFFICULTY[difficulty];
+}
 
 export type Rng = () => number;
 
@@ -164,8 +178,8 @@ export function pickBotHandPlay(
       // Easy: dumping is roughly random among non-matches — flatten dump scores.
       score = rng();
     }
-    // Prefer any capture over dumping when scores are close.
-    if (fieldCards.length > 0) score += 50;
+    // Prefer any capture over dumping; bias is wider on harder tiers.
+    if (fieldCards.length > 0) score += config.captureBias;
 
     if (score > bestScore) {
       bestScore = score;

@@ -65,3 +65,11 @@
 
 - Wikipedia: Dominoes
 - Pagat.com: Domino games
+
+## Clubhouse 實作（摘要）
+
+路徑：[Games/Dominoes/](../Games/Dominoes/)
+
+- 雙人／對電腦；摸牌制與封鎖制；三級 AI、Hint、Undo、連勝（`clubhouse-dominoes-win-streak`）。
+- **首局引導**：首次開啟三步上手疊層（`clubhouse-dominoes-howto-seen`）。
+- Check：`npm run check` → vitest（含難度／規則）。

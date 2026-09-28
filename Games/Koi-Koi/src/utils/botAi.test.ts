@@ -6,6 +6,7 @@ import {
   scoreCapture,
   shouldBotKoiKoi,
   getPlayerHint,
+  getDifficultyConfig,
 } from './botAi';
 import { DEFAULT_STATS, mergeStats, recordResult, withDifficulty, withWinScore } from './stats';
 
@@ -36,7 +37,7 @@ describe('pickBotHandPlay', () => {
   it('easy can pick randomly when randomRate triggers', () => {
     const hand = [card('1-1'), card('5-3')];
     const field = [card('1-3')];
-    // First rng call: randomRate check (0 < 0.45 → random); second: pick index 1.
+    // First rng call: randomRate check (0 < 0.55 → random); second: pick index 1.
     let calls = 0;
     const rng = () => {
       calls += 1;
@@ -44,6 +45,27 @@ describe('pickBotHandPlay', () => {
     };
     const choice = pickBotHandPlay(hand, field, [], 'easy', rng);
     expect(choice?.handCard.id).toBe('5-3');
+  });
+
+  it('hard dumps a low-value card when nothing matches', () => {
+    const hand = [card('1-1'), card('4-4')];
+    const field = [card('2-3')];
+    const choice = pickBotHandPlay(hand, field, [], 'hard', () => 0);
+    expect(choice?.handCard.id).toBe('4-4');
+  });
+});
+
+describe('difficulty tiers', () => {
+  it('spreads randomRate and captureBias across easy < normal < hard discipline', () => {
+    const easy = getDifficultyConfig('easy');
+    const normal = getDifficultyConfig('normal');
+    const hard = getDifficultyConfig('hard');
+    expect(easy.randomRate).toBeGreaterThan(normal.randomRate);
+    expect(normal.randomRate).toBeGreaterThan(hard.randomRate);
+    expect(easy.captureBias).toBeLessThan(normal.captureBias);
+    expect(normal.captureBias).toBeLessThan(hard.captureBias);
+    expect(easy.koiKoiPointCap).toBeGreaterThan(normal.koiKoiPointCap);
+    expect(normal.koiKoiPointCap).toBeGreaterThan(hard.koiKoiPointCap);
   });
 });
 
