@@ -755,7 +755,7 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <p className="text-center text-xs text-cream/45 mb-2 min-h-[1.25rem]">
+            <p className="text-center text-xs text-gold/70 mb-2 min-h-[1.25rem]">
               {DIFFICULTY_BLURBS[difficulty]}
             </p>
             <p className="text-xs text-cream/60 mb-3 mt-4 text-center tracking-wide">對局長度</p>
