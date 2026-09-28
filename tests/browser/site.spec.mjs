@@ -336,33 +336,28 @@ test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, is
 });
 
 test('reversi: two-player completes a round through the result overlay', async ({ page, isMobile }) => {
-  test.setTimeout(60_000);
+  // Greedy play is fast alone; keep headroom when Clockwork shares the worker pool.
+  test.setTimeout(120_000);
   await page.goto('./Games/Reversi/');
   await activate(page.getByRole('button', { name: '雙人對戰' }), isMobile);
 
   const dialog = page.getByRole('dialog');
-  // Greedy first-legal play finishes a full two-player game in a few seconds.
-  await expect
-    .poll(
-      async () => {
-        if (await dialog.isVisible().catch(() => false)) return 'done';
-        const legal = page.getByRole('button', { name: /可下於/ }).and(page.locator(':enabled'));
-        if ((await legal.count()) > 0) {
-          await activate(legal.first(), isMobile);
-          return 'moved';
-        }
-        const pass = page.getByRole('button', { name: /Pass/ });
-        if (await pass.isVisible().catch(() => false)) {
-          await activate(pass, isMobile);
-          return 'pass';
-        }
-        return 'wait';
-      },
-      { timeout: 45_000 },
-    )
-    .toBe('done');
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline && !(await dialog.isVisible().catch(() => false))) {
+    const legal = page.getByRole('button', { name: /可下於/ }).and(page.locator(':enabled'));
+    if ((await legal.count()) > 0) {
+      await activate(legal.first(), isMobile);
+      continue;
+    }
+    const pass = page.getByRole('button', { name: /Pass/ });
+    if (await pass.isVisible().catch(() => false)) {
+      await activate(pass, isMobile);
+      continue;
+    }
+    await page.waitForTimeout(50);
+  }
 
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
   await expect(dialog).toHaveCSS('position', 'fixed');
   await expect(dialog).toHaveAttribute('aria-label', /獲勝|和局|對局結束/);
   await activate(dialog.getByRole('button', { name: '再玩一局' }), isMobile);
@@ -371,7 +366,8 @@ test('reversi: two-player completes a round through the result overlay', async (
 });
 
 test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({ page, isMobile }) => {
-  test.setTimeout(120_000);
+  // Undefended harsh lose is ~50s of rAF time; parallel workers can stretch that.
+  test.setTimeout(240_000);
   await page.goto('./Games/Clockwork-Keep/');
   await activate(page.getByRole('button', { name: '嚴苛', exact: true }), isMobile);
   await activate(page.getByRole('button', { name: '開始遊戲', exact: true }), isMobile);
@@ -390,26 +386,19 @@ test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({
   await activate(undo, isMobile);
   await expect(undo).toBeDisabled();
 
-  // Undefended harsh waves drain 14 lives in ~one minute of wall time.
+  const dialog = page.getByRole('dialog', { name: '城池失守' });
   await activate(page.getByRole('button', { name: '開始下一波' }), isMobile);
-  const dialog = page.getByRole('dialog');
-  await expect
-    .poll(
-      async () => {
-        if (await dialog.isVisible().catch(() => false)) return 'lost';
-        const next = page.getByRole('button', { name: '開始下一波' });
-        if (await next.isEnabled().catch(() => false)) {
-          await activate(next, isMobile);
-        }
-        return 'fighting';
-      },
-      { timeout: 90_000 },
-    )
-    .toBe('lost');
+  const waveDeadline = Date.now() + 180_000;
+  while (Date.now() < waveDeadline && !(await dialog.isVisible().catch(() => false))) {
+    const next = page.getByRole('button', { name: '開始下一波' });
+    if (await next.isEnabled().catch(() => false)) {
+      await activate(next, isMobile);
+    }
+    await page.waitForTimeout(200);
+  }
 
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
   await expect(dialog).toHaveCSS('position', 'fixed');
-  await expect(dialog).toHaveAttribute('aria-label', '城池失守');
   await activate(dialog.getByRole('button', { name: '再玩一次' }), isMobile);
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: '開始下一波' })).toBeVisible();
