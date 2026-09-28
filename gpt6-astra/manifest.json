@@ -8,7 +8,7 @@
       "blurb": "人機共用同一 SmartHome state；WebMCP tools 直接驅動裝置。",
       "href": "webmcp-ai-smart-home/index.html",
       "thumb": "thumbs/webmcp-ai-smart-home.webp",
-      "bytes": 104917
+      "bytes": 28538
     },
     {
       "id": "webmcp-mini-amazon",
@@ -17,7 +17,7 @@
       "blurb": "電商目錄、購物車與訂單流程，AI 透過結構化 tools 操作。",
       "href": "webmcp-mini-amazon/index.html",
       "thumb": "thumbs/webmcp-mini-amazon.webp",
-      "bytes": 110241
+      "bytes": 41992
     },
     {
       "id": "webmcp-mini-tactical-dungeon",
@@ -26,7 +26,7 @@
       "blurb": "戰術地牢 demo：UI 與 agent 共用遊戲能力層。",
       "href": "webmcp-mini-tactical-dungeon/index.html",
       "thumb": "thumbs/webmcp-mini-tactical-dungeon.webp",
-      "bytes": 105758
+      "bytes": 29732
     },
     {
       "id": "webmcp-mini-factory",
@@ -35,7 +35,7 @@
       "blurb": "工廠產線控制面板，展示 WebMCP 對應用狀態的雙向控制。",
       "href": "webmcp-mini-factory/index.html",
       "thumb": "thumbs/webmcp-mini-factory.webp",
-      "bytes": 100990
+      "bytes": 25782
     },
     {
       "id": "webmcp-escape-room",
@@ -44,7 +44,7 @@
       "blurb": "密室逃脫互動；agent 用 tools 調查與解謎，不靠點擊模擬。",
       "href": "webmcp-escape-room/index.html",
       "thumb": "thumbs/webmcp-escape-room.webp",
-      "bytes": 92994
+      "bytes": 27986
     },
     {
       "id": "webmcp-agent-trello",
@@ -53,7 +53,7 @@
       "blurb": "看板式任務板，人與 AI 共用同一套卡片／列表操作。",
       "href": "webmcp-agent-trello/index.html",
       "thumb": "thumbs/webmcp-agent-trello.webp",
-      "bytes": 88701
+      "bytes": 30690
     },
     {
       "id": "webmcp-pizza",
@@ -62,7 +62,7 @@
       "blurb": "食物組裝器：UI 與 WebMCP tools 同步同一份配方 state。",
       "href": "webmcp-pizza/index.html",
       "thumb": "thumbs/webmcp-pizza.webp",
-      "bytes": 84921
+      "bytes": 26622
     },
     {
       "id": "webmcp-rubiks-cube",
@@ -71,7 +71,7 @@
       "blurb": "魔術方塊操作面；agent 透過結構化轉面指令操控。",
       "href": "webmcp-rubiks-cube/index.html",
       "thumb": "thumbs/webmcp-rubiks-cube.webp",
-      "bytes": 58773
+      "bytes": 26038
     },
     {
       "id": "loop-hero",
@@ -80,7 +80,7 @@
       "blurb": "循環路線建造式 Roguelike 風格 one-shot 遊戲。",
       "href": "loop-hero/index.html",
       "thumb": "thumbs/loop-hero.webp",
-      "bytes": 76468
+      "bytes": 28796
     },
     {
       "id": "archer",
@@ -89,7 +89,7 @@
       "blurb": "射箭／瞄準互動遊戲 one-shot 產出。",
       "href": "archer/index.html",
       "thumb": "thumbs/archer.webp",
-      "bytes": 62492
+      "bytes": 14072
     },
     {
       "id": "exhibition-web",
@@ -98,16 +98,16 @@
       "blurb": "當代動力雕塑展網站，含捲動驅動的機械節奏互動。",
       "href": "exhibition-web/index.html",
       "thumb": "thumbs/exhibition-web.webp",
-      "bytes": 59595
+      "bytes": 15412
     },
     {
       "id": "3d-sailing",
       "title": "3D Sailing",
       "category": "game",
-      "blurb": "瀏覽器內 3D 航行體驗。",
+      "blurb": "程序化海面與船體：離線 Three.js 航行小品。",
       "href": "3d-sailing/index.html",
       "thumb": "thumbs/3d-sailing.webp",
-      "bytes": 40251
+      "bytes": 16654
     },
     {
       "id": "train",
@@ -116,25 +116,25 @@
       "blurb": "永不停止的火車：採集、鋪軌、趕在出軌前前進。",
       "href": "train/index.html",
       "thumb": "thumbs/train.webp",
-      "bytes": 35603
+      "bytes": 28116
     },
     {
       "id": "3d-fill-the-void",
       "title": "3D Fill the Void",
       "category": "game",
-      "blurb": "3D 空間填補／建造類互動小品。",
+      "blurb": "立體空間填空解謎；Three 與 RoundedBox 皆為本機檔。",
       "href": "3d-fill-the-void/index.html",
       "thumb": "thumbs/3d-fill-the-void.webp",
-      "bytes": 30925
+      "bytes": 14196
     },
     {
       "id": "borderland",
       "title": "Borderland",
       "category": "game",
-      "blurb": "邊疆主題小遊戲 one-shot。",
+      "blurb": "荒土生存射擊：離線 Three.js 波次防衛。",
       "href": "borderland/index.html",
       "thumb": "thumbs/borderland.webp",
-      "bytes": 21227
+      "bytes": 22876
     }
   ]
 }

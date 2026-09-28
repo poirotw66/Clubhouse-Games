@@ -4,7 +4,7 @@
 
 ## 簡介
 
-邊疆主題 3D 射擊小品（執行期依賴 Three.js CDN）。
+邊疆主題 3D 射擊小品（本機 Three.js）。
 
 ## 遊玩
 
@@ -15,5 +15,5 @@
 
 - 類型：`game`
 - 建置：純靜態 HTML（無 Vite workspace）；Pages 部署時整包複製 `gpt6-astra/`。
-- **CDN**：執行期自 jsDelivr 載入 Three.js；未納入主線 `check:no-cdn` 掃描範圍。
+- **Three**：本機 `gpt6-astra/vendor/three/`；納入 `check:no-cdn` 對 `gpt6-astra` 的掃描。
 

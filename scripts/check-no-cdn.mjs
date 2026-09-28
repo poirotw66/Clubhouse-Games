@@ -44,6 +44,7 @@ if (!fs.existsSync(gamesDir)) {
 
 const offenders = [];
 let scannedGames = 0;
+let scannedStatic = 0;
 
 for (const name of fs.readdirSync(gamesDir)) {
   if (!fs.existsSync(path.join(gamesDir, name, 'package.json'))) continue;
@@ -66,7 +67,28 @@ for (const name of fs.readdirSync(gamesDir)) {
   }
 }
 
-if (scannedGames === 0) {
+/** Static Astra one-shots (no Vite dist); scan source or Pages copy. */
+const astraDir = pages
+  ? path.join(root, 'dist', 'gpt6-astra')
+  : path.join(root, 'gpt6-astra');
+if (fs.existsSync(astraDir)) {
+  scannedStatic += 1;
+  for (const file of walk(astraDir)) {
+    // Skip vendored library sources — they may mention CDN URLs in comments.
+    if (file.includes(`${path.sep}vendor${path.sep}`)) continue;
+    const text = fs.readFileSync(file, 'utf8');
+    const hits = [...new Set(text.match(CODE_CDN) ?? [])];
+    if (hits.length > 0) {
+      offenders.push({
+        game: 'gpt6-astra',
+        file: path.relative(root, file),
+        hits: hits.slice(0, 3),
+      });
+    }
+  }
+}
+
+if (scannedGames === 0 && scannedStatic === 0) {
   console.log('No built games found — run a build first. Nothing to check.');
   process.exit(0);
 }
@@ -85,4 +107,7 @@ if (offenders.length > 0) {
   process.exit(1);
 }
 
-console.log(`No runtime CDN code references in ${scannedGames} built game(s).`);
+const parts = [];
+if (scannedGames > 0) parts.push(`${scannedGames} built game(s)`);
+if (scannedStatic > 0) parts.push('gpt6-astra');
+console.log(`No runtime CDN code references in ${parts.join(' + ')}.`);
