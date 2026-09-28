@@ -318,3 +318,90 @@ test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ p
   await expect(dialog).toHaveCount(0);
   await expect(board).toHaveAttribute('aria-label', /已走 0 格/);
 });
+
+test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, isMobile }) => {
+  await page.goto('./Games/FreeCell/');
+  await page.locator('#freecell-seed').fill('11982');
+  await activate(page.getByRole('button', { name: '發此局', exact: true }), isMobile);
+  await expect(page.locator('#freecell-seed')).toHaveValue('11982');
+
+  await activate(page.getByRole('button', { name: '提示' }), isMobile);
+  // Hint paints a sky ring on the suggested source/dest; redeal must clear it.
+  await activate(page.getByRole('button', { name: '重新發同局' }), isMobile);
+  await expect(page.locator('#freecell-seed')).toHaveValue('11982');
+
+  await activate(page.getByRole('button', { name: '新遊戲' }), isMobile);
+  await expect(page.locator('#freecell-seed')).not.toHaveValue('');
+  await expect(page.getByRole('button', { name: '提示' })).toBeEnabled();
+});
+
+test('reversi: two-player completes a round through the result overlay', async ({ page, isMobile }) => {
+  // Greedy play is fast alone; keep headroom when Clockwork shares the worker pool.
+  test.setTimeout(120_000);
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '雙人對戰' }), isMobile);
+
+  const dialog = page.getByRole('dialog');
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline && !(await dialog.isVisible().catch(() => false))) {
+    const legal = page.getByRole('button', { name: /可下於/ }).and(page.locator(':enabled'));
+    if ((await legal.count()) > 0) {
+      await activate(legal.first(), isMobile);
+      continue;
+    }
+    const pass = page.getByRole('button', { name: /Pass/ });
+    if (await pass.isVisible().catch(() => false)) {
+      await activate(pass, isMobile);
+      continue;
+    }
+    await page.waitForTimeout(50);
+  }
+
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await expect(dialog).toHaveCSS('position', 'fixed');
+  await expect(dialog).toHaveAttribute('aria-label', /獲勝|和局|對局結束/);
+  await activate(dialog.getByRole('button', { name: '再玩一局' }), isMobile);
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /可下於/ }).and(page.locator(':enabled')).first()).toBeVisible();
+});
+
+test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({ page, isMobile }) => {
+  // Undefended harsh lose is ~50s of rAF time once waves keep advancing.
+  test.setTimeout(120_000);
+  await page.goto('./Games/Clockwork-Keep/');
+  await activate(page.getByRole('button', { name: '嚴苛', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '開始遊戲', exact: true }), isMobile);
+
+  // Prep: select the cheapest tower and click the canvas to place, then undo.
+  const tower = page.locator('.grid.grid-cols-4 button').first();
+  await expect(tower).toBeEnabled();
+  await activate(tower, isMobile);
+  const canvas = page.locator('canvas').first();
+  await expect(canvas).toBeVisible();
+  const box = await canvas.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.5);
+  const undo = page.getByRole('button', { name: '撤銷' });
+  await expect(undo).toBeEnabled();
+  await activate(undo, isMobile);
+  await expect(undo).toBeDisabled();
+
+  const dialog = page.getByRole('dialog');
+  await activate(page.getByRole('button', { name: '開始下一波' }), isMobile);
+  const waveDeadline = Date.now() + 90_000;
+  while (Date.now() < waveDeadline && !(await dialog.isVisible())) {
+    // count() is non-waiting — during a wave this control is replaced by 強行加壓.
+    const next = page.getByRole('button', { name: '開始下一波' });
+    if ((await next.count()) > 0 && (await next.isEnabled())) {
+      await activate(next, isMobile);
+    }
+    await page.waitForTimeout(200);
+  }
+
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await expect(dialog).toHaveCSS('position', 'fixed');
+  await expect(dialog).toHaveAttribute('aria-label', '城池失守');
+  await activate(dialog.getByRole('button', { name: '再玩一次' }), isMobile);
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '開始下一波' })).toBeVisible();
+});
