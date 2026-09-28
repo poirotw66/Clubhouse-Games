@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { clubhouseSharedAlias } from '@clubhouse/shared/vite-alias';
 
 const require = createRequire(path.resolve(__dirname, 'package.json'));
@@ -12,13 +13,15 @@ function resolvePkg(name: string): string {
 export default defineConfig(() => {
   const base = process.env.BASE_URL ?? './';
   return {
+    // Prevent Vite from walking up to root postcss.config.js (Tailwind v3).
+    css: { postcss: { plugins: [] } },
     base,
     server: {
       fs: { allow: [path.resolve(__dirname, '../..')] },
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         ...clubhouseSharedAlias(),
@@ -26,6 +29,7 @@ export default defineConfig(() => {
         'react': resolvePkg('react'),
         'react/jsx-runtime': path.join(resolvePkg('react'), 'jsx-runtime.js'),
         'react-dom': resolvePkg('react-dom'),
+        tailwindcss: resolvePkg('tailwindcss'),
       },
     },
     build: { outDir: 'dist', assetsDir: 'assets' },
