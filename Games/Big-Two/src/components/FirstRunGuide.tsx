@@ -67,7 +67,7 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
           onClick={dismiss}
           className="mt-6 w-full rounded-xl bg-indigo-500 py-3 font-bold text-white transition hover:bg-indigo-400 min-h-[44px] touch-manipulation"
         >
-          開始牌局
+          知道了
         </button>
       </div>
     </div>
