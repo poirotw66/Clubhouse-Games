@@ -196,27 +196,7 @@
       <button type="button" id="btn-help-close" class="btn primary">關閉</button>
     </div>
 
-    <div id="finish-panel" class="panel finish" hidden>
-      <h2 id="finish-heading">完賽！</h2>
-      <p id="finish-record" class="finish-record" hidden>新紀錄</p>
-      <div class="finish-stats" aria-label="完賽成績">
-        <div class="finish-stat">
-          <span class="label">本次時間</span>
-          <strong id="finish-time">—</strong>
-        </div>
-        <div class="finish-stat">
-          <span class="label">歷史最佳</span>
-          <strong id="finish-best">—</strong>
-        </div>
-        <div class="finish-stat" id="finish-perfect-row" hidden>
-          <span class="label">完美穿門</span>
-          <strong id="finish-perfect">0</strong>
-        </div>
-      </div>
-      <ol id="finish-splits" class="splits finish-splits"></ol>
-      <button type="button" id="btn-finish-restart" class="btn primary">再航一趟</button>
-      <p class="finish-cta-hint">點上方按鈕重開，或按 <kbd>R</kbd></p>
-    </div>
+    <!-- Finish chrome: @clubhouse/shared/resultOverlayDom (mounted in main.js). -->
 
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -225,8 +225,8 @@ function App() {
           iframeRef.current.contentWindow.postMessage({ type: 'PAUSE_GAME', payload: true }, '*');
         }
       }
-      // Drill end UI lives in the iframe (no Tailwind for shared ResultOverlay).
-      // Parent still plays suite SFX so feedback matches the rest of Clubhouse.
+      // Drill end UI lives in the iframe — permanent ～ (no Tailwind for shared
+      // ResultOverlay). Parent still plays suite SFX so feedback matches Clubhouse.
       if (event.data?.type === 'DRILL_OVER' && !muted) {
         const grade = String(event.data.payload?.grade ?? '');
         if (grade === 'S' || grade === 'A') playWin();

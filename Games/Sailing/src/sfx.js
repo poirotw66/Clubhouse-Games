@@ -1,6 +1,6 @@
 /**
  * Thin Vite bridge onto @clubhouse/shared/synthAudio (no React).
- * Result chrome stays the custom finish panel in index.html.
+ * Finish chrome uses @clubhouse/shared/resultOverlayDom from main.js.
  */
 import { playGoal, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 

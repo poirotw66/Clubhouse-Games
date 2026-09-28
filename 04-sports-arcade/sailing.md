@@ -53,11 +53,25 @@
 
 - **完賽**：通過全部浮標。
 - **紀錄**：刷新本機最佳完賽時間。
+- **結算 UI**：共用 `@clubhouse/shared/resultOverlayDom`（與 React `ResultOverlay` 同契約；無 React／Tailwind）。
 
 ## 常見變體或可選規則
 
 - 多圈賽、逆時針繞標、加入第二艘電腦船。
 - 風級選擇（微風／強風）。
+
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作 |
+|------|--------|
+| 模式／變體 | 簡單／真實相對風 |
+| Replay hook | 各模式最佳完賽時間（localStorage） |
+| Undo／Hint | 不適用（即時競速）；教練提示與輔助換舷 |
+| Feedback | `resultOverlayDom`＋`synthAudio` 橋 |
+| Touch | 轉舵／加速／換舷觸控板 |
+| Check | `npm run check`（sailing／gates／assist／coach） |
 
 ## 參考來源
 
