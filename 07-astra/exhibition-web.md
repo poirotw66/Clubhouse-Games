@@ -15,4 +15,5 @@
 
 - 類型：`landing`
 - 建置：純靜態 HTML（無 Vite workspace）；Pages 部署時整包複製 `gpt6-astra/`。
+- **Fonts**：本機 `gpt6-astra/vendor/fonts/exhibition.css`（DM Sans + Manrope variable latin）；無 Google Fonts CDN。
 
