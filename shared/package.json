@@ -12,6 +12,8 @@
     "./synthAudio": "./synthAudio.ts",
     "./shuffle": "./shuffle.ts",
     "./vite-alias": "./vite-alias.mjs",
+    "./tailwind-content": "./tailwind-content.mjs",
+    "./tailwind-source.css": "./tailwind-source.css",
     "./tsconfig.paths.json": "./tsconfig.paths.json",
     "./package.json": "./package.json"
   },
@@ -19,6 +21,7 @@
     "*.tsx",
     "*.ts",
     "*.mjs",
+    "*.css",
     "tsconfig.paths.json"
   ],
   "peerDependencies": {
