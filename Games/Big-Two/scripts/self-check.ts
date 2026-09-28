@@ -22,7 +22,7 @@ import {
   scoreSeat,
   sizeMultiplier,
 } from '../src/game/engine.js';
-import { DIFFICULTIES, chooseMove, turnsToEmpty } from '../src/game/cpu.js';
+import { DIFFICULTIES, EASY_PASS_RATE, chooseMove, turnsToEmpty } from '../src/game/cpu.js';
 import { EMPTY_STATS, recordResult } from '../src/game/storage.js';
 import { createRng } from '../src/game/rng.js';
 import { HAND_SIZE, SEATS } from '../src/game/types.js';
@@ -428,6 +428,11 @@ function expectTurnsToEmpty(): void {
 function expectDifficultiesDiffer(): void {
   assert.equal(DIFFICULTIES.length, 3, 'there are not three difficulties');
   assert.equal(new Set(DIFFICULTIES.map((d) => d.id)).size, 3, 'two difficulties share an id');
+  assert.equal(new Set(DIFFICULTIES.map((d) => d.blurb)).size, 3, 'two difficulties share a blurb');
+  for (const info of DIFFICULTIES) {
+    assert.ok(info.blurb.trim().length > 0, `${info.id} has an empty blurb`);
+  }
+  assert.ok(EASY_PASS_RATE > 0.2 && EASY_PASS_RATE < 0.5, 'easy pass rate drifted out of a soft-tier band');
 
   const logs = TIERS.map((difficulty) =>
     playOut('tier-check', difficulty, 'topCard')
