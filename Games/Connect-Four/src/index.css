@@ -1,5 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Scan @clubhouse/shared via shared/tailwind-source.css (path-depth independent @source). */
+@import "../../../shared/tailwind-source.css";
 
 body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
