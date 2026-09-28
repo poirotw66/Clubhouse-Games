@@ -16,8 +16,20 @@ import {
   getTimingWindows,
   getAttackDelayRange,
   getProjectileDurationScale,
+  pickProjectileType,
   type PracticeIntensity,
+  type PracticeScenario,
 } from '../constants';
+
+const PROJECTILE_DURATION: Record<
+  'SHURIKEN' | 'KUNAI' | 'BOMB' | 'SICKLE',
+  number
+> = {
+  SHURIKEN: DURATION_SHURIKEN,
+  KUNAI: DURATION_KUNAI,
+  BOMB: DURATION_BOMB,
+  SICKLE: DURATION_SICKLE,
+};
 import {
   playCapture,
   playError,
@@ -42,6 +54,8 @@ interface GameCanvasProps {
   playMode: PlayMode;
   /** Practice intensity floor; challenge mode should stay 0. */
   baseTier?: PracticeIntensity;
+  /** Practice drill mix; challenge always uses mixed weights. */
+  scenario?: PracticeScenario;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({
@@ -49,6 +63,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   gameActive,
   playMode,
   baseTier = 0,
+  scenario = 'mixed',
 }) => {
   // --- Refs for Game Loop State ---
   const lastFrameTime = useRef<number>(0);
@@ -61,6 +76,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const hp = useRef<number>(MAX_HP);
   const baseTierRef = useRef<PracticeIntensity>(baseTier);
   baseTierRef.current = baseTier;
+  const scenarioRef = useRef<PracticeScenario>(scenario);
+  scenarioRef.current = playMode === 'practice' ? scenario : 'mixed';
   const isPractice = playMode === 'practice';
   
   // Projectile State
@@ -98,23 +115,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     projectileProgress.current = 0;
 
     const durationScale = getProjectileDurationScale(stats.current.score, tier);
-
-    // Randomize Projectile Type
-    const rand = Math.random();
-    if (rand < 0.4) {
-      currentProjectileType.current = ProjectileType.SHURIKEN;
-      currentProjectileDuration.current = DURATION_SHURIKEN * durationScale;
-    } else if (rand < 0.65) {
-      currentProjectileType.current = ProjectileType.KUNAI;
-      currentProjectileDuration.current = DURATION_KUNAI * durationScale;
-    } else if (rand < 0.85) {
-      currentProjectileType.current = ProjectileType.BOMB;
-      currentProjectileDuration.current = DURATION_BOMB * durationScale;
-    } else {
-      currentProjectileType.current = ProjectileType.SICKLE;
-      currentProjectileDuration.current = DURATION_SICKLE * durationScale;
-    }
-
+    const picked = pickProjectileType(scenarioRef.current);
+    currentProjectileType.current = ProjectileType[picked];
+    currentProjectileDuration.current = PROJECTILE_DURATION[picked] * durationScale;
   }, []);
 
   const takeDamage = useCallback((amount: number) => {

@@ -45,6 +45,82 @@ export const INTENSITY_LABELS: Record<PracticeIntensity, string> = {
   4: '高壓',
 };
 
+/** Named practice drills that change projectile mix (and default intensity). */
+export type PracticeScenario = 'mixed' | 'kunai' | 'bomb' | 'chaos';
+
+export const SCENARIO_IDS: readonly PracticeScenario[] = [
+  'mixed',
+  'kunai',
+  'bomb',
+  'chaos',
+] as const;
+
+export const SCENARIO_LABELS: Record<PracticeScenario, string> = {
+  mixed: '標準亂舞',
+  kunai: '飛刀特訓',
+  bomb: '炸彈誘餌',
+  chaos: '亂舞高壓',
+};
+
+export const SCENARIO_BLURBS: Record<PracticeScenario, string> = {
+  mixed: '四種暗器均衡出現',
+  kunai: '飛刀為主，練極速放開',
+  bomb: '慢彈偏多，忍耐勿早砍',
+  chaos: '快刀＋鐮刀混打，預設高壓',
+};
+
+/** Cumulative weight tables — must sum to 1. Challenge mode uses `mixed`. */
+export const SCENARIO_WEIGHTS: Record<
+  PracticeScenario,
+  ReadonlyArray<{ type: 'SHURIKEN' | 'KUNAI' | 'BOMB' | 'SICKLE'; weight: number }>
+> = {
+  mixed: [
+    { type: 'SHURIKEN', weight: 0.4 },
+    { type: 'KUNAI', weight: 0.25 },
+    { type: 'BOMB', weight: 0.2 },
+    { type: 'SICKLE', weight: 0.15 },
+  ],
+  kunai: [
+    { type: 'KUNAI', weight: 0.55 },
+    { type: 'SHURIKEN', weight: 0.25 },
+    { type: 'SICKLE', weight: 0.15 },
+    { type: 'BOMB', weight: 0.05 },
+  ],
+  bomb: [
+    { type: 'BOMB', weight: 0.5 },
+    { type: 'SHURIKEN', weight: 0.25 },
+    { type: 'SICKLE', weight: 0.15 },
+    { type: 'KUNAI', weight: 0.1 },
+  ],
+  chaos: [
+    { type: 'KUNAI', weight: 0.35 },
+    { type: 'SICKLE', weight: 0.3 },
+    { type: 'BOMB', weight: 0.2 },
+    { type: 'SHURIKEN', weight: 0.15 },
+  ],
+};
+
+export const SCENARIO_DEFAULT_INTENSITY: Record<PracticeScenario, PracticeIntensity> = {
+  mixed: 2,
+  kunai: 2,
+  bomb: 0,
+  chaos: 4,
+};
+
+export function pickProjectileType(
+  scenario: PracticeScenario,
+  rand: () => number = Math.random,
+): 'SHURIKEN' | 'KUNAI' | 'BOMB' | 'SICKLE' {
+  const table = SCENARIO_WEIGHTS[scenario];
+  const roll = rand();
+  let acc = 0;
+  for (const row of table) {
+    acc += row.weight;
+    if (roll < acc) return row.type;
+  }
+  return table[table.length - 1].type;
+}
+
 /** Difficulty ramps with score and combo — windows tighten, attacks speed up. */
 export function getDifficultyTier(
   score: number,

@@ -5,7 +5,53 @@ export type PairCount = 4 | 6;
 
 export type PlayMode = 'classic' | 'sprint';
 
+/** Named face pools that change which symbols appear on the board. */
+export type ThemeId = 'classic' | 'night' | 'orchard' | 'jewel';
+
 export const SPRINT_LIMIT_SEC = 60;
+
+export const THEME_OPTIONS: {
+  id: ThemeId;
+  label: string;
+  faces: readonly FaceId[];
+}[] = [
+  {
+    id: 'classic',
+    label: '經典全圖',
+    faces: FACE_IDS,
+  },
+  {
+    id: 'night',
+    label: '夜空',
+    faces: ['star', 'moon', 'gem', 'fish'],
+  },
+  {
+    id: 'orchard',
+    label: '果園',
+    faces: ['cherry', 'leaf', 'fish', 'star'],
+  },
+  {
+    id: 'jewel',
+    label: '寶庫',
+    faces: ['gem', 'star', 'moon', 'cherry'],
+  },
+];
+
+export function themeFaces(themeId: ThemeId): readonly FaceId[] {
+  const found = THEME_OPTIONS.find((t) => t.id === themeId);
+  return found?.faces ?? FACE_IDS;
+}
+
+/** Max pairs a theme can deal (floor of its face pool size). */
+export function maxPairsForTheme(themeId: ThemeId): PairCount {
+  const n = themeFaces(themeId).length;
+  return n >= 6 ? 6 : 4;
+}
+
+export function clampPairCount(themeId: ThemeId, pairCount: PairCount): PairCount {
+  const max = maxPairsForTheme(themeId);
+  return pairCount > max ? max : pairCount;
+}
 
 export interface MemoryCard {
   id: string;
@@ -13,8 +59,14 @@ export interface MemoryCard {
   matched: boolean;
 }
 
-export function buildDeck(pairCount: PairCount = 6, rand: () => number = Math.random): MemoryCard[] {
-  const chosen = FACE_IDS.slice(0, pairCount);
+export function buildDeck(
+  pairCount: PairCount = 6,
+  themeId: ThemeId = 'classic',
+  rand: () => number = Math.random,
+): MemoryCard[] {
+  const pool = themeFaces(themeId);
+  const n = clampPairCount(themeId, pairCount);
+  const chosen = pool.slice(0, n);
   const faces = [...chosen, ...chosen];
   for (let i = faces.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -49,54 +101,75 @@ export function hintPairIndices(cards: MemoryCard[]): [number, number] | null {
 
 const BEST_KEY = 'clubhouse-memory-match-best';
 
-export function loadBestMoves(pairCount: PairCount): number | null {
+/** Classic theme keeps legacy keys `4` / `6` / `sprint-4` / `sprint-6`. */
+export function bestStorageSlot(
+  mode: PlayMode,
+  themeId: ThemeId,
+  pairCount: PairCount,
+): string {
+  const n = clampPairCount(themeId, pairCount);
+  if (themeId === 'classic') {
+    return mode === 'classic' ? String(n) : `sprint-${n}`;
+  }
+  return mode === 'classic' ? `${themeId}-${n}` : `sprint-${themeId}-${n}`;
+}
+
+function readBestMap(): Record<string, number> {
   try {
     const raw = localStorage.getItem(BEST_KEY);
-    if (!raw) return null;
+    if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, number>;
-    const v = parsed[String(pairCount)];
-    return typeof v === 'number' && v > 0 ? v : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
-    return null;
+    return {};
   }
 }
 
-export function saveBestMoves(pairCount: PairCount, moves: number): number | null {
-  const prev = loadBestMoves(pairCount);
-  if (prev !== null && moves >= prev) return prev;
+function writeBestMap(parsed: Record<string, number>): void {
   try {
-    const raw = localStorage.getItem(BEST_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, number>) : {};
-    parsed[String(pairCount)] = moves;
     localStorage.setItem(BEST_KEY, JSON.stringify(parsed));
   } catch {
-    /* ignore */
+    /* ignore quota / private mode */
   }
+}
+
+export function loadBestMoves(pairCount: PairCount, themeId: ThemeId = 'classic'): number | null {
+  const v = readBestMap()[bestStorageSlot('classic', themeId, pairCount)];
+  return typeof v === 'number' && v > 0 ? v : null;
+}
+
+export function saveBestMoves(
+  pairCount: PairCount,
+  moves: number,
+  themeId: ThemeId = 'classic',
+): number | null {
+  const slot = bestStorageSlot('classic', themeId, pairCount);
+  const prev = loadBestMoves(pairCount, themeId);
+  if (prev !== null && moves >= prev) return prev;
+  const parsed = readBestMap();
+  parsed[slot] = moves;
+  writeBestMap(parsed);
   return moves;
 }
 
-export function loadBestSprintSec(pairCount: PairCount): number | null {
-  try {
-    const raw = localStorage.getItem(BEST_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Record<string, number>;
-    const v = parsed[`sprint-${pairCount}`];
-    return typeof v === 'number' && v > 0 ? v : null;
-  } catch {
-    return null;
-  }
+export function loadBestSprintSec(
+  pairCount: PairCount,
+  themeId: ThemeId = 'classic',
+): number | null {
+  const v = readBestMap()[bestStorageSlot('sprint', themeId, pairCount)];
+  return typeof v === 'number' && v > 0 ? v : null;
 }
 
-export function saveBestSprintSec(pairCount: PairCount, sec: number): number | null {
-  const prev = loadBestSprintSec(pairCount);
+export function saveBestSprintSec(
+  pairCount: PairCount,
+  sec: number,
+  themeId: ThemeId = 'classic',
+): number | null {
+  const slot = bestStorageSlot('sprint', themeId, pairCount);
+  const prev = loadBestSprintSec(pairCount, themeId);
   if (prev !== null && sec >= prev) return prev;
-  try {
-    const raw = localStorage.getItem(BEST_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, number>) : {};
-    parsed[`sprint-${pairCount}`] = sec;
-    localStorage.setItem(BEST_KEY, JSON.stringify(parsed));
-  } catch {
-    /* ignore */
-  }
+  const parsed = readBestMap();
+  parsed[slot] = sec;
+  writeBestMap(parsed);
   return sec;
 }

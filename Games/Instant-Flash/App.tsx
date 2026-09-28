@@ -7,14 +7,20 @@ import { GameState, GameStats, PlayMode } from './types';
 import { loadBest, saveBest, BestRecord } from './storage';
 import {
   INTENSITY_LABELS,
+  SCENARIO_BLURBS,
+  SCENARIO_DEFAULT_INTENSITY,
+  SCENARIO_IDS,
+  SCENARIO_LABELS,
   type PracticeIntensity,
+  type PracticeScenario,
 } from './constants';
 import { Sword, Info } from 'lucide-react';
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   const [playMode, setPlayMode] = useState<PlayMode>('challenge');
-  const [practiceIntensity, setPracticeIntensity] = useState<PracticeIntensity>(0);
+  const [practiceIntensity, setPracticeIntensity] = useState<PracticeIntensity>(2);
+  const [practiceScenario, setPracticeScenario] = useState<PracticeScenario>('mixed');
   const [lastStats, setLastStats] = useState<GameStats | null>(null);
   const [best, setBest] = useState<BestRecord>(() => loadBest());
   const previousStateRef = useRef<GameState>(GameState.MENU);
@@ -25,7 +31,14 @@ export default function App() {
     setLastStats(null);
   };
 
+  const selectScenario = (id: PracticeScenario) => {
+    setPracticeScenario(id);
+    setPracticeIntensity(SCENARIO_DEFAULT_INTENSITY[id]);
+  };
+
   const baseTier: PracticeIntensity = playMode === 'practice' ? practiceIntensity : 0;
+  const activeScenario: PracticeScenario =
+    playMode === 'practice' ? practiceScenario : 'mixed';
 
   const handleGameOver = (stats: GameStats) => {
     if (playMode === 'challenge') {
@@ -109,7 +122,31 @@ export default function App() {
                     <span className="relative">挑戰模式</span>
                  </button>
                  <div className="rounded-lg border border-emerald-500/30 bg-slate-900/70 p-3 space-y-2">
-                   <p className="text-slate-400 text-xs font-display tracking-wider">練習強度</p>
+                   <p className="text-slate-400 text-xs font-display tracking-wider">練習劇本</p>
+                   <div className="grid grid-cols-2 gap-2" role="group" aria-label="練習劇本">
+                     {SCENARIO_IDS.map((id) => {
+                       const selected = practiceScenario === id;
+                       return (
+                         <button
+                           key={id}
+                           type="button"
+                           onClick={() => selectScenario(id)}
+                           aria-pressed={selected}
+                           className={`min-h-[44px] px-2 py-2 text-left text-sm font-display font-bold tracking-wider border transition-colors ${
+                             selected
+                               ? 'bg-cyan-500/20 border-cyan-400 text-cyan-100'
+                               : 'bg-slate-800/80 border-slate-600 text-slate-400 hover:bg-slate-700/80'
+                           }`}
+                         >
+                           <span className="block">{SCENARIO_LABELS[id]}</span>
+                           <span className="block text-[10px] font-normal text-slate-500 mt-0.5 leading-tight">
+                             {SCENARIO_BLURBS[id]}
+                           </span>
+                         </button>
+                       );
+                     })}
+                   </div>
+                   <p className="text-slate-400 text-xs font-display tracking-wider pt-1">練習強度</p>
                    <div className="flex gap-2 justify-center" role="group" aria-label="練習強度">
                      {([0, 2, 4] as PracticeIntensity[]).map((tier) => {
                        const selected = practiceIntensity === tier;
@@ -137,7 +174,7 @@ export default function App() {
                    >
                       練習模式
                    </button>
-                   <p className="text-slate-500 text-xs">練習：無限生命，可隨時結束；強度鎖定判定窗</p>
+                   <p className="text-slate-500 text-xs">練習：無限生命，可隨時結束；劇本改暗器比重，強度鎖定判定窗</p>
                  </div>
              </div>
 
@@ -162,12 +199,13 @@ export default function App() {
         <GameCanvas
           key={
             gameState === GameState.PLAYING
-              ? `playing-${playMode}-${baseTier}`
+              ? `playing-${playMode}-${baseTier}-${activeScenario}`
               : 'over'
           }
           gameActive={gameState === GameState.PLAYING}
           playMode={playMode}
           baseTier={baseTier}
+          scenario={activeScenario}
           onGameOver={handleGameOver}
         />
       )}
@@ -177,12 +215,12 @@ export default function App() {
           title={resultTitle}
           subtitle={
             isPractice
-              ? `練習不計入個人最佳 · 強度 ${INTENSITY_LABELS[practiceIntensity]}`
+              ? `${SCENARIO_LABELS[practiceScenario]} · 強度 ${INTENSITY_LABELS[practiceIntensity]} · 不計入個人最佳`
               : 'Perfect／Good 判定窗會隨連段收斂'
           }
           badge={
             isPractice
-              ? INTENSITY_LABELS[practiceIntensity]
+              ? SCENARIO_LABELS[practiceScenario]
               : lastStats.score >= 10000
                 ? '宗師'
                 : lastStats.score >= 5000
@@ -196,7 +234,10 @@ export default function App() {
             { label: 'Perfect', value: lastStats.perfects },
             { label: 'Good', value: lastStats.goods },
             ...(isPractice
-              ? [{ label: '練習強度', value: INTENSITY_LABELS[practiceIntensity] }]
+              ? [
+                  { label: '練習劇本', value: SCENARIO_LABELS[practiceScenario] },
+                  { label: '練習強度', value: INTENSITY_LABELS[practiceIntensity] },
+                ]
               : [
                   { label: '個人最佳分數', value: best.highScore.toLocaleString() },
                   { label: '個人最高連段', value: String(best.maxCombo) },
