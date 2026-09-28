@@ -7,8 +7,9 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "lint": "tsc --noEmit",
-    "check": "node --experimental-strip-types src/check-checkers.mjs"
+    "check": "vitest run"
   },
   "dependencies": {
     "@clubhouse/shared": "*",
@@ -24,6 +25,7 @@
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^4.1.9"
   }
 }
