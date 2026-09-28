@@ -208,6 +208,10 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
 
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
   test.setTimeout(45_000);
+  // Skip the soft first-run guide so the lobby「開始牌局」is the only match.
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-big-two-howto-seen', '1');
+  });
   await page.goto('./Games/Big-Two/');
   await page.getByPlaceholder(/例如/).fill('abc');
   await activate(page.getByRole('button', { name: '開始牌局', exact: true }), isMobile);

@@ -3,6 +3,10 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playCard, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
 import { CardView } from './components/CardView';
+import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
 import { LOWEST_CARD_ID, cardLabel } from './game/cards';
 import { TYPE_LABEL, detectPlay } from './game/plays';
 import {
@@ -15,7 +19,7 @@ import {
   playsFor,
   sizeMultiplier,
 } from './game/engine';
-import { DIFFICULTIES, chooseMove } from './game/cpu';
+import { DIFFICULTIES, chooseMove, difficultyInfo } from './game/cpu';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { EMPTY_STATS, loadStats, recordResult, saveStats } from './game/storage';
 import { HAND_SIZE, HUMAN, SEATS } from './game/types';
@@ -39,6 +43,7 @@ export default function App(): React.ReactElement {
   const [hint, setHint] = useState<Play | null>(null);
   const [hintPass, setHintPass] = useState(false);
   const [recorded, setRecorded] = useState(false);
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const resultSoundPlayed = useRef(false);
 
   useEffect(() => {
@@ -187,16 +192,19 @@ export default function App(): React.ReactElement {
 
   if (screen === 'setup') {
     return (
-      <Setup
-        difficulty={difficulty}
-        setDifficulty={setDifficulty}
-        straights={straights}
-        setStraights={setStraights}
-        seedInput={seedInput}
-        setSeedInput={setSeedInput}
-        stats={stats}
-        onStart={() => startGame(difficulty, straights, seedInput || randomSeedCode())}
-      />
+      <>
+        {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
+        <Setup
+          difficulty={difficulty}
+          setDifficulty={setDifficulty}
+          straights={straights}
+          setStraights={setStraights}
+          seedInput={seedInput}
+          setSeedInput={setSeedInput}
+          stats={stats}
+          onStart={() => startGame(difficulty, straights, seedInput || randomSeedCode())}
+        />
+      </>
     );
   }
 
@@ -473,10 +481,13 @@ function Setup({
                 }`}
               >
                 <span className="font-bold">{info.label}</span>
-                <span className="block text-xs text-indigo-100/60">{info.blurb}</span>
+                <span className="block text-xs text-indigo-100/55">{info.blurb}</span>
               </button>
             ))}
           </div>
+          <p className="mt-2 text-center text-sm text-indigo-100/80 tracking-wide">
+            {difficultyInfo(difficulty).blurb}
+          </p>
         </section>
 
         <section>

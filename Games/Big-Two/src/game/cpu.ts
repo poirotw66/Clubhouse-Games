@@ -10,11 +10,18 @@ export interface DifficultyInfo {
   blurb: string;
 }
 
+/** Short player-facing blurbs so Easy / Normal / Hard read as three different opponents. */
 export const DIFFICULTIES: DifficultyInfo[] = [
-  { id: 'easy', label: '簡單', blurb: '亂出，能壓就壓，不管浪費多大的牌。' },
-  { id: 'normal', label: '普通', blurb: '永遠出壓得過的最小一手，留住大牌。' },
-  { id: 'hard', label: '困難', blurb: '會顧手牌的拆法，不為了小便宜拆掉成形的牌組。' },
+  { id: 'easy', label: '簡單', blurb: '常亂出，常該壓不壓' },
+  { id: 'normal', label: '普通', blurb: '永遠出能壓的最小一手' },
+  { id: 'hard', label: '困難', blurb: '顧拆法，不為小便宜拆組' },
 ];
+
+/**
+ * Chance the easy CPU declines a trick it could take.
+ * Kept explicit so checks can assert the three tiers stay policy-apart.
+ */
+export const EASY_PASS_RATE = 0.38;
 
 export function difficultyInfo(id: DifficultyId): DifficultyInfo {
   return DIFFICULTIES.find((d) => d.id === id) ?? DIFFICULTIES[1];
@@ -72,9 +79,9 @@ export function chooseMove(state: GameState): Play | null {
 
   if (difficulty === 'easy') {
     const r = streamRng(seedFromCode(state.seedCode), `cpu:${state.turn}:${state.log.length}`);
-    // A weak player answers roughly at random and sometimes sits on a trick it
-    // could have taken.
-    if (canPass(state) && r() < 0.25) return null;
+    // A weak player answers roughly at random and often sits on a trick it
+    // could have taken — wider than normal's always-answer policy.
+    if (canPass(state) && r() < EASY_PASS_RATE) return null;
     return options[Math.floor(r() * options.length)];
   }
 
