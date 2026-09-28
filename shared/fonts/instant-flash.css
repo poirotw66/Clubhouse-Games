@@ -1,0 +1,37 @@
+/* Instant-Flash — Orbitron + Zen Kaku Gothic New (latin subset) */
+@font-face {
+  font-family: Orbitron;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("./files/orbitron-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: Orbitron;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("./files/orbitron-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: Orbitron;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 900;
+  src: url("./files/orbitron-latin-900-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("./files/zen-kaku-gothic-new-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("./files/zen-kaku-gothic-new-latin-700-normal.woff2") format("woff2");
+}

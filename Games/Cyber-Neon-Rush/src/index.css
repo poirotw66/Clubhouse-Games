@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+@import '../../../shared/fonts/cyber-neon-rush.css';
 @import 'tailwindcss';
 
 /* Scan @clubhouse/shared via shared/tailwind-source.css (path-depth independent @source). */
@@ -11,8 +11,8 @@
   --neon-lime: #a3e635;
   --panel: rgba(8, 15, 35, 0.82);
   --panel-border: rgba(34, 211, 238, 0.45);
-  --font-display: 'Orbitron', 'Noto Sans TC', sans-serif;
-  --font-body: 'Noto Sans TC', 'Orbitron', sans-serif;
+  --font-display: 'Orbitron', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --font-body: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Orbitron', sans-serif;
 }
 
 html,
