@@ -51,6 +51,21 @@
 - 終局時 **己色子數 > 對方子數** → 勝；相等 → 和。
 - 競賽中若計時用盡（超時），常規為該局判負或依賽規處理。
 
+## 數位版模式（Clubhouse）
+
+本館實作路徑：[Games/Reversi/](../Games/Reversi/)。對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作 |
+|------|--------|
+| 模式／變體 | **雙人對戰**／**對戰電腦**；電腦三角難度（簡單／普通／困難） |
+| Replay hook | 對戰電腦時本機紀錄 **連勝**、**最佳連勝**、**最大勝差**（敗北或和局連勝歸零） |
+| Undo／Hint | **悔棋**（非電腦回合且對局中）；**提示**（以困難級零亂手建議落點並高亮） |
+| Feedback | `ResultOverlay` + `@clubhouse/shared/synthAudio` |
+| Touch | 落子與工具列可觸控 |
+| Check | `npm run check` → `src/check-reversi.mjs` |
+
+`localStorage` 鍵：`clubhouse-reversi-win-streak`、`clubhouse-reversi-best-streak`、`clubhouse-reversi-best-margin`。
+
 ## 常見變體或可選規則
 
 - **Anti-Reversi**：子少的一方贏。
