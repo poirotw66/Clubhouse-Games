@@ -4,16 +4,20 @@ import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playError, playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import {
   SPRINT_LIMIT_SEC,
+  THEME_OPTIONS,
   allMatched,
   buildDeck,
+  clampPairCount,
   hintPairIndices,
   loadBestMoves,
   loadBestSprintSec,
+  maxPairsForTheme,
   saveBestMoves,
   saveBestSprintSec,
   type MemoryCard,
   type PairCount,
   type PlayMode,
+  type ThemeId,
 } from './memoryLogic';
 
 const PAIR_OPTIONS: { count: PairCount; label: string }[] = [
@@ -24,35 +28,45 @@ const PAIR_OPTIONS: { count: PairCount; label: string }[] = [
 const HINT_PEEK_MS = 900;
 
 export default function App() {
+  const [themeId, setThemeId] = useState<ThemeId>('classic');
   const [pairCount, setPairCount] = useState<PairCount>(6);
   const [mode, setMode] = useState<PlayMode>('classic');
-  const [cards, setCards] = useState<MemoryCard[]>(() => buildDeck(6));
+  const [cards, setCards] = useState<MemoryCard[]>(() => buildDeck(6, 'classic'));
   const [flipped, setFlipped] = useState<number[]>([]);
   const [locks, setLocks] = useState(false);
   const [moves, setMoves] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [won, setWon] = useState(false);
   const [lost, setLost] = useState(false);
-  const [best, setBest] = useState<number | null>(() => loadBestMoves(6));
-  const [bestSprint, setBestSprint] = useState<number | null>(() => loadBestSprintSec(6));
+  const [best, setBest] = useState<number | null>(() => loadBestMoves(6, 'classic'));
+  const [bestSprint, setBestSprint] = useState<number | null>(() => loadBestSprintSec(6, 'classic'));
   const [newRecord, setNewRecord] = useState(false);
   const [hintFlash, setHintFlash] = useState<number[]>([]);
 
-  const restart = useCallback((count: PairCount = pairCount, nextMode: PlayMode = mode) => {
-    setPairCount(count);
-    setMode(nextMode);
-    setCards(buildDeck(count));
-    setFlipped([]);
-    setLocks(false);
-    setMoves(0);
-    setElapsed(0);
-    setWon(false);
-    setLost(false);
-    setNewRecord(false);
-    setHintFlash([]);
-    setBest(loadBestMoves(count));
-    setBestSprint(loadBestSprintSec(count));
-  }, [pairCount, mode]);
+  const restart = useCallback(
+    (
+      count: PairCount = pairCount,
+      nextMode: PlayMode = mode,
+      nextTheme: ThemeId = themeId,
+    ) => {
+      const clamped = clampPairCount(nextTheme, count);
+      setThemeId(nextTheme);
+      setPairCount(clamped);
+      setMode(nextMode);
+      setCards(buildDeck(clamped, nextTheme));
+      setFlipped([]);
+      setLocks(false);
+      setMoves(0);
+      setElapsed(0);
+      setWon(false);
+      setLost(false);
+      setNewRecord(false);
+      setHintFlash([]);
+      setBest(loadBestMoves(clamped, nextTheme));
+      setBestSprint(loadBestSprintSec(clamped, nextTheme));
+    },
+    [pairCount, mode, themeId],
+  );
 
   useEffect(() => {
     if (won || lost) return;
@@ -73,16 +87,16 @@ export default function App() {
       setWon(true);
       playWin();
       if (mode === 'classic') {
-        const saved = saveBestMoves(pairCount, moves);
+        const saved = saveBestMoves(pairCount, moves, themeId);
         setBest(saved);
         setNewRecord(saved === moves);
       } else {
-        const saved = saveBestSprintSec(pairCount, elapsed);
+        const saved = saveBestSprintSec(pairCount, elapsed, themeId);
         setBestSprint(saved);
         setNewRecord(saved === elapsed);
       }
     }
-  }, [cards, won, lost, moves, elapsed, pairCount, mode]);
+  }, [cards, won, lost, moves, elapsed, pairCount, mode, themeId]);
 
   useEffect(() => {
     if (flipped.length !== 2) return;
@@ -128,9 +142,12 @@ export default function App() {
     playMove();
   };
 
+  const themeMax = maxPairsForTheme(themeId);
+  const pairChoices = PAIR_OPTIONS.filter(({ count }) => count <= themeMax);
   const gridCols = pairCount === 4 ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-4';
   const remain = Math.max(0, SPRINT_LIMIT_SEC - elapsed);
   const canHint = !locks && !won && !lost && flipped.length === 0 && hintFlash.length === 0;
+  const themeLabel = THEME_OPTIONS.find((t) => t.id === themeId)?.label ?? themeId;
 
   return (
     <div
@@ -157,7 +174,7 @@ export default function App() {
           <button
             key={id}
             type="button"
-            onClick={() => restart(pairCount, id)}
+            onClick={() => restart(pairCount, id, themeId)}
             className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
               mode === id
                 ? 'border-emerald-400 bg-emerald-500/25 text-emerald-100'
@@ -168,12 +185,28 @@ export default function App() {
           </button>
         ))}
       </div>
+      <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="牌組">
+        {THEME_OPTIONS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => restart(pairCount, mode, id)}
+            className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+              themeId === id
+                ? 'border-violet-400 bg-violet-500/25 text-violet-100'
+                : 'border-slate-600 bg-slate-800/80 text-slate-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="難度">
-        {PAIR_OPTIONS.map(({ count, label }) => (
+        {pairChoices.map(({ count, label }) => (
           <button
             key={count}
             type="button"
-            onClick={() => restart(count, mode)}
+            onClick={() => restart(count, mode, themeId)}
             className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
               pairCount === count
                 ? 'border-sky-400 bg-sky-500/25 text-sky-100'
@@ -185,7 +218,7 @@ export default function App() {
         ))}
       </div>
       <p className="text-sm text-slate-300">
-        翻牌次數：{moves}
+        {themeLabel} · 翻牌次數：{moves}
         {mode === 'sprint' ? ` · 剩餘 ${remain}s` : ''}
         {mode === 'classic' && best != null ? ` · 最佳：${best}` : ''}
         {mode === 'sprint' && bestSprint != null ? ` · 最佳 ${bestSprint}s` : ''}
@@ -245,6 +278,7 @@ export default function App() {
           variant="win"
           badge={newRecord ? '新紀錄' : undefined}
           stats={[
+            { label: '牌組', value: themeLabel },
             { label: '翻牌次數', value: moves },
             { label: '配對數', value: pairCount },
             {
@@ -259,7 +293,7 @@ export default function App() {
         <ResultOverlay
           title="時間到"
           variant="lose"
-          subtitle={`衝刺限時 ${SPRINT_LIMIT_SEC} 秒`}
+          subtitle={`衝刺限時 ${SPRINT_LIMIT_SEC} 秒 · ${themeLabel}`}
           stats={[
             { label: '翻牌次數', value: moves },
             { label: '已配對', value: cards.filter((c) => c.matched).length / 2 },

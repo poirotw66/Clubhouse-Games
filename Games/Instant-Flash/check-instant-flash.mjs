@@ -1,5 +1,6 @@
 /**
- * Runnable check for Instant Flash difficulty tier / timing window logic.
+ * Runnable check for Instant Flash difficulty tier / timing window logic
+ * and practice scenario projectile weights.
  * Mirrors Games/Instant-Flash/constants.ts — fail loudly if those formulas drift.
  */
 import assert from 'node:assert/strict';
@@ -33,6 +34,53 @@ function getAttackDelayRange(score, baseTier = 0) {
 function getProjectileDurationScale(score, baseTier = 0) {
   const tier = Math.min(4, baseTier + Math.floor(score / 8000));
   return Math.max(0.72, 1 - tier * 0.07);
+}
+
+const SCENARIO_WEIGHTS = {
+  mixed: [
+    { type: 'SHURIKEN', weight: 0.4 },
+    { type: 'KUNAI', weight: 0.25 },
+    { type: 'BOMB', weight: 0.2 },
+    { type: 'SICKLE', weight: 0.15 },
+  ],
+  kunai: [
+    { type: 'KUNAI', weight: 0.55 },
+    { type: 'SHURIKEN', weight: 0.25 },
+    { type: 'SICKLE', weight: 0.15 },
+    { type: 'BOMB', weight: 0.05 },
+  ],
+  bomb: [
+    { type: 'BOMB', weight: 0.5 },
+    { type: 'SHURIKEN', weight: 0.25 },
+    { type: 'SICKLE', weight: 0.15 },
+    { type: 'KUNAI', weight: 0.1 },
+  ],
+  chaos: [
+    { type: 'KUNAI', weight: 0.35 },
+    { type: 'SICKLE', weight: 0.3 },
+    { type: 'BOMB', weight: 0.2 },
+    { type: 'SHURIKEN', weight: 0.15 },
+  ],
+};
+
+const SCENARIO_DEFAULT_INTENSITY = {
+  mixed: 2,
+  kunai: 2,
+  bomb: 0,
+  chaos: 4,
+};
+
+const ALLOWED_TYPES = new Set(['SHURIKEN', 'KUNAI', 'BOMB', 'SICKLE']);
+
+function pickProjectileType(scenario, rand = Math.random) {
+  const table = SCENARIO_WEIGHTS[scenario];
+  const roll = rand();
+  let acc = 0;
+  for (const row of table) {
+    acc += row.weight;
+    if (roll < acc) return row.type;
+  }
+  return table[table.length - 1].type;
 }
 
 // Baseline (no ramp)
@@ -87,5 +135,42 @@ for (let score = 0; score <= 40000; score += 4000) {
     }
   }
 }
+
+// Practice scenarios — weight tables must be complete and sum to 1
+for (const [id, table] of Object.entries(SCENARIO_WEIGHTS)) {
+  assert.ok(table.length >= 2, `${id} needs ≥2 projectile rows`);
+  let sum = 0;
+  for (const row of table) {
+    assert.ok(ALLOWED_TYPES.has(row.type), `${id} unknown type ${row.type}`);
+    assert.ok(row.weight > 0, `${id} weight must be > 0`);
+    sum += row.weight;
+  }
+  assert.ok(Math.abs(sum - 1) < 1e-9, `${id} weights must sum to 1 (got ${sum})`);
+  assert.ok(
+    [0, 2, 4].includes(SCENARIO_DEFAULT_INTENSITY[id]),
+    `${id} default intensity must be 0|2|4`,
+  );
+}
+
+// Deterministic pick at bucket edges
+assert.equal(pickProjectileType('mixed', () => 0), 'SHURIKEN');
+assert.equal(pickProjectileType('mixed', () => 0.39), 'SHURIKEN');
+assert.equal(pickProjectileType('mixed', () => 0.4), 'KUNAI');
+assert.equal(pickProjectileType('kunai', () => 0), 'KUNAI');
+assert.equal(pickProjectileType('bomb', () => 0), 'BOMB');
+assert.equal(pickProjectileType('chaos', () => 0.34), 'KUNAI');
+assert.equal(pickProjectileType('chaos', () => 0.35), 'SICKLE');
+
+// Dominant type must differ across themed drills (play changes, not chrome)
+assert.equal(SCENARIO_WEIGHTS.kunai[0].type, 'KUNAI');
+assert.equal(SCENARIO_WEIGHTS.bomb[0].type, 'BOMB');
+assert.ok(
+  SCENARIO_WEIGHTS.kunai[0].weight >
+    SCENARIO_WEIGHTS.mixed.find((r) => r.type === 'KUNAI').weight,
+);
+assert.ok(
+  SCENARIO_WEIGHTS.bomb[0].weight >
+    SCENARIO_WEIGHTS.mixed.find((r) => r.type === 'BOMB').weight,
+);
 
 console.log('check-instant-flash: ok');
