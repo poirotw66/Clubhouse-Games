@@ -65,7 +65,7 @@
 | C | ≥ 45% | 還差一口氣 |
 | D | ＜ 45% | 再練一場 |
 
-- 結算 UI 在 iframe 內（非共用 `ResultOverlay`）；父層仍播 suite 音效。
+- 結算 UI 在 iframe 內（**永久 ～**：非共用 `ResultOverlay`／`resultOverlayDom`）；父層仍播 suite 音效。
 - **本機紀錄**：`localStorage` 鍵 `clubhouse:block-the-smash-best-v2`，鍵名 `{difficulty}:{balls}` → 最佳準確率。
 
 ## 品質門檻對齊
@@ -77,7 +77,7 @@
 | 模式／變體 | 三難度 × 三球數；場內三波階段 |
 | Replay hook | 每組合最佳準確率 |
 | Undo／Hint | 不適用（反應訓練）；以難度與階段作變體 |
-| Feedback | 結算評等 UI + 父層 `synthAudio` |
+| Feedback | 結算評等 UI（永久 ～）+ 父層 `synthAudio` |
 | Touch | 拖曳與揮拍可觸控 |
 | Check | `npm run check` → `src/check-smash.mjs`（評等門檻） |
 

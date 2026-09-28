@@ -270,13 +270,6 @@ body {
   color: rgba(232, 244, 246, 0.8);
 }
 
-.finish-splits {
-  text-align: left;
-  margin: 0.75rem 0 1rem;
-  border-top: none;
-  padding-top: 0;
-}
-
 .nav-stack {
   position: fixed;
   top: 4.5rem;
@@ -1181,60 +1174,6 @@ body {
   background: rgba(255, 255, 255, 0.06);
   font-size: 0.85em;
   text-align: center;
-}
-
-.panel.finish {
-  text-align: center;
-}
-
-.panel.finish strong {
-  color: var(--teal);
-  font-size: 1.35rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.finish-record {
-  margin: -0.35rem 0 0.75rem;
-  color: #ffe066;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  font-size: 0.85rem;
-}
-
-.finish-record[hidden] {
-  display: none !important;
-}
-
-.finish-stats {
-  display: grid;
-  gap: 0.55rem;
-  margin: 0.25rem 0 0.35rem;
-}
-
-.finish-stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
-  padding: 0.35rem 0.55rem;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
-}
-
-.finish-stat .label {
-  color: rgba(232, 244, 246, 0.65);
-  font-size: 0.82rem;
-}
-
-.finish-stat[hidden] {
-  display: none !important;
-}
-
-.finish-cta-hint {
-  margin: 0.75rem 0 0;
-  color: rgba(232, 244, 246, 0.55);
-  font-size: 0.78rem;
 }
 
 .panel.tutorial {

@@ -13,6 +13,7 @@ import { createInput } from './input.js';
 import { createCourse, createMarks, gatePosts } from './marks.js';
 import { clamp } from './math.js';
 import { sfxFinish, sfxGateClear } from './sfx.js';
+import { createResultOverlay } from '@clubhouse/shared/resultOverlayDom';
 
 const WAVE_AMP = 1.0;
 const WAVE_AMP_EASY = 0.45;
@@ -206,16 +207,10 @@ function startGame(gl, canvas) {
     coachText: $('#coach-text'),
     toast: $('#toast'),
     countdown: $('#countdown'),
-    finish: $('#finish-panel'),
-    finishHeading: $('#finish-heading'),
-    finishRecord: $('#finish-record'),
-    finishTime: $('#finish-time'),
-    finishBest: $('#finish-best'),
-    finishPerfect: $('#finish-perfect'),
-    finishPerfectRow: $('#finish-perfect-row'),
-    finishSplits: $('#finish-splits'),
     tutorial: $('#tutorial-tip'),
   };
+
+  const resultOverlay = createResultOverlay(document.body);
 
   function syncEasyUi() {
     const easy = input.easy;
@@ -457,7 +452,7 @@ function startGame(gl, canvas) {
     splits = [];
     wake.length = 0;
     camera.snap(boat);
-    hud.finish.hidden = true;
+    resultOverlay.hide();
     hud.countdown.hidden = false;
     hud.countdown.textContent = '3';
     renderSplits();
@@ -465,7 +460,6 @@ function startGame(gl, canvas) {
   }
 
   $('#btn-restart')?.addEventListener('click', resetRace);
-  $('#btn-finish-restart')?.addEventListener('click', resetRace);
   $('#btn-help')?.addEventListener('click', () => {
     $('#help-panel').hidden = !$('#help-panel').hidden;
   });
@@ -882,20 +876,29 @@ function startGame(gl, canvas) {
             bestTime = sailingBests[mode];
           }
           sfxFinish(isRecord);
-          hud.finish.hidden = false;
-          if (hud.finishHeading) {
-            hud.finishHeading.textContent = isRecord ? '完賽・新紀錄！' : '完賽！';
+          const finishStats = [
+            { label: '本次時間', value: formatTime(raceTime) },
+            { label: '歷史最佳', value: formatTime(bestTime) },
+          ];
+          if (perfectGates > 0) {
+            finishStats.push({ label: '完美穿門', value: `${perfectGates} 次` });
           }
-          if (hud.finishRecord) hud.finishRecord.hidden = !isRecord;
-          hud.finishTime.textContent = formatTime(raceTime);
-          hud.finishBest.textContent = formatTime(bestTime);
-          if (hud.finishPerfectRow && hud.finishPerfect) {
-            hud.finishPerfectRow.hidden = perfectGates <= 0;
-            hud.finishPerfect.textContent = `${perfectGates} 次`;
+          for (const split of splits) {
+            finishStats.push({ label: split.name, value: formatTime(split.time) });
           }
-          hud.finishSplits.innerHTML = splits
-            .map((s) => `<li><span>${s.name}</span><span>${formatTime(s.time)}</span></li>`)
-            .join('');
+          resultOverlay.show({
+            title: isRecord ? '完賽・新紀錄！' : '完賽！',
+            badge: isRecord ? '新紀錄' : undefined,
+            subtitle: '點「再航一趟」重開，或按 R',
+            stats: finishStats,
+            primaryLabel: '再航一趟',
+            onPrimary: resetRace,
+            secondaryLabel: '回選單',
+            onSecondary: () => {
+              window.location.href = '../../';
+            },
+            variant: isRecord ? 'win' : 'neutral',
+          });
           showToast(
             isRecord
               ? `新紀錄 ${formatTime(raceTime)}！再航挑戰？`
