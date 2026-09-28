@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Volume2, VolumeX, HelpCircle, Lightbulb } from 'lucide-react';
+import { Volume2, VolumeX, HelpCircle, Lightbulb, Undo2 } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playCapture, playGoal, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
@@ -9,6 +9,10 @@ import { MatchScoreboard } from './components/MatchScoreboard';
 import { CapturedPanel } from './components/CapturedPanel';
 import { PlayerAvatar } from './components/PlayerAvatar';
 import { RulesModal } from './components/RulesModal';
+import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
 import { getCharacterImageUrl } from './characters';
 import { useBgm } from './hooks/useBgm';
 import { useCharacterSelection } from './hooks/useCharacterSelection';
@@ -17,6 +21,7 @@ import { deal, calculateYaku, getMatchingCards, resolveRoundScores, WIN_SCORE_OP
 import {
   Difficulty,
   DIFFICULTY_LABELS,
+  DIFFICULTY_BLURBS,
   getPlayerHint,
   pickBotFieldMatch,
   pickBotHandPlay,
@@ -69,13 +74,16 @@ const initialState: GameState = {
 
 export default function App() {
   const [state, setState] = useState<GameState>(initialState);
+  const [history, setHistory] = useState<GameState[]>([]);
   const [showRules, setShowRules] = useState(false);
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const [stats, setStats] = useState<MatchStats>(() => loadStats());
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
   const [winScore, setWinScore] = useState<WinScore>(() => loadStats().lastWinScore);
   const [hint, setHint] = useState<HintChoice | null>(null);
   const lockRef = useRef(false);
   const statsRecordedRef = useRef(false);
+  const actionGenRef = useRef(0);
   const difficultyRef = useRef(difficulty);
   difficultyRef.current = difficulty;
   const winScoreRef = useRef(winScore);
@@ -83,6 +91,27 @@ export default function App() {
   const { character, characterId, setCharacterId } = useCharacterSelection();
   const { muted, toggleMute, unlock, currentTitle } = useBgm();
   const playerAvatarUrl = getCharacterImageUrl(character);
+
+  /** Cancel in-flight turn animations when undoing or starting a new deal. */
+  const bumpActionGen = useCallback(() => {
+    actionGenRef.current += 1;
+  }, []);
+
+  const schedule = useCallback((fn: () => void, ms: number) => {
+    const gen = actionGenRef.current;
+    return window.setTimeout(() => {
+      if (actionGenRef.current !== gen) return;
+      fn();
+    }, ms);
+  }, []);
+
+  const pushHistory = useCallback((snapshot: GameState) => {
+    setHistory(prev => [...prev, structuredClone(snapshot)]);
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+  }, []);
 
   // The setup screen and the table replace each other in the same document, so
   // the window keeps whatever scroll position the other one left behind — and
@@ -137,7 +166,9 @@ export default function App() {
   const startGame = (isNextRound = false, resetMatch = false) => {
     if (lockRef.current) return;
     lockRef.current = true;
+    bumpActionGen();
     setHint(null);
+    clearHistory();
     if (resetMatch || !isNextRound) statsRecordedRef.current = false;
     const { deck, playerHand, botHand, field } = deal();
     setState(s => {
@@ -234,7 +265,7 @@ export default function App() {
             koiKoiCount: { ...newState.koiKoiCount, bot: newState.koiKoiCount.bot + 1 },
             message: `對手組成了役 (${totalPoints} 分) 並喊了 Koi-Koi！`,
           });
-          setTimeout(() => endTurn('player'), 2000);
+          schedule(() => endTurn('player'), 2000);
         } else {
           let finalPoints = totalPoints;
           if (newState.koiKoiCount.player > 0) finalPoints *= 2;
@@ -288,7 +319,7 @@ export default function App() {
       nextState.field = [...nextState.field, drawnCard];
       nextState.message = `${player === 'player' ? '你' : '對手'}翻開了 ${drawnCard.name}，沒有配對。`;
       setState(nextState);
-      setTimeout(() => handleYakuCheck(player, nextState), 1500);
+      schedule(() => handleYakuCheck(player, nextState), 1500);
     } else if (matches.length === 1) {
       playSfx('match');
       nextState.field = nextState.field.filter(c => c.id !== matches[0].id);
@@ -300,7 +331,7 @@ export default function App() {
       }
       nextState.message = `${player === 'player' ? '你' : '對手'}翻開了 ${drawnCard.name} 並配對成功！`;
       setState(nextState);
-      setTimeout(() => handleYakuCheck(player, nextState), 1500);
+      schedule(() => handleYakuCheck(player, nextState), 1500);
     } else if (matches.length === 2) {
       if (player === 'player') {
         nextState.phase = 'player_turn_draw_match';
@@ -318,7 +349,7 @@ export default function App() {
         nextState.botCaptured = [...nextState.botCaptured, drawnCard, bestMatch];
         nextState.message = `對手翻開了 ${drawnCard.name} 並配對成功！`;
         setState(nextState);
-        setTimeout(() => handleYakuCheck('bot', nextState), 1500);
+        schedule(() => handleYakuCheck('bot', nextState), 1500);
       }
     } else if (matches.length === 3) {
       playSfx('match');
@@ -331,13 +362,14 @@ export default function App() {
       }
       nextState.message = `${player === 'player' ? '你' : '對手'}翻開了 ${drawnCard.name} 並收走了場上三張！`;
       setState(nextState);
-      setTimeout(() => handleYakuCheck(player, nextState), 1500);
+      schedule(() => handleYakuCheck(player, nextState), 1500);
     }
   };
 
   const handleHandCardClick = (card: Card) => {
     if (state.phase !== 'player_turn_hand' || lockRef.current) return;
     lockRef.current = true;
+    pushHistory(state);
     setHint(null);
 
     const matches = getMatchingCards(card, state.field);
@@ -351,7 +383,7 @@ export default function App() {
         phase: 'player_turn_draw',
         message: '沒有配對，牌放到場上。準備翻牌...',
       }));
-      setTimeout(() => executeDrawPhase({ ...state, playerHand: newHand, field: [...state.field, card] }, 'player'), 1000);
+      schedule(() => executeDrawPhase({ ...state, playerHand: newHand, field: [...state.field, card] }, 'player'), 1000);
     } else if (matches.length === 1) {
       playSfx('match');
       setState(s => ({
@@ -362,7 +394,7 @@ export default function App() {
         phase: 'player_turn_draw',
         message: '配對成功！準備翻牌...',
       }));
-      setTimeout(() => executeDrawPhase({
+      schedule(() => executeDrawPhase({
         ...state,
         playerHand: newHand,
         field: state.field.filter(c => c.id !== matches[0].id),
@@ -387,7 +419,7 @@ export default function App() {
         phase: 'player_turn_draw',
         message: '配對成功，收走場上三張！準備翻牌...',
       }));
-      setTimeout(() => executeDrawPhase({
+      schedule(() => executeDrawPhase({
         ...state,
         playerHand: newHand,
         field: state.field.filter(c => c.month !== card.month),
@@ -415,7 +447,7 @@ export default function App() {
         message: '配對成功！準備翻牌...',
       };
       setState(nextState);
-      setTimeout(() => executeDrawPhase(nextState, 'player'), 1000);
+      schedule(() => executeDrawPhase(nextState, 'player'), 1000);
     } else if (state.phase === 'player_turn_draw_match' && state.drawnCard) {
       if (!state.matchingFieldCards.find(c => c.id === card.id)) return;
       lockRef.current = true;
@@ -431,7 +463,7 @@ export default function App() {
         message: '配對成功！檢查役...',
       };
       setState(nextState);
-      setTimeout(() => handleYakuCheck('player', nextState), 1000);
+      schedule(() => handleYakuCheck('player', nextState), 1000);
     }
   };
 
@@ -444,7 +476,7 @@ export default function App() {
       koiKoiCount: { ...s.koiKoiCount, player: s.koiKoiCount.player + 1 },
       message: '你喊了 Koi-Koi！遊戲繼續。',
     }));
-    setTimeout(() => endTurn('bot'), 1500);
+    schedule(() => endTurn('bot'), 1500);
   };
 
   const handleAgari = () => {
@@ -508,7 +540,11 @@ export default function App() {
   useEffect(() => {
     if (state.phase === 'bot_turn') {
       const playBotTurn = async () => {
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        const gen = actionGenRef.current;
+        const stillCurrent = await new Promise<boolean>(resolve => {
+          window.setTimeout(() => resolve(actionGenRef.current === gen), 1500);
+        });
+        if (!stillCurrent) return;
 
         const choice = pickBotHandPlay(
           state.botHand,
@@ -544,7 +580,7 @@ export default function App() {
 
         setState(nextState);
 
-        setTimeout(() => executeDrawPhase(nextState, 'bot'), 1500);
+        schedule(() => executeDrawPhase(nextState, 'bot'), 1500);
       };
 
       playBotTurn();
@@ -555,6 +591,23 @@ export default function App() {
     state.phase === 'player_turn_hand' ||
     state.phase === 'player_turn_hand_match' ||
     state.phase === 'player_turn_draw_match';
+
+  const canUndo =
+    history.length > 0 &&
+    state.phase !== 'idle' &&
+    state.phase !== 'bot_turn' &&
+    state.phase !== 'round_end' &&
+    state.phase !== 'game_over';
+
+  const handleUndo = () => {
+    if (!canUndo || history.length === 0) return;
+    bumpActionGen();
+    lockRef.current = false;
+    const prev = history[history.length - 1];
+    setHistory(h => h.slice(0, -1));
+    setHint(null);
+    setState(prev);
+  };
 
   const isPlayerActive = [
     'player_turn_hand',
@@ -577,6 +630,9 @@ export default function App() {
       }}
     >
       <BackToMenu />
+      {showFirstRun && (
+        <FirstRunGuide onClose={() => setShowFirstRun(false)} />
+      )}
       {/* Header */}
       <header className="w-full max-w-6xl mb-4">
         <div className="wafu-panel rounded-2xl px-4 sm:px-6 py-4 relative overflow-hidden">
@@ -699,6 +755,9 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <p className="text-center text-xs text-gold/70 mb-2 min-h-[1.25rem]">
+              {DIFFICULTY_BLURBS[difficulty]}
+            </p>
             <p className="text-xs text-cream/60 mb-3 mt-4 text-center tracking-wide">對局長度</p>
             <div className="flex justify-center gap-2 mb-2">
               {WIN_SCORE_OPTIONS.map(target => (
@@ -819,18 +878,31 @@ export default function App() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <p className="text-xs text-gold/70">你的手牌</p>
-                  {canHint && (
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={handleHint}
-                      className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors"
-                      aria-label="提示"
-                      title="提示"
+                      onClick={handleUndo}
+                      disabled={!canUndo}
+                      className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-35 disabled:hover:text-cream/60 disabled:hover:bg-transparent touch-manipulation min-h-[36px]"
+                      aria-label="悔棋"
+                      title="悔棋（回到出手前）"
                     >
-                      <Lightbulb size={14} />
-                      提示
+                      <Undo2 size={14} />
+                      悔棋
                     </button>
-                  )}
+                    {canHint && (
+                      <button
+                        type="button"
+                        onClick={handleHint}
+                        className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors touch-manipulation min-h-[36px]"
+                        aria-label="提示"
+                        title="提示"
+                      >
+                        <Lightbulb size={14} />
+                        提示
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-1 sm:gap-2 flex-wrap">
                   {state.playerHand.map(c => (
@@ -903,6 +975,16 @@ export default function App() {
                 Koi-Koi（繼續）
               </button>
             </div>
+            {canUndo && (
+              <button
+                type="button"
+                onClick={handleUndo}
+                className="mt-4 inline-flex items-center justify-center gap-1 text-sm text-cream/50 hover:text-gold transition-colors touch-manipulation min-h-[44px]"
+              >
+                <Undo2 size={14} />
+                悔棋（回到出手前）
+              </button>
+            )}
           </motion.div>
         </div>
       )}

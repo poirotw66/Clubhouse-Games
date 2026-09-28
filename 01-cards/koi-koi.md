@@ -8,7 +8,7 @@
 
 使用日本傳統花札（48 張、12 月份）的 **Koi-Koi** 玩法：兩人輪流出手牌與翻山牌，依月份配對取牌，組成「役」得分。成役後可選擇結算或喊「Koi-Koi」繼續博取更高分；若被對手先成役結算，分數可能歸對手並加倍。
 
-本館實作為 **單人對電腦**（花札師匠），含三角難度、勝分目標、角色選擇、提示、戰績連勝、背景音樂、`ResultOverlay` 與規則說明。
+本館實作為 **單人對電腦**（花札師匠），含三角難度、勝分目標、角色選擇、提示、悔棋、首局引導、戰績連勝、背景音樂、`ResultOverlay` 與規則說明。
 
 來源專案：[poirotw66/Koi-Koi](https://github.com/poirotw66/Koi-Koi)
 
@@ -21,7 +21,8 @@
 
 - 花札牌面、場牌區、手牌與取牌區；觸控或滑鼠點選出牌／配對。
 - **提示（Hint）**：高亮建議的手牌與可配場牌（金環樣式，與一般可配高亮區分）。
-- **無 Undo**（對局狀態含對手隱藏資訊與 Koi-Koi 決策，不提供逐步悔棋）。
+- **悔棋（Undo）**：在對手回合、整場合計／結束以外，可回到「你出手前」快照（含對手剛回的那手）；動畫中悔棋會取消未完成的排程。成役後的 Koi-Koi／勝負選擇亦可悔回出手前。
+- **首局引導**：首次開啟顯示三步上手疊層（`clubhouse-koi-koi-howto-seen`）；之後可從規則按鈕複習細節。
 - **BGM**：可靜音；靜音偏好寫入本機。
 
 ## 遊戲目標
@@ -32,11 +33,11 @@
 
 ### AI 難度（`Difficulty`）
 
-| id | 標籤 | 行為概要 |
-|----|------|----------|
-| easy | 簡單 | 較高隨機率、較易喊 Koi-Koi |
-| normal | 普通 | 平衡役分權重與亂手 |
-| hard | 困難 | 低亂手、重視役分與終局判斷 |
+| id | 標籤 | 體感（UI 短述） | 行為概要 |
+|----|------|-----------------|----------|
+| easy | 簡單 | 常亂出手，愛喊 Koi-Koi | 高亂手率、低取牌偏好、較晚結算 |
+| normal | 普通 | 會湊役，適度結算 | 平衡役分權重與亂手 |
+| hard | 困難 | 少失誤，懂得及時收分 | 零亂手、重視役分與終局／達標收分 |
 
 ### 勝分目標（`WinScore`）
 
@@ -69,12 +70,12 @@
 |------|--------|
 | 模式／變體 | 三難度 AI × 三檔勝分；角色選擇 |
 | Replay hook | 勝敗與連勝（`winStreak`） |
-| 對手 AI | 三級；另有 **Hint**（無 Undo） |
-| Feedback | `ResultOverlay` + `synthAudio` + BGM |
-| Touch | 出牌／配對可觸控 |
+| 對手 AI | 三級可分辨；**Hint** + **Undo** |
+| Feedback | `ResultOverlay` + `synthAudio` + BGM；首局引導 |
+| Touch | 出牌／配對／悔棋可觸控 |
 | Check | `npm run check` → `vitest run`（`gameLogic`／`botAi` 等） |
 
 ## 實作
 
 - 專案路徑：[Games/Koi-Koi/](../Games/Koi-Koi/)
-- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/stats.ts`；UI：`src/App.tsx`
+- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/stats.ts`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`
