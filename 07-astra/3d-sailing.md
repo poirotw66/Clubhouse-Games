@@ -16,4 +16,5 @@
 - 類型：`game`
 - 建置：純靜態 HTML（無 Vite workspace）；Pages 部署時整包複製 `gpt6-astra/`。
 - **Three**：本機 `gpt6-astra/vendor/three/`；納入 `check:no-cdn` 對 `gpt6-astra` 的掃描。
+- **Fonts**：本機 `gpt6-astra/vendor/fonts/dm-space.css`（DM Sans + Space Grotesk latin）；無 Google Fonts CDN。
 
