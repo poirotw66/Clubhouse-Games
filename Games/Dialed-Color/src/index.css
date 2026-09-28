@@ -1,3 +1,4 @@
+@import "../../../shared/fonts/dialed-color.css";
 @import "tailwindcss";
 
 /* Scan @clubhouse/shared via shared/tailwind-source.css (path-depth independent @source). */

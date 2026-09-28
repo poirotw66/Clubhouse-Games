@@ -64,8 +64,10 @@ REPO_NAME=My-Games npm run preview:pages
 瀏覽器測試涵蓋全部目錄遊戲的進入與返回、選單搜尋／分類／網址恢復、
 響應式圖片載入，以及記憶配對和四子棋的實際操作／重開。手機情境使用觸控。
 測試收集 JavaScript 例外與站內資產錯誤；可選用的 Google Fonts 在測試中回傳空樣式，
-避免外部字型服務影響結果。Astra（`gpt6-astra/`）與總覽選單（`assets/fonts/`）已改本機字型，
-不再依賴 Google Fonts；部分 `Games/` 仍可能拉 CDN 字型（允許降級，見 `check:no-cdn`）。
+避免外部字型服務影響結果。Astra（`gpt6-astra/`，`vendor/fonts/`）與總覽選單（`assets/fonts/`）
+已改本機字型，不再依賴 Google Fonts。主線批次一（FreeCell、Koi-Koi、Dialed-Color、
+Cyber-Neon-Rush、Instant-Flash）改用本機 `shared/fonts/`（Fontsource latin；CJK 走系統字型）。
+其餘部分 `Games/` 仍可能拉 CDN 字型（允許降級，見 `check:no-cdn`）。
 這些基本測試不等於逐款完整玩法或實機效能驗證。
 
 新增遊戲時，將 package.json、規格與 JPG 封面加入目錄並更新 data/games.json；

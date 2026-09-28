@@ -1,11 +1,12 @@
+@import "../../../shared/fonts/koi-koi.css";
 @import "tailwindcss";
 
 /* Scan @clubhouse/shared via shared/tailwind-source.css (path-depth independent @source). */
 @import "../../../shared/tailwind-source.css";
 
 @theme {
-  --font-display: "Noto Serif TC", "Hiragino Mincho ProN", serif;
-  --font-body: "Zen Maru Gothic", "Noto Sans TC", sans-serif;
+  --font-display: "Noto Serif TC", "Hiragino Mincho ProN", "Songti TC", "PMingLiU", serif;
+  --font-body: "Zen Maru Gothic", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
   --color-indigo-deep: #0f1828;
   --color-indigo-mid: #1a2a4a;
   --color-vermillion: #c41e3a;

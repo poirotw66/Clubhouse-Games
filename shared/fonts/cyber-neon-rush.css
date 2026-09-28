@@ -1,0 +1,22 @@
+/* Cyber-Neon-Rush — Orbitron (latin subset); CJK via system stack */
+@font-face {
+  font-family: Orbitron;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("./files/orbitron-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: Orbitron;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("./files/orbitron-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: Orbitron;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 800;
+  src: url("./files/orbitron-latin-800-normal.woff2") format("woff2");
+}

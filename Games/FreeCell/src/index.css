@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
+@import "../../../shared/fonts/freecell.css";
 @import "tailwindcss";
 
 /* Scan @clubhouse/shared via shared/tailwind-source.css (path-depth independent @source). */
