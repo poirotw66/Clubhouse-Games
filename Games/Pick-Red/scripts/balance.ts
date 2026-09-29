@@ -11,7 +11,7 @@ import type { CpuBrain, DifficultyId, GameState, PlayerCount } from '../src/game
  * independently — the whole point being that the seat turns out to matter more.
  */
 function run(seedCode: string, difficulty: DifficultyId, players: PlayerCount, humanBrain: CpuBrain) {
-  const cpuBrain = difficultyInfo(difficulty).brain;
+  const info = difficultyInfo(difficulty);
   let state = deal(seedCode, difficulty, { players, blackAces: false }, leaderFor(difficulty, players));
   let guard = 0;
 
@@ -29,8 +29,9 @@ function run(seedCode: string, difficulty: DifficultyId, players: PlayerCount, h
       continue;
     }
 
-    const brain = state.turn === HUMAN ? humanBrain : cpuBrain;
-    const move = chooseMove(state, brain);
+    const brain = state.turn === HUMAN ? humanBrain : info.brain;
+    const blunder = state.turn === HUMAN ? 0 : info.captureBlunderRate;
+    const move = chooseMove(state, brain, blunder);
     state = state.turn === HUMAN ? playCard(state, move.card.id) : applyPlay(state, move.card, move.taken);
   }
 

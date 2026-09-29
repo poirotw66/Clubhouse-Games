@@ -3,7 +3,9 @@ import {
   applyMove,
   countPieces,
   createInitialBoard,
+  DIFFICULTY_BLURBS,
   getBestMove,
+  getDifficultyConfig,
   getFlips,
   getLegalMoves,
   getWinner,
@@ -174,5 +176,73 @@ describe('getBestMove (adversarial bot)', () => {
     ]);
     expect(isLegalMove(board, 0, 0, 'white')).toBe(true);
     expect(getBestMove(board, 'white', 'hard')).toEqual([0, 0]);
+  });
+});
+
+describe('difficulty tiers', () => {
+  it('spreads depth, blunderRate, exactEmpties, and mobility across easy < normal < hard', () => {
+    const easy = getDifficultyConfig('easy');
+    const normal = getDifficultyConfig('normal');
+    const hard = getDifficultyConfig('hard');
+    expect(easy.depth).toBeLessThan(normal.depth);
+    expect(normal.depth).toBeLessThan(hard.depth);
+    expect(easy.blunderRate).toBeGreaterThan(normal.blunderRate);
+    expect(normal.blunderRate).toBeGreaterThan(hard.blunderRate);
+    expect(hard.blunderRate).toBe(0);
+    expect(easy.exactEmpties).toBeLessThan(normal.exactEmpties);
+    expect(normal.exactEmpties).toBeLessThan(hard.exactEmpties);
+    expect(easy.mobilityWeight).toBeLessThan(normal.mobilityWeight);
+    expect(normal.mobilityWeight).toBeLessThan(hard.mobilityWeight);
+  });
+
+  it('keeps three distinct blurbs', () => {
+    const blurbs = (['easy', 'normal', 'hard'] as const).map((id) => DIFFICULTY_BLURBS[id]);
+    expect(new Set(blurbs).size).toBe(3);
+    for (const blurb of blurbs) expect(blurb.trim().length).toBeGreaterThan(0);
+  });
+
+  it('easy can blunder past a free corner; hard never does', () => {
+    // Corner is legal and best, but not the only move — and board-scan order
+    // lists (0,0) first, so the blunder roll must land on a later index.
+    const board = place(emptyBoard(), [
+      [0, 1, 'black'],
+      [0, 2, 'black'],
+      [0, 3, 'white'],
+      [1, 0, 'black'],
+      [1, 1, 'black'],
+      [2, 0, 'white'],
+      [2, 1, 'white'],
+      [3, 3, 'black'],
+      [3, 4, 'white'],
+      [4, 4, 'black'],
+    ]);
+    const legal = getLegalMoves(board, 'white');
+    expect(legal.length).toBeGreaterThan(1);
+    expect(legal[0]).toEqual([0, 0]);
+
+    // 0.34 < easy.blunderRate (0.45) and floor(0.34 * 3) === 1 → not the corner.
+    vi.spyOn(Math, 'random').mockReturnValue(0.34);
+    expect(getBestMove(board, 'white', 'easy')).toEqual(legal[1]);
+    expect(getBestMove(board, 'white', 'easy')).not.toEqual([0, 0]);
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.34);
+    expect(getBestMove(board, 'white', 'hard')).toEqual([0, 0]);
+  });
+
+  it('easy still takes a free corner when it does not blunder', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    const board = place(emptyBoard(), [
+      [0, 1, 'black'],
+      [0, 2, 'black'],
+      [0, 3, 'white'],
+      [1, 0, 'black'],
+      [1, 1, 'black'],
+      [2, 0, 'white'],
+      [2, 1, 'white'],
+      [3, 3, 'black'],
+      [3, 4, 'white'],
+      [4, 4, 'black'],
+    ]);
+    expect(getBestMove(board, 'white', 'easy')).toEqual([0, 0]);
   });
 });

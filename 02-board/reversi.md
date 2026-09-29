@@ -57,12 +57,12 @@
 
 | 項目 | 本實作 |
 |------|--------|
-| 模式／變體 | **雙人對戰**／**對戰電腦**；電腦三角難度（簡單／普通／困難） |
+| 模式／變體 | **雙人對戰**／**對戰電腦**；電腦三角難度（簡單／普通／困難）以搜尋深度、失誤率、殘局精算與機動權重拉開體感；setup 文案對應說明 |
 | Replay hook | 對戰電腦時本機紀錄 **連勝**、**最佳連勝**、**最大勝差**（敗北或和局連勝歸零） |
 | Undo／Hint | **悔棋**（非電腦回合且對局中）；**提示**（以困難級零亂手建議落點並高亮） |
 | Feedback | `ResultOverlay` + `@clubhouse/shared/synthAudio` |
 | Touch | 落子與工具列可觸控 |
-| Check | `npm run check` → `src/check-reversi.mjs` |
+| Check | `npm run check` → vitest（含三檔可分辨斷言） |
 
 `localStorage` 鍵：`clubhouse-reversi-win-streak`、`clubhouse-reversi-best-streak`、`clubhouse-reversi-best-margin`。
 
