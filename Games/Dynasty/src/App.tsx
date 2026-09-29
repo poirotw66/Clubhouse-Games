@@ -7,6 +7,10 @@ import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { clearGame, loadArchive, loadGame, pushArchive, saveGame } from './game/storage';
 import type { ArchiveEntry } from './game/storage';
 import type { GameState } from './game/types';
+import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
 import { PlayScreen } from './components/PlayScreen';
 import { SummaryScreen } from './components/SummaryScreen';
 import { TitleScreen } from './components/TitleScreen';
@@ -34,6 +38,7 @@ export default function App(): React.ReactElement {
   const [history, setHistory] = useState<GameState[]>([]);
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const summarySfxKey = useRef<string | null>(null);
 
   // Persist after every decision so a closed tab does not cost a tenure.
@@ -127,11 +132,13 @@ export default function App(): React.ReactElement {
   return (
     <>
       <BackToMenu />
+      {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       {screen === 'title' && (
         <TitleScreen
           initialSeed={seedCode}
           hasSave={saved !== null}
           archive={archive}
+          onShowHowTo={() => setShowFirstRun(true)}
           onStart={(code, gmName, teamId) => {
             setSeedCode(code);
             setState(createGame({ seedCode: code, gmName, teamId }));

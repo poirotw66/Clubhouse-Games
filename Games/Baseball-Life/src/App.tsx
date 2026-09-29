@@ -18,6 +18,10 @@ import {
 import type { ArchiveEntry } from './game/storage';
 import type { GameState, Position } from './game/types';
 import { CreateScreen } from './components/CreateScreen';
+import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
 import { PlayScreen } from './components/PlayScreen';
 import { SummaryScreen } from './components/SummaryScreen';
 import { TitleScreen } from './components/TitleScreen';
@@ -47,6 +51,7 @@ export default function App(): React.ReactElement {
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
   const [achievements, setAchievements] = useState<AchievementProgress>(() => loadAchievements());
   const [justUnlocked, setJustUnlocked] = useState<Achievement[]>([]);
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const summarySfxKey = useRef<string | null>(null);
 
   // Persist after every turn so a closed tab does not cost a career.
@@ -155,12 +160,14 @@ export default function App(): React.ReactElement {
   return (
     <>
       <BackToMenu />
+      {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       {screen === 'title' && (
         <TitleScreen
           initialSeed={seedCode}
           hasSave={saved !== null}
           archive={archive}
           achievements={achievements}
+          onShowHowTo={() => setShowFirstRun(true)}
           onStart={(code) => {
             setSeedCode(code);
             setScreen('create');

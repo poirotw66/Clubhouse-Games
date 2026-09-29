@@ -232,4 +232,6 @@
 
 ## 備註
 
-本作所有球隊名稱、球員與事件均為虛構，與現實中的球團、聯盟或人物無關。
+- **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:baseball-life:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「開始新的棒球人生」衝突。
+- 本作所有球隊名稱、球員與事件均為虛構，與現實中的球團、聯盟或人物無關。
+- 實作路徑：`Games/Baseball-Life/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。
