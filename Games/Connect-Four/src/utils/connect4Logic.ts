@@ -227,7 +227,14 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
-type DifficultyConfig = {
+/** Short player-facing blurbs so Easy / Normal / Hard read as three opponents. */
+export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
+  easy: '常亂下，擋殺不穩',
+  normal: '會擋連三，看短線',
+  hard: '深算雙殺，不犯錯',
+};
+
+export type DifficultyConfig = {
   /** Plies of lookahead. */
   depth: number;
   /** Chance of ignoring the search and dropping in a random column. */
@@ -235,13 +242,21 @@ type DifficultyConfig = {
 };
 
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
-  // Sees an immediate win or block, not much further.
-  easy: { depth: 2, blunderRate: 0.3 },
-  normal: { depth: 4, blunderRate: 0.05 },
+  // Depth 1 still sees an immediate win (terminal check before the leaf), but
+  // does not search the opponent's reply — so one-move threats are often left
+  // open. High blunderRate does the rest of the softening.
+  easy: { depth: 1, blunderRate: 0.45 },
+  // Short tactics: plugs obvious threats, still slips now and then.
+  normal: { depth: 3, blunderRate: 0.12 },
   // Deep enough to build and see forks. Held at 6 because the search blocks
   // the main thread and 7 can spike past half a second in sharp positions.
   hard: { depth: 6, blunderRate: 0 },
 };
+
+/** Exported so `check` can pin the three tiers staying spread apart. */
+export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
+  return DIFFICULTY[difficulty];
+}
 
 /**
  * Pick a column for the bot. Ties are broken at random so repeated games

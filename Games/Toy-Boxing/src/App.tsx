@@ -20,12 +20,17 @@ import {
 } from './characters';
 import {
   DIFFICULTY,
+  DIFFICULTY_BLURBS,
   DIFFICULTY_LABELS,
   decideCpuIntent,
   nextThinkDelay,
   type Difficulty,
 } from './cpuAi';
 import { BOXER_HEIGHT, BOXER_WIDTH, drawToyBoxer } from './drawBoxer';
+import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
 
 preloadFighterBodies();
 import {
@@ -128,6 +133,7 @@ export default function ToyBoxing() {
   const [difficulty, setDifficulty] = useState<Difficulty>(
     () => loadStats().lastDifficulty,
   );
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
 
   const settingsRef = useRef({ difficulty, playerCharId, cpuCharId });
   settingsRef.current = { difficulty, playerCharId, cpuCharId };
@@ -797,6 +803,7 @@ export default function ToyBoxing() {
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30 overflow-x-hidden">
       <BackToMenu />
+      {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       <header className="max-w-5xl mx-auto p-4 sm:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center border-b border-white/10">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
           <img
@@ -964,7 +971,7 @@ export default function ToyBoxing() {
                   </div>
                 </div>
 
-                <div className="w-full max-w-md mb-6">
+                <div className="w-full max-w-md mb-4">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2 text-center">
                     難度
                   </h3>
@@ -985,18 +992,30 @@ export default function ToyBoxing() {
                       </button>
                     ))}
                   </div>
+                  <p className="mt-2 text-center text-sm text-amber-300/90 font-medium">
+                    {DIFFICULTY_BLURBS[difficulty]}
+                  </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={startNewGame}
-                  className="group relative px-8 py-4 bg-blue-600 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95"
-                >
-                  <span className="flex items-center gap-2">
-                    <Play className="w-5 h-5 fill-current" />
-                    開始對戰
-                  </span>
-                </button>
+                <div className="flex flex-col sm:flex-row items-center gap-3 mb-2">
+                  <button
+                    type="button"
+                    onClick={startNewGame}
+                    className="group relative px-8 py-4 bg-blue-600 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Play className="w-5 h-5 fill-current" />
+                      開始對戰
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFirstRun(true)}
+                    className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-neutral-300 hover:border-blue-400/50 hover:text-blue-200 transition-all min-h-[44px]"
+                  >
+                    操作教學
+                  </button>
+                </div>
               </motion.div>
             )}
 

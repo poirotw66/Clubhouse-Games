@@ -10,6 +10,8 @@ import {
   hasWonAt,
   isBoardFull,
   pickBotColumn,
+  getDifficultyConfig,
+  DIFFICULTY_BLURBS,
   type Board,
   type PieceColor,
 } from './connect4Logic';
@@ -139,5 +141,53 @@ describe('pickBotColumn (adversarial bot)', () => {
     board = dropPiece(board, 5, 'red')!;
     board = dropPiece(board, 5, 'red')!;
     expect(pickBotColumn(board, 'red', 'hard')).toBe(3);
+  });
+});
+
+describe('difficulty tiers', () => {
+  it('spreads depth and blunderRate across easy < normal < hard discipline', () => {
+    const easy = getDifficultyConfig('easy');
+    const normal = getDifficultyConfig('normal');
+    const hard = getDifficultyConfig('hard');
+    expect(easy.depth).toBeLessThan(normal.depth);
+    expect(normal.depth).toBeLessThan(hard.depth);
+    expect(easy.blunderRate).toBeGreaterThan(normal.blunderRate);
+    expect(normal.blunderRate).toBeGreaterThan(hard.blunderRate);
+    expect(hard.blunderRate).toBe(0);
+  });
+
+  it('keeps three distinct blurbs', () => {
+    const blurbs = (['easy', 'normal', 'hard'] as const).map((id) => DIFFICULTY_BLURBS[id]);
+    expect(new Set(blurbs).size).toBe(3);
+    for (const blurb of blurbs) expect(blurb.trim().length).toBeGreaterThan(0);
+  });
+
+  it('easy can blunder past a winning drop; hard never does', () => {
+    let board = createInitialBoard();
+    for (const c of [0, 1, 2]) {
+      board = dropPiece(board, c, 'red')!;
+    }
+    board = dropPiece(board, 6, 'yellow')!;
+    board = dropPiece(board, 6, 'yellow')!;
+    board = dropPiece(board, 5, 'yellow')!;
+
+    // Force a blunder, then pick the first legal column (0) — not the win at 3.
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    expect(pickBotColumn(board, 'red', 'easy')).toBe(0);
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    expect(pickBotColumn(board, 'red', 'hard')).toBe(3);
+  });
+
+  it('easy still takes an immediate win when it does not blunder', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    let board = createInitialBoard();
+    for (const c of [0, 1, 2]) {
+      board = dropPiece(board, c, 'red')!;
+    }
+    board = dropPiece(board, 6, 'yellow')!;
+    board = dropPiece(board, 6, 'yellow')!;
+    board = dropPiece(board, 5, 'yellow')!;
+    expect(pickBotColumn(board, 'red', 'easy')).toBe(3);
   });
 });
