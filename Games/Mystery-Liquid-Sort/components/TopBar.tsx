@@ -7,21 +7,47 @@ interface TopBarProps {
   level: number;
   mode: GameMode;
   difficultyLabel?: string;
+  /** Puzzle-pack stage display name (Traditional Chinese). */
+  packStageName?: string;
   coins: number;
   onSettings: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ level, mode, difficultyLabel, coins, onSettings }) => {
+function modeEyebrow(mode: GameMode): string {
+  if (mode === 'adventure') return '關卡';
+  if (mode === 'puzzle_pack') return '關卡包';
+  return '難度';
+}
+
+function modeTitle(
+  mode: GameMode,
+  level: number,
+  difficultyLabel: string | undefined,
+  packStageName: string | undefined,
+): string | number {
+  if (mode === 'adventure') return level;
+  if (mode === 'puzzle_pack') return packStageName ?? `第 ${level} 關`;
+  return qpDifficultyLabel(difficultyLabel);
+}
+
+export const TopBar: React.FC<TopBarProps> = ({
+  level,
+  mode,
+  difficultyLabel,
+  packStageName,
+  coins,
+  onSettings,
+}) => {
   return (
     <div className="w-full flex items-center justify-between gap-2 md:gap-3">
       {/* Left: Level/Difficulty Card - Unified Design */}
       <div className="flex-1 min-w-0 flex items-center">
         <div className="bg-white/10 backdrop-blur-xl rounded-2xl px-3 md:px-4 py-2 md:py-2.5 border border-white/20 shadow-lg flex flex-col items-start min-w-0 w-full">
           <div className="text-yellow-400/90 text-[10px] md:text-xs font-bold tracking-wider mb-0.5 drop-shadow-md">
-            {mode === 'adventure' ? '關卡' : '難度'}
+            {modeEyebrow(mode)}
           </div>
           <h1 className="text-white text-base md:text-2xl font-black drop-shadow-md font-mono truncate max-w-full">
-            {mode === 'adventure' ? level : qpDifficultyLabel(difficultyLabel)}
+            {modeTitle(mode, level, difficultyLabel, packStageName)}
           </h1>
         </div>
       </div>

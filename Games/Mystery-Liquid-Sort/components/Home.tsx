@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Zap, X, Trophy, Map, ClipboardList, Heart } from 'lucide-react';
+import { Play, Zap, X, Trophy, Map, ClipboardList, Heart, Layers, Lock, Check } from 'lucide-react';
 import { Bottle } from './Bottle';
 import { Background } from './Background';
 import { BottleData, Color } from '../types';
@@ -11,6 +11,13 @@ import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
 import { getSavedBackground } from '../utils/backgrounds';
 import { DailyMissions } from './DailyMissions';
 import { INITIAL_COINS, loadQpBestMoves, QP_DIFFICULTY_LABELS, type QpDifficultyId } from '../constants';
+import {
+  PUZZLE_PACK_STAGES,
+  continuePackIndex,
+  isPackStageUnlocked,
+  loadPackProgress,
+  packStageCount,
+} from '../services/puzzlePack';
 
 const QP_OPTIONS: {
   id: QpDifficultyId;
@@ -27,6 +34,7 @@ const QP_OPTIONS: {
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const [showDifficultyModal, setShowDifficultyModal] = useState(false);
+  const [showPackModal, setShowPackModal] = useState(false);
 
     // --- Missions & Coins State ---
     const [coins, setCoins] = useState<number>(() => loadCoins(INITIAL_COINS));
@@ -45,6 +53,15 @@ export const Home: React.FC = () => {
   // Get saved level for "Continue" text
   const savedLevel = parseInt(localStorage.getItem('mls_level') || '1', 10);
   const qpBests = useMemo(() => loadQpBestMoves(), [showDifficultyModal]);
+  const packProgress = useMemo(() => loadPackProgress(), [showPackModal]);
+  const packTotal = packStageCount();
+  const packContinue = continuePackIndex(packProgress.clearedCount);
+  const packSubtitle =
+    packProgress.clearedCount >= packTotal
+      ? `已完成 ${packTotal}/${packTotal}`
+      : packProgress.clearedCount > 0
+        ? `進度 ${packProgress.clearedCount}/${packTotal}・繼續`
+        : `手編 ${packTotal} 關・開始`;
 
   // Decorative bottles data
   const decorativeBottles: BottleData[] = [
@@ -89,6 +106,11 @@ export const Home: React.FC = () => {
 
   const handleQuickPlayClick = (difficultyLevel: number, id: QpDifficultyId) => {
       navigate('/game', { state: { mode: 'quick_play', difficultyLevel, difficultyLabel: id } });
+  };
+
+  const handlePackStageClick = (stageIndex: number) => {
+      if (!isPackStageUnlocked(stageIndex, packProgress.clearedCount)) return;
+      navigate('/game', { state: { mode: 'puzzle_pack', packStageIndex: stageIndex } });
   };
 
   // Get saved background preference
@@ -188,6 +210,25 @@ export const Home: React.FC = () => {
                     <Play className="w-5 h-5 md:w-6 md:h-6 text-white/50 group-active:text-white transition-colors" />
                 </button>
 
+                {/* Puzzle Pack Button */}
+                <button
+                    type="button"
+                    onClick={() => setShowPackModal(true)}
+                    className="touch-target w-full group relative px-4 md:px-6 py-4 md:py-5 bg-gradient-to-r from-violet-500 to-fuchsia-600 rounded-xl md:rounded-2xl flex items-center justify-between shadow-[0_3px_0_#6b21a8] md:shadow-[0_4px_0_#6b21a8] active:shadow-none active:translate-y-0.5 md:active:translate-y-1 transition-all touch-active"
+                    aria-label="關卡包"
+                >
+                    <div className="flex items-center gap-3 md:gap-4">
+                        <div className="bg-white/20 p-2.5 md:p-3 rounded-lg md:rounded-xl">
+                            <Layers className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                            <span className="text-lg md:text-xl font-bold tracking-wide text-white">關卡包</span>
+                            <span className="text-violet-100 text-[10px] md:text-xs">{packSubtitle}</span>
+                        </div>
+                    </div>
+                    <Play className="w-5 h-5 md:w-6 md:h-6 text-white/50 group-active:text-white transition-colors" />
+                </button>
+
             </div>
 
             {/* Footer */}
@@ -239,6 +280,76 @@ export const Home: React.FC = () => {
                             onClick={() => handleQuickPlayClick(opt.level, opt.id)}
                           />
                         ))}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Puzzle Pack Stage List */}
+        {showPackModal && (
+            <div
+              className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mls-pack-title"
+            >
+                <div className="w-full max-w-sm bg-[#2d2d44] border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden max-h-[85vh] flex flex-col">
+                    <button
+                        type="button"
+                        onClick={() => setShowPackModal(false)}
+                        className="absolute top-4 right-4 min-h-[44px] min-w-[44px] text-white/40 hover:text-white transition-colors touch-manipulation z-10"
+                        aria-label="關閉"
+                    >
+                        <X size={24} />
+                    </button>
+
+                    <h3 id="mls-pack-title" className="text-2xl font-black text-white mb-1 text-center">關卡包</h3>
+                    <p className="text-center text-white/50 text-xs mb-4">
+                      手編固定盤面・進度獨立於冒險／快速遊玩
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => handlePackStageClick(packContinue)}
+                      className="mb-4 w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-600 font-bold text-white shadow-lg active:scale-[0.98] transition-transform"
+                    >
+                      {packProgress.clearedCount >= packTotal ? '重玩最終關' : packProgress.clearedCount > 0 ? `繼續・${PUZZLE_PACK_STAGES[packContinue]?.name}` : '開始第一關'}
+                    </button>
+
+                    <div className="space-y-2 overflow-y-auto pr-1 flex-1">
+                      {PUZZLE_PACK_STAGES.map((stage, index) => {
+                        const unlocked = isPackStageUnlocked(index, packProgress.clearedCount);
+                        const cleared = index < packProgress.clearedCount;
+                        const best = packProgress.bestMoves[stage.id];
+                        return (
+                          <button
+                            key={stage.id}
+                            type="button"
+                            disabled={!unlocked}
+                            onClick={() => handlePackStageClick(index)}
+                            className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left
+                              ${unlocked
+                                ? 'bg-white/5 hover:bg-white/10 border-white/10 active:scale-[0.98]'
+                                : 'bg-black/20 border-white/5 opacity-50 cursor-not-allowed'}
+                            `}
+                            aria-label={`${stage.name}${unlocked ? '' : '（未解鎖）'}`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${cleared ? 'bg-emerald-500/30 text-emerald-300' : unlocked ? 'bg-violet-500/30 text-violet-200' : 'bg-white/5 text-white/30'}`}>
+                                {cleared ? <Check size={16} /> : unlocked ? <span className="text-xs font-black">{index + 1}</span> : <Lock size={14} />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold text-white truncate">{stage.name}</div>
+                                <div className="text-[10px] text-white/40 font-mono truncate">{stage.blurb}</div>
+                                {best != null && (
+                                  <div className="text-[10px] text-emerald-300/80 mt-0.5">最佳 {best} 步</div>
+                                )}
+                              </div>
+                            </div>
+                            {unlocked && <Play size={16} className="text-white/30 flex-shrink-0" />}
+                          </button>
+                        );
+                      })}
                     </div>
                 </div>
             </div>

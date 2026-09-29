@@ -3,6 +3,13 @@ import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameState, BottleData, GameMode } from '../types';
 import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO, persistQpBestMoves, loadQpBestMoves, qpDifficultyLabel } from '../constants';
 import { generateLevel, canPour, pourLiquid, checkLevelComplete, shuffleBottles, revealHiddenLayers, checkDeadlock, checkStateRepetition } from '../services/gameLogic';
+import {
+  getPackStage,
+  materializePackStageAt,
+  packStageCount,
+  persistPackStageClear,
+  loadPackProgress,
+} from '../services/puzzlePack';
 import { loadCoins, saveCoins } from '../services/economyService';
 import { useDailyMissions } from '../hooks/useDailyMissions';
 import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
@@ -27,9 +34,37 @@ export default function Game() {
     const initialDifficulty = location.state?.difficultyLevel || 1;
     // Storage/nav id stays English (EASY/…); display via qpDifficultyLabel.
     const initialDifficultyLabel = location.state?.difficultyLabel || 'CUSTOM';
+    const initialPackStageIndex: number = (() => {
+        const raw = location.state?.packStageIndex;
+        const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '0'), 10);
+        if (!Number.isFinite(n) || n < 0) return 0;
+        return Math.min(packStageCount() - 1, Math.floor(n));
+    })();
 
     // Initialize state
     const [gameState, setGameState] = useState<GameState>(() => {
+        const savedCoins = loadCoins(INITIAL_COINS);
+
+        if (initialMode === 'puzzle_pack') {
+            const { bottles, orders, stage } = materializePackStageAt(initialPackStageIndex);
+            const isWin = checkLevelComplete(bottles, orders);
+            return {
+                mode: 'puzzle_pack',
+                level: initialPackStageIndex,
+                difficultyLabel: stage.id,
+                coins: savedCoins,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            };
+        }
+
         // Determine level: if adventure, load from storage. If quick play, use passed prop.
         let startLevel = 1;
         if (initialMode === 'adventure') {
@@ -38,8 +73,6 @@ export default function Game() {
         } else {
             startLevel = initialDifficulty;
         }
-
-        const savedCoins = loadCoins(INITIAL_COINS);
 
         const initialLevelState = generateLevel(startLevel);
         const isWin = checkLevelComplete(initialLevelState.bottles, initialLevelState.orders);
@@ -71,10 +104,19 @@ export default function Game() {
     // Intelligent Warning System
     const [warningState, setWarningState] = useState<{ type: 'deadlock' | 'loop' | null, message: string }>({ type: null, message: '' });
 
+    const packStageName = useMemo(() => {
+        if (gameState.mode !== 'puzzle_pack') return undefined;
+        return getPackStage(gameState.level)?.name;
+    }, [gameState.mode, gameState.level]);
+
     // Background selection - use level-based or saved preference
     const currentBackground = useMemo(() => {
         if (gameState.mode === 'adventure') {
             return getBackgroundByLevel(gameState.level);
+        }
+        if (gameState.mode === 'puzzle_pack') {
+            // Map pack index onto adventure backgrounds for variety without new assets.
+            return getBackgroundByLevel(gameState.level + 1);
         }
         return getSavedBackground();
     }, [gameState.level, gameState.mode]);
@@ -84,7 +126,7 @@ export default function Game() {
         saveCoins(gameState.coins);
     }, [gameState.coins]);
 
-    // Save level ONLY if in ADVENTURE mode
+    // Save level ONLY if in ADVENTURE mode (pack uses mls-puzzle-pack-v1)
     useEffect(() => {
         if (gameState.mode === 'adventure') {
             localStorage.setItem('mls_level', gameState.level.toString());
@@ -99,6 +141,12 @@ export default function Game() {
       const best = loadQpBestMoves()[initialDifficultyLabel];
       return best ?? null;
     });
+    const [packBestMoves, setPackBestMoves] = useState<number | null>(() => {
+      if (initialMode !== 'puzzle_pack') return null;
+      const stage = getPackStage(initialPackStageIndex);
+      if (!stage) return null;
+      return loadPackProgress().bestMoves[stage.id] ?? null;
+    });
 
     useEffect(() => {
         if (gameState.isWin && !celebratedWin) {
@@ -109,12 +157,20 @@ export default function Game() {
               const best = persistQpBestMoves(gameState.difficultyLabel, moves);
               setQpBestMoves(best);
             }
+            if (gameState.mode === 'puzzle_pack') {
+              const moves = gameState.history.length;
+              const next = persistPackStageClear(gameState.level, moves);
+              const stage = getPackStage(gameState.level);
+              if (stage) {
+                setPackBestMoves(next.bestMoves[stage.id] ?? moves);
+              }
+            }
             return;
         }
         if (!gameState.isWin && celebratedWin) {
             setCelebratedWin(false);
         }
-    }, [gameState.isWin, celebratedWin, gameState.mode, gameState.difficultyLabel, gameState.history.length]);
+    }, [gameState.isWin, celebratedWin, gameState.mode, gameState.difficultyLabel, gameState.history.length, gameState.level]);
 
     // (Removed initial startLevel call as it's now done in useState initializer)
 
@@ -255,6 +311,30 @@ export default function Game() {
     };
 
     const startLevel = (levelInput: number) => {
+        if (gameState.mode === 'puzzle_pack') {
+            const { bottles, orders, stage } = materializePackStageAt(levelInput);
+            const isWin = checkLevelComplete(bottles, orders);
+            setGameState(prev => ({
+                ...prev,
+                level: levelInput,
+                difficultyLabel: stage.id,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            }));
+            setProcessingMatch(null);
+            setWarningState({ type: null, message: '' });
+            const best = loadPackProgress().bestMoves[stage.id];
+            setPackBestMoves(best ?? null);
+            return;
+        }
+
         const { bottles, orders } = generateLevel(levelInput);
         const isWin = checkLevelComplete(bottles, orders);
         setGameState(prev => ({
@@ -280,6 +360,13 @@ export default function Game() {
             const nextLevel = gameState.level + 1;
             setGameState(prev => ({ ...prev, level: nextLevel }));
             startLevel(nextLevel);
+        } else if (gameState.mode === 'puzzle_pack') {
+            const nextIndex = gameState.level + 1;
+            if (nextIndex >= packStageCount()) {
+                navigate('/');
+                return;
+            }
+            startLevel(nextIndex);
         } else {
             startLevel(gameState.level);
         }
@@ -427,7 +514,10 @@ export default function Game() {
             const newBottle: BottleData = {
                 id: Math.random().toString(),
                 layers: [],
-                capacity: getCapacityForLevel(prev.level),
+                capacity:
+                  prev.mode === 'puzzle_pack'
+                    ? (getPackStage(prev.level)?.capacity ?? 4)
+                    : getCapacityForLevel(prev.level),
                 isCompleted: false
             };
             return {
@@ -538,9 +628,10 @@ export default function Game() {
                     {/* Center: TopBar Component - Takes remaining space */}
                     <div className="flex-1 min-w-0">
                         <TopBar
-                            level={gameState.level}
+                            level={gameState.mode === 'puzzle_pack' ? gameState.level + 1 : gameState.level}
                             mode={gameState.mode}
                             difficultyLabel={gameState.difficultyLabel}
+                            packStageName={packStageName}
                             coins={gameState.coins}
                             onSettings={() => setShowSettingsModal(true)}
                         />
@@ -609,20 +700,36 @@ export default function Game() {
                     subtitle={
                       gameState.mode === 'adventure'
                         ? `第 ${gameState.level} 關完成`
-                        : `${qpDifficultyLabel(gameState.difficultyLabel)} 完成`
+                        : gameState.mode === 'puzzle_pack'
+                          ? `${packStageName ?? '關卡包'}完成`
+                          : `${qpDifficultyLabel(gameState.difficultyLabel)} 完成`
                     }
                     badge="太棒了！"
                     variant="win"
                     stats={[
-                        { label: '關卡', value: gameState.level },
+                        {
+                          label: gameState.mode === 'puzzle_pack' ? '關卡包' : '關卡',
+                          value: gameState.mode === 'puzzle_pack' ? `${gameState.level + 1}/${packStageCount()}` : gameState.level,
+                        },
                         { label: '金幣', value: gameState.coins },
                         { label: '瓶子數', value: gameState.bottles.length },
                         { label: '倒次', value: gameState.history.length },
                         ...(gameState.mode === 'quick_play' && qpBestMoves != null
                           ? [{ label: '最佳倒次', value: qpBestMoves }]
                           : []),
+                        ...(gameState.mode === 'puzzle_pack' && packBestMoves != null
+                          ? [{ label: '最佳倒次', value: packBestMoves }]
+                          : []),
                     ]}
-                    primaryLabel={gameState.mode === 'adventure' ? '下一關' : '再來一局'}
+                    primaryLabel={
+                      gameState.mode === 'adventure'
+                        ? '下一關'
+                        : gameState.mode === 'puzzle_pack'
+                          ? gameState.level + 1 >= packStageCount()
+                            ? '回主頁'
+                            : '下一關'
+                          : '再來一局'
+                    }
                     onPrimary={handleNextLevel}
                 />
             )}

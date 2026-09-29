@@ -5,6 +5,15 @@ import assert from 'node:assert/strict';
 import { canPour, pourLiquid, checkLevelComplete, revealHiddenLayers, generateLevel } from './services/gameLogic.ts';
 import { getCapacityForLevel } from './constants.ts';
 import { Color } from './types.ts';
+import {
+  PUZZLE_PACK_STAGES,
+  PUZZLE_PACK_STORAGE_KEY,
+  applyPackStageClear,
+  continuePackIndex,
+  isPackStageUnlocked,
+  materializePackStage,
+  packStageCount,
+} from './services/puzzlePack.ts';
 
 function layer(color, isHidden = false) {
   return { color, isHidden, id: `${color}-${Math.random().toString(36).slice(2, 8)}` };
@@ -415,6 +424,71 @@ function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
         `level ${level} sample ${i}: generated an UNSOLVABLE level`,
       );
     }
+  }
+}
+
+// --- Puzzle pack: hand-authored boards must stay solvable; progress is separate ---
+{
+  assert.equal(PUZZLE_PACK_STORAGE_KEY, 'mls-puzzle-pack-v1');
+  assert.ok(packStageCount() >= 6, 'pack should ship a meaningful stage count');
+  assert.equal(packStageCount(), PUZZLE_PACK_STAGES.length);
+
+  // Unlock cursor: stage 0 always open; stage N opens only after N clears.
+  assert.equal(isPackStageUnlocked(0, 0), true);
+  assert.equal(isPackStageUnlocked(1, 0), false);
+  assert.equal(isPackStageUnlocked(1, 1), true);
+  assert.equal(isPackStageUnlocked(7, 7), true);
+  assert.equal(isPackStageUnlocked(7, 6), false);
+  assert.equal(isPackStageUnlocked(-1, 0), false);
+  assert.equal(isPackStageUnlocked(packStageCount(), 99), false);
+
+  assert.equal(continuePackIndex(0), 0);
+  assert.equal(continuePackIndex(3), 3);
+  assert.equal(continuePackIndex(packStageCount()), packStageCount() - 1);
+
+  // Progress advances only on the frontier; bestMoves keep the minimum pours.
+  let progress = { clearedCount: 0, bestMoves: {} };
+  progress = applyPackStageClear(progress, 0, 12);
+  assert.equal(progress.clearedCount, 1);
+  assert.equal(progress.bestMoves['intro-three'], 12);
+  progress = applyPackStageClear(progress, 0, 8);
+  assert.equal(progress.clearedCount, 1, 'replaying an earlier stage must not skip ahead');
+  assert.equal(progress.bestMoves['intro-three'], 8);
+  progress = applyPackStageClear(progress, 2, 5);
+  assert.equal(progress.clearedCount, 1, 'clearing a locked-ahead index must not unlock');
+  progress = applyPackStageClear(progress, 1, 10);
+  assert.equal(progress.clearedCount, 2);
+
+  const seenIds = new Set();
+  for (let i = 0; i < PUZZLE_PACK_STAGES.length; i++) {
+    const stage = PUZZLE_PACK_STAGES[i];
+    assert.ok(stage.id, `stage ${i}: missing id`);
+    assert.ok(stage.name, `stage ${i}: missing Traditional Chinese name`);
+    assert.ok(!seenIds.has(stage.id), `duplicate pack stage id: ${stage.id}`);
+    seenIds.add(stage.id);
+
+    const { bottles, orders } = materializePackStage(stage);
+    assert.equal(orders.length, stage.orderColors.length);
+    assert.ok(bottles.every((b) => b.layers.length <= b.capacity));
+    for (const b of bottles) {
+      if (b.layers.length === 0) continue;
+      assert.equal(
+        b.layers[b.layers.length - 1].isHidden,
+        false,
+        `pack ${stage.id}: bottle ${b.id} has a hidden top layer`,
+      );
+    }
+
+    // Pack boards never opt into mixing — keeps the curated set pure sorting.
+    assert.ok(bottles.every((b) => !b.mixingEnabled), `pack ${stage.id}: mixing must stay off`);
+
+    const result = isSolvable(bottles, orders, 500000, 15000);
+    assert.notEqual(
+      result,
+      'exhausted',
+      `pack ${stage.id}: solver budget exhausted — cannot confirm solvability`,
+    );
+    assert.equal(result, 'solvable', `pack ${stage.id}: UNSOLVABLE curated board`);
   }
 }
 
