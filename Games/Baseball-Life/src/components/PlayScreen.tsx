@@ -217,7 +217,12 @@ export function PlayScreen({
           {!ended &&
             decision && (
               <section className="bl-card p-4">
-                <p className="text-[11px] tracking-wider text-slate-500">{decision.title}</p>
+                <p className="text-[11px] tracking-wider text-slate-500">
+                  {decision.kind === 'event' ? '高風險抉擇' : decision.title}
+                </p>
+                {decision.kind === 'event' && (
+                  <p className="mt-1 text-xs font-bold text-rose-300/90">{decision.title}</p>
+                )}
                 <h2 className="mt-1 text-base leading-relaxed text-slate-200">{decision.prompt}</h2>
 
                 {decision.kind === 'training' && (

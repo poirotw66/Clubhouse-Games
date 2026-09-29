@@ -58,7 +58,12 @@ export function loadGame(): GameState | null {
       // before that would misread `proTurn` as `undefined` and desync the
       // 春訓/球季/球季後 cycle, so a save missing it starts over instead.
       typeof parsed.proTurn === 'number';
-    return intact ? parsed : null;
+    if (!intact) return null;
+    // Choice-card fields arrived with the risk-event pack; default them so
+    // mid-career saves from before that build keep playing.
+    if (!Array.isArray(parsed.seenSituations)) parsed.seenSituations = [];
+    if (typeof parsed.pendingSituation !== 'string') parsed.pendingSituation = null;
+    return parsed;
   } catch {
     return null;
   }
