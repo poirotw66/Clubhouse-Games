@@ -372,6 +372,10 @@ test('reversi: two-player completes a round through the result overlay', async (
 test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({ page, isMobile }) => {
   // Undefended harsh lose is ~50s of rAF time once waves keep advancing.
   test.setTimeout(120_000);
+  // Skip the soft first-run guide so lobby「開始遊戲」is the only dialog CTA match.
+  await page.addInitScript(() => {
+    localStorage.setItem('clockwork-keep:howto-seen', '1');
+  });
   await page.goto('./Games/Clockwork-Keep/');
   await activate(page.getByRole('button', { name: '嚴苛', exact: true }), isMobile);
   await activate(page.getByRole('button', { name: '開始遊戲', exact: true }), isMobile);
