@@ -89,7 +89,7 @@ export default function App(): React.ReactElement {
     const timer = setTimeout(() => {
       setState((current) => {
         if (!current || current.turn === HUMAN) return current;
-        const brain = difficultyInfo(current.difficulty).brain;
+        const info = difficultyInfo(current.difficulty);
 
         if (current.phase === 'pick_play' || current.phase === 'pick_flip') {
           const options = capturableBy(current.pending!, current.table);
@@ -99,7 +99,7 @@ export default function App(): React.ReactElement {
           return choosePick(current, best.id);
         }
 
-        const move = chooseMove(current, brain);
+        const move = chooseMove(current, info.brain, info.captureBlunderRate);
         return applyPlay(current, move.card, move.taken);
       });
     }, CPU_DELAY);

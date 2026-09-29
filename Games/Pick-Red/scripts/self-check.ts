@@ -28,7 +28,7 @@ import {
   playCard,
   score,
 } from '../src/game/engine.js';
-import { DIFFICULTIES, chooseMove, difficultyInfo, leaderFor } from '../src/game/cpu.js';
+import { DIFFICULTIES, chooseMove, difficultyInfo, getDifficultyConfig, leaderFor } from '../src/game/cpu.js';
 import { EMPTY_STATS, recordResult } from '../src/game/storage.js';
 import { createRng } from '../src/game/rng.js';
 import { HUMAN } from '../src/game/types.js';
@@ -210,6 +210,12 @@ function playOut(
    * than the difficulty setting was.
    */
   pick: 'first' | 'greedy' = 'first',
+  /**
+   * Per-seat capture blunder rate. Defaults to the difficulty's rate for every
+   * seat. Pass an override when isolating brain (set 0) or when the human seat
+   * should never blunder during rung measurements.
+   */
+  captureBlunderAt?: (seat: number) => number,
 ): GameState {
   const info = difficultyInfo(difficulty);
   let state = deal(seedCode, difficulty, rules(players, blackAces), leaderFor(difficulty, players));
@@ -235,7 +241,9 @@ function playOut(
       continue;
     }
 
-    const move = chooseMove(state, brainAt ? brainAt(state.turn) : info.brain);
+    const brain = brainAt ? brainAt(state.turn) : info.brain;
+    const blunder = captureBlunderAt ? captureBlunderAt(state.turn) : info.captureBlunderRate;
+    const move = chooseMove(state, brain, blunder);
     assert.ok(
       state.hands[state.turn].some((c) => c.id === move.card.id),
       'a seat played a card it does not hold',
@@ -376,11 +384,15 @@ function expectBrainLadder(): void {
   let sharp = 0;
 
   // Seat 1's brain is the only thing that changes; every other seat stays
-  // sharp. The difficulty argument is held fixed for the same reason — it also
+  // sharp. Capture blunders are held at 0 so this isolates discard quality.
+  // The difficulty argument is held fixed for the same reason — it also
   // decides the seating, and letting it move would change two things at once.
   for (const seedCode of seeds(150)) {
-    careless += score(playOut(seedCode, 'normal', 2, false, (seat) => (seat === 1 ? 'careless' : 'sharp')), 1);
-    sharp += score(playOut(seedCode, 'normal', 2, false, () => 'sharp'), 1);
+    careless += score(
+      playOut(seedCode, 'normal', 2, false, (seat) => (seat === 1 ? 'careless' : 'sharp'), 'first', () => 0),
+      1,
+    );
+    sharp += score(playOut(seedCode, 'normal', 2, false, () => 'sharp', 'first', () => 0), 1);
   }
 
   assert.ok(sharp > careless, `the sharp brain (${sharp}) did not beat the careless one (${careless})`);
@@ -436,6 +448,7 @@ function expectLadderRungsAreRealSteps(): void {
         false,
         (seat) => (seat === HUMAN ? 'sharp' : difficultyInfo(difficulty).brain),
         'greedy',
+        (seat) => (seat === HUMAN ? 0 : difficultyInfo(difficulty).captureBlunderRate),
       );
       const result = outcome(end);
       assert.ok(result, `deal rung-${i} never reached an outcome`);
@@ -465,11 +478,36 @@ function expectLadderRungsAreRealSteps(): void {
   }
 }
 
-/** Each difficulty has to seat and brain the way it advertises. */
+/** Each difficulty has to seat, brain, and blunder the way it advertises. */
 function expectDifficultiesAreDistinct(): void {
   assert.equal(DIFFICULTIES.length, 3, 'there are not three difficulties');
-  const shapes = DIFFICULTIES.map((d) => `${d.brain}:${d.humanLast}`);
+  const shapes = DIFFICULTIES.map((d) => `${d.brain}:${d.humanLast}:${d.captureBlunderRate}`);
   assert.equal(new Set(shapes).size, 3, `two difficulties are the same setup: ${shapes.join(', ')}`);
+
+  const easy = getDifficultyConfig('easy');
+  const normal = getDifficultyConfig('normal');
+  const hard = getDifficultyConfig('hard');
+  assert.ok(
+    easy.captureBlunderRate > normal.captureBlunderRate,
+    'easy is not clumsier at capture picks than normal',
+  );
+  assert.ok(
+    normal.captureBlunderRate > hard.captureBlunderRate,
+    'normal is not clumsier at capture picks than hard',
+  );
+  assert.equal(hard.captureBlunderRate, 0, 'hard still blunders on captures');
+  assert.equal(easy.brain, 'careless');
+  assert.equal(normal.brain, 'sharp');
+  assert.equal(hard.brain, 'sharp');
+  assert.equal(easy.humanLast, true);
+  assert.equal(normal.humanLast, true);
+  assert.equal(hard.humanLast, false);
+
+  const blurbs = DIFFICULTIES.map((d) => d.blurb);
+  assert.equal(new Set(blurbs).size, 3, `two difficulties share a blurb: ${blurbs.join(' | ')}`);
+  for (const blurb of blurbs) {
+    assert.ok(blurb.trim().length > 0, 'a difficulty blurb is empty');
+  }
 
   for (const players of COUNTS) {
     for (const difficulty of TIERS) {

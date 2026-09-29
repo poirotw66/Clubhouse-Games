@@ -12,6 +12,7 @@ import {
   getWinner,
   getBestMove,
   DIFFICULTY_LABELS,
+  DIFFICULTY_BLURBS,
 } from './utils/reversiLogic';
 import { RefreshCw, BookOpen, Users, Undo2, Lightbulb } from 'lucide-react';
 
@@ -21,11 +22,7 @@ const STREAK_KEY = 'clubhouse-reversi-win-streak';
 const BEST_STREAK_KEY = 'clubhouse-reversi-best-streak';
 const MARGIN_KEY = 'clubhouse-reversi-best-margin';
 
-const DIFFICULTIES: { id: Difficulty; blurb: string }[] = [
-  { id: 'easy', blurb: '只看一步，偶爾失誤' },
-  { id: 'normal', blurb: '看四步，會搶角' },
-  { id: 'hard', blurb: '看六步，殘局全解' },
-];
+const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
 type GamePhase = 'playing' | 'over';
 type GameMode = 'two' | 'bot';
@@ -362,7 +359,7 @@ export default function App() {
         </div>
         <p className="mt-8 text-stone-400 text-sm">對戰電腦：選擇難度</p>
         <div className="flex gap-2 mt-3 w-full max-w-xs" role="group" aria-label="電腦難度">
-          {DIFFICULTIES.map(({ id, blurb }) => {
+          {DIFFICULTIES.map((id) => {
             const selected = difficulty === id;
             return (
               <button
@@ -370,7 +367,7 @@ export default function App() {
                 type="button"
                 onClick={() => setDifficulty(id)}
                 aria-pressed={selected}
-                title={blurb}
+                title={DIFFICULTY_BLURBS[id]}
                 className={`flex-1 px-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
                   selected
                     ? 'bg-emerald-700 border-emerald-400 text-white'
@@ -382,9 +379,7 @@ export default function App() {
             );
           })}
         </div>
-        <p className="mt-2 text-stone-500 text-xs">
-          {DIFFICULTIES.find((d) => d.id === difficulty)?.blurb}
-        </p>
+        <p className="mt-2 text-stone-500 text-xs">{DIFFICULTY_BLURBS[difficulty]}</p>
         <p className="mt-5 text-stone-400 text-sm">選擇執子開始</p>
         <div className="flex gap-4 mt-3">
           <button
@@ -552,7 +547,7 @@ export default function App() {
           aria-label="電腦難度"
         >
           <span className="text-stone-400">難度</span>
-          {DIFFICULTIES.map(({ id }) => {
+          {DIFFICULTIES.map((id) => {
             const selected = difficulty === id;
             return (
               <button
@@ -560,6 +555,7 @@ export default function App() {
                 type="button"
                 onClick={() => setDifficulty(id)}
                 aria-pressed={selected}
+                title={DIFFICULTY_BLURBS[id]}
                 className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
                   selected
                     ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
@@ -570,6 +566,7 @@ export default function App() {
               </button>
             );
           })}
+          <span className="w-full text-center text-stone-500">{DIFFICULTY_BLURBS[difficulty]}</span>
         </div>
       )}
 

@@ -142,7 +142,14 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
-type DifficultyConfig = {
+/** Short player-facing blurbs so Easy / Normal / Hard read as three opponents. */
+export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
+  easy: '只看一步，常亂下',
+  normal: '看三步，偶有失誤',
+  hard: '深算搶角，殘局全解',
+};
+
+export type DifficultyConfig = {
   /** Plies of lookahead in the midgame. */
   depth: number;
   /** Chance of playing a random legal move instead of the best one. */
@@ -154,15 +161,20 @@ type DifficultyConfig = {
 };
 
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
-  // Shallow and openly fallible, so a first-time player can win.
-  easy: { depth: 1, blunderRate: 0.35, exactEmpties: 0, mobilityWeight: 2 },
-  // Roughly the strength this bot has always played at.
-  normal: { depth: 4, blunderRate: 0.05, exactEmpties: 8, mobilityWeight: 8 },
+  // Depth 1 + high blunderRate: misses corners and replies often.
+  easy: { depth: 1, blunderRate: 0.45, exactEmpties: 0, mobilityWeight: 2 },
+  // Short midgame look-ahead with occasional slips — clearly above easy.
+  normal: { depth: 3, blunderRate: 0.12, exactEmpties: 6, mobilityWeight: 8 },
   // Deeper, values mobility more, and plays the ending out perfectly.
   // 10 empties keeps the exact solve well under a visible pause; 12 can spike
   // past 400ms, and the search is synchronous so that would stall the UI.
   hard: { depth: 6, blunderRate: 0, exactEmpties: 10, mobilityWeight: 14 },
 };
+
+/** Exported so `check` can pin the three tiers staying spread apart. */
+export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
+  return DIFFICULTY[difficulty];
+}
 
 /** Position weights: corners best, squares next to them worst. */
 const SQUARE_WEIGHT = [
