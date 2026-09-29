@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
+import {
+  applyChallengeResult,
+  challengeById,
+  challengeIndexById,
+  isChallengeCleared,
+} from './game/challenges';
+import type { CareerChallenge } from './game/challenges';
 import { POSITIONS } from './game/config';
 import { acknowledge, createGame, resolve } from './game/engine';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
@@ -9,13 +16,18 @@ import type { Achievement, AchievementProgress } from './game/achievements';
 import {
   clearGame,
   loadAchievements,
+  loadActiveChallengeId,
   loadArchive,
+  loadChallengeProgress,
   loadGame,
   pushArchive,
   saveAchievements,
+  saveActiveChallengeId,
+  saveChallengeProgress,
   saveGame,
 } from './game/storage';
 import type { ArchiveEntry } from './game/storage';
+import type { ChallengeProgress } from './game/challenges';
 import type { GameState, Position } from './game/types';
 import { CreateScreen } from './components/CreateScreen';
 import {
@@ -50,9 +62,20 @@ export default function App(): React.ReactElement {
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
   const [achievements, setAchievements] = useState<AchievementProgress>(() => loadAchievements());
+  const [challengeProgress, setChallengeProgress] = useState<ChallengeProgress>(() =>
+    loadChallengeProgress(),
+  );
+  const [activeChallengeId, setActiveChallengeId] = useState<string | null>(() =>
+    loadActiveChallengeId(),
+  );
+  const [challengeResult, setChallengeResult] = useState<boolean | null>(null);
   const [justUnlocked, setJustUnlocked] = useState<Achievement[]>([]);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const summarySfxKey = useRef<string | null>(null);
+
+  const activeChallenge: CareerChallenge | null = activeChallengeId
+    ? (challengeById(activeChallengeId) ?? null)
+    : null;
 
   // Persist after every turn so a closed tab does not cost a career.
   useEffect(() => {
@@ -74,44 +97,87 @@ export default function App(): React.ReactElement {
       if (screen !== 'summary') summarySfxKey.current = null;
       return;
     }
-    const key = `${state.seedCode}:${state.summary.hofScore}:${state.summary.verdict}`;
+    const key = `${state.seedCode}:${state.summary.hofScore}:${state.summary.verdict}:${challengeResult ?? 'free'}`;
     if (summarySfxKey.current === key) return;
     summarySfxKey.current = key;
+    if (activeChallenge && challengeResult !== null) {
+      if (challengeResult) playWin();
+      else playLose();
+      return;
+    }
     const hof = state.summary.hofScore;
     if (hof >= 1450) playWin();
     else if (hof >= 380) playGoal();
     else playLose();
-  }, [screen, state]);
+  }, [screen, state, activeChallenge, challengeResult]);
 
-  const finish = useCallback((finished: GameState) => {
-    if (!finished.summary) return;
-    setArchive(
-      pushArchive({
-        seedCode: finished.seedCode,
-        name: finished.name,
-        position: POSITIONS.find((p) => p.id === finished.position)?.label ?? finished.position,
-        verdict: finished.summary.verdict,
-        hofScore: finished.summary.hofScore,
-        traits: finished.traits,
-      }),
-    );
-    // Achievements read the freshly loaded progress rather than component state
-    // so that a second tab finishing a career cannot silently roll this one back.
-    const result = evaluate(finished, loadAchievements());
-    saveAchievements(result.progress);
-    setAchievements(result.progress);
-    setJustUnlocked(result.unlocked);
-    clearGame();
-    setSaved(null);
+  const finish = useCallback(
+    (finished: GameState) => {
+      if (!finished.summary) return;
+      setArchive(
+        pushArchive({
+          seedCode: finished.seedCode,
+          name: finished.name,
+          position: POSITIONS.find((p) => p.id === finished.position)?.label ?? finished.position,
+          verdict: finished.summary.verdict,
+          hofScore: finished.summary.hofScore,
+          traits: finished.traits,
+        }),
+      );
+      // Achievements read the freshly loaded progress rather than component state
+      // so that a second tab finishing a career cannot silently roll this one back.
+      const result = evaluate(finished, loadAchievements());
+      saveAchievements(result.progress);
+      setAchievements(result.progress);
+      setJustUnlocked(result.unlocked);
+
+      const challengeId = loadActiveChallengeId();
+      const challenge = challengeId ? challengeById(challengeId) : undefined;
+      if (challenge) {
+        const index = challengeIndexById(challenge.id);
+        const applied = applyChallengeResult(loadChallengeProgress(), index, finished);
+        saveChallengeProgress(applied.progress);
+        setChallengeProgress(applied.progress);
+        setChallengeResult(applied.cleared || isChallengeCleared(challenge, finished));
+      } else {
+        setChallengeResult(null);
+      }
+
+      clearGame();
+      setSaved(null);
+    },
+    [],
+  );
+
+  const beginFreePlay = useCallback((code: string) => {
+    saveActiveChallengeId(null);
+    setActiveChallengeId(null);
+    setChallengeResult(null);
+    setSeedCode(code);
+    setScreen('create');
+  }, []);
+
+  const beginChallenge = useCallback((challengeId: string) => {
+    const challenge = challengeById(challengeId);
+    if (!challenge) return;
+    saveActiveChallengeId(challenge.id);
+    setActiveChallengeId(challenge.id);
+    setChallengeResult(null);
+    setSeedCode(challenge.seedCode);
+    setScreen('create');
   }, []);
 
   const handleCreate = useCallback(
     (input: { name: string; position: Position; originId: string }) => {
-      setState(createGame({ seedCode, ...input }));
+      const challenge = activeChallengeId ? challengeById(activeChallengeId) : null;
+      const position = challenge?.position ?? input.position;
+      const code = challenge?.seedCode ?? seedCode;
+      setSeedCode(code);
+      setState(createGame({ seedCode: code, ...input, position }));
       setHistory([]);
       setScreen('play');
     },
-    [seedCode],
+    [seedCode, activeChallengeId],
   );
 
   const handleChoose = useCallback(
@@ -150,12 +216,33 @@ export default function App(): React.ReactElement {
 
   const backToTitle = useCallback(() => {
     clearGame();
+    saveActiveChallengeId(null);
     setSaved(null);
     setState(null);
     setHistory([]);
+    setActiveChallengeId(null);
+    setChallengeResult(null);
     setSeedCode(randomSeedCode());
     setScreen('title');
   }, []);
+
+  const retryChallenge = useCallback(() => {
+    if (!activeChallengeId) {
+      backToTitle();
+      return;
+    }
+    const challenge = challengeById(activeChallengeId);
+    if (!challenge) {
+      backToTitle();
+      return;
+    }
+    setState(null);
+    setHistory([]);
+    setChallengeResult(null);
+    setSeedCode(challenge.seedCode);
+    saveActiveChallengeId(challenge.id);
+    setScreen('create');
+  }, [activeChallengeId, backToTitle]);
 
   return (
     <>
@@ -167,28 +254,39 @@ export default function App(): React.ReactElement {
           hasSave={saved !== null}
           archive={archive}
           achievements={achievements}
+          challengeProgress={challengeProgress}
           onShowHowTo={() => setShowFirstRun(true)}
-          onStart={(code) => {
-            setSeedCode(code);
-            setScreen('create');
-          }}
+          onStart={beginFreePlay}
+          onStartChallenge={beginChallenge}
           onContinue={() => {
             if (!saved) return;
             setState(saved);
             setHistory([]);
             setSeedCode(saved.seedCode);
+            setActiveChallengeId(loadActiveChallengeId());
+            setChallengeResult(null);
             setScreen('play');
           }}
         />
       )}
 
       {screen === 'create' && (
-        <CreateScreen seedCode={seedCode} onCreate={handleCreate} onBack={() => setScreen('title')} />
+        <CreateScreen
+          seedCode={seedCode}
+          challenge={activeChallenge}
+          onCreate={handleCreate}
+          onBack={() => {
+            saveActiveChallengeId(null);
+            setActiveChallengeId(null);
+            setScreen('title');
+          }}
+        />
       )}
 
       {screen === 'play' && state && (
         <PlayScreen
           state={state}
+          challenge={activeChallenge}
           onChoose={handleChoose}
           onAcknowledge={handleAcknowledge}
           onUndo={handleUndo}
@@ -201,11 +299,17 @@ export default function App(): React.ReactElement {
         <SummaryScreen
           state={state}
           unlocked={justUnlocked}
+          challenge={activeChallenge}
+          challengeCleared={challengeResult}
           onRestart={backToTitle}
           onSameSeed={() => {
+            saveActiveChallengeId(null);
+            setActiveChallengeId(null);
+            setChallengeResult(null);
             setState(null);
             setScreen('create');
           }}
+          onRetryChallenge={activeChallenge ? retryChallenge : undefined}
         />
       )}
     </>

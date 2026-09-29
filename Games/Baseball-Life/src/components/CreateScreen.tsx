@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import type { CareerChallenge } from '../game/challenges';
 import { POSITIONS } from '../game/config';
 import { rollOrigins } from '../game/engine';
 import type { Position } from '../game/types';
@@ -7,17 +8,22 @@ import { sceneBackgroundStyle } from '../sceneBackground';
 
 interface Props {
   seedCode: string;
+  challenge?: CareerChallenge | null;
   onCreate: (input: { name: string; position: Position; originId: string }) => void;
   onBack: () => void;
 }
 
-export function CreateScreen({ seedCode, onCreate, onBack }: Props): React.ReactElement {
+export function CreateScreen({ seedCode, challenge, onCreate, onBack }: Props): React.ReactElement {
+  const lockedPosition = challenge?.position;
   const [name, setName] = useState('');
-  const [position, setPosition] = useState<Position>('OF');
+  const [position, setPosition] = useState<Position>(lockedPosition ?? 'OF');
   // The three origins are drawn from the seed, so they are part of the world,
   // not a fresh roll each time the player changes their mind about position.
   const origins = useMemo(() => rollOrigins(seedCode), [seedCode]);
   const [originId, setOriginId] = useState(origins[0].id);
+  const positionChoices = lockedPosition
+    ? POSITIONS.filter((p) => p.id === lockedPosition)
+    : POSITIONS;
 
   return (
     <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle()}>
@@ -25,8 +31,17 @@ export function CreateScreen({ seedCode, onCreate, onBack }: Props): React.React
       <header className="bl-title-hero mt-3">
         <p className="text-xs tracking-[0.3em] text-slate-500">
           種子碼 <span className="font-mono text-amber-300">{seedCode}</span>
+          {challenge && <span className="ml-2 tracking-normal text-sky-300">・生涯挑戰</span>}
         </p>
-        <h1 className="mt-1 text-2xl font-black text-amber-300">建立球員</h1>
+        <h1 className="mt-1 text-2xl font-black text-amber-300">
+          {challenge ? challenge.name : '建立球員'}
+        </h1>
+        {challenge && (
+          <p className="mt-2 text-sm leading-relaxed text-sky-100/90">
+            目標：{challenge.goalLabel}
+            <span className="mt-1 block text-xs text-slate-400">{challenge.blurb}</span>
+          </p>
+        )}
       </header>
 
       <section className="bl-card p-4">
@@ -45,8 +60,11 @@ export function CreateScreen({ seedCode, onCreate, onBack }: Props): React.React
 
       <section className="bl-card p-4">
         <h2 className="text-xs font-semibold tracking-wider text-slate-400">守備位置</h2>
+        {lockedPosition && (
+          <p className="mt-1 text-[11px] text-slate-500">此挑戰鎖定守備位置，不能更換。</p>
+        )}
         <div className="mt-3 grid grid-cols-2 gap-2">
-          {POSITIONS.map((p) => (
+          {positionChoices.map((p) => (
             <button
               key={p.id}
               type="button"
@@ -90,9 +108,9 @@ export function CreateScreen({ seedCode, onCreate, onBack }: Props): React.React
           className="rounded-xl border border-slate-600 bg-slate-800 px-5 text-sm font-bold text-slate-200"
         />
         <TouchButton
-          label="入部"
-          ariaLabel="建立球員並開始遊戲"
-          onClick={() => onCreate({ name, position, originId })}
+          label={challenge ? '接受挑戰' : '入部'}
+          ariaLabel={challenge ? '建立球員並開始生涯挑戰' : '建立球員並開始遊戲'}
+          onClick={() => onCreate({ name, position: lockedPosition ?? position, originId })}
           className="flex-1 rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
         />
       </div>

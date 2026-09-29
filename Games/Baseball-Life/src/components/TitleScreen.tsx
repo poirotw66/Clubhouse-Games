@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { ACHIEVEMENTS, progressOf } from '../game/achievements';
 import type { AchievementProgress } from '../game/achievements';
+import {
+  CAREER_CHALLENGES,
+  challengeCount,
+  continueChallengeIndex,
+  isChallengeUnlocked,
+} from '../game/challenges';
+import type { ChallengeProgress } from '../game/challenges';
+import { POSITIONS } from '../game/config';
 import { normalizeSeedCode, randomSeedCode } from '../game/rng';
 import type { ArchiveEntry } from '../game/storage';
 import { traitById } from '../game/traits';
@@ -11,8 +19,10 @@ interface Props {
   hasSave: boolean;
   archive: ArchiveEntry[];
   achievements: AchievementProgress;
+  challengeProgress: ChallengeProgress;
   onShowHowTo: () => void;
   onStart: (seedCode: string) => void;
+  onStartChallenge: (challengeId: string) => void;
   onContinue: () => void;
 }
 
@@ -21,13 +31,25 @@ export function TitleScreen({
   hasSave,
   archive,
   achievements,
+  challengeProgress,
   onShowHowTo,
   onStart,
+  onStartChallenge,
   onContinue,
 }: Props): React.ReactElement {
   const [seed, setSeed] = useState(initialSeed);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [showChallenges, setShowChallenges] = useState(false);
   const earned = ACHIEVEMENTS.filter((a) => achievements.unlocked[a.id]).length;
+  const packTotal = challengeCount();
+  const packContinue = continueChallengeIndex(challengeProgress.clearedCount);
+  const packSubtitle = useMemo(() => {
+    if (challengeProgress.clearedCount >= packTotal) return `已完成 ${packTotal}/${packTotal}`;
+    if (challengeProgress.clearedCount > 0) {
+      return `進度 ${challengeProgress.clearedCount}/${packTotal}・繼續`;
+    }
+    return `固定種子 ${packTotal} 關・開始`;
+  }, [challengeProgress.clearedCount, packTotal]);
 
   return (
     <div
@@ -83,6 +105,13 @@ export function TitleScreen({
           onClick={() => onStart(normalizeSeedCode(seed))}
           className="w-full rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
         />
+        <TouchButton
+          label="生涯挑戰"
+          ariaLabel={`開啟生涯挑戰。${packSubtitle}`}
+          onClick={() => setShowChallenges(true)}
+          className="w-full rounded-xl border border-sky-500/50 bg-sky-500/15 px-4 text-base font-bold text-sky-100"
+        />
+        <p className="-mt-1 text-center text-[11px] text-slate-500">{packSubtitle}</p>
         <TouchButton
           label="操作教學"
           ariaLabel="開啟操作教學"
@@ -182,6 +211,116 @@ export function TitleScreen({
         </section>
       )}
       </div>
+
+      {showChallenges && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/75 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bl-challenge-title"
+          onClick={() => setShowChallenges(false)}
+        >
+          <div
+            className="bl-card flex max-h-[85vh] w-full max-w-lg flex-col p-4"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="bl-challenge-title" className="text-xl font-black text-amber-300">
+                  生涯挑戰
+                </h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  固定種子與位置・達成目標才算通關・進度獨立於自由遊玩
+                </p>
+              </div>
+              <TouchButton
+                label="關閉"
+                ariaLabel="關閉生涯挑戰"
+                onClick={() => setShowChallenges(false)}
+                className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-200"
+              />
+            </div>
+
+            <TouchButton
+              label={
+                challengeProgress.clearedCount >= packTotal
+                  ? '重玩最終關'
+                  : challengeProgress.clearedCount > 0
+                    ? `繼續・${CAREER_CHALLENGES[packContinue]?.name}`
+                    : '開始第一關'
+              }
+              ariaLabel="繼續生涯挑戰"
+              onClick={() => {
+                const challenge = CAREER_CHALLENGES[packContinue];
+                if (!challenge) return;
+                setShowChallenges(false);
+                onStartChallenge(challenge.id);
+              }}
+              className="mt-4 w-full rounded-xl bg-sky-500 px-4 text-sm font-black text-slate-950"
+            />
+
+            <ul className="mt-4 space-y-2 overflow-y-auto pr-1">
+              {CAREER_CHALLENGES.map((challenge, index) => {
+                const unlocked = isChallengeUnlocked(index, challengeProgress.clearedCount);
+                const done = Boolean(challengeProgress.cleared[challenge.id]);
+                const best = challengeProgress.bestHof[challenge.id];
+                const positionLabel =
+                  POSITIONS.find((p) => p.id === challenge.position)?.label ?? challenge.position;
+                return (
+                  <li key={challenge.id}>
+                    <button
+                      type="button"
+                      disabled={!unlocked}
+                      onClick={() => {
+                        if (!unlocked) return;
+                        setShowChallenges(false);
+                        onStartChallenge(challenge.id);
+                      }}
+                      className="bl-choice flex min-h-16 w-full flex-col px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-45"
+                      style={
+                        done
+                          ? { borderColor: 'rgba(56,189,248,0.55)', background: 'rgba(12,74,110,0.28)' }
+                          : undefined
+                      }
+                    >
+                      <span className="flex w-full items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-slate-100">
+                          <span className="mr-2 font-mono text-[11px] text-slate-500">
+                            {String(index + 1).padStart(2, '0')}
+                          </span>
+                          {unlocked ? challenge.name : '？？？'}
+                        </span>
+                        <span className="shrink-0 text-[11px] font-semibold text-slate-400">
+                          {!unlocked ? '未解鎖' : done ? '已通關' : '挑戰'}
+                        </span>
+                      </span>
+                      {unlocked && (
+                        <>
+                          <span className="mt-1 text-[11px] leading-snug text-slate-400">
+                            {challenge.blurb}
+                          </span>
+                          <span className="mt-1 text-[11px] text-sky-200/90">
+                            目標：{challenge.goalLabel}
+                            <span className="ml-2 text-slate-500">
+                              {positionLabel}・
+                              <span className="font-mono">{challenge.seedCode}</span>
+                            </span>
+                          </span>
+                          {best !== undefined && (
+                            <span className="mt-1 font-mono text-[10px] text-amber-300/80">
+                              最佳積分 {best}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

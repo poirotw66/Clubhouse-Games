@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import type { CareerChallenge } from '../game/challenges';
 import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
 import { DESTINY_COST, deltaLabel } from '../game/engine';
 import { describeLine } from '../game/season';
@@ -38,6 +39,7 @@ function DeltaList({ deltas }: { deltas: TurnReport['deltas'] }): React.ReactEle
 
 interface Props {
   state: GameState;
+  challenge?: CareerChallenge | null;
   onChoose: (optionId: string, useDestiny?: boolean) => void;
   onAcknowledge: () => void;
   onUndo: () => void;
@@ -47,6 +49,7 @@ interface Props {
 
 export function PlayScreen({
   state,
+  challenge,
   onChoose,
   onAcknowledge,
   onUndo,
@@ -113,6 +116,12 @@ export function PlayScreen({
           <p className="text-[11px] text-slate-500">
             {state.originLabel}・種子碼 <span className="font-mono text-amber-300/80">{state.seedCode}</span>
           </p>
+          {challenge && (
+            <p className="mt-1 text-[11px] font-semibold text-sky-300/90">
+              挑戰・{challenge.name}
+              <span className="ml-2 font-normal text-slate-400">目標：{challenge.goalLabel}</span>
+            </p>
+          )}
         </div>
         <TouchButton
           label="放棄這段人生"
@@ -208,7 +217,12 @@ export function PlayScreen({
           {!ended &&
             decision && (
               <section className="bl-card p-4">
-                <p className="text-[11px] tracking-wider text-slate-500">{decision.title}</p>
+                <p className="text-[11px] tracking-wider text-slate-500">
+                  {decision.kind === 'event' ? '高風險抉擇' : decision.title}
+                </p>
+                {decision.kind === 'event' && (
+                  <p className="mt-1 text-xs font-bold text-rose-300/90">{decision.title}</p>
+                )}
                 <h2 className="mt-1 text-base leading-relaxed text-slate-200">{decision.prompt}</h2>
 
                 {decision.kind === 'training' && (

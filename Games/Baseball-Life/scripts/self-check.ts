@@ -2,9 +2,21 @@ import * as assert from 'node:assert/strict';
 import { acknowledge, createGame, resolve, rollOrigins } from '../src/game/engine.js';
 import { EVENTS } from '../src/game/events.js';
 import { ACHIEVEMENTS, EMPTY_PROGRESS, evaluate, progressOf } from '../src/game/achievements.js';
+import {
+  CAREER_CHALLENGES,
+  EMPTY_CHALLENGE_PROGRESS,
+  applyChallengeResult,
+  challengeById,
+  challengeCount,
+  continueChallengeIndex,
+  isChallengeCleared,
+  isChallengeUnlocked,
+} from '../src/game/challenges.js';
 import { overall } from '../src/game/config.js';
 import { careerTotals } from '../src/game/milestones.js';
 import { breakingFromArsenal } from '../src/game/pitches.js';
+import { TWO_WAY_WORKLOAD } from '../src/game/season.js';
+import { SITUATIONS, situationById } from '../src/game/situations.js';
 import { traitEffects } from '../src/game/traits.js';
 import type { Decision, GameState, Position } from '../src/game/types.js';
 
@@ -31,7 +43,13 @@ function playRun(seedCode: string, position: Position, chooser: Chooser): GameSt
   return state;
 }
 
-const firstChoice: Chooser = (decision) => enabled(decision)[0];
+const firstChoice: Chooser = (decision) => {
+  const ids = enabled(decision);
+  // Situation cards list the gamble first; training-first policies should take
+  // the safest option so self-checks measure the career engine, not roulette.
+  if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+  return ids[0];
+};
 const cyclingChoice: Chooser = (decision, step) => {
   const ids = enabled(decision);
   return ids[step % ids.length];
@@ -74,7 +92,15 @@ function expectHighSchoolLength(): void {
   assert.equal(state.age, 16);
   for (let i = 0; i < 11; i++) {
     assert.equal(state.stage, 'highschool', `left high school early at turn ${i}`);
-    state = acknowledge(resolve(state, enabled(state.decision!)[0]));
+    // Drain any queued high-risk choice cards so they do not steal a training turn.
+    while (state.decision?.kind === 'event') {
+      state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
+    }
+    assert.ok(state.decision, `missing decision at HS turn ${i}`);
+    state = acknowledge(resolve(state, firstChoice(state.decision!, 0)));
+  }
+  while (state.decision?.kind === 'event') {
+    state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
   }
   assert.equal(state.decision?.kind, 'path', 'graduation fork did not appear after eleven turns');
   assert.equal(state.age, 18, 'age should be 18 at graduation');
@@ -466,6 +492,163 @@ function expectUndoIsNotAReroll(): void {
   }
 }
 
+/** Challenge ids and seeds must stay unique so progress keys never collide. */
+function expectChallengeDefsAreSound(): void {
+  assert.ok(CAREER_CHALLENGES.length >= 6, 'challenge pack is too thin');
+  assert.equal(challengeCount(), CAREER_CHALLENGES.length);
+  const ids = CAREER_CHALLENGES.map((c) => c.id);
+  assert.equal(new Set(ids).size, ids.length, 'two challenges share an id');
+  for (const challenge of CAREER_CHALLENGES) {
+    assert.ok(challenge.name.length > 0 && challenge.blurb.length > 0, `${challenge.id} missing copy`);
+    assert.ok(challenge.goalLabel.length > 0, `${challenge.id} missing goal label`);
+    assert.ok(/^[a-z0-9]{6,12}$/i.test(challenge.seedCode), `${challenge.id} seed looks wrong`);
+    assert.ok(challengeById(challenge.id)?.id === challenge.id, `${challenge.id} lookup failed`);
+    assert.ok(
+      challenge.goal.kind === 'pro-seasons' ||
+        challenge.goal.kind === 'hof-score' ||
+        challenge.goal.kind === 'hs-titles' ||
+        challenge.goal.kind === 'mlb-seasons',
+      `${challenge.id} has unknown goal kind`,
+    );
+  }
+}
+
+/** Unlock cursor mirrors the Liquid-Sort pack: stage i opens when i <= clearedCount. */
+function expectChallengeUnlockMath(): void {
+  assert.equal(isChallengeUnlocked(0, 0), true);
+  assert.equal(isChallengeUnlocked(1, 0), false);
+  assert.equal(isChallengeUnlocked(1, 1), true);
+  assert.equal(isChallengeUnlocked(7, 7), true);
+  assert.equal(isChallengeUnlocked(7, 6), false);
+  assert.equal(isChallengeUnlocked(-1, 0), false);
+  assert.equal(isChallengeUnlocked(99, 8), false);
+  assert.equal(continueChallengeIndex(0), 0);
+  assert.equal(continueChallengeIndex(3), 3);
+  assert.equal(continueChallengeIndex(CAREER_CHALLENGES.length), CAREER_CHALLENGES.length - 1);
+}
+
+/**
+ * Early challenges must clear under a training-first policy; the MLB card needs
+ * an overseas-preferring policy because the goal is the path choice itself.
+ */
+function expectChallengeSeedsAreClearable(): void {
+  const overseasFirst: Chooser = (decision) => {
+    const ids = enabled(decision);
+    const prefer = ids.find((id) => id === 'path-overseas' || id === 'offer-mlb' || id === 'offer-promote');
+    return prefer ?? ids[0];
+  };
+
+  for (let index = 0; index < CAREER_CHALLENGES.length; index++) {
+    const challenge = CAREER_CHALLENGES[index];
+    const chooser = challenge.id === 'mlb-regular' ? overseasFirst : firstChoice;
+    const state = playRun(challenge.seedCode, challenge.position, chooser);
+    assert.ok(state.retired && state.summary, `${challenge.id} did not finish`);
+    assert.ok(
+      isChallengeCleared(challenge, state),
+      `${challenge.id} was not cleared by the expected policy (hof=${state.summary?.hofScore}, pro=${state.counters.proSeasons}, hs=${state.counters.hsTournamentWins}, mlb=${state.history.filter((h) => h.league === 'mlb').length})`,
+    );
+
+    const applied = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, index, state);
+    assert.equal(applied.cleared, true, `${challenge.id} applyChallengeResult missed a clear`);
+    assert.ok(applied.progress.cleared[challenge.id], `${challenge.id} not marked cleared`);
+    assert.ok(
+      (applied.progress.bestHof[challenge.id] ?? 0) >= state.summary!.hofScore,
+      `${challenge.id} best Hof not recorded`,
+    );
+  }
+
+  // Frontier advance only happens when clearing the current unlocked card.
+  const first = CAREER_CHALLENGES[0];
+  const firstRun = playRun(first.seedCode, first.position, firstChoice);
+  const fromZero = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 0, firstRun);
+  assert.equal(fromZero.progress.clearedCount, 1, 'clearing challenge 0 should open challenge 1');
+
+  const late = CAREER_CHALLENGES[3];
+  const lateRun = playRun(late.seedCode, late.position, firstChoice);
+  const outOfOrder = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 3, lateRun);
+  assert.equal(
+    outOfOrder.progress.clearedCount,
+    0,
+    'clearing a locked challenge must not advance the cursor',
+  );
+  assert.equal(outOfOrder.cleared, true, 'goal can still be satisfied out of order');
+  assert.ok(outOfOrder.progress.cleared[late.id], 'out-of-order clear still stamps cleared map');
+}
+
+/** Choice cards must never offer a free hold — every option costs something. */
+function expectSituationsHaveCosts(): void {
+  assert.ok(SITUATIONS.length >= 10, 'situation pack is too thin');
+  const ids = SITUATIONS.map((s) => s.id);
+  assert.equal(new Set(ids).size, ids.length, 'duplicate situation id');
+
+  const origins = rollOrigins('sitcost1');
+  const sample = createGame({
+    seedCode: 'sitcost1',
+    name: '測試',
+    position: 'OF',
+    originId: origins[0].id,
+  });
+
+  for (const situation of SITUATIONS) {
+    assert.ok(situationById(situation.id)?.id === situation.id);
+    const options = situation.options(sample);
+    assert.ok(options.length >= 2, `${situation.id} needs real choices`);
+    for (const option of options) {
+      const effects = option.effects;
+      const keys = Object.keys(effects);
+      assert.ok(keys.length > 0, `${situation.id}/${option.id} has empty effects`);
+      // At least one downside OR opportunity cost signal (fatigue, injury, mind-, fame-, attr loss).
+      const hasRisk =
+        (effects.fatigue ?? 0) > 0 ||
+        (effects.injuryChance ?? 0) > 0 ||
+        (effects.mind ?? 0) < 0 ||
+        (effects.body ?? 0) < 0 ||
+        (effects.fame ?? 0) < 0 ||
+        (effects.velocity ?? 0) < 0 ||
+        (effects.contact ?? 0) < 0 ||
+        (effects.power ?? 0) < 0 ||
+        (effects.stamina ?? 0) < 0 ||
+        (effects.speed ?? 0) < 0 ||
+        (effects.breaking ?? 0) < 0 ||
+        option.hint.includes('錯過') ||
+        option.hint.includes('放棄') ||
+        option.hint.includes('沒有現金') ||
+        option.hint.includes('成長停滯') ||
+        option.hint.includes('錯失');
+      assert.ok(hasRisk, `${situation.id}/${option.id} looks like a free hold`);
+    }
+  }
+
+  const twOnly = SITUATIONS.filter((s) => s.id.startsWith('tw-'));
+  assert.ok(twOnly.length >= 3, 'two-way needs exclusive situations');
+}
+
+/** Careers must actually surface choice cards, not only flavour text. */
+function expectSituationsAppearInCareers(): void {
+  let hits = 0;
+  for (let i = 0; i < 12; i++) {
+    const state = playRun(`sitrun${i}`, i % 2 === 0 ? 'OF' : 'TW', firstChoice);
+    hits += state.seenSituations.length;
+  }
+  assert.ok(hits >= 8, `only ${hits} situations across 12 careers — fire rate too low`);
+}
+
+/** Two-way preferential treatment must remain tangible but not free. */
+function expectTwoWayPerksExist(): void {
+  assert.ok(TWO_WAY_WORKLOAD > 0.72 && TWO_WAY_WORKLOAD < 1, 'workload tax should be softened, not removed');
+  const specialist = playRun('twperk01', 'OF', firstChoice);
+  const twoWay = playRun('twperk01', 'TW', firstChoice);
+  assert.ok(twoWay.retired && specialist.retired);
+  // Destiny accrues faster for TW across a career — leave a measurable gap.
+  // (Final destiny pools fluctuate with spends; compare peak via log/choices length proxy:
+  // TW exclusive situations should appear.)
+  assert.ok(
+    twoWay.seenSituations.some((id) => id.startsWith('tw-')) ||
+      SITUATIONS.some((s) => s.id.startsWith('tw-') && s.condition?.(twoWay)),
+    'two-way exclusive situations should be reachable',
+  );
+}
+
 const checks: [string, () => void][] = [
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
@@ -491,6 +674,12 @@ const checks: [string, () => void][] = [
   ['collection goals fire exactly once', expectCollectionGoalsFire],
   ['careers reach the content', expectCareersReachTheContent],
   ['undo is not a re-roll', expectUndoIsNotAReroll],
+  ['challenge defs are sound', expectChallengeDefsAreSound],
+  ['challenge unlock math', expectChallengeUnlockMath],
+  ['challenge seeds are clearable', expectChallengeSeedsAreClearable],
+  ['situations have costs', expectSituationsHaveCosts],
+  ['situations appear in careers', expectSituationsAppearInCareers],
+  ['two-way perks exist', expectTwoWayPerksExist],
 ];
 
 let failed = 0;

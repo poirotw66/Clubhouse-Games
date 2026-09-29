@@ -243,6 +243,13 @@ export interface GameState {
   choices: string[];
   /** Event ids already shown, so the pool drains before anything repeats. */
   seenEvents: string[];
+  /**
+   * High-risk situation ids already shown. Separate from flavour `seenEvents`
+   * so a narrative beat and a choice card never collide on the same key.
+   */
+  seenSituations: string[];
+  /** Queued choice-card id; set after a turn and consumed by `buildDecision`. */
+  pendingSituation: string | null;
 
   decision: Decision | null;
   report: TurnReport | null;
