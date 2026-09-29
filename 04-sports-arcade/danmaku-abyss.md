@@ -107,3 +107,5 @@
 
 - 以 2D Canvas 繪製，不使用 3D 引擎；子彈為程式繪製的簡單圖形，不含任何第三方美術資源。
 - 全部彈幕與敵機行為皆為決定性，相同種子碼與相同輸入序列會重現完全相同的一趟。
+- **首局引導**：首次進入標題頁顯示三步上手疊層（`danmaku-abyss:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「潛入深淵」衝突。
+- 實作路徑：`Games/Danmaku-Abyss/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。
