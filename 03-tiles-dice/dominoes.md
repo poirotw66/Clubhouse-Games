@@ -70,6 +70,7 @@
 
 路徑：[Games/Dominoes/](../Games/Dominoes/)
 
-- 雙人／對電腦；摸牌制與封鎖制；三級 AI、Hint、Undo、連勝（`clubhouse-dominoes-win-streak`）。
+- 雙人／對電腦；摸牌制與封鎖制；三級 AI（Easy 高失誤／先丟輕牌、Normal 出重點偶失手、Hard 顧後手零失誤）、Hint、Undo、連勝（`clubhouse-dominoes-win-streak`）。
+- Setup 難度列顯示繁中體感文案；`getDifficultyConfig` + vitest 釘住三檔失誤率／後手權重／文案可分辨。
 - **首局引導**：首次開啟三步上手疊層（`clubhouse-dominoes-howto-seen`）。
 - Check：`npm run check` → vitest（含難度／規則）。
