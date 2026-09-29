@@ -1,11 +1,19 @@
 import { EMPTY_PROGRESS } from './achievements';
 import type { AchievementProgress } from './achievements';
+import {
+  CAREER_CHALLENGES,
+  EMPTY_CHALLENGE_PROGRESS,
+  challengeById,
+} from './challenges';
+import type { ChallengeProgress } from './challenges';
 import { STORAGE_KEY } from './config';
 import type { GameState } from './types';
 
 const SAVE_KEY = `${STORAGE_KEY}:save`;
 const ARCHIVE_KEY = `${STORAGE_KEY}:archive`;
 const ACHIEVEMENTS_KEY = `${STORAGE_KEY}:achievements`;
+const CHALLENGES_KEY = `${STORAGE_KEY}:challenges`;
+const ACTIVE_CHALLENGE_KEY = `${STORAGE_KEY}:active-challenge`;
 
 export interface ArchiveEntry {
   seedCode: string;
@@ -112,4 +120,63 @@ export function pushArchive(entry: ArchiveEntry): ArchiveEntry[] {
     // Best effort only.
   }
   return next;
+}
+
+export function loadChallengeProgress(): ChallengeProgress {
+  try {
+    const raw = window.localStorage.getItem(CHALLENGES_KEY);
+    if (!raw) return { ...EMPTY_CHALLENGE_PROGRESS, bestHof: {}, cleared: {} };
+    const parsed = JSON.parse(raw) as Partial<ChallengeProgress>;
+    const clearedCount = Math.max(
+      0,
+      Math.min(CAREER_CHALLENGES.length, Math.floor(Number(parsed.clearedCount) || 0)),
+    );
+    const bestHof: Record<string, number> = {};
+    if (parsed.bestHof && typeof parsed.bestHof === 'object') {
+      for (const [id, value] of Object.entries(parsed.bestHof)) {
+        const n = Number(value);
+        if (Number.isFinite(n) && n >= 0) bestHof[id] = Math.floor(n);
+      }
+    }
+    const cleared: Record<string, true> = {};
+    if (parsed.cleared && typeof parsed.cleared === 'object') {
+      for (const id of Object.keys(parsed.cleared)) {
+        if (challengeById(id)) cleared[id] = true;
+      }
+    }
+    return { clearedCount, bestHof, cleared };
+  } catch {
+    return { ...EMPTY_CHALLENGE_PROGRESS, bestHof: {}, cleared: {} };
+  }
+}
+
+export function saveChallengeProgress(progress: ChallengeProgress): void {
+  try {
+    window.localStorage.setItem(CHALLENGES_KEY, JSON.stringify(progress));
+  } catch {
+    // Best effort only.
+  }
+}
+
+/** Companion to the mid-run save so Continue restores challenge context. */
+export function loadActiveChallengeId(): string | null {
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_CHALLENGE_KEY);
+    if (!raw) return null;
+    return challengeById(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveActiveChallengeId(id: string | null): void {
+  try {
+    if (id && challengeById(id)) {
+      window.localStorage.setItem(ACTIVE_CHALLENGE_KEY, id);
+    } else {
+      window.localStorage.removeItem(ACTIVE_CHALLENGE_KEY);
+    }
+  } catch {
+    // Best effort only.
+  }
 }

@@ -2,6 +2,16 @@ import * as assert from 'node:assert/strict';
 import { acknowledge, createGame, resolve, rollOrigins } from '../src/game/engine.js';
 import { EVENTS } from '../src/game/events.js';
 import { ACHIEVEMENTS, EMPTY_PROGRESS, evaluate, progressOf } from '../src/game/achievements.js';
+import {
+  CAREER_CHALLENGES,
+  EMPTY_CHALLENGE_PROGRESS,
+  applyChallengeResult,
+  challengeById,
+  challengeCount,
+  continueChallengeIndex,
+  isChallengeCleared,
+  isChallengeUnlocked,
+} from '../src/game/challenges.js';
 import { overall } from '../src/game/config.js';
 import { careerTotals } from '../src/game/milestones.js';
 import { breakingFromArsenal } from '../src/game/pitches.js';
@@ -466,6 +476,89 @@ function expectUndoIsNotAReroll(): void {
   }
 }
 
+/** Challenge ids and seeds must stay unique so progress keys never collide. */
+function expectChallengeDefsAreSound(): void {
+  assert.ok(CAREER_CHALLENGES.length >= 6, 'challenge pack is too thin');
+  assert.equal(challengeCount(), CAREER_CHALLENGES.length);
+  const ids = CAREER_CHALLENGES.map((c) => c.id);
+  assert.equal(new Set(ids).size, ids.length, 'two challenges share an id');
+  for (const challenge of CAREER_CHALLENGES) {
+    assert.ok(challenge.name.length > 0 && challenge.blurb.length > 0, `${challenge.id} missing copy`);
+    assert.ok(challenge.goalLabel.length > 0, `${challenge.id} missing goal label`);
+    assert.ok(/^[a-z0-9]{6,12}$/i.test(challenge.seedCode), `${challenge.id} seed looks wrong`);
+    assert.ok(challengeById(challenge.id)?.id === challenge.id, `${challenge.id} lookup failed`);
+    assert.ok(
+      challenge.goal.kind === 'pro-seasons' ||
+        challenge.goal.kind === 'hof-score' ||
+        challenge.goal.kind === 'hs-titles' ||
+        challenge.goal.kind === 'mlb-seasons',
+      `${challenge.id} has unknown goal kind`,
+    );
+  }
+}
+
+/** Unlock cursor mirrors the Liquid-Sort pack: stage i opens when i <= clearedCount. */
+function expectChallengeUnlockMath(): void {
+  assert.equal(isChallengeUnlocked(0, 0), true);
+  assert.equal(isChallengeUnlocked(1, 0), false);
+  assert.equal(isChallengeUnlocked(1, 1), true);
+  assert.equal(isChallengeUnlocked(7, 7), true);
+  assert.equal(isChallengeUnlocked(7, 6), false);
+  assert.equal(isChallengeUnlocked(-1, 0), false);
+  assert.equal(isChallengeUnlocked(99, 8), false);
+  assert.equal(continueChallengeIndex(0), 0);
+  assert.equal(continueChallengeIndex(3), 3);
+  assert.equal(continueChallengeIndex(CAREER_CHALLENGES.length), CAREER_CHALLENGES.length - 1);
+}
+
+/**
+ * Early challenges must clear under a training-first policy; the MLB card needs
+ * an overseas-preferring policy because the goal is the path choice itself.
+ */
+function expectChallengeSeedsAreClearable(): void {
+  const overseasFirst: Chooser = (decision) => {
+    const ids = enabled(decision);
+    const prefer = ids.find((id) => id === 'path-overseas' || id === 'offer-mlb' || id === 'offer-promote');
+    return prefer ?? ids[0];
+  };
+
+  for (let index = 0; index < CAREER_CHALLENGES.length; index++) {
+    const challenge = CAREER_CHALLENGES[index];
+    const chooser = challenge.id === 'mlb-regular' ? overseasFirst : firstChoice;
+    const state = playRun(challenge.seedCode, challenge.position, chooser);
+    assert.ok(state.retired && state.summary, `${challenge.id} did not finish`);
+    assert.ok(
+      isChallengeCleared(challenge, state),
+      `${challenge.id} was not cleared by the expected policy (hof=${state.summary?.hofScore}, pro=${state.counters.proSeasons}, hs=${state.counters.hsTournamentWins}, mlb=${state.history.filter((h) => h.league === 'mlb').length})`,
+    );
+
+    const applied = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, index, state);
+    assert.equal(applied.cleared, true, `${challenge.id} applyChallengeResult missed a clear`);
+    assert.ok(applied.progress.cleared[challenge.id], `${challenge.id} not marked cleared`);
+    assert.ok(
+      (applied.progress.bestHof[challenge.id] ?? 0) >= state.summary!.hofScore,
+      `${challenge.id} best Hof not recorded`,
+    );
+  }
+
+  // Frontier advance only happens when clearing the current unlocked card.
+  const first = CAREER_CHALLENGES[0];
+  const firstRun = playRun(first.seedCode, first.position, firstChoice);
+  const fromZero = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 0, firstRun);
+  assert.equal(fromZero.progress.clearedCount, 1, 'clearing challenge 0 should open challenge 1');
+
+  const late = CAREER_CHALLENGES[3];
+  const lateRun = playRun(late.seedCode, late.position, firstChoice);
+  const outOfOrder = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 3, lateRun);
+  assert.equal(
+    outOfOrder.progress.clearedCount,
+    0,
+    'clearing a locked challenge must not advance the cursor',
+  );
+  assert.equal(outOfOrder.cleared, true, 'goal can still be satisfied out of order');
+  assert.ok(outOfOrder.progress.cleared[late.id], 'out-of-order clear still stamps cleared map');
+}
+
 const checks: [string, () => void][] = [
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
@@ -491,6 +584,9 @@ const checks: [string, () => void][] = [
   ['collection goals fire exactly once', expectCollectionGoalsFire],
   ['careers reach the content', expectCareersReachTheContent],
   ['undo is not a re-roll', expectUndoIsNotAReroll],
+  ['challenge defs are sound', expectChallengeDefsAreSound],
+  ['challenge unlock math', expectChallengeUnlockMath],
+  ['challenge seeds are clearable', expectChallengeSeedsAreClearable],
 ];
 
 let failed = 0;

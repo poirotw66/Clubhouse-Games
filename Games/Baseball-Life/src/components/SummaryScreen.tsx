@@ -9,6 +9,7 @@ import {
   gradeColor,
 } from '../game/config';
 import type { Achievement } from '../game/achievements';
+import type { CareerChallenge } from '../game/challenges';
 import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
@@ -19,11 +20,22 @@ import { ShareCard } from './ShareCard';
 interface Props {
   state: GameState;
   unlocked: Achievement[];
+  challenge?: CareerChallenge | null;
+  challengeCleared?: boolean | null;
   onRestart: () => void;
   onSameSeed: () => void;
+  onRetryChallenge?: () => void;
 }
 
-export function SummaryScreen({ state, unlocked, onRestart, onSameSeed }: Props): React.ReactElement {
+export function SummaryScreen({
+  state,
+  unlocked,
+  challenge,
+  challengeCleared,
+  onRestart,
+  onSameSeed,
+  onRetryChallenge,
+}: Props): React.ReactElement {
   const [copied, setCopied] = useState(false);
   const summary = state.summary;
   if (!summary) return <p className="p-8 text-slate-300">生涯資料遺失了。</p>;
@@ -63,6 +75,31 @@ export function SummaryScreen({ state, unlocked, onRestart, onSameSeed }: Props)
           名人堂積分 <span className="font-mono text-slate-300">{summary.hofScore}</span>
         </p>
       </header>
+
+      {challenge && challengeCleared !== null && challengeCleared !== undefined && (
+        <section
+          className={`mt-6 rounded-2xl border p-4 ${
+            challengeCleared
+              ? 'border-sky-400/50 bg-sky-500/10'
+              : 'border-rose-400/40 bg-rose-500/10'
+          }`}
+        >
+          <p className="text-[11px] tracking-wider text-slate-400">CAREER CHALLENGE</p>
+          <h2
+            className={`mt-1 text-lg font-black ${
+              challengeCleared ? 'text-sky-200' : 'text-rose-200'
+            }`}
+          >
+            {challengeCleared ? '挑戰成功' : '挑戰未過'}
+            <span className="ml-2 text-sm font-bold text-slate-200">{challenge.name}</span>
+          </h2>
+          <p className="mt-2 text-xs leading-relaxed text-slate-300">
+            目標：{challenge.goalLabel}
+            {!challengeCleared && '　這次沒達標，可以用同一組種子再試一次。'}
+            {challengeCleared && '　已記入生涯挑戰進度。'}
+          </p>
+        </section>
+      )}
 
       <section className="bl-card mt-6 p-4">
         <h2 className="text-sm font-bold text-slate-200">生涯通算（職業以上）</h2>
@@ -244,12 +281,21 @@ export function SummaryScreen({ state, unlocked, onRestart, onSameSeed }: Props)
       </section>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <TouchButton
-          label="用同一組種子碼重來"
-          ariaLabel="用同一組種子碼重新開始"
-          onClick={onSameSeed}
-          className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
-        />
+        {challenge && onRetryChallenge ? (
+          <TouchButton
+            label="再試一次挑戰"
+            ariaLabel="用同一組挑戰設定重新開始"
+            onClick={onRetryChallenge}
+            className="flex-1 rounded-xl border border-sky-500/50 bg-sky-500/15 px-4 text-sm font-bold text-sky-100"
+          />
+        ) : (
+          <TouchButton
+            label="用同一組種子碼重來"
+            ariaLabel="用同一組種子碼重新開始"
+            onClick={onSameSeed}
+            className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
+          />
+        )}
         <TouchButton
           label="開始新的人生"
           ariaLabel="回到標題畫面開始新的人生"
