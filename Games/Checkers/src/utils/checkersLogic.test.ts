@@ -8,6 +8,8 @@ import {
   getWinner,
   isDarkSquare,
   pickBotMove,
+  getDifficultyConfig,
+  DIFFICULTY_BLURBS,
   type Board,
   type Move,
   type Piece,
@@ -165,5 +167,47 @@ describe('pickBotMove (adversarial bot)', () => {
     const picked = pickBotMove(board, 'black', null, 'hard');
     expect(picked).not.toBeNull();
     expect(picked!.path.length).toBe(3);
+  });
+});
+
+describe('difficulty tiers', () => {
+  it('spreads depth and blunderRate across easy < normal < hard discipline', () => {
+    const easy = getDifficultyConfig('easy');
+    const normal = getDifficultyConfig('normal');
+    const hard = getDifficultyConfig('hard');
+    expect(easy.depth).toBeLessThan(normal.depth);
+    expect(normal.depth).toBeLessThan(hard.depth);
+    expect(easy.blunderRate).toBeGreaterThan(normal.blunderRate);
+    expect(normal.blunderRate).toBeGreaterThan(hard.blunderRate);
+    expect(hard.blunderRate).toBe(0);
+    // Forced-capture draughts: easy must look at least two plies.
+    expect(easy.depth).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps three distinct blurbs', () => {
+    const blurbs = (['easy', 'normal', 'hard'] as const).map((id) => DIFFICULTY_BLURBS[id]);
+    expect(new Set(blurbs).size).toBe(3);
+    for (const blurb of blurbs) expect(blurb.trim().length).toBeGreaterThan(0);
+  });
+
+  it('easy can blunder on a quiet position; hard stays on the searched move', () => {
+    // Opening-like quiet side: black has two forward steps from the start array.
+    const board = createInitialBoard();
+    const legal = getLegalMoves(board, 'black');
+    expect(legal.length).toBeGreaterThan(1);
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const easyMove = pickBotMove(board, 'black', null, 'easy');
+    expect(easyMove).not.toBeNull();
+    // Forced blunder picks legal[0] via Math.floor(0 * n).
+    expect(moveKey(easyMove!)).toBe(moveKey(legal[0]));
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const hardMove = pickBotMove(board, 'black', null, 'hard');
+    expect(hardMove).not.toBeNull();
+    // Hard never takes the blunder path; it may still pick legal[0] by search,
+    // but the tiers stay policy-apart via blunderRate (pinned above). What we
+    // require here is that hard returns a legal quiet move.
+    expect(legal.some((m) => moveKey(m) === moveKey(hardMove!))).toBe(true);
   });
 });
