@@ -251,4 +251,6 @@ src/game/
 
 ## 備註
 
-所有球隊名稱、球員與事件均為虛構，與現實中的球團、聯盟或人物無關。
+- **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:dynasty:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「接下總管職務」衝突。
+- 所有球隊名稱、球員與事件均為虛構，與現實中的球團、聯盟或人物無關。
+- 實作路徑：`Games/Dynasty/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。
