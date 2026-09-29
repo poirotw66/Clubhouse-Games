@@ -5,6 +5,10 @@ import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { playCard, playError, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
 import { Battlefield } from './components/Battlefield';
 import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
+import {
   BEST_SCORE_KEY_PREFIX,
   BEST_TIME_KEY_PREFIX,
   BEST_WAVE_KEY_PREFIX,
@@ -80,6 +84,7 @@ export default function App(): ReactElement {
   const [bestWave, setBestWave] = useState(0);
   const [bestScore, setBestScore] = useState(0);
   const [bestTime, setBestTime] = useState(0);
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
 
   useEffect(() => {
     setBestWave(readStoredNumber(BEST_WAVE_KEY_PREFIX + difficulty));
@@ -276,11 +281,19 @@ export default function App(): ReactElement {
         }}
       >
         <BackToMenu />
+        {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
         <div className="w-full max-w-md bg-[#1c1409]/92 border border-amber-900/50 rounded-2xl p-6 shadow-2xl backdrop-blur-sm">
           <h1 className="text-2xl font-bold mb-1">發條守城</h1>
-          <p className="text-amber-200/70 text-sm mb-6">
+          <p className="text-amber-200/70 text-sm mb-4">
             塔就是牆：擺塔改寫敵人的最短路，但不得完全封死出口。
           </p>
+          <button
+            type="button"
+            onClick={() => setShowFirstRun(true)}
+            className="mb-6 w-full py-2 rounded-lg border border-amber-900/50 bg-black/20 text-sm font-medium text-amber-200/80 hover:bg-black/30 transition-colors min-h-[44px] touch-manipulation"
+          >
+            操作教學
+          </button>
 
           <div className="mb-4">
             <p className="text-xs text-amber-300/80 mb-2 font-semibold">難度</p>
