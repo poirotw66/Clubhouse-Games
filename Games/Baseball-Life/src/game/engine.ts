@@ -18,6 +18,12 @@ import { careerMilestones, careerTotals, seasonFeats } from './milestones';
 import { INJURIES, pickEvent } from './events';
 import { noise, pick, randInt, seedFromCode, streamRng } from './rng';
 import { describeLine, simulateSeason, simulateTournament, simulateTwoWay } from './season';
+import {
+  SITUATION_FIRE_CHANCE,
+  pickSituation,
+  situationById,
+} from './situations';
+import type { SituationOption } from './situations';
 import { newlyUnlocked, traitById, traitEffects } from './traits';
 import type {
   AttrKey,
@@ -207,6 +213,8 @@ export function createGame(input: CreateInput): GameState {
     log: [],
     choices: [],
     seenEvents: [],
+    seenSituations: [],
+    pendingSituation: null,
     decision: null,
     report: null,
     retired: false,
@@ -330,6 +338,8 @@ export const DESTINY_START = 20;
 export const DESTINY_MAX = 100;
 export const DESTINY_COST = 40;
 const DESTINY_GAIN_PER_TURN = 5;
+/** Two-way players accrue a little extra 天命 — they need more interventions. */
+const DESTINY_TWO_WAY_BONUS = 1;
 const DESTINY_SIX_BONUS = 8;
 
 /** Whether the player can afford to pour 天命 into a training turn right now. */
@@ -593,6 +603,10 @@ function buildDecision(state: GameState): Decision {
     return { kind: 'continue', title: '生涯結束', prompt: '', options: [] };
   }
 
+  // Queued high-risk choice cards land before the next training menu.
+  const situationDecision = buildSituationDecision(state);
+  if (situationDecision) return situationDecision;
+
   // --- High school ---
   if (state.stage === 'highschool') {
     if (state.turnIndex >= HS_TURNS) {
@@ -678,6 +692,24 @@ function buildDecision(state: GameState): Decision {
     title: turnLabel(state),
     prompt: proPrompt(state),
     options: proOptions(state).map((o) => ({ ...o })),
+  };
+}
+
+function buildSituationDecision(state: GameState): Decision | null {
+  if (!state.pendingSituation) return null;
+  const situation = situationById(state.pendingSituation);
+  if (!situation) return null;
+  const options = situation.options(state).map((option) => ({
+    id: option.id,
+    label: option.label,
+    hint: option.hint,
+  }));
+  return {
+    kind: 'event',
+    key: `situation:${situation.id}:${state.turnIndex}:${state.year}:${state.proTurn}`,
+    title: situation.title,
+    prompt: situation.prompt(state),
+    options,
   };
 }
 
@@ -815,6 +847,9 @@ export function resolve(state: GameState, optionId: string, useDestiny = false):
       // stale toggle can never push 天命 negative.
       resolveTraining(next, option as TrainingOption, useDestiny && state.meta.destiny >= DESTINY_COST);
       break;
+    case 'event':
+      resolveSituation(next, optionId);
+      break;
     case 'path':
       resolvePath(next, optionId);
       break;
@@ -896,7 +931,8 @@ function resolveTraining(state: GameState, option: TrainingOption, useDestiny = 
   // pill does not clutter every single turn.
   if (useDestiny) state.meta.destiny = clamp(state.meta.destiny - DESTINY_COST, 0, DESTINY_MAX);
   else if (dice === 6) state.meta.destiny = clamp(state.meta.destiny + DESTINY_SIX_BONUS, 0, DESTINY_MAX);
-  state.meta.destiny = clamp(state.meta.destiny + DESTINY_GAIN_PER_TURN, 0, DESTINY_MAX);
+  const destinyGain = DESTINY_GAIN_PER_TURN + (IS_TWO_WAY[state.position] ? DESTINY_TWO_WAY_BONUS : 0);
+  state.meta.destiny = clamp(state.meta.destiny + destinyGain, 0, DESTINY_MAX);
 
   // A pro year is three turns now, not one, so every per-turn effect below is
   // scaled to a third — three turns' worth of training, fatigue and event
@@ -970,7 +1006,116 @@ function resolveTraining(state: GameState, option: TrainingOption, useDestiny = 
   checkTraits(state, report);
   advanceTime(state);
   if (!state.retired) checkRelease(state, report);
+  queueSituation(state);
 
+  pushLog(state, report.label, `${report.headline}：${report.lines.join(' ')}`, report.tone);
+  state.report = report;
+}
+
+/**
+ * After a resolved training turn, maybe queue a high-risk choice for the next
+ * decision. Kept out of `buildDecision` so that function stays a pure read of
+ * state — the roll happens once, here, and the id rides in `pendingSituation`.
+ */
+function queueSituation(state: GameState): void {
+  if (state.retired || state.pendingSituation) return;
+  // Path forks and season-end business should not be interrupted.
+  if (state.stage === 'highschool' && state.turnIndex >= HS_TURNS) return;
+  if (state.stage === 'amateur') {
+    const done = state.league === 'college' ? state.age >= 22 : state.age >= 21;
+    if (done) return;
+  }
+  const fire = rng(state, 'situation-fire')();
+  if (fire >= SITUATION_FIRE_CHANCE) return;
+  const situation = pickSituation(state, rng(state, 'situation-pick'));
+  if (situation) state.pendingSituation = situation.id;
+}
+
+function resolveSituation(state: GameState, optionId: string): void {
+  const situationId = state.pendingSituation;
+  const situation = situationId ? situationById(situationId) : undefined;
+  state.pendingSituation = null;
+  if (!situation) {
+    state.report = {
+      label: turnLabel(state),
+      dice: null,
+      headline: '無事發生',
+      lines: ['這次的抉擇被時間沖掉了。'],
+      deltas: {},
+      season: null,
+      traitsUnlocked: [],
+      milestones: [],
+      income: null,
+      tone: 'normal',
+    };
+    return;
+  }
+
+  if (!state.seenSituations.includes(situation.id)) {
+    state.seenSituations.push(situation.id);
+  }
+
+  const chosen: SituationOption | undefined = situation.options(state).find((o) => o.id === optionId);
+  const report: TurnReport = {
+    label: turnLabel(state),
+    dice: null,
+    headline: situation.title,
+    lines: [],
+    deltas: {},
+    season: null,
+    traitsUnlocked: [],
+    milestones: [],
+    income: null,
+    tone: 'normal',
+  };
+
+  if (!chosen) {
+    report.lines.push('你沒有做出選擇。機會就這樣過去了。');
+    state.report = report;
+    pushLog(state, report.label, report.lines.join(' '), report.tone);
+    return;
+  }
+
+  report.lines.push(chosen.outcome);
+  report.tone = chosen.tone ?? 'normal';
+
+  const { destiny, earnings, injuryChance, ...attrMeta } = chosen.effects;
+  applyDeltas(state, attrMeta);
+  report.deltas = { ...attrMeta };
+
+  if (typeof destiny === 'number' && destiny !== 0) {
+    state.meta.destiny = clamp(state.meta.destiny + destiny, 0, DESTINY_MAX);
+    report.lines.push(destiny > 0 ? `天命 +${destiny}` : `天命 ${destiny}`);
+  }
+  if (typeof earnings === 'number' && earnings > 0) {
+    state.finance.earnings += earnings;
+    report.income = earnings;
+    report.lines.push(`額外收入 ${formatMoney(earnings)}`);
+  }
+  if (injuryChance && injuryChance > 0 && rng(state, 'situation-injury')() < injuryChance) {
+    const pool = INJURIES.filter((i) => i.severity !== 'career' || state.stage === 'pro');
+    const injury = pick(rng(state, 'situation-injury-pick'), pool);
+    state.injury = {
+      name: injury.name,
+      seasonsLeft: injury.seasons,
+      severity: injury.severity,
+    };
+    state.counters.injuries += 1;
+    if (injury.severity !== 'minor') {
+      const cost = injury.severity === 'career' ? 7 : 4;
+      applyDeltas(state, {
+        velocity: -cost,
+        stamina: -cost,
+        power: -Math.ceil(cost * 0.6),
+        speed: -Math.ceil(cost * 0.6),
+        body: -cost,
+      });
+    }
+    report.lines.push(`代價來了：${injury.name}。`);
+    report.tone = 'bad';
+  }
+
+  checkTraits(state, report);
   pushLog(state, report.label, `${report.headline}：${report.lines.join(' ')}`, report.tone);
   state.report = report;
 }
@@ -1084,8 +1229,11 @@ function salaryFor(state: GameState, quality: number): number {
 
 /** Endorsements only start once enough people know the name. */
 function endorsementFor(state: GameState): number {
-  if (state.meta.fame < 35) return 0;
-  return round(Math.pow(state.meta.fame - 30, 1.7) / 9);
+  // Two-way players are easier to sell — brands pay earlier for the dual image.
+  const threshold = IS_TWO_WAY[state.position] ? 28 : 35;
+  if (state.meta.fame < threshold) return 0;
+  const base = round(Math.pow(state.meta.fame - 30, 1.7) / 9);
+  return IS_TWO_WAY[state.position] ? round(base * 1.2) : base;
 }
 
 function payFor(state: GameState, report: TurnReport, quality: number): void {
@@ -1181,9 +1329,15 @@ function runSeason(state: GameState, report: TurnReport): void {
   // Fame fades on its own, so it settles at a level the player keeps earning
   // rather than ratcheting to 100 and staying there for twenty years.
   const decay = round(state.meta.fame * 0.1);
-  const fameGain = round((result.quality * 14 + awards.length * 6) * effects.fameGain) - decay;
+  // Two-way seasons are a media product: the same quality line draws more eyes.
+  const spectacle = IS_TWO_WAY[state.position] ? 1.18 : 1;
+  const fameGain =
+    round((result.quality * 14 + awards.length * 6) * effects.fameGain * spectacle) - decay;
   applyDeltas(state, { fame: fameGain });
   report.deltas.fame = (report.deltas.fame ?? 0) + fameGain;
+  if (IS_TWO_WAY[state.position] && result.quality >= 0.45) {
+    report.lines.push('二刀流話題延續：媒體多寫了你一整版。');
+  }
 
   const record: SeasonRecord = {
     year: state.year,

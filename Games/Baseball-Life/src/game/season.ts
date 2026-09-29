@@ -201,8 +201,11 @@ export function simulateSeason(input: SeasonInput): SeasonResult {
  * great arm does not get you at-bats — and both run at a reduced workload,
  * because the same body cannot carry a full rotation slot and an everyday
  * lineup spot. That tax is the cost of the route.
+ *
+ * Softened from 0.72 → 0.78 so the path stays hard but is no longer a pure
+ * punishment relative to specializing — the spectacle premium lives elsewhere.
  */
-export const TWO_WAY_WORKLOAD = 0.72;
+export const TWO_WAY_WORKLOAD = 0.78;
 
 export function simulateTwoWay(input: SeasonInput): {
   batting: SeasonResult;

@@ -10,7 +10,8 @@ export const POSITIONS: { id: Position; label: string; blurb: string }[] = [
   {
     id: 'TW',
     label: '二刀流',
-    blurb: '投打兼修。十項能力一起練，成長被攤薄，但每季留下兩份成績單。',
+    blurb:
+      '投打兼修。成長被攤薄，但有媒體優待、較早代言、額外天命，以及專屬高風險抉擇。',
   },
 ];
 
