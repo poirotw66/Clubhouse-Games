@@ -11,6 +11,7 @@ interface Props {
   hasSave: boolean;
   archive: ArchiveEntry[];
   achievements: AchievementProgress;
+  onShowHowTo: () => void;
   onStart: (seedCode: string) => void;
   onContinue: () => void;
 }
@@ -20,6 +21,7 @@ export function TitleScreen({
   hasSave,
   archive,
   achievements,
+  onShowHowTo,
   onStart,
   onContinue,
 }: Props): React.ReactElement {
@@ -80,6 +82,12 @@ export function TitleScreen({
           ariaLabel="開始新的棒球人生"
           onClick={() => onStart(normalizeSeedCode(seed))}
           className="w-full rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
+        />
+        <TouchButton
+          label="操作教學"
+          ariaLabel="開啟操作教學"
+          onClick={onShowHowTo}
+          className="w-full rounded-xl border border-slate-600 bg-slate-800/80 px-4 text-base font-bold text-slate-200"
         />
         {hasSave && (
           <TouchButton

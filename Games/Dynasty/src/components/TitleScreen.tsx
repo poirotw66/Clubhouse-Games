@@ -8,11 +8,19 @@ interface Props {
   initialSeed: string;
   hasSave: boolean;
   archive: ArchiveEntry[];
+  onShowHowTo: () => void;
   onStart: (seedCode: string, gmName: string, teamId: string) => void;
   onContinue: () => void;
 }
 
-export function TitleScreen({ initialSeed, hasSave, archive, onStart, onContinue }: Props): React.ReactElement {
+export function TitleScreen({
+  initialSeed,
+  hasSave,
+  archive,
+  onShowHowTo,
+  onStart,
+  onContinue,
+}: Props): React.ReactElement {
   const [seed, setSeed] = useState(initialSeed);
   const [name, setName] = useState('');
   const [teamId, setTeamId] = useState(CLUBS[4].id);
@@ -122,6 +130,12 @@ export function TitleScreen({ initialSeed, hasSave, archive, onStart, onContinue
           ariaLabel="接下總管職務並開始遊戲"
           onClick={() => onStart(normalizeSeedCode(seed), name, teamId)}
           className="w-full rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
+        />
+        <TouchButton
+          label="操作教學"
+          ariaLabel="開啟操作教學"
+          onClick={onShowHowTo}
+          className="w-full rounded-xl border border-slate-600 bg-slate-800/80 px-4 text-base font-bold text-slate-200"
         />
         {hasSave && (
           <TouchButton

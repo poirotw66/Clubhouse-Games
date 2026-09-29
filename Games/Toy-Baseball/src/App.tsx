@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   DERBY_SWINGS,
   DIFFICULTY,
+  DIFFICULTY_BLURBS,
   DIFFICULTY_LABELS,
   PLAY_MODE_LABELS,
   cpuSwingTargetY,
@@ -31,6 +32,10 @@ import {
   type BestsMap,
 } from './stats';
 import { fieldDirtImage, fieldGrassImage, fieldSkyImage, drawBatterSprite, drawPitcherSprite } from './fieldArt';
+import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
 
 function resultFlashTone(text: string): ScoreFlashTone {
   if (text.includes('全壘打') || text.includes('安打') || text.includes('保送')) return 'good';
@@ -939,6 +944,7 @@ export default function App() {
   const flashKeyRef = useRef(0);
   const [flash, setFlash] = useState<{ text: string; tone: ScoreFlashTone; key: number } | null>(null);
   const [bestsMap, setBestsMap] = useState<BestsMap>(() => loadBestsMap());
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const bests: BaseballBests = bestsMap[gameState.difficulty] ?? bestsMap.normal;
 
   const isPlayerBatting =
@@ -1098,6 +1104,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-zinc-950 overflow-x-hidden w-full">
       <BackToMenu />
+      {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       <div className="w-full max-w-[800px] flex flex-col gap-3">
         <div className="relative w-full bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
           {/* Scoreboard */}
@@ -1265,6 +1272,9 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                  <p className="mt-2 text-center text-sm text-amber-300/90 font-medium">
+                    {DIFFICULTY_BLURBS[gameState.difficulty]}
+                  </p>
                 </div>
 
                 <div className="flex gap-2 mb-5 w-full max-w-md">
@@ -1301,15 +1311,24 @@ export default function App() {
                       }`}
                 </p>
 
-                <button
-                  type="button"
-                  onClick={handleStart}
-                  className="group relative flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold text-xl hover:scale-105 transition-all active:scale-95 min-h-[52px]"
-                >
-                  <Play className="fill-current" />
-                  {gameState.playMode === 'derby' ? '開始大賽' : '開始比賽'}
-                  <div className="absolute -inset-1 bg-white/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleStart}
+                    className="group relative flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold text-xl hover:scale-105 transition-all active:scale-95 min-h-[52px]"
+                  >
+                    <Play className="fill-current" />
+                    {gameState.playMode === 'derby' ? '開始大賽' : '開始比賽'}
+                    <div className="absolute -inset-1 bg-white/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFirstRun(true)}
+                    className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-zinc-300 hover:border-amber-400/50 hover:text-amber-200 transition-all min-h-[44px]"
+                  >
+                    操作教學
+                  </button>
+                </div>
               </motion.div>
             )}
 

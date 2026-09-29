@@ -9,6 +9,13 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
+/** Short player-facing blurbs so Easy / Normal / Hard read as three different games. */
+export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
+  easy: '好球帶寬，對手常揮空',
+  normal: '節奏均衡，投打都要準',
+  hard: '窗口窄，對手少失誤',
+};
+
 export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
   match: '三局賽',
   derby: '全壘打大賽',
@@ -39,19 +46,19 @@ export interface DifficultyConfig {
 
 export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
   easy: {
-    hitRadius: 72,
-    cpuAimSkill: 0.35,
-    cpuSwingRate: 0.7,
-    cpuTakeBall: 0.15,
-    cpuAimDir: 0.4,
-    cpuPitchDelayMin: 1.35,
-    cpuPitchDelayMax: 2.1,
-    cpuFastPitchChance: 0.3,
-    outMax: 195,
-    singleMin: 170,
-    doubleMin: 290,
-    tripleMin: 430,
-    weakQuality: 0.22,
+    hitRadius: 80,
+    cpuAimSkill: 0.28,
+    cpuSwingRate: 0.58,
+    cpuTakeBall: 0.1,
+    cpuAimDir: 0.32,
+    cpuPitchDelayMin: 1.45,
+    cpuPitchDelayMax: 2.25,
+    cpuFastPitchChance: 0.22,
+    outMax: 200,
+    singleMin: 165,
+    doubleMin: 280,
+    tripleMin: 420,
+    weakQuality: 0.18,
   },
   normal: {
     hitRadius: 60,
@@ -69,19 +76,19 @@ export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     weakQuality: 0.28,
   },
   hard: {
-    hitRadius: 48,
-    cpuAimSkill: 0.88,
-    cpuSwingRate: 0.92,
-    cpuTakeBall: 0.55,
-    cpuAimDir: 0.88,
-    cpuPitchDelayMin: 0.75,
-    cpuPitchDelayMax: 1.2,
-    cpuFastPitchChance: 0.72,
-    outMax: 155,
-    singleMin: 185,
-    doubleMin: 320,
-    tripleMin: 470,
-    weakQuality: 0.34,
+    hitRadius: 42,
+    cpuAimSkill: 0.92,
+    cpuSwingRate: 0.95,
+    cpuTakeBall: 0.62,
+    cpuAimDir: 0.92,
+    cpuPitchDelayMin: 0.65,
+    cpuPitchDelayMax: 1.05,
+    cpuFastPitchChance: 0.78,
+    outMax: 145,
+    singleMin: 190,
+    doubleMin: 330,
+    tripleMin: 480,
+    weakQuality: 0.38,
   },
 };
 
