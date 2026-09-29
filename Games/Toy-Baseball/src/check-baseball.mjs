@@ -1,6 +1,7 @@
 // ponytail: assert fair-ball grading uses quality, and difficulty tables stay ordered.
 import {
   DIFFICULTY,
+  DIFFICULTY_BLURBS,
   gradeFairLanding,
   cpuSwingTargetY,
 } from './difficulty.ts';
@@ -28,10 +29,62 @@ function assert(cond, msg) {
   assert(weak.bases === 0, `weak medium ball should be out, got ${weak.result}`);
 }
 
-// Hard is stricter on the player and sharper for the CPU.
-assert(DIFFICULTY.hard.hitRadius < DIFFICULTY.easy.hitRadius, 'hard hit window should be smaller');
-assert(DIFFICULTY.hard.cpuAimSkill > DIFFICULTY.easy.cpuAimSkill, 'hard CPU should aim better');
+// Hard is stricter on the player and sharper for the CPU (ordered tiers).
+assert(
+  DIFFICULTY.hard.hitRadius < DIFFICULTY.normal.hitRadius
+    && DIFFICULTY.normal.hitRadius < DIFFICULTY.easy.hitRadius,
+  'hitRadius should shrink with difficulty',
+);
+assert(
+  DIFFICULTY.hard.cpuAimSkill > DIFFICULTY.normal.cpuAimSkill
+    && DIFFICULTY.normal.cpuAimSkill > DIFFICULTY.easy.cpuAimSkill,
+  'cpuAimSkill should rise with difficulty',
+);
+assert(
+  DIFFICULTY.hard.cpuSwingRate > DIFFICULTY.normal.cpuSwingRate
+    && DIFFICULTY.normal.cpuSwingRate > DIFFICULTY.easy.cpuSwingRate,
+  'cpuSwingRate should rise with difficulty',
+);
+assert(
+  DIFFICULTY.hard.cpuTakeBall > DIFFICULTY.normal.cpuTakeBall
+    && DIFFICULTY.normal.cpuTakeBall > DIFFICULTY.easy.cpuTakeBall,
+  'cpuTakeBall should rise with difficulty',
+);
+assert(
+  DIFFICULTY.hard.cpuAimDir > DIFFICULTY.normal.cpuAimDir
+    && DIFFICULTY.normal.cpuAimDir > DIFFICULTY.easy.cpuAimDir,
+  'cpuAimDir should rise with difficulty',
+);
 assert(DIFFICULTY.hard.cpuPitchDelayMax < DIFFICULTY.easy.cpuPitchDelayMin, 'hard pitches sooner');
+assert(
+  DIFFICULTY.hard.cpuFastPitchChance > DIFFICULTY.normal.cpuFastPitchChance
+    && DIFFICULTY.normal.cpuFastPitchChance > DIFFICULTY.easy.cpuFastPitchChance,
+  'fast-pitch chance should rise with difficulty',
+);
+assert(
+  DIFFICULTY.hard.weakQuality > DIFFICULTY.easy.weakQuality,
+  'hard should grade weak contact more harshly',
+);
+
+// Easy plate window must feel clearly wider than hard (player-visible gap).
+assert(
+  DIFFICULTY.easy.hitRadius - DIFFICULTY.hard.hitRadius >= 30,
+  `easy vs hard hitRadius gap too small (${DIFFICULTY.easy.hitRadius - DIFFICULTY.hard.hitRadius})`,
+);
+assert(
+  DIFFICULTY.hard.cpuAimSkill - DIFFICULTY.easy.cpuAimSkill >= 0.5,
+  `easy vs hard aim skill gap too small`,
+);
+
+// Player-facing blurbs must stay distinct so the setup screen shows three feels.
+{
+  const blurbs = Object.values(DIFFICULTY_BLURBS);
+  assert(blurbs.length === 3, 'expected three difficulty blurbs');
+  assert(new Set(blurbs).size === 3, 'difficulty blurbs must be unique');
+  for (const [id, text] of Object.entries(DIFFICULTY_BLURBS)) {
+    assert(typeof text === 'string' && text.length >= 4, `${id} blurb too short`);
+  }
+}
 
 // Target Y stays near the plate.
 {
