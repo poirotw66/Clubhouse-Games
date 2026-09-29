@@ -321,9 +321,16 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
-type DifficultyConfig = {
+/** Short player-facing blurbs so Easy / Normal / Hard read as three opponents. */
+export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
+  easy: '常亂接，先丟輕牌',
+  normal: '會出重點，偶有失手',
+  hard: '顧後手接法，不犯錯',
+};
+
+export type DifficultyConfig = {
   /** Chance of ignoring the scoring and playing any legal tile. */
-  randomRate: number;
+  blunderRate: number;
   /** Weight on keeping tiles that can still attach after this move. */
   flexibilityWeight: number;
   /** Sheds light tiles first — the beginner habit of hoarding the heavy ones. */
@@ -331,17 +338,24 @@ type DifficultyConfig = {
 };
 
 /*
- * Dominoes is mostly luck: measured over 400 games, the best strategy here
- * beats pure random only 238-162, and a deliberately terrible one still wins
- * 160. So the three tiers are spread as wide as the game allows rather than by
- * search depth — there is no depth to add.
+ * Dominoes has no search depth to crank — measured over 400 games the best
+ * policy here beats pure random only 238–162. The three tiers still share the
+ * #126/#130 feel axes: blunder rate, a midgame skill knob (flexibility /
+ * shed-light), and setup blurbs that read differently.
  */
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
-  easy: { randomRate: 0.25, flexibilityWeight: 0, dumpLightFirst: true },
-  normal: { randomRate: 0.05, flexibilityWeight: 0, dumpLightFirst: false },
-  // Also avoids playing itself into a position where nothing in hand fits.
-  hard: { randomRate: 0, flexibilityWeight: 6, dumpLightFirst: false },
+  // High blunder + dump light first: often random, beginner shed habit.
+  easy: { blunderRate: 0.45, flexibilityWeight: 0, dumpLightFirst: true },
+  // Sheds high pips, light flexibility, occasional slips.
+  normal: { blunderRate: 0.12, flexibilityWeight: 3, dumpLightFirst: false },
+  // No intentional errors; strongly prefers keeping follow-up attaches.
+  hard: { blunderRate: 0, flexibilityWeight: 8, dumpLightFirst: false },
 };
+
+/** Exported so `check` can pin the three tiers staying spread apart. */
+export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
+  return DIFFICULTY[difficulty];
+}
 
 /**
  * How many tiles left in hand could still be played once `move` is on the
@@ -385,7 +399,7 @@ export function pickBotMove(
   if (moves.length === 1) return moves[0];
 
   const config = DIFFICULTY[difficulty];
-  if (config.randomRate > 0 && Math.random() < config.randomRate) {
+  if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
     return moves[Math.floor(Math.random() * moves.length)];
   }
 

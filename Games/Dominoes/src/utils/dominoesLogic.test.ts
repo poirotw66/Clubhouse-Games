@@ -4,6 +4,7 @@ import {
   createSet,
   drawTiles,
   getChainEnds,
+  getDifficultyConfig,
   getPlayableTiles,
   getValidMoves,
   handSum,
@@ -13,6 +14,7 @@ import {
   placeTile,
   playTile,
   tileSum,
+  DIFFICULTY_BLURBS,
   type DominoesState,
   type PlacedTile,
   type Tile,
@@ -179,5 +181,53 @@ describe('pickBotMove (adversarial bot)', () => {
     ];
     const picked = pickBotMove(hand, chain, 7, 'hard');
     expect(picked).toEqual({ tileId: 2, end: 'left' });
+  });
+});
+
+describe('difficulty tiers', () => {
+  it('spreads blunderRate and flexibilityWeight across easy < normal < hard', () => {
+    const easy = getDifficultyConfig('easy');
+    const normal = getDifficultyConfig('normal');
+    const hard = getDifficultyConfig('hard');
+    expect(easy.blunderRate).toBeGreaterThan(normal.blunderRate);
+    expect(normal.blunderRate).toBeGreaterThan(hard.blunderRate);
+    expect(hard.blunderRate).toBe(0);
+    expect(easy.flexibilityWeight).toBeLessThan(normal.flexibilityWeight);
+    expect(normal.flexibilityWeight).toBeLessThan(hard.flexibilityWeight);
+    expect(easy.dumpLightFirst).toBe(true);
+    expect(normal.dumpLightFirst).toBe(false);
+    expect(hard.dumpLightFirst).toBe(false);
+  });
+
+  it('keeps three distinct blurbs', () => {
+    const blurbs = (['easy', 'normal', 'hard'] as const).map((id) => DIFFICULTY_BLURBS[id]);
+    expect(new Set(blurbs).size).toBe(3);
+    for (const blurb of blurbs) expect(blurb.trim().length).toBeGreaterThan(0);
+  });
+
+  it('easy can blunder past the scored pick; hard never does', () => {
+    const chain = [placed(tile(1, 6, 3), 6, 3)];
+    // moves[0] is light 3-1 on the right; moves[1] is double-6 on the left.
+    // Hard scores the double highest; easy blunders onto moves[0].
+    const hand = [tile(2, 3, 1), tile(3, 6, 6)];
+    const moves = getValidMoves(hand, chain);
+    expect(moves.length).toBeGreaterThanOrEqual(2);
+
+    // 0 < easy.blunderRate (0.45) and floor(0 * n) === 0 → first listed move.
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    expect(pickBotMove(hand, chain, 7, 'easy')).toEqual(moves[0]);
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    expect(pickBotMove(hand, chain, 7, 'hard')).toEqual({ tileId: 3, end: 'left' });
+  });
+
+  it('easy still dumps light tiles when it does not blunder', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    const chain = [placed(tile(1, 6, 3), 6, 3)];
+    const hand = [
+      tile(2, 6, 6),
+      tile(3, 3, 1),
+    ];
+    expect(pickBotMove(hand, chain, 7, 'easy')).toEqual({ tileId: 3, end: 'right' });
   });
 });

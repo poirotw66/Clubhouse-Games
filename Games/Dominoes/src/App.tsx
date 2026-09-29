@@ -14,6 +14,7 @@ import {
   pickBotMove,
   handSum,
   DIFFICULTY_LABELS,
+  DIFFICULTY_BLURBS,
 } from './utils/dominoesLogic';
 import { DominoTile, PlacedDominoTile } from './components/DominoTile';
 import {
@@ -387,33 +388,37 @@ export default function App() {
       </div>
 
       {gameMode === 'bot' && (
-        <div
-          className="flex flex-wrap items-center justify-center gap-2 mb-4 text-xs"
-          role="group"
-          aria-label="電腦難度"
-        >
-          <span className="text-slate-400">電腦難度</span>
-          {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => {
-            const selected = difficulty === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setDifficulty(id);
-                  handleNewGame();
-                }}
-                aria-pressed={selected}
-                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
-                  selected
-                    ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-                    : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {DIFFICULTY_LABELS[id]}
-              </button>
-            );
-          })}
+        <div className="flex flex-col items-center gap-1 mb-4 text-xs">
+          <div
+            className="flex flex-wrap items-center justify-center gap-2"
+            role="group"
+            aria-label="電腦難度"
+          >
+            <span className="text-slate-400">電腦難度</span>
+            {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => {
+              const selected = difficulty === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setDifficulty(id);
+                    handleNewGame();
+                  }}
+                  aria-pressed={selected}
+                  title={DIFFICULTY_BLURBS[id]}
+                  className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                    selected
+                      ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                      : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {DIFFICULTY_LABELS[id]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-slate-500">{DIFFICULTY_BLURBS[difficulty]}</p>
         </div>
       )}
 
