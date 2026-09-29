@@ -9,6 +9,13 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
+/** Short player-facing blurbs so Easy / Normal / Hard read as three different opponents. */
+export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
+  easy: '反應慢，常揮空',
+  normal: '會擋會攻，中規中矩',
+  hard: '高壓逼近，常撥招反擊',
+};
+
 export interface DifficultyConfig {
   /** Chance to react when the player starts an attack in range. */
   reactChance: number;
@@ -27,15 +34,15 @@ export interface DifficultyConfig {
 
 export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
   easy: {
-    reactChance: 0.22,
-    attackChance: 0.32,
-    defenseBias: 0.12,
-    mistakeChance: 0.42,
-    moveSpeed: 0.55,
-    thinkMin: 0.4,
-    thinkMax: 0.85,
-    preferredDist: 110,
-    parryShare: 0.05,
+    reactChance: 0.14,
+    attackChance: 0.28,
+    defenseBias: 0.08,
+    mistakeChance: 0.55,
+    moveSpeed: 0.5,
+    thinkMin: 0.5,
+    thinkMax: 1.05,
+    preferredDist: 120,
+    parryShare: 0.02,
   },
   normal: {
     reactChance: 0.55,
@@ -49,15 +56,15 @@ export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     parryShare: 0.18,
   },
   hard: {
-    reactChance: 0.82,
-    attackChance: 0.72,
-    defenseBias: 0.4,
-    mistakeChance: 0.06,
-    moveSpeed: 0.98,
-    thinkMin: 0.1,
-    thinkMax: 0.28,
-    preferredDist: 85,
-    parryShare: 0.35,
+    reactChance: 0.9,
+    attackChance: 0.8,
+    defenseBias: 0.48,
+    mistakeChance: 0.03,
+    moveSpeed: 1.02,
+    thinkMin: 0.08,
+    thinkMax: 0.22,
+    preferredDist: 82,
+    parryShare: 0.42,
   },
 };
 
