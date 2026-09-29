@@ -59,12 +59,12 @@
 
 | 項目 | 本實作 |
 |------|--------|
-| 模式／變體 | **雙人對戰**／**對戰電腦**；電腦三角難度；可選執黑／執白 |
+| 模式／變體 | **雙人對戰**／**對戰電腦**；電腦三角難度（簡單常亂走／普通中度搜尋／困難深算）；可選執黑／執白 |
 | Replay hook | 對戰電腦時本機紀錄 **連勝**、**最佳連勝**、**最大勝差**（敗北或和局連勝歸零） |
 | Undo／Hint | **悔棋**（整手回合快照，含對手回手）；**提示**（困難級建議路徑高亮） |
 | Feedback | `ResultOverlay` + `@clubhouse/shared/synthAudio`（含吃子音） |
 | Touch | 選子／落點與工具列可觸控 |
-| Check | `npm run check` → `src/check-checkers.mjs` |
+| Check | `npm run check`（vitest；含三檔深度／失誤率可分辨斷言） |
 
 `localStorage` 鍵：`clubhouse-checkers-win-streak`、`clubhouse-checkers-best-streak`、`clubhouse-checkers-best-margin`。
 

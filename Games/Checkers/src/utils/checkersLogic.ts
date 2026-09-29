@@ -205,7 +205,14 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
-type DifficultyConfig = {
+/** Short player-facing blurbs so Easy / Normal / Hard read as three opponents. */
+export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
+  easy: '淺看兩步，常亂走',
+  normal: '中度搜尋，偶有失誤',
+  hard: '深算吃子，不犯錯',
+};
+
+export type DifficultyConfig = {
   /** Plies of lookahead for quiet moves. */
   depth: number;
   /** Chance of playing a random legal move instead of the best one. */
@@ -215,11 +222,17 @@ type DifficultyConfig = {
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
   // Two plies, not one: captures are forced in draughts, so a one-ply bot
   // walks pieces onto squares it can be jumped from and loses to random play.
-  // Two plies sees the reply, and the blunder rate does the softening instead.
-  easy: { depth: 2, blunderRate: 0.35 },
-  normal: { depth: 4, blunderRate: 0.05 },
+  // Two plies sees the reply; a wide blunderRate does the softening instead.
+  easy: { depth: 2, blunderRate: 0.45 },
+  // Mid look-ahead with occasional slips — clearly above easy, below hard.
+  normal: { depth: 3, blunderRate: 0.12 },
   hard: { depth: 6, blunderRate: 0 },
 };
+
+/** Exported so `check` can pin the three tiers staying spread apart. */
+export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
+  return DIFFICULTY[difficulty];
+}
 
 const WIN_SCORE = 8_000;
 

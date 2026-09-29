@@ -14,6 +14,7 @@ import {
   isDarkSquare,
   pickBotMove,
   DIFFICULTY_LABELS,
+  DIFFICULTY_BLURBS,
 } from './utils/checkersLogic';
 import { RefreshCw, BookOpen, Users, Bot, ChevronDown, Undo2, Lightbulb } from 'lucide-react';
 
@@ -24,11 +25,7 @@ const STREAK_KEY = 'clubhouse-checkers-win-streak';
 const BEST_STREAK_KEY = 'clubhouse-checkers-best-streak';
 const MARGIN_KEY = 'clubhouse-checkers-best-margin';
 
-const DIFFICULTIES: { id: Difficulty; blurb: string }[] = [
-  { id: 'easy', blurb: '淺看一步，偶爾失誤' },
-  { id: 'normal', blurb: '中度搜尋，會吃子' },
-  { id: 'hard', blurb: '深搜，少犯錯' },
-];
+const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
 type GamePhase = 'playing' | 'over';
 type GameMode = 'two' | 'bot';
@@ -560,30 +557,34 @@ export default function App() {
       </div>
 
       {gameMode === 'bot' && (
-        <div
-          className="w-full max-w-[420px] flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
-          role="group"
-          aria-label="電腦難度"
-        >
-          <span className="text-stone-400">難度</span>
-          {DIFFICULTIES.map(({ id }) => {
-            const selected = difficulty === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => { setDifficulty(id); resetGame(); }}
-                aria-pressed={selected}
-                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
-                  selected
-                    ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
-                    : 'border-stone-600 bg-stone-800 text-stone-300 hover:bg-stone-700'
-                }`}
-              >
-                {DIFFICULTY_LABELS[id]}
-              </button>
-            );
-          })}
+        <div className="w-full max-w-[420px] flex flex-col items-center gap-1 mb-2 text-xs">
+          <div
+            className="flex flex-wrap items-center justify-center gap-2"
+            role="group"
+            aria-label="電腦難度"
+          >
+            <span className="text-stone-400">難度</span>
+            {DIFFICULTIES.map((id) => {
+              const selected = difficulty === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => { setDifficulty(id); resetGame(); }}
+                  aria-pressed={selected}
+                  title={DIFFICULTY_BLURBS[id]}
+                  className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                    selected
+                      ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
+                      : 'border-stone-600 bg-stone-800 text-stone-300 hover:bg-stone-700'
+                  }`}
+                >
+                  {DIFFICULTY_LABELS[id]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-stone-500">{DIFFICULTY_BLURBS[difficulty]}</p>
         </div>
       )}
 
@@ -794,11 +795,12 @@ export default function App() {
               <div>
                 <p className="text-stone-400 mb-1.5">電腦難度</p>
                 <div className="flex gap-2">
-                  {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => (
+                  {DIFFICULTIES.map((id) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => { setDifficulty(id); resetGame(); setSettingsOpen(false); }}
+                      title={DIFFICULTY_BLURBS[id]}
                       className={`px-3 py-1.5 min-h-[44px] rounded-full border transition-colors touch-manipulation ${
                         difficulty === id
                           ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
@@ -809,6 +811,7 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                <p className="mt-1.5 text-stone-500">{DIFFICULTY_BLURBS[difficulty]}</p>
                 <p className="mt-2 text-stone-500">
                   連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
                 </p>
