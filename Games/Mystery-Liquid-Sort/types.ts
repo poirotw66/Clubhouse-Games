@@ -13,7 +13,7 @@ export const Color = {
 
 export type Color = (typeof Color)[keyof typeof Color];
 
-export type GameMode = 'adventure' | 'quick_play';
+export type GameMode = 'adventure' | 'quick_play' | 'puzzle_pack';
 
 export interface Layer {
   color: Color;
