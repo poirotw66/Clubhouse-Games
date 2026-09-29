@@ -3,6 +3,10 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
+import {
+  FirstRunGuide,
+  hasSeenFirstRunGuide,
+} from './components/FirstRunGuide';
 import { FIELD_H, FIELD_W, FIXED_DT, STAGE_COUNT } from './game/constants';
 import { activeConditions, createRun, step, takeUpgrade } from './game/engine';
 import { randomSeedCode } from './game/rng';
@@ -23,6 +27,7 @@ export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('menu');
   const [paused, setPaused] = useState(false);
   const [best, setBest] = useState(0);
+  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   /** Mirrors the simulation for the HUD only; the canvas reads the ref directly. */
   const [hud, setHud] = useState<RunState | null>(null);
 
@@ -241,6 +246,7 @@ export default function App(): React.ReactElement {
         }}
       >
         <BackToMenu />
+        {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
         <header className="da-title-hero">
           <h1 className="da-display da-glow-title text-4xl font-extrabold tracking-wide text-fuchsia-200">彈幕深淵</h1>
           <p className="mt-2 text-slate-400 text-sm">Danmaku Abyss</p>
@@ -256,13 +262,22 @@ export default function App(): React.ReactElement {
           </ul>
         </div>
         {best > 0 && <p className="text-slate-400 text-sm">最佳分數 {best.toLocaleString('zh-Hant')}</p>}
-        <button
-          type="button"
-          onClick={startRun}
-          className="da-cta min-h-[44px] px-8 py-3 rounded-xl font-semibold text-white"
-        >
-          潛入深淵
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
+          <button
+            type="button"
+            onClick={startRun}
+            className="da-cta min-h-[44px] px-8 py-3 rounded-xl font-semibold text-white"
+          >
+            潛入深淵
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFirstRun(true)}
+            className="min-h-[44px] px-6 py-3 rounded-xl font-semibold text-slate-300 border border-slate-600/60 hover:bg-slate-800/60 transition-colors touch-manipulation"
+          >
+            操作教學
+          </button>
+        </div>
       </div>
     );
   }

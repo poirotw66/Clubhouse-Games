@@ -129,6 +129,8 @@
 - 實作路徑：`Games/Clockwork-Keep/`
 - 技術：Vite + React + TypeScript，戰場以 **Canvas 2D** 繪製（格子塔防不需 3D，2D 可保持邏輯純粹且體積小）。
 - 架構要點：`src/game/` 為零 DOM 的純邏輯，核心為固定時步的 `step(state, dt) -> state`；渲染層只讀狀態不改狀態。此切分使 `check-*.mjs` 能在無瀏覽器環境下跑完整局模擬，作為平衡工具與回歸測試。
+- **首局引導**：首次進入設定畫面顯示三步上手疊層（`clockwork-keep:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「開始遊戲」衝突。
+- UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。
 
 ## 參考與備註
 
