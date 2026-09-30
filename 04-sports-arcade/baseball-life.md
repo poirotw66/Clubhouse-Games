@@ -222,7 +222,18 @@
 
 ### 生涯挑戰
 
-標題畫面另有 **生涯挑戰** 模式：八張手編關卡，各鎖定一組世界種子碼與守備位置，並給出明確通關目標（例如職業球季數、名人堂積分門檻、高中冠軍數、大聯盟出賽年數）。依序解鎖；通關後記錄最佳名人堂積分。進度存在 `clubhouse:baseball-life:challenges`，與自由遊玩存檔、成就分開。生涯總結會顯示「挑戰成功／未過」。
+標題畫面另有 **生涯挑戰** 模式：十四張手編關卡（第一波八關＋第二波六關），各鎖定一組世界種子碼與守備位置，並給出明確通關目標。目標種類含職業球季數、名人堂積分、高中冠軍、大聯盟年數，以及第二波新增的 **零傷病職業年數**、**指定聯盟年數**、**覺醒指定特質**。少數關卡內嵌 **固定回合必遇抉擇**（`situationHooks`）：引擎在對應回合強制排隊指定 situation id，通關可另要求特定選項（`requirePicks`）。
+
+**挑戰專用 situation 穩定 id（hook-only，`condition: () => false` 不進隨機池）：**
+
+| id | 用途 |
+|----|------|
+| `chlg-intl-summons` | 「國際賽之鬼」關：國家隊徵召；`accept` 增加 `intlStrong` |
+| `chlg-mlb-dream-call` | 「旅美關口」關：旅美攤牌；需選 `commit` |
+
+亦沿用既有 id：`hs-scout-showcase`（捕手關）、`tw-specialty-pressure`（二刀流入殿）。
+
+依序解鎖；通關後記錄最佳名人堂積分。進度存在 `clubhouse:baseball-life:challenges`，與自由遊玩存檔、成就分開。生涯總結會顯示「挑戰成功／未過」。
 
 ### 分享卡
 
@@ -252,6 +263,6 @@
 ## 備註
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:baseball-life:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「開始新的棒球人生」衝突。
-- **生涯挑戰**：標題「生涯挑戰」→ 固定種子／位置關卡包；UI：`TitleScreen` 模態、`CreateScreen` 鎖定位置、`SummaryScreen` 通關回饋；核心：`src/game/challenges.ts`。
+- **生涯挑戰**：標題「生涯挑戰」→ 固定種子／位置關卡包（含第二波新目標與必遇抉擇鉤子）；UI：`TitleScreen` 模態、`CreateScreen` 鎖定位置、`SummaryScreen` 通關回饋；核心：`src/game/challenges.ts`、engine `queueSituation` 鉤子。
 - 本作所有球隊名稱、球員與事件均為虛構，與現實中的球團、聯盟或人物無關。
 - 實作路徑：`Games/Baseball-Life/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。

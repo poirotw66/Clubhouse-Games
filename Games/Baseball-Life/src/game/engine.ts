@@ -19,6 +19,12 @@ import { INJURIES, pickEvent } from './events';
 import { noise, pick, randInt, seedFromCode, streamRng } from './rng';
 import { describeLine, simulateSeason, simulateTournament, simulateTwoWay } from './season';
 import {
+  challengeById,
+  challengeHookKey,
+  hookMatchesState,
+  situationPickKey,
+} from './challenges';
+import {
   SITUATION_FIRE_CHANCE,
   pickSituation,
   situationById,
@@ -152,11 +158,15 @@ export interface CreateInput {
   name: string;
   position: Position;
   originId: string;
+  /** When set, enables that challenge's fixed-turn situation hooks. */
+  challengeId?: string | null;
 }
 
 export function createGame(input: CreateInput): GameState {
   const seed = seedFromCode(input.seedCode);
   const origin = ORIGINS.find((o) => o.id === input.originId) ?? ORIGINS[0];
+  const challengeId =
+    input.challengeId && challengeById(input.challengeId) ? input.challengeId : null;
 
   const attrs = { ...BASE_ATTRS };
   (Object.entries(origin.bonus) as [AttrKey, number][]).forEach(([key, value]) => {
@@ -215,6 +225,7 @@ export function createGame(input: CreateInput): GameState {
     seenEvents: [],
     seenSituations: [],
     pendingSituation: null,
+    challengeId,
     decision: null,
     report: null,
     retired: false,
@@ -1016,6 +1027,9 @@ function resolveTraining(state: GameState, option: TrainingOption, useDestiny = 
  * After a resolved training turn, maybe queue a high-risk choice for the next
  * decision. Kept out of `buildDecision` so that function stays a pure read of
  * state — the roll happens once, here, and the id rides in `pendingSituation`.
+ *
+ * Challenge runs may force a scripted card first (fixed-turn hooks), skipping
+ * the random fire roll for that turn so narrative gates stay deterministic.
  */
 function queueSituation(state: GameState): void {
   if (state.retired || state.pendingSituation) return;
@@ -1025,10 +1039,32 @@ function queueSituation(state: GameState): void {
     const done = state.league === 'college' ? state.age >= 22 : state.age >= 21;
     if (done) return;
   }
+
+  if (queueChallengeSituationHook(state)) return;
+
   const fire = rng(state, 'situation-fire')();
   if (fire >= SITUATION_FIRE_CHANCE) return;
   const situation = pickSituation(state, rng(state, 'situation-pick'));
   if (situation) state.pendingSituation = situation.id;
+}
+
+/** Force the next pending scripted hook for the active challenge, if any. */
+function queueChallengeSituationHook(state: GameState): boolean {
+  if (!state.challengeId) return false;
+  const challenge = challengeById(state.challengeId);
+  if (!challenge?.situationHooks || challenge.situationHooks.length === 0) return false;
+
+  for (let index = 0; index < challenge.situationHooks.length; index++) {
+    const hook = challenge.situationHooks[index];
+    const key = challengeHookKey(challenge.id, index);
+    if (state.handled.includes(key)) continue;
+    if (!hookMatchesState(hook.match, state)) continue;
+    if (!situationById(hook.situationId)) continue;
+    state.pendingSituation = hook.situationId;
+    state.handled.push(key);
+    return true;
+  }
+  return false;
 }
 
 function resolveSituation(state: GameState, optionId: string): void {
@@ -1076,10 +1112,13 @@ function resolveSituation(state: GameState, optionId: string): void {
     return;
   }
 
+  const pickKey = situationPickKey(situation.id, optionId);
+  if (!state.handled.includes(pickKey)) state.handled.push(pickKey);
+
   report.lines.push(chosen.outcome);
   report.tone = chosen.tone ?? 'normal';
 
-  const { destiny, earnings, injuryChance, ...attrMeta } = chosen.effects;
+  const { destiny, earnings, injuryChance, intlStrong, ...attrMeta } = chosen.effects;
   applyDeltas(state, attrMeta);
   report.deltas = { ...attrMeta };
 
@@ -1091,6 +1130,11 @@ function resolveSituation(state: GameState, optionId: string): void {
     state.finance.earnings += earnings;
     report.income = earnings;
     report.lines.push(`額外收入 ${formatMoney(earnings)}`);
+  }
+  if (typeof intlStrong === 'number' && intlStrong > 0) {
+    state.counters.intlStrong += intlStrong;
+    state.counters.intlAppearances += intlStrong;
+    report.lines.push(`國際賽高光 +${intlStrong}`);
   }
   if (injuryChance && injuryChance > 0 && rng(state, 'situation-injury')() < injuryChance) {
     const pool = INJURIES.filter((i) => i.severity !== 'career' || state.stage === 'pro');

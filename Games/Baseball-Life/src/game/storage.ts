@@ -63,6 +63,8 @@ export function loadGame(): GameState | null {
     // mid-career saves from before that build keep playing.
     if (!Array.isArray(parsed.seenSituations)) parsed.seenSituations = [];
     if (typeof parsed.pendingSituation !== 'string') parsed.pendingSituation = null;
+    if (typeof parsed.challengeId !== 'string') parsed.challengeId = null;
+    else if (parsed.challengeId && !challengeById(parsed.challengeId)) parsed.challengeId = null;
     return parsed;
   } catch {
     return null;
