@@ -73,7 +73,7 @@ export const CAREER_CHALLENGES: readonly CareerChallenge[] = [
     name: '投手入殿',
     blurb: '固定種子・投手・打進名人堂',
     goalLabel: '名人堂積分 ≥ 1450',
-    seedCode: 'pitch03b',
+    seedCode: 'sp000001',
     position: 'P',
     goal: { kind: 'hof-score', min: 1450 },
   },

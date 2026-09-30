@@ -4,9 +4,22 @@
  * Flavour events in `events.ts` only narrate. These interrupt with a real
  * Decision card (`kind: 'event'`): every option costs something, and the
  * upside is deliberately larger than a normal training turn.
+ *
+ * A few options also write durable `CareerFlags`, and a minority accept a
+ * 天命 spend (`destinyBoost`) to waive costs or double rewards — injury
+ * risk is never fully erased.
  */
 import { IS_TWO_WAY } from './config';
-import type { Attributes, GameState, Meta, Stage } from './types';
+import type { Attributes, CareerFlags, GameState, Meta, Stage } from './types';
+
+/** How 天命 reshapes a single situation option when the player spends it. */
+export type DestinyBoostMode = 'waiveCost' | 'doubleReward';
+
+export interface DestinyBoost {
+  /** Destiny points consumed when this option is chosen with 天命 armed. */
+  cost: number;
+  mode: DestinyBoostMode;
+}
 
 export type SituationEffects = Partial<Attributes & Meta> & {
   /** Extra 天命 granted (can be negative). */
@@ -15,6 +28,8 @@ export type SituationEffects = Partial<Attributes & Meta> & {
   earnings?: number;
   /** Chance 0–1 to roll a minor injury after this choice. */
   injuryChance?: number;
+  /** Durable career consequences applied when this option wins. */
+  flags?: Partial<CareerFlags>;
 };
 
 export interface SituationOption {
@@ -24,6 +39,8 @@ export interface SituationOption {
   effects: SituationEffects;
   outcome: string;
   tone?: 'normal' | 'good' | 'bad' | 'great';
+  /** Optional 天命 spend: waive cost or double reward; injury still rolls. */
+  destinyBoost?: DestinyBoost;
 }
 
 export interface Situation {
@@ -42,6 +59,13 @@ export interface Situation {
 const isTwoWay = (s: GameState) => IS_TWO_WAY[s.position];
 const isPitcher = (s: GameState) => s.position === 'P' || isTwoWay(s);
 const isBatter = (s: GameState) => s.position !== 'P';
+const isCatcher = (s: GameState) => s.position === 'C';
+const isInfielder = (s: GameState) => s.position === 'IF';
+const isOutfielder = (s: GameState) => s.position === 'OF';
+const isPurePitcher = (s: GameState) => s.position === 'P';
+
+/** Default 天命 cost on situation cards — cheaper than a training force (40). */
+export const DESTINY_SITUATION_COST = 25;
 
 export const SITUATIONS: Situation[] = [
   // ---- High school ----
@@ -56,10 +80,11 @@ export const SITUATIONS: Situation[] = [
       {
         id: 'push',
         label: '加練到管理員趕人',
-        hint: '打擊／心志大漲，疲勞與受傷風險暴增',
+        hint: '打擊／心志大漲，疲勞與受傷風險暴增；可花天命壓過代價',
         effects: { contact: 5, power: 4, mind: 4, fatigue: 22, injuryChance: 0.28 },
         outcome: '你揮到手腕發麻。天亮時球棒還握在手裡。',
         tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
       },
       {
         id: 'smart',
@@ -166,16 +191,24 @@ export const SITUATIONS: Situation[] = [
     title: '終結者試鏡',
     stages: ['pro'],
     weight: 11,
-    condition: (s) => isPitcher(s) && s.attrs.stamina < 56,
+    condition: (s) => isPitcher(s) && s.attrs.stamina < 56 && !s.flags.preferBullpen,
     prompt: () =>
       '教練找你談：先發輪值滿了，但牛棚缺一個敢在九局面對四棒的人。要不要改後援？',
     options: () => [
       {
         id: 'take',
         label: '改後援，搶救命局',
-        hint: '膽識／人氣暴衝，續航與身體負擔上升',
-        effects: { guts: 8, fame: 10, mind: 3, stamina: -3, fatigue: 16, injuryChance: 0.18 },
-        outcome: '你走進九局上的那種安靜。心跳很大聲，但你把球投進去了。',
+        hint: '膽識／人氣暴衝；此後固定走後援路線',
+        effects: {
+          guts: 8,
+          fame: 10,
+          mind: 3,
+          stamina: -3,
+          fatigue: 16,
+          injuryChance: 0.18,
+          flags: { preferBullpen: true },
+        },
+        outcome: '你走進九局上的那種安靜。置物櫃上多了一張「後援組」的貼紙——之後很久都撕不下來。',
         tone: 'great',
       },
       {
@@ -208,10 +241,11 @@ export const SITUATIONS: Situation[] = [
       {
         id: 'take',
         label: '我頂',
-        hint: '長打／人氣大漲，心志與疲勞風險高',
+        hint: '長打／人氣大漲；可花天命翻倍報酬（受傷仍可能）',
         effects: { power: 6, contact: 3, fame: 12, guts: 4, mind: -4, fatigue: 14, injuryChance: 0.14 },
         outcome: '你站上四棒。第一打席的聲音，整個外野都聽得到。',
         tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'doubleReward' },
       },
       {
         id: 'share',
@@ -317,16 +351,23 @@ export const SITUATIONS: Situation[] = [
     stages: ['pro'],
     weight: 9,
     minAge: 26,
-    condition: (s) => s.counters.proSeasons >= 3 && s.meta.fame >= 45,
+    condition: (s) =>
+      s.counters.proSeasons >= 3 && s.meta.fame >= 45 && s.flags.tradeCooldown <= 0,
     prompt: (s) =>
       `${s.team}這季的方向讓你看不懂。經紀人說可以正式提出交易要求——鬧大了就回不了頭。`,
-    options: () => [
+    options: (s) => [
       {
         id: 'demand',
         label: '正式提出交易要求',
-        hint: '人氣與心志大動；可能換來舞台或被冷凍',
-        effects: { fame: 8, mind: -6, guts: 3, fatigue: 4 },
-        outcome: '新聞稿出去的那一晚，置物櫃被貼滿便利貼。有人挺你，有人翻臉。',
+        hint: '人氣大動；寫入交易冷卻兩季，短期難再談出走',
+        effects: {
+          fame: 8,
+          mind: -6,
+          guts: 3,
+          fatigue: 4,
+          flags: { tradeCooldown: 2 },
+        },
+        outcome: `新聞稿出去的那一晚，置物櫃被貼滿便利貼。球團私下放話：兩年內別再談「離開${s.team}」。`,
         tone: 'great',
       },
       {
@@ -353,16 +394,25 @@ export const SITUATIONS: Situation[] = [
     stages: ['pro'],
     weight: 9,
     minAge: 27,
-    condition: (s) => s.meta.body <= 55 || s.counters.injuries >= 1,
+    condition: (s) =>
+      (s.meta.body <= 55 || s.counters.injuries >= 1) && s.flags.surgeryMiss <= 0,
     prompt: () =>
       '隊醫把影像攤在桌上：現在動刀，休半年但更乾淨；撐著打，今年還能上場，但惡化機率不低。',
     options: () => [
       {
         id: 'cut',
         label: '現在動刀',
-        hint: '缺席衝擊大，但體能長期回升',
-        effects: { body: 10, mind: -4, fame: -5, fatigue: -20, velocity: -2, speed: -2 },
-        outcome: '你在恢復室數天花板的孔。春天會很遠，但肩膀終於安靜了。',
+        hint: '下季出賽崩盤（手術缺席），但體能長期回升',
+        effects: {
+          body: 10,
+          mind: -4,
+          fame: -5,
+          fatigue: -20,
+          velocity: -2,
+          speed: -2,
+          flags: { surgeryMiss: 1 },
+        },
+        outcome: '你在恢復室數天花板的孔。下個球季的出賽欄，多半會是空白。',
         tone: 'good',
       },
       {
@@ -379,6 +429,504 @@ export const SITUATIONS: Situation[] = [
         hint: '折衷：小幅護體，少一點表現',
         effects: { body: 3, fatigue: -8, fame: -2, mind: 2 },
         outcome: '教練把你移出天天先發。你學會在板凳上咬牙。',
+        tone: 'normal',
+      },
+    ],
+  },
+
+  // ---- League-locked / international ----
+  {
+    id: 'pro-cpbl-taiwan-series',
+    title: '總冠軍賽先發夜',
+    stages: ['pro'],
+    weight: 12,
+    minAge: 22,
+    condition: (s) => s.league === 'cpbl' && s.meta.fame >= 35,
+    prompt: (s) =>
+      `${s.team}闖進台灣大賽。教練問你：第七戰要不要把你排進最關鍵的那個位子？`,
+    options: () => [
+      {
+        id: 'take',
+        label: '我扛第七戰',
+        hint: '人氣／膽識暴衝，疲勞與壓力極大',
+        effects: { fame: 16, guts: 6, mind: -5, fatigue: 20, injuryChance: 0.16 },
+        outcome: '燈光比平常白。你聽到自己的呼吸比廣播更大聲。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'doubleReward' },
+      },
+      {
+        id: 'share',
+        label: '當第二選擇，備而不用',
+        hint: '中等人氣，負擔較輕',
+        effects: { fame: 5, mind: 2, fatigue: 8 },
+        outcome: '你在牛棚熱身到手臂發熱，終場哨響時還沒被叫上去。',
+        tone: 'good',
+      },
+      {
+        id: 'pass',
+        label: '這次把舞台讓給學長',
+        hint: '護體，放棄總冠軍賽敘事',
+        effects: { body: 3, fame: -4, mind: 2 },
+        outcome: '教練點了點頭。你知道自己錯過一個會被寫進隊史的夜晚。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pro-npb-ichigun-push',
+    title: '一軍名額爭奪',
+    stages: ['pro'],
+    weight: 12,
+    minAge: 23,
+    condition: (s) => s.league === 'npb',
+    prompt: () =>
+      '二軍教練私下說：一軍有一個外籍名額卡住，若你這週交流戰「打到讓人無法忽視」，球團可能硬推你上去。',
+    options: () => [
+      {
+        id: 'allin',
+        label: '這週把身體掏空',
+        hint: '能力與人氣大漲；疲勞／受傷風險高',
+        effects: {
+          contact: 4,
+          velocity: 4,
+          control: 3,
+          fame: 10,
+          fatigue: 24,
+          body: -4,
+          injuryChance: 0.24,
+        },
+        outcome: '你連五日先發。電話在第六天早上響了。',
+        tone: 'great',
+      },
+      {
+        id: 'steady',
+        label: '照計畫練，不強求',
+        hint: '小幅成長',
+        effects: { mind: 3, control: 2, fatigue: 6 },
+        outcome: '你把節奏留給長期。一軍的門暫時沒開。',
+        tone: 'good',
+      },
+      {
+        id: 'protect',
+        label: '保護手臂／腿，拒絕硬推',
+        hint: '護體，錯失曝光窗口',
+        effects: { body: 4, fame: -3, mind: -2 },
+        outcome: '名額給了別人。你把冰袋綁得更緊。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pro-mlb-september-push',
+    title: '九月擴編賭注',
+    stages: ['pro'],
+    weight: 12,
+    minAge: 22,
+    condition: (s) => s.league === 'milb' || s.league === 'mlb',
+    prompt: () =>
+      '球探說九月擴編名單有一個坑。你要不要在這最後兩週把所有武器都亮出來——包括可能壞掉的那一招？',
+    options: () => [
+      {
+        id: 'push',
+        label: '兩週全開',
+        hint: '人氣大漲，身體透支',
+        effects: { fame: 14, guts: 5, power: 3, velocity: 3, fatigue: 26, body: -5, injuryChance: 0.26 },
+        outcome: '你把球速板與揮棒速度都推到紅線。名單公布那晚，手機震個不停。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
+      },
+      {
+        id: 'show',
+        label: '只亮最穩的兩招',
+        hint: '中等曝光',
+        effects: { fame: 6, mind: 2, fatigue: 10 },
+        outcome: '你打得乾淨。球探寫下「可靠」，沒有寫「驚艷」。',
+        tone: 'good',
+      },
+      {
+        id: 'hold',
+        label: '養傷優先，不賭九月',
+        hint: '護體，放棄擴編敘事',
+        effects: { body: 5, fatigue: -8, fame: -4 },
+        outcome: '擴編名單沒有你。你把復健課表貼在鏡子上。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pro-intl-callup',
+    title: '國家隊徵召',
+    stages: ['pro'],
+    weight: 11,
+    minAge: 21,
+    condition: (s) => s.meta.fame >= 40 && s.counters.proSeasons >= 1,
+    prompt: () =>
+      '協會的信來了：國際賽要你入選。球團希望你拒絕以保護球季；球迷則等著看你穿上那件衣服。',
+    options: () => [
+      {
+        id: 'accept',
+        label: '接受徵召',
+        hint: '人氣／膽識大漲；疲勞高，可花天命壓過代價',
+        effects: {
+          fame: 14,
+          guts: 5,
+          mind: 3,
+          fatigue: 18,
+          injuryChance: 0.18,
+        },
+        outcome: '你把國旗別上帽子。回來時語音信箱與疲勞一起爆了。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
+      },
+      {
+        id: 'partial',
+        label: '只打分組，不下決賽',
+        hint: '中等榮耀，較安全',
+        effects: { fame: 6, fatigue: 8, mind: 1 },
+        outcome: '你在分組賽露臉後搭機回家。決策夠「理性」，也夠被罵。',
+        tone: 'good',
+      },
+      {
+        id: 'decline',
+        label: '為球季拒絕',
+        hint: '護體，輿論會吵',
+        effects: { body: 4, fame: -10, mind: -5 },
+        outcome: '社群罵聲起來了。你把手機調成飛航模式，繼續練。',
+        tone: 'bad',
+      },
+    ],
+  },
+
+  // ---- Position identity: Catcher ----
+  {
+    id: 'pos-c-pitch-call',
+    title: '配球賭注',
+    stages: ['pro'],
+    weight: 13,
+    condition: isCatcher,
+    prompt: () =>
+      '九局兩出局，滿壘。投手搖頭拒絕你的配球。你要堅持自己的手套位置，還是妥協？',
+    options: () => [
+      {
+        id: 'insist',
+        label: '堅持我的配球',
+        hint: '守備／膽識大漲；失手則心志重創；可花天命翻倍',
+        effects: { fielding: 5, eye: 3, guts: 5, fame: 8, mind: -3, fatigue: 10, injuryChance: 0.1 },
+        outcome: '球進了你要的角。杜格アウト有人站起來鼓掌，有人搖頭。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'doubleReward' },
+      },
+      {
+        id: 'yield',
+        label: '改成投手想要的',
+        hint: '保護關係，成長有限',
+        effects: { mind: 2, fielding: 1, fame: 2, fatigue: 4 },
+        outcome: '你換了暗號。結局平靜——也沒有人記得這一球是誰的主意。',
+        tone: 'good',
+      },
+      {
+        id: 'mound',
+        label: '走上丘溝通，重新談',
+        hint: '心志上升，耗掉一次暫停',
+        effects: { mind: 4, guts: 2, fame: -1, fatigue: 6 },
+        outcome: '你們在丘上講了二十秒。攝影機拍到你拍他的肩膀。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pos-c-block-plate',
+    title: '本壘攻防',
+    stages: ['highschool', 'amateur', 'pro'],
+    weight: 12,
+    condition: isCatcher,
+    prompt: () =>
+      '外野長傳回來，衝壘的人像火車。教練曾說「護具不是無敵」——你要擋死，還是讓出一角？',
+    options: () => [
+      {
+        id: 'block',
+        label: '擋死本壘',
+        hint: '膽識／守備大漲，受傷風險高',
+        effects: { guts: 6, fielding: 4, fame: 6, fatigue: 12, body: -3, injuryChance: 0.3 },
+        outcome: '塵土散去後，球還在你手套裡。膝蓋在抗議。',
+        tone: 'great',
+      },
+      {
+        id: 'swipe',
+        label: '側身觸殺，保身體',
+        hint: '中等守備成長',
+        effects: { fielding: 2, eye: 2, fatigue: 5 },
+        outcome: '你讓出一角。裁判的手勢讓兩邊都不滿意——但你還走得動。',
+        tone: 'good',
+      },
+      {
+        id: 'concede',
+        label: '不擋，避免衝撞',
+        hint: '護體，放棄硬漢形象',
+        effects: { body: 3, fame: -3, mind: -2 },
+        outcome: '分被送進來。社群說你「軟」。你把護膝綁緊一點。',
+        tone: 'normal',
+      },
+    ],
+  },
+
+  // ---- Position identity: Infielder ----
+  {
+    id: 'pos-if-double-play',
+    title: '雙殺風險',
+    stages: ['pro'],
+    weight: 13,
+    condition: isInfielder,
+    prompt: () =>
+      '一出局，一二壘有人。滾地球過來——你可以硬轉雙殺，也可以穩穩拿一個出局數。',
+    options: () => [
+      {
+        id: 'turn',
+        label: '硬轉雙殺',
+        hint: '守備／人氣大漲，腳踝與大腿風險高',
+        effects: { fielding: 5, guts: 4, fame: 7, speed: 2, fatigue: 12, injuryChance: 0.22 },
+        outcome: '你在二壘袋上轉得像有人替你上了發條。觀眾站起來的時間，比雙殺本身還長。',
+        tone: 'great',
+      },
+      {
+        id: 'sure',
+        label: '穩拿一出局',
+        hint: '小幅守備成長',
+        effects: { fielding: 2, mind: 2, fatigue: 4 },
+        outcome: '你把出局數放進口袋。教練沒鼓掌，也沒皺眉。',
+        tone: 'good',
+      },
+      {
+        id: 'hold',
+        label: '不勉強，避免失誤头条',
+        hint: '護心志，放棄亮眼表現',
+        effects: { mind: 3, fame: -2 },
+        outcome: '你選擇安全。轉播開始講別的防守。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pos-if-relay-arm',
+    title: '中繼臂測驗',
+    stages: ['amateur', 'pro'],
+    weight: 11,
+    condition: isInfielder,
+    prompt: () =>
+      '外野長傳需要你中繼。臂力夠就帥一波；傳飛就成了晚上的迷因。',
+    options: () => [
+      {
+        id: 'gun',
+        label: '全力長傳本壘',
+        hint: '守備／膽識上升，肩膀負擔大',
+        effects: { fielding: 4, guts: 3, fame: 5, fatigue: 14, body: -2, injuryChance: 0.18 },
+        outcome: '球線又直又急。捕手只需要接，不需要移動。',
+        tone: 'great',
+      },
+      {
+        id: 'cut',
+        label: '依暗號切殺三壘',
+        hint: '穩健小幅成長',
+        effects: { fielding: 2, eye: 2, fatigue: 5 },
+        outcome: '你照練習做。沒有歡呼，也沒有失誤。',
+        tone: 'good',
+      },
+      {
+        id: 'safe',
+        label: '不傳，避免失誤',
+        hint: '護體，錯失表現',
+        effects: { mind: 2, fame: -3, body: 1 },
+        outcome: '跑者踩上本壘。你把球輕輕拋回投手丘。',
+        tone: 'normal',
+      },
+    ],
+  },
+
+  // ---- Position identity: Outfielder ----
+  {
+    id: 'pos-of-steal-green',
+    title: '盜壘綠燈',
+    stages: ['pro'],
+    weight: 13,
+    condition: isOutfielder,
+    prompt: () =>
+      '一壘教練比了綠燈：對方捕手臂力一般，但你腿還在痛。要不要真的跑？',
+    options: () => [
+      {
+        id: 'go',
+        label: '綠燈全開',
+        hint: '跑壘／人氣大漲；可花天命翻倍（受傷仍可能）',
+        effects: { speed: 6, guts: 3, fame: 8, fatigue: 12, body: -2, injuryChance: 0.2 },
+        outcome: '你的滑壘帶起一片土。二壘裁判的雙臂張開，像在替你比讚。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'doubleReward' },
+      },
+      {
+        id: 'read',
+        label: '看投球再決定',
+        hint: '中等成長',
+        effects: { speed: 2, eye: 2, fatigue: 5 },
+        outcome: '你在投手抬腿時才動。安全，但沒有爆發力的鏡頭。',
+        tone: 'good',
+      },
+      {
+        id: 'hold',
+        label: '不跑，保護腿筋',
+        hint: '護體，放棄盜壘敘事',
+        effects: { body: 3, fame: -2, mind: 1 },
+        outcome: '綠燈熄了。下一棒打了雙殺。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pos-of-wall-crash',
+    title: '全壘打牆',
+    stages: ['highschool', 'amateur', 'pro'],
+    weight: 12,
+    condition: isOutfielder,
+    prompt: () =>
+      '飛球往牆飛。你可以全速撞牆去接，也可以在警告區前收住——讓它成為二壘安打。',
+    options: () => [
+      {
+        id: 'crash',
+        label: '全速撞牆接殺',
+        hint: '守備／人氣暴衝，受傷風險極高',
+        effects: { fielding: 6, guts: 5, fame: 10, fatigue: 16, body: -4, injuryChance: 0.34 },
+        outcome: '你的背撞上牆的聲音，比觀眾的尖叫更早傳到內野。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
+      },
+      {
+        id: 'play',
+        label: '警告區收住，防多壘',
+        hint: '穩健守備',
+        effects: { fielding: 2, mind: 2, fatigue: 5 },
+        outcome: '你把二壘安打擋成二壘安打。沒有英雄，也沒有擔架。',
+        tone: 'good',
+      },
+      {
+        id: 'ease',
+        label: '不賭身體',
+        hint: '護體，放棄美技',
+        effects: { body: 3, fame: -3 },
+        outcome: '球彈離牆。轉播開始播重播——不是你的，是打者的。',
+        tone: 'normal',
+      },
+    ],
+  },
+
+  // ---- Position identity: Pitcher ----
+  {
+    id: 'pos-p-starter-ink',
+    title: '先發長約',
+    stages: ['pro'],
+    weight: 12,
+    minAge: 24,
+    condition: (s) => isPurePitcher(s) && !s.flags.preferBullpen && s.attrs.stamina >= 52,
+    prompt: () =>
+      '球團想跟你簽「先發保證」條款：每年至少排進輪值二十六場。錢好看，身體也會被寫進程式裡。',
+    options: () => [
+      {
+        id: 'sign',
+        label: '簽下先發保證',
+        hint: '收入／人氣大漲，疲勞與傷風險上升',
+        effects: { earnings: 380, fame: 8, stamina: 3, fatigue: 14, body: -3, injuryChance: 0.15 },
+        outcome: '合約上的數字很甜。訓練室的課表忽然變得更長。',
+        tone: 'great',
+      },
+      {
+        id: 'flexible',
+        label: '只要角色彈性條款',
+        hint: '中等收入，保留調度空間',
+        effects: { earnings: 140, fame: 3, mind: 2, fatigue: 6 },
+        outcome: '你留下「視身體狀況調整」那一行。總教練皺了下眉。',
+        tone: 'good',
+      },
+      {
+        id: 'refuse',
+        label: '不簽，避免被鎖死',
+        hint: '護體，放棄保證金',
+        effects: { body: 3, mind: 2, fame: -3 },
+        outcome: '經紀人嘆了口氣。你把肩膀的冰敷時間多加了十分鐘。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pos-p-pitch-count',
+    title: '投球數紅線',
+    stages: ['pro'],
+    weight: 13,
+    condition: (s) => isPurePitcher(s),
+    prompt: () =>
+      '你已經投到球團設定的紅線。教練走上丘：要不要再給你一輪——拿下這場，或把明天的手臂留下？',
+    options: () => [
+      {
+        id: 'push',
+        label: '再給我一輪',
+        hint: '膽識／人氣大漲；可花天命壓過代價（受傷仍可能）',
+        effects: { guts: 6, fame: 9, velocity: 2, fatigue: 18, body: -4, injuryChance: 0.28 },
+        outcome: '你點頭。教練把球放回你手套。計分板還沒亮，手臂已經在發光。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
+      },
+      {
+        id: 'hand',
+        label: '交球，相信牛棚',
+        hint: '護臂，少一點英雄戲',
+        effects: { body: 3, mind: 2, fame: -2, fatigue: -4 },
+        outcome: '你把球放進教練手心。觀眾有人鼓掌，有人倒喝彩。',
+        tone: 'good',
+      },
+      {
+        id: 'one',
+        label: '只多面對一人',
+        hint: '折衷',
+        effects: { guts: 2, fame: 3, fatigue: 8, injuryChance: 0.1 },
+        outcome: '你解決了那一個打者。下一棒交給別人。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'pos-p-bullpen-pledge',
+    title: '牛棚長期契約',
+    stages: ['pro'],
+    weight: 11,
+    minAge: 25,
+    condition: (s) => isPurePitcher(s) && !s.flags.preferBullpen && s.attrs.stamina < 58,
+    prompt: () =>
+      '球團開出三年牛棚合約：年薪不錯，但白紙黑字寫著「不以先發登錄」。這會定調你的職涯後半。',
+    options: () => [
+      {
+        id: 'sign',
+        label: '簽約，走後援路線',
+        hint: '收入與膽識上升；此後固定後援',
+        effects: {
+          earnings: 280,
+          guts: 5,
+          fame: 6,
+          fatigue: 10,
+          flags: { preferBullpen: true },
+        },
+        outcome: '你在合約上簽名。先發輪值的白板，從此少了一個問號。',
+        tone: 'great',
+      },
+      {
+        id: 'year',
+        label: '只簽一年觀察',
+        hint: '中等收入，角色未鎖死',
+        effects: { earnings: 90, guts: 2, fame: 2, fatigue: 5 },
+        outcome: '雙方各退一步。你還能在春訓爭取輪值。',
+        tone: 'good',
+      },
+      {
+        id: 'refuse',
+        label: '拒絕，繼續爭取先發',
+        hint: '保住先發敘事，錯失穩定金',
+        effects: { stamina: 2, mind: -2, fame: -2 },
+        outcome: '合約被收回。牛棚教練看你的眼神冷了一點。',
         tone: 'normal',
       },
     ],
@@ -432,7 +980,7 @@ export const SITUATIONS: Situation[] = [
       {
         id: 'both',
         label: '同一天兩邊都上',
-        hint: '人氣與天命暴衝；疲勞／受傷風險極高',
+        hint: '人氣與天命暴衝；可花天命壓過代價（受傷仍可能）',
         effects: {
           fame: 16,
           guts: 6,
@@ -444,6 +992,7 @@ export const SITUATIONS: Situation[] = [
         },
         outcome: '你投完六局，換打擊手套。社群上的標籤一夜破百萬。',
         tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
       },
       {
         id: 'pitch-only',
@@ -507,7 +1056,7 @@ export const SITUATIONS: Situation[] = [
     minAge: 22,
     condition: (s) => isTwoWay(s) && s.meta.fame >= 50,
     prompt: () =>
-      '國家隊召集令來了：他们想讓你投一場、打兩場。教練團說這是「台灣二刀流」的招牌戲。',
+      '國家隊召集令來了：他們想讓你投一場、打兩場。教練團說這是「台灣二刀流」的招牌戲。',
     options: () => [
       {
         id: 'accept',
@@ -569,6 +1118,14 @@ export function pickSituation(state: GameState, rng: () => number): Situation | 
     if (ticket <= 0) return situation;
   }
   return use[use.length - 1] ?? null;
+}
+
+/** Whether any option on the pending situation can accept a 天命 spend. */
+export function situationAcceptsDestiny(state: GameState): boolean {
+  if (!state.pendingSituation) return false;
+  const situation = situationById(state.pendingSituation);
+  if (!situation) return false;
+  return situation.options(state).some((option) => option.destinyBoost);
 }
 
 /** Roughly one situation every 4–5 turns that can host one. */
