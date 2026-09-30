@@ -230,7 +230,7 @@ export function TitleScreen({
                   生涯挑戰
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">
-                  固定種子與位置・達成目標才算通關・進度獨立於自由遊玩
+                  固定種子與位置・達成目標才算通關・部分關卡含必遇抉擇・進度獨立於自由遊玩
                 </p>
               </div>
               <TouchButton
@@ -306,6 +306,14 @@ export function TitleScreen({
                               <span className="font-mono">{challenge.seedCode}</span>
                             </span>
                           </span>
+                          {challenge.situationHooks && challenge.situationHooks.length > 0 && (
+                            <span className="mt-1 text-[11px] text-amber-200/85">
+                              含固定回合必遇抉擇
+                              {challenge.requirePicks && challenge.requirePicks.length > 0
+                                ? '・通關需特定選項'
+                                : ''}
+                            </span>
+                          )}
                           {best !== undefined && (
                             <span className="mt-1 font-mono text-[10px] text-amber-300/80">
                               最佳積分 {best}

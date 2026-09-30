@@ -265,6 +265,11 @@ export interface GameState {
   seenSituations: string[];
   /** Queued choice-card id; set after a turn and consumed by `buildDecision`. */
   pendingSituation: string | null;
+  /**
+   * Active career-challenge id when this run was started from the pack.
+   * Free play leaves it null. Used only to force-queue scripted situation hooks.
+   */
+  challengeId: string | null;
 
   decision: Decision | null;
   report: TurnReport | null;

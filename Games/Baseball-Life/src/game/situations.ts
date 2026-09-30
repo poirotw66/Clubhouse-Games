@@ -28,6 +28,11 @@ export type SituationEffects = Partial<Attributes & Meta> & {
   earnings?: number;
   /** Chance 0–1 to roll a minor injury after this choice. */
   injuryChance?: number;
+  /**
+   * Challenge / narrative counter bump for strong international performances.
+   * Used by hook-only cards so 「國際賽之鬼」 can be designed, not only RNG'd.
+   */
+  intlStrong?: number;
   /** Durable career consequences applied when this option wins. */
   flags?: Partial<CareerFlags>;
 };
@@ -1088,6 +1093,88 @@ export const SITUATIONS: Situation[] = [
         effects: { body: 4, fame: -8, mind: -4 },
         outcome: '社群罵聲起來了。你把手機調成飛航模式，繼續練投。',
         tone: 'bad',
+      },
+    ],
+  },
+
+  // ---- Challenge-hook-only cards (stable ids; not in the random pool) ----
+  // `condition: () => false` keeps free-play RNG from drawing them; challenge
+  // fixed-turn hooks force `pendingSituation` directly. Prefer these ids when
+  // scripting wave-2 gates so sibling situation-pool PRs stay merge-friendly.
+  {
+    id: 'chlg-intl-summons',
+    title: '國家隊緊急徵召',
+    stages: ['pro'],
+    weight: 1,
+    condition: () => false,
+    prompt: () =>
+      '協會來電：短期國際賽缺人，希望你立刻報到。這是挑戰關卡裡的必遇節點——答應就能在大場面留下名字，拒絕就只能看轉播。',
+    options: () => [
+      {
+        id: 'accept',
+        label: '立刻報到',
+        hint: '國際賽高光＋人氣；疲勞與受傷風險上升',
+        effects: {
+          intlStrong: 1,
+          fame: 10,
+          guts: 3,
+          mind: 2,
+          fatigue: 14,
+          injuryChance: 0.12,
+        },
+        outcome: '你穿上有國旗的球衣。鎂光燈比想像中更刺眼，但你把球打進了縫隙。',
+        tone: 'great',
+      },
+      {
+        id: 'half',
+        label: '只打分組賽',
+        hint: '小幅人氣，沒有高光計數',
+        effects: { fame: 4, fatigue: 6, mind: 1 },
+        outcome: '你打完分組就回俱樂部。新聞只用一行字帶過。',
+        tone: 'good',
+      },
+      {
+        id: 'decline',
+        label: '為了球季婉拒',
+        hint: '護體，錯過這次高光',
+        effects: { body: 3, fame: -4, mind: -2 },
+        outcome: '你掛了電話。電視上別人戴著你本來可能戴上的號碼。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'chlg-mlb-dream-call',
+    title: '旅美夢的攤牌',
+    stages: ['amateur', 'pro'],
+    weight: 1,
+    condition: () => false,
+    prompt: () =>
+      '經紀人把一份旅美意向書攤在桌上：沒有保證一軍，但這是挑戰關卡要你正面回答的關口——要不要把名字寫上去？',
+    options: () => [
+      {
+        id: 'commit',
+        label: '寫上名字，挑戰旅美',
+        hint: '人氣／心志上漲；身體與疲勞代價高',
+        effects: { fame: 12, mind: 4, guts: 3, fatigue: 16, body: -3, injuryChance: 0.1 },
+        outcome: '你簽了字。回程的捷運上，耳機裡全是大聯盟的轉播聲。',
+        tone: 'great',
+      },
+      {
+        id: 'wait',
+        label: '先觀察一年',
+        hint: '穩健，幾乎沒有回報',
+        effects: { mind: 2, fatigue: 4 },
+        outcome: '你把合約折好。經紀人說門不會一直開著。',
+        tone: 'good',
+      },
+      {
+        id: 'refuse',
+        label: '拒絕，留在熟悉的聯盟',
+        hint: '護體，放棄這條路的敘事',
+        effects: { body: 3, fame: -3, mind: -1 },
+        outcome: '你把意向書推回去。旅美兩個字，暫時從行程裡劃掉。',
+        tone: 'normal',
       },
     ],
   },
