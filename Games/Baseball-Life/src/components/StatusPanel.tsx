@@ -101,6 +101,20 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
         </p>
       )}
 
+      {(state.flags.preferBullpen ||
+        state.flags.tradeCooldown > 0 ||
+        state.flags.surgeryMiss > 0) && (
+        <ul className="mt-3 space-y-1 rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-[11px] text-sky-100">
+          {state.flags.preferBullpen && <li>路線：後援固定</li>}
+          {state.flags.surgeryMiss > 0 && (
+            <li>手術缺席：還剩 {state.flags.surgeryMiss} 季</li>
+          )}
+          {state.flags.tradeCooldown > 0 && (
+            <li>交易冷卻：還剩 {state.flags.tradeCooldown} 季</li>
+          )}
+        </ul>
+      )}
+
       {state.traits.length > 0 && (
         <div className="mt-3 border-t border-slate-700/60 pt-3">
           <p className="text-[10px] tracking-wider text-slate-500">已覺醒特質</p>
