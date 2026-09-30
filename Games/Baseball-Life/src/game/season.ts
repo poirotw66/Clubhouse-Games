@@ -35,6 +35,8 @@ export interface SeasonInput {
    * else is unambiguous from their position.
    */
   role?: 'batter' | 'pitcher';
+  /** Career flag: force bullpen work even when stamina would imply starter. */
+  forceReliever?: boolean;
 }
 
 export interface SeasonResult {
@@ -116,7 +118,7 @@ function simulateBatter(input: SeasonInput, pt: number): SeasonResult {
 function simulatePitcher(input: SeasonInput, pt: number): SeasonResult {
   const { attrs, league, rng, clutch } = input;
   const info = LEAGUES[league];
-  const starter = attrs.stamina >= 52;
+  const starter = input.forceReliever ? false : attrs.stamina >= 52;
 
   const variance = 0.88 + rng() * 0.24;
   const games = starter

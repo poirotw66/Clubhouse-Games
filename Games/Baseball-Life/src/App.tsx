@@ -191,7 +191,14 @@ export default function App(): React.ReactElement {
       const position = challenge?.position ?? input.position;
       const code = challenge?.seedCode ?? seedCode;
       setSeedCode(code);
-      setState(createGame({ seedCode: code, ...input, position }));
+      setState(
+        createGame({
+          seedCode: code,
+          ...input,
+          position,
+          challengeId: challenge?.id ?? null,
+        }),
+      );
       setHistory([]);
       setScreen('play');
     },

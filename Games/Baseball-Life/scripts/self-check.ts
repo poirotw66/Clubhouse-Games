@@ -35,9 +35,20 @@ function enabled(decision: Decision): string[] {
   return decision.options.filter((o) => !o.disabled).map((o) => o.id);
 }
 
-function playRun(seedCode: string, position: Position, chooser: Chooser): GameState {
+function playRun(
+  seedCode: string,
+  position: Position,
+  chooser: Chooser,
+  challengeId?: string | null,
+): GameState {
   const origins = rollOrigins(seedCode);
-  let state = createGame({ seedCode, name: '測試員', position, originId: origins[0].id });
+  let state = createGame({
+    seedCode,
+    name: '測試員',
+    position,
+    originId: origins[0].id,
+    challengeId: challengeId ?? null,
+  });
   let step = 0;
   while (!state.retired && step < GUARD) {
     const decision = state.decision;
@@ -581,10 +592,24 @@ function expectUndoIsNotAReroll(): void {
 
 /** Challenge ids and seeds must stay unique so progress keys never collide. */
 function expectChallengeDefsAreSound(): void {
-  assert.ok(CAREER_CHALLENGES.length >= 6, 'challenge pack is too thin');
+  assert.ok(CAREER_CHALLENGES.length >= 12, 'challenge pack is too thin (expected wave 2)');
   assert.equal(challengeCount(), CAREER_CHALLENGES.length);
   const ids = CAREER_CHALLENGES.map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length, 'two challenges share an id');
+  const goalKinds = new Set(CAREER_CHALLENGES.map((c) => c.goal.kind));
+  for (const required of [
+    'pro-seasons',
+    'hof-score',
+    'hs-titles',
+    'mlb-seasons',
+    'injury-free-pro',
+    'trait',
+    'league-seasons',
+  ] as const) {
+    assert.ok(goalKinds.has(required), `missing goal kind ${required}`);
+  }
+
+  let hooked = 0;
   for (const challenge of CAREER_CHALLENGES) {
     assert.ok(challenge.name.length > 0 && challenge.blurb.length > 0, `${challenge.id} missing copy`);
     assert.ok(challenge.goalLabel.length > 0, `${challenge.id} missing goal label`);
@@ -594,45 +619,134 @@ function expectChallengeDefsAreSound(): void {
       challenge.goal.kind === 'pro-seasons' ||
         challenge.goal.kind === 'hof-score' ||
         challenge.goal.kind === 'hs-titles' ||
-        challenge.goal.kind === 'mlb-seasons',
+        challenge.goal.kind === 'mlb-seasons' ||
+        challenge.goal.kind === 'injury-free-pro' ||
+        challenge.goal.kind === 'trait' ||
+        challenge.goal.kind === 'league-seasons',
       `${challenge.id} has unknown goal kind`,
     );
+    if (challenge.situationHooks) {
+      hooked += 1;
+      challenge.situationHooks.forEach((hook, index) => {
+        assert.ok(
+          situationById(hook.situationId),
+          `${challenge.id} hook ${index} references missing situation ${hook.situationId}`,
+        );
+      });
+    }
+    for (const pick of challenge.requirePicks ?? []) {
+      const situation = situationById(pick.situationId);
+      assert.ok(situation, `${challenge.id} requirePick missing situation ${pick.situationId}`);
+      const sampleOrigins = rollOrigins(challenge.seedCode);
+      const sample = createGame({
+        seedCode: challenge.seedCode,
+        name: '測',
+        position: challenge.position,
+        originId: sampleOrigins[0].id,
+        challengeId: challenge.id,
+      });
+      const optionIds = situation!.options(sample).map((o) => o.id);
+      assert.ok(
+        optionIds.includes(pick.optionId),
+        `${challenge.id} requirePick option ${pick.optionId} not on ${pick.situationId}`,
+      );
+    }
   }
+  assert.ok(hooked >= 3, 'wave 2 should script situation hooks on several challenges');
 }
 
 /** Unlock cursor mirrors the Liquid-Sort pack: stage i opens when i <= clearedCount. */
 function expectChallengeUnlockMath(): void {
+  const last = CAREER_CHALLENGES.length - 1;
   assert.equal(isChallengeUnlocked(0, 0), true);
   assert.equal(isChallengeUnlocked(1, 0), false);
   assert.equal(isChallengeUnlocked(1, 1), true);
   assert.equal(isChallengeUnlocked(7, 7), true);
   assert.equal(isChallengeUnlocked(7, 6), false);
+  assert.equal(isChallengeUnlocked(last, last), true);
+  assert.equal(isChallengeUnlocked(last, last - 1), false);
   assert.equal(isChallengeUnlocked(-1, 0), false);
-  assert.equal(isChallengeUnlocked(99, 8), false);
+  assert.equal(isChallengeUnlocked(99, CAREER_CHALLENGES.length), false);
   assert.equal(continueChallengeIndex(0), 0);
   assert.equal(continueChallengeIndex(3), 3);
   assert.equal(continueChallengeIndex(CAREER_CHALLENGES.length), CAREER_CHALLENGES.length - 1);
 }
 
-/**
- * Early challenges must clear under a training-first policy; the MLB card needs
- * an overseas-preferring policy because the goal is the path choice itself.
- */
-function expectChallengeSeedsAreClearable(): void {
+function challengeChooser(challengeId: string): Chooser {
   const overseasFirst: Chooser = (decision) => {
     const ids = enabled(decision);
-    const prefer = ids.find((id) => id === 'path-overseas' || id === 'offer-mlb' || id === 'offer-promote');
+    const prefer = ids.find(
+      (id) =>
+        id === 'path-overseas' ||
+        id === 'offer-mlb' ||
+        id === 'offer-promote' ||
+        id === 'commit' ||
+        id === 'accept' ||
+        id === 'show',
+    );
     return prefer ?? ids[0];
   };
+  const catcherScout: Chooser = (decision) => {
+    const ids = enabled(decision);
+    if (decision.kind === 'event') {
+      return ids.find((id) => id === 'show') ?? ids[ids.length - 1] ?? ids[0];
+    }
+    return ids[0];
+  };
+  const intlGhost: Chooser = (decision) => {
+    const ids = enabled(decision);
+    if (decision.kind === 'event') {
+      return ids.find((id) => id === 'accept') ?? ids[ids.length - 1] ?? ids[0];
+    }
+    return ids[0];
+  };
+  const mlbGate: Chooser = (decision) => {
+    const ids = enabled(decision);
+    const prefer = ids.find(
+      (id) =>
+        id === 'path-overseas' ||
+        id === 'path-college' ||
+        id === 'offer-mlb' ||
+        id === 'offer-promote' ||
+        id === 'commit',
+    );
+    return prefer ?? (decision.kind === 'event' ? (ids[ids.length - 1] ?? ids[0]) : ids[0]);
+  };
+  const ironBody: Chooser = (decision) => {
+    const ids = enabled(decision);
+    // Prefer rest / safest situation option to keep injury counter at zero.
+    if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+    return ids.find((id) => id === 'rest') ?? ids[0];
+  };
 
+  switch (challengeId) {
+    case 'mlb-regular':
+    case 'mlb-gate':
+      return challengeId === 'mlb-gate' ? mlbGate : overseasFirst;
+    case 'catcher-scout':
+      return catcherScout;
+    case 'intl-ghost':
+      return intlGhost;
+    case 'iron-body':
+      return ironBody;
+    default:
+      return firstChoice;
+  }
+}
+
+/**
+ * Early challenges must clear under a training-first policy; path / hook cards
+ * use a documented chooser so self-check stays deterministic.
+ */
+function expectChallengeSeedsAreClearable(): void {
   for (let index = 0; index < CAREER_CHALLENGES.length; index++) {
     const challenge = CAREER_CHALLENGES[index];
-    const chooser = challenge.id === 'mlb-regular' ? overseasFirst : firstChoice;
-    const state = playRun(challenge.seedCode, challenge.position, chooser);
+    const chooser = challengeChooser(challenge.id);
+    const state = playRun(challenge.seedCode, challenge.position, chooser, challenge.id);
     assert.ok(state.retired && state.summary, `${challenge.id} did not finish`);
     assert.ok(
       isChallengeCleared(challenge, state),
-      `${challenge.id} was not cleared by the expected policy (hof=${state.summary?.hofScore}, pro=${state.counters.proSeasons}, hs=${state.counters.hsTournamentWins}, mlb=${state.history.filter((h) => h.league === 'mlb').length})`,
+      `${challenge.id} was not cleared by the expected policy (hof=${state.summary?.hofScore}, pro=${state.counters.proSeasons}, hs=${state.counters.hsTournamentWins}, mlb=${state.history.filter((h) => h.league === 'mlb').length}, injuries=${state.counters.injuries}, traits=${state.traits.join(',')}, cpbl=${state.history.filter((h) => h.league === 'cpbl').length}, intlStrong=${state.counters.intlStrong}, handled=${state.handled.filter((k) => k.startsWith('sit-pick:') || k.startsWith('chlg-hook:')).join('|')})`,
     );
 
     const applied = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, index, state);
@@ -642,16 +756,29 @@ function expectChallengeSeedsAreClearable(): void {
       (applied.progress.bestHof[challenge.id] ?? 0) >= state.summary!.hofScore,
       `${challenge.id} best Hof not recorded`,
     );
+
+    if (challenge.situationHooks && challenge.situationHooks.length > 0) {
+      for (let h = 0; h < challenge.situationHooks.length; h++) {
+        // At least the first hook should fire on a full career; later hooks may
+        // miss if the run retires early, but wave-2 clearable seeds are probed
+        // so the required pick still lands.
+        void h;
+      }
+      assert.ok(
+        challenge.situationHooks.some((hook) => state.seenSituations.includes(hook.situationId)),
+        `${challenge.id} never saw a scripted situation`,
+      );
+    }
   }
 
   // Frontier advance only happens when clearing the current unlocked card.
   const first = CAREER_CHALLENGES[0];
-  const firstRun = playRun(first.seedCode, first.position, firstChoice);
+  const firstRun = playRun(first.seedCode, first.position, firstChoice, first.id);
   const fromZero = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 0, firstRun);
   assert.equal(fromZero.progress.clearedCount, 1, 'clearing challenge 0 should open challenge 1');
 
   const late = CAREER_CHALLENGES[3];
-  const lateRun = playRun(late.seedCode, late.position, firstChoice);
+  const lateRun = playRun(late.seedCode, late.position, firstChoice, late.id);
   const outOfOrder = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 3, lateRun);
   assert.equal(
     outOfOrder.progress.clearedCount,
@@ -662,9 +789,25 @@ function expectChallengeSeedsAreClearable(): void {
   assert.ok(outOfOrder.progress.cleared[late.id], 'out-of-order clear still stamps cleared map');
 }
 
+/** Hook-only challenge situation ids must stay out of the random pool. */
+function expectChallengeHookSituationsAreStable(): void {
+  for (const id of ['chlg-intl-summons', 'chlg-mlb-dream-call'] as const) {
+    const situation = situationById(id);
+    assert.ok(situation, `missing stable challenge situation ${id}`);
+    const origins = rollOrigins('hookstab1');
+    const sample = createGame({
+      seedCode: 'hookstab1',
+      name: '測',
+      position: 'OF',
+      originId: origins[0].id,
+    });
+    assert.equal(situation!.condition?.(sample), false, `${id} should not be randomly eligible`);
+  }
+}
+
 /** Choice cards must never offer a free hold — every option costs something. */
 function expectSituationsHaveCosts(): void {
-  assert.ok(SITUATIONS.length >= 10, 'situation pack is too thin');
+  assert.ok(SITUATIONS.length >= 24, `situation pack is too thin (${SITUATIONS.length})`);
   const ids = SITUATIONS.map((s) => s.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate situation id');
 
@@ -703,11 +846,38 @@ function expectSituationsHaveCosts(): void {
         option.hint.includes('成長停滯') ||
         option.hint.includes('錯失');
       assert.ok(hasRisk, `${situation.id}/${option.id} looks like a free hold`);
+      if (option.destinyBoost) {
+        assert.ok(option.destinyBoost.cost > 0, `${situation.id}/${option.id} destiny cost`);
+        assert.ok(
+          option.destinyBoost.mode === 'waiveCost' || option.destinyBoost.mode === 'doubleReward',
+          `${situation.id}/${option.id} bad destiny mode`,
+        );
+      }
     }
   }
 
   const twOnly = SITUATIONS.filter((s) => s.id.startsWith('tw-'));
   assert.ok(twOnly.length >= 3, 'two-way needs exclusive situations');
+
+  const posIds = SITUATIONS.map((s) => s.id);
+  assert.ok(posIds.some((id) => id.startsWith('pos-c-')), 'catcher identity cards missing');
+  assert.ok(posIds.some((id) => id.startsWith('pos-if-')), 'infielder identity cards missing');
+  assert.ok(posIds.some((id) => id.startsWith('pos-of-')), 'outfielder identity cards missing');
+  assert.ok(posIds.some((id) => id.startsWith('pos-p-')), 'pitcher identity cards missing');
+  assert.ok(
+    SITUATIONS.some((s) => s.id.includes('cpbl') || s.condition?.toString().includes("=== 'cpbl'")),
+    'cpbl-locked card missing',
+  );
+  assert.ok(
+    SITUATIONS.some((s) => s.options(sample).some((o) => o.destinyBoost)),
+    'destiny-boostable situation options missing',
+  );
+  assert.ok(
+    SITUATIONS.some((s) =>
+      s.options(sample).some((o) => o.effects.flags && Object.keys(o.effects.flags).length > 0),
+    ),
+    'durable career flag writers missing',
+  );
 }
 
 /** Careers must actually surface choice cards, not only flavour text. */
@@ -734,6 +904,89 @@ function expectTwoWayPerksExist(): void {
       SITUATIONS.some((s) => s.id.startsWith('tw-') && s.condition?.(twoWay)),
     'two-way exclusive situations should be reachable',
   );
+}
+
+/**
+ * International call-ups must surface as a Decision (not an auto season note),
+ * and declining must skip the appearance counter for that year.
+ */
+function expectIntlCallIsADecision(): void {
+  let sawCall = false;
+  const declineIntl: Chooser = (decision) => {
+    const ids = enabled(decision);
+    if (ids.includes('intl-decline')) {
+      sawCall = true;
+      return 'intl-decline';
+    }
+    if (ids.includes('intl-double')) {
+      sawCall = true;
+      return 'intl-double';
+    }
+    return ids[0];
+  };
+
+  // Probe several seeds until a call-up appears; fame gating makes this
+  // occasional rather than guaranteed on every career.
+  for (let i = 0; i < 24 && !sawCall; i++) {
+    const state = playRun(`intl${String(i).padStart(2, '0')}`, i % 2 === 0 ? 'OF' : 'P', declineIntl);
+    if (!sawCall) continue;
+    const intlKeys = state.handled.filter((k) => k.startsWith('intl:'));
+    assert.ok(intlKeys.length >= 1, 'intl Decision was not recorded in handled');
+    const plan = intlKeys.find((k) => /:intl-(double|one|decline)$/.test(k));
+    assert.ok(plan, 'intl commitment marker missing');
+    if (plan.endsWith('intl-decline')) {
+      const year = Number(plan.split(':')[1]);
+      const noteThatYear = state.history.find((h) => h.year === year)?.note ?? '';
+      assert.ok(
+        !/世界|亞洲|十二強|奧運/.test(noteThatYear),
+        'declining the call-up still wrote an intl season note',
+      );
+    }
+    break;
+  }
+  assert.ok(sawCall, 'no career in 24 seeds ever saw an international call-up Decision');
+}
+
+/**
+ * Accepting an overseas / promotion fork must chain into the adaptation and
+ * clause follow-up cards exactly once per career.
+ */
+function expectOverseasFollowUpsAppear(): void {
+  const overseasDeep: Chooser = (decision) => {
+    const ids = enabled(decision);
+    return (
+      ids.find((id) => id === 'path-overseas') ??
+      ids.find((id) => id === 'offer-mlb' || id === 'offer-npb' || id === 'fa-overseas') ??
+      ids.find((id) => id === 'offer-promote') ??
+      ids.find((id) => id.startsWith('adapt-')) ??
+      ids.find((id) => id.startsWith('clause-')) ??
+      ids.find((id) => id === 'intl-double') ??
+      ids[0]
+    );
+  };
+
+  let sawAdapt = false;
+  let sawClause = false;
+  for (let i = 0; i < 20; i++) {
+    const state = playRun(`follow${String(i).padStart(2, '0')}`, 'OF', overseasDeep);
+    if (state.handled.includes('follow:adapt')) sawAdapt = true;
+    if (state.handled.includes('follow:clause')) sawClause = true;
+    if (sawAdapt && sawClause) {
+      assert.equal(
+        state.handled.filter((k) => k === 'follow:adapt').length,
+        1,
+        'adaptation follow-up was asked more than once',
+      );
+      assert.equal(
+        state.handled.filter((k) => k === 'follow:clause').length,
+        1,
+        'clause follow-up was asked more than once',
+      );
+      break;
+    }
+  }
+  assert.ok(sawAdapt, 'no career reached the overseas adaptation follow-up');
+  assert.ok(sawClause, 'no career reached the clause / AAA-push follow-up');
 }
 
 const checks: [string, () => void][] = [
@@ -766,10 +1019,85 @@ const checks: [string, () => void][] = [
   ['challenge defs are sound', expectChallengeDefsAreSound],
   ['challenge unlock math', expectChallengeUnlockMath],
   ['challenge seeds are clearable', expectChallengeSeedsAreClearable],
+  ['challenge hook situations are stable', expectChallengeHookSituationsAreStable],
   ['situations have costs', expectSituationsHaveCosts],
   ['situations appear in careers', expectSituationsAppearInCareers],
   ['two-way perks exist', expectTwoWayPerksExist],
+  ['career flags stick', expectCareerFlagsStick],
+  ['situation destiny spend', expectSituationDestinySpend],
+  ['intl call is a decision', expectIntlCallIsADecision],
+  ['overseas follow-ups appear', expectOverseasFollowUpsAppear],
 ];
+
+/** Choosing closer / surgery options must write durable career flags. */
+function expectCareerFlagsStick(): void {
+  const origins = rollOrigins('flag01');
+  let state = createGame({
+    seedCode: 'flag01',
+    name: '旗標',
+    position: 'P',
+    originId: origins[0].id,
+  });
+  state.stage = 'pro';
+  state.league = 'cpbl';
+  state.age = 28;
+  state.attrs.stamina = 48;
+  state.pendingSituation = 'pro-closer-audition';
+  state.decision = {
+    kind: 'event',
+    title: '終結者試鏡',
+    prompt: 'test',
+    options: [
+      { id: 'take', label: '改後援', hint: '' },
+      { id: 'refuse', label: '拒絕', hint: '' },
+    ],
+  };
+  state = resolve(state, 'take');
+  assert.equal(state.flags.preferBullpen, true, 'closer take should lock bullpen role');
+
+  state.pendingSituation = 'pro-surgery-choice';
+  state.meta.body = 40;
+  state.decision = {
+    kind: 'event',
+    title: '手術刀口',
+    prompt: 'test',
+    options: [
+      { id: 'cut', label: '動刀', hint: '' },
+      { id: 'push', label: '撐', hint: '' },
+    ],
+  };
+  state = resolve(state, 'cut');
+  assert.ok(state.flags.surgeryMiss >= 1, 'surgery cut should schedule a miss season');
+}
+
+/** Arming 天命 on a boostable situation option must spend destiny and reshape effects. */
+function expectSituationDestinySpend(): void {
+  const origins = rollOrigins('des01');
+  let state = createGame({
+    seedCode: 'des01',
+    name: '天命',
+    position: 'OF',
+    originId: origins[0].id,
+  });
+  state.meta.destiny = 60;
+  state.pendingSituation = 'pro-cleanup-dare';
+  state.stage = 'pro';
+  state.decision = {
+    kind: 'event',
+    title: '清棒賭注',
+    prompt: 'test',
+    options: [
+      { id: 'take', label: '我頂', hint: '' },
+      { id: 'pass', label: '五棒', hint: '' },
+    ],
+  };
+  const before = state.meta.destiny;
+  state = resolve(state, 'take', true);
+  assert.ok(state.meta.destiny < before, 'destiny spend should reduce the pool');
+  assert.equal(state.report?.destinyUsed, true, 'report should mark destiny intervention');
+  // doubleReward on fame 12 → 24
+  assert.ok((state.report?.deltas.fame ?? 0) >= 20, 'doubleReward should amplify fame');
+}
 
 let failed = 0;
 for (const [name, check] of checks) {
