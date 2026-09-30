@@ -577,7 +577,7 @@ function expectChallengeSeedsAreClearable(): void {
 
 /** Choice cards must never offer a free hold — every option costs something. */
 function expectSituationsHaveCosts(): void {
-  assert.ok(SITUATIONS.length >= 10, 'situation pack is too thin');
+  assert.ok(SITUATIONS.length >= 24, `situation pack is too thin (${SITUATIONS.length})`);
   const ids = SITUATIONS.map((s) => s.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate situation id');
 
@@ -616,11 +616,38 @@ function expectSituationsHaveCosts(): void {
         option.hint.includes('成長停滯') ||
         option.hint.includes('錯失');
       assert.ok(hasRisk, `${situation.id}/${option.id} looks like a free hold`);
+      if (option.destinyBoost) {
+        assert.ok(option.destinyBoost.cost > 0, `${situation.id}/${option.id} destiny cost`);
+        assert.ok(
+          option.destinyBoost.mode === 'waiveCost' || option.destinyBoost.mode === 'doubleReward',
+          `${situation.id}/${option.id} bad destiny mode`,
+        );
+      }
     }
   }
 
   const twOnly = SITUATIONS.filter((s) => s.id.startsWith('tw-'));
   assert.ok(twOnly.length >= 3, 'two-way needs exclusive situations');
+
+  const posIds = SITUATIONS.map((s) => s.id);
+  assert.ok(posIds.some((id) => id.startsWith('pos-c-')), 'catcher identity cards missing');
+  assert.ok(posIds.some((id) => id.startsWith('pos-if-')), 'infielder identity cards missing');
+  assert.ok(posIds.some((id) => id.startsWith('pos-of-')), 'outfielder identity cards missing');
+  assert.ok(posIds.some((id) => id.startsWith('pos-p-')), 'pitcher identity cards missing');
+  assert.ok(
+    SITUATIONS.some((s) => s.id.includes('cpbl') || s.condition?.toString().includes("=== 'cpbl'")),
+    'cpbl-locked card missing',
+  );
+  assert.ok(
+    SITUATIONS.some((s) => s.options(sample).some((o) => o.destinyBoost)),
+    'destiny-boostable situation options missing',
+  );
+  assert.ok(
+    SITUATIONS.some((s) =>
+      s.options(sample).some((o) => o.effects.flags && Object.keys(o.effects.flags).length > 0),
+    ),
+    'durable career flag writers missing',
+  );
 }
 
 /** Careers must actually surface choice cards, not only flavour text. */
@@ -680,7 +707,79 @@ const checks: [string, () => void][] = [
   ['situations have costs', expectSituationsHaveCosts],
   ['situations appear in careers', expectSituationsAppearInCareers],
   ['two-way perks exist', expectTwoWayPerksExist],
+  ['career flags stick', expectCareerFlagsStick],
+  ['situation destiny spend', expectSituationDestinySpend],
 ];
+
+/** Choosing closer / surgery options must write durable career flags. */
+function expectCareerFlagsStick(): void {
+  const origins = rollOrigins('flag01');
+  let state = createGame({
+    seedCode: 'flag01',
+    name: '旗標',
+    position: 'P',
+    originId: origins[0].id,
+  });
+  state.stage = 'pro';
+  state.league = 'cpbl';
+  state.age = 28;
+  state.attrs.stamina = 48;
+  state.pendingSituation = 'pro-closer-audition';
+  state.decision = {
+    kind: 'event',
+    title: '終結者試鏡',
+    prompt: 'test',
+    options: [
+      { id: 'take', label: '改後援', hint: '' },
+      { id: 'refuse', label: '拒絕', hint: '' },
+    ],
+  };
+  state = resolve(state, 'take');
+  assert.equal(state.flags.preferBullpen, true, 'closer take should lock bullpen role');
+
+  state.pendingSituation = 'pro-surgery-choice';
+  state.meta.body = 40;
+  state.decision = {
+    kind: 'event',
+    title: '手術刀口',
+    prompt: 'test',
+    options: [
+      { id: 'cut', label: '動刀', hint: '' },
+      { id: 'push', label: '撐', hint: '' },
+    ],
+  };
+  state = resolve(state, 'cut');
+  assert.ok(state.flags.surgeryMiss >= 1, 'surgery cut should schedule a miss season');
+}
+
+/** Arming 天命 on a boostable situation option must spend destiny and reshape effects. */
+function expectSituationDestinySpend(): void {
+  const origins = rollOrigins('des01');
+  let state = createGame({
+    seedCode: 'des01',
+    name: '天命',
+    position: 'OF',
+    originId: origins[0].id,
+  });
+  state.meta.destiny = 60;
+  state.pendingSituation = 'pro-cleanup-dare';
+  state.stage = 'pro';
+  state.decision = {
+    kind: 'event',
+    title: '清棒賭注',
+    prompt: 'test',
+    options: [
+      { id: 'take', label: '我頂', hint: '' },
+      { id: 'pass', label: '五棒', hint: '' },
+    ],
+  };
+  const before = state.meta.destiny;
+  state = resolve(state, 'take', true);
+  assert.ok(state.meta.destiny < before, 'destiny spend should reduce the pool');
+  assert.equal(state.report?.destinyUsed, true, 'report should mark destiny intervention');
+  // doubleReward on fame 12 → 24
+  assert.ok((state.report?.deltas.fame ?? 0) >= 20, 'doubleReward should amplify fame');
+}
 
 let failed = 0;
 for (const [name, check] of checks) {
