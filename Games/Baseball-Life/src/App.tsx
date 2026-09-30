@@ -20,14 +20,18 @@ import {
   loadArchive,
   loadChallengeProgress,
   loadGame,
+  loadRecords,
   pushArchive,
   saveAchievements,
   saveActiveChallengeId,
   saveChallengeProgress,
   saveGame,
+  saveRecords,
 } from './game/storage';
 import type { ArchiveEntry } from './game/storage';
 import type { ChallengeProgress } from './game/challenges';
+import { applyCareerToRecords } from './game/records';
+import type { PersonalRecords } from './game/records';
 import type { GameState, Position } from './game/types';
 import { CreateScreen } from './components/CreateScreen';
 import {
@@ -62,6 +66,7 @@ export default function App(): React.ReactElement {
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
   const [achievements, setAchievements] = useState<AchievementProgress>(() => loadAchievements());
+  const [records, setRecords] = useState<PersonalRecords>(() => loadRecords());
   const [challengeProgress, setChallengeProgress] = useState<ChallengeProgress>(() =>
     loadChallengeProgress(),
   );
@@ -119,6 +124,7 @@ export default function App(): React.ReactElement {
           seedCode: finished.seedCode,
           name: finished.name,
           position: POSITIONS.find((p) => p.id === finished.position)?.label ?? finished.position,
+          positionId: finished.position,
           verdict: finished.summary.verdict,
           hofScore: finished.summary.hofScore,
           traits: finished.traits,
@@ -130,6 +136,10 @@ export default function App(): React.ReactElement {
       saveAchievements(result.progress);
       setAchievements(result.progress);
       setJustUnlocked(result.unlocked);
+
+      const nextRecords = applyCareerToRecords(finished, loadRecords());
+      saveRecords(nextRecords);
+      setRecords(nextRecords);
 
       const challengeId = loadActiveChallengeId();
       const challenge = challengeId ? challengeById(challengeId) : undefined;
@@ -150,10 +160,18 @@ export default function App(): React.ReactElement {
   );
 
   const beginFreePlay = useCallback((code: string) => {
+    const normalized = normalizeSeedCode(code);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('seed', normalized);
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      // URL write is best-effort cosmetic for shareable replays.
+    }
     saveActiveChallengeId(null);
     setActiveChallengeId(null);
     setChallengeResult(null);
-    setSeedCode(code);
+    setSeedCode(normalized);
     setScreen('create');
   }, []);
 
@@ -254,6 +272,7 @@ export default function App(): React.ReactElement {
           hasSave={saved !== null}
           archive={archive}
           achievements={achievements}
+          records={records}
           challengeProgress={challengeProgress}
           onShowHowTo={() => setShowFirstRun(true)}
           onStart={beginFreePlay}

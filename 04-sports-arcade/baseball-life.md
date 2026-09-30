@@ -224,6 +224,10 @@
 
 標題畫面另有 **生涯挑戰** 模式：八張手編關卡，各鎖定一組世界種子碼與守備位置，並給出明確通關目標（例如職業球季數、名人堂積分門檻、高中冠軍數、大聯盟出賽年數）。依序解鎖；通關後記錄最佳名人堂積分。進度存在 `clubhouse:baseball-life:challenges`，與自由遊玩存檔、成就分開。生涯總結會顯示「挑戰成功／未過」。
 
+### 紀錄牆
+
+標題畫面的 **紀錄牆** 彙整跨局個人紀錄：五個守備位置各自的最佳名人堂積分（含姓名、結局、種子碼）、通算里程碑計數（生涯門檻／單場壯舉／名人堂結局／首輪入選），以及歷代球員名冊。點擊位置最佳列或歷代列會帶 `?seed=` 開一段新人生。進度存在 `clubhouse:baseball-life:records`；舊版只有 archive、尚無 records 鍵時，會從歷代名冊回填位置最佳。
+
 ### 分享卡
 
 生涯總結頁以 `<canvas>` 繪製一張 720×1000 的分享卡：姓名、位置與出身、結局與墓誌銘、六項關鍵數據、隱藏特質、生涯紀錄，以及最下方獨立色帶中的種子碼。提供「下載分享卡」直接存成 PNG；若瀏覽器阻擋程式化下載（部分 App 內建瀏覽器），卡片仍在畫面上，長按或截圖即可。
@@ -239,7 +243,7 @@
 ## 存檔
 
 - 每回合結束自動存入 `localStorage`（鍵名 `clubhouse:baseball-life:save`），關掉分頁不會損失進度。
-- 引退後寫入歷代球員名冊（`clubhouse:baseball-life:archive`，保留最近 20 位），於標題畫面顯示。
+- 引退後寫入歷代球員名冊（`clubhouse:baseball-life:archive`，保留最近 20 位），於標題畫面顯示；並更新個人紀錄牆（`clubhouse:baseball-life:records`）。
 
 ## 操作與介面
 
@@ -253,5 +257,6 @@
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:baseball-life:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「開始新的棒球人生」衝突。
 - **生涯挑戰**：標題「生涯挑戰」→ 固定種子／位置關卡包；UI：`TitleScreen` 模態、`CreateScreen` 鎖定位置、`SummaryScreen` 通關回饋；核心：`src/game/challenges.ts`。
+- **紀錄牆**：標題「紀錄牆」→ 位置別最佳名人堂積分、通算里程碑、歷代重玩；UI：`TitleScreen` 模態；核心：`src/game/records.ts`。
 - 本作所有球隊名稱、球員與事件均為虛構，與現實中的球團、聯盟或人物無關。
 - 實作路徑：`Games/Baseball-Life/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。
