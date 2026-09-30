@@ -3,6 +3,7 @@ import { TouchButton } from '@clubhouse/shared/TouchButton';
 import type { CareerChallenge } from '../game/challenges';
 import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
 import { DESTINY_COST, deltaLabel } from '../game/engine';
+import { DESTINY_SITUATION_COST, situationById } from '../game/situations';
 import { describeLine } from '../game/season';
 import { traitById } from '../game/traits';
 import type { AttrKey, GameState, TurnReport } from '../game/types';
@@ -57,11 +58,22 @@ export function PlayScreen({
   onQuit,
 }: Props): React.ReactElement {
   const [showCareer, setShowCareer] = useState(false);
-  // Whether the next training choice will pour 天命 into a forced perfect roll.
+  // Whether the next training / destiny-boosted situation choice pours 天命.
   const [useDestiny, setUseDestiny] = useState(false);
   const { report, decision } = state;
-  const canAffordDestiny = state.meta.destiny >= DESTINY_COST;
+  const situationDestiny =
+    decision?.kind === 'event' && state.pendingSituation
+      ? situationById(state.pendingSituation)
+          ?.options(state)
+          .some((option) => option.destinyBoost)
+      : false;
+  const destinyCost = decision?.kind === 'event' ? DESTINY_SITUATION_COST : DESTINY_COST;
+  const canAffordDestiny =
+    decision?.kind === 'training'
+      ? state.meta.destiny >= DESTINY_COST
+      : Boolean(situationDestiny && state.meta.destiny >= DESTINY_SITUATION_COST);
   const destinyArmed = useDestiny && canAffordDestiny;
+  const showDestinyToggle = decision?.kind === 'training' || Boolean(situationDestiny);
 
   // A fresh decision starts with 天命 disarmed, so the toggle never silently
   // carries over from a turn the player already resolved.
@@ -225,7 +237,7 @@ export function PlayScreen({
                 )}
                 <h2 className="mt-1 text-base leading-relaxed text-slate-200">{decision.prompt}</h2>
 
-                {decision.kind === 'training' && (
+                {showDestinyToggle && (
                   <button
                     type="button"
                     onClick={() => setUseDestiny((v) => !v)}
@@ -242,9 +254,13 @@ export function PlayScreen({
                         傾注天命{destinyArmed ? '　已啟動' : ''}
                       </span>
                       <span className="mt-0.5 text-[11px] leading-snug text-slate-400">
-                        {canAffordDestiny
-                          ? `消耗 ${DESTINY_COST} 天命，強行讓這次訓練骰出 6（大成功）`
-                          : `天命不足：需 ${DESTINY_COST}，目前 ${state.meta.destiny}`}
+                        {decision?.kind === 'event'
+                          ? canAffordDestiny
+                            ? `消耗約 ${destinyCost} 天命：壓過代價或翻倍報酬（失敗仍可能受傷）；僅標示天命的選項生效`
+                            : `天命不足：需約 ${destinyCost}，目前 ${state.meta.destiny}`
+                          : canAffordDestiny
+                            ? `消耗 ${DESTINY_COST} 天命，強行讓這次訓練骰出 6（大成功）`
+                            : `天命不足：需 ${DESTINY_COST}，目前 ${state.meta.destiny}`}
                       </span>
                     </span>
                     <span className="shrink-0 font-mono text-xs font-bold text-amber-300">

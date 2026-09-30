@@ -24,16 +24,10 @@ import {
   hookMatchesState,
   situationPickKey,
 } from './challenges';
-import {
-  SITUATION_FIRE_CHANCE,
-  pickSituation,
-  situationById,
-} from './situations';
-import type { SituationOption } from './situations';
-import { newlyUnlocked, traitById, traitEffects } from './traits';
 import type {
   AttrKey,
   Attributes,
+  CareerFlags,
   Decision,
   DeltaKey,
   GameState,
@@ -50,6 +44,14 @@ import type {
   Summary,
   TurnReport,
 } from './types';
+import {
+  SITUATION_FIRE_CHANCE,
+  pickSituation,
+  situationAcceptsDestiny,
+  situationById,
+} from './situations';
+import type { SituationEffects, SituationOption } from './situations';
+import { newlyUnlocked, traitById, traitEffects } from './traits';
 
 const START_YEAR = 2010;
 const HS_TURNS = 11;
@@ -220,6 +222,7 @@ export function createGame(input: CreateInput): GameState {
       hsTournamentWins: 0,
       badSeasons: 0,
     },
+    flags: { preferBullpen: false, tradeCooldown: 0, surgeryMiss: 0 },
     log: [],
     choices: [],
     seenEvents: [],
@@ -353,9 +356,15 @@ const DESTINY_GAIN_PER_TURN = 5;
 const DESTINY_TWO_WAY_BONUS = 1;
 const DESTINY_SIX_BONUS = 8;
 
-/** Whether the player can afford to pour 天命 into a training turn right now. */
+/**
+ * Whether the player can arm 天命 right now — training force-six, or a
+ * situation option that explicitly accepts a destiny boost.
+ */
 export function canSpendDestiny(state: GameState): boolean {
-  return state.decision?.kind === 'training' && state.meta.destiny >= DESTINY_COST;
+  if (state.meta.destiny < 1) return false;
+  if (state.decision?.kind === 'training') return state.meta.destiny >= DESTINY_COST;
+  if (state.decision?.kind === 'event') return situationAcceptsDestiny(state);
+  return false;
 }
 
 const DICE_FLAVOR: Record<number, { text: string; tone: LogEntry['tone'] }> = {
@@ -710,11 +719,19 @@ function buildSituationDecision(state: GameState): Decision | null {
   if (!state.pendingSituation) return null;
   const situation = situationById(state.pendingSituation);
   if (!situation) return null;
-  const options = situation.options(state).map((option) => ({
-    id: option.id,
-    label: option.label,
-    hint: option.hint,
-  }));
+  const options = situation.options(state).map((option) => {
+    const boost = option.destinyBoost;
+    let hint = option.hint;
+    if (boost) {
+      const modeLabel = boost.mode === 'waiveCost' ? '壓過代價' : '翻倍報酬';
+      hint = `${hint}｜天命 ${boost.cost}：${modeLabel}`;
+    }
+    return {
+      id: option.id,
+      label: option.label,
+      hint,
+    };
+  });
   return {
     kind: 'event',
     key: `situation:${situation.id}:${state.turnIndex}:${state.year}:${state.proTurn}`,
@@ -754,6 +771,7 @@ function pendingOffer(state: GameState): Decision | null {
     state.age <= 31 &&
     rating >= 66 &&
     state.meta.fame >= 55 &&
+    state.flags.tradeCooldown <= 0 &&
     unhandled(overseasKey) &&
     r() < 0.5
   ) {
@@ -859,7 +877,7 @@ export function resolve(state: GameState, optionId: string, useDestiny = false):
       resolveTraining(next, option as TrainingOption, useDestiny && state.meta.destiny >= DESTINY_COST);
       break;
     case 'event':
-      resolveSituation(next, optionId);
+      resolveSituation(next, optionId, useDestiny);
       break;
     case 'path':
       resolvePath(next, optionId);
@@ -1067,7 +1085,7 @@ function queueChallengeSituationHook(state: GameState): boolean {
   return false;
 }
 
-function resolveSituation(state: GameState, optionId: string): void {
+function resolveSituation(state: GameState, optionId: string, useDestiny = false): void {
   const situationId = state.pendingSituation;
   const situation = situationId ? situationById(situationId) : undefined;
   state.pendingSituation = null;
@@ -1118,9 +1136,30 @@ function resolveSituation(state: GameState, optionId: string): void {
   report.lines.push(chosen.outcome);
   report.tone = chosen.tone ?? 'normal';
 
-  const { destiny, earnings, injuryChance, intlStrong, ...attrMeta } = chosen.effects;
+  const boost = chosen.destinyBoost;
+  const destinyArmed =
+    useDestiny &&
+    !!boost &&
+    state.meta.destiny >= boost.cost;
+
+  let effects: SituationEffects = { ...chosen.effects };
+  if (destinyArmed && boost) {
+    state.meta.destiny = clamp(state.meta.destiny - boost.cost, 0, DESTINY_MAX);
+    report.destinyUsed = true;
+    if (boost.mode === 'waiveCost') {
+      effects = waiveSituationCost(effects);
+      report.lines.push(`你傾注天命（−${boost.cost}），壓過了這次的代價——受傷風險仍在。`);
+    } else {
+      effects = doubleSituationReward(effects);
+      report.lines.push(`你傾注天命（−${boost.cost}），把報酬翻倍——失敗仍可能受傷。`);
+    }
+  }
+
+  const { destiny, earnings, injuryChance, flags, intlStrong, ...attrMeta } = effects;
   applyDeltas(state, attrMeta);
   report.deltas = { ...attrMeta };
+
+  if (flags) applyCareerFlags(state, flags, report);
 
   if (typeof destiny === 'number' && destiny !== 0) {
     state.meta.destiny = clamp(state.meta.destiny + destiny, 0, DESTINY_MAX);
@@ -1162,6 +1201,54 @@ function resolveSituation(state: GameState, optionId: string): void {
   checkTraits(state, report);
   pushLog(state, report.label, `${report.headline}：${report.lines.join(' ')}`, report.tone);
   state.report = report;
+}
+
+/** Strip or soften downside numbers; never touch injuryChance (failure stays risky). */
+function waiveSituationCost(effects: SituationEffects): SituationEffects {
+  const next: SituationEffects = { ...effects };
+  for (const key of Object.keys(next) as (keyof SituationEffects)[]) {
+    if (key === 'injuryChance' || key === 'flags' || key === 'intlStrong') continue;
+    const value = next[key];
+    if (typeof value !== 'number') continue;
+    if (key === 'fatigue' && value > 0) {
+      next[key] = Math.max(0, Math.round(value * 0.35));
+    } else if (value < 0) {
+      next[key] = Math.round(value * 0.25);
+    }
+  }
+  return next;
+}
+
+/** Double upside numbers; leave costs and injuryChance alone. */
+function doubleSituationReward(effects: SituationEffects): SituationEffects {
+  const next: SituationEffects = { ...effects };
+  for (const key of Object.keys(next) as (keyof SituationEffects)[]) {
+    if (key === 'injuryChance' || key === 'flags' || key === 'intlStrong') continue;
+    const value = next[key];
+    if (typeof value !== 'number' || value <= 0) continue;
+    if (key === 'fatigue') continue;
+    next[key] = value * 2;
+  }
+  return next;
+}
+
+function applyCareerFlags(
+  state: GameState,
+  patch: Partial<CareerFlags>,
+  report: TurnReport,
+): void {
+  if (patch.preferBullpen) {
+    state.flags.preferBullpen = true;
+    report.lines.push('生涯路線：此後以後援角色出賽。');
+  }
+  if (typeof patch.tradeCooldown === 'number' && patch.tradeCooldown > 0) {
+    state.flags.tradeCooldown = Math.max(state.flags.tradeCooldown, patch.tradeCooldown);
+    report.lines.push(`交易冷卻：${state.flags.tradeCooldown} 季內難再談正式出走。`);
+  }
+  if (typeof patch.surgeryMiss === 'number' && patch.surgeryMiss > 0) {
+    state.flags.surgeryMiss = Math.max(state.flags.surgeryMiss, patch.surgeryMiss);
+    report.lines.push(`手術缺席：接下來 ${state.flags.surgeryMiss} 季出賽將大幅縮水。`);
+  }
 }
 
 /**
@@ -1311,7 +1398,11 @@ function moveTo(state: GameState, league: LeagueId, team: string): void {
 function runSeason(state: GameState, report: TurnReport): void {
   const effects = traitEffects(state.traits);
   const r = rng(state, 'season');
-  const health = state.injury ? (state.injury.severity === 'minor' ? 0.7 : 0.35) : 1;
+  let health = state.injury ? (state.injury.severity === 'minor' ? 0.7 : 0.35) : 1;
+  if (state.flags.surgeryMiss > 0) {
+    health *= 0.12;
+    report.lines.push('手術後缺席季：出賽大幅縮水。');
+  }
 
   const input = {
     attrs: state.attrs,
@@ -1321,6 +1412,7 @@ function runSeason(state: GameState, report: TurnReport): void {
     health,
     clutch: effects.clutch,
     rng: r,
+    forceReliever: state.flags.preferBullpen,
   };
 
   let secondary: StatLine | undefined;
@@ -1424,6 +1516,23 @@ function runSeason(state: GameState, report: TurnReport): void {
 
   applyDecline(state, report, effects.decline);
   checkTrade(state, report);
+  tickCareerFlags(state, report);
+}
+
+/** Season-scoped flags count down once per completed pro year. */
+function tickCareerFlags(state: GameState, report: TurnReport): void {
+  if (state.flags.surgeryMiss > 0) {
+    state.flags.surgeryMiss -= 1;
+    if (state.flags.surgeryMiss <= 0) {
+      report.lines.push('手術缺席期結束，你重新爭取完整出賽。');
+    }
+  }
+  if (state.flags.tradeCooldown > 0) {
+    state.flags.tradeCooldown -= 1;
+    if (state.flags.tradeCooldown <= 0) {
+      report.lines.push('交易冷卻結束，球團不再把「出走」當成禁忌話題。');
+    }
+  }
 }
 
 /**

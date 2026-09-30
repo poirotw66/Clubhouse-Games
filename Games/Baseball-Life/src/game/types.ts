@@ -179,6 +179,19 @@ export interface Counters {
   badSeasons: number;
 }
 
+/**
+ * Durable career consequences written by high-risk situation choices.
+ * Unlike one-shot attr deltas, these keep shaping seasons until they expire.
+ */
+export interface CareerFlags {
+  /** Pitcher permanently prefers the bullpen (forces 後援 role). */
+  preferBullpen: boolean;
+  /** Seasons left before another formal trade push / overseas flirt is welcome. */
+  tradeCooldown: number;
+  /** Seasons left of post-surgery absence (playing time collapses). */
+  surgeryMiss: number;
+}
+
 export interface Summary {
   hofScore: number;
   verdict: string;
@@ -239,6 +252,8 @@ export interface GameState {
   traits: string[];
   milestones: Milestone[];
   counters: Counters;
+  /** Durable consequences from high-risk choices (bullpen role, surgery miss…). */
+  flags: CareerFlags;
   log: LogEntry[];
   choices: string[];
   /** Event ids already shown, so the pool drains before anything repeats. */

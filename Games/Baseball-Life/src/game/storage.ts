@@ -65,6 +65,14 @@ export function loadGame(): GameState | null {
     if (typeof parsed.pendingSituation !== 'string') parsed.pendingSituation = null;
     if (typeof parsed.challengeId !== 'string') parsed.challengeId = null;
     else if (parsed.challengeId && !challengeById(parsed.challengeId)) parsed.challengeId = null;
+    // Career flags arrived with the deepen pack; default so older saves resume.
+    if (!parsed.flags || typeof parsed.flags !== 'object') {
+      parsed.flags = { preferBullpen: false, tradeCooldown: 0, surgeryMiss: 0 };
+    } else {
+      parsed.flags.preferBullpen = !!parsed.flags.preferBullpen;
+      parsed.flags.tradeCooldown = Math.max(0, Math.floor(Number(parsed.flags.tradeCooldown) || 0));
+      parsed.flags.surgeryMiss = Math.max(0, Math.floor(Number(parsed.flags.surgeryMiss) || 0));
+    }
     return parsed;
   } catch {
     return null;
