@@ -649,6 +649,89 @@ function expectTwoWayPerksExist(): void {
   );
 }
 
+/**
+ * International call-ups must surface as a Decision (not an auto season note),
+ * and declining must skip the appearance counter for that year.
+ */
+function expectIntlCallIsADecision(): void {
+  let sawCall = false;
+  const declineIntl: Chooser = (decision) => {
+    const ids = enabled(decision);
+    if (ids.includes('intl-decline')) {
+      sawCall = true;
+      return 'intl-decline';
+    }
+    if (ids.includes('intl-double')) {
+      sawCall = true;
+      return 'intl-double';
+    }
+    return ids[0];
+  };
+
+  // Probe several seeds until a call-up appears; fame gating makes this
+  // occasional rather than guaranteed on every career.
+  for (let i = 0; i < 24 && !sawCall; i++) {
+    const state = playRun(`intl${String(i).padStart(2, '0')}`, i % 2 === 0 ? 'OF' : 'P', declineIntl);
+    if (!sawCall) continue;
+    const intlKeys = state.handled.filter((k) => k.startsWith('intl:'));
+    assert.ok(intlKeys.length >= 1, 'intl Decision was not recorded in handled');
+    const plan = intlKeys.find((k) => /:intl-(double|one|decline)$/.test(k));
+    assert.ok(plan, 'intl commitment marker missing');
+    if (plan.endsWith('intl-decline')) {
+      const year = Number(plan.split(':')[1]);
+      const noteThatYear = state.history.find((h) => h.year === year)?.note ?? '';
+      assert.ok(
+        !/世界|亞洲|十二強|奧運/.test(noteThatYear),
+        'declining the call-up still wrote an intl season note',
+      );
+    }
+    break;
+  }
+  assert.ok(sawCall, 'no career in 24 seeds ever saw an international call-up Decision');
+}
+
+/**
+ * Accepting an overseas / promotion fork must chain into the adaptation and
+ * clause follow-up cards exactly once per career.
+ */
+function expectOverseasFollowUpsAppear(): void {
+  const overseasDeep: Chooser = (decision) => {
+    const ids = enabled(decision);
+    return (
+      ids.find((id) => id === 'path-overseas') ??
+      ids.find((id) => id === 'offer-mlb' || id === 'offer-npb' || id === 'fa-overseas') ??
+      ids.find((id) => id === 'offer-promote') ??
+      ids.find((id) => id.startsWith('adapt-')) ??
+      ids.find((id) => id.startsWith('clause-')) ??
+      ids.find((id) => id === 'intl-double') ??
+      ids[0]
+    );
+  };
+
+  let sawAdapt = false;
+  let sawClause = false;
+  for (let i = 0; i < 20; i++) {
+    const state = playRun(`follow${String(i).padStart(2, '0')}`, 'OF', overseasDeep);
+    if (state.handled.includes('follow:adapt')) sawAdapt = true;
+    if (state.handled.includes('follow:clause')) sawClause = true;
+    if (sawAdapt && sawClause) {
+      assert.equal(
+        state.handled.filter((k) => k === 'follow:adapt').length,
+        1,
+        'adaptation follow-up was asked more than once',
+      );
+      assert.equal(
+        state.handled.filter((k) => k === 'follow:clause').length,
+        1,
+        'clause follow-up was asked more than once',
+      );
+      break;
+    }
+  }
+  assert.ok(sawAdapt, 'no career reached the overseas adaptation follow-up');
+  assert.ok(sawClause, 'no career reached the clause / AAA-push follow-up');
+}
+
 const checks: [string, () => void][] = [
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
@@ -680,6 +763,8 @@ const checks: [string, () => void][] = [
   ['situations have costs', expectSituationsHaveCosts],
   ['situations appear in careers', expectSituationsAppearInCareers],
   ['two-way perks exist', expectTwoWayPerksExist],
+  ['intl call is a decision', expectIntlCallIsADecision],
+  ['overseas follow-ups appear', expectOverseasFollowUpsAppear],
 ];
 
 let failed = 0;

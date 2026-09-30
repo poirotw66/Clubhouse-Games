@@ -607,6 +607,11 @@ function buildDecision(state: GameState): Decision {
   const situationDecision = buildSituationDecision(state);
   if (situationDecision) return situationDecision;
 
+  // International call-ups land before the season-playing training menu so the
+  // player can accept, trim, or decline before runSeason applies the result.
+  const intlCall = pendingIntlCall(state);
+  if (intlCall) return intlCall;
+
   // --- High school ---
   if (state.stage === 'highschool') {
     if (state.turnIndex >= HS_TURNS) {
@@ -726,15 +731,87 @@ function proPrompt(state: GameState): string {
 }
 
 /**
- * Posting, promotion and the flight home all arrive as a one-off offer turn
- * that costs no year. Each carries a `key` so that declining it does not make
- * `buildDecision` hand back the very same offer on the next call.
+ * When fame and the calendar line up, the national team call becomes a real
+ * Decision — accept the double schedule, trim to one showcase game, or decline
+ * to protect the body. Performance itself still resolves inside `runSeason`.
+ */
+function pendingIntlCall(state: GameState): Decision | null {
+  if (state.stage !== 'amateur' && state.stage !== 'pro') return null;
+  const seasonImminent =
+    state.stage === 'amateur' || (state.stage === 'pro' && state.proTurn === 1);
+  if (!seasonImminent) return null;
+  if (state.age < 20 || state.year % 3 !== 0 || state.meta.fame < 35) return null;
+
+  const key = `intl:${state.year}`;
+  if (state.handled.includes(key)) return null;
+
+  const r = streamRng(state.seed, `intl-name:${state.year}`);
+  const tournament = pick(r, ['世界棒球經典賽', '亞洲錦標賽', '十二強賽', '奧運棒球']);
+  return {
+    kind: 'offer',
+    key,
+    title: '國家隊徵召',
+    prompt: `${tournament} 的徵召來了。聯盟賽程與國家隊重疊——你要怎麼回？`,
+    options: [
+      {
+        id: 'intl-double',
+        label: '接受雙重賽程',
+        hint: '全力代表國家；疲勞與傷病風險高，好表現機會最大',
+      },
+      {
+        id: 'intl-one',
+        label: '只打一場關鍵戰',
+        hint: '保護球季節奏；仍計入出賽，報酬與風險都較小',
+      },
+      {
+        id: 'intl-decline',
+        label: '婉拒、守護身體',
+        hint: '球團鬆一口氣；球迷與媒體可能不諒解',
+      },
+    ],
+  };
+}
+
+/** Commitment recorded when the intl Decision was answered; drives runSeason. */
+function intlCommitment(
+  state: GameState,
+  year: number,
+): 'intl-double' | 'intl-one' | 'intl-decline' | null {
+  const marker = `intl:${year}:`;
+  const hit = state.handled.find((entry) => entry.startsWith(marker));
+  if (!hit) return null;
+  const plan = hit.slice(marker.length);
+  if (plan === 'intl-double' || plan === 'intl-one' || plan === 'intl-decline') return plan;
+  return null;
+}
+
+const OVERSEAS_ARRIVAL_CHOICES = new Set([
+  'offer-npb',
+  'offer-mlb',
+  'fa-overseas',
+  'offer-promote',
+  'fa-move',
+]);
+
+function choseOverseasArrival(state: GameState): boolean {
+  return state.choices.some((id) => OVERSEAS_ARRIVAL_CHOICES.has(id));
+}
+
+/**
+ * Posting, promotion, the flight home, and the 1–2 follow-up cards that deepen
+ * an accepted branch. Each carries a `key` so declining (or answering) does not
+ * make `buildDecision` hand back the very same offer on the next call.
  */
 function pendingOffer(state: GameState): Decision | null {
   if (state.stage !== 'pro') return null;
   const rating = overall(state.attrs, state.position);
   const r = streamRng(state.seed, `offer:${state.year}`);
   const unhandled = (key: string) => !state.handled.includes(key);
+
+  // Follow-ups first so accepting an overseas / FA offer immediately chains into
+  // adaptation (and then a clause / AAA-push card) in the same 球季後 window.
+  const followUp = pendingOfferFollowUp(state, rating, unhandled);
+  if (followUp) return followUp;
 
   const overseasKey = `overseas:${state.year}`;
   if (
@@ -812,6 +889,206 @@ function pendingOffer(state: GameState): Decision | null {
       options: [
         { id: 'offer-return', label: '回中職', hint: '在熟悉的球場把生涯打完。' },
         { id: 'offer-stay', label: '留在海外拚一年', hint: '不甘心就這樣結束。' },
+      ],
+    };
+  }
+
+  return null;
+}
+
+/**
+ * One or two cards after an accepted overseas / FA / promotion fork. Keys are
+ * lifetime (`follow:adapt`, `follow:clause`) so a single career only deepens
+ * the first big move — later moves stay on the existing offer surface.
+ */
+function pendingOfferFollowUp(
+  state: GameState,
+  rating: number,
+  unhandled: (key: string) => boolean,
+): Decision | null {
+  if (!choseOverseasArrival(state)) return null;
+
+  const adaptKey = 'follow:adapt';
+  if (unhandled(adaptKey)) {
+    if (state.league === 'npb') {
+      return {
+        kind: 'offer',
+        key: adaptKey,
+        title: '異鄉適應期',
+        prompt: `${state.team} 的自主訓練比想像中更悶。語言、飲食、上下關係——你想怎麼熬過第一個月？`,
+        options: [
+          {
+            id: 'adapt-immerse',
+            label: '全力融入當地',
+            hint: '球技與心志大漲；疲勞高，想家的夜晚更長',
+          },
+          {
+            id: 'adapt-pace',
+            label: '照自己的節奏來',
+            hint: '穩定小幅成長，少一點內耗',
+          },
+          {
+            id: 'adapt-homesick',
+            label: '心繫台灣、少社交',
+            hint: '守住熟悉感；更衣室風評與適應變慢',
+          },
+        ],
+      };
+    }
+    if (state.league === 'milb') {
+      return {
+        kind: 'offer',
+        key: adaptKey,
+        title: '小聯盟適應期',
+        prompt: `長途巴士、便宜旅館、陌生的打擊教練。${state.team} 這條路比電視上看起來更顛。`,
+        options: [
+          {
+            id: 'adapt-immerse',
+            label: '把每個上場機會當最後一次',
+            hint: '能力大漲；疲勞與受傷風險高',
+          },
+          {
+            id: 'adapt-pace',
+            label: '跟著體系一步步來',
+            hint: '穩健成長，少踩雷',
+          },
+          {
+            id: 'adapt-homesick',
+            label: '算著回台灣的機票',
+            hint: '心志下滑；人氣在家鄉反而小漲',
+          },
+        ],
+      };
+    }
+    if (state.league === 'mlb') {
+      return {
+        kind: 'offer',
+        key: adaptKey,
+        title: '大聯盟更衣室',
+        prompt: '球員通道的燈光比想像中更白。教練問你：要當每天都想上的人，還是先站穩名單？',
+        options: [
+          {
+            id: 'adapt-immerse',
+            label: '每天爭先發',
+            hint: '膽識與人氣大漲；疲勞與傷病風險高',
+          },
+          {
+            id: 'adapt-pace',
+            label: '先站穩 26 人名單',
+            hint: '心志穩定，慢慢補上差距',
+          },
+          {
+            id: 'adapt-homesick',
+            label: '做完這季再想下一步',
+            hint: '保留餘力；媒體會說你不夠餓',
+          },
+        ],
+      };
+    }
+    if (state.league === 'cpbl' && state.choices.includes('fa-move')) {
+      return {
+        kind: 'offer',
+        key: adaptKey,
+        title: '新東家的目光',
+        prompt: `${state.team} 的球迷還在適應你的臉。更衣室裡有人把你當救星，也有人把你當過來搶飯碗的。`,
+        options: [
+          {
+            id: 'adapt-immerse',
+            label: '加班熟悉新體系',
+            hint: '能力與心志上漲；疲勞偏高',
+          },
+          {
+            id: 'adapt-pace',
+            label: '先打好自己的比賽',
+            hint: '小幅成長，少惹是非',
+          },
+          {
+            id: 'adapt-homesick',
+            label: '少說話、少曝光',
+            hint: '人氣幾乎不動；心志微幅下滑',
+          },
+        ],
+      };
+    }
+  }
+
+  const clauseKey = 'follow:clause';
+  if (!state.handled.includes(adaptKey) || !unhandled(clauseKey)) return null;
+
+  if (state.league === 'milb') {
+    return {
+      kind: 'offer',
+      key: clauseKey,
+      title: '放棄年薪衝一軍？',
+      prompt: '球團暗示：若你願意重談保障條款，3A 固定出賽與大聯盟機會會近很多。',
+      options: [
+        {
+          id: 'clause-push',
+          label: '自願降薪換固定出賽',
+          hint: rating >= 60 ? '年薪縮水，上場與成長空間變大' : '以目前狀態，風險偏高',
+        },
+        {
+          id: 'clause-safe',
+          label: '守住合約保障',
+          hint: '薪水穩；可能繼續坐板凳',
+        },
+        {
+          id: 'clause-demand',
+          label: '要求升上大聯盟或交易',
+          hint: '賭氣勢；不成可能弄僵關係',
+        },
+      ],
+    };
+  }
+
+  if (state.league === 'npb' || state.league === 'mlb') {
+    return {
+      kind: 'offer',
+      key: clauseKey,
+      title: '選擇條款談判',
+      prompt: '經紀人把選擇權條款攤在桌上：要保障，還是拿保障去換更多上場時間？',
+      options: [
+        {
+          id: 'clause-safe',
+          label: '行使保障、鎖定合約',
+          hint: '年薪上修；球團對你的使用更保守',
+        },
+        {
+          id: 'clause-push',
+          label: '放棄部分保障換出場',
+          hint: '薪資下修；能力與人氣有機會再衝一波',
+        },
+        {
+          id: 'clause-demand',
+          label: '要求先發輪值／固定棒次',
+          hint: '談得成是大勝；談不成心志受創',
+        },
+      ],
+    };
+  }
+
+  if (state.league === 'cpbl' && state.choices.includes('fa-move')) {
+    return {
+      kind: 'offer',
+      key: clauseKey,
+      title: '選擇條款與出場時間',
+      prompt: '新東家想用選擇權綁住你。你也可以拿它當籌碼，換更明確的定位。',
+      options: [
+        {
+          id: 'clause-safe',
+          label: '簽下長年保障',
+          hint: '年薪與心志上升；成長空間略收',
+        },
+        {
+          id: 'clause-push',
+          label: '縮短保障、換主力承諾',
+          hint: '薪水少一點；出場與能力成長較多',
+        },
+        {
+          id: 'clause-demand',
+          label: '要求交易條款寫清楚',
+          hint: '談判強硬；人氣兩極',
+        },
       ],
     };
   }
@@ -1304,25 +1581,69 @@ function runSeason(state: GameState, report: TurnReport): void {
     awards.push('新人王');
   }
 
-  // International tournaments come round every few years and move fame hard.
-  const intlYear = state.age >= 20 && (state.year % 3 === 0) && state.meta.fame >= 35;
+  // International tournaments are an occasional Decision (`pendingIntlCall`).
+  // The commitment is recorded in `handled` as `intl:${year}:${option}`; the
+  // on-field result still lands on this season's report and counters.
+  const intlPlan = intlCommitment(state, state.year);
   let intlNote: string | null = null;
-  if (intlYear) {
-    const tournament = pick(r, ['世界棒球經典賽', '亞洲錦標賽', '十二強賽', '奧運棒球']);
-    const perf = overall(state.attrs, state.position) * effects.clutch + state.meta.mind * 0.2 + noise(r, 14);
+  if (intlPlan && intlPlan !== 'intl-decline') {
+    const tournament = pick(
+      streamRng(state.seed, `intl-name:${state.year}`),
+      ['世界棒球經典賽', '亞洲錦標賽', '十二強賽', '奧運棒球'],
+    );
+    const oneGame = intlPlan === 'intl-one';
+    const clutchMul = oneGame ? 0.92 : 1;
+    const perf =
+      overall(state.attrs, state.position) * effects.clutch * clutchMul +
+      state.meta.mind * 0.2 +
+      noise(r, oneGame ? 10 : 14);
+    const strongBar = LEAGUES[state.league].baseline + (oneGame ? 18 : 14);
+    const fameScale = oneGame ? 0.55 : 1;
     state.counters.intlAppearances += 1;
-    if (perf >= LEAGUES[state.league].baseline + 14) {
+    if (perf >= strongBar) {
       state.counters.intlStrong += 1;
-      applyDeltas(state, { fame: round(16 * effects.fameGain), guts: 3, mind: 3 });
-      intlNote = `${tournament}：關鍵時刻站出來，全國都在看那一球。`;
+      applyDeltas(state, {
+        fame: round(16 * effects.fameGain * fameScale),
+        guts: oneGame ? 2 : 3,
+        mind: oneGame ? 2 : 3,
+        fatigue: oneGame ? 4 : 10,
+      });
+      intlNote = oneGame
+        ? `${tournament}：只打一場，卻把關鍵打席握在手裡。`
+        : `${tournament}：關鍵時刻站出來，全國都在看那一球。`;
       report.tone = 'great';
     } else if (perf >= LEAGUES[state.league].baseline) {
-      applyDeltas(state, { fame: round(7 * effects.fameGain), guts: 1 });
-      intlNote = `${tournament}：入選國家隊，表現稱職。`;
+      applyDeltas(state, {
+        fame: round(7 * effects.fameGain * fameScale),
+        guts: 1,
+        fatigue: oneGame ? 3 : 8,
+      });
+      intlNote = oneGame
+        ? `${tournament}：短短一場，表現稱職。`
+        : `${tournament}：入選國家隊，表現稱職。`;
     } else {
-      applyDeltas(state, { fame: -4, mind: -3 });
-      intlNote = `${tournament}：在最重要的比賽裡失手，被罵得很慘。`;
+      applyDeltas(state, {
+        fame: oneGame ? -2 : -4,
+        mind: oneGame ? -2 : -3,
+        fatigue: oneGame ? 2 : 6,
+      });
+      intlNote = oneGame
+        ? `${tournament}：唯一一場沒打好，議論聲還是很大。`
+        : `${tournament}：在最重要的比賽裡失手，被罵得很慘。`;
       report.tone = 'bad';
+    }
+    // Double schedule asks more of the body; one-game trims the injury spike.
+    const injuryChance = oneGame ? 0.06 : 0.14;
+    if (!state.injury && r() < injuryChance) {
+      const pool = INJURIES.filter((i) => i.severity === 'minor');
+      const injury = pick(r, pool);
+      state.injury = {
+        name: injury.name,
+        seasonsLeft: injury.seasons,
+        severity: injury.severity,
+      };
+      state.counters.injuries += 1;
+      report.lines.push(`國際賽後身體亮紅燈：${injury.name}。`);
     }
   }
 
@@ -1701,6 +2022,98 @@ function resolveOffer(state: GameState, optionId: string): void {
   };
 
   switch (optionId) {
+    case 'intl-double':
+      state.handled.push(`intl:${state.year}:intl-double`);
+      report.headline = '接受雙重賽程';
+      report.lines.push('你答應國家隊：聯盟賽照打，國際賽也照打。球團的訓練官皺了眉頭。');
+      applyDeltas(state, { guts: 2, mind: 2, fame: 4 });
+      break;
+    case 'intl-one':
+      state.handled.push(`intl:${state.year}:intl-one`);
+      report.headline = '只打一場';
+      report.lines.push('你跟兩邊談妥：只打一場關鍵戰，其餘時間留給球團。');
+      applyDeltas(state, { mind: 3, fame: 2 });
+      break;
+    case 'intl-decline':
+      state.handled.push(`intl:${state.year}:intl-decline`);
+      report.headline = '婉拒徵召';
+      report.lines.push('你選擇守護身體。社群上吵了一週，球團私底下鬆了口氣。');
+      applyDeltas(state, { fame: -6, mind: 4, fatigue: -8, body: 3 });
+      report.tone = 'normal';
+      break;
+    case 'adapt-immerse':
+      report.headline = '全力適應';
+      report.lines.push('你把陌生的一切當成訓練的一部分。第一個月很痛苦，第二個月開始有人叫得出你的名字。');
+      applyDeltas(state, {
+        contact: 3,
+        power: 2,
+        velocity: 3,
+        control: 2,
+        mind: 5,
+        guts: 3,
+        fatigue: 14,
+        body: -2,
+      });
+      report.tone = 'great';
+      break;
+    case 'adapt-pace':
+      report.headline = '照自己的節奏';
+      report.lines.push('你沒有硬撐著融入。進步不快，但每一步都踩在實地上。');
+      applyDeltas(state, { contact: 2, control: 2, mind: 3, fatigue: 5 });
+      break;
+    case 'adapt-homesick':
+      report.headline = '心繫故鄉';
+      report.lines.push('視訊彼端的家人比較近；更衣室裡的玩笑比較遠。你守住了自己，也慢了半拍。');
+      applyDeltas(state, { mind: -3, fame: 3, fatigue: -4 });
+      report.tone = 'normal';
+      break;
+    case 'clause-push': {
+      const cut = round(Math.max(20, state.finance.salary * 0.18));
+      state.finance.salary = Math.max(30, state.finance.salary - cut);
+      report.headline = '換取出場時間';
+      report.lines.push(
+        `你拿保障條款去換上場承諾。年薪少了 ${formatMoney(cut)}，教練組開始把你寫進計畫裡。`,
+      );
+      applyDeltas(state, {
+        contact: 3,
+        velocity: 3,
+        stamina: 2,
+        guts: 4,
+        fame: 6,
+        fatigue: 8,
+        mind: 2,
+      });
+      report.tone = 'great';
+      break;
+    }
+    case 'clause-safe': {
+      const bump = round(Math.max(40, state.finance.salary * 0.12));
+      state.finance.salary += bump;
+      if (state.finance.salary > state.finance.peakSalary) {
+        state.finance.peakSalary = state.finance.salary;
+      }
+      report.headline = '鎖定保障';
+      report.lines.push(
+        `你選擇把錢跟安全感留住。年薪來到 ${formatMoney(state.finance.salary)}，球團對你的用法變得更小心。`,
+      );
+      applyDeltas(state, { mind: 6, fame: 3, guts: -1 });
+      break;
+    }
+    case 'clause-demand': {
+      const ok = overall(state.attrs, state.position) >= LEAGUES[state.league].baseline - 2 && r() < 0.55;
+      if (ok) {
+        report.headline = '談成了';
+        report.lines.push('你把談判檯面抬高，對方最後點了頭。壓力與期待一起上來。');
+        applyDeltas(state, { fame: 10, guts: 5, mind: 3, fatigue: 6 });
+        report.tone = 'great';
+      } else {
+        report.headline = '談僵了';
+        report.lines.push('對方不吃這套。接下來幾週，教練看你的眼神都不一樣。');
+        applyDeltas(state, { mind: -6, fame: -3, guts: 2 });
+        report.tone = 'bad';
+      }
+      break;
+    }
     case 'offer-npb':
       moveTo(state, 'npb', pick(r, TEAMS.npb));
       applyDeltas(state, { fame: 16, mind: -3 });
