@@ -12,9 +12,16 @@ import {
   isChallengeCleared,
   isChallengeUnlocked,
 } from '../src/game/challenges.js';
-import { overall } from '../src/game/config.js';
+import { POSITIONS, overall } from '../src/game/config.js';
 import { careerTotals } from '../src/game/milestones.js';
 import { breakingFromArsenal } from '../src/game/pitches.js';
+import {
+  EMPTY_RECORDS,
+  applyCareerToRecords,
+  mergeArchiveIntoRecords,
+  positionFromArchiveLabel,
+  totalMilestoneHits,
+} from '../src/game/records.js';
 import { TWO_WAY_WORKLOAD } from '../src/game/season.js';
 import { SITUATIONS, situationById } from '../src/game/situations.js';
 import { traitEffects } from '../src/game/traits.js';
@@ -438,14 +445,94 @@ function expectCollectionGoalsFire(): void {
   assert.ok(progress.unlocked['ten-careers'], 'ten-careers never recorded as unlocked');
 }
 
-/**
- * The property that makes undo honest.
- *
- * `rng()` in the engine seeds every random draw on (purpose, turnIndex,
- * choices.length), so stepping back and choosing the *same* option has to
- * land on the identical state. Otherwise undo would be a re-roll and every
- * bad outcome could be shopped away.
- */
+/** Position-best + milestone tallies are the records wall's whole point. */
+function expectRecordsAccumulate(): void {
+  const runs: { position: Position; state: GameState }[] = [
+    { position: 'P', state: playRun('rec00001', 'P', cyclingChoice) },
+    { position: 'OF', state: playRun('rec00002', 'OF', cyclingChoice) },
+    { position: 'P', state: playRun('rec00003', 'P', cyclingChoice) },
+  ];
+
+  let records = EMPTY_RECORDS;
+  for (const run of runs) {
+    assert.ok(run.state.summary, `${run.position} run ended without a summary`);
+    records = applyCareerToRecords(run.state, records);
+  }
+
+  assert.ok(records.bestByPosition.P, 'pitcher best never recorded');
+  assert.ok(records.bestByPosition.OF, 'outfielder best never recorded');
+  assert.equal(records.bestByPosition.P?.position, 'P');
+  assert.equal(records.bestByPosition.OF?.position, 'OF');
+
+  const pitcherRuns = runs.filter((r) => r.position === 'P');
+  const betterPitcher = pitcherRuns.reduce((a, b) =>
+    (a.state.summary?.hofScore ?? 0) >= (b.state.summary?.hofScore ?? 0) ? a : b,
+  );
+  assert.equal(
+    records.bestByPosition.P?.hofScore,
+    betterPitcher.state.summary!.hofScore,
+    'pitcher best did not keep the higher hall-of-fame score',
+  );
+  assert.equal(records.bestByPosition.P?.seedCode, betterPitcher.state.seedCode);
+
+  const expectedCareer = runs.reduce(
+    (sum, r) => sum + r.state.milestones.filter((m) => m.kind === 'career').length,
+    0,
+  );
+  const expectedFeat = runs.reduce(
+    (sum, r) => sum + r.state.milestones.filter((m) => m.kind === 'feat').length,
+    0,
+  );
+  assert.equal(records.milestoneCounts.career, expectedCareer, 'career milestone tally drifted');
+  assert.equal(records.milestoneCounts.feat, expectedFeat, 'feat milestone tally drifted');
+  assert.equal(totalMilestoneHits(records.milestoneCounts), expectedCareer + expectedFeat);
+
+  // A worse follow-up must not overwrite the wall.
+  const worse = {
+    ...betterPitcher.state,
+    summary: {
+      ...betterPitcher.state.summary!,
+      hofScore: Math.max(0, betterPitcher.state.summary!.hofScore - 50),
+      verdict: '球團記憶中的名字',
+    },
+    milestones: [],
+  };
+  const afterWorse = applyCareerToRecords(worse, records);
+  assert.equal(afterWorse.bestByPosition.P?.hofScore, records.bestByPosition.P?.hofScore);
+  assert.equal(afterWorse.bestByPosition.P?.seedCode, records.bestByPosition.P?.seedCode);
+}
+
+/** Legacy archive rows (label only) still seed the wall on first load. */
+function expectArchiveBackfillsPositionBest(): void {
+  assert.equal(positionFromArchiveLabel('投手'), 'P');
+  assert.equal(positionFromArchiveLabel('二刀流'), 'TW');
+  assert.equal(positionFromArchiveLabel('not-a-position'), null);
+
+  const merged = mergeArchiveIntoRecords(
+    [
+      {
+        seedCode: 'oldseed1',
+        name: '前輩',
+        position: '捕手',
+        verdict: '名人堂票選邊緣',
+        hofScore: 420,
+      },
+      {
+        seedCode: 'oldseed2',
+        name: '前輩二',
+        position: '捕手',
+        positionId: 'C',
+        verdict: '地方英雄',
+        hofScore: 200,
+      },
+    ],
+    EMPTY_RECORDS,
+  );
+  assert.equal(merged.bestByPosition.C?.seedCode, 'oldseed1');
+  assert.equal(merged.bestByPosition.C?.hofScore, 420);
+  assert.equal(POSITIONS.length, 5, 'records wall expects five positions');
+}
+
 /**
  * A career has to actually reach the content that was written for it.
  *
@@ -925,6 +1012,8 @@ const checks: [string, () => void][] = [
   ['achievements accumulate across careers', expectAchievementsAccumulate],
   ['achievements unlock only once', expectAchievementsUnlockOnce],
   ['collection goals fire exactly once', expectCollectionGoalsFire],
+  ['records accumulate by position', expectRecordsAccumulate],
+  ['archive backfills position best', expectArchiveBackfillsPositionBest],
   ['careers reach the content', expectCareersReachTheContent],
   ['undo is not a re-roll', expectUndoIsNotAReroll],
   ['challenge defs are sound', expectChallengeDefsAreSound],

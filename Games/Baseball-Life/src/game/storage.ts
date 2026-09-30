@@ -6,19 +6,30 @@ import {
   challengeById,
 } from './challenges';
 import type { ChallengeProgress } from './challenges';
-import { STORAGE_KEY } from './config';
-import type { GameState } from './types';
+import { POSITIONS, STORAGE_KEY } from './config';
+import {
+  EMPTY_MILESTONE_COUNTS,
+  EMPTY_RECORDS,
+  mergeArchiveIntoRecords,
+  positionFromArchiveLabel,
+} from './records';
+import type { PersonalRecords, PositionBest } from './records';
+import type { GameState, Position } from './types';
 
 const SAVE_KEY = `${STORAGE_KEY}:save`;
 const ARCHIVE_KEY = `${STORAGE_KEY}:archive`;
 const ACHIEVEMENTS_KEY = `${STORAGE_KEY}:achievements`;
 const CHALLENGES_KEY = `${STORAGE_KEY}:challenges`;
 const ACTIVE_CHALLENGE_KEY = `${STORAGE_KEY}:active-challenge`;
+const RECORDS_KEY = `${STORAGE_KEY}:records`;
 
 export interface ArchiveEntry {
   seedCode: string;
   name: string;
+  /** Display label (投手／捕手／…). */
   position: string;
+  /** Stable id when available; older archive rows may omit it. */
+  positionId?: Position;
   verdict: string;
   hofScore: number;
   traits: string[];
@@ -87,12 +98,38 @@ export function clearGame(): void {
   }
 }
 
+function sanitizeArchiveEntry(raw: Partial<ArchiveEntry>): ArchiveEntry | null {
+  if (!raw || typeof raw.seedCode !== 'string' || typeof raw.name !== 'string') return null;
+  const hofScore = Number(raw.hofScore);
+  if (!Number.isFinite(hofScore) || hofScore < 0) return null;
+  const position = typeof raw.position === 'string' ? raw.position : '';
+  const positionId =
+    raw.positionId && POSITIONS.some((p) => p.id === raw.positionId)
+      ? raw.positionId
+      : positionFromArchiveLabel(position) ?? undefined;
+  return {
+    seedCode: raw.seedCode,
+    name: raw.name,
+    position: position || (positionId ? (POSITIONS.find((p) => p.id === positionId)?.label ?? '') : ''),
+    positionId,
+    verdict: typeof raw.verdict === 'string' ? raw.verdict : '',
+    hofScore: Math.floor(hofScore),
+    traits: Array.isArray(raw.traits)
+      ? raw.traits.filter((t): t is string => typeof t === 'string')
+      : [],
+  };
+}
+
 export function loadArchive(): ArchiveEntry[] {
   try {
     const raw = window.localStorage.getItem(ARCHIVE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as ArchiveEntry[];
-    return Array.isArray(parsed) ? parsed.slice(0, 20) : [];
+    const parsed = JSON.parse(raw) as Partial<ArchiveEntry>[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(sanitizeArchiveEntry)
+      .filter((entry): entry is ArchiveEntry => entry !== null)
+      .slice(0, 20);
   } catch {
     return [];
   }
@@ -191,6 +228,67 @@ export function saveActiveChallengeId(id: string | null): void {
     } else {
       window.localStorage.removeItem(ACTIVE_CHALLENGE_KEY);
     }
+  } catch {
+    // Best effort only.
+  }
+}
+
+function sanitizePositionBest(raw: unknown, position: Position): PositionBest | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const entry = raw as Partial<PositionBest>;
+  const hofScore = Number(entry.hofScore);
+  if (
+    typeof entry.seedCode !== 'string' ||
+    typeof entry.name !== 'string' ||
+    typeof entry.verdict !== 'string' ||
+    !Number.isFinite(hofScore) ||
+    hofScore < 0
+  ) {
+    return null;
+  }
+  return {
+    position,
+    seedCode: entry.seedCode,
+    name: entry.name,
+    hofScore: Math.floor(hofScore),
+    verdict: entry.verdict,
+  };
+}
+
+export function loadRecords(): PersonalRecords {
+  try {
+    const raw = window.localStorage.getItem(RECORDS_KEY);
+    const archive = loadArchive();
+    if (!raw) {
+      // First load after the records wall shipped: reconstruct position-best
+      // from the existing archive so veterans do not start from a blank wall.
+      return mergeArchiveIntoRecords(archive, EMPTY_RECORDS);
+    }
+    const parsed = JSON.parse(raw) as Partial<PersonalRecords>;
+    const bestByPosition: PersonalRecords['bestByPosition'] = {};
+    if (parsed.bestByPosition && typeof parsed.bestByPosition === 'object') {
+      for (const pos of POSITIONS) {
+        const best = sanitizePositionBest(parsed.bestByPosition[pos.id], pos.id);
+        if (best) bestByPosition[pos.id] = best;
+      }
+    }
+    const counts = parsed.milestoneCounts;
+    const milestoneCounts = {
+      career: Math.max(0, Math.floor(Number(counts?.career) || 0)),
+      feat: Math.max(0, Math.floor(Number(counts?.feat) || 0)),
+      hof: Math.max(0, Math.floor(Number(counts?.hof) || 0)),
+      firstBallot: Math.max(0, Math.floor(Number(counts?.firstBallot) || 0)),
+    };
+    // Still merge archive in case a best row was never persisted (quota / older build).
+    return mergeArchiveIntoRecords(archive, { bestByPosition, milestoneCounts });
+  } catch {
+    return { ...EMPTY_RECORDS, milestoneCounts: { ...EMPTY_MILESTONE_COUNTS } };
+  }
+}
+
+export function saveRecords(records: PersonalRecords): void {
+  try {
+    window.localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
   } catch {
     // Best effort only.
   }
