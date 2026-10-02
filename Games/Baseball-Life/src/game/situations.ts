@@ -144,6 +144,239 @@ export const SITUATIONS: Situation[] = [
       },
     ],
   },
+  {
+    id: 'hs-starter-battle',
+    title: '主力搶位',
+    stages: ['highschool'],
+    weight: 11,
+    prompt: () =>
+      '教練說先發名單只留一個位置。學長盯著你，隊友也在看——要不要把身體押上去搶？',
+    options: () => [
+      {
+        id: 'fight',
+        label: '練到拿到先發為止',
+        hint: '能力與膽識暴衝，疲勞與輕傷風險高；可花天命壓過代價',
+        effects: {
+          contact: 4,
+          fielding: 4,
+          velocity: 4,
+          control: 3,
+          guts: 6,
+          fatigue: 24,
+          injuryChance: 0.3,
+        },
+        outcome: '你把手套磨破了。名單貼出來時，上面寫的是你的名字。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
+      },
+      {
+        id: 'share',
+        label: '跟學長輪值、慢慢磨',
+        hint: '小幅成長，關係穩',
+        effects: { fielding: 2, control: 2, mind: 3, fatigue: 8 },
+        outcome: '學長拍了拍你的肩。板凳上你也能學到東西。',
+        tone: 'good',
+      },
+      {
+        id: 'yield',
+        label: '先讓出位置養傷',
+        hint: '恢復體能，錯過這次搶位',
+        effects: { fatigue: -12, body: 4, mind: -3, fame: -2 },
+        outcome: '你坐到後排。先發的掌聲跟你隔了一道鐵網。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'hs-weekend-special',
+    title: '週末特訓邀約',
+    stages: ['highschool'],
+    weight: 10,
+    prompt: () =>
+      '教練私下找你：週末帶你去大學球場加練。家人約了聚餐，拒絕可能再也沒有第二次。',
+    options: () => [
+      {
+        id: 'go',
+        label: '推掉聚餐，跟教練走',
+        hint: '成長大，心志與疲勞都上升；可花天命翻倍報酬',
+        effects: {
+          contact: 3,
+          power: 3,
+          velocity: 3,
+          breaking: 3,
+          mind: 5,
+          fatigue: 16,
+          injuryChance: 0.14,
+        },
+        outcome: '大學球場的燈光比社團亮三倍。你回家時手套還是濕的。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'doubleReward' },
+      },
+      {
+        id: 'half',
+        label: '只去半天',
+        hint: '中等成長，兩邊都顧到一點',
+        effects: { contact: 2, control: 2, fatigue: 7, mind: 1 },
+        outcome: '你趕在開飯前衝回家。教練說：「有來就不錯。」',
+        tone: 'good',
+      },
+      {
+        id: 'family',
+        label: '先陪家人',
+        hint: '心志小回，錯過特訓成長',
+        effects: { mind: 4, fatigue: -6, body: 2 },
+        outcome: '餐桌上大家都笑著。社團的燈光，明天再看。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'hs-rival-duel',
+    title: '宿敵校交流賽',
+    stages: ['highschool'],
+    weight: 11,
+    minAge: 16,
+    prompt: () =>
+      '宿敵校約了非正式交流賽。教練說可以讓你先發滿局——也警告你對手上次把學長打出場。',
+    options: () => [
+      {
+        id: 'allin',
+        label: '先發滿局，對決到底',
+        hint: '人氣與膽識大漲，疲勞與受傷風險高',
+        effects: { fame: 12, guts: 6, mind: 3, fatigue: 20, injuryChance: 0.22 },
+        outcome: '九局結束時雙方都站不起來。觀眾席記得你的名字。',
+        tone: 'great',
+      },
+      {
+        id: 'limited',
+        label: '限投五局，保護身體',
+        hint: '穩定表現，風險中等',
+        effects: { fame: 5, guts: 3, fatigue: 9, mind: 2 },
+        outcome: '五局後退場。宿敵校的王牌朝你點了點頭。',
+        tone: 'good',
+      },
+      {
+        id: 'bench',
+        label: '請求這場不上',
+        hint: '養傷養體，人氣下滑',
+        effects: { fatigue: -8, body: 3, fame: -4, mind: -2 },
+        outcome: '你坐在牛棚看完整場。有人說你怕了——你沒有解釋。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'hs-painkiller-edge',
+    title: '止痛邊緣',
+    stages: ['highschool'],
+    weight: 9,
+    condition: (s) => s.meta.fatigue >= 40,
+    prompt: () =>
+      '肩膀／手腕隱隱作痛。隊醫給了選擇：貼紮硬上、減練休養，或乾脆請長假。大賽前夕，每個選項都貴。',
+    options: () => [
+      {
+        id: 'tape',
+        label: '貼紮硬上',
+        hint: '短期不掉節奏，受傷機率很高；可花天命壓過代價',
+        effects: { guts: 5, mind: 2, fatigue: 14, injuryChance: 0.38 },
+        outcome: '你把痛感關在膠帶底下。下場時還能揮得動。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'waiveCost' },
+      },
+      {
+        id: 'ease',
+        label: '減練兩週',
+        hint: '恢復為主，成長幾乎停滯',
+        effects: { fatigue: -16, body: 5, mind: -1 },
+        outcome: '你看著隊友加練。痛感退了，手感也生了。',
+        tone: 'good',
+      },
+      {
+        id: 'leave',
+        label: '請長假回家養',
+        hint: '體能大回，人氣與心志受挫',
+        effects: { fatigue: -28, body: 8, fame: -6, mind: -5 },
+        outcome: '社團群組還在報到。你把手機翻過去。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'hs-weight-room-dare',
+    title: '重量室賭注',
+    stages: ['highschool'],
+    weight: 10,
+    prompt: () =>
+      '學長在重量室說：誰先蹲到目標公斤，這週加練就免了。旁邊有人已經開始幫你數。',
+    options: () => [
+      {
+        id: 'max',
+        label: '賭最大重量',
+        hint: '長打／球速大漲，疲勞與受傷風險暴增',
+        effects: {
+          power: 6,
+          velocity: 5,
+          body: 3,
+          fatigue: 22,
+          injuryChance: 0.32,
+        },
+        outcome: '槓鈴落地的聲音蓋過整間重量室。腿在發抖，但你贏了。',
+        tone: 'great',
+        destinyBoost: { cost: DESTINY_SITUATION_COST, mode: 'doubleReward' },
+      },
+      {
+        id: 'safe',
+        label: '用安全重量慢慢加',
+        hint: '穩定小幅成長',
+        effects: { power: 2, velocity: 2, body: 2, fatigue: 8 },
+        outcome: '你沒有贏賭注，但動作是乾淨的。教練說這樣才對。',
+        tone: 'good',
+      },
+      {
+        id: 'skip',
+        label: '不賭，去做技術課',
+        hint: '技術小漲，錯過這次爆發',
+        effects: { contact: 2, control: 2, mind: 2, fatigue: 4 },
+        outcome: '重量室的喧鬧留在門外。你把揮棒節奏練完。',
+        tone: 'normal',
+      },
+    ],
+  },
+  {
+    id: 'hs-media-day',
+    title: '媒體採訪日',
+    stages: ['highschool'],
+    weight: 8,
+    minAge: 17,
+    prompt: () =>
+      '地方台來拍專題。記者想聽「一定要拿全國」那種話——教練提醒你：說大話會變成壓力。',
+    options: () => [
+      {
+        id: 'bold',
+        label: '對著鏡頭立軍令狀',
+        hint: '人氣暴衝，心志壓力大',
+        effects: { fame: 16, guts: 3, mind: -6, fatigue: 4 },
+        outcome: '標題寫著你的名字。宿舍門口多了幾雙眼睛。',
+        tone: 'great',
+      },
+      {
+        id: 'humble',
+        label: '謙虛帶過，談隊友',
+        hint: '人氣小漲，心志穩定',
+        effects: { fame: 6, mind: 4, fatigue: 2 },
+        outcome: '剪輯後你變成「懂事的後輩」。教練鬆了口氣。',
+        tone: 'good',
+      },
+      {
+        id: 'refuse',
+        label: '婉拒出鏡',
+        hint: '不被消費，人氣不動甚至下滑',
+        effects: { mind: 3, fame: -3 },
+        outcome: '鏡頭轉去學長。你躲在打擊籠後面繼續揮。',
+        tone: 'normal',
+      },
+    ],
+  },
 
   // ---- Amateur ----
   {
@@ -1217,3 +1450,9 @@ export function situationAcceptsDestiny(state: GameState): boolean {
 
 /** Roughly one situation every 4–5 turns that can host one. */
 export const SITUATION_FIRE_CHANCE = 0.22;
+
+/**
+ * High-school cultivation fires a bit hotter so the longer calendar still
+ * surfaces occasional high-risk cards (about one every 3 turns).
+ */
+export const HS_SITUATION_FIRE_CHANCE = 0.34;

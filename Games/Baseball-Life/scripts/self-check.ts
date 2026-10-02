@@ -61,11 +61,24 @@ function playRun(
   return state;
 }
 
-const firstChoice: Chooser = (decision) => {
+const firstChoice: Chooser = (decision, step) => {
   const ids = enabled(decision);
   // Situation cards list the gamble first; training-first policies should take
   // the safest option so self-checks measure the career engine, not roulette.
   if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+  if (decision.kind === 'training') {
+    // Tournament attitude menus stay all-in — rotating into t-protect would
+    // throw away high-school titles under the documented clearability policy.
+    if (ids.some((id) => id.startsWith('t-'))) {
+      return ids.find((id) => id === 't-allin') ?? ids[0];
+    }
+    // Menus list every drill in a fixed order now — always picking ids[0] would
+    // only ever train the first card. Rotate across non-rest drills so the
+    // documented "training-first" policy still builds a balanced player.
+    const drills = ids.filter((id) => id !== 'rest');
+    if (drills.length === 0) return ids[0];
+    return drills[step % drills.length];
+  }
   return ids[0];
 };
 const cyclingChoice: Chooser = (decision, step) => {
@@ -102,13 +115,13 @@ function expectChoicesMatter(): void {
   assert.notDeepEqual(a.attrs, b.attrs, 'choices had no effect on the run');
 }
 
-/** High school is eleven turns and ends on the graduation fork. */
+/** High school is fifteen turns and ends on the graduation fork. */
 function expectHighSchoolLength(): void {
   const origins = rollOrigins('hsflow01');
   let state = createGame({ seedCode: 'hsflow01', name: '球兒', position: 'C', originId: origins[0].id });
   assert.equal(state.stage, 'highschool');
   assert.equal(state.age, 16);
-  for (let i = 0; i < 11; i++) {
+  for (let i = 0; i < 15; i++) {
     assert.equal(state.stage, 'highschool', `left high school early at turn ${i}`);
     // Drain any queued high-risk choice cards so they do not steal a training turn.
     while (state.decision?.kind === 'event') {
@@ -120,7 +133,7 @@ function expectHighSchoolLength(): void {
   while (state.decision?.kind === 'event') {
     state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
   }
-  assert.equal(state.decision?.kind, 'path', 'graduation fork did not appear after eleven turns');
+  assert.equal(state.decision?.kind, 'path', 'graduation fork did not appear after fifteen turns');
   assert.equal(state.age, 18, 'age should be 18 at graduation');
   // 高一夏、高二夏、高二秋（黑豹旗）、高三夏 — four tournaments across three years.
   assert.equal(
@@ -128,6 +141,47 @@ function expectHighSchoolLength(): void {
     4,
     'four high-school tournaments should be on record',
   );
+}
+
+/** Training menus expose every drill — never a shuffled subset. */
+function expectFullTrainingMenu(): void {
+  const origins = rollOrigins('menu0001');
+  const batter = createGame({
+    seedCode: 'menu0001',
+    name: '野手',
+    position: 'OF',
+    originId: origins[0].id,
+  });
+  assert.equal(batter.decision?.kind, 'training');
+  const batterIds = batter.decision!.options.map((o) => o.id);
+  assert.ok(batterIds.includes('swing') && batterIds.includes('weight') && batterIds.includes('field'));
+  assert.ok(batterIds.includes('run') && batterIds.includes('video') && batterIds.includes('rest'));
+  assert.equal(batterIds.length, 6, `batter menu should list all 5 drills + rest (got ${batterIds.length})`);
+
+  const pitcher = createGame({
+    seedCode: 'menu0001',
+    name: '投手',
+    position: 'P',
+    originId: origins[0].id,
+  });
+  const pitcherIds = pitcher.decision!.options.map((o) => o.id);
+  assert.ok(pitcherIds.includes('longtoss') && pitcherIds.includes('bullpen'));
+  assert.ok(pitcherIds.includes('stamina') && pitcherIds.includes('mental') && pitcherIds.includes('rest'));
+  assert.ok(
+    pitcherIds.some((id) => id.startsWith('pitch-')) && pitcherIds.includes('pitch-new'),
+    'pitcher menu should include pitch develop + learn-new',
+  );
+  assert.ok(pitcherIds.length >= 7, `pitcher menu too thin (${pitcherIds.length})`);
+
+  const twoWay = createGame({
+    seedCode: 'menu0001',
+    name: '二刀',
+    position: 'TW',
+    originId: origins[0].id,
+  });
+  const twIds = twoWay.decision!.options.map((o) => o.id);
+  assert.ok(twIds.includes('swing') && twIds.includes('longtoss') && twIds.includes('rest'));
+  assert.ok(twIds.length >= 11, `two-way should see both halves (${twIds.length})`);
 }
 
 /** Values must never leave their ranges, however extreme the run. */
@@ -673,7 +727,7 @@ function expectChallengeUnlockMath(): void {
 }
 
 function challengeChooser(challengeId: string): Chooser {
-  const overseasFirst: Chooser = (decision) => {
+  const overseasFirst: Chooser = (decision, step) => {
     const ids = enabled(decision);
     const prefer = ids.find(
       (id) =>
@@ -684,23 +738,43 @@ function challengeChooser(challengeId: string): Chooser {
         id === 'accept' ||
         id === 'show',
     );
-    return prefer ?? ids[0];
+    if (prefer) return prefer;
+    if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+    if (decision.kind === 'training') {
+      if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-allin') ?? ids[0];
+      const drills = ids.filter((id) => id !== 'rest');
+      if (drills.length === 0) return ids[0];
+      return drills[step % drills.length];
+    }
+    return ids[0];
   };
-  const catcherScout: Chooser = (decision) => {
+  const catcherScout: Chooser = (decision, step) => {
     const ids = enabled(decision);
     if (decision.kind === 'event') {
       return ids.find((id) => id === 'show') ?? ids[ids.length - 1] ?? ids[0];
     }
+    if (decision.kind === 'training') {
+      if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-allin') ?? ids[0];
+      const drills = ids.filter((id) => id !== 'rest');
+      if (drills.length === 0) return ids[0];
+      return drills[step % drills.length];
+    }
     return ids[0];
   };
-  const intlGhost: Chooser = (decision) => {
+  const intlGhost: Chooser = (decision, step) => {
     const ids = enabled(decision);
     if (decision.kind === 'event') {
       return ids.find((id) => id === 'accept') ?? ids[ids.length - 1] ?? ids[0];
     }
+    if (decision.kind === 'training') {
+      if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-allin') ?? ids[0];
+      const drills = ids.filter((id) => id !== 'rest');
+      if (drills.length === 0) return ids[0];
+      return drills[step % drills.length];
+    }
     return ids[0];
   };
-  const mlbGate: Chooser = (decision) => {
+  const mlbGate: Chooser = (decision, step) => {
     const ids = enabled(decision);
     const prefer = ids.find(
       (id) =>
@@ -710,12 +784,24 @@ function challengeChooser(challengeId: string): Chooser {
         id === 'offer-promote' ||
         id === 'commit',
     );
-    return prefer ?? (decision.kind === 'event' ? (ids[ids.length - 1] ?? ids[0]) : ids[0]);
+    if (prefer) return prefer;
+    if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+    if (decision.kind === 'training') {
+      if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-allin') ?? ids[0];
+      const drills = ids.filter((id) => id !== 'rest');
+      if (drills.length === 0) return ids[0];
+      return drills[step % drills.length];
+    }
+    return ids[0];
   };
   const ironBody: Chooser = (decision) => {
     const ids = enabled(decision);
     // Prefer rest / safest situation option to keep injury counter at zero.
     if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+    // Tournament all-in is an injury magnet — pick the protect attitude.
+    if (ids.some((id) => id.startsWith('t-'))) {
+      return ids.find((id) => id === 't-protect') ?? ids[ids.length - 1] ?? ids[0];
+    }
     return ids.find((id) => id === 'rest') ?? ids[0];
   };
 
@@ -808,6 +894,8 @@ function expectChallengeHookSituationsAreStable(): void {
 /** Choice cards must never offer a free hold — every option costs something. */
 function expectSituationsHaveCosts(): void {
   assert.ok(SITUATIONS.length >= 24, `situation pack is too thin (${SITUATIONS.length})`);
+  const hsOnly = SITUATIONS.filter((s) => s.stages.length === 1 && s.stages[0] === 'highschool');
+  assert.ok(hsOnly.length >= 7, `high-school situation pack too thin (${hsOnly.length})`);
   const ids = SITUATIONS.map((s) => s.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate situation id');
 
@@ -994,6 +1082,7 @@ const checks: [string, () => void][] = [
   ['seeds diverge', expectSeedsDiverge],
   ['choices matter', expectChoicesMatter],
   ['high school length', expectHighSchoolLength],
+  ['full training menu', expectFullTrainingMenu],
   ['values stay in range', expectValuesStayInRange],
   ['summary matches history', expectSummaryMatchesHistory],
   ['overall ignores off-role attributes', expectOverallIgnoresOffRoleAttributes],
