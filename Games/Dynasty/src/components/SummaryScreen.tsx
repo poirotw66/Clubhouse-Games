@@ -1,12 +1,16 @@
 import React from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import type { CareerChallenge } from '../game/challenges';
 import { CLUBS, EXPECTATIONS, formatMoney } from '../game/config';
 import type { GameState } from '../game/types';
 import { sceneBackgroundStyle } from '../sceneBackground';
 
 interface Props {
   state: GameState;
+  challenge?: CareerChallenge | null;
+  challengeCleared?: boolean | null;
   onRestart: () => void;
+  onRetryChallenge?: () => void;
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }): React.ReactElement {
@@ -20,7 +24,13 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-export function SummaryScreen({ state, onRestart }: Props): React.ReactElement {
+export function SummaryScreen({
+  state,
+  challenge,
+  challengeCleared,
+  onRestart,
+  onRetryChallenge,
+}: Props): React.ReactElement {
   const summary = state.summary;
   if (!summary) return <p className="p-8 text-slate-300">任期資料遺失了。</p>;
   const club = CLUBS.find((c) => c.id === state.teamId);
@@ -40,6 +50,31 @@ export function SummaryScreen({ state, onRestart }: Props): React.ReactElement {
           王朝分數 <span className="font-mono text-slate-300">{summary.score}</span>
         </p>
       </header>
+
+      {challenge && challengeCleared !== null && challengeCleared !== undefined && (
+        <section
+          className={`mt-6 rounded-2xl border p-4 ${
+            challengeCleared
+              ? 'border-sky-400/50 bg-sky-500/10'
+              : 'border-rose-400/40 bg-rose-500/10'
+          }`}
+        >
+          <p className="text-[11px] tracking-wider text-slate-400">CAREER CHALLENGE</p>
+          <h2
+            className={`mt-1 text-lg font-black ${
+              challengeCleared ? 'text-sky-200' : 'text-rose-200'
+            }`}
+          >
+            {challengeCleared ? '挑戰成功' : '挑戰未過'}
+            <span className="ml-2 text-sm font-bold text-slate-200">{challenge.name}</span>
+          </h2>
+          <p className="mt-2 text-xs leading-relaxed text-slate-300">
+            目標：{challenge.goalLabel}
+            {!challengeCleared && '　這次沒達標，可以用同一組種子再試一次。'}
+            {challengeCleared && '　已記入生涯挑戰進度。'}
+          </p>
+        </section>
+      )}
 
       <section className="dy-card mt-6 p-4">
         <h2 className="text-sm font-bold text-slate-200">任期總計</h2>
@@ -111,12 +146,20 @@ export function SummaryScreen({ state, onRestart }: Props): React.ReactElement {
         </p>
       </section>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        {onRetryChallenge ? (
+          <TouchButton
+            label="再試一次挑戰"
+            ariaLabel="用同一組挑戰設定重新開始"
+            onClick={onRetryChallenge}
+            className="flex-1 rounded-xl border border-sky-500/50 bg-sky-500/15 px-4 text-sm font-bold text-sky-100"
+          />
+        ) : null}
         <TouchButton
           label="再接一次任期"
           ariaLabel="回到標題畫面重新開始"
           onClick={onRestart}
-          className="w-full rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
+          className="flex-1 rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
         />
       </div>
       </div>

@@ -1,7 +1,23 @@
 import * as assert from 'node:assert/strict';
+import {
+  CAREER_CHALLENGES,
+  EMPTY_CHALLENGE_PROGRESS,
+  applyChallengeResult,
+  challengeById,
+  challengeCount,
+  continueChallengeIndex,
+  isChallengeCleared,
+  isChallengeUnlocked,
+} from '../src/game/challenges.js';
 import { acknowledge, createGame, resolve } from '../src/game/engine.js';
 import { CLUBS, GAMES, LEAGUE_BASELINE, formatMoney, overall } from '../src/game/config.js';
 import { marketSalary, tradeValue } from '../src/game/players.js';
+import {
+  EMPTY_RECORDS,
+  applyTenureToRecords,
+  clubIdFromArchiveLabel,
+  mergeArchiveIntoRecords,
+} from '../src/game/records.js';
 import { winRate } from '../src/game/season.js';
 import { priceElasticity } from '../src/game/finance.js';
 import { scoutBand, bandWidthFor } from '../src/game/scouting.js';
@@ -689,6 +705,177 @@ function expectUndoIsNotAReroll(): void {
   }
 }
 
+function expectChallengeDefsAreSound(): void {
+  assert.ok(CAREER_CHALLENGES.length >= 4, 'challenge pack is too thin');
+  assert.ok(CAREER_CHALLENGES.length <= 8, 'challenge pack grew without a plan');
+  assert.equal(challengeCount(), CAREER_CHALLENGES.length);
+  const ids = CAREER_CHALLENGES.map((c) => c.id);
+  assert.equal(new Set(ids).size, ids.length, 'two challenges share an id');
+  const goalKinds = new Set(CAREER_CHALLENGES.map((c) => c.goal.kind));
+  for (const required of ['survive', 'cash', 'trust', 'titles', 'score'] as const) {
+    assert.ok(goalKinds.has(required), `missing goal kind ${required}`);
+  }
+
+  for (const challenge of CAREER_CHALLENGES) {
+    assert.ok(challenge.name.length > 0 && challenge.blurb.length > 0, `${challenge.id} missing copy`);
+    assert.ok(challenge.goalLabel.length > 0, `${challenge.id} missing goal label`);
+    assert.ok(/^[a-z0-9]{6,12}$/i.test(challenge.seedCode), `${challenge.id} seed looks wrong`);
+    assert.ok(
+      CLUBS.some((c) => c.id === challenge.teamId),
+      `${challenge.id} locks unknown club ${challenge.teamId}`,
+    );
+    assert.ok(challengeById(challenge.id)?.id === challenge.id, `${challenge.id} lookup failed`);
+  }
+}
+
+/** Unlock cursor mirrors Baseball-Life / Liquid-Sort: stage i opens when i <= clearedCount. */
+function expectChallengeUnlockMath(): void {
+  const last = CAREER_CHALLENGES.length - 1;
+  assert.equal(isChallengeUnlocked(0, 0), true);
+  assert.equal(isChallengeUnlocked(1, 0), false);
+  assert.equal(isChallengeUnlocked(1, 1), true);
+  assert.equal(isChallengeUnlocked(last, last), true);
+  assert.equal(isChallengeUnlocked(last, last - 1), false);
+  assert.equal(isChallengeUnlocked(-1, 0), false);
+  assert.equal(isChallengeUnlocked(99, CAREER_CHALLENGES.length), false);
+  assert.equal(continueChallengeIndex(0), 0);
+  assert.equal(continueChallengeIndex(3), 3);
+  assert.equal(continueChallengeIndex(CAREER_CHALLENGES.length), CAREER_CHALLENGES.length - 1);
+}
+
+function challengeChooser(challengeId: string): Chooser {
+  const cheapest: Chooser = (decision) =>
+    [...decision.options.filter((o) => !o.disabled)].sort(
+      (a, b) => (a.cost ?? 0) - (b.cost ?? 0),
+    )[0].id;
+  // Cash / survive cards clear under a thrifty policy; title / score / trust
+  // cards clear under the default first-option path on their authored seeds.
+  switch (challengeId) {
+    case 'full-tenure':
+    case 'cash-cushion':
+    case 'farm-patience':
+      return cheapest;
+    default:
+      return firstChoice;
+  }
+}
+
+/**
+ * Every challenge must clear under its documented policy, and frontier advance
+ * only happens when clearing the current unlocked card.
+ */
+function expectChallengeSeedsAreClearable(): void {
+  for (let index = 0; index < CAREER_CHALLENGES.length; index++) {
+    const challenge = CAREER_CHALLENGES[index];
+    const chooser = challengeChooser(challenge.id);
+    const state = playTenure(challenge.seedCode, challenge.teamId, chooser);
+    // Tag challengeId the way createGame would — playTenure is free-play shaped,
+    // so stamp the id for clear checks that only care about seed/team/summary.
+    state.challengeId = challenge.id;
+    assert.ok(state.over && state.summary, `${challenge.id} did not finish`);
+    assert.ok(
+      isChallengeCleared(challenge, state),
+      `${challenge.id} was not cleared by the expected policy (score=${state.summary?.score}, titles=${state.summary?.titles}, cash=${state.finance.cash}, trust=${state.board.trust}, fired=${state.summary?.fired}, seasons=${state.summary?.seasonsServed})`,
+    );
+
+    const applied = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, index, state);
+    assert.equal(applied.cleared, true, `${challenge.id} applyChallengeResult missed a clear`);
+    assert.ok(applied.progress.cleared[challenge.id], `${challenge.id} not marked cleared`);
+    assert.ok(
+      (applied.progress.bestScore[challenge.id] ?? 0) >= state.summary!.score,
+      `${challenge.id} best score not recorded`,
+    );
+  }
+
+  const first = CAREER_CHALLENGES[0];
+  const firstRun = playTenure(first.seedCode, first.teamId, challengeChooser(first.id));
+  firstRun.challengeId = first.id;
+  const fromZero = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 0, firstRun);
+  assert.equal(fromZero.progress.clearedCount, 1, 'clearing challenge 0 should open challenge 1');
+
+  const late = CAREER_CHALLENGES[3];
+  const lateRun = playTenure(late.seedCode, late.teamId, challengeChooser(late.id));
+  lateRun.challengeId = late.id;
+  const outOfOrder = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 3, lateRun);
+  assert.equal(
+    outOfOrder.progress.clearedCount,
+    0,
+    'clearing a locked challenge must not advance the cursor',
+  );
+  assert.equal(outOfOrder.cleared, true, 'goal can still be satisfied out of order');
+  assert.ok(outOfOrder.progress.cleared[late.id], 'out-of-order clear still stamps cleared map');
+}
+
+function expectRecordsAccumulateByClub(): void {
+  const a = playTenure('recwall1', 'lions', firstChoice);
+  const b = playTenure('recwall2', 'lions', firstChoice);
+  const c = playTenure('recwall3', 'dolphins', firstChoice);
+  assert.ok(a.summary && b.summary && c.summary);
+
+  let records = applyTenureToRecords(a, EMPTY_RECORDS);
+  records = applyTenureToRecords(b, records);
+  records = applyTenureToRecords(c, records);
+
+  const lionsBest = records.bestByClub.lions;
+  assert.ok(lionsBest, 'lions best missing');
+  assert.equal(
+    lionsBest.score,
+    Math.max(a.summary!.score, b.summary!.score),
+    'worse lions run overwrote the best',
+  );
+  assert.ok(records.bestByClub.dolphins, 'dolphins best missing');
+  assert.equal(records.milestoneCounts.tenures, 3);
+  assert.equal(
+    records.milestoneCounts.titles,
+    a.summary!.titles + b.summary!.titles + c.summary!.titles,
+  );
+
+  // A worse follow-up must not overwrite.
+  const worse = structuredClone(a);
+  worse.summary = { ...a.summary!, score: Math.max(0, a.summary!.score - 50) };
+  const afterWorse = applyTenureToRecords(worse, records);
+  assert.equal(afterWorse.bestByClub.lions?.score, lionsBest.score);
+}
+
+function expectArchiveBackfillsClubBest(): void {
+  assert.equal(clubIdFromArchiveLabel('南方猛獅'), 'lions');
+  assert.equal(clubIdFromArchiveLabel('lions'), 'lions');
+  assert.equal(clubIdFromArchiveLabel('???'), null);
+
+  const merged = mergeArchiveIntoRecords(
+    [
+      {
+        seedCode: 'arch0001',
+        gmName: '甲',
+        club: '南方猛獅',
+        verdict: '名總管',
+        score: 2000,
+        titles: 2,
+      },
+      {
+        seedCode: 'arch0002',
+        gmName: '乙',
+        club: '南方猛獅',
+        verdict: '稱職的經營者',
+        score: 1200,
+        titles: 0,
+      },
+      {
+        seedCode: 'arch0003',
+        gmName: '丙',
+        club: '新北海豚',
+        verdict: '平淡的十年',
+        score: 600,
+        titles: 0,
+      },
+    ],
+    EMPTY_RECORDS,
+  );
+  assert.equal(merged.bestByClub.lions?.score, 2000);
+  assert.equal(merged.bestByClub.lions?.seedCode, 'arch0001');
+  assert.equal(merged.bestByClub.dolphins?.score, 600);
+}
+
 const checks: [string, () => void][] = [
   ['deterministic tenures', expectDeterministicTenures],
   ['seeds and choices matter', expectSeedsAndChoicesMatter],
@@ -711,6 +898,11 @@ const checks: [string, () => void][] = [
   ['every phase terminates', expectEveryPhaseTerminates],
   ['difficulty band holds', expectDifficultyBand],
   ['undo is not a re-roll', expectUndoIsNotAReroll],
+  ['challenge defs are sound', expectChallengeDefsAreSound],
+  ['challenge unlock math', expectChallengeUnlockMath],
+  ['challenge seeds are clearable', expectChallengeSeedsAreClearable],
+  ['records accumulate by club', expectRecordsAccumulateByClub],
+  ['archive backfills club best', expectArchiveBackfillsClubBest],
 ];
 
 let failed = 0;
