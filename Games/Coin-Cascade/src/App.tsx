@@ -367,7 +367,7 @@ export default function App(): React.ReactElement {
           <button
             type="button"
             onClick={() => setShowModes(true)}
-            aria-label={`開啟挑戰模式包。${packSubtitle}`}
+            aria-label={`挑戰／模式包。${packSubtitle}`}
             className="min-h-[44px] w-full rounded-xl font-semibold text-amber-100 border border-amber-400/50 bg-amber-500/15 hover:bg-amber-500/25 transition-colors touch-manipulation px-6 py-3"
           >
             挑戰／模式包
@@ -398,7 +398,7 @@ export default function App(): React.ReactElement {
                 </div>
                 <button
                   type="button"
-                  aria-label="關閉挑戰模式包"
+                  aria-label="關閉挑戰／模式包"
                   onClick={() => setShowModes(false)}
                   className="shrink-0 rounded-lg border border-amber-700/50 bg-slate-900/80 px-3 py-2 text-xs font-bold text-amber-100"
                 >
@@ -408,7 +408,6 @@ export default function App(): React.ReactElement {
 
               <button
                 type="button"
-                aria-label="繼續挑戰模式包"
                 onClick={() => {
                   const mode = modeAt(packContinue);
                   if (!mode) return;
