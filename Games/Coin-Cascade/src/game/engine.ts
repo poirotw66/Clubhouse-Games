@@ -61,7 +61,28 @@ import {
   LATERAL_SLIDE,
 } from './constants';
 import { hashString, streamRng } from './rng';
-import type { Coin, CoinKind, FallEvent, PlayerInput, RunState, TickEvents } from './types';
+import type {
+  Coin,
+  CoinKind,
+  FallEvent,
+  PlayerInput,
+  RunConfig,
+  RunState,
+  TickEvents,
+} from './types';
+
+/** Options accepted by createRun for free play and challenge modes. */
+export interface CreateRunOptions {
+  startingCredits?: number;
+  /**
+   * Playable tick budget after the opening settle. Converted into an absolute
+   * `config.deadlineTick` once settle finishes. Null / omitted = unlimited.
+   */
+  timeLimitTicks?: number | null;
+  modeId?: string | null;
+  clearScore?: number | null;
+  clearCascade?: number | null;
+}
 
 const NO_EVENTS: TickEvents = {
   fallen: [],
@@ -166,18 +187,26 @@ function buildInitialShelf(seed: number, triggerZoneX: number): Coin[] {
   return coins;
 }
 
-function emptyRunState(seedCode: string, seed: number, triggerZoneX: number, coins: Coin[]): RunState {
+function emptyRunState(
+  seedCode: string,
+  seed: number,
+  triggerZoneX: number,
+  coins: Coin[],
+  config: RunConfig,
+): RunState {
   const nextCoinId = coins.reduce((max, c) => Math.max(max, c.id), 0) + 1;
   return {
     seed,
     seedCode,
     tick: 0,
     phase: 'playing',
+    config,
+    modeId: config.modeId,
     coins,
     nextCoinId,
     cooldown: 0,
     ticksSinceLastDrop: 0,
-    creditsRemaining: STARTING_CREDITS,
+    creditsRemaining: config.startingCredits,
     creditsSpent: 0,
     coinsRecovered: 0,
     score: 0,
@@ -196,17 +225,40 @@ function emptyRunState(seedCode: string, seed: number, triggerZoneX: number, coi
   };
 }
 
-export function createRun(seedCode: string): RunState {
+export function createRun(seedCode: string, options: CreateRunOptions = {}): RunState {
   const seed = hashString(seedCode);
   const triggerZoneX = triggerZoneXFor(seed, 0);
   const initialCoins = buildInitialShelf(seed, triggerZoneX);
-  let state = emptyRunState(seedCode, seed, triggerZoneX, initialCoins);
+  const startingCredits = options.startingCredits ?? STARTING_CREDITS;
+  const provisional: RunConfig = {
+    startingCredits,
+    deadlineTick: null,
+    modeId: options.modeId ?? null,
+    clearScore: options.clearScore ?? null,
+    clearCascade: options.clearCascade ?? null,
+  };
+  let state = emptyRunState(seedCode, seed, triggerZoneX, initialCoins, provisional);
 
   for (let i = 0; i < INITIAL_SETTLE_TICKS; i++) {
     state = step(state, IDLE_INPUT, FIXED_DT);
   }
 
-  return { ...state, events: NO_EVENTS };
+  const timeBudget = options.timeLimitTicks;
+  const deadlineTick =
+    timeBudget != null && timeBudget > 0 ? state.tick + timeBudget : null;
+  const config: RunConfig = { ...provisional, deadlineTick };
+  return { ...state, config, modeId: config.modeId, events: NO_EVENTS };
+}
+
+/** True when the run should stop accepting drops and begin settling out. */
+export function isWindingDown(state: RunState): boolean {
+  if (state.creditsRemaining <= 0) return true;
+  if (state.config.deadlineTick !== null && state.tick >= state.config.deadlineTick) return true;
+  if (state.config.clearScore !== null && state.score >= state.config.clearScore) return true;
+  if (state.config.clearCascade !== null && state.longestCascade >= state.config.clearCascade) {
+    return true;
+  }
+  return false;
 }
 
 // ── Solver internals ────────────────────────────────────────────────────
@@ -317,12 +369,24 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
   let pendingTrigger: Working | null = null;
 
   if (state.phase === 'playing' && input.drop) {
-    // A run's only exit is credits reaching zero, so every affordable drop has
-    // to be able to *spend*. Left as a plain rejection, a special selected with
-    // too few credits left to buy it soft-locks the machine: 1 credit remaining
-    // with 震動 (3) held down rejects forever, credits never reach zero, and the
-    // run can never end — no result screen, no restart. Observed in the browser:
-    // 2,425 drops over 306s all rejected, stuck at 1 credit.
+    // Timed / early-clear modes wind down once the deadline or goal is hit;
+    // further drops would only spend leftover credits after the challenge is
+    // already decided, so reject them the same way a spent-out free play does.
+    const closedForDrops =
+      (state.config.deadlineTick !== null && state.tick >= state.config.deadlineTick) ||
+      (state.config.clearScore !== null && state.score >= state.config.clearScore) ||
+      (state.config.clearCascade !== null && state.longestCascade >= state.config.clearCascade);
+
+    if (closedForDrops) {
+      rejectedDrop = true;
+    } else {
+    // A run's only free-play exit is credits reaching zero, so every affordable
+    // drop has to be able to *spend*. Left as a plain rejection, a special
+    // selected with too few credits left to buy it soft-locks the machine: 1
+    // credit remaining with 震動 (3) held down rejects forever, credits never
+    // reach zero, and the run can never end — no result screen, no restart.
+    // Observed in the browser: 2,425 drops over 306s all rejected, stuck at 1
+    // credit.
     //
     // So an unaffordable selection falls back to the cheapest coin instead of
     // being refused. Your last credit always buys something, which makes
@@ -377,6 +441,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
       potGrewBy += cost * POT_CUT_RATE;
       cooldown = DROP_COOLDOWN_TICKS;
       ticksSinceLastDrop = 0;
+    }
     }
   }
 
@@ -517,8 +582,16 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     timingBonuses,
   };
 
+  const goalMet =
+    (state.config.clearScore !== null && score >= state.config.clearScore) ||
+    (state.config.clearCascade !== null && longestCascade >= state.config.clearCascade);
+  const timeUp =
+    state.config.deadlineTick !== null && tick >= state.config.deadlineTick;
+  const windDown =
+    creditsRemaining <= 0 || goalMet || timeUp;
+
   const phase: RunState['phase'] =
-    state.phase === 'ended' || (creditsRemaining <= 0 && ticksSinceLastDrop >= SETTLE_GRACE_TICKS)
+    state.phase === 'ended' || (windDown && ticksSinceLastDrop >= SETTLE_GRACE_TICKS)
       ? 'ended'
       : 'playing';
 
@@ -527,6 +600,8 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     seedCode: state.seedCode,
     tick,
     phase,
+    config: state.config,
+    modeId: state.modeId,
     coins,
     nextCoinId,
     cooldown,

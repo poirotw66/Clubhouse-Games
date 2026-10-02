@@ -36,24 +36,39 @@ font-size:28px;font-weight:1000;color:#ffdf68;text-shadow:3px 3px #261b23}
 #damage{position:absolute;inset:0;box-shadow:inset 0 0 160px 50px #f32619;opacity:0}
 #controls{position:absolute;bottom:10px;width:100%;text-align:center;font-size:10px;color:#ffefc180}
 #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-background:linear-gradient(110deg,#17111ee8,#35202a99);color:#fff}
-.panel{max-width:680px;padding:45px;border-left:8px solid #ffce48;
-background:#201922e8;box-shadow:14px 14px 0 #0005;transform:skew(-3deg)}
+background:linear-gradient(110deg,#17111ee8,#35202a99);color:#fff;z-index:5}
+.panel{max-width:720px;width:min(720px,92vw);padding:36px 40px;border-left:8px solid #ffce48;
+background:#201922e8;box-shadow:14px 14px 0 #0005;transform:skew(-3deg);max-height:92vh;overflow:auto}
 .tag{color:#ffce48;letter-spacing:5px;font-size:12px;font-weight:bold}
-h1{font-size:clamp(48px,9vw,82px);line-height:.9;margin:22px 0;color:#ffd653;
+.panel h1{font-size:clamp(40px,8vw,72px);line-height:.9;margin:18px 0 12px;color:#ffd653;
 font-weight:1000;font-style:italic;text-shadow:5px 5px #bd563a}
-h2{margin:0 0 20px;letter-spacing:8px;font-size:20px}
-p{color:#d5c7bd;line-height:1.9;font-size:14px}
-button{border:3px solid #171119;background:#ffcf49;color:#201922;
-padding:15px 30px;font-size:18px;font-weight:1000;cursor:pointer;
-box-shadow:5px 5px 0 #b14d31;margin-top:14px}
-button:hover{background:#fff1a2}
-#status{font-size:12px;color:#e7b890;margin-top:18px}
+.panel h2{margin:0 0 14px;letter-spacing:8px;font-size:18px}
+.panel p{color:#d5c7bd;line-height:1.7;font-size:14px;margin:10px 0}
+.panel button,.actions button{border:3px solid #171119;background:#ffcf49;color:#201922;
+padding:12px 22px;font-size:16px;font-weight:1000;cursor:pointer;
+box-shadow:5px 5px 0 #b14d31;margin:6px 8px 6px 0;pointer-events:auto}
+.panel button:hover,.actions button:hover{background:#fff1a2}
+.panel button.secondary{background:#3a3038;color:#ffe7b0;box-shadow:5px 5px 0 #1a1418}
+.panel button.ghost{background:transparent;color:#ffd653;box-shadow:none}
+.panel button.mode{display:block;width:100%;text-align:left;background:#2a222c;color:#ffe7b0;
+box-shadow:3px 3px 0 #120e14;margin:8px 0;padding:12px 14px;transform:skew(0)}
+.panel button.mode.active{background:#ffcf49;color:#201922}
+.panel button.mode small{display:block;font-weight:600;opacity:.85;margin-top:4px;font-size:12px}
+.badge{display:inline-block;padding:4px 10px;margin:0 6px 6px 0;background:#ffcf49;color:#201922;
+font-size:12px;font-weight:900;letter-spacing:1px}
+.badge.gold{background:#ff8f5a}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.result-grid div{background:#2a222c;padding:10px 12px}
+.result-grid small{display:block;color:#e7b890;font-size:11px;letter-spacing:1px}
+.result-grid b{font-size:20px}
+.result-score{font-size:42px;font-weight:1000;color:#ffd653;margin:8px 0}
+#status{font-size:12px;color:#e7b890;margin-top:14px}
+.actions{display:flex;flex-wrap:wrap;align-items:center;margin-top:8px}
 </style>
 </head>
 <body>
 <div id="hud">
-  <div class="top"><div class="brand">DUST RIOT</div><div class="sub">WASTELAND SURVIVAL / 01</div></div>
+  <div class="top"><div class="brand">DUST RIOT</div><div class="sub" id="modeSub">WASTELAND SURVIVAL</div></div>
   <div id="wave"></div>
   <div class="bottom">
     <div class="label">VITALS // 生命值 <span id="hpText">100</span></div>
@@ -63,21 +78,29 @@ button:hover{background:#fff1a2}
   <div id="ammo"><span id="rounds">24</span><small> / ∞</small><div id="weapon">SCRAP-RIFLE // MK.04</div></div>
   <div id="cross"></div><div id="hit">×</div>
   <div id="notice"></div><div id="damage"></div>
-  <div id="controls">WASD 移動 · SHIFT 奔跑 · SPACE 跳躍 · R 換彈 · ESC 暫停</div>
+  <div id="controls">WASD 移動 · SHIFT 奔跑 · SPACE 跳躍 · R 換彈 · ESC 暫停 · 滑鼠瞄準射擊</div>
 </div>
 <div id="overlay">
-  <div class="panel">
-    <div class="tag">INK. IRON. MAYHEM.</div>
-    <h1>DUST RIOT</h1><h2>荒 土 暴 動</h2>
-    <p id="description">廢土沒有英雄，只有還沒打空的彈匣。<br>
-    在荒漠前哨站擊退機械掠奪者，收集綠色補給，撐過更多波次。<br>
-    命中黃色頭部造成雙倍傷害；利用掩體避開紅色能量彈。</p>
-    <button id="start">進入荒土 →</button>
-    <div id="status">正在啟動引擎…</div>
-  </div>
+  <div class="panel" id="panel"></div>
 </div>
 <script type="module">
 import * as THREE from "../vendor/three/build/three.module.min.js";
+import {
+  DIFFICULTIES,
+  DIFFICULTY_ORDER,
+  STORAGE_KEY,
+  enemyFireCooldown,
+  enemyHp,
+  enemySpeed,
+  endReasonLabel,
+  getDifficulty,
+  killScore,
+  migrateStats,
+  projectileSpeed,
+  reachedClearWave,
+  recordRun,
+  spawnCount,
+} from "./rules.mjs";
 
 const $ = id => document.getElementById(id);
 const scene = new THREE.Scene();
@@ -105,12 +128,6 @@ Object.assign(sun.shadow.camera, { left:-48, right:48, top:48, bottom:-48, far:1
 sun.shadow.normalBias = .04;
 scene.add(sun);
 
-const gradient = new THREE.DataTexture(
-  new Uint8Array([65,65,65, 150,150,150, 255,255,255]),
-  3, 1, THREE.RGBFormat
-);
-// 使用 RGBA 漸層，確保 WebGL2 相容。
-gradient.dispose();
 const bands = new THREE.DataTexture(new Uint8Array([
   65,65,65,255, 150,150,150,255, 255,255,255,255
 ]),3,1,THREE.RGBAFormat);
@@ -164,7 +181,6 @@ building(0,-24,8,3,4,0x867764);
 building(-27,-2,5,8,9,0x9d6d51);
 building(28,0,5,6,9,0xa77652);
 
-// 水塔與生鏽管線
 const tower = new THREE.Group(); scene.add(tower); tower.position.set(13,7,-14);
 mesh(new THREE.CylinderGeometry(2,2,3,10),0x617b79,[1,1,1],[0,2.6,0],tower);
 for(const x of [-1.3,1.3]) for(const z of [-1.3,1.3])
@@ -182,13 +198,11 @@ const sign = new THREE.Mesh(new THREE.PlaneGeometry(6,1.88),
   new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide}));
 sign.position.set(-12,4,-6.43);scene.add(sign);
 
-// 可當掩體的貨箱
 for(const [x,z] of [[-5,6],[5,-5],[7,19],[-7,-19],[-21,6],[21,-7]]) {
   building(x,z,2.3,1.7,2.1,0x697d76);
   box(0xd9a84e,[2.4,.22,2.2],[x,.55,z]);
 }
 
-// 邊界岩壁
 for(let i=0;i<64;i++){
   const a=i/64*Math.PI*2;
   const r=46+Math.random()*5;
@@ -202,7 +216,6 @@ for(let i=0;i<85;i++){
   mesh(sphereGeo,0xa87c52,[.15+Math.random()*.5,.12+Math.random()*.25,.3],[x,.06,z],scene,false);
 }
 
-// 第一人稱武器
 const gun = new THREE.Group(); camera.add(gun);
 gun.position.set(.32,-.27,-.55);
 box(0xdab144,[.20,.20,.48],[0,0,0],gun);
@@ -222,17 +235,34 @@ muzzle.position.set(0,.025,-.8);
 gun.add(muzzle);muzzle.visible=false;
 gun.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;}});
 
+let selectedMode="normal";
+let stats=loadStats();
+let ui="menu"; // menu | playing | paused | over
 const player = {pos:new THREE.Vector3(0,1.7,18), hp:100, vy:0};
 let enemies=[], shots=[], effects=[], pickups=[];
 let wave=0,kills=0,score=0,ammo=24,reload=0;
 let fireWait=0,recoil=0,flash=0,hitTime=0,hurtTime=0,noticeTime=0,nextWave=0;
-let locked=false,started=false,dead=false,firing=false,spaceHeld=false;
+let locked=false,firing=false,spaceHeld=false,won=false;
 let yaw=0,pitch=0,elapsed=0;
 const keys={};
 const ray = new THREE.Raycaster();
-const v = new THREE.Vector3();
 const projectileGeo=new THREE.SphereGeometry(.16,6,4);
 const projectileMat=new THREE.MeshBasicMaterial({color:0xff472a});
+
+function loadStats() {
+  let raw=null;
+  try { raw=JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch(e) {}
+  return migrateStats(raw);
+}
+function saveStats() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stats)); } catch(e) {}
+}
+function modeBest(mode=selectedMode) {
+  return stats.bestByMode[mode] || { wave:0, score:0 };
+}
+function rules() {
+  return getDifficulty(selectedMode);
+}
 
 function blocked(x,z,r=.48) {
   if(Math.hypot(x,z)>41)return true;
@@ -246,13 +276,103 @@ function announce(text,time=2) {
   $("notice").textContent=text;noticeTime=time;
 }
 function updateHUD(){
-  $("health").style.width=player.hp+"%";
+  const d=rules();
+  $("health").style.width=Math.max(0, Math.min(100, player.hp / d.startingHp * 100))+"%";
   $("hpText").textContent=Math.ceil(player.hp);
   $("rounds").textContent=reload>0?"••":ammo;
   $("weapon").textContent=reload>0?"RELOADING // 換彈中":"SCRAP-RIFLE // MK.04";
-  $("wave").innerHTML=`波次 ${String(wave).padStart(2,"0")}<br><small>敵人 ${enemies.length}</small>`;
-  $("stats").textContent=`擊殺 ${kills}　 /　 分數 ${score.toLocaleString()}`;
+  $("modeSub").textContent=`${d.label} · 目標第 ${d.clearWave} 波`;
+  $("wave").innerHTML=`波次 ${String(wave).padStart(2,"0")} / ${String(d.clearWave).padStart(2,"0")}<br><small>敵人 ${enemies.length}</small>`;
+  const best=modeBest();
+  $("stats").textContent=`擊殺 ${kills}　 /　 分數 ${score.toLocaleString()}　 /　 最佳波 ${best.wave}`;
 }
+
+function showOverlay(html) {
+  $("panel").innerHTML=html;
+  $("overlay").style.display="flex";
+}
+function hideOverlay() {
+  $("overlay").style.display="none";
+}
+
+function modeButtonsHtml() {
+  return DIFFICULTY_ORDER.map(id=>{
+    const d=DIFFICULTIES[id];
+    const best=stats.bestByMode[id]||{wave:0,score:0};
+    const clears=stats.clearsByMode[id]||0;
+    return `<button type="button" class="mode ${id===selectedMode?"active":""}" data-mode="${id}">
+      <b>${d.label}</b> · 最佳波 ${best.wave} · 最高分 ${best.score.toLocaleString()} · 通關 ${clears}
+      <small>${d.blurb}</small>
+    </button>`;
+  }).join("");
+}
+
+function bindModeButtons() {
+  $("panel").querySelectorAll("[data-mode]").forEach(btn=>{
+    btn.onclick=()=>{
+      selectedMode=btn.getAttribute("data-mode");
+      menu({ preserveMode:true });
+    };
+  });
+}
+
+function menu({ preserveMode=false }={}) {
+  ui="menu";
+  won=false;
+  $("hud").style.display="none";
+  if(document.pointerLockElement) document.exitPointerLock();
+  if(!preserveMode && DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
+  const best=modeBest();
+  showOverlay(`
+    <div class="tag">INK. IRON. MAYHEM.</div>
+    <h1>DUST RIOT</h1><h2>荒 土 暴 動</h2>
+    <p>廢土沒有英雄，只有還沒打空的彈匣。選難度，守住目標波次，再挑戰更高紀錄。</p>
+    <div>${modeButtonsHtml()}</div>
+    <p>命中黃色頭部雙倍傷害；綠箱補血；利用掩體避開紅彈。<br>
+    本模式最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分</p>
+    <div class="actions">
+      <button type="button" id="start">進入荒土 →</button>
+    </div>
+    <div id="status">引擎就緒 · 點擊開始以鎖定滑鼠（桌面瀏覽器）</div>`);
+  bindModeButtons();
+  $("start").onclick=()=>beginRun();
+}
+
+async function requestLock() {
+  try {
+    await renderer.domElement.requestPointerLock();
+    return true;
+  } catch(e) {
+    const status=$("status");
+    if(status) status.textContent="無法鎖定滑鼠，請使用獨立瀏覽器頁面並再次點擊。";
+    return false;
+  }
+}
+
+function beginRun() {
+  resetRun();
+  ui="playing";
+  $("hud").style.display="block";
+  hideOverlay();
+  requestLock();
+}
+
+function resetRun() {
+  enemies.forEach(e=>scene.remove(e.g));
+  shots.forEach(s=>scene.remove(s.m));
+  effects.forEach(removeEffect);
+  pickups.forEach(p=>scene.remove(p.g));
+  enemies=[];shots=[];effects=[];pickups=[];
+  Object.keys(keys).forEach(k=>delete keys[k]);
+  const d=rules();
+  player.pos.set(0,1.7,18);player.hp=d.startingHp;player.vy=0;
+  wave=kills=score=reload=fireWait=recoil=nextWave=0;
+  hurtTime=hitTime=flash=0;ammo=24;yaw=pitch=0;elapsed=0;
+  won=false;firing=false;spaceHeld=false;
+  beginWave();
+  updateHUD();
+}
+
 function spawnEnemy(){
   let x,z,tries=0;
   do{
@@ -261,15 +381,15 @@ function spawnEnemy(){
   }while(tries<150&&(blocked(x,z,.8)||Math.hypot(x-player.pos.x,z-player.pos.z)<16));
   if(blocked(x,z,.8))return;
   const g=new THREE.Group();scene.add(g);g.position.set(x,0,z);
-  const e={g,hp:65+wave*7,speed:1.6+Math.min(wave*.14,1.8),
+  const e={g,hp:enemyHp(wave, selectedMode),speed:enemySpeed(wave, selectedMode),
     cooldown:1+Math.random()*2,phase:Math.random()*6,parts:[]};
   const body=box(0xa94734,[.85,.95,.52],[0,1.3,0],g);
   const head=box(0xf3bd49,[.55,.52,.50],[0,2.05,0],g);
   box(0x282b35,[.44,.13,.05],[0,2.08,.275],g);
   box(0xff492d,[.27,.055,.055],[0,2.09,.31],g,false);
-  for(const x of [-.52,.52]){
-    box(0x515361,[.25,.75,.28],[x,1.25,0],g);
-    const leg=box(0x3a414a,[.28,.73,.32],[x*.48,.4,0],g);
+  for(const sx of [-.52,.52]){
+    box(0x515361,[.25,.75,.28],[sx,1.25,0],g);
+    const leg=box(0x3a414a,[.28,.73,.32],[sx*.48,.4,0],g);
     e.parts.push(leg);
   }
   box(0x292e38,[.23,.23,.7],[.55,1.13,.35],g);
@@ -282,8 +402,10 @@ function spawnEnemy(){
 }
 function beginWave(){
   wave++;
-  for(let i=0;i<Math.min(3+wave*2,22);i++)spawnEnemy();
-  announce(`第 ${wave} 波 // 清理掠奪者`,2.8);
+  const n=spawnCount(wave, selectedMode);
+  for(let i=0;i<n;i++)spawnEnemy();
+  const d=rules();
+  announce(`第 ${wave} 波 // 目標 ${d.clearWave} · 清理掠奪者`,2.8);
   updateHUD();
 }
 function addPickup(pos){
@@ -307,18 +429,18 @@ function damageEnemy(e,amount,point){
   if(e.hp<=0){
     scene.remove(e.g);
     enemies=enemies.filter(a=>a!==e);
-    kills++;score+=100+wave*15;
+    kills++;score+=killScore(wave);
     if(Math.random()<.45)addPickup(e.g.position);
     particles(e.g.position.clone().add(new THREE.Vector3(0,1,0)),0xb84730,12);
   }
   updateHUD();
 }
 function startReload(){
-  if(reload>0||ammo===24||dead)return;
+  if(reload>0||ammo===24||ui!=="playing")return;
   reload=1.35;updateHUD();
 }
 function shoot(){
-  if(fireWait>0||reload>0||dead)return;
+  if(fireWait>0||reload>0||ui!=="playing")return;
   if(ammo<=0){startReload();return;}
   ammo--;fireWait=.115;recoil=Math.min(recoil+.065,.14);flash=.045;
   camera.updateMatrixWorld(true);
@@ -339,62 +461,109 @@ function shoot(){
   scene.add(line);effects.push({m:line,time:.045,dispose:true});
   updateHUD();
 }
+
+function finishRun(outcome) {
+  if(ui==="over") return;
+  ui="over";
+  firing=false;
+  won = outcome === "victory";
+  if(document.pointerLockElement) document.exitPointerLock();
+  const d=rules();
+  const result=recordRun(stats, {
+    mode:selectedMode, wave, score, won
+  });
+  stats=result.stats;
+  saveStats();
+  const best=modeBest(selectedMode);
+  const badges=[
+    `<span class="badge">${d.label}</span>`,
+    won?`<span class="badge gold">通關</span>`:`<span class="badge">戰敗</span>`,
+    result.isWaveBest?`<span class="badge gold">最高波次</span>`:"",
+    result.isScoreBest?`<span class="badge gold">最高分數</span>`:"",
+  ].filter(Boolean).join("");
+  showOverlay(`
+    <div class="tag">${won?"HOLD THE LINE":"DUST TO DUST"}</div>
+    <h1>${won?"哨站守住了！":"你倒在荒土上。"}</h1>
+    <p>${badges}</p>
+    <div class="result-score">${score.toLocaleString()}<span> 分</span></div>
+    <p style="margin:0">${endReasonLabel(outcome)} · 第 ${wave} 波 · 擊殺 ${kills}</p>
+    <div class="result-grid">
+      <div><small>本局波次</small><b>${wave}</b></div>
+      <div><small>目標波次</small><b>${d.clearWave}</b></div>
+      <div><small>本模式最佳波</small><b>${best.wave}</b></div>
+      <div><small>本模式最高分</small><b>${best.score.toLocaleString()}</b></div>
+    </div>
+    <div class="actions">
+      <button type="button" id="again">再來一局</button>
+      <button type="button" class="ghost" id="back">換模式</button>
+    </div>
+    <div id="status">紀錄已寫入本機瀏覽器</div>`);
+  $("again").onclick=()=>beginRun();
+  $("back").onclick=()=>menu();
+}
+
 function hurt(amount){
-  if(dead)return;
+  if(ui!=="playing")return;
   player.hp=Math.max(0,player.hp-amount);hurtTime=.35;
   updateHUD();
-  if(player.hp<=0){
-    dead=true;firing=false;
-    $("description").innerHTML=`你倒在了第 ${wave} 波。<br>擊殺 ${kills} 名掠奪者，獲得 ${score.toLocaleString()} 分。<br>再來一次，讓廢土記住你的名字。`;
-    $("start").textContent="重新出擊 →";
-    $("overlay").style.display="flex";
-    if(document.pointerLockElement)document.exitPointerLock();
-  }
+  if(player.hp<=0) finishRun("defeat");
 }
 function removeEffect(e){
   scene.remove(e.m);
   if(e.dispose){e.m.geometry.dispose();e.m.material.dispose();}
 }
-function reset(){
-  enemies.forEach(e=>scene.remove(e.g));
-  shots.forEach(s=>scene.remove(s.m));
-  effects.forEach(removeEffect);
-  pickups.forEach(p=>scene.remove(p.g));
-  enemies=[];shots=[];effects=[];pickups=[];
-  Object.keys(keys).forEach(k=>delete keys[k]);
-  player.pos.set(0,1.7,18);player.hp=100;player.vy=0;
-  wave=kills=score=reload=fireWait=recoil=nextWave=0;
-  hurtTime=hitTime=flash=0;ammo=24;yaw=pitch=0;
-  dead=false;started=true;firing=false;beginWave();
+
+function pauseGame() {
+  if(ui!=="playing") return;
+  ui="paused";
+  firing=false;
+  if(document.pointerLockElement) document.exitPointerLock();
+  const d=rules();
+  const best=modeBest();
+  showOverlay(`
+    <div class="tag">TAKE COVER</div>
+    <h1>先喘口氣。</h1>
+    <p>${d.label} · 第 ${wave} / ${d.clearWave} 波 · 分數 ${score.toLocaleString()}<br>
+    本模式最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分</p>
+    <div class="actions">
+      <button type="button" id="resume">繼續戰鬥 →</button>
+      <button type="button" class="secondary" id="pauseMenu">返回選單</button>
+    </div>`);
+  $("resume").onclick=async()=>{
+    ui="playing";
+    hideOverlay();
+    await requestLock();
+  };
+  $("pauseMenu").onclick=()=>menu();
 }
-$("status").textContent="引擎就緒 · 點擊開始以鎖定滑鼠";
-$("start").onclick=async()=>{
-  if(!started||dead)reset();
-  try{await renderer.domElement.requestPointerLock();}
-  catch{$("status").textContent="無法鎖定滑鼠，請使用獨立瀏覽器頁面並再次點擊。";}
-};
+
 document.addEventListener("pointerlockchange",()=>{
   locked=document.pointerLockElement===renderer.domElement;
-  $("hud").style.display=started?"block":"none";
-  $("overlay").style.display=locked?"none":"flex";
+  if(ui==="playing") {
+    $("hud").style.display="block";
+    if(!locked) pauseGame();
+    else hideOverlay();
+  }
   firing=false;
   Object.keys(keys).forEach(k=>delete keys[k]);
   spaceHeld=false;
-  if(!locked&&started&&!dead){
-    $("description").innerHTML="遊戲已暫停。<br>喘口氣，然後回去把彈匣打空。";
-    $("start").textContent="繼續戰鬥 →";
-  }
 });
 document.addEventListener("pointerlockerror",()=>{
-  $("status").textContent="滑鼠鎖定失敗：請在一般電腦瀏覽器分頁開啟此遊戲。";
+  const status=$("status");
+  if(status) status.textContent="滑鼠鎖定失敗：請在一般電腦瀏覽器分頁開啟此遊戲。";
 });
 document.addEventListener("mousemove",e=>{
-  if(!locked)return;
+  if(!locked||ui!=="playing")return;
   yaw-=e.movementX*.0022;
   pitch=THREE.MathUtils.clamp(pitch-e.movementY*.0022,-1.4,1.4);
 });
 document.addEventListener("keydown",e=>{
-  if(!locked)return;
+  if(e.code==="Escape" && ui==="playing") {
+    e.preventDefault();
+    pauseGame();
+    return;
+  }
+  if(!locked||ui!=="playing")return;
   if(["Space","KeyW","KeyA","KeyS","KeyD"].includes(e.code))e.preventDefault();
   keys[e.code]=true;
   if(e.code==="KeyR")startReload();
@@ -406,11 +575,11 @@ document.addEventListener("keydown",e=>{
 document.addEventListener("keyup",e=>{
   keys[e.code]=false;if(e.code==="Space")spaceHeld=false;
 });
-document.addEventListener("mousedown",e=>{if(locked&&e.button===0)firing=true;});
+document.addEventListener("mousedown",e=>{if(locked&&ui==="playing"&&e.button===0)firing=true;});
 document.addEventListener("mouseup",e=>{if(e.button===0)firing=false;});
 window.addEventListener("blur",()=>{
   firing=false;
-  if(document.pointerLockElement)document.exitPointerLock();
+  if(ui==="playing") pauseGame();
 });
 window.addEventListener("contextmenu",e=>e.preventDefault());
 window.addEventListener("resize",()=>{
@@ -445,6 +614,7 @@ function update(dt){
   muzzle.visible=flash>0;
   if(firing)shoot();
 
+  const d=rules();
   for(const e of enemies){
     const dx=player.pos.x-e.g.position.x,dz=player.pos.z-e.g.position.z;
     const dist=Math.hypot(dx,dz);
@@ -457,7 +627,7 @@ function update(dt){
     e.parts.forEach((leg,i)=>leg.rotation.x=Math.sin(elapsed*8+i*Math.PI+e.phase)*.32);
     e.cooldown-=dt;
     if(e.cooldown<=0&&dist<34){
-      e.cooldown=Math.max(.75,2-wave*.06)+Math.random()*.6;
+      e.cooldown=enemyFireCooldown(wave, selectedMode)+Math.random()*.6;
       const origin=e.g.position.clone().add(new THREE.Vector3(0,1.45,0));
       const dir=player.pos.clone().sub(origin).normalize();
       ray.set(origin,dir);
@@ -465,7 +635,8 @@ function update(dt){
       if(!obstruction||obstruction.distance>origin.distanceTo(player.pos)){
         const m=new THREE.Mesh(projectileGeo,projectileMat);
         m.position.copy(origin);scene.add(m);
-        shots.push({m,vel:dir.multiplyScalar(11+Math.min(wave,8)),life:5});
+        const spd=projectileSpeed(wave, selectedMode);
+        shots.push({m,vel:dir.multiplyScalar(spd),life:5});
       }
     }
   }
@@ -479,7 +650,7 @@ function update(dt){
     const hitPlayer=nearest.distanceTo(player.pos)<.55;
     s.life-=dt;
     const hitWall=wall&&wall.distance<=step.length();
-    if(hitPlayer&&!hitWall)hurt(11);
+    if(hitPlayer&&!hitWall)hurt(d.enemyDamage);
     s.m.position.copy(end);
     if(s.life<=0||hitPlayer||hitWall){
       scene.remove(s.m);shots.splice(i,1);
@@ -494,9 +665,9 @@ function update(dt){
     const p=pickups[i];p.time-=dt;p.g.rotation.y+=dt*2;
     p.g.position.y=.65+Math.sin(elapsed*3)*.13;
     const near=Math.hypot(p.g.position.x-player.pos.x,p.g.position.z-player.pos.z)<1.3;
-    if(near&&player.hp<100){
-      player.hp=Math.min(100,player.hp+28);
-      announce("+28 生命值",.8);updateHUD();
+    if(near&&player.hp<d.startingHp){
+      player.hp=Math.min(d.startingHp,player.hp+d.pickupHeal);
+      announce(`+${d.pickupHeal} 生命值`,.8);updateHUD();
       p.time=0;
     }
     if(p.time<=0){scene.remove(p.g);pickups.splice(i,1);}
@@ -506,11 +677,15 @@ function update(dt){
   $("damage").style.opacity=hurtTime*.9;
   noticeTime=Math.max(0,noticeTime-dt);
   if(noticeTime===0)$("notice").textContent="";
-  if(enemies.length===0&&!dead){
+  if(enemies.length===0&&ui==="playing"){
+    if(reachedClearWave(wave, selectedMode)){
+      finishRun("victory");
+      return;
+    }
     if(nextWave===0){
       nextWave=3;
-      player.hp=Math.min(100,player.hp+15);
-      announce("區域淨空 // +15 生命值",2.5);updateHUD();
+      player.hp=Math.min(d.startingHp,player.hp+d.betweenWaveHeal);
+      announce(`區域淨空 // +${d.betweenWaveHeal} 生命值`,2.5);updateHUD();
     }else{
       nextWave-=dt;
       if(nextWave<=0){nextWave=0;beginWave();}
@@ -523,10 +698,28 @@ const clock=new THREE.Clock();
 function loop(){
   requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),.04);
-  if(locked&&!dead)update(dt);
+  if(locked&&ui==="playing")update(dt);
   renderer.render(scene,camera);
 }
+menu();
 loop();
+
+if (new URLSearchParams(location.search).has("test")) {
+  Object.assign(window, {
+    __dustRiotTest: {
+      finishRun,
+      beginRun,
+      menu,
+      pauseGame,
+      getMode: () => selectedMode,
+      setMode: (id) => { selectedMode = id; },
+      getStats: () => structuredClone(stats),
+      getWave: () => wave,
+      getScore: () => score,
+      getUi: () => ui,
+    },
+  });
+}
 </script>
 </body>
 </html>
