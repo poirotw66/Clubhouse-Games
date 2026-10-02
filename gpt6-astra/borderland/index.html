@@ -319,6 +319,8 @@ function bindModeButtons() {
 function menu({ preserveMode=false }={}) {
   ui="menu";
   won=false;
+  $("hud").style.display="none";
+  if(document.pointerLockElement) document.exitPointerLock();
   if(!preserveMode && DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
   const best=modeBest();
   showOverlay(`
@@ -701,6 +703,23 @@ function loop(){
 }
 menu();
 loop();
+
+if (new URLSearchParams(location.search).has("test")) {
+  Object.assign(window, {
+    __dustRiotTest: {
+      finishRun,
+      beginRun,
+      menu,
+      pauseGame,
+      getMode: () => selectedMode,
+      setMode: (id) => { selectedMode = id; },
+      getStats: () => structuredClone(stats),
+      getWave: () => wave,
+      getScore: () => score,
+      getUi: () => ui,
+    },
+  });
+}
 </script>
 </body>
 </html>
