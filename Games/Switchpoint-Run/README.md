@@ -23,10 +23,11 @@ npm run balance # balance harness (prints numbers, not pass/fail)
 - `src/game/` — pure simulation, no DOM imports. `rng.ts` (FNV-1a seed hash +
   mulberry32 + labelled streams + Fisher-Yates shuffle), `constants.ts` (every
   tunable number, all commented with why), `branches.ts` (the branch template
-  pool — pure data), `engine.ts` (`createRun` + `step`), `types.ts`.
+  pool — pure data), `engine.ts` (`createRun` + `step`), `types.ts`,
+  `challenges.ts` (fixed-seed challenge pack + unlock progress).
 - `src/App.tsx` / `src/components/GameCanvas.tsx` — React shell and a 2D
   Canvas renderer that reads a ref in a `requestAnimationFrame` loop, so React
-  itself never re-renders at 60fps.
+  itself never re-renders at 60fps. Title CTA「挑戰種子包」opens the stage picker.
 - `scripts/self-check.ts` — headless assertions, run via `npm run check`.
 - `scripts/balance.ts` — the four measurements the spec commits to, run via
   `npm run balance`. Prints numbers; it is not pass/fail.

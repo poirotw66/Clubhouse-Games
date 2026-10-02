@@ -76,9 +76,15 @@ export type Phase = 'playing' | 'relic' | 'dead' | 'won';
 
 export interface GameState {
   seed: number;
+  /** Display / challenge seed string that produced `seed` (empty when random). */
+  seedInput: string;
   rng: () => number;
   phase: Phase;
   endless: boolean;
+  /** Active challenge-pack id when this run was started from the pack. */
+  challengeId: string | null;
+  /** Boss floors (5 / 10 / 15) defeated this run, in order. */
+  bossesDefeated: number[];
 
   floor: number;
   layout: string;

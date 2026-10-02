@@ -17,6 +17,12 @@ import { Arena, type ArenaHandle } from './components/Arena';
 import { Hud, type HudSnapshot } from './components/Hud';
 import { RelicPicker } from './components/RelicPicker';
 import { TitleScreen } from './components/TitleScreen';
+import {
+  applyChallengeResult,
+  challengeById,
+  challengeIndexById,
+} from './game/challenges';
+import type { ChallengeProgress, SeedChallenge } from './game/challenges';
 import { MAX_FLOOR } from './game/config';
 import {
   buyHeal,
@@ -30,7 +36,13 @@ import {
 } from './game/engine';
 import { LAYOUT_NAME, type LayoutId } from './game/level';
 import { parseSeed } from './game/rng';
-import { loadBest, saveBest, type BestRecord } from './game/storage';
+import {
+  loadBest,
+  loadChallengeProgress,
+  saveBest,
+  saveChallengeProgress,
+  type BestRecord,
+} from './game/storage';
 import type { Dir, GameState, RelicId } from './game/types';
 
 type Screen = 'title' | 'run';
@@ -97,11 +109,17 @@ export default function App() {
   const pausedRef = useRef(false);
   const signatureRef = useRef('');
   const swipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const challengeSettledRef = useRef(false);
 
   const [screen, setScreen] = useState<Screen>('title');
   const [hud, setHud] = useState<HudSnapshot | null>(null);
   const [paused, setPaused] = useState(false);
   const [best, setBest] = useState<BestRecord>(() => loadBest());
+  const [challengeProgress, setChallengeProgress] = useState<ChallengeProgress>(() =>
+    loadChallengeProgress(),
+  );
+  const [activeChallenge, setActiveChallenge] = useState<SeedChallenge | null>(null);
+  const [challengeCleared, setChallengeCleared] = useState<boolean | null>(null);
   const [seedLabel, setSeedLabel] = useState('');
   const [flash, setFlash] = useState<{ text: string; tone: 'good' | 'bad' | 'neutral'; key: number } | null>(
     null,
@@ -119,63 +137,102 @@ export default function App() {
     pausedRef.current = paused;
   }, [paused]);
 
-  const startRun = useCallback((seedInput: string) => {
-    const seed = parseSeed(seedInput);
-    const state = createRun(seed);
+  const settleChallenge = useCallback((state: GameState) => {
+    if (challengeSettledRef.current) return;
+    if (!state.challengeId) {
+      setChallengeCleared(null);
+      return;
+    }
+    const challenge = challengeById(state.challengeId);
+    if (!challenge) {
+      setChallengeCleared(null);
+      return;
+    }
+    challengeSettledRef.current = true;
+    const index = challengeIndexById(challenge.id);
+    const applied = applyChallengeResult(loadChallengeProgress(), index, state);
+    saveChallengeProgress(applied.progress);
+    setChallengeProgress(applied.progress);
+    setChallengeCleared(applied.cleared);
+  }, []);
+
+  const startRun = useCallback((seedInput: string, challengeId: string | null = null) => {
+    const challenge = challengeId ? challengeById(challengeId) : undefined;
+    const input = challenge?.seedInput ?? seedInput;
+    const seed = parseSeed(input);
+    const state = createRun(seed, {
+      challengeId: challenge?.id ?? null,
+      seedInput: input.trim(),
+    });
     stateRef.current = state;
     signatureRef.current = '';
-    setSeedLabel(seedInput.trim() || String(seed));
+    challengeSettledRef.current = false;
+    setActiveChallenge(challenge ?? null);
+    setChallengeCleared(null);
+    setSeedLabel(input.trim() || String(seed));
     setHud(snapshot(state));
     setPaused(false);
     setFlash(null);
     setScreen('run');
   }, []);
 
-  const drainEvents = useCallback((state: GameState) => {
-    if (state.events.length === 0) return;
-    const events = state.events.splice(0, state.events.length);
+  const startChallenge = useCallback(
+    (challengeId: string) => {
+      startRun('', challengeId);
+    },
+    [startRun],
+  );
 
-    for (const event of events) {
-      switch (event.type) {
-        case 'eat':
-          playMove();
-          break;
-        case 'golden':
-          playScore();
-          setFlash({ text: '金蘋果 +3 金幣', tone: 'neutral', key: Date.now() });
-          break;
-        case 'cursed':
-          playError();
-          break;
-        case 'kill':
-          playCapture();
-          break;
-        case 'hurt':
-          playError();
-          break;
-        case 'bossHit':
-          playCapture();
-          break;
-        case 'bossDown':
-          playGoal();
-          setFlash({ text: '首領擊破！', tone: 'good', key: Date.now() });
-          break;
-        case 'exit':
-          playGoal();
-          break;
-        case 'win':
-          playWin();
-          setBest(saveBest({ score: state.score, floor: state.floor }));
-          break;
-        case 'die':
-          playLose();
-          setBest(saveBest({ score: state.score, floor: state.floor }));
-          break;
-        default:
-          break;
+  const drainEvents = useCallback(
+    (state: GameState) => {
+      if (state.events.length === 0) return;
+      const events = state.events.splice(0, state.events.length);
+
+      for (const event of events) {
+        switch (event.type) {
+          case 'eat':
+            playMove();
+            break;
+          case 'golden':
+            playScore();
+            setFlash({ text: '金蘋果 +3 金幣', tone: 'neutral', key: Date.now() });
+            break;
+          case 'cursed':
+            playError();
+            break;
+          case 'kill':
+            playCapture();
+            break;
+          case 'hurt':
+            playError();
+            break;
+          case 'bossHit':
+            playCapture();
+            break;
+          case 'bossDown':
+            playGoal();
+            setFlash({ text: '首領擊破！', tone: 'good', key: Date.now() });
+            break;
+          case 'exit':
+            playGoal();
+            break;
+          case 'win':
+            playWin();
+            setBest(saveBest({ score: state.score, floor: state.floor }));
+            settleChallenge(state);
+            break;
+          case 'die':
+            playLose();
+            setBest(saveBest({ score: state.score, floor: state.floor }));
+            settleChallenge(state);
+            break;
+          default:
+            break;
+        }
       }
-    }
-  }, []);
+    },
+    [settleChallenge],
+  );
 
   useEffect(() => {
     if (screen !== 'run') return;
@@ -252,13 +309,14 @@ export default function App() {
         return;
       }
       if (key === 'r' && (state.phase === 'dead' || state.phase === 'won')) {
-        startRun('');
+        if (activeChallenge) startRun(activeChallenge.seedInput, activeChallenge.id);
+        else startRun('');
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [screen, startRun]);
+  }, [screen, startRun, activeChallenge]);
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     swipeRef.current = { x: event.clientX, y: event.clientY, time: performance.now() };
@@ -293,6 +351,20 @@ export default function App() {
     playScore();
   };
 
+  const retryRun = () => {
+    if (activeChallenge) startRun(activeChallenge.seedInput, activeChallenge.id);
+    else startRun('');
+  };
+
+  const returnToTitle = () => {
+    stateRef.current = null;
+    setHud(null);
+    setActiveChallenge(null);
+    setChallengeCleared(null);
+    setChallengeProgress(loadChallengeProgress());
+    setScreen('title');
+  };
+
   if (screen === 'title' || !hud) {
     return (
       <div
@@ -306,12 +378,20 @@ export default function App() {
         }}
       >
         <BackToMenu />
-        <TitleScreen best={best} onStart={startRun} />
+        <TitleScreen
+          best={best}
+          challengeProgress={challengeProgress}
+          onStart={(seed) => startRun(seed)}
+          onStartChallenge={startChallenge}
+        />
       </div>
     );
   }
 
   const state = stateRef.current;
+  const challengeBanner = activeChallenge
+    ? `挑戰・${activeChallenge.name}｜目標：${activeChallenge.goalLabel}`
+    : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-3 pt-14 sm:pt-4">
@@ -333,7 +413,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => startRun('')}
+            onClick={retryRun}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -341,13 +421,19 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => setScreen('title')}
+            onClick={returnToTitle}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
           >
             <Home className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>
+
+      {challengeBanner && (
+        <p className="mb-2 w-full max-w-xl rounded-xl border border-sky-700/50 bg-sky-950/50 px-3 py-2 text-center text-xs text-sky-100">
+          {challengeBanner}
+        </p>
+      )}
 
       <Hud hud={hud} seedLabel={seedLabel} />
 
@@ -389,7 +475,11 @@ export default function App() {
       <p className="mt-3 text-center text-xs text-slate-500">
         方向鍵／WASD 轉向 · Space 衝刺 · P 暫停 ·{' '}
         <span className="md:hidden">畫面滑動轉向、輕點衝刺</span>
-        <span className="hidden md:inline">目標：抵達第 {MAX_FLOOR} 層並擊敗首領</span>
+        <span className="hidden md:inline">
+          {activeChallenge
+            ? `目標：${activeChallenge.goalLabel}`
+            : `目標：抵達第 ${MAX_FLOOR} 層並擊敗首領`}
+        </span>
       </p>
 
       {hud.phase === 'relic' && state && (
@@ -408,18 +498,38 @@ export default function App() {
 
       {hud.phase === 'dead' && (
         <ResultOverlay
-          title="蛇窟吞噬了你"
-          variant="lose"
-          badge={`第 ${hud.floor} 層`}
-          subtitle={`最佳紀錄：${best.score} 分 · 第 ${best.floor} 層`}
+          title={
+            activeChallenge
+              ? challengeCleared
+                ? '挑戰通關！'
+                : '挑戰未達成'
+              : '蛇窟吞噬了你'
+          }
+          variant={activeChallenge && challengeCleared ? 'win' : 'lose'}
+          badge={
+            activeChallenge
+              ? challengeCleared
+                ? activeChallenge.name
+                : `目標：${activeChallenge.goalLabel}`
+              : `第 ${hud.floor} 層`
+          }
+          subtitle={
+            activeChallenge
+              ? challengeCleared
+                ? `已記入通關・最佳分數可重刷`
+                : `再試一次・${activeChallenge.goalLabel}`
+              : `最佳紀錄：${best.score} 分 · 第 ${best.floor} 層`
+          }
           stats={[
             { label: '分數', value: hud.score },
             { label: '抵達樓層', value: hud.floor },
             { label: '擊殺', value: hud.kills },
             { label: '遺物', value: hud.relics.length },
           ]}
-          primaryLabel="再玩一局"
-          onPrimary={() => startRun('')}
+          primaryLabel={activeChallenge ? '再挑戰一次' : '再玩一局'}
+          onPrimary={retryRun}
+          secondaryLabel={activeChallenge ? '返回標題' : undefined}
+          onSecondary={activeChallenge ? returnToTitle : undefined}
         />
       )}
 
@@ -432,9 +542,15 @@ export default function App() {
         >
           <div className="w-full max-w-sm rounded-2xl border border-amber-500/40 bg-slate-900/95 p-6 text-center shadow-2xl">
             <Trophy className="mx-auto mb-2 h-10 w-10 text-amber-300" />
-            <h2 className="mb-1 text-2xl font-bold text-amber-200">逃出蛇窟！</h2>
+            <h2 className="mb-1 text-2xl font-bold text-amber-200">
+              {activeChallenge && challengeCleared ? '挑戰通關！' : '逃出蛇窟！'}
+            </h2>
             <p className="mb-4 text-sm text-slate-300">
-              你帶著 {hud.relics.length} 件遺物走出第 {MAX_FLOOR} 層。
+              {activeChallenge
+                ? challengeCleared
+                  ? `「${activeChallenge.name}」達成・${activeChallenge.goalLabel}`
+                  : `逃出了，但挑戰目標未達成：${activeChallenge.goalLabel}`
+                : `你帶著 ${hud.relics.length} 件遺物走出第 ${MAX_FLOOR} 層。`}
             </p>
             <dl className="mb-5 grid gap-2 text-sm">
               {[
@@ -452,20 +568,31 @@ export default function App() {
               ))}
             </dl>
             <div className="flex flex-col gap-2">
+              {!activeChallenge && (
+                <button
+                  type="button"
+                  onClick={withState(continueEndless)}
+                  className="w-full rounded-xl bg-amber-600 px-6 py-3 font-semibold hover:bg-amber-500"
+                >
+                  繼續深入（無盡模式）
+                </button>
+              )}
               <button
                 type="button"
-                onClick={withState(continueEndless)}
-                className="w-full rounded-xl bg-amber-600 px-6 py-3 font-semibold hover:bg-amber-500"
-              >
-                繼續深入（無盡模式）
-              </button>
-              <button
-                type="button"
-                onClick={() => startRun('')}
+                onClick={retryRun}
                 className="w-full rounded-xl bg-slate-800 px-6 py-3 font-semibold hover:bg-slate-700"
               >
-                重新開始
+                {activeChallenge ? '再挑戰一次' : '重新開始'}
               </button>
+              {activeChallenge && (
+                <button
+                  type="button"
+                  onClick={returnToTitle}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-900 px-6 py-3 font-semibold hover:bg-slate-800"
+                >
+                  返回標題
+                </button>
+              )}
             </div>
           </div>
         </div>

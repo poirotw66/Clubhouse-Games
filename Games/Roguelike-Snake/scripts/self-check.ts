@@ -1,10 +1,20 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { RELICS, rollRelicChoices } from '../src/game/relics.js';
-import { MAX_FLOOR } from '../src/game/config.js';
-import { createRng } from '../src/game/rng.js';
+import {
+  EMPTY_CHALLENGE_PROGRESS,
+  SEED_CHALLENGES,
+  applyChallengeResult,
+  challengeById,
+  challengeCount,
+  continueChallengeIndex,
+  isChallengeCleared,
+  isChallengeUnlocked,
+} from '../src/game/challenges.js';
+import { CHALLENGES_STORAGE_KEY, MAX_FLOOR } from '../src/game/config.js';
 import { createRun, dash, tick } from '../src/game/engine.js';
+import { RELICS, rollRelicChoices } from '../src/game/relics.js';
+import { createRng, parseSeed } from '../src/game/rng.js';
 import type { Enemy, Fruit, GameState, RelicId, Vec } from '../src/game/types.js';
 
 function clone<T>(value: T): T {
@@ -191,9 +201,157 @@ function expectRelicVarietyAndHonesty(): void {
   );
 }
 
+function floor1Signature(state: GameState): string {
+  return [
+    state.layout,
+    state.quota,
+    state.snake.map((p) => `${p.x},${p.y}`).join(';'),
+    [...state.tiles].join(''),
+  ].join('|');
+}
+
+function expectChallengeDefsAreSound(): void {
+  assert.equal(CHALLENGES_STORAGE_KEY, 'clubhouse:roguelike-snake:challenges');
+  assert.ok(SEED_CHALLENGES.length >= 4 && SEED_CHALLENGES.length <= 8, 'pack size out of range');
+  assert.equal(challengeCount(), SEED_CHALLENGES.length);
+
+  const ids = SEED_CHALLENGES.map((c) => c.id);
+  assert.equal(new Set(ids).size, ids.length, 'two challenges share an id');
+
+  const seeds = SEED_CHALLENGES.map((c) => c.seedInput);
+  assert.equal(new Set(seeds).size, seeds.length, 'two challenges share a seed');
+
+  const goalKinds = new Set(SEED_CHALLENGES.map((c) => c.goal.kind));
+  assert.ok(goalKinds.has('floor'), 'pack should include a floor goal');
+  assert.ok(goalKinds.has('boss'), 'pack should include a boss goal');
+  assert.ok(goalKinds.has('escape'), 'pack should include an escape goal');
+
+  for (const challenge of SEED_CHALLENGES) {
+    assert.ok(challenge.name.length > 0 && challenge.blurb.length > 0, `${challenge.id} missing copy`);
+    assert.ok(challenge.goalLabel.length > 0, `${challenge.id} missing goal label`);
+    assert.ok(/^[a-z0-9]{6,12}$/i.test(challenge.seedInput), `${challenge.id} seed looks wrong`);
+    assert.ok(challengeById(challenge.id)?.id === challenge.id, `${challenge.id} lookup failed`);
+
+    const a = createRun(parseSeed(challenge.seedInput), {
+      challengeId: challenge.id,
+      seedInput: challenge.seedInput,
+    });
+    const b = createRun(parseSeed(challenge.seedInput), {
+      challengeId: challenge.id,
+      seedInput: challenge.seedInput,
+    });
+    assert.equal(a.seed, b.seed, `${challenge.id} seed parse drifted`);
+    assert.equal(
+      floor1Signature(a),
+      floor1Signature(b),
+      `${challenge.id} floor-1 layout is not deterministic`,
+    );
+    assert.equal(a.challengeId, challenge.id);
+    assert.equal(a.seedInput, challenge.seedInput);
+  }
+}
+
+function expectChallengeUnlockMath(): void {
+  assert.equal(isChallengeUnlocked(0, 0), true);
+  assert.equal(isChallengeUnlocked(1, 0), false);
+  assert.equal(isChallengeUnlocked(1, 1), true);
+  assert.equal(isChallengeUnlocked(99, SEED_CHALLENGES.length), false);
+  assert.equal(continueChallengeIndex(0), 0);
+  assert.equal(continueChallengeIndex(2), 2);
+  assert.equal(continueChallengeIndex(SEED_CHALLENGES.length), SEED_CHALLENGES.length - 1);
+}
+
+function finishedShell(
+  challengeId: string,
+  seedInput: string,
+  patch: Partial<GameState>,
+): GameState {
+  const state = createRun(parseSeed(seedInput), { challengeId, seedInput });
+  Object.assign(state, patch);
+  return state;
+}
+
+function expectChallengeClearHelpers(): void {
+  const first = SEED_CHALLENGES[0];
+  assert.ok(first.goal.kind === 'floor');
+
+  const clearedFloor = finishedShell(first.id, first.seedInput, {
+    phase: 'dead',
+    floor: first.goal.min,
+    score: 120,
+  });
+  assert.equal(isChallengeCleared(first, clearedFloor), true);
+
+  const shyFloor = finishedShell(first.id, first.seedInput, {
+    phase: 'dead',
+    floor: Math.max(1, first.goal.min - 1),
+    score: 40,
+  });
+  assert.equal(isChallengeCleared(first, shyFloor), false);
+
+  const scoreCard = SEED_CHALLENGES.find((c) => c.goal.kind === 'score');
+  assert.ok(scoreCard && scoreCard.goal.kind === 'score');
+  const scoreOk = finishedShell(scoreCard.id, scoreCard.seedInput, {
+    phase: 'dead',
+    floor: 4,
+    score: scoreCard.goal.min,
+  });
+  assert.equal(isChallengeCleared(scoreCard, scoreOk), true);
+
+  const bossCard = SEED_CHALLENGES.find((c) => c.goal.kind === 'boss' && c.goal.floor === 5);
+  assert.ok(bossCard && bossCard.goal.kind === 'boss');
+  const bossOk = finishedShell(bossCard.id, bossCard.seedInput, {
+    phase: 'dead',
+    floor: 6,
+    bossesDefeated: [5],
+    score: 900,
+  });
+  assert.equal(isChallengeCleared(bossCard, bossOk), true);
+  const bossMiss = finishedShell(bossCard.id, bossCard.seedInput, {
+    phase: 'dead',
+    floor: 5,
+    bossesDefeated: [],
+    score: 400,
+  });
+  assert.equal(isChallengeCleared(bossCard, bossMiss), false);
+
+  const escape = SEED_CHALLENGES.find((c) => c.goal.kind === 'escape');
+  assert.ok(escape);
+  const escaped = finishedShell(escape.id, escape.seedInput, {
+    phase: 'won',
+    floor: MAX_FLOOR,
+    endless: false,
+    bossesDefeated: [5, 10, 15],
+    score: 5000,
+  });
+  assert.equal(isChallengeCleared(escape, escaped), true);
+
+  const fromZero = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 0, clearedFloor);
+  assert.equal(fromZero.cleared, true);
+  assert.equal(fromZero.progress.clearedCount, 1);
+  assert.ok(fromZero.progress.cleared[first.id]);
+
+  const late = SEED_CHALLENGES[3];
+  const lateRun = finishedShell(late.id, late.seedInput, {
+    phase: 'dead',
+    floor: late.goal.kind === 'floor' ? late.goal.min : 12,
+    bossesDefeated: late.goal.kind === 'boss' ? [late.goal.floor] : [5, 10],
+    score: 2000,
+  });
+  const outOfOrder = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 3, lateRun);
+  assert.equal(
+    outOfOrder.progress.clearedCount,
+    0,
+    'clearing a locked challenge must not advance the cursor',
+  );
+}
+
 expectSpitterOnlyFiresWhenAligned();
 expectCursedFruitUsesFlatScore();
 expectBloodDashOnlyCostsHp();
 expectRelicVarietyAndHonesty();
+expectChallengeDefsAreSound();
+expectChallengeUnlockMath();
+expectChallengeClearHelpers();
 
 console.log('Roguelike Snake logic self-check passed.');
