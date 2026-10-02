@@ -54,6 +54,9 @@ jobs:
       - name: Run Astra Stillshot Archer logic check
         run: npm run check:astra-archer
 
+      - name: Run Astra Borderland logic check
+        run: npm run check:astra-borderland
+
       - name: Build for GitHub Pages
         env:
           REPO_NAME: ${{ github.event.repository.name }}
