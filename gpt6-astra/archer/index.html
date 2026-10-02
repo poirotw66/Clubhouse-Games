@@ -126,16 +126,149 @@
   .row button { font-size: 11px; padding: 11px 5px; }
   .gold { color: #ffe392; }
   .tiny { font-size: 11px; color: #8eafba; }
+
+  .modes {
+    display: grid;
+    gap: 8px;
+    margin: 14px 0 8px;
+    text-align: left;
+  }
+  button.mode {
+    width: 100%;
+    margin-top: 0;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid #ffffff22;
+    background: #ffffff0c;
+    color: #eefaff;
+    text-align: left;
+  }
+  button.mode.active {
+    border-color: #96f2c6;
+    background: #75e6b928;
+  }
+  button.mode b { display: block; font-size: 15px; }
+  button.mode small {
+    display: block;
+    margin-top: 4px;
+    font-weight: 400;
+    color: #bfd6df;
+    line-height: 1.45;
+  }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 10px 0; }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .4px;
+    background: #ffffff14;
+    color: #dff7ef;
+    border: 1px solid #ffffff22;
+  }
+  .badge.good { background: #6dffb228; border-color: #8dffc36a; color: #c9ffe0; }
+  .badge.bad { background: #ff6f8d22; border-color: #ff9bb0aa; color: #ffd0d8; }
+  .badge.gold { background: #ffe39222; border-color: #ffe39266; color: #ffe392; }
+
+
+  /* --- art upgrade --- */
+  body {
+      background:
+        radial-gradient(ellipse at 50% 15%, #366878 0%, #152e42 55%, #081824 100%);
+    }
+  
+    #game {
+      border-radius: 24px;
+      border: 1px solid #ffffff25;
+      box-shadow:
+        0 32px 100px #0009,
+        0 0 0 7px #0b2130,
+        0 0 0 8px #ffffff12;
+    }
+  
+    #overlay {
+      background: #071b2ab8;
+      backdrop-filter: blur(9px);
+    }
+  
+    .panel {
+      background:
+        radial-gradient(ellipse at 50% 0%, #497c8040, transparent 65%),
+        linear-gradient(155deg, #244b60, #112b43);
+      border: 1px solid #bdfff13b;
+      border-radius: 24px;
+      box-shadow: inset 0 1px #ffffff22, 0 25px 65px #0007;
+    }
+  
+    h1 {
+      color: #e1ffed;
+      text-shadow: 0 3px 0 #153e4b, 0 0 30px #8dffc533;
+    }
+  
+    button {
+      background: linear-gradient(#c9ffe0, #82e8ae);
+      box-shadow: inset 0 1px #fff9, 0 4px 0 #32785e, 0 8px 18px #0003;
+      transition: transform .15s, filter .15s;
+    }
+  
+    button:hover { filter: brightness(1.08); }
+    button:active { transform: translateY(2px); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+  
+    button.secondary, button.choice {
+      background: linear-gradient(145deg, #ffffff16, #ffffff06);
+      border: 1px solid #d0fff126;
+      box-shadow: inset 0 1px #ffffff10, 0 5px 15px #0002;
+    }
+  
+    button.choice:hover {
+      background: linear-gradient(145deg, #88ffd52b, #ffffff08);
+      border-color: #a3f3cc;
+      transform: translateY(-2px);
+    }
+  
+    .rule {
+      background: #071f3280;
+      border: 1px solid #ffeab326;
+      border-radius: 15px;
+    }
+  
+    @media (max-width: 500px) {
+      #game { border: 0; border-radius: 0; }
+    }
+  
 </style>
 </head>
 <body>
+
+
 <div id="game">
   <canvas id="canvas" width="420" height="720"></canvas>
   <div id="overlay"></div>
 </div>
 
-<script>
-"use strict";
+
+<script type="module">
+import {
+  LEGACY_SAVE_KEY,
+  MODE_ORDER,
+  MODES,
+  STORAGE_KEY,
+  awardedGold,
+  clearBonus,
+  endEyebrow,
+  endTitle,
+  enemyScale,
+  getMode,
+  incomingDamage,
+  isVictoryRoom,
+  migrateMeta,
+  recordRun,
+  spawnCount,
+  upgradeCost,
+} from "./rules.mjs";
+
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -149,21 +282,29 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const shuffle = a => [...a].sort(() => Math.random() - .5);
 
-let meta = { gold: 0, attack: 0, health: 0, best: 0 };
-try {
-  const saved = JSON.parse(localStorage.getItem("stillshot-save") || "null");
-  if (saved) {
-    for (const k of Object.keys(meta)) {
-      if (Number.isFinite(saved[k])) meta[k] = Math.max(0, Math.floor(saved[k]));
-    }
-    meta.attack = Math.min(10, meta.attack);
-    meta.health = Math.min(10, meta.health);
-  }
-} catch (_) {}
+let meta = loadMeta();
+let selectedMode = MODES[meta.lastMode] ? meta.lastMode : "normal";
+let runMode = selectedMode;
+
+function loadMeta() {
+  try {
+    const v2 = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    if (v2) return migrateMeta(v2);
+  } catch (_) {}
+  try {
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_SAVE_KEY) || "null");
+    return migrateMeta(legacy);
+  } catch (_) {}
+  return migrateMeta(null);
+}
 
 function save() {
-  try { localStorage.setItem("stillshot-save", JSON.stringify(meta)); }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(meta)); }
   catch (_) {}
+}
+
+function modeBest(id = selectedMode) {
+  return meta.bestByMode[id] || 0;
 }
 
 let state = "lobby";
@@ -263,25 +404,36 @@ function hidePanel() {
   overlay.innerHTML = "";
 }
 
-function upgradeCost(type) {
-  return 40 + meta[type] * 35;
-}
-
-function lobby() {
+function lobby({ preserveMode = false } = {}) {
   state = "lobby";
-  const atkCost = upgradeCost("attack");
-  const hpCost = upgradeCost("health");
+  if (!preserveMode && MODES[meta.lastMode]) selectedMode = meta.lastMode;
+  const mode = getMode(selectedMode);
+  const atkCost = upgradeCost("attack", meta.attack);
+  const hpCost = upgradeCost("health", meta.health);
+  const modeButtons = MODE_ORDER.map((id) => {
+    const m = MODES[id];
+    const best = modeBest(id);
+    const clears = meta.clearsByMode[id] || 0;
+    const active = id === selectedMode ? "active" : "";
+    return `<button type="button" class="mode ${active}" data-mode="${id}">
+      <b>${m.label}</b>
+      <small>${m.blurb}</small>
+      <small>最遠 ${best}/${m.roomCap}${clears ? ` · 通關 ${clears}` : ""}</small>
+    </button>`;
+  }).join("");
   showPanel(`
     <div class="eyebrow">STILLSHOT · ROGUELITE</div>
     <h1>停步射手</h1>
     <p>每多射一箭，都值得冒險嗎？</p>
     <div class="rule">移動閃避 → 停步射擊<br>你只需要決定，何時停下。</div>
-    <button id="start">開始冒險</button>
+    <div class="modes">${modeButtons}</div>
+    <p class="tiny">目前：${mode.label} · ${mode.roomCap} 房${mode.kind === "limited" ? "（限房）" : ""}</p>
+    <button id="start">開始 · ${mode.label}</button>
     <p>手機：拖曳移動，放開射擊<br>
        電腦：WASD / 方向鍵移動，Esc 暫停</p>
     <div class="meta">
       <span class="gold">◆ ${meta.gold} 金幣</span>
-      ｜最遠 ${meta.best} / 15 房
+      ｜全域最遠 ${meta.best} 房
       <div class="row">
         <button id="metaAtk" class="secondary"
           ${meta.gold < atkCost || meta.attack >= 10 ? "disabled" : ""}>
@@ -295,24 +447,34 @@ function lobby() {
         </button>
       </div>
     </div>
-    <p class="tiny">15 房 · 3 區域 · 每 5 房 Boss<br>
+    <p class="tiny">難度影響敵勢；五房突襲為限房速通。<br>
     永久加成有上限，走位與能力組合才是核心。</p>
   `);
-  document.getElementById("start").onclick = startRun;
+  overlay.querySelectorAll("[data-mode]").forEach((btn) => {
+    btn.onclick = () => {
+      selectedMode = btn.getAttribute("data-mode");
+      lobby({ preserveMode: true });
+    };
+  });
+  document.getElementById("start").onclick = () => startRun(selectedMode);
   document.getElementById("metaAtk").onclick = () => buyMeta("attack");
   document.getElementById("metaHP").onclick = () => buyMeta("health");
 }
 
 function buyMeta(type) {
-  const cost = upgradeCost(type);
+  const cost = upgradeCost(type, meta[type]);
   if (meta.gold < cost || meta[type] >= 10) return;
   meta.gold -= cost;
   meta[type]++;
   save();
-  lobby();
+  lobby({ preserveMode: true });
 }
 
-function startRun() {
+function startRun(modeId = selectedMode) {
+  runMode = getMode(modeId).id;
+  selectedMode = runMode;
+  meta.lastMode = runMode;
+  save();
   build = {};
   refreshStats();
   player = {
@@ -345,13 +507,15 @@ function enterRoom() {
   followShots = 0; shotCD = .35;
   player.x = W / 2; player.y = 559;
   player.inv = 1;
+  const mode = getMode(runMode);
   const zone = Math.ceil(room / 5);
+  const zoneNames = ["翠葉庭院","琥珀遺跡","星光神殿"];
 
   if (room % 5 === 0) {
     spawnEnemy("boss", W / 2, 224);
-    notify(`第 ${zone} 區域 · 守門者`, 2.5);
+    notify(`${mode.label} · 第 ${zone} 區域 · 守門者`, 2.5);
   } else {
-    const count = Math.min(11, 4 + Math.ceil(room * .6));
+    const count = spawnCount(room, runMode);
     let types = ["chaser", "shooter", "fast"];
     if (room >= 2) types.push("spread");
     if (room >= 3) types.push("dash", "aoe");
@@ -367,11 +531,9 @@ function enterRoom() {
     if (room % 5 === 4) spawnEnemy("elite", W / 2, 390);
 
     notify(room % 5 === 4
-      ? `第 ${room} 房 · 精英狩獵`
-      : `第 ${room} 房 · ${["翠葉庭院","琥珀遺跡","星光神殿"][zone-1]}`);
+      ? `${mode.label} · 第 ${room}/${mode.roomCap} 房 · 精英狩獵`
+      : `${mode.label} · 第 ${room}/${mode.roomCap} 房 · ${zoneNames[Math.min(2, zone-1)]}`);
   }
-  meta.best = Math.max(meta.best, room);
-  save();
 }
 
 function spawnEnemy(type, x, y) {
@@ -386,12 +548,12 @@ function spawnEnemy(type, x, y) {
     boss:   { hp:430,speed:24, r:31, color:"#fc7c8c" }
   }[type];
 
-  const scale = type === "boss"
-    ? 1 + (Math.ceil(room / 5) - 1) * .8
-    : 1 + (room - 1) * .115;
+  const scale = enemyScale(type, room, runMode);
+  const spdMul = getMode(runMode).enemySpeedMul;
 
   enemies.push({
     id: ++uid, type, x, y, ...config,
+    speed: config.speed * spdMul,
     hp: config.hp * scale, maxHP: config.hp * scale,
     cd: rand(.6, 1.6), mode:"idle", timer:0,
     angle:0, pattern:0, phase:1, atk:"",
@@ -453,10 +615,11 @@ function showUpgrade() {
 function pause() {
   if (state !== "play") return;
   state = "pause";
+  const mode = getMode(runMode);
   showPanel(`
     <div class="eyebrow">TAKE A BREATH</div>
     <h2>冒險暫停</h2>
-    <p>第 ${room} 房 · 等級 ${level}<br>
+    <p>${mode.label} · 第 ${room}/${mode.roomCap} 房 · 等級 ${level}<br>
     本局金幣 <span class="gold">${runGold}</span></p>
     <p>${abilities.filter(a => n(a.id)).map(a =>
       `${a.icon} ${a.name} ${n(a.id)}`).join(" · ") || "尚未獲得能力"}</p>
@@ -477,25 +640,40 @@ function finish(win, retired = false) {
   if (settled) return;
   settled = true;
   state = win ? "victory" : "dead";
-  if (win) runGold += 150;
+  const mode = getMode(runMode);
+  if (win) runGold += clearBonus(runMode);
   meta.gold += runGold;
+  const recorded = recordRun(meta, { mode: runMode, room, win });
+  meta = recorded.meta;
   save();
   burst(player.x, player.y, win ? "#ffe79b" : "#87dfff", 30);
+  const badges = [
+    `<span class="badge">${mode.label}</span>`,
+    win ? `<span class="badge good">通關</span>` :
+      retired ? `<span class="badge">撤退</span>` :
+      `<span class="badge bad">陣亡</span>`,
+    recorded.isModeBest ? `<span class="badge gold">本模式新紀錄</span>` : "",
+  ].filter(Boolean).join(" ");
   showPanel(`
-    <div class="eyebrow">${win ? "VICTORY" : "ANOTHER SHOT"}</div>
-    <h2>${win ? "神殿已重見光明！" : retired ? "暫時返回營地" : "下一箭，再出發"}</h2>
-    <p>${win ? "你完成了三個區域的挑戰。" :
-      "停步創造傷害，走位創造下一次機會。"}</p>
+    <div class="eyebrow">${endEyebrow(win)}</div>
+    <h2>${endTitle({ win, retired })}</h2>
+    <div class="badges">${badges}</div>
+    <p>${win
+      ? (mode.kind === "limited" ? "限房突襲完成。短局也能練出好習慣。" : "你完成了整趟區域挑戰。")
+      : "停步創造傷害，走位創造下一次機會。"}</p>
     <div class="rule">
-      第 ${room} / 15 房 · 等級 ${level}<br>
+      第 ${room} / ${mode.roomCap} 房 · 等級 ${level}<br>
       擊敗 ${kills} 名敵人<br>
+      本模式最遠 ${modeBest(runMode)} / ${mode.roomCap}<br>
       <span class="gold">保留 ${runGold} 金幣${win ? "（含通關獎勵）" : ""}</span>
     </div>
-    <button id="again">再來一局</button>
+    <button id="again">再來一局 · ${mode.label}</button>
+    <button id="modes" class="secondary">換模式</button>
     <button id="home" class="secondary">回營地 · 永久成長</button>
   `);
-  document.getElementById("again").onclick = startRun;
-  document.getElementById("home").onclick = lobby;
+  document.getElementById("again").onclick = () => startRun(runMode);
+  document.getElementById("modes").onclick = () => lobby({ preserveMode: true });
+  document.getElementById("home").onclick = () => lobby();
 }
 
 function heal(amount) {
@@ -521,7 +699,7 @@ function hurtPlayer(amount) {
     return;
   }
 
-  const damage = amount * (1 + (room - 1) * .055) * (1 - stats.armor);
+  const damage = incomingDamage(amount, room, stats.armor, runMode);
   player.hp = Math.max(0, player.hp - damage);
   player.inv = .82;
   shake = 5;
@@ -555,7 +733,7 @@ function killEnemy(e) {
   e.dead = true;
   kills++;
   const boss = e.type === "boss", elite = e.type === "elite";
-  const coins = boss ? 30 : elite ? 12 : 3 + Math.floor(room / 4);
+  const coins = awardedGold(boss ? 30 : elite ? 12 : 3 + Math.floor(room / 4), runMode);
   runGold += coins;
   addXP(boss ? 45 : elite ? 15 : 5);
   if (n("healKill")) heal(n("healKill") * 2);
@@ -954,7 +1132,7 @@ function update(dt) {
     bullets = [];
     hazards = [];
     followShots = 0;
-    runGold += 5 + Math.ceil(room / 2);
+    runGold += awardedGold(5 + Math.ceil(room / 2), runMode);
     if (room % 3 === 0) {
       heal(stats.maxHP * .25);
       notify("補給泉水 · 回復 25% 生命，出口已開啟", 2.8);
@@ -966,7 +1144,7 @@ function update(dt) {
   if (cleared) {
     clearTime += dt;
     if (clearTime > .6 && player.y < 146 && Math.abs(player.x - W/2) < 37) {
-      if (room >= 15) { finish(true); return; }
+      if (isVictoryRoom(room, runMode)) { finish(true); return; }
       room++;
       enterRoom();
     }
@@ -1019,7 +1197,7 @@ function line(x1,y1,x2,y2,color,width=2) {
   ctx.stroke();
 }
 
-function drawFloor() {
+let drawFloor = function() {
   const zone = Math.min(2, Math.floor((room - 1) / 5));
   const palettes = [
     ["#214b50","#73bfa0","#79c7a6","#a5e0ac"],
@@ -1073,9 +1251,9 @@ function drawFloor() {
   } else {
     for(let x=190;x<=230;x+=10) line(x,107,x,129,"#668185",3);
   }
-}
+};
 
-function drawTelegraph(e) {
+let drawTelegraph = function(e) {
   if (e.mode !== "wind") return;
   const progress = 1 - e.timer/e.windTotal;
   ctx.save();
@@ -1110,9 +1288,9 @@ function drawTelegraph(e) {
     }
   }
   ctx.restore();
-}
+};
 
-function drawHazard(h) {
+let drawHazard = function(h) {
   const live = h.age >= h.wait;
   const progress = Math.min(1,h.age/h.wait);
   ctx.save();
@@ -1127,9 +1305,9 @@ function drawHazard(h) {
   ctx.globalAlpha=1;
   label(live ? "✦" : "!",h.x,h.y,24,live ? "#fff7cf" : "#9c2145");
   ctx.restore();
-}
+};
 
-function drawEnemy(e) {
+let drawEnemy = function(e) {
   ctx.save();
   ctx.translate(e.x,e.y);
   ctx.fillStyle="#17352e30";
@@ -1177,9 +1355,9 @@ function drawEnemy(e) {
     roundRect(e.x-width/2,e.y-e.r-10,width,4,2,"#26393d70");
     roundRect(e.x-width/2,e.y-e.r-10,width*Math.max(0,e.hp/e.maxHP),4,2,"#fff0ab");
   }
-}
+};
 
-function drawPlayer() {
+let drawPlayer = function() {
   if (!player) return;
   const p=player;
   ctx.save();
@@ -1225,9 +1403,9 @@ function drawPlayer() {
     ctx.fillStyle="#a3efff15";
     ctx.beginPath();ctx.arc(p.x,p.y,22,0,TAU);ctx.fill();ctx.stroke();
   }
-}
+};
 
-function drawBullet(b) {
+let drawBullet = function(b) {
   if (b.friendly) {
     const color = n("lightning") ? "#e8ffb1" : n("fire") ? "#ffda94"
                   : n("ice") ? "#dcfbff" : n("poison") ? "#d0ffa4" : "#fff8d4";
@@ -1241,9 +1419,9 @@ function drawBullet(b) {
     circle(b.x,b.y,b.r,"#ff5875");
     circle(b.x-1,b.y-1,b.r*.43,"#fff1c5");
   }
-}
+};
 
-function drawHUD() {
+let drawHUD = function() {
   roundRect(14,13,392,77,15,"#102b39");
   label("停步射手",27,31,16,"#ecfff3","left");
   label(`◆ ${runGold}`,320,31,13,"#ffe39a","right");
@@ -1270,7 +1448,7 @@ function drawHUD() {
   }
 
   roundRect(14,645,392,62,14,"#102b39");
-  label(`區域 ${Math.ceil(room/5)} · 房間 ${room}/15`,28,662,12,"#b0d8d0","left");
+  label(`${getMode(runMode).label} · 區域 ${Math.ceil(room/5)} · ${room}/${getMode(runMode).roomCap}`,28,662,12,"#b0d8d0","left");
   label(cleared ? "前往出口 ↑" : `剩餘敵人 ${enemies.length}`,391,662,12,
         cleared?"#b6fbb7":"#e4edcd","right");
 
@@ -1286,7 +1464,7 @@ function drawHUD() {
     label(banner,210,610,11,"#f1ffdf");
     ctx.restore();
   }
-}
+};
 
 function draw() {
   ctx.clearRect(0,0,W,H);
@@ -1420,86 +1598,8 @@ function frame(now) {
   draw();
   requestAnimationFrame(frame);
 }
-lobby();
-requestAnimationFrame(frame);
-</script>
-</body>
-了解，**直接追加在原本 HTML 最後面，不用重建或替換整份遊戲**。下面這段會覆蓋原本的美術繪製，保留戰鬥、技能、存檔與操作邏輯。
-
-將它貼在原本 `</html>` **前面**即可。主角、敵人、場景、傳送門、箭矢與介面都會更新，並加入高解析度渲染。
-
-```html
-<!-- ===== 美術升級補丁：追加在原本 HTML 的最後 ===== -->
-<style>
-  body {
-    background:
-      radial-gradient(ellipse at 50% 15%, #366878 0%, #152e42 55%, #081824 100%);
-  }
-
-  #game {
-    border-radius: 24px;
-    border: 1px solid #ffffff25;
-    box-shadow:
-      0 32px 100px #0009,
-      0 0 0 7px #0b2130,
-      0 0 0 8px #ffffff12;
-  }
-
-  #overlay {
-    background: #071b2ab8;
-    backdrop-filter: blur(9px);
-  }
-
-  .panel {
-    background:
-      radial-gradient(ellipse at 50% 0%, #497c8040, transparent 65%),
-      linear-gradient(155deg, #244b60, #112b43);
-    border: 1px solid #bdfff13b;
-    border-radius: 24px;
-    box-shadow: inset 0 1px #ffffff22, 0 25px 65px #0007;
-  }
-
-  h1 {
-    color: #e1ffed;
-    text-shadow: 0 3px 0 #153e4b, 0 0 30px #8dffc533;
-  }
-
-  button {
-    background: linear-gradient(#c9ffe0, #82e8ae);
-    box-shadow: inset 0 1px #fff9, 0 4px 0 #32785e, 0 8px 18px #0003;
-    transition: transform .15s, filter .15s;
-  }
-
-  button:hover { filter: brightness(1.08); }
-  button:active { transform: translateY(2px); }
-  button:disabled { opacity: .4; cursor: not-allowed; }
-
-  button.secondary, button.choice {
-    background: linear-gradient(145deg, #ffffff16, #ffffff06);
-    border: 1px solid #d0fff126;
-    box-shadow: inset 0 1px #ffffff10, 0 5px 15px #0002;
-  }
-
-  button.choice:hover {
-    background: linear-gradient(145deg, #88ffd52b, #ffffff08);
-    border-color: #a3f3cc;
-    transform: translateY(-2px);
-  }
-
-  .rule {
-    background: #071f3280;
-    border: 1px solid #ffeab326;
-    border-radius: 15px;
-  }
-
-  @media (max-width: 500px) {
-    #game { border: 0; border-radius: 0; }
-  }
-</style>
-
-<script>
-(() => {
-  "use strict";
+// --- art upgrade (same-module overrides) ---
+"use strict";
 
   // 此補丁直接使用原遊戲的狀態，不另外啟動遊戲迴圈。
   // 同時適用上面的初版與美術版 HTML。
@@ -2034,12 +2134,15 @@ requestAnimationFrame(frame);
     stroke([[32,648],[388,648]],"#dcfff018",1);
 
     // 房間進度指示；不改碰撞與入口位置。
-    for(let i=0;i<15;i++) {
-      const x=112+i*14;
+    const cap = getMode(runMode).roomCap;
+    const step = cap <= 5 ? 42 : 14;
+    const origin = cap <= 5 ? 126 : 112;
+    for(let i=0;i<cap;i++) {
+      const x=origin+i*step;
       const finished=i<room-1;
       const current=i===room-1;
       const color=current?"#fff0b7":finished?"#86dabb":"#436071";
-      if((i+1)%5===0) {
+      if((i+1)%5===0 || cap <= 5) {
         shape([[x,94],[x+3,97],[x,100],[x-3,97]],color);
       } else {
         dot(x,97,current?2.6:1.8,color);
@@ -2048,7 +2151,22 @@ requestAnimationFrame(frame);
     C.restore();
   };
 
-})();
-</script>
 
+window.__ASTRA_ARCHER__ = {
+  get meta() { return meta; },
+  get mode() { return runMode; },
+  get room() { return room; },
+  get state() { return state; },
+  get selectedMode() { return selectedMode; },
+  selectMode(id) { if (MODES[id]) { selectedMode = id; lobby({ preserveMode: true }); } },
+  start(id) { startRun(id || selectedMode); },
+  finish(win = false, retired = false) { finish(!!win, !!retired); },
+  lobby() { lobby(); },
+};
+
+lobby();
+requestAnimationFrame(frame);
+
+</script>
+</body>
 </html>
