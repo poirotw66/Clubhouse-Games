@@ -701,15 +701,16 @@ function bindModeButtons() {
   $("dialog").querySelectorAll("[data-mode]").forEach(btn=>{
     btn.onclick=()=>{
       selectedMode=btn.getAttribute("data-mode");
-      menu();
+      // Keep the picked mode while redrawing the dialog highlight.
+      menu({ preserveMode:true });
     };
   });
 }
 
-function menu() {
+function menu({ preserveMode=false }={}) {
   state="menu";
   layoutTouchChrome();
-  if(DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
+  if(!preserveMode && DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
   const today=localDateKey();
   const dailyBest = stats.bestDaily.date===today
     ? `今日最佳 ${stats.bestDaily.score} m`
