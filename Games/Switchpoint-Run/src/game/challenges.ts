@@ -140,7 +140,8 @@ export function isChallengeCleared(challenge: RunChallenge, state: RunState): bo
   const { goal } = challenge;
   switch (goal.kind) {
     case 'distance':
-      return state.distance >= goal.min;
+      // Round to match the HUD / result overlay so clear and display agree.
+      return Math.round(state.distance) >= goal.min;
     case 'score':
       return finalScore(state) >= goal.min;
     default:

@@ -181,12 +181,14 @@ export default function App(): React.ReactElement {
       // Fixed steps only: the simulation must advance in whole FIXED_DT ticks
       // or the run stops being reproducible from its seed and inputs.
       let budget = 8;
+      let justCleared = false;
       while (accRef.current >= FIXED_DT && budget-- > 0) {
         accRef.current -= FIXED_DT;
         next = step(next, readInput(), FIXED_DT);
         if (next.phase !== 'playing') break;
         const challenge = activeChallengeRef.current;
         if (challenge && isChallengeCleared(challenge, next)) {
+          justCleared = true;
           setChallengeWon(true);
           applyChallengeEnd(next, challenge);
           break;
@@ -195,7 +197,9 @@ export default function App(): React.ReactElement {
       stateRef.current = next;
 
       hudClock += dtReal;
-      if (hudClock > 0.08 || next.phase !== 'playing' || challengeWon) {
+      // Always push HUD on clear: otherwise a low hudClock can leave the
+      // overlay one frame behind (showing e.g. 1997 when the clear was at 2000).
+      if (hudClock > 0.08 || next.phase !== 'playing' || justCleared) {
         hudClock = 0;
         setHud(next);
       }
