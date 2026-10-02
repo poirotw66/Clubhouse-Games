@@ -306,12 +306,22 @@ export function buildFloor(state: GameState, floor: number): void {
   state.moveInterval = computeInterval(state);
 }
 
-export function createRun(seed: number): GameState {
+export interface CreateRunOptions {
+  /** Locked challenge-pack id, or null for free / daily play. */
+  challengeId?: string | null;
+  /** Original seed string (for display and challenge matching). */
+  seedInput?: string;
+}
+
+export function createRun(seed: number, options: CreateRunOptions = {}): GameState {
   const state: GameState = {
     seed,
+    seedInput: options.seedInput ?? '',
     rng: createRng(seed),
     phase: 'playing',
     endless: false,
+    challengeId: options.challengeId ?? null,
+    bossesDefeated: [],
     floor: 1,
     layout: 'open',
     tiles: new Uint8Array(GRID * GRID),
@@ -721,6 +731,9 @@ function damageBoss(state: GameState): void {
     state.boss = null;
     state.coins += 10;
     state.kills += 1;
+    if (!state.bossesDefeated.includes(state.floor)) {
+      state.bossesDefeated.push(state.floor);
+    }
     addScore(state, SCORE_BOSS * state.floor, false);
     state.pendingPicks += 1;
     state.projectiles = [];
