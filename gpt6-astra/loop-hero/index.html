@@ -1667,6 +1667,14 @@ portrait.imageSmoothingEnabled=false;portrait.fillStyle="#15221c";portrait.fillR
 for(let i=0;i<65;i+=4){portrait.fillStyle=i%8?"#243229":"#1d2a22";portrait.fillRect(i,0,2,76)}
 drawSprite(portrait,"hero",34,72,3);
 openCamp("welcome");resizeCanvas();requestAnimationFrame(frame);
+window.__cinderDebug = {
+  getGame:()=>game,
+  finishRun,
+  selectExpedition,
+  currentExpedition,
+  getMeta:()=>meta,
+  evaluateGoal
+};
 </script>
 </body>
 </html>
