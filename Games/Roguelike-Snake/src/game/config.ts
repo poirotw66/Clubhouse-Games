@@ -45,3 +45,4 @@ export const SCORE_ESCAPE = 2000;
 export const SCORE_HP_BONUS = 300;
 
 export const STORAGE_KEY = 'clubhouse:roguelike-snake:best';
+export const CHALLENGES_STORAGE_KEY = 'clubhouse:roguelike-snake:challenges';
