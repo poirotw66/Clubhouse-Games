@@ -17,12 +17,24 @@ import {
   FIXED_DT,
   INITIAL_SETTLE_TICKS,
   MAX_COINS_ON_SHELF,
+  SETTLE_GRACE_TICKS,
   SHELF_LEN,
   STARTING_CREDITS,
   WALL_X0,
   WALL_X1,
 } from '../src/game/constants.js';
-import { coinRadius, createRun, isTeetering, pusherFrontY, step, triangleWave } from '../src/game/engine.js';
+import { coinRadius, createRun, isTeetering, isWindingDown, pusherFrontY, step, triangleWave } from '../src/game/engine.js';
+import {
+  EMPTY_MODE_PROGRESS,
+  MODE_PACK,
+  applyModeResult,
+  assertModePackShape,
+  continueModeIndex,
+  evaluateModeGoal,
+  isModeUnlocked,
+  modeCount,
+  modeCreateOptions,
+} from '../src/game/modes.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
 
@@ -64,8 +76,9 @@ function playTo(
   seedCode: string,
   pilot: (s: RunState) => PlayerInput,
   maxTicks = 200_000,
+  options?: Parameters<typeof createRun>[1],
 ): RunState {
-  let s = createRun(seedCode);
+  let s = createRun(seedCode, options);
   let guard = 0;
   while (s.phase === 'playing' && guard++ < maxTicks) {
     s = step(s, pilot(s), FIXED_DT);
@@ -518,7 +531,7 @@ for (const seed of LANE_SEEDS) {
   assert.equal(items.join(), '1,2,3,4,5,6,7,8', 'shuffle must not mutate its input');
 
   const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  for (const file of ['rng.ts', 'engine.ts', 'types.ts', 'constants.ts']) {
+  for (const file of ['rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts']) {
     const src = stripComments(readFileSync(resolve(__dirname, '..', '..', 'src', 'game', file), 'utf8'));
     assert.ok(
       !/sort\(\s*\(\s*\)?\s*[^)]*\)\s*=>\s*[^;]*random/i.test(src) && !/sort\(\s*\(\)\s*=>/.test(src),
@@ -529,6 +542,107 @@ for (const seed of LANE_SEEDS) {
     }
   }
   ok('seeded streams are independent and no unseeded randomness reaches the engine');
+}
+
+// ── 12) Challenge / mode pack ──────────────────────────────────────────────
+{
+  assert.ok(MODE_PACK.length >= 6, 'mode pack is too thin');
+  assert.equal(modeCount(), MODE_PACK.length);
+  assertModePackShape();
+
+  assert.equal(isModeUnlocked(0, 0), true);
+  assert.equal(isModeUnlocked(1, 0), false);
+  assert.equal(isModeUnlocked(MODE_PACK.length - 1, MODE_PACK.length - 1), true);
+  assert.equal(isModeUnlocked(99, MODE_PACK.length), false);
+  assert.equal(continueModeIndex(0), 0);
+  assert.equal(continueModeIndex(MODE_PACK.length), MODE_PACK.length - 1);
+
+  // Free play defaults unchanged: full credits, no deadline, no early-clear.
+  const free = createRun('FREE-MODE');
+  assert.equal(free.modeId, null);
+  assert.equal(free.config.modeId, null);
+  assert.equal(free.config.deadlineTick, null);
+  assert.equal(free.config.clearScore, null);
+  assert.equal(free.config.clearCascade, null);
+  assert.equal(free.creditsRemaining, STARTING_CREDITS);
+  assert.equal(isWindingDown(free), false);
+
+  // Score-novice: reduced credits + early clear score gate wired into createRun.
+  const novice = MODE_PACK[0];
+  assert.equal(novice.id, 'score-novice');
+  const noviceRun = createRun(novice.seedCode, modeCreateOptions(novice));
+  assert.equal(noviceRun.modeId, 'score-novice');
+  assert.equal(noviceRun.creditsRemaining, 100);
+  assert.equal(noviceRun.config.clearScore, 70);
+  assert.equal(noviceRun.config.deadlineTick, null);
+
+  // Timed rush: deadline is absolute tick = settle tick + budget.
+  const rush = MODE_PACK.find((m) => m.id === 'timed-rush');
+  assert.ok(rush);
+  const rushRun = createRun(rush.seedCode, modeCreateOptions(rush));
+  assert.ok(rushRun.config.deadlineTick !== null);
+  assert.equal(rushRun.config.deadlineTick, rushRun.tick + 4500);
+  assert.equal(rushRun.config.clearScore, 45);
+
+  // Early-clear on cascade: fabricate a state that already met the gate and
+  // confirm the run winds down without spending the remaining credits.
+  const casc = MODE_PACK.find((m) => m.id === 'cascade-trio');
+  assert.ok(casc);
+  let early = createRun(casc.seedCode, modeCreateOptions(casc));
+  early = { ...early, longestCascade: casc.goal.kind === 'cascade' ? casc.goal.min : 99 };
+  assert.equal(isWindingDown(early), true);
+  // After settle grace with no further drops, phase must become ended.
+  for (let i = 0; i < SETTLE_GRACE_TICKS + 2; i++) {
+    early = step(early, IDLE, FIXED_DT);
+  }
+  assert.equal(early.phase, 'ended', 'early-clear cascade must end after settle grace');
+  assert.ok(early.creditsRemaining > 0, 'early-clear must not require spending every credit');
+  assert.equal(evaluateModeGoal(casc, early), true);
+
+  // Timed rush: idle until the clock expires — must end without spending all credits.
+  let timed = createRun(rush.seedCode, modeCreateOptions(rush));
+  const deadline = timed.config.deadlineTick;
+  assert.ok(deadline !== null);
+  let guard = 0;
+  while (timed.phase === 'playing' && guard++ < 20_000) {
+    timed = step(timed, IDLE, FIXED_DT);
+  }
+  assert.equal(timed.phase, 'ended', 'timed mode must end when the clock hits settle');
+  assert.ok(timed.tick >= deadline!, 'timed end must reach the deadline tick');
+  assert.ok(timed.creditsRemaining > 0, 'pure idle timed run should leave credits unspent');
+  assert.equal(evaluateModeGoal(rush, timed), false, 'idle timed run must not clear the score goal');
+
+  // Progress: unlock only advances when the *next* mode clears.
+  const clearedState: RunState = {
+    ...noviceRun,
+    phase: 'ended',
+    score: 120,
+    longestCascade: 3,
+  };
+  const fromZero = applyModeResult(EMPTY_MODE_PROGRESS, 0, clearedState);
+  assert.equal(fromZero.clearedCount, 1);
+  assert.equal(fromZero.cleared[novice.id], true);
+  assert.equal(fromZero.bestScore[novice.id], 120);
+
+  const outOfOrder = applyModeResult(EMPTY_MODE_PROGRESS, 3, {
+    ...createRun(casc.seedCode, modeCreateOptions(casc)),
+    phase: 'ended',
+    score: 50,
+    longestCascade: 8,
+  });
+  assert.equal(outOfOrder.clearedCount, 0, 'clearing a locked-ahead mode must not unlock');
+  assert.equal(outOfOrder.cleared['cascade-trio'], true);
+
+  const failed = applyModeResult(EMPTY_MODE_PROGRESS, 0, {
+    ...noviceRun,
+    phase: 'ended',
+    score: 10,
+    longestCascade: 1,
+  });
+  assert.equal(failed.clearedCount, 0, 'failed score goal must not advance unlock');
+  assert.equal(failed.cleared[novice.id], undefined);
+
+  ok('mode pack shape, unlock, early-clear, timed end, and progress hold');
 }
 
 console.log(`\nself-check: ok (${passed} checks${HEAVY ? ', heavy' : ''})`);

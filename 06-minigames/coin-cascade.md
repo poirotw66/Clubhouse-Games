@@ -60,7 +60,7 @@
 ## 勝負條件
 
 - **成績**：回收幣數 + 彩池爆開加成 + 最長連鎖加成。
-- **紀錄**：最佳分數、最長連鎖保存在瀏覽器本機（localStorage）。
+- **紀錄**：自由遊玩最佳分數、最長連鎖保存在瀏覽器本機（`coin-cascade:best`／`coin-cascade:best-cascade`）；挑戰／模式包另有分模式最佳與通關進度（見〈挑戰／模式包〉）。
 
 ## 多巴胺的具體工程
 
@@ -94,7 +94,24 @@
 
 - **種子分享**：輸入相同種子碼重現完全相同的台面與掉落。
 
+### 挑戰／模式包（標題入口）
+
+標題「挑戰／模式包」提供固定種子的可刷關卡，進度鍵 `coin-cascade:modes-v1`（`clearedCount`／`cleared`／`bestScore`／`bestCascade`），**與自由遊玩最佳分 `coin-cascade:best` 分開**。依序解鎖：
+
+| 關 | id | 內容 |
+|----|----|------|
+| 1 | `score-novice` | 分數入門：投幣 100，分數 ≥ 70（達標提前結束） |
+| 2 | `score-steady` | 穩健回收：投幣 180，分數 ≥ 130 |
+| 3 | `score-surge` | 高分潮：投幣 220，分數 ≥ 190 |
+| 4 | `cascade-trio` | 連鎖起步：投幣 120，最長連鎖 ≥ 4 |
+| 5 | `cascade-avalanche` | 雪崩挑戰：投幣 200，最長連鎖 ≥ 6 |
+| 6 | `timed-rush` | 限時衝刺：75 秒內分數 ≥ 45 |
+
+實作：`src/game/modes.ts`；引擎 `createRun` 接受 `startingCredits`／`timeLimitTicks`／`clearScore`／`clearCascade`／`modeId`。
+
 ## 備註
 
 - 以 2D Canvas 繪製，不使用 3D 引擎與任何第三方物理函式庫；碰撞解算自行實作，因為決定性要求比效能重要。
 - 不含任何第三方美術資源。
+- 自由遊玩**不設時間限制**；限時僅出現在模式包的「限時衝刺」。
+- 實作路徑：`Games/Coin-Cascade/`。

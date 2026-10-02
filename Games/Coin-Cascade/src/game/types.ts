@@ -22,6 +22,25 @@ export interface Coin {
 
 export type Phase = 'playing' | 'ended';
 
+/**
+ * Optional knobs for challenge / mode runs. Free play uses the defaults
+ * (`startingCredits = STARTING_CREDITS`, no deadline, no early-clear gates).
+ */
+export interface RunConfig {
+  readonly startingCredits: number;
+  /**
+   * Absolute tick at which timed modes stop accepting drops and begin
+   * settling. Null = unlimited (free play and score/cascade gates).
+   */
+  readonly deadlineTick: number | null;
+  /** Challenge pack mode id, or null for free play. */
+  readonly modeId: string | null;
+  /** Early-end once score reaches this (null = never). */
+  readonly clearScore: number | null;
+  /** Early-end once longestCascade reaches this (null = never). */
+  readonly clearCascade: number | null;
+}
+
 export interface PlayerInput {
   /** Horizontal chute position for this tick's drop, in shelf-space x (already clamped by the caller). */
   dropX: number;
@@ -56,6 +75,9 @@ export interface RunState {
   readonly seedCode: string;
   readonly tick: number;
   readonly phase: Phase;
+  readonly config: RunConfig;
+  /** Convenience mirror of `config.modeId` for HUD / result wiring. */
+  readonly modeId: string | null;
 
   readonly coins: readonly Coin[];
   readonly nextCoinId: number;
