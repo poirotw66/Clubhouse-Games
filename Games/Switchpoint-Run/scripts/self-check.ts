@@ -13,16 +13,27 @@ import {
   eligibleTemplates,
 } from '../src/game/branches.js';
 import {
+  EMPTY_CHALLENGE_PROGRESS,
+  RUN_CHALLENGES,
+  applyChallengeResult,
+  challengeById,
+  challengeCount,
+  challengeIndexById,
+  continueChallengeIndex,
+  isChallengeCleared,
+  isChallengeUnlocked,
+} from '../src/game/challenges.js';
+import {
   FIELD_W,
   FIXED_DT,
   HIT_STUN_DURATION,
   HIT_STUN_MIN_MULT,
   JUMP_DURATION,
   LANE_COUNT,
+  MAX_BUFFER,
   MIN_SAME_LANE_SPACING,
   SLIDE_DURATION,
   SPEED_MULT,
-  MAX_BUFFER,
   START_BUFFER,
   densityFloor,
   laneCenterX,
@@ -31,7 +42,7 @@ import {
 } from '../src/game/constants.js';
 import { createRun, currentSpeed, finalScore, hitStunFactor, placeJunction, step } from '../src/game/engine.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
-import type { ActiveBranch, PlayerInput, RunState } from '../src/game/types.js';
+import type { ActiveBranch, Junction, PlacedBranch, PlayerInput, RunState } from '../src/game/types.js';
 
 let passed = 0;
 function ok(label: string): void {
@@ -572,6 +583,163 @@ function clearBranchPerfectly(templateId: string): boolean {
   const zeroMult = { ...withRoute, scoreMult: 0 };
   assert.ok(finalScore(zeroMult) < finalScore(withRoute), 'scoreMult must actually multiply routeScore, not just be along for the ride');
   ok('finalScore responds to routeScore, scoreMult and maxNoHitStreak independently');
+}
+
+// ── 16) Challenge pack: defs + unlock math ───────────────────────────────────
+{
+  assert.ok(RUN_CHALLENGES.length >= 4, 'challenge pack is too thin');
+  assert.ok(RUN_CHALLENGES.length <= 8, 'challenge pack grew without a plan');
+  assert.equal(challengeCount(), RUN_CHALLENGES.length);
+  const ids = RUN_CHALLENGES.map((c) => c.id);
+  assert.equal(new Set(ids).size, ids.length, 'two challenges share an id');
+  const seeds = RUN_CHALLENGES.map((c) => c.seedCode);
+  assert.equal(new Set(seeds).size, seeds.length, 'two challenges share a seed — packs should diverge');
+  const goalKinds = new Set(RUN_CHALLENGES.map((c) => c.goal.kind));
+  assert.ok(goalKinds.has('distance') && goalKinds.has('score'), 'pack must mix distance and score goals');
+
+  for (const challenge of RUN_CHALLENGES) {
+    assert.ok(challenge.name.length > 0 && challenge.blurb.length > 0, `${challenge.id} missing copy`);
+    assert.ok(challenge.goalLabel.length > 0, `${challenge.id} missing goal label`);
+    assert.ok(/^[A-Z0-9]{6,8}$/i.test(challenge.seedCode), `${challenge.id} seed looks wrong`);
+    assert.ok(challengeById(challenge.id)?.id === challenge.id, `${challenge.id} lookup failed`);
+    assert.ok(challenge.goal.min > 0, `${challenge.id} goal min must be positive`);
+  }
+
+  assert.equal(isChallengeUnlocked(0, 0), true);
+  assert.equal(isChallengeUnlocked(1, 0), false);
+  assert.equal(isChallengeUnlocked(1, 1), true);
+  assert.equal(isChallengeUnlocked(99, RUN_CHALLENGES.length), false);
+  assert.equal(continueChallengeIndex(0), 0);
+  assert.equal(continueChallengeIndex(RUN_CHALLENGES.length), RUN_CHALLENGES.length - 1);
+  ok(`challenge pack defs + unlock math (${RUN_CHALLENGES.length} cards)`);
+}
+
+type ChallengePolicy = 'informed' | 'bank' | 'fastest';
+
+/** Documented choice policy per challenge — the clearability check must name it. */
+function challengePolicy(challengeId: string): ChallengePolicy {
+  switch (challengeId) {
+    case 'five-thousand':
+      return 'fastest';
+    case 'ten-thousand':
+      return 'bank';
+    default:
+      return 'informed';
+  }
+}
+
+function chooseChallengeBranch(pj: Junction, policy: ChallengePolicy, buffer: number): PlacedBranch {
+  const branches = pj.branches;
+  switch (policy) {
+    case 'fastest':
+      return branches.reduce((a, b) => (b.speedMult > a.speedMult ? b : a));
+    case 'bank':
+      if (buffer >= MAX_BUFFER * 0.92) {
+        return branches.reduce((a, b) => (b.density < a.density ? b : a));
+      }
+      return branches.reduce((a, b) => (b.speedMult > a.speedMult ? b : a));
+    case 'informed':
+    default: {
+      if (buffer < 90) return branches.reduce((a, b) => (b.density < a.density ? b : a));
+      if (buffer > 190) return branches.reduce((a, b) => (b.speedMult > a.speedMult ? b : a));
+      const rewarding = branches.filter((b) => b.reward !== 'none');
+      if (rewarding.length > 0) return rewarding.reduce((a, b) => (b.density < a.density ? b : a));
+      const sorted = [...branches].sort((a, b) => a.templateId.localeCompare(b.templateId));
+      return sorted[Math.floor(sorted.length / 2)];
+    }
+  }
+}
+
+/**
+ * Near-perfect execution pilot for challenge clearability. Mistake rate is 0 —
+ * this proves the seed + goal pair is reachable under the documented policy,
+ * not that a human with imperfect reaction will clear it on the first try.
+ */
+function pilotChallengeRun(
+  seedCode: string,
+  policy: ChallengePolicy,
+  stopWhen: (s: RunState) => boolean,
+  sessionSec = 240,
+): RunState {
+  let s = createRun(seedCode);
+  const tried = new Set<string>();
+  const maxTicks = Math.ceil(sessionSec / FIXED_DT);
+  for (let i = 0; i < maxTicks && s.phase === 'playing'; i++) {
+    if (stopWhen(s)) break;
+    const input: PlayerInput = { laneStep: 0, jump: false, slide: false };
+    const pj = s.pendingJunction;
+    if (pj && s.distance < pj.lockDistance) {
+      const want = chooseChallengeBranch(pj, policy, s.buffer);
+      if (s.lane !== want.lane) input.laneStep = want.lane > s.lane ? 1 : -1;
+    }
+    const ab = s.activeBranch;
+    if (ab) {
+      const speed = currentSpeed(s);
+      const upcoming = pickUpcoming(ab.obstacles, s.lane, s.distance, speed);
+      if (upcoming) {
+        const key = `${ab.startDistance}:${upcoming.absDistance}:${upcoming.kind}:${upcoming.lane}`;
+        if (!tried.has(key)) {
+          tried.add(key);
+          if (upcoming.kind === 'hurdle') input.jump = true;
+          else if (upcoming.kind === 'beam') input.slide = true;
+          else if (upcoming.kind === 'wall') {
+            const safe = chooseSafeLane(ab.obstacles, s.lane, s.distance);
+            if (safe !== s.lane) input.laneStep = safe > s.lane ? 1 : -1;
+          }
+        }
+      }
+    }
+    s = step(s, input, FIXED_DT);
+  }
+  return s;
+}
+
+// ── 17) Every challenge seed is clearable under its documented policy ───────
+{
+  for (let index = 0; index < RUN_CHALLENGES.length; index++) {
+    const challenge = RUN_CHALLENGES[index];
+    const policy = challengePolicy(challenge.id);
+    const state = pilotChallengeRun(
+      challenge.seedCode,
+      policy,
+      (s) => isChallengeCleared(challenge, s),
+      240,
+    );
+    assert.ok(
+      isChallengeCleared(challenge, state),
+      `${challenge.id} not cleared by ${policy} (dist=${Math.round(state.distance)}, score=${finalScore(state)}, phase=${state.phase})`,
+    );
+
+    const applied = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, index, state);
+    assert.equal(applied.cleared, true, `${challenge.id} applyChallengeResult missed a clear`);
+    assert.ok(applied.progress.cleared[challenge.id], `${challenge.id} not marked cleared`);
+  }
+
+  // Frontier advance: clearing challenge 0 from zero opens challenge 1.
+  const first = RUN_CHALLENGES[0];
+  const firstRun = pilotChallengeRun(first.seedCode, challengePolicy(first.id), (s) =>
+    isChallengeCleared(first, s),
+  );
+  const fromZero = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, 0, firstRun);
+  assert.equal(fromZero.progress.clearedCount, 1, 'clearing challenge 0 should open challenge 1');
+
+  // Clearing a non-frontier card must not advance the cursor.
+  const late = RUN_CHALLENGES[3];
+  const lateRun = pilotChallengeRun(late.seedCode, challengePolicy(late.id), (s) =>
+    isChallengeCleared(late, s),
+  );
+  const fromLate = applyChallengeResult(EMPTY_CHALLENGE_PROGRESS, challengeIndexById(late.id), lateRun);
+  assert.equal(
+    fromLate.progress.clearedCount,
+    0,
+    'clearing a locked challenge must not advance the cursor',
+  );
+
+  // Wrong seed never clears, even with a huge distance.
+  const fake = { ...firstRun, seedCode: 'WRONG001', distance: 999999 };
+  assert.equal(isChallengeCleared(first, fake), false, 'wrong seed must not clear');
+
+  ok('every challenge seed is clearable; frontier unlock advances only on the frontier');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);
