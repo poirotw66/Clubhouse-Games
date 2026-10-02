@@ -1,18 +1,50 @@
 # 無盡火車（Endless Train）
 
-> Astra／GPT-6 one-shot。靜態單頁實作位於 `gpt6-astra/train/`。
+> Astra／GPT-6 實驗。靜態實作：`gpt6-astra/train/`（`index.html` + `rules.mjs`）。
 
 ## 簡介
 
-永不停止的火車：採集、鋪軌、趕在出軌前前進。
+永不停止的火車：採集、鋪軌、趕在出軌／過熱前前進。本版由 demo 加深為**可重玩**：難度變體、今日種子、清楚結算與再來迴路、觸控操作。
 
 ## 遊玩
 
-- 從總覽選單「07 Astra」進入，或開啟 [`gpt6-astra/train/index.html`](../gpt6-astra/train/index.html)。
-- 本目錄為實驗／展示規格摘要，完整提示詞見同資料夾 `prompt.md`（若有）。
+- 總覽「07 Astra」或開啟 [`gpt6-astra/train/index.html`](../gpt6-astra/train/index.html)。
+- **單人／雙人**（雙人共用鍵盤）；觸控裝置以虛擬搖桿＋右側按鈕操作 P1。
+
+## 難度／規則變體
+
+| 模式 | 體感 | 主要差異 |
+|------|------|----------|
+| 輕鬆 | 熟悉流程 | 火車較慢、水耗較低、開局鐵軌多、架橋 1 木材 |
+| 標準 | 原本節奏 | 基準數值（與初版 demo 對齊） |
+| 高壓 | 催得兇 | 更快加速、水耗更高、資源更稀、架橋 3 木材、開局水 85% |
+
+另可選 **今日路線**：以當日日期產生固定種子（同日同地圖），並記今日最佳。
+
+## 結算／重玩
+
+- 結束畫面：距離、區域、時間、新鋪鐵軌、結束原因、種子、模式徽章；本模式新紀錄／今日最佳提示。
+- 動作：**再來一趟**（同模式隨機）、**今日路線**、**換模式**。
+- `localStorage` 鍵 `unstoppable-train-v2`（依模式最佳；遷移舊鍵 `unstoppable-best` → 標準）。
+
+## 觸控
+
+- 粗指標／觸控：左側虛擬搖桿移動，右側「互動／鋪軌／丟下／升級」（≥44px）。
+- 鍵盤：P1 `WASD`＋`E`/`Q`/`R`/`U`；P2 方向鍵＋`Enter`/`/`/`.`；`P`／`Esc` 暫停。
+
+## 品質門檻對齊（GAME-QUALITY-BAR 適用項）
+
+| 項目 | 狀態 |
+|------|------|
+| 模式／規則變體 | ✓ 輕鬆／標準／高壓＋今日種子 |
+| localStorage 重玩 | ✓ 分模式最佳＋今日最佳 |
+| Undo／Hint／三段 AI | — 非對戰／非牌局 |
+| 結算 UI | ～ 靜態單頁自製結算（無 React／`resultOverlayDom`；契約對齊：標題／數據／再來） |
+| 觸控 | ✓ 搖桿＋主操作鈕 |
+| check | ✓ `node gpt6-astra/train/check-train.mjs`（根腳本 `npm run check:astra-train`） |
 
 ## 技術備註
 
-- 類型：`game`
-- 建置：純靜態 HTML（無 Vite workspace）；Pages 部署時整包複製 `gpt6-astra/`。
-
+- 類型：`game`；純靜態 ESM（無 Vite workspace）；Pages 整包複製 `gpt6-astra/`。
+- 規則純模組：`rules.mjs`（難度表、速度／水耗／製作時間、每日種子、成績遷移）。
+- 完整創作提示詞見同資料夾 `prompt.md`。

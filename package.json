@@ -22,7 +22,8 @@
     "lint:all": "node scripts/run-in-games.mjs lint",
     "check:all": "node scripts/run-in-games.mjs check",
     "check:no-cdn": "node scripts/check-no-cdn.mjs",
-    "check:shared-styles": "node scripts/check-shared-styles.mjs"
+    "check:shared-styles": "node scripts/check-shared-styles.mjs",
+    "check:astra-train": "node gpt6-astra/train/check-train.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
