@@ -2,27 +2,42 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>不停號：合作鐵道</title>
 <style>
 :root {
   color-scheme: dark;
   --bg:#122522; --panel:#1b3430; --line:#36534a;
   --text:#eff6dc; --muted:#a9bcaa; --gold:#ffd36d;
+  --danger:#ff9275; --touch:#243e36;
 }
 * { box-sizing:border-box; }
 body {
   margin:0; background:var(--bg); color:var(--text);
-  font-family:system-ui,"Microsoft JhengHei",sans-serif;
-  overflow:hidden;
+  font-family:"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  overflow:hidden; touch-action:none;
 }
 button {
   border:0; border-radius:10px; padding:11px 18px;
   background:var(--gold); color:#302a17;
   font:700 14px inherit; cursor:pointer;
+  min-height:44px;
 }
 button:hover { filter:brightness(1.08); }
+button:active { transform:scale(.98); }
 button.secondary { background:#36534a; color:var(--text); }
+button.ghost {
+  background:transparent; color:var(--text);
+  border:1px solid var(--line);
+}
+button.mode {
+  width:100%; text-align:left; background:#243e36; color:var(--text);
+  border:1px solid var(--line); margin:0 0 8px; display:block;
+}
+button.mode.active {
+  border-color:var(--gold); box-shadow:inset 0 0 0 1px var(--gold);
+}
+button.mode small { display:block; font-weight:500; color:var(--muted); margin-top:4px; }
 header {
   height:76px; padding:12px 22px; display:flex;
   align-items:center; gap:22px; border-bottom:1px solid var(--line);
@@ -30,13 +45,13 @@ header {
 .brand { min-width:190px; }
 .brand strong { display:block; font-size:21px; letter-spacing:2px; }
 .brand small { color:var(--muted); font-size:11px; letter-spacing:2px; }
-.stats { display:flex; gap:26px; flex:1; }
+.stats { display:flex; gap:26px; flex:1; overflow:auto; }
 .stat small { display:block; color:var(--muted); font-size:11px; margin-bottom:3px; }
 .stat b { font-size:21px; font-variant-numeric:tabular-nums; }
 .stat b span { font-size:12px; color:var(--muted); }
-.layout { display:flex; height:calc(100vh - 76px); }
+.layout { display:flex; height:calc(100vh - 76px); height:calc(100dvh - 76px); }
 main { position:relative; flex:1; min-width:0; overflow:hidden; }
-canvas { display:block; width:100%; height:100%; }
+canvas { display:block; width:100%; height:100%; touch-action:none; }
 .tag {
   position:absolute; top:16px; left:18px;
   background:#122522e8; border:1px solid #597257;
@@ -55,7 +70,7 @@ canvas { display:block; width:100%; height:100%; }
   position:absolute; bottom:18px; left:18px;
   background:#122522df; border-radius:12px; padding:12px 15px;
   font-size:12px; line-height:1.9; color:#dce8c9;
-  pointer-events:none;
+  pointer-events:none; max-width:min(320px,70%);
 }
 aside {
   width:274px; padding:20px 18px; overflow-y:auto;
@@ -96,11 +111,64 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
   background:#1b342e; box-shadow:0 25px 90px #0006;
 }
 .eyebrow { font-size:11px; letter-spacing:3px; color:var(--gold); }
-.dialog h1 { font-size:38px; margin:12px 0; }
+.dialog h1 { font-size:clamp(28px,5vw,38px); margin:12px 0; }
 .dialog p { font-size:14px; line-height:1.9; color:#cedcc4; }
 .dialog .actions { display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
+.result-score {
+  font-size:clamp(40px,8vw,52px); font-weight:800; color:var(--gold);
+  margin:8px 0 4px;
+}
+.result-score span { font-size:18px; }
+.result-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  margin:16px 0; font-size:13px;
+}
+.result-grid div {
+  background:#172e29; border:1px solid var(--line);
+  border-radius:10px; padding:10px 12px;
+}
+.result-grid small { display:block; color:var(--muted); margin-bottom:4px; }
+.badge {
+  display:inline-block; padding:4px 10px; border-radius:999px;
+  border:1px solid var(--line); font-size:12px; margin-right:6px;
+  background:#243e36;
+}
+.badge.gold { border-color:var(--gold); color:var(--gold); }
 .hidden { display:none!important; }
-.danger { color:#ff9275!important; }
+.danger { color:var(--danger)!important; }
+
+/* Touch controls */
+#touchPad {
+  position:absolute; inset:0; pointer-events:none; z-index:3;
+}
+#touchPad .stick-base {
+  position:absolute; left:18px; bottom:18px;
+  width:118px; height:118px; border-radius:50%;
+  background:#12252299; border:2px solid #597257aa;
+  pointer-events:none;
+}
+#touchPad .stick-knob {
+  position:absolute; width:48px; height:48px; border-radius:50%;
+  background:#ffd36dcc; border:2px solid #fff3b0;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+#touchActions {
+  position:absolute; right:14px; bottom:18px;
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  pointer-events:none; z-index:3;
+}
+#touchActions button {
+  pointer-events:auto; min-width:72px; min-height:56px;
+  border-radius:16px; background:var(--touch);
+  color:var(--text); border:1px solid #597257;
+  font-size:13px; padding:10px 12px;
+  touch-action:manipulation;
+}
+#touchActions button.primary-act {
+  background:#3d5c4f; border-color:var(--gold); color:var(--gold);
+}
+
 @media(max-width:900px) {
   aside { width:225px; padding:14px 12px; }
   header { gap:12px; padding:10px 14px; }
@@ -108,22 +176,36 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
   .brand strong { font-size:17px; }
   .stats { gap:14px; }
   .stat b { font-size:17px; }
+  .legend { display:none; }
+}
+@media(max-width:720px) {
+  header { height:auto; flex-wrap:wrap; row-gap:8px; }
+  .layout { flex-direction:column; height:calc(100dvh - auto); height:calc(100dvh - 110px); }
+  aside {
+    width:100%; border-left:0; border-top:1px solid var(--line);
+    max-height:34%; padding:10px 12px;
+    display:grid; grid-template-columns:1fr 1fr; gap:8px;
+  }
+  aside .card { margin:0; }
+  aside .card:nth-child(n+4) { display:none; }
+  .dialog { padding:22px; }
 }
 </style>
 </head>
 <body>
 <header>
   <div class="brand">
-    <strong>不停號 🚂</strong>
+    <strong>不停號</strong>
     <small>ONE MORE TRACK</small>
   </div>
   <div class="stats">
     <div class="stat"><small>行駛距離</small><b id="distance">0 <span>m</span></b></div>
     <div class="stat"><small>軌道剩餘時間</small><b id="runway">—</b></div>
     <div class="stat"><small>火車速度</small><b id="speed">1.0×</b></div>
-    <div class="stat"><small>最佳紀錄</small><b id="best">0 <span>m</span></b></div>
+    <div class="stat"><small>本模式最佳</small><b id="best">0 <span>m</span></b></div>
+    <div class="stat"><small>模式／種子</small><b id="metaHud" style="font-size:14px">標準</b></div>
   </div>
-  <button class="secondary" id="pause">暫停</button>
+  <button class="secondary" id="pause" type="button">暫停</button>
 </header>
 
 <div class="layout">
@@ -134,7 +216,17 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
   <div class="legend">
     <b style="color:#ffd36d">◆ 黃色虛線：下一段可鋪位置</b><br>
     靠近車廂互動：交貨／領取鐵軌<br>
-    河流上鋪軌：額外消耗倉庫木材 ×2
+    河流上鋪軌：額外消耗倉庫木材
+  </div>
+  <div id="touchPad" class="hidden">
+    <div class="stick-base" id="stickBase"></div>
+    <div class="stick-knob" id="stickKnob"></div>
+  </div>
+  <div id="touchActions" class="hidden">
+    <button type="button" class="primary-act" data-act="interact">互動</button>
+    <button type="button" class="primary-act" data-act="build">鋪軌</button>
+    <button type="button" data-act="drop">丟下</button>
+    <button type="button" data-act="upgrade">升級</button>
   </div>
   <div class="overlay" id="overlay">
     <div class="dialog" id="dialog"></div>
@@ -150,16 +242,16 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
 
   <div class="card">
     <h3>製作車廂 · 共用倉庫</h3>
-    <div class="resource"><span>🪵 木材</span><b id="wood">0</b></div>
-    <div class="resource"><span>⛏ 礦石</span><b id="ore">0</b></div>
-    <div class="resource"><span>🛤 鐵軌</span><b id="rails">0</b></div>
+    <div class="resource"><span>木材</span><b id="wood">0</b></div>
+    <div class="resource"><span>礦石</span><b id="ore">0</b></div>
+    <div class="resource"><span>鐵軌</span><b id="rails">0</b></div>
     <div class="bar"><i id="craftBar" style="background:#ffd36d;width:0"></i></div>
     <div class="muted">自動製作：1 木材 + 1 礦石 → 3 鐵軌</div>
   </div>
 
   <div class="card">
     <h3>冷卻車廂</h3>
-    <div class="resource"><span>💧 冷卻水</span><b id="water">100%</b></div>
+    <div class="resource"><span>冷卻水</span><b id="water">100%</b></div>
     <div class="bar"><i id="waterBar"></i></div>
     <div class="muted">空手在河岸互動取水，再送回任一車廂。缺水會過熱。</div>
   </div>
@@ -167,14 +259,14 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
   <div class="card">
     <h3>合作隊員</h3>
     <div id="players"></div>
-    <div class="muted">
+    <div class="muted" id="controlsHelp">
       <b style="color:#ffda72">P1</b>
-      <span class="key">WASD</span> 移動<br>
-      <span class="key">E</span> 採集／交貨／領軌
+      <span class="key">WASD</span> 移動
+      <span class="key">E</span> 互動
       <span class="key">Q</span> 鋪軌
       <span class="key">R</span> 丟下<br><br>
       <b style="color:#a9ddff">P2</b>
-      <span class="key">↑↓←→</span> 移動<br>
+      <span class="key">↑↓←→</span> 移動
       <span class="key">Enter</span> 互動
       <span class="key">/</span> 鋪軌
       <span class="key">.</span> 丟下
@@ -184,15 +276,29 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
   <div class="card">
     <h3 id="upgradeTitle">車廂升級 · Lv.1</h3>
     <div class="muted">提升製作速度、降低冷卻水消耗。站在車廂旁升級。</div>
-    <button id="upgrade">升級 · 6 木材 + 6 礦石</button>
+    <button id="upgrade" type="button">升級 · 6 木材 + 6 礦石</button>
     <div class="muted">也可按 U。最多升級 3 次。</div>
   </div>
 </aside>
 </div>
 
-<script>
-(() => {
-"use strict";
+<script type="module">
+import {
+  DIFFICULTIES,
+  DIFFICULTY_ORDER,
+  LEGACY_BEST_KEY,
+  STORAGE_KEY,
+  craftDurationSec,
+  dailySeed,
+  endReasonLabel,
+  getDifficulty,
+  localDateKey,
+  migrateStats,
+  recordRun,
+  scoreFromProgress,
+  trainSpeed,
+  waterDrainPerSec,
+} from "./rules.mjs";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game"), ctx = canvas.getContext("2d");
@@ -203,9 +309,30 @@ const colors = { wood:"#b98449", ore:"#bac5cc", rail:"#efcf75", water:"#79d9ee" 
 
 let W=900, H=650, scale=1, tileW=54, tileH=28;
 let state="menu", game=null, last=0, noticeTime=0;
-let best=0;
-try { best=Number(localStorage.getItem("unstoppable-best") || 0); } catch(e) {}
-$("best").innerHTML=best+" <span>m</span>";
+let selectedMode="normal", selectedPlayers=1, useDaily=false;
+let stats = loadStats();
+
+const touch = {
+  enabled: matchMedia("(pointer:coarse)").matches || "ontouchstart" in window,
+  stick: { active:false, id:null, ox:0, oy:0, dx:0, dy:0 },
+  hold: { interact:false, build:false },
+};
+
+function loadStats() {
+  let raw=null, legacy=0;
+  try { raw=JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch(e) {}
+  try { legacy=Number(localStorage.getItem(LEGACY_BEST_KEY) || 0); } catch(e) {}
+  return migrateStats(raw, legacy);
+}
+function saveStats() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stats)); } catch(e) {}
+}
+function modeBest(mode=selectedMode) {
+  return stats.bestByMode[mode] || 0;
+}
+function refreshBestHud() {
+  $("best").innerHTML=modeBest()+" <span>m</span>";
+}
 
 function resize() {
   const r=stage.getBoundingClientRect();
@@ -216,9 +343,26 @@ function resize() {
   ctx.setTransform(dpr,0,0,dpr,0,0);
   scale=Math.max(.7,Math.min(1.12,W/1050));
   tileW=54*scale; tileH=28*scale;
+  layoutTouchChrome();
 }
 window.addEventListener("resize",resize);
 resize();
+
+function layoutTouchChrome() {
+  const show = touch.enabled && state==="playing";
+  $("touchPad").classList.toggle("hidden", !show);
+  $("touchActions").classList.toggle("hidden", !show);
+  if(show) {
+    const base=$("stickBase").getBoundingClientRect();
+    const stageRect=stage.getBoundingClientRect();
+    const cx=base.left-stageRect.left+base.width/2;
+    const cy=base.top-stageRect.top+base.height/2;
+    if(!touch.stick.active) {
+      $("stickKnob").style.left=cx+"px";
+      $("stickKnob").style.top=cy+"px";
+    }
+  }
+}
 
 function hash(x,y,n=0) {
   let v=Math.imul(x|0,374761393)^Math.imul(y|0,668265263)^
@@ -234,6 +378,7 @@ function tile(x,y) {
   const k=key(x,y);
   if(game.tiles.has(k)) return game.tiles.get(k);
 
+  const d=getDifficulty(game.mode);
   let type="grass";
   const zone=Math.max(0,Math.floor(x/45));
   const riverX=26+Math.floor((x-24)/45)*45;
@@ -241,12 +386,12 @@ function tile(x,y) {
   if(x>=24 && Math.abs(x-(riverX+bend))<1.1) type="water";
   else {
     const n=hash(x,y);
-    const density=Math.min(.45,.24+zone*.025);
+    const density=Math.min(.45,(.24+zone*.025)*d.treeDensityMul);
+    const rockBand=.14*d.rockDensityMul+Math.min(.09,zone*.012);
     if(n<density) type="tree";
-    else if(n<density+.14+Math.min(.09,zone*.012)) type="rock";
+    else if(n<density+rockBand) type="rock";
   }
 
-  // 起始軌道與教學區保證通行。
   if(x>=-9 && x<=19 && Math.abs(y)<=2) type="grass";
   if(x>=4 && x<=10 && y===4) type="tree";
   if(x>=6 && x<=12 && y===-4) type="rock";
@@ -257,21 +402,35 @@ function tile(x,y) {
   return t;
 }
 
-function start(count) {
+function start({ players=selectedPlayers, mode=selectedMode, daily=useDaily, seed=null }={}) {
+  const d=getDifficulty(mode);
+  const dateKey=localDateKey();
+  const runSeed = seed!=null ? seed : (daily ? dailySeed() : Math.floor(Math.random()*999999));
+  selectedMode=mode;
+  selectedPlayers=players;
+  useDaily=!!daily;
+  stats.lastMode=mode;
+  stats.lastPlayers=players;
+  saveStats();
+
   game={
-    seed:Math.floor(Math.random()*999999), tiles:new Map(),
+    seed:runSeed, mode, daily:!!daily, dateKey: daily?dateKey:"",
+    tiles:new Map(),
     railSet:new Set(), path:[], progress:8, initialProgress:8,
-    bank:{wood:5,ore:5,rail:9}, water:100,
+    initialPathLength:25,
+    bank:{...d.startBank}, water:d.startWater,
     craft:0, crafting:false, level:0,
     players:[], drops:[], particles:[],
     camera:{x:7,y:0}, elapsed:0, score:0,
-    speed:.31, zone:0, shake:0, warning:false
+    speed:d.baseSpeed, zone:0, shake:0, warning:false,
+    bridgeWood:d.bridgeWood
   };
   for(let x=-6;x<=18;x++) {
     game.path.push({x,y:0});
     game.railSet.add(key(x,0));
   }
-  for(let i=0;i<count;i++) {
+  game.initialPathLength=game.path.length;
+  for(let i=0;i<players;i++) {
     game.players.push({
       x:5+i*1.1,y:1.7+i*.3,
       color:i?"#8ad5ff":"#ffcd62",
@@ -282,10 +441,17 @@ function start(count) {
   }
   state="playing";
   keys.clear();
+  touch.stick.active=false;
+  touch.stick.dx=touch.stick.dy=0;
+  touch.hold.interact=touch.hold.build=false;
   $("overlay").classList.add("hidden");
   $("pause").textContent="暫停";
-  notify("先到製作車廂領取鐵軌，再往黃色標記鋪路！",5);
+  notify(daily
+    ? `今日路線 · 種子 ${runSeed} · ${d.label}。先領鐵軌，再往黃色標記鋪路！`
+    : `先到製作車廂領取鐵軌，再往黃色標記鋪路！（${d.label}）`, 5);
   updateUI();
+  layoutTouchChrome();
+  refreshBestHud();
 }
 
 function sample(at) {
@@ -327,7 +493,6 @@ function interact(p) {
   if(p.cooldown>0) return;
   p.action=null;
 
-  // 帶著貨物靠近車廂，優先交貨。
   if(p.carry && nearTrain(p)) {
     if(p.carry==="water") {
       game.water=Math.min(100,game.water+p.amount*24);
@@ -340,7 +505,6 @@ function interact(p) {
     return;
   }
 
-  // 空手優先撿取地上物資，可進行隊友接力。
   const drop=game.drops.find(d=>dist(p,d)<1.1 &&
     (!p.carry || p.carry===d.type) && p.amount<6);
   if(drop) {
@@ -352,7 +516,6 @@ function interact(p) {
     return;
   }
 
-  // 空手靠近車廂，領取已製作的鐵軌。
   if(!p.carry && nearTrain(p)) {
     if(game.bank.rail>0) {
       p.carry="rail";p.amount=Math.min(6,game.bank.rail);
@@ -432,10 +595,10 @@ function build(p) {
     notify("前方有障礙！先採集清除，或站到另一側繞路。");return;
   }
   if(ground.type==="water") {
-    if(game.bank.wood<2) {
-      notify("架橋需要共用倉庫內的 2 份木材。");return;
+    if(game.bank.wood<game.bridgeWood) {
+      notify(`架橋需要共用倉庫內的 ${game.bridgeWood} 份木材。`);return;
     }
-    game.bank.wood-=2;
+    game.bank.wood-=game.bridgeWood;
     burst(t.x,t.y,"橋梁完成","#a5e6f5");
   } else burst(t.x,t.y,"+ 鐵軌");
 
@@ -469,66 +632,150 @@ $("upgrade").onclick=upgrade;
 
 function gameOver(reason) {
   state="over";
+  layoutTouchChrome();
   const score=Math.floor(game.score);
-  if(score>best) {
-    best=score;
-    try {localStorage.setItem("unstoppable-best",best);} catch(e) {}
-  }
+  const d=getDifficulty(game.mode);
+  const result=recordRun(stats, {
+    mode:game.mode, score, daily:game.daily, dateKey:game.dateKey
+  });
+  stats=result.stats;
+  saveStats();
+  refreshBestHud();
+
+  const rails=Math.max(0, game.path.length - game.initialPathLength);
+  const badges=[
+    `<span class="badge">${d.label}</span>`,
+    game.daily?`<span class="badge gold">今日路線</span>`:"",
+    result.isModeBest?`<span class="badge gold">本模式新紀錄</span>`:"",
+    result.isDailyBest?`<span class="badge gold">今日最佳</span>`:"",
+  ].filter(Boolean).join("");
+
   showDialog(`
     <div class="eyebrow">END OF THE LINE</div>
     <h1>${reason==="water"?"鍋爐過熱了！":"啊，前面沒有軌道！"}</h1>
-    <p>${reason==="water"?"冷卻水耗盡，火車已無法繼續運作。":"不停號衝出了軌道。下一次，多留幾段緩衝吧。"}</p>
-    <div style="font-size:52px;font-weight:800;color:#ffd36d">${score}<span style="font-size:18px"> m</span></div>
-    <p>經過 ${game.zone+1} 個區域 · 合作 ${Math.floor(game.elapsed)} 秒<br>
-    最佳紀錄：${best} m</p>
+    <p>${badges}</p>
+    <div class="result-score">${score}<span> m</span></div>
+    <p style="margin:0">${endReasonLabel(reason)} · 種子 ${game.seed}</p>
+    <div class="result-grid">
+      <div><small>區域</small><b>${game.zone+1}</b></div>
+      <div><small>合作時間</small><b>${Math.floor(game.elapsed)} 秒</b></div>
+      <div><small>新鋪鐵軌</small><b>${rails} 段</b></div>
+      <div><small>本模式最佳</small><b>${modeBest(game.mode)} m</b></div>
+    </div>
+    <p class="muted" style="margin:0">
+      ${game.daily && stats.bestDaily.date===game.dateKey
+        ? `今日最佳：${stats.bestDaily.score} m（${getDifficulty(stats.bestDaily.mode).label}）`
+        : "換個難度或再衝一趟今日路線，把最佳距離再往前推。"}
+    </p>
     <div class="actions">
-      <button id="again">再來一趟</button>
-      <button class="secondary" id="back">返回選單</button>
+      <button type="button" id="again">再來一趟</button>
+      <button type="button" class="secondary" id="againDaily">今日路線</button>
+      <button type="button" class="ghost" id="back">換模式</button>
     </div>`);
-  $("again").onclick=()=>start(game.players.length);
+  $("again").onclick=()=>start({
+    players:game.players.length, mode:game.mode, daily:false
+  });
+  $("againDaily").onclick=()=>start({
+    players:game.players.length, mode:game.mode, daily:true
+  });
   $("back").onclick=menu;
 }
+
 function showDialog(html) {
   $("dialog").innerHTML=html;
   $("overlay").classList.remove("hidden");
 }
+
+function modeButtonsHtml() {
+  return DIFFICULTY_ORDER.map(id=>{
+    const d=DIFFICULTIES[id];
+    const best=stats.bestByMode[id]||0;
+    return `<button type="button" class="mode ${id===selectedMode?"active":""}" data-mode="${id}">
+      <b>${d.label}</b> · 最佳 ${best} m
+      <small>${d.blurb}</small>
+    </button>`;
+  }).join("");
+}
+
+function bindModeButtons() {
+  $("dialog").querySelectorAll("[data-mode]").forEach(btn=>{
+    btn.onclick=()=>{
+      selectedMode=btn.getAttribute("data-mode");
+      menu();
+    };
+  });
+}
+
 function menu() {
   state="menu";
+  layoutTouchChrome();
+  if(DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
+  const today=localDateKey();
+  const dailyBest = stats.bestDaily.date===today
+    ? `今日最佳 ${stats.bestDaily.score} m`
+    : "今日尚未開跑";
   showDialog(`
     <div class="eyebrow">A LITTLE TRAIN. A LOT OF PANIC.</div>
     <h1>再鋪一段，<br>就來得及。</h1>
     <p>這列火車不會停。砍樹、挖礦、把資源送回車廂，
-    然後帶著新鐵軌衝到最前面。</p>
+    然後帶著新鐵軌衝到最前面。選難度，或挑戰今日固定路線。</p>
+    <div class="card" style="margin-bottom:14px">
+      <h3 style="margin-top:0">難度／規則變體</h3>
+      ${modeButtonsHtml()}
+      <p class="muted" style="margin:8px 0 0">${dailyBest} · 今日種子 ${dailySeed()}</p>
+    </div>
     <div class="card" style="margin-bottom:0">
       <p style="margin:0">
-        <b style="color:#ffd36d">① 採集</b>　靠近樹木／岩石，按住互動鍵。<br>
+        <b style="color:#ffd36d">① 採集</b>　靠近樹木／岩石，按住互動。<br>
         <b style="color:#ffd36d">② 製作</b>　帶貨到車廂交付，車廂自動製軌。<br>
         <b style="color:#ffd36d">③ 延伸</b>　空手領軌，在路線前端鋪設。<br>
         <b style="color:#ffd36d">④ 補水</b>　在河岸裝水，再送回火車。
       </p>
     </div>
-    <p>一次只能搬一種物品，最多 6 份。站位決定鋪軌方向，
-    遇到河流可用倉庫木材架橋。<br>
-    <span style="color:#a9bcaa">桌面鍵盤遊戲 · 雙人共用一個鍵盤 · P 暫停</span></p>
+    <p>一次只能搬一種物品，最多 6 份。觸控裝置可用虛擬搖桿與右側按鈕操作 P1。
+    <br><span style="color:#a9bcaa">雙人合作仍建議共用鍵盤 · P／Esc 暫停</span></p>
     <div class="actions">
-      <button id="solo">單人出發</button>
-      <button id="duo" class="secondary">雙人合作出發</button>
+      <button type="button" id="solo">單人出發</button>
+      <button type="button" id="duo" class="secondary">雙人合作</button>
+      <button type="button" id="daily" class="ghost">今日路線</button>
     </div>`);
-  $("solo").onclick=()=>start(1);
-  $("duo").onclick=()=>start(2);
+  bindModeButtons();
+  $("solo").onclick=()=>start({players:1, mode:selectedMode, daily:false});
+  $("duo").onclick=()=>start({players:2, mode:selectedMode, daily:false});
+  $("daily").onclick=()=>start({
+    players:touch.enabled?1:selectedPlayers||1,
+    mode:selectedMode,
+    daily:true
+  });
+  if(touch.enabled) {
+    $("controlsHelp").innerHTML=
+      `<b style="color:#ffda72">觸控</b>　左側搖桿移動 · 右側「互動／鋪軌／丟下／升級」`;
+  }
 }
+
 function togglePause() {
   if(state==="playing") {
     state="paused";keys.clear();
+    touch.stick.active=false;touch.stick.dx=touch.stick.dy=0;
+    touch.hold.interact=touch.hold.build=false;
     $("pause").textContent="繼續";
+    layoutTouchChrome();
+    const d=getDifficulty(game.mode);
     showDialog(`<div class="eyebrow">TAKE A BREATH</div>
-      <h1>先喘口氣。</h1><p>火車與世界已暫停。商量一下下一段路怎麼走。</p>
-      <div class="actions"><button id="resume">繼續前進</button></div>`);
+      <h1>先喘口氣。</h1>
+      <p>${d.label}${game.daily?" · 今日路線":""} · 種子 ${game.seed}<br>
+      目前 ${Math.floor(game.score)} m · 本模式最佳 ${modeBest(game.mode)} m</p>
+      <div class="actions">
+        <button type="button" id="resume">繼續前進</button>
+        <button type="button" class="secondary" id="pauseMenu">返回選單</button>
+      </div>`);
     $("resume").onclick=togglePause;
+    $("pauseMenu").onclick=menu;
   } else if(state==="paused") {
     state="playing";
     $("overlay").classList.add("hidden");
     $("pause").textContent="暫停";
+    layoutTouchChrome();
   }
 }
 $("pause").onclick=togglePause;
@@ -551,6 +798,102 @@ window.addEventListener("keydown",e=>{
 });
 window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 
+/* ---------- Touch stick + action buttons ---------- */
+function pointerPos(e) {
+  const r=stage.getBoundingClientRect();
+  return {x:e.clientX-r.left, y:e.clientY-r.top};
+}
+function stickOrigin() {
+  const base=$("stickBase").getBoundingClientRect();
+  const stageRect=stage.getBoundingClientRect();
+  return {
+    x:base.left-stageRect.left+base.width/2,
+    y:base.top-stageRect.top+base.height/2,
+    r:base.width/2
+  };
+}
+function updateStickKnob(dx,dy) {
+  const o=stickOrigin();
+  $("stickKnob").style.left=(o.x+dx*o.r*.62)+"px";
+  $("stickKnob").style.top=(o.y+dy*o.r*.62)+"px";
+}
+
+stage.addEventListener("pointerdown",e=>{
+  if(state!=="playing" || !touch.enabled) return;
+  if(e.target.closest("#touchActions") || e.target.closest(".overlay")) return;
+  const pos=pointerPos(e);
+  const o=stickOrigin();
+  // Prefer left-half / near stick for movement capture
+  if(pos.x>W*.55 && pos.y<H*.35) return;
+  e.preventDefault();
+  touch.stick.active=true;
+  touch.stick.id=e.pointerId;
+  touch.stick.ox=o.x; touch.stick.oy=o.y;
+  const dx=pos.x-o.x, dy=pos.y-o.y;
+  const distV=Math.hypot(dx,dy);
+  const power=Math.min(1, distV/Math.max(24,o.r*.55));
+  touch.stick.dx=distV<8?0:(dx/distV)*power;
+  touch.stick.dy=distV<8?0:(dy/distV)*power;
+  updateStickKnob(touch.stick.dx, touch.stick.dy);
+  try { stage.setPointerCapture(e.pointerId); } catch(_) {}
+});
+stage.addEventListener("pointermove",e=>{
+  if(!touch.stick.active || e.pointerId!==touch.stick.id) return;
+  e.preventDefault();
+  const pos=pointerPos(e);
+  const o=stickOrigin();
+  const dx=pos.x-o.x, dy=pos.y-o.y;
+  const distV=Math.hypot(dx,dy);
+  const power=Math.min(1, distV/Math.max(24,o.r*.55));
+  touch.stick.dx=distV<8?0:(dx/distV)*power;
+  touch.stick.dy=distV<8?0:(dy/distV)*power;
+  updateStickKnob(touch.stick.dx, touch.stick.dy);
+});
+function releaseStick(e) {
+  if(e.pointerId!==touch.stick.id) return;
+  touch.stick.active=false; touch.stick.id=null;
+  touch.stick.dx=touch.stick.dy=0;
+  updateStickKnob(0,0);
+}
+stage.addEventListener("pointerup",releaseStick);
+stage.addEventListener("pointercancel",releaseStick);
+
+$("touchActions").querySelectorAll("button").forEach(btn=>{
+  const act=btn.getAttribute("data-act");
+  const down=e=>{
+    e.preventDefault(); e.stopPropagation();
+    if(state!=="playing" || !game) return;
+    const p=game.players[0];
+    if(act==="interact") { touch.hold.interact=true; interact(p); }
+    else if(act==="build") { touch.hold.build=true; build(p); }
+    else if(act==="drop") dropItem(p);
+    else if(act==="upgrade") upgrade();
+  };
+  const up=()=>{
+    if(act==="interact") touch.hold.interact=false;
+    if(act==="build") touch.hold.build=false;
+  };
+  btn.addEventListener("pointerdown",down);
+  btn.addEventListener("pointerup",up);
+  btn.addEventListener("pointerleave",up);
+  btn.addEventListener("pointercancel",up);
+});
+
+function playerInput(p) {
+  const c=p.id===1?
+    {l:"a",r:"d",u:"w",d:"s",a:"e",b:"q"}:
+    {l:"arrowleft",r:"arrowright",u:"arrowup",d:"arrowdown",a:"enter",b:"/"};
+  let sx=Number(keys.has(c.r))-Number(keys.has(c.l));
+  let sy=Number(keys.has(c.d))-Number(keys.has(c.u));
+  if(p.id===1 && touch.enabled) {
+    // Screen stick: up = -y. Map screen axes into isometric WASD space.
+    sx += touch.stick.dx;
+    sy += touch.stick.dy;
+  }
+  return {sx,sy, interact:keys.has(c.a)||(p.id===1&&touch.hold.interact),
+          build:keys.has(c.b)||(p.id===1&&touch.hold.build)};
+}
+
 function update(dt) {
   if(noticeTime>0) {
     noticeTime-=dt;
@@ -558,9 +901,9 @@ function update(dt) {
   }
   if(state!=="playing" || !game) return;
   game.elapsed+=dt;
-  game.speed=.31+Math.min(.43,game.elapsed*.00085);
+  game.speed=trainSpeed(game.elapsed, game.mode);
   game.progress+=game.speed*dt;
-  game.score=(game.progress-game.initialProgress)*10;
+  game.score=scoreFromProgress(game.progress, game.initialProgress, game.mode);
 
   const zone=Math.floor(game.score/160);
   if(zone!==game.zone) {
@@ -569,15 +912,14 @@ function update(dt) {
       "新區域！火車更快了，別讓前方的軌道耗盡。",4);
   }
 
-  const dry=game.zone%3===2;
-  game.water-=dt*(dry?1.05:.62)*(1-game.level*.16);
+  game.water-=dt*waterDrainPerSec(game.zone, game.level, game.mode);
 
   if(!game.crafting && game.bank.wood>0 && game.bank.ore>0) {
     game.bank.wood--;game.bank.ore--;
     game.crafting=true;game.craft=0;
   }
   if(game.crafting) {
-    game.craft+=dt/(2.2-game.level*.4);
+    game.craft+=dt/craftDurationSec(game.level, game.mode);
     if(game.craft>=1) {
       game.bank.rail+=3;game.crafting=false;game.craft=0;
       const w=sample(game.progress-1.65);
@@ -589,11 +931,8 @@ function update(dt) {
     p.cooldown=Math.max(0,p.cooldown-dt);
     p.buildCD=Math.max(0,p.buildCD-dt);
     if(p.cooldown<=0) p.action=null;
-    const c=p.id===1?
-      {l:"a",r:"d",u:"w",d:"s",a:"e",b:"q"}:
-      {l:"arrowleft",r:"arrowright",u:"arrowup",d:"arrowdown",a:"enter",b:"/"};
-    let sx=Number(keys.has(c.r))-Number(keys.has(c.l));
-    let sy=Number(keys.has(c.d))-Number(keys.has(c.u));
+    const input=playerInput(p);
+    let sx=clamp(input.sx,-1,1), sy=clamp(input.sy,-1,1);
     let dx=sx+sy,dy=sy-sx;
     const n=Math.hypot(dx,dy);
     if(n) {
@@ -602,7 +941,6 @@ function update(dt) {
       if(canStand(p.x+dx,p.y)) p.x+=dx;
       if(canStand(p.x,p.y+dy)) p.y+=dy;
 
-      // 隊員之間輕微碰撞，保留合作時的擁擠感。
       for(const other of game.players) {
         if(other===p) continue;
         const d=dist(p,other);
@@ -616,13 +954,12 @@ function update(dt) {
       p.walk+=dt*12;
     } else p.walk=0;
 
-    if(keys.has(c.a)) interact(p);
-    if(keys.has(c.b)) build(p);
+    if(input.interact) interact(p);
+    if(input.build) build(p);
   }
 
   const engine=sample(game.progress);
   const end=game.path[game.path.length-1];
-  // 鏡頭顧及火車、路線前端與兩名玩家。
   const focus=[
     {x:engine.x+3,y:engine.y},
     {x:clamp(end.x,engine.x-7,engine.x+16),
@@ -648,12 +985,15 @@ function update(dt) {
 
 function updateUI() {
   if(!game) return;
+  const d=getDifficulty(game.mode);
   const runway=(game.path.length-1-game.progress)/game.speed;
   $("distance").innerHTML=Math.floor(game.score)+" <span>m</span>";
   $("runway").textContent=Math.max(0,runway).toFixed(0)+" 秒";
   $("runway").className=runway<15?"danger":"";
-  $("speed").textContent=(game.speed/.31).toFixed(1)+"×";
-  $("best").innerHTML=best+" <span>m</span>";
+  $("speed").textContent=(game.speed/d.baseSpeed).toFixed(1)+"×";
+  $("best").innerHTML=modeBest(game.mode)+" <span>m</span>";
+  $("metaHud").textContent=
+    `${d.label}${game.daily?" · 今日":""} · #${game.seed}`;
   $("wood").textContent=game.bank.wood;
   $("ore").textContent=game.bank.ore;
   $("rails").textContent=game.bank.rail;
@@ -678,25 +1018,24 @@ function updateUI() {
   let detail="木材與礦石各 1 份，可以製作 3 段鐵軌。記得預留架橋木材。";
   if(runway<20) {
     task="快鋪軌！只剩 "+Math.ceil(runway)+" 秒";
-    detail="帶鐵軌到路線最前端。站在希望延伸的一側，按鋪軌鍵。";
+    detail="帶鐵軌到路線最前端。站在希望延伸的一側，按鋪軌。";
   } else if(game.water<30) {
     task="需要冷卻水！";
     detail="空手到河岸互動取水，再靠近車廂交付。";
   } else if(game.bank.rail>0 && !game.players.some(p=>p.carry==="rail")) {
     task="領取鐵軌，延伸路線";
-    detail="空手靠近車廂互動領軌。黄色標記會依你的站位選擇延伸方向。";
+    detail="空手靠近車廂互動領軌。黃色標記會依你的站位選擇延伸方向。";
   } else if(!game.bank.wood) {
     task="木材不夠了";
-    detail="靠近樹木按住互動鍵，採完後把木材送回車廂。";
+    detail="靠近樹木按住互動，採完後把木材送回車廂。";
   } else if(!game.bank.ore) {
     task="補充製軌礦石";
-    detail="靠近岩石按住互動鍵，交回火車才能繼續製作。";
+    detail="靠近岩石按住互動，交回火車才能繼續製作。";
   }
   $("task").textContent=task;
   $("taskDetail").textContent=detail;
 }
 
-// ---------- 等角投影與繪圖 ----------
 function project(x,y,z=0) {
   const c=game?.camera || {x:7,y:0};
   return {
@@ -736,7 +1075,7 @@ function ellipse(x,y,rx,ry,fill) {
   ctx.fillStyle=fill;ctx.fill();
 }
 function label(x,y,text,color="#f7f6df",size=12) {
-  ctx.font=`700 ${size*scale}px system-ui`;
+  ctx.font=`700 ${size*scale}px system-ui,"Noto Sans TC",sans-serif`;
   ctx.textAlign="center";ctx.textBaseline="middle";
   ctx.fillStyle="#142b24";ctx.fillText(text,x+1,y+1);
   ctx.fillStyle=color;ctx.fillText(text,x,y);
@@ -945,7 +1284,6 @@ function draw() {
   visible.sort((a,b)=>(a.x+a.y)-(b.x+b.y));
   for(const t of visible) drawTile(t);
 
-  // 只繪製鏡頭附近的軌道。
   for(let i=0;i<game.path.length;i++) {
     const t=game.path[i];
     if(t.x>=minX&&t.x<=maxX&&t.y>=minY&&t.y<=maxY) drawRail(i);
@@ -976,7 +1314,6 @@ function draw() {
   }
   ctx.globalAlpha=1;
 
-  // 離開畫面的隊員方向提示。
   for(const p of game.players) {
     const q=project(p.x,p.y);
     if(q.x<20||q.x>W-20||q.y<20||q.y>H-20) {
@@ -1005,9 +1342,9 @@ function frame(time) {
   draw();
   requestAnimationFrame(frame);
 }
+refreshBestHud();
 menu();
 requestAnimationFrame(frame);
-})();
 </script>
 </body>
 </html>
