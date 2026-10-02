@@ -4,6 +4,8 @@
 
 規格文件：[`06-minigames/coin-cascade.md`](../../06-minigames/coin-cascade.md)
 
+標題另有**挑戰／模式包**（分數／連鎖門檻＋限時衝刺），進度鍵 `coin-cascade:modes-v1`，與自由遊玩最佳分開。
+
 ---
 
 ## 為什麼不是吃角子老虎
