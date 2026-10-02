@@ -147,7 +147,7 @@ export const CAREER_CHALLENGES: readonly CareerChallenge[] = [
     name: '零傷鐵人',
     blurb: '固定種子・外野手・至少八個職業球季且生涯零傷病',
     goalLabel: '職業 ≥ 8 季・傷病 = 0',
-    seedCode: 'ir000000',
+    seedCode: 'safe0001',
     position: 'OF',
     goal: { kind: 'injury-free-pro', min: 8 },
   },
@@ -160,7 +160,8 @@ export const CAREER_CHALLENGES: readonly CareerChallenge[] = [
     position: 'C',
     goal: { kind: 'hof-score', min: 500 },
     situationHooks: [
-      { situationId: 'hs-scout-showcase', match: { stage: 'highschool', turnIndex: 3 } },
+      // After 高二 春・開季 resolves → turnIndex 6 (age 17, scout day lands).
+      { situationId: 'hs-scout-showcase', match: { stage: 'highschool', turnIndex: 6 } },
     ],
     requirePicks: [{ situationId: 'hs-scout-showcase', optionId: 'show' }],
   },
@@ -169,7 +170,7 @@ export const CAREER_CHALLENGES: readonly CareerChallenge[] = [
     name: '中職長跑',
     blurb: '固定種子・內野手・在中華職棒打滿八季',
     goalLabel: '中職球季 ≥ 8',
-    seedCode: 'ifp00000',
+    seedCode: 'cpbl0001',
     position: 'IF',
     goal: { kind: 'league-seasons', league: 'cpbl', min: 8 },
   },
@@ -208,7 +209,7 @@ export const CAREER_CHALLENGES: readonly CareerChallenge[] = [
     name: '旅美關口',
     blurb: '固定種子・外野手・必遇旅美攤牌卡並答應挑戰，大聯盟至少三季',
     goalLabel: '答應旅美關口・大聯盟 ≥ 3 季',
-    seedCode: 'pitch03b',
+    seedCode: 'gate0002',
     position: 'OF',
     goal: { kind: 'mlb-seasons', min: 3 },
     situationHooks: [

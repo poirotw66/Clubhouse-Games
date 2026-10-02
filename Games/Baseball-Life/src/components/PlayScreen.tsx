@@ -320,7 +320,7 @@ export function PlayScreen({
                     ← 上一步
                   </button>
                   <p className="hidden text-right text-[10px] text-slate-500 sm:block">
-                    按 1–{Math.max(pickable.length, 1)} 選擇・Backspace 上一步
+                    按 1–{Math.min(pickable.length, 9)} 選擇・Backspace 上一步
                   </p>
                 </div>
               </section>

@@ -45,6 +45,7 @@ import type {
   TurnReport,
 } from './types';
 import {
+  HS_SITUATION_FIRE_CHANCE,
   SITUATION_FIRE_CHANCE,
   pickSituation,
   situationAcceptsDestiny,
@@ -54,15 +55,15 @@ import type { SituationEffects, SituationOption } from './situations';
 import { newlyUnlocked, traitById, traitEffects } from './traits';
 
 const START_YEAR = 2010;
-const HS_TURNS = 11;
+/** Fifteen turns across three years — longer than the old eleven-turn sprint. */
+export const HS_TURNS = 15;
 
 /**
- * High school runs on four turns a year; the professional stage used to run on
- * one, which meant the part of the game the career is actually about handed
- * out a quarter as many decisions as the part meant to set it up. A pro year
- * is now three turns — 春訓・球季・球季後 — and every per-turn effect below is
- * divided by this so a full pro season still moves attributes, fatigue and
- * fame by the same total amount it always did.
+ * High school runs on a denser calendar than "one pick per season": spring gets
+ * a foundation block, year-three adds a pre-summer camp and a winter before
+ * the draft fork. The professional stage is three turns a year — 春訓・球季・
+ * 球季後 — and every per-turn effect below is divided by this so a full pro
+ * season still moves attributes, fatigue and fame by the same total amount.
  */
 const PRO_TURNS_PER_YEAR = 3;
 const PRO_TURN_SCALE = 1 / PRO_TURNS_PER_YEAR;
@@ -70,26 +71,32 @@ const PRO_PHASE_LABELS = ['春訓', '球季', '球季後'] as const;
 /** Passive fatigue recovery between turns, split evenly across a pro year. */
 const FATIGUE_RECOVERY = 6;
 
-/** Turn 0–10 are the three high-school years; 夏 turns are the tournaments. */
+/** Turn 0–14 are the three high-school years; summer (and 黑豹旗) are tournaments. */
 interface HsTurn {
   label: string;
   grade: number;
   season: '春' | '夏' | '秋' | '冬';
   tournament: string | null;
+  /** Extra prompt flavour for camp / mid-block training turns. */
+  camp?: boolean;
 }
 
 const HS_SCHEDULE: HsTurn[] = [
-  { label: '高一 春', grade: 1, season: '春', tournament: null },
+  { label: '高一 春・入部', grade: 1, season: '春', tournament: null },
+  { label: '高一 春・基礎特訓', grade: 1, season: '春', tournament: null, camp: true },
   { label: '高一 夏', grade: 1, season: '夏', tournament: '高中棒球聯賽' },
   { label: '高一 秋', grade: 1, season: '秋', tournament: null },
   { label: '高一 冬', grade: 1, season: '冬', tournament: null },
-  { label: '高二 春', grade: 2, season: '春', tournament: null },
+  { label: '高二 春・開季', grade: 2, season: '春', tournament: null },
+  { label: '高二 春・強化期', grade: 2, season: '春', tournament: null, camp: true },
   { label: '高二 夏', grade: 2, season: '夏', tournament: '高中棒球聯賽' },
   { label: '高二 秋', grade: 2, season: '秋', tournament: '黑豹旗' },
   { label: '高二 冬', grade: 2, season: '冬', tournament: null },
   { label: '高三 春', grade: 3, season: '春', tournament: null },
+  { label: '高三 賽前集訓', grade: 3, season: '春', tournament: null, camp: true },
   { label: '高三 夏', grade: 3, season: '夏', tournament: '高中棒球聯賽・最後一夏' },
   { label: '高三 秋', grade: 3, season: '秋', tournament: null },
+  { label: '高三 冬・選秀前', grade: 3, season: '冬', tournament: null },
 ];
 
 function clamp(v: number, min: number, max: number): number {
@@ -516,32 +523,18 @@ const REST_OPTION: TrainingOption = {
 };
 
 /**
- * Fisher-Yates, not `sort(() => r() - 0.5)`: an inconsistent comparator makes
- * the result depend on the engine's sort implementation, which would break the
- * promise that a seed code rebuilds the same run everywhere.
+ * Full training menu — every legal drill plus rest. Earlier builds shuffled a
+ * random subset each season; players asked to see the whole board and choose.
+ * Order is stable so keyboard 1–N stays predictable across seasons.
  */
-function shuffled<T>(items: readonly T[], r: () => number): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(r() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
 function trainingOptions(state: GameState): TrainingOption[] {
-  const r = streamRng(state.seed, `drills:${state.turnIndex}`);
   if (IS_TWO_WAY[state.position]) {
-    // Two drills from each side plus rest: the two-way player is always being
-    // asked which half of themselves to feed this season.
-    return [
-      ...shuffled(batterDrills(), r).slice(0, 2),
-      ...shuffled(pitcherDrills(state), r).slice(0, 2),
-      REST_OPTION,
-    ];
+    // Every batting drill and every pitching drill: the two-way player still
+    // has to pick which half of themselves to feed this block.
+    return [...batterDrills(), ...pitcherDrills(state), REST_OPTION];
   }
   const drills = IS_PITCHER[state.position] ? pitcherDrills(state) : batterDrills();
-  return [...shuffled(drills, r).slice(0, 3), REST_OPTION];
+  return [...drills, REST_OPTION];
 }
 
 /**
@@ -651,10 +644,13 @@ function buildDecision(state: GameState): Decision {
         options: tournamentOptions(state),
       };
     }
+    const prompt = turn.camp
+      ? '集訓菜單全開。這一塊要把時間押在哪一項？'
+      : '這一季的練習菜單全開。你要把時間放在哪裡？';
     return {
       kind: 'training',
       title: turn.label,
-      prompt: '這一季的練習，你要把時間放在哪裡？',
+      prompt,
       options: trainingOptions(state).map((o) => ({ ...o })),
     };
   }
@@ -684,7 +680,7 @@ function buildDecision(state: GameState): Decision {
     return {
       kind: 'training',
       title: turnLabel(state),
-      prompt: '球季前的自主訓練，重點放在哪裡？',
+      prompt: '球季前的自主訓練菜單全開，重點放在哪裡？',
       options: trainingOptions(state).map((o) => ({ ...o })),
     };
   }
@@ -1338,7 +1334,11 @@ function queueSituation(state: GameState): void {
   if (queueChallengeSituationHook(state)) return;
 
   const fire = rng(state, 'situation-fire')();
-  if (fire >= SITUATION_FIRE_CHANCE) return;
+  // High school is the real cultivation window — fire a bit more often so
+  // the longer calendar actually surfaces high-risk cards.
+  const chance =
+    state.stage === 'highschool' ? HS_SITUATION_FIRE_CHANCE : SITUATION_FIRE_CHANCE;
+  if (fire >= chance) return;
   const situation = pickSituation(state, rng(state, 'situation-pick'));
   if (situation) state.pendingSituation = situation.id;
 }
@@ -2012,11 +2012,15 @@ function advanceTime(state: GameState): void {
   state.meta.fatigue = clamp(state.meta.fatigue - recovery, 0, 100);
 
   if (state.stage === 'highschool') {
-    // Three high-school years pass over eleven turns; age ticks each spring.
-    const turn = HS_SCHEDULE[Math.min(state.turnIndex, HS_TURNS - 1)];
-    if (state.turnIndex < HS_TURNS && turn.season === '春') {
-      state.age += 1;
-      state.year += 1;
+    // Age ticks when the grade increases (高一→高二→高三), not on every 春
+    // label — spring now has mid-block camp turns that must not double-age.
+    if (state.turnIndex < HS_TURNS) {
+      const turn = HS_SCHEDULE[state.turnIndex];
+      const prev = state.turnIndex > 0 ? HS_SCHEDULE[state.turnIndex - 1] : null;
+      if (prev && turn.grade > prev.grade) {
+        state.age += 1;
+        state.year += 1;
+      }
     }
     if (state.turnIndex >= HS_TURNS) {
       state.age = 18;
