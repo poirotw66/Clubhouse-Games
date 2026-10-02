@@ -75,17 +75,18 @@ npm run build:game Roguelike-Snake
 
 ```
 src/
-├── App.tsx              # 畫面切換、遊戲迴圈、輸入處理
+├── App.tsx              # 畫面切換、遊戲迴圈、輸入處理、挑戰結算
 ├── components/          # Arena（Canvas 容器）、Hud、RelicPicker、TitleScreen
 ├── game/
+│   ├── challenges.ts    # 挑戰種子包定義、解鎖與通關判定
 │   ├── config.ts        # 所有數值調校常數
 │   ├── engine.ts        # 核心規則：移動、戰鬥、樓層推進、遺物
 │   ├── level.ts         # 地形模板生成與連通性檢查
 │   ├── relics.ts        # 遺物定義與加權抽取
 │   ├── rng.ts           # 可重現的種子亂數（mulberry32）
-│   ├── storage.ts       # 最佳紀錄（localStorage）
+│   ├── storage.ts       # 最佳紀錄與挑戰進度（localStorage）
 │   └── types.ts
 └── render/draw.ts       # Canvas 繪製與逐格內插
 ```
 
-同一組 **種子** 會產生完全相同的地窟，可在標題畫面輸入種子重玩或與他人比較。
+同一組 **種子** 會產生完全相同的地窟，可在標題畫面輸入種子重玩或與他人比較。標題另有 **挑戰種子包**（固定種子＋通關目標，順序解鎖）。
