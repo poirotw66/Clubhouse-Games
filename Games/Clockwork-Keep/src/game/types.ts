@@ -84,6 +84,21 @@ export interface GameState {
   mapId: MapId;
   endless: boolean;
 
+  /**
+   * Active mission id when started from the title mission pack; null for free play.
+   * Constraints below are copied from the mission so the engine stays pure.
+   */
+  missionId: string | null;
+  /** Towers the player may place; null means all four types. */
+  allowedTowers: TowerType[] | null;
+  /** When false, sell is refused (一鏡到底). */
+  allowSell: boolean;
+  /**
+   * Clearing this wave ends the run as a win. Null means free-play endless
+   * (never auto-win) or free-play challenge (TOTAL_WAVES via engine default).
+   */
+  winAtWave: number | null;
+
   gridW: number;
   gridH: number;
   rocks: Cell[];

@@ -49,16 +49,28 @@ export interface CommandResult {
 
 // ── State construction & cloning ────────────────────────────────────────────
 
+export interface MissionStateOptions {
+  missionId: string;
+  allowedTowers: TowerType[] | null;
+  allowSell: boolean;
+  winAtWave: number;
+}
+
 export function createInitialState(
   difficulty: Difficulty,
   mapId: MapId,
   endless: boolean,
+  mission?: MissionStateOptions | null,
 ): GameState {
   const cfg = DIFFICULTIES[difficulty];
   return {
     difficulty,
     mapId,
     endless,
+    missionId: mission?.missionId ?? null,
+    allowedTowers: mission?.allowedTowers ?? null,
+    allowSell: mission?.allowSell ?? true,
+    winAtWave: mission?.winAtWave ?? null,
     gridW: 12,
     gridH: 8,
     rocks: [],
@@ -123,6 +135,9 @@ export function placeTower(state: GameState, x: number, y: number, type: TowerTy
   if (state.phase !== 'prep' && state.phase !== 'wave') {
     return { state, ok: false, reason: '遊戲已結束' };
   }
+  if (state.allowedTowers && !state.allowedTowers.includes(type)) {
+    return { state, ok: false, reason: '此任務不開放該塔種' };
+  }
   if (!isCellFree(state, x, y)) {
     return { state, ok: false, reason: '此格無法放置' };
   }
@@ -155,6 +170,9 @@ export function placeTower(state: GameState, x: number, y: number, type: TowerTy
 }
 
 export function sellTower(state: GameState, towerId: number): CommandResult {
+  if (!state.allowSell) {
+    return { state, ok: false, reason: '此任務禁止售出塔' };
+  }
   const tower = state.towers.find((t) => t.id === towerId);
   if (!tower) return { state, ok: false, reason: '找不到該塔' };
 
@@ -519,7 +537,10 @@ export function step(state: GameState, dt: number): GameState {
   // 6) Wave clear?
   if (next.pendingSpawns.length === 0 && next.enemies.length === 0) {
     next.gold += waveClearBonus(next.wave);
-    if (!next.endless && next.wave >= TOTAL_WAVES) {
+    // Mission cards set winAtWave explicitly (e.g. endless survive-30). Free-play
+    // challenge still wins at TOTAL_WAVES; free-play endless never auto-wins.
+    const winWave = next.winAtWave ?? (next.endless ? null : TOTAL_WAVES);
+    if (winWave != null && next.wave >= winWave) {
       next.phase = 'won';
     } else {
       next.phase = 'prep';

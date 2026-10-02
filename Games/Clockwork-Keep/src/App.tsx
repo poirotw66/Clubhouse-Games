@@ -24,16 +24,32 @@ import {
 import { purchaseCost, sellRefund, upgradeCost } from './game/economy';
 import {
   createInitialState,
+  overlapOffer,
   placeTower,
   sellTower,
   startNextWave,
-  overlapOffer,
   step,
   undoLast,
   upgradeTower,
   withRocks,
   type CommandResult,
 } from './game/engine';
+import {
+  MISSION_PACK,
+  applyMissionResult,
+  continueMissionIndex,
+  evaluateMissionGoal,
+  isMissionUnlocked,
+  isTowerAllowed,
+  loadMissionProgress,
+  missionAt,
+  missionById,
+  missionCount,
+  missionIndexOf,
+  saveMissionProgress,
+  type MissionDef,
+  type MissionProgress,
+} from './game/missions';
 import type { Cell, GameState } from './game/types';
 
 const TOWER_ORDER: TowerType[] = ['crossbow', 'grinder', 'frost', 'coil'];
@@ -86,6 +102,17 @@ export default function App(): ReactElement {
   const [bestTime, setBestTime] = useState(0);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
 
+  const [showMissions, setShowMissions] = useState(false);
+  const [missionProgress, setMissionProgress] = useState<MissionProgress>(() => loadMissionProgress());
+  const missionProgressRef = useRef(missionProgress);
+  missionProgressRef.current = missionProgress;
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
+  const [lastMissionCleared, setLastMissionCleared] = useState<boolean | null>(null);
+
+  const activeMission: MissionDef | null = activeMissionId ? (missionById(activeMissionId) ?? null) : null;
+  const packContinue = continueMissionIndex(missionProgress.clearedCount);
+  const packSubtitle = `${missionProgress.clearedCount}/${missionCount()} 通關`;
+
   useEffect(() => {
     setBestWave(readStoredNumber(BEST_WAVE_KEY_PREFIX + difficulty));
     setBestScore(readStoredNumber(BEST_SCORE_KEY_PREFIX + difficulty));
@@ -113,23 +140,60 @@ export default function App(): ReactElement {
     [flashMessage],
   );
 
+  const beginRun = useCallback(
+    (opts: {
+      difficulty: Difficulty;
+      mapId: MapId;
+      endless: boolean;
+      mission: MissionDef | null;
+    }) => {
+      const missionOpts = opts.mission
+        ? {
+            missionId: opts.mission.id,
+            allowedTowers: opts.mission.run.allowedTowers,
+            allowSell: opts.mission.run.allowSell,
+            winAtWave: opts.mission.run.winAtWave,
+          }
+        : null;
+      let fresh = createInitialState(opts.difficulty, opts.mapId, opts.endless, missionOpts);
+      fresh = withRocks(fresh, MAP_ROCKS[opts.mapId]);
+      stateRef.current = fresh;
+      setState(fresh);
+      setSelectedTowerId(null);
+      setSelectedTowerType(null);
+      setHoverCell(null);
+      setPaused(false);
+      recordedRef.current = false;
+      setLastMissionCleared(null);
+      setActiveMissionId(opts.mission?.id ?? null);
+      setScreen('playing');
+    },
+    [],
+  );
+
   const startGame = useCallback(() => {
-    let fresh = createInitialState(difficulty, mapId, endless);
-    fresh = withRocks(fresh, MAP_ROCKS[mapId]);
-    stateRef.current = fresh;
-    setState(fresh);
-    setSelectedTowerId(null);
-    setSelectedTowerType(null);
-    setHoverCell(null);
-    setPaused(false);
-    recordedRef.current = false;
-    setScreen('playing');
-  }, [difficulty, mapId, endless]);
+    beginRun({ difficulty, mapId, endless, mission: null });
+  }, [beginRun, difficulty, mapId, endless]);
+
+  const startMission = useCallback(
+    (mission: MissionDef) => {
+      setShowMissions(false);
+      beginRun({
+        difficulty: mission.run.difficulty,
+        mapId: mission.run.mapId,
+        endless: mission.run.endless,
+        mission,
+      });
+    },
+    [beginRun],
+  );
 
   const backToSetup = useCallback(() => {
     setScreen('setup');
     stateRef.current = null;
     setState(null);
+    setActiveMissionId(null);
+    setLastMissionCleared(null);
   }, []);
 
   // ── Fixed-timestep simulation loop ──────────────────────────────────────
@@ -174,21 +238,34 @@ export default function App(): ReactElement {
     if (state.phase === 'won') playWin();
     else playLose();
 
-    const waveKey = BEST_WAVE_KEY_PREFIX + state.difficulty;
-    const scoreKey = BEST_SCORE_KEY_PREFIX + state.difficulty;
-    const timeKey = BEST_TIME_KEY_PREFIX + state.difficulty;
+    // Free-play bests only — mission progress is stored separately.
+    if (!state.missionId) {
+      const waveKey = BEST_WAVE_KEY_PREFIX + state.difficulty;
+      const scoreKey = BEST_SCORE_KEY_PREFIX + state.difficulty;
+      const timeKey = BEST_TIME_KEY_PREFIX + state.difficulty;
 
-    const reachedWave = state.phase === 'won' ? TOTAL_WAVES : state.wave;
-    const prevWave = readStoredNumber(waveKey);
-    if (reachedWave > prevWave) writeStoredNumber(waveKey, reachedWave);
-    const prevScore = readStoredNumber(scoreKey);
-    if (state.score > prevScore) writeStoredNumber(scoreKey, Math.round(state.score));
-    if (state.phase === 'won') {
-      const prevTime = readStoredNumber(timeKey);
-      if (prevTime === 0 || state.elapsedTime < prevTime) writeStoredNumber(timeKey, Math.round(state.elapsedTime));
+      const reachedWave = state.phase === 'won' ? TOTAL_WAVES : state.wave;
+      const prevWave = readStoredNumber(waveKey);
+      if (reachedWave > prevWave) writeStoredNumber(waveKey, reachedWave);
+      const prevScore = readStoredNumber(scoreKey);
+      if (state.score > prevScore) writeStoredNumber(scoreKey, Math.round(state.score));
+      if (state.phase === 'won') {
+        const prevTime = readStoredNumber(timeKey);
+        if (prevTime === 0 || state.elapsedTime < prevTime) writeStoredNumber(timeKey, Math.round(state.elapsedTime));
+      }
+      setBestWave(Math.max(prevWave, reachedWave));
+      setBestScore(Math.max(prevScore, Math.round(state.score)));
     }
-    setBestWave(Math.max(prevWave, reachedWave));
-    setBestScore(Math.max(prevScore, Math.round(state.score)));
+
+    if (state.missionId) {
+      const idx = missionIndexOf(state.missionId);
+      if (idx >= 0) {
+        const { progress, cleared } = applyMissionResult(missionProgressRef.current, idx, state);
+        setMissionProgress(progress);
+        saveMissionProgress(progress);
+        setLastMissionCleared(cleared);
+      }
+    }
   }, [state]);
 
   // ── Commands ─────────────────────────────────────────────────────────────
@@ -237,6 +314,11 @@ export default function App(): ReactElement {
 
   const togglePause = useCallback(() => setPaused((p) => !p), []);
 
+  const retryMission = useCallback(() => {
+    if (!activeMission) return;
+    startMission(activeMission);
+  }, [activeMission, startMission]);
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     if (screen !== 'playing') return;
@@ -244,7 +326,13 @@ export default function App(): ReactElement {
       if (e.repeat) return;
       if (TOWER_HOTKEYS[e.key]) {
         e.preventDefault();
-        setSelectedTowerType((t) => (t === TOWER_HOTKEYS[e.key] ? null : TOWER_HOTKEYS[e.key]));
+        const type = TOWER_HOTKEYS[e.key];
+        const cur = stateRef.current;
+        if (cur && !isTowerAllowed(cur, type)) {
+          flashMessage('此任務不開放該塔種');
+          return;
+        }
+        setSelectedTowerType((t) => (t === type ? null : type));
         setSelectedTowerId(null);
         return;
       }
@@ -265,7 +353,7 @@ export default function App(): ReactElement {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [screen, handleStartWave, handleUndo, togglePause]);
+  }, [screen, handleStartWave, handleUndo, togglePause, flashMessage]);
 
   // ── Setup screen ─────────────────────────────────────────────────────────
   if (screen === 'setup' || !state) {
@@ -290,9 +378,17 @@ export default function App(): ReactElement {
           <button
             type="button"
             onClick={() => setShowFirstRun(true)}
-            className="mb-6 w-full py-2 rounded-lg border border-amber-900/50 bg-black/20 text-sm font-medium text-amber-200/80 hover:bg-black/30 transition-colors min-h-[44px] touch-manipulation"
+            className="mb-3 w-full py-2 rounded-lg border border-amber-900/50 bg-black/20 text-sm font-medium text-amber-200/80 hover:bg-black/30 transition-colors min-h-[44px] touch-manipulation"
           >
             操作教學
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowMissions(true)}
+            className="mb-6 w-full py-2.5 rounded-lg border border-amber-500/50 bg-amber-600/25 text-sm font-semibold text-amber-100 hover:bg-amber-600/35 transition-colors min-h-[44px] touch-manipulation"
+            aria-label={`開啟任務包。${packSubtitle}`}
+          >
+            任務包・{packSubtitle}
           </button>
 
           <div className="mb-4">
@@ -387,6 +483,96 @@ export default function App(): ReactElement {
             </ul>
           </details>
         </div>
+
+        {showMissions && (
+          <div
+            className="fixed inset-0 z-30 flex items-center justify-center p-4 bg-black/75"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ck-missions-title"
+          >
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#1c1409] border border-amber-900/50 rounded-2xl p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <h2 id="ck-missions-title" className="text-xl font-bold text-amber-100">
+                    任務包
+                  </h2>
+                  <p className="text-xs text-amber-200/70 mt-1">
+                    固定約束、清晰通關目標。進度與自由遊玩紀錄分開保存。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMissions(false)}
+                  className="min-h-[44px] min-w-[44px] rounded-lg hover:bg-white/10 text-amber-200/80"
+                  aria-label="關閉任務包"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const next = missionAt(packContinue);
+                  if (next) startMission(next);
+                }}
+                className="w-full mb-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-semibold text-sm min-h-[44px]"
+                aria-label="繼續任務"
+              >
+                繼續・{missionAt(packContinue)?.name ?? '任務'}
+              </button>
+
+              <ul className="space-y-2">
+                {MISSION_PACK.map((mission, index) => {
+                  const unlocked = isMissionUnlocked(index, missionProgress.clearedCount);
+                  const done = Boolean(missionProgress.cleared[mission.id]);
+                  const best = missionProgress.bestScore[mission.id] ?? 0;
+                  const waveBest = missionProgress.bestWave[mission.id] ?? 0;
+                  return (
+                    <li
+                      key={mission.id}
+                      className={`rounded-xl border p-3 ${
+                        unlocked
+                          ? 'border-amber-800/60 bg-black/25'
+                          : 'border-amber-950/40 bg-black/10 opacity-55'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-amber-100">
+                            {String(index + 1).padStart(2, '0')}・{mission.name}
+                            {done ? (
+                              <span className="ml-2 text-emerald-300/90 text-xs font-medium">已通關</span>
+                            ) : !unlocked ? (
+                              <span className="ml-2 text-amber-200/50 text-xs font-medium">未解鎖</span>
+                            ) : null}
+                          </p>
+                          <p className="text-xs text-amber-200/65 mt-0.5">{mission.blurb}</p>
+                          <p className="text-xs text-amber-300/80 mt-1">目標：{mission.goalLabel}</p>
+                          {(best > 0 || waveBest > 0) && (
+                            <p className="text-[11px] text-amber-200/50 mt-1 font-mono">
+                              最佳分數 {best}
+                              {waveBest > 0 ? ` ・ 波次 ${waveBest}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!unlocked}
+                          onClick={() => startMission(mission)}
+                          className="shrink-0 px-3 py-2 rounded-lg bg-amber-700/80 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium min-h-[44px]"
+                        >
+                          {!unlocked ? '未解鎖' : done ? '再挑戰' : '挑戰'}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -395,9 +581,16 @@ export default function App(): ReactElement {
   const selectedTower = selectedTowerId != null ? state.towers.find((t) => t.id === selectedTowerId) ?? null : null;
   const canUndo = state.phase === 'prep' && state.lastReversible != null;
   const overlap = overlapOffer(state);
-  const waveLabel = state.endless ? `第 ${state.wave} 波（無盡）` : `第 ${state.wave} / ${TOTAL_WAVES} 波`;
+  const winWave = state.winAtWave ?? (state.endless ? null : TOTAL_WAVES);
+  const waveLabel = state.endless
+    ? winWave != null
+      ? `第 ${state.wave} / ${winWave} 波（無盡任務）`
+      : `第 ${state.wave} 波（無盡）`
+    : `第 ${state.wave} / ${winWave ?? TOTAL_WAVES} 波`;
   const enemiesLeft = state.pendingSpawns.length + state.enemies.length;
   const isOver = state.phase === 'won' || state.phase === 'lost';
+  const missionGoalMet =
+    activeMission && state.phase === 'won' ? evaluateMissionGoal(activeMission, state) : false;
 
   return (
     <div className="min-h-screen bg-[#120c06] text-amber-50 flex flex-col items-center p-3 pb-8 min-w-0">
@@ -433,6 +626,13 @@ export default function App(): ReactElement {
           </button>
         </div>
       </header>
+
+      {activeMission && (
+        <div className="w-full max-w-3xl mb-2 py-1.5 px-3 rounded-lg bg-amber-900/35 border border-amber-500/35 text-sm flex flex-wrap items-center justify-between gap-2">
+          <span className="font-semibold text-amber-100">任務・{activeMission.name}</span>
+          <span className="text-amber-200/75 text-xs">{activeMission.goalLabel}</span>
+        </div>
+      )}
 
       {message && (
         <div className="w-full max-w-3xl mb-2 py-1.5 px-3 rounded-lg bg-rose-900/50 border border-rose-500/40 text-sm text-center">
@@ -483,7 +683,8 @@ export default function App(): ReactElement {
         {TOWER_ORDER.map((type, i) => {
           const def = TOWER_DEFS[type];
           const cost = purchaseCost(type);
-          const affordable = state.gold >= cost;
+          const allowed = isTowerAllowed(state, type);
+          const affordable = allowed && state.gold >= cost;
           const active = selectedTowerType === type;
           return (
             <button
@@ -491,26 +692,32 @@ export default function App(): ReactElement {
               type="button"
               disabled={!affordable}
               onClick={() => {
+                if (!allowed) {
+                  flashMessage('此任務不開放該塔種');
+                  return;
+                }
                 setSelectedTowerType((t) => (t === type ? null : type));
                 setSelectedTowerId(null);
               }}
               className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl border text-xs transition-colors touch-manipulation min-h-[64px] ${
-                active
-                  ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-                  : affordable
-                    ? 'border-amber-900/50 bg-black/20 text-amber-100 hover:bg-black/30'
-                    : 'border-amber-900/30 bg-black/10 text-amber-200/30 cursor-not-allowed'
+                !allowed
+                  ? 'border-amber-900/20 bg-black/10 text-amber-200/20 cursor-not-allowed'
+                  : active
+                    ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                    : affordable
+                      ? 'border-amber-900/50 bg-black/20 text-amber-100 hover:bg-black/30'
+                      : 'border-amber-900/30 bg-black/10 text-amber-200/30 cursor-not-allowed'
               }`}
-              title={`${def.name}（快捷鍵 ${i + 1}）`}
+              title={allowed ? `${def.name}（快捷鍵 ${i + 1}）` : `${def.name}（此任務不開放）`}
             >
               <img
                 src={`${import.meta.env.BASE_URL}towers/${type}.jpg`}
                 alt=""
-                className="w-9 h-9 rounded-lg object-cover border border-amber-900/40 mb-0.5"
+                className={`w-9 h-9 rounded-lg object-cover border border-amber-900/40 mb-0.5 ${!allowed ? 'grayscale opacity-40' : ''}`}
                 draggable={false}
               />
               <span className="font-semibold">{def.name}</span>
-              <span className="font-mono">{cost}G</span>
+              <span className="font-mono">{allowed ? `${cost}G` : '—'}</span>
             </button>
           );
         })}
@@ -539,9 +746,11 @@ export default function App(): ReactElement {
             <button
               type="button"
               onClick={handleSell}
-              className="px-3 py-2 rounded-lg bg-rose-800 hover:bg-rose-700 font-medium"
+              disabled={!state.allowSell}
+              title={state.allowSell ? undefined : '此任務禁止售出塔'}
+              className="px-3 py-2 rounded-lg bg-rose-800 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
             >
-              售出 +{sellRefund(selectedTower.investedGold)}G
+              {state.allowSell ? `售出 +${sellRefund(selectedTower.investedGold)}G` : '禁售'}
             </button>
             <button
               type="button"
@@ -572,20 +781,64 @@ export default function App(): ReactElement {
 
       {isOver && (
         <ResultOverlay
-          title={state.phase === 'won' ? '守城成功！' : '城池失守'}
-          variant={state.phase === 'won' ? 'win' : 'lose'}
-          subtitle={state.phase === 'won' ? '你撐過了全部波次。' : `倒在第 ${state.wave} 波。`}
+          title={
+            activeMission
+              ? lastMissionCleared || missionGoalMet
+                ? '任務成功'
+                : state.phase === 'won'
+                  ? '任務未過'
+                  : '城池失守'
+              : state.phase === 'won'
+                ? '守城成功！'
+                : '城池失守'
+          }
+          variant={
+            activeMission
+              ? lastMissionCleared || missionGoalMet
+                ? 'win'
+                : 'lose'
+              : state.phase === 'won'
+                ? 'win'
+                : 'lose'
+          }
+          subtitle={
+            activeMission
+              ? lastMissionCleared || missionGoalMet
+                ? `「${activeMission.name}」達成：${activeMission.goalLabel}`
+                : state.phase === 'won'
+                  ? `未達成：${activeMission.goalLabel}`
+                  : `倒在「${activeMission.name}」第 ${state.wave} 波。`
+              : state.phase === 'won'
+                ? '你撐過了全部波次。'
+                : `倒在第 ${state.wave} 波。`
+          }
           stats={[
-            { label: '波次', value: state.phase === 'won' ? `${TOTAL_WAVES}（通關）` : state.wave },
+            ...(activeMission ? [{ label: '任務', value: activeMission.name }] : []),
+            {
+              label: '波次',
+              value:
+                state.phase === 'won'
+                  ? `${state.wave}${winWave != null && state.wave >= winWave ? '（通關）' : ''}`
+                  : state.wave,
+            },
             { label: '擊殺數', value: state.kills },
             { label: '剩餘生命', value: state.lives },
             { label: '未花費金幣', value: state.gold },
             { label: '分數', value: Math.round(state.score) },
-            { label: '最佳波次', value: bestWave },
-            { label: '最佳分數', value: bestScore },
+            ...(activeMission
+              ? [
+                  {
+                    label: '任務最佳分數',
+                    value: missionProgress.bestScore[activeMission.id] ?? Math.round(state.score),
+                  },
+                ]
+              : [
+                  { label: '最佳波次', value: bestWave },
+                  { label: '最佳分數', value: bestScore },
+                ]),
           ]}
-          primaryLabel="再玩一次"
-          onPrimary={startGame}
+          primaryLabel={activeMission ? '再挑戰' : '再玩一次'}
+          onPrimary={activeMission ? retryMission : startGame}
           secondaryLabel="回設定"
           onSecondary={backToSetup}
         />
