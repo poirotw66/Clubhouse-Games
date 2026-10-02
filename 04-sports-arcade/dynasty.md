@@ -218,7 +218,28 @@ AI 對球員的估值：
 
 - 每個決策點自動存入 `localStorage`（`clubhouse:dynasty:save`）。
 - 任期結束後寫入歷代總管名冊，標題畫面顯示。
-- 成就進度獨立存放，跨局累積（比照《棒球人生》，且同樣完全不影響模擬結果）。
+- **生涯挑戰**進度獨立存放於 `clubhouse:dynasty:challenges`（與自由遊玩存檔、名冊互不覆寫）。
+- **紀錄牆**存放於 `clubhouse:dynasty:records`（各球團最佳任期＋里程碑；完全不影響模擬結果）。
+- 進行中的挑戰 id 另存於 `clubhouse:dynasty:active-challenge`，方便「繼續上次的任期」還原挑戰脈絡。
+
+## 生涯挑戰
+
+標題畫面有 **生涯挑戰** CTA。固定種子＋鎖定球團的關卡包（目前 6 關），達成目標才算通關；關卡依序解鎖（通關第 N 關才開第 N+1 關）。目標種類：撐滿任期、期末現金、期末信任、總冠軍數、王朝分數、季後賽次數。
+
+| 關卡 | 種子 | 球團 | 目標 |
+|------|------|------|------|
+| 撐滿十年 | `surv0001` | 新北海豚 | 完整任期・未被解僱 |
+| 金庫充實 | `cash0001` | 桃園天使 | 期末現金 ≥ 3 億 |
+| 董事會信任 | `trust001` | 南方猛獅 | 期末信任 ≥ 80 |
+| 首冠到手 | `title01` | 南方猛獅 | 總冠軍 ≥ 1 |
+| 農場長跑 | `rebuild1` | 台南飛鷹 | 飛鷹・完整任期 |
+| 名總管門檻 | `chlg0001` | 南方猛獅 | 王朝分數 ≥ 1900 |
+
+結算畫面顯示「挑戰成功／未過」，可「再試一次挑戰」。實作：`src/game/challenges.ts`。
+
+## 紀錄牆
+
+標題畫面在有任何名冊／紀錄時顯示 **紀錄牆**：各球團最佳王朝分數、里程碑計數（任期／撐完／總冠軍／名總管／王朝）。點列或歷代總管可帶 `?seed=` 自由重玩（會清除進行中的挑戰 id）。實作：`src/game/records.ts`。
 
 ## 操作與介面
 
@@ -246,11 +267,15 @@ src/game/
   trades.ts       AI 提案生成與估值
   events.ts       隨機事件池
   board.ts        期望協商與信任評分
+  challenges.ts   生涯挑戰關卡包（固定種子・解鎖進度）
+  records.ts      紀錄牆（球團最佳・里程碑）
+  storage.ts      存檔／名冊／挑戰／紀錄
   engine.ts       階段推進與決策解析
 ```
 
 ## 備註
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:dynasty:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「接下總管職務」衝突。
+- **生涯挑戰／紀錄牆**：比照《棒球人生》#132／#134 打法；標題 CTA「生涯挑戰」「紀錄牆」。
 - 所有球隊名稱、球員與事件均為虛構，與現實中的球團、聯盟或人物無關。
-- 實作路徑：`Games/Dynasty/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。
+- 實作路徑：`Games/Dynasty/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`、`TitleScreen`／`PlayScreen`／`SummaryScreen`；核心：`src/game/`。

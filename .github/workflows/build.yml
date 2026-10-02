@@ -48,6 +48,9 @@ jobs:
       - name: Run game logic checks
         run: npm run check:all
 
+      - name: Run Astra Endless Train logic check
+        run: npm run check:astra-train
+
       - name: Build for GitHub Pages
         env:
           REPO_NAME: ${{ github.event.repository.name }}

@@ -106,6 +106,8 @@ export interface CreateInput {
   seedCode: string;
   gmName: string;
   teamId: string;
+  /** When set, tags the run as a career-challenge attempt. */
+  challengeId?: string | null;
 }
 
 export function createGame(input: CreateInput): GameState {
@@ -132,6 +134,7 @@ export function createGame(input: CreateInput): GameState {
     seed,
     gmName: input.gmName.trim() || '無名總管',
     teamId: club.id,
+    challengeId: input.challengeId ?? null,
     year: START_YEAR,
     seasonIndex: 0,
     phase: 'board',

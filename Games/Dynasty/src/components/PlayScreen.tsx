@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import type { CareerChallenge } from '../game/challenges';
 import { formatMoney } from '../game/config';
 import { humanTeam } from '../game/engine';
 import type { GameState, Report } from '../game/types';
@@ -51,6 +52,7 @@ function Ledger({ ledger }: { ledger: NonNullable<Report['ledger']> }): React.Re
 
 interface Props {
   state: GameState;
+  challenge?: CareerChallenge | null;
   onChoose: (optionId: string) => void;
   onAcknowledge: () => void;
   onUndo: () => void;
@@ -60,6 +62,7 @@ interface Props {
 
 export function PlayScreen({
   state,
+  challenge,
   onChoose,
   onAcknowledge,
   onUndo,
@@ -120,6 +123,12 @@ export function PlayScreen({
           <p className="text-[11px] text-slate-500">
             種子碼 <span className="font-mono text-emerald-300/80">{state.seedCode}</span>
           </p>
+          {challenge && (
+            <p className="mt-1 text-[11px] font-semibold text-sky-300/90">
+              挑戰・{challenge.name}
+              <span className="ml-2 font-normal text-slate-400">目標：{challenge.goalLabel}</span>
+            </p>
+          )}
         </div>
         <TouchButton
           label="放棄任期"

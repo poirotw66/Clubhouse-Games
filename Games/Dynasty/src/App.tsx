@@ -1,10 +1,31 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
+import {
+  applyChallengeResult,
+  challengeById,
+  challengeIndexById,
+  isChallengeCleared,
+} from './game/challenges';
+import type { CareerChallenge, ChallengeProgress } from './game/challenges';
 import { CLUBS } from './game/config';
 import { acknowledge, createGame, resolve } from './game/engine';
+import { applyTenureToRecords } from './game/records';
+import type { PersonalRecords } from './game/records';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
-import { clearGame, loadArchive, loadGame, pushArchive, saveGame } from './game/storage';
+import {
+  clearGame,
+  loadActiveChallengeId,
+  loadArchive,
+  loadChallengeProgress,
+  loadGame,
+  loadRecords,
+  pushArchive,
+  saveActiveChallengeId,
+  saveChallengeProgress,
+  saveGame,
+  saveRecords,
+} from './game/storage';
 import type { ArchiveEntry } from './game/storage';
 import type { GameState } from './game/types';
 import {
@@ -38,8 +59,21 @@ export default function App(): React.ReactElement {
   const [history, setHistory] = useState<GameState[]>([]);
   const [saved, setSaved] = useState<GameState | null>(() => loadGame());
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
+  const [challengeProgress, setChallengeProgress] = useState<ChallengeProgress>(() =>
+    loadChallengeProgress(),
+  );
+  const [records, setRecords] = useState<PersonalRecords>(() => loadRecords());
+  const [activeChallengeId, setActiveChallengeId] = useState<string | null>(() =>
+    loadActiveChallengeId(),
+  );
+  const [challengeResult, setChallengeResult] = useState<boolean | null>(null);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const summarySfxKey = useRef<string | null>(null);
+
+  const activeChallenge: CareerChallenge | null = useMemo(
+    () => (activeChallengeId ? (challengeById(activeChallengeId) ?? null) : null),
+    [activeChallengeId],
+  );
 
   // Persist after every decision so a closed tab does not cost a tenure.
   useEffect(() => {
@@ -60,9 +94,14 @@ export default function App(): React.ReactElement {
       if (screen !== 'summary') summarySfxKey.current = null;
       return;
     }
-    const key = `${state.seedCode}:${state.summary.score}:${state.summary.verdict}`;
+    const key = `${state.seedCode}:${state.summary.score}:${state.summary.verdict}:${challengeResult ?? 'free'}`;
     if (summarySfxKey.current === key) return;
     summarySfxKey.current = key;
+    if (activeChallenge && challengeResult !== null) {
+      if (challengeResult) playWin();
+      else playLose();
+      return;
+    }
     if (state.summary.fired) {
       playLose();
       return;
@@ -71,7 +110,7 @@ export default function App(): React.ReactElement {
     if (score >= 1900) playWin();
     else if (score >= 500) playGoal();
     else playLose();
-  }, [screen, state]);
+  }, [screen, state, activeChallenge, challengeResult]);
 
   const finish = useCallback((finished: GameState) => {
     if (!finished.summary) return;
@@ -85,6 +124,22 @@ export default function App(): React.ReactElement {
         titles: finished.summary.titles,
       }),
     );
+    const nextRecords = applyTenureToRecords(finished, loadRecords());
+    saveRecords(nextRecords);
+    setRecords(nextRecords);
+
+    const challengeId = loadActiveChallengeId();
+    const challenge = challengeId ? challengeById(challengeId) : undefined;
+    if (challenge) {
+      const index = challengeIndexById(challenge.id);
+      const applied = applyChallengeResult(loadChallengeProgress(), index, finished);
+      saveChallengeProgress(applied.progress);
+      setChallengeProgress(applied.progress);
+      setChallengeResult(applied.cleared || isChallengeCleared(challenge, finished));
+    } else {
+      setChallengeResult(null);
+    }
+
     clearGame();
     setSaved(null);
   }, []);
@@ -120,6 +175,50 @@ export default function App(): React.ReactElement {
     setState(acknowledge(state));
   }, [state, finish]);
 
+  const beginFreePlay = useCallback((code: string, gmName: string, teamId: string) => {
+    const normalized = normalizeSeedCode(code);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('seed', normalized);
+      window.history.replaceState({}, '', url.toString());
+    } catch {
+      // ignore
+    }
+    saveActiveChallengeId(null);
+    setActiveChallengeId(null);
+    setChallengeResult(null);
+    setSeedCode(normalized);
+    setState(createGame({ seedCode: normalized, gmName, teamId, challengeId: null }));
+    setHistory([]);
+    setScreen('play');
+  }, []);
+
+  const beginChallenge = useCallback((challengeId: string, gmName: string) => {
+    const challenge = challengeById(challengeId);
+    if (!challenge) return;
+    saveActiveChallengeId(challenge.id);
+    setActiveChallengeId(challenge.id);
+    setChallengeResult(null);
+    setSeedCode(challenge.seedCode);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('seed', challenge.seedCode);
+      window.history.replaceState({}, '', url.toString());
+    } catch {
+      // ignore
+    }
+    setState(
+      createGame({
+        seedCode: challenge.seedCode,
+        gmName,
+        teamId: challenge.teamId,
+        challengeId: challenge.id,
+      }),
+    );
+    setHistory([]);
+    setScreen('play');
+  }, []);
+
   const backToTitle = useCallback(() => {
     clearGame();
     setSaved(null);
@@ -128,6 +227,32 @@ export default function App(): React.ReactElement {
     setSeedCode(randomSeedCode());
     setScreen('title');
   }, []);
+
+  const retryChallenge = useCallback(() => {
+    if (!activeChallengeId) {
+      backToTitle();
+      return;
+    }
+    const challenge = challengeById(activeChallengeId);
+    if (!challenge) {
+      backToTitle();
+      return;
+    }
+    const gmName = state?.gmName ?? '';
+    setChallengeResult(null);
+    setSeedCode(challenge.seedCode);
+    saveActiveChallengeId(challenge.id);
+    setState(
+      createGame({
+        seedCode: challenge.seedCode,
+        gmName,
+        teamId: challenge.teamId,
+        challengeId: challenge.id,
+      }),
+    );
+    setHistory([]);
+    setScreen('play');
+  }, [activeChallengeId, backToTitle, state?.gmName]);
 
   return (
     <>
@@ -138,18 +263,18 @@ export default function App(): React.ReactElement {
           initialSeed={seedCode}
           hasSave={saved !== null}
           archive={archive}
+          challengeProgress={challengeProgress}
+          records={records}
           onShowHowTo={() => setShowFirstRun(true)}
-          onStart={(code, gmName, teamId) => {
-            setSeedCode(code);
-            setState(createGame({ seedCode: code, gmName, teamId }));
-            setHistory([]);
-            setScreen('play');
-          }}
+          onStart={beginFreePlay}
+          onStartChallenge={beginChallenge}
           onContinue={() => {
             if (!saved) return;
             setState(saved);
             setHistory([]);
             setSeedCode(saved.seedCode);
+            setActiveChallengeId(loadActiveChallengeId() ?? saved.challengeId);
+            setChallengeResult(null);
             setScreen('play');
           }}
         />
@@ -158,15 +283,34 @@ export default function App(): React.ReactElement {
       {screen === 'play' && state && (
         <PlayScreen
           state={state}
+          challenge={activeChallenge}
           onChoose={handleChoose}
           onAcknowledge={handleAcknowledge}
           onUndo={handleUndo}
           canUndo={history.length > 0}
-          onQuit={backToTitle}
+          onQuit={() => {
+            saveActiveChallengeId(null);
+            setActiveChallengeId(null);
+            setChallengeResult(null);
+            backToTitle();
+          }}
         />
       )}
 
-      {screen === 'summary' && state && <SummaryScreen state={state} onRestart={backToTitle} />}
+      {screen === 'summary' && state && (
+        <SummaryScreen
+          state={state}
+          challenge={activeChallenge}
+          challengeCleared={challengeResult}
+          onRestart={() => {
+            saveActiveChallengeId(null);
+            setActiveChallengeId(null);
+            setChallengeResult(null);
+            backToTitle();
+          }}
+          onRetryChallenge={activeChallenge ? retryChallenge : undefined}
+        />
+      )}
     </>
   );
 }

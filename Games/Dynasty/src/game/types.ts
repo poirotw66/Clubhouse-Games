@@ -154,6 +154,8 @@ export interface GameState {
   seed: number;
   gmName: string;
   teamId: string;
+  /** Active career-challenge id, or null for free play. */
+  challengeId: string | null;
 
   year: number;
   seasonIndex: number;
