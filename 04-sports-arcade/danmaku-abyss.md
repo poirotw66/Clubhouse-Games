@@ -76,7 +76,7 @@
 - **通關**：完成第五階段的王。
 - **結束**：殘機歸零。
 - **成績**：總分 = 擊破分 × 擦彈倍率 + 符卡 Capture 加成 + 剩餘殘機與靈擊的結算分。
-- **紀錄**：最佳分數、最遠階段保存在瀏覽器本機（localStorage）。
+- **紀錄**：自由遊玩最佳分數保存在 `danmaku-abyss:best`；模式／關卡包另有分模式最佳與通關進度（見〈模式／關卡包〉）。
 
 ## 平衡量測
 
@@ -102,6 +102,21 @@
 
 - **練習模式**：單獨挑選已見過的符卡反覆練習，不計入紀錄。
 - **強度自訂**：手動指定起始 `intensity`，供想直接跳到高壓段落的玩家使用。
+
+### 模式／關卡包（標題入口）
+
+標題「模式／關卡包」提供固定種子的可刷關卡，進度鍵 `danmaku-abyss:modes-v1`（`clearedCount`／`cleared`／`bestScore`），**與自由遊玩最佳分 `danmaku-abyss:best` 分開**。依序解鎖：
+
+| 關 | id | 內容 |
+|----|----|------|
+| 1 | `practice-lamp` | 燈守演習：僅第 1 階段，跳過道中 |
+| 2 | `practice-tide` | 潮鳴演習：僅第 2 階段 |
+| 3 | `practice-frost` | 刃霜演習：僅第 3 階段 |
+| 4 | `hard-abyss` | 高難深潛：五階段全通，強度＋0.55，殘機／靈擊各 2 |
+| 5 | `spell-frost-rain` | 指定符卡：凍符「靜止的雨」，必須 Capture |
+| 6 | `spell-abyss-gaze` | 指定符卡：終符「深淵回望」，必須 Capture |
+
+實作：`src/game/modes.ts`；引擎 `createRun` 接受 `endStage`／`skipMidway`／`singleCard`／`intensityBonus` 等 knobs。
 
 ## 備註
 

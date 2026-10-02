@@ -32,6 +32,16 @@ import {
 } from '../src/game/engine.js';
 import { allCards, bossFor, midwayCardFor } from '../src/game/cards.js';
 import { allEmitters, emitterActive } from '../src/game/engine.js';
+import {
+  EMPTY_MODE_PROGRESS,
+  MODE_PACK,
+  applyModeResult,
+  assertModeCardTargets,
+  continueModeIndex,
+  evaluateModeGoal,
+  isModeUnlocked,
+  modeCount,
+} from '../src/game/modes.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
 import { UPGRADES, declaredConditions, declaredEffectKeys } from '../src/game/upgrades.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
@@ -750,6 +760,100 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
     }
   }
   ok('seeded streams are independent and no unseeded randomness reaches the engine');
+}
+
+// ── 15) Mode / level pack: authored targets, unlock, goals, run knobs ─────────
+{
+  assert.ok(MODE_PACK.length >= 6, 'mode pack is too thin');
+  assert.equal(modeCount(), MODE_PACK.length);
+  const ids = MODE_PACK.map((m) => m.id);
+  assert.equal(new Set(ids).size, ids.length, 'mode ids must be unique');
+  assertModeCardTargets();
+
+  assert.equal(isModeUnlocked(0, 0), true);
+  assert.equal(isModeUnlocked(1, 0), false);
+  assert.equal(isModeUnlocked(1, 1), true);
+  assert.equal(isModeUnlocked(99, MODE_PACK.length), false);
+  assert.equal(continueModeIndex(0), 0);
+  assert.equal(continueModeIndex(MODE_PACK.length), MODE_PACK.length - 1);
+
+  // Practice lamp: skip midway, open on stage-1 card 0, end after stage 1.
+  const lamp = MODE_PACK[0];
+  const lampRun = createRun(lamp.seedCode, { ...lamp.run, modeId: lamp.id });
+  assert.equal(lampRun.modeId, 'practice-lamp');
+  assert.equal(lampRun.bossSpawned, true);
+  assert.equal(lampRun.stage, 1);
+  assert.equal(lampRun.config.endStage, 1);
+  assert.equal(lampRun.config.skipMidway, true);
+  assert.ok(lampRun.enemies.some((e) => e.isBoss && e.card?.id === 'lamp-1'));
+
+  // Spell challenge: opens mid-card list on frost-3 only.
+  const rain = MODE_PACK.find((m) => m.id === 'spell-frost-rain');
+  assert.ok(rain);
+  const rainRun = createRun(rain.seedCode, { ...rain.run, modeId: rain.id });
+  const rainBoss = rainRun.enemies.find((e) => e.isBoss);
+  assert.equal(rainBoss?.card?.id, 'frost-3');
+  assert.equal(rainBoss?.cardIndex, 2);
+  assert.equal(rainRun.config.singleCard, true);
+
+  // Hard abyss: full clear knobs.
+  const hard = MODE_PACK.find((m) => m.id === 'hard-abyss');
+  assert.ok(hard);
+  const hardRun = createRun(hard.seedCode, { ...hard.run, modeId: hard.id });
+  assert.equal(hardRun.lives, 2);
+  assert.equal(hardRun.bombs, 2);
+  assert.equal(hardRun.config.endStage, STAGE_COUNT);
+  assert.ok(hardRun.intensity > intensityFor(1, false), 'hard mode must raise intensity');
+
+  // Timing out a capture-required card: phase can be won, goal fails.
+  // Park under permanent invuln so bullets cannot end the run before the timer.
+  let timed = createRun(rain.seedCode, { ...rain.run, modeId: rain.id });
+  timed = { ...timed, invuln: 9999, lives: 99 };
+  const limit = (timed.enemies[0]?.card?.timeLimit ?? 40) + 2;
+  for (let t = 0; t < limit * 60 && timed.phase === 'playing'; t++) {
+    timed = step(timed, IDLE, FIXED_DT);
+    // step clones and decays invuln; renew so the timeout path stays reachable.
+    if (timed.phase === 'playing' && timed.invuln < 10) {
+      timed = { ...timed, invuln: 9999 };
+    }
+  }
+  assert.equal(timed.phase, 'won', 'single-card timeout still ends the mode');
+  assert.equal(timed.captures, 0);
+  assert.equal(evaluateModeGoal(rain, timed), false, 'timeout must not clear a capture goal');
+
+  const failed = applyModeResult(EMPTY_MODE_PROGRESS, modeCount() - 2, timed);
+  assert.equal(failed.clearedCount, 0, 'failed capture must not advance unlock');
+  assert.ok((failed.bestScore[rain.id] ?? 0) >= timed.score || timed.score === 0);
+
+  // Synthetic clear advances unlock only for the next locked index.
+  const clearedState: RunState = {
+    ...lampRun,
+    phase: 'won',
+    score: 12_000,
+    captures: 3,
+  };
+  const fromZero = applyModeResult(EMPTY_MODE_PROGRESS, 0, clearedState);
+  assert.equal(fromZero.clearedCount, 1);
+  assert.equal(fromZero.cleared[lamp.id], true);
+  assert.equal(fromZero.bestScore[lamp.id], 12_000);
+
+  const outOfOrder = applyModeResult(EMPTY_MODE_PROGRESS, 3, {
+    ...hardRun,
+    phase: 'won',
+    score: 99_000,
+    captures: 10,
+  });
+  assert.equal(outOfOrder.clearedCount, 0, 'clearing a locked-ahead mode must not unlock');
+  assert.equal(outOfOrder.cleared['hard-abyss'], true);
+
+  // Free play createRun still defaults to full five-stage midway run.
+  const free = createRun('FREE01');
+  assert.equal(free.modeId, null);
+  assert.equal(free.config.endStage, STAGE_COUNT);
+  assert.equal(free.config.skipMidway, false);
+  assert.equal(free.bossSpawned, false);
+
+  ok('mode pack targets, unlock, goals, and run knobs hold');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);

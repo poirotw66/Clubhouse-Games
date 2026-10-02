@@ -4,6 +4,8 @@ Roguelike 縱捲彈幕射擊。五個階段，每階段結束三選一強化，�
 
 規格文件：[`04-sports-arcade/danmaku-abyss.md`](../../04-sports-arcade/danmaku-abyss.md)
 
+標題「模式／關卡包」：練習關（燈守／潮鳴／刃霜）、高難深潛、指定符卡挑戰；進度與分模式最佳紀錄獨立於自由遊玩（`danmaku-abyss:modes-v1`）。
+
 ---
 
 ## 這個遊戲只有一個問題：你敢站多前面
@@ -335,7 +337,7 @@ npm run setup            # 於 repo 根目錄，安裝一次
 cd Games/Danmaku-Abyss
 npm run dev              # http://localhost:3000
 npm run lint             # tsc --noEmit
-npm run check            # 邏輯自我測試（21 項）
+npm run check            # 邏輯自我測試（23 項）
 npm run balance          # 重現上面所有數字
 npm run build            # 輸出到 dist/
 ```
@@ -344,7 +346,7 @@ npm run build            # 輸出到 dist/
 
 ## 邏輯自我測試
 
-`npm run check` 共 21 項。最重要的兩項：
+`npm run check` 共 23 項。最重要的兩項：
 
 **決定性**——相同種子加相同輸入序列必須重現完全一樣的一趟。這是整個前提；它一旦破掉，重播和這個 repo 裡每一個平衡數字都變成虛構。
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
@@ -9,6 +9,20 @@ import {
 } from './components/FirstRunGuide';
 import { FIELD_H, FIELD_W, FIXED_DT, STAGE_COUNT } from './game/constants';
 import { activeConditions, createRun, step, takeUpgrade } from './game/engine';
+import {
+  MODE_PACK,
+  applyModeResult,
+  continueModeIndex,
+  evaluateModeGoal,
+  isModeUnlocked,
+  loadModeProgress,
+  modeAt,
+  modeById,
+  modeCount,
+  modeIndexOf,
+  saveModeProgress,
+  type ModeProgress,
+} from './game/modes';
 import { randomSeedCode } from './game/rng';
 import { CONDITION_TEXT, UPGRADE_BY_ID } from './game/upgrades';
 import type { PlayerInput, RunState } from './game/types';
@@ -27,9 +41,14 @@ export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('menu');
   const [paused, setPaused] = useState(false);
   const [best, setBest] = useState(0);
+  const [modeProgress, setModeProgress] = useState<ModeProgress>(() => loadModeProgress());
+  const [showModes, setShowModes] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   /** Mirrors the simulation for the HUD only; the canvas reads the ref directly. */
   const [hud, setHud] = useState<RunState | null>(null);
+  /** Mode id for the active run; null = free play. Kept so retry restarts the same mode. */
+  const activeModeIdRef = useRef<string | null>(null);
+  const modeResultAppliedRef = useRef<string | null>(null);
 
   const stateRef = useRef<RunState | null>(null);
   const keysRef = useRef<Set<string>>(new Set());
@@ -44,15 +63,46 @@ export default function App(): React.ReactElement {
     if (raw) setBest(Number(raw) || 0);
   }, []);
 
-  const startRun = useCallback(() => {
-    const s = createRun(randomSeedCode());
-    stateRef.current = s;
-    setHud(s);
+  const beginRun = useCallback((state: RunState, modeId: string | null) => {
+    activeModeIdRef.current = modeId;
+    modeResultAppliedRef.current = null;
+    stateRef.current = state;
+    setHud(state);
     accRef.current = 0;
     lastRef.current = performance.now();
     setPaused(false);
     setScreen('playing');
   }, []);
+
+  const startRun = useCallback(() => {
+    beginRun(createRun(randomSeedCode()), null);
+  }, [beginRun]);
+
+  const startMode = useCallback(
+    (modeId: string) => {
+      const mode = modeById(modeId);
+      if (!mode) return;
+      beginRun(
+        createRun(mode.seedCode, {
+          ...mode.run,
+          modeId: mode.id,
+        }),
+        mode.id,
+      );
+    },
+    [beginRun],
+  );
+
+  const packTotal = modeCount();
+  const packContinue = continueModeIndex(modeProgress.clearedCount);
+  const packSubtitle = useMemo(() => {
+    if (modeProgress.clearedCount >= packTotal) return `已完成 ${packTotal}/${packTotal}`;
+    if (modeProgress.clearedCount > 0) {
+      const next = MODE_PACK[packContinue];
+      return `進度 ${modeProgress.clearedCount}/${packTotal}・下一關 ${next?.name ?? ''}`;
+    }
+    return `六關可刷・進度 0/${packTotal}`;
+  }, [modeProgress.clearedCount, packContinue, packTotal]);
 
   // ── Input ──────────────────────────────────────────────────────────────────
 
@@ -152,13 +202,29 @@ export default function App(): React.ReactElement {
     return () => cancelAnimationFrame(rafRef.current);
   }, [screen, paused, readInput]);
 
-  // Record the best score once a run is over.
+  // Record free-play best and mode-pack progress once a run is over.
   useEffect(() => {
     if (!hud || (hud.phase !== 'lost' && hud.phase !== 'won')) return;
-    if (hud.score > best) {
-      setBest(hud.score);
-      localStorage.setItem(BEST_KEY, String(hud.score));
+
+    if (!hud.modeId) {
+      if (hud.score > best) {
+        setBest(hud.score);
+        localStorage.setItem(BEST_KEY, String(hud.score));
+      }
+      return;
     }
+
+    const resultKey = `${hud.modeId}:${hud.phase}:${hud.score}:${hud.captures}`;
+    if (modeResultAppliedRef.current === resultKey) return;
+    modeResultAppliedRef.current = resultKey;
+
+    const index = modeIndexOf(hud.modeId);
+    if (index < 0) return;
+    setModeProgress((prev) => {
+      const next = applyModeResult(prev, index, hud);
+      saveModeProgress(next);
+      return next;
+    });
   }, [hud, best]);
 
   // Shared suite SFX when the ResultOverlay appears (once per ended run).
@@ -171,7 +237,9 @@ export default function App(): React.ReactElement {
     const key = `${hud.seedCode}:${hud.phase}:${hud.score}`;
     if (endSfxSeed.current === key) return;
     endSfxSeed.current = key;
-    if (hud.phase === 'won') playWin();
+    const mode = hud.modeId ? modeById(hud.modeId) : undefined;
+    const success = hud.phase === 'won' && (!mode || evaluateModeGoal(mode, hud));
+    if (success) playWin();
     else playLose();
   }, [hud]);
 
@@ -184,6 +252,12 @@ export default function App(): React.ReactElement {
     accRef.current = 0;
     lastRef.current = performance.now();
   }, []);
+
+  const retryCurrent = useCallback(() => {
+    const modeId = activeModeIdRef.current;
+    if (modeId) startMode(modeId);
+    else startRun();
+  }, [startMode, startRun]);
 
   // ── Pointer steering ───────────────────────────────────────────────────────
 
@@ -258,18 +332,27 @@ export default function App(): React.ReactElement {
             <li><b>集中模式</b>（Shift／長按）大幅減速並顯示判定點，能穿針但無法換位。</li>
             <li><b>靈擊</b>（Z）清空子彈換命，但會把擦彈倍率歸零。</li>
             <li>死亡扣一條命、掉一級火力，碎片會撒在你死掉的地方。</li>
-            <li>五個階段，每階段結束三選一強化。</li>
+            <li>五個階段，每階段結束三選一強化。標題另有模式／關卡包可刷。</li>
           </ul>
         </div>
-        {best > 0 && <p className="text-slate-400 text-sm">最佳分數 {best.toLocaleString('zh-Hant')}</p>}
-        <div className="flex flex-col sm:flex-row gap-3 items-center">
+        {best > 0 && <p className="text-slate-400 text-sm">自由遊玩最佳 {best.toLocaleString('zh-Hant')}</p>}
+        <div className="flex flex-col gap-3 items-center w-full max-w-md">
           <button
             type="button"
             onClick={startRun}
-            className="da-cta min-h-[44px] px-8 py-3 rounded-xl font-semibold text-white"
+            className="da-cta min-h-[44px] w-full sm:w-auto px-8 py-3 rounded-xl font-semibold text-white"
           >
             潛入深淵
           </button>
+          <button
+            type="button"
+            onClick={() => setShowModes(true)}
+            aria-label={`開啟模式關卡包。${packSubtitle}`}
+            className="min-h-[44px] w-full rounded-xl font-semibold text-fuchsia-100 border border-fuchsia-400/50 bg-fuchsia-500/15 hover:bg-fuchsia-500/25 transition-colors touch-manipulation px-6 py-3"
+          >
+            模式／關卡包
+          </button>
+          <p className="-mt-1 text-center text-[11px] text-slate-500">{packSubtitle}</p>
           <button
             type="button"
             onClick={() => setShowFirstRun(true)}
@@ -278,6 +361,97 @@ export default function App(): React.ReactElement {
             操作教學
           </button>
         </div>
+
+        {showModes && (
+          <div
+            className="fixed inset-0 z-40 flex items-end justify-center bg-[#05060f]/80 p-4 sm:items-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="da-modes-title"
+            onClick={() => setShowModes(false)}
+          >
+            <div
+              className="da-panel flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl p-4 text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="da-modes-title" className="text-xl font-bold text-fuchsia-100">
+                    模式／關卡包
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    練習關・高難通關・指定符卡・分模式最佳紀錄・進度獨立於自由遊玩
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="關閉模式關卡包"
+                  onClick={() => setShowModes(false)}
+                  className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200"
+                >
+                  關閉
+                </button>
+              </div>
+
+              <button
+                type="button"
+                aria-label="繼續模式關卡包"
+                onClick={() => {
+                  const mode = modeAt(packContinue);
+                  if (!mode) return;
+                  setShowModes(false);
+                  startMode(mode.id);
+                }}
+                className="da-cta mt-4 min-h-[44px] w-full rounded-xl px-4 text-sm font-black text-white"
+              >
+                {modeProgress.clearedCount >= packTotal
+                  ? '重玩最終關'
+                  : modeProgress.clearedCount > 0
+                    ? `繼續・${MODE_PACK[packContinue]?.name}`
+                    : '開始第一關'}
+              </button>
+
+              <ul className="mt-3 space-y-2 overflow-y-auto pr-1">
+                {MODE_PACK.map((mode, index) => {
+                  const unlocked = isModeUnlocked(index, modeProgress.clearedCount);
+                  const done = Boolean(modeProgress.cleared[mode.id]);
+                  const modeBest = modeProgress.bestScore[mode.id];
+                  return (
+                    <li key={mode.id}>
+                      <button
+                        type="button"
+                        disabled={!unlocked}
+                        onClick={() => {
+                          setShowModes(false);
+                          startMode(mode.id);
+                        }}
+                        className="flex min-h-16 w-full flex-col rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-3 text-left transition-colors hover:bg-slate-800/80 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-slate-100">
+                            {index + 1}. {mode.name}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {!unlocked ? '未解鎖' : done ? '已通關' : '挑戰'}
+                          </span>
+                        </span>
+                        {unlocked && (
+                          <>
+                            <span className="mt-1 text-xs text-slate-400">{mode.blurb}</span>
+                            <span className="mt-1 text-[11px] text-fuchsia-300/90">
+                              目標：{mode.goalLabel}
+                              {typeof modeBest === 'number' ? `・最佳 ${modeBest.toLocaleString('zh-Hant')}` : ''}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -285,6 +459,11 @@ export default function App(): React.ReactElement {
   const s = hud;
   const ended = s && (s.phase === 'lost' || s.phase === 'won');
   const boss = s?.enemies.find((e) => e.isBoss);
+  const activeMode = s?.modeId ? modeById(s.modeId) : undefined;
+  const modeCleared = s && activeMode ? evaluateModeGoal(activeMode, s) : false;
+  const freePlayBestBeat = s && !s.modeId && s.score > best;
+  const modeBestPrev = activeMode ? modeProgress.bestScore[activeMode.id] ?? 0 : 0;
+  const modeBestBeat = s && activeMode && s.score > modeBestPrev;
   // Only the conditions this run's picks actually key off are worth showing.
   const watched = new Set(
     (s?.upgrades ?? []).map((id) => UPGRADE_BY_ID[id]?.conditional?.when).filter(Boolean) as string[],
@@ -300,7 +479,10 @@ export default function App(): React.ReactElement {
       {/* HUD */}
       <div className="da-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
         <div className="flex gap-2 flex-wrap">
-          <span className="da-hud-chip">階段 <b className="text-slate-100">{Math.min(s?.stage ?? 1, STAGE_COUNT)}/{STAGE_COUNT}</b></span>
+          {activeMode && (
+            <span className="da-hud-chip text-fuchsia-200">{activeMode.name}</span>
+          )}
+          <span className="da-hud-chip">階段 <b className="text-slate-100">{Math.min(s?.stage ?? 1, STAGE_COUNT)}/{s?.config.endStage ?? STAGE_COUNT}</b></span>
           <span className="da-hud-chip">殘機 <b className="text-rose-300">{'♥'.repeat(Math.max(0, s?.lives ?? 0)) || '—'}</b></span>
           <span className="da-hud-chip">靈擊 <b className="text-amber-300">{'✦'.repeat(Math.max(0, s?.bombs ?? 0)) || '—'}</b></span>
         </div>
@@ -399,20 +581,39 @@ export default function App(): React.ReactElement {
 
       {ended && s && (
         <ResultOverlay
-          title={s.phase === 'won' ? '穿過深淵' : '被吞沒'}
-          subtitle={s.phase === 'won' ? '五個階段都撐過來了。' : `倒在第 ${s.stage} 階段。`}
-          variant={s.phase === 'won' ? 'win' : 'lose'}
-          badge={s.score > best ? '新紀錄' : undefined}
+          title={
+            s.phase === 'won'
+              ? activeMode
+                ? modeCleared
+                  ? '關卡達成'
+                  : '通過但未達標'
+                : '穿過深淵'
+              : '被吞沒'
+          }
+          subtitle={
+            s.phase === 'won'
+              ? activeMode
+                ? modeCleared
+                  ? activeMode.goalLabel
+                  : `未達成：${activeMode.goalLabel}`
+                : '五個階段都撐過來了。'
+              : activeMode
+                ? `倒在「${activeMode.name}」。`
+                : `倒在第 ${s.stage} 階段。`
+          }
+          variant={s.phase === 'won' && (!activeMode || modeCleared) ? 'win' : 'lose'}
+          badge={freePlayBestBeat || modeBestBeat ? '新紀錄' : undefined}
           stats={[
+            ...(activeMode ? [{ label: '模式', value: activeMode.name }] : []),
             { label: '分數', value: s.score.toLocaleString('zh-Hant') },
-            { label: '到達階段', value: `${Math.min(s.stage, STAGE_COUNT)} / ${STAGE_COUNT}` },
+            { label: '到達階段', value: `${Math.min(s.stage, STAGE_COUNT)} / ${s.config.endStage}` },
             { label: 'Capture', value: String(s.captures) },
             { label: '擦彈', value: String(s.grazeCount) },
             { label: '最高倍率', value: `×${s.grazeMult.toFixed(2)}` },
             { label: '種子碼', value: s.seedCode },
           ]}
-          primaryLabel="再潛一次"
-          onPrimary={startRun}
+          primaryLabel={activeMode ? '再挑戰' : '再潛一次'}
+          onPrimary={retryCurrent}
           secondaryLabel="回標題"
           onSecondary={() => setScreen('menu')}
         />

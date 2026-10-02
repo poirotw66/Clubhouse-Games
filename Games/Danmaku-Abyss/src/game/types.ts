@@ -70,6 +70,21 @@ export interface PlayerInput {
   bomb: boolean;
 }
 
+/**
+ * Per-run knobs for title modes / level-pack entries. Free play uses the
+ * defaults (`endStage = STAGE_COUNT`, no intensity bonus, full midway).
+ */
+export interface RunConfig {
+  /** Inclusive stage at which clearing the boss ends the mode. */
+  endStage: number;
+  /** Added on top of every `intensityFor` read for this run. */
+  intensityBonus: number;
+  skipMidway: boolean;
+  startCardIndex: number;
+  /** Fight only the opening card, then treat the stage as cleared. */
+  singleCard: boolean;
+}
+
 export interface RunState {
   seed: number;
   seedCode: string;
@@ -109,4 +124,9 @@ export interface RunState {
   elapsed: number;
   /** Set when a spell card ends, for the banner; cleared after it is shown. */
   lastCardResult: 'captured' | 'timeout' | null;
+
+  /** Mode / pack run knobs. Free play leaves defaults. */
+  config: RunConfig;
+  /** Active mode pack id, or null for free play. */
+  modeId: string | null;
 }

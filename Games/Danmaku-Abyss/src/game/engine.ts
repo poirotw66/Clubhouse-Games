@@ -49,7 +49,33 @@ import {
   effect,
   type Condition,
 } from './upgrades';
-import type { Bullet, Enemy, PlayerInput, PowerFragment, RunState } from './types';
+import type { Bullet, Enemy, PlayerInput, PowerFragment, RunConfig, RunState } from './types';
+
+export interface CreateRunOptions {
+  startStage?: number;
+  endStage?: number;
+  intensityBonus?: number;
+  lives?: number;
+  bombs?: number;
+  skipMidway?: boolean;
+  startCardIndex?: number;
+  singleCard?: boolean;
+  modeId?: string | null;
+}
+
+export function defaultRunConfig(partial?: Partial<RunConfig>): RunConfig {
+  return {
+    endStage: partial?.endStage ?? STAGE_COUNT,
+    intensityBonus: partial?.intensityBonus ?? 0,
+    skipMidway: partial?.skipMidway ?? false,
+    startCardIndex: partial?.startCardIndex ?? 0,
+    singleCard: partial?.singleCard ?? false,
+  };
+}
+
+function runIntensity(stage: number, boss: boolean, bonus: number): number {
+  return intensityFor(stage, boss) + bonus;
+}
 
 // ── Conditions ───────────────────────────────────────────────────────────────
 
@@ -222,13 +248,32 @@ export function scaleEmitter(e: Emitter, intensity: number): Emitter {
 // ── Construction ─────────────────────────────────────────────────────────────
 
 /**
- * `startStage` exists for measurement. The difficulty curve must be knowable
- * without the harness pilot first surviving everything before it — otherwise
- * every late-stage number is conditional on early-stage luck, and a run that
- * dies at stage 2 reports "peak bullet count: stage 1" as though that were a
- * property of the game rather than of the pilot.
+ * `startStage` exists for measurement and for title modes that open mid-pack.
+ * The difficulty curve must be knowable without the harness pilot first
+ * surviving everything before it — otherwise every late-stage number is
+ * conditional on early-stage luck, and a run that dies at stage 2 reports
+ * "peak bullet count: stage 1" as though that were a property of the game
+ * rather than of the pilot.
+ *
+ * The second argument accepts either a stage number (legacy harness call site)
+ * or a full options object for mode-pack runs.
  */
-export function createRun(seedCode: string, startStage = 1): RunState {
+export function createRun(
+  seedCode: string,
+  startStageOrOptions: number | CreateRunOptions = 1,
+): RunState {
+  const options: CreateRunOptions =
+    typeof startStageOrOptions === 'number'
+      ? { startStage: startStageOrOptions }
+      : startStageOrOptions;
+  const startStage = options.startStage ?? 1;
+  const config = defaultRunConfig({
+    endStage: options.endStage,
+    intensityBonus: options.intensityBonus,
+    skipMidway: options.skipMidway,
+    startCardIndex: options.startCardIndex,
+    singleCard: options.singleCard,
+  });
   const seed = hashString(seedCode);
   const s: RunState = {
     seed,
@@ -236,11 +281,11 @@ export function createRun(seedCode: string, startStage = 1): RunState {
     tick: 0,
     phase: 'playing',
     stage: startStage,
-    intensity: intensityFor(startStage, false),
+    intensity: runIntensity(startStage, false, config.intensityBonus),
     px: FIELD_W / 2,
     py: FIELD_H - 90,
-    lives: START_LIVES,
-    bombs: START_BOMBS,
+    lives: options.lives ?? START_LIVES,
+    bombs: options.bombs ?? START_BOMBS,
     powerTier: 1,
     invuln: RESPAWN_INVULN_SEC,
     focus: false,
@@ -254,12 +299,32 @@ export function createRun(seedCode: string, startStage = 1): RunState {
     captures: 0,
     upgrades: [],
     offered: [],
-    midwayLeft: MIDWAY_SEC,
+    midwayLeft: config.skipMidway ? 0 : MIDWAY_SEC,
     bossSpawned: false,
     elapsed: 0,
     lastCardResult: null,
+    config,
+    modeId: options.modeId ?? null,
   };
+
+  if (config.skipMidway) {
+    spawnStageBoss(s, config.startCardIndex);
+  }
   return s;
+}
+
+/** Places the stage boss, optionally opening mid-card list for spell challenges. */
+function spawnStageBoss(s: RunState, startCardIndex: number): void {
+  s.bossSpawned = true;
+  s.midwayLeft = 0;
+  s.enemies = s.enemies.filter((e) => e.isBoss);
+  s.intensity = runIntensity(s.stage, true, s.config.intensityBonus);
+  const boss = bossFor(s.stage);
+  const cardIndex = Math.max(0, Math.min(boss.cards.length - 1, startCardIndex));
+  const card = boss.cards[cardIndex];
+  const enemy = makeEnemy(s, FIELD_W / 2, -40, card, true, { x: FIELD_W / 2, y: 120 });
+  enemy.cardIndex = cardIndex;
+  s.enemies.push(enemy);
 }
 
 function clone(s: RunState): RunState {
@@ -277,6 +342,7 @@ function clone(s: RunState): RunState {
     fragments: s.fragments.map((f) => ({ ...f })),
     upgrades: s.upgrades.slice(),
     offered: s.offered.slice(),
+    config: { ...s.config },
   };
 }
 
@@ -515,17 +581,20 @@ export function takeUpgrade(state: RunState, id: string): RunState {
   }
   s.offered = [];
   s.stage += 1;
-  if (s.stage > STAGE_COUNT) {
+  if (s.stage > s.config.endStage) {
     s.phase = 'won';
     s.score += s.lives * SCORE_PER_LIFE + s.bombs * SCORE_PER_BOMB;
     return s;
   }
   s.phase = 'playing';
-  s.intensity = intensityFor(s.stage, false);
-  s.midwayLeft = MIDWAY_SEC;
+  s.intensity = runIntensity(s.stage, false, s.config.intensityBonus);
+  s.midwayLeft = s.config.skipMidway ? 0 : MIDWAY_SEC;
   s.bossSpawned = false;
   s.bullets = [];
   s.enemies = [];
+  if (s.config.skipMidway) {
+    spawnStageBoss(s, 0);
+  }
   return s;
 }
 
@@ -569,11 +638,9 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
       );
     }
     if (s.midwayLeft <= 0) {
-      s.bossSpawned = true;
-      s.enemies = s.enemies.filter((e) => e.isBoss);
-      s.intensity = intensityFor(s.stage, true);
-      const boss = bossFor(s.stage);
-      s.enemies.push(makeEnemy(s, FIELD_W / 2, -40, boss.cards[0], true, { x: FIELD_W / 2, y: 120 }));
+      // Midway always opens on card 0; spell challenges that need a mid-list
+      // card use skipMidway at createRun time instead.
+      spawnStageBoss(s, 0);
     }
   }
 
@@ -652,7 +719,7 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
 
     const boss = bossFor(s.stage);
     const nextIndex = e.cardIndex + 1;
-    if (nextIndex < boss.cards.length) {
+    if (!s.config.singleCard && nextIndex < boss.cards.length) {
       const card = boss.cards[nextIndex];
       const next: Enemy = {
         ...e,
@@ -661,8 +728,8 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
         cardElapsed: 0,
         hp: card.hp,
         maxHp: card.hp,
-        emitterClocks: card.emitters.map(() => 0),
-        emitterAngles: card.emitters.map(() => 0),
+        emitterClocks: allEmitters(card).map(() => 0),
+        emitterAngles: allEmitters(card).map(() => 0),
       };
       survivors.push(next);
     }
@@ -720,7 +787,15 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
 
   // 9) Stage clear?
   if (s.bossSpawned && s.enemies.length === 0) {
-    offerUpgrades(s);
+    // Practice / single-card modes end on the mode's last stage without the
+    // unused final upgrade pick. Full five-stage clears keep the classic
+    // "offer then win on pick" flow after stage 5.
+    if (s.stage >= s.config.endStage && (s.config.singleCard || s.config.endStage < STAGE_COUNT)) {
+      s.phase = 'won';
+      s.score += s.lives * SCORE_PER_LIFE + s.bombs * SCORE_PER_BOMB;
+    } else {
+      offerUpgrades(s);
+    }
   }
 
   return s;
