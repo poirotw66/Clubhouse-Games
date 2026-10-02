@@ -181,14 +181,45 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
 .upgrade span{display:block;font-size:10px;color:#b9c5a4;margin-top:5px}
 .upgrade .cost{color:#d3b67a}
 .result-line{padding:10px 0;border-top:1px solid #505b45;border-bottom:1px solid #505b45;color:#d8d2b2}
+.result-badges{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.result-badge{font-size:10px;letter-spacing:1px;padding:5px 9px;border:1px solid #6a7358;color:#cfc9a8;background:#1a231c}
+.result-badge.met{border-color:#7f9a62;color:#c5e0a8;background:#1f2c1f}
+.result-badge.failed{border-color:#8f6558;color:#e0b3a4;background:#2a1c1a}
+.result-badge.abandoned,.result-badge.late{border-color:#8a7d55;color:#e0d4a4;background:#2a2618}
+.result-checklist{margin:8px 0 0;padding:0;list-style:none;font-size:11px;color:#b4bea0}
+.result-checklist li{padding:4px 0;border-bottom:1px solid #3d4738}
+.result-checklist li:last-child{border-bottom:0}
+.result-checklist .ok{color:#b6d392}.result-checklist .bad{color:#d9a18f}.result-checklist .soft{color:#d2c58f}
 .help-grid{display:grid;gap:12px;margin-top:18px}
 .help-grid strong{color:var(--gold)}
+.expedition-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0 6px}
+.expedition{
+  text-align:left;padding:12px;background:#1c261f;border:1px solid #4f5a46;color:#c4cbb0;
+  cursor:pointer;min-height:118px;
+}
+.expedition:hover{border-color:#8a825f;background:#243028}
+.expedition.selected{border-color:#d2b56e;box-shadow:inset 0 0 0 1px #a88f4e;background:#2c3426}
+.expedition .tier{font-size:9px;letter-spacing:1.5px;color:#b7a57a;display:block;margin-bottom:4px}
+.expedition strong{font:16px/1.15 Georgia,serif;color:#e6d8a8;display:block}
+.expedition .goal{display:block;font-size:10px;line-height:1.35;margin-top:7px;color:#aeb99a}
+.expedition .cleared{display:block;margin-top:8px;font-size:9px;color:#9fc083;letter-spacing:1px}
+#goalChip{
+  display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
+  margin:0 0 8px;padding:8px 10px;background:#1a231ecc;border:1px solid #5c664c;font-size:10px;color:#c2c9ad;
+}
+#goalChip .eyebrow{color:#cbb888;letter-spacing:1.5px;margin-bottom:3px}
+#goalChip strong{color:#ead9a4;font:13px/1.2 Georgia,serif}
+#goalChip .progress{color:#9eb089;white-space:nowrap}
+.howto-steps{display:grid;gap:10px;margin:16px 0 4px}
+.howto-steps div{padding:10px 12px;background:#151e18;border-left:2px solid #9c885d;font-size:12px;color:#b8c2a6}
+.howto-steps strong{color:#e2d19a;display:block;margin-bottom:3px}
 @media(min-width:1400px){.card{flex-basis:130px}.app{padding-left:32px;padding-right:32px}}
 @media(max-width:1000px){
   .app{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 260px}
   .resource-strip{gap:15px}.resource span{display:none}h1{font-size:22px;letter-spacing:3px}
   .controls button{padding:6px 8px}.subtitle{letter-spacing:2px}
   .hand-header small{display:none}.boss-area{width:150px}
+  .expedition-grid{grid-template-columns:1fr}
 }
 @media(max-width:720px){
   .header{align-items:flex-start;flex-direction:column}.controls{width:100%}
@@ -251,9 +282,16 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
         <div id="pauseVeil">PAUSED</div>
         <div id="notification"></div>
       </div>
+      <div id="goalChip">
+        <div>
+          <div class="eyebrow" id="goalTier">WICK EXPEDITION</div>
+          <strong id="goalLabel">Defeat the Ninth Bell</strong>
+        </div>
+        <div class="progress" id="goalProgress">Awake 0%</div>
+      </div>
       <div class="map-bottom">
         <span id="status">The Tallowbound walks alone.</span>
-        <div class="boss-area" data-tip="THE NINTH BELL&#10;Every placed card adds 5% awakening.&#10;At 100%, the keeper manifests on the southeast bell seal. Defeat it to win.">
+        <div class="boss-area" data-tip="THE NINTH BELL&#10;Card placements awaken the keeper.&#10;At 100%, it manifests on the southeast bell seal.">
           <div class="boss-label"><span>THE BELL STIRS</span><span id="bossPercent">0%</span></div>
           <div class="bar"><span id="bossBar" style="width:0"></span></div>
         </div>
@@ -316,11 +354,29 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
     <h2 id="campTitle">The Cinder Refuge</h2>
     <p id="campStory"></p>
     <div class="result-line" id="runResult"></div>
+    <div class="result-badges" id="resultBadges" hidden></div>
+    <ul class="result-checklist" id="resultChecklist" hidden></ul>
+    <div class="section-heading" style="padding-left:0;padding-top:14px"><span>CHOOSE AN EXPEDITION</span><span>GOAL · DIFFICULTY</span></div>
+    <div class="expedition-grid" id="expeditionGrid" role="radiogroup" aria-label="Expedition difficulty"></div>
     <div class="camp-bank" id="campBank"></div>
     <div class="section-heading" style="padding-left:0;padding-top:0"><span>REBUILD THE REFUGE</span><span>PERMANENT · SAVED LOCALLY</span></div>
     <div class="upgrade-grid" id="upgrades"></div>
     <div class="actions"><button id="startBtn" class="primary">Light the wick · Begin expedition →</button></div>
     <p id="saveNote" style="font-size:10px;margin-bottom:0"></p>
+  </div>
+</div>
+
+<div id="howtoModal" class="modal-backdrop">
+  <div class="modal compact" role="dialog" aria-modal="true" aria-labelledby="howtoTitle">
+    <div class="eyebrow">FIRST LIGHT</div>
+    <h2 id="howtoTitle">Three notes before the road.</h2>
+    <p>You do not command the traveller. You decide what waits — and when to leave.</p>
+    <div class="howto-steps">
+      <div><strong>01 · Shape the loop</strong>The hero walks and fights alone. Place cards on lit cells to grow danger and rewards.</div>
+      <div><strong>02 · Pick an expedition</strong>Ember Scout, Wick Expedition, or Ash Trial each set a clear goal and a difficulty tier.</div>
+      <div><strong>03 · Know the exit</strong>Camp keeps 100% haul · road retreat 60% · death 25%. Meet the goal to clear the tier.</div>
+    </div>
+    <div class="actions"><button id="howtoClose" class="primary">Choose an expedition</button></div>
   </div>
 </div>
 
@@ -330,9 +386,9 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
     <h2>Build your own peril.</h2>
     <div class="help-grid">
       <div><strong>01 · Walk without orders.</strong><br>The traveller follows the road and fights automatically. Camp restores 40% HP and refills draughts each circuit.</div>
-      <div><strong>02 · Remember the world.</strong><br>Select or drag a card onto a highlighted cell. Road cards occupy the path; verge cards must touch it. Every card has a price.</div>
+      <div><strong>02 · Remember the world.</strong><br>Select or drag a card onto a highlighted cell. Road cards occupy the path; verge cards must touch it. Every placement awakens the Bell.</div>
       <div><strong>03 · Wear what survives.</strong><br>Click recovered equipment to replace a relic. Hover to compare. Arrows compare total weighted power, not your build.</div>
-      <div><strong>04 · Listen for the bell.</strong><br>Twenty placements awaken the Ninth Bell at the southeast seal. Its toll strikes through armor every six seconds.</div>
+      <div><strong>04 · Choose an expedition.</strong><br>Ember Scout: survive 3 circuits then return. Wick: defeat the Ninth Bell. Ash Trial: silence the Bell by circuit 5 on harsher roads.</div>
       <div><strong>05 · Know when to leave.</strong><br>Camp retreat: 100% resources. Elsewhere: 60%. Death: 25%. You may arrange an automatic return at the next camp.</div>
     </div>
     <div class="actions"><button id="helpClose" class="primary">I will remember.</button></div>
@@ -351,17 +407,46 @@ const pick = a => a[int(0,a.length-1)];
 const emptyResources = () => ({wood:0,stone:0,dust:0,iron:0});
 const resourceNames = {wood:"Ancient Wood",stone:"Stone Shards",dust:"Spirit Dust",iron:"Iron Fragments"};
 const shortResource = {wood:"wood",stone:"stone",dust:"dust",iron:"iron"};
-const SAVE_KEY = "cinder-circuit-refuge-v1";
+const SAVE_KEY = "cinder-circuit-refuge-v2";
+const SAVE_KEY_LEGACY = "cinder-circuit-refuge-v1";
+const EXPEDITIONS = {
+  ember:{
+    id:"ember",tier:"EMBER",name:"Ember Scout",blurb:"Gentle roads. Learn the loop.",
+    goalLabel:"Survive 3 circuits, then return",goalKind:"circuits",goalTarget:3,
+    enemyScale:.85,bossGain:4,spawnBonus:-1,rewardMult:1,cardsNeeded:25
+  },
+  wick:{
+    id:"wick",tier:"WICK",name:"Wick Expedition",blurb:"The road as it remembers.",
+    goalLabel:"Defeat the Ninth Bell",goalKind:"boss",goalTarget:1,
+    enemyScale:1,bossGain:5,spawnBonus:0,rewardMult:1.1,cardsNeeded:20
+  },
+  ash:{
+    id:"ash",tier:"ASH",name:"Ash Trial",blurb:"Harsh fog. Faster awakening.",
+    goalLabel:"Defeat the Ninth Bell by circuit 5",goalKind:"boss_by_circuit",goalTarget:5,
+    enemyScale:1.28,bossGain:7,spawnBonus:1,rewardMult:1.35,cardsNeeded:15
+  }
+};
 let storageAvailable = true;
+function emptyCleared(){return {ember:0,wick:0,ash:0}}
 function loadMeta(){
-  const base={bank:emptyResources(),upgrades:{vitality:0,forge:0,draught:0,dial:0},runs:0,wins:0,best:1,tutorial:false};
+  const base={
+    bank:emptyResources(),upgrades:{vitality:0,forge:0,draught:0,dial:0},
+    runs:0,wins:0,best:1,tutorial:false,howto:false,expeditionId:"wick",cleared:emptyCleared()
+  };
   try{
-    const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
+    let raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
+    if(!raw){
+      const legacy=JSON.parse(localStorage.getItem(SAVE_KEY_LEGACY)||"null");
+      if(legacy) raw=legacy;
+    }
     if(raw){
       for(const k in base.bank) base.bank[k]=Math.max(0,Number(raw.bank?.[k])||0);
       for(const k in base.upgrades) base.upgrades[k]=clamp(Number(raw.upgrades?.[k])||0,0,k==="dial"?1:5);
       for(const k of ["runs","wins","best"]) base[k]=Math.max(base[k],Number(raw[k])||0);
       base.tutorial=!!raw.tutorial;
+      base.howto=!!raw.howto || !!raw.tutorial;
+      if(raw.expeditionId&&EXPEDITIONS[raw.expeditionId]) base.expeditionId=raw.expeditionId;
+      for(const k of Object.keys(base.cleared)) base.cleared[k]=Math.max(0,Number(raw.cleared?.[k])||0);
     }
   }catch(e){storageAvailable=false}
   return base;
@@ -371,6 +456,7 @@ function saveMeta(){
   try{localStorage.setItem(SAVE_KEY,JSON.stringify(meta))}
   catch(e){storageAvailable=false}
 }
+function currentExpedition(){return EXPEDITIONS[meta.expeditionId]||EXPEDITIONS.wick}
 let uid=0, game=null, paused=false, speed=1, selected=null, hoverCell=null;
 let modalPause=false, uiClock=0, worldTime=0;
 let journal=[], particles=[], floaters=[], shake=0;
@@ -649,7 +735,7 @@ function placeCard(c){
     return;
   }
   c.structure=card.key;game.hand=game.hand.filter(v=>v.id!==selected);selected=null;
-  game.placed++;game.bossProgress=clamp(game.bossProgress+5,0,100);
+  game.placed++;game.bossProgress=clamp(game.bossProgress+currentExpedition().bossGain,0,100);
   const p=center(c);burst(p.x,p.y,CARD_DEFS[card.key].color,22);
   sound("place");log(CARD_DEFS[card.key].name+" remembered.");
   if(card.key==="cairn")spawnEnemy(c,"armor");
@@ -776,12 +862,12 @@ const ENEMIES={
   boss:{name:"The Ninth Bell",kind:"Keeper of the unending road",hp:280,attack:16,defense:4,speed:.85,xp:40,color:"#c4ddb5"}
 };
 function makeEnemy(type,c){
-  const d=ENEMIES[type],scale=1+(game.loop-1)*.23;
+  const d=ENEMIES[type],exp=currentExpedition(),scale=(1+(game.loop-1)*.23)*exp.enemyScale;
   const boss=type==="boss";
   const hp=Math.round(d.hp*(boss?1+(game.loop-1)*.1:scale)*(1+totalStructure("basin")*.04));
   return {id:++uid,type,name:d.name,hp,maxHp:hp,
     attack:d.attack*(boss?1+(game.loop-1)*.13:scale)*(1+nearbyCount(c,"altar")*.2),
-    defense:d.defense+Math.floor((game.loop-1)*.45),
+    defense:d.defense+Math.floor((game.loop-1)*.45*(boss?1:exp.enemyScale)),
     speed:d.speed*(1+totalStructure("grove")*.01),
     xp:d.xp,flash:0,hitTimer:.75,heroTimer:.3,toll:6,attacks:0};
 }
@@ -799,7 +885,7 @@ function spawnCircuit(initial=false){
     [2,6,12,17].forEach((i,j)=>spawnEnemy(roadAt(i),j===2?"fast":"moss"));
     return;
   }
-  const count=Math.min(11,4+game.loop);
+  const count=Math.min(11,Math.max(2,4+game.loop+currentExpedition().spawnBonus));
   const candidates=game.map.filter(c=>c.roadIndex>0&&c.roadIndex!==10&&c.enemies.length<2);
   for(let n=0;n<count&&candidates.length;n++){
     const k=int(0,candidates.length-1),c=candidates.splice(k,1)[0];spawnEnemy(c);
@@ -828,6 +914,17 @@ function nextCircuit(){
   banner("LOOP "+game.loop,game.loop<3?"THE ROAD REMEMBERS MORE":"THE FOG HAS LEARNED YOUR NAME");
   log("Circuit "+game.loop+". The refuge restores your flame.");
   sound("bell");
+  const exp=currentExpedition();
+  if(exp.goalKind==="circuits"&&game.loop>=exp.goalTarget&&!game.goalReady){
+    game.goalReady=true;
+    notify("Scout goal met. Return at camp to clear Ember Scout.",6);
+    log("Circuit "+exp.goalTarget+" complete. A full return clears the scout goal.");
+  }
+  if(exp.goalKind==="boss_by_circuit"&&game.loop>exp.goalTarget&&!game.bossSpawned&&!game.goalExpired){
+    game.goalExpired=true;
+    notify("Ash Trial window closed. Silence the Bell for a late victory, or return.",6);
+    log("Circuit "+exp.goalTarget+" passed without the Bell. Goal window closed.");
+  }
   if(game.returnAtCamp)finishRun("retreat",1);
 }
 
@@ -977,36 +1074,152 @@ const UPGRADES={
   draught:{name:"Ember Apothecary",desc:"+1 automatic draught per circuit.",max:3,cost:n=>({dust:8+n*7,wood:6+n*5})},
   dial:{name:"Briar Astrarium",desc:"Unlock Briar Orrery cards: critical power at a cost.",max:1,cost:()=>({dust:10,stone:8})}
 };
+function outcomeLabel(outcome){
+  return outcome==="victory"?"VICTORY":outcome==="death"?"WICK EXTINGUISHED":"SAFE RETURN";
+}
+function evaluateGoal(outcome){
+  const exp=currentExpedition();
+  if(exp.goalKind==="circuits"){
+    if(outcome==="victory") return {status:"met",detail:"Bell silenced — scout goal cleared the hard way."};
+    if(outcome==="death") return {status:"failed",detail:`Fell before surviving ${exp.goalTarget} circuits.`};
+    if(game.loop>=exp.goalTarget) return {status:"met",detail:`Returned after circuit ${game.loop}.`};
+    return {status:"abandoned",detail:`Left at circuit ${game.loop} / ${exp.goalTarget}.`};
+  }
+  if(exp.goalKind==="boss_by_circuit"){
+    if(outcome==="victory"){
+      if(game.loop<=exp.goalTarget) return {status:"met",detail:`Bell silenced on circuit ${game.loop}.`};
+      return {status:"late",detail:`Bell fell on circuit ${game.loop} (goal was ≤${exp.goalTarget}).`};
+    }
+    if(outcome==="death") return {status:"failed",detail:`Fell on circuit ${game.loop} with the Bell still ringing.`};
+    return {status:"abandoned",detail:`Left on circuit ${game.loop} without silencing the Bell.`};
+  }
+  if(outcome==="victory") return {status:"met",detail:"The Ninth Bell is silent."};
+  if(outcome==="death") return {status:"failed",detail:"The wick went dark before the seal."};
+  return {status:"abandoned",detail:"Returned without silencing the Bell."};
+}
+function goalProgressText(){
+  if(!game||game.phase!=="run") return "";
+  const exp=currentExpedition();
+  if(exp.goalKind==="circuits"){
+    if(game.loop>=exp.goalTarget) return `Ready · return at camp`;
+    return `Circuit ${game.loop} / ${exp.goalTarget}`;
+  }
+  if(exp.goalKind==="boss_by_circuit"){
+    if(game.bossSpawned) return `Keeper active · c.${game.loop}/${exp.goalTarget}`;
+    if(game.goalExpired) return `Window closed · c.${game.loop}`;
+    return `Awake ${game.bossProgress}% · c.${game.loop}/${exp.goalTarget}`;
+  }
+  if(game.bossSpawned) return "Keeper waits at the seal";
+  return `Awake ${game.bossProgress}%`;
+}
+function renderGoalChip(){
+  const exp=currentExpedition();
+  $("goalTier").textContent=exp.tier+" · "+exp.name.toUpperCase();
+  $("goalLabel").textContent=exp.goalLabel;
+  $("goalProgress").textContent=goalProgressText();
+}
+function selectExpedition(id){
+  if(!EXPEDITIONS[id]) return;
+  meta.expeditionId=id;saveMeta();
+  renderExpeditions();
+  const exp=currentExpedition();
+  $("startBtn").textContent=`Light the wick · ${exp.name} →`;
+  renderGoalChip();
+}
+function renderExpeditions(){
+  const grid=$("expeditionGrid");
+  if(!grid) return;
+  grid.replaceChildren(...Object.values(EXPEDITIONS).map(exp=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="expedition"+(meta.expeditionId===exp.id?" selected":"");
+    b.setAttribute("role","radio");b.setAttribute("aria-checked",meta.expeditionId===exp.id?"true":"false");
+    const clears=meta.cleared[exp.id]||0;
+    b.innerHTML=`<span class="tier">${exp.tier} TIER</span><strong>${exp.name}</strong><span class="goal">${exp.blurb}<br>${exp.goalLabel}</span>${clears?`<span class="cleared">CLEARED ×${clears}</span>`:""}`;
+    b.onclick=()=>selectExpedition(exp.id);
+    return b;
+  }));
+}
+function renderResultFeedback(outcome,rate,kept,goal){
+  const exp=currentExpedition();
+  const total=Object.values(kept).reduce((a,b)=>a+b,0);
+  const badges=$("resultBadges"),list=$("resultChecklist");
+  badges.hidden=false;list.hidden=false;
+  badges.replaceChildren(...[
+    {t:outcomeLabel(outcome),c:outcome==="victory"?"met":outcome==="death"?"failed":"abandoned"},
+    {t:goal.status==="met"?"GOAL MET":goal.status==="failed"?"GOAL FAILED":goal.status==="late"?"LATE VICTORY":"GOAL ABANDONED",c:goal.status},
+    {t:exp.tier+" · "+exp.name.toUpperCase(),c:""}
+  ].map(({t,c})=>{
+    const s=document.createElement("span");s.className="result-badge"+(c?" "+c:"");s.textContent=t;return s;
+  }));
+  const keptLine=Object.entries(kept).map(([k,v])=>`${v} ${shortResource[k]}`).join(" · ")||"nothing";
+  list.innerHTML=[
+    `<li><span class="${goal.status==="met"?"ok":goal.status==="failed"?"bad":"soft"}">Goal — ${exp.goalLabel}</span><br>${goal.detail}</li>`,
+    `<li>Outcome — ${outcomeLabel(outcome)} · Circuit ${game.loop} · ${game.hero.kills} foes defeated</li>`,
+    `<li>Haul preserved — ${Math.round(rate*100)}% × ${exp.rewardMult.toFixed(2)} tier bonus → ${total} materials (${keptLine})</li>`,
+    `<li>Win / lose — Defeat the keeper or meet the expedition goal to clear; death is a loss; early retreat abandons the goal but banks resources.</li>`
+  ].join("");
+  $("runResult").textContent=`${outcomeLabel(outcome)} · ${goal.status==="met"?"GOAL MET":goal.status==="failed"?"GOAL FAILED":goal.status==="late"?"LATE VICTORY":"GOAL ABANDONED"} · Loop ${game.loop} · ${Math.round(rate*100)}% base preserve`;
+}
 function startRun(){
-  $("campModal").classList.remove("show");$("retreatModal").classList.remove("show");
+  $("campModal").classList.remove("show");$("retreatModal").classList.remove("show");$("howtoModal").classList.remove("show");
   paused=false;selected=null;hoverCell=null;journal=[];particles=[];floaters=[];
   notifyTimer=0;bannerTimer=0;shake=0;
   $("loopBanner").classList.remove("show");$("notification").classList.remove("show");
+  const exp=currentExpedition();
   game={
     phase:"run",map:makeMap(),hero:null,hand:[],loot:[],resources:emptyResources(),
     loop:1,placed:0,bossProgress:0,bossSpawned:false,combat:null,returnAtCamp:false,
-    elapsed:0,eventTimer:32,fog:0,tutorialIndex:0,showTutorial:!meta.tutorial
+    elapsed:0,eventTimer:32,fog:0,tutorialIndex:0,showTutorial:!meta.tutorial,
+    expeditionId:exp.id,goalReady:false,goalExpired:false
   };
   game.hero=createHero();recalcHero();game.hero.hp=game.hero.stats.maxHp;
   for(const k of CARD_KEYS)grantCard(k);
   if(meta.upgrades.dial)grantCard("dial");
   spawnCircuit(true);
   meta.runs++;saveMeta();renderEquipment();renderLoot();renderHand();renderUI();
-  log("A new wick. The same impossible road.");
+  log(`${exp.name} begins. Goal: ${exp.goalLabel}`);
   $("hint").style.display="block";
-  $("hintText").textContent=game.showTutorial?"Your hero moves automatically. You shape the road.":"Choose what grows. Equip what survives. Leave before the fire goes out.";
-  notify("The Tallowbound walks. You decide what waits.",4);
+  $("hintText").textContent=game.showTutorial?"Your hero moves automatically. You shape the road.":`${exp.name}: ${exp.goalLabel}`;
+  notify(`${exp.name} · ${exp.goalLabel}`,4.5);
   hideTooltip();
 }
-function isAtCamp(){return game.hero.idx===0&&game.hero.progress<.12&&!game.combat}
+function openCamp(kind="result"){
+  $("retreatModal").classList.remove("show");$("helpModal").classList.remove("show");
+  paused=false;selected=null;hideTooltip();
+  if(kind==="welcome"){
+    $("campTitle").textContent="The Cinder Refuge";
+    $("campStory").textContent="Choose an expedition before lighting the wick. Ember teaches the road; Wick hunts the Bell; Ash demands the Bell before circuit 5.";
+    $("runResult").textContent="No haul yet · pick a tier, then begin.";
+    $("resultBadges").hidden=true;$("resultChecklist").hidden=true;
+    $("resultBadges").replaceChildren();$("resultChecklist").replaceChildren();
+  }
+  $("saveNote").textContent=storageAvailable?
+    `Refuge saved in this browser · Expeditions ${meta.runs} · Victories ${meta.wins} · Best circuit ${meta.best} · Goals cleared ${Object.values(meta.cleared).reduce((a,b)=>a+b,0)}`:
+    "Browser storage is unavailable. Upgrades last for this session only.";
+  renderCamp();
+  selectExpedition(meta.expeditionId);
+  $("campModal").classList.add("show");
+  if(!meta.howto) $("howtoModal").classList.add("show");
+  renderUI();
+}
+function isAtCamp(){return game?.phase==="run"&&game.hero.idx===0&&game.hero.progress<.12&&!game.combat}
 function openRetreat(){
-  if(game.phase!=="run"||document.querySelector(".modal-backdrop.show"))return;
+  if(game?.phase!=="run"||document.querySelector(".modal-backdrop.show"))return;
   modalPause=paused;paused=true;
   const atCamp=isAtCamp(),rate=atCamp?1:.6;
-  $("retreatDescription").textContent=atCamp?
+  const exp=currentExpedition();
+  let goalNote="";
+  if(exp.goalKind==="circuits"){
+    goalNote=game.loop>=exp.goalTarget?
+      " Scout goal is ready — a return now clears Ember Scout.":
+      ` Scout goal needs circuit ${exp.goalTarget} (now ${game.loop}).`;
+  }else if(exp.goalKind==="boss"||exp.goalKind==="boss_by_circuit"){
+    goalNote=game.bossSpawned?"":" Leaving now abandons the Bell goal.";
+  }
+  $("retreatDescription").textContent=(atCamp?
     "You stand beside the refuge fire. Leave now and keep everything you have gathered.":
-    "The refuge lies beyond the mist. Leave immediately with 60%, or risk the remaining road for a full return.";
-  $("retreatEstimate").textContent="Immediate return: "+Object.entries(game.resources).map(([k,v])=>Math.floor(v*rate)+" "+shortResource[k]).join(" · ");
+    "The refuge lies beyond the mist. Leave immediately with 60%, or risk the remaining road for a full return.")+goalNote;
+  $("retreatEstimate").textContent="Immediate return: "+Object.entries(game.resources).map(([k,v])=>Math.floor(v*rate*exp.rewardMult)+" "+shortResource[k]).join(" · ");
   $("retreatNow").textContent="Return now · "+Math.round(rate*100)+"%";
   $("retreatAtCamp").style.display=atCamp?"none":"inline-block";
   $("retreatModal").classList.add("show");hideTooltip();renderUI();
@@ -1020,24 +1233,27 @@ function finishRun(outcome,rate){
   $("combatHud").style.display="none";$("retreatModal").classList.remove("show");
   $("loopBanner").classList.remove("show");$("notification").classList.remove("show");
   hideTooltip();
+  const exp=currentExpedition();
   const kept=emptyResources();
-  for(const k in kept){kept[k]=Math.floor(game.resources[k]*rate);meta.bank[k]+=kept[k]}
-  meta.best=Math.max(meta.best,game.loop);meta.tutorial=true;
+  for(const k in kept){kept[k]=Math.floor(game.resources[k]*rate*exp.rewardMult);meta.bank[k]+=kept[k]}
+  meta.best=Math.max(meta.best,game.loop);meta.tutorial=true;meta.howto=true;
   if(outcome==="victory")meta.wins++;
+  const goal=evaluateGoal(outcome);
+  if(goal.status==="met") meta.cleared[exp.id]=(meta.cleared[exp.id]||0)+1;
   saveMeta();
-  const total=Object.values(kept).reduce((a,b)=>a+b,0);
-  $("campTitle").textContent=outcome==="victory"?"At last, a silent road.":outcome==="death"?"Even ash remembers.":"The Cinder Refuge";
-  $("campStory").textContent=outcome==="victory"?
+  $("campTitle").textContent=goal.status==="met"?"The goal remembers you.":
+    outcome==="victory"?"At last, a silent road.":
+    outcome==="death"?"Even ash remembers.":"The Cinder Refuge";
+  $("campStory").textContent=goal.status==="met"?
+    `Expedition cleared: ${exp.name}. ${goal.detail} Materials return with the ${exp.tier.toLowerCase()} tier bonus.`:
+    outcome==="victory"?
     "The Ninth Bell fractures without a sound. For one long moment, the road ends. Your traveller brings the whole haul home, and fifteen of each material from the keeper.":
     outcome==="death"?
     "The wick went dark. A wandering spark carried a quarter of your gathering back to the refuge. Another traveller will take the road.":
     "You chose a small fire over an endless night. The world you remembered fades, but what you brought home can make the next journey kinder.";
-  $("runResult").textContent=`${outcome==="victory"?"VICTORY":outcome==="death"?"WICK EXTINGUISHED":"SAFE RETURN"} · Loop ${game.loop} · ${game.hero.kills} foes defeated · ${Math.round(rate*100)}% preserved · ${total} materials banked`;
-  $("saveNote").textContent=storageAvailable?
-    `Refuge saved in this browser · Expeditions ${meta.runs} · Victories ${meta.wins} · Best circuit ${meta.best}`:
-    "Browser storage is unavailable. Upgrades last for this session only.";
-  renderCamp();$("campModal").classList.add("show");sound(outcome==="death"?"death":"bell");
-  renderUI();
+  renderResultFeedback(outcome,rate,kept,goal);
+  openCamp("result");
+  sound(outcome==="death"?"death":"bell");
 }
 function renderCamp(){
   $("campBank").replaceChildren(...Object.keys(meta.bank).map(k=>{
@@ -1057,6 +1273,7 @@ function renderCamp(){
     };
     return b;
   }));
+  renderExpeditions();
 }
 
 /* ───────────────────────── Interface rendering and contextual hints ───────────────────────── */
@@ -1082,9 +1299,9 @@ function renderHand(){
   $("hand").replaceChildren(...game.hand.map(card=>{
     const d=CARD_DEFS[card.key],b=document.createElement("button");
     b.className="card"+(selected===card.id?" selected":"");b.draggable=true;
-    b.dataset.tip=`${d.name}\n${d.where==="road"?"ROAD — an empty road tile.":"VERGE — an empty cell touching the road, including diagonals."}\n\n${d.effect}\n\n+5% Bell awakening on placement.\nRight-click to salvage for 1 wood.`;
+    b.dataset.tip=`${d.name}\n${d.where==="road"?"ROAD — an empty road tile.":"VERGE — an empty cell touching the road, including diagonals."}\n\n${d.effect}\n\n+${currentExpedition().bossGain}% Bell awakening on placement.\nRight-click to salvage for 1 wood.`;
     b.setAttribute("aria-label",d.name+". "+d.effect);
-    b.innerHTML=`<div class="card-top"><canvas width="48" height="48"></canvas><span class="card-location">${d.where.toUpperCase()}</span></div><div class="card-title">${d.name}</div><div class="card-effect">${d.short.replace("\n","<br>")}</div><span class="card-footer">✧ +5</span>`;
+    b.innerHTML=`<div class="card-top"><canvas width="48" height="48"></canvas><span class="card-location">${d.where.toUpperCase()}</span></div><div class="card-title">${d.name}</div><div class="card-effect">${d.short.replace("\n","<br>")}</div><span class="card-footer">✧ +${currentExpedition().bossGain}</span>`;
     drawStructure(b.querySelector("canvas").getContext("2d"),card.key,24,31,.72);
     b.onclick=()=>{
       if(game.phase!=="run")return;
@@ -1107,7 +1324,7 @@ function renderHand(){
   }));
 }
 function renderUI(){
-  if(!game)return;
+  if(!game||!game.hero){renderGoalChip();return}
   const h=game.hero,s=h.stats;
   $("hpText").textContent=`${Math.ceil(h.hp)} / ${s.maxHp}`;
   $("hpBar").style.width=clamp(h.hp/s.maxHp*100,0,100)+"%";
@@ -1126,12 +1343,15 @@ function renderUI(){
   $("pauseBtn").textContent=paused?"▶ RESUME":"Ⅱ PAUSE";$("pauseBtn").classList.toggle("active",paused);
   $("pauseVeil").style.display=paused&&game.phase==="run"?"block":"none";
   $("retreatBtn").textContent=game.returnAtCamp?"↟ RETURN QUEUED":"↟ RETURN TO CAMP";
+  renderGoalChip();
+  const exp=currentExpedition();
   $("status").textContent=game.phase!=="run"?"The refuge waits.":
     selected?"Place a memory on a lit cell.":
     game.returnAtCamp?"Returning at next camp · 100% haul":
     game.combat?"Steel and silence. No commands needed.":
     isAtCamp()?"At camp · retreat now to keep 100%.":
     game.fog>0?"Eastern fog · foes attack 15% faster":
+    exp.goalKind==="circuits"&&game.loop>=exp.goalTarget?"Scout goal ready · return to clear":
     `Walking · ${game.hero.kills} foes fallen · retreat keeps 60%`;
   if(game.combat){
     const e=game.combat.enemy;
@@ -1148,7 +1368,7 @@ const HINTS=[
   [7,"Defeat enemies to earn equipment and cards. Click recovered relics to equip."],
   [16,"Place cards to reshape the world. Click a card, then a highlighted cell."],
   [28,"More danger means better rewards. Every placement also awakens the keeper."],
-  [43,"Return to camp before the loop overwhelms you. Camp keeps 100%; the road keeps 60%."]
+  [43,"Watch the goal chip. Meet it, then return — camp keeps 100%; the road keeps 60%."]
 ];
 function updateTutorial(){
   if(!game.showTutorial)return;
@@ -1257,7 +1477,7 @@ function drawScene(){
     ctx.textAlign="center";ctx.fillStyle="#9aa989";ctx.font="10px monospace";
     ctx.fillText("A ROAD WITHOUT DAWN",W/2,H/2+112);
     ctx.fillStyle="#71836f";ctx.font="9px monospace";
-    ctx.fillText(game.bossSpawned?"THE KEEPER WAITS AT THE SEAL":`${game.placed} MEMORIES ROOTED · ${20-Math.min(20,game.placed)} UNTIL THE BELL`,W/2,H/2+130);
+    ctx.fillText(game.bossSpawned?"THE KEEPER WAITS AT THE SEAL":`${game.placed} MEMORIES ROOTED · ~${Math.max(0,Math.ceil((100-game.bossProgress)/currentExpedition().bossGain))} UNTIL THE BELL`,W/2,H/2+130);
   }
   const card=game.hand.find(c=>c.id===selected);
   if(card){
@@ -1366,7 +1586,7 @@ canvas.addEventListener("dragover",e=>{
 canvas.addEventListener("drop",e=>{e.preventDefault();if(game.phase==="run")placeCard(mouseCell(e));hoverCell=null});
 canvas.addEventListener("contextmenu",e=>{e.preventDefault();selected=null;renderHand()});
 function togglePause(){
-  if(game.phase!=="run"||document.querySelector(".modal-backdrop.show"))return;
+  if(!game||game.phase!=="run"||document.querySelector(".modal-backdrop.show"))return;
   paused=!paused;renderUI();
 }
 function setSpeed(n){
@@ -1383,7 +1603,10 @@ $("retreatNow").onclick=()=>finishRun("retreat",isAtCamp()?1:.6);
 $("retreatAtCamp").onclick=()=>{
   game.returnAtCamp=true;closeRetreat();notify("Return arranged. Survive until the refuge to keep everything.",5);renderUI();
 };
-$("startBtn").onclick=startRun;
+$("startBtn").onclick=()=>{if($("howtoModal").classList.contains("show"))return;startRun()};
+$("howtoClose").onclick=()=>{
+  meta.howto=true;saveMeta();$("howtoModal").classList.remove("show");
+};
 $("helpBtn").onclick=()=>{
   if(document.querySelector(".modal-backdrop.show"))return;
   modalPause=paused;paused=true;$("helpModal").classList.add("show");hideTooltip();renderUI();
@@ -1395,9 +1618,10 @@ document.addEventListener("keydown",e=>{
     e.preventDefault();if(!e.repeat)togglePause();
   }
   if(e.key==="Escape"){
-    if($("retreatModal").classList.contains("show"))closeRetreat();
+    if($("howtoModal").classList.contains("show"))$("howtoClose").click();
+    else if($("retreatModal").classList.contains("show"))closeRetreat();
     else if($("helpModal").classList.contains("show"))$("helpClose").click();
-    else{selected=null;renderHand();hideTooltip()}
+    else{selected=null;if(game?.hand)renderHand();hideTooltip()}
   }
   if(document.querySelector(".modal-backdrop.show"))return;
   if(e.key==="1")setSpeed(1);if(e.key==="2")setSpeed(2);if(e.key==="3")setSpeed(4);
@@ -1442,7 +1666,15 @@ const portrait=$("portrait").getContext("2d");
 portrait.imageSmoothingEnabled=false;portrait.fillStyle="#15221c";portrait.fillRect(0,0,65,76);
 for(let i=0;i<65;i+=4){portrait.fillStyle=i%8?"#243229":"#1d2a22";portrait.fillRect(i,0,2,76)}
 drawSprite(portrait,"hero",34,72,3);
-startRun();resizeCanvas();requestAnimationFrame(frame);
+openCamp("welcome");resizeCanvas();requestAnimationFrame(frame);
+window.__cinderDebug = {
+  getGame:()=>game,
+  finishRun,
+  selectExpedition,
+  currentExpedition,
+  getMeta:()=>meta,
+  evaluateGoal
+};
 </script>
 </body>
 </html>
