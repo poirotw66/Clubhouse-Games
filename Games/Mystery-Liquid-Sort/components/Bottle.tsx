@@ -5,11 +5,26 @@ interface BottleProps {
   bottle: BottleData;
   isSelected: boolean;
   isValidTarget?: boolean; // New prop for smart highlighting
+  /** True when this target would trigger a colour mix (distinct from merge). */
+  isMixTarget?: boolean;
+  /** Brief mix-reaction flash after a mixing pour lands here. */
+  isMixingFlash?: boolean;
+  /** Next-step hint highlight (source or target). */
+  isHinted?: boolean;
   isFlying?: boolean;
   onClick: () => void;
 }
 
-export const Bottle: React.FC<BottleProps> = ({ bottle, isSelected, isValidTarget = false, isFlying = false, onClick }) => {
+export const Bottle: React.FC<BottleProps> = ({
+  bottle,
+  isSelected,
+  isValidTarget = false,
+  isMixTarget = false,
+  isMixingFlash = false,
+  isHinted = false,
+  isFlying = false,
+  onClick,
+}) => {
   const layerHeight = 100 / bottle.capacity;
   
   const isCapped = bottle.isCompleted;
@@ -26,8 +41,11 @@ export const Bottle: React.FC<BottleProps> = ({ bottle, isSelected, isValidTarge
         /* Selected State - Mobile optimized */
         ${isSelected && !isCapped && !isFlying ? '-translate-y-4 md:-translate-y-6 scale-105 drop-shadow-[0_20px_20px_rgba(0,0,0,0.5)]' : ''}
         
-        /* Valid Target Hint (Pulsing Green Glow) - Mobile optimized */
-        ${isValidTarget && !isSelected ? 'ring-2 md:ring-4 ring-emerald-400/60 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]' : ''}
+        /* Valid Target Hint — mix targets use amber, merges use emerald */
+        ${isValidTarget && !isSelected && isMixTarget ? 'ring-2 md:ring-4 ring-amber-400/70 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]' : ''}
+        ${isValidTarget && !isSelected && !isMixTarget ? 'ring-2 md:ring-4 ring-emerald-400/60 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]' : ''}
+        ${isHinted && !isSelected ? 'ring-2 md:ring-4 ring-sky-400/80 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e]' : ''}
+        ${isMixingFlash ? 'animate-mix-flash' : ''}
 
         /* Active State for mobile touch */
         ${!isSelected && !isCapped && !isFlying && !isValidTarget ? 'active:scale-95 active:-translate-y-1' : ''}
@@ -50,11 +68,14 @@ export const Bottle: React.FC<BottleProps> = ({ bottle, isSelected, isValidTarge
         </div>
       )}
 
-      {/* Valid Target Indicator (Arrow) */}
+      {/* Valid Target Indicator (Arrow) — amber for mix, emerald for merge */}
       {isValidTarget && (
         <div className="absolute -top-10 animate-bounce flex flex-col items-center z-50 opacity-80">
-           <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] border-t-emerald-400"></div>
+           <div className={`w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] ${isMixTarget ? 'border-t-amber-400' : 'border-t-emerald-400'}`}></div>
         </div>
+      )}
+      {isMixingFlash && (
+        <div className="absolute inset-0 z-30 pointer-events-none mix-spark" aria-hidden />
       )}
 
       {/* Capped / Sealed Visual */}
@@ -79,7 +100,7 @@ export const Bottle: React.FC<BottleProps> = ({ bottle, isSelected, isValidTarge
           relative w-full h-full overflow-hidden flex flex-col-reverse shadow-2xl backdrop-blur-sm z-10
           rounded-b-[2.5rem] rounded-t-lg border-[3px] bg-white/5 
           transition-colors duration-300
-          ${isValidTarget ? 'border-emerald-400/50' : 'border-white/20'}
+          ${isValidTarget && isMixTarget ? 'border-amber-400/60' : isValidTarget ? 'border-emerald-400/50' : 'border-white/20'}
         `}
       >
         {/* LAYERS */}

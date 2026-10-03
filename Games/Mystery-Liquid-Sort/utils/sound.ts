@@ -1,8 +1,10 @@
 import {
+  playCapture,
   playCard,
   playError,
   playGoal,
   playMove,
+  playPaddleHit,
   playScore,
   playWin,
 } from '@clubhouse/shared/synthAudio';
@@ -25,7 +27,14 @@ function gated(play: () => void): void {
 /** Thin wrappers over shared synthAudio, respecting MLS mute preference. */
 export const sounds = {
   pop: () => gated(playMove),
+  /** Ordinary same-colour merge pour. */
   pour: () => gated(playCard),
+  /** Mixing reaction — brighter / distinct from plain merge. */
+  mix: () =>
+    gated(() => {
+      playPaddleHit();
+      playCapture();
+    }),
   score: () => gated(playScore),
   win: () => gated(playWin),
   error: () => gated(playError),

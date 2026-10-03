@@ -34,25 +34,42 @@ registerMix(Color.RED, Color.YELLOW, Color.ORANGE);
 registerMix(Color.BLUE, Color.YELLOW, Color.GREEN);
 registerMix(Color.RED, Color.BLUE, Color.PURPLE);
 
-function getMixResult(a: Color, b: Color): Color | undefined {
+/** Public mix recipes for HUD / tutorials (Traditional Chinese labels). */
+export const MIX_RECIPES: readonly {
+  a: Color;
+  b: Color;
+  result: Color;
+  label: string;
+}[] = [
+  { a: Color.RED, b: Color.YELLOW, result: Color.ORANGE, label: '紅 + 黃 → 橙' },
+  { a: Color.BLUE, b: Color.YELLOW, result: Color.GREEN, label: '藍 + 黃 → 綠' },
+  { a: Color.RED, b: Color.BLUE, result: Color.PURPLE, label: '紅 + 藍 → 紫' },
+];
+
+export function getMixResult(a: Color, b: Color): Color | undefined {
   return MIX_RESULTS[[a, b].sort().join('|')];
 }
 
+/** True when pouring source→target would trigger a colour mix (not a same-colour merge). */
+export function isMixingPour(source: BottleData, target: BottleData): boolean {
+  if (source.id === target.id) return false;
+  if (source.layers.length === 0 || target.layers.length === 0) return false;
+  if (!source.mixingEnabled && !target.mixingEnabled) return false;
+  const sourceTop = source.layers[source.layers.length - 1];
+  const targetTop = target.layers[target.layers.length - 1];
+  if (sourceTop.isHidden || sourceTop.color === targetTop.color) return false;
+  return getMixResult(sourceTop.color, targetTop.color) !== undefined;
+}
+
 /**
- * Level tier at which mixing unlocks. Deliberately not the level>=10
- * capacity bump to 6 itself (see getCapacityForLevel in constants.ts):
- * levels 10-11 still run on a single spare bottle (extraBottles==1), which
- * was already this generator's hardest band pre-mixing, and combined with
- * the mix-only colour reservation below it made a solvable random layout
- * rare enough that generation routinely blew the 100ms budget. Level 12 is
- * where extraBottles jumps to 2 *and* capacity is still a flat 6 (even, so
- * a mix-only colour's full capacity-worth is always evenly reachable as
- * capacity/2 + capacity/2 of its two primary components — e.g. 3 red + 3
- * yellow -> 6 orange). Below this tier the game stays a pure sorting game:
- * no bottle ever carries mixingEnabled, so canPour never takes the mixing
- * branch.
+ * Level tier at which mixing unlocks on adventure / quick-play boards.
+ * Capacity must be even for forced mix-only colour reservation (see
+ * generateLevel): levels 1–4 use capacity 4; levels 5–9 use capacity 5
+ * (odd — mixing stays legal but no colour is withheld); level ≥10 uses 6.
+ * Forced mix-only reservation therefore starts as soon as capacity is even
+ * at or above this floor.
  */
-export const MIXING_MIN_LEVEL = 12;
+export const MIXING_MIN_LEVEL = 4;
 
 /**
  * Checks if a move is valid.
@@ -750,20 +767,16 @@ export const generateLevel = (level: number): { bottles: BottleData[], orders: O
     hiddenProbability = Math.min(0.8, 0.2 + (level - 2) * 0.05);
   }
 
-  // Mixing unlocks at MIXING_MIN_LEVEL. When it's on, withhold ONE
-  // mix-producible secondary colour's units from the direct pour pool
-  // entirely, replacing them with capacity/2 units of each of its two
-  // primary components. That colour then literally does not exist on the
-  // board at deal time — the only way to get a full bottle of it is to
-  // mix — which is what creates the "order asks for orange, no orange
-  // exists yet, mixing costs red another order needs" tension. Every other
-  // active colour (including any other secondary that happens to be in
-  // play) is placed directly exactly as before: it's simultaneously
-  // ordinary sortable liquid AND still legal to mix if the player chooses
-  // to, per the mixing rule documented on canPour/pourLiquid.
+  // Mixing unlocks at MIXING_MIN_LEVEL. When it's on *and* capacity is even,
+  // withhold ONE mix-producible secondary colour's units from the direct
+  // pour pool entirely, replacing them with capacity/2 units of each of its
+  // two primary components. That colour then literally does not exist on
+  // the board at deal time — the only way to get a full bottle of it is to
+  // mix. Odd capacities skip the withhold (volume math would not land on
+  // exactly one bottle) but still set mixingEnabled so optional mixes work.
   const mixingEnabled = level >= MIXING_MIN_LEVEL;
   let mixOnlyColor: Color | null = null;
-  if (mixingEnabled) {
+  if (mixingEnabled && capacity % 2 === 0) {
     const candidates = activeColors.filter(c => {
       const components = MIX_COMPONENTS.get(c);
       return components !== undefined && components.every(p => activeColors.includes(p));
@@ -777,8 +790,6 @@ export const generateLevel = (level: number): { bottles: BottleData[], orders: O
   for (const color of activeColors) {
     if (color === mixOnlyColor) {
       const [a, b] = MIX_COMPONENTS.get(color)!;
-      // capacity is guaranteed even here: MIXING_MIN_LEVEL is chosen to
-      // coincide with getCapacityForLevel's jump to a flat 6.
       for (let i = 0; i < capacity / 2; i++) {
         colorPool.push(a);
         colorPool.push(b);
@@ -817,3 +828,89 @@ export const generateLevel = (level: number): { bottles: BottleData[], orders: O
 export const checkLevelComplete = (bottles: BottleData[], orders: Order[]) => {
   return orders.every(o => o.isCompleted);
 };
+
+export type HintMove = { sourceId: string; targetId: string };
+
+/**
+ * Suggests one legal next pour. Prefers a mixing step that produces an
+ * outstanding order colour when available; otherwise returns the first step
+ * of a greedy solution, then any scored legal pour.
+ */
+export function findHintMove(bottles: BottleData[], orders: Order[]): HintMove | null {
+  const outstanding = new Set(orders.filter((o) => !o.isCompleted).map((o) => o.color));
+  const requiredColors = new Set(
+    (outstanding.size > 0 ? [...outstanding] : orders.map((o) => o.color)),
+  );
+
+  // Prefer an immediate mixing pour that grows a still-needed colour.
+  const mixHints: { sourceId: string; targetId: string; score: number }[] = [];
+  for (const source of bottles) {
+    if (source.isCompleted || source.layers.length === 0) continue;
+    for (const target of bottles) {
+      if (source.id === target.id) continue;
+      if (!canPour(source, target) || !isMixingPour(source, target)) continue;
+      const sourceTop = source.layers[source.layers.length - 1].color;
+      const targetTop = target.layers[target.layers.length - 1].color;
+      const mixed = getMixResult(sourceTop, targetTop);
+      if (!mixed || !requiredColors.has(mixed)) continue;
+      let score = 1;
+      if (target.layers.length + 1 === target.capacity) score = 3;
+      else if (colorUnits(bottles, mixed) < target.capacity) score = 2;
+      mixHints.push({ sourceId: source.id, targetId: target.id, score });
+    }
+  }
+  if (mixHints.length > 0) {
+    mixHints.sort((a, b) => b.score - a.score);
+    return { sourceId: mixHints[0].sourceId, targetId: mixHints[0].targetId };
+  }
+
+  const path = findSolutionGreedy(bottles, requiredColors);
+  if (path && path.length > 0) {
+    return { sourceId: path[0].sourceId, targetId: path[0].targetId };
+  }
+
+  // Fallback: any legal pour, preferring merges that finish a bottle.
+  let best: { sourceId: string; targetId: string; score: number } | null = null;
+  for (const source of bottles) {
+    if (source.isCompleted || source.layers.length === 0) continue;
+    for (const target of bottles) {
+      if (source.id === target.id) continue;
+      if (!canPour(source, target)) continue;
+      const score = scoreMove(bottles, source, target, requiredColors);
+      if (!best || score > best.score) {
+        best = { sourceId: source.id, targetId: target.id, score };
+      }
+    }
+  }
+  return best ? { sourceId: best.sourceId, targetId: best.targetId } : null;
+}
+
+function colorUnits(bottles: BottleData[], color: Color): number {
+  let total = 0;
+  for (const b of bottles) for (const l of b.layers) if (l.color === color) total++;
+  return total;
+}
+
+function scoreMove(
+  state: BottleData[],
+  source: BottleData,
+  target: BottleData,
+  requiredColors: Set<Color>,
+): number {
+  const topColor = source.layers[source.layers.length - 1].color;
+  if (target.layers.length > 0 && target.layers[target.layers.length - 1].color !== topColor) {
+    const mixedColor = getMixResult(topColor, target.layers[target.layers.length - 1].color);
+    if (mixedColor) {
+      if (!requiredColors.has(mixedColor) || colorUnits(state, mixedColor) >= target.capacity) {
+        return -1;
+      }
+    }
+    if (target.layers.length + 1 === target.capacity) return 2;
+    return 1;
+  }
+  let run = 0;
+  for (let i = source.layers.length - 1; i >= 0 && source.layers[i].color === topColor; i--) run++;
+  if (target.layers.length + run === target.capacity) return 2;
+  if (target.layers.length > 0) return 1;
+  return 0;
+}

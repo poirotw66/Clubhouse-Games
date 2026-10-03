@@ -11,6 +11,27 @@
   --animate-shine: shine 1.5s infinite;
   --animate-bounce-short: bounceShort 0.5s infinite;
   --animate-drop-in: dropIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-mix-flash: mixFlash 0.55s ease-out;
+}
+
+@keyframes mixFlash {
+  0% { filter: brightness(1); }
+  35% { filter: brightness(1.55) saturate(1.4); }
+  100% { filter: brightness(1); }
+}
+
+.animate-mix-flash {
+  animation: var(--animate-mix-flash);
+}
+
+.mix-spark {
+  background: radial-gradient(circle at 50% 70%, rgba(251, 191, 36, 0.55) 0%, transparent 65%);
+  animation: mixSpark 0.55s ease-out forwards;
+}
+
+@keyframes mixSpark {
+  0% { opacity: 0.9; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(1.25); }
 }
 
 @keyframes fadeInDown {

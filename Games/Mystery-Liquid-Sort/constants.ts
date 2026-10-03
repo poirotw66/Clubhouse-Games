@@ -32,6 +32,14 @@ export const COST_UNDO = 50;
 export const COST_ADD_BOTTLE = 200;
 export const COST_REVEAL = 150; // Cost to reveal hidden layers
 export const COST_CLEAR = 300;
+/** Next-step hint — cheap rescue, especially on mix boards. */
+export const COST_HINT = 25;
+
+/** localStorage flag for the soft first-run HowTo overlay. */
+export const HOWTO_STORAGE_KEY = 'mls-howto-seen';
+
+/** localStorage flag for first adventure/QP mix-unlock guidance. */
+export const MIX_INTRO_STORAGE_KEY = 'mls-mix-intro-seen';
 
 /** Quick-play best pour counts keyed by difficulty label (lower is better). */
 export const QP_BEST_MOVES_KEY = 'mls-qp-best-moves-v1';
@@ -50,7 +58,38 @@ export const QP_DIFFICULTY_LABELS: Record<QpDifficultyId, string> = {
 export function qpDifficultyLabel(id: string | undefined): string {
   if (!id) return '自訂';
   if (id in QP_DIFFICULTY_LABELS) return QP_DIFFICULTY_LABELS[id as QpDifficultyId];
+  // Composite keys from QP challenge variants, e.g. MEDIUM_MOVES / HARD_TIMED.
+  if (id.endsWith('_MOVES')) {
+    const base = id.slice(0, -'_MOVES'.length);
+    const baseLabel = QP_DIFFICULTY_LABELS[base as QpDifficultyId] ?? base;
+    return `${baseLabel}・限步`;
+  }
+  if (id.endsWith('_TIMED')) {
+    const base = id.slice(0, -'_TIMED'.length);
+    const baseLabel = QP_DIFFICULTY_LABELS[base as QpDifficultyId] ?? base;
+    return `${baseLabel}・限時`;
+  }
   return id;
+}
+
+/** Move ceilings for QP「限步」variants (pours). */
+export const QP_MOVE_LIMITS: Record<QpDifficultyId, number> = {
+  EASY: 28,
+  MEDIUM: 36,
+  HARD: 48,
+  EXPERT: 60,
+};
+
+/** Time ceilings (seconds) for QP「限時」variants. */
+export const QP_TIME_LIMITS_SEC: Record<QpDifficultyId, number> = {
+  EASY: 120,
+  MEDIUM: 150,
+  HARD: 180,
+  EXPERT: 210,
+};
+
+export function qpVariantStorageId(base: QpDifficultyId, variant: 'moves' | 'timed'): string {
+  return variant === 'moves' ? `${base}_MOVES` : `${base}_TIMED`;
 }
 
 export function loadQpBestMoves(): Record<string, number> {

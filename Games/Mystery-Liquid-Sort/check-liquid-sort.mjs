@@ -2,8 +2,25 @@
 // solvability search over sampled generated levels (see "generateLevel"
 // section below) — independent of generateLevel's own replay verification.
 import assert from 'node:assert/strict';
-import { canPour, pourLiquid, checkLevelComplete, revealHiddenLayers, generateLevel } from './services/gameLogic.ts';
-import { getCapacityForLevel } from './constants.ts';
+import {
+  canPour,
+  pourLiquid,
+  checkLevelComplete,
+  revealHiddenLayers,
+  generateLevel,
+  MIXING_MIN_LEVEL,
+  MIX_RECIPES,
+  isMixingPour,
+  findHintMove,
+  getMixResult as getMixResultFromLogic,
+} from './services/gameLogic.ts';
+import {
+  getCapacityForLevel,
+  COST_HINT,
+  HOWTO_STORAGE_KEY,
+  QP_MOVE_LIMITS,
+  QP_TIME_LIMITS_SEC,
+} from './constants.ts';
 import { Color } from './types.ts';
 import {
   PUZZLE_PACK_STAGES,
@@ -14,6 +31,15 @@ import {
   materializePackStage,
   packStageCount,
 } from './services/puzzlePack.ts';
+import {
+  MIX_CHALLENGE_STAGES,
+  MIX_CHALLENGE_STORAGE_KEY,
+  applyMixStageClear,
+  continueMixIndex,
+  isMixStageUnlocked,
+  materializeMixStage,
+  mixStageCount,
+} from './services/mixChallengePack.ts';
 
 function layer(color, isHidden = false) {
   return { color, isHidden, id: `${color}-${Math.random().toString(36).slice(2, 8)}` };
@@ -490,6 +516,81 @@ function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
     );
     assert.equal(result, 'solvable', `pack ${stage.id}: UNSOLVABLE curated board`);
   }
+}
+
+// --- Mix challenge pack: forced-mix boards; separate storage key ---
+{
+  assert.equal(MIX_CHALLENGE_STORAGE_KEY, 'mls-mix-challenge-v1');
+  assert.notEqual(MIX_CHALLENGE_STORAGE_KEY, PUZZLE_PACK_STORAGE_KEY, 'must not overwrite puzzle pack key');
+  assert.ok(mixStageCount() >= 4 && mixStageCount() <= 6, 'mix pack should ship 4–6 stages');
+  assert.equal(mixStageCount(), MIX_CHALLENGE_STAGES.length);
+
+  assert.equal(isMixStageUnlocked(0, 0), true);
+  assert.equal(isMixStageUnlocked(1, 0), false);
+  assert.equal(isMixStageUnlocked(1, 1), true);
+  assert.equal(continueMixIndex(0), 0);
+  assert.equal(continueMixIndex(mixStageCount()), mixStageCount() - 1);
+
+  let mixProgress = { clearedCount: 0, bestMoves: {} };
+  mixProgress = applyMixStageClear(mixProgress, 0, 9);
+  assert.equal(mixProgress.clearedCount, 1);
+  assert.equal(mixProgress.bestMoves['mix-orange-intro'], 9);
+  mixProgress = applyMixStageClear(mixProgress, 0, 4);
+  assert.equal(mixProgress.clearedCount, 1);
+  assert.equal(mixProgress.bestMoves['mix-orange-intro'], 4);
+
+  const seenMixIds = new Set();
+  for (let i = 0; i < MIX_CHALLENGE_STAGES.length; i++) {
+    const stage = MIX_CHALLENGE_STAGES[i];
+    assert.ok(stage.id && stage.name && stage.tip, `mix stage ${i}: missing id/name/tip`);
+    assert.ok(!seenMixIds.has(stage.id), `duplicate mix stage id: ${stage.id}`);
+    seenMixIds.add(stage.id);
+
+    const { bottles, orders } = materializeMixStage(stage);
+    assert.ok(bottles.every((b) => b.mixingEnabled), `mix ${stage.id}: mixing must be on`);
+    assert.ok(bottles.every((b) => b.layers.length <= b.capacity));
+
+    // At least one order colour must be a mix product under-supplied at deal time.
+    const mixProducts = new Set([Color.ORANGE, Color.GREEN, Color.PURPLE]);
+    let forcedMix = false;
+    for (const order of orders) {
+      if (!mixProducts.has(order.color)) continue;
+      let units = 0;
+      for (const b of bottles) for (const l of b.layers) if (l.color === order.color) units++;
+      if (units < stage.capacity) forcedMix = true;
+    }
+    assert.ok(forcedMix, `mix ${stage.id}: expected a forced-mix order colour`);
+
+    const result = isSolvable(bottles, orders, 500000, 20000);
+    assert.notEqual(
+      result,
+      'exhausted',
+      `mix ${stage.id}: solver budget exhausted — cannot confirm solvability`,
+    );
+    assert.equal(result, 'solvable', `mix ${stage.id}: UNSOLVABLE curated mix board`);
+  }
+}
+
+// --- Mixing unlock floor, recipes, hint, howto key, QP challenge limits ---
+{
+  assert.equal(MIXING_MIN_LEVEL, 4, 'adventure should unlock mixing earlier than level 12');
+  assert.equal(MIX_RECIPES.length, 3);
+  assert.equal(getMixResultFromLogic(Color.RED, Color.YELLOW), Color.ORANGE);
+  assert.equal(COST_HINT, 25);
+  assert.ok(QP_MOVE_LIMITS.EASY > 0 && QP_TIME_LIMITS_SEC.HARD > 0);
+  assert.equal(HOWTO_STORAGE_KEY, 'mls-howto-seen');
+
+  const { bottles, orders } = materializeMixStage(MIX_CHALLENGE_STAGES[0]);
+  const hint = findHintMove(bottles, orders);
+  assert.ok(hint, 'orange intro should have a hint move');
+  const src = bottles.find((b) => b.id === hint.sourceId);
+  const dst = bottles.find((b) => b.id === hint.targetId);
+  assert.ok(src && dst && canPour(src, dst), 'hint must be a legal pour');
+  assert.ok(isMixingPour(src, dst), 'orange intro hint should prefer a mixing pour');
+
+  // Level 4 boards opt into mixingEnabled.
+  const early = generateLevel(4);
+  assert.ok(early.bottles.some((b) => b.mixingEnabled), 'level 4 should enable mixing');
 }
 
 console.log('check-liquid-sort: ok');

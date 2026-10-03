@@ -13,7 +13,10 @@ export const Color = {
 
 export type Color = (typeof Color)[keyof typeof Color];
 
-export type GameMode = 'adventure' | 'quick_play' | 'puzzle_pack';
+export type GameMode = 'adventure' | 'quick_play' | 'puzzle_pack' | 'mix_challenge';
+
+/** Quick-play challenge rule overlay (normal = classic unlimited). */
+export type QpVariant = 'normal' | 'moves' | 'timed';
 
 export interface Layer {
   color: Color;

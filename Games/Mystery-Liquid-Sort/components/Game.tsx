@@ -1,8 +1,32 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { GameState, BottleData, GameMode } from '../types';
-import { INITIAL_COINS, getCapacityForLevel, COST_SHUFFLE, COST_REVEAL, COST_ADD_BOTTLE, COST_UNDO, persistQpBestMoves, loadQpBestMoves, qpDifficultyLabel } from '../constants';
-import { generateLevel, canPour, pourLiquid, checkLevelComplete, shuffleBottles, revealHiddenLayers, checkDeadlock, checkStateRepetition } from '../services/gameLogic';
+import { GameState, BottleData, GameMode, type QpVariant } from '../types';
+import {
+  INITIAL_COINS,
+  getCapacityForLevel,
+  COST_SHUFFLE,
+  COST_REVEAL,
+  COST_ADD_BOTTLE,
+  COST_UNDO,
+  COST_HINT,
+  persistQpBestMoves,
+  loadQpBestMoves,
+  qpDifficultyLabel,
+  MIX_INTRO_STORAGE_KEY,
+} from '../constants';
+import {
+  generateLevel,
+  canPour,
+  pourLiquid,
+  checkLevelComplete,
+  shuffleBottles,
+  revealHiddenLayers,
+  checkDeadlock,
+  checkStateRepetition,
+  isMixingPour,
+  findHintMove,
+  MIXING_MIN_LEVEL,
+} from '../services/gameLogic';
 import {
   getPackStage,
   materializePackStageAt,
@@ -10,6 +34,13 @@ import {
   persistPackStageClear,
   loadPackProgress,
 } from '../services/puzzlePack';
+import {
+  getMixStage,
+  materializeMixStageAt,
+  mixStageCount,
+  persistMixStageClear,
+  loadMixProgress,
+} from '../services/mixChallengePack';
 import { loadCoins, saveCoins } from '../services/economyService';
 import { useDailyMissions } from '../hooks/useDailyMissions';
 import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
@@ -20,10 +51,27 @@ import { BottomControls } from './BottomControls';
 import { DailyMissions } from './DailyMissions';
 import { Settings } from './Settings';
 import { Background } from './Background';
+import { RecipeHud } from './RecipeHud';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { sounds } from '../utils/sound';
 import { getBackgroundByLevel, getSavedBackground } from '../utils/backgrounds';
 import { AlertTriangle, Home, RotateCcw, Repeat, ClipboardList } from 'lucide-react';
+
+function hasSeenMixIntro(): boolean {
+  try {
+    return localStorage.getItem(MIX_INTRO_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markMixIntroSeen(): void {
+  try {
+    localStorage.setItem(MIX_INTRO_STORAGE_KEY, '1');
+  } catch {
+    /* private mode */
+  }
+}
 
 export default function Game() {
     const navigate = useNavigate();
@@ -34,11 +82,22 @@ export default function Game() {
     const initialDifficulty = location.state?.difficultyLevel || 1;
     // Storage/nav id stays English (EASY/…); display via qpDifficultyLabel.
     const initialDifficultyLabel = location.state?.difficultyLabel || 'CUSTOM';
+    const initialQpVariant: QpVariant = location.state?.qpVariant || 'normal';
+    const initialMoveLimit: number | undefined =
+      typeof location.state?.moveLimit === 'number' ? location.state.moveLimit : undefined;
+    const initialTimeLimitSec: number | undefined =
+      typeof location.state?.timeLimitSec === 'number' ? location.state.timeLimitSec : undefined;
     const initialPackStageIndex: number = (() => {
         const raw = location.state?.packStageIndex;
         const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '0'), 10);
         if (!Number.isFinite(n) || n < 0) return 0;
         return Math.min(packStageCount() - 1, Math.floor(n));
+    })();
+    const initialMixStageIndex: number = (() => {
+        const raw = location.state?.mixStageIndex;
+        const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '0'), 10);
+        if (!Number.isFinite(n) || n < 0) return 0;
+        return Math.min(mixStageCount() - 1, Math.floor(n));
     })();
 
     // Initialize state
@@ -51,6 +110,26 @@ export default function Game() {
             return {
                 mode: 'puzzle_pack',
                 level: initialPackStageIndex,
+                difficultyLabel: stage.id,
+                coins: savedCoins,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            };
+        }
+
+        if (initialMode === 'mix_challenge') {
+            const { bottles, orders, stage } = materializeMixStageAt(initialMixStageIndex);
+            const isWin = checkLevelComplete(bottles, orders);
+            return {
+                mode: 'mix_challenge',
+                level: initialMixStageIndex,
                 difficultyLabel: stage.id,
                 coins: savedCoins,
                 bottles,
@@ -104,18 +183,47 @@ export default function Game() {
     // Intelligent Warning System
     const [warningState, setWarningState] = useState<{ type: 'deadlock' | 'loop' | null, message: string }>({ type: null, message: '' });
 
+    const [hintIds, setHintIds] = useState<{ sourceId: string; targetId: string } | null>(null);
+    const [mixFlashId, setMixFlashId] = useState<string | null>(null);
+    const [showMixGuidance, setShowMixGuidance] = useState(() => {
+        if (initialMode === 'mix_challenge') return true;
+        if (initialMode === 'adventure' && !hasSeenMixIntro()) {
+            const lvl = parseInt(localStorage.getItem('mls_level') || '1', 10);
+            return lvl >= MIXING_MIN_LEVEL;
+        }
+        if (initialMode === 'quick_play' && initialDifficulty >= MIXING_MIN_LEVEL && !hasSeenMixIntro()) {
+            return true;
+        }
+        return false;
+    });
+    const [isLose, setIsLose] = useState(false);
+    const [loseReason, setLoseReason] = useState('');
+    const [timeLeftSec, setTimeLeftSec] = useState<number | null>(
+      initialQpVariant === 'timed' && initialTimeLimitSec ? initialTimeLimitSec : null,
+    );
+
     const packStageName = useMemo(() => {
-        if (gameState.mode !== 'puzzle_pack') return undefined;
-        return getPackStage(gameState.level)?.name;
+        if (gameState.mode === 'puzzle_pack') return getPackStage(gameState.level)?.name;
+        if (gameState.mode === 'mix_challenge') return getMixStage(gameState.level)?.name;
+        return undefined;
     }, [gameState.mode, gameState.level]);
+
+    const mixTip = useMemo(() => {
+        if (gameState.mode !== 'mix_challenge') return undefined;
+        return getMixStage(gameState.level)?.tip;
+    }, [gameState.mode, gameState.level]);
+
+    const mixingOnBoard = useMemo(
+      () => gameState.bottles.some((b) => b.mixingEnabled),
+      [gameState.bottles],
+    );
 
     // Background selection - use level-based or saved preference
     const currentBackground = useMemo(() => {
         if (gameState.mode === 'adventure') {
             return getBackgroundByLevel(gameState.level);
         }
-        if (gameState.mode === 'puzzle_pack') {
-            // Map pack index onto adventure backgrounds for variety without new assets.
+        if (gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge') {
             return getBackgroundByLevel(gameState.level + 1);
         }
         return getSavedBackground();
@@ -126,12 +234,20 @@ export default function Game() {
         saveCoins(gameState.coins);
     }, [gameState.coins]);
 
-    // Save level ONLY if in ADVENTURE mode (pack uses mls-puzzle-pack-v1)
+    // Save level ONLY if in ADVENTURE mode
     useEffect(() => {
         if (gameState.mode === 'adventure') {
             localStorage.setItem('mls_level', gameState.level.toString());
         }
     }, [gameState.level, gameState.mode]);
+
+    // Show mix guidance when adventure first crosses MIXING_MIN_LEVEL
+    useEffect(() => {
+        if (gameState.mode !== 'adventure') return;
+        if (gameState.level >= MIXING_MIN_LEVEL && mixingOnBoard && !hasSeenMixIntro()) {
+            setShowMixGuidance(true);
+        }
+    }, [gameState.mode, gameState.level, mixingOnBoard]);
 
     // State to track the specific match being processed { bottleId, orderIndex }
     const [processingMatch, setProcessingMatch] = useState<{ bottleId: string; orderIndex: number } | null>(null);
@@ -142,11 +258,31 @@ export default function Game() {
       return best ?? null;
     });
     const [packBestMoves, setPackBestMoves] = useState<number | null>(() => {
-      if (initialMode !== 'puzzle_pack') return null;
-      const stage = getPackStage(initialPackStageIndex);
-      if (!stage) return null;
-      return loadPackProgress().bestMoves[stage.id] ?? null;
+      if (initialMode === 'puzzle_pack') {
+        const stage = getPackStage(initialPackStageIndex);
+        if (!stage) return null;
+        return loadPackProgress().bestMoves[stage.id] ?? null;
+      }
+      if (initialMode === 'mix_challenge') {
+        const stage = getMixStage(initialMixStageIndex);
+        if (!stage) return null;
+        return loadMixProgress().bestMoves[stage.id] ?? null;
+      }
+      return null;
     });
+
+    // QP timed countdown
+    useEffect(() => {
+        if (initialQpVariant !== 'timed' || timeLeftSec == null) return;
+        if (gameState.isWin || isLose || processingMatch) return;
+        if (timeLeftSec <= 0) {
+            setIsLose(true);
+            setLoseReason('時間到！訂單還沒交完');
+            return;
+        }
+        const t = window.setTimeout(() => setTimeLeftSec((s) => (s == null ? s : s - 1)), 1000);
+        return () => window.clearTimeout(t);
+    }, [timeLeftSec, initialQpVariant, gameState.isWin, isLose, processingMatch]);
 
     useEffect(() => {
         if (gameState.isWin && !celebratedWin) {
@@ -165,6 +301,14 @@ export default function Game() {
                 setPackBestMoves(next.bestMoves[stage.id] ?? moves);
               }
             }
+            if (gameState.mode === 'mix_challenge') {
+              const moves = gameState.history.length;
+              const next = persistMixStageClear(gameState.level, moves);
+              const stage = getMixStage(gameState.level);
+              if (stage) {
+                setPackBestMoves(next.bestMoves[stage.id] ?? moves);
+              }
+            }
             return;
         }
         if (!gameState.isWin && celebratedWin) {
@@ -172,7 +316,12 @@ export default function Game() {
         }
     }, [gameState.isWin, celebratedWin, gameState.mode, gameState.difficultyLabel, gameState.history.length, gameState.level]);
 
-    // (Removed initial startLevel call as it's now done in useState initializer)
+    // Clear mix flash
+    useEffect(() => {
+        if (!mixFlashId) return;
+        const t = window.setTimeout(() => setMixFlashId(null), 550);
+        return () => window.clearTimeout(t);
+    }, [mixFlashId]);
 
     // --- Helper to update missions from game events ---
     const handleClaimMission = (missionId: string) => {
@@ -198,9 +347,20 @@ export default function Game() {
         return targets;
     }, [gameState.selectedBottleId, gameState.bottles]);
 
+    const mixTargets = useMemo(() => {
+        if (!gameState.selectedBottleId) return new Set<string>();
+        const source = gameState.bottles.find(b => b.id === gameState.selectedBottleId);
+        if (!source) return new Set<string>();
+        const targets = new Set<string>();
+        gameState.bottles.forEach(target => {
+            if (isMixingPour(source, target)) targets.add(target.id);
+        });
+        return targets;
+    }, [gameState.selectedBottleId, gameState.bottles]);
+
     // --- CHECK DEADLOCK & LOOPS ---
     useEffect(() => {
-        if (gameState.isWin || processingMatch) {
+        if (gameState.isWin || isLose || processingMatch) {
             setWarningState({ type: null, message: '' });
             return;
         }
@@ -209,7 +369,7 @@ export default function Game() {
         if (isDeadlock) {
             setWarningState({
                 type: 'deadlock',
-                message: '無路可走！試試道具或重來？'
+                message: '無路可走！試試提示、道具或重來？'
             });
             return;
         }
@@ -224,11 +384,11 @@ export default function Game() {
         }
 
         setWarningState({ type: null, message: '' });
-    }, [gameState.bottles, gameState.history, gameState.isWin, processingMatch]);
+    }, [gameState.bottles, gameState.history, gameState.isWin, isLose, processingMatch]);
 
     // --- 1. DETECTION EFFECT ---
     useEffect(() => {
-        if (gameState.isWin || processingMatch) return;
+        if (gameState.isWin || isLose || processingMatch) return;
 
         const match = findMatch(gameState.bottles, gameState.orders);
 
@@ -237,7 +397,7 @@ export default function Game() {
             // Order delivery sting only — level win fanfare plays once via isWin effect.
             setTimeout(() => sounds.score(), 100);
         }
-    }, [gameState.bottles, gameState.orders, gameState.isWin, processingMatch]);
+    }, [gameState.bottles, gameState.orders, gameState.isWin, isLose, processingMatch]);
 
     // --- 2. EXECUTION EFFECT ---
     useEffect(() => {
@@ -311,6 +471,13 @@ export default function Game() {
     };
 
     const startLevel = (levelInput: number) => {
+        setIsLose(false);
+        setLoseReason('');
+        setHintIds(null);
+        if (initialQpVariant === 'timed' && initialTimeLimitSec) {
+            setTimeLeftSec(initialTimeLimitSec);
+        }
+
         if (gameState.mode === 'puzzle_pack') {
             const { bottles, orders, stage } = materializePackStageAt(levelInput);
             const isWin = checkLevelComplete(bottles, orders);
@@ -331,6 +498,31 @@ export default function Game() {
             setProcessingMatch(null);
             setWarningState({ type: null, message: '' });
             const best = loadPackProgress().bestMoves[stage.id];
+            setPackBestMoves(best ?? null);
+            return;
+        }
+
+        if (gameState.mode === 'mix_challenge') {
+            const { bottles, orders, stage } = materializeMixStageAt(levelInput);
+            const isWin = checkLevelComplete(bottles, orders);
+            setGameState(prev => ({
+                ...prev,
+                level: levelInput,
+                difficultyLabel: stage.id,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            }));
+            setProcessingMatch(null);
+            setWarningState({ type: null, message: '' });
+            setShowMixGuidance(true);
+            const best = loadMixProgress().bestMoves[stage.id];
             setPackBestMoves(best ?? null);
             return;
         }
@@ -367,6 +559,13 @@ export default function Game() {
                 return;
             }
             startLevel(nextIndex);
+        } else if (gameState.mode === 'mix_challenge') {
+            const nextIndex = gameState.level + 1;
+            if (nextIndex >= mixStageCount()) {
+                navigate('/');
+                return;
+            }
+            startLevel(nextIndex);
         } else {
             startLevel(gameState.level);
         }
@@ -374,6 +573,12 @@ export default function Game() {
 
     const handleRestart = () => {
         if (window.confirm("重新開始本關卡?")) {
+            setIsLose(false);
+            setLoseReason('');
+            setHintIds(null);
+            if (initialQpVariant === 'timed' && initialTimeLimitSec) {
+                setTimeLeftSec(initialTimeLimitSec);
+            }
             if (gameState.initialBoardState) {
                 const resetBottles = JSON.parse(JSON.stringify(gameState.initialBoardState.bottles));
                 const resetOrders = JSON.parse(JSON.stringify(gameState.initialBoardState.orders));
@@ -396,7 +601,7 @@ export default function Game() {
     }
 
     const handleBottleClick = (bottleId: string) => {
-        if (gameState.isWin || processingMatch) return;
+        if (gameState.isWin || isLose || processingMatch) return;
 
         setGameState(prev => {
             const { selectedBottleId, bottles, orders } = prev;
@@ -406,6 +611,7 @@ export default function Game() {
                 if (!bottle || bottle.layers.length === 0 || bottle.isCompleted) return prev;
 
                 sounds.pop();
+                setHintIds(null);
                 return { ...prev, selectedBottleId: bottleId };
             }
 
@@ -432,8 +638,15 @@ export default function Game() {
                 };
                 const newHistory = [...prev.history, historySnapshot];
 
+                const mixing = isMixingPour(source, target);
                 const { newSource, newTarget } = pourLiquid(source, target);
-                sounds.pour();
+                if (mixing) {
+                    sounds.mix();
+                    setMixFlashId(newTarget.id);
+                } else {
+                    sounds.pour();
+                }
+                setHintIds(null);
 
                 let currentBottles = [...bottles];
                 currentBottles[sourceIndex] = newSource;
@@ -451,6 +664,18 @@ export default function Game() {
 
                 if (isWin) {
                     trackMissionProgress('WIN_LEVEL');
+                }
+
+                // QP move-limit fail (count player pours = history length after this pour)
+                if (
+                  !isWin &&
+                  prev.mode === 'quick_play' &&
+                  initialQpVariant === 'moves' &&
+                  initialMoveLimit != null &&
+                  newHistory.length >= initialMoveLimit
+                ) {
+                    setIsLose(true);
+                    setLoseReason(`已用完 ${initialMoveLimit} 步`);
                 }
 
                 return {
@@ -473,7 +698,7 @@ export default function Game() {
     };
 
     const handleUndo = () => {
-        if (processingMatch) return;
+        if (processingMatch || isLose) return;
         setGameState(prev => {
             if (prev.history.length === 0) {
                 sounds.error();
@@ -486,6 +711,7 @@ export default function Game() {
 
             sounds.pop();
             trackMissionProgress('USE_ITEM'); // TRACK MISSION
+            setHintIds(null);
 
             const previousState = prev.history[prev.history.length - 1];
             const newHistory = prev.history.slice(0, -1);
@@ -502,7 +728,7 @@ export default function Game() {
     };
 
     const handleAddBottle = () => {
-        if (processingMatch) return;
+        if (processingMatch || isLose) return;
         setGameState(prev => {
             if (prev.coins < COST_ADD_BOTTLE) {
                 sounds.error();
@@ -511,14 +737,19 @@ export default function Game() {
             sounds.magic();
             trackMissionProgress('USE_ITEM'); // TRACK MISSION
 
+            const capacity =
+              prev.mode === 'puzzle_pack'
+                ? (getPackStage(prev.level)?.capacity ?? 4)
+                : prev.mode === 'mix_challenge'
+                  ? (getMixStage(prev.level)?.capacity ?? 4)
+                  : getCapacityForLevel(prev.level);
+
             const newBottle: BottleData = {
                 id: Math.random().toString(),
                 layers: [],
-                capacity:
-                  prev.mode === 'puzzle_pack'
-                    ? (getPackStage(prev.level)?.capacity ?? 4)
-                    : getCapacityForLevel(prev.level),
-                isCompleted: false
+                capacity,
+                isCompleted: false,
+                mixingEnabled: prev.bottles.some((b) => b.mixingEnabled),
             };
             return {
                 ...prev,
@@ -529,7 +760,7 @@ export default function Game() {
     };
 
     const handleShuffle = () => {
-        if (processingMatch) return;
+        if (processingMatch || isLose) return;
 
         setGameState(prev => {
             if (prev.coins < COST_SHUFFLE) {
@@ -539,6 +770,7 @@ export default function Game() {
 
             sounds.magic();
             trackMissionProgress('USE_ITEM'); // TRACK MISSION
+            setHintIds(null);
 
             const historySnapshot = {
                 bottles: JSON.parse(JSON.stringify(prev.bottles)),
@@ -559,7 +791,7 @@ export default function Game() {
     };
 
     const handleReveal = () => {
-        if (processingMatch) return;
+        if (processingMatch || isLose) return;
 
         setGameState(prev => {
             if (prev.coins < COST_REVEAL) {
@@ -587,6 +819,50 @@ export default function Game() {
             }
         });
     };
+
+    const handleHint = () => {
+        if (processingMatch || gameState.isWin || isLose) return;
+        if (gameState.coins < COST_HINT) {
+            sounds.error();
+            return;
+        }
+        const hint = findHintMove(gameState.bottles, gameState.orders);
+        if (!hint) {
+            sounds.error();
+            setWarningState({ type: 'deadlock', message: '暫時找不到提示步，試試道具？' });
+            return;
+        }
+        sounds.pop();
+        trackMissionProgress('USE_ITEM');
+        setHintIds(hint);
+        setGameState((prev) => ({
+          ...prev,
+          coins: prev.coins - COST_HINT,
+          selectedBottleId: hint.sourceId,
+        }));
+    };
+
+    const dismissMixGuidance = () => {
+        markMixIntroSeen();
+        setShowMixGuidance(false);
+    };
+
+    const challengeStatus = useMemo(() => {
+        if (gameState.mode !== 'quick_play') return undefined;
+        if (initialQpVariant === 'moves' && initialMoveLimit != null) {
+            const used = gameState.history.length;
+            return `剩餘步數 ${Math.max(0, initialMoveLimit - used)}`;
+        }
+        if (initialQpVariant === 'timed' && timeLeftSec != null) {
+            const m = Math.floor(timeLeftSec / 60);
+            const s = timeLeftSec % 60;
+            return `剩餘 ${m}:${s.toString().padStart(2, '0')}`;
+        }
+        return undefined;
+    }, [gameState.mode, gameState.history.length, initialQpVariant, initialMoveLimit, timeLeftSec]);
+
+    const stageCount =
+      gameState.mode === 'mix_challenge' ? mixStageCount() : packStageCount();
 
     return (
         <div className="relative w-full h-screen flex flex-col items-center justify-between text-white overflow-hidden font-sans">
@@ -628,25 +904,40 @@ export default function Game() {
                     {/* Center: TopBar Component - Takes remaining space */}
                     <div className="flex-1 min-w-0">
                         <TopBar
-                            level={gameState.mode === 'puzzle_pack' ? gameState.level + 1 : gameState.level}
+                            level={
+                              gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge'
+                                ? gameState.level + 1
+                                : gameState.level
+                            }
                             mode={gameState.mode}
                             difficultyLabel={gameState.difficultyLabel}
                             packStageName={packStageName}
                             coins={gameState.coins}
                             onSettings={() => setShowSettingsModal(true)}
+                            challengeStatus={challengeStatus}
                         />
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 w-full max-w-lg flex flex-col items-center justify-start z-10 px-3 md:px-4 safe-left safe-right pt-2 md:pt-0">
+            <div className="flex-1 w-full max-w-lg flex flex-col items-center justify-start z-10 px-3 md:px-4 safe-left safe-right pt-2 md:pt-0 overflow-hidden">
 
                 <TargetArea
                     orders={gameState.orders}
                 />
 
+                {mixingOnBoard && (
+                  <RecipeHud showIrreversibleWarning={showMixGuidance} />
+                )}
+
+                {mixTip && (
+                  <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/30 text-amber-100 text-[11px] md:text-xs font-bold text-center max-w-md">
+                    {mixTip}
+                  </div>
+                )}
+
                 {/* DYNAMIC HINT NOTIFICATION - Unified Card Style */}
-                {warningState.type && !gameState.isWin && (
+                {warningState.type && !gameState.isWin && !isLose && (
                     <div className={`
                     animate-bounce-short mb-3 md:mb-4 backdrop-blur-xl border px-4 py-2.5 rounded-2xl flex items-center gap-2.5 shadow-lg transition-all mx-2
                     ${warningState.type === 'deadlock'
@@ -658,7 +949,7 @@ export default function Game() {
                     </div>
                 )}
 
-                <div className="w-full flex-1 flex items-end pb-4 md:pb-8 relative">
+                <div className="w-full flex-1 flex items-end pb-4 md:pb-8 relative overflow-y-auto no-scrollbar">
                     <div className="w-full flex flex-wrap justify-center gap-x-4 gap-y-6 md:gap-x-6 md:gap-y-8 content-end">
                         {gameState.bottles.map(bottle => (
                             <Bottle
@@ -666,6 +957,12 @@ export default function Game() {
                                 bottle={bottle}
                                 isSelected={gameState.selectedBottleId === bottle.id}
                                 isValidTarget={validTargets.has(bottle.id)}
+                                isMixTarget={mixTargets.has(bottle.id)}
+                                isMixingFlash={mixFlashId === bottle.id}
+                                isHinted={
+                                  hintIds != null &&
+                                  (hintIds.sourceId === bottle.id || hintIds.targetId === bottle.id)
+                                }
                                 isFlying={processingMatch?.bottleId === bottle.id}
                                 onClick={() => handleBottleClick(bottle.id)}
                             />
@@ -679,7 +976,27 @@ export default function Game() {
                 onShuffle={handleShuffle}
                 onAddBottle={handleAddBottle}
                 onReveal={handleReveal}
+                onHint={handleHint}
             />
+
+            {/* First mix unlock guidance */}
+            {showMixGuidance && mixingOnBoard && !gameState.isWin && !isLose && (
+              <div className="absolute inset-x-0 bottom-28 z-[45] flex justify-center px-4 pointer-events-none">
+                <div className="pointer-events-auto max-w-sm w-full rounded-2xl bg-[#2d2d44]/95 border border-amber-400/40 shadow-2xl p-4">
+                  <p className="text-amber-300 text-xs font-bold tracking-wider mb-1">混色已解鎖</p>
+                  <p className="text-white text-sm font-bold mb-2">
+                    配方在上方。混色不可逆——確認訂單再開倒。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={dismissMixGuidance}
+                    className="w-full min-h-[44px] rounded-xl bg-amber-500 font-bold text-[#1a1a2e] active:scale-[0.98]"
+                  >
+                    知道了
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* --- MODALS --- */}
             <DailyMissions
@@ -702,14 +1019,24 @@ export default function Game() {
                         ? `第 ${gameState.level} 關完成`
                         : gameState.mode === 'puzzle_pack'
                           ? `${packStageName ?? '關卡包'}完成`
+                          : gameState.mode === 'mix_challenge'
+                            ? `${packStageName ?? '混合挑戰'}完成`
                           : `${qpDifficultyLabel(gameState.difficultyLabel)} 完成`
                     }
                     badge="太棒了！"
                     variant="win"
                     stats={[
                         {
-                          label: gameState.mode === 'puzzle_pack' ? '關卡包' : '關卡',
-                          value: gameState.mode === 'puzzle_pack' ? `${gameState.level + 1}/${packStageCount()}` : gameState.level,
+                          label:
+                            gameState.mode === 'puzzle_pack'
+                              ? '關卡包'
+                              : gameState.mode === 'mix_challenge'
+                                ? '混合挑戰'
+                                : '關卡',
+                          value:
+                            gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge'
+                              ? `${gameState.level + 1}/${stageCount}`
+                              : gameState.level,
                         },
                         { label: '金幣', value: gameState.coins },
                         { label: '瓶子數', value: gameState.bottles.length },
@@ -717,20 +1044,61 @@ export default function Game() {
                         ...(gameState.mode === 'quick_play' && qpBestMoves != null
                           ? [{ label: '最佳倒次', value: qpBestMoves }]
                           : []),
-                        ...(gameState.mode === 'puzzle_pack' && packBestMoves != null
+                        ...((gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge') &&
+                        packBestMoves != null
                           ? [{ label: '最佳倒次', value: packBestMoves }]
                           : []),
                     ]}
                     primaryLabel={
                       gameState.mode === 'adventure'
                         ? '下一關'
-                        : gameState.mode === 'puzzle_pack'
-                          ? gameState.level + 1 >= packStageCount()
+                        : gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge'
+                          ? gameState.level + 1 >= stageCount
                             ? '回主頁'
                             : '下一關'
                           : '再來一局'
                     }
                     onPrimary={handleNextLevel}
+                />
+            )}
+
+            {isLose && !gameState.isWin && (
+                <ResultOverlay
+                    title="挑戰失敗"
+                    subtitle={loseReason || '再試一次吧'}
+                    badge="加油！"
+                    variant="lose"
+                    stats={[
+                        { label: '倒次', value: gameState.history.length },
+                        ...(initialMoveLimit != null
+                          ? [{ label: '步數上限', value: initialMoveLimit }]
+                          : []),
+                        ...(initialTimeLimitSec != null
+                          ? [{ label: '時限（秒）', value: initialTimeLimitSec }]
+                          : []),
+                    ]}
+                    primaryLabel="再來一局"
+                    onPrimary={() => {
+                      setIsLose(false);
+                      setLoseReason('');
+                      if (gameState.initialBoardState) {
+                        const resetBottles = JSON.parse(JSON.stringify(gameState.initialBoardState.bottles));
+                        const resetOrders = JSON.parse(JSON.stringify(gameState.initialBoardState.orders));
+                        setGameState((prev) => ({
+                          ...prev,
+                          bottles: resetBottles,
+                          orders: resetOrders,
+                          selectedBottleId: null,
+                          history: [],
+                          isWin: false,
+                        }));
+                        if (initialQpVariant === 'timed' && initialTimeLimitSec) {
+                          setTimeLeftSec(initialTimeLimitSec);
+                        }
+                      } else {
+                        startLevel(gameState.level);
+                      }
+                    }}
                 />
             )}
         </div>
