@@ -413,3 +413,20 @@ test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: '開始下一波' })).toBeVisible();
 });
+
+test('mystery-liquid-sort: howto seeded, mix challenge and hint on home/game', async ({ page, isMobile }) => {
+  test.setTimeout(45_000);
+  // Seed howto so「知道了」cannot collide with other CTAs under strict mode.
+  await page.addInitScript(() => {
+    localStorage.setItem('mls-howto-seen', '1');
+    localStorage.setItem('mls-mix-intro-seen', '1');
+  });
+  await page.goto('./Games/Mystery-Liquid-Sort/');
+  await expect(page.getByRole('heading', { name: '神秘液體排序' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '混合墨水挑戰' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '混合墨水挑戰' }), isMobile);
+  await expect(page.getByRole('dialog', { name: '混合墨水挑戰' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '開始第一關' }), isMobile);
+  await expect(page.getByText('混色配方')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: '提示' })).toBeVisible();
+});

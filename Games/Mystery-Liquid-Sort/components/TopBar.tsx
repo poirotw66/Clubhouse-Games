@@ -7,15 +7,18 @@ interface TopBarProps {
   level: number;
   mode: GameMode;
   difficultyLabel?: string;
-  /** Puzzle-pack stage display name (Traditional Chinese). */
+  /** Puzzle-pack / mix-challenge stage display name (Traditional Chinese). */
   packStageName?: string;
   coins: number;
   onSettings: () => void;
+  /** Optional QP challenge countdown / move budget line. */
+  challengeStatus?: string;
 }
 
 function modeEyebrow(mode: GameMode): string {
   if (mode === 'adventure') return '關卡';
   if (mode === 'puzzle_pack') return '關卡包';
+  if (mode === 'mix_challenge') return '混合挑戰';
   return '難度';
 }
 
@@ -26,7 +29,7 @@ function modeTitle(
   packStageName: string | undefined,
 ): string | number {
   if (mode === 'adventure') return level;
-  if (mode === 'puzzle_pack') return packStageName ?? `第 ${level} 關`;
+  if (mode === 'puzzle_pack' || mode === 'mix_challenge') return packStageName ?? `第 ${level} 關`;
   return qpDifficultyLabel(difficultyLabel);
 }
 
@@ -37,6 +40,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   packStageName,
   coins,
   onSettings,
+  challengeStatus,
 }) => {
   return (
     <div className="w-full flex items-center justify-between gap-2 md:gap-3">
@@ -49,6 +53,11 @@ export const TopBar: React.FC<TopBarProps> = ({
           <h1 className="text-white text-base md:text-2xl font-black drop-shadow-md font-mono truncate max-w-full">
             {modeTitle(mode, level, difficultyLabel, packStageName)}
           </h1>
+          {challengeStatus && (
+            <div className="text-[10px] md:text-xs font-bold text-rose-300 mt-0.5 tabular-nums">
+              {challengeStatus}
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,12 +1,13 @@
 import React from 'react';
-import { RotateCcw, Shuffle, Plus, Eye } from 'lucide-react';
-import { COST_ADD_BOTTLE, COST_REVEAL, COST_SHUFFLE, COST_UNDO } from '../constants';
+import { RotateCcw, Shuffle, Plus, Eye, Lightbulb } from 'lucide-react';
+import { COST_ADD_BOTTLE, COST_HINT, COST_REVEAL, COST_SHUFFLE, COST_UNDO } from '../constants';
 
 interface BottomControlsProps {
   onShuffle: () => void;
   onUndo: () => void;
   onAddBottle: () => void;
   onReveal: () => void;
+  onHint: () => void;
 }
 
 const ControlButton: React.FC<{ 
@@ -21,7 +22,7 @@ const ControlButton: React.FC<{
       type="button"
       onClick={onClick}
       className={`
-        relative touch-target w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-white
+        relative touch-target w-11 h-11 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-white
         shadow-lg border border-white/20
         transition-all duration-150 ease-in-out touch-active
         active:scale-95 active:shadow-md
@@ -37,42 +38,55 @@ const ControlButton: React.FC<{
     </button>
     
     {/* Price Tag - Unified Style */}
-    <div className="bg-white/10 backdrop-blur-sm px-2 py-0.5 rounded-lg flex items-center gap-1 border border-white/20 group-active:scale-95 transition-transform">
+    <div className="bg-white/10 backdrop-blur-sm px-1.5 py-0.5 rounded-lg flex items-center gap-1 border border-white/20 group-active:scale-95 transition-transform">
       <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
       <span className="text-[10px] font-bold text-white tabular-nums">{cost}</span>
     </div>
   </div>
 );
 
-export const BottomControls: React.FC<BottomControlsProps> = ({ onShuffle, onUndo, onAddBottle, onReveal }) => {
+export const BottomControls: React.FC<BottomControlsProps> = ({
+  onShuffle,
+  onUndo,
+  onAddBottle,
+  onReveal,
+  onHint,
+}) => {
   return (
-    <div className="w-full px-3 md:px-4 pb-4 md:pb-6 pt-3 flex justify-between items-center max-w-lg mx-auto safe-bottom safe-left safe-right">
+    <div className="w-full px-2 md:px-4 pb-4 md:pb-6 pt-3 flex justify-between items-center max-w-lg mx-auto safe-bottom safe-left safe-right">
       {/* Unified Container Card */}
-      <div className="w-full bg-white/10 backdrop-blur-xl rounded-2xl px-4 py-3 border border-white/20 shadow-lg flex justify-between items-center">
+      <div className="w-full bg-white/10 backdrop-blur-xl rounded-2xl px-2 md:px-4 py-3 border border-white/20 shadow-lg flex justify-between items-center gap-1">
+        <ControlButton 
+          onClick={onHint} 
+          icon={<Lightbulb size={22} strokeWidth={2.5} />} 
+          colorClass="bg-sky-500" 
+          cost={COST_HINT} 
+          label="提示"
+        />
         <ControlButton 
           onClick={onShuffle} 
-          icon={<Shuffle size={24} strokeWidth={2.5} />} 
+          icon={<Shuffle size={22} strokeWidth={2.5} />} 
           colorClass="bg-blue-500" 
           cost={COST_SHUFFLE} 
           label="洗牌"
         />
         <ControlButton 
           onClick={onUndo} 
-          icon={<RotateCcw size={24} strokeWidth={2.5} />} 
+          icon={<RotateCcw size={22} strokeWidth={2.5} />} 
           colorClass="bg-orange-500" 
           cost={COST_UNDO} 
           label="復原"
         />
         <ControlButton 
           onClick={onAddBottle} 
-          icon={<Plus size={28} strokeWidth={3} />} 
+          icon={<Plus size={26} strokeWidth={3} />} 
           colorClass="bg-green-500" 
           cost={COST_ADD_BOTTLE} 
           label="加瓶子"
         />
         <ControlButton 
           onClick={onReveal} 
-          icon={<Eye size={24} strokeWidth={2.5} />} 
+          icon={<Eye size={22} strokeWidth={2.5} />} 
           colorClass="bg-purple-500" 
           cost={COST_REVEAL} 
           label="揭開"
