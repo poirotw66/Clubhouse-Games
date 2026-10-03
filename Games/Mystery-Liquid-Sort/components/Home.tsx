@@ -244,7 +244,9 @@ export const Home: React.FC = () => {
                 
                 {/* Adventure Mode Button - Mobile Optimized */}
                 <button 
+                    type="button"
                     onClick={handleAdventureClick}
+                    aria-label="冒險模式"
                     className="touch-target w-full group relative px-4 md:px-6 py-4 md:py-5 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl md:rounded-2xl flex items-center justify-between shadow-[0_3px_0_#1e3a8a] md:shadow-[0_4px_0_#1e3a8a] active:shadow-none active:translate-y-0.5 md:active:translate-y-1 transition-all touch-active"
                 >
                     <div className="flex items-center gap-3 md:gap-4">
@@ -263,7 +265,9 @@ export const Home: React.FC = () => {
 
                 {/* Quick Play Button - Mobile Optimized */}
                 <button 
+                    type="button"
                     onClick={() => setShowDifficultyModal(true)}
+                    aria-label="快速遊玩"
                     className="touch-target w-full group relative px-4 md:px-6 py-4 md:py-5 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl md:rounded-2xl flex items-center justify-between shadow-[0_3px_0_#047857] md:shadow-[0_4px_0_#047857] active:shadow-none active:translate-y-0.5 md:active:translate-y-1 transition-all touch-active"
                 >
                     <div className="flex items-center gap-3 md:gap-4">
