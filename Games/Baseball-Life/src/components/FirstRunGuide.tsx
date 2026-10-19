@@ -61,9 +61,9 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-amber-300">關鍵局面與天命</p>
+            <p className="font-bold text-amber-300">人、章節與關鍵局面</p>
             <p className="mt-0.5 text-amber-200/60">
-              大賽與球季會插入關鍵打席／配球決策；天命可強行完美訓練骰。按 1–9 選擇，Backspace 復原。
+              教練風格會改菜單；隊友與宿敵會再登場。大賽有關鍵打席，生涯有章節卡片。天命可強行完美訓練骰。
             </p>
           </li>
         </ul>

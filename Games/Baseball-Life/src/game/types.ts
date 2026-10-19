@@ -103,8 +103,73 @@ export type DecisionKind =
   | 'offer'
   | 'event'
   | 'clutch'
+  | 'chapter'
+  | 'story'
   | 'retire'
   | 'continue';
+
+/** Named career-arc beats (M3). */
+export type ChapterId =
+  | 'hs-year1'
+  | 'hs-year2'
+  | 'hs-year3'
+  | 'draft-night'
+  | 'amateur'
+  | 'pro-rookie'
+  | 'pro-peak'
+  | 'pro-veteran';
+
+export type CoachStyle = 'strict' | 'nurture' | 'tactician' | 'power';
+
+export interface Coach {
+  id: string;
+  name: string;
+  style: CoachStyle;
+  /** 0–100 trust / rapport with this coach. */
+  bond: number;
+}
+
+export interface Teammate {
+  id: string;
+  name: string;
+  role: string;
+  bond: number;
+}
+
+export interface Rival {
+  id: string;
+  name: string;
+  position: Position;
+  /** Rough overall used in copy and clutch bias. */
+  overall: number;
+  /** 0–100 rivalry heat — raises H2H clutch odds. */
+  rivalry: number;
+  meetings: number;
+  lastStage: Stage | null;
+}
+
+export interface ChapterCard {
+  chapterId: ChapterId;
+  phase: 'intro' | 'outro';
+  title: string;
+  prompt: string;
+  lines: string[];
+}
+
+export interface ChapterHistoryEntry {
+  id: ChapterId;
+  title: string;
+  year: number;
+  age: number;
+}
+
+export interface StoryBeat {
+  id: string;
+  kind: 'coach' | 'teammate' | 'rival';
+  title: string;
+  prompt: string;
+  options: Option[];
+}
 
 /** A memorable in-match moment kept for the retirement summary (M2). */
 export interface ClutchHighlight {
@@ -138,6 +203,8 @@ export interface ClutchMoment {
   age: number;
   league: LeagueId;
   options: ClutchOption[];
+  /** True when this moment is framed as a head-to-head vs the career rival. */
+  vsRival?: boolean;
 }
 
 /** Accumulated modifiers from clutch choices applied when the match resolves. */
@@ -369,6 +436,25 @@ export interface GameState {
   clutchMods: ClutchSeasonMods;
   /** Memorable clutch moments shown on the retirement summary. */
   clutchHighlights: ClutchHighlight[];
+
+  /** M3: high-school / pro mentor whose style reshapes training cards. */
+  coach: Coach;
+  /** Two core teammates; bonds feed chemistry story beats. */
+  teammates: Teammate[];
+  /** Recurring rival across HS → amateur → pro. */
+  rival: Rival;
+  /** Active named chapter id. */
+  chapterId: ChapterId;
+  /** Intro/outro ids already shown (`chapterId` or `chapterId:outro`). */
+  chaptersSeen: string[];
+  /** Ordered chapter intros for the retirement summary. */
+  chapterHistory: ChapterHistoryEntry[];
+  /** Queued chapter ritual card. */
+  pendingChapter: ChapterCard | null;
+  /** Queued coach / teammate / rival story beat. */
+  pendingStory: StoryBeat | null;
+  /** Short relationship beats kept for the summary. */
+  storyHighlights: string[];
 
   decision: Decision | null;
   report: TurnReport | null;

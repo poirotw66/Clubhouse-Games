@@ -10,6 +10,8 @@ import {
   overall,
 } from '../game/config';
 import { abilityById } from '../game/abilities';
+import { chapterShort, chapterById } from '../game/chapters';
+import { coachStyleInfo, teamChemistry } from '../game/people';
 import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
@@ -128,6 +130,45 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
             <li>交易冷卻：還剩 {state.flags.tradeCooldown} 季</li>
           )}
         </ul>
+      )}
+
+      {(state.coach || state.rival) && (
+        <div className="mt-3 border-t border-slate-700/60 pt-3 space-y-2">
+          <p className="text-[10px] tracking-wider text-slate-500">
+            章節・{chapterShort(state.chapterId)}
+            {chapterById(state.chapterId) ? `　${chapterById(state.chapterId)!.title}` : ''}
+          </p>
+          {state.coach && (
+            <div className="grid grid-cols-[1fr_2.5rem] items-center gap-2 text-[11px]">
+              <p className="text-slate-300">
+                教練 {state.coach.name}
+                <span className="ml-1 text-slate-500">
+                  （{coachStyleInfo(state.coach.style).label}）
+                </span>
+              </p>
+              <p className="text-right font-mono text-sky-300">{state.coach.bond}</p>
+              <div className="col-span-2">
+                <Bar value={state.coach.bond} />
+              </div>
+            </div>
+          )}
+          {state.teammates?.length > 0 && (
+            <div className="text-[11px] text-slate-400">
+              隊伍默契{' '}
+              <span className="font-mono text-emerald-300">{teamChemistry(state)}</span>
+              <span className="ml-2 text-slate-500">
+                {state.teammates.map((t) => t.name).join('・')}
+              </span>
+            </div>
+          )}
+          {state.rival && (
+            <div className="text-[11px] text-slate-300">
+              宿敵 {state.rival.name}
+              <span className="ml-2 font-mono text-rose-300">對抗 {state.rival.rivalry}</span>
+              <span className="ml-2 font-mono text-slate-500">綜合 {state.rival.overall}</span>
+            </div>
+          )}
+        </div>
       )}
 
       {state.abilities.length > 0 && (

@@ -81,6 +81,8 @@ export function PlayScreen({
   const destinyArmed = useDestiny && canAffordDestiny;
   const showDestinyToggle =
     decision?.kind !== 'clutch' &&
+    decision?.kind !== 'chapter' &&
+    decision?.kind !== 'story' &&
     ((decision?.kind === 'training' && trainingRollsDice) || Boolean(situationDestiny));
 
   // A fresh decision starts with 天命 disarmed, so the toggle never silently
@@ -259,13 +261,23 @@ export function PlayScreen({
                     ? '高風險抉擇'
                     : decision.kind === 'clutch'
                       ? '比賽關鍵局面'
-                      : decision.title}
+                      : decision.kind === 'chapter'
+                        ? '生涯章節'
+                        : decision.kind === 'story'
+                          ? '人際事件'
+                          : decision.title}
                 </p>
                 {decision.kind === 'event' && (
                   <p className="mt-1 text-xs font-bold text-rose-300/90">{decision.title}</p>
                 )}
                 {decision.kind === 'clutch' && (
                   <p className="mt-1 text-xs font-bold text-amber-300/90">{decision.title}</p>
+                )}
+                {decision.kind === 'chapter' && (
+                  <p className="mt-1 text-xs font-bold text-sky-300/90">{decision.title}</p>
+                )}
+                {decision.kind === 'story' && (
+                  <p className="mt-1 text-xs font-bold text-emerald-300/90">{decision.title}</p>
                 )}
                 <h2 className="mt-1 whitespace-pre-line text-base leading-relaxed text-slate-200">
                   {decision.prompt}
