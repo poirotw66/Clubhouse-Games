@@ -41,6 +41,7 @@ import {
   FIXED_HOMING_FULL_K,
 } from './constants';
 import { bossFor, midwayCardFor } from './cards';
+import { DEFAULT_CRAFT_ID, craftById } from './crafts';
 import { hashString, shuffle, streamRng } from './rng';
 import {
   UPGRADES,
@@ -61,6 +62,7 @@ export interface CreateRunOptions {
   startCardIndex?: number;
   singleCard?: boolean;
   modeId?: string | null;
+  craftId?: string;
 }
 
 export function defaultRunConfig(partial?: Partial<RunConfig>): RunConfig {
@@ -123,28 +125,36 @@ export function effectNow(s: RunState, key: Parameters<typeof effect>[1]): numbe
 // The self-check greps this file for each declared key, because a key nothing
 // reads makes the upgrade's text a silent lie.
 
+function craftOf(s: RunState) {
+  return craftById(s.craftId || DEFAULT_CRAFT_ID);
+}
+
 export function hitboxRadius(s: RunState): number {
-  return Math.max(1, BASE_HITBOX_R * (1 + effectNow(s, 'hitboxPct')));
+  return Math.max(1, BASE_HITBOX_R * (1 + effectNow(s, 'hitboxPct')) * craftOf(s).hitboxMult);
 }
 
 export function grazeRadius(s: RunState): number {
-  return BASE_GRAZE_R * (1 + effectNow(s, 'grazeRangePct'));
+  return BASE_GRAZE_R * (1 + effectNow(s, 'grazeRangePct')) * craftOf(s).grazeRangeMult;
 }
 
 export function moveSpeed(s: RunState): number {
+  const craft = craftOf(s);
   return s.focus
-    ? FOCUS_SPEED * (1 + effectNow(s, 'focusSpeedPct'))
-    : FAST_SPEED * (1 + effectNow(s, 'fastSpeedPct'));
+    ? FOCUS_SPEED * (1 + effectNow(s, 'focusSpeedPct')) * craft.focusSpeedMult
+    : FAST_SPEED * (1 + effectNow(s, 'fastSpeedPct')) * craft.fastSpeedMult;
 }
 
 /** Volleys per second, rising with power tier and fireRatePct. */
 export function fireRate(s: RunState): number {
   const base = 5.5 + s.powerTier * 1.1;
-  return Math.max(1, base * (1 + effectNow(s, 'fireRatePct')));
+  return Math.max(1, base * (1 + effectNow(s, 'fireRatePct')) * craftOf(s).fireRateMult);
 }
 
 export function shotsPerVolley(s: RunState): number {
-  return Math.max(1, 1 + Math.floor(s.powerTier / 2) + effectNow(s, 'shotWidth'));
+  return Math.max(
+    1,
+    1 + Math.floor(s.powerTier / 2) + effectNow(s, 'shotWidth') + craftOf(s).shotWidthBonus,
+  );
 }
 
 export function invulnAfterDeath(s: RunState): number {
@@ -168,7 +178,7 @@ export function rangeDamageMult(s: RunState, dist: number): number {
 
 export function shotDamage(s: RunState, dist: number): number {
   const base = 8 + s.powerTier * 3;
-  return base * (1 + effectNow(s, 'damagePct')) * rangeDamageMult(s, dist);
+  return base * (1 + effectNow(s, 'damagePct')) * rangeDamageMult(s, dist) * craftOf(s).damageMult;
 }
 
 export function grazeGain(s: RunState): number {
@@ -305,6 +315,8 @@ export function createRun(
     lastCardResult: null,
     config,
     modeId: options.modeId ?? null,
+    craftId: options.craftId ?? DEFAULT_CRAFT_ID,
+    capturedCardIds: [],
   };
 
   if (config.skipMidway) {
@@ -343,6 +355,7 @@ function clone(s: RunState): RunState {
     upgrades: s.upgrades.slice(),
     offered: s.offered.slice(),
     config: { ...s.config },
+    capturedCardIds: s.capturedCardIds.slice(),
   };
 }
 
@@ -405,6 +418,7 @@ export function emitterActive(card: SpellCard, index: number, hpFrac: number): b
 
 function fireVolley(s: RunState): void {
   const shots = shotsPerVolley(s);
+  const reachBonus = craftOf(s).reachBonus;
   for (const e of s.enemies) {
     if (e.entryTo) continue; // still gliding in, not yet a target
     const dx = e.x - s.px;
@@ -413,7 +427,7 @@ function fireVolley(s: RunState): void {
     if (dy > 40) continue;
     const dist = Math.hypot(dx, dy);
     const lateral = Math.abs(dx);
-    const reach = 26 + shots * 9;
+    const reach = 26 + shots * 9 + reachBonus;
     if (lateral > reach) continue;
     e.hp -= shotDamage(s, dist) * shots;
   }
@@ -712,6 +726,9 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
       s.captures += 1;
       s.score += Math.round((CAPTURE_BONUS + e.score) * s.grazeMult);
       s.lastCardResult = 'captured';
+      if (e.card && !s.capturedCardIds.includes(e.card.id)) {
+        s.capturedCardIds.push(e.card.id);
+      }
     } else {
       s.lastCardResult = 'timeout';
     }

@@ -129,4 +129,9 @@ export interface RunState {
   config: RunConfig;
   /** Active mode pack id, or null for free play. */
   modeId: string | null;
+
+  /** Selected craft id for this run (shot / focus tradeoffs). */
+  craftId: string;
+  /** Spell card ids captured this run (for progress / gallery). */
+  capturedCardIds: string[];
 }

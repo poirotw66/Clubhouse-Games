@@ -24,6 +24,7 @@
   - 鍵盤：方向鍵移動、`Shift` 集中模式、`Z` 靈擊、`P` 或 `Esc` 暫停。射擊為自動。
   - 觸控：單指拖曳移動（戰機跟隨手指，帶固定偏移，避免手指蓋住判定點）；拖曳中長按進入集中模式；靈擊為畫面側邊的獨立按鍵。
 - **計分**：擊破分、擦彈倍率、符卡 Capture 加成；最佳成績存於瀏覽器本機（localStorage）。
+- **機體**：標題可選至少三架可玩機體（迅羽／重炮／縫影），射速、齊射寬度、傷害與集中／高速取捨各異；額外機體以通關次數解鎖。各機體最佳分與符卡 Capture 圖鑑存於 `danmaku-abyss:progress-v1`（與自由遊玩總最佳 `danmaku-abyss:best`、模式包進度分開）。
 
 ## 遊戲目標
 
@@ -115,12 +116,19 @@
 | 4 | `hard-abyss` | 高難深潛：五階段全通，強度＋0.55，殘機／靈擊各 2 |
 | 5 | `spell-frost-rain` | 指定符卡：凍符「靜止的雨」，必須 Capture |
 | 6 | `spell-abyss-gaze` | 指定符卡：終符「深淵回望」，必須 Capture |
+| 7 | `spell-frost-duet` | 指定符卡：霜符「雙弦」（新），必須 Capture |
+| 8 | `spell-abyss-rift` | 指定符卡：淵符「裂壁」（新），必須 Capture |
 
-實作：`src/game/modes.ts`；引擎 `createRun` 接受 `endStage`／`skipMidway`／`singleCard`／`intensityBonus` 等 knobs。
+實作：`src/game/modes.ts`；引擎 `createRun` 接受 `endStage`／`skipMidway`／`singleCard`／`intensityBonus`／`craftId` 等 knobs。新符卡仍為發射器參數資料，不改引擎分支；平衡腳本仍只讀 `intensity` 曲線與卡池密度。
+
+### 回饋（Juice）
+
+受擊、靈擊、王擊破會觸發畫面震動與粒子；擦彈連段或對王的重擊有短暫 hit-stop，並以 `synthAudio`（`playImpact`／`playCombo`／`playCapture`）配音。`prefers-reduced-motion: reduce` 時關閉震動、hit-stop 與粒子，模擬層不受影響。
 
 ## 備註
 
 - 以 2D Canvas 繪製，不使用 3D 引擎；子彈為程式繪製的簡單圖形，不含任何第三方美術資源。
 - 全部彈幕與敵機行為皆為決定性，相同種子碼與相同輸入序列會重現完全相同的一趟。
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`danmaku-abyss:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「潛入深淵」衝突。
+- **機體／圖鑑**：`src/game/crafts.ts`；標題「選擇機體」「符卡圖鑑」。
 - 實作路徑：`Games/Danmaku-Abyss/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。

@@ -1,14 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playLose, playWin } from '@clubhouse/shared/synthAudio';
+import {
+  playCapture,
+  playCombo,
+  playImpact,
+  playLose,
+  playWin,
+} from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
 } from './components/FirstRunGuide';
+import { allCards } from './game/cards';
 import { FIELD_H, FIELD_W, FIXED_DT, STAGE_COUNT } from './game/constants';
+import {
+  CRAFTS,
+  applyFreePlayResult,
+  applyModeClearToProgress,
+  craftById,
+  isCraftUnlocked,
+  loadProgress,
+  saveProgress,
+  type ProgressSave,
+} from './game/crafts';
 import { activeConditions, createRun, step, takeUpgrade } from './game/engine';
+import {
+  emptyJuice,
+  observeJuice,
+  prefersReducedMotion,
+  tickJuice,
+  type JuiceState,
+} from './game/juice';
 import {
   MODE_PACK,
   applyModeResult,
@@ -37,36 +61,65 @@ const RARITY_STYLE: Record<string, string> = {
   epic: 'border-fuchsia-400/70 text-fuchsia-200',
 };
 
+const JUICE_AUDIO = {
+  impact: playImpact,
+  combo: playCombo,
+  capture: playCapture,
+};
+
 export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('menu');
   const [paused, setPaused] = useState(false);
   const [best, setBest] = useState(0);
+  const [progress, setProgress] = useState<ProgressSave>(() => loadProgress());
   const [modeProgress, setModeProgress] = useState<ModeProgress>(() => loadModeProgress());
   const [showModes, setShowModes] = useState(false);
+  const [showCrafts, setShowCrafts] = useState(false);
+  const [showCaptures, setShowCaptures] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [reduceMotion, setReduceMotion] = useState(() => prefersReducedMotion());
   /** Mirrors the simulation for the HUD only; the canvas reads the ref directly. */
   const [hud, setHud] = useState<RunState | null>(null);
   /** Mode id for the active run; null = free play. Kept so retry restarts the same mode. */
   const activeModeIdRef = useRef<string | null>(null);
   const modeResultAppliedRef = useRef<string | null>(null);
+  const freePlayResultAppliedRef = useRef<string | null>(null);
 
   const stateRef = useRef<RunState | null>(null);
+  const juiceRef = useRef<JuiceState>(emptyJuice());
+  const prevSimRef = useRef<RunState | null>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const bombRef = useRef(false);
   const pointerRef = useRef<{ active: boolean; x: number; y: number; focus: boolean } | null>(null);
   const rafRef = useRef(0);
   const accRef = useRef(0);
   const lastRef = useRef(0);
+  const selectedCraftRef = useRef(progress.selectedCraftId);
 
   useEffect(() => {
     const raw = localStorage.getItem(BEST_KEY);
     if (raw) setBest(Number(raw) || 0);
   }, []);
 
+  useEffect(() => {
+    selectedCraftRef.current = progress.selectedCraftId;
+  }, [progress.selectedCraftId]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = (): void => setReduceMotion(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
   const beginRun = useCallback((state: RunState, modeId: string | null) => {
     activeModeIdRef.current = modeId;
     modeResultAppliedRef.current = null;
+    freePlayResultAppliedRef.current = null;
     stateRef.current = state;
+    prevSimRef.current = null;
+    juiceRef.current = emptyJuice();
     setHud(state);
     accRef.current = 0;
     lastRef.current = performance.now();
@@ -75,7 +128,10 @@ export default function App(): React.ReactElement {
   }, []);
 
   const startRun = useCallback(() => {
-    beginRun(createRun(randomSeedCode()), null);
+    beginRun(
+      createRun(randomSeedCode(), { craftId: selectedCraftRef.current }),
+      null,
+    );
   }, [beginRun]);
 
   const startMode = useCallback(
@@ -86,12 +142,22 @@ export default function App(): React.ReactElement {
         createRun(mode.seedCode, {
           ...mode.run,
           modeId: mode.id,
+          craftId: selectedCraftRef.current,
         }),
         mode.id,
       );
     },
     [beginRun],
   );
+
+  const selectCraft = useCallback((id: string) => {
+    setProgress((prev) => {
+      if (!isCraftUnlocked(craftById(id), prev.clearCount)) return prev;
+      const next = { ...prev, selectedCraftId: id };
+      saveProgress(next);
+      return next;
+    });
+  }, []);
 
   const packTotal = modeCount();
   const packContinue = continueModeIndex(modeProgress.clearedCount);
@@ -101,8 +167,16 @@ export default function App(): React.ReactElement {
       const next = MODE_PACK[packContinue];
       return `進度 ${modeProgress.clearedCount}/${packTotal}・下一關 ${next?.name ?? ''}`;
     }
-    return `六關可刷・進度 0/${packTotal}`;
+    return `${packTotal} 關可刷・進度 0/${packTotal}`;
   }, [modeProgress.clearedCount, packContinue, packTotal]);
+
+  const selectedCraft = craftById(progress.selectedCraftId);
+  const captureCount = Object.keys(progress.capturedSpells).length;
+  const cardNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of allCards()) map.set(c.id, c.name);
+    return map;
+  }, []);
 
   // ── Input ──────────────────────────────────────────────────────────────────
 
@@ -178,7 +252,14 @@ export default function App(): React.ReactElement {
 
       const dtReal = Math.min(0.25, (now - lastRef.current) / 1000);
       lastRef.current = now;
+
+      // Presentation timers always tick so shake decays during pause / hit-stop.
+      if (!reduceMotion) tickJuice(juiceRef.current, dtReal);
+
       if (paused || s.phase !== 'playing') return;
+
+      // Hit-stop freezes the simulation briefly without freezing the canvas.
+      if (!reduceMotion && juiceRef.current.hitStop > 0) return;
 
       accRef.current += dtReal;
       let next = s;
@@ -187,7 +268,12 @@ export default function App(): React.ReactElement {
       let budget = 8;
       while (accRef.current >= FIXED_DT && budget-- > 0) {
         accRef.current -= FIXED_DT;
+        const prev = next;
         next = step(next, readInput(next), FIXED_DT);
+        if (!reduceMotion) {
+          observeJuice(juiceRef.current, prevSimRef.current ?? prev, next, JUICE_AUDIO);
+        }
+        prevSimRef.current = next;
         if (next.phase !== 'playing') break;
       }
       stateRef.current = next;
@@ -200,17 +286,26 @@ export default function App(): React.ReactElement {
     };
     rafRef.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [screen, paused, readInput]);
+  }, [screen, paused, readInput, reduceMotion]);
 
-  // Record free-play best and mode-pack progress once a run is over.
+  // Record free-play best, craft progress, and mode-pack progress once a run ends.
   useEffect(() => {
     if (!hud || (hud.phase !== 'lost' && hud.phase !== 'won')) return;
 
     if (!hud.modeId) {
+      const resultKey = `free:${hud.phase}:${hud.score}:${hud.craftId}:${hud.captures}`;
+      if (freePlayResultAppliedRef.current === resultKey) return;
+      freePlayResultAppliedRef.current = resultKey;
+
       if (hud.score > best) {
         setBest(hud.score);
         localStorage.setItem(BEST_KEY, String(hud.score));
       }
+      setProgress((prev) => {
+        const next = applyFreePlayResult(prev, hud);
+        saveProgress(next);
+        return next;
+      });
       return;
     }
 
@@ -220,9 +315,16 @@ export default function App(): React.ReactElement {
 
     const index = modeIndexOf(hud.modeId);
     if (index < 0) return;
+    const mode = modeById(hud.modeId);
+    const goalMet = mode ? evaluateModeGoal(mode, hud) : false;
     setModeProgress((prev) => {
       const next = applyModeResult(prev, index, hud);
       saveModeProgress(next);
+      return next;
+    });
+    setProgress((prev) => {
+      const next = applyModeClearToProgress(prev, hud, goalMet);
+      saveProgress(next);
       return next;
     });
   }, [hud, best]);
@@ -336,6 +438,11 @@ export default function App(): React.ReactElement {
           </ul>
         </div>
         {best > 0 && <p className="text-slate-400 text-sm">自由遊玩最佳 {best.toLocaleString('zh-Hant')}</p>}
+        <p className="text-slate-400 text-sm">
+          機體 <b className="text-sky-200">{selectedCraft.name}</b>
+          {progress.clearCount > 0 ? `・通關 ${progress.clearCount}` : ''}
+          {captureCount > 0 ? `・符卡 ${captureCount}` : ''}
+        </p>
         <div className="flex flex-col gap-3 items-center w-full max-w-md">
           <button
             type="button"
@@ -346,6 +453,14 @@ export default function App(): React.ReactElement {
           </button>
           <button
             type="button"
+            onClick={() => setShowCrafts(true)}
+            aria-label={`選擇機體。目前 ${selectedCraft.name}`}
+            className="min-h-[44px] w-full rounded-xl font-semibold text-sky-100 border border-sky-400/50 bg-sky-500/15 hover:bg-sky-500/25 transition-colors touch-manipulation px-6 py-3"
+          >
+            選擇機體・{selectedCraft.name}
+          </button>
+          <button
+            type="button"
             onClick={() => setShowModes(true)}
             aria-label={`開啟模式關卡包。${packSubtitle}`}
             className="min-h-[44px] w-full rounded-xl font-semibold text-fuchsia-100 border border-fuchsia-400/50 bg-fuchsia-500/15 hover:bg-fuchsia-500/25 transition-colors touch-manipulation px-6 py-3"
@@ -353,13 +468,22 @@ export default function App(): React.ReactElement {
             模式／關卡包
           </button>
           <p className="-mt-1 text-center text-[11px] text-slate-500">{packSubtitle}</p>
-          <button
-            type="button"
-            onClick={() => setShowFirstRun(true)}
-            className="min-h-[44px] px-6 py-3 rounded-xl font-semibold text-slate-300 border border-slate-600/60 hover:bg-slate-800/60 transition-colors touch-manipulation"
-          >
-            操作教學
-          </button>
+          <div className="flex flex-wrap gap-2 justify-center w-full">
+            <button
+              type="button"
+              onClick={() => setShowCaptures(true)}
+              className="min-h-[44px] px-5 py-3 rounded-xl font-semibold text-slate-300 border border-slate-600/60 hover:bg-slate-800/60 transition-colors touch-manipulation"
+            >
+              符卡圖鑑
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFirstRun(true)}
+              className="min-h-[44px] px-5 py-3 rounded-xl font-semibold text-slate-300 border border-slate-600/60 hover:bg-slate-800/60 transition-colors touch-manipulation"
+            >
+              操作教學
+            </button>
+          </div>
         </div>
 
         {showModes && (
@@ -452,6 +576,133 @@ export default function App(): React.ReactElement {
             </div>
           </div>
         )}
+
+        {showCrafts && (
+          <div
+            className="fixed inset-0 z-40 flex items-end justify-center bg-[#05060f]/80 p-4 sm:items-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="da-crafts-title"
+            onClick={() => setShowCrafts(false)}
+          >
+            <div
+              className="da-panel flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl p-4 text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="da-crafts-title" className="text-xl font-bold text-sky-100">
+                    選擇機體
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    射速／集中取捨各異・通關解鎖・各機體另記最佳分
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="關閉機體選擇"
+                  onClick={() => setShowCrafts(false)}
+                  className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200"
+                >
+                  關閉
+                </button>
+              </div>
+              <ul className="mt-3 space-y-2 overflow-y-auto pr-1">
+                {CRAFTS.map((craft) => {
+                  const unlocked = isCraftUnlocked(craft, progress.clearCount);
+                  const selected = progress.selectedCraftId === craft.id;
+                  const craftBest = progress.craftBest[craft.id];
+                  return (
+                    <li key={craft.id}>
+                      <button
+                        type="button"
+                        disabled={!unlocked}
+                        onClick={() => {
+                          selectCraft(craft.id);
+                          setShowCrafts(false);
+                        }}
+                        className={`flex min-h-16 w-full flex-col rounded-xl border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                          selected
+                            ? 'border-sky-400/70 bg-sky-500/20'
+                            : 'border-slate-600/70 bg-slate-900/70 hover:bg-slate-800/80'
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-slate-100">{craft.name}</span>
+                          <span className="text-[11px] text-slate-400">
+                            {!unlocked
+                              ? `通關 ${craft.unlockClears} 次解鎖`
+                              : selected
+                                ? '使用中'
+                                : '可選'}
+                          </span>
+                        </span>
+                        {unlocked && (
+                          <>
+                            <span className="mt-1 text-xs text-slate-400">{craft.blurb}</span>
+                            {typeof craftBest === 'number' && (
+                              <span className="mt-1 text-[11px] text-sky-300/90">
+                                最佳 {craftBest.toLocaleString('zh-Hant')}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {showCaptures && (
+          <div
+            className="fixed inset-0 z-40 flex items-end justify-center bg-[#05060f]/80 p-4 sm:items-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="da-captures-title"
+            onClick={() => setShowCaptures(false)}
+          >
+            <div
+              className="da-panel flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl p-4 text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="da-captures-title" className="text-xl font-bold text-fuchsia-100">
+                    符卡圖鑑
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    已 Capture {captureCount} 張・時限內擊破才計入
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="關閉符卡圖鑑"
+                  onClick={() => setShowCaptures(false)}
+                  className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200"
+                >
+                  關閉
+                </button>
+              </div>
+              <ul className="mt-3 max-h-[50vh] space-y-1.5 overflow-y-auto pr-1 text-sm">
+                {captureCount === 0 ? (
+                  <li className="text-slate-500">尚未 Capture 任何符卡。</li>
+                ) : (
+                  Object.keys(progress.capturedSpells).map((id) => (
+                    <li
+                      key={id}
+                      className="rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-slate-200"
+                    >
+                      {cardNameById.get(id) ?? id}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -482,6 +733,7 @@ export default function App(): React.ReactElement {
           {activeMode && (
             <span className="da-hud-chip text-fuchsia-200">{activeMode.name}</span>
           )}
+          <span className="da-hud-chip">機體 <b className="text-sky-200">{craftById(s?.craftId ?? 'swift').name}</b></span>
           <span className="da-hud-chip">階段 <b className="text-slate-100">{Math.min(s?.stage ?? 1, STAGE_COUNT)}/{s?.config.endStage ?? STAGE_COUNT}</b></span>
           <span className="da-hud-chip">殘機 <b className="text-rose-300">{'♥'.repeat(Math.max(0, s?.lives ?? 0)) || '—'}</b></span>
           <span className="da-hud-chip">靈擊 <b className="text-amber-300">{'✦'.repeat(Math.max(0, s?.bombs ?? 0)) || '—'}</b></span>
@@ -522,7 +774,12 @@ export default function App(): React.ReactElement {
         onPointerUp={endPointer}
         onPointerCancel={endPointer}
       >
-        <GameCanvas stateRef={stateRef} paused={paused} />
+        <GameCanvas
+          stateRef={stateRef}
+          juiceRef={juiceRef}
+          paused={paused}
+          reduceMotion={reduceMotion}
+        />
 
         {paused && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -605,6 +862,7 @@ export default function App(): React.ReactElement {
           badge={freePlayBestBeat || modeBestBeat ? '新紀錄' : undefined}
           stats={[
             ...(activeMode ? [{ label: '模式', value: activeMode.name }] : []),
+            { label: '機體', value: craftById(s.craftId).name },
             { label: '分數', value: s.score.toLocaleString('zh-Hant') },
             { label: '到達階段', value: `${Math.min(s.stage, STAGE_COUNT)} / ${s.config.endStage}` },
             { label: 'Capture', value: String(s.captures) },
