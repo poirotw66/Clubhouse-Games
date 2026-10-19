@@ -1,4 +1,2 @@
-declare module './score.mjs' {
-  import type { Color } from './types';
-  export function calculateScore(c1: Color, c2: Color): number;
-}
+/** Re-export shim kept for legacy imports; full types live in mjs-shims.d.ts. */
+export {};

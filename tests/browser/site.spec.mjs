@@ -381,16 +381,21 @@ test('checkers: variants, two-player opening, undo, and new game', async ({ page
   await expect(page.getByRole('button', { name: 'black man at B4', exact: true })).toHaveCount(0);
 });
 
-test('dialed-color: single-color round through result overlay and replay', async ({ page, isMobile }) => {
+test('dialed-color: single-color round through feedback, overlay, and replay', async ({ page, isMobile }) => {
   test.skip(!includesGame('Dialed-Color'), 'selective CI');
   test.setTimeout(45_000);
   await page.goto('./Games/Dialed-Color/');
+  await expect(page.getByRole('heading', { name: '色感記憶' })).toBeVisible();
   await activate(page.getByRole('button', { name: '1 秒', exact: true }), isMobile);
   await activate(page.getByRole('button', { name: '單色挑戰', exact: true }), isMobile);
 
-  const seeResult = page.getByRole('button', { name: '看結果', exact: true });
-  await expect(seeResult).toBeVisible({ timeout: 10_000 });
-  await activate(seeResult, isMobile);
+  const submit = page.getByRole('button', { name: '提交', exact: true });
+  await expect(submit).toBeVisible({ timeout: 10_000 });
+  await activate(submit, isMobile);
+
+  // Per-round feedback with HSL distance bars, then results overlay.
+  await expect(page.getByText('回合回饋', { exact: true })).toBeVisible();
+  await activate(page.getByRole('button', { name: '看結果', exact: true }), isMobile);
 
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -400,7 +405,36 @@ test('dialed-color: single-color round through result overlay and replay', async
 
   // 再玩一次 restarts the same mode (showing → guessing), not the landing screen.
   await activate(page.getByRole('button', { name: '再玩一次', exact: true }), isMobile);
-  await expect(page.getByRole('button', { name: '看結果', exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: '提交', exact: true })).toBeVisible({ timeout: 10_000 });
+});
+
+test('dialed-color: daily challenge landing, share copy, and stats', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Dialed-Color'), 'selective CI');
+  test.setTimeout(90_000);
+  await page.goto('./Games/Dialed-Color/');
+  await activate(page.getByRole('button', { name: /每日挑戰/ }), isMobile);
+
+  // Daily flashes 5 colors at 2s each before guessing.
+  const submit = page.getByRole('button', { name: '提交', exact: true });
+  await expect(submit).toBeVisible({ timeout: 20_000 });
+
+  for (let i = 0; i < 5; i += 1) {
+    await activate(page.getByRole('button', { name: '提交', exact: true }), isMobile);
+    await expect(page.getByText('回合回饋', { exact: true })).toBeVisible();
+    const nextLabel = i < 4 ? '繼續' : '看結果';
+    await activate(page.getByRole('button', { name: nextLabel, exact: true }), isMobile);
+  }
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await activate(dialog.getByRole('button', { name: '查看並分享', exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: /複製分享結果/ })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '回首頁', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '統計', exact: true }), isMobile);
+  await expect(page.getByRole('heading', { name: '統計與紀錄' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '回首頁', exact: true }), isMobile);
+  await expect(page.getByRole('heading', { name: '色感記憶' })).toBeVisible();
 });
 
 test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ page, isMobile }) => {
@@ -438,9 +472,12 @@ test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ p
   await expect(board).toHaveAttribute('aria-label', /已走 0 格/);
 });
 
-test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, isMobile }) => {
+test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ page, isMobile }) => {
   test.skip(!includesGame('FreeCell'), 'selective CI');
   await page.goto('./Games/FreeCell/');
+  await expect(page.getByRole('heading', { name: '空當接龍', exact: true })).toBeVisible();
+  await expect(page.getByText(/分數\s+\d+/)).toBeVisible();
+
   await page.locator('#freecell-seed').fill('11982');
   await activate(page.getByRole('button', { name: '發此局', exact: true }), isMobile);
   await expect(page.locator('#freecell-seed')).toHaveValue('11982');
@@ -449,6 +486,19 @@ test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, is
   // Hint paints a sky ring on the suggested source/dest; redeal must clear it.
   await activate(page.getByRole('button', { name: '重新發同局' }), isMobile);
   await expect(page.locator('#freecell-seed')).toHaveValue('11982');
+
+  await activate(page.locator('#freecell-daily'), isMobile);
+  await expect(page.getByText(/今日挑戰/)).toBeVisible();
+  await expect(page.locator('#freecell-seed')).toBeDisabled();
+
+  await activate(page.getByRole('button', { name: '戰績' }), isMobile);
+  const stats = page.getByRole('dialog', { name: /戰績/ });
+  await expect(stats).toBeVisible();
+  await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
+  await expect(stats).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '2 格', exact: true }), isMobile);
+  await expect(page.getByText(/悔棋/)).toBeVisible();
 
   await activate(page.getByRole('button', { name: '新遊戲' }), isMobile);
   await expect(page.locator('#freecell-seed')).not.toHaveValue('');

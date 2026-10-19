@@ -213,3 +213,57 @@
   text-transform: uppercase;
   color: var(--color-muted);
 }
+
+/* Color-blind friendly hatch overlays (hue buckets 0–5) */
+.cb-pattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+}
+.cb-pattern-0 {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(0, 0, 0, 0.55) 6px,
+    rgba(0, 0, 0, 0.55) 8px
+  );
+}
+.cb-pattern-1 {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.55) 1.4px, transparent 1.5px);
+  background-size: 10px 10px;
+}
+.cb-pattern-2 {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 5px,
+    rgba(0, 0, 0, 0.5) 5px,
+    rgba(0, 0, 0, 0.5) 7px
+  );
+}
+.cb-pattern-3 {
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 8px, rgba(0, 0, 0, 0.45) 8px, rgba(0, 0, 0, 0.45) 9px),
+    repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(0, 0, 0, 0.45) 8px, rgba(0, 0, 0, 0.45) 9px);
+}
+.cb-pattern-4 {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 7px,
+    rgba(0, 0, 0, 0.5) 7px,
+    rgba(0, 0, 0, 0.5) 10px
+  );
+}
+.cb-pattern-5 {
+  background: repeating-radial-gradient(
+    circle at 0 0,
+    transparent 0,
+    transparent 6px,
+    rgba(0, 0, 0, 0.45) 6px,
+    rgba(0, 0, 0, 0.45) 8px
+  );
+}

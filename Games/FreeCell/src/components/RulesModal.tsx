@@ -18,7 +18,9 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
     >
       <div className="bg-white border border-stone-200 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-stone-100">
-          <h2 id="freecell-rules-title" className="text-2xl font-serif font-bold text-stone-900">遊戲規則</h2>
+          <h2 id="freecell-rules-title" className="text-2xl font-serif font-bold text-stone-900">
+            遊戲規則
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -32,33 +34,78 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
         <div className="p-6 overflow-y-auto text-stone-600 space-y-8 text-sm sm:text-base">
           <section>
             <h3 className="text-lg font-bold text-stone-900 mb-2">遊戲目標</h3>
-            <p>將 52 張牌依 <strong>花色</strong> 從 A 到 K 依序搬到右上角的四個回收區；完成四疊（黑桃、紅心、方塊、梅花各 A～K）即獲勝。</p>
+            <p>
+              將 52 張牌依 <strong>花色</strong> 從 A 到 K
+              依序搬到右上角的四個回收區；完成四疊（黑桃、紅心、方塊、梅花各 A～K）即獲勝。
+            </p>
           </section>
 
           <section>
             <h3 className="text-lg font-bold text-stone-900 mb-2">區域說明</h3>
             <ul className="list-disc pl-5 space-y-2 marker:text-stone-300">
-              <li><strong>暫存格</strong>：左上角 4 個空格。每格可暫時放置 1 張牌。</li>
-              <li><strong>回收區</strong>：右上角 4 個空格。必須從 A 開始，同花色依序 A→2→...→K 疊放。</li>
-              <li><strong>牌疊</strong>：下方 8 列牌。只有每列 <strong>最上面一張</strong> 以及暫存格裡的牌可以移動。</li>
+              <li>
+                <strong>暫存格</strong>：左上角空格。預設 4 格；「2 格」模式僅開放兩個（其餘鎖定）。
+              </li>
+              <li>
+                <strong>回收區</strong>：右上角 4 個空格。必須從 A 開始，同花色依序 A→2→...→K 疊放。
+              </li>
+              <li>
+                <strong>牌疊</strong>：下方 8 列牌。只有每列 <strong>最上面一張</strong>{' '}
+                以及暫存格裡的牌可以移動。
+              </li>
             </ul>
           </section>
 
           <section>
             <h3 className="text-lg font-bold text-stone-900 mb-2">移動規則</h3>
             <ul className="list-disc pl-5 space-y-2 marker:text-stone-300">
-              <li><strong>接牌</strong>：可把單張牌接到另一列最上面，條件是：<strong>顏色相反且點數恰好多 1</strong>（例如紅 6 可接在黑 7 下）。</li>
-              <li><strong>整串移動</strong>：若某列從頂張起形成「顏色交替且點數連續遞減」的一串，可整串一起移到另一列頂張之下。但移動的張數受暫存格與空列數量限制：<code className="bg-stone-100 px-1.5 py-0.5 rounded text-stone-800 text-sm">(空暫存格數 + 1) × 2^空列數</code>。</li>
-              <li><strong>空列</strong>：空列可放任意單張或符合規則的一串牌。</li>
+              <li>
+                <strong>接牌</strong>：可把單張牌接到另一列最上面，條件是：
+                <strong>顏色相反且點數恰好多 1</strong>（例如紅 6 可接在黑 7 下）。
+              </li>
+              <li>
+                <strong>整串移動</strong>
+                ：若某列從頂張起形成「顏色交替且點數連續遞減」的一串，可整串一起移到另一列頂張之下。但移動的張數受暫存格與空列數量限制：
+                <code className="bg-stone-100 px-1.5 py-0.5 rounded text-stone-800 text-sm">
+                  (空暫存格數 + 1) × 2^空列數
+                </code>
+                。
+              </li>
+              <li>
+                <strong>空列</strong>：空列可放任意單張或符合規則的一串牌。
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-stone-900 mb-2">計分與標準步</h3>
+            <ul className="list-disc pl-5 space-y-2 marker:text-stone-300">
+              <li>每張上回收區 +10；每次復原 −5（可無限復原，但悔棋次數計入分數）。</li>
+              <li>
+                開局以 solver 估算<strong>標準步數（par）</strong>；通關時少於標準加分、超過則扣分。
+              </li>
+              <li>
+                <strong>難度</strong>（簡單／中等／困難）依 solver 標準步數篩選發牌；每日一局以台北時間日期種子，全服同局。
+              </li>
+              <li>
+                <strong>挑戰</strong>
+                ：無悔棋、未用暫存格、2 暫存格通關、≤60 步、少於標準步、≤5 分鐘等，通關時結算。
+              </li>
             </ul>
           </section>
 
           <section>
             <h3 className="text-lg font-bold text-stone-900 mb-2">操作方式</h3>
             <ul className="list-disc pl-5 space-y-2 marker:text-stone-300">
-              <li><strong>拖曳</strong>：直接拖曳卡牌到目標位置。</li>
-              <li><strong>點擊</strong>：點擊選取卡牌，再點擊目標位置移動。</li>
-              <li><strong>雙擊</strong>：快速將卡牌移至回收區或空的暫存格。</li>
+              <li>
+                <strong>拖曳</strong>：直接拖曳卡牌到目標位置。
+              </li>
+              <li>
+                <strong>點擊</strong>：點擊選取卡牌，再點擊目標位置移動。
+              </li>
+              <li>
+                <strong>雙擊</strong>：快速將卡牌移至回收區或空的暫存格。
+              </li>
             </ul>
           </section>
         </div>
