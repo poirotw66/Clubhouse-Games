@@ -114,7 +114,7 @@ node scripts/run-in-games.mjs check Coin Big-Two   # 只跑名稱符合的遊戲
 - [x] [密室逃脫](07-astra/webmcp-escape-room.md) → [gpt6-astra/webmcp-escape-room/](gpt6-astra/webmcp-escape-room/)
 - [x] [Agent 看板](07-astra/webmcp-agent-trello.md) → [gpt6-astra/webmcp-agent-trello/](gpt6-astra/webmcp-agent-trello/)
 - [x] [披薩／漢堡組裝](07-astra/webmcp-pizza.md) → [gpt6-astra/webmcp-pizza/](gpt6-astra/webmcp-pizza/)
-- [x] [魔術方塊](07-astra/webmcp-rubiks-cube.md) → [gpt6-astra/webmcp-rubiks-cube/](gpt6-astra/webmcp-rubiks-cube/)
+- [x] [魔術方塊學院](07-astra/webmcp-rubiks-cube.md) → [gpt6-astra/webmcp-rubiks-cube/](gpt6-astra/webmcp-rubiks-cube/)
 - [x] [循環之路](07-astra/loop-hero.md) → [gpt6-astra/loop-hero/](gpt6-astra/loop-hero/)
 - [x] [弓箭手](07-astra/archer.md) → [gpt6-astra/archer/](gpt6-astra/archer/)
 - [x] [動力雕塑展](07-astra/exhibition-web.md) → [gpt6-astra/exhibition-web/](gpt6-astra/exhibition-web/)

@@ -374,9 +374,9 @@
           "playPath": "gpt6-astra/webmcp-pizza/"
         },
         {
-          "name": "魔術方塊",
-          "en": "Rubik’s Cube",
-          "desc": "魔術方塊操作面；agent 透過結構化轉面指令操控。",
+          "name": "魔術方塊學院",
+          "en": "Rubik’s Cube Academy",
+          "desc": "新手層層法學習站：課程進度、公式播放、計時練習與 WebMCP AI 導師工具。",
           "players": "1 人",
           "specPath": "07-astra/webmcp-rubiks-cube.md",
           "gameFolder": "Astra-webmcp-rubiks-cube",
