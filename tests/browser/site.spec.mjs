@@ -105,8 +105,8 @@ test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
 test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Memory-Match/');
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
-  await activate(page.getByRole('button', { name: '簡單 · 4 對' }));
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(8);
+  await activate(page.getByRole('button', { name: '簡單 · 6 對' }));
+  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
   await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(7);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
