@@ -14,6 +14,9 @@ import {
   positionFromArchiveLabel,
 } from './records';
 import type { PersonalRecords, PositionBest } from './records';
+import { EMPTY_ENCYCLOPEDIA } from './encyclopedia';
+import type { EncyclopediaProgress } from './encyclopedia';
+import type { PendingLegacy } from './legacy';
 import { rollPeopleCast } from './people';
 import type { GameState, Position } from './types';
 
@@ -23,6 +26,8 @@ const ACHIEVEMENTS_KEY = `${STORAGE_KEY}:achievements`;
 const CHALLENGES_KEY = `${STORAGE_KEY}:challenges`;
 const ACTIVE_CHALLENGE_KEY = `${STORAGE_KEY}:active-challenge`;
 const RECORDS_KEY = `${STORAGE_KEY}:records`;
+const ENCYCLOPEDIA_KEY = `${STORAGE_KEY}:encyclopedia`;
+const LEGACY_KEY = `${STORAGE_KEY}:legacy`;
 
 export interface ArchiveEntry {
   seedCode: string;
@@ -345,4 +350,58 @@ export function saveRecords(records: PersonalRecords): void {
   } catch {
     // Best effort only.
   }
+}
+
+export function loadEncyclopedia(): EncyclopediaProgress {
+  try {
+    const raw = window.localStorage.getItem(ENCYCLOPEDIA_KEY);
+    if (!raw) return { ...EMPTY_ENCYCLOPEDIA, unlocked: {}, counts: {} };
+    const parsed = JSON.parse(raw) as Partial<EncyclopediaProgress>;
+    return {
+      unlocked:
+        parsed.unlocked && typeof parsed.unlocked === 'object'
+          ? (parsed.unlocked as Record<string, true>)
+          : {},
+      counts:
+        parsed.counts && typeof parsed.counts === 'object'
+          ? (parsed.counts as Record<string, number>)
+          : {},
+    };
+  } catch {
+    return { ...EMPTY_ENCYCLOPEDIA, unlocked: {}, counts: {} };
+  }
+}
+
+export function saveEncyclopedia(progress: EncyclopediaProgress): void {
+  try {
+    window.localStorage.setItem(ENCYCLOPEDIA_KEY, JSON.stringify(progress));
+  } catch {
+    // Best effort.
+  }
+}
+
+export function loadPendingLegacy(): PendingLegacy | null {
+  try {
+    const raw = window.localStorage.getItem(LEGACY_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingLegacy;
+    if (!parsed || !Array.isArray(parsed.options) || parsed.options.length === 0) return null;
+    if (typeof parsed.fromName !== 'string') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function savePendingLegacy(legacy: PendingLegacy | null): void {
+  try {
+    if (!legacy) window.localStorage.removeItem(LEGACY_KEY);
+    else window.localStorage.setItem(LEGACY_KEY, JSON.stringify(legacy));
+  } catch {
+    // Best effort.
+  }
+}
+
+export function clearPendingLegacy(): void {
+  savePendingLegacy(null);
 }

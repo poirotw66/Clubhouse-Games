@@ -1,7 +1,16 @@
-import { SUITS, buildDeck, capturableBy, parScore, pointsOf, shuffle, sumPoints } from './cards';
+import { SUITS, buildDeck, capturableBy, isRed, parScore, pointsOf, shuffle, sumPoints } from './cards';
 import { seedFromCode, streamRng } from './rng';
 import { HUMAN } from './types';
-import type { Card, CardId, DifficultyId, GameState, Outcome, Rules, Seat } from './types';
+import type {
+  CaptureEvent,
+  Card,
+  CardId,
+  DifficultyId,
+  GameState,
+  HouseRules,
+  Outcome,
+  Seat,
+} from './types';
 
 /**
  * The hands always total 24 cards however many are playing, which is what makes
@@ -19,7 +28,7 @@ export function handSize(players: number): number {
 export function deal(
   seedCode: string,
   difficulty: DifficultyId,
-  rules: Rules,
+  rules: HouseRules,
   leader: Seat = HUMAN,
 ): GameState {
   const r = streamRng(seedFromCode(seedCode), 'deal');
@@ -213,19 +222,93 @@ export function score(state: GameState, seat: Seat): number {
   return sumPoints(state.captured[seat], state.rules.blackAces);
 }
 
+function cardsBanked(event: CaptureEvent): Card[] {
+  if (!event.taken) return [];
+  return [event.played, event.taken];
+}
+
+/**
+ * Detect 過紅五: both red fives banked by the same seat in one turn
+ * (hand play + flip). Walks the log in pairs of hand→pile for each seat turn.
+ */
+export function findDoubleRedFive(state: GameState): Seat | null {
+  if (!state.rules.doubleRedFive) return null;
+  const log = state.log;
+  for (let i = 0; i < log.length - 1; i++) {
+    const a = log[i];
+    const b = log[i + 1];
+    if (a.source !== 'hand' || b.source !== 'pile') continue;
+    if (a.by !== b.by) continue;
+    const ids = new Set(
+      [...cardsBanked(a), ...cardsBanked(b)]
+        .filter((c) => isRed(c) && c.rank === 5)
+        .map((c) => c.id),
+    );
+    if (ids.has('hearts-5') && ids.has('diamonds-5')) return a.by;
+  }
+  return null;
+}
+
+/**
+ * Chip settlement: Taiwanese `（得分 − 標準分）` plus optional specials.
+ *
+ * 過紅五：其餘各家各付 20 籌碼給該家。
+ * 拼零分：其餘各家各付「標準分」籌碼給該家（可與過關線並存；零分家通常未合格）。
+ */
+export function settleChips(
+  scores: readonly number[],
+  par: number,
+  rules: HouseRules,
+  doubleRedFiveSeat: Seat | null,
+  zeroScoreSeat: Seat | null,
+): number[] {
+  const n = scores.length;
+  const deltas = scores.map((points) => points - par);
+
+  if (doubleRedFiveSeat !== null && rules.doubleRedFive) {
+    const bonus = 20;
+    for (let seat = 0; seat < n; seat++) {
+      if (seat === doubleRedFiveSeat) deltas[seat] += bonus * (n - 1);
+      else deltas[seat] -= bonus;
+    }
+  }
+
+  if (zeroScoreSeat !== null && rules.zeroScoreBonus) {
+    const bonus = Math.round(par);
+    for (let seat = 0; seat < n; seat++) {
+      if (seat === zeroScoreSeat) deltas[seat] += bonus * (n - 1);
+      else deltas[seat] -= bonus;
+    }
+  }
+
+  return deltas;
+}
+
 export function outcome(state: GameState): Outcome {
   const scores = state.captured.map((pile) => sumPoints(pile, state.rules.blackAces));
   const best = Math.max(...scores);
   const winners = scores.flatMap((points, seat) => (points === best ? [seat] : []));
+  const par = parScore(state.rules.players, state.rules.blackAces);
+  const qualified = scores.flatMap((points, seat) => (points > par ? [seat] : []));
+  const doubleRedFiveSeat = findDoubleRedFive(state);
+  // 拼零分：整局一分未得。If several seats hit zero, the rarest case awards none —
+  // the table special is about one seat going empty while others score.
+  const zeroSeats = scores.flatMap((points, seat) => (points === 0 ? [seat] : []));
+  const zeroScoreSeat =
+    state.rules.zeroScoreBonus && zeroSeats.length === 1 ? zeroSeats[0] : null;
 
   return {
     scores,
-    par: parScore(state.rules.players, state.rules.blackAces),
+    par,
     // Cards abandoned on the table belong to nobody, so the scores do not have
     // to add up to the deck total.
     wastedPoints: sumPoints(state.table, state.rules.blackAces),
     winners,
     result: !winners.includes(HUMAN) ? 'loss' : winners.length > 1 ? 'draw' : 'win',
+    qualified,
+    deltas: settleChips(scores, par, state.rules, doubleRedFiveSeat, zeroScoreSeat),
+    doubleRedFiveSeat,
+    zeroScoreSeat,
   };
 }
 

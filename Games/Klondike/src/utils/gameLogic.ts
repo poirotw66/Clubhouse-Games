@@ -1,4 +1,4 @@
-import type { CardType, Rank, DragSource } from '../types';
+import type { CardType, Rank, DragSource } from '../types.ts';
 
 export type DrawCount = 1 | 3;
 
