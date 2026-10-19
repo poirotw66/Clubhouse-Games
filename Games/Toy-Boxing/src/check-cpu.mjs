@@ -1,5 +1,11 @@
-// ponytail: assert CPU difficulty reacts instead of pure coin-flips.
-import { decideCpuIntent, DIFFICULTY, DIFFICULTY_BLURBS } from './cpuAi.ts';
+// ponytail: assert CPU difficulty + habit-adaptive league styles.
+import { emptyHabit, recordPlayerHeight } from './combat.ts';
+import {
+  DIFFICULTY,
+  DIFFICULTY_BLURBS,
+  decideCpuIntent,
+  resolveStyle,
+} from './cpuAi.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -10,17 +16,31 @@ const seed = (values) => {
   return () => values[i++ % values.length];
 };
 
-// Hard: player jabbing in range should usually defend (not jab into it).
+function baseInput(over = {}) {
+  return {
+    dist: 90,
+    stamina: 80,
+    superMeter: 0,
+    opponentAction: 'JAB',
+    opponentHeight: 'high',
+    opponentInWindup: true,
+    lastHitHeight: null,
+    habit: emptyHabit(),
+    difficulty: 'hard',
+    opponentId: null,
+    ...over,
+  };
+}
+
+// Hard: player jabbing in range should usually defend.
 {
   let defend = 0;
   for (let i = 0; i < 40; i++) {
     const intent = decideCpuIntent({
-      dist: 90,
-      stamina: 80,
-      superMeter: 0,
-      opponentAction: 'JAB',
-      difficulty: 'hard',
-      rng: () => (i * 0.07) % 1,
+      ...baseInput({
+        difficulty: 'hard',
+        rng: () => (i * 0.07) % 1,
+      }),
     });
     if (intent.type === 'act' && ['BLOCK', 'DODGE', 'PARRY'].includes(intent.action)) defend += 1;
   }
@@ -30,17 +50,19 @@ const seed = (values) => {
 // Easy: farther from preferred distance → move in.
 {
   const intent = decideCpuIntent({
-    dist: 200,
-    stamina: 100,
-    superMeter: 0,
-    opponentAction: 'IDLE',
-    difficulty: 'easy',
-    rng: seed([0.1, 0.2, 0.3]),
+    ...baseInput({
+      dist: 200,
+      stamina: 100,
+      opponentAction: 'IDLE',
+      opponentInWindup: false,
+      opponentHeight: null,
+      difficulty: 'easy',
+      rng: seed([0.1, 0.2, 0.3]),
+    }),
   });
   assert(intent.type === 'move', `easy far away should close distance, got ${intent.type}`);
 }
 
-// Difficulty tables must stay ordered: hard reacts more than easy.
 assert(
   DIFFICULTY.hard.reactChance > DIFFICULTY.normal.reactChance
     && DIFFICULTY.normal.reactChance > DIFFICULTY.easy.reactChance,
@@ -59,29 +81,19 @@ assert(
   DIFFICULTY.hard.thinkMax < DIFFICULTY.easy.thinkMin,
   'hard should think faster than easy',
 );
+assert(
+  DIFFICULTY.hard.adaptHabit > DIFFICULTY.easy.adaptHabit,
+  'hard should adapt to habits more',
+);
 
 // Easy should fail to react more often than hard on the same incoming jab stream.
 {
   let easyReact = 0;
   let hardReact = 0;
   for (let i = 0; i < 50; i++) {
-    const rng = () => ((i * 0.13) % 1);
-    const easy = decideCpuIntent({
-      dist: 90,
-      stamina: 80,
-      superMeter: 0,
-      opponentAction: 'JAB',
-      difficulty: 'easy',
-      rng,
-    });
-    const hard = decideCpuIntent({
-      dist: 90,
-      stamina: 80,
-      superMeter: 0,
-      opponentAction: 'JAB',
-      difficulty: 'hard',
-      rng,
-    });
+    const rng = () => (i * 0.13) % 1;
+    const easy = decideCpuIntent({ ...baseInput({ difficulty: 'easy', rng }) });
+    const hard = decideCpuIntent({ ...baseInput({ difficulty: 'hard', rng }) });
     if (easy.type === 'act' && ['BLOCK', 'DODGE', 'PARRY'].includes(easy.action)) easyReact += 1;
     if (hard.type === 'act' && ['BLOCK', 'DODGE', 'PARRY'].includes(hard.action)) hardReact += 1;
   }
@@ -91,7 +103,64 @@ assert(
   );
 }
 
-// Player-facing blurbs must stay distinct so the setup screen shows three feels.
+// Champ mirrors player high bias when adapting.
+{
+  let mem = emptyHabit();
+  for (let i = 0; i < 10; i++) mem = recordPlayerHeight(mem, 'high');
+  let highGuards = 0;
+  for (let i = 0; i < 30; i++) {
+    const intent = decideCpuIntent({
+      ...baseInput({
+        opponentAction: 'WINDUP',
+        opponentHeight: 'high',
+        opponentInWindup: true,
+        habit: mem,
+        opponentId: 'champ',
+        difficulty: 'normal',
+        rng: () => (0.2 + i * 0.03) % 1,
+      }),
+    });
+    if (intent.type === 'act' && intent.height === 'high') highGuards += 1;
+  }
+  assert(highGuards >= 12, `champ should often guard high vs high-habit player, got ${highGuards}`);
+}
+
+// Ironbelly prefers low attacks when free to swing.
+{
+  let lowAttacks = 0;
+  let samples = 0;
+  for (let i = 0; i < 40; i++) {
+    const intent = decideCpuIntent({
+      ...baseInput({
+        dist: 85,
+        stamina: 90,
+        opponentAction: 'IDLE',
+        opponentInWindup: false,
+        opponentHeight: null,
+        opponentId: 'ironbelly',
+        difficulty: 'normal',
+        rng: () => (0.15 + i * 0.05) % 1,
+      }),
+    });
+    if (intent.type === 'act' && (intent.action === 'JAB' || intent.action === 'HOOK')) {
+      samples += 1;
+      if (intent.height === 'low') lowAttacks += 1;
+    }
+  }
+  assert(samples >= 5, `ironbelly should attack sometimes, samples=${samples}`);
+  assert(lowAttacks >= samples * 0.45, `ironbelly should favor low (${lowAttacks}/${samples})`);
+}
+
+// League styles differ from plain difficulty.
+{
+  const champ = resolveStyle('normal', 'champ');
+  const pillow = resolveStyle('normal', 'pillow');
+  const free = resolveStyle('normal', null);
+  assert(champ.adaptHabit > pillow.adaptHabit, 'champ adapts more than pillow');
+  assert(pillow.defenseBias > champ.defenseBias * 0.5, 'pillow more defensive');
+  assert(champ.adaptHabit > free.adaptHabit, 'champ harder habit read than free normal');
+}
+
 {
   const blurbs = Object.values(DIFFICULTY_BLURBS);
   assert(blurbs.length === 3, 'expected three difficulty blurbs');
