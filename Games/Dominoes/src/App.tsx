@@ -16,6 +16,7 @@ import {
   createInitialState,
   createMatchState,
   applyRoundToMatch,
+  advanceMatchRound,
   playTile,
   drawTiles,
   pass,
@@ -342,6 +343,16 @@ export default function App() {
       startFreshMatch();
       return;
     }
+    setMatch((prev) => {
+      const next = advanceMatchRound(prev);
+      persistMatchSnapshot({
+        match: next,
+        ruleVariant,
+        difficulty,
+        gameMode,
+      });
+      return next;
+    });
     setState(createInitialState(ruleVariant));
     setHistory([]);
     setSelectedTileId(null);
@@ -350,7 +361,7 @@ export default function App() {
     setRoundBanner(false);
     botScheduled.current = false;
     prevPhaseRef.current = 'playing';
-  }, [match.matchOver, ruleVariant, startFreshMatch]);
+  }, [match.matchOver, ruleVariant, difficulty, gameMode, startFreshMatch]);
 
   const isValidEnd = useCallback(
     (tileId: number, end: EndId) => {

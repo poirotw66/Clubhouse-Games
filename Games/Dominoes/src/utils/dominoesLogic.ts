@@ -296,18 +296,27 @@ export function applyRoundToMatch(
     return {
       scores,
       target: match.target,
+      // Keep the completed round number on the match-over screen.
       round: match.round,
       matchOver: true,
       matchWinner: scores[0] > scores[1] ? 0 : 1,
     };
   }
+  // Do not bump `round` here — the between-round overlay still shows this
+  // hand's results; `advanceMatchRound` runs when the next hand deals.
   return {
     scores,
     target: match.target,
-    round: match.round + 1,
+    round: match.round,
     matchOver: false,
     matchWinner: null,
   };
+}
+
+/** Call when dealing the next hand after a completed round. */
+export function advanceMatchRound(match: MatchState): MatchState {
+  if (match.matchOver) return match;
+  return { ...match, round: match.round + 1 };
 }
 
 export function playTile(

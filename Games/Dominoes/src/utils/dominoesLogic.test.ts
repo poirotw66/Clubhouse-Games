@@ -306,7 +306,8 @@ describe('match scoring', () => {
     match = applyRoundToMatch(match, [40, 10]);
     expect(match.scores).toEqual([40, 10]);
     expect(match.matchOver).toBe(false);
-    expect(match.round).toBe(2);
+    expect(match.round).toBe(1); // stays until next deal
+    match = { ...match, round: match.round + 1 };
     match = applyRoundToMatch(match, [70, 5]);
     expect(match.scores).toEqual([110, 15]);
     expect(match.matchOver).toBe(true);
@@ -316,9 +317,11 @@ describe('match scoring', () => {
   it('keeps playing when both hit target on a tie', () => {
     let match = createMatchState(100);
     match = applyRoundToMatch(match, [50, 50]);
+    match = { ...match, round: 2 };
     match = applyRoundToMatch(match, [50, 50]);
     expect(match.scores).toEqual([100, 100]);
     expect(match.matchOver).toBe(false);
+    match = { ...match, round: 3 };
     match = applyRoundToMatch(match, [5, 0]);
     expect(match.matchOver).toBe(true);
     expect(match.matchWinner).toBe(0);
