@@ -126,8 +126,17 @@
 - **任務模式（Mission / Puzzle）**：  
   - 給定特定初始堆疊與限制條件（指定方塊序列、步數限制等），要求在規定條件下達成清盤或指定目標。  
 
+## 實作狀態（Games/Tetris）
+
+已實作：
+
+- Guideline **SRS** 踢牆（JLSTZ／I 分表）、Hold、Next 預覽、7-bag、鎖定延遲、幽靈方塊。  
+- **T-Spin／Mini**、**Combo**、**Back-to-Back**、Guideline 計分與畫面 callout（如 `T-SPIN DOUBLE`、`B2B`、`N COMBO`）。  
+- 模式：**無盡**、**衝刺 40 行**、**限時 2 分**（各模式個人最佳寫入 `clubhouse:tetris-best`）。  
+- **對戰 CPU**：垃圾行攻擊表／相殺／佇列、三檔難度（簡單／普通／困難），戰績寫入 `clubhouse-tetris-versus`。  
+
 ## 參考與備註
 
 - 本規格以現代 Tetris Guideline 為參考：10×20 場地、7 種 Tetromino、SRS 旋轉、Hold／Next 等。  
-- 若需簡化版本（例如教學模式），可關閉 Hold、限制 Next 顯示數量或不實作 T-Spin 判定。  
+- 任務／謎題模式尚未實作。  
 
