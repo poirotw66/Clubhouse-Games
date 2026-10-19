@@ -92,3 +92,10 @@ export function playCapture(): void {
   playTone(280, 'square', 0.08, 0, 0.07);
   playTone(420, 'triangle', 0.1, 0.06, 0.06);
 }
+
+/** Disc flip / reverse — soft whoosh with a rising click. */
+export function playFlip(): void {
+  playTone(240, 'triangle', 0.07, 0, 0.05);
+  playTone(360, 'sine', 0.08, 0.04, 0.06);
+  playTone(520, 'triangle', 0.06, 0.09, 0.04);
+}
