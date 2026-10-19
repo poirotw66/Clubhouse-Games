@@ -14,6 +14,7 @@ import {
   positionFromArchiveLabel,
 } from './records';
 import type { PersonalRecords, PositionBest } from './records';
+import { rollPeopleCast } from './people';
 import type { GameState, Position } from './types';
 
 const SAVE_KEY = `${STORAGE_KEY}:save`;
@@ -111,6 +112,31 @@ export function loadGame(): GameState | null {
       };
     }
     if (!Array.isArray(parsed.clutchHighlights)) parsed.clutchHighlights = [];
+    // M3 people + chapters — synthesise a cast from the seed so mid-career
+    // saves keep playing without wiping progress.
+    const pos = (parsed.position as Position) || 'OF';
+    const seed = typeof parsed.seed === 'number' ? parsed.seed : 1;
+    if (!parsed.coach || typeof parsed.coach !== 'object') {
+      const cast = rollPeopleCast(seed, pos);
+      parsed.coach = cast.coach;
+      parsed.teammates = cast.teammates;
+      parsed.rival = cast.rival;
+    } else {
+      if (!Array.isArray(parsed.teammates)) parsed.teammates = [];
+      if (!parsed.rival || typeof parsed.rival !== 'object') {
+        parsed.rival = rollPeopleCast(seed, pos).rival;
+      }
+    }
+    if (typeof parsed.chapterId !== 'string') parsed.chapterId = 'hs-year1';
+    if (!Array.isArray(parsed.chaptersSeen)) parsed.chaptersSeen = [];
+    if (!Array.isArray(parsed.chapterHistory)) parsed.chapterHistory = [];
+    if (!parsed.pendingChapter || typeof parsed.pendingChapter !== 'object') {
+      parsed.pendingChapter = null;
+    }
+    if (!parsed.pendingStory || typeof parsed.pendingStory !== 'object') {
+      parsed.pendingStory = null;
+    }
+    if (!Array.isArray(parsed.storyHighlights)) parsed.storyHighlights = [];
     return parsed;
   } catch {
     return null;

@@ -68,6 +68,24 @@ import {
   resolveClutchChoice,
   toHighlight,
 } from './clutch';
+import {
+  chapterDecisionOptions,
+  resolveChapterCard,
+  syncChapterCards,
+} from './chapters';
+import {
+  applyCoachToDrill,
+  bumpCoachBond,
+  bumpTeammateBonds,
+  clubPressureDelta,
+  maybeQueueStory,
+  noteRivalMeeting,
+  resolveStoryChoice,
+  rollPeopleCast,
+  storyOptions,
+  teamChemistry,
+  tickRivalGrowth,
+} from './people';
 import { newlyUnlocked, traitById, traitEffects } from './traits';
 
 const START_YEAR = 2010;
@@ -261,6 +279,13 @@ export function createGame(input: CreateInput): GameState {
     pendingMatch: null,
     clutchMods: { ...EMPTY_CLUTCH_MODS },
     clutchHighlights: [],
+    ...rollPeopleCast(seed, input.position),
+    chapterId: 'hs-year1',
+    chaptersSeen: [],
+    chapterHistory: [],
+    pendingChapter: null,
+    pendingStory: null,
+    storyHighlights: [],
     decision: null,
     report: null,
     retired: false,
@@ -272,7 +297,13 @@ export function createGame(input: CreateInput): GameState {
   // `breaking` is derived, never trained directly, so seed it from the arsenal.
   if (state.arsenal.length > 0) syncBreaking(state);
 
-  pushLog(state, '入部', `${state.team} 棒球部，${origin.label}。你的棒球人生從這個春天開始。`, 'normal');
+  pushLog(
+    state,
+    '入部',
+    `${state.team} 棒球部，${origin.label}。教練${state.coach.name}、宿敵 ${state.rival.name}——你的棒球人生從這個春天開始。`,
+    'normal',
+  );
+  syncChapterCards(state);
   state.decision = buildDecision(state);
   return state;
 }
@@ -357,6 +388,15 @@ function turnLabel(state: GameState): string {
 }
 
 function rng(state: GameState, purpose: string): () => number {
+  // Injury rolls key off the calendar slot, not choices.length — otherwise
+  // chapter / story ritual cards (M3) would reshuffle every later injury and
+  // break documented challenge clearability for careful careers.
+  if (purpose === 'injury' || purpose === 'injury-pick' || purpose === 'situation-injury' || purpose === 'situation-injury-pick') {
+    return streamRng(
+      state.seed,
+      `${purpose}:${state.stage}:${state.year}:${state.turnIndex}:${state.proTurn}`,
+    );
+  }
   // The turn index and choice count pin the stream to this exact moment in
   // this exact run, so replaying the same choices replays the same numbers.
   return streamRng(state.seed, `${purpose}:${state.turnIndex}:${state.choices.length}`);
@@ -703,13 +743,22 @@ const SECONDARY_RECOVERY: TrainingOption[] = [
  * Order is stable so keyboard 1–N stays predictable across seasons.
  */
 function trainingOptions(state: GameState): TrainingOption[] {
+  let drills: TrainingOption[];
   if (IS_TWO_WAY[state.position]) {
     // Every batting drill and every pitching drill: the two-way player still
     // has to pick which half of themselves to feed this block.
-    return [...batterDrills(), ...pitcherDrills(state), REST_OPTION];
+    drills = [...batterDrills(), ...pitcherDrills(state), REST_OPTION];
+  } else {
+    drills = [
+      ...(IS_PITCHER[state.position] ? pitcherDrills(state) : batterDrills()),
+      REST_OPTION,
+    ];
   }
-  const drills = IS_PITCHER[state.position] ? pitcherDrills(state) : batterDrills();
-  return [...drills, REST_OPTION];
+  // M3: coach style softly reshapes power / fatigue / hints on the menu.
+  if (state.coach) {
+    drills = drills.map((d) => applyCoachToDrill(state.coach, d));
+  }
+  return drills;
 }
 
 function findTrainingOption(state: GameState, id: string): TrainingOption | undefined {
@@ -875,6 +924,31 @@ function buildDecision(state: GameState): Decision {
       prompt: `${moment.situation}\n${moment.prompt}`,
       options: clutchDecisionOptions(moment),
       key: `clutch:${moment.id}`,
+    };
+  }
+
+  // Chapter intro/outro cards are ritual beats — show before menus/stories.
+  if (state.pendingChapter) {
+    const card = state.pendingChapter;
+    const extra = card.lines.length ? `\n${card.lines.join('\n')}` : '';
+    return {
+      kind: 'chapter',
+      title: card.title,
+      prompt: `${card.prompt}${extra}`,
+      options: chapterDecisionOptions(card),
+      key: `chapter:${card.chapterId}:${card.phase}`,
+    };
+  }
+
+  // Coach / teammate / rival story beats (M3).
+  if (state.pendingStory) {
+    const beat = state.pendingStory;
+    return {
+      kind: 'story',
+      title: beat.title,
+      prompt: beat.prompt,
+      options: storyOptions(beat),
+      key: `story:${beat.id}`,
     };
   }
 
@@ -1427,6 +1501,12 @@ export function resolve(state: GameState, optionId: string, useDestiny = false):
     case 'clutch':
       resolveClutch(next, optionId);
       break;
+    case 'chapter':
+      resolveChapter(next);
+      break;
+    case 'story':
+      resolveStory(next, optionId);
+      break;
     case 'event':
       resolveSituation(next, optionId, useDestiny);
       break;
@@ -1517,6 +1597,7 @@ function applyTrainingCard(
 ): number {
   bumpDrillCount(state, option.id);
   if (option.rest) state.counters.restTurns += turnScale;
+  if (state.coach) bumpCoachBond(state, option.id, option.secondary ? 2 : 3);
 
   const breakingBefore = state.attrs.breaking;
   if (option.pitch) developPitch(state, option, dice, r, report, turnScale);
@@ -1698,6 +1779,57 @@ function matchKindForTurn(
   return null;
 }
 
+function resolveChapter(state: GameState): void {
+  const result = resolveChapterCard(state);
+  // After an outro, immediately queue the next intro if the calendar moved on.
+  syncChapterCards(state);
+  const report: TurnReport = {
+    label: turnLabel(state),
+    dice: null,
+    headline: result.headline,
+    lines: result.lines,
+    deltas: {},
+    season: null,
+    traitsUnlocked: [],
+    abilitiesUnlocked: [],
+    milestones: [],
+    income: null,
+    tone: result.tone,
+  };
+  pushLog(state, '章節', `${result.headline}：${result.lines.join(' ')}`, result.tone);
+  state.report = report;
+}
+
+function resolveStory(state: GameState, optionId: string): void {
+  const beat = state.pendingStory;
+  const resolution = resolveStoryChoice(state, optionId);
+  applyDeltas(state, resolution.deltas);
+  if (beat?.kind === 'teammate' && optionId !== 'mate-solo') {
+    bumpTeammateBonds(state, 1);
+  }
+  const highlight = `${resolution.headline}——${resolution.lines[0] ?? ''}`.trim();
+  if (highlight.length > 4) {
+    state.storyHighlights = [...state.storyHighlights, highlight].slice(-16);
+  }
+  state.pendingStory = null;
+  const report: TurnReport = {
+    label: turnLabel(state),
+    dice: null,
+    headline: resolution.headline,
+    lines: resolution.lines,
+    deltas: { ...resolution.deltas },
+    season: null,
+    traitsUnlocked: [],
+    abilitiesUnlocked: [],
+    milestones: [],
+    income: null,
+    tone: resolution.tone,
+  };
+  pushLog(state, '人際', `${resolution.headline}：${resolution.lines.join(' ')}`, resolution.tone);
+  state.report = report;
+  syncChapterCards(state);
+}
+
 function resolveClutch(state: GameState, optionId: string): void {
   const moment = state.pendingClutch;
   const match = state.pendingMatch;
@@ -1716,6 +1848,15 @@ function resolveClutch(state: GameState, optionId: string): void {
   applyClutchMods(state.clutchMods, resolution.mods);
   applyDeltas(state, resolution.deltas);
   pushHighlight(state, toHighlight(state, resolution));
+  if (moment.vsRival) {
+    noteRivalMeeting(state, resolution.success);
+    if (resolution.memorable) {
+      const line = resolution.success
+        ? `對決 ${state.rival.name}：${resolution.lines[0] ?? '贏下這一球。'}`
+        : `對決 ${state.rival.name}：${resolution.lines[0] ?? '這一球輸了。'}`;
+      state.storyHighlights = [...state.storyHighlights, line].slice(-16);
+    }
+  }
 
   const report: TurnReport = {
     label: turnLabel(state),
@@ -1804,9 +1945,31 @@ function finishTrainingTurn(
   );
   checkTraits(state, report);
   checkAbilities(state, report);
+  // High chemistry quietly softens fatigue; club pressure can drain motivation.
+  const chem = teamChemistry(state);
+  if (chem >= 70 && (report.deltas.fatigue ?? 0) > 0) {
+    const ease = Math.min(3, Math.round((report.deltas.fatigue ?? 0) * 0.15));
+    if (ease > 0) {
+      report.deltas.fatigue = (report.deltas.fatigue ?? 0) - ease;
+      applyDeltas(state, { fatigue: -ease });
+    }
+  }
+  const pressure = clubPressureDelta(state);
+  if (Object.keys(pressure).length > 0) {
+    applyDeltas(state, pressure);
+    (Object.entries(pressure) as [DeltaKey, number][]).forEach(([key, value]) => {
+      report.deltas[key] = (report.deltas[key] ?? 0) + value;
+    });
+  }
+  tickRivalGrowth(state);
   advanceTime(state);
   if (!state.retired) checkRelease(state, report);
   queueSituation(state);
+  if (!state.retired && !state.pendingSituation) {
+    const story = maybeQueueStory(state, rng(state, 'story-fire'));
+    if (story) state.pendingStory = story;
+  }
+  syncChapterCards(state);
 
   pushLog(state, report.label, `${report.headline}：${report.lines.join(' ')}`, report.tone);
   state.report = report;
@@ -2479,6 +2642,13 @@ function checkInjury(
 
   const effects = traitEffects(state.traits);
   const ability = abilityEffects(state.abilities);
+  // M3: a nurture coach + tight clubhouse quietly cuts injury risk — the
+  // relationship investment has to show up on the trainer's table.
+  const chem = teamChemistry(state);
+  const peopleMul =
+    (state.coach?.style === 'nurture' ? 0.82 : 1) *
+    (state.coach && state.coach.bond >= 60 ? 0.92 : 1) *
+    (chem >= 65 ? 0.9 : chem >= 50 ? 0.95 : 1);
   // The base rate is per-year; a pro turn only carries a third of the year's
   // risk, so three turns add up to roughly the same annual chance as before.
   // `trainingInjuryMul` lets all-in / protect / weight room actually differ.
@@ -2488,6 +2658,7 @@ function checkInjury(
     effects.injury *
     ability.injury *
     trainingInjuryMul *
+    peopleMul *
     (1 + Math.max(0, state.meta.fatigue - 45) / 55) *
     (1 + Math.max(0, fatigueCost) / 60) *
     clamp(1.5 - state.meta.body / 120, 0.6, 1.6) *
@@ -2697,6 +2868,8 @@ function resolvePath(state: GameState, optionId: string): void {
 
   pushLog(state, report.label, `${report.headline}：${report.lines.join(' ')}`, report.tone);
   state.report = report;
+  // Path forks change stage — queue the matching chapter ritual next.
+  syncChapterCards(state);
 }
 
 function resolveOffer(state: GameState, optionId: string): void {

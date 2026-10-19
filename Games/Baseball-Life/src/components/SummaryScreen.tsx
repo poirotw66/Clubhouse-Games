@@ -165,6 +165,45 @@ export function SummaryScreen({
         </dl>
       </section>
 
+      {state.chapterHistory?.length > 0 && (
+        <section className="bl-card mt-4 p-4">
+          <h2 className="text-sm font-bold text-slate-200">
+            生涯章節
+            <span className="ml-2 text-xs font-normal text-slate-500">
+              {state.chapterHistory.length} 章
+            </span>
+          </h2>
+          <ul className="mt-2 space-y-1.5">
+            {state.chapterHistory.map((ch, index) => (
+              <li key={index} className="flex items-baseline gap-2 text-xs">
+                <span className="shrink-0 font-mono text-slate-500">
+                  {ch.year}・{ch.age}歲
+                </span>
+                <span className="text-sky-200">{ch.title}</span>
+              </li>
+            ))}
+          </ul>
+          {state.rival && (
+            <p className="mt-3 text-[11px] text-slate-400">
+              宿敵 {state.rival.name}・對決 {state.rival.meetings} 次・對抗心 {state.rival.rivalry}
+            </p>
+          )}
+        </section>
+      )}
+
+      {(state.storyHighlights?.length ?? 0) > 0 && (
+        <section className="bl-card mt-4 p-4">
+          <h2 className="text-sm font-bold text-slate-200">人際剪影</h2>
+          <ul className="mt-2 space-y-1.5">
+            {state.storyHighlights.map((line, index) => (
+              <li key={index} className="text-xs leading-relaxed text-emerald-200/90">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {state.clutchHighlights.length > 0 && (
         <section className="bl-card mt-4 p-4">
           <h2 className="text-sm font-bold text-slate-200">

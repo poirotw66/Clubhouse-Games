@@ -4,6 +4,8 @@
  * and special abilities can be felt on the field rather than only on a report.
  */
 import { IS_PITCHER, IS_TWO_WAY, LEAGUES, overall } from './config';
+import { rivalPresentForMatch, rivalizeClutchCopy } from './people';
+import { streamRng } from './rng';
 import { traitEffects } from './traits';
 import type {
   AttrKey,
@@ -382,19 +384,32 @@ export function buildClutchMoments(
   if (count <= 0) return [];
   const pool = [...eligibleTemplates(state)];
   const moments: ClutchMoment[] = [];
+  // Rival presence uses a dedicated stream so it does not steal draws from
+  // template selection (which would desync M2 injury / season rolls).
+  const rivalRoll = streamRng(
+    state.seed,
+    `rival-present:${state.year}:${state.turnIndex}:${state.choices.length}`,
+  );
+  let rivalSlot = rivalPresentForMatch(state, rivalRoll);
   for (let i = 0; i < count && pool.length > 0; i++) {
     const index = Math.floor(rng() * pool.length);
     const template = pool.splice(index, 1)[0];
+    const vsRival = rivalSlot && i === 0;
+    if (vsRival) rivalSlot = false;
+    const copy = vsRival
+      ? rivalizeClutchCopy(state, template.title, template.situation)
+      : { title: template.title, situation: template.situation, vsRival: false };
     moments.push({
       id: `${template.id}:${state.year}:${state.turnIndex}:${i}`,
       templateId: template.id,
       kind: template.kind,
-      title: template.title,
-      situation: template.situation,
+      title: copy.title,
+      situation: copy.situation,
       prompt: template.prompt,
       year: state.year,
       age: state.age,
       league: state.league,
+      vsRival: copy.vsRival,
       options: template.options.map(
         (o): ClutchOption => ({
           id: o.id,
@@ -458,6 +473,13 @@ export function resolveClutchChoice(
     (state.meta.motivation - 50) / 180 +
     (state.meta.mind - 50) / 220 +
     (effects.clutch - 1) * 0.15;
+
+  // Rival H2H: tighter window — high rivalry / coach tactician / chemistry help.
+  if (moment.vsRival && state.rival) {
+    const gap = (rating - state.rival.overall) / 100;
+    chance += gap * 0.35 + (state.rival.rivalry - 50) / 400;
+    if (state.coach?.style === 'tactician') chance += 0.03;
+  }
 
   // Risky approaches swing harder.
   if (approach === 'aggressive' || approach === 'power' || approach === 'steal' || approach === 'challenge') {

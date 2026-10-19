@@ -62,8 +62,28 @@ function playRun(
   return state;
 }
 
+/** Drain ritual / story / clutch / situation cards so a calendar turn can fire. */
+function drainNonTraining(state: GameState, chooser: Chooser = firstChoice): GameState {
+  let next = state;
+  let guard = 0;
+  while (
+    next.decision &&
+    (next.decision.kind === 'chapter' ||
+      next.decision.kind === 'story' ||
+      next.decision.kind === 'event' ||
+      next.decision.kind === 'clutch') &&
+    guard < 40
+  ) {
+    next = acknowledge(resolve(next, chooser(next.decision, guard)));
+    guard += 1;
+  }
+  return next;
+}
+
 const firstChoice: Chooser = (decision, step) => {
   const ids = enabled(decision);
+  // Chapter / story ritual cards: always continue / first option.
+  if (decision.kind === 'chapter' || decision.kind === 'story') return ids[0];
   // Situation cards list the gamble first; training-first policies should take
   // the safest option so self-checks measure the career engine, not roulette.
   if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
@@ -124,32 +144,25 @@ function expectHighSchoolLength(): void {
   assert.equal(state.age, 16);
   for (let i = 0; i < 15; i++) {
     assert.equal(state.stage, 'highschool', `left high school early at turn ${i}`);
-    // Drain any queued high-risk choice cards so they do not steal a training turn.
-    while (state.decision?.kind === 'event' || state.decision?.kind === 'clutch') {
-      state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
-    }
+    // Drain ritual / story / risk / clutch cards so they do not steal a training turn.
+    state = drainNonTraining(state);
     assert.ok(state.decision, `missing decision at HS turn ${i}`);
     const beforeTurn = state.turnIndex;
     state = acknowledge(resolve(state, firstChoice(state.decision!, 0)));
     // Dual-slot training: primary stashes without advancing; secondary finishes the turn.
     // Tournaments may also park a clutch moment before the calendar advances.
-    while (
-      state.pendingPrimaryId ||
-      state.pendingClutch ||
-      state.decision?.kind === 'clutch' ||
-      (state.turnIndex === beforeTurn && state.decision?.kind === 'training')
-    ) {
-      while (state.decision?.kind === 'event') {
-        state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
-      }
+    // Stay on this calendar turn until dual-slot / clutch / parked match finish.
+    // Do NOT keep resolving after turnIndex advances — that would eat later turns
+    // (and the graduation path) inside a single for-loop iteration.
+    while (state.turnIndex === beforeTurn && state.stage === 'highschool') {
+      state = drainNonTraining(state);
+      if (state.turnIndex !== beforeTurn || state.stage !== 'highschool') break;
+      if (state.decision?.kind === 'path') break;
       assert.ok(state.decision, `missing follow-up decision at HS turn ${i}`);
       state = acknowledge(resolve(state, firstChoice(state.decision!, 0)));
-      if (state.turnIndex > beforeTurn && !state.pendingClutch && !state.pendingPrimaryId) break;
     }
   }
-  while (state.decision?.kind === 'event' || state.decision?.kind === 'clutch') {
-    state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
-  }
+  state = drainNonTraining(state);
   assert.equal(state.decision?.kind, 'path', 'graduation fork did not appear after fifteen turns');
   assert.equal(state.age, 18, 'age should be 18 at graduation');
   // 高一夏、高二夏、高二秋（黑豹旗）、高三夏 — four tournaments across three years.
@@ -163,12 +176,13 @@ function expectHighSchoolLength(): void {
 /** Training menus expose every drill — never a shuffled subset. */
 function expectFullTrainingMenu(): void {
   const origins = rollOrigins('menu0001');
-  const batter = createGame({
+  let batter = createGame({
     seedCode: 'menu0001',
     name: '野手',
     position: 'OF',
     originId: origins[0].id,
   });
+  batter = drainNonTraining(batter);
   assert.equal(batter.decision?.kind, 'training');
   assert.ok(batter.decision!.title.includes('主課'), 'HS opener should be the primary slot');
   const batterIds = batter.decision!.options.map((o) => o.id);
@@ -185,12 +199,13 @@ function expectFullTrainingMenu(): void {
   assert.ok(secondaryIds.includes('stretch') && secondaryIds.includes('notebook'));
   assert.ok(secondaryIds.includes('rest') && secondaryIds.includes('weight'));
 
-  const pitcher = createGame({
+  let pitcher = createGame({
     seedCode: 'menu0001',
     name: '投手',
     position: 'P',
     originId: origins[0].id,
   });
+  pitcher = drainNonTraining(pitcher);
   const pitcherIds = pitcher.decision!.options.map((o) => o.id);
   assert.ok(pitcherIds.includes('longtoss') && pitcherIds.includes('bullpen'));
   assert.ok(pitcherIds.includes('stamina') && pitcherIds.includes('mental') && pitcherIds.includes('rest'));
@@ -200,15 +215,42 @@ function expectFullTrainingMenu(): void {
   );
   assert.ok(pitcherIds.length >= 7, `pitcher menu too thin (${pitcherIds.length})`);
 
-  const twoWay = createGame({
+  let twoWay = createGame({
     seedCode: 'menu0001',
     name: '二刀',
     position: 'TW',
     originId: origins[0].id,
   });
+  twoWay = drainNonTraining(twoWay);
   const twIds = twoWay.decision!.options.map((o) => o.id);
   assert.ok(twIds.includes('swing') && twIds.includes('longtoss') && twIds.includes('rest'));
   assert.ok(twIds.length >= 11, `two-way should see both halves (${twIds.length})`);
+}
+
+/** M3: coaches, rival, chapters and story beats appear across a career. */
+function expectPeopleAndChapters(): void {
+  let chapterCards = 0;
+  let storyCards = 0;
+  let careersWithRivalMeetings = 0;
+  let careersWithChapterHistory = 0;
+  for (let i = 0; i < 6; i++) {
+    const state = playRun(`people${i}`, i % 2 === 0 ? 'OF' : 'P', firstChoice);
+    assert.ok(state.coach?.name, 'coach missing');
+    assert.ok(state.rival?.name, 'rival missing');
+    assert.ok(Array.isArray(state.teammates) && state.teammates.length >= 1, 'teammates missing');
+    assert.ok(state.chapterHistory.length >= 3, `too few chapters (${state.chapterHistory.length})`);
+    careersWithChapterHistory += 1;
+    if (state.rival.meetings > 0) careersWithRivalMeetings += 1;
+    chapterCards += state.handled.filter((k) => k.startsWith('chapter:')).length;
+    storyCards += state.handled.filter((k) => k.startsWith('story:')).length;
+  }
+  assert.ok(chapterCards >= 18, `too few chapter cards across careers (${chapterCards})`);
+  assert.ok(storyCards >= 4, `too few story beats across careers (${storyCards})`);
+  assert.ok(
+    careersWithRivalMeetings >= 2,
+    `rival rarely appeared in clutch (${careersWithRivalMeetings})`,
+  );
+  assert.equal(careersWithChapterHistory, 6);
 }
 
 /** M2: seasons / tournaments insert clutch decisions that leave highlights. */
@@ -236,6 +278,7 @@ function expectHsCultivationDepth(): void {
 
   const speedPath = (decision: Decision, step: number) => {
     const ids = enabled(decision);
+    if (decision.kind === 'chapter' || decision.kind === 'story') return ids[0];
     if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
     if (decision.kind === 'training') {
       if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-balance') ?? ids[0];
@@ -245,6 +288,7 @@ function expectHsCultivationDepth(): void {
   };
   const eyePath = (decision: Decision, step: number) => {
     const ids = enabled(decision);
+    if (decision.kind === 'chapter' || decision.kind === 'story') return ids[0];
     if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
     if (decision.kind === 'training') {
       if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-balance') ?? ids[0];
@@ -897,13 +941,24 @@ function challengeChooser(challengeId: string): Chooser {
   };
   const ironBody: Chooser = (decision, step) => {
     const ids = enabled(decision);
+    if (decision.kind === 'chapter') return ids[0];
+    // Story: prefer low-fatigue bond options (chat / listen / ignore rivalry).
+    if (decision.kind === 'story') {
+      return (
+        ids.find((id) =>
+          ['mate-hang', 'mate-solo', 'coach-listen', 'rival-ignore', 'coach-follow'].includes(id),
+        ) ?? ids[0]
+      );
+    }
     // Prefer safest situation option to keep injury counter at zero.
     if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
     // Clutch: avoid max-aggression approaches that stack fatigue / injury.
     if (decision.kind === 'clutch') {
       return (
         ids.find((id) =>
-          ['hold', 'patient', 'waste', 'play-safe', 'bunt', 'paint', 'contact'].includes(id),
+          ['hold', 'patient', 'waste', 'play-safe', 'bunt', 'paint', 'contact', 'defend'].includes(
+            id,
+          ),
         ) ??
         ids[ids.length - 1] ??
         ids[0]
@@ -923,16 +978,35 @@ function challengeChooser(challengeId: string): Chooser {
         ids[0]
       );
     }
-    // Primary / pro single-slot: light drills + occasional rest so the career
-    // stays draftable without stacking injury risk across clutch fatigue.
-    if (step % 4 === 3) {
-      return ids.find((id) => id === 'rest') ?? ids.find((id) => id === 'video') ?? ids[0];
-    }
-    const drills = ids.filter((id) =>
-      ['swing', 'field', 'run', 'video', 'bullpen', 'mental', 'stamina'].includes(id),
+    // Primary / pro: almost pure rest / light video. Injury rolls are pinned to
+    // the calendar (see engine `rng`), but fatigueCost and trainingInjuryMul
+    // still matter — iron-body only clears on a near-zero load policy.
+    return (
+      ids.find((id) => id === 'rest') ??
+      ids.find((id) => id === 'video') ??
+      ids.find((id) => id === 'mental') ??
+      ids[0]
     );
-    if (drills.length === 0) return ids.find((id) => id === 'rest') ?? ids[0];
-    return drills[step % drills.length];
+  };
+
+  const cpblStay: Chooser = (decision, step) => {
+    const ids = enabled(decision);
+    if (decision.kind === 'chapter' || decision.kind === 'story') return ids[0];
+    // Stay in CPBL — decline NPB/MLB moves and free-agent exits.
+    const prefer = ids.find(
+      (id) =>
+        id === 'offer-stay' ||
+        id === 'fa-stay' ||
+        id === 'path-draft' ||
+        id === 'intl-decline' ||
+        id === 'decline' ||
+        id === 'refuse',
+    );
+    if (prefer) return prefer;
+    if (ids.includes('offer-npb') || ids.includes('offer-mlb')) {
+      return ids.find((id) => id === 'offer-stay') ?? ids[ids.length - 1] ?? ids[0];
+    }
+    return firstChoice(decision, step);
   };
 
   switch (challengeId) {
@@ -945,6 +1019,8 @@ function challengeChooser(challengeId: string): Chooser {
       return intlGhost;
     case 'iron-body':
       return ironBody;
+    case 'infield-cpbl':
+      return cpblStay;
     default:
       return firstChoice;
   }
@@ -1214,6 +1290,7 @@ const checks: [string, () => void][] = [
   ['high school length', expectHighSchoolLength],
   ['full training menu', expectFullTrainingMenu],
   ['HS cultivation depth', expectHsCultivationDepth],
+  ['people and chapters arc', expectPeopleAndChapters],
   ['clutch moments appear in careers', expectClutchMomentsAppear],
   ['values stay in range', expectValuesStayInRange],
   ['summary matches history', expectSummaryMatchesHistory],
