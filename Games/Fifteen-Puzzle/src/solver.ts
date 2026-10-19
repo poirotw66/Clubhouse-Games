@@ -185,11 +185,13 @@ export function optimalMoves(
   size: BoardSize,
   upperBound: number | null = null,
 ): SolveResult {
-  return solvePuzzle(board, size, {
-    upperBound,
-    maxNodes: size <= 3 ? 500_000 : size === 4 ? 300_000 : 80_000,
-    timeMs: size <= 3 ? 200 : size === 4 ? 120 : 60,
-  });
+  // Scramble-bounded boards (easy/normal) get a larger budget so the result
+  // screen can show a true optimal more often than "≤ scramble length".
+  const bounded = upperBound != null && upperBound > 0;
+  const maxNodes =
+    size <= 3 ? 500_000 : size === 4 ? (bounded ? 600_000 : 250_000) : bounded ? 120_000 : 60_000;
+  const timeMs = size <= 3 ? 250 : size === 4 ? (bounded ? 280 : 100) : bounded ? 90 : 50;
+  return solvePuzzle(board, size, { upperBound, maxNodes, timeMs });
 }
 
 /** Verify a tap-path restores the board (used by checks). */
