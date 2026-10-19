@@ -24,6 +24,12 @@ export interface HudSnapshot {
   lapNote: string;
   itemsEnabled: boolean;
   timeTrial: boolean;
+  /** Draft strength 0–1; shows slipstream chip when > 0. */
+  slipstream: number;
+  /** Grand Prix race label, e.g. "盃賽 2/3". */
+  cupLabel: string;
+  /** Signed delta vs ghost lap time (negative = ahead). */
+  ghostDelta: number | null;
 }
 
 const ITEM_LABEL: Record<ItemId, string> = {
@@ -151,6 +157,11 @@ export function Hud({
 
       {/* Place + speed */}
       <div className="absolute bottom-3 right-3 text-right">
+        {snap.cupLabel ? (
+          <p className="mb-0.5 text-xs font-bold tracking-wider text-amber-200/90 drop-shadow">
+            {snap.cupLabel}
+          </p>
+        ) : null}
         {snap.timeTrial ? (
           <p className="text-2xl font-black leading-none text-amber-300 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
             計時賽
@@ -161,16 +172,33 @@ export function Hud({
             <span className="text-xl text-amber-300">{PLACE_SUFFIX[snap.place] ?? 'th'}</span>
           </p>
         )}
+        {snap.ghostDelta != null && (
+          <p
+            className={`font-mono text-xs font-bold drop-shadow ${
+              snap.ghostDelta <= 0 ? 'text-emerald-300' : 'text-rose-300'
+            }`}
+          >
+            幽靈 {snap.ghostDelta <= 0 ? '' : '+'}
+            {snap.ghostDelta.toFixed(2)}s
+          </p>
+        )}
         <div className="mt-1 h-2 w-36 overflow-hidden rounded-full bg-slate-950/55">
           <div
             className={`h-full rounded-full transition-[width] duration-100 ${
-              snap.boosting ? 'bg-orange-400' : 'bg-emerald-400'
+              snap.boosting ? 'bg-orange-400' : snap.slipstream > 0.2 ? 'bg-sky-400' : 'bg-emerald-400'
             }`}
             style={{width: `${speedPct}%`}}
           />
         </div>
         <p className="font-mono text-xs text-white/85">{Math.max(0, Math.round(snap.speed))} km/h</p>
       </div>
+
+      {/* Slipstream callout */}
+      {snap.slipstream > 0.25 && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 rounded-full border border-sky-300/40 bg-sky-500/25 px-4 py-1 backdrop-blur-sm">
+          <p className="text-xs font-black tracking-widest text-sky-100 drop-shadow">尾流加速</p>
+        </div>
+      )}
 
       {/* Drift charge — progressive fill + level label */}
       {snap.driftFill > 0 && (

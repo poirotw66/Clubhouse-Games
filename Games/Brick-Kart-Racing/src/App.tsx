@@ -3,8 +3,10 @@ import {BackToMenu} from '@clubhouse/shared/BackToMenu';
 import {Hud, type HudSnapshot} from './components/Hud';
 import {MainMenu} from './components/MainMenu';
 import {ResultScreen} from './components/ResultScreen';
+import {CupStandingsOverlay} from './components/CupStandings';
 import {TouchControls, type ControlKey} from './components/TouchControls';
 import {CHARACTERS, type DifficultyId} from './data/characters';
+import {cupById, pointsForPlace} from './data/cups';
 import {TRACKS} from './data/tracks';
 import {
   isMuted,
@@ -17,6 +19,25 @@ import {
   updateEngine,
 } from './engine/audio';
 import {LAP_TOTAL} from './engine/constants';
+import {
+  applyRacePlaces,
+  createCupSession,
+  cupDef,
+  cupTrackId,
+  isLastCupRace,
+  playerOverallPlace,
+  type CupSession,
+} from './engine/cupSession';
+import {GhostRecorder, type GhostLap} from './engine/ghost';
+import {
+  applyCupFinish as applyCupProgress,
+  getGhost,
+  loadProgress,
+  maybeStoreGhost,
+  recordRaceFinished,
+  saveProgress,
+  type KartProgress,
+} from './engine/progress';
 import {
   bestLapKey,
   createRace,
@@ -73,23 +94,40 @@ const EMPTY_HUD: HudSnapshot = {
   lapNote: '',
   itemsEnabled: true,
   timeTrial: false,
+  slipstream: 0,
+  cupLabel: '',
+  ghostDelta: null,
+};
+
+type CupOverlay = {
+  session: CupSession;
+  final: boolean;
+  lastRacePlaces: {id: string; place: number; points: number}[];
+  unlockedMessages: string[];
 };
 
 export default function App() {
   const [screen, setScreen] = useState<'menu' | 'race'>('menu');
   const [charId, setCharId] = useState(CHARACTERS[0].id);
   const [trackId, setTrackId] = useState(TRACKS[0].id);
+  const [cupId, setCupId] = useState('brick-cup');
   const [difficulty, setDifficulty] = useState<DifficultyId>('normal');
   const [raceOptions, setRaceOptions] = useState<RaceOptions>(DEFAULT_RACE_OPTIONS);
   const [bestTimes, setBestTimes] = useState<Record<string, number>>(() => loadBestTimes());
+  const [progress, setProgress] = useState<KartProgress>(() => loadProgress());
 
   const [loading, setLoading] = useState(false);
   const [paused, setPaused] = useState(false);
   const [muted, setMutedState] = useState(false);
   const [hud, setHud] = useState<HudSnapshot>(EMPTY_HUD);
-  const [result, setResult] = useState<{state: RaceState; bestLap: number; record: boolean} | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    state: RaceState;
+    bestLap: number;
+    record: boolean;
+    ghostSaved: boolean;
+  } | null>(null);
+  const [cupSession, setCupSession] = useState<CupSession | null>(null);
+  const [cupOverlay, setCupOverlay] = useState<CupOverlay | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const minimapRef = useRef<HTMLCanvasElement>(null);
@@ -106,18 +144,27 @@ export default function App() {
   const pausedRef = useRef(false);
   const lapFlashRef = useRef(0);
   const lapNoteRef = useRef('');
+  const ghostRecorderRef = useRef(new GhostRecorder());
+  const raceLapStartRef = useRef(0);
+  const cupSessionRef = useRef<CupSession | null>(null);
+  const progressRef = useRef(progress);
+  const raceOptionsRef = useRef(raceOptions);
+  const trackIdRef = useRef(trackId);
+  const charIdRef = useRef(charId);
+  const difficultyRef = useRef(difficulty);
 
-  pausedRef.current = paused || result !== null;
+  pausedRef.current = paused || result !== null || cupOverlay !== null;
+  cupSessionRef.current = cupSession;
+  progressRef.current = progress;
+  raceOptionsRef.current = raceOptions;
+  trackIdRef.current = trackId;
+  charIdRef.current = charId;
+  difficultyRef.current = difficulty;
 
   useEffect(() => {
     void preloadTrackArt();
   }, []);
 
-  // The menu and the race replace each other in the same document, and 開始比賽
-  // sits at the bottom of a menu roughly four screens tall. Today the race
-  // screen happens to fit the viewport, so the browser clamps the leftover
-  // scroll to 0 by itself — reset it explicitly so that stays true if the race
-  // HUD ever grows past one screen.
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
@@ -127,7 +174,6 @@ export default function App() {
     if (key === 'item' && down) itemQueuedRef.current = true;
   }, []);
 
-  // --- Keyboard -------------------------------------------------------------
   useEffect(() => {
     if (screen !== 'race') return;
     const down = (e: KeyboardEvent) => {
@@ -168,11 +214,34 @@ export default function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const opts = raceOptionsRef.current;
+    const tid = trackIdRef.current;
+    const cid = charIdRef.current;
+    const diff = difficultyRef.current;
+    const session = cupSessionRef.current;
+    const prog = progressRef.current;
+
+    const ghost =
+      opts.mode === 'timeTrial' ? getGhost(prog, tid, opts.mirror) : null;
+
+    const cpuRoster =
+      opts.mode === 'grandPrix' && session
+        ? session.rivals.map((r) => ({
+            charId: r.charId,
+            name: CHARACTERS.find((c) => c.id === r.charId)?.name,
+            rival: r,
+          }))
+        : undefined;
+
     const rc = createRenderContext(canvas);
-    const state = createRace(trackId, charId, difficulty, raceOptions);
+    const state = createRace(tid, cid, diff, opts, {cpuRoster, ghost});
     const cam = createCamera(state.racers[state.playerIndex]);
     lapFlashRef.current = 0;
     lapNoteRef.current = '';
+    ghostRecorderRef.current.reset();
+    raceLapStartRef.current = 0;
+    let ghostRecording = false;
+    let bestGhostCandidate: GhostLap | null = null;
 
     startEngine();
     setMuted(isMuted());
@@ -182,7 +251,12 @@ export default function App() {
     let hudTimer = 0;
     let nextTick = 3;
     let finishedHandled = false;
-    const recordKey = bestLapKey(trackId, raceOptions, difficulty);
+    const recordKey = bestLapKey(tid, opts, diff);
+    const cup = session ? cupDef(session) : null;
+    const cupLabel =
+      opts.mode === 'grandPrix' && cup
+        ? `${cup.name} ${session!.raceIndex + 1}/${cup.trackIds.length}`
+        : '';
 
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -204,17 +278,35 @@ export default function App() {
         itemQueuedRef.current = false;
 
         const beforeCountdown = state.countdown;
+        const wasCountdown = state.phase === 'countdown';
         stepRace(state, input, dt);
+
+        if (wasCountdown && state.phase === 'racing' && opts.mode === 'timeTrial') {
+          ghostRecorderRef.current.begin();
+          ghostRecording = true;
+          raceLapStartRef.current = state.time;
+        }
 
         if (state.phase === 'countdown' && Math.ceil(state.countdown) < nextTick) {
           nextTick = Math.ceil(state.countdown);
           if (nextTick >= 0 && beforeCountdown <= 3) playCountdownTick();
         }
 
+        const player = state.racers[state.playerIndex];
+
+        if (ghostRecording && !player.finished) {
+          ghostRecorderRef.current.sample(
+            state.time,
+            player.x,
+            player.y,
+            player.angle,
+            dt,
+          );
+        }
+
         for (const ev of state.events) {
           if (ev === 'lap') {
             lapFlashRef.current = 1.4;
-            const player = state.racers[state.playerIndex];
             const lastLap = player.lapTimes[player.lapTimes.length - 1] ?? 0;
             const stored = loadBestTimes()[recordKey] ?? 0;
             const sessionBest = player.lapTimes.slice(0, -1).filter((t) => t > 0);
@@ -228,22 +320,44 @@ export default function App() {
             } else {
               lapNoteRef.current = '';
             }
+
+            // Capture best-lap ghost slice in time trial.
+            if (opts.mode === 'timeTrial' && lastLap > 0) {
+              const lapEnd = state.time;
+              const lapStart = raceLapStartRef.current;
+              const samples = ghostRecorderRef.current.sliceLap(lapStart, lapEnd);
+              if (samples.length >= 2) {
+                const candidate: GhostLap = {
+                  trackId: tid,
+                  mirror: opts.mirror,
+                  duration: lastLap,
+                  samples,
+                };
+                if (
+                  !bestGhostCandidate ||
+                  candidate.duration < bestGhostCandidate.duration
+                ) {
+                  bestGhostCandidate = candidate;
+                }
+              }
+              raceLapStartRef.current = state.time;
+            }
           }
           playEvent(ev);
         }
         state.events.length = 0;
 
-        const player = state.racers[state.playerIndex];
         updateCamera(cam, player, dt);
         updateEngine(
           Math.min(1, Math.max(0, player.speed / 340)),
-          player.boostTime > 0,
+          player.boostTime > 0 || player.slipstream > 0.3,
         );
 
         if (lapFlashRef.current > 0) lapFlashRef.current -= dt;
 
         if (player.finished && !finishedHandled) {
           finishedHandled = true;
+          ghostRecording = false;
           const laps = player.lapTimes.filter((t) => t > 0);
           const best = laps.length ? Math.min(...laps) : 0;
           const prev = loadBestTimes();
@@ -253,8 +367,67 @@ export default function App() {
             localStorage.setItem(BEST_KEY, JSON.stringify(next));
             setBestTimes(next);
           }
-          playFinish(state.mode === 'timeTrial' || player.place === 1);
-          setResult({state, bestLap: best, record});
+
+          let ghostSaved = false;
+          let nextProgress = recordRaceFinished(
+            progressRef.current,
+            opts.mode === 'timeTrial',
+          );
+          if (opts.mode === 'timeTrial' && bestGhostCandidate) {
+            const stored = maybeStoreGhost(nextProgress, bestGhostCandidate);
+            nextProgress = stored.progress;
+            ghostSaved = stored.stored;
+          }
+          saveProgress(nextProgress);
+          setProgress(nextProgress);
+          progressRef.current = nextProgress;
+
+          playFinish(
+            opts.mode === 'timeTrial' ||
+              opts.mode === 'grandPrix' ||
+              player.place === 1,
+          );
+
+          if (opts.mode === 'grandPrix' && session) {
+            const placesById: Record<string, number> = {};
+            const lastRacePlaces: {id: string; place: number; points: number}[] = [];
+            for (const r of state.racers) {
+              placesById[r.entrantId] = r.place;
+              lastRacePlaces.push({
+                id: r.entrantId,
+                place: r.place,
+                points: pointsForPlace(r.place),
+              });
+            }
+            const wasLast = isLastCupRace(session);
+            const advanced = applyRacePlaces(session, placesById);
+            setCupSession(advanced);
+            cupSessionRef.current = advanced;
+
+            if (wasLast) {
+              const overall = playerOverallPlace(advanced);
+              const reward = applyCupProgress(nextProgress, advanced.cupId, overall);
+              saveProgress(reward.progress);
+              setProgress(reward.progress);
+              progressRef.current = reward.progress;
+              if (reward.unlocked.length) playEvent('cup-unlock');
+              setCupOverlay({
+                session: advanced,
+                final: true,
+                lastRacePlaces,
+                unlockedMessages: reward.unlocked,
+              });
+            } else {
+              setCupOverlay({
+                session: advanced,
+                final: false,
+                lastRacePlaces,
+                unlockedMessages: [],
+              });
+            }
+          } else {
+            setResult({state, bestLap: best, record, ghostSaved});
+          }
         }
       }
 
@@ -265,6 +438,14 @@ export default function App() {
         hudTimer = 0;
         const player = state.racers[state.playerIndex];
         const laps = player.lapTimes.filter((t) => t > 0);
+        let ghostDelta: number | null = null;
+        if (state.ghostLap && state.phase === 'racing') {
+          // Ghost replays the best lap on a loop from race start; compare
+          // current-lap elapsed clock against the ghost's loop clock.
+          const lapElapsed = Math.max(0, state.time - raceLapStartRef.current);
+          const ghostLapTime = state.time % state.ghostLap.duration;
+          ghostDelta = lapElapsed - ghostLapTime;
+        }
         setHud({
           place: player.place,
           lap: player.lap,
@@ -284,6 +465,9 @@ export default function App() {
           lapNote: lapNoteRef.current,
           itemsEnabled: state.itemsEnabled,
           timeTrial: state.mode === 'timeTrial',
+          slipstream: player.slipstream,
+          cupLabel,
+          ghostDelta: state.ghostLap && state.phase === 'racing' ? ghostDelta : null,
         });
         const mini = minimapRef.current;
         if (mini) drawMinimap(mini.getContext('2d')!, state, mini.width);
@@ -295,23 +479,74 @@ export default function App() {
       cancelAnimationFrame(raf);
       stopEngine();
     };
-  }, [screen, loading, trackId, charId, difficulty, raceOptions]);
+    // Re-run when a new race is staged (track / cup race index / options).
+  }, [screen, loading, trackId, charId, difficulty, raceOptions, cupSession?.raceIndex]);
 
   const startRace = useCallback(() => {
     setResult(null);
+    setCupOverlay(null);
     setPaused(false);
     setHud(EMPTY_HUD);
     setLoading(true);
     setScreen('race');
-    // Wait for albedo/sky plates so Mode-7 bake includes them, then drop caches.
     void preloadTrackArt().then(() => {
       clearBackdrops();
       setLoading(false);
     });
   }, []);
 
+  const beginFromMenu = useCallback(() => {
+    if (raceOptions.mode === 'grandPrix') {
+      const cup = cupById(cupId);
+      if (!cup) return;
+      const player = CHARACTERS.find((c) => c.id === charId) ?? CHARACTERS[0];
+      const session = createCupSession(cupId, charId, player.name, difficulty);
+      const nextTrack = cupTrackId(session);
+      const nextOpts: RaceOptions = {
+        ...raceOptions,
+        mode: 'grandPrix',
+        mirror: cup.mirror,
+        itemsEnabled: true,
+      };
+      setCupSession(session);
+      cupSessionRef.current = session;
+      setTrackId(nextTrack);
+      trackIdRef.current = nextTrack;
+      setRaceOptions(nextOpts);
+      raceOptionsRef.current = nextOpts;
+    } else {
+      setCupSession(null);
+      cupSessionRef.current = null;
+    }
+    startRace();
+  }, [raceOptions, cupId, charId, difficulty, startRace]);
+
+  const continueCup = useCallback(() => {
+    if (!cupOverlay) return;
+    if (cupOverlay.final) {
+      setCupOverlay(null);
+      setCupSession(null);
+      cupSessionRef.current = null;
+      setResult(null);
+      setPaused(false);
+      setScreen('menu');
+      return;
+    }
+    const session = cupOverlay.session;
+    const nextTrack = cupTrackId(session);
+    setCupOverlay(null);
+    setCupSession(session);
+    cupSessionRef.current = session;
+    setTrackId(nextTrack);
+    trackIdRef.current = nextTrack;
+    startRace();
+  }, [cupOverlay, startRace]);
+
   const backToMenu = useCallback(() => {
     setResult(null);
+    setCupOverlay(null);
+    setCupSession(null);
+    cupSessionRef.current = null;
     setPaused(false);
     setScreen('menu');
   }, []);
@@ -330,14 +565,17 @@ export default function App() {
         <MainMenu
           charId={charId}
           trackId={trackId}
+          cupId={cupId}
           difficulty={difficulty}
           options={raceOptions}
           bestTimes={bestTimes}
+          progress={progress}
           onChar={setCharId}
           onTrack={setTrackId}
+          onCup={setCupId}
           onDifficulty={setDifficulty}
           onOptions={(patch) => setRaceOptions((o) => ({...o, ...patch}))}
-          onStart={startRace}
+          onStart={beginFromMenu}
         />
       </>
     );
@@ -374,7 +612,7 @@ export default function App() {
           </>
         )}
 
-        {paused && !result && (
+        {paused && !result && !cupOverlay && (
           <div
             className="absolute inset-0 z-20 grid place-items-center bg-slate-950/80 backdrop-blur-sm"
             role="dialog"
@@ -382,7 +620,9 @@ export default function App() {
             aria-labelledby="kart-pause-title"
           >
             <div className="w-full max-w-xs rounded-2xl border border-white/10 bg-slate-900 p-6 text-center">
-              <h2 id="kart-pause-title" className="mb-4 text-2xl font-black text-white">暫停</h2>
+              <h2 id="kart-pause-title" className="mb-4 text-2xl font-black text-white">
+                暫停
+              </h2>
               <div className="space-y-2">
                 <button
                   type="button"
@@ -403,7 +643,18 @@ export default function App() {
           </div>
         )}
 
-        {result && (
+        {cupOverlay && (
+          <CupStandingsOverlay
+            session={cupOverlay.session}
+            lastRacePlaces={cupOverlay.lastRacePlaces}
+            unlockedMessages={cupOverlay.unlockedMessages}
+            final={cupOverlay.final}
+            onContinue={continueCup}
+            onMenu={backToMenu}
+          />
+        )}
+
+        {result && !cupOverlay && (
           <ResultScreen
             racers={result.state.racers}
             playerIndex={result.state.playerIndex}
@@ -413,6 +664,7 @@ export default function App() {
             timeTrial={result.state.mode === 'timeTrial'}
             mirror={result.state.mirror}
             itemsEnabled={result.state.itemsEnabled}
+            ghostSaved={result.ghostSaved}
             onRetry={startRace}
             onMenu={backToMenu}
           />

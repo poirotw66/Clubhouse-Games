@@ -82,27 +82,101 @@ export function createBoatState(startHeading = 0) {
   };
 }
 
-export function createWind(seed = 1) {
-  // 80°: matches the course start heading (−100°) so leg 1 opens as a run
-  // (wind at your back) — easiest default for the first course.
+/**
+ * @param {number} seed
+ * @param {Partial<import('./courses.js').WindProfile>} [profile]
+ */
+export function createWind(seed = 1, profile = {}) {
+  // Default matches harbor: start heading (−100°) opens as a run.
   const DOWNWIND_FROM = (80 * Math.PI) / 180;
-  return {
-    baseFrom: DOWNWIND_FROM, // direction the wind blows FROM
-    baseSpeed: 7.0,
-    from: DOWNWIND_FROM,
-    speed: 7.0,
+
+  let stepBias = 0;
+  let nextStepAt = 8 + seed * 2.5;
+  let gustBoost = 0;
+  let gustUntil = 0;
+  let wasGusting = false;
+
+  const wind = {
+    baseFrom: profile.baseFrom ?? DOWNWIND_FROM,
+    baseSpeed: profile.baseSpeed ?? 7.0,
+    shiftAmp: profile.shiftAmp ?? 0.16,
+    shiftRate: profile.shiftRate ?? 0.055,
+    gustAmp: profile.gustAmp ?? 0.9,
+    gustRate: profile.gustRate ?? 0.13,
+    stepPeriod: profile.stepPeriod ?? 0,
+    stepAmp: profile.stepAmp ?? 0.3,
+    from: profile.baseFrom ?? DOWNWIND_FROM,
+    speed: profile.baseSpeed ?? 7.0,
     seed,
-    update(time) {
-      // Slow oscillating shifts plus gusts, so no two legs sail the same.
-      const shift =
-        Math.sin(time * 0.055 + this.seed) * 0.16 +
-        Math.sin(time * 0.021 + this.seed * 2.1) * 0.1;
-      const gust =
-        Math.sin(time * 0.13 + this.seed * 1.7) * 0.9 +
-        Math.sin(time * 0.041 + this.seed * 3.3) * 0.6;
-      this.from = this.baseFrom + shift;
-      this.speed = Math.max(1.5, this.baseSpeed + gust);
+    /** True while a gust spike is active — HUD / SFX hook. */
+    gusting: false,
+    /** Rising edge this frame (cleared by consumer via consumeGustEdge). */
+    gustEdge: false,
+
+    applyProfile(next) {
+      this.baseFrom = next.baseFrom ?? this.baseFrom;
+      this.baseSpeed = next.baseSpeed ?? this.baseSpeed;
+      this.shiftAmp = next.shiftAmp ?? this.shiftAmp;
+      this.shiftRate = next.shiftRate ?? this.shiftRate;
+      this.gustAmp = next.gustAmp ?? this.gustAmp;
+      this.gustRate = next.gustRate ?? this.gustRate;
+      this.stepPeriod = next.stepPeriod ?? this.stepPeriod;
+      this.stepAmp = next.stepAmp ?? this.stepAmp;
+      this.from = this.baseFrom;
+      this.speed = this.baseSpeed;
+      stepBias = 0;
+      nextStepAt = 8 + this.seed * 2.5;
+      gustBoost = 0;
+      gustUntil = 0;
+      this.gusting = false;
+      this.gustEdge = false;
+      wasGusting = false;
     },
+
+    consumeGustEdge() {
+      const edge = this.gustEdge;
+      this.gustEdge = false;
+      return edge;
+    },
+
+    update(time) {
+      const shiftAmp = this.shiftAmp;
+      const shiftRate = this.shiftRate;
+      const gustAmp = this.gustAmp;
+      const gustRate = this.gustRate;
+      const stepPeriod = this.stepPeriod;
+      const stepAmp = this.stepAmp;
+
+      // Continuous oscillation — line choice on a beat changes as the breeze shifts.
+      const shift =
+        Math.sin(time * shiftRate + this.seed) * shiftAmp +
+        Math.sin(time * shiftRate * 0.38 + this.seed * 2.1) * shiftAmp * 0.55;
+
+      // Discrete wind shifts: step the mean so a layline suddenly goes soft.
+      if (stepPeriod > 0 && time >= nextStepAt) {
+        const dir = Math.sin(time * 17.3 + this.seed * 4.1) >= 0 ? 1 : -1;
+        stepBias = clamp(stepBias + dir * stepAmp, -stepAmp * 2.2, stepAmp * 2.2);
+        nextStepAt = time + stepPeriod * (0.65 + 0.7 * (0.5 + 0.5 * Math.sin(time * 3.7 + seed)));
+      }
+
+      // Background flutter plus occasional hard gusts.
+      const flutter =
+        Math.sin(time * gustRate + this.seed * 1.7) * gustAmp * 0.55 +
+        Math.sin(time * gustRate * 0.32 + this.seed * 3.3) * gustAmp * 0.35;
+      if (time > gustUntil && Math.sin(time * 0.37 + this.seed) > 0.92) {
+        gustBoost = gustAmp * (0.85 + 0.4 * Math.abs(Math.sin(time * 5.1 + seed)));
+        gustUntil = time + 2.4 + (seed % 3) * 0.4;
+      }
+      if (time > gustUntil) gustBoost *= Math.exp(-1.8 * (1 / 60));
+      const gust = flutter + gustBoost;
+
+      this.from = this.baseFrom + shift + stepBias;
+      this.speed = Math.max(1.5, this.baseSpeed + gust);
+      this.gusting = gustBoost > gustAmp * 0.35 || gust > gustAmp * 0.75;
+      if (this.gusting && !wasGusting) this.gustEdge = true;
+      wasGusting = this.gusting;
+    },
+
     /** Velocity vector of the air (where it is going), in world XZ. */
     vector() {
       return {
@@ -111,6 +185,8 @@ export function createWind(seed = 1) {
       };
     },
   };
+
+  return wind;
 }
 
 /**

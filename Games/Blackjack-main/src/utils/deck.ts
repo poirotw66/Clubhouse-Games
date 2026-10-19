@@ -1,4 +1,4 @@
-import { Card, Rank, Suit } from '../types';
+import type { Card, Rank, Suit } from '../types.ts';
 import { shuffleArray } from '@clubhouse/shared/shuffle';
 
 export {
@@ -8,7 +8,7 @@ export {
   dealerShouldHit,
   resolveInsurancePayout,
   surrenderRefund,
-} from './rules';
+} from './rules.ts';
 
 const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
 const RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];

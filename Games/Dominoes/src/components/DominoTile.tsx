@@ -2,20 +2,19 @@ import type { PlacedTile, Tile } from '../utils/dominoesLogic';
 
 interface DominoTileProps {
   tile: Tile;
-  /** If set, show these pips (left-to-right along chain) instead of tile.left/right. */
   displayLeft?: number;
   displayRight?: number;
-  /** If true, show vertical (narrow) for board; false = horizontal for hand. */
+  /** Vertical orientation (spinner hub or up/down arms). */
   vertical?: boolean;
-  /** Tile is currently selected. */
   highlight?: boolean;
-  /** Tile can be played but is not yet selected. */
   playable?: boolean;
-  /** Hint recommendation highlight (sky), distinct from selection. */
   hint?: boolean;
   onClick?: () => void;
-  /** Smaller for board chain. */
   size?: 'normal' | 'small';
+  /** Freshly placed — triggers a short drop-in animation. */
+  justPlaced?: boolean;
+  /** Mark the All Fives spinner hub. */
+  spinner?: boolean;
 }
 
 export function DominoTile({
@@ -28,11 +27,13 @@ export function DominoTile({
   hint = false,
   onClick,
   size = 'normal',
+  justPlaced = false,
+  spinner = false,
 }: DominoTileProps) {
   const left = displayLeft ?? tile.left;
   const right = displayRight ?? tile.right;
-  const w = size === 'small' ? 'w-8' : 'w-14 sm:w-12';
-  const h = size === 'small' ? 'h-16' : 'h-28 sm:h-24';
+  const w = size === 'small' ? (vertical ? 'w-8' : 'w-8') : 'w-14 sm:w-12';
+  const h = size === 'small' ? (vertical ? 'h-16' : 'h-16') : 'h-28 sm:h-24';
   const pipSize = size === 'small' ? 'text-xs' : 'text-lg';
 
   const ringStyle = highlight
@@ -41,11 +42,13 @@ export function DominoTile({
       ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-800 border-sky-400'
       : playable
         ? 'border-amber-500/60 hover:border-amber-400 hover:ring-2 hover:ring-amber-400/40 hover:ring-offset-1 hover:ring-offset-slate-800'
-        : 'border-slate-400';
+        : spinner
+          ? 'border-emerald-400 ring-2 ring-emerald-400/50'
+          : 'border-slate-400';
 
   const root = `rounded border-2 text-slate-900 flex items-center justify-center gap-0.5 touch-manipulation transition-all duration-150 bg-cover bg-center ${w} ${h} ${ringStyle} ${
     onClick ? 'cursor-pointer active:scale-95' : ''
-  }`;
+  } ${justPlaced ? 'domino-place-in' : ''}`;
   const faceStyle = {
     backgroundColor: '#f8fafc',
     backgroundImage: [
@@ -54,7 +57,6 @@ export function DominoTile({
     ].join(', '),
   };
 
-  // Lift selected tile upward via wrapper translate
   const liftStyle = highlight
     ? '-translate-y-3 drop-shadow-lg'
     : hint
@@ -65,51 +67,51 @@ export function DominoTile({
 
   const half = `flex flex-col items-center justify-center flex-1 min-w-0 ${pipSize} font-bold`;
 
-  const inner = vertical ? (
+  return (
     <div
       role={onClick ? 'button' : undefined}
-      className={`${root} flex-col ${liftStyle}`}
+      className={`${root} ${vertical ? 'flex-col' : 'flex-row'} ${liftStyle}`}
       style={faceStyle}
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
       tabIndex={onClick ? 0 : undefined}
+      aria-label={spinner ? `轉軸 ${left}-${right}` : `${left}-${right}`}
     >
-      <div className={half}>{left}</div>
-      <div className="w-full border-t border-slate-400/60" />
-      <div className={half}>{right}</div>
-    </div>
-  ) : (
-    <div
-      role={onClick ? 'button' : undefined}
-      className={`${root} flex-row ${liftStyle}`}
-      style={faceStyle}
-      onClick={onClick}
-      onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
-      tabIndex={onClick ? 0 : undefined}
-    >
-      <div className={`${half} border-r border-slate-400/60`}>{left}</div>
+      <div className={`${half} ${vertical ? '' : 'border-r border-slate-400/60'} ${vertical ? 'border-b border-slate-400/60' : ''}`}>
+        {left}
+      </div>
       <div className={half}>{right}</div>
     </div>
   );
-
-  return inner;
 }
 
 /** Board chain tile: horizontal, small, with display orientation. */
 export function PlacedDominoTile({
   placed,
   size = 'small',
+  justPlaced = false,
+  spinner = false,
+  vertical = false,
 }: {
-  placed: PlacedTile;
+  placed: PlacedTile | { tile: Tile; displayLeft: number; displayRight: number };
   size?: 'normal' | 'small';
+  justPlaced?: boolean;
+  spinner?: boolean;
+  vertical?: boolean;
 }) {
+  const displayLeft =
+    'displayLeft' in placed ? placed.displayLeft : placed.inward;
+  const displayRight =
+    'displayRight' in placed ? placed.displayRight : placed.outward;
   return (
     <DominoTile
       tile={placed.tile}
-      displayLeft={placed.displayLeft}
-      displayRight={placed.displayRight}
-      vertical={false}
+      displayLeft={displayLeft}
+      displayRight={displayRight}
+      vertical={vertical || spinner}
       size={size}
+      justPlaced={justPlaced}
+      spinner={spinner}
     />
   );
 }

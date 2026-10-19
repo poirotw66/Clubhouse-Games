@@ -105,16 +105,16 @@ test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
 test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Memory-Match/');
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
-  // Depth PR raised the smallest board from 4 pairs to 6.
+  // PAIR_OPTIONS start at 6 pairs (depth update); HUD copy is "翻牌 N".
   await activate(page.getByRole('button', { name: '簡單 · 6 對' }));
   await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
   await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(11);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
-  await expect(page.getByText('翻牌次數：1', { exact: false })).toBeVisible();
+  await expect(page.getByText(/翻牌\s*1/)).toBeVisible();
   await activate(page.getByRole('button', { name: '重開一局', exact: true }));
   await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
-  await expect(page.getByText('翻牌次數：0', { exact: false })).toBeVisible();
+  await expect(page.getByText(/翻牌\s*0/)).toBeVisible();
 });
 
 test('connect four: play a win and use the result overlay to restart', async ({ page, isMobile }) => {

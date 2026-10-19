@@ -18,6 +18,9 @@ export interface CharacterDef {
   health: number;
   /** Stamina regen multiplier. */
   staminaRegen: number;
+  /** Traditional Chinese name for the L / super signature. */
+  signatureName: string;
+  signatureBlurb: string;
 }
 
 /** Vite base-aware portrait URL for select UI / HUD. */
@@ -82,6 +85,8 @@ export const CHARACTERS: CharacterDef[] = [
     speed: 1,
     health: 100,
     staminaRegen: 1,
+    signatureName: '陀螺飛拳',
+    signatureBlurb: '長預備・無法格擋・可閃避',
   },
   {
     id: 'bear',
@@ -95,6 +100,8 @@ export const CHARACTERS: CharacterDef[] = [
     speed: 0.85,
     health: 120,
     staminaRegen: 0.9,
+    signatureName: '絨熊衝撞',
+    signatureBlurb: '長預備・無法格擋・可閃避',
   },
   {
     id: 'bunny',
@@ -108,6 +115,8 @@ export const CHARACTERS: CharacterDef[] = [
     speed: 1.25,
     health: 85,
     staminaRegen: 1.2,
+    signatureName: '閃躍迴旋',
+    signatureBlurb: '長預備・無法格擋・可閃避',
   },
   {
     id: 'dino',
@@ -121,6 +130,8 @@ export const CHARACTERS: CharacterDef[] = [
     speed: 0.95,
     health: 105,
     staminaRegen: 0.95,
+    signatureName: '恐龍迴旋尾',
+    signatureBlurb: '長預備・無法格擋・可閃避',
   },
 ];
 
