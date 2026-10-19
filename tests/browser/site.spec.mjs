@@ -127,19 +127,48 @@ test('memory match: touch/click cards, change difficulty and restart', async ({ 
 
 test('connect four: play a win and use the result overlay to restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Connect-Four/');
+  const activateBtn = (locator) => (isMobile ? locator.tap() : locator.click());
+  await activateBtn(page.getByRole('button', { name: '雙人對戰' }));
+  await activateBtn(page.getByRole('button', { name: '經典', exact: true }));
+  await activateBtn(page.getByRole('button', { name: '7×6', exact: true }));
   for (const column of [1, 2, 1, 2, 1, 2, 1]) {
     const button = page.getByRole('button', { name: `投入第 ${column} 欄`, exact: true });
-    if (isMobile) await button.tap();
-    else await button.click();
+    await activateBtn(button);
   }
   const result = page.getByRole('dialog');
   await expect(result).toBeVisible();
   await expect(result).toHaveCSS('position', 'fixed');
   const restart = result.getByRole('button', { name: '再玩一局' });
-  if (isMobile) await restart.tap();
-  else await restart.click();
+  await activateBtn(restart);
   await expect(result).toHaveCount(0);
   await expect(page.getByRole('button', { name: '投入第 1 欄', exact: true })).toBeEnabled();
+});
+
+test('connect four: popout, series target, personality, and puzzle smoke', async ({ page, isMobile }) => {
+  await page.goto('./Games/Connect-Four/');
+  const activateBtn = (locator) => (isMobile ? locator.tap() : locator.click());
+
+  await activateBtn(page.getByRole('button', { name: '電腦（你執紅）' }));
+  await activateBtn(page.getByRole('button', { name: 'PopOut', exact: true }));
+  await expect(page.getByRole('button', { name: '投下', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'PopOut 取出', exact: true })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: '8×7', exact: true }));
+  await expect(page.getByRole('button', { name: '投入第 8 欄', exact: true })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: '5 勝', exact: true }));
+  await expect(page.getByText('先取 5 勝', { exact: false })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: '鐵壁', exact: true }));
+  await expect(page.getByText('優先擋殺', { exact: false })).toBeVisible();
+
+  await activateBtn(page.getByRole('button', { name: /謎題/ }));
+  await expect(page.getByRole('button', { name: /橫線一擊/ })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: /橫線一擊/ }));
+  await activateBtn(page.getByRole('button', { name: '投入第 4 欄', exact: true }));
+  const puzzleResult = page.getByRole('dialog');
+  await expect(puzzleResult).toBeVisible();
+  await expect(puzzleResult.getByText('謎題完成', { exact: false })).toBeVisible();
+  await activateBtn(puzzleResult.getByRole('button', { name: '下一題' }));
+  await expect(page.getByText('步內取勝', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: '投入第 4 欄', exact: true })).toBeEnabled();
 });
 
 /** Touch vs click — same helper shape as Memory-Match / Connect-Four. */
