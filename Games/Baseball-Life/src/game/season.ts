@@ -21,6 +21,16 @@ const HR_SCALE: Record<LeagueId, number> = {
   mlb: 0.95,
 };
 
+export interface SeasonCountingBonus {
+  hits?: number;
+  hr?: number;
+  sb?: number;
+  so?: number;
+  era?: number;
+  wins?: number;
+  quality?: number;
+}
+
 export interface SeasonInput {
   attrs: Attributes;
   meta: Meta;
@@ -37,6 +47,8 @@ export interface SeasonInput {
   role?: 'batter' | 'pitcher';
   /** Career flag: force bullpen work even when stamina would imply starter. */
   forceReliever?: boolean;
+  /** Flat counting / quality nudges from M2 clutch decisions. */
+  clutchBonus?: SeasonCountingBonus;
 }
 
 export interface SeasonResult {
@@ -81,7 +93,6 @@ function simulateBatter(input: SeasonInput, pt: number): SeasonResult {
     0.402,
   );
   const hits = Math.round(ab * rawAvg);
-  const avg = ab > 0 ? hits / ab : 0;
 
   const hrRate = clamp(
     Math.pow(Math.max(attrs.power, 1) / 100, 2.3) * 0.085 * HR_SCALE[league] * (0.8 + rng() * 0.45),
@@ -89,24 +100,46 @@ function simulateBatter(input: SeasonInput, pt: number): SeasonResult {
     0.13,
   );
   const hr = Math.round(ab * hrRate);
-  const rbi = Math.round(hr * 2.1 + hits * 0.42 * (0.85 + rng() * 0.35));
   const sb = Math.round(games * Math.pow(Math.max(attrs.speed, 1) / 100, 2.2) * 0.38 * (0.7 + rng() * 0.6));
 
-  const obp = clamp(avg + 0.028 + attrs.eye * 0.0013, 0, 0.55);
-  const slg = ab > 0 ? clamp(avg + (hr / ab) * 2.6 + attrs.power * 0.0011, 0, 0.95) : 0;
+  const bonus = input.clutchBonus;
+  const maxHits = ab > 0 ? Math.floor(ab * 0.45) : 0;
+  const hitsFinal = Math.max(0, Math.min(maxHits, hits + (bonus?.hits ?? 0)));
+  const hrFinal = Math.max(0, Math.min(hitsFinal, hr + (bonus?.hr ?? 0)));
+  const sbFinal = Math.max(0, sb + (bonus?.sb ?? 0));
+  const avgFinal = ab > 0 ? hitsFinal / ab : 0;
+  const obpFinal = clamp(avgFinal + 0.028 + attrs.eye * 0.0013, 0, 0.55);
+  const slgFinal =
+    ab > 0 ? clamp(avgFinal + (hrFinal / ab) * 2.6 + attrs.power * 0.0011, 0, 0.95) : 0;
+  const rbiFinal = Math.round(hrFinal * 2.1 + hitsFinal * 0.42 * (0.85 + rng() * 0.35));
 
-  const line: BatterLine = { kind: 'batter', games, ab, hits, hr, rbi, sb, avg, obp, slg };
+  const line: BatterLine = {
+    kind: 'batter',
+    games,
+    ab,
+    hits: hitsFinal,
+    hr: hrFinal,
+    rbi: rbiFinal,
+    sb: sbFinal,
+    avg: avgFinal,
+    obp: obpFinal,
+    slg: slgFinal,
+  };
 
-  const ops = obp + slg;
+  const ops = obpFinal + slgFinal;
   const qualified = ab >= info.games * 2.2;
-  const quality = clamp((ops - 0.640) / 0.42, 0, 1) * clamp(pt * 1.4, 0, 1);
+  const quality = clamp(
+    clamp((ops - 0.640) / 0.42, 0, 1) * clamp(pt * 1.4, 0, 1) + (bonus?.quality ?? 0),
+    0,
+    1,
+  );
 
   const awards: string[] = [];
   if (qualified) {
-    if (avg >= 0.330 && rng() < 0.35 + (avg - 0.330) * 6) awards.push('打擊王');
-    if (hr >= 24 && rng() < 0.25 + (hr - 24) * 0.035) awards.push('全壘打王');
-    if (rbi >= 90 && rng() < 0.22 + (rbi - 90) * 0.006) awards.push('打點王');
-    if (sb >= 25 && rng() < 0.3) awards.push('盜壘王');
+    if (avgFinal >= 0.330 && rng() < 0.35 + (avgFinal - 0.330) * 6) awards.push('打擊王');
+    if (hrFinal >= 24 && rng() < 0.25 + (hrFinal - 24) * 0.035) awards.push('全壘打王');
+    if (rbiFinal >= 90 && rng() < 0.22 + (rbiFinal - 90) * 0.006) awards.push('打點王');
+    if (sbFinal >= 25 && rng() < 0.3) awards.push('盜壘王');
     if (attrs.fielding >= 78 && rng() < 0.25 + (attrs.fielding - 78) * 0.02) awards.push('金手套');
     if (ops >= 0.930 && rng() < 0.3 + (ops - 0.930) * 1.6) awards.push('年度 MVP');
     else if (ops >= 0.850 && rng() < 0.45) awards.push('最佳十人');
@@ -151,21 +184,30 @@ function simulatePitcher(input: SeasonInput, pt: number): SeasonResult {
     losses = Math.round(games * 0.07);
   }
 
+  const bonus = input.clutchBonus;
+  const eraFinal = clamp(era + (bonus?.era ?? 0), 0.85, 9.5);
+  const soFinal = Math.max(0, so + (bonus?.so ?? 0));
+  const winsFinal = Math.max(0, wins + (bonus?.wins ?? 0));
+
   const line: PitcherLine = {
     kind: 'pitcher',
     games,
     role: starter ? '先發' : '後援',
     ip,
-    wins,
+    wins: winsFinal,
     losses,
     saves,
-    so,
-    era,
+    so: soFinal,
+    era: eraFinal,
     whip,
   };
 
   const qualified = starter ? ip >= info.games * 0.85 : games >= info.games * 0.25;
-  const quality = clamp((4.9 - era) / 3.4, 0, 1) * clamp(pt * 1.4, 0, 1);
+  const quality = clamp(
+    clamp((4.9 - eraFinal) / 3.4, 0, 1) * clamp(pt * 1.4, 0, 1) + (bonus?.quality ?? 0),
+    0,
+    1,
+  );
 
   const awards: string[] = [];
   if (qualified) {
@@ -240,9 +282,9 @@ export function simulateTournament(input: SeasonInput, gamesPlayed: number): Sea
     const sbRate = l.games > 0 ? l.sb / l.games : 0;
     l.games = games;
     l.ab = ab;
-    l.hits = Math.round(ab * l.avg);
-    l.avg = l.hits / ab;
-    l.hr = Math.round(ab * hrRate);
+    l.hits = Math.min(Math.floor(ab * 0.45), Math.round(ab * l.avg));
+    l.avg = ab > 0 ? l.hits / ab : 0;
+    l.hr = Math.min(l.hits, Math.round(ab * hrRate));
     l.rbi = Math.round(l.hr * 2.1 + l.hits * 0.42);
     l.sb = Math.round(games * sbRate);
   } else {

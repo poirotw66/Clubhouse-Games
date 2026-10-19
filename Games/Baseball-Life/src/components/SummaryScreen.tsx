@@ -165,6 +165,35 @@ export function SummaryScreen({
         </dl>
       </section>
 
+      {state.clutchHighlights.length > 0 && (
+        <section className="bl-card mt-4 p-4">
+          <h2 className="text-sm font-bold text-slate-200">
+            關鍵時刻
+            <span className="ml-2 text-xs font-normal text-slate-500">
+              {state.clutchHighlights.length} 則
+            </span>
+          </h2>
+          <p className="mt-1 text-[11px] text-slate-500">比賽裡親手操盤過的高張力局面。</p>
+          <ul className="mt-2 space-y-1.5">
+            {state.clutchHighlights.map((highlight, index) => (
+              <li key={index} className="text-xs leading-relaxed">
+                <span
+                  className={
+                    highlight.tone === 'great'
+                      ? 'text-amber-200'
+                      : highlight.tone === 'bad'
+                        ? 'text-rose-200'
+                        : 'text-emerald-200'
+                  }
+                >
+                  {highlight.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {state.milestones.length > 0 && (
         <section className="bl-card mt-4 p-4">
           <h2 className="text-sm font-bold text-slate-200">

@@ -61,9 +61,9 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-amber-300">天命與復原</p>
+            <p className="font-bold text-amber-300">關鍵局面與天命</p>
             <p className="mt-0.5 text-amber-200/60">
-              累積天命可強行完美骰一次；點選項或按 1–9。Backspace 復原誤點。
+              大賽與球季會插入關鍵打席／配球決策；天命可強行完美訓練骰。按 1–9 選擇，Backspace 復原。
             </p>
           </li>
         </ul>

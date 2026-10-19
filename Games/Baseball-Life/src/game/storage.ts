@@ -93,6 +93,24 @@ export function loadGame(): GameState | null {
     if (!Array.isArray(parsed.abilities)) parsed.abilities = [];
     if (!parsed.drillCounts || typeof parsed.drillCounts !== 'object') parsed.drillCounts = {};
     if (typeof parsed.pendingPrimaryId !== 'string') parsed.pendingPrimaryId = null;
+    // M2 clutch moments — default empty so mid-career saves resume cleanly.
+    if (!parsed.pendingClutch || typeof parsed.pendingClutch !== 'object') parsed.pendingClutch = null;
+    if (!Array.isArray(parsed.clutchQueue)) parsed.clutchQueue = [];
+    if (!parsed.pendingMatch || typeof parsed.pendingMatch !== 'object') parsed.pendingMatch = null;
+    if (!parsed.clutchMods || typeof parsed.clutchMods !== 'object') {
+      parsed.clutchMods = {
+        clutchMul: 1,
+        qualityDelta: 0,
+        batHitBonus: 0,
+        batHrBonus: 0,
+        batSbBonus: 0,
+        pitchSoBonus: 0,
+        pitchEraDelta: 0,
+        pitchWinBonus: 0,
+        tournamentScoreDelta: 0,
+      };
+    }
+    if (!Array.isArray(parsed.clutchHighlights)) parsed.clutchHighlights = [];
     return parsed;
   } catch {
     return null;

@@ -37,6 +37,7 @@ import type {
   Meta,
   Milestone,
   Option,
+  PendingMatch,
   PitchId,
   Position,
   SeasonRecord,
@@ -57,6 +58,16 @@ import {
   abilityEffects,
   newlyUnlockedAbilities,
 } from './abilities';
+import {
+  EMPTY_CLUTCH_MODS,
+  applyClutchMods,
+  buildClutchMoments,
+  clutchDecisionOptions,
+  planClutchCount,
+  pushHighlight,
+  resolveClutchChoice,
+  toHighlight,
+} from './clutch';
 import { newlyUnlocked, traitById, traitEffects } from './traits';
 
 const START_YEAR = 2010;
@@ -245,6 +256,11 @@ export function createGame(input: CreateInput): GameState {
     pendingSituation: null,
     pendingPrimaryId: null,
     challengeId,
+    pendingClutch: null,
+    clutchQueue: [],
+    pendingMatch: null,
+    clutchMods: { ...EMPTY_CLUTCH_MODS },
+    clutchHighlights: [],
     decision: null,
     report: null,
     retired: false,
@@ -849,6 +865,19 @@ function buildDecision(state: GameState): Decision {
     return { kind: 'continue', title: '生涯結束', prompt: '', options: [] };
   }
 
+  // In-match clutch moments sit on top of everything until the parked season
+  // finishes — they are part of the match that training just opened.
+  if (state.pendingClutch) {
+    const moment = state.pendingClutch;
+    return {
+      kind: 'clutch',
+      title: moment.title,
+      prompt: `${moment.situation}\n${moment.prompt}`,
+      options: clutchDecisionOptions(moment),
+      key: `clutch:${moment.id}`,
+    };
+  }
+
   // Queued high-risk choice cards land before the next training menu.
   const situationDecision = buildSituationDecision(state);
   if (situationDecision) return situationDecision;
@@ -1395,6 +1424,9 @@ export function resolve(state: GameState, optionId: string, useDestiny = false):
       // stale toggle can never push 天命 negative.
       resolveTraining(next, option as TrainingOption, useDestiny && state.meta.destiny >= DESTINY_COST);
       break;
+    case 'clutch':
+      resolveClutch(next, optionId);
+      break;
     case 'event':
       resolveSituation(next, optionId, useDestiny);
       break;
@@ -1616,15 +1648,126 @@ function resolveTraining(state: GameState, option: TrainingOption, useDestiny = 
   applyDeltas(state, deltas);
   report.deltas = deltas;
 
-  // The turn's competition: a high-school tournament, a full amateur season,
-  // or — for the pro stage — just the 球季 turn, since 春訓/球季後 play no games.
-  if (state.stage === 'highschool') {
-    const turn = HS_SCHEDULE[state.turnIndex];
-    if (turn.tournament) runTournament(state, report, turn.tournament, option.id);
-  } else if (playsSeason) {
-    runSeason(state, report);
+  // Match pause (M2): tournaments and playing seasons may insert clutch
+  // decisions before the auto-sim. Training deltas stay; calendar advances only
+  // after the match finishes.
+  const matchKind = matchKindForTurn(state, playsSeason);
+  if (matchKind) {
+    const attitudeId = matchKind.kind === 'tournament' ? option.id : undefined;
+    const count = planClutchCount(state, matchKind.kind, rng(state, 'clutch-count'));
+    const moments = buildClutchMoments(state, count, rng(state, 'clutch-pick'));
+    if (moments.length > 0) {
+      state.pendingMatch = {
+        kind: matchKind.kind,
+        tournamentName: matchKind.tournamentName,
+        attitudeId,
+        fatigueDelta,
+        injuryMul,
+        turnScale,
+        playsSeason: matchKind.kind === 'season',
+      };
+      state.clutchMods = { ...EMPTY_CLUTCH_MODS };
+      state.pendingClutch = moments[0];
+      state.clutchQueue = moments.slice(1);
+      checkTraits(state, report);
+      checkAbilities(state, report);
+      pushLog(state, report.label, `${report.headline}：${report.lines.join(' ')}`, report.tone);
+      state.report = report;
+      return;
+    }
+    if (matchKind.kind === 'tournament' && matchKind.tournamentName) {
+      runTournament(state, report, matchKind.tournamentName, option.id);
+    } else {
+      runSeason(state, report);
+    }
   }
 
+  finishTrainingTurn(state, report, fatigueDelta, injuryMul, turnScale, playsSeason);
+}
+
+function matchKindForTurn(
+  state: GameState,
+  playsSeason: boolean,
+): { kind: PendingMatch['kind']; tournamentName?: string } | null {
+  if (state.stage === 'highschool') {
+    const turn = HS_SCHEDULE[state.turnIndex];
+    if (turn.tournament) return { kind: 'tournament', tournamentName: turn.tournament };
+    return null;
+  }
+  if (playsSeason) return { kind: 'season' };
+  return null;
+}
+
+function resolveClutch(state: GameState, optionId: string): void {
+  const moment = state.pendingClutch;
+  const match = state.pendingMatch;
+  if (!moment || !match) {
+    state.pendingClutch = null;
+    return;
+  }
+
+  const resolution = resolveClutchChoice(
+    state,
+    moment,
+    optionId,
+    match.attitudeId,
+    rng(state, `clutch-resolve:${moment.id}`),
+  );
+  applyClutchMods(state.clutchMods, resolution.mods);
+  applyDeltas(state, resolution.deltas);
+  pushHighlight(state, toHighlight(state, resolution));
+
+  const report: TurnReport = {
+    label: turnLabel(state),
+    dice: null,
+    headline: `${moment.title}・${resolution.headline}`,
+    lines: [moment.situation, ...resolution.lines],
+    deltas: { ...resolution.deltas },
+    season: null,
+    traitsUnlocked: [],
+    abilitiesUnlocked: [],
+    milestones: [],
+    income: null,
+    tone: resolution.tone,
+    clutchMoment: true,
+  };
+  pushLog(state, '關鍵局面', `${moment.title}：${resolution.lines.join(' ')}`, resolution.tone);
+
+  state.pendingClutch = null;
+  if (state.clutchQueue.length > 0) {
+    state.pendingClutch = state.clutchQueue[0];
+    state.clutchQueue = state.clutchQueue.slice(1);
+    state.report = report;
+    return;
+  }
+
+  // Queue drained — finish the parked match, then the rest of the training turn.
+  if (match.kind === 'tournament' && match.tournamentName) {
+    runTournament(state, report, match.tournamentName, match.attitudeId ?? 't-balance');
+  } else {
+    runSeason(state, report);
+  }
+  const pending = match;
+  state.pendingMatch = null;
+  state.clutchMods = { ...EMPTY_CLUTCH_MODS };
+  finishTrainingTurn(
+    state,
+    report,
+    pending.fatigueDelta,
+    pending.injuryMul,
+    pending.turnScale,
+    pending.playsSeason,
+  );
+}
+
+function finishTrainingTurn(
+  state: GameState,
+  report: TurnReport,
+  fatigueDelta: number,
+  injuryMul: number,
+  turnScale: number,
+  playsSeason: boolean,
+): void {
   // Flavour event, injuries and ageing all land after the turn is played.
   //
   // The rate is what the pool can actually serve, and that was measured rather
@@ -1905,6 +2048,7 @@ function runTournament(state: GameState, report: TurnReport, name: string, optio
   const effects = traitEffects(state.traits);
   const intensity = optionId === 't-allin' ? 1.25 : optionId === 't-protect' ? 0.75 : 1;
   const r = rng(state, 'tournament');
+  const mods = state.clutchMods;
 
   const tournamentInput = {
     attrs: state.attrs,
@@ -1912,8 +2056,17 @@ function runTournament(state: GameState, report: TurnReport, name: string, optio
     position: state.position,
     league: 'hs' as const,
     health: state.injury ? 0.4 : 1,
-    clutch: effects.clutch * intensity,
+    clutch: effects.clutch * intensity * mods.clutchMul,
     rng: r,
+    clutchBonus: {
+      hits: mods.batHitBonus,
+      hr: mods.batHrBonus,
+      sb: mods.batSbBonus,
+      so: mods.pitchSoBonus,
+      era: mods.pitchEraDelta,
+      wins: mods.pitchWinBonus,
+      quality: mods.qualityDelta,
+    },
   };
   const games = randInt(r, 3, 6);
   const twoWay = IS_TWO_WAY[state.position];
@@ -1928,7 +2081,8 @@ function runTournament(state: GameState, report: TurnReport, name: string, optio
     : undefined;
 
   const rating = overall(state.attrs, state.position);
-  const runScore = rating * intensity + state.meta.mind * 0.25 + noise(r, 18);
+  const runScore =
+    rating * intensity + state.meta.mind * 0.25 + noise(r, 18) + mods.tournamentScoreDelta;
   let outcome: string;
   let fame = 0;
   if (runScore >= 78) {
@@ -2032,6 +2186,7 @@ function moveTo(state: GameState, league: LeagueId, team: string): void {
 function runSeason(state: GameState, report: TurnReport): void {
   const effects = traitEffects(state.traits);
   const r = rng(state, 'season');
+  const mods = state.clutchMods;
   let health = state.injury ? (state.injury.severity === 'minor' ? 0.7 : 0.35) : 1;
   if (state.flags.surgeryMiss > 0) {
     health *= 0.12;
@@ -2044,9 +2199,18 @@ function runSeason(state: GameState, report: TurnReport): void {
     position: state.position,
     league: state.league,
     health,
-    clutch: effects.clutch,
+    clutch: effects.clutch * mods.clutchMul,
     rng: r,
     forceReliever: state.flags.preferBullpen,
+    clutchBonus: {
+      hits: mods.batHitBonus,
+      hr: mods.batHrBonus,
+      sb: mods.batSbBonus,
+      so: mods.pitchSoBonus,
+      era: mods.pitchEraDelta,
+      wins: mods.pitchWinBonus,
+      quality: mods.qualityDelta,
+    },
   };
 
   let secondary: StatLine | undefined;

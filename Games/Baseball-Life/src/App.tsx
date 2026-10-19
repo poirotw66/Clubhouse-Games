@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
+import { playCapture, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import {
   applyChallengeResult,
   challengeById,
@@ -212,7 +212,15 @@ export default function App(): React.ReactElement {
       // back a mistake, bounded so a full career does not hold forty-plus
       // complete game states.
       setHistory((prev) => [...prev.slice(-19), state]);
-      setState(resolve(state, optionId, useDestiny));
+      const next = resolve(state, optionId, useDestiny);
+      // M2 clutch feedback: a short hit-stop cue so the plate appearance lands.
+      if (next.report?.clutchMoment) {
+        if (next.report.tone === 'great') playGoal();
+        else if (next.report.tone === 'good') playScore();
+        else if (next.report.tone === 'bad') playLose();
+        else playCapture();
+      }
+      setState(next);
     },
     [state],
   );

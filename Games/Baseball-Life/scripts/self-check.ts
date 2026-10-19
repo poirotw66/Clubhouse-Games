@@ -125,22 +125,29 @@ function expectHighSchoolLength(): void {
   for (let i = 0; i < 15; i++) {
     assert.equal(state.stage, 'highschool', `left high school early at turn ${i}`);
     // Drain any queued high-risk choice cards so they do not steal a training turn.
-    while (state.decision?.kind === 'event') {
+    while (state.decision?.kind === 'event' || state.decision?.kind === 'clutch') {
       state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
     }
     assert.ok(state.decision, `missing decision at HS turn ${i}`);
     const beforeTurn = state.turnIndex;
     state = acknowledge(resolve(state, firstChoice(state.decision!, 0)));
     // Dual-slot training: primary stashes without advancing; secondary finishes the turn.
-    if (state.pendingPrimaryId || state.turnIndex === beforeTurn) {
+    // Tournaments may also park a clutch moment before the calendar advances.
+    while (
+      state.pendingPrimaryId ||
+      state.pendingClutch ||
+      state.decision?.kind === 'clutch' ||
+      (state.turnIndex === beforeTurn && state.decision?.kind === 'training')
+    ) {
       while (state.decision?.kind === 'event') {
         state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
       }
-      assert.ok(state.decision, `missing secondary decision at HS turn ${i}`);
+      assert.ok(state.decision, `missing follow-up decision at HS turn ${i}`);
       state = acknowledge(resolve(state, firstChoice(state.decision!, 0)));
+      if (state.turnIndex > beforeTurn && !state.pendingClutch && !state.pendingPrimaryId) break;
     }
   }
-  while (state.decision?.kind === 'event') {
+  while (state.decision?.kind === 'event' || state.decision?.kind === 'clutch') {
     state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
   }
   assert.equal(state.decision?.kind, 'path', 'graduation fork did not appear after fifteen turns');
@@ -202,6 +209,24 @@ function expectFullTrainingMenu(): void {
   const twIds = twoWay.decision!.options.map((o) => o.id);
   assert.ok(twIds.includes('swing') && twIds.includes('longtoss') && twIds.includes('rest'));
   assert.ok(twIds.length >= 11, `two-way should see both halves (${twIds.length})`);
+}
+
+/** M2: seasons / tournaments insert clutch decisions that leave highlights. */
+function expectClutchMomentsAppear(): void {
+  let clutchPicks = 0;
+  let careersWithHighlights = 0;
+  for (let i = 0; i < 8; i++) {
+    const state = playRun(`clutch${i}`, i % 2 === 0 ? 'OF' : 'P', firstChoice);
+    const picks = state.handled.filter((k) => k.startsWith('clutch:')).length;
+    clutchPicks += picks;
+    if (state.clutchHighlights.length > 0) careersWithHighlights += 1;
+    assert.ok(Array.isArray(state.clutchHighlights), 'clutchHighlights missing');
+  }
+  assert.ok(clutchPicks >= 12, `too few clutch decisions across 8 careers (${clutchPicks})`);
+  assert.ok(
+    careersWithHighlights >= 3,
+    `too few careers archived clutch highlights (${careersWithHighlights})`,
+  );
 }
 
 /** Dual-slot HS + motivation + abilities: cultivation paths must diverge. */
@@ -874,6 +899,16 @@ function challengeChooser(challengeId: string): Chooser {
     const ids = enabled(decision);
     // Prefer safest situation option to keep injury counter at zero.
     if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+    // Clutch: avoid max-aggression approaches that stack fatigue / injury.
+    if (decision.kind === 'clutch') {
+      return (
+        ids.find((id) =>
+          ['hold', 'patient', 'waste', 'play-safe', 'bunt', 'paint', 'contact'].includes(id),
+        ) ??
+        ids[ids.length - 1] ??
+        ids[0]
+      );
+    }
     // Tournament all-in is an injury magnet — pick the protect attitude.
     if (ids.some((id) => id.startsWith('t-'))) {
       return ids.find((id) => id === 't-protect') ?? ids[ids.length - 1] ?? ids[0];
@@ -888,9 +923,14 @@ function challengeChooser(challengeId: string): Chooser {
         ids[0]
       );
     }
-    // Primary / pro single-slot: rotate real drills (skip pure rest) so the
-    // career is still draftable and reaches 8 pro seasons.
-    const drills = ids.filter((id) => id !== 'rest' && id !== 'weight' && id !== 'longtoss');
+    // Primary / pro single-slot: light drills + occasional rest so the career
+    // stays draftable without stacking injury risk across clutch fatigue.
+    if (step % 4 === 3) {
+      return ids.find((id) => id === 'rest') ?? ids.find((id) => id === 'video') ?? ids[0];
+    }
+    const drills = ids.filter((id) =>
+      ['swing', 'field', 'run', 'video', 'bullpen', 'mental', 'stamina'].includes(id),
+    );
     if (drills.length === 0) return ids.find((id) => id === 'rest') ?? ids[0];
     return drills[step % drills.length];
   };
@@ -1174,6 +1214,7 @@ const checks: [string, () => void][] = [
   ['high school length', expectHighSchoolLength],
   ['full training menu', expectFullTrainingMenu],
   ['HS cultivation depth', expectHsCultivationDepth],
+  ['clutch moments appear in careers', expectClutchMomentsAppear],
   ['values stay in range', expectValuesStayInRange],
   ['summary matches history', expectSummaryMatchesHistory],
   ['overall ignores off-role attributes', expectOverallIgnoresOffRoleAttributes],
