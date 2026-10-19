@@ -642,7 +642,8 @@ test('clockwork-keep: map unlocks, branch panel, and mission pack size', async (
   await expect(page.getByRole('button', { name: '群島', exact: true })).toBeEnabled();
   await activate(page.getByRole('button', { name: '分岔', exact: true }), isMobile);
   await expect(page.getByRole('button', { name: '分岔', exact: true })).toHaveClass(/border-amber-400/);
-  await activate(page.getByRole('button', { name: '任務包・2/8 通關' }), isMobile);
+  // Accessible name comes from aria-label「開啟任務包。…」, not the visible label.
+  await activate(page.getByRole('button', { name: /開啟任務包.*2\/8/ }), isMobile);
   await expect(page.getByRole('dialog', { name: /任務包/ })).toBeVisible();
   await expect(page.getByText('07・分岔試煉')).toBeVisible();
   await expect(page.getByText('08・群島嚴苛')).toBeVisible();
