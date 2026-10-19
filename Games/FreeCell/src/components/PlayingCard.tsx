@@ -8,8 +8,8 @@ export interface PlayingCardProps {
   isSelected?: boolean;
   isSelectable?: boolean;
   isHinted?: boolean;
-  onClick?: () => void;
-  onDoubleClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLElement>) => void;
+  onDoubleClick?: (e: React.MouseEvent<HTMLElement>) => void;
   className?: string;
   placeholder?: string;
   draggable?: boolean;
