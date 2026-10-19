@@ -472,9 +472,12 @@ test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ p
   await expect(board).toHaveAttribute('aria-label', /已走 0 格/);
 });
 
-test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, isMobile }) => {
+test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ page, isMobile }) => {
   test.skip(!includesGame('FreeCell'), 'selective CI');
   await page.goto('./Games/FreeCell/');
+  await expect(page.getByRole('heading', { name: '空當接龍', exact: true })).toBeVisible();
+  await expect(page.getByText(/分數\s+\d+/)).toBeVisible();
+
   await page.locator('#freecell-seed').fill('11982');
   await activate(page.getByRole('button', { name: '發此局', exact: true }), isMobile);
   await expect(page.locator('#freecell-seed')).toHaveValue('11982');
@@ -483,6 +486,19 @@ test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, is
   // Hint paints a sky ring on the suggested source/dest; redeal must clear it.
   await activate(page.getByRole('button', { name: '重新發同局' }), isMobile);
   await expect(page.locator('#freecell-seed')).toHaveValue('11982');
+
+  await activate(page.locator('#freecell-daily'), isMobile);
+  await expect(page.getByText(/今日挑戰/)).toBeVisible();
+  await expect(page.locator('#freecell-seed')).toBeDisabled();
+
+  await activate(page.getByRole('button', { name: '戰績' }), isMobile);
+  const stats = page.getByRole('dialog', { name: /戰績/ });
+  await expect(stats).toBeVisible();
+  await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
+  await expect(stats).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '2 格', exact: true }), isMobile);
+  await expect(page.getByText(/悔棋/)).toBeVisible();
 
   await activate(page.getByRole('button', { name: '新遊戲' }), isMobile);
   await expect(page.locator('#freecell-seed')).not.toHaveValue('');
