@@ -83,6 +83,12 @@ export interface GameState {
   endless: boolean;
   /** Active challenge-pack id when this run was started from the pack. */
   challengeId: string | null;
+  /** Ironsnake hard mode: HP fixed at 1, relic offers are 4-pick-1. */
+  ironsnake: boolean;
+  /** True when this run was started via the daily seed button. */
+  daily: boolean;
+  /** Starting build / character identity id. */
+  buildId: string;
   /** Boss floors (5 / 10 / 15) defeated this run, in order. */
   bossesDefeated: number[];
 

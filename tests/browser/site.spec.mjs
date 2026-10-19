@@ -737,3 +737,89 @@ test('puyo-puyo: mission hint drop clears first quest overlay', async ({ page, i
   await activate(dialog.getByRole('button', { name: '再玩一局', exact: true }), isMobile);
   await expect(dialog).toHaveCount(0);
 });
+
+test('danmaku-abyss: craft picker, mode pack, capture gallery, dive HUD', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Danmaku-Abyss'), 'selective CI');
+  test.setTimeout(60_000);
+  await page.goto('./Games/Danmaku-Abyss/');
+  await expect(page.getByRole('heading', { name: '彈幕深淵', exact: true })).toBeVisible();
+
+  // Dismiss first-run guide if present so title CTAs stay clickable.
+  const howto = page.getByRole('dialog').filter({ hasText: '上手' });
+  if (await howto.count()) {
+    await activate(howto.getByRole('button', { name: '知道了' }), isMobile);
+    await expect(howto).toHaveCount(0);
+  }
+
+  const craftBtn = page.getByRole('button', { name: /選擇機體/ });
+  await expect(craftBtn).toBeVisible();
+  await activate(craftBtn, isMobile);
+  const crafts = page.getByRole('dialog', { name: /選擇機體/ });
+  await expect(crafts).toBeVisible();
+  await expect(crafts.getByText('迅羽')).toBeVisible();
+  await expect(crafts.getByText('重炮')).toBeVisible();
+  await expect(crafts.getByText('縫影')).toBeVisible();
+  await activate(crafts.getByRole('button', { name: '關閉機體選擇' }), isMobile);
+  await expect(crafts).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '符卡圖鑑' }), isMobile);
+  const gallery = page.getByRole('dialog', { name: /符卡圖鑑/ });
+  await expect(gallery).toBeVisible();
+  await activate(gallery.getByRole('button', { name: '關閉符卡圖鑑' }), isMobile);
+  await expect(gallery).toHaveCount(0);
+
+  const modesBtn = page.getByRole('button', { name: /模式.*關卡包/ });
+  await expect(modesBtn).toBeVisible();
+  await activate(modesBtn, isMobile);
+  const modes = page.getByRole('dialog', { name: /模式.*關卡包/ });
+  await expect(modes).toBeVisible();
+  await expect(modes.getByText('燈守演習')).toBeVisible();
+  await expect(modes.getByText('雙弦')).toBeVisible();
+  await expect(modes.getByText('裂壁')).toBeVisible();
+  await activate(modes.getByRole('button', { name: '關閉模式關卡包' }), isMobile);
+  await expect(modes).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '潛入深淵' }), isMobile);
+  await expect(page.getByLabel('彈幕戰場')).toBeVisible();
+  await expect(page.getByText(/機體/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /靈擊/ })).toBeVisible();
+});
+
+test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!includesGame('Roguelike-Snake'), 'selective CI');
+  await page.goto('./Games/Roguelike-Snake/');
+  await expect(page.getByRole('heading', { name: '蛇窟迴廊' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '起始身分' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /青鱗幼蛇/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /未解鎖/ }).first()).toBeDisabled();
+  await expect(page.getByText(/每日連勝/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始今日挑戰' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ironsnake/ })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: /Ironsnake/ }), isMobile);
+  const warn = page.getByRole('dialog', { name: /Ironsnake 硬派模式/ });
+  await expect(warn).toBeVisible();
+  await expect(warn.getByText(/HP 固定為 1/)).toBeVisible();
+  await expect(warn.getByText(/4 選 1/)).toBeVisible();
+  await activate(warn.getByRole('button', { name: '取消' }), isMobile);
+  await expect(warn).toBeHidden();
+
+  await activate(page.getByRole('button', { name: /^成就/ }), isMobile);
+  await expect(page.getByRole('dialog', { name: '成就' })).toBeVisible();
+  await activate(
+    page.getByRole('dialog', { name: '成就' }).getByRole('button', { name: '關閉' }),
+    isMobile,
+  );
+
+  await activate(page.getByRole('button', { name: '開始探索' }), isMobile);
+  await expect(page.getByText('青鱗幼蛇')).toBeVisible();
+  await expect(page.getByRole('button', { name: '暫停' })).toBeVisible();
+  await expect(page.getByText(/第\s*1\s*層/)).toBeVisible();
+  // Touch dash pad is md:hidden; assert it only on the mobile project.
+  if (isMobile) {
+    await expect(page.getByRole('button', { name: '衝刺' })).toBeVisible();
+  }
+});
