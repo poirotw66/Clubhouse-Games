@@ -37,6 +37,12 @@ export interface Meta {
   fame: number;
   fatigue: number;
   /**
+   * 動機：willingness to push through a hard block. Low motivation softens dice
+   * the same way high fatigue does; rest and light secondary slots refill it.
+   * Added in M1 so rest / protect stop being strictly dominated strategies.
+   */
+  motivation: number;
+  /**
    * 天命：a spendable pool the player can pour into a training turn to force a
    * perfect roll. It is the one place a human overrides the dice, so it accrues
    * slowly and is capped — the rest of a life is still the seed's to decide.
@@ -139,6 +145,8 @@ export interface TurnReport {
   deltas: Partial<Attributes & Meta>;
   season: SeasonRecord | null;
   traitsUnlocked: string[];
+  /** Special abilities earned this turn (M1 stubs). */
+  abilitiesUnlocked: string[];
   milestones: Milestone[];
   /** Money earned this turn, in 萬元; null outside a paid season. */
   income: number | null;
@@ -250,6 +258,16 @@ export interface GameState {
 
   history: SeasonRecord[];
   traits: string[];
+  /**
+   * Earned special abilities (M1 stubs). Separate from hidden `traits` so the
+   * encyclopedia / legacy systems in M4 can grow without colliding.
+   */
+  abilities: string[];
+  /**
+   * How often each drill id was chosen as a primary or secondary slot. Feeds
+   * ability unlock checks without re-parsing the full choice history.
+   */
+  drillCounts: Record<string, number>;
   milestones: Milestone[];
   counters: Counters;
   /** Durable consequences from high-risk choices (bullpen role, surgery miss…). */
@@ -265,6 +283,12 @@ export interface GameState {
   seenSituations: string[];
   /** Queued choice-card id; set after a turn and consumed by `buildDecision`. */
   pendingSituation: string | null;
+  /**
+   * High-school dual-slot: after the player picks a primary drill, this holds
+   * its id until the secondary (副課／恢復) is chosen. Null outside that window.
+   * Tournaments and pro/amateur turns stay single-slot.
+   */
+  pendingPrimaryId: string | null;
   /**
    * Active career-challenge id when this run was started from the pack.
    * Free play leaves it null. Used only to force-queue scripted situation hooks.

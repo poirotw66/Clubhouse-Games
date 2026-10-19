@@ -9,6 +9,7 @@ import {
   gradeColor,
   overall,
 } from '../game/config';
+import { abilityById } from '../game/abilities';
 import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
 import type { GameState } from '../game/types';
@@ -21,6 +22,13 @@ function fatigueColor(value: number): string {
   if (value >= 65) return '#f87171';
   if (value >= 35) return '#fbbf24';
   return '#4ade80';
+}
+
+/** Motivation uses the normal grade palette — higher is better. */
+function motivationColor(value: number): string {
+  if (value >= 70) return '#4ade80';
+  if (value >= 40) return '#fbbf24';
+  return '#f87171';
 }
 
 function Bar({ value }: { value: number }): React.ReactElement {
@@ -69,13 +77,20 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
         ))}
       </dl>
 
-      <div className="mt-4 grid grid-cols-4 gap-2 border-t border-slate-700/60 pt-3 text-center">
-        {(['body', 'mind', 'fame', 'fatigue'] as const).map((key) => (
+      <div className="mt-4 grid grid-cols-5 gap-1.5 border-t border-slate-700/60 pt-3 text-center">
+        {(['body', 'mind', 'fame', 'fatigue', 'motivation'] as const).map((key) => (
           <div key={key}>
             <p className="text-[10px] text-slate-500">{META_LABELS[key]}</p>
             <p
               className="font-mono text-sm font-bold"
-              style={{ color: key === 'fatigue' ? fatigueColor(state.meta[key]) : gradeColor(state.meta[key]) }}
+              style={{
+                color:
+                  key === 'fatigue'
+                    ? fatigueColor(state.meta[key])
+                    : key === 'motivation'
+                      ? motivationColor(state.meta[key])
+                      : gradeColor(state.meta[key]),
+              }}
             >
               {state.meta[key]}
             </p>
@@ -113,6 +128,27 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
             <li>交易冷卻：還剩 {state.flags.tradeCooldown} 季</li>
           )}
         </ul>
+      )}
+
+      {state.abilities.length > 0 && (
+        <div className="mt-3 border-t border-slate-700/60 pt-3">
+          <p className="text-[10px] tracking-wider text-slate-500">特殊能力</p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {state.abilities.map((id) => {
+              const ability = abilityById(id);
+              if (!ability) return null;
+              return (
+                <li
+                  key={id}
+                  title={ability.desc}
+                  className="rounded-md border border-sky-500/50 bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-200"
+                >
+                  {ability.label}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
 
       {state.traits.length > 0 && (

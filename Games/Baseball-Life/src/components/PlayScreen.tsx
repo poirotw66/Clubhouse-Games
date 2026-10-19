@@ -5,6 +5,7 @@ import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
 import { DESTINY_COST, deltaLabel } from '../game/engine';
 import { DESTINY_SITUATION_COST, situationById } from '../game/situations';
 import { describeLine } from '../game/season';
+import { abilityById } from '../game/abilities';
 import { traitById } from '../game/traits';
 import type { AttrKey, GameState, TurnReport } from '../game/types';
 import { CareerTable } from './CareerTable';
@@ -68,12 +69,18 @@ export function PlayScreen({
           .some((option) => option.destinyBoost)
       : false;
   const destinyCost = decision?.kind === 'event' ? DESTINY_SITUATION_COST : DESTINY_COST;
+  // Destiny only arms when a dice roll is about to happen — the high-school
+  // primary slot merely stashes a choice, so pouring 天命 there would be wasted.
+  const trainingRollsDice =
+    decision?.kind === 'training' &&
+    (state.pendingPrimaryId != null || !decision.title.includes('・主課'));
   const canAffordDestiny =
     decision?.kind === 'training'
-      ? state.meta.destiny >= DESTINY_COST
+      ? trainingRollsDice && state.meta.destiny >= DESTINY_COST
       : Boolean(situationDestiny && state.meta.destiny >= DESTINY_SITUATION_COST);
   const destinyArmed = useDestiny && canAffordDestiny;
-  const showDestinyToggle = decision?.kind === 'training' || Boolean(situationDestiny);
+  const showDestinyToggle =
+    (decision?.kind === 'training' && trainingRollsDice) || Boolean(situationDestiny);
 
   // A fresh decision starts with 天命 disarmed, so the toggle never silently
   // carries over from a turn the player already resolved.
@@ -199,6 +206,21 @@ export function PlayScreen({
               )}
 
               <DeltaList deltas={report.deltas} />
+
+              {(report.abilitiesUnlocked?.length ?? 0) > 0 && (
+                <div className="mt-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3">
+                  {report.abilitiesUnlocked.map((id) => {
+                    const ability = abilityById(id);
+                    if (!ability) return null;
+                    return (
+                      <p key={id} className="text-xs text-sky-100">
+                        <span className="font-bold">特殊能力：{ability.label}</span>
+                        <span className="mt-0.5 block text-sky-200/80">{ability.desc}</span>
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
 
               {report.traitsUnlocked.length > 0 && (
                 <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">

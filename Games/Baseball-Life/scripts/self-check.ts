@@ -22,6 +22,7 @@ import {
   positionFromArchiveLabel,
   totalMilestoneHits,
 } from '../src/game/records.js';
+import { ABILITIES } from '../src/game/abilities.js';
 import { TWO_WAY_WORKLOAD } from '../src/game/season.js';
 import { SITUATIONS, situationById } from '../src/game/situations.js';
 import { traitEffects } from '../src/game/traits.js';
@@ -115,7 +116,7 @@ function expectChoicesMatter(): void {
   assert.notDeepEqual(a.attrs, b.attrs, 'choices had no effect on the run');
 }
 
-/** High school is fifteen turns and ends on the graduation fork. */
+/** High school is fifteen calendar turns and ends on the graduation fork. */
 function expectHighSchoolLength(): void {
   const origins = rollOrigins('hsflow01');
   let state = createGame({ seedCode: 'hsflow01', name: '球兒', position: 'C', originId: origins[0].id });
@@ -128,7 +129,16 @@ function expectHighSchoolLength(): void {
       state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
     }
     assert.ok(state.decision, `missing decision at HS turn ${i}`);
+    const beforeTurn = state.turnIndex;
     state = acknowledge(resolve(state, firstChoice(state.decision!, 0)));
+    // Dual-slot training: primary stashes without advancing; secondary finishes the turn.
+    if (state.pendingPrimaryId || state.turnIndex === beforeTurn) {
+      while (state.decision?.kind === 'event') {
+        state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
+      }
+      assert.ok(state.decision, `missing secondary decision at HS turn ${i}`);
+      state = acknowledge(resolve(state, firstChoice(state.decision!, 0)));
+    }
   }
   while (state.decision?.kind === 'event') {
     state = acknowledge(resolve(state, firstChoice(state.decision, 0)));
@@ -153,10 +163,20 @@ function expectFullTrainingMenu(): void {
     originId: origins[0].id,
   });
   assert.equal(batter.decision?.kind, 'training');
+  assert.ok(batter.decision!.title.includes('主課'), 'HS opener should be the primary slot');
   const batterIds = batter.decision!.options.map((o) => o.id);
   assert.ok(batterIds.includes('swing') && batterIds.includes('weight') && batterIds.includes('field'));
   assert.ok(batterIds.includes('run') && batterIds.includes('video') && batterIds.includes('rest'));
   assert.equal(batterIds.length, 6, `batter menu should list all 5 drills + rest (got ${batterIds.length})`);
+
+  // Secondary slot after a primary pick: remaining drills + recovery cards.
+  let mid = resolve(batter, 'swing');
+  assert.equal(mid.pendingPrimaryId, 'swing');
+  assert.ok(mid.decision?.title.includes('副課'), 'secondary slot should follow primary');
+  const secondaryIds = mid.decision!.options.map((o) => o.id);
+  assert.ok(!secondaryIds.includes('swing'), 'secondary must not repeat the primary drill');
+  assert.ok(secondaryIds.includes('stretch') && secondaryIds.includes('notebook'));
+  assert.ok(secondaryIds.includes('rest') && secondaryIds.includes('weight'));
 
   const pitcher = createGame({
     seedCode: 'menu0001',
@@ -182,6 +202,62 @@ function expectFullTrainingMenu(): void {
   const twIds = twoWay.decision!.options.map((o) => o.id);
   assert.ok(twIds.includes('swing') && twIds.includes('longtoss') && twIds.includes('rest'));
   assert.ok(twIds.length >= 11, `two-way should see both halves (${twIds.length})`);
+}
+
+/** Dual-slot HS + motivation + abilities: cultivation paths must diverge. */
+function expectHsCultivationDepth(): void {
+  assert.ok(ABILITIES.length >= 5, 'M1 ability pack too thin');
+  const origins = rollOrigins('depth001');
+
+  const speedPath = (decision: Decision, step: number) => {
+    const ids = enabled(decision);
+    if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+    if (decision.kind === 'training') {
+      if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-balance') ?? ids[0];
+      return ids.find((id) => id === 'run') ?? ids.find((id) => id === 'stretch') ?? ids[0];
+    }
+    return ids[0];
+  };
+  const eyePath = (decision: Decision, step: number) => {
+    const ids = enabled(decision);
+    if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
+    if (decision.kind === 'training') {
+      if (ids.some((id) => id.startsWith('t-'))) return ids.find((id) => id === 't-balance') ?? ids[0];
+      return ids.find((id) => id === 'video') ?? ids.find((id) => id === 'swing') ?? ids.find((id) => id === 'notebook') ?? ids[0];
+    }
+    return ids[0];
+  };
+
+  // Play only through high school for a clean before/after on cultivation.
+  function playHs(chooser: Chooser): GameState {
+    let state = createGame({
+      seedCode: 'depth001',
+      name: '養成',
+      position: 'OF',
+      originId: origins[0].id,
+    });
+    let step = 0;
+    while (state.stage === 'highschool' && state.decision?.kind !== 'path' && step < 80) {
+      if (!state.decision || state.decision.options.length === 0) break;
+      state = acknowledge(resolve(state, chooser(state.decision, step)));
+      step += 1;
+    }
+    return state;
+  }
+
+  const speed = playHs(speedPath);
+  const eye = playHs(eyePath);
+  assert.ok(speed.attrs.speed > eye.attrs.speed + 2, 'speed path should outpace eye path on speed');
+  assert.ok(eye.attrs.eye > speed.attrs.eye + 2, 'eye path should outpace speed path on eye');
+  assert.ok(
+    speed.abilities.includes('basepath') || eye.abilities.includes('keen-eye'),
+    'at least one focused path should earn a special ability',
+  );
+  assert.ok(typeof speed.meta.motivation === 'number');
+  assert.ok(speed.meta.motivation >= 0 && speed.meta.motivation <= 100);
+
+  // Dual-slot roughly doubles HS training picks vs the old single-slot calendar.
+  assert.ok(speed.choices.length >= 20, `HS dual-slot too thin (${speed.choices.length} picks)`);
 }
 
 /** Values must never leave their ranges, however extreme the run. */
@@ -794,15 +870,29 @@ function challengeChooser(challengeId: string): Chooser {
     }
     return ids[0];
   };
-  const ironBody: Chooser = (decision) => {
+  const ironBody: Chooser = (decision, step) => {
     const ids = enabled(decision);
-    // Prefer rest / safest situation option to keep injury counter at zero.
+    // Prefer safest situation option to keep injury counter at zero.
     if (decision.kind === 'event') return ids[ids.length - 1] ?? ids[0];
     // Tournament all-in is an injury magnet — pick the protect attitude.
     if (ids.some((id) => id.startsWith('t-'))) {
       return ids.find((id) => id === 't-protect') ?? ids[ids.length - 1] ?? ids[0];
     }
-    return ids.find((id) => id === 'rest') ?? ids[0];
+    // Dual-slot secondary menus advertise recovery cards — always take them so a
+    // hard primary is paired with stretch/notebook rather than another drill.
+    if (ids.includes('stretch') || ids.includes('notebook')) {
+      return (
+        ids.find((id) => id === 'stretch') ??
+        ids.find((id) => id === 'notebook') ??
+        ids.find((id) => id === 'rest') ??
+        ids[0]
+      );
+    }
+    // Primary / pro single-slot: rotate real drills (skip pure rest) so the
+    // career is still draftable and reaches 8 pro seasons.
+    const drills = ids.filter((id) => id !== 'rest' && id !== 'weight' && id !== 'longtoss');
+    if (drills.length === 0) return ids.find((id) => id === 'rest') ?? ids[0];
+    return drills[step % drills.length];
   };
 
   switch (challengeId) {
@@ -1083,6 +1173,7 @@ const checks: [string, () => void][] = [
   ['choices matter', expectChoicesMatter],
   ['high school length', expectHighSchoolLength],
   ['full training menu', expectFullTrainingMenu],
+  ['HS cultivation depth', expectHsCultivationDepth],
   ['values stay in range', expectValuesStayInRange],
   ['summary matches history', expectSummaryMatchesHistory],
   ['overall ignores off-role attributes', expectOverallIgnoresOffRoleAttributes],
