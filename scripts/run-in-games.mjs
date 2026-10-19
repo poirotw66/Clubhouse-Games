@@ -15,6 +15,7 @@
  *   --jobs N, -j N   Max concurrent games (default: CPU count; env CHECK_JOBS)
  *   --fail-fast      Stop scheduling new games after the first failure
  *   --shard K/N      Run only the K-th of N partitions (1-based; even split by name)
+ *   --exclude NAME   Skip games whose folder matches NAME (substring, repeatable)
  *
  * Positional filters (after options) match game folder names case-insensitively
  * as substrings. Example: node scripts/run-in-games.mjs check Coin Big-Two
@@ -52,6 +53,7 @@ function parseArgs(argv) {
   let jobs = null;
   let failFast = false;
   let shard = null;
+  const excludes = [];
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -99,6 +101,20 @@ function parseArgs(argv) {
       }
       continue;
     }
+    if (arg === '--exclude') {
+      const raw = argv[i + 1];
+      if (raw === undefined || raw.startsWith('-')) {
+        console.error(`Missing value for ${arg}`);
+        process.exit(1);
+      }
+      excludes.push(raw);
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--exclude=')) {
+      excludes.push(arg.slice('--exclude='.length));
+      continue;
+    }
     if (arg.startsWith('-')) {
       console.error(`Unknown option: ${arg}`);
       process.exit(1);
@@ -123,7 +139,7 @@ function parseArgs(argv) {
     process.exit(1);
   }
 
-  return { scriptName, filters, jobs, failFast, shard };
+  return { scriptName, filters, jobs, failFast, shard, excludes };
 }
 
 function runNpmScript(gameDir, scriptName) {
@@ -168,10 +184,10 @@ function printGameResult(name, scriptName, result, durationSec) {
   }
 }
 
-const { scriptName, filters, jobs, failFast, shard } = parseArgs(process.argv.slice(2));
+const { scriptName, filters, jobs, failFast, shard, excludes } = parseArgs(process.argv.slice(2));
 if (!scriptName) {
   console.error(
-    'Usage: node scripts/run-in-games.mjs <script-name> [--jobs N] [--shard K/N] [--fail-fast] [game-filter...]',
+    'Usage: node scripts/run-in-games.mjs <script-name> [--jobs N] [--shard K/N] [--exclude NAME] [--fail-fast] [game-filter...]',
   );
   process.exit(1);
 }
@@ -204,6 +220,13 @@ if (filters.length > 0) {
     );
     process.exit(1);
   }
+}
+
+if (excludes.length > 0) {
+  games = games.filter((name) => {
+    const lower = name.toLowerCase();
+    return !excludes.some((exclude) => lower.includes(exclude.toLowerCase()));
+  });
 }
 
 games.sort((a, b) => a.localeCompare(b));

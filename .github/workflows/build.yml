@@ -97,11 +97,12 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Logic checks — sharded on full runs (Coin-Cascade alone can exceed 1.5m).
+  # Logic checks — full runs isolate Coin-Cascade (CPU-heavy) on its own runner.
   # ---------------------------------------------------------------------------
   check:
     needs: changes
     runs-on: ubuntu-latest
+    name: check (${{ matrix.id }})
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.changes.outputs.check_matrix) }}
@@ -119,22 +120,30 @@ jobs:
         run: npm ci
 
       - name: Verify game dependency versions
-        if: matrix.shard == 1
+        if: matrix.id == 'rest-1' || matrix.id == 'selective'
         run: node scripts/check-game-versions.mjs
 
       - name: Verify shared styles
-        if: matrix.shard == 1
+        if: matrix.id == 'rest-1' || matrix.id == 'selective'
         run: npm run check:shared-styles
 
       - name: Run game logic checks
         env:
           SCOPE_FULL: ${{ needs.changes.outputs.full }}
           SCOPE_GAMES: ${{ needs.changes.outputs.games }}
+          CHECK_MODE: ${{ matrix.mode }}
           SHARD: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ matrix.total }}
+          # Solo Coin-Cascade must own the CPU; sibling games contend and inflate wall time.
+          CHECK_JOBS: ${{ matrix.mode == 'solo' && '1' || '2' }}
         run: |
           set -euo pipefail
           if [ "$SCOPE_FULL" = "true" ]; then
-            node scripts/run-in-games.mjs check --shard "${SHARD}/4"
+            if [ "$CHECK_MODE" = "solo" ]; then
+              node scripts/run-in-games.mjs check --jobs 1 Coin-Cascade
+            else
+              node scripts/run-in-games.mjs check --exclude Coin-Cascade --shard "${SHARD}/${SHARD_TOTAL}"
+            fi
           elif [ -n "${SCOPE_GAMES}" ]; then
             # shellcheck disable=SC2086
             node scripts/run-in-games.mjs check ${SCOPE_GAMES}
@@ -143,15 +152,15 @@ jobs:
           fi
 
       - name: Run Astra Endless Train logic check
-        if: matrix.shard == 1 && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
         run: npm run check:astra-train
 
       - name: Run Astra Stillshot Archer logic check
-        if: matrix.shard == 1 && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
         run: npm run check:astra-archer
 
       - name: Run Astra Borderland logic check
-        if: matrix.shard == 1 && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
         run: npm run check:astra-borderland
 
   # ---------------------------------------------------------------------------

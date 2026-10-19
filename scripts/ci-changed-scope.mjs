@@ -90,10 +90,31 @@ function matrixJson(shards) {
   return JSON.stringify({ shard: shards });
 }
 
+/**
+ * Full check matrix isolates Coin-Cascade (CPU-heavy physics sim) on its own
+ * runner with CHECK_JOBS=1 so it is not contended by sibling games. Remaining
+ * games split across three shards.
+ */
+function checkMatrixJson(scope) {
+  if (!scope.full) {
+    return JSON.stringify({
+      include: [{ id: 'selective', mode: 'filter', shard: '1', total: '1' }],
+    });
+  }
+  return JSON.stringify({
+    include: [
+      { id: 'coin-cascade', mode: 'solo', shard: 'solo', total: '1' },
+      { id: 'rest-1', mode: 'rest', shard: '1', total: '3' },
+      { id: 'rest-2', mode: 'rest', shard: '2', total: '3' },
+      { id: 'rest-3', mode: 'rest', shard: '3', total: '3' },
+    ],
+  });
+}
+
 function writeOutput(scope) {
   // Full runs shard across runners; selective PRs keep a single shard.
   const lintMatrix = matrixJson(scope.full ? [1, 2] : [1]);
-  const checkMatrix = matrixJson(scope.full ? [1, 2, 3, 4] : [1]);
+  const checkMatrix = checkMatrixJson(scope);
   const testMatrix = matrixJson(scope.full ? [1, 2, 3, 4] : [1]);
 
   const lines = [
