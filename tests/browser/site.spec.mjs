@@ -235,7 +235,9 @@ test('big-two: seeded opener plays ♣3, then undo after the table updates', asy
 
 test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Fifteen-Puzzle/');
+  // Title screen: tier chip then start classic (depth PR added a lobby).
   await activate(page.getByRole('button', { name: '簡單', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '經典模式', exact: true }), isMobile);
   await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
 
   const movable = page.getByRole('button', { name: /第 \d+ 格/ }).and(page.locator(':enabled'));
@@ -246,7 +248,7 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
   await activate(page.getByRole('button', { name: '復原', exact: true }), isMobile);
   await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
 
-  await activate(page.getByRole('button', { name: '重開一局', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '重開', exact: true }), isMobile);
   await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first()).toBeVisible();
 });
