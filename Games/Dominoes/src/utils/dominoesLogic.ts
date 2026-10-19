@@ -1,10 +1,64 @@
 /**
- * Double-six dominoes: Draw Game variant.
- * 28 tiles (0-0 to 6-6), 2 players, 7 tiles each, play to line ends, draw when cannot play.
- * Win: empty hand. Block: no one can play, lower pip sum wins.
+ * Double-six dominoes: Draw, Block, and All Fives (Muggins) variants.
+ * Match play accumulates round scores to a configurable target (default 100).
  */
 
-// ponytail: local shuffle so check-dominoes.mjs can import under strip-types without Vite aliases.
+import {
+  boardToChain,
+  canAttachToEnd,
+  emptyBoard,
+  getChainEnds,
+  getEndPip,
+  getOpenEndCounts,
+  getOutwardPip,
+  getPlayableEnds,
+  isDouble,
+  placeFirstTile,
+  placeTile,
+  scoreOpenEnds,
+  sumOpenEnds,
+  type Board,
+} from './board';
+import type {
+  Difficulty,
+  EndId,
+  MatchTarget,
+  PlayerId,
+  PlacedTile,
+  RuleVariant,
+  Tile,
+} from './types';
+import { DEFAULT_MATCH_TARGET, MATCH_TARGETS } from './types';
+
+export type {
+  Board,
+  Difficulty,
+  EndId,
+  MatchTarget,
+  PlayerId,
+  PlacedTile,
+  RuleVariant,
+  Tile,
+};
+export {
+  boardToChain,
+  canAttachToEnd,
+  emptyBoard,
+  getChainEnds,
+  getEndPip,
+  getOpenEndCounts,
+  getOutwardPip,
+  getPlayableEnds,
+  isDouble,
+  placeFirstTile,
+  placeTile,
+  scoreOpenEnds,
+  sumOpenEnds,
+  DEFAULT_MATCH_TARGET,
+  MATCH_TARGETS,
+};
+
+// ponytail: local shuffle so check scripts can import without Vite aliases.
 function shuffleArray<T>(items: readonly T[]): T[] {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -14,45 +68,34 @@ function shuffleArray<T>(items: readonly T[]): T[] {
   return copy;
 }
 
-export interface Tile {
-  id: number;
-  left: number;
-  right: number;
-}
-
-/** One tile placed on the board; displayLeft/Right are pips from left to right along the chain. */
-export interface PlacedTile {
-  tile: Tile;
-  displayLeft: number;
-  displayRight: number;
-}
-
-export type PlayerId = 0 | 1;
-
-/** Draw = pull from boneyard when stuck; Block = pass instead. */
-export type RuleVariant = 'draw' | 'block';
-
 export interface DominoesState {
-  /** Current player (0 or 1). */
   currentPlayer: PlayerId;
-  /** Hands: hands[0] and hands[1], each array of tiles. */
   hands: [Tile[], Tile[]];
-  /** Tiles on the table in order (left to right). */
-  chain: PlacedTile[];
-  /** Remaining tiles to draw from. Leave 2 in draw game. */
+  board: Board;
   boneyard: Tile[];
-  /** 'playing' | 'won' | 'blocked' */
-  phase: 'playing' | 'won' | 'blocked';
-  /** Set when phase is 'won' (who emptied hand) or 'blocked' (who had lower pip sum). */
+  phase: 'playing' | 'roundOver';
   winner: PlayerId | null;
-  /** Draw vs Block rule set. */
+  roundEndReason: 'domino' | 'blocked' | null;
   ruleVariant: RuleVariant;
+  /** Points scored this hand (mid-play + round-end bonus). */
+  handScores: [number, number];
+  lastPlayScore: number;
+  lastOpenSum: number;
+  /** Suits each player appears to lack after draw/pass. */
+  suspectedLack: [number[], number[]];
+}
+
+export interface MatchState {
+  scores: [number, number];
+  target: number;
+  round: number;
+  matchOver: boolean;
+  matchWinner: PlayerId | null;
 }
 
 const BONEYARD_LEAVE = 2;
 const HAND_SIZE = 7;
 
-/** Build double-six set: 28 tiles with unique ids. */
 export function createSet(): Tile[] {
   const tiles: Tile[] = [];
   let id = 0;
@@ -64,256 +107,344 @@ export function createSet(): Tile[] {
   return tiles;
 }
 
-/** Pip sum of a tile. */
 export function tileSum(t: Tile): number {
   return t.left + t.right;
 }
 
-/** Pip sum of all tiles in a hand. */
 export function handSum(hand: Tile[]): number {
   return hand.reduce((s, t) => s + tileSum(t), 0);
 }
 
-/** Check if tile can attach to a given end (pip value). */
-export function canAttachToEnd(tile: Tile, endPip: number): boolean {
-  return tile.left === endPip || tile.right === endPip;
+export function roundToNearestFive(pips: number): number {
+  return Math.round(pips / 5) * 5;
 }
 
-/** Get the pip that would face outward when attaching tile to endPip (the "other" pip). */
-export function getOutwardPip(tile: Tile, endPip: number): number | null {
-  if (tile.left === endPip) return tile.right;
-  if (tile.right === endPip) return tile.left;
-  return null;
+/** Round-end points from the loser's remaining hand. */
+export function roundEndPoints(
+  loserHand: Tile[],
+  ruleVariant: RuleVariant,
+): number {
+  const raw = handSum(loserHand);
+  return ruleVariant === 'fives' ? roundToNearestFive(raw) : raw;
 }
 
-/** Left and right end pips of the chain (undefined if chain empty). */
-export function getChainEnds(chain: PlacedTile[]): { left: number; right: number } | null {
-  if (chain.length === 0) return null;
-  return {
-    left: chain[0].displayLeft,
-    right: chain[chain.length - 1].displayRight,
-  };
-}
-
-/** Tiles in hand that can be played on at least one end. */
-export function getPlayableTiles(
-  hand: Tile[],
-  chain: PlacedTile[]
-): Tile[] {
-  const ends = getChainEnds(chain);
-  if (!ends) return hand;
-  return hand.filter(
-    (t) => canAttachToEnd(t, ends.left) || canAttachToEnd(t, ends.right)
+export function getPlayableTiles(hand: Tile[], board: Board): Tile[] {
+  if (!board.hub) return hand;
+  const ends = getPlayableEnds(board);
+  return hand.filter((t) =>
+    ends.some((end) => {
+      const pip = getEndPip(board, end);
+      return pip !== null && canAttachToEnd(t, pip);
+    }),
   );
 }
 
-/** Can the current player play at least one tile? */
-export function canPlay(hand: Tile[], chain: PlacedTile[]): boolean {
-  return getPlayableTiles(hand, chain).length > 0;
+export function canPlay(hand: Tile[], board: Board): boolean {
+  return getPlayableTiles(hand, board).length > 0;
 }
 
-/** Place tile on the given end; returns new chain or null if invalid. */
-export function placeTile(
-  chain: PlacedTile[],
-  tile: Tile,
-  end: 'left' | 'right'
-): PlacedTile[] | null {
-  const ends = getChainEnds(chain);
-  const endPip = ends ? (end === 'left' ? ends.left : ends.right) : null;
-  if (chain.length > 0 && endPip !== null) {
-    const out = getOutwardPip(tile, endPip);
-    if (out === null) return null;
-    const placed: PlacedTile =
-      end === 'left'
-        ? { tile, displayLeft: out, displayRight: endPip }
-        : { tile, displayLeft: endPip, displayRight: out };
-    return end === 'left' ? [placed, ...chain] : [...chain, placed];
-  }
-  if (chain.length === 0) {
-    return [{ tile, displayLeft: tile.left, displayRight: tile.right }];
-  }
-  return null;
-}
-
-/** Remove tile from hand by id. */
 function removeFromHand(hand: Tile[], tileId: number): Tile[] {
   return hand.filter((t) => t.id !== tileId);
 }
 
-/** Draw one from boneyard; returns [newBoneyard, drawnTile or null]. */
 function drawOne(boneyard: Tile[]): [Tile[], Tile | null] {
   if (boneyard.length === 0) return [[], null];
   const [drawn, ...rest] = boneyard;
   return [rest, drawn];
 }
 
-/** Create initial state: shuffled set, 7 each, first tile played by player with highest double (or 6-6, 5-5, ...). */
-export function createInitialState(ruleVariant: RuleVariant = 'draw'): DominoesState {
+function usesDraw(ruleVariant: RuleVariant): boolean {
+  return ruleVariant === 'draw' || ruleVariant === 'fives';
+}
+
+function highestDouble(hand: Tile[]): Tile | null {
+  for (let d = 6; d >= 0; d--) {
+    const t = hand.find((x) => x.left === d && x.right === d);
+    if (t) return t;
+  }
+  return null;
+}
+
+export function createMatchState(target: number = DEFAULT_MATCH_TARGET): MatchState {
+  return {
+    scores: [0, 0],
+    target,
+    round: 1,
+    matchOver: false,
+    matchWinner: null,
+  };
+}
+
+export function createInitialState(
+  ruleVariant: RuleVariant = 'draw',
+): DominoesState {
   const shuffled = shuffleArray(createSet());
   const hand0: Tile[] = shuffled.slice(0, HAND_SIZE);
   const hand1: Tile[] = shuffled.slice(HAND_SIZE, HAND_SIZE * 2);
   const boneyard = shuffled.slice(HAND_SIZE * 2);
 
-  // First play: who has the highest double (6-6, 5-5, ...) plays it. Else random.
-  const highestDouble = (hand: Tile[]): Tile | null => {
-    for (let d = 6; d >= 0; d--) {
-      const t = hand.find((x) => x.left === d && x.right === d);
-      if (t) return t;
-    }
-    return null;
-  };
   const d0 = highestDouble(hand0);
   const d1 = highestDouble(hand1);
-  let currentPlayer: PlayerId = 0;
-  let chain: PlacedTile[] = [];
-  let hands: [Tile[], Tile[]] = [
-    [...hand0],
-    [...hand1],
-  ];
+  let hands: [Tile[], Tile[]] = [[...hand0], [...hand1]];
+  let board = emptyBoard();
+  let firstPlayer: PlayerId = 0;
 
-  let firstPlayer: PlayerId;
+  const playOpening = (player: PlayerId, tile: Tile) => {
+    board = placeFirstTile(board, tile, ruleVariant);
+    hands[player] = removeFromHand(hands[player], tile.id);
+    firstPlayer = player;
+  };
+
   if (d0 && d1) {
-    firstPlayer = d0.left >= d1.left ? 0 : 1;
-    const first = firstPlayer === 0 ? d0 : d1;
-    chain = [{ tile: first, displayLeft: first.left, displayRight: first.right }];
-    hands[firstPlayer] = removeFromHand(hands[firstPlayer], first.id);
+    const player: PlayerId = d0.left >= d1.left ? 0 : 1;
+    playOpening(player, player === 0 ? d0 : d1);
   } else if (d0) {
-    firstPlayer = 0;
-    chain = [{ tile: d0, displayLeft: d0.left, displayRight: d0.right }];
-    hands[0] = removeFromHand(hands[0], d0.id);
+    playOpening(0, d0);
   } else if (d1) {
-    firstPlayer = 1;
-    chain = [{ tile: d1, displayLeft: d1.left, displayRight: d1.right }];
-    hands[1] = removeFromHand(hands[1], d1.id);
+    playOpening(1, d1);
   } else {
-    firstPlayer = 0;
-    const first = hands[0][0];
-    chain = [{ tile: first, displayLeft: first.left, displayRight: first.right }];
-    hands[0] = removeFromHand(hands[0], first.id);
+    playOpening(0, hands[0][0]);
   }
-  currentPlayer = firstPlayer === 0 ? 1 : 0;
+
+  const openingScore = ruleVariant === 'fives' ? scoreOpenEnds(board) : 0;
+  const handScores: [number, number] = [0, 0];
+  if (openingScore > 0) handScores[firstPlayer] = openingScore;
 
   return {
-    currentPlayer,
+    currentPlayer: firstPlayer === 0 ? 1 : 0,
     hands,
-    chain,
+    board,
     boneyard,
     phase: 'playing',
     winner: null,
+    roundEndReason: null,
     ruleVariant,
+    handScores,
+    lastPlayScore: openingScore,
+    lastOpenSum: sumOpenEnds(board),
+    suspectedLack: [[], []],
   };
 }
 
-/** Play a tile at an end. Returns new state or null if invalid. */
+function withLackNote(
+  state: DominoesState,
+  player: PlayerId,
+  ends: number[],
+): [number[], number[]] {
+  const next: [number[], number[]] = [
+    [...state.suspectedLack[0]],
+    [...state.suspectedLack[1]],
+  ];
+  const set = new Set(next[player]);
+  for (const e of ends) set.add(e);
+  next[player] = [...set];
+  return next;
+}
+
+function clearLackForTile(
+  state: DominoesState,
+  player: PlayerId,
+  tile: Tile,
+): [number[], number[]] {
+  const next: [number[], number[]] = [
+    [...state.suspectedLack[0]],
+    [...state.suspectedLack[1]],
+  ];
+  next[player] = next[player].filter((n) => n !== tile.left && n !== tile.right);
+  return next;
+}
+
+function openPipsOf(board: Board): number[] {
+  return getPlayableEnds(board)
+    .map((e) => getEndPip(board, e))
+    .filter((p): p is number => p !== null);
+}
+
+function finishRound(
+  state: DominoesState,
+  winner: PlayerId,
+  reason: 'domino' | 'blocked',
+): DominoesState {
+  const loser: PlayerId = winner === 0 ? 1 : 0;
+  const bonus = roundEndPoints(state.hands[loser], state.ruleVariant);
+  const handScores: [number, number] = [...state.handScores];
+  handScores[winner] += bonus;
+  return {
+    ...state,
+    phase: 'roundOver',
+    winner,
+    roundEndReason: reason,
+    handScores,
+    lastPlayScore: bonus,
+    currentPlayer: winner,
+  };
+}
+
+/** Fold a completed hand into the match scoreboard. */
+export function applyRoundToMatch(
+  match: MatchState,
+  handScores: [number, number],
+): MatchState {
+  if (match.matchOver) return match;
+  const scores: [number, number] = [
+    match.scores[0] + handScores[0],
+    match.scores[1] + handScores[1],
+  ];
+  const bothReached =
+    scores[0] >= match.target || scores[1] >= match.target;
+  if (bothReached && scores[0] !== scores[1]) {
+    return {
+      scores,
+      target: match.target,
+      round: match.round,
+      matchOver: true,
+      matchWinner: scores[0] > scores[1] ? 0 : 1,
+    };
+  }
+  return {
+    scores,
+    target: match.target,
+    round: match.round + 1,
+    matchOver: false,
+    matchWinner: null,
+  };
+}
+
 export function playTile(
   state: DominoesState,
   player: PlayerId,
   tileId: number,
-  end: 'left' | 'right'
+  end: EndId,
 ): DominoesState | null {
   if (state.phase !== 'playing' || state.currentPlayer !== player) return null;
   const hand = state.hands[player];
   const tile = hand.find((t) => t.id === tileId);
   if (!tile) return null;
-  const newChain = placeTile(state.chain, tile, end);
-  if (!newChain) return null;
+  const newBoard = placeTile(state.board, tile, end, state.ruleVariant);
+  if (!newBoard) return null;
+
   const newHands: [Tile[], Tile[]] = [...state.hands];
   newHands[player] = removeFromHand(hand, tileId);
-  const nextPlayer: PlayerId = player === 0 ? 1 : 0;
-  const won = newHands[player].length === 0;
-  return {
+  const playScore =
+    state.ruleVariant === 'fives' ? scoreOpenEnds(newBoard) : 0;
+  const handScores: [number, number] = [...state.handScores];
+  handScores[player] += playScore;
+
+  const base: DominoesState = {
     ...state,
-    chain: newChain,
+    board: newBoard,
     hands: newHands,
-    currentPlayer: won ? state.currentPlayer : nextPlayer,
-    phase: won ? 'won' : 'playing',
-    winner: won ? player : null,
+    handScores,
+    lastPlayScore: playScore,
+    lastOpenSum: sumOpenEnds(newBoard),
+    suspectedLack: clearLackForTile(state, player, tile),
+  };
+
+  if (newHands[player].length === 0) {
+    return finishRound(base, player, 'domino');
+  }
+
+  return {
+    ...base,
+    currentPlayer: player === 0 ? 1 : 0,
   };
 }
 
-/** Draw from boneyard (until can play or boneyard has <= BONEYARD_LEAVE). Returns new state. */
 export function drawTiles(state: DominoesState, player: PlayerId): DominoesState {
   if (state.phase !== 'playing' || state.currentPlayer !== player) return state;
-  // Block variant never draws — stuck players pass instead.
-  if (state.ruleVariant === 'block') {
+  if (!usesDraw(state.ruleVariant)) {
     return pass(state, player) ?? state;
   }
+
+  const openPips = openPipsOf(state.board);
   let s = state;
-  while (s.boneyard.length > BONEYARD_LEAVE && !canPlay(s.hands[player], s.chain)) {
+  let drew = false;
+  while (
+    s.boneyard.length > BONEYARD_LEAVE &&
+    !canPlay(s.hands[player], s.board)
+  ) {
     const [newBoneyard, drawn] = drawOne(s.boneyard);
     if (!drawn) break;
+    drew = true;
     const newHands: [Tile[], Tile[]] = [...s.hands];
     newHands[player] = [...newHands[player], drawn];
-    s = {
-      ...s,
-      boneyard: newBoneyard,
-      hands: newHands,
-    };
+    s = { ...s, boneyard: newBoneyard, hands: newHands };
   }
-  if (!canPlay(s.hands[player], s.chain) && s.boneyard.length <= BONEYARD_LEAVE) {
-    return passTurn(s);
+
+  if (!canPlay(s.hands[player], s.board)) {
+    return passTurn({ ...s, suspectedLack: withLackNote(s, player, openPips) });
+  }
+  if (drew) {
+    s = { ...s, suspectedLack: withLackNote(s, player, openPips) };
   }
   return s;
 }
 
-/** Pass turn to other player. Block when next also cannot play (block rules, or draw with empty yard). */
 function passTurn(state: DominoesState): DominoesState {
   const next: PlayerId = state.currentPlayer === 0 ? 1 : 0;
-  const nextCanPlay = canPlay(state.hands[next], state.chain);
-  const boneyardExhausted = state.boneyard.length <= BONEYARD_LEAVE;
-  const declareBlock =
-    !nextCanPlay && (state.ruleVariant === 'block' || boneyardExhausted);
-  if (declareBlock) {
+  const nextCanPlay = canPlay(state.hands[next], state.board);
+  const boneyardExhausted =
+    !usesDraw(state.ruleVariant) || state.boneyard.length <= BONEYARD_LEAVE;
+  if (!nextCanPlay && boneyardExhausted) {
     const sum0 = handSum(state.hands[0]);
     const sum1 = handSum(state.hands[1]);
     const winner: PlayerId = sum0 <= sum1 ? 0 : 1;
-    return {
-      ...state,
-      currentPlayer: next,
-      phase: 'blocked',
-      winner,
-    };
+    return finishRound(state, winner, 'blocked');
   }
   return { ...state, currentPlayer: next };
 }
 
-/** Pass when stuck. Draw variant requires the boneyard to be exhausted first. */
-export function pass(state: DominoesState, player: PlayerId): DominoesState | null {
+export function pass(
+  state: DominoesState,
+  player: PlayerId,
+): DominoesState | null {
   if (state.phase !== 'playing' || state.currentPlayer !== player) return null;
-  if (canPlay(state.hands[player], state.chain)) return null;
-  if (state.ruleVariant === 'draw' && state.boneyard.length > BONEYARD_LEAVE) return null;
-  return passTurn(state);
+  if (canPlay(state.hands[player], state.board)) return null;
+  if (usesDraw(state.ruleVariant) && state.boneyard.length > BONEYARD_LEAVE) {
+    return null;
+  }
+  return passTurn({
+    ...state,
+    suspectedLack: withLackNote(state, player, openPipsOf(state.board)),
+  });
 }
 
-/** Check if playing this tile at this end is valid. */
 export function isValidPlay(
   hand: Tile[],
-  chain: PlacedTile[],
+  board: Board,
   tileId: number,
-  end: 'left' | 'right'
+  end: EndId,
+  ruleVariant: RuleVariant = 'draw',
 ): boolean {
   const tile = hand.find((t) => t.id === tileId);
   if (!tile) return false;
-  const newChain = placeTile(chain, tile, end);
-  return newChain !== null;
+  return placeTile(board, tile, end, ruleVariant) !== null;
 }
 
-/** All valid moves: [tileId, end]. */
 export function getValidMoves(
   hand: Tile[],
-  chain: PlacedTile[]
-): Array<{ tileId: number; end: 'left' | 'right' }> {
-  const ends = getChainEnds(chain);
-  if (!ends) return hand.map((t) => ({ tileId: t.id, end: 'left' as const }));
-  const moves: Array<{ tileId: number; end: 'left' | 'right' }> = [];
-  for (const t of hand) {
-    if (canAttachToEnd(t, ends.left)) moves.push({ tileId: t.id, end: 'left' });
-    if (canAttachToEnd(t, ends.right)) moves.push({ tileId: t.id, end: 'right' });
+  board: Board,
+  ruleVariant: RuleVariant = 'draw',
+): Array<{ tileId: number; end: EndId }> {
+  if (!board.hub) {
+    return hand.map((t) => ({ tileId: t.id, end: 'left' as const }));
+  }
+  const moves: Array<{ tileId: number; end: EndId }> = [];
+  const seen = new Set<string>();
+  for (const end of getPlayableEnds(board)) {
+    const pip = getEndPip(board, end);
+    if (pip === null) continue;
+    for (const t of hand) {
+      if (!canAttachToEnd(t, pip)) continue;
+      if (!placeTile(board, t, end, ruleVariant)) continue;
+      const key = `${t.id}:${end}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      moves.push({ tileId: t.id, end });
+    }
   }
   return moves;
 }
-
-export type Difficulty = 'easy' | 'normal' | 'hard';
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   easy: '簡單',
@@ -321,80 +452,120 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: '困難',
 };
 
-/** Short player-facing blurbs so Easy / Normal / Hard read as three opponents. */
 export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
   easy: '常亂接，先丟輕牌',
   normal: '會出重點，偶有失手',
-  hard: '顧後手接法，不犯錯',
+  hard: '算得分、堵對手端點',
+};
+
+export const RULE_LABELS: Record<RuleVariant, string> = {
+  draw: '摸牌制',
+  block: '封鎖制',
+  fives: '五倍數',
+};
+
+export const RULE_BLURBS: Record<RuleVariant, string> = {
+  draw: '無法出牌就摸牌，比誰先出完',
+  block: '無法出牌就跳過，阻塞比點數',
+  fives: '端點和為 5 的倍數得分，打到目標分',
 };
 
 export type DifficultyConfig = {
-  /** Chance of ignoring the scoring and playing any legal tile. */
   blunderRate: number;
-  /** Weight on keeping tiles that can still attach after this move. */
   flexibilityWeight: number;
-  /** Sheds light tiles first — the beginner habit of hoarding the heavy ones. */
   dumpLightFirst: boolean;
+  scoreWeight: number;
+  leaveScorePenalty: number;
+  lackFeedWeight: number;
 };
 
-/*
- * Dominoes has no search depth to crank — measured over 400 games the best
- * policy here beats pure random only 238–162. The three tiers still share the
- * #126/#130 feel axes: blunder rate, a midgame skill knob (flexibility /
- * shed-light), and setup blurbs that read differently.
- */
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
-  // High blunder + dump light first: often random, beginner shed habit.
-  easy: { blunderRate: 0.45, flexibilityWeight: 0, dumpLightFirst: true },
-  // Sheds high pips, light flexibility, occasional slips.
-  normal: { blunderRate: 0.12, flexibilityWeight: 3, dumpLightFirst: false },
-  // No intentional errors; strongly prefers keeping follow-up attaches.
-  hard: { blunderRate: 0, flexibilityWeight: 8, dumpLightFirst: false },
+  easy: {
+    blunderRate: 0.45,
+    flexibilityWeight: 0,
+    dumpLightFirst: true,
+    scoreWeight: 0,
+    leaveScorePenalty: 0,
+    lackFeedWeight: 0,
+  },
+  normal: {
+    blunderRate: 0.12,
+    flexibilityWeight: 3,
+    dumpLightFirst: false,
+    scoreWeight: 4,
+    leaveScorePenalty: 0,
+    lackFeedWeight: 0,
+  },
+  hard: {
+    blunderRate: 0,
+    flexibilityWeight: 6,
+    dumpLightFirst: false,
+    scoreWeight: 12,
+    leaveScorePenalty: 10,
+    lackFeedWeight: 8,
+  },
 };
 
-/** Exported so `check` can pin the three tiers staying spread apart. */
 export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
   return DIFFICULTY[difficulty];
 }
 
-/**
- * How many tiles left in hand could still be played once `move` is on the
- * board. Shedding pips is worth little if it leaves you drawing every turn.
- */
 function countFollowUps(
   hand: Tile[],
-  chain: PlacedTile[],
-  move: { tileId: number; end: 'left' | 'right' },
+  board: Board,
+  move: { tileId: number; end: EndId },
+  ruleVariant: RuleVariant,
 ): number {
   const played = hand.find((t) => t.id === move.tileId);
-  const ends = getChainEnds(chain);
-  if (!played || !ends) return 0;
-
-  const outward = getOutwardPip(played, move.end === 'left' ? ends.left : ends.right);
-  if (outward === null) return 0;
-  const nextEnds = move.end === 'left'
-    ? { left: outward, right: ends.right }
-    : { left: ends.left, right: outward };
-
+  if (!played) return 0;
+  const nextBoard = placeTile(board, played, move.end, ruleVariant);
+  if (!nextBoard) return 0;
   let count = 0;
   for (const tile of hand) {
     if (tile.id === move.tileId) continue;
-    if (canAttachToEnd(tile, nextEnds.left) || canAttachToEnd(tile, nextEnds.right)) count += 1;
+    if (getPlayableTiles([tile], nextBoard).length > 0) count += 1;
   }
   return count;
 }
 
-/**
- * Score and pick a domino move for the bot. `difficulty` controls how often it
- * plays at random and whether it looks at what its own hand can follow with.
- */
+function estimateLeaveDanger(
+  board: Board,
+  opponentLack: number[],
+  ruleVariant: RuleVariant,
+): number {
+  if (ruleVariant !== 'fives') return 0;
+  const open = sumOpenEnds(board);
+  if (open > 0 && open % 5 === 0) return open;
+
+  let danger = 0;
+  const mod = open % 5;
+  if (mod === 4 || mod === 1) danger += 4;
+  else if (mod === 3 || mod === 2) danger += 1;
+
+  for (const end of getPlayableEnds(board)) {
+    const pip = getEndPip(board, end);
+    if (pip === null) continue;
+    if (opponentLack.includes(pip)) danger -= 4;
+    else danger += 2;
+  }
+  return Math.max(0, danger);
+}
+
+export type BotMove = { tileId: number; end: EndId };
+
 export function pickBotMove(
   hand: Tile[],
-  chain: PlacedTile[],
+  board: Board,
   opponentHandSize: number = 7,
   difficulty: Difficulty = 'normal',
-): { tileId: number; end: 'left' | 'right' } | null {
-  const moves = getValidMoves(hand, chain);
+  options: {
+    ruleVariant?: RuleVariant;
+    opponentLack?: number[];
+  } = {},
+): BotMove | null {
+  const ruleVariant = options.ruleVariant ?? 'draw';
+  const opponentLack = options.opponentLack ?? [];
+  const moves = getValidMoves(hand, board, ruleVariant);
   if (moves.length === 0) return null;
   if (moves.length === 1) return moves[0];
 
@@ -404,27 +575,48 @@ export function pickBotMove(
   }
 
   const tileById = new Map(hand.map((t) => [t.id, t]));
-  let best: Array<{ tileId: number; end: 'left' | 'right' }> = [];
+  let best: BotMove[] = [];
   let bestScore = -Infinity;
 
   for (const move of moves) {
     const tile = tileById.get(move.tileId);
     if (!tile) continue;
+    const nextBoard = placeTile(board, tile, move.end, ruleVariant);
+    if (!nextBoard) continue;
 
     let score = config.dumpLightFirst ? -tileSum(tile) : tileSum(tile);
-    if (tile.left === tile.right && !config.dumpLightFirst) {
+    if (isDouble(tile) && !config.dumpLightFirst) {
       score += 24 + tile.left * 2;
     }
 
-    const ends = getChainEnds(chain);
-    if (ends && opponentHandSize <= 3) {
-      const endPip = move.end === 'left' ? ends.left : ends.right;
+    if (opponentHandSize <= 3) {
+      const endPip = getEndPip(board, move.end) ?? -1;
       const outward = getOutwardPip(tile, endPip) ?? 0;
       score += outward * 3;
     }
 
     if (config.flexibilityWeight > 0) {
-      score += countFollowUps(hand, chain, move) * config.flexibilityWeight;
+      score +=
+        countFollowUps(hand, board, move, ruleVariant) * config.flexibilityWeight;
+    }
+
+    if (config.scoreWeight > 0 && ruleVariant === 'fives') {
+      score += scoreOpenEnds(nextBoard) * config.scoreWeight;
+    }
+
+    if (config.leaveScorePenalty > 0 && ruleVariant === 'fives') {
+      const danger = estimateLeaveDanger(nextBoard, opponentLack, ruleVariant);
+      score -= danger * (config.leaveScorePenalty / 10);
+      const leaveSum = sumOpenEnds(nextBoard);
+      if (leaveSum > 0 && leaveSum % 5 === 0) {
+        score -= leaveSum * 0.8;
+      }
+    }
+
+    if (config.lackFeedWeight > 0 && opponentLack.length > 0) {
+      const newEnds = openPipsOf(nextBoard);
+      const lackHits = newEnds.filter((p) => opponentLack.includes(p)).length;
+      score += lackHits * config.lackFeedWeight;
     }
 
     if (score > bestScore) {
