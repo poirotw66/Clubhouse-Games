@@ -437,6 +437,14 @@ body {
   gap: 0.3rem;
 }
 
+/* Class `display: grid` beats the UA [hidden] rule — keep easy-mode hides honest. */
+.wind-rose[hidden],
+.trim-panel[hidden],
+.cp-guide[hidden],
+.guide-tip[hidden] {
+  display: none !important;
+}
+
 .rose-ring {
   position: relative;
   width: 88px;

@@ -606,6 +606,17 @@ function startGame(gl, canvas) {
     return '正後方';
   }
 
+  /** True-wind angle from the bow (−π..π). Arcade speeds make AWA look like irons on a run. */
+  function trueWindAngle() {
+    return wrap(boat.heading - wind.from);
+  }
+
+  /** Irons for coaching / cues: use TWA in easy mode so a fast run is not labelled 頂風. */
+  function inIronsNow() {
+    const angle = input.easy ? trueWindAngle() : boat.awa;
+    return Math.abs(angle) < NO_GO;
+  }
+
   function updateWindCue() {
     const cue = hud.windCue;
     if (!cue) return;
@@ -650,8 +661,8 @@ function startGame(gl, canvas) {
           : '前進・直指目標';
     }
 
-    const awaDeg = (boat.awa * 180) / Math.PI;
-    const inIrons = Math.abs(boat.awa) < NO_GO;
+    const cueAngleDeg = ((input.easy ? trueWindAngle() : boat.awa) * 180) / Math.PI;
+    const inIrons = inIronsNow();
     const luffing = boat.luffing > 0.35;
     cue.classList.toggle('nogo', inIrons);
     cue.classList.toggle('good', !inIrons && !luffing);
@@ -660,7 +671,7 @@ function startGame(gl, canvas) {
     hud.goBtn?.classList.toggle('holding', holding);
     hud.keyGo?.classList.toggle('holding', holding);
 
-    let label = courseLabel || `風從${windQuarter(awaDeg)}`;
+    let label = courseLabel || `風從${windQuarter(cueAngleDeg)}`;
     if (wind.gusting) label = `陣風！${label}`;
     if (inIrons) {
       label = showCourse || input.easy
@@ -758,21 +769,23 @@ function startGame(gl, canvas) {
     hudAcc = 0;
 
     hud.wind.textContent = `真風 ${wind.speed.toFixed(1)} m/s${wind.gusting ? ' 陣' : ''}`;
-    hud.point.textContent = pointOfSail(boat.awa).label;
+    const sailAngle = input.easy ? trueWindAngle() : boat.awa;
+    hud.point.textContent = pointOfSail(sailAngle).label;
 
     const awaDeg = (boat.awa * 180) / Math.PI;
     const awaAbs = Math.abs(awaDeg);
+    const tipAngle = Math.abs((sailAngle * 180) / Math.PI);
     hud.awa.textContent = `相對風 ${awaAbs.toFixed(0)}° ${awaDeg >= 0 ? '右' : '左'}`;
     let tip = '橫風：好走';
-    if (awaAbs < (NO_GO * 180) / Math.PI) tip = '頂風紅區：轉開約 40° 才有推力';
-    else if (awaAbs < 55) tip = '搶風：可走，略收帆';
-    else if (awaAbs < 120) tip = '橫風／斜順：最快';
+    if (tipAngle < (NO_GO * 180) / Math.PI) tip = '頂風紅區：轉開約 40° 才有推力';
+    else if (tipAngle < 55) tip = '搶風：可走，略收帆';
+    else if (tipAngle < 120) tip = '橫風／斜順：最快';
     else tip = '順風：可放帆';
     if (boat.luffing > 0.35 && !input.autoTrim) tip = '帆在抖：按 Z 收帆吃滿風';
     if (wind.gusting) tip = `陣風 ${tip}`;
     hud.windTip.textContent = tip;
-    hud.windTip.classList.toggle('bad', awaAbs < (NO_GO * 180) / Math.PI || (boat.luffing > 0.35 && !input.autoTrim));
-    hud.windTip.classList.toggle('good', awaAbs >= 55 && awaAbs < 120 && boat.luffing < 0.2);
+    hud.windTip.classList.toggle('bad', tipAngle < (NO_GO * 180) / Math.PI || (boat.luffing > 0.35 && !input.autoTrim));
+    hud.windTip.classList.toggle('good', tipAngle >= 55 && tipAngle < 120 && boat.luffing < 0.2);
 
     const trimDeg = (boat.trim * 180) / Math.PI;
     const idealDeg = ((boat.trimIdeal ?? boat.trim) * 180) / Math.PI;
@@ -808,7 +821,7 @@ function startGame(gl, canvas) {
     const awaRot = (boat.awa * 180) / Math.PI;
     hud.compass.style.transform = `rotate(${awaRot}deg)`;
     hud.compass.classList.toggle('luffing', boat.luffing > 0.35);
-    hud.compass.classList.toggle('nogo', Math.abs(boat.awa) < NO_GO);
+    hud.compass.classList.toggle('nogo', inIronsNow());
 
     const bearing = marks.bearingToNext(boat);
     hud.arrow.style.transform = `rotate(${(bearing * 180) / Math.PI}deg)`;
