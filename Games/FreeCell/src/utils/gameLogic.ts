@@ -30,6 +30,10 @@ export function getMaxMoveCount(
   return (emptyFreeCells + 1) * Math.pow(2, effectiveEmptyTableaus);
 }
 
+function isLockedFreeCellCard(card: Card | null | undefined): boolean {
+  return Boolean(card && card.id.startsWith("locked-"));
+}
+
 export function canMove(
   state: GameState,
   source: Position,
@@ -39,7 +43,7 @@ export function canMove(
   let cardsToMove: Card[] = [];
   if (source.zone === "freeCell") {
     const card = state.freeCells[source.index];
-    if (!card) return false;
+    if (!card || isLockedFreeCellCard(card)) return false;
     cardsToMove = [card];
   } else if (source.zone === "tableau") {
     const col = state.tableaus[source.index];
@@ -155,7 +159,7 @@ export function getSafeFoundationMoves(
 
   for (let i = 0; i < 4; i++) {
     const card = state.freeCells[i];
-    if (card) {
+    if (card && !isLockedFreeCellCard(card)) {
       const move = checkCard(card, { zone: "freeCell", index: i });
       if (move) return move;
     }

@@ -2,11 +2,11 @@
 
 一個經典的 **連環新接龍（FreeCell）** 小遊戲，特色：
 
-- **完整 FreeCell 規則**：4 個暫存格、4 個 foundation、8 列 tableau。
-- **自動移動（Auto-move）**：安全時自動把牌移到 foundation。
-- **拖曳與雙擊操作**：支援點擊選牌、拖曳整串合法序列、雙擊自動上收。
-- **悔棋（Undo）與重新開始**：隨時回到上一手或開新局。
-- **Bot 解牌（Solve Game）**：內建簡單解牌器，自動依序走出一條解法路徑（若可找到）。
+- **完整 FreeCell 規則**：4 個暫存格、4 個 foundation、8 列 tableau（可切換 2 格挑戰）。
+- **步數／標準步計分**：solver 估算 par；復原計次並扣分。
+- **難度篩選**：簡單／中等／困難依 solver 標準步發牌；每日一局（台北時間）。
+- **戰績與挑戰**：勝率、連勝、各模式／局號最佳、無暫存格等挑戰目標。
+- **自動移動、提示、無限復原、Bot 解牌**；飛牌動畫與勝利瀑布、共用 synthAudio。
 
 本專案是 `Clubhouse-Games` 底下 `Games/FreeCell` 子專案，使用 React + TypeScript + Vite + Tailwind CSS 實作。
 
