@@ -1030,6 +1030,8 @@ function startGame(gl, canvas) {
 
     if (phase === 'menu') {
       // Idle bob on the title — keep GPU warm and show the bay.
+      // Cap title redraws (~20fps) so the main thread stays responsive for chrome
+      // (返回總覽) and mobile CI Playwright, instead of a full-rate WebGL spin.
       wind.update(now * 0.001);
       const waves = WAVE_AMP_EASY;
       stepSailing(
@@ -1045,7 +1047,7 @@ function startGame(gl, canvas) {
       camera.update(boat, 0, dt);
       camera.commit();
       renderScene(now, waves);
-      requestAnimationFrame(frame);
+      window.setTimeout(() => requestAnimationFrame(frame), 50);
       return;
     }
 
