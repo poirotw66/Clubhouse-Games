@@ -681,15 +681,17 @@
     state.times = CubeProgress.loadTimes();
     state.lessonId = state.progress.currentLessonId || "basics-pieces";
 
-    state.logger = new RC().ActivityLogger($("activity-log"));
-    state.engine = new RC().CubeEngine(3);
-    state.renderer = new RC().CubeRenderer(state.engine);
-    state.queue = new RC().MoveQueue((pending) => {
+    const api = RC();
+    state.logger = new api.ActivityLogger($("activity-log"));
+    state.engine = new api.CubeEngine(3);
+    state.renderer = new api.CubeRenderer(state.engine);
+    state.queue = new api.MoveQueue((pending) => {
       const el = $("queue-status");
       if (el) el.textContent = pending ? `佇列 ${pending}` : "佇列空閒";
     });
-    state.controller = new RC().CubeController(state.engine, state.queue, state.logger);
+    state.controller = new api.CubeController(state.engine, state.queue, state.logger);
     installTutorTools();
+    state.adapter = new api.WebMCPAdapter(state.controller, state.logger);
 
     state.engine.subscribe(() => {
       if (state.mode !== "learn") return;
@@ -752,8 +754,6 @@
     $("btn-auto-plan")?.addEventListener("click", () => runAutoSolve());
     $("btn-auto-step")?.addEventListener("click", () => playAutoSolveStep());
 
-    state.adapter = new RC().WebMCPAdapter(state.controller, state.logger);
-    // Fix tool count note in adapter refresh — monkeypath list length already updated.
     await state.adapter.register();
 
     state.logger.add("System", "魔術方塊學院已就緒。學習／計時／自由練習共用 CubeEngine。");

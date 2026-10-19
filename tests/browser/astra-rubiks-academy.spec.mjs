@@ -20,26 +20,26 @@ test.describe('Astra Rubik\'s Cube Academy', () => {
     await expect(page.locator('#move-count')).not.toHaveText('0');
 
     // Cheat sheet mode
-    await page.getByRole('tab', { name: '公式表' }).or(page.getByRole('button', { name: '公式表' })).click();
+    await page.getByRole('tab', { name: '公式表' }).click();
     await expect(page.locator('#sheet-list .sheet-card').first()).toBeVisible();
     await expect(page.locator('#sheet-list')).toContainText('Sune');
 
     // Timer / practice mode
-    await page.getByRole('button', { name: '計時練習' }).click();
+    await page.getByRole('tab', { name: '計時練習' }).click();
     await page.getByRole('button', { name: '新打亂' }).click();
     await expect(page.locator('#timer-scramble')).not.toHaveText('—');
     await page.getByRole('button', { name: '產生逐步還原計畫' }).click();
     await expect(page.locator('#solve-steps li').first()).toBeVisible({ timeout: 15_000 });
 
     // Free-play mode still present
-    await page.getByRole('button', { name: '自由練習' }).click();
+    await page.getByRole('tab', { name: '自由練習' }).click();
     await expect(page.getByRole('heading', { name: /自由練習/ })).toBeVisible();
     await expect(page.locator('#move-grid-free button').first()).toBeVisible();
   });
 
   test('freeplay page still boots', async ({ page }) => {
     await page.goto('gpt6-astra/webmcp-rubiks-cube/freeplay.html');
-    await expect(page.locator('#pieces .cubie').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#pieces .cubie')).toHaveCount(26, { timeout: 10_000 });
     await expect(page.locator('#move-grid button').first()).toBeVisible();
   });
 });
