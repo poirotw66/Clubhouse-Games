@@ -10,8 +10,8 @@ interface CardProps {
   isPlayableToFoundation?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
-  onDoubleClick?: () => void;
-  onClick?: () => void;
+  onDoubleClick?: (el: HTMLElement) => void;
+  onClick?: (el: HTMLElement) => void;
   className?: string;
   faceDown?: boolean;
 }
@@ -52,10 +52,13 @@ export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSel
       draggable={isDraggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onDoubleClick={onDoubleClick}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onDoubleClick?.(e.currentTarget);
+      }}
       onClick={(e) => {
         e.stopPropagation();
-        onClick?.();
+        onClick?.(e.currentTarget);
       }}
       role={onClick ? 'button' : undefined}
       className={`w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-gray-300 flex flex-col justify-between p-1.5 sm:p-2 shadow-md touch-manipulation relative overflow-hidden bg-cover bg-center ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400' : ''} ${isRed ? 'text-red-600' : 'text-gray-900'} ${isPlayableToFoundation && !isDragging && !isSelected && !isHinted ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]' : ''} ${isHinted && !isSelected ? 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.7)] z-40' : ''} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 shadow-2xl z-50' : ''} ${isDragging ? 'opacity-50' : ''} ${className}`}

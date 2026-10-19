@@ -383,6 +383,36 @@ test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, is
   await expect(page.getByRole('button', { name: '提示' })).toBeEnabled();
 });
 
+test('klondike: scoring modes, seeded deal, daily toggle, hint, redeal', async ({ page, isMobile }) => {
+  await page.goto('./Games/Klondike/');
+  await expect(page.getByRole('heading', { name: '接龍', exact: true })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '維加斯', exact: true }), isMobile);
+  await expect(page.getByText(/維加斯\s+-52/)).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '標準', exact: true }), isMobile);
+  await page.locator('#klondike-seed').fill('11982');
+  await activate(page.getByRole('button', { name: '發此局', exact: true }), isMobile);
+  await expect(page.locator('#klondike-seed')).toHaveValue('11982');
+
+  await activate(page.getByRole('button', { name: '提示' }), isMobile);
+  await activate(page.getByRole('button', { name: '重新發同局', exact: true }), isMobile);
+  await expect(page.locator('#klondike-seed')).toHaveValue('11982');
+
+  await activate(page.locator('#klondike-daily'), isMobile);
+  await expect(page.getByText(/今日挑戰/)).toBeVisible();
+  await expect(page.locator('#klondike-seed')).toBeDisabled();
+
+  await activate(page.getByRole('button', { name: '戰績' }), isMobile);
+  const stats = page.getByRole('dialog', { name: /戰績/ });
+  await expect(stats).toBeVisible();
+  await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
+  await expect(stats).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '新局' }), isMobile);
+  await expect(page.getByRole('button', { name: '提示' })).toBeEnabled();
+});
+
 test('reversi: two-player completes a round through the result overlay', async ({ page, isMobile }) => {
   // Greedy play is fast alone; keep headroom when Clockwork shares the worker pool.
   test.setTimeout(120_000);
