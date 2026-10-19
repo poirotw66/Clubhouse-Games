@@ -57,7 +57,10 @@ import {
   abilityById,
   abilityEffects,
   newlyUnlockedAbilities,
+  springTrainingMul,
 } from './abilities';
+import { applyLegacyToState } from './legacy';
+import type { LegacyOption } from './legacy';
 import {
   EMPTY_CLUTCH_MODS,
   applyClutchMods,
@@ -100,8 +103,21 @@ export const HS_TURNS = 15;
  * season still moves attributes, fatigue and fame by the same total amount.
  */
 const PRO_TURNS_PER_YEAR = 3;
+/**
+ * M4: pro growth is no longer a flat 1/3 tax. 春訓 is the breakthrough window
+ * (higher scale); 球季 / 球季後 stay lighter. Three turns still sum near ~1.05×
+ * so a year is slightly richer than the old "one train" feel without exploding.
+ */
+const PRO_PHASE_SCALE = [0.55, 0.28, 0.22] as const;
+/** @deprecated kept for docs / tests that mention the old constant name. */
 const PRO_TURN_SCALE = 1 / PRO_TURNS_PER_YEAR;
 const PRO_PHASE_LABELS = ['春訓', '球季', '球季後'] as const;
+
+function proTurnScale(state: GameState): number {
+  if (state.stage !== 'pro') return 1;
+  const base = PRO_PHASE_SCALE[state.proTurn] ?? PRO_TURN_SCALE;
+  return base * springTrainingMul(state.abilities);
+}
 /** Passive fatigue recovery between turns, split evenly across a pro year. */
 const FATIGUE_RECOVERY = 6;
 
@@ -203,6 +219,8 @@ export interface CreateInput {
   originId: string;
   /** When set, enables that challenge's fixed-turn situation hooks. */
   challengeId?: string | null;
+  /** M4 New Game+ inherit choice (ignored for challenge runs). */
+  legacy?: LegacyOption | null;
 }
 
 export function createGame(input: CreateInput): GameState {
@@ -303,6 +321,10 @@ export function createGame(input: CreateInput): GameState {
     `${state.team} 棒球部，${origin.label}。教練${state.coach.name}、宿敵 ${state.rival.name}——你的棒球人生從這個春天開始。`,
     'normal',
   );
+  // Free-play New Game+ inherit — challenges stay seed-pure.
+  if (input.legacy && !challengeId) {
+    applyLegacyToState(state, input.legacy);
+  }
   syncChapterCards(state);
   state.decision = buildDecision(state);
   return state;
@@ -451,17 +473,17 @@ const DICE_FLAVOR: Record<number, { text: string; tone: LogEntry['tone'] }> = {
 };
 
 /**
- * Almost all of a player is built before 22. After that, training holds the
- * line and buys a couple of points a year; it does not turn a fringe pro into
- * a star. This is what makes the high-school years the real game.
+ * M4 rebalance: high school is still the main forge, but 22–27 keeps a real
+ * growth lane so pro 春訓 decisions matter. Decline still bites after 30.
  */
 function growthAgeFactor(age: number): number {
   if (age <= 18) return 1.35;
-  if (age <= 21) return 1.0;
-  if (age <= 25) return 0.5;
-  if (age <= 29) return 0.22;
-  if (age <= 32) return 0.08;
-  return 0.03;
+  if (age <= 21) return 1.05;
+  if (age <= 24) return 0.72;
+  if (age <= 27) return 0.48;
+  if (age <= 30) return 0.28;
+  if (age <= 33) return 0.12;
+  return 0.05;
 }
 
 function applyTraining(
@@ -1620,10 +1642,13 @@ function applyTrainingCard(
   if (option.motivation) {
     deltas.motivation = (deltas.motivation ?? 0) + round(option.motivation * turnScale);
   }
-  // Ability rest bonus: basepath players recover a little more motivation.
-  if (option.rest) {
-    const bonus = abilityEffects(state.abilities).restMotivation;
-    if (bonus > 0) deltas.motivation = (deltas.motivation ?? 0) + bonus;
+  // Ability rest bonus + passive motivation drift from encyclopedia abilities.
+  const effects = abilityEffects(state.abilities);
+  if (option.rest && effects.restMotivation > 0) {
+    deltas.motivation = (deltas.motivation ?? 0) + effects.restMotivation;
+  }
+  if (effects.motivationDrift) {
+    deltas.motivation = (deltas.motivation ?? 0) + effects.motivationDrift;
   }
   return fatigueDelta;
 }
@@ -1700,7 +1725,7 @@ function resolveTraining(state: GameState, option: TrainingOption, useDestiny = 
   // scaled to a third — three turns' worth of training, fatigue and event
   // impact has to sum to the same season total one big turn used to produce.
   // High school and amateur are unaffected (scale stays 1).
-  const turnScale = state.stage === 'pro' ? PRO_TURN_SCALE : 1;
+  const turnScale = proTurnScale(state);
   // 球季 is the one turn a pro year actually plays games in; 春訓 and 球季後
   // are preparation and reflection around it.
   const playsSeason = state.stage === 'amateur' || (state.stage === 'pro' && state.proTurn === 1);

@@ -25,6 +25,18 @@ export type DifficultyId = 'easy' | 'normal' | 'hard';
 export type CpuBrain = 'careless' | 'sharp';
 
 /**
+ * Named CPU style — same difficulty tier, different visible preferences.
+ * Seat 1/2/3 wear fixed personalities so rematches stay readable.
+ */
+export type PersonalityId = 'feeder' | 'miser' | 'aceChaser';
+
+export interface Personality {
+  id: PersonalityId;
+  name: string;
+  blurb: string;
+}
+
+/**
  * A turn is two halves and both can present a choice, because the real game
  * lets whoever flipped a card decide which table card it takes — same as when
  * they played one from hand.
@@ -48,15 +60,34 @@ export interface CaptureEvent {
   tableBefore: Card[];
 }
 
-export interface Rules {
+/**
+ * Selectable house rules. Taiwanese club play almost always keeps black aces
+ * on at four players; the special bonuses are the "high stakes" table options.
+ */
+export interface HouseRules {
   players: PlayerCount;
-  /** 黑桃A 30 分、梅花A 40 分 — a common house rule, off by default. */
+  /** 黑桃A 30 分、梅花A 40 分 — common house rule, off by default for 2p. */
   blackAces: boolean;
+  /**
+   * 過紅五：同一回合（出牌＋翻牌）吃到兩張紅 5，其餘各家各付紅五獎金。
+   * Default on — it is the most cited Taiwanese special.
+   */
+  doubleRedFive: boolean;
+  /**
+   * 拼零分：整局一分未得者向其餘各家各收「標準分」籌碼。
+   * Default on for the same reason.
+   */
+  zeroScoreBonus: boolean;
+  /** 每局輪莊：系列賽內頭家依座位輪轉，讓座位優勢不完全綁死難度。 */
+  rotateLeader: boolean;
 }
+
+/** @deprecated Prefer HouseRules; kept so older call sites still type-check. */
+export type Rules = HouseRules;
 
 export interface GameState {
   seedCode: string;
-  rules: Rules;
+  rules: HouseRules;
   difficulty: DifficultyId;
   /** Who played the first hand card. Playing later in the order is an edge. */
   leader: Seat;
@@ -83,4 +114,59 @@ export interface Outcome {
   /** Seats holding the highest score; more than one means a tie. */
   winners: Seat[];
   result: 'win' | 'loss' | 'draw';
+  /** Seats that beat par（合格）. */
+  qualified: Seat[];
+  /**
+   * Chip deltas for this hand (zero-ish sum). Built from (score − par) plus
+   * optional 過紅五／拼零分 bonuses so the qualifying line has cash meaning.
+   */
+  deltas: number[];
+  /** Who triggered 過紅五 this hand, if any and the house rule is on. */
+  doubleRedFiveSeat: Seat | null;
+  /** Who scored exactly zero and claimed 拼零分, if any and the rule is on. */
+  zeroScoreSeat: Seat | null;
+}
+
+/** Fixed-hand series or race-to-target — the mid-session hook the audit asked for. */
+export type MatchMode = 'hands' | 'target';
+export type MatchLength = 4 | 8 | 12;
+export type TargetScore = 50 | 100 | 200;
+
+export interface MatchConfig {
+  mode: MatchMode;
+  hands: MatchLength;
+  target: TargetScore;
+  difficulty: DifficultyId;
+  rules: HouseRules;
+  seedCode: string;
+}
+
+export interface HandRecord {
+  handIndex: number;
+  seedCode: string;
+  winner: Seat | null;
+  scores: number[];
+  deltas: number[];
+  qualified: Seat[];
+  doubleRedFiveSeat: Seat | null;
+  zeroScoreSeat: Seat | null;
+}
+
+export type MatchPhase = 'playing' | 'handOver' | 'matchOver';
+
+export interface MatchState {
+  config: MatchConfig;
+  /** Zero-based index of the hand currently being played (or just finished). */
+  handIndex: number;
+  balances: number[];
+  history: HandRecord[];
+  phase: MatchPhase;
+  /** Set when the series ends. */
+  winner: Seat | null;
+}
+
+export interface HintAdvice {
+  card: Card | null;
+  taken: Card | null;
+  reason: string;
 }

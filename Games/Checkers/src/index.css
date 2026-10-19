@@ -5,5 +5,68 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
+}
+
+@keyframes checkers-slide {
+  from {
+    transform: scale(0.92);
+    opacity: 0.65;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes checkers-capture-burst {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.35);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes checkers-hop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-18%) scale(1.08);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.checkers-piece-enter {
+  animation: checkers-slide 220ms ease-out;
+}
+
+.checkers-piece-hop {
+  animation: checkers-hop 280ms ease-in-out;
+}
+
+.checkers-capture-fx {
+  position: absolute;
+  inset: 18%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.85), rgba(220, 38, 38, 0.15) 55%, transparent 70%);
+  pointer-events: none;
+  animation: checkers-capture-burst 420ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkers-piece-enter,
+  .checkers-piece-hop,
+  .checkers-capture-fx {
+    animation: none;
+  }
 }
