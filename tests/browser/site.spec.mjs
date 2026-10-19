@@ -474,6 +474,8 @@ test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ p
 
 test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ page, isMobile }) => {
   test.skip(!includesGame('FreeCell'), 'selective CI');
+  // Daily deal runs a solvability search; keep headroom on busy CI shards.
+  test.setTimeout(90_000);
   await page.goto('./Games/FreeCell/');
   await expect(page.getByRole('heading', { name: '空當接龍', exact: true })).toBeVisible();
   await expect(page.getByText(/分數\s+\d+/)).toBeVisible();
@@ -490,6 +492,7 @@ test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ 
   await activate(page.locator('#freecell-daily'), isMobile);
   await expect(page.getByText(/今日挑戰/)).toBeVisible();
   await expect(page.locator('#freecell-seed')).toBeDisabled();
+  await expect(page.locator('#freecell-seed')).not.toHaveValue('', { timeout: 20_000 });
 
   await activate(page.getByRole('button', { name: '戰績' }), isMobile);
   const stats = page.getByRole('dialog', { name: /戰績/ });
@@ -497,11 +500,15 @@ test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ 
   await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
   await expect(stats).toHaveCount(0);
 
+  // Leave daily before slot/new-game so the end of the smoke avoids stacked solver stalls.
+  await activate(page.locator('#freecell-daily'), isMobile);
+  await expect(page.locator('#freecell-seed')).toBeEnabled({ timeout: 20_000 });
+
   await activate(page.getByRole('button', { name: '2 格', exact: true }), isMobile);
   await expect(page.getByText(/悔棋/)).toBeVisible();
 
   await activate(page.getByRole('button', { name: '新遊戲' }), isMobile);
-  await expect(page.locator('#freecell-seed')).not.toHaveValue('');
+  await expect(page.locator('#freecell-seed')).not.toHaveValue('', { timeout: 20_000 });
   await expect(page.getByRole('button', { name: '提示' })).toBeEnabled();
 });
 

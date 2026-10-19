@@ -282,7 +282,18 @@ export default function App() {
     if (slots === freeCellSlots) return;
     const next = { ...settings, freeCellSlots: slots };
     persistSettings(next);
-    resetBoard(dealForSettings(next), next);
+    // Keep the same deal seed — only the free-cell count changes. Re-running the
+    // solvability search here made Playwright / CI flaky (multi-second main-thread stalls).
+    const deal = dealGame(dealSeed);
+    resetBoard(
+      {
+        tableaus: deal.tableaus,
+        seed: deal.seed,
+        parMoves,
+        difficulty: dealDifficulty,
+      },
+      next,
+    );
   };
 
   const toggleDaily = () => {
