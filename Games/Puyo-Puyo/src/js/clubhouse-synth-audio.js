@@ -26,6 +26,7 @@ var ClubhouseSynthAudio = (() => {
     playCapture: () => playCapture,
     playCard: () => playCard,
     playError: () => playError,
+    playFlip: () => playFlip,
     playGoal: () => playGoal,
     playLose: () => playLose,
     playMove: () => playMove,
@@ -98,6 +99,11 @@ var ClubhouseSynthAudio = (() => {
   function playCapture() {
     playTone(280, "square", 0.08, 0, 0.07);
     playTone(420, "triangle", 0.1, 0.06, 0.06);
+  }
+  function playFlip() {
+    playTone(240, "triangle", 0.07, 0, 0.05);
+    playTone(360, "sine", 0.08, 0.04, 0.06);
+    playTone(520, "triangle", 0.06, 0.09, 0.04);
   }
   return __toCommonJS(synthAudio_exports);
 })();

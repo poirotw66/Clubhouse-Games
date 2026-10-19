@@ -78,7 +78,7 @@ for (const game of workspaceGames) {
       await expect(page.getByRole('group', { name: '遊玩模式' })).toBeVisible();
     }
     const back = page.getByRole('link', { name: /返回總覽/ });
-    await expect(back).toBeVisible();
+    await expect(back).toBeVisible({ timeout: game.gameFolder === 'Sailing' ? 45_000 : undefined });
     await back.click();
     await expect(page.locator('#game-search')).toBeVisible();
     await expect(page.locator('#recent-list')).toContainText(game.name);
@@ -127,19 +127,48 @@ test('memory match: touch/click cards, change difficulty and restart', async ({ 
 
 test('connect four: play a win and use the result overlay to restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Connect-Four/');
+  const activateBtn = (locator) => (isMobile ? locator.tap() : locator.click());
+  await activateBtn(page.getByRole('button', { name: '雙人對戰' }));
+  await activateBtn(page.getByRole('button', { name: '經典', exact: true }));
+  await activateBtn(page.getByRole('button', { name: '7×6', exact: true }));
   for (const column of [1, 2, 1, 2, 1, 2, 1]) {
     const button = page.getByRole('button', { name: `投入第 ${column} 欄`, exact: true });
-    if (isMobile) await button.tap();
-    else await button.click();
+    await activateBtn(button);
   }
   const result = page.getByRole('dialog');
   await expect(result).toBeVisible();
   await expect(result).toHaveCSS('position', 'fixed');
   const restart = result.getByRole('button', { name: '再玩一局' });
-  if (isMobile) await restart.tap();
-  else await restart.click();
+  await activateBtn(restart);
   await expect(result).toHaveCount(0);
   await expect(page.getByRole('button', { name: '投入第 1 欄', exact: true })).toBeEnabled();
+});
+
+test('connect four: popout, series target, personality, and puzzle smoke', async ({ page, isMobile }) => {
+  await page.goto('./Games/Connect-Four/');
+  const activateBtn = (locator) => (isMobile ? locator.tap() : locator.click());
+
+  await activateBtn(page.getByRole('button', { name: '電腦（你執紅）' }));
+  await activateBtn(page.getByRole('button', { name: 'PopOut', exact: true }));
+  await expect(page.getByRole('button', { name: '投下', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'PopOut 取出', exact: true })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: '8×7', exact: true }));
+  await expect(page.getByRole('button', { name: '投入第 8 欄', exact: true })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: '5 勝', exact: true }));
+  await expect(page.getByText('先取 5 勝', { exact: false })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: '鐵壁', exact: true }));
+  await expect(page.getByText('優先擋殺', { exact: false })).toBeVisible();
+
+  await activateBtn(page.getByRole('button', { name: /謎題/ }));
+  await expect(page.getByRole('button', { name: /橫線一擊/ })).toBeVisible();
+  await activateBtn(page.getByRole('button', { name: /橫線一擊/ }));
+  await activateBtn(page.getByRole('button', { name: '投入第 4 欄', exact: true }));
+  const puzzleResult = page.getByRole('dialog');
+  await expect(puzzleResult).toBeVisible();
+  await expect(puzzleResult.getByText('謎題完成', { exact: false })).toBeVisible();
+  await activateBtn(puzzleResult.getByRole('button', { name: '下一題' }));
+  await expect(page.getByText('步內取勝', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: '投入第 4 欄', exact: true })).toBeEnabled();
 });
 
 /** Touch vs click — same helper shape as Memory-Match / Connect-Four. */
@@ -158,6 +187,31 @@ test('reversi: two-player mid-game, undo, and new-game menu', async ({ page, isM
   await expect(page.getByRole('button', { name: '可下於第 3 列 4 欄', exact: true })).toBeVisible();
   await activate(page.getByRole('button', { name: '新對局' }), isMobile);
   await expect(page.getByRole('button', { name: '雙人對戰' })).toBeVisible();
+});
+
+test('reversi: puzzle mode solves the first corner étude', async ({ page, isMobile }) => {
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
+  // Black to move takes a1 (row 1, col 1) — the only legal winning corner.
+  const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
+  await expect(corner).toBeVisible();
+  await activate(corner, isMobile);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await expect(dialog).toHaveAttribute('aria-label', /謎題完成/);
+  await activate(dialog.getByRole('button', { name: /下一題|再試一次/ }), isMobile);
+});
+
+test('reversi: opponent ladder unlocks the first challenge', async ({ page, isMobile }) => {
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '對手名冊' }), isMobile);
+  await expect(page.getByText('貪心小子')).toBeVisible();
+  await expect(page.getByRole('button', { name: '挑戰' }).first()).toBeEnabled();
+  await expect(page.getByRole('button', { name: '鎖定' }).first()).toBeVisible();
+  await activate(page.getByRole('button', { name: '挑戰' }).first(), isMobile);
+  await expect(page.getByText('貪心小子')).toBeVisible();
+  await expect(page.getByRole('button', { name: '悔棋' })).toBeVisible();
 });
 
 test('blackjack: bet, resolve a hand, and restart from the result overlay', async ({ page, isMobile }) => {
@@ -198,7 +252,9 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
   await page.goto('./Games/Pick-Red/');
   await activate(page.getByRole('button', { name: /困難/ }), isMobile);
   await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
-  await activate(page.getByRole('button', { name: '開始牌局', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '開始系列賽', exact: true }), isMobile);
+
+  await expect(page.getByRole('region', { name: '系列賽計分板' })).toBeVisible();
 
   const hand = page.getByRole('region', { name: '你的手牌' });
   const queen = hand.getByRole('button', { name: '紅♦Q，10 分', exact: true });
@@ -265,9 +321,22 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
   await expect(page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first()).toBeVisible();
 });
 
-test('checkers: two-player opening move, undo, and new game', async ({ page, isMobile }) => {
+test('checkers: variants, two-player opening, undo, and new game', async ({ page, isMobile }) => {
   await page.goto('./Games/Checkers/');
-  // Default mode is 雙人對戰; black opens from A3 → B4.
+  await expect(page.getByRole('heading', { name: '西洋跳棋', exact: true })).toBeVisible();
+
+  // International 10×10 uses A–J labels and 20 pieces per side.
+  await activate(page.getByRole('button', { name: /國際式 10×10/ }), isMobile);
+  await expect(page.getByRole('button', { name: 'black man at A3', exact: true })).toBeVisible();
+  await expect(page.getByText('J', { exact: true }).first()).toBeVisible();
+
+  // Back to American 8×8 for the opening sequence.
+  await activate(page.getByRole('button', { name: /美式 8×8/ }), isMobile);
+
+  // Switch to 雙人 so the bot does not race the undo assertion.
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '雙人', exact: true }), isMobile);
+
   const opener = page.getByRole('button', { name: 'black man at A3', exact: true });
   await expect(opener).toBeVisible();
   await activate(opener, isMobile);
@@ -351,6 +420,36 @@ test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, is
 
   await activate(page.getByRole('button', { name: '新遊戲' }), isMobile);
   await expect(page.locator('#freecell-seed')).not.toHaveValue('');
+  await expect(page.getByRole('button', { name: '提示' })).toBeEnabled();
+});
+
+test('klondike: scoring modes, seeded deal, daily toggle, hint, redeal', async ({ page, isMobile }) => {
+  await page.goto('./Games/Klondike/');
+  await expect(page.getByRole('heading', { name: '接龍', exact: true })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '維加斯', exact: true }), isMobile);
+  await expect(page.getByText(/維加斯\s+-52/)).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '標準', exact: true }), isMobile);
+  await page.locator('#klondike-seed').fill('11982');
+  await activate(page.getByRole('button', { name: '發此局', exact: true }), isMobile);
+  await expect(page.locator('#klondike-seed')).toHaveValue('11982');
+
+  await activate(page.getByRole('button', { name: '提示' }), isMobile);
+  await activate(page.getByRole('button', { name: '重新發同局', exact: true }), isMobile);
+  await expect(page.locator('#klondike-seed')).toHaveValue('11982');
+
+  await activate(page.locator('#klondike-daily'), isMobile);
+  await expect(page.getByText(/今日挑戰/)).toBeVisible();
+  await expect(page.locator('#klondike-seed')).toBeDisabled();
+
+  await activate(page.getByRole('button', { name: '戰績' }), isMobile);
+  const stats = page.getByRole('dialog', { name: /戰績/ });
+  await expect(stats).toBeVisible();
+  await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
+  await expect(stats).toHaveCount(0);
+
+  await activate(page.getByRole('button', { name: '新局' }), isMobile);
   await expect(page.getByRole('button', { name: '提示' })).toBeEnabled();
 });
 

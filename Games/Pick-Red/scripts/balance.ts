@@ -12,7 +12,18 @@ import type { CpuBrain, DifficultyId, GameState, PlayerCount } from '../src/game
  */
 function run(seedCode: string, difficulty: DifficultyId, players: PlayerCount, humanBrain: CpuBrain) {
   const info = difficultyInfo(difficulty);
-  let state = deal(seedCode, difficulty, { players, blackAces: false }, leaderFor(difficulty, players));
+  let state = deal(
+    seedCode,
+    difficulty,
+    {
+      players,
+      blackAces: false,
+      doubleRedFive: true,
+      zeroScoreBonus: true,
+      rotateLeader: false,
+    },
+    leaderFor(difficulty, players),
+  );
   let guard = 0;
 
   while (state.phase !== 'over' && guard++ < 400) {

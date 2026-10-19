@@ -4,6 +4,7 @@
  * and special abilities can be felt on the field rather than only on a report.
  */
 import { IS_PITCHER, IS_TWO_WAY, LEAGUES, overall } from './config';
+import { abilityApproachBias, abilityEffects } from './abilities';
 import { rivalPresentForMatch, rivalizeClutchCopy } from './people';
 import { streamRng } from './rng';
 import { traitEffects } from './traits';
@@ -319,15 +320,7 @@ function attitudeBias(attitudeId: string | undefined, approach: ClutchApproach):
 }
 
 function abilityBias(abilities: string[], approach: ClutchApproach): number {
-  const has = (id: string) => abilities.includes(id);
-  let bonus = 0;
-  if (has('keen-eye') && (approach === 'patient' || approach === 'sit-breaking' || approach === 'sit-fastball'))
-    bonus += 0.1;
-  if (has('basepath') && (approach === 'steal' || approach === 'hitrun')) bonus += 0.12;
-  if (has('pull') && (approach === 'power' || approach === 'sit-fastball')) bonus += 0.1;
-  if (has('heavy-ball') && (approach === 'challenge' || approach === 'paint')) bonus += 0.1;
-  if (has('range') && approach === 'defend') bonus += 0.14;
-  return bonus;
+  return abilityApproachBias(abilities, approach) + abilityEffects(abilities).clutchBias;
 }
 
 function attrBias(state: GameState, approach: ClutchApproach): number {

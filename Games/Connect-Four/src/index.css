@@ -4,3 +4,62 @@
 @import "../../../shared/tailwind-source.css";
 
 body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+
+/* Drop from above the board, settle with a short bounce. */
+@keyframes c4-drop {
+  0% {
+    transform: translateY(var(--c4-drop-from, -280%));
+  }
+  72% {
+    transform: translateY(10%);
+  }
+  86% {
+    transform: translateY(-5%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes c4-win-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.65);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(251, 191, 36, 1);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes c4-pop-out {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(40%) scale(0.7);
+    opacity: 0;
+  }
+}
+
+.c4-piece-drop {
+  animation: c4-drop 0.38s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+
+.c4-win-glow {
+  animation: c4-win-pulse 0.9s ease-in-out infinite;
+}
+
+.c4-piece-pop {
+  animation: c4-pop-out 0.28s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c4-piece-drop,
+  .c4-win-glow,
+  .c4-piece-pop {
+    animation: none;
+  }
+}

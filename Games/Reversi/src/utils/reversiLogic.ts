@@ -8,14 +8,14 @@ export type Piece = 'black' | 'white';
 export type Cell = Piece | null;
 export type Board = Cell[][];
 
-const SIZE = 8;
-const DIRECTIONS: [number, number][] = [
+export const SIZE = 8;
+export const DIRECTIONS: [number, number][] = [
   [-1, -1], [-1, 0], [-1, 1],
   [0, -1],           [0, 1],
   [1, -1],  [1, 0],  [1, 1],
 ];
 
-function opponent(color: Piece): Piece {
+export function opponent(color: Piece): Piece {
   return color === 'black' ? 'white' : 'black';
 }
 
@@ -160,6 +160,22 @@ export type DifficultyConfig = {
   mobilityWeight: number;
 };
 
+/** Extra knobs for named opponents — layered on top of a difficulty base. */
+export type BotStyle = {
+  depth?: number;
+  blunderRate?: number;
+  exactEmpties?: number;
+  mobilityWeight?: number;
+  /** Extra bonus for holding / taking corners (on top of square table). */
+  cornerGreed?: number;
+  /** Extra weight for edge (non-corner) discs. */
+  edgeWeight?: number;
+  /** Prefer flipping many discs now (greedy midgame). */
+  discGreed?: number;
+  /** Extra penalty for X-squares (diagonal next to empty corners). */
+  xSquareFear?: number;
+};
+
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
   // Depth 1 + high blunderRate: misses corners and replies often.
   easy: { depth: 1, blunderRate: 0.45, exactEmpties: 0, mobilityWeight: 2 },
@@ -176,8 +192,25 @@ export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
   return DIFFICULTY[difficulty];
 }
 
+export function mergeBotConfig(
+  difficulty: Difficulty,
+  style?: BotStyle,
+): DifficultyConfig & Required<Pick<BotStyle, 'cornerGreed' | 'edgeWeight' | 'discGreed' | 'xSquareFear'>> {
+  const base = DIFFICULTY[difficulty];
+  return {
+    depth: style?.depth ?? base.depth,
+    blunderRate: style?.blunderRate ?? base.blunderRate,
+    exactEmpties: style?.exactEmpties ?? base.exactEmpties,
+    mobilityWeight: style?.mobilityWeight ?? base.mobilityWeight,
+    cornerGreed: style?.cornerGreed ?? 25,
+    edgeWeight: style?.edgeWeight ?? 0,
+    discGreed: style?.discGreed ?? 0,
+    xSquareFear: style?.xSquareFear ?? 0,
+  };
+}
+
 /** Position weights: corners best, squares next to them worst. */
-const SQUARE_WEIGHT = [
+export const SQUARE_WEIGHT = [
   [100, -20, 10, 5, 5, 10, -20, 100],
   [-20, -50, -2, -2, -2, -2, -50, -20],
   [10, -2, 1, 0, 0, 1, -2, 10],
@@ -188,10 +221,12 @@ const SQUARE_WEIGHT = [
   [100, -20, 10, 5, 5, 10, -20, 100],
 ];
 
-const CORNERS: [number, number][] = [[0, 0], [0, 7], [7, 0], [7, 7]];
+export const CORNERS: [number, number][] = [[0, 0], [0, 7], [7, 0], [7, 7]];
+/** Diagonal neighbors of corners — often gift the corner if taken early. */
+export const X_SQUARES: [number, number][] = [[1, 1], [1, 6], [6, 1], [6, 6]];
 const WIN_SCORE = 100_000;
 
-function countEmpties(board: Board): number {
+export function countEmpties(board: Board): number {
   let n = 0;
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) if (board[r][c] === null) n++;
@@ -199,27 +234,66 @@ function countEmpties(board: Board): number {
   return n;
 }
 
+function isEdge(r: number, c: number): boolean {
+  if (CORNERS.some(([cr, cc]) => cr === r && cc === c)) return false;
+  return r === 0 || r === 7 || c === 0 || c === 7;
+}
+
+type EvalWeights = {
+  mobilityWeight: number;
+  cornerGreed: number;
+  edgeWeight: number;
+  discGreed: number;
+  xSquareFear: number;
+};
+
 /**
  * Heuristic score of `board` from `me`'s point of view. Every search value is
  * expressed this way — relative to the side whose turn it is — which is what
  * lets the negamax below flip signs on each ply.
  */
-function evaluate(board: Board, me: Piece, mobilityWeight: number, myMoves: number): number {
+function evaluate(
+  board: Board,
+  me: Piece,
+  myMoves: number,
+  weights: EvalWeights,
+): number {
   const opp = opponent(me);
   let score = 0;
+  let myDiscs = 0;
+  let oppDiscs = 0;
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      if (board[r][c] === me) score += SQUARE_WEIGHT[r][c];
-      else if (board[r][c] === opp) score -= SQUARE_WEIGHT[r][c];
+      const cell = board[r][c];
+      if (cell === me) {
+        score += SQUARE_WEIGHT[r][c];
+        myDiscs++;
+        if (isEdge(r, c)) score += weights.edgeWeight;
+      } else if (cell === opp) {
+        score -= SQUARE_WEIGHT[r][c];
+        oppDiscs++;
+        if (isEdge(r, c)) score -= weights.edgeWeight;
+      }
     }
   }
   const oppMoves = getLegalMoves(board, opp).length;
-  score += (myMoves - oppMoves) * mobilityWeight;
+  score += (myMoves - oppMoves) * weights.mobilityWeight;
+  score += (myDiscs - oppDiscs) * weights.discGreed;
 
   // Held corners are permanent, so weigh them well above their square value.
   for (const [r, c] of CORNERS) {
-    if (board[r][c] === me) score += 25;
-    else if (board[r][c] === opp) score -= 25;
+    if (board[r][c] === me) score += weights.cornerGreed;
+    else if (board[r][c] === opp) score -= weights.cornerGreed;
+  }
+
+  if (weights.xSquareFear > 0) {
+    for (const [r, c] of X_SQUARES) {
+      const corner: [number, number] =
+        r === 1 && c === 1 ? [0, 0] : r === 1 && c === 6 ? [0, 7] : r === 6 && c === 1 ? [7, 0] : [7, 7];
+      if (board[corner[0]][corner[1]] !== null) continue;
+      if (board[r][c] === me) score -= weights.xSquareFear;
+      else if (board[r][c] === opp) score += weights.xSquareFear;
+    }
   }
   return score;
 }
@@ -232,7 +306,7 @@ function finalScore(board: Board, me: Piece): number {
 }
 
 /** Corners first, then by square value — cheap ordering that prunes a lot. */
-function orderMoves(moves: [number, number][]): [number, number][] {
+export function orderMoves(moves: [number, number][]): [number, number][] {
   return [...moves].sort((a, b) => {
     const aCorner = SQUARE_WEIGHT[a[0]][a[1]] === 100 ? 1 : 0;
     const bCorner = SQUARE_WEIGHT[b[0]][b[1]] === 100 ? 1 : 0;
@@ -251,7 +325,7 @@ function negamax(
   alpha: number,
   beta: number,
   turn: Piece,
-  mobilityWeight: number,
+  weights: EvalWeights,
   exact: boolean,
 ): number {
   const moves = getLegalMoves(board, turn);
@@ -270,17 +344,17 @@ function negamax(
   // a pass costs a ply without making a move, so depth can skip past 0 and an
   // `=== 0` test would let the search run away to the end of the game.
   // `moves` is already in hand, so the eval reuses it rather than rescanning.
-  if (!exact && depth <= 0) return evaluate(board, turn, mobilityWeight, moves.length);
+  if (!exact && depth <= 0) return evaluate(board, turn, moves.length, weights);
 
   // Only this side passes: the turn flips, so the value flips with it.
   if (stuck) {
-    return -negamax(board, depth - 1, -beta, -alpha, opponent(turn), mobilityWeight, exact);
+    return -negamax(board, depth - 1, -beta, -alpha, opponent(turn), weights, exact);
   }
 
   let value = -Infinity;
   for (const [r, c] of orderMoves(moves)) {
     const next = applyMove(board, r, c, turn);
-    const score = -negamax(next, depth - 1, -beta, -alpha, opponent(turn), mobilityWeight, exact);
+    const score = -negamax(next, depth - 1, -beta, -alpha, opponent(turn), weights, exact);
     if (score > value) value = score;
     if (value > alpha) alpha = value;
     if (alpha >= beta) break;
@@ -291,18 +365,20 @@ function negamax(
 /**
  * Pick a move for the bot. `difficulty` controls lookahead, how much the bot
  * values mobility, when it switches to a perfect endgame search, and how often
- * it deliberately plays something other than its best move.
+ * it deliberately plays something other than its best move. Optional `style`
+ * overlays named-opponent preferences (corners, edges, greed, …).
  */
 export function getBestMove(
   board: Board,
   color: Piece,
   difficulty: Difficulty = 'normal',
+  style?: BotStyle,
 ): [number, number] | null {
   const moves = getLegalMoves(board, color);
   if (moves.length === 0) return null;
   if (moves.length === 1) return moves[0];
 
-  const config = DIFFICULTY[difficulty];
+  const config = mergeBotConfig(difficulty, style);
 
   if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
     return moves[Math.floor(Math.random() * moves.length)];
@@ -311,6 +387,13 @@ export function getBestMove(
   const empties = countEmpties(board);
   const exact = config.exactEmpties > 0 && empties <= config.exactEmpties;
   const depth = exact ? empties : config.depth;
+  const weights: EvalWeights = {
+    mobilityWeight: config.mobilityWeight,
+    cornerGreed: config.cornerGreed,
+    edgeWeight: config.edgeWeight,
+    discGreed: config.discGreed,
+    xSquareFear: config.xSquareFear,
+  };
 
   let best = moves[0];
   let bestScore = -Infinity;
@@ -318,7 +401,7 @@ export function getBestMove(
   for (const [r, c] of orderMoves(moves)) {
     const next = applyMove(board, r, c, color);
     const score = -negamax(
-      next, depth - 1, -Infinity, -alpha, opponent(color), config.mobilityWeight, exact,
+      next, depth - 1, -Infinity, -alpha, opponent(color), weights, exact,
     );
     if (score > bestScore) {
       bestScore = score;
@@ -327,4 +410,32 @@ export function getBestMove(
     }
   }
   return best;
+}
+
+/** Score every legal move from `color`'s view (heuristic or exact). Used by review. */
+export function scoreMoves(
+  board: Board,
+  color: Piece,
+  difficulty: Difficulty = 'hard',
+): Array<{ move: [number, number]; score: number }> {
+  const moves = getLegalMoves(board, color);
+  if (moves.length === 0) return [];
+  const config = mergeBotConfig(difficulty);
+  const empties = countEmpties(board);
+  const exact = config.exactEmpties > 0 && empties <= config.exactEmpties;
+  const depth = exact ? empties : config.depth;
+  const weights: EvalWeights = {
+    mobilityWeight: config.mobilityWeight,
+    cornerGreed: config.cornerGreed,
+    edgeWeight: config.edgeWeight,
+    discGreed: config.discGreed,
+    xSquareFear: config.xSquareFear,
+  };
+  return orderMoves(moves).map(([r, c]) => {
+    const next = applyMove(board, r, c, color);
+    const score = -negamax(
+      next, depth - 1, -Infinity, Infinity, opponent(color), weights, exact,
+    );
+    return { move: [r, c] as [number, number], score };
+  });
 }

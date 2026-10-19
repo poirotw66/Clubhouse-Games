@@ -23,6 +23,7 @@ import {
   totalMilestoneHits,
 } from '../src/game/records.js';
 import { ABILITIES } from '../src/game/abilities.js';
+import { buildLegacyOptions, pendingFromCareer } from '../src/game/legacy.js';
 import { TWO_WAY_WORKLOAD } from '../src/game/season.js';
 import { SITUATIONS, situationById } from '../src/game/situations.js';
 import { traitEffects } from '../src/game/traits.js';
@@ -253,6 +254,77 @@ function expectPeopleAndChapters(): void {
   assert.equal(careersWithChapterHistory, 6);
 }
 
+/** M4: encyclopedia book size + legacy options from a finished career. */
+function expectEncyclopediaAndLegacy(): void {
+  const state = playRun('legacy01', 'OF', firstChoice);
+  assert.ok(state.summary, 'career did not finish');
+  const options = buildLegacyOptions(state);
+  assert.ok(options.length >= 2, `legacy options too thin (${options.length})`);
+  assert.ok(options.some((o) => o.kind === 'coach'), 'missing coach legacy');
+  assert.ok(options.some((o) => o.kind === 'bloodline'), 'missing bloodline legacy');
+  const pending = pendingFromCareer(state);
+  assert.ok(pending && pending.options.length >= 2);
+
+  const origins = rollOrigins('legacy02');
+  const next = createGame({
+    seedCode: 'legacy02',
+    name: '二代',
+    position: 'OF',
+    originId: origins[0].id,
+    legacy: options.find((o) => o.kind === 'bloodline') ?? options[0],
+  });
+  assert.ok(next.log.some((e) => e.label === '遺產'), 'legacy log missing');
+  const bare = createGame({
+    seedCode: 'legacy02',
+    name: '二代',
+    position: 'OF',
+    originId: origins[0].id,
+  });
+  assert.ok(
+    next.attrs.contact + next.attrs.power + next.attrs.speed >
+      bare.attrs.contact + bare.attrs.power + bare.attrs.speed,
+    'bloodline legacy did not raise attributes',
+  );
+}
+
+/** M4: age 23–27 training still moves the needle (not flat decline). */
+function expectProGrowthStillMoves(): void {
+  const origins = rollOrigins('progrow1');
+  let state = createGame({
+    seedCode: 'progrow1',
+    name: '成長',
+    position: 'OF',
+    originId: origins[0].id,
+  });
+  let step = 0;
+  while (!state.retired && state.stage !== 'pro' && step < 120) {
+    if (!state.decision?.options.length) break;
+    state = acknowledge(resolve(state, firstChoice(state.decision, step)));
+    step += 1;
+  }
+  assert.equal(state.stage, 'pro', 'did not reach pro');
+  while (!state.retired && state.age < 23 && step < 280) {
+    if (!state.decision?.options.length) break;
+    state = acknowledge(resolve(state, firstChoice(state.decision, step)));
+    step += 1;
+  }
+  const at23 = overall(state.attrs, state.position);
+  while (!state.retired && state.age < 28 && step < 400) {
+    if (!state.decision?.options.length) break;
+    state = acknowledge(resolve(state, firstChoice(state.decision, step)));
+    step += 1;
+  }
+  const at28 = overall(state.attrs, state.position);
+  assert.ok(
+    at28 >= at23 - 1,
+    `pro years should not collapse overall (${at23.toFixed(1)} → ${at28.toFixed(1)})`,
+  );
+  assert.ok(
+    at28 > at23 + 0.5 || state.abilities.length >= 3,
+    `peak years should still add growth or abilities (${at23.toFixed(1)} → ${at28.toFixed(1)})`,
+  );
+}
+
 /** M2: seasons / tournaments insert clutch decisions that leave highlights. */
 function expectClutchMomentsAppear(): void {
   let clutchPicks = 0;
@@ -273,7 +345,11 @@ function expectClutchMomentsAppear(): void {
 
 /** Dual-slot HS + motivation + abilities: cultivation paths must diverge. */
 function expectHsCultivationDepth(): void {
-  assert.ok(ABILITIES.length >= 5, 'M1 ability pack too thin');
+  assert.ok(ABILITIES.length >= 20, `M4 ability encyclopedia too thin (${ABILITIES.length})`);
+  assert.ok(
+    ABILITIES.filter((a) => a.negative).length >= 3,
+    'encyclopedia should include negative / flavour abilities',
+  );
   const origins = rollOrigins('depth001');
 
   const speedPath = (decision: Decision, step: number) => {
@@ -1292,6 +1368,8 @@ const checks: [string, () => void][] = [
   ['HS cultivation depth', expectHsCultivationDepth],
   ['people and chapters arc', expectPeopleAndChapters],
   ['clutch moments appear in careers', expectClutchMomentsAppear],
+  ['encyclopedia and legacy', expectEncyclopediaAndLegacy],
+  ['pro growth still moves', expectProGrowthStillMoves],
   ['values stay in range', expectValuesStayInRange],
   ['summary matches history', expectSummaryMatchesHistory],
   ['overall ignores off-role attributes', expectOverallIgnoresOffRoleAttributes],

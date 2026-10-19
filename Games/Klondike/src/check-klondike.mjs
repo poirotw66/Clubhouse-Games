@@ -1,4 +1,4 @@
-// ponytail: covers draw-1/3 and legal-move hints; not full deal solvability.
+// ponytail: draw-1/3, scoring, solvable filter, daily streak, challenges.
 import assert from 'node:assert/strict';
 import {
   applyDraw,
@@ -9,6 +9,20 @@ import {
   findHint,
   isValidTableauStack,
 } from './utils/gameLogic.ts';
+import {
+  canRecycle,
+  initialScore,
+  pointsRecycle,
+  pointsToFoundation,
+  standardTimePenaltyTicks,
+  standardWinBonus,
+  VEGAS_DEAL_COST,
+} from './utils/scoring.ts';
+import { buildScriptedSolvable, isSolvable } from './utils/solver.ts';
+import { dealDailySolvable, dealGame, findSolvableSeed } from './utils/deck.ts';
+import { computeStreak, dailyBaseSeed, dateKey } from './utils/daily.ts';
+import { evaluateChallenges, isChallengeCleared } from './utils/challenges.ts';
+import { modeKey, recordGameResult, winRate } from './utils/storage.ts';
 
 function card(suit, rank, faceUp = true) {
   const color = suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black';
@@ -104,6 +118,122 @@ function card(suit, rank, faceUp = true) {
   assert.ok(move, 'waste ace should auto-move to foundation');
   assert.equal(move.source.type, 'waste');
   assert.equal(move.foundationIndex, 0);
+}
+
+// —— Scoring ——
+{
+  assert.equal(initialScore('standard'), 0);
+  assert.equal(initialScore('vegas'), -VEGAS_DEAL_COST);
+  assert.equal(pointsToFoundation('standard'), 10);
+  assert.equal(pointsToFoundation('vegas'), 5);
+  assert.equal(pointsRecycle('standard', 1), -100);
+  assert.equal(pointsRecycle('standard', 3), -20);
+  assert.equal(canRecycle('vegas', 1, 0), false);
+  assert.equal(canRecycle('vegas', 3, 0), true);
+  assert.equal(canRecycle('vegas', 3, 2), false);
+  assert.equal(canRecycle('standard', 1, 99), true);
+
+  const tick = standardTimePenaltyTicks(25, 0);
+  assert.equal(tick.penalty, -4);
+  assert.equal(tick.appliedThroughSec, 20);
+  assert.ok(standardWinBonus(70) > 0);
+  assert.equal(standardWinBonus(10), 0);
+}
+
+// —— Seeded deal determinism ——
+{
+  const a = dealGame(11982);
+  const b = dealGame(11982);
+  assert.equal(a.seed, 11982);
+  assert.deepEqual(
+    a.tableau.map((col) => col.map((c) => c.id)),
+    b.tableau.map((col) => col.map((c) => c.id)),
+  );
+}
+
+// —— Guaranteed solvable (scripted) ——
+{
+  const scripted = buildScriptedSolvable(7);
+  assert.equal(
+    scripted.tableau.reduce((n, c) => n + c.length, 0),
+    28,
+  );
+  assert.equal(scripted.stock.length, 24);
+  assert.equal(isSolvable(scripted, 1, { maxNodes: 5_000 }), true);
+}
+
+// —— Filter finds a solvable seed or reports guaranteed fallback ——
+{
+  const found = findSolvableSeed(1, {
+    drawCount: 1,
+    maxAttempts: 8,
+    solve: { maxNodes: 8_000 },
+  });
+  assert.ok(found.seed >= 0);
+  assert.ok(found.kind === 'filtered' || found.kind === 'guaranteed');
+  const daily = dealDailySolvable(dailyBaseSeed('2099-01-01'), 1);
+  assert.equal(isSolvable(daily, 1, { maxNodes: 20_000 }), true);
+}
+
+// —— Daily streak (Taipei date key shape) ——
+{
+  const today = dateKey(new Date('2026-10-19T04:00:00Z')); // UTC+8 → 2026-10-19
+  assert.equal(today, '2026-10-19');
+  const records = [
+    { date: '2026-10-19', won: true, score: 1, elapsedSec: 1, moves: 1, drawCount: 1, scoreMode: 'standard' },
+    { date: '2026-10-18', won: true, score: 1, elapsedSec: 1, moves: 1, drawCount: 1, scoreMode: 'standard' },
+    { date: '2026-10-16', won: true, score: 1, elapsedSec: 1, moves: 1, drawCount: 1, scoreMode: 'standard' },
+  ];
+  assert.equal(computeStreak(records, '2026-10-19'), 2);
+}
+
+// —— Challenges ——
+{
+  const base = {
+    won: true,
+    usedUndo: false,
+    moves: 90,
+    elapsedSec: 200,
+    score: 320,
+    scoreMode: 'standard',
+  };
+  assert.equal(isChallengeCleared('no-undo', base), true);
+  assert.equal(isChallengeCleared('moves-80', base), false);
+  assert.equal(isChallengeCleared('moves-120', base), true);
+  assert.equal(isChallengeCleared('standard-300', base), true);
+  assert.equal(isChallengeCleared('vegas-profit', { ...base, scoreMode: 'vegas', score: 10 }), true);
+  const cleared = evaluateChallenges(base);
+  assert.ok(cleared.includes('no-undo'));
+  assert.ok(cleared.includes('standard-300'));
+}
+
+// —— Stats helpers (no localStorage required for pure bits) ——
+{
+  assert.equal(modeKey(1, 'vegas'), '1-vegas');
+  const empty = {
+    plays: 0,
+    wins: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    vegasBankroll: 0,
+    byMode: {},
+    challengesCleared: {},
+  };
+  assert.equal(winRate(empty), 0);
+  // recordGameResult needs localStorage — skip if unavailable.
+  if (typeof localStorage !== 'undefined') {
+    const next = recordGameResult(empty, {
+      won: true,
+      drawCount: 1,
+      scoreMode: 'standard',
+      score: 100,
+      elapsedSec: 40,
+      moves: 50,
+      clearedChallenges: ['no-undo'],
+    });
+    assert.equal(next.wins, 1);
+    assert.equal(next.currentStreak, 1);
+  }
 }
 
 console.log('check-klondike: ok');

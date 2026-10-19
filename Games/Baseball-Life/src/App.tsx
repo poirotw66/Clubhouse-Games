@@ -13,19 +13,28 @@ import { acknowledge, createGame, resolve } from './game/engine';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { evaluate } from './game/achievements';
 import type { Achievement, AchievementProgress } from './game/achievements';
+import { recordCareerEncyclopedia } from './game/encyclopedia';
+import type { EncyclopediaProgress } from './game/encyclopedia';
+import { pendingFromCareer } from './game/legacy';
+import type { LegacyOption } from './game/legacy';
 import {
   clearGame,
+  clearPendingLegacy,
   loadAchievements,
   loadActiveChallengeId,
   loadArchive,
   loadChallengeProgress,
+  loadEncyclopedia,
   loadGame,
+  loadPendingLegacy,
   loadRecords,
   pushArchive,
   saveAchievements,
   saveActiveChallengeId,
   saveChallengeProgress,
+  saveEncyclopedia,
   saveGame,
+  savePendingLegacy,
   saveRecords,
 } from './game/storage';
 import type { ArchiveEntry } from './game/storage';
@@ -67,6 +76,8 @@ export default function App(): React.ReactElement {
   const [archive, setArchive] = useState<ArchiveEntry[]>(() => loadArchive());
   const [achievements, setAchievements] = useState<AchievementProgress>(() => loadAchievements());
   const [records, setRecords] = useState<PersonalRecords>(() => loadRecords());
+  const [encyclopedia, setEncyclopedia] = useState<EncyclopediaProgress>(() => loadEncyclopedia());
+  const [pendingLegacy, setPendingLegacy] = useState(() => loadPendingLegacy());
   const [challengeProgress, setChallengeProgress] = useState<ChallengeProgress>(() =>
     loadChallengeProgress(),
   );
@@ -141,6 +152,10 @@ export default function App(): React.ReactElement {
       saveRecords(nextRecords);
       setRecords(nextRecords);
 
+      const nextEncyclopedia = recordCareerEncyclopedia(loadEncyclopedia(), finished);
+      saveEncyclopedia(nextEncyclopedia);
+      setEncyclopedia(nextEncyclopedia);
+
       const challengeId = loadActiveChallengeId();
       const challenge = challengeId ? challengeById(challengeId) : undefined;
       if (challenge) {
@@ -151,6 +166,12 @@ export default function App(): React.ReactElement {
         setChallengeResult(applied.cleared || isChallengeCleared(challenge, finished));
       } else {
         setChallengeResult(null);
+        // Free play: offer New Game+ inherit for the next career.
+        const legacy = pendingFromCareer(finished);
+        if (legacy) {
+          savePendingLegacy(legacy);
+          setPendingLegacy(legacy);
+        }
       }
 
       clearGame();
@@ -186,19 +207,31 @@ export default function App(): React.ReactElement {
   }, []);
 
   const handleCreate = useCallback(
-    (input: { name: string; position: Position; originId: string }) => {
+    (input: {
+      name: string;
+      position: Position;
+      originId: string;
+      legacy?: LegacyOption | null;
+    }) => {
       const challenge = activeChallengeId ? challengeById(activeChallengeId) : null;
       const position = challenge?.position ?? input.position;
       const code = challenge?.seedCode ?? seedCode;
       setSeedCode(code);
+      const legacy = challenge ? null : input.legacy ?? null;
       setState(
         createGame({
           seedCode: code,
-          ...input,
+          name: input.name,
+          originId: input.originId,
           position,
           challengeId: challenge?.id ?? null,
+          legacy,
         }),
       );
+      if (legacy) {
+        clearPendingLegacy();
+        setPendingLegacy(null);
+      }
       setHistory([]);
       setScreen('play');
     },
@@ -288,6 +321,8 @@ export default function App(): React.ReactElement {
           archive={archive}
           achievements={achievements}
           records={records}
+          encyclopedia={encyclopedia}
+          pendingLegacy={pendingLegacy}
           challengeProgress={challengeProgress}
           onShowHowTo={() => setShowFirstRun(true)}
           onStart={beginFreePlay}
@@ -308,6 +343,7 @@ export default function App(): React.ReactElement {
         <CreateScreen
           seedCode={seedCode}
           challenge={activeChallenge}
+          pendingLegacy={activeChallenge ? null : pendingLegacy}
           onCreate={handleCreate}
           onBack={() => {
             saveActiveChallengeId(null);
