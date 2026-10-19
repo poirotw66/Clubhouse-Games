@@ -49,21 +49,21 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
 
         <ul className="mt-5 space-y-3 text-sm text-zinc-200">
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">選模式與難度</p>
+            <p className="font-bold text-amber-300">選局數與難度</p>
             <p className="mt-0.5 text-zinc-400">
-              「三局賽」投打對戰電腦；「全壘打大賽」限次揮擊拚全壘打數。
+              正規賽可選 3／6／9 局；全壘打大賽限次揮擊拚支數。
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">打擊：時機 × 方向</p>
+            <p className="font-bold text-amber-300">打擊：讀球 × 打向空檔</p>
             <p className="mt-0.5 text-zinc-400">
-              空白鍵／觸控揮棒；← → 選拉打／推打，對準進壘點較易安打。
+              看軌跡判斷球種；← → 選拉打／推打，往九位野手間的空隙打。
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">投球：球速 × 進壘</p>
+            <p className="font-bold text-amber-300">投球：六種球路＋出手後控球</p>
             <p className="mt-0.5 text-zinc-400">
-              下半局選快速／慢速與左中右；迷惑對手再爭取出局。
+              選速／曲／滑／變／伸／叉後進壘；出手瞬間用 ← → 微調拐彎。
             </p>
           </li>
         </ul>
