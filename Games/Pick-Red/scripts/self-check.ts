@@ -22,17 +22,46 @@ import {
   bestCapture,
   choosePick,
   deal,
+  findDoubleRedFive,
   flip,
   handSize,
   outcome,
   playCard,
   score,
+  settleChips,
 } from '../src/game/engine.js';
-import { DIFFICULTIES, chooseMove, difficultyInfo, getDifficultyConfig, leaderFor } from '../src/game/cpu.js';
-import { EMPTY_STATS, recordResult } from '../src/game/storage.js';
-import { createRng } from '../src/game/rng.js';
+import {
+  DIFFICULTIES,
+  PERSONALITIES,
+  SEAT_PERSONALITIES,
+  chooseMove,
+  difficultyInfo,
+  getDifficultyConfig,
+  leaderFor,
+  personalityForSeat,
+} from '../src/game/cpu.js';
+import { advise } from '../src/game/hints.js';
+import {
+  applyHandResult,
+  createMatch,
+  dealHand,
+  decideMatchWinner,
+  handDeltas,
+  handSeed,
+  leaderForHand,
+} from '../src/game/match.js';
+import { buildHandReview } from '../src/game/review.js';
+import { EMPTY_STATS, recordHandResult, recordMatchResult, recordResult } from '../src/game/storage.js';
+import { createRng, normalizeSeedCode } from '../src/game/rng.js';
 import { HUMAN } from '../src/game/types.js';
-import type { Card, CpuBrain, DifficultyId, GameState, PlayerCount, Rules } from '../src/game/types.js';
+import type {
+  Card,
+  CpuBrain,
+  DifficultyId,
+  GameState,
+  HouseRules,
+  PlayerCount,
+} from '../src/game/types.js';
 
 const TIERS: DifficultyId[] = ['easy', 'normal', 'hard'];
 const COUNTS: PlayerCount[] = [2, 3, 4];
@@ -41,8 +70,14 @@ function seeds(count: number): string[] {
   return Array.from({ length: count }, (_, i) => `check-${i}`);
 }
 
-function rules(players: PlayerCount, blackAces = false): Rules {
-  return { players, blackAces };
+function rules(players: PlayerCount, blackAces = false): HouseRules {
+  return {
+    players,
+    blackAces,
+    doubleRedFive: true,
+    zeroScoreBonus: true,
+    rotateLeader: false,
+  };
 }
 
 /**
@@ -602,6 +637,147 @@ function expectStreakTracking(): void {
   assert.equal(stats.wins, 2);
   assert.equal(stats.losses, 1);
   assert.equal(stats.draws, 1);
+
+  stats = recordHandResult(stats, 'win', 110, 5, true, false, false);
+  assert.equal(stats.chips, 5);
+  assert.equal(stats.qualified, 1);
+  stats = recordMatchResult(stats, true, 40);
+  assert.equal(stats.matches, 1);
+  assert.equal(stats.matchWins, 1);
+  assert.equal(stats.bestMatchChips, 40);
+}
+
+/** Chip settlement is (score − par) plus optional specials. */
+function expectChipSettlement(): void {
+  const par = 105;
+  const deltas = settleChips([120, 90], par, rules(2), null, null);
+  assert.deepEqual(deltas, [15, -15]);
+
+  const withRedFive = settleChips([100, 110], 105, rules(2), 1, null);
+  // base: -5, +5; then seat 1 gets +20, seat 0 pays −20 → -25, +25
+  assert.deepEqual(withRedFive, [-25, 25]);
+
+  const withZero = settleChips([0, 210], 105, rules(2), null, 0);
+  // base: -105, +105; seat 0 gets +105 from seat 1 → 0, 0
+  assert.deepEqual(withZero, [0, 0]);
+}
+
+function expectMatchSeries(): void {
+  const match = createMatch({
+    mode: 'hands',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(2),
+    seedCode: 'series-check',
+  });
+  assert.equal(match.balances.length, 2);
+  assert.equal(handSeed('series-check', 0), normalizeSeedCode('series-check'));
+  assert.notEqual(handSeed('series-check', 1), handSeed('series-check', 0));
+
+  const dealt = dealHand(match);
+  assert.equal(dealt.seedCode, handSeed('series-check', 0));
+  assert.equal(dealt.rules.players, 2);
+
+  const end = playOut('series-check', 'normal', 2);
+  const result = outcome(end);
+  assert.equal(result.deltas.length, 2);
+  assert.ok(result.qualified.every((seat) => result.scores[seat] > result.par));
+
+  const after = applyHandResult(match, result, end.seedCode);
+  assert.equal(after.history.length, 1);
+  assert.deepEqual(after.balances, handDeltas(result));
+  assert.equal(after.phase, 'handOver');
+
+  assert.equal(decideMatchWinner({ ...match.config, mode: 'target', target: 50 }, [60, -10], 1), 0);
+  assert.equal(decideMatchWinner(match.config, [10, 20], 3), null);
+  assert.equal(decideMatchWinner(match.config, [10, 20], 4), 1);
+
+  // rotateLeader shifts the first seat across hands.
+  const rotating = createMatch({
+    ...match.config,
+    rules: { ...rules(2), rotateLeader: true },
+    difficulty: 'hard',
+  });
+  assert.equal(leaderForHand(rotating), leaderFor('hard', 2));
+  rotating.handIndex = 1;
+  assert.equal(leaderForHand(rotating), (leaderFor('hard', 2) + 1) % 2);
+
+  const review = buildHandReview(end, result);
+  assert.ok(review.lessons.length >= 1);
+  assert.ok(review.highlight.length > 0);
+}
+
+function expectPersonalitiesAndHints(): void {
+  assert.equal(personalityForSeat(0), null);
+  assert.equal(personalityForSeat(1)?.id, SEAT_PERSONALITIES[1]);
+  assert.equal(personalityForSeat(2)?.id, SEAT_PERSONALITIES[2]);
+  assert.equal(personalityForSeat(3)?.id, SEAT_PERSONALITIES[3]);
+  assert.equal(
+    new Set(PERSONALITIES.map((p) => p.id)).size,
+    3,
+    'the three CPU seats must not share a personality',
+  );
+
+  for (const seedCode of seeds(6)) {
+    let state = deal(seedCode, 'normal', rules(2), leaderFor('normal', 2));
+    let guard = 0;
+    while (state.phase !== 'play' || state.turn !== HUMAN) {
+      assert.ok(guard++ < 40, 'could not reach a human play');
+      if (state.phase === 'flip') {
+        state = flip(state);
+        continue;
+      }
+      if (state.phase === 'pick_play' || state.phase === 'pick_flip') {
+        const options = capturableBy(state.pending!, state.table);
+        state = choosePick(state, options[0].id);
+        continue;
+      }
+      const move = chooseMove(state, 'sharp', 0, null);
+      state = applyPlay(state, move.card, move.taken);
+    }
+    const advice = advise(state);
+    assert.ok(advice.reason.trim().length > 0, 'hint reason is empty');
+    if (advice.card) {
+      assert.ok(
+        state.hands[HUMAN].some((c) => c.id === advice.card!.id),
+        'hint suggested a card not in hand',
+      );
+    }
+  }
+}
+
+function expectDoubleRedFiveDetection(): void {
+  const base = deal('red5-check', 'normal', rules(2));
+  const state: GameState = {
+    ...base,
+    rules: { ...base.rules, doubleRedFive: true },
+    log: [
+      {
+        by: HUMAN,
+        played: { id: 'hearts-5', suit: 'hearts', rank: 5 },
+        taken: { id: 'clubs-5', suit: 'clubs', rank: 5 },
+        source: 'hand',
+        points: 5,
+        tableBefore: [],
+      },
+      {
+        by: HUMAN,
+        played: { id: 'spades-2', suit: 'spades', rank: 2 },
+        taken: { id: 'diamonds-5', suit: 'diamonds', rank: 5 },
+        source: 'pile',
+        points: 5,
+        tableBefore: [],
+      },
+    ],
+  };
+  assert.equal(findDoubleRedFive(state), HUMAN);
+
+  const off: GameState = {
+    ...state,
+    rules: { ...state.rules, doubleRedFive: false },
+  };
+  assert.equal(findDoubleRedFive(off), null);
 }
 
 const CHECKS: [string, () => void][] = [
@@ -620,6 +796,10 @@ const CHECKS: [string, () => void][] = [
   ['discards land on the table', expectDiscardsLandOnTheTable],
   ['the flip offers a choice', expectFlipOffersAChoice],
   ['streak tracking', expectStreakTracking],
+  ['chip settlement uses qualifying score', expectChipSettlement],
+  ['match series structure', expectMatchSeries],
+  ['personalities and teaching hints', expectPersonalitiesAndHints],
+  ['double red five detection', expectDoubleRedFiveDetection],
 ];
 
 let failed = 0;

@@ -227,7 +227,9 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
   await page.goto('./Games/Pick-Red/');
   await activate(page.getByRole('button', { name: /困難/ }), isMobile);
   await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
-  await activate(page.getByRole('button', { name: '開始牌局', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '開始系列賽', exact: true }), isMobile);
+
+  await expect(page.getByRole('region', { name: '系列賽計分板' })).toBeVisible();
 
   const hand = page.getByRole('region', { name: '你的手牌' });
   const queen = hand.getByRole('button', { name: '紅♦Q，10 分', exact: true });
