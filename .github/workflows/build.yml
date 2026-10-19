@@ -14,8 +14,151 @@ concurrency:
   group: site-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # GitHub-hosted runners are 2-vCPU; keep per-job concurrency modest and scale
+  # out with matrix shards instead.
+  CHECK_JOBS: "2"
+  BUILD_JOBS: "2"
+  PLAYWRIGHT_WORKERS: "2"
+
 jobs:
-  build:
+  # ---------------------------------------------------------------------------
+  # Scope: full on main / shared-infra PRs; selective game list otherwise.
+  # ---------------------------------------------------------------------------
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+      games: ${{ steps.scope.outputs.games }}
+      astra: ${{ steps.scope.outputs.astra }}
+      reason: ${{ steps.scope.outputs.reason }}
+      lint_matrix: ${{ steps.scope.outputs.lint_matrix }}
+      check_matrix: ${{ steps.scope.outputs.check_matrix }}
+      test_matrix: ${{ steps.scope.outputs.test_matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve CI scope
+        id: scope
+        env:
+          BASE_REF: origin/${{ github.base_ref || 'main' }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: node scripts/ci-changed-scope.mjs
+
+      - name: Summary
+        run: |
+          echo "full=${{ steps.scope.outputs.full }}"
+          echo "games=${{ steps.scope.outputs.games }}"
+          echo "astra=${{ steps.scope.outputs.astra }}"
+          echo "reason=${{ steps.scope.outputs.reason }}"
+          echo "lint_matrix=${{ steps.scope.outputs.lint_matrix }}"
+          echo "check_matrix=${{ steps.scope.outputs.check_matrix }}"
+          echo "test_matrix=${{ steps.scope.outputs.test_matrix }}"
+
+  # ---------------------------------------------------------------------------
+  # Typecheck (lint) — parallel across games; shard when running the full set.
+  # ---------------------------------------------------------------------------
+  lint:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.changes.outputs.lint_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck games
+        env:
+          SCOPE_FULL: ${{ needs.changes.outputs.full }}
+          SCOPE_GAMES: ${{ needs.changes.outputs.games }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          if [ "$SCOPE_FULL" = "true" ]; then
+            node scripts/run-in-games.mjs lint --shard "${SHARD}/2"
+          elif [ -n "${SCOPE_GAMES}" ]; then
+            # shellcheck disable=SC2086
+            node scripts/run-in-games.mjs lint ${SCOPE_GAMES}
+          else
+            echo "No games to typecheck for this change."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Logic checks — sharded on full runs (Coin-Cascade alone can exceed 1.5m).
+  # ---------------------------------------------------------------------------
+  check:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.changes.outputs.check_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify game dependency versions
+        if: matrix.shard == 1
+        run: node scripts/check-game-versions.mjs
+
+      - name: Verify shared styles
+        if: matrix.shard == 1
+        run: npm run check:shared-styles
+
+      - name: Run game logic checks
+        env:
+          SCOPE_FULL: ${{ needs.changes.outputs.full }}
+          SCOPE_GAMES: ${{ needs.changes.outputs.games }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          if [ "$SCOPE_FULL" = "true" ]; then
+            node scripts/run-in-games.mjs check --shard "${SHARD}/4"
+          elif [ -n "${SCOPE_GAMES}" ]; then
+            # shellcheck disable=SC2086
+            node scripts/run-in-games.mjs check ${SCOPE_GAMES}
+          else
+            echo "No games to check for this change."
+          fi
+
+      - name: Run Astra Endless Train logic check
+        if: matrix.shard == 1 && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-train
+
+      - name: Run Astra Stillshot Archer logic check
+        if: matrix.shard == 1 && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-archer
+
+      - name: Run Astra Borderland logic check
+        if: matrix.shard == 1 && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-borderland
+
+  # ---------------------------------------------------------------------------
+  # Build Pages once; upload artifact for Playwright (and Pages deploy on main).
+  # ---------------------------------------------------------------------------
+  build-pages:
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,53 +173,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install browser
-        run: npx playwright install --with-deps --only-shell chromium
-
-      - name: Verify game dependency versions
-        run: node scripts/check-game-versions.mjs
-
-      - name: Verify shared styles
-        run: npm run check:shared-styles
-
-      # Typecheck and per-game logic checks. These existed in the games'
-      # package.json for a long time but nothing ran them, so a bot that had
-      # been picking its worst move for months went unnoticed.
-      - name: Typecheck games
-        run: npm run lint:all
-
-      - name: Run game logic checks
-        run: npm run check:all
-
-      - name: Run Astra Endless Train logic check
-        run: npm run check:astra-train
-
-      - name: Run Astra Stillshot Archer logic check
-        run: npm run check:astra-archer
-
-      - name: Run Astra Borderland logic check
-        run: npm run check:astra-borderland
-
       - name: Build for GitHub Pages
         env:
           REPO_NAME: ${{ github.event.repository.name }}
-        run: npm run build:pages
+          SCOPE_FULL: ${{ needs.changes.outputs.full }}
+          SCOPE_GAMES: ${{ needs.changes.outputs.games }}
+        run: |
+          set -euo pipefail
+          if [ "$SCOPE_FULL" = "true" ]; then
+            npm run build:pages
+          elif [ -n "${SCOPE_GAMES}" ]; then
+            npm run generate
+            npm run build:css
+            # shellcheck disable=SC2086
+            node scripts/build-for-pages.mjs ${SCOPE_GAMES}
+          else
+            npm run generate
+            npm run build:css
+            # Static shell only (no Vite games) — Playwright skips per-game loads.
+            node scripts/build-for-pages.mjs --static-only
+          fi
 
       - name: Check Pages artifact for runtime CDN dependencies
         run: npm run check:no-cdn -- --pages
 
-      - name: Test Pages artifact in desktop and mobile browsers
-        env:
-          REPO_NAME: ${{ github.event.repository.name }}
-        run: npm run test:browser
-
-      - name: Upload browser diagnostics
-        if: failure()
+      - name: Upload dist for Playwright
         uses: actions/upload-artifact@v4
         with:
-          name: browser-results
-          path: test-results/
-          if-no-files-found: ignore
+          name: pages-dist
+          path: dist
+          retention-days: 1
 
       - name: Upload verified Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -84,9 +210,103 @@ jobs:
         with:
           path: dist
 
+  # ---------------------------------------------------------------------------
+  # Playwright — download built dist; shard desktop+mobile suite; cache browsers.
+  # ---------------------------------------------------------------------------
+  test:
+    needs: [changes, build-pages]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.changes.outputs.test_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # Cache restores browsers; --with-deps still installs OS libraries (fast when present).
+      - name: Install browser
+        run: npx playwright install --with-deps --only-shell chromium
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: pages-dist
+          path: dist
+
+      - name: Test Pages artifact in desktop and mobile browsers
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          SCOPE_FULL: ${{ needs.changes.outputs.full }}
+          SCOPE_GAMES: ${{ needs.changes.outputs.games }}
+          SHARD: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ needs.changes.outputs.full == 'true' && '3' || '1' }}
+        run: |
+          set -euo pipefail
+          if [ "$SCOPE_FULL" = "true" ]; then
+            unset CI_GAME_FILTER || true
+          elif [ -n "${SCOPE_GAMES}" ]; then
+            export CI_GAME_FILTER="${SCOPE_GAMES}"
+          else
+            export CI_GAME_FILTER="__none__"
+          fi
+          npx playwright test --shard="${SHARD}/${SHARD_TOTAL}"
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-results-shard-${{ matrix.shard }}
+          path: test-results/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Required status check name: `build` (aggregates parallel jobs for branch rules).
+  # ---------------------------------------------------------------------------
+  build:
+    if: always()
+    needs: [changes, lint, check, build-pages, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate CI results
+        run: |
+          set -euo pipefail
+          echo "changes=${{ needs.changes.result }}"
+          echo "lint=${{ needs.lint.result }}"
+          echo "check=${{ needs.check.result }}"
+          echo "build-pages=${{ needs.build-pages.result }}"
+          echo "test=${{ needs.test.result }}"
+          for result in \
+            "${{ needs.changes.result }}" \
+            "${{ needs.lint.result }}" \
+            "${{ needs.check.result }}" \
+            "${{ needs.build-pages.result }}" \
+            "${{ needs.test.result }}"
+          do
+            if [ "$result" != "success" ]; then
+              echo "Required job failed or was skipped unexpectedly: $result"
+              exit 1
+            fi
+          done
+          echo "All required jobs succeeded."
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: build
+    needs: [build, build-pages]
     runs-on: ubuntu-latest
     permissions:
       pages: write

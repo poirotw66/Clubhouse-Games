@@ -5,7 +5,25 @@ const { categories } = JSON.parse(fs.readFileSync(new URL('../../data/games.json
 const games = categories.flatMap((category) => category.games);
 // Workspace Vite games under Games/ — Astra static demos use playPath and may
 // lack shared chrome / pull optional CDNs, so they are listed in the menu only.
-const workspaceGames = games.filter((game) => game.gameFolder && !game.playPath);
+const allWorkspaceGames = games.filter((game) => game.gameFolder && !game.playPath);
+
+/**
+ * Selective PR CI sets CI_GAME_FILTER to a space/comma-separated list of
+ * Games/<folder> names. `__none__` skips per-game loads/deep tests but keeps
+ * site-shell coverage. Unset / empty / `full` / `*` → every workspace game.
+ */
+function resolveGameFilter() {
+  const raw = (process.env.CI_GAME_FILTER || '').trim();
+  if (!raw || raw === '*' || raw.toLowerCase() === 'full') return null;
+  if (raw === '__none__') return new Set();
+  return new Set(raw.split(/[\s,]+/).filter(Boolean));
+}
+
+const gameFilter = resolveGameFilter();
+function includesGame(folder) {
+  return !gameFilter || gameFilter.has(folder);
+}
+const workspaceGames = allWorkspaceGames.filter((game) => includesGame(game.gameFolder));
 
 // Track runtime exceptions and local asset errors throughout each interaction.
 test.beforeEach(async ({ page, baseURL }) => {
@@ -111,6 +129,7 @@ test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
 });
 
 test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Memory-Match'), 'selective CI');
   await page.goto('./Games/Memory-Match/');
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
   // PAIR_OPTIONS start at 6 pairs (depth update); HUD copy is "翻牌 N".
@@ -126,6 +145,7 @@ test('memory match: touch/click cards, change difficulty and restart', async ({ 
 });
 
 test('connect four: play a win and use the result overlay to restart', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Connect-Four'), 'selective CI');
   await page.goto('./Games/Connect-Four/');
   for (const column of [1, 2, 1, 2, 1, 2, 1]) {
     const button = page.getByRole('button', { name: `投入第 ${column} 欄`, exact: true });
@@ -148,6 +168,7 @@ function activate(locator, isMobile) {
 }
 
 test('reversi: two-player mid-game, undo, and new-game menu', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Reversi'), 'selective CI');
   await page.goto('./Games/Reversi/');
   await activate(page.getByRole('button', { name: '雙人對戰' }), isMobile);
   const opening = page.getByRole('button', { name: '可下於第 3 列 4 欄', exact: true });
@@ -161,6 +182,7 @@ test('reversi: two-player mid-game, undo, and new-game menu', async ({ page, isM
 });
 
 test('blackjack: bet, resolve a hand, and restart from the result overlay', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Blackjack-main'), 'selective CI');
   test.setTimeout(45_000);
   await page.goto('./Games/Blackjack-main/');
   await activate(page.getByRole('button', { name: '$10', exact: true }), isMobile);
@@ -194,6 +216,7 @@ test('blackjack: bet, resolve a hand, and restart from the result overlay', asyn
 });
 
 test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
   test.setTimeout(45_000);
   await page.goto('./Games/Pick-Red/');
   await activate(page.getByRole('button', { name: /困難/ }), isMobile);
@@ -216,6 +239,7 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
 });
 
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Big-Two'), 'selective CI');
   test.setTimeout(45_000);
   // Skip the soft first-run guide so the lobby「開始系列賽」is the only match.
   await page.addInitScript(() => {
@@ -242,6 +266,7 @@ test('big-two: seeded opener plays ♣3, then undo after the table updates', asy
 });
 
 test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Fifteen-Puzzle'), 'selective CI');
   await page.goto('./Games/Fifteen-Puzzle/');
   // Title lobby: pick scramble tier, then start classic play (tiles are role=gridcell).
   await expect(page.getByRole('heading', { name: '數字推盤' })).toBeVisible();
@@ -266,6 +291,7 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
 });
 
 test('checkers: two-player opening move, undo, and new game', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
   await page.goto('./Games/Checkers/');
   // Default mode is 雙人對戰; black opens from A3 → B4.
   const opener = page.getByRole('button', { name: 'black man at A3', exact: true });
@@ -284,6 +310,7 @@ test('checkers: two-player opening move, undo, and new game', async ({ page, isM
 });
 
 test('dialed-color: single-color round through result overlay and replay', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Dialed-Color'), 'selective CI');
   test.setTimeout(45_000);
   await page.goto('./Games/Dialed-Color/');
   await activate(page.getByRole('button', { name: '1 秒', exact: true }), isMobile);
@@ -305,6 +332,7 @@ test('dialed-color: single-color round through result overlay and replay', async
 });
 
 test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Every-Corner'), 'selective CI');
   test.setTimeout(45_000);
   await page.goto('./Games/Every-Corner/');
   await activate(page.getByRole('button', { name: /輕鬆/ }), isMobile);
@@ -339,6 +367,7 @@ test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ p
 });
 
 test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, isMobile }) => {
+  test.skip(!includesGame('FreeCell'), 'selective CI');
   await page.goto('./Games/FreeCell/');
   await page.locator('#freecell-seed').fill('11982');
   await activate(page.getByRole('button', { name: '發此局', exact: true }), isMobile);
@@ -355,6 +384,7 @@ test('freecell: seeded deal, hint, redeal same, and new game', async ({ page, is
 });
 
 test('reversi: two-player completes a round through the result overlay', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Reversi'), 'selective CI');
   // Greedy play is fast alone; keep headroom when Clockwork shares the worker pool.
   test.setTimeout(120_000);
   await page.goto('./Games/Reversi/');
@@ -385,6 +415,7 @@ test('reversi: two-player completes a round through the result overlay', async (
 });
 
 test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Clockwork-Keep'), 'selective CI');
   // Undefended harsh lose is ~50s of rAF time once waves keep advancing.
   test.setTimeout(120_000);
   // Skip the soft first-run guide so lobby「開始遊戲」is the only dialog CTA match.
@@ -430,6 +461,7 @@ test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({
 });
 
 test('mystery-liquid-sort: howto seeded, mix challenge and hint on home/game', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Mystery-Liquid-Sort'), 'selective CI');
   test.setTimeout(45_000);
   // Seed howto so「知道了」cannot collide with other CTAs under strict mode.
   await page.addInitScript(() => {

@@ -1,11 +1,23 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = `http://127.0.0.1:4173/${process.env.REPO_NAME || 'Clubhouse-Games'}/`;
+
+function resolveWorkers() {
+  const raw = process.env.PLAYWRIGHT_WORKERS;
+  if (raw !== undefined && raw !== '') {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isInteger(parsed) && parsed >= 1) return parsed;
+  }
+  // CI shards already parallelize across runners; keep each shard on 2 workers
+  // to match typical 2-vCPU GitHub-hosted machines.
+  return process.env.CI ? 2 : undefined;
+}
+
 export default defineConfig({
   testDir: './tests/browser',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  workers: 2,
+  workers: resolveWorkers(),
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
