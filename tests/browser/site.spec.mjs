@@ -474,7 +474,7 @@ test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ p
 
 test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ page, isMobile }) => {
   test.skip(!includesGame('FreeCell'), 'selective CI');
-  // Daily deal runs a solvability search; keep headroom on busy CI shards.
+  // Keep headroom on busy CI shards (par rating + mode toggles).
   test.setTimeout(90_000);
   await page.goto('./Games/FreeCell/');
   await expect(page.getByRole('heading', { name: '空當接龍', exact: true })).toBeVisible();
@@ -500,7 +500,7 @@ test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ 
   await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
   await expect(stats).toHaveCount(0);
 
-  // Leave daily before slot/new-game so the end of the smoke avoids stacked solver stalls.
+  // Leave daily before 2-cell / new-game so seed input is editable and deals stay light.
   await activate(page.locator('#freecell-daily'), isMobile);
   await expect(page.locator('#freecell-seed')).toBeEnabled({ timeout: 20_000 });
 

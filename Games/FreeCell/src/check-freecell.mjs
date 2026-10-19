@@ -256,11 +256,12 @@ function emptyState(overrides = {}) {
   assert.ok(['easy', 'medium', 'hard'].includes(classifyDifficulty(par)));
 }
 
-// dealForDifficulty('any') returns meta for the requested seed.
+// dealForDifficulty('any') returns immediately without blocking on the solver.
 {
   const meta = dealForDifficulty('any', 42, { maxNodes: 500 }, 1);
   assert.equal(meta.seed, 42);
-  assert.ok(['any', 'easy', 'medium', 'hard'].includes(meta.difficulty));
+  assert.equal(meta.parMoves, null);
+  assert.equal(meta.difficulty, 'any');
 }
 
 console.log('check-freecell: ok');

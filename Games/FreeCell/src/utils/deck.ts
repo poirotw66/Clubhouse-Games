@@ -46,52 +46,49 @@ export type DealWithMeta = {
   difficulty: Difficulty;
 };
 
-const DEFAULT_SOLVE: SolveOptions = { maxNodes: 10_000 };
+/** Interactive deals keep the solver off the main thread; difficulty search uses a modest budget. */
+const RATE_SOLVE: SolveOptions = { maxNodes: 6_000 };
+const SEARCH_SOLVE: SolveOptions = { maxNodes: 4_000 };
+
+/** Rate an already-dealt layout (call from idle / useEffect, not during click handlers). */
+export function rateDeal(
+  tableaus: Card[][],
+  solve: SolveOptions = RATE_SOLVE,
+): { parMoves: number | null; difficulty: Difficulty } {
+  const par = estimateParMoves(tableaus, solve);
+  return { parMoves: par, difficulty: classifyDifficulty(par) };
+}
 
 /**
  * Search nearby seeds until solver par matches the requested difficulty band.
- * Falls back to the start seed (with its measured or null par) if none match.
+ * `any` returns immediately without blocking on the solver (rate later via `rateDeal`).
  */
 export function dealForDifficulty(
   difficulty: Difficulty,
   startSeed?: number,
-  solve: SolveOptions = DEFAULT_SOLVE,
-  maxAttempts = 24,
+  solve: SolveOptions = SEARCH_SOLVE,
+  maxAttempts = 16,
 ): DealWithMeta {
   const base = (startSeed ?? Math.floor(Math.random() * 0x7fffffff) + 1) >>> 0 || 1;
   if (difficulty === 'any') {
     const deal = dealGame(base);
-    const par = estimateParMoves(deal.tableaus, solve);
-    return {
-      ...deal,
-      parMoves: par,
-      difficulty: classifyDifficulty(par),
-    };
+    return { ...deal, parMoves: null, difficulty: 'any' };
   }
 
   let fallback: DealWithMeta | null = null;
   for (let i = 0; i < maxAttempts; i++) {
     const seed = (base + i) >>> 0 || 1;
     const deal = dealGame(seed);
-    const par = estimateParMoves(deal.tableaus, solve);
-    const rated = classifyDifficulty(par);
-    const meta: DealWithMeta = { ...deal, parMoves: par, difficulty: rated };
+    const rated = rateDeal(deal.tableaus, solve);
+    const meta: DealWithMeta = { ...deal, ...rated };
     if (!fallback) fallback = meta;
-    if (rated === difficulty) return meta;
+    if (rated.difficulty === difficulty) return meta;
   }
   return fallback ?? { ...dealGame(base), parMoves: null, difficulty: 'any' };
 }
 
-export function dealDaily(
-  baseSeed: number,
-  solve: SolveOptions = DEFAULT_SOLVE,
-): DealWithMeta {
-  // Daily always uses the exact Taipei-derived seed (no difficulty offset).
+/** Daily uses the exact Taipei-derived seed; par is rated asynchronously by the UI. */
+export function dealDaily(baseSeed: number): DealWithMeta {
   const deal = dealGame(baseSeed);
-  const par = estimateParMoves(deal.tableaus, { ...solve, maxNodes: 12_000 });
-  return {
-    ...deal,
-    parMoves: par,
-    difficulty: classifyDifficulty(par),
-  };
+  return { ...deal, parMoves: null, difficulty: 'any' };
 }
