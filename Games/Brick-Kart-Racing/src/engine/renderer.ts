@@ -303,6 +303,20 @@ export function renderFrame(rc: RenderContext, state: RaceState, cam: Camera): v
     });
   }
 
+  // Time-trial ghost — translucent replay of the player's best lap.
+  if (state.ghostPose && state.ghostLap) {
+    const g = state.ghostPose;
+    const playerChar = state.racers[state.playerIndex]?.charId ?? 'red';
+    const sheet = sprites.karts.get(playerChar)!;
+    const yaw = g.angle - cam.angle;
+    push(g.x, g.y, (sx, sy, scale, alpha) => {
+      ctx.globalAlpha = alpha * 0.42;
+      drawShadow(ctx, sx, sy, 17 * scale, alpha * 0.15);
+      drawSprite(ctx, sheet, frameFor(sheet, yaw), sx, sy, scale);
+      ctx.globalAlpha = 1;
+    });
+  }
+
   for (const r of state.racers) {
     const sheet = sprites.karts.get(r.charId)!;
     const yaw = r.angle + r.bodyYaw - cam.angle;

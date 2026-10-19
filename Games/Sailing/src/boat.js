@@ -495,32 +495,52 @@ export function createBoat(gl, solid) {
       mat4.normalMatrix(boomNormal, boomModel);
     },
 
-    draw(solidPass) {
+    /**
+     * @param {object} solidPass
+     * @param {{ tint?: number[], ghost?: boolean }} [opts]
+     */
+    draw(solidPass, opts = {}) {
+      const tint = opts.tint || [1, 1, 1];
+      const ghost = Boolean(opts.ghost);
+      const hullTint = ghost
+        ? [tint[0] * 0.75, tint[1] * 0.85, tint[2] * 0.9]
+        : tint;
+      const sailTint = ghost
+        ? [0.75, 0.88, 0.95]
+        : [0.99 * tint[0], 0.99 * tint[1], 0.97 * tint[2]];
+      const translucency = ghost ? 0.55 : 0;
+
       solidPass.setTransform(model, normalMat);
 
-      solidPass.setMaterial({ tint: [1, 1, 1], roughness: 0.25 });
+      solidPass.setMaterial({ tint: hullTint, roughness: 0.25, translucency });
       hullMesh.draw();
 
-      solidPass.setMaterial({ texture: deckTex, tint: [1, 1, 1], roughness: 0.7, uvScale: 1 });
+      solidPass.setMaterial({
+        texture: deckTex,
+        tint: hullTint,
+        roughness: 0.7,
+        uvScale: 1,
+        translucency,
+      });
       deckMesh.draw();
 
-      solidPass.setMaterial({ tint: [1, 1, 1], roughness: 0.35 });
+      solidPass.setMaterial({ tint: hullTint, roughness: 0.35, translucency });
       keelMesh.draw();
 
       solidPass.setTransform(rudderModel, rudderNormal);
       rudderMesh.draw();
 
       solidPass.setTransform(boomModel, boomNormal);
-      solidPass.setMaterial({ tint: [1, 1, 1], roughness: 0.3 });
+      solidPass.setMaterial({ tint: hullTint, roughness: 0.3, translucency });
       boomMesh.draw();
 
       // Sails: two-sided, backlit cloth.
       solidPass.setTransform(model, normalMat);
       solidPass.setMaterial({
         texture: sailTex,
-        tint: [0.99, 0.99, 0.97],
+        tint: sailTint,
         roughness: 0.85,
-        translucency: 0.9,
+        translucency: ghost ? 0.75 : 0.9,
       });
       gl.bindVertexArray(sailVao);
       gl.drawElements(gl.TRIANGLES, sailIdx.length, gl.UNSIGNED_INT, 0);

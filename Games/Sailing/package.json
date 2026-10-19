@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "node ../../scripts/lint-js-syntax.mjs",
-    "check": "node src/check-sailing.mjs && node src/check-gates.mjs && node src/check-assist.mjs && node src/check-coach.mjs",
+    "check": "node src/check-sailing.mjs && node src/check-gates.mjs && node src/check-assist.mjs && node src/check-coach.mjs && node src/check-progress.mjs",
     "clean": "rm -rf dist"
   },
   "devDependencies": {

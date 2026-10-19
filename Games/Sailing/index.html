@@ -21,10 +21,20 @@
     <div id="title-overlay" class="title-overlay">
       <img src="./title-logo.svg" alt="" width="120" height="120" class="title-logo" />
       <h1 class="title-brand">海灣帆航</h1>
-      <p class="title-tag">按住加速、轉彎衝過閘門 — 海灣競速</p>
+      <p class="title-tag">搶風、陣風、繞標 — 真實航線決策</p>
+
+      <div class="menu-modes" role="group" aria-label="遊玩模式">
+        <button type="button" class="mode-chip selected" data-play-mode="trial">計時賽</button>
+        <button type="button" class="mode-chip" data-play-mode="race">對戰</button>
+        <button type="button" class="mode-chip" data-play-mode="regatta">海灣盃</button>
+      </div>
+      <p class="title-hint mode-hint">計時賽有幽靈船 · 對戰兩位 CPU · 海灣盃連跑三航線積分</p>
+
+      <div id="course-list" class="course-list" role="listbox" aria-label="航線"></div>
+      <p id="menu-meta" class="menu-meta">—</p>
+
       <button type="button" id="btn-start" class="btn primary">開始航行</button>
-      <p class="title-hint"><strong>加速</strong> · <strong>左右轉彎</strong> · 閘門正中穿過有時間獎勵</p>
-      <p class="title-hint">簡單模式＝街機手感；關掉才玩真實相對風與調帆</p>
+      <p class="title-hint"><strong>換舷</strong> · <strong>繞標</strong> · 陣風來時抓橫風</p>
     </div>
 
     <!-- One-shot first-run tip; dismissed into localStorage. -->
@@ -45,6 +55,8 @@
         <span>海灣帆航</span>
       </div>
       <div class="hud-stats">
+        <div class="stat"><span class="label">航線</span><span id="hud-course">—</span></div>
+        <div class="stat"><span class="label">模式</span><span id="hud-mode">—</span></div>
         <div class="stat"><span class="label">航速</span><span id="hud-speed">0.0 kn</span></div>
         <div class="stat"><span class="label">航向</span><span id="hud-point">—</span></div>
       </div>
@@ -161,6 +173,8 @@
       <span id="coach-text"></span>
     </div>
 
+    <div id="gust-badge" class="gust-badge" hidden>陣風</div>
+    <div id="race-standings" class="race-standings" hidden></div>
     <div id="countdown" class="countdown">3</div>
     <div id="toast" class="toast" role="status"></div>
 
@@ -187,12 +201,13 @@
         <li><kbd>↑</kbd> / <kbd>W</kbd> 或螢幕<strong>加速</strong>：按住才會快（簡單模式）</li>
         <li><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd> 或螢幕左右：轉彎對準綠色閘門</li>
         <li><kbd>空白鍵</kbd> 或<strong>一鍵換舷</strong>：快速翻到另一舷</li>
-        <li>從閘門<strong>正中央</strong>穿過：扣時間 + 瞬間加速</li>
+        <li>閘門正中穿過或左舷繞標：扣時間 + 瞬間加速</li>
         <li>拖曳畫面環顧　·　<kbd>R</kbd> 重開</li>
       </ul>
-      <p><strong>風與紅區</strong>：相對風落在羅盤紅區＝正頂風，幾乎無推力，轉開約 40° 再加速。</p>
-      <p><strong>簡單模式</strong>（預設）：街機競速，帆自動調好；綠箭頭＝建議航向。手機只靠螢幕按鈕即可完賽。</p>
-      <p><strong>關閉簡單模式</strong>：真實相對風與調帆；帆抖＝放太鬆，按 Z 收帆。</p>
+      <p><strong>風與紅區</strong>：相對風落在羅盤紅區＝正頂風，幾乎無推力，轉開約 40° 再加速。風向會偏移並夾陣風。</p>
+      <p><strong>航線</strong>：海灣環線（熱身）→ 迎風折返（搶風）→ 繞島三角（強陣風）。完賽解鎖下一條。</p>
+      <p><strong>模式</strong>：計時賽（幽靈）、對戰（微風／烈風 CPU）、海灣盃（三場積分 5／3／1）。</p>
+      <p><strong>簡單模式</strong>（預設）：街機競速；關掉才玩真實相對風與調帆。</p>
       <button type="button" id="btn-help-close" class="btn primary">關閉</button>
     </div>
 

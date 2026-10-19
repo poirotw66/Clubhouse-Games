@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import { ROAD_HALF_WIDTH, TRACK_SEGMENT_LENGTH } from './constants';
+import {
+  COSMETIC_CATALOG,
+  type CosmeticId,
+} from './progress';
+import type { ObstacleKind } from './obstacleProfile';
 import { trackOffset, trackHeading } from './trackPath';
 import { getBarrierMap, getCarMap, getConeMap, getDroneMap, getRoadMap } from './textures';
+
+export type { ObstacleKind };
 
 const NEON_CYAN = 0x22d3ee;
 const NEON_MAGENTA = 0xf472b6;
@@ -9,22 +16,28 @@ const NEON_LIME = 0xa3e635;
 const STRIPE = 0x67e8f9;
 const LANE_STRIPE = 1.2;
 
-export function createCarMesh(): THREE.Group {
+export type PowerupKind = 'shield' | 'magnet' | 'multiplier' | 'slowmo';
+
+export function createCarMesh(cosmeticId: CosmeticId = 'cyan'): THREE.Group {
+  const cosmetic = COSMETIC_CATALOG[cosmeticId];
   const g = new THREE.Group();
+  g.userData.cosmeticId = cosmeticId;
+  g.userData.trailColor = cosmetic.trail;
 
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(1.5, 0.48, 2.6),
     new THREE.MeshStandardMaterial({
       map: getCarMap(),
-      color: 0xffffff,
+      color: cosmetic.body,
       metalness: 0.55,
       roughness: 0.3,
-      emissive: NEON_CYAN,
+      emissive: cosmetic.emissive,
       emissiveIntensity: 0.45,
     }),
   );
   body.position.y = 0.5;
   g.add(body);
+  g.userData.bodyMat = body.material;
 
   const cabin = new THREE.Mesh(
     new THREE.BoxGeometry(1.15, 0.42, 1.2),
@@ -42,8 +55,8 @@ export function createCarMesh(): THREE.Group {
   const stripe = new THREE.Mesh(
     new THREE.BoxGeometry(0.22, 0.08, 2.5),
     new THREE.MeshStandardMaterial({
-      color: NEON_MAGENTA,
-      emissive: NEON_MAGENTA,
+      color: cosmetic.trail,
+      emissive: cosmetic.trail,
       emissiveIntensity: 2.0,
     }),
   );
@@ -76,8 +89,8 @@ export function createCarMesh(): THREE.Group {
   const trail = new THREE.Mesh(
     new THREE.BoxGeometry(1.0, 0.1, 0.7),
     new THREE.MeshStandardMaterial({
-      color: NEON_MAGENTA,
-      emissive: NEON_MAGENTA,
+      color: cosmetic.trail,
+      emissive: cosmetic.trail,
       emissiveIntensity: 2.2,
       transparent: true,
       opacity: 0.8,
@@ -85,11 +98,44 @@ export function createCarMesh(): THREE.Group {
   );
   trail.position.set(0, 0.38, -1.45);
   g.add(trail);
+  g.userData.trailMesh = trail;
+
+  // Shield bubble (toggled visible when shield is active).
+  const shield = new THREE.Mesh(
+    new THREE.SphereGeometry(1.55, 16, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0x67e8f9,
+      emissive: 0x22d3ee,
+      emissiveIntensity: 1.4,
+      transparent: true,
+      opacity: 0.22,
+      metalness: 0.2,
+      roughness: 0.35,
+      depthWrite: false,
+    }),
+  );
+  shield.position.y = 0.7;
+  shield.visible = false;
+  g.add(shield);
+  g.userData.shieldMesh = shield;
 
   return g;
 }
 
-export type ObstacleKind = 'barrier' | 'cone' | 'drone';
+export function createTrailSpark(color: number): THREE.Mesh {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.12, 0.55),
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 2.4,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    }),
+  );
+  return mesh;
+}
 
 export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
   const g = new THREE.Group();
@@ -142,7 +188,7 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.15;
     g.add(ring);
-  } else {
+  } else if (kind === 'drone') {
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(1.2, 0.28, 1.2),
       new THREE.MeshStandardMaterial({
@@ -168,6 +214,86 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     rotor.position.y = 1.6;
     g.add(rotor);
     g.userData.spin = rotor;
+  } else if (kind === 'lowBarrier') {
+    const block = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 0.55, 0.65),
+      new THREE.MeshStandardMaterial({
+        color: 0xfbbf24,
+        metalness: 0.4,
+        roughness: 0.4,
+        emissive: 0xf59e0b,
+        emissiveIntensity: 0.9,
+      }),
+    );
+    block.position.y = 0.28;
+    g.add(block);
+    const tip = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.1, 0.1),
+      new THREE.MeshStandardMaterial({
+        color: NEON_LIME,
+        emissive: NEON_LIME,
+        emissiveIntensity: 1.8,
+      }),
+    );
+    tip.position.y = 0.62;
+    g.add(tip);
+  } else if (kind === 'highGate') {
+    const postL = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 2.4, 0.28),
+      new THREE.MeshStandardMaterial({
+        color: 0xe879f9,
+        emissive: NEON_MAGENTA,
+        emissiveIntensity: 1.1,
+      }),
+    );
+    postL.position.set(-0.75, 1.2, 0);
+    g.add(postL);
+    const postR = postL.clone();
+    postR.position.x = 0.75;
+    g.add(postR);
+    const lintel = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.35, 0.35),
+      new THREE.MeshStandardMaterial({
+        color: 0xf0abfc,
+        emissive: NEON_MAGENTA,
+        emissiveIntensity: 1.6,
+      }),
+    );
+    lintel.position.y = 2.15;
+    g.add(lintel);
+    const beam = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 1.1, 0.25),
+      new THREE.MeshStandardMaterial({
+        color: 0x4c1d95,
+        emissive: 0x7c3aed,
+        emissiveIntensity: 0.85,
+        transparent: true,
+        opacity: 0.85,
+      }),
+    );
+    beam.position.y = 1.0;
+    g.add(beam);
+  } else if (kind === 'slideBar') {
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.35, 0.35),
+      new THREE.MeshStandardMaterial({
+        color: 0x67e8f9,
+        emissive: NEON_CYAN,
+        emissiveIntensity: 1.7,
+      }),
+    );
+    bar.position.y = 1.35;
+    g.add(bar);
+    const hint = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 0.08, 0.08),
+      new THREE.MeshStandardMaterial({
+        color: NEON_LIME,
+        emissive: NEON_LIME,
+        emissiveIntensity: 2.0,
+      }),
+    );
+    hint.position.y = 0.35;
+    g.add(hint);
   }
 
   return g;
@@ -200,6 +326,46 @@ export function createBoostRing(): THREE.Group {
   core.position.y = 1.1;
   g.add(core);
   g.userData.spin = tor;
+  g.userData.pickupKind = 'boost';
+  return g;
+}
+
+const POWERUP_COLORS: Record<PowerupKind, { body: number; emissive: number }> = {
+  shield: { body: 0x67e8f9, emissive: 0x22d3ee },
+  magnet: { body: 0xfbbf24, emissive: 0xf59e0b },
+  multiplier: { body: 0xf0abfc, emissive: 0xf472b6 },
+  slowmo: { body: 0xbef264, emissive: 0xa3e635 },
+};
+
+/** Distinct floating orb for run power-ups. */
+export function createPowerupMesh(kind: PowerupKind): THREE.Group {
+  const g = new THREE.Group();
+  const palette = POWERUP_COLORS[kind];
+  const core = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.55, 0),
+    new THREE.MeshStandardMaterial({
+      color: palette.body,
+      emissive: palette.emissive,
+      emissiveIntensity: 2.0,
+      metalness: 0.35,
+      roughness: 0.25,
+    }),
+  );
+  core.position.y = 1.05;
+  g.add(core);
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.75, 0.07, 8, 24),
+    new THREE.MeshStandardMaterial({
+      color: palette.body,
+      emissive: palette.emissive,
+      emissiveIntensity: 1.6,
+    }),
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 1.05;
+  g.add(ring);
+  g.userData.spin = ring;
+  g.userData.pickupKind = kind;
   return g;
 }
 

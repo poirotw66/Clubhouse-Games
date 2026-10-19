@@ -165,6 +165,13 @@ export function playEvent(event: string): void {
     case 'respawn':
       beep(180, 0.2, 'triangle');
       break;
+    case 'slipstream':
+      whoosh(0.22, 180, 520);
+      break;
+    case 'cup-unlock':
+      playScore();
+      playGoal();
+      break;
     default:
       break;
   }

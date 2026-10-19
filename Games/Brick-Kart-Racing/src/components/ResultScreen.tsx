@@ -13,6 +13,8 @@ interface Props {
   timeTrial?: boolean;
   mirror?: boolean;
   itemsEnabled?: boolean;
+  /** Shown under the title when a ghost was saved. */
+  ghostSaved?: boolean;
   onRetry: () => void;
   onMenu: () => void;
 }
@@ -26,6 +28,7 @@ export function ResultScreen({
   timeTrial = false,
   mirror = false,
   itemsEnabled = true,
+  ghostSaved = false,
   onRetry,
   onMenu,
 }: Props) {
@@ -84,9 +87,13 @@ export function ResultScreen({
         <h2 className={`mb-2 text-center text-2xl font-bold sm:text-3xl ${variant}`}>{title}</h2>
         <p className="mb-1 text-center text-sm text-slate-300">{subtitle}</p>
         {isNewRecord && (
-          <p className="mb-4 text-center text-sm font-bold text-emerald-300">新最佳單圈紀錄</p>
+          <p className="mb-1 text-center text-sm font-bold text-emerald-300">新最佳單圈紀錄</p>
         )}
-        {!isNewRecord && <div className="mb-4" />}
+        {ghostSaved && (
+          <p className="mb-4 text-center text-sm font-bold text-sky-300">幽靈車已更新</p>
+        )}
+        {!isNewRecord && !ghostSaved && <div className="mb-4" />}
+        {isNewRecord && !ghostSaved && <div className="mb-3" />}
 
         <dl className="mb-5 grid gap-2 text-sm">
           {stats.map((stat) => (
