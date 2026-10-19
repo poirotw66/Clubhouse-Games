@@ -296,9 +296,22 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
   await expect(page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first()).toBeVisible();
 });
 
-test('checkers: two-player opening move, undo, and new game', async ({ page, isMobile }) => {
+test('checkers: variants, two-player opening, undo, and new game', async ({ page, isMobile }) => {
   await page.goto('./Games/Checkers/');
-  // Default mode is 雙人對戰; black opens from A3 → B4.
+  await expect(page.getByRole('heading', { name: '西洋跳棋', exact: true })).toBeVisible();
+
+  // International 10×10 uses A–J labels and 20 pieces per side.
+  await activate(page.getByRole('button', { name: /國際式 10×10/ }), isMobile);
+  await expect(page.getByRole('button', { name: 'black man at A3', exact: true })).toBeVisible();
+  await expect(page.getByText('J', { exact: true }).first()).toBeVisible();
+
+  // Back to American 8×8 for the opening sequence.
+  await activate(page.getByRole('button', { name: /美式 8×8/ }), isMobile);
+
+  // Switch to 雙人 so the bot does not race the undo assertion.
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '雙人', exact: true }), isMobile);
+
   const opener = page.getByRole('button', { name: 'black man at A3', exact: true });
   await expect(opener).toBeVisible();
   await activate(opener, isMobile);

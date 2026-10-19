@@ -1,0 +1,147 @@
+/**
+ * Persist streaks, ladder unlocks, puzzle clears, and match preferences.
+ */
+
+import type { MatchLength } from './match';
+import type { OpponentId } from './opponents';
+import type { RulesetId } from './rules';
+
+const KEY = 'clubhouse-checkers:progress:v1';
+
+export type CheckersProgress = {
+  winStreak: number;
+  bestStreak: number;
+  bestMargin: number;
+  beatenOpponents: OpponentId[];
+  puzzlesCleared: string[];
+  lastRuleset: RulesetId;
+  lastMatchTarget: MatchLength;
+  seriesWins: number;
+};
+
+const DEFAULT: CheckersProgress = {
+  winStreak: 0,
+  bestStreak: 0,
+  bestMargin: 0,
+  beatenOpponents: [],
+  puzzlesCleared: [],
+  lastRuleset: 'american',
+  lastMatchTarget: 2,
+  seriesWins: 0,
+};
+
+function isOpponentId(v: unknown): v is OpponentId {
+  return (
+    v === 'rookie' ||
+    v === 'rusher' ||
+    v === 'wall' ||
+    v === 'flyer' ||
+    v === 'champ'
+  );
+}
+
+function parseProgress(raw: unknown): CheckersProgress {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT };
+  const o = raw as Record<string, unknown>;
+  const beaten = Array.isArray(o.beatenOpponents)
+    ? o.beatenOpponents.filter(isOpponentId)
+    : [];
+  const puzzles = Array.isArray(o.puzzlesCleared)
+    ? o.puzzlesCleared.filter((x): x is string => typeof x === 'string')
+    : [];
+  const lastRuleset: RulesetId =
+    o.lastRuleset === 'international' ? 'international' : 'american';
+  const lastMatchTarget: MatchLength =
+    o.lastMatchTarget === 3 || o.lastMatchTarget === 4 ? o.lastMatchTarget : 2;
+  return {
+    winStreak: num(o.winStreak),
+    bestStreak: num(o.bestStreak),
+    bestMargin: num(o.bestMargin),
+    beatenOpponents: beaten,
+    puzzlesCleared: puzzles,
+    lastRuleset,
+    lastMatchTarget,
+    seriesWins: num(o.seriesWins),
+  };
+}
+
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+export function loadProgress(): CheckersProgress {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) {
+      // Migrate legacy streak keys once.
+      const legacyStreak = num(localStorage.getItem('clubhouse-checkers-win-streak'));
+      const legacyBest = num(localStorage.getItem('clubhouse-checkers-best-streak'));
+      const legacyMargin = num(localStorage.getItem('clubhouse-checkers-best-margin'));
+      if (legacyStreak || legacyBest || legacyMargin) {
+        const migrated: CheckersProgress = {
+          ...DEFAULT,
+          winStreak: legacyStreak,
+          bestStreak: legacyBest,
+          bestMargin: legacyMargin,
+        };
+        saveProgress(migrated);
+        return migrated;
+      }
+      return { ...DEFAULT };
+    }
+    return parseProgress(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT };
+  }
+}
+
+export function saveProgress(progress: CheckersProgress): void {
+  localStorage.setItem(KEY, JSON.stringify(progress));
+}
+
+export function recordBotWin(
+  progress: CheckersProgress,
+  margin: number,
+  opponentId: OpponentId | null,
+): CheckersProgress {
+  const winStreak = progress.winStreak + 1;
+  const bestStreak = Math.max(progress.bestStreak, winStreak);
+  const bestMargin = Math.max(progress.bestMargin, margin);
+  const beaten = new Set(progress.beatenOpponents);
+  if (opponentId) beaten.add(opponentId);
+  const next: CheckersProgress = {
+    ...progress,
+    winStreak,
+    bestStreak,
+    bestMargin,
+    beatenOpponents: [...beaten],
+  };
+  saveProgress(next);
+  return next;
+}
+
+export function recordBotLoss(progress: CheckersProgress): CheckersProgress {
+  const next = { ...progress, winStreak: 0 };
+  saveProgress(next);
+  return next;
+}
+
+export function recordPuzzleClear(
+  progress: CheckersProgress,
+  puzzleId: string,
+): CheckersProgress {
+  if (progress.puzzlesCleared.includes(puzzleId)) return progress;
+  const next = {
+    ...progress,
+    puzzlesCleared: [...progress.puzzlesCleared, puzzleId],
+  };
+  saveProgress(next);
+  return next;
+}
+
+export function recordSeriesWin(progress: CheckersProgress): CheckersProgress {
+  const next = { ...progress, seriesWins: progress.seriesWins + 1 };
+  saveProgress(next);
+  return next;
+}
