@@ -477,12 +477,12 @@ export default function App() {
     const hand = playerHands[activeHandIndex];
     if (!hand || hand.status !== 'playing' || hand.cards.length !== 2) return false;
     if (hand.fromSplit) return false;
-    if (rules.surrender === 'early') {
-      // Before dealer has confirmed no BJ (peek pending or insurance phase).
-      return peekPending || gameState === 'insurance' || !peekResolved;
+    if (rules.surrender === 'late') {
+      // Late: only after dealer is known not to have blackjack.
+      return peekResolved && !peekPending;
     }
-    // Late: only after peek confirms no dealer BJ.
-    return peekResolved && !peekPending;
+    // Early: allowed on the initial two-card decision, including vs non-peek upcards.
+    return true;
   };
 
   const surrender = () => {
