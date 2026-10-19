@@ -3,10 +3,29 @@ export const LANE_WIDTH = 2.4;
 export const ROAD_HALF_WIDTH = (LANE_COUNT * LANE_WIDTH) / 2;
 
 export const BASE_SPEED = 28;
-export const MAX_SPEED = 68;
-export const SPEED_RAMP_PER_METER = 0.04;
+export const MAX_SPEED = 72;
+export const SPEED_RAMP_PER_METER = 0.045;
 export const BOOST_SPEED = 18;
 export const BOOST_DURATION = 1.35;
+
+/** Jump clears low obstacles; duration is air time in seconds. */
+export const JUMP_DURATION = 0.58;
+export const JUMP_HEIGHT = 1.55;
+
+/** Dash: brief i-frames + speed burst, then cooldown. */
+export const DASH_DURATION = 0.38;
+export const DASH_IFRAME = 0.32;
+export const DASH_SPEED_BONUS = 22;
+export const DASH_COOLDOWN_BASE = 2.6;
+
+/** Near-miss adrenaline: short speed drip stacked on each scrub. */
+export const NEAR_MISS_SPEED_BONUS = 3.5;
+export const NEAR_MISS_SPEED_DECAY = 1.8;
+
+export const POWERUP_DURATION_BASE = 5.2;
+export const MULTIPLIER_POWER = 2;
+export const SLOWMO_SCALE = 0.62;
+export const SHIELD_FLASH_SEC = 0.45;
 
 export type RushDifficulty = 'chill' | 'normal' | 'rush';
 
@@ -54,6 +73,7 @@ export const PERFECT_MISS_WINDOW = 1.55;
 export const NEAR_MISS_SCORE = 100;
 export const PERFECT_MISS_SCORE = 220;
 export const BOOST_SCORE = 180;
+export const POWERUP_SCORE = 140;
 export const DISTANCE_SCORE_PER_M = 2.5;
 
 /** Combo fades if no near-miss / pickup within this many seconds. */
