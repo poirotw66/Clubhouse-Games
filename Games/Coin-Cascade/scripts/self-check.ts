@@ -51,19 +51,23 @@ function ok(label: string): void {
  * sessions, justified by how wide the bands already are relative to
  * per-session noise (see comments on each reduced check).
  *
- * COIN_CASCADE_CHECK_HEAVY=1 restores the denser seed counts used when those
- * bands were first measured. Prefer that for balance retunes; CI stays on
- * the default.
+ * Full sessions dominate wall time (~100s+ locally, ~150s+ on GitHub-hosted
+ * 2-vCPU runners). The default trims sample size further so PR CI can stay
+ * under a few minutes without dropping any assertion class; bands widen with
+ * 1/√n as noted below.
+ *
+ * COIN_CASCADE_CHECK_HEAVY=1 restores denser counts for balance retunes.
  */
 const HEAVY = process.env.COIN_CASCADE_CHECK_HEAVY === '1';
 /** Shared across RTP + lane-dominance: heavy restores the original 8-seed RTP pool. */
-const N_LANE_SEEDS = HEAVY ? 8 : 4;
-const N_POT_SEEDS = HEAVY ? 16 : 8;
-const N_PILE_SEEDS = HEAVY ? 4 : 3;
-const BOUNDS_TICKS = HEAVY ? 8000 : 4000;
-const DETERMINISM_TICKS = HEAVY ? 4000 : 2500;
+const N_LANE_SEEDS = HEAVY ? 8 : 2;
+const N_POT_SEEDS = HEAVY ? 16 : 4;
+const N_PILE_SEEDS = HEAVY ? 4 : 2;
+const BOUNDS_TICKS = HEAVY ? 8000 : 2000;
+const DETERMINISM_TICKS = HEAVY ? 4000 : 1200;
+const IDLE_SHED_TICKS = HEAVY ? 6000 : 3000;
 /** |chase − ignore| RTP band (pp). Wider under the lighter default because SE scales as 1/√n. */
-const POT_RTP_GAP_MAX = HEAVY ? 8 : 12;
+const POT_RTP_GAP_MAX = HEAVY ? 8 : 16;
 
 const IDLE: PlayerInput = { dropX: 210, drop: false, special: 'normal' };
 
@@ -163,7 +167,7 @@ function pooledRtp(sessions: RunState[]): number {
 //
 // Seeds are the RTPA## family (not LANE##): centre-lane pooled RTP on the
 // first four sits ~112%, safely inside the 35–115% band, while LANE001–004
-// centre alone pools ~117.5% and false-trips the ceiling. Default n=4
+// centre alone pools ~117.5% and false-trips the ceiling. Default n=2
 // (heavy n=8) keeps the same thresholds — the band is ~80pp wide and the
 // lane-spread ceiling is 40pp, so fewer seeds change sample size, not the
 // claim. Dense counts stay available via COIN_CASCADE_CHECK_HEAVY=1.
@@ -212,13 +216,15 @@ for (const seed of LANE_SEEDS) {
   // Now stop dropping entirely and just let physics run.
   const packedCoins = s.coins.length;
   const fallenBefore = s.coinsRecovered;
-  for (let i = 0; i < 6000; i++) s = step(s, { dropX: 210, drop: false, special: 'normal' }, FIXED_DT);
+  for (let i = 0; i < IDLE_SHED_TICKS; i++) s = step(s, { dropX: 210, drop: false, special: 'normal' }, FIXED_DT);
   const fallenAfter = s.coinsRecovered;
   assert.ok(
     fallenAfter > fallenBefore,
-    `packed the shelf with ${packedCoins} coins, stopped dropping, and ran 6000 ticks (100s) with zero coins falling — the shelf locked up`,
+    `packed the shelf with ${packedCoins} coins, stopped dropping, and ran ${IDLE_SHED_TICKS} ticks with zero coins falling — the shelf locked up`,
   );
-  ok(`a packed shelf with no further input still sheds coins on its own (${fallenAfter - fallenBefore} fell over 100s of idle time)`);
+  ok(
+    `a packed shelf with no further input still sheds coins on its own (${fallenAfter - fallenBefore} fell over ${(IDLE_SHED_TICKS / 60).toFixed(0)}s of idle time)`,
+  );
 }
 
 // ── 5) Coins cannot escape shelf bounds or tunnel through the pusher ─────

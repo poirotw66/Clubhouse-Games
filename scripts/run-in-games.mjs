@@ -14,6 +14,8 @@
  * Options:
  *   --jobs N, -j N   Max concurrent games (default: CPU count; env CHECK_JOBS)
  *   --fail-fast      Stop scheduling new games after the first failure
+ *   --shard K/N      Run only the K-th of N partitions (1-based; even split by name)
+ *   --exclude NAME   Skip games whose folder matches NAME (substring, repeatable)
  *
  * Positional filters (after options) match game folder names case-insensitively
  * as substrings. Example: node scripts/run-in-games.mjs check Coin Big-Two
@@ -35,10 +37,23 @@ function cpuCount() {
   return Math.max(1, os.cpus()?.length || 1);
 }
 
+function parseShard(raw) {
+  const match = /^(\d+)\/(\d+)$/.exec(raw);
+  if (!match) return null;
+  const index = Number.parseInt(match[1], 10);
+  const total = Number.parseInt(match[2], 10);
+  if (!Number.isInteger(index) || !Number.isInteger(total) || total < 1 || index < 1 || index > total) {
+    return null;
+  }
+  return { index, total };
+}
+
 function parseArgs(argv) {
   const positional = [];
   let jobs = null;
   let failFast = false;
+  let shard = null;
+  const excludes = [];
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -62,6 +77,42 @@ function parseArgs(argv) {
     }
     if (arg.startsWith('-j') && arg.length > 2) {
       jobs = Number.parseInt(arg.slice(2), 10);
+      continue;
+    }
+    if (arg === '--shard') {
+      const raw = argv[i + 1];
+      if (raw === undefined || raw.startsWith('-')) {
+        console.error(`Missing value for ${arg}`);
+        process.exit(1);
+      }
+      shard = parseShard(raw);
+      if (!shard) {
+        console.error(`Invalid --shard value (want K/N): ${raw}`);
+        process.exit(1);
+      }
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--shard=')) {
+      shard = parseShard(arg.slice('--shard='.length));
+      if (!shard) {
+        console.error(`Invalid --shard value (want K/N): ${arg}`);
+        process.exit(1);
+      }
+      continue;
+    }
+    if (arg === '--exclude') {
+      const raw = argv[i + 1];
+      if (raw === undefined || raw.startsWith('-')) {
+        console.error(`Missing value for ${arg}`);
+        process.exit(1);
+      }
+      excludes.push(raw);
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--exclude=')) {
+      excludes.push(arg.slice('--exclude='.length));
       continue;
     }
     if (arg.startsWith('-')) {
@@ -88,7 +139,7 @@ function parseArgs(argv) {
     process.exit(1);
   }
 
-  return { scriptName, filters, jobs, failFast };
+  return { scriptName, filters, jobs, failFast, shard, excludes };
 }
 
 function runNpmScript(gameDir, scriptName) {
@@ -133,10 +184,10 @@ function printGameResult(name, scriptName, result, durationSec) {
   }
 }
 
-const { scriptName, filters, jobs, failFast } = parseArgs(process.argv.slice(2));
+const { scriptName, filters, jobs, failFast, shard, excludes } = parseArgs(process.argv.slice(2));
 if (!scriptName) {
   console.error(
-    'Usage: node scripts/run-in-games.mjs <script-name> [--jobs N] [--fail-fast] [game-filter...]',
+    'Usage: node scripts/run-in-games.mjs <script-name> [--jobs N] [--shard K/N] [--exclude NAME] [--fail-fast] [game-filter...]',
   );
   process.exit(1);
 }
@@ -171,7 +222,24 @@ if (filters.length > 0) {
   }
 }
 
+if (excludes.length > 0) {
+  games = games.filter((name) => {
+    const lower = name.toLowerCase();
+    return !excludes.some((exclude) => lower.includes(exclude.toLowerCase()));
+  });
+}
+
 games.sort((a, b) => a.localeCompare(b));
+
+if (shard) {
+  games = games.filter((_, index) => index % shard.total === shard.index - 1);
+  if (games.length === 0) {
+    console.log(
+      `Shard ${shard.index}/${shard.total}: no games left after split for "${scriptName}".`,
+    );
+    process.exit(0);
+  }
+}
 
 if (games.length === 0) {
   console.log(`No game defines an npm "${scriptName}" script.`);
@@ -179,9 +247,10 @@ if (games.length === 0) {
 }
 
 const concurrency = Math.min(jobs, games.length);
+const shardLabel = shard ? `, shard ${shard.index}/${shard.total}` : '';
 console.log(
   `Running "${scriptName}" in ${games.length} game(s) with ${concurrency} job(s)` +
-    `${failFast ? ' (fail-fast)' : ''}: ${games.join(', ')}\n`,
+    `${shardLabel}${failFast ? ' (fail-fast)' : ''}: ${games.join(', ')}\n`,
 );
 
 const failed = [];
