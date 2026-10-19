@@ -133,7 +133,9 @@ export default function App() {
   const today = dateKey();
   const streak = computeStreak(dailyRecords, today);
   const todayDone = dailyRecords.some((r) => r.date === today);
-  const pictureUrl = `${import.meta.env.BASE_URL}tile-face.jpg`;
+  /** Number mode uses the wood tile face; picture mode mosaics a dedicated art plate. */
+  const tileFaceUrl = `${import.meta.env.BASE_URL}tile-face.jpg`;
+  const pictureUrl = `${import.meta.env.BASE_URL}puzzle-art.jpg`;
 
   useEffect(() => {
     setBestMoves(loadBestMoves(size, tier));
@@ -479,7 +481,7 @@ export default function App() {
         hintIndex={hintIndex}
         disabled={won || lost}
         onSlide={onSlide}
-        pictureUrl={pictureUrl}
+        pictureUrl={s.style === 'picture' ? pictureUrl : tileFaceUrl}
       />
 
       <div className="flex flex-wrap justify-center gap-2">

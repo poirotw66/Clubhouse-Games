@@ -162,7 +162,8 @@ export function PuzzleBoard({
             ? {
                 backgroundImage: `url(${pictureUrl})`,
                 backgroundSize: `${size * 100}% ${size * 100}%`,
-                backgroundPosition: `${(gCol / (size - 1)) * 100}% ${(gRow / (size - 1)) * 100}%`,
+                backgroundPosition: `${(gCol / Math.max(1, size - 1)) * 100}% ${(gRow / Math.max(1, size - 1)) * 100}%`,
+                backgroundRepeat: 'no-repeat',
               }
             : {
                 backgroundColor: '#cbd5e1',
