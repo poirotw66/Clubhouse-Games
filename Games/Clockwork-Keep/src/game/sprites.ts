@@ -43,5 +43,7 @@ export function drawCenteredSprite(
 export function preloadBattlefieldSprites(): void {
   boardFloorImage();
   for (const t of ['crossbow', 'grinder', 'frost', 'coil'] as const) towerSprite(t);
-  for (const e of ['grunt', 'runner', 'ironclad', 'kite', 'boss'] as const) enemySprite(e);
+  for (const e of ['grunt', 'runner', 'ironclad', 'kite', 'gearbug', 'boss'] as const) {
+    enemySprite(e);
+  }
 }

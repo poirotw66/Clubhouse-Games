@@ -205,27 +205,27 @@ import { ENEMY_DEFS, TOTAL_WAVES } from './game/constants.ts';
   }
 }
 
-// ── Cumulative upgrade costs ─────────────────────────────────────────────────
+// ── Cumulative upgrade costs (shared L1 + exclusive branch capstone) ─────────
 {
   const base = purchaseCost('crossbow');
   const toLevel1 = upgradeCost('crossbow', 0);
-  const toLevel2 = upgradeCost('crossbow', 1);
-  assert.equal(upgradeCost('crossbow', 2), null, 'level 2 (the max, 3rd tier) has no further upgrade');
+  const toLevel2A = upgradeCost('crossbow', 1); // baseline = branch A
+  assert.equal(upgradeCost('crossbow', 2), null, 'level 2 (capstone) has no further upgrade');
 
   assert.equal(cumulativeCost('crossbow', 0), base, 'cumulative cost at level 0 is just the purchase price');
   assert.equal(
     cumulativeCost('crossbow', 1),
     base + toLevel1,
-    'cumulative cost at level 1 is purchase + first upgrade',
+    'cumulative cost at level 1 is purchase + shared upgrade',
   );
   assert.equal(
-    cumulativeCost('crossbow', 2),
-    base + toLevel1 + toLevel2,
-    'cumulative cost at level 2 is purchase + both upgrades',
+    cumulativeCost('crossbow', 2, 'a'),
+    base + toLevel1 + toLevel2A,
+    'cumulative cost at level 2A is purchase + shared + branch A',
   );
 
   // Selling a fully-upgraded tower should refund 70% of everything put into it.
-  assert.equal(sellRefund(cumulativeCost('coil', 2)), Math.floor(cumulativeCost('coil', 2) * 0.7));
+  assert.equal(sellRefund(cumulativeCost('coil', 2, 'a')), Math.floor(cumulativeCost('coil', 2, 'a') * 0.7));
 }
 
 // ── Score formula ─────────────────────────────────────────────────────────────
@@ -332,11 +332,16 @@ function simulateThroughWave(targetWave) {
       }
       const up = s.towers
         .filter((t) => t.level < 2)
-        .map((t) => ({ t, cost: upgradeCost(t.type, t.level) }))
+        .map((t) => ({
+          t,
+          cost: upgradeCost(t.type, t.level),
+          branch: t.level === 1 ? 'a' : null,
+        }))
         .filter((c) => c.cost !== null && c.cost <= s.gold)
         .sort((a, b) => a.cost - b.cost || a.t.id - b.t.id);
       if (up.length > 0) {
-        const r = upgradeTower(s, up[0].t.id);
+        const pick = up[0];
+        const r = upgradeTower(s, pick.t.id, pick.branch);
         if (r.ok) { s = r.state; again = true; }
       }
     }

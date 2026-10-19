@@ -15,6 +15,7 @@ import {
   PREP_TIME_SEC,
   TOTAL_WAVES,
   TOWER_DEFS,
+  type BranchId,
   type Difficulty,
   type EnemyType,
   type MapId,
@@ -30,7 +31,16 @@ import {
   splashTargets,
   tickSlowEffects,
 } from './combat.ts';
-import { calculateScore, overlapCallBonus, purchaseCost, sellRefund, upgradeCost, waveClearBonus } from './economy.ts';
+import {
+  branchUpgradeCost,
+  calculateScore,
+  overlapCallBonus,
+  purchaseCost,
+  resolveTowerStats,
+  sellRefund,
+  sharedUpgradeCost,
+  waveClearBonus,
+} from './economy.ts';
 import {
   computeFlowField,
   distanceToExit,
@@ -157,6 +167,7 @@ export function placeTower(state: GameState, x: number, y: number, type: TowerTy
     x,
     y,
     level: 0,
+    branch: null,
     investedGold: cost,
     cooldown: 0,
   };
@@ -164,7 +175,16 @@ export function placeTower(state: GameState, x: number, y: number, type: TowerTy
   next.gold -= cost;
   next.lastReversible =
     state.phase === 'prep'
-      ? { kind: 'place', towerId: tower.id, cost, priorLevel: null, x, y, type }
+      ? {
+          kind: 'place',
+          towerId: tower.id,
+          cost,
+          priorLevel: null,
+          priorBranch: null,
+          x,
+          y,
+          type,
+        }
       : null;
   return { state: next, ok: true };
 }
@@ -184,23 +204,58 @@ export function sellTower(state: GameState, towerId: number): CommandResult {
   return { state: next, ok: true };
 }
 
-export function upgradeTower(state: GameState, towerId: number): CommandResult {
+/**
+ * Upgrade a tower. Shared L0→L1 needs no branch. Capstone L1→L2 requires an
+ * exclusive `branch` (`a` | `b`).
+ */
+export function upgradeTower(
+  state: GameState,
+  towerId: number,
+  branch?: BranchId | null,
+): CommandResult {
   const tower = state.towers.find((t) => t.id === towerId);
   if (!tower) return { state, ok: false, reason: '找不到該塔' };
   if (tower.level >= 2) return { state, ok: false, reason: '已達最高等級' };
-  const cost = upgradeCost(tower.type, tower.level);
+
+  let cost: number | null = null;
+  let nextLevel: 0 | 1 | 2;
+  let nextBranch: BranchId | null = tower.branch;
+
+  if (tower.level === 0) {
+    cost = sharedUpgradeCost(tower.type, 0);
+    nextLevel = 1;
+  } else {
+    if (branch !== 'a' && branch !== 'b') {
+      return { state, ok: false, reason: '請選擇升級分支' };
+    }
+    cost = branchUpgradeCost(tower.type, branch);
+    nextLevel = 2;
+    nextBranch = branch;
+  }
+
   if (cost === null) return { state, ok: false, reason: '已達最高等級' };
   if (state.gold < cost) return { state, ok: false, reason: '金幣不足' };
 
   const next = cloneState(state);
   const nextTower = next.towers.find((t) => t.id === towerId)!;
   const priorLevel = nextTower.level;
-  nextTower.level = (nextTower.level + 1) as 0 | 1 | 2;
+  const priorBranch = nextTower.branch;
+  nextTower.level = nextLevel;
+  nextTower.branch = nextBranch;
   nextTower.investedGold += cost;
   next.gold -= cost;
   next.lastReversible =
     state.phase === 'prep'
-      ? { kind: 'upgrade', towerId, cost, priorLevel, x: nextTower.x, y: nextTower.y, type: nextTower.type }
+      ? {
+          kind: 'upgrade',
+          towerId,
+          cost,
+          priorLevel,
+          priorBranch,
+          x: nextTower.x,
+          y: nextTower.y,
+          type: nextTower.type,
+        }
       : null;
   return { state: next, ok: true };
 }
@@ -219,6 +274,7 @@ export function undoLast(state: GameState): CommandResult {
     const tower = next.towers.find((t) => t.id === action.towerId);
     if (tower && action.priorLevel !== null) {
       tower.level = action.priorLevel;
+      tower.branch = action.priorBranch;
       tower.investedGold -= action.cost;
     }
   }
@@ -424,17 +480,24 @@ function moveFlyingEnemy(enemy: Enemy, dt: number): void {
 
 function fireTower(tower: Tower, enemies: Enemy[], dt: number): void {
   const def = TOWER_DEFS[tower.type];
-  const stats = def.levels[tower.level];
+  const stats = resolveTowerStats(tower);
+  const splashRadius = stats.splashRadius ?? def.splashRadius;
+  const chainCount = stats.chainTargets ?? def.chainTargets;
+  const slowPercent = stats.slowPercent ?? def.slowPercent;
+  const slowDuration = stats.slowDurationSec ?? def.slowDurationSec;
+  const targetsAir = stats.targetsAir ?? def.targetsAir;
+  const pierce = stats.armorPierce ?? 0;
+
   tower.cooldown -= dt;
   if (tower.cooldown > 0) return;
 
   const cx = tower.x + 0.5;
   const cy = tower.y + 0.5;
-  const inRange = enemiesInRange(enemies, cx, cy, stats.range, def.targetsAir);
+  const inRange = enemiesInRange(enemies, cx, cy, stats.range, targetsAir);
   if (inRange.length === 0) return; // keep retrying next tick rather than resetting cooldown on a miss
 
-  if (def.slowPercent > 0) {
-    for (const e of inRange) applySlow(e, def.slowPercent, def.slowDurationSec);
+  if (slowPercent > 0) {
+    for (const e of inRange) applySlow(e, slowPercent, slowDuration);
     tower.cooldown = 1 / stats.fireRate;
     return;
   }
@@ -442,16 +505,16 @@ function fireTower(tower: Tower, enemies: Enemy[], dt: number): void {
   const primary = selectPrimaryTarget(inRange);
   if (!primary) return;
 
-  if (def.splashRadius > 0) {
-    for (const e of splashTargets(inRange, primary.worldX, primary.worldY, def.splashRadius)) {
-      applyDamage(e, stats.damage);
+  if (splashRadius > 0) {
+    for (const e of splashTargets(inRange, primary.worldX, primary.worldY, splashRadius)) {
+      applyDamage(e, stats.damage, pierce);
     }
-  } else if (def.chainTargets > 1) {
-    for (const e of chainTargets(primary, inRange, def.chainTargets, CHAIN_RADIUS)) {
-      applyDamage(e, stats.damage);
+  } else if (chainCount > 1) {
+    for (const e of chainTargets(primary, inRange, chainCount, CHAIN_RADIUS)) {
+      applyDamage(e, stats.damage, pierce);
     }
   } else {
-    applyDamage(primary, stats.damage);
+    applyDamage(primary, stats.damage, pierce);
   }
   tower.cooldown = 1 / stats.fireRate;
 }

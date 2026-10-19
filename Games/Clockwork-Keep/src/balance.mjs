@@ -76,13 +76,19 @@ function spend(state, mix) {
     }
 
     // 2) Otherwise upgrade the cheapest upgradable tower we can afford.
+    // Capstone always picks branch A (measurable baseline for balance sweeps).
     const candidates = s.towers
       .filter((t) => t.level < 2)
-      .map((t) => ({ t, cost: upgradeCost(t.type, t.level) }))
+      .map((t) => ({
+        t,
+        cost: upgradeCost(t.type, t.level),
+        branch: t.level === 1 ? 'a' : null,
+      }))
       .filter((c) => c.cost !== null && c.cost <= s.gold)
       .sort((a, b) => a.cost - b.cost || a.t.id - b.t.id);
     if (candidates.length > 0) {
-      const r = upgradeTower(s, candidates[0].t.id);
+      const pick = candidates[0];
+      const r = upgradeTower(s, pick.t.id, pick.branch);
       if (r.ok) {
         s = r.state;
         placedAny = true;
@@ -278,9 +284,25 @@ const ARMORS = [
 ];
 console.log('塔            等級 |  ' + ARMORS.map(([n]) => n).join('  '));
 for (const [type, def] of Object.entries(TOWER_DEFS)) {
-  for (let lvl = 0; lvl < 3; lvl++) {
-    const dmg = def.levels[lvl].damage;
-    const cells = ARMORS.map(([, armor]) => String(Math.max(0, dmg - armor)).padStart(String(ARMORS[0][0]).length));
-    console.log(`${def.name.padEnd(6, '　')} L${lvl + 1}   | ${cells.join('  ')}   (${type})`);
+  const tiers = [
+    { label: 'L1', dmg: def.levels[0].damage, pierce: def.levels[0].armorPierce ?? 0 },
+    { label: 'L2', dmg: def.levels[1].damage, pierce: def.levels[1].armorPierce ?? 0 },
+    {
+      label: 'A',
+      dmg: def.branches[0].stats.damage,
+      pierce: def.branches[0].stats.armorPierce ?? 0,
+    },
+    {
+      label: 'B',
+      dmg: def.branches[1].stats.damage,
+      pierce: def.branches[1].stats.armorPierce ?? 0,
+    },
+  ];
+  for (const tier of tiers) {
+    const cells = ARMORS.map(([, armor]) => {
+      const left = Math.max(0, armor - tier.pierce);
+      return String(Math.max(0, tier.dmg - left)).padStart(String(ARMORS[0][0]).length);
+    });
+    console.log(`${def.name.padEnd(6, '　')} ${tier.label}   | ${cells.join('  ')}   (${type})`);
   }
 }

@@ -144,6 +144,36 @@ export const MISSION_PACK: readonly MissionDef[] = [
       winAtWave: TOTAL_WAVES,
     },
   },
+  {
+    id: 'fork-standard',
+    name: '分岔試煉',
+    blurb: '分岔地圖・標準難度・20 波通關',
+    goalLabel: '分岔・標準・通關 20 波',
+    goal: { kind: 'clear' },
+    run: {
+      difficulty: 'standard',
+      mapId: 'fork',
+      endless: false,
+      allowedTowers: null,
+      allowSell: true,
+      winAtWave: TOTAL_WAVES,
+    },
+  },
+  {
+    id: 'islands-harsh',
+    name: '群島嚴苛',
+    blurb: '群島地圖・嚴苛難度・20 波通關',
+    goalLabel: '群島・嚴苛・通關 20 波',
+    goal: { kind: 'clear' },
+    run: {
+      difficulty: 'harsh',
+      mapId: 'islands',
+      endless: false,
+      allowedTowers: null,
+      allowSell: true,
+      winAtWave: TOTAL_WAVES,
+    },
+  },
 ];
 
 export interface MissionProgress {

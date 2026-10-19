@@ -47,10 +47,12 @@ export function selectPrimaryTarget(candidates: Enemy[]): Enemy | null {
 
 /**
  * Flat-reduction armor: subtract armor before applying to HP, floored at
- * zero (never heals). Returns the actual damage dealt.
+ * zero (never heals). Optional `armorPierce` reduces effective armor for this
+ * hit only (crossbow 穿甲釘). Returns the actual damage dealt.
  */
-export function applyDamage(enemy: Enemy, rawDamage: number): number {
-  const effective = Math.max(0, rawDamage - enemy.armor);
+export function applyDamage(enemy: Enemy, rawDamage: number, armorPierce = 0): number {
+  const armorLeft = Math.max(0, enemy.armor - Math.max(0, armorPierce));
+  const effective = Math.max(0, rawDamage - armorLeft);
   enemy.hp = Math.max(0, enemy.hp - effective);
   if (enemy.hp === 0) enemy.dead = true;
   return effective;

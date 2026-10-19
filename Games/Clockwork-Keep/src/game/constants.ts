@@ -60,7 +60,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   harsh: { startingGold: 150, startingLives: 14, enemyHpMult: 1.2 },
 };
 
-export type MapId = 'open' | 'corridor';
+export type MapId = 'open' | 'corridor' | 'fork' | 'islands';
 
 /** Fixed rock cells per map — impassable and unplaceable, used to shape the board. */
 export const MAP_ROCKS: Record<MapId, Array<{ x: number; y: number }>> = {
@@ -74,9 +74,42 @@ export const MAP_ROCKS: Record<MapId, Array<{ x: number; y: number }>> = {
     { x: 9, y: 1 }, { x: 9, y: 2 },
     { x: 9, y: 5 }, { x: 9, y: 6 },
   ],
+  /**
+   * 分岔：前段兩廊再匯合，逼玩家決定火力壓在上廊、下廊或匯合點。
+   * Entrance (0,4) and exit (11,4) stay open; rocks force a Y-split.
+   */
+  fork: [
+    { x: 2, y: 3 }, { x: 2, y: 4 }, { x: 2, y: 5 },
+    { x: 4, y: 0 }, { x: 4, y: 1 }, { x: 4, y: 3 }, { x: 4, y: 4 }, { x: 4, y: 5 }, { x: 4, y: 7 },
+    { x: 5, y: 3 }, { x: 5, y: 4 }, { x: 5, y: 5 },
+    { x: 7, y: 1 }, { x: 7, y: 2 }, { x: 7, y: 5 }, { x: 7, y: 6 },
+    { x: 9, y: 3 }, { x: 9, y: 4 }, { x: 9, y: 5 },
+  ],
+  /**
+   * 群島：散布岩塊，迷宮自由度高但長廊被打斷，考驗補位與對空覆蓋。
+   */
+  islands: [
+    { x: 2, y: 1 }, { x: 2, y: 6 },
+    { x: 3, y: 3 }, { x: 3, y: 4 },
+    { x: 5, y: 1 }, { x: 5, y: 2 }, { x: 5, y: 6 },
+    { x: 6, y: 4 }, { x: 6, y: 5 },
+    { x: 8, y: 2 }, { x: 8, y: 3 }, { x: 8, y: 6 },
+    { x: 10, y: 1 }, { x: 10, y: 5 }, { x: 10, y: 6 },
+  ],
+};
+
+/** Mission clears required before a map appears in free-play setup. */
+export const MAP_UNLOCK_CLEARS: Record<MapId, number> = {
+  open: 0,
+  corridor: 0,
+  fork: 1,
+  islands: 2,
 };
 
 export type TowerType = 'crossbow' | 'grinder' | 'frost' | 'coil';
+
+/** Exclusive capstone after shared base levels (L0 buy → L1 shared → choose A or B). */
+export type BranchId = 'a' | 'b';
 
 export interface TowerLevelStats {
   damage: number;
@@ -84,6 +117,22 @@ export interface TowerLevelStats {
   /** Attacks per second (0 for the pure-control frost tower). */
   fireRate: number;
   cost: number;
+  /** Optional combat overrides when this tier differs from TowerDef defaults. */
+  splashRadius?: number;
+  chainTargets?: number;
+  slowPercent?: number;
+  slowDurationSec?: number;
+  targetsAir?: boolean;
+  /** Flat armor pierce applied before armor reduction (crossbow 穿甲釘). */
+  armorPierce?: number;
+}
+
+export interface TowerBranchDef {
+  id: BranchId;
+  name: string;
+  /** One-line Traditional Chinese tradeoff. */
+  blurb: string;
+  stats: TowerLevelStats;
 }
 
 export interface TowerDef {
@@ -94,8 +143,16 @@ export interface TowerDef {
   chainTargets: number; // 1 = no chain
   slowPercent: number; // 0 = no slow
   slowDurationSec: number;
-  levels: [TowerLevelStats, TowerLevelStats, TowerLevelStats];
+  /** Shared base: [purchase L0, shared upgrade L1]. Capstone is `branches`. */
+  levels: [TowerLevelStats, TowerLevelStats];
+  branches: [TowerBranchDef, TowerBranchDef];
 }
+
+/**
+ * Branch B unlocks after this many mission clears (A is always available).
+ * Keeps early runs simple while rewarding pack progress.
+ */
+export const BRANCH_B_UNLOCK_CLEARS = 2;
 
 export const TOWER_DEFS: Record<TowerType, TowerDef> = {
   crossbow: {
@@ -109,7 +166,23 @@ export const TOWER_DEFS: Record<TowerType, TowerDef> = {
     levels: [
       { damage: 8, range: 2.6, fireRate: 2.2, cost: 40 },
       { damage: 13, range: 2.9, fireRate: 2.4, cost: 35 },
-      { damage: 20, range: 3.2, fireRate: 2.6, cost: 55 },
+    ],
+    branches: [
+      {
+        id: 'a',
+        name: '穿甲釘',
+        blurb: '單發略低＋穿甲——剋鐵皮／首領',
+        // Calibrated so spend-all + branch A still costs 0/5/12 lives on
+        // relaxed/standard/harsh (same band as pre-branch L3). Pierce trades
+        // raw DPS for armored targets; B is the opposite trash-clear profile.
+        stats: { damage: 18, range: 3.15, fireRate: 2.35, cost: 55, armorPierce: 3 },
+      },
+      {
+        id: 'b',
+        name: '連射弦',
+        blurb: '射速拉滿、無穿甲——清雜兵',
+        stats: { damage: 14, range: 3.3, fireRate: 3.2, cost: 55 },
+      },
     ],
   },
   grinder: {
@@ -123,7 +196,20 @@ export const TOWER_DEFS: Record<TowerType, TowerDef> = {
     levels: [
       { damage: 10, range: 1.6, fireRate: 1.0, cost: 55 },
       { damage: 16, range: 1.7, fireRate: 1.1, cost: 45 },
-      { damage: 25, range: 1.9, fireRate: 1.25, cost: 70 },
+    ],
+    branches: [
+      {
+        id: 'a',
+        name: '廣域齒',
+        blurb: '濺射略大、傷害略降——打群',
+        stats: { damage: 22, range: 1.95, fireRate: 1.2, cost: 70, splashRadius: 1.45 },
+      },
+      {
+        id: 'b',
+        name: '重碾輪',
+        blurb: '高傷害、濺射縮小——打硬目標',
+        stats: { damage: 32, range: 1.85, fireRate: 1.15, cost: 70, splashRadius: 0.9 },
+      },
     ],
   },
   frost: {
@@ -137,7 +223,36 @@ export const TOWER_DEFS: Record<TowerType, TowerDef> = {
     levels: [
       { damage: 0, range: 1.5, fireRate: 1.5, cost: 45 },
       { damage: 0, range: 1.7, fireRate: 1.6, cost: 35 },
-      { damage: 0, range: 2.0, fireRate: 1.8, cost: 50 },
+    ],
+    branches: [
+      {
+        id: 'a',
+        name: '深凍',
+        blurb: '減速更強、範圍較窄——鎖單路',
+        stats: {
+          damage: 0,
+          range: 1.85,
+          fireRate: 1.75,
+          cost: 50,
+          slowPercent: 0.42,
+          slowDurationSec: 1.35,
+          splashRadius: 1.35,
+        },
+      },
+      {
+        id: 'b',
+        name: '寒霧',
+        blurb: '範圍更廣、減速較弱——罩多路',
+        stats: {
+          damage: 0,
+          range: 2.25,
+          fireRate: 1.85,
+          cost: 50,
+          slowPercent: 0.28,
+          slowDurationSec: 1.1,
+          splashRadius: 2.05,
+        },
+      },
     ],
   },
   coil: {
@@ -151,7 +266,20 @@ export const TOWER_DEFS: Record<TowerType, TowerDef> = {
     levels: [
       { damage: 12, range: 2.4, fireRate: 0.9, cost: 90 },
       { damage: 18, range: 2.6, fireRate: 1.0, cost: 70 },
-      { damage: 27, range: 2.9, fireRate: 1.1, cost: 110 },
+    ],
+    branches: [
+      {
+        id: 'a',
+        name: '對空弧',
+        blurb: '連鎖更多、單發略低——清紙鳶群',
+        stats: { damage: 24, range: 2.95, fireRate: 1.1, cost: 110, chainTargets: 4, targetsAir: true },
+      },
+      {
+        id: 'b',
+        name: '聚能雷',
+        blurb: '高單發、連鎖較少——打首領',
+        stats: { damage: 36, range: 2.85, fireRate: 1.0, cost: 110, chainTargets: 2, targetsAir: true },
+      },
     ],
   },
 };
@@ -162,7 +290,7 @@ export const CHAIN_RADIUS = 2.5;
 /** Slow effective speed can never drop below this fraction of base speed. */
 export const MIN_SPEED_FACTOR = 0.4;
 
-export type EnemyType = 'grunt' | 'runner' | 'ironclad' | 'kite' | 'boss';
+export type EnemyType = 'grunt' | 'runner' | 'ironclad' | 'kite' | 'gearbug' | 'boss';
 
 export interface EnemyDef {
   type: EnemyType;
@@ -180,6 +308,8 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
   runner: { type: 'runner', name: '疾走鼠', hp: 16, speed: 2.6, armor: 0, flying: false, killReward: 5, lifeCost: 1 },
   ironclad: { type: 'ironclad', name: '鐵皮兵', hp: 90, speed: 1.0, armor: 6, flying: false, killReward: 9, lifeCost: 1 },
   kite: { type: 'kite', name: '紙鳶', hp: 22, speed: 1.8, armor: 0, flying: true, killReward: 6, lifeCost: 1 },
+  /** Compact armored pest — forces pierce or splash earlier than ironclad packs. */
+  gearbug: { type: 'gearbug', name: '齒輪蟲', hp: 40, speed: 1.9, armor: 4, flying: false, killReward: 7, lifeCost: 1 },
   boss: { type: 'boss', name: '首領', hp: 600, speed: 0.9, armor: 10, flying: false, killReward: 80, lifeCost: 5 },
 };
 

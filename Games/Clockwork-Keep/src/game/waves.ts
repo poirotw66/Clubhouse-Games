@@ -47,7 +47,12 @@ export function waveComposition(waveNumber: number): CompositionEntry[] {
   if (waveNumber >= 3) comp.push({ type: 'runner', count: 2 + Math.floor(waveNumber / 3) });
   if (waveNumber >= 6) comp.push({ type: 'ironclad', count: 1 + Math.floor(waveNumber / 5) });
   if (waveNumber >= 4) comp.push({ type: 'kite', count: 1 + Math.floor(waveNumber / 4) });
-  if (isBossWave(waveNumber)) comp.push({ type: 'boss', count: 1 });
+  if (waveNumber >= 8) comp.push({ type: 'gearbug', count: 1 + Math.floor(waveNumber / 6) });
+  // Wave 20 (and every 20th thereafter): dual-boss escort pattern.
+  if (isBossWave(waveNumber)) {
+    const bosses = waveNumber % 20 === 0 ? 2 : 1;
+    comp.push({ type: 'boss', count: bosses });
+  }
   return comp;
 }
 
