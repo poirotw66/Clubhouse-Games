@@ -240,7 +240,8 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
   await activate(page.getByRole('button', { name: '經典模式', exact: true }), isMobile);
   await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
 
-  const movable = page.getByRole('button', { name: /第 \d+ 格/ }).and(page.locator(':enabled'));
+  // Tiles are <button role="gridcell"> — a11y tree exposes gridcell, not button.
+  const movable = page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled'));
   await expect(movable.first()).toBeVisible();
   await activate(movable.first(), isMobile);
   await expect(page.getByText('步數：1', { exact: false })).toBeVisible();
@@ -250,7 +251,9 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
 
   await activate(page.getByRole('button', { name: '重開', exact: true }), isMobile);
   await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first()).toBeVisible();
+  await expect(
+    page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first(),
+  ).toBeVisible();
 });
 
 test('checkers: two-player opening move, undo, and new game', async ({ page, isMobile }) => {
