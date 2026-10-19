@@ -48,9 +48,9 @@ export interface ModeDef {
 }
 
 /**
- * Six authored modes: three practice stages, one hard full clear, two spell
- * challenges. Unlock is sequential by pack index (same pattern as Liquid-Sort /
- * Baseball-Life packs).
+ * Authored modes: practice stages, hard full clear, and spell challenges
+ * (including newer frost-4 / abyss-4 cards). Unlock is sequential by pack
+ * index (same pattern as Liquid-Sort / Baseball-Life packs).
  */
 export const MODE_PACK: readonly ModeDef[] = [
   {
@@ -158,6 +158,42 @@ export const MODE_PACK: readonly ModeDef[] = [
       bombs: 2,
       skipMidway: true,
       startCardIndex: 2,
+      singleCard: true,
+    },
+  },
+  {
+    id: 'spell-frost-duet',
+    name: '符卡・雙弦',
+    blurb: '指定符卡・霜符「雙弦」・必須 Capture',
+    goalLabel: 'Capture 霜符「雙弦」',
+    seedCode: 'mode-duet',
+    goal: { kind: 'capture', min: 1 },
+    run: {
+      startStage: 3,
+      endStage: 3,
+      intensityBonus: 0.1,
+      lives: 3,
+      bombs: 3,
+      skipMidway: true,
+      startCardIndex: 3,
+      singleCard: true,
+    },
+  },
+  {
+    id: 'spell-abyss-rift',
+    name: '符卡・裂壁',
+    blurb: '指定符卡・淵符「裂壁」・必須 Capture',
+    goalLabel: 'Capture 淵符「裂壁」',
+    seedCode: 'mode-rift',
+    goal: { kind: 'capture', min: 1 },
+    run: {
+      startStage: 5,
+      endStage: 5,
+      intensityBonus: 0.2,
+      lives: 3,
+      bombs: 2,
+      skipMidway: true,
+      startCardIndex: 3,
       singleCard: true,
     },
   },

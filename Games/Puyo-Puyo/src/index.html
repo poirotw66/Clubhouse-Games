@@ -21,7 +21,14 @@
             <select id="match-mode">
               <option value="cpu" selected>1P vs CPU</option>
               <option value="versus">1P vs 2P</option>
+              <option value="mission">任務模式</option>
+              <option value="tutorial">連鎖教室</option>
+              <option value="practice">自由練習</option>
             </select>
+          </label>
+          <label class="select-field" id="mission-field" hidden>
+            <span>任務</span>
+            <select id="mission-select"></select>
           </label>
           <label class="select-field">
             <span>色數</span>
@@ -36,6 +43,7 @@
               <option value="easy">簡單</option>
               <option value="normal" selected>普通</option>
               <option value="hard">困難</option>
+              <option value="master">達人</option>
             </select>
           </label>
           <button type="button" id="btn-mute" class="ghost-button" aria-pressed="false">🔊 音效</button>
@@ -50,8 +58,19 @@
 
       <p class="career-stats" id="career-stats" aria-live="polite">對 CPU：0 勝 · 0 敗 · 連勝 0 · 最高連鎖 0</p>
       <p class="match-status" id="match-status">你使用方向鍵移動、Z/X 旋轉、Space 落下；CPU 會自動思考並反擊。</p>
+      <section class="panel quest-panel" id="quest-panel" hidden>
+        <div class="quest-head">
+          <h2 id="quest-title">任務</h2>
+          <p id="quest-progress" class="mono">目標 2 連鎖 · 剩餘 1 手</p>
+        </div>
+        <p id="quest-blurb" class="quest-blurb">達成指定連鎖即可過關。</p>
+        <div class="quest-actions">
+          <button type="button" id="btn-quest-hint" class="ghost-button">顯示落點提示</button>
+          <button type="button" id="btn-quest-skip" class="ghost-button" hidden>下一課</button>
+        </div>
+      </section>
 
-      <main class="versus-layout">
+      <main class="versus-layout" id="versus-layout">
         <section class="player-card player-card-p1">
           <div class="player-card-header">
             <div>
@@ -83,7 +102,7 @@
           </div>
         </section>
 
-        <section class="player-card player-card-p2">
+        <section class="player-card player-card-p2" id="player-card-p2">
           <div class="player-card-header">
             <div>
               <h2 id="p2-title">CPU</h2>
@@ -184,6 +203,7 @@
 
     <script src="js/clubhouse-synth-audio.js"></script>
     <script src="js/logic.js"></script>
+    <script src="js/missions.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/render.js"></script>
     <script src="js/main.js"></script>

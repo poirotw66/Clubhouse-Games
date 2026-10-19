@@ -1,6 +1,6 @@
 ## 蛇窟迴廊（Roguelike Snake）
 
-以經典貪吃蛇為骨幹的 **Roguelike 單局制**地窟探險：吃滿果實開啟出口、用衝刺輾殺敵人、每通過一層三選一挑遺物，深入 15 層擊敗最終首領即可逃出蛇窟。HP 歸零則單局結束。
+以經典貪吃蛇為骨幹的 **Roguelike 單局制**地窟探險：吃滿果實開啟出口、用衝刺輾殺敵人、每通過一層三選一挑遺物，深入 15 層擊敗最終首領即可逃出蛇窟。HP 歸零則單局結束。標題可選 **起始身分**、挑戰 **Ironsnake 硬派**（HP=1、遺物四選一），並追蹤每日連勝與本機成就。
 
 本專案是 `Clubhouse-Games` 底下 `Games/Roguelike-Snake` 子專案，使用 React + TypeScript + Vite + Tailwind CSS 實作，遊戲邏輯為純 TypeScript 模組、畫面以 Canvas 繪製。
 
@@ -75,18 +75,21 @@ npm run build:game Roguelike-Snake
 
 ```
 src/
-├── App.tsx              # 畫面切換、遊戲迴圈、輸入處理、挑戰結算
+├── App.tsx              # 畫面切換、遊戲迴圈、輸入處理、挑戰／meta 結算
 ├── components/          # Arena（Canvas 容器）、Hud、RelicPicker、TitleScreen
 ├── game/
+│   ├── achievements.ts  # 本機成就定義與判定
+│   ├── builds.ts        # 起始身分（解鎖與數值）
 │   ├── challenges.ts    # 挑戰種子包定義、解鎖與通關判定
 │   ├── config.ts        # 所有數值調校常數
+│   ├── daily.ts         # 每日種子鍵與連勝
 │   ├── engine.ts        # 核心規則：移動、戰鬥、樓層推進、遺物
 │   ├── level.ts         # 地形模板生成與連通性檢查
 │   ├── relics.ts        # 遺物定義與加權抽取
 │   ├── rng.ts           # 可重現的種子亂數（mulberry32）
-│   ├── storage.ts       # 最佳紀錄與挑戰進度（localStorage）
+│   ├── storage.ts       # 最佳紀錄、Ironsnake、每日、成就（localStorage）
 │   └── types.ts
 └── render/draw.ts       # Canvas 繪製與逐格內插
 ```
 
-同一組 **種子** 會產生完全相同的地窟，可在標題畫面輸入種子重玩或與他人比較。標題另有 **挑戰種子包**（固定種子＋通關目標，順序解鎖）。
+同一組 **種子** 會產生完全相同的地窟，可在標題畫面輸入種子重玩或與他人比較。標題另有 **挑戰種子包**、**Ironsnake 硬派**、**起始身分** 與 **每日連勝**。

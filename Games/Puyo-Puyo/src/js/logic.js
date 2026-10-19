@@ -36,10 +36,14 @@
     lastDifficulty: 'normal',
     lastMode: 'cpu',
     byDifficulty: null,
+    missionClears: null,
+    missionsClearedCount: 0,
+    tutorialComplete: false,
+    bestChainOverall: 0,
   };
-  var VALID_DIFFICULTIES = { easy: true, normal: true, hard: true };
-  var VALID_MODES = { cpu: true, versus: true };
-  var DIFFICULTY_IDS = ['easy', 'normal', 'hard'];
+  var VALID_DIFFICULTIES = { easy: true, normal: true, hard: true, master: true };
+  var VALID_MODES = { cpu: true, versus: true, mission: true, tutorial: true, practice: true };
+  var DIFFICULTY_IDS = ['easy', 'normal', 'hard', 'master'];
 
   function asNonNegInt(value) {
     var n = Number(value);
@@ -52,7 +56,17 @@
       easy: Object.assign({}, EMPTY_MODE),
       normal: Object.assign({}, EMPTY_MODE),
       hard: Object.assign({}, EMPTY_MODE),
+      master: Object.assign({}, EMPTY_MODE),
     };
+  }
+
+  function normalizeMissionClears(raw) {
+    var out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(raw).forEach(function (key) {
+      if (raw[key]) out[key] = true;
+    });
+    return out;
   }
 
   function normalizeMode(raw) {
@@ -75,6 +89,10 @@
         lastDifficulty: DEFAULT_STATS.lastDifficulty,
         lastMode: DEFAULT_STATS.lastMode,
         byDifficulty: byDifficulty,
+        missionClears: {},
+        missionsClearedCount: 0,
+        tutorialComplete: false,
+        bestChainOverall: 0,
       };
     }
     var lastDifficulty = typeof raw.lastDifficulty === 'string' && VALID_DIFFICULTIES[raw.lastDifficulty]
@@ -83,13 +101,31 @@
     var lastMode = typeof raw.lastMode === 'string' && VALID_MODES[raw.lastMode]
       ? raw.lastMode
       : DEFAULT_STATS.lastMode;
+    var missionClears = normalizeMissionClears(raw.missionClears);
+    var missionsClearedCount = Math.max(
+      asNonNegInt(raw.missionsClearedCount),
+      Object.keys(missionClears).length
+    );
+    var tutorialComplete = !!raw.tutorialComplete;
+    var bestChainOverall = asNonNegInt(raw.bestChainOverall);
 
     if (raw.byDifficulty && typeof raw.byDifficulty === 'object') {
       for (var i = 0; i < DIFFICULTY_IDS.length; i += 1) {
         var id = DIFFICULTY_IDS[i];
         byDifficulty[id] = normalizeMode(raw.byDifficulty[id]);
+        if (byDifficulty[id].bestMaxChain > bestChainOverall) {
+          bestChainOverall = byDifficulty[id].bestMaxChain;
+        }
       }
-      return { lastDifficulty: lastDifficulty, lastMode: lastMode, byDifficulty: byDifficulty };
+      return {
+        lastDifficulty: lastDifficulty,
+        lastMode: lastMode,
+        byDifficulty: byDifficulty,
+        missionClears: missionClears,
+        missionsClearedCount: missionsClearedCount,
+        tutorialComplete: tutorialComplete,
+        bestChainOverall: bestChainOverall,
+      };
     }
 
     // Legacy flat career → migrate into normal.
@@ -100,7 +136,18 @@
       bestWinStreak: raw.winStreak,
       bestMaxChain: raw.bestMaxChain,
     });
-    return { lastDifficulty: lastDifficulty, lastMode: lastMode, byDifficulty: byDifficulty };
+    if (byDifficulty.normal.bestMaxChain > bestChainOverall) {
+      bestChainOverall = byDifficulty.normal.bestMaxChain;
+    }
+    return {
+      lastDifficulty: lastDifficulty,
+      lastMode: lastMode,
+      byDifficulty: byDifficulty,
+      missionClears: missionClears,
+      missionsClearedCount: missionsClearedCount,
+      tutorialComplete: tutorialComplete,
+      bestChainOverall: bestChainOverall,
+    };
   }
 
   function modeOf(stats, difficulty) {
@@ -134,14 +181,32 @@
   /** Track personal-best max chain from a finished match (win or lose). */
   function noteMaxChain(stats, chain, difficulty) {
     var next = mergeStats(stats);
-    var d = typeof difficulty === 'string' && VALID_DIFFICULTIES[difficulty]
-      ? difficulty
-      : next.lastDifficulty;
-    var mode = Object.assign({}, next.byDifficulty[d]);
     var n = asNonNegInt(chain);
-    if (n > mode.bestMaxChain) mode.bestMaxChain = n;
-    next.byDifficulty[d] = mode;
+    if (n > next.bestChainOverall) next.bestChainOverall = n;
+    if (typeof difficulty === 'string' && VALID_DIFFICULTIES[difficulty]) {
+      var mode = Object.assign({}, next.byDifficulty[difficulty]);
+      if (n > mode.bestMaxChain) mode.bestMaxChain = n;
+      next.byDifficulty[difficulty] = mode;
+      next.lastDifficulty = difficulty;
+    }
     return next;
+  }
+
+  /** Record a cleared mission id (idempotent). */
+  function recordMissionClear(stats, missionId, chain) {
+    var next = mergeStats(stats);
+    if (typeof missionId !== 'string' || !missionId) return next;
+    if (!next.missionClears[missionId]) {
+      next.missionClears[missionId] = true;
+      next.missionsClearedCount = Object.keys(next.missionClears).length;
+    }
+    return noteMaxChain(next, chain, null);
+  }
+
+  function markTutorialComplete(stats, chain) {
+    var next = mergeStats(stats);
+    next.tutorialComplete = true;
+    return noteMaxChain(next, chain, null);
   }
 
   function withPrefs(stats, difficulty, mode) {
@@ -153,6 +218,30 @@
       next.lastMode = mode;
     }
     return next;
+  }
+
+  /** Column-height variance — flatter boards are safer for deep AI. */
+  function heightVariance(board) {
+    var heights = [];
+    var sum = 0;
+    for (var col = 0; col < COLS; col += 1) {
+      var h = 0;
+      for (var row = 0; row < ROWS; row += 1) {
+        if (board[row][col] !== null) {
+          h = ROWS - row;
+          break;
+        }
+      }
+      heights.push(h);
+      sum += h;
+    }
+    var mean = sum / COLS;
+    var variance = 0;
+    for (var i = 0; i < heights.length; i += 1) {
+      var d = heights[i] - mean;
+      variance += d * d;
+    }
+    return variance;
   }
 
   function createBoard() {
@@ -580,10 +669,16 @@
     // Vs-CPU career stats (pure helpers; localStorage I/O lives in main.js).
     STATS_KEY: STATS_KEY,
     DEFAULT_STATS: mergeStats(null),
+    VALID_DIFFICULTIES: VALID_DIFFICULTIES,
+    VALID_MODES: VALID_MODES,
+    DIFFICULTY_IDS: DIFFICULTY_IDS,
     mergeStats: mergeStats,
     modeOf: modeOf,
     recordCpuResult: recordCpuResult,
     noteMaxChain: noteMaxChain,
+    recordMissionClear: recordMissionClear,
+    markTutorialComplete: markTutorialComplete,
     withPrefs: withPrefs,
+    heightVariance: heightVariance,
   };
 })(window);

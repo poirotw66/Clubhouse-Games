@@ -31,6 +31,12 @@ import {
   takeUpgrade,
 } from '../src/game/engine.js';
 import { allCards, bossFor, midwayCardFor } from '../src/game/cards.js';
+import {
+  CRAFTS,
+  DEFAULT_CRAFT_ID,
+  craftById,
+  isCraftUnlocked,
+} from '../src/game/crafts.js';
 import { allEmitters, emitterActive } from '../src/game/engine.js';
 import {
   EMPTY_MODE_PROGRESS,
@@ -41,6 +47,7 @@ import {
   evaluateModeGoal,
   isModeUnlocked,
   modeCount,
+  modeIndexOf,
 } from '../src/game/modes.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
 import { UPGRADES, declaredConditions, declaredEffectKeys } from '../src/game/upgrades.js';
@@ -487,7 +494,9 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
 // ── 11) Every authored card is reachable and well-formed ─────────────────────
 {
   const cards = allCards();
-  assert.ok(cards.length >= 12, `only ${cards.length} spell cards authored`);
+  assert.ok(cards.length >= 14, `only ${cards.length} spell cards authored`);
+  assert.ok(cards.some((c) => c.id === 'frost-4'), 'missing frost-4 雙弦');
+  assert.ok(cards.some((c) => c.id === 'abyss-4'), 'missing abyss-4 裂壁');
   const ids = cards.map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length, 'spell card ids must be unique');
   for (const c of cards) {
@@ -764,7 +773,7 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
 
 // ── 15) Mode / level pack: authored targets, unlock, goals, run knobs ─────────
 {
-  assert.ok(MODE_PACK.length >= 6, 'mode pack is too thin');
+  assert.ok(MODE_PACK.length >= 8, 'mode pack is too thin');
   assert.equal(modeCount(), MODE_PACK.length);
   const ids = MODE_PACK.map((m) => m.id);
   assert.equal(new Set(ids).size, ids.length, 'mode ids must be unique');
@@ -796,6 +805,16 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.equal(rainBoss?.cardIndex, 2);
   assert.equal(rainRun.config.singleCard, true);
 
+  // New spell challenges for frost-4 / abyss-4.
+  const duet = MODE_PACK.find((m) => m.id === 'spell-frost-duet');
+  assert.ok(duet);
+  const duetRun = createRun(duet.seedCode, { ...duet.run, modeId: duet.id });
+  assert.equal(duetRun.enemies.find((e) => e.isBoss)?.card?.id, 'frost-4');
+  const rift = MODE_PACK.find((m) => m.id === 'spell-abyss-rift');
+  assert.ok(rift);
+  const riftRun = createRun(rift.seedCode, { ...rift.run, modeId: rift.id });
+  assert.equal(riftRun.enemies.find((e) => e.isBoss)?.card?.id, 'abyss-4');
+
   // Hard abyss: full clear knobs.
   const hard = MODE_PACK.find((m) => m.id === 'hard-abyss');
   assert.ok(hard);
@@ -821,7 +840,8 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.equal(timed.captures, 0);
   assert.equal(evaluateModeGoal(rain, timed), false, 'timeout must not clear a capture goal');
 
-  const failed = applyModeResult(EMPTY_MODE_PROGRESS, modeCount() - 2, timed);
+  const rainIndex = modeIndexOf(rain.id);
+  const failed = applyModeResult(EMPTY_MODE_PROGRESS, rainIndex, timed);
   assert.equal(failed.clearedCount, 0, 'failed capture must not advance unlock');
   assert.ok((failed.bestScore[rain.id] ?? 0) >= timed.score || timed.score === 0);
 
@@ -852,8 +872,41 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.equal(free.config.endStage, STAGE_COUNT);
   assert.equal(free.config.skipMidway, false);
   assert.equal(free.bossSpawned, false);
+  assert.equal(free.craftId, DEFAULT_CRAFT_ID);
+  assert.deepEqual(free.capturedCardIds, []);
 
   ok('mode pack targets, unlock, goals, and run knobs hold');
+}
+
+// ── 16) Crafts: distinct tradeoffs, unlock gate, wired into createRun ─────────
+{
+  assert.ok(CRAFTS.length >= 3, 'need at least three crafts');
+  const craftIds = CRAFTS.map((c) => c.id);
+  assert.equal(new Set(craftIds).size, craftIds.length, 'craft ids must be unique');
+  assert.equal(isCraftUnlocked(CRAFTS[0], 0), true);
+  assert.equal(isCraftUnlocked(CRAFTS[1], 0), false);
+  assert.equal(isCraftUnlocked(CRAFTS[1], 1), true);
+  assert.equal(isCraftUnlocked(CRAFTS[2], 1), false);
+  assert.equal(isCraftUnlocked(CRAFTS[2], 2), true);
+
+  const base = createRun('CRAFT-BASE', { craftId: 'swift' });
+  const cannon = createRun('CRAFT-BASE', { craftId: 'cannon' });
+  const stitch = createRun('CRAFT-BASE', { craftId: 'stitch' });
+  assert.equal(base.craftId, 'swift');
+  assert.equal(cannon.craftId, 'cannon');
+  assert.equal(stitch.craftId, 'stitch');
+
+  // Same seed + idle inputs must still deterministically diverge by craft stats
+  // only through the craft multipliers — fire rate / hitbox / damage differ.
+  assert.notEqual(fireRate(base), fireRate(cannon));
+  assert.notEqual(hitboxRadius(base), hitboxRadius(stitch));
+  assert.notEqual(shotDamage(base, 80), shotDamage(cannon, 80));
+  assert.notEqual(moveSpeed({ ...base, focus: true }), moveSpeed({ ...stitch, focus: true }));
+
+  // Unknown craft id falls back safely.
+  assert.equal(craftById('nope').id, DEFAULT_CRAFT_ID);
+
+  ok('crafts unlock and alter fire / focus / hitbox tradeoffs');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);

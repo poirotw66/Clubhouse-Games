@@ -46,3 +46,8 @@ export const SCORE_HP_BONUS = 300;
 
 export const STORAGE_KEY = 'clubhouse:roguelike-snake:best';
 export const CHALLENGES_STORAGE_KEY = 'clubhouse:roguelike-snake:challenges';
+
+/** Standard relic offers after clearing a floor. */
+export const RELIC_CHOICE_COUNT = 3;
+/** Ironsnake hard mode: HP fixed at 1, relic offers are 4-pick-1. */
+export const IRONSNAKE_RELIC_CHOICE_COUNT = 4;

@@ -1,11 +1,16 @@
 import React, { useEffect, useRef } from 'react';
 import { FIELD_H, FIELD_W, FRAGMENT_ARM_SEC } from '../game/constants';
+import { craftById, DEFAULT_CRAFT_ID } from '../game/crafts';
 import { grazeRadius, hitboxRadius } from '../game/engine';
+import type { JuiceState } from '../game/juice';
 import type { Bullet, Enemy, RunState } from '../game/types';
 
 interface Props {
   stateRef: React.MutableRefObject<RunState | null>;
+  juiceRef: React.MutableRefObject<JuiceState>;
   paused: boolean;
+  /** When true, skip shake / particle motion (prefers-reduced-motion). */
+  reduceMotion: boolean;
 }
 
 interface Star {
@@ -50,7 +55,6 @@ function drawAbyss(ctx: CanvasRenderingContext2D, elapsed: number, stars: Star[]
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, FIELD_W, FIELD_H);
 
-  // Soft nebula washes — atmosphere without textures.
   const nebula = ctx.createRadialGradient(FIELD_W * 0.3, FIELD_H * 0.2, 10, FIELD_W * 0.3, FIELD_H * 0.2, 220);
   nebula.addColorStop(0, 'rgba(168, 85, 247, 0.16)');
   nebula.addColorStop(1, 'rgba(168, 85, 247, 0)');
@@ -71,7 +75,6 @@ function drawAbyss(ctx: CanvasRenderingContext2D, elapsed: number, stars: Star[]
     ctx.fill();
   }
 
-  // Side vignette so the play field reads as a tunnel.
   const left = ctx.createLinearGradient(0, 0, 28, 0);
   left.addColorStop(0, 'rgba(2, 4, 16, 0.55)');
   left.addColorStop(1, 'rgba(2, 4, 16, 0)');
@@ -113,7 +116,6 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, t: number): void {
   if (e.isBoss) {
     const spin = t * 0.6;
     ctx.rotate(spin * 0.08);
-    // Wing lobes
     for (const side of [-1, 1]) {
       ctx.beginPath();
       ctx.moveTo(0, -e.r * 0.2);
@@ -123,7 +125,6 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, t: number): void {
       ctx.fillStyle = 'rgba(244, 114, 182, 0.55)';
       ctx.fill();
     }
-    // Core
     const core = ctx.createRadialGradient(0, 0, 2, 0, 0, e.r);
     core.addColorStop(0, '#fce7f3');
     core.addColorStop(0.45, '#f472b6');
@@ -196,7 +197,6 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
     const isWall = key >= 1000;
     const hue = key - (isWall ? 1000 : 0);
 
-    // Soft outer aura (one path fill per bucket — cheap enough at peak density).
     if (!isWall) {
       ctx.beginPath();
       for (const b of list) {
@@ -223,7 +223,6 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
     ctx.strokeStyle = `hsla(${hue}, 100%, ${isWall ? 96 : 92}%, ${isWall ? 1 : 0.85})`;
     ctx.stroke();
 
-    // Bright core
     if (!isWall) {
       ctx.beginPath();
       for (const b of list) {
@@ -237,6 +236,16 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
   }
 }
 
+function drawParticles(ctx: CanvasRenderingContext2D, juice: JuiceState): void {
+  for (const p of juice.particles) {
+    const t = Math.max(0, p.life / p.maxLife);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * t, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${p.hue}, 90%, 70%, ${0.85 * t})`;
+    ctx.fill();
+  }
+}
+
 function drawShip(
   ctx: CanvasRenderingContext2D,
   px: number,
@@ -244,78 +253,92 @@ function drawShip(
   focus: boolean,
   powerTier: number,
   trail: TrailPoint[],
+  craftId: string,
 ): void {
-  // Thruster trail
+  const craft = craftById(craftId || DEFAULT_CRAFT_ID);
+  const hullHue = craft.hullHue;
+  const beamHue = craft.beamHue;
+
   for (let i = 0; i < trail.length; i++) {
     const p = trail[i];
     const t = p.life;
     ctx.beginPath();
     ctx.arc(p.x, p.y, 2 + (1 - t) * 4, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(125, 211, 252, ${0.35 * t})`;
+    ctx.fillStyle = `hsla(${beamHue}, 85%, 70%, ${0.35 * t})`;
     ctx.fill();
   }
 
-  // Cosmetic muzzle beams (hitscan damage stays in the engine).
-  const beams = Math.min(5, 1 + powerTier);
+  // Cosmetic muzzle beams — width/colour follow craft identity.
+  const beams = Math.max(1, Math.min(7, 1 + powerTier + Math.max(0, craft.shotWidthBonus)));
+  const spreadStep = craft.id === 'cannon' ? 10 : craft.id === 'stitch' ? 5 : 7;
   for (let i = 0; i < beams; i++) {
-    const spread = (i - (beams - 1) / 2) * 7;
+    const spread = (i - (beams - 1) / 2) * spreadStep;
     const grad = ctx.createLinearGradient(px + spread, py - 12, px + spread * 0.3, 0);
-    grad.addColorStop(0, 'rgba(186, 230, 253, 0.55)');
-    grad.addColorStop(1, 'rgba(186, 230, 253, 0)');
+    grad.addColorStop(0, `hsla(${beamHue}, 90%, 80%, 0.55)`);
+    grad.addColorStop(1, `hsla(${beamHue}, 90%, 80%, 0)`);
     ctx.strokeStyle = grad;
-    ctx.lineWidth = focus ? 1.2 : 1.8;
+    ctx.lineWidth = focus ? (craft.id === 'cannon' ? 2.2 : 1.2) : craft.id === 'cannon' ? 2.8 : 1.8;
     ctx.beginPath();
     ctx.moveTo(px + spread, py - 12);
     ctx.lineTo(px + spread * 0.25, 8);
     ctx.stroke();
   }
 
-  // Thruster flame
   const flicker = 0.7 + Math.sin(performance.now() / 40) * 0.3;
   ctx.beginPath();
   ctx.moveTo(px - 4, py + 8);
   ctx.lineTo(px, py + 8 + 10 * flicker);
   ctx.lineTo(px + 4, py + 8);
   ctx.closePath();
-  ctx.fillStyle = `rgba(56, 189, 248, ${0.55 * flicker})`;
+  ctx.fillStyle = `hsla(${beamHue}, 90%, 60%, ${0.55 * flicker})`;
   ctx.fill();
 
-  // Hull
+  // Hull silhouette varies slightly by craft.
   ctx.beginPath();
-  ctx.moveTo(px, py - 14);
-  ctx.lineTo(px - 11, py + 10);
-  ctx.lineTo(px - 3, py + 5);
-  ctx.lineTo(px, py + 9);
-  ctx.lineTo(px + 3, py + 5);
-  ctx.lineTo(px + 11, py + 10);
+  if (craft.id === 'cannon') {
+    ctx.moveTo(px, py - 12);
+    ctx.lineTo(px - 14, py + 11);
+    ctx.lineTo(px - 4, py + 4);
+    ctx.lineTo(px, py + 10);
+    ctx.lineTo(px + 4, py + 4);
+    ctx.lineTo(px + 14, py + 11);
+  } else if (craft.id === 'stitch') {
+    ctx.moveTo(px, py - 16);
+    ctx.lineTo(px - 8, py + 9);
+    ctx.lineTo(px - 2, py + 4);
+    ctx.lineTo(px, py + 8);
+    ctx.lineTo(px + 2, py + 4);
+    ctx.lineTo(px + 8, py + 9);
+  } else {
+    ctx.moveTo(px, py - 14);
+    ctx.lineTo(px - 11, py + 10);
+    ctx.lineTo(px - 3, py + 5);
+    ctx.lineTo(px, py + 9);
+    ctx.lineTo(px + 3, py + 5);
+    ctx.lineTo(px + 11, py + 10);
+  }
   ctx.closePath();
   const hull = ctx.createLinearGradient(px, py - 14, px, py + 10);
-  hull.addColorStop(0, '#f0f9ff');
-  hull.addColorStop(0.45, '#7dd3fc');
-  hull.addColorStop(1, '#0284c7');
+  hull.addColorStop(0, `hsl(${hullHue}, 80%, 92%)`);
+  hull.addColorStop(0.45, `hsl(${hullHue}, 75%, 65%)`);
+  hull.addColorStop(1, `hsl(${hullHue}, 70%, 40%)`);
   ctx.fillStyle = hull;
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Canopy
   ctx.beginPath();
-  ctx.ellipse(px, py - 2, 3.2, 4.5, 0, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(244, 114, 182, 0.85)';
+  ctx.ellipse(px, py - 2, craft.id === 'cannon' ? 3.8 : 3.2, craft.id === 'stitch' ? 5.2 : 4.5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = `hsla(${(hullHue + 80) % 360}, 70%, 70%, 0.85)`;
   ctx.fill();
 }
 
 /**
  * Draws the field every animation frame straight from the simulation snapshot.
- * It reads through a ref rather than props so React never re-renders at 60fps —
- * the HUD re-renders a few times a second, the canvas draws itself.
- *
- * Bullets are batched by colour into a handful of paths. The balance harness
- * measured a peak of 648 bullets on screen, and a beginPath/fill per bullet at
- * that count is what turns a danmaku game into a slideshow on a phone.
+ * Juice (shake / particles) is presentation-only and never feeds back into step().
  */
-export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
+export function GameCanvas({ stateRef, juiceRef, paused, reduceMotion }: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
 
@@ -333,6 +356,7 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
       rafRef.current = requestAnimationFrame(draw);
       const s = stateRef.current;
       if (!s) return;
+      const juice = juiceRef.current;
 
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const cssW = canvas.clientWidth;
@@ -346,7 +370,10 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
       ctx.clearRect(0, 0, cssW, cssH);
 
       ctx.save();
-      ctx.translate((cssW - FIELD_W * scale) / 2, (cssH - FIELD_H * scale) / 2);
+      const shakeAmt = reduceMotion ? 0 : juice.shake * 10;
+      const ox = shakeAmt ? (Math.sin(performance.now() / 18) * shakeAmt) : 0;
+      const oy = shakeAmt ? (Math.cos(performance.now() / 14) * shakeAmt * 0.7) : 0;
+      ctx.translate((cssW - FIELD_W * scale) / 2 + ox, (cssH - FIELD_H * scale) / 2 + oy);
       ctx.scale(scale, scale);
 
       drawAbyss(ctx, s.elapsed, stars);
@@ -362,7 +389,8 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
 
       drawBullets(ctx, s.bullets);
 
-      // Render-only thruster trail.
+      if (!reduceMotion) drawParticles(ctx, juice);
+
       trailClock += 1;
       if (trailClock % 2 === 0) {
         trail.push({ x: s.px, y: s.py + 10, life: 1 });
@@ -372,7 +400,7 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
 
       const blinking = s.invuln > 0 && Math.floor(s.invuln * 12) % 2 === 0;
       if (!blinking) {
-        drawShip(ctx, s.px, s.py, s.focus, s.powerTier, trail);
+        drawShip(ctx, s.px, s.py, s.focus, s.powerTier, trail, s.craftId);
       }
 
       if (s.focus) {
@@ -400,7 +428,7 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
 
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [stateRef, paused]);
+  }, [stateRef, juiceRef, paused, reduceMotion]);
 
   return <canvas ref={canvasRef} className="w-full h-full block touch-none" aria-label="彈幕戰場" />;
 }
