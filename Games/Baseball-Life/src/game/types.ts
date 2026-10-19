@@ -102,8 +102,70 @@ export type DecisionKind =
   | 'path'
   | 'offer'
   | 'event'
+  | 'clutch'
   | 'retire'
   | 'continue';
+
+/** A memorable in-match moment kept for the retirement summary (M2). */
+export interface ClutchHighlight {
+  year: number;
+  age: number;
+  league: LeagueId;
+  text: string;
+  tone: 'great' | 'good' | 'bad';
+}
+
+export interface ClutchOption {
+  id: string;
+  label: string;
+  hint: string;
+  /** Approach id resolved by `clutch.ts` (sit-fastball, steal, challenge…). */
+  approach: string;
+}
+
+/**
+ * One high-leverage plate appearance / defensive / pitching duel inserted
+ * before a season or tournament auto-sim finishes.
+ */
+export interface ClutchMoment {
+  id: string;
+  templateId: string;
+  kind: 'atbat' | 'steal' | 'pitch' | 'bunt' | 'defend';
+  title: string;
+  situation: string;
+  prompt: string;
+  year: number;
+  age: number;
+  league: LeagueId;
+  options: ClutchOption[];
+}
+
+/** Accumulated modifiers from clutch choices applied when the match resolves. */
+export interface ClutchSeasonMods {
+  clutchMul: number;
+  qualityDelta: number;
+  batHitBonus: number;
+  batHrBonus: number;
+  batSbBonus: number;
+  pitchSoBonus: number;
+  pitchEraDelta: number;
+  pitchWinBonus: number;
+  tournamentScoreDelta: number;
+}
+
+/**
+ * Match context parked while the player answers clutch decisions. Training has
+ * already applied; the season / tournament sim waits until the queue drains.
+ */
+export interface PendingMatch {
+  kind: 'tournament' | 'season';
+  tournamentName?: string;
+  attitudeId?: string;
+  fatigueDelta: number;
+  injuryMul: number;
+  turnScale: number;
+  playsSeason: boolean;
+}
 
 export interface Option {
   id: string;
@@ -151,6 +213,8 @@ export interface TurnReport {
   /** Money earned this turn, in 萬元; null outside a paid season. */
   income: number | null;
   tone: LogEntry['tone'];
+  /** True when this report is a clutch-moment result (UI hit-stop / sfx). */
+  clutchMoment?: boolean;
 }
 
 /** All money is in 萬元 (units of NT$10,000) to keep the numbers readable. */
@@ -294,6 +358,17 @@ export interface GameState {
    * Free play leaves it null. Used only to force-queue scripted situation hooks.
    */
   challengeId: string | null;
+
+  /** M2: current in-match clutch decision, if any. */
+  pendingClutch: ClutchMoment | null;
+  /** Remaining clutch moments for the parked match. */
+  clutchQueue: ClutchMoment[];
+  /** Season / tournament waiting on clutch answers. */
+  pendingMatch: PendingMatch | null;
+  /** Mods accumulated from clutch answers for the parked match. */
+  clutchMods: ClutchSeasonMods;
+  /** Memorable clutch moments shown on the retirement summary. */
+  clutchHighlights: ClutchHighlight[];
 
   decision: Decision | null;
   report: TurnReport | null;

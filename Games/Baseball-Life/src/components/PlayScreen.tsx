@@ -80,7 +80,8 @@ export function PlayScreen({
       : Boolean(situationDestiny && state.meta.destiny >= DESTINY_SITUATION_COST);
   const destinyArmed = useDestiny && canAffordDestiny;
   const showDestinyToggle =
-    (decision?.kind === 'training' && trainingRollsDice) || Boolean(situationDestiny);
+    decision?.kind !== 'clutch' &&
+    ((decision?.kind === 'training' && trainingRollsDice) || Boolean(situationDestiny));
 
   // A fresh decision starts with 天命 disarmed, so the toggle never silently
   // carries over from a turn the player already resolved.
@@ -156,11 +157,13 @@ export function PlayScreen({
         <div className="flex flex-col gap-4">
           {report && (
             <section
-              className="bl-card p-4"
+              className={`bl-card p-4 ${report.clutchMoment ? 'bl-clutch-hit' : ''}`}
               style={{ borderColor: TONE_RING[report.tone] }}
               aria-live="polite"
             >
-              <p className="text-[11px] tracking-wider text-slate-500">{report.label}</p>
+              <p className="text-[11px] tracking-wider text-slate-500">
+                {report.clutchMoment ? '關鍵局面' : report.label}
+              </p>
               <div className="mt-1 flex items-center gap-3">
                 {report.dice !== null && (
                   <DiceRoll
@@ -252,12 +255,21 @@ export function PlayScreen({
             decision && (
               <section className="bl-card p-4">
                 <p className="text-[11px] tracking-wider text-slate-500">
-                  {decision.kind === 'event' ? '高風險抉擇' : decision.title}
+                  {decision.kind === 'event'
+                    ? '高風險抉擇'
+                    : decision.kind === 'clutch'
+                      ? '比賽關鍵局面'
+                      : decision.title}
                 </p>
                 {decision.kind === 'event' && (
                   <p className="mt-1 text-xs font-bold text-rose-300/90">{decision.title}</p>
                 )}
-                <h2 className="mt-1 text-base leading-relaxed text-slate-200">{decision.prompt}</h2>
+                {decision.kind === 'clutch' && (
+                  <p className="mt-1 text-xs font-bold text-amber-300/90">{decision.title}</p>
+                )}
+                <h2 className="mt-1 whitespace-pre-line text-base leading-relaxed text-slate-200">
+                  {decision.prompt}
+                </h2>
 
                 {showDestinyToggle && (
                   <button
