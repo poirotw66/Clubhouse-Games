@@ -694,7 +694,8 @@ test('puyo-puyo: modes, mission ladder, tutorial panel, and master difficulty', 
   await expect(page.locator('#quest-panel')).toBeVisible();
   await expect(page.getByRole('heading', { name: /任務/ })).toBeVisible();
   await expect(page.locator('#mission-select')).toBeVisible();
-  await expect(page.locator('#player-card-p2')).toBeHidden();
+  await expect(page.locator('#player-card-p2')).toBeHidden({ timeout: 5_000 });
+  await expect(page.locator('#player-card-p2')).toHaveAttribute('hidden', '');
   await expect(page.getByRole('button', { name: '顯示落點提示', exact: true })).toBeVisible();
   await activate(page.getByRole('button', { name: '顯示落點提示', exact: true }), isMobile);
   await expect(page.locator('#p1-status')).toContainText('提示');

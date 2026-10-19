@@ -533,6 +533,14 @@ body.all-clear-flash {
   justify-content: center;
 }
 
+/* Author flex/grid rules must not defeat the HTML hidden attribute. */
+.player-card-p2[hidden],
+.quest-panel[hidden],
+#mission-field[hidden],
+#difficulty-field[hidden] {
+  display: none !important;
+}
+
 body.solo-mode .player-card-p1 {
   max-width: 420px;
   margin: 0 auto;

@@ -939,6 +939,10 @@
     var controlsHint = player === players[0]
       ? '方向鍵移動 · Z / X 旋轉 · Space 落下'
       : 'A/D 移動 · Q/E 旋轉 · Shift 落下';
+    if (player === players[0] && hintCells && hintUntil > global.performance.now()) {
+      player.status.textContent = '提示：建議落點已標示（金色）';
+      return;
+    }
     player.status.textContent = state.garbageJustDropped > 0
       ? '這回合先掉下 ' + state.garbageJustDropped + ' 顆垃圾'
       : state.incomingGarbage > 0
