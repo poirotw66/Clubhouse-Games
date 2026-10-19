@@ -213,6 +213,7 @@
         }
         #hit-toast.good { color: #7dffb3; text-shadow: 0 0 20px rgba(125,255,179,0.55); }
         #hit-toast.bad { color: #ff6b6b; text-shadow: 0 0 20px rgba(255,80,80,0.55); }
+        #hit-toast.perfect { color: #ffe566; text-shadow: 0 0 28px rgba(255,220,80,0.75); }
         #combo-hud {
             position: absolute;
             bottom: 70px;
@@ -226,6 +227,50 @@
             transition: opacity 0.2s;
         }
         #combo-hud.active { opacity: 1; }
+        #tell-banner {
+            position: absolute;
+            top: 128px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.92);
+            padding: 6px 18px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.25);
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            opacity: 0;
+            transition: opacity 0.12s ease, transform 0.12s ease;
+            text-transform: uppercase;
+        }
+        #tell-banner.show {
+            opacity: 1;
+            transform: translateX(-50%) scale(1);
+        }
+        #tell-banner.fake {
+            border-style: dashed;
+            letter-spacing: 0.2em;
+        }
+        #lives-hud {
+            display: none;
+            position: absolute;
+            bottom: 70px;
+            left: 28px;
+            color: #ff8a8a;
+            font-size: 26px;
+            font-weight: 700;
+        }
+        #versus-score {
+            display: none;
+            position: absolute;
+            top: 168px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.75);
+            font-size: 18px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
         button {
             background: #fff;
             border: none;
@@ -263,11 +308,13 @@
 
     <div id="ui-layer">
         <div id="score-board">
-            擋下: <span id="score-val">0</span> / <span id="max-val">25</span>
+            <span id="score-label">擋下</span>: <span id="score-val">0</span> / <span id="max-val">25</span>
             <span style="margin-left:12px;color:#ff8a8a;font-size:0.75em">漏接 <span id="miss-val">0</span></span>
         </div>
 
         <div id="phase-banner">熱身</div>
+        <div id="tell-banner"></div>
+        <div id="versus-score">先至 5 分</div>
 
         <div id="speed-display">
             <div class="speed-label">來球</div>
@@ -277,6 +324,7 @@
             </div>
         </div>
 
+        <div id="lives-hud">生命 <span id="lives-val">3</span></div>
         <div id="combo-hud">連擋 <span id="combo-val">0</span></div>
         <div id="hit-toast"></div>
         
@@ -314,7 +362,7 @@
             </div>
         </div>
 
-        <div id="instructions">拖曳移動球拍 · 點擊／輕觸揮拍擋殺</div>
+        <div id="instructions">讀預備動作 · 對位揮拍 · 完美可反擊（指標左右決定回球路線）</div>
     </div>
 
     <script type="module" src="/src/game/main.js"></script>
