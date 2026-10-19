@@ -8,11 +8,32 @@ import {
   FEVER_COMBO,
   NEAR_MISS_SCORE,
   PERFECT_MISS_SCORE,
+  POWERUP_SCORE,
   RUSH_DIFFICULTIES,
   type RushDifficulty,
 } from './constants';
+import { nearMissScoreMul, type UpgradeLevels } from './progress';
+import type { PowerupKind } from './meshes';
 
-export type ToastKind = 'near' | 'perfect' | 'boost' | 'fever' | null;
+export type ToastKind =
+  | 'near'
+  | 'perfect'
+  | 'boost'
+  | 'fever'
+  | 'shield'
+  | 'magnet'
+  | 'multiplier'
+  | 'slowmo'
+  | 'dash'
+  | 'jump'
+  | null;
+
+export type ActivePowerHud = {
+  shield: boolean;
+  magnet: number;
+  multiplier: number;
+  slowmo: number;
+};
 
 export interface HudSnapshot {
   score: number;
@@ -27,14 +48,26 @@ export interface HudSnapshot {
   boostT: number;
   toast: ToastKind;
   pickups: number;
+  powerups: number;
+  dashCd: number;
+  dashReady: boolean;
+  jumpAir: boolean;
+  shake: number;
+  powers: ActivePowerHud;
+  scoreMulActive: number;
 }
 
 export interface RunResult {
   score: number;
   distance: number;
   avoids: number;
+  perfects: number;
   maxCombo: number;
   pickups: number;
+  powerups: number;
+  dashes: number;
+  reachedFever: boolean;
+  creditsEarned: number;
   isNewBest: boolean;
 }
 
@@ -48,7 +81,11 @@ export type ScoreState = {
   combo: number;
   maxCombo: number;
   avoids: number;
+  perfects: number;
   pickups: number;
+  powerups: number;
+  dashes: number;
+  reachedFever: boolean;
   nearMissFlash: number;
   comboTimer: number;
   toast: ToastKind;
@@ -57,6 +94,8 @@ export type ScoreState = {
   bestScore: number;
   bestDistance: number;
   difficulty: RushDifficulty;
+  nearMissMul: number;
+  scorePowerMul: number;
 };
 
 function emptyBests(): BestsMap {
@@ -96,7 +135,6 @@ export function loadBests(): BestsMap {
   } catch {
     /* fall through to legacy */
   }
-  // Migrate legacy single bests into normal.
   bests.normal = {
     score: readLegacy(BEST_SCORE_KEY),
     distance: readLegacy(BEST_DISTANCE_KEY),
@@ -104,7 +142,10 @@ export function loadBests(): BestsMap {
   return bests;
 }
 
-export function createScoreState(difficulty: RushDifficulty = 'normal'): ScoreState {
+export function createScoreState(
+  difficulty: RushDifficulty = 'normal',
+  upgrades?: UpgradeLevels,
+): ScoreState {
   const bests = loadBests();
   return {
     score: 0,
@@ -112,7 +153,11 @@ export function createScoreState(difficulty: RushDifficulty = 'normal'): ScoreSt
     combo: 0,
     maxCombo: 0,
     avoids: 0,
+    perfects: 0,
     pickups: 0,
+    powerups: 0,
+    dashes: 0,
+    reachedFever: false,
     nearMissFlash: 0,
     comboTimer: COMBO_DECAY_SEC,
     toast: null,
@@ -121,6 +166,8 @@ export function createScoreState(difficulty: RushDifficulty = 'normal'): ScoreSt
     bestScore: bests[difficulty].score,
     bestDistance: bests[difficulty].distance,
     difficulty,
+    nearMissMul: nearMissScoreMul(upgrades?.nearMissBonus ?? 0),
+    scorePowerMul: 1,
   };
 }
 
@@ -162,28 +209,34 @@ function bumpCombo(state: ScoreState): void {
   state.combo += 1;
   state.maxCombo = Math.max(state.maxCombo, state.combo);
   state.comboTimer = COMBO_DECAY_SEC;
-  if (isFever(state.combo) && !state.feverLatched) {
-    state.feverLatched = true;
-    setToast(state, 'fever');
+  if (isFever(state.combo)) {
+    state.reachedFever = true;
+    if (!state.feverLatched) {
+      state.feverLatched = true;
+      setToast(state, 'fever');
+    }
   }
 }
 
 function setToast(state: ScoreState, toast: ToastKind): void {
   state.toast = toast;
-  state.toastTimer = toast === 'fever' ? 1.25 : toast === 'perfect' ? 1.05 : 0.9;
+  state.toastTimer =
+    toast === 'fever' ? 1.25 : toast === 'perfect' ? 1.05 : toast === 'dash' ? 0.7 : 0.9;
 }
 
 export function addDistanceScore(state: ScoreState, deltaMeters: number): void {
   state.distance += deltaMeters;
-  state.score += deltaMeters * DISTANCE_SCORE_PER_M * comboMultiplier(state.combo);
+  state.score +=
+    deltaMeters * DISTANCE_SCORE_PER_M * comboMultiplier(state.combo) * state.scorePowerMul;
 }
 
 export function registerNearMiss(state: ScoreState, perfect: boolean): void {
   bumpCombo(state);
   state.avoids += 1;
+  if (perfect) state.perfects += 1;
   state.nearMissFlash = 1;
-  const payout = perfect ? PERFECT_MISS_SCORE : NEAR_MISS_SCORE;
-  state.score += payout * comboMultiplier(state.combo);
+  const payout = (perfect ? PERFECT_MISS_SCORE : NEAR_MISS_SCORE) * state.nearMissMul;
+  state.score += payout * comboMultiplier(state.combo) * state.scorePowerMul;
   setToast(state, perfect ? 'perfect' : 'near');
 }
 
@@ -191,8 +244,21 @@ export function registerBoostPickup(state: ScoreState): void {
   bumpCombo(state);
   state.pickups += 1;
   state.nearMissFlash = 1;
-  state.score += BOOST_SCORE * comboMultiplier(state.combo);
+  state.score += BOOST_SCORE * comboMultiplier(state.combo) * state.scorePowerMul;
   setToast(state, 'boost');
+}
+
+export function registerPowerupPickup(state: ScoreState, kind: PowerupKind): void {
+  bumpCombo(state);
+  state.powerups += 1;
+  state.nearMissFlash = 1;
+  state.score += POWERUP_SCORE * comboMultiplier(state.combo) * state.scorePowerMul;
+  setToast(state, kind);
+}
+
+export function registerDash(state: ScoreState): void {
+  state.dashes += 1;
+  setToast(state, 'dash');
 }
 
 export function breakCombo(state: ScoreState): void {
@@ -201,7 +267,7 @@ export function breakCombo(state: ScoreState): void {
   state.comboTimer = COMBO_DECAY_SEC;
 }
 
-/** Tick combo decay + toast timers. Returns true if fever just dropped. */
+/** Tick combo decay + toast timers. */
 export function tickScoreTimers(state: ScoreState, dt: number): void {
   if (state.toastTimer > 0) {
     state.toastTimer = Math.max(0, state.toastTimer - dt);
@@ -219,12 +285,23 @@ export function tickScoreTimers(state: ScoreState, dt: number): void {
   }
 }
 
-export function toHud(state: ScoreState, speed: number, boostT: number): HudSnapshot {
+export function toHud(
+  state: ScoreState,
+  speed: number,
+  boostT: number,
+  extras: {
+    dashCd: number;
+    dashReady: boolean;
+    jumpAir: boolean;
+    shake: number;
+    powers: ActivePowerHud;
+  },
+): HudSnapshot {
   return {
     score: Math.floor(state.score),
     distance: Math.floor(state.distance),
     combo: state.combo,
-    multiplier: comboMultiplier(state.combo),
+    multiplier: comboMultiplier(state.combo) * state.scorePowerMul,
     speed,
     nearMissFlash: state.nearMissFlash,
     bestScore: state.bestScore,
@@ -233,17 +310,32 @@ export function toHud(state: ScoreState, speed: number, boostT: number): HudSnap
     boostT,
     toast: state.toast,
     pickups: state.pickups,
+    powerups: state.powerups,
+    dashCd: extras.dashCd,
+    dashReady: extras.dashReady,
+    jumpAir: extras.jumpAir,
+    shake: extras.shake,
+    powers: extras.powers,
+    scoreMulActive: state.scorePowerMul,
   };
 }
 
-export function finalizeRun(state: ScoreState): RunResult {
+export function finalizeRun(
+  state: ScoreState,
+  creditsEarned: number,
+): RunResult {
   const isNewBest = persistBests(state.score, state.distance, state.difficulty);
   return {
     score: Math.floor(state.score),
     distance: Math.floor(state.distance),
     avoids: state.avoids,
+    perfects: state.perfects,
     maxCombo: state.maxCombo,
     pickups: state.pickups,
+    powerups: state.powerups,
+    dashes: state.dashes,
+    reachedFever: state.reachedFever,
+    creditsEarned,
     isNewBest,
   };
 }

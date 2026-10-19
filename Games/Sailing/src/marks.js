@@ -1,10 +1,10 @@
-// Fixed checkpoint course: each gate is a pair of buoys you must sail through
-// in order. Timing is wall-clock from GO until the finish gate.
+// Checkpoint / buoy-rounding course geometry and WebGL mark props.
 
 import { createMesh } from './gl.js';
 import { SOLID_ATTRIBUTES } from './solid.js';
 import { mat4 } from './math.js';
 import { sampleWater } from './shaderChunks.js';
+import { createCourse as buildCourse } from './courses.js';
 
 const ORANGE = [0.95, 0.42, 0.12];
 const WHITE = [0.96, 0.96, 0.94];
@@ -78,7 +78,6 @@ function buildBuoyMesh(gl, program, stripeCount = 6) {
   }
 
   const flagY = height + poleH - 0.1;
-  // Bigger, brighter flag so the target gate reads from far away.
   indices.push(
     push([0, flagY + 0.15, 0], [0, 0, 1], [0, 0], [0.15, 1.0, 0.55]),
     push([0, flagY - 0.85, 0], [0, 0, 1], [0, 1], [0.15, 1.0, 0.55]),
@@ -88,7 +87,6 @@ function buildBuoyMesh(gl, program, stripeCount = 6) {
   return createMesh(gl, program, new Float32Array(data), new Uint32Array(indices), SOLID_ATTRIBUTES);
 }
 
-/** Thin glowing bar spanning a gate opening (unit X from -1..1). */
 function buildGateBeamMesh(gl, program) {
   const data = [];
   const indices = [];
@@ -100,13 +98,11 @@ function buildGateBeamMesh(gl, program) {
   const y0 = 1.2;
   const y1 = 2.4;
   const z = 0.08;
-  // Front face
   const a = push([-1, y0, z], [0, 0, 1], BEAM);
   const b = push([1, y0, z], [0, 0, 1], BEAM);
   const c = push([1, y1, z], [0, 0, 1], BEAM);
   const d = push([-1, y1, z], [0, 0, 1], BEAM);
   indices.push(a, b, c, a, c, d);
-  // Back face
   const e = push([-1, y0, -z], [0, 0, -1], BEAM);
   const f = push([1, y0, -z], [0, 0, -1], BEAM);
   const g = push([1, y1, -z], [0, 0, -1], BEAM);
@@ -115,41 +111,18 @@ function buildGateBeamMesh(gl, program) {
   return createMesh(gl, program, new Float32Array(data), new Uint32Array(indices), SOLID_ATTRIBUTES);
 }
 
-/**
- * Fixed world-space course (does not drift with wind shifts).
- * Each gate: center (x,z), facing = direction you should sail *through* the gate,
- * halfWidth = lateral half-span of the gate line.
- */
-export function createCourse() {
-  // Tight arcade loop: gates close enough that you are always aiming at something.
-  const gates = [
-    { id: 0, name: '起航門', x: 0, z: 40, facing: Math.PI, halfWidth: 16, isStart: true },
-    { id: 1, name: '檢查點 1', x: -55, z: 5, facing: -Math.PI * 0.7, halfWidth: 16 },
-    { id: 2, name: '檢查點 2', x: -35, z: -70, facing: -Math.PI * 0.2, halfWidth: 16 },
-    { id: 3, name: '檢查點 3', x: 40, z: -95, facing: Math.PI * 0.35, halfWidth: 16 },
-    { id: 4, name: '檢查點 4', x: 70, z: -25, facing: Math.PI * 0.75, halfWidth: 16 },
-    { id: 5, name: '終點門', x: 0, z: 40, facing: 0, halfWidth: 16, isFinish: true },
-  ];
-
-  // Rolling start pointed at the first gate. Wind (see createWind) is set so
-  // this heading is a run — first course opens downwind.
-  const start = {
-    x: 22,
-    z: 48,
-    heading: (-100 * Math.PI) / 180,
-  };
-
-  return { start, gates };
+/** @deprecated use createCourse(id) from courses.js — kept for check imports */
+export function createCourse(courseId = 'harbor') {
+  return buildCourse(courseId);
 }
 
-function gateAxes(gate) {
+export function gateAxes(gate) {
   const fx = Math.sin(gate.facing);
   const fz = Math.cos(gate.facing);
-  // Right of facing on XZ.
   return { fx, fz, rx: fz, rz: -fx };
 }
 
-function gatePosts(gate) {
+export function gatePosts(gate) {
   const { rx, rz } = gateAxes(gate);
   return {
     left: { x: gate.x - rx * gate.halfWidth, z: gate.z - rz * gate.halfWidth },
@@ -157,8 +130,7 @@ function gatePosts(gate) {
   };
 }
 
-/** Signed distance along gate facing; lateral offset across the gate. */
-function gateLocal(boat, gate) {
+export function gateLocal(boat, gate) {
   const { fx, fz, rx, rz } = gateAxes(gate);
   const dx = boat.x - gate.x;
   const dz = boat.z - gate.z;
@@ -168,83 +140,218 @@ function gateLocal(boat, gate) {
   };
 }
 
-export function createMarks(gl, solid, course) {
-  const mesh = buildBuoyMesh(gl, solid.program);
-  const beamMesh = buildGateBeamMesh(gl, solid.program);
-  const posts = [];
-  for (const gate of course.gates) {
-    // Finish reuses the start posts visually — skip duplicate draw.
-    if (gate.isFinish) continue;
-    const p = gatePosts(gate);
-    posts.push({ gateId: gate.id, x: p.left.x, z: p.left.z });
-    posts.push({ gateId: gate.id, x: p.right.x, z: p.right.z });
-  }
+function wrapAngle(a) {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
 
-  const models = posts.map(() => ({
-    model: mat4.create(),
-    normal: new Float32Array(9),
-  }));
-  const beamModel = mat4.create();
-  const beamNormal = new Float32Array(9);
+function markKind(gate) {
+  return gate.kind === 'round' ? 'round' : 'gate';
+}
 
+/**
+ * Pure progress tracker for one boat on a course (player or CPU).
+ * @param {import('./courses.js').CourseMark[]} gates
+ */
+export function createMarkTracker(gates) {
   let nextIndex = 0;
-  // Track which side of the *current* gate the boat was on last frame.
   let prevAlong = null;
-  let animTime = 0;
+  let roundAngle = null;
+  let wound = 0;
+  let touched = false;
+
+  function resetRoundState(boat, gate) {
+    roundAngle = Math.atan2(boat.x - gate.x, boat.z - gate.z);
+    wound = 0;
+    touched = false;
+  }
 
   return {
     get nextIndex() {
       return nextIndex;
     },
+    set nextIndex(v) {
+      nextIndex = v;
+    },
     get nextGate() {
-      return course.gates[nextIndex] || null;
+      return gates[nextIndex] || null;
+    },
+    get gates() {
+      return gates;
+    },
+
+    reset(boat) {
+      nextIndex = 0;
+      const g = gates[0];
+      if (!g) {
+        prevAlong = null;
+        return;
+      }
+      if (markKind(g) === 'round') {
+        prevAlong = null;
+        resetRoundState(boat, g);
+      } else {
+        prevAlong = gateLocal(boat, g).along;
+        roundAngle = null;
+        wound = 0;
+        touched = false;
+      }
+    },
+
+    /**
+     * @returns {{ cleared: object, index: number, accuracy: number, perfect: boolean }|null}
+     */
+    tryClear(boat) {
+      if (nextIndex >= gates.length) return null;
+      const gate = gates[nextIndex];
+
+      if (markKind(gate) === 'round') {
+        return tryClearRound(boat, gate);
+      }
+      return tryClearGate(boat, gate);
+    },
+  };
+
+  function tryClearGate(boat, gate) {
+    const local = gateLocal(boat, gate);
+    if (prevAlong === null) {
+      prevAlong = local.along;
+      return null;
+    }
+    const half = gate.halfWidth ?? 16;
+    const within = Math.abs(local.across) <= half * 1.05;
+    const crossed = prevAlong < 0.4 && local.along >= 0.4 && within;
+    const accuracy = half > 0 ? Math.abs(local.across) / half : 1;
+    prevAlong = local.along;
+    if (!crossed) return null;
+
+    const cleared = gate;
+    const index = nextIndex;
+    const perfect = accuracy < 0.38;
+    nextIndex += 1;
+    armNext(boat);
+    return { cleared, index, accuracy, perfect };
+  }
+
+  function tryClearRound(boat, gate) {
+    const radius = gate.radius ?? 10;
+    const dist = Math.hypot(boat.x - gate.x, boat.z - gate.z);
+    const angle = Math.atan2(boat.x - gate.x, boat.z - gate.z);
+    if (roundAngle === null) resetRoundState(boat, gate);
+
+    const near = dist < radius * 2.8;
+    if (near) {
+      const delta = wrapAngle(angle - roundAngle);
+      wound += delta;
+      if (dist < radius) touched = true;
+    } else if (dist > radius * 4.5) {
+      // Abandoned the mark — reset winding so a distant loop can't cheat.
+      wound = 0;
+      touched = false;
+    }
+    roundAngle = angle;
+
+    const leaveTo = gate.leaveTo === 'starboard' ? 'starboard' : 'port';
+    // Port rounding = leave mark to port = boat travels counterclockwise (angle↑).
+    const need = leaveTo === 'port' ? 1 : -1;
+    const enough = wound * need > 1.85;
+    if (!(touched && enough)) return null;
+
+    const cleared = gate;
+    const index = nextIndex;
+    // Tighter radius = better accuracy for perfect bonus.
+    const accuracy = Math.min(1, dist / radius);
+    const perfect = accuracy < 0.55;
+    nextIndex += 1;
+    armNext(boat);
+    return { cleared, index, accuracy, perfect };
+  }
+
+  function armNext(boat) {
+    if (nextIndex >= gates.length) return;
+    const g = gates[nextIndex];
+    if (markKind(g) === 'round') {
+      prevAlong = null;
+      resetRoundState(boat, g);
+    } else {
+      prevAlong = gateLocal(boat, g).along;
+      roundAngle = null;
+      wound = 0;
+      touched = false;
+    }
+  }
+}
+
+function buildPosts(course) {
+  const posts = [];
+  for (const gate of course.gates) {
+    if (gate.isFinish && markKind(gate) === 'gate') continue;
+    if (markKind(gate) === 'round') {
+      posts.push({ gateId: gate.id, x: gate.x, z: gate.z, solo: true });
+      continue;
+    }
+    const p = gatePosts(gate);
+    posts.push({ gateId: gate.id, x: p.left.x, z: p.left.z, solo: false });
+    posts.push({ gateId: gate.id, x: p.right.x, z: p.right.z, solo: false });
+  }
+  return posts;
+}
+
+export function createMarks(gl, solid, course) {
+  const mesh = buildBuoyMesh(gl, solid.program);
+  const beamMesh = buildGateBeamMesh(gl, solid.program);
+  let active = course;
+  let tracker = createMarkTracker(active.gates);
+  let posts = buildPosts(active);
+
+  let models = posts.map(() => ({
+    model: mat4.create(),
+    normal: new Float32Array(9),
+  }));
+  const beamModel = mat4.create();
+  const beamNormal = new Float32Array(9);
+  let animTime = 0;
+
+  return {
+    get nextIndex() {
+      return tracker.nextIndex;
+    },
+    get nextGate() {
+      return tracker.nextGate;
     },
     get posts() {
       return posts;
     },
     get gates() {
-      return course.gates;
+      return active.gates;
+    },
+    get course() {
+      return active;
+    },
+    get tracker() {
+      return tracker;
+    },
+
+    setCourse(nextCourse) {
+      active = nextCourse;
+      tracker = createMarkTracker(active.gates);
+      posts = buildPosts(active);
+      models = posts.map(() => ({
+        model: mat4.create(),
+        normal: new Float32Array(9),
+      }));
     },
 
     reset(boat) {
-      nextIndex = 0;
-      const g = course.gates[0];
-      prevAlong = gateLocal(boat, g).along;
+      tracker.reset(boat);
     },
 
-    /**
-     * Returns { cleared, index, accuracy, perfect } when the boat crosses the
-     * next gate in the forward direction within the posts; otherwise null.
-     */
     tryClear(boat) {
-      if (nextIndex >= course.gates.length) return null;
-      const gate = course.gates[nextIndex];
-      // Finish gate shares geometry with start; use finish facing.
-      const local = gateLocal(boat, gate);
-      if (prevAlong === null) {
-        prevAlong = local.along;
-        return null;
-      }
+      return tracker.tryClear(boat);
+    },
 
-      const within = Math.abs(local.across) <= gate.halfWidth * 1.05;
-      // Cross from behind (negative along) to ahead (positive along).
-      const crossed = prevAlong < 0.4 && local.along >= 0.4 && within;
-      const accuracy = gate.halfWidth > 0
-        ? Math.abs(local.across) / gate.halfWidth
-        : 1;
-      prevAlong = local.along;
-
-      if (!crossed) return null;
-
-      const cleared = gate;
-      const index = nextIndex;
-      // 0 = dead centre, 1 = clipping a post.
-      const perfect = accuracy < 0.38;
-      nextIndex += 1;
-      if (nextIndex < course.gates.length) {
-        prevAlong = gateLocal(boat, course.gates[nextIndex]).along;
-      }
-      return { cleared, index, accuracy, perfect };
+    /** Fresh tracker for a rival sharing this course geometry. */
+    createTracker() {
+      return createMarkTracker(active.gates);
     },
 
     update(time, waveAmp) {
@@ -253,21 +360,19 @@ export function createMarks(gl, solid, course) {
         const s = sampleWater(p.x, p.z, time, waveAmp);
         const pitch = Math.atan(-s.nz) * 0.35;
         const roll = Math.atan(s.nx) * 0.35;
-        const next = course.gates[nextIndex];
+        const next = tracker.nextGate;
         const isNext =
-          p.gateId === nextIndex ||
+          p.gateId === tracker.nextIndex ||
           (next?.isFinish && p.gateId === 0);
-        // Next-gate posts loom larger so they read as the target.
-        const scale = isNext ? 1.75 : 1;
+        const scale = isNext ? (p.solo ? 2.1 : 1.75) : p.solo ? 1.35 : 1;
         mat4.compose(models[i].model, [p.x, s.y - 0.35, p.z], 0, pitch, roll, scale);
         mat4.normalMatrix(models[i].normal, models[i].model);
       });
 
-      const gate = course.gates[nextIndex];
-      if (gate) {
-        const vis = gate.isFinish ? course.gates[0] : gate;
+      const gate = tracker.nextGate;
+      if (gate && markKind(gate) === 'gate') {
+        const vis = gate.isFinish ? active.gates[0] : gate;
         const s = sampleWater(vis.x, vis.z, time, waveAmp);
-        // Span the opening: unit beam is X=-1..1, scale X by halfWidth.
         const t = mat4.fromTranslation(mat4.create(), [vis.x, s.y, vis.z]);
         const ry = mat4.fromRotationY(mat4.create(), vis.facing);
         const sc = mat4.fromScaling(mat4.create(), [vis.halfWidth, 1.35, 1]);
@@ -279,17 +384,17 @@ export function createMarks(gl, solid, course) {
     },
 
     draw(solidPass) {
-      const next = course.gates[nextIndex];
+      const next = tracker.nextGate;
       const pulse = 0.55 + 0.45 * Math.sin(animTime * 7);
 
       posts.forEach((p, i) => {
         let tint = [1, 1, 1];
         let roughness = 0.35;
         const isNext =
-          p.gateId === nextIndex ||
+          p.gateId === tracker.nextIndex ||
           (next?.isFinish && p.gateId === 0);
         const isDone =
-          p.gateId < nextIndex && !(next?.isFinish && p.gateId === 0);
+          p.gateId < tracker.nextIndex && !(next?.isFinish && p.gateId === 0);
         if (isNext) {
           tint = [
             NEXT[0] + (NEXT_HOT[0] - NEXT[0]) * pulse,
@@ -309,8 +414,7 @@ export function createMarks(gl, solid, course) {
         mesh.draw();
       });
 
-      // Glowing bar across the active gate opening.
-      if (next) {
+      if (next && markKind(next) === 'gate') {
         solidPass.setTransform(beamModel, beamNormal);
         solidPass.setMaterial({
           tint: [0.25 + 0.75 * pulse, 1, 0.55 + 0.45 * pulse],
@@ -321,9 +425,8 @@ export function createMarks(gl, solid, course) {
       }
     },
 
-    /** Bearing from boat to next gate center, relative to boat heading (−PI..PI). */
     bearingToNext(boat) {
-      const g = this.nextGate;
+      const g = tracker.nextGate;
       if (!g) return 0;
       const abs = Math.atan2(g.x - boat.x, g.z - boat.z);
       let d = abs - boat.heading;
@@ -333,11 +436,11 @@ export function createMarks(gl, solid, course) {
     },
 
     distanceToNext(boat) {
-      const g = this.nextGate;
+      const g = tracker.nextGate;
       if (!g) return 0;
       return Math.hypot(g.x - boat.x, g.z - boat.z);
     },
   };
 }
 
-export { gatePosts, gateLocal };
+export { markKind };

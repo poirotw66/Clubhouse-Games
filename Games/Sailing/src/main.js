@@ -10,17 +10,35 @@ import { createAssist, steerTo, wrap } from './assist.js';
 import { createCoach } from './coach.js';
 import { createCamera } from './camera.js';
 import { createInput } from './input.js';
-import { createCourse, createMarks, gatePosts } from './marks.js';
+import { createCourse as loadCourseDef } from './courses.js';
+import { listCourses } from './courses.js';
+import { createMarks, gatePosts, markKind } from './marks.js';
 import { clamp } from './math.js';
-import { sfxFinish, sfxGateClear } from './sfx.js';
+import {
+  sfxFinish,
+  sfxGateClear,
+  sfxGust,
+  sfxLuff,
+  sfxMarkRound,
+  sfxTrimSweet,
+  sfxUnlock,
+} from './sfx.js';
 import { createResultOverlay } from '@clubhouse/shared/resultOverlayDom';
+import {
+  bestFor,
+  isUnlocked,
+  loadProgress,
+  recordFinish,
+  recordRegatta,
+} from './progress.js';
+import { createGhostPlayback, createGhostRecorder, loadGhost, saveGhost } from './ghost.js';
+import { createRival, pickRaceRivals } from './rivals.js';
 
 const WAVE_AMP = 1.0;
 const WAVE_AMP_EASY = 0.45;
-const BEST_KEY_LEGACY = 'sailing-best-v3';
-const BESTS_KEY = 'sailing-bests-v4';
 const EASY_KEY = 'sailing-easy';
 const TUTORIAL_KEY = 'sailing-tutorial-v1';
+const PLACE_POINTS = [5, 3, 1];
 const SUN_DIR = (() => {
   const a = (28 * Math.PI) / 180;
   const e = (42 * Math.PI) / 180;
@@ -35,6 +53,8 @@ const HORIZON = [0.62, 0.74, 0.86];
 const DEEP = [0.02, 0.12, 0.22];
 const SHALLOW = [0.08, 0.38, 0.42];
 
+/** @typedef {'trial'|'race'|'regatta'} PlayMode */
+
 function $(sel) {
   return document.querySelector(sel);
 }
@@ -44,41 +64,6 @@ function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = sec - m * 60;
   return `${m}:${s.toFixed(1).padStart(4, '0')}`;
-}
-
-/** @returns {{ easy: number|null, pro: number|null }} */
-function loadSailingBests() {
-  try {
-    const raw = localStorage.getItem(BESTS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        easy: typeof parsed.easy === 'number' ? parsed.easy : null,
-        pro: typeof parsed.pro === 'number' ? parsed.pro : null,
-      };
-    }
-  } catch {
-    /* fall through */
-  }
-  // Migrate legacy single best into easy (default mode).
-  const legacy = Number(localStorage.getItem(BEST_KEY_LEGACY) || '');
-  return {
-    easy: Number.isFinite(legacy) && legacy > 0 ? legacy : null,
-    pro: null,
-  };
-}
-
-function persistSailingBest(mode, time) {
-  const bests = loadSailingBests();
-  const prev = bests[mode];
-  if (prev != null && time >= prev) return false;
-  bests[mode] = time;
-  try {
-    localStorage.setItem(BESTS_KEY, JSON.stringify(bests));
-  } catch {
-    /* private mode */
-  }
-  return true;
 }
 
 function boot() {
@@ -110,23 +95,37 @@ function startGame(gl, canvas) {
   ocean.useSkyTexture(sky.texture);
   const solid = createSolidProgram(gl);
   const boatMesh = createBoat(gl, solid);
+  const rivalMeshes = [createBoat(gl, solid), createBoat(gl, solid)];
+  const ghostMesh = createBoat(gl, solid);
 
-  const wind = createWind(1);
-  const course = createCourse();
+  let progress = loadProgress();
+  /** @type {PlayMode} */
+  let playMode = 'trial';
+  let courseId = 'harbor';
+  let course = loadCourseDef(courseId);
+  let regattaQueue = [];
+  let regattaIndex = 0;
+  let regattaPoints = 0;
+  let regattaPlaces = [];
+
+  const wind = createWind(1, course.wind);
   const marks = createMarks(gl, solid, course);
   const camera = createCamera();
   const input = createInput(document.body);
   const assist = createAssist();
   const coach = createCoach();
+  const ghostRecorder = createGhostRecorder();
+  /** @type {ReturnType<typeof createGhostPlayback>|null} */
+  let ghostPlayback = null;
+  /** @type {ReturnType<typeof createRival>[]} */
+  let rivals = [];
 
-  // Easy mode defaults on — this is a casual collection, and the beat is not
-  // readable without the guidance arrow. Only an explicit opt-out is stored.
   input.easy = localStorage.getItem(EASY_KEY) !== 'off';
-  let sailingBests = loadSailingBests();
+  let bestTime = bestFor(progress, courseId, input.easy ? 'easy' : 'pro');
+
   input.onEasyChange = (on) => {
     localStorage.setItem(EASY_KEY, on ? 'on' : 'off');
-    sailingBests = loadSailingBests();
-    bestTime = on ? sailingBests.easy : sailingBests.pro;
+    bestTime = bestFor(progress, courseId, on ? 'easy' : 'pro');
     if (on) {
       input.autoTrim = true;
       showToast('簡單模式：按住 ↑ 加速，← → 轉彎衝閘門！');
@@ -135,9 +134,9 @@ function startGame(gl, canvas) {
     }
     syncEasyUi();
     updateHud(0);
+    refreshMenuMeta();
   };
 
-  // Set while a one-key tack is being driven; holds the target heading.
   let tackTarget = null;
   let tackTimer = 0;
   let perfectGates = 0;
@@ -151,19 +150,19 @@ function startGame(gl, canvas) {
   marks.reset(boat);
   assist.reset(boat, wind);
 
-  // Store base gate widths so easy mode can widen without rebuilding posts.
   for (const g of course.gates) {
-    if (g._half == null) g._half = g.halfWidth;
+    if (g.halfWidth != null && g._half == null) g._half = g.halfWidth;
   }
 
-  /** @type {'countdown'|'racing'|'finished'} */
-  let phase = 'countdown';
+  /** @type {'menu'|'countdown'|'racing'|'finished'} */
+  let phase = 'menu';
   let countdown = 3.2;
   let raceTime = 0;
   /** @type {{ name: string, time: number }[]} */
   let splits = [];
-  let bestTime = input.easy ? sailingBests.easy : sailingBests.pro;
   let toastTimer = 0;
+  let lastTrimSweet = false;
+  let luffSfxCooldown = 0;
 
   const wake = [];
   let wakeAcc = 0;
@@ -208,15 +207,23 @@ function startGame(gl, canvas) {
     toast: $('#toast'),
     countdown: $('#countdown'),
     tutorial: $('#tutorial-tip'),
+    raceStandings: $('#race-standings'),
+    gustBadge: $('#gust-badge'),
+    courseLabel: $('#hud-course'),
+    modeLabel: $('#hud-mode'),
   };
 
   const resultOverlay = createResultOverlay(document.body);
+
+  function modeKey() {
+    return input.easy ? 'easy' : 'pro';
+  }
 
   function syncEasyUi() {
     const easy = input.easy;
     document.body.classList.toggle('easy-mode', easy);
     for (const g of course.gates) {
-      g.halfWidth = easy ? g._half * 1.25 : g._half;
+      if (g._half != null) g.halfWidth = easy ? g._half * 1.25 : g._half;
     }
     if (hud.goBtn) hud.goBtn.hidden = !easy;
     if (hud.tackBtn) hud.tackBtn.hidden = !easy;
@@ -239,6 +246,97 @@ function startGame(gl, canvas) {
   if (input.easy) input.autoTrim = true;
   syncEasyUi();
 
+  function refreshMenuMeta() {
+    const list = $('#course-list');
+    if (!list) return;
+    list.innerHTML = '';
+    for (const c of listCourses()) {
+      const unlocked = isUnlocked(progress, c.id);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `course-card${courseId === c.id ? ' selected' : ''}${unlocked ? '' : ' locked'}`;
+      btn.disabled = !unlocked;
+      const easyBest = bestFor(progress, c.id, 'easy');
+      const proBest = bestFor(progress, c.id, 'pro');
+      btn.innerHTML = `
+        <span class="course-card-name">${c.name}${unlocked ? '' : ' 🔒'}</span>
+        <span class="course-card-blurb">${c.blurb}</span>
+        <span class="course-card-best">最佳 簡單 ${formatTime(easyBest)} · 專業 ${formatTime(proBest)}</span>
+      `;
+      btn.addEventListener('click', () => {
+        if (!unlocked) return;
+        courseId = c.id;
+        refreshMenuMeta();
+      });
+      list.appendChild(btn);
+    }
+
+    document.querySelectorAll('[data-play-mode]').forEach((el) => {
+      el.classList.toggle('selected', el.getAttribute('data-play-mode') === playMode);
+    });
+
+    const reg = progress.regatta;
+    const meta = $('#menu-meta');
+    if (meta) {
+      meta.textContent = `出航 ${progress.races} 次 · 海灣盃 ${reg.wins} 勝 / 最佳 ${reg.bestPoints ?? '—'} 分`;
+    }
+  }
+
+  function applyCourse(id) {
+    courseId = id;
+    course = loadCourseDef(courseId);
+    for (const g of course.gates) {
+      if (g.halfWidth != null) g._half = g.halfWidth;
+    }
+    marks.setCourse(course);
+    wind.applyProfile(course.wind);
+    bestTime = bestFor(progress, courseId, modeKey());
+    syncEasyUi();
+    if (hud.courseLabel) hud.courseLabel.textContent = course.name;
+  }
+
+  function setupGhost() {
+    ghostPlayback = null;
+    if (playMode !== 'trial') return;
+    const tape = loadGhost(courseId, modeKey());
+    if (tape) ghostPlayback = createGhostPlayback(tape);
+  }
+
+  function setupRivals() {
+    rivals = [];
+    if (playMode === 'trial') return;
+    const profiles = pickRaceRivals(courseId.length + regattaIndex);
+    profiles.forEach((profile, i) => {
+      const tracker = marks.createTracker();
+      const rival = createRival(profile, course.start, tracker, (i + 1) * 6 * (i % 2 === 0 ? 1 : -1));
+      rival.reset(course.start, wind);
+      rivals.push(rival);
+    });
+  }
+
+  function modeLabelText() {
+    if (playMode === 'race') return '對戰';
+    if (playMode === 'regatta') return `海灣盃 ${regattaIndex + 1}/${regattaQueue.length || 3}`;
+    return '計時賽';
+  }
+
+  function beginRaceSession() {
+    if (playMode === 'regatta') {
+      regattaQueue = listCourses().map((c) => c.id);
+      regattaIndex = 0;
+      regattaPoints = 0;
+      regattaPlaces = [];
+      applyCourse(regattaQueue[0]);
+    } else {
+      applyCourse(courseId);
+    }
+    if (hud.modeLabel) hud.modeLabel.textContent = modeLabelText();
+    setupGhost();
+    setupRivals();
+    resetRace();
+    phase = 'countdown';
+  }
+
   function renderSplits() {
     const gates = course.gates;
     hud.splits.innerHTML = gates.map((g, i) => {
@@ -250,32 +348,24 @@ function startGame(gl, canvas) {
     }).join('');
   }
 
-  // Backing store is drawn at 2x so the waypoint numbers stay crisp.
-  const MINI_SCALE = 2;
-
-  // Fixed frame from the course itself. Fitting the boat in as well made the
-  // scale creep every frame, so nothing on the map held still long enough to
-  // be read; the boat is clamped to the edge instead on the rare occasions it
-  // sails outside.
-  const COURSE_BOUNDS = (() => {
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  function courseBounds() {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
     for (const g of course.gates) {
-      minX = Math.min(minX, g.x); maxX = Math.max(maxX, g.x);
-      minZ = Math.min(minZ, g.z); maxZ = Math.max(maxZ, g.z);
+      minX = Math.min(minX, g.x);
+      maxX = Math.max(maxX, g.x);
+      minZ = Math.min(minZ, g.z);
+      maxZ = Math.max(maxZ, g.z);
     }
     const m = 42;
     return { minX: minX - m, maxX: maxX + m, minZ: minZ - m, maxZ: maxZ + m };
-  })();
+  }
 
-  const GATE_LABELS = ['起', '1', '2', '3'];
+  const MINI_SCALE = 2;
+  const GATE_LABELS = ['起', '1', '2', '3', '4', '5'];
 
-  /**
-   * Arrowhead at (px, pz) pointing along world heading `h`, in map space.
-   * Built from explicit vectors rather than ctx.rotate: the map draws +z
-   * downward, which ctx.rotate does not compose with the way the obvious
-   * `rotate(heading)` suggests — that flips the marker in z, so the boat
-   * pointed north while sailing south.
-   */
   function markerPath(ctx, px, pz, h, len, halfW) {
     const fx = Math.sin(h);
     const fz = Math.cos(h);
@@ -295,24 +385,24 @@ function startGame(gl, canvas) {
     ctx.fillStyle = 'rgba(6, 22, 34, 0.66)';
     ctx.fillRect(0, 0, w, h);
 
-    const { minX, maxX, minZ, maxZ } = COURSE_BOUNDS;
+    const { minX, maxX, minZ, maxZ } = courseBounds();
     const pad = 14;
     const s = Math.min((w - pad * 2) / (maxX - minX), (h - pad * 2) / (maxZ - minZ));
     const ox = (w - (maxX - minX) * s) * 0.5;
     const oz = (h - (maxZ - minZ) * s) * 0.5;
     const tx = (x) => ox + (clamp(x, minX, maxX) - minX) * s;
     const tz = (z) => oz + (clamp(z, minZ, maxZ) - minZ) * s;
-
     const nextIndex = marks.nextIndex;
 
-    // --- legs, with an arrowhead so the lap reads as a direction ------------
     for (let j = 0; j < course.gates.length - 1; j++) {
       const a = course.gates[j];
       const b = course.gates[j + 1];
       const done = nextIndex > j + 1;
       const active = nextIndex === j + 1;
-
-      const ax = tx(a.x), az = tz(a.z), bx = tx(b.x), bz = tz(b.z);
+      const ax = tx(a.x);
+      const az = tz(a.z);
+      const bx = tx(b.x);
+      const bz = tz(b.z);
       ctx.strokeStyle = active ? 'rgba(44,181,168,0.95)'
         : done ? 'rgba(232,244,246,0.16)' : 'rgba(232,244,246,0.34)';
       ctx.lineWidth = active ? 2.4 : 1.5;
@@ -322,68 +412,36 @@ function startGame(gl, canvas) {
       ctx.lineTo(bx, bz);
       ctx.stroke();
       ctx.setLineDash([]);
-
-      // Arrowhead at the midpoint, pointing the way round.
-      const ang = Math.atan2(bz - az, bx - ax);
-      const mx = (ax + bx) / 2;
-      const mz = (az + bz) / 2;
-      ctx.save();
-      ctx.translate(mx, mz);
-      ctx.rotate(ang);
-      ctx.fillStyle = active ? 'rgba(44,181,168,0.95)' : 'rgba(232,244,246,0.4)';
-      ctx.beginPath();
-      ctx.moveTo(5, 0);
-      ctx.lineTo(-3, 3.4);
-      ctx.lineTo(-3, -3.4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
     }
 
-    // --- gates: the opening you sail through, then a numbered marker --------
     course.gates.forEach((g, i) => {
-      if (g.isFinish) return;                       // shares its spot with the start
+      if (g.isFinish) return;
       const finishNext = marks.nextGate?.isFinish;
       const isNext = i === nextIndex || (finishNext && i === 0);
       const done = i < nextIndex && !(finishNext && i === 0);
-
-      // The opening itself, with a post at each end: these are gates you sail
-      // between, and a bare dot never said that.
-      const p = gatePosts(g);
-      const lx = tx(p.left.x), lz = tz(p.left.z);
-      const rx2 = tx(p.right.x), rz2 = tz(p.right.z);
       const tint = isNext ? '#2cb5a8' : done ? 'rgba(160,170,180,0.5)' : 'rgba(240,122,42,0.9)';
-
-      ctx.strokeStyle = tint;
-      ctx.lineWidth = isNext ? 3 : 2;
-      ctx.beginPath();
-      ctx.moveTo(lx, lz);
-      ctx.lineTo(rx2, rz2);
-      ctx.stroke();
-
-      ctx.fillStyle = tint;
-      for (const [qx, qz] of [[lx, lz], [rx2, rz2]]) {
-        ctx.beginPath();
-        ctx.arc(qx, qz, isNext ? 3.2 : 2.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
       const cx = tx(g.x);
       const cz = tz(g.z);
-      const r = isNext ? 9 : 7;
 
-      if (isNext) {                                  // halo, so the target pops
-        ctx.fillStyle = 'rgba(44,181,168,0.28)';
+      if (markKind(g) === 'gate') {
+        const p = gatePosts(g);
+        ctx.strokeStyle = tint;
+        ctx.lineWidth = isNext ? 3 : 2;
         ctx.beginPath();
-        ctx.arc(cx, cz, r + 4.5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(tx(p.left.x), tz(p.left.z));
+        ctx.lineTo(tx(p.right.x), tz(p.right.z));
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = tint;
+        ctx.beginPath();
+        ctx.arc(cx, cz, isNext ? 8 : 6, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
-      ctx.fillStyle = isNext ? '#2cb5a8' : done ? 'rgba(120,132,140,0.85)' : '#f07a2a';
+      ctx.fillStyle = tint;
       ctx.beginPath();
-      ctx.arc(cx, cz, r, 0, Math.PI * 2);
+      ctx.arc(cx, cz, isNext ? 9 : 7, 0, Math.PI * 2);
       ctx.fill();
-
       ctx.fillStyle = isNext || !done ? '#06212c' : 'rgba(232,244,246,0.75)';
       ctx.font = '700 10px "Noto Sans TC", sans-serif';
       ctx.textAlign = 'center';
@@ -391,10 +449,21 @@ function startGame(gl, canvas) {
       ctx.fillText(finishNext && i === 0 ? '終' : GATE_LABELS[i] ?? String(i), cx, cz + 0.5);
     });
 
-    // --- boat, plus the heading easy mode is asking for ---------------------
+    for (const rival of rivals) {
+      markerPath(ctx, tx(rival.boat.x), tz(rival.boat.z), rival.boat.heading, 6, 4);
+      ctx.fillStyle = `rgb(${rival.profile.tint.map((v) => Math.round(v * 255)).join(',')})`;
+      ctx.fill();
+    }
+
+    if (ghostPlayback && phase === 'racing') {
+      const g = ghostPlayback.sample(raceTime);
+      markerPath(ctx, tx(g.x), tz(g.z), g.heading, 6, 4);
+      ctx.fillStyle = 'rgba(180,220,255,0.55)';
+      ctx.fill();
+    }
+
     const bx = tx(boat.x);
     const bz = tz(boat.z);
-
     if (input.easy && marks.nextGate && phase !== 'finished') {
       const rec = assist.recommend(boat, wind, marks.nextGate, input.easy);
       ctx.strokeStyle = 'rgba(142,247,210,0.9)';
@@ -414,10 +483,9 @@ function startGame(gl, canvas) {
     ctx.fill();
     ctx.stroke();
 
-    // --- wind, so the beat legs make sense at a glance ----------------------
     const wx = w - 17;
     const wz = 15;
-    const blowing = wind.from + Math.PI;       // the way the wind is going
+    const blowing = wind.from + Math.PI;
     ctx.strokeStyle = 'rgba(240,122,42,0.9)';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
@@ -427,12 +495,40 @@ function startGame(gl, canvas) {
     markerPath(ctx, wx + Math.sin(blowing) * 4, wz + Math.cos(blowing) * 4, blowing, 5, 3.6);
     ctx.fillStyle = 'rgba(240,122,42,0.9)';
     ctx.fill();
-
     ctx.fillStyle = 'rgba(240,122,42,0.95)';
     ctx.font = '700 8px "Noto Sans TC", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('風', wx, wz + 15);
+  }
+
+  function updateStandings() {
+    const el = hud.raceStandings;
+    if (!el) return;
+    if (playMode === 'trial' || phase === 'menu') {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    const rows = [
+      { name: '你', time: phase === 'finished' ? raceTime : null, progress: marks.nextIndex, you: true },
+      ...rivals.map((r) => ({
+        name: r.profile.name,
+        time: r.finishTime,
+        progress: r.nextIndex,
+        you: false,
+      })),
+    ];
+    rows.sort((a, b) => {
+      if (a.time != null && b.time != null) return a.time - b.time;
+      if (a.time != null) return -1;
+      if (b.time != null) return 1;
+      return b.progress - a.progress;
+    });
+    el.innerHTML = rows.map((r, i) => (
+      `<div class="stand-row${r.you ? ' you' : ''}"><span>${i + 1}. ${r.name}</span>`
+      + `<span>${r.time != null ? formatTime(r.time) : `${r.progress}/${course.gates.length}`}</span></div>`
+    )).join('');
   }
 
   function resetRace() {
@@ -451,15 +547,25 @@ function startGame(gl, canvas) {
     raceTime = 0;
     splits = [];
     wake.length = 0;
+    ghostRecorder.reset();
+    ghostPlayback?.reset();
+    for (const rival of rivals) rival.reset(course.start, wind);
     camera.snap(boat);
     resultOverlay.hide();
     hud.countdown.hidden = false;
     hud.countdown.textContent = '3';
+    lastTrimSweet = false;
+    if (hud.courseLabel) hud.courseLabel.textContent = course.name;
+    if (hud.modeLabel) hud.modeLabel.textContent = modeLabelText();
     renderSplits();
+    updateStandings();
     updateHud(0);
   }
 
-  $('#btn-restart')?.addEventListener('click', resetRace);
+  $('#btn-restart')?.addEventListener('click', () => {
+    if (phase === 'menu') return;
+    resetRace();
+  });
   $('#btn-help')?.addEventListener('click', () => {
     $('#help-panel').hidden = !$('#help-panel').hidden;
   });
@@ -467,21 +573,9 @@ function startGame(gl, canvas) {
     $('#help-panel').hidden = true;
   });
 
-  camera.snap(boat);
-  renderSplits();
-  hud.countdown.hidden = false;
-
-  let last = performance.now();
-  let hudAcc = 0;
-
-  /**
-   * Easy-mode guidance: a second arrow on the checkpoint rose showing the
-   * heading to actually steer, plus what to do about it in words. When the gate
-   * is upwind the two arrows disagree — that gap *is* the lesson.
-   */
   function updateGuide() {
     const gate = marks.nextGate;
-    const on = Boolean(input.easy && gate && phase !== 'finished');
+    const on = Boolean(input.easy && gate && phase !== 'finished' && phase !== 'menu');
     hud.guide.hidden = !on;
     hud.guideTip.hidden = !on;
     if (!on) return;
@@ -489,23 +583,19 @@ function startGame(gl, canvas) {
     const rec = assist.recommend(boat, wind, gate, true);
     const rel = wrap(rec.heading - boat.heading);
     hud.guide.style.transform = `rotate(${(rel * 180) / Math.PI}deg)`;
-
     const deg = (rel * 180) / Math.PI;
     const aligned = Math.abs(deg) < 12;
     const side = wrap(wind.from - rec.heading) >= 0 ? '右' : '左';
-
     let text;
     if (tackTarget !== null) text = '換舷中…';
-    else if (rec.approach) text = '對準閘門衝！';
+    else if (rec.approach) text = markKind(gate) === 'round' ? '靠近浮標左舷繞！' : '對準閘門衝！';
     else if (!aligned) text = `向${deg > 0 ? '右' : '左'}轉對準`;
     else if (rec.beating) text = `對準中（${side}舷）· 按 ↑`;
     else text = '航向正確 · 按 ↑ 衝刺';
-
     hud.guideTip.textContent = text;
     hud.guideTip.classList.toggle('good', aligned || Boolean(rec.approach));
   }
 
-  /** Coarse description of where the wind sits relative to the bow. */
   function windQuarter(awaDeg) {
     const a = Math.abs(awaDeg);
     const side = awaDeg >= 0 ? '右' : '左';
@@ -516,19 +606,25 @@ function startGame(gl, canvas) {
     return '正後方';
   }
 
-  /**
-   * Bow cues: orange wind arrow + (in easy mode) green forward-course arrow.
-   * Rotations use the camera heading so dragging the view does not skew them.
-   */
+  /** True-wind angle from the bow (−π..π). Arcade speeds make AWA look like irons on a run. */
+  function trueWindAngle() {
+    return wrap(boat.heading - wind.from);
+  }
+
+  /** Irons for coaching / cues: use TWA in easy mode so a fast run is not labelled 頂風. */
+  function inIronsNow() {
+    const angle = input.easy ? trueWindAngle() : boat.awa;
+    return Math.abs(angle) < NO_GO;
+  }
+
   function updateWindCue() {
     const cue = hud.windCue;
     if (!cue) return;
-    if (phase === 'finished') {
+    if (phase === 'finished' || phase === 'menu') {
       cue.hidden = true;
       return;
     }
 
-    // A little ahead of the bow and above the deck, so it clears the sails.
     const px = boat.x + Math.sin(boat.heading) * 5.2;
     const pz = boat.z + Math.cos(boat.heading) * 5.2;
     const ndc = camera.project(px, boat.waterY + 3.4, pz);
@@ -541,7 +637,7 @@ function startGame(gl, canvas) {
     cue.style.left = `${(ndc.x * 0.5 + 0.5) * 100}%`;
     cue.style.top = `${(1 - (ndc.y * 0.5 + 0.5)) * 100}%`;
 
-    const blowing = wind.from + Math.PI;              // the way the air is going
+    const blowing = wind.from + Math.PI;
     const windScreen = wrap(blowing - camera.viewHeading);
     hud.windCueArrow.style.transform = `rotate(${(windScreen * 180) / Math.PI}deg)`;
 
@@ -559,29 +655,31 @@ function startGame(gl, canvas) {
         `rotate(${(courseScreen * 180) / Math.PI}deg) scale(${scale})`;
       const side = wrap(wind.from - rec.heading) >= 0 ? '右' : '左';
       courseLabel = rec.approach
-        ? '前進・衝向閘門'
+        ? (markKind(gate) === 'round' ? '前進・左舷繞標' : '前進・衝向閘門')
         : rec.beating
           ? `前進・搶風${side}舷`
-          : '前進・直指閘門';
+          : '前進・直指目標';
     }
 
-    const awaDeg = (boat.awa * 180) / Math.PI;
-    const inIrons = Math.abs(boat.awa) < NO_GO;
+    const cueAngleDeg = ((input.easy ? trueWindAngle() : boat.awa) * 180) / Math.PI;
+    const inIrons = inIronsNow();
     const luffing = boat.luffing > 0.35;
     cue.classList.toggle('nogo', inIrons);
     cue.classList.toggle('good', !inIrons && !luffing);
     cue.classList.toggle('holding', holding);
+    cue.classList.toggle('gust', Boolean(wind.gusting));
     hud.goBtn?.classList.toggle('holding', holding);
     hud.keyGo?.classList.toggle('holding', holding);
 
-    let label = courseLabel || `風從${windQuarter(awaDeg)}`;
+    let label = courseLabel || `風從${windQuarter(cueAngleDeg)}`;
+    if (wind.gusting) label = `陣風！${label}`;
     if (inIrons) {
-      // Loudest signal: irons overrides course chatter so the player falls off.
       label = showCourse || input.easy
         ? '頂風紅區・轉開再加速'
         : '頂風紅區・← → 轉舵離開';
     } else if (input.easy && courseLabel) {
       label = holding ? `${courseLabel}・加速中` : `${courseLabel}・按住加速`;
+      if (wind.gusting) label = `陣風・${label}`;
     } else if (luffing && !input.autoTrim) {
       label = '帆在抖・收帆 Z';
     } else if (!input.autoTrim) {
@@ -596,20 +694,18 @@ function startGame(gl, canvas) {
     hud.windCueLabel.textContent = label;
   }
 
-  /**
-   * Float a loud "下一門" flag over the next gate. Clamps to the screen edge
-   * with a yellow tint when the opening is off-camera.
-   */
   function updateGateBeacon() {
     const el = hud.gateBeacon;
     if (!el) return;
     const gate = marks.nextGate;
-    if (!gate || phase === 'finished') {
+    if (!gate || phase === 'finished' || phase === 'menu') {
       el.hidden = true;
       return;
     }
 
-    const vis = gate.isFinish ? course.gates[0] : gate;
+    const vis = gate.isFinish && markKind(gate) === 'gate'
+      ? course.gates[0]
+      : gate;
     const worldY = boat.waterY + 5.8;
     const ndc = camera.project(vis.x, worldY, vis.z);
 
@@ -633,9 +729,9 @@ function startGame(gl, canvas) {
         const len = Math.hypot(dx, dy) || 1;
         const nx = dx / len;
         const ny = dy / len;
-        const tx = Math.abs(nx) > 1e-4 ? 0.42 / Math.abs(nx) : Infinity;
-        const ty = Math.abs(ny) > 1e-4 ? 0.38 / Math.abs(ny) : Infinity;
-        const t = Math.min(tx, ty);
+        const ttx = Math.abs(nx) > 1e-4 ? 0.42 / Math.abs(nx) : Infinity;
+        const tty = Math.abs(ny) > 1e-4 ? 0.38 / Math.abs(ny) : Infinity;
+        const t = Math.min(ttx, tty);
         sx = 0.5 + nx * t;
         sy = 0.5 + ny * t;
       }
@@ -643,6 +739,7 @@ function startGame(gl, canvas) {
 
     el.hidden = false;
     el.classList.toggle('offscreen', offscreen);
+    el.classList.toggle('round-mark', markKind(gate) === 'round');
     el.style.left = `${clamp(sx, 0.07, 0.93) * 100}%`;
     el.style.top = `${clamp(sy, 0.1, 0.86) * 100}%`;
     if (hud.gateBeaconName) hud.gateBeaconName.textContent = gate.name;
@@ -662,29 +759,33 @@ function startGame(gl, canvas) {
     const pct = clamp(ms / 20.5, 0, 1) * 100;
     if (hud.speedBarFill) hud.speedBarFill.style.width = `${pct}%`;
     el.classList.toggle('boosting', Boolean(input.holdingCourse && input.easy));
+    el.classList.toggle('gust', Boolean(wind.gusting));
   }
 
   function updateHud(dt) {
+    if (phase === 'menu') return;
     hudAcc += dt;
     if (hudAcc < 0.08 && dt !== 0) return;
     hudAcc = 0;
 
-    const kn = boat.speed * 1.94384;
-    hud.wind.textContent = `真風 ${wind.speed.toFixed(1)} m/s`;
-    hud.point.textContent = pointOfSail(boat.awa).label;
+    hud.wind.textContent = `真風 ${wind.speed.toFixed(1)} m/s${wind.gusting ? ' 陣' : ''}`;
+    const sailAngle = input.easy ? trueWindAngle() : boat.awa;
+    hud.point.textContent = pointOfSail(sailAngle).label;
 
     const awaDeg = (boat.awa * 180) / Math.PI;
     const awaAbs = Math.abs(awaDeg);
+    const tipAngle = Math.abs((sailAngle * 180) / Math.PI);
     hud.awa.textContent = `相對風 ${awaAbs.toFixed(0)}° ${awaDeg >= 0 ? '右' : '左'}`;
     let tip = '橫風：好走';
-    if (awaAbs < (NO_GO * 180) / Math.PI) tip = '頂風紅區：轉開約 40° 才有推力';
-    else if (awaAbs < 55) tip = '搶風：可走，略收帆';
-    else if (awaAbs < 120) tip = '橫風／斜順：最快';
+    if (tipAngle < (NO_GO * 180) / Math.PI) tip = '頂風紅區：轉開約 40° 才有推力';
+    else if (tipAngle < 55) tip = '搶風：可走，略收帆';
+    else if (tipAngle < 120) tip = '橫風／斜順：最快';
     else tip = '順風：可放帆';
     if (boat.luffing > 0.35 && !input.autoTrim) tip = '帆在抖：按 Z 收帆吃滿風';
+    if (wind.gusting) tip = `陣風 ${tip}`;
     hud.windTip.textContent = tip;
-    hud.windTip.classList.toggle('bad', awaAbs < (NO_GO * 180) / Math.PI || (boat.luffing > 0.35 && !input.autoTrim));
-    hud.windTip.classList.toggle('good', awaAbs >= 55 && awaAbs < 120 && boat.luffing < 0.2);
+    hud.windTip.classList.toggle('bad', tipAngle < (NO_GO * 180) / Math.PI || (boat.luffing > 0.35 && !input.autoTrim));
+    hud.windTip.classList.toggle('good', tipAngle >= 55 && tipAngle < 120 && boat.luffing < 0.2);
 
     const trimDeg = (boat.trim * 180) / Math.PI;
     const idealDeg = ((boat.trimIdeal ?? boat.trim) * 180) / Math.PI;
@@ -695,13 +796,17 @@ function startGame(gl, canvas) {
     const idealPct = clamp(idealDeg / 90, 0, 1);
     hud.trimFill.style.width = `${trimPct * 100}%`;
     hud.trimIdeal.style.left = `${idealPct * 100}%`;
-    hud.trimFill.classList.toggle('ok', Math.abs(trimDeg - idealDeg) < 8);
+    const trimOk = Math.abs(trimDeg - idealDeg) < 8;
+    hud.trimFill.classList.toggle('ok', trimOk);
+    if (!input.autoTrim && !input.easy) {
+      if (trimOk && !lastTrimSweet) sfxTrimSweet();
+      lastTrimSweet = trimOk;
+    }
 
     hud.auto.classList.toggle('active', input.autoTrim);
     hud.auto.setAttribute('aria-pressed', input.autoTrim ? 'true' : 'false');
 
     const total = course.gates.length;
-    const idx = Math.min(marks.nextIndex + 1, total);
     if (phase === 'finished') {
       hud.mark.textContent = '完賽';
       hud.dist.textContent = '—';
@@ -716,16 +821,18 @@ function startGame(gl, canvas) {
     const awaRot = (boat.awa * 180) / Math.PI;
     hud.compass.style.transform = `rotate(${awaRot}deg)`;
     hud.compass.classList.toggle('luffing', boat.luffing > 0.35);
-    hud.compass.classList.toggle('nogo', Math.abs(boat.awa) < NO_GO);
+    hud.compass.classList.toggle('nogo', inIronsNow());
 
     const bearing = marks.bearingToNext(boat);
     hud.arrow.style.transform = `rotate(${(bearing * 180) / Math.PI}deg)`;
 
+    if (hud.gustBadge) hud.gustBadge.hidden = !wind.gusting;
+
     updateGuide();
     drawMinimap();
+    updateStandings();
   }
 
-  /** Ask the coach whether the player is stuck, and show the one instruction. */
   function updateCoach(dt) {
     const gate = marks.nextGate;
     const guideTurn = input.easy && gate
@@ -756,11 +863,6 @@ function startGame(gl, canvas) {
     hud.coach.hidden = false;
   }
 
-  /**
-   * One-key tack: latch the heading on the other side of the wind and steer to
-   * it. Hands control back when settled, the player touches the rudder, or the
-   * timer runs out.
-   */
   function applyTackAssist(controls, dt) {
     if (input.consumeTack() && input.easy) {
       tackTarget = assist.otherTack(boat, wind);
@@ -778,14 +880,8 @@ function startGame(gl, canvas) {
     return { ...controls, rudder: steerTo(boat, tackTarget) };
   }
 
-  /**
-   * Easy mode is an arcade racer: YOU steer, ↑ boosts. Guidance arrow is a
-   * hint only — no autopilot (watching a boat drive itself is not a game).
-   * Space still does a one-key tack for when you want to flip quickly.
-   */
   function applyEasyHelms(controls, dt) {
     if (!input.easy) return controls;
-    // Lock auto-trim on and ignore sheet keys — sail always at peak angle.
     input.autoTrim = true;
     controls = applyTackAssist(controls, dt);
     return { ...controls, autoTrim: true, trimDelta: 0 };
@@ -795,117 +891,237 @@ function startGame(gl, canvas) {
     return input.easy ? WAVE_AMP_EASY : WAVE_AMP;
   }
 
+  function playerPlace() {
+    const finished = [
+      { id: 'you', time: raceTime },
+      ...rivals.filter((r) => r.finishTime != null).map((r) => ({ id: r.profile.id, time: r.finishTime })),
+    ].sort((a, b) => a.time - b.time);
+    const idx = finished.findIndex((r) => r.id === 'you');
+    return idx < 0 ? rivals.length + 1 : idx + 1;
+  }
+
+  function finishRace() {
+    phase = 'finished';
+    coach.reset();
+    hud.coach.hidden = true;
+    const mode = modeKey();
+    const result = recordFinish(progress, courseId, mode, raceTime);
+    progress = result.progress;
+    const isRecord = result.isRecord;
+    if (isRecord) {
+      bestTime = raceTime;
+      saveGhost(courseId, mode, ghostRecorder.samples(), raceTime);
+    } else {
+      bestTime = bestFor(progress, courseId, mode);
+    }
+    if (result.unlocked.length) {
+      sfxUnlock();
+      showToast(`解鎖航線：${result.unlocked.map((id) => loadCourseDef(id).name).join('、')}`);
+    }
+    sfxFinish(isRecord);
+
+    const place = playMode === 'trial' ? null : playerPlace();
+    if (place != null) {
+      regattaPoints += PLACE_POINTS[place - 1] ?? 0;
+      regattaPlaces.push({ courseId, place, time: raceTime });
+    }
+
+    const finishStats = [
+      { label: '航線', value: course.name },
+      { label: '本次時間', value: formatTime(raceTime) },
+      { label: '歷史最佳', value: formatTime(bestTime) },
+    ];
+    if (place != null) finishStats.push({ label: '名次', value: `第 ${place} 名` });
+    if (perfectGates > 0) finishStats.push({ label: '完美', value: `${perfectGates} 次` });
+    for (const split of splits) {
+      finishStats.push({ label: split.name, value: formatTime(split.time) });
+    }
+
+    const continueRegatta = playMode === 'regatta' && regattaIndex < regattaQueue.length - 1;
+    if (continueRegatta) {
+      resultOverlay.show({
+        title: isRecord ? `${course.name}・新紀錄！` : `${course.name}・完賽`,
+        badge: place != null ? `第 ${place} 名` : undefined,
+        subtitle: `海灣盃積分 ${regattaPoints} · 下一場準備`,
+        stats: finishStats,
+        primaryLabel: '下一航線',
+        onPrimary: () => {
+          regattaIndex += 1;
+          applyCourse(regattaQueue[regattaIndex]);
+          setupGhost();
+          setupRivals();
+          resetRace();
+        },
+        secondaryLabel: '放棄盃賽',
+        onSecondary: () => openMenu(),
+        variant: isRecord || place === 1 ? 'win' : 'neutral',
+      });
+      return;
+    }
+
+    if (playMode === 'regatta') {
+      progress = recordRegatta(progress, { points: regattaPoints, won: regattaPoints >= 9 });
+      finishStats.push({ label: '盃賽積分', value: String(regattaPoints) });
+      resultOverlay.show({
+        title: regattaPoints >= 9 ? '海灣盃・優勝！' : '海灣盃・完賽',
+        badge: `${regattaPoints} 分`,
+        subtitle: '三場積分累計（5／3／1）',
+        stats: finishStats,
+        primaryLabel: '再挑戰盃賽',
+        onPrimary: () => {
+          playMode = 'regatta';
+          beginRaceSession();
+        },
+        secondaryLabel: '回選單',
+        onSecondary: () => openMenu(),
+        variant: regattaPoints >= 9 ? 'win' : 'neutral',
+      });
+      return;
+    }
+
+    resultOverlay.show({
+      title: isRecord ? '完賽・新紀錄！' : '完賽！',
+      badge: isRecord ? '新紀錄' : (place != null ? `第 ${place} 名` : undefined),
+      subtitle: '點「再航一趟」重開，或按 R',
+      stats: finishStats,
+      primaryLabel: '再航一趟',
+      onPrimary: resetRace,
+      secondaryLabel: '回選單',
+      onSecondary: () => openMenu(),
+      variant: isRecord || place === 1 ? 'win' : 'neutral',
+    });
+  }
+
+  function openMenu() {
+    phase = 'menu';
+    resultOverlay.hide();
+    hud.countdown.hidden = true;
+    if (hud.raceStandings) hud.raceStandings.hidden = true;
+    const overlay = $('#title-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      document.body.appendChild(overlay);
+    }
+    refreshMenuMeta();
+  }
+
+  let last = performance.now();
+  let hudAcc = 0;
+
   function frame(now) {
     const dt = clamp((now - last) / 1000, 0, 0.05);
     last = now;
 
-    if (input.consumePress('KeyR')) resetRace();
-    if (input.consumePress('KeyH') || input.consumePress('Slash')) {
-      $('#help-panel').hidden = !$('#help-panel').hidden;
+    if (phase !== 'menu') {
+      if (input.consumePress('KeyR')) resetRace();
+      if (input.consumePress('KeyH') || input.consumePress('Slash')) {
+        $('#help-panel').hidden = !$('#help-panel').hidden;
+      }
     }
 
     if (toastTimer > 0) {
       toastTimer -= dt;
       if (toastTimer <= 0) hud.toast.classList.remove('show');
     }
+    if (luffSfxCooldown > 0) luffSfxCooldown -= dt;
 
     const aspect = resize(gl, canvas);
     camera.resize(aspect);
+
+    if (phase === 'menu') {
+      // Idle bob on the title — keep GPU warm and show the bay.
+      wind.update(now * 0.001);
+      const waves = WAVE_AMP_EASY;
+      stepSailing(
+        boat,
+        wind,
+        { rudder: 0.05 * Math.sin(now * 0.001), trimDelta: 0, autoTrim: true },
+        dt,
+        now * 0.001,
+        waves,
+        true
+      );
+      marks.update(now * 0.001, waves);
+      camera.update(boat, 0, dt);
+      camera.commit();
+      renderScene(now, waves);
+      requestAnimationFrame(frame);
+      return;
+    }
+
     wind.update(now * 0.001);
-    // Easy mode: almost flat calm so the boat tracks the autopilot cleanly.
     if (input.easy) {
       wind.speed = wind.baseSpeed * 0.92 + (wind.speed - wind.baseSpeed) * 0.15;
       wind.from = wind.baseFrom + (wind.from - wind.baseFrom) * 0.25;
     }
+    if (wind.consumeGustEdge() && !input.easy) {
+      sfxGust();
+      showToast('陣風來了！');
+    }
 
     const waves = waveAmpNow();
     let controls = { rudder: 0, trimDelta: 0, autoTrim: true };
+
     if (phase === 'countdown') {
       countdown -= dt;
       const n = Math.ceil(countdown);
       hud.countdown.hidden = false;
       hud.countdown.textContent = n > 0 ? String(n) : 'GO';
-      // Soft hold during countdown — slight steer allowed to line up.
       const raw = input.sample(dt);
       controls = { rudder: raw.rudder * 0.35, trimDelta: 0, autoTrim: true, holdCourse: raw.holdCourse };
       controls = applyEasyHelms(controls, dt);
       stepSailing(boat, wind, controls, dt, now * 0.001, waves, input.easy);
+      for (const rival of rivals) {
+        rival.step(wind, dt, now * 0.001, waves, 0, input.easy, course.gates.length);
+      }
       if (countdown <= 0) {
         phase = 'racing';
         raceTime = 0;
         hud.countdown.hidden = true;
         showToast(
-          input.easy
-            ? '按住加速！左右轉彎衝過綠色閘門'
-            : '計時開始！避開頂風紅區，穿過綠色閘門'
+          playMode === 'trial'
+            ? (input.easy ? '計時開始！衝過綠色目標' : '計時開始！幽靈是你的最佳紀錄')
+            : '起航！盯緊對手航線與陣風'
         );
       }
     } else if (phase === 'racing') {
       controls = applyEasyHelms(input.sample(dt), dt);
       stepSailing(boat, wind, controls, dt, now * 0.001, waves, input.easy);
       raceTime += dt;
+      ghostRecorder.push(dt, raceTime, boat);
       updateCoach(dt);
+
+      if (!input.autoTrim && !input.easy && boat.luffing > 0.45 && luffSfxCooldown <= 0) {
+        sfxLuff();
+        luffSfxCooldown = 1.2;
+      }
+
+      for (const rival of rivals) {
+        rival.step(wind, dt, now * 0.001, waves, raceTime, input.easy, course.gates.length);
+      }
 
       const cleared = marks.tryClear(boat);
       if (cleared) {
         splits.push({ name: cleared.cleared.name, time: raceTime });
         renderSplits();
         const left = course.gates.length - marks.nextIndex;
+        const isRound = markKind(cleared.cleared) === 'round';
         if (cleared.perfect) {
           perfectGates += 1;
           raceTime = Math.max(0, raceTime - 1.2);
           boat.surge = Math.min(20.5, boat.surge + 4.0);
-          sfxGateClear(true);
-          showToast(`完美穿門！−1.2s · 加速（完美 ${perfectGates}）`);
-        } else if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
-          // finish handled below
-        } else {
-          sfxGateClear(false);
-          showToast(`${cleared.cleared.name} · ${formatTime(raceTime)} · 剩 ${left} 門`);
+          if (isRound) sfxMarkRound(true);
+          else sfxGateClear(true);
+          showToast(isRound
+            ? `漂亮繞標！−1.2s · 加速（完美 ${perfectGates}）`
+            : `完美穿門！−1.2s · 加速（完美 ${perfectGates}）`);
+        } else if (!(cleared.cleared.isFinish || marks.nextIndex >= course.gates.length)) {
+          if (isRound) sfxMarkRound(false);
+          else sfxGateClear(false);
+          showToast(`${cleared.cleared.name} · ${formatTime(raceTime)} · 剩 ${left}`);
         }
         if (cleared.cleared.isFinish || marks.nextIndex >= course.gates.length) {
-          phase = 'finished';
-          coach.reset();
-          hud.coach.hidden = true;
-          const mode = input.easy ? 'easy' : 'pro';
-          const isRecord = persistSailingBest(mode, raceTime);
-          if (isRecord) {
-            sailingBests = loadSailingBests();
-            bestTime = sailingBests[mode];
-          } else {
-            bestTime = sailingBests[mode];
-          }
-          sfxFinish(isRecord);
-          const finishStats = [
-            { label: '本次時間', value: formatTime(raceTime) },
-            { label: '歷史最佳', value: formatTime(bestTime) },
-          ];
-          if (perfectGates > 0) {
-            finishStats.push({ label: '完美穿門', value: `${perfectGates} 次` });
-          }
-          for (const split of splits) {
-            finishStats.push({ label: split.name, value: formatTime(split.time) });
-          }
-          resultOverlay.show({
-            title: isRecord ? '完賽・新紀錄！' : '完賽！',
-            badge: isRecord ? '新紀錄' : undefined,
-            subtitle: '點「再航一趟」重開，或按 R',
-            stats: finishStats,
-            primaryLabel: '再航一趟',
-            onPrimary: resetRace,
-            secondaryLabel: '回選單',
-            onSecondary: () => {
-              window.location.href = '../../';
-            },
-            variant: isRecord ? 'win' : 'neutral',
-          });
-          showToast(
-            isRecord
-              ? `新紀錄 ${formatTime(raceTime)}！再航挑戰？`
-              : perfectGates > 0
-                ? `完賽 ${formatTime(raceTime)} · 完美 ${perfectGates}`
-                : `完賽 ${formatTime(raceTime)} · 再航一趟？`
-          );
+          finishRace();
         }
       }
     } else {
@@ -919,16 +1135,25 @@ function startGame(gl, canvas) {
         waves,
         input.easy
       );
+      for (const rival of rivals) {
+        rival.step(wind, dt, now * 0.001, waves, raceTime, input.easy, course.gates.length);
+      }
     }
 
     wakeAcc += dt;
     if (wakeAcc > 0.06) {
       wakeAcc = 0;
-      const strength = clamp(boat.speed / 5, 0, 1.25) * 1.15;
-      if (strength > 0.05) {
-        wake.unshift({ x: boat.x, z: boat.z, strength });
-        if (wake.length > 40) wake.pop();
+      const pushWake = (b, scale) => {
+        const strength = clamp((b.speed || Math.abs(b.surge) || 0) / 5, 0, 1.25) * scale;
+        if (strength > 0.05) wake.unshift({ x: b.x, z: b.z, strength });
+      };
+      pushWake(boat, 1.15);
+      for (const rival of rivals) pushWake(rival.boat, 0.85);
+      if (ghostPlayback && phase === 'racing') {
+        const g = ghostPlayback.sample(raceTime);
+        wake.unshift({ x: g.x, z: g.z, strength: 0.35 });
       }
+      while (wake.length > 32) wake.pop();
       for (const w of wake) w.strength *= 0.955;
     }
     ocean.setWake(wake);
@@ -939,7 +1164,13 @@ function startGame(gl, canvas) {
     updateWindCue();
     updateGateBeacon();
     updateSpeedReadout();
+    renderScene(now, waves);
+    updateHud(dt);
+    requestAnimationFrame(frame);
+  }
 
+  function renderScene(now, waves) {
+    const t = now * 0.001;
     const roll = boat.heel + (boat.waveRoll || 0) * 0.65;
     boatMesh.update({
       position: [boat.x, boat.waterY, boat.z],
@@ -953,11 +1184,49 @@ function startGame(gl, canvas) {
       flutter: boat.luffing * 0.35,
       jibCamber: 0.4 * (1 - boat.luffing * 0.6),
       jibFlutter: boat.luffing * 0.28,
-      time: now * 0.001,
+      time: t,
     });
 
+    rivals.forEach((rival, i) => {
+      const rb = rival.boat;
+      const rRoll = rb.heel + (rb.waveRoll || 0) * 0.65;
+      rivalMeshes[i].update({
+        position: [rb.x, rb.waterY, rb.z],
+        heading: rb.heading,
+        pitch: rb.pitch,
+        roll: rRoll,
+        sailAngle: rb.trim,
+        rudderAngle: -rb.rudder * 0.55,
+        side: rb.side,
+        camber: 0.55 * (1 - rb.luffing * 0.7),
+        flutter: rb.luffing * 0.35,
+        jibCamber: 0.4 * (1 - rb.luffing * 0.6),
+        jibFlutter: rb.luffing * 0.28,
+        time: t,
+      });
+    });
+
+    let ghostPose = null;
+    if (ghostPlayback && (phase === 'racing' || phase === 'countdown')) {
+      ghostPose = ghostPlayback.sample(phase === 'countdown' ? 0 : raceTime);
+      ghostMesh.update({
+        position: [ghostPose.x, boat.waterY, ghostPose.z],
+        heading: ghostPose.heading,
+        pitch: 0,
+        roll: 0,
+        sailAngle: ghostPose.trim,
+        rudderAngle: 0,
+        side: ghostPose.side,
+        camber: 0.45,
+        flutter: 0.05,
+        jibCamber: 0.35,
+        jibFlutter: 0.04,
+        time: t,
+      });
+    }
+
     const env = {
-      time: now * 0.001,
+      time: t,
       waveAmp: waves,
       sunDir: SUN_DIR,
       horizonColor: HORIZON,
@@ -978,12 +1247,11 @@ function startGame(gl, canvas) {
 
     const pass = solid.begin(camera, env);
     gl.disable(gl.CULL_FACE);
+    if (ghostPose) ghostMesh.draw(pass, { tint: [0.65, 0.8, 0.95], ghost: true });
+    rivals.forEach((rival, i) => rivalMeshes[i].draw(pass, { tint: rival.profile.tint }));
     boatMesh.draw(pass);
     marks.draw(pass);
     gl.enable(gl.CULL_FACE);
-
-    updateHud(dt);
-    requestAnimationFrame(frame);
   }
 
   function dismissTutorial() {
@@ -1000,23 +1268,31 @@ function startGame(gl, canvas) {
 
   const overlay = $('#title-overlay');
   if (overlay) {
-    // ponytail: public plate + CSS wash; relative URL matches other Sailing textures.
     overlay.style.backgroundImage = [
       'radial-gradient(ellipse at 50% 20%, rgba(44, 181, 168, 0.22), transparent 55%)',
       'linear-gradient(180deg, rgba(7, 24, 36, 0.55), rgba(7, 24, 36, 0.82))',
       "url('./menu-bg.jpg')",
     ].join(', ');
   }
-  const dismiss = () => {
-    overlay?.classList.add('hidden');
-    setTimeout(() => overlay?.remove(), 500);
-    maybeShowTutorial();
-  };
-  $('#btn-start')?.addEventListener('click', dismiss);
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Enter' || e.code === 'Space') dismiss();
-  }, { once: true });
 
+  document.querySelectorAll('[data-play-mode]').forEach((el) => {
+    el.addEventListener('click', () => {
+      playMode = /** @type {PlayMode} */ (el.getAttribute('data-play-mode') || 'trial');
+      refreshMenuMeta();
+    });
+  });
+
+  $('#btn-start')?.addEventListener('click', () => {
+    overlay?.classList.add('hidden');
+    setTimeout(() => {
+      // Keep node for reopen via openMenu
+    }, 500);
+    maybeShowTutorial();
+    beginRaceSession();
+  });
+
+  refreshMenuMeta();
+  phase = 'menu';
   requestAnimationFrame(frame);
 }
 
