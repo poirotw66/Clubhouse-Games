@@ -104,6 +104,156 @@ body {
   opacity: 0.7;
 }
 
+.menu-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: center;
+  margin-top: 0.35rem;
+}
+
+.mode-chip,
+.course-card {
+  border: 1px solid var(--line);
+  background: rgba(7, 24, 36, 0.55);
+  color: var(--foam);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+.mode-chip {
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.mode-chip.selected,
+.course-card.selected {
+  border-color: var(--teal);
+  background: rgba(44, 181, 168, 0.22);
+  box-shadow: 0 0 0 1px rgba(44, 181, 168, 0.35);
+}
+
+.course-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: min(420px, 92vw);
+  max-height: 34vh;
+  overflow: auto;
+  margin: 0.35rem 0;
+}
+
+.course-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.course-card.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.course-card-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.course-card-blurb,
+.course-card-best,
+.menu-meta,
+.mode-hint {
+  font-size: 0.78rem;
+  color: rgba(232, 244, 246, 0.7);
+}
+
+.menu-meta {
+  margin: 0 0 0.25rem;
+}
+
+.gust-badge {
+  position: fixed;
+  top: 4.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(240, 122, 42, 0.92);
+  color: #071824;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  animation: gust-pulse 0.7s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.gust-badge[hidden] {
+  display: none !important;
+}
+
+@keyframes gust-pulse {
+  from { transform: translateX(-50%) scale(1); }
+  to { transform: translateX(-50%) scale(1.06); }
+}
+
+.race-standings {
+  position: fixed;
+  top: 4.5rem;
+  right: 0.75rem;
+  z-index: 11;
+  min-width: 140px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+
+.race-standings[hidden] {
+  display: none !important;
+}
+
+.stand-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.15rem 0;
+  color: rgba(232, 244, 246, 0.78);
+}
+
+.stand-row.you {
+  color: #8ef7d2;
+  font-weight: 700;
+}
+
+.gate-beacon.round-mark .gate-beacon-tag {
+  background: rgba(240, 122, 42, 0.9);
+  color: #071824;
+}
+
+.wind-cue.gust .wind-cue-arrow {
+  filter: drop-shadow(0 0 6px rgba(240, 122, 42, 0.85));
+}
+
+.speed-readout.gust .speed-value {
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gust-badge {
+    animation: none;
+  }
+}
+
 /* Every other game in the collection has this same pill in the top-left, so
    it stays put here too. z-index clears the title overlay (40) and the boot
    error screen (50): those are exactly the moments a player is most likely to
@@ -285,6 +435,14 @@ body {
   display: grid;
   justify-items: center;
   gap: 0.3rem;
+}
+
+/* Class `display: grid` beats the UA [hidden] rule — keep easy-mode hides honest. */
+.wind-rose[hidden],
+.trim-panel[hidden],
+.cp-guide[hidden],
+.guide-tip[hidden] {
+  display: none !important;
 }
 
 .rose-ring {
@@ -1290,10 +1448,19 @@ body {
     padding: 6px 10px;
   }
 
-  /* Buys back the width the fourth button needs. The point of sail is already
-     spelled out under the wind rose, so this only drops a duplicate. */
-  .hud-stats .stat:nth-child(n + 2) {
+  /* Keep course + speed; drop the rest on narrow screens. */
+  .hud-stats .stat:nth-child(n + 3) {
     display: none;
+  }
+
+  .course-list {
+    max-height: 28vh;
+  }
+
+  .race-standings {
+    top: auto;
+    bottom: 7.5rem;
+    right: 0.5rem;
   }
 
   .touch-btn {

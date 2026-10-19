@@ -1,6 +1,7 @@
-import type { Card } from '../types';
+import type { Card } from '../types.ts';
 
 export type DealerRule = 'H17' | 'S17';
+export type BjPayout = '3:2' | '6:5';
 
 export const calculateScore = (cards: Card[]): number => {
   let score = 0;
@@ -73,14 +74,21 @@ export const resolveInsurancePayout = (
   return dealerHasBlackjack ? insuranceBet * 3 : 0;
 };
 
-/** Early surrender: half the main bet returned. */
+/** Early/late surrender: half the main bet returned. */
 export const surrenderRefund = (bet: number): number => Math.floor(bet / 2);
 
 /** Even money: take 1:1 on player blackjack vs dealer Ace (stake already deducted). */
 export const evenMoneyPayout = (bet: number): number => bet * 2;
 
-/** Blackjack 3:2 payout including returned stake (stake already deducted). */
-export const blackjackPayout = (bet: number): number => bet * 2.5;
+/**
+ * Blackjack payout including returned stake (stake already deducted).
+ * 3:2 → 2.5× bet; 6:5 → 2.2× bet.
+ */
+export const blackjackPayout = (bet: number, payout: BjPayout = '3:2'): number =>
+  payout === '6:5' ? bet + (bet * 6) / 5 : bet + (bet * 3) / 2;
+
+export const blackjackPayoutLabel = (payout: BjPayout): string =>
+  payout === '6:5' ? '6:5' : '3:2';
 
 /** Display total; soft hands show Traditional Chinese「軟」prefix. */
 export const formatHandTotal = (cards: Card[]): string => {
@@ -88,42 +96,20 @@ export const formatHandTotal = (cards: Card[]): string => {
   return isSoftHand(cards) ? `軟 ${score}` : String(score);
 };
 
-export const BALANCE_STORAGE_KEY = 'clubhouse-blackjack-balance';
-export const DEALER_RULE_STORAGE_KEY = 'clubhouse-blackjack-dealer-rule';
+const TEN_RANKS = new Set(['10', 'J', 'Q', 'K']);
+
+export function pairRankKey(rank: string): string {
+  if (TEN_RANKS.has(rank)) return '10';
+  return rank;
+}
+
+export function isPairHand(cards: Card[]): boolean {
+  if (cards.length !== 2) return false;
+  return pairRankKey(cards[0].rank) === pairRankKey(cards[1].rank);
+}
+
+export function isAcePair(cards: Card[]): boolean {
+  return cards.length === 2 && cards[0].rank === 'A' && cards[1].rank === 'A';
+}
+
 export const DEFAULT_BALANCE = 1000;
-
-export const loadBalance = (): number => {
-  try {
-    const raw = localStorage.getItem(BALANCE_STORAGE_KEY);
-    if (raw == null) return DEFAULT_BALANCE;
-    const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : DEFAULT_BALANCE;
-  } catch {
-    return DEFAULT_BALANCE;
-  }
-};
-
-export const saveBalance = (balance: number): void => {
-  try {
-    localStorage.setItem(BALANCE_STORAGE_KEY, String(Math.floor(balance)));
-  } catch {
-    // ignore quota / private mode
-  }
-};
-
-export const loadDealerRule = (): DealerRule => {
-  try {
-    const raw = localStorage.getItem(DEALER_RULE_STORAGE_KEY);
-    return raw === 'S17' ? 'S17' : 'H17';
-  } catch {
-    return 'H17';
-  }
-};
-
-export const saveDealerRule = (rule: DealerRule): void => {
-  try {
-    localStorage.setItem(DEALER_RULE_STORAGE_KEY, rule);
-  } catch {
-    // ignore
-  }
-};

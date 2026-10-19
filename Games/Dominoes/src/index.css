@@ -4,3 +4,30 @@
 @import "../../../shared/tailwind-source.css";
 
 body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+
+@keyframes domino-place-in {
+  0% { opacity: 0; transform: translateY(-18px) scale(0.85); }
+  60% { opacity: 1; transform: translateY(2px) scale(1.04); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.domino-place-in {
+  animation: domino-place-in 0.35s ease-out;
+}
+
+@keyframes score-float {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -28px) scale(1); }
+}
+
+.domino-score-callout {
+  animation: score-float 1.1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .domino-place-in,
+  .domino-score-callout {
+    animation: none;
+  }
+}

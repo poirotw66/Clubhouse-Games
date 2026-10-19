@@ -7,13 +7,25 @@ export interface Card {
   isHidden?: boolean;
 }
 
-export type HandStatus = 'playing' | 'busted' | 'stood' | 'won' | 'lost' | 'push' | 'blackjack' | 'surrendered';
+export type HandStatus =
+  | 'playing'
+  | 'busted'
+  | 'stood'
+  | 'won'
+  | 'lost'
+  | 'push'
+  | 'blackjack'
+  | 'surrendered';
 
 export interface PlayerHand {
   id: string;
   cards: Card[];
   bet: number;
   status: HandStatus;
+  /** Hand came from splitting aces — usually one card only, no further actions. */
+  fromSplitAces?: boolean;
+  /** Hand was created by a split (blocks natural blackjack payout). */
+  fromSplit?: boolean;
 }
 
 export type GameState =

@@ -38,7 +38,9 @@ export function HowToOverlay({itemsEnabled, onClose}: Props) {
       <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
         <p className="text-center text-xs font-bold tracking-[0.3em] text-amber-400">教學</p>
         <h2 className="mt-1 text-center text-2xl font-black text-white">怎麼開？</h2>
-        <p className="mt-2 text-center text-sm text-slate-400">轉向、飄移、道具——先記這三件事</p>
+        <p className="mt-2 text-center text-sm text-slate-400">
+          轉向、飄移、尾流——先記這幾件事
+        </p>
 
         <ul className="mt-5 space-y-3 text-sm text-slate-200">
           <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
@@ -52,11 +54,17 @@ export function HowToOverlay({itemsEnabled, onClose}: Props) {
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
+            <p className="font-bold text-amber-300">尾流加速</p>
+            <p className="mt-0.5 text-slate-400">
+              貼在前車正後方可吸入尾流，短暫提高極速與加速。
+            </p>
+          </li>
+          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
             <p className="font-bold text-amber-300">道具</p>
             <p className="mt-0.5 text-slate-400">
               {itemsEnabled
                 ? '碾過道具磚取得一件；空白鍵或觸控「道具」發射。同時只能持有一件。'
-                : '本模式關閉道具，專心練駕駛與單圈。'}
+                : '本模式關閉道具，專心練駕駛與單圈；計時賽會重播你的最佳圈幽靈車。'}
             </p>
           </li>
         </ul>
