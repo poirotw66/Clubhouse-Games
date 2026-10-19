@@ -1,5 +1,7 @@
 import {CHARACTERS, DIFFICULTIES, type DifficultyId} from '../data/characters';
+import {rivalForChar, type RivalStyle} from '../data/rivals';
 import {LAP_TOTAL, RACER_COUNT, SURFACE_BOOST, SURFACE_GRASS} from './constants';
+import {poseAt, type GhostLap, type GhostSample} from './ghost';
 import {
   bestLapKey,
   DEFAULT_RACE_OPTIONS,
@@ -7,6 +9,11 @@ import {
   type RaceMode,
   type RaceOptions,
 } from './raceOptions';
+import {
+  findSlipstreamTarget,
+  SLIP_ACCEL_MULT,
+  SLIP_SPEED_MULT,
+} from './slipstream';
 import {indexDelta, lateralOffset, nearestIndex, pointAt} from './spline';
 import {getTrackAssets, surfaceAt, type TrackAssets} from './trackAssets';
 
@@ -66,6 +73,12 @@ export interface Racer {
   cpuOffset: number;
   cpuItemTimer: number;
   cpuNoise: number;
+  /** Stable cup entrant id (`player` or charId). */
+  entrantId: string;
+  /** CPU personality; null for the human player. */
+  rival: RivalStyle | null;
+  /** 0..1 draft strength this frame (HUD / juice). */
+  slipstream: number;
 }
 
 export interface OilDrop {
@@ -117,6 +130,17 @@ export interface RaceState {
   playerIndex: number;
   /** Remaining soft launch assist (easy tier only). */
   startAssist: number;
+  /** Best-lap ghost for time trial (null when absent). */
+  ghostLap: GhostLap | null;
+  /** Interpolated ghost pose this frame. */
+  ghostPose: GhostSample | null;
+}
+
+export interface CreateRaceExtras {
+  /** Explicit CPU roster (Grand Prix keeps rivals stable across races). */
+  cpuRoster?: {charId: string; name?: string; rival?: RivalStyle}[];
+  /** Time-trial ghost to replay. */
+  ghost?: GhostLap | null;
 }
 
 const BASE_TOP_SPEED = 330;
@@ -171,23 +195,36 @@ export function createRace(
   playerCharId: string,
   difficulty: DifficultyId,
   options: RaceOptions = DEFAULT_RACE_OPTIONS,
+  extras: CreateRaceExtras = {},
 ): RaceState {
   const laps = options.laps ?? LAP_TOTAL;
   const assets = getTrackAssets(trackId, options.mirror);
   const n = assets.centerline.points.length;
   const count = options.mode === 'timeTrial' ? 1 : RACER_COUNT;
 
-  const roster = [playerCharId, ...CHARACTERS.filter((c) => c.id !== playerCharId).map((c) => c.id)];
+  const defaultCpu = CHARACTERS.filter((c) => c.id !== playerCharId);
+  type CpuSlot = {charId: string; name?: string; rival?: RivalStyle};
+  const cpuSlots: CpuSlot[] =
+    extras.cpuRoster && extras.cpuRoster.length > 0
+      ? extras.cpuRoster
+      : defaultCpu.map((c) => ({charId: c.id, rival: rivalForChar(c.id)}));
+
   const racers: Racer[] = [];
   for (let i = 0; i < count; i++) {
     const spot = assets.grid[Math.min(i, assets.grid.length - 1)];
     const gridIdx = nearestIndex(assets.centerline, spot.x, spot.y, -1);
-    const c = char(roster[i % roster.length]);
+    const isPlayer = i === 0;
+    const slot: CpuSlot = isPlayer
+      ? {charId: playerCharId}
+      : cpuSlots[(i - 1) % cpuSlots.length];
+    const c = char(slot.charId);
+    const rival = isPlayer ? null : (slot.rival ?? rivalForChar(c.id));
+    const lineBias = rival?.lineBias ?? (i - 1.5) * 22;
     racers.push({
       index: i,
       charId: c.id,
-      name: c.name,
-      isPlayer: i === 0,
+      name: slot.name ?? c.name,
+      isPlayer,
       x: spot.x,
       y: spot.y,
       angle: spot.angle,
@@ -215,11 +252,19 @@ export function createRace(
       finishTime: 0,
       lapTimes: [],
       lapStart: 0,
-      cpuOffset: (i - 1.5) * 22,
+      cpuOffset: lineBias,
       cpuItemTimer: 1 + i * 0.4,
       cpuNoise: Math.random() * Math.PI * 2,
+      entrantId: isPlayer ? 'player' : c.id,
+      rival,
+      slipstream: 0,
     });
   }
+
+  const ghostLap =
+    options.mode === 'timeTrial' && extras.ghost && extras.ghost.trackId === trackId
+      ? extras.ghost
+      : null;
 
   const state: RaceState = {
     assets,
@@ -239,6 +284,8 @@ export function createRace(
     events: [],
     playerIndex: 0,
     startAssist: 0,
+    ghostLap,
+    ghostPose: null,
   };
   updatePlaces(state);
   return state;
@@ -354,6 +401,7 @@ function useItem(state: RaceState, r: Racer): void {
 function driveCpu(state: RaceState, r: Racer, dt: number): RaceInput {
   const line = state.assets.centerline;
   const diff = DIFFICULTIES.find((d) => d.id === state.difficulty)!;
+  const style = r.rival ?? rivalForChar(r.charId);
 
   r.cpuNoise += dt * 0.7;
   const wander = Math.sin(r.cpuNoise) * 20 * (1.2 - diff.cpuSkill);
@@ -370,7 +418,7 @@ function driveCpu(state: RaceState, r: Racer, dt: number): RaceInput {
       offset = oilLat > 0 ? oilLat - 62 : oilLat + 62;
     }
   }
-  offset = Math.max(-52, Math.min(52, offset));
+  offset = Math.max(-58, Math.min(58, offset));
 
   const lookahead = 10 + Math.min(26, r.speed * 0.055);
   const target = pointAt(line, r.lastIdx + lookahead, offset);
@@ -381,14 +429,30 @@ function driveCpu(state: RaceState, r: Racer, dt: number): RaceInput {
   const sharp = Math.abs(delta);
 
   r.cpuItemTimer -= dt;
-  const wantItem = r.item !== null && r.cpuItemTimer <= 0;
-  if (wantItem) r.cpuItemTimer = diff.cpuItemDelay + Math.random() * 1.5;
+  let wantItem = false;
+  if (r.item !== null && r.cpuItemTimer <= 0) {
+    // Defensive rivals hold shields longer; brawlers fire as soon as the timer hits.
+    const holdShield = r.item === 'shield' && style.defensive > 0.55 && r.place === 1;
+    const saveHoming = r.item === 'homing' && r.place === 1 && style.defensive > 0.45;
+    wantItem = !holdShield && !saveHoming;
+    if (wantItem) {
+      r.cpuItemTimer = (diff.cpuItemDelay * style.itemDelayScale) + Math.random() * 1.5;
+    } else {
+      r.cpuItemTimer = 0.4 + style.defensive * 0.8;
+    }
+  }
+
+  const driftReady =
+    sharp > style.driftThreshold &&
+    sharp < 1.35 &&
+    r.speed > 160 &&
+    diff.cpuSkill > 0.62;
 
   return {
     steer,
     throttle: true,
-    brake: sharp > 1.1 && r.speed > 240,
-    drift: sharp > 0.42 && sharp < 1.3 && r.speed > 170 && diff.cpuSkill > 0.75,
+    brake: sharp > 1.05 && r.speed > 230 + style.aggression * 10,
+    drift: driftReady,
     useItem: wantItem,
   };
 }
@@ -464,15 +528,37 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
 
   let topSpeed = BASE_TOP_SPEED * c.topSpeed * (onRoad ? 1 : GRASS_SPEED);
   if (!r.isPlayer) {
-    topSpeed *= diff.cpuSpeed;
-    // Gentle rubber banding keeps the pack together without feeling unfair.
+    const style = r.rival ?? rivalForChar(r.charId);
+    topSpeed *= diff.cpuSpeed * style.aggression;
+    // Fair rubber banding: help laggards a little, cap leaders — scaled by personality.
     const player = state.racers[state.playerIndex];
     const gap = (player.progress - r.progress) / n;
-    topSpeed *= 1 + Math.max(-0.06, Math.min(0.1, gap * 0.22));
+    const band = Math.max(-0.05, Math.min(0.09, gap * 0.2)) * style.rubberBandScale;
+    topSpeed *= 1 + band;
   }
   // Easy tier: brief launch cushion so the player doesn't stall off the line.
   const assist = r.isPlayer && state.startAssist > 0 ? 1.08 : 1;
   topSpeed *= assist;
+
+  // Slipstream / draft behind a faster kart ahead.
+  r.slipstream = 0;
+  if (r.spinTime <= 0 && r.boostTime <= 0) {
+    const others = state.racers
+      .filter((o) => o.index !== r.index && !o.finished)
+      .map((o) => ({x: o.x, y: o.y, angle: o.angle, speed: o.speed}));
+    const draft = findSlipstreamTarget(
+      {x: r.x, y: r.y, angle: r.angle, speed: r.speed},
+      others,
+    );
+    if (draft) {
+      r.slipstream = draft.strength;
+      topSpeed *= 1 + (SLIP_SPEED_MULT - 1) * draft.strength;
+      if (r.isPlayer && draft.strength > 0.45 && Math.random() < dt * 2.5) {
+        state.events.push('slipstream');
+      }
+    }
+  }
+
   if (r.boostTime > 0) {
     topSpeed *= BOOST_TOP_MULT;
     r.boostTime -= dt;
@@ -481,8 +567,9 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
   let vf = r.vx * fx + r.vy * fy;
   let vl = r.vx * rx + r.vy * ry;
 
+  const slipAccel = r.slipstream > 0 ? 1 + (SLIP_ACCEL_MULT - 1) * r.slipstream : 1;
   const accelRate =
-    (r.boostTime > 0 ? BOOST_ACCEL : input.throttle ? BASE_ACCEL * c.accel : 0) *
+    (r.boostTime > 0 ? BOOST_ACCEL : input.throttle ? BASE_ACCEL * c.accel * slipAccel : 0) *
     (r.isPlayer && state.startAssist > 0 ? 1.18 : 1);
   if (accelRate > 0) {
     // Acceleration never pushes past the current ceiling. Speed above it only
@@ -736,6 +823,9 @@ export function stepRace(state: RaceState, playerInput: RaceInput, dt: number): 
     }
     // Karts stay put but the item roulette and shields keep animating.
     for (const r of state.racers) r.shieldAngle += dt * 3.4;
+    if (state.ghostLap) {
+      state.ghostPose = poseAt(state.ghostLap, 0);
+    }
     return;
   }
 
@@ -758,6 +848,10 @@ export function stepRace(state: RaceState, playerInput: RaceInput, dt: number): 
   stepItemBricks(state, dt);
   updatePlaces(state);
 
+  if (state.ghostLap) {
+    state.ghostPose = poseAt(state.ghostLap, state.time);
+  }
+
   for (let i = state.particles.length - 1; i >= 0; i--) {
     const p = state.particles[i];
     p.life -= dt;
@@ -766,7 +860,23 @@ export function stepRace(state: RaceState, playerInput: RaceInput, dt: number): 
     if (p.life <= 0) state.particles.splice(i, 1);
   }
 
+  // Draft trail particles for the player when slipstreaming.
   const player = state.racers[state.playerIndex];
+  if (player.slipstream > 0.35 && Math.random() < dt * 50) {
+    const fx = Math.cos(player.angle);
+    const fy = Math.sin(player.angle);
+    spawnParticle(state, {
+      x: player.x - fx * 28 + (Math.random() - 0.5) * 12,
+      y: player.y - fy * 28 + (Math.random() - 0.5) * 12,
+      z: 10,
+      vz: 20,
+      life: 0.3,
+      maxLife: 0.3,
+      size: 6,
+      color: '#7dd3fc',
+    });
+  }
+
   if (player.finished && state.phase === 'racing') {
     state.phase = 'finished';
   }

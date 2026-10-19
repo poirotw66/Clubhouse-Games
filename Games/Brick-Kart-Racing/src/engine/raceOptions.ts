@@ -1,6 +1,6 @@
 /** Shared race-mode option types (kept free of engine deps for easy checks). */
 
-export type RaceMode = 'versus' | 'timeTrial';
+export type RaceMode = 'versus' | 'timeTrial' | 'grandPrix';
 
 export interface RaceOptions {
   mode: RaceMode;
@@ -19,14 +19,16 @@ const DIFFICULTY_IDS = new Set(['easy', 'normal', 'hard']);
 
 /**
  * localStorage key for best-lap records.
- * Versus includes difficulty; time trial does not (CPU difficulty unused).
+ * Versus / GP include difficulty; time trial does not (CPU difficulty unused).
  */
 export function bestLapKey(
   trackId: string,
   opts: Pick<RaceOptions, 'mode' | 'mirror'>,
   difficulty = 'normal',
 ): string {
-  const bits = [trackId, opts.mode === 'timeTrial' ? 'tt' : 'vs'];
+  const modeBit =
+    opts.mode === 'timeTrial' ? 'tt' : opts.mode === 'grandPrix' ? 'gp' : 'vs';
+  const bits = [trackId, modeBit];
   if (opts.mode !== 'timeTrial') {
     bits.push(DIFFICULTY_IDS.has(difficulty) ? difficulty : 'normal');
   }
