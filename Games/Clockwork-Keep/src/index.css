@@ -8,3 +8,80 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   background: #0b0f14;
 }
+
+@keyframes ck-shake-soft {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-1px, 1px);
+  }
+  50% {
+    transform: translate(1px, -1px);
+  }
+  75% {
+    transform: translate(-1px, 0);
+  }
+}
+
+@keyframes ck-shake-wave {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-2px, 1px);
+  }
+  40% {
+    transform: translate(2px, -1px);
+  }
+  60% {
+    transform: translate(-1px, 2px);
+  }
+  80% {
+    transform: translate(1px, -2px);
+  }
+}
+
+@keyframes ck-shake-boss {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  15% {
+    transform: translate(-3px, 2px);
+  }
+  30% {
+    transform: translate(3px, -2px);
+  }
+  45% {
+    transform: translate(-2px, -2px);
+  }
+  60% {
+    transform: translate(2px, 2px);
+  }
+  75% {
+    transform: translate(-1px, 1px);
+  }
+}
+
+.ck-shake-soft {
+  animation: ck-shake-soft 0.22s ease-out;
+}
+
+.ck-shake-wave {
+  animation: ck-shake-wave 0.28s ease-out;
+}
+
+.ck-shake-boss {
+  animation: ck-shake-boss 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-shake-soft,
+  .ck-shake-wave,
+  .ck-shake-boss {
+    animation: none;
+  }
+}

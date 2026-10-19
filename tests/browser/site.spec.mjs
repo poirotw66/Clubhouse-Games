@@ -620,6 +620,54 @@ test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({
   await expect(page.getByRole('button', { name: '開始下一波' })).toBeVisible();
 });
 
+test('clockwork-keep: map unlocks, branch panel, and mission pack size', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Clockwork-Keep'), 'selective CI');
+  test.setTimeout(60_000);
+  await page.addInitScript(() => {
+    localStorage.setItem('clockwork-keep:howto-seen', '1');
+    // Seed enough clears to unlock fork/islands free-play and branch B.
+    localStorage.setItem(
+      'clockwork-keep:missions-v1',
+      JSON.stringify({
+        clearedCount: 2,
+        cleared: { 'corridor-standard': true, 'corridor-harsh': true },
+        bestScore: {},
+        bestWave: {},
+      }),
+    );
+  });
+  await page.goto('./Games/Clockwork-Keep/');
+  await expect(page.getByRole('heading', { name: '發條守城' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '分岔', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '群島', exact: true })).toBeEnabled();
+  await activate(page.getByRole('button', { name: '分岔', exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: '分岔', exact: true })).toHaveClass(/border-amber-400/);
+  // Accessible name comes from aria-label「開啟任務包。…」, not the visible label.
+  await activate(page.getByRole('button', { name: /開啟任務包.*2\/8/ }), isMobile);
+  await expect(page.getByRole('dialog', { name: /任務包/ })).toBeVisible();
+  await expect(page.getByText('07・分岔試煉')).toBeVisible();
+  await expect(page.getByText('08・群島嚴苛')).toBeVisible();
+  await activate(page.getByRole('button', { name: '關閉任務包' }), isMobile);
+
+  // Branch UI on open map so the click cell is never a rock.
+  await activate(page.getByRole('button', { name: '開闊', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '開始遊戲', exact: true }), isMobile);
+  const tower = page.locator('.grid.grid-cols-4 button').first();
+  await activate(tower, isMobile);
+  const canvas = page.locator('canvas').first();
+  const box = await canvas.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.45);
+  // Select placed tower → shared upgrade → exclusive branch chooser.
+  await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.45);
+  await activate(page.getByRole('button', { name: /基礎升級/ }), isMobile);
+  await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.45);
+  await expect(page.getByRole('button', { name: /穿甲釘/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /連射弦/ })).toBeVisible();
+  await activate(page.getByRole('button', { name: /穿甲釘/ }), isMobile);
+  await expect(page.getByText(/穿甲釘/)).toBeVisible();
+});
+
 test('mystery-liquid-sort: howto seeded, mix challenge and hint on home/game', async ({ page, isMobile }) => {
   test.skip(!includesGame('Mystery-Liquid-Sort'), 'selective CI');
   test.setTimeout(45_000);

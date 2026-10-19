@@ -1,4 +1,4 @@
-import type { Difficulty, EnemyType, MapId, TowerType } from './constants.ts';
+import type { BranchId, Difficulty, EnemyType, MapId, TowerType } from './constants.ts';
 
 export interface Cell {
   x: number;
@@ -13,7 +13,13 @@ export interface Tower {
   type: TowerType;
   x: number;
   y: number;
-  level: 0 | 1 | 2; // index into TOWER_DEFS[type].levels
+  /**
+   * 0 = purchased base, 1 = shared upgrade, 2 = exclusive branch capstone.
+   * When level is 2, `branch` must be set.
+   */
+  level: 0 | 1 | 2;
+  /** Exclusive capstone choice; null until L1→L2 branch upgrade. */
+  branch: BranchId | null;
   investedGold: number; // purchase cost + all upgrade costs so far, for sell refund
   /** Seconds until the next attack (or, for frost, the next slow pulse). */
   cooldown: number;
@@ -74,6 +80,8 @@ export interface ReversibleAction {
   cost: number;
   /** For 'place': the tower to remove entirely on undo. For 'upgrade': the level to restore. */
   priorLevel: 0 | 1 | 2 | null;
+  /** Branch before the upgrade (null at base); restored on undo. */
+  priorBranch: BranchId | null;
   x: number;
   y: number;
   type: TowerType;

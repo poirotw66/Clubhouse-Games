@@ -33,9 +33,11 @@ import {
 } from './game/missions.ts';
 
 assertMissionConfigs();
-assert.equal(missionCount(), 6, 'pack ships six missions');
+assert.equal(missionCount(), 8, 'pack ships eight missions (incl. fork / islands)');
 assert.equal(MISSION_PACK[0].id, 'corridor-standard');
-assert.equal(MISSION_PACK[MISSION_PACK.length - 1].id, 'harsh-splash');
+assert.equal(MISSION_PACK[MISSION_PACK.length - 1].id, 'islands-harsh');
+assert.equal(missionById('fork-standard')?.run.mapId, 'fork');
+assert.equal(missionById('islands-harsh')?.run.mapId, 'islands');
 
 {
   assert.equal(isMissionUnlocked(0, 0), true, 'first mission always unlocked');
@@ -43,7 +45,7 @@ assert.equal(MISSION_PACK[MISSION_PACK.length - 1].id, 'harsh-splash');
   assert.equal(isMissionUnlocked(1, 1), true);
   assert.equal(continueMissionIndex(0), 0);
   assert.equal(continueMissionIndex(3), 3);
-  assert.equal(continueMissionIndex(6), 5, 'complete pack continues on last card');
+  assert.equal(continueMissionIndex(8), 7, 'complete pack continues on last card');
   assert.equal(missionIndexOf('dual-tower'), 2);
   assert.equal(missionById('no-sell')?.run.allowSell, false);
   assert.ok(missionAt(4)?.run.endless, 'endless-thirty is endless');

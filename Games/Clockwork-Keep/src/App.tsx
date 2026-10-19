@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
-import { playCard, playError, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
+import {
+  playCard,
+  playError,
+  playImpact,
+  playLose,
+  playMove,
+  playWin,
+} from '@clubhouse/shared/synthAudio';
 import { Battlefield } from './components/Battlefield';
 import {
   FirstRunGuide,
@@ -15,13 +22,21 @@ import {
   DIFFICULTIES,
   FIXED_DT,
   MAP_ROCKS,
+  MAP_UNLOCK_CLEARS,
   TOTAL_WAVES,
   TOWER_DEFS,
+  type BranchId,
   type Difficulty,
   type MapId,
   type TowerType,
 } from './game/constants';
-import { purchaseCost, sellRefund, upgradeCost } from './game/economy';
+import {
+  branchUpgradeCost,
+  isBranchUnlocked,
+  purchaseCost,
+  sellRefund,
+  sharedUpgradeCost,
+} from './game/economy';
 import {
   createInitialState,
   overlapOffer,
@@ -56,7 +71,21 @@ const TOWER_ORDER: TowerType[] = ['crossbow', 'grinder', 'frost', 'coil'];
 const TOWER_HOTKEYS: Record<string, TowerType> = { '1': 'crossbow', '2': 'grinder', '3': 'frost', '4': 'coil' };
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = { relaxed: '悠閒', standard: '標準', harsh: '嚴苛' };
-const MAP_LABELS: Record<MapId, string> = { open: '開闊', corridor: '窄廊' };
+const MAP_LABELS: Record<MapId, string> = {
+  open: '開闊',
+  corridor: '窄廊',
+  fork: '分岔',
+  islands: '群島',
+};
+const MAP_ORDER: MapId[] = ['open', 'corridor', 'fork', 'islands'];
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
 
 function readStoredNumber(key: string): number {
   try {
@@ -94,6 +123,8 @@ export default function App(): ReactElement {
   const [hoverCell, setHoverCell] = useState<Cell | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const messageTimer = useRef<number | null>(null);
+  const [shakeClass, setShakeClass] = useState('');
+  const shakeTimer = useRef<number | null>(null);
 
   const recordedRef = useRef(false);
 
@@ -125,8 +156,21 @@ export default function App(): ReactElement {
     messageTimer.current = window.setTimeout(() => setMessage(null), 1800);
   }, []);
 
+  const triggerShake = useCallback((kind: 'place' | 'upgrade' | 'wave' | 'boss') => {
+    if (prefersReducedMotion()) return;
+    const cls =
+      kind === 'boss' ? 'ck-shake-boss' : kind === 'wave' ? 'ck-shake-wave' : 'ck-shake-soft';
+    setShakeClass(cls);
+    if (shakeTimer.current) window.clearTimeout(shakeTimer.current);
+    shakeTimer.current = window.setTimeout(() => setShakeClass(''), 320);
+  }, []);
+
   const applyResult = useCallback(
-    (result: CommandResult, successSound?: () => void) => {
+    (
+      result: CommandResult,
+      successSound?: () => void,
+      juice?: 'place' | 'upgrade' | 'wave' | 'boss',
+    ) => {
       if (!result.ok) {
         playError();
         if (result.reason) flashMessage(result.reason);
@@ -135,9 +179,10 @@ export default function App(): ReactElement {
       stateRef.current = result.state;
       setState(result.state);
       successSound?.();
+      if (juice) triggerShake(juice);
       return true;
     },
-    [flashMessage],
+    [flashMessage, triggerShake],
   );
 
   const beginRun = useCallback(
@@ -280,16 +325,33 @@ export default function App(): ReactElement {
         return;
       }
       if (!selectedTowerType) return;
-      applyResult(placeTower(cur, x, y, selectedTowerType), playMove);
+      applyResult(placeTower(cur, x, y, selectedTowerType), playMove, 'place');
     },
     [applyResult, selectedTowerType, paused],
   );
 
-  const handleUpgrade = useCallback(() => {
-    const cur = stateRef.current;
-    if (!cur || selectedTowerId == null) return;
-    applyResult(upgradeTower(cur, selectedTowerId), playMove);
-  }, [applyResult, selectedTowerId]);
+  const handleUpgrade = useCallback(
+    (branch?: BranchId) => {
+      const cur = stateRef.current;
+      if (!cur || selectedTowerId == null) return;
+      const tower = cur.towers.find((t) => t.id === selectedTowerId);
+      if (!tower) return;
+      if (tower.level === 0) {
+        applyResult(upgradeTower(cur, selectedTowerId), playMove, 'upgrade');
+        return;
+      }
+      if (tower.level === 1 && branch) {
+        if (!isBranchUnlocked(branch, missionProgress.clearedCount)) {
+          flashMessage(branch === 'b' ? '分支 B 需通關更多任務解鎖' : '分支未解鎖');
+          playError();
+          return;
+        }
+        applyResult(upgradeTower(cur, selectedTowerId, branch), playMove, 'upgrade');
+        playImpact(0.55);
+      }
+    },
+    [applyResult, selectedTowerId, missionProgress.clearedCount, flashMessage],
+  );
 
   const handleSell = useCallback(() => {
     const cur = stateRef.current;
@@ -309,7 +371,10 @@ export default function App(): ReactElement {
   const handleStartWave = useCallback(() => {
     const cur = stateRef.current;
     if (!cur) return;
-    applyResult(startNextWave(cur), playCard);
+    const nextWave = cur.wave + 1;
+    const boss = nextWave > 0 && nextWave % 10 === 0;
+    applyResult(startNextWave(cur), playCard, boss ? 'boss' : 'wave');
+    if (boss) playImpact(0.8);
   }, [applyResult]);
 
   const togglePause = useCallback(() => setPaused((p) => !p), []);
@@ -413,22 +478,37 @@ export default function App(): ReactElement {
 
           <div className="mb-4">
             <p className="text-xs text-amber-300/80 mb-2 font-semibold">地圖</p>
-            <div className="flex gap-2">
-              {(Object.keys(MAP_LABELS) as MapId[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMapId(m)}
-                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                    mapId === m
-                      ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-                      : 'border-amber-900/50 bg-black/20 text-amber-200/70 hover:bg-black/30'
-                  }`}
-                >
-                  {MAP_LABELS[m]}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 gap-2">
+              {MAP_ORDER.map((m) => {
+                const unlocked = missionProgress.clearedCount >= MAP_UNLOCK_CLEARS[m];
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={!unlocked}
+                    onClick={() => setMapId(m)}
+                    className={`py-2 rounded-lg border text-sm font-medium transition-colors min-h-[44px] ${
+                      !unlocked
+                        ? 'border-amber-900/30 bg-black/10 text-amber-200/30 cursor-not-allowed'
+                        : mapId === m
+                          ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                          : 'border-amber-900/50 bg-black/20 text-amber-200/70 hover:bg-black/30'
+                    }`}
+                    title={
+                      unlocked
+                        ? MAP_LABELS[m]
+                        : `通關 ${MAP_UNLOCK_CLEARS[m]} 則任務後解鎖`
+                    }
+                  >
+                    {MAP_LABELS[m]}
+                    {!unlocked ? ' 🔒' : ''}
+                  </button>
+                );
+              })}
             </div>
+            <p className="mt-2 text-[11px] text-amber-200/50">
+              分岔／群島需任務進度解鎖；分支 B（各塔第二路線）通關 2 則任務後開放。
+            </p>
           </div>
 
           <div className="mb-6">
@@ -593,11 +673,18 @@ export default function App(): ReactElement {
     activeMission && state.phase === 'won' ? evaluateMissionGoal(activeMission, state) : false;
 
   return (
-    <div className="min-h-screen bg-[#120c06] text-amber-50 flex flex-col items-center p-3 pb-8 min-w-0">
+    <div
+      className={`min-h-screen bg-[#120c06] text-amber-50 flex flex-col items-center p-3 pb-8 min-w-0 ${shakeClass}`}
+    >
       <BackToMenu />
 
       <header className="w-full max-w-3xl flex flex-wrap items-center justify-between gap-2 mb-3 mt-1 text-sm">
-        <h1 className="text-lg font-bold">發條守城</h1>
+        <h1 className="text-lg font-bold">
+          發條守城
+          <span className="ml-2 text-xs font-normal text-amber-200/60">
+            {MAP_LABELS[state.mapId]}
+          </span>
+        </h1>
         <div className="flex items-center gap-3 font-mono tabular-nums">
           <span>{waveLabel}</span>
           <span className="text-rose-300">❤ {state.lives}</span>
@@ -725,41 +812,71 @@ export default function App(): ReactElement {
 
       {/* Selected tower panel */}
       {selectedTower && (
-        <div className="w-full max-w-3xl mt-3 p-3 rounded-xl bg-black/30 border border-amber-900/50 flex items-center justify-between gap-3 text-sm">
-          <div>
-            <p className="font-semibold">
-              {TOWER_DEFS[selectedTower.type].name} · Lv.{selectedTower.level + 1}
-            </p>
-            <p className="text-amber-200/60 text-xs">已投入 {selectedTower.investedGold}G</p>
-          </div>
-          <div className="flex gap-2">
-            {selectedTower.level < 2 && (
+        <div className="w-full max-w-3xl mt-3 p-3 rounded-xl bg-black/30 border border-amber-900/50 flex flex-col gap-2 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold">
+                {TOWER_DEFS[selectedTower.type].name} · Lv.{selectedTower.level + 1}
+                {selectedTower.branch
+                  ? ` · ${TOWER_DEFS[selectedTower.type].branches.find((b) => b.id === selectedTower.branch)?.name ?? ''}`
+                  : ''}
+              </p>
+              <p className="text-amber-200/60 text-xs">已投入 {selectedTower.investedGold}G</p>
+            </div>
+            <div className="flex gap-2 shrink-0">
               <button
                 type="button"
-                onClick={handleUpgrade}
-                disabled={state.gold < (upgradeCost(selectedTower.type, selectedTower.level) ?? Infinity)}
-                className="px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                onClick={handleSell}
+                disabled={!state.allowSell}
+                title={state.allowSell ? undefined : '此任務禁止售出塔'}
+                className="px-3 py-2 rounded-lg bg-rose-800 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium min-h-[44px]"
               >
-                升級 {upgradeCost(selectedTower.type, selectedTower.level)}G
+                {state.allowSell ? `售出 +${sellRefund(selectedTower.investedGold)}G` : '禁售'}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleSell}
-              disabled={!state.allowSell}
-              title={state.allowSell ? undefined : '此任務禁止售出塔'}
-              className="px-3 py-2 rounded-lg bg-rose-800 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
-            >
-              {state.allowSell ? `售出 +${sellRefund(selectedTower.investedGold)}G` : '禁售'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedTowerId(null)}
-              className="px-3 py-2 rounded-lg bg-black/30 hover:bg-black/40"
-            >
-              關閉
-            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTowerId(null)}
+                className="px-3 py-2 rounded-lg bg-black/30 hover:bg-black/40 min-h-[44px]"
+              >
+                關閉
+              </button>
+            </div>
           </div>
+          {selectedTower.level === 0 && (
+            <button
+              type="button"
+              onClick={() => handleUpgrade()}
+              disabled={
+                state.gold < (sharedUpgradeCost(selectedTower.type, 0) ?? Infinity)
+              }
+              className="w-full px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium min-h-[44px]"
+            >
+              基礎升級 {sharedUpgradeCost(selectedTower.type, 0)}G
+            </button>
+          )}
+          {selectedTower.level === 1 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {TOWER_DEFS[selectedTower.type].branches.map((br) => {
+                const unlocked = isBranchUnlocked(br.id, missionProgress.clearedCount);
+                const cost = branchUpgradeCost(selectedTower.type, br.id);
+                return (
+                  <button
+                    key={br.id}
+                    type="button"
+                    disabled={!unlocked || state.gold < cost}
+                    onClick={() => handleUpgrade(br.id)}
+                    className="text-left px-3 py-2 rounded-lg border border-emerald-700/60 bg-emerald-900/40 hover:bg-emerald-800/50 disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px]"
+                    title={unlocked ? br.blurb : '通關更多任務後解鎖'}
+                  >
+                    <span className="font-semibold block">
+                      {br.name} {cost}G{!unlocked ? ' 🔒' : ''}
+                    </span>
+                    <span className="text-[11px] text-amber-100/70 leading-snug">{br.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

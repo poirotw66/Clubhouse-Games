@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { ENTRANCE, EXIT, GRID_H, GRID_W, TOWER_DEFS, type TowerType } from '../game/constants';
+import { resolveTowerStats } from '../game/economy';
 import { makeEmptyOccupancy, reconstructPath, wouldSealExit } from '../game/pathfinding';
 import {
   drawCenteredSprite,
@@ -28,6 +29,7 @@ const ENEMY_COLORS: Record<Enemy['type'], string> = {
   runner: '#f472b6',
   ironclad: '#64748b',
   kite: '#5eead4',
+  gearbug: '#c4b5fd',
   boss: '#ef4444',
 };
 
@@ -176,8 +178,7 @@ function draw(
     const cy = t.y * CELL + CELL / 2;
     const isSelected = t.id === selectedTowerId;
     if (isSelected) {
-      const def = TOWER_DEFS[t.type];
-      const range = def.levels[t.level].range;
+      const range = resolveTowerStats(t).range;
       ctx.beginPath();
       ctx.arc(cx, cy, range * CELL, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
