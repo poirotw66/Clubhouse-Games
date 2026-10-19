@@ -1,53 +1,67 @@
-import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence, animate } from 'motion/react';
-import { Play, Layers, RotateCcw, ChevronRight, Info, Shield, Eye, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Play,
+  Layers,
+  RotateCcw,
+  ChevronRight,
+  Info,
+  Shield,
+  Eye,
+  TrendingUp,
+  Calendar,
+  Blend,
+  Contrast,
+  Timer,
+  Infinity as InfinityIcon,
+  Share2,
+  BarChart3,
+  Accessibility,
+  Palette,
+} from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
-import { calculateScore } from './score.mjs';
-import { GameState, GameMode, Color, BestRecords, ShowMs } from './types';
+import { playLose, playScore, playWin, playGoal, playMove } from '@clubhouse/shared/synthAudio';
+import { calculateScore, scoreToAccuracy, scoreEmoji } from './score.mjs';
+import {
+  ASCENT_LEVELS,
+  ASCENT_PASS,
+  ASCENT_SHOW_MS,
+  BLITZ_DURATION_MS,
+  BLITZ_SHOW_MS,
+  HARMONY_SHOW_MS,
+  MIX_SHOW_MS,
+  buildTargets,
+  colorToCss,
+  looseRand,
+  survivalParams,
+} from './colors.mjs';
+import { computeStreak, dailyTargets, dateKey } from './daily.mjs';
+import {
+  loadBests,
+  saveBests,
+  loadStats,
+  recordGame,
+  overallAverage,
+  modeAverage,
+  loadDailyRecords,
+  upsertDaily,
+  loadPrefs,
+  savePrefs,
+} from './storage.mjs';
+import { buildDailyShareText, copyText } from './share.mjs';
+import { GameState, GameMode, Color, BestRecords, GameStats, Prefs, ShowMs, MODE_LABELS } from './types';
+import { ColorSlider } from './components/ColorSlider';
+import { ColorComparison } from './components/ColorComparison';
+import { FeedbackReveal } from './components/FeedbackReveal';
+import { Swatch } from './components/Swatch';
+import { AnimatedNumber } from './components/AnimatedNumber';
 
-const BEST_KEY = 'clubhouse-dialed-color-bests';
 const SHOW_MS_OPTIONS: ShowMs[] = [3000, 2000, 1000];
 const SHOW_MS_LABELS: Record<ShowMs, string> = {
   3000: '3 秒',
   2000: '2 秒',
   1000: '1 秒',
-};
-/** Ascent: shorter flash each stage. */
-const ASCENT_SHOW_MS = [2000, 1500, 1100, 800, 550] as const;
-const ASCENT_PASS = 650;
-const ASCENT_LEVELS = ASCENT_SHOW_MS.length;
-
-let lastHue = -1;
-
-const generateRandomColor = (): Color => {
-  let h = Math.floor(Math.random() * 360);
-  if (lastHue !== -1) {
-    while (Math.abs(h - lastHue) < 45 || Math.abs(h - lastHue) > 315) {
-      h = Math.floor(Math.random() * 360);
-    }
-  }
-  lastHue = h;
-  return {
-    h,
-    s: Math.floor(Math.random() * 85) + 10,
-    l: Math.floor(Math.random() * 75) + 15,
-  };
-};
-
-const colorToCss = (c: Color) => `hsl(${c.h}, ${c.s}%, ${c.l}%)`;
-
-const hslToHsb = (h: number, s: number, l: number) => {
-  const s1 = s / 100;
-  const l1 = l / 100;
-  const v = l1 + s1 * Math.min(l1, 1 - l1);
-  const s_hsb = v === 0 ? 0 : 2 * (1 - l1 / v);
-  return {
-    h: Math.round(h),
-    s: Math.round(s_hsb * 100),
-    b: Math.round(v * 100),
-  };
 };
 
 const scoreVerdict = (score: number): string => {
@@ -59,134 +73,12 @@ const scoreVerdict = (score: number): string => {
   return '這局偏離很大，再試一次。';
 };
 
-function emptyMsMap(): Record<string, number> {
-  return { '1000': 0, '2000': 0, '3000': 0 };
-}
-
-function loadBests(): BestRecords {
-  try {
-    const raw = localStorage.getItem(BEST_KEY);
-    if (!raw) {
-      return { bestScoreByMs: emptyMsMap(), bestAverageByMs: emptyMsMap(), bestAscentLevel: 0 };
-    }
-    const parsed = JSON.parse(raw) as Partial<BestRecords> & {
-      bestScore?: number;
-      bestAverage?: number;
-    };
-    const bestScoreByMs = emptyMsMap();
-    const bestAverageByMs = emptyMsMap();
-    if (parsed.bestScoreByMs && typeof parsed.bestScoreByMs === 'object') {
-      for (const key of Object.keys(bestScoreByMs)) {
-        bestScoreByMs[key] = Number(parsed.bestScoreByMs[key]) || 0;
-      }
-    } else if (parsed.bestScore) {
-      bestScoreByMs['2000'] = Number(parsed.bestScore) || 0;
-    }
-    if (parsed.bestAverageByMs && typeof parsed.bestAverageByMs === 'object') {
-      for (const key of Object.keys(bestAverageByMs)) {
-        bestAverageByMs[key] = Number(parsed.bestAverageByMs[key]) || 0;
-      }
-    } else if (parsed.bestAverage) {
-      bestAverageByMs['2000'] = Number(parsed.bestAverage) || 0;
-    }
-    return {
-      bestScoreByMs,
-      bestAverageByMs,
-      bestAscentLevel: Number(parsed.bestAscentLevel) || 0,
-    };
-  } catch {
-    return { bestScoreByMs: emptyMsMap(), bestAverageByMs: emptyMsMap(), bestAscentLevel: 0 };
-  }
-}
-
-function saveBests(next: BestRecords): void {
-  localStorage.setItem(BEST_KEY, JSON.stringify(next));
-}
-
-function AnimatedNumber({ value }: { value: number }) {
-  const [displayValue, setDisplayValue] = useState(0);
-
-  useEffect(() => {
-    const controls = animate(0, value, {
-      duration: 1.35,
-      ease: 'easeOut',
-      onUpdate: (latest) => setDisplayValue(Math.round(latest)),
-    });
-    return () => controls.stop();
-  }, [value]);
-
-  return <span>{displayValue}</span>;
-}
-
-function ColorComparison({ target, guess }: { target: Color; guess: Color }) {
-  const [sliderPos, setSliderPos] = useState(50);
-
-  return (
-    <div className="relative aspect-square rounded-xl overflow-hidden border border-[var(--color-line)] group cursor-ew-resize touch-manipulation">
-      <div className="absolute inset-0" style={{ backgroundColor: colorToCss(target) }} />
-      <div
-        className="absolute inset-0 z-10 border-r border-white/50"
-        style={{ backgroundColor: colorToCss(guess), width: `${sliderPos}%` }}
-      />
-      <div
-        className="absolute inset-y-0 w-0.5 bg-white/90 z-20 pointer-events-none"
-        style={{ left: `${sliderPos}%` }}
-      />
-      <input
-        type="range"
-        min="0"
-        max="100"
-        value={sliderPos}
-        onChange={(e) => setSliderPos(parseInt(e.target.value, 10))}
-        className="absolute inset-0 opacity-0 cursor-ew-resize z-30"
-        aria-label="比較猜測與目標"
-      />
-      <div className="absolute bottom-2 left-2 right-2 flex justify-between text-[10px] font-medium tracking-wide pointer-events-none z-20">
-        <span className="px-1.5 py-0.5 rounded bg-black/45">猜測</span>
-        <span className="px-1.5 py-0.5 rounded bg-black/45">目標</span>
-      </div>
-    </div>
-  );
-}
-
-function ColorSlider({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-  suffix = '',
-  gradient,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (val: number) => void;
-  suffix?: string;
-  gradient: string;
-}) {
-  return (
-    <div className="space-y-2.5">
-      <div className="flex justify-between items-baseline">
-        <span className="text-sm font-semibold text-[var(--color-paper)]">{label}</span>
-        <span className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
-          {value}
-          {suffix}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value, 10))}
-        className="slider-track"
-        style={{ background: gradient }}
-        aria-label={label}
-      />
-    </div>
-  );
+function hslToHsb(h: number, s: number, l: number) {
+  const s1 = s / 100;
+  const l1 = l / 100;
+  const v = l1 + s1 * Math.min(l1, 1 - l1);
+  const sHsb = v === 0 ? 0 : 2 * (1 - l1 / v);
+  return { h: Math.round(h), s: Math.round(sHsb * 100), b: Math.round(v * 100) };
 }
 
 export default function App() {
@@ -194,47 +86,98 @@ export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('single');
   const [showMs, setShowMs] = useState<ShowMs>(2000);
   const [targetColors, setTargetColors] = useState<Color[]>([]);
+  const [mixPairs, setMixPairs] = useState<[Color, Color][] | null>(null);
+  const [refs, setRefs] = useState<Color[] | null>(null);
+  const [prompts, setPrompts] = useState<string[] | null>(null);
   const [userGuesses, setUserGuesses] = useState<Color[]>([]);
+  const [roundScores, setRoundScores] = useState<number[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [currentColor, setCurrentColor] = useState<Color>({ h: 180, s: 50, l: 50 });
   const [showTarget, setShowTarget] = useState(false);
   const [showModal, setShowModal] = useState<'privacy' | 'scoring' | null>(null);
   const [bests, setBests] = useState<BestRecords>(() => loadBests());
+  const [stats, setStats] = useState<GameStats>(() => loadStats());
+  const [dailyRecords, setDailyRecords] = useState(() => loadDailyRecords());
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   const [showResultOverlay, setShowResultOverlay] = useState(false);
   const [ascentFailed, setAscentFailed] = useState(false);
   const [isNewBest, setIsNewBest] = useState(false);
   const [showGen, setShowGen] = useState(0);
+  const [blitzLeftMs, setBlitzLeftMs] = useState(BLITZ_DURATION_MS);
+  const [copied, setCopied] = useState(false);
+  const [survivalCleared, setSurvivalCleared] = useState(0);
+  const blitzEndRef = useRef(0);
+  const finishedRef = useRef(false);
+  const todayKey = useMemo(() => dateKey(), []);
+  const dailyStreak = useMemo(
+    () => computeStreak(dailyRecords, todayKey),
+    [dailyRecords, todayKey],
+  );
+  const todayDone = dailyRecords.some((r) => r.date === todayKey);
 
-  const totalColors = gameMode === 'single' ? 1 : gameMode === 'challenge' ? 5 : ASCENT_LEVELS;
-  const showDurationMs =
-    gameMode === 'ascent' ? ASCENT_SHOW_MS[Math.min(currentStep, ASCENT_LEVELS - 1)] : showMs;
+  const colorBlind = prefs.colorBlind;
+
+  const totalColors = useMemo(() => {
+    if (gameMode === 'single' || gameMode === 'mix' || gameMode === 'complement' || gameMode === 'analogous')
+      return 1;
+    if (gameMode === 'challenge' || gameMode === 'daily') return 5;
+    if (gameMode === 'ascent') return ASCENT_LEVELS;
+    return targetColors.length;
+  }, [gameMode, targetColors.length]);
+
+  const showDurationMs = useMemo(() => {
+    if (gameMode === 'ascent') return ASCENT_SHOW_MS[Math.min(currentStep, ASCENT_LEVELS - 1)];
+    if (gameMode === 'blitz') return BLITZ_SHOW_MS;
+    if (gameMode === 'survival') return survivalParams(currentStep).showMs;
+    if (gameMode === 'mix') return MIX_SHOW_MS;
+    if (gameMode === 'complement' || gameMode === 'analogous') return HARMONY_SHOW_MS;
+    if (gameMode === 'daily') return 2000;
+    return showMs;
+  }, [gameMode, currentStep, showMs]);
+
   const msKey = String(showMs);
   const bestScore = bests.bestScoreByMs[msKey] || 0;
   const bestAverage = bests.bestAverageByMs[msKey] || 0;
 
   const ambientHue = useMemo(() => {
     if (gameState === 'showing' && targetColors[currentStep]) return targetColors[currentStep].h;
-    if (gameState === 'guessing') return currentColor.h;
+    if (gameState === 'guessing' || gameState === 'feedback') return currentColor.h;
     if (gameState === 'results' && targetColors[0]) return targetColors[0].h;
     return 28;
   }, [gameState, targetColors, currentStep, currentColor.h]);
 
-  const beginShowing = () => {
+  const beginShowing = useCallback(() => {
     setShowGen((g) => g + 1);
     setGameState('showing');
-  };
+  }, []);
 
   const startGame = (mode: GameMode) => {
-    const count = mode === 'single' ? 1 : mode === 'challenge' ? 5 : ASCENT_LEVELS;
-    const colors = Array.from({ length: count }, generateRandomColor);
+    playMove();
+    let pack;
+    if (mode === 'daily') {
+      pack = dailyTargets(todayKey);
+    } else {
+      pack = buildTargets(mode, looseRand);
+    }
     setGameMode(mode);
-    setTargetColors(colors);
+    setTargetColors(pack.targets);
+    setMixPairs(pack.mixPairs ?? null);
+    setRefs(pack.refs ?? null);
+    setPrompts(pack.prompts ?? null);
     setUserGuesses([]);
+    setRoundScores([]);
     setCurrentStep(0);
     setCurrentColor({ h: 180, s: 50, l: 50 });
     setAscentFailed(false);
     setIsNewBest(false);
     setShowResultOverlay(false);
+    setSurvivalCleared(0);
+    setCopied(false);
+    finishedRef.current = false;
+    if (mode === 'blitz') {
+      blitzEndRef.current = Date.now() + BLITZ_DURATION_MS;
+      setBlitzLeftMs(BLITZ_DURATION_MS);
+    }
     beginShowing();
   };
 
@@ -243,82 +186,164 @@ export default function App() {
     window.setTimeout(() => setShowTarget(false), 500);
   };
 
+  const toggleColorBlind = () => {
+    const next = { colorBlind: !prefs.colorBlind };
+    setPrefs(next);
+    savePrefs(next);
+  };
+
+  // Showing timer
   useEffect(() => {
     if (gameState !== 'showing') return;
 
-    if (gameMode === 'challenge') {
+    if (gameMode === 'challenge' || gameMode === 'daily') {
       setCurrentStep(0);
       let step = 0;
       const timer = window.setInterval(() => {
         step += 1;
-        if (step >= totalColors) {
+        if (step >= 5) {
           window.clearInterval(timer);
           setCurrentStep(0);
           setGameState('guessing');
           return;
         }
         setCurrentStep(step);
-      }, showMs);
+      }, showDurationMs);
       return () => window.clearInterval(timer);
     }
 
     const timer = window.setTimeout(() => setGameState('guessing'), showDurationMs);
     return () => window.clearTimeout(timer);
-  }, [gameState, showGen, gameMode, showDurationMs, showMs, totalColors]);
+  }, [gameState, showGen, gameMode, showDurationMs]);
 
-  const finishRun = (guesses: Color[], failed: boolean) => {
-    const scores = guesses.map((g, i) => calculateScore(targetColors[i], g));
-    const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-    const maxRound = scores.length ? Math.max(...scores) : 0;
-    // Cleared stages only (failed round does not count as cleared).
-    const ascentLevel = failed ? Math.max(0, guesses.length - 1) : guesses.length;
+  // Blitz countdown
+  useEffect(() => {
+    if (gameMode !== 'blitz' || gameState === 'landing' || gameState === 'results' || gameState === 'stats')
+      return;
+    const id = window.setInterval(() => {
+      setBlitzLeftMs(Math.max(0, blitzEndRef.current - Date.now()));
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [gameMode, gameState]);
 
-    const next: BestRecords = {
-      bestScoreByMs: { ...bests.bestScoreByMs },
-      bestAverageByMs: { ...bests.bestAverageByMs },
-      bestAscentLevel: bests.bestAscentLevel,
-    };
-    let newBest = false;
-    if (gameMode !== 'ascent') {
-      const key = String(showMs);
-      if (maxRound > (next.bestScoreByMs[key] || 0)) {
-        next.bestScoreByMs[key] = maxRound;
+  const finishRun = useCallback(
+    (guesses: Color[], scores: number[], failed: boolean) => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      const maxRound = scores.length ? Math.max(...scores) : 0;
+      const ascentLevel = failed ? Math.max(0, guesses.length - 1) : guesses.length;
+      const survivalCount = failed ? Math.max(0, guesses.length - 1) : guesses.length;
+      const blitzTotal = scores.reduce((a, b) => a + b, 0);
+
+      const next: BestRecords = {
+        ...bests,
+        bestScoreByMs: { ...bests.bestScoreByMs },
+        bestAverageByMs: { ...bests.bestAverageByMs },
+        bestByMode: { ...bests.bestByMode },
+      };
+      let newBest = false;
+
+      if (gameMode === 'single' || gameMode === 'challenge') {
+        const key = String(showMs);
+        if (maxRound > (next.bestScoreByMs[key] || 0)) {
+          next.bestScoreByMs[key] = maxRound;
+          newBest = true;
+        }
+        if (!failed && avg > (next.bestAverageByMs[key] || 0)) {
+          next.bestAverageByMs[key] = avg;
+          newBest = true;
+        }
+      }
+      if (gameMode === 'ascent' && ascentLevel > next.bestAscentLevel) {
+        next.bestAscentLevel = ascentLevel;
         newBest = true;
       }
-      if (!failed && avg > (next.bestAverageByMs[key] || 0)) {
-        next.bestAverageByMs[key] = avg;
+      if (gameMode === 'survival' && survivalCount > next.bestSurvival) {
+        next.bestSurvival = survivalCount;
         newBest = true;
       }
-    }
-    if (gameMode === 'ascent' && ascentLevel > next.bestAscentLevel) {
-      next.bestAscentLevel = ascentLevel;
-      newBest = true;
-    }
-    setBests(next);
-    saveBests(next);
-    setIsNewBest(newBest);
-    setAscentFailed(failed);
-    setShowResultOverlay(true);
-    setGameState('results');
+      if (gameMode === 'blitz' && blitzTotal > next.bestBlitz) {
+        next.bestBlitz = blitzTotal;
+        newBest = true;
+      }
+      const modeScore =
+        gameMode === 'blitz' ? blitzTotal : gameMode === 'survival' ? survivalCount : avg;
+      if (modeScore > (next.bestByMode[gameMode] || 0)) {
+        next.bestByMode[gameMode] = modeScore;
+        newBest = true;
+      }
 
-    if (failed) playLose();
-    else if (newBest || avg >= 700) playWin();
-    else playLose();
-  };
+      setBests(next);
+      saveBests(next);
+      setStats(recordGame(stats, gameMode, avg));
+      setIsNewBest(newBest);
+      setAscentFailed(failed);
+      setSurvivalCleared(survivalCount);
+      setShowResultOverlay(true);
+      setGameState('results');
 
-  const handleGuess = () => {
-    playScore();
-    const newGuesses = [...userGuesses, currentColor];
-    setUserGuesses(newGuesses);
-    const roundScore = calculateScore(targetColors[currentStep], currentColor);
+      if (gameMode === 'daily' && scores.length === 5) {
+        const updated = upsertDaily(dailyRecords, {
+          date: todayKey,
+          average: avg,
+          scores,
+        });
+        setDailyRecords(updated);
+      }
 
+      if (failed) playLose();
+      else if (newBest || avg >= 700) playWin();
+      else playLose();
+    },
+    [bests, stats, gameMode, showMs, dailyRecords, todayKey],
+  );
+
+  // When blitz timer hits zero mid-round, finalize
+  useEffect(() => {
+    if (gameMode !== 'blitz' || blitzLeftMs > 0) return;
+    if (gameState === 'results' || gameState === 'landing') return;
+    finishRun(userGuesses, roundScores, false);
+  }, [blitzLeftMs, gameMode, gameState, userGuesses, roundScores, finishRun]);
+
+  const continueAfterFeedback = () => {
+    playMove();
     if (gameMode === 'ascent') {
-      if (roundScore < ASCENT_PASS) {
-        finishRun(newGuesses, true);
+      const score = roundScores[roundScores.length - 1] ?? 0;
+      if (score < ASCENT_PASS) {
+        finishRun(userGuesses, roundScores, true);
         return;
       }
       if (currentStep >= ASCENT_LEVELS - 1) {
-        finishRun(newGuesses, false);
+        finishRun(userGuesses, roundScores, false);
+        return;
+      }
+      setCurrentStep(currentStep + 1);
+      setCurrentColor({ h: 180, s: 50, l: 50 });
+      beginShowing();
+      return;
+    }
+
+    if (gameMode === 'survival') {
+      const score = roundScores[roundScores.length - 1] ?? 0;
+      const pass = survivalParams(currentStep).pass;
+      if (score < pass) {
+        finishRun(userGuesses, roundScores, true);
+        return;
+      }
+      if (currentStep >= targetColors.length - 1) {
+        finishRun(userGuesses, roundScores, false);
+        return;
+      }
+      setCurrentStep(currentStep + 1);
+      setCurrentColor({ h: 180, s: 50, l: 50 });
+      beginShowing();
+      return;
+    }
+
+    if (gameMode === 'blitz') {
+      if (blitzLeftMs <= 0 || currentStep >= targetColors.length - 1) {
+        finishRun(userGuesses, roundScores, false);
         return;
       }
       setCurrentStep(currentStep + 1);
@@ -330,19 +355,57 @@ export default function App() {
     if (currentStep < totalColors - 1) {
       setCurrentStep(currentStep + 1);
       setCurrentColor({ h: 180, s: 50, l: 50 });
+      if (gameMode === 'challenge' || gameMode === 'daily') {
+        setGameState('guessing');
+      } else {
+        beginShowing();
+      }
     } else {
-      finishRun(newGuesses, false);
+      finishRun(userGuesses, roundScores, false);
     }
   };
 
-  const totalScore = userGuesses.reduce((acc, guess, i) => acc + calculateScore(targetColors[i], guess), 0);
-  const averageScore = userGuesses.length ? Math.round(totalScore / userGuesses.length) : 0;
+  const handleGuess = () => {
+    playScore();
+    const newGuesses = [...userGuesses, currentColor];
+    const roundScore = calculateScore(targetColors[currentStep], currentColor);
+    const newScores = [...roundScores, roundScore];
+    setUserGuesses(newGuesses);
+    setRoundScores(newScores);
+    if (roundScore >= 850) playGoal();
+    setGameState('feedback');
+  };
+
+  const handleShare = async () => {
+    const text = buildDailyShareText({
+      date: todayKey,
+      scores: roundScores,
+      average: averageScore,
+      streak: dailyStreak,
+    });
+    const ok = await copyText(text);
+    setCopied(ok);
+    if (ok) window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const totalScore = roundScores.reduce((a, b) => a + b, 0);
+  const averageScore = roundScores.length ? Math.round(totalScore / roundScores.length) : 0;
   const overlayVariant = ascentFailed ? 'lose' : averageScore >= 700 ? 'win' : 'neutral';
   const overlayTitle = ascentFailed
-    ? `闖關失敗 · 第 ${userGuesses.length} 關`
+    ? gameMode === 'survival'
+      ? `生存結束 · ${survivalCleared} 關`
+      : `闖關失敗 · 第 ${userGuesses.length} 關`
     : gameMode === 'ascent'
       ? '闖關成功'
-      : '本局結果';
+      : gameMode === 'daily'
+        ? '每日挑戰完成'
+        : gameMode === 'blitz'
+          ? '閃擊結束'
+          : '本局結果';
+
+  const dialTone = (next: Color) => {
+    setCurrentColor(next);
+  };
 
   return (
     <div
@@ -375,7 +438,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              className="max-w-lg w-full text-center space-y-10"
+              className="max-w-lg w-full text-center space-y-8"
             >
               <div className="space-y-5">
                 <motion.div
@@ -395,9 +458,13 @@ export default function App() {
                         hidden: { opacity: 0, y: 8 },
                         show: { opacity: 1, y: 0 },
                       }}
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg relative overflow-hidden"
                       style={{ background: `hsl(${h} 55% 52%)` }}
-                    />
+                    >
+                      {colorBlind && (
+                        <span className={`cb-pattern cb-pattern-${Math.floor(h / 60)}`} />
+                      )}
+                    </motion.span>
                   ))}
                 </motion.div>
 
@@ -427,33 +494,74 @@ export default function App() {
                     );
                   })}
                 </div>
-                {(bestScore > 0 || bestAverage > 0 || bests.bestAscentLevel > 0) && (
-                  <p className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
-                    最佳單分 {bestScore} · 最佳平均 {bestAverage}
-                    {bests.bestAscentLevel > 0 ? ` · 闖關 ${bests.bestAscentLevel}/${ASCENT_LEVELS}` : ''}
-                    <span className="opacity-70"> · {SHOW_MS_LABELS[showMs]}</span>
-                  </p>
-                )}
+                <p className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
+                  最佳單分 {bestScore} · 最佳平均 {bestAverage}
+                  {bests.bestAscentLevel > 0 ? ` · 闖關 ${bests.bestAscentLevel}/${ASCENT_LEVELS}` : ''}
+                  {dailyStreak > 0 ? ` · 每日連勝 ${dailyStreak}` : ''}
+                  <span className="opacity-70"> · {SHOW_MS_LABELS[showMs]}</span>
+                </p>
               </div>
 
-              <div className="flex flex-col gap-3 max-w-xs mx-auto w-full">
-                <button type="button" onClick={() => startGame('single')} className="btn-primary w-full">
-                  <Play size={17} fill="currentColor" />
-                  單色挑戰
+              <div className="flex flex-col gap-2.5 max-w-sm mx-auto w-full">
+                <button type="button" onClick={() => startGame('daily')} className="btn-primary w-full">
+                  <Calendar size={17} />
+                  每日挑戰{todayDone ? '（已完成，可再練）' : ''}
                 </button>
-                <button type="button" onClick={() => startGame('challenge')} className="btn-secondary w-full">
-                  <Layers size={17} />
-                  五色連續
-                </button>
-                <button type="button" onClick={() => startGame('ascent')} className="btn-secondary w-full">
-                  <TrendingUp size={17} />
-                  闖關模式
-                </button>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button type="button" onClick={() => startGame('single')} className="btn-secondary w-full text-sm">
+                    <Play size={16} fill="currentColor" />
+                    單色挑戰
+                  </button>
+                  <button type="button" onClick={() => startGame('challenge')} className="btn-secondary w-full text-sm">
+                    <Layers size={16} />
+                    五色連續
+                  </button>
+                  <button type="button" onClick={() => startGame('ascent')} className="btn-secondary w-full text-sm">
+                    <TrendingUp size={16} />
+                    闖關模式
+                  </button>
+                  <button type="button" onClick={() => startGame('survival')} className="btn-secondary w-full text-sm">
+                    <InfinityIcon size={16} />
+                    無盡生存
+                  </button>
+                  <button type="button" onClick={() => startGame('mix')} className="btn-secondary w-full text-sm">
+                    <Blend size={16} />
+                    混色調配
+                  </button>
+                  <button type="button" onClick={() => startGame('complement')} className="btn-secondary w-full text-sm">
+                    <Contrast size={16} />
+                    互補色
+                  </button>
+                  <button type="button" onClick={() => startGame('analogous')} className="btn-secondary w-full text-sm">
+                    <Palette size={16} />
+                    類似色
+                  </button>
+                  <button type="button" onClick={() => startGame('blitz')} className="btn-secondary w-full text-sm">
+                    <Timer size={16} />
+                    限時閃擊
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center justify-center gap-5">
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={toggleColorBlind}
+                  className="link-quiet inline-flex items-center gap-1"
+                  aria-pressed={colorBlind}
+                >
+                  <Accessibility size={12} />
+                  色盲友善{colorBlind ? '：開' : '：關'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGameState('stats')}
+                  className="link-quiet inline-flex items-center gap-1"
+                >
+                  <BarChart3 size={12} /> 統計
+                </button>
                 <button type="button" onClick={() => setShowModal('scoring')} className="link-quiet inline-flex items-center gap-1">
-                  <Info size={12} /> 計分方式
+                  <Info size={12} /> 計分
                 </button>
                 <button type="button" onClick={() => setShowModal('privacy')} className="link-quiet inline-flex items-center gap-1">
                   <Shield size={12} /> 隱私
@@ -462,30 +570,95 @@ export default function App() {
             </motion.div>
           )}
 
+          {gameState === 'stats' && (
+            <motion.div
+              key="stats"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="max-w-md w-full space-y-6 text-left"
+            >
+              <div className="text-center space-y-2">
+                <h2 className="brand-mark text-3xl">統計與紀錄</h2>
+                <p className="text-sm text-[var(--color-muted)]">
+                  總平均準確度 {scoreToAccuracy(overallAverage(stats))}% · 已玩 {stats.gamesPlayed} 局
+                </p>
+                <p className="font-mono text-xs text-[var(--color-muted)]">
+                  每日連勝 {dailyStreak} · 生存最佳 {bests.bestSurvival} · 閃擊最佳 {bests.bestBlitz}
+                </p>
+              </div>
+              <div className="panel p-4 space-y-2">
+                {(Object.keys(MODE_LABELS) as GameMode[]).map((m) => (
+                  <div key={m} className="flex justify-between text-sm py-1 border-b border-[var(--color-line)] last:border-0">
+                    <span className="text-[var(--color-muted)]">{MODE_LABELS[m]}</span>
+                    <span className="font-mono tabular-nums">
+                      均 {modeAverage(stats, m) || '—'} · 佳 {bests.bestByMode[m] || '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {stats.history.length > 0 && (
+                <div className="panel p-4 space-y-2 max-h-48 overflow-y-auto">
+                  <p className="kicker">近期對局</p>
+                  {stats.history.slice(0, 12).map((h, i) => (
+                    <div key={`${h.at}-${i}`} className="flex justify-between text-xs font-mono tabular-nums">
+                      <span>{MODE_LABELS[h.mode as GameMode] ?? h.mode}</span>
+                      <span>
+                        {scoreEmoji(h.average)} {h.average}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button type="button" onClick={() => setGameState('landing')} className="btn-secondary w-full">
+                回首頁
+              </button>
+            </motion.div>
+          )}
+
           {gameState === 'showing' && (
             <motion.div
-              key={`showing-${currentStep}-${gameMode}`}
+              key={`showing-${currentStep}-${gameMode}-${showGen}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="flex flex-col items-center gap-8 w-full max-w-md"
             >
               <p className="kicker">
-                {gameMode === 'ascent'
-                  ? `闖關 · 第 ${currentStep + 1} / ${ASCENT_LEVELS} 關 · ${(showDurationMs / 1000).toFixed(1)} 秒`
-                  : `記住這顏色 · ${currentStep + 1} / ${totalColors}`}
+                {gameMode === 'ascent' &&
+                  `闖關 · 第 ${currentStep + 1} / ${ASCENT_LEVELS} 關 · ${(showDurationMs / 1000).toFixed(1)} 秒`}
+                {gameMode === 'survival' &&
+                  `生存 · 第 ${currentStep + 1} 關 · ${(showDurationMs / 1000).toFixed(1)} 秒 · 需 ${survivalParams(currentStep).pass}+`}
+                {gameMode === 'blitz' && `閃擊 · 剩 ${(blitzLeftMs / 1000).toFixed(1)} 秒`}
+                {gameMode === 'mix' && '記住兩色，調出混色結果'}
+                {(gameMode === 'complement' || gameMode === 'analogous') && (prompts?.[0] ?? '記住參考色')}
+                {(gameMode === 'single' || gameMode === 'challenge' || gameMode === 'daily') &&
+                  `記住這顏色 · ${currentStep + 1} / ${totalColors}`}
               </p>
-              <motion.div
-                key={currentStep}
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-                className="swatch w-[min(72vw,18rem)] aspect-square"
-                style={{ backgroundColor: colorToCss(targetColors[currentStep]) }}
-              />
+
+              {gameMode === 'mix' && mixPairs?.[0] ? (
+                <div className="flex gap-3 w-full justify-center">
+                  <Swatch color={mixPairs[0][0]} colorBlind={colorBlind} className="w-[min(36vw,9rem)] aspect-square" />
+                  <Swatch color={mixPairs[0][1]} colorBlind={colorBlind} className="w-[min(36vw,9rem)] aspect-square" />
+                </div>
+              ) : (gameMode === 'complement' || gameMode === 'analogous') && refs?.[0] ? (
+                <Swatch
+                  color={refs[0]}
+                  colorBlind={colorBlind}
+                  className="w-[min(72vw,18rem)] aspect-square"
+                  label="參考色"
+                />
+              ) : (
+                <Swatch
+                  color={targetColors[currentStep]}
+                  colorBlind={colorBlind}
+                  className="w-[min(72vw,18rem)] aspect-square"
+                />
+              )}
+
               <div className="progress-rail">
                 <motion.div
-                  key={`bar-${currentStep}-${showDurationMs}`}
+                  key={`bar-${currentStep}-${showDurationMs}-${showGen}`}
                   initial={{ width: '0%' }}
                   animate={{ width: '100%' }}
                   transition={{ duration: showDurationMs / 1000, ease: 'linear' }}
@@ -506,18 +679,25 @@ export default function App() {
             >
               <div className="flex justify-between items-center px-1">
                 <p className="kicker">
-                  {gameMode === 'ascent'
-                    ? `重現 · 第 ${currentStep + 1} 關（需 ${ASCENT_PASS}+）`
-                    : `重現 · ${currentStep + 1} / ${totalColors}`}
+                  {gameMode === 'ascent' && `重現 · 第 ${currentStep + 1} 關（需 ${ASCENT_PASS}+）`}
+                  {gameMode === 'survival' &&
+                    `重現 · 第 ${currentStep + 1} 關（需 ${survivalParams(currentStep).pass}+）`}
+                  {gameMode === 'blitz' && `重現 · 剩 ${(blitzLeftMs / 1000).toFixed(1)}s`}
+                  {gameMode === 'mix' && '調出混色'}
+                  {(gameMode === 'complement' || gameMode === 'analogous') && (prompts?.[0] ?? '調出色相關係色')}
+                  {(gameMode === 'single' || gameMode === 'challenge' || gameMode === 'daily') &&
+                    `重現 · ${currentStep + 1} / ${totalColors}`}
                 </p>
-                <div className="flex gap-2" aria-hidden>
-                  {targetColors.slice(0, gameMode === 'ascent' ? ASCENT_LEVELS : totalColors).map((_, i) => (
-                    <span
-                      key={i}
-                      className={`step-dot ${i === currentStep ? 'is-active' : i < currentStep ? 'is-done' : ''}`}
-                    />
-                  ))}
-                </div>
+                {gameMode !== 'blitz' && gameMode !== 'survival' && (
+                  <div className="flex gap-2" aria-hidden>
+                    {Array.from({ length: Math.min(totalColors, 8) }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`step-dot ${i === currentStep ? 'is-active' : i < currentStep ? 'is-done' : ''}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col items-center gap-3">
@@ -526,12 +706,18 @@ export default function App() {
                     backgroundColor: showTarget
                       ? colorToCss(targetColors[currentStep])
                       : colorToCss(currentColor),
+                    scale: showTarget ? 1.02 : 1,
                   }}
-                  transition={{ duration: 0.2 }}
-                  className="swatch w-[min(56vw,14rem)] aspect-square"
-                />
+                  transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+                  className="swatch w-[min(56vw,14rem)] aspect-square relative overflow-hidden"
+                >
+                  {colorBlind && !showTarget && (
+                    <span className={`cb-pattern cb-pattern-${Math.floor(currentColor.h / 60)}`} aria-hidden />
+                  )}
+                </motion.div>
                 <span className="text-xs font-medium text-[var(--color-muted)] tracking-wide">
                   {showTarget ? '目標色（提示）' : '你的猜測'}
+                  {colorBlind && !showTarget ? ` · H${currentColor.h} S${currentColor.s} L${currentColor.l}` : ''}
                 </span>
               </div>
 
@@ -542,7 +728,7 @@ export default function App() {
                   max={360}
                   value={currentColor.h}
                   suffix="°"
-                  onChange={(h) => setCurrentColor({ ...currentColor, h })}
+                  onChange={(h) => dialTone({ ...currentColor, h })}
                   gradient="linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)"
                 />
                 <ColorSlider
@@ -551,7 +737,7 @@ export default function App() {
                   max={100}
                   value={currentColor.s}
                   suffix="%"
-                  onChange={(s) => setCurrentColor({ ...currentColor, s })}
+                  onChange={(s) => dialTone({ ...currentColor, s })}
                   gradient={`linear-gradient(to right, hsl(${currentColor.h}, 0%, ${currentColor.l}%), hsl(${currentColor.h}, 100%, ${currentColor.l}%))`}
                 />
                 <ColorSlider
@@ -560,36 +746,55 @@ export default function App() {
                   max={100}
                   value={currentColor.l}
                   suffix="%"
-                  onChange={(l) => setCurrentColor({ ...currentColor, l })}
+                  onChange={(l) => dialTone({ ...currentColor, l })}
                   gradient={`linear-gradient(to right, hsl(${currentColor.h}, ${currentColor.s}%, 0%), hsl(${currentColor.h}, ${currentColor.s}%, 50%), hsl(${currentColor.h}, ${currentColor.s}%, 100%))`}
                 />
 
                 <div className="flex gap-3 pt-1">
-                  <button
-                    type="button"
-                    onMouseDown={flashTarget}
-                    onMouseUp={() => setShowTarget(false)}
-                    onMouseLeave={() => setShowTarget(false)}
-                    onTouchStart={flashTarget}
-                    onTouchEnd={() => setShowTarget(false)}
-                    className="btn-secondary flex-1"
-                  >
-                    <Eye size={16} />
-                    提示
-                  </button>
+                  {gameMode !== 'blitz' && (
+                    <button
+                      type="button"
+                      onMouseDown={flashTarget}
+                      onMouseUp={() => setShowTarget(false)}
+                      onMouseLeave={() => setShowTarget(false)}
+                      onTouchStart={flashTarget}
+                      onTouchEnd={() => setShowTarget(false)}
+                      className="btn-secondary flex-1"
+                    >
+                      <Eye size={16} />
+                      提示
+                    </button>
+                  )}
                   <button type="button" onClick={handleGuess} className="btn-primary flex-[1.6]">
-                    {gameMode === 'ascent'
-                      ? currentStep < ASCENT_LEVELS - 1
-                        ? '提交'
-                        : '通關結算'
-                      : currentStep < totalColors - 1
-                        ? '下一色'
-                        : '看結果'}
+                    提交
                     <ChevronRight size={17} />
                   </button>
                 </div>
               </div>
             </motion.div>
+          )}
+
+          {gameState === 'feedback' && userGuesses.length > 0 && (
+            <FeedbackReveal
+              key={`fb-${userGuesses.length}`}
+              target={targetColors[currentStep]}
+              guess={userGuesses[userGuesses.length - 1]}
+              score={roundScores[roundScores.length - 1]}
+              colorBlind={colorBlind}
+              onContinue={continueAfterFeedback}
+              continueLabel={
+                gameMode === 'single' ||
+                gameMode === 'mix' ||
+                gameMode === 'complement' ||
+                gameMode === 'analogous' ||
+                (gameMode !== 'blitz' &&
+                  gameMode !== 'survival' &&
+                  gameMode !== 'ascent' &&
+                  currentStep >= totalColors - 1)
+                  ? '看結果'
+                  : '繼續'
+              }
+            />
           )}
 
           {gameState === 'results' && (
@@ -601,16 +806,27 @@ export default function App() {
               className="max-w-2xl w-full space-y-10 text-center px-1"
             >
               <div className="space-y-3">
-                <p className="kicker">本局平均分</p>
+                <p className="kicker">
+                  {gameMode === 'blitz' ? '閃擊總分' : gameMode === 'survival' ? '生存關數' : '本局平均分'}
+                </p>
                 <div className="flex items-baseline justify-center gap-3">
                   <div className="brand-mark text-[clamp(3.5rem,14vw,5.5rem)] tabular-nums leading-none">
-                    <AnimatedNumber value={averageScore} />
+                    <AnimatedNumber
+                      value={gameMode === 'blitz' ? totalScore : gameMode === 'survival' ? survivalCleared : averageScore}
+                    />
                   </div>
-                  <div className="font-mono text-xl text-[var(--color-muted)] tabular-nums">
-                    <AnimatedNumber value={Math.round((averageScore / 999) * 100)} />
-                    <span className="text-sm ml-0.5">%</span>
-                  </div>
+                  {gameMode !== 'survival' && (
+                    <div className="font-mono text-xl text-[var(--color-muted)] tabular-nums">
+                      <AnimatedNumber value={scoreToAccuracy(averageScore)} />
+                      <span className="text-sm ml-0.5">%</span>
+                    </div>
+                  )}
                 </div>
+                {gameMode === 'daily' && roundScores.length > 0 && (
+                  <p className="text-2xl tracking-widest" aria-label="分享色格">
+                    {roundScores.map((s) => scoreEmoji(s)).join('')}
+                  </p>
+                )}
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -618,12 +834,14 @@ export default function App() {
                   className="text-[var(--color-muted)] text-base max-w-sm mx-auto"
                 >
                   {ascentFailed
-                    ? `未達 ${ASCENT_PASS} 分門檻，停在第 ${userGuesses.length} 關。`
+                    ? gameMode === 'survival'
+                      ? `未達門檻，停在第 ${userGuesses.length} 關。`
+                      : `未達 ${ASCENT_PASS} 分門檻，停在第 ${userGuesses.length} 關。`
                     : scoreVerdict(averageScore)}
                 </motion.p>
                 <p className="font-mono text-xs text-[var(--color-muted)] tabular-nums">
-                  最佳單分 {bestScore} · 最佳平均 {bestAverage}
-                  {gameMode !== 'ascent' ? ` · ${SHOW_MS_LABELS[showMs]}` : ''}
+                  {MODE_LABELS[gameMode]}
+                  {dailyStreak > 0 ? ` · 連勝 ${dailyStreak}` : ''}
                 </p>
               </div>
 
@@ -638,15 +856,15 @@ export default function App() {
               >
                 {userGuesses.map((guess, i) => {
                   const target = targetColors[i];
-                  const score = calculateScore(target, guess);
+                  const score = roundScores[i] ?? calculateScore(target, guess);
                   const targetHsb = hslToHsb(target.h, target.s, target.l);
                   const guessHsb = hslToHsb(guess.h, guess.s, guess.l);
                   return (
                     <div key={i} className="space-y-2 text-left">
-                      <ColorComparison target={target} guess={guess} />
+                      <ColorComparison target={target} guess={guess} colorBlind={colorBlind} />
                       <div className="px-0.5 space-y-1">
                         <div className="text-sm font-semibold tabular-nums">
-                          <AnimatedNumber value={score} />
+                          {scoreEmoji(score)} <AnimatedNumber value={score} duration={0.9} />
                           <span className="text-[var(--color-muted)] font-normal text-xs ml-1">分</span>
                         </div>
                         <div className="font-mono text-[10px] text-[var(--color-muted)] leading-relaxed">
@@ -659,14 +877,22 @@ export default function App() {
                 })}
               </div>
 
-              <div className="flex gap-3 max-w-xs mx-auto w-full">
-                <button type="button" onClick={() => startGame(gameMode)} className="btn-primary flex-1">
-                  <RotateCcw size={16} />
-                  再玩一次
-                </button>
-                <button type="button" onClick={() => setGameState('landing')} className="btn-secondary flex-1">
-                  回首頁
-                </button>
+              <div className="flex flex-col gap-3 max-w-xs mx-auto w-full">
+                {gameMode === 'daily' && (
+                  <button type="button" onClick={handleShare} className="btn-primary w-full">
+                    <Share2 size={16} />
+                    {copied ? '已複製分享文案' : '複製分享結果'}
+                  </button>
+                )}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => startGame(gameMode)} className="btn-primary flex-1">
+                    <RotateCcw size={16} />
+                    再玩一次
+                  </button>
+                  <button type="button" onClick={() => setGameState('landing')} className="btn-secondary flex-1">
+                    回首頁
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -677,17 +903,25 @@ export default function App() {
         <ResultOverlay
           title={overlayTitle}
           subtitle={scoreVerdict(averageScore)}
-          badge={isNewBest ? '新紀錄' : gameMode === 'ascent' ? '闖關' : undefined}
+          badge={isNewBest ? '新紀錄' : gameMode === 'daily' ? '每日' : undefined}
           variant={overlayVariant}
           stats={[
-            { label: '平均分', value: averageScore },
-            { label: '最佳單分', value: bestScore },
-            { label: '最佳平均', value: bestAverage },
+            {
+              label: gameMode === 'blitz' ? '總分' : gameMode === 'survival' ? '關數' : '平均分',
+              value:
+                gameMode === 'blitz' ? totalScore : gameMode === 'survival' ? survivalCleared : averageScore,
+            },
+            { label: '準確度', value: `${scoreToAccuracy(averageScore)}%` },
+            ...(gameMode === 'daily' ? [{ label: '連勝', value: `${dailyStreak} 天` }] : []),
             ...(gameMode === 'ascent'
               ? [{ label: '本局關卡', value: `${userGuesses.length} / ${ASCENT_LEVELS}` }]
-              : [{ label: '記憶秒數', value: SHOW_MS_LABELS[showMs] }]),
+              : gameMode === 'survival'
+                ? [{ label: '最佳生存', value: bests.bestSurvival }]
+                : gameMode === 'blitz'
+                  ? [{ label: '最佳閃擊', value: bests.bestBlitz }]
+                  : [{ label: '記憶秒數', value: SHOW_MS_LABELS[showMs] }]),
           ]}
-          primaryLabel="查看色差"
+          primaryLabel={gameMode === 'daily' ? '查看並分享' : '查看色差'}
           onPrimary={() => setShowResultOverlay(false)}
         />
       )}
@@ -707,16 +941,14 @@ export default function App() {
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.96, opacity: 0 }}
-              className="panel max-w-md w-full p-6 sm:p-8 space-y-5 text-left"
+              className="panel max-w-md w-full p-6 sm:p-8 space-y-5 text-left max-h-[80vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="brand-mark text-2xl">
-                {showModal === 'privacy' ? '隱私' : '計分方式'}
-              </h3>
+              <h3 className="brand-mark text-2xl">{showModal === 'privacy' ? '隱私' : '計分方式'}</h3>
               <p className="text-sm text-[var(--color-muted)] leading-relaxed">
                 {showModal === 'privacy'
-                  ? '不蒐集個人資料。分數僅存在你的瀏覽器本機，不會上傳。'
-                  : '分數依猜測色與目標色在 HSL 空間的距離計算。完全一致為 999 分；多色模式取各回合平均。闖關模式每關顯示時間漸短，需達 650 分才能進入下一關。'}
+                  ? '不蒐集個人資料。分數、統計與每日連勝僅存在你的瀏覽器本機，不會上傳。'
+                  : '分數依猜測色與目標色在 HSL 空間的距離計算。完全一致為 999 分。每日挑戰以台北時區日期種子產生，當天所有人同一組色。闖關與生存需達門檻才繼續；閃擊限時 60 秒累計分數。分享結果以 🟩🟨🟧⬛ 表示各回合精準度。'}
               </p>
               <button type="button" onClick={() => setShowModal(null)} className="btn-primary w-full">
                 關閉
