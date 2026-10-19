@@ -712,6 +712,10 @@ test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', as
 
   await activate(page.getByRole('button', { name: '開始探索' }), isMobile);
   await expect(page.getByText('青鱗幼蛇')).toBeVisible();
-  await expect(page.getByRole('button', { name: '衝刺' })).toBeVisible();
   await expect(page.getByRole('button', { name: '暫停' })).toBeVisible();
+  await expect(page.getByText(/第\s*1\s*層/)).toBeVisible();
+  // Touch dash pad is md:hidden; assert it only on the mobile project.
+  if (isMobile) {
+    await expect(page.getByRole('button', { name: '衝刺' })).toBeVisible();
+  }
 });
