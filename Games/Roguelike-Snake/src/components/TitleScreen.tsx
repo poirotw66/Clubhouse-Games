@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Play, Sparkles, Target } from 'lucide-react';
+import { AlertTriangle, Play, Sparkles, Target, Zap } from 'lucide-react';
+import { ACHIEVEMENTS, achievementById } from '../game/achievements';
+import {
+  STARTING_BUILDS,
+  buildUnlockHint,
+  isBuildUnlocked,
+} from '../game/builds';
 import {
   SEED_CHALLENGES,
   challengeCount,
@@ -8,13 +14,21 @@ import {
 } from '../game/challenges';
 import type { ChallengeProgress } from '../game/challenges';
 import { MAX_FLOOR } from '../game/config';
-import type { BestRecord } from '../game/storage';
+import { computeDailyStreak, todaySeedKey } from '../game/daily';
+import type { MetaProgress } from '../game/storage';
+
+export interface StartOptions {
+  seedInput: string;
+  ironsnake?: boolean;
+  daily?: boolean;
+}
 
 interface TitleScreenProps {
-  best: BestRecord;
+  meta: MetaProgress;
   challengeProgress: ChallengeProgress;
-  onStart: (seedInput: string) => void;
+  onStart: (options: StartOptions) => void;
   onStartChallenge: (challengeId: string) => void;
+  onSelectBuild: (buildId: string) => void;
 }
 
 const RULES: Array<[string, string]> = [
@@ -26,20 +40,24 @@ const RULES: Array<[string, string]> = [
 ];
 
 export function TitleScreen({
-  best,
+  meta,
   challengeProgress,
   onStart,
   onStartChallenge,
+  onSelectBuild,
 }: TitleScreenProps) {
   const [seed, setSeed] = useState('');
   const [showChallenges, setShowChallenges] = useState(false);
+  const [showIronsnakeWarn, setShowIronsnakeWarn] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
 
-  const todaySeed = () => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}${m}${day}`;
+  const today = todaySeedKey();
+  const dailyStreak = computeDailyStreak(meta.dailyRecords, today);
+  const todayRecord = meta.dailyRecords.find((r) => r.date === today);
+  const unlockCtx = {
+    bestFloor: meta.floor,
+    escapes: meta.escapes,
+    dailyClears: meta.dailyRecords.filter((r) => r.cleared).length,
   };
 
   const packTotal = challengeCount();
@@ -51,6 +69,8 @@ export function TitleScreen({
     }
     return `固定種子 ${packTotal} 關・開始`;
   }, [challengeProgress.clearedCount, packTotal]);
+
+  const unlockedAchievementCount = meta.achievements.length;
 
   return (
     <div className="w-full max-w-lg mx-auto text-center">
@@ -72,6 +92,51 @@ export function TitleScreen({
         ))}
       </div>
 
+      <section className="mb-5 text-left" aria-labelledby="build-picker-title">
+        <h2 id="build-picker-title" className="text-xs text-slate-400 mb-2">
+          起始身分
+        </h2>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {STARTING_BUILDS.map((build) => {
+            const unlocked = isBuildUnlocked(build, unlockCtx);
+            const selected = meta.selectedBuildId === build.id;
+            return (
+              <button
+                key={build.id}
+                type="button"
+                disabled={!unlocked}
+                onClick={() => unlocked && onSelectBuild(build.id)}
+                className={`rounded-xl border px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                  selected
+                    ? 'border-emerald-500/70 bg-emerald-950/50'
+                    : 'border-slate-700 bg-slate-900/70 hover:border-slate-500'
+                }`}
+                aria-pressed={selected}
+                aria-label={`${build.name}${unlocked ? '' : '（未解鎖）'}`}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-slate-100">
+                    {unlocked ? build.name : '？？？'}
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {!unlocked ? '未解鎖' : selected ? '已選' : '可選'}
+                  </span>
+                </span>
+                <span className="mt-1 block text-[11px] leading-snug text-slate-400">
+                  {unlocked ? build.blurb : buildUnlockHint(build)}
+                </span>
+                {unlocked && (
+                  <span className="mt-1 block font-mono text-[10px] text-slate-500">
+                    HP {build.startHp} · 能量 {build.startEnergy}
+                    {build.startingRelics.length > 0 ? ` · 起始遺物 ${build.startingRelics.length}` : ''}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <label className="block text-left text-xs text-slate-400 mb-1" htmlFor="seed-input">
         種子（可留空隨機；相同種子＝相同地窟）
       </label>
@@ -91,31 +156,55 @@ export function TitleScreen({
           清除
         </button>
       </div>
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-2">
         <button
           type="button"
-          onClick={() => setSeed(todaySeed())}
+          onClick={() => setSeed(today)}
           className="flex-1 min-h-[44px] rounded-xl border border-emerald-700/60 bg-emerald-900/40 px-3 text-sm text-emerald-200 hover:bg-emerald-800/50"
         >
           今日種子
         </button>
         <button
           type="button"
-          onClick={() => onStart(todaySeed())}
+          onClick={() => onStart({ seedInput: today, daily: true })}
           className="flex-1 min-h-[44px] rounded-xl border border-emerald-600 bg-emerald-700/50 px-3 text-sm text-emerald-100 hover:bg-emerald-600/60"
         >
           開始今日挑戰
         </button>
       </div>
+      <p className="mb-5 text-center text-[11px] text-emerald-200/80">
+        每日連勝 {dailyStreak}
+        {todayRecord
+          ? todayRecord.cleared
+            ? ` · 今日已通關（最佳 ${todayRecord.score} 分）`
+            : ` · 今日最佳 ${todayRecord.score} 分 · 第 ${todayRecord.floor} 層`
+          : ' · 今日尚未挑戰'}
+      </p>
 
       <button
         type="button"
-        onClick={() => onStart(seed)}
+        onClick={() => onStart({ seedInput: seed })}
         className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 text-lg font-bold hover:bg-emerald-500 transition-colors"
       >
         <Play className="w-5 h-5" />
         開始探索
       </button>
+
+      <button
+        type="button"
+        onClick={() => setShowIronsnakeWarn(true)}
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-500/60 bg-rose-950/40 px-6 py-3 text-base font-bold text-rose-100 hover:bg-rose-900/50 transition-colors"
+        aria-label="開啟 Ironsnake 硬派模式警告"
+      >
+        <Zap className="w-5 h-5" />
+        Ironsnake 硬派
+      </button>
+      <p className="mt-1 text-center text-[11px] text-rose-300/70">
+        HP 固定 1 · 遺物 4 選 1
+        {meta.ironsnakeClears > 0
+          ? ` · 通關 ${meta.ironsnakeClears} 次 · 最佳 ${meta.ironsnakeBestScore}`
+          : ' · 一擊即死，請謹慎'}
+      </p>
 
       <button
         type="button"
@@ -128,11 +217,120 @@ export function TitleScreen({
       </button>
       <p className="mt-1 text-center text-[11px] text-slate-500">{packSubtitle}</p>
 
-      {best.score > 0 && (
-        <p className="mt-4 flex items-center justify-center gap-2 text-sm text-amber-300">
+      <button
+        type="button"
+        onClick={() => setShowAchievements(true)}
+        className="mt-3 text-xs text-amber-200/80 underline-offset-2 hover:underline"
+      >
+        成就 {unlockedAchievementCount}/{ACHIEVEMENTS.length}
+      </button>
+
+      {(meta.score > 0 || meta.escapes > 0) && (
+        <p className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-amber-300">
           <Sparkles className="w-4 h-4" />
-          最佳紀錄：{best.score} 分 · 第 {best.floor} 層
+          最佳紀錄：{meta.score} 分 · 第 {meta.floor} 層
+          {meta.escapes > 0 ? ` · 逃出 ${meta.escapes} 次` : ''}
         </p>
+      )}
+
+      {showIronsnakeWarn && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/80 p-4 sm:items-center text-left"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ironsnake-warn-title"
+          onClick={() => setShowIronsnakeWarn(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-rose-500/50 bg-slate-900/95 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-rose-300" />
+              <div>
+                <h2 id="ironsnake-warn-title" className="text-xl font-black text-rose-200">
+                  Ironsnake 硬派模式
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                  HP 固定為 1（一擊即死），每層遺物改為 <strong className="text-rose-100">4 選 1</strong>
+                  。受傷、撞牆、被敵人碰到都會立刻結束本局。確定要挑戰嗎？
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIronsnakeWarn(false);
+                  onStart({ seedInput: seed, ironsnake: true });
+                }}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-3 text-sm font-black text-white hover:bg-rose-500"
+              >
+                確認進入硬派
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowIronsnakeWarn(false)}
+                className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-bold text-slate-200 hover:bg-slate-700"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAchievements && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/75 p-4 sm:items-center text-left"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="snake-achievements-title"
+          onClick={() => setShowAchievements(false)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-amber-700/40 bg-slate-900/95 p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="snake-achievements-title" className="text-xl font-black text-amber-300">
+                  成就
+                </h2>
+                <p className="mt-1 text-xs text-slate-400">本機紀錄・與起始身分／每日／硬派進度連動</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAchievements(false)}
+                className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700"
+              >
+                關閉
+              </button>
+            </div>
+            <ul className="mt-4 space-y-2 overflow-y-auto pr-1">
+              {ACHIEVEMENTS.map((ach) => {
+                const done = meta.achievements.includes(ach.id);
+                const def = achievementById(ach.id) ?? ach;
+                return (
+                  <li
+                    key={ach.id}
+                    className={`rounded-xl border px-3 py-2 ${
+                      done
+                        ? 'border-amber-500/40 bg-amber-950/30'
+                        : 'border-slate-700 bg-slate-800/50 opacity-70'
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold text-slate-100">{def.name}</span>
+                      <span className="text-[11px] text-slate-400">{done ? '已達成' : '未達成'}</span>
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-slate-400">{def.blurb}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
       )}
 
       {showChallenges && (

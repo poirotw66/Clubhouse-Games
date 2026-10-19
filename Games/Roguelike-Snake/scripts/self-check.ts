@@ -11,8 +11,26 @@ import {
   isChallengeCleared,
   isChallengeUnlocked,
 } from '../src/game/challenges.js';
-import { CHALLENGES_STORAGE_KEY, MAX_FLOOR } from '../src/game/config.js';
-import { createRun, dash, tick } from '../src/game/engine.js';
+import {
+  DEFAULT_BUILD_ID,
+  STARTING_BUILDS,
+  isBuildUnlocked,
+} from '../src/game/builds.js';
+import {
+  CHALLENGES_STORAGE_KEY,
+  IRONSNAKE_RELIC_CHOICE_COUNT,
+  MAX_FLOOR,
+  RELIC_CHOICE_COUNT,
+} from '../src/game/config.js';
+import { computeDailyStreak, todaySeedKey } from '../src/game/daily.js';
+import {
+  chooseRelic,
+  createRun,
+  dash,
+  enforceIronsnakeHp,
+  relicOfferCount,
+  tick,
+} from '../src/game/engine.js';
 import { RELICS, rollRelicChoices } from '../src/game/relics.js';
 import { createRng, parseSeed } from '../src/game/rng.js';
 import type { Enemy, Fruit, GameState, RelicId, Vec } from '../src/game/types.js';
@@ -346,6 +364,106 @@ function expectChallengeClearHelpers(): void {
   );
 }
 
+function expectIronsnakeRules(): void {
+  const iron = createRun(99, { ironsnake: true, buildId: 'ironscale' });
+  assert.equal(iron.ironsnake, true);
+  assert.equal(iron.hp, 1, 'Ironsnake must start at HP 1');
+  assert.equal(iron.maxHp, 1, 'Ironsnake maxHp must stay 1 even with tanky build');
+  assert.equal(relicOfferCount(iron), IRONSNAKE_RELIC_CHOICE_COUNT);
+  assert.equal(RELIC_CHOICE_COUNT, 3);
+
+  iron.phase = 'relic';
+  iron.pendingPicks = 1;
+  iron.relicChoices = ['heart'];
+  chooseRelic(iron, 'heart');
+  assert.equal(iron.maxHp, 1, 'heart must not raise Ironsnake maxHp');
+  assert.equal(iron.hp, 1, 'heart must not raise Ironsnake hp');
+
+  iron.maxHp = 5;
+  iron.hp = 5;
+  enforceIronsnakeHp(iron);
+  assert.equal(iron.maxHp, 1);
+  assert.equal(iron.hp, 1);
+
+  const normal = createRun(99, { ironsnake: false });
+  assert.equal(relicOfferCount(normal), RELIC_CHOICE_COUNT);
+  assert.equal(normal.hp, 3);
+}
+
+function expectStartingBuilds(): void {
+  assert.ok(STARTING_BUILDS.length >= 4, 'need at least four starting identities');
+  assert.equal(STARTING_BUILDS[0]?.id, DEFAULT_BUILD_ID);
+  assert.equal(STARTING_BUILDS[0]?.unlock.kind, 'free');
+
+  const names = new Set(STARTING_BUILDS.map((b) => b.name));
+  assert.equal(names.size, STARTING_BUILDS.length, 'build names must be unique');
+  for (const build of STARTING_BUILDS) {
+    assert.ok(build.name.length > 0 && build.blurb.length > 0, `${build.id} missing Traditional Chinese copy`);
+  }
+
+  const locked = { bestFloor: 0, escapes: 0, dailyClears: 0 };
+  assert.equal(isBuildUnlocked(STARTING_BUILDS[0], locked), true);
+  assert.equal(isBuildUnlocked(STARTING_BUILDS[1], locked), false);
+  assert.equal(
+    isBuildUnlocked(STARTING_BUILDS[1], { ...locked, bestFloor: 5 }),
+    true,
+  );
+  assert.equal(
+    isBuildUnlocked(STARTING_BUILDS[2], { ...locked, bestFloor: 10 }),
+    true,
+  );
+  assert.equal(
+    isBuildUnlocked(STARTING_BUILDS[3], { ...locked, dailyClears: 1 }),
+    true,
+  );
+  assert.equal(
+    isBuildUnlocked(STARTING_BUILDS[3], { ...locked, escapes: 1 }),
+    true,
+  );
+
+  const swift = createRun(7, { buildId: 'swiftling' });
+  assert.equal(swift.buildId, 'swiftling');
+  assert.equal(swift.hp, 2);
+  assert.ok(swift.relics.includes('swift'), 'swiftling should start with 疾風鱗');
+  assert.ok(swift.energy >= 90, 'swiftling should start with high energy');
+
+  const fang = createRun(7, { buildId: 'bloodcoil' });
+  assert.ok(fang.relics.includes('fang'), 'bloodcoil should start with 尖牙');
+  assert.equal(fang.coins, 4);
+}
+
+function expectDailyStreakMath(): void {
+  const today = todaySeedKey(new Date(2026, 9, 19));
+  assert.equal(today, '20261019');
+  assert.equal(computeDailyStreak([], today), 0);
+  assert.equal(
+    computeDailyStreak(
+      [
+        { date: '20261019', cleared: true, score: 100, floor: 5 },
+        { date: '20261018', cleared: true, score: 80, floor: 4 },
+        { date: '20261017', cleared: true, score: 60, floor: 3 },
+      ],
+      today,
+    ),
+    3,
+  );
+  assert.equal(
+    computeDailyStreak(
+      [
+        { date: '20261018', cleared: true, score: 80, floor: 4 },
+        { date: '20261017', cleared: true, score: 60, floor: 3 },
+      ],
+      today,
+    ),
+    2,
+    'streak should survive when today is not yet cleared',
+  );
+  assert.equal(
+    computeDailyStreak([{ date: '20261016', cleared: true, score: 10, floor: 2 }], today),
+    0,
+  );
+}
+
 expectSpitterOnlyFiresWhenAligned();
 expectCursedFruitUsesFlatScore();
 expectBloodDashOnlyCostsHp();
@@ -353,5 +471,8 @@ expectRelicVarietyAndHonesty();
 expectChallengeDefsAreSound();
 expectChallengeUnlockMath();
 expectChallengeClearHelpers();
+expectIronsnakeRules();
+expectStartingBuilds();
+expectDailyStreakMath();
 
 console.log('Roguelike Snake logic self-check passed.');

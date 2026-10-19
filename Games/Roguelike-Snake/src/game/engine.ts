@@ -19,6 +19,8 @@ import {
   MIN_LENGTH,
   MIN_MOVE_MS,
   BASE_MOVE_MS,
+  IRONSNAKE_RELIC_CHOICE_COUNT,
+  RELIC_CHOICE_COUNT,
   REROLL_COST,
   SCORE_BOSS,
   SCORE_ESCAPE,
@@ -32,6 +34,7 @@ import {
   START_HP,
   START_LENGTH,
 } from './config';
+import { DEFAULT_BUILD_ID, buildById } from './builds';
 import {
   CENTER,
   chebyshev,
@@ -311,9 +314,50 @@ export interface CreateRunOptions {
   challengeId?: string | null;
   /** Original seed string (for display and challenge matching). */
   seedInput?: string;
+  /** Ironsnake hard mode (HP=1, 4-pick-1 relics). */
+  ironsnake?: boolean;
+  /** Daily-seed run (progress feeds daily streak / unlocks). */
+  daily?: boolean;
+  /** Starting build / character identity. */
+  buildId?: string;
+}
+
+/** Relic offer count: Ironsnake is 4-pick-1; otherwise 3-pick-1. */
+export function relicOfferCount(state: GameState): number {
+  return state.ironsnake ? IRONSNAKE_RELIC_CHOICE_COUNT : RELIC_CHOICE_COUNT;
+}
+
+/** Spec: Ironsnake HP is fixed at 1 — clamp after any relic that would raise it. */
+export function enforceIronsnakeHp(state: GameState): void {
+  if (!state.ironsnake) return;
+  state.maxHp = 1;
+  state.hp = Math.min(1, Math.max(0, state.hp));
+}
+
+function applyStartingBuild(state: GameState, buildId: string): void {
+  const build = buildById(buildId) ?? buildById(DEFAULT_BUILD_ID);
+  if (!build) return;
+  state.buildId = build.id;
+  if (!state.ironsnake) {
+    state.hp = build.startHp;
+    state.maxHp = build.startHp;
+  }
+  state.energy = build.startEnergy;
+  if (build.startMaxEnergy !== undefined) {
+    state.maxEnergy = build.startMaxEnergy;
+  }
+  if (build.startCoins) state.coins = build.startCoins;
+  for (const relicId of build.startingRelics) {
+    if (relicId !== 'bag' && relicId !== 'mend') state.relics.push(relicId);
+    applyRelic(state, relicId);
+  }
+  enforceIronsnakeHp(state);
+  state.moveInterval = computeInterval(state);
 }
 
 export function createRun(seed: number, options: CreateRunOptions = {}): GameState {
+  const ironsnake = Boolean(options.ironsnake);
+  const startHp = ironsnake ? 1 : START_HP;
   const state: GameState = {
     seed,
     seedInput: options.seedInput ?? '',
@@ -321,6 +365,9 @@ export function createRun(seed: number, options: CreateRunOptions = {}): GameSta
     phase: 'playing',
     endless: false,
     challengeId: options.challengeId ?? null,
+    ironsnake,
+    daily: Boolean(options.daily),
+    buildId: options.buildId ?? DEFAULT_BUILD_ID,
     bossesDefeated: [],
     floor: 1,
     layout: 'open',
@@ -338,8 +385,8 @@ export function createRun(seed: number, options: CreateRunOptions = {}): GameSta
     projectiles: [],
     boss: null,
     exit: null,
-    hp: START_HP,
-    maxHp: START_HP,
+    hp: startHp,
+    maxHp: startHp,
     energy: START_ENERGY,
     maxEnergy: BASE_MAX_ENERGY,
     coins: 0,
@@ -363,6 +410,7 @@ export function createRun(seed: number, options: CreateRunOptions = {}): GameSta
   };
 
   buildFloor(state, 1);
+  applyStartingBuild(state, options.buildId ?? DEFAULT_BUILD_ID);
   return state;
 }
 
@@ -545,7 +593,7 @@ function enterExit(state: GameState): void {
   }
 
   state.pendingPicks += 1;
-  state.relicChoices = rollRelicChoices(state.rng, state.relics, 3);
+  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
   state.phase = 'relic';
 }
 
@@ -862,6 +910,8 @@ function applyRelic(state: GameState, id: RelicId): void {
     default:
       break;
   }
+
+  enforceIronsnakeHp(state);
 }
 
 export function chooseRelic(state: GameState, id: RelicId): void {
@@ -875,23 +925,26 @@ export function chooseRelic(state: GameState, id: RelicId): void {
   state.relicChoices = [];
 
   if (state.pendingPicks > 0) {
-    state.relicChoices = rollRelicChoices(state.rng, state.relics, 3);
+    state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
     return;
   }
 
   buildFloor(state, state.floor + 1);
   state.phase = 'playing';
+  state.events.push({ type: 'floor', text: `第 ${state.floor} 層` });
 }
 
 export function rerollRelics(state: GameState): void {
   if (state.phase !== 'relic' || state.coins < REROLL_COST) return;
   state.coins -= REROLL_COST;
-  state.relicChoices = rollRelicChoices(state.rng, state.relics, 3);
+  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
 }
 
 export function buyHeal(state: GameState): void {
   if (state.phase !== 'relic' || state.coins < HEAL_COST) return;
   if (state.hp >= state.maxHp) return;
+  // Ironsnake: HP is fixed at 1 — healing cannot raise it.
+  if (state.ironsnake) return;
   state.coins -= HEAL_COST;
   state.hp += 1;
 }
@@ -901,6 +954,6 @@ export function continueEndless(state: GameState): void {
   if (state.phase !== 'won') return;
   state.endless = true;
   state.pendingPicks += 1;
-  state.relicChoices = rollRelicChoices(state.rng, state.relics, 3);
+  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
   state.phase = 'relic';
 }
