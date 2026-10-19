@@ -680,3 +680,59 @@ test('instant-flash: versus mode mounts split controls', async ({ page, isMobile
   await expect(page.getByLabel('玩家二待機／出刀')).toBeVisible();
   await expect(page.getByRole('button', { name: '結束對戰' })).toBeVisible();
 });
+
+test('puyo-puyo: modes, mission ladder, tutorial panel, and master difficulty', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Puyo-Puyo'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.goto('./Games/Puyo-Puyo/');
+  await expect(page.getByRole('heading', { name: /魔法氣泡/ })).toBeVisible();
+  await expect(page.locator('#career-stats')).toBeVisible();
+
+  const mode = page.locator('#match-mode');
+  await expect(mode).toBeVisible();
+  await mode.selectOption('mission');
+  await expect(page.locator('#quest-panel')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /任務/ })).toBeVisible();
+  await expect(page.locator('#mission-select')).toBeVisible();
+  await expect(page.locator('#player-card-p2')).toBeHidden();
+  await expect(page.getByRole('button', { name: '顯示落點提示', exact: true })).toBeVisible();
+  await activate(page.getByRole('button', { name: '顯示落點提示', exact: true }), isMobile);
+  await expect(page.locator('#p1-status')).toContainText('提示');
+
+  await mode.selectOption('tutorial');
+  await expect(page.locator('#quest-panel')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /教室/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: '下一課', exact: true })).toBeVisible();
+
+  await mode.selectOption('practice');
+  await expect(page.locator('#quest-panel')).toBeHidden();
+  await expect(page.locator('#mode-badge')).toContainText('自由練習');
+
+  await mode.selectOption('cpu');
+  await expect(page.locator('#difficulty-field')).toBeVisible();
+  await page.locator('#cpu-difficulty').selectOption('master');
+  await expect(page.locator('#mode-badge')).toContainText('CPU');
+  await expect(page.locator('#match-status')).toContainText('達人');
+});
+
+test('puyo-puyo: mission hint drop clears first quest overlay', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Puyo-Puyo'), 'selective CI');
+  test.setTimeout(60_000);
+  await page.goto('./Games/Puyo-Puyo/');
+  await page.locator('#match-mode').selectOption('mission');
+  await expect(page.locator('#quest-panel')).toBeVisible();
+  // First mission is a one-move 2-chain; hard-drop the preloaded pair after aligning via hint.
+  await activate(page.getByRole('button', { name: '顯示落點提示', exact: true }), isMobile);
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  // Hint for m1 is col 2 rot 0 — spawn is already col 2; hard drop.
+  await page.keyboard.press(' ');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
+  await expect(dialog).toHaveCSS('position', 'fixed');
+  await expect(page.locator('#result-title')).toContainText(/成功|再試/);
+  await activate(dialog.getByRole('button', { name: '再玩一局', exact: true }), isMobile);
+  await expect(dialog).toHaveCount(0);
+});

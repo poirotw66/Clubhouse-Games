@@ -230,7 +230,7 @@
         {
           "name": "魔法氣泡",
           "en": "Puyo Puyo",
-          "desc": "同色氣泡相連四顆即消除，事先埋設形狀引爆長連鎖。",
+          "desc": "任務梯與連鎖教室、CPU 達人難度；同色四顆消除並引爆長連鎖。",
           "players": "1–2 人",
           "specPath": "05-puzzle/puyo-puyo.md",
           "gameFolder": "Puyo-Puyo"
