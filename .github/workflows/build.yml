@@ -15,10 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # GitHub-hosted runners are 2-vCPU; keep per-job concurrency modest and scale
-  # out with matrix shards instead.
+  # GitHub-hosted runners are 2-vCPU; scale out with matrix shards. BUILD_JOBS
+  # can exceed vCPU count — Vite game builds are mostly independent processes.
   CHECK_JOBS: "2"
-  BUILD_JOBS: "2"
+  BUILD_JOBS: "4"
   PLAYWRIGHT_WORKERS: "2"
 
 jobs:
@@ -211,10 +211,38 @@ jobs:
           path: dist
 
   # ---------------------------------------------------------------------------
+  # Warm Playwright browser cache while Pages build runs (critical-path overlap).
+  # ---------------------------------------------------------------------------
+  test-prep:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install browser
+        run: npx playwright install --with-deps --only-shell chromium
+
+  # ---------------------------------------------------------------------------
   # Playwright — download built dist; shard desktop+mobile suite; cache browsers.
   # ---------------------------------------------------------------------------
   test:
-    needs: [changes, build-pages]
+    needs: [changes, build-pages, test-prep]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -238,7 +266,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # Cache restores browsers; --with-deps still installs OS libraries (fast when present).
+      # Cache should be warm from test-prep; --with-deps still ensures OS libs.
       - name: Install browser
         run: npx playwright install --with-deps --only-shell chromium
 
@@ -254,7 +282,7 @@ jobs:
           SCOPE_FULL: ${{ needs.changes.outputs.full }}
           SCOPE_GAMES: ${{ needs.changes.outputs.games }}
           SHARD: ${{ matrix.shard }}
-          SHARD_TOTAL: ${{ needs.changes.outputs.full == 'true' && '3' || '1' }}
+          SHARD_TOTAL: ${{ needs.changes.outputs.full == 'true' && '4' || '1' }}
         run: |
           set -euo pipefail
           if [ "$SCOPE_FULL" = "true" ]; then
@@ -279,7 +307,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     if: always()
-    needs: [changes, lint, check, build-pages, test]
+    needs: [changes, lint, check, build-pages, test-prep, test]
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate CI results
@@ -289,12 +317,14 @@ jobs:
           echo "lint=${{ needs.lint.result }}"
           echo "check=${{ needs.check.result }}"
           echo "build-pages=${{ needs.build-pages.result }}"
+          echo "test-prep=${{ needs.test-prep.result }}"
           echo "test=${{ needs.test.result }}"
           for result in \
             "${{ needs.changes.result }}" \
             "${{ needs.lint.result }}" \
             "${{ needs.check.result }}" \
             "${{ needs.build-pages.result }}" \
+            "${{ needs.test-prep.result }}" \
             "${{ needs.test.result }}"
           do
             if [ "$result" != "success" ]; then

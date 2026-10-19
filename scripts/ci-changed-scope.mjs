@@ -94,7 +94,7 @@ function writeOutput(scope) {
   // Full runs shard across runners; selective PRs keep a single shard.
   const lintMatrix = matrixJson(scope.full ? [1, 2] : [1]);
   const checkMatrix = matrixJson(scope.full ? [1, 2, 3, 4] : [1]);
-  const testMatrix = matrixJson(scope.full ? [1, 2, 3] : [1]);
+  const testMatrix = matrixJson(scope.full ? [1, 2, 3, 4] : [1]);
 
   const lines = [
     `full=${scope.full}`,
