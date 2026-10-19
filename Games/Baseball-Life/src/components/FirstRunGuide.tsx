@@ -61,9 +61,9 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-amber-300">人、章節與關鍵局面</p>
+            <p className="font-bold text-amber-300">圖鑑、遺產與職業成長</p>
             <p className="mt-0.5 text-amber-200/60">
-              教練風格會改菜單；隊友與宿敵會再登場。大賽有關鍵打席，生涯有章節卡片。天命可強行完美訓練骰。
+              特殊能力寫進圖鑑；引退可把師承／血脈傳給下一局。職業春訓仍有成長空間。天命可強行完美訓練骰。
             </p>
           </li>
         </ul>
