@@ -57,8 +57,8 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             <p className="mt-0.5 text-slate-400">只出 1／2／5 張；壓牌時張數必須跟檯面相同。</p>
           </li>
           <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
-            <p className="font-bold text-indigo-300">提示與復原</p>
-            <p className="mt-0.5 text-slate-400">輪到你可用提示；復原回到你出手前（含對手剛回的那手）。</p>
+            <p className="font-bold text-indigo-300">系列賽＋提示</p>
+            <p className="mt-0.5 text-slate-400">牌分會累積整場；提示會說明為什麼這樣出。</p>
           </li>
         </ul>
 

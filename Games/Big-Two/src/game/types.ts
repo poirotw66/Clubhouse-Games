@@ -53,13 +53,24 @@ export interface TrickEntry {
 
 export type Phase = 'playing' | 'over';
 
-export interface Rules {
+/**
+ * Selectable house rules. Taiwanese club play almost always keeps both penalty
+ * toggles on; turning them off is for teaching or soft tables.
+ */
+export interface HouseRules {
   straights: StraightRule;
+  /** Remaining-card ladder: 8+ ×2, 10+ ×3, 13 ×4. */
+  sizeLadder: boolean;
+  /** Each unplayed deuce doubles that seat's penalty. */
+  deuceDouble: boolean;
 }
+
+/** @deprecated Prefer HouseRules; kept as an alias so older call sites still type-check. */
+export type Rules = HouseRules;
 
 export interface GameState {
   seedCode: string;
-  rules: Rules;
+  rules: HouseRules;
   difficulty: DifficultyId;
   phase: Phase;
   turn: Seat;
@@ -78,13 +89,50 @@ export interface GameState {
 
 export type DifficultyId = 'easy' | 'normal' | 'hard';
 
+/** Fixed-hand series or race-to-target — the mid-session hook the audit asked for. */
+export type MatchMode = 'hands' | 'target';
+export type MatchLength = 4 | 8 | 12;
+export type TargetScore = 50 | 100 | 200;
+
+export interface MatchConfig {
+  mode: MatchMode;
+  hands: MatchLength;
+  target: TargetScore;
+  difficulty: DifficultyId;
+  rules: HouseRules;
+  seedCode: string;
+}
+
+export interface HandRecord {
+  handIndex: number;
+  seedCode: string;
+  winner: Seat;
+  scores: SeatScore[];
+  pot: number;
+  /** Per-seat chip change this hand. Winner gets +pot; losers pay −penalty. */
+  deltas: number[];
+}
+
+export type MatchPhase = 'playing' | 'handOver' | 'matchOver';
+
+export interface MatchState {
+  config: MatchConfig;
+  /** Zero-based index of the hand currently being played (or just finished). */
+  handIndex: number;
+  balances: number[];
+  history: HandRecord[];
+  phase: MatchPhase;
+  /** Set when the series ends. */
+  winner: Seat | null;
+}
+
 export interface SeatScore {
   seat: Seat;
   remaining: number;
   /** Remaining cards after the size multiplier, before the deuce doubling. */
   base: number;
   deuces: number;
-  /** Final penalty: base × 2^deuces. The winner's is 0. */
+  /** Final penalty: base × 2^deuces (or flat remaining when house rules mute them). The winner's is 0. */
   penalty: number;
 }
 
@@ -93,4 +141,19 @@ export interface Outcome {
   scores: SeatScore[];
   /** Winner's take: the sum of everyone else's penalties. */
   pot: number;
+}
+
+/** Named CPU style — same difficulty tier, different decision weights. */
+export type PersonalityId = 'rusher' | 'controller' | 'counter';
+
+export interface Personality {
+  id: PersonalityId;
+  name: string;
+  blurb: string;
+}
+
+export interface HintAdvice {
+  /** null means the teachable line is to pass. */
+  play: Play | null;
+  reason: string;
 }

@@ -22,17 +22,43 @@ import {
   scoreSeat,
   sizeMultiplier,
 } from '../src/game/engine.js';
-import { DIFFICULTIES, EASY_PASS_RATE, chooseMove, turnsToEmpty } from '../src/game/cpu.js';
-import { EMPTY_STATS, recordResult } from '../src/game/storage.js';
+import {
+  DIFFICULTIES,
+  EASY_PASS_RATE,
+  PERSONALITIES,
+  SEAT_PERSONALITIES,
+  chooseMove,
+  personalityForSeat,
+  turnsToEmpty,
+} from '../src/game/cpu.js';
+import { advise } from '../src/game/hints.js';
+import {
+  applyHandResult,
+  createMatch,
+  dealHand,
+  decideMatchWinner,
+  handDeltas,
+  handSeed,
+} from '../src/game/match.js';
+import { remainingCards } from '../src/game/memory.js';
+import { buildHandReview } from '../src/game/review.js';
+import { EMPTY_STATS, recordHandResult, recordMatchResult } from '../src/game/storage.js';
 import { createRng } from '../src/game/rng.js';
-import { HAND_SIZE, SEATS } from '../src/game/types.js';
-import type { Card, DifficultyId, GameState, Play, Rules, StraightRule } from '../src/game/types.js';
+import { HAND_SIZE, HUMAN, SEATS } from '../src/game/types.js';
+import type {
+  Card,
+  DifficultyId,
+  GameState,
+  HouseRules,
+  Play,
+  StraightRule,
+} from '../src/game/types.js';
 
 const TIERS: DifficultyId[] = ['easy', 'normal', 'hard'];
 const RULE_SETS: StraightRule[] = ['topCard', 'sequence'];
 
-function rules(straights: StraightRule = 'topCard'): Rules {
-  return { straights };
+function rules(straights: StraightRule = 'topCard'): HouseRules {
+  return { straights, sizeLadder: true, deuceDouble: true };
 }
 
 function seeds(count: number): string[] {
@@ -305,6 +331,19 @@ function expectScoring(): void {
 
   const oneDeuce = scoreSeat([card('♠2'), card('♣5'), card('♦7')], 3);
   assert.equal(oneDeuce.penalty, 6, 'one deuce should double a three-card hand');
+
+  const flat = scoreSeat(
+    [...DECK.filter((c) => c.rank === 2), ...DECK.filter((c) => c.rank !== 2).slice(0, 9)],
+    1,
+    { sizeLadder: false, deuceDouble: false },
+  );
+  assert.equal(flat.penalty, HAND_SIZE, 'house rules off should score raw remaining cards');
+
+  const noDeuceDouble = scoreSeat([card('♠2'), card('♣5'), card('♦7')], 3, {
+    sizeLadder: true,
+    deuceDouble: false,
+  });
+  assert.equal(noDeuceDouble.penalty, 3, 'deuce doubling off should not multiply');
 }
 
 /** Play whole games and check nothing illegal or non-terminating happens. */
@@ -515,19 +554,166 @@ function expectDifficultiesAreOrdered(): void {
 /** Streaks reset on a loss; chips accumulate both ways. */
 function expectStatsTracking(): void {
   let stats = EMPTY_STATS;
-  stats = recordResult(stats, true, 40);
-  stats = recordResult(stats, true, 22);
+  stats = recordHandResult(stats, true, 40);
+  stats = recordHandResult(stats, true, 22);
   assert.equal(stats.streak, 2);
   assert.equal(stats.bestStreak, 2);
   assert.equal(stats.chips, 62);
   assert.equal(stats.bestPot, 40, 'the best pot did not keep the larger win');
 
-  stats = recordResult(stats, false, -18);
+  stats = recordHandResult(stats, false, -18);
   assert.equal(stats.streak, 0, 'a loss did not reset the streak');
   assert.equal(stats.bestStreak, 2, 'the best streak was lost');
   assert.equal(stats.chips, 44);
   assert.equal(stats.games, 3);
   assert.equal(stats.wins, 2);
+
+  stats = recordMatchResult(stats, true, 55);
+  stats = recordMatchResult(stats, false, -10);
+  assert.equal(stats.matches, 2);
+  assert.equal(stats.matchWins, 1);
+  assert.equal(stats.matchStreak, 0);
+  assert.equal(stats.bestMatchStreak, 1);
+  assert.equal(stats.bestMatchChips, 55);
+}
+
+/** Series: fixed hands and race-to-target both end with a winner. */
+function expectMatchSeries(): void {
+  const handsMatch = createMatch({
+    mode: 'hands',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(),
+    seedCode: 'series-a',
+  });
+  assert.equal(handsMatch.phase, 'playing');
+  assert.equal(handSeed('series-a', 0) !== handSeed('series-a', 1), true, 'hands must diverge');
+
+  let state = dealHand(handsMatch);
+  let guard = 0;
+  while (state.phase === 'playing' && guard++ < 400) {
+    const move = chooseMove(state);
+    state = move === null ? pass(state) : play(state, move.cards);
+  }
+  const end1 = outcome(state);
+  assert.ok(end1, 'first hand did not finish');
+  const deltas = handDeltas(end1!);
+  assert.equal(
+    deltas.reduce((a, b) => a + b, 0),
+    0,
+    'hand chip deltas must sum to zero',
+  );
+  const after1 = applyHandResult(handsMatch, end1!, state.seedCode);
+  assert.equal(after1.phase, 'handOver', 'four-hand match should not end after hand 1');
+  assert.equal(after1.handIndex, 1);
+
+  // Force the series boundary: after N hands the highest balance wins.
+  const forced = decideMatchWinner(handsMatch.config, [12, 4, -8, -8], 4);
+  assert.equal(forced, HUMAN);
+
+  let short = createMatch({
+    ...handsMatch.config,
+    seedCode: 'series-short',
+  });
+  // Simulate completing exactly `hands` results via applyHandResult in a loop.
+  for (let i = 0; i < 4; i++) {
+    let dealState = dealHand({ ...short, phase: 'playing', handIndex: i });
+    guard = 0;
+    while (dealState.phase === 'playing' && guard++ < 400) {
+      const move = chooseMove(dealState);
+      dealState = move === null ? pass(dealState) : play(dealState, move.cards);
+    }
+    const end = outcome(dealState);
+    assert.ok(end, `hand ${i} did not finish`);
+    short = applyHandResult(
+      { ...short, phase: 'playing', handIndex: i },
+      end!,
+      dealState.seedCode,
+    );
+  }
+  assert.equal(short.phase, 'matchOver');
+  assert.ok(short.winner !== null);
+
+  // Target mode: artificially push seat 0 over the line.
+  const targetWinner = decideMatchWinner(
+    { ...handsMatch.config, mode: 'target', target: 50 },
+    [50, 10, -20, -40],
+    1,
+  );
+  assert.equal(targetWinner, HUMAN, 'first to target should win');
+  assert.equal(
+    decideMatchWinner(
+      { ...handsMatch.config, mode: 'target', target: 50 },
+      [40, 10, -20, -30],
+      1,
+    ),
+    null,
+    'below target must continue',
+  );
+}
+
+/** Three named personalities, one per CPU seat. */
+function expectPersonalities(): void {
+  assert.equal(PERSONALITIES.length, 3);
+  assert.equal(new Set(PERSONALITIES.map((p) => p.id)).size, 3);
+  assert.equal(personalityForSeat(0), null);
+  assert.equal(personalityForSeat(1)?.id, SEAT_PERSONALITIES[1]);
+  assert.equal(personalityForSeat(2)?.id, SEAT_PERSONALITIES[2]);
+  assert.equal(personalityForSeat(3)?.id, SEAT_PERSONALITIES[3]);
+  assert.equal(
+    new Set([SEAT_PERSONALITIES[1], SEAT_PERSONALITIES[2], SEAT_PERSONALITIES[3]]).size,
+    3,
+    'the three CPU seats must not share a personality',
+  );
+}
+
+/** Hints always return a reason, and match a legal hard-policy move. */
+function expectTeachingHints(): void {
+  for (const seed of seeds(20)) {
+    let state = deal(seed, 'normal', rules());
+    // Advance until the human can act with a table to answer, or just advise openers.
+    let guard = 0;
+    while (state.phase === 'playing' && state.turn !== HUMAN && guard++ < 40) {
+      const move = chooseMove(state);
+      state = move === null ? pass(state) : play(state, move.cards);
+    }
+    if (state.phase !== 'playing' || state.turn !== HUMAN) continue;
+    const advice = advise(state);
+    assert.ok(advice.reason.trim().length > 0, 'hint reason must not be empty');
+    if (advice.play === null) {
+      assert.ok(canPass(state) || playsFor(state).length === 0);
+    } else {
+      const legal = playsFor(state);
+      assert.ok(
+        legal.some(
+          (option) =>
+            option.cards.length === advice.play!.cards.length &&
+            option.cards.every((c) => advice.play!.cards.some((x) => x.id === c.id)),
+        ),
+        'hint suggested an illegal play',
+      );
+    }
+  }
+}
+
+/** Card memory shrinks exactly with the log. */
+function expectCardMemory(): void {
+  let state = deal('memory-seed', 'hard', rules());
+  assert.equal(remainingCards(state).length, 52);
+  const open = playsFor(state)[0];
+  state = play(state, open.cards);
+  assert.equal(remainingCards(state).length, 52 - open.cards.length);
+}
+
+/** Hand review always yields at least one lesson. */
+function expectHandReview(): void {
+  const state = playOut('review-seed', 'normal', 'topCard');
+  const end = outcome(state);
+  assert.ok(end);
+  const review = buildHandReview(state, end!);
+  assert.ok(review.lessons.length >= 1);
+  assert.ok(review.highlight.length > 0);
 }
 
 const CHECKS: [string, () => void][] = [
@@ -547,6 +733,11 @@ const CHECKS: [string, () => void][] = [
   ['difficulties differ', expectDifficultiesDiffer],
   ['difficulties are ordered, not just different', expectDifficultiesAreOrdered],
   ['stats tracking', expectStatsTracking],
+  ['match series structure', expectMatchSeries],
+  ['cpu personalities', expectPersonalities],
+  ['teaching hints', expectTeachingHints],
+  ['card memory', expectCardMemory],
+  ['hand review', expectHandReview],
 ];
 
 let failed = 0;
