@@ -105,14 +105,15 @@ test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
 test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Memory-Match/');
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
-  await activate(page.getByRole('button', { name: '簡單 · 4 對' }));
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(8);
+  // PAIR_OPTIONS start at 6 pairs (depth update); default board is 12.
+  await activate(page.getByRole('button', { name: '簡單 · 6 對' }));
+  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(7);
+  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(11);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
   await expect(page.getByText('翻牌次數：1', { exact: false })).toBeVisible();
   await activate(page.getByRole('button', { name: '重開一局', exact: true }));
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(8);
+  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
   await expect(page.getByText('翻牌次數：0', { exact: false })).toBeVisible();
 });
 
