@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playCapture, playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
+import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Timer, Heart, Shield, Zap, Play } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Heart, Play, Shield, Trophy, Timer, Zap } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import {
   CHARACTERS,
   characterPortraitUrl,
   getCharacter,
-  pickCpuOpponent,
   preloadFighterBodies,
   ringFloorImage,
   ringSkyImage,
@@ -19,11 +18,27 @@ import {
   type CharacterId,
 } from './characters';
 import {
+  applyStun,
+  effectiveStaminaRegen,
+  emptyHabit,
+  isStunKo,
+  recordPlayerHeight,
+  resolveHit,
+  startAttack,
+  tickAttack,
+  tickBodyFatigue,
+  tickStun,
+  type ActiveAttack,
+  type HabitMemory,
+  type Height,
+} from './combat';
+import {
   DIFFICULTY,
   DIFFICULTY_BLURBS,
   DIFFICULTY_LABELS,
   decideCpuIntent,
   nextThinkDelay,
+  resolveStyle,
   type Difficulty,
 } from './cpuAi';
 import { BOXER_HEIGHT, BOXER_WIDTH, drawToyBoxer } from './drawBoxer';
@@ -31,8 +46,26 @@ import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
 } from './components/FirstRunGuide';
-
-preloadFighterBodies();
+import {
+  applyLeagueLoss,
+  applyLeagueWin,
+  continueLeagueIndex,
+  isLeagueComplete,
+  isOpponentUnlocked,
+  leagueTitle,
+  loadLeague,
+  saveLeague,
+  type LeagueProgress,
+} from './league';
+import { OPPONENTS, getOpponent, type OpponentId } from './opponents';
+import {
+  playBlock,
+  playDodge,
+  playImpact,
+  playStunWarn,
+  playWhoosh,
+  playWrongBlock,
+} from './boxingAudio';
 import {
   loadStats,
   modeStats,
@@ -43,6 +76,8 @@ import {
   type FightOutcome,
 } from './stats';
 
+preloadFighterBodies();
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -52,11 +87,15 @@ const CANVAS_HEIGHT = 400;
 const GROUND_Y = 350;
 const MOVE_SPEED = 4;
 const ROUND_TIME = 60;
+const HIT_STOP_LIGHT = 0.045;
+const HIT_STOP_HEAVY = 0.09;
+const HIT_STOP_KO = 0.18;
 
 enum Action {
   IDLE = 'IDLE',
   JAB = 'JAB',
   HOOK = 'HOOK',
+  SIGNATURE = 'SIGNATURE',
   BLOCK = 'BLOCK',
   DODGE = 'DODGE',
   HIT = 'HIT',
@@ -64,6 +103,8 @@ enum Action {
   PARRY = 'PARRY',
   STAGGER = 'STAGGER',
 }
+
+type PlayMode = 'free' | 'league';
 
 interface Boxer {
   id: 'player' | 'cpu';
@@ -75,6 +116,8 @@ interface Boxer {
   maxStamina: number;
   superMeter: number;
   maxSuperMeter: number;
+  stunMeter: number;
+  bodyFatigue: number;
   score: number;
   action: Action;
   actionTimer: number;
@@ -85,6 +128,12 @@ interface Boxer {
   staminaRegen: number;
   name: string;
   thinkTimer: number;
+  height: Height;
+  attack: ActiveAttack | null;
+  guardHeight: Height | null;
+  lastHitTaken: Height | null;
+  feintLeft: number;
+  whooshPlayed: boolean;
 }
 
 interface Particle {
@@ -96,48 +145,87 @@ interface Particle {
   color: string;
 }
 
-const createBoxer = (id: 'player' | 'cpu', characterId: CharacterId): Boxer => {
+function createBoxer(
+  id: 'player' | 'cpu',
+  characterId: CharacterId,
+  overrides?: Partial<Pick<Boxer, 'name' | 'power' | 'speed' | 'health' | 'maxHealth' | 'staminaRegen'>>,
+): Boxer {
   const c = getCharacter(characterId);
+  const health = overrides?.health ?? c.health;
   return {
     id,
     x: id === 'player' ? 200 : 600,
     y: GROUND_Y - BOXER_HEIGHT,
-    health: c.health,
-    maxHealth: c.health,
+    health,
+    maxHealth: overrides?.maxHealth ?? health,
     stamina: 100,
     maxStamina: 100,
     superMeter: 0,
     maxSuperMeter: 100,
+    stunMeter: 0,
+    bodyFatigue: 0,
     score: 0,
     action: Action.IDLE,
     actionTimer: 0,
     facing: id === 'player' ? 1 : -1,
     characterId,
-    power: c.power,
-    speed: c.speed,
-    staminaRegen: c.staminaRegen,
-    name: c.name,
+    power: overrides?.power ?? c.power,
+    speed: overrides?.speed ?? c.speed,
+    staminaRegen: overrides?.staminaRegen ?? c.staminaRegen,
+    name: overrides?.name ?? c.name,
     thinkTimer: 0.15,
+    height: 'high',
+    attack: null,
+    guardHeight: null,
+    lastHitTaken: null,
+    feintLeft: 0,
+    whooshPlayed: false,
   };
-};
+}
+
+function createCpuFromOpponent(opponentId: OpponentId): Boxer {
+  const opp = getOpponent(opponentId);
+  return createBoxer('cpu', opp.visual, {
+    name: opp.name,
+    power: opp.power,
+    speed: opp.speed,
+    health: opp.health,
+    maxHealth: opp.health,
+    staminaRegen: opp.staminaRegen,
+  });
+}
+
+function lowHeld(keys: Set<string>): boolean {
+  return keys.has('ArrowDown') || keys.has('KeyC') || keys.has('ShiftLeft') || keys.has('ShiftRight');
+}
 
 export default function ToyBoxing() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'round_end' | 'game_over'>('menu');
   const [winner, setWinner] = useState<string | null>(null);
+  const [winRoute, setWinRoute] = useState<'health' | 'stun' | 'decision' | null>(null);
   const prevGameStateRef = useRef(gameState);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [playerCharId, setPlayerCharId] = useState<CharacterId>('bot');
   const [cpuCharId, setCpuCharId] = useState<CharacterId>('bear');
   const [careerStats, setCareerStats] = useState<CareerStats>(() => loadStats());
-  const [difficulty, setDifficulty] = useState<Difficulty>(
-    () => loadStats().lastDifficulty,
-  );
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [playMode, setPlayMode] = useState<PlayMode>('league');
+  const [league, setLeague] = useState<LeagueProgress>(() => loadLeague());
+  const [leagueIndex, setLeagueIndex] = useState(() => continueLeagueIndex(loadLeague().clearedCount));
+  const [menuTab, setMenuTab] = useState<'league' | 'free'>('league');
 
-  const settingsRef = useRef({ difficulty, playerCharId, cpuCharId });
-  settingsRef.current = { difficulty, playerCharId, cpuCharId };
+  const settingsRef = useRef({
+    difficulty,
+    playerCharId,
+    cpuCharId,
+    playMode,
+    leagueIndex,
+  });
+  settingsRef.current = { difficulty, playerCharId, cpuCharId, playMode, leagueIndex };
   const careerMode = modeStats(careerStats, difficulty);
+  const activeOpponent = OPPONENTS[leagueIndex] ?? OPPONENTS[0];
 
   const chooseDifficulty = (d: Difficulty) => {
     setDifficulty(d);
@@ -156,8 +244,12 @@ export default function ToyBoxing() {
     particles: [] as Particle[],
     screenShake: 0,
     timeScale: 1.0,
+    hitStop: 0,
     isKO: false,
-    parryEffect: null as { x: number; y: number; life: number } | null,
+    parryEffect: null as { x: number; y: number; life: number; text: string } | null,
+    habit: emptyHabit() as HabitMemory,
+    floatTexts: [] as { x: number; y: number; text: string; life: number; color: string }[],
+    koReason: null as 'health' | 'stun' | null,
   });
 
   const [uiState, setUiState] = useState({
@@ -165,14 +257,18 @@ export default function ToyBoxing() {
     playerMaxHealth: 100,
     playerStamina: 100,
     playerSuper: 0,
+    playerStun: 0,
     playerScore: 0,
     playerName: '藍拳機器人',
+    playerHeight: 'high' as Height,
     cpuHealth: 100,
     cpuMaxHealth: 100,
     cpuStamina: 100,
     cpuSuper: 0,
+    cpuStun: 0,
     cpuScore: 0,
     cpuName: '紅絨熊仔',
+    cpuHeight: 'high' as Height,
     timeLeft: ROUND_TIME,
     round: 1,
   });
@@ -190,7 +286,12 @@ export default function ToyBoxing() {
   }, [countdown]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => keysPressed.current.add(e.code);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+        e.preventDefault();
+      }
+      keysPressed.current.add(e.code);
+    };
     const handleKeyUp = (e: KeyboardEvent) => keysPressed.current.delete(e.code);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -207,7 +308,7 @@ export default function ToyBoxing() {
 
     const syncUi = (force = false) => {
       const now = performance.now();
-      if (!force && now - lastUiSync < 100) return;
+      if (!force && now - lastUiSync < 80) return;
       lastUiSync = now;
       const eng = engineRef.current;
       setUiState({
@@ -215,46 +316,62 @@ export default function ToyBoxing() {
         playerMaxHealth: eng.player.maxHealth,
         playerStamina: eng.player.stamina,
         playerSuper: eng.player.superMeter,
+        playerStun: eng.player.stunMeter,
         playerScore: eng.player.score,
         playerName: eng.player.name,
+        playerHeight: eng.player.height,
         cpuHealth: eng.cpu.health,
         cpuMaxHealth: eng.cpu.maxHealth,
         cpuStamina: eng.cpu.stamina,
         cpuSuper: eng.cpu.superMeter,
+        cpuStun: eng.cpu.stunMeter,
         cpuScore: eng.cpu.score,
         cpuName: eng.cpu.name,
+        cpuHeight: eng.cpu.height,
         timeLeft: eng.timeLeft,
         round: eng.round,
       });
     };
 
     const update = (time: number) => {
-      const deltaTime = Math.min((time - lastTime) / 1000, 0.1) * engineRef.current.timeScale;
+      const rawDt = Math.min((time - lastTime) / 1000, 0.1);
       lastTime = time;
 
       if (gameStateRef.current === 'playing' && countdownRef.current === null) {
-        engineRef.current.timeLeft -= deltaTime;
-        if (engineRef.current.timeLeft <= 0) {
-          engineRef.current.timeLeft = 0;
+        const eng = engineRef.current;
+
+        if (eng.hitStop > 0) {
+          eng.hitStop -= rawDt;
+          // Freeze sim during hit-stop; still allow shake decay visually.
+          if (eng.screenShake > 0) eng.screenShake -= rawDt * 8;
+          render();
+          animationFrameId = requestAnimationFrame(update);
+          return;
+        }
+
+        const deltaTime = rawDt * eng.timeScale;
+        eng.timeLeft -= deltaTime;
+        if (eng.timeLeft <= 0) {
+          eng.timeLeft = 0;
           handleRoundEnd();
         }
 
-        if (engineRef.current.screenShake > 0) {
-          engineRef.current.screenShake -= deltaTime * 5;
-        }
+        if (eng.screenShake > 0) eng.screenShake -= deltaTime * 5;
 
-        const { player, cpu } = engineRef.current;
-        engineRef.current.player = updateBoxerLogic(player, cpu, keysPressed.current, deltaTime);
-        engineRef.current.cpu = updateCpuLogic(
-          engineRef.current.cpu,
-          engineRef.current.player,
+        eng.player = updateBoxerLogic(eng.player, eng.cpu, keysPressed.current, deltaTime);
+        eng.cpu = updateCpuLogic(
+          eng.cpu,
+          eng.player,
           deltaTime,
           settingsRef.current.difficulty,
+          settingsRef.current.playMode === 'league'
+            ? (OPPONENTS[settingsRef.current.leagueIndex]?.id ?? null)
+            : null,
         );
 
         checkCollisions();
 
-        engineRef.current.particles = engineRef.current.particles
+        eng.particles = eng.particles
           .map((p) => ({
             ...p,
             x: p.x + p.vx,
@@ -263,6 +380,10 @@ export default function ToyBoxing() {
             life: p.life - 0.02,
           }))
           .filter((p) => p.life > 0);
+
+        eng.floatTexts = eng.floatTexts
+          .map((t) => ({ ...t, y: t.y - 0.6, life: t.life - 0.02 }))
+          .filter((t) => t.life > 0);
 
         syncUi();
       }
@@ -279,10 +400,6 @@ export default function ToyBoxing() {
     render();
   }, []);
 
-  // The menu, the ring and the result overlay all live in the same document, so
-  // switching between them leaves the window wherever the previous one was
-  // scrolled to. The start button sits at the bottom of a tall menu, which meant
-  // the first round began with the top of the ring already above the viewport.
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [gameState]);
@@ -292,7 +409,6 @@ export default function ToyBoxing() {
       if (winner === 'player') playWin();
       else if (winner === 'cpu') playLose();
 
-      // Always vs CPU in this build — gate here if 2P is added later.
       if (winner === 'player' || winner === 'cpu' || winner === 'draw') {
         const outcome: FightOutcome =
           winner === 'player' ? 'win' : winner === 'cpu' ? 'loss' : 'draw';
@@ -301,6 +417,20 @@ export default function ToyBoxing() {
           saveStats(next);
           return next;
         });
+
+        if (settingsRef.current.playMode === 'league') {
+          const idx = settingsRef.current.leagueIndex;
+          setLeague((prev) => {
+            if (winner === 'player') {
+              const { progress } = applyLeagueWin(prev, idx, engineRef.current.player.score);
+              saveLeague(progress);
+              return progress;
+            }
+            const progress = applyLeagueLoss(prev, idx);
+            saveLeague(progress);
+            return progress;
+          });
+        }
       }
     }
     prevGameStateRef.current = gameState;
@@ -311,6 +441,8 @@ export default function ToyBoxing() {
       engineRef.current.round >= 3
       || engineRef.current.player.health <= 0
       || engineRef.current.cpu.health <= 0
+      || isStunKo(engineRef.current.player.stunMeter)
+      || isStunKo(engineRef.current.cpu.stunMeter)
     ) {
       setGameState('game_over');
       determineWinner();
@@ -320,27 +452,62 @@ export default function ToyBoxing() {
   };
 
   const determineWinner = () => {
-    const { player, cpu } = engineRef.current;
-    if (player.health <= 0) setWinner('cpu');
-    else if (cpu.health <= 0) setWinner('player');
-    else if (player.score > cpu.score) setWinner('player');
-    else if (cpu.score > player.score) setWinner('cpu');
-    else setWinner('draw');
+    const { player, cpu, koReason } = engineRef.current;
+    if (player.health <= 0 || isStunKo(player.stunMeter)) {
+      setWinner('cpu');
+      setWinRoute(isStunKo(player.stunMeter) && player.health > 0 ? 'stun' : 'health');
+    } else if (cpu.health <= 0 || isStunKo(cpu.stunMeter)) {
+      setWinner('player');
+      setWinRoute(
+        koReason === 'stun' || (isStunKo(cpu.stunMeter) && cpu.health > 0) ? 'stun' : 'health',
+      );
+    } else if (player.score > cpu.score) {
+      setWinner('player');
+      setWinRoute('decision');
+    } else if (cpu.score > player.score) {
+      setWinner('cpu');
+      setWinRoute('decision');
+    } else {
+      setWinner('draw');
+      setWinRoute(null);
+    }
   };
 
-  const startNewGame = () => {
-    const cpuId = pickCpuOpponent(playerCharId, cpuCharId);
-    setCpuCharId(cpuId);
+  const startFight = (mode: PlayMode, oppIndex?: number) => {
+    setPlayMode(mode);
+    setWinRoute(null);
+    const idx = oppIndex ?? leagueIndex;
+    if (mode === 'league') setLeagueIndex(idx);
+
+    let cpu: Boxer;
+    let cpuVisual: CharacterId;
+    if (mode === 'league') {
+      const opp = OPPONENTS[idx] ?? OPPONENTS[0];
+      cpu = createCpuFromOpponent(opp.id);
+      cpuVisual = opp.visual;
+      setCpuCharId(cpuVisual);
+    } else {
+      const prefer = cpuCharId === playerCharId ? 'bear' : cpuCharId;
+      const id = prefer === playerCharId ? 'bear' : prefer;
+      cpu = createBoxer('cpu', id);
+      cpuVisual = id;
+      setCpuCharId(id);
+    }
+
     engineRef.current = {
       player: createBoxer('player', playerCharId),
-      cpu: createBoxer('cpu', cpuId),
+      cpu,
       timeLeft: ROUND_TIME,
       round: 1,
       particles: [],
       screenShake: 0,
       timeScale: 1.0,
+      hitStop: 0,
       isKO: false,
       parryEffect: null,
+      habit: emptyHabit(),
+      floatTexts: [],
+      koReason: null,
     };
     setWinner(null);
     startCountdown();
@@ -350,10 +517,16 @@ export default function ToyBoxing() {
     const heal = (b: Boxer): Boxer => ({
       ...b,
       health: Math.min(b.health + b.maxHealth * 0.3, b.maxHealth),
+      stunMeter: Math.max(0, b.stunMeter * 0.45),
+      bodyFatigue: Math.max(0, b.bodyFatigue * 0.5),
       x: b.id === 'player' ? 200 : 600,
       action: Action.IDLE,
       actionTimer: 0,
       thinkTimer: 0.2,
+      attack: null,
+      guardHeight: null,
+      feintLeft: 0,
+      whooshPlayed: false,
     });
     engineRef.current.player = heal(engineRef.current.player);
     engineRef.current.cpu = heal(engineRef.current.cpu);
@@ -362,7 +535,9 @@ export default function ToyBoxing() {
     engineRef.current.particles = [];
     engineRef.current.screenShake = 0;
     engineRef.current.timeScale = 1.0;
+    engineRef.current.hitStop = 0;
     engineRef.current.isKO = false;
+    engineRef.current.koReason = null;
     startCountdown();
   };
 
@@ -381,22 +556,71 @@ export default function ToyBoxing() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  const beginAttack = (
+    boxer: Boxer,
+    kind: 'jab' | 'hook' | 'signature',
+    height: Height,
+    isSuper = false,
+  ): Boxer => {
+    const attack = startAttack(kind, height, isSuper);
+    const action =
+      kind === 'jab' ? Action.JAB : kind === 'hook' ? Action.HOOK : Action.SIGNATURE;
+    if (boxer.id === 'player') {
+      engineRef.current.habit = recordPlayerHeight(engineRef.current.habit, height);
+    }
+    playWhoosh();
+    return {
+      ...boxer,
+      action,
+      actionTimer: attack.profile.windup + attack.profile.active + attack.profile.recovery,
+      attack,
+      height,
+      stamina: Math.max(0, boxer.stamina - attack.profile.staminaCost),
+      superMeter: isSuper || kind === 'signature' ? 0 : boxer.superMeter,
+      whooshPlayed: true,
+      guardHeight: null,
+    };
+  };
+
   const updateBoxerLogic = (
     boxer: Boxer,
     opponent: Boxer,
     keys: Set<string>,
     dt: number,
   ): Boxer => {
-    const next = { ...boxer };
+    let next = { ...boxer };
     const move = MOVE_SPEED * next.speed;
+    const stanceLow = lowHeld(keys);
+    if (next.action === Action.IDLE || next.action === Action.BLOCK) {
+      next.height = stanceLow ? 'low' : 'high';
+    }
 
     if (next.action === Action.IDLE || next.action === Action.BLOCK) {
-      next.stamina = Math.min(next.maxStamina, next.stamina + dt * 35 * next.staminaRegen);
+      const regen = effectiveStaminaRegen(next.staminaRegen, next.bodyFatigue);
+      next.stamina = Math.min(next.maxStamina, next.stamina + dt * 35 * regen);
+    }
+    next.bodyFatigue = tickBodyFatigue(next.bodyFatigue, dt);
+    next.stunMeter = tickStun(next.stunMeter, dt, false);
+
+    if (next.attack) {
+      const stepped = tickAttack(next.attack, dt);
+      next.attack = stepped;
+      if (!stepped) {
+        next.action = Action.IDLE;
+        next.actionTimer = 0;
+        next.whooshPlayed = false;
+      } else {
+        next.actionTimer = Math.max(0.01, next.actionTimer - dt);
+      }
+      return next;
     }
 
     if (next.actionTimer > 0) {
       next.actionTimer -= dt;
-      if (next.actionTimer <= 0) next.action = Action.IDLE;
+      if (next.actionTimer <= 0) {
+        next.action = Action.IDLE;
+        next.guardHeight = null;
+      }
     }
 
     if (next.action === Action.KO || next.action === Action.HIT || next.action === Action.STAGGER) {
@@ -411,32 +635,38 @@ export default function ToyBoxing() {
     }
 
     if (next.action === Action.IDLE) {
+      const height: Height = stanceLow ? 'low' : 'high';
       if (keys.has('KeyJ') && next.stamina >= 10) {
-        next.action = Action.JAB;
-        next.actionTimer = 0.2;
-        next.stamina -= 10;
+        next = beginAttack(next, 'jab', height);
       } else if (keys.has('KeyK') && next.stamina >= 25) {
-        next.action = Action.HOOK;
-        next.actionTimer = 0.4;
-        next.stamina -= 25;
+        next = beginAttack(next, 'hook', height);
       } else if (keys.has('KeyL') && next.superMeter >= 100) {
         playGoal();
-        next.action = Action.HOOK;
-        next.actionTimer = 0.6;
-        next.superMeter = 0;
+        next = beginAttack(next, 'signature', height, true);
       } else if (keys.has('KeyS')) {
         next.action = Action.BLOCK;
+        next.guardHeight = height;
+        next.height = height;
       } else if (keys.has('KeyW') && next.stamina >= 15) {
         next.action = Action.DODGE;
         next.actionTimer = 0.3;
         next.stamina -= 15;
+        playDodge();
       } else if (keys.has('KeyI') && next.stamina >= 10) {
         next.action = Action.PARRY;
         next.actionTimer = 0.2;
         next.stamina -= 10;
+        next.guardHeight = height;
+        next.height = height;
       }
-    } else if (next.action === Action.BLOCK && !keys.has('KeyS')) {
-      next.action = Action.IDLE;
+    } else if (next.action === Action.BLOCK) {
+      if (!keys.has('KeyS')) {
+        next.action = Action.IDLE;
+        next.guardHeight = null;
+      } else {
+        next.guardHeight = stanceLow ? 'low' : 'high';
+        next.height = next.guardHeight;
+      }
     }
 
     return next;
@@ -447,17 +677,52 @@ export default function ToyBoxing() {
     opponent: Boxer,
     dt: number,
     diff: Difficulty,
+    opponentId: OpponentId | null,
   ): Boxer => {
-    const next = { ...boxer };
-    const cfg = DIFFICULTY[diff];
+    let next = { ...boxer };
+    const style = resolveStyle(diff, opponentId);
 
     if (next.action === Action.IDLE || next.action === Action.BLOCK) {
-      next.stamina = Math.min(next.maxStamina, next.stamina + dt * 30 * next.staminaRegen);
+      const regen = effectiveStaminaRegen(next.staminaRegen, next.bodyFatigue);
+      next.stamina = Math.min(next.maxStamina, next.stamina + dt * 30 * regen);
+    }
+    next.bodyFatigue = tickBodyFatigue(next.bodyFatigue, dt);
+    next.stunMeter = tickStun(next.stunMeter, dt, false);
+
+    // Feint: cancel jab wind-up into block mid-tell.
+    if (next.feintLeft > 0 && next.attack && next.attack.phase === 'windup') {
+      next.feintLeft -= dt;
+      if (next.feintLeft <= 0) {
+        next.attack = null;
+        next.action = Action.BLOCK;
+        next.actionTimer = 0.4;
+        next.guardHeight = preferredCpuGuard(next, opponent);
+        next.height = next.guardHeight;
+        next.whooshPlayed = false;
+        return next;
+      }
+    }
+
+    if (next.attack) {
+      const stepped = tickAttack(next.attack, dt);
+      next.attack = stepped;
+      if (!stepped) {
+        next.action = Action.IDLE;
+        next.actionTimer = 0;
+        next.whooshPlayed = false;
+      } else {
+        next.actionTimer = Math.max(0.01, next.actionTimer - dt);
+      }
+      next.x = Math.max(0, Math.min(CANVAS_WIDTH - BOXER_WIDTH, next.x));
+      return next;
     }
 
     if (next.actionTimer > 0) {
       next.actionTimer -= dt;
-      if (next.actionTimer <= 0) next.action = Action.IDLE;
+      if (next.actionTimer <= 0) {
+        next.action = Action.IDLE;
+        next.guardHeight = null;
+      }
     }
     if (next.action === Action.KO || next.action === Action.HIT || next.action === Action.STAGGER) {
       return next;
@@ -466,8 +731,13 @@ export default function ToyBoxing() {
     const dist = Math.abs(next.x - opponent.x);
     next.facing = next.x < opponent.x ? 1 : -1;
 
-    const playerAttacking = opponent.action === Action.JAB || opponent.action === Action.HOOK;
-    const urgent = playerAttacking && dist < 130 && next.action === Action.IDLE;
+    const oppInWindup = Boolean(opponent.attack && opponent.attack.phase === 'windup');
+    const oppAttacking =
+      opponent.action === Action.JAB
+      || opponent.action === Action.HOOK
+      || opponent.action === Action.SIGNATURE
+      || oppInWindup;
+    const urgent = oppAttacking && dist < 130 && next.action === Action.IDLE;
 
     next.thinkTimer -= dt;
     if (!urgent && next.thinkTimer > 0 && next.action !== Action.IDLE) {
@@ -475,9 +745,8 @@ export default function ToyBoxing() {
       return next;
     }
     if (!urgent && next.thinkTimer > 0 && next.action === Action.IDLE) {
-      // Keep drifting toward preferred range between thinks.
-      if (dist > cfg.preferredDist + 40) {
-        next.x += (opponent.x > next.x ? 1 : -1) * MOVE_SPEED * next.speed * cfg.moveSpeed * 0.6;
+      if (dist > style.preferredDist + 40) {
+        next.x += (opponent.x > next.x ? 1 : -1) * MOVE_SPEED * next.speed * style.moveSpeed * 0.6;
       }
       next.x = Math.max(0, Math.min(CANVAS_WIDTH - BOXER_WIDTH, next.x));
       return next;
@@ -488,28 +757,60 @@ export default function ToyBoxing() {
         dist,
         stamina: next.stamina,
         superMeter: next.superMeter,
-        opponentAction: opponent.action,
+        opponentAction: oppInWindup ? 'WINDUP' : opponent.action,
+        opponentHeight: opponent.attack?.height ?? opponent.height,
+        opponentInWindup: oppInWindup,
+        lastHitHeight: next.lastHitTaken,
+        habit: engineRef.current.habit,
         difficulty: diff,
+        opponentId,
       });
 
       if (intent.type === 'move') {
         const toward = opponent.x > next.x ? 1 : -1;
         next.x += toward * intent.dir * MOVE_SPEED * next.speed * intent.speed;
-        next.thinkTimer = nextThinkDelay(cfg, Math.random) * 0.45;
+        next.thinkTimer = nextThinkDelay(style, Math.random) * 0.45;
       } else if (intent.type === 'act') {
         if (intent.clearSuper) playGoal();
-        next.action = Action[intent.action];
-        next.actionTimer = intent.timer;
-        next.stamina = Math.max(0, next.stamina - intent.staminaCost);
-        if (intent.clearSuper) next.superMeter = 0;
-        next.thinkTimer = nextThinkDelay(cfg, Math.random);
+        if (intent.action === 'JAB' || intent.action === 'HOOK' || intent.action === 'SIGNATURE') {
+          const kind =
+            intent.action === 'JAB' ? 'jab' : intent.action === 'HOOK' ? 'hook' : 'signature';
+          next = beginAttack(next, kind, intent.height, Boolean(intent.clearSuper));
+          if (intent.feint) next.feintLeft = 0.08 + Math.random() * 0.1;
+        } else if (intent.action === 'BLOCK') {
+          next.action = Action.BLOCK;
+          next.actionTimer = 0.4 + Math.random() * 0.25;
+          next.guardHeight = intent.height;
+          next.height = intent.height;
+        } else if (intent.action === 'DODGE') {
+          next.action = Action.DODGE;
+          next.actionTimer = 0.3;
+          next.stamina = Math.max(0, next.stamina - intent.staminaCost);
+          playDodge();
+        } else if (intent.action === 'PARRY') {
+          next.action = Action.PARRY;
+          next.actionTimer = 0.2;
+          next.stamina = Math.max(0, next.stamina - intent.staminaCost);
+          next.guardHeight = intent.height;
+          next.height = intent.height;
+        }
+        next.thinkTimer = nextThinkDelay(style, Math.random);
       } else {
-        next.thinkTimer = nextThinkDelay(cfg, Math.random);
+        next.thinkTimer = nextThinkDelay(style, Math.random);
       }
     }
 
     next.x = Math.max(0, Math.min(CANVAS_WIDTH - BOXER_WIDTH, next.x));
     return next;
+  };
+
+  const preferredCpuGuard = (cpu: Boxer, player: Boxer): Height => {
+    if (player.attack) return player.attack.height;
+    return cpu.lastHitTaken ?? 'high';
+  };
+
+  const pushFloat = (x: number, y: number, text: string, color: string) => {
+    engineRef.current.floatTexts.push({ x, y, text, life: 1, color });
   };
 
   const checkCollisions = () => {
@@ -533,109 +834,171 @@ export default function ToyBoxing() {
     };
 
     const processHit = (attacker: Boxer, defender: Boxer) => {
-      if (attacker.action !== Action.JAB && attacker.action !== Action.HOOK) return null;
-      if (attacker.actionTimer < 0.1) return null;
-
-      const reach = attacker.action === Action.JAB ? 80 : 60;
-      let damage = (attacker.action === Action.JAB ? 5 : 12) * attacker.power;
-      let score = attacker.action === Action.JAB ? 10 : 25;
-      const isSuper = attacker.actionTimer > 0.4;
-      if (isSuper) {
-        damage *= 2.5;
-        score *= 3;
+      if (!attacker.attack || attacker.attack.phase !== 'active' || attacker.attack.resolved) {
+        return null;
       }
 
+      const reach = attacker.attack.kind === 'jab' ? 80 : 70;
       const attackerHandX = attacker.facing === 1 ? attacker.x + BOXER_WIDTH : attacker.x;
       const inRange =
         attacker.facing === 1
           ? attackerHandX + reach >= defender.x && attackerHandX <= defender.x + BOXER_WIDTH
           : attackerHandX - reach <= defender.x + BOXER_WIDTH && attackerHandX >= defender.x;
 
-      if (inRange && defender.action !== Action.DODGE) {
-        if (defender.action === Action.PARRY) {
-          playCapture();
-          spawnParticles(attackerHandX, defender.y + 30, '#60a5fa', true);
-          engineRef.current.screenShake = 0.8;
-          engineRef.current.parryEffect = {
-            x: defender.x + BOXER_WIDTH / 2,
-            y: defender.y - 20,
-            life: 1.0,
-          };
-          return {
-            defenderUpdate: {
-              stamina: Math.min(defender.maxStamina, defender.stamina + 20),
-              superMeter: Math.min(100, defender.superMeter + 15),
-              action: Action.IDLE,
-              actionTimer: 0,
-            },
-            attackerUpdate: {
-              action: Action.STAGGER,
-              actionTimer: 0.6,
-            },
-          };
-        }
+      if (!inRange) return null;
 
-        const isBlocked = defender.action === Action.BLOCK;
-        if (isSuper) playGoal();
-        else playCapture();
+      const outcome = resolveHit({
+        attack: attacker.attack,
+        attackerPower: attacker.power,
+        defenderGuarding: defender.action === Action.BLOCK,
+        defenderGuardHeight: defender.guardHeight ?? defender.height,
+        defenderDodging: defender.action === Action.DODGE,
+        defenderParrying: defender.action === Action.PARRY,
+        defenderParryHeight: defender.guardHeight ?? defender.height,
+        defenderAttacking: Boolean(defender.attack && defender.attack.phase !== 'recovery'),
+      });
 
-        const isCounter = defender.action === Action.JAB || defender.action === Action.HOOK;
-        if (isCounter) {
-          damage *= 1.5;
-          score *= 1.5;
-          spawnParticles(
-            defender.x + BOXER_WIDTH / 2,
-            defender.y + BOXER_HEIGHT / 2,
-            '#fbbf24',
-            isSuper,
-          );
-        }
+      const markedAttack = { ...attacker.attack, resolved: true };
+      const hitY =
+        attacker.attack.height === 'high' ? defender.y + 20 : defender.y + BOXER_HEIGHT * 0.55;
 
-        const finalDamage = isBlocked ? damage * 0.2 : damage;
-        const newHealth = Math.max(0, defender.health - finalDamage);
-
-        spawnParticles(attackerHandX, defender.y + 30, isCounter ? '#f59e0b' : '#ffffff', isSuper);
-        engineRef.current.screenShake = isSuper ? 1.0 : 0.4;
-
+      if (outcome.type === 'dodged') {
+        playDodge();
+        pushFloat(defender.x + BOXER_WIDTH / 2, hitY, '閃！', '#86efac');
         return {
-          defenderUpdate: {
-            health: newHealth,
-            action: newHealth <= 0 ? Action.KO : isBlocked ? defender.action : Action.HIT,
-            actionTimer: newHealth <= 0 ? 2.0 : 0.2,
-            superMeter: Math.min(100, defender.superMeter + finalDamage * 0.5),
-          },
+          attackerUpdate: { attack: markedAttack },
+          defenderUpdate: {},
+        };
+      }
+
+      if (outcome.type === 'parry') {
+        playImpact(0.35);
+        spawnParticles(attackerHandX, hitY, '#60a5fa', true);
+        engineRef.current.screenShake = 0.85;
+        engineRef.current.hitStop = HIT_STOP_LIGHT;
+        engineRef.current.parryEffect = {
+          x: defender.x + BOXER_WIDTH / 2,
+          y: defender.y - 20,
+          life: 1.0,
+          text: '撥招！',
+        };
+        pushFloat(defender.x + BOXER_WIDTH / 2, hitY - 10, '撥招', '#93c5fd');
+        return {
           attackerUpdate: {
-            score: attacker.score + (isBlocked ? 0 : Math.floor(score)),
-            superMeter: Math.min(100, attacker.superMeter + (isBlocked ? 2 : 10)),
+            attack: null,
+            action: Action.STAGGER,
+            actionTimer: outcome.staggerTime,
+            whooshPlayed: false,
+          },
+          defenderUpdate: {
+            stamina: Math.min(defender.maxStamina, defender.stamina + outcome.staminaBonus),
+            superMeter: Math.min(100, defender.superMeter + outcome.superBonus),
+            action: Action.IDLE,
             actionTimer: 0,
+            attack: null,
           },
         };
       }
-      return null;
+
+      if (outcome.type === 'hit') {
+        const strength = Math.min(1, outcome.damage / 18);
+        if (outcome.blocked && outcome.guardCorrect) playBlock();
+        else if (outcome.blocked && outcome.guardCorrect === false) playWrongBlock();
+        else playImpact(outcome.isSuper ? 1 : 0.35 + strength);
+
+        const newHealth = Math.max(0, defender.health - outcome.damage);
+        const newStun = applyStun(defender.stunMeter, outcome.stunGain);
+        const newFatigue = Math.min(0.7, defender.bodyFatigue + outcome.bodyFatigue);
+        const stunKo = isStunKo(newStun);
+        const dead = newHealth <= 0 || stunKo;
+
+        if (newStun >= 70 && defender.stunMeter < 70) playStunWarn();
+
+        spawnParticles(
+          attackerHandX,
+          hitY,
+          outcome.isCounter ? '#f59e0b' : outcome.blocked ? '#94a3b8' : '#ffffff',
+          outcome.isSuper,
+        );
+        engineRef.current.screenShake = outcome.isSuper ? 1.15 : outcome.blocked ? 0.25 : 0.55;
+        engineRef.current.hitStop = outcome.isSuper
+          ? HIT_STOP_HEAVY
+          : outcome.blocked
+            ? HIT_STOP_LIGHT * 0.5
+            : HIT_STOP_LIGHT + strength * 0.04;
+
+        if (outcome.blocked && outcome.guardCorrect === false) {
+          pushFloat(defender.x + BOXER_WIDTH / 2, hitY, '擋錯！', '#fb923c');
+        } else if (!outcome.blocked && attacker.attack.height === 'high') {
+          pushFloat(defender.x + BOXER_WIDTH / 2, hitY - 8, '暈+', '#fde047');
+        } else if (!outcome.blocked && attacker.attack.height === 'low') {
+          pushFloat(defender.x + BOXER_WIDTH / 2, hitY, '耗氣', '#fdba74');
+        }
+        if (outcome.isCounter) pushFloat(defender.x + BOXER_WIDTH / 2, hitY - 24, '反擊', '#fbbf24');
+
+        return {
+          attackerUpdate: {
+            attack: markedAttack,
+            score: attacker.score + outcome.score,
+            superMeter: Math.min(100, attacker.superMeter + (outcome.blocked ? 2 : 10)),
+          },
+          defenderUpdate: {
+            health: newHealth,
+            stunMeter: newStun,
+            bodyFatigue: newFatigue,
+            lastHitTaken: attacker.attack.height,
+            action: dead ? Action.KO : outcome.blocked ? defender.action : Action.HIT,
+            actionTimer: dead ? 2.0 : 0.22,
+            attack: dead || !outcome.blocked ? null : defender.attack,
+            superMeter: Math.min(100, defender.superMeter + outcome.damage * 0.5),
+          },
+          koReason: stunKo && newHealth > 0 ? ('stun' as const) : ('health' as const),
+        };
+      }
+
+      return {
+        attackerUpdate: { attack: markedAttack },
+        defenderUpdate: {},
+      };
     };
 
     const playerHit = processHit(player, cpu);
     if (playerHit) {
       engineRef.current.cpu = { ...cpu, ...playerHit.defenderUpdate };
       engineRef.current.player = { ...player, ...playerHit.attackerUpdate };
-      if (engineRef.current.cpu.health <= 0 && !engineRef.current.isKO) triggerKO();
+      if (
+        (engineRef.current.cpu.health <= 0 || isStunKo(engineRef.current.cpu.stunMeter))
+        && !engineRef.current.isKO
+      ) {
+        engineRef.current.koReason = playerHit.koReason ?? 'health';
+        triggerKO();
+      }
     }
 
     const cpuHit = processHit(engineRef.current.cpu, engineRef.current.player);
     if (cpuHit) {
       engineRef.current.player = { ...engineRef.current.player, ...cpuHit.defenderUpdate };
       engineRef.current.cpu = { ...engineRef.current.cpu, ...cpuHit.attackerUpdate };
-      if (engineRef.current.player.health <= 0 && !engineRef.current.isKO) triggerKO();
+      if (
+        (engineRef.current.player.health <= 0 || isStunKo(engineRef.current.player.stunMeter))
+        && !engineRef.current.isKO
+      ) {
+        engineRef.current.koReason = cpuHit.koReason ?? 'health';
+        triggerKO();
+      }
     }
   };
 
   const triggerKO = () => {
     engineRef.current.isKO = true;
-    engineRef.current.timeScale = 0.25;
+    engineRef.current.timeScale = 0.28;
     engineRef.current.screenShake = 2.0;
+    engineRef.current.hitStop = HIT_STOP_KO;
+    playImpact(1);
 
     const { player, cpu } = engineRef.current;
-    const koVictim = player.health <= 0 ? player : cpu;
+    const koVictim =
+      player.health <= 0 || isStunKo(player.stunMeter) ? player : cpu;
     for (let i = 0; i < 50; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * 20 + 5;
@@ -663,11 +1026,10 @@ export default function ToyBoxing() {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.save();
     if (engineRef.current.screenShake > 0) {
-      const amt = engineRef.current.screenShake * 10;
+      const amt = engineRef.current.screenShake * 12;
       ctx.translate(Math.random() * amt - amt / 2, Math.random() * amt - amt / 2);
     }
 
-    // Ring floor + sky plates
     const skyImg = ringSkyImage();
     if (skyImg.complete && skyImg.naturalWidth > 0) {
       ctx.drawImage(skyImg, 0, 0, CANVAS_WIDTH, GROUND_Y);
@@ -708,6 +1070,9 @@ export default function ToyBoxing() {
         action: b.action,
         actionTimer: b.actionTimer,
         character: getCharacter(b.characterId),
+        height: b.attack?.height ?? b.height,
+        attack: b.attack,
+        stunRatio: b.stunMeter / 100,
       });
     };
 
@@ -722,14 +1087,14 @@ export default function ToyBoxing() {
       ctx.beginPath();
       ctx.arc(p.x, p.y + 50, (1 - p.life) * 120, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.font = 'black 48px "Anton", sans-serif';
+      ctx.font = 'black 40px "Anton", sans-serif';
       ctx.fillStyle = `rgba(255, 255, 255, ${p.life})`;
       ctx.textAlign = 'center';
       ctx.shadowBlur = 20;
       ctx.shadowColor = '#60a5fa';
       const s = 1 + (1 - p.life) * 0.5;
       ctx.scale(s, s);
-      ctx.fillText('PARRY!', p.x / s, (p.y - (1.0 - p.life) * 80) / s);
+      ctx.fillText(p.text, p.x / s, (p.y - (1.0 - p.life) * 80) / s);
       ctx.restore();
       p.life -= 0.03;
       if (p.life <= 0) engineRef.current.parryEffect = null;
@@ -745,6 +1110,16 @@ export default function ToyBoxing() {
       ctx.restore();
     });
 
+    engineRef.current.floatTexts.forEach((t) => {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, t.life);
+      ctx.fillStyle = t.color;
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
+    });
+
     ctx.restore();
 
     if (engineRef.current.isKO) {
@@ -752,12 +1127,13 @@ export default function ToyBoxing() {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.fillStyle = '#ef4444';
-      ctx.font = 'bold 120px "Anton", sans-serif';
+      ctx.font = 'bold 100px "Anton", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowBlur = 20;
       ctx.shadowColor = '#000000';
-      ctx.fillText('K.O.!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+      const label = engineRef.current.koReason === 'stun' ? '頭擊ＫＯ！' : 'K.O.!';
+      ctx.fillText(label, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
       ctx.restore();
     }
   };
@@ -797,8 +1173,18 @@ export default function ToyBoxing() {
       </div>
       <div className="text-sm font-black tracking-tight">{c.name}</div>
       <div className="text-[11px] text-neutral-400 mt-0.5">{c.tagline}</div>
+      <div className="text-[10px] text-fuchsia-300/90 mt-1">{c.signatureName}</div>
     </button>
   );
+
+  const winRouteLabel =
+    winRoute === 'stun'
+      ? '頭擊ＫＯ'
+      : winRoute === 'health'
+        ? '體力擊倒'
+        : winRoute === 'decision'
+          ? '判定勝'
+          : null;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30 overflow-x-hidden">
@@ -815,6 +1201,9 @@ export default function ToyBoxing() {
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <h2 className="text-sm font-bold uppercase tracking-widest text-blue-400 truncate">
               {uiState.playerName}
+              <span className="ml-2 text-[10px] text-neutral-400 normal-case tracking-normal">
+                {uiState.playerHeight === 'high' ? '上段' : '下段'}
+              </span>
             </h2>
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-full max-w-48 h-3 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
@@ -823,10 +1212,16 @@ export default function ToyBoxing() {
               <span className="text-xs font-mono w-8 shrink-0">{Math.ceil(uiState.playerHealth)}</span>
             </div>
             <div className="flex gap-2 max-w-48">
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="耐力">
                 <motion.div className="h-full bg-amber-400" animate={{ width: `${uiState.playerStamina}%` }} />
               </div>
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="暈眩">
+                <motion.div
+                  className="h-full bg-yellow-400"
+                  animate={{ width: `${uiState.playerStun}%` }}
+                />
+              </div>
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="必殺">
                 <motion.div
                   className={`h-full ${uiState.playerSuper >= 100 ? 'bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]' : 'bg-fuchsia-800'}`}
                   animate={{ width: `${uiState.playerSuper}%` }}
@@ -845,7 +1240,7 @@ export default function ToyBoxing() {
             <span className="text-xs font-bold tracking-widest">第 {uiState.round} 回合</span>
           </div>
           <div className="text-[10px] text-neutral-500 mb-1 uppercase tracking-widest">
-            {DIFFICULTY_LABELS[difficulty]}
+            {playMode === 'league' ? leagueTitle() : DIFFICULTY_LABELS[difficulty]}
           </div>
           <div className="bg-neutral-900 px-4 sm:px-6 py-2 rounded-2xl border border-white/10 flex items-center gap-3 shadow-inner">
             <Timer className="w-5 h-5 text-neutral-500" />
@@ -859,6 +1254,9 @@ export default function ToyBoxing() {
           <div className="flex flex-col gap-1 text-right items-end min-w-0 flex-1">
             <h2 className="text-sm font-bold uppercase tracking-widest text-red-400 truncate max-w-full">
               {uiState.cpuName}
+              <span className="ml-2 text-[10px] text-neutral-400 normal-case tracking-normal">
+                {uiState.cpuHeight === 'high' ? '上段' : '下段'}
+              </span>
             </h2>
             <div className="flex items-center gap-2 flex-row-reverse min-w-0 w-full justify-start">
               <div className="w-full max-w-48 h-3 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
@@ -869,6 +1267,9 @@ export default function ToyBoxing() {
             <div className="flex gap-2 flex-row-reverse max-w-48 ml-auto">
               <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
                 <motion.div className="h-full bg-amber-400" animate={{ width: `${uiState.cpuStamina}%` }} />
+              </div>
+              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                <motion.div className="h-full bg-yellow-400" animate={{ width: `${uiState.cpuStun}%` }} />
               </div>
               <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
                 <motion.div
@@ -924,14 +1325,36 @@ export default function ToyBoxing() {
                 <h1 className="text-4xl sm:text-6xl font-black italic tracking-tighter mb-2 uppercase text-center">
                   Toy <span className="text-blue-500">Boxing</span>
                 </h1>
-                <p className="text-neutral-400 max-w-lg mb-4 text-center text-sm">
-                  選角色與難度後開戰。WASD 移動・J/K 出拳・S 格擋・W 閃避・I 格檔反擊・L 必殺
+                <p className="text-neutral-400 max-w-lg mb-3 text-center text-sm">
+                  上／下段猜拳・讀預備動作・打腹耗氣或打臉ＫＯ。↓／Ｃ 下段，Ｓ 格擋，Ｊ／Ｋ 出拳，Ｗ 閃，Ｉ 撥招，Ｌ 招牌拳
                 </p>
-                <p className="text-amber-400/90 text-sm font-bold mb-4 tracking-wide">
-                  {DIFFICULTY_LABELS[difficulty]} · 連勝 {careerMode.winStreak} · 最佳連勝{' '}
-                  {careerMode.bestWinStreak} · 勝 {careerMode.wins} · 負 {careerMode.losses}
-                  {careerMode.draws > 0 ? ` · 和 ${careerMode.draws}` : ''}
-                </p>
+
+                <div className="flex gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('league')}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-black tracking-wider border min-h-[44px]',
+                      menuTab === 'league'
+                        ? 'bg-amber-500 text-black border-amber-300'
+                        : 'bg-neutral-900 border-white/10 text-neutral-300',
+                    )}
+                  >
+                    聯賽階梯
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuTab('free')}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-black tracking-wider border min-h-[44px]',
+                      menuTab === 'free'
+                        ? 'bg-blue-600 text-white border-blue-400'
+                        : 'bg-neutral-900 border-white/10 text-neutral-300',
+                    )}
+                  >
+                    自由對戰
+                  </button>
+                </div>
 
                 <div className="w-full max-w-2xl mb-4">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2">
@@ -945,77 +1368,163 @@ export default function ToyBoxing() {
                         selected={playerCharId === c.id}
                         onSelect={() => {
                           setPlayerCharId(c.id);
-                          if (cpuCharId === c.id) setCpuCharId(pickCpuOpponent(c.id));
+                          if (cpuCharId === c.id) setCpuCharId(c.id === 'bot' ? 'bear' : 'bot');
                         }}
                       />
                     ))}
                   </div>
                 </div>
 
-                <div className="w-full max-w-2xl mb-4">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2">
-                    對手
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {CHARACTERS.map((c) => (
-                      <CharCard
-                        key={`cpu-${c.id}`}
-                        c={c}
-                        selected={cpuCharId === c.id}
-                        onSelect={() => {
-                          if (c.id === playerCharId) return;
-                          setCpuCharId(c.id);
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="w-full max-w-md mb-4">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2 text-center">
-                    難度
-                  </h3>
-                  <div className="flex gap-2 justify-center">
-                    {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+                {menuTab === 'league' ? (
+                  <div className="w-full max-w-2xl mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+                        {leagueTitle()}
+                      </h3>
+                      <p className="text-xs text-amber-300/90">
+                        進度 {league.clearedCount}/{OPPONENTS.length}
+                        {isLeagueComplete(league) ? ' · 全數通關！' : ''}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {OPPONENTS.map((opp, index) => {
+                        const unlocked = isOpponentUnlocked(index, league.clearedCount);
+                        const cleared = Boolean(league.cleared[opp.id]);
+                        const selected = leagueIndex === index;
+                        return (
+                          <button
+                            key={opp.id}
+                            type="button"
+                            disabled={!unlocked}
+                            onClick={() => unlocked && setLeagueIndex(index)}
+                            className={cn(
+                              'rounded-2xl border p-3 text-left transition-all min-h-[44px]',
+                              !unlocked && 'opacity-45 cursor-not-allowed',
+                              selected && unlocked
+                                ? 'border-amber-400 bg-amber-500/15'
+                                : 'border-white/10 bg-neutral-900/80',
+                            )}
+                          >
+                            <div className="flex gap-3 items-start">
+                              <img
+                                src={characterPortraitUrl(opp.visual)}
+                                alt=""
+                                className="w-12 h-12 rounded-lg object-cover border border-white/10"
+                                draggable={false}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-black">
+                                    {unlocked ? opp.name : '？？？'}
+                                  </span>
+                                  {cleared && (
+                                    <span className="text-[10px] text-emerald-400 font-bold">已擊敗</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-neutral-400 mt-0.5">
+                                  {unlocked ? opp.tagline : '打贏前一位解鎖'}
+                                </p>
+                                {unlocked && (
+                                  <p className="text-[10px] text-fuchsia-300/90 mt-1">
+                                    招牌：{opp.signature.name} · {opp.signature.blurb}
+                                  </p>
+                                )}
+                                {unlocked && (
+                                  <p className="text-[10px] text-neutral-500 mt-0.5 italic">
+                                    「{opp.catchphrases.taunt}」
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-3 text-center text-sm text-amber-200/90">
+                      vs {activeOpponent.name} — {activeOpponent.catchphrases.intro}
+                    </p>
+                    <div className="flex justify-center mt-3">
                       <button
-                        key={d}
                         type="button"
-                        onClick={() => chooseDifficulty(d)}
-                        className={cn(
-                          'px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wider border transition-all',
-                          difficulty === d
-                            ? 'bg-amber-500 text-black border-amber-300'
-                            : 'bg-neutral-900 border-white/10 text-neutral-300 hover:border-white/30',
-                        )}
+                        onClick={() => startFight('league', leagueIndex)}
+                        className="group relative px-8 py-4 bg-amber-500 text-black rounded-2xl font-black uppercase tracking-widest hover:bg-amber-400 transition-all active:scale-95 min-h-[44px]"
                       >
-                        {DIFFICULTY_LABELS[d]}
+                        <span className="flex items-center gap-2">
+                          <Play className="w-5 h-5 fill-current" />
+                          挑戰聯賽
+                        </span>
                       </button>
-                    ))}
+                    </div>
                   </div>
-                  <p className="mt-2 text-center text-sm text-amber-300/90 font-medium">
-                    {DIFFICULTY_BLURBS[difficulty]}
-                  </p>
-                </div>
+                ) : (
+                  <>
+                    <div className="w-full max-w-2xl mb-4">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                        對手造型
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {CHARACTERS.map((c) => (
+                          <CharCard
+                            key={`cpu-${c.id}`}
+                            c={c}
+                            selected={cpuCharId === c.id}
+                            onSelect={() => {
+                              if (c.id === playerCharId) return;
+                              setCpuCharId(c.id);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="w-full max-w-md mb-4">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2 text-center">
+                        難度
+                      </h3>
+                      <div className="flex gap-2 justify-center">
+                        {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => chooseDifficulty(d)}
+                            className={cn(
+                              'px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wider border transition-all min-h-[44px]',
+                              difficulty === d
+                                ? 'bg-amber-500 text-black border-amber-300'
+                                : 'bg-neutral-900 border-white/10 text-neutral-300 hover:border-white/30',
+                            )}
+                          >
+                            {DIFFICULTY_LABELS[d]}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-center text-sm text-amber-300/90 font-medium">
+                        {DIFFICULTY_BLURBS[difficulty]}
+                      </p>
+                      <p className="text-center text-xs text-neutral-500 mt-1">
+                        連勝 {careerMode.winStreak} · 最佳 {careerMode.bestWinStreak} · 勝{' '}
+                        {careerMode.wins} · 負 {careerMode.losses}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startFight('free')}
+                      className="group relative px-8 py-4 bg-blue-600 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 min-h-[44px]"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Play className="w-5 h-5 fill-current" />
+                        開始對戰
+                      </span>
+                    </button>
+                  </>
+                )}
 
-                <div className="flex flex-col sm:flex-row items-center gap-3 mb-2">
-                  <button
-                    type="button"
-                    onClick={startNewGame}
-                    className="group relative px-8 py-4 bg-blue-600 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Play className="w-5 h-5 fill-current" />
-                      開始對戰
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowFirstRun(true)}
-                    className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-neutral-300 hover:border-blue-400/50 hover:text-blue-200 transition-all min-h-[44px]"
-                  >
-                    操作教學
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFirstRun(true)}
+                  className="mt-3 px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-neutral-300 hover:border-blue-400/50 hover:text-blue-200 transition-all min-h-[44px]"
+                >
+                  操作教學
+                </button>
               </motion.div>
             )}
 
@@ -1030,7 +1539,7 @@ export default function ToyBoxing() {
                 <button
                   type="button"
                   onClick={nextRound}
-                  className="px-8 py-4 bg-amber-500 text-black rounded-2xl font-black tracking-widest hover:bg-amber-400 transition-all"
+                  className="px-8 py-4 bg-amber-500 text-black rounded-2xl font-black tracking-widest hover:bg-amber-400 transition-all min-h-[44px]"
                 >
                   下一回合
                 </button>
@@ -1050,10 +1559,16 @@ export default function ToyBoxing() {
                 stats={[
                   { label: uiState.playerName, value: uiState.playerScore },
                   { label: uiState.cpuName, value: uiState.cpuScore },
-                  { label: '難度', value: DIFFICULTY_LABELS[difficulty] },
+                  ...(winRouteLabel ? [{ label: '勝利方式', value: winRouteLabel }] : []),
+                  {
+                    label: playMode === 'league' ? '聯賽進度' : '難度',
+                    value:
+                      playMode === 'league'
+                        ? `${league.clearedCount}/${OPPONENTS.length}`
+                        : DIFFICULTY_LABELS[difficulty],
+                  },
                   { label: '連勝', value: careerMode.winStreak },
                   { label: '最佳連勝', value: careerMode.bestWinStreak },
-                  { label: '生涯勝場', value: careerMode.wins },
                 ]}
                 onPrimary={() => setGameState('menu')}
                 primaryLabel="再選一局"
@@ -1077,6 +1592,12 @@ export default function ToyBoxing() {
                 onPress={() => keysPressed.current.add('KeyD')}
                 onRelease={() => keysPressed.current.delete('KeyD')}
               />
+              <TouchButton
+                label="↓"
+                ariaLabel="下段"
+                onPress={() => keysPressed.current.add('ArrowDown')}
+                onRelease={() => keysPressed.current.delete('ArrowDown')}
+              />
             </div>
             <div className="flex flex-wrap gap-2 justify-center w-full">
               <TouchButton label="J" ariaLabel="刺拳" onPress={() => keysPressed.current.add('KeyJ')} onRelease={() => keysPressed.current.delete('KeyJ')} />
@@ -1084,7 +1605,7 @@ export default function ToyBoxing() {
               <TouchButton label="S" ariaLabel="格擋" onPress={() => keysPressed.current.add('KeyS')} onRelease={() => keysPressed.current.delete('KeyS')} />
               <TouchButton label="W" ariaLabel="閃避" onPress={() => keysPressed.current.add('KeyW')} onRelease={() => keysPressed.current.delete('KeyW')} />
               <TouchButton label="I" ariaLabel="撥招" onPress={() => keysPressed.current.add('KeyI')} onRelease={() => keysPressed.current.delete('KeyI')} />
-              <TouchButton label="L" ariaLabel="必殺" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
+              <TouchButton label="L" ariaLabel="招牌拳" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
             </div>
           </div>
         )}
@@ -1092,46 +1613,44 @@ export default function ToyBoxing() {
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
             <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Zap className="w-4 h-4" /> 移動
+              <Zap className="w-4 h-4" /> 移動・段位
             </h3>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">A</kbd>
               <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">D</kbd>
-              <span className="text-sm text-neutral-400 ml-2 self-center">左／右</span>
+              <kbd className="px-3 py-2 bg-orange-900/40 border-orange-500/40 rounded-lg border font-mono text-sm text-orange-300">↓/C</kbd>
+              <span className="text-sm text-neutral-400 ml-2 self-center">左右・下段</span>
             </div>
           </div>
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
             <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
               <Shield className="w-4 h-4" /> 防禦
             </h3>
-            <div className="flex gap-2">
-              <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">W</kbd>
+            <div className="flex gap-2 flex-wrap">
               <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">S</kbd>
+              <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">W</kbd>
               <kbd className="px-3 py-2 bg-blue-900/50 border-blue-500/50 rounded-lg border font-mono text-sm text-blue-400">I</kbd>
-              <span className="text-sm text-neutral-400 ml-2 self-center">閃避／格擋／撥招</span>
+              <span className="text-sm text-neutral-400 ml-2 self-center">格擋（依段）／閃／撥</span>
             </div>
           </div>
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
             <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Heart className="w-4 h-4" /> 攻擊
+              <Heart className="w-4 h-4" /> 攻擊路線
             </h3>
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-2 items-center">
-                <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">J</kbd>
-                <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">K</kbd>
-                <span className="text-sm text-neutral-400 ml-2">刺拳／勾拳</span>
-              </div>
-              <div className="flex gap-2 items-center">
-                <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">L</kbd>
-                <span className="text-sm text-fuchsia-400 ml-2 font-bold">必殺</span>
-              </div>
+            <div className="flex flex-col gap-2 text-sm text-neutral-300">
+              <p>Ｊ／Ｋ：刺拳／勾拳（搭配 ↓ 打腹）</p>
+              <p>打臉累積暈眩 → 頭擊ＫＯ；打腹削耐力回復</p>
+              <p>
+                <kbd className="px-2 py-1 bg-neutral-800 rounded border border-white/10 font-mono text-xs">L</kbd>
+                {' '}招牌拳：長預備、無法格擋、可閃避
+              </p>
             </div>
           </div>
         </div>
       </main>
 
       <footer className="max-w-5xl mx-auto mt-12 pb-12 text-center text-neutral-600 text-xs tracking-[0.2em]">
-        玩具拳擊 · 選角色・選難度・進擂台
+        玩具拳擊 · 聯賽階梯・上／下段心機戰
       </footer>
     </div>
   );
