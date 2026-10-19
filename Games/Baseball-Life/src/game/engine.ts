@@ -52,6 +52,11 @@ import {
   situationById,
 } from './situations';
 import type { SituationEffects, SituationOption } from './situations';
+import {
+  abilityById,
+  abilityEffects,
+  newlyUnlockedAbilities,
+} from './abilities';
 import { newlyUnlocked, traitById, traitEffects } from './traits';
 
 const START_YEAR = 2010;
@@ -192,6 +197,7 @@ export function createGame(input: CreateInput): GameState {
     mind: clamp(45 + (origin.meta?.mind ?? 0), 0, 100),
     fame: clamp(3 + (origin.meta?.fame ?? 0), 0, 100),
     fatigue: 0,
+    motivation: 58,
     destiny: DESTINY_START,
   };
 
@@ -217,6 +223,8 @@ export function createGame(input: CreateInput): GameState {
     potential: rollPotential(attrs, seed, input.position),
     history: [],
     traits: [],
+    abilities: [],
+    drillCounts: {},
     milestones: [],
     counters: {
       earlySixes: 0,
@@ -235,6 +243,7 @@ export function createGame(input: CreateInput): GameState {
     seenEvents: [],
     seenSituations: [],
     pendingSituation: null,
+    pendingPrimaryId: null,
     challengeId,
     decision: null,
     report: null,
@@ -337,10 +346,12 @@ function rng(state: GameState, purpose: string): () => number {
   return streamRng(state.seed, `${purpose}:${state.turnIndex}:${state.choices.length}`);
 }
 
-/** d6 nudged by fatigue and mental strength — never outside 1–6. */
+/** d6 nudged by fatigue, motivation and mental strength — never outside 1–6. */
 function rollDice(state: GameState, r: () => number): number {
   let dice = randInt(r, 1, 6);
   if (state.meta.fatigue > 65 && dice > 1 && r() < (state.meta.fatigue - 65) / 60) dice -= 1;
+  if (state.meta.motivation < 35 && dice > 1 && r() < (35 - state.meta.motivation) / 55) dice -= 1;
+  if (state.meta.motivation > 72 && dice < 6 && r() < (state.meta.motivation - 72) / 90) dice += 1;
   if (state.meta.mind > 70 && dice < 6 && r() < (state.meta.mind - 70) / 90) dice += 1;
   return clamp(dice, 1, 6);
 }
@@ -405,11 +416,19 @@ function applyTraining(
   r: () => number,
 ): Partial<Attributes & Meta> {
   const effects = traitEffects(state.traits);
+  const ability = abilityEffects(state.abilities);
   const deltas: Partial<Attributes & Meta> = {};
   focus.forEach((key) => {
     const headroom = clamp((state.potential[key] - state.attrs[key]) / 22, 0.12, 1);
+    const focusMul = ability.focusBonus[key] ?? 1;
     const gain = round(
-      power * DICE_MULT[dice] * growthAgeFactor(state.age) * effects.growth * headroom * (0.85 + r() * 0.3),
+      power *
+        DICE_MULT[dice] *
+        growthAgeFactor(state.age) *
+        effects.growth *
+        focusMul *
+        headroom *
+        (0.85 + r() * 0.3),
     );
     if (gain !== 0) deltas[key] = (deltas[key] ?? 0) + gain;
   });
@@ -428,7 +447,23 @@ interface TrainingOption extends Option {
   rest?: boolean;
   /** Develops one pitch, or 'new' to add one to the repertoire. */
   pitch?: PitchId | 'new';
+  /**
+   * Multiplier on the turn's injury roll (>1 = riskier). Used so high-intensity
+   * and protect attitudes are not pure EV clones of each other.
+   */
+  injuryMul?: number;
+  /** Direct motivation swing applied with the fatigue/meta deltas. */
+  motivation?: number;
+  /** True when this card is offered as the high-school secondary slot. */
+  secondary?: boolean;
 }
+
+/** Secondary-slot growth scale — half a primary without doubling fatigue cost. */
+const SECONDARY_POWER_SCALE = 0.48;
+/** Two-way secondary is thinner so dual-slot does not erase the workload tax. */
+const TWO_WAY_SECONDARY_POWER_SCALE = 0.38;
+/** Secondary fatigue is discounted so main+light is not always worse than main alone. */
+const SECONDARY_FATIGUE_SCALE = 0.55;
 
 function developPitch(
   state: GameState,
@@ -461,21 +496,110 @@ function developPitch(
 }
 
 function batterDrills(): TrainingOption[] {
+  // Intentional tradeoffs (M1): video is no longer the best growth-per-fatigue
+  // card — it buys mind/motivation and a thinner eye gain. Weight stays the
+  // raw power spike with real injury pressure.
   return [
-    { id: 'swing', label: '揮棒與打擊籠', hint: '打擊 · 選球', focus: ['contact', 'eye'], power: 7.6, fatigue: 8 },
-    { id: 'weight', label: '重量訓練', hint: '長打', focus: ['power'], power: 9.2, fatigue: 12, meta: { body: 3 } },
-    { id: 'field', label: '守備特訓', hint: '守備 · 跑壘', focus: ['fielding', 'speed'], power: 7.2, fatigue: 9 },
-    { id: 'run', label: '跑壘與基礎體能', hint: '跑壘 · 續航力', focus: ['speed', 'stamina'], power: 7.4, fatigue: 10, meta: { body: 4 } },
-    { id: 'video', label: '研究對手影片', hint: '選球', focus: ['eye'], power: 8.0, fatigue: 3, meta: { mind: 4 } },
+    {
+      id: 'swing',
+      label: '揮棒與打擊籠',
+      hint: '打擊 · 選球・中等負荷',
+      focus: ['contact', 'eye'],
+      power: 7.6,
+      fatigue: 9,
+      injuryMul: 1.05,
+      motivation: -1,
+    },
+    {
+      id: 'weight',
+      label: '重量訓練',
+      hint: '長打最大・疲勞與受傷風險偏高',
+      focus: ['power'],
+      power: 9.4,
+      fatigue: 14,
+      meta: { body: 4 },
+      injuryMul: 1.35,
+      motivation: -2,
+    },
+    {
+      id: 'field',
+      label: '守備特訓',
+      hint: '守備 · 跑壘・穩定成長',
+      focus: ['fielding', 'speed'],
+      power: 7.4,
+      fatigue: 10,
+      injuryMul: 1.1,
+      motivation: -1,
+    },
+    {
+      id: 'run',
+      label: '跑壘與基礎體能',
+      hint: '跑壘 · 續航力・堆體能',
+      focus: ['speed', 'stamina'],
+      power: 7.6,
+      fatigue: 11,
+      meta: { body: 5 },
+      injuryMul: 1.15,
+      motivation: 1,
+    },
+    {
+      id: 'video',
+      label: '研究對手影片',
+      hint: '選球較薄・心志與動機回補',
+      focus: ['eye'],
+      power: 5.2,
+      fatigue: 4,
+      meta: { mind: 6 },
+      injuryMul: 0.7,
+      motivation: 5,
+    },
   ];
 }
 
 function pitcherDrills(state: GameState): TrainingOption[] {
   const drills: TrainingOption[] = [
-    { id: 'longtoss', label: '長傳與球速強化', hint: '球速', focus: ['velocity'], power: 9.0, fatigue: 12 },
-    { id: 'bullpen', label: '牛棚控球練習', hint: '控球', focus: ['control'], power: 8.4, fatigue: 8 },
-    { id: 'stamina', label: '長跑與投球數累積', hint: '續航力', focus: ['stamina'], power: 8.6, fatigue: 11, meta: { body: 4 } },
-    { id: 'mental', label: '配球與心理訓練', hint: '膽識', focus: ['guts'], power: 7.4, fatigue: 3, meta: { mind: 5 } },
+    {
+      id: 'longtoss',
+      label: '長傳與球速強化',
+      hint: '球速最大・肩肘負擔重',
+      focus: ['velocity'],
+      power: 9.2,
+      fatigue: 14,
+      injuryMul: 1.4,
+      motivation: -2,
+    },
+    {
+      id: 'bullpen',
+      label: '牛棚控球練習',
+      hint: '控球・中等負荷',
+      focus: ['control'],
+      power: 8.4,
+      fatigue: 9,
+      injuryMul: 1.1,
+      motivation: -1,
+    },
+    {
+      id: 'stamina',
+      label: '長跑與投球數累積',
+      hint: '續航力・堆體能',
+      focus: ['stamina'],
+      power: 8.6,
+      fatigue: 12,
+      meta: { body: 5 },
+      injuryMul: 1.2,
+      motivation: 1,
+    },
+    {
+      id: 'mental',
+      label: '配球與心理訓練',
+      hint: '膽識較薄・心志與動機回補',
+      focus: ['guts'],
+      power: 5.4,
+      fatigue: 4,
+      meta: { mind: 6 },
+      injuryMul: 0.65,
+      motivation: 5,
+    },
   ];
 
   // Sharpening the pitch you already trust versus adding one you do not: the
@@ -490,7 +614,9 @@ function pitcherDrills(state: GameState): TrainingOption[] {
       hint: `目前 ${best.level}・${info.blurb}`,
       focus: [],
       power: 8.8,
-      fatigue: 7,
+      fatigue: 8,
+      injuryMul: 1.15,
+      motivation: -1,
       pitch: best.id,
     });
   }
@@ -502,7 +628,9 @@ function pitcherDrills(state: GameState): TrainingOption[] {
       hint: next.blurb,
       focus: [],
       power: 0,
-      fatigue: 9,
+      fatigue: 10,
+      injuryMul: 1.2,
+      motivation: 2,
       pitch: 'new',
     });
   }
@@ -512,15 +640,46 @@ function pitcherDrills(state: GameState): TrainingOption[] {
 const REST_OPTION: TrainingOption = {
   id: 'rest',
   label: '調整與自主訓練',
-  hint: '消除疲勞 · 體能 · 心志',
-  // No attribute focus on purpose: resting buys durability, not skill. 膽識 is
-  // a pitcher-only stat, so training it here would be a dead gain for batters.
+  hint: '消疲勞 · 回動機 · 體能心志',
+  // No attribute focus on purpose: resting buys durability and motivation, not
+  // skill. That is what keeps it a real strategy once hard drills tax both.
   focus: [],
   power: 0,
   fatigue: -28,
-  meta: { body: 5, mind: 3 },
+  meta: { body: 5, mind: 4 },
+  motivation: 12,
+  injuryMul: 0.4,
   rest: true,
 };
+
+/** Light secondary-only recoveries — never offered as a primary on their own. */
+const SECONDARY_RECOVERY: TrainingOption[] = [
+  {
+    id: 'stretch',
+    label: '伸展與冰敷',
+    hint: '消疲勞・降受傷風險・幾乎不成長',
+    focus: [],
+    power: 0,
+    fatigue: -14,
+    meta: { body: 3 },
+    motivation: 4,
+    injuryMul: 0.45,
+    rest: true,
+    secondary: true,
+  },
+  {
+    id: 'notebook',
+    label: '寫比賽筆記',
+    hint: '心志與動機・選球／膽識微幅',
+    focus: [],
+    power: 0,
+    fatigue: 1,
+    meta: { mind: 5 },
+    motivation: 6,
+    injuryMul: 0.5,
+    secondary: true,
+  },
+];
 
 /**
  * Full training menu — every legal drill plus rest. Earlier builds shuffled a
@@ -537,22 +696,86 @@ function trainingOptions(state: GameState): TrainingOption[] {
   return [...drills, REST_OPTION];
 }
 
+function findTrainingOption(state: GameState, id: string): TrainingOption | undefined {
+  return (
+    trainingOptions(state).find((o) => o.id === id) ??
+    tournamentOptions(state).find((o) => o.id === id) ??
+    SECONDARY_RECOVERY.find((o) => o.id === id) ??
+    proOptions(state).find((o) => o.id === id)
+  );
+}
+
+/**
+ * High-school secondary slot: every drill except the primary, scaled down, plus
+ * dedicated recovery cards. Rest stays available so a hard primary can be paired
+ * with real recovery — that is what makes rest non-dominated.
+ */
+function secondaryOptions(state: GameState, primaryId: string): TrainingOption[] {
+  const scale = IS_TWO_WAY[state.position] ? TWO_WAY_SECONDARY_POWER_SCALE : SECONDARY_POWER_SCALE;
+  const drills = trainingOptions(state)
+    .filter((o) => o.id !== primaryId)
+    .map((o) => ({
+      ...o,
+      secondary: true,
+      power: o.rest ? 0 : o.power * scale,
+      fatigue: o.rest ? Math.min(o.fatigue, -16) : round(o.fatigue * SECONDARY_FATIGUE_SCALE),
+      motivation: o.rest ? Math.max(o.motivation ?? 0, 8) : round((o.motivation ?? 0) * 0.7),
+      injuryMul: o.injuryMul ?? 1,
+      hint: o.rest
+        ? `${o.hint}（副課・恢復）`
+        : `${o.hint}（副課・成長約半）`,
+      label: o.rest ? o.label : `副課・${o.label}`,
+    }));
+  const recovery = SECONDARY_RECOVERY.map((o) => ({ ...o }));
+  // Notebook micro-focus: give batters a whisper of eye, pitchers of guts, so
+  // the card is not a pure meta dump with zero attribute identity.
+  if (!IS_PITCHER[state.position] || IS_TWO_WAY[state.position]) {
+    const note = recovery.find((o) => o.id === 'notebook');
+    if (note) {
+      note.focus = ['eye'];
+      note.power = 2.4 * scale;
+    }
+  } else {
+    const note = recovery.find((o) => o.id === 'notebook');
+    if (note) {
+      note.focus = ['guts'];
+      note.power = 2.4 * scale;
+    }
+  }
+  return [...drills, ...recovery];
+}
+
+/** True when this high-school turn uses the dual-slot (main + secondary) flow. */
+function isHsDualSlotTurn(state: GameState): boolean {
+  if (state.stage !== 'highschool' || state.turnIndex >= HS_TURNS) return false;
+  const turn = HS_SCHEDULE[state.turnIndex];
+  return !turn.tournament;
+}
+
 /**
  * Tournaments develop a player too — game reps are worth more than cage reps —
  * so these carry real training value on the position's core attributes.
+ * Attitudes are risk curves, not EV clones: protect is the safe play when
+ * fatigue is already high; all-in pays for glory with injury pressure.
  */
 function tournamentOptions(state: GameState): TrainingOption[] {
   const core: AttrKey[] = IS_PITCHER[state.position]
     ? ['control', 'guts']
     : ['contact', 'eye'];
+  const tired = state.meta.fatigue >= 50 || state.meta.body < 45;
   return [
     {
       id: 't-allin',
       label: '拚了，這是我的夏天',
-      hint: '成長與人氣最大，疲勞與受傷風險最高',
+      hint: tired
+        ? '成長與人氣最大——但你現在的身體很危險'
+        : '成長與人氣最大，疲勞與受傷風險最高',
       focus: core,
-      power: 6.2,
+      power: 6.4,
       fatigue: 26,
+      injuryMul: 1.85,
+      motivation: tired ? -6 : 4,
+      meta: { fame: 4 },
     },
     {
       id: 't-balance',
@@ -561,15 +784,21 @@ function tournamentOptions(state: GameState): TrainingOption[] {
       focus: core,
       power: 4.6,
       fatigue: 14,
+      injuryMul: 1.0,
+      motivation: 1,
     },
     {
       id: 't-protect',
       label: '保護身體為重',
-      hint: '表現保守，但把身體完整帶到下一年',
+      hint: tired
+        ? '大幅降低受傷率，回補動機與體能——現在很划算'
+        : '成長較少，但把身體與動機完整帶到下一季',
       focus: core,
-      power: 3.0,
-      fatigue: 4,
-      meta: { body: 3 },
+      power: 2.8,
+      fatigue: 2,
+      meta: { body: 5 },
+      injuryMul: 0.35,
+      motivation: 10,
     },
   ];
 }
@@ -577,16 +806,20 @@ function tournamentOptions(state: GameState): TrainingOption[] {
 function proOptions(state: GameState): TrainingOption[] {
   const base = trainingOptions(state);
   if (state.meta.fame >= 55 && state.age <= 33) {
+    // Overseas camp used to be strictly worse than a normal drill (power 5.0).
+    // It now matches a hard primary and pays in fame — the cost is fatigue.
     base.splice(3, 0, {
       id: 'overseas-camp',
       label: '海外自主訓練',
-      hint: '成長效率高，花費體力也高',
+      hint: '高成長＋人氣，疲勞與受傷風險也高',
       focus: IS_PITCHER[state.position]
-        ? ['velocity', 'breaking']
+        ? ['velocity', 'control']
         : ['power', 'contact'],
-      power: 5.0,
-      fatigue: 16,
-      meta: { mind: 3, fame: 3 },
+      power: 8.6,
+      fatigue: 20,
+      meta: { mind: 2, fame: 6 },
+      injuryMul: 1.45,
+      motivation: -3,
     });
   }
   return base;
@@ -644,12 +877,25 @@ function buildDecision(state: GameState): Decision {
         options: tournamentOptions(state),
       };
     }
+    // Dual-slot: primary pick is stashed in pendingPrimaryId; the next decision
+    // is the secondary / recovery menu for the same calendar turn.
+    if (state.pendingPrimaryId) {
+      const primary = findTrainingOption(state, state.pendingPrimaryId);
+      return {
+        kind: 'training',
+        title: `${turn.label}・副課`,
+        prompt: primary
+          ? `主課已定：${primary.label}。副課要補哪一塊，還是安排恢復？`
+          : '副課要補哪一塊，還是安排恢復？',
+        options: secondaryOptions(state, state.pendingPrimaryId).map((o) => ({ ...o })),
+      };
+    }
     const prompt = turn.camp
-      ? '集訓菜單全開。這一塊要把時間押在哪一項？'
-      : '這一季的練習菜單全開。你要把時間放在哪裡？';
+      ? '集訓菜單全開。先選主課——之後還能排一節副課或恢復。'
+      : '這一季的練習菜單全開。先選主課，再排副課或恢復。';
     return {
       kind: 'training',
-      title: turn.label,
+      title: `${turn.label}・主課`,
       prompt,
       options: trainingOptions(state).map((o) => ({ ...o })),
     };
@@ -1169,6 +1415,7 @@ export function resolve(state: GameState, optionId: string, useDestiny = false):
           deltas: {},
           season: null,
           traitsUnlocked: [],
+          abilitiesUnlocked: [],
           milestones: [],
           income: null,
           tone: 'good',
@@ -1205,24 +1452,124 @@ function checkTraits(state: GameState, report?: TurnReport): void {
   });
 }
 
+function bumpDrillCount(state: GameState, id: string): void {
+  if (id.startsWith('t-')) return;
+  state.drillCounts[id] = (state.drillCounts[id] ?? 0) + 1;
+}
+
+function checkAbilities(state: GameState, report?: TurnReport): void {
+  const unlocked = newlyUnlockedAbilities(state);
+  unlocked.forEach((id) => {
+    state.abilities.push(id);
+    const ability = abilityById(id);
+    if (!ability) return;
+    pushLog(state, '特殊能力', `學會了【${ability.label}】——${ability.desc}`, 'great');
+    report?.abilitiesUnlocked.push(id);
+    report?.lines.push(`特殊能力【${ability.label}】覺醒。`);
+    if (report && report.tone === 'normal') report.tone = 'great';
+  });
+}
+
+/**
+ * Apply one training card's attr / meta / pitch effects into `deltas` and the
+ * live state. Shared by single-slot turns and each half of a dual-slot block.
+ */
+function applyTrainingCard(
+  state: GameState,
+  option: TrainingOption,
+  dice: number,
+  r: () => number,
+  report: TurnReport,
+  turnScale: number,
+  deltas: Partial<Attributes & Meta>,
+): number {
+  bumpDrillCount(state, option.id);
+  if (option.rest) state.counters.restTurns += turnScale;
+
+  const breakingBefore = state.attrs.breaking;
+  if (option.pitch) developPitch(state, option, dice, r, report, turnScale);
+
+  const gained = applyTraining(state, option.focus, dice, option.power * turnScale, r);
+  Object.entries(gained).forEach(([key, value]) => {
+    const k = key as DeltaKey;
+    deltas[k] = (deltas[k] ?? 0) + (value as number);
+  });
+  if (option.pitch) {
+    const change = state.attrs.breaking - breakingBefore;
+    if (change !== 0) deltas.breaking = (deltas.breaking ?? 0) + change;
+  }
+  const fatigueDelta = round(option.fatigue * turnScale);
+  deltas.fatigue = (deltas.fatigue ?? 0) + fatigueDelta;
+  Object.entries(option.meta ?? {}).forEach(([key, value]) => {
+    const k = key as keyof Meta;
+    deltas[k] = (deltas[k] ?? 0) + round((value as number) * turnScale);
+  });
+  if (option.motivation) {
+    deltas.motivation = (deltas.motivation ?? 0) + round(option.motivation * turnScale);
+  }
+  // Ability rest bonus: basepath players recover a little more motivation.
+  if (option.rest) {
+    const bonus = abilityEffects(state.abilities).restMotivation;
+    if (bonus > 0) deltas.motivation = (deltas.motivation ?? 0) + bonus;
+  }
+  return fatigueDelta;
+}
+
 function resolveTraining(state: GameState, option: TrainingOption, useDestiny = false): void {
+  // High-school dual-slot: primary pick only stashes the choice. Dice, events
+  // and calendar advance wait for the secondary so one block is one "turn".
+  if (isHsDualSlotTurn(state) && !state.pendingPrimaryId) {
+    state.pendingPrimaryId = option.id;
+    state.report = {
+      label: turnLabel(state),
+      dice: null,
+      headline: `主課：${option.label}`,
+      lines: [
+        '主課排定了。接著選副課補強另一塊，或安排伸展／筆記把身體與動機拉回來。',
+      ],
+      deltas: {},
+      season: null,
+      traitsUnlocked: [],
+      abilitiesUnlocked: [],
+      milestones: [],
+      income: null,
+      tone: 'normal',
+    };
+    pushLog(state, turnLabel(state), `主課：${option.label}`, 'normal');
+    return;
+  }
+
+  const primary =
+    state.pendingPrimaryId != null
+      ? findTrainingOption(state, state.pendingPrimaryId) ?? option
+      : null;
+  const secondary = primary ? option : null;
+  if (state.pendingPrimaryId) state.pendingPrimaryId = null;
+
+  const cards: TrainingOption[] = secondary && primary ? [primary, secondary] : [option];
   const r = rng(state, 'train');
   // 天命 forces a perfect roll. The override is deterministic (no dice drawn),
   // so replaying the same choice with the same spend rebuilds the same turn.
   const dice = useDestiny ? 6 : rollDice(state, r);
   const flavor = DICE_FLAVOR[dice];
 
+  const headline =
+    cards.length === 2
+      ? `${cards[0].label} ＋ ${cards[1].label.replace(/^副課・/, '')}`
+      : option.label;
+
   const report: TurnReport = {
     label: turnLabel(state),
     dice,
     destinyUsed: useDestiny,
-    headline: option.label,
+    headline,
     lines: useDestiny
       ? [`你傾注天命（−${DESTINY_COST}），強行扭轉了這一次的骰。`, flavor.text]
       : [flavor.text],
     deltas: {},
     season: null,
     traitsUnlocked: [],
+    abilitiesUnlocked: [],
     milestones: [],
     income: null,
     tone: flavor.tone,
@@ -1248,24 +1595,24 @@ function resolveTraining(state: GameState, option: TrainingOption, useDestiny = 
   // A forced six is bought, not earned, so it does not count toward 天才 — that
   // trait stays a reward for a genuinely lucky (or high-心志) youth.
   if (!useDestiny && state.age < 22 && dice === 6) state.counters.earlySixes += 1;
-  if (option.rest) state.counters.restTurns += turnScale;
 
-  // Pitch work moves the arsenal; `breaking` follows from it, so the delta is
-  // read back off the derived rating rather than applied to it.
-  const breakingBefore = state.attrs.breaking;
-  if (option.pitch) developPitch(state, option, dice, r, report, turnScale);
-
-  const deltas = applyTraining(state, option.focus, dice, option.power * turnScale, r);
-  if (option.pitch) {
-    const change = state.attrs.breaking - breakingBefore;
-    if (change !== 0) deltas.breaking = (deltas.breaking ?? 0) + change;
+  const deltas: Partial<Attributes & Meta> = {};
+  let fatigueDelta = 0;
+  let injuryMul = 1;
+  for (const card of cards) {
+    fatigueDelta += applyTrainingCard(state, card, dice, r, report, turnScale, deltas);
+    injuryMul *= card.injuryMul ?? 1;
   }
-  const fatigueDelta = round(option.fatigue * turnScale);
-  deltas.fatigue = (deltas.fatigue ?? 0) + fatigueDelta;
-  Object.entries(option.meta ?? {}).forEach(([key, value]) => {
-    const k = key as keyof Meta;
-    deltas[k] = (deltas[k] ?? 0) + round((value as number) * turnScale);
-  });
+
+  // Hard blocks that roll poorly drain motivation; clean sixes feed it back.
+  // This is the risk surface that makes rest / protect meaningful.
+  if (fatigueDelta >= 16 && dice <= 2) {
+    deltas.motivation = (deltas.motivation ?? 0) - 6;
+    report.lines.push('高強度課表撞上低潮，訓練動機掉了一截。');
+  } else if (fatigueDelta >= 14 && dice >= 5) {
+    deltas.motivation = (deltas.motivation ?? 0) + 3;
+  }
+
   applyDeltas(state, deltas);
   report.deltas = deltas;
 
@@ -1304,8 +1651,16 @@ function resolveTraining(state: GameState, option: TrainingOption, useDestiny = 
 
   // Injury recovery only ticks once a year, on the same turn the season plays,
   // so a one-season injury does not heal three times over in a single year.
-  checkInjury(state, report, fatigueDelta, turnScale, state.stage !== 'pro' || playsSeason);
+  checkInjury(
+    state,
+    report,
+    fatigueDelta,
+    turnScale,
+    state.stage !== 'pro' || playsSeason,
+    injuryMul,
+  );
   checkTraits(state, report);
+  checkAbilities(state, report);
   advanceTime(state);
   if (!state.retired) checkRelease(state, report);
   queueSituation(state);
@@ -1375,6 +1730,7 @@ function resolveSituation(state: GameState, optionId: string, useDestiny = false
       deltas: {},
       season: null,
       traitsUnlocked: [],
+        abilitiesUnlocked: [],
       milestones: [],
       income: null,
       tone: 'normal',
@@ -1395,6 +1751,7 @@ function resolveSituation(state: GameState, optionId: string, useDestiny = false
     deltas: {},
     season: null,
     traitsUnlocked: [],
+        abilitiesUnlocked: [],
     milestones: [],
     income: null,
     tone: 'normal',
@@ -1939,6 +2296,7 @@ function checkInjury(
   fatigueCost: number,
   turnScale: number,
   tickRecovery: boolean,
+  trainingInjuryMul = 1,
 ): void {
   if (state.injury) {
     if (tickRecovery) {
@@ -1956,16 +2314,21 @@ function checkInjury(
   }
 
   const effects = traitEffects(state.traits);
+  const ability = abilityEffects(state.abilities);
   // The base rate is per-year; a pro turn only carries a third of the year's
   // risk, so three turns add up to roughly the same annual chance as before.
+  // `trainingInjuryMul` lets all-in / protect / weight room actually differ.
   const base = (state.stage === 'highschool' ? 0.035 : 0.065) * turnScale;
   const chance =
     base *
     effects.injury *
+    ability.injury *
+    trainingInjuryMul *
     (1 + Math.max(0, state.meta.fatigue - 45) / 55) *
     (1 + Math.max(0, fatigueCost) / 60) *
     clamp(1.5 - state.meta.body / 120, 0.6, 1.6) *
-    (state.age >= 31 ? 1.4 : 1);
+    (state.age >= 31 ? 1.4 : 1) *
+    (state.meta.motivation < 30 ? 1.15 : 1);
 
   const r = rng(state, 'injury');
   if (r() >= chance) return;
@@ -2010,6 +2373,14 @@ function advanceTime(state: GameState): void {
   // pro year's three turns so it does not triple.
   const recovery = state.stage === 'pro' ? round(FATIGUE_RECOVERY / PRO_TURNS_PER_YEAR) : FATIGUE_RECOVERY;
   state.meta.fatigue = clamp(state.meta.fatigue - recovery, 0, 100);
+  // Motivation drifts back toward a calm baseline so a single bad block does
+  // not brick the rest of the career without rest ever being taken.
+  const motiveNudge = state.stage === 'pro' ? 1 : 2;
+  if (state.meta.motivation < 50) {
+    state.meta.motivation = clamp(state.meta.motivation + motiveNudge, 0, 100);
+  } else if (state.meta.motivation > 70) {
+    state.meta.motivation = clamp(state.meta.motivation - 1, 0, 100);
+  }
 
   if (state.stage === 'highschool') {
     // Age ticks when the grade increases (高一→高二→高三), not on every 春
@@ -2062,6 +2433,7 @@ function resolvePath(state: GameState, optionId: string): void {
     deltas: {},
     season: null,
     traitsUnlocked: [],
+        abilitiesUnlocked: [],
     milestones: [],
     income: null,
     tone: 'normal',
@@ -2173,6 +2545,7 @@ function resolveOffer(state: GameState, optionId: string): void {
     deltas: {},
     season: null,
     traitsUnlocked: [],
+        abilitiesUnlocked: [],
     milestones: [],
     income: null,
     tone: 'good',
@@ -2366,6 +2739,7 @@ function retire(state: GameState, reason: string, into?: TurnReport): void {
     deltas: {},
     season: null,
     traitsUnlocked: [],
+        abilitiesUnlocked: [],
     milestones: [],
     income: null,
     tone: 'normal',

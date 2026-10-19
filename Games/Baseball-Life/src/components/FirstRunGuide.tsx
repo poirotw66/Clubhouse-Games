@@ -55,9 +55,9 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-amber-300">訓練與骰子</p>
+            <p className="font-bold text-amber-300">主課＋副課</p>
             <p className="mt-0.5 text-amber-200/60">
-              每回合只選一項訓練，骰子決定成效倍率。高中三年成長最快——22 歲前幾乎定型。
+              高中每回合先選主課、再排副課或恢復。疲勞與動機會影響骰子——硬練有風險，休息不是廢招。
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">

@@ -53,6 +53,11 @@ export function loadGame(): GameState | null {
     if (parsed?.meta && typeof parsed.meta.destiny !== 'number') {
       parsed.meta.destiny = 20;
     }
+    // Motivation arrived with M1 dual-slot training; default a calm baseline
+    // so mid-career saves from before that build keep playing.
+    if (parsed?.meta && typeof parsed.meta.motivation !== 'number') {
+      parsed.meta.motivation = 55;
+    }
     // Guard against a save written by an older build. Every field added since
     // the first release is checked, because the engine reads them unguarded —
     // a stale save missing `finance` would crash on the first turn instead of
@@ -84,6 +89,10 @@ export function loadGame(): GameState | null {
       parsed.flags.tradeCooldown = Math.max(0, Math.floor(Number(parsed.flags.tradeCooldown) || 0));
       parsed.flags.surgeryMiss = Math.max(0, Math.floor(Number(parsed.flags.surgeryMiss) || 0));
     }
+    // M1 special abilities + dual-slot bookkeeping.
+    if (!Array.isArray(parsed.abilities)) parsed.abilities = [];
+    if (!parsed.drillCounts || typeof parsed.drillCounts !== 'object') parsed.drillCounts = {};
+    if (typeof parsed.pendingPrimaryId !== 'string') parsed.pendingPrimaryId = null;
     return parsed;
   } catch {
     return null;
