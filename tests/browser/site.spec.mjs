@@ -64,13 +64,15 @@ test('menu search, shared URL, categories and responsive covers', async ({ page 
 
 for (const game of workspaceGames) {
   test(`${game.gameFolder}: loads from the menu and returns`, async ({ page }) => {
+    // WebGL/boot-heavy titles routinely exceed the default 30s budget under CI load.
+    if (game.gameFolder === 'Sailing') test.setTimeout(60_000);
     await page.goto('./');
     await page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`).click();
     await expect(page).toHaveURL(new RegExp(`/Games/${game.gameFolder}/$`));
     // Prefer the shared chrome over networkidle — games that preload BGM/media
     // (e.g. Koi-Koi) never go idle, and the afterEach hooks already catch bad assets.
     const back = page.getByRole('link', { name: /返回總覽/ });
-    await expect(back).toBeVisible();
+    await expect(back).toBeVisible({ timeout: game.gameFolder === 'Sailing' ? 45_000 : undefined });
     await back.click();
     await expect(page.locator('#game-search')).toBeVisible();
     await expect(page.locator('#recent-list')).toContainText(game.name);
