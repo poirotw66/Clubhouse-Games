@@ -105,4 +105,7 @@ body {
   .da-cta:hover {
     transform: none;
   }
+  .da-glow-title {
+    animation: none;
+  }
 }

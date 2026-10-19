@@ -156,6 +156,19 @@ const BOSSES: Boss[] = [
           { belowHpFrac: 0.25, emitters: [em({ count: 5, spread: 0.8, speed: 160, aim: 'aimed', interval: 0.9, hue: 20, bulletR: 3.2 })] },
         ],
       },
+      // New pattern: twin counter-rotating rings that force a weave, not a hold.
+      {
+        ...card('frost-4', '霜符「雙弦」', 2000, 38, [
+          em({ count: 11, spread: Math.PI * 2, speed: 90, angularVel: 2.6, aim: 'rotating', interval: 0.55, hue: 185 }),
+          em({ count: 11, spread: Math.PI * 2, speed: 90, angularVel: -2.6, aim: 'rotating', interval: 0.55, delay: 0.28, hue: 310 }),
+        ]),
+        phases: [
+          {
+            belowHpFrac: 0.45,
+            emitters: [em({ count: 4, spread: 0.55, speed: 170, aim: 'aimed', interval: 1.05, hue: 40, bulletR: 3.3 })],
+          },
+        ],
+      },
     ],
   },
   {
@@ -204,6 +217,25 @@ const BOSSES: Boss[] = [
             emitters: [
               em({ count: 9, spread: Math.PI * 2, speed: 96, angularVel: -2.8, aim: 'rotating', interval: 0.6, hue: 175 }),
               wall({ speed: 118, interval: 1.9, gap: 3, hue: 265 }),
+            ],
+          },
+        ],
+      },
+      // New pattern: walking walls + ring + reverse spray — deny lanes, then punish the dodge.
+      // Density kept in the same band as sibling abyss cards so stage-average pressure
+      // (used by the balance self-check) does not dilute when the card is added.
+      {
+        ...card('abyss-4', '淵符「裂壁」', 3000, 42, [
+          wall({ speed: 108, interval: 1.7, gap: 3, hue: 255 }),
+          em({ count: 12, spread: Math.PI * 2, speed: 90, angularVel: 2.4, aim: 'rotating', interval: 0.5, hue: 270 }),
+          em({ count: 8, spread: 2.0, speed: 120, waveform: 'reverse', interval: 0.95, delay: 1.0, hue: 290, lifetime: 8 }),
+        ]),
+        phases: [
+          {
+            belowHpFrac: 0.5,
+            emitters: [
+              wall({ speed: 118, interval: 1.6, gap: 3, hue: 210 }),
+              em({ count: 5, spread: 0.7, speed: 180, aim: 'aimed', interval: 0.9, hue: 15, bulletR: 3.2 }),
             ],
           },
         ],
