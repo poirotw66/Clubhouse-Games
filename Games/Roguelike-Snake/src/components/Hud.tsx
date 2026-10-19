@@ -23,6 +23,8 @@ export interface HudSnapshot {
   exitOpen: boolean;
   dashReady: boolean;
   endless: boolean;
+  ironsnake: boolean;
+  buildName: string;
 }
 
 interface HudProps {
@@ -45,8 +47,10 @@ export function Hud({ hud, seedLabel }: HudProps) {
           <Layers className="w-4 h-4 text-sky-300" />
           <span className="font-bold">
             第 {hud.floor} 層{hud.endless && <span className="text-amber-300"> · 無盡</span>}
+            {hud.ironsnake && <span className="text-rose-300"> · 鐵蛇</span>}
           </span>
           <span className="text-xs text-slate-400">{hud.layoutName}</span>
+          <span className="text-xs text-emerald-300/80">{hud.buildName}</span>
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="flex items-center gap-1">

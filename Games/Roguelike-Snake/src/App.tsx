@@ -16,7 +16,9 @@ import { Home, Pause, Play, RefreshCw, Trophy } from 'lucide-react';
 import { Arena, type ArenaHandle } from './components/Arena';
 import { Hud, type HudSnapshot } from './components/Hud';
 import { RelicPicker } from './components/RelicPicker';
-import { TitleScreen } from './components/TitleScreen';
+import { TitleScreen, type StartOptions } from './components/TitleScreen';
+import { achievementById } from './game/achievements';
+import { DEFAULT_BUILD_ID, buildById } from './game/builds';
 import {
   applyChallengeResult,
   challengeById,
@@ -24,6 +26,7 @@ import {
 } from './game/challenges';
 import type { ChallengeProgress, SeedChallenge } from './game/challenges';
 import { MAX_FLOOR } from './game/config';
+import { todaySeedKey } from './game/daily';
 import {
   buyHeal,
   chooseRelic,
@@ -37,11 +40,12 @@ import {
 import { LAYOUT_NAME, type LayoutId } from './game/level';
 import { parseSeed } from './game/rng';
 import {
-  loadBest,
   loadChallengeProgress,
-  saveBest,
+  loadMeta,
   saveChallengeProgress,
-  type BestRecord,
+  selectBuild,
+  settleRun,
+  type MetaProgress,
 } from './game/storage';
 import type { Dir, GameState, RelicId } from './game/types';
 
@@ -58,7 +62,13 @@ const KEY_TO_DIR: Record<string, Dir> = {
   d: 'right',
 };
 
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 function snapshot(state: GameState): HudSnapshot {
+  const build = buildById(state.buildId);
   return {
     phase: state.phase,
     floor: state.floor,
@@ -79,6 +89,8 @@ function snapshot(state: GameState): HudSnapshot {
     exitOpen: state.exit !== null,
     dashReady: state.time >= state.dashReadyAt,
     endless: state.endless,
+    ironsnake: state.ironsnake,
+    buildName: build?.name ?? state.buildId,
   };
 }
 
@@ -100,6 +112,8 @@ function signatureOf(hud: HudSnapshot): string {
     hud.exitOpen,
     hud.dashReady,
     hud.endless,
+    hud.ironsnake,
+    hud.buildName,
   ].join('|');
 }
 
@@ -110,25 +124,28 @@ export default function App() {
   const signatureRef = useRef('');
   const swipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const challengeSettledRef = useRef(false);
+  const runSettledRef = useRef(false);
+  const runOptsRef = useRef<{ ironsnake: boolean; daily: boolean; buildId: string }>({
+    ironsnake: false,
+    daily: false,
+    buildId: DEFAULT_BUILD_ID,
+  });
 
   const [screen, setScreen] = useState<Screen>('title');
   const [hud, setHud] = useState<HudSnapshot | null>(null);
   const [paused, setPaused] = useState(false);
-  const [best, setBest] = useState<BestRecord>(() => loadBest());
+  const [meta, setMeta] = useState<MetaProgress>(() => loadMeta());
   const [challengeProgress, setChallengeProgress] = useState<ChallengeProgress>(() =>
     loadChallengeProgress(),
   );
   const [activeChallenge, setActiveChallenge] = useState<SeedChallenge | null>(null);
   const [challengeCleared, setChallengeCleared] = useState<boolean | null>(null);
   const [seedLabel, setSeedLabel] = useState('');
+  const [floorPulse, setFloorPulse] = useState(false);
   const [flash, setFlash] = useState<{ text: string; tone: 'good' | 'bad' | 'neutral'; key: number } | null>(
     null,
   );
 
-  // The title screen and the run replace each other in place, so the window
-  // keeps the other screen's scroll position. The overlap is only the dozen
-  // pixels the title screen overflows by, but it is enough to clip the top of
-  // the board on a short viewport.
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
@@ -156,25 +173,84 @@ export default function App() {
     setChallengeCleared(applied.cleared);
   }, []);
 
-  const startRun = useCallback((seedInput: string, challengeId: string | null = null) => {
-    const challenge = challengeId ? challengeById(challengeId) : undefined;
-    const input = challenge?.seedInput ?? seedInput;
-    const seed = parseSeed(input);
-    const state = createRun(seed, {
-      challengeId: challenge?.id ?? null,
-      seedInput: input.trim(),
+  const settleMeta = useCallback((state: GameState, escaped: boolean) => {
+    if (runSettledRef.current) return;
+    runSettledRef.current = true;
+    const result = settleRun({
+      score: state.score,
+      floor: state.floor,
+      escaped,
+      ironsnake: state.ironsnake,
+      daily: state.daily,
+      dailyDate: state.daily ? state.seedInput || todaySeedKey() : undefined,
     });
-    stateRef.current = state;
-    signatureRef.current = '';
-    challengeSettledRef.current = false;
-    setActiveChallenge(challenge ?? null);
-    setChallengeCleared(null);
-    setSeedLabel(input.trim() || String(seed));
-    setHud(snapshot(state));
-    setPaused(false);
-    setFlash(null);
-    setScreen('run');
+    setMeta(result.meta);
+
+    if (result.newBuilds.length > 0) {
+      const names = result.newBuilds
+        .map((id) => buildById(id)?.name)
+        .filter(Boolean)
+        .join('、');
+      setFlash({ text: `解鎖身分：${names}`, tone: 'good', key: Date.now() });
+    } else if (result.newAchievements.length > 0) {
+      const first = achievementById(result.newAchievements[0]);
+      setFlash({
+        text: first ? `成就：${first.name}` : '成就解鎖',
+        tone: 'good',
+        key: Date.now(),
+      });
+    }
   }, []);
+
+  const startRun = useCallback(
+    (
+      seedInput: string,
+      challengeId: string | null = null,
+      extras: { ironsnake?: boolean; daily?: boolean } = {},
+    ) => {
+      const challenge = challengeId ? challengeById(challengeId) : undefined;
+      const input = challenge?.seedInput ?? seedInput;
+      const seed = parseSeed(input);
+      const buildId = loadMeta().selectedBuildId || DEFAULT_BUILD_ID;
+      const ironsnake = Boolean(extras.ironsnake) && !challenge;
+      const daily = Boolean(extras.daily) && !challenge;
+      const state = createRun(seed, {
+        challengeId: challenge?.id ?? null,
+        seedInput: input.trim(),
+        ironsnake,
+        daily,
+        buildId,
+      });
+      stateRef.current = state;
+      signatureRef.current = '';
+      challengeSettledRef.current = false;
+      runSettledRef.current = false;
+      runOptsRef.current = { ironsnake, daily, buildId };
+      setActiveChallenge(challenge ?? null);
+      setChallengeCleared(null);
+      setSeedLabel(input.trim() || String(seed));
+      setHud(snapshot(state));
+      setPaused(false);
+      setFlash(
+        ironsnake
+          ? { text: 'Ironsnake・一擊即死', tone: 'bad', key: Date.now() }
+          : null,
+      );
+      setFloorPulse(false);
+      setScreen('run');
+    },
+    [],
+  );
+
+  const handleTitleStart = useCallback(
+    (options: StartOptions) => {
+      startRun(options.seedInput, null, {
+        ironsnake: options.ironsnake,
+        daily: options.daily,
+      });
+    },
+    [startRun],
+  );
 
   const startChallenge = useCallback(
     (challengeId: string) => {
@@ -182,6 +258,10 @@ export default function App() {
     },
     [startRun],
   );
+
+  const handleSelectBuild = useCallback((buildId: string) => {
+    setMeta(selectBuild(buildId));
+  }, []);
 
   const drainEvents = useCallback(
     (state: GameState) => {
@@ -205,6 +285,9 @@ export default function App() {
             break;
           case 'hurt':
             playError();
+            if (state.ironsnake) {
+              setFlash({ text: '一擊！', tone: 'bad', key: Date.now() });
+            }
             break;
           case 'bossHit':
             playCapture();
@@ -216,22 +299,42 @@ export default function App() {
           case 'exit':
             playGoal();
             break;
+          case 'floor':
+            playScore();
+            if (!prefersReducedMotion()) {
+              setFloorPulse(true);
+              window.setTimeout(() => setFloorPulse(false), 420);
+            }
+            if (event.text) {
+              setFlash({ text: event.text, tone: 'neutral', key: Date.now() });
+            }
+            break;
           case 'win':
             playWin();
-            setBest(saveBest({ score: state.score, floor: state.floor }));
+            settleMeta(state, true);
             settleChallenge(state);
+            if (!prefersReducedMotion()) {
+              setFlash({
+                text: state.ironsnake ? '鐵蛇脫殼！' : '逃出蛇窟！',
+                tone: 'good',
+                key: Date.now(),
+              });
+            }
             break;
           case 'die':
             playLose();
-            setBest(saveBest({ score: state.score, floor: state.floor }));
+            settleMeta(state, false);
             settleChallenge(state);
+            if (!prefersReducedMotion()) {
+              setFlash({ text: '蛇窟吞噬了你', tone: 'bad', key: Date.now() });
+            }
             break;
           default:
             break;
         }
       }
     },
-    [settleChallenge],
+    [settleChallenge, settleMeta],
   );
 
   useEffect(() => {
@@ -310,7 +413,12 @@ export default function App() {
       }
       if (key === 'r' && (state.phase === 'dead' || state.phase === 'won')) {
         if (activeChallenge) startRun(activeChallenge.seedInput, activeChallenge.id);
-        else startRun('');
+        else {
+          startRun(state.seedInput || '', null, {
+            ironsnake: runOptsRef.current.ironsnake,
+            daily: runOptsRef.current.daily,
+          });
+        }
       }
     };
 
@@ -353,7 +461,12 @@ export default function App() {
 
   const retryRun = () => {
     if (activeChallenge) startRun(activeChallenge.seedInput, activeChallenge.id);
-    else startRun('');
+    else {
+      startRun(stateRef.current?.seedInput || '', null, {
+        ironsnake: runOptsRef.current.ironsnake,
+        daily: runOptsRef.current.daily,
+      });
+    }
   };
 
   const returnToTitle = () => {
@@ -362,6 +475,7 @@ export default function App() {
     setActiveChallenge(null);
     setChallengeCleared(null);
     setChallengeProgress(loadChallengeProgress());
+    setMeta(loadMeta());
     setScreen('title');
   };
 
@@ -379,10 +493,11 @@ export default function App() {
       >
         <BackToMenu />
         <TitleScreen
-          best={best}
+          meta={meta}
           challengeProgress={challengeProgress}
-          onStart={(seed) => startRun(seed)}
+          onStart={handleTitleStart}
           onStartChallenge={startChallenge}
+          onSelectBuild={handleSelectBuild}
         />
       </div>
     );
@@ -391,7 +506,9 @@ export default function App() {
   const state = stateRef.current;
   const challengeBanner = activeChallenge
     ? `挑戰・${activeChallenge.name}｜目標：${activeChallenge.goalLabel}`
-    : null;
+    : hud.ironsnake
+      ? 'Ironsnake 硬派・HP=1・遺物四選一'
+      : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-3 pt-14 sm:pt-4">
@@ -430,7 +547,13 @@ export default function App() {
       </header>
 
       {challengeBanner && (
-        <p className="mb-2 w-full max-w-xl rounded-xl border border-sky-700/50 bg-sky-950/50 px-3 py-2 text-center text-xs text-sky-100">
+        <p
+          className={`mb-2 w-full max-w-xl rounded-xl border px-3 py-2 text-center text-xs ${
+            hud.ironsnake && !activeChallenge
+              ? 'border-rose-700/50 bg-rose-950/50 text-rose-100'
+              : 'border-sky-700/50 bg-sky-950/50 text-sky-100'
+          }`}
+        >
           {challengeBanner}
         </p>
       )}
@@ -438,7 +561,7 @@ export default function App() {
       <Hud hud={hud} seedLabel={seedLabel} />
 
       <div
-        className="relative mt-3 w-full max-w-xl"
+        className={`relative mt-3 w-full max-w-xl ${floorPulse ? 'snake-floor-pulse' : ''}`}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
       >
@@ -478,7 +601,9 @@ export default function App() {
         <span className="hidden md:inline">
           {activeChallenge
             ? `目標：${activeChallenge.goalLabel}`
-            : `目標：抵達第 ${MAX_FLOOR} 層並擊敗首領`}
+            : hud.ironsnake
+              ? '硬派：一擊即死'
+              : `目標：抵達第 ${MAX_FLOOR} 層並擊敗首領`}
         </span>
       </p>
 
@@ -503,7 +628,9 @@ export default function App() {
               ? challengeCleared
                 ? '挑戰通關！'
                 : '挑戰未達成'
-              : '蛇窟吞噬了你'
+              : hud.ironsnake
+                ? '鐵蛇折斷'
+                : '蛇窟吞噬了你'
           }
           variant={activeChallenge && challengeCleared ? 'win' : 'lose'}
           badge={
@@ -511,14 +638,14 @@ export default function App() {
               ? challengeCleared
                 ? activeChallenge.name
                 : `目標：${activeChallenge.goalLabel}`
-              : `第 ${hud.floor} 層`
+              : `第 ${hud.floor} 層${hud.ironsnake ? ' · 鐵蛇' : ''}`
           }
           subtitle={
             activeChallenge
               ? challengeCleared
                 ? `已記入通關・最佳分數可重刷`
                 : `再試一次・${activeChallenge.goalLabel}`
-              : `最佳紀錄：${best.score} 分 · 第 ${best.floor} 層`
+              : `最佳紀錄：${meta.score} 分 · 第 ${meta.floor} 層`
           }
           stats={[
             { label: '分數', value: hud.score },
@@ -528,8 +655,8 @@ export default function App() {
           ]}
           primaryLabel={activeChallenge ? '再挑戰一次' : '再玩一局'}
           onPrimary={retryRun}
-          secondaryLabel={activeChallenge ? '返回標題' : undefined}
-          onSecondary={activeChallenge ? returnToTitle : undefined}
+          secondaryLabel={activeChallenge || hud.ironsnake ? '返回標題' : undefined}
+          onSecondary={activeChallenge || hud.ironsnake ? returnToTitle : undefined}
         />
       )}
 
@@ -540,26 +667,41 @@ export default function App() {
           aria-modal="true"
           aria-label="逃出蛇窟"
         >
-          <div className="w-full max-w-sm rounded-2xl border border-amber-500/40 bg-slate-900/95 p-6 text-center shadow-2xl">
-            <Trophy className="mx-auto mb-2 h-10 w-10 text-amber-300" />
-            <h2 className="mb-1 text-2xl font-bold text-amber-200">
-              {activeChallenge && challengeCleared ? '挑戰通關！' : '逃出蛇窟！'}
+          <div
+            className={`w-full max-w-sm rounded-2xl border bg-slate-900/95 p-6 text-center shadow-2xl ${
+              hud.ironsnake ? 'border-rose-500/40 snake-clear-glow' : 'border-amber-500/40 snake-clear-glow'
+            }`}
+          >
+            <Trophy
+              className={`mx-auto mb-2 h-10 w-10 ${hud.ironsnake ? 'text-rose-300' : 'text-amber-300'}`}
+            />
+            <h2
+              className={`mb-1 text-2xl font-bold ${hud.ironsnake ? 'text-rose-200' : 'text-amber-200'}`}
+            >
+              {activeChallenge && challengeCleared
+                ? '挑戰通關！'
+                : hud.ironsnake
+                  ? '鐵蛇脫殼！'
+                  : '逃出蛇窟！'}
             </h2>
             <p className="mb-4 text-sm text-slate-300">
               {activeChallenge
                 ? challengeCleared
                   ? `「${activeChallenge.name}」達成・${activeChallenge.goalLabel}`
                   : `逃出了，但挑戰目標未達成：${activeChallenge.goalLabel}`
-                : `你帶著 ${hud.relics.length} 件遺物走出第 ${MAX_FLOOR} 層。`}
+                : hud.ironsnake
+                  ? `以一命撐過第 ${MAX_FLOOR} 層，帶著 ${hud.relics.length} 件遺物脫殼而出。`
+                  : `你帶著 ${hud.relics.length} 件遺物走出第 ${MAX_FLOOR} 層。`}
             </p>
             <dl className="mb-5 grid gap-2 text-sm">
               {[
                 ['分數', hud.score],
                 ['剩餘 HP', hud.hp],
                 ['擊殺', hud.kills],
+                ...(hud.ironsnake ? [['鐵蛇通關', meta.ironsnakeClears]] : []),
               ].map(([label, value]) => (
                 <div
-                  key={label}
+                  key={String(label)}
                   className="flex justify-between rounded-lg border border-white/5 bg-slate-800/80 px-3 py-2"
                 >
                   <dt className="text-slate-400">{label}</dt>
@@ -584,15 +726,13 @@ export default function App() {
               >
                 {activeChallenge ? '再挑戰一次' : '重新開始'}
               </button>
-              {activeChallenge && (
-                <button
-                  type="button"
-                  onClick={returnToTitle}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-900 px-6 py-3 font-semibold hover:bg-slate-800"
-                >
-                  返回標題
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={returnToTitle}
+                className="w-full rounded-xl border border-slate-600 bg-slate-900 px-6 py-3 font-semibold hover:bg-slate-800"
+              >
+                返回標題
+              </button>
             </div>
           </div>
         </div>
