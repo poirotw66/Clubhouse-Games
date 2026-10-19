@@ -189,8 +189,8 @@ export default function App() {
   };
 
   const startNewGame = useCallback(() => {
-    resetRuntime(dealForSettings(settings));
-  }, [settings, scoreMode]);
+    resetRuntime(dealForSettings(settings), settings.scoreMode);
+  }, [settings]);
 
   const redealSame = () => {
     if (settings.solvableOnly || settings.playDaily) {
@@ -198,20 +198,22 @@ export default function App() {
         settings.playDaily
           ? dealDailySolvable(dailyBaseSeed(dateKey()), drawCount)
           : dealSolvableGame(drawCount, gameState.seed),
+        scoreMode,
       );
       return;
     }
-    resetRuntime(dealGame(gameState.seed));
+    resetRuntime(dealGame(gameState.seed), scoreMode);
   };
 
   const dealSeedInput = () => {
     const n = Number(seedDraft.trim());
     if (!Number.isFinite(n)) return;
-    persistSettings({ ...settings, playDaily: false });
-    if (settings.solvableOnly) {
-      resetRuntime(dealSolvableGame(drawCount, n >>> 0));
+    const next = { ...settings, playDaily: false };
+    persistSettings(next);
+    if (next.solvableOnly) {
+      resetRuntime(dealSolvableGame(drawCount, n >>> 0), next.scoreMode);
     } else {
-      resetRuntime(dealGame(n >>> 0));
+      resetRuntime(dealGame(n >>> 0), next.scoreMode);
     }
   };
 
@@ -219,20 +221,20 @@ export default function App() {
     if (n === drawCount) return;
     const next = { ...settings, drawCount: n };
     persistSettings(next);
-    resetRuntime(dealForSettings(next));
+    resetRuntime(dealForSettings(next), next.scoreMode);
   };
 
   const changeScoreMode = (mode: ScoreMode) => {
     if (mode === scoreMode) return;
     const next = { ...settings, scoreMode: mode };
     persistSettings(next);
-    resetRuntime(dealForSettings(next));
+    resetRuntime(dealForSettings(next), mode);
   };
 
   const toggleSolvable = () => {
     const next = { ...settings, solvableOnly: !settings.solvableOnly, playDaily: false };
     persistSettings(next);
-    resetRuntime(dealForSettings(next));
+    resetRuntime(dealForSettings(next), next.scoreMode);
   };
 
   const toggleDaily = () => {
@@ -242,7 +244,7 @@ export default function App() {
       solvableOnly: !settings.playDaily ? true : settings.solvableOnly,
     };
     persistSettings(next);
-    resetRuntime(dealForSettings(next));
+    resetRuntime(dealForSettings(next), next.scoreMode);
   };
 
   const sourcesEqual = (a: DragSource, b: DragSource): boolean => {
