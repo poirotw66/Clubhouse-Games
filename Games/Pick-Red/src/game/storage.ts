@@ -1,6 +1,15 @@
-import type { DifficultyId, PlayerCount } from './types';
+import type {
+  DifficultyId,
+  MatchConfig,
+  MatchLength,
+  MatchMode,
+  MatchState,
+  PlayerCount,
+  TargetScore,
+} from './types';
 
-const KEY = 'pick-red:stats:v1';
+const STATS_KEY = 'pick-red:stats:v1';
+const MATCH_KEY = 'pick-red:match:v1';
 
 export interface Stats {
   wins: number;
@@ -9,9 +18,27 @@ export interface Stats {
   best: number;
   streak: number;
   bestStreak: number;
+  /** Lifetime chip total from settled hands. */
+  chips: number;
+  /** Completed series (fixed hands or race-to-target). */
+  matches: number;
+  matchWins: number;
+  matchStreak: number;
+  bestMatchStreak: number;
+  bestMatchChips: number;
+  /** Hands where the human beat par. */
+  qualified: number;
+  doubleRedFives: number;
+  zeroScores: number;
   lastDifficulty: DifficultyId;
   lastPlayers: PlayerCount;
   lastBlackAces: boolean;
+  lastDoubleRedFive: boolean;
+  lastZeroScoreBonus: boolean;
+  lastRotateLeader: boolean;
+  lastMatchMode: MatchMode;
+  lastMatchHands: MatchLength;
+  lastMatchTarget: TargetScore;
 }
 
 export const EMPTY_STATS: Stats = {
@@ -21,15 +48,37 @@ export const EMPTY_STATS: Stats = {
   best: 0,
   streak: 0,
   bestStreak: 0,
+  chips: 0,
+  matches: 0,
+  matchWins: 0,
+  matchStreak: 0,
+  bestMatchStreak: 0,
+  bestMatchChips: 0,
+  qualified: 0,
+  doubleRedFives: 0,
+  zeroScores: 0,
   lastDifficulty: 'normal',
   lastPlayers: 2,
   lastBlackAces: false,
+  lastDoubleRedFive: true,
+  lastZeroScoreBonus: true,
+  lastRotateLeader: true,
+  lastMatchMode: 'hands',
+  lastMatchHands: 4,
+  lastMatchTarget: 100,
 };
 
 const DIFFICULTIES = new Set<string>(['easy', 'normal', 'hard']);
+const MODES = new Set<string>(['hands', 'target']);
+const HANDS = new Set<number>([4, 8, 12]);
+const TARGETS = new Set<number>([50, 100, 200]);
 
 function num(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function bool(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 /**
@@ -39,7 +88,7 @@ function num(value: unknown, fallback: number): number {
  */
 export function loadStats(): Stats {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(STATS_KEY);
     if (!raw) return EMPTY_STATS;
     const parsed = JSON.parse(raw) as Partial<Record<keyof Stats, unknown>>;
     return {
@@ -49,6 +98,15 @@ export function loadStats(): Stats {
       best: num(parsed.best, 0),
       streak: num(parsed.streak, 0),
       bestStreak: num(parsed.bestStreak, 0),
+      chips: num(parsed.chips, 0),
+      matches: num(parsed.matches, 0),
+      matchWins: num(parsed.matchWins, 0),
+      matchStreak: num(parsed.matchStreak, 0),
+      bestMatchStreak: num(parsed.bestMatchStreak, 0),
+      bestMatchChips: num(parsed.bestMatchChips, 0),
+      qualified: num(parsed.qualified, 0),
+      doubleRedFives: num(parsed.doubleRedFives, 0),
+      zeroScores: num(parsed.zeroScores, 0),
       lastDifficulty: DIFFICULTIES.has(parsed.lastDifficulty as string)
         ? (parsed.lastDifficulty as DifficultyId)
         : 'normal',
@@ -56,6 +114,18 @@ export function loadStats(): Stats {
         ? (parsed.lastPlayers as PlayerCount)
         : 2,
       lastBlackAces: parsed.lastBlackAces === true,
+      lastDoubleRedFive: bool(parsed.lastDoubleRedFive, true),
+      lastZeroScoreBonus: bool(parsed.lastZeroScoreBonus, true),
+      lastRotateLeader: bool(parsed.lastRotateLeader, true),
+      lastMatchMode: MODES.has(parsed.lastMatchMode as string)
+        ? (parsed.lastMatchMode as MatchMode)
+        : 'hands',
+      lastMatchHands: HANDS.has(parsed.lastMatchHands as number)
+        ? (parsed.lastMatchHands as MatchLength)
+        : 4,
+      lastMatchTarget: TARGETS.has(parsed.lastMatchTarget as number)
+        ? (parsed.lastMatchTarget as TargetScore)
+        : 100,
     };
   } catch {
     return EMPTY_STATS;
@@ -64,17 +134,21 @@ export function loadStats(): Stats {
 
 export function saveStats(stats: Stats): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(stats));
+    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
   } catch {
     // Private browsing and full quotas both throw here; the game plays fine
     // without a record of it.
   }
 }
 
-export function recordResult(
+export function recordHandResult(
   stats: Stats,
   result: 'win' | 'loss' | 'draw',
   points: number,
+  delta: number,
+  didQualify: boolean,
+  gotDoubleRedFive: boolean,
+  gotZeroScore: boolean,
 ): Stats {
   const streak = result === 'win' ? stats.streak + 1 : 0;
   return {
@@ -85,5 +159,80 @@ export function recordResult(
     best: Math.max(stats.best, points),
     streak,
     bestStreak: Math.max(stats.bestStreak, streak),
+    chips: stats.chips + delta,
+    qualified: stats.qualified + (didQualify ? 1 : 0),
+    doubleRedFives: stats.doubleRedFives + (gotDoubleRedFive ? 1 : 0),
+    zeroScores: stats.zeroScores + (gotZeroScore ? 1 : 0),
   };
+}
+
+/** @deprecated Use recordHandResult — kept so older check imports still resolve. */
+export function recordResult(
+  stats: Stats,
+  result: 'win' | 'loss' | 'draw',
+  points: number,
+): Stats {
+  return recordHandResult(stats, result, points, 0, false, false, false);
+}
+
+export function recordMatchResult(
+  stats: Stats,
+  won: boolean,
+  endChips: number,
+): Stats {
+  const matchStreak = won ? stats.matchStreak + 1 : 0;
+  return {
+    ...stats,
+    matches: stats.matches + 1,
+    matchWins: stats.matchWins + (won ? 1 : 0),
+    matchStreak,
+    bestMatchStreak: Math.max(stats.bestMatchStreak, matchStreak),
+    bestMatchChips: Math.max(stats.bestMatchChips, endChips),
+  };
+}
+
+export function rememberSetup(stats: Stats, config: MatchConfig): Stats {
+  return {
+    ...stats,
+    lastDifficulty: config.difficulty,
+    lastPlayers: config.rules.players,
+    lastBlackAces: config.rules.blackAces,
+    lastDoubleRedFive: config.rules.doubleRedFive,
+    lastZeroScoreBonus: config.rules.zeroScoreBonus,
+    lastRotateLeader: config.rules.rotateLeader,
+    lastMatchMode: config.mode,
+    lastMatchHands: config.hands,
+    lastMatchTarget: config.target,
+  };
+}
+
+export function saveMatch(match: MatchState): void {
+  try {
+    localStorage.setItem(MATCH_KEY, JSON.stringify(match));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearSavedMatch(): void {
+  try {
+    localStorage.removeItem(MATCH_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadMatch(): MatchState | null {
+  try {
+    const raw = localStorage.getItem(MATCH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as MatchState;
+    if (!parsed || !parsed.config || !Array.isArray(parsed.balances)) return null;
+    const players = parsed.config.rules?.players;
+    if (![2, 3, 4].includes(players)) return null;
+    if (parsed.balances.length !== players) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
