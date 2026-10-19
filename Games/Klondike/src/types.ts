@@ -15,9 +15,11 @@ export interface GameState {
   stock: CardType[];
   waste: CardType[];
   history: Omit<GameState, 'history'>[];
+  /** Deal seed (0 when layout was reshuffled mid-game). */
+  seed: number;
 }
 
-export type DragSource = 
+export type DragSource =
   | { type: 'tableau'; colIndex: number; cardIndex: number }
   | { type: 'waste' }
   | { type: 'foundation'; pileIndex: number };
