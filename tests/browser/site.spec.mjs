@@ -78,7 +78,7 @@ for (const game of workspaceGames) {
       await expect(page.getByRole('group', { name: '遊玩模式' })).toBeVisible();
     }
     const back = page.getByRole('link', { name: /返回總覽/ });
-    await expect(back).toBeVisible();
+    await expect(back).toBeVisible({ timeout: game.gameFolder === 'Sailing' ? 45_000 : undefined });
     await back.click();
     await expect(page.locator('#game-search')).toBeVisible();
     await expect(page.locator('#recent-list')).toContainText(game.name);

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { ACHIEVEMENTS, progressOf } from '../game/achievements';
 import type { AchievementProgress } from '../game/achievements';
+import { ABILITIES } from '../game/abilities';
 import {
   CAREER_CHALLENGES,
   challengeCount,
@@ -10,6 +11,9 @@ import {
 } from '../game/challenges';
 import type { ChallengeProgress } from '../game/challenges';
 import { POSITIONS } from '../game/config';
+import { encyclopediaStats } from '../game/encyclopedia';
+import type { EncyclopediaProgress } from '../game/encyclopedia';
+import type { PendingLegacy } from '../game/legacy';
 import { normalizeSeedCode, randomSeedCode } from '../game/rng';
 import { hasAnyRecords, totalMilestoneHits } from '../game/records';
 import type { PersonalRecords } from '../game/records';
@@ -22,6 +26,8 @@ interface Props {
   archive: ArchiveEntry[];
   achievements: AchievementProgress;
   records: PersonalRecords;
+  encyclopedia: EncyclopediaProgress;
+  pendingLegacy: PendingLegacy | null;
   challengeProgress: ChallengeProgress;
   onShowHowTo: () => void;
   onStart: (seedCode: string) => void;
@@ -35,6 +41,8 @@ export function TitleScreen({
   archive,
   achievements,
   records,
+  encyclopedia,
+  pendingLegacy,
   challengeProgress,
   onShowHowTo,
   onStart,
@@ -43,9 +51,11 @@ export function TitleScreen({
 }: Props): React.ReactElement {
   const [seed, setSeed] = useState(initialSeed);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [showEncyclopedia, setShowEncyclopedia] = useState(false);
   const [showChallenges, setShowChallenges] = useState(false);
   const [showRecords, setShowRecords] = useState(false);
   const earned = ACHIEVEMENTS.filter((a) => achievements.unlocked[a.id]).length;
+  const encyclopediaProgress = encyclopediaStats(encyclopedia);
   const packTotal = challengeCount();
   const packContinue = continueChallengeIndex(challengeProgress.clearedCount);
   const packSubtitle = useMemo(() => {
@@ -112,6 +122,12 @@ export function TitleScreen({
         </div>
       </section>
 
+      {pendingLegacy && (
+        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-100">
+          遺產待繼承：來自 {pendingLegacy.fromName}。開始新人生時可選擇傳承。
+        </p>
+      )}
+
       <div className="flex flex-col gap-3">
         <TouchButton
           label="開始新的棒球人生"
@@ -156,6 +172,68 @@ export function TitleScreen({
           />
         )}
       </div>
+
+      <section className="bl-card p-4">
+        <button
+          type="button"
+          onClick={() => setShowEncyclopedia((v) => !v)}
+          aria-expanded={showEncyclopedia}
+          className="flex min-h-11 w-full items-center justify-between text-left"
+        >
+          <span className="text-sm font-bold text-slate-300">
+            特殊能力圖鑑
+            <span className="ml-2 font-mono text-xs font-normal text-sky-300">
+              {encyclopediaProgress.unlocked}/{encyclopediaProgress.total}
+            </span>
+          </span>
+          <span className="text-xs text-slate-400">{showEncyclopedia ? '收起 ▲' : '展開 ▼'}</span>
+        </button>
+        <div className="mt-2 h-1.5 w-full rounded-full bg-slate-700/70">
+          <div
+            className="h-full rounded-full bg-sky-400 transition-[width] duration-300"
+            style={{
+              width: `${(encyclopediaProgress.unlocked / Math.max(1, encyclopediaProgress.total)) * 100}%`,
+            }}
+          />
+        </div>
+        {showEncyclopedia && (
+          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {ABILITIES.map((ability) => {
+              const unlocked = Boolean(encyclopedia.unlocked[ability.id]);
+              return (
+                <li
+                  key={ability.id}
+                  className={`rounded-lg border px-2.5 py-2 text-left ${
+                    unlocked
+                      ? ability.negative
+                        ? 'border-rose-500/40 bg-rose-500/10'
+                        : 'border-sky-500/40 bg-sky-500/10'
+                      : 'border-slate-700/60 bg-slate-900/40'
+                  }`}
+                >
+                  <p
+                    className={`text-xs font-bold ${
+                      unlocked
+                        ? ability.negative
+                          ? 'text-rose-200'
+                          : 'text-sky-100'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {unlocked ? ability.label : '？？？'}
+                    {ability.negative && unlocked && (
+                      <span className="ml-1 text-[10px] font-normal text-rose-300/80">負面</span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                    {unlocked ? ability.desc : ability.unlockHint}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       {achievements.careers > 0 && (
         <section className="bl-card p-4">

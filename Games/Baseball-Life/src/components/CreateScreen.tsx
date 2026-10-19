@@ -3,17 +3,31 @@ import { TouchButton } from '@clubhouse/shared/TouchButton';
 import type { CareerChallenge } from '../game/challenges';
 import { POSITIONS } from '../game/config';
 import { rollOrigins } from '../game/engine';
+import { legacyCompatible } from '../game/legacy';
+import type { LegacyOption, PendingLegacy } from '../game/legacy';
 import type { Position } from '../game/types';
 import { sceneBackgroundStyle } from '../sceneBackground';
 
 interface Props {
   seedCode: string;
   challenge?: CareerChallenge | null;
-  onCreate: (input: { name: string; position: Position; originId: string }) => void;
+  pendingLegacy?: PendingLegacy | null;
+  onCreate: (input: {
+    name: string;
+    position: Position;
+    originId: string;
+    legacy?: LegacyOption | null;
+  }) => void;
   onBack: () => void;
 }
 
-export function CreateScreen({ seedCode, challenge, onCreate, onBack }: Props): React.ReactElement {
+export function CreateScreen({
+  seedCode,
+  challenge,
+  pendingLegacy,
+  onCreate,
+  onBack,
+}: Props): React.ReactElement {
   const lockedPosition = challenge?.position;
   const [name, setName] = useState('');
   const [position, setPosition] = useState<Position>(lockedPosition ?? 'OF');
@@ -21,9 +35,19 @@ export function CreateScreen({ seedCode, challenge, onCreate, onBack }: Props): 
   // not a fresh roll each time the player changes their mind about position.
   const origins = useMemo(() => rollOrigins(seedCode), [seedCode]);
   const [originId, setOriginId] = useState(origins[0].id);
+  const [legacyId, setLegacyId] = useState<string | 'skip' | null>(
+    pendingLegacy ? pendingLegacy.options[0]?.id ?? 'skip' : null,
+  );
   const positionChoices = lockedPosition
     ? POSITIONS.filter((p) => p.id === lockedPosition)
     : POSITIONS;
+
+  const legacyOptions = useMemo(() => {
+    if (!pendingLegacy || challenge) return [];
+    return pendingLegacy.options.filter((o) =>
+      legacyCompatible(o, lockedPosition ?? position),
+    );
+  }, [pendingLegacy, challenge, lockedPosition, position]);
 
   return (
     <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle()}>
@@ -43,6 +67,50 @@ export function CreateScreen({ seedCode, challenge, onCreate, onBack }: Props): 
           </p>
         )}
       </header>
+
+      {legacyOptions.length > 0 && pendingLegacy && (
+        <section className="bl-card border border-amber-500/30 p-4">
+          <h2 className="text-xs font-semibold tracking-wider text-amber-300">遺產・New Game+</h2>
+          <p className="mt-1 text-[11px] text-slate-400">
+            來自 {pendingLegacy.fromName}（名人堂 {pendingLegacy.fromHof}）的傳承。選一項帶走，或跳過。
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {legacyOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setLegacyId(option.id)}
+                aria-pressed={legacyId === option.id}
+                className="bl-choice px-3 py-3 text-left"
+                style={
+                  legacyId === option.id
+                    ? { borderColor: '#fbbf24', background: 'rgba(120,72,10,0.35)' }
+                    : undefined
+                }
+              >
+                <span className="block text-sm font-bold text-slate-100">{option.label}</span>
+                <span className="mt-1 block text-xs leading-snug text-slate-400">{option.hint}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setLegacyId('skip')}
+              aria-pressed={legacyId === 'skip'}
+              className="bl-choice px-3 py-3 text-left"
+              style={
+                legacyId === 'skip'
+                  ? { borderColor: '#fbbf24', background: 'rgba(120,72,10,0.35)' }
+                  : undefined
+              }
+            >
+              <span className="block text-sm font-bold text-slate-100">不繼承</span>
+              <span className="mt-1 block text-xs leading-snug text-slate-400">
+                從空白開始。遺產會保留到下次開局。
+              </span>
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="bl-card p-4">
         <label className="block text-xs font-semibold tracking-wider text-slate-400" htmlFor="name-input">
@@ -110,7 +178,18 @@ export function CreateScreen({ seedCode, challenge, onCreate, onBack }: Props): 
         <TouchButton
           label={challenge ? '接受挑戰' : '入部'}
           ariaLabel={challenge ? '建立球員並開始生涯挑戰' : '建立球員並開始遊戲'}
-          onClick={() => onCreate({ name, position: lockedPosition ?? position, originId })}
+          onClick={() => {
+            const chosen =
+              legacyId && legacyId !== 'skip'
+                ? legacyOptions.find((o) => o.id === legacyId) ?? null
+                : null;
+            onCreate({
+              name,
+              position: lockedPosition ?? position,
+              originId,
+              legacy: chosen,
+            });
+          }}
           className="flex-1 rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
         />
       </div>
