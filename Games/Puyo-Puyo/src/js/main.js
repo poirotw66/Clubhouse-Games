@@ -1,13 +1,17 @@
 /**
- * Versus loop for Puyo Puyo: 1P vs CPU or local 1P vs 2P.
+ * Puyo Puyo loop: vs CPU / local 2P / mission ladder / chain tutorial / free practice.
  * Plain script (no bundler) so the page runs from file:// as well as the dev server.
  */
 (function (global) {
   'use strict';
 
   var L = global.PuyoLogic;
+  var M = global.PuyoMissions;
   var R = global.PuyoRender;
   var A = global.PuyoAudio;
+  var prefersReducedMotion = !!(
+    global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 
   var CELL = 40;
   var PREVIEW_CELL = 26;
@@ -24,7 +28,7 @@
   var PUYOS_PER_LEVEL = 30;
   var GARBAGE_RATE = 70;
 
-  // Hard leans into setupPotential / future chains; Easy pops early and plays slow.
+  // Hard/Master deepen lookahead; Easy pops early and plays slow.
   var DIFFICULTY_PRESETS = {
     easy: {
       label: '簡單',
@@ -38,6 +42,8 @@
       buildBias: 0,
       garbageDropCap: 6,
       noise: 90,
+      allClearBonus: 200,
+      flatnessWeight: 0,
     },
     normal: {
       label: '普通',
@@ -51,19 +57,38 @@
       buildBias: 0.25,
       garbageDropCap: 12,
       noise: 18,
+      allClearBonus: 400,
+      flatnessWeight: 4,
     },
     hard: {
       label: '困難',
-      lookahead: 2,
-      cpuMin: 45,
-      cpuMax: 95,
-      futureWeight: 0.72,
-      attackWeight: 1.35,
-      setupWeight: 1.35,
-      weakPopPenalty: 260,
-      buildBias: 0.85,
+      lookahead: 3,
+      cpuMin: 40,
+      cpuMax: 85,
+      futureWeight: 0.78,
+      attackWeight: 1.4,
+      setupWeight: 1.4,
+      weakPopPenalty: 280,
+      buildBias: 0.95,
       garbageDropCap: 18,
       noise: 0,
+      allClearBonus: 700,
+      flatnessWeight: 10,
+    },
+    master: {
+      label: '達人',
+      lookahead: 3,
+      cpuMin: 24,
+      cpuMax: 55,
+      futureWeight: 0.9,
+      attackWeight: 1.55,
+      setupWeight: 1.7,
+      weakPopPenalty: 340,
+      buildBias: 1.15,
+      garbageDropCap: 24,
+      noise: 0,
+      allClearBonus: 1100,
+      flatnessWeight: 16,
     },
   };
 
@@ -73,6 +98,16 @@
     modeBadge: document.getElementById('mode-badge'),
     modeSelect: document.getElementById('match-mode'),
     difficultyField: document.getElementById('difficulty-field'),
+    missionField: document.getElementById('mission-field'),
+    missionSelect: document.getElementById('mission-select'),
+    questPanel: document.getElementById('quest-panel'),
+    questTitle: document.getElementById('quest-title'),
+    questProgress: document.getElementById('quest-progress'),
+    questBlurb: document.getElementById('quest-blurb'),
+    questHintBtn: document.getElementById('btn-quest-hint'),
+    questSkipBtn: document.getElementById('btn-quest-skip'),
+    versusLayout: document.getElementById('versus-layout'),
+    playerCardP2: document.getElementById('player-card-p2'),
     overlay: document.getElementById('result-overlay'),
     resultTitle: document.getElementById('result-title'),
     resultSummary: document.getElementById('result-summary'),
@@ -115,6 +150,10 @@
     winner: null,
     loser: null,
     difficulty: DIFFICULTY_PRESETS.normal,
+    quest: null,
+    tutorialIndex: 0,
+    movesLeft: 0,
+    lastChainPulse: 0,
   };
 
   var keysDown = {};
@@ -288,15 +327,28 @@
   function showHint() {
     if (match.over || match.paused || !canControl(players[0])) return false;
     var state = players[0].state;
-    var best = bestPlacementFor(
-      state.board,
-      state.pair,
-      state.queue,
-      Math.max(2, match.difficulty.lookahead),
-      state.incomingGarbage
-    );
-    if (!best) return false;
-    var landing = best.placement;
+    var landing = null;
+    if (match.quest && match.quest.hint && state.pair) {
+      var hinted = {
+        row: L.HIDDEN_ROWS,
+        col: match.quest.hint.col,
+        rot: match.quest.hint.rot,
+        axis: state.pair.axis,
+        child: state.pair.child,
+      };
+      if (L.fits(state.board, hinted)) landing = L.dropPair(state.board, hinted);
+    }
+    if (!landing) {
+      var best = bestPlacementFor(
+        state.board,
+        state.pair,
+        state.queue,
+        Math.max(2, match.difficulty.lookahead),
+        state.incomingGarbage
+      );
+      if (!best) return false;
+      landing = best.placement;
+    }
     var child = L.childPos(landing);
     hintCells = [
       { row: landing.row, col: landing.col, color: landing.axis },
@@ -325,6 +377,10 @@
     return match.mode === 'versus';
   }
 
+  function isSoloMode() {
+    return match.mode === 'mission' || match.mode === 'tutorial' || match.mode === 'practice';
+  }
+
   function formatCareerLine(stats, difficulty) {
     var diffId = difficulty || stats.lastDifficulty;
     var preset = DIFFICULTY_PRESETS[diffId] || DIFFICULTY_PRESETS.normal;
@@ -338,11 +394,43 @@
       mode.losses +
       ' 敗 · 連勝 ' +
       mode.winStreak +
-      ' · 最佳連勝 ' +
-      mode.bestWinStreak +
       ' · 最高連鎖 ' +
-      mode.bestMaxChain
+      mode.bestMaxChain +
+      ' · 任務 ' +
+      stats.missionsClearedCount +
+      '/' +
+      M.MISSION_LADDER.length +
+      ' · 生涯最大連鎖 ' +
+      stats.bestChainOverall
     );
+  }
+
+  function refreshMissionSelect() {
+    if (!ui.missionSelect) return;
+    var cleared = career.missionClears || {};
+    var html = '';
+    M.MISSION_LADDER.forEach(function (mission, index) {
+      var unlocked = M.isMissionUnlocked(mission.id, cleared);
+      var done = !!cleared[mission.id];
+      html +=
+        '<option value="' +
+        mission.id +
+        '"' +
+        (unlocked ? '' : ' disabled') +
+        '>' +
+        (done ? '✓ ' : '') +
+        mission.title +
+        (unlocked ? '' : '（未解鎖）') +
+        '</option>';
+      if (!ui.missionSelect.value && unlocked && !done) {
+        // defer selection after options exist
+      }
+      void index;
+    });
+    ui.missionSelect.innerHTML = html;
+    var nextId = M.nextMissionId(cleared);
+    if (nextId) ui.missionSelect.value = nextId;
+    else if (M.MISSION_LADDER.length) ui.missionSelect.value = M.MISSION_LADDER[0].id;
   }
 
   function refreshCareerUi() {
@@ -372,39 +460,105 @@
 
   function persistPrefs() {
     var difficulty = ui.difficultySelect.value;
-    var mode = ui.modeSelect.value === 'versus' ? 'versus' : 'cpu';
+    var mode = ui.modeSelect.value;
+    if (!L.VALID_MODES[mode]) mode = 'cpu';
     career = L.withPrefs(career, difficulty, mode);
     saveCareer();
   }
 
   function applySavedPrefs() {
-    if (career.lastMode === 'versus' || career.lastMode === 'cpu') {
+    if (career.lastMode && L.VALID_MODES[career.lastMode]) {
       ui.modeSelect.value = career.lastMode;
     }
-    if (career.lastDifficulty === 'easy' || career.lastDifficulty === 'normal' || career.lastDifficulty === 'hard') {
+    if (career.lastDifficulty && L.VALID_DIFFICULTIES[career.lastDifficulty]) {
       ui.difficultySelect.value = career.lastDifficulty;
     }
   }
 
+  function selectedMode() {
+    var value = ui.modeSelect.value;
+    return L.VALID_MODES[value] ? value : 'cpu';
+  }
+
   function syncModeUi() {
-    match.mode = ui.modeSelect.value === 'versus' ? 'versus' : 'cpu';
-    players[1].isCpu = !isVersusMode();
+    match.mode = selectedMode();
+    var solo = isSoloMode();
+    players[1].isCpu = match.mode === 'cpu';
     players[1].label = isVersusMode() ? '2P' : 'CPU';
     ui.p2Title.textContent = players[1].label;
     ui.p2Badge.textContent = isVersusMode() ? '玩家 2' : '自動對手';
     ui.p2Badge.classList.toggle('cpu-badge', !isVersusMode());
-    ui.modeBadge.textContent = isVersusMode()
-      ? '1P vs 2P · 6×12 · 連鎖送垃圾'
-      : '1P vs CPU · 6×12 · 連鎖送垃圾';
-    ui.difficultyField.hidden = isVersusMode();
-    ui.resultP2Label.textContent = players[1].label + ' 分數';
-    ui.resultP2ChainLabel.textContent = players[1].label + ' 最大連鎖';
+    if (match.mode === 'mission') ui.modeBadge.textContent = '任務模式 · 限手連鎖';
+    else if (match.mode === 'tutorial') ui.modeBadge.textContent = '連鎖教室 · 互動教學';
+    else if (match.mode === 'practice') ui.modeBadge.textContent = '自由練習 · 單人無對手';
+    else if (isVersusMode()) ui.modeBadge.textContent = '1P vs 2P · 6×12 · 連鎖送垃圾';
+    else ui.modeBadge.textContent = '1P vs CPU · 6×12 · 連鎖送垃圾';
+
+    ui.difficultyField.hidden = match.mode !== 'cpu';
+    ui.missionField.hidden = match.mode !== 'mission';
+    ui.questPanel.hidden = !(match.mode === 'mission' || match.mode === 'tutorial');
+    ui.colorSelect.disabled = match.mode === 'mission' || match.mode === 'tutorial';
+    if (ui.playerCardP2) ui.playerCardP2.hidden = solo;
+    if (ui.versusLayout) ui.versusLayout.classList.toggle('solo-layout', solo);
+    document.body.classList.toggle('solo-mode', solo);
+
+    ui.resultP2Label.textContent = solo ? '模式' : players[1].label + ' 分數';
+    ui.resultP2ChainLabel.textContent = solo ? '剩餘手数' : players[1].label + ' 最大連鎖';
     ui.p2ControlsList.innerHTML = isVersusMode()
       ? '<li><kbd>A</kbd> <kbd>D</kbd> 左右移動</li>'
         + '<li><kbd>S</kbd> 加速落下</li>'
         + '<li><kbd>Q</kbd> 逆時針 · <kbd>E</kbd>/<kbd>W</kbd> 順時針</li>'
         + '<li><kbd>Shift</kbd> 瞬間落下</li>'
-      : '<li>CPU 依難度自動思考與落子</li>';
+      : solo
+        ? '<li>單人模式：無對手、無垃圾對攻</li>'
+        : '<li>CPU 依難度自動思考與落子</li>';
+    if (ui.questSkipBtn) {
+      ui.questSkipBtn.hidden = match.mode !== 'tutorial';
+    }
+  }
+
+  function updateQuestHud() {
+    if (!match.quest) return;
+    ui.questTitle.textContent = match.quest.title;
+    ui.questBlurb.textContent = match.quest.blurb;
+    ui.questProgress.textContent =
+      '目標 ' +
+      match.quest.targetChain +
+      ' 連鎖 · 剩餘 ' +
+      match.movesLeft +
+      ' 手 · 本局最大 ' +
+      players[0].state.maxChain;
+  }
+
+  function currentQuestDef() {
+    if (match.mode === 'mission') {
+      return M.missionById(ui.missionSelect.value) || M.MISSION_LADDER[0];
+    }
+    if (match.mode === 'tutorial') {
+      return M.TUTORIAL_STAGES[match.tutorialIndex] || M.TUTORIAL_STAGES[0];
+    }
+    return null;
+  }
+
+  function flashGarbage(player) {
+    if (!player.field || !player.state.garbageJustDropped) return;
+    var frame = player.field.closest('.field-frame');
+    if (!frame) return;
+    frame.classList.remove('garbage-flash');
+    void frame.offsetWidth;
+    frame.classList.add('garbage-flash');
+    if (prefersReducedMotion) {
+      global.setTimeout(function () { frame.classList.remove('garbage-flash'); }, 200);
+    }
+  }
+
+  function flashAllClear() {
+    document.body.classList.remove('all-clear-flash');
+    void document.body.offsetWidth;
+    document.body.classList.add('all-clear-flash');
+    global.setTimeout(function () {
+      document.body.classList.remove('all-clear-flash');
+    }, prefersReducedMotion ? 200 : 900);
   }
 
   function renderOjamaTray(player) {
@@ -421,6 +575,7 @@
     match.winner = null;
     match.loser = null;
     match.difficulty = currentDifficulty();
+    match.lastChainPulse = 0;
     das[0].direction = 0;
     das[0].timer = 0;
     das[1].direction = 0;
@@ -430,14 +585,45 @@
     ui.pauseLabel.textContent = '暫停';
     ui.overlay.hidden = true;
     syncModeUi();
+    refreshMissionSelect();
 
-    var colorCount = Number(ui.colorSelect.value) || 4;
-    players.forEach(function (player) {
-      player.state = newPlayerState(colorCount);
-      hidePopup(player);
-      spawnNext(player);
-      updateStats(player);
-    });
+    var quest = currentQuestDef();
+    match.quest = quest;
+    match.movesLeft = quest ? quest.moveLimit : 0;
+
+    var colorCount = quest ? quest.colorCount : Number(ui.colorSelect.value) || 4;
+    if (quest) ui.colorSelect.value = String(colorCount);
+
+    players[0].state = newPlayerState(colorCount);
+    hidePopup(players[0]);
+    if (quest) {
+      players[0].state.board = M.boardFromLines(quest.lines);
+      players[0].state.queue = quest.queue.map(L.clonePair);
+      while (players[0].state.queue.length < 2) {
+        players[0].state.queue.push(L.createPair(colorCount));
+      }
+      players[0].state.pair = null;
+      spawnNext(players[0]);
+      updateQuestHud();
+    } else {
+      spawnNext(players[0]);
+    }
+    updateStats(players[0]);
+
+    if (isSoloMode()) {
+      players[1].state = newPlayerState(colorCount);
+      players[1].state.over = true;
+      players[1].state.phase = 'over';
+      players[1].isCpu = false;
+      hidePopup(players[1]);
+      updateStats(players[1]);
+    } else {
+      players[1].state = newPlayerState(colorCount);
+      hidePopup(players[1]);
+      spawnNext(players[1]);
+      updateStats(players[1]);
+    }
+
     updateMatchStatus();
     refreshAssistButtons();
   }
@@ -445,19 +631,43 @@
   function spawnNext(player) {
     var state = player.state;
     state.garbageJustDropped = 0;
-    if (state.incomingGarbage > 0) {
+    if (!isSoloMode() && state.incomingGarbage > 0) {
       state.garbageJustDropped = Math.min(state.incomingGarbage, match.difficulty.garbageDropCap);
       state.board = L.withGarbage(state.board, state.garbageJustDropped);
       state.incomingGarbage -= state.garbageJustDropped;
+      flashGarbage(player);
     }
 
     if (L.isDead(state.board)) {
-      finishMatch(opponentOf(player), player, player.label + ' 被垃圾壓垮了。');
+      if (isSoloMode()) finishSolo(false, player.label + ' 場地頂端被堵住了。');
+      else finishMatch(opponentOf(player), player, player.label + ' 被垃圾壓垮了。');
+      return;
+    }
+
+    if (isSoloMode() && match.quest && match.movesLeft <= 0 && !state.pair) {
+      finishSolo(false, '手数用盡，未達目標連鎖。');
       return;
     }
 
     var pair = state.queue.shift();
-    state.queue.push(L.createPair(state.colorCount));
+    if (!pair) {
+      if (isSoloMode() && match.quest) {
+        finishSolo(
+          players[0].state.maxChain >= match.quest.targetChain,
+          players[0].state.maxChain >= match.quest.targetChain
+            ? '達成目標連鎖！'
+            : '沒有下一組氣泡了。'
+        );
+        return;
+      }
+      pair = L.createPair(state.colorCount);
+    }
+    if (!(isSoloMode() && match.quest)) {
+      state.queue.push(L.createPair(state.colorCount));
+    } else if (state.queue.length < 1) {
+      // Keep a preview slot filled with a neutral upcoming pair for UI.
+      state.queue.push(L.createPair(state.colorCount));
+    }
     state.pair = pair;
     state.fallProgress = 0;
     state.lockTimer = 0;
@@ -467,15 +677,66 @@
 
     if (!L.fits(state.board, pair)) {
       state.pair = null;
-      finishMatch(opponentOf(player), player, player.label + ' 無法再出塊。');
+      if (isSoloMode()) finishSolo(false, player.label + ' 無法再出塊。');
+      else finishMatch(opponentOf(player), player, player.label + ' 無法再出塊。');
       return;
     }
 
     if (player.isCpu) planCpu(player);
   }
 
+  function finishSolo(won, summary) {
+    if (match.over) return;
+    match.over = true;
+    match.winner = won ? players[0] : null;
+    match.loser = won ? null : players[0];
+    players[0].state.over = true;
+    players[0].state.phase = 'over';
+    players[0].state.softDrop = false;
+    updateStats(players[0]);
+
+    var chain = players[0].state.maxChain;
+    career = L.noteMaxChain(career, chain, null);
+    if (match.mode === 'mission' && won && match.quest) {
+      career = L.recordMissionClear(career, match.quest.id, chain);
+      refreshMissionSelect();
+    }
+    if (match.mode === 'tutorial' && won) {
+      if (match.tutorialIndex >= M.TUTORIAL_STAGES.length - 1) {
+        career = L.markTutorialComplete(career, chain);
+      }
+    }
+    career = L.withPrefs(career, ui.difficultySelect.value, match.mode);
+    saveCareer();
+    refreshCareerUi();
+    ui.resultCareer.hidden = false;
+
+    if (won) A.playWin();
+    else A.playLose();
+    ui.resultTitle.textContent = won ? '任務成功' : '再試一次';
+    ui.resultSummary.textContent = summary;
+    ui.resultP1Score.textContent = String(players[0].state.score);
+    ui.resultP1Chain.textContent = String(chain);
+    ui.resultP2Score.textContent =
+      match.mode === 'tutorial'
+        ? '教室 ' + (match.tutorialIndex + 1) + '/' + M.TUTORIAL_STAGES.length
+        : match.mode === 'mission'
+          ? match.quest
+            ? match.quest.title
+            : '任務'
+          : '自由練習';
+    ui.resultP2Chain.textContent = String(match.movesLeft);
+    ui.overlay.hidden = false;
+    updateMatchStatus();
+    refreshAssistButtons();
+  }
+
   function finishMatch(winner, loser, summary) {
     if (match.over) return;
+    if (isSoloMode()) {
+      finishSolo(winner === players[0], summary);
+      return;
+    }
     match.over = true;
     match.winner = winner;
     match.loser = loser;
@@ -495,6 +756,9 @@
       refreshCareerUi();
       ui.resultCareer.hidden = false;
     } else {
+      career = L.noteMaxChain(career, players[0].state.maxChain, null);
+      saveCareer();
+      refreshCareerUi();
       ui.resultCareer.hidden = true;
     }
 
@@ -554,6 +818,10 @@
     state.board = L.lockPair(state.board, state.pair);
     state.pair = null;
     state.chain = 0;
+    if (isSoloMode() && match.quest && player === players[0]) {
+      match.movesLeft = Math.max(0, match.movesLeft - 1);
+      updateQuestHud();
+    }
     A.playLand();
     beginSettle(player);
   }
@@ -589,9 +857,16 @@
       state.score += step.score;
       state.totalCleared += step.cleared;
       state.level = 1 + Math.floor(state.totalCleared / PUYOS_PER_LEVEL);
-      state.outgoingGarbage += Math.floor(step.score / GARBAGE_RATE);
+      if (!isSoloMode()) {
+        state.outgoingGarbage += Math.floor(step.score / GARBAGE_RATE);
+      }
       A.playPop(state.chain);
-      showPopup(player, state.chain > 1 ? state.chain + ' 連鎖！' : '消除！', '+' + step.score, state.chain);
+      showPopup(
+        player,
+        state.chain > 1 ? state.chain + ' 連鎖！' : '消除！',
+        '+' + step.score,
+        state.chain
+      );
       state.pop = { groups: groups, elapsed: 0 };
       state.phase = 'pop';
       updateStats(player);
@@ -600,13 +875,29 @@
 
     if (state.chain > 0 && L.isBoardEmpty(state.board)) {
       state.score += L.ALL_CLEAR_BONUS;
-      state.outgoingGarbage += Math.floor(L.ALL_CLEAR_BONUS / GARBAGE_RATE);
+      if (!isSoloMode()) {
+        state.outgoingGarbage += Math.floor(L.ALL_CLEAR_BONUS / GARBAGE_RATE);
+      }
       A.playAllClear();
+      flashAllClear();
       showPopup(player, '全消！', '+' + L.ALL_CLEAR_BONUS, 5);
     }
 
+    var finishedChain = state.chain;
     state.chain = 0;
     updateStats(player);
+    if (match.quest) updateQuestHud();
+
+    if (
+      isSoloMode() &&
+      match.quest &&
+      player === players[0] &&
+      finishedChain >= match.quest.targetChain
+    ) {
+      finishSolo(true, '達成 ' + finishedChain + ' 連鎖！目標 ' + match.quest.targetChain + ' 連鎖。');
+      return;
+    }
+
     spawnNext(player);
   }
 
@@ -648,6 +939,10 @@
     var controlsHint = player === players[0]
       ? '方向鍵移動 · Z / X 旋轉 · Space 落下'
       : 'A/D 移動 · Q/E 旋轉 · Shift 落下';
+    if (player === players[0] && hintCells && hintUntil > global.performance.now()) {
+      player.status.textContent = '提示：建議落點已標示（金色）';
+      return;
+    }
     player.status.textContent = state.garbageJustDropped > 0
       ? '這回合先掉下 ' + state.garbageJustDropped + ' 顆垃圾'
       : state.incomingGarbage > 0
@@ -657,9 +952,28 @@
 
   function updateMatchStatus() {
     if (match.over) {
-      ui.matchStatus.textContent = match.winner.label + ' 勝利，' + match.loser.label + ' 倒下。';
+      if (isSoloMode()) {
+        ui.matchStatus.textContent = match.winner
+          ? '過關！可再開下一任務或進入自由練習。'
+          : '尚未達標，按重新開始再挑戰。';
+      } else {
+        ui.matchStatus.textContent = match.winner.label + ' 勝利，' + match.loser.label + ' 倒下。';
+      }
     } else if (match.paused) {
       ui.matchStatus.textContent = '對戰已暫停。';
+    } else if (match.mode === 'mission' && match.quest) {
+      ui.matchStatus.textContent =
+        match.quest.title + '：目標 ' + match.quest.targetChain + ' 連鎖，剩餘 ' + match.movesLeft + ' 手。';
+    } else if (match.mode === 'tutorial' && match.quest) {
+      ui.matchStatus.textContent =
+        '教室進度 ' +
+        (match.tutorialIndex + 1) +
+        '/' +
+        M.TUTORIAL_STAGES.length +
+        ' — ' +
+        match.quest.blurb;
+    } else if (match.mode === 'practice') {
+      ui.matchStatus.textContent = '自由練習：沒有對手與垃圾，專心練連鎖。生涯最大連鎖會寫入統計。';
     } else if (isVersusMode()) {
       ui.matchStatus.textContent = '雙人同機：1P 用方向鍵/Z/X/Space，2P 用 A/D/S/Q/E/W/Shift。垃圾預告先顯示再分批落下。';
     } else {
@@ -672,13 +986,38 @@
   }
 
   function showPopup(player, title, detail, intensity) {
-    player.popup.innerHTML = '<strong>' + title + '</strong><span>' + detail + '</span>';
+    var chainNum = intensity > 1 ? intensity : 0;
+    if (chainNum > 1 && !prefersReducedMotion) {
+      player.popup.innerHTML =
+        '<strong><span class="chain-count" data-target="' +
+        chainNum +
+        '">1</span> 連鎖！</strong><span>' +
+        detail +
+        '</span>';
+      animateChainCount(player.popup.querySelector('.chain-count'), chainNum);
+    } else {
+      player.popup.innerHTML = '<strong>' + title + '</strong><span>' + detail + '</span>';
+    }
     player.popup.dataset.intensity = String(Math.min(intensity, 5));
+    player.popup.classList.toggle('reduced-motion', prefersReducedMotion);
     player.popup.classList.remove('is-visible');
     void player.popup.offsetWidth;
     player.popup.classList.add('is-visible');
     if (player.popupTimer) global.clearTimeout(player.popupTimer);
-    player.popupTimer = global.setTimeout(function () { hidePopup(player); }, 1100);
+    player.popupTimer = global.setTimeout(function () { hidePopup(player); }, prefersReducedMotion ? 700 : 1200);
+  }
+
+  function animateChainCount(el, target) {
+    if (!el) return;
+    var current = 1;
+    var step = Math.max(40, 160 / Math.max(1, target));
+    function tick() {
+      el.textContent = String(current);
+      if (current >= target) return;
+      current += 1;
+      global.setTimeout(tick, step);
+    }
+    tick();
   }
 
   function hidePopup(player) {
@@ -739,6 +1078,11 @@
   }
 
   function resolveGarbage() {
+    if (isSoloMode()) {
+      players[0].state.outgoingGarbage = 0;
+      players[1].state.outgoingGarbage = 0;
+      return;
+    }
     var a = players[0].state;
     var b = players[1].state;
     var cancelled = Math.min(a.outgoingGarbage, b.outgoingGarbage);
@@ -806,10 +1150,13 @@
     var danger = boardDanger(resolved.board);
     var stackPenalty = danger * 11;
     var attackValue = resolved.attack * 120 * diff.attackWeight;
-    var chainValue = resolved.chain * 180;
+    var chainValue = resolved.chain * 180 + (resolved.chain >= 3 ? resolved.chain * 90 : 0);
     var setupValue = resolved.setup * diff.setupWeight;
+    var flatPenalty = L.heightVariance(resolved.board) * (diff.flatnessWeight || 0);
+    var allClearValue =
+      resolved.chain > 0 && L.isBoardEmpty(resolved.board) ? diff.allClearBonus || 0 : 0;
 
-    // Hard: keep building unless under pressure or already firing a real chain.
+    // Hard/Master: keep building unless under pressure or already firing a real chain.
     var panic = danger > 48 || (incomingGarbage || 0) >= 12;
     var weakPop = resolved.chain === 1 && resolved.attack <= 1;
     var weakPenalty = (!panic && weakPop) ? diff.weakPopPenalty : 0;
@@ -821,7 +1168,9 @@
       + chainValue
       + setupValue
       + buildBonus
+      + allClearValue
       - stackPenalty
+      - flatPenalty
       - weakPenalty
       + (Math.random() * 2 - 1) * diff.noise;
 
@@ -881,25 +1230,31 @@
     if (isVersusMode()) updateDasFor(1, dt);
 
     players.forEach(function (player) {
+      if (isSoloMode() && player !== players[0]) return;
       var state = player.state;
       if (state.over) return;
       if (state.phase === 'control') {
         updateCpu(player, dt);
         updateControl(player, dt);
       } else if (state.phase === 'settle') {
+        var settleDuration = prefersReducedMotion ? Math.min(60, state.settle.duration) : state.settle.duration;
         state.settle.elapsed += dt;
-        if (state.settle.elapsed >= state.settle.duration) {
+        if (state.settle.elapsed >= settleDuration) {
           state.board = state.settle.targetBoard;
           afterSettle(player);
         }
       } else if (state.phase === 'pop') {
+        var popDuration = prefersReducedMotion ? Math.min(120, POP_DURATION) : POP_DURATION;
         state.pop.elapsed += dt;
-        if (state.pop.elapsed >= POP_DURATION) endPop(player);
+        if (state.pop.elapsed >= popDuration) endPop(player);
       }
     });
 
     resolveGarbage();
-    players.forEach(updateStats);
+    players.forEach(function (player) {
+      if (isSoloMode() && player !== players[0]) return;
+      updateStats(player);
+    });
     updateMatchStatus();
     refreshAssistButtons();
   }
@@ -1106,12 +1461,41 @@
   bindTouch('touch-undo', function () { undoLast(); });
   bindTouch('touch-hint', function () { showHint(); });
 
+  function advanceTutorialOrReset() {
+    if (match.mode === 'tutorial' && match.winner) {
+      if (match.tutorialIndex < M.TUTORIAL_STAGES.length - 1) {
+        match.tutorialIndex += 1;
+      } else {
+        // After final lesson, jump to free practice.
+        ui.modeSelect.value = 'practice';
+        match.tutorialIndex = 0;
+        persistPrefs();
+      }
+    }
+    resetMatch();
+  }
+
   ui.pauseButton.addEventListener('click', togglePause);
   ui.muteButton.addEventListener('click', toggleMute);
   if (ui.undoButton) ui.undoButton.addEventListener('click', undoLast);
   if (ui.hintButton) ui.hintButton.addEventListener('click', showHint);
+  if (ui.questHintBtn) ui.questHintBtn.addEventListener('click', showHint);
+  if (ui.questSkipBtn) {
+    ui.questSkipBtn.addEventListener('click', function () {
+      if (match.mode !== 'tutorial') return;
+      if (match.tutorialIndex < M.TUTORIAL_STAGES.length - 1) {
+        match.tutorialIndex += 1;
+        resetMatch();
+      } else {
+        ui.modeSelect.value = 'practice';
+        match.tutorialIndex = 0;
+        persistPrefs();
+        resetMatch();
+      }
+    });
+  }
   document.getElementById('btn-restart').addEventListener('click', resetMatch);
-  document.getElementById('result-restart').addEventListener('click', resetMatch);
+  document.getElementById('result-restart').addEventListener('click', advanceTutorialOrReset);
   ui.colorSelect.addEventListener('change', resetMatch);
   ui.difficultySelect.addEventListener('change', function () {
     persistPrefs();
@@ -1119,9 +1503,15 @@
     resetMatch();
   });
   ui.modeSelect.addEventListener('change', function () {
+    if (ui.modeSelect.value === 'tutorial') match.tutorialIndex = 0;
     persistPrefs();
     resetMatch();
   });
+  if (ui.missionSelect) {
+    ui.missionSelect.addEventListener('change', function () {
+      resetMatch();
+    });
+  }
 
   players.forEach(function (player) {
     setupCanvas(player.field, player.fieldCtx, L.COLS * CELL, L.ROWS * CELL);
@@ -1130,6 +1520,7 @@
 
   career = loadCareer();
   applySavedPrefs();
+  refreshMissionSelect();
   refreshCareerUi();
   resetMatch();
   global.requestAnimationFrame(frame);

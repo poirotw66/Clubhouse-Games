@@ -25,9 +25,11 @@ var ClubhouseSynthAudio = (() => {
   __export(synthAudio_exports, {
     playCapture: () => playCapture,
     playCard: () => playCard,
+    playCombo: () => playCombo,
     playError: () => playError,
     playFlip: () => playFlip,
     playGoal: () => playGoal,
+    playImpact: () => playImpact,
     playLose: () => playLose,
     playMove: () => playMove,
     playPaddleHit: () => playPaddleHit,
@@ -104,6 +106,17 @@ var ClubhouseSynthAudio = (() => {
     playTone(240, "triangle", 0.07, 0, 0.05);
     playTone(360, "sine", 0.08, 0.04, 0.06);
     playTone(520, "triangle", 0.06, 0.09, 0.04);
+  }
+  function playCombo(step = 1) {
+    const n = Math.max(1, Math.min(8, Math.floor(step)));
+    const base = 440 * Math.pow(2, (n - 1) / 12);
+    playTone(base, "triangle", 0.09, 0, 0.09);
+    playTone(base * 1.5, "sine", 0.12, 0.04, 0.06);
+  }
+  function playImpact(strength = 0.5) {
+    const s = Math.max(0, Math.min(1, strength));
+    playTone(180 + 80 * s, "square", 0.06 + 0.04 * s, 0, 0.05 + 0.04 * s);
+    playTone(320 + 120 * s, "triangle", 0.1, 0.03, 0.04 + 0.03 * s);
   }
   return __toCommonJS(synthAudio_exports);
 })();
