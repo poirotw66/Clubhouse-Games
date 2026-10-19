@@ -321,30 +321,41 @@ scene.add(net);
 
 // Opponent tell figure (far court)
 const opponentGroup = new THREE.Group();
-opponentGroup.position.set(0, -1.5, -78);
+opponentGroup.position.set(0, -0.5, -62);
 scene.add(opponentGroup);
 
 const oppBody = new THREE.Mesh(
-  new THREE.CylinderGeometry(1.0, 1.15, 3.6, 12),
-  new THREE.MeshStandardMaterial({ color: 0x2a3a4a, roughness: 0.7 }),
+  new THREE.CylinderGeometry(1.35, 1.5, 4.2, 12),
+  new THREE.MeshStandardMaterial({ color: 0x4a6578, roughness: 0.55, metalness: 0.15 }),
 );
-oppBody.position.y = 1.2;
+oppBody.position.y = 1.4;
 opponentGroup.add(oppBody);
 
+const oppHead = new THREE.Mesh(
+  new THREE.SphereGeometry(0.85, 12, 12),
+  new THREE.MeshStandardMaterial({ color: 0xd8c4a8, roughness: 0.65 }),
+);
+oppHead.position.y = 4.0;
+opponentGroup.add(oppHead);
+
 const oppRacketPivot = new THREE.Group();
-oppRacketPivot.position.set(1.4, 2.2, 0.4);
+oppRacketPivot.position.set(1.8, 2.8, 0.6);
 opponentGroup.add(oppRacketPivot);
 
 const oppRacket = new THREE.Mesh(
-  new THREE.TorusGeometry(1.1, 0.12, 6, 20),
-  new THREE.MeshStandardMaterial({ color: 0xff5555, emissive: 0xff2222, emissiveIntensity: 0.35 }),
+  new THREE.TorusGeometry(1.6, 0.18, 6, 24),
+  new THREE.MeshStandardMaterial({
+    color: 0xff5555,
+    emissive: 0xff2222,
+    emissiveIntensity: 0.85,
+  }),
 );
 oppRacket.scale.set(1, 1.25, 1);
-oppRacket.position.y = 2.2;
+oppRacket.position.y = 2.6;
 oppRacketPivot.add(oppRacket);
 
-const oppTellLight = new THREE.PointLight(0xff3333, 0, 30);
-oppTellLight.position.set(0, 3, 2);
+const oppTellLight = new THREE.PointLight(0xff3333, 0, 48);
+oppTellLight.position.set(0, 3.5, 4);
 opponentGroup.add(oppTellLight);
 
 const playerGroup = new THREE.Group();
@@ -870,7 +881,13 @@ function spawnShuttleFromPlan(plan) {
   s.rotation.set(-Math.PI / 2, 0, 0);
 
   const ramp = Math.min(1, (tier / 2) * 0.55 + progress * 0.45);
-  const kmh = Math.round(DISPLAY_SPEED_MIN + (DISPLAY_SPEED_MAX - DISPLAY_SPEED_MIN) * ramp * def.speedMul);
+  const speedFeel = Math.min(1.15, Math.max(0.65, def.speedMul));
+  const kmh = Math.round(
+    Math.min(
+      DISPLAY_SPEED_MAX + 40,
+      DISPLAY_SPEED_MIN + (DISPLAY_SPEED_MAX - DISPLAY_SPEED_MIN) * ramp * speedFeel,
+    ),
+  );
   document.getElementById('speed-val').innerText = String(kmh);
   const speedDisplay = document.getElementById('speed-display');
   speedDisplay.style.transform = 'scale(1.3)';
