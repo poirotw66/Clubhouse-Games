@@ -105,14 +105,15 @@ test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
 test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Memory-Match/');
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
-  await activate(page.getByRole('button', { name: '簡單 · 4 對' }));
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(8);
+  // Depth PR raised the smallest board from 4 pairs to 6.
+  await activate(page.getByRole('button', { name: '簡單 · 6 對' }));
+  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(7);
+  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(11);
   await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
   await expect(page.getByText('翻牌次數：1', { exact: false })).toBeVisible();
   await activate(page.getByRole('button', { name: '重開一局', exact: true }));
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(8);
+  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
   await expect(page.getByText('翻牌次數：0', { exact: false })).toBeVisible();
 });
 
@@ -208,13 +209,13 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
 
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
   test.setTimeout(45_000);
-  // Skip the soft first-run guide so the lobby「開始牌局」is the only match.
+  // Skip the soft first-run guide so the lobby「開始系列賽」is the only match.
   await page.addInitScript(() => {
     localStorage.setItem('clubhouse-big-two-howto-seen', '1');
   });
   await page.goto('./Games/Big-Two/');
   await page.getByPlaceholder(/例如/).fill('abc');
-  await activate(page.getByRole('button', { name: '開始牌局', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '開始系列賽', exact: true }), isMobile);
 
   const hand = page.getByRole('region', { name: '你的手牌' });
   const club3 = hand.getByRole('button', { name: '♣3', exact: true });

@@ -43,9 +43,16 @@ export function defaultMatchConfig(
   };
 }
 
-/** Derive a per-hand seed so the whole match stays reproducible from one code. */
+/**
+ * Derive a per-hand seed so the whole match stays reproducible from one code.
+ *
+ * Hand 0 uses the base code as-is — players who paste a known seed expect that
+ * deal, and the browser check pins ♣3 on a fixed seed. Later hands branch off
+ * the same stream so the series stays determined without colliding with hand 0.
+ */
 export function handSeed(baseCode: string, handIndex: number): string {
   const base = normalizeSeedCode(baseCode || 'match');
+  if (handIndex === 0) return base;
   const r = streamRng(seedFromCode(base), `hand:${handIndex}`);
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let out = '';
