@@ -680,3 +680,42 @@ test('instant-flash: versus mode mounts split controls', async ({ page, isMobile
   await expect(page.getByLabel('玩家二待機／出刀')).toBeVisible();
   await expect(page.getByRole('button', { name: '結束對戰' })).toBeVisible();
 });
+
+test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!includesGame('Roguelike-Snake'), 'selective CI');
+  await page.goto('./Games/Roguelike-Snake/');
+  await expect(page.getByRole('heading', { name: '蛇窟迴廊' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '起始身分' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /青鱗幼蛇/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /未解鎖/ }).first()).toBeDisabled();
+  await expect(page.getByText(/每日連勝/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始今日挑戰' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ironsnake/ })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: /Ironsnake/ }), isMobile);
+  const warn = page.getByRole('dialog', { name: /Ironsnake 硬派模式/ });
+  await expect(warn).toBeVisible();
+  await expect(warn.getByText(/HP 固定為 1/)).toBeVisible();
+  await expect(warn.getByText(/4 選 1/)).toBeVisible();
+  await activate(warn.getByRole('button', { name: '取消' }), isMobile);
+  await expect(warn).toBeHidden();
+
+  await activate(page.getByRole('button', { name: /^成就/ }), isMobile);
+  await expect(page.getByRole('dialog', { name: '成就' })).toBeVisible();
+  await activate(
+    page.getByRole('dialog', { name: '成就' }).getByRole('button', { name: '關閉' }),
+    isMobile,
+  );
+
+  await activate(page.getByRole('button', { name: '開始探索' }), isMobile);
+  await expect(page.getByText('青鱗幼蛇')).toBeVisible();
+  await expect(page.getByRole('button', { name: '暫停' })).toBeVisible();
+  await expect(page.getByText(/第\s*1\s*層/)).toBeVisible();
+  // Touch dash pad is md:hidden; assert it only on the mobile project.
+  if (isMobile) {
+    await expect(page.getByRole('button', { name: '衝刺' })).toBeVisible();
+  }
+});

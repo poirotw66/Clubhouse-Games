@@ -43,10 +43,16 @@ export function RelicPicker({
         </p>
         <h2 className="text-center text-2xl sm:text-3xl font-bold mb-1">選擇一件遺物</h2>
         <p className="text-center text-sm text-slate-400 mb-5">
-          {picksLeft > 1 ? `還可挑選 ${picksLeft} 次 · ` : ''}遺物永久生效並可疊加
+          {picksLeft > 1 ? `還可挑選 ${picksLeft} 次 · ` : ''}
+          {choices.length >= 4 ? '四選一' : '三選一'}
+          {' · '}遺物永久生效並可疊加
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div
+          className={`grid gap-3 ${
+            choices.length >= 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'
+          }`}
+        >
           {choices.map((id) => {
             const relic = RELIC_BY_ID[id];
             return (
@@ -54,7 +60,7 @@ export function RelicPicker({
                 key={id}
                 type="button"
                 onClick={() => onChoose(id)}
-                className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-transform hover:-translate-y-1 hover:brightness-110 ${RARITY_CLASS[relic.rarity]}`}
+                className={`snake-relic-card flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-transform hover:-translate-y-1 hover:brightness-110 ${RARITY_CLASS[relic.rarity]}`}
               >
                 <img
                   src={relicImageUrl(id)}
