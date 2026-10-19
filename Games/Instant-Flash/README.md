@@ -67,15 +67,22 @@ REPO_NAME=Clubhouse-Games npm run build:pages
 
 ---
 
+## 模式摘要
+
+- **對決階梯**：八位對手（佯攻／二連／遲延／加速／左右／混彈／頭目），解鎖進度與每人最佳反應／評價寫入 `localStorage`。
+- **每日對決**：Asia／Taipei 日期種子＋連勝。
+- **雙人拔刀**：同機快拔，先得 5 分。
+- **挑戰／練習**：既有無盡與劇本練習；操作改為左右斬（鍵盤 A／D 或觸控左／右半邊）。
+
 ## 檔案結構（重點）
 
 - `index.html`：主要 HTML 入口。
 - `index.tsx`：React app 入口。
-- `App.tsx`：遊戲主畫面與狀態管理。
-- `components/GameCanvas.tsx`：反應／節奏遊戲的主互動畫面。
-- `components/Results.tsx`：結算畫面與統計資訊。
-- `constants.ts`、`types.ts`：遊戲設定與型別定義。
-- `services/audioService.ts`：音效與提示音管理。
+- `App.tsx`：選單、階梯、每日、結算。
+- `components/GameCanvas.tsx`：反應／左右斬／佯攻主迴圈。
+- `opponents.ts`、`patterns.ts`、`daily.ts`、`ranks.ts`：對手、攻擊序列、每日種子、評價。
+- `constants.ts`、`types.ts`、`storage.ts`、`resolveCounter.ts`：設定、型別、進度、純判定。
+- 音效：`@clubhouse/shared/synthAudio`。
 
 ---
 

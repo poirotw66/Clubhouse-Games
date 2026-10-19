@@ -25,10 +25,32 @@ export const HEAL_PERFECT = 15;
 
 export const SCORE_PERFECT = 1000;
 export const SCORE_GOOD = 300;
+export const SCORE_FEINT_PATIENCE = 400;
+export const SCORE_EARLY_PENALTY = 0;
+
+/** Damage dealt to duel opponent on successful counters. */
+export const DAMAGE_ENEMY_PERFECT = 28;
+export const DAMAGE_ENEMY_GOOD = 16;
+
+/** Extra player damage for early slash / feint punish / wrong side. */
+export const DAMAGE_EARLY = 20;
+export const DAMAGE_FEINT = 22;
+export const DAMAGE_WRONG_SIDE = 20;
+
+/** Versus race: first to this many points wins. */
+export const VERSUS_POINTS_TO_WIN = 5;
+
+/** Feint projectile vanishes after this fraction of flight. */
+export const FEINT_VANISH_AT = 0.42;
 
 // Visuals
 export const HIT_STOP_DURATION = 150; 
 export const SHAKE_DURATION = 300;
+
+export const SIDE_LABELS = {
+  left: '左斬',
+  right: '右斬',
+} as const;
 
 // Colors
 export const COLOR_PERFECT = '#3b82f6'; // blue-500

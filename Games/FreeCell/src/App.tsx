@@ -27,7 +27,7 @@ import { StatsPanel } from './components/StatsPanel';
 import { CardFlyLayer, type FlyCard } from './components/CardFlyLayer';
 import { WinCascade } from './components/WinCascade';
 import type { Card, GameState, Position, Suit } from './types';
-import { dealDaily, dealForDifficulty, dealGame, SUITS } from './utils/deck';
+import { dealDaily, dealForDifficulty, dealGame, rateDeal, SUITS } from './utils/deck';
 import {
   canMove,
   checkLoss,
@@ -187,6 +187,24 @@ export default function App() {
     usedFreeCellRef.current = usedFreeCell;
   }, [usedFreeCell]);
 
+  // Rate par off the click path so deals stay snappy (CI smoke + touch).
+  useEffect(() => {
+    let cancelled = false;
+    const tableaus = gameState.tableaus.map((col) => col.map((c) => ({ ...c })));
+    const timer = window.setTimeout(() => {
+      const rated = rateDeal(tableaus);
+      if (cancelled) return;
+      setParMoves(rated.parMoves);
+      setDealDifficulty(rated.difficulty);
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // Intentionally keyed only on dealSeed — rate the layout that was just dealt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealSeed]);
+
   const bumpScore = useCallback((delta: number) => {
     if (delta === 0) return;
     setScore((s) => s + delta);
@@ -241,15 +259,8 @@ export default function App() {
       resetBoard(dealDaily(dailyBaseSeed(dateKey())));
       return;
     }
-    // Exact same seed; re-measure par for the HUD.
     const deal = dealGame(dealSeed);
-    const meta = dealForDifficulty('any', deal.seed, undefined, 1);
-    resetBoard({
-      tableaus: deal.tableaus,
-      seed: deal.seed,
-      parMoves: meta.parMoves,
-      difficulty: meta.difficulty,
-    });
+    resetBoard({ ...deal, parMoves: null, difficulty: 'any' });
   };
 
   const dealFromSeedDraft = () => {
@@ -257,8 +268,7 @@ export default function App() {
     const n = Number(seedDraft.trim());
     if (!Number.isInteger(n) || n < 1) return;
     const deal = dealGame(n);
-    const meta = dealForDifficulty('any', deal.seed, undefined, 1);
-    resetBoard({ ...deal, parMoves: meta.parMoves, difficulty: meta.difficulty });
+    resetBoard({ ...deal, parMoves: null, difficulty: 'any' });
     if (settings.difficulty !== 'any') {
       persistSettings({ ...settings, difficulty: 'any' });
     }
@@ -282,7 +292,18 @@ export default function App() {
     if (slots === freeCellSlots) return;
     const next = { ...settings, freeCellSlots: slots };
     persistSettings(next);
-    resetBoard(dealForSettings(next), next);
+    // Keep the same deal seed — only the free-cell count changes. Re-running the
+    // solvability search here made Playwright / CI flaky (multi-second main-thread stalls).
+    const deal = dealGame(dealSeed);
+    resetBoard(
+      {
+        tableaus: deal.tableaus,
+        seed: deal.seed,
+        parMoves,
+        difficulty: dealDifficulty,
+      },
+      next,
+    );
   };
 
   const toggleDaily = () => {

@@ -474,6 +474,8 @@ test('every-corner: seeded easy mid-path, undo, and give-up overlay', async ({ p
 
 test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ page, isMobile }) => {
   test.skip(!includesGame('FreeCell'), 'selective CI');
+  // Keep headroom on busy CI shards (par rating + mode toggles).
+  test.setTimeout(90_000);
   await page.goto('./Games/FreeCell/');
   await expect(page.getByRole('heading', { name: '空當接龍', exact: true })).toBeVisible();
   await expect(page.getByText(/分數\s+\d+/)).toBeVisible();
@@ -490,6 +492,7 @@ test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ 
   await activate(page.locator('#freecell-daily'), isMobile);
   await expect(page.getByText(/今日挑戰/)).toBeVisible();
   await expect(page.locator('#freecell-seed')).toBeDisabled();
+  await expect(page.locator('#freecell-seed')).not.toHaveValue('', { timeout: 20_000 });
 
   await activate(page.getByRole('button', { name: '戰績' }), isMobile);
   const stats = page.getByRole('dialog', { name: /戰績/ });
@@ -497,11 +500,15 @@ test('freecell: scoring HUD, seeded deal, daily, stats, hint, redeal', async ({ 
   await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
   await expect(stats).toHaveCount(0);
 
+  // Leave daily before 2-cell / new-game so seed input is editable and deals stay light.
+  await activate(page.locator('#freecell-daily'), isMobile);
+  await expect(page.locator('#freecell-seed')).toBeEnabled({ timeout: 20_000 });
+
   await activate(page.getByRole('button', { name: '2 格', exact: true }), isMobile);
   await expect(page.getByText(/悔棋/)).toBeVisible();
 
   await activate(page.getByRole('button', { name: '新遊戲' }), isMobile);
-  await expect(page.locator('#freecell-seed')).not.toHaveValue('');
+  await expect(page.locator('#freecell-seed')).not.toHaveValue('', { timeout: 20_000 });
   await expect(page.getByRole('button', { name: '提示' })).toBeEnabled();
 });
 
@@ -629,4 +636,47 @@ test('mystery-liquid-sort: howto seeded, mix challenge and hint on home/game', a
   await activate(page.getByRole('button', { name: '開始第一關' }), isMobile);
   await expect(page.getByText('混色配方')).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole('button', { name: '提示' })).toBeVisible();
+});
+
+test('instant-flash: menu modes, ladder unlock, and practice HUD', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Instant-Flash'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.goto('./Games/Instant-Flash/');
+  await expect(page.getByRole('heading', { name: '剎那一閃' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '對決階梯' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /每日對決/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: '雙人拔刀' })).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '對決階梯' }), isMobile);
+  await expect(page.getByText('見習浪人')).toBeVisible();
+  await expect(page.getByRole('button', { name: '挑戰' }).first()).toBeEnabled();
+  await expect(page.getByRole('button', { name: '鎖定' }).first()).toBeVisible();
+  await activate(page.getByRole('button', { name: '挑戰' }).first(), isMobile);
+  await expect(page.getByText(/對決 · 見習浪人/)).toBeVisible();
+  await expect(page.getByLabel('左斬')).toBeVisible();
+  await expect(page.getByLabel('右斬')).toBeVisible();
+
+  // Return via ending is hard mid-fight; reload menu for practice smoke.
+  await page.goto('./Games/Instant-Flash/');
+  await activate(page.getByRole('button', { name: '練習設定' }), isMobile);
+  await activate(page.getByRole('button', { name: '飛刀特訓' }), isMobile);
+  await activate(page.getByRole('button', { name: '開始練習' }), isMobile);
+  await expect(page.getByText(/練習 ·/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '結束練習' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '結束練習' }), isMobile);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute('aria-label', '練習結束');
+  await activate(dialog.getByRole('button', { name: '主選單' }), isMobile);
+  await expect(page.getByRole('heading', { name: '剎那一閃' })).toBeVisible();
+});
+
+test('instant-flash: versus mode mounts split controls', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Instant-Flash'), 'selective CI');
+  await page.goto('./Games/Instant-Flash/');
+  await activate(page.getByRole('button', { name: '雙人拔刀' }), isMobile);
+  await expect(page.getByText('雙人拔刀')).toBeVisible();
+  await expect(page.getByLabel('玩家一待機／出刀')).toBeVisible();
+  await expect(page.getByLabel('玩家二待機／出刀')).toBeVisible();
+  await expect(page.getByRole('button', { name: '結束對戰' })).toBeVisible();
 });
