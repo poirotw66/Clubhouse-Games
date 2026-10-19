@@ -66,9 +66,9 @@
     },
     {
       "id": "webmcp-rubiks-cube",
-      "title": "Rubik’s Cube",
+      "title": "魔術方塊學院",
       "category": "webmcp",
-      "blurb": "魔術方塊操作面；agent 透過結構化轉面指令操控。",
+      "blurb": "新手層層法學習站：課程進度、公式播放、計時練習與 WebMCP AI 導師工具。",
       "href": "webmcp-rubiks-cube/index.html",
       "thumb": "thumbs/webmcp-rubiks-cube.webp",
       "bytes": 26038

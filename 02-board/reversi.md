@@ -57,14 +57,32 @@
 
 | 項目 | 本實作 |
 |------|--------|
-| 模式／變體 | **雙人對戰**／**對戰電腦**；電腦三角難度（簡單／普通／困難）以搜尋深度、失誤率、殘局精算與機動權重拉開體感；setup 文案對應說明 |
-| Replay hook | 對戰電腦時本機紀錄 **連勝**、**最佳連勝**、**最大勝差**（敗北或和局連勝歸零） |
-| Undo／Hint | **悔棋**（非電腦回合且對局中）；**提示**（以困難級零亂手建議落點並高亮） |
-| Feedback | `ResultOverlay` + `@clubhouse/shared/synthAudio` |
+| 模式／變體 | **雙人對戰**／**對戰電腦**（三檔難度）／**對手名冊**（6 位風格 CPU 階梯）／**殘局謎題**（14 題，解算器驗證）／**系列賽**（單局／三戰兩勝／五戰三勝） |
+| Replay hook | 連勝、最佳連勝、最大勝差；名冊解鎖進度與謎題完成紀錄（`clubhouse-reversi-ladder`） |
+| Undo／Hint | **悔棋**；**提示**（對戰用困難級建議；謎題用精確解） |
+| Feedback | `ResultOverlay` + `@clubhouse/shared/synthAudio`（含 `playFlip` 翻子音）＋翻子動畫；終局**對局複盤**標出關鍵失誤 |
 | Touch | 落子與工具列可觸控 |
-| Check | `npm run check` → vitest（含三檔可分辨斷言） |
+| Check | `npm run check` → vitest（規則、三檔可分辨、謎題包驗證、名冊／系列賽） |
 
-`localStorage` 鍵：`clubhouse-reversi-win-streak`、`clubhouse-reversi-best-streak`、`clubhouse-reversi-best-margin`。
+### 深度設計（對照審查）
+
+1. **技巧表現**：角地／避開 X 格／機動／殘局奇偶；對局中顯示情境教學提示，終局複盤比對建議手。
+2. **中期目標**：殘局謎題包（「黑／白先，N 手內取勝或最大化勝差」）；系列賽累積勝場。
+3. **長期目標**：對手名冊解鎖階梯；謎題完成進度寫入 localStorage。
+4. **對手個性**：貪心小子、貼邊幽靈、搶角狂魔、流動舞者、謹慎學者、奇偶大師——各自有 `BotStyle` 權重（翻子慾、邊權、角慾、機動、X 格恐懼），不是同一機器人調失誤率。
+
+### 殘局謎題
+
+- 固定盤面約 14 題，空格 ≤ 12，由 `solveExact` 驗證可達成目標。
+- 玩家偏離最佳線（無法維持目標）即失敗；對手以精確解應手。
+- 提示鍵給出精確最佳手之一。
+
+### 對手名冊
+
+- 依序挑戰；打贏目前前線對手後解鎖下一位。
+- 可搭配系列賽長度。
+
+`localStorage` 鍵：`clubhouse-reversi-win-streak`、`clubhouse-reversi-best-streak`、`clubhouse-reversi-best-margin`、`clubhouse-reversi-ladder`。
 
 ## 常見變體或可選規則
 
