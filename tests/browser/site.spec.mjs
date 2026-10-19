@@ -189,6 +189,31 @@ test('reversi: two-player mid-game, undo, and new-game menu', async ({ page, isM
   await expect(page.getByRole('button', { name: '雙人對戰' })).toBeVisible();
 });
 
+test('reversi: puzzle mode solves the first corner étude', async ({ page, isMobile }) => {
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
+  // Black to move takes a1 (row 1, col 1) — the only legal winning corner.
+  const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
+  await expect(corner).toBeVisible();
+  await activate(corner, isMobile);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await expect(dialog).toHaveAttribute('aria-label', /謎題完成/);
+  await activate(dialog.getByRole('button', { name: /下一題|再試一次/ }), isMobile);
+});
+
+test('reversi: opponent ladder unlocks the first challenge', async ({ page, isMobile }) => {
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '對手名冊' }), isMobile);
+  await expect(page.getByText('貪心小子')).toBeVisible();
+  await expect(page.getByRole('button', { name: '挑戰' }).first()).toBeEnabled();
+  await expect(page.getByRole('button', { name: '鎖定' }).first()).toBeVisible();
+  await activate(page.getByRole('button', { name: '挑戰' }).first(), isMobile);
+  await expect(page.getByText('貪心小子')).toBeVisible();
+  await expect(page.getByRole('button', { name: '悔棋' })).toBeVisible();
+});
+
 test('blackjack: bet, resolve a hand, and restart from the result overlay', async ({ page, isMobile }) => {
   test.setTimeout(45_000);
   await page.goto('./Games/Blackjack-main/');

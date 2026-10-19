@@ -2,30 +2,57 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
-import { playMove, playWin, playLose } from '@clubhouse/shared/synthAudio';
+import { playFlip, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
+import { RefreshCw, BookOpen, Undo2, Lightbulb } from 'lucide-react';
+import { BoardGrid } from './components/BoardGrid';
+import { MenuScreen, type MenuView } from './components/MenuScreen';
 import type { Board, Piece, Difficulty } from './utils/reversiLogic';
 import {
   createInitialBoard,
   getLegalMoves,
   applyMove,
+  getFlips,
   countPieces,
   getWinner,
   getBestMove,
   DIFFICULTY_LABELS,
   DIFFICULTY_BLURBS,
 } from './utils/reversiLogic';
-import { RefreshCw, BookOpen, Users, Undo2, Lightbulb } from 'lucide-react';
+import {
+  createSeries,
+  applySeriesResult,
+  seriesLabel,
+  seriesScoreLine,
+  type SeriesLength,
+  type SeriesMatch,
+} from './utils/match';
+import { opponentByIndex } from './utils/opponents';
+import {
+  loadLadder,
+  saveLadder,
+  applyLadderWin,
+  applyLadderLoss,
+  applyPuzzleSolve,
+  type LadderProgress,
+} from './utils/ladder';
+import { PUZZLES, getPuzzle, describePuzzleObjective, type PuzzleRuntime } from './utils/puzzles';
+import { isOptimalMove, bestExactReply, solveExact } from './utils/solver';
+import { teachingHint } from './utils/teach';
+import { appendReviewMove, buildGameReview, type PlacedMove, type GameReview } from './utils/review';
+import {
+  STREAK_KEY,
+  BEST_STREAK_KEY,
+  MARGIN_KEY,
+  readStoredInt,
+  writeStoredInt,
+} from './utils/storage';
 
-const SIZE = 8;
-const BOT_DELAY_MS = 500;
-const STREAK_KEY = 'clubhouse-reversi-win-streak';
-const BEST_STREAK_KEY = 'clubhouse-reversi-best-streak';
-const MARGIN_KEY = 'clubhouse-reversi-best-margin';
-
+const BOT_DELAY_MS = 480;
+const FLIP_MS = 380;
 const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
 type GamePhase = 'playing' | 'over';
-type GameMode = 'two' | 'bot';
+type PlayMode = 'two' | 'bot' | 'ladder' | 'puzzle';
 
 interface GameState {
   board: Board;
@@ -38,22 +65,19 @@ interface GameState {
 interface HistoryEntry {
   state: GameState;
   lastMove: [number, number] | null;
+  reviewLog: PlacedMove[];
+  puzzlePlies: number;
 }
 
-function readStoredInt(key: string): number {
-  const n = Number(localStorage.getItem(key));
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-
-function getInitialState(): GameState {
-  const board = createInitialBoard();
-  const legal = getLegalMoves(board, 'black');
+function getInitialState(board: Board = createInitialBoard(), turn: Piece = 'black'): GameState {
+  const legal = getLegalMoves(board, turn);
+  const sideLabel = turn === 'black' ? '黑方' : '白方';
   return {
     board,
-    currentTurn: 'black',
+    currentTurn: turn,
     phase: 'playing',
     winner: null,
-    message: legal.length > 0 ? '黑方下子' : '黑方無合法手，請按 Pass',
+    message: legal.length > 0 ? `${sideLabel}下子` : `${sideLabel}無合法手，請按 Pass`,
   };
 }
 
@@ -74,12 +98,7 @@ function passTurn(state: GameState): GameState {
       ...state,
       phase: 'over',
       winner,
-      message:
-        winner === 'draw'
-          ? '和局'
-          : winner === 'black'
-            ? '黑方勝'
-            : '白方勝',
+      message: winner === 'draw' ? '和局' : winner === 'black' ? '黑方勝' : '白方勝',
     };
   }
   return passTurn({
@@ -89,33 +108,85 @@ function passTurn(state: GameState): GameState {
   });
 }
 
+const shellStyle = {
+  backgroundColor: '#022c22',
+  backgroundImage: [
+    'linear-gradient(rgba(2,44,34,0.78), rgba(2,26,18,0.88))',
+    `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
+  ].join(', '),
+};
+
 export default function App() {
-  const [gameMode, setGameMode] = useState<GameMode | null>(null);
+  const [menuView, setMenuView] = useState<MenuView>('home');
+  const [playMode, setPlayMode] = useState<PlayMode | null>(null);
   const [playerSide, setPlayerSide] = useState<Piece>('black');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+  const [seriesLength, setSeriesLength] = useState<SeriesLength>(1);
+  const [series, setSeries] = useState<SeriesMatch | null>(null);
+  const [ladderIndex, setLadderIndex] = useState(0);
+  const [ladder, setLadder] = useState<LadderProgress>(() => loadLadder());
+  const [puzzle, setPuzzle] = useState<PuzzleRuntime | null>(null);
+  const [puzzlePlies, setPuzzlePlies] = useState(0);
+  const [puzzleFailed, setPuzzleFailed] = useState(false);
+  const [puzzleSolved, setPuzzleSolved] = useState(false);
+
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
   const [lastMove, setLastMove] = useState<[number, number] | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [hintCell, setHintCell] = useState<[number, number] | null>(null);
+  const [flipCells, setFlipCells] = useState<Set<string>>(new Set());
+  const [reviewLog, setReviewLog] = useState<PlacedMove[]>([]);
+  const [review, setReview] = useState<GameReview | null>(null);
+
   const [winStreak, setWinStreak] = useState(() => readStoredInt(STREAK_KEY));
   const [bestStreak, setBestStreak] = useState(() => readStoredInt(BEST_STREAK_KEY));
   const [bestMargin, setBestMargin] = useState(() => readStoredInt(MARGIN_KEY));
+
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
   const statsRecordedRef = useRef(false);
+  const flipTimer = useRef<number | null>(null);
+
+  const activeOpponent =
+    playMode === 'ladder' ? opponentByIndex(ladderIndex) : undefined;
+  const botStyle = activeOpponent?.style;
+  const botDifficulty = activeOpponent?.difficulty ?? difficulty;
 
   const legalMoves = state.phase === 'playing' ? getLegalMoves(state.board, state.currentTurn) : [];
   const legalSet = new Set(legalMoves.map(([r, c]) => `${r},${c}`));
   const { black, white } = countPieces(state.board);
+
+  const cpuColor: Piece = playerSide === 'black' ? 'white' : 'black';
+  const puzzleOpp: Piece | null =
+    playMode === 'puzzle' && puzzle ? (puzzle.side === 'black' ? 'white' : 'black') : null;
   const isBotTurn =
-    gameMode === 'bot' &&
+    (playMode === 'bot' || playMode === 'ladder' || (playMode === 'puzzle' && puzzleOpp !== null)) &&
     state.phase === 'playing' &&
-    state.currentTurn === (playerSide === 'black' ? 'white' : 'black');
+    !puzzleFailed &&
+    !puzzleSolved &&
+    state.currentTurn === (puzzleOpp ?? cpuColor);
+
+  const teach =
+    state.phase === 'playing' && playMode !== 'puzzle'
+      ? teachingHint(state.board, state.currentTurn)
+      : puzzle
+        ? { id: 'puzzle-tip', title: puzzle.title, detail: puzzle.tip, cells: undefined as [number, number][] | undefined }
+        : null;
+  const teachCells = new Set((teach?.cells ?? []).map(([r, c]) => `${r},${c}`));
+
+  const triggerFlips = useCallback((cells: [number, number][]) => {
+    if (cells.length === 0) return;
+    const keys = new Set(cells.map(([r, c]) => `${r},${c}`));
+    setFlipCells(keys);
+    playFlip();
+    if (flipTimer.current) window.clearTimeout(flipTimer.current);
+    flipTimer.current = window.setTimeout(() => setFlipCells(new Set()), FLIP_MS);
+  }, []);
 
   const pushHistory = useCallback(() => {
-    setHistory((h) => [...h, { state, lastMove }]);
-  }, [state, lastMove]);
+    setHistory((h) => [...h, { state, lastMove, reviewLog, puzzlePlies }]);
+  }, [state, lastMove, reviewLog, puzzlePlies]);
 
   const applyMoveAndAdvance = useCallback(
     (nextBoard: Board, nextTurn: Piece, nextMessage: string) => {
@@ -139,8 +210,7 @@ export default function App() {
           currentTurn: nextTurn,
           phase: 'over',
           winner,
-          message:
-            winner === 'draw' ? '和局' : winner === 'black' ? '黑方勝' : '白方勝',
+          message: winner === 'draw' ? '和局' : winner === 'black' ? '黑方勝' : '白方勝',
         });
         return;
       }
@@ -155,88 +225,261 @@ export default function App() {
             : '白方無合法手，跳過；黑方下子',
       });
     },
-    []
+    [],
   );
 
+  const finishPuzzleSuccess = useCallback(
+    (finalBoard: Board) => {
+      setPuzzleSolved(true);
+      setState((s) => ({
+        ...s,
+        board: finalBoard,
+        phase: 'over',
+        winner: getWinner(finalBoard),
+        message: '謎題完成！',
+      }));
+      playWin();
+      if (puzzle) {
+        setLadder((prev) => {
+          const next = applyPuzzleSolve(prev, puzzle.id);
+          saveLadder(next);
+          return next;
+        });
+      }
+    },
+    [puzzle],
+  );
+
+  const failPuzzle = useCallback((msg: string) => {
+    setPuzzleFailed(true);
+    setState((s) => ({
+      ...s,
+      phase: 'over',
+      winner: null,
+      message: msg,
+    }));
+    playLose();
+  }, []);
+
+  // Bot / puzzle reply
   useEffect(() => {
     if (!isBotTurn || botScheduled.current) return;
     botScheduled.current = true;
-    const timer = setTimeout(() => {
-      const botColor: Piece = playerSide === 'black' ? 'white' : 'black';
+    const timer = window.setTimeout(() => {
+      const botColor: Piece =
+        playMode === 'puzzle' && puzzle
+          ? puzzle.side === 'black'
+            ? 'white'
+            : 'black'
+          : cpuColor;
       const moves = getLegalMoves(state.board, botColor);
       if (moves.length === 0) {
         setState((s) => passTurn(s));
         botScheduled.current = false;
         return;
       }
-      const best = getBestMove(state.board, botColor, difficulty);
+
+      let best: [number, number] | null = null;
+      if (playMode === 'puzzle') {
+        best = bestExactReply(state.board, botColor);
+      } else {
+        best = getBestMove(state.board, botColor, botDifficulty, botStyle);
+      }
       if (!best) {
         setState((s) => passTurn(s));
         botScheduled.current = false;
         return;
       }
       const [r, c] = best;
+      const flips = getFlips(state.board, r, c, botColor);
       const nextBoard = applyMove(state.board, r, c, botColor);
       playMove();
+      triggerFlips(flips);
       setLastMove([r, c]);
+      setReviewLog((log) => appendReviewMove(log, state.board, botColor, [r, c], false));
       const nextTurn: Piece = botColor === 'black' ? 'white' : 'black';
-      const nextMessage = nextTurn === 'black' ? '黑方下子' : '白方下子';
+      const nextMessage =
+        playMode === 'puzzle'
+          ? '輪到你下子'
+          : nextTurn === playerSide
+            ? '輪到你下子'
+            : '電腦思考中…';
       applyMoveAndAdvance(nextBoard, nextTurn, nextMessage);
       botScheduled.current = false;
     }, BOT_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isBotTurn, state.board, state.currentTurn, playerSide, state.phase, difficulty, applyMoveAndAdvance]);
+    return () => {
+      window.clearTimeout(timer);
+      botScheduled.current = false;
+    };
+  }, [
+    isBotTurn,
+    state.board,
+    state.currentTurn,
+    playMode,
+    puzzle,
+    cpuColor,
+    botDifficulty,
+    botStyle,
+    playerSide,
+    applyMoveAndAdvance,
+    triggerFlips,
+  ]);
 
+  // End-of-game: audio, streaks, ladder, series, review
   useEffect(() => {
     if (state.phase !== 'over' || prevPhaseRef.current === 'over') {
       prevPhaseRef.current = state.phase;
       return;
     }
-    if (gameMode === 'bot' && state.winner && state.winner !== 'draw') {
+    prevPhaseRef.current = state.phase;
+
+    if (playMode === 'puzzle') {
+      return;
+    }
+
+    const vsCpu = playMode === 'bot' || playMode === 'ladder';
+    if (vsCpu && state.winner && state.winner !== 'draw') {
       if (state.winner === playerSide) playWin();
       else playLose();
     }
-    // Replay hook: vs-bot endgame margin + win streak.
-    if (gameMode === 'bot' && !statsRecordedRef.current) {
+
+    if (vsCpu && !statsRecordedRef.current) {
       statsRecordedRef.current = true;
       const margin = Math.abs(black - white);
-      if (state.winner === playerSide) {
+      const playerWon = state.winner === playerSide;
+      const drawn = state.winner === 'draw' || state.winner === null;
+
+      if (playerWon) {
         setWinStreak((s) => {
           const next = s + 1;
-          localStorage.setItem(STREAK_KEY, String(next));
+          writeStoredInt(STREAK_KEY, next);
           setBestStreak((best) => {
             const nb = Math.max(best, next);
-            if (nb !== best) localStorage.setItem(BEST_STREAK_KEY, String(nb));
+            if (nb !== best) writeStoredInt(BEST_STREAK_KEY, nb);
             return nb;
           });
           return next;
         });
         setBestMargin((m) => {
           const next = Math.max(m, margin);
-          localStorage.setItem(MARGIN_KEY, String(next));
+          writeStoredInt(MARGIN_KEY, next);
           return next;
         });
-      } else {
+      } else if (!drawn) {
         setWinStreak(0);
-        localStorage.setItem(STREAK_KEY, '0');
+        writeStoredInt(STREAK_KEY, 0);
+      }
+
+      if (playMode === 'ladder') {
+        setLadder((prev) => {
+          if (playerWon) {
+            const { progress } = applyLadderWin(prev, ladderIndex);
+            saveLadder(progress);
+            return progress;
+          }
+          const progress = applyLadderLoss(prev, ladderIndex);
+          saveLadder(progress);
+          return progress;
+        });
+      }
+
+      if (series && !series.over) {
+        const result = drawn ? 'draw' : playerWon ? 'player' : 'cpu';
+        setSeries((s) => (s ? applySeriesResult(s, result) : s));
       }
     }
-    prevPhaseRef.current = state.phase;
-  }, [state.phase, state.winner, gameMode, playerSide, black, white]);
+
+    if (vsCpu || playMode === 'two') {
+      setReview(buildGameReview(reviewLog));
+    }
+  }, [
+    state.phase,
+    state.winner,
+    playMode,
+    playerSide,
+    black,
+    white,
+    ladderIndex,
+    series,
+    reviewLog,
+  ]);
 
   const handleCellClick = useCallback(
     (r: number, c: number) => {
-      if (state.phase !== 'playing' || isBotTurn) return;
-      if (gameMode === 'bot' && state.currentTurn !== playerSide) return;
+      if (state.phase !== 'playing' || isBotTurn || puzzleFailed) return;
+      if (playMode === 'bot' || playMode === 'ladder') {
+        if (state.currentTurn !== playerSide) return;
+      }
+      if (playMode === 'puzzle' && puzzle) {
+        if (state.currentTurn !== puzzle.side) return;
+      }
       if (!legalSet.has(`${r},${c}`)) return;
+
+      if (playMode === 'puzzle' && puzzle) {
+        const ok = isOptimalMove(state.board, puzzle.side, [r, c], puzzle.goal);
+        if (!ok) {
+          pushHistory();
+          const flips = getFlips(state.board, r, c, puzzle.side);
+          const nextBoard = applyMove(state.board, r, c, puzzle.side);
+          playMove();
+          triggerFlips(flips);
+          setLastMove([r, c]);
+          failPuzzle('這手無法達成目標。再試一次！');
+          setState((s) => ({ ...s, board: nextBoard }));
+          return;
+        }
+      }
+
       pushHistory();
       setHintCell(null);
-      const nextBoard = applyMove(state.board, r, c, state.currentTurn);
+      const color = state.currentTurn;
+      const flips = getFlips(state.board, r, c, color);
+      const nextBoard = applyMove(state.board, r, c, color);
       playMove();
+      triggerFlips(flips);
       setLastMove([r, c]);
-      const nextTurn: Piece = state.currentTurn === 'black' ? 'white' : 'black';
+      setReviewLog((log) => appendReviewMove(log, state.board, color, [r, c], true));
+
+      if (playMode === 'puzzle' && puzzle) {
+        const nextPlies = puzzlePlies + 1;
+        setPuzzlePlies(nextPlies);
+
+        const playerLegal = getLegalMoves(nextBoard, puzzle.side);
+        const opp = puzzle.side === 'black' ? 'white' : 'black';
+        const oppLegal = getLegalMoves(nextBoard, opp);
+        const terminal = playerLegal.length === 0 && oppLegal.length === 0;
+
+        if (terminal) {
+          const winner = getWinner(nextBoard);
+          const start = solveExact(puzzle.board, puzzle.side);
+          const { black: b, white: w } = countPieces(nextBoard);
+          const diff = puzzle.side === 'black' ? b - w : w - b;
+          const solved =
+            puzzle.goal === 'win'
+              ? winner === puzzle.side
+              : puzzle.goal === 'draw'
+                ? winner === 'draw'
+                : diff === start.score;
+          if (solved) finishPuzzleSuccess(nextBoard);
+          else failPuzzle('終局未達目標。');
+          return;
+        }
+
+        const nextTurn: Piece = color === 'black' ? 'white' : 'black';
+        // Budget exhausted and it would be the player's turn again → fail.
+        if (nextPlies >= puzzle.maxPlies && nextTurn === puzzle.side && playerLegal.length > 0) {
+          failPuzzle('手數用盡，尚未達成目標。');
+          setState((s) => ({ ...s, board: nextBoard, currentTurn: nextTurn }));
+          return;
+        }
+
+        applyMoveAndAdvance(nextBoard, nextTurn, '電腦應手…');
+        return;
+      }
+
+      const nextTurn: Piece = color === 'black' ? 'white' : 'black';
       const nextMessage =
-        gameMode === 'bot'
+        playMode === 'bot' || playMode === 'ladder'
           ? nextTurn === playerSide
             ? '輪到你下子'
             : '電腦思考中…'
@@ -250,21 +493,54 @@ export default function App() {
       state.currentTurn,
       state.board,
       isBotTurn,
-      gameMode,
+      playMode,
       playerSide,
+      puzzle,
+      puzzlePlies,
+      puzzleFailed,
       legalSet,
       applyMoveAndAdvance,
       pushHistory,
-    ]
+      triggerFlips,
+      failPuzzle,
+      finishPuzzleSuccess,
+    ],
   );
+
+  // Puzzle: after game becomes terminal via bot replies, check goal
+  useEffect(() => {
+    if (playMode !== 'puzzle' || !puzzle || puzzleFailed || puzzleSolved) return;
+    if (state.phase !== 'over') return;
+    if (puzzleSolved || puzzleFailed) return;
+    const winner = state.winner;
+    const { black: b, white: w } = countPieces(state.board);
+    const diff = puzzle.side === 'black' ? b - w : w - b;
+    const start = solveExact(puzzle.board, puzzle.side);
+    let ok = false;
+    if (puzzle.goal === 'win') ok = winner === puzzle.side;
+    else if (puzzle.goal === 'draw') ok = winner === 'draw';
+    else ok = diff === start.score;
+    if (ok) {
+      setPuzzleSolved(true);
+      playWin();
+      setLadder((prev) => {
+        const next = applyPuzzleSolve(prev, puzzle.id);
+        saveLadder(next);
+        return next;
+      });
+    } else if (!puzzleFailed) {
+      failPuzzle('終局未達目標。');
+    }
+  }, [playMode, puzzle, puzzleFailed, puzzleSolved, state.phase, state.winner, state.board, failPuzzle]);
 
   const handlePass = useCallback(() => {
     if (state.phase !== 'playing' || legalMoves.length > 0) return;
-    if (gameMode === 'bot' && state.currentTurn !== playerSide) return;
+    if ((playMode === 'bot' || playMode === 'ladder') && state.currentTurn !== playerSide) return;
+    if (playMode === 'puzzle' && puzzle && state.currentTurn !== puzzle.side) return;
     pushHistory();
     setHintCell(null);
     setState((s) => passTurn(s));
-  }, [state.phase, state.currentTurn, legalMoves.length, gameMode, playerSide, pushHistory]);
+  }, [state.phase, state.currentTurn, legalMoves.length, playMode, playerSide, puzzle, pushHistory]);
 
   const handleUndo = useCallback(() => {
     if (history.length === 0 || isBotTurn || state.phase === 'over') return;
@@ -272,237 +548,253 @@ export default function App() {
     setHistory((h) => h.slice(0, -1));
     setState(prev.state);
     setLastMove(prev.lastMove);
+    setReviewLog(prev.reviewLog);
+    setPuzzlePlies(prev.puzzlePlies);
+    setPuzzleFailed(false);
+    setPuzzleSolved(false);
     setHintCell(null);
+    setReview(null);
     botScheduled.current = false;
+    statsRecordedRef.current = false;
+    prevPhaseRef.current = 'playing';
   }, [history, isBotTurn, state.phase]);
 
   const handleHint = useCallback(() => {
     if (state.phase !== 'playing' || isBotTurn) return;
-    if (gameMode === 'bot' && state.currentTurn !== playerSide) return;
+    if ((playMode === 'bot' || playMode === 'ladder') && state.currentTurn !== playerSide) return;
+    if (playMode === 'puzzle' && puzzle) {
+      const solved = solveExact(state.board, puzzle.side);
+      if (solved.bestMove) setHintCell(solved.bestMove);
+      return;
+    }
     if (legalMoves.length === 0) return;
-    // Hard tier: zero blunder rate so the hint is a real recommendation.
     const best = getBestMove(state.board, state.currentTurn, 'hard');
     if (best) setHintCell(best);
-  }, [state.phase, state.board, state.currentTurn, isBotTurn, gameMode, playerSide, legalMoves.length]);
+  }, [state.phase, state.board, state.currentTurn, isBotTurn, playMode, playerSide, puzzle, legalMoves.length]);
 
-  const handleNewGame = useCallback(() => {
-    setGameMode(null);
-    setPlayerSide('black');
+  const backToMenu = useCallback(() => {
+    setPlayMode(null);
+    setMenuView('home');
+    setPuzzle(null);
+    setSeries(null);
     setState(getInitialState());
     setLastMove(null);
     setHistory([]);
     setHintCell(null);
+    setFlipCells(new Set());
+    setReviewLog([]);
+    setReview(null);
+    setPuzzlePlies(0);
+    setPuzzleFailed(false);
+    setPuzzleSolved(false);
     botScheduled.current = false;
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
   }, []);
 
   const startTwoPlayer = useCallback(() => {
-    setGameMode('two');
+    setPlayMode('two');
+    setSeries(null);
     setState(getInitialState());
     setHistory([]);
     setHintCell(null);
     setLastMove(null);
+    setReviewLog([]);
+    setReview(null);
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
   }, []);
 
-  const startVsBot = useCallback((side: Piece) => {
-    setGameMode('bot');
-    setPlayerSide(side);
-    setState(getInitialState());
+  const startVsBot = useCallback(
+    (side: Piece) => {
+      setPlayMode('bot');
+      setPlayerSide(side);
+      setSeries(createSeries(seriesLength));
+      setState(getInitialState());
+      setHistory([]);
+      setHintCell(null);
+      setLastMove(null);
+      setReviewLog([]);
+      setReview(null);
+      botScheduled.current = false;
+      statsRecordedRef.current = false;
+      prevPhaseRef.current = 'playing';
+    },
+    [seriesLength],
+  );
+
+  const startLadder = useCallback(
+    (index: number, side: Piece) => {
+      setPlayMode('ladder');
+      setLadderIndex(index);
+      setPlayerSide(side);
+      setSeries(createSeries(seriesLength));
+      setState(getInitialState());
+      setHistory([]);
+      setHintCell(null);
+      setLastMove(null);
+      setReviewLog([]);
+      setReview(null);
+      botScheduled.current = false;
+      statsRecordedRef.current = false;
+      prevPhaseRef.current = 'playing';
+    },
+    [seriesLength],
+  );
+
+  const startPuzzle = useCallback((index: number) => {
+    const p = getPuzzle(index);
+    if (!p) return;
+    setPlayMode('puzzle');
+    setPuzzle(p);
+    setPlayerSide(p.side);
+    setSeries(null);
+    setPuzzlePlies(0);
+    setPuzzleFailed(false);
+    setPuzzleSolved(false);
+    setState(getInitialState(p.board, p.side));
     setHistory([]);
     setHintCell(null);
     setLastMove(null);
+    setReviewLog([]);
+    setReview(null);
     botScheduled.current = false;
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
   }, []);
 
-  const statsLine = (
-    <p className="mt-4 text-stone-400 text-xs">
-      連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
-    </p>
-  );
+  const replaySame = useCallback(() => {
+    statsRecordedRef.current = false;
+    prevPhaseRef.current = 'playing';
+    setReview(null);
+    setReviewLog([]);
+    setHistory([]);
+    setHintCell(null);
+    setLastMove(null);
+    setFlipCells(new Set());
+    botScheduled.current = false;
 
-  if (gameMode === null) {
+    if (playMode === 'puzzle' && puzzle) {
+      setPuzzlePlies(0);
+      setPuzzleFailed(false);
+      setPuzzleSolved(false);
+      setState(getInitialState(puzzle.board, puzzle.side));
+      return;
+    }
+
+    if (series && series.over) {
+      setSeries(createSeries(series.length));
+    }
+
+    setState(getInitialState());
+  }, [playMode, puzzle, series]);
+
+  if (playMode === null) {
     return (
-      <div
-        className="min-h-screen text-white flex flex-col items-center justify-center p-4 min-w-0 bg-cover bg-center"
-        style={{
-          backgroundColor: '#022c22',
-          backgroundImage: [
-            'linear-gradient(rgba(2,44,34,0.78), rgba(2,26,18,0.88))',
-            `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
-          ].join(', '),
-        }}
-      >
-        <BackToMenu />
-        <h1 className="text-2xl font-bold tracking-tight mb-8">黑白棋</h1>
-        <div className="flex flex-col gap-4 w-full max-w-xs">
-          <button
-            type="button"
-            onClick={startTwoPlayer}
-            className="flex items-center justify-center gap-2 w-full py-4 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-medium transition-colors"
-          >
-            <Users className="w-5 h-5" />
-            雙人對戰
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowRules(true)}
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-stone-700 hover:bg-stone-600 font-medium transition-colors"
-          >
-            <BookOpen className="w-5 h-5" />
-            規則說明
-          </button>
-        </div>
-        <p className="mt-8 text-stone-400 text-sm">對戰電腦：選擇難度</p>
-        <div className="flex gap-2 mt-3 w-full max-w-xs" role="group" aria-label="電腦難度">
-          {DIFFICULTIES.map((id) => {
-            const selected = difficulty === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setDifficulty(id)}
-                aria-pressed={selected}
-                title={DIFFICULTY_BLURBS[id]}
-                className={`flex-1 px-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
-                  selected
-                    ? 'bg-emerald-700 border-emerald-400 text-white'
-                    : 'bg-stone-800 border-stone-600 text-stone-300 hover:bg-stone-700'
-                }`}
-              >
-                {DIFFICULTY_LABELS[id]}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-stone-500 text-xs">{DIFFICULTY_BLURBS[difficulty]}</p>
-        <p className="mt-5 text-stone-400 text-sm">選擇執子開始</p>
-        <div className="flex gap-4 mt-3">
-          <button
-            type="button"
-            onClick={() => startVsBot('black')}
-            className="flex flex-col items-center gap-1 px-6 py-4 rounded-xl bg-stone-800 hover:bg-stone-700 border-2 border-stone-600 transition-colors"
-          >
-            <span
-              className="w-10 h-10 rounded-full ring-2 ring-stone-500 bg-cover bg-center"
-              style={{
-                backgroundColor: '#1c1917',
-                backgroundImage: `url(${import.meta.env.BASE_URL}piece-black.jpg)`,
-              }}
-            />
-            <span className="font-medium">執黑</span>
-            <span className="text-xs text-stone-400">先手</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => startVsBot('white')}
-            className="flex flex-col items-center gap-1 px-6 py-4 rounded-xl bg-stone-800 hover:bg-stone-700 border-2 border-stone-600 transition-colors"
-          >
-            <span
-              className="w-10 h-10 rounded-full ring-2 ring-stone-400 bg-cover bg-center"
-              style={{
-                backgroundColor: '#f8fafc',
-                backgroundImage: `url(${import.meta.env.BASE_URL}piece-white.jpg)`,
-              }}
-            />
-            <span className="font-medium">執白</span>
-            <span className="text-xs text-stone-400">後手</span>
-          </button>
-        </div>
-        {statsLine}
-        {showRules && (
-          <div
-            className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="rules-title"
-          >
-            <div className="bg-stone-800 rounded-xl max-w-md max-h-[85vh] overflow-y-auto p-6 text-left">
-              <h2 id="rules-title" className="text-lg font-bold mb-3">規則說明</h2>
-              <ul className="text-sm text-stone-200 space-y-2 list-disc pl-4">
-                <li>8×8 棋盤，黑方先手。開局中央 2×2 為兩黑兩白（斜線相對）。</li>
-                <li>輪到的一方在空格下子，新子須與己方另一子「夾住」至少一條線上的對方子，並將該線上被夾住的對方子全部翻成己色。</li>
-                <li>無合法手時須 Pass，改由對方下；若雙方都無合法手則終局。</li>
-                <li>終局時己色子數多者勝，相同則和局。</li>
-              </ul>
-              <button
-                type="button"
-                onClick={() => setShowRules(false)}
-                className="mt-4 w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-medium"
-              >
-                關閉
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <MenuScreen
+        view={menuView}
+        setView={setMenuView}
+        showRules={showRules}
+        setShowRules={setShowRules}
+        difficulty={difficulty}
+        setDifficulty={setDifficulty}
+        seriesLength={seriesLength}
+        setSeriesLength={setSeriesLength}
+        ladder={ladder}
+        puzzles={PUZZLES}
+        winStreak={winStreak}
+        bestStreak={bestStreak}
+        bestMargin={bestMargin}
+        onTwoPlayer={startTwoPlayer}
+        onStartBot={startVsBot}
+        onStartLadder={startLadder}
+        onStartPuzzle={startPuzzle}
+      />
     );
   }
 
-  const statusMessage =
-    gameMode === 'bot' && state.phase === 'playing'
-      ? isBotTurn
-        ? '電腦思考中…'
-        : state.currentTurn === playerSide
-          ? legalMoves.length > 0
-            ? '輪到你下子'
-            : '無合法手，請按 Pass'
-          : state.message
-      : state.message;
-
-  const gameOverMessage =
-    gameMode === 'bot' && state.phase === 'over' && state.winner
-      ? state.winner === 'draw'
-        ? '和局'
-        : state.winner === playerSide
-          ? '你贏了'
-          : '電腦贏了'
-      : state.phase === 'over' && state.winner
-        ? state.winner === 'draw'
-          ? '和局'
-          : state.winner === 'black'
-            ? '黑方獲勝'
-            : '白方獲勝'
-        : '';
-
+  const humanSide = playMode === 'puzzle' && puzzle ? puzzle.side : playerSide;
   const isHumanTurn =
-    gameMode === 'two' || (gameMode === 'bot' && state.currentTurn === playerSide);
-  const humanCanClick = state.phase === 'playing' && isHumanTurn && !isBotTurn;
+    playMode === 'two' ||
+    ((playMode === 'bot' || playMode === 'ladder' || playMode === 'puzzle') &&
+      state.currentTurn === humanSide);
+  const humanCanClick =
+    state.phase === 'playing' && isHumanTurn && !isBotTurn && !puzzleFailed;
   const showLegalHints = humanCanClick;
   const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
   const canHint = humanCanClick && legalMoves.length > 0;
 
+  let statusMessage = state.message;
+  if (playMode === 'puzzle' && puzzle) {
+    if (puzzleFailed) statusMessage = state.message;
+    else if (puzzleSolved) statusMessage = '謎題完成！';
+    else if (isBotTurn) statusMessage = '對手應手…';
+    else statusMessage = `${describePuzzleObjective(puzzle)} · 已用 ${puzzlePlies}/${puzzle.maxPlies} 手`;
+  } else if ((playMode === 'bot' || playMode === 'ladder') && state.phase === 'playing') {
+    statusMessage = isBotTurn
+      ? '電腦思考中…'
+      : state.currentTurn === playerSide
+        ? legalMoves.length > 0
+          ? '輪到你下子'
+          : '無合法手，請按 Pass'
+        : state.message;
+  }
+
+  const gameOverMessage = (() => {
+    if (playMode === 'puzzle') {
+      if (puzzleSolved) return '謎題完成';
+      if (puzzleFailed) return '挑戰失敗';
+      return state.message;
+    }
+    if ((playMode === 'bot' || playMode === 'ladder') && state.winner) {
+      if (state.winner === 'draw') return '和局';
+      return state.winner === playerSide ? '你贏了' : '電腦贏了';
+    }
+    if (state.winner === 'draw') return '和局';
+    if (state.winner === 'black') return '黑方獲勝';
+    if (state.winner === 'white') return '白方獲勝';
+    return '對局結束';
+  })();
+
   const resultVariant =
-    gameMode === 'bot' && state.winner && state.winner !== 'draw'
-      ? state.winner === playerSide
+    playMode === 'puzzle'
+      ? puzzleSolved
         ? 'win'
         : 'lose'
-      : 'neutral';
+      : playMode !== 'two' && state.winner && state.winner !== 'draw'
+        ? state.winner === playerSide
+          ? 'win'
+          : 'lose'
+        : 'neutral';
 
   const endMargin = Math.abs(black - white);
+  const seriesDone = series?.over ?? false;
 
   return (
     <div
       className="min-h-screen text-white flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
-      style={{
-        backgroundColor: '#022c22',
-        backgroundImage: [
-          'linear-gradient(rgba(2,44,34,0.78), rgba(2,26,18,0.88))',
-          `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
-        ].join(', '),
-      }}
+      style={shellStyle}
     >
       <BackToMenu />
-      <header className="w-full max-w-lg flex justify-between items-center mb-4">
+      <header className="w-full max-w-lg flex justify-between items-center mb-3">
         <div className="flex items-baseline gap-2 min-w-0">
           <h1 className="text-xl font-bold tracking-tight">黑白棋</h1>
-          {gameMode === 'bot' && (
+          {playMode === 'bot' && (
             <span className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-800/60 border border-emerald-600/50 text-xs text-emerald-100">
               電腦・{DIFFICULTY_LABELS[difficulty]}
+            </span>
+          )}
+          {playMode === 'ladder' && activeOpponent && (
+            <span
+              className="shrink-0 px-2 py-0.5 rounded-md border text-xs"
+              style={{ borderColor: activeOpponent.accent, color: activeOpponent.accent }}
+            >
+              {activeOpponent.name}
+            </span>
+          )}
+          {playMode === 'puzzle' && puzzle && (
+            <span className="shrink-0 px-2 py-0.5 rounded-md bg-sky-900/70 border border-sky-500/50 text-xs">
+              謎題 {puzzle.index + 1}
             </span>
           )}
         </div>
@@ -534,40 +826,51 @@ export default function App() {
             label={<RefreshCw className="w-5 h-5" />}
             ariaLabel="新對局"
             title="新對局"
-            onClick={handleNewGame}
+            onClick={backToMenu}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
         </div>
       </header>
 
-      {gameMode === 'bot' && (
-        <div
-          className="flex flex-wrap items-center justify-center gap-2 mb-3 text-xs"
-          role="group"
-          aria-label="電腦難度"
-        >
+      {playMode === 'bot' && (
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs" role="group" aria-label="電腦難度">
           <span className="text-stone-400">難度</span>
-          {DIFFICULTIES.map((id) => {
-            const selected = difficulty === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setDifficulty(id)}
-                aria-pressed={selected}
-                title={DIFFICULTY_BLURBS[id]}
-                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
-                  selected
-                    ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
-                    : 'border-stone-600 bg-stone-800 text-stone-300 hover:bg-stone-700'
-                }`}
-              >
-                {DIFFICULTY_LABELS[id]}
-              </button>
-            );
-          })}
-          <span className="w-full text-center text-stone-500">{DIFFICULTY_BLURBS[difficulty]}</span>
+          {DIFFICULTIES.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setDifficulty(id)}
+              aria-pressed={difficulty === id}
+              title={DIFFICULTY_BLURBS[id]}
+              className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                difficulty === id
+                  ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
+                  : 'border-stone-600 bg-stone-800 text-stone-300 hover:bg-stone-700'
+              }`}
+            >
+              {DIFFICULTY_LABELS[id]}
+            </button>
+          ))}
         </div>
+      )}
+
+      {playMode === 'ladder' && activeOpponent && (
+        <p className="text-xs text-stone-400 mb-2 text-center max-w-sm">
+          「{activeOpponent.catchphrases.intro}」· {activeOpponent.blurb}
+        </p>
+      )}
+
+      {series && series.length > 1 && (
+        <p className="text-amber-200/90 text-xs mb-2">
+          {seriesLabel(series.length)} · {seriesScoreLine(series)}
+          {seriesDone
+            ? series.winner === 'player'
+              ? ' · 你拿下系列賽！'
+              : series.winner === 'cpu'
+                ? ' · 系列賽敗北'
+                : ' · 系列賽結束'
+            : ` · 第 ${series.gameIndex + 1} 局`}
+        </p>
       )}
 
       <div className="flex items-center justify-center gap-6 mb-2 text-sm">
@@ -585,7 +888,9 @@ export default function App() {
               backgroundImage: `url(${import.meta.env.BASE_URL}piece-black.jpg)`,
             }}
           />
-          <span>{gameMode === 'bot' && playerSide === 'black' ? '你' : '黑'} {black}</span>
+          <span>
+            {playMode !== 'two' && humanSide === 'black' ? '你' : '黑'} {black}
+          </span>
         </div>
         <div
           className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
@@ -601,99 +906,39 @@ export default function App() {
               backgroundImage: `url(${import.meta.env.BASE_URL}piece-white.jpg)`,
             }}
           />
-          <span>{gameMode === 'bot' && playerSide === 'white' ? '你' : '白'} {white}</span>
-        </div>
-        {gameMode === 'bot' && (
-          <span className="text-stone-500 text-xs self-center">
-            {playerSide === 'black' ? '白＝電腦' : '黑＝電腦'}
+          <span>
+            {playMode !== 'two' && humanSide === 'white' ? '你' : '白'} {white}
           </span>
-        )}
+        </div>
       </div>
 
-      {gameMode === 'bot' && (
-        <p className="text-stone-500 text-xs mb-2">
+      {playMode !== 'two' && playMode !== 'puzzle' && (
+        <p className="text-stone-500 text-xs mb-1">
           連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
         </p>
       )}
 
-      <p className="text-emerald-200 text-sm mb-4">{statusMessage}</p>
-      <p className="text-emerald-200/70 text-xs mb-2 md:hidden">點選合法位置下子</p>
-
-      <div
-        className="inline-block p-2 rounded-xl bg-emerald-900/80 shadow-lg box-border w-full max-w-[min(92vw,360px)] aspect-square"
-      >
-        <div
-          className="grid gap-0.5 bg-stone-800 rounded-lg p-1 w-full h-full"
-          style={{
-            gridTemplateColumns: `repeat(${SIZE}, minmax(0, 1fr))`,
-            gridTemplateRows: `repeat(${SIZE}, minmax(0, 1fr))`,
-          }}
-        >
-          {Array.from({ length: SIZE * SIZE }, (_, i) => {
-            const r = Math.floor(i / SIZE);
-            const c = i % SIZE;
-            const cell = state.board[r][c];
-            const isLegal = legalSet.has(`${r},${c}`);
-            const isLastMove = lastMove !== null && lastMove[0] === r && lastMove[1] === c;
-            const isHint = hintCell !== null && hintCell[0] === r && hintCell[1] === c;
-            return (
-              <button
-                key={`${r}-${c}`}
-                type="button"
-                onClick={() => handleCellClick(r, c)}
-                disabled={state.phase !== 'playing' || !humanCanClick || (humanCanClick && !isLegal)}
-                className={`
-                  w-full aspect-square rounded-md flex items-center justify-center touch-manipulation
-                  transition-colors duration-150 active:scale-95 bg-cover bg-center
-                  ${cell ? 'cursor-default' : ''}
-                  ${showLegalHints && isLegal && !cell ? 'hover:brightness-110' : ''}
-                  ${state.phase !== 'playing' ? 'cursor-default' : ''}
-                  ${isLastMove ? 'ring-2 ring-yellow-400/70 ring-inset' : ''}
-                  ${isHint ? 'ring-2 ring-sky-300 ring-inset' : ''}
-                `}
-                style={{
-                  backgroundColor: '#065f46',
-                  backgroundImage: [
-                    isHint
-                      ? 'linear-gradient(rgba(14,165,233,0.45), rgba(14,165,233,0.5))'
-                      : showLegalHints && isLegal && !cell
-                        ? 'linear-gradient(rgba(5,150,105,0.45), rgba(5,150,105,0.55))'
-                        : 'linear-gradient(rgba(6,95,70,0.35), rgba(6,78,59,0.5))',
-                    `url(${import.meta.env.BASE_URL}cell.jpg)`,
-                  ].join(', '),
-                }}
-                aria-label={
-                  cell
-                    ? `第 ${r + 1} 列 ${c + 1} 欄 ${cell === 'black' ? '黑' : '白'}`
-                    : isHint
-                      ? `提示：第 ${r + 1} 列 ${c + 1} 欄`
-                      : isLegal
-                        ? `可下於第 ${r + 1} 列 ${c + 1} 欄`
-                        : `空格第 ${r + 1} 列 ${c + 1} 欄`
-                }
-              >
-                {cell && (
-                  <span
-                    className={`w-[85%] h-[85%] rounded-full shadow-inner transition-all duration-150 bg-cover bg-center ${
-                      cell === 'black' ? 'ring-2 ring-stone-600' : 'ring-2 ring-stone-400'
-                    } ${isLastMove ? 'ring-4 ring-yellow-400/80' : ''}`}
-                    style={{
-                      backgroundColor: cell === 'black' ? '#1c1917' : '#f8fafc',
-                      backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
-                    }}
-                  />
-                )}
-                {!cell && showLegalHints && isLegal && !isHint && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-300/60" aria-hidden />
-                )}
-                {!cell && isHint && (
-                  <span className="w-3 h-3 rounded-full bg-sky-200/90" aria-hidden />
-                )}
-              </button>
-            );
-          })}
+      {teach && state.phase === 'playing' && (
+        <div className="teach-banner max-w-sm mb-2 rounded-lg border border-amber-500/40 bg-amber-950/40 px-3 py-2 text-center">
+          <p className="text-amber-200 text-xs font-semibold">{teach.title}</p>
+          <p className="text-amber-100/80 text-xs">{teach.detail}</p>
         </div>
-      </div>
+      )}
+
+      <p className="text-emerald-200 text-sm mb-3">{statusMessage}</p>
+
+      <BoardGrid
+        board={state.board}
+        legalSet={legalSet}
+        lastMove={lastMove}
+        hintCell={hintCell}
+        flipCells={flipCells}
+        teachCells={teachCells}
+        showLegalHints={showLegalHints}
+        humanCanClick={humanCanClick}
+        phasePlaying={state.phase === 'playing'}
+        onCellClick={handleCellClick}
+      />
 
       {state.phase === 'playing' && humanCanClick && legalMoves.length === 0 && (
         <button
@@ -707,41 +952,89 @@ export default function App() {
 
       {state.phase === 'over' && (
         <ResultOverlay
-          title={gameOverMessage || '對局結束'}
+          title={gameOverMessage}
           variant={resultVariant}
-          badge={state.winner === 'draw' ? '和局' : undefined}
+          badge={
+            playMode === 'puzzle'
+              ? puzzleSolved
+                ? '過關'
+                : '失敗'
+              : state.winner === 'draw'
+                ? '和局'
+                : seriesDone
+                  ? '系列賽'
+                  : undefined
+          }
+          subtitle={
+            review
+              ? review.summary
+              : playMode === 'puzzle' && puzzle
+                ? puzzle.tip
+                : activeOpponent
+                  ? state.winner === playerSide
+                    ? activeOpponent.catchphrases.lose
+                    : activeOpponent.catchphrases.win
+                  : undefined
+          }
           stats={[
             { label: '黑子', value: black },
             { label: '白子', value: white },
             { label: '勝差', value: endMargin },
-            ...(gameMode === 'bot'
+            ...(series && series.length > 1
+              ? [{ label: '系列賽', value: seriesScoreLine(series) }]
+              : []),
+            ...(review?.mistakes.length
+              ? [{ label: '關鍵失誤', value: review.mistakes.length }]
+              : []),
+            ...(playMode === 'bot' || playMode === 'ladder'
               ? [
                   { label: '連勝', value: winStreak },
                   { label: '最佳連勝', value: bestStreak },
-                  { label: '最佳勝差', value: bestMargin },
                 ]
-              : [
-                  {
-                    label: '模式',
-                    value: '雙人對戰',
-                  },
-                ]),
+              : []),
           ]}
+          primaryLabel={
+            playMode === 'puzzle'
+              ? puzzleSolved && puzzle && puzzle.index < PUZZLES.length - 1
+                ? '下一題'
+                : '再試一次'
+              : series && !series.over
+                ? '下一局'
+                : '再玩一局'
+          }
           onPrimary={() => {
-            setState(getInitialState());
-            setHistory([]);
-            setHintCell(null);
-            setLastMove(null);
-            botScheduled.current = false;
-            statsRecordedRef.current = false;
-            prevPhaseRef.current = 'playing';
+            if (playMode === 'puzzle' && puzzleSolved && puzzle && puzzle.index < PUZZLES.length - 1) {
+              startPuzzle(puzzle.index + 1);
+              return;
+            }
+            replaySame();
           }}
+          onSecondary={backToMenu}
+          secondaryLabel="回選單"
         />
+      )}
+
+      {state.phase === 'over' && review && review.lessons.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(92vw,24rem)] pointer-events-none">
+          <div className="rounded-xl border border-stone-600 bg-stone-950/90 p-3 text-left text-xs text-stone-300 shadow-lg pointer-events-auto">
+            <p className="font-semibold text-emerald-300 mb-1">對局複盤</p>
+            {review.mistakes.slice(0, 2).map((m) => (
+              <p key={`${m.ply}-${m.move.join(',')}`} className="mb-1">
+                · {m.reason}
+              </p>
+            ))}
+            {review.lessons.slice(0, 2).map((l) => (
+              <p key={l.title} className="text-stone-400">
+                <span className="text-amber-200">{l.title}</span> — {l.detail}
+              </p>
+            ))}
+          </div>
+        </div>
       )}
 
       {showRules && (
         <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
+          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
           role="dialog"
           aria-modal="true"
           aria-labelledby="rules-title"
@@ -750,10 +1043,9 @@ export default function App() {
             <h2 id="rules-title" className="text-lg font-bold mb-3">規則說明</h2>
             <ul className="text-sm text-stone-200 space-y-2 list-disc pl-4">
               <li>8×8 棋盤，黑方先手。開局中央 2×2 為兩黑兩白（斜線相對）。</li>
-              <li>輪到的一方在空格下子，新子須與己方另一子「夾住」至少一條線上的對方子，並將該線上被夾住的對方子全部翻成己色。</li>
               <li>同一手可多方向翻子；至少須翻 1 枚才算合法。</li>
-              <li>無合法手時須 Pass，改由對方下；若雙方都無合法手則終局。</li>
-              <li>終局時己色子數多者勝，相同則和局。</li>
+              <li>無合法手時須 Pass；雙方都無法下則終局，子多者勝。</li>
+              <li>角地、機動、奇偶是中盤與殘局的核心概念——見「戰略要點」。</li>
             </ul>
             <button
               type="button"

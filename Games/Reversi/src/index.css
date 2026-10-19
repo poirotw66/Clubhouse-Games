@@ -7,3 +7,47 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+/* Disc flip juice — respect reduced motion. */
+.piece-disc {
+  transform-style: preserve-3d;
+}
+
+@keyframes piece-flip-y {
+  0% {
+    transform: rotateY(0deg) scale(1);
+  }
+  45% {
+    transform: rotateY(90deg) scale(1.06);
+  }
+  100% {
+    transform: rotateY(0deg) scale(1);
+  }
+}
+
+.piece-flip {
+  animation: piece-flip-y 0.38s ease-out;
+}
+
+@keyframes teach-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+.teach-banner {
+  animation: teach-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piece-flip {
+    animation: none;
+  }
+  .teach-banner {
+    animation: none;
+  }
+}
