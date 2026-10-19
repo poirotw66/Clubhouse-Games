@@ -64,13 +64,19 @@ test('menu search, shared URL, categories and responsive covers', async ({ page 
 
 for (const game of workspaceGames) {
   test(`${game.gameFolder}: loads from the menu and returns`, async ({ page }) => {
-    // WebGL/boot-heavy titles routinely exceed the default 30s budget under CI load.
+    // Sailing boots a WebGL title loop; mobile CI needs headroom beyond the 30s default.
     if (game.gameFolder === 'Sailing') test.setTimeout(60_000);
     await page.goto('./');
     await page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`).click();
     await expect(page).toHaveURL(new RegExp(`/Games/${game.gameFolder}/$`));
     // Prefer the shared chrome over networkidle — games that preload BGM/media
     // (e.g. Koi-Koi) never go idle, and the afterEach hooks already catch bad assets.
+    if (game.gameFolder === 'Sailing') {
+      // Assert the real title lobby (not just a blank canvas) before leaving.
+      await expect(page.getByRole('heading', { name: '海灣帆航' })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole('button', { name: '開始航行' })).toBeVisible();
+      await expect(page.getByRole('group', { name: '遊玩模式' })).toBeVisible();
+    }
     const back = page.getByRole('link', { name: /返回總覽/ });
     await expect(back).toBeVisible({ timeout: game.gameFolder === 'Sailing' ? 45_000 : undefined });
     await back.click();
@@ -237,12 +243,15 @@ test('big-two: seeded opener plays ♣3, then undo after the table updates', asy
 
 test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {
   await page.goto('./Games/Fifteen-Puzzle/');
-  // Title screen: tier chip then start classic (depth PR added a lobby).
-  await activate(page.getByRole('button', { name: '簡單', exact: true }), isMobile);
+  // Title lobby: pick scramble tier, then start classic play (tiles are role=gridcell).
+  await expect(page.getByRole('heading', { name: '數字推盤' })).toBeVisible();
+  await activate(page.getByRole('group', { name: '打亂難度' }).getByRole('button', { name: '簡單', exact: true }), isMobile);
   await activate(page.getByRole('button', { name: '經典模式', exact: true }), isMobile);
+  await expect(page.getByText('經典', { exact: false })).toBeVisible();
   await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
+  await expect(page.getByRole('grid', { name: /乘 .* 推盤/ })).toBeVisible();
 
-  // Tiles are <button role="gridcell"> — a11y tree exposes gridcell, not button.
+  // PuzzleBoard exposes tiles as gridcells with aria-label「第 N 格」(N = tile value).
   const movable = page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled'));
   await expect(movable.first()).toBeVisible();
   await activate(movable.first(), isMobile);
@@ -253,9 +262,7 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
 
   await activate(page.getByRole('button', { name: '重開', exact: true }), isMobile);
   await expect(page.getByText('步數：0', { exact: false })).toBeVisible();
-  await expect(
-    page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first(),
-  ).toBeVisible();
+  await expect(page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first()).toBeVisible();
 });
 
 test('checkers: two-player opening move, undo, and new game', async ({ page, isMobile }) => {
