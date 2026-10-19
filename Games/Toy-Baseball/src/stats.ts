@@ -16,6 +16,8 @@ export interface BaseballBests {
   matchBestWinStreak: number;
   /** Most runs scored in a single won match. */
   matchBestRuns: number;
+  /** Longest regulation length played in a win (3 / 6 / 9). */
+  matchBestInnings: number;
   /** Best home-run count in one derby session. */
   derbyBestHrs: number;
   /** Best single-hit distance in derby (screen units). */
@@ -29,6 +31,7 @@ export const EMPTY_BESTS: BaseballBests = {
   matchWinStreak: 0,
   matchBestWinStreak: 0,
   matchBestRuns: 0,
+  matchBestInnings: 0,
   derbyBestHrs: 0,
   derbyBestDist: 0,
 };
@@ -60,6 +63,7 @@ function normalize(raw: Partial<BaseballBests> | null | undefined): BaseballBest
       streak,
     ),
     matchBestRuns: Math.max(0, Math.floor(Number(raw.matchBestRuns) || 0)),
+    matchBestInnings: Math.max(0, Math.floor(Number(raw.matchBestInnings) || 0)),
     derbyBestHrs: Math.max(0, Math.floor(Number(raw.derbyBestHrs) || 0)),
     derbyBestDist: Math.max(0, Number(raw.derbyBestDist) || 0),
   };
@@ -128,6 +132,7 @@ export function updateMatchBests(
   prev: BaseballBests,
   playerRuns: number,
   cpuRuns: number,
+  inningsLength = 3,
 ): BaseballBests {
   const next = { ...normalize(prev) };
   if (playerRuns > cpuRuns) {
@@ -135,6 +140,7 @@ export function updateMatchBests(
     next.matchWinStreak += 1;
     next.matchBestWinStreak = Math.max(next.matchBestWinStreak, next.matchWinStreak);
     next.matchBestRuns = Math.max(next.matchBestRuns, Math.floor(playerRuns));
+    next.matchBestInnings = Math.max(next.matchBestInnings, Math.floor(inningsLength));
   } else {
     next.matchWinStreak = 0;
   }

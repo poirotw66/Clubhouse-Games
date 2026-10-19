@@ -2,6 +2,7 @@
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type PlayMode = 'match' | 'derby';
+export type InningsLength = 3 | 6 | 9;
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   easy: '簡單',
@@ -11,14 +12,22 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 
 /** Short player-facing blurbs so Easy / Normal / Hard read as three different games. */
 export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
-  easy: '好球帶寬，對手常揮空',
-  normal: '節奏均衡，投打都要準',
-  hard: '窗口窄，對手少失誤',
+  easy: '好球帶寬，對手常揮空，球種較好讀',
+  normal: '配球有套路，往空檔打才容易安打',
+  hard: '窗口窄，對手少失誤，配球更刁鑽',
 };
 
 export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
-  match: '三局賽',
+  match: '正規賽',
   derby: '全壘打大賽',
+};
+
+export const INNINGS_OPTIONS: InningsLength[] = [3, 6, 9];
+
+export const INNINGS_LABELS: Record<InningsLength, string> = {
+  3: '3 局',
+  6: '6 局',
+  9: '9 局',
 };
 
 export interface DifficultyConfig {
@@ -34,14 +43,16 @@ export interface DifficultyConfig {
   cpuAimDir: number;
   cpuPitchDelayMin: number;
   cpuPitchDelayMax: number;
-  cpuFastPitchChance: number;
-  /** Fair-ball distance bands (screen units from home). */
+  /** Fair-ball distance bands (screen units from home) — used with fielding. */
   outMax: number;
   singleMin: number;
   doubleMin: number;
   tripleMin: number;
   /** Weak contact (quality below this) is almost always an out unless very deep. */
   weakQuality: number;
+  /** Defense alignment bias when player bats. */
+  defensePullChance: number;
+  defenseDeepChance: number;
 }
 
 export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
@@ -53,12 +64,13 @@ export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     cpuAimDir: 0.32,
     cpuPitchDelayMin: 1.45,
     cpuPitchDelayMax: 2.25,
-    cpuFastPitchChance: 0.22,
     outMax: 200,
     singleMin: 165,
     doubleMin: 280,
     tripleMin: 420,
     weakQuality: 0.18,
+    defensePullChance: 0.05,
+    defenseDeepChance: 0.05,
   },
   normal: {
     hitRadius: 60,
@@ -68,12 +80,13 @@ export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     cpuAimDir: 0.65,
     cpuPitchDelayMin: 1.05,
     cpuPitchDelayMax: 1.65,
-    cpuFastPitchChance: 0.5,
     outMax: 175,
     singleMin: 175,
     doubleMin: 300,
     tripleMin: 450,
     weakQuality: 0.28,
+    defensePullChance: 0.2,
+    defenseDeepChance: 0.15,
   },
   hard: {
     hitRadius: 42,
@@ -83,46 +96,47 @@ export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     cpuAimDir: 0.92,
     cpuPitchDelayMin: 0.65,
     cpuPitchDelayMax: 1.05,
-    cpuFastPitchChance: 0.78,
     outMax: 145,
     singleMin: 190,
     doubleMin: 330,
     tripleMin: 480,
     weakQuality: 0.38,
+    defensePullChance: 0.35,
+    defenseDeepChance: 0.3,
   },
 };
 
 export const DERBY_SWINGS = 10;
 
-/** Grade a fair landing using distance + contact quality (not distance alone). */
-export function gradeFairLanding(
-  dist: number,
-  quality: number,
-  cfg: DifficultyConfig,
-): { result: string; bases: number } {
-  // Soft contact plays shorter for fielders; crushed balls play deeper.
-  const effective = dist * (0.5 + quality * 0.65);
+export type ContactGrade = 'perfect' | 'good' | 'ok' | 'weak';
 
-  if (quality < cfg.weakQuality && effective < cfg.tripleMin) {
-    return { result: '軟弱飛球出局 (OUT)', bases: 0 };
-  }
-  if (effective >= cfg.tripleMin) {
-    return { result: '三壘安打 (3B)', bases: 3 };
-  }
-  if (effective >= cfg.doubleMin) {
-    return { result: '二壘安打 (2B)', bases: 2 };
-  }
-  if (effective >= cfg.singleMin) {
-    return { result: '一壘安打 (1B)', bases: 1 };
-  }
-  if (effective < cfg.outMax || quality < cfg.weakQuality + 0.12) {
-    return { result: '接殺出局 (OUT)', bases: 0 };
-  }
-  return { result: '一壘安打 (1B)', bases: 1 };
+export function gradeContact(quality: number): ContactGrade {
+  if (quality >= 0.85) return 'perfect';
+  if (quality >= 0.65) return 'good';
+  if (quality >= 0.4) return 'ok';
+  return 'weak';
 }
+
+export const CONTACT_LABELS: Record<ContactGrade, string> = {
+  perfect: '完美擊球！',
+  good: '扎實打擊',
+  ok: '一般接觸',
+  weak: '軟弱接觸',
+};
 
 /** CPU swing target Y near the plate, with skill-based error. */
 export function cpuSwingTargetY(skill: number, rng: () => number): number {
   const error = (1 - skill) * 90;
   return 448 + (rng() - 0.5) * error;
+}
+
+/** Pick defense alignment from difficulty knobs. */
+export function pickDefenseAlignment(
+  cfg: DifficultyConfig,
+  rng: () => number,
+): 'normal' | 'pull' | 'deep' {
+  const r = rng();
+  if (r < cfg.defenseDeepChance) return 'deep';
+  if (r < cfg.defenseDeepChance + cfg.defensePullChance) return 'pull';
+  return 'normal';
 }

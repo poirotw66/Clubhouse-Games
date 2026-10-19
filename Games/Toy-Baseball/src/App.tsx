@@ -7,19 +7,34 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash, type ScoreFlashTone } from '@clubhouse/shared/ScoreFlash';
-import { playError, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import {
+  playCapture,
+  playError,
+  playGoal,
+  playLose,
+  playMove,
+  playPaddleHit,
+  playScore,
+  playWin,
+} from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { Trophy, Play, Target, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trophy, Play, Target, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+  CONTACT_LABELS,
   DERBY_SWINGS,
   DIFFICULTY,
   DIFFICULTY_BLURBS,
   DIFFICULTY_LABELS,
+  INNINGS_LABELS,
+  INNINGS_OPTIONS,
   PLAY_MODE_LABELS,
   cpuSwingTargetY,
-  gradeFairLanding,
+  gradeContact,
+  pickDefenseAlignment,
+  type ContactGrade,
   type Difficulty,
+  type InningsLength,
   type PlayMode,
 } from './difficulty';
 import {
@@ -31,15 +46,45 @@ import {
   type BaseballBests,
   type BestsMap,
 } from './stats';
-import { fieldDirtImage, fieldGrassImage, fieldSkyImage, drawBatterSprite, drawPitcherSprite } from './fieldArt';
+import {
+  fieldDirtImage,
+  fieldGrassImage,
+  fieldSkyImage,
+  drawBatterSprite,
+  drawPitcherSprite,
+} from './fieldArt';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
 } from './components/FirstRunGuide';
+import {
+  MOUND,
+  PITCH_DEFS,
+  PITCH_TYPES,
+  STEER_WINDOW_SEC,
+  applyPitchFlight,
+  chooseCpuPitch,
+  cpuReadsPitch,
+  initialPitchVelocity,
+  type PitchLoc,
+  type PitchType,
+} from './pitching';
+import {
+  estimateFlightTime,
+  getFielders,
+  isFoulTerritory,
+  resolveFairBall,
+  type DefenseAlignment,
+  type FielderId,
+} from './fielding';
+import { computeHitLaunch, type SwingDir } from './hitting';
+import { createRng, freshSeed, type Rng } from './rng';
 
 function resultFlashTone(text: string): ScoreFlashTone {
-  if (text.includes('全壘打') || text.includes('安打') || text.includes('保送')) return 'good';
-  if (text.includes('OUT') || text.includes('三振')) return 'bad';
+  if (text.includes('全壘打') || text.includes('安打') || text.includes('保送') || text.includes('完美')) {
+    return 'good';
+  }
+  if (text.includes('OUT') || text.includes('三振') || text.includes('軟弱')) return 'bad';
   return 'neutral';
 }
 
@@ -84,39 +129,115 @@ function CountRow({
   );
 }
 
+function LineScoreTable({
+  away,
+  home,
+  currentInning,
+  halfInning,
+}: {
+  away: number[];
+  home: number[];
+  currentInning: number;
+  halfInning: number;
+}): React.ReactElement {
+  const cols = Math.max(away.length, home.length, 1);
+  return (
+    <div className="overflow-x-auto max-w-[220px] sm:max-w-none">
+      <table className="text-[10px] font-mono border-collapse">
+        <thead>
+          <tr className="text-zinc-500">
+            <th className="px-1 text-left font-bold"> </th>
+            {Array.from({ length: cols }, (_, i) => (
+              <th
+                key={i}
+                className={`px-1 font-bold ${
+                  i + 1 === currentInning ? 'text-amber-300' : ''
+                }`}
+              >
+                {i + 1}
+              </th>
+            ))}
+            <th className="px-1 font-bold text-zinc-300">R</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="px-1 text-blue-300 font-bold">客</td>
+            {Array.from({ length: cols }, (_, i) => (
+              <td
+                key={i}
+                className={`px-1 text-center tabular-nums ${
+                  i + 1 === currentInning && halfInning === 0
+                    ? 'text-white'
+                    : 'text-zinc-300'
+                }`}
+              >
+                {away[i] ?? 0}
+              </td>
+            ))}
+            <td className="px-1 text-center font-bold text-blue-300 tabular-nums">
+              {away.reduce((a, b) => a + b, 0)}
+            </td>
+          </tr>
+          <tr>
+            <td className="px-1 text-red-300 font-bold">主</td>
+            {Array.from({ length: cols }, (_, i) => (
+              <td
+                key={i}
+                className={`px-1 text-center tabular-nums ${
+                  i + 1 === currentInning && halfInning === 1
+                    ? 'text-white'
+                    : 'text-zinc-300'
+                }`}
+              >
+                {home[i] ?? 0}
+              </td>
+            ))}
+            <td className="px-1 text-center font-bold text-red-300 tabular-nums">
+              {home.reduce((a, b) => a + b, 0)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // --- Constants & Types ---
 
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
 const GRAVITY = 600;
-const AIR_RESISTANCE = 0.2; // Linear drag coefficient
+const AIR_RESISTANCE = 0.2;
 
 type GameMode = 'menu' | 'playing' | 'gameOver';
-type PitchType = 'fast' | 'slow';
-type PitchLoc = 'left' | 'center' | 'right';
-type SwingDir = 'left' | 'center' | 'right';
-
 type BallState = 'idle' | 'pitching' | 'flying';
 
 interface GameState {
   mode: GameMode;
   playMode: PlayMode;
   difficulty: Difficulty;
+  inningsLength: InningsLength;
+  seed: number;
   inning: number;
-  halfInning: number; // 0: Top, 1: Bottom
+  halfInning: number;
   score: { away: number; home: number };
+  lineScore: { away: number[]; home: number[] };
   outs: number;
   strikes: number;
   balls: number;
-  bases: [boolean, boolean, boolean]; // 1st, 2nd, 3rd
+  bases: [boolean, boolean, boolean];
   ballPos: { x: number; y: number; z: number } | null;
   ballVel: { x: number; y: number; z: number } | null;
   ballTrail: { x: number; y: number; z: number; alpha: number }[];
   ballState: BallState;
-  hitEffect: number; // 0 to 1
+  hitEffect: number;
   isPitching: boolean;
   pitchType: PitchType | null;
   pitchLoc: PitchLoc | null;
+  pitchAge: number;
+  steerDir: -1 | 0 | 1;
+  selectedPitchType: PitchType;
   swingTime: number | null;
   swingDir: SwingDir;
   handedness: 'left' | 'right';
@@ -124,17 +245,21 @@ interface GameState {
   resultTimer: number;
   lastHitType: 'foul' | 'fair' | null;
   contactQuality: number;
-  /** Countdown before the next CPU pitch (avoids stacking setTimeouts). */
+  contactGrade: ContactGrade | null;
+  contactFlash: number;
   cpuPitchTimer: number | null;
-  /** CPU has locked a swing decision for this pitch. */
   cpuSwingLocked: boolean;
   cpuSwingTargetY: number | null;
   cpuWillSwing: boolean;
   derbySwingsLeft: number;
   derbyHrs: number;
   derbyBestDist: number;
-  /** True when the current plate appearance is finished. */
   atBatOver: boolean;
+  defenseAlignment: DefenseAlignment;
+  lastLanding: { x: number; y: number } | null;
+  lastFielderId: FielderId | null;
+  peakZ: number;
+  crowdPulse: number;
 }
 
 // --- Game Engine ---
@@ -142,20 +267,32 @@ interface GameState {
 class GameEngine {
   state: GameState;
   onStateChange: (state: GameState) => void;
+  private rng: Rng;
+  private pitchIndex = 0;
+  private hitIndex = 0;
 
   constructor(onStateChange: (state: GameState) => void) {
     this.onStateChange = onStateChange;
     this.state = this.getInitialState();
+    this.rng = createRng(this.state.seed);
   }
 
   getInitialState(): GameState {
+    const seed = freshSeed();
+    const inningsLength: InningsLength = 3;
     return {
       mode: 'menu',
       playMode: 'match',
       difficulty: 'normal',
+      inningsLength,
+      seed,
       inning: 1,
       halfInning: 0,
       score: { away: 0, home: 0 },
+      lineScore: {
+        away: Array(inningsLength).fill(0),
+        home: Array(inningsLength).fill(0),
+      },
       outs: 0,
       strikes: 0,
       balls: 0,
@@ -168,6 +305,9 @@ class GameEngine {
       isPitching: false,
       pitchType: null,
       pitchLoc: null,
+      pitchAge: 0,
+      steerDir: 0,
+      selectedPitchType: 'fastball',
       swingTime: null,
       swingDir: 'center',
       handedness: 'right',
@@ -175,6 +315,8 @@ class GameEngine {
       resultTimer: 0,
       lastHitType: null,
       contactQuality: 0.5,
+      contactGrade: null,
+      contactFlash: 0,
       cpuPitchTimer: null,
       cpuSwingLocked: false,
       cpuSwingTargetY: null,
@@ -183,6 +325,11 @@ class GameEngine {
       derbyHrs: 0,
       derbyBestDist: 0,
       atBatOver: false,
+      defenseAlignment: 'normal',
+      lastLanding: null,
+      lastFielderId: null,
+      peakZ: 0,
+      crowdPulse: 0,
     };
   }
 
@@ -190,42 +337,105 @@ class GameEngine {
     return DIFFICULTY[this.state.difficulty];
   }
 
+  private nextRoll(label: string): number {
+    // Advance shared stream; label kept for readability in checks / debugging.
+    void label;
+    return this.rng();
+  }
+
   reset() {
     const handedness = this.state.handedness;
     const difficulty = this.state.difficulty;
     const playMode = this.state.playMode;
+    const inningsLength = this.state.inningsLength;
+    const selectedPitchType = this.state.selectedPitchType;
     this.state = this.getInitialState();
     this.state.handedness = handedness;
     this.state.difficulty = difficulty;
     this.state.playMode = playMode;
+    this.state.inningsLength = inningsLength;
+    this.state.selectedPitchType = selectedPitchType;
+    this.state.lineScore = {
+      away: Array(inningsLength).fill(0),
+      home: Array(inningsLength).fill(0),
+    };
+    this.rng = createRng(this.state.seed);
+    this.pitchIndex = 0;
+    this.hitIndex = 0;
     this.onStateChange(this.state);
   }
 
-  start(playMode?: PlayMode, difficulty?: Difficulty) {
+  start(playMode?: PlayMode, difficulty?: Difficulty, inningsLength?: InningsLength) {
     if (playMode) this.state.playMode = playMode;
     if (difficulty) this.state.difficulty = difficulty;
+    if (inningsLength) this.state.inningsLength = inningsLength;
+    this.state.seed = freshSeed();
+    this.rng = createRng(this.state.seed);
+    this.pitchIndex = 0;
+    this.hitIndex = 0;
     this.state.mode = 'playing';
     this.state.inning = 1;
     this.state.halfInning = 0;
     this.state.score = { away: 0, home: 0 };
+    this.state.lineScore = {
+      away: Array(this.state.inningsLength).fill(0),
+      home: Array(this.state.inningsLength).fill(0),
+    };
     this.state.outs = 0;
     this.state.bases = [false, false, false];
     this.state.derbySwingsLeft = DERBY_SWINGS;
     this.state.derbyHrs = 0;
     this.state.derbyBestDist = 0;
+    this.state.lastLanding = null;
+    this.state.lastFielderId = null;
+    this.state.crowdPulse = 0;
     if (this.state.playMode === 'derby') this.state.halfInning = 0;
+    this.refreshDefense();
     this.nextBatter();
     this.onStateChange(this.state);
+  }
+
+  /** Test helper: pin seed before start for deterministic checks. */
+  startWithSeed(
+    seed: number,
+    playMode: PlayMode = 'match',
+    difficulty: Difficulty = 'normal',
+    inningsLength: InningsLength = 3,
+  ) {
+    this.state.playMode = playMode;
+    this.state.difficulty = difficulty;
+    this.state.inningsLength = inningsLength;
+    this.state.seed = seed >>> 0;
+    this.rng = createRng(this.state.seed);
+    this.pitchIndex = 0;
+    this.hitIndex = 0;
+    this.state.mode = 'playing';
+    this.state.inning = 1;
+    this.state.halfInning = 0;
+    this.state.score = { away: 0, home: 0 };
+    this.state.lineScore = {
+      away: Array(inningsLength).fill(0),
+      home: Array(inningsLength).fill(0),
+    };
+    this.state.outs = 0;
+    this.state.bases = [false, false, false];
+    this.refreshDefense();
+    this.nextBatter();
+    this.onStateChange(this.state);
+  }
+
+  refreshDefense() {
+    this.state.defenseAlignment = pickDefenseAlignment(this.cfg, () => this.nextRoll('defense'));
   }
 
   nextBatter() {
     this.state.strikes = 0;
     this.state.balls = 0;
     this.state.atBatOver = false;
+    this.refreshDefense();
     this.readyNextPitch();
   }
 
-  /** Same batter, next pitch — keeps the count. */
   readyNextPitch() {
     this.state.ballPos = null;
     this.state.ballVel = null;
@@ -233,17 +443,29 @@ class GameEngine {
     this.state.isPitching = false;
     this.state.pitchType = null;
     this.state.pitchLoc = null;
+    this.state.pitchAge = 0;
+    this.state.steerDir = 0;
     this.state.swingTime = null;
     this.state.cpuPitchTimer = null;
     this.state.cpuSwingLocked = false;
     this.state.cpuSwingTargetY = null;
     this.state.cpuWillSwing = false;
     this.state.contactQuality = 0.5;
+    this.state.peakZ = 0;
   }
 
   get isPlayerBatting() {
     if (this.state.playMode === 'derby') return true;
     return this.state.halfInning === 0;
+  }
+
+  setSelectedPitchType(type: PitchType) {
+    this.state.selectedPitchType = type;
+    this.onStateChange(this.state);
+  }
+
+  setSteerDir(dir: -1 | 0 | 1) {
+    this.state.steerDir = dir;
   }
 
   handlePitch(type: PitchType, loc: PitchLoc) {
@@ -254,43 +476,42 @@ class GameEngine {
     this.state.ballState = 'pitching';
     this.state.pitchType = type;
     this.state.pitchLoc = loc;
-    this.state.ballPos = { x: 400, y: 150, z: 20 };
+    this.state.selectedPitchType = type;
+    this.state.pitchAge = 0;
+    this.state.steerDir = 0;
+    this.state.ballPos = { ...MOUND };
+    this.state.ballVel = initialPitchVelocity(type, loc);
     this.state.cpuPitchTimer = null;
     this.state.cpuSwingLocked = false;
     this.state.cpuSwingTargetY = null;
     this.state.cpuWillSwing = false;
-
-    const speed = type === 'fast' ? 500 : 300;
-    let targetX = 400;
-    if (loc === 'left') targetX = 370;
-    if (loc === 'right') targetX = 430;
-
-    const dx = targetX - 400;
-    const dy = 450 - 150;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    this.state.ballVel = {
-      x: (dx / dist) * speed,
-      y: (dy / dist) * speed,
-      z: -5,
-    };
+    this.state.ballTrail = [];
 
     this.onStateChange(this.state);
   }
 
   handleSwing() {
     if (this.state.ballState !== 'pitching' || this.state.swingTime !== null) return;
-    this.state.swingTime = 0.2; // Swing duration
+    this.state.swingTime = 0.2;
     this.onStateChange(this.state);
   }
 
   update(dt: number) {
     if (this.state.mode !== 'playing') return;
 
+    if (this.state.crowdPulse > 0) {
+      this.state.crowdPulse = Math.max(0, this.state.crowdPulse - dt);
+    }
+    if (this.state.contactFlash > 0) {
+      this.state.contactFlash = Math.max(0, this.state.contactFlash - dt);
+    }
+
     if (this.state.resultTimer > 0) {
       this.state.resultTimer -= dt;
       if (this.state.resultTimer <= 0) {
         this.state.resultText = '';
+        this.state.lastLanding = null;
+        this.state.lastFielderId = null;
         if (this.state.atBatOver || this.state.playMode === 'derby') {
           this.nextBatter();
         } else {
@@ -301,46 +522,60 @@ class GameEngine {
       return;
     }
 
-    // CPU Pitching — single countdown, never stacks timers.
+    // CPU Pitching — sequenced arsenal.
     if (this.isPlayerBatting && this.state.ballState === 'idle' && this.state.resultTimer <= 0) {
       if (this.state.cpuPitchTimer === null) {
         const { cpuPitchDelayMin, cpuPitchDelayMax } = this.cfg;
         this.state.cpuPitchTimer =
-          cpuPitchDelayMin + Math.random() * (cpuPitchDelayMax - cpuPitchDelayMin);
+          cpuPitchDelayMin
+          + this.nextRoll(`pitchDelay:${this.pitchIndex}`)
+            * (cpuPitchDelayMax - cpuPitchDelayMin);
       } else {
         this.state.cpuPitchTimer -= dt;
         if (this.state.cpuPitchTimer <= 0) {
           this.state.cpuPitchTimer = null;
-          const type: PitchType = Math.random() < this.cfg.cpuFastPitchChance ? 'fast' : 'slow';
-          const locs: PitchLoc[] = ['left', 'center', 'right'];
-          // Harder CPU throws more strikes into center / edges mix.
-          const loc =
-            this.state.difficulty === 'easy'
-              ? locs[Math.floor(Math.random() * 3)]
-              : Math.random() < 0.45
-                ? 'center'
-                : locs[Math.floor(Math.random() * 3)];
-          this.handlePitch(type, loc);
+          const choice = chooseCpuPitch(
+            { balls: this.state.balls, strikes: this.state.strikes },
+            this.state.difficulty,
+            () => this.nextRoll(`cpuPitch:${this.pitchIndex++}`),
+          );
+          this.handlePitch(choice.type, choice.loc);
         }
       }
     }
 
-    // CPU Batting — lock aim once, swing at target Y (timing), match direction.
+    // CPU Batting — read pitch type on hard, aim accordingly.
     if (!this.isPlayerBatting && this.state.ballState === 'pitching' && this.state.swingTime === null) {
       const ball = this.state.ballPos;
       if (ball) {
         if (!this.state.cpuSwingLocked && ball.y > 360) {
           this.state.cpuSwingLocked = true;
           const takeBall =
-            this.state.pitchLoc !== 'center' && Math.random() < this.cfg.cpuTakeBall;
-          this.state.cpuWillSwing = !takeBall && Math.random() < this.cfg.cpuSwingRate;
-          this.state.cpuSwingTargetY = cpuSwingTargetY(this.cfg.cpuAimSkill, Math.random);
+            this.state.pitchLoc !== 'center'
+            && this.nextRoll(`take:${this.pitchIndex}`) < this.cfg.cpuTakeBall;
+          this.state.cpuWillSwing =
+            !takeBall && this.nextRoll(`swing:${this.pitchIndex}`) < this.cfg.cpuSwingRate;
+          const read = this.state.pitchType
+            ? cpuReadsPitch(
+              this.state.difficulty,
+              this.state.pitchType,
+              () => this.nextRoll(`read:${this.pitchIndex}`),
+            )
+            : false;
+          const aimSkill = read ? Math.min(1, this.cfg.cpuAimSkill + 0.12) : this.cfg.cpuAimSkill * 0.85;
+          this.state.cpuSwingTargetY = cpuSwingTargetY(
+            aimSkill,
+            () => this.nextRoll(`aimY:${this.pitchIndex}`),
+          );
           if (this.state.cpuWillSwing) {
-            if (Math.random() < this.cfg.cpuAimDir && this.state.pitchLoc) {
+            if (
+              this.nextRoll(`aimDir:${this.pitchIndex}`) < this.cfg.cpuAimDir
+              && this.state.pitchLoc
+            ) {
               this.state.swingDir = this.state.pitchLoc;
             } else {
               this.state.swingDir = (['left', 'center', 'right'] as SwingDir[])[
-                Math.floor(Math.random() * 3)
+                Math.floor(this.nextRoll(`swingDir:${this.pitchIndex}`) * 3)
               ];
             }
           }
@@ -356,16 +591,14 @@ class GameEngine {
     }
 
     if (this.state.ballPos && this.state.ballVel) {
-      // Update Trail
       this.state.ballTrail.push({ ...this.state.ballPos, alpha: 1.0 });
-      if (this.state.ballTrail.length > 25) this.state.ballTrail.shift();
-      this.state.ballTrail.forEach(t => t.alpha *= 0.92);
+      if (this.state.ballTrail.length > 28) this.state.ballTrail.shift();
+      this.state.ballTrail.forEach((t) => {
+        t.alpha *= 0.9;
+      });
 
-      // Apply Air Resistance (Drag)
       const speed = Math.sqrt(
-        this.state.ballVel.x ** 2 + 
-        this.state.ballVel.y ** 2 + 
-        this.state.ballVel.z ** 2
+        this.state.ballVel.x ** 2 + this.state.ballVel.y ** 2 + this.state.ballVel.z ** 2,
       );
       if (speed > 0) {
         const drag = AIR_RESISTANCE * speed * dt;
@@ -374,31 +607,38 @@ class GameEngine {
         this.state.ballVel.z -= (this.state.ballVel.z / speed) * drag;
       }
 
+      if (this.state.ballState === 'pitching' && this.state.pitchType) {
+        this.state.pitchAge += dt;
+        const steer = this.isPlayerBatting ? 0 : this.state.steerDir;
+        applyPitchFlight(
+          this.state.ballVel,
+          this.state.pitchType,
+          this.state.pitchAge,
+          dt,
+          steer,
+        );
+      }
+
       this.state.ballPos.x += this.state.ballVel.x * dt;
       this.state.ballPos.y += this.state.ballVel.y * dt;
       this.state.ballPos.z += this.state.ballVel.z * dt;
 
       if (this.state.ballState === 'pitching') {
-        // Check for hit - Increased detection radius for better experience
         if (this.state.swingTime !== null && this.state.swingTime > -0.1) {
           const dist = Math.sqrt(
-            Math.pow(this.state.ballPos.x - 400, 2) + Math.pow(this.state.ballPos.y - 450, 2)
+            (this.state.ballPos.x - 400) ** 2 + (this.state.ballPos.y - 450) ** 2,
           );
           if (dist < this.cfg.hitRadius) {
             this.processHitPhysics();
             return;
           }
         }
-
-        // Check for strike/ball when ball passes home plate
         if (this.state.ballPos.y > 520) {
           this.processMiss();
         }
       } else if (this.state.ballState === 'flying') {
-        // Gravity
         this.state.ballVel.z -= GRAVITY * dt;
-
-        // Check for landing or HR
+        this.state.peakZ = Math.max(this.state.peakZ, this.state.ballPos.z);
         if (this.state.ballPos.y < 50) {
           this.determineResult('HR');
         } else if (this.state.ballPos.z <= 0) {
@@ -428,30 +668,19 @@ class GameEngine {
     this.state.balls = 0;
     this.state.hitEffect = 1.0;
 
-    const timing = this.state.swingTime || 0;
-    let dirBias = 0;
-    if (this.state.swingDir === 'left') dirBias = -0.5;
-    if (this.state.swingDir === 'right') dirBias = 0.5;
+    const launch = computeHitLaunch({
+      swingTime: this.state.swingTime || 0,
+      swingDir: this.state.swingDir,
+      pitchLoc: this.state.pitchLoc,
+      rng: () => this.nextRoll(`hit:${this.hitIndex++}`),
+    });
 
-    // Reward matching swing direction to pitch location.
-    const locMatch =
-      this.state.pitchLoc && this.state.swingDir === this.state.pitchLoc ? 0.12 : 0;
-
-    const angleOffset = timing * 5 + dirBias;
-    const powerFactor = Math.max(0.15, 1 - Math.abs(timing) * 4);
-    const rand = Math.random();
-    const hitScore = Math.min(1, powerFactor * 0.75 + rand * 0.15 + locMatch);
-    this.state.contactQuality = hitScore;
-
-    const speed = 400 + hitScore * 400;
-    const baseAngle = -Math.PI / 2;
-    const finalAngle = baseAngle + angleOffset;
-
-    this.state.ballVel = {
-      x: Math.cos(finalAngle) * speed,
-      y: Math.sin(finalAngle) * speed,
-      z: 150 + hitScore * 250,
-    };
+    this.state.ballVel = launch.vel;
+    this.state.contactQuality = launch.contactQuality;
+    this.state.contactGrade = gradeContact(launch.contactQuality);
+    this.state.contactFlash = 1.2;
+    this.state.peakZ = launch.peakZ;
+    this.state.crowdPulse = launch.contactQuality >= 0.85 ? 1.4 : launch.contactQuality >= 0.65 ? 0.8 : 0.35;
 
     this.onStateChange(this.state);
   }
@@ -463,39 +692,66 @@ class GameEngine {
 
     const x = this.state.ballPos?.x || 400;
     const y = this.state.ballPos?.y || 450;
-    const dist = Math.sqrt(Math.pow(x - 400, 2) + Math.pow(y - 450, 2));
+    const dist = Math.sqrt((x - 400) ** 2 + (y - 450) ** 2);
     const quality = this.state.contactQuality;
+    const foul = isFoulTerritory(x, y);
 
-    const isFoul = Math.abs(x - 400) > Math.abs(y - 450) + 5 || x < 0 || x > 800;
-
-    if (type === 'HR') {
-      if (isFoul) {
+    if (type === 'HR' || (!foul && dist >= 600 && this.state.peakZ > 70)) {
+      if (foul) {
         result = '界外球 (FOUL)';
         hitType = 'foul';
         this.state.strikes = Math.min(2, this.state.strikes + 1);
-      } else if (quality < 0.35) {
-        // Weak loft that clears the wall visually still dies as a deep out in arcade.
-        result = '牆前接殺 (OUT)';
-        hitType = 'fair';
-        this.state.outs++;
+        this.state.lastLanding = { x, y };
+        this.state.lastFielderId = null;
       } else {
-        result = '全壘打！';
+        const graded = resolveFairBall({
+          landingX: x,
+          landingY: Math.min(y, 55),
+          peakZ: this.state.peakZ,
+          quality,
+          flightTime: estimateFlightTime(this.state.ballVel?.z ?? 0, this.state.peakZ),
+          alignment: this.state.defenseAlignment,
+          cfg: this.cfg,
+        });
+        result = graded.result;
+        bases = graded.bases;
         hitType = 'fair';
-        bases = 4;
-        if (this.state.playMode === 'derby') {
+        this.state.lastLanding = { x: graded.landingX, y: graded.landingY };
+        this.state.lastFielderId = graded.fielderId;
+        if (bases === 0) this.state.outs++;
+        if (bases === 4 && this.state.playMode === 'derby') {
           this.state.derbyHrs += 1;
           this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
         }
+        if (this.state.playMode === 'derby') {
+          this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
+        }
       }
-    } else if (isFoul) {
+    } else if (foul) {
       result = '界外球 (FOUL)';
       hitType = 'foul';
       this.state.strikes = Math.min(2, this.state.strikes + 1);
+      this.state.lastLanding = { x, y };
+      this.state.lastFielderId = null;
     } else {
       hitType = 'fair';
-      const graded = gradeFairLanding(dist, quality, this.cfg);
+      const flightTime = estimateFlightTime(
+        Math.abs(this.state.ballVel?.z ?? 120),
+        this.state.peakZ,
+      );
+      const graded = resolveFairBall({
+        landingX: x,
+        landingY: y,
+        peakZ: this.state.peakZ,
+        quality,
+        flightTime,
+        alignment: this.state.defenseAlignment,
+        cfg: this.cfg,
+      });
       result = graded.result;
       bases = graded.bases;
+      this.state.lastLanding = { x: graded.landingX, y: graded.landingY };
+      this.state.lastFielderId = graded.fielderId;
       if (bases === 0) this.state.outs++;
       if (this.state.playMode === 'derby') {
         this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
@@ -510,8 +766,6 @@ class GameEngine {
     this.state.resultText = result;
     this.state.resultTimer = 2.5;
     this.state.lastHitType = hitType;
-
-    // Fair balls and outs end the at-bat; fouls keep the same batter.
     this.state.atBatOver = hitType === 'fair' || bases > 0 || result.includes('OUT');
 
     if (this.state.playMode === 'derby') {
@@ -523,6 +777,7 @@ class GameEngine {
         this.state.mode = 'gameOver';
       }
     } else {
+      this.checkWalkOff();
       this.checkInningEnd();
     }
   }
@@ -530,7 +785,7 @@ class GameEngine {
   processMiss() {
     const loc = this.state.pitchLoc;
     const isStrike =
-      loc === 'center' || (loc !== null && Math.random() > 0.55);
+      loc === 'center' || (loc !== null && this.nextRoll('strikeZone') > 0.55);
 
     if (this.state.swingTime !== null) {
       this.state.strikes++;
@@ -577,6 +832,7 @@ class GameEngine {
     this.state.ballVel = null;
     this.state.ballState = 'idle';
     this.state.isPitching = false;
+    this.checkWalkOff();
     this.checkInningEnd();
   }
 
@@ -584,43 +840,71 @@ class GameEngine {
     const newBases = [false, false, false];
     let runs = 0;
     const currentRunners = [...this.state.bases];
-    
+
     if (num === 4) {
-      runs = currentRunners.filter(b => b).length + 1;
+      runs = currentRunners.filter((b) => b).length + 1;
     } else {
-      // Logic for advancing runners
-      let runners = currentRunners.map((b, i) => b ? i + 1 : 0).filter(r => r > 0);
-      runners = runners.map(r => r + num);
-      
-      runs += runners.filter(r => r > 3).length;
-      runners.filter(r => r <= 3).forEach(r => {
-        newBases[r - 1] = true;
-      });
+      let runners = currentRunners.map((b, i) => (b ? i + 1 : 0)).filter((r) => r > 0);
+      runners = runners.map((r) => r + num);
+      runs += runners.filter((r) => r > 3).length;
+      runners
+        .filter((r) => r <= 3)
+        .forEach((r) => {
+          newBases[r - 1] = true;
+        });
       newBases[num - 1] = true;
     }
 
-    if (this.state.halfInning === 0) {
-      this.state.score.away += runs;
-    } else {
-      this.state.score.home += runs;
+    if (runs > 0) {
+      const idx = Math.min(this.state.inning, this.state.inningsLength) - 1;
+      if (this.state.halfInning === 0) {
+        this.state.score.away += runs;
+        this.state.lineScore.away[idx] = (this.state.lineScore.away[idx] ?? 0) + runs;
+      } else {
+        this.state.score.home += runs;
+        this.state.lineScore.home[idx] = (this.state.lineScore.home[idx] ?? 0) + runs;
+      }
+      this.state.crowdPulse = Math.max(this.state.crowdPulse, 1.2);
     }
     this.state.bases = newBases as [boolean, boolean, boolean];
   }
 
+  checkWalkOff() {
+    if (this.state.playMode !== 'match') return;
+    if (
+      this.state.inning >= this.state.inningsLength
+      && this.state.halfInning === 1
+      && this.state.score.home > this.state.score.away
+    ) {
+      this.state.mode = 'gameOver';
+    }
+  }
+
   checkInningEnd() {
+    if (this.state.mode === 'gameOver') return;
     if (this.state.outs >= 3) {
       this.state.outs = 0;
       this.state.strikes = 0;
       this.state.balls = 0;
       this.state.bases = [false, false, false];
       this.state.halfInning++;
-      
+
       if (this.state.halfInning > 1) {
         this.state.halfInning = 0;
         this.state.inning++;
       }
 
-      if (this.state.inning > 3) {
+      // Skip bottom of last if home already ahead after top.
+      if (
+        this.state.inning === this.state.inningsLength
+        && this.state.halfInning === 1
+        && this.state.score.home > this.state.score.away
+      ) {
+        this.state.mode = 'gameOver';
+        return;
+      }
+
+      if (this.state.inning > this.state.inningsLength) {
         this.state.mode = 'gameOver';
       }
     }
@@ -629,7 +913,6 @@ class GameEngine {
   draw(ctx: CanvasRenderingContext2D) {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Sky plate behind the diamond
     const sky = fieldSkyImage();
     if (sky.complete && sky.naturalWidth > 0) {
       ctx.drawImage(sky, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -637,7 +920,6 @@ class GameEngine {
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     }
 
-    // 1. Draw Field Base (textured grass)
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(400, 550);
@@ -658,14 +940,6 @@ class GameEngine {
     } else {
       ctx.fillStyle = '#2e7d32';
       ctx.fillRect(-400, -600, 1600, 1200);
-      ctx.fillStyle = '#388e3c';
-      const gridSize = 40;
-      for (let x = -400; x < 1200; x += gridSize * 2) {
-        for (let y = -600; y < 600; y += gridSize * 2) {
-          ctx.fillRect(x, y, gridSize, gridSize);
-          ctx.fillRect(x + gridSize, y + gridSize, gridSize, gridSize);
-        }
-      }
     }
     ctx.restore();
 
@@ -680,36 +954,31 @@ class GameEngine {
       }
     };
 
-    // 3. Draw Warning Track (Tan Arc)
     fillDirt();
     ctx.beginPath();
     ctx.arc(400, 450, 650, Math.PI * 1.25, Math.PI * 1.75);
     ctx.lineTo(400, 450);
     ctx.fill();
 
-    // 4. Draw Outfield Fence (Blue Arc)
     ctx.strokeStyle = '#0277bd';
     ctx.lineWidth = 15;
     ctx.beginPath();
     ctx.arc(400, 450, 655, Math.PI * 1.25, Math.PI * 1.75);
     ctx.stroke();
 
-    // 5. Draw Infield Dirt Diamond (Base Paths)
     fillDirt();
     ctx.beginPath();
-    ctx.moveTo(400, 490); // Home area dirt
-    ctx.lineTo(550, 300); // Path to 1st
-    ctx.lineTo(400, 150); // Path to 2nd
-    ctx.lineTo(250, 300); // Path to 3rd
+    ctx.moveTo(400, 490);
+    ctx.lineTo(550, 300);
+    ctx.lineTo(400, 150);
+    ctx.lineTo(250, 300);
     ctx.closePath();
     ctx.fill();
 
-    // 5b. Home Plate Circular Dirt Area
     ctx.beginPath();
     ctx.arc(400, 450, 45, 0, Math.PI * 2);
     ctx.fill();
 
-    // 6. Draw Infield Grass (The "Diamond" inside the paths)
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(400, 420);
@@ -730,16 +999,13 @@ class GameEngine {
     }
     ctx.restore();
 
-    // 7. Draw Pitcher's Mound
     fillDirt();
     ctx.beginPath();
     ctx.arc(400, 250, 25, 0, Math.PI * 2);
     ctx.fill();
-    // Pitcher's Plate (Rubber)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(385, 248, 30, 4);
 
-    // 8. Draw Strike Zone Guide
     ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 1;
@@ -748,57 +1014,71 @@ class GameEngine {
     ctx.fillRect(360, 420, 80, 60);
     ctx.setLineDash([]);
 
-    // 9. Draw Foul Lines
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(400, 450); // Home
+    ctx.moveTo(400, 450);
     const leftFoulX = 400 + 655 * Math.cos(Math.PI * 1.25);
     const leftFoulY = 450 + 655 * Math.sin(Math.PI * 1.25);
     const rightFoulX = 400 + 655 * Math.cos(Math.PI * 1.75);
     const rightFoulY = 450 + 655 * Math.sin(Math.PI * 1.75);
-    
     ctx.lineTo(leftFoulX, leftFoulY);
     ctx.moveTo(400, 450);
     ctx.lineTo(rightFoulX, rightFoulY);
     ctx.stroke();
 
-    // 10. Foul Poles
     ctx.fillStyle = '#fdd835';
     ctx.fillRect(leftFoulX - 2, leftFoulY - 100, 4, 100);
     ctx.fillRect(rightFoulX - 2, rightFoulY - 100, 4, 100);
 
-    // 10b. Backstop (Blue arc behind home)
     ctx.strokeStyle = '#0277bd';
     ctx.lineWidth = 10;
     ctx.beginPath();
     ctx.arc(400, 450, 80, Math.PI * 0.2, Math.PI * 0.8);
     ctx.stroke();
 
-    // 10c. Batter's Boxes
     ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(365, 435, 25, 40); // Left box
-    ctx.strokeRect(410, 435, 25, 40); // Right box
+    ctx.strokeRect(365, 435, 25, 40);
+    ctx.strokeRect(410, 435, 25, 40);
 
-    // 10d. Coach's Boxes
-    ctx.strokeRect(550, 330, 40, 20); // 1st base side
-    ctx.strokeRect(210, 330, 40, 20); // 3rd base side
+    // Fielders (9)
+    const fielders = getFielders(this.state.defenseAlignment);
+    for (const f of fielders) {
+      const isHighlight = this.state.lastFielderId === f.id;
+      ctx.beginPath();
+      ctx.fillStyle = isHighlight ? '#fbbf24' : '#1e293b';
+      ctx.strokeStyle = isHighlight ? '#fde68a' : '#94a3b8';
+      ctx.lineWidth = 2;
+      ctx.arc(f.x, f.y, isHighlight ? 9 : 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(f.id, f.x, f.y - 12);
+    }
 
-    // 10e. Dugouts
-    ctx.fillStyle = '#455a64';
-    ctx.fillRect(580, 400, 120, 30); // 1st base side dugout
-    ctx.fillRect(100, 400, 120, 30); // 3rd base side dugout
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '10px Arial';
-    ctx.fillText('DUGOUT', 620, 420);
-    ctx.fillText('DUGOUT', 140, 420);
+    // Landing marker / heat hint
+    if (this.state.lastLanding && this.state.resultTimer > 0) {
+      const { x, y } = this.state.lastLanding;
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 18, y);
+      ctx.lineTo(x + 18, y);
+      ctx.moveTo(x, y - 18);
+      ctx.lineTo(x, y + 18);
+      ctx.stroke();
+    }
 
-    // 11. Bases
-    const drawBase = (x: number, y: number, active: boolean) => {
+    const drawBase = (bx: number, by: number, active: boolean) => {
       ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(Math.PI / 4); // Diamond shape
+      ctx.translate(bx, by);
+      ctx.rotate(Math.PI / 4);
       ctx.fillStyle = active ? '#fbbf24' : '#ffffff';
       ctx.shadowBlur = active ? 15 : 2;
       ctx.shadowColor = active ? '#fbbf24' : 'rgba(0,0,0,0.3)';
@@ -806,12 +1086,11 @@ class GameEngine {
       ctx.restore();
     };
 
-    drawBase(400, 450, false); // Home
-    drawBase(550, 300, this.state.bases[0]); // 1st
-    drawBase(400, 150, this.state.bases[1]); // 2nd
-    drawBase(250, 300, this.state.bases[2]); // 3rd
+    drawBase(400, 450, false);
+    drawBase(550, 300, this.state.bases[0]);
+    drawBase(400, 150, this.state.bases[1]);
+    drawBase(250, 300, this.state.bases[2]);
 
-    // 12. Pitcher & Batter
     if (!drawPitcherSprite(ctx, 400, 250, 32)) {
       ctx.fillStyle = '#ef4444';
       ctx.beginPath();
@@ -819,7 +1098,6 @@ class GameEngine {
       ctx.fill();
     }
 
-    // Batter
     const batterX = this.state.handedness === 'right' ? 365 : 435;
     const batterY = 485;
 
@@ -828,65 +1106,47 @@ class GameEngine {
       ctx.beginPath();
       ctx.arc(batterX, batterY, 15, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#fcd34d';
-      ctx.beginPath();
-      ctx.arc(batterX, batterY - 5, 8, 0, Math.PI * 2);
-      ctx.fill();
     }
 
-    // Bat Visual
     const batPivotX = this.state.handedness === 'right' ? batterX + 12 : batterX - 12;
     const batPivotY = batterY - 5;
-    
     const batLen = 65;
     const batWidth = 9;
-    
+
     ctx.save();
     ctx.translate(batPivotX, batPivotY);
-    
-    // Idle angles: Right-handed points back-right, Left-handed points back-left
-    let batAngle = this.state.handedness === 'right' ? -Math.PI / 8 : -Math.PI * 7/8;
-    
+    let batAngle = this.state.handedness === 'right' ? -Math.PI / 8 : -Math.PI * 7 / 8;
     if (this.state.swingTime !== null) {
       const progress = (0.2 - this.state.swingTime) / 0.4;
       if (this.state.handedness === 'right') {
-        // Swing from back-right to front-left
         batAngle = -Math.PI / 8 - progress * Math.PI * 1.1;
       } else {
-        // Swing from back-left to front-right
-        batAngle = -Math.PI * 7/8 + progress * Math.PI * 1.1;
+        batAngle = -Math.PI * 7 / 8 + progress * Math.PI * 1.1;
       }
     }
-    
     ctx.rotate(batAngle);
-    
     const gradient = ctx.createLinearGradient(0, 0, batLen, 0);
-    gradient.addColorStop(0, '#8b4513'); // Handle
-    gradient.addColorStop(0.3, '#d2b48c'); // Barrel start
-    gradient.addColorStop(1, '#8b4513'); // Barrel end
-    
+    gradient.addColorStop(0, '#8b4513');
+    gradient.addColorStop(0.3, '#d2b48c');
+    gradient.addColorStop(1, '#8b4513');
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.roundRect(0, -batWidth/2, batLen, batWidth, 4);
+    ctx.roundRect(0, -batWidth / 2, batLen, batWidth, 4);
     ctx.fill();
-    
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    
     ctx.restore();
 
-    // Ball Trail
+    // Colored pitch trail
     if (this.state.ballTrail.length > 1) {
+      const rgb = this.state.pitchType
+        ? PITCH_DEFS[this.state.pitchType].trailRgb
+        : ([255, 255, 255] as [number, number, number]);
       ctx.lineCap = 'round';
       for (let i = 1; i < this.state.ballTrail.length; i++) {
         const p1 = this.state.ballTrail[i - 1];
         const p2 = this.state.ballTrail[i];
         const ratio = i / this.state.ballTrail.length;
-        
-        ctx.strokeStyle = `rgba(255, 255, 255, ${p2.alpha * 0.3 * ratio})`;
-        ctx.lineWidth = (2 + (p2.z / 100) * 2) * ratio;
-        
+        ctx.strokeStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${p2.alpha * 0.55 * ratio})`;
+        ctx.lineWidth = (2.5 + (p2.z / 100) * 3) * ratio;
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y - p1.z);
         ctx.lineTo(p2.x, p2.y - p2.z);
@@ -894,35 +1154,70 @@ class GameEngine {
       }
     }
 
-    // Ball
     if (this.state.ballPos) {
       const { x, y, z } = this.state.ballPos;
-      // Shadow on the ground
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      const shadowSize = Math.max(2, 6 - (z / 100));
+      const shadowSize = Math.max(2, 6 - z / 100);
       ctx.beginPath();
       ctx.ellipse(x, y, shadowSize * 1.5, shadowSize, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Ball in the air
       ctx.fillStyle = '#ffffff';
       const ballSize = 6 + (z / 100) * 4;
       ctx.beginPath();
       ctx.arc(x, y - z, ballSize, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Ball seams (simple)
       ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 1 + (z / 200);
+      ctx.lineWidth = 1 + z / 200;
       ctx.beginPath();
       ctx.arc(x, y - z, ballSize * 0.7, 0.2, 1.2);
       ctx.stroke();
+
+      // Steer window ring while pitcher can still nudge.
+      if (
+        this.state.ballState === 'pitching'
+        && !this.isPlayerBatting
+        && this.state.pitchAge < STEER_WINDOW_SEC
+      ) {
+        const t = 1 - this.state.pitchAge / STEER_WINDOW_SEC;
+        ctx.strokeStyle = `rgba(56, 189, 248, ${0.35 + t * 0.45})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y - z, ballSize + 6 + t * 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
-    // Hit Flash Effect
     if (this.state.hitEffect > 0) {
       ctx.fillStyle = `rgba(255, 255, 255, ${this.state.hitEffect * 0.4})`;
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
+    // Contact quality banner
+    if (this.state.contactFlash > 0 && this.state.contactGrade) {
+      const alpha = Math.min(1, this.state.contactFlash);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle =
+        this.state.contactGrade === 'perfect'
+          ? '#fbbf24'
+          : this.state.contactGrade === 'good'
+            ? '#4ade80'
+            : this.state.contactGrade === 'ok'
+              ? '#e2e8f0'
+              : '#fb7185';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(CONTACT_LABELS[this.state.contactGrade], 400, 120);
+      ctx.restore();
+    }
+
+    // Crowd pulse vignette
+    if (this.state.crowdPulse > 0) {
+      const a = Math.min(0.25, this.state.crowdPulse * 0.18);
+      ctx.fillStyle = `rgba(251, 191, 36, ${a})`;
+      ctx.fillRect(0, 0, CANVAS_WIDTH, 40);
+      ctx.fillRect(0, CANVAS_HEIGHT - 40, CANVAS_WIDTH, 40);
     }
   }
 }
@@ -932,8 +1227,7 @@ class GameEngine {
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
-  
-  // Initialize state with the engine's initial state directly
+
   const [gameState, setGameState] = useState<GameState>(() => {
     const tempEngine = new GameEngine(() => {});
     return tempEngine.getInitialState();
@@ -941,8 +1235,11 @@ export default function App() {
   const prevModeRef = useRef<GameMode>('menu');
   const prevScoreRef = useRef({ away: 0, home: 0 });
   const prevResultRef = useRef('');
+  const prevContactFlashRef = useRef(0);
   const flashKeyRef = useRef(0);
-  const [flash, setFlash] = useState<{ text: string; tone: ScoreFlashTone; key: number } | null>(null);
+  const [flash, setFlash] = useState<{ text: string; tone: ScoreFlashTone; key: number } | null>(
+    null,
+  );
   const [bestsMap, setBestsMap] = useState<BestsMap>(() => loadBestsMap());
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const bests: BaseballBests = bestsMap[gameState.difficulty] ?? bestsMap.normal;
@@ -954,6 +1251,11 @@ export default function App() {
     && !isPlayerBatting
     && gameState.ballState === 'idle'
     && gameState.resultTimer <= 0;
+  const canSteer =
+    gameState.mode === 'playing'
+    && !isPlayerBatting
+    && gameState.ballState === 'pitching'
+    && gameState.pitchAge < STEER_WINDOW_SEC;
   const waitingForCpuPitch =
     gameState.mode === 'playing'
     && isPlayerBatting
@@ -965,6 +1267,11 @@ export default function App() {
     const engine = new GameEngine((state) => {
       if (state.score.away > prevScoreRef.current.away) playScore();
       if (state.score.home > prevScoreRef.current.home) playError();
+      if (state.contactFlash > 0.9 && prevContactFlashRef.current <= 0.9) {
+        playPaddleHit();
+        if (state.contactGrade === 'perfect') playGoal();
+        else if (state.contactGrade === 'good') playMove();
+      }
       if (state.resultText && state.resultText !== prevResultRef.current) {
         flashKeyRef.current += 1;
         setFlash({
@@ -973,7 +1280,16 @@ export default function App() {
           key: flashKeyRef.current,
         });
         if (state.resultText.includes('全壘打')) playGoal();
-        else if (state.resultText.includes('OUT') || state.resultText.includes('STRIKEOUT')) {
+        else if (state.resultText.includes('安打')) playScore();
+        else if (
+          state.resultText.includes('接殺')
+          || state.resultText.includes('滾地球')
+        ) {
+          playCapture();
+        } else if (
+          state.resultText.includes('OUT')
+          || state.resultText.includes('STRIKEOUT')
+        ) {
           playError();
         }
       }
@@ -988,7 +1304,12 @@ export default function App() {
         } else {
           if (state.score.away > state.score.home) playWin();
           else if (state.score.away < state.score.home) playLose();
-          const next = updateMatchBests(loadBests(diff), state.score.away, state.score.home);
+          const next = updateMatchBests(
+            loadBests(diff),
+            state.score.away,
+            state.score.home,
+            state.inningsLength,
+          );
           saveBests(diff, next);
           setBestsMap(loadBestsMap());
         }
@@ -996,6 +1317,7 @@ export default function App() {
       prevModeRef.current = state.mode;
       prevScoreRef.current = { ...state.score };
       prevResultRef.current = state.resultText || '';
+      prevContactFlashRef.current = state.contactFlash;
       setGameState({ ...state });
     });
     engineRef.current = engine;
@@ -1010,12 +1332,10 @@ export default function App() {
     let lastTime = performance.now();
 
     const loop = (time: number) => {
-      const dt = (time - lastTime) / 1000;
+      const dt = Math.min(0.05, (time - lastTime) / 1000);
       lastTime = time;
-
       engine.update(dt);
       engine.draw(ctx);
-
       animationFrameId = requestAnimationFrame(loop);
     };
 
@@ -1028,14 +1348,20 @@ export default function App() {
           engine.handleSwing();
         }
       } else if (e.code === 'ArrowLeft') {
-        if (engine.state.mode === 'playing' && engine.isPlayerBatting) {
+        if (engine.state.mode !== 'playing') return;
+        if (engine.isPlayerBatting) {
           engine.state.swingDir = 'left';
           engine.onStateChange(engine.state);
+        } else if (engine.state.ballState === 'pitching') {
+          engine.setSteerDir(-1);
         }
       } else if (e.code === 'ArrowRight') {
-        if (engine.state.mode === 'playing' && engine.isPlayerBatting) {
+        if (engine.state.mode !== 'playing') return;
+        if (engine.isPlayerBatting) {
           engine.state.swingDir = 'right';
           engine.onStateChange(engine.state);
+        } else if (engine.state.ballState === 'pitching') {
+          engine.setSteerDir(1);
         }
       } else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
         if (engine.state.mode === 'playing' && engine.isPlayerBatting) {
@@ -1045,24 +1371,34 @@ export default function App() {
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        if (!engine.isPlayerBatting && engine.state.ballState === 'pitching') {
+          engine.setSteerDir(0);
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
 
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
 
   const handleStart = () => {
     const eng = engineRef.current;
     if (!eng) return;
-    eng.start(eng.state.playMode, eng.state.difficulty);
+    eng.start(eng.state.playMode, eng.state.difficulty, eng.state.inningsLength);
   };
 
   const handleRematch = () => {
     const eng = engineRef.current;
     if (!eng) return;
-    eng.start(eng.state.playMode, eng.state.difficulty);
+    eng.start(eng.state.playMode, eng.state.difficulty, eng.state.inningsLength);
   };
 
   const handleReset = () => {
@@ -1083,11 +1419,18 @@ export default function App() {
     eng.onStateChange(eng.state);
   };
 
-  const handlePitch = (type: PitchType, loc: PitchLoc) => {
-    engineRef.current?.handlePitch(type, loc);
+  const setMenuInnings = (inningsLength: InningsLength) => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    eng.state.inningsLength = inningsLength;
+    eng.onStateChange(eng.state);
   };
 
-  const setSwingDirection = (dir: 'left' | 'center' | 'right') => {
+  const throwSelected = (loc: PitchLoc) => {
+    engineRef.current?.handlePitch(gameState.selectedPitchType, loc);
+  };
+
+  const setSwingDirection = (dir: SwingDir) => {
     const engine = engineRef.current;
     if (!engine || engine.state.mode !== 'playing' || !engine.isPlayerBatting) return;
     engine.state.swingDir = dir;
@@ -1107,7 +1450,6 @@ export default function App() {
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       <div className="w-full max-w-[800px] flex flex-col gap-3">
         <div className="relative w-full bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
-          {/* Scoreboard */}
           <div className="absolute top-0 left-0 right-0 p-3 sm:p-5 bg-gradient-to-b from-black/85 via-black/50 to-transparent z-10 flex justify-between items-start gap-2 pointer-events-none">
             {gameState.playMode === 'derby' ? (
               <div className="flex gap-4 sm:gap-6 min-w-0">
@@ -1125,36 +1467,46 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
-                    alt=""
-                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover border border-blue-400/40"
-                    draggable={false}
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] tracking-widest text-zinc-500 font-bold">客場（你）</span>
-                    <span className="text-2xl sm:text-4xl font-mono font-bold text-blue-400 tabular-nums">
-                      {gameState.score.away}
-                    </span>
+              <div className="flex flex-col gap-2 min-w-0">
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={`${import.meta.env.BASE_URL}portraits/batter.jpg`}
+                      alt=""
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover border border-blue-400/40"
+                      draggable={false}
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[10px] tracking-widest text-zinc-500 font-bold">客場（你）</span>
+                      <span className="text-2xl sm:text-4xl font-mono font-bold text-blue-400 tabular-nums">
+                        {gameState.score.away}
+                      </span>
+                    </div>
+                  </div>
+                  <BaseDiamond bases={gameState.bases} />
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] tracking-widest text-zinc-500 font-bold">主場（電腦）</span>
+                      <span className="text-2xl sm:text-4xl font-mono font-bold text-red-400 tabular-nums">
+                        {gameState.score.home}
+                      </span>
+                    </div>
+                    <img
+                      src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
+                      alt=""
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover border border-red-400/40"
+                      draggable={false}
+                    />
                   </div>
                 </div>
-                <BaseDiamond bases={gameState.bases} />
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col items-end">
-                    <span className="text-[10px] tracking-widest text-zinc-500 font-bold">主場（電腦）</span>
-                    <span className="text-2xl sm:text-4xl font-mono font-bold text-red-400 tabular-nums">
-                      {gameState.score.home}
-                    </span>
-                  </div>
-                  <img
-                    src={`${import.meta.env.BASE_URL}portraits/pitcher.jpg`}
-                    alt=""
-                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover border border-red-400/40"
-                    draggable={false}
+                {gameState.mode === 'playing' && (
+                  <LineScoreTable
+                    away={gameState.lineScore.away}
+                    home={gameState.lineScore.home}
+                    currentInning={gameState.inning}
+                    halfInning={gameState.halfInning}
                   />
-                </div>
+                )}
               </div>
             )}
 
@@ -1174,15 +1526,38 @@ export default function App() {
                 <span className="text-[11px] sm:text-xs font-bold text-zinc-300">
                   {gameState.playMode === 'derby'
                     ? `全壘打大賽 · ${DIFFICULTY_LABELS[gameState.difficulty]}`
-                    : `${gameState.inning} 局 ${gameState.halfInning === 0 ? '上' : '下'} · ${DIFFICULTY_LABELS[gameState.difficulty]}`}
+                    : `${gameState.inning}/${gameState.inningsLength} 局 ${
+                      gameState.halfInning === 0 ? '上' : '下'
+                    } · ${DIFFICULTY_LABELS[gameState.difficulty]}`}
                 </span>
               </div>
               {gameState.playMode !== 'derby' && (
                 <div className="flex flex-col items-end gap-0.5">
-                  <CountRow count={gameState.outs} max={3} activeClass="bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" label="出局" />
-                  <CountRow count={gameState.strikes} max={3} activeClass="bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]" label="好球" />
-                  <CountRow count={gameState.balls} max={4} activeClass="bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" label="壞球" />
+                  <CountRow
+                    count={gameState.outs}
+                    max={3}
+                    activeClass="bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"
+                    label="出局"
+                  />
+                  <CountRow
+                    count={gameState.strikes}
+                    max={3}
+                    activeClass="bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]"
+                    label="好球"
+                  />
+                  <CountRow
+                    count={gameState.balls}
+                    max={4}
+                    activeClass="bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                    label="壞球"
+                  />
                 </div>
+              )}
+              {gameState.mode === 'playing' && gameState.pitchType && (
+                <span className="text-[10px] font-bold text-sky-200/90">
+                  {PITCH_DEFS[gameState.pitchType].label}
+                  {canSteer ? ' · 控球中' : ''}
+                </span>
               )}
             </div>
           </div>
@@ -1233,8 +1608,12 @@ export default function App() {
                     draggable={false}
                   />
                 </div>
-                <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">玩具棒球</h1>
-                <p className="text-zinc-400 mb-5 text-sm tracking-widest">打擊時機 × 球路選擇</p>
+                <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-1 italic text-center">
+                  玩具棒球
+                </h1>
+                <p className="text-zinc-400 mb-5 text-sm tracking-widest">
+                  讀球 · 控球 · 打向空檔
+                </p>
 
                 <div className="w-full max-w-md mb-4 grid grid-cols-2 gap-2">
                   {(['match', 'derby'] as PlayMode[]).map((m) => (
@@ -1254,8 +1633,34 @@ export default function App() {
                   ))}
                 </div>
 
+                {gameState.playMode === 'match' && (
+                  <div className="w-full max-w-md mb-4">
+                    <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">
+                      局數
+                    </p>
+                    <div className="flex gap-2 justify-center">
+                      {INNINGS_OPTIONS.map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setMenuInnings(n)}
+                          className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                            gameState.inningsLength === n
+                              ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.45)]'
+                              : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {INNINGS_LABELS[n]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="w-full max-w-md mb-4">
-                  <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">難度</p>
+                  <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">
+                    難度
+                  </p>
                   <div className="flex gap-2 justify-center">
                     {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
                       <button
@@ -1299,16 +1704,20 @@ export default function App() {
 
                 <p className="text-zinc-500 text-xs mb-3 text-center max-w-sm leading-relaxed">
                   {gameState.playMode === 'derby'
-                    ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。對準時機並選對拉打／推打方向。`
-                    : '三局制對戰電腦。上半局你打、下半局你投；好球帶內揮棒，球路要迷惑對手。'}
+                    ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。時機與方向決定落點。`
+                    : `${INNINGS_LABELS[gameState.inningsLength]}正規賽。六種球路出手後可微調；往野手間的空檔打。`}
                 </p>
 
                 <p className="text-zinc-400 text-xs mb-5 text-center font-medium">
                   {gameState.playMode === 'derby'
                     ? `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
                     : `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak} · 最佳連勝 ${bests.matchBestWinStreak}${
-                        bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
-                      }`}
+                      bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
+                    }${
+                      bests.matchBestInnings > 0
+                        ? ` · 最長勝場 ${bests.matchBestInnings} 局`
+                        : ''
+                    }`}
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -1368,9 +1777,9 @@ export default function App() {
                     : [
                         { label: '客隊（你）', value: gameState.score.away },
                         { label: '主隊（電腦）', value: gameState.score.home },
+                        { label: '局數', value: gameState.inningsLength },
                         { label: '勝場', value: bests.matchWins },
                         { label: '連勝', value: bests.matchWinStreak },
-                        { label: '最佳連勝', value: bests.matchBestWinStreak },
                         { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
                       ]
                 }
@@ -1390,33 +1799,24 @@ export default function App() {
             className="w-full flex flex-col gap-2"
           >
             {waitingForCpuPitch && (
-              <p className="text-center text-xs text-zinc-400 animate-pulse">投手準備中…</p>
+              <p className="text-center text-xs text-zinc-400 animate-pulse">投手準備中…讀球種！</p>
             )}
 
             {isPlayerBatting ? (
               <>
                 <div className="hidden md:flex items-center justify-center gap-3 bg-zinc-900/80 border border-white/10 rounded-2xl px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <kbd className="bg-zinc-800 px-2.5 py-1 rounded-md font-mono text-xs border border-white/10">空白鍵</kbd>
+                    <kbd className="bg-zinc-800 px-2.5 py-1 rounded-md font-mono text-xs border border-white/10">
+                      空白鍵
+                    </kbd>
                     <span className="text-sm font-bold text-zinc-300">揮棒</span>
                   </div>
                   <div className="w-px h-4 bg-white/10" />
                   <div className="flex items-center gap-2">
-                    <kbd className="bg-zinc-800 px-2.5 py-1 rounded-md font-mono text-xs border border-white/10">← →</kbd>
-                    <span className="text-sm font-bold text-zinc-300">方向</span>
-                  </div>
-                  <div className="w-px h-4 bg-white/10" />
-                  <div className="flex gap-3">
-                    {(['left', 'center', 'right'] as const).map((dir) => (
-                      <span
-                        key={dir}
-                        className={`text-[10px] font-bold tracking-widest ${
-                          gameState.swingDir === dir ? 'text-blue-400' : 'text-zinc-600'
-                        }`}
-                      >
-                        {dir === 'left' ? '拉打' : dir === 'center' ? '中路' : '推打'}
-                      </span>
-                    ))}
+                    <kbd className="bg-zinc-800 px-2.5 py-1 rounded-md font-mono text-xs border border-white/10">
+                      ← →
+                    </kbd>
+                    <span className="text-sm font-bold text-zinc-300">打向空檔</span>
                   </div>
                 </div>
 
@@ -1443,38 +1843,83 @@ export default function App() {
               </>
             ) : (
               <>
-                <p className="text-center text-xs text-zinc-500">
-                  {canPitch ? '選擇球速與進壘位置' : '球進行中…'}
-                </p>
-                <div className="grid grid-cols-3 gap-2 w-full max-w-md mx-auto">
-                  {(
-                    [
-                      { type: 'fast' as PitchType, loc: 'left' as PitchLoc, label: '快速左', icon: Zap, tone: 'blue' },
-                      { type: 'fast' as PitchType, loc: 'center' as PitchLoc, label: '快速中', icon: Target, tone: 'blue' },
-                      { type: 'fast' as PitchType, loc: 'right' as PitchLoc, label: '快速右', icon: Zap, tone: 'blue' },
-                      { type: 'slow' as PitchType, loc: 'left' as PitchLoc, label: '慢速左', icon: ChevronLeft, tone: 'emerald' },
-                      { type: 'slow' as PitchType, loc: 'center' as PitchLoc, label: '慢速中', icon: Target, tone: 'emerald' },
-                      { type: 'slow' as PitchType, loc: 'right' as PitchLoc, label: '慢速右', icon: ChevronRight, tone: 'emerald' },
-                    ] as const
-                  ).map(({ type, loc, label, icon: Icon, tone }) => (
+                {canSteer ? (
+                  <div className="flex justify-center gap-3">
                     <button
-                      key={`${type}-${loc}`}
                       type="button"
-                      disabled={!canPitch}
-                      onClick={() => handlePitch(type, loc)}
-                      className={`flex flex-col items-center justify-center gap-1 min-h-[52px] p-2 rounded-xl border transition-all touch-manipulation ${
-                        canPitch
-                          ? tone === 'blue'
-                            ? 'bg-zinc-800 border-white/10 hover:bg-blue-600 hover:border-blue-400/40 active:scale-95'
-                            : 'bg-zinc-800 border-white/10 hover:bg-emerald-600 hover:border-emerald-400/40 active:scale-95'
-                          : 'bg-zinc-900/60 border-white/5 opacity-40 cursor-not-allowed'
-                      }`}
+                      onPointerDown={() => engineRef.current?.setSteerDir(-1)}
+                      onPointerUp={() => engineRef.current?.setSteerDir(0)}
+                      onPointerLeave={() => engineRef.current?.setSteerDir(0)}
+                      className="flex-1 max-w-[160px] min-h-[48px] rounded-xl font-bold bg-sky-600/30 border border-sky-400/50 text-sky-100 touch-manipulation"
                     >
-                      <Icon className={`w-5 h-5 ${tone === 'blue' ? 'text-blue-400' : 'text-emerald-400'}`} />
-                      <span className="text-[10px] font-bold">{label}</span>
+                      <ChevronLeft className="inline w-5 h-5" /> 控球左
                     </button>
-                  ))}
-                </div>
+                    <button
+                      type="button"
+                      onPointerDown={() => engineRef.current?.setSteerDir(1)}
+                      onPointerUp={() => engineRef.current?.setSteerDir(0)}
+                      onPointerLeave={() => engineRef.current?.setSteerDir(0)}
+                      className="flex-1 max-w-[160px] min-h-[48px] rounded-xl font-bold bg-sky-600/30 border border-sky-400/50 text-sky-100 touch-manipulation"
+                    >
+                      控球右 <ChevronRight className="inline w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-center text-xs text-zinc-500">
+                      {canPitch
+                        ? '選球種，再選進壘點出手；出手後可左右微調'
+                        : '球進行中…'}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 w-full max-w-md mx-auto">
+                      {PITCH_TYPES.map((type) => {
+                        const def = PITCH_DEFS[type];
+                        const selected = gameState.selectedPitchType === type;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            disabled={!canPitch}
+                            onClick={() => engineRef.current?.setSelectedPitchType(type)}
+                            className={`flex flex-col items-center justify-center gap-0.5 min-h-[48px] p-2 rounded-xl border transition-all touch-manipulation ${
+                              !canPitch
+                                ? 'bg-zinc-900/60 border-white/5 opacity-40 cursor-not-allowed'
+                                : selected
+                                  ? 'bg-sky-600/30 border-sky-400/50 text-sky-100'
+                                  : 'bg-zinc-800 border-white/10 hover:border-white/25 text-zinc-300'
+                            }`}
+                          >
+                            <span className="text-sm font-bold">{def.shortLabel}</span>
+                            <span className="text-[10px] font-bold opacity-80">{def.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 w-full max-w-md mx-auto">
+                      {(
+                        [
+                          { loc: 'left' as PitchLoc, label: '投左' },
+                          { loc: 'center' as PitchLoc, label: '投中' },
+                          { loc: 'right' as PitchLoc, label: '投右' },
+                        ] as const
+                      ).map(({ loc, label }) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          disabled={!canPitch}
+                          onClick={() => throwSelected(loc)}
+                          className={`min-h-[48px] rounded-xl font-bold text-sm border transition-all touch-manipulation ${
+                            canPitch
+                              ? 'bg-emerald-700/40 border-emerald-400/40 text-emerald-100 hover:bg-emerald-600/50 active:scale-95'
+                              : 'bg-zinc-900/60 border-white/5 opacity-40 cursor-not-allowed'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </>
             )}
           </motion.div>
