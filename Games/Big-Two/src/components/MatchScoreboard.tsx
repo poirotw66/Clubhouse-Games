@@ -1,0 +1,80 @@
+import React from 'react';
+import { personalityForSeat } from '../game/cpu';
+import type { MatchState } from '../game/types';
+import { HUMAN } from '../game/types';
+
+const SEAT_NAMES = ['你', '下家', '對家', '上家'];
+
+interface Props {
+  match: MatchState;
+  progress: string;
+}
+
+export function MatchScoreboard({ match, progress }: Props): React.ReactElement {
+  const target =
+    match.config.mode === 'target' ? match.config.target : null;
+  const maxAbs = Math.max(1, ...match.balances.map((n) => Math.abs(n)));
+
+  return (
+    <section
+      className="rounded-xl border border-indigo-400/20 bg-slate-900/70 px-3 py-2"
+      aria-label="系列賽計分板"
+    >
+      <div className="mb-2 flex items-center justify-between text-[11px] text-indigo-200/70">
+        <span className="font-bold tracking-wide">系列賽</span>
+        <span>{progress}</span>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {match.balances.map((chips, seat) => {
+          const person = personalityForSeat(seat);
+          const leading =
+            chips === Math.max(...match.balances) &&
+            match.balances.some((c) => c !== chips || chips !== 0);
+          const pct = Math.min(100, (Math.abs(chips) / maxAbs) * 100);
+          const bar =
+            chips >= 0 ? 'bg-emerald-400/80' : 'bg-rose-400/70';
+          return (
+            <div
+              key={seat}
+              className={`rounded-lg px-1.5 py-1.5 text-center ${
+                seat === HUMAN ? 'bg-indigo-500/15 ring-1 ring-indigo-400/40' : 'bg-slate-800/60'
+              }`}
+            >
+              <div className="truncate text-[10px] font-bold text-indigo-100">
+                {SEAT_NAMES[seat]}
+                {person ? (
+                  <span className="block truncate font-normal text-indigo-200/45">
+                    {person.name}
+                  </span>
+                ) : null}
+              </div>
+              <div
+                className={`mt-0.5 font-mono text-sm font-black tabular-nums ${
+                  chips > 0
+                    ? 'text-emerald-300'
+                    : chips < 0
+                      ? 'text-rose-300'
+                      : 'text-slate-300'
+                }`}
+              >
+                {chips > 0 ? '+' : ''}
+                {chips}
+              </div>
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-700/80">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${bar}`}
+                  style={{ width: `${leading || chips !== 0 ? pct : 0}%` }}
+                />
+              </div>
+              {target !== null && (
+                <div className="mt-0.5 text-[9px] text-slate-500">
+                  /{target}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}

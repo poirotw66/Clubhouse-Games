@@ -7,14 +7,24 @@ import type {
   CardId,
   DifficultyId,
   GameState,
+  HouseRules,
   Outcome,
   Play,
-  Rules,
   Seat,
   SeatScore,
 } from './types';
 
-export function deal(seedCode: string, difficulty: DifficultyId, rules: Rules): GameState {
+export const DEFAULT_RULES: HouseRules = {
+  straights: 'topCard',
+  sizeLadder: true,
+  deuceDouble: true,
+};
+
+export function deal(
+  seedCode: string,
+  difficulty: DifficultyId,
+  rules: HouseRules = DEFAULT_RULES,
+): GameState {
   const r = streamRng(seedFromCode(seedCode), 'deal');
   const deck = shuffle(buildDeck(), r);
 
@@ -145,23 +155,38 @@ export function pass(state: GameState): GameState {
  * The steps are steep on purpose: eight cards is not twice as bad as four, it
  * is four times as bad, and never getting a card down at all is 52.
  */
-export function sizeMultiplier(remaining: number): number {
+export function sizeMultiplier(remaining: number, enabled = true): number {
+  if (!enabled) return 1;
   if (remaining >= HAND_SIZE) return 4;
   if (remaining >= 10) return 3;
   if (remaining >= 8) return 2;
   return 1;
 }
 
-export function scoreSeat(hand: readonly Card[], seat: Seat): SeatScore {
+export function scoreSeat(
+  hand: readonly Card[],
+  seat: Seat,
+  rules: Pick<HouseRules, 'sizeLadder' | 'deuceDouble'> = DEFAULT_RULES,
+): SeatScore {
   const remaining = hand.length;
-  const base = remaining * sizeMultiplier(remaining);
   const deuces = hand.filter(isDeuce).length;
-  return { seat, remaining, base, deuces, penalty: base * 2 ** deuces };
+  const base = remaining * sizeMultiplier(remaining, rules.sizeLadder);
+  const factor = rules.deuceDouble ? 2 ** deuces : 1;
+  return { seat, remaining, base, deuces, penalty: base * factor };
 }
 
 export function outcome(state: GameState): Outcome | null {
   if (state.phase !== 'over' || state.winner === null) return null;
-  const scores = state.hands.map((hand, seat) => scoreSeat(hand, seat));
+  const scores = state.hands.map((hand, seat) =>
+    scoreSeat(hand, seat, state.rules),
+  );
+  // Winner pays nothing — wipe their penalty so the pot is only losers' debt.
+  scores[state.winner] = {
+    ...scores[state.winner],
+    base: 0,
+    deuces: scores[state.winner].deuces,
+    penalty: 0,
+  };
   return {
     winner: state.winner,
     scores,

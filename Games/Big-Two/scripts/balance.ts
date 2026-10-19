@@ -15,7 +15,11 @@ function brainFor(state: GameState, brains: DifficultyId[]): Play | null {
 }
 
 function run(seedCode: string, brains: DifficultyId[]) {
-  let state = deal(seedCode, brains[0], { straights: 'topCard' });
+  let state = deal(seedCode, brains[0], {
+    straights: 'topCard',
+    sizeLadder: true,
+    deuceDouble: true,
+  });
   let guard = 0;
 
   while (state.phase === 'playing' && guard++ < 400) {
@@ -122,7 +126,13 @@ for (const field of TIERS) {
 // Sanity: how much room the partition heuristic actually has to work with.
 let total = 0;
 for (let i = 0; i < 200; i++) {
-  total += turnsToEmpty(deal(`spread-${i}`, 'normal', { straights: 'topCard' }).hands[0]);
+  total += turnsToEmpty(
+    deal(`spread-${i}`, 'normal', {
+      straights: 'topCard',
+      sizeLadder: true,
+      deuceDouble: true,
+    }).hands[0],
+  );
 }
 console.log(`\nmean turns to empty a fresh 13-card hand: ${(total / 200).toFixed(2)}`);
 console.log(`seats: ${SEATS}`);
