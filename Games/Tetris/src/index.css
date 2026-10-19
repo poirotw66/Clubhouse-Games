@@ -42,3 +42,25 @@ body {
     filter: brightness(2.5);
   }
 }
+
+/* Subtle pulse when B2B is armed — skill-state feedback without chrome clutter. */
+@keyframes tetris-b2b-ready {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.tetris-b2b-ready {
+  animation: tetris-b2b-ready 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tetris-b2b-ready {
+    animation: none;
+    opacity: 1;
+  }
+}
