@@ -46,7 +46,7 @@ export type DealWithMeta = {
   difficulty: Difficulty;
 };
 
-const DEFAULT_SOLVE: SolveOptions = { maxNodes: 8_000 };
+const DEFAULT_SOLVE: SolveOptions = { maxNodes: 10_000 };
 
 /**
  * Search nearby seeds until solver par matches the requested difficulty band.

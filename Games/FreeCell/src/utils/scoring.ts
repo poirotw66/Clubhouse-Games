@@ -39,6 +39,6 @@ export function classicTimeBonus(elapsedSec: number): number {
 }
 
 export function scoreSummaryLabel(parMoves: number | null, moves: number): string {
-  if (parMoves == null) return `${moves} 步`;
+  if (parMoves == null) return `${moves} 步 · 標準 —`;
   return `${moves} / 標準 ${parMoves}`;
 }
