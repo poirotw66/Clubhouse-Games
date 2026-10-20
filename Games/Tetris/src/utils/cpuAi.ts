@@ -45,15 +45,15 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
   easy: {
     id: 'easy',
     label: '簡單',
-    thinkMin: 480,
-    thinkMax: 900,
-    holeWeight: 8,
-    heightWeight: 0.65,
-    bumpWeight: 0.4,
-    clearWeight: 2.4,
-    attackWeight: 0.35,
+    thinkMin: 650,
+    thinkMax: 1200,
+    holeWeight: 9,
+    heightWeight: 0.85,
+    bumpWeight: 0.45,
+    clearWeight: 2.8,
+    attackWeight: 0.25,
     tSlotWeight: 0.05,
-    noise: 4,
+    noise: 3,
     garbageDropCap: 3,
     lookahead: false,
     candidatePool: 2,
@@ -162,16 +162,22 @@ function evaluateBoard(
 ): number {
   const heights = columnHeights(board);
   const aggHeight = heights.reduce((a, b) => a + b, 0);
+  const maxHeight = heights.reduce((a, b) => Math.max(a, b), 0);
   const holes = countHoles(board);
   const bump = bumpiness(heights);
   const tSlots = tSlotBonus(board);
+  // Panic: when the stack is tall, prefer any clear over attack grooming.
+  const panicClear = maxHeight >= 12 ? linesCleared * 180 : 0;
+  const nearTopPenalty = maxHeight >= 15 ? (maxHeight - 14) * 80 : 0;
   return (
     linesCleared * preset.clearWeight * 40 +
     attack * preset.attackWeight * 50 +
-    tSlots * preset.tSlotWeight * 12 -
+    tSlots * preset.tSlotWeight * 12 +
+    panicClear -
     holes * preset.holeWeight * 35 -
     aggHeight * preset.heightWeight -
-    bump * preset.bumpWeight
+    bump * preset.bumpWeight -
+    nearTopPenalty
   );
 }
 
