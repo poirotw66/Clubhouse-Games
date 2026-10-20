@@ -131,9 +131,10 @@
 已實作：
 
 - Guideline **SRS** 踢牆（JLSTZ／I 分表）、Hold、Next 預覽、7-bag、鎖定延遲、幽靈方塊。  
-- **T-Spin／Mini**、**Combo**、**Back-to-Back**、Guideline 計分與畫面 callout（如 `T-SPIN DOUBLE`、`B2B`、`N COMBO`）。  
+- **T-Spin／Mini**、**Combo**、**Back-to-Back**、Guideline 計分與畫面 callout（如 `T-SPIN DOUBLE`、`B2B`、`N COMBO`、`+分數`）。  
 - 模式：**無盡**、**衝刺 40 行**、**限時 2 分**（各模式個人最佳寫入 `clubhouse:tetris-best`）。  
-- **對戰 CPU**：垃圾行攻擊表／相殺／佇列、三檔難度（簡單／普通／困難），戰績寫入 `clubhouse-tetris-versus`。  
+- **對戰 CPU**：垃圾行攻擊表／相殺／佇列、三檔難度（簡單／普通／困難），戰績寫入 `clubhouse-tetris-versus`；CPU 只選可旋轉／平移到達的落點，並依難度調整思考時間與選點池。  
+- **手感／引導**：DAS／ARR／軟降微調、硬降與旋轉音效、技巧說明面板（`clubhouse:tetris-coach`）、手機按住連移與雙向旋轉、窄螢幕縮小雙場地。  
 
 ## 參考與備註
 
