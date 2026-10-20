@@ -4,6 +4,7 @@
 
   const KEY = "rubiks-cube-academy:progress:v1";
   const TIMES_KEY = "rubiks-cube-academy:times:v1";
+  const PRACTICE_KEY = "rubiks-cube-academy:practice:v1";
 
   function emptyProgress() {
     return {
@@ -70,7 +71,7 @@
   }
 
   function emptyTimes() {
-    return { runs: [], updatedAt: 0 };
+    return { runs: [], bestMs: null, updatedAt: 0 };
   }
 
   function loadTimes() {
@@ -86,11 +87,22 @@
                 typeof r.ms === "number" &&
                 r.ms > 0 &&
                 r.ms < 3_600_000 &&
-                typeof r.at === "number",
+                typeof r.at === "number" &&
+                // New writes always set solved:true. Legacy rows omit the flag —
+                // keep them, but never keep explicit solved:false.
+                r.solved !== false,
             )
             .slice(-100)
         : [];
-      return { runs, updatedAt: Number(parsed.updatedAt) || 0 };
+      let bestMs =
+        parsed.bestMs != null && Number.isFinite(Number(parsed.bestMs))
+          ? Number(parsed.bestMs)
+          : null;
+      if (runs.length) {
+        const fromRuns = Math.min(...runs.map((r) => r.ms));
+        bestMs = bestMs == null ? fromRuns : Math.min(bestMs, fromRuns);
+      }
+      return { runs, bestMs, updatedAt: Number(parsed.updatedAt) || 0 };
     } catch {
       return emptyTimes();
     }
@@ -104,18 +116,46 @@
     }
   }
 
-  function recordTime(times, ms, scramble) {
+  /**
+   * Gate for WCA-style solve recording: cube must be solved and time sane.
+   * Exported for unit tests — UI must call this before recordTime.
+   */
+  function canRecordSolve(isSolved, elapsedMs) {
+    return (
+      isSolved === true &&
+      typeof elapsedMs === "number" &&
+      Number.isFinite(elapsedMs) &&
+      elapsedMs > 50 &&
+      elapsedMs < 3_600_000
+    );
+  }
+
+  function recordTime(times, ms, scramble, options = {}) {
+    const solved = options.solved === true;
+    if (!canRecordSolve(solved, ms)) {
+      return times;
+    }
     const run = {
       ms: Math.round(ms),
       at: Date.now(),
       scramble: typeof scramble === "string" ? scramble.slice(0, 200) : "",
+      solved: true,
     };
+    const bestMs =
+      times.bestMs == null || run.ms < times.bestMs ? run.ms : times.bestMs;
     const next = {
       runs: [...times.runs, run].slice(-100),
+      bestMs,
       updatedAt: Date.now(),
     };
     saveTimes(next);
     return next;
+  }
+
+  function isPersonalBest(times, ms) {
+    if (!Number.isFinite(ms) || ms <= 0) return false;
+    if (times.bestMs == null) return true;
+    return ms <= times.bestMs;
   }
 
   function averageOf(runs, n) {
@@ -139,9 +179,116 @@
     return s.toFixed(2);
   }
 
+  function emptyStageStat() {
+    return {
+      attempts: 0,
+      solves: 0,
+      bestMs: null,
+      totalSolveMs: 0,
+      lastAt: 0,
+    };
+  }
+
+  function emptyPractice() {
+    return { version: 1, byStage: {}, updatedAt: 0 };
+  }
+
+  function loadPractice() {
+    try {
+      const raw = localStorage.getItem(PRACTICE_KEY);
+      if (!raw) return emptyPractice();
+      const parsed = JSON.parse(raw);
+      const byStage = {};
+      if (parsed && typeof parsed.byStage === "object" && parsed.byStage) {
+        for (const [stageId, rawStat] of Object.entries(parsed.byStage)) {
+          if (typeof stageId !== "string" || !rawStat || typeof rawStat !== "object") continue;
+          byStage[stageId] = {
+            attempts: Math.max(0, Math.floor(Number(rawStat.attempts) || 0)),
+            solves: Math.max(0, Math.floor(Number(rawStat.solves) || 0)),
+            bestMs:
+              rawStat.bestMs != null && Number.isFinite(Number(rawStat.bestMs))
+                ? Number(rawStat.bestMs)
+                : null,
+            totalSolveMs: Math.max(0, Number(rawStat.totalSolveMs) || 0),
+            lastAt: Math.max(0, Math.floor(Number(rawStat.lastAt) || 0)),
+          };
+        }
+      }
+      return { version: 1, byStage, updatedAt: Number(parsed.updatedAt) || 0 };
+    } catch {
+      return emptyPractice();
+    }
+  }
+
+  function savePractice(practice) {
+    try {
+      localStorage.setItem(PRACTICE_KEY, JSON.stringify(practice));
+    } catch {
+      /* quota */
+    }
+  }
+
+  function recordPracticeAttempt(practice, stageId) {
+    const prev = practice.byStage[stageId] || emptyStageStat();
+    const next = {
+      ...practice,
+      byStage: {
+        ...practice.byStage,
+        [stageId]: {
+          ...prev,
+          attempts: prev.attempts + 1,
+          lastAt: Date.now(),
+        },
+      },
+      updatedAt: Date.now(),
+    };
+    savePractice(next);
+    return next;
+  }
+
+  function recordPracticeSolve(practice, stageId, ms) {
+    const prev = practice.byStage[stageId] || emptyStageStat();
+    const rounded = Math.round(ms);
+    const bestMs =
+      prev.bestMs == null || rounded < prev.bestMs ? rounded : prev.bestMs;
+    const next = {
+      ...practice,
+      byStage: {
+        ...practice.byStage,
+        [stageId]: {
+          ...prev,
+          solves: prev.solves + 1,
+          bestMs,
+          totalSolveMs: prev.totalSolveMs + (Number.isFinite(rounded) && rounded > 0 ? rounded : 0),
+          lastAt: Date.now(),
+        },
+      },
+      updatedAt: Date.now(),
+    };
+    savePractice(next);
+    return next;
+  }
+
+  function stageAverageMs(stat) {
+    if (!stat || !stat.solves) return null;
+    return stat.totalSolveMs / stat.solves;
+  }
+
+  /** Map curriculum lesson id → practice stage for proficiency chrome. */
+  const LESSON_STAGE = {
+    "white-cross": "white-cross",
+    "white-corners": "white-corners",
+    "second-layer": "second-layer",
+    "yellow-cross": "yellow-cross",
+    "yellow-orient": "yellow-orient",
+    "permute-corners": "permute-corners",
+    "permute-edges": "permute-edges",
+  };
+
   root.CubeProgress = {
     KEY,
     TIMES_KEY,
+    PRACTICE_KEY,
     emptyProgress,
     loadProgress,
     saveProgress,
@@ -150,8 +297,18 @@
     emptyTimes,
     loadTimes,
     saveTimes,
+    canRecordSolve,
     recordTime,
+    isPersonalBest,
     averageOf,
     formatMs,
+    emptyPractice,
+    emptyStageStat,
+    loadPractice,
+    savePractice,
+    recordPracticeAttempt,
+    recordPracticeSolve,
+    stageAverageMs,
+    LESSON_STAGE,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

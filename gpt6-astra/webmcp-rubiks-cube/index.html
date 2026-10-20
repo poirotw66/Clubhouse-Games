@@ -136,6 +136,31 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
   font: 700 clamp(2.2rem, 8vw, 3.4rem)/1 var(--mono); letter-spacing: -.04em;
   text-align: center; margin: 12px 0;
 }
+#timer-display.pb-flash {
+  color: var(--accent-2);
+  animation: pbPulse .9s ease;
+}
+@keyframes pbPulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.timer-stats {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: center;
+  margin: 8px 0; font-size: .88rem; color: var(--muted);
+}
+.timer-stats strong { color: var(--text); font-family: var(--mono); }
+.stage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.stage-chip { font-size: .82rem; padding: 8px 10px; min-height: 40px; }
+.stage-chip[aria-pressed="true"] {
+  background: #134e4a; border-color: var(--accent); color: var(--accent);
+}
+.practice-stats {
+  display: grid; gap: 4px; margin: 10px 0;
+  padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);
+  background: #0d1324; font-size: .85rem; color: var(--muted);
+}
+.practice-stats strong { color: var(--text); font-family: var(--mono); }
 #time-history { margin: 0; padding-left: 18px; color: var(--muted); font-size: .88rem; }
 #solve-steps { margin: 0; padding-left: 18px; font-size: .85rem; color: var(--muted); max-height: 180px; overflow: auto; }
 #solve-steps li.active { color: var(--accent-2); font-weight: 700; }
@@ -178,7 +203,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
     <div class="mode-tabs" role="tablist" aria-label="模式">
       <button type="button" class="mode-tab" role="tab" data-tab="learn" aria-selected="true" aria-pressed="true">學習路徑</button>
       <button type="button" class="mode-tab" role="tab" data-tab="sheet" aria-selected="false" aria-pressed="false">公式表</button>
-      <button type="button" class="mode-tab" role="tab" data-tab="timer" aria-selected="false" aria-pressed="false">計時練習</button>
+      <button type="button" class="mode-tab" role="tab" data-tab="drill" aria-selected="false" aria-pressed="false">隨機練習</button>
+      <button type="button" class="mode-tab" role="tab" data-tab="timer" aria-selected="false" aria-pressed="false">計時</button>
       <button type="button" class="mode-tab" role="tab" data-tab="freeplay" aria-selected="false" aria-pressed="false">自由練習</button>
     </div>
     <div id="connection" class="connection" role="status" aria-label="WebMCP">
@@ -259,24 +285,53 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
         <div id="sheet-list"></div>
       </div>
 
+      <!-- DRILL / 隨機練習 -->
+      <div data-mode="drill" hidden>
+        <h2>隨機練習</h2>
+        <p class="footnote">針對單一階段反覆出題。完成目標後可記熟練度；可選計時。</p>
+        <div id="drill-stage-chips" class="stage-chips" role="group" aria-label="練習階段"></div>
+        <p id="drill-case-label" class="alg-line">—</p>
+        <p id="drill-hint" class="hint"></p>
+        <p id="drill-goal" class="goal" role="status"></p>
+        <div class="row">
+          <button type="button" class="primary" id="btn-drill-next">下一題</button>
+          <button type="button" id="btn-drill-check">檢查目標</button>
+          <button type="button" id="btn-drill-hint">提示</button>
+          <button type="button" id="btn-drill-reset">重設本題</button>
+        </div>
+        <label class="footnote" style="display:flex;align-items:center;gap:8px;margin:8px 0">
+          <input type="checkbox" id="drill-timed" style="width:18px;height:18px">
+          本題計時（完成目標才記錄）
+        </label>
+        <div id="drill-timer-line" class="footnote" hidden>本題用時 <strong id="drill-elapsed">0.00</strong></div>
+        <div id="move-grid-drill" class="move-grid" aria-label="練習轉面按鈕"></div>
+        <div id="drill-stats" class="practice-stats" aria-live="polite"></div>
+      </div>
+
       <!-- TIMER -->
       <div data-mode="timer" hidden>
-        <h2>計時練習</h2>
-        <p id="timer-phase" class="footnote">觀察（空白鍵開始 15 秒觀察）</p>
+        <h2>計時（WCA 風格）</h2>
+        <p id="timer-phase" class="footnote">先按「新打亂」，再觀察／開表。只有方塊真正還原才記成績。</p>
         <div id="timer-display">0.00</div>
+        <div class="timer-stats">
+          <span>PB <strong id="pb">—</strong></span>
+          <span>ao5 <strong id="ao5">—</strong></span>
+          <span>ao12 <strong id="ao12">—</strong></span>
+        </div>
         <p class="footnote">打亂：<span id="timer-scramble">—</span></p>
         <div class="row">
           <button type="button" class="primary" id="btn-new-scramble">新打亂</button>
+          <button type="button" id="btn-timer-inspect">開始觀察</button>
+          <button type="button" id="btn-timer-start">開表</button>
+          <button type="button" id="btn-timer-stop">停表</button>
+        </div>
+        <div class="row">
           <button type="button" id="btn-auto-plan">產生逐步還原計畫</button>
           <button type="button" id="btn-auto-step">播放下一段講解</button>
         </div>
         <p id="solve-summary" class="footnote"></p>
         <ol id="solve-steps"></ol>
-        <div class="row footnote">
-          <span>ao5 <strong id="ao5">—</strong></span>
-          <span>ao12 <strong id="ao12">—</strong></span>
-        </div>
-        <h3 class="footnote">最近成績</h3>
+        <h3 class="footnote">最近成績（僅還原）</h3>
         <ol id="time-history"></ol>
       </div>
 
@@ -310,7 +365,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
 
   <p class="footnote" style="margin-top:18px">
     引擎與佇列沿用 WebMCP Rubik’s Cube Demo（CubeEngine／MoveQueue／document.modelContext）。
-    鍵盤：學習／自由練習可用 U D L R F B（Shift＝逆時針）；計時模式空白鍵控制觀察／開表／停表。
+    鍵盤：學習／隨機練習／自由練習可用 U D L R F B（Shift＝逆時針）；計時模式空白鍵控制觀察／開表／停表（手機請用按鈕）。
   </p>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -319,6 +374,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
 <script src="js/patterns.js"></script>
 <script src="js/curriculum.js"></script>
 <script src="js/progress.js"></script>
+<script src="js/practice-bank.js"></script>
 <script src="js/solver-beginner.js"></script>
 <script src="js/academy-app.js"></script>
 </body>
