@@ -733,19 +733,18 @@ function upgrade() {
 $("upgrade").onclick=upgrade;
 
 /** One-shot cargo car: dump a share of the bank ahead of the rail tip. */
-function deployCargo(actor=null) {
+function deployCargo(actor=null, { requireNear=false }={}) {
   if(state!=="playing" || !game) return {ok:false, reason:"not_playing"};
   if(game.cargoCharges<=0) {
     notify("貨廂已投放完畢。");
     return {ok:false, reason:"empty"};
   }
-  if(actor && !nearTrain(actor)) {
-    notify("靠近車廂才能投放貨廂。");
-    return {ok:false, reason:"far"};
-  }
-  if(!actor && !game.players.some(nearTrain)) {
-    notify("需要一位隊員站在車廂旁投放貨廂。");
-    return {ok:false, reason:"far"};
+  if(requireNear) {
+    const ok = actor ? nearTrain(actor) : game.players.some(nearTrain);
+    if(!ok) {
+      notify("靠近車廂才能投放貨廂。");
+      return {ok:false, reason:"far"};
+    }
   }
   const tip=game.path[game.path.length-1];
   const dropAt={x:tip.x+2,y:tip.y};
@@ -767,7 +766,7 @@ function deployCargo(actor=null) {
   updateUI();
   return {ok:true, wood, ore, rail, remaining:game.cargoCharges};
 }
-$("cargoBtn").onclick=()=>deployCargo(game?.players.find(nearTrain)||null);
+$("cargoBtn").onclick=()=>deployCargo(null, { requireNear:false });
 
 function gameOver(reason) {
   state="over";
@@ -948,7 +947,7 @@ window.addEventListener("keydown",e=>{
   if(k==="p" || k==="escape") togglePause();
   if(state!=="playing") return;
   if(k==="u") upgrade();
-  if(k==="c") deployCargo(game.players.find(nearTrain)||game.players[0]);
+  if(k==="c") deployCargo(null, { requireNear:false });
   if(k==="r") dropItem(game.players[0]);
   if(k==="." && game.players[1]) dropItem(game.players[1]);
   if(k==="tab" && game.players.length>1) {
@@ -1055,7 +1054,7 @@ $("touchSwap").addEventListener("pointerdown",e=>{
 });
 $("touchCargo").addEventListener("pointerdown",e=>{
   e.preventDefault(); e.stopPropagation();
-  deployCargo(activeTouchPlayer());
+  deployCargo(activeTouchPlayer(), { requireNear:false });
 });
 
 $("autoFireman").addEventListener("change",e=>{
