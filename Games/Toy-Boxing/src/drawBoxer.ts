@@ -294,6 +294,17 @@ export function drawToyBoxer(ctx: CanvasRenderingContext2D, b: DrawBoxerState): 
     const progress = phaseProgress(attack);
     if (attack.phase === 'windup') {
       drawWindupTell(ctx, b.facing, attack.height, progress, gloveColor, char.body, attack.kind);
+      // Same height badge as block — wind-up is when the player must read high/low.
+      const badgeY = gloveY(attack.height) - 16;
+      ctx.fillStyle = attack.height === 'high' ? 'rgba(96,165,250,0.95)' : 'rgba(251,146,60,0.95)';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(attack.height === 'high' ? '上' : '下', b.facing * 34, badgeY);
+      if (attack.kind === 'signature' || attack.profile.unblockable) {
+        ctx.fillStyle = 'rgba(232,121,249,0.95)';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText('閃', b.facing * 34, badgeY + 14);
+      }
     } else if (attack.phase === 'active') {
       drawActivePunch(ctx, b.facing, attack.height, progress, gloveColor, char.body, attack.kind);
     } else {
