@@ -1,2 +1,7 @@
-implement a 3d Fill The Void game for me
-For anything that needs bitmaps/textures/sprites (or if it helps to have a mockup reference for any 3d models you build) feel free to use imagegen.
+# Fill the Void — deepening notes
+
+Mindful polyomino packing on a soft 3D board.
+
+Replay hooks: campaign packs (20 levels), star ratings vs rotation par,
+daily calm board, flip + rotate, soft Web Audio feedback.
+Progress key: `astra-fill-the-void:v1`.
