@@ -22,7 +22,7 @@ import { winRate } from '../src/game/season.js';
 import { priceElasticity } from '../src/game/finance.js';
 import { scoutBand, bandWidthFor } from '../src/game/scouting.js';
 import { negotiable } from '../src/game/board.js';
-import { createRng } from '../src/game/rng.js';
+import { createRng, streamRng } from '../src/game/rng.js';
 import { SITUATIONS, buildContext, pickSituation } from '../src/game/situations.js';
 import {
   BUDGET_SCENARIOS,
@@ -30,7 +30,23 @@ import {
   buildBudgetContext,
   buildTrainingContext,
 } from '../src/game/plans.js';
-import type { Decision, GameState } from '../src/game/types.js';
+import {
+  buildHighlight,
+  highlightForBlock,
+  highlightForPostseason,
+} from '../src/game/highlights.js';
+import {
+  findStorylineTrigger,
+  openStoryline,
+  storylineHasCost,
+  storylineOptionDefs,
+} from '../src/game/storylines.js';
+import {
+  loadLifeGraduates,
+  playerFromLifeGraduate,
+  ratingsFromHof,
+} from '../src/game/lifeBridge.js';
+import type { Decision, GameState, Player, Team } from '../src/game/types.js';
 
 const GUARD = 400;
 
@@ -876,6 +892,235 @@ function expectArchiveBackfillsClubBest(): void {
   assert.equal(merged.bestByClub.dolphins?.score, 600);
 }
 
+/** Highlight reels are deterministic and reserved for key games. */
+function expectHighlightsAreDeterministic(): void {
+  const human: Team = {
+    id: 'dolphins',
+    name: '新北海豚',
+    aiMode: 'balanced',
+    wins: 50,
+    losses: 40,
+    players: [
+      {
+        id: 'a',
+        name: '陳志豪',
+        position: 'OF',
+        age: 27,
+        attrs: {
+          contact: 70, power: 68, speed: 60, fielding: 55, eye: 62,
+          velocity: 20, control: 20, breaking: 20, stamina: 20, guts: 20,
+        },
+        potential: 75,
+        band: { low: 70, high: 80 },
+        salary: 500,
+        years: 2,
+        level: 'major',
+        injuredSeasons: 0,
+        homegrown: true,
+        teamId: 'dolphins',
+      },
+    ],
+  };
+  const rival: Team = {
+    ...human,
+    id: 'lions',
+    name: '南方猛獅',
+    players: human.players.map((p) => ({ ...p, id: 'b', name: '林家瑋', teamId: 'lions' })),
+  };
+
+  const a = buildHighlight({
+    kind: 'playoff',
+    year: 2026,
+    human,
+    opponent: rival,
+    humanWon: true,
+    seriesLine: '總冠軍賽勝出',
+    rng: streamRng(42, 'hl-test'),
+  });
+  const b = buildHighlight({
+    kind: 'playoff',
+    year: 2026,
+    human,
+    opponent: rival,
+    humanWon: true,
+    seriesLine: '總冠軍賽勝出',
+    rng: streamRng(42, 'hl-test'),
+  });
+  assert.deepEqual(a, b, 'highlight reel diverged under the same stream');
+  assert.ok(a.beats.length >= 3, 'highlight needs a setup and climax');
+  assert.ok(a.finalScore.includes('猛獅') || a.finalScore.includes('海豚'), 'scoreline missing clubs');
+
+  // Quiet blocks must stay quiet — only key games earn a reel.
+  const quiet = highlightForBlock({
+    year: 2026,
+    block: 0,
+    human: { ...human, wins: 45, losses: 45 },
+    teams: [
+      { ...human, wins: 45, losses: 45 },
+      { ...rival, wins: 48, losses: 42 },
+    ],
+    blockWins: 15,
+    blockGames: 30,
+    finishBefore: 3,
+    finishAfter: 3,
+    priorTitles: 0,
+    rng: streamRng(7, 'quiet-block'),
+  });
+  assert.equal(quiet, null, 'an ordinary .500 block should not open a highlight');
+
+  const clinch = highlightForBlock({
+    year: 2026,
+    block: 3,
+    human: { ...human, wins: 62, losses: 58 },
+    teams: [
+      { ...human, wins: 62, losses: 58 },
+      { ...rival, wins: 70, losses: 50 },
+      { ...rival, id: 'a2', name: '天使', wins: 55, losses: 65 },
+      { ...rival, id: 'a3', name: '巨砲', wins: 54, losses: 66 },
+      { ...rival, id: 'a4', name: '飛鷹', wins: 50, losses: 70 },
+      { ...rival, id: 'a5', name: '火山', wins: 48, losses: 72 },
+    ],
+    blockWins: 22,
+    blockGames: 30,
+    finishBefore: 5,
+    finishAfter: 2,
+    priorTitles: 0,
+    rng: streamRng(9, 'clinch-block'),
+  });
+  assert.ok(clinch, 'clinching a playoff race must earn a milestone highlight');
+  assert.equal(clinch!.kind, 'milestone');
+
+  const missed = highlightForPostseason({
+    year: 2026,
+    human,
+    teams: [human, rival],
+    humanResult: '未晉級',
+    championId: rival.id,
+    priorTitles: 0,
+    rng: streamRng(3, 'miss-post'),
+  });
+  assert.equal(missed, null, 'missing the playoffs should not invent a playoff reel');
+
+  const title = highlightForPostseason({
+    year: 2026,
+    human,
+    teams: [human, rival],
+    humanResult: '總冠軍',
+    championId: human.id,
+    priorTitles: 0,
+    rng: streamRng(3, 'title-post'),
+  });
+  assert.ok(title, 'winning the title must produce a highlight');
+  assert.equal(title!.kind, 'milestone');
+}
+
+/** Storyline options always cost something; triggers read real roster state. */
+function expectStorylinesHaveCostsAndTriggers(): void {
+  const state = createGame({ seedCode: 'story001', gmName: '測試', teamId: 'dolphins' });
+  const team = state.teams.find((t) => t.id === state.teamId)!;
+
+  // Force a farm breakout candidate into memory + ability.
+  const prospect = team.players.find((p) => p.level === 'farm' && p.homegrown) ?? team.players[0];
+  prospect.level = 'farm';
+  prospect.homegrown = true;
+  prospect.age = 20;
+  prospect.position = 'OF';
+  Object.assign(prospect.attrs, {
+    contact: 58, power: 55, speed: 52, fielding: 50, eye: 54,
+    velocity: 20, control: 20, breaking: 20, stamina: 20, guts: 20,
+  });
+  state.playerAbilityMemory[prospect.id] = 40;
+
+  const trigger = findStorylineTrigger(state, team);
+  assert.ok(
+    trigger,
+    `a farm breakout should open the rookie storyline (ability≈${Math.round(
+      prospect.attrs.contact * 0.42 + prospect.attrs.power * 0.28,
+    )})`,
+  );
+  assert.equal(trigger!.kind, 'rookie-breakout');
+
+  const arc = openStoryline(state, trigger!);
+  const options = storylineOptionDefs(arc, prospect);
+  assert.ok(options.length >= 2, 'storyline needs a real choice');
+  for (const option of options) {
+    assert.ok(
+      storylineHasCost(option.effects),
+      `storyline ${arc.kind}/${option.id} is a free "do nothing"`,
+    );
+    assert.ok(option.outcome.length > 4, `${option.id} missing outcome`);
+  }
+
+  // Same kind must not re-open after it has been seen.
+  state.pendingStorylineId = null;
+  const again = findStorylineTrigger(state, team);
+  assert.equal(
+    again?.kind === 'rookie-breakout',
+    false,
+    'rookie-breakout must not fire twice in one tenure',
+  );
+}
+
+/** Life-bridge is defensive and does not touch Dynasty RNG when absent. */
+function expectLifeBridgeIsDefensive(): void {
+  assert.deepEqual(loadLifeGraduates(null), [], 'missing storage must yield no graduates');
+  assert.deepEqual(
+    loadLifeGraduates({ getItem: () => 'not-json' }),
+    [],
+    'corrupt archive must not throw',
+  );
+  assert.deepEqual(
+    loadLifeGraduates({ getItem: () => JSON.stringify([{ name: '缺種子' }]) }),
+    [],
+    'partial rows must be skipped',
+  );
+
+  const fakeStore = {
+    getItem: () =>
+      JSON.stringify([
+        {
+          seedCode: 'blife001',
+          name: '測試畢業生',
+          position: '投手',
+          positionId: 'P',
+          verdict: '名人堂門檻',
+          hofScore: 2100,
+          traits: ['領袖'],
+        },
+        { seedCode: 'bad', name: '壞資料' },
+      ]),
+  };
+  const grads = loadLifeGraduates(fakeStore);
+  assert.equal(grads.length, 1, 'only intact rows survive');
+  assert.equal(grads[0].position, 'P');
+
+  const ratings = ratingsFromHof(2100);
+  assert.ok(ratings.potential > ratings.ability, 'graduates still have headroom');
+  const player: Player = playerFromLifeGraduate(grads[0], 500);
+  assert.equal(player.name, '測試畢業生');
+  assert.equal(player.position, 'P');
+  assert.ok(player.id.startsWith('life:'), 'life ids must be namespaced');
+
+  // Two builds from the same graduate are identical — bridge is deterministic.
+  const twin = playerFromLifeGraduate(grads[0], 500);
+  assert.deepEqual(twin.attrs, player.attrs, 'life-bridge player attrs diverged');
+  assert.deepEqual(twin.band, player.band, 'life-bridge scouting band diverged');
+}
+
+/** A full tenure still finishes with storyline cards in the mix. */
+function expectStorylinesDoNotStallTenure(): void {
+  const end = playTenure('storyrun1', 'dolphins', cyclingChoice);
+  assert.ok(end.over, 'tenure with storylines must still finish');
+  assert.ok(end.summary, 'summary missing after storyline tenure');
+  // Storylines are optional; when they fire they must leave a trace.
+  if (end.seenStorylineKinds.length > 0) {
+    assert.ok(
+      end.storylines.length >= end.seenStorylineKinds.length,
+      'seen kinds without arc records',
+    );
+  }
+}
+
 const checks: [string, () => void][] = [
   ['deterministic tenures', expectDeterministicTenures],
   ['seeds and choices matter', expectSeedsAndChoicesMatter],
@@ -903,6 +1148,10 @@ const checks: [string, () => void][] = [
   ['challenge seeds are clearable', expectChallengeSeedsAreClearable],
   ['records accumulate by club', expectRecordsAccumulateByClub],
   ['archive backfills club best', expectArchiveBackfillsClubBest],
+  ['highlights are deterministic', expectHighlightsAreDeterministic],
+  ['storylines have costs and triggers', expectStorylinesHaveCostsAndTriggers],
+  ['life bridge is defensive', expectLifeBridgeIsDefensive],
+  ['storylines do not stall tenure', expectStorylinesDoNotStallTenure],
 ];
 
 let failed = 0;
