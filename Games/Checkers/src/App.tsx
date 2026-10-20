@@ -1120,7 +1120,8 @@ export default function App() {
                           PUZZLES[nextIdx >= 0 ? nextIdx : Math.max(0, fallbackIdx)] ??
                           PUZZLES[0];
                         startPuzzle(pick);
-                        setSettingsOpen(false);
+                        // Keep the panel open so the unlock list stays visible.
+                        setSettingsOpen(true);
                         return;
                       }
                       setGameMode(mode);
