@@ -800,13 +800,17 @@
 
   async function loadDrillCase(countAttempt) {
     stopDrillClock();
+    hideCelebrate();
     state.drill.solved = false;
     state.drill.elapsedMs = 0;
     state.drill.timed = Boolean($("drill-timed")?.checked);
+    // Clear case before set_size/publish so a momentary solved cube
+    // cannot trip onDrillCubeUpdate → false "目標完成".
+    state.drill.case = null;
     const practiceCase = CubePracticeBank.pickCase(state.drill.stageId);
-    state.drill.case = practiceCase;
     await state.controller.invoke("cube_set_size", { size: 3 }, "Academy");
     CubePracticeBank.applySetup(state.engine, practiceCase, RC().parseAlgorithm);
+    state.drill.case = practiceCase;
     await state.engine.publish({ type: "scramble" });
     applyHighlights(drillHighlightStage(practiceCase.stageId));
     if (countAttempt) {

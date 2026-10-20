@@ -24,12 +24,15 @@ test.describe('Astra Rubik\'s Cube Academy', () => {
     await expect(page.locator('#sheet-list .sheet-card').first()).toBeVisible();
     await expect(page.locator('#sheet-list')).toContainText('Sune');
 
-    // Random drill mode
+    // Random drill mode — loading a case must not auto-celebrate
     await page.getByRole('tab', { name: '隨機練習' }).click();
     await expect(page.locator('#drill-stage-chips .stage-chip').first()).toBeVisible();
     await page.getByRole('button', { name: '下一題' }).click();
     await expect(page.locator('#drill-case-label')).not.toHaveText('—');
     await expect(page.locator('#move-grid-drill button').first()).toBeVisible();
+    // Loading a case must not open the solve celebration overlay.
+    await expect(page.locator('#celebrate.visible')).toHaveCount(0);
+    await expect(page.locator('#drill-goal.ok')).toHaveCount(0);
 
     // Timer mode + daily scramble + mute
     await page.getByRole('tab', { name: '計時' }).click();
