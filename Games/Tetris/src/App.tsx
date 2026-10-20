@@ -1080,7 +1080,9 @@ export default function App() {
           isVersus ? 'lg:flex-row' : 'sm:flex-row'
         } gap-3 sm:gap-4`}
       >
-        <aside className={`${narrow ? 'w-full' : 'sm:w-40'} flex flex-col gap-3 text-xs sm:text-sm`}>
+        <aside
+          className={`${narrow ? 'w-full order-2' : 'sm:w-40'} flex flex-col gap-3 text-xs sm:text-sm`}
+        >
           <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
             <h2 className="text-xs font-semibold text-slate-300 mb-1">狀態</h2>
             <p className="text-slate-200 leading-snug">{statusText}</p>
@@ -1178,8 +1180,8 @@ export default function App() {
 
         <main
           className={`flex-1 flex flex-wrap justify-center gap-2 sm:gap-4 relative ${
-            isVersus && narrow ? 'flex-nowrap' : ''
-          }`}
+            narrow ? 'order-1' : ''
+          } ${isVersus && narrow ? 'flex-nowrap' : ''}`}
         >
           <div className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm">
             <div className="text-center text-xs text-slate-300 mb-1 font-semibold">
@@ -1255,9 +1257,7 @@ export default function App() {
         </main>
 
         <aside
-          className={`${narrow ? 'w-full' : 'sm:w-32'} flex flex-col gap-3 text-xs sm:text-sm ${
-            narrow ? 'order-first sm:order-none' : ''
-          }`}
+          className={`${narrow ? 'w-full order-3' : 'sm:w-32'} flex flex-col gap-3 text-xs sm:text-sm`}
         >
           <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
             <h2 className="text-xs font-semibold text-slate-300 mb-2">下一個</h2>
@@ -1277,8 +1277,10 @@ export default function App() {
         </aside>
       </div>
 
+      {/* Spacer so fixed mobile controls do not cover the wells. */}
+      <div className="md:hidden h-36 shrink-0" aria-hidden />
       <div
-        className={`${touchControlsWrapClass} sticky bottom-0 z-20 bg-slate-950/95 backdrop-blur-sm py-3 border-t border-slate-800`}
+        className={`${touchControlsWrapClass} fixed bottom-0 left-0 right-0 z-30 md:static md:bg-transparent bg-slate-950/95 backdrop-blur-sm py-3 border-t border-slate-800 md:border-0`}
       >
         <div className="flex gap-2 w-full justify-center">
           <TouchButton
@@ -1306,10 +1308,10 @@ export default function App() {
           <TouchButton label="落下" ariaLabel="瞬間落下" onClick={hardDrop} accent />
           <TouchButton label="暫存" ariaLabel="暫存方塊" onClick={holdPiece} />
         </div>
+        <p className="md:hidden text-[11px] text-slate-500 mt-2 text-center px-2">
+          按住 ← → ↓ 可連續移動；左轉／右轉對應 Z／X
+        </p>
       </div>
-      <p className="md:hidden text-xs text-slate-500 mt-2 text-center">
-        按住 ← → ↓ 可連續移動；左轉／右轉對應 Z／X
-      </p>
 
       {gameOver && (
         <ResultOverlay
