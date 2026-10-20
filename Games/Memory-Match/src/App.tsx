@@ -20,14 +20,15 @@ import {
 import {
   CPU_DIFFICULTY_OPTIONS,
   FACE_EMOJI,
+  FACE_TINT,
   PAIR_OPTIONS,
-  SPRINT_LIMIT_SEC,
   THEME_OPTIONS,
   allMatched,
   buildDeck,
   clampPairCount,
   faceUsesPhoto,
   gridColsClass,
+  gridGapClass,
   hintPairIndices,
   loadBestMoves,
   loadBestScore,
@@ -42,6 +43,7 @@ import {
   saveBestTimeSec,
   saveVersusWin,
   scoreForMatch,
+  sprintLimitSec,
   type CpuDifficulty,
   type MemoryCard,
   type PairCount,
@@ -51,9 +53,17 @@ import {
 
 const HINT_PEEK_MS = 900;
 const INSIGHT_PEEK_MS = 1200;
-const FLIP_RESOLVE_MATCH_MS = 420;
-const FLIP_RESOLVE_MISS_MS = 700;
-const CPU_THINK_MS = 520;
+const FLIP_RESOLVE_MATCH_MS = 480;
+const FLIP_RESOLVE_MISS_MS = 780;
+/** Delay after CPU thinks before revealing the first card. */
+const CPU_THINK_MS: Record<CpuDifficulty, number> = {
+  easy: 650,
+  normal: 850,
+  hard: 1050,
+};
+/** Gap between CPU's first and second flip so the turn is readable (not both-at-once). */
+const CPU_SECOND_FLIP_MS = 420;
+const TIPS_KEY = 'clubhouse-memory-match-tips';
 
 type TurnOwner = 'player' | 'cpu';
 
@@ -68,8 +78,24 @@ function cardFaceStyle(face: MemoryCard['face'], kind: MemoryCard['kind']): CSSP
     };
   }
   return {
-    backgroundColor: kind === 'insight' ? '#fff7ed' : '#f8fafc',
+    backgroundColor: kind === 'insight' ? '#fff7ed' : FACE_TINT[face] ?? '#f8fafc',
   };
+}
+
+function loadTipsDismissed(): boolean {
+  try {
+    return localStorage.getItem(TIPS_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function saveTipsDismissed(): void {
+  try {
+    localStorage.setItem(TIPS_KEY, '1');
+  } catch {
+    /* ignore */
+  }
 }
 
 function FlipCard({
@@ -79,6 +105,7 @@ function FlipCard({
   missPulse,
   matchPulse,
   disabled,
+  dense,
   onClick,
 }: {
   card: MemoryCard;
@@ -87,6 +114,8 @@ function FlipCard({
   missPulse: boolean;
   matchPulse: boolean;
   disabled: boolean;
+  /** Large boards use squarer cards on phones to cut scroll height. */
+  dense?: boolean;
   onClick: () => void;
 }) {
   const classNames = [
@@ -100,7 +129,7 @@ function FlipCard({
     .join(' ');
 
   return (
-    <div className="mm-scene aspect-[3/4]">
+    <div className={`mm-scene ${dense ? 'aspect-square sm:aspect-[3/4]' : 'aspect-[3/4]'}`}>
       <button
         type="button"
         onClick={onClick}
@@ -124,7 +153,9 @@ function FlipCard({
             </span>
           )}
           {card.kind === 'insight' && (
-            <span className="absolute bottom-1 right-1 text-[10px] font-bold text-amber-700">洞察</span>
+            <span className="absolute bottom-0.5 right-0.5 rounded bg-amber-500/90 px-1 text-[9px] sm:text-[10px] font-bold text-amber-950">
+              洞察
+            </span>
           )}
         </span>
         {matchPulse && <span className="mm-burst" aria-hidden />}
@@ -169,9 +200,12 @@ export default function App() {
   const [cpuPairs, setCpuPairs] = useState(0);
   const [versusOutcome, setVersusOutcome] = useState<'win' | 'lose' | 'draw' | null>(null);
   const [cpuMemory, setCpuMemory] = useState<CpuMemory>(() => emptyCpuMemory());
+  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [showTip, setShowTip] = useState(() => !loadTipsDismissed());
   const turnRef = useRef(0);
   const resolvingRef = useRef(false);
   const cpuScheduledRef = useRef(false);
+  const cpuSecondFlipRef = useRef<number | null>(null);
   const playerPairsRef = useRef(0);
   const cpuPairsRef = useRef(0);
   const comboRef = useRef(0);
@@ -179,6 +213,8 @@ export default function App() {
   const movesRef = useRef(0);
   const endedRef = useRef(false);
   const elapsedRef = useRef(0);
+  const pairCountRef = useRef(pairCount);
+  pairCountRef.current = pairCount;
 
   const showFlash = useCallback((text: string, tone: 'good' | 'bad' | 'neutral' = 'good') => {
     setFlashText(text);
@@ -227,6 +263,10 @@ export default function App() {
       turnRef.current = 0;
       resolvingRef.current = false;
       cpuScheduledRef.current = false;
+      if (cpuSecondFlipRef.current != null) {
+        window.clearTimeout(cpuSecondFlipRef.current);
+        cpuSecondFlipRef.current = null;
+      }
       playerPairsRef.current = 0;
       cpuPairsRef.current = 0;
       comboRef.current = 0;
@@ -254,11 +294,17 @@ export default function App() {
 
   useEffect(() => {
     if (won || lost || versusOutcome) return;
-    if (mode === 'sprint' && elapsed >= SPRINT_LIMIT_SEC) {
+    if (mode === 'sprint' && elapsed >= sprintLimitSec(pairCount)) {
       setLost(true);
       playLose();
     }
-  }, [elapsed, mode, won, lost, versusOutcome]);
+  }, [elapsed, mode, pairCount, won, lost, versusOutcome]);
+
+  // Collapse settings as soon as a card is revealed (moves only ticks after a pair resolves).
+  useEffect(() => {
+    if ((flipped.length > 0 || moves > 0) && settingsOpen) setSettingsOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- collapse on first interaction only
+  }, [flipped.length, moves]);
 
   useEffect(() => {
     if (hintFlash.length === 0) return;
@@ -344,7 +390,9 @@ export default function App() {
     turnRef.current += 1;
     const turn = turnRef.current;
 
-    setCpuMemory((mem) => rememberRevealed(mem, cards, [a, b], turn, cpuDifficulty));
+    setCpuMemory((mem) =>
+      rememberRevealed(mem, cards, [a, b], turn, cpuDifficulty, pairCountRef.current),
+    );
 
     const delay = match ? FLIP_RESOLVE_MATCH_MS : FLIP_RESOLVE_MISS_MS;
     const t = window.setTimeout(() => {
@@ -411,7 +459,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resolve once per flip pair
   }, [flipped]);
 
-  // CPU turn scheduler.
+  // CPU turn scheduler — flips one card, then the second, so the turn is human-readable.
   useEffect(() => {
     if (mode !== 'versus') return;
     if (versusOutcome || won || lost) return;
@@ -421,7 +469,8 @@ export default function App() {
     if (cpuScheduledRef.current) return;
     cpuScheduledRef.current = true;
 
-    const preferStall = playerPairs > cpuPairs;
+    // Stall only when clearly behind so it doesn't feel like constant cheating.
+    const preferStall = playerPairs >= cpuPairs + 2;
     const think = window.setTimeout(() => {
       try {
         const [i, j] = pickCpuMove({
@@ -432,14 +481,26 @@ export default function App() {
           preferStall,
         });
         playCard();
-        setFlipped([i, j]);
+        setFlipped([i]);
+        // Second flip lives outside this effect's cleanup: when flipped.length
+        // becomes 1 the effect re-runs, and clearing here would abort the reveal.
+        if (cpuSecondFlipRef.current != null) {
+          window.clearTimeout(cpuSecondFlipRef.current);
+        }
+        cpuSecondFlipRef.current = window.setTimeout(() => {
+          cpuSecondFlipRef.current = null;
+          playCard();
+          setFlipped([i, j]);
+        }, CPU_SECOND_FLIP_MS);
       } catch {
         cpuScheduledRef.current = false;
         setTurnOwner('player');
       }
-    }, CPU_THINK_MS);
+    }, CPU_THINK_MS[cpuDifficulty]);
 
-    return () => window.clearTimeout(think);
+    return () => {
+      window.clearTimeout(think);
+    };
   }, [
     mode,
     turnOwner,
@@ -467,7 +528,7 @@ export default function App() {
       setPeekCharges((c) => Math.max(0, c - 1));
       setPeekFlash([index]);
       setCpuMemory((mem) =>
-        rememberRevealed(mem, cards, [index], turnRef.current, cpuDifficulty),
+        rememberRevealed(mem, cards, [index], turnRef.current, cpuDifficulty, pairCount),
       );
       playMove();
       showFlash('洞察窺視', 'neutral');
@@ -488,7 +549,7 @@ export default function App() {
     if (!pair) return;
     setHintFlash(pair);
     setCpuMemory((mem) =>
-      rememberRevealed(mem, cards, pair, turnRef.current, cpuDifficulty),
+      rememberRevealed(mem, cards, pair, turnRef.current, cpuDifficulty, pairCount),
     );
     playMove();
   };
@@ -503,7 +564,8 @@ export default function App() {
 
   const themeMax = maxPairsForTheme(themeId);
   const pairChoices = PAIR_OPTIONS.filter(({ count }) => count <= themeMax);
-  const remain = Math.max(0, SPRINT_LIMIT_SEC - elapsed);
+  const sprintLimit = sprintLimitSec(pairCount);
+  const remain = Math.max(0, sprintLimit - elapsed);
   const canHint =
     mode !== 'versus' &&
     !locks &&
@@ -513,13 +575,34 @@ export default function App() {
     hintFlash.length === 0;
   const themeLabel = THEME_OPTIONS.find((t) => t.id === themeId)?.label ?? themeId;
   const boardWide =
-    pairCount >= 18 ? 'w-[min(96vw,640px)]' : pairCount >= 12 ? 'w-[min(94vw,520px)]' : 'w-[min(94vw,420px)]';
+    pairCount >= 18
+      ? 'w-[min(96vw,720px)]'
+      : pairCount >= 12
+        ? 'w-[min(94vw,560px)]'
+        : 'w-[min(94vw,440px)]';
 
   const overlayOpen = won || lost || versusOutcome !== null;
 
+  const dismissTip = () => {
+    setShowTip(false);
+    saveTipsDismissed();
+  };
+
+  const settingsSummary = [
+    themeLabel,
+    `${pairCount} 對`,
+    mode === 'classic'
+      ? '經典'
+      : mode === 'sprint'
+        ? `衝刺 ${sprintLimit}s`
+        : mode === 'versus'
+          ? `對戰 · ${CPU_DIFFICULTY_OPTIONS.find((d) => d.id === cpuDifficulty)?.label ?? ''}`
+          : '洞察特牌',
+  ].join(' · ');
+
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-4 gap-3 relative"
+      className="min-h-screen flex flex-col items-center justify-start sm:justify-center p-3 sm:p-4 gap-2 sm:gap-3 relative"
       style={{
         backgroundColor: '#1e293b',
         backgroundImage: [
@@ -531,94 +614,131 @@ export default function App() {
       }}
     >
       <BackToMenu />
-      <h1 className="text-2xl font-bold tracking-wide">記憶配對</h1>
+      <h1 className="text-xl sm:text-2xl font-bold tracking-wide mt-1">記憶配對</h1>
 
-      <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="模式">
-        {(
-          [
-            { id: 'classic' as const, label: '經典' },
-            { id: 'sprint' as const, label: `衝刺 ${SPRINT_LIMIT_SEC}s` },
-            { id: 'versus' as const, label: '對戰 CPU' },
-            { id: 'special' as const, label: '洞察特牌' },
-          ] as const
-        ).map(({ id, label }) => (
+      {showTip && (
+        <div
+          className="w-full max-w-xl rounded-xl border border-sky-500/40 bg-slate-900/85 px-3 py-2 text-sm text-slate-200 flex gap-2 items-start"
+          role="note"
+        >
+          <p className="flex-1 leading-snug">
+            點兩張牌翻開；圖案相同即配對留下。對戰時輪流翻，配對成功可再翻一次。大盤面可先收合設定騰出空間。
+          </p>
           <button
-            key={id}
             type="button"
-            onClick={() => restart(pairCount, id, themeId, cpuDifficulty)}
-            className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-              mode === id
-                ? 'border-emerald-400 bg-emerald-500/25 text-emerald-100'
-                : 'border-slate-600 bg-slate-800/80 text-slate-300'
-            }`}
+            onClick={dismissTip}
+            className="shrink-0 min-h-[36px] px-3 rounded-lg border border-slate-500 text-slate-200 touch-manipulation"
+            aria-label="關閉提示"
           >
-            {label}
+            知道了
           </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="牌組">
-        {THEME_OPTIONS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => restart(pairCount, mode, id, cpuDifficulty)}
-            className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-              themeId === id
-                ? 'border-violet-400 bg-violet-500/25 text-violet-100'
-                : 'border-slate-600 bg-slate-800/80 text-slate-300'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="盤面大小">
-        {pairChoices.map(({ count, label }) => (
-          <button
-            key={count}
-            type="button"
-            onClick={() => restart(count, mode, themeId, cpuDifficulty)}
-            className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-              pairCount === count
-                ? 'border-sky-400 bg-sky-500/25 text-sky-100'
-                : 'border-slate-600 bg-slate-800/80 text-slate-300'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {mode === 'versus' && (
-        <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="CPU 難度">
-          {CPU_DIFFICULTY_OPTIONS.map(({ id, label, blurb }) => (
-            <button
-              key={id}
-              type="button"
-              title={blurb}
-              onClick={() => restart(pairCount, mode, themeId, id)}
-              className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-                cpuDifficulty === id
-                  ? 'border-rose-400 bg-rose-500/25 text-rose-100'
-                  : 'border-slate-600 bg-slate-800/80 text-slate-300'
-              }`}
-            >
-              CPU · {label}
-            </button>
-          ))}
         </div>
       )}
 
-      <p className="text-sm text-slate-300 text-center max-w-xl">
+      <div className="w-full max-w-xl flex flex-col gap-2 items-center">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen((o) => !o)}
+          className="min-h-[40px] px-4 rounded-xl border border-slate-500/70 bg-slate-800/80 text-slate-200 text-sm touch-manipulation w-full sm:w-auto"
+          aria-expanded={settingsOpen}
+          aria-controls="mm-settings"
+        >
+          {settingsOpen ? '收合設定 ▲' : `設定 · ${settingsSummary} ▼`}
+        </button>
+
+        {settingsOpen && (
+          <div id="mm-settings" className="w-full flex flex-col gap-2 items-center">
+            <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="模式">
+              {(
+                [
+                  { id: 'classic' as const, label: '經典' },
+                  { id: 'sprint' as const, label: `衝刺 ${sprintLimit}s` },
+                  { id: 'versus' as const, label: '對戰 CPU' },
+                  { id: 'special' as const, label: '洞察特牌' },
+                ] as const
+              ).map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => restart(pairCount, id, themeId, cpuDifficulty)}
+                  className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+                    mode === id
+                      ? 'border-emerald-400 bg-emerald-500/25 text-emerald-100'
+                      : 'border-slate-600 bg-slate-800/80 text-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="牌組">
+              {THEME_OPTIONS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => restart(pairCount, mode, id, cpuDifficulty)}
+                  className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+                    themeId === id
+                      ? 'border-violet-400 bg-violet-500/25 text-violet-100'
+                      : 'border-slate-600 bg-slate-800/80 text-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="盤面大小">
+              {pairChoices.map(({ count, label }) => (
+                <button
+                  key={count}
+                  type="button"
+                  onClick={() => restart(count, mode, themeId, cpuDifficulty)}
+                  className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+                    pairCount === count
+                      ? 'border-sky-400 bg-sky-500/25 text-sky-100'
+                      : 'border-slate-600 bg-slate-800/80 text-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === 'versus' && (
+              <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="CPU 難度">
+                {CPU_DIFFICULTY_OPTIONS.map(({ id, label, blurb }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    title={blurb}
+                    onClick={() => restart(pairCount, mode, themeId, id)}
+                    className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+                      cpuDifficulty === id
+                        ? 'border-rose-400 bg-rose-500/25 text-rose-100'
+                        : 'border-slate-600 bg-slate-800/80 text-slate-300'
+                    }`}
+                  >
+                    CPU · {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <p className="text-sm text-slate-300 text-center max-w-xl px-1">
         {themeLabel} · {pairCount} 對
         {mode === 'versus' ? (
           <>
             {' '}
             · 你 {playerPairs} : {cpuPairs} CPU
             {' · '}
-            {turnOwner === 'player' ? '你的回合' : 'CPU 思考中…'}
+            <span className={turnOwner === 'cpu' ? 'text-rose-300 font-medium' : 'text-emerald-300 font-medium'}>
+              {turnOwner === 'player' ? '你的回合' : 'CPU 思考中…'}
+            </span>
             {versusWins > 0 ? ` · 勝場 ${versusWins}` : ''}
           </>
         ) : (
@@ -636,7 +756,9 @@ export default function App() {
         )}
       </p>
 
-      <div className={`relative grid ${gridColsClass(pairCount)} gap-2 ${boardWide}`}>
+      <div
+        className={`relative grid ${gridColsClass(pairCount)} ${gridGapClass(pairCount)} ${boardWide}`}
+      >
         {flashText && (
           <ScoreFlash text={flashText} tone={flashTone} flashKey={flashKey} onDone={() => setFlashText('')} />
         )}
@@ -654,6 +776,7 @@ export default function App() {
               hinted={hintFlash.includes(i) || peekFlash.includes(i)}
               missPulse={missPulse.includes(i)}
               matchPulse={matchPulse.includes(i)}
+              dense={pairCount >= 18}
               disabled={
                 locks ||
                 hintFlash.length > 0 ||
@@ -737,7 +860,7 @@ export default function App() {
         <ResultOverlay
           title="時間到"
           variant="lose"
-          subtitle={`衝刺限時 ${SPRINT_LIMIT_SEC} 秒 · ${themeLabel}`}
+          subtitle={`衝刺限時 ${sprintLimit} 秒 · ${themeLabel}`}
           stats={[
             { label: '翻牌次數', value: moves },
             { label: '已配對', value: cards.filter((c) => c.matched).length / 2 },
