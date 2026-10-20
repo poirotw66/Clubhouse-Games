@@ -29,55 +29,71 @@ export interface DifficultyPreset {
   garbageDropCap: number;
   /** Look one piece ahead when true. */
   lookahead: boolean;
+  /**
+   * When > 0, pick uniformly among the top N scored reachable plans.
+   * Absolute count (not a fraction) so Easy stays competent but imperfect.
+   */
+  candidatePool: number;
 }
 
+/**
+ * Difficulty curve after playtesting:
+ * - Easy was suiciding in ~12s (unreachable teleport plans + fast think) → free wins.
+ * - Plans must be keyboard-reachable; Easy thinks longer and samples a small top pool.
+ */
 export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
   easy: {
     id: 'easy',
     label: '簡單',
-    thinkMin: 280,
-    thinkMax: 520,
-    holeWeight: 4,
-    heightWeight: 0.4,
-    bumpWeight: 0.2,
-    clearWeight: 1.2,
-    attackWeight: 0.6,
-    tSlotWeight: 0.1,
-    noise: 8,
-    garbageDropCap: 4,
+    thinkMin: 650,
+    thinkMax: 1200,
+    holeWeight: 9,
+    heightWeight: 0.85,
+    bumpWeight: 0.45,
+    clearWeight: 2.8,
+    attackWeight: 0.25,
+    tSlotWeight: 0.05,
+    noise: 3,
+    garbageDropCap: 3,
     lookahead: false,
+    candidatePool: 2,
   },
   normal: {
     id: 'normal',
     label: '普通',
-    thinkMin: 120,
-    thinkMax: 260,
+    thinkMin: 160,
+    thinkMax: 320,
     holeWeight: 7.5,
     heightWeight: 0.55,
     bumpWeight: 0.35,
     clearWeight: 2.2,
-    attackWeight: 1.1,
-    tSlotWeight: 0.8,
-    noise: 2.5,
-    garbageDropCap: 8,
+    attackWeight: 1.0,
+    tSlotWeight: 0.7,
+    noise: 2,
+    garbageDropCap: 6,
     lookahead: false,
+    candidatePool: 2,
   },
   hard: {
     id: 'hard',
     label: '困難',
-    thinkMin: 40,
-    thinkMax: 110,
+    thinkMin: 55,
+    thinkMax: 130,
     holeWeight: 10,
     heightWeight: 0.7,
     bumpWeight: 0.45,
     clearWeight: 3,
-    attackWeight: 1.6,
+    attackWeight: 1.5,
     tSlotWeight: 1.4,
     noise: 0,
-    garbageDropCap: 14,
+    garbageDropCap: 10,
     lookahead: true,
+    candidatePool: 1,
   },
 };
+
+/** Max garbage lines applied to the human player in one delivery wave. */
+export const PLAYER_GARBAGE_DROP_CAP = 8;
 
 export interface PlacementPlan {
   rotation: Rotation;
@@ -146,16 +162,22 @@ function evaluateBoard(
 ): number {
   const heights = columnHeights(board);
   const aggHeight = heights.reduce((a, b) => a + b, 0);
+  const maxHeight = heights.reduce((a, b) => Math.max(a, b), 0);
   const holes = countHoles(board);
   const bump = bumpiness(heights);
   const tSlots = tSlotBonus(board);
+  // Panic: when the stack is tall, prefer any clear over attack grooming.
+  const panicClear = maxHeight >= 12 ? linesCleared * 180 : 0;
+  const nearTopPenalty = maxHeight >= 15 ? (maxHeight - 14) * 80 : 0;
   return (
     linesCleared * preset.clearWeight * 40 +
     attack * preset.attackWeight * 50 +
-    tSlots * preset.tSlotWeight * 12 -
+    tSlots * preset.tSlotWeight * 12 +
+    panicClear -
     holes * preset.holeWeight * 35 -
     aggHeight * preset.heightWeight -
-    bump * preset.bumpWeight
+    bump * preset.bumpWeight -
+    nearTopPenalty
   );
 }
 
@@ -170,24 +192,40 @@ function landPiece(board: Cell[][], piece: ActivePiece): ActivePiece | null {
   return current;
 }
 
-function trySpawnAt(type: TetrominoType, rotation: Rotation, col: number): ActivePiece {
+/**
+ * Walk the same rotate→shift path the versus loop uses.
+ * Returns null when the target orientation/column is not reachable on this board
+ * (teleport placements were the main Easy-mode suicide cause).
+ */
+export function reachPlacement(
+  board: Cell[][],
+  type: TetrominoType,
+  rotation: Rotation,
+  col: number,
+): ActivePiece | null {
   let piece = spawnPiece(type);
-  // Rotate in place with kicks against an empty board to reach the target orientation.
-  const empty = Array.from({ length: BOARD_SIZE.rows }, () =>
-    Array<Cell>(BOARD_SIZE.cols).fill(null),
-  );
-  let guard = 0;
-  while (piece.rotation !== rotation && guard < 4) {
-    const { piece: next, kickIndex } = tryRotateWithKick(empty, piece, 1);
-    if (kickIndex < 0) break;
+  if (collides(board, piece)) return null;
+
+  let rotGuard = 0;
+  while (piece.rotation !== rotation && rotGuard < 4) {
+    const { piece: next, kickIndex } = tryRotateWithKick(board, piece, 1);
+    if (kickIndex < 0) return null;
     piece = next;
-    guard += 1;
+    rotGuard += 1;
   }
-  piece = {
-    ...piece,
-    position: { row: piece.position.row, col },
-  };
-  return piece;
+  if (piece.rotation !== rotation) return null;
+
+  let shiftGuard = 0;
+  while (piece.position.col !== col && shiftGuard < 12) {
+    const dir = col > piece.position.col ? 1 : -1;
+    const moved = movePiece(board, piece, 0, dir);
+    if (!moved) return null;
+    piece = moved;
+    shiftGuard += 1;
+  }
+  if (piece.position.col !== col) return null;
+
+  return landPiece(board, piece);
 }
 
 function simulatePlacement(
@@ -199,11 +237,11 @@ function simulatePlacement(
   combo: number,
   level: number,
 ): { board: Cell[][]; linesCleared: number; attack: number; piece: ActivePiece } | null {
-  const floated = trySpawnAt(type, rotation, col);
-  const landed = landPiece(board, floated);
+  const landed = reachPlacement(board, type, rotation, col);
   if (!landed) return null;
 
-  // Approximate last action: if we needed a non-zero kick path we still mark rotate for T.
+  // AI heuristic: credit a T-Spin shape only when the piece is T. Exact last-action
+  // rotate rules are enforced in the real lock path; this is for placement ranking.
   const tSpin = detectTSpin(board, landed, type === 'T' ? 'rotate' : 'drop', 0);
   const merged = mergePiece(board, landed);
   const { board: cleared, linesCleared } = clearLines(merged);
@@ -279,9 +317,19 @@ function scorePlacement(
   };
 }
 
+function pickFromRanked(plans: PlacementPlan[], poolSize: number): PlacementPlan {
+  if (plans.length === 0) {
+    throw new Error('pickFromRanked requires at least one plan');
+  }
+  const sorted = [...plans].sort((a, b) => b.score - a.score);
+  const size = Math.max(1, Math.min(sorted.length, poolSize));
+  const pool = sorted.slice(0, size);
+  return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
 /**
- * Pick the best hard-drop placement for the current piece.
- * Searches columns × rotations; hard difficulty adds a shallow next-piece lookahead.
+ * Pick a hard-drop placement for the current piece.
+ * Only reachable (rotate→shift→drop) slots are considered.
  */
 export function findBestPlacement(
   board: Cell[][],
@@ -293,7 +341,7 @@ export function findBestPlacement(
   const backToBackReady = options.backToBackReady ?? false;
   const combo = options.combo ?? 0;
   const level = options.level ?? 1;
-  let best: PlacementPlan | null = null;
+  const candidates: PlacementPlan[] = [];
 
   for (let rot = 0 as Rotation; rot < 4; rot = (rot + 1) as Rotation) {
     for (let col = -2; col < BOARD_SIZE.cols + 1; col++) {
@@ -308,11 +356,12 @@ export function findBestPlacement(
         combo,
         level,
       );
-      if (!plan) continue;
-      if (!best || plan.score > best.score) best = plan;
+      if (plan) candidates.push(plan);
     }
   }
-  return best;
+
+  if (candidates.length === 0) return null;
+  return pickFromRanked(candidates, preset.candidatePool);
 }
 
 export function thinkDelayMs(preset: DifficultyPreset): number {

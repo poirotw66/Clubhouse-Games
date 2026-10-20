@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "check": "node --experimental-strip-types src/check-cpu.mjs && node --experimental-strip-types src/check-stats.mjs && node --experimental-strip-types src/check-combat.mjs && node --experimental-strip-types src/check-league.mjs"
+    "check": "node --experimental-strip-types src/check-cpu.mjs && node --experimental-strip-types src/check-stats.mjs && node --experimental-strip-types src/check-combat.mjs && node --experimental-strip-types src/check-league.mjs && node --experimental-strip-types src/check-balance.mjs"
   },
   "dependencies": {
     "@clubhouse/shared": "*",

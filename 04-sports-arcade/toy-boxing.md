@@ -60,7 +60,7 @@
 
 ### AI（`cpuAi.ts` + `opponents.ts`）
 
-聯賽六位各有 `aggression`／`highLowBias`／`feintRate`／`guardHabit`／`adaptHabit` 等風格參數；會記錄玩家近 10 次出拳段位並調整防守。自由對戰三檔仍以反應／失誤／適應拉開。
+聯賽六位各有 `aggression`／`highLowBias`／`feintRate`／`guardHabit`／`adaptHabit`／`hookBias` 等風格參數；近戰出拳依 `hookBias`（不再因距離強制勾拳）。招牌拳套用各對手的 windup／段位／可否格擋。會記錄玩家近 10 次出拳段位並調整防守。自由對戰三檔仍以反應／失誤／適應拉開。`npm run check` 含 `check-balance` 風格抽樣。
 
 | id | 名稱 | 風格摘要 |
 |----|------|----------|
