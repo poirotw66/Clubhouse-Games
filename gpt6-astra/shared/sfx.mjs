@@ -165,3 +165,30 @@ export function sfxUnlock() {
 export function sfxSelect() {
   playMove();
 }
+
+/** Escape-room: lock opens / door clears. */
+export function sfxEscapeUnlock() {
+  playTone(392, 'triangle', 0.08, 0, 0.07);
+  playTone(523.25, 'triangle', 0.1, 0.06, 0.08);
+  playTone(659.25, 'sine', 0.14, 0.12, 0.06);
+}
+
+/** Escape-room: item combine craft. */
+export function sfxEscapeCombine() {
+  playTone(300, 'square', 0.05, 0, 0.05);
+  playTone(450, 'triangle', 0.08, 0.05, 0.06);
+  playTone(600, 'sine', 0.1, 0.1, 0.05);
+}
+
+/** Escape-room: hint used (soft warning ping). */
+export function sfxEscapeHint() {
+  playTone(480, 'sine', 0.07, 0, 0.05);
+  playTone(360, 'triangle', 0.1, 0.06, 0.04);
+}
+
+/** Escape-room: room transition. */
+export function sfxEscapeRoomEnter() {
+  playTone(220, 'triangle', 0.08, 0, 0.05);
+  playTone(330, 'sine', 0.1, 0.07, 0.06);
+  playTone(440, 'triangle', 0.12, 0.14, 0.05);
+}
