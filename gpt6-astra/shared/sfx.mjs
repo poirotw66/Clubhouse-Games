@@ -165,3 +165,16 @@ export function sfxUnlock() {
 export function sfxSelect() {
   playMove();
 }
+
+/** Soft industrial build / place click (Mini Factory). */
+export function playBuild() {
+  playTone(300, 'triangle', 0.07, 0, 0.06);
+  playTone(420, 'sine', 0.08, 0.04, 0.05);
+}
+
+/** Research unlock chime — distinct from full win fanfare. */
+export function playResearch() {
+  playTone(392, 'triangle', 0.1, 0, 0.07);
+  playTone(523.25, 'sine', 0.12, 0.08, 0.07);
+  playTone(659.25, 'triangle', 0.16, 0.16, 0.06);
+}
