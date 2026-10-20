@@ -1,5 +1,11 @@
-import { buildNeighbours, cellCount, wallKey } from './grid';
-import { randomHamiltonianPath } from './hamiltonian';
+import {
+  buildNeighbours,
+  cellCount,
+  playableCount,
+  playableIsConnected,
+  wallKey,
+} from './grid';
+import { randomHamiltonianPath, randomHamiltonianPathWithHoles } from './hamiltonian';
 import { streamRng } from './rng';
 import { divergenceIndex, solve } from './solve';
 import type { CellId, DifficultyId, Puzzle, Size, WallKey } from './types';
@@ -78,19 +84,64 @@ function shuffled<T>(items: readonly T[], r: () => number): T[] {
  * first and hoping a Hamiltonian path still exists would mean generation could
  * fail, and on an 8x8 it would fail often.
  */
-function pickWalls(size: Size, path: CellId[], count: number, r: () => number): WallKey[] {
+function pickWalls(
+  size: Size,
+  path: CellId[],
+  count: number,
+  r: () => number,
+  holes: Iterable<CellId> = [],
+): WallKey[] {
+  const holeSet = new Set(holes);
   const used = new Set<WallKey>();
   for (let i = 1; i < path.length; i++) used.add(wallKey(path[i - 1], path[i]));
 
   const candidates: WallKey[] = [];
   for (let cell = 0; cell < cellCount(size); cell++) {
+    if (holeSet.has(cell)) continue;
     const col = cell % size.cols;
     const right = cell + 1;
     const down = cell + size.cols;
-    if (col < size.cols - 1 && !used.has(wallKey(cell, right))) candidates.push(wallKey(cell, right));
-    if (down < cellCount(size) && !used.has(wallKey(cell, down))) candidates.push(wallKey(cell, down));
+    if (
+      col < size.cols - 1 &&
+      !holeSet.has(right) &&
+      !used.has(wallKey(cell, right))
+    ) {
+      candidates.push(wallKey(cell, right));
+    }
+    if (
+      down < cellCount(size) &&
+      !holeSet.has(down) &&
+      !used.has(wallKey(cell, down))
+    ) {
+      candidates.push(wallKey(cell, down));
+    }
   }
   return shuffled(candidates, r).slice(0, count);
+}
+
+/**
+ * Pick holes that leave a connected remainder. Prefer interior cells so the
+ * border stays drawable; retry until connectivity holds.
+ */
+function pickHoles(size: Size, count: number, r: () => number): CellId[] {
+  if (count <= 0) return [];
+  const total = cellCount(size);
+  const interior: CellId[] = [];
+  const edge: CellId[] = [];
+  for (let cell = 0; cell < total; cell++) {
+    const row = Math.floor(cell / size.cols);
+    const col = cell % size.cols;
+    const onEdge = row === 0 || col === 0 || row === size.rows - 1 || col === size.cols - 1;
+    (onEdge ? edge : interior).push(cell);
+  }
+
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const pool = shuffled([...interior, ...edge], r);
+    const holes = pool.slice(0, count);
+    if (playableCount(size, holes) < 8) continue;
+    if (playableIsConnected(size, holes)) return holes.sort((a, b) => a - b);
+  }
+  return [];
 }
 
 /**
@@ -130,6 +181,11 @@ export interface GenerateOptions {
   size?: Size;
   checkpointTarget?: number;
   wallTarget?: number;
+  /**
+   * Holes the path must skip. Classic daily/free play leave this at 0 so the
+   * existing seed → board mapping stays bit-identical.
+   */
+  blockedCount?: number;
 }
 
 /**
@@ -166,25 +222,36 @@ function buildCandidate(options: GenerateOptions, attempt: number): Puzzle | nul
   const info = DIFFICULTIES[options.difficulty];
   const size = options.size ?? info.size;
   const wallTarget = options.wallTarget ?? info.walls;
-  const total = cellCount(size);
+  const blockedCount = options.blockedCount ?? 0;
+  const playable = playableCount(size) - blockedCount;
 
   {
     const r = streamRng(0, `${options.seedCode}:${options.difficulty}:${attempt}`);
-    const open = buildNeighbours(size, []);
-    const path = randomHamiltonianPath(size, open, r);
-    const walls = pickWalls(size, path, wallTarget, r);
-    const neighbours = buildNeighbours(size, walls);
+    const holes =
+      blockedCount > 0 ? pickHoles(size, blockedCount, r) : ([] as CellId[]);
+    if (blockedCount > 0 && holes.length !== blockedCount) return null;
 
-    const target = Math.min(total, options.checkpointTarget ?? info.checkpoints);
+    const open = buildNeighbours(size, [], holes);
+    const path =
+      blockedCount > 0
+        ? randomHamiltonianPathWithHoles(size, open, holes, r)
+        : randomHamiltonianPath(size, open, r);
+    if (!path) return null;
+
+    const walls = pickWalls(size, path, wallTarget, r, holes);
+    const neighbours = buildNeighbours(size, walls, holes);
+
+    const target = Math.min(playable, options.checkpointTarget ?? info.checkpoints);
     let indices = checkpointIndices(path, target, r);
 
-    for (let refine = 0; refine < total; refine++) {
+    for (let refine = 0; refine < playable; refine++) {
       const checkpoints = checkpointsFrom(path, indices);
       const result = solve({
         size,
         neighbours,
         checkpoints,
         checkpointCount: indices.length,
+        blocked: holes,
         limit: 2,
       });
 
@@ -200,6 +267,8 @@ function buildCandidate(options: GenerateOptions, attempt: number): Puzzle | nul
           checkpoints,
           checkpointCount: indices.length,
           walls,
+          blocked: holes,
+          variant: holes.length > 0 ? 'blocked' : 'classic',
           solution: path,
         };
       }
