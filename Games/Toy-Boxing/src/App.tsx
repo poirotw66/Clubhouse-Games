@@ -500,8 +500,9 @@ export default function ToyBoxing() {
       tip = '記住：擋對大幅減傷，擋錯幾乎白擋。讀拳套後拉的上／下角標！';
     }
 
+    const player = createBoxer('player', playerCharId);
     engineRef.current = {
-      player: createBoxer('player', playerCharId),
+      player,
       cpu,
       timeLeft: ROUND_TIME,
       round: 1,
@@ -515,6 +516,27 @@ export default function ToyBoxing() {
       floatTexts: [],
       koReason: null,
     };
+    // Sync HUD immediately — otherwise countdown still shows the previous bout's names/bars.
+    setUiState({
+      playerHealth: player.health,
+      playerMaxHealth: player.maxHealth,
+      playerStamina: player.stamina,
+      playerSuper: player.superMeter,
+      playerStun: player.stunMeter,
+      playerScore: 0,
+      playerName: player.name,
+      playerHeight: 'high',
+      cpuHealth: cpu.health,
+      cpuMaxHealth: cpu.maxHealth,
+      cpuStamina: cpu.stamina,
+      cpuSuper: cpu.superMeter,
+      cpuStun: cpu.stunMeter,
+      cpuScore: 0,
+      cpuName: cpu.name,
+      cpuHeight: 'high',
+      timeLeft: ROUND_TIME,
+      round: 1,
+    });
     setWinner(null);
     setFightTip(tip);
     startCountdown();
@@ -545,6 +567,20 @@ export default function ToyBoxing() {
     engineRef.current.hitStop = 0;
     engineRef.current.isKO = false;
     engineRef.current.koReason = null;
+    const { player, cpu, round, timeLeft } = engineRef.current;
+    setUiState((prev) => ({
+      ...prev,
+      playerHealth: player.health,
+      playerStamina: player.stamina,
+      playerStun: player.stunMeter,
+      playerName: player.name,
+      cpuHealth: cpu.health,
+      cpuStamina: cpu.stamina,
+      cpuStun: cpu.stunMeter,
+      cpuName: cpu.name,
+      timeLeft,
+      round,
+    }));
     startCountdown();
   };
 
@@ -1699,7 +1735,13 @@ export default function ToyBoxing() {
           </div>
         )}
 
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div
+          className={cn(
+            'mt-8 grid grid-cols-1 md:grid-cols-3 gap-6',
+            // On phones during a bout, touch buttons already teach — hide the tall kbd panels.
+            gameState === 'playing' && 'hidden sm:grid',
+          )}
+        >
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
             <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
               <Zap className="w-4 h-4" /> 移動・段位
