@@ -40,6 +40,7 @@ export {
   migrateMeta,
   emptyMeta,
   formatElapsed,
+  canCombine,
 };
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
