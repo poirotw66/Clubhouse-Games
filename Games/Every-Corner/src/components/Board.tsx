@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { buildNeighbours, colOf, rowOf, routeTo, wallKey } from '../game/grid';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { buildNeighbours, colOf, playableCount, rowOf, routeTo, wallKey } from '../game/grid';
 import type { CellId, Puzzle } from '../game/types';
 
 interface Props {
@@ -8,16 +8,33 @@ interface Props {
   revealed: CellId[];
   onPathChange: (path: CellId[]) => void;
   solved: boolean;
+  /** Fires once the completion path-trace finishes (or immediately if reduced motion). */
+  onTraceComplete?: () => void;
 }
 
 const GAP = 4;
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The board is one SVG rather than a grid of DOM nodes: the path is a single
  * polyline, so it stays continuous through corners instead of being reassembled
  * from per-cell borders.
  */
-export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): React.ReactElement {
+export function Board({
+  puzzle,
+  path,
+  revealed,
+  onPathChange,
+  solved,
+  onTraceComplete,
+}: Props): React.ReactElement {
   const { size } = puzzle;
   const svgRef = useRef<SVGSVGElement>(null);
   const drawing = useRef(false);
@@ -25,14 +42,17 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
   const pathRef = useRef(path);
   pathRef.current = path;
+  const holeSet = useMemo(() => new Set(puzzle.blocked), [puzzle.blocked]);
+  const [traceProgress, setTraceProgress] = useState(1);
+  const tracedFor = useRef<string | null>(null);
 
   const cellSize = 100;
   const width = size.cols * cellSize;
   const height = size.rows * cellSize;
   const neighbourSet = useRef(new Set(puzzle.walls));
   neighbourSet.current = new Set(puzzle.walls);
-  const neighbours = useRef(buildNeighbours(size, puzzle.walls));
-  neighbours.current = buildNeighbours(size, puzzle.walls);
+  const neighbours = useRef(buildNeighbours(size, puzzle.walls, puzzle.blocked));
+  neighbours.current = buildNeighbours(size, puzzle.walls, puzzle.blocked);
 
   const centre = (cell: CellId) => ({
     x: colOf(size, cell) * cellSize + cellSize / 2,
@@ -48,13 +68,16 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
       const col = Math.floor(((clientX - box.left) / box.width) * size.cols);
       const row = Math.floor(((clientY - box.top) / box.height) * size.rows);
       if (row < 0 || col < 0 || row >= size.rows || col >= size.cols) return null;
-      return row * size.cols + col;
+      const cell = row * size.cols + col;
+      if (holeSet.has(cell)) return null;
+      return cell;
     },
-    [size],
+    [size, holeSet],
   );
 
   const extend = useCallback(
     (cell: CellId) => {
+      if (holeSet.has(cell)) return;
       const current = pathRef.current;
 
       if (current.length === 0) {
@@ -87,28 +110,12 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
       const route = routeTo(size, neighbours.current, current, cell);
       if (route.length > 0) onPathChange([...current, ...route]);
     },
-    [onPathChange, puzzle.checkpoints, size],
+    [onPathChange, puzzle.checkpoints, size, holeSet],
   );
 
   /**
    * Feeds every cell the pointer swept over since the last event, not just the
    * one it happens to be sitting on now.
-   *
-   * extend() only accepts a cell orthogonally adjacent to the end of the path,
-   * which is correct — but a pointermove arrives roughly every 16ms, and a
-   * finger crossing a 6x6 board in half a second moves about two cells between
-   * events. Feeding it only the current cell meant every one of those events
-   * was silently rejected and the line stopped following the finger. Measured
-   * against a puzzle's own verified solution: sampling once per cell drew all
-   * 36 of 36, sampling every two cells drew 1. Not "harder to draw" — the board
-   * simply did not respond unless you crawled.
-   *
-   * Walking the straight segment between the two pointer positions at a third
-   * of a cell at a time hands extend() an adjacent cell each step, so it keeps
-   * all its own rules (walls, no crossing, no revisiting) and just stops
-   * missing the cells in between. Backtracking over several cells at once falls
-   * out of the same loop, since each intermediate cell is in turn the one
-   * before the path's end.
    */
   const sweepTo = useCallback(
     (x: number, y: number) => {
@@ -152,17 +159,65 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
     };
   }, [sweepTo]);
 
+  // Path-trace completion: draw the green line from start to finish once.
+  useEffect(() => {
+    if (!solved) {
+      setTraceProgress(1);
+      tracedFor.current = null;
+      return;
+    }
+    const key = `${puzzle.seedCode}:${path.length}`;
+    if (tracedFor.current === key) return;
+    tracedFor.current = key;
+
+    if (prefersReducedMotion() || path.length < 2) {
+      setTraceProgress(1);
+      onTraceComplete?.();
+      return;
+    }
+
+    setTraceProgress(0);
+    const duration = Math.min(1800, 280 + path.length * 28);
+    const started = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - started) / duration);
+      // Ease-out so the finish lands rather than racing.
+      const eased = 1 - (1 - t) * (1 - t);
+      setTraceProgress(eased);
+      if (t < 1) {
+        frame = requestAnimationFrame(tick);
+      } else {
+        onTraceComplete?.();
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [solved, puzzle.seedCode, path.length, onTraceComplete]);
+
   const points = path.map(centre);
   const polyline = points.map((p) => `${p.x},${p.y}`).join(' ');
+  const pathLength = useMemo(() => {
+    let length = 0;
+    for (let i = 1; i < points.length; i++) {
+      length += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return length;
+  }, [points]);
+
+  const totalPlayable = playableCount(size, puzzle.blocked);
 
   return (
     <svg
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
-      className="ec-board w-full touch-none select-none"
+      className={`ec-board w-full touch-none select-none${solved ? ' ec-board-solved' : ''}`}
       role="img"
-      aria-label={`${size.rows} 乘 ${size.cols} 的盤面，已走 ${path.length} 格，共 ${size.rows * size.cols} 格`}
+      aria-label={`${size.rows} 乘 ${size.cols} 的盤面，已走 ${path.length} 格，共 ${totalPlayable} 格${
+        puzzle.blocked.length > 0 ? `，缺口 ${puzzle.blocked.length} 格` : ''
+      }`}
       onPointerDown={(event) => {
+        if (solved) return;
         event.preventDefault();
         drawing.current = true;
         lastPoint.current = { x: event.clientX, y: event.clientY };
@@ -170,11 +225,7 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
         if (cell === null) return;
 
         // Tapping a number the line already passes through winds back to it and
-        // leaves you drawing from there. Undoing thirty steps one at a time to
-        // fix a wrong turn near checkpoint 3 is not a decision, it is a chore,
-        // and the numbers are the only landmarks on the board worth aiming at.
-        // Drawing stays armed, so the same gesture can continue straight into
-        // the new route without lifting a finger.
+        // leaves you drawing from there.
         const index = pathRef.current.indexOf(cell);
         if (index !== -1 && puzzle.checkpoints[cell] !== undefined) {
           if (index < pathRef.current.length - 1) {
@@ -188,6 +239,22 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
       {Array.from({ length: size.rows * size.cols }, (_, cell) => {
         const x = colOf(size, cell) * cellSize;
         const y = rowOf(size, cell) * cellSize;
+        if (holeSet.has(cell)) {
+          return (
+            <rect
+              key={cell}
+              x={x + GAP / 2}
+              y={y + GAP / 2}
+              width={cellSize - GAP}
+              height={cellSize - GAP}
+              rx={12}
+              fill="rgba(15, 11, 28, 0.95)"
+              stroke="rgba(244, 114, 182, 0.35)"
+              strokeWidth={3}
+              strokeDasharray="6 6"
+            />
+          );
+        }
         const onPath = path.includes(cell);
         return (
           <rect
@@ -213,6 +280,15 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
           strokeLinecap="round"
           strokeLinejoin="round"
           opacity={0.85}
+          className={solved ? 'ec-path-trace' : undefined}
+          style={
+            solved && pathLength > 0
+              ? {
+                  strokeDasharray: pathLength,
+                  strokeDashoffset: pathLength * (1 - traceProgress),
+                }
+              : undefined
+          }
         />
       )}
       {points.length > 0 && (
@@ -221,6 +297,7 @@ export function Board({ puzzle, path, revealed, onPathChange, solved }: Props): 
           cy={points[points.length - 1].y}
           r={cellSize * 0.17}
           fill={solved ? '#4ade80' : '#c4b5fd'}
+          className={solved ? 'ec-path-head' : undefined}
         />
       )}
 

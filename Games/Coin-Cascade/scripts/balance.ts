@@ -16,6 +16,7 @@
 import { CASCADE_MIN, FIXED_DT, MAX_COINS_ON_SHELF, STARTING_CREDITS, WALL_X0, WALL_X1 } from '../src/game/constants.js';
 import { createRun, step } from '../src/game/engine.js';
 import { mulberry32 } from '../src/game/rng.js';
+import { TABLE_PACK, type TableId } from '../src/game/tables.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
 
 // ── Confidence intervals ───────────────────────────────────────────────────
@@ -100,8 +101,13 @@ interface SessionResult {
 }
 
 /** Plays one full session with a fixed lane, occasionally spending on a heavy/ball coin to exercise the specials too. */
-function playSession(seedCode: string, lane: Lane, specialRate = 0.12): SessionResult {
-  let s = createRun(seedCode);
+function playSession(
+  seedCode: string,
+  lane: Lane,
+  specialRate = 0.12,
+  tableId: TableId = 'classic',
+): SessionResult {
+  let s = createRun(seedCode, { tableId });
   const r = mulberry32((s.seed ^ 0x9e3779b9) >>> 0);
   let guard = 0;
   const recoveredByTick: Array<[number, number]> = [];
@@ -166,6 +172,33 @@ function main(): void {
         ? '  -> WARNING: this reads as "you basically cannot lose"'
         : '  -> inside a plausible playable band (see README for the committed band)',
   );
+
+  // ── 1b) Per-table RTP ───────────────────────────────────────────────────
+  console.log('\n--- 1b) Per-table RTP (centre lane) ---\n');
+  const tableSeeds = seeds('TBL', 24);
+  for (const table of TABLE_PACK) {
+    let score = 0;
+    let spent = 0;
+    const per: number[] = [];
+    for (const seed of tableSeeds) {
+      const res = playSession(seed, 'centre', 0.1, table.id);
+      score += res.score;
+      spent += res.creditsSpent;
+      per.push(res.score / res.creditsSpent);
+    }
+    const pooled = score / spent;
+    const stats = meanCI(per);
+    console.log(
+      `  ${table.id.padEnd(12)} ${table.name}  pooled ${(pooled * 100).toFixed(2)}%   per-session ${fmtMean({ ...stats, mean: stats.mean * 100, halfWidth: stats.halfWidth * 100 }, 2)}%`,
+    );
+    console.log(
+      pooled < 0.5
+        ? '    -> WARNING: too low'
+        : pooled > 1.05
+          ? '    -> WARNING: too high'
+          : '    -> inside playable band',
+    );
+  }
 
   // ── 2) No drop lane dominates ───────────────────────────────────────────
   console.log('\n--- 2) Lane comparison (left / centre / right / random) ---\n');

@@ -176,3 +176,26 @@
 
 .sakura-petal:nth-child(2) { animation-delay: 1s; }
 .sakura-petal:nth-child(3) { animation-delay: 2s; }
+
+.yaku-silhouette {
+  background: linear-gradient(90deg, rgba(245, 240, 230, 0.08), rgba(245, 240, 230, 0.18), rgba(245, 240, 230, 0.08));
+  filter: contrast(0.6);
+}
+
+.yaku-celebrate-burst {
+  animation: yaku-burst-glow 0.9s ease-out;
+}
+
+@keyframes yaku-burst-glow {
+  0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.55); }
+  70% { box-shadow: 0 0 28px 8px rgba(212, 175, 55, 0.25); }
+  100% { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sakura-petal,
+  .avatar-active,
+  .yaku-celebrate-burst {
+    animation: none !important;
+  }
+}

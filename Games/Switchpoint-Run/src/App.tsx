@@ -1,8 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playError, playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import {
+  playCombo,
+  playError,
+  playLose,
+  playMove,
+  playScore,
+  playWin,
+} from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
+import { GaragePanel } from './components/GaragePanel';
 import {
   RUN_CHALLENGES,
   applyChallengeResult,
@@ -18,21 +26,43 @@ import {
   type ChallengeProgress,
   type RunChallenge,
 } from './game/challenges';
-import { FIXED_DT, MAX_BUFFER } from './game/constants';
+import { FIXED_DT, PLAYER_Y, laneCenterX } from './game/constants';
+import { todayKey } from './game/daily';
 import { createRun, finalScore, step } from './game/engine';
+import {
+  createFx,
+  prefersReducedMotion,
+  triggerCombo,
+  triggerHit,
+  triggerNearMiss,
+  triggerPickup,
+  triggerSwitch,
+  type FxState,
+} from './game/juice';
+import { MODIFIERS, type ModifierId } from './game/modifiers';
+import {
+  buyRunner,
+  buyTheme,
+  dailyStatus,
+  loadMeta,
+  selectRunner,
+  selectTheme,
+  settleRun,
+  toggleModifier,
+  type MetaProgress,
+  type RunMode,
+} from './game/progress';
+import { type RunnerId } from './game/profiles';
 import { randomSeedCode } from './game/rng';
-import type { PlayerInput, RunState } from './game/types';
+import { type ThemeId } from './game/themes';
+import type { PlayerInput, RunConfig, RunState } from './game/types';
 
 type Screen = 'menu' | 'playing';
-
-const BEST_DIST_KEY = 'switchpoint-run:best-distance';
-const BEST_SCORE_KEY = 'switchpoint-run:best-score';
 
 export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('menu');
   const [paused, setPaused] = useState(false);
-  const [bestDistance, setBestDistance] = useState(0);
-  const [bestScore, setBestScore] = useState(0);
+  const [meta, setMeta] = useState<MetaProgress>(() => loadMeta());
   const [seedInput, setSeedInput] = useState('');
   const [challengeProgress, setChallengeProgress] = useState<ChallengeProgress>(() => ({
     clearedCount: 0,
@@ -40,12 +70,18 @@ export default function App(): React.ReactElement {
     cleared: {},
   }));
   const [showChallenges, setShowChallenges] = useState(false);
+  const [showGarage, setShowGarage] = useState(false);
   const [activeChallenge, setActiveChallenge] = useState<RunChallenge | null>(null);
+  const [runMode, setRunMode] = useState<RunMode>('free');
+  const [dailyDate, setDailyDate] = useState('');
   const [challengeWon, setChallengeWon] = useState(false);
-  /** Mirrors the simulation for the HUD only; the canvas reads the ref directly. */
+  const [lastBolts, setLastBolts] = useState(0);
+  const [lastNewBest, setLastNewBest] = useState(false);
   const [hud, setHud] = useState<RunState | null>(null);
+  const [comboFlash, setComboFlash] = useState(0);
 
   const stateRef = useRef<RunState | null>(null);
+  const fxRef = useRef<FxState>(createFx());
   const laneStepRef = useRef<-1 | 0 | 1>(0);
   const jumpRef = useRef(false);
   const slideRef = useRef(false);
@@ -54,14 +90,37 @@ export default function App(): React.ReactElement {
   const lastRef = useRef(0);
   const activeChallengeRef = useRef<RunChallenge | null>(null);
   const challengeResolvedRef = useRef(false);
+  const runModeRef = useRef<RunMode>('free');
+  const dailyDateRef = useRef('');
+  const settledRef = useRef(false);
+  const juiceSnap = useRef<{
+    hits: number;
+    branches: number;
+    streak: number;
+    scoreMult: number;
+    buffer: number;
+    active: boolean;
+    resolvedObs: number;
+  } | null>(null);
 
   useEffect(() => {
-    const d = Number(localStorage.getItem(BEST_DIST_KEY));
-    if (d) setBestDistance(d);
-    const sc = Number(localStorage.getItem(BEST_SCORE_KEY));
-    if (sc) setBestScore(sc);
+    setMeta(loadMeta());
     setChallengeProgress(loadChallengeProgress());
   }, []);
+
+  const buildConfig = useCallback(
+    (forChallenge: boolean): RunConfig => {
+      if (forChallenge) {
+        return { runnerId: 'standard', themeId: 'tunnel', modifierIds: [] };
+      }
+      return {
+        runnerId: meta.selectedRunnerId,
+        themeId: meta.selectedThemeId,
+        modifierIds: [...meta.equippedModifiers],
+      };
+    },
+    [meta.selectedRunnerId, meta.selectedThemeId, meta.equippedModifiers],
+  );
 
   const applyChallengeEnd = useCallback((state: RunState, challenge: RunChallenge) => {
     if (challengeResolvedRef.current) return;
@@ -74,35 +133,86 @@ export default function App(): React.ReactElement {
     });
   }, []);
 
+  const settleIfNeeded = useCallback(
+    (state: RunState, mode: RunMode, date: string) => {
+      if (settledRef.current) return;
+      settledRef.current = true;
+      const modBonus = mode === 'challenge'
+        ? 0
+        : state.config.modifierIds.reduce((sum, id) => {
+            const m = MODIFIERS.find((x) => x.id === id);
+            return sum + (m?.boltBonus ?? 0);
+          }, 0);
+      // Equip cost is paid at settle when modifiers with equipCost were active.
+      let equipCost = 0;
+      if (mode !== 'challenge') {
+        for (const id of state.config.modifierIds) {
+          const m = MODIFIERS.find((x) => x.id === id);
+          if (m) equipCost += m.equipCost;
+        }
+      }
+      setMeta((prev) => {
+        const result = settleRun(prev, {
+          state,
+          mode,
+          dailyDate: mode === 'daily' ? date : undefined,
+          modifierBoltBonus: modBonus - equipCost,
+        });
+        setLastBolts(result.boltsEarned);
+        setLastNewBest(result.newFreeBest || result.newDailyBest);
+        return result.meta;
+      });
+    },
+    [],
+  );
+
   const startRun = useCallback(
-    (seedCode?: string, challenge: RunChallenge | null = null) => {
+    (
+      seedCode?: string,
+      challenge: RunChallenge | null = null,
+      mode: RunMode = 'free',
+      date = '',
+    ) => {
       const code =
         (challenge?.seedCode ?? seedCode ?? seedInput).trim().toUpperCase() || randomSeedCode();
-      const s = createRun(code);
+      const s = createRun(code, 0, undefined, buildConfig(Boolean(challenge)));
       stateRef.current = s;
+      fxRef.current = createFx();
+      juiceSnap.current = null;
       setHud(s);
       accRef.current = 0;
       lastRef.current = performance.now();
       setPaused(false);
       setChallengeWon(false);
+      setLastBolts(0);
+      setLastNewBest(false);
+      setComboFlash(0);
       challengeResolvedRef.current = false;
+      settledRef.current = false;
       activeChallengeRef.current = challenge;
+      runModeRef.current = mode;
+      dailyDateRef.current = date;
       setActiveChallenge(challenge);
+      setRunMode(mode);
+      setDailyDate(date);
       setScreen('playing');
     },
-    [seedInput],
+    [seedInput, buildConfig],
   );
 
   const startChallenge = useCallback(
     (challengeId: string) => {
       const challenge = challengeById(challengeId);
       if (!challenge) return;
-      startRun(challenge.seedCode, challenge);
+      startRun(challenge.seedCode, challenge, 'challenge');
     },
     [startRun],
   );
 
-  // ── Input ──────────────────────────────────────────────────────────────────
+  const startDaily = useCallback(() => {
+    const status = dailyStatus(meta);
+    startRun(status.seedCode, null, 'daily', status.date);
+  }, [meta, startRun]);
 
   const readInput = useCallback((): PlayerInput => {
     const laneStep = laneStepRef.current;
@@ -141,7 +251,6 @@ export default function App(): React.ReactElement {
     return () => window.removeEventListener('keydown', down);
   }, [screen]);
 
-  // ── Touch: swipe to steer ────────────────────────────────────────────────
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     touchStart.current = { x: e.clientX, y: e.clientY };
@@ -161,7 +270,67 @@ export default function App(): React.ReactElement {
     }
   }, []);
 
-  // ── Fixed-timestep loop ────────────────────────────────────────────────────
+  // Juice: compare snapshots after HUD updates.
+  const applyJuice = useCallback((prev: typeof juiceSnap.current, next: RunState) => {
+    const fx = fxRef.current;
+    const px = laneCenterX(next.lane);
+    const py = PLAYER_Y;
+    const resolvedObs = next.activeBranch
+      ? next.activeBranch.obstacles.filter((o) => o.resolved).length
+      : 0;
+
+    if (!prev) {
+      juiceSnap.current = {
+        hits: next.hitsTotal,
+        branches: next.branchesCleared,
+        streak: next.noHitStreak,
+        scoreMult: next.scoreMult,
+        buffer: next.buffer,
+        active: Boolean(next.activeBranch),
+        resolvedObs,
+      };
+      return;
+    }
+
+    if (next.hitsTotal > prev.hits) {
+      triggerHit(fx, px, py);
+      playError();
+    }
+    if (next.branchesCleared > prev.branches) {
+      playScore();
+    }
+    if (!prev.active && next.activeBranch) {
+      triggerSwitch(fx, px, py - 40, '#34d399');
+      playMove();
+    }
+    if (next.scoreMult > prev.scoreMult) {
+      triggerPickup(fx, px, py - 20, 'score');
+      playScore();
+    }
+    if (next.buffer > prev.buffer + 20 && next.hitsTotal === prev.hits) {
+      // Supply pickup (buffer jump without a hit).
+      triggerPickup(fx, px, py - 20, 'supply');
+      playScore();
+    }
+    if (resolvedObs > prev.resolvedObs && next.hitsTotal === prev.hits) {
+      triggerNearMiss(fx, px, py);
+    }
+    if (next.noHitStreak > prev.streak && next.noHitStreak >= 2) {
+      triggerCombo(fx, next.noHitStreak);
+      setComboFlash(next.noHitStreak);
+      playCombo(next.noHitStreak);
+    }
+
+    juiceSnap.current = {
+      hits: next.hitsTotal,
+      branches: next.branchesCleared,
+      streak: next.noHitStreak,
+      scoreMult: next.scoreMult,
+      buffer: next.buffer,
+      active: Boolean(next.activeBranch),
+      resolvedObs,
+    };
+  }, []);
 
   useEffect(() => {
     if (screen !== 'playing') return;
@@ -176,15 +345,33 @@ export default function App(): React.ReactElement {
       lastRef.current = now;
       if (paused || challengeWon || s.phase !== 'playing') return;
 
+      // Hit-stop: hold the simulation briefly on hits (respects reduced motion).
+      if (fxRef.current.hitStop > 0 && !prefersReducedMotion()) {
+        return;
+      }
+
       accRef.current += dtReal;
       let next = s;
-      // Fixed steps only: the simulation must advance in whole FIXED_DT ticks
-      // or the run stops being reproducible from its seed and inputs.
       let budget = 8;
       let justCleared = false;
       while (accRef.current >= FIXED_DT && budget-- > 0) {
         accRef.current -= FIXED_DT;
+        const before = next;
         next = step(next, readInput(), FIXED_DT);
+        applyJuice(
+          {
+            hits: before.hitsTotal,
+            branches: before.branchesCleared,
+            streak: before.noHitStreak,
+            scoreMult: before.scoreMult,
+            buffer: before.buffer,
+            active: Boolean(before.activeBranch),
+            resolvedObs: before.activeBranch
+              ? before.activeBranch.obstacles.filter((o) => o.resolved).length
+              : 0,
+          },
+          next,
+        );
         if (next.phase !== 'playing') break;
         const challenge = activeChallengeRef.current;
         if (challenge && isChallengeCleared(challenge, next)) {
@@ -197,8 +384,6 @@ export default function App(): React.ReactElement {
       stateRef.current = next;
 
       hudClock += dtReal;
-      // Always push HUD on clear: otherwise a low hudClock can leave the
-      // overlay one frame behind (showing e.g. 1997 when the clear was at 2000).
       if (hudClock > 0.08 || next.phase !== 'playing' || justCleared) {
         hudClock = 0;
         setHud(next);
@@ -206,26 +391,16 @@ export default function App(): React.ReactElement {
     };
     rafRef.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [screen, paused, challengeWon, readInput, applyChallengeEnd]);
+  }, [screen, paused, challengeWon, readInput, applyChallengeEnd, applyJuice]);
 
-  // Record free-play bests once a run ends (challenge wins also update bests).
+  // Settle meta once a run ends.
   useEffect(() => {
     if (!hud) return;
     const ended = hud.phase === 'caught' || challengeWon;
     if (!ended) return;
-    const dist = Math.round(hud.distance);
-    const score = finalScore(hud);
-    if (dist > bestDistance) {
-      setBestDistance(dist);
-      localStorage.setItem(BEST_DIST_KEY, String(dist));
-    }
-    if (score > bestScore) {
-      setBestScore(score);
-      localStorage.setItem(BEST_SCORE_KEY, String(score));
-    }
-  }, [hud, bestDistance, bestScore, challengeWon]);
+    settleIfNeeded(hud, runModeRef.current, dailyDateRef.current);
+  }, [hud, challengeWon, settleIfNeeded]);
 
-  // Challenge fail path: caught without meeting the goal still records best metric.
   useEffect(() => {
     if (!hud || hud.phase !== 'caught' || challengeWon) return;
     const challenge = activeChallengeRef.current;
@@ -233,7 +408,6 @@ export default function App(): React.ReactElement {
     applyChallengeEnd(hud, challenge);
   }, [hud, challengeWon, applyChallengeEnd]);
 
-  // End SFX once per caught / cleared run.
   const endSfxKey = useRef<string | null>(null);
   useEffect(() => {
     if (!hud) {
@@ -257,24 +431,28 @@ export default function App(): React.ReactElement {
     playLose();
   }, [hud, challengeWon]);
 
-  // Move / score feedback while running (lane change, branch clear, pickup).
-  const sfxSnap = useRef<{ branches: number; hits: number; lane: number } | null>(null);
+  // Lane-change move SFX (not covered by applyJuice when no branch lock).
+  const laneSnap = useRef<number | null>(null);
   useEffect(() => {
     if (!hud || hud.phase !== 'playing' || challengeWon) {
-      sfxSnap.current = null;
+      laneSnap.current = null;
       return;
     }
-    const prev = sfxSnap.current;
-    sfxSnap.current = {
-      branches: hud.branchesCleared,
-      hits: hud.hitsTotal,
-      lane: hud.lane,
-    };
-    if (!prev) return;
-    if (hud.lane !== prev.lane) playMove();
-    if (hud.branchesCleared > prev.branches) playScore();
-    if (hud.hitsTotal > prev.hits) playError();
+    if (laneSnap.current === null) {
+      laneSnap.current = hud.lane;
+      return;
+    }
+    if (hud.lane !== laneSnap.current) {
+      laneSnap.current = hud.lane;
+      playMove();
+    }
   }, [hud, challengeWon]);
+
+  useEffect(() => {
+    if (comboFlash <= 0) return;
+    const t = window.setTimeout(() => setComboFlash(0), prefersReducedMotion() ? 400 : 700);
+    return () => window.clearTimeout(t);
+  }, [comboFlash]);
 
   const packTotal = challengeCount();
   const packContinue = continueChallengeIndex(challengeProgress.clearedCount);
@@ -285,12 +463,14 @@ export default function App(): React.ReactElement {
         ? `進度 ${challengeProgress.clearedCount}/${packTotal}・繼續`
         : `挑戰種子包・${packTotal} 關`;
 
-  // ── Screens ────────────────────────────────────────────────────────────────
+  const daily = dailyStatus(meta);
+  const bestDistance = meta.free.bestDistance;
+  const bestScore = meta.free.bestScore;
 
   if (screen === 'menu') {
     return (
       <div
-        className="sr-title-shell min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center"
+        className="sr-title-shell min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center"
         style={{
           backgroundImage: [
             'linear-gradient(rgba(5, 9, 10, 0.55), rgba(5, 9, 10, 0.92))',
@@ -319,12 +499,16 @@ export default function App(): React.ReactElement {
             <li>觸控：左右滑動換道、上滑跳躍、下滑滑行。</li>
           </ul>
         </div>
-        {(bestDistance > 0 || bestScore > 0) && (
-          <p className="text-slate-400 text-sm">
-            最佳距離 {bestDistance.toLocaleString('zh-Hant')} ・ 最佳分數{' '}
-            {bestScore.toLocaleString('zh-Hant')}
-          </p>
-        )}
+        <p className="text-slate-400 text-sm">
+          鐵道螺栓 <b className="text-amber-300">{meta.bolts.toLocaleString('zh-Hant')}</b>
+          {(bestDistance > 0 || bestScore > 0) && (
+            <>
+              {' '}
+              ・ 最佳距離 {bestDistance.toLocaleString('zh-Hant')} ・ 最佳分數{' '}
+              {bestScore.toLocaleString('zh-Hant')}
+            </>
+          )}
+        </p>
         <div className="flex flex-col items-center gap-2">
           <input
             value={seedInput}
@@ -342,14 +526,79 @@ export default function App(): React.ReactElement {
           </button>
           <button
             type="button"
-            onClick={() => setShowChallenges(true)}
-            className="min-h-[44px] px-8 py-3 rounded-xl border border-sky-500/50 bg-sky-500/15 font-semibold text-sky-100"
-            aria-label={`開啟挑戰種子包。${packSubtitle}`}
+            onClick={startDaily}
+            className="min-h-[44px] px-8 py-3 rounded-xl border border-amber-500/50 bg-amber-500/15 font-semibold text-amber-100"
+            aria-label={`今日挑戰種子 ${daily.seedCode}`}
           >
-            挑戰種子包
+            今日挑戰
           </button>
+          <p className="text-[11px] text-slate-500">
+            種子 {daily.seedCode}
+            {daily.best
+              ? `・今日最佳 ${daily.best.bestDistance.toLocaleString('zh-Hant')} / ${daily.best.bestScore.toLocaleString('zh-Hant')}`
+              : '・尚無今日紀錄'}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowGarage(true)}
+              className="min-h-[44px] px-6 py-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-semibold text-emerald-100"
+            >
+              車庫與解鎖
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowChallenges(true)}
+              className="min-h-[44px] px-6 py-3 rounded-xl border border-sky-500/50 bg-sky-500/15 font-semibold text-sky-100"
+              aria-label={`開啟挑戰種子包。${packSubtitle}`}
+            >
+              挑戰種子包
+            </button>
+          </div>
           <p className="text-[11px] text-slate-500">{packSubtitle}</p>
         </div>
+
+        {showGarage && (
+          <GaragePanel
+            meta={meta}
+            onClose={() => setShowGarage(false)}
+            onSelectRunner={(id: RunnerId) => {
+              const next = selectRunner(meta, id);
+              if (next) {
+                setMeta(next);
+                playMove();
+              }
+            }}
+            onBuyRunner={(id: RunnerId) => {
+              const next = buyRunner(meta, id);
+              if (next) {
+                setMeta(next);
+                playWin();
+              } else playError();
+            }}
+            onSelectTheme={(id: ThemeId) => {
+              const next = selectTheme(meta, id);
+              if (next) {
+                setMeta(next);
+                playMove();
+              }
+            }}
+            onBuyTheme={(id: ThemeId) => {
+              const next = buyTheme(meta, id);
+              if (next) {
+                setMeta(next);
+                playWin();
+              } else playError();
+            }}
+            onToggleModifier={(id: ModifierId) => {
+              const next = toggleModifier(meta, id);
+              if (next) {
+                setMeta(next);
+                playMove();
+              }
+            }}
+          />
+        )}
 
         {showChallenges && (
           <div
@@ -468,20 +717,22 @@ export default function App(): React.ReactElement {
 
   const s = hud;
   const ended = s?.phase === 'caught' || challengeWon;
-  // Scaled against MAX_BUFFER, not a magic number. It was 260 while the buffer
-  // could reach 430, so the bar saturated at 100% and stopped moving for the
-  // top 40% of the player's only life-or-death resource.
-  const bufferPct = s ? Math.max(0, Math.min(100, (s.buffer / MAX_BUFFER) * 100)) : 0;
+  const maxBuf = s?.maxBuffer ?? 430;
+  const bufferPct = s ? Math.max(0, Math.min(100, (s.buffer / maxBuf) * 100)) : 0;
   const bufferTone =
     bufferPct < 22 ? 'text-red-400' : bufferPct < 50 ? 'text-amber-300' : 'text-emerald-400';
   const bufferFill =
     bufferPct < 22 ? '#f87171' : bufferPct < 50 ? '#fbbf24' : '#34d399';
 
+  const modeLabel =
+    runMode === 'daily' ? '每日挑戰' : runMode === 'challenge' ? '挑戰包' : '自由遊玩';
+
   return (
-    <div className="h-screen w-screen flex flex-col">
+    <div
+      className={`h-screen w-screen flex flex-col${fxRef.current.shake > 4 ? ' sr-shake-hard' : fxRef.current.shake > 1.5 ? ' sr-shake' : ''}`}
+    >
       <BackToMenu />
 
-      {/* HUD */}
       <div className="sr-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
         <div className="flex gap-2 flex-wrap">
           <span className="sr-hud-chip">
@@ -491,9 +742,10 @@ export default function App(): React.ReactElement {
           <span className="sr-hud-chip">
             分數 <b className="text-emerald-300 tabular-nums">{s ? finalScore(s) : 0}</b>
           </span>
+          <span className="sr-hud-chip text-slate-400">{modeLabel}</span>
           {activeChallenge && (
             <span className="sr-hud-chip text-sky-200">
-              挑戰・{activeChallenge.name}
+              {activeChallenge.name}
               <span className="ml-1 text-slate-400">{activeChallenge.goalLabel}</span>
             </span>
           )}
@@ -502,13 +754,12 @@ export default function App(): React.ReactElement {
           <span className="sr-hud-chip">
             倍率 <b className="text-amber-300">×{(s?.scoreMult ?? 1).toFixed(2)}</b>
           </span>
-          <span className="sr-hud-chip">
-            連續無傷 <b className="text-sky-300 tabular-nums">{s?.noHitStreak ?? 0}</b>
+          <span className={`sr-hud-chip${comboFlash > 0 ? ' sr-combo-pop' : ''}`}>
+            連擊 <b className="text-sky-300 tabular-nums">{s?.noHitStreak ?? 0}</b>
           </span>
         </div>
       </div>
 
-      {/* Buffer gauge: the single number the whole game is played against. */}
       <div className="shrink-0 px-3 pb-2">
         <div className="mb-1 flex justify-between text-[10px] text-slate-500">
           <span>與列車間距</span>
@@ -522,13 +773,18 @@ export default function App(): React.ReactElement {
         </div>
       </div>
 
-      {/* Field */}
       <div
         className="flex-1 min-h-0 relative"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
       >
-        <GameCanvas stateRef={stateRef} paused={paused || challengeWon} />
+        <GameCanvas stateRef={stateRef} fxRef={fxRef} paused={paused || challengeWon} />
+
+        {comboFlash >= 2 && (
+          <div className="sr-combo-banner pointer-events-none absolute left-1/2 top-8 -translate-x-1/2">
+            連擊 ×{comboFlash}
+          </div>
+        )}
 
         {paused && !ended && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -554,10 +810,11 @@ export default function App(): React.ReactElement {
               label: '本次',
               value: challengeMetric(activeChallenge, s).toLocaleString('zh-Hant'),
             },
+            { label: '鐵道螺栓', value: `+${lastBolts}` },
             { label: '種子碼', value: s.seedCode },
           ]}
           primaryLabel="再試一次"
-          onPrimary={() => startRun(activeChallenge.seedCode, activeChallenge)}
+          onPrimary={() => startRun(activeChallenge.seedCode, activeChallenge, 'challenge')}
           secondaryLabel="回選單"
           onSecondary={() => {
             setActiveChallenge(null);
@@ -569,29 +826,40 @@ export default function App(): React.ReactElement {
 
       {ended && s && !challengeWon && (
         <ResultOverlay
-          title={activeChallenge ? '挑戰未過' : '被列車追上'}
+          title={
+            activeChallenge
+              ? '挑戰未過'
+              : runMode === 'daily'
+                ? '今日挑戰結束'
+                : '被列車追上'
+          }
           subtitle={
             activeChallenge
               ? `${activeChallenge.name}・目標 ${activeChallenge.goalLabel}`
-              : `跑了 ${Math.round(s.distance)} 距離，選了 ${s.branchesCleared} 次岔道。`
+              : runMode === 'daily'
+                ? `今日種子 ${s.seedCode}・${todayKey()}`
+                : `跑了 ${Math.round(s.distance)} 距離，選了 ${s.branchesCleared} 次岔道。`
           }
           variant="lose"
-          badge={finalScore(s) > bestScore ? '新紀錄' : undefined}
+          badge={lastNewBest ? '新紀錄' : undefined}
           stats={[
             { label: '距離', value: Math.round(s.distance).toLocaleString('zh-Hant') },
             { label: '分數', value: finalScore(s).toLocaleString('zh-Hant') },
             { label: '路線評價', value: s.routeScore },
             { label: '評分倍率', value: `×${s.scoreMult.toFixed(2)}` },
             { label: '撞擊次數', value: s.hitsTotal },
-            { label: '最長連續無傷', value: s.maxNoHitStreak },
+            { label: '最長連擊', value: s.maxNoHitStreak },
+            { label: '鐵道螺栓', value: `+${lastBolts}` },
             { label: '種子碼', value: s.seedCode },
           ]}
-          primaryLabel={activeChallenge ? '再試一次' : '再跑一次'}
-          onPrimary={() =>
-            activeChallenge
-              ? startRun(activeChallenge.seedCode, activeChallenge)
-              : startRun(s.seedCode)
+          primaryLabel={
+            activeChallenge ? '再試一次' : runMode === 'daily' ? '再挑戰今日' : '再跑一次'
           }
+          onPrimary={() => {
+            if (activeChallenge) startRun(activeChallenge.seedCode, activeChallenge, 'challenge');
+            else if (runMode === 'daily') startRun(s.seedCode, null, 'daily', dailyDate);
+            else startRun(s.seedCode, null, 'free');
+          }}
           secondaryLabel="回選單"
           onSecondary={() => {
             setActiveChallenge(null);

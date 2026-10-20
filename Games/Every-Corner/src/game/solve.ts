@@ -1,4 +1,4 @@
-import { cellCount } from './grid';
+import { cellCount, playableCount } from './grid';
 import type { CellId, Size } from './types';
 
 export interface SolveInput {
@@ -6,6 +6,8 @@ export interface SolveInput {
   neighbours: CellId[][];
   checkpoints: Record<CellId, number>;
   checkpointCount: number;
+  /** Cells the path must never enter; treated as already visited. */
+  blocked?: CellId[];
   /** Stop once this many solutions are found. 2 is enough to test uniqueness. */
   limit?: number;
   /** Turn off pruning. Only the parity self-check should ever do this. */
@@ -50,7 +52,9 @@ function endCell(checkpoints: Record<CellId, number>, count: number): CellId {
  * milliseconds.
  */
 export function solve(input: SolveInput): SolveResult {
-  const total = cellCount(input.size);
+  const boardCells = cellCount(input.size);
+  const blocked = input.blocked ?? [];
+  const total = playableCount(input.size, blocked);
   const limit = input.limit ?? 2;
   const prune = input.prune ?? true;
   const nodeLimit = input.nodeLimit ?? 4_000_000;
@@ -59,10 +63,14 @@ export function solve(input: SolveInput): SolveResult {
   const finish = endCell(input.checkpoints, input.checkpointCount);
   const solutions: CellId[][] = [];
   if (start < 0 || finish < 0) return { solutions, exhausted: true, nodes: 0 };
+  if (blocked.includes(start) || blocked.includes(finish)) {
+    return { solutions, exhausted: true, nodes: 0 };
+  }
 
-  const visited = new Array<boolean>(total).fill(false);
+  const visited = new Array<boolean>(boardCells).fill(false);
+  for (const hole of blocked) visited[hole] = true;
   const path: CellId[] = [];
-  const stack: CellId[] = new Array(total);
+  const stack: CellId[] = new Array(boardCells);
   let nodes = 0;
   let exhausted = true;
 
@@ -93,7 +101,7 @@ export function solve(input: SolveInput): SolveResult {
    */
   const endpointsAreLegal = (current: CellId): boolean => {
     let forced = 0;
-    for (let cell = 0; cell < total; cell++) {
+    for (let cell = 0; cell < boardCells; cell++) {
       if (visited[cell]) continue;
       let degree = 0;
       for (const next of input.neighbours[cell]) {

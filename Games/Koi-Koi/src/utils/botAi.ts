@@ -1,5 +1,6 @@
-import { Card, CardType } from '../types';
+import { Card, CardType, YakuId } from '../types';
 import { calculateYaku, getMatchingCards, WIN_SCORE } from './gameLogic';
+import type { PersonalityStyle } from './personalities';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -57,27 +58,65 @@ function pickRandom<T>(items: T[], rng: Rng): T {
   return items[Math.floor(rng() * items.length) % items.length];
 }
 
+function effectiveConfig(
+  difficulty: Difficulty,
+  personality?: PersonalityStyle | null,
+): DifficultyConfig {
+  const base = DIFFICULTY[difficulty];
+  if (!personality) return base;
+  return {
+    ...base,
+    randomRate: Math.min(1, Math.max(0, base.randomRate * personality.randomRateMul)),
+    koiKoiPointCap: Math.max(1, base.koiKoiPointCap + personality.koiKoiCapDelta),
+    captureBias: Math.max(0, base.captureBias + personality.captureBiasDelta),
+  };
+}
+
 /** Bonus for cards that complete or approach named yaku pieces. */
-function subtypeBonus(card: Card): number {
+function subtypeBonus(card: Card, personality?: PersonalityStyle | null): number {
+  let base = 0;
   switch (card.subType) {
     case 'crane':
     case 'curtain':
     case 'moon':
-      return 6;
+      base = 6;
+      break;
     case 'boar':
     case 'deer':
     case 'butterfly':
-      return 5;
+      base = 5;
+      break;
     case 'sake':
-      return 5;
+      base = 5;
+      break;
     case 'akatan':
     case 'aotan':
-      return 4;
+      base = 4;
+      break;
     case 'rain_man':
-      return 2;
+      base = 2;
+      break;
     default:
-      return 0;
+      base = 0;
   }
+  if (!card.subType || !personality?.subtypeBias) return base;
+  const mul = personality.subtypeBias[card.subType];
+  return mul === undefined ? base : base * mul;
+}
+
+function chaseBonus(
+  yakuIds: YakuId[],
+  personality?: PersonalityStyle | null,
+): number {
+  if (!personality || personality.chaseYaku.length === 0 || personality.chaseYakuBonus <= 0) {
+    return 0;
+  }
+  const chased = new Set(personality.chaseYaku);
+  let hits = 0;
+  for (const id of yakuIds) {
+    if (chased.has(id)) hits += 1;
+  }
+  return hits * personality.chaseYakuBonus;
 }
 
 /**
@@ -89,11 +128,13 @@ export function scoreCapture(
   fieldCards: Card[],
   captured: Card[],
   yakuWeight: number,
+  personality?: PersonalityStyle | null,
 ): number {
   const typeScore =
     TYPE_VALUE[handCard.type] + fieldCards.reduce((sum, c) => sum + TYPE_VALUE[c.type], 0);
   const bonus =
-    subtypeBonus(handCard) + fieldCards.reduce((sum, c) => sum + subtypeBonus(c), 0);
+    subtypeBonus(handCard, personality) +
+    fieldCards.reduce((sum, c) => sum + subtypeBonus(c, personality), 0);
 
   if (fieldCards.length === 0) {
     // Dumping: lower value is better when dumpLowValue is on (caller inverts).
@@ -101,10 +142,14 @@ export function scoreCapture(
   }
 
   const after = [...captured, handCard, ...fieldCards];
-  const { totalPoints } = calculateYaku(after);
+  const { yaku, totalPoints } = calculateYaku(after);
   // Taking three of a month is usually strong.
   const tripleBonus = fieldCards.length >= 3 ? 8 : fieldCards.length === 2 ? 1 : 0;
-  return totalPoints * yakuWeight + typeScore * 2 + bonus + tripleBonus;
+  const chase = chaseBonus(
+    yaku.map(entry => entry.id),
+    personality,
+  );
+  return totalPoints * yakuWeight + typeScore * 2 + bonus + tripleBonus + chase;
 }
 
 export interface HandPlayChoice {
@@ -119,6 +164,7 @@ function bestFieldMatch(
   matches: Card[],
   captured: Card[],
   yakuWeight: number,
+  personality?: PersonalityStyle | null,
 ): Card | null {
   if (matches.length === 0) return null;
   if (matches.length === 1 || matches.length === 3) return matches[0];
@@ -126,7 +172,7 @@ function bestFieldMatch(
   let best = matches[0];
   let bestScore = -Infinity;
   for (const fieldCard of matches) {
-    const score = scoreCapture(handCard, [fieldCard], captured, yakuWeight);
+    const score = scoreCapture(handCard, [fieldCard], captured, yakuWeight, personality);
     if (score > bestScore) {
       bestScore = score;
       best = fieldCard;
@@ -144,10 +190,12 @@ export function pickBotHandPlay(
   captured: Card[],
   difficulty: Difficulty = 'normal',
   rng: Rng = defaultRng,
+  personality?: PersonalityStyle | null,
 ): HandPlayChoice | null {
   if (hand.length === 0) return null;
 
-  const config = DIFFICULTY[difficulty];
+  const config = effectiveConfig(difficulty, personality);
+  const yakuWeight = Math.max(config.yakuWeight, 1);
   const options: HandPlayChoice[] = hand.map(handCard => {
     const matches = getMatchingCards(handCard, field);
     const fieldMatch =
@@ -155,7 +203,7 @@ export function pickBotHandPlay(
         ? null
         : matches.length === 3
           ? matches[0]
-          : bestFieldMatch(handCard, matches, captured, Math.max(config.yakuWeight, 1));
+          : bestFieldMatch(handCard, matches, captured, yakuWeight, personality);
     return { handCard, fieldMatch, matches };
   });
 
@@ -173,7 +221,13 @@ export function pickBotHandPlay(
         : option.fieldMatch
           ? [option.fieldMatch]
           : [];
-    let score = scoreCapture(option.handCard, fieldCards, captured, config.yakuWeight);
+    let score = scoreCapture(
+      option.handCard,
+      fieldCards,
+      captured,
+      config.yakuWeight,
+      personality,
+    );
     if (fieldCards.length === 0 && !config.dumpLowValue) {
       // Easy: dumping is roughly random among non-matches — flatten dump scores.
       score = rng();
@@ -201,18 +255,27 @@ export function pickBotFieldMatch(
   captured: Card[],
   difficulty: Difficulty = 'normal',
   rng: Rng = defaultRng,
+  personality?: PersonalityStyle | null,
 ): Card {
   if (matches.length === 0) {
     throw new Error('pickBotFieldMatch requires at least one match');
   }
   if (matches.length === 1) return matches[0];
 
-  const config = DIFFICULTY[difficulty];
+  const config = effectiveConfig(difficulty, personality);
   if (config.randomRate > 0 && rng() < config.randomRate) {
     return pickRandom(matches, rng);
   }
 
-  return bestFieldMatch(playedCard, matches, captured, Math.max(config.yakuWeight, 1)) ?? matches[0];
+  return (
+    bestFieldMatch(
+      playedCard,
+      matches,
+      captured,
+      Math.max(config.yakuWeight, 1),
+      personality,
+    ) ?? matches[0]
+  );
 }
 
 export interface KoiKoiContext {
@@ -223,6 +286,7 @@ export interface KoiKoiContext {
   playerKoiKoiCount: number;
   difficulty: Difficulty;
   winScore?: number;
+  personality?: PersonalityStyle | null;
 }
 
 /**
@@ -231,22 +295,30 @@ export interface KoiKoiContext {
 export function shouldBotKoiKoi(ctx: KoiKoiContext): boolean {
   if (ctx.botHandLength <= 0) return false;
 
-  const config = DIFFICULTY[ctx.difficulty];
+  const personality = ctx.personality ?? null;
+  const config = effectiveConfig(ctx.difficulty, personality);
   const winScore = ctx.winScore ?? WIN_SCORE;
+  const risk = personality?.riskAppetite ?? 0.45;
 
   if (ctx.difficulty === 'hard') {
     // Bank if this finish wins the match, or points are already strong.
     const finishPoints =
       ctx.playerKoiKoiCount > 0 ? ctx.totalPoints * 2 : ctx.totalPoints;
     if (ctx.botScore + finishPoints >= winScore) return false;
-    if (ctx.totalPoints >= 7) return false;
-    if (ctx.botHandLength <= 2 && ctx.totalPoints >= 3) return false;
+    // High-risk personalities may still press with strong hands.
+    if (ctx.totalPoints >= 7 && risk < 0.7) return false;
+    if (ctx.totalPoints >= 10) return false;
+    if (ctx.botHandLength <= 2 && ctx.totalPoints >= 3 && risk < 0.8) return false;
     // Opponent is close — take the points rather than risk a reverse.
-    if (ctx.playerScore >= winScore - 3 && ctx.totalPoints >= 3) return false;
-    return ctx.totalPoints < config.koiKoiPointCap || ctx.botHandLength >= 4;
+    if (ctx.playerScore >= winScore - 3 && ctx.totalPoints >= 3 && risk < 0.85) return false;
+    return ctx.totalPoints < config.koiKoiPointCap || (ctx.botHandLength >= 4 && risk >= 0.55);
   }
 
-  return ctx.totalPoints < config.koiKoiPointCap;
+  // Easy / normal: personality shifts the continue threshold.
+  if (ctx.totalPoints < config.koiKoiPointCap) return true;
+  // Borderline: only greedy callers continue at/above the cap.
+  if (ctx.totalPoints === config.koiKoiPointCap) return risk >= 0.7;
+  return risk >= 0.9 && ctx.totalPoints <= config.koiKoiPointCap + 2;
 }
 
 export interface HintChoice {

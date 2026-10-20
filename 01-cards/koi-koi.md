@@ -8,7 +8,7 @@
 
 使用日本傳統花札（48 張、12 月份）的 **Koi-Koi** 玩法：兩人輪流出手牌與翻山牌，依月份配對取牌，組成「役」得分。成役後可選擇結算或喊「Koi-Koi」繼續博取更高分；若被對手先成役結算，分數可能歸對手並加倍。
 
-本館實作為 **單人對電腦**（花札師匠），含三角難度、勝分目標、角色選擇、提示、悔棋、首局引導、戰績連勝、背景音樂、`ResultOverlay` 與規則說明。
+本館實作為 **單人對電腦**，含三角難度、勝分目標、玩家／對手角色選擇（對手帶個性 AI）、役種圖鑑、提示、悔棋、首局引導、戰績連勝、背景音樂、`ResultOverlay` 與規則說明。
 
 來源專案：[poirotw66/Koi-Koi](https://github.com/poirotw66/Koi-Koi)
 
@@ -43,10 +43,29 @@
 
 開局可選 **先達 7／12／20**（預設 12）。達標即整場勝利。
 
+### 對手個性（`OpponentPersonality`）
+
+每位可選動物角色對應一組資料驅動的打牌風格，**疊加在難度之上**（難度管亂手／紀律，個性管追役與風險）：
+
+| 面向 | 說明 |
+|------|------|
+| 追役 | `chaseYaku`／`subtypeBias` 偏好光牌、短冊、豬鹿蝶、月見／花見酒等 |
+| 風險 | `riskAppetite`／`koiKoiCapDelta`：貪心連喊 vs 穩健收分 |
+| 台詞 | 喊 Koi-Koi、整場勝／負時顯示短句（繁中） |
+
+對手選擇寫入 `clubhouse-koi-koi-opponent`；對局中頭像與名稱跟隨所選角色。
+
+### 役種圖鑑（Yaku Codex）
+
+- 鍵：`clubhouse-koi-koi-yaku-codex`（parse 時驗證／合併非法資料）。
+- 紀錄每個已完成役的**首成日期**、**達成次數**、**最佳手牌總分**；未解鎖顯示剪影與提示。
+- 選單書本按鈕、結果畫面次要按鈕可開啟。
+
 ### 其他
 
-- **角色選擇**：玩家頭像寫入本機，跨局保留。
+- **角色選擇**：玩家頭像寫入本機，跨局保留；對手另選（見上）。
 - 上次難度與勝分目標一併記在戰績物件中。
+- **成役回饋**：組成役時短動畫＋音效（尊重 `prefers-reduced-motion`）；圖鑑首解鎖另有加強音效。
 
 ## 規則說明（概要）
 
@@ -68,14 +87,14 @@
 
 | 項目 | 本實作 |
 |------|--------|
-| 模式／變體 | 三難度 AI × 三檔勝分；角色選擇 |
-| Replay hook | 勝敗與連勝（`winStreak`） |
-| 對手 AI | 三級可分辨；**Hint** + **Undo** |
-| Feedback | `ResultOverlay` + `synthAudio` + BGM；首局引導 |
-| Touch | 出牌／配對／悔棋可觸控 |
-| Check | `npm run check` → `vitest run`（`gameLogic`／`botAi` 等） |
+| 模式／變體 | 三難度 AI × 三檔勝分；玩家／對手角色；對手個性 |
+| Replay hook | 勝敗與連勝（`winStreak`）；役種圖鑑 |
+| 對手 AI | 三級可分辨 + 角色個性；**Hint** + **Undo** |
+| Feedback | `ResultOverlay` + `synthAudio` + BGM；成役動畫；首局引導 |
+| Touch | 出牌／配對／悔棋／圖鑑可觸控 |
+| Check | `npm run check` → `vitest run`（`gameLogic`／`botAi`／`yakuCodex` 等） |
 
 ## 實作
 
 - 專案路徑：[Games/Koi-Koi/](../Games/Koi-Koi/)
-- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/stats.ts`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`
+- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/personalities.ts`、`src/utils/yakuCodex.ts`、`src/utils/stats.ts`；UI：`src/App.tsx`、`src/components/YakuCodexModal.tsx`、`src/components/FirstRunGuide.tsx`

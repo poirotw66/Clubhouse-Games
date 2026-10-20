@@ -79,11 +79,12 @@ export const INITIAL_SHELF_Y1 = SHELF_LEN - COIN_R - 6;
 /** Idle physics ticks after grid placement so the pile settles before the player acts. */
 export const INITIAL_SETTLE_TICKS = 200;
 
-export const COST: Record<'normal' | 'heavy' | 'ball' | 'vibrate', number> = {
+export const COST: Record<'normal' | 'heavy' | 'ball' | 'vibrate' | 'magnet', number> = {
   normal: 1,
   heavy: 2,
   ball: 2,
   vibrate: 3,
+  magnet: 3,
 };
 
 /**
@@ -97,6 +98,11 @@ export const HEAVY_RADIUS_MULT = 1.16;
 export const HEAVY_MASS = 2.4;
 export const BALL_RADIUS_MULT = 0.82;
 export const BALL_MASS = 0.55;
+export const MAGNET_RADIUS_MULT = 1.05;
+export const MAGNET_MASS = 1.35;
+/** How far (in radii) a magnet pull reaches, and how hard it tugs. */
+export const MAGNET_PULL_RADIUS = COIN_R * 5.5;
+export const MAGNET_PULL_STRENGTH = 0.55;
 export const NORMAL_MASS = 1;
 /**
  * The pot's trigger token is a slug, not a coin. It sits ahead of the plate's

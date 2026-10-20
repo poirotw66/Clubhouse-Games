@@ -10,6 +10,7 @@
 let ctx: AudioContext | null = null;
 let muted = false;
 let noiseBuffer: AudioBuffer | null = null;
+let reducedMotion = false;
 
 function ac(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -30,14 +31,16 @@ export function isMuted(): boolean {
   return muted;
 }
 
+/** Presentation-only: shorter fanfares when the user prefers reduced motion. */
+export function setAudioReducedMotion(value: boolean): void {
+  reducedMotion = value;
+}
+
 function getNoiseBuffer(c: AudioContext): AudioBuffer {
   if (noiseBuffer && noiseBuffer.sampleRate === c.sampleRate) return noiseBuffer;
   const len = Math.floor(c.sampleRate * 0.12);
   const buf = c.createBuffer(1, len, c.sampleRate);
   const data = buf.getChannelData(0);
-  // A short deterministic-enough (per-buffer, not per-play) noise burst is
-  // plenty for a metallic click; it does not need to vary per play, and it
-  // never touches the simulation, so it has no bearing on replay determinism.
   for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
   noiseBuffer = buf;
   return buf;
@@ -56,9 +59,22 @@ function metalClink(c: AudioContext, when: number, freq: number, gainScale: numb
   osc.start(when);
   osc.stop(when + 0.2);
 
-  // A quick pitch drop sells "metal", not just a tone.
   osc.frequency.setValueAtTime(freq, when);
   osc.frequency.exponentialRampToValueAtTime(freq * 0.72, when + 0.1);
+
+  // Second partial — stacks a brighter overtone so layered clinks read as metal,
+  // not a single soft tone.
+  const osc2 = c.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 1.48;
+  const gain2 = c.createGain();
+  gain2.gain.setValueAtTime(0, when);
+  gain2.gain.linearRampToValueAtTime(0.045 * gainScale, when + 0.003);
+  gain2.gain.exponentialRampToValueAtTime(0.001, when + 0.09);
+  osc2.connect(gain2);
+  gain2.connect(c.destination);
+  osc2.start(when);
+  osc2.stop(when + 0.12);
 
   const noise = c.createBufferSource();
   noise.buffer = getNoiseBuffer(c);
@@ -85,11 +101,14 @@ export function playCoinFall(count: number): void {
   if (muted) return;
   const c = ac();
   if (!c) return;
-  const n = Math.max(1, Math.min(8, count));
+  const n = Math.max(1, Math.min(10, count));
   const gainScale = 1 / Math.sqrt(n);
-  const baseFreqs = [1380, 1560, 1720, 1240, 1900, 1480, 1650, 1330];
+  const baseFreqs = [1380, 1560, 1720, 1240, 1900, 1480, 1650, 1330, 1820, 1410];
+  // Stagger more for big cascades so layers are audible as a roll, not a wall.
+  const gap = n >= 5 ? 0.018 : 0.014;
   for (let i = 0; i < n; i++) {
-    metalClink(c, c.currentTime + i * 0.014, baseFreqs[i % baseFreqs.length], gainScale);
+    const pitchLift = 1 + i * 0.012;
+    metalClink(c, c.currentTime + i * gap, baseFreqs[i % baseFreqs.length]! * pitchLift, gainScale);
   }
 }
 
@@ -120,7 +139,7 @@ export function playCascade(size: number): void {
     const when = c.currentTime + i * 0.07;
     const osc = c.createOscillator();
     osc.type = 'triangle';
-    osc.frequency.value = notes[i];
+    osc.frequency.value = notes[i]!;
     const gain = c.createGain();
     gain.gain.setValueAtTime(0, when);
     gain.gain.linearRampToValueAtTime(0.09, when + 0.01);
@@ -132,26 +151,48 @@ export function playCascade(size: number): void {
   }
 }
 
-export function playJackpot(): void {
+/**
+ * Jackpot celebration: layered clinks + rising fanfare. Under reduced motion
+ * the fanfare is shortened so the cue still fires without a long flourish.
+ */
+export function playJackpot(tideBonus = false): void {
   if (muted) return;
   const c = ac();
   if (!c) return;
-  for (let i = 0; i < 10; i++) {
-    const when = c.currentTime + i * 0.045;
-    metalClink(c, when, 1500 + Math.sin(i) * 300, 0.65);
+  const clinkCount = reducedMotion ? 4 : tideBonus ? 14 : 10;
+  const gap = reducedMotion ? 0.03 : 0.045;
+  for (let i = 0; i < clinkCount; i++) {
+    const when = c.currentTime + i * gap;
+    metalClink(c, when, 1500 + Math.sin(i) * 300 + (tideBonus ? 80 : 0), 0.65);
   }
+  const rise = reducedMotion ? 0.28 : 0.55;
   const osc = c.createOscillator();
   osc.type = 'sawtooth';
   osc.frequency.setValueAtTime(220, c.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(880, c.currentTime + 0.5);
+  osc.frequency.exponentialRampToValueAtTime(tideBonus ? 1040 : 880, c.currentTime + rise);
   const gain = c.createGain();
   gain.gain.setValueAtTime(0, c.currentTime);
-  gain.gain.linearRampToValueAtTime(0.08, c.currentTime + 0.1);
-  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.6);
+  gain.gain.linearRampToValueAtTime(0.08, c.currentTime + 0.08);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + rise + 0.12);
   osc.connect(gain);
   gain.connect(c.destination);
   osc.start();
-  osc.stop(c.currentTime + 0.65);
+  osc.stop(c.currentTime + rise + 0.15);
+
+  if (!reducedMotion) {
+    // Low boom under the fanfare so the pot "lands".
+    const boom = c.createOscillator();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(90, c.currentTime);
+    boom.frequency.exponentialRampToValueAtTime(55, c.currentTime + 0.4);
+    const boomGain = c.createGain();
+    boomGain.gain.setValueAtTime(0.12, c.currentTime);
+    boomGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.45);
+    boom.connect(boomGain);
+    boomGain.connect(c.destination);
+    boom.start();
+    boom.stop(c.currentTime + 0.5);
+  }
 }
 
 export function playShake(): void {
@@ -209,5 +250,26 @@ export function playBonus(): void {
     gain.connect(c.destination);
     osc.start(when + i * 0.04);
     osc.stop(when + i * 0.04 + 0.16);
+  }
+}
+
+export function playUnlock(): void {
+  if (muted) return;
+  const c = ac();
+  if (!c) return;
+  const notes = [523.25, 659.25, 783.99];
+  for (let i = 0; i < notes.length; i++) {
+    const when = c.currentTime + i * 0.08;
+    const osc = c.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = notes[i]!;
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0, when);
+    gain.gain.linearRampToValueAtTime(0.07, when + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + 0.2);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(when);
+    osc.stop(when + 0.22);
   }
 }

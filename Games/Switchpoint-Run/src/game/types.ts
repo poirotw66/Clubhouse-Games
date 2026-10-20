@@ -1,4 +1,21 @@
 import type { BranchTemplate, Obstacle } from './constants';
+import type { ModifierId } from './modifiers';
+import type { RunnerId } from './profiles';
+import type { ThemeId } from './themes';
+
+/** Optional per-run loadout. Defaults match the original balance constants. */
+export interface RunConfig {
+  runnerId: RunnerId;
+  themeId: ThemeId;
+  /** Free/daily only — challenge runs always pass []. */
+  modifierIds: ModifierId[];
+}
+
+export const DEFAULT_RUN_CONFIG: RunConfig = {
+  runnerId: 'standard',
+  themeId: 'tunnel',
+  modifierIds: [],
+};
 
 /** A branch template placed at a concrete junction: absolute distances instead
  * of offsets, and a lane assignment for this junction only. */
@@ -72,4 +89,25 @@ export interface RunState {
   hitsTotal: number;
   /** Template ids this run has ever been offered, for the pool-reach measurement. */
   offeredTemplateIds: string[];
+
+  /** Loadout baked in at createRun — affects pace/buffer/supply/density bias. */
+  config: RunConfig;
+  /** Effective MAX_BUFFER for this run after runner/modifier multipliers. */
+  maxBuffer: number;
+  /** Effective hit-stun duration for this run. */
+  hitStunDuration: number;
+  /** Effective lane-change cooldown for this run. */
+  laneCooldown: number;
+  /** Effective supply gain for this run. */
+  supplyGain: number;
+  /** Player pace multiplier from the selected runner. */
+  speedMul: number;
+  /** Train pace multiplier from the selected theme. */
+  trainPaceMul: number;
+  /** Extra density bias from theme + modifiers (used at junction placement). */
+  densityBias: number;
+  /** Score-reward step multiplier from modifiers. */
+  scoreRewardMul: number;
+  /** When true, supply pickups grant nothing. */
+  suppressSupply: boolean;
 }
