@@ -393,7 +393,7 @@ test('checkers: puzzle mode unlock ladder and first puzzle board', async ({ page
 
   // First puzzle: black to jump the lone white man.
   await expect(page.getByRole('button', { name: /black man at/ }).first()).toBeVisible();
-  await expect(page.getByText(/黑先/)).toBeVisible();
+  await expect(page.getByText(/已解 0\/10/)).toBeVisible();
 });
 
 test('dialed-color: single-color round through feedback, overlay, and replay', async ({ page, isMobile }) => {
