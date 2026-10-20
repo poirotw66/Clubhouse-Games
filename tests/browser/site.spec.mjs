@@ -533,7 +533,7 @@ test('klondike: scoring modes, seeded deal, daily toggle, hint, redeal', async (
   await expect(page.getByText(/今日挑戰/)).toBeVisible();
   await expect(page.locator('#klondike-seed')).toBeDisabled();
 
-  // Seed a daily best so StatsPanel exposes the share control.
+  // Seed today's best + keep daily mode on across reload (do not re-toggle 每日).
   await page.evaluate(() => {
     const today = (() => {
       const shifted = new Date(Date.now() + 8 * 60 * 60_000);
@@ -556,9 +556,18 @@ test('klondike: scoring modes, seeded deal, daily toggle, hint, redeal', async (
         },
       ]),
     );
+    localStorage.setItem(
+      'clubhouse:klondike:settings:v1',
+      JSON.stringify({
+        drawCount: 1,
+        scoreMode: 'standard',
+        solvableOnly: true,
+        playDaily: true,
+      }),
+    );
   });
   await page.reload();
-  await activate(page.locator('#klondike-daily'), isMobile);
+  await expect(page.getByText(/今日挑戰/)).toBeVisible();
   await expect(page.locator('#klondike-share')).toBeVisible();
 
   await activate(page.getByRole('button', { name: '戰績' }), isMobile);
