@@ -43,9 +43,10 @@ header{display:flex;align-items:center;justify-content:space-between;gap:16px;ma
 .game-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
 .panel{background:linear-gradient(135deg,#1d2430d9,#171c25f2);border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 12px 32px #0002}
 .panel-head{padding:14px 18px;display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px solid var(--line)}
-.scene-wrap{position:relative;background:#1b202a;overflow:hidden}
-.scene-wrap svg{width:100%;height:auto;display:block;aspect-ratio:900/520}
-.scene-layer[hidden]{display:none!important}
+.scene-wrap{position:relative;background:#1b202a;overflow:hidden;aspect-ratio:900/520}
+.scene-wrap svg{width:100%;height:auto;aspect-ratio:900/520}
+.scene-layer{display:none!important;width:100%;height:auto}
+.scene-layer.is-active{display:block!important}
 .scene-overlay{position:absolute;top:16px;left:18px;pointer-events:none;max-width:70%}
 .scene-overlay h2{font-size:18px;margin-top:4px}
 .scene-overlay p{font-size:11px;color:#aab4c5;margin-top:2px}
@@ -183,7 +184,7 @@ footer{display:flex;justify-content:space-between;gap:12px;margin-top:20px;color
             <h2 id="room-headline">A matter of time.</h2>
             <p id="room-blurb">Inspect the room. Follow the clues. Reach the hallway.</p>
           </div>
-          <svg class="scene-layer" data-room="study" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" aria-labelledby="title-study">
+          <svg class="scene-layer is-active" data-room="study" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" aria-labelledby="title-study">
   <title id="title-study">Quiet study</title>
   <desc>Study hotspots</desc>
   <defs>
@@ -497,7 +498,9 @@ class RoomRenderer {
   render() {
     const s = this.engine.state;
     for (const layer of document.querySelectorAll(".scene-layer")) {
-      layer.hidden = layer.dataset.room !== s.currentRoom;
+      const active = layer.dataset.room === s.currentRoom;
+      layer.classList.toggle("is-active", active);
+      layer.setAttribute("aria-hidden", active ? "false" : "true");
     }
     const meta = ROOM_META[s.currentRoom];
     $("room-eyebrow").textContent = meta.eyebrow;
