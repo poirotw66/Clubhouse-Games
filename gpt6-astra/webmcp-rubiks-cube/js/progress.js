@@ -183,6 +183,7 @@
     return {
       attempts: 0,
       solves: 0,
+      timedSolves: 0,
       bestMs: null,
       totalSolveMs: 0,
       lastAt: 0,
@@ -205,8 +206,11 @@
           byStage[stageId] = {
             attempts: Math.max(0, Math.floor(Number(rawStat.attempts) || 0)),
             solves: Math.max(0, Math.floor(Number(rawStat.solves) || 0)),
+            timedSolves: Math.max(0, Math.floor(Number(rawStat.timedSolves) || 0)),
             bestMs:
-              rawStat.bestMs != null && Number.isFinite(Number(rawStat.bestMs))
+              rawStat.bestMs != null &&
+              Number.isFinite(Number(rawStat.bestMs)) &&
+              Number(rawStat.bestMs) > 0
                 ? Number(rawStat.bestMs)
                 : null,
             totalSolveMs: Math.max(0, Number(rawStat.totalSolveMs) || 0),
@@ -248,9 +252,16 @@
 
   function recordPracticeSolve(practice, stageId, ms) {
     const prev = practice.byStage[stageId] || emptyStageStat();
-    const rounded = Math.round(ms);
-    const bestMs =
-      prev.bestMs == null || rounded < prev.bestMs ? rounded : prev.bestMs;
+    const hasTime = Number.isFinite(ms) && ms > 50;
+    const rounded = hasTime ? Math.round(ms) : null;
+    let bestMs = prev.bestMs;
+    let totalSolveMs = prev.totalSolveMs;
+    let timedSolves = prev.timedSolves || 0;
+    if (rounded != null) {
+      bestMs = bestMs == null || rounded < bestMs ? rounded : bestMs;
+      totalSolveMs += rounded;
+      timedSolves += 1;
+    }
     const next = {
       ...practice,
       byStage: {
@@ -258,8 +269,9 @@
         [stageId]: {
           ...prev,
           solves: prev.solves + 1,
+          timedSolves,
           bestMs,
-          totalSolveMs: prev.totalSolveMs + (Number.isFinite(rounded) && rounded > 0 ? rounded : 0),
+          totalSolveMs,
           lastAt: Date.now(),
         },
       },
@@ -270,8 +282,10 @@
   }
 
   function stageAverageMs(stat) {
-    if (!stat || !stat.solves) return null;
-    return stat.totalSolveMs / stat.solves;
+    if (!stat) return null;
+    const n = stat.timedSolves || 0;
+    if (!n || !stat.totalSolveMs) return null;
+    return stat.totalSolveMs / n;
   }
 
   /** Map curriculum lesson id → practice stage for proficiency chrome. */

@@ -164,8 +164,13 @@ assert.ok(CubeCurriculum.CHEAT_SHEET.length >= 5, "cheat sheet");
   assert.equal(practice.byStage["white-cross"].attempts, 1, "attempt");
   assert.equal(practice.byStage["white-cross"].solves, 1, "solve");
   assert.equal(practice.byStage["white-cross"].bestMs, 8000, "best");
+  // Untimed solve must not poison best/average with 0
+  practice = CubeProgress.recordPracticeSolve(practice, "white-cross", 0);
+  assert.equal(practice.byStage["white-cross"].solves, 2, "untimed solve counts");
+  assert.equal(practice.byStage["white-cross"].bestMs, 8000, "untimed keeps best");
+  assert.equal(practice.byStage["white-cross"].totalSolveMs, 8000, "untimed skips total");
   const reloaded = CubeProgress.loadPractice();
-  assert.equal(reloaded.byStage["white-cross"].solves, 1, "practice persists");
+  assert.equal(reloaded.byStage["white-cross"].solves, 2, "practice persists");
 }
 
 /* -------- Scramble generator -------- */

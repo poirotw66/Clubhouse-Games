@@ -346,7 +346,7 @@
     if (mode === "sheet") renderSheet();
     if (mode === "drill") {
       renderDrillChrome();
-      if (!state.drill.case) loadDrillCase(false);
+      if (!state.drill.case) loadDrillCase(true);
     }
     if (mode === "timer") renderTimerChrome();
     if (mode === "freeplay") {
