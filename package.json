@@ -29,7 +29,8 @@
     "check:astra-borderland": "node gpt6-astra/borderland/check-borderland.mjs",
     "check:astra-rubiks": "node gpt6-astra/webmcp-rubiks-cube/check-academy.mjs",
     "check:astra-fill-void": "node gpt6-astra/3d-fill-the-void/check-fill-void.mjs",
-    "check:astra-sailing": "node gpt6-astra/3d-sailing/check-sailing.mjs"
+    "check:astra-sailing": "node gpt6-astra/3d-sailing/check-sailing.mjs",
+    "check:astra-factory": "node gpt6-astra/webmcp-mini-factory/check-mini-factory.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

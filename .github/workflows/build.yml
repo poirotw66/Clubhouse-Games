@@ -175,6 +175,10 @@ jobs:
         if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
         run: npm run check:astra-sailing
 
+      - name: Run Astra WebMCP Mini Factory logic check
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-factory
+
   # ---------------------------------------------------------------------------
   # Build Pages once; upload artifact for Playwright (and Pages deploy on main).
   # ---------------------------------------------------------------------------
