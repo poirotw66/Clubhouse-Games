@@ -17,7 +17,7 @@ import {
   playScore,
   playWin,
 } from '@clubhouse/shared/synthAudio';
-import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
+import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { Trophy, Play, Target, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -71,6 +71,7 @@ import {
 } from './pitching';
 import {
   estimateFlightTime,
+  FENCE_DIST,
   getFielders,
   isFoulTerritory,
   resolveFairBall,
@@ -84,7 +85,16 @@ function resultFlashTone(text: string): ScoreFlashTone {
   if (text.includes('全壘打') || text.includes('安打') || text.includes('保送') || text.includes('完美')) {
     return 'good';
   }
-  if (text.includes('OUT') || text.includes('三振') || text.includes('軟弱')) return 'bad';
+  if (
+    text.includes('OUT')
+    || text.includes('三振')
+    || text.includes('軟弱')
+    || text.includes('太早')
+    || text.includes('太晚')
+    || text.includes('落空')
+  ) {
+    return 'bad';
+  }
   return 'neutral';
 }
 
@@ -492,7 +502,8 @@ class GameEngine {
 
   handleSwing() {
     if (this.state.ballState !== 'pitching' || this.state.swingTime !== null) return;
-    this.state.swingTime = 0.2;
+    // Bat animation countdown (visual only). Contact quality uses plate-relative timing.
+    this.state.swingTime = 0.18;
     this.onStateChange(this.state);
   }
 
@@ -624,7 +635,7 @@ class GameEngine {
       this.state.ballPos.z += this.state.ballVel.z * dt;
 
       if (this.state.ballState === 'pitching') {
-        if (this.state.swingTime !== null && this.state.swingTime > -0.1) {
+        if (this.state.swingTime !== null && this.state.swingTime > -0.14) {
           const dist = Math.sqrt(
             (this.state.ballPos.x - 400) ** 2 + (this.state.ballPos.y - 450) ** 2,
           );
@@ -668,8 +679,13 @@ class GameEngine {
     this.state.balls = 0;
     this.state.hitEffect = 1.0;
 
+    // Plate-relative timing: 0 at the plate, early < 0, late > 0.
+    // (Bat swingTime countdown is only for the bat animation.)
+    const ballY = this.state.ballPos?.y ?? 450;
+    const timingError = (ballY - 450) / 90;
+
     const launch = computeHitLaunch({
-      swingTime: this.state.swingTime || 0,
+      swingTime: timingError,
       swingDir: this.state.swingDir,
       pitchLoc: this.state.pitchLoc,
       rng: () => this.nextRoll(`hit:${this.hitIndex++}`),
@@ -695,8 +711,24 @@ class GameEngine {
     const dist = Math.sqrt((x - 400) ** 2 + (y - 450) ** 2);
     const quality = this.state.contactQuality;
     const foul = isFoulTerritory(x, y);
+    const clearedFence =
+      !foul
+      && (
+        (type === 'HR' && quality >= 0.58 && this.state.peakZ > 95)
+        || (dist >= FENCE_DIST && quality >= 0.58 && this.state.peakZ > 95)
+      );
 
-    if (type === 'HR' || (!foul && dist >= 600 && this.state.peakZ > 70)) {
+    if (clearedFence) {
+      result = '全壘打！';
+      bases = 4;
+      hitType = 'fair';
+      this.state.lastLanding = { x, y: Math.min(y, 40) };
+      this.state.lastFielderId = null;
+      if (this.state.playMode === 'derby') {
+        this.state.derbyHrs += 1;
+        this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
+      }
+    } else if (type === 'HR' || (!foul && dist >= FENCE_DIST * 0.92 && this.state.peakZ > 70)) {
       if (foul) {
         result = '界外球 (FOUL)';
         hitType = 'foul';
@@ -789,7 +821,15 @@ class GameEngine {
 
     if (this.state.swingTime !== null) {
       this.state.strikes++;
-      this.state.resultText = '揮棒落空 (STRIKE)';
+      // Swing started but never met the ball in the hit radius — usually early/late.
+      const remaining = this.state.swingTime;
+      if (remaining > 0.06) {
+        this.state.resultText = '太早揮棒 (STRIKE)';
+      } else if (remaining < -0.04) {
+        this.state.resultText = '太晚揮棒 (STRIKE)';
+      } else {
+        this.state.resultText = '揮棒落空 (STRIKE)';
+      }
     } else if (isStrike) {
       this.state.strikes++;
       this.state.resultText = '好球 (STRIKE)';
@@ -1117,7 +1157,7 @@ class GameEngine {
     ctx.translate(batPivotX, batPivotY);
     let batAngle = this.state.handedness === 'right' ? -Math.PI / 8 : -Math.PI * 7 / 8;
     if (this.state.swingTime !== null) {
-      const progress = (0.2 - this.state.swingTime) / 0.4;
+      const progress = (0.18 - this.state.swingTime) / 0.36;
       if (this.state.handedness === 'right') {
         batAngle = -Math.PI / 8 - progress * Math.PI * 1.1;
       } else {
@@ -1135,18 +1175,21 @@ class GameEngine {
     ctx.fill();
     ctx.restore();
 
-    // Colored pitch trail
+    // Colored pitch trail — brighter while batting so pitch reads are learnable without a name label.
     if (this.state.ballTrail.length > 1) {
       const rgb = this.state.pitchType
         ? PITCH_DEFS[this.state.pitchType].trailRgb
         : ([255, 255, 255] as [number, number, number]);
+      const battingRead = this.isPlayerBatting && this.state.ballState === 'pitching';
+      const alphaMul = battingRead ? 0.85 : 0.55;
+      const widthMul = battingRead ? 1.35 : 1;
       ctx.lineCap = 'round';
       for (let i = 1; i < this.state.ballTrail.length; i++) {
         const p1 = this.state.ballTrail[i - 1];
         const p2 = this.state.ballTrail[i];
         const ratio = i / this.state.ballTrail.length;
-        ctx.strokeStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${p2.alpha * 0.55 * ratio})`;
-        ctx.lineWidth = (2.5 + (p2.z / 100) * 3) * ratio;
+        ctx.strokeStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${p2.alpha * alphaMul * ratio})`;
+        ctx.lineWidth = (2.5 + (p2.z / 100) * 3) * ratio * widthMul;
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y - p1.z);
         ctx.lineTo(p2.x, p2.y - p2.z);
@@ -1553,10 +1596,18 @@ export default function App() {
                   />
                 </div>
               )}
-              {gameState.mode === 'playing' && gameState.pitchType && (
+              {/* Only reveal pitch type while the player is pitching — never spoil reads when batting. */}
+              {gameState.mode === 'playing'
+                && !isPlayerBatting
+                && gameState.pitchType && (
                 <span className="text-[10px] font-bold text-sky-200/90">
                   {PITCH_DEFS[gameState.pitchType].label}
                   {canSteer ? ' · 控球中' : ''}
+                </span>
+              )}
+              {gameState.mode === 'playing' && isPlayerBatting && gameState.ballState === 'pitching' && (
+                <span className="text-[10px] font-bold text-amber-200/80">
+                  讀尾跡判斷球種
                 </span>
               )}
             </div>
@@ -1804,12 +1855,12 @@ export default function App() {
 
             {isPlayerBatting ? (
               <>
-                <div className="hidden md:flex items-center justify-center gap-3 bg-zinc-900/80 border border-white/10 rounded-2xl px-4 py-3">
+                <div className="hidden md:flex items-center justify-center gap-3 bg-zinc-900/80 border border-white/10 rounded-2xl px-4 py-2">
                   <div className="flex items-center gap-2">
                     <kbd className="bg-zinc-800 px-2.5 py-1 rounded-md font-mono text-xs border border-white/10">
                       空白鍵
                     </kbd>
-                    <span className="text-sm font-bold text-zinc-300">揮棒</span>
+                    <span className="text-sm font-bold text-zinc-300">揮棒（球近本壘）</span>
                   </div>
                   <div className="w-px h-4 bg-white/10" />
                   <div className="flex items-center gap-2">
@@ -1820,25 +1871,23 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex justify-center gap-2">
+                {/* Direction + swing on one row so 揮棒 stays above the fold on phones. */}
+                <div className="flex justify-center items-stretch gap-2 w-full max-w-md mx-auto">
                   {(['left', 'center', 'right'] as const).map((dir) => (
                     <button
                       key={dir}
                       type="button"
                       onClick={() => setSwingDirection(dir)}
-                      className={`flex-1 max-w-[120px] min-h-[44px] rounded-xl font-bold text-sm transition-all touch-manipulation ${
+                      className={`flex-1 min-h-[48px] rounded-xl font-bold text-sm transition-all touch-manipulation ${
                         gameState.swingDir === dir
                           ? 'bg-blue-500/25 border border-blue-400/50 text-blue-200'
                           : 'bg-zinc-800 border border-white/10 text-zinc-400'
                       }`}
                     >
-                      {dir === 'left' ? '← 拉打' : dir === 'center' ? '中路' : '推打 →'}
+                      {dir === 'left' ? '← 拉' : dir === 'center' ? '中' : '推 →'}
                     </button>
                   ))}
-                </div>
-
-                <div className={`${touchControlsWrapClass} !mt-0`}>
-                  <TouchButton label="揮棒" ariaLabel="揮棒" wide accent onClick={handleBattingSwing} />
+                  <TouchButton label="揮棒" ariaLabel="揮棒" accent onClick={handleBattingSwing} />
                 </div>
               </>
             ) : (

@@ -17,7 +17,9 @@ export interface HitLaunch {
 
 /**
  * Convert plate contact into a batted-ball launch.
- * Matching swingDir to pitchLoc rewards gap aiming; timing drives power.
+ * `swingTime` is plate-relative timing error: 0 = ball at the plate,
+ * negative = early, positive = late. Matching swingDir to pitchLoc
+ * rewards gap aiming; timing drives power and launch angle.
  */
 export function computeHitLaunch(opts: {
   swingTime: number;
@@ -28,20 +30,23 @@ export function computeHitLaunch(opts: {
   const { swingTime, swingDir, pitchLoc, rng } = opts;
 
   let dirBias = 0;
-  if (swingDir === 'left') dirBias = -0.55;
-  if (swingDir === 'right') dirBias = 0.55;
+  if (swingDir === 'left') dirBias = -0.48;
+  if (swingDir === 'right') dirBias = 0.48;
 
-  const locMatch = pitchLoc && swingDir === pitchLoc ? 0.14 : 0;
-  const timing = swingTime;
-  const angleOffset = timing * 5 + dirBias + (rng() - 0.5) * 0.08;
-  const powerFactor = Math.max(0.15, 1 - Math.abs(timing) * 4);
-  const jitter = rng() * 0.12;
-  const hitScore = Math.min(1, powerFactor * 0.78 + jitter + locMatch);
+  const locMatch = pitchLoc && swingDir === pitchLoc ? 0.12 : 0;
+  // Slight early bias feels better than late (classic arcade bat sweet spot).
+  const timing = swingTime + 0.03;
+  const angleOffset = timing * 4.2 + dirBias + (rng() - 0.5) * 0.07;
+  // Wider sweet spot (~±0.18) so "swing when it's near" still plays.
+  const powerFactor = Math.max(0.12, 1 - Math.abs(timing) * 3.2);
+  const jitter = rng() * 0.1;
+  const hitScore = Math.min(1, powerFactor * 0.8 + jitter + locMatch);
 
-  const speed = 380 + hitScore * 420;
+  // Enough carry that perfect contact can clear ~FENCE_DIST; weak stays short.
+  const speed = 360 + hitScore * 520;
   const baseAngle = -Math.PI / 2;
   const finalAngle = baseAngle + angleOffset;
-  const vz = 130 + hitScore * 270;
+  const vz = 110 + hitScore * 310;
 
   return {
     vel: {

@@ -38,8 +38,11 @@ export interface FieldOutcome {
 }
 
 const HOME = { x: 400, y: 450 };
-/** Approximate fence distance from home in screen units. */
-export const FENCE_DIST = 620;
+/**
+ * Approximate fence distance from home in screen units.
+ * Tuned so solid contact can clear; weak liners die on the track.
+ */
+export const FENCE_DIST = 520;
 
 const BASE_POSITIONS: Record<FielderId, { x: number; y: number; speed: number; reach: number }> = {
   P: { x: 400, y: 255, speed: 145, reach: 28 },
@@ -118,7 +121,7 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
   const isFly = peakZ > 85;
 
   // Wall clearance with authority → home run.
-  if (dist >= FENCE_DIST && quality >= 0.42 && peakZ > 70) {
+  if (dist >= FENCE_DIST && quality >= 0.58 && peakZ > 95) {
     return {
       result: '全壘打！',
       bases: 4,
@@ -129,8 +132,8 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
     };
   }
 
-  // Deep fly that dies at the track.
-  if (dist >= FENCE_DIST && quality < 0.42) {
+  // Deep fly that dies at the track / warning track catch.
+  if (dist >= FENCE_DIST * 0.92 && quality < 0.58) {
     const cf = fielders.find((f) => f.id === 'CF') ?? null;
     return {
       result: '牆前接殺 (OUT)',
@@ -144,16 +147,20 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
 
   const nearest = nearestFielder(fielders, landingX, landingY);
   const travel = Math.hypot(nearest.x - landingX, nearest.y - landingY);
-  const arriveTime = travel / Math.max(40, nearest.speed);
+  // Easy defense chases a bit slower so gaps stay readable.
+  const chaseMul = cfg.fielderSpeedMul ?? 1;
+  const arriveTime = travel / Math.max(40, nearest.speed * chaseMul);
   // Soft contact gives fielders more effective time.
   const effectiveFlight = flightTime * (0.7 + quality * 0.35);
   const openGap = gapScore(fielders, landingX, landingY);
   // Need a real margin to glove a ball in open grass — gaps stay hits.
-  const reachSlack = openGap > 0.45 ? -0.12 : 0.05;
+  const reachSlack = openGap > 0.55 ? -0.2 : 0.04;
   const canReach = arriveTime <= effectiveFlight + reachSlack;
-  const inGlove = travel <= nearest.reach + (isFly ? 14 : 8);
+  // Deep flies expand the glove — center shots near CF should be outs, not free doubles.
+  const glovePad = isFly ? (dist > 320 ? 34 : 14) : 7;
+  const inGlove = travel <= nearest.reach + glovePad;
 
-  if (isFly && (inGlove || (canReach && openGap < 0.5))) {
+  if (isFly && (inGlove || (canReach && openGap < 0.52) || (canReach && dist > 360 && openGap < 0.62))) {
     return {
       result: '接殺出局 (OUT)',
       bases: 0,
@@ -169,9 +176,9 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
     const cut = cutOffInfielder(fielders, landingX, landingY);
     if (cut) {
       const cutDist = Math.hypot(cut.x - landingX, cut.y - landingY);
-      const cutTime = cutDist / Math.max(40, cut.speed);
+      const cutTime = cutDist / Math.max(40, cut.speed * chaseMul);
       const groundWindow = Math.min(effectiveFlight, dist / 280);
-      if (cutTime <= groundWindow * (1.15 - quality * 0.35)) {
+      if (cutTime <= groundWindow * (1.1 - quality * 0.3)) {
         return {
           result: '滾地球出局 (OUT)',
           bases: 0,
@@ -184,11 +191,12 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
     }
   }
 
-  // Gap / through the infield — depth + quality decide extra bases.
-  const gapBonus = gapScore(fielders, landingX, landingY);
-  const effective = dist * (0.48 + quality * 0.7) * (1 + gapBonus * 0.12);
+  // Gap / through the infield — depth + quality decide bases.
+  // Prefer singles; extras require real carry (no auto-double from gap alone).
+  const gapBonus = openGap;
+  const effective = dist * (0.42 + quality * 0.62) * (1 + gapBonus * 0.08);
 
-  if (quality < cfg.weakQuality && effective < cfg.tripleMin * 0.85) {
+  if (quality < cfg.weakQuality) {
     return {
       result: '軟弱飛球出局 (OUT)',
       bases: 0,
@@ -199,7 +207,11 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
     };
   }
 
-  if (effective >= cfg.tripleMin || (gapBonus > 0.55 && dist > 380 && quality > 0.7)) {
+  if (
+    effective >= cfg.tripleMin
+    && quality >= 0.8
+    && dist > 420
+  ) {
     return {
       result: '三壘安打 (3B)',
       bases: 3,
@@ -209,7 +221,8 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
       landingY,
     };
   }
-  if (effective >= cfg.doubleMin || (gapBonus > 0.4 && dist > 260)) {
+  // Doubles need solid contact — deep soft liners fall in for singles instead.
+  if (effective >= cfg.doubleMin && quality >= 0.62 && dist > 290) {
     return {
       result: '二壘安打 (2B)',
       bases: 2,
@@ -219,7 +232,10 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
       landingY,
     };
   }
-  if (effective >= cfg.singleMin || gapBonus > 0.25) {
+  if (
+    effective >= cfg.singleMin
+    || (gapBonus > 0.38 && quality >= 0.38 && dist > 150)
+  ) {
     return {
       result: '一壘安打 (1B)',
       bases: 1,
@@ -229,7 +245,7 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
       landingY,
     };
   }
-  if (effective < cfg.outMax || quality < cfg.weakQuality + 0.12) {
+  if (effective < cfg.outMax || quality < cfg.weakQuality + 0.1) {
     return {
       result: '接殺出局 (OUT)',
       bases: 0,

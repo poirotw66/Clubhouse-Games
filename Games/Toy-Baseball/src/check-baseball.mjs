@@ -144,6 +144,7 @@ assert(PITCH_TYPES.length === 6, 'expected 6 pitch types');
 
 // Home run over the fence with authority.
 {
+  assert(FENCE_DIST >= 480 && FENCE_DIST <= 560, `fence dist out of polish band: ${FENCE_DIST}`);
   const hr = resolveFairBall({
     landingX: 400,
     landingY: 450 - FENCE_DIST,
@@ -153,6 +154,63 @@ assert(PITCH_TYPES.length === 6, 'expected 6 pitch types');
     cfg: DIFFICULTY.normal,
   });
   assert(hr.bases === 4 && hr.play === 'homerun', `expected HR, got ${hr.result}`);
+
+  // Weak deep fly dies on the track — not an automatic triple.
+  const warning = resolveFairBall({
+    landingX: 400,
+    landingY: 450 - FENCE_DIST,
+    peakZ: 120,
+    quality: 0.35,
+    flightTime: 1.4,
+    cfg: DIFFICULTY.normal,
+  });
+  assert(warning.bases === 0, `weak fence ball should be out, got ${warning.result}`);
+}
+
+// Gap hits should prefer singles over free doubles/triples.
+{
+  const cfg = DIFFICULTY.normal;
+  const gapX = (195 + 400) / 2;
+  const gapY = 90;
+  let singles = 0;
+  let extras = 0;
+  let outs = 0;
+  for (let i = 0; i < 40; i++) {
+    const q = 0.45 + (i % 5) * 0.05;
+    const r = resolveFairBall({
+      landingX: gapX + (i % 3) * 4,
+      landingY: gapY,
+      peakZ: 40 + (i % 4) * 8,
+      quality: q,
+      flightTime: 0.45,
+      cfg,
+    });
+    if (r.bases === 1) singles += 1;
+    else if (r.bases >= 2) extras += 1;
+    else outs += 1;
+  }
+  assert(singles + extras > outs, `gap should mostly be hits, got 1B=${singles} XBH=${extras} out=${outs}`);
+  assert(singles >= extras, `gap polish: singles should dominate extras (1B=${singles} XBH=${extras})`);
+}
+
+// Perfect plate timing launches farther than late weak timing.
+{
+  const sweet = computeHitLaunch({
+    swingTime: 0,
+    swingDir: 'center',
+    pitchLoc: 'center',
+    rng: createRng(3),
+  });
+  const late = computeHitLaunch({
+    swingTime: 0.22,
+    swingDir: 'center',
+    pitchLoc: 'center',
+    rng: createRng(3),
+  });
+  assert(sweet.contactQuality > late.contactQuality, 'sweet timing should beat late');
+  const sweetSpeed = Math.hypot(sweet.vel.x, sweet.vel.y);
+  const lateSpeed = Math.hypot(late.vel.x, late.vel.y);
+  assert(sweetSpeed > lateSpeed * 1.15, 'sweet contact should carry more');
 }
 
 // Foul territory helper.
@@ -221,6 +279,15 @@ assert(DIFFICULTY.hard.cpuPitchDelayMax < DIFFICULTY.easy.cpuPitchDelayMin, 'har
 assert(
   DIFFICULTY.hard.weakQuality > DIFFICULTY.easy.weakQuality,
   'hard should grade weak contact more harshly',
+);
+assert(
+  DIFFICULTY.easy.fielderSpeedMul < DIFFICULTY.normal.fielderSpeedMul
+    && DIFFICULTY.normal.fielderSpeedMul < DIFFICULTY.hard.fielderSpeedMul,
+  'fielder chase speed should rise with difficulty',
+);
+assert(
+  DIFFICULTY.hard.tripleMin > DIFFICULTY.easy.tripleMin,
+  'hard should require more carry for triples',
 );
 assert(
   DIFFICULTY.easy.hitRadius - DIFFICULTY.hard.hitRadius >= 30,
