@@ -17,6 +17,7 @@ const MIME = {
   '.md': 'text/markdown',
   '.css': 'text/css',
   '.js': 'application/javascript',
+  '.mjs': 'text/javascript',
   '.json': 'application/json',
   '.ico': 'image/x-icon',
   '.png': 'image/png',
@@ -26,7 +27,7 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
-const TEXT_EXTENSIONS = new Set(['.html', '.md', '.css', '.js', '.json']);
+const TEXT_EXTENSIONS = new Set(['.html', '.md', '.css', '.js', '.mjs', '.json']);
 
 function send(res, status, body, contentType = 'text/html') {
   res.writeHead(status, { 'Content-Type': contentType });
