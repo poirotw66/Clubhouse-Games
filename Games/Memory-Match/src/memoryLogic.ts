@@ -57,8 +57,8 @@ export const FACE_EMOJI: Record<FaceId, string> = {
   flower: '🌸',
   tree: '🌳',
   acorn: '🌰',
-  ruby: '🔴',
-  sapphire: '🔵',
+  ruby: '♦️',
+  sapphire: '🔷',
   crown: '👑',
   key: '🔑',
   coin: '🪙',
@@ -96,18 +96,72 @@ export const CPU_DIFFICULTY_OPTIONS: {
   { id: 'hard', label: '困難', blurb: '記性好，還會藏資訊' },
 ];
 
-/** Per-match retain rate: p = retain ^ ageInTurns. */
+/** Per-match retain rate: p = retain ^ ageInTurns. Tuned so hard is tough but not omniscient. */
 export const CPU_RETAIN: Record<CpuDifficulty, number> = {
-  easy: 0.5,
-  normal: 0.8,
-  hard: 0.95,
+  easy: 0.48,
+  normal: 0.74,
+  hard: 0.86,
 };
 
-/** How many face sightings the CPU can hold. */
+/** Base how many face sightings the CPU can hold (scaled by board size via cpuCapacityFor). */
 export const CPU_CAPACITY: Record<CpuDifficulty, number> = {
   easy: 4,
-  normal: 8,
-  hard: 16,
+  normal: 7,
+  hard: 10,
+};
+
+/** Capacity grows gently on larger boards so expert 24-pair stays readable, not magical. */
+export function cpuCapacityFor(difficulty: CpuDifficulty, pairCount: PairCount): number {
+  const base = CPU_CAPACITY[difficulty];
+  const step = Math.floor((pairCount - 6) / 6);
+  const maxBonus = difficulty === 'hard' ? 3 : difficulty === 'normal' ? 2 : 1;
+  return base + Math.min(Math.max(0, step), maxBonus);
+}
+
+/** Sprint clock scales with board size — 60s was impossible on 24 pairs. */
+export function sprintLimitSec(pairCount: PairCount): number {
+  switch (pairCount) {
+    case 6:
+      return 45;
+    case 12:
+      return 60;
+    case 18:
+      return 90;
+    case 24:
+      return 120;
+    default:
+      return SPRINT_LIMIT_SEC;
+  }
+}
+
+/** Soft face tints so emoji cards stay distinguishable when tiny on mobile. */
+export const FACE_TINT: Record<FaceId, string> = {
+  star: '#fff7ed',
+  moon: '#e0e7ff',
+  fish: '#e0f2fe',
+  cherry: '#ffe4e6',
+  leaf: '#ecfccb',
+  gem: '#ede9fe',
+  sun: '#fef9c3',
+  comet: '#fae8ff',
+  cloud: '#f1f5f9',
+  planet: '#ffedd5',
+  apple: '#fee2e2',
+  grape: '#f3e8ff',
+  mushroom: '#ffedd5',
+  flower: '#fce7f3',
+  tree: '#dcfce7',
+  acorn: '#fef3c7',
+  ruby: '#ffe4e6',
+  sapphire: '#dbeafe',
+  crown: '#fef08a',
+  key: '#fef9c3',
+  coin: '#fde68a',
+  ring: '#e2e8f0',
+  bell: '#fef3c7',
+  heart: '#fecdd3',
+  anchor: '#cbd5e1',
+  shell: '#ffedd5',
 };
 
 export const THEME_OPTIONS: {
@@ -208,16 +262,22 @@ export function clampPairCount(themeId: ThemeId, pairCount: PairCount): PairCoun
 export function gridColsClass(pairCount: PairCount): string {
   switch (pairCount) {
     case 6:
-      return 'grid-cols-4';
+      return 'grid-cols-3 sm:grid-cols-4';
     case 12:
       return 'grid-cols-4 sm:grid-cols-6';
     case 18:
-      return 'grid-cols-6';
+      // 4 cols on phones so cards stay tappable; 6 from sm up.
+      return 'grid-cols-4 sm:grid-cols-6';
     case 24:
-      return 'grid-cols-6 sm:grid-cols-8';
+      // Avoid 6-col phone grids (≈56×74) — 4 cols keeps targets near 80×+ px.
+      return 'grid-cols-4 sm:grid-cols-6 lg:grid-cols-8';
     default:
       return 'grid-cols-4';
   }
+}
+
+export function gridGapClass(pairCount: PairCount): string {
+  return pairCount >= 18 ? 'gap-1.5 sm:gap-2' : 'gap-2';
 }
 
 export function buildDeck(
