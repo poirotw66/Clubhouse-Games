@@ -216,6 +216,27 @@ footer{padding:23px 0 0;display:flex;justify-content:space-between;gap:15px;flex
  .board-head{padding:13px}.board-head h2{font-size:14px}
  .badge{font-size:9px}.event{grid-template-columns:52px 53px minmax(0,1fr);gap:5px}
 }
+
+.tile.cover{background:linear-gradient(145deg,#2f4a3a,#24382f);border-color:#4d7a5e;box-shadow:inset 0 0 12px #5ed39a22,inset 0 -4px #0002}
+.tile.cover::before{content:"";position:absolute;inset:18% 20%;border:1px dashed #78c89a55;border-radius:2px;z-index:-1}
+.mode-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.mode-bar button.mode{font-size:12px;padding:8px 12px}
+.mode-bar button.mode.active{background:#29535a;border-color:#67c9c8;color:#d4ffff}
+.mode-bar .seed-input{flex:1;min-width:140px;padding:8px 10px;border:1px solid #3b4c64;border-radius:8px;background:#0b1320;color:var(--cyan);font:12px ui-monospace,monospace}
+.mode-bar .records{font-size:11px;color:var(--muted);margin-left:auto}
+.reward-panel{display:grid;gap:10px}
+.reward-panel button{text-align:left;padding:12px 14px;display:grid;gap:4px}
+.reward-panel button b{color:var(--gold)}
+.reward-panel button span{font-size:11px;color:var(--muted)}
+.floor-badge{color:var(--gold)}
+@media(max-width:780px){
+ .mode-bar{flex-direction:column;align-items:stretch}
+ .mode-bar .records{margin-left:0}
+ .turn-actions button,.ability,button.primary,button.gold{min-height:44px}
+ .tile{touch-action:manipulation}
+ .board{gap:4px}
+}
+
 @media(prefers-reduced-motion:reduce){
  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
@@ -345,6 +366,47 @@ footer{padding:23px 0 0;display:flex;justify-content:space-between;gap:15px;flex
     <path d="m18 10 9 4-7 5-5-1z" fill="#7d8d9b"/>
     <path d="m2 28 4-3 4 4zm21-1 5-2 3 4z" fill="#a1a5a4"/>
   </symbol>
+
+  <symbol id="sprite-slime" viewBox="0 0 32 32">
+    <ellipse cx="16" cy="29" rx="9" ry="2" fill="#091722" opacity=".6"/>
+    <g shape-rendering="crispEdges">
+      <path d="M8 14h16v10H8z" fill="#5ecf9a"/>
+      <path d="M10 10h12v6H10z" fill="#7ae8b4"/>
+      <path d="M11 12h3v3h-3zm8 0h3v3h-3z" fill="#1d3d36"/>
+      <path d="M12 13h1v1h-1zm8 0h1v1h-1z" fill="#d7ffe8"/>
+      <path d="M13 18h6v2h-6z" fill="#2f6b55"/>
+      <path d="M7 18h3v5H7zm15 0h3v5h-3z" fill="#4db888"/>
+    </g>
+  </symbol>
+  <symbol id="sprite-mage" viewBox="0 0 32 32">
+    <ellipse cx="16" cy="29" rx="9" ry="2" fill="#091722" opacity=".6"/>
+    <g shape-rendering="crispEdges">
+      <path d="M14 2h4l6 8H8z" fill="#6b4ea3"/>
+      <path d="M11 9h10v8H11z" fill="#d7b48a"/>
+      <path d="M12 11h3v2h-3zm6 0h3v2h-3z" fill="#2a2438"/>
+      <path d="M10 17h12v9H10z" fill="#4a3a78"/>
+      <path d="M13 17h6v9h-6z" fill="#7d63c4"/>
+      <path d="M8 18h3v7H8zm13 0h3v7h-3z" fill="#d7b48a"/>
+      <path d="M23 12h2v12h-2z" fill="#9ad7ff"/>
+      <path d="M22 10h4v3h-4z" fill="#e8f7ff"/>
+      <path d="M11 25h4v5H9v-2h2zm7 0h4v5h-5v-2h1z" fill="#2c2438"/>
+    </g>
+  </symbol>
+  <symbol id="sprite-boss" viewBox="0 0 32 32">
+    <ellipse cx="16" cy="29" rx="11" ry="2" fill="#091722" opacity=".6"/>
+    <g shape-rendering="crispEdges">
+      <path d="M8 4h16v12H8z" fill="#8f3d4a"/>
+      <path d="M7 3h18v4H7zM6 7h5v8H6zm15 0h5v8h-5z" fill="#4a2a38"/>
+      <path d="M11 8h4v3h-4zm7 0h4v3h-4z" fill="#f0c15a"/>
+      <path d="M12 14h8v3h-8z" fill="#2b1c24"/>
+      <path d="M6 16h20v11H6z" fill="#5c3344"/>
+      <path d="M11 17h10v8H11z" fill="#2f2438"/>
+      <path d="M4 17h5v7H4zm19 0h5v7h-5z" fill="#9a4455"/>
+      <path d="M8 26h6v4H7v-2h1zm11 0h6v4h-7v-2h1z" fill="#241820"/>
+      <path d="M27 8h2v18h-2zM24 9h5v5h-5z" fill="#d4af5a"/>
+      <path d="M13 22h6v2h-6z" fill="#f0c15a"/>
+    </g>
+  </symbol>
 </defs>
 </svg>
 
@@ -361,8 +423,17 @@ footer{padding:23px 0 0;display:flex;justify-content:space-between;gap:15px;flex
   </header>
 
   <div class="intro">
-    <div><div class="eyebrow">One dungeon. Two ways to play.</div><p class="small muted" style="margin-top:4px">Human controls and structured AI capabilities. Exactly the same game state.</p></div>
+    <div><div class="eyebrow">Multi-floor dungeon. Two ways to play.</div><p class="small muted" style="margin-top:4px">Human controls and structured AI capabilities. Exactly the same game state.</p></div>
     <div class="loop"><b>Observe</b> → <b>Reason</b> → <b>Act</b> → repeat</div>
+  </div>
+
+  <div class="mode-bar" aria-label="Run mode">
+    <button type="button" class="mode active" data-start-mode="tutorial">教學</button>
+    <button type="button" class="mode" data-start-mode="campaign">遠征</button>
+    <button type="button" class="mode" data-start-mode="daily">今日地城</button>
+    <input id="seed-input" class="seed-input" type="text" maxlength="64" placeholder="遠征種子（可選）" aria-label="Campaign seed">
+    <button type="button" id="start-run" class="primary small">開始冒險</button>
+    <span id="records" class="records"></span>
   </div>
 
   <div id="statusbar" class="statusbar"></div>
@@ -371,8 +442,8 @@ footer{padding:23px 0 0;display:flex;justify-content:space-between;gap:15px;flex
     <div class="stack">
       <section class="card board-card" aria-label="Tactical battlefield">
         <div class="board-head">
-          <div><h2>The Aether Vault</h2><span class="small muted">Depth 01 · Ancient Arcane Dungeon</span></div>
-          <span class="badge">8 × 8 · TACTICAL</span>
+          <div><h2 id="floor-title">The Aether Vault</h2><span id="floor-sub" class="small muted">Depth 01 · Ancient Arcane Dungeon</span></div>
+          <span id="floor-badge" class="badge floor-badge">8 × 8 · FLOOR 1/1</span>
         </div>
         <div class="board-wrap">
           <div class="board-frame">
@@ -384,7 +455,7 @@ footer{padding:23px 0 0;display:flex;justify-content:space-between;gap:15px;flex
             <span><i style="border-color:var(--cyan);background:#244653"></i> Reachable</span>
             <span><i style="border-color:#df9253;background:#574131"></i> In attack range</span>
             <span><i style="border-color:var(--gold)"></i> Selected</span>
-            <span>◇ Crystal · ♧ Potions · △ Spikes</span>
+            <span>◇ Crystal · ♧ Potions · △ Spikes · ▦ Cover</span>
           </div>
         </div>
         <div id="instruction" class="board-instruction" role="status"></div>
@@ -395,7 +466,7 @@ footer{padding:23px 0 0;display:flex;justify-content:space-between;gap:15px;flex
         <div id="abilities" class="abilities"></div>
         <div class="turn-actions">
           <button data-tool="map_inspect" class="small">◎ Inspect map</button>
-          <button data-tool="exit_try_leave" class="gold small">◇ Leave dungeon</button>
+          <button data-tool="exit_try_leave" class="gold small">◇ Leave floor / dungeon</button>
           <button data-tool="game_end_turn" class="primary small">End Turn →</button>
         </div>
       </section>
@@ -409,7 +480,7 @@ footer{padding:23px 0 0;display:flex;justify-content:space-between;gap:15px;flex
     <aside class="sidebar">
       <section class="card"><div id="character" class="card-body"></div></section>
       <section class="card mission">
-        <div class="card-body"><h3>Agent mission</h3><p>Collect the Ancient Crystal and reach the exit without dying.</p><div id="checklist" class="checklist"></div></div>
+        <div class="card-body"><h3>Agent mission</h3><p id="mission-copy">Collect the Ancient Crystal and reach the exit without dying.</p><div id="checklist" class="checklist"></div><div id="reward-panel" class="reward-panel card-body" hidden></div></div>
       </section>
       <section class="card">
         <div class="card-head"><h3>Selected target</h3><span id="selected-coords" class="small mono muted"></span></div>
@@ -474,7 +545,7 @@ player_use_skill({
     <section class="card">
       <div class="card-head"><h2>WebMCP Tool Inspector</h2><button id="refresh-tools" class="small">Refresh Tools</button></div>
       <div style="padding:12px 17px;border-bottom:1px solid var(--line)">
-        <p id="tool-status" class="small muted">22 structured capabilities · local definitions</p>
+        <p id="tool-status" class="small muted">Structured capabilities · local definitions</p>
       </div>
       <div id="tools" class="tool-list"></div>
       <details class="console">
@@ -499,7 +570,7 @@ player_use_skill({
           <p><b style="color:var(--text)">Resources:</b> Heal restores 30 HP. Potions restore 35 HP or 25 mana. Barrier halves the next incoming attack after defense, rounded up; it expires at the end of the next enemy phase after this turn.</p>
           <p><b style="color:var(--text)">Cooldowns:</b> Arcane Shot is usable again 2 turn numbers after casting; Heal after 3. Potions do not have cooldowns. Orcs take 10 bonus damage from Arcane Shot.</p>
           <p><b style="color:var(--text)">Enemies:</b> Each enemy either attacks or moves per enemy phase, never both. Goblins and skeletons activate within 5 tiles; the guardian activates within 3 tiles of the crystal or when Aria is adjacent.</p>
-          <p><b style="color:var(--text)">Escape:</b> Collect the crystal on or orthogonally adjacent to its tile. Stand on the portal at (6,6), then choose Leave dungeon. Merely arriving does not end the mission.</p>
+          <p><b style="color:var(--text)">Escape:</b> Collect the crystal, stand on the portal, then Leave. Tutorial is one floor. Campaign/Daily have 6 floors; clearing a floor offers a three-choice reward before descending. Cover tiles halve ranged hits against Aria.</p>
           <p><b style="color:var(--text)">Shortcuts:</b> 1 Attack · 2 Arcane Shot · 3 Dash · 4 Heal · 5 Barrier. Arrow keys or WASD move one tile. Tab and Enter work on every tile and control.</p>
         </div>
       </details>
@@ -545,1138 +616,6 @@ player_use_skill({
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script>
-"use strict";
-
-/* ============================================================
-   CONFIG / MAP / PLAYER / ENEMY / ITEM DATA
-   ============================================================ */
-const CONFIG = Object.freeze({size:8, ap:2, exit:{x:6,y:6}, crystal:{x:6,y:5}});
-const MAP = [
-  "########",
-  "#......#",
-  "#.#....#",
-  "#.#....#",
-  "#....P.#",
-  "#..#...#",
-  "#.R....#",
-  "########"
-];
-const ITEM_DATA = {
-  health_potion:{id:"health_potion",name:"Health Potion",description:"Restore 35 HP, capped at 100. Consumes 1 AP.",sprite:"health",restore:35,resource:"hp",max:100,consumable:true},
-  mana_potion:{id:"mana_potion",name:"Mana Potion",description:"Restore 25 mana, capped at 60. Consumes 1 AP.",sprite:"mana",restore:25,resource:"mana",max:60,consumable:true},
-  ancient_crystal:{id:"ancient_crystal",name:"Ancient Crystal",description:"The mission objective. Carry it to the portal at (6,6), then attempt to leave.",sprite:"crystal",consumable:false}
-};
-const SKILL_DATA = {
-  arcane_shot:{name:"Arcane Shot",manaCost:15,cooldown:2,range:4,targetType:"enemy",damage:30,effect:"Deal 30 arcane damage; +10 against the Orc Guardian.",icon:"✧"},
-  dash:{name:"Dash",manaCost:10,cooldown:0,range:4,targetType:"tile",effect:"Move along a walkable path of up to 4 steps. Crossing traps still hurts.",icon:"➶"},
-  heal:{name:"Heal",manaCost:20,cooldown:3,range:0,targetType:"self",effect:"Restore 30 HP, capped at 100.",icon:"✚"},
-  barrier:{name:"Barrier",manaCost:15,cooldown:0,range:0,targetType:"self",effect:"Halve the next incoming attack after defense. Expires at the end of the next turn's enemy phase.",icon:"⬡"}
-};
-const ENEMY_DATA = [
-  {id:"goblin-1",name:"Goblin Scout",sprite:"goblin",x:4,y:1,hp:35,maxHp:35,attack:10,attackRange:1,moveRange:2,behavior:"Aggressive melee. Within 5 tiles, attacks if adjacent; otherwise advances up to 2 tiles.",weakness:"No special weakness."},
-  {id:"skeleton-1",name:"Skeleton Archer",sprite:"skeleton",x:4,y:3,hp:28,maxHp:28,attack:12,attackRange:3,moveRange:1,behavior:"Activates within 5 tiles. Retreats one tile when adjacent if possible; otherwise attacks within 3 tiles or advances.",weakness:"Low health."},
-  {id:"orc-1",name:"Orc Guardian",sprite:"orc",x:5,y:4,hp:60,maxHp:60,attack:18,attackRange:1,moveRange:1,behavior:"Guards the Ancient Crystal. Activates when Aria is within 3 tiles of the crystal or adjacent to the Orc. Attacks if adjacent; otherwise advances one tile.",weakness:"Arcane attacks: Arcane Shot deals 10 bonus damage."}
-];
-
-/* UTILITIES */
-const copy = value => JSON.parse(JSON.stringify(value));
-const pos = o => ({x:o.x,y:o.y});
-const key = o => `${o.x},${o.y}`;
-const distance = (a,b) => Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
-const same = (a,b) => a.x===b.x && a.y===b.y;
-const inBounds = (x,y) => Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<8&&y<8;
-const escapeHTML = value => String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const wait = ms => new Promise(resolve=>setTimeout(resolve,ms));
-const $ = id => document.getElementById(id);
-const sprite = (name,cls="") => `<svg class="sprite ${cls}" viewBox="0 0 32 32" aria-hidden="true"><use href="#sprite-${name}"></use></svg>`;
-const error = (message,extra={}) => ({success:false,error:message,...extra});
-
-/* ============================================================
-   MAP ENGINE: deterministic BFS; orthogonal paths, no teleporting
-   ============================================================ */
-class MapEngine {
-  static terrain(x,y){
-    if(!inBounds(x,y)) return "out_of_bounds";
-    return ({"#":"wall","P":"pillar","R":"rubble",".":"floor"})[MAP[y][x]];
-  }
-  static walkable(x,y){ return this.terrain(x,y)==="floor"; }
-  static neighbors(p){
-    return [{x:p.x,y:p.y-1},{x:p.x+1,y:p.y},{x:p.x,y:p.y+1},{x:p.x-1,y:p.y}].filter(n=>inBounds(n.x,n.y));
-  }
-  static paths(engine,start,maxSteps,movingId="hero"){
-    const occupied=new Set(engine.s.enemies.filter(e=>e.hp>0&&e.id!==movingId).map(key));
-    if(movingId!=="hero") occupied.add(key(engine.s.player));
-    const found=new Map([[key(start),[]]]);
-    const queue=[{p:pos(start),path:[]}];
-    for(let i=0;i<queue.length;i++){
-      const {p,path}=queue[i];
-      if(path.length>=maxSteps) continue;
-      for(const n of this.neighbors(p)){
-        if(!this.walkable(n.x,n.y)||occupied.has(key(n))||found.has(key(n))) continue;
-        const next=[...path,n];
-        found.set(key(n),next);
-        queue.push({p:n,path:next});
-      }
-    }
-    found.delete(key(start));
-    return found;
-  }
-}
-
-/* ============================================================
-   GAME ENGINE: the only source of game truth
-   UI and WebMCP both enter through invoke().
-   ============================================================ */
-class GameEngine {
-  constructor(){ this.reset(); }
-  reset(){
-    this.s={
-      turn:1,phase:"player",actionPoints:2,
-      player:{id:"aria",name:"Aria",class:"Arcane Ranger",x:1,y:1,hp:100,maxHp:100,mana:60,maxMana:60,attack:18,defense:5,moveRange:3,attackRange:3,cooldowns:{arcane_shot:0,dash:0,heal:0,barrier:0},barrier:null},
-      enemies:copy(ENEMY_DATA).map(e=>({...e,inspected:false})),
-      map:MAP.map((row,y)=>[...row].map((_,x)=>({x,y,terrain:MapEngine.terrain(x,y)}))),
-      items:[
-        {id:"health-potion-1",type:"health_potion",x:1,y:5},
-        {id:"mana-potion-1",type:"mana_potion",x:3,y:2},
-        {id:"ancient-crystal",type:"ancient_crystal",x:6,y:5}
-      ],
-      hazards:[{id:"spike-trap-1",name:"Spike Trap",x:6,y:2,damage:20,description:"Visible spikes. Every traversal of this tile deals 20 damage, ignoring defense and Barrier."}],
-      inventory:{health_potion:0,mana_potion:0,ancient_crystal:0},
-      objective:"Collect the Ancient Crystal and reach the exit.",
-      crystalFound:false,objectiveCompleted:false,exitUnlocked:false,victory:false,defeated:false,
-      selectedTile:{x:1,y:1},activityLog:[],exit:copy(CONFIG.exit),victorySource:null
-    };
-    this.effects=[];
-    this.event("System","dungeon_ready","Aria enters the Aether Vault. Inspect, collect supplies, recover the crystal, then escape.");
-    return {success:true,message:"Dungeon reset to its deterministic initial state."};
-  }
-
-  /* ACTIVITY LOGGER */
-  event(source,action,summary){
-    this.s.activityLog.push({timestamp:new Date().toLocaleTimeString("en-GB",{hour12:false}),turn:this.s.turn,source,action,summary});
-    if(this.s.activityLog.length>50) this.s.activityLog.splice(0,this.s.activityLog.length-50);
-  }
-  effect(p,text="",kind="action"){ this.effects.push({...pos(p),text,kind}); }
-  active(){ return this.s.phase==="player"&&!this.s.victory&&!this.s.defeated&&this.s.actionPoints>0; }
-  guard(){
-    if(this.s.defeated) return error("Aria has been defeated. Restart the dungeon.");
-    if(this.s.victory) return error("The dungeon is already cleared. Restart to play again.");
-    if(this.s.phase!=="player") return error("Actions are only allowed during the player phase.",{phase:this.s.phase});
-    if(this.s.actionPoints<=0) return error("No action points remain. End the turn.");
-    return null;
-  }
-  spend(){
-    this.s.actionPoints--;
-    if(this.s.actionPoints===0&&!this.s.defeated&&!this.s.victory) this.s.phase="enemy";
-  }
-  enemy(id){ return this.s.enemies.find(e=>e.id===id); }
-  aliveEnemy(id){ const e=this.enemy(id); return e&&e.hp>0?e:null; }
-  cooldown(id){ return Math.max(0,this.s.player.cooldowns[id]-this.s.turn); }
-  publicEnemy(e){
-    const base={enemyId:e.id,name:e.name,position:pos(e),inspected:e.inspected,alive:e.hp>0};
-    if(e.inspected) Object.assign(base,{hp:e.hp,maxHp:e.maxHp,attack:e.attack,attackRange:e.attackRange,moveRange:e.moveRange,behavior:e.behavior,weakness:e.weakness});
-    return base;
-  }
-  visibleEnemies(){ return this.s.enemies.filter(e=>e.hp>0).map(e=>this.publicEnemy(e)); }
-  inventory(){
-    return Object.values(ITEM_DATA).map(d=>({itemId:d.id,name:d.name,quantity:this.s.inventory[d.id],description:d.description,consumable:d.consumable}));
-  }
-  playerState(){
-    const p=this.s.player;
-    return {id:p.id,name:p.name,class:p.class,position:pos(p),hp:p.hp,maxHp:p.maxHp,mana:p.mana,maxMana:p.maxMana,attack:p.attack,defense:p.defense,moveRange:p.moveRange,attackRange:p.attackRange,
-      actionPoints:this.s.actionPoints,turn:this.s.turn,phase:this.s.phase,
-      statusEffects:p.barrier?[{type:"barrier",reduction:"50%",expiresAfterEnemyPhaseOfTurn:p.barrier.expires}]:[],
-      cooldowns:Object.fromEntries(Object.keys(SKILL_DATA).map(id=>[id,this.cooldown(id)])),inventory:this.inventory()};
-  }
-  tile(x,y){
-    if(!inBounds(x,y)) return error("Coordinates must be integers between 0 and 7.");
-    const p=this.s.player,e=this.s.enemies.find(e=>e.hp>0&&e.x===x&&e.y===y);
-    const item=this.s.items.find(i=>i.x===x&&i.y===y);
-    return {x,y,terrain:MapEngine.terrain(x,y),walkability:MapEngine.walkable(x,y)&&!e,
-      occupant:same(p,{x,y})?{id:"aria",name:"Aria"}:e?this.publicEnemy(e):null,
-      item:item?{itemId:item.id,type:item.type,name:ITEM_DATA[item.type].name}:null,
-      hazard:copy(this.s.hazards.find(h=>h.x===x&&h.y===y)||null),
-      exit:same(this.s.exit,{x,y})};
-  }
-  mapState(){
-    return {width:8,height:8,coordinateSystem:"x increases right; y increases down; bounds 0–7",
-      playerPosition:pos(this.s.player),tiles:this.s.map.flat().map(t=>this.tile(t.x,t.y)),exitPosition:copy(this.s.exit),
-      reachableTiles:this.reachable(3),movement:"Orthogonal BFS paths. Walls, pillars, rubble and enemies block movement. Hazards trigger on every crossed tile.",
-      attackRules:"Manhattan distance. No line-of-sight blocking."};
-  }
-  state(){
-    return {turn:this.s.turn,phase:this.s.phase,actionPoints:this.s.actionPoints,player:this.playerState(),
-      enemies:this.visibleEnemies(),defeatedEnemies:this.s.enemies.filter(e=>e.hp<=0).map(e=>this.publicEnemy(e)),
-      map:this.mapState(),items:this.s.items.map(i=>({...copy(i),name:ITEM_DATA[i.type].name})),
-      inventory:this.inventory(),objective:this.s.objective,objectiveCompleted:this.s.objectiveCompleted,
-      exitUnlocked:this.s.exitUnlocked,victory:this.s.victory,defeated:this.s.defeated,
-      selectedTile:copy(this.s.selectedTile),mission:this.progress(),activityLog:copy(this.s.activityLog)};
-  }
-
-  /* AVAILABLE ACTIONS: generated from the same constraints used by writes */
-  reachable(range){
-    if(!this.active()) return [];
-    return [...MapEngine.paths(this,this.s.player,range)].map(([k,path])=>{
-      const end=path[path.length-1];
-      return {...end,steps:path.length,path:copy(path),hazardDamage:path.reduce((sum,t)=>sum+(this.s.hazards.find(h=>same(h,t))?.damage||0),0)};
-    });
-  }
-  targets(range){ return this.s.enemies.filter(e=>e.hp>0&&distance(e,this.s.player)<=range).map(e=>e.id); }
-  skills(){
-    const p=this.s.player;
-    return Object.entries(SKILL_DATA).map(([id,d])=>{
-      let reason=null;
-      const targets=d.targetType==="enemy"?this.targets(d.range):[];
-      const tiles=d.targetType==="tile"?this.reachable(d.range):[];
-      if(!this.active()) reason="Not an active player turn with AP.";
-      else if(this.cooldown(id)>0) reason=`On cooldown for ${this.cooldown(id)} more turn(s).`;
-      else if(p.mana<d.manaCost) reason="Not enough mana.";
-      else if(id==="heal"&&p.hp===p.maxHp) reason="HP is already full.";
-      else if(id==="barrier"&&p.barrier) reason="Barrier is already active.";
-      else if(d.targetType==="enemy"&&!targets.length) reason="No enemies in range.";
-      else if(d.targetType==="tile"&&!tiles.length) reason="No reachable destination.";
-      return {skill:id,...copy(d),actionPointCost:1,remainingCooldown:this.cooldown(id),available:!reason,unavailableReason:reason,
-        ...(d.targetType==="enemy"?{validEnemyIds:targets}:{}),...(d.targetType==="tile"?{reachableTiles:tiles}:{})};
-    });
-  }
-  available(){
-    const active=this.active(),reachable=this.reachable(3),skills=this.skills();
-    const pickup=active?this.s.items.filter(i=>distance(i,this.s.player)<=1).map(i=>({itemId:i.id,name:ITEM_DATA[i.type].name,position:pos(i)})):[];
-    return {phase:this.s.phase,actionPoints:this.s.actionPoints,canMove:reachable.length>0,reachableTiles:reachable,
-      attackableEnemies:active?this.targets(3):[],availableSkills:skills.filter(s=>s.available),skills,
-      pickupAvailable:pickup.length>0,pickupItems:pickup,
-      usableItems:active?Object.values(ITEM_DATA).filter(d=>d.consumable&&this.s.inventory[d.id]>0&&this.s.player[d.resource]<d.max).map(d=>d.id):[],
-      canEndTurn:active,canEscape:active&&this.progress().canEscape,
-      costs:{move:1,attack:1,skill:1,pickup:1,useItem:1,inspect:0,exit:0}};
-  }
-
-  /* MOVEMENT / COMBAT / SKILLS */
-  validateMove(x,y,range){
-    if(!inBounds(x,y)) return error("Coordinates must be integers between 0 and 7.");
-    if(!MapEngine.walkable(x,y)) return error(`Tile (${x},${y}) is blocked by ${MapEngine.terrain(x,y)}.`);
-    if(same(this.s.player,{x,y})) return error("Aria is already on that tile.");
-    if(this.s.enemies.some(e=>e.hp>0&&e.x===x&&e.y===y)) return error("That tile is occupied by an enemy.");
-    const path=MapEngine.paths(this,this.s.player,range).get(`${x},${y}`);
-    if(!path) return error(`Tile (${x},${y}) is not reachable within ${range} walkable steps.`);
-    return {success:true,path};
-  }
-  moveAlong(path,label){
-    const from=pos(this.s.player);let trapDamage=0;
-    for(const tile of path){
-      this.s.player.x=tile.x;this.s.player.y=tile.y;
-      const hazard=this.s.hazards.find(h=>same(h,tile));
-      if(hazard){
-        trapDamage+=hazard.damage;
-        this.hurtPlayer(hazard.damage,"Spike Trap",true);
-        if(this.s.defeated) break;
-      }
-    }
-    const to=pos(this.s.player);
-    this.s.selectedTile=to;
-    this.effect(to,label==="Dash"?"DASH":"",label==="Dash"?"skill":"move");
-    this.event("System","player_position",`Aria ${label==="Dash"?"dashed":"moved"} from (${from.x},${from.y}) to (${to.x},${to.y}).`);
-    this.spend();
-    return {success:true,from,to,path:copy(path),trapDamage,remainingAP:this.s.actionPoints};
-  }
-  move(x,y){
-    const fail=this.guard();if(fail)return fail;
-    const check=this.validateMove(x,y,3);if(!check.success)return check;
-    return this.moveAlong(check.path,"Move");
-  }
-  validateTarget(id,range){
-    const e=this.aliveEnemy(id);
-    if(!e) return error("Target enemy does not exist or is already defeated.");
-    if(distance(e,this.s.player)>range) return error("Target is outside attack range.",{range,distance:distance(e,this.s.player)});
-    return {success:true,enemy:e};
-  }
-  damageEnemy(e,damage,kind){
-    const actual=Math.min(e.hp,damage);
-    e.hp=Math.max(0,e.hp-damage);
-    this.s.selectedTile=pos(e);
-    this.effect(e,`−${actual}`,kind);
-    this.event("System",kind,`${e.name} −${actual} HP${e.hp===0?" · defeated":""}.`);
-    return actual;
-  }
-  attack(enemyId){
-    const fail=this.guard();if(fail)return fail;
-    const check=this.validateTarget(enemyId,3);if(!check.success)return check;
-    const damage=this.damageEnemy(check.enemy,18,"basic_attack");
-    this.spend();
-    return {success:true,enemyId,damage,remainingEnemyHP:check.enemy.hp,enemyDefeated:check.enemy.hp===0,remainingAP:this.s.actionPoints};
-  }
-  useSkill(args){
-    const fail=this.guard();if(fail)return fail;
-    const d=SKILL_DATA[args.skill],p=this.s.player;
-    if(!d)return error("Unknown skill.",{validSkills:Object.keys(SKILL_DATA)});
-    if(this.cooldown(args.skill)>0) return error(`${d.name} is on cooldown.`,{remainingTurns:this.cooldown(args.skill)});
-    if(p.mana<d.manaCost)return error("Not enough mana.",{required:d.manaCost,available:p.mana});
-    let check;
-    if(args.skill==="arcane_shot"){
-      check=this.validateTarget(args.enemyId,d.range);if(!check.success)return check;
-    }
-    if(args.skill==="dash"){
-      check=this.validateMove(args.x,args.y,d.range);if(!check.success)return check;
-    }
-    if(args.skill==="heal"&&p.hp===p.maxHp)return error("Aria is already at full health.");
-    if(args.skill==="barrier"&&p.barrier)return error("Barrier is already active.");
-    // All validation is complete before consuming any resources.
-    p.mana-=d.manaCost;
-    p.cooldowns[args.skill]=this.s.turn+d.cooldown;
-    let result={success:true,skill:args.skill};
-    if(args.skill==="dash"){
-      result={...result,...this.moveAlong(check.path,"Dash")};
-    }else{
-      if(args.skill==="arcane_shot"){
-        const damage=this.damageEnemy(check.enemy,30+(check.enemy.id==="orc-1"?10:0),"arcane_shot");
-        Object.assign(result,{enemyId:check.enemy.id,damage,remainingEnemyHP:check.enemy.hp,enemyDefeated:check.enemy.hp===0});
-      }
-      if(args.skill==="heal"){
-        const before=p.hp;p.hp=Math.min(p.maxHp,p.hp+30);
-        Object.assign(result,{before,after:p.hp,restored:p.hp-before});
-        this.effect(p,`+${p.hp-before}`,"heal");
-        this.event("System","heal",`Aria restored ${p.hp-before} HP.`);
-      }
-      if(args.skill==="barrier"){
-        p.barrier={expires:this.s.turn+1};
-        this.effect(p,"BARRIER","barrier");
-        this.event("System","barrier","Barrier raised: next incoming attack is reduced by 50%.");
-      }
-      this.spend();
-    }
-    return {...result,remainingMana:p.mana,remainingAP:this.s.actionPoints,remainingCooldown:this.cooldown(args.skill)};
-  }
-
-  /* INVENTORY ENGINE */
-  inspectItem(itemId){
-    const world=this.s.items.find(i=>i.id===itemId);
-    const definition=ITEM_DATA[world?.type||itemId];
-    if(!definition)return error("Unknown item ID.",{validItemTypes:Object.keys(ITEM_DATA),worldItemIds:this.s.items.map(i=>i.id)});
-    if(definition.id==="ancient_crystal")this.s.crystalFound=true;
-    return {success:true,...copy(definition),quantity:this.s.inventory[definition.id],...(world?{worldItemId:world.id,position:pos(world)}:{})};
-  }
-  pickup(itemId){
-    const fail=this.guard();if(fail)return fail;
-    const index=this.s.items.findIndex(i=>i.id===itemId);
-    if(index<0)return error("That item is not on the map.",{visibleItemIds:this.s.items.map(i=>i.id)});
-    const item=this.s.items[index];
-    if(distance(item,this.s.player)>1)return error("Stand on or orthogonally adjacent to the item before picking it up.");
-    this.s.inventory[item.type]++;
-    this.s.items.splice(index,1);
-    if(item.type==="ancient_crystal"){this.s.crystalFound=true;this.s.exitUnlocked=true;}
-    this.effect(item,"COLLECTED","pickup");
-    this.event("System","item_collected",`Aria collected ${ITEM_DATA[item.type].name}.`);
-    this.spend();
-    return {success:true,itemId,itemType:item.type,quantity:this.s.inventory[item.type],remainingAP:this.s.actionPoints,mission:this.progress()};
-  }
-  useItem(itemId){
-    const fail=this.guard();if(fail)return fail;
-    const d=ITEM_DATA[itemId];
-    if(!d)return error("Unknown inventory item type.");
-    if(!d.consumable)return error("The Ancient Crystal is an objective item, not a consumable.");
-    if(this.s.inventory[itemId]<=0)return error(`${d.name} is not in inventory.`);
-    if(this.s.player[d.resource]>=d.max)return error(`${d.resource==="hp"?"Health":"Mana"} is already full.`);
-    const before=this.s.player[d.resource];
-    this.s.player[d.resource]=Math.min(d.max,before+d.restore);
-    this.s.inventory[itemId]--;
-    const after=this.s.player[d.resource];
-    this.effect(this.s.player,`+${after-before} ${d.resource.toUpperCase()}`,"item");
-    this.event("System","item_used",`Aria used ${d.name}: ${before} → ${after} ${d.resource}.`);
-    this.spend();
-    return {success:true,itemId,before,after,remainingQuantity:this.s.inventory[itemId],remainingAP:this.s.actionPoints};
-  }
-
-  /* ENEMY AI: either movement or attack, deterministic order */
-  hurtPlayer(raw,attacker,trap=false){
-    const p=this.s.player;
-    let damage=trap?raw:Math.max(1,raw-p.defense);
-    if(!trap&&p.barrier){damage=Math.ceil(damage*.5);p.barrier=null;}
-    damage=Math.min(p.hp,damage);
-    p.hp=Math.max(0,p.hp-damage);
-    this.effect(p,`−${damage}`,trap?"trap":"enemy_attack");
-    this.event(trap?"System":"Enemy",trap?"trap_damage":"enemy_attack",`${attacker} hit Aria for ${damage}. HP ${p.hp}/${p.maxHp}.`);
-    if(p.hp===0){
-      this.s.defeated=true;this.s.phase="defeated";this.s.actionPoints=0;
-      this.event("System","defeat","Aria was defeated. Restart the dungeon to try again.");
-    }
-    return damage;
-  }
-  enemyStep(id){
-    if(this.s.phase!=="enemy"||this.s.defeated)return;
-    const e=this.aliveEnemy(id);if(!e)return;
-    const p=this.s.player,d=distance(e,p);
-    const activated=e.id==="orc-1"?(distance(p,CONFIG.crystal)<=3||d<=1):d<=5;
-    if(!activated){this.event("Enemy","guard",`${e.name} holds position.`);return;}
-    if(e.id==="skeleton-1"&&d<=1){
-      const retreats=MapEngine.neighbors(e).filter(t=>MapEngine.walkable(t.x,t.y)&&!same(t,p)&&!this.s.enemies.some(other=>other.hp>0&&other.id!==e.id&&same(other,t)))
-        .sort((a,b)=>distance(b,p)-distance(a,p)||a.y-b.y||a.x-b.x);
-      if(retreats[0]&&distance(retreats[0],p)>d){
-        Object.assign(e,retreats[0]);this.effect(e,"RETREAT","enemy_move");
-        this.event("Enemy","enemy_move",`${e.name} retreated to (${e.x},${e.y}).`);return;
-      }
-    }
-    if(d<=e.attackRange){this.hurtPlayer(e.attack,e.name);return;}
-    // Find a shortest path to any walkable tile in attack range.
-    const paths=MapEngine.paths(this,e,64,e.id);
-    const candidates=[...paths.values()].filter(path=>distance(path[path.length-1],p)<=e.attackRange)
-      .sort((a,b)=>a.length-b.length||distance(a[a.length-1],p)-distance(b[b.length-1],p)||a[a.length-1].y-b[b.length-1].y||a[a.length-1].x-b[b.length-1].x);
-    if(candidates.length){
-      const path=candidates[0],destination=path[Math.min(e.moveRange,path.length)-1];
-      Object.assign(e,destination);this.effect(e,"","enemy_move");
-      this.event("Enemy","enemy_move",`${e.name} moved to (${e.x},${e.y}).`);
-    }else this.event("Enemy","guard",`${e.name} has no clear approach.`);
-  }
-  finishEnemyPhase(){
-    if(this.s.defeated)return;
-    if(this.s.phase!=="enemy")return;
-    if(this.s.player.barrier&&this.s.turn>=this.s.player.barrier.expires){
-      this.s.player.barrier=null;this.event("System","barrier_expired","Barrier expired.");
-    }
-    this.s.turn++;this.s.actionPoints=2;this.s.phase="player";
-    this.event("System","player_turn",`Turn ${this.s.turn}: Aria has 2 AP.`);
-  }
-  resolveEnemies(){
-    for(const e of this.s.enemies)this.enemyStep(e.id);
-    this.finishEnemyPhase();
-  }
-  endTurn(){
-    const fail=this.guard();if(fail)return fail;
-    this.s.actionPoints=0;this.s.phase="enemy";
-    return {success:true,message:"Player turn ended; resolving enemy actions."};
-  }
-
-  /* MISSION ENGINE */
-  progress(){
-    const has=!!this.s.inventory.ancient_crystal,reached=same(this.s.player,this.s.exit);
-    const blockers=[];
-    if(!has)blockers.push("The Ancient Crystal is still inside the dungeon.");
-    if(!reached)blockers.push("Aria must stand on the exit at (6,6).");
-    if(this.s.defeated)blockers.push("Aria is defeated.");
-    return {objective:this.s.objective,foundAncientCrystal:this.s.crystalFound,hasAncientCrystal:has,hasCrystal:has,
-      exitPosition:copy(this.s.exit),exitReached:reached,alive:this.s.player.hp>0,canEscape:has&&reached&&!this.s.defeated,
-      completed:this.s.victory,blockers};
-  }
-  leave(source){
-    const fail=this.guard();if(fail)return fail;
-    if(!this.s.inventory.ancient_crystal)return error("You cannot leave yet. The Ancient Crystal is still inside the dungeon.");
-    if(!same(this.s.player,this.s.exit))return error("Aria must stand on the exit portal at (6,6) before leaving.");
-    this.s.victory=true;this.s.objectiveCompleted=true;this.s.phase="victory";this.s.victorySource=source;
-    this.effect(this.s.player,"CLEARED","victory");
-    this.event("System","objective_completed","Ancient Crystal recovered. Dungeon cleared.");
-    return {success:true,victory:true,turns:this.s.turn,enemiesDefeated:this.s.enemies.filter(e=>e.hp===0).length,hpRemaining:this.s.player.hp};
-  }
-
-  /* CAPABILITY ROUTER: no DOM calls; all outputs are plain data */
-  invoke(name,a={},source="UI"){
-    switch(name){
-      case "game_get_state":return this.state();
-      case "game_get_objective":{const p=this.progress();return {objective:p.objective,hasCrystal:p.hasCrystal,exitReached:p.exitReached,completed:p.completed};}
-      case "map_inspect":this.s.crystalFound=true;return this.mapState();
-      case "tile_inspect":{
-        const t=this.tile(a.x,a.y);
-        if(t.success===false)return t;
-        this.s.selectedTile={x:a.x,y:a.y};
-        if(t.item?.type==="ancient_crystal")this.s.crystalFound=true;
-        return t;
-      }
-      case "player_get_state":return this.playerState();
-      case "player_get_available_actions":return this.available();
-      case "player_move":return this.move(a.x,a.y);
-      case "enemy_list":return {enemies:this.visibleEnemies()};
-      case "enemy_inspect":{
-        const e=this.enemy(a.enemyId);
-        if(!e)return error("Unknown enemy ID.",{enemyIds:this.s.enemies.map(e=>e.id)});
-        e.inspected=true;this.s.selectedTile=pos(e);this.effect(e,"INSPECTED","inspect");
-        return {success:true,...this.publicEnemy(e)};
-      }
-      case "player_attack":return this.attack(a.enemyId);
-      case "player_use_skill":return this.useSkill(a);
-      case "player_get_skills":return {skills:this.skills()};
-      case "inventory_get":return {inventory:this.inventory()};
-      case "item_inspect":return this.inspectItem(a.itemId);
-      case "player_pickup":return this.pickup(a.itemId);
-      case "player_use_item":return this.useItem(a.itemId);
-      case "game_end_turn":return this.endTurn();
-      case "game_get_recent_events":return {events:copy(this.s.activityLog.slice(-(a.limit??10)))};
-      case "mission_get_progress":return this.progress();
-      case "exit_try_leave":return this.leave(source);
-      case "game_reset":return this.reset();
-      case "game_get_available_options":return {
-        coordinateBounds:{x:{min:0,max:7},y:{min:0,max:7}},skillNames:Object.keys(SKILL_DATA),
-        enemyIds:this.s.enemies.map(e=>({enemyId:e.id,name:e.name,alive:e.hp>0})),
-        visibleItemIds:this.s.items.map(i=>({itemId:i.id,type:i.type,name:ITEM_DATA[i.type].name})),
-        inventoryItemTypes:Object.keys(ITEM_DATA),supportedActions:TOOLS.map(t=>t.name),
-        rules:{movementAP:1,attackAP:1,skillAP:1,pickupAP:1,itemAP:1,exitAP:0,inspectionAP:0,pickupDistance:1,exitDistance:0,attackMetric:"Manhattan; no line of sight",automaticEnemyPhaseAtZeroAP:true}};
-      default:return error("Unknown capability.");
-    }
-  }
-}
-
-/* ============================================================
-   TOOL DEFINITIONS: explicit schemas and discovery metadata
-   ============================================================ */
-const coordinateProperties={
-  x:{type:"integer",minimum:0,maximum:7,description:"Column coordinate, from 0 at the left to 7 at the right."},
-  y:{type:"integer",minimum:0,maximum:7,description:"Row coordinate, from 0 at the top to 7 at the bottom."}
-};
-const enemyProperty={enemyId:{type:"string",minLength:1,description:"Stable enemy ID obtained from enemy_list or map_inspect, e.g. orc-1."}};
-const worldItemProperty={itemId:{type:"string",minLength:1,description:"World item instance ID from map_inspect or available actions, e.g. health-potion-1 or ancient-crystal."}};
-const schema=(properties={},required=[])=>({type:"object",properties,required,additionalProperties:false});
-const define=(name,read,description,inputSchema=schema(),example={})=>({
-  name,description,inputSchema,example,
-  annotations:{readOnlyHint:read,consequentialHint:!read,untrustedContentHint:false}
-});
-const skillSchema=schema({
-  skill:{type:"string",enum:Object.keys(SKILL_DATA),description:"Ability to use. Arcane Shot requires enemyId; Dash requires x and y; Heal and Barrier target Aria."},
-  ...enemyProperty,...coordinateProperties
-},["skill"]);
-skillSchema.oneOf=[
-  {properties:{skill:{const:"arcane_shot"}},required:["enemyId"]},
-  {properties:{skill:{const:"dash"}},required:["x","y"]},
-  {properties:{skill:{enum:["heal","barrier"]}}}
-];
-const TOOLS=[
-  define("game_get_state",true,"Get the current shared tactical state: hero statistics and position, AP, phase, visible map objects, inventory, objective progress, victory, defeat, and recent events. Uninspected enemies reveal only identity and position; use enemy_inspect for detailed combat information."),
-  define("game_get_objective",true,"Get the mission, its completion requirements, and current progress: possession of the Ancient Crystal, whether Aria is standing on the exit, and whether the dungeon has been cleared."),
-  define("map_inspect",true,"Inspect all 64 visible dungeon tiles, hero position, enemies, ground items, spike hazards, blocking terrain, exit, and currently reachable movement paths with hazard damage. Records that the visible crystal has been found; does not reveal uninspected enemy statistics."),
-  define("tile_inspect",true,"Inspect one coordinate to learn its terrain, occupant, ground item, hazard, walkability, and exit status. Free observation; does not move Aria or reveal an enemy's hidden combat stats.",schema(coordinateProperties,["x","y"]),{x:6,y:5}),
-  define("player_get_state",true,"Get Aria's current HP, mana, combat statistics, position, AP, phase, Barrier status, remaining skill cooldowns, and inventory quantities."),
-  define("player_get_available_actions",true,"Get legal actions now, without guessing: reachable tiles and exact paths, trap damage along each path, basic-attack target IDs, usable skills with valid targets or destinations, nearby pickups, usable inventory items, end-turn availability, and escape eligibility."),
-  define("player_move",false,"Move Aria to a reachable tile during the player turn. Use map_inspect or player_get_available_actions first. Costs 1 AP and follows a deterministic orthogonal path of at most 3 steps; walls, pillars, rubble, and enemies block movement. Crossing a spike trap deals 20 damage. If AP reaches zero, all enemy actions resolve before this tool returns.",schema(coordinateProperties,["x","y"]),{x:3,y:1}),
-  define("enemy_list",true,"List all living visible enemies with stable IDs, names, positions, and inspection status. Exact HP and tactical statistics are returned only for enemies previously inspected."),
-  define("enemy_inspect",true,"Inspect a visible enemy by ID to reveal its exact HP, attack, attack range, movement range, deterministic behavior, and weakness. Costs no AP and reveals the same information in the human target panel.",schema(enemyProperty,["enemyId"]),{enemyId:"orc-1"}),
-  define("player_attack",false,"Perform Aria's basic attack on a living enemy within Manhattan range 3. Deals 18 damage, costs 1 AP and no mana. Projectiles ignore cover. Validates phase, AP, target, and range before making any changes; resolves an automatic enemy phase if this spends the last AP.",schema(enemyProperty,["enemyId"]),{enemyId:"goblin-1"}),
-  define("player_use_skill",false,"Use one tactical skill for 1 AP. arcane_shot: enemyId required, range 4, 30 damage (+10 against Orc), 15 mana, cooldown 2. dash: x/y required, up to 4 walkable steps, 10 mana. heal: restore 30 HP, 20 mana, cooldown 3. barrier: halve the next incoming attack, 15 mana, expires after next turn's enemy phase. Invalid actions consume no AP or mana. Use player_get_skills for current availability.",skillSchema,{skill:"arcane_shot",enemyId:"orc-1"}),
-  define("player_get_skills",true,"Get all hero abilities with effect, AP and mana cost, cooldown, remaining cooldown, target type, range, current availability, unavailability reason, and valid target IDs or reachable destinations."),
-  define("inventory_get",true,"Get inventory item type IDs, names, quantities, descriptions, and whether each item is consumable. Use inventory type IDs, not ground instance IDs, with player_use_item."),
-  define("item_inspect",true,"Inspect an inventory item type or visible ground-item instance to learn its effect, quantity, and position when on the map. Free observation. Inspecting the crystal records that it has been found.",schema({itemId:{type:"string",minLength:1,description:"Inventory type such as health_potion, mana_potion, ancient_crystal, or a visible world instance ID."}},["itemId"]),{itemId:"health_potion"}),
-  define("player_pickup",false,"Collect a specific ground-item instance on Aria's tile or one orthogonal tile away. Costs 1 AP. Use a visible world ID such as health-potion-1, mana-potion-1, or ancient-crystal. Picking up the crystal unlocks the exit but does not win the dungeon.",schema(worldItemProperty,["itemId"]),{itemId:"health-potion-1"}),
-  define("player_use_item",false,"Consume an inventory potion for 1 AP: health_potion restores 35 HP; mana_potion restores 25 mana, capped at the hero maximum. Requires a positive inventory quantity and a resource below its maximum. The Ancient Crystal cannot be consumed.",schema({itemId:{type:"string",enum:["health_potion","mana_potion"],description:"Consumable inventory type ID, not its ground instance ID."}},["itemId"]),{itemId:"health_potion"}),
-  define("game_end_turn",false,"End the current player turn, discarding remaining AP. Resolve each living enemy's deterministic move or attack, incoming damage, Barrier expiry, cooldown progression, and the next player turn before returning a concise event summary. Each enemy either moves or attacks, never both."),
-  define("game_get_recent_events",true,"Get the most recent observable combat, inspection, movement, item, and dungeon events, including source and timestamp. Returns at most 50 entries.",schema({limit:{type:"integer",minimum:1,maximum:50,default:10,description:"Number of recent events to return, between 1 and 50."}}),{limit:10}),
-  define("mission_get_progress",true,"Get crystal discovery and collection progress, hero survival, exit position, whether Aria is on the portal, escape eligibility, completion status, and explicit blockers preventing victory."),
-  define("exit_try_leave",false,"Attempt to leave the dungeon. Aria must be alive, in the player phase, carrying the Ancient Crystal, and standing exactly on the portal at (6,6). Costs no AP. Returns a specific blocker on failure; marks victory only when every requirement is met."),
-  define("game_reset",false,"Restart the dungeon from its deterministic initial state. This discards current progress and resets Aria, enemies, items, inventory, AP, turn, cooldowns, inspections, objective status, victory, and defeat."),
-  define("game_get_available_options",true,"Get valid skill enums, known enemy IDs, visible ground-item IDs, inventory type IDs, supported capability names, coordinate bounds, action costs, pickup distance, exit rules, and attack metric so an agent does not need to guess tool arguments.")
-];
-const TOOL_BY_NAME=new Map(TOOLS.map(t=>[t.name,t]));
-
-/* SCHEMA VALIDATION: also enforced for direct console and UI calls. */
-function validateArgs(tool,args){
-  if(!args||typeof args!=="object"||Array.isArray(args))return error("Arguments must be a JSON object.");
-  const s=tool.inputSchema;
-  for(const required of s.required)if(!(required in args))return error(`Missing required argument: ${required}.`);
-  for(const [name,value] of Object.entries(args)){
-    const p=s.properties[name];
-    if(!p)return error(`Unexpected argument: ${name}.`);
-    if(p.type==="integer"&&!Number.isInteger(value))return error(`${name} must be an integer.`);
-    if(p.type==="string"&&typeof value!=="string")return error(`${name} must be a string.`);
-    if(p.minimum!==undefined&&value<p.minimum||p.maximum!==undefined&&value>p.maximum)return error(`${name} must be between ${p.minimum} and ${p.maximum}.`);
-    if(p.minLength&&value.length<p.minLength)return error(`${name} cannot be empty.`);
-    if(p.enum&&!p.enum.includes(value))return error(`Invalid ${name}.`,{validValues:p.enum});
-  }
-  if(tool.name==="player_use_skill"){
-    if(args.skill==="arcane_shot"&&!args.enemyId)return error("Arcane Shot requires enemyId.");
-    if(args.skill==="dash"&&(!("x" in args)||!("y" in args)))return error("Dash requires x and y.");
-    const allowed=args.skill==="arcane_shot"?["skill","enemyId"]:args.skill==="dash"?["skill","x","y"]:["skill"];
-    if(Object.keys(args).some(k=>!allowed.includes(k)))return error(`Unexpected target arguments for ${args.skill}.`);
-  }
-  return null;
-}
-
-/* ============================================================
-   ACTION QUEUE: human and native tool calls share one pipeline.
-   The engine is synchronous; the queue renders each resolution step.
-   ============================================================ */
-class ActionQueue {
-  constructor(engine){this.engine=engine;this.tail=Promise.resolve();this.pending=0;this.onRender=()=>{};}
-  call(name,args={},source="UI"){
-    // Copy at enqueue time so callers cannot change a pending request.
-    let snapshot;
-    try{snapshot=copy(args);}catch{return Promise.resolve(error("Arguments must be serializable JSON."));}
-    const task=async()=>{
-      this.pending++;
-      const e=this.engine,tool=TOOL_BY_NAME.get(name);
-      const oldTurn=e.s.turn;
-      let result;
-      try{
-        const validation=tool?validateArgs(tool,snapshot):error("Unknown capability.",{validTools:TOOLS.map(t=>t.name)});
-        if(validation){
-          result=validation;
-        }else{
-          e.effects=[];
-          if(name==="game_reset"){UI.mode="move";UI.overlayDismissed=false;}
-          e.event(source,name,formatArgs(snapshot)||"Observe / execute shared capability");
-          result=e.invoke(name,snapshot,source);
-          if(result.success===false)e.event(source,"action_rejected",result.error);
-          if(source==="WebMCP"&&result.success!==false){
-            UI.trail.push(toolSummary(name,snapshot));UI.trail=UI.trail.slice(-5);
-            if(name==="game_reset")UI.trail=["Restarted dungeon"];
-            UI.agentSkill=snapshot.skill||null;
-            if(!e.effects.length)e.effect(snapshot.x!==undefined?snapshot:e.s.player,"","agent");
-          }
-          this.onRender();
-          if(e.effects.length)await wait(animationDelay(source));
-          if(result.success!==false&&e.s.phase==="enemy"){
-            e.effects=[];this.onRender();
-            for(const enemy of e.s.enemies){
-              if(e.s.defeated)break;
-              e.effects=[];e.enemyStep(enemy.id);this.onRender();
-              if(e.effects.length)await wait(animationDelay(source));
-            }
-            e.finishEnemyPhase();
-          }
-          if(result.success!==false&&!tool.annotations.readOnlyHint){
-            result={...result,remainingAP:e.s.actionPoints,turn:e.s.turn,phase:e.s.phase,victory:e.s.victory,defeated:e.s.defeated,
-              enemyPhaseResolved:e.s.turn>oldTurn||e.s.defeated,
-              events:copy(e.s.activityLog.filter(v=>v.turn>=oldTurn&&["Enemy","System"].includes(v.source)).slice(-12))};
-          }
-          if(name==="game_reset")result.state=e.state();
-        }
-        if(result.success===false&&source==="UI")toast(result.error);
-        return copy(result);
-      }catch(err){
-        console.error("Capability execution failed",err);
-        e.event("System","execution_error","An unexpected execution error occurred.");
-        return error("Unexpected execution error. Inspect current state before retrying.");
-      }finally{
-        e.effects=[];UI.agentSkill=null;
-        this.pending--;this.onRender();
-      }
-    };
-    const promise=this.tail.then(task,task);
-    this.tail=promise.catch(()=>{});
-    return promise;
-  }
-}
-function animationDelay(source){
-  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return 0;
-  return source==="WebMCP"?650:220;
-}
-function formatArgs(a){return Object.keys(a).length?JSON.stringify(a):"";}
-function toolSummary(name,a){
-  const labels={
-    game_get_state:"Observed shared state",map_inspect:"Observed battlefield",enemy_inspect:`Inspected ${a.enemyId}`,
-    player_get_available_actions:"Observed legal actions",player_move:`Moved to (${a.x},${a.y})`,
-    player_attack:`Attacked ${a.enemyId}`,player_use_skill:`Used ${SKILL_DATA[a.skill]?.name||"skill"}`,
-    player_pickup:`Collected ${a.itemId}`,game_end_turn:"Resolved enemy turn",exit_try_leave:"Attempted escape",
-    player_use_item:`Used ${a.itemId}`,mission_get_progress:"Checked mission progress"
-  };
-  return labels[name]||name.replaceAll("_"," ");
-}
-
-/* ============================================================
-   GAME RENDERER
-   ============================================================ */
-const UI={mode:"move",trail:[],agentSkill:null,overlayDismissed:false,showingResult:false,previousFocus:null};
-const engine=new GameEngine();
-const queue=new ActionQueue(engine);
-let toastTimer;
-function toast(message){
-  $("toast").textContent=message;clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>$("toast").textContent="",4200);
-}
-function actionButton(label,name,args={},cls=""){
-  return `<button class="${cls}" data-tool="${name}" data-args="${escapeHTML(JSON.stringify(args))}">${label}</button>`;
-}
-class GameRenderer {
-  static initBoard(){
-    $("board").innerHTML=Array.from({length:64},(_,n)=>`<button class="tile" data-x="${n%8}" data-y="${Math.floor(n/8)}"></button>`).join("");
-  }
-  static render(){
-    const s=engine.s,p=s.player,a=engine.available(),busy=queue.pending>0;
-    $("statusbar").innerHTML=`
-      <div><span class="muted small">TURN</span> <b>${s.turn.toString().padStart(2,"0")}</b></div>
-      <div style="color:${s.phase==="player"?"var(--cyan)":"var(--gold)"}"><b class="small">${s.phase.toUpperCase()}${["player","enemy"].includes(s.phase)?" TURN":""}</b></div>
-      <div><span class="muted small">HP</span> <b>${p.hp}<span class="muted small">/100</span></b></div>
-      <div><span class="muted small">MANA</span> <b>${p.mana}<span class="muted small">/60</span></b></div>
-      <div><span class="muted small">AP</span> <b class="ap" aria-label="${s.actionPoints} of 2 action points">${"●".repeat(s.actionPoints)}${"○".repeat(2-s.actionPoints)}</b></div>
-      <div class="objective-top">◇ ${s.victory?"Ancient Crystal recovered · mission complete":s.inventory.ancient_crystal?"Crystal secured → Reach the portal at (6,6)":"Objective: Find the Ancient Crystal"}</div>`;
-    const range=UI.mode==="dash"?4:3;
-    const skill=engine.skills().find(sk=>sk.skill===UI.mode);
-    const movementOK=UI.mode==="move"||(UI.mode==="dash"&&skill?.available);
-    const reachable=new Set(movementOK?engine.reachable(range).map(key):[]);
-    const attackRange=UI.mode==="arcane_shot"?4:3;
-    const targetable=new Set(engine.active()?engine.targets(attackRange):[]);
-    for(const tile of $("board").children){
-      const x=+tile.dataset.x,y=+tile.dataset.y,t=engine.tile(x,y),at={x,y};
-      const enemy=s.enemies.find(e=>e.hp>0&&same(e,at)),hero=same(p,at);
-      const item=s.items.find(i=>same(i,at)),hazard=s.hazards.find(h=>same(h,at));
-      const effect=engine.effects.findLast?engine.effects.findLast(f=>same(f,at)):[...engine.effects].reverse().find(f=>same(f,at));
-      tile.className=`tile ${t.terrain} ${reachable.has(key(at))?"reachable":""} ${enemy&&targetable.has(enemy.id)?"targetable":""} ${same(s.selectedTile,at)?"selected":""} ${effect?"flash":""}`;
-      let html="";
-      if(t.exit)html+=sprite("portal","portal item-sprite");
-      if(t.terrain==="pillar"||t.terrain==="rubble")html+=sprite(t.terrain);
-      if(hazard)html+=sprite("trap","item-sprite");
-      if(item)html+=sprite(ITEM_DATA[item.type].sprite,hero||enemy?"under-item":"item-sprite");
-      if(enemy){
-        html+=sprite(enemy.sprite);
-        if(enemy.inspected)html+=`<span class="enemy-hp" aria-hidden="true"><i style="width:${100*enemy.hp/enemy.maxHp}%"></i></span>`;
-      }
-      if(hero)html+=sprite("hero","hero");
-      const label=hero?"Aria":enemy?enemy.name.split(" ")[0]:item?item.type==="ancient_crystal"?"Crystal":ITEM_DATA[item.type].name.split(" ")[0]:t.exit?"Exit":hazard?"Spikes":t.terrain==="pillar"?"Pillar":t.terrain==="rubble"?"Rubble":"";
-      if(label)html+=`<span class="tile-name">${label}</span>`;
-      if(effect?.text)html+=`<span class="float-text">${escapeHTML(effect.text)}</span>`;
-      if(tile.innerHTML!==html)tile.innerHTML=html;
-      const description=`Tile ${x}, ${y}: ${t.terrain}${label?", "+label:""}${hazard?", spike trap, 20 damage":""}${enemy&&enemy.inspected?`, HP ${enemy.hp}/${enemy.maxHp}`:""}${reachable.has(key(at))?", reachable":""}`;
-      tile.setAttribute("aria-label",description);
-      tile.title=description;
-    }
-    $("instruction").textContent=busy?"Resolving shared capability…":s.victory?"Dungeon cleared. Review the event log or restart.":s.defeated?"Aria is defeated. Restart to try a different strategy.":({
-      move:"Select Aria, then click a cyan tile to move. Click enemies or objects to inspect.",
-      attack:"Basic Attack selected · Click an enemy within 3 tiles. 18 damage · 1 AP.",
-      arcane_shot:"Arcane Shot selected · Click an enemy within 4 tiles. 30 damage · 15 mana · 1 AP.",
-      dash:"Dash selected · Click a cyan destination within 4 walkable steps. 10 mana · 1 AP."
-    })[UI.mode]||"Choose an action.";
-
-    $("character").innerHTML=`
-      <div class="hero-title"><div class="portrait">${sprite("hero")}</div><div><h2>ARIA</h2><p>Arcane Ranger</p><span class="small muted mono">Position (${p.x}, ${p.y})</span></div></div>
-      <div class="bar-label"><span>Health</span><b>${p.hp} / 100</b></div><div class="bar" role="meter" aria-label="Health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.hp}"><i style="width:${p.hp}%"></i></div>
-      <div class="bar-label"><span>Mana</span><b>${p.mana} / 60</b></div><div class="bar mana" role="meter" aria-label="Mana" aria-valuemin="0" aria-valuemax="60" aria-valuenow="${p.mana}"><i style="width:${p.mana/60*100}%"></i></div>
-      <div class="stats"><div class="stat">Attack <b>18</b></div><div class="stat">Defense <b>5</b></div><div class="stat">Move <b>3 tiles</b></div><div class="stat">Range <b>3 tiles</b></div></div>
-      <div class="status-pill">${p.barrier?"⬡ Barrier active · next hit −50%":s.defeated?"× Defeated":"● Normal"} <span class="muted">· ${busy?"Resolving":s.phase==="player"?"Ready":"Stand by"}</span></div>`;
-    const progress=engine.progress();
-    $("checklist").innerHTML=[
-      [progress.foundAncientCrystal,"Find Ancient Crystal"],
-      [progress.hasAncientCrystal,"Collect Ancient Crystal"],
-      [progress.alive,s.victory?"Survived":"Survive · stay alive"],
-      [progress.exitReached,"Reach Exit"]
-    ].map(([done,label])=>`<div class="${done?"done":""}"><span>${done?"✓":"□"}</span>${label}</div>`).join("")+(s.victory?'<b style="color:var(--gold);margin-top:8px">MISSION COMPLETE</b>':"");
-
-    const buttons=[
-      {id:"attack",name:"Basic Attack",icon:"⌁",detail:"18 dmg · 0 mana",available:a.attackableEnemies.length>0},
-      ...engine.skills().map(sk=>({id:sk.skill,name:sk.name,icon:sk.icon,detail:sk.remainingCooldown?`${sk.remainingCooldown} turn cooldown`:`${sk.manaCost} mana · ${sk.range?sk.range+" range":"self"}`,available:sk.available}))
-    ];
-    $("abilities").innerHTML=buttons.map((b,i)=>`<button class="ability ${UI.mode===b.id?"active":""} ${UI.agentSkill===b.id?"flash":""}" data-ability="${b.id}" ${busy||!b.available?"disabled":""} title="${escapeHTML(b.id==="attack"?"18 damage, range 3, 1 AP":SKILL_DATA[b.id].effect)}"><span class="key">${i+1}</span><span class="ability-icon" aria-hidden="true">${b.icon}</span><b>${b.name}</b><small>${b.detail}</small></button>`).join("");
-
-    $("inventory").innerHTML=Object.values(ITEM_DATA).map(d=>`
-      <div class="inventory-item">${sprite(d.sprite)}
-      <div class="item-copy"><b>${d.name} <span style="color:var(--gold)">×${s.inventory[d.id]}</span></b><br>
-      <span class="small muted">${d.consumable?`+${d.restore} ${d.resource==="hp"?"HP":"mana"}`:"Mission objective"}</span><br>
-      ${actionButton("Inspect","item_inspect",{itemId:d.id})}</div>
-      ${d.consumable?`<button data-tool="player_use_item" data-args='{"itemId":"${d.id}"}' ${busy||!a.usableItems.includes(d.id)?"disabled":""}>Use</button>`:""}</div>`).join("");
-
-    this.renderTarget(a,busy);
-    this.renderSignals();
-    $("activity").innerHTML=[...s.activityLog].reverse().map(e=>`<div class="event"><time>${escapeHTML(e.timestamp)}</time><span class="source ${e.source}">${e.source}</span><div class="event-detail"><strong class="mono">${escapeHTML(e.action)}</strong><br>${escapeHTML(e.summary)}</div></div>`).join("");
-    $("trail").innerHTML=UI.trail.length?UI.trail.map(t=>`<span>${escapeHTML(t)}</span>`).join('<span style="border:0;padding:4px 0">→</span>'):'<span style="color:var(--muted);border:0;padding:0">Waiting for a native WebMCP tool call. Human actions remain labeled UI.</span>';
-    document.querySelectorAll('[data-tool="game_end_turn"]').forEach(b=>b.disabled=busy||!a.canEndTurn);
-    document.querySelectorAll('[data-tool="exit_try_leave"]').forEach(b=>b.disabled=busy||!engine.active());
-    document.querySelectorAll('[data-tool="game_reset"]').forEach(b=>b.disabled=busy);
-    $("console-run").disabled=busy;
-    this.renderResult();
-  }
-  static renderTarget(a,busy){
-    const s=engine.s,t=engine.tile(s.selectedTile.x,s.selectedTile.y);
-    $("selected-coords").textContent=`(${t.x}, ${t.y})`;
-    let html="";
-    if(t.occupant?.enemyId){
-      const e=engine.enemy(t.occupant.enemyId);
-      html=`<div class="target-title"><b>${e.name}</b><span class="small" style="color:var(--red)">Enemy</span></div>
-        <p class="small muted mono">${e.id}</p>
-        <p class="small" style="margin-top:8px">HP ${e.inspected?`${e.hp} / ${e.maxHp}`:"??"} · Range ${e.inspected?e.attackRange:"??"}</p>`;
-      if(e.inspected)html+=`<p class="small muted" style="margin-top:7px">Attack ${e.attack} · Move ${e.moveRange}<br>${e.behavior}<br><span style="color:var(--gold)">Weakness: ${e.weakness}</span></p>`;
-      else html+='<p class="small muted" style="margin-top:7px">Inspect to reveal combat stats, behavior, and weakness. Free · no AP.</p>';
-      html+=`<div class="target-actions">${actionButton("◎ Inspect","enemy_inspect",{enemyId:e.id})}
-      <button data-tool="player_attack" data-args='{"enemyId":"${e.id}"}' ${busy||!a.attackableEnemies.includes(e.id)?"disabled":""}>Attack</button>
-      <button data-tool="player_use_skill" data-args='{"skill":"arcane_shot","enemyId":"${e.id}"}' ${busy||!a.availableSkills.some(sk=>sk.skill==="arcane_shot"&&sk.validEnemyIds.includes(e.id))?"disabled":""}>Arcane Shot</button></div>`;
-    }else if(t.occupant?.id==="aria"){
-      html='<b>Aria · your hero</b><p class="small muted" style="margin-top:7px">Cyan tiles show legal movement. One move travels up to 3 steps for 1 AP. Inspect the map to locate supplies and the crystal.</p>';
-      html+=`<div class="target-actions"><button data-mode="move">Show movement</button>${actionButton("Inspect map","map_inspect")}</div>`;
-    }else{
-      html=`<b>${t.exit?"Exit Portal":t.hazard?"Spike Trap":t.item?t.item.name:t.terrain[0].toUpperCase()+t.terrain.slice(1)}</b>
-        <p class="small muted" style="margin-top:7px">${t.exit?"Stand here with the Ancient Crystal, then attempt to leave.":t.hazard?"Crossing this tile deals 20 damage, even during Dash. Avoid its path.":t.walkability?"Walkable floor. Movement must follow a valid path.":"Blocks movement. Ranged attacks ignore cover."}</p>`;
-    }
-    if(t.item){
-      const near=engine.active()&&distance(engine.s.player,t)<=1;
-      html+=`<div style="margin-top:12px"><span class="small" style="color:var(--gold)">${t.item.name} · on ground</span><div class="target-actions">${actionButton("Inspect item","item_inspect",{itemId:t.item.itemId})}<button data-tool="player_pickup" data-args='{"itemId":"${t.item.itemId}"}' ${busy||!near?"disabled":""}>Pick up · 1 AP</button></div>${!near?'<p class="small muted" style="margin-top:7px">Move on or adjacent to this tile first.</p>':""}</div>`;
-    }
-    const nearby=a.pickupItems.filter(i=>i.itemId!==t.item?.itemId);
-    if(nearby.length)html+=`<div style="margin-top:12px"><h3>Within reach</h3><div class="target-actions">${nearby.map(i=>actionButton(`Pick up ${i.name}`,"player_pickup",{itemId:i.itemId})).join("")}</div></div>`;
-    if(t.exit)html+=`<div class="target-actions">${actionButton("Try to leave","exit_try_leave",{},"gold")}</div>`;
-    $("target").innerHTML=html;
-    if(busy)$("target").querySelectorAll("button").forEach(b=>b.disabled=true);
-  }
-  static renderSignals(){
-    const s=engine.s,p=s.player,signals=[];
-    if(engine.aliveEnemy("orc-1"))signals.push("Orc Guardian protects the crystal.");
-    const archer=engine.aliveEnemy("skeleton-1");
-    if(archer&&distance(archer,p)<=3)signals.push(archer.inspected?"Skeleton Archer is within attack range.":"Skeleton nearby: inspect its attack range.");
-    const potion=s.items.find(i=>i.type==="health_potion");
-    if(potion){
-      const path=MapEngine.paths(engine,p,64).get(key(potion));
-      signals.push(`Health Potion: ${path?path.length+" walkable steps away":"approach currently blocked"}.`);
-    }
-    if(p.hp<40)signals.push("Warning: hero HP below 40%. Heal or use a potion.");
-    const shot=engine.skills().find(s=>s.skill==="arcane_shot");
-    signals.push(engine.cooldown("arcane_shot")?`Arcane Shot: ${engine.cooldown("arcane_shot")} turn cooldown.`:p.mana<15?"Arcane Shot: insufficient mana.":`Arcane Shot ready${shot.available?" · target in range":""}.`);
-    signals.push(!s.inventory.ancient_crystal?"Exit unavailable: crystal missing.":same(p,s.exit)?"Portal reached: attempt to leave.":"Crystal secured: reach exit at (6,6).");
-    $("signals").innerHTML=signals.map(text=>`<div class="signal">${escapeHTML(text)}</div>`).join("");
-  }
-  static renderResult(){
-    const s=engine.s,show=(s.victory||s.defeated)&&!UI.overlayDismissed&&queue.pending===0;
-    $("result-overlay").hidden=!show;
-    if(!show){UI.showingResult=false;return;}
-    $("result-title").textContent=s.victory?"DUNGEON CLEARED":"DEFEATED";
-    $("result-icon").textContent=s.victory?"◇":"⟐";
-    $("result-subtitle").textContent=s.victory?"Ancient Crystal Recovered":"The dungeon claimed another adventurer.";
-    $("result-stats").innerHTML=`<div><b>${s.turn}</b><span>TURNS</span></div><div><b>${s.enemies.filter(e=>e.hp===0).length}</b><span>ENEMIES DEFEATED</span></div><div><b>${s.player.hp}</b><span>HP REMAINING</span></div>`;
-    $("result-source").textContent=s.victory&&s.victorySource==="WebMCP"?"Final escape performed through WebMCP":"A shared battlefield. Your tactics, your outcome.";
-    if(!UI.showingResult){
-      UI.previousFocus=document.activeElement;UI.showingResult=true;
-      $("result-overlay").querySelector(".result").focus();
-    }
-  }
-}
-queue.onRender=()=>GameRenderer.render();
-
-/* ============================================================
-   GRID INTERACTIONS / UI CONTROLLER
-   ============================================================ */
-$("board").addEventListener("click",async event=>{
-  const tile=event.target.closest(".tile");if(!tile||queue.pending)return;
-  const x=+tile.dataset.x,y=+tile.dataset.y;
-  const enemy=engine.s.enemies.find(e=>e.hp>0&&e.x===x&&e.y===y);
-  if(enemy){
-    if(UI.mode==="attack"){await queue.call("player_attack",{enemyId:enemy.id});return;}
-    if(UI.mode==="arcane_shot"){await queue.call("player_use_skill",{skill:"arcane_shot",enemyId:enemy.id});return;}
-    await queue.call("tile_inspect",{x,y});return;
-  }
-  if(same(engine.s.player,{x,y})){
-    UI.mode="move";await queue.call("tile_inspect",{x,y});return;
-  }
-  if(UI.mode==="dash"){
-    await queue.call("player_use_skill",{skill:"dash",x,y});return;
-  }
-  if(UI.mode==="move"&&tile.classList.contains("reachable")){
-    await queue.call("player_move",{x,y});return;
-  }
-  await queue.call("tile_inspect",{x,y});
-});
-document.addEventListener("click",async event=>{
-  const button=event.target.closest("button");if(!button||button.disabled)return;
-  if(button.dataset.tool){
-    await queue.call(button.dataset.tool,JSON.parse(button.dataset.args||"{}"),"UI");
-  }else if(button.dataset.ability){
-    useAbility(button.dataset.ability);
-  }else if(button.dataset.mode){
-    UI.mode=button.dataset.mode;GameRenderer.render();
-  }
-});
-function useAbility(id){
-  if(queue.pending)return;
-  if(id==="heal"||id==="barrier")queue.call("player_use_skill",{skill:id});
-  else{UI.mode=id;GameRenderer.render();}
-}
-document.addEventListener("keydown",event=>{
-  const modal=$("result-overlay");
-  if(!modal.hidden){
-    if(event.key==="Tab"){
-      const focusables=[...modal.querySelectorAll("button:not(:disabled)")];
-      const first=focusables[0],last=focusables[focusables.length-1];
-      if(event.shiftKey&&(document.activeElement===first||document.activeElement.classList.contains("result"))){event.preventDefault();last.focus();}
-      else if(!event.shiftKey&&(document.activeElement===last||document.activeElement.classList.contains("result"))){event.preventDefault();first.focus();}
-    }
-    return;
-  }
-  if(event.target.closest("input,textarea,select")||event.ctrlKey||event.metaKey||event.altKey||queue.pending)return;
-  const abilities={"1":"attack","2":"arcane_shot","3":"dash","4":"heal","5":"barrier"};
-  if(abilities[event.key]){event.preventDefault();useAbility(abilities[event.key]);return;}
-  const moves={ArrowUp:[0,-1],w:[0,-1],ArrowDown:[0,1],s:[0,1],ArrowLeft:[-1,0],a:[-1,0],ArrowRight:[1,0],d:[1,0]};
-  if(moves[event.key]){
-    event.preventDefault();const [dx,dy]=moves[event.key];
-    UI.mode="move";queue.call("player_move",{x:engine.s.player.x+dx,y:engine.s.player.y+dy});
-  }
-  if(event.key==="Escape"){UI.mode="move";GameRenderer.render();}
-});
-$("review-result").addEventListener("click",()=>{
-  UI.overlayDismissed=true;GameRenderer.render();
-  (UI.previousFocus?.isConnected?UI.previousFocus:$("board").firstElementChild).focus();
-});
-const prompts=[
-  "Collect the Ancient Crystal and escape without dying.",
-  "Inspect the battlefield and tell me what the biggest threat is.",
-  "Find the safest route to the crystal.",
-  "Defeat the Orc Guardian.",
-  "Get the potion before fighting the Orc.",
-  "I'm low on health. Keep me alive.",
-  "Avoid the Skeleton Archer and reach the exit.",
-  "Use my turn efficiently.",
-  "Can I escape yet?",
-  "Finish the dungeon."
-];
-$("prompts").innerHTML=prompts.map(p=>`<button class="prompt">${escapeHTML(p)}</button>`).join("");
-$("prompts").addEventListener("click",async event=>{
-  const button=event.target.closest(".prompt");if(!button)return;
-  try{await navigator.clipboard.writeText(button.textContent);toast("Prompt copied. Paste it into your WebMCP-capable AI agent.");}
-  catch{toast("Clipboard unavailable. Select and copy the prompt text manually.");}
-});
-$("console-tool").innerHTML=TOOLS.map(t=>`<option value="${t.name}">${t.name}</option>`).join("");
-$("console-tool").addEventListener("change",()=>{
-  $("console-input").value=JSON.stringify(TOOL_BY_NAME.get($("console-tool").value).example,null,2);
-});
-$("console-run").addEventListener("click",async()=>{
-  let args;
-  try{args=JSON.parse($("console-input").value);}catch{
-    $("console-output").textContent=JSON.stringify(error("Invalid JSON arguments."),null,2);return;
-  }
-  const result=await queue.call($("console-tool").value,args,"UI");
-  $("console-output").textContent=JSON.stringify(result,null,2);
-});
-
-/* ============================================================
-   WEBMCP ADAPTER: native document.modelContext only.
-   No mock connection, external server, DOM clicking, or auto-solve.
-   ============================================================ */
-class WebMCPAdapter {
-  constructor(queue){this.queue=queue;this.registered=new Set();this.connected=false;this.initializing=false;}
-  async initialize(){
-    if(this.initializing)return;
-    this.initializing=true;
-    try{
-      if(!("modelContext" in document)||!document.modelContext||typeof document.modelContext.registerTool!=="function"){
-        this.setStatus("Unsupported",false);
-        engine.event("System","webmcp_status","Native document.modelContext is unavailable. Human play and the UI capability console remain fully functional.");
-        return;
-      }
-      const context=document.modelContext;
-      let discovered=[];
-      if(typeof context.getTools==="function"){
-        try{
-          const result=await context.getTools();
-          discovered=Array.isArray(result)?result:result?.tools||[];
-        }catch{/* Discovery is optional; registration is still attempted. */}
-      }
-      const existing=new Set(discovered.map(t=>t.name));
-      for(const tool of TOOLS){
-        if(this.registered.has(tool.name))continue;
-        // Do not silently claim tools owned by another application.
-        if(existing.has(tool.name))throw new Error(`Tool name already registered: ${tool.name}`);
-        await context.registerTool({
-          name:tool.name,
-          description:tool.description,
-          inputSchema:copy(tool.inputSchema),
-          annotations:copy(tool.annotations),
-          execute:async args=>{
-            const output=await this.queue.call(tool.name,args??{},"WebMCP");
-            // MCP-compatible textual content plus machine-readable structured output.
-            return {
-              content:[{type:"text",text:JSON.stringify(output)}],
-              structuredContent:output,
-              isError:output.success===false
-            };
-          }
-        });
-        this.registered.add(tool.name);
-      }
-      this.connected=true;this.setStatus("Connected",true);
-      engine.event("System","webmcp_connected",`${this.registered.size} native structured tactical tools registered.`);
-    }catch(err){
-      this.connected=false;this.setStatus("Registration error",false);
-      engine.event("System","webmcp_error",`Native tool registration failed: ${err.message}. Human play is unaffected.`);
-      console.error("WebMCP registration:",err);
-    }finally{
-      this.initializing=false;
-      this.renderTools();
-      GameRenderer.render();
-    }
-  }
-  setStatus(label,connected){
-    $("connection").classList.toggle("connected",connected);
-    $("connection").innerHTML=`<span class="dot"></span> WebMCP · ${escapeHTML(label)}`;
-    $("connection").title=connected?"Native document.modelContext tools registered.":"No native connection is simulated. All human gameplay remains available.";
-  }
-  renderTools(discovered=null){
-    $("tools").innerHTML=TOOLS.map(t=>`
-      <details class="tool-row">
-        <summary><span>${t.name}</span><span class="tag ${t.annotations.readOnlyHint?"":"write"}">${t.annotations.readOnlyHint?"READ":"WRITE"}</span></summary>
-        <p>${escapeHTML(t.description)}</p>
-        <pre>${escapeHTML(JSON.stringify({inputSchema:t.inputSchema,annotations:t.annotations},null,2))}</pre>
-      </details>`).join("");
-    $("tool-status").textContent=discovered!==null?
-      `${TOOLS.length} app capabilities · ${discovered} discovered natively`:
-      `${TOOLS.length} app capabilities · ${this.connected?this.registered.size+" registered natively":"local definitions; native connection not confirmed"}`;
-  }
-  async refresh(){
-    if("modelContext" in document&&typeof document.modelContext?.getTools==="function"){
-      try{
-        const result=await document.modelContext.getTools();
-        const tools=Array.isArray(result)?result:result?.tools||[];
-        this.renderTools(tools.length);
-        toast(`Native discovery returned ${tools.length} tools. Inspector shows this dungeon's definitions.`);
-        return;
-      }catch(err){console.warn("Optional getTools discovery failed",err);}
-    }
-    this.renderTools();toast("Showing the local capability definitions. Native discovery is unavailable.");
-  }
-}
-const adapter=new WebMCPAdapter(queue);
-$("refresh-tools").addEventListener("click",()=>adapter.refresh());
-// Useful for browser-console testing. This is the real shared capability layer,
-// not a fake modelContext and not a second game state.
-window.dungeon=Object.freeze({
-  call:(name,args={})=>queue.call(name,args,"UI"),
-  getTools:()=>TOOLS.map(t=>({name:t.name,description:t.description,inputSchema:copy(t.inputSchema),annotations:copy(t.annotations)}))
-});
-
-/* ============================================================
-   NON-DESTRUCTIVE SELF TESTS: isolated instances only
-   ============================================================ */
-function runSelfTests(){
-  let passed=0,failed=0;
-  const assert=(condition,message)=>{if(!condition)throw new Error(message||"Assertion failed");};
-  const test=(name,fn)=>{
-    try{fn();passed++;}catch(err){failed++;console.error(`[Dungeon self-test] ${name}`,err);}
-  };
-  const fresh=()=>new GameEngine();
-  test("Map bounds",()=>{
-    const e=fresh();assert(!e.tile(-1,0).success);assert(e.tile(7,7).terrain==="wall");
-    assert(!e.move(8,2).success);assert(!e.move(1.5,2).success);
-  });
-  test("Blocked tile rejection is atomic",()=>{
-    const e=fresh(),before=JSON.stringify(e.s);
-    assert(!e.move(0,1).success);assert(JSON.stringify(e.s)===before);
-    assert(!e.move(2,2).success);
-  });
-  test("Valid movement and AP consumption",()=>{
-    const e=fresh(),r=e.move(3,1);
-    assert(r.success&&same(e.s.player,{x:3,y:1})&&e.s.actionPoints===1);
-  });
-  test("Path cannot cross walls or enemies",()=>{
-    const e=fresh();assert(!e.move(3,3).success);
-    assert(!e.move(4,1).success);
-    for(const t of e.reachable(3))assert(t.path.every(p=>MapEngine.walkable(p.x,p.y)));
-  });
-  test("Attack range rejection",()=>{
-    const e=fresh(),before=JSON.stringify(e.s);
-    assert(!e.attack("orc-1").success);assert(JSON.stringify(e.s)===before);
-  });
-  test("Basic attack damage",()=>{
-    const e=fresh(),r=e.attack("goblin-1");
-    assert(r.success&&r.damage===18&&e.enemy("goblin-1").hp===17&&e.s.actionPoints===1);
-  });
-  test("Enemy defeat",()=>{
-    const e=fresh();e.attack("goblin-1");e.attack("goblin-1");
-    assert(e.enemy("goblin-1").hp===0&&!e.visibleEnemies().some(v=>v.enemyId==="goblin-1"));
-  });
-  test("Information fog",()=>{
-    const e=fresh();assert(!("hp" in e.visibleEnemies()[0]));
-    const r=e.invoke("enemy_inspect",{enemyId:"orc-1"});
-    assert(r.hp===60&&r.attack===18&&r.weakness.includes("Arcane"));
-    assert(e.state().enemies.find(v=>v.enemyId==="orc-1").hp===60);
-  });
-  test("Skill mana consumption",()=>{
-    const e=fresh(),r=e.useSkill({skill:"arcane_shot",enemyId:"goblin-1"});
-    assert(r.success&&e.s.player.mana===45&&e.enemy("goblin-1").hp===5);
-  });
-  test("Cooldown blocks atomically and expires",()=>{
-    const e=fresh();e.useSkill({skill:"arcane_shot",enemyId:"goblin-1"});
-    const before=JSON.stringify(e.s),r=e.useSkill({skill:"arcane_shot",enemyId:"goblin-1"});
-    assert(!r.success&&r.remainingTurns===2&&JSON.stringify(e.s)===before);
-    e.endTurn();e.resolveEnemies();assert(e.cooldown("arcane_shot")===1);
-    e.endTurn();e.resolveEnemies();assert(e.cooldown("arcane_shot")===0);
-  });
-  test("Invalid skill target consumes nothing",()=>{
-    const e=fresh(),before=JSON.stringify(e.s);
-    assert(!e.useSkill({skill:"arcane_shot",enemyId:"orc-1"}).success);
-    assert(JSON.stringify(e.s)===before);
-  });
-  test("Healing and cap",()=>{
-    const e=fresh();e.s.player.hp=85;
-    const r=e.useSkill({skill:"heal"});
-    assert(r.success&&r.restored===15&&e.s.player.hp===100&&e.s.player.mana===40);
-  });
-  test("Dash obeys obstacles",()=>{
-    const e=fresh(),before=JSON.stringify(e.s);
-    assert(!e.useSkill({skill:"dash",x:2,y:2}).success);
-    assert(JSON.stringify(e.s)===before);
-    assert(e.useSkill({skill:"dash",x:1,y:5}).success&&e.s.player.mana===50);
-  });
-  test("Inventory pickup",()=>{
-    const e=fresh();e.s.player.x=1;e.s.player.y=4;
-    assert(e.pickup("health-potion-1").success&&e.s.inventory.health_potion===1);
-    assert(!e.s.items.some(i=>i.id==="health-potion-1"));
-  });
-  test("Item use",()=>{
-    const e=fresh();e.s.inventory.health_potion=1;e.s.player.hp=50;
-    const r=e.useItem("health_potion");
-    assert(r.success&&r.before===50&&r.after===85&&e.s.inventory.health_potion===0);
-  });
-  test("Enemy AI and turn transition",()=>{
-    const e=fresh();e.endTurn();assert(e.s.phase==="enemy");
-    const before=pos(e.enemy("goblin-1"));e.resolveEnemies();
-    assert(!same(e.enemy("goblin-1"),before));assert(e.s.turn===2&&e.s.phase==="player"&&e.s.actionPoints===2);
-  });
-  test("Enemy phase validation",()=>{
-    const e=fresh();e.endTurn();const before=JSON.stringify(e.s);
-    assert(!e.move(2,1).success&&JSON.stringify(e.s)===before);
-  });
-  test("Barrier halves next hit",()=>{
-    const e=fresh();e.useSkill({skill:"barrier"});const d=e.hurtPlayer(18,"Test Orc");
-    assert(d===7&&e.s.player.hp===93&&!e.s.player.barrier);
-  });
-  test("Barrier expiry",()=>{
-    const e=fresh();e.s.enemies.forEach(v=>v.hp=0);
-    e.useSkill({skill:"barrier"});e.endTurn();e.resolveEnemies();assert(!!e.s.player.barrier);
-    e.endTurn();e.resolveEnemies();assert(!e.s.player.barrier);
-  });
-  test("Trap traversal",()=>{
-    const e=fresh();e.s.player.x=6;e.s.player.y=1;
-    const r=e.move(6,3);assert(r.success&&r.trapDamage===20&&e.s.player.hp===80);
-  });
-  test("Objective collection",()=>{
-    const e=fresh();e.s.player.x=6;e.s.player.y=4;
-    assert(e.pickup("ancient-crystal").success&&e.s.exitUnlocked&&e.progress().hasCrystal&&!e.s.victory);
-  });
-  test("Exit blocked without crystal",()=>{
-    const e=fresh();e.s.player.x=6;e.s.player.y=6;
-    assert(!e.leave("UI").success&&!e.s.victory);
-  });
-  test("Victory requires exact portal position",()=>{
-    const e=fresh();e.s.inventory.ancient_crystal=1;
-    assert(!e.leave("UI").success);
-    e.s.player.x=6;e.s.player.y=6;
-    assert(e.leave("WebMCP").success&&e.s.victory&&e.s.objectiveCompleted&&e.s.victorySource==="WebMCP");
-  });
-  test("Game over",()=>{
-    const e=fresh();e.s.player.hp=1;e.hurtPlayer(18,"Test Orc");
-    assert(e.s.defeated&&e.s.player.hp===0&&e.s.phase==="defeated"&&!e.move(2,1).success);
-  });
-  test("Reset",()=>{
-    const e=fresh();e.s.player.hp=0;e.s.defeated=true;e.s.inventory.ancient_crystal=1;
-    e.enemy("orc-1").hp=0;e.s.player.cooldowns.heal=99;e.reset();
-    assert(e.s.player.hp===100&&e.s.player.mana===60&&e.s.turn===1&&e.s.actionPoints===2);
-    assert(!e.s.defeated&&!e.s.victory&&e.s.inventory.ancient_crystal===0&&e.s.items.length===3);
-    assert(e.enemy("orc-1").hp===60&&e.cooldown("heal")===0&&!e.enemy("orc-1").inspected);
-  });
-  test("Schema validation",()=>{
-    assert(validateArgs(TOOL_BY_NAME.get("player_move"),{x:8,y:1}).success===false);
-    assert(validateArgs(TOOL_BY_NAME.get("player_use_skill"),{skill:"dash"}).success===false);
-    assert(validateArgs(TOOL_BY_NAME.get("game_get_state"),{extra:1}).success===false);
-    assert(validateArgs(TOOL_BY_NAME.get("game_get_state"),{})===null);
-  });
-  test("Available actions are actually legal",()=>{
-    const original=fresh();
-    for(const tile of original.available().reachableTiles){
-      const e=fresh();assert(e.move(tile.x,tile.y).success);
-    }
-    for(const skill of original.available().availableSkills){
-      const e=fresh(),a={skill:skill.skill};
-      if(skill.targetType==="enemy")a.enemyId=skill.validEnemyIds[0];
-      if(skill.targetType==="tile")Object.assign(a,pos(skill.reachableTiles[0]));
-      assert(e.useSkill(a).success,skill.skill);
-    }
-  });
-  $("test-status").textContent=failed?`${failed} self-test(s) failed · see console`:`✓ ${passed} isolated engine checks passed`;
-  console.info(`[Dungeon self-tests] ${passed} passed, ${failed} failed. Live state was not modified.`);
-}
-
-/* INITIALIZATION */
-GameRenderer.initBoard();
-GameRenderer.render();
-adapter.renderTools();
-runSelfTests();
-adapter.initialize();
-</script>
+<script type="module" src="./ui.mjs"></script>
 </body>
 </html>
