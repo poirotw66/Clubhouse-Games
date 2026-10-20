@@ -43,11 +43,14 @@ import {
 import { advise } from '../src/game/hints.js';
 import {
   applyHandResult,
+  computeMatchMvp,
   createMatch,
   dealHand,
   decideMatchWinner,
+  formatKeyFor,
   handDeltas,
   handSeed,
+  isSeriesMode,
   leaderForHand,
 } from '../src/game/match.js';
 import { buildHandReview } from '../src/game/review.js';
@@ -59,7 +62,9 @@ import type {
   CpuBrain,
   DifficultyId,
   GameState,
+  HandRecord,
   HouseRules,
+  MatchState,
   PlayerCount,
 } from '../src/game/types.js';
 
@@ -641,10 +646,31 @@ function expectStreakTracking(): void {
   stats = recordHandResult(stats, 'win', 110, 5, true, false, false);
   assert.equal(stats.chips, 5);
   assert.equal(stats.qualified, 1);
-  stats = recordMatchResult(stats, true, 40);
+  stats = recordMatchResult(stats, true, 40, {
+    mode: 'hands',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(2),
+    seedCode: 'streak',
+  });
   assert.equal(stats.matches, 1);
   assert.equal(stats.matchWins, 1);
   assert.equal(stats.bestMatchChips, 40);
+  assert.equal(stats.formats['hands-4'].played, 1);
+  assert.equal(stats.formats['hands-4'].wins, 1);
+
+  // Single sessions must not inflate series / format tallies.
+  stats = recordMatchResult(stats, true, 99, {
+    mode: 'single',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(2),
+    seedCode: 'solo',
+  });
+  assert.equal(stats.matches, 1);
+  assert.equal(stats.formats['hands-4'].played, 1);
 }
 
 /** Chip settlement is (score − par) plus optional specials. */
@@ -692,6 +718,8 @@ function expectMatchSeries(): void {
   assert.equal(decideMatchWinner({ ...match.config, mode: 'target', target: 50 }, [60, -10], 1), 0);
   assert.equal(decideMatchWinner(match.config, [10, 20], 3), null);
   assert.equal(decideMatchWinner(match.config, [10, 20], 4), 1);
+  assert.equal(decideMatchWinner({ ...match.config, mode: 'single' }, [5, -5], 1), 0);
+  assert.equal(decideMatchWinner({ ...match.config, mode: 'single' }, [5, -5], 0), null);
 
   // rotateLeader shifts the first seat across hands.
   const rotating = createMatch({
@@ -703,9 +731,92 @@ function expectMatchSeries(): void {
   rotating.handIndex = 1;
   assert.equal(leaderForHand(rotating), (leaderFor('hard', 2) + 1) % 2);
 
+  // Single mode ignores rotation even when the house rule is on.
+  const solo = createMatch({
+    ...match.config,
+    mode: 'single',
+    rules: { ...rules(2), rotateLeader: true },
+    difficulty: 'hard',
+  });
+  solo.handIndex = 3;
+  assert.equal(leaderForHand(solo), leaderFor('hard', 2));
+  assert.equal(isSeriesMode('single'), false);
+  assert.equal(isSeriesMode('hands'), true);
+  assert.equal(formatKeyFor(match.config), 'hands-4');
+  assert.equal(formatKeyFor({ ...match.config, mode: 'single' }), null);
+
   const review = buildHandReview(end, result);
   assert.ok(review.lessons.length >= 1);
   assert.ok(review.highlight.length > 0);
+}
+
+/** MVP picks most red points and the best single-hand score across history. */
+function expectMatchMvp(): void {
+  const hand = (
+    index: number,
+    scores: number[],
+    deltas: number[],
+  ): HandRecord => ({
+    handIndex: index,
+    seedCode: `h${index}`,
+    winner: scores[0] >= scores[1] ? 0 : 1,
+    scores,
+    deltas,
+    qualified: scores.map((s, seat) => (s > 105 ? seat : -1)).filter((s) => s >= 0),
+    doubleRedFiveSeat: null,
+    zeroScoreSeat: null,
+  });
+
+  const match: MatchState = {
+    config: {
+      mode: 'hands',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: rules(2),
+      seedCode: 'mvp',
+    },
+    handIndex: 4,
+    balances: [30, -30],
+    history: [
+      hand(0, [120, 90], [15, -15]),
+      hand(1, [80, 130], [-25, 25]),
+      hand(2, [110, 100], [5, -5]),
+      hand(3, [95, 115], [-10, 10]),
+    ],
+    phase: 'matchOver',
+    winner: 0,
+  };
+
+  const mvp = computeMatchMvp(match);
+  assert.ok(mvp);
+  // Totals: human 405, CPU 435 → CPU has most red points.
+  assert.equal(mvp!.mostPointsSeat, 1);
+  assert.equal(mvp!.mostPointsTotal, 435);
+  // Best single hand is CPU's 130 in hand 1.
+  assert.equal(mvp!.bestHandSeat, 1);
+  assert.equal(mvp!.bestHandScore, 130);
+  assert.equal(mvp!.bestHandIndex, 1);
+  assert.equal(mvp!.chipLeaderSeat, 0);
+  assert.equal(mvp!.chipLeaderTotal, 30);
+
+  // Single-hand series settles immediately and still yields an MVP.
+  const one = createMatch({
+    mode: 'single',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(2),
+    seedCode: 'one-mvp',
+  });
+  const end = playOut('one-mvp', 'normal', 2);
+  const result = outcome(end);
+  const finished = applyHandResult(one, result, end.seedCode);
+  assert.equal(finished.phase, 'matchOver');
+  assert.equal(finished.history.length, 1);
+  const soloMvp = computeMatchMvp(finished);
+  assert.ok(soloMvp);
+  assert.equal(soloMvp!.bestHandScore, Math.max(...result.scores));
 }
 
 function expectPersonalitiesAndHints(): void {
@@ -798,6 +909,7 @@ const CHECKS: [string, () => void][] = [
   ['streak tracking', expectStreakTracking],
   ['chip settlement uses qualifying score', expectChipSettlement],
   ['match series structure', expectMatchSeries],
+  ['match MVP stats', expectMatchMvp],
   ['personalities and teaching hints', expectPersonalitiesAndHints],
   ['double red five detection', expectDoubleRedFiveDetection],
 ];
