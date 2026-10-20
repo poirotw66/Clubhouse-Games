@@ -1,1 +1,5 @@
-Can you implement a 3d sailing game for me? For anything that needs bitmaps/textures/sprites (or if it helps to have a mockup reference for any 3d models you build) feel free to use imagegen.
+# Windward（3D Sailing）
+
+Astra 靜態 3D 計時帆航。深化重點：航線包、PB、幽靈船、音效與觸控煞車。
+
+見 `07-astra/3d-sailing.md` 與 `rules.mjs`。

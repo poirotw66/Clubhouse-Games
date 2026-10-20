@@ -6,27 +6,40 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const REPO_NAME = process.env.REPO_NAME || 'Clubhouse-Games';
 
-const MIME = {
+/** Exported so scripts/check-dev-server-mime.mjs can lock the table without spinning npm run dev. */
+export const MIME = {
   '.html': 'text/html',
   '.md': 'text/markdown',
   '.css': 'text/css',
   '.js': 'application/javascript',
+  // Browsers reject ES modules served as application/octet-stream (e.g. gpt6-astra/*/rules.mjs).
+  '.mjs': 'text/javascript',
   '.json': 'application/json',
+  '.wasm': 'application/wasm',
+  '.webmanifest': 'application/manifest+json',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
   '.ico': 'image/x-icon',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
+  '.woff': 'font/woff',
   '.woff2': 'font/woff2',
 };
 
-const TEXT_EXTENSIONS = new Set(['.html', '.md', '.css', '.js', '.json']);
+const TEXT_EXTENSIONS = new Set([
+  '.html', '.md', '.css', '.js', '.mjs', '.json', '.webmanifest', '.gltf',
+]);
 
 function send(res, status, body, contentType = 'text/html') {
   res.writeHead(status, { 'Content-Type': contentType });
@@ -129,8 +142,13 @@ export const requestListener = (req, res) => {
   serveFile(res, resolved);
 };
 
-const server = http.createServer(requestListener);
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Clubhouse Games: http://localhost:${PORT}`);
-  console.log('  Menu & specs from root; games from Games/<name>/dist/ (build with: npm run build:game <name>)');
-});
+const isMain =
+  process.argv[1] != null && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isMain) {
+  const server = http.createServer(requestListener);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Clubhouse Games: http://localhost:${PORT}`);
+    console.log('  Menu & specs from root; games from Games/<name>/dist/ (build with: npm run build:game <name>)');
+  });
+}

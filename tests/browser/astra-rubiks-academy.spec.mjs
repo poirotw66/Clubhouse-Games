@@ -24,10 +24,19 @@ test.describe('Astra Rubik\'s Cube Academy', () => {
     await expect(page.locator('#sheet-list .sheet-card').first()).toBeVisible();
     await expect(page.locator('#sheet-list')).toContainText('Sune');
 
-    // Timer / practice mode
-    await page.getByRole('tab', { name: '計時練習' }).click();
+    // Random drill mode
+    await page.getByRole('tab', { name: '隨機練習' }).click();
+    await expect(page.locator('#drill-stage-chips .stage-chip').first()).toBeVisible();
+    await page.getByRole('button', { name: '下一題' }).click();
+    await expect(page.locator('#drill-case-label')).not.toHaveText('—');
+    await expect(page.locator('#move-grid-drill button').first()).toBeVisible();
+
+    // Timer mode
+    await page.getByRole('tab', { name: '計時' }).click();
     await page.getByRole('button', { name: '新打亂' }).click();
     await expect(page.locator('#timer-scramble')).not.toHaveText('—');
+    await expect(page.getByRole('button', { name: '開始觀察' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '停表' })).toBeVisible();
     await page.getByRole('button', { name: '產生逐步還原計畫' }).click();
     await expect(page.locator('#solve-steps li').first()).toBeVisible({ timeout: 15_000 });
 
@@ -35,6 +44,22 @@ test.describe('Astra Rubik\'s Cube Academy', () => {
     await page.getByRole('tab', { name: '自由練習' }).click();
     await expect(page.getByRole('heading', { name: /自由練習/ })).toBeVisible();
     await expect(page.locator('#move-grid-free button').first()).toBeVisible();
+  });
+
+  test('timer does not record when cube is unsolved', async ({ page }) => {
+    await page.goto('gpt6-astra/webmcp-rubiks-cube/');
+    await page.getByRole('tab', { name: '計時' }).click();
+    await page.getByRole('button', { name: '新打亂' }).click();
+    await expect(page.locator('#timer-scramble')).not.toHaveText(/按「新打亂」|—/);
+
+    await page.getByRole('button', { name: '開始觀察' }).click();
+    await page.getByRole('button', { name: '開表' }).click();
+    await expect(page.locator('#timer-phase')).toContainText('計時中');
+
+    // Stop without solving — must not append a time
+    await page.getByRole('button', { name: '停表' }).click();
+    await expect(page.locator('#timer-phase')).toContainText('尚未還原');
+    await expect(page.locator('#time-history li')).toHaveCount(0);
   });
 
   test('freeplay page still boots', async ({ page }) => {
