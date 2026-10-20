@@ -24,21 +24,38 @@ test.describe('Astra Rubik\'s Cube Academy', () => {
     await expect(page.locator('#sheet-list .sheet-card').first()).toBeVisible();
     await expect(page.locator('#sheet-list')).toContainText('Sune');
 
-    // Random drill mode
+    // Random drill mode — loading a case must not auto-celebrate
     await page.getByRole('tab', { name: '隨機練習' }).click();
     await expect(page.locator('#drill-stage-chips .stage-chip').first()).toBeVisible();
     await page.getByRole('button', { name: '下一題' }).click();
     await expect(page.locator('#drill-case-label')).not.toHaveText('—');
     await expect(page.locator('#move-grid-drill button').first()).toBeVisible();
+    // Loading a case must not open the solve celebration overlay.
+    await expect(page.locator('#celebrate.visible')).toHaveCount(0);
+    await expect(page.locator('#drill-goal.ok')).toHaveCount(0);
 
-    // Timer mode
+    // Timer mode + daily scramble + mute
     await page.getByRole('tab', { name: '計時' }).click();
     await page.getByRole('button', { name: '新打亂' }).click();
     await expect(page.locator('#timer-scramble')).not.toHaveText('—');
     await expect(page.getByRole('button', { name: '開始觀察' })).toBeVisible();
     await expect(page.getByRole('button', { name: '停表' })).toBeVisible();
+    await page.getByRole('button', { name: '今日打亂' }).click();
+    await expect(page.locator('#timer-scramble')).not.toHaveText(/按「新打亂」|—/);
+    await expect(page.locator('#share-text')).not.toHaveValue('');
+    await expect(page.getByRole('button', { name: /音效|靜音/ })).toBeVisible();
+    await page.getByRole('button', { name: /音效|靜音/ }).click();
+    await expect(page.locator('#btn-mute')).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: '產生逐步還原計畫' }).click();
     await expect(page.locator('#solve-steps li').first()).toBeVisible({ timeout: 15_000 });
+
+    // 2-look drill chips
+    await page.getByRole('tab', { name: '隨機練習' }).click();
+    await expect(page.getByRole('button', { name: '2-look OLL' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '2-look PLL' })).toBeVisible();
+    await page.getByRole('button', { name: '2-look OLL' }).click();
+    await page.getByRole('button', { name: '下一題' }).click();
+    await expect(page.locator('#drill-case-label')).toContainText(/Sune|魚|Niklas|雙魚/);
 
     // Free-play mode still present
     await page.getByRole('tab', { name: '自由練習' }).click();

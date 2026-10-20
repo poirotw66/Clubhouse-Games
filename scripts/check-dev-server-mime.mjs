@@ -28,6 +28,7 @@ const LIVE_PATHS = [
   '/gpt6-astra/archer/rules.mjs',
   '/gpt6-astra/train/rules.mjs',
   '/gpt6-astra/borderland/rules.mjs',
+  '/gpt6-astra/webmcp-mini-tactical-dungeon/rules.mjs',
 ];
 
 const missing = Object.entries(REQUIRED).filter(([ext, type]) => MIME[ext] !== type);

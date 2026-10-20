@@ -105,6 +105,55 @@ function createScramble(length) {
   return sequence;
 }
 
+/** Deterministic scramble from a [0,1) rng — used by daily scramble. */
+function createScrambleWithRng(length, rng) {
+  const roll =
+    typeof rng === "function"
+      ? rng
+      : () => Math.random();
+  const sequence = [];
+  let previousFace = "";
+  const count = Math.max(1, Math.floor(Number(length) || 20));
+  for (let i = 0; i < count; i++) {
+    const options = FACE_NAMES.filter((face) => face !== previousFace);
+    const face = options[Math.floor(roll() * options.length) % options.length];
+    const suffix = ["", "'", "2"][Math.floor(roll() * 3) % 3];
+    sequence.push(face + suffix);
+    previousFace = face;
+  }
+  return sequence;
+}
+
+/** FNV-1a style 32-bit hash for seed strings. */
+function hashString(text) {
+  let h = 2166136261 >>> 0;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function next() {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Date-seeded daily scramble — same `dateKey` (YYYY-MM-DD) → same sequence for everyone.
+ */
+function createDailyScramble(dateKey, length = 20) {
+  const key = String(dateKey || "");
+  const rng = mulberry32(hashString(`rubiks-daily:${key}`));
+  return createScrambleWithRng(length, rng);
+}
+
 function textElement(tag, text, className) {
   const element = document.createElement(tag);
   element.textContent = text;
@@ -1212,6 +1261,10 @@ globalThis.RubiksCube = {
   parseAlgorithm,
   inverseMove,
   createScramble,
+  createScrambleWithRng,
+  createDailyScramble,
+  hashString,
+  mulberry32,
   validateMove,
   validateSize,
   objectSchema,
