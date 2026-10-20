@@ -104,7 +104,7 @@
       "id": "3d-sailing",
       "title": "3D Sailing",
       "category": "game",
-      "blurb": "程序化海面與船體：離線 Three.js 航行小品。",
+      "blurb": "Windward：三航線、PB 與幽靈船；離線 Three.js 計時航行。",
       "href": "3d-sailing/index.html",
       "thumb": "thumbs/3d-sailing.webp",
       "bytes": 16654

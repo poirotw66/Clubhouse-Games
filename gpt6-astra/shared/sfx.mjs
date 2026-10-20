@@ -61,6 +61,11 @@ export function playError() {
   playTone(180, 'square', 0.15, 0, 0.05);
 }
 
+export function playPaddleHit() {
+  playTone(320, 'triangle', 0.06, 0, 0.06);
+  playTone(480, 'sine', 0.04, 0.02, 0.04);
+}
+
 /** Soft tap for placing a piece / general move. */
 export function playMove() {
   playTone(440, 'sine', 0.06, 0, 0.07);
@@ -133,4 +138,30 @@ export function playReload() {
 export function playWave() {
   playTone(392, 'triangle', 0.1, 0, 0.08);
   playTone(523.25, 'triangle', 0.14, 0.08, 0.07);
+}
+
+/** Windward helpers — thin wrappers so the game stays readable. */
+export function sfxGateClear() {
+  playScore();
+}
+
+export function sfxCollision() {
+  playImpact(0.7);
+}
+
+export function sfxFinish(isRecord) {
+  if (isRecord) playWin();
+  else playGoal();
+}
+
+export function sfxFail() {
+  playLose();
+}
+
+export function sfxUnlock() {
+  playWin();
+}
+
+export function sfxSelect() {
+  playMove();
 }
