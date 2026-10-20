@@ -8,6 +8,7 @@ import {
   getPlayerHint,
   getDifficultyConfig,
 } from './botAi';
+import { getPersonalityStyle, PERSONALITIES } from './personalities';
 import { DEFAULT_STATS, mergeStats, recordResult, withDifficulty, withWinScore } from './stats';
 
 function card(id: string) {
@@ -210,5 +211,133 @@ describe('withDifficulty', () => {
 describe('withWinScore', () => {
   it('updates lastWinScore only', () => {
     expect(withWinScore(DEFAULT_STATS, 20).lastWinScore).toBe(20);
+  });
+});
+
+describe('personality styles', () => {
+  it('defines a distinct profile for every selectable character', () => {
+    const ids = Object.keys(PERSONALITIES);
+    expect(ids.length).toBeGreaterThanOrEqual(10);
+    const signatures = new Set(
+      ids.map(id => {
+        const s = PERSONALITIES[id].style;
+        return [
+          s.chaseYaku.join(','),
+          s.koiKoiCapDelta,
+          s.riskAppetite,
+          s.chaseYakuBonus,
+          s.randomRateMul,
+          s.captureBiasDelta,
+        ].join('|');
+      }),
+    );
+    expect(signatures.size).toBe(ids.length);
+  });
+
+  it('scores ribbon cards higher for neko than for tsuru', () => {
+    const nekoAkatan = scoreCapture(
+      card('1-2'),
+      [card('1-3')],
+      [],
+      100,
+      getPersonalityStyle('neko'),
+    );
+    const tsuruAkatan = scoreCapture(
+      card('1-2'),
+      [card('1-3')],
+      [],
+      100,
+      getPersonalityStyle('tsuru'),
+    );
+    const tsuruCrane = scoreCapture(
+      card('1-1'),
+      [card('1-3')],
+      [],
+      100,
+      getPersonalityStyle('tsuru'),
+    );
+    expect(nekoAkatan).toBeGreaterThan(tsuruAkatan);
+    expect(tsuruCrane).toBeGreaterThan(tsuruAkatan);
+  });
+
+  it('makes forest hunter and crane noble diverge on deer vs curtain', () => {
+    const hand = [card('10-1'), card('3-1')]; // deer vs curtain
+    const field = [card('10-3'), card('3-3')];
+    const shika = pickBotHandPlay(
+      hand,
+      field,
+      [],
+      'hard',
+      () => 0,
+      getPersonalityStyle('shika'),
+    );
+    const tsuru = pickBotHandPlay(
+      hand,
+      field,
+      [],
+      'hard',
+      () => 0,
+      getPersonalityStyle('tsuru'),
+    );
+    expect(shika?.handCard.id).toBe('10-1');
+    expect(tsuru?.handCard.id).toBe('3-1');
+  });
+
+  it('makes greedy tanuki continue Koi-Koi where cautious fukurou banks', () => {
+    const base = {
+      totalPoints: 5,
+      botHandLength: 4,
+      botScore: 0,
+      playerScore: 0,
+      playerKoiKoiCount: 0,
+      difficulty: 'normal' as const,
+    };
+    expect(
+      shouldBotKoiKoi({ ...base, personality: getPersonalityStyle('tanuki') }),
+    ).toBe(true);
+    expect(
+      shouldBotKoiKoi({ ...base, personality: getPersonalityStyle('fukurou') }),
+    ).toBe(false);
+  });
+
+  it('steers ino-shika-cho hunters toward the animal piece', () => {
+    const hand = [card('7-1'), card('6-3')]; // boar vs plain kasu month
+    const field = [card('7-3'), card('6-4')];
+    const captured = [card('6-1'), card('10-1')]; // deer + butterfly already
+    const shika = pickBotHandPlay(
+      hand,
+      field,
+      captured,
+      'hard',
+      () => 0,
+      getPersonalityStyle('shika'),
+    );
+    const kitsune = pickBotHandPlay(
+      hand,
+      field,
+      captured,
+      'hard',
+      () => 0,
+      getPersonalityStyle('kitsune'),
+    );
+    expect(shika?.handCard.id).toBe('7-1');
+    // kitsune does not chase ino-shika-cho; with equal captureBias it may still
+    // take the boar for raw type value — assert styles differ in score at least.
+    const shikaScore = scoreCapture(
+      card('7-1'),
+      [card('7-3')],
+      captured,
+      100,
+      getPersonalityStyle('shika'),
+    );
+    const kitsuneScore = scoreCapture(
+      card('7-1'),
+      [card('7-3')],
+      captured,
+      100,
+      getPersonalityStyle('kitsune'),
+    );
+    expect(shikaScore).toBeGreaterThan(kitsuneScore);
+    expect(kitsune?.handCard.id).toBeTruthy();
   });
 });

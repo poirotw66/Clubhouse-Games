@@ -1,15 +1,20 @@
-# 花牌 Koi-Koi
+# 花牌（Koi-Koi）
 
-日本傳統花札玩法「Koi-Koi」：與師匠對戰、組成役得分。
+Clubhouse Vite + React port of hanafuda Koi-Koi.
 
-來源：[poirotw66/Koi-Koi](https://github.com/poirotw66/Koi-Koi)
+## Scripts
 
-在專案根目錄：
+- `npm run dev` — local Vite
+- `npm run check` / `npm run test` — Vitest (`gameLogic`, `botAi`, `yakuCodex`)
+- `npm run lint` — `tsc --noEmit`
+- `npm run build` — production bundle
 
-```bash
-npm run setup
-npm run build:game Koi-Koi
-npm run dev
-```
+## Features
 
-開啟選單後進入「花牌 Koi-Koi」。
+- Three AI difficulties × win-score targets (7 / 12 / 20)
+- Player + opponent character select; opponent personalities layered on difficulty
+- Yaku codex (`clubhouse-koi-koi-yaku-codex`) with validated localStorage merge
+- Hint / Undo, BGM, win streak, ResultOverlay, first-run guide
+- Yaku completion juice (motion + SFX; respects `prefers-reduced-motion`)
+
+Spec: [`01-cards/koi-koi.md`](../../01-cards/koi-koi.md)
