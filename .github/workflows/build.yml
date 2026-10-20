@@ -204,19 +204,7 @@ jobs:
           fi
 
       - name: Check Pages artifact for runtime CDN dependencies
-        env:
-          SCOPE_FULL: ${{ needs.changes.outputs.full }}
-          SCOPE_GAMES: ${{ needs.changes.outputs.games }}
-        run: |
-          set -euo pipefail
-          if [ "$SCOPE_FULL" = "true" ]; then
-            npm run check:no-cdn -- --pages
-          elif [ -n "${SCOPE_GAMES}" ]; then
-            # shellcheck disable=SC2086
-            npm run check:no-cdn -- --pages ${SCOPE_GAMES}
-          else
-            echo "Static-only Pages build; no Vite game dists to scan."
-          fi
+        run: npm run check:no-cdn -- --pages
 
       - name: Upload dist for Playwright
         uses: actions/upload-artifact@v4

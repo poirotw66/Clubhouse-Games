@@ -46,24 +46,13 @@ const offenders = [];
 let scannedGames = 0;
 let scannedStatic = 0;
 
-/** Optional game-name filters (selective Pages builds only compile touched games). */
-const filters = process.argv.slice(2).filter((a) => a !== '--pages' && !a.startsWith('-'));
-
 for (const name of fs.readdirSync(gamesDir)) {
   if (!fs.existsSync(path.join(gamesDir, name, 'package.json'))) continue;
-  if (filters.length > 0) {
-    const lower = name.toLowerCase();
-    if (!filters.some((f) => lower.includes(f.toLowerCase()))) continue;
-  }
-  const dist = pages ? path.join(root, 'dist', 'Games', name) : path.join(gameDir, name, 'dist');
+  const dist = pages ? path.join(root, 'dist', 'Games', name) : path.join(gamesDir, name, 'dist');
   if (!fs.existsSync(path.join(dist, 'index.html'))) {
-    // Selective `build-for-pages.mjs <games>` only emits touched games; requiring
-    // every folder here false-fails every single-game PR. Skip missing dists in
-    // --pages mode; non-pages (local full dist) still demands a complete build.
-    if (pages) {
-      console.warn(`skip (not in Pages artifact): ${name}`);
-      continue;
-    }
+    // Selective Pages CI only builds changed games; skip the rest rather than
+    // demanding a full matrix that was never produced.
+    if (pages) continue;
     throw new Error(`Missing built game: ${dist}/index.html. Build all games before checking.`);
   }
   scannedGames += 1;
