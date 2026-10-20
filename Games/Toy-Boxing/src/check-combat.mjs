@@ -31,6 +31,27 @@ function assert(cond, msg) {
   assert(attackProfile('jab', 'low').stunBuild === 0, 'low jab should not build stun');
 }
 
+// League signature overrides (windup / height / blockable) must stick.
+{
+  const lowSig = attackProfile('signature', 'high', false, {
+    windup: 0.26,
+    height: 'low',
+    unblockable: false,
+    bodyFatigue: 0.28,
+    stunBuild: 8,
+  });
+  assert(lowSig.height === 'low', 'override height');
+  assert(lowSig.windup === 0.26, 'override windup');
+  assert(lowSig.unblockable === false, 'override can make signature blockable');
+  assert(lowSig.bodyFatigue === 0.28, 'override body fatigue');
+  const started = startAttack('signature', 'high', false, {
+    windup: 0.34,
+    height: 'low',
+    unblockable: false,
+  });
+  assert(started.height === 'low' && started.phaseTimer === 0.34, 'startAttack honors overrides');
+}
+
 // Phase machine: windup → active → recovery → done.
 {
   let a = startAttack('jab', 'high');

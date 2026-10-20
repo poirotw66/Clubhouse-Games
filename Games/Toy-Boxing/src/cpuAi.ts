@@ -293,7 +293,12 @@ export function decideCpuIntent(input: CpuBrainInput): CpuIntent {
   }
 
   const height = pickAttackHeight(style, rng);
-  if (stamina >= 25 && (dist < 100 || rng() < style.hookBias)) {
+  // Close range used to force hooks (`dist < 100 || hookBias`), which erased
+  // jab-first personalities (needle). Bias alone picks the tool; range only
+  // nudges heavy hitters slightly when already hook-leaning.
+  const hookChance =
+    style.hookBias + (dist < 90 && style.hookBias >= 0.4 ? 0.12 : 0);
+  if (stamina >= 25 && rng() < Math.min(0.92, hookChance)) {
     return { type: 'act', action: 'HOOK', height, staminaCost: 25 };
   }
   if (stamina >= 10) {
