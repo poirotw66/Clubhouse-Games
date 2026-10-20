@@ -81,8 +81,8 @@ main{max-width:1530px;padding:0 26px 30px;margin:auto}
 @keyframes highlight{0%,40%{filter:drop-shadow(0 0 12px #5ed7e8)}}
 .board-footer{display:flex;justify-content:space-between;gap:8px;margin-top:12px;font-size:10px;color:var(--muted);flex-wrap:wrap}
 .legend{display:flex;gap:12px;flex-wrap:wrap}.legend span{display:flex;align-items:center;gap:5px}
-.toolbar{display:flex;gap:6px;overflow-x:auto;padding:11px 14px;border-top:1px solid var(--border);background:#111a24}
-.tool-button{min-width:70px;flex:1;padding:8px 5px;display:flex;align-items:center;flex-direction:column;font-size:11px;gap:1px}
+.toolbar{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:11px 14px;border-top:1px solid var(--border);background:#111a24;position:relative;z-index:3;touch-action:pan-x}
+.tool-button{min-width:72px;flex:0 0 auto;min-height:52px;padding:8px 5px;display:flex;align-items:center;flex-direction:column;font-size:11px;gap:1px;touch-action:manipulation}
 .tool-button .glyph{font-size:20px;line-height:1.3}.tool-button small{font-size:9px}
 #hint{padding:10px 16px;background:#101923;font-size:11px;color:var(--muted);min-height:36px}
 .sidebar{display:grid;gap:16px}
