@@ -104,7 +104,7 @@
       "id": "3d-sailing",
       "title": "3D Sailing",
       "category": "game",
-      "blurb": "程序化海面與船體：離線 Three.js 航行小品。",
+      "blurb": "Windward：三航線、PB 與幽靈船；離線 Three.js 計時航行。",
       "href": "3d-sailing/index.html",
       "thumb": "thumbs/3d-sailing.webp",
       "bytes": 16654
@@ -122,7 +122,7 @@
       "id": "3d-fill-the-void",
       "title": "3D Fill the Void",
       "category": "game",
-      "blurb": "立體空間填空解謎；Three 與 RoundedBox 皆為本機檔。",
+      "blurb": "療癒拼板：20 關三包、星等標準桿、每日關；Three 本機。",
       "href": "3d-fill-the-void/index.html",
       "thumb": "thumbs/3d-fill-the-void.webp",
       "bytes": 14196

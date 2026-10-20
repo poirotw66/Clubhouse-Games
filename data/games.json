@@ -412,7 +412,7 @@
         {
           "name": "3D 航行",
           "en": "3D Sailing",
-          "desc": "瀏覽器內 3D 航行體驗（執行期依賴 Three.js CDN）。",
+          "desc": "Windward：三航線計時、PB 與幽靈船；本機 Three.js，支援觸控。",
           "players": "1 人",
           "specPath": "07-astra/3d-sailing.md",
           "gameFolder": "Astra-3d-sailing",

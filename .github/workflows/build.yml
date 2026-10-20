@@ -127,6 +127,10 @@ jobs:
         if: matrix.id == 'rest-1' || matrix.id == 'selective'
         run: npm run check:shared-styles
 
+      - name: Verify local dev server MIME types
+        if: matrix.id == 'rest-1' || matrix.id == 'selective'
+        run: npm run check:dev-server-mime
+
       - name: Run game logic checks
         env:
           SCOPE_FULL: ${{ needs.changes.outputs.full }}
@@ -162,6 +166,14 @@ jobs:
       - name: Run Astra Borderland logic check
         if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
         run: npm run check:astra-borderland
+
+      - name: Run Astra Fill the Void logic check
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-fill-void
+
+      - name: Run Astra Windward (3D Sailing) logic check
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-sailing
 
   # ---------------------------------------------------------------------------
   # Build Pages once; upload artifact for Playwright (and Pages deploy on main).

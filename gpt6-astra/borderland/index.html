@@ -2,58 +2,62 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>DUST RIOT — 荒土暴動</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;overflow:hidden;background:#1a1520;font-family:Arial,"Microsoft JhengHei",sans-serif}
-canvas{display:block}
-#hud{position:fixed;inset:0;pointer-events:none;color:#fff;display:none}
-.top{position:absolute;top:25px;left:30px}
-.brand{font-size:28px;font-weight:1000;font-style:italic;color:#ffdc61;
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1a1520;
+font-family:"Segoe UI","Microsoft JhengHei",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;color:#fff;display:none;z-index:2}
+.top{position:absolute;top:max(12px,env(safe-area-inset-top));left:16px}
+.brand{font-size:clamp(18px,4vw,28px);font-weight:1000;font-style:italic;color:#ffdc61;
 text-shadow:3px 3px #17131c;letter-spacing:2px}
-.sub{font-size:11px;letter-spacing:4px;color:#e5caa5;margin-top:5px}
-#wave{position:absolute;right:30px;top:27px;text-align:right;
-font-weight:bold;font-size:18px;text-shadow:2px 2px #000}
-.bottom{position:absolute;left:30px;bottom:30px;width:270px}
-.label{font-size:12px;font-weight:bold;letter-spacing:3px}
-.bar{height:22px;background:#211b25;border:3px solid #201822;
-transform:skew(-12deg);margin:9px 0;box-shadow:3px 3px #0006}
+.sub{font-size:10px;letter-spacing:3px;color:#e5caa5;margin-top:4px}
+#wave{position:absolute;right:16px;top:max(14px,env(safe-area-inset-top));text-align:right;
+font-weight:bold;font-size:clamp(13px,3.5vw,18px);text-shadow:2px 2px #000}
+.bottom{position:absolute;left:16px;bottom:max(16px,env(safe-area-inset-bottom));width:min(270px,55vw)}
+.label{font-size:11px;font-weight:bold;letter-spacing:2px}
+.bar{height:18px;background:#211b25;border:3px solid #201822;
+transform:skew(-12deg);margin:7px 0;box-shadow:3px 3px #0006}
 #health{height:100%;background:#ff654b;width:100%;transition:width .15s}
-#stats{font-size:12px;color:#fff1cf}
-#ammo{position:absolute;right:30px;bottom:30px;text-align:right;
-font-size:48px;font-weight:1000;text-shadow:3px 3px #201822}
-#ammo small{font-size:18px;color:#f4cf79}
-#weapon{font-size:12px;letter-spacing:3px;color:#f4cf79}
+#stats{font-size:11px;color:#fff1cf}
+#ammo{position:absolute;right:16px;bottom:max(16px,env(safe-area-inset-bottom));text-align:right;
+font-size:clamp(28px,8vw,48px);font-weight:1000;text-shadow:3px 3px #201822}
+#ammo small{font-size:clamp(12px,3vw,18px);color:#f4cf79}
+#weapon{font-size:10px;letter-spacing:2px;color:#f4cf79;max-width:42vw}
 #cross{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%)}
 #cross:before,#cross:after{content:"";position:absolute;background:#ffedbb;box-shadow:0 0 2px #000}
 #cross:before{width:2px;height:22px;left:10px}
 #cross:after{height:2px;width:22px;top:10px}
 #hit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
 font-size:42px;color:#ffdd53;opacity:0}
-#notice{position:absolute;top:23%;width:100%;text-align:center;
-font-size:28px;font-weight:1000;color:#ffdf68;text-shadow:3px 3px #261b23}
+#notice{position:absolute;top:22%;width:100%;text-align:center;padding:0 12px;
+font-size:clamp(16px,5vw,28px);font-weight:1000;color:#ffdf68;text-shadow:3px 3px #261b23}
 #damage{position:absolute;inset:0;box-shadow:inset 0 0 160px 50px #f32619;opacity:0}
-#controls{position:absolute;bottom:10px;width:100%;text-align:center;font-size:10px;color:#ffefc180}
+#controls{position:absolute;bottom:max(4px,env(safe-area-inset-bottom));width:100%;text-align:center;
+font-size:10px;color:#ffefc180;padding:0 8px}
 #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-background:linear-gradient(110deg,#17111ee8,#35202a99);color:#fff;z-index:5}
-.panel{max-width:720px;width:min(720px,92vw);padding:36px 40px;border-left:8px solid #ffce48;
-background:#201922e8;box-shadow:14px 14px 0 #0005;transform:skew(-3deg);max-height:92vh;overflow:auto}
-.tag{color:#ffce48;letter-spacing:5px;font-size:12px;font-weight:bold}
-.panel h1{font-size:clamp(40px,8vw,72px);line-height:.9;margin:18px 0 12px;color:#ffd653;
+background:linear-gradient(110deg,#17111ee8,#35202a99);color:#fff;z-index:5;pointer-events:auto;
+overflow:auto;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.panel{max-width:720px;width:min(720px,94vw);padding:28px 28px;border-left:8px solid #ffce48;
+background:#201922e8;box-shadow:14px 14px 0 #0005;transform:skew(-2deg);max-height:92vh;overflow:auto}
+.tag{color:#ffce48;letter-spacing:5px;font-size:11px;font-weight:bold}
+.panel h1{font-size:clamp(32px,8vw,72px);line-height:.9;margin:14px 0 10px;color:#ffd653;
 font-weight:1000;font-style:italic;text-shadow:5px 5px #bd563a}
-.panel h2{margin:0 0 14px;letter-spacing:8px;font-size:18px}
-.panel p{color:#d5c7bd;line-height:1.7;font-size:14px;margin:10px 0}
+.panel h2{margin:0 0 12px;letter-spacing:6px;font-size:clamp(14px,3.5vw,18px)}
+.panel p{color:#d5c7bd;line-height:1.65;font-size:13px;margin:8px 0}
 .panel button,.actions button{border:3px solid #171119;background:#ffcf49;color:#201922;
-padding:12px 22px;font-size:16px;font-weight:1000;cursor:pointer;
-box-shadow:5px 5px 0 #b14d31;margin:6px 8px 6px 0;pointer-events:auto}
+padding:12px 18px;font-size:15px;font-weight:1000;cursor:pointer;
+box-shadow:5px 5px 0 #b14d31;margin:6px 8px 6px 0;pointer-events:auto;touch-action:manipulation}
 .panel button:hover,.actions button:hover{background:#fff1a2}
 .panel button.secondary{background:#3a3038;color:#ffe7b0;box-shadow:5px 5px 0 #1a1418}
 .panel button.ghost{background:transparent;color:#ffd653;box-shadow:none}
-.panel button.mode{display:block;width:100%;text-align:left;background:#2a222c;color:#ffe7b0;
+.panel button.mode,.panel button.weapon{display:block;width:100%;text-align:left;background:#2a222c;color:#ffe7b0;
 box-shadow:3px 3px 0 #120e14;margin:8px 0;padding:12px 14px;transform:skew(0)}
-.panel button.mode.active{background:#ffcf49;color:#201922}
-.panel button.mode small{display:block;font-weight:600;opacity:.85;margin-top:4px;font-size:12px}
+.panel button.mode.active,.panel button.weapon.active{background:#ffcf49;color:#201922}
+.panel button.mode small,.panel button.weapon small{display:block;font-weight:600;opacity:.85;margin-top:4px;font-size:12px}
+.section-label{font-size:11px;letter-spacing:3px;color:#e7b890;margin:14px 0 4px;font-weight:700}
 .badge{display:inline-block;padding:4px 10px;margin:0 6px 6px 0;background:#ffcf49;color:#201922;
 font-size:12px;font-weight:900;letter-spacing:1px}
 .badge.gold{background:#ff8f5a}
@@ -61,9 +65,44 @@ font-size:12px;font-weight:900;letter-spacing:1px}
 .result-grid div{background:#2a222c;padding:10px 12px}
 .result-grid small{display:block;color:#e7b890;font-size:11px;letter-spacing:1px}
 .result-grid b{font-size:20px}
-.result-score{font-size:42px;font-weight:1000;color:#ffd653;margin:8px 0}
-#status{font-size:12px;color:#e7b890;margin-top:14px}
+.result-score{font-size:clamp(28px,8vw,42px);font-weight:1000;color:#ffd653;margin:8px 0}
+#status{font-size:12px;color:#e7b890;margin-top:12px}
 .actions{display:flex;flex-wrap:wrap;align-items:center;margin-top:8px}
+
+/* Touch chrome */
+#touchUI{position:fixed;inset:0;z-index:4;pointer-events:none;display:none}
+#touchUI.show{display:block}
+.stick-zone{position:absolute;width:42vw;max-width:200px;height:42vw;max-height:200px;
+bottom:max(12px,env(safe-area-inset-bottom));pointer-events:auto;touch-action:none}
+#moveStick{left:max(8px,env(safe-area-inset-left))}
+#lookStick{right:max(8px,env(safe-area-inset-right))}
+.stick-base{position:absolute;inset:18%;border-radius:50%;
+background:#1a142299;border:2px solid #ffcf4988}
+.stick-knob{position:absolute;width:38%;height:38%;left:50%;top:50%;
+border-radius:50%;background:#ffcf49cc;border:2px solid #fff3b0;
+transform:translate(-50%,-50%);pointer-events:none}
+#lookStick{bottom:max(12px,env(safe-area-inset-bottom));right:max(8px,env(safe-area-inset-right))}
+#touchBtns{position:absolute;right:max(14px,env(safe-area-inset-right));
+bottom:max(calc(38vw + 24px), 220px);
+display:flex;flex-direction:column;gap:10px;pointer-events:none;align-items:flex-end}
+#touchBtns button{pointer-events:auto;min-width:68px;min-height:52px;border-radius:16px;
+border:2px solid #ffcf49aa;background:#2a222ce6;color:#ffe7b0;font-weight:900;
+font-size:13px;touch-action:manipulation;letter-spacing:1px}
+#touchBtns button.fire{min-width:78px;min-height:78px;border-radius:50%;
+background:#ff654bcc;border-color:#ffedbb;color:#fff;font-size:15px}
+#touchBtns button:active,#touchBtns button.held{background:#ffcf49;color:#201922}
+#pauseBtn{position:absolute;top:max(10px,env(safe-area-inset-top));right:50%;
+transform:translateX(50%);pointer-events:auto;min-width:64px;min-height:40px;
+border-radius:12px;border:2px solid #ffcf4988;background:#201922cc;color:#ffe7b0;
+font-weight:800;font-size:12px;touch-action:manipulation;display:none}
+#pauseBtn.show{display:block}
+@media(max-width:720px){
+  .bottom{bottom:max(150px,calc(env(safe-area-inset-bottom) + 140px));width:min(220px,48vw)}
+  #ammo{bottom:max(150px,calc(env(safe-area-inset-bottom) + 140px))}
+  #controls{display:none}
+  #cross{opacity:.55}
+  .stick-zone{width:36vw;max-width:160px;height:36vw;max-height:160px}
+}
 </style>
 </head>
 <body>
@@ -80,6 +119,22 @@ font-size:12px;font-weight:900;letter-spacing:1px}
   <div id="notice"></div><div id="damage"></div>
   <div id="controls">WASD 移動 · SHIFT 奔跑 · SPACE 跳躍 · R 換彈 · ESC 暫停 · 滑鼠瞄準射擊</div>
 </div>
+<button type="button" id="pauseBtn">暫停</button>
+<div id="touchUI" aria-label="觸控操作">
+  <div class="stick-zone" id="moveStick">
+    <div class="stick-base"></div>
+    <div class="stick-knob" id="moveKnob"></div>
+  </div>
+  <div class="stick-zone" id="lookStick">
+    <div class="stick-base"></div>
+    <div class="stick-knob" id="lookKnob"></div>
+  </div>
+  <div id="touchBtns">
+    <button type="button" id="btnJump">跳</button>
+    <button type="button" id="btnReload">換彈</button>
+    <button type="button" class="fire" id="btnFire">開火</button>
+  </div>
+</div>
 <div id="overlay">
   <div class="panel" id="panel"></div>
 </div>
@@ -88,21 +143,52 @@ import * as THREE from "../vendor/three/build/three.module.min.js";
 import {
   DIFFICULTIES,
   DIFFICULTY_ORDER,
+  WEAPONS,
+  WEAPON_ORDER,
+  ENEMY_KINDS,
   STORAGE_KEY,
+  LEGACY_STORAGE_KEY,
   enemyFireCooldown,
   enemyHp,
   enemySpeed,
   endReasonLabel,
   getDifficulty,
+  getWeapon,
+  getEnemyKind,
   killScore,
   migrateStats,
+  pickWaveComposition,
   projectileSpeed,
   reachedClearWave,
   recordRun,
+  shieldBlocksHit,
   spawnCount,
+  weaponHitDamage,
+  isEliteWave,
 } from "./rules.mjs";
+import {
+  playCapture,
+  playGoal,
+  playHeadshot,
+  playHurt,
+  playImpact,
+  playLose,
+  playReload,
+  playScore,
+  playShoot,
+  playWave,
+  playWin,
+} from "../shared/sfx.mjs";
 
 const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+/** Force touch chrome via ?touch=1 (Playwright / QA). */
+const isTouch =
+  params.has("touch") ||
+  matchMedia("(pointer:coarse)").matches ||
+  matchMedia("(hover:none) and (max-width: 900px)").matches ||
+  ("ontouchstart" in window && Math.min(innerWidth, innerHeight) < 900);
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xe5b681);
 scene.fog = new THREE.Fog(0xe5b681, 35, 115);
@@ -114,7 +200,7 @@ scene.add(camera);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !isTouch;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
@@ -122,10 +208,12 @@ document.body.prepend(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffe6b3, 0x695060, 2.3));
 const sun = new THREE.DirectionalLight(0xffedd0, 3);
 sun.position.set(-24, 45, 18);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left:-48, right:48, top:48, bottom:-48, far:130 });
-sun.shadow.normalBias = .04;
+sun.castShadow = !isTouch;
+if (!isTouch) {
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left:-48, right:48, top:48, bottom:-48, far:130 });
+  sun.shadow.normalBias = .04;
+}
 scene.add(sun);
 
 const bands = new THREE.DataTexture(new Uint8Array([
@@ -145,7 +233,7 @@ function mesh(geo, color, scale, pos, parent=scene, outline=true) {
   const m = new THREE.Mesh(geo, mat(color));
   m.scale.set(...scale);
   m.position.set(...pos);
-  m.castShadow = m.receiveShadow = true;
+  m.castShadow = m.receiveShadow = !isTouch;
   parent.add(m);
   if (outline) {
     const edge = new THREE.Mesh(geo, ink);
@@ -211,47 +299,87 @@ for(let i=0;i<64;i++){
     [Math.sin(a)*r,2,Math.cos(a)*r]);
   m.rotation.y=Math.random()*6;
 }
-for(let i=0;i<85;i++){
+for(let i=0;i<(isTouch?40:85);i++){
   const x=(Math.random()-.5)*82,z=(Math.random()-.5)*82;
   mesh(sphereGeo,0xa87c52,[.15+Math.random()*.5,.12+Math.random()*.25,.3],[x,.06,z],scene,false);
 }
 
 const gun = new THREE.Group(); camera.add(gun);
 gun.position.set(.32,-.27,-.55);
-box(0xdab144,[.20,.20,.48],[0,0,0],gun);
-box(0x45474c,[.12,.12,.42],[0,.025,-.38],gun);
-box(0x242631,[.18,.16,.12],[0,.025,-.61],gun);
-box(0x694935,[.13,.27,.14],[.015,-.16,.08],gun);
-box(0x3c5860,[.13,.20,.18],[0,-.15,-.13],gun);
-box(0xf16937,[.215,.06,.20],[0,.02,-.10],gun);
-box(0x222b35,[.045,.075,.07],[0,.14,-.16],gun);
-box(0x73edee,[.022,.025,.025],[0,.18,-.16],gun,false);
-const muzzle = new THREE.Mesh(
-  new THREE.ConeGeometry(.105,.28,5),
-  new THREE.MeshBasicMaterial({color:0xffdd77})
-);
-muzzle.rotation.x=-Math.PI/2;
-muzzle.position.set(0,.025,-.8);
-gun.add(muzzle);muzzle.visible=false;
-gun.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;}});
+const gunParts = [];
+function rebuildGunVisual(weaponId) {
+  while (gun.children.length) gun.remove(gun.children[0]);
+  gunParts.length = 0;
+  if (weaponId === "smg") {
+    box(0xc9a038,[.16,.16,.55],[0,0,0],gun);
+    box(0x3a3d45,[.1,.1,.5],[0,.02,-.42],gun);
+    box(0x242631,[.14,.2,.18],[0,-.12,.05],gun);
+    box(0xf16937,[.18,.05,.28],[0,.02,-.05],gun);
+  } else if (weaponId === "shotgun") {
+    box(0x8b5a2b,[.18,.16,.62],[0,0,0],gun);
+    box(0x45474c,[.08,.08,.5],[.04,.02,-.4],gun);
+    box(0x45474c,[.08,.08,.5],[-.04,.02,-.4],gun);
+    box(0x694935,[.14,.28,.16],[0,-.16,.1],gun);
+  } else {
+    box(0xdab144,[.20,.20,.48],[0,0,0],gun);
+    box(0x45474c,[.12,.12,.42],[0,.025,-.38],gun);
+    box(0x242631,[.18,.16,.12],[0,.025,-.61],gun);
+    box(0x694935,[.13,.27,.14],[.015,-.16,.08],gun);
+    box(0x3c5860,[.13,.20,.18],[0,-.15,-.13],gun);
+    box(0xf16937,[.215,.06,.20],[0,.02,-.10],gun);
+  }
+  box(0x222b35,[.045,.075,.07],[0,.14,-.16],gun);
+  box(0x73edee,[.022,.025,.025],[0,.18,-.16],gun,false);
+  const muzzle = new THREE.Mesh(
+    new THREE.ConeGeometry(.105,.28,5),
+    new THREE.MeshBasicMaterial({color:0xffdd77})
+  );
+  muzzle.rotation.x=-Math.PI/2;
+  muzzle.position.set(0,.025,-.8);
+  muzzle.name = "muzzle";
+  gun.add(muzzle);muzzle.visible=false;
+  gun.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;}});
+}
+rebuildGunVisual("rifle");
+function getMuzzle(){ return gun.getObjectByName("muzzle"); }
+function layoutGun() {
+  // Keep viewmodel off the right look-stick on phones.
+  if (isTouch) gun.position.set(.18, -.32, -.58);
+  else gun.position.set(.32, -.27, -.55);
+}
+layoutGun();
 
 let selectedMode="normal";
+let selectedWeapon="rifle";
 let stats=loadStats();
 let ui="menu"; // menu | playing | paused | over
 const player = {pos:new THREE.Vector3(0,1.7,18), hp:100, vy:0};
 let enemies=[], shots=[], effects=[], pickups=[];
 let wave=0,kills=0,score=0,ammo=24,reload=0;
 let fireWait=0,recoil=0,flash=0,hitTime=0,hurtTime=0,noticeTime=0,nextWave=0;
-let locked=false,firing=false,spaceHeld=false,won=false;
+let shake=0, combo=0;
+let locked=false,everLocked=false,firing=false,spaceHeld=false,won=false;
+let dragLook=false, unlockPlay=false;
 let yaw=0,pitch=0,elapsed=0;
 const keys={};
 const ray = new THREE.Raycaster();
 const projectileGeo=new THREE.SphereGeometry(.16,6,4);
 const projectileMat=new THREE.MeshBasicMaterial({color:0xff472a});
+const lobMat=new THREE.MeshBasicMaterial({color:0xffaa33});
+
+const touchState = {
+  move: { id:null, dx:0, dy:0 },
+  look: { id:null, dx:0, dy:0 },
+  fire: false,
+  sprint: false,
+};
 
 function loadStats() {
   let raw=null;
   try { raw=JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch(e) {}
+  if (!raw) {
+    try { raw=JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || "null"); } catch(e) {}
+  }
   return migrateStats(raw);
 }
 function saveStats() {
@@ -262,6 +390,9 @@ function modeBest(mode=selectedMode) {
 }
 function rules() {
   return getDifficulty(selectedMode);
+}
+function weapon() {
+  return getWeapon(selectedWeapon);
 }
 
 function blocked(x,z,r=.48) {
@@ -275,14 +406,19 @@ function move(pos,dx,dz,r) {
 function announce(text,time=2) {
   $("notice").textContent=text;noticeTime=time;
 }
+function setTouchChrome(show) {
+  $("touchUI").classList.toggle("show", show && isTouch);
+  $("pauseBtn").classList.toggle("show", show && isTouch);
+}
 function updateHUD(){
   const d=rules();
+  const w=weapon();
   $("health").style.width=Math.max(0, Math.min(100, player.hp / d.startingHp * 100))+"%";
   $("hpText").textContent=Math.ceil(player.hp);
   $("rounds").textContent=reload>0?"••":ammo;
-  $("weapon").textContent=reload>0?"RELOADING // 換彈中":"SCRAP-RIFLE // MK.04";
-  $("modeSub").textContent=`${d.label} · 目標第 ${d.clearWave} 波`;
-  $("wave").innerHTML=`波次 ${String(wave).padStart(2,"0")} / ${String(d.clearWave).padStart(2,"0")}<br><small>敵人 ${enemies.length}</small>`;
+  $("weapon").textContent=reload>0?"RELOADING // 換彈中":w.code;
+  $("modeSub").textContent=`${d.label} · ${w.label} · 目標第 ${d.clearWave} 波`;
+  $("wave").innerHTML=`波次 ${String(wave).padStart(2,"0")} / ${String(d.clearWave).padStart(2,"0")}<br><small>敵人 ${enemies.length}${isEliteWave(wave)?" · 精英":""}</small>`;
   const best=modeBest();
   $("stats").textContent=`擊殺 ${kills}　 /　 分數 ${score.toLocaleString()}　 /　 最佳波 ${best.wave}`;
 }
@@ -306,45 +442,75 @@ function modeButtonsHtml() {
     </button>`;
   }).join("");
 }
+function weaponButtonsHtml() {
+  return WEAPON_ORDER.map(id=>{
+    const w=WEAPONS[id];
+    const clears=stats.weaponClears?.[id]||0;
+    return `<button type="button" class="weapon ${id===selectedWeapon?"active":""}" data-weapon="${id}">
+      <b>${w.label}</b> · 通關 ${clears}
+      <small>${w.blurb}</small>
+    </button>`;
+  }).join("");
+}
 
-function bindModeButtons() {
+function bindMenuButtons() {
   $("panel").querySelectorAll("[data-mode]").forEach(btn=>{
     btn.onclick=()=>{
       selectedMode=btn.getAttribute("data-mode");
-      menu({ preserveMode:true });
+      menu({ preserveMode:true, preserveWeapon:true });
+    };
+  });
+  $("panel").querySelectorAll("[data-weapon]").forEach(btn=>{
+    btn.onclick=()=>{
+      selectedWeapon=btn.getAttribute("data-weapon");
+      menu({ preserveMode:true, preserveWeapon:true });
     };
   });
 }
 
-function menu({ preserveMode=false }={}) {
+function menu({ preserveMode=false, preserveWeapon=false }={}) {
   ui="menu";
   won=false;
   $("hud").style.display="none";
+  setTouchChrome(false);
   if(document.pointerLockElement) document.exitPointerLock();
   if(!preserveMode && DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
+  if(!preserveWeapon && WEAPONS[stats.lastWeapon]) selectedWeapon=stats.lastWeapon;
   const best=modeBest();
+  const w=weapon();
   showOverlay(`
     <div class="tag">INK. IRON. MAYHEM.</div>
     <h1>DUST RIOT</h1><h2>荒 土 暴 動</h2>
-    <p>廢土沒有英雄，只有還沒打空的彈匣。選難度，守住目標波次，再挑戰更高紀錄。</p>
+    <p>選難度與武器身分。衝鋒槍壓制衝鋒、步槍點殺迫擊、散彈破盾——取捨真實存在。</p>
+    <div class="section-label">難度</div>
     <div>${modeButtonsHtml()}</div>
-    <p>命中黃色頭部雙倍傷害；綠箱補血；利用掩體避開紅彈。<br>
-    本模式最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分</p>
+    <div class="section-label">開局武器</div>
+    <div>${weaponButtonsHtml()}</div>
+    <p>頭部雙倍傷害；綠箱補血；盾兵正面會擋彈（散彈近距可破）。<br>
+    本模式最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分<br>
+    目前武裝：${w.label} — ${w.tip}</p>
     <div class="actions">
       <button type="button" id="start">進入荒土 →</button>
     </div>
-    <div id="status">引擎就緒 · 點擊開始以鎖定滑鼠（桌面瀏覽器）</div>`);
-  bindModeButtons();
+    <div id="status">${isTouch
+      ? "觸控就緒 · 左搖桿移動 · 右搖桿瞄準 · 開火鍵射擊"
+      : "引擎就緒 · 點擊開始以鎖定滑鼠（桌面瀏覽器）"}</div>`);
+  bindMenuButtons();
   $("start").onclick=()=>beginRun();
 }
 
 async function requestLock() {
+  if (isTouch) {
+    unlockPlay = true;
+    return true;
+  }
   try {
     await renderer.domElement.requestPointerLock();
-    return true;
+    return !!document.pointerLockElement;
   } catch(e) {
+    unlockPlay = true;
     const status=$("status");
-    if(status) status.textContent="無法鎖定滑鼠，請使用獨立瀏覽器頁面並再次點擊。";
+    if(status) status.textContent="無法鎖定滑鼠：改為拖曳畫布瞄準（或使用觸控模式）。";
     return false;
   }
 }
@@ -352,9 +518,14 @@ async function requestLock() {
 function beginRun() {
   resetRun();
   ui="playing";
+  everLocked=false;
+  unlockPlay=isTouch;
   $("hud").style.display="block";
   hideOverlay();
-  requestLock();
+  setTouchChrome(true);
+  requestLock().then((ok)=>{
+    if(!ok && !isTouch) unlockPlay=true;
+  });
 }
 
 function resetRun() {
@@ -364,48 +535,97 @@ function resetRun() {
   pickups.forEach(p=>scene.remove(p.g));
   enemies=[];shots=[];effects=[];pickups=[];
   Object.keys(keys).forEach(k=>delete keys[k]);
+  touchState.move.dx=touchState.move.dy=0;
+  touchState.look.dx=touchState.look.dy=0;
+  touchState.fire=false;
   const d=rules();
+  const w=weapon();
+  rebuildGunVisual(selectedWeapon);
   player.pos.set(0,1.7,18);player.hp=d.startingHp;player.vy=0;
   wave=kills=score=reload=fireWait=recoil=nextWave=0;
-  hurtTime=hitTime=flash=0;ammo=24;yaw=pitch=0;elapsed=0;
+  hurtTime=hitTime=flash=shake=combo=0;ammo=w.magSize;yaw=pitch=0;elapsed=0;
   won=false;firing=false;spaceHeld=false;
   beginWave();
   updateHUD();
 }
 
-function spawnEnemy(){
+function spawnEnemy(kind="grunt", elite=false){
   let x,z,tries=0;
   do{
     const a=Math.random()*Math.PI*2,r=24+Math.random()*13;
     x=Math.sin(a)*r;z=Math.cos(a)*r;tries++;
   }while(tries<150&&(blocked(x,z,.8)||Math.hypot(x-player.pos.x,z-player.pos.z)<16));
-  if(blocked(x,z,.8))return;
+  if(blocked(x,z,.8)) {
+    // fallback: try closer ring so waves never go empty
+    for (let t=0;t<40;t++) {
+      const a=Math.random()*Math.PI*2,r=18+Math.random()*8;
+      x=Math.sin(a)*r;z=Math.cos(a)*r;
+      if(!blocked(x,z,.8)&&Math.hypot(x-player.pos.x,z-player.pos.z)>=12) break;
+    }
+    if(blocked(x,z,.8)) return null;
+  }
+  const def=getEnemyKind(kind);
   const g=new THREE.Group();scene.add(g);g.position.set(x,0,z);
-  const e={g,hp:enemyHp(wave, selectedMode),speed:enemySpeed(wave, selectedMode),
-    cooldown:1+Math.random()*2,phase:Math.random()*6,parts:[]};
-  const body=box(0xa94734,[.85,.95,.52],[0,1.3,0],g);
-  const head=box(0xf3bd49,[.55,.52,.50],[0,2.05,0],g);
-  box(0x282b35,[.44,.13,.05],[0,2.08,.275],g);
-  box(0xff492d,[.27,.055,.055],[0,2.09,.31],g,false);
+  const scale = elite ? 1.35 : 1;
+  const e={
+    g, kind, elite, def,
+    hp:enemyHp(wave, selectedMode, kind, elite),
+    speed:enemySpeed(wave, selectedMode, kind, elite),
+    cooldown:1+Math.random()*2,phase:Math.random()*6,parts:[],
+    shieldMesh:null,
+  };
+  const bodyColor = elite ? 0x7a1f3a : def.color;
+  const headColor = elite ? 0xffe08a : def.headColor;
+  const body=box(bodyColor,[.85*scale,.95*scale,.52*scale],[0,1.3*scale,0],g);
+  const head=box(headColor,[.55*scale,.52*scale,.50*scale],[0,2.05*scale,0],g);
+  box(0x282b35,[.44*scale,.13*scale,.05*scale],[0,2.08*scale,.275*scale],g);
+  box(0xff492d,[.27*scale,.055*scale,.055*scale],[0,2.09*scale,.31*scale],g,false);
   for(const sx of [-.52,.52]){
-    box(0x515361,[.25,.75,.28],[sx,1.25,0],g);
-    const leg=box(0x3a414a,[.28,.73,.32],[sx*.48,.4,0],g);
+    box(0x515361,[.25*scale,.75*scale,.28*scale],[sx*scale,1.25*scale,0],g);
+    const leg=box(0x3a414a,[.28*scale,.73*scale,.32*scale],[sx*.48*scale,.4*scale,0],g);
     e.parts.push(leg);
   }
-  box(0x292e38,[.23,.23,.7],[.55,1.13,.35],g);
+  if (def.shieldFront) {
+    const sh=box(0x7a8894,[1.1*scale,1.4*scale,.12*scale],[0,1.35*scale,.55*scale],g);
+    e.shieldMesh=sh;
+  }
+  if (def.lobShot) {
+    box(0x3d2a40,[.4*scale,.35*scale,.55*scale],[.4*scale,1.1*scale,.2*scale],g);
+  }
+  if (def.meleeOnly) {
+    box(0xc45a2a,[.15*scale,.15*scale,.7*scale],[.6*scale,1.2*scale,.3*scale],g);
+  } else if (!def.shieldFront) {
+    box(0x292e38,[.23*scale,.23*scale,.7*scale],[.55*scale,1.13*scale,.35*scale],g);
+  }
+  if (elite) {
+    box(0xffce48,[.3*scale,.08*scale,.3*scale],[0,2.45*scale,0],g,false);
+  }
   g.traverse(o=>{
     if(o.isMesh && o.material!==ink){
       o.userData.enemy=e;o.userData.head=o===head;
+      o.userData.shield=o===e.shieldMesh;
     }
   });
   enemies.push(e);
+  return e;
 }
 function beginWave(){
   wave++;
   const n=spawnCount(wave, selectedMode);
-  for(let i=0;i<n;i++)spawnEnemy();
+  const comp=pickWaveComposition(wave, n);
+  let spawned=0;
+  for(const slot of comp){
+    if(spawnEnemy(slot.kind, slot.elite)) spawned++;
+  }
+  // guarantee at least one enemy
+  while(spawned===0 && enemies.length===0){
+    if(spawnEnemy("grunt", false)) spawned++;
+    else break;
+  }
   const d=rules();
-  announce(`第 ${wave} 波 // 目標 ${d.clearWave} · 清理掠奪者`,2.8);
+  const eliteTag=isEliteWave(wave)?" · 精英波":"";
+  announce(`第 ${wave} 波 // 目標 ${d.clearWave}${eliteTag}`,2.8);
+  playWave();
   updateHUD();
 }
 function addPickup(pos){
@@ -424,59 +644,127 @@ function particles(pos,color,n=7){
     )});
   }
 }
-function damageEnemy(e,amount,point){
-  e.hp-=amount;hitTime=.12;particles(point,0xffc44f);
+function damageEnemy(e,amount,point,{headshot=false,blocked=false}={}){
+  if(blocked){
+    particles(point,0xa0b0c0,4);
+    playImpact(0.25);
+    hitTime=.08;
+    return;
+  }
+  e.hp-=amount;hitTime=.12;particles(point,headshot?0xfff1a0:0xffc44f,headshot?10:7);
+  if(headshot){ playHeadshot(); combo=Math.min(8,combo+1); }
+  else { playCapture(); combo=Math.max(0,combo-1); }
+  shake=Math.min(0.18, shake+(headshot?0.06:0.03));
   if(e.hp<=0){
     scene.remove(e.g);
     enemies=enemies.filter(a=>a!==e);
-    kills++;score+=killScore(wave);
+    kills++;score+=killScore(wave, e.kind, e.elite);
+    playScore();
     if(Math.random()<.45)addPickup(e.g.position);
     particles(e.g.position.clone().add(new THREE.Vector3(0,1,0)),0xb84730,12);
+    if(e.elite){ announce("精英擊破！",1.2); playGoal(); }
   }
   updateHUD();
 }
 function startReload(){
-  if(reload>0||ammo===24||ui!=="playing")return;
-  reload=1.35;updateHUD();
+  const w=weapon();
+  if(reload>0||ammo===w.magSize||ui!=="playing")return;
+  reload=w.reloadSec;playReload();updateHUD();
 }
-function shoot(){
-  if(fireWait>0||reload>0||ui!=="playing")return;
-  if(ammo<=0){startReload();return;}
-  ammo--;fireWait=.115;recoil=Math.min(recoil+.065,.14);flash=.045;
+function shootRay(spreadYaw, spreadPitch){
+  const w=weapon();
   camera.updateMatrixWorld(true);
-  ray.setFromCamera(new THREE.Vector2(0,0),camera);
+  const dir=new THREE.Vector3(0,0,-1);
+  dir.applyQuaternion(camera.quaternion);
+  // apply spread in camera local space
+  const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+  const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+  dir.addScaledVector(right, spreadYaw).addScaledVector(up, spreadPitch).normalize();
+  ray.set(camera.getWorldPosition(new THREE.Vector3()), dir);
   const hits=ray.intersectObjects([...enemies.map(e=>e.g),...walls],true)
     .filter(h=>h.object.material!==ink);
-  let end=ray.ray.at(85,new THREE.Vector3());
+  let end=ray.ray.at(w.range,new THREE.Vector3());
   if(hits.length){
     const h=hits[0];end=h.point;
-    if(h.object.userData.enemy)
-      damageEnemy(h.object.userData.enemy,h.object.userData.head?52:26,end);
-    else particles(end,0xffdaa0,3);
+    const dist=h.distance;
+    if(h.object.userData.enemy){
+      const enemy=h.object.userData.enemy;
+      const {damage,inRange}=weaponHitDamage(selectedWeapon, dist, !!h.object.userData.head);
+      if(!inRange || damage<=0){
+        particles(end,0xffdaa0,2);
+      } else {
+        let blocked=false;
+        if(enemy.def.shieldFront && !h.object.userData.head){
+          blocked=shieldBlocksHit(
+            enemy.g.rotation.y,
+            camera.position.x, camera.position.z,
+            enemy.g.position.x, enemy.g.position.z,
+            selectedWeapon
+          );
+          // hitting the shield mesh itself always blocks unless shotgun close flank already passed
+          if(h.object.userData.shield) blocked=true;
+          // shotgun within 10u can punch through with reduced chance when not dead-front
+          if(selectedWeapon==="shotgun" && dist<10 && !h.object.userData.shield){
+            const dx=camera.position.x-enemy.g.position.x;
+            const dz=camera.position.z-enemy.g.position.z;
+            const len=Math.hypot(dx,dz)||1;
+            const fx=Math.sin(enemy.g.rotation.y), fz=Math.cos(enemy.g.rotation.y);
+            const dot=(dx/len)*fx+(dz/len)*fz;
+            if(dot<0.55) blocked=false;
+          }
+        }
+        damageEnemy(enemy, damage, end, {
+          headshot:!!h.object.userData.head && !blocked,
+          blocked,
+        });
+      }
+    } else {
+      particles(end,0xffdaa0,3);
+    }
   }
   const origin=new THREE.Vector3(0,.025,-.8);
   gun.localToWorld(origin);
   const geo=new THREE.BufferGeometry().setFromPoints([origin,end]);
-  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0xffe8a5}));
-  scene.add(line);effects.push({m:line,time:.045,dispose:true});
+  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({
+    color: selectedWeapon==="shotgun"?0xffb070:0xffe8a5
+  }));
+  scene.add(line);effects.push({m:line,time:.04,dispose:true});
+}
+function shoot(){
+  const w=weapon();
+  if(fireWait>0||reload>0||ui!=="playing")return;
+  if(ammo<=0){startReload();return;}
+  ammo--;fireWait=w.fireCooldown;
+  recoil=Math.min(recoil+w.recoilKick,w.recoilCap);flash=.045;
+  playShoot(selectedWeapon==="smg"?1:selectedWeapon==="shotgun"?-1:0);
+  shake=Math.min(0.12, shake+0.02);
+  for(let i=0;i<w.pellets;i++){
+    const sy=(Math.random()-.5)*w.spread*2;
+    const sp=(Math.random()-.5)*w.spread*2;
+    shootRay(sy, sp);
+  }
   updateHUD();
 }
 
 function finishRun(outcome) {
   if(ui==="over") return;
   ui="over";
-  firing=false;
+  firing=false;touchState.fire=false;
   won = outcome === "victory";
+  setTouchChrome(false);
   if(document.pointerLockElement) document.exitPointerLock();
   const d=rules();
+  const w=weapon();
+  if(won) playWin(); else playLose();
   const result=recordRun(stats, {
-    mode:selectedMode, wave, score, won
+    mode:selectedMode, wave, score, won, weapon:selectedWeapon
   });
   stats=result.stats;
   saveStats();
   const best=modeBest(selectedMode);
   const badges=[
     `<span class="badge">${d.label}</span>`,
+    `<span class="badge">${w.label}</span>`,
     won?`<span class="badge gold">通關</span>`:`<span class="badge">戰敗</span>`,
     result.isWaveBest?`<span class="badge gold">最高波次</span>`:"",
     result.isScoreBest?`<span class="badge gold">最高分數</span>`:"",
@@ -495,9 +783,9 @@ function finishRun(outcome) {
     </div>
     <div class="actions">
       <button type="button" id="again">再來一局</button>
-      <button type="button" class="ghost" id="back">換模式</button>
+      <button type="button" class="ghost" id="back">換模式／武器</button>
     </div>
-    <div id="status">紀錄已寫入本機瀏覽器</div>`);
+    <div id="status">紀錄已寫入本機（${STORAGE_KEY}）</div>`);
   $("again").onclick=()=>beginRun();
   $("back").onclick=()=>menu();
 }
@@ -505,6 +793,8 @@ function finishRun(outcome) {
 function hurt(amount){
   if(ui!=="playing")return;
   player.hp=Math.max(0,player.hp-amount);hurtTime=.35;
+  shake=Math.min(0.35, shake+0.12);
+  playHurt();
   updateHUD();
   if(player.hp<=0) finishRun("defeat");
 }
@@ -516,14 +806,15 @@ function removeEffect(e){
 function pauseGame() {
   if(ui!=="playing") return;
   ui="paused";
-  firing=false;
+  firing=false;touchState.fire=false;
+  setTouchChrome(false);
   if(document.pointerLockElement) document.exitPointerLock();
   const d=rules();
   const best=modeBest();
   showOverlay(`
     <div class="tag">TAKE COVER</div>
     <h1>先喘口氣。</h1>
-    <p>${d.label} · 第 ${wave} / ${d.clearWave} 波 · 分數 ${score.toLocaleString()}<br>
+    <p>${d.label} · ${weapon().label} · 第 ${wave} / ${d.clearWave} 波 · 分數 ${score.toLocaleString()}<br>
     本模式最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分</p>
     <div class="actions">
       <button type="button" id="resume">繼續戰鬥 →</button>
@@ -532,30 +823,47 @@ function pauseGame() {
   $("resume").onclick=async()=>{
     ui="playing";
     hideOverlay();
+    setTouchChrome(true);
     await requestLock();
   };
   $("pauseMenu").onclick=()=>menu();
 }
 
 document.addEventListener("pointerlockchange",()=>{
-  locked=document.pointerLockElement===renderer.domElement;
+  const now=document.pointerLockElement===renderer.domElement;
+  const was=locked;
+  locked=now;
+  if(isTouch) return;
   if(ui==="playing") {
     $("hud").style.display="block";
-    if(!locked) pauseGame();
-    else hideOverlay();
+    if(locked) {
+      everLocked=true;
+      unlockPlay=false;
+      hideOverlay();
+    } else if (was && everLocked) {
+      // Only auto-pause when the player *exits* an active lock (Esc / focus loss).
+      pauseGame();
+    }
   }
   firing=false;
   Object.keys(keys).forEach(k=>delete keys[k]);
   spaceHeld=false;
 });
 document.addEventListener("pointerlockerror",()=>{
+  if(isTouch) return;
+  unlockPlay=true;
   const status=$("status");
-  if(status) status.textContent="滑鼠鎖定失敗：請在一般電腦瀏覽器分頁開啟此遊戲。";
+  if(status) status.textContent="滑鼠鎖定失敗：拖曳畫布瞄準，或加 ?touch=1 使用虛擬搖桿。";
 });
 document.addEventListener("mousemove",e=>{
-  if(!locked||ui!=="playing")return;
-  yaw-=e.movementX*.0022;
-  pitch=THREE.MathUtils.clamp(pitch-e.movementY*.0022,-1.4,1.4);
+  if(ui!=="playing"||isTouch)return;
+  if(locked){
+    yaw-=e.movementX*.0022;
+    pitch=THREE.MathUtils.clamp(pitch-e.movementY*.0022,-1.4,1.4);
+  } else if(dragLook || (unlockPlay && e.buttons===1)){
+    yaw-=e.movementX*.0028;
+    pitch=THREE.MathUtils.clamp(pitch-e.movementY*.0028,-1.4,1.4);
+  }
 });
 document.addEventListener("keydown",e=>{
   if(e.code==="Escape" && ui==="playing") {
@@ -563,7 +871,8 @@ document.addEventListener("keydown",e=>{
     pauseGame();
     return;
   }
-  if(!locked||ui!=="playing")return;
+  if(ui!=="playing")return;
+  if(!locked && !isTouch && !unlockPlay)return;
   if(["Space","KeyW","KeyA","KeyS","KeyD"].includes(e.code))e.preventDefault();
   keys[e.code]=true;
   if(e.code==="KeyR")startReload();
@@ -575,10 +884,19 @@ document.addEventListener("keydown",e=>{
 document.addEventListener("keyup",e=>{
   keys[e.code]=false;if(e.code==="Space")spaceHeld=false;
 });
-document.addEventListener("mousedown",e=>{if(locked&&ui==="playing"&&e.button===0)firing=true;});
-document.addEventListener("mouseup",e=>{if(e.button===0)firing=false;});
+document.addEventListener("mousedown",e=>{
+  if(isTouch)return;
+  if(ui!=="playing"||e.button!==0)return;
+  if(locked || unlockPlay){
+    firing=true;
+    if(!locked) dragLook=true;
+  }
+});
+document.addEventListener("mouseup",e=>{
+  if(e.button===0){ firing=false; dragLook=false; }
+});
 window.addEventListener("blur",()=>{
-  firing=false;
+  firing=false;touchState.fire=false;
   if(ui==="playing") pauseGame();
 });
 window.addEventListener("contextmenu",e=>e.preventDefault());
@@ -587,20 +905,97 @@ window.addEventListener("resize",()=>{
   renderer.setSize(innerWidth,innerHeight);
 });
 
+$("pauseBtn").addEventListener("click",()=>{ if(ui==="playing") pauseGame(); });
+
+function bindStick(zoneEl, knobEl, stateKey, opts={}) {
+  const sens = opts.look ? 1 : 1;
+  zoneEl.addEventListener("pointerdown", e=>{
+    if(ui!=="playing") return;
+    e.preventDefault();
+    zoneEl.setPointerCapture(e.pointerId);
+    touchState[stateKey].id=e.pointerId;
+    updateStick(e, zoneEl, knobEl, stateKey, sens, opts);
+  });
+  zoneEl.addEventListener("pointermove", e=>{
+    if(touchState[stateKey].id!==e.pointerId) return;
+    e.preventDefault();
+    updateStick(e, zoneEl, knobEl, stateKey, sens, opts);
+  });
+  const end=e=>{
+    if(touchState[stateKey].id!==e.pointerId) return;
+    touchState[stateKey].id=null;
+    touchState[stateKey].dx=0;
+    touchState[stateKey].dy=0;
+    knobEl.style.transform="translate(-50%,-50%)";
+  };
+  zoneEl.addEventListener("pointerup", end);
+  zoneEl.addEventListener("pointercancel", end);
+}
+function updateStick(e, zoneEl, knobEl, stateKey, sens, opts) {
+  const rect=zoneEl.getBoundingClientRect();
+  const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+  let dx=e.clientX-cx, dy=e.clientY-cy;
+  const maxR=rect.width*0.32;
+  const len=Math.hypot(dx,dy)||1;
+  if(len>maxR){ dx=dx/len*maxR; dy=dy/len*maxR; }
+  knobEl.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  const nx=dx/maxR, ny=dy/maxR;
+  if(opts.look){
+    // look stick: continuous yaw/pitch rate
+    touchState.look.dx = nx * sens;
+    touchState.look.dy = ny * sens;
+  } else {
+    touchState.move.dx = nx;
+    touchState.move.dy = ny;
+    touchState.sprint = Math.hypot(nx,ny) > 0.85;
+  }
+}
+bindStick($("moveStick"), $("moveKnob"), "move");
+bindStick($("lookStick"), $("lookKnob"), "look", { look:true });
+
+function bindHold(btn, onDown, onUp) {
+  const down=e=>{ e.preventDefault(); btn.classList.add("held"); onDown(); };
+  const up=e=>{ e.preventDefault(); btn.classList.remove("held"); onUp(); };
+  btn.addEventListener("pointerdown", down);
+  btn.addEventListener("pointerup", up);
+  btn.addEventListener("pointercancel", up);
+  btn.addEventListener("pointerleave", up);
+}
+bindHold($("btnFire"), ()=>{ touchState.fire=true; }, ()=>{ touchState.fire=false; });
+$("btnReload").addEventListener("pointerdown", e=>{ e.preventDefault(); startReload(); });
+$("btnJump").addEventListener("pointerdown", e=>{
+  e.preventDefault();
+  if(ui==="playing" && player.pos.y<=1.701) player.vy=6;
+});
+
 function update(dt){
   elapsed+=dt;
   fireWait=Math.max(0,fireWait-dt);
   flash=Math.max(0,flash-dt);
+  shake=Math.max(0,shake-dt*1.8);
   recoil=THREE.MathUtils.damp(recoil,0,14,dt);
+  const w=weapon();
   if(reload>0){
     reload-=dt;
-    if(reload<=0){reload=0;ammo=24;updateHUD();}
+    if(reload<=0){reload=0;ammo=w.magSize;updateHUD();}
   }
+
+  // look from touch stick
+  if(isTouch && ui==="playing"){
+    yaw -= touchState.look.dx * 2.4 * dt;
+    pitch = THREE.MathUtils.clamp(pitch - touchState.look.dy * 2.0 * dt, -1.4, 1.4);
+  }
+
   let right=(keys.KeyD?1:0)-(keys.KeyA?1:0);
   let forward=(keys.KeyW?1:0)-(keys.KeyS?1:0);
+  if(isTouch){
+    right += touchState.move.dx;
+    forward += -touchState.move.dy;
+  }
   const len=Math.hypot(right,forward);
   if(len){right/=len;forward/=len;}
-  const speed=(keys.ShiftLeft||keys.ShiftRight?9:5.8)*dt;
+  const sprinting = keys.ShiftLeft||keys.ShiftRight||touchState.sprint;
+  const speed=(sprinting?9:5.8)*dt;
   move(player.pos,
     (Math.cos(yaw)*right-Math.sin(yaw)*forward)*speed,
     (-Math.sin(yaw)*right-Math.cos(yaw)*forward)*speed,.45);
@@ -608,51 +1003,108 @@ function update(dt){
   if(player.pos.y<1.7){player.pos.y=1.7;player.vy=0;}
   camera.position.copy(player.pos);
   if(len&&player.pos.y<=1.7)camera.position.y+=Math.sin(elapsed*13)*.035;
+  if(shake>0){
+    camera.position.x += (Math.random()-.5)*shake*0.55;
+    camera.position.y += (Math.random()-.5)*shake*0.35;
+  }
   camera.rotation.set(pitch+recoil*.17,yaw,0);
-  gun.position.set(.32+(len?Math.sin(elapsed*8)*.012:0),-.27-recoil*.25,-.55+recoil);
-  gun.rotation.x=reload>0?-.65*Math.sin(reload/1.35*Math.PI):0;
-  muzzle.visible=flash>0;
-  if(firing)shoot();
+  const gx = isTouch ? .18 : .32;
+  const gy = isTouch ? -.32 : -.27;
+  const gz = isTouch ? -.58 : -.55;
+  gun.position.set(gx+(len?Math.sin(elapsed*8)*.012:0),gy-recoil*.25,gz+recoil);
+  gun.rotation.x=reload>0?-.65*Math.sin(reload/w.reloadSec*Math.PI):0;
+  const muzzle=getMuzzle();
+  if(muzzle) muzzle.visible=flash>0;
+  if(firing || touchState.fire)shoot();
 
   const d=rules();
   for(const e of enemies){
     const dx=player.pos.x-e.g.position.x,dz=player.pos.z-e.g.position.z;
     const dist=Math.hypot(dx,dz);
     e.g.rotation.y=Math.atan2(dx,dz);
-    if(dist>3.5){
-      const sx=dx/Math.max(dist,.01),sz=dz/Math.max(dist,.01);
-      const strafe=Math.sin(elapsed*.8+e.phase)*.55;
-      move(e.g.position,(sx+sz*strafe)*e.speed*dt,(sz-sx*strafe)*e.speed*dt,.65);
+    const prefer = e.def.preferRange;
+    if(e.def.meleeOnly){
+      if(dist>1.2){
+        const sx=dx/Math.max(dist,.01),sz=dz/Math.max(dist,.01);
+        move(e.g.position,sx*e.speed*1.15*dt,sz*e.speed*1.15*dt,.65);
+      }
+    } else if(e.def.lobShot){
+      // keep distance — back off if too close, approach if too far
+      if(dist < prefer-3){
+        const sx=-dx/Math.max(dist,.01),sz=-dz/Math.max(dist,.01);
+        move(e.g.position,sx*e.speed*dt,sz*e.speed*dt,.65);
+      } else if(dist > prefer+2){
+        const sx=dx/Math.max(dist,.01),sz=dz/Math.max(dist,.01);
+        move(e.g.position,sx*e.speed*dt,sz*e.speed*dt,.65);
+      }
+    } else {
+      if(dist>prefer){
+        const sx=dx/Math.max(dist,.01),sz=dz/Math.max(dist,.01);
+        const strafe=Math.sin(elapsed*.8+e.phase)*.55;
+        move(e.g.position,(sx+sz*strafe)*e.speed*dt,(sz-sx*strafe)*e.speed*dt,.65);
+      }
     }
-    e.parts.forEach((leg,i)=>leg.rotation.x=Math.sin(elapsed*8+i*Math.PI+e.phase)*.32);
+    e.parts.forEach((leg,i)=>leg.rotation.x=Math.sin(elapsed*(e.def.meleeOnly?12:8)+i*Math.PI+e.phase)*.32);
     e.cooldown-=dt;
-    if(e.cooldown<=0&&dist<34){
-      e.cooldown=enemyFireCooldown(wave, selectedMode)+Math.random()*.6;
-      const origin=e.g.position.clone().add(new THREE.Vector3(0,1.45,0));
-      const dir=player.pos.clone().sub(origin).normalize();
-      ray.set(origin,dir);
-      const obstruction=ray.intersectObjects(walls,false)[0];
-      if(!obstruction||obstruction.distance>origin.distanceTo(player.pos)){
-        const m=new THREE.Mesh(projectileGeo,projectileMat);
-        m.position.copy(origin);scene.add(m);
-        const spd=projectileSpeed(wave, selectedMode);
-        shots.push({m,vel:dir.multiplyScalar(spd),life:5});
+    if(e.cooldown<=0){
+      e.cooldown=enemyFireCooldown(wave, selectedMode, e.kind)+Math.random()*.6;
+      if(e.def.meleeOnly){
+        if(dist<1.8) hurt(d.enemyDamage * e.def.damageMult);
+      } else if(e.def.canShoot && dist<40){
+        const origin=e.g.position.clone().add(new THREE.Vector3(0,1.45*(e.elite?1.2:1),0));
+        if(e.def.lobShot){
+          // arcing shell — slow projectile with gravity, slight lead
+          const target=player.pos.clone();
+          target.x += (Math.random()-.5)*2.5;
+          target.z += (Math.random()-.5)*2.5;
+          const m=new THREE.Mesh(projectileGeo,lobMat);
+          m.scale.setScalar(1.4);
+          m.position.copy(origin);scene.add(m);
+          const to=target.clone().sub(origin);
+          const flight=Math.max(0.9, to.length()/10);
+          const vel=to.divideScalar(flight);
+          vel.y = (target.y - origin.y)/flight + 0.5*9*flight;
+          shots.push({m,vel,life:flight+0.8,lob:true,damage:d.enemyDamage*e.def.damageMult,blast:2.2});
+        } else {
+          const dir=player.pos.clone().sub(origin).normalize();
+          ray.set(origin,dir);
+          const obstruction=ray.intersectObjects(walls,false)[0];
+          if(!obstruction||obstruction.distance>origin.distanceTo(player.pos)){
+            const m=new THREE.Mesh(projectileGeo,projectileMat);
+            m.position.copy(origin);scene.add(m);
+            const spd=projectileSpeed(wave, selectedMode)*(e.elite?1.15:1);
+            shots.push({m,vel:dir.multiplyScalar(spd),life:5,lob:false,damage:d.enemyDamage*e.def.damageMult});
+          }
+        }
       }
     }
   }
   for(let i=shots.length-1;i>=0;i--){
-    const s=shots[i],step=s.vel.clone().multiplyScalar(dt);
+    const s=shots[i];
+    if(s.lob) s.vel.y -= 9*dt;
+    const step=s.vel.clone().multiplyScalar(dt);
     ray.set(s.m.position,step.clone().normalize());
     const wall=ray.intersectObjects(walls,false)[0];
     const end=s.m.position.clone().add(step);
     const segment=new THREE.Line3(s.m.position,end);
     const nearest=segment.closestPointToPoint(player.pos,true,new THREE.Vector3());
-    const hitPlayer=nearest.distanceTo(player.pos)<.55;
+    let hitPlayer=nearest.distanceTo(player.pos)<.55;
+    if(s.lob && end.y < 0.3){
+      // ground impact blast
+      const blastDist=Math.hypot(end.x-player.pos.x, end.z-player.pos.z);
+      if(blastDist < (s.blast||2)) hitPlayer=true;
+      particles(end,0xffaa33,10);
+      playImpact(0.7);
+      scene.remove(s.m);shots.splice(i,1);
+      if(hitPlayer) hurt(s.damage||d.enemyDamage);
+      continue;
+    }
     s.life-=dt;
     const hitWall=wall&&wall.distance<=step.length();
-    if(hitPlayer&&!hitWall)hurt(d.enemyDamage);
+    if(hitPlayer&&!hitWall)hurt(s.damage||d.enemyDamage);
     s.m.position.copy(end);
     if(s.life<=0||hitPlayer||hitWall){
+      if(s.lob && hitWall) particles(end,0xffaa33,6);
       scene.remove(s.m);shots.splice(i,1);
     }
   }
@@ -668,6 +1120,7 @@ function update(dt){
     if(near&&player.hp<d.startingHp){
       player.hp=Math.min(d.startingHp,player.hp+d.pickupHeal);
       announce(`+${d.pickupHeal} 生命值`,.8);updateHUD();
+      playGoal();
       p.time=0;
     }
     if(p.time<=0){scene.remove(p.g);pickups.splice(i,1);}
@@ -693,12 +1146,17 @@ function update(dt){
   }
 }
 
+function canSimulate() {
+  if(ui!=="playing") return false;
+  return isTouch || locked || unlockPlay;
+}
+
 camera.position.copy(player.pos);
 const clock=new THREE.Clock();
 function loop(){
   requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),.04);
-  if(locked&&ui==="playing")update(dt);
+  if(canSimulate())update(dt);
   renderer.render(scene,camera);
 }
 menu();
@@ -713,10 +1171,27 @@ if (new URLSearchParams(location.search).has("test")) {
       pauseGame,
       getMode: () => selectedMode,
       setMode: (id) => { selectedMode = id; },
+      getWeapon: () => selectedWeapon,
+      setWeapon: (id) => { selectedWeapon = id; rebuildGunVisual(id); },
       getStats: () => structuredClone(stats),
       getWave: () => wave,
       getScore: () => score,
       getUi: () => ui,
+      getEnemyKinds: () => enemies.map(e => ({ kind: e.kind, elite: e.elite })),
+      isTouchMode: () => isTouch,
+      enableUnlockPlay: () => { unlockPlay = true; },
+      getAmmo: () => ammo,
+      getPlayerHp: () => player.hp,
+      /** QA helper: wipe field and start a given 1-based wave. */
+      jumpToWave: (n) => {
+        enemies.forEach((e) => scene.remove(e.g));
+        enemies = [];
+        shots.forEach((s) => scene.remove(s.m));
+        shots = [];
+        wave = Math.max(0, Math.floor(n) - 1);
+        nextWave = 0;
+        beginWave();
+      },
     },
   });
 }

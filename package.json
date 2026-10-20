@@ -23,10 +23,13 @@
     "check:all": "node scripts/run-in-games.mjs check",
     "check:no-cdn": "node scripts/check-no-cdn.mjs",
     "check:shared-styles": "node scripts/check-shared-styles.mjs",
+    "check:dev-server-mime": "node scripts/check-dev-server-mime.mjs",
     "check:astra-train": "node gpt6-astra/train/check-train.mjs",
     "check:astra-archer": "node gpt6-astra/archer/check-archer.mjs",
     "check:astra-borderland": "node gpt6-astra/borderland/check-borderland.mjs",
-    "check:astra-rubiks": "node gpt6-astra/webmcp-rubiks-cube/check-academy.mjs"
+    "check:astra-rubiks": "node gpt6-astra/webmcp-rubiks-cube/check-academy.mjs",
+    "check:astra-fill-void": "node gpt6-astra/3d-fill-the-void/check-fill-void.mjs",
+    "check:astra-sailing": "node gpt6-astra/3d-sailing/check-sailing.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
