@@ -4,7 +4,7 @@
 
 規格文件：[`06-minigames/coin-cascade.md`](../../06-minigames/coin-cascade.md)
 
-標題另有**挑戰／模式包**（分數／連鎖門檻＋限時衝刺），進度鍵 `coin-cascade:modes-v1`，與自由遊玩最佳分開。
+標題另有**挑戰／模式包**（`coin-cascade:modes-v1`）、**主題台面**（經典／釘陣／潮汐，機制不同）、**收藏櫃／潮幣**（`coin-cascade:meta-v1`）、**每日挑戰**（`coin-cascade:daily-v1`）。自由遊玩最佳鍵 `coin-cascade:best`／`coin-cascade:best-cascade` 不變、不被覆寫。
 
 ---
 

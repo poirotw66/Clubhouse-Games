@@ -35,6 +35,19 @@ import {
   modeCount,
   modeCreateOptions,
 } from '../src/game/modes.js';
+import {
+  EMPTY_META,
+  applyRunToMeta,
+  parseMetaProgress,
+  tokensFromRun,
+} from '../src/game/progress.js';
+import {
+  dailyChallengeFor,
+  evaluateDailyClear,
+  parseDailyProgress,
+  recordDailyAttempt,
+} from '../src/game/daily.js';
+import { TABLE_PACK, assertTablePackShape, tableById } from '../src/game/tables.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
 
@@ -109,7 +122,7 @@ function pooledRtp(sessions: RunState[]): number {
   const r = mulberry32(4242);
   const inputs: PlayerInput[] = [];
   for (let i = 0; i < DETERMINISM_TICKS; i++) {
-    const specials: PlayerInput['special'][] = ['normal', 'normal', 'normal', 'heavy', 'ball', 'vibrate'];
+    const specials: PlayerInput['special'][] = ['normal', 'normal', 'normal', 'heavy', 'ball', 'vibrate', 'magnet'];
     inputs.push({
       dropX: WALL_X0 + r() * (WALL_X1 - WALL_X0),
       drop: r() < 0.25,
@@ -256,8 +269,8 @@ for (const seed of LANE_SEEDS) {
       // Tunnelling check: a coin must never end a tick strictly *inside* the
       // solid pusher body (as opposed to touching its face, which the solver
       // leaves it doing by construction).
-      const frontY = pusherFrontY(s.tick);
-      const backY = frontY - 22;
+      const frontY = pusherFrontY(s.tick, s.config.physics);
+      const backY = frontY - s.config.physics.pusherThick;
       const insidePusher = c.y - rad > backY + 0.05 && c.y + rad < frontY - 0.05;
       assert.ok(!insidePusher, `coin ${c.id} is embedded inside the pusher plate at tick ${s.tick} — it tunnelled through`);
     }
@@ -291,7 +304,7 @@ for (const seed of LANE_SEEDS) {
 // selection that cannot land on zero by itself. ('normal' is already covered
 // by the steady-dropper check above.)
 {
-  for (const special of ['heavy', 'ball', 'vibrate'] as const) {
+  for (const special of ['heavy', 'ball', 'vibrate', 'magnet'] as const) {
     let s = createRun(`ENDS-${special}`);
     let guard = 0;
     while (s.phase === 'playing' && guard < 60_000) {
@@ -537,7 +550,7 @@ for (const seed of LANE_SEEDS) {
   assert.equal(items.join(), '1,2,3,4,5,6,7,8', 'shuffle must not mutate its input');
 
   const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  for (const file of ['rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts']) {
+  for (const file of ['rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts', 'tables.ts', 'progress.ts', 'daily.ts']) {
     const src = stripComments(readFileSync(resolve(__dirname, '..', '..', 'src', 'game', file), 'utf8'));
     assert.ok(
       !/sort\(\s*\(\s*\)?\s*[^)]*\)\s*=>\s*[^;]*random/i.test(src) && !/sort\(\s*\(\)\s*=>/.test(src),
@@ -651,4 +664,171 @@ for (const seed of LANE_SEEDS) {
   ok('mode pack shape, unlock, early-clear, timed end, and progress hold');
 }
 
+// ── 13) Themed tables — pack shape, pegs, rhythm, RTP per table ────────────
+{
+  assertTablePackShape();
+  assert.ok(TABLE_PACK.length >= 3, 'need at least 3 themed tables');
+  assert.ok(tableById('classic'), 'classic table required');
+  assert.ok(tableById('peg-alley')?.physics.pegs.length, 'peg-alley must have pegs');
+  assert.ok(
+    (tableById('spring-tide')?.physics.pusherPeriodTicks ?? 999) < 150,
+    'spring-tide must use a faster pusher period than classic',
+  );
+  assert.equal(tableById('spring-tide')?.physics.jackpotRule, 'cascade_bonus');
+
+  // Distinct mechanics: classic has no pegs; peg-alley does; spring-tide differs in period.
+  const classic = createRun('TBL-CLASSIC', { tableId: 'classic', startingCredits: 40 });
+  const peg = createRun('TBL-PEG', { tableId: 'peg-alley', startingCredits: 40 });
+  const tide = createRun('TBL-TIDE', { tableId: 'spring-tide', startingCredits: 40 });
+  assert.equal(classic.config.physics.pegs.length, 0);
+  assert.ok(peg.config.physics.pegs.length >= 3);
+  assert.notEqual(classic.config.physics.pusherPeriodTicks, tide.config.physics.pusherPeriodTicks);
+  assert.equal(classic.tableId, 'classic');
+  assert.equal(peg.tableId, 'peg-alley');
+
+  // Pegs survive settle and remain immovable references on config.
+  assert.deepEqual(
+    peg.config.physics.pegs.map((p) => ({ x: p.x, y: p.y, r: p.r })),
+    tableById('peg-alley')!.physics.pegs.map((p) => ({ x: p.x, y: p.y, r: p.r })),
+  );
+
+  // Per-table RTP (centre lane, short credit budget for CI wall time).
+  // Same 35–115% band as classic; each table must land inside it.
+  const N_TABLE_RTP = HEAVY ? 4 : 2;
+  const TABLE_CREDITS = HEAVY ? 120 : 80;
+  for (const table of TABLE_PACK) {
+    const sessions: RunState[] = [];
+    for (const seed of seedCodes(`T${table.id.slice(0, 3).toUpperCase()}`, N_TABLE_RTP, 2)) {
+      sessions.push(
+        playTo(seed, makeDropper((WALL_X0 + WALL_X1) / 2), 200_000, {
+          tableId: table.id,
+          startingCredits: TABLE_CREDITS,
+        }),
+      );
+    }
+    const rtp = pooledRtp(sessions);
+    assert.ok(
+      rtp > 0.35,
+      `table ${table.id} RTP ${(rtp * 100).toFixed(1)}% below floor`,
+    );
+    assert.ok(
+      rtp < 1.15,
+      `table ${table.id} RTP ${(rtp * 100).toFixed(1)}% above ceiling`,
+    );
+    ok(
+      `table ${table.id} RTP in band (${(rtp * 100).toFixed(1)}%, n=${N_TABLE_RTP}, credits=${TABLE_CREDITS})`,
+    );
+  }
+
+  // Magnet special spends and ends (cost 3, like vibrate).
+  {
+    let s = createRun('MAGNET-END', { startingCredits: 30 });
+    let guard = 0;
+    while (s.phase === 'playing' && guard++ < 60_000) {
+      s = step(s, makeDropper(200, 'magnet')(s), FIXED_DT);
+    }
+    assert.equal(s.phase, 'ended', 'magnet selection must spend down to zero');
+    assert.equal(s.creditsRemaining, 0);
+  }
+  ok('themed tables, pegs, rhythm, magnet, and per-table RTP hold');
+}
+
+// ── 14) Meta progress + localStorage parse validation ─────────────────────
+{
+  const junk = parseMetaProgress({ tokens: 'nope', unlockedTables: [1, 'classic', 'bogus'], activeCoinSet: 'jade' });
+  assert.equal(junk.tokens, 0);
+  assert.ok(junk.unlockedTables.includes('classic'));
+  assert.ok(!junk.unlockedTables.includes('bogus' as never));
+  // jade not unlocked → activeCoinSet falls back
+  assert.equal(junk.activeCoinSet, 'classic');
+
+  const valid = parseMetaProgress({
+    tokens: 100,
+    lifetimeTokens: 120,
+    unlockedTables: ['classic', 'peg-alley'],
+    unlockedSpecials: ['magnet'],
+    unlockedCoinSets: ['classic', 'jade'],
+    activeCoinSet: 'jade',
+    milestones: { 'first-cascade': true, fake: true },
+    tableBest: { classic: 88.7, nope: 9 },
+  });
+  assert.equal(valid.tokens, 100);
+  assert.equal(valid.activeCoinSet, 'jade');
+  assert.equal(valid.milestones['first-cascade'], true);
+  assert.equal(valid.milestones['fake'], undefined);
+  assert.equal(valid.tableBest.classic, 88);
+  assert.equal(valid.tableBest.nope, undefined);
+
+  let ended = createRun('META-REWARD', { startingCredits: 20 });
+  ended = {
+    ...ended,
+    phase: 'ended',
+    score: 40,
+    cascadeCount: 2,
+    jackpotBursts: 1,
+    timingBonusCount: 4,
+    longestCascade: 4,
+  };
+  const earned = tokensFromRun(ended);
+  assert.ok(earned >= 1);
+  const applied = applyRunToMeta(EMPTY_META, ended, 0);
+  assert.equal(applied.meta.tokens, earned);
+  assert.ok(applied.meta.lifetimeTokens >= earned);
+  // Meta / daily / modes keys must never collide with free-play best.
+  const META_KEY = 'coin-cascade:meta-v1';
+  const BEST_KEY = 'coin-cascade:best';
+  assert.notEqual(META_KEY, BEST_KEY);
+  assert.notEqual('coin-cascade:daily-v1', BEST_KEY);
+  assert.notEqual('coin-cascade:modes-v1', BEST_KEY);
+  ok('meta progress parse validation and token rewards hold');
+}
+
+// ── 15) Daily seeded challenge ────────────────────────────────────────────
+{
+  const a = dailyChallengeFor('2026-10-20');
+  const b = dailyChallengeFor('2026-10-20');
+  const c = dailyChallengeFor('2026-10-21');
+  assert.equal(a.seedCode, b.seedCode);
+  assert.equal(a.targetScore, b.targetScore);
+  assert.notEqual(a.seedCode, c.seedCode);
+  assert.ok(a.targetScore >= 70 && a.targetScore <= 140);
+  assert.ok(tableById(a.tableId));
+
+  const run = createRun(a.seedCode, {
+    tableId: a.tableId,
+    startingCredits: a.startingCredits,
+    clearScore: a.targetScore,
+    isDaily: true,
+  });
+  assert.equal(run.config.isDaily, true);
+  assert.equal(run.config.clearScore, a.targetScore);
+  assert.equal(run.tableId, a.tableId);
+
+  // Deterministic: same daily seed reproduces.
+  const r2 = createRun(a.seedCode, {
+    tableId: a.tableId,
+    startingCredits: a.startingCredits,
+    clearScore: a.targetScore,
+    isDaily: true,
+  });
+  assert.equal(JSON.stringify(run.coins), JSON.stringify(r2.coins));
+
+  const cleared: RunState = { ...run, phase: 'ended', score: a.targetScore };
+  const missed: RunState = { ...run, phase: 'ended', score: a.targetScore - 1 };
+  assert.equal(evaluateDailyClear(a, cleared), true);
+  assert.equal(evaluateDailyClear(a, missed), false);
+
+  const parsed = parseDailyProgress({
+    records: [{ dateKey: '2026-10-20', bestScore: 10, cleared: false, attempts: 1 }, { dateKey: 'bad' }],
+  });
+  assert.equal(parsed.records.length, 1);
+
+  const recorded = recordDailyAttempt({ records: [] }, a, cleared);
+  assert.equal(recorded.records[0]?.cleared, true);
+  assert.equal(recorded.records[0]?.bestScore, a.targetScore);
+
+  ok('daily challenge seeding, target, and progress hold');
+}
+
 console.log(`\nself-check: ok (${passed} checks${HEAVY ? ', heavy' : ''})`);
+
