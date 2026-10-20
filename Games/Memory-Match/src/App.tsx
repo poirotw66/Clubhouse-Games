@@ -105,6 +105,7 @@ function FlipCard({
   missPulse,
   matchPulse,
   disabled,
+  dense,
   onClick,
 }: {
   card: MemoryCard;
@@ -113,6 +114,8 @@ function FlipCard({
   missPulse: boolean;
   matchPulse: boolean;
   disabled: boolean;
+  /** Large boards use squarer cards on phones to cut scroll height. */
+  dense?: boolean;
   onClick: () => void;
 }) {
   const classNames = [
@@ -126,7 +129,7 @@ function FlipCard({
     .join(' ');
 
   return (
-    <div className="mm-scene aspect-[3/4]">
+    <div className={`mm-scene ${dense ? 'aspect-square sm:aspect-[3/4]' : 'aspect-[3/4]'}`}>
       <button
         type="button"
         onClick={onClick}
@@ -297,12 +300,11 @@ export default function App() {
     }
   }, [elapsed, mode, pairCount, won, lost, versusOutcome]);
 
-  // Collapse settings after the first flip so the board gets vertical space on phones.
+  // Collapse settings as soon as a card is revealed (moves only ticks after a pair resolves).
   useEffect(() => {
-    if (moves > 0 && settingsOpen) setSettingsOpen(false);
-    // Only auto-collapse once per deal when play starts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on first move
-  }, [moves]);
+    if ((flipped.length > 0 || moves > 0) && settingsOpen) setSettingsOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- collapse on first interaction only
+  }, [flipped.length, moves]);
 
   useEffect(() => {
     if (hintFlash.length === 0) return;
@@ -774,6 +776,7 @@ export default function App() {
               hinted={hintFlash.includes(i) || peekFlash.includes(i)}
               missPulse={missPulse.includes(i)}
               matchPulse={matchPulse.includes(i)}
+              dense={pairCount >= 18}
               disabled={
                 locks ||
                 hintFlash.length > 0 ||
