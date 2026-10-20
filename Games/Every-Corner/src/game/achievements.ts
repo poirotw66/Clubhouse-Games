@@ -80,19 +80,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     blurb: '每日挑戰連續完成 7 天。',
   },
   {
-    id: 'streak-14',
-    name: '兩週連透',
-    blurb: '每日挑戰連續完成 14 天。',
-  },
-  {
     id: 'solved-10',
     name: '十題達人',
     blurb: '累計完成 10 題。',
-  },
-  {
-    id: 'solved-50',
-    name: '五十題旅人',
-    blurb: '累計完成 50 題。',
   },
   {
     id: 'weekly-complete',
@@ -157,10 +147,8 @@ export function evaluateAchievements(stats: PlayerStats, dailyStreak: number): s
 
   if (dailyStreak >= 3) unlocked.add('streak-3');
   if (dailyStreak >= 7) unlocked.add('streak-7');
-  if (dailyStreak >= 14) unlocked.add('streak-14');
 
   if (stats.totalSolved >= 10) unlocked.add('solved-10');
-  if (stats.totalSolved >= 50) unlocked.add('solved-50');
 
   if (stats.weeklyCompletions >= 1) unlocked.add('weekly-complete');
 

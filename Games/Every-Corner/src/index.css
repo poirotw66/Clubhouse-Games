@@ -74,12 +74,12 @@ body {
   animation: ec-roll 380ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
-/* Unlock toast — slides in from the top edge, never covers the board permanently. */
+/* Unlock toast — bottom sheet so it never covers the result overlay actions. */
 .ec-toast {
   position: fixed;
-  top: 1rem;
+  bottom: 1rem;
   left: 50%;
-  z-index: 60;
+  z-index: 40;
   width: min(22rem, calc(100vw - 1.5rem));
   transform: translateX(-50%);
   padding: 0.85rem 1rem;
@@ -92,7 +92,7 @@ body {
 }
 
 @keyframes ec-toast-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(-0.75rem); }
+  from { opacity: 0; transform: translateX(-50%) translateY(0.75rem); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
