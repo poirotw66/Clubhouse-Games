@@ -40,8 +40,19 @@ import {
   playerBasePace,
   trainPace,
 } from '../src/game/constants.js';
+import { dailySeedCode, mergeDailyBest, todayKey } from '../src/game/daily.js';
 import { createRun, currentSpeed, finalScore, hitStunFactor, placeJunction, step } from '../src/game/engine.js';
+import { createFx, triggerHit, triggerPickup, triggerSwitch } from '../src/game/juice.js';
+import { MODIFIERS } from '../src/game/modifiers.js';
+import {
+  boltsFromRun,
+  defaultMeta,
+  parseMetaJson,
+} from '../src/game/progress.js';
+import { RUNNERS } from '../src/game/profiles.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
+import { isDefaultLoadout, resolveRunParams } from '../src/game/runConfig.js';
+import { THEMES } from '../src/game/themes.js';
 import type { ActiveBranch, Junction, PlacedBranch, PlayerInput, RunState } from '../src/game/types.js';
 
 let passed = 0;
@@ -740,6 +751,141 @@ function pilotChallengeRun(
   assert.equal(isChallengeCleared(first, fake), false, 'wrong seed must not clear');
 
   ok('every challenge seed is clearable; frontier unlock advances only on the frontier');
+}
+
+// ── 18) Default loadout preserves legacy constants (balance / challenge seeds) ─
+{
+  const params = resolveRunParams(null);
+  assert.ok(isDefaultLoadout(params.config), 'null config must resolve to the default loadout');
+  assert.equal(params.startBuffer, START_BUFFER, 'default start buffer must match START_BUFFER');
+  assert.equal(params.maxBuffer, MAX_BUFFER, 'default max buffer must match MAX_BUFFER');
+  assert.equal(params.speedMul, 1);
+  assert.equal(params.trainPaceMul, 1);
+  assert.equal(params.densityBias, 0);
+  assert.equal(params.suppressSupply, false);
+
+  // Default createRun must produce the same junction stream as densityBias=0.
+  const a = placeJunction(hashString('LOADOUT'), 3, 900, 0);
+  const b = placeJunction(hashString('LOADOUT'), 3, 900);
+  assert.equal(JSON.stringify(a), JSON.stringify(b), 'omitted densityBias must equal explicit 0');
+
+  const run = createRun('LOADOUT1');
+  assert.equal(run.config.runnerId, 'standard');
+  assert.equal(run.config.themeId, 'tunnel');
+  assert.equal(run.maxBuffer, MAX_BUFFER);
+  assert.equal(run.buffer, START_BUFFER);
+  ok('default loadout preserves legacy START_BUFFER / MAX_BUFFER and junction streams');
+}
+
+// ── 19) Non-default runners / themes / modifiers actually change knobs ───────
+{
+  const freight = resolveRunParams({ runnerId: 'freight', themeId: 'tunnel', modifierIds: [] });
+  assert.ok(freight.startBuffer > START_BUFFER, 'freight runner must start with more buffer');
+  assert.ok(freight.maxBuffer > MAX_BUFFER, 'freight runner must raise the buffer ceiling');
+
+  const courier = resolveRunParams({ runnerId: 'courier', themeId: 'tunnel', modifierIds: [] });
+  assert.ok(courier.laneCooldown < resolveRunParams(null).laneCooldown, 'courier must change lanes faster');
+  assert.ok(courier.hitStunDuration < resolveRunParams(null).hitStunDuration, 'courier recovers from hits faster');
+
+  const night = resolveRunParams({ runnerId: 'standard', themeId: 'night', modifierIds: [] });
+  assert.ok(night.trainPaceMul > 1, 'night theme must hasten the train');
+  assert.ok(night.densityBias > 0, 'night theme must bias denser branches');
+
+  const glass = resolveRunParams({
+    runnerId: 'standard',
+    themeId: 'tunnel',
+    modifierIds: ['glass-buffer'],
+  });
+  assert.ok(glass.maxBuffer < MAX_BUFFER, 'glass-buffer modifier must shrink the ceiling');
+  assert.ok(glass.scoreRewardMul > 1, 'glass-buffer must sweeten score rewards');
+
+  const fever = resolveRunParams({
+    runnerId: 'standard',
+    themeId: 'tunnel',
+    modifierIds: ['score-fever'],
+  });
+  assert.equal(fever.suppressSupply, true, 'score-fever must suppress supply');
+
+  assert.ok(RUNNERS.length >= 3, 'need multiple unlockable runners');
+  assert.ok(THEMES.length >= 3, 'need multiple unlockable themes');
+  assert.ok(MODIFIERS.length >= 3, 'need multiple modifiers');
+  ok('runners, themes and modifiers change handling / hazards with gameplay meaning');
+}
+
+// ── 20) Daily seed is deterministic and best-of-day merges correctly ─────────
+{
+  const d = new Date(2026, 9, 20); // local Oct 20 2026
+  assert.equal(todayKey(d), '20261020');
+  assert.equal(dailySeedCode(d), 'D20261020');
+  assert.equal(dailySeedCode(d), dailySeedCode(new Date(d.getTime())));
+
+  const a = createRun(dailySeedCode(d));
+  const b = createRun(dailySeedCode(d));
+  // Same seed code → same seed hash (full state diverges only with inputs).
+  assert.equal(a.seed, b.seed);
+  assert.equal(JSON.stringify(a.pendingJunction), JSON.stringify(b.pendingJunction));
+
+  const first = mergeDailyBest({ date: '', bestDistance: 0, bestScore: 0, attempts: 0 }, '20261020', 1000, 2000);
+  assert.equal(first.attempts, 1);
+  assert.equal(first.bestDistance, 1000);
+  const second = mergeDailyBest(first, '20261020', 800, 2500);
+  assert.equal(second.attempts, 2);
+  assert.equal(second.bestDistance, 1000, 'best distance must not regress');
+  assert.equal(second.bestScore, 2500, 'best score must rise');
+  const nextDay = mergeDailyBest(second, '20261021', 500, 600);
+  assert.equal(nextDay.date, '20261021');
+  assert.equal(nextDay.attempts, 1);
+  ok('daily seed is calendar-deterministic; best-of-day merges without regressing');
+}
+
+// ── 21) Meta localStorage parse validates / rejects garbage ─────────────────
+{
+  const clean = parseMetaJson('{"bolts":12,"unlockedRunners":["standard","freight"],"selectedRunnerId":"freight"}');
+  assert.equal(clean.bolts, 12);
+  assert.ok(clean.unlockedRunners.includes('freight'));
+  assert.equal(clean.selectedRunnerId, 'freight');
+
+  const garbage = parseMetaJson('{not json');
+  assert.deepEqual(garbage.unlockedRunners, defaultMeta().unlockedRunners);
+  assert.equal(garbage.bolts, 0);
+
+  const hostile = parseMetaJson(
+    JSON.stringify({
+      bolts: -99,
+      unlockedRunners: ['nope', 'standard'],
+      selectedRunnerId: 'hacker',
+      free: { bestDistance: 'far', bestScore: Infinity, runs: -3 },
+      daily: { date: 'today', bestDistance: 50, bestScore: 60, attempts: 1 },
+      equippedModifiers: ['glass-buffer', 'fake'],
+    }),
+  );
+  assert.equal(hostile.bolts, 0, 'negative bolts must clamp to 0');
+  assert.ok(!hostile.unlockedRunners.includes('nope' as never));
+  assert.equal(hostile.selectedRunnerId, 'standard', 'unknown runner falls back to default');
+  assert.equal(hostile.free.bestDistance, 0);
+  assert.equal(hostile.daily.date, '', 'invalid daily date rejected');
+  assert.ok(!hostile.equippedModifiers.includes('fake' as never));
+
+  const bolts = boltsFromRun(createRun('BOLTS01'), 'free', 0);
+  assert.ok(bolts >= 1, 'a fresh run still awards at least 1 bolt when settled');
+  ok('meta parse validates fields; garbage and hostile payloads fall back safely');
+}
+
+// ── 22) Juice helpers mutate FxState without touching the simulation ────────
+{
+  const fx = createFx();
+  assert.equal(fx.shake, 0);
+  triggerHit(fx, 100, 200);
+  // Reduced-motion environments may skip shake; flash or particles must still react.
+  assert.ok(fx.shake > 0 || fx.flash > 0 || fx.particles.length > 0, 'hit juice must leave a visible trace');
+  const before = createRun('JUICE01');
+  const after = step(before, IDLE, FIXED_DT);
+  triggerPickup(fx, 50, 50, 'supply');
+  triggerSwitch(fx, 50, 50, '#34d399');
+  // Simulation purity: juice calls must not have mutated the pre-step state.
+  assert.equal(before.hitsTotal, 0);
+  assert.ok(after.tick === before.tick + 1);
+  ok('juice helpers produce feedback without mutating RunState');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);

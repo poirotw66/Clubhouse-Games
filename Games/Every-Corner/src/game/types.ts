@@ -15,6 +15,9 @@ export interface Size {
  */
 export type WallKey = string;
 
+/** Classic fills every cell; blocked leaves holes the path must never enter. */
+export type PuzzleVariant = 'classic' | 'blocked';
+
 export interface Puzzle {
   seedCode: string;
   difficulty: DifficultyId;
@@ -23,6 +26,9 @@ export interface Puzzle {
   checkpoints: Record<CellId, number>;
   checkpointCount: number;
   walls: WallKey[];
+  /** Cells the path must never enter; empty for classic puzzles. */
+  blocked: CellId[];
+  variant: PuzzleVariant;
   /** The generator's own Hamiltonian path; verified to be the unique solution. */
   solution: CellId[];
 }
@@ -60,4 +66,49 @@ export interface DailyStats {
   records: DailyRecord[];
   streak: number;
   bestMs: number;
+}
+
+/** One day inside a weekly set: which seed and how the board is shaped. */
+export interface WeeklyDaySpec {
+  dayIndex: number;
+  label: string;
+  difficulty: DifficultyId;
+  blockedCount: number;
+}
+
+export interface WeeklyDayRecord {
+  dayIndex: number;
+  elapsedMs: number;
+  hintsUsed: number;
+}
+
+export interface WeeklyRecord {
+  /** Monday date key (UTC+8), YYYY-MM-DD. */
+  weekKey: string;
+  days: WeeklyDayRecord[];
+  /** True once all seven days are cleared. */
+  completed: boolean;
+}
+
+export interface ClearEvent {
+  difficulty: DifficultyId;
+  sizeKey: string;
+  elapsedMs: number;
+  hintsUsed: number;
+  isDaily: boolean;
+  isWeekly: boolean;
+  variant: PuzzleVariant;
+  gaveUp: boolean;
+}
+
+export interface PlayerStats {
+  totalSolved: number;
+  noHintClears: number;
+  clearsByDifficulty: Record<DifficultyId, number>;
+  noHintByDifficulty: Record<DifficultyId, number>;
+  /** Best clear time per board size key (`5x5`, …); 0 means none yet. */
+  bestMsBySize: Record<string, number>;
+  /** Achievement ids unlocked so far. */
+  achievements: string[];
+  weeklyCompletions: number;
 }

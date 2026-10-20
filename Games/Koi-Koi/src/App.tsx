@@ -1,14 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Volume2, VolumeX, HelpCircle, Lightbulb, Undo2 } from 'lucide-react';
+import { BookOpen, Volume2, VolumeX, HelpCircle, Lightbulb, Undo2 } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playCapture, playGoal, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
+import {
+  playCapture,
+  playCombo,
+  playGoal,
+  playLose,
+  playMove,
+  playWin,
+} from '@clubhouse/shared/synthAudio';
 import { Card as CardComponent } from './components/Card';
 import { CharacterSelect } from './components/CharacterSelect';
 import { MatchScoreboard } from './components/MatchScoreboard';
 import { CapturedPanel } from './components/CapturedPanel';
 import { PlayerAvatar } from './components/PlayerAvatar';
 import { RulesModal } from './components/RulesModal';
+import { YakuCelebration, type YakuCelebrationPayload } from './components/YakuCelebration';
+import { YakuCodexModal } from './components/YakuCodexModal';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
@@ -16,6 +25,7 @@ import {
 import { getCharacterImageUrl } from './characters';
 import { useBgm } from './hooks/useBgm';
 import { useCharacterSelection } from './hooks/useCharacterSelection';
+import { useOpponentSelection } from './hooks/useOpponentSelection';
 import { Card, GameState, Phase } from './types';
 import { deal, calculateYaku, getMatchingCards, resolveRoundScores, WIN_SCORE_OPTIONS, WIN_SCORE_LABELS, type WinScore } from './utils/gameLogic';
 import {
@@ -36,14 +46,23 @@ import {
   withWinScore,
   type MatchStats,
 } from './utils/stats';
+import {
+  loadCodex,
+  recordYakuCompletions,
+  saveCodex,
+  type YakuCodexState,
+} from './utils/yakuCodex';
 import { motion, AnimatePresence } from 'motion/react';
 
-type SfxKind = 'match' | 'yaku' | 'win' | 'draw' | 'lose';
+type SfxKind = 'match' | 'yaku' | 'yaku_unlock' | 'win' | 'draw' | 'lose';
 
 function playSfx(kind: SfxKind): void {
   if (kind === 'match') playCapture();
   else if (kind === 'yaku') playGoal();
-  else if (kind === 'win') playWin();
+  else if (kind === 'yaku_unlock') {
+    playGoal();
+    playCombo(3);
+  } else if (kind === 'win') playWin();
   else if (kind === 'lose') playLose();
   else playMove();
 }
@@ -76,8 +95,11 @@ export default function App() {
   const [state, setState] = useState<GameState>(initialState);
   const [history, setHistory] = useState<GameState[]>([]);
   const [showRules, setShowRules] = useState(false);
+  const [showCodex, setShowCodex] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const [stats, setStats] = useState<MatchStats>(() => loadStats());
+  const [codex, setCodex] = useState<YakuCodexState>(() => loadCodex());
+  const [celebration, setCelebration] = useState<YakuCelebrationPayload | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
   const [winScore, setWinScore] = useState<WinScore>(() => loadStats().lastWinScore);
   const [hint, setHint] = useState<HintChoice | null>(null);
@@ -89,8 +111,17 @@ export default function App() {
   const winScoreRef = useRef(winScore);
   winScoreRef.current = winScore;
   const { character, characterId, setCharacterId } = useCharacterSelection();
+  const { opponentId, opponent, personality, setOpponentId } = useOpponentSelection();
+  const personalityRef = useRef(personality.style);
+  personalityRef.current = personality.style;
+  const opponentNameRef = useRef(opponent.name);
+  opponentNameRef.current = opponent.name;
+  const catchphrasesRef = useRef(personality.catchphrases);
+  catchphrasesRef.current = personality.catchphrases;
   const { muted, toggleMute, unlock, currentTitle } = useBgm();
   const playerAvatarUrl = getCharacterImageUrl(character);
+  const opponentAvatarUrl = getCharacterImageUrl(opponent);
+  const clearCelebration = useCallback(() => setCelebration(null), []);
 
   /** Cancel in-flight turn animations when undoing or starting a new deal. */
   const bumpActionGen = useCallback(() => {
@@ -214,7 +245,7 @@ export default function App() {
           playerScore: resolved.playerScore,
           botScore: resolved.botScore,
           message: resolved.winner
-            ? `流局！莊家獲得 1 分親權。${resolved.winner === 'player' ? '你先達 ' + winScoreRef.current + ' 分獲勝！' : '師匠先達 ' + winScoreRef.current + ' 分獲勝！'}`
+            ? `流局！莊家獲得 1 分親權。${resolved.winner === 'player' ? '你先達 ' + winScoreRef.current + ' 分獲勝！' : opponentNameRef.current + '先達 ' + winScoreRef.current + ' 分獲勝！'}`
             : '流局！莊家獲得 1 分親權。',
         };
       }
@@ -233,13 +264,35 @@ export default function App() {
   const handleYakuCheck = (player: 'player' | 'bot', newState: GameState) => {
     const captured = player === 'player' ? newState.playerCaptured : newState.botCaptured;
     const currentPoints = player === 'player' ? newState.playerPoints : newState.botPoints;
-    
+    const prevYakuIds = new Set(
+      (player === 'player' ? newState.playerYaku : newState.botYaku).map(entry => entry.id),
+    );
+
     const { yaku, totalPoints } = calculateYaku(captured);
-    
+
     if (totalPoints > currentPoints) {
-      playSfx('yaku');
-      // New Yaku formed!
+      const freshYaku = yaku.filter(entry => !prevYakuIds.has(entry.id));
+      const announceNames = (freshYaku.length > 0 ? freshYaku : yaku).map(entry => entry.name);
+
       if (player === 'player') {
+        const freshIds = new Set(freshYaku.map(entry => entry.id));
+        const { codex: nextCodex, newlyUnlocked } = recordYakuCompletions(
+          loadCodex(),
+          yaku.map(entry => ({
+            id: entry.id,
+            handScore: totalPoints,
+            // Growing kasu/tane/tanzaku re-opens the modal without a new id —
+            // only count achievements when the named yaku freshly appears.
+            countAchievement: freshIds.has(entry.id),
+          })),
+        );
+        saveCodex(nextCodex);
+        setCodex(nextCodex);
+        playSfx(newlyUnlocked.length > 0 ? 'yaku_unlock' : 'yaku');
+        setCelebration({
+          names: announceNames,
+          isNewUnlock: newlyUnlocked.length > 0,
+        });
         setState({
           ...newState,
           playerYaku: yaku,
@@ -248,6 +301,7 @@ export default function App() {
           message: `你組成了役！獲得 ${totalPoints} 分。要喊 Koi-Koi 繼續嗎？`,
         });
       } else {
+        playSfx('yaku');
         const shouldContinue = shouldBotKoiKoi({
           totalPoints,
           botHandLength: newState.botHand.length,
@@ -256,14 +310,16 @@ export default function App() {
           playerKoiKoiCount: newState.koiKoiCount.player,
           difficulty: difficultyRef.current,
           winScore: winScoreRef.current,
+          personality: personalityRef.current,
         });
+        const foe = opponentNameRef.current;
         if (shouldContinue) {
           setState({
             ...newState,
             botYaku: yaku,
             botPoints: totalPoints,
             koiKoiCount: { ...newState.koiKoiCount, bot: newState.koiKoiCount.bot + 1 },
-            message: `對手組成了役 (${totalPoints} 分) 並喊了 Koi-Koi！`,
+            message: `${foe}組成了役 (${totalPoints} 分)：「${catchphrasesRef.current.koiKoi}」`,
           });
           schedule(() => endTurn('player'), 2000);
         } else {
@@ -290,8 +346,8 @@ export default function App() {
             phase: resolved.phase,
             winner: resolved.winner,
             message: resolved.winner === 'bot'
-              ? `對手結束了遊戲！獲得 ${finalPoints} 分，先達 ${winScoreRef.current} 分獲勝！`
-              : `對手結束了遊戲！獲得 ${finalPoints} 分。`,
+              ? `${foe}結束了遊戲！獲得 ${finalPoints} 分，先達 ${winScoreRef.current} 分獲勝！`
+              : `${foe}結束了遊戲！獲得 ${finalPoints} 分。`,
             dealer: 'bot',
           });
         }
@@ -344,6 +400,8 @@ export default function App() {
           matches,
           nextState.botCaptured,
           difficultyRef.current,
+          undefined,
+          personalityRef.current,
         );
         nextState.field = nextState.field.filter(c => c.id !== bestMatch.id);
         nextState.botCaptured = [...nextState.botCaptured, drawnCard, bestMatch];
@@ -551,6 +609,8 @@ export default function App() {
           state.field,
           state.botCaptured,
           difficultyRef.current,
+          undefined,
+          personalityRef.current,
         );
         if (!choice) {
           endTurn('player');
@@ -638,6 +698,15 @@ export default function App() {
         <div className="wafu-panel rounded-2xl px-4 sm:px-6 py-4 relative overflow-hidden">
           <button
             type="button"
+            onClick={() => setShowCodex(true)}
+            className="absolute top-3 right-[6.5rem] z-20 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors touch-manipulation"
+            aria-label="役種圖鑑"
+            title="役種圖鑑"
+          >
+            <BookOpen size={18} />
+          </button>
+          <button
+            type="button"
             onClick={() => setShowRules(true)}
             className="absolute top-3 right-14 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors touch-manipulation"
             aria-label="遊戲規則"
@@ -661,14 +730,14 @@ export default function App() {
               <p className="text-gold/80 text-xs tracking-[0.3em] mb-1">花札</p>
               <h1 className="font-display text-2xl sm:text-3xl font-bold text-gold tracking-wide">花牌</h1>
               <p className="text-sm text-cream/70 mt-1">
-                第 {state.round} 局 · 莊家：{state.dealer === 'player' ? character.name : '師匠'}
+                第 {state.round} 局 · 莊家：{state.dealer === 'player' ? character.name : opponent.name}
                 {state.phase !== 'idle' ? ` · ${DIFFICULTY_LABELS[difficulty]} · ${WIN_SCORE_LABELS[winScore]}` : ''}
               </p>
             </div>
             <div className="flex flex-col items-center gap-3 w-full sm:w-auto">
               <div className="flex gap-6 sm:gap-10">
                 <div className="text-center">
-                  <p className="text-xs text-cream/60 mb-1">師匠</p>
+                  <p className="text-xs text-cream/60 mb-1">{opponent.name}</p>
                   <p className="font-display text-2xl sm:text-3xl font-bold text-gold">{state.botScore}</p>
                 </div>
                 <div className="h-10 w-px bg-gold/30 self-center hidden sm:block" />
@@ -680,7 +749,7 @@ export default function App() {
               {state.phase !== 'idle' && (
                 <MatchScoreboard
                   playerLabel={character.name}
-                  botLabel="師匠"
+                  botLabel={opponent.name}
                   playerScore={state.playerScore}
                   botScore={state.botScore}
                   winScore={winScore}
@@ -706,13 +775,14 @@ export default function App() {
             <div className="flex justify-center items-end gap-8 sm:gap-16 mb-6">
               <PlayerAvatar
                 role="bot"
-                name="花札師匠"
+                name={opponent.name}
                 score={state.botScore}
                 roundPoints={0}
                 isActive={false}
                 isDealer={state.dealer === 'bot'}
                 koiKoi={false}
                 size="lg"
+                avatarSrc={opponentAvatarUrl}
               />
               <div className="font-display text-gold/50 text-2xl pb-8">VS</div>
               <PlayerAvatar
@@ -729,12 +799,20 @@ export default function App() {
             </div>
             <p className="text-cream/80 mb-1 font-display text-lg">歡迎來到花牌對局</p>
             <p className="text-cream/50 text-sm mb-4 max-w-md mx-auto">
-              扮演「{character.name}」與師匠一決高下，湊齊光牌、短冊與動物牌組成役。
+              扮演「{character.name}」對上「{opponent.name}」（{personality.styleTag}），湊齊光牌、短冊與動物牌組成役。
             </p>
-            <p className="text-xs text-gold/70 mb-6">
+            <p className="text-xs text-gold/70 mb-3">
               戰績 {stats.wins}勝 {stats.losses}敗
               {stats.winStreak > 0 ? ` · 連勝 ${stats.winStreak}` : ''}
             </p>
+            <button
+              type="button"
+              onClick={() => setShowCodex(true)}
+              className="inline-flex items-center gap-2 text-sm text-gold/80 hover:text-gold px-3 py-2 rounded-lg hover:bg-gold/10 transition-colors touch-manipulation min-h-[44px]"
+            >
+              <BookOpen size={16} />
+              役種圖鑑
+            </button>
           </div>
 
           <div className="wafu-panel rounded-2xl p-4 sm:p-6 w-full">
@@ -781,6 +859,14 @@ export default function App() {
             <CharacterSelect selectedId={characterId} onSelect={setCharacterId} />
           </div>
 
+          <div className="wafu-panel rounded-2xl p-4 sm:p-6 w-full">
+            <CharacterSelect
+              mode="opponent"
+              selectedId={opponentId}
+              onSelect={setOpponentId}
+            />
+          </div>
+
           <button
             onClick={() => startGame(false)}
             className="wafu-btn-primary px-10 py-4 rounded-xl text-lg"
@@ -799,16 +885,17 @@ export default function App() {
               <div className="hidden sm:block shrink-0 pt-1">
                 <PlayerAvatar
                   role="bot"
-                  name="花札師匠"
+                  name={opponent.name}
                   score={state.botScore}
                   roundPoints={state.botPoints}
                   isActive={isBotActive}
                   isDealer={state.dealer === 'bot'}
                   koiKoi={state.koiKoiCount.bot > 0}
+                  avatarSrc={opponentAvatarUrl}
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-cream/50 mb-2 sm:hidden">師匠 · 手牌 {state.botHand.length}</p>
+                <p className="text-xs text-cream/50 mb-2 sm:hidden">{opponent.name} · 手牌 {state.botHand.length}</p>
                 <p className="text-xs text-gold/70 mb-2 hidden sm:block">手牌 ({state.botHand.length})</p>
                 <div className="flex gap-1 sm:gap-2 flex-wrap">
                   {state.botHand.map(c => (
@@ -997,34 +1084,45 @@ export default function App() {
           variant="neutral"
           stats={[
             { label: character.name, value: state.playerScore },
-            { label: '師匠', value: state.botScore },
+            { label: opponent.name, value: state.botScore },
             { label: '目標', value: winScore },
           ]}
           primaryLabel="下一局"
           onPrimary={() => startGame(true)}
+          secondaryLabel="役種圖鑑"
+          onSecondary={() => setShowCodex(true)}
         />
       )}
 
       {/* Game over */}
       {state.phase === 'game_over' && (
         <ResultOverlay
-          title={state.winner === 'player' ? '恭喜獲勝！' : '師匠獲勝'}
-          subtitle={state.message}
-          badge={`${DIFFICULTY_LABELS[difficulty]} · ${WIN_SCORE_LABELS[winScore]}`}
+          title={state.winner === 'player' ? '恭喜獲勝！' : `${opponent.name}獲勝`}
+          subtitle={
+            state.winner === 'player'
+              ? `「${personality.catchphrases.lose}」· ${state.message}`
+              : `「${personality.catchphrases.win}」· ${state.message}`
+          }
+          badge={`${DIFFICULTY_LABELS[difficulty]} · ${WIN_SCORE_LABELS[winScore]} · ${personality.styleTag}`}
           variant={state.winner === 'player' ? 'win' : 'lose'}
           stats={[
             { label: character.name, value: state.playerScore },
-            { label: '師匠', value: state.botScore },
+            { label: opponent.name, value: state.botScore },
             { label: '勝場', value: stats.wins },
             { label: '敗場', value: stats.losses },
             { label: '連勝', value: stats.winStreak },
           ]}
           primaryLabel="再來一局"
           onPrimary={() => startGame(false, true)}
+          secondaryLabel="役種圖鑑"
+          onSecondary={() => setShowCodex(true)}
         />
       )}
 
+      <YakuCelebration payload={celebration} onDone={clearCelebration} />
+
       {showRules && <RulesModal winScore={winScore} onClose={() => setShowRules(false)} />}
+      {showCodex && <YakuCodexModal codex={codex} onClose={() => setShowCodex(false)} />}
 
       <footer className="mt-6 max-w-6xl text-center text-[10px] text-cream/40 px-4">
         牌面圖素材：Louie Mantia ·{' '}
