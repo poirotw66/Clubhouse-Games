@@ -183,6 +183,10 @@ jobs:
         if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
         run: npm run check:astra-escape-room
 
+      - name: Run Astra Mini Tactical Dungeon logic check
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-tactical
+
   # ---------------------------------------------------------------------------
   # Build Pages once; upload artifact for Playwright (and Pages deploy on main).
   # ---------------------------------------------------------------------------

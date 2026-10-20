@@ -1,5 +1,14 @@
 You are a senior Frontend Engineer, Web API Engineer, tactical game systems designer, pixel-art game designer, and AI Agent interaction designer.
 
+# Depth-4 extensions (implemented)
+
+In addition to the original single-floor Aether Vault demo:
+
+* Multi-floor campaign / daily runs (6 floors, boss on the last floor) plus a fixed `tutorial` seed that preserves the original deterministic 8×8 fixture for agents and tests.
+* Procedural floors from a seed; cover terrain; slime / mage / Vault Warden enemies; post-floor three-choice rewards; localStorage meta at `astra-tactical-dungeon:v1`.
+* Extra WebMCP tools: `dungeon_get_run`, `dungeon_start_run`, `dungeon_get_rewards`, `dungeon_choose_reward`, `dungeon_get_records`, `dungeon_get_daily` — all original 22 tools remain.
+* Pure logic lives in `rules.mjs` with `check-tactical.mjs` wired into CI. No Vite/React/CDN; ESM only (`index.html` + `game.mjs` + `ui.mjs` + shared SFX).
+
 Build a complete, polished, fully runnable single-page HTML demo called:
 
 WebMCP Mini Tactical Dungeon

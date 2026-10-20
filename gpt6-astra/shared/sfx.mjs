@@ -166,6 +166,20 @@ export function sfxSelect() {
   playMove();
 }
 
+/** Soft descent / next-floor chime (tactical dungeon). */
+export function playDescend() {
+  playTone(392, 'triangle', 0.1, 0, 0.07);
+  playTone(494, 'sine', 0.12, 0.07, 0.06);
+  playTone(587, 'triangle', 0.16, 0.14, 0.05);
+}
+
+/** Reward pick confirm. */
+export function playReward() {
+  playTone(523.25, 'triangle', 0.08, 0, 0.08);
+  playTone(659.25, 'sine', 0.1, 0.05, 0.07);
+  playTone(784, 'triangle', 0.14, 0.1, 0.06);
+}
+
 /** Escape-room: lock opens / door clears. */
 export function sfxEscapeUnlock() {
   playTone(392, 'triangle', 0.08, 0, 0.07);
