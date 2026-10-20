@@ -42,3 +42,20 @@ export function boardFromRows(rows: string[]): Board {
 export function pieceFromCode(ch: 'B' | 'W'): Piece {
   return ch === 'B' ? 'black' : 'white';
 }
+
+/** Algebraic square: column a–h, row 1–8 from the top of the board (row 0 → 1). */
+export function moveToAlgebraic([r, c]: [number, number]): string {
+  if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) {
+    throw new Error(`Out-of-range move ${r},${c}`);
+  }
+  return `${'abcdefgh'[c]}${r + 1}`;
+}
+
+export function algebraicToMove(sq: string): [number, number] {
+  if (!/^[a-h][1-8]$/.test(sq)) {
+    throw new Error(`Invalid algebraic square '${sq}'`);
+  }
+  const c = sq.charCodeAt(0) - 'a'.charCodeAt(0);
+  const r = Number(sq[1]) - 1;
+  return [r, c];
+}
