@@ -1,21 +1,28 @@
 import assert from 'node:assert/strict';
 import {
   FACE_IDS,
+  FACE_EMOJI,
+  FACE_TINT,
   PAIR_OPTIONS,
   THEME_OPTIONS,
   allMatched,
   bestStorageSlot,
   buildDeck,
   clampPairCount,
+  cpuCapacityFor,
+  gridColsClass,
+  gridGapClass,
   hintPairIndices,
   maxPairsForTheme,
   nextCombo,
   scoreForMatch,
+  sprintLimitSec,
   themeFaces,
   CPU_CAPACITY,
   CPU_RETAIN,
 } from './memoryLogic.ts';
 import {
+  HARD_STALL_CHANCE,
   decayIsMonotonic,
   emptyCpuMemory,
   knownMatchPair,
@@ -91,10 +98,42 @@ assert.equal(bestStorageSlot('sprint', 'jewel', 12), 'sprint-jewel-12');
 assert.equal(bestStorageSlot('versus', 'classic', 12, { cpuDifficulty: 'hard' }), 'versus-hard-classic-12');
 assert.equal(bestStorageSlot('special', 'night', 12), 'special-night-12');
 
+// Legacy save slots stay stable — polish must not rename keys.
+assert.equal(bestStorageSlot('classic', 'classic', 6), '6');
+assert.equal(bestStorageSlot('sprint', 'classic', 24), 'sprint-24');
+
+// --- Sprint clock scales with board ---
+assert.equal(sprintLimitSec(6), 45);
+assert.equal(sprintLimitSec(12), 60);
+assert.equal(sprintLimitSec(18), 90);
+assert.equal(sprintLimitSec(24), 120);
+
+// --- Mobile-friendly grids ---
+assert.ok(gridColsClass(24).includes('grid-cols-4'), '24-pair phones use 4 columns');
+assert.ok(gridColsClass(18).includes('grid-cols-4'));
+assert.ok(gridGapClass(24).includes('gap-1.5'));
+assert.equal(gridGapClass(6), 'gap-2');
+
+// --- Face distinguishability ---
+assert.notEqual(FACE_EMOJI.ruby, FACE_EMOJI.sapphire);
+assert.notEqual(FACE_EMOJI.ruby, '🔴', 'ruby no longer a plain red circle');
+assert.ok(FACE_TINT.ruby !== FACE_TINT.sapphire);
+for (const id of FACE_IDS) {
+  assert.ok(FACE_TINT[id], `tint for ${id}`);
+  assert.ok(FACE_EMOJI[id], `emoji for ${id}`);
+}
+
 // --- CPU memory model ---
 assert.ok(decayIsMonotonic(CPU_RETAIN.easy));
 assert.ok(decayIsMonotonic(CPU_RETAIN.normal));
 assert.ok(decayIsMonotonic(CPU_RETAIN.hard));
+assert.ok(CPU_RETAIN.hard < 0.95, 'hard retain softened vs first depth pass');
+assert.ok(CPU_CAPACITY.hard <= 12, 'hard base capacity capped');
+assert.ok(HARD_STALL_CHANCE <= 0.3);
+
+assert.equal(cpuCapacityFor('easy', 6), CPU_CAPACITY.easy);
+assert.ok(cpuCapacityFor('hard', 24) > cpuCapacityFor('hard', 6));
+assert.ok(cpuCapacityFor('hard', 24) < 16, 'hard capacity stays below old omniscient 16');
 
 const age0 = recallProbability({ index: 0, face: 'star', seenAtTurn: 5 }, 5, 'normal');
 const age3 = recallProbability({ index: 0, face: 'star', seenAtTurn: 5 }, 8, 'normal');
@@ -105,14 +144,23 @@ assert.ok(Math.abs(age3 - CPU_RETAIN.normal ** 3) < 1e-9);
 
 const deck = buildDeck(6, 'classic', () => 0.3);
 let mem = emptyCpuMemory();
-mem = rememberRevealed(mem, deck, [0, 1], 1, 'easy');
-assert.ok(mem.length <= CPU_CAPACITY.easy);
+mem = rememberRevealed(mem, deck, [0, 1], 1, 'easy', 6);
+assert.ok(mem.length <= cpuCapacityFor('easy', 6));
 
 mem = emptyCpuMemory();
 for (let t = 0; t < 10; t++) {
-  mem = rememberRevealed(mem, deck, [t % deck.length], t + 1, 'easy');
+  mem = rememberRevealed(mem, deck, [t % deck.length], t + 1, 'easy', 6);
 }
-assert.ok(mem.length <= CPU_CAPACITY.easy, 'memory respects capacity');
+assert.ok(mem.length <= cpuCapacityFor('easy', 6), 'memory respects capacity');
+
+// Capacity scaling: same flood of sightings, larger board holds more.
+mem = emptyCpuMemory();
+const big = buildDeck(24, 'classic', () => 0.4);
+for (let t = 0; t < 30; t++) {
+  mem = rememberRevealed(mem, big, [t % big.length], t + 1, 'hard', 24);
+}
+assert.equal(mem.length, cpuCapacityFor('hard', 24));
+assert.ok(mem.length > cpuCapacityFor('hard', 6));
 
 const halfMatched = deck.map((c, i) => (i < 4 ? { ...c, matched: true } : c));
 const [ci, cj] = pickCpuMove({

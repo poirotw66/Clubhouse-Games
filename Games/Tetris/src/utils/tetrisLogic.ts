@@ -684,13 +684,14 @@ export function scoreClear(ctx: ScoreContext): ScoreBreakdown {
   };
 }
 
-/** Build flash lines such as "T-SPIN DOUBLE", "B2B", "3 COMBO". */
+/** Build flash lines such as "T-SPIN DOUBLE", "B2B", "3 COMBO", "+1200". */
 export function formatClearCallouts(breakdown: ScoreBreakdown): string[] {
   const lines: string[] = [];
   if (breakdown.label) lines.push(breakdown.label);
   if (breakdown.isBackToBack) lines.push('B2B');
   if (breakdown.nextCombo >= 2) lines.push(`${breakdown.nextCombo} COMBO`);
   if (breakdown.perfectClearScore > 0) lines.push('PERFECT CLEAR');
+  if (breakdown.total > 0) lines.push(`+${breakdown.total}`);
   return lines;
 }
 

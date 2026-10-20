@@ -1,9 +1,10 @@
 import {
-  CPU_CAPACITY,
   CPU_RETAIN,
+  cpuCapacityFor,
   type CpuDifficulty,
   type FaceId,
   type MemoryCard,
+  type PairCount,
   unmatchedIndices,
 } from './memoryLogic.ts';
 
@@ -24,6 +25,7 @@ export function emptyCpuMemory(): CpuMemory {
 /**
  * Record revealed cards into CPU memory, pruning by capacity (oldest first).
  * Matched cards are dropped; re-seeing a card refreshes its timestamp.
+ * Pass `pairCount` so capacity scales with board size.
  */
 export function rememberRevealed(
   memory: CpuMemory,
@@ -31,6 +33,7 @@ export function rememberRevealed(
   indices: readonly number[],
   turn: number,
   difficulty: CpuDifficulty,
+  pairCount: PairCount = 12,
 ): CpuMemory {
   let next = memory.filter((e) => !cards[e.index]?.matched);
   for (const index of indices) {
@@ -39,7 +42,7 @@ export function rememberRevealed(
     next = next.filter((e) => e.index !== index);
     next.push({ index, face: card.face, seenAtTurn: turn });
   }
-  const capacity = CPU_CAPACITY[difficulty];
+  const capacity = cpuCapacityFor(difficulty, pairCount);
   if (next.length > capacity) {
     next = [...next].sort((a, b) => a.seenAtTurn - b.seenAtTurn).slice(next.length - capacity);
   }
@@ -102,9 +105,12 @@ function pickRandom<T>(items: readonly T[], rand: () => number): T {
   return items[Math.floor(rand() * items.length)];
 }
 
+/** Probability hard CPU stalls when clearly behind (preferStall). Softened from 0.35. */
+export const HARD_STALL_CHANCE = 0.25;
+
 /**
  * Hard CPU sometimes opens two already-known cards that do NOT match,
- * denying the player new information ("stall").
+ * denying the player new information ("stall"). Only used when clearly behind.
  */
 function stallPair(
   recalled: MemoryEntry[],
@@ -149,7 +155,7 @@ export function pickCpuMove(ctx: CpuPickContext): [number, number] {
   if (
     ctx.difficulty === 'hard' &&
     ctx.preferStall &&
-    rand() < 0.35 &&
+    rand() < HARD_STALL_CHANCE &&
     !known
   ) {
     const stall = stallPair(recalled, rand);

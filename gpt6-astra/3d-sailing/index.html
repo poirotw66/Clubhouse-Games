@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Windward — A Sailing Time Trial</title>
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Windward — 3D Sailing Time Trial</title>
 
   <link rel="stylesheet" href="../vendor/fonts/dm-space.css">
   <style>
@@ -12,6 +12,7 @@
       --ink: #163d48;
       --paper: #fffdf5;
       --orange: #ff7448;
+      --teal: #248aa5;
     }
 
     * { box-sizing: border-box; }
@@ -79,7 +80,7 @@
 
     .race-stats {
       display: flex;
-      gap: 30px;
+      gap: 22px;
       padding: 16px 24px;
       border: 1px solid #ffffff80;
       border-radius: 18px;
@@ -96,6 +97,8 @@
     .stat-value small { font-size: 15px; opacity: .45; }
 
     #timer.urgent { color: #ce4f36; }
+    #pb-delta.ahead { color: #2f8f6e; }
+    #pb-delta.behind { color: #ce4f36; }
 
     .objective {
       position: absolute;
@@ -111,6 +114,9 @@
       box-shadow: 0 5px 25px #234d5210;
       font-size: 12px;
       white-space: nowrap;
+      max-width: min(92vw, 520px);
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .objective-dot {
@@ -119,6 +125,7 @@
       border-radius: 50%;
       background: var(--orange);
       box-shadow: 0 0 0 4px #ff744820;
+      flex-shrink: 0;
     }
 
     .bottom-left {
@@ -245,6 +252,7 @@
       transition: opacity .25s, transform .25s;
       text-align: center;
       white-space: nowrap;
+      pointer-events: none;
     }
 
     #toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -259,14 +267,16 @@
       background: #183d4838;
       backdrop-filter: blur(5px);
       padding: 20px;
+      pointer-events: auto;
+      overflow: auto;
     }
 
     .overlay.hidden { display: none; }
 
     .card {
-      width: 450px;
+      width: 520px;
       max-width: 100%;
-      padding: 42px;
+      padding: 36px 34px 30px;
       background: var(--paper);
       border-radius: 25px;
       box-shadow: 0 30px 100px #163d4833;
@@ -274,39 +284,86 @@
     }
 
     .card-icon {
-      font-size: 42px;
+      font-size: 36px;
       color: var(--orange);
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     }
 
     .card h1 {
-      font: 600 58px/.95 "Space Grotesk", sans-serif;
-      letter-spacing: -3px;
-      margin: 17px 0 20px;
+      font: 600 46px/.95 "Space Grotesk", sans-serif;
+      letter-spacing: -2.5px;
+      margin: 10px 0 14px;
     }
 
-    .card p {
+    .card > p.lead {
       font-size: 14px;
-      line-height: 1.8;
+      line-height: 1.7;
       opacity: .75;
-      margin-bottom: 24px;
+      margin: 0 0 18px;
     }
 
-    .rules {
-      display: flex;
-      justify-content: center;
-      gap: 19px;
-      padding: 18px 0;
-      margin-bottom: 22px;
-      border-top: 1px solid #163d4814;
-      border-bottom: 1px solid #163d4814;
+    .course-list {
+      display: grid;
+      gap: 10px;
+      margin: 0 0 18px;
+      text-align: left;
+    }
+
+    .course-btn {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px 12px;
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid #163d4818;
+      border-radius: 14px;
+      background: #fff;
+      color: var(--ink);
+      text-align: left;
+      transition: border-color .15s, background .15s, transform .12s;
+    }
+
+    .course-btn:hover:not(:disabled) {
+      border-color: #ff744866;
+      transform: translateY(-1px);
+    }
+
+    .course-btn.selected {
+      border-color: var(--orange);
+      background: #fff4ee;
+      box-shadow: 0 0 0 3px #ff744822;
+    }
+
+    .course-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .course-btn .name {
+      font: 650 15px "Space Grotesk", sans-serif;
+      letter-spacing: -.3px;
+    }
+
+    .course-btn .blurb {
+      grid-column: 1 / -1;
+      font-size: 12px;
+      line-height: 1.45;
+      opacity: .7;
+    }
+
+    .course-btn .meta {
+      font: 600 12px "Space Grotesk", sans-serif;
+      font-variant-numeric: tabular-nums;
+      color: var(--teal);
+      align-self: start;
+    }
+
+    .course-btn .lock {
       font-size: 11px;
-    }
-
-    .rules strong {
-      display: block;
-      font: 600 21px "Space Grotesk", sans-serif;
-      margin-bottom: 5px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #8a6a5a;
     }
 
     .primary {
@@ -323,21 +380,29 @@
 
     .primary:hover { transform: translateY(-2px); }
     .primary:active { transform: translateY(3px); }
+    .primary:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: 0 6px 0 #d9563080;
+    }
 
     .footnote {
       font-size: 10px;
-      margin-top: 19px;
+      margin-top: 16px;
       opacity: .5;
     }
 
     #touch-controls {
       display: none;
       position: absolute;
-      bottom: 24px;
+      bottom: 18px;
       left: 50%;
       transform: translateX(-50%);
       gap: 8px;
       pointer-events: auto;
+      z-index: 4;
+      align-items: center;
     }
 
     .touch-key {
@@ -347,11 +412,13 @@
       border-radius: 14px;
       background: #fffdf5dc;
       color: var(--ink);
-      font-size: 22px;
+      font-size: 18px;
+      font-weight: 700;
       touch-action: none;
     }
 
     .touch-key:active { background: #ffc9aa; }
+    .touch-key.wide { width: 56px; font-size: 13px; letter-spacing: .02em; }
 
     #loading {
       position: fixed;
@@ -365,52 +432,76 @@
       font: 500 18px "Space Grotesk", sans-serif;
     }
 
+    .finish-burst {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 6;
+      opacity: 0;
+      transition: opacity .4s;
+      background:
+        radial-gradient(circle at 50% 40%, #ff744855, transparent 45%),
+        radial-gradient(circle at 30% 70%, #4aadb144, transparent 40%),
+        radial-gradient(circle at 70% 65%, #fff6 0, transparent 35%);
+    }
+    .finish-burst.show { opacity: 1; }
+
     @media (pointer: coarse) {
       #touch-controls { display: flex; }
       .help { display: none; }
     }
 
     @media (max-width: 650px) {
-      .hud { padding: 20px; }
-      .brand { font-size: 23px; }
+      .hud { padding: 16px; }
+      .brand { font-size: 22px; }
       .brand-sub { display: none; }
-      .race-stats { padding: 11px 15px; gap: 18px; }
-      .stat-value { font-size: 23px; }
+      .race-stats { padding: 10px 12px; gap: 12px; flex-wrap: wrap; justify-content: flex-end; max-width: 58vw; }
+      .stat-value { font-size: 20px; }
       .race-stats .eyebrow { font-size: 8px; }
-      .objective { top: 100px; font-size: 11px; }
-      .bottom-left { left: 15px; bottom: 90px; width: 144px; }
-      .instrument { padding: 14px; border-radius: 15px; }
-      #speed { font-size: 37px; }
+      .objective { top: 96px; font-size: 11px; }
+      .bottom-left { left: 12px; bottom: 92px; width: 132px; }
+      .instrument { padding: 12px; border-radius: 15px; }
+      #speed { font-size: 32px; letter-spacing: -2px; }
       .wind-readout { font-size: 9px; }
-      .map-panel { right: 15px; bottom: 90px; padding: 10px; }
-      #map { width: 115px; height: 115px; }
+      .map-panel { right: 12px; bottom: 92px; padding: 8px; }
+      #map { width: 100px; height: 100px; }
       .map-header .eyebrow { font-size: 8px; }
       .live { display: none; }
-      .card { padding: 30px 25px; }
-      .card h1 { font-size: 49px; }
+      .card { padding: 24px 18px; }
+      .card h1 { font-size: 36px; }
       .help { display: none; }
+      .course-btn { padding: 12px; }
     }
   </style>
 </head>
 <body>
   <div id="loading">Preparing the ocean…</div>
   <canvas id="world" aria-label="3D sailing race"></canvas>
+  <div class="finish-burst" id="finish-burst" aria-hidden="true"></div>
 
   <main class="hud">
     <header class="topbar">
       <div>
         <div class="brand"><span class="brand-mark"></span>windward.</div>
-        <div class="eyebrow brand-sub">Take the scenic route</div>
+        <div class="eyebrow brand-sub" id="course-label">Take the scenic route</div>
       </div>
 
       <div class="race-stats">
         <div>
-          <div class="eyebrow">Checkpoints</div>
-          <div class="stat-value"><span id="checkpoint">00</span><small> / 08</small></div>
+          <div class="eyebrow">Gates</div>
+          <div class="stat-value"><span id="checkpoint">00</span><small id="gate-total"> / 08</small></div>
+        </div>
+        <div>
+          <div class="eyebrow">Elapsed</div>
+          <div class="stat-value" id="elapsed">0:00</div>
         </div>
         <div>
           <div class="eyebrow">Time left</div>
           <div class="stat-value" id="timer">3:00</div>
+        </div>
+        <div>
+          <div class="eyebrow">PB</div>
+          <div class="stat-value" id="pb-delta">—</div>
         </div>
       </div>
     </header>
@@ -435,14 +526,14 @@
 
         <div class="wind-readout">
           <span id="wind-arrow">↑</span>
-          <span>SE breeze · auto-trim on</span>
+          <span id="wind-label">breeze · auto-trim on</span>
         </div>
       </div>
 
       <div class="help">
         <kbd>W</kbd> <kbd>S</kbd> sail power &nbsp;
         <kbd>A</kbd> <kbd>D</kbd> steer<br />
-        <kbd>SPACE</kbd> brake &nbsp; <kbd>R</kbd> restart
+        <kbd>SPACE</kbd> brake &nbsp; <kbd>R</kbd> restart &nbsp; <kbd>Esc</kbd> menu
       </div>
     </section>
 
@@ -459,34 +550,58 @@
       <button class="touch-key" data-key="KeyD" aria-label="Steer right">→</button>
       <button class="touch-key" data-key="KeyS" aria-label="Reduce sail power">−</button>
       <button class="touch-key" data-key="KeyW" aria-label="Increase sail power">+</button>
+      <button class="touch-key wide" data-key="Space" aria-label="Brake">Brake</button>
+      <button class="touch-key wide" data-action="restart" aria-label="Restart">R</button>
     </div>
   </main>
 
   <section class="overlay" id="overlay">
     <div class="card">
       <div class="card-icon">◒</div>
-      <div class="eyebrow" id="card-label">A little ocean escape</div>
+      <div class="eyebrow" id="card-label">Astra · Windward</div>
       <h1 id="card-title">Find your<br />fair wind.</h1>
-      <p id="card-copy">
-        Follow the orange gates through a sunlit archipelago.
-        Catch the breeze, mind the islands, and make it home before time runs out.
+      <p class="lead" id="card-copy">
+        三條航線、個人最佳與幽靈船。抓準橫風，避開淺灘，挑戰自己的 PB。
       </p>
-      <div class="rules">
-        <div><strong>08</strong>gates to pass</div>
-        <div><strong>03:00</strong>on the clock</div>
-        <div><strong>∞</strong>sea views</div>
-      </div>
+      <div class="course-list" id="course-list" role="listbox" aria-label="航線"></div>
       <button class="primary" id="start">Set sail &nbsp; ↗</button>
-      <div class="footnote">W/S power · A/D steer · Space brake · R restart</div>
+      <div class="footnote">W/S 動力 · A/D 轉向 · Space 煞車 · R 重開 · Esc 選單</div>
     </div>
   </section>
 
   <script type="module">
     import * as THREE from '../vendor/three/build/three.module.min.js';
+    import {
+      COURSES,
+      ISLANDS,
+      bestFor,
+      collisionPenalty,
+      createGhostPlayback,
+      createGhostRecorder,
+      crossedGate,
+      formatTime,
+      formatTimePrecise,
+      getCourse,
+      isUnlocked,
+      loadGhost,
+      loadProgress,
+      recordDnf,
+      recordFinish,
+      sampleWind,
+      saveGhost,
+    } from './rules.mjs';
+    import {
+      sfxCollision,
+      sfxFail,
+      sfxFinish,
+      sfxGateClear,
+      sfxSelect,
+      sfxUnlock,
+    } from '../shared/sfx.mjs';
+    import { createResultOverlay } from '../shared/result-overlay.mjs';
 
     const $ = id => document.getElementById(id);
 
-    // All geometry and materials are procedural; no texture downloads.
     const renderer = new THREE.WebGLRenderer({
       canvas: $('world'),
       antialias: true,
@@ -545,7 +660,6 @@
       return m;
     }
 
-    // Ocean: world-space waves and procedural foam/sun flecks.
     const oceanUniforms = { uTime: { value: 0 } };
     const ocean = new THREE.Mesh(
       new THREE.PlaneGeometry(1800, 1800, 190, 190),
@@ -606,7 +720,6 @@
         + Math.sin((x - z) * .11 + t * 1.4) * .09;
     }
 
-    // Sailboat hull, drawn as elliptical cross-sections with a sharp bow.
     const boat = new THREE.Group();
     scene.add(boat);
 
@@ -647,7 +760,6 @@
 
     mesh(new THREE.BoxGeometry(1.25,.15,1.6), materials.trim, boat,0,.75,1.1);
     mesh(new THREE.BoxGeometry(.92,.16,1.15), materials.hull, boat,0,.83,1.1);
-
     mesh(new THREE.CylinderGeometry(.045,.065,7.9,8), materials.wood, boat,0,4.55,-.7);
 
     function lineBetween(points, color, parent) {
@@ -668,7 +780,6 @@
     sailPivot.position.set(0,1.15,-.7);
     boat.add(sailPivot);
 
-    // Curved triangular mainsail with a coral upper panel.
     const sailVertices=[], sailColors=[], sailIndices=[];
     const rows=18;
     for (let row=0;row<=rows;row++) {
@@ -705,28 +816,39 @@
       color:'#fff9e9',side:THREE.DoubleSide,roughness:1
     }),boat);
 
-    // Tiny skipper.
     mesh(new THREE.SphereGeometry(.23,10,8),new THREE.MeshStandardMaterial({color:'#dba37a'}),boat,.35,1.55,1.45);
     mesh(new THREE.CylinderGeometry(.23,.28,.55,8),materials.orange,boat,.35,1.08,1.45);
     mesh(new THREE.CylinderGeometry(.32,.32,.07,12),materials.white,boat,.35,1.76,1.45);
 
-    // Deterministic scenery.
+    // Ghost boat — translucent teal silhouette.
+    const ghostBoat = new THREE.Group();
+    ghostBoat.visible = false;
+    scene.add(ghostBoat);
+    const ghostMat = new THREE.MeshStandardMaterial({
+      color: '#4aadb1',
+      transparent: true,
+      opacity: 0.38,
+      roughness: 0.7,
+      depthWrite: false,
+    });
+    const ghostHull = hullGeometry.clone();
+    mesh(ghostHull, ghostMat, ghostBoat);
+    mesh(new THREE.CylinderGeometry(.04,.05,6.5,6), ghostMat, ghostBoat, 0, 3.8, -.5);
+    const ghostSail = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.8, 5.5),
+      ghostMat.clone()
+    );
+    ghostSail.material.side = THREE.DoubleSide;
+    ghostSail.position.set(0, 3.2, 0.4);
+    ghostBoat.add(ghostSail);
+
     let seed=83;
     function random(){
       seed=(seed*1664525+1013904223)>>>0;
       return seed/4294967296;
     }
 
-    const islands = [
-      {x:-78,z:-72,r:24},
-      {x:108,z:14,r:30},
-      {x:298,z:-163,r:41},
-      {x:-190,z:95,r:37},
-      {x:32,z:254,r:43},
-      {x:-184,z:-220,r:46},
-      {x:282,z:207,r:36},
-      {x:52,z:-280,r:33}
-    ];
+    const islands = ISLANDS;
 
     function palm(parent,x,z,scale){
       const group=new THREE.Group();
@@ -775,7 +897,6 @@
       }
     }
 
-    // Distant soft, low-poly clouds.
     const cloudMaterial=new THREE.MeshStandardMaterial({
       color:'#fffaf0',roughness:1,flatShading:true
     });
@@ -790,67 +911,86 @@
       scene.add(cloud);
     }
 
-    const course=[
-      [0,-45],[90,-130],[205,-80],[220,70],
-      [95,155],[-45,90],[-115,-30],[-55,-130]
-    ];
-
-    const gates=[];
     const activeColor=new THREE.Color('#ff7448');
     const inactiveColor=new THREE.Color('#fff6df');
     const completedColor=new THREE.Color('#70c4ab');
 
-    course.forEach(([x,z],index)=>{
-      const previous=index ? course[index-1] : [0,45];
-      const forward=new THREE.Vector2(x-previous[0],z-previous[1]).normalize();
-      const sideways=new THREE.Vector2(-forward.y,forward.x);
-      const group=new THREE.Group();
-      group.position.set(x,0,z);
-      scene.add(group);
+    /** @type {any[]} */
+    let gates = [];
+    /** @type {[number, number][]} */
+    let courseGates = [];
+    let gateRoot = new THREE.Group();
+    scene.add(gateRoot);
 
-      const buoyMaterial=materials.orange.clone();
-      const buoys=[];
-      for(const side of [-1,1]){
-        const buoy=new THREE.Group();
-        buoy.position.set(sideways.x*10*side,0,sideways.y*10*side);
-        group.add(buoy);
-        mesh(new THREE.CylinderGeometry(.85,1.25,1.15,12),buoyMaterial,buoy,0,.55,0);
-        mesh(new THREE.CylinderGeometry(.89,.98,.3,12),materials.white,buoy,0,.7,0);
-        mesh(new THREE.CylinderGeometry(.06,.06,3.4,6),materials.wood,buoy,0,2,0);
-        const flag=mesh(new THREE.PlaneGeometry(1.45,.85),buoyMaterial,buoy,.72,3.25,0);
-        flag.material.side=THREE.DoubleSide;
-        buoys.push(buoy);
-      }
+    function disposeObject(obj) {
+      obj.traverse((child) => {
+        if (child.geometry) child.geometry.dispose?.();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose?.());
+          else child.material.dispose?.();
+        }
+      });
+    }
 
-      const ring=mesh(
-        new THREE.TorusGeometry(8.6,.11,6,64),
-        new THREE.MeshBasicMaterial({color:activeColor,transparent:true,opacity:.65}),
-        group,0,.15,0
-      );
-      ring.rotation.x=-Math.PI/2;
-      ring.castShadow=false;
+    function rebuildGates(gateList) {
+      disposeObject(gateRoot);
+      scene.remove(gateRoot);
+      gateRoot = new THREE.Group();
+      scene.add(gateRoot);
+      gates = [];
+      courseGates = gateList.map(([x, z]) => [x, z]);
 
-      const beacon=mesh(
-        new THREE.CylinderGeometry(.8,.8,26,12,1,true),
-        new THREE.MeshBasicMaterial({
-          color:activeColor,transparent:true,opacity:.10,
-          depthWrite:false,side:THREE.DoubleSide
-        }),
-        group,0,13,0
-      );
-      beacon.castShadow=false;
+      courseGates.forEach(([x, z], index) => {
+        const previous = index ? courseGates[index - 1] : [selectedCourse.start.x, selectedCourse.start.z];
+        const forward = new THREE.Vector2(x - previous[0], z - previous[1]).normalize();
+        const sideways = new THREE.Vector2(-forward.y, forward.x);
+        const group = new THREE.Group();
+        group.position.set(x, 0, z);
+        gateRoot.add(group);
 
-      const arrow=new THREE.Group();
-      arrow.position.y=9;
-      group.add(arrow);
-      const pointer=mesh(new THREE.ConeGeometry(.8,1.4,3),
-        new THREE.MeshBasicMaterial({color:activeColor}),arrow);
-      pointer.rotation.z=Math.PI;
+        const buoyMaterial = materials.orange.clone();
+        const buoys = [];
+        for (const side of [-1, 1]) {
+          const buoy = new THREE.Group();
+          buoy.position.set(sideways.x * 10 * side, 0, sideways.y * 10 * side);
+          group.add(buoy);
+          mesh(new THREE.CylinderGeometry(.85, 1.25, 1.15, 12), buoyMaterial, buoy, 0, .55, 0);
+          mesh(new THREE.CylinderGeometry(.89, .98, .3, 12), materials.white, buoy, 0, .7, 0);
+          mesh(new THREE.CylinderGeometry(.06, .06, 3.4, 6), materials.wood, buoy, 0, 2, 0);
+          const flag = mesh(new THREE.PlaneGeometry(1.45, .85), buoyMaterial, buoy, .72, 3.25, 0);
+          flag.material.side = THREE.DoubleSide;
+          buoys.push(buoy);
+        }
 
-      gates.push({group,buoys,buoyMaterial,ring,beacon,arrow});
-    });
+        const ring = mesh(
+          new THREE.TorusGeometry(8.6, .11, 6, 64),
+          new THREE.MeshBasicMaterial({ color: activeColor, transparent: true, opacity: .65 }),
+          group, 0, .15, 0
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.castShadow = false;
 
-    // Reusable foam particles for the wake.
+        const beacon = mesh(
+          new THREE.CylinderGeometry(.8, .8, 26, 12, 1, true),
+          new THREE.MeshBasicMaterial({
+            color: activeColor, transparent: true, opacity: .10,
+            depthWrite: false, side: THREE.DoubleSide
+          }),
+          group, 0, 13, 0
+        );
+        beacon.castShadow = false;
+
+        const arrow = new THREE.Group();
+        arrow.position.y = 9;
+        group.add(arrow);
+        const pointer = mesh(new THREE.ConeGeometry(.8, 1.4, 3),
+          new THREE.MeshBasicMaterial({ color: activeColor }), arrow);
+        pointer.rotation.z = Math.PI;
+
+        gates.push({ group, buoys, buoyMaterial, ring, beacon, arrow });
+      });
+    }
+
     const wakeCount=150;
     const wakePosition=new Float32Array(wakeCount*3);
     const wakeLife=new Float32Array(wakeCount);
@@ -866,11 +1006,12 @@
     let wakeCursor=0,wakeAccumulator=0;
 
     const keys={};
-    const controlledKeys=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyR'];
+    const controlledKeys=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyR','Escape'];
     addEventListener('keydown',event=>{
       if(controlledKeys.includes(event.code)) event.preventDefault();
       keys[event.code]=true;
-      if(event.code==='KeyR' && !event.repeat) startGame();
+      if(event.code==='KeyR' && !event.repeat && state==='playing') startGame();
+      if(event.code==='Escape' && !event.repeat) openLobby();
     });
     addEventListener('keyup',event=>keys[event.code]=false);
     addEventListener('blur',()=>Object.keys(keys).forEach(k=>keys[k]=false));
@@ -878,24 +1019,40 @@
     document.querySelectorAll('.touch-key').forEach(button=>{
       button.addEventListener('pointerdown',event=>{
         event.preventDefault();
+        if (button.dataset.action === 'restart') {
+          if (state === 'playing') startGame();
+          return;
+        }
         button.setPointerCapture(event.pointerId);
         keys[button.dataset.key]=true;
       });
       for(const name of ['pointerup','pointercancel','lostpointercapture']){
-        button.addEventListener(name,()=>keys[button.dataset.key]=false);
+        button.addEventListener(name,()=>{
+          if (button.dataset.key) keys[button.dataset.key]=false;
+        });
       }
     });
 
+    let progress = loadProgress();
+    let selectedCourse = getCourse('archipelago');
     let state='intro';
     let heading=0,speed=0,power=.65,efficiency=0;
     let timeLeft=180,nextGate=0,collisionCooldown=0;
     let elapsed=0,penalties=0,toastTimeout;
+    let windHeading=0;
+    let windDir = new THREE.Vector2(-.68,-.73).normalize();
+    let windGust = 1;
     const position=new THREE.Vector3(0,0,45);
-    const wind=new THREE.Vector2(-.68,-.73).normalize();
-    const windHeading=Math.atan2(wind.x,-wind.y);
     const desiredCamera=new THREE.Vector3();
     const cameraLook=new THREE.Vector3(0,2,40);
     const targetLook=new THREE.Vector3();
+
+    const ghostRecorder = createGhostRecorder();
+    /** @type {ReturnType<typeof createGhostPlayback>|null} */
+    let ghostPlayback = null;
+    let ghostPbTime = null;
+
+    const resultOverlay = createResultOverlay(document.body);
 
     function showToast(text){
       $('toast').textContent=text;
@@ -914,63 +1071,272 @@
       });
     }
 
+    function renderCourseList(){
+      const list = $('course-list');
+      list.replaceChildren();
+      for (const course of COURSES) {
+        const unlocked = isUnlocked(progress, course.id);
+        const best = bestFor(progress, course.id);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'course-btn' + (course.id === selectedCourse.id ? ' selected' : '');
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-selected', course.id === selectedCourse.id ? 'true' : 'false');
+        btn.disabled = !unlocked;
+        btn.dataset.courseId = course.id;
+
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = course.name;
+
+        const meta = document.createElement('span');
+        if (!unlocked) {
+          meta.className = 'lock';
+          meta.textContent = '鎖定';
+        } else {
+          meta.className = 'meta';
+          meta.textContent = best.bestTime != null
+            ? `PB ${formatTimePrecise(best.bestTime)}`
+            : '尚無 PB';
+        }
+
+        const blurb = document.createElement('span');
+        blurb.className = 'blurb';
+        blurb.textContent = unlocked
+          ? `${course.blurb} · ${course.gates.length} 門 · 限時 ${formatTime(course.timeLimit)}`
+          : `完成「${getCourse(course.unlockAfter).name}」後解鎖`;
+
+        btn.append(name, meta, blurb);
+        btn.addEventListener('click', () => {
+          if (!unlocked) return;
+          selectedCourse = course;
+          sfxSelect();
+          renderCourseList();
+        });
+        list.appendChild(btn);
+      }
+      $('start').disabled = !isUnlocked(progress, selectedCourse.id);
+    }
+
+    function openLobby(){
+      state = 'intro';
+      resultOverlay.hide();
+      $('finish-burst').classList.remove('show');
+      $('overlay').classList.remove('hidden');
+      ghostBoat.visible = false;
+      $('card-label').textContent = 'Astra · Windward';
+      $('card-title').innerHTML = 'Find your<br />fair wind.';
+      $('card-copy').textContent =
+        '三條航線、個人最佳與幽靈船。抓準橫風，避開淺灘，挑戰自己的 PB。';
+      renderCourseList();
+    }
+
     function startGame(){
-      position.set(0,0,45);
-      heading=0;
-      speed=0;
-      power=.65;
-      timeLeft=180;
-      elapsed=0;
-      nextGate=0;
-      penalties=0;
-      collisionCooldown=0;
+      selectedCourse = getCourse(selectedCourse.id);
+      rebuildGates(selectedCourse.gates);
+
+      position.set(selectedCourse.start.x, 0, selectedCourse.start.z);
+      heading = selectedCourse.start.heading;
+      speed = 0;
+      power = .65;
+      timeLeft = selectedCourse.timeLimit;
+      elapsed = 0;
+      nextGate = 0;
+      penalties = 0;
+      collisionCooldown = 0;
       wakeLife.fill(0);
-      state='playing';
+      state = 'playing';
+
+      ghostRecorder.reset();
+      const tape = loadGhost(selectedCourse.id);
+      ghostPlayback = tape ? createGhostPlayback(tape) : null;
+      ghostPbTime = tape?.time ?? bestFor(progress, selectedCourse.id).bestTime;
+      ghostBoat.visible = !!ghostPlayback;
+      if (ghostPlayback) ghostPlayback.reset();
+
+      resultOverlay.hide();
+      $('finish-burst').classList.remove('show');
       $('overlay').classList.add('hidden');
       $('timer').classList.remove('urgent');
-      camera.position.set(0,13,68);
-      cameraLook.set(0,2,40);
+      $('course-label').textContent = selectedCourse.name;
+      $('gate-total').textContent = ` / ${String(selectedCourse.gates.length).padStart(2, '0')}`;
+      $('wind-label').textContent = `${selectedCourse.name} · auto-trim on`;
+      camera.position.set(
+        position.x - Math.sin(heading) * 22,
+        13,
+        position.z + Math.cos(heading) * 22
+      );
+      cameraLook.set(position.x, 2, position.z - 5);
       updateGateAppearance();
-      showToast('Fair winds! Head for the orange gate.');
+      showToast(`Fair winds — ${selectedCourse.name}`);
     }
 
     function endGame(won){
-      state=won?'won':'lost';
-      $('overlay').classList.remove('hidden');
-      $('card-label').textContent=won?'All gates cleared':'The ocean can wait';
-      $('card-title').innerHTML=won?'Beautiful<br />sailing.':'One more<br />voyage?';
-      $('card-copy').textContent=won
-        ? `You completed the course in ${formatTime(elapsed)}, with ${formatTime(timeLeft)} to spare${penalties ? ` and ${penalties} island collision${penalties===1?'':'s'}` : ' and no collisions'}. The sea looks good on you.`
-        : `You passed ${nextGate} of 8 gates. Try opening the sails on the straights and turning early. Your next fair wind is waiting.`;
-      $('start').innerHTML='Sail again &nbsp; ↗';
+      if (state !== 'playing') return;
+      state = won ? 'won' : 'lost';
+      ghostBoat.visible = false;
+
+      if (!won) {
+        progress = recordDnf(progress);
+        sfxFail();
+        resultOverlay.show({
+          title: '時間到',
+          subtitle: `通過 ${nextGate} / ${courseGates.length} 道門。再調一次帆角試試。`,
+          variant: 'lose',
+          stats: [
+            { label: '航線', value: selectedCourse.name },
+            { label: '用時', value: formatTimePrecise(elapsed) },
+            { label: '碰撞', value: String(penalties) },
+          ],
+          primaryLabel: '再航一次',
+          onPrimary: () => startGame(),
+          secondaryLabel: '選航線',
+          onSecondary: () => openLobby(),
+        });
+        return;
+      }
+
+      const result = recordFinish(progress, selectedCourse.id, elapsed, penalties);
+      progress = result.progress;
+      const savedGhost = saveGhost(selectedCourse.id, ghostRecorder.samples(), elapsed);
+      sfxFinish(result.isRecord);
+      $('finish-burst').classList.add('show');
+      setTimeout(() => $('finish-burst').classList.remove('show'), 1800);
+
+      if (result.unlocked.length) {
+        sfxUnlock();
+        showToast(`解鎖：${result.unlocked.map((id) => getCourse(id).name).join('、')}`);
+      }
+
+      const pb = bestFor(progress, selectedCourse.id);
+      const delta = ghostPbTime != null ? elapsed - ghostPbTime : null;
+      resultOverlay.show({
+        title: result.isRecord ? '新紀錄！' : '完賽',
+        badge: result.isRecord ? 'PERSONAL BEST' : (savedGhost ? undefined : 'FINISHED'),
+        subtitle: result.unlocked.length
+          ? `解鎖 ${result.unlocked.map((id) => getCourse(id).name).join('、')}`
+          : '漂亮的航行。幽靈船已更新到你的最佳軌跡。',
+        variant: 'win',
+        stats: [
+          { label: '航線', value: selectedCourse.name },
+          { label: '完賽時間', value: formatTimePrecise(elapsed) },
+          { label: '個人最佳', value: pb.bestTime != null ? formatTimePrecise(pb.bestTime) : '—' },
+          {
+            label: '較 PB',
+            value: delta == null ? '首次完賽' : `${delta <= 0 ? '' : '+'}${delta.toFixed(2)}s`,
+          },
+          { label: '碰撞', value: String(penalties) },
+        ],
+        primaryLabel: '再航一次',
+        onPrimary: () => startGame(),
+        secondaryLabel: '選航線',
+        onSecondary: () => openLobby(),
+      });
     }
 
-    $('start').addEventListener('click',startGame);
+    $('start').addEventListener('click', () => {
+      sfxSelect();
+      startGame();
+    });
+
+    renderCourseList();
+    rebuildGates(selectedCourse.gates);
     updateGateAppearance();
 
-    function formatTime(seconds){
-      const s=Math.max(0,Math.ceil(seconds));
-      return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-    }
+    const mapContext=$('map').getContext('2d');
+    function drawMap(){
+      const ctx=mapContext;
+      const size=348;
+      const scale=.63;
+      const mx=x=>size/2+(x-45)*scale;
+      const my=z=>size/2+(z+15)*scale;
 
-    // A gate only counts when the boat crosses the line between its buoys.
-    function crossedGate(before,after,index){
-      const center=course[index];
-      const prev=index?course[index-1]:[0,45];
-      let nx=center[0]-prev[0],nz=center[1]-prev[1];
-      const len=Math.hypot(nx,nz);
-      nx/=len; nz/=len;
-      const a=(before.x-center[0])*nx+(before.z-center[1])*nz;
-      const b=(after.x-center[0])*nx+(after.z-center[1])*nz;
-      if(a===b || a*b>0) return false;
-      const t=a/(a-b);
-      if(t<0 || t>1) return false;
-      const x=before.x+(after.x-before.x)*t-center[0];
-      const z=before.z+(after.z-before.z)*t-center[1];
-      return Math.abs(x*(-nz)+z*nx)<9.2;
+      ctx.clearRect(0,0,size,size);
+      ctx.fillStyle='#d7eae5';
+      ctx.beginPath();
+      ctx.roundRect(0,0,size,size,18);
+      ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(0,0,size,size,18);
+      ctx.clip();
+
+      ctx.strokeStyle='#aacdc780';
+      ctx.lineWidth=1;
+      for(let i=0;i<size;i+=43.5){
+        ctx.beginPath();
+        ctx.moveTo(i,0);ctx.lineTo(i,size);
+        ctx.moveTo(0,i);ctx.lineTo(size,i);
+        ctx.stroke();
+      }
+
+      for(const island of islands){
+        ctx.fillStyle='#eee0b8';
+        ctx.beginPath();
+        ctx.ellipse(mx(island.x),my(island.z),island.r*scale,island.r*scale*.9,0,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle='#8db49a';
+        ctx.beginPath();
+        ctx.ellipse(mx(island.x),my(island.z),island.r*scale*.75,island.r*scale*.66,.2,0,Math.PI*2);
+        ctx.fill();
+      }
+
+      ctx.setLineDash([5,7]);
+      ctx.lineWidth=2;
+      ctx.strokeStyle='#568f9760';
+      ctx.beginPath();
+      ctx.moveTo(mx(selectedCourse.start.x), my(selectedCourse.start.z));
+      courseGates.forEach(([x,z])=>ctx.lineTo(mx(x),my(z)));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      courseGates.forEach(([x,z],i)=>{
+        ctx.beginPath();
+        ctx.arc(mx(x),my(z),i===nextGate?9:6,0,Math.PI*2);
+        ctx.fillStyle=i<nextGate?'#65ab96':i===nextGate?'#ff7448':'#fffdf5';
+        ctx.fill();
+        if(i===nextGate){
+          ctx.strokeStyle='#ff74484d';
+          ctx.lineWidth=5;
+          ctx.stroke();
+        }
+      });
+
+      if (ghostBoat.visible) {
+        ctx.fillStyle = '#4aadb1aa';
+        ctx.beginPath();
+        ctx.arc(mx(ghostBoat.position.x), my(ghostBoat.position.z), 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.save();
+      ctx.translate(mx(position.x),my(position.z));
+      ctx.rotate(heading);
+      ctx.fillStyle='#163d48';
+      ctx.strokeStyle='#fffdf5';
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(0,-11);
+      ctx.lineTo(7,8);
+      ctx.lineTo(0,4);
+      ctx.lineTo(-7,8);
+      ctx.closePath();
+      ctx.fill();ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle='#376b72';
+      ctx.font='bold 16px sans-serif';
+      ctx.fillText('N',size-27,25);
+      ctx.restore();
     }
 
     function updatePhysics(dt,t){
+      const wind = sampleWind(selectedCourse.wind, t);
+      windDir.set(wind.dirX, wind.dirZ);
+      windHeading = wind.heading;
+      windGust = wind.gust;
+
       if(state!=='playing'){
         speed*=Math.exp(-dt*2);
         return;
@@ -988,12 +1354,10 @@
       heading+=steer*dt*(.35+Math.min(speed/10,1)*.83);
 
       const fx=Math.sin(heading),fz=-Math.cos(heading);
-      const alignment=fx*wind.x+fz*wind.y;
+      const alignment=fx*windDir.x+fz*windDir.y;
 
-      // Forgiving arcade sailing: a beam reach is fastest, upwind is slower.
       efficiency=THREE.MathUtils.clamp(.69+.28*alignment-.2*alignment*alignment,.22,1);
-      const gust=1+Math.sin(t*.35)*.07+Math.sin(t*.81)*.025;
-      const targetSpeed=power*(7+12*efficiency)*gust*(keys.Space?.10:1);
+      const targetSpeed=power*(7+12*efficiency)*windGust*(keys.Space?.10:1);
       speed+=(targetSpeed-speed)*(1-Math.exp(-dt*(keys.Space?2.4:.42)));
       speed*=Math.exp(-Math.abs(steer)*dt*.065);
 
@@ -1012,15 +1376,16 @@
           position.z=island.z+uz*safeRadius;
           speed*=.45;
           if(collisionCooldown===0){
-            timeLeft-=4;
+            const pen = collisionPenalty(selectedCourse.id);
+            timeLeft-=pen;
             penalties++;
             collisionCooldown=2.5;
-            showToast('Watch the shallows! −4 seconds');
+            sfxCollision();
+            showToast(`Watch the shallows! −${pen}s`);
           }
         }
       }
 
-      // Keep the boat within the playable archipelago.
       if(Math.abs(position.x)>540 || Math.abs(position.z)>540){
         position.x=THREE.MathUtils.clamp(position.x,-540,540);
         position.z=THREE.MathUtils.clamp(position.z,-540,540);
@@ -1031,18 +1396,33 @@
         }
       }
 
+      ghostRecorder.push(dt, elapsed, { x: position.x, z: position.z, heading });
+
+      if (ghostPlayback) {
+        const pose = ghostPlayback.sample(elapsed);
+        ghostBoat.visible = !pose.done;
+        if (!pose.done) {
+          ghostBoat.position.set(pose.x, waveHeight(pose.x, pose.z, t) + .15, pose.z);
+          ghostBoat.rotation.y = -pose.heading;
+        }
+      }
+
       if(timeLeft<=0){
         timeLeft=0;
         endGame(false);
         return;
       }
 
-      if(nextGate<course.length && crossedGate(before,position,nextGate)){
+      if(nextGate<courseGates.length && crossedGate(
+        before, position, courseGates, nextGate,
+        { x: selectedCourse.start.x, z: selectedCourse.start.z }
+      )){
         nextGate++;
         updateGateAppearance();
-        if(nextGate===course.length){
+        if(nextGate===courseGates.length){
           endGame(true);
         }else{
+          sfxGateClear();
           showToast(`Gate ${nextGate} cleared · keep the wind in your sails`);
         }
       }
@@ -1093,87 +1473,6 @@
       wakeGeometry.attributes.position.needsUpdate=true;
     }
 
-    const mapContext=$('map').getContext('2d');
-    function drawMap(){
-      const ctx=mapContext;
-      const size=348;
-      const scale=.63;
-      const mx=x=>size/2+(x-45)*scale;
-      const my=z=>size/2+(z+15)*scale;
-
-      ctx.clearRect(0,0,size,size);
-      ctx.fillStyle='#d7eae5';
-      ctx.beginPath();
-      ctx.roundRect(0,0,size,size,18);
-      ctx.fill();
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.roundRect(0,0,size,size,18);
-      ctx.clip();
-
-      ctx.strokeStyle='#aacdc780';
-      ctx.lineWidth=1;
-      for(let i=0;i<size;i+=43.5){
-        ctx.beginPath();
-        ctx.moveTo(i,0);ctx.lineTo(i,size);
-        ctx.moveTo(0,i);ctx.lineTo(size,i);
-        ctx.stroke();
-      }
-
-      for(const island of islands){
-        ctx.fillStyle='#eee0b8';
-        ctx.beginPath();
-        ctx.ellipse(mx(island.x),my(island.z),island.r*scale,island.r*scale*.9,0,0,Math.PI*2);
-        ctx.fill();
-        ctx.fillStyle='#8db49a';
-        ctx.beginPath();
-        ctx.ellipse(mx(island.x),my(island.z),island.r*scale*.75,island.r*scale*.66,.2,0,Math.PI*2);
-        ctx.fill();
-      }
-
-      ctx.setLineDash([5,7]);
-      ctx.lineWidth=2;
-      ctx.strokeStyle='#568f9760';
-      ctx.beginPath();
-      ctx.moveTo(mx(0),my(45));
-      course.forEach(([x,z])=>ctx.lineTo(mx(x),my(z)));
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      course.forEach(([x,z],i)=>{
-        ctx.beginPath();
-        ctx.arc(mx(x),my(z),i===nextGate?9:6,0,Math.PI*2);
-        ctx.fillStyle=i<nextGate?'#65ab96':i===nextGate?'#ff7448':'#fffdf5';
-        ctx.fill();
-        if(i===nextGate){
-          ctx.strokeStyle='#ff74484d';
-          ctx.lineWidth=5;
-          ctx.stroke();
-        }
-      });
-
-      ctx.save();
-      ctx.translate(mx(position.x),my(position.z));
-      ctx.rotate(heading);
-      ctx.fillStyle='#163d48';
-      ctx.strokeStyle='#fffdf5';
-      ctx.lineWidth=2;
-      ctx.beginPath();
-      ctx.moveTo(0,-11);
-      ctx.lineTo(7,8);
-      ctx.lineTo(0,4);
-      ctx.lineTo(-7,8);
-      ctx.closePath();
-      ctx.fill();ctx.stroke();
-      ctx.restore();
-
-      ctx.fillStyle='#376b72';
-      ctx.font='bold 16px sans-serif';
-      ctx.fillText('N',size-27,25);
-      ctx.restore();
-    }
-
     function updateHUD(){
       $('speed').textContent=(speed*1.94384).toFixed(1);
       $('power').textContent=`${Math.round(power*100)}%`;
@@ -1181,18 +1480,29 @@
       $('efficiency').textContent=`${Math.round(efficiency*100)}%`;
       $('wind-bar').style.width=`${efficiency*100}%`;
       $('checkpoint').textContent=String(nextGate).padStart(2,'0');
+      $('elapsed').textContent=formatTime(elapsed);
       $('timer').textContent=formatTime(timeLeft);
-      $('timer').classList.toggle('urgent',timeLeft<30);
+      $('timer').classList.toggle('urgent',timeLeft<30 && state==='playing');
       $('wind-arrow').style.transform=`rotate(${(windHeading-heading)*180/Math.PI}deg)`;
 
-      if(nextGate<course.length){
-        const [x,z]=course[nextGate];
+      const pbEl = $('pb-delta');
+      // Static PB readout; the ghost boat is the live comparison.
+      if (ghostPbTime != null) {
+        pbEl.textContent = formatTimePrecise(ghostPbTime);
+      } else {
+        const stored = bestFor(progress, selectedCourse.id).bestTime;
+        pbEl.textContent = stored != null ? formatTimePrecise(stored) : '—';
+      }
+      pbEl.classList.remove('ahead', 'behind');
+
+      if(nextGate<courseGates.length){
+        const [x,z]=courseGates[nextGate];
         const distance=Math.round(Math.hypot(x-position.x,z-position.z));
         const bearing=Math.atan2(x-position.x,-(z-position.z))-heading;
         const angle=Math.atan2(Math.sin(bearing),Math.cos(bearing));
         const cue=Math.abs(angle)<.22?'Straight ahead':angle>0?'Bear right ↗':'↖ Bear left';
         $('objective').textContent=`Gate ${nextGate+1} · ${distance} m · ${cue}`;
-      }else{
+      }else if (state === 'won'){
         $('objective').textContent='Course complete · beautifully sailed';
       }
       drawMap();
@@ -1210,7 +1520,6 @@
 
     function animate(){
       requestAnimationFrame(animate);
-      // Pause the race while the tab is hidden; avoid a giant return-frame step.
       const rawDt=clock.getDelta();
       if(document.hidden) return;
       const dt=Math.min(rawDt,.05);
@@ -1249,15 +1558,27 @@
     $('loading').style.display='none';
     updateHUD();
     animate();
+
+    // Opt-in test harness for Playwright / manual QA (?test=1).
+    if (new URLSearchParams(location.search).has('test')) {
+      window.__windward = {
+        get state() { return state; },
+        get progress() { return progress; },
+        getCourseId: () => selectedCourse.id,
+        openLobby,
+        startGame,
+        forceFinish: (won = true) => endGame(won),
+        setElapsed: (t) => { elapsed = t; },
+      };
+    }
   </script>
 
   <script>
-    // Useful feedback if the CDN or WebGL initialization fails.
     window.addEventListener('error', function () {
       const loading = document.getElementById('loading');
       if (loading && loading.style.display !== 'none') {
         loading.textContent =
-          'Unable to launch. Check your internet connection and use a browser with WebGL enabled.';
+          'Unable to launch. Use a browser with WebGL enabled (assets are local — no network needed).';
       }
     });
   </script>

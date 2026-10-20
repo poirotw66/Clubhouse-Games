@@ -6,9 +6,10 @@
   const $ = (id) => document.getElementById(id);
 
   const state = {
-    mode: "learn", // learn | sheet | timer | freeplay
+    mode: "learn", // learn | sheet | drill | timer | freeplay
     progress: null,
     times: null,
+    practice: null,
     lessonId: "basics-pieces",
     quizIndex: 0,
     playback: { tokens: [], index: 0, playing: false, timer: null },
@@ -20,6 +21,16 @@
       scramble: "",
       raf: 0,
       inspectTimer: null,
+      recorded: false,
+    },
+    drill: {
+      stageId: "white-cross",
+      case: null,
+      timed: false,
+      startPerf: 0,
+      elapsedMs: 0,
+      raf: 0,
+      solved: false,
     },
     solvePlan: null,
     solveStep: 0,
@@ -39,6 +50,17 @@
     return state.engine.getFaces();
   }
 
+  function proficiencyBlurb(lesson) {
+    const stageId = CubeProgress.LESSON_STAGE[lesson.id];
+    if (!stageId || !state.practice) return lesson.blurb;
+    const stat = state.practice.byStage[stageId];
+    if (!stat || !stat.attempts) return lesson.blurb;
+    const avg = CubeProgress.stageAverageMs(stat);
+    const avgText = avg != null ? ` · 均 ${CubeProgress.formatMs(avg)}` : "";
+    const bestText = stat.bestMs != null ? ` · 最佳 ${CubeProgress.formatMs(stat.bestMs)}` : "";
+    return `練 ${stat.solves}/${stat.attempts}${bestText}${avgText}`;
+  }
+
   function refreshProgressChrome() {
     const lessons = CubeCurriculum.LESSONS;
     const done = Object.keys(state.progress.completed).length;
@@ -54,7 +76,7 @@
       btn.setAttribute("aria-current", current ? "step" : "false");
       if (complete) btn.classList.add("done");
       if (current) btn.classList.add("current");
-      btn.innerHTML = `<span class="li-title">${lesson.title}</span><span class="li-blurb">${lesson.blurb}</span>`;
+      btn.innerHTML = `<span class="li-title">${lesson.title}</span><span class="li-blurb">${proficiencyBlurb(lesson)}</span>`;
       btn.addEventListener("click", () => selectLesson(lesson.id));
       list.append(btn);
     }
@@ -288,18 +310,23 @@
     }
   }
 
-  function bindMoveGrid(containerId) {
+  function bindMoveGrid(containerId, onMove) {
     const grid = $(containerId);
     if (!grid || grid.dataset.ready) return;
     grid.dataset.ready = "1";
+    const handler = onMove || onUserMove;
     for (const move of RC().AVAILABLE_MOVES) {
       const button = RC().textElement("button", move);
       button.type = "button";
       button.className = "move-btn";
       button.setAttribute("aria-label", `轉面 ${move}`);
-      button.addEventListener("click", () => onUserMove(move));
+      button.addEventListener("click", () => handler(move));
       grid.append(button);
     }
+  }
+
+  function onDrillMove(move) {
+    state.controller.invoke("cube_move", { move }, "UI").catch((err) => toast(err.message));
   }
 
   function setMode(mode) {
@@ -317,6 +344,10 @@
       refreshProgressChrome();
     }
     if (mode === "sheet") renderSheet();
+    if (mode === "drill") {
+      renderDrillChrome();
+      if (!state.drill.case) loadDrillCase(true);
+    }
     if (mode === "timer") renderTimerChrome();
     if (mode === "freeplay") {
       state.progress.freePlayVisits += 1;
@@ -348,8 +379,17 @@
     }
   }
 
+  function flashPersonalBest() {
+    const el = $("timer-display");
+    if (!el) return;
+    el.classList.remove("pb-flash");
+    void el.offsetWidth;
+    el.classList.add("pb-flash");
+  }
+
   function renderTimerChrome() {
     $("timer-display").textContent = CubeProgress.formatMs(state.timer.elapsedMs);
+    if ($("pb")) $("pb").textContent = CubeProgress.formatMs(state.times.bestMs);
     $("ao5").textContent = CubeProgress.formatMs(CubeProgress.averageOf(state.times.runs, 5));
     $("ao12").textContent = CubeProgress.formatMs(CubeProgress.averageOf(state.times.runs, 12));
     const list = $("time-history");
@@ -368,29 +408,67 @@
     state.timer.scramble = state.engine.getState().scramble;
     state.timer.phase = "idle";
     state.timer.elapsedMs = 0;
+    state.timer.recorded = false;
     renderTimerChrome();
-    $("timer-phase").textContent = "觀察（空白鍵開始 15 秒觀察）";
+    $("timer-phase").textContent = "已打亂。按「開始觀察」或空白鍵（15 秒觀察）";
   }
 
-  function stopTimer(record) {
+  /**
+   * Stop the timer. Recording only happens when the cube is truly solved
+   * (WCA-style gate via CubeProgress.canRecordSolve).
+   */
+  function stopTimer(attemptRecord) {
     cancelAnimationFrame(state.timer.raf);
     clearInterval(state.timer.inspectTimer);
-    if (record && state.timer.phase === "running" && state.timer.elapsedMs > 50) {
-      state.times = CubeProgress.recordTime(
-        state.times,
+    const wasRunning = state.timer.phase === "running";
+    if (wasRunning) {
+      state.timer.elapsedMs = Math.max(
         state.timer.elapsedMs,
-        state.timer.scramble,
+        performance.now() - state.timer.startPerf,
       );
     }
     state.timer.phase = "stopped";
+
+    if (!attemptRecord || !wasRunning || state.timer.recorded) {
+      renderTimerChrome();
+      return { recorded: false, solved: state.engine.isSolved() };
+    }
+
+    const solved = state.engine.isSolved();
+    if (!CubeProgress.canRecordSolve(solved, state.timer.elapsedMs)) {
+      renderTimerChrome();
+      return { recorded: false, solved };
+    }
+
+    const prevBest = state.times.bestMs;
+    const isPb = CubeProgress.isPersonalBest(state.times, state.timer.elapsedMs);
+    state.times = CubeProgress.recordTime(
+      state.times,
+      state.timer.elapsedMs,
+      state.timer.scramble,
+      { solved: true },
+    );
+    state.timer.recorded = true;
     renderTimerChrome();
+    if (isPb && (prevBest == null || state.timer.elapsedMs < prevBest)) {
+      flashPersonalBest();
+    }
+    return { recorded: true, solved: true, isPb };
   }
 
   function startInspect() {
+    if (!state.timer.scramble) {
+      toast("請先產生新打亂");
+      return;
+    }
     clearInterval(state.timer.inspectTimer);
+    cancelAnimationFrame(state.timer.raf);
     state.timer.phase = "inspect";
     state.timer.inspectLeft = 15;
-    $("timer-phase").textContent = `觀察中 ${state.timer.inspectLeft}s`;
+    state.timer.elapsedMs = 0;
+    state.timer.recorded = false;
+    $("timer-display").textContent = "0.00";
+    $("timer-phase").textContent = `觀察中 ${state.timer.inspectLeft}s（空白鍵／開表可提早開始）`;
     state.timer.inspectTimer = setInterval(() => {
       state.timer.inspectLeft -= 1;
       if (state.timer.inspectLeft <= 0) {
@@ -398,15 +476,20 @@
         beginTiming();
         return;
       }
-      $("timer-phase").textContent = `觀察中 ${state.timer.inspectLeft}s`;
+      $("timer-phase").textContent = `觀察中 ${state.timer.inspectLeft}s（空白鍵／開表可提早開始）`;
     }, 1000);
   }
 
   function beginTiming() {
+    if (!state.timer.scramble) {
+      toast("請先產生新打亂");
+      return;
+    }
     clearInterval(state.timer.inspectTimer);
     state.timer.phase = "running";
     state.timer.startPerf = performance.now();
-    $("timer-phase").textContent = "計時中（空白鍵停止）";
+    state.timer.recorded = false;
+    $("timer-phase").textContent = "計時中 — 還原後自動停表（或按停表／空白鍵）";
     const tick = () => {
       if (state.timer.phase !== "running") return;
       state.timer.elapsedMs = performance.now() - state.timer.startPerf;
@@ -416,17 +499,184 @@
     tick();
   }
 
+  function finishTimerManual() {
+    if (state.timer.phase !== "running") return;
+    const result = stopTimer(true);
+    if (result.recorded) {
+      $("timer-phase").textContent = result.isPb
+        ? `個人最佳！${CubeProgress.formatMs(state.timer.elapsedMs)}`
+        : `還原成功 ${CubeProgress.formatMs(state.timer.elapsedMs)}`;
+      toast(result.isPb ? "新個人最佳！" : "還原成功，成績已記錄");
+    } else if (!result.solved) {
+      $("timer-phase").textContent = "已停表（尚未還原，不計成績）";
+      toast("方塊尚未還原，成績未記錄");
+    } else {
+      $("timer-phase").textContent = "已停表";
+    }
+  }
+
+  /** Auto-stop + record when the shared cube becomes solved during a timed run. */
+  function onCubeMaybeSolved() {
+    if (state.mode === "timer" && state.timer.phase === "running" && state.engine.isSolved()) {
+      finishTimerManual();
+      return;
+    }
+    if (state.mode === "drill") {
+      onDrillCubeUpdate();
+    }
+  }
+
   function onSpaceTimer(e) {
     if (state.mode !== "timer") return;
     if (e.code !== "Space") return;
     e.preventDefault();
     if (state.timer.phase === "idle" || state.timer.phase === "stopped") startInspect();
     else if (state.timer.phase === "inspect") beginTiming();
-    else if (state.timer.phase === "running") {
-      stopTimer(true);
-      $("timer-phase").textContent = "已停表";
-      if (state.engine.isSolved()) toast("還原成功！成績已記錄");
-      else toast("成績已記錄（方塊尚未還原也可以練習手感）");
+    else if (state.timer.phase === "running") finishTimerManual();
+  }
+
+  /* -------- 隨機練習（drill） -------- */
+  function renderDrillStageChips() {
+    const host = $("drill-stage-chips");
+    if (!host || host.dataset.ready === "1") return;
+    host.replaceChildren();
+    for (const stageId of CubePracticeBank.STAGE_ORDER) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "stage-chip";
+      btn.dataset.stage = stageId;
+      btn.textContent = CubePracticeBank.STAGE_LABELS[stageId];
+      btn.setAttribute("aria-pressed", String(stageId === state.drill.stageId));
+      btn.addEventListener("click", () => {
+        state.drill.stageId = stageId;
+        host.querySelectorAll(".stage-chip").forEach((el) => {
+          el.setAttribute("aria-pressed", String(el.dataset.stage === stageId));
+        });
+        loadDrillCase(true);
+      });
+      host.append(btn);
+    }
+    host.dataset.ready = "1";
+  }
+
+  function renderDrillStats() {
+    const box = $("drill-stats");
+    if (!box) return;
+    const stat = state.practice.byStage[state.drill.stageId] || CubeProgress.emptyStageStat();
+    const avg = CubeProgress.stageAverageMs(stat);
+    box.innerHTML =
+      `<div>本階段嘗試 <strong>${stat.attempts}</strong> · 完成 <strong>${stat.solves}</strong></div>` +
+      `<div>最佳 <strong>${CubeProgress.formatMs(stat.bestMs)}</strong> · 平均 <strong>${CubeProgress.formatMs(avg)}</strong></div>`;
+  }
+
+  function renderDrillChrome() {
+    renderDrillStageChips();
+    const chips = $("drill-stage-chips");
+    chips?.querySelectorAll(".stage-chip").forEach((el) => {
+      el.setAttribute("aria-pressed", String(el.dataset.stage === state.drill.stageId));
+    });
+    const c = state.drill.case;
+    $("drill-case-label").textContent = c
+      ? `${CubePracticeBank.STAGE_LABELS[c.stageId]} · ${c.label}`
+      : "按「下一題」開始";
+    $("drill-hint").textContent = "";
+    $("drill-goal").textContent = "";
+    $("drill-goal").className = "goal";
+    const timed = Boolean($("drill-timed")?.checked);
+    state.drill.timed = timed;
+    const line = $("drill-timer-line");
+    if (line) line.hidden = !timed;
+    $("drill-elapsed").textContent = CubeProgress.formatMs(state.drill.elapsedMs);
+    renderDrillStats();
+  }
+
+  function stopDrillClock() {
+    cancelAnimationFrame(state.drill.raf);
+    state.drill.raf = 0;
+  }
+
+  function startDrillClock() {
+    stopDrillClock();
+    if (!state.drill.timed) return;
+    state.drill.startPerf = performance.now();
+    state.drill.elapsedMs = 0;
+    const line = $("drill-timer-line");
+    if (line) line.hidden = false;
+    const tick = () => {
+      if (state.mode !== "drill" || state.drill.solved || !state.drill.timed) return;
+      state.drill.elapsedMs = performance.now() - state.drill.startPerf;
+      $("drill-elapsed").textContent = CubeProgress.formatMs(state.drill.elapsedMs);
+      state.drill.raf = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  async function loadDrillCase(countAttempt) {
+    stopDrillClock();
+    state.drill.solved = false;
+    state.drill.elapsedMs = 0;
+    state.drill.timed = Boolean($("drill-timed")?.checked);
+    const practiceCase = CubePracticeBank.pickCase(state.drill.stageId);
+    state.drill.case = practiceCase;
+    await state.controller.invoke("cube_set_size", { size: 3 }, "Academy");
+    CubePracticeBank.applySetup(state.engine, practiceCase, RC().parseAlgorithm);
+    await state.engine.publish({ type: "scramble" });
+    applyHighlights(practiceCase.stageId);
+    if (countAttempt) {
+      state.practice = CubeProgress.recordPracticeAttempt(state.practice, practiceCase.stageId);
+      refreshProgressChrome();
+    }
+    renderDrillChrome();
+    if (state.drill.timed) startDrillClock();
+    toast(`練習：${practiceCase.label}`);
+  }
+
+  function checkDrillGoal() {
+    const c = state.drill.case;
+    if (!c) return false;
+    const result = CubePatterns.checkStage(c.stageId, faces());
+    const el = $("drill-goal");
+    if (result.complete) {
+      el.textContent = "目標完成！";
+      el.className = "goal ok";
+      completeDrillIfNeeded();
+      return true;
+    }
+    el.textContent = "尚未達到本階段目標，再試一次。";
+    el.className = "goal bad";
+    return false;
+  }
+
+  function completeDrillIfNeeded() {
+    if (state.drill.solved || !state.drill.case) return;
+    state.drill.solved = true;
+    stopDrillClock();
+    if (state.drill.timed && state.drill.startPerf) {
+      state.drill.elapsedMs = performance.now() - state.drill.startPerf;
+    }
+    const ms = state.drill.timed ? state.drill.elapsedMs : 0;
+    state.practice = CubeProgress.recordPracticeSolve(
+      state.practice,
+      state.drill.case.stageId,
+      ms,
+    );
+    renderDrillStats();
+    refreshProgressChrome();
+    toast(
+      state.drill.timed
+        ? `完成！${CubeProgress.formatMs(ms)}`
+        : "完成本題目標",
+    );
+  }
+
+  function onDrillCubeUpdate() {
+    if (state.mode !== "drill" || !state.drill.case || state.drill.solved) return;
+    applyHighlights(state.drill.case.stageId);
+    const result = CubePatterns.checkStage(state.drill.case.stageId, faces());
+    if (result.complete) {
+      $("drill-goal").textContent = "目標完成！";
+      $("drill-goal").className = "goal ok";
+      completeDrillIfNeeded();
     }
   }
 
@@ -663,15 +913,19 @@
     window.addEventListener("keydown", (e) => {
       if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
       onSpaceTimer(e);
-      if (state.mode !== "learn" && state.mode !== "freeplay") return;
+      if (state.mode !== "learn" && state.mode !== "freeplay" && state.mode !== "drill") return;
       const face = faceKeys[e.code];
       if (!face || e.metaKey || e.ctrlKey || e.altKey) return;
       e.preventDefault();
       const move = e.shiftKey ? `${face}'` : face;
       if (state.mode === "learn") onUserMove(move);
-      else state.controller.invoke("cube_move", { move }, "UI").catch((err) => {
-        $("error").textContent = err.message;
-      });
+      else if (state.mode === "drill") {
+        state.controller.invoke("cube_move", { move }, "UI").catch((err) => toast(err.message));
+      } else {
+        state.controller.invoke("cube_move", { move }, "UI").catch((err) => {
+          $("error").textContent = err.message;
+        });
+      }
     });
   }
 
@@ -679,6 +933,7 @@
     RC().runSelfTests();
     state.progress = CubeProgress.loadProgress();
     state.times = CubeProgress.loadTimes();
+    state.practice = CubeProgress.loadPractice();
     state.lessonId = state.progress.currentLessonId || "basics-pieces";
 
     const api = RC();
@@ -694,9 +949,11 @@
     state.adapter = new api.WebMCPAdapter(state.controller, state.logger);
 
     state.engine.subscribe(() => {
-      if (state.mode !== "learn") return;
-      const lesson = CubeCurriculum.lessonById(state.lessonId);
-      if (lesson?.goal) applyHighlights(lesson.goal);
+      onCubeMaybeSolved();
+      if (state.mode === "learn") {
+        const lesson = CubeCurriculum.lessonById(state.lessonId);
+        if (lesson?.goal) applyHighlights(lesson.goal);
+      }
     });
 
     // Free-play controls still use controller.bindUI when those nodes exist.
@@ -728,6 +985,7 @@
     }
 
     bindMoveGrid("move-grid-learn");
+    bindMoveGrid("move-grid-drill", onDrillMove);
     bindGlobalKeys();
 
     document.querySelectorAll(".mode-tab").forEach((btn) => {
@@ -751,12 +1009,39 @@
     });
 
     $("btn-new-scramble")?.addEventListener("click", () => newTimerScramble());
+    $("btn-timer-inspect")?.addEventListener("click", () => startInspect());
+    $("btn-timer-start")?.addEventListener("click", () => beginTiming());
+    $("btn-timer-stop")?.addEventListener("click", () => finishTimerManual());
     $("btn-auto-plan")?.addEventListener("click", () => runAutoSolve());
     $("btn-auto-step")?.addEventListener("click", () => playAutoSolveStep());
 
+    $("btn-drill-next")?.addEventListener("click", () => loadDrillCase(true));
+    $("btn-drill-check")?.addEventListener("click", () => checkDrillGoal());
+    $("btn-drill-hint")?.addEventListener("click", () => {
+      const c = state.drill.case;
+      $("drill-hint").textContent = c?.hint || CubePracticeBank.STAGE_HINTS[state.drill.stageId] || "";
+    });
+    $("btn-drill-reset")?.addEventListener("click", () => {
+      if (state.drill.case) {
+        CubePracticeBank.applySetup(state.engine, state.drill.case, RC().parseAlgorithm);
+        state.engine.publish({ type: "scramble" });
+        state.drill.solved = false;
+        applyHighlights(state.drill.case.stageId);
+        if (state.drill.timed) startDrillClock();
+        renderDrillChrome();
+      }
+    });
+    $("drill-timed")?.addEventListener("change", () => {
+      state.drill.timed = Boolean($("drill-timed").checked);
+      const line = $("drill-timer-line");
+      if (line) line.hidden = !state.drill.timed;
+      if (state.drill.timed && state.drill.case && !state.drill.solved) startDrillClock();
+      else stopDrillClock();
+    });
+
     await state.adapter.register();
 
-    state.logger.add("System", "魔術方塊學院已就緒。學習／計時／自由練習共用 CubeEngine。");
+    state.logger.add("System", "魔術方塊學院已就緒。學習／隨機練習／計時／自由練習共用 CubeEngine。");
     setMode("learn");
   }
 

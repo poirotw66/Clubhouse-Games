@@ -75,22 +75,22 @@ export const MAX_BODY_FATIGUE = 0.7; // caps regen penalty
 const JAB_HIGH: AttackProfile = {
   kind: 'jab',
   height: 'high',
-  windup: 0.1,
+  windup: 0.12,
   active: 0.08,
-  recovery: 0.1,
+  recovery: 0.14,
   staminaCost: 10,
   baseDamage: 5,
   score: 10,
-  stunBuild: 14,
+  stunBuild: 12,
   bodyFatigue: 0,
 };
 
 const JAB_LOW: AttackProfile = {
   kind: 'jab',
   height: 'low',
-  windup: 0.11,
+  windup: 0.13,
   active: 0.08,
-  recovery: 0.11,
+  recovery: 0.15,
   staminaCost: 10,
   baseDamage: 5.5,
   score: 10,
@@ -138,14 +138,35 @@ const SIGNATURE: AttackProfile = {
   unblockable: true,
 };
 
-export function attackProfile(kind: AttackKind, height: Height, isSuper = false): AttackProfile {
+/** Optional overrides for league / character signature tells. */
+export interface AttackOverrides {
+  windup?: number;
+  height?: Height;
+  unblockable?: boolean;
+  baseDamage?: number;
+  bodyFatigue?: number;
+  stunBuild?: number;
+}
+
+export function attackProfile(
+  kind: AttackKind,
+  height: Height,
+  isSuper = false,
+  overrides?: AttackOverrides,
+): AttackProfile {
   if (kind === 'signature' || isSuper) {
-    return {
+    const profile: AttackProfile = {
       ...SIGNATURE,
-      height,
-      windup: isSuper && kind !== 'signature' ? 0.26 : SIGNATURE.windup,
-      baseDamage: isSuper ? SIGNATURE.baseDamage * 1.15 : SIGNATURE.baseDamage,
+      height: overrides?.height ?? height,
+      windup: overrides?.windup
+        ?? (isSuper && kind !== 'signature' ? 0.26 : SIGNATURE.windup),
+      baseDamage: overrides?.baseDamage
+        ?? (isSuper ? SIGNATURE.baseDamage * 1.15 : SIGNATURE.baseDamage),
+      unblockable: overrides?.unblockable ?? SIGNATURE.unblockable,
     };
+    if (overrides?.bodyFatigue != null) profile.bodyFatigue = overrides.bodyFatigue;
+    if (overrides?.stunBuild != null) profile.stunBuild = overrides.stunBuild;
+    return profile;
   }
   if (kind === 'jab') return height === 'high' ? { ...JAB_HIGH } : { ...JAB_LOW };
   return height === 'high' ? { ...HOOK_HIGH } : { ...HOOK_LOW };
@@ -155,8 +176,9 @@ export function startAttack(
   kind: AttackKind,
   height: Height,
   isSuper = false,
+  overrides?: AttackOverrides,
 ): ActiveAttack {
-  const profile = attackProfile(kind, height, isSuper);
+  const profile = attackProfile(kind, height, isSuper, overrides);
   return {
     kind: profile.kind,
     height: profile.height,

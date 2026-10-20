@@ -29,6 +29,7 @@ import {
   tickBodyFatigue,
   tickStun,
   type ActiveAttack,
+  type AttackOverrides,
   type HabitMemory,
   type Height,
 } from './combat';
@@ -215,6 +216,8 @@ export default function ToyBoxing() {
   const [league, setLeague] = useState<LeagueProgress>(() => loadLeague());
   const [leagueIndex, setLeagueIndex] = useState(() => continueLeagueIndex(loadLeague().clearedCount));
   const [menuTab, setMenuTab] = useState<'league' | 'free'>('league');
+  /** Brief on-ring coaching line at fight start (opponent style / height tip). */
+  const [fightTip, setFightTip] = useState<string | null>(null);
 
   const settingsRef = useRef({
     difficulty,
@@ -481,21 +484,25 @@ export default function ToyBoxing() {
 
     let cpu: Boxer;
     let cpuVisual: CharacterId;
+    let tip: string;
     if (mode === 'league') {
       const opp = OPPONENTS[idx] ?? OPPONENTS[0];
       cpu = createCpuFromOpponent(opp.id);
       cpuVisual = opp.visual;
       setCpuCharId(cpuVisual);
+      tip = `${opp.name}：${opp.tagline}　「${opp.catchphrases.intro}」`;
     } else {
       const prefer = cpuCharId === playerCharId ? 'bear' : cpuCharId;
       const id = prefer === playerCharId ? 'bear' : prefer;
       cpu = createBoxer('cpu', id);
       cpuVisual = id;
       setCpuCharId(id);
+      tip = '記住：擋對大幅減傷，擋錯幾乎白擋。讀拳套後拉的上／下角標！';
     }
 
+    const player = createBoxer('player', playerCharId);
     engineRef.current = {
-      player: createBoxer('player', playerCharId),
+      player,
       cpu,
       timeLeft: ROUND_TIME,
       round: 1,
@@ -509,7 +516,29 @@ export default function ToyBoxing() {
       floatTexts: [],
       koReason: null,
     };
+    // Sync HUD immediately — otherwise countdown still shows the previous bout's names/bars.
+    setUiState({
+      playerHealth: player.health,
+      playerMaxHealth: player.maxHealth,
+      playerStamina: player.stamina,
+      playerSuper: player.superMeter,
+      playerStun: player.stunMeter,
+      playerScore: 0,
+      playerName: player.name,
+      playerHeight: 'high',
+      cpuHealth: cpu.health,
+      cpuMaxHealth: cpu.maxHealth,
+      cpuStamina: cpu.stamina,
+      cpuSuper: cpu.superMeter,
+      cpuStun: cpu.stunMeter,
+      cpuScore: 0,
+      cpuName: cpu.name,
+      cpuHeight: 'high',
+      timeLeft: ROUND_TIME,
+      round: 1,
+    });
     setWinner(null);
+    setFightTip(tip);
     startCountdown();
   };
 
@@ -538,6 +567,20 @@ export default function ToyBoxing() {
     engineRef.current.hitStop = 0;
     engineRef.current.isKO = false;
     engineRef.current.koReason = null;
+    const { player, cpu, round, timeLeft } = engineRef.current;
+    setUiState((prev) => ({
+      ...prev,
+      playerHealth: player.health,
+      playerStamina: player.stamina,
+      playerStun: player.stunMeter,
+      playerName: player.name,
+      cpuHealth: cpu.health,
+      cpuStamina: cpu.stamina,
+      cpuStun: cpu.stunMeter,
+      cpuName: cpu.name,
+      timeLeft,
+      round,
+    }));
     startCountdown();
   };
 
@@ -556,25 +599,42 @@ export default function ToyBoxing() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  useEffect(() => {
+    if (!fightTip || gameState !== 'playing' || countdown !== null) return;
+    const timer = setTimeout(() => setFightTip(null), 4200);
+    return () => clearTimeout(timer);
+  }, [fightTip, gameState, countdown]);
+
   const beginAttack = (
     boxer: Boxer,
     kind: 'jab' | 'hook' | 'signature',
     height: Height,
     isSuper = false,
+    overrides?: AttackOverrides,
+    announce?: string,
   ): Boxer => {
-    const attack = startAttack(kind, height, isSuper);
+    const attack = startAttack(kind, height, isSuper, overrides);
     const action =
       kind === 'jab' ? Action.JAB : kind === 'hook' ? Action.HOOK : Action.SIGNATURE;
     if (boxer.id === 'player') {
       engineRef.current.habit = recordPlayerHeight(engineRef.current.habit, height);
     }
     playWhoosh();
+    if (announce) {
+      engineRef.current.floatTexts.push({
+        x: boxer.x + BOXER_WIDTH / 2,
+        y: boxer.y - 8,
+        text: announce,
+        life: 1.15,
+        color: '#e879f9',
+      });
+    }
     return {
       ...boxer,
       action,
       actionTimer: attack.profile.windup + attack.profile.active + attack.profile.recovery,
       attack,
-      height,
+      height: attack.height,
       stamina: Math.max(0, boxer.stamina - attack.profile.staminaCost),
       superMeter: isSuper || kind === 'signature' ? 0 : boxer.superMeter,
       whooshPlayed: true,
@@ -636,23 +696,30 @@ export default function ToyBoxing() {
 
     if (next.action === Action.IDLE) {
       const height: Height = stanceLow ? 'low' : 'high';
+      // Consume discrete action keys so holding does not turbo-fire (feel + anti jab-spam).
       if (keys.has('KeyJ') && next.stamina >= 10) {
+        keys.delete('KeyJ');
         next = beginAttack(next, 'jab', height);
       } else if (keys.has('KeyK') && next.stamina >= 25) {
+        keys.delete('KeyK');
         next = beginAttack(next, 'hook', height);
       } else if (keys.has('KeyL') && next.superMeter >= 100) {
+        keys.delete('KeyL');
         playGoal();
-        next = beginAttack(next, 'signature', height, true);
+        const sig = getCharacter(next.characterId);
+        next = beginAttack(next, 'signature', height, true, undefined, sig.signatureName);
       } else if (keys.has('KeyS')) {
         next.action = Action.BLOCK;
         next.guardHeight = height;
         next.height = height;
       } else if (keys.has('KeyW') && next.stamina >= 15) {
+        keys.delete('KeyW');
         next.action = Action.DODGE;
         next.actionTimer = 0.3;
         next.stamina -= 15;
         playDodge();
       } else if (keys.has('KeyI') && next.stamina >= 10) {
+        keys.delete('KeyI');
         next.action = Action.PARRY;
         next.actionTimer = 0.2;
         next.stamina -= 10;
@@ -775,8 +842,29 @@ export default function ToyBoxing() {
         if (intent.action === 'JAB' || intent.action === 'HOOK' || intent.action === 'SIGNATURE') {
           const kind =
             intent.action === 'JAB' ? 'jab' : intent.action === 'HOOK' ? 'hook' : 'signature';
-          next = beginAttack(next, kind, intent.height, Boolean(intent.clearSuper));
-          if (intent.feint) next.feintLeft = 0.08 + Math.random() * 0.1;
+          let overrides: AttackOverrides | undefined;
+          let announce: string | undefined;
+          if (kind === 'signature' && opponentId) {
+            const sig = getOpponent(opponentId).signature;
+            overrides = {
+              windup: sig.windup,
+              height: sig.height,
+              unblockable: sig.unblockable,
+              bodyFatigue: sig.height === 'low' ? 0.28 : 0.08,
+              stunBuild: sig.height === 'high' ? 40 : 8,
+            };
+            announce = sig.name;
+          }
+          next = beginAttack(
+            next,
+            kind,
+            overrides?.height ?? intent.height,
+            Boolean(intent.clearSuper) || kind === 'signature',
+            overrides,
+            announce,
+          );
+          // Longer cancel window so feints are readable, not a blink.
+          if (intent.feint) next.feintLeft = 0.16 + Math.random() * 0.14;
         } else if (intent.action === 'BLOCK') {
           next.action = Action.BLOCK;
           next.actionTimer = 0.4 + Math.random() * 0.25;
@@ -1211,21 +1299,30 @@ export default function ToyBoxing() {
               </div>
               <span className="text-xs font-mono w-8 shrink-0">{Math.ceil(uiState.playerHealth)}</span>
             </div>
-            <div className="flex gap-2 max-w-48">
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="耐力">
-                <motion.div className="h-full bg-amber-400" animate={{ width: `${uiState.playerStamina}%` }} />
+            <div className="flex gap-2 max-w-48" aria-label="耐力、暈眩、必殺">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] leading-none text-amber-200/80 mb-0.5">耐力</p>
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="耐力">
+                  <motion.div className="h-full bg-amber-400" animate={{ width: `${uiState.playerStamina}%` }} />
+                </div>
               </div>
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="暈眩">
-                <motion.div
-                  className="h-full bg-yellow-400"
-                  animate={{ width: `${uiState.playerStun}%` }}
-                />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] leading-none text-yellow-200/80 mb-0.5">暈眩</p>
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="暈眩">
+                  <motion.div
+                    className="h-full bg-yellow-400"
+                    animate={{ width: `${uiState.playerStun}%` }}
+                  />
+                </div>
               </div>
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="必殺">
-                <motion.div
-                  className={`h-full ${uiState.playerSuper >= 100 ? 'bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]' : 'bg-fuchsia-800'}`}
-                  animate={{ width: `${uiState.playerSuper}%` }}
-                />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] leading-none text-fuchsia-200/80 mb-0.5">必殺</p>
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden" title="必殺">
+                  <motion.div
+                    className={`h-full ${uiState.playerSuper >= 100 ? 'bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]' : 'bg-fuchsia-800'}`}
+                    animate={{ width: `${uiState.playerSuper}%` }}
+                  />
+                </div>
               </div>
             </div>
             <p className="text-lg sm:text-xl font-black mt-1 tracking-tighter italic">
@@ -1245,7 +1342,8 @@ export default function ToyBoxing() {
           <div className="bg-neutral-900 px-4 sm:px-6 py-2 rounded-2xl border border-white/10 flex items-center gap-3 shadow-inner">
             <Timer className="w-5 h-5 text-neutral-500" />
             <span className="text-2xl sm:text-3xl font-black font-mono tabular-nums">
-              {Math.floor(uiState.timeLeft / 60)}:{(uiState.timeLeft % 60).toFixed(0).padStart(2, '0')}
+              {Math.floor(uiState.timeLeft / 60)}:
+              {String(Math.min(59, Math.max(0, Math.floor(uiState.timeLeft % 60)))).padStart(2, '0')}
             </span>
           </div>
         </div>
@@ -1264,18 +1362,27 @@ export default function ToyBoxing() {
               </div>
               <span className="text-xs font-mono w-8 shrink-0">{Math.ceil(uiState.cpuHealth)}</span>
             </div>
-            <div className="flex gap-2 flex-row-reverse max-w-48 ml-auto">
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                <motion.div className="h-full bg-amber-400" animate={{ width: `${uiState.cpuStamina}%` }} />
+            <div className="flex gap-2 flex-row-reverse max-w-48 ml-auto" aria-label="耐力、暈眩、必殺">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] leading-none text-amber-200/80 mb-0.5 text-right">耐力</p>
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <motion.div className="h-full bg-amber-400" animate={{ width: `${uiState.cpuStamina}%` }} />
+                </div>
               </div>
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                <motion.div className="h-full bg-yellow-400" animate={{ width: `${uiState.cpuStun}%` }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] leading-none text-yellow-200/80 mb-0.5 text-right">暈眩</p>
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <motion.div className="h-full bg-yellow-400" animate={{ width: `${uiState.cpuStun}%` }} />
+                </div>
               </div>
-              <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                <motion.div
-                  className={`h-full ${uiState.cpuSuper >= 100 ? 'bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]' : 'bg-fuchsia-800'}`}
-                  animate={{ width: `${uiState.cpuSuper}%` }}
-                />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] leading-none text-fuchsia-200/80 mb-0.5 text-right">必殺</p>
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <motion.div
+                    className={`h-full ${uiState.cpuSuper >= 100 ? 'bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]' : 'bg-fuchsia-800'}`}
+                    animate={{ width: `${uiState.cpuSuper}%` }}
+                  />
+                </div>
               </div>
             </div>
             <p className="text-lg sm:text-xl font-black mt-1 tracking-tighter italic">
@@ -1312,6 +1419,20 @@ export default function ToyBoxing() {
                 <span className="text-9xl font-black italic text-amber-500 drop-shadow-[0_0_20px_rgba(245,158,11,0.5)]">
                   {countdown > 0 ? countdown : 'FIGHT!'}
                 </span>
+              </motion.div>
+            )}
+
+            {fightTip && gameState === 'playing' && countdown === null && (
+              <motion.div
+                key="fight-tip"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:max-w-lg pointer-events-none z-10"
+              >
+                <p className="rounded-xl border border-amber-400/40 bg-black/75 px-3 py-2 text-center text-xs sm:text-sm text-amber-100 shadow-lg">
+                  {fightTip}
+                </p>
               </motion.div>
             )}
 
@@ -1570,7 +1691,10 @@ export default function ToyBoxing() {
                   { label: '連勝', value: careerMode.winStreak },
                   { label: '最佳連勝', value: careerMode.bestWinStreak },
                 ]}
-                onPrimary={() => setGameState('menu')}
+                onPrimary={() => {
+                  setFightTip(null);
+                  setGameState('menu');
+                }}
                 primaryLabel="再選一局"
               />
             )}
@@ -1593,24 +1717,31 @@ export default function ToyBoxing() {
                 onRelease={() => keysPressed.current.delete('KeyD')}
               />
               <TouchButton
-                label="↓"
-                ariaLabel="下段"
+                label="下段"
+                ariaLabel="下段（按住）"
                 onPress={() => keysPressed.current.add('ArrowDown')}
                 onRelease={() => keysPressed.current.delete('ArrowDown')}
+                accent
               />
             </div>
             <div className="flex flex-wrap gap-2 justify-center w-full">
-              <TouchButton label="J" ariaLabel="刺拳" onPress={() => keysPressed.current.add('KeyJ')} onRelease={() => keysPressed.current.delete('KeyJ')} />
-              <TouchButton label="K" ariaLabel="勾拳" onPress={() => keysPressed.current.add('KeyK')} onRelease={() => keysPressed.current.delete('KeyK')} />
-              <TouchButton label="S" ariaLabel="格擋" onPress={() => keysPressed.current.add('KeyS')} onRelease={() => keysPressed.current.delete('KeyS')} />
-              <TouchButton label="W" ariaLabel="閃避" onPress={() => keysPressed.current.add('KeyW')} onRelease={() => keysPressed.current.delete('KeyW')} />
-              <TouchButton label="I" ariaLabel="撥招" onPress={() => keysPressed.current.add('KeyI')} onRelease={() => keysPressed.current.delete('KeyI')} />
-              <TouchButton label="L" ariaLabel="招牌拳" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
+              <TouchButton label="刺拳" ariaLabel="刺拳" onPress={() => keysPressed.current.add('KeyJ')} onRelease={() => keysPressed.current.delete('KeyJ')} />
+              <TouchButton label="勾拳" ariaLabel="勾拳" onPress={() => keysPressed.current.add('KeyK')} onRelease={() => keysPressed.current.delete('KeyK')} />
+              <TouchButton label="格擋" ariaLabel="格擋（依段）" onPress={() => keysPressed.current.add('KeyS')} onRelease={() => keysPressed.current.delete('KeyS')} />
+              <TouchButton label="閃避" ariaLabel="閃避" onPress={() => keysPressed.current.add('KeyW')} onRelease={() => keysPressed.current.delete('KeyW')} />
+              <TouchButton label="撥招" ariaLabel="撥招（須對段）" onPress={() => keysPressed.current.add('KeyI')} onRelease={() => keysPressed.current.delete('KeyI')} />
+              <TouchButton label="招牌" ariaLabel="招牌拳" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
             </div>
           </div>
         )}
 
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div
+          className={cn(
+            'mt-8 grid grid-cols-1 md:grid-cols-3 gap-6',
+            // On phones during a bout, touch buttons already teach — hide the tall kbd panels.
+            gameState === 'playing' && 'hidden sm:grid',
+          )}
+        >
           <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
             <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
               <Zap className="w-4 h-4" /> 移動・段位
