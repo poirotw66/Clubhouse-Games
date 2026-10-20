@@ -151,6 +151,55 @@ assert(
   assert(lowAttacks >= samples * 0.45, `ironbelly should favor low (${lowAttacks}/${samples})`);
 }
 
+// Needle must jab in close range (hookBias alone — not dist-forced hooks).
+{
+  let jabs = 0;
+  let hooks = 0;
+  for (let i = 0; i < 80; i++) {
+    const intent = decideCpuIntent({
+      ...baseInput({
+        dist: 85,
+        stamina: 90,
+        opponentAction: 'IDLE',
+        opponentInWindup: false,
+        opponentHeight: null,
+        opponentId: 'needle',
+        difficulty: 'normal',
+        rng: () => (0.05 + i * 0.047) % 1,
+      }),
+    });
+    if (intent.type === 'act' && intent.action === 'JAB') jabs += 1;
+    if (intent.type === 'act' && intent.action === 'HOOK') hooks += 1;
+  }
+  assert(jabs + hooks >= 20, `needle should attack, jab=${jabs} hook=${hooks}`);
+  assert(jabs > hooks, `needle should jab more than hook in close range (${jabs} vs ${hooks})`);
+}
+
+// Pillow (first rung) should throw punches, not only turtle.
+{
+  let attacks = 0;
+  for (let i = 0; i < 100; i++) {
+    const intent = decideCpuIntent({
+      ...baseInput({
+        dist: 95,
+        stamina: 90,
+        opponentAction: 'IDLE',
+        opponentInWindup: false,
+        opponentHeight: null,
+        opponentId: 'pillow',
+        difficulty: 'normal',
+        rng: seed([0.55, 0.1, 0.2, 0.3, 0.4, 0.61, 0.7, 0.15, 0.25, 0.8].map(
+          (v) => (v + i * 0.017) % 1,
+        )),
+      }),
+    });
+    if (intent.type === 'act' && (intent.action === 'JAB' || intent.action === 'HOOK')) {
+      attacks += 1;
+    }
+  }
+  assert(attacks >= 10, `pillow should teach by attacking, got ${attacks}/100`);
+}
+
 // League styles differ from plain difficulty.
 {
   const champ = resolveStyle('normal', 'champ');
