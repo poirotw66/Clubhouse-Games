@@ -25,6 +25,19 @@ import { pick, randInt, seedFromCode, streamRng } from './rng';
 import { farm, payroll, rebalance, starCount } from './roster';
 import { buildDraftClass, describeProspect } from './scouting';
 import { finishOf, playBlock, playPostseason, resetRecords, standings } from './season';
+import { highlightForBlock, highlightForPostseason } from './highlights';
+import {
+  applyStorylineChoice,
+  buildStorylineDecision,
+  findStorylineTrigger,
+  openStoryline,
+  refreshAbilityMemory,
+} from './storylines';
+import {
+  describeLifeProspect,
+  loadLifeGraduates,
+  pickLifeBridgeProspect,
+} from './lifeBridge';
 import { buildOffers, executeTrade } from './trades';
 import type { TradeOffer } from './trades';
 import type {
@@ -160,15 +173,38 @@ export function createGame(input: CreateInput): GameState {
     trainingScenario: null,
     seenBudgetScenarios: [],
     budgetScenario: null,
+    playerAbilityMemory: {},
+    storylines: [],
+    seenStorylineKinds: [],
+    pendingStorylineId: null,
+    resumePhase: null,
+    lifeBridgeOffered: false,
     decision: null,
     report: null,
     over: false,
     summary: null,
   };
 
+  // Baseline memory so year-1 breakouts / slumps have something to compare to.
+  refreshAbilityMemory(state, humanTeam(state));
+
   pushLog(state, '就任', `${state.gmName} 接下 ${club.name} 的總管職務，任期十年。`, 'normal');
   state.decision = buildDecision(state);
   return state;
+}
+
+/**
+ * Interrupts the upcoming phase with a player-storyline card when a trigger
+ * fires. Uses resumePhase so the scheduled phase continues after the choice.
+ */
+function maybeQueueStoryline(state: GameState): void {
+  if (state.over || state.phase === 'storyline' || state.phase === 'over') return;
+  const team = humanTeam(state);
+  const trigger = findStorylineTrigger(state, team);
+  if (!trigger) return;
+  openStoryline(state, trigger);
+  state.resumePhase = state.phase;
+  state.phase = 'storyline';
 }
 
 // ---------------------------------------------------------------------------
@@ -317,12 +353,48 @@ function buildDecision(state: GameState): Decision {
         hint: `球探等級：${scoutLabel(state.finance.scouting)}`,
         detail: describeProspect(prospect),
       }));
+      // Optional Baseball-Life graduate — appended, never replaces seeded pool slots.
+      if (!state.lifeBridgeOffered) {
+        const taken = new Set<string>();
+        state.teams.forEach((t) => t.players.forEach((p) => taken.add(p.id)));
+        state.draftPool.forEach((p) => taken.add(p.id));
+        const graduate = pickLifeBridgeProspect(
+          loadLifeGraduates(),
+          taken,
+          state.finance.scouting,
+        );
+        if (graduate) {
+          const lifeMeta = loadLifeGraduates().find(
+            (g) => `life:${g.seedCode}` === graduate.id,
+          );
+          options.push({
+            id: 'draft-life',
+            label: `${graduate.name}　${graduate.position === 'P' ? '投手' : graduate.position === 'C' ? '捕手' : graduate.position === 'IF' ? '內野手' : '外野手'}（棒球人生）`,
+            hint: '唯讀橋接：來自《棒球人生》存檔的畢業生',
+            detail: describeLifeProspect(graduate, lifeMeta?.verdict ?? ''),
+          });
+          // Stash on the pool so resolve can find him without re-rolling localStorage mid-resolve.
+          if (!state.draftPool.some((p) => p.id === graduate.id)) {
+            state.draftPool.push(graduate);
+          }
+        }
+      }
       return {
         phase: 'draft',
         title: `${state.year} 年 選秀會`,
         prompt: '報告只給區間，不給數字。多花的球探預算就是你的資訊優勢。',
         options,
       };
+    }
+
+    case 'storyline': {
+      const card = buildStorylineDecision(state, team);
+      if (card) return card;
+      // Arc vanished (player traded away) — fall through to the resumed phase.
+      state.phase = state.resumePhase ?? 'board';
+      state.resumePhase = null;
+      state.pendingStorylineId = null;
+      return buildDecision(state);
     }
 
     case 'contracts': {
@@ -450,6 +522,9 @@ export function resolve(state: GameState, optionId: string): GameState {
     case 'budget':
       resolveBudget(next, optionId, report);
       break;
+    case 'storyline':
+      resolveStoryline(next, optionId, report);
+      break;
     default:
       break;
   }
@@ -506,6 +581,8 @@ function resolveSpring(state: GameState, optionId: string, report: Report): void
 function resolveBlock(state: GameState, optionId: string, report: Report): void {
   const team = humanTeam(state);
   let blockBonus = 0;
+  const winsBefore = team.wins;
+  const finishBefore = finishOf(state.teams, state.teamId);
 
   const situation = state.blockSituation ? situationById(state.blockSituation) : undefined;
   if (situation) {
@@ -558,7 +635,29 @@ function resolveBlock(state: GameState, optionId: string, report: Report): void 
     rng: rng(state, 'block'),
   });
 
-  report.lines.push(`本段結束：${team.wins} 勝 ${team.losses} 敗，聯盟第 ${finishOf(state.teams, state.teamId)}。`);
+  const blockWins = team.wins - winsBefore;
+  const blockGames = GAMES / BLOCKS;
+  const finishAfter = finishOf(state.teams, state.teamId);
+
+  // Dedicated stream — must not touch the block / event RNG labels above.
+  const highlight = highlightForBlock({
+    year: state.year,
+    block: state.block,
+    human: team,
+    teams: state.teams,
+    blockWins,
+    blockGames,
+    finishBefore,
+    finishAfter,
+    priorTitles: state.history.filter((h) => h.playoffResult === '總冠軍').length,
+    rng: streamRng(state.seed, `highlight:block:${state.year}:${state.block}`),
+  });
+  if (highlight) {
+    report.highlight = highlight;
+    report.lines.push(`比賽精華：${highlight.title}（${highlight.finalScore}）`);
+  }
+
+  report.lines.push(`本段結束：${team.wins} 勝 ${team.losses} 敗，聯盟第 ${finishAfter}。`);
   report.standings = standings(state.teams).map((t) => ({
     teamId: t.id,
     name: t.name,
@@ -572,6 +671,8 @@ function resolveBlock(state: GameState, optionId: string, report: Report): void 
   // The deadline sits after the third block, with one block still to play.
   if (state.block === BLOCKS - 1) state.phase = 'deadline';
   else if (state.block >= BLOCKS) endSeason(state, report);
+  else state.phase = 'block';
+  maybeQueueStoryline(state);
 }
 
 function resolveDeadline(state: GameState, optionId: string, report: Report): void {
@@ -602,21 +703,43 @@ function resolveDeadline(state: GameState, optionId: string, report: Report): vo
 }
 
 function resolveDraft(state: GameState, optionId: string, report: Report): void {
-  const index = Number(optionId.replace('draft-', ''));
-  const prospect = state.draftPool[index];
   const team = humanTeam(state);
+  let prospect: Player | undefined;
+  if (optionId === 'draft-life') {
+    prospect = state.draftPool.find((p) => p.id.startsWith('life:'));
+    state.lifeBridgeOffered = true;
+  } else {
+    const index = Number(optionId.replace('draft-', ''));
+    prospect = state.draftPool[index];
+    // Choosing a normal pick still marks the bridge as offered so it does not
+    // haunt every subsequent draft of the tenure.
+    if (state.draftPool.some((p) => p.id.startsWith('life:'))) {
+      state.lifeBridgeOffered = true;
+    }
+  }
   if (prospect) {
     prospect.teamId = team.id;
     prospect.level = 'farm';
     prospect.homegrown = true;
     team.players.push(prospect);
+    const bridgeNote = prospect.id.startsWith('life:') ? '（棒球人生畢業生）' : '';
     report.lines.push(
-      `指名 ${prospect.name}（${prospect.age} 歲）。球探報告說潛力 ${prospect.band.low}–${prospect.band.high}——真相要幾年後才知道。`,
+      `指名 ${prospect.name}${bridgeNote}（${prospect.age} 歲）。球探報告說潛力 ${prospect.band.low}–${prospect.band.high}——真相要幾年後才知道。`,
     );
     report.tone = 'good';
   }
   state.draftPool = [];
   state.phase = 'contracts';
+  maybeQueueStoryline(state);
+}
+
+function resolveStoryline(state: GameState, optionId: string, report: Report): void {
+  const team = humanTeam(state);
+  applyStorylineChoice(state, team, optionId, report);
+  const resume = state.resumePhase ?? 'board';
+  state.resumePhase = null;
+  state.phase = resume;
+  // Do not immediately re-queue another storyline; one card per decision beat.
 }
 
 function resolveContracts(state: GameState, optionId: string, report: Report): void {
@@ -719,11 +842,28 @@ function fireEvent(state: GameState, report: Report): void {
 function endSeason(state: GameState, report: Report): void {
   const team = humanTeam(state);
   const finish = finishOf(state.teams, state.teamId);
+  const priorTitles = state.history.filter((h) => h.playoffResult === '總冠軍').length;
   const outcome = playPostseason(state.teams, state.teamId, rng(state, 'postseason'));
   outcome.lines.forEach((line) => report.lines.push(line));
 
   const madePlayoffs = outcome.humanResult !== '未晉級';
   const wonTitle = outcome.humanResult === '總冠軍';
+
+  if (!report.highlight) {
+    const postHighlight = highlightForPostseason({
+      year: state.year,
+      human: team,
+      teams: state.teams,
+      humanResult: outcome.humanResult,
+      championId: outcome.champion,
+      priorTitles,
+      rng: streamRng(state.seed, `highlight:post:${state.year}`),
+    });
+    if (postHighlight) {
+      report.highlight = postHighlight;
+      report.lines.push(`比賽精華：${postHighlight.title}（${postHighlight.finalScore}）`);
+    }
+  }
 
   // Settle first, because the board grades the year's finances too and cannot
   // do that before the books are closed. The bonus is then folded back in as
@@ -790,6 +930,7 @@ function endSeason(state: GameState, report: Report): void {
 
   state.draftPool = buildDraftClass(state, state.finance.scouting);
   state.phase = 'draft';
+  maybeQueueStoryline(state);
 }
 
 function advanceYear(state: GameState, report: Report): void {
@@ -798,6 +939,9 @@ function advanceYear(state: GameState, report: Report): void {
     finishTenure(state, report, false, '十年任期屆滿。');
     return;
   }
+
+  // Snapshot abilities before ageing so next year's storylines see a real delta.
+  refreshAbilityMemory(state, humanTeam(state));
 
   state.year += 1;
   state.block = 0;
@@ -820,6 +964,7 @@ function advanceYear(state: GameState, report: Report): void {
   state.farmBoost = 1;
 
   state.phase = 'board';
+  maybeQueueStoryline(state);
 }
 
 /** Keeps AI clubs viable so the league does not decay into six empty rosters. */

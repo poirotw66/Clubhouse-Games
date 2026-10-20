@@ -89,18 +89,22 @@ export interface GenerateInput {
   potential?: number;
   level?: Player['level'];
   homegrown?: boolean;
+  /** When set, skip the weighted random draw (life-bridge / tests). */
+  position?: Position;
+  /** When set, keep this display name instead of rolling one. */
+  name?: string;
 }
 
 export function generatePlayer(input: GenerateInput): Player {
   const { r, teamId, age, ability } = input;
-  const position = randomPosition(r);
+  const position = input.position ?? randomPosition(r);
   const attrs = attrsForTarget(r, position, ability);
   const headroom = age <= 21 ? randInt(r, 8, 34) : age <= 25 ? randInt(r, 3, 18) : randInt(r, 0, 6);
   const potential = clamp(input.potential ?? ability + headroom, 20, 99);
 
   return {
     id: nextId('p'),
-    name: randomName(r),
+    name: input.name ?? randomName(r),
     position,
     age,
     attrs,

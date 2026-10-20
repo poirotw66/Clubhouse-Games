@@ -5,6 +5,7 @@ import { formatMoney } from '../game/config';
 import { humanTeam } from '../game/engine';
 import type { GameState, Report } from '../game/types';
 import { Dashboard } from './Dashboard';
+import { HighlightReel } from './HighlightReel';
 import { RosterPanel } from './RosterPanel';
 
 const TONE_RING: Record<Report['tone'], string> = {
@@ -158,6 +159,8 @@ export function PlayScreen({
                   </p>
                 ))}
               </div>
+
+              {report.highlight && <HighlightReel highlight={report.highlight} />}
 
               {report.standings && (
                 <ol className="mt-3 space-y-1 rounded-lg bg-slate-900/60 p-3">

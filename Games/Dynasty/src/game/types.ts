@@ -100,6 +100,7 @@ export type Phase =
   | 'draft'
   | 'contracts'
   | 'budget'
+  | 'storyline'
   | 'over';
 
 export interface Option {
@@ -128,6 +129,49 @@ export interface LogEntry {
   tone: 'normal' | 'good' | 'bad' | 'great';
 }
 
+/** Key-game categories that earn a 比賽精華 replay. */
+export type HighlightKind = 'playoff' | 'rivalry' | 'milestone';
+
+export interface HighlightBeat {
+  /** Inning / moment label, e.g. 「七局下」. */
+  moment: string;
+  text: string;
+  /** Optional die face (1–6) for the skippable dice animation. */
+  die?: number;
+  tone?: LogEntry['tone'];
+}
+
+/** Deterministic text play-by-play for a decisive game, attached to a Report. */
+export interface GameHighlight {
+  kind: HighlightKind;
+  title: string;
+  subtitle: string;
+  homeName: string;
+  awayName: string;
+  finalScore: string;
+  beats: HighlightBeat[];
+}
+
+export type StorylineKind =
+  | 'rookie-breakout'
+  | 'slump-comeback'
+  | 'veteran-last'
+  | 'contract-dispute';
+
+/** One living player arc; choices have mechanical consequences. */
+export interface ActiveStoryline {
+  id: string;
+  kind: StorylineKind;
+  playerId: string;
+  playerName: string;
+  /** 0 = opening card; later stages are follow-ups. */
+  stage: number;
+  yearStarted: number;
+  abilityAtStart: number;
+  /** True after the arc has no further cards. */
+  closed: boolean;
+}
+
 export interface Report {
   label: string;
   headline: string;
@@ -135,6 +179,8 @@ export interface Report {
   ledger: SeasonLedger | null;
   standings: { teamId: string; name: string; wins: number; losses: number }[] | null;
   tone: LogEntry['tone'];
+  /** Skippable play-by-play reel for playoffs / rivalry / milestones. */
+  highlight?: GameHighlight | null;
 }
 
 export interface Summary {
@@ -194,6 +240,22 @@ export interface GameState {
   seenBudgetScenarios: string[];
   /** Which scenario the current budget decision was built from. */
   budgetScenario: string | null;
+
+  /**
+   * Ability remembered at the previous offseason, keyed by player id. Used to
+   * detect breakouts and slumps without inventing per-game box scores.
+   */
+  playerAbilityMemory: Record<string, number>;
+  /** In-progress player story arcs (rookie breakout, slump, veteran, dispute). */
+  storylines: ActiveStoryline[];
+  /** Storyline kinds already opened this tenure — each kind fires at most once. */
+  seenStorylineKinds: StorylineKind[];
+  /** Active storyline waiting for a choice card, or null. */
+  pendingStorylineId: string | null;
+  /** Phase to resume after the storyline card is resolved. */
+  resumePhase: Phase | null;
+  /** Baseball-Life graduate already offered as a draft/FA option this tenure. */
+  lifeBridgeOffered: boolean;
 
   decision: Decision | null;
   report: Report | null;

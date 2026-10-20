@@ -60,6 +60,18 @@ export function loadGame(): GameState | null {
     if (parsed.challengeId === undefined) {
       parsed.challengeId = null;
     }
+    // Highlights / storylines / life-bridge arrived with the deepen pack.
+    if (!parsed.playerAbilityMemory || typeof parsed.playerAbilityMemory !== 'object') {
+      parsed.playerAbilityMemory = {};
+    }
+    if (!Array.isArray(parsed.storylines)) parsed.storylines = [];
+    if (!Array.isArray(parsed.seenStorylineKinds)) parsed.seenStorylineKinds = [];
+    if (typeof parsed.pendingStorylineId !== 'string') parsed.pendingStorylineId = null;
+    if (typeof parsed.resumePhase !== 'string') parsed.resumePhase = null;
+    if (typeof parsed.lifeBridgeOffered !== 'boolean') parsed.lifeBridgeOffered = false;
+    if (parsed.report && parsed.report.highlight === undefined) {
+      parsed.report.highlight = null;
+    }
     return parsed;
   } catch {
     return null;
