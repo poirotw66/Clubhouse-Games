@@ -10,6 +10,7 @@
     progress: null,
     times: null,
     practice: null,
+    daily: null,
     lessonId: "basics-pieces",
     quizIndex: 0,
     playback: { tokens: [], index: 0, playing: false, timer: null },
@@ -22,6 +23,8 @@
       raf: 0,
       inspectTimer: null,
       recorded: false,
+      isDaily: false,
+      dateKey: "",
     },
     drill: {
       stageId: "white-cross",
@@ -40,10 +43,109 @@
     controller: null,
     adapter: null,
     logger: null,
+    celebrateTimer: null,
   };
 
   function toast(msg) {
     RC().showToast(msg);
+  }
+
+  function sfx() {
+    return globalThis.CubeSfx || null;
+  }
+
+  function prefersReducedMotion() {
+    try {
+      return Boolean(matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch {
+      return false;
+    }
+  }
+
+  function refreshMuteChrome() {
+    const btn = $("btn-mute");
+    if (!btn) return;
+    const muted = Boolean(sfx()?.isMuted?.());
+    btn.setAttribute("aria-pressed", muted ? "true" : "false");
+    btn.textContent = muted ? "🔇 靜音" : "🔊 音效";
+    btn.title = muted ? "開啟音效" : "靜音";
+  }
+
+  function hideCelebrate() {
+    const el = $("celebrate");
+    if (!el) return;
+    el.hidden = true;
+    el.classList.remove("visible", "big");
+    if (state.celebrateTimer) {
+      clearTimeout(state.celebrateTimer);
+      state.celebrateTimer = null;
+    }
+  }
+
+  function spawnConfetti(burst) {
+    if (!burst || prefersReducedMotion()) return;
+    burst.replaceChildren();
+    const colors = ["#7dd3c7", "#f0b429", "#6ee7b7", "#fda4af", "#93c5fd", "#fde68a"];
+    for (let i = 0; i < 18; i++) {
+      const span = document.createElement("span");
+      const angle = (Math.PI * 2 * i) / 18 + (Math.random() - 0.5) * 0.4;
+      const dist = 80 + Math.random() * 140;
+      span.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+      span.style.setProperty("--dy", `${Math.sin(angle) * dist - 40}px`);
+      span.style.background = colors[i % colors.length];
+      span.style.animationDelay = `${(i % 6) * 0.03}s`;
+      burst.append(span);
+    }
+  }
+
+  /**
+   * Celebrate a successful solve. `tier`: "solve" | "pb" | "record"
+   * (record = ao5/ao12 break or stacked PB+avg).
+   */
+  function celebrateSolve({ title, subtitle, tier = "solve" }) {
+    const el = $("celebrate");
+    if (!el) {
+      toast(title);
+      return;
+    }
+    $("celebrate-title").textContent = title;
+    $("celebrate-sub").textContent = subtitle || "";
+    el.classList.toggle("big", tier === "pb" || tier === "record");
+    spawnConfetti(el.querySelector(".celebrate-burst"));
+    el.hidden = false;
+    void el.offsetWidth;
+    el.classList.add("visible");
+    if (state.celebrateTimer) clearTimeout(state.celebrateTimer);
+    const ms = prefersReducedMotion() ? 1600 : tier === "record" ? 3200 : 2400;
+    state.celebrateTimer = setTimeout(() => hideCelebrate(), ms);
+  }
+
+  function flashRecordBreak(kind) {
+    const el = $("timer-display");
+    if (!el) return;
+    el.classList.remove("pb-flash", "record-flash");
+    void el.offsetWidth;
+    el.classList.add(kind === "pb" ? "pb-flash" : "record-flash");
+  }
+
+  function renderDailyChrome() {
+    if (!state.daily) return;
+    const dateKey = CubeProgress.localDateKey();
+    const entry = state.daily.byDate[dateKey];
+    if ($("daily-date-line")) {
+      $("daily-date-line").textContent = `今日 ${dateKey} · 以日期為種子，每人同一個打亂。`;
+    }
+    if ($("daily-best")) {
+      $("daily-best").textContent = CubeProgress.formatMs(entry?.bestMs ?? null);
+    }
+    if ($("daily-streak")) {
+      $("daily-streak").textContent = String(state.daily.streak || 0);
+    }
+    if ($("share-text")) {
+      $("share-text").value = CubeProgress.formatShareText(state.daily, dateKey, {
+        scramble: state.timer.isDaily ? state.timer.scramble : entry?.scramble,
+      });
+    }
   }
 
   function faces() {
@@ -409,8 +511,37 @@
     state.timer.phase = "idle";
     state.timer.elapsedMs = 0;
     state.timer.recorded = false;
+    state.timer.isDaily = false;
+    state.timer.dateKey = "";
     renderTimerChrome();
+    renderDailyChrome();
     $("timer-phase").textContent = "已打亂。按「開始觀察」或空白鍵（15 秒觀察）";
+  }
+
+  async function loadDailyScramble() {
+    stopTimer(false);
+    const dateKey = CubeProgress.localDateKey();
+    const seq = RC().createDailyScramble(dateKey, 20);
+    const scrambleText = Array.isArray(seq) ? seq.join(" ") : String(seq);
+    await state.controller.invoke("cube_set_size", { size: 3 }, "Academy");
+    state.engine.initializeSolved();
+    for (const move of seq) state.engine.applyPermutation(move);
+    state.engine.history = [];
+    state.engine.scramble = scrambleText;
+    await state.engine.publish({ type: "scramble" });
+
+    const ensured = CubeProgress.ensureDailyEntry(state.daily, dateKey, scrambleText);
+    state.daily = ensured.daily;
+    state.timer.scramble = scrambleText;
+    state.timer.phase = "idle";
+    state.timer.elapsedMs = 0;
+    state.timer.recorded = false;
+    state.timer.isDaily = true;
+    state.timer.dateKey = dateKey;
+    renderTimerChrome();
+    renderDailyChrome();
+    $("timer-phase").textContent = `每日打亂 ${dateKey}。按「開始觀察」或空白鍵`;
+    toast(`已載入今日打亂（${dateKey}）`);
   }
 
   /**
@@ -430,30 +561,61 @@
     state.timer.phase = "stopped";
 
     if (!attemptRecord || !wasRunning || state.timer.recorded) {
+      if (wasRunning && attemptRecord) sfx()?.playTimerStop?.();
       renderTimerChrome();
       return { recorded: false, solved: state.engine.isSolved() };
     }
 
     const solved = state.engine.isSolved();
     if (!CubeProgress.canRecordSolve(solved, state.timer.elapsedMs)) {
+      sfx()?.playTimerStop?.();
       renderTimerChrome();
       return { recorded: false, solved };
     }
 
-    const prevBest = state.times.bestMs;
-    const isPb = CubeProgress.isPersonalBest(state.times, state.timer.elapsedMs);
+    const prevTimes = {
+      runs: [...state.times.runs],
+      bestMs: state.times.bestMs,
+      updatedAt: state.times.updatedAt,
+    };
     state.times = CubeProgress.recordTime(
       state.times,
       state.timer.elapsedMs,
       state.timer.scramble,
       { solved: true },
     );
+    const breaks = CubeProgress.detectRecordBreaks(
+      prevTimes,
+      state.times,
+      state.timer.elapsedMs,
+    );
+
+    let dailyBest = false;
+    if (state.timer.isDaily && state.timer.dateKey) {
+      const before = state.daily.byDate[state.timer.dateKey]?.bestMs ?? null;
+      state.daily = CubeProgress.recordDailySolve(
+        state.daily,
+        state.timer.dateKey,
+        state.timer.elapsedMs,
+        state.timer.scramble,
+      );
+      const after = state.daily.byDate[state.timer.dateKey]?.bestMs ?? null;
+      dailyBest = before == null || (after != null && after < before);
+    }
+
     state.timer.recorded = true;
     renderTimerChrome();
-    if (isPb && (prevBest == null || state.timer.elapsedMs < prevBest)) {
-      flashPersonalBest();
-    }
-    return { recorded: true, solved: true, isPb };
+    renderDailyChrome();
+    return {
+      recorded: true,
+      solved: true,
+      isPb: breaks.isPb,
+      brokeAo5: breaks.brokeAo5,
+      brokeAo12: breaks.brokeAo12,
+      dailyBest,
+      ao5: breaks.ao5,
+      ao12: breaks.ao12,
+    };
   }
 
   function startInspect() {
@@ -469,6 +631,7 @@
     state.timer.recorded = false;
     $("timer-display").textContent = "0.00";
     $("timer-phase").textContent = `觀察中 ${state.timer.inspectLeft}s（空白鍵／開表可提早開始）`;
+    sfx()?.playInspectTick?.(15);
     state.timer.inspectTimer = setInterval(() => {
       state.timer.inspectLeft -= 1;
       if (state.timer.inspectLeft <= 0) {
@@ -476,6 +639,7 @@
         beginTiming();
         return;
       }
+      sfx()?.playInspectTick?.(state.timer.inspectLeft);
       $("timer-phase").textContent = `觀察中 ${state.timer.inspectLeft}s（空白鍵／開表可提早開始）`;
     }, 1000);
   }
@@ -489,6 +653,7 @@
     state.timer.phase = "running";
     state.timer.startPerf = performance.now();
     state.timer.recorded = false;
+    sfx()?.playTimerStart?.();
     $("timer-phase").textContent = "計時中 — 還原後自動停表（或按停表／空白鍵）";
     const tick = () => {
       if (state.timer.phase !== "running") return;
@@ -503,10 +668,32 @@
     if (state.timer.phase !== "running") return;
     const result = stopTimer(true);
     if (result.recorded) {
-      $("timer-phase").textContent = result.isPb
-        ? `個人最佳！${CubeProgress.formatMs(state.timer.elapsedMs)}`
-        : `還原成功 ${CubeProgress.formatMs(state.timer.elapsedMs)}`;
-      toast(result.isPb ? "新個人最佳！" : "還原成功，成績已記錄");
+      const timeText = CubeProgress.formatMs(state.timer.elapsedMs);
+      const bits = [];
+      if (result.isPb) bits.push("PB");
+      if (result.brokeAo5) bits.push("ao5");
+      if (result.brokeAo12) bits.push("ao12");
+      if (result.dailyBest) bits.push("每日最佳");
+      const isRecord = bits.length > 0;
+      const tier =
+        result.brokeAo5 || result.brokeAo12 ? "record" : result.isPb ? "pb" : "solve";
+      if (result.isPb) flashPersonalBest();
+      if (result.brokeAo5 || result.brokeAo12) flashRecordBreak("avg");
+      sfx()?.playSolve?.(isRecord);
+      const headline = isRecord
+        ? `破紀錄！${bits.join(" · ")}`
+        : `還原成功 ${timeText}`;
+      $("timer-phase").textContent = isRecord
+        ? `${headline} · ${timeText}`
+        : `還原成功 ${timeText}`;
+      celebrateSolve({
+        title: headline,
+        subtitle: isRecord
+          ? `成績 ${timeText}${result.ao5 != null ? ` · ao5 ${CubeProgress.formatMs(result.ao5)}` : ""}${result.ao12 != null ? ` · ao12 ${CubeProgress.formatMs(result.ao12)}` : ""}`
+          : "成績已記錄",
+        tier,
+      });
+      toast(isRecord ? headline : "還原成功，成績已記錄");
     } else if (!result.solved) {
       $("timer-phase").textContent = "已停表（尚未還原，不計成績）";
       toast("方塊尚未還原，成績未記錄");
@@ -613,15 +800,19 @@
 
   async function loadDrillCase(countAttempt) {
     stopDrillClock();
+    hideCelebrate();
     state.drill.solved = false;
     state.drill.elapsedMs = 0;
     state.drill.timed = Boolean($("drill-timed")?.checked);
+    // Clear case before set_size/publish so a momentary solved cube
+    // cannot trip onDrillCubeUpdate → false "目標完成".
+    state.drill.case = null;
     const practiceCase = CubePracticeBank.pickCase(state.drill.stageId);
-    state.drill.case = practiceCase;
     await state.controller.invoke("cube_set_size", { size: 3 }, "Academy");
     CubePracticeBank.applySetup(state.engine, practiceCase, RC().parseAlgorithm);
+    state.drill.case = practiceCase;
     await state.engine.publish({ type: "scramble" });
-    applyHighlights(practiceCase.stageId);
+    applyHighlights(drillHighlightStage(practiceCase.stageId));
     if (countAttempt) {
       state.practice = CubeProgress.recordPracticeAttempt(state.practice, practiceCase.stageId);
       refreshProgressChrome();
@@ -631,10 +822,18 @@
     toast(`練習：${practiceCase.label}`);
   }
 
+  function drillHighlightStage(stageId) {
+    const goalId = CubePracticeBank.STAGE_GOAL?.[stageId];
+    if (goalId === "solved") return "permute-edges";
+    return goalId || stageId;
+  }
+
   function checkDrillGoal() {
     const c = state.drill.case;
     if (!c) return false;
-    const result = CubePatterns.checkStage(c.stageId, faces());
+    const result = CubePracticeBank.checkDrillGoal
+      ? CubePracticeBank.checkDrillGoal(c.stageId, faces())
+      : CubePatterns.checkStage(c.stageId, faces());
     const el = $("drill-goal");
     if (result.complete) {
       el.textContent = "目標完成！";
@@ -662,17 +861,24 @@
     );
     renderDrillStats();
     refreshProgressChrome();
-    toast(
-      state.drill.timed
-        ? `完成！${CubeProgress.formatMs(ms)}`
-        : "完成本題目標",
-    );
+    sfx()?.playSolve?.(false);
+    const title = state.drill.timed
+      ? `完成！${CubeProgress.formatMs(ms)}`
+      : "完成本題目標";
+    celebrateSolve({
+      title,
+      subtitle: CubePracticeBank.STAGE_LABELS[state.drill.case.stageId] || "",
+      tier: "solve",
+    });
+    toast(title);
   }
 
   function onDrillCubeUpdate() {
     if (state.mode !== "drill" || !state.drill.case || state.drill.solved) return;
-    applyHighlights(state.drill.case.stageId);
-    const result = CubePatterns.checkStage(state.drill.case.stageId, faces());
+    applyHighlights(drillHighlightStage(state.drill.case.stageId));
+    const result = CubePracticeBank.checkDrillGoal
+      ? CubePracticeBank.checkDrillGoal(state.drill.case.stageId, faces())
+      : CubePatterns.checkStage(state.drill.case.stageId, faces());
     if (result.complete) {
       $("drill-goal").textContent = "目標完成！";
       $("drill-goal").className = "goal ok";
@@ -770,6 +976,59 @@
           setupPractice: { type: "boolean", description: "If true, also load that lesson's cube setup." },
         }, ["lessonId"]),
       },
+      {
+        name: "academy_get_daily",
+        readOnly: true,
+        summary: "Read today's daily scramble, best time, and streak.",
+        description:
+          "Return local-date daily scramble metadata: dateKey, scramble, today's bestMs, streak, shareText. Read-only.",
+        inputSchema: objectSchema(),
+      },
+      {
+        name: "academy_load_daily",
+        readOnly: false,
+        summary: "Load today's date-seeded scramble onto the shared cube.",
+        description:
+          "Apply the deterministic daily scramble for the learner's local date, switch to timer mode, and reset the WCA timer idle state.",
+        inputSchema: objectSchema(),
+      },
+      {
+        name: "academy_get_share_text",
+        readOnly: true,
+        summary: "Get copy-paste share text for today's daily solve.",
+        description: "Return Traditional Chinese share text (date, best, streak, scramble).",
+        inputSchema: objectSchema(),
+      },
+      {
+        name: "academy_get_sfx",
+        readOnly: true,
+        summary: "Read sound mute preference.",
+        description: "Return whether academy SFX are muted (persisted in localStorage).",
+        inputSchema: objectSchema(),
+      },
+      {
+        name: "academy_set_sfx",
+        readOnly: false,
+        summary: "Mute or unmute academy sound effects.",
+        description: "Set muted preference and persist it. Does not move the cube.",
+        inputSchema: objectSchema({
+          muted: { type: "boolean", description: "True to mute SFX." },
+        }, ["muted"]),
+      },
+      {
+        name: "academy_setup_drill",
+        readOnly: false,
+        summary: "Load a random practice-bank case for a stage (incl. 2-look OLL/PLL).",
+        description:
+          "Pick a curated practice case for stageId, apply it to the shared 3×3 cube, and switch to drill mode.",
+        inputSchema: objectSchema({
+          stageId: {
+            type: "string",
+            description:
+              "Practice stage id (white-cross … permute-edges, oll-2look, pll-2look).",
+          },
+        }, ["stageId"]),
+      },
     ];
 
     for (const tool of extras) {
@@ -802,6 +1061,14 @@
         if (args.lessonId && !CubeCurriculum.lessonById(args.lessonId)) {
           throw new Error(`Unknown lessonId: ${args.lessonId}`);
         }
+      }
+      if (name === "academy_setup_drill") {
+        if (!CubePracticeBank.BANK[args.stageId]) {
+          throw new Error(`Unknown stageId: ${args.stageId}`);
+        }
+      }
+      if (name === "academy_set_sfx") {
+        if (typeof args.muted !== "boolean") throw new Error("muted must be boolean");
       }
       return { definition, args: { ...args } };
     };
@@ -854,6 +1121,37 @@
           stage: s.stage,
         };
       }
+      if (name === "academy_get_daily") {
+        const dateKey = CubeProgress.localDateKey();
+        const scramble =
+          state.timer.isDaily && state.timer.dateKey === dateKey
+            ? state.timer.scramble
+            : RC().createDailyScramble(dateKey, 20).join(" ");
+        const ensured = CubeProgress.ensureDailyEntry(state.daily, dateKey, scramble);
+        state.daily = ensured.daily;
+        const entry = state.daily.byDate[dateKey];
+        return {
+          dateKey,
+          scramble: entry.scramble || scramble,
+          bestMs: entry.bestMs,
+          solves: entry.solves,
+          streak: state.daily.streak,
+          lastSolvedDate: state.daily.lastSolvedDate,
+          shareText: CubeProgress.formatShareText(state.daily, dateKey, { scramble }),
+        };
+      }
+      if (name === "academy_get_share_text") {
+        const dateKey = CubeProgress.localDateKey();
+        return {
+          dateKey,
+          text: CubeProgress.formatShareText(state.daily, dateKey, {
+            scramble: state.timer.isDaily ? state.timer.scramble : undefined,
+          }),
+        };
+      }
+      if (name === "academy_get_sfx") {
+        return { muted: Boolean(sfx()?.isMuted?.()), key: CubeProgress.SFX_KEY };
+      }
       return origRead(name);
     };
 
@@ -895,6 +1193,37 @@
           return { success: true, lessonId: args.lessonId, scramble: state.engine.scramble };
         });
       }
+      if (name === "academy_load_daily") {
+        return state.queue.enqueue(async () => {
+          setMode("timer");
+          await loadDailyScramble();
+          return {
+            success: true,
+            dateKey: state.timer.dateKey,
+            scramble: state.timer.scramble,
+            streak: state.daily.streak,
+          };
+        });
+      }
+      if (name === "academy_set_sfx") {
+        sfx()?.setMuted?.(Boolean(args.muted));
+        refreshMuteChrome();
+        return { success: true, muted: Boolean(sfx()?.isMuted?.()) };
+      }
+      if (name === "academy_setup_drill") {
+        return state.queue.enqueue(async () => {
+          state.drill.stageId = args.stageId;
+          setMode("drill");
+          await loadDrillCase(true);
+          return {
+            success: true,
+            stageId: args.stageId,
+            caseId: state.drill.case?.id || null,
+            label: state.drill.case?.label || null,
+            scramble: state.engine.scramble,
+          };
+        });
+      }
       throw new Error(`Unknown academy tool: ${name}`);
     };
 
@@ -934,7 +1263,10 @@
     state.progress = CubeProgress.loadProgress();
     state.times = CubeProgress.loadTimes();
     state.practice = CubeProgress.loadPractice();
+    state.daily = CubeProgress.loadDaily();
     state.lessonId = state.progress.currentLessonId || "basics-pieces";
+    refreshMuteChrome();
+    renderDailyChrome();
 
     const api = RC();
     state.logger = new api.ActivityLogger($("activity-log"));
@@ -948,7 +1280,10 @@
     installTutorTools();
     state.adapter = new api.WebMCPAdapter(state.controller, state.logger);
 
-    state.engine.subscribe(() => {
+    state.engine.subscribe((_snapshot, event) => {
+      if (event?.type === "move" || event?.type === "undo") {
+        sfx()?.playTurn?.();
+      }
       onCubeMaybeSolved();
       if (state.mode === "learn") {
         const lesson = CubeCurriculum.lessonById(state.lessonId);
@@ -1009,11 +1344,34 @@
     });
 
     $("btn-new-scramble")?.addEventListener("click", () => newTimerScramble());
+    $("btn-daily-scramble")?.addEventListener("click", () => loadDailyScramble());
     $("btn-timer-inspect")?.addEventListener("click", () => startInspect());
     $("btn-timer-start")?.addEventListener("click", () => beginTiming());
     $("btn-timer-stop")?.addEventListener("click", () => finishTimerManual());
     $("btn-auto-plan")?.addEventListener("click", () => runAutoSolve());
     $("btn-auto-step")?.addEventListener("click", () => playAutoSolveStep());
+    $("btn-copy-share")?.addEventListener("click", async () => {
+      renderDailyChrome();
+      const text = $("share-text")?.value || "";
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          toast("已複製分享文字");
+        } else {
+          $("share-text")?.select();
+          document.execCommand("copy");
+          toast("已複製分享文字");
+        }
+      } catch {
+        toast("無法自動複製，請手動選取文字");
+      }
+    });
+    $("btn-mute")?.addEventListener("click", () => {
+      sfx()?.toggleMute?.();
+      refreshMuteChrome();
+      toast(sfx()?.isMuted?.() ? "已靜音" : "音效開啟");
+    });
+    $("celebrate-dismiss")?.addEventListener("click", () => hideCelebrate());
 
     $("btn-drill-next")?.addEventListener("click", () => loadDrillCase(true));
     $("btn-drill-check")?.addEventListener("click", () => checkDrillGoal());
@@ -1026,7 +1384,7 @@
         CubePracticeBank.applySetup(state.engine, state.drill.case, RC().parseAlgorithm);
         state.engine.publish({ type: "scramble" });
         state.drill.solved = false;
-        applyHighlights(state.drill.case.stageId);
+        applyHighlights(drillHighlightStage(state.drill.case.stageId));
         if (state.drill.timed) startDrillClock();
         renderDrillChrome();
       }

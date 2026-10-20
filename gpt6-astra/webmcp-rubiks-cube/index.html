@@ -140,16 +140,72 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
   color: var(--accent-2);
   animation: pbPulse .9s ease;
 }
+#timer-display.record-flash {
+  color: #fde68a;
+  animation: recordPulse 1.1s ease;
+}
 @keyframes pbPulse {
   0% { transform: scale(1); }
   40% { transform: scale(1.08); }
   100% { transform: scale(1); }
+}
+@keyframes recordPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(1.12); filter: brightness(1.25); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 .timer-stats {
   display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: center;
   margin: 8px 0; font-size: .88rem; color: var(--muted);
 }
 .timer-stats strong { color: var(--text); font-family: var(--mono); }
+.daily-box {
+  margin: 12px 0; padding: 12px; border-radius: 12px;
+  border: 1px solid #3d4f2e; background: #142018aa;
+}
+.daily-box h3 { margin: 0 0 6px; font-size: .95rem; color: var(--good); }
+.daily-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .85rem; color: var(--muted); margin: 6px 0; }
+.daily-meta strong { color: var(--text); font-family: var(--mono); }
+.share-box {
+  width: 100%; min-height: 88px; margin-top: 8px; padding: 10px;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: #0d1324; color: var(--text); font: 12px/1.5 var(--mono);
+  resize: vertical;
+}
+.top-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+#btn-mute[aria-pressed="true"] { border-color: var(--bad); color: var(--bad); }
+.celebrate {
+  position: fixed; inset: 0; z-index: 35; pointer-events: none;
+  display: grid; place-items: center; opacity: 0;
+}
+.celebrate.visible { opacity: 1; }
+.celebrate-card {
+  pointer-events: auto; text-align: center; max-width: min(92vw, 360px);
+  padding: 22px 20px; border-radius: 18px;
+  background: #0f1a2ef5; border: 1px solid #5eead466;
+  box-shadow: 0 20px 60px #0008;
+  transform: translateY(10px) scale(.96);
+  transition: transform .28s ease, opacity .28s ease;
+}
+.celebrate.visible .celebrate-card { transform: none; }
+.celebrate.big .celebrate-card {
+  border-color: #f0b429aa; box-shadow: 0 0 0 1px #f0b42944, 0 24px 70px #000a;
+}
+.celebrate-title { margin: 0 0 6px; font-size: 1.35rem; font-weight: 800; color: var(--good); }
+.celebrate.big .celebrate-title { color: var(--accent-2); }
+.celebrate-sub { margin: 0 0 14px; color: var(--muted); font-size: .9rem; }
+.celebrate-burst {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+}
+.celebrate-burst span {
+  position: absolute; width: 8px; height: 8px; border-radius: 2px;
+  top: 45%; left: 50%; opacity: 0;
+  animation: confetti 1.1s ease-out forwards;
+}
+@keyframes confetti {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(220deg) scale(.4); }
+}
 .stage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .stage-chip { font-size: .82rem; padding: 8px 10px; min-height: 40px; }
 .stage-chip[aria-pressed="true"] {
@@ -200,16 +256,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
       <h1>魔術方塊學院</h1>
       <p>給完全新手的層層法學習站。記號維持 <code>R U R' U'</code>。</p>
     </div>
-    <div class="mode-tabs" role="tablist" aria-label="模式">
-      <button type="button" class="mode-tab" role="tab" data-tab="learn" aria-selected="true" aria-pressed="true">學習路徑</button>
-      <button type="button" class="mode-tab" role="tab" data-tab="sheet" aria-selected="false" aria-pressed="false">公式表</button>
-      <button type="button" class="mode-tab" role="tab" data-tab="drill" aria-selected="false" aria-pressed="false">隨機練習</button>
-      <button type="button" class="mode-tab" role="tab" data-tab="timer" aria-selected="false" aria-pressed="false">計時</button>
-      <button type="button" class="mode-tab" role="tab" data-tab="freeplay" aria-selected="false" aria-pressed="false">自由練習</button>
-    </div>
-    <div id="connection" class="connection" role="status" aria-label="WebMCP">
-      <strong>WebMCP</strong>
-      <span id="connection-text">檢查中…</span>
+    <div class="top-actions">
+      <div class="mode-tabs" role="tablist" aria-label="模式">
+        <button type="button" class="mode-tab" role="tab" data-tab="learn" aria-selected="true" aria-pressed="true">學習路徑</button>
+        <button type="button" class="mode-tab" role="tab" data-tab="sheet" aria-selected="false" aria-pressed="false">公式表</button>
+        <button type="button" class="mode-tab" role="tab" data-tab="drill" aria-selected="false" aria-pressed="false">隨機練習</button>
+        <button type="button" class="mode-tab" role="tab" data-tab="timer" aria-selected="false" aria-pressed="false">計時</button>
+        <button type="button" class="mode-tab" role="tab" data-tab="freeplay" aria-selected="false" aria-pressed="false">自由練習</button>
+      </div>
+      <button type="button" id="btn-mute" aria-pressed="false" aria-label="靜音切換" title="靜音">🔊 音效</button>
+      <div id="connection" class="connection" role="status" aria-label="WebMCP">
+        <strong>WebMCP</strong>
+        <span id="connection-text">檢查中…</span>
+      </div>
     </div>
   </header>
 
@@ -321,9 +380,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
         <p class="footnote">打亂：<span id="timer-scramble">—</span></p>
         <div class="row">
           <button type="button" class="primary" id="btn-new-scramble">新打亂</button>
+          <button type="button" id="btn-daily-scramble">今日打亂</button>
           <button type="button" id="btn-timer-inspect">開始觀察</button>
           <button type="button" id="btn-timer-start">開表</button>
           <button type="button" id="btn-timer-stop">停表</button>
+        </div>
+        <div class="daily-box" id="daily-box" aria-live="polite">
+          <h3>每日打亂</h3>
+          <p class="footnote" id="daily-date-line">以本地日期為種子，今天每人同一個打亂。</p>
+          <div class="daily-meta">
+            <span>今天最佳 <strong id="daily-best">—</strong></span>
+            <span>連續 <strong id="daily-streak">0</strong> 天</span>
+          </div>
+          <div class="row">
+            <button type="button" id="btn-copy-share">複製分享文字</button>
+          </div>
+          <label class="sr-only" for="share-text">分享文字</label>
+          <textarea id="share-text" class="share-box" readonly rows="5"></textarea>
         </div>
         <div class="row">
           <button type="button" id="btn-auto-plan">產生逐步還原計畫</button>
@@ -369,6 +442,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
   </p>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="celebrate" class="celebrate" hidden aria-live="assertive">
+  <div class="celebrate-burst" aria-hidden="true"></div>
+  <div class="celebrate-card">
+    <p class="celebrate-title" id="celebrate-title">還原成功！</p>
+    <p class="celebrate-sub" id="celebrate-sub"></p>
+    <button type="button" class="primary" id="celebrate-dismiss">繼續</button>
+  </div>
+</div>
 
 <script src="js/cube-core.js"></script>
 <script src="js/patterns.js"></script>
@@ -376,6 +457,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-vis
 <script src="js/progress.js"></script>
 <script src="js/practice-bank.js"></script>
 <script src="js/solver-beginner.js"></script>
+<script src="js/academy-sfx.js"></script>
 <script src="js/academy-app.js"></script>
 </body>
 </html>
