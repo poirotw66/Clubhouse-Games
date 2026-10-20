@@ -165,3 +165,34 @@ export function sfxUnlock() {
 export function sfxSelect() {
   playMove();
 }
+
+/** Rubik's Cube Academy — soft face-turn click (thin wrapper over playMove). */
+export function playCubeTurn() {
+  playMove();
+}
+
+/** Inspection countdown tick (1 Hz feel). */
+export function playInspectTick(secondsLeft = 1) {
+  const n = Math.max(0, Math.min(15, Math.floor(Number(secondsLeft) || 0)));
+  const pitch = n <= 3 ? 720 : 480;
+  playTone(pitch, 'triangle', 0.05, 0, 0.05);
+  if (n <= 3) playTone(pitch * 1.25, 'sine', 0.04, 0.03, 0.04);
+}
+
+/** Timer / stopwatch start sting. */
+export function playTimerStart() {
+  playTone(392, 'triangle', 0.08, 0, 0.07);
+  playTone(523.25, 'sine', 0.1, 0.05, 0.06);
+}
+
+/** Timer stop (pause) click — not a full solve celebration. */
+export function playTimerStop() {
+  playTone(330, 'triangle', 0.07, 0, 0.06);
+  playTone(220, 'sine', 0.1, 0.04, 0.05);
+}
+
+/** Successful cube solve. `isRecord` uses the louder win arpeggio. */
+export function playSolveComplete(isRecord = false) {
+  if (isRecord) playWin();
+  else playGoal();
+}
