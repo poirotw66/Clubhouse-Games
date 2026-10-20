@@ -55,9 +55,9 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">打擊：讀球 × 打向空檔</p>
+            <p className="font-bold text-amber-300">打擊：時機 × 讀球 × 空檔</p>
             <p className="mt-0.5 text-zinc-400">
-              看軌跡判斷球種；← → 選拉打／推打，往九位野手間的空隙打。
+              球靠近本壘再揮；看彩色尾跡猜球種；← → 往野手間空隙打。
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">

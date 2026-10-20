@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "check": "node --experimental-strip-types src/check-baseball.mjs"
+    "check": "node --experimental-strip-types src/check-baseball.mjs",
+    "balance": "node --experimental-strip-types scripts/balance-sim.mjs"
   },
   "dependencies": {
     "@clubhouse/shared": "*",

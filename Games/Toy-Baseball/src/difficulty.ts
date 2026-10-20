@@ -12,9 +12,9 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 
 /** Short player-facing blurbs so Easy / Normal / Hard read as three different games. */
 export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
-  easy: '好球帶寬，對手常揮空，球種較好讀',
+  easy: '打擊窗寬、守備較慢，先練讀球與時機',
   normal: '配球有套路，往空檔打才容易安打',
-  hard: '窗口窄，對手少失誤，配球更刁鑽',
+  hard: '窗口窄、守備緊，對手少失誤、配球刁',
 };
 
 export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
@@ -50,6 +50,8 @@ export interface DifficultyConfig {
   tripleMin: number;
   /** Weak contact (quality below this) is almost always an out unless very deep. */
   weakQuality: number;
+  /** Multiplier on fielder chase speed when the player bats (lower = more gaps). */
+  fielderSpeedMul: number;
   /** Defense alignment bias when player bats. */
   defensePullChance: number;
   defenseDeepChance: number;
@@ -57,50 +59,53 @@ export interface DifficultyConfig {
 
 export const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
   easy: {
-    hitRadius: 80,
+    hitRadius: 84,
     cpuAimSkill: 0.28,
-    cpuSwingRate: 0.58,
-    cpuTakeBall: 0.1,
-    cpuAimDir: 0.32,
+    cpuSwingRate: 0.55,
+    cpuTakeBall: 0.08,
+    cpuAimDir: 0.3,
     cpuPitchDelayMin: 1.45,
     cpuPitchDelayMax: 2.25,
-    outMax: 200,
-    singleMin: 165,
-    doubleMin: 280,
-    tripleMin: 420,
-    weakQuality: 0.18,
+    outMax: 190,
+    singleMin: 150,
+    doubleMin: 300,
+    tripleMin: 480,
+    weakQuality: 0.16,
+    fielderSpeedMul: 0.82,
     defensePullChance: 0.05,
     defenseDeepChance: 0.05,
   },
   normal: {
-    hitRadius: 60,
+    hitRadius: 62,
     cpuAimSkill: 0.62,
-    cpuSwingRate: 0.82,
+    cpuSwingRate: 0.8,
     cpuTakeBall: 0.35,
     cpuAimDir: 0.65,
     cpuPitchDelayMin: 1.05,
     cpuPitchDelayMax: 1.65,
-    outMax: 175,
-    singleMin: 175,
-    doubleMin: 300,
-    tripleMin: 450,
-    weakQuality: 0.28,
+    outMax: 170,
+    singleMin: 165,
+    doubleMin: 320,
+    tripleMin: 500,
+    weakQuality: 0.26,
+    fielderSpeedMul: 1,
     defensePullChance: 0.2,
     defenseDeepChance: 0.15,
   },
   hard: {
-    hitRadius: 42,
+    hitRadius: 44,
     cpuAimSkill: 0.92,
-    cpuSwingRate: 0.95,
+    cpuSwingRate: 0.94,
     cpuTakeBall: 0.62,
     cpuAimDir: 0.92,
     cpuPitchDelayMin: 0.65,
     cpuPitchDelayMax: 1.05,
-    outMax: 145,
-    singleMin: 190,
-    doubleMin: 330,
-    tripleMin: 480,
-    weakQuality: 0.38,
+    outMax: 150,
+    singleMin: 185,
+    doubleMin: 350,
+    tripleMin: 530,
+    weakQuality: 0.36,
+    fielderSpeedMul: 1.12,
     defensePullChance: 0.35,
     defenseDeepChance: 0.3,
   },
