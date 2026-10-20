@@ -30,6 +30,7 @@
     "check:astra-rubiks": "node gpt6-astra/webmcp-rubiks-cube/check-academy.mjs",
     "check:astra-fill-void": "node gpt6-astra/3d-fill-the-void/check-fill-void.mjs",
     "check:astra-sailing": "node gpt6-astra/3d-sailing/check-sailing.mjs",
+    "check:astra-loop-hero": "node gpt6-astra/loop-hero/self-check.mjs",
     "check:astra-escape-room": "node gpt6-astra/webmcp-escape-room/check-escape-room.mjs",
     "check:astra-tactical": "node gpt6-astra/webmcp-mini-tactical-dungeon/check-tactical.mjs",
     "check:astra-factory": "node gpt6-astra/webmcp-mini-factory/check-mini-factory.mjs"

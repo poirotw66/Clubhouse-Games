@@ -191,6 +191,10 @@ jobs:
         if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
         run: npm run check:astra-factory
 
+      - name: Run Astra Cinder Circuit (Loop Hero) logic check
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        run: npm run check:astra-loop-hero
+
   # ---------------------------------------------------------------------------
   # Build Pages once; upload artifact for Playwright (and Pages deploy on main).
   # ---------------------------------------------------------------------------
