@@ -381,6 +381,21 @@ test('checkers: variants, two-player opening, undo, and new game', async ({ page
   await expect(page.getByRole('button', { name: 'black man at B4', exact: true })).toHaveCount(0);
 });
 
+test('checkers: puzzle mode unlock ladder and first puzzle board', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
+  await page.goto('./Games/Checkers/');
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '謎題', exact: true }), isMobile);
+
+  await expect(page.getByText(/殘局謎題（10 題/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /1\. 一擊必殺/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /2\. 🔒/ })).toBeDisabled();
+
+  // First puzzle: black to jump the lone white man.
+  await expect(page.getByRole('button', { name: /black man at/ }).first()).toBeVisible();
+  await expect(page.getByText(/黑先/)).toBeVisible();
+});
+
 test('dialed-color: single-color round through feedback, overlay, and replay', async ({ page, isMobile }) => {
   test.skip(!includesGame('Dialed-Color'), 'selective CI');
   test.setTimeout(45_000);
