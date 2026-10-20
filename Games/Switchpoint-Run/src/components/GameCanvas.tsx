@@ -1,23 +1,30 @@
 import React, { useEffect, useRef } from 'react';
-import { FIELD_H, FIELD_W, LANE_COUNT, PLAYER_Y, laneCenterX, type ObstacleKind } from '../game/constants';
+import { FIELD_H, FIELD_W, LANE_COUNT, PLAYER_BASE_SPEED, PLAYER_Y, laneCenterX, type ObstacleKind } from '../game/constants';
+import { prefersReducedMotion, shakeOffset, tickFx, type FxState } from '../game/juice';
+import { DEFAULT_THEME_ID, themeById, type ThemePalette } from '../game/themes';
 import type { RunState } from '../game/types';
 
 interface Props {
   stateRef: React.MutableRefObject<RunState | null>;
+  fxRef: React.MutableRefObject<FxState>;
   paused: boolean;
 }
 
 const LANE_W = FIELD_W / LANE_COUNT;
 
-function drawBallast(ctx: CanvasRenderingContext2D, distance: number): void {
+function paletteOf(s: RunState | null): ThemePalette {
+  const id = s?.config?.themeId ?? DEFAULT_THEME_ID;
+  return (themeById(id) ?? themeById(DEFAULT_THEME_ID)!).palette;
+}
+
+function drawBallast(ctx: CanvasRenderingContext2D, distance: number, pal: ThemePalette, speedLines: number): void {
   const bg = ctx.createLinearGradient(0, 0, 0, FIELD_H);
-  bg.addColorStop(0, '#0a1610');
-  bg.addColorStop(0.55, '#10241a');
-  bg.addColorStop(1, '#0c1a14');
+  bg.addColorStop(0, pal.ballastTop);
+  bg.addColorStop(0.55, pal.ballastMid);
+  bg.addColorStop(1, pal.ballastBot);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, FIELD_W, FIELD_H);
 
-  // Tunnel walls
   const left = ctx.createLinearGradient(0, 0, 18, 0);
   left.addColorStop(0, 'rgba(0,0,0,0.55)');
   left.addColorStop(1, 'rgba(0,0,0,0)');
@@ -29,7 +36,7 @@ function drawBallast(ctx: CanvasRenderingContext2D, distance: number): void {
   ctx.fillStyle = right;
   ctx.fillRect(FIELD_W - 18, 0, 18, FIELD_H);
 
-  // Distant speed lines keyed off scroll
+  // Subtle sleepers / scroll lines
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.05)';
   ctx.lineWidth = 1;
   const offset = distance % 40;
@@ -39,9 +46,27 @@ function drawBallast(ctx: CanvasRenderingContext2D, distance: number): void {
     ctx.lineTo(FIELD_W - 8, y);
     ctx.stroke();
   }
+
+  // Speed lines — intensity rises with surplus pace
+  if (speedLines > 0.02 && !prefersReducedMotion()) {
+    const count = Math.floor(4 + speedLines * 14);
+    ctx.strokeStyle = `rgba(226, 232, 240, ${0.08 + speedLines * 0.22})`;
+    ctx.lineWidth = 1.2;
+    const scroll = (distance * (1.5 + speedLines)) % 28;
+    for (let i = 0; i < count; i++) {
+      const x = 24 + ((i * 97) % (FIELD_W - 48));
+      const len = 18 + speedLines * 36;
+      for (let y = -scroll; y < FIELD_H; y += 28) {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + len);
+        ctx.stroke();
+      }
+    }
+  }
 }
 
-function drawTracks(ctx: CanvasRenderingContext2D, distance: number, activeLane: number): void {
+function drawTracks(ctx: CanvasRenderingContext2D, distance: number, activeLane: number, pal: ThemePalette): void {
   const sleeperGap = 22;
   const scroll = distance % sleeperGap;
 
@@ -51,38 +76,33 @@ function drawTracks(ctx: CanvasRenderingContext2D, distance: number, activeLane:
     const railLeft = cx - 16;
     const railRight = cx + 16;
 
-    // Active lane glow
     if (lane === activeLane) {
       const glow = ctx.createLinearGradient(x0, 0, x0 + LANE_W, 0);
-      glow.addColorStop(0, 'rgba(52, 211, 153, 0)');
-      glow.addColorStop(0.5, 'rgba(52, 211, 153, 0.10)');
-      glow.addColorStop(1, 'rgba(52, 211, 153, 0)');
+      glow.addColorStop(0, 'transparent');
+      glow.addColorStop(0.5, `${pal.accent}1a`);
+      glow.addColorStop(1, 'transparent');
       ctx.fillStyle = glow;
       ctx.fillRect(x0, 0, LANE_W, FIELD_H);
     }
 
-    // Sleepers (ties)
     ctx.fillStyle = 'rgba(120, 90, 50, 0.55)';
     for (let y = -scroll; y < FIELD_H + sleeperGap; y += sleeperGap) {
       ctx.fillRect(railLeft - 6, y, railRight - railLeft + 12, 5);
     }
 
-    // Rails
     const railGrad = ctx.createLinearGradient(0, 0, 0, FIELD_H);
     railGrad.addColorStop(0, '#94a3b8');
-    railGrad.addColorStop(0.5, '#e2e8f0');
+    railGrad.addColorStop(0.5, pal.rail);
     railGrad.addColorStop(1, '#94a3b8');
     ctx.fillStyle = railGrad;
     ctx.fillRect(railLeft - 1.5, 0, 3, FIELD_H);
     ctx.fillRect(railRight - 1.5, 0, 3, FIELD_H);
 
-    // Inner highlight on rails
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(railLeft - 0.5, 0, 1, FIELD_H);
     ctx.fillRect(railRight - 0.5, 0, 1, FIELD_H);
   }
 
-  // Lane separators as faint gravel ridges
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
   ctx.lineWidth = 1;
   for (let i = 1; i < LANE_COUNT; i++) {
@@ -100,9 +120,9 @@ function drawObstacle(
   x0: number,
   y: number,
   w: number,
+  pal: ThemePalette,
 ): void {
   if (kind === 'hurdle') {
-    // Low rail barrier — jump over
     ctx.fillStyle = '#78350f';
     ctx.fillRect(x0 + 4, y - 4, w - 8, 10);
     const bar = ctx.createLinearGradient(x0, y, x0, y + 8);
@@ -113,7 +133,6 @@ function drawObstacle(
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(x0 + 2, y - 8, w - 4, 1.5);
   } else if (kind === 'beam') {
-    // Overhead beam — slide under
     ctx.fillStyle = 'rgba(14, 116, 144, 0.35)';
     ctx.fillRect(x0 + 2, y - 4, w - 4, 28);
     const beam = ctx.createLinearGradient(x0, y - 18, x0, y - 6);
@@ -123,15 +142,13 @@ function drawObstacle(
     ctx.fillRect(x0, y - 18, w, 10);
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.fillRect(x0, y - 18, w, 2);
-    // Support posts
     ctx.fillStyle = '#0e7490';
     ctx.fillRect(x0 + 4, y - 8, 4, 24);
     ctx.fillRect(x0 + w - 8, y - 8, 4, 24);
   } else {
-    // Blocking wall — change lane
     const wall = ctx.createLinearGradient(x0, y - 24, x0 + w, y + 24);
     wall.addColorStop(0, '#7f1d1d');
-    wall.addColorStop(0.5, '#f87171');
+    wall.addColorStop(0.5, pal.hazard);
     wall.addColorStop(1, '#7f1d1d');
     ctx.fillStyle = wall;
     ctx.fillRect(x0 + 2, y - 24, w - 4, 48);
@@ -176,21 +193,19 @@ function drawReward(ctx: CanvasRenderingContext2D, x: number, y: number, kind: '
   ctx.textBaseline = 'alphabetic';
 }
 
-function drawTrain(ctx: CanvasRenderingContext2D, trainY: number, t: number): void {
+function drawTrain(ctx: CanvasRenderingContext2D, trainY: number, t: number, pal: ThemePalette): void {
   const bodyTop = trainY - 18;
   const bodyH = 34;
 
-  // Headlight bloom
   const light = ctx.createRadialGradient(FIELD_W / 2, trainY - 28, 4, FIELD_W / 2, trainY - 40, 90);
   light.addColorStop(0, 'rgba(254, 240, 138, 0.45)');
   light.addColorStop(1, 'rgba(254, 240, 138, 0)');
   ctx.fillStyle = light;
   ctx.fillRect(40, trainY - 80, FIELD_W - 80, 70);
 
-  // Body
   const body = ctx.createLinearGradient(20, 0, FIELD_W - 20, 0);
   body.addColorStop(0, '#7f1d1d');
-  body.addColorStop(0.5, '#ef4444');
+  body.addColorStop(0.5, pal.hazard);
   body.addColorStop(1, '#7f1d1d');
   ctx.fillStyle = body;
   ctx.fillRect(28, bodyTop, FIELD_W - 56, bodyH);
@@ -198,7 +213,6 @@ function drawTrain(ctx: CanvasRenderingContext2D, trainY: number, t: number): vo
   ctx.lineWidth = 1.5;
   ctx.strokeRect(28, bodyTop, FIELD_W - 56, bodyH);
 
-  // Cab windows
   ctx.fillStyle = 'rgba(254, 243, 199, 0.85)';
   const flicker = 0.7 + Math.sin(t * 10) * 0.3;
   ctx.globalAlpha = flicker;
@@ -206,7 +220,6 @@ function drawTrain(ctx: CanvasRenderingContext2D, trainY: number, t: number): vo
   ctx.fillRect(FIELD_W / 2 + 14, bodyTop + 6, 22, 12);
   ctx.globalAlpha = 1;
 
-  // Cowcatcher
   ctx.beginPath();
   ctx.moveTo(FIELD_W / 2 - 50, bodyTop);
   ctx.lineTo(FIELD_W / 2, bodyTop - 14);
@@ -226,6 +239,7 @@ function drawPlayer(
   lane: number,
   jumpTimer: number,
   slideTimer: number,
+  accent: string,
 ): void {
   const px = laneCenterX(lane);
   const py = jumpTimer > 0 ? PLAYER_Y - 16 : slideTimer > 0 ? PLAYER_Y + 6 : PLAYER_Y;
@@ -238,7 +252,6 @@ function drawPlayer(
   }
 
   if (slideTimer > 0) {
-    // Sliding railcar silhouette
     ctx.beginPath();
     ctx.ellipse(px, py, 18, 8, 0, 0, Math.PI * 2);
     const slide = ctx.createLinearGradient(px - 18, py, px + 18, py);
@@ -252,7 +265,6 @@ function drawPlayer(
     return;
   }
 
-  // Small railcart / runner
   ctx.beginPath();
   ctx.moveTo(px, py - 16);
   ctx.lineTo(px - 12, py + 10);
@@ -271,22 +283,21 @@ function drawPlayer(
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Canopy
   ctx.beginPath();
   ctx.ellipse(px, py - 3, 3.5, 4, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#34d399';
+  ctx.fillStyle = accent;
   ctx.fill();
 }
 
-function drawPreviewStrip(ctx: CanvasRenderingContext2D, s: RunState): void {
+function drawPreviewStrip(ctx: CanvasRenderingContext2D, s: RunState, pal: ThemePalette): void {
   const pj = s.pendingJunction;
   const stripH = 68;
   const panel = ctx.createLinearGradient(0, 0, 0, stripH);
-  panel.addColorStop(0, 'rgba(4, 14, 10, 0.92)');
+  panel.addColorStop(0, pal.previewPanel);
   panel.addColorStop(1, 'rgba(4, 14, 10, 0.72)');
   ctx.fillStyle = panel;
   ctx.fillRect(0, 0, FIELD_W, stripH);
-  ctx.strokeStyle = 'rgba(52, 211, 153, 0.25)';
+  ctx.strokeStyle = `${pal.accent}40`;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, stripH - 0.5);
@@ -301,7 +312,7 @@ function drawPreviewStrip(ctx: CanvasRenderingContext2D, s: RunState): void {
 
     ctx.fillStyle = b ? 'rgba(15, 40, 28, 0.85)' : 'rgba(60, 16, 16, 0.75)';
     ctx.fillRect(cardX, 8, cardW, 52);
-    ctx.strokeStyle = b ? 'rgba(52, 211, 153, 0.35)' : 'rgba(248, 113, 113, 0.4)';
+    ctx.strokeStyle = b ? `${pal.accent}59` : 'rgba(248, 113, 113, 0.4)';
     ctx.strokeRect(cardX, 8, cardW, 52);
 
     if (!b) {
@@ -335,20 +346,35 @@ function drawPreviewStrip(ctx: CanvasRenderingContext2D, s: RunState): void {
   }
 }
 
+function drawParticles(ctx: CanvasRenderingContext2D, fx: FxState): void {
+  for (const p of fx.particles) {
+    const alpha = Math.max(0, p.life / p.maxLife);
+    ctx.globalAlpha = alpha;
+    if (p.kind === 'ring') {
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 /**
  * Draws the field every animation frame straight from the simulation
  * snapshot, reading through a ref rather than props so React never re-renders
  * at 60fps — the HUD updates a few times a second, the canvas draws itself.
- *
- * The junction preview strip is drawn fixed at the top (it summarises the
- * PENDING junction, which is knowable in full the instant the current branch
- * was locked in — that is the whole point of the design). The lock line
- * itself scrolls toward the player like any other track feature, so its
- * approach is felt spatially as well as read from the strip.
  */
-export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
+export function GameCanvas({ stateRef, fxRef, paused }: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
+  const lastDrawRef = useRef(performance.now());
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -356,10 +382,17 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const draw = (): void => {
+    const draw = (now: number): void => {
       rafRef.current = requestAnimationFrame(draw);
       const s = stateRef.current;
       if (!s) return;
+
+      const dt = Math.min(0.05, (now - lastDrawRef.current) / 1000);
+      lastDrawRef.current = now;
+      const fx = fxRef.current;
+      if (!paused) {
+        tickFx(fx, dt, s.playerSpeed, PLAYER_BASE_SPEED * (s.speedMul ?? 1));
+      }
 
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const cssW = canvas.clientWidth;
@@ -372,14 +405,17 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssW, cssH);
 
+      const pal = paletteOf(s);
+      const shake = shakeOffset(fx);
+
       ctx.save();
-      ctx.translate((cssW - FIELD_W * scale) / 2, (cssH - FIELD_H * scale) / 2);
+      ctx.translate((cssW - FIELD_W * scale) / 2 + shake.x * scale, (cssH - FIELD_H * scale) / 2 + shake.y * scale);
       ctx.scale(scale, scale);
 
       const screenY = (absDistance: number): number => PLAYER_Y - (absDistance - s.distance);
 
-      drawBallast(ctx, s.distance);
-      drawTracks(ctx, s.distance, s.lane);
+      drawBallast(ctx, s.distance, pal, fx.speedLines);
+      drawTracks(ctx, s.distance, s.lane, pal);
 
       const pj = s.pendingJunction;
       if (!s.activeBranch) {
@@ -388,7 +424,6 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
           const openLanes = new Set(pj.branches.map((b) => b.lane));
           for (let lane = 0; lane < LANE_COUNT; lane++) {
             if (openLanes.has(lane)) continue;
-            // Closed track: broken rails + danger wash
             const x0 = lane * LANE_W;
             ctx.fillStyle = 'rgba(248,113,113,0.22)';
             ctx.fillRect(x0 + 4, Math.max(0, lockY - 400), LANE_W - 8, 400);
@@ -397,7 +432,6 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
             ctx.strokeRect(x0 + 8, Math.max(0, lockY - 400), LANE_W - 16, 400);
             ctx.setLineDash([]);
           }
-          // Switch lock line
           const lockGrad = ctx.createLinearGradient(0, lockY - 2, 0, lockY + 2);
           lockGrad.addColorStop(0, 'rgba(226,232,240,0)');
           lockGrad.addColorStop(0.5, 'rgba(226,232,240,0.95)');
@@ -418,7 +452,7 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
           if (y < -30 || y > FIELD_H + 30) continue;
           const x0 = o.lane * LANE_W + 6;
           const w = LANE_W - 12;
-          drawObstacle(ctx, o.kind, x0, y, w);
+          drawObstacle(ctx, o.kind, x0, y, w, pal);
         }
 
         if (!s.activeBranch.rewardCollected && s.activeBranch.reward !== 'none') {
@@ -430,19 +464,26 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
       }
 
       const trainY = Math.min(FIELD_H + 40, screenY(s.distance - s.buffer));
-      drawTrain(ctx, trainY, s.elapsed);
+      drawTrain(ctx, trainY, s.elapsed, pal);
 
       const blinking = s.hitStunTimer > 0 && Math.floor(s.hitStunTimer * 14) % 2 === 0;
       if (!blinking) {
-        drawPlayer(ctx, s.lane, s.jumpTimer, s.slideTimer);
+        drawPlayer(ctx, s.lane, s.jumpTimer, s.slideTimer, pal.accent);
+      }
+
+      drawParticles(ctx, fx);
+
+      if (fx.flash > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.22})`;
+        ctx.fillRect(0, 0, FIELD_W, FIELD_H);
       }
 
       ctx.restore();
 
       ctx.save();
-      ctx.translate((cssW - FIELD_W * scale) / 2, (cssH - FIELD_H * scale) / 2);
+      ctx.translate((cssW - FIELD_W * scale) / 2 + shake.x * scale, (cssH - FIELD_H * scale) / 2 + shake.y * scale);
       ctx.scale(scale, scale);
-      drawPreviewStrip(ctx, s);
+      drawPreviewStrip(ctx, s, pal);
       ctx.restore();
 
       if (paused) {
@@ -453,7 +494,7 @@ export function GameCanvas({ stateRef, paused }: Props): React.ReactElement {
 
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [stateRef, paused]);
+  }, [stateRef, fxRef, paused]);
 
   return <canvas ref={canvasRef} className="w-full h-full block touch-none" aria-label="岔道跑道" />;
 }

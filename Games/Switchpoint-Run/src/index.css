@@ -100,7 +100,7 @@ body {
 
 .sr-buffer-fill {
   height: 100%;
-  transition: width 150ms ease;
+  transition: width 150ms ease, background 200ms ease;
   box-shadow: 0 0 12px currentColor;
 }
 
@@ -113,11 +113,76 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.sr-shake {
+  animation: sr-shake 0.18s linear;
+}
+
+.sr-shake-hard {
+  animation: sr-shake-hard 0.28s linear;
+}
+
+@keyframes sr-shake {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -1px); }
+  60% { transform: translate(-1px, 2px); }
+  80% { transform: translate(1px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes sr-shake-hard {
+  0% { transform: translate(0, 0); }
+  15% { transform: translate(-4px, 2px); }
+  30% { transform: translate(4px, -3px); }
+  45% { transform: translate(-3px, -2px); }
+  60% { transform: translate(3px, 3px); }
+  75% { transform: translate(-2px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+.sr-combo-pop {
+  animation: sr-combo-pulse 0.45s ease-out;
+  border-color: rgba(56, 189, 248, 0.65) !important;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+}
+
+@keyframes sr-combo-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.sr-combo-banner {
+  font-family: Orbitron, 'Noto Sans TC', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  color: #7dd3fc;
+  text-shadow:
+    0 0 12px rgba(56, 189, 248, 0.65),
+    0 2px 0 rgba(0, 0, 0, 0.45);
+  animation: sr-combo-banner 0.7s ease-out both;
+  z-index: 5;
+}
+
+@keyframes sr-combo-banner {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
+  25% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  100% { opacity: 0; transform: translate(-50%, -12px) scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .sr-flash {
+  .sr-flash,
+  .sr-shake,
+  .sr-shake-hard,
+  .sr-combo-pop,
+  .sr-combo-banner {
     animation: none;
   }
   .sr-cta:hover {
     transform: none;
+  }
+  .sr-buffer-fill {
+    transition: none;
   }
 }
