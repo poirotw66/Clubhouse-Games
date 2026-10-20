@@ -716,6 +716,7 @@
       extractPieces,
       flipCells,
       isLevelUnlocked,
+      isPackUnlocked,
       levelsInPack,
       migrateProgress,
       parRotationsFor,
@@ -1158,6 +1159,7 @@
           progress.currentId = activeLevel.id;
         }
         saveProgress(progress);
+        updateMeters();
         message('Every little piece, exactly where it belongs.');
         winTimer = setTimeout(() => showWin(stars), reducedMotion ? 0 : 650);
       } else {
