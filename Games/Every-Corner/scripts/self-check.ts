@@ -1,15 +1,61 @@
 import * as assert from 'node:assert/strict';
+import {
+  applyClear,
+  emptyPlayerStats,
+  evaluateAchievements,
+  markWeeklyCompletion,
+} from '../src/game/achievements.js';
 import { DIFFICULTIES, DIFFICULTY_ORDER, generate } from '../src/game/generate.js';
-import { buildNeighbours, cellCount, isHamiltonianPath, routeTo, snakePath, wallKey } from '../src/game/grid.js';
+import {
+  buildNeighbours,
+  cellCount,
+  isHamiltonianPath,
+  playableCount,
+  routeTo,
+  snakePath,
+  wallKey,
+} from '../src/game/grid.js';
 import { randomHamiltonianPath } from '../src/game/hamiltonian.js';
 import { solve } from '../src/game/solve.js';
 import { analyse, computeHint } from '../src/game/hint.js';
-import { computeStreak, dateKey } from '../src/game/daily.js';
+import { computeStreak, dateKey, dailySeed } from '../src/game/daily.js';
 import { createRng, streamRng } from '../src/game/rng.js';
+import { loadStats, saveStats } from '../src/game/storage.js';
 import type { CellId, DifficultyId, Puzzle, Size } from '../src/game/types.js';
+import {
+  WEEKLY_DAYS,
+  isWeeklyComplete,
+  weekKey,
+  weeklySeed,
+} from '../src/game/weekly.js';
+
+/** Minimal localStorage so storage validation can run under Node. */
+function installMemoryStorage(): void {
+  const map = new Map<string, string>();
+  const memory = {
+    getItem(key: string): string | null {
+      return map.has(key) ? map.get(key)! : null;
+    },
+    setItem(key: string, value: string): void {
+      map.set(key, String(value));
+    },
+    removeItem(key: string): void {
+      map.delete(key);
+    },
+    clear(): void {
+      map.clear();
+    },
+  };
+  (globalThis as { localStorage?: typeof memory }).localStorage = memory;
+  (globalThis as { window?: { localStorage: typeof memory } }).window = {
+    localStorage: memory,
+  };
+}
+
+installMemoryStorage();
 
 function neighboursOf(puzzle: Puzzle): CellId[][] {
-  return buildNeighbours(puzzle.size, puzzle.walls);
+  return buildNeighbours(puzzle.size, puzzle.walls, puzzle.blocked);
 }
 
 /** Backbite must never break the "covers every cell exactly once" invariant. */
@@ -57,7 +103,7 @@ function expectPuzzlesAreUniquelySolvable(): void {
       const neighbours = neighboursOf(puzzle);
 
       assert.ok(
-        isHamiltonianPath(puzzle.size, neighbours, puzzle.solution),
+        isHamiltonianPath(puzzle.size, neighbours, puzzle.solution, puzzle.blocked),
         `${difficulty}#${i}: stored answer is not a valid path`,
       );
 
@@ -66,6 +112,7 @@ function expectPuzzlesAreUniquelySolvable(): void {
         neighbours,
         checkpoints: puzzle.checkpoints,
         checkpointCount: puzzle.checkpointCount,
+        blocked: puzzle.blocked,
         limit: 3,
       });
       assert.ok(result.exhausted, `${difficulty}#${i}: search ran out of budget`);
@@ -162,11 +209,11 @@ function expectPrunedSolverMatchesBruteForce(): void {
   assert.ok(compared >= 20, 'not enough parity comparisons ran');
 }
 
-/** Solutions must always cover the board exactly once. */
+/** Solutions must always cover every playable cell exactly once. */
 function expectSolutionsCoverEveryCell(): void {
   for (const difficulty of DIFFICULTY_ORDER) {
     const puzzle = generate({ seedCode: `cover-${difficulty}`, difficulty });
-    const total = cellCount(puzzle.size);
+    const total = playableCount(puzzle.size, puzzle.blocked);
     assert.equal(puzzle.solution.length, total, `${difficulty}: answer does not fill the board`);
     assert.equal(new Set(puzzle.solution).size, total, `${difficulty}: answer repeats a cell`);
   }
@@ -237,6 +284,137 @@ function expectStreakCounting(): void {
   assert.equal(computeStreak([], '2026-08-16'), 0);
   assert.equal(computeStreak(days(['2026-03-01', '2026-02-28']), '2026-03-01'), 2, 'month boundary');
   assert.match(dateKey(new Date('2026-08-16T10:00:00Z')), /^\d{4}-\d{2}-\d{2}$/);
+}
+
+/** Daily seeds stay on their own namespace — weekly must not collide. */
+function expectDailyAlgorithmUnchanged(): void {
+  assert.equal(dailySeed('2026-10-20'), 'daily-2026-10-20');
+  assert.equal(weeklySeed('2026-10-19', 3), 'weekly-2026-10-19-d3');
+  assert.notEqual(dailySeed('2026-10-20'), weeklySeed('2026-10-20', 0));
+
+  // Classic generation for a daily seed must remain deterministic and hole-free.
+  const a = generate({ seedCode: dailySeed('2026-10-20'), difficulty: 'normal' });
+  const b = generate({ seedCode: dailySeed('2026-10-20'), difficulty: 'normal' });
+  assert.deepEqual(a, b);
+  assert.equal(a.variant, 'classic');
+  assert.equal(a.blocked.length, 0);
+}
+
+/** Weekly set is seven escalating days with a stable Monday key. */
+function expectWeeklySchedule(): void {
+  assert.equal(WEEKLY_DAYS.length, 7);
+  assert.ok(WEEKLY_DAYS.some((d) => d.blockedCount > 0), 'week needs a blocked variant day');
+  assert.ok(WEEKLY_DAYS.every((d, i) => d.dayIndex === i), 'dayIndex must be 0..6 in order');
+
+  // 2026-10-20 is a Tuesday in UTC+8-aware dateKey land; Monday is 2026-10-19.
+  const monday = weekKey(new Date('2026-10-20T04:00:00Z'));
+  assert.equal(monday, '2026-10-19');
+
+  const incomplete = { weekKey: monday, days: [{ dayIndex: 0, elapsedMs: 1, hintsUsed: 0 }], completed: false };
+  assert.equal(isWeeklyComplete(incomplete), false);
+  const complete = {
+    weekKey: monday,
+    days: WEEKLY_DAYS.map((d) => ({ dayIndex: d.dayIndex, elapsedMs: 1000, hintsUsed: 0 })),
+    completed: false,
+  };
+  assert.equal(isWeeklyComplete(complete), true);
+
+  // Generate every weekly board and demand a unique solution.
+  for (const day of WEEKLY_DAYS) {
+    const puzzle = generate({
+      seedCode: weeklySeed(monday, day.dayIndex),
+      difficulty: day.difficulty,
+      blockedCount: day.blockedCount,
+    });
+    assert.equal(puzzle.blocked.length, day.blockedCount, `day ${day.dayIndex} hole count`);
+    const neighbours = buildNeighbours(puzzle.size, puzzle.walls, puzzle.blocked);
+    assert.ok(
+      isHamiltonianPath(puzzle.size, neighbours, puzzle.solution, puzzle.blocked),
+      `weekly day ${day.dayIndex}: answer is not Hamiltonian`,
+    );
+    const result = solve({
+      size: puzzle.size,
+      neighbours,
+      checkpoints: puzzle.checkpoints,
+      checkpointCount: puzzle.checkpointCount,
+      blocked: puzzle.blocked,
+      limit: 2,
+    });
+    assert.ok(result.exhausted, `weekly day ${day.dayIndex}: search budget`);
+    assert.equal(result.solutions.length, 1, `weekly day ${day.dayIndex}: not unique`);
+  }
+}
+
+/** Blocked-cell variant keeps uniqueness and never asks the path to enter a hole. */
+function expectBlockedVariantIsUnique(): void {
+  for (let i = 0; i < 4; i++) {
+    const puzzle = generate({
+      seedCode: `blocked-${i}`,
+      difficulty: 'normal',
+      blockedCount: 3,
+    });
+    assert.equal(puzzle.variant, 'blocked');
+    assert.equal(puzzle.blocked.length, 3);
+    assert.equal(puzzle.solution.length, playableCount(puzzle.size, puzzle.blocked));
+    for (const hole of puzzle.blocked) {
+      assert.ok(!puzzle.solution.includes(hole), 'solution entered a hole');
+      assert.equal(puzzle.checkpoints[hole], undefined, 'checkpoint on a hole');
+    }
+    const neighbours = buildNeighbours(puzzle.size, puzzle.walls, puzzle.blocked);
+    const result = solve({
+      size: puzzle.size,
+      neighbours,
+      checkpoints: puzzle.checkpoints,
+      checkpointCount: puzzle.checkpointCount,
+      blocked: puzzle.blocked,
+      limit: 3,
+    });
+    assert.ok(result.exhausted);
+    assert.equal(result.solutions.length, 1);
+    assert.deepEqual(result.solutions[0], puzzle.solution);
+  }
+}
+
+/** Achievements unlock from stats; corrupt storage is rejected. */
+function expectAchievementsAndStatsValidation(): void {
+  let stats = emptyPlayerStats();
+  assert.deepEqual(evaluateAchievements(stats, 0), []);
+
+  const first = applyClear(
+    stats,
+    {
+      difficulty: 'easy',
+      sizeKey: '5x5',
+      elapsedMs: 20_000,
+      hintsUsed: 0,
+      isDaily: false,
+      isWeekly: false,
+      variant: 'classic',
+      gaveUp: false,
+    },
+    0,
+  );
+  assert.ok(first.newAchievements.includes('first-clear'));
+  assert.ok(first.newAchievements.includes('no-hint-any'));
+  assert.ok(first.newAchievements.includes('no-hint-easy'));
+  assert.ok(first.newAchievements.includes('speed-5x5'));
+  stats = first.stats;
+
+  const streaked = evaluateAchievements(stats, 7);
+  assert.ok(streaked.includes('streak-3'));
+  assert.ok(streaked.includes('streak-7'));
+
+  const weekly = markWeeklyCompletion(stats, 0);
+  assert.ok(weekly.newAchievements.includes('weekly-complete'));
+
+  saveStats(weekly.stats);
+  assert.deepEqual(loadStats(), weekly.stats);
+
+  // Corrupt payload must not crash and must not invent progress.
+  globalThis.localStorage.setItem('clubhouse:every-corner:stats', '{"totalSolved":"nope","achievements":[1,2]}');
+  const recovered = loadStats();
+  assert.equal(recovered.totalSolved, 0);
+  assert.deepEqual(recovered.achievements, []);
 }
 
 /**
@@ -330,6 +508,10 @@ const checks: [string, () => void][] = [
   ['difficulty ladder', expectDifficultyLadder],
   ['hints track the mistake', expectHintsTrackTheMistake],
   ['streak counting', expectStreakCounting],
+  ['daily algorithm unchanged', expectDailyAlgorithmUnchanged],
+  ['weekly schedule and unique boards', expectWeeklySchedule],
+  ['blocked variant is uniquely solvable', expectBlockedVariantIsUnique],
+  ['achievements and stats validation', expectAchievementsAndStatsValidation],
 ];
 
 let failed = 0;

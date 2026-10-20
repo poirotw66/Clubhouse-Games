@@ -31,13 +31,26 @@ export function areAdjacent(size: Size, a: CellId, b: CellId): boolean {
  * Precomputed adjacency, with walls already removed. Every hot loop in the
  * generator and solver walks this, so it is built once per puzzle rather than
  * recomputed from coordinates each time.
+ *
+ * `holes` are cells the path must never enter: they get an empty neighbour
+ * list and are stripped from everyone else's, so the uniqueness validator and
+ * the drawer share one graph.
  */
-export function buildNeighbours(size: Size, walls: Iterable<WallKey>): CellId[][] {
-  const blocked = new Set(walls);
+export function buildNeighbours(
+  size: Size,
+  walls: Iterable<WallKey>,
+  holes: Iterable<CellId> = [],
+): CellId[][] {
+  const wallSet = new Set(walls);
+  const holeSet = new Set(holes);
   const total = cellCount(size);
   const out: CellId[][] = [];
 
   for (let cell = 0; cell < total; cell++) {
+    if (holeSet.has(cell)) {
+      out.push([]);
+      continue;
+    }
     const row = rowOf(size, cell);
     const col = colOf(size, cell);
     const list: CellId[] = [];
@@ -45,9 +58,46 @@ export function buildNeighbours(size: Size, walls: Iterable<WallKey>): CellId[][
     if (row < size.rows - 1) list.push(cell + size.cols);
     if (col > 0) list.push(cell - 1);
     if (col < size.cols - 1) list.push(cell + 1);
-    out.push(list.filter((other) => !blocked.has(wallKey(cell, other))));
+    out.push(
+      list.filter((other) => !holeSet.has(other) && !wallSet.has(wallKey(cell, other))),
+    );
   }
   return out;
+}
+
+/** How many cells the path must cover. */
+export function playableCount(size: Size, holes: Iterable<CellId> = []): number {
+  return cellCount(size) - new Set(holes).size;
+}
+
+/** True when every playable cell is reachable from every other (ignoring walls). */
+export function playableIsConnected(
+  size: Size,
+  holes: Iterable<CellId>,
+): boolean {
+  const holeSet = new Set(holes);
+  const total = cellCount(size);
+  let start = -1;
+  for (let cell = 0; cell < total; cell++) {
+    if (!holeSet.has(cell)) {
+      start = cell;
+      break;
+    }
+  }
+  if (start < 0) return false;
+
+  const open = buildNeighbours(size, [], holeSet);
+  const seen = new Set<CellId>([start]);
+  const queue: CellId[] = [start];
+  while (queue.length > 0) {
+    const cell = queue.pop()!;
+    for (const next of open[cell]) {
+      if (seen.has(next)) continue;
+      seen.add(next);
+      queue.push(next);
+    }
+  }
+  return seen.size === playableCount(size, holeSet);
 }
 
 /** Row-major boustrophedon: right along one row, left along the next. */
@@ -63,19 +113,24 @@ export function snakePath(size: Size): CellId[] {
 }
 
 /**
- * True when the sequence is a Hamiltonian path: every cell exactly once, and
- * every consecutive pair genuinely adjacent and not separated by a wall.
- * This is the invariant the whole generator rests on.
+ * True when the sequence is a Hamiltonian path over the playable cells: every
+ * non-hole cell exactly once, and every consecutive pair genuinely adjacent
+ * and not separated by a wall. This is the invariant the whole generator rests on.
  */
 export function isHamiltonianPath(
   size: Size,
   neighbours: CellId[][],
   path: CellId[],
+  holes: Iterable<CellId> = [],
 ): boolean {
-  const total = cellCount(size);
+  const holeSet = new Set(holes);
+  const total = playableCount(size, holeSet);
   if (path.length !== total) return false;
   const seen = new Set(path);
   if (seen.size !== total) return false;
+  for (const cell of path) {
+    if (holeSet.has(cell)) return false;
+  }
   for (let i = 1; i < path.length; i++) {
     if (!neighbours[path[i - 1]].includes(path[i])) return false;
   }

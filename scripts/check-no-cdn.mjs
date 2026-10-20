@@ -50,9 +50,8 @@ for (const name of fs.readdirSync(gamesDir)) {
   if (!fs.existsSync(path.join(gamesDir, name, 'package.json'))) continue;
   const dist = pages ? path.join(root, 'dist', 'Games', name) : path.join(gamesDir, name, 'dist');
   if (!fs.existsSync(path.join(dist, 'index.html'))) {
-    // Selective Pages CI only materialises changed games into dist/Games/.
-    // Skip absent ones there; still require a full per-game dist/ when not
-    // running under --pages (local `npm run build` / full Pages builds).
+    // Selective Pages CI only builds changed games; skip the rest rather than
+    // demanding a full matrix that was never produced.
     if (pages) continue;
     throw new Error(`Missing built game: ${dist}/index.html. Build all games before checking.`);
   }
