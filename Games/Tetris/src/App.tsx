@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
-import { playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import { playGoal, playImpact, playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { RefreshCw, Pause, Play, RotateCw, ChevronLeft } from 'lucide-react';
+import { RefreshCw, Pause, Play, RotateCw, ChevronLeft, CircleHelp, X } from 'lucide-react';
 import { BoardWell } from './components/BoardWell';
 import { PieceIcon } from './components/PieceIcon';
 import type { Difficulty, Mode, ScoreBreakdown, TetrominoType } from './utils/tetrisLogic';
@@ -22,6 +22,7 @@ import {
 } from './utils/tetrisLogic';
 import {
   DIFFICULTY_PRESETS,
+  PLAYER_GARBAGE_DROP_CAP,
   findBestPlacement,
   thinkDelayMs,
   type DifficultyPreset,
@@ -38,15 +39,51 @@ const MODE_ORDER: Mode[] = ['marathon', 'sprint', 'ultra', 'versus'];
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'normal', 'hard'];
 
 const GRAVITY_LEVEL_INTERVAL = 800;
+/** Solo personal bests — do not rename (save compatibility). */
 const BEST_KEY = 'clubhouse:tetris-best';
+/** Versus W/L streak — do not rename (save compatibility). */
 const VERSUS_KEY = 'clubhouse-tetris-versus';
+/** Coach panel dismissed flag — separate from score saves. */
+const COACH_KEY = 'clubhouse:tetris-coach';
 
-const DAS_MS = 150;
-const ARR_MS = 35;
-const SOFT_DROP_MS = 40;
+/** Guideline-ish DAS/ARR; soft drop closer to 1G so mobile hold feels responsive. */
+const DAS_MS = 167;
+const ARR_MS = 33;
+const SOFT_DROP_MS = 20;
 const LOCK_DELAY_MS = 500;
 const LOCK_RESET_LIMIT = 15;
 const CLEAR_ANIM_MS = 220;
+
+function useNarrow(breakpointPx = 768): boolean {
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < breakpointPx : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpointPx - 1}px)`);
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, [breakpointPx]);
+  return narrow;
+}
+
+function readCoachDismissed(): boolean {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(COACH_KEY) || '{}');
+    return Boolean(parsed && parsed.dismissed);
+  } catch {
+    return false;
+  }
+}
+
+function writeCoachDismissed(dismissed: boolean) {
+  try {
+    localStorage.setItem(COACH_KEY, JSON.stringify({ dismissed }));
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.max(0, ms) / 1000;
@@ -132,6 +169,7 @@ function flashTone(breakdown: ScoreBreakdown): 'good' | 'neutral' {
 }
 
 export default function App() {
+  const narrow = useNarrow();
   const [mode, setMode] = useState<Mode>('marathon');
   const [difficulty, setDifficulty] = useState<Difficulty>(readVersusStats().lastDifficulty);
   const [player, setPlayer] = useState<FieldState>(createInitialField);
@@ -139,6 +177,7 @@ export default function App() {
   const [best, setBest] = useState(readBest);
   const [versusStats, setVersusStats] = useState(readVersusStats);
   const [versusWinner, setVersusWinner] = useState<'player' | 'cpu' | null>(null);
+  const [coachOpen, setCoachOpen] = useState(() => !readCoachDismissed());
   const [flash, setFlash] = useState<{
     text: string;
     tone: 'good' | 'neutral';
@@ -417,6 +456,7 @@ export default function App() {
           dir,
         );
         if (kickIndex < 0) return prev;
+        queueMicrotask(() => playMove());
         refreshLock(prev.board, rotated, now);
         return {
           ...prev,
@@ -430,6 +470,7 @@ export default function App() {
   );
 
   const hardDrop = useCallback(() => {
+    playImpact(0.45);
     setPlayer((prev) => {
       if (!prev.active || prev.gameOver || prev.paused || prev.clearing) return prev;
       if (isVersus && versusWinner) return prev;
@@ -457,7 +498,7 @@ export default function App() {
       }
       let field = outcome.field;
       if (isVersus && !field.clearing && field.active) {
-        field = maybeDropGarbage(field, 99);
+        field = maybeDropGarbage(field, PLAYER_GARBAGE_DROP_CAP);
       }
       return field;
     });
@@ -617,7 +658,7 @@ export default function App() {
         setPlayer((prev) => {
           let next = finishClearing(prev, mode);
           if (isVersus && next.active && !next.gameOver) {
-            next = maybeDropGarbage(next, 99);
+            next = maybeDropGarbage(next, PLAYER_GARBAGE_DROP_CAP);
           }
           return next;
         });
@@ -692,7 +733,7 @@ export default function App() {
           }
           let field = outcome.field;
           if (isVersus && !field.clearing && field.active) {
-            field = maybeDropGarbage(field, 99);
+            field = maybeDropGarbage(field, PLAYER_GARBAGE_DROP_CAP);
           }
           return field;
         }
@@ -858,9 +899,53 @@ export default function App() {
       ? '暫停中'
       : isVersus
         ? `對戰中（CPU：${preset.label}）`
-        : '使用方向鍵與空白鍵操作；C 暫存';
+        : narrow
+          ? '按住左右／軟降可連續移動；下方有旋轉與暫存'
+          : '使用方向鍵與空白鍵操作；C 暫存';
 
-  const wellWidth = isVersus ? 240 : 320;
+  const wellWidth = isVersus ? (narrow ? 148 : 240) : narrow ? 280 : 320;
+  const nextPreviewCount = isVersus || narrow ? 3 : 5;
+
+  const dismissCoach = () => {
+    setCoachOpen(false);
+    writeCoachDismissed(true);
+  };
+
+  const openCoach = () => {
+    setCoachOpen(true);
+    writeCoachDismissed(false);
+  };
+
+  const pressLeft = () => {
+    held.current.left = true;
+    startShift(-1);
+  };
+  const releaseLeft = () => {
+    held.current.left = false;
+    if (shift.current.dir === -1) {
+      if (held.current.right) startShift(1);
+      else shift.current.dir = 0;
+    }
+  };
+  const pressRight = () => {
+    held.current.right = true;
+    startShift(1);
+  };
+  const releaseRight = () => {
+    held.current.right = false;
+    if (shift.current.dir === 1) {
+      if (held.current.left) startShift(-1);
+      else shift.current.dir = 0;
+    }
+  };
+  const pressSoft = () => {
+    held.current.down = true;
+    softDropAt.current = performance.now() + SOFT_DROP_MS;
+    applyMove(1, 0);
+  };
+  const releaseSoft = () => {
+    held.current.down = false;
+  };
 
   return (
     <div
@@ -925,6 +1010,15 @@ export default function App() {
           <div className="flex items-center gap-2 text-xs sm:text-sm">
             <button
               type="button"
+              onClick={coachOpen ? dismissCoach : openCoach}
+              aria-pressed={coachOpen}
+              className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 touch-manipulation"
+            >
+              <CircleHelp className="w-4 h-4" />
+              <span>技巧</span>
+            </button>
+            <button
+              type="button"
               onClick={handleTogglePause}
               className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 touch-manipulation"
             >
@@ -941,10 +1035,54 @@ export default function App() {
             </button>
           </div>
         </div>
+        {coachOpen && (
+          <div
+            className="rounded-xl border border-sky-700/50 bg-slate-950/90 p-3 text-xs sm:text-sm text-slate-200 leading-relaxed relative"
+            role="region"
+            aria-label="技巧說明"
+          >
+            <button
+              type="button"
+              onClick={dismissCoach}
+              className="absolute top-2 right-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-100 touch-manipulation"
+              aria-label="關閉技巧說明"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <p className="font-semibold text-sky-200 mb-1 pr-10">得分與對戰怎麼來的</p>
+            <ul className="space-y-1 list-disc pl-4 text-slate-300">
+              <li>
+                <span className="text-slate-100">T-Spin</span>
+                ：用 T 塊原地旋轉卡進空隙（最後一步必須是旋轉）。畫面會跳出
+                T-SPIN／T-SPIN DOUBLE，分數與垃圾行都比普通消行高。
+              </li>
+              <li>
+                <span className="text-slate-100">Combo</span>
+                ：連續每手都消至少 1 行；數字越高加分與垃圾越多。
+              </li>
+              <li>
+                <span className="text-slate-100">Back-to-Back（B2B）</span>
+                ：連續做出 Tetris 或 T-Spin（中間不要夾普通 Single／Double／Triple）。側欄出現
+                B2B READY 時下一發困難消行會加成。
+              </li>
+              <li>
+                消行時的 callout 會附上 <span className="text-slate-100">+分數</span>
+                ；對戰中垃圾先進入「垃圾佇列」，下一個方塊生成時再推進場地（一次最多{' '}
+                {PLAYER_GARBAGE_DROP_CAP} 行）。
+              </li>
+            </ul>
+          </div>
+        )}
       </header>
 
-      <div className={`w-full max-w-6xl flex flex-col ${isVersus ? 'lg:flex-row' : 'sm:flex-row'} gap-4`}>
-        <aside className="sm:w-40 flex flex-col gap-3 text-xs sm:text-sm">
+      <div
+        className={`w-full max-w-6xl flex flex-col ${
+          isVersus ? 'lg:flex-row' : 'sm:flex-row'
+        } gap-3 sm:gap-4`}
+      >
+        <aside
+          className={`${narrow ? 'w-full order-2' : 'sm:w-40'} flex flex-col gap-3 text-xs sm:text-sm`}
+        >
           <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
             <h2 className="text-xs font-semibold text-slate-300 mb-1">狀態</h2>
             <p className="text-slate-200 leading-snug">{statusText}</p>
@@ -1040,7 +1178,11 @@ export default function App() {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-wrap justify-center gap-4 relative">
+        <main
+          className={`flex-1 flex flex-wrap justify-center gap-2 sm:gap-4 relative ${
+            narrow ? 'order-1' : ''
+          } ${isVersus && narrow ? 'flex-nowrap' : ''}`}
+        >
           <div className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm">
             <div className="text-center text-xs text-slate-300 mb-1 font-semibold">
               玩家
@@ -1062,7 +1204,7 @@ export default function App() {
               clearing={player.clearing}
               widthPx={wellWidth}
             />
-            {!isVersus && (
+            {!isVersus && !narrow && (
               <>
                 <div className="mt-3 flex justify-center gap-3 text-xs text-slate-400">
                   <div className="flex items-center gap-1">
@@ -1107,20 +1249,25 @@ export default function App() {
                 showGhost={false}
               />
               <div className="mt-2 text-center text-[10px] text-slate-500 font-mono">
-                {cpu.score} 分 · {cpu.lines} 行
+                {cpu.lines} 行
+                {cpu.incomingGarbage > 0 ? ` · 佇列 ${cpu.incomingGarbage}` : ''}
               </div>
             </div>
           )}
         </main>
 
-        <aside className="sm:w-32 flex flex-col gap-3 text-xs sm:text-sm">
+        <aside
+          className={`${narrow ? 'w-full order-3' : 'sm:w-32'} flex flex-col gap-3 text-xs sm:text-sm`}
+        >
           <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
             <h2 className="text-xs font-semibold text-slate-300 mb-2">下一個</h2>
-            <div className="space-y-2">
-              {player.queue.slice(0, isVersus ? 3 : 5).map((t: TetrominoType, index: number) => (
+            <div className={`gap-2 ${narrow ? 'flex flex-row justify-center' : 'space-y-2'}`}>
+              {player.queue.slice(0, nextPreviewCount).map((t: TetrominoType, index: number) => (
                 <div
                   key={`${t}-${index}`}
-                  className="w-full aspect-[4/3] bg-slate-800 rounded-lg flex items-center justify-center p-1"
+                  className={`${
+                    narrow ? 'w-16' : 'w-full'
+                  } aspect-[4/3] bg-slate-800 rounded-lg flex items-center justify-center p-1`}
                 >
                   <PieceIcon type={t} cell={index === 0 ? 12 : 9} />
                 </div>
@@ -1130,19 +1277,41 @@ export default function App() {
         </aside>
       </div>
 
-      <div className={touchControlsWrapClass}>
+      {/* Spacer so fixed mobile controls do not cover the wells. */}
+      <div className="md:hidden h-36 shrink-0" aria-hidden />
+      <div
+        className={`${touchControlsWrapClass} fixed bottom-0 left-0 right-0 z-30 md:static md:bg-transparent bg-slate-950/95 backdrop-blur-sm py-3 border-t border-slate-800 md:border-0`}
+      >
         <div className="flex gap-2 w-full justify-center">
-          <TouchButton label="←" ariaLabel="向左" onClick={() => applyMove(0, -1)} />
-          <TouchButton label="↓" ariaLabel="軟降" onClick={() => applyMove(1, 0)} />
-          <TouchButton label="→" ariaLabel="向右" onClick={() => applyMove(0, 1)} />
+          <TouchButton
+            label="←"
+            ariaLabel="向左"
+            onPress={pressLeft}
+            onRelease={releaseLeft}
+          />
+          <TouchButton
+            label="↓"
+            ariaLabel="軟降"
+            onPress={pressSoft}
+            onRelease={releaseSoft}
+          />
+          <TouchButton
+            label="→"
+            ariaLabel="向右"
+            onPress={pressRight}
+            onRelease={releaseRight}
+          />
         </div>
         <div className="flex gap-2 w-full justify-center flex-wrap">
-          <TouchButton label="旋轉" ariaLabel="旋轉" onClick={() => applyRotate(1)} />
+          <TouchButton label="左轉" ariaLabel="逆時針旋轉" onClick={() => applyRotate(-1)} />
+          <TouchButton label="右轉" ariaLabel="順時針旋轉" onClick={() => applyRotate(1)} />
           <TouchButton label="落下" ariaLabel="瞬間落下" onClick={hardDrop} accent />
           <TouchButton label="暫存" ariaLabel="暫存方塊" onClick={holdPiece} />
         </div>
+        <p className="md:hidden text-[11px] text-slate-500 mt-2 text-center px-2">
+          按住 ← → ↓ 可連續移動；左轉／右轉對應 Z／X
+        </p>
       </div>
-      <p className="md:hidden text-xs text-slate-500 mt-2 text-center">使用下方按鈕操作方塊</p>
 
       {gameOver && (
         <ResultOverlay

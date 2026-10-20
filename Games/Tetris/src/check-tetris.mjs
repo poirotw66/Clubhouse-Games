@@ -20,7 +20,12 @@ import {
   spawnPiece,
   tryRotateWithKick,
 } from './utils/tetrisLogic.ts';
-import { DIFFICULTY_PRESETS, findBestPlacement } from './utils/cpuAi.ts';
+import {
+  DIFFICULTY_PRESETS,
+  PLAYER_GARBAGE_DROP_CAP,
+  findBestPlacement,
+  reachPlacement,
+} from './utils/cpuAi.ts';
 
 function fillRow(board, row, type = 'I') {
   for (let c = 0; c < BOARD_SIZE.cols; c++) board[row][c] = type;
@@ -355,6 +360,10 @@ function fillRow(board, row, type = 'I') {
   assert.ok(lines.includes('B2B'));
   assert.ok(lines.includes('2 COMBO'));
   assert.ok(lines.includes('PERFECT CLEAR'));
+  assert.ok(
+    lines.some((line) => /^\+\d+$/.test(line)),
+    'callouts should include +score so players see where points come from',
+  );
 }
 
 // Garbage cancel and apply.
@@ -393,6 +402,32 @@ function fillRow(board, row, type = 'I') {
   const plan = findBestPlacement(board, 'T', 'I', DIFFICULTY_PRESETS.normal);
   assert.ok(plan, 'CPU must find a placement on empty board');
   assert.ok(plan.row >= 0);
+}
+
+// Reachability: planned column must be achievable via rotate→shift (no teleport).
+{
+  const board = createEmptyBoard();
+  const landed = reachPlacement(board, 'O', 0, 4);
+  assert.ok(landed, 'O at col 4 must be reachable');
+  assert.equal(landed.position.col, 4);
+  // Far-left column that O cannot shift into from spawn should fail.
+  assert.equal(reachPlacement(board, 'O', 0, -2), null);
+}
+
+// Difficulty polish: Easy is slower / softer; player garbage waves are capped.
+{
+  assert.ok(DIFFICULTY_PRESETS.easy.thinkMin >= 400, 'Easy should think longer');
+  assert.ok(
+    DIFFICULTY_PRESETS.easy.candidatePool >= 2,
+    'Easy should sample at least two top placements',
+  );
+  assert.ok(
+    DIFFICULTY_PRESETS.easy.candidatePool > DIFFICULTY_PRESETS.hard.candidatePool,
+    'Easy should sample a wider top pool than Hard',
+  );
+  assert.ok(DIFFICULTY_PRESETS.easy.garbageDropCap <= DIFFICULTY_PRESETS.normal.garbageDropCap);
+  assert.ok(PLAYER_GARBAGE_DROP_CAP >= 4 && PLAYER_GARBAGE_DROP_CAP <= 12);
+  assert.equal(DIFFICULTY_PRESETS.hard.candidatePool, 1);
 }
 
 console.log('check-tetris: ok');
