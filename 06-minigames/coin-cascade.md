@@ -60,7 +60,7 @@
 ## 勝負條件
 
 - **成績**：回收幣數 + 彩池爆開加成 + 最長連鎖加成。
-- **紀錄**：自由遊玩最佳分數、最長連鎖保存在瀏覽器本機（`coin-cascade:best`／`coin-cascade:best-cascade`）；挑戰／模式包另有分模式最佳與通關進度（見〈挑戰／模式包〉）。
+- **紀錄**：自由遊玩最佳分數、最長連鎖保存在瀏覽器本機（`coin-cascade:best`／`coin-cascade:best-cascade`，鍵名不變）；挑戰／模式包、主題台面／收藏、每日挑戰另有獨立鍵（見下節），**不得覆寫**上述最佳鍵。
 
 ## 多巴胺的具體工程
 
@@ -68,8 +68,8 @@
 
 1. **懸吊偵測**：幣半懸在前緣時高亮並短暫停頓——近失（near-miss）是這類機台最強的鉤子。
 2. **連鎖偵測**：單次推程掉落 ≥3 枚觸發雪崩演出，數字滾動累加。
-3. **彩池爆開**：整池一次傾瀉。
-4. **音效**：以 `shared/synthAudio.ts` 合成金屬撞擊，依同時落幣數疊加層次。
+3. **彩池爆開**：整池一次傾瀉，並有慶祝閃光／粒子（縮減動態時改為靜態高亮）。
+4. **音效**：本地合成金屬撞擊（`src/audio.ts`），依同時落幣數疊加層次與泛音；彩池另有扇形與低音落地。
 
 以上都必須尊重 `prefers-reduced-motion`。
 
@@ -107,7 +107,31 @@
 | 5 | `cascade-avalanche` | 雪崩挑戰：投幣 200，最長連鎖 ≥ 6 |
 | 6 | `timed-rush` | 限時衝刺：75 秒內分數 ≥ 45 |
 
-實作：`src/game/modes.ts`；引擎 `createRun` 接受 `startingCredits`／`timeLimitTicks`／`clearScore`／`clearCascade`／`modeId`。
+實作：`src/game/modes.ts`；引擎 `createRun` 接受 `startingCredits`／`timeLimitTicks`／`clearScore`／`clearCascade`／`modeId`／`tableId`／`isDaily`。
+
+### 主題台面（機制不同，不是換皮）
+
+標題「主題台面」提供至少三張機台，各自有獨立物理／規則，並以既有 balance／self-check 腳本量測 RTP，維持可玩區間（約 35–115% 守衛帶）：
+
+| id | 名稱 | 機制差異 |
+|----|------|----------|
+| `classic` | 經典廳 | 基準推程與彩池（免費解鎖） |
+| `peg-alley` | 釘陣廳 | 固定釘柱碰撞，投幣必須繞縫；潮幣 40 或模式通關 2 |
+| `spring-tide` | 潮汐廳 | 更快更長推程；觸發幣與 ≥2 枚同推程落下時彩池 1.5×（潮湧）；潮幣 100 或模式通關 4 |
+
+實作：`src/game/tables.ts`；物理快照凍結在 `RunConfig.physics`。
+
+### 解鎖／收藏／潮幣
+
+進度鍵 `coin-cascade:meta-v1`（解析時欄位級驗證；壞資料不整包清掉）。結束一局依分數／連鎖／彩池發放**潮幣**，用來解鎖台面、**磁吸幣**（落地拉近鄰幣，代價是可能拆自己的牆）、以及幣面收藏（黃金／翠玉／霓虹）。收藏櫃畫面列出台面紀錄、特殊幣、幣面與里程碑。**絕不寫入** `coin-cascade:best`。
+
+實作：`src/game/progress.ts`。
+
+### 每日挑戰
+
+標題「每日挑戰」：本地日曆日 → 固定種子 `cc-daily-YYYY-MM-DD`、目標分數與輪替台面（決定性）。達標條件為分數 ≥ 當日目標；進度鍵 `coin-cascade:daily-v1`。
+
+實作：`src/game/daily.ts`。
 
 ## 備註
 

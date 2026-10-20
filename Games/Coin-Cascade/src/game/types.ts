@@ -4,8 +4,10 @@
  * headlessly.
  */
 
-/** The three purchasable coin kinds, plus the free trigger token. */
-export type CoinKind = 'normal' | 'heavy' | 'ball' | 'trigger';
+import type { TableId, TablePhysics } from './tables';
+
+/** The purchasable coin kinds, plus the free trigger token. */
+export type CoinKind = 'normal' | 'heavy' | 'ball' | 'magnet' | 'trigger';
 
 export interface Coin {
   readonly id: number;
@@ -23,8 +25,8 @@ export interface Coin {
 export type Phase = 'playing' | 'ended';
 
 /**
- * Optional knobs for challenge / mode runs. Free play uses the defaults
- * (`startingCredits = STARTING_CREDITS`, no deadline, no early-clear gates).
+ * Optional knobs for challenge / mode / daily / table runs. Free play uses the
+ * defaults (`startingCredits = STARTING_CREDITS`, no deadline, classic table).
  */
 export interface RunConfig {
   readonly startingCredits: number;
@@ -33,12 +35,18 @@ export interface RunConfig {
    * settling. Null = unlimited (free play and score/cascade gates).
    */
   readonly deadlineTick: number | null;
-  /** Challenge pack mode id, or null for free play. */
+  /** Challenge pack mode id, or null for free play / daily. */
   readonly modeId: string | null;
   /** Early-end once score reaches this (null = never). */
   readonly clearScore: number | null;
   /** Early-end once longestCascade reaches this (null = never). */
   readonly clearCascade: number | null;
+  /** Themed table for this run. */
+  readonly tableId: TableId;
+  /** Snapshot of table physics (frozen for the run). */
+  readonly physics: TablePhysics;
+  /** True when this run is today's daily challenge. */
+  readonly isDaily: boolean;
 }
 
 export interface PlayerInput {
@@ -46,8 +54,8 @@ export interface PlayerInput {
   dropX: number;
   /** True on the single tick the player wants to drop (or fire the shake action, if `special` is 'vibrate'). Edge-triggered by the caller. */
   drop: boolean;
-  /** Which purchasable kind the next drop/action uses. 'normal' costs 1 credit; the others cost more. */
-  special: 'normal' | 'heavy' | 'ball' | 'vibrate';
+  /** Which purchasable kind the next drop/action uses. */
+  special: 'normal' | 'heavy' | 'ball' | 'vibrate' | 'magnet';
 }
 
 export interface FallEvent {
@@ -68,6 +76,8 @@ export interface TickEvents {
   readonly rejectedDrop: boolean;
   /** Count of TIMING_BONUS awards this tick. */
   readonly timingBonuses: number;
+  /** True when cascade_bonus jackpot rule applied a 1.5× multiplier this tick. */
+  readonly jackpotTideBonus: boolean;
 }
 
 export interface RunState {
@@ -78,6 +88,8 @@ export interface RunState {
   readonly config: RunConfig;
   /** Convenience mirror of `config.modeId` for HUD / result wiring. */
   readonly modeId: string | null;
+  /** Convenience mirror of `config.tableId`. */
+  readonly tableId: TableId;
 
   readonly coins: readonly Coin[];
   readonly nextCoinId: number;
