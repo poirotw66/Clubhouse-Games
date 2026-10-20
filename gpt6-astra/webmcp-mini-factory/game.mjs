@@ -17,6 +17,8 @@ import {
   maxMachineLevel,
   migrateProgress,
   nextLevelId,
+  powerDiscount,
+  powerDraw,
   powerUsed,
   productLabel,
   recordClear,
@@ -301,7 +303,7 @@ class MissionEngine {
     const s=engine.s,rate=engine.rate("produced",product);
     const recent=engine.rate("produced",product,null,10);
     s.mission.held=rate>=target&&recent>=target?s.mission.held+dt:0;
-    const used=powerUsed(s.machines);
+    const used=powerUsed(s.machines,MACHINE_POWER,engine.progress);
     s.mission.powerPeak=Math.max(s.mission.powerPeak||0,used);
     if(!s.mission.complete&&s.mission.held>=sustain){
       s.mission.complete=true;s.mission.completedAt=s.time;
@@ -370,7 +372,7 @@ class BottleneckAnalyzer {
     const rate=engine.rate("produced",level.product);
     if(rate<level.target)add("INSUFFICIENT_PRODUCTION",null,`${RESOURCES[level.product]?.name||level.product} production is ${round(level.target-rate)}/min below target.`,rate,level.target,"high");
     if(level.powerBudget!=null){
-      const used=powerUsed(s.machines);
+      const used=powerUsed(s.machines,MACHINE_POWER,engine.progress);
       if(used>level.powerBudget)add("POWER_OVERDRAW",null,`Online machines draw ${used} power; budget is ${level.powerBudget}.`,used,level.powerBudget,"high");
     }
     return result.sort((a,b)=>(a.severity==="high"?0:1)-(b.severity==="high"?0:1));
@@ -434,9 +436,9 @@ class FactoryEngine {
   }
   constraints(){
     const level=this.level();
-    const used=powerUsed(this.s.machines);
+    const used=powerUsed(this.s.machines,MACHINE_POWER,this.progress);
     return {
-      levelId:level.id,powerBudget:level.powerBudget,powerUsed:used,powerPeak:this.s.mission.powerPeak||0,
+      levelId:level.id,powerBudget:level.powerBudget,powerUsed:used,powerPeak:this.s.mission.powerPeak||0,powerDiscount:powerDiscount(this.progress),
       maxMachines:level.maxMachines,machineCount:this.s.machines.length,
       maxMachineLevel:this.maxLevel(),unlockedMachines:unlockedMachineTypes(this.progress),
       unlockedRecipes:unlockedRecipes(this.progress),machinePower:clone(MACHINE_POWER)
@@ -502,7 +504,7 @@ class FactoryEngine {
     assertValid(!this.s.conveyors.some(c=>c.path.slice(1,-1).some(p=>p.x===x&&p.y===y)),`Tile (${x},${y}) contains a conveyor.`);
     const level=this.level();
     if(level.maxMachines!=null)assertValid(this.s.machines.length<level.maxMachines,`This floor allows at most ${level.maxMachines} machines.`);
-    assertValid(canAffordPower(this.s.machines,type,level.powerBudget),`Building ${type} would exceed the ${level.powerBudget} power budget.`);
+    assertValid(canAffordPower(this.s.machines,type,level.powerBudget,MACHINE_POWER,this.progress),`Building ${type} would exceed the ${level.powerBudget} power budget.`);
     const node=NODES.find(n=>n.x===x&&n.y===y);
     if(type==="miner")assertValid(node,"Miners must be built on an iron or copper resource node.");
     this.spend(DEFINITIONS[type].cost);
@@ -539,12 +541,12 @@ class FactoryEngine {
   }
   power({machineId,enabled}){
     const m=this.machine(machineId);
-    if(enabled)assertValid(canEnablePower(this.s.machines,machineId,this.level().powerBudget),`Enabling ${machineId} would exceed the power budget.`);
+    if(enabled)assertValid(canEnablePower(this.s.machines,machineId,this.level().powerBudget,MACHINE_POWER,this.progress),`Enabling ${machineId} would exceed the power budget.`);
     m.online=enabled;m.status=enabled?"IDLE":"OFFLINE";return {machineId,online:enabled};
   }
   upgrade({machineId}){
     const m=this.machine(machineId),max=this.maxLevel();
-    assertValid(m.level<max,m.level>=3?"Machine is already at maximum level.":`Machine level ${max+1} requires Overclock research.`);
+    assertValid(m.level<max,"Machine is already at maximum level.");
     const cost=MACHINE_UPGRADE[m.level];this.spend(cost);m.level++;
     return {machineId,level:m.level,cost,nominalCapacityPerMin:round(this.nominal(m))};
   }
@@ -770,7 +772,7 @@ defineTool("machine_build","Build a new machine on a valid empty tile, spending 
 defineTool("machine_delete","Delete an existing machine and all incident conveyors. Refund 50% of the machine's base construction cost; contained and in-transit resources are discarded. This changes the shared factory and may interrupt production.",false,{machineId},(e,a)=>e.remove(a));
 defineTool("machine_set_recipe","Configure a compatible production recipe. Miner recipes must match their node; smelters make plates; assemblers make gears or circuits (circuits need research); robot assemblers make robots. Incompatible existing connections are rejected; disconnect them first. Retains buffers and resets cycle progress.",false,{machineId,recipe:{type:"string",enum:Object.keys(RECIPES)}},(e,a)=>e.recipe(a));
 defineTool("machine_set_power","Enable or disable one machine without deleting its layout or buffers. Disabled machines neither produce, accept arriving resources nor send resources. Enabling is rejected when it would exceed the level power budget.",false,{machineId,enabled:{type:"boolean"}},(e,a)=>e.power(a));
-defineTool("machine_upgrade","Upgrade a machine by one level. Base campaign max is 2; level 3 requires Overclock research. Production multipliers are 1×, 1.5× and 2×; levels 2 and 3 cost 150 and 250 credits. Storage and splitter upgrades increase buffer capacity.",false,{machineId},(e,a)=>e.upgrade(a));
+defineTool("machine_upgrade","Upgrade a machine by one level, to a maximum of 3. Production multipliers are 1×, 1.5× and 2×; levels 2 and 3 cost 150 and 250 credits. Storage and splitter upgrades increase buffer capacity. Inspect upstream supply and outgoing conveyors before spending.",false,{machineId},(e,a)=>e.upgrade(a));
 defineTool("conveyor_connect","Connect compatible source and destination machines with an automatically routed adjacent-cell orthogonal conveyor. Routes cannot cross machines or other belts. New belts carry 8 items/min and cost 15 credits per interior tile, minimum 15. Configure recipes first; inspect and upgrade belts when capacity is insufficient.",false,{fromMachineId:machineId,toMachineId:machineId},(e,a)=>e.connect(a));
 defineTool("conveyor_list","List all conveyor IDs, endpoints, paths, capacity, level, actual rolling throughput, utilization, resource type and in-flight items.",true,{},e=>{e.refreshMetrics();return {conveyors:clone(e.s.conveyors)}});
 defineTool("conveyor_inspect","Inspect a conveyor's capacity, measured flow, utilization, level, source, destination, transported resource, travel time, in-flight items and upgrade cost.",true,{conveyorId},(e,a)=>({conveyor:e.inspectConveyor(a.conveyorId)}));
@@ -796,8 +798,8 @@ defineTool("factory_get_mission","Return the current level mission: product, tar
 defineTool("factory_list_levels","List campaign floors with unlock state, star rating, product targets and which level is currently loaded.",true,{},e=>e.listLevels());
 defineTool("factory_get_progress","Return campaign progress: current level, total stars, research unlocks, personal-best clears and live constraints for the active floor.",true,{},e=>e.getProgress());
 defineTool("factory_select_level","Switch to an unlocked campaign level. Saves the current layout into versioned progress, then loads that level's saved layout or its deterministic starter with warm-up.",false,{levelId:{type:"string",minLength:1,description:"Level id such as L01 or L08."}},(e,a)=>e.selectLevel(a));
-defineTool("factory_get_research","List research nodes with unlock status. Research is granted by clearing levels and gates splitters, circuit/robot recipes, robot assemblers and machine level 3.",true,{},e=>e.getResearch());
-defineTool("factory_get_constraints","Return the active floor's power budget, current power draw, power peak, machine count cap, max machine level and unlocked machine/recipe sets.",true,{},e=>e.constraints());
+defineTool("factory_get_research","List research nodes with unlock status. Research is granted by clearing levels and gates splitters, circuit/robot recipes, robot assemblers and Overclock power discounts.",true,{},e=>e.getResearch());
+defineTool("factory_get_constraints","Return the active floor's power budget, current power draw, power peak, Overclock discount, machine count cap, max machine level and unlocked machine/recipe sets.",true,{},e=>e.constraints());
 defineTool("factory_undo","Undo the last logical construction/configuration mutation by restoring its layout, levels, recipes, power and credits. Does not rewind simulation time, production history, existing buffers or individual transfers. Deleted/re-created machines return with empty buffers. Reset clears undo history.",false,{},e=>{e.applyConfiguration(e.undo.pop());return {message:"Previous configuration restored. Simulation time was not rewound."}});
 defineTool("factory_reset","Restore the current level's deterministic starter factory with its credit budget and simulated warm-up baseline. Clears construction undo history and overwrites the saved layout for this level.",false,{},e=>e.reset());
 
@@ -1028,7 +1030,7 @@ class FactoryRenderer {
       const max=a.maxMachineLevel;
       $("inspector").innerHTML=`
         <div class="inspector-title"><strong class="mono" style="font-size:12px">${m.id.toUpperCase()}</strong><span class="badge ${m.status==="WORKING"?"good":"warn"}">${m.status}</span></div>
-        <div class="kv"><span>Position / level</span><span>(${m.x}, ${m.y}) · Level ${m.level}/${max}</span><span>Actual / capacity</span><span>${round(m.productionRate)} / ${a.nominalCapacityPerMin} per min</span><span>Efficiency / cycle</span><span>${Math.round(m.efficiency*100)}% · ${a.cycleTime??"—"}s</span><span>Input / output flow</span><span>${a.inputRate} / ${a.outputRate} per min</span><span>Buffer capacity</span><span>${m.capacity} items each</span><span>Power draw</span><span>${MACHINE_POWER[m.type]||0}${m.online?"":" (offline)"}</span></div>
+        <div class="kv"><span>Position / level</span><span>(${m.x}, ${m.y}) · Level ${m.level}/${max}</span><span>Actual / capacity</span><span>${round(m.productionRate)} / ${a.nominalCapacityPerMin} per min</span><span>Efficiency / cycle</span><span>${Math.round(m.efficiency*100)}% · ${a.cycleTime??"—"}s</span><span>Input / output flow</span><span>${a.inputRate} / ${a.outputRate} per min</span><span>Buffer capacity</span><span>${m.capacity} items each</span><span>Power draw</span><span>${powerDraw(m.type,e.progress)}${m.online?"":" (offline)"}</span></div>
         ${compatible.length?`<div class="recipe-row"><label for="recipeSelect">Recipe</label><select id="recipeSelect"><option value="">Not configured</option>${compatible.map(([id])=>`<option value="${id}" ${m.recipe===id?"selected":""}>${RESOURCES[id].name}</option>`).join("")}</select></div>`:""}
         <div class="buffer"><div><label>${isRelay(m)?"Contents":"Input buffer"}</label>${this.bufferHTML(m.inputBuffer)}</div><div><label>${isRelay(m)?"Capacity used":"Output buffer"}</label>${isRelay(m)?sum(m.inputBuffer)+" / "+m.capacity:this.bufferHTML(m.outputBuffer)}</div></div>
         <div class="kv"><span>Connected inputs</span><span>${a.connectedInputs.map(c=>esc(c.machineId)+" · "+esc(c.conveyorId)).join("<br>")||"None"}</span><span>Connected outputs</span><span>${a.connectedOutputs.map(c=>esc(c.machineId)+" · "+esc(c.conveyorId)).join("<br>")||"None"}</span></div>
@@ -1102,7 +1104,7 @@ class UIController {
       conveyor:"Connect conveyor: select the source machine, then the destination. Recipes must be compatible. Routes are orthogonal.",
       delete:"Delete tool: select a machine or conveyor. Base construction cost is 50% refunded. Undo restores configuration."
     };
-    $("hint").textContent=hints[tool]||`Build ${DEFINITIONS[tool].name} · ${DEFINITIONS[tool].cost} credits · power ${MACHINE_POWER[tool]||0}. Click an empty tile${tool==="miner"?" on a visible resource deposit":""}.`;
+    $("hint").textContent=hints[tool]||`Build ${DEFINITIONS[tool].name} · ${DEFINITIONS[tool].cost} credits · power ${powerDraw(tool,this.engine.progress)}. Click an empty tile${tool==="miner"?" on a visible resource deposit":""}.`;
   }
   refreshToolbar(){
     const unlocked=new Set(unlockedMachineTypes(this.engine.progress));
@@ -1311,22 +1313,13 @@ function runSelfTests(){
     let rejected=false;try{validateSavedConfiguration(bad)}catch{rejected=true}check(rejected);
   });
   test("Mission is attainable through normal capabilities",()=>{
-    // L01 max machine level is 2 without Overclock — add a second smelter line instead of L3.
     const e=new FactoryEngine();
     check(run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
-    check(e.machine("smelter-1").level===2);
-    check(!run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
-    const built=run(e,"machine_build",{type:"smelter",x:5,y:3});
-    check(built.success);
-    check(run(e,"machine_set_recipe",{machineId:built.machineId,recipe:"iron_plate"}).success);
-    check(run(e,"conveyor_connect",{fromMachineId:"miner-1",toMachineId:built.machineId}).success);
-    const feed=run(e,"conveyor_connect",{fromMachineId:built.machineId,toMachineId:"assembler-1"});
-    check(feed.success);
+    check(run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
     check(run(e,"conveyor_upgrade",{conveyorId:"conveyor-2"}).success);
     check(run(e,"conveyor_upgrade",{conveyorId:"conveyor-2"}).success);
-    check(run(e,"conveyor_upgrade",{conveyorId:feed.conveyorId}).success);
-    for(let i=0;i<360/.25;i++)e.simulation.step();
-    check(e.throughput().gear_per_min>=10&&e.mission().complete);
+    for(let i=0;i<240/.25;i++)e.simulation.step();
+    check(e.throughput().gear_per_min>=10&&e.mission().complete&&e.s.credits===440);
   });
   test("L01 classic starter bottleneck",()=>{
     const e=fresh();
@@ -1346,9 +1339,9 @@ function runSelfTests(){
     e.progress.currentLevelId="L03";
     const level=getLevel("L03");
     check(level.powerBudget===18);
-    check(powerUsed(e.s.machines)===13);
-    check(canAffordPower(e.s.machines,"smelter",level.powerBudget));
-    check(!canAffordPower(e.s.machines,"robot_assembler",level.powerBudget));
+    check(powerUsed(e.s.machines,MACHINE_POWER,e.progress)===13);
+    check(canAffordPower(e.s.machines,"smelter",level.powerBudget,MACHINE_POWER,e.progress));
+    check(!canAffordPower(e.s.machines,"robot_assembler",level.powerBudget,MACHINE_POWER,e.progress));
     const r=run(e,"machine_build",{type:"smelter",x:5,y:3});
     check(r.success);
     check(!run(e,"machine_build",{type:"assembler",x:6,y:3}).success);
@@ -1361,14 +1354,18 @@ function runSelfTests(){
     run(e,"conveyor_disconnect",{conveyorId:"conveyor-3"});
     check(run(e,"machine_set_recipe",{machineId:"assembler-1",recipe:"circuit"}).success);
   });
-  test("Max machine level gated by overclock",()=>{
+  test("Machine level 3 available without overclock; overclock discounts power",()=>{
     const e=fresh();
-    check(e.maxLevel()===2);
-    run(e,"machine_upgrade",{machineId:"smelter-1"});
-    check(!run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
-    e.progress.research.push("overclock");
     check(e.maxLevel()===3);
     check(run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
+    check(run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
+    check(e.machine("smelter-1").level===3);
+    check(!run(e,"machine_upgrade",{machineId:"smelter-1"}).success);
+    const before=powerUsed(e.s.machines,MACHINE_POWER,e.progress);
+    e.progress.research.push("overclock");
+    check(powerDiscount(e.progress)===1);
+    check(powerDraw("smelter",e.progress)===MACHINE_POWER.smelter-1);
+    check(powerUsed(e.s.machines,MACHINE_POWER,e.progress)<before);
   });
   test("New campaign tools exist",()=>{
     const names=new Set(TOOLS.map(t=>t.name));

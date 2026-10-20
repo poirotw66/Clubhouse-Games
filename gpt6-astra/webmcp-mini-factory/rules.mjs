@@ -43,8 +43,8 @@ export const RESEARCH = [
   {
     id: 'overclock',
     name: 'Overclock Modules',
-    description: 'Machine level 3 upgrades become available.',
-    unlocks: { maxMachineLevel: 3 },
+    description: 'Online machines draw 1 less power (minimum 1). Levels 1–3 stay available from the start.',
+    unlocks: { powerDiscount: 1 },
   },
 ];
 
@@ -325,15 +325,23 @@ export function unlockedRecipes(progress) {
   return [...base];
 }
 
-export function maxMachineLevel(progress) {
-  let max = 2;
-  for (const id of progress.research || []) {
-    const node = RESEARCH.find((entry) => entry.id === id);
-    if (node?.unlocks?.maxMachineLevel) {
-      max = Math.max(max, node.unlocks.maxMachineLevel);
-    }
-  }
-  return max;
+/** Depth-3 Mini Factory always allowed levels 1–3; keep that for every floor. */
+export function maxMachineLevel(_progress) {
+  return 3;
+}
+
+/** Extra power discount from Overclock research (0 if locked). */
+export function powerDiscount(progress) {
+  if (!hasResearch(progress, 'overclock')) return 0;
+  const node = RESEARCH.find((entry) => entry.id === 'overclock');
+  return node?.unlocks?.powerDiscount || 0;
+}
+
+export function powerDraw(type, progress = null, powerTable = MACHINE_POWER) {
+  const base = powerTable[type] || 0;
+  const discount = progress ? powerDiscount(progress) : 0;
+  if (!discount || base <= 0) return base;
+  return Math.max(1, base - discount);
 }
 
 /**
@@ -388,24 +396,41 @@ export function recordClear(progress, levelId, attempt) {
   return { stars, isNewBest, newlyResearch };
 }
 
-export function powerUsed(machines, powerTable = MACHINE_POWER) {
+export function powerUsed(machines, powerTable = MACHINE_POWER, progress = null) {
   return machines.reduce((sum, machine) => {
     if (!machine.online) return sum;
-    return sum + (powerTable[machine.type] || 0);
+    return sum + powerDraw(machine.type, progress, powerTable);
   }, 0);
 }
 
-export function canAffordPower(machines, type, powerBudget, powerTable = MACHINE_POWER) {
+export function canAffordPower(
+  machines,
+  type,
+  powerBudget,
+  powerTable = MACHINE_POWER,
+  progress = null,
+) {
   if (powerBudget == null) return true;
-  return powerUsed(machines, powerTable) + (powerTable[type] || 0) <= powerBudget;
+  return (
+    powerUsed(machines, powerTable, progress) + powerDraw(type, progress, powerTable) <=
+    powerBudget
+  );
 }
 
-export function canEnablePower(machines, machineId, powerBudget, powerTable = MACHINE_POWER) {
+export function canEnablePower(
+  machines,
+  machineId,
+  powerBudget,
+  powerTable = MACHINE_POWER,
+  progress = null,
+) {
   if (powerBudget == null) return true;
   const target = machines.find((machine) => machine.id === machineId);
   if (!target || target.online) return true;
   return (
-    powerUsed(machines, powerTable) + (powerTable[target.type] || 0) <= powerBudget
+    powerUsed(machines, powerTable, progress) +
+      powerDraw(target.type, progress, powerTable) <=
+    powerBudget
   );
 }
 

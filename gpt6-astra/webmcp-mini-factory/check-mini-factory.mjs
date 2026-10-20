@@ -19,6 +19,8 @@ import {
   maxMachineLevel,
   migrateProgress,
   nextLevelId,
+  powerDiscount,
+  powerDraw,
   powerUsed,
   productLabel,
   rateStars,
@@ -78,7 +80,8 @@ assert.deepEqual(unlockedMachineTypes(progress).sort(), [
 ]);
 assert.ok(unlockedRecipes(progress).includes('gear'));
 assert.ok(!unlockedRecipes(progress).includes('circuit'));
-assert.equal(maxMachineLevel(progress), 2);
+assert.equal(maxMachineLevel(progress), 3);
+assert.equal(powerDiscount(progress), 0);
 
 assert.equal(
   rateStars(L01, { machineCount: 4, powerPeak: 0, creditsLeft: 500 }),
@@ -131,6 +134,14 @@ assert.equal(canAffordPower(machines, 'assembler', 12), true);
 assert.equal(canAffordPower(machines, 'assembler', 10), false);
 assert.equal(canEnablePower(machines, 'c', 8), true);
 assert.equal(canEnablePower(machines, 'c', 7), false);
+
+progress.research.push('overclock');
+assert.equal(powerDiscount(progress), 1);
+assert.equal(powerDraw('smelter', progress), MACHINE_POWER.smelter - 1);
+assert.equal(
+  powerUsed(machines, MACHINE_POWER, progress),
+  powerDraw('miner', progress) + powerDraw('smelter', progress),
+);
 
 grantLevelResearch(progress, 'L03');
 assert.ok(hasResearch(progress, 'circuits'));
