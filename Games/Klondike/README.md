@@ -60,13 +60,22 @@ REPO_NAME=Clubhouse-Games npm run build:pages
 
 ---
 
+## 數位模式
+
+- **翻 1／翻 3**、**標準／維加斯計分**（含累計籌碼；標準悔棋額外 −2）
+- **可解局**：thoughtful solver 篩種子，必要時腳本構局
+- **每日一局**：台北時間種子、今日最佳、連續天數、可複製分享文案
+- **戰績**：勝率、連勝、各模式最佳分／時間／步數、挑戰目標
+
+驗證：`npm run check`（`src/check-klondike.mjs`）、`npm run lint`。
+
 ## 檔案結構（重點）
 
 - `src/App.tsx`：主要遊戲 UI 與操作流程。
-- `src/utils/deck.ts`：牌堆建立與洗牌、發牌邏輯。
-- `src/utils/gameLogic.ts`：接龍規則驗證、合法移動判斷、勝負檢查等核心邏輯。
-- `src/components/Card.tsx`：單張牌的呈現與樣式。
-- `src/components/EmptySlot.tsx`：空牌位顯示（例如空 foundation 或空 tableau 列）。
+- `src/utils/deck.ts`：牌堆建立、可解／每日發牌。
+- `src/utils/scoring.ts` / `solver.ts` / `daily.ts` / `share.ts` / `storage.ts`：計分、可解篩選、每日與分享、戰績。
+- `src/utils/gameLogic.ts`：接龍規則、提示、自動完成。
+- `src/components/StatsPanel.tsx`：戰績與今日分享。
 - `src/types.ts`：`GameState`、`Card` 等型別定義。
 
 完整的規則說明則在主專案的 `01-cards/klondike.md` 中。

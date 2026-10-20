@@ -89,7 +89,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
             <h3 className="text-lg font-bold text-white mb-2">計分</h3>
             <ul className="list-disc pl-5 space-y-2">
               <li>
-                <strong>標準</strong>：移上回收區 +10、翻開牌疊 +5、廢牌接到牌疊 +5；從回收區拿回 −15；循環牌堆翻 1 扣 100／翻 3 扣 20；每 10 秒 −2；通關依時間加分。
+                <strong>標準</strong>：移上回收區 +10、翻開牌疊 +5、廢牌接到牌疊 +5；從回收區拿回 −15；每次悔棋額外 −2；循環牌堆翻 1 扣 100／翻 3 扣 20；每 10 秒 −2；通關依時間加分。
               </li>
               <li>
                 <strong>維加斯</strong>：開局 −52，每張上回收區 +5，分數累計為籌碼。翻 1 不可循環牌堆；翻 3 最多循環兩次（共三輪）。
@@ -104,7 +104,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
                 <strong>可解局</strong>：以 solver 篩選（或反向構局）保證存在完美資訊解。
               </li>
               <li>
-                <strong>每日</strong>：依台北時間日期種子發同一局，通關累積連續天數。
+                <strong>每日</strong>：依台北時間日期種子發同一局，記錄今日最佳與連續天數，可複製分享文案。
               </li>
               <li>
                 <strong>挑戰</strong>：如無悔棋、步數／時間上限、標準高分、維加斯獲利等，通關時結算。
