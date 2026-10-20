@@ -83,6 +83,33 @@
       { id: "ple-07", stageId: "permute-edges", label: "Ua（L）", setup: "L2 D L D L' D' L' D' L' D L'" },
       { id: "ple-08", stageId: "permute-edges", label: "Ub（L）", setup: "L D' L D L D L D' L' D' L2" },
     ],
+    /**
+     * 2-look OLL cases (yellow on D). Prerequisite: yellow-cross complete.
+     * Goal: yellow-orient (full yellow face).
+     */
+    "oll-2look": [
+      { id: "o2-01", stageId: "oll-2look", label: "Sune 魚", setup: "R D R' D R D2 R'" },
+      { id: "o2-02", stageId: "oll-2look", label: "反 Sune", setup: "R D2 R' D' R D' R'" },
+      { id: "o2-03", stageId: "oll-2look", label: "Sune＋AUF", setup: "R D R' D R D2 R' D" },
+      { id: "o2-04", stageId: "oll-2look", label: "反魚＋AUF", setup: "R D2 R' D' R D' R' D'" },
+      { id: "o2-05", stageId: "oll-2look", label: "F-Sune", setup: "F D F' D F D2 F'" },
+      { id: "o2-06", stageId: "oll-2look", label: "B-Sune", setup: "B D B' D B D2 B'" },
+      { id: "o2-07", stageId: "oll-2look", label: "Niklas", setup: "R D' L' D R' D' L" },
+      { id: "o2-08", stageId: "oll-2look", label: "雙魚（H）", setup: "R D R' D R D2 R' R D R' D R D2 R'" },
+    ],
+    /**
+     * 2-look PLL cases (OLL done). Goal: fully solved.
+     */
+    "pll-2look": [
+      { id: "p2-01", stageId: "pll-2look", label: "Ua（R）", setup: "R2 D R D R' D' R' D' R' D R'" },
+      { id: "p2-02", stageId: "pll-2look", label: "Ub（R）", setup: "R D' R D R D R D' R' D' R2" },
+      { id: "p2-03", stageId: "pll-2look", label: "Ua（F）", setup: "F2 D F D F' D' F' D' F' D F'" },
+      { id: "p2-04", stageId: "pll-2look", label: "Ub（F）", setup: "F D' F D F D F D' F' D' F2" },
+      { id: "p2-05", stageId: "pll-2look", label: "角循環 AUF", setup: "D" },
+      { id: "p2-06", stageId: "pll-2look", label: "角循環 D'", setup: "D'" },
+      { id: "p2-07", stageId: "pll-2look", label: "角半圈 D2", setup: "D2" },
+      { id: "p2-08", stageId: "pll-2look", label: "Ua（L）", setup: "L2 D L D L' D' L' D' L' D L'" },
+    ],
   };
 
   const STAGE_ORDER = [
@@ -93,7 +120,12 @@
     "yellow-orient",
     "permute-corners",
     "permute-edges",
+    "oll-2look",
+    "pll-2look",
   ];
+
+  /** Beginner LBL stages shown first; 2-look chips follow. */
+  const CORE_STAGE_ORDER = STAGE_ORDER.slice(0, 7);
 
   const STAGE_LABELS = {
     "white-cross": "白色十字",
@@ -103,6 +135,8 @@
     "yellow-orient": "黃面朝向（OLL）",
     "permute-corners": "排列黃角",
     "permute-edges": "排列黃邊（PLL）",
+    "oll-2look": "2-look OLL",
+    "pll-2look": "2-look PLL",
   };
 
   const STAGE_HINTS = {
@@ -113,6 +147,27 @@
     "yellow-orient": "對準魚形後執行 Sune：R U R' U R U2 R'（黃在 D 時改用 D 版練習）。",
     "permute-corners": "先對好一組角，再用排角公式循環其餘三角。",
     "permute-edges": "角已對好後，用 Ua／Ub 等公式排黃邊；還原才算完成。",
+    "oll-2look": "黃十字已完成後，用 Sune／反 Sune／Niklas 等把黃面朝向齊（2-look OLL）。",
+    "pll-2look": "黃面朝向完成後，先排角再排邊（或 Ua／Ub）；整個方塊還原才算完成。",
+  };
+
+  /** Goal stage id used by CubePatterns.checkStage (or "solved"). */
+  const STAGE_GOAL = {
+    "oll-2look": "yellow-orient",
+    "pll-2look": "solved",
+  };
+
+  /** Prerequisite stage that must already be complete (null = none). */
+  const STAGE_PREREQ = {
+    "white-cross": null,
+    "white-corners": "white-cross",
+    "second-layer": "white-corners",
+    "yellow-cross": "second-layer",
+    "yellow-orient": "yellow-cross",
+    "permute-corners": "yellow-orient",
+    "permute-edges": "permute-corners",
+    "oll-2look": "yellow-cross",
+    "pll-2look": "yellow-orient",
   };
 
   const AUF_D = ["", "D", "D'", "D2"];
@@ -145,10 +200,13 @@
     }
     const roll = typeof rng === "function" ? rng : defaultRng;
     const base = pool[Math.floor(roll() * pool.length) % pool.length];
-    // Extra D AUF is safe mainly for yellow-cross / OLL.
+    // Extra D AUF is safe mainly for yellow-cross / OLL / 2-look OLL.
     // Corner-perm bank already varies AUF; appending D can cancel to solved.
     // Edge PLL must never get a trailing D (breaks corner alignment).
-    const allowAuf = stageId === "yellow-cross" || stageId === "yellow-orient";
+    const allowAuf =
+      stageId === "yellow-cross" ||
+      stageId === "yellow-orient" ||
+      stageId === "oll-2look";
 
     let setup = base.setup;
     let auf = "";
@@ -193,6 +251,20 @@
     return engine.scramble;
   }
 
+  function goalComplete(stageId, faces, patterns) {
+    const goalId = STAGE_GOAL[stageId] || stageId;
+    if (goalId === "solved") return patterns.isSolved(faces);
+    const target = patterns.checkStage(goalId, faces);
+    return Boolean(target.applicable && target.complete);
+  }
+
+  function checkDrillGoal(stageId, faces, patterns) {
+    const p = patterns || root.CubePatterns;
+    const complete = goalComplete(stageId, faces, p);
+    const goalId = STAGE_GOAL[stageId] || stageId;
+    return { complete, goalId, applicable: true };
+  }
+
   /**
    * Validate: target incomplete; previous stage complete when applicable; not fully solved.
    */
@@ -205,19 +277,20 @@
     if (p.isSolved(faces)) {
       return { ok: false, reason: "cube is solved" };
     }
-    const target = p.checkStage(practiceCase.stageId, faces);
-    if (!target.applicable) {
-      return { ok: false, reason: "stage not applicable" };
-    }
-    if (target.complete) {
+    if (goalComplete(practiceCase.stageId, faces, p)) {
       return { ok: false, reason: "target already complete" };
     }
-    const idx = STAGE_ORDER.indexOf(practiceCase.stageId);
-    if (idx > 0) {
-      const prevId = STAGE_ORDER[idx - 1];
-      const prev = p.checkStage(prevId, faces);
+    const prereqId =
+      Object.prototype.hasOwnProperty.call(STAGE_PREREQ, practiceCase.stageId)
+        ? STAGE_PREREQ[practiceCase.stageId]
+        : (() => {
+            const idx = STAGE_ORDER.indexOf(practiceCase.stageId);
+            return idx > 0 ? STAGE_ORDER[idx - 1] : null;
+          })();
+    if (prereqId) {
+      const prev = p.checkStage(prereqId, faces);
       if (!prev.complete) {
-        return { ok: false, reason: `prerequisite ${prevId} incomplete` };
+        return { ok: false, reason: `prerequisite ${prereqId} incomplete` };
       }
     }
     return { ok: true, faces };
@@ -235,14 +308,19 @@
   root.CubePracticeBank = {
     BANK,
     STAGE_ORDER,
+    CORE_STAGE_ORDER,
     STAGE_LABELS,
     STAGE_HINTS,
+    STAGE_GOAL,
+    STAGE_PREREQ,
     AUF_D,
     stageIds,
     casesFor,
     pickCase,
     applySetup,
     validateCase,
+    checkDrillGoal,
+    goalComplete,
     generateScramble,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

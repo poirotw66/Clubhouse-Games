@@ -5,6 +5,8 @@
   const KEY = "rubiks-cube-academy:progress:v1";
   const TIMES_KEY = "rubiks-cube-academy:times:v1";
   const PRACTICE_KEY = "rubiks-cube-academy:practice:v1";
+  const DAILY_KEY = "rubiks-cube-academy:daily:v1";
+  const SFX_KEY = "rubiks-cube-academy:sfx:v1";
 
   function emptyProgress() {
     return {
@@ -299,10 +301,188 @@
     "permute-edges": "permute-edges",
   };
 
+  /* -------- Daily scramble / streak -------- */
+
+  function localDateKey(date = new Date()) {
+    const d = date instanceof Date ? date : new Date(date);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function shiftDateKey(dateKey, deltaDays) {
+    const [y, m, d] = String(dateKey).split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + deltaDays);
+    return localDateKey(dt);
+  }
+
+  function emptyDaily() {
+    return {
+      version: 1,
+      streak: 0,
+      lastSolvedDate: null,
+      byDate: {},
+      updatedAt: 0,
+    };
+  }
+
+  function loadDaily() {
+    try {
+      const raw = localStorage.getItem(DAILY_KEY);
+      if (!raw) return emptyDaily();
+      const parsed = JSON.parse(raw);
+      const byDate = {};
+      if (parsed && typeof parsed.byDate === "object" && parsed.byDate) {
+        for (const [key, entry] of Object.entries(parsed.byDate)) {
+          if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+          if (!entry || typeof entry !== "object") continue;
+          byDate[key] = {
+            scramble: typeof entry.scramble === "string" ? entry.scramble.slice(0, 200) : "",
+            bestMs:
+              entry.bestMs != null &&
+              Number.isFinite(Number(entry.bestMs)) &&
+              Number(entry.bestMs) > 0
+                ? Number(entry.bestMs)
+                : null,
+            solves: Math.max(0, Math.floor(Number(entry.solves) || 0)),
+            updatedAt: Math.max(0, Math.floor(Number(entry.updatedAt) || 0)),
+          };
+        }
+      }
+      return {
+        version: 1,
+        streak: Math.max(0, Math.floor(Number(parsed.streak) || 0)),
+        lastSolvedDate:
+          typeof parsed.lastSolvedDate === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(parsed.lastSolvedDate)
+            ? parsed.lastSolvedDate
+            : null,
+        byDate,
+        updatedAt: Math.max(0, Math.floor(Number(parsed.updatedAt) || 0)),
+      };
+    } catch {
+      return emptyDaily();
+    }
+  }
+
+  function saveDaily(daily) {
+    try {
+      localStorage.setItem(DAILY_KEY, JSON.stringify(daily));
+    } catch {
+      /* quota */
+    }
+  }
+
+  function ensureDailyEntry(daily, dateKey, scramble) {
+    const existing = daily.byDate[dateKey];
+    if (existing && existing.scramble) {
+      return { daily, entry: existing };
+    }
+    const entry = {
+      scramble: typeof scramble === "string" ? scramble.slice(0, 200) : "",
+      bestMs: existing?.bestMs ?? null,
+      solves: existing?.solves ?? 0,
+      updatedAt: Date.now(),
+    };
+    const next = {
+      ...daily,
+      byDate: { ...daily.byDate, [dateKey]: entry },
+      updatedAt: Date.now(),
+    };
+    saveDaily(next);
+    return { daily: next, entry };
+  }
+
+  function computeStreakOnSolve(daily, dateKey) {
+    const last = daily.lastSolvedDate;
+    if (last === dateKey) return daily.streak || 1;
+    if (last && shiftDateKey(last, 1) === dateKey) {
+      return (daily.streak || 0) + 1;
+    }
+    return 1;
+  }
+
+  function recordDailySolve(daily, dateKey, ms, scramble) {
+    if (!canRecordSolve(true, ms)) return daily;
+    const rounded = Math.round(ms);
+    const prev = daily.byDate[dateKey] || {
+      scramble: typeof scramble === "string" ? scramble.slice(0, 200) : "",
+      bestMs: null,
+      solves: 0,
+      updatedAt: 0,
+    };
+    const bestMs =
+      prev.bestMs == null || rounded < prev.bestMs ? rounded : prev.bestMs;
+    const streak = computeStreakOnSolve(daily, dateKey);
+    const next = {
+      ...daily,
+      streak,
+      lastSolvedDate: dateKey,
+      byDate: {
+        ...daily.byDate,
+        [dateKey]: {
+          scramble: prev.scramble || (typeof scramble === "string" ? scramble.slice(0, 200) : ""),
+          bestMs,
+          solves: prev.solves + 1,
+          updatedAt: Date.now(),
+        },
+      },
+      updatedAt: Date.now(),
+    };
+    saveDaily(next);
+    return next;
+  }
+
+  function formatShareText(daily, dateKey, options = {}) {
+    const entry = daily.byDate[dateKey];
+    const best =
+      entry?.bestMs != null ? formatMs(entry.bestMs) : options.fallbackMs != null
+        ? formatMs(options.fallbackMs)
+        : "—";
+    const scramble = entry?.scramble || options.scramble || "—";
+    const streak = daily.streak || 0;
+    return [
+      "魔術方塊學院 · 每日打亂",
+      `日期：${dateKey}`,
+      `今天最佳：${best}`,
+      `連續天數：${streak}`,
+      `打亂：${scramble}`,
+      "#魔術方塊學院 #每日打亂",
+    ].join("\n");
+  }
+
+  /**
+   * Compare averages before/after appending a solve.
+   * Returns which of PB / ao5 / ao12 improved (first aoN counts as a milestone).
+   */
+  function detectRecordBreaks(prevTimes, nextTimes, ms) {
+    const isPb =
+      prevTimes.bestMs == null || (Number.isFinite(ms) && ms < prevTimes.bestMs);
+    const prevAo5 = averageOf(prevTimes.runs, 5);
+    const nextAo5 = averageOf(nextTimes.runs, 5);
+    const prevAo12 = averageOf(prevTimes.runs, 12);
+    const nextAo12 = averageOf(nextTimes.runs, 12);
+    const brokeAo5 =
+      nextAo5 != null && (prevAo5 == null || nextAo5 < prevAo5);
+    const brokeAo12 =
+      nextAo12 != null && (prevAo12 == null || nextAo12 < prevAo12);
+    return {
+      isPb: Boolean(isPb),
+      brokeAo5: Boolean(brokeAo5),
+      brokeAo12: Boolean(brokeAo12),
+      ao5: nextAo5,
+      ao12: nextAo12,
+    };
+  }
+
   root.CubeProgress = {
     KEY,
     TIMES_KEY,
     PRACTICE_KEY,
+    DAILY_KEY,
+    SFX_KEY,
     emptyProgress,
     loadProgress,
     saveProgress,
@@ -324,5 +504,15 @@
     recordPracticeSolve,
     stageAverageMs,
     LESSON_STAGE,
+    localDateKey,
+    shiftDateKey,
+    emptyDaily,
+    loadDaily,
+    saveDaily,
+    ensureDailyEntry,
+    computeStreakOnSolve,
+    recordDailySolve,
+    formatShareText,
+    detectRecordBreaks,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
