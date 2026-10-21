@@ -22,7 +22,11 @@ import {
   MAX_FLOOR,
   RELIC_CHOICE_COUNT,
 } from '../src/game/config.js';
-import { computeDailyStreak, todaySeedKey } from '../src/game/daily.js';
+import {
+  buildDailyShareText,
+  computeDailyStreak,
+  todaySeedKey,
+} from '../src/game/daily.js';
 import {
   chooseRelic,
   createRun,
@@ -31,7 +35,11 @@ import {
   relicOfferCount,
   tick,
 } from '../src/game/engine.js';
-import { RELICS, rollRelicChoices } from '../src/game/relics.js';
+import {
+  RELICS,
+  isIronsnakeDeadRelic,
+  rollRelicChoices,
+} from '../src/game/relics.js';
 import { createRng, parseSeed } from '../src/game/rng.js';
 import type { Enemy, Fruit, GameState, RelicId, Vec } from '../src/game/types.js';
 
@@ -388,6 +396,19 @@ function expectIronsnakeRules(): void {
   const normal = createRun(99, { ironsnake: false });
   assert.equal(relicOfferCount(normal), RELIC_CHOICE_COUNT);
   assert.equal(normal.hp, 3);
+
+  assert.equal(isIronsnakeDeadRelic('heart'), true);
+  assert.equal(isIronsnakeDeadRelic('mend'), true);
+  assert.equal(isIronsnakeDeadRelic('moulting'), true);
+  assert.equal(isIronsnakeDeadRelic('fang'), false);
+
+  const ironOffers = rollRelicChoices(createRng(2026), [], IRONSNAKE_RELIC_CHOICE_COUNT, {
+    ironsnake: true,
+  });
+  assert.equal(ironOffers.length, IRONSNAKE_RELIC_CHOICE_COUNT);
+  for (const id of ironOffers) {
+    assert.equal(isIronsnakeDeadRelic(id), false, `Ironsnake offer must not include ${id}`);
+  }
 }
 
 function expectStartingBuilds(): void {
@@ -464,6 +485,31 @@ function expectDailyStreakMath(): void {
   );
 }
 
+function expectDailyShareText(): void {
+  const cleared = buildDailyShareText({
+    date: '20261021',
+    cleared: true,
+    score: 2400,
+    floor: 15,
+    streak: 3,
+    buildName: '疾行遊蛇',
+  });
+  assert.match(cleared, /蛇窟迴廊 每日 20261021/);
+  assert.match(cleared, /✓ 逃出 · 2400 分 · 第 15 層/);
+  assert.match(cleared, /連勝 3 天 · 身分 疾行遊蛇/);
+
+  const failed = buildDailyShareText({
+    date: '20261021',
+    cleared: false,
+    score: 420,
+    floor: 6,
+    streak: 1,
+  });
+  assert.match(failed, /✗ 第 6 層 · 420 分/);
+  assert.match(failed, /連勝 1 天/);
+  assert.equal(failed.includes('身分'), false);
+}
+
 expectSpitterOnlyFiresWhenAligned();
 expectCursedFruitUsesFlatScore();
 expectBloodDashOnlyCostsHp();
@@ -474,5 +520,6 @@ expectChallengeClearHelpers();
 expectIronsnakeRules();
 expectStartingBuilds();
 expectDailyStreakMath();
+expectDailyShareText();
 
 console.log('Roguelike Snake logic self-check passed.');

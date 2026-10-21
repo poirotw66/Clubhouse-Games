@@ -593,7 +593,9 @@ function enterExit(state: GameState): void {
   }
 
   state.pendingPicks += 1;
-  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
+  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state), {
+    ironsnake: state.ironsnake,
+  });
   state.phase = 'relic';
 }
 
@@ -925,7 +927,9 @@ export function chooseRelic(state: GameState, id: RelicId): void {
   state.relicChoices = [];
 
   if (state.pendingPicks > 0) {
-    state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
+    state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state), {
+    ironsnake: state.ironsnake,
+  });
     return;
   }
 
@@ -937,7 +941,9 @@ export function chooseRelic(state: GameState, id: RelicId): void {
 export function rerollRelics(state: GameState): void {
   if (state.phase !== 'relic' || state.coins < REROLL_COST) return;
   state.coins -= REROLL_COST;
-  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
+  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state), {
+    ironsnake: state.ironsnake,
+  });
 }
 
 export function buyHeal(state: GameState): void {
@@ -954,6 +960,8 @@ export function continueEndless(state: GameState): void {
   if (state.phase !== 'won') return;
   state.endless = true;
   state.pendingPicks += 1;
-  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state));
+  state.relicChoices = rollRelicChoices(state.rng, state.relics, relicOfferCount(state), {
+    ironsnake: state.ironsnake,
+  });
   state.phase = 'relic';
 }
