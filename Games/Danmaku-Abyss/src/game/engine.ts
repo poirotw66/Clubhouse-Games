@@ -134,14 +134,23 @@ export function hitboxRadius(s: RunState): number {
 }
 
 export function grazeRadius(s: RunState): number {
-  return BASE_GRAZE_R * (1 + effectNow(s, 'grazeRangePct')) * craftOf(s).grazeRangeMult;
+  const craft = craftOf(s);
+  let r = BASE_GRAZE_R * (1 + effectNow(s, 'grazeRangePct')) * craft.grazeRangeMult;
+  if (s.specialLeft > 0 && craft.special.kind === 'rift') r *= 1.45;
+  return r;
 }
 
 export function moveSpeed(s: RunState): number {
   const craft = craftOf(s);
-  return s.focus
+  let speed = s.focus
     ? FOCUS_SPEED * (1 + effectNow(s, 'focusSpeedPct')) * craft.focusSpeedMult
     : FAST_SPEED * (1 + effectNow(s, 'fastSpeedPct')) * craft.fastSpeedMult;
+  // Active specials rewrite mobility for their window only.
+  if (s.specialLeft > 0) {
+    if (craft.special.kind === 'dash') speed *= 3.4;
+    if (craft.special.kind === 'overdrive') speed *= 0.62;
+  }
+  return speed;
 }
 
 /** Volleys per second, rising with power tier and fireRatePct. */
@@ -177,8 +186,12 @@ export function rangeDamageMult(s: RunState, dist: number): number {
 }
 
 export function shotDamage(s: RunState, dist: number): number {
+  const craft = craftOf(s);
   const base = 8 + s.powerTier * 3;
-  return base * (1 + effectNow(s, 'damagePct')) * rangeDamageMult(s, dist) * craftOf(s).damageMult;
+  let dmg =
+    base * (1 + effectNow(s, 'damagePct')) * rangeDamageMult(s, dist) * craft.damageMult;
+  if (s.specialLeft > 0 && craft.special.kind === 'overdrive') dmg *= 1.7;
+  return dmg;
 }
 
 export function grazeGain(s: RunState): number {
@@ -317,6 +330,10 @@ export function createRun(
     modeId: options.modeId ?? null,
     craftId: options.craftId ?? DEFAULT_CRAFT_ID,
     capturedCardIds: [],
+    specialCd: 0,
+    specialLeft: 0,
+    facingX: 0,
+    facingY: -1,
   };
 
   if (config.skipMidway) {
@@ -416,20 +433,44 @@ export function emitterActive(card: SpellCard, index: number, hpFrac: number): b
 // travelling shots would smear it across the flight time and make the falloff
 // curve unmeasurable.
 
+/**
+ * Hitscan volley shaped by craft shotStyle:
+ *   balanced — even fan across reach
+ *   wide     — broader reach, outer lanes deal less (spray)
+ *   needle   — narrow corridor, full damage only when aligned
+ */
 function fireVolley(s: RunState): void {
+  const craft = craftOf(s);
   const shots = shotsPerVolley(s);
-  const reachBonus = craftOf(s).reachBonus;
+  const reachBonus = craft.reachBonus;
+  const style = craft.shotStyle;
+  const baseReach = 26 + shots * 9 + reachBonus;
+  const reach =
+    style === 'wide' ? baseReach * 1.35 : style === 'needle' ? baseReach * 0.55 : baseReach;
+  // Needle punches a little farther ahead; wide is more forgiving below the ship.
+  const aheadSlack = style === 'needle' ? 55 : style === 'wide' ? 28 : 40;
+
   for (const e of s.enemies) {
     if (e.entryTo) continue; // still gliding in, not yet a target
     const dx = e.x - s.px;
     const dy = e.y - s.py;
     // Shots go up: only enemies roughly ahead of the ship can be hit.
-    if (dy > 40) continue;
+    if (dy > aheadSlack) continue;
     const dist = Math.hypot(dx, dy);
     const lateral = Math.abs(dx);
-    const reach = 26 + shots * 9 + reachBonus;
     if (lateral > reach) continue;
-    e.hp -= shotDamage(s, dist) * shots;
+
+    let weight = shots;
+    if (style === 'wide') {
+      // Outer lanes of the spray deal less — wide coverage, soft edges.
+      const edge = Math.min(1, lateral / Math.max(1, reach));
+      weight = shots * (1.15 - edge * 0.55);
+    } else if (style === 'needle') {
+      // Damage concentrates on the centre line.
+      const edge = Math.min(1, lateral / Math.max(1, reach));
+      weight = shots * (1.55 - edge * 1.05);
+    }
+    e.hp -= shotDamage(s, dist) * weight;
   }
 }
 
@@ -612,6 +653,22 @@ export function takeUpgrade(state: RunState, id: string): RunState {
   return s;
 }
 
+/** Fire the craft's cooldown special. Mutates the cloned run state. */
+function activateSpecial(s: RunState): void {
+  const craft = craftOf(s);
+  const spec = craft.special;
+  s.specialCd = spec.cooldown;
+  s.specialLeft = spec.duration;
+  if (spec.kind === 'dash') {
+    // Brief mercy so the dash is a real escape, not a suicide button.
+    s.invuln = Math.max(s.invuln, spec.duration + 0.08);
+  } else if (spec.kind === 'rift') {
+    // Cancel bullets inside the (boosted) graze ring on cast.
+    const r = grazeRadius(s) * 1.15;
+    s.bullets = s.bullets.filter((b) => Math.hypot(b.x - s.px, b.y - s.py) > r);
+  }
+}
+
 // ── The step ─────────────────────────────────────────────────────────────────
 
 export function step(state: RunState, input: PlayerInput, dt: number): RunState {
@@ -623,13 +680,30 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
   s.focus = input.focus;
   s.invuln = Math.max(0, s.invuln - dt);
 
-  // 1) Move.
-  const len = Math.hypot(input.dx, input.dy) || 1;
-  const sp = moveSpeed(s);
-  s.px = Math.min(FIELD_W - 8, Math.max(8, s.px + (input.dx / len) * sp * dt * (input.dx || input.dy ? 1 : 0)));
-  s.py = Math.min(FIELD_H - 8, Math.max(8, s.py + (input.dy / len) * sp * dt * (input.dx || input.dy ? 1 : 0)));
+  // 1) Craft special timers + activation (before move so dash slides this tick).
+  s.specialCd = Math.max(0, s.specialCd - dt);
+  if (s.specialLeft > 0) s.specialLeft = Math.max(0, s.specialLeft - dt);
+  if (input.special && s.specialCd <= 0 && s.specialLeft <= 0) {
+    activateSpecial(s);
+  }
 
-  // 2) Bomb.
+  // 2) Move + facing.
+  const len = Math.hypot(input.dx, input.dy) || 1;
+  if (input.dx || input.dy) {
+    s.facingX = input.dx / len;
+    s.facingY = input.dy / len;
+  }
+  const sp = moveSpeed(s);
+  const moving = Boolean(input.dx || input.dy);
+  // Dash special always slides along facing, even without held input.
+  const craft = craftOf(s);
+  const dashSlide = s.specialLeft > 0 && craft.special.kind === 'dash';
+  const mx = dashSlide ? s.facingX : moving ? input.dx / len : 0;
+  const my = dashSlide ? s.facingY : moving ? input.dy / len : 0;
+  s.px = Math.min(FIELD_W - 8, Math.max(8, s.px + mx * sp * dt));
+  s.py = Math.min(FIELD_H - 8, Math.max(8, s.py + my * sp * dt));
+
+  // 3) Bomb.
   if (input.bomb && s.bombs > 0 && s.invuln <= 0) {
     s.bombs -= 1;
     s.bullets = [];

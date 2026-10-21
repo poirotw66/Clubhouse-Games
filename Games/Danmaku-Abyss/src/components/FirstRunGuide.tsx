@@ -61,9 +61,9 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-slate-900/80 px-3 py-2.5">
-            <p className="font-bold text-fuchsia-300">靈擊保命</p>
+            <p className="font-bold text-fuchsia-300">靈擊與特技</p>
             <p className="mt-0.5 text-slate-400">
-              按 Z 或側邊「靈擊」清彈換命，但擦彈倍率會歸零——勿當刷分鍵。
+              Z／「靈擊」清彈換命（擦彈倍率歸零）；X／「特技」是機體專屬冷卻技，不花靈擊。
             </p>
           </li>
         </ul>

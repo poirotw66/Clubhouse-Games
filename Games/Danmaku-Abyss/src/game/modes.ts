@@ -197,6 +197,42 @@ export const MODE_PACK: readonly ModeDef[] = [
       singleCard: true,
     },
   },
+  {
+    id: 'spell-lamp-beacon',
+    name: '符卡・導標',
+    blurb: '指定符卡・灯符「導標」・必須 Capture',
+    goalLabel: 'Capture 灯符「導標」',
+    seedCode: 'mode-beacon',
+    goal: { kind: 'capture', min: 1 },
+    run: {
+      startStage: 1,
+      endStage: 1,
+      intensityBonus: 0.05,
+      lives: 3,
+      bombs: 3,
+      skipMidway: true,
+      startCardIndex: 3,
+      singleCard: true,
+    },
+  },
+  {
+    id: 'spell-ember-bloom',
+    name: '符卡・花開',
+    blurb: '指定符卡・燼符「花開」・必須 Capture',
+    goalLabel: 'Capture 燼符「花開」',
+    seedCode: 'mode-bloom',
+    goal: { kind: 'capture', min: 1 },
+    run: {
+      startStage: 4,
+      endStage: 4,
+      intensityBonus: 0.15,
+      lives: 3,
+      bombs: 2,
+      skipMidway: true,
+      startCardIndex: 3,
+      singleCard: true,
+    },
+  },
 ];
 
 export interface ModeProgress {

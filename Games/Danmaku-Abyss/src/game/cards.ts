@@ -110,6 +110,19 @@ const BOSSES: Boss[] = [
         ]),
         phases: [{ belowHpFrac: 0.5, emitters: [em({ count: 6, spread: 1.4, speed: 118, waveform: 'accel', interval: 1.1, hue: 320 })] }],
       },
+      // Beacon + walking gap: teach reading a safe lane under a slow rotating ring.
+      {
+        ...card('lamp-4', '灯符「導標」', 1350, 34, [
+          em({ count: 10, spread: Math.PI * 2, speed: 78, angularVel: 1.2, aim: 'rotating', interval: 0.65, hue: 200 }),
+          wall({ speed: 92, interval: 2.6, gap: 4, hue: 45 }),
+        ]),
+        phases: [
+          {
+            belowHpFrac: 0.45,
+            emitters: [em({ count: 4, spread: 0.55, speed: 155, aim: 'aimed', interval: 1.15, hue: 30, bulletR: 3.3 })],
+          },
+        ],
+      },
     ],
   },
   {
@@ -131,6 +144,19 @@ const BOSSES: Boss[] = [
         phases: [
           { belowHpFrac: 0.6, emitters: [em({ count: 7, spread: 2.0, speed: 104, waveform: 'reverse', interval: 1.3, hue: 190 })] },
           { belowHpFrac: 0.3, emitters: [em({ count: 9, spread: Math.PI * 2, speed: 92, angularVel: -2.2, aim: 'rotating', interval: 0.8, hue: 330 })] },
+        ],
+      },
+      // Cross-current: reverse spray intersecting a slow spiral — read both clocks.
+      {
+        ...card('tide-4', '潮符「交錯」', 1600, 36, [
+          em({ count: 10, spread: 2.2, speed: 108, waveform: 'reverse', interval: 1.15, hue: 185, lifetime: 8 }),
+          em({ count: 11, spread: Math.PI * 2, speed: 80, waveform: 'spiral', angularVel: 1.1, interval: 0.7, hue: 220 }),
+        ]),
+        phases: [
+          {
+            belowHpFrac: 0.4,
+            emitters: [em({ count: 5, spread: 0.7, speed: 165, aim: 'aimed', interval: 1.0, hue: 320, bulletR: 3.3 })],
+          },
         ],
       },
     ],
@@ -190,6 +216,25 @@ const BOSSES: Boss[] = [
         phases: [
           { belowHpFrac: 0.5, emitters: [wall({ speed: 108, interval: 2.1, gap: 3, hue: 35 })] },
           { belowHpFrac: 0.2, emitters: [em({ count: 8, spread: Math.PI * 2, speed: 100, angularVel: 3.2, aim: 'rotating', interval: 0.55, hue: 45 })] },
+        ],
+      },
+      // Ember bloom: accel ring that opens soft then snaps — punish standing still.
+      {
+        ...card('ember-4', '燼符「花開」', 2400, 38, [
+          em({ count: 12, spread: Math.PI * 2, speed: 70, waveform: 'accel', interval: 0.85, hue: 18 }),
+          em({ count: 6, spread: 1.4, speed: 125, aim: 'aimed', interval: 1.2, delay: 1.8, hue: 40 }),
+        ]),
+        phases: [
+          {
+            belowHpFrac: 0.5,
+            emitters: [
+              em({ count: 10, spread: Math.PI * 2, speed: 95, angularVel: 2.8, aim: 'rotating', interval: 0.55, hue: 8 }),
+            ],
+          },
+          {
+            belowHpFrac: 0.22,
+            emitters: [wall({ speed: 112, interval: 2.0, gap: 3, hue: 25 })],
+          },
         ],
       },
     ],

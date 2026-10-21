@@ -68,6 +68,8 @@ export interface PlayerInput {
   dy: number;
   focus: boolean;
   bomb: boolean;
+  /** Craft special (edge-triggered, like bomb). */
+  special: boolean;
 }
 
 /**
@@ -134,4 +136,15 @@ export interface RunState {
   craftId: string;
   /** Spell card ids captured this run (for progress / gallery). */
   capturedCardIds: string[];
+
+  /** Seconds until the craft special can fire again. */
+  specialCd: number;
+  /** Seconds remaining on an active craft special. */
+  specialLeft: number;
+  /**
+   * Facing used by dash specials. Updated from non-zero move input each tick
+   * so a standing ship still dashes in the last steered direction.
+   */
+  facingX: number;
+  facingY: number;
 }
