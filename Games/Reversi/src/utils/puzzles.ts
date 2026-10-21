@@ -2,9 +2,9 @@
  * Fixed endgame puzzle pack — each position verified by the exact solver in tests.
  */
 
-import { boardFromRows } from './boardCodec';
-import { countEmpties, type Board, type Piece } from './reversiLogic';
-import { solveExact } from './solver';
+import { boardFromRows, moveToAlgebraic } from './boardCodec';
+import { countEmpties, getLegalMoves, type Board, type Piece } from './reversiLogic';
+import { isOptimalMove, solveExact } from './solver';
 
 export type PuzzleGoal = 'win' | 'maximize' | 'draw';
 
@@ -333,6 +333,37 @@ export function describePuzzleObjective(puzzle: PuzzleDef): string {
   return `${side}先，${puzzle.maxPlies} 手內${goal}`;
 }
 
+/**
+ * Pinned acceptable first moves (algebraic). Unique when length === 1;
+ * multi-entry lists are intentional alternate solutions verified by the solver.
+ * Kept in sync by `puzzles.test.ts`.
+ */
+export const ACCEPTABLE_FIRST_MOVES: Readonly<Record<string, readonly string[]>> = {
+  'corner-a1': ['a1'],
+  'corner-h1': ['h1'],
+  'corner-h8': ['h8'],
+  'corner-a8': ['a8'],
+  'fork-choice': ['e7'],
+  'edge-run': ['d4'],
+  'mid-choice': ['b7', 'g2'],
+  'three-empty': ['d4', 'e8'],
+  sweep: ['b8', 'g1'],
+  'white-win': ['d4'],
+  'gap-max': ['f5'],
+  'two-corners': ['a1', 'h1'],
+  'edge-only': ['h2'],
+  'parity-room': ['c4', 'f4'],
+};
+
+/** Sorted algebraic first moves that satisfy the puzzle goal under perfect replies. */
+export function acceptableFirstMoves(puzzle: PuzzleDef): string[] {
+  const board = boardFromRows(puzzle.rows);
+  return getLegalMoves(board, puzzle.side)
+    .filter((m) => isOptimalMove(board, puzzle.side, m, puzzle.goal))
+    .map(moveToAlgebraic)
+    .sort();
+}
+
 /** Runtime sanity: empties small enough for exact solve. */
 export function assertPuzzleSolvable(puzzle: PuzzleDef): void {
   const board = boardFromRows(puzzle.rows);
@@ -348,5 +379,15 @@ export function assertPuzzleSolvable(puzzle: PuzzleDef): void {
   }
   if (puzzle.goal === 'maximize' && solved.winningMoves.length === 0) {
     throw new Error(`Puzzle ${puzzle.id} has no legal moves`);
+  }
+  const live = acceptableFirstMoves(puzzle);
+  const pinned = ACCEPTABLE_FIRST_MOVES[puzzle.id];
+  if (!pinned) {
+    throw new Error(`Puzzle ${puzzle.id} missing ACCEPTABLE_FIRST_MOVES entry`);
+  }
+  if (live.join('|') !== [...pinned].sort().join('|')) {
+    throw new Error(
+      `Puzzle ${puzzle.id} acceptable moves drifted: live=[${live.join(',')}] pinned=[${pinned.join(',')}]`,
+    );
   }
 }

@@ -43,7 +43,10 @@ import {
 import {
   EMPTY_STATS,
   countSolvedPuzzles,
+  getModeStats,
   markPuzzleSolved,
+  modeKey,
+  modeStatsLabel,
   recordGameResult,
   recordSeriesResult,
   storageMeta,
@@ -248,6 +251,36 @@ describe('pickBotMove (adversarial bot)', () => {
     board = dropPiece(board, 5, 'red', classic)!;
     expect(pickBotColumn(board, 'red', 'hard', 'blocker', classic)).toBe(3);
   });
+
+  it('hard picks a winning PopOut when that is the forced win', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    // Same shape as the PopOut gravity-win fixture / puzzle p06.
+    const board = createInitialBoard(popout);
+    const encoded = [
+      '...R...',
+      '...Y...',
+      '...Y..Y',
+      '.R.RY.Y',
+      'RYRRRYY',
+      'RRRYRRR',
+    ];
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 7; c++) {
+        const ch = encoded[r][c];
+        board[r][c] = ch === 'R' ? 'red' : ch === 'Y' ? 'yellow' : null;
+      }
+    }
+    const winningPops = getLegalMoves(board, 'red', popout).filter((move) => {
+      if (move.kind !== 'pop') return false;
+      const next = applyMove(board, move, 'red', popout);
+      if (!next) return false;
+      return resolveWinnerAfterMove(next, 'red', move, null, popout) === 'red';
+    });
+    expect(winningPops.length).toBeGreaterThan(0);
+    const move = pickBotMove(board, 'red', 'hard', 'architect', popout);
+    expect(move?.kind).toBe('pop');
+    expect(winningPops.map((m) => m.col)).toContain(move!.col);
+  });
 });
 
 describe('difficulty tiers and personalities', () => {
@@ -372,12 +405,52 @@ describe('storage helpers', () => {
     expect(afterWin.wins).toBe(1);
     expect(afterWin.streak).toBe(1);
     expect(afterWin.lastVariant).toBe('popout');
+    expect(getModeStats(afterWin, 'popout', '8x7', 'hard').wins).toBe(1);
 
-    const afterSeries = recordSeriesResult(afterWin, true);
+    const afterSeries = recordSeriesResult(afterWin, true, {
+      difficulty: 'hard',
+      variant: 'popout',
+      preset: '8x7',
+    });
     expect(afterSeries.seriesWins).toBe(1);
+    expect(getModeStats(afterSeries, 'popout', '8x7', 'hard').seriesWins).toBe(1);
 
     const progress = markPuzzleSolved({}, PUZZLES[0].id, 1);
     expect(countSolvedPuzzles(progress)).toBe(1);
     expect(storageMeta().statsKey).toContain('connect-four');
+  });
+
+  it('keeps win streaks and W/L separate per variant × board × difficulty', () => {
+    let stats = EMPTY_STATS;
+    stats = recordGameResult(stats, 'win', {
+      difficulty: 'hard',
+      personality: 'architect',
+      variant: 'popout',
+      preset: '8x7',
+      seriesTarget: 3,
+    });
+    stats = recordGameResult(stats, 'win', {
+      difficulty: 'hard',
+      personality: 'architect',
+      variant: 'popout',
+      preset: '8x7',
+      seriesTarget: 3,
+    });
+    expect(getModeStats(stats, 'popout', '8x7', 'hard').streak).toBe(2);
+
+    stats = recordGameResult(stats, 'lose', {
+      difficulty: 'easy',
+      personality: 'rusher',
+      variant: 'classic',
+      preset: '7x6',
+      seriesTarget: 2,
+    });
+    // Easy classic loss must not reset the PopOut hard streak.
+    expect(getModeStats(stats, 'popout', '8x7', 'hard').streak).toBe(2);
+    expect(getModeStats(stats, 'popout', '8x7', 'hard').wins).toBe(2);
+    expect(getModeStats(stats, 'classic', '7x6', 'easy').streak).toBe(0);
+    expect(getModeStats(stats, 'classic', '7x6', 'easy').losses).toBe(1);
+    expect(modeKey('five', '9x7', 'normal')).toBe('five:9x7:normal');
+    expect(modeStatsLabel('five', '9x7', 'normal')).toContain('五子勝');
   });
 });

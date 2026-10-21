@@ -166,6 +166,88 @@ export function sfxSelect() {
   playMove();
 }
 
+/** ---- Mute + Archer helpers (additive only; do not alter existing tones) ---- */
+
+export const SFX_MUTE_STORAGE_KEY = 'astra-sfx-muted';
+
+let sfxMutedCache = null;
+
+function readMutedFromStorage() {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(SFX_MUTE_STORAGE_KEY) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function writeMutedToStorage(muted) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(SFX_MUTE_STORAGE_KEY, muted ? '1' : '0');
+  } catch (_) {
+    /* ignore quota / private mode */
+  }
+}
+
+/** Whether shared Astra SFX should stay silent. */
+export function isSfxMuted() {
+  if (sfxMutedCache === null) sfxMutedCache = readMutedFromStorage();
+  return !!sfxMutedCache;
+}
+
+/** Persist mute preference (remembered across sessions). */
+export function setSfxMuted(muted) {
+  sfxMutedCache = !!muted;
+  writeMutedToStorage(sfxMutedCache);
+  return sfxMutedCache;
+}
+
+/** Toggle mute and return the new muted state. */
+export function toggleSfxMuted() {
+  return setSfxMuted(!isSfxMuted());
+}
+
+function ifAudible(fn) {
+  if (isSfxMuted()) return;
+  fn();
+}
+
+/** Stillshot — auto-fire volley. */
+export function playArcherShoot() {
+  ifAudible(() => playShoot(0));
+}
+
+/** Stillshot — arrow hit an enemy. */
+export function playArcherHit(critical = false) {
+  ifAudible(() => {
+    if (critical) playHeadshot();
+    else playImpact(0.45);
+  });
+}
+
+/** Stillshot — picked a level-up ability. */
+export function playArcherUpgrade() {
+  ifAudible(() => {
+    playTone(523.25, 'triangle', 0.1, 0, 0.08);
+    playTone(659.25, 'sine', 0.12, 0.06, 0.07);
+    playTone(783.99, 'triangle', 0.16, 0.12, 0.06);
+  });
+}
+
+/** Stillshot — player died. */
+export function playArcherDeath() {
+  ifAudible(() => playLose());
+}
+
+/** Stillshot — room cleared or run victory (`victory` uses the louder arpeggio). */
+export function playArcherClear(victory = false) {
+  ifAudible(() => {
+    if (victory) playWin();
+    else playGoal();
+  });
+}
+
 /** Soft industrial build / place click (Mini Factory). */
 export function playBuild() {
   playTone(300, 'triangle', 0.07, 0, 0.06);
