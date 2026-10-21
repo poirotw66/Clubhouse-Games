@@ -28,7 +28,7 @@
   var PUYOS_PER_LEVEL = 30;
   var GARBAGE_RATE = 70;
 
-  // Hard/Master deepen lookahead; Easy pops early and plays slow.
+  // Hard+ deepen lookahead; Master/Nightmare chunk search so the UI stays responsive.
   var DIFFICULTY_PRESETS = {
     easy: {
       label: '簡單',
@@ -44,6 +44,10 @@
       noise: 90,
       allClearBonus: 200,
       flatnessWeight: 0,
+      counterWeight: 0.2,
+      triggerWeight: 0.1,
+      asyncPlan: false,
+      planBatch: 8,
     },
     normal: {
       label: '普通',
@@ -59,36 +63,67 @@
       noise: 18,
       allClearBonus: 400,
       flatnessWeight: 4,
+      counterWeight: 0.55,
+      triggerWeight: 0.35,
+      asyncPlan: false,
+      planBatch: 8,
     },
     hard: {
       label: '困難',
       lookahead: 3,
       cpuMin: 40,
       cpuMax: 85,
-      futureWeight: 0.78,
-      attackWeight: 1.4,
-      setupWeight: 1.4,
-      weakPopPenalty: 280,
-      buildBias: 0.95,
+      futureWeight: 0.82,
+      attackWeight: 1.45,
+      setupWeight: 1.5,
+      weakPopPenalty: 300,
+      buildBias: 1.0,
       garbageDropCap: 18,
       noise: 0,
-      allClearBonus: 700,
-      flatnessWeight: 10,
+      allClearBonus: 800,
+      flatnessWeight: 12,
+      counterWeight: 1.05,
+      triggerWeight: 0.85,
+      asyncPlan: true,
+      planBatch: 5,
     },
     master: {
       label: '達人',
-      lookahead: 3,
-      cpuMin: 24,
-      cpuMax: 55,
-      futureWeight: 0.9,
-      attackWeight: 1.55,
-      setupWeight: 1.7,
-      weakPopPenalty: 340,
-      buildBias: 1.15,
+      lookahead: 4,
+      cpuMin: 22,
+      cpuMax: 48,
+      futureWeight: 0.92,
+      attackWeight: 1.65,
+      setupWeight: 1.85,
+      weakPopPenalty: 360,
+      buildBias: 1.25,
       garbageDropCap: 24,
       noise: 0,
-      allClearBonus: 1100,
-      flatnessWeight: 16,
+      allClearBonus: 1200,
+      flatnessWeight: 18,
+      counterWeight: 1.35,
+      triggerWeight: 1.15,
+      asyncPlan: true,
+      planBatch: 4,
+    },
+    nightmare: {
+      label: '惡夢',
+      lookahead: 4,
+      cpuMin: 16,
+      cpuMax: 36,
+      futureWeight: 0.96,
+      attackWeight: 1.85,
+      setupWeight: 2.05,
+      weakPopPenalty: 420,
+      buildBias: 1.4,
+      garbageDropCap: 30,
+      noise: 0,
+      allClearBonus: 1500,
+      flatnessWeight: 22,
+      counterWeight: 1.7,
+      triggerWeight: 1.45,
+      asyncPlan: true,
+      planBatch: 3,
     },
   };
 
@@ -216,6 +251,7 @@
       garbageJustDropped: 0,
       outgoingGarbage: 0,
       cpuPlan: null,
+      cpuSearch: null,
       cpuTimer: 0,
     };
   }
@@ -324,15 +360,27 @@
     return true;
   }
 
-  function showHint() {
+  function currentMoveIndex() {
+    if (!match.quest) return 0;
+    return Math.max(0, match.quest.moveLimit - match.movesLeft);
+  }
+
+  function activeQuestHint() {
+    if (!match.quest) return null;
+    return M.hintForMove(match.quest, currentMoveIndex());
+  }
+
+  function showHint(options) {
+    var opts = options || {};
     if (match.over || match.paused || !canControl(players[0])) return false;
     var state = players[0].state;
     var landing = null;
-    if (match.quest && match.quest.hint && state.pair) {
+    var step = activeQuestHint();
+    if (step && state.pair) {
       var hinted = {
         row: L.HIDDEN_ROWS,
-        col: match.quest.hint.col,
-        rot: match.quest.hint.rot,
+        col: step.col,
+        rot: step.rot,
         axis: state.pair.axis,
         child: state.pair.child,
       };
@@ -354,11 +402,22 @@
       { row: landing.row, col: landing.col, color: landing.axis },
       { row: child.row, col: child.col, color: landing.child },
     ];
-    hintUntil = global.performance.now() + HINT_MS;
+    // Tutorial auto-hints stay visible until the piece locks; manual hints time out.
+    hintUntil =
+      opts.persist || (match.mode === 'tutorial' && match.quest && match.quest.autoHint)
+        ? Number.POSITIVE_INFINITY
+        : global.performance.now() + HINT_MS;
     players[0].status.textContent = '提示：建議落點已標示（金色）';
-    A.playMove();
+    if (!opts.silent) A.playMove();
     refreshAssistButtons();
     return true;
+  }
+
+  function maybeAutoQuestHint() {
+    if (match.over || match.paused) return;
+    if (match.mode !== 'tutorial' || !match.quest || !match.quest.autoHint) return;
+    if (!canControl(players[0])) return;
+    showHint({ persist: true, silent: true });
   }
 
   function opponentOf(player) {
@@ -381,6 +440,15 @@
     return match.mode === 'mission' || match.mode === 'tutorial' || match.mode === 'practice';
   }
 
+  function totalMissionStars(stats) {
+    var stars = stats.missionStars || {};
+    var sum = 0;
+    Object.keys(stars).forEach(function (id) {
+      sum += stars[id] | 0;
+    });
+    return sum;
+  }
+
   function formatCareerLine(stats, difficulty) {
     var diffId = difficulty || stats.lastDifficulty;
     var preset = DIFFICULTY_PRESETS[diffId] || DIFFICULTY_PRESETS.normal;
@@ -400,32 +468,39 @@
       stats.missionsClearedCount +
       '/' +
       M.MISSION_LADDER.length +
-      ' · 生涯最大連鎖 ' +
+      '（★' +
+      totalMissionStars(stats) +
+      '） · 生涯最大連鎖 ' +
       stats.bestChainOverall
     );
+  }
+
+  function starGlyph(n) {
+    var filled = Math.min(3, Math.max(0, n | 0));
+    var out = '';
+    for (var i = 0; i < 3; i += 1) out += i < filled ? '★' : '☆';
+    return out;
   }
 
   function refreshMissionSelect() {
     if (!ui.missionSelect) return;
     var cleared = career.missionClears || {};
+    var stars = career.missionStars || {};
     var html = '';
-    M.MISSION_LADDER.forEach(function (mission, index) {
+    M.MISSION_LADDER.forEach(function (mission) {
       var unlocked = M.isMissionUnlocked(mission.id, cleared);
       var done = !!cleared[mission.id];
+      var rating = stars[mission.id] || 0;
       html +=
         '<option value="' +
         mission.id +
         '"' +
         (unlocked ? '' : ' disabled') +
         '>' +
-        (done ? '✓ ' : '') +
+        (done ? starGlyph(rating) + ' ' : '') +
         mission.title +
         (unlocked ? '' : '（未解鎖）') +
         '</option>';
-      if (!ui.missionSelect.value && unlocked && !done) {
-        // defer selection after options exist
-      }
-      void index;
     });
     ui.missionSelect.innerHTML = html;
     var nextId = M.nextMissionId(cleared);
@@ -521,13 +596,18 @@
     if (!match.quest) return;
     ui.questTitle.textContent = match.quest.title;
     ui.questBlurb.textContent = match.quest.blurb;
+    var stars = (career.missionStars && career.missionStars[match.quest.id]) || 0;
+    var starPart =
+      match.mode === 'mission'
+        ? ' · 最佳 ' + starGlyph(stars)
+        : '';
     ui.questProgress.textContent =
-      '目標 ' +
-      match.quest.targetChain +
-      ' 連鎖 · 剩餘 ' +
+      M.goalLabel(match.quest) +
+      ' · 剩餘 ' +
       match.movesLeft +
-      ' 手 · 本局最大 ' +
-      players[0].state.maxChain;
+      ' 手 · 本局最大連鎖 ' +
+      players[0].state.maxChain +
+      starPart;
   }
 
   function currentQuestDef() {
@@ -626,6 +706,7 @@
 
     updateMatchStatus();
     refreshAssistButtons();
+    maybeAutoQuestHint();
   }
 
   function spawnNext(player) {
@@ -645,7 +726,7 @@
     }
 
     if (isSoloMode() && match.quest && match.movesLeft <= 0 && !state.pair) {
-      finishSolo(false, '手数用盡，未達目標連鎖。');
+      finishSolo(false, '手数用盡，未達成任務目標。');
       return;
     }
 
@@ -683,6 +764,20 @@
     }
 
     if (player.isCpu) planCpu(player);
+    if (player === players[0]) maybeAutoQuestHint();
+  }
+
+  function questSuccessSummary(chain, stars) {
+    var q = match.quest;
+    var type = M.goalTypeOf(q);
+    var base;
+    if (type === 'allClear') base = '全消成功！';
+    else if (type === 'clearColor') base = '指定顏色已消光！';
+    else base = '達成 ' + chain + ' 連鎖！目標 ' + q.targetChain + ' 連鎖。';
+    if (match.mode === 'mission' && stars) {
+      base += ' 評價 ' + starGlyph(stars) + '（' + stars + ' 星）';
+    }
+    return base;
   }
 
   function finishSolo(won, summary) {
@@ -696,9 +791,12 @@
     updateStats(players[0]);
 
     var chain = players[0].state.maxChain;
+    var stars = 0;
     career = L.noteMaxChain(career, chain, null);
     if (match.mode === 'mission' && won && match.quest) {
-      career = L.recordMissionClear(career, match.quest.id, chain);
+      var movesUsed = match.quest.moveLimit - match.movesLeft;
+      stars = M.rateStars(match.quest, movesUsed);
+      career = L.recordMissionClear(career, match.quest.id, chain, stars);
       refreshMissionSelect();
     }
     if (match.mode === 'tutorial' && won) {
@@ -713,8 +811,13 @@
 
     if (won) A.playWin();
     else A.playLose();
-    ui.resultTitle.textContent = won ? '任務成功' : '再試一次';
-    ui.resultSummary.textContent = summary;
+    ui.resultTitle.textContent = won
+      ? match.mode === 'tutorial'
+        ? '教室過關'
+        : '任務成功'
+      : '再試一次';
+    ui.resultSummary.textContent =
+      won && match.quest ? questSuccessSummary(chain, stars) : summary;
     ui.resultP1Score.textContent = String(players[0].state.score);
     ui.resultP1Chain.textContent = String(chain);
     ui.resultP2Score.textContent =
@@ -722,13 +825,22 @@
         ? '教室 ' + (match.tutorialIndex + 1) + '/' + M.TUTORIAL_STAGES.length
         : match.mode === 'mission'
           ? match.quest
-            ? match.quest.title
+            ? match.quest.title + (stars ? ' ' + starGlyph(stars) : '')
             : '任務'
           : '自由練習';
     ui.resultP2Chain.textContent = String(match.movesLeft);
     ui.overlay.hidden = false;
     updateMatchStatus();
     refreshAssistButtons();
+  }
+
+  function questGoalReached(player, finishedChain) {
+    if (!match.quest || player !== players[0]) return false;
+    return M.goalMetOnBoard(
+      match.quest,
+      player.state.board,
+      Math.max(player.state.maxChain, finishedChain || 0)
+    );
   }
 
   function finishMatch(winner, loser, summary) {
@@ -888,13 +1000,8 @@
     updateStats(player);
     if (match.quest) updateQuestHud();
 
-    if (
-      isSoloMode() &&
-      match.quest &&
-      player === players[0] &&
-      finishedChain >= match.quest.targetChain
-    ) {
-      finishSolo(true, '達成 ' + finishedChain + ' 連鎖！目標 ' + match.quest.targetChain + ' 連鎖。');
+    if (isSoloMode() && match.quest && questGoalReached(player, finishedChain)) {
+      finishSolo(true, questSuccessSummary(Math.max(finishedChain, player.state.maxChain), 0));
       return;
     }
 
@@ -930,9 +1037,11 @@
         ? 'CPU 本回合先吃 ' + state.garbageJustDropped + ' 顆垃圾'
         : state.incomingGarbage > 0
           ? 'CPU 後面還有 ' + state.incomingGarbage + ' 顆垃圾排隊'
-          : state.cpuPlan
-            ? 'CPU ' + match.difficulty.label + ' 思考完成，準備落子'
-            : 'CPU 正在思考';
+          : state.cpuSearch
+            ? 'CPU ' + match.difficulty.label + ' 深度思考中…'
+            : state.cpuPlan
+              ? 'CPU ' + match.difficulty.label + ' 思考完成，準備落子'
+              : 'CPU 正在思考';
       return;
     }
 
@@ -963,7 +1072,12 @@
       ui.matchStatus.textContent = '對戰已暫停。';
     } else if (match.mode === 'mission' && match.quest) {
       ui.matchStatus.textContent =
-        match.quest.title + '：目標 ' + match.quest.targetChain + ' 連鎖，剩餘 ' + match.movesLeft + ' 手。';
+        match.quest.title +
+        '：' +
+        M.goalLabel(match.quest) +
+        '，剩餘 ' +
+        match.movesLeft +
+        ' 手。用提示可看建議落點；越少手數星級越高。';
     } else if (match.mode === 'tutorial' && match.quest) {
       ui.matchStatus.textContent =
         '教室進度 ' +
@@ -971,7 +1085,8 @@
         '/' +
         M.TUTORIAL_STAGES.length +
         ' — ' +
-        match.quest.blurb;
+        match.quest.blurb +
+        (match.quest.autoHint ? '（金色為建議落點）' : '');
     } else if (match.mode === 'practice') {
       ui.matchStatus.textContent = '自由練習：沒有對手與垃圾，專心練連鎖。生涯最大連鎖會寫入統計。';
     } else if (isVersusMode()) {
@@ -979,7 +1094,8 @@
     } else {
       ui.matchStatus.textContent = '難度 ' + match.difficulty.label + '：CPU 會做 '
         + match.difficulty.lookahead + ' 手前瞻'
-        + (match.difficulty.buildBias > 0.5 ? '並主動蓄連鎖' : '')
+        + (match.difficulty.asyncPlan ? '（分帧思考，不卡住畫面）' : '')
+        + (match.difficulty.buildBias > 0.5 ? '並主動蓄連鎖／伺機反擊' : '')
         + '，垃圾每回合最多落下 '
         + match.difficulty.garbageDropCap + ' 顆。';
     }
@@ -1106,11 +1222,36 @@
   function planCpu(player) {
     var state = player.state;
     if (!state.pair) return;
+    state.cpuSearch = null;
+    var diff = match.difficulty;
+    var placements = L.enumeratePlacements(state.board, state.pair);
+    if (placements.length === 0) {
+      state.cpuPlan = null;
+      return;
+    }
+
+    // Deep lookahead: evaluate placements in batches across frames (no Worker / no CDN).
+    if (diff.asyncPlan && diff.lookahead >= 3) {
+      state.cpuPlan = null;
+      state.cpuSearch = {
+        placements: placements,
+        index: 0,
+        bestPlacement: null,
+        bestScore: -Infinity,
+        board: state.board,
+        queue: state.queue.slice(),
+        depth: diff.lookahead,
+        incomingGarbage: state.incomingGarbage,
+        batchSize: Math.max(1, diff.planBatch || 4),
+      };
+      return;
+    }
+
     var best = bestPlacementFor(
       state.board,
       state.pair,
       state.queue,
-      match.difficulty.lookahead,
+      diff.lookahead,
       state.incomingGarbage
     );
     if (!best) {
@@ -1122,6 +1263,40 @@
       targetRot: best.placement.rot,
     };
     state.cpuTimer = cpuDelay();
+  }
+
+  function continueCpuSearch(player) {
+    var state = player.state;
+    var search = state.cpuSearch;
+    if (!search) return false;
+    var end = Math.min(search.index + search.batchSize, search.placements.length);
+    for (var i = search.index; i < end; i += 1) {
+      var score = evaluatePlacement(
+        search.board,
+        search.placements[i],
+        search.queue,
+        search.depth,
+        search.incomingGarbage
+      );
+      if (score > search.bestScore) {
+        search.bestScore = score;
+        search.bestPlacement = search.placements[i];
+      }
+    }
+    search.index = end;
+    if (search.index < search.placements.length) return false;
+
+    if (search.bestPlacement) {
+      state.cpuPlan = {
+        targetCol: search.bestPlacement.col,
+        targetRot: search.bestPlacement.rot,
+      };
+      state.cpuTimer = cpuDelay();
+    } else {
+      state.cpuPlan = null;
+    }
+    state.cpuSearch = null;
+    return true;
   }
 
   function bestPlacementFor(board, pair, queue, depth, incomingGarbage) {
@@ -1148,34 +1323,56 @@
     var diff = match.difficulty;
     var resolved = resolvePlacement(board, placement);
     var danger = boardDanger(resolved.board);
+    var incoming = incomingGarbage || 0;
     var stackPenalty = danger * 11;
     var attackValue = resolved.attack * 120 * diff.attackWeight;
     var chainValue = resolved.chain * 180 + (resolved.chain >= 3 ? resolved.chain * 90 : 0);
     var setupValue = resolved.setup * diff.setupWeight;
+    var triggerValue = L.nearTriggerScore(resolved.board) * (diff.triggerWeight || 0);
     var flatPenalty = L.heightVariance(resolved.board) * (diff.flatnessWeight || 0);
     var allClearValue =
       resolved.chain > 0 && L.isBoardEmpty(resolved.board) ? diff.allClearBonus || 0 : 0;
 
-    // Hard/Master: keep building unless under pressure or already firing a real chain.
-    var panic = danger > 48 || (incomingGarbage || 0) >= 12;
+    // Keep building unless under pressure or already firing a real chain.
+    var panic = danger > 48 || incoming >= 12;
     var weakPop = resolved.chain === 1 && resolved.attack <= 1;
     var weakPenalty = (!panic && weakPop) ? diff.weakPopPenalty : 0;
     var buildBonus = (!panic && resolved.chain === 0) ? resolved.setup * diff.buildBias * 18 : 0;
+
+    // Counter-attack timing: when garbage is queued, prefer chains that cancel or punish.
+    var counterWeight = diff.counterWeight || 0;
+    var counterBonus = 0;
+    if (incoming > 0 && counterWeight > 0) {
+      counterBonus = resolved.attack * 70 * counterWeight;
+      if (resolved.attack >= incoming) counterBonus += 220 * counterWeight;
+      else if (resolved.chain >= 2) counterBonus += 90 * counterWeight;
+      if (panic && resolved.chain === 0) counterBonus -= 140 * counterWeight;
+    }
 
     var base = resolved.score
       + attackValue
       + resolved.cleared * 6
       + chainValue
       + setupValue
+      + triggerValue
       + buildBonus
       + allClearValue
+      + counterBonus
       - stackPenalty
       - flatPenalty
       - weakPenalty
       + (Math.random() * 2 - 1) * diff.noise;
 
     if (depth <= 1 || !queue || queue.length === 0) return base;
-    var future = bestPlacementFor(resolved.board, queue[0], queue.slice(1), depth - 1, 0);
+    // Nested search keeps leftover incoming pressure only one ply (after we "spent" a turn).
+    var futureIncoming = Math.max(0, incoming - resolved.attack);
+    var future = bestPlacementFor(
+      resolved.board,
+      queue[0],
+      queue.slice(1),
+      depth - 1,
+      futureIncoming
+    );
     return base + (future ? future.score * diff.futureWeight : 0);
   }
 
@@ -1195,7 +1392,15 @@
   function updateCpu(player, dt) {
     var state = player.state;
     if (!player.isCpu || !canControl(player)) return;
+    if (state.cpuSearch) {
+      continueCpuSearch(player);
+      return;
+    }
     if (!state.cpuPlan) planCpu(player);
+    if (state.cpuSearch) {
+      continueCpuSearch(player);
+      return;
+    }
     if (!state.cpuPlan) return;
 
     state.cpuTimer -= dt;
