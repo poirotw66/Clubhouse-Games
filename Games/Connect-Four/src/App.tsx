@@ -57,10 +57,12 @@ import {
 import {
   clearSeries,
   countSolvedPuzzles,
+  getModeStats,
   loadPuzzleProgress,
   loadSeries,
   loadStats,
   markPuzzleSolved,
+  modeStatsLabel,
   recordGameResult,
   recordSeriesResult,
   savePuzzleProgress,
@@ -440,7 +442,11 @@ export default function App() {
           (playerSide === 'red' && next.seriesWinner === 'red') ||
           (playerSide === 'yellow' && next.seriesWinner === 'yellow');
         setStats((s) => {
-          const updated = recordSeriesResult(s, humanWon);
+          const updated = recordSeriesResult(s, humanWon, {
+            difficulty,
+            variant,
+            preset,
+          });
           saveStats(updated);
           return updated;
         });
@@ -604,6 +610,9 @@ export default function App() {
   const boardMaxWidth =
     rules.cols >= 9 ? 'min(96vw, 420px)' : rules.cols >= 8 ? 'min(94vw, 390px)' : 'min(92vw, 360px)';
 
+  const modeStats = getModeStats(stats, variant, preset, difficulty);
+  const modeLabel = modeStatsLabel(variant, preset, difficulty);
+
   return (
     <div
       className="min-h-screen text-white flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
@@ -635,8 +644,11 @@ export default function App() {
             </span>
           )}
           {gameMode === 'bot' && screen === 'play' && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-emerald-200 border border-emerald-700/60">
-              連勝 {stats.streak} · 最佳 {stats.bestStreak}
+            <span
+              className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-emerald-200 border border-emerald-700/60"
+              title={`${modeLabel} 戰績 ${modeStats.wins}勝 ${modeStats.losses}敗 ${modeStats.draws}和`}
+            >
+              連勝 {modeStats.streak} · 最佳 {modeStats.bestStreak}
             </span>
           )}
         </div>
@@ -1188,8 +1200,13 @@ export default function App() {
                   },
                   ...(gameMode === 'bot'
                     ? [
-                        { label: '連勝', value: String(stats.streak) },
-                        { label: '最佳連勝', value: String(stats.bestStreak) },
+                        { label: '本模式', value: modeLabel },
+                        {
+                          label: '戰績',
+                          value: `${modeStats.wins}勝 ${modeStats.losses}敗 ${modeStats.draws}和`,
+                        },
+                        { label: '連勝', value: String(modeStats.streak) },
+                        { label: '最佳連勝', value: String(modeStats.bestStreak) },
                       ]
                     : []),
                 ]
@@ -1256,7 +1273,10 @@ export default function App() {
                 電腦對手有三種個性（衝刺手／鐵壁／佈局師），風格與難度深度分開。
               </li>
               <li>謎題模式：在限定步數內取勝，進度存於本機。</li>
-              <li>可悔棋、提示；對戰電腦連勝與系列賽戰績會寫入本機紀錄。</li>
+              <li>
+                可悔棋、提示；對戰電腦的連勝與戰績依「變體 × 棋盤 ×
+                難度」分開記錄。
+              </li>
             </ul>
             <button
               type="button"
