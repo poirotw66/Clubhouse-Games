@@ -9,8 +9,8 @@ import {
   CHAIN_RADIUS,
   DIFFICULTIES,
   ENEMY_DEFS,
-  ENTRANCE,
   EXIT,
+  MAP_ENTRANCES,
   OVERLAP_CALL_SCORE_MULT_BONUS,
   PREP_TIME_SEC,
   TOTAL_WAVES,
@@ -66,31 +66,54 @@ export interface MissionStateOptions {
   winAtWave: number;
 }
 
+/** Optional overlays used by daily challenges (and tests). */
+export interface RunModifiers {
+  allowedTowers?: TowerType[] | null;
+  allowSell?: boolean;
+  /** Multiplier applied to difficulty starting gold (floored). */
+  goldMult?: number;
+  /** Extra lives lost / gained relative to difficulty baseline. */
+  livesDelta?: number;
+  /** Extra enemy HP multiplier stacked on difficulty. */
+  enemyHpBonusMult?: number;
+  dailyDate?: string | null;
+  dailyAffixes?: string[];
+}
+
 export function createInitialState(
   difficulty: Difficulty,
   mapId: MapId,
   endless: boolean,
   mission?: MissionStateOptions | null,
+  modifiers?: RunModifiers | null,
 ): GameState {
   const cfg = DIFFICULTIES[difficulty];
+  const goldMult = modifiers?.goldMult ?? 1;
+  const livesDelta = modifiers?.livesDelta ?? 0;
+  const entrances = MAP_ENTRANCES[mapId].map((e) => ({ x: e.x, y: e.y }));
   return {
     difficulty,
     mapId,
     endless,
     missionId: mission?.missionId ?? null,
-    allowedTowers: mission?.allowedTowers ?? null,
-    allowSell: mission?.allowSell ?? true,
+    allowedTowers: mission?.allowedTowers ?? modifiers?.allowedTowers ?? null,
+    allowSell: mission?.allowSell ?? modifiers?.allowSell ?? true,
     winAtWave: mission?.winAtWave ?? null,
+    dailyDate: modifiers?.dailyDate ?? null,
+    dailyAffixes: modifiers?.dailyAffixes ? [...modifiers.dailyAffixes] : [],
+    enemyHpBonusMult: modifiers?.enemyHpBonusMult ?? 1,
     gridW: 12,
     gridH: 8,
     rocks: [],
+    entrances,
+    exit: { x: EXIT.x, y: EXIT.y },
     towers: [],
     nextTowerId: 1,
     enemies: [],
     nextEnemyId: 1,
     nextSpawnOrder: 0,
-    gold: cfg.startingGold,
-    lives: cfg.startingLives,
+    gold: Math.max(0, Math.floor(cfg.startingGold * goldMult)),
+    lives: Math.max(1, cfg.startingLives + livesDelta),
     killScore: 0,
     score: 0,
     wave: 0,
@@ -114,6 +137,9 @@ function cloneState(state: GameState): GameState {
   return {
     ...state,
     rocks: state.rocks.map((r) => ({ ...r })),
+    entrances: state.entrances.map((e) => ({ ...e })),
+    exit: { ...state.exit },
+    dailyAffixes: [...state.dailyAffixes],
     towers: state.towers.map((t) => ({ ...t })),
     enemies: state.enemies.map((e) => ({ ...e, slowEffects: e.slowEffects.map((s) => ({ ...s })) })),
     pendingSpawns: state.pendingSpawns.map((s) => ({ ...s })),
@@ -132,8 +158,8 @@ export function buildOccupancy(state: GameState): OccupancyGrid {
 
 export function isCellFree(state: GameState, x: number, y: number): boolean {
   if (x < 0 || x >= state.gridW || y < 0 || y >= state.gridH) return false;
-  if (x === ENTRANCE.x && y === ENTRANCE.y) return false;
-  if (x === EXIT.x && y === EXIT.y) return false;
+  if (state.entrances.some((e) => e.x === x && e.y === y)) return false;
+  if (x === state.exit.x && y === state.exit.y) return false;
   if (state.rocks.some((r) => r.x === x && r.y === y)) return false;
   if (state.towers.some((t) => t.x === x && t.y === y)) return false;
   return true;
@@ -156,7 +182,7 @@ export function placeTower(state: GameState, x: number, y: number, type: TowerTy
     return { state, ok: false, reason: '金幣不足' };
   }
   const occupancy = buildOccupancy(state);
-  if (wouldSealExit(occupancy, x, y, state.gridW, state.gridH, ENTRANCE, EXIT)) {
+  if (wouldSealExit(occupancy, x, y, state.gridW, state.gridH, state.entrances, state.exit)) {
     return { state, ok: false, reason: '此放置會封死出口' };
   }
 
@@ -376,11 +402,19 @@ export function startNextWave(state: GameState): CommandResult {
 
 // ── Enemy factory ────────────────────────────────────────────────────────────
 
+function pickEntrance(state: GameState, spawnOrder: number): { x: number; y: number } {
+  const portals = state.entrances;
+  if (portals.length === 0) return { x: 0, y: 4 };
+  return portals[spawnOrder % portals.length];
+}
+
 function spawnEnemy(state: GameState, type: EnemyType, waveHpMult: number, field: FlowField): Enemy {
   const def = ENEMY_DEFS[type];
-  const hpMult = DIFFICULTIES[state.difficulty].enemyHpMult * waveHpMult;
+  const hpMult =
+    DIFFICULTIES[state.difficulty].enemyHpMult * state.enemyHpBonusMult * waveHpMult;
   const hp = Math.round(def.hp * hpMult);
   const spawnOrder = state.nextSpawnOrder;
+  const portal = pickEntrance(state, spawnOrder);
 
   const base: Enemy = {
     id: state.nextEnemyId,
@@ -392,40 +426,40 @@ function spawnEnemy(state: GameState, type: EnemyType, waveHpMult: number, field
     flying: def.flying,
     killReward: def.killReward,
     lifeCost: def.lifeCost,
-    cellX: ENTRANCE.x,
-    cellY: ENTRANCE.y,
+    cellX: portal.x,
+    cellY: portal.y,
     dirX: 0,
     dirY: 0,
     progress: 0,
     flightProgress: 0,
+    entranceX: portal.x,
+    entranceY: portal.y,
     slowEffects: [],
     distanceToExit: 0,
-    worldX: ENTRANCE.x + 0.5,
-    worldY: ENTRANCE.y + 0.5,
+    worldX: portal.x + 0.5,
+    worldY: portal.y + 0.5,
     reachedExit: false,
     dead: false,
     spawnOrder,
   };
 
   if (def.flying) {
-    const totalDist = Math.hypot(EXIT.x - ENTRANCE.x, EXIT.y - ENTRANCE.y);
+    const totalDist = Math.hypot(state.exit.x - portal.x, state.exit.y - portal.y);
     base.distanceToExit = totalDist;
   } else {
-    const dir = field.step[ENTRANCE.y][ENTRANCE.x];
+    const dir = field.step[portal.y]?.[portal.x];
     if (dir) {
       base.dirX = dir.dx;
       base.dirY = dir.dy;
     }
-    base.distanceToExit = distanceToExit(field, ENTRANCE.x, ENTRANCE.y);
+    base.distanceToExit = distanceToExit(field, portal.x, portal.y);
   }
   return base;
 }
 
 // ── Movement ─────────────────────────────────────────────────────────────────
 
-const FLIGHT_TOTAL_DIST = Math.hypot(EXIT.x - ENTRANCE.x, EXIT.y - ENTRANCE.y);
-
-function moveGroundEnemy(enemy: Enemy, field: FlowField, dt: number): void {
+function moveGroundEnemy(enemy: Enemy, field: FlowField, dt: number, exit: { x: number; y: number }): void {
   const speed = enemy.baseSpeed * currentSpeedFactor(enemy);
   let progress = enemy.progress + speed * dt;
 
@@ -433,7 +467,7 @@ function moveGroundEnemy(enemy: Enemy, field: FlowField, dt: number): void {
     progress -= 1;
     enemy.cellX += enemy.dirX;
     enemy.cellY += enemy.dirY;
-    if (enemy.cellX === EXIT.x && enemy.cellY === EXIT.y) {
+    if (enemy.cellX === exit.x && enemy.cellY === exit.y) {
       enemy.reachedExit = true;
       enemy.dirX = 0;
       enemy.dirY = 0;
@@ -455,8 +489,8 @@ function moveGroundEnemy(enemy: Enemy, field: FlowField, dt: number): void {
   enemy.progress = enemy.reachedExit ? 0 : progress;
 
   if (enemy.reachedExit) {
-    enemy.worldX = EXIT.x + 0.5;
-    enemy.worldY = EXIT.y + 0.5;
+    enemy.worldX = exit.x + 0.5;
+    enemy.worldY = exit.y + 0.5;
     enemy.distanceToExit = 0;
   } else {
     enemy.worldX = enemy.cellX + 0.5 + enemy.dirX * enemy.progress;
@@ -466,14 +500,15 @@ function moveGroundEnemy(enemy: Enemy, field: FlowField, dt: number): void {
   }
 }
 
-function moveFlyingEnemy(enemy: Enemy, dt: number): void {
+function moveFlyingEnemy(enemy: Enemy, dt: number, exit: { x: number; y: number }): void {
   const speed = enemy.baseSpeed * currentSpeedFactor(enemy);
-  const delta = FLIGHT_TOTAL_DIST > 0 ? (speed * dt) / FLIGHT_TOTAL_DIST : 1;
+  const totalDist = Math.hypot(exit.x - enemy.entranceX, exit.y - enemy.entranceY);
+  const delta = totalDist > 0 ? (speed * dt) / totalDist : 1;
   enemy.flightProgress = Math.min(1, enemy.flightProgress + delta);
   if (enemy.flightProgress >= 1) enemy.reachedExit = true;
-  enemy.worldX = ENTRANCE.x + 0.5 + (EXIT.x - ENTRANCE.x) * enemy.flightProgress;
-  enemy.worldY = ENTRANCE.y + 0.5 + (EXIT.y - ENTRANCE.y) * enemy.flightProgress;
-  enemy.distanceToExit = FLIGHT_TOTAL_DIST * (1 - enemy.flightProgress);
+  enemy.worldX = enemy.entranceX + 0.5 + (exit.x - enemy.entranceX) * enemy.flightProgress;
+  enemy.worldY = enemy.entranceY + 0.5 + (exit.y - enemy.entranceY) * enemy.flightProgress;
+  enemy.distanceToExit = totalDist * (1 - enemy.flightProgress);
 }
 
 // ── Tower firing ─────────────────────────────────────────────────────────────
@@ -541,7 +576,7 @@ export function step(state: GameState, dt: number): GameState {
   // 1) Spawn anything due.
   const stillPending = [];
   const occupancy = buildOccupancy(next);
-  const field = computeFlowField(occupancy, next.gridW, next.gridH, EXIT);
+  const field = computeFlowField(occupancy, next.gridW, next.gridH, next.exit);
   for (const spawn of next.pendingSpawns) {
     if (spawn.delaySec <= next.waveElapsed) {
       const enemy = spawnEnemy(next, spawn.type, spawn.hpMult, field);
@@ -557,8 +592,8 @@ export function step(state: GameState, dt: number): GameState {
   // 2) Age slow effects, then move.
   for (const e of next.enemies) {
     tickSlowEffects(e, dt);
-    if (e.flying) moveFlyingEnemy(e, dt);
-    else moveGroundEnemy(e, field, dt);
+    if (e.flying) moveFlyingEnemy(e, dt, next.exit);
+    else moveGroundEnemy(e, field, dt, next.exit);
   }
 
   // 3) Resolve enemies that reached the exit this tick.

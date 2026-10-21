@@ -174,6 +174,36 @@ export const MISSION_PACK: readonly MissionDef[] = [
       winAtWave: TOTAL_WAVES,
     },
   },
+  {
+    id: 'dual-standard',
+    name: '雙口夾擊',
+    blurb: '雙口地圖・標準難度・20 波通關',
+    goalLabel: '雙口・標準・通關 20 波',
+    goal: { kind: 'clear' },
+    run: {
+      difficulty: 'standard',
+      mapId: 'dual',
+      endless: false,
+      allowedTowers: null,
+      allowSell: true,
+      winAtWave: TOTAL_WAVES,
+    },
+  },
+  {
+    id: 'gauntlet-hammer',
+    name: '隘道重錘',
+    blurb: '隘道地圖・標準・僅彈簧錘與發條迫擊砲・20 波通關',
+    goalLabel: '隘道・錘＋迫擊砲・通關 20 波',
+    goal: { kind: 'clear' },
+    run: {
+      difficulty: 'standard',
+      mapId: 'gauntlet',
+      endless: false,
+      allowedTowers: ['hammer', 'mortar'],
+      allowSell: true,
+      winAtWave: TOTAL_WAVES,
+    },
+  },
 ];
 
 export interface MissionProgress {
@@ -336,7 +366,7 @@ export function assertMissionConfigs(): void {
       // Allow intentional shorter clears later; for now pack uses full clears.
     }
   }
-  if (MISSION_PACK.length < 4 || MISSION_PACK.length > 8) {
-    throw new Error(`mission pack size ${MISSION_PACK.length} outside 4–8`);
+  if (MISSION_PACK.length < 4 || MISSION_PACK.length > 12) {
+    throw new Error(`mission pack size ${MISSION_PACK.length} outside 4–12`);
   }
 }

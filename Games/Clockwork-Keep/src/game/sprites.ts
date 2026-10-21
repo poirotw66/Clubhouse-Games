@@ -42,8 +42,19 @@ export function drawCenteredSprite(
 /** Kick off loads so first draw rarely falls back. */
 export function preloadBattlefieldSprites(): void {
   boardFloorImage();
-  for (const t of ['crossbow', 'grinder', 'frost', 'coil'] as const) towerSprite(t);
-  for (const e of ['grunt', 'runner', 'ironclad', 'kite', 'gearbug', 'boss'] as const) {
+  for (const t of ['crossbow', 'grinder', 'frost', 'coil', 'hammer', 'mortar'] as const) {
+    towerSprite(t);
+  }
+  for (const e of [
+    'grunt',
+    'runner',
+    'ironclad',
+    'kite',
+    'gearbug',
+    'bloater',
+    'shellbug',
+    'boss',
+  ] as const) {
     enemySprite(e);
   }
 }

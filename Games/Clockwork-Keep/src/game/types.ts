@@ -48,6 +48,9 @@ export interface Enemy {
   progress: number; // 0..1 toward the next cell (ground only)
   /** Flyers: 0..1 along the straight entrance->exit segment, ignoring the maze entirely. */
   flightProgress: number;
+  /** Spawn portal (supports dual-entrance maps); flyers lerp from here to the exit. */
+  entranceX: number;
+  entranceY: number;
   slowEffects: SlowEffect[];
   distanceToExit: number; // in cells; used for targeting priority, smaller = closer
   /** Cached continuous world position (cell units), refreshed every step for rendering + range checks. */
@@ -97,7 +100,7 @@ export interface GameState {
    * Constraints below are copied from the mission so the engine stays pure.
    */
   missionId: string | null;
-  /** Towers the player may place; null means all four types. */
+  /** Towers the player may place; null means all types. */
   allowedTowers: TowerType[] | null;
   /** When false, sell is refused (一鏡到底). */
   allowSell: boolean;
@@ -107,9 +110,19 @@ export interface GameState {
    */
   winAtWave: number | null;
 
+  /** YYYY-MM-DD when this run is a daily challenge; null otherwise. */
+  dailyDate: string | null;
+  /** Traditional Chinese affix labels shown in HUD / result for daily runs. */
+  dailyAffixes: string[];
+  /** Extra HP multiplier stacked on difficulty (daily affixes); default 1. */
+  enemyHpBonusMult: number;
+
   gridW: number;
   gridH: number;
   rocks: Cell[];
+  /** Portals enemies spawn from (one or more). Copied from the map at run start. */
+  entrances: Cell[];
+  exit: Cell;
 
   towers: Tower[];
   nextTowerId: number;

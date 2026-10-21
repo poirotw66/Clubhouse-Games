@@ -36,6 +36,8 @@ function makeEnemy(overrides = {}) {
     dirY: 0,
     progress: 0,
     flightProgress: 0,
+    entranceX: 0,
+    entranceY: 0,
     slowEffects: [],
     distanceToExit: 5,
     worldX: 0,
