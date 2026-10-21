@@ -36,6 +36,7 @@ import {
 import { applyPlay, choosePick, flip, handSize, outcome, playCard as playHandCard, score } from './game/engine';
 import { advise, seatHintBlurb } from './game/hints';
 import {
+  FORMAT_LABELS,
   MATCH_LENGTHS,
   MATCH_MODE_LABELS,
   TARGET_SCORES,
@@ -44,6 +45,7 @@ import {
   createMatch,
   dealHand,
   defaultMatchConfig,
+  isSeriesMode,
   matchProgressLabel,
 } from './game/match';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
@@ -60,6 +62,7 @@ import {
   saveMatch,
   saveStats,
 } from './game/storage';
+import type { FormatKey } from './game/types';
 import { HUMAN } from './game/types';
 import type {
   Card,
@@ -124,6 +127,20 @@ export default function App(): React.ReactElement {
     });
     const pending = loadMatch();
     setResumeAvailable(Boolean(pending && pending.phase !== 'matchOver'));
+
+    // Playtest-only: `?demo=mvp` mounts a finished series so screenshots can
+    // capture the settlement MVP block without playing four full hands.
+    if (typeof window !== 'undefined') {
+      const demo = new URLSearchParams(window.location.search).get('demo');
+      if (demo === 'mvp') {
+        const demoMatch = buildMvpDemoMatch();
+        setMatch(demoMatch);
+        setConfig(demoMatch.config);
+        setReview(buildMvpDemoReview());
+        setScreen('game');
+        setState(null);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -302,6 +319,7 @@ export default function App(): React.ReactElement {
           next,
           nextMatch.winner === HUMAN,
           nextMatch.balances[HUMAN],
+          nextMatch.config,
         );
         clearSavedMatch();
       }
@@ -767,7 +785,7 @@ function Setup({
         <header className="pr-title-hero text-center">
           <h1 className="text-4xl font-black tracking-tight">撿紅點</h1>
           <p className="text-emerald-200/60 text-sm mt-1">
-            湊十撿牌，只有紅牌算分．系列賽累計合格分籌碼
+            湊十撿牌，只有紅牌算分．系列賽讓合格分累成籌碼
           </p>
         </header>
 
@@ -785,58 +803,77 @@ function Setup({
         </section>
 
         <section>
-          <h2 className="font-bold mb-2 text-sm text-emerald-200">系列賽</h2>
-          <div className="flex gap-2 mb-2">
+          <h2 className="font-bold mb-2 text-sm text-emerald-200">賽制</h2>
+          <div className="flex flex-col gap-2">
             {(Object.keys(MATCH_MODE_LABELS) as MatchMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setConfig((prev) => ({ ...prev, mode }))}
-                className={`flex-1 min-h-[44px] rounded-xl border text-sm font-bold transition-colors ${
-                  config.mode === mode
-                    ? 'border-emerald-400 bg-emerald-500/15'
-                    : 'border-slate-700 hover:bg-slate-800/60'
-                }`}
-              >
-                {MATCH_MODE_LABELS[mode]}
-              </button>
+              <div key={mode} className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      mode,
+                      // 輪莊是系列賽的核心；單局維持難度座位。
+                      rules: {
+                        ...prev.rules,
+                        rotateLeader: mode === 'single' ? prev.rules.rotateLeader : true,
+                      },
+                    }))
+                  }
+                  className={`text-left min-h-[44px] rounded-xl border px-4 py-2 text-sm transition-colors ${
+                    config.mode === mode
+                      ? 'border-emerald-400 bg-emerald-500/15'
+                      : 'border-slate-700 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <span className="font-bold">{MATCH_MODE_LABELS[mode]}</span>
+                  <span className="block text-[11px] text-emerald-100/55">
+                    {mode === 'single'
+                      ? '打完一局就結算，不進系列賽戰績'
+                      : mode === 'hands'
+                        ? '固定圈數累計籌碼；預設每局輪莊'
+                        : '先累積到目標籌碼者拿下系列賽'}
+                  </span>
+                </button>
+                {mode === 'hands' && config.mode === 'hands' && (
+                  <div className="ml-3 flex gap-2" role="group" aria-label="圈數">
+                    {MATCH_LENGTHS.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setConfig((prev) => ({ ...prev, hands: n as MatchLength }))}
+                        className={`flex-1 min-h-[40px] rounded-xl border text-sm ${
+                          config.hands === n
+                            ? 'border-emerald-400 bg-emerald-500/15 font-bold'
+                            : 'border-slate-700'
+                        }`}
+                      >
+                        {n} 圈
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {mode === 'target' && config.mode === 'target' && (
+                  <div className="ml-3 flex gap-2" role="group" aria-label="目標分">
+                    {TARGET_SCORES.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setConfig((prev) => ({ ...prev, target: n as TargetScore }))}
+                        className={`flex-1 min-h-[40px] rounded-xl border text-sm ${
+                          config.target === n
+                            ? 'border-emerald-400 bg-emerald-500/15 font-bold'
+                            : 'border-slate-700'
+                        }`}
+                      >
+                        {n} 分
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
-          {config.mode === 'hands' ? (
-            <div className="flex gap-2">
-              {MATCH_LENGTHS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setConfig((prev) => ({ ...prev, hands: n as MatchLength }))}
-                  className={`flex-1 min-h-[40px] rounded-xl border text-sm ${
-                    config.hands === n
-                      ? 'border-emerald-400 bg-emerald-500/15 font-bold'
-                      : 'border-slate-700'
-                  }`}
-                >
-                  {n} 局
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              {TARGET_SCORES.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setConfig((prev) => ({ ...prev, target: n as TargetScore }))}
-                  className={`flex-1 min-h-[40px] rounded-xl border text-sm ${
-                    config.target === n
-                      ? 'border-emerald-400 bg-emerald-500/15 font-bold'
-                      : 'border-slate-700'
-                  }`}
-                >
-                  {n} 分
-                </button>
-              ))}
-            </div>
-          )}
         </section>
 
         <section>
@@ -910,12 +947,14 @@ function Setup({
               title={`拼零分${rules.zeroScoreBonus ? '（開）' : '（關）'}`}
               detail="整局一分未得，向其餘各家各收標準分籌碼。"
             />
-            <Toggle
-              on={rules.rotateLeader}
-              onClick={() => patchRules({ rotateLeader: !rules.rotateLeader })}
-              title={`每局輪莊${rules.rotateLeader ? '（開）' : '（關）'}`}
-              detail="系列賽內頭家輪轉，座位優勢不會整場合綁在難度上。"
-            />
+            {isSeriesMode(config.mode) && (
+              <Toggle
+                on={rules.rotateLeader}
+                onClick={() => patchRules({ rotateLeader: !rules.rotateLeader })}
+                title={`每局輪莊${rules.rotateLeader ? '（開）' : '（關）'}`}
+                detail="系列賽內頭家輪轉，座位優勢不會整場合綁在難度上。"
+              />
+            )}
           </div>
         </section>
 
@@ -936,7 +975,7 @@ function Setup({
             onClick={onResume}
             className="min-h-[48px] rounded-2xl border border-amber-400/50 bg-amber-500/15 text-amber-100 font-bold touch-manipulation hover:bg-amber-500/25"
           >
-            繼續未完成的系列賽
+            繼續未完成的對局
           </button>
         )}
 
@@ -945,27 +984,110 @@ function Setup({
           onClick={onStart}
           className="min-h-[52px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-lg font-black"
         >
-          開始系列賽
+          {isSeriesMode(config.mode) ? '開始系列賽' : '開始單局'}
         </button>
 
         {(stats.wins + stats.losses + stats.draws > 0 || stats.matches > 0) && (
-          <p className="text-center text-xs text-emerald-100/50 leading-relaxed">
-            {stats.wins} 勝 {stats.losses} 敗 {stats.draws} 和．最高 {stats.best} 分
-            {stats.bestStreak > 1 && `．最長連勝 ${stats.bestStreak}`}
-            {stats.qualified > 0 && `．合格 ${stats.qualified} 次`}
+          <div className="text-center text-xs text-emerald-100/50 leading-relaxed space-y-1">
+            <p>
+              單局 {stats.wins} 勝 {stats.losses} 敗 {stats.draws} 和．最高 {stats.best} 分
+              {stats.bestStreak > 1 && `．最長連勝 ${stats.bestStreak}`}
+              {stats.qualified > 0 && `．合格 ${stats.qualified} 次`}
+            </p>
             {stats.matches > 0 && (
-              <>
-                <br />
+              <p>
                 系列賽 {stats.matches} 場 {stats.matchWins} 勝
-                {stats.bestMatchChips !== 0 && `．最佳籌碼 ${stats.bestMatchChips >= 0 ? '+' : ''}${stats.bestMatchChips}`}
-                {stats.chips !== 0 && `．累計籌碼 ${stats.chips >= 0 ? '+' : ''}${stats.chips}`}
-              </>
+                {stats.bestMatchChips !== 0 &&
+                  `．最佳籌碼 ${stats.bestMatchChips >= 0 ? '+' : ''}${stats.bestMatchChips}`}
+                {stats.chips !== 0 &&
+                  `．累計籌碼 ${stats.chips >= 0 ? '+' : ''}${stats.chips}`}
+              </p>
             )}
-          </p>
+            <FormatRecordLine formats={stats.formats} />
+          </div>
         )}
       </div>
     </div>
   );
+}
+
+function FormatRecordLine({
+  formats,
+}: {
+  formats: ReturnType<typeof loadStats>['formats'];
+}): React.ReactElement | null {
+  const entries = (Object.keys(FORMAT_LABELS) as FormatKey[])
+    .map((key) => ({ key, ...formats[key] }))
+    .filter((entry) => entry.played > 0);
+  if (entries.length === 0) return null;
+  return (
+    <p aria-label="賽制戰績">
+      賽制戰績{' '}
+      {entries
+        .map((entry) => `${FORMAT_LABELS[entry.key]} ${entry.wins}/${entry.played}`)
+        .join(' · ')}
+    </p>
+  );
+}
+
+/** Synthetic finished series for `?demo=mvp` playtest screenshots. */
+function buildMvpDemoMatch(): MatchState {
+  const hand = (
+    handIndex: number,
+    scores: number[],
+    deltas: number[],
+  ): MatchState['history'][number] => ({
+    handIndex,
+    seedCode: `demo-${handIndex}`,
+    winner: scores[0] >= scores[1] ? 0 : 1,
+    scores,
+    deltas,
+    qualified: scores.flatMap((points, seat) => (points > 105 ? [seat] : [])),
+    doubleRedFiveSeat: null,
+    zeroScoreSeat: null,
+  });
+  return {
+    config: {
+      mode: 'hands',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: {
+        players: 2,
+        blackAces: false,
+        doubleRedFive: true,
+        zeroScoreBonus: true,
+        rotateLeader: true,
+      },
+      seedCode: 'demo-mvp',
+    },
+    handIndex: 4,
+    balances: [28, -28],
+    history: [
+      hand(0, [118, 92], [13, -13]),
+      hand(1, [88, 122], [-17, 17]),
+      hand(2, [112, 98], [7, -7]),
+      hand(3, [105, 105], [0, 0]),
+    ],
+    phase: 'matchOver',
+    winner: 0,
+  };
+}
+
+function buildMvpDemoReview(): HandReview {
+  return {
+    winners: [0],
+    scores: [105, 105],
+    par: 105,
+    deltas: [0, 0],
+    highlight: '+28',
+    lessons: [
+      {
+        title: '系列賽籌碼結算',
+        detail: '四圈累計後你以 +28 籌碼勝出；合格分每一圈都在加減籌碼。',
+      },
+    ],
+  };
 }
 
 function Toggle({

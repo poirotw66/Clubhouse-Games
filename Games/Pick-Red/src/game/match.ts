@@ -4,12 +4,14 @@ import { normalizeSeedCode, seedFromCode, streamRng } from './rng';
 import { HUMAN } from './types';
 import type {
   DifficultyId,
+  FormatKey,
   GameState,
   HandRecord,
   HouseRules,
   MatchConfig,
   MatchLength,
   MatchMode,
+  MatchMvp,
   MatchState,
   Outcome,
   PlayerCount,
@@ -21,8 +23,18 @@ export const MATCH_LENGTHS: MatchLength[] = [4, 8, 12];
 export const TARGET_SCORES: TargetScore[] = [50, 100, 200];
 
 export const MATCH_MODE_LABELS: Record<MatchMode, string> = {
-  hands: '打固定局數',
-  target: '先達目標分',
+  single: '單局',
+  hands: '打四圈（輪莊）',
+  target: '打到 N 分',
+};
+
+export const FORMAT_LABELS: Record<FormatKey, string> = {
+  'hands-4': '四圈',
+  'hands-8': '八圈',
+  'hands-12': '十二圈',
+  'target-50': '先達 50',
+  'target-100': '先達 100',
+  'target-200': '先達 200',
 };
 
 export const DEFAULT_HOUSE_RULES: HouseRules = {
@@ -45,6 +57,26 @@ export function defaultMatchConfig(
     rules: { ...rules },
     seedCode: '',
   };
+}
+
+export function isSeriesMode(mode: MatchMode): boolean {
+  return mode === 'hands' || mode === 'target';
+}
+
+export function formatKeyFor(config: MatchConfig): FormatKey | null {
+  if (config.mode === 'hands') {
+    if (config.hands === 4) return 'hands-4';
+    if (config.hands === 8) return 'hands-8';
+    if (config.hands === 12) return 'hands-12';
+    return null;
+  }
+  if (config.mode === 'target') {
+    if (config.target === 50) return 'target-50';
+    if (config.target === 100) return 'target-100';
+    if (config.target === 200) return 'target-200';
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -83,7 +115,8 @@ export function createMatch(config: MatchConfig): MatchState {
 export function leaderForHand(match: MatchState): Seat {
   const players = match.config.rules.players;
   const base = leaderFor(match.config.difficulty, players);
-  if (!match.config.rules.rotateLeader) return base;
+  // Single-hand sessions keep the difficulty seat; rotation is a series rule.
+  if (match.config.mode === 'single' || !match.config.rules.rotateLeader) return base;
   return (base + match.handIndex) % players;
 }
 
@@ -158,6 +191,7 @@ export function applyHandResult(match: MatchState, result: Outcome, seedCode: st
 /**
  * Who won the match, or null if more hands remain.
  *
+ * Single: ends after the first hand.
  * Hands mode: after N hands, highest balance wins (ties break toward lowest seat).
  * Target mode: first seat to reach the target after a hand ends the match.
  */
@@ -166,6 +200,11 @@ export function decideMatchWinner(
   balances: readonly number[],
   handsPlayed: number,
 ): Seat | null {
+  if (config.mode === 'single') {
+    if (handsPlayed < 1) return null;
+    return seatWithMost(balances);
+  }
+
   if (config.mode === 'target') {
     const reached = balances
       .map((chip, seat) => ({ chip, seat }))
@@ -175,11 +214,50 @@ export function decideMatchWinner(
   }
 
   if (handsPlayed < config.hands) return null;
+  return seatWithMost(balances);
+}
+
+function seatWithMost(balances: readonly number[]): Seat {
   let best = 0;
   for (let seat = 1; seat < balances.length; seat++) {
     if (balances[seat] > balances[best]) best = seat;
   }
   return best;
+}
+
+/**
+ * Series MVP from completed hand history.
+ * Ties break toward the lowest seat so the result is deterministic.
+ */
+export function computeMatchMvp(match: MatchState): MatchMvp | null {
+  if (match.history.length === 0) return null;
+  const seats = match.balances.length;
+  const totals = Array.from({ length: seats }, () => 0);
+  let bestHandSeat = 0;
+  let bestHandScore = -Infinity;
+  let bestHandIndex = 0;
+
+  for (const hand of match.history) {
+    for (let seat = 0; seat < seats; seat++) {
+      const score = hand.scores[seat] ?? 0;
+      totals[seat] += score;
+      if (score > bestHandScore || (score === bestHandScore && seat < bestHandSeat)) {
+        bestHandScore = score;
+        bestHandSeat = seat;
+        bestHandIndex = hand.handIndex;
+      }
+    }
+  }
+
+  return {
+    mostPointsSeat: seatWithMost(totals),
+    mostPointsTotal: Math.max(...totals),
+    bestHandSeat,
+    bestHandScore: bestHandScore === -Infinity ? 0 : bestHandScore,
+    bestHandIndex,
+    chipLeaderSeat: seatWithMost(match.balances),
+    chipLeaderTotal: Math.max(...match.balances),
+  };
 }
 
 export function advanceToNextHand(match: MatchState): MatchState {
@@ -188,9 +266,10 @@ export function advanceToNextHand(match: MatchState): MatchState {
 }
 
 export function matchProgressLabel(match: MatchState): string {
+  if (match.config.mode === 'single') return '單局';
   if (match.config.mode === 'hands') {
     const current = Math.min(match.handIndex + 1, match.config.hands);
-    return `第 ${current}／${match.config.hands} 局`;
+    return `第 ${current}／${match.config.hands} 圈`;
   }
   return `目標 ${match.config.target} 分`;
 }
