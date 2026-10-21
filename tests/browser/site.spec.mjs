@@ -215,6 +215,9 @@ test('reversi: puzzle mode solves the first corner étude', async ({ page, isMob
   test.skip(!includesGame('Reversi'), 'selective CI');
   await page.goto('./Games/Reversi/');
   await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  // Sequential unlock: only the first étude is open.
+  await expect(page.getByRole('button', { name: /1\. 角地到手/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /2\. 右上角（鎖定）/ })).toBeDisabled();
   await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
   // Black to move takes a1 (row 1, col 1) — the only legal winning corner.
   const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
@@ -224,6 +227,10 @@ test('reversi: puzzle mode solves the first corner étude', async ({ page, isMob
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await expect(dialog).toHaveAttribute('aria-label', /謎題完成/);
   await activate(dialog.getByRole('button', { name: /下一題|再試一次/ }), isMobile);
+  // Next étude is now playable (unlocked by clearing #1).
+  await expect(page.getByRole('button', { name: '可下於第 1 列 8 欄', exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test('reversi: opponent ladder unlocks the first challenge', async ({ page, isMobile }) => {

@@ -1,13 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { boardFromRows } from './boardCodec';
-import { countEmpties, getLegalMoves } from './reversiLogic';
-import { PUZZLES, assertPuzzleSolvable, describePuzzleObjective } from './puzzles';
+import { algebraicToMove, boardFromRows, moveToAlgebraic } from './boardCodec';
+import { countEmpties, createInitialBoard, getLegalMoves } from './reversiLogic';
+import {
+  ACCEPTABLE_FIRST_MOVES,
+  PUZZLES,
+  acceptableFirstMoves,
+  assertPuzzleSolvable,
+  describePuzzleObjective,
+} from './puzzles';
 import { isOptimalMove, solveExact } from './solver';
 import { createSeries, applySeriesResult, seriesLabel } from './match';
 import { OPPONENTS, opponentCount } from './opponents';
-import { mergeLadder, isOpponentUnlocked, applyLadderWin, applyPuzzleSolve } from './ladder';
+import {
+  mergeLadder,
+  isOpponentUnlocked,
+  isPuzzleUnlocked,
+  applyLadderWin,
+  applyPuzzleSolve,
+  ratePuzzleAttempt,
+  formatStars,
+  puzzleStarTotal,
+} from './ladder';
 import { teachingHint, STRATEGY_PRIMER } from './teach';
-import { createInitialBoard } from './reversiLogic';
 
 describe('puzzle pack', () => {
   it('ships 10–15 fixed positions', () => {
@@ -36,11 +50,37 @@ describe('puzzle pack', () => {
     }
   });
 
+  it('pins acceptable first moves (unique or explicitly listed)', () => {
+    expect(Object.keys(ACCEPTABLE_FIRST_MOVES).sort()).toEqual(
+      PUZZLES.map((p) => p.id).sort(),
+    );
+    for (const puzzle of PUZZLES) {
+      const live = acceptableFirstMoves(puzzle);
+      const pinned = [...ACCEPTABLE_FIRST_MOVES[puzzle.id]].sort();
+      expect(live).toEqual(pinned);
+      expect(pinned.length).toBeGreaterThan(0);
+      for (const sq of pinned) {
+        const move = algebraicToMove(sq);
+        expect(isOptimalMove(boardFromRows(puzzle.rows), puzzle.side, move, puzzle.goal)).toBe(
+          true,
+        );
+      }
+      // Non-optimal legal moves (if any) must be rejected.
+      const board = boardFromRows(puzzle.rows);
+      const pinnedSet = new Set(pinned);
+      for (const m of getLegalMoves(board, puzzle.side)) {
+        const sq = moveToAlgebraic(m);
+        if (pinnedSet.has(sq)) continue;
+        expect(isOptimalMove(board, puzzle.side, m, puzzle.goal)).toBe(false);
+      }
+    }
+  });
+
   it('rejects a known-suboptimal move on fork-choice', () => {
     const puzzle = PUZZLES.find((p) => p.id === 'fork-choice');
     expect(puzzle).toBeTruthy();
     const board = boardFromRows(puzzle!.rows);
-    // (7,4) loses; (6,4) wins — pinned by the generator.
+    // (7,4)=e8 loses; (6,4)=e7 wins — pinned by ACCEPTABLE_FIRST_MOVES.
     expect(isOptimalMove(board, 'black', [7, 4], 'win')).toBe(false);
     expect(isOptimalMove(board, 'black', [6, 4], 'win')).toBe(true);
   });
@@ -73,10 +113,38 @@ describe('opponent roster', () => {
     expect(isOpponentUnlocked(1, progress.clearedCount)).toBe(true);
   });
 
-  it('records puzzle solves on the ladder blob', () => {
-    const next = applyPuzzleSolve(mergeLadder(null), 'corner-a1');
-    expect(next.puzzlesSolved['corner-a1']).toBe(true);
-    expect(next.puzzleBest).toBe(1);
+  it('records puzzle solves, stars, and sequential unlock', () => {
+    let progress = mergeLadder(null);
+    expect(isPuzzleUnlocked(0, progress)).toBe(true);
+    expect(isPuzzleUnlocked(1, progress)).toBe(false);
+
+    progress = applyPuzzleSolve(progress, 'corner-a1', 3);
+    expect(progress.puzzlesSolved['corner-a1']).toBe(true);
+    expect(progress.puzzleStars['corner-a1']).toBe(3);
+    expect(progress.puzzleBest).toBe(1);
+    expect(isPuzzleUnlocked(1, progress)).toBe(true);
+    expect(isPuzzleUnlocked(2, progress)).toBe(false);
+
+    progress = applyPuzzleSolve(progress, 'corner-a1', 1);
+    expect(progress.puzzleStars['corner-a1']).toBe(3); // keep best
+    expect(puzzleStarTotal(progress)).toBe(3);
+  });
+
+  it('rates puzzle attempts by hint/undo usage', () => {
+    expect(ratePuzzleAttempt({ usedHint: false, usedUndo: false })).toBe(3);
+    expect(ratePuzzleAttempt({ usedHint: true, usedUndo: false })).toBe(2);
+    expect(ratePuzzleAttempt({ usedHint: false, usedUndo: true })).toBe(2);
+    expect(ratePuzzleAttempt({ usedHint: true, usedUndo: true })).toBe(1);
+    expect(formatStars(3)).toBe('★★★');
+    expect(formatStars(1)).toBe('★☆☆');
+  });
+
+  it('backfills 1★ for legacy solved puzzles without stars', () => {
+    const progress = mergeLadder({
+      clearedCount: 0,
+      puzzlesSolved: { 'corner-a1': true },
+    });
+    expect(progress.puzzleStars['corner-a1']).toBe(1);
   });
 });
 
@@ -94,11 +162,9 @@ describe('series match', () => {
 
 describe('teaching hints', () => {
   it('ships the three primer themes', () => {
-    expect(STRATEGY_PRIMER.map((t) => t.id).sort()).toEqual([
-      'primer-corner',
-      'primer-mobility',
-      'primer-parity',
-    ].sort());
+    expect(STRATEGY_PRIMER.map((t) => t.id).sort()).toEqual(
+      ['primer-corner', 'primer-mobility', 'primer-parity'].sort(),
+    );
   });
 
   it('flags a free corner on the opening-adjacent take', () => {
