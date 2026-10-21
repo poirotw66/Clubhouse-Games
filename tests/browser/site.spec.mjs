@@ -569,9 +569,48 @@ test('klondike: scoring modes, seeded deal, daily toggle, hint, redeal', async (
   await expect(page.getByText(/今日挑戰/)).toBeVisible();
   await expect(page.locator('#klondike-seed')).toBeDisabled();
 
+  // Seed today's best + keep daily mode on across reload (do not re-toggle 每日).
+  await page.evaluate(() => {
+    const today = (() => {
+      const shifted = new Date(Date.now() + 8 * 60 * 60_000);
+      const y = shifted.getUTCFullYear();
+      const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(shifted.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    })();
+    localStorage.setItem(
+      'clubhouse:klondike:daily',
+      JSON.stringify([
+        {
+          date: today,
+          won: true,
+          score: 320,
+          elapsedSec: 180,
+          moves: 90,
+          drawCount: 1,
+          scoreMode: 'standard',
+        },
+      ]),
+    );
+    localStorage.setItem(
+      'clubhouse:klondike:settings:v1',
+      JSON.stringify({
+        drawCount: 1,
+        scoreMode: 'standard',
+        solvableOnly: true,
+        playDaily: true,
+      }),
+    );
+  });
+  await page.reload();
+  await expect(page.getByText(/今日挑戰/)).toBeVisible();
+  await expect(page.locator('#klondike-share')).toBeVisible();
+
   await activate(page.getByRole('button', { name: '戰績' }), isMobile);
   const stats = page.getByRole('dialog', { name: /戰績/ });
   await expect(stats).toBeVisible();
+  await expect(stats.getByText(/今日挑戰/)).toBeVisible();
+  await expect(stats.getByRole('button', { name: /複製分享結果/ })).toBeVisible();
   await activate(stats.getByRole('button', { name: '關閉戰績' }), isMobile);
   await expect(stats).toHaveCount(0);
 
