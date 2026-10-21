@@ -52,3 +52,8 @@ export function computeStreak(records: DailyRecord[], today: string): number {
   }
   return streak;
 }
+
+/** Today's stored best attempt, if any. */
+export function todaysBest(records: DailyRecord[], today: string = dateKey()): DailyRecord | null {
+  return records.find((r) => r.date === today) ?? null;
+}

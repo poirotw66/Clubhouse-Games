@@ -14,15 +14,17 @@ import {
   initialScore,
   pointsRecycle,
   pointsToFoundation,
+  pointsUndo,
   standardTimePenaltyTicks,
   standardWinBonus,
   VEGAS_DEAL_COST,
 } from './utils/scoring.ts';
 import { buildScriptedSolvable, isSolvable } from './utils/solver.ts';
 import { dealDailySolvable, dealGame, findSolvableSeed } from './utils/deck.ts';
-import { computeStreak, dailyBaseSeed, dateKey } from './utils/daily.ts';
+import { computeStreak, dailyBaseSeed, dateKey, todaysBest } from './utils/daily.ts';
 import { evaluateChallenges, isChallengeCleared } from './utils/challenges.ts';
 import { modeKey, recordGameResult, winRate } from './utils/storage.ts';
+import { buildDailyShareText, dailyRecordToShare } from './utils/share.ts';
 
 function card(suit, rank, faceUp = true) {
   const color = suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black';
@@ -128,6 +130,8 @@ function card(suit, rank, faceUp = true) {
   assert.equal(pointsToFoundation('vegas'), 5);
   assert.equal(pointsRecycle('standard', 1), -100);
   assert.equal(pointsRecycle('standard', 3), -20);
+  assert.equal(pointsUndo('standard'), -2);
+  assert.equal(pointsUndo('vegas'), 0);
   assert.equal(canRecycle('vegas', 1, 0), false);
   assert.equal(canRecycle('vegas', 3, 0), true);
   assert.equal(canRecycle('vegas', 3, 2), false);
@@ -180,11 +184,44 @@ function card(suit, rank, faceUp = true) {
   const today = dateKey(new Date('2026-10-19T04:00:00Z')); // UTC+8 → 2026-10-19
   assert.equal(today, '2026-10-19');
   const records = [
-    { date: '2026-10-19', won: true, score: 1, elapsedSec: 1, moves: 1, drawCount: 1, scoreMode: 'standard' },
+    { date: '2026-10-19', won: true, score: 342, elapsedSec: 222, moves: 98, drawCount: 1, scoreMode: 'standard' },
     { date: '2026-10-18', won: true, score: 1, elapsedSec: 1, moves: 1, drawCount: 1, scoreMode: 'standard' },
     { date: '2026-10-16', won: true, score: 1, elapsedSec: 1, moves: 1, drawCount: 1, scoreMode: 'standard' },
   ];
   assert.equal(computeStreak(records, '2026-10-19'), 2);
+  assert.equal(todaysBest(records, '2026-10-19')?.score, 342);
+  assert.equal(todaysBest(records, '2026-10-20'), null);
+
+  const share = buildDailyShareText({
+    date: '2026-10-19',
+    won: true,
+    score: 342,
+    elapsedSec: 222,
+    moves: 98,
+    drawCount: 1,
+    scoreMode: 'standard',
+    streak: 2,
+  });
+  assert.match(share, /接龍 每日 2026-10-19/);
+  assert.match(share, /✓ 342 分 · 3:42 · 98 步/);
+  assert.match(share, /翻 1 · 標準 · 連勝 2 天/);
+  assert.equal(
+    dailyRecordToShare(records[0], 2),
+    share,
+  );
+
+  const lossShare = buildDailyShareText({
+    date: '2026-10-19',
+    won: false,
+    score: -12,
+    elapsedSec: 60,
+    moves: 40,
+    drawCount: 3,
+    scoreMode: 'vegas',
+    streak: 0,
+  });
+  assert.match(lossShare, /✗ 未過關 · 本局 -12 分 · 40 步/);
+  assert.match(lossShare, /翻 3 · 維加斯 · 連勝 0 天/);
 }
 
 // —— Challenges ——

@@ -36,13 +36,14 @@ import {
   pointsRecycle,
   pointsReveal,
   pointsToFoundation,
+  pointsUndo,
   pointsWasteToTableau,
   scoreLabel,
   standardTimePenaltyTicks,
   standardWinBonus,
   type ScoreMode,
 } from './utils/scoring';
-import { computeStreak, dateKey, dailyBaseSeed } from './utils/daily';
+import { computeStreak, dateKey, dailyBaseSeed, todaysBest } from './utils/daily';
 import { CHALLENGES, evaluateChallenges, type ChallengeId } from './utils/challenges';
 import {
   loadDaily,
@@ -55,6 +56,7 @@ import {
   type KlondikeSettings,
   type KlondikeStats,
 } from './utils/storage';
+import { buildDailyShareText, copyText } from './utils/share';
 import {
   RotateCcw,
   Undo2,
@@ -64,6 +66,7 @@ import {
   Info,
   BarChart3,
   Calendar,
+  Share2,
 } from 'lucide-react';
 
 function formatTime(sec: number): string {
@@ -119,6 +122,7 @@ export default function App() {
   const [flights, setFlights] = useState<FlyCard[]>([]);
   const [clearedThisWin, setClearedThisWin] = useState<ChallengeId[]>([]);
   const [resultRecorded, setResultRecorded] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const noProgressCount = useRef(0);
   const autoCompleteIdle = useRef(0);
@@ -135,7 +139,9 @@ export default function App() {
   const scoreMode = settings.scoreMode;
   const isBusy = isAutoPlaying || isAutoCompleting;
   const isGameWon = gameState.foundation.every((pile) => pile.length === 13);
-  const dailyStreak = computeStreak(dailyRecords, dateKey());
+  const todayKey = dateKey();
+  const dailyStreak = computeStreak(dailyRecords, todayKey);
+  const todayBest = todaysBest(dailyRecords, todayKey);
 
   useEffect(() => {
     scoreRef.current = score;
@@ -525,7 +531,7 @@ export default function App() {
   };
 
   const undo = () => {
-    if (isBusy) return;
+    if (isBusy || gameState.history.length === 0) return;
     clearHint();
     setGameState((prevState) => {
       if (prevState.history.length === 0) return prevState;
@@ -534,11 +540,45 @@ export default function App() {
     });
     const meta = metaHistory.current.pop();
     if (meta) {
-      setScore(meta.score);
+      const tax = pointsUndo(scoreMode);
+      setScore(meta.score + tax);
       setMoveCount(meta.moves);
       setRecycleCount(meta.recycles);
+      if (tax !== 0) {
+        setFlash({ text: String(tax), tone: 'bad', key: Date.now() });
+      }
     }
     setUsedUndo(true);
+  };
+
+  const copyDailyShare = async () => {
+    const record =
+      todaysBest(dailyRecords, todayKey) ??
+      ({
+        date: todayKey,
+        won: isGameWon,
+        score: scoreRef.current,
+        elapsedSec,
+        moves: moveRef.current,
+        drawCount,
+        scoreMode,
+      } as const);
+    const streakRecords =
+      record.won && !dailyRecords.some((r) => r.date === todayKey && r.won)
+        ? [...dailyRecords, { ...record, won: true }]
+        : dailyRecords;
+    const text = buildDailyShareText({
+      ...record,
+      streak: computeStreak(streakRecords, todayKey),
+    });
+    const ok = await copyText(text);
+    setShareCopied(ok);
+    setFlash({
+      text: ok ? '已複製分享文案' : '無法複製',
+      tone: ok ? 'good' : 'bad',
+      key: Date.now(),
+    });
+    if (ok) window.setTimeout(() => setShareCopied(false), 2000);
   };
 
   const showHint = () => {
@@ -970,6 +1010,9 @@ export default function App() {
               {modeBest?.bestTimeSec == null ? '—' : formatTime(modeBest.bestTimeSec)}
               {' · '}
               連勝 {stats.currentStreak}
+              {settings.playDaily && todayBest
+                ? ` · 今日最佳 ${todayBest.won ? `${todayBest.score} 分` : '未過關'}`
+                : ''}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
@@ -1027,6 +1070,20 @@ export default function App() {
             >
               <Calendar size={18} /> 每日
             </button>
+            {settings.playDaily && todayBest && (
+              <button
+                type="button"
+                onClick={() => void copyDailyShare()}
+                id="klondike-share"
+                className="flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-lg text-sm bg-sky-500/30 border border-sky-300/40 touch-manipulation"
+                aria-label="複製分享結果"
+              >
+                <Share2 size={18} />
+                <span className="hidden sm:inline">
+                  {shareCopied ? '已複製' : '分享'}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsStatsOpen(true)}
@@ -1291,7 +1348,7 @@ export default function App() {
                   .filter(Boolean)
                   .join('、')}`
               : settings.playDaily
-                ? `每日挑戰完成 · 連續 ${computeStreak(dailyRecords, dateKey())} 天`
+                ? `每日挑戰完成 · 連續 ${computeStreak(dailyRecords, todayKey)} 天`
                 : '恭喜完成接龍'
           }
           stats={[
@@ -1305,8 +1362,15 @@ export default function App() {
             },
           ]}
           onPrimary={startNewGame}
-          secondaryLabel="重新發同局"
-          onSecondary={redealSame}
+          primaryLabel={settings.playDaily ? '再挑戰今日' : '新局'}
+          secondaryLabel={
+            settings.playDaily
+              ? shareCopied
+                ? '已複製分享文案'
+                : '複製分享結果'
+              : '重新發同局'
+          }
+          onSecondary={settings.playDaily ? () => void copyDailyShare() : redealSame}
         />
       )}
 
