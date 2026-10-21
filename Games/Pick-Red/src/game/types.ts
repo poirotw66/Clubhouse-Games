@@ -127,10 +127,29 @@ export interface Outcome {
   zeroScoreSeat: Seat | null;
 }
 
-/** Fixed-hand series or race-to-target — the mid-session hook the audit asked for. */
-export type MatchMode = 'hands' | 'target';
+/**
+ * Session shape:
+ * - `single` — one hand, no series board or format record
+ * - `hands` — fixed N hands（打 N 圈／輪莊）
+ * - `target` — first to N chips（打到 N 分）
+ */
+export type MatchMode = 'single' | 'hands' | 'target';
 export type MatchLength = 4 | 8 | 12;
 export type TargetScore = 50 | 100 | 200;
+
+/** Stable key for per-format win/loss records（賽制戰績）. */
+export type FormatKey =
+  | 'hands-4'
+  | 'hands-8'
+  | 'hands-12'
+  | 'target-50'
+  | 'target-100'
+  | 'target-200';
+
+export interface FormatRecord {
+  played: number;
+  wins: number;
+}
 
 export interface MatchConfig {
   mode: MatchMode;
@@ -163,6 +182,20 @@ export interface MatchState {
   phase: MatchPhase;
   /** Set when the series ends. */
   winner: Seat | null;
+}
+
+/** End-of-series MVP — who led red points and who posted the best single hand. */
+export interface MatchMvp {
+  /** Seat with the highest sum of hand scores（最多紅點）. */
+  mostPointsSeat: Seat;
+  mostPointsTotal: number;
+  /** Seat with the highest single-hand score（單局最高）. */
+  bestHandSeat: Seat;
+  bestHandScore: number;
+  bestHandIndex: number;
+  /** Seat with the most chips at the end（籌碼王）. */
+  chipLeaderSeat: Seat;
+  chipLeaderTotal: number;
 }
 
 export interface HintAdvice {

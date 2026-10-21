@@ -19,7 +19,12 @@ import {
   type Piece,
 } from '../utils/reversiLogic';
 import type { LadderProgress } from '../utils/ladder';
-import { isOpponentUnlocked } from '../utils/ladder';
+import {
+  formatStars,
+  isOpponentUnlocked,
+  isPuzzleUnlocked,
+  puzzleStarTotal,
+} from '../utils/ladder';
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
@@ -73,6 +78,8 @@ export function MenuScreen({
   onStartPuzzle,
 }: MenuScreenProps): ReactElement {
   const solvedCount = Object.keys(ladder.puzzlesSolved).length;
+  const starTotal = puzzleStarTotal(ladder);
+  const starMax = puzzleCount() * 3;
 
   return (
     <div
@@ -82,7 +89,7 @@ export function MenuScreen({
       <BackToMenu />
       <h1 className="text-2xl font-bold tracking-tight mb-2">黑白棋</h1>
       <p className="text-stone-400 text-xs mb-6">
-        連勝 {winStreak} · 最佳 {bestStreak} · 勝差 {bestMargin} · 謎題 {solvedCount}/{puzzleCount()}
+        連勝 {winStreak} · 最佳 {bestStreak} · 勝差 {bestMargin} · 謎題 {solvedCount}/{puzzleCount()} · ★ {starTotal}/{starMax}
       </p>
 
       {view === 'home' && (
@@ -396,23 +403,44 @@ function PuzzleSetup({
       <button type="button" onClick={onBack} className="text-sm text-stone-400 self-start">
         ← 返回
       </button>
-      <p className="text-sm text-stone-300">固定殘局，由解算器驗證。選錯一手會立刻失敗。</p>
+      <p className="text-sm text-stone-300">
+        固定殘局，逐題解鎖。無提示／無悔棋通關可拿 ★★★；選錯一手會立刻失敗。
+      </p>
       <ul className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto">
         {puzzles.map((p, index) => {
+          const unlocked = isPuzzleUnlocked(index, ladder);
           const done = Boolean(ladder.puzzlesSolved[p.id]);
+          const stars = ladder.puzzleStars[p.id] ?? 0;
           return (
             <li key={p.id}>
               <button
                 type="button"
+                disabled={!unlocked}
                 onClick={() => onStart(index)}
-                className="w-full text-left rounded-xl border border-stone-600 bg-stone-900/80 p-3 hover:bg-stone-800 transition-colors"
+                aria-label={
+                  unlocked
+                    ? `${index + 1}. ${p.title}${done ? ` ${formatStars(stars)}` : ''}`
+                    : `${index + 1}. ${p.title}（鎖定）`
+                }
+                className={`w-full text-left rounded-xl border p-3 transition-colors ${
+                  unlocked
+                    ? 'border-stone-600 bg-stone-900/80 hover:bg-stone-800'
+                    : 'border-stone-800 bg-stone-950/60 opacity-60 cursor-not-allowed'
+                }`}
               >
-                <p className="font-semibold">
-                  {index + 1}. {p.title}
-                  {done ? ' ✓' : ''}
+                <p className="font-semibold flex items-center justify-between gap-2">
+                  <span>
+                    {index + 1}. {p.title}
+                    {done ? ' ✓' : unlocked ? '' : ' 🔒'}
+                  </span>
+                  <span className="text-amber-300 text-sm tracking-tight" aria-hidden="true">
+                    {unlocked ? formatStars(stars) : '☆☆☆'}
+                  </span>
                 </p>
                 <p className="text-xs text-emerald-300/90">{describePuzzleObjective(p)}</p>
-                <p className="text-xs text-stone-400 mt-0.5">{p.brief}</p>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  {unlocked ? p.brief : '完成上一題後解鎖'}
+                </p>
               </button>
             </li>
           );

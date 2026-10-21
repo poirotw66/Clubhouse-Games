@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { PUZZLES, verifyAllPuzzles } from './puzzles';
+import {
+  PUZZLES,
+  verifyAllPuzzles,
+  isPuzzleUnlocked,
+  ratePuzzleStars,
+  formatStars,
+  sideToMoveLabel,
+} from './puzzles';
 import { RULESETS } from './rules';
 import {
   createInitialBoard,
@@ -17,6 +24,29 @@ describe('puzzle pack', () => {
   it('has ten solver-verified win-in-N positions', () => {
     expect(PUZZLES).toHaveLength(10);
     expect(verifyAllPuzzles()).toEqual([]);
+  });
+
+  it('includes a white-to-move puzzle', () => {
+    expect(PUZZLES.some((p) => p.sideToMove === 'white')).toBe(true);
+  });
+
+  it('unlocks puzzles sequentially', () => {
+    expect(isPuzzleUnlocked(0, [])).toBe(true);
+    expect(isPuzzleUnlocked(1, [])).toBe(false);
+    expect(isPuzzleUnlocked(1, [PUZZLES[0].id])).toBe(true);
+    expect(isPuzzleUnlocked(2, [PUZZLES[0].id])).toBe(false);
+    expect(isPuzzleUnlocked(2, [PUZZLES[0].id, PUZZLES[1].id])).toBe(true);
+  });
+
+  it('rates stars from hint/undo assists', () => {
+    expect(ratePuzzleStars(0, 0)).toBe(3);
+    expect(ratePuzzleStars(1, 0)).toBe(2);
+    expect(ratePuzzleStars(0, 1)).toBe(2);
+    expect(ratePuzzleStars(1, 1)).toBe(1);
+    expect(ratePuzzleStars(3, 0)).toBe(1);
+    expect(formatStars(3)).toBe('★★★');
+    expect(formatStars(1)).toBe('★☆☆');
+    expect(sideToMoveLabel('white')).toBe('白先');
   });
 });
 

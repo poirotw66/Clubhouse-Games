@@ -215,6 +215,9 @@ test('reversi: puzzle mode solves the first corner étude', async ({ page, isMob
   test.skip(!includesGame('Reversi'), 'selective CI');
   await page.goto('./Games/Reversi/');
   await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  // Sequential unlock: only the first étude is open.
+  await expect(page.getByRole('button', { name: /1\. 角地到手/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /2\. 右上角（鎖定）/ })).toBeDisabled();
   await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
   // Black to move takes a1 (row 1, col 1) — the only legal winning corner.
   const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
@@ -224,6 +227,10 @@ test('reversi: puzzle mode solves the first corner étude', async ({ page, isMob
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await expect(dialog).toHaveAttribute('aria-label', /謎題完成/);
   await activate(dialog.getByRole('button', { name: /下一題|再試一次/ }), isMobile);
+  // Next étude is now playable (unlocked by clearing #1).
+  await expect(page.getByRole('button', { name: '可下於第 1 列 8 欄', exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test('reversi: opponent ladder unlocks the first challenge', async ({ page, isMobile }) => {
@@ -277,6 +284,7 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
   test.setTimeout(45_000);
   await page.goto('./Games/Pick-Red/');
   await activate(page.getByRole('button', { name: /困難/ }), isMobile);
+  // Default lobby is series (四圈); pin a seed and start.
   await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
   await activate(page.getByRole('button', { name: '開始系列賽', exact: true }), isMobile);
 
@@ -295,6 +303,19 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
   await activate(undo, isMobile);
   await expect(hand.getByRole('button', { name: '紅♦Q，10 分', exact: true })).toBeVisible();
   await expect(hand.getByRole('button')).toHaveCount(12);
+});
+
+test('pick-red: single mode starts without series scoreboard', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  test.setTimeout(30_000);
+  await page.goto('./Games/Pick-Red/');
+  await activate(page.getByRole('button', { name: /^單局/ }), isMobile);
+  await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+
+  await expect(page.getByRole('region', { name: '系列賽計分板' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '紅♦Q，10 分', exact: true })).toBeVisible();
 });
 
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
@@ -379,6 +400,21 @@ test('checkers: variants, two-player opening, undo, and new game', async ({ page
   await activate(page.getByRole('button', { name: '新遊戲', exact: true }), isMobile);
   await expect(page.getByRole('button', { name: 'black man at A3', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'black man at B4', exact: true })).toHaveCount(0);
+});
+
+test('checkers: puzzle mode unlock ladder and first puzzle board', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
+  await page.goto('./Games/Checkers/');
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '謎題', exact: true }), isMobile);
+
+  await expect(page.getByText(/殘局謎題（10 題/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /1\. 一擊必殺/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /2\. 🔒/ })).toBeDisabled();
+
+  // First puzzle: black to jump the lone white man.
+  await expect(page.getByRole('button', { name: /black man at/ }).first()).toBeVisible();
+  await expect(page.getByText(/已解 0\/10/)).toBeVisible();
 });
 
 test('dialed-color: single-color round through feedback, overlay, and replay', async ({ page, isMobile }) => {
