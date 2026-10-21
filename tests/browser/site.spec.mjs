@@ -918,8 +918,10 @@ test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', as
   await expect(page.getByRole('heading', { name: '起始身分' })).toBeVisible();
   await expect(page.getByRole('button', { name: /青鱗幼蛇/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /未解鎖/ }).first()).toBeDisabled();
-  await expect(page.getByText(/每日連勝/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: '每日挑戰' })).toBeVisible();
+  await expect(page.getByText(/連勝\s*\d+/)).toBeVisible();
   await expect(page.getByRole('button', { name: '開始今日挑戰' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '複製每日挑戰分享文案' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Ironsnake/ })).toBeVisible();
 
   await activate(page.getByRole('button', { name: /Ironsnake/ }), isMobile);
@@ -927,6 +929,7 @@ test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', as
   await expect(warn).toBeVisible();
   await expect(warn.getByText(/HP 固定為 1/)).toBeVisible();
   await expect(warn.getByText(/4 選 1/)).toBeVisible();
+  await expect(warn.getByText(/加血|回血/)).toBeVisible();
   await activate(warn.getByRole('button', { name: '取消' }), isMobile);
   await expect(warn).toBeHidden();
 
