@@ -84,14 +84,15 @@ Clubhouse 數位版在標準 7×6／連四之外，加入 **PopOut**、**五子�
 
 ### 存檔
 
-- 戰績：`clubhouse:connect-four:stats:v1`（含連勝、系列賽、謎題數、上次設定）。
+- 戰績：`clubhouse:connect-four:stats:v1`（含總計、`byMode` 分桶連勝／勝負、系列賽、謎題數、上次設定）。
+- **分桶鍵**：`變體:棋盤:難度`（例如 `popout:8x7:hard`）；連勝與戰績互不混淆。
 - 系列賽中：`clubhouse:connect-four:match:v1`。
 - 謎題：`clubhouse:connect-four:puzzles:v1`。
-- **遷移**：若無新 key，會讀取舊版 `clubhouse-connect4-win-streak`／`clubhouse-connect4-best-streak` 並寫入新結構；之後仍同步回寫舊 key 以相容舊建置。
+- **遷移**：若無新 key，會讀取舊版 `clubhouse-connect4-win-streak`／`clubhouse-connect4-best-streak` 並寫入新結構；舊版無 `byMode` 時，把總計歸入上次設定對應的桶；之後仍同步回寫舊 key 以相容舊建置。
 
 ### Check
 
-- `npm run check`（vitest）：重力、連線、PopOut、三檔難度、個性權重差異、系列賽、謎題主線可解。
+- `npm run check`（vitest）：重力、連線、PopOut（含 AI 取勝 pop）、三檔難度、個性權重差異、系列賽、分模式戰績隔離、謎題主線可解。
 
 ## 常見變體或可選規則
 

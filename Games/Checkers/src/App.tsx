@@ -9,7 +9,7 @@ import {
   playLose,
   playScore,
 } from '@clubhouse/shared/synthAudio';
-import type { Board, PieceColor, Move, RulesetId } from './utils/checkersLogic';
+import type { Board, BotStyle, PieceColor, Move, RulesetId } from './utils/checkersLogic';
 import {
   createInitialBoard,
   getLegalMoves,
@@ -26,7 +26,15 @@ import {
   colLabels,
 } from './utils/checkersLogic';
 import { getHint } from './utils/hints';
-import { PUZZLES, puzzleBoard, type PuzzleDef } from './utils/puzzles';
+import {
+  PUZZLES,
+  puzzleBoard,
+  isPuzzleUnlocked,
+  ratePuzzleStars,
+  formatStars,
+  sideToMoveLabel,
+  type PuzzleDef,
+} from './utils/puzzles';
 import {
   OPPONENTS,
   getOpponent,
@@ -55,7 +63,17 @@ import {
   recordPuzzleClear,
   recordSeriesWin,
   type CheckersProgress,
+  type PuzzleStar,
 } from './utils/storage';
+/** Puzzle defense: deep, no blunders — forced-win lines stay honest. */
+const PUZZLE_BOT_STYLE: BotStyle = {
+  captureGreed: 0.45,
+  crownHunger: 0.4,
+  caution: 1,
+  centerBias: 0.5,
+  blunderOverride: 0,
+  depthOverride: 6,
+};
 import {
   RefreshCw,
   BookOpen,
@@ -91,6 +109,7 @@ interface HistoryEntry {
   state: GameState;
   lastMove: LastMove | null;
   plies: PlayedPly[];
+  puzzleMoves: number;
 }
 
 function getInitialState(ruleset: RulesetId): GameState {
@@ -228,6 +247,9 @@ export default function App() {
   const [captureFx, setCaptureFx] = useState<Set<string>>(new Set());
   const [hopDest, setHopDest] = useState<string | null>(null);
   const [puzzleMoves, setPuzzleMoves] = useState(0);
+  const [puzzleHintsUsed, setPuzzleHintsUsed] = useState(0);
+  const [puzzleUndosUsed, setPuzzleUndosUsed] = useState(0);
+  const [earnedStars, setEarnedStars] = useState<PuzzleStar | null>(null);
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
   const statsRecordedRef = useRef(false);
@@ -247,9 +269,9 @@ export default function App() {
   const whiteCaptured = piecesPerSide - black;
 
   const isBotTurn =
-    (gameMode === 'bot' || gameMode === 'series') &&
     state.phase === 'playing' &&
-    state.currentTurn === (playerSide === 'black' ? 'white' : 'black');
+    state.currentTurn !== playerSide &&
+    (gameMode === 'bot' || gameMode === 'series' || gameMode === 'puzzle');
 
   const moves = state.phase === 'playing' ? getMovesForState(state, ruleset) : [];
   const originSet = getOriginSet(moves);
@@ -279,8 +301,8 @@ export default function App() {
 
   const humanCanPlay =
     gameMode === 'two' ||
-    gameMode === 'puzzle' ||
-    ((gameMode === 'bot' || gameMode === 'series') && state.currentTurn === playerSide);
+    ((gameMode === 'bot' || gameMode === 'series' || gameMode === 'puzzle') &&
+      state.currentTurn === playerSide);
 
   const autoSelectKey = state.continuationFrom
     ? sq(state.continuationFrom[0], state.continuationFrom[1])
@@ -328,9 +350,9 @@ export default function App() {
         state.board,
         botColor,
         state.continuationFrom,
-        opponent.difficulty,
+        gameMode === 'puzzle' ? 'hard' : opponent.difficulty,
         ruleset,
-        opponent.style,
+        gameMode === 'puzzle' ? PUZZLE_BOT_STYLE : opponent.style,
       );
       if (!move) {
         botScheduled.current = false;
@@ -380,6 +402,7 @@ export default function App() {
     opponent,
     ruleset,
     playMoveJuice,
+    gameMode,
   ]);
 
   useEffect(() => {
@@ -392,9 +415,17 @@ export default function App() {
 
     if (gameMode === 'puzzle' && state.winner === activePuzzle.sideToMove) {
       if (puzzleMoves <= activePuzzle.winIn) {
+        const stars = ratePuzzleStars(puzzleHintsUsed, puzzleUndosUsed);
+        setEarnedStars(stars);
         playWin();
-        setProgress((p) => recordPuzzleClear(p, activePuzzle.id));
+        setProgress((p) => recordPuzzleClear(p, activePuzzle.id, stars));
+      } else {
+        setEarnedStars(null);
+        playLose();
       }
+    } else if (gameMode === 'puzzle') {
+      setEarnedStars(null);
+      playLose();
     } else if (
       (gameMode === 'bot' || gameMode === 'series') &&
       state.winner
@@ -444,12 +475,14 @@ export default function App() {
     opponentId,
     activePuzzle,
     puzzleMoves,
+    puzzleHintsUsed,
+    puzzleUndosUsed,
   ]);
 
   const applyPlayerMove = useCallback(
     (move: Move) => {
       if (!state.continuationFrom) {
-        setHistory((h) => [...h, { state, lastMove, plies }]);
+        setHistory((h) => [...h, { state, lastMove, plies, puzzleMoves }]);
       }
       setHintMove(null);
       setHintReason(null);
@@ -465,7 +498,9 @@ export default function App() {
         ruleset,
       ).filter((m) => isCaptureMove(m));
       setPlies((p) => [...p, { color: state.currentTurn, move, boardBefore }]);
-      if (gameMode === 'puzzle') setPuzzleMoves((n) => n + 1);
+      if (gameMode === 'puzzle' && state.currentTurn === playerSide && !state.continuationFrom) {
+        setPuzzleMoves((n) => n + 1);
+      }
       if (moreCaptures.length > 0) {
         setState({
           board: nextBoard,
@@ -491,7 +526,7 @@ export default function App() {
       }
       setSelected(null);
     },
-    [state, lastMove, plies, ruleset, playMoveJuice, gameMode],
+    [state, lastMove, plies, puzzleMoves, ruleset, playMoveJuice, gameMode, playerSide],
   );
 
   const handleCellClick = useCallback(
@@ -566,6 +601,9 @@ export default function App() {
     setReview(null);
     setShowReview(false);
     setPuzzleMoves(0);
+    setPuzzleHintsUsed(0);
+    setPuzzleUndosUsed(0);
+    setEarnedStars(null);
     botScheduled.current = false;
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
@@ -587,6 +625,9 @@ export default function App() {
     setReview(null);
     setShowReview(false);
     setPuzzleMoves(0);
+    setPuzzleHintsUsed(0);
+    setPuzzleUndosUsed(0);
+    setEarnedStars(null);
     botScheduled.current = false;
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
@@ -607,6 +648,9 @@ export default function App() {
       setPlies([]);
       setReview(null);
       setPuzzleMoves(0);
+      setPuzzleHintsUsed(0);
+      setPuzzleUndosUsed(0);
+      setEarnedStars(null);
       botScheduled.current = false;
       statsRecordedRef.current = false;
       prevPhaseRef.current = 'playing';
@@ -626,11 +670,13 @@ export default function App() {
     setState(prev.state);
     setLastMove(prev.lastMove);
     setPlies(prev.plies);
+    setPuzzleMoves(prev.puzzleMoves);
+    if (gameMode === 'puzzle') setPuzzleUndosUsed((n) => n + 1);
     setSelected(null);
     setHintMove(null);
     setHintReason(null);
     botScheduled.current = false;
-  }, [canUndo, history]);
+  }, [canUndo, history, gameMode]);
 
   const handleHint = useCallback(() => {
     if (!canHint) return;
@@ -638,8 +684,9 @@ export default function App() {
     if (hint) {
       setHintMove(hint.move);
       setHintReason(hint.reason);
+      if (gameMode === 'puzzle') setPuzzleHintsUsed((n) => n + 1);
     }
-  }, [canHint, state.board, state.currentTurn, state.continuationFrom, ruleset]);
+  }, [canHint, state.board, state.currentTurn, state.continuationFrom, ruleset, gameMode]);
 
   const hintPathSet = hintMove
     ? new Set(hintMove.path.map(([r, c]) => sq(r, c)))
@@ -673,7 +720,9 @@ export default function App() {
         : mustCapture && isMyTurn
           ? '⚠️ 必須吃子'
           : isBotTurn
-            ? `🤖 ${opponent.name} 思考中…`
+            ? gameMode === 'puzzle'
+              ? '🤖 對手應著中…'
+              : `🤖 ${opponent.name} 思考中…`
             : gameMode === 'puzzle'
               ? `🧩 ${activePuzzle.name}・${puzzleMoves}/${activePuzzle.winIn} 步`
               : gameMode === 'bot' || gameMode === 'series'
@@ -693,8 +742,12 @@ export default function App() {
     state.phase === 'over' && state.winner
       ? gameMode === 'puzzle'
         ? puzzleSuccess
-          ? '謎題破解！'
-          : '超過步數'
+          ? earnedStars
+            ? `謎題破解！${formatStars(earnedStars)}`
+            : '謎題破解！'
+          : state.winner === activePuzzle.sideToMove
+            ? '超過步數'
+            : '挑戰失敗'
         : gameMode === 'bot' || gameMode === 'series'
           ? state.winner === playerSide
             ? '你贏了！'
@@ -857,7 +910,11 @@ export default function App() {
 
       {gameMode === 'puzzle' && (
         <p className="w-full max-w-[480px] text-stone-400 text-xs mb-1 px-1">
-          {activePuzzle.blurb} · 已解 {progress.puzzlesCleared.length}/{PUZZLES.length}
+          {sideToMoveLabel(activePuzzle.sideToMove)} · {activePuzzle.blurb} · 已解{' '}
+          {progress.puzzlesCleared.length}/{PUZZLES.length}
+          {progress.puzzleStars[activePuzzle.id]
+            ? ` · 最佳 ${formatStars(progress.puzzleStars[activePuzzle.id])}`
+            : ''}
         </p>
       )}
 
@@ -1051,8 +1108,20 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       if (mode === 'puzzle') {
-                        startPuzzle(activePuzzle);
-                        setSettingsOpen(false);
+                        const nextIdx = PUZZLES.findIndex(
+                          (pz, i) =>
+                            isPuzzleUnlocked(i, progress.puzzlesCleared) &&
+                            !progress.puzzlesCleared.includes(pz.id),
+                        );
+                        const fallbackIdx = PUZZLES.findIndex((_, i) =>
+                          isPuzzleUnlocked(i, progress.puzzlesCleared),
+                        );
+                        const pick =
+                          PUZZLES[nextIdx >= 0 ? nextIdx : Math.max(0, fallbackIdx)] ??
+                          PUZZLES[0];
+                        startPuzzle(pick);
+                        // Keep the panel open so the unlock list stays visible.
+                        setSettingsOpen(true);
                         return;
                       }
                       setGameMode(mode);
@@ -1183,31 +1252,39 @@ export default function App() {
 
             {gameMode === 'puzzle' && (
               <div>
-                <p className="text-stone-400 mb-1.5">殘局謎題（{PUZZLES.length} 題）</p>
+                <p className="text-stone-400 mb-1.5">殘局謎題（{PUZZLES.length} 題・逐題解鎖）</p>
                 <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
                   {PUZZLES.map((pz, idx) => {
-                    const cleared = progress.puzzlesCleared.includes(pz.id);
+                    const unlocked = isPuzzleUnlocked(idx, progress.puzzlesCleared);
+                    const stars = progress.puzzleStars[pz.id] ?? 0;
                     return (
                       <button
                         key={pz.id}
                         type="button"
+                        disabled={!unlocked}
                         onClick={() => {
+                          if (!unlocked) return;
                           startPuzzle(pz);
                           setSettingsOpen(false);
                         }}
                         className={`text-left px-3 py-2 min-h-[44px] rounded-lg border touch-manipulation ${
-                          puzzleId === pz.id
-                            ? 'border-sky-400 bg-sky-500/20'
-                            : 'border-stone-600 bg-stone-900'
+                          !unlocked
+                            ? 'border-stone-700 bg-stone-950 text-stone-500 opacity-70'
+                            : puzzleId === pz.id
+                              ? 'border-sky-400 bg-sky-500/20'
+                              : 'border-stone-600 bg-stone-900'
                         }`}
                       >
                         <span className="font-semibold">
-                          {idx + 1}. {pz.name}
-                          {cleared ? ' ✓' : ''}
+                          {unlocked ? `${idx + 1}. ${pz.name}` : `${idx + 1}. 🔒 ???`}
+                          {stars > 0 ? ` ${formatStars(stars)}` : ''}
                         </span>
-                        <span className="block text-stone-400">
-                          {RULESETS[pz.ruleset].label} · {pz.winIn} 步內必勝 · {pz.blurb}
-                        </span>
+                        {unlocked && (
+                          <span className="block text-stone-400">
+                            {RULESETS[pz.ruleset].label} · {sideToMoveLabel(pz.sideToMove)} ·{' '}
+                            {pz.winIn} 步內必勝 · {pz.blurb}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1241,6 +1318,14 @@ export default function App() {
               ? [
                   { label: '使用步數', value: puzzleMoves },
                   { label: '目標步數', value: activePuzzle.winIn },
+                  {
+                    label: '星級',
+                    value: earnedStars
+                      ? formatStars(earnedStars)
+                      : progress.puzzleStars[activePuzzle.id]
+                        ? formatStars(progress.puzzleStars[activePuzzle.id])
+                        : '—',
+                  },
                 ]
               : [
                   { label: '黑方吃子', value: blackCaptured },

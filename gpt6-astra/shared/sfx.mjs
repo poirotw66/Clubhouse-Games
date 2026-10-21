@@ -166,39 +166,86 @@ export function sfxSelect() {
   playMove();
 }
 
-/** Endless Train — chop a tree (hit or fell). Add-only; do not alter helpers above. */
-export function playChop() {
-  playTone(210, 'triangle', 0.07, 0, 0.06);
-  playTone(140, 'square', 0.09, 0.03, 0.045);
-  playTone(95, 'sawtooth', 0.06, 0.07, 0.03);
+/** ---- Mute + Archer helpers (additive only; do not alter existing tones) ---- */
+
+export const SFX_MUTE_STORAGE_KEY = 'astra-sfx-muted';
+
+let sfxMutedCache = null;
+
+function readMutedFromStorage() {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(SFX_MUTE_STORAGE_KEY) === '1';
+  } catch (_) {
+    return false;
+  }
 }
 
-/** Endless Train — mine rock. */
-export function playMine() {
-  playTone(160, 'square', 0.05, 0, 0.055);
-  playTone(280, 'triangle', 0.08, 0.03, 0.05);
-  playTone(420, 'sine', 0.05, 0.07, 0.035);
+function writeMutedToStorage(muted) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(SFX_MUTE_STORAGE_KEY, muted ? '1' : '0');
+  } catch (_) {
+    /* ignore quota / private mode */
+  }
 }
 
-/** Endless Train — lay a rail segment / finish a bridge. */
-export function playLayRail() {
-  playTone(380, 'triangle', 0.06, 0, 0.07);
-  playTone(520, 'sine', 0.08, 0.04, 0.055);
-  playTone(640, 'triangle', 0.07, 0.09, 0.04);
+/** Whether shared Astra SFX should stay silent. */
+export function isSfxMuted() {
+  if (sfxMutedCache === null) sfxMutedCache = readMutedFromStorage();
+  return !!sfxMutedCache;
 }
 
-/** Endless Train — runway critically low / missing track ahead. */
-export function playRailAlert() {
-  playTone(520, 'square', 0.1, 0, 0.055);
-  playTone(390, 'square', 0.12, 0.1, 0.05);
-  playTone(520, 'square', 0.1, 0.22, 0.045);
+/** Persist mute preference (remembered across sessions). */
+export function setSfxMuted(muted) {
+  sfxMutedCache = !!muted;
+  writeMutedToStorage(sfxMutedCache);
+  return sfxMutedCache;
 }
 
-/** Endless Train — eliminated / derailed / boiler failure (出局). */
-export function playEliminate() {
-  playTone(200, 'sawtooth', 0.18, 0, 0.07);
-  playTone(150, 'square', 0.22, 0.1, 0.055);
-  playTone(90, 'sawtooth', 0.35, 0.22, 0.05);
+/** Toggle mute and return the new muted state. */
+export function toggleSfxMuted() {
+  return setSfxMuted(!isSfxMuted());
+}
+
+function ifAudible(fn) {
+  if (isSfxMuted()) return;
+  fn();
+}
+
+/** Stillshot — auto-fire volley. */
+export function playArcherShoot() {
+  ifAudible(() => playShoot(0));
+}
+
+/** Stillshot — arrow hit an enemy. */
+export function playArcherHit(critical = false) {
+  ifAudible(() => {
+    if (critical) playHeadshot();
+    else playImpact(0.45);
+  });
+}
+
+/** Stillshot — picked a level-up ability. */
+export function playArcherUpgrade() {
+  ifAudible(() => {
+    playTone(523.25, 'triangle', 0.1, 0, 0.08);
+    playTone(659.25, 'sine', 0.12, 0.06, 0.07);
+    playTone(783.99, 'triangle', 0.16, 0.12, 0.06);
+  });
+}
+
+/** Stillshot — player died. */
+export function playArcherDeath() {
+  ifAudible(() => playLose());
+}
+
+/** Stillshot — room cleared or run victory (`victory` uses the louder arpeggio). */
+export function playArcherClear(victory = false) {
+  ifAudible(() => {
+    if (victory) playWin();
+    else playGoal();
+  });
 }
 
 /** Soft industrial build / place click (Mini Factory). */
@@ -285,3 +332,74 @@ export function playSolveComplete(isRecord = false) {
   if (isRecord) playWin();
   else playGoal();
 }
+
+/** Cinder Circuit — memory card placed on the road. */
+export function playCardPlace() {
+  playTone(290, 'triangle', 0.12, 0, 0.07);
+  playTone(580, 'sine', 0.16, 0.06, 0.05);
+}
+
+/** Cinder Circuit — keeper awakens / bell toll. */
+export function playBellAwaken() {
+  playTone(155, 'sine', 0.35, 0, 0.08);
+  playTone(110, 'triangle', 0.45, 0.12, 0.07);
+  playTone(75, 'sine', 0.55, 0.28, 0.05);
+}
+
+/** Cinder Circuit — camp craft / building rank-up. */
+export function playCraft() {
+  playTone(340, 'triangle', 0.08, 0, 0.06);
+  playTone(480, 'sine', 0.1, 0.05, 0.06);
+  playTone(620, 'triangle', 0.14, 0.12, 0.05);
+}
+
+/** Cinder Circuit — elite modifier reveal. */
+export function playEliteMod() {
+  playTone(200, 'sawtooth', 0.08, 0, 0.05);
+  playTone(360, 'triangle', 0.12, 0.06, 0.06);
+}
+
+/** Cinder Circuit — event card drawn. */
+export function playEventCard() {
+  playTone(440, 'sine', 0.08, 0, 0.06);
+  playTone(660, 'triangle', 0.12, 0.07, 0.07);
+  playTone(880, 'sine', 0.1, 0.14, 0.04);
+}
+
+/** Endless Train — chop a tree (hit or fell). Add-only; do not alter helpers above. */
+export function playChop() {
+  playTone(210, 'triangle', 0.07, 0, 0.06);
+  playTone(140, 'square', 0.09, 0.03, 0.045);
+  playTone(95, 'sawtooth', 0.06, 0.07, 0.03);
+}
+
+/** Endless Train — mine rock. */
+export function playMine() {
+  playTone(160, 'square', 0.05, 0, 0.055);
+  playTone(280, 'triangle', 0.08, 0.03, 0.05);
+  playTone(420, 'sine', 0.05, 0.07, 0.035);
+}
+
+/** Endless Train — lay a rail segment / finish a bridge. */
+export function playLayRail() {
+  playTone(380, 'triangle', 0.06, 0, 0.07);
+  playTone(520, 'sine', 0.08, 0.04, 0.055);
+  playTone(640, 'triangle', 0.07, 0.09, 0.04);
+}
+
+/** Endless Train — runway critically low / missing track ahead. */
+export function playRailAlert() {
+  playTone(520, 'square', 0.1, 0, 0.055);
+  playTone(390, 'square', 0.12, 0.1, 0.05);
+  playTone(520, 'square', 0.1, 0.22, 0.045);
+}
+
+/** Endless Train — eliminated / derailed / boiler failure (出局). */
+export function playEliminate() {
+  playTone(200, 'sawtooth', 0.18, 0, 0.07);
+  playTone(150, 'square', 0.22, 0.1, 0.055);
+  playTone(90, 'sawtooth', 0.35, 0.22, 0.05);
+}
+
+/** Soft industrial build / place click (Mini Factory). */
+

@@ -1,5 +1,8 @@
+import { formatKeyFor, isSeriesMode } from './match';
 import type {
   DifficultyId,
+  FormatKey,
+  FormatRecord,
   MatchConfig,
   MatchLength,
   MatchMode,
@@ -11,6 +14,8 @@ import type {
 const STATS_KEY = 'pick-red:stats:v1';
 const MATCH_KEY = 'pick-red:match:v1';
 
+export type FormatRecords = Record<FormatKey, FormatRecord>;
+
 export interface Stats {
   wins: number;
   losses: number;
@@ -20,12 +25,14 @@ export interface Stats {
   bestStreak: number;
   /** Lifetime chip total from settled hands. */
   chips: number;
-  /** Completed series (fixed hands or race-to-target). */
+  /** Completed series (fixed hands or race-to-target). Single hands do not count. */
   matches: number;
   matchWins: number;
   matchStreak: number;
   bestMatchStreak: number;
   bestMatchChips: number;
+  /** Per-format series records（賽制戰績）. */
+  formats: FormatRecords;
   /** Hands where the human beat par. */
   qualified: number;
   doubleRedFives: number;
@@ -41,6 +48,17 @@ export interface Stats {
   lastMatchTarget: TargetScore;
 }
 
+const EMPTY_FORMAT: FormatRecord = { played: 0, wins: 0 };
+
+export const EMPTY_FORMATS: FormatRecords = {
+  'hands-4': { ...EMPTY_FORMAT },
+  'hands-8': { ...EMPTY_FORMAT },
+  'hands-12': { ...EMPTY_FORMAT },
+  'target-50': { ...EMPTY_FORMAT },
+  'target-100': { ...EMPTY_FORMAT },
+  'target-200': { ...EMPTY_FORMAT },
+};
+
 export const EMPTY_STATS: Stats = {
   wins: 0,
   losses: 0,
@@ -54,6 +72,7 @@ export const EMPTY_STATS: Stats = {
   matchStreak: 0,
   bestMatchStreak: 0,
   bestMatchChips: 0,
+  formats: { ...EMPTY_FORMATS },
   qualified: 0,
   doubleRedFives: 0,
   zeroScores: 0,
@@ -69,9 +88,10 @@ export const EMPTY_STATS: Stats = {
 };
 
 const DIFFICULTIES = new Set<string>(['easy', 'normal', 'hard']);
-const MODES = new Set<string>(['hands', 'target']);
+const MODES = new Set<string>(['single', 'hands', 'target']);
 const HANDS = new Set<number>([4, 8, 12]);
 const TARGETS = new Set<number>([50, 100, 200]);
+const FORMAT_KEYS = Object.keys(EMPTY_FORMATS) as FormatKey[];
 
 function num(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -79,6 +99,20 @@ function num(value: unknown, fallback: number): number {
 
 function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function loadFormats(raw: unknown): FormatRecords {
+  const out: FormatRecords = { ...EMPTY_FORMATS };
+  if (!raw || typeof raw !== 'object') return out;
+  const src = raw as Partial<Record<FormatKey, Partial<FormatRecord>>>;
+  for (const key of FORMAT_KEYS) {
+    const entry = src[key];
+    out[key] = {
+      played: num(entry?.played, 0),
+      wins: num(entry?.wins, 0),
+    };
+  }
+  return out;
 }
 
 /**
@@ -104,6 +138,7 @@ export function loadStats(): Stats {
       matchStreak: num(parsed.matchStreak, 0),
       bestMatchStreak: num(parsed.bestMatchStreak, 0),
       bestMatchChips: num(parsed.bestMatchChips, 0),
+      formats: loadFormats(parsed.formats),
       qualified: num(parsed.qualified, 0),
       doubleRedFives: num(parsed.doubleRedFives, 0),
       zeroScores: num(parsed.zeroScores, 0),
@@ -179,8 +214,22 @@ export function recordMatchResult(
   stats: Stats,
   won: boolean,
   endChips: number,
+  config?: MatchConfig,
 ): Stats {
+  // Single-hand sessions keep ordinary hand W/L only — not series tallies.
+  if (config && !isSeriesMode(config.mode)) return stats;
+
   const matchStreak = won ? stats.matchStreak + 1 : 0;
+  const formats = { ...stats.formats };
+  const key = config ? formatKeyFor(config) : null;
+  if (key) {
+    const prev = formats[key] ?? { played: 0, wins: 0 };
+    formats[key] = {
+      played: prev.played + 1,
+      wins: prev.wins + (won ? 1 : 0),
+    };
+  }
+
   return {
     ...stats,
     matches: stats.matches + 1,
@@ -188,6 +237,7 @@ export function recordMatchResult(
     matchStreak,
     bestMatchStreak: Math.max(stats.bestMatchStreak, matchStreak),
     bestMatchChips: Math.max(stats.bestMatchChips, endChips),
+    formats,
   };
 }
 
@@ -207,6 +257,7 @@ export function rememberSetup(stats: Stats, config: MatchConfig): Stats {
 }
 
 export function saveMatch(match: MatchState): void {
+  // Single hands are short; still persist mid-hand so a refresh can resume.
   try {
     localStorage.setItem(MATCH_KEY, JSON.stringify(match));
   } catch {
@@ -231,6 +282,7 @@ export function loadMatch(): MatchState | null {
     const players = parsed.config.rules?.players;
     if (![2, 3, 4].includes(players)) return null;
     if (parsed.balances.length !== players) return null;
+    if (!MODES.has(parsed.config.mode)) return null;
     return parsed;
   } catch {
     return null;

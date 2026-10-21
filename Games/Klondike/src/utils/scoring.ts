@@ -42,6 +42,14 @@ export function pointsRecycle(mode: ScoreMode, drawCount: DrawCount): number {
   return drawCount === 1 ? -100 : -20;
 }
 
+/**
+ * Extra Standard undo tax on top of reversing the undone move's points.
+ * Matches classic Windows / MobilityWare Solitaire (−2 per undo request).
+ */
+export function pointsUndo(mode: ScoreMode): number {
+  return mode === 'standard' ? -2 : 0;
+}
+
 /** −2 every 10 seconds in Standard timed scoring. */
 export function standardTimePenaltyTicks(elapsedSec: number, appliedThroughSec: number): {
   penalty: number;

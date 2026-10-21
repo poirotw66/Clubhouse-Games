@@ -1,5 +1,6 @@
 import React from 'react';
 import { personalityForSeat } from '../game/cpu';
+import { isSeriesMode } from '../game/match';
 import type { MatchState } from '../game/types';
 import { HUMAN } from '../game/types';
 
@@ -10,7 +11,9 @@ interface Props {
   progress: string;
 }
 
-export function MatchScoreboard({ match, progress }: Props): React.ReactElement {
+export function MatchScoreboard({ match, progress }: Props): React.ReactElement | null {
+  if (!isSeriesMode(match.config.mode)) return null;
+
   const target = match.config.mode === 'target' ? match.config.target : null;
   const maxAbs = Math.max(1, ...match.balances.map((n) => Math.abs(n)));
   const cols = match.balances.length;

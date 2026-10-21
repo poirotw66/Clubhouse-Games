@@ -1,8 +1,7 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Share2, X } from 'lucide-react';
 import { CHALLENGES } from '../utils/challenges.ts';
-import { computeStreak, type DailyRecord } from '../utils/daily.ts';
-import { dateKey } from '../utils/daily.ts';
+import { computeStreak, dateKey, todaysBest, type DailyRecord } from '../utils/daily.ts';
 import {
   modeKey,
   winRate,
@@ -12,6 +11,7 @@ import {
 import type { DrawCount } from '../utils/gameLogic.ts';
 import type { ScoreMode } from '../utils/scoring.ts';
 import { scoreLabel } from '../utils/scoring.ts';
+import { dailyRecordToShare, copyText } from '../utils/share.ts';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -40,16 +40,26 @@ export function StatsPanel({
   drawCount,
   scoreMode,
 }: Props): React.ReactElement | null {
+  const [copied, setCopied] = useState(false);
   if (!open) return null;
   const key = modeKey(drawCount, scoreMode);
   const mode = stats.byMode[key];
-  const streak = computeStreak(daily, dateKey());
+  const today = dateKey();
+  const streak = computeStreak(daily, today);
+  const bestToday = todaysBest(daily, today);
   const modes: ModeKey[] = [
     '1-standard',
     '3-standard',
     '1-vegas',
     '3-vegas',
   ];
+
+  const handleShare = async () => {
+    if (!bestToday) return;
+    const ok = await copyText(dailyRecordToShare(bestToday, streak));
+    setCopied(ok);
+    if (ok) window.setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div
@@ -80,6 +90,42 @@ export function StatsPanel({
             <Stat label="最長連勝" value={String(stats.bestStreak)} />
             <Stat label="維加斯籌碼" value={String(stats.vegasBankroll)} />
             <Stat label="每日連續" value={`${streak} 天`} />
+          </section>
+
+          <section>
+            <h3 className="font-semibold text-white mb-2">今日挑戰（{today}）</h3>
+            {bestToday ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Stat
+                    label="今日最佳"
+                    value={
+                      bestToday.won
+                        ? `${bestToday.score} 分`
+                        : `未過關（${bestToday.score}）`
+                    }
+                  />
+                  <Stat
+                    label="時間 / 步數"
+                    value={
+                      bestToday.won
+                        ? `${formatTime(bestToday.elapsedSec)} / ${bestToday.moves}`
+                        : `${bestToday.moves} 步`
+                    }
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleShare()}
+                  className="flex items-center justify-center gap-2 w-full min-h-[44px] px-4 py-2 rounded-xl bg-sky-500/80 hover:bg-sky-400 text-emerald-950 font-semibold touch-manipulation"
+                >
+                  <Share2 size={18} />
+                  {copied ? '已複製分享文案' : '複製分享結果'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-white/60">尚未記錄今日成績。開啟「每日」通關後可分享。</p>
+            )}
           </section>
 
           <section>
