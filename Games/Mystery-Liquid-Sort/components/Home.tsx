@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Zap, X, Trophy, Map, ClipboardList, Heart, Layers, Lock, Check, FlaskConical, Timer, Footprints, BookOpen } from 'lucide-react';
+import { Play, Zap, X, Trophy, Map, ClipboardList, Heart, Layers, Lock, Check, FlaskConical, Timer, Footprints, BookOpen, Flame, Share2, Sparkles, Shield } from 'lucide-react';
 import { Bottle } from './Bottle';
 import { Background } from './Background';
 import { BottleData, Color, type QpVariant } from '../types';
@@ -10,6 +10,7 @@ import { useDailyMissions } from '../hooks/useDailyMissions';
 import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
 import { getSavedBackground } from '../utils/backgrounds';
 import { DailyMissions } from './DailyMissions';
+import { CosmeticsShop } from './CosmeticsShop';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
@@ -37,6 +38,23 @@ import {
   loadMixProgress,
   mixStageCount,
 } from '../services/mixChallengePack';
+import {
+  MECHANISM_PACK_STAGES,
+  continueMechIndex,
+  isMechStageUnlocked,
+  loadMechProgress,
+  mechStageCount,
+} from '../services/mechanismPack';
+import {
+  getDailyBoard,
+  isDailyCleared,
+} from '../services/dailyChallenge';
+import {
+  buildDailyShareText,
+  displayStreak,
+  loadStreak,
+} from '../services/streakService';
+import { loadCosmetics, type CosmeticsState } from '../services/cosmeticsService';
 
 const QP_OPTIONS: {
   id: QpDifficultyId;
@@ -61,11 +79,15 @@ export const Home: React.FC = () => {
   const [showDifficultyModal, setShowDifficultyModal] = useState(false);
   const [showPackModal, setShowPackModal] = useState(false);
   const [showMixModal, setShowMixModal] = useState(false);
+  const [showMechModal, setShowMechModal] = useState(false);
+  const [showCosmetics, setShowCosmetics] = useState(false);
   const [qpVariant, setQpVariant] = useState<QpVariant>('normal');
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [shareNote, setShareNote] = useState('');
 
     // --- Missions & Coins State ---
     const [coins, setCoins] = useState<number>(() => loadCoins(INITIAL_COINS));
+    const [cosmetics, setCosmetics] = useState<CosmeticsState>(() => loadCosmetics());
     const { missions, hasNotifications, claimMission } = useDailyMissions({ currentCoins: coins });
     const { isOpen: isMissionModalOpen, open: openMissionModal, close: closeMissionModal } = useDailyMissionsModal();
 
@@ -100,6 +122,40 @@ export const Home: React.FC = () => {
       : mixProgress.clearedCount > 0
         ? `進度 ${mixProgress.clearedCount}/${mixTotal}・繼續`
         : `必混 ${mixTotal} 關・開始`;
+
+  const mechProgress = useMemo(() => loadMechProgress(), [showMechModal]);
+  const mechTotal = mechStageCount();
+  const mechContinue = continueMechIndex(mechProgress.clearedCount);
+  const mechSubtitle =
+    mechProgress.clearedCount >= mechTotal
+      ? `已完成 ${mechTotal}/${mechTotal}`
+      : mechProgress.clearedCount > 0
+        ? `進度 ${mechProgress.clearedCount}/${mechTotal}・繼續`
+        : `封鎖／容量 ${mechTotal} 關`;
+
+  const streak = useMemo(() => loadStreak(), [showMechModal, showCosmetics, isMissionModalOpen]);
+  const streakShown = displayStreak(streak);
+  const daily = useMemo(() => getDailyBoard(), []);
+  const dailyDone = isDailyCleared(daily.dateKey);
+
+  const handleShareDaily = async () => {
+    const text = buildDailyShareText({
+      missions,
+      streak,
+      dailyLabel: `${daily.board.name}（${daily.dateKey}）`,
+    });
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setShareNote('已複製分享文字');
+      } else {
+        setShareNote(text);
+      }
+    } catch {
+      setShareNote('無法複製，請手動選取文字');
+    }
+    window.setTimeout(() => setShareNote(''), 2500);
+  };
 
   // Decorative bottles data
   const decorativeBottles: BottleData[] = [
@@ -167,6 +223,16 @@ export const Home: React.FC = () => {
       navigate('/game', { state: { mode: 'mix_challenge', mixStageIndex: stageIndex } });
   };
 
+  const handleMechStageClick = (stageIndex: number) => {
+      if (!isMechStageUnlocked(stageIndex, mechProgress.clearedCount)) return;
+      setShowMechModal(false);
+      navigate('/game', { state: { mode: 'mechanism_pack', mechStageIndex: stageIndex } });
+  };
+
+  const handleDailyClick = () => {
+      navigate('/game', { state: { mode: 'daily' } });
+  };
+
   const handleMixTutorial = () => {
       navigate('/game', { state: { mode: 'mix_challenge', mixStageIndex: 0 } });
   };
@@ -189,6 +255,20 @@ export const Home: React.FC = () => {
                 </div>
                 <span className="text-white font-bold text-base md:text-lg tabular-nums tracking-wide">{coins}</span>
               </div>
+
+              <div className="flex items-center bg-black/30 backdrop-blur-md rounded-full px-2.5 py-1 border border-orange-400/30 shadow-lg animate-fade-in-down" title="連續天數">
+                <Flame size={14} className="text-orange-300 mr-1" />
+                <span className="text-orange-100 font-bold text-sm tabular-nums">{streakShown}</span>
+              </div>
+
+              <button
+                  type="button"
+                  onClick={() => setShowCosmetics(true)}
+                  className="touch-target w-11 h-11 rounded-full bg-gradient-to-br from-teal-600 to-cyan-700 flex items-center justify-center text-white shadow-lg border border-white/20 relative active:scale-95 transition-transform animate-fade-in-down touch-active"
+                  aria-label="外觀商店"
+              >
+                  <Sparkles size={20} className="md:w-5 md:h-5" />
+              </button>
 
               <button
                   type="button"
@@ -229,15 +309,46 @@ export const Home: React.FC = () => {
             {/* Visual Showcase (Smaller on mobile) */}
             <div className="flex items-end justify-center gap-6 py-2 animate-float scale-75 md:scale-100">
                 <div className="transform scale-90 -rotate-6 opacity-80 blur-[1px]">
-                     <Bottle bottle={decorativeBottles[0]} isSelected={false} onClick={() => {}} />
+                     <Bottle bottle={decorativeBottles[0]} isSelected={false} bottleSkin={cosmetics.equippedBottle} liquidSkin={cosmetics.equippedLiquid} onClick={() => {}} />
                 </div>
                 <div className="transform scale-110 z-10 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]">
-                    <Bottle bottle={decorativeBottles[1]} isSelected={false} onClick={() => {}} />
+                    <Bottle bottle={decorativeBottles[1]} isSelected={false} bottleSkin={cosmetics.equippedBottle} liquidSkin={cosmetics.equippedLiquid} onClick={() => {}} />
                 </div>
                 <div className="transform scale-90 rotate-6 opacity-80 blur-[1px]">
-                     <Bottle bottle={decorativeBottles[2]} isSelected={false} onClick={() => {}} />
+                     <Bottle bottle={decorativeBottles[2]} isSelected={false} bottleSkin={cosmetics.equippedBottle} liquidSkin={cosmetics.equippedLiquid} onClick={() => {}} />
                 </div>
             </div>
+
+            {/* Daily + share row */}
+            <div className="w-full flex gap-2">
+              <button
+                type="button"
+                onClick={handleDailyClick}
+                className="touch-target flex-1 px-3 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-700 border border-white/15 shadow-lg text-left"
+                aria-label="每日一題"
+              >
+                <div className="flex items-center gap-2">
+                  <Trophy size={18} className="text-yellow-300" />
+                  <div>
+                    <div className="text-sm font-bold text-white">每日一題・{daily.board.name}</div>
+                    <div className="text-[10px] text-sky-100/80">
+                      {daily.dateKey}{dailyDone ? '・已完成' : '・尚未通關'}
+                    </div>
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={handleShareDaily}
+                className="touch-target w-12 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center"
+                aria-label="分享每日一題"
+              >
+                <Share2 size={18} />
+              </button>
+            </div>
+            {shareNote && (
+              <p className="text-[11px] text-cyan-200/90 text-center -mt-1">{shareNote}</p>
+            )}
 
             {/* Main Action Buttons */}
             <div className="w-full space-y-3 animate-fade-in-up">
@@ -320,11 +431,30 @@ export const Home: React.FC = () => {
                     <Play className="w-5 h-5 md:w-6 md:h-6 text-white/50 group-active:text-white transition-colors" />
                 </button>
 
+                {/* Mechanism Pack */}
+                <button
+                    type="button"
+                    onClick={() => setShowMechModal(true)}
+                    className="touch-target w-full group relative px-4 md:px-6 py-4 md:py-5 bg-gradient-to-r from-slate-600 to-zinc-800 rounded-xl md:rounded-2xl flex items-center justify-between shadow-[0_3px_0_#27272a] md:shadow-[0_4px_0_#27272a] active:shadow-none active:translate-y-0.5 md:active:translate-y-1 transition-all touch-active"
+                    aria-label="機制挑戰"
+                >
+                    <div className="flex items-center gap-3 md:gap-4">
+                        <div className="bg-white/20 p-2.5 md:p-3 rounded-lg md:rounded-xl">
+                            <Shield className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                            <span className="text-lg md:text-xl font-bold tracking-wide text-white">機制挑戰</span>
+                            <span className="text-slate-200 text-[10px] md:text-xs">{mechSubtitle}</span>
+                        </div>
+                    </div>
+                    <Play className="w-5 h-5 md:w-6 md:h-6 text-white/50 group-active:text-white transition-colors" />
+                </button>
+
             </div>
 
             {/* Footer */}
             <div className="text-white/20 text-xs pb-2">
-                v1.2.0
+                v1.3.0
             </div>
         </div>
 
@@ -555,6 +685,90 @@ export const Home: React.FC = () => {
                 </div>
             </div>
         )}
+
+        {showMechModal && (
+            <div
+              className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mls-mech-title"
+            >
+                <div className="w-full max-w-sm bg-[#2d2d44] border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden max-h-[85vh] flex flex-col">
+                    <button
+                        type="button"
+                        onClick={() => setShowMechModal(false)}
+                        className="absolute top-4 right-4 min-h-[44px] min-w-[44px] text-white/40 hover:text-white transition-colors touch-manipulation z-10"
+                        aria-label="關閉"
+                    >
+                        <X size={24} />
+                    </button>
+
+                    <h3 id="mls-mech-title" className="text-2xl font-black text-white mb-1 text-center">機制挑戰</h3>
+                    <p className="text-center text-white/50 text-xs mb-4">
+                      封鎖瓶・參差容量・星級（最少步數）
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => handleMechStageClick(mechContinue)}
+                      className="mb-4 w-full py-3 rounded-xl bg-gradient-to-r from-slate-500 to-zinc-700 font-bold text-white shadow-lg active:scale-[0.98] transition-transform"
+                    >
+                      {mechProgress.clearedCount >= mechTotal ? '重玩最終關' : mechProgress.clearedCount > 0 ? `繼續・${MECHANISM_PACK_STAGES[mechContinue]?.name}` : '開始第一關'}
+                    </button>
+
+                    <div className="space-y-2 overflow-y-auto pr-1 flex-1">
+                      {MECHANISM_PACK_STAGES.map((stage, index) => {
+                        const unlocked = isMechStageUnlocked(index, mechProgress.clearedCount);
+                        const cleared = index < mechProgress.clearedCount;
+                        const best = mechProgress.bestMoves[stage.id];
+                        const stars = mechProgress.bestStars[stage.id];
+                        return (
+                          <button
+                            key={stage.id}
+                            type="button"
+                            disabled={!unlocked}
+                            onClick={() => handleMechStageClick(index)}
+                            className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left
+                              ${unlocked
+                                ? 'bg-white/5 hover:bg-white/10 border-white/10 active:scale-[0.98]'
+                                : 'bg-black/20 border-white/5 opacity-50 cursor-not-allowed'}
+                            `}
+                            aria-label={`${stage.name}${unlocked ? '' : '（未解鎖）'}`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${cleared ? 'bg-emerald-500/30 text-emerald-300' : unlocked ? 'bg-slate-500/40 text-slate-100' : 'bg-white/5 text-white/30'}`}>
+                                {cleared ? <Check size={16} /> : unlocked ? <span className="text-xs font-black">{index + 1}</span> : <Lock size={14} />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold text-white truncate">{stage.name}</div>
+                                <div className="text-[10px] text-white/40 font-mono truncate">{stage.blurb}</div>
+                                <div className="text-[10px] text-amber-200/80 mt-0.5">
+                                  3★ ≤ {stage.minSteps} 步
+                                  {best != null ? `・最佳 ${best}` : ''}
+                                  {stars != null ? `・${'★'.repeat(stars)}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            {unlocked && <Play size={16} className="text-white/30 flex-shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        <CosmeticsShop
+          isOpen={showCosmetics}
+          onClose={() => setShowCosmetics(false)}
+          coins={coins}
+          cosmetics={cosmetics}
+          onCosmeticsChange={(next, nextCoins) => {
+            setCosmetics(next);
+            setCoins(nextCoins);
+            saveCoins(nextCoins);
+          }}
+        />
 
     </div>
   );

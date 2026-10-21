@@ -19,6 +19,8 @@ function modeEyebrow(mode: GameMode): string {
   if (mode === 'adventure') return '關卡';
   if (mode === 'puzzle_pack') return '關卡包';
   if (mode === 'mix_challenge') return '混合挑戰';
+  if (mode === 'mechanism_pack') return '機制挑戰';
+  if (mode === 'daily') return '每日一題';
   return '難度';
 }
 
@@ -29,7 +31,10 @@ function modeTitle(
   packStageName: string | undefined,
 ): string | number {
   if (mode === 'adventure') return level;
-  if (mode === 'puzzle_pack' || mode === 'mix_challenge') return packStageName ?? `第 ${level} 關`;
+  if (mode === 'puzzle_pack' || mode === 'mix_challenge' || mode === 'mechanism_pack') {
+    return packStageName ?? `第 ${level} 關`;
+  }
+  if (mode === 'daily') return packStageName ?? difficultyLabel ?? '今日';
   return qpDifficultyLabel(difficultyLabel);
 }
 

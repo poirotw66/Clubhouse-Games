@@ -13,10 +13,22 @@ export const Color = {
 
 export type Color = (typeof Color)[keyof typeof Color];
 
-export type GameMode = 'adventure' | 'quick_play' | 'puzzle_pack' | 'mix_challenge';
+export type GameMode =
+  | 'adventure'
+  | 'quick_play'
+  | 'puzzle_pack'
+  | 'mix_challenge'
+  | 'mechanism_pack'
+  | 'daily';
 
 /** Quick-play challenge rule overlay (normal = classic unlimited). */
 export type QpVariant = 'normal' | 'moves' | 'timed';
+
+/** Cosmetic bottle frame unlocked with coins. */
+export type BottleSkinId = 'classic' | 'amber' | 'frost' | 'obsidian';
+
+/** Cosmetic liquid surface style unlocked with coins. */
+export type LiquidSkinId = 'plain' | 'shimmer' | 'prism';
 
 export interface Layer {
   color: Color;
@@ -36,6 +48,11 @@ export interface BottleData {
    * (e.g. the "buy a bottle" power-up in Game.tsx) simply don't opt in.
    */
   mixingEnabled?: boolean;
+  /**
+   * Blocked bottles cannot be selected as source or target until unlocked
+   * (mechanism pack: unlock one per order delivery, board order).
+   */
+  isBlocked?: boolean;
 }
 
 export interface Order {

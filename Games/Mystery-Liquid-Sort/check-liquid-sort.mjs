@@ -13,6 +13,7 @@ import {
   isMixingPour,
   findHintMove,
   getMixResult as getMixResultFromLogic,
+  unlockNextBlockedBottle,
 } from './services/gameLogic.ts';
 import {
   getCapacityForLevel,
@@ -40,6 +41,32 @@ import {
   materializeMixStage,
   mixStageCount,
 } from './services/mixChallengePack.ts';
+import {
+  MECHANISM_PACK_STAGES,
+  MECHANISM_PACK_STORAGE_KEY,
+  applyMechStageClear,
+  continueMechIndex,
+  isMechStageUnlocked,
+  materializeMechStage,
+  mechStageCount,
+  starsForMoves,
+} from './services/mechanismPack.ts';
+import {
+  applyPlayDay,
+  buildDailyShareText,
+  displayStreak,
+  localDateKey,
+} from './services/streakService.ts';
+import {
+  BOTTLE_SKINS,
+  DEFAULT_COSMETICS,
+  LIQUID_SKINS,
+  unlockBottleSkin,
+} from './services/cosmeticsService.ts';
+import {
+  DAILY_BOARDS,
+  materializeDailyBoard,
+} from './services/dailyChallenge.ts';
 
 function layer(color, isHidden = false) {
   return { color, isHidden, id: `${color}-${Math.random().toString(36).slice(2, 8)}` };
@@ -67,6 +94,7 @@ function bottle(id, layers, capacity = 4, isCompleted = false) {
   const full = bottle('f', [layer(Color.RED), layer(Color.RED), layer(Color.RED), layer(Color.RED)]);
   const capped = bottle('c', [layer(Color.RED)], 4, true);
   const hidden = bottle('h', [layer(Color.RED, true)]);
+  const blocked = { ...bottle('k', [layer(Color.RED)]), isBlocked: true };
 
   assert.equal(canPour(empty, red), false, 'empty source');
   assert.equal(canPour(red, red), false, 'self pour');
@@ -78,6 +106,20 @@ function bottle(id, layers, capacity = 4, isCompleted = false) {
   assert.equal(canPour(hidden, bottle('r2', [layer(Color.RED)])), false, 'hidden onto color');
   assert.equal(canPour(red, empty), true, 'into empty');
   assert.equal(canPour(red, bottle('r2', [layer(Color.RED)])), true, 'matching color');
+  assert.equal(canPour(blocked, empty), false, 'blocked source');
+  assert.equal(canPour(red, blocked), false, 'blocked target');
+}
+
+// unlockNextBlockedBottle unlocks in board order, one at a time.
+{
+  const a = { ...bottle('a', [layer(Color.RED)]), isBlocked: true };
+  const b = { ...bottle('b', [layer(Color.BLUE)]), isBlocked: true };
+  const c = bottle('c', []);
+  const once = unlockNextBlockedBottle([a, b, c]);
+  assert.equal(once[0].isBlocked, false);
+  assert.equal(once[1].isBlocked, true);
+  const twice = unlockNextBlockedBottle(once);
+  assert.equal(twice[1].isBlocked, false);
 }
 
 // pourLiquid: moves contiguous matching layers up to capacity; reveals hidden; marks completed.
@@ -207,7 +249,7 @@ function resolveDeliveries(bottles, orders) {
 function getLegalMoves(bottles) {
   const moves = [];
   for (const source of bottles) {
-    if (source.isCompleted || source.layers.length === 0) continue;
+    if (source.isCompleted || source.isBlocked || source.layers.length === 0) continue;
     if (source.layers[source.layers.length - 1].isHidden) continue;
     for (const target of bottles) {
       if (source.id === target.id) continue;
@@ -215,6 +257,80 @@ function getLegalMoves(bottles) {
     }
   }
   return moves;
+}
+
+/**
+ * Delivery-aware BFS for mechanism / daily boards (unlocks blocked bottles on
+ * each order delivery). Returns the minimum pour count, or -1 / -2 on failure.
+ */
+function minStepsWithDeliveries(bottles, orders, maxNodes = 500000) {
+  function resolve(b, o) {
+    let curBottles = b;
+    let curOrders = o;
+    while (true) {
+      let matchOrderIndex = -1;
+      let matchBottleId = null;
+      for (let i = 0; i < curOrders.length; i++) {
+        const order = curOrders[i];
+        if (order.isCompleted || order.isLocked) continue;
+        const match = curBottles.find(
+          (x) => x.isCompleted && x.layers.length > 0 && x.layers[0].color === order.color,
+        );
+        if (match) {
+          matchOrderIndex = i;
+          matchBottleId = match.id;
+          break;
+        }
+      }
+      if (matchOrderIndex === -1) break;
+      curOrders = curOrders.map((ord, i) =>
+        i === matchOrderIndex ? { ...ord, isCompleted: true } : ord,
+      );
+      curBottles = unlockNextBlockedBottle(curBottles.filter((x) => x.id !== matchBottleId));
+      const nextLockedIndex = curOrders.findIndex((ord) => ord.isLocked);
+      if (nextLockedIndex !== -1) {
+        curOrders = curOrders.map((ord, i) =>
+          i === nextLockedIndex ? { ...ord, isLocked: false } : ord,
+        );
+      }
+    }
+    return { bottles: curBottles, orders: curOrders };
+  }
+
+  function key(b, o) {
+    const bk = b
+      .map((x) => `${x.id}:${x.isBlocked ? 'L' : ''}:${x.layers.map((l) => l.color).join(',')}`)
+      .join('|');
+    const ok = o.map((x) => `${x.color}:${x.isCompleted ? 1 : 0}:${x.isLocked ? 1 : 0}`).join('|');
+    return `${bk}#${ok}`;
+  }
+
+  let { bottles: b0, orders: o0 } = resolve(bottles, orders);
+  if (o0.every((o) => o.isCompleted)) return 0;
+  const q = [{ bottles: b0, orders: o0, steps: 0 }];
+  const seen = new Set([key(b0, o0)]);
+  let nodes = 0;
+  while (q.length) {
+    const cur = q.shift();
+    nodes += 1;
+    if (nodes > maxNodes) return -1;
+    for (const move of getLegalMoves(cur.bottles)) {
+      const si = cur.bottles.findIndex((x) => x.id === move.sourceId);
+      const ti = cur.bottles.findIndex((x) => x.id === move.targetId);
+      const { newSource, newTarget } = pourLiquid(cur.bottles[si], cur.bottles[ti]);
+      let nextB = cur.bottles.slice();
+      nextB[si] = newSource;
+      nextB[ti] = newTarget;
+      let nextO = cur.orders;
+      ({ bottles: nextB, orders: nextO } = resolve(nextB, nextO));
+      if (nextO.every((o) => o.isCompleted)) return cur.steps + 1;
+      const k = key(nextB, nextO);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      q.push({ bottles: nextB, orders: nextO, steps: cur.steps + 1 });
+    }
+  }
+  return -2;
 }
 
 /** Canonical bottle-only state key: bottles are interchangeable, so sort by content (not id) to collapse equivalent states. */
@@ -593,6 +709,121 @@ function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
   // Level 4 boards opt into mixingEnabled.
   const early = generateLevel(4);
   assert.ok(early.bottles.some((b) => b.mixingEnabled), 'level 4 should enable mixing');
+}
+
+// --- Mechanism pack: blocked / mixed capacity / minSteps stars ---
+{
+  assert.equal(MECHANISM_PACK_STORAGE_KEY, 'mls-mechanism-pack-v1');
+  assert.ok(mechStageCount() >= 5, 'mechanism pack should ship a meaningful stage count');
+  assert.equal(mechStageCount(), MECHANISM_PACK_STAGES.length);
+
+  assert.equal(isMechStageUnlocked(0, 0), true);
+  assert.equal(isMechStageUnlocked(1, 0), false);
+  assert.equal(isMechStageUnlocked(1, 1), true);
+  assert.equal(continueMechIndex(0), 0);
+  assert.equal(continueMechIndex(mechStageCount()), mechStageCount() - 1);
+
+  assert.equal(starsForMoves(5, 5), 3);
+  assert.equal(starsForMoves(6, 5), 2);
+  assert.equal(starsForMoves(20, 5), 1);
+
+  let progress = { clearedCount: 0, bestMoves: {}, bestStars: {} };
+  progress = applyMechStageClear(progress, 0, 6);
+  assert.equal(progress.clearedCount, 1);
+  assert.equal(progress.bestStars[MECHANISM_PACK_STAGES[0].id], 3);
+
+  const seenIds = new Set();
+  for (let i = 0; i < MECHANISM_PACK_STAGES.length; i++) {
+    const stage = MECHANISM_PACK_STAGES[i];
+    assert.ok(stage.id && stage.name && stage.tip);
+    assert.ok(!seenIds.has(stage.id), `duplicate mech id ${stage.id}`);
+    seenIds.add(stage.id);
+    assert.ok(stage.minSteps >= 1, `mech ${stage.id}: minSteps`);
+
+    const { bottles, orders } = materializeMechStage(stage);
+    assert.equal(orders.length, stage.orderColors.length);
+    if (stage.bottles.some((b) => b.blocked)) {
+      assert.ok(
+        bottles.some((b) => b.isBlocked),
+        `mech ${stage.id}: expected a blocked bottle`,
+      );
+    }
+    const caps = new Set(bottles.map((b) => b.capacity));
+    if (stage.id === 'cap-mix' || stage.id === 'mech-finale') {
+      assert.ok(caps.size > 1, `mech ${stage.id}: expected mixed capacities`);
+    }
+    if (stage.id === 'cap-tight') {
+      assert.ok(
+        bottles.every((b) => b.capacity === 2),
+        `mech ${stage.id}: expected all capacity-2 bottles`,
+      );
+    }
+
+    const ms = minStepsWithDeliveries(bottles, orders);
+    assert.notEqual(ms, -1, `mech ${stage.id}: BFS budget exhausted`);
+    assert.notEqual(ms, -2, `mech ${stage.id}: UNSOLVABLE`);
+    assert.equal(
+      ms,
+      stage.minSteps,
+      `mech ${stage.id}: minSteps claimed ${stage.minSteps} but BFS found ${ms}`,
+    );
+  }
+}
+
+// --- Daily boards stay solvable ---
+{
+  assert.ok(DAILY_BOARDS.length >= 5);
+  for (const board of DAILY_BOARDS) {
+    const { bottles, orders } = materializeDailyBoard(board);
+    const ms = minStepsWithDeliveries(bottles, orders);
+    assert.ok(ms >= 0, `daily ${board.id}: solvable (got ${ms})`);
+  }
+}
+
+// --- Streak + share text + cosmetics catalog ---
+{
+  const d0 = applyPlayDay({ lastPlayDate: '', currentStreak: 0, bestStreak: 0 }, '2026-10-20');
+  assert.equal(d0.currentStreak, 1);
+  const d1 = applyPlayDay(d0, '2026-10-21');
+  assert.equal(d1.currentStreak, 2);
+  const gap = applyPlayDay(d1, '2026-10-23');
+  assert.equal(gap.currentStreak, 1);
+  assert.equal(gap.bestStreak, 2);
+  assert.equal(displayStreak(d1, new Date(2026, 9, 21)), 2);
+
+  const share = buildDailyShareText({
+    streak: d1,
+    dailyLabel: '測試盤',
+    date: new Date(2026, 9, 21),
+    missions: [
+      {
+        id: 'm',
+        type: 'POUR',
+        descriptionKey: 'mission.pour',
+        target: 30,
+        progress: 10,
+        reward: 100,
+        isClaimed: false,
+      },
+    ],
+  });
+  assert.ok(share.includes('神秘液體排序'));
+  assert.ok(share.includes(localDateKey(new Date(2026, 9, 21))));
+  assert.ok(share.includes('測試盤'));
+
+  assert.ok(BOTTLE_SKINS.length >= 3);
+  assert.ok(LIQUID_SKINS.length >= 2);
+  const paid = BOTTLE_SKINS.find((s) => s.cost > 0);
+  assert.ok(paid);
+  const poor = unlockBottleSkin(DEFAULT_COSMETICS, paid.id, 0);
+  assert.equal(poor.ok, false);
+  const rich = unlockBottleSkin(
+    { ...DEFAULT_COSMETICS, unlockedBottles: ['classic'], unlockedLiquids: ['plain'] },
+    paid.id,
+    paid.cost,
+  );
+  assert.equal(rich.ok, true);
+  assert.ok(rich.state.unlockedBottles.includes(paid.id));
 }
 
 console.log('check-liquid-sort: ok');
