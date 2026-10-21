@@ -332,3 +332,36 @@ export function playSolveComplete(isRecord = false) {
   if (isRecord) playWin();
   else playGoal();
 }
+
+/** Cinder Circuit — memory card placed on the road. */
+export function playCardPlace() {
+  playTone(290, 'triangle', 0.12, 0, 0.07);
+  playTone(580, 'sine', 0.16, 0.06, 0.05);
+}
+
+/** Cinder Circuit — keeper awakens / bell toll. */
+export function playBellAwaken() {
+  playTone(155, 'sine', 0.35, 0, 0.08);
+  playTone(110, 'triangle', 0.45, 0.12, 0.07);
+  playTone(75, 'sine', 0.55, 0.28, 0.05);
+}
+
+/** Cinder Circuit — camp craft / building rank-up. */
+export function playCraft() {
+  playTone(340, 'triangle', 0.08, 0, 0.06);
+  playTone(480, 'sine', 0.1, 0.05, 0.06);
+  playTone(620, 'triangle', 0.14, 0.12, 0.05);
+}
+
+/** Cinder Circuit — elite modifier reveal. */
+export function playEliteMod() {
+  playTone(200, 'sawtooth', 0.08, 0, 0.05);
+  playTone(360, 'triangle', 0.12, 0.06, 0.06);
+}
+
+/** Cinder Circuit — event card drawn. */
+export function playEventCard() {
+  playTone(440, 'sine', 0.08, 0, 0.06);
+  playTone(660, 'triangle', 0.12, 0.07, 0.07);
+  playTone(880, 'sine', 0.1, 0.14, 0.04);
+}
