@@ -365,3 +365,41 @@ export function playEventCard() {
   playTone(660, 'triangle', 0.12, 0.07, 0.07);
   playTone(880, 'sine', 0.1, 0.14, 0.04);
 }
+
+/** Endless Train — chop a tree (hit or fell). Add-only; do not alter helpers above. */
+export function playChop() {
+  playTone(210, 'triangle', 0.07, 0, 0.06);
+  playTone(140, 'square', 0.09, 0.03, 0.045);
+  playTone(95, 'sawtooth', 0.06, 0.07, 0.03);
+}
+
+/** Endless Train — mine rock. */
+export function playMine() {
+  playTone(160, 'square', 0.05, 0, 0.055);
+  playTone(280, 'triangle', 0.08, 0.03, 0.05);
+  playTone(420, 'sine', 0.05, 0.07, 0.035);
+}
+
+/** Endless Train — lay a rail segment / finish a bridge. */
+export function playLayRail() {
+  playTone(380, 'triangle', 0.06, 0, 0.07);
+  playTone(520, 'sine', 0.08, 0.04, 0.055);
+  playTone(640, 'triangle', 0.07, 0.09, 0.04);
+}
+
+/** Endless Train — runway critically low / missing track ahead. */
+export function playRailAlert() {
+  playTone(520, 'square', 0.1, 0, 0.055);
+  playTone(390, 'square', 0.12, 0.1, 0.05);
+  playTone(520, 'square', 0.1, 0.22, 0.045);
+}
+
+/** Endless Train — eliminated / derailed / boiler failure (出局). */
+export function playEliminate() {
+  playTone(200, 'sawtooth', 0.18, 0, 0.07);
+  playTone(150, 'square', 0.22, 0.1, 0.055);
+  playTone(90, 'sawtooth', 0.35, 0.22, 0.05);
+}
+
+/** Soft industrial build / place click (Mini Factory). */
+

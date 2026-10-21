@@ -168,6 +168,21 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
 #touchActions button.primary-act {
   background:#3d5c4f; border-color:var(--gold); color:var(--gold);
 }
+#touchActions button.active-player {
+  outline:2px solid var(--gold);
+}
+#touchMeta {
+  position:absolute; right:14px; bottom:148px;
+  display:flex; gap:8px; z-index:3; pointer-events:none;
+}
+#touchMeta button {
+  pointer-events:auto; min-height:44px; min-width:64px;
+  border-radius:14px; background:var(--touch);
+  color:var(--text); border:1px solid #597257;
+  font-size:12px; padding:8px 10px; touch-action:manipulation;
+}
+#modBadges { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0; }
+#modBadges .badge { margin:0; }
 
 @media(max-width:900px) {
   aside { width:225px; padding:14px 12px; }
@@ -215,12 +230,16 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
   <div id="notice"></div>
   <div class="legend">
     <b style="color:#ffd36d">◆ 黃色虛線：下一段可鋪位置</b><br>
-    靠近車廂互動：交貨／領取鐵軌<br>
-    河流上鋪軌：額外消耗倉庫木材
+    斷橋（標「斷」）需多耗木材 · 灰藍風線＝暴風區<br>
+    靠近車廂：交貨／領軌／升級／投放貨廂（C）
   </div>
   <div id="touchPad" class="hidden">
     <div class="stick-base" id="stickBase"></div>
     <div class="stick-knob" id="stickKnob"></div>
+  </div>
+  <div id="touchMeta" class="hidden">
+    <button type="button" id="touchSwap" title="切換操作對象">P1</button>
+    <button type="button" id="touchCargo" title="投放貨廂">貨廂</button>
   </div>
   <div id="touchActions" class="hidden">
     <button type="button" class="primary-act" data-act="interact">互動</button>
@@ -257,8 +276,20 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
   </div>
 
   <div class="card">
+    <h3>特殊車廂 · 今日修飾</h3>
+    <div class="resource"><span>貨廂投放</span><b id="cargoLeft">1</b></div>
+    <button id="cargoBtn" type="button" class="secondary">投放貨廂（一次）</button>
+    <div id="modBadges"></div>
+    <div class="muted" id="modDetail">種子會決定今日 1～2 個修飾規則。</div>
+  </div>
+
+  <div class="card">
     <h3>合作隊員</h3>
     <div id="players"></div>
+    <label class="muted" style="display:flex;gap:8px;align-items:center;margin:8px 0">
+      <input type="checkbox" id="autoFireman" checked>
+      單人自動司爐（補水 AI）
+    </label>
     <div class="muted" id="controlsHelp">
       <b style="color:#ffda72">P1</b>
       <span class="key">WASD</span> 移動
@@ -270,6 +301,7 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
       <span class="key">Enter</span> 互動
       <span class="key">/</span> 鋪軌
       <span class="key">.</span> 丟下
+      <br><span style="color:#a9bcaa">觸控雙人：右上「P1/P2」切換操作對象 · C 投放貨廂</span>
     </div>
   </div>
 
@@ -277,7 +309,7 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
     <h3 id="upgradeTitle">車廂升級 · Lv.1</h3>
     <div class="muted">提升製作速度、降低冷卻水消耗。站在車廂旁升級。</div>
     <button id="upgrade" type="button">升級 · 6 木材 + 6 礦石</button>
-    <div class="muted">也可按 U。最多升級 3 次。</div>
+    <div class="muted">也可按 U。最多升級 5 次。</div>
   </div>
 </aside>
 </div>
@@ -287,18 +319,34 @@ import {
   DIFFICULTIES,
   DIFFICULTY_ORDER,
   LEGACY_BEST_KEY,
+  MAX_LEVEL,
   STORAGE_KEY,
+  applyRunModifiers,
   craftDurationSec,
   dailySeed,
   endReasonLabel,
   getDifficulty,
+  isGapCell,
+  isStormCell,
   localDateKey,
   migrateStats,
+  modifiersFromSeed,
   recordRun,
   scoreFromProgress,
   trainSpeed,
+  upgradeCost,
   waterDrainPerSec,
 } from "./rules.mjs";
+import {
+  playChop,
+  playEliminate,
+  playLayRail,
+  playMine,
+  playRailAlert,
+  playScore,
+  playSelect,
+  playWin,
+} from "../shared/sfx.mjs";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game"), ctx = canvas.getContext("2d");
@@ -310,12 +358,16 @@ const colors = { wood:"#b98449", ore:"#bac5cc", rail:"#efcf75", water:"#79d9ee" 
 let W=900, H=650, scale=1, tileW=54, tileH=28;
 let state="menu", game=null, last=0, noticeTime=0;
 let selectedMode="normal", selectedPlayers=1, useDaily=false;
+let autoFiremanOn = true;
 let stats = loadStats();
+let lastRailAlert = 0;
 
 const touch = {
   enabled: matchMedia("(pointer:coarse)").matches || "ontouchstart" in window,
   stick: { active:false, id:null, ox:0, oy:0, dx:0, dy:0 },
   hold: { interact:false, build:false },
+  /** 0-based index of the player driven by the virtual stick (P1/P2 swap). */
+  activeIndex: 0,
 };
 
 function loadStats() {
@@ -352,6 +404,7 @@ function layoutTouchChrome() {
   const show = touch.enabled && state==="playing";
   $("touchPad").classList.toggle("hidden", !show);
   $("touchActions").classList.toggle("hidden", !show);
+  $("touchMeta").classList.toggle("hidden", !show);
   if(show) {
     const base=$("stickBase").getBoundingClientRect();
     const stageRect=stage.getBoundingClientRect();
@@ -361,6 +414,12 @@ function layoutTouchChrome() {
       $("stickKnob").style.left=cx+"px";
       $("stickKnob").style.top=cy+"px";
     }
+    const swap=$("touchSwap");
+    const duo=game && game.players.length>1;
+    swap.textContent="P"+(touch.activeIndex+1);
+    swap.style.opacity=duo?1:.55;
+    $("touchCargo").textContent=
+      game && game.cargoCharges>0?`貨廂×${game.cargoCharges}`:"貨廂用盡";
   }
 }
 
@@ -384,6 +443,7 @@ function tile(x,y) {
   const riverX=26+Math.floor((x-24)/45)*45;
   const bend=Math.round(Math.sin(y*.32)*1.5);
   if(x>=24 && Math.abs(x-(riverX+bend))<1.1) type="water";
+  else if(isGapCell(x,y,game.seed)) type="gap";
   else {
     const n=hash(x,y);
     const density=Math.min(.45,(.24+zone*.025)*d.treeDensityMul);
@@ -397,7 +457,13 @@ function tile(x,y) {
   if(x>=6 && x<=12 && y===-4) type="rock";
   if(x>=-1 && x<=2 && y>=5 && y<=7) type="water";
 
-  const t={x,y,type,hp:type==="rock"?3:2,variant:hash(x,y,3)};
+  const storm=isStormCell(x,y,game.seed,game.hazardMul||1);
+  const t={
+    x,y,type,
+    hp:type==="rock"?3:2,
+    variant:hash(x,y,3),
+    storm,
+  };
   game.tiles.set(k,t);
   return t;
 }
@@ -406,6 +472,8 @@ function start({ players=selectedPlayers, mode=selectedMode, daily=useDaily, see
   const d=getDifficulty(mode);
   const dateKey=localDateKey();
   const runSeed = seed!=null ? seed : (daily ? dailySeed() : Math.floor(Math.random()*999999));
+  const mods = modifiersFromSeed(runSeed);
+  const applied = applyRunModifiers(d, mods);
   selectedMode=mode;
   selectedPlayers=players;
   useDaily=!!daily;
@@ -423,7 +491,12 @@ function start({ players=selectedPlayers, mode=selectedMode, daily=useDaily, see
     players:[], drops:[], particles:[],
     camera:{x:7,y:0}, elapsed:0, score:0,
     speed:d.baseSpeed, zone:0, shake:0, warning:false,
-    bridgeWood:d.bridgeWood
+    bridgeWood:applied.bridgeWood,
+    mods, modIds:applied.ids, modLabels:applied.labels,
+    waterMul:applied.waterMul, fog:applied.fog,
+    moveMul:applied.moveMul, hazardMul:applied.hazardMul,
+    cargoCharges:applied.cargoCharges,
+    inStorm:false, fireman:{target:null, phase:"idle"},
   };
   for(let x=-6;x<=18;x++) {
     game.path.push({x,y:0});
@@ -436,9 +509,11 @@ function start({ players=selectedPlayers, mode=selectedMode, daily=useDaily, see
       color:i?"#8ad5ff":"#ffcd62",
       dark:i?"#397cab":"#be7040",
       id:i+1,carry:null,amount:0,cooldown:0,buildCD:0,
-      action:null,walk:0
+      action:null,walk:0, ai:false
     });
   }
+  touch.activeIndex=0;
+  lastRailAlert=0;
   state="playing";
   keys.clear();
   touch.stick.active=false;
@@ -446,9 +521,13 @@ function start({ players=selectedPlayers, mode=selectedMode, daily=useDaily, see
   touch.hold.interact=touch.hold.build=false;
   $("overlay").classList.add("hidden");
   $("pause").textContent="暫停";
+  const modText=applied.labels.length
+    ? `修飾：${applied.labels.join("、")}`
+    : "";
   notify(daily
-    ? `今日路線 · 種子 ${runSeed} · ${d.label}。先領鐵軌，再往黃色標記鋪路！`
-    : `先到製作車廂領取鐵軌，再往黃色標記鋪路！（${d.label}）`, 5);
+    ? `今日路線 · #${runSeed} · ${d.label}。${modText} 先領鐵軌再鋪路！`
+    : `先領鐵軌，再往黃色標記鋪路！（${d.label}${modText?" · "+modText:""}）`, 5.5);
+  playSelect();
   updateUI();
   layoutTouchChrome();
   refreshBestHud();
@@ -483,6 +562,14 @@ function solid(x,y) {
   const t=tile(tx,ty);
   return t.type!=="grass";
 }
+function needsBridge(type) {
+  return type==="water" || type==="gap";
+}
+function activeTouchPlayer() {
+  if(!game || !game.players.length) return null;
+  const i=clamp(touch.activeIndex,0,game.players.length-1);
+  return game.players[i];
+}
 function canStand(x,y) {
   const r=.19;
   return !solid(x-r,y-r)&&!solid(x+r,y-r)&&
@@ -497,9 +584,11 @@ function interact(p) {
     if(p.carry==="water") {
       game.water=Math.min(100,game.water+p.amount*24);
       burst(p.x,p.y,"補水 +"+(p.amount*24)+"%","#9deaff");
+      playScore();
     } else {
       game.bank[p.carry]+=p.amount;
       burst(p.x,p.y,"交付 "+names[p.carry]+" ×"+p.amount);
+      playSelect();
     }
     p.carry=null;p.amount=0;p.cooldown=.65;
     return;
@@ -555,18 +644,27 @@ function interact(p) {
   if(target.type==="water") {
     p.carry="water";p.amount=3;p.cooldown=.65;
     burst(p.x,p.y,"裝滿水桶","#8de8ff");
+    playSelect();
+    return;
+  }
+  if(target.type==="gap") {
+    notify("斷橋！帶鐵軌過來鋪，並準備倉庫木材架橋。");
+    p.cooldown=.5;
     return;
   }
 
+  const chopping=target.type==="tree";
   target.hp--;
-  burst(target.x,target.y,target.type==="tree"?"✦":"·",
-        target.type==="tree"?"#ccf29e":"#e5e8ed");
+  if(chopping) playChop(); else playMine();
+  burst(target.x,target.y,chopping?"✦":"·",
+        chopping?"#ccf29e":"#e5e8ed");
   if(target.hp<=0) {
-    const type=target.type==="tree"?"wood":"ore";
+    const type=chopping?"wood":"ore";
     const n=Math.min(2,6-p.amount);
     p.carry=type;p.amount+=n;
     if(n<2) game.drops.push({x:target.x,y:target.y,type,amount:2-n});
     target.type="grass";
+    target.storm=target.storm;
     burst(target.x,target.y,"+"+n+" "+names[type]);
   }
 }
@@ -594,18 +692,21 @@ function build(p) {
   if(ground.type==="tree" || ground.type==="rock") {
     notify("前方有障礙！先採集清除，或站到另一側繞路。");return;
   }
-  if(ground.type==="water") {
-    if(game.bank.wood<game.bridgeWood) {
-      notify(`架橋需要共用倉庫內的 ${game.bridgeWood} 份木材。`);return;
+  if(needsBridge(ground.type)) {
+    const cost=ground.type==="gap"?game.bridgeWood+1:game.bridgeWood;
+    if(game.bank.wood<cost) {
+      notify(`${ground.type==="gap"?"修復斷橋":"架橋"}需要倉庫內 ${cost} 份木材。`);return;
     }
-    game.bank.wood-=game.bridgeWood;
-    burst(t.x,t.y,"橋梁完成","#a5e6f5");
+    game.bank.wood-=cost;
+    burst(t.x,t.y,ground.type==="gap"?"斷橋修復":"橋梁完成","#a5e6f5");
+    ground.type="grass";
   } else burst(t.x,t.y,"+ 鐵軌");
 
   game.path.push({x:t.x,y:t.y});
   game.railSet.add(key(t.x,t.y));
   p.amount--;
   if(!p.amount) p.carry=null;
+  playLayRail();
 }
 
 function dropItem(p) {
@@ -617,22 +718,60 @@ function dropItem(p) {
 }
 function upgrade() {
   if(state!=="playing") return;
-  if(game.level>=3) {notify("所有車廂已完成升級！");return;}
+  if(game.level>=MAX_LEVEL) {notify("所有車廂已完成升級！");return;}
   if(!game.players.some(nearTrain)) {
     notify("需要一位隊員站在車廂旁操作升級。");return;
   }
-  const cost=6+game.level*3;
+  const cost=upgradeCost(game.level);
   if(game.bank.wood<cost || game.bank.ore<cost) {
     notify("升級需要 "+cost+" 木材與 "+cost+" 礦石。");return;
   }
   game.bank.wood-=cost;game.bank.ore-=cost;game.level++;
-  notify("升級完成！製作更快，冷卻水消耗更少。",4);
+  playWin();
+  notify(`升級完成！Lv.${game.level+1} · 製作更快，水耗更低。`,4);
 }
 $("upgrade").onclick=upgrade;
+
+/** One-shot cargo car: dump a share of the bank ahead of the rail tip. */
+function deployCargo(actor=null, { requireNear=false }={}) {
+  if(state!=="playing" || !game) return {ok:false, reason:"not_playing"};
+  if(game.cargoCharges<=0) {
+    notify("貨廂已投放完畢。");
+    return {ok:false, reason:"empty"};
+  }
+  if(requireNear) {
+    const ok = actor ? nearTrain(actor) : game.players.some(nearTrain);
+    if(!ok) {
+      notify("靠近車廂才能投放貨廂。");
+      return {ok:false, reason:"far"};
+    }
+  }
+  const tip=game.path[game.path.length-1];
+  const dropAt={x:tip.x+2,y:tip.y};
+  const wood=Math.min(4,game.bank.wood);
+  const ore=Math.min(4,game.bank.ore);
+  const rail=Math.min(3,game.bank.rail);
+  if(wood+ore+rail<=0) {
+    notify("倉庫空空的，沒東西可投放。");
+    return {ok:false, reason:"bank_empty"};
+  }
+  if(wood) { game.bank.wood-=wood; game.drops.push({x:dropAt.x,y:dropAt.y-.6,type:"wood",amount:wood}); }
+  if(ore) { game.bank.ore-=ore; game.drops.push({x:dropAt.x,y:dropAt.y+.6,type:"ore",amount:ore}); }
+  if(rail) { game.bank.rail-=rail; game.drops.push({x:dropAt.x+0.8,y:dropAt.y,type:"rail",amount:rail}); }
+  game.cargoCharges--;
+  playLayRail();
+  burst(dropAt.x,dropAt.y,"貨廂投放！","#ffd36d");
+  notify(`貨廂把物資丟到前方軌道附近（剩 ${game.cargoCharges} 次）。`,3.5);
+  layoutTouchChrome();
+  updateUI();
+  return {ok:true, wood, ore, rail, remaining:game.cargoCharges};
+}
+$("cargoBtn").onclick=()=>deployCargo(null, { requireNear:false });
 
 function gameOver(reason) {
   state="over";
   layoutTouchChrome();
+  playEliminate();
   const score=Math.floor(game.score);
   const d=getDifficulty(game.mode);
   const result=recordRun(stats, {
@@ -641,18 +780,26 @@ function gameOver(reason) {
   stats=result.stats;
   saveStats();
   refreshBestHud();
+  if(result.isModeBest || result.isDailyBest) playWin();
 
   const rails=Math.max(0, game.path.length - game.initialPathLength);
+  const modBadges=(game.modLabels||[]).map(l=>
+    `<span class="badge">${l}</span>`).join("");
   const badges=[
     `<span class="badge">${d.label}</span>`,
     game.daily?`<span class="badge gold">今日路線</span>`:"",
     result.isModeBest?`<span class="badge gold">本模式新紀錄</span>`:"",
     result.isDailyBest?`<span class="badge gold">今日最佳</span>`:"",
+    modBadges,
   ].filter(Boolean).join("");
+
+  const title = reason==="water" ? "鍋爐過熱了！"
+    : reason==="gap" ? "斷橋沒補上！"
+    : "啊，前面沒有軌道！";
 
   showDialog(`
     <div class="eyebrow">END OF THE LINE</div>
-    <h1>${reason==="water"?"鍋爐過熱了！":"啊，前面沒有軌道！"}</h1>
+    <h1>${title}</h1>
     <p>${badges}</p>
     <div class="result-score">${score}<span> m</span></div>
     <p style="margin:0">${endReasonLabel(reason)} · 種子 ${game.seed}</p>
@@ -712,29 +859,35 @@ function menu({ preserveMode=false }={}) {
   layoutTouchChrome();
   if(!preserveMode && DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
   const today=localDateKey();
+  const seedToday=dailySeed();
+  const todayMods=modifiersFromSeed(seedToday);
   const dailyBest = stats.bestDaily.date===today
     ? `今日最佳 ${stats.bestDaily.score} m`
     : "今日尚未開跑";
+  const modPreview=todayMods.map(m=>
+    `<span class="badge gold">${m.label}</span>`).join(" ");
   showDialog(`
     <div class="eyebrow">A LITTLE TRAIN. A LOT OF PANIC.</div>
     <h1>再鋪一段，<br>就來得及。</h1>
     <p>這列火車不會停。砍樹、挖礦、把資源送回車廂，
-    然後帶著新鐵軌衝到最前面。選難度，或挑戰今日固定路線。</p>
+    然後帶著新鐵軌衝到最前面。小心斷橋、暴風區，必要時投放貨廂。</p>
     <div class="card" style="margin-bottom:14px">
       <h3 style="margin-top:0">難度／規則變體</h3>
       ${modeButtonsHtml()}
-      <p class="muted" style="margin:8px 0 0">${dailyBest} · 今日種子 ${dailySeed()}</p>
+      <p class="muted" style="margin:8px 0 0">${dailyBest} · 今日種子 ${seedToday}</p>
+      <p style="margin:8px 0 0">今日修飾 ${modPreview}</p>
+      <p class="muted" style="margin:4px 0 0">${todayMods.map(m=>m.blurb).join(" ")}</p>
     </div>
     <div class="card" style="margin-bottom:0">
       <p style="margin:0">
         <b style="color:#ffd36d">① 採集</b>　靠近樹木／岩石，按住互動。<br>
         <b style="color:#ffd36d">② 製作</b>　帶貨到車廂交付，車廂自動製軌。<br>
-        <b style="color:#ffd36d">③ 延伸</b>　空手領軌，在路線前端鋪設。<br>
-        <b style="color:#ffd36d">④ 補水</b>　在河岸裝水，再送回火車。
+        <b style="color:#ffd36d">③ 延伸</b>　空手領軌；斷橋要多耗木材。<br>
+        <b style="color:#ffd36d">④ 補水／貨廂</b>　河岸取水；C 鍵投放一次貨廂。
       </p>
     </div>
-    <p>一次只能搬一種物品，最多 6 份。觸控裝置可用虛擬搖桿與右側按鈕操作 P1。
-    <br><span style="color:#a9bcaa">雙人合作仍建議共用鍵盤 · P／Esc 暫停</span></p>
+    <p>一次只能搬一種物品，最多 6 份。觸控可切換 P1／P2；單人可開自動司爐。
+    <br><span style="color:#a9bcaa">P／Esc 暫停 · 升級上限 Lv.${MAX_LEVEL+1}</span></p>
     <div class="actions">
       <button type="button" id="solo">單人出發</button>
       <button type="button" id="duo" class="secondary">雙人合作</button>
@@ -744,13 +897,13 @@ function menu({ preserveMode=false }={}) {
   $("solo").onclick=()=>start({players:1, mode:selectedMode, daily:false});
   $("duo").onclick=()=>start({players:2, mode:selectedMode, daily:false});
   $("daily").onclick=()=>start({
-    players:touch.enabled?1:selectedPlayers||1,
+    players:selectedPlayers||1,
     mode:selectedMode,
     daily:true
   });
   if(touch.enabled) {
     $("controlsHelp").innerHTML=
-      `<b style="color:#ffda72">觸控</b>　左側搖桿移動 · 右側「互動／鋪軌／丟下／升級」`;
+      `<b style="color:#ffda72">觸控</b>　搖桿移動 · 右上 P1/P2 切換 · 貨廂投放 · 右側主操作`;
   }
 }
 
@@ -794,8 +947,15 @@ window.addEventListener("keydown",e=>{
   if(k==="p" || k==="escape") togglePause();
   if(state!=="playing") return;
   if(k==="u") upgrade();
+  if(k==="c") deployCargo(null, { requireNear:false });
   if(k==="r") dropItem(game.players[0]);
   if(k==="." && game.players[1]) dropItem(game.players[1]);
+  if(k==="tab" && game.players.length>1) {
+    e.preventDefault();
+    touch.activeIndex=(touch.activeIndex+1)%game.players.length;
+    layoutTouchChrome();
+    notify(`觸控／焦點切換到 P${touch.activeIndex+1}`,1.5);
+  }
 });
 window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 
@@ -864,7 +1024,8 @@ $("touchActions").querySelectorAll("button").forEach(btn=>{
   const down=e=>{
     e.preventDefault(); e.stopPropagation();
     if(state!=="playing" || !game) return;
-    const p=game.players[0];
+    const p=activeTouchPlayer();
+    if(!p) return;
     if(act==="interact") { touch.hold.interact=true; interact(p); }
     else if(act==="build") { touch.hold.build=true; build(p); }
     else if(act==="drop") dropItem(p);
@@ -880,19 +1041,78 @@ $("touchActions").querySelectorAll("button").forEach(btn=>{
   btn.addEventListener("pointercancel",up);
 });
 
+$("touchSwap").addEventListener("pointerdown",e=>{
+  e.preventDefault(); e.stopPropagation();
+  if(state!=="playing" || !game || game.players.length<2) {
+    notify("雙人局才能切換 P1／P2。單人請開自動司爐補水。");
+    return;
+  }
+  touch.activeIndex=(touch.activeIndex+1)%game.players.length;
+  playSelect();
+  layoutTouchChrome();
+  notify(`現在操作 P${touch.activeIndex+1}`,1.4);
+});
+$("touchCargo").addEventListener("pointerdown",e=>{
+  e.preventDefault(); e.stopPropagation();
+  deployCargo(activeTouchPlayer(), { requireNear:false });
+});
+
+$("autoFireman").addEventListener("change",e=>{
+  autoFiremanOn=!!e.target.checked;
+});
+
 function playerInput(p) {
   const c=p.id===1?
     {l:"a",r:"d",u:"w",d:"s",a:"e",b:"q"}:
     {l:"arrowleft",r:"arrowright",u:"arrowup",d:"arrowdown",a:"enter",b:"/"};
   let sx=Number(keys.has(c.r))-Number(keys.has(c.l));
   let sy=Number(keys.has(c.d))-Number(keys.has(c.u));
-  if(p.id===1 && touch.enabled) {
-    // Screen stick: up = -y. Map screen axes into isometric WASD space.
+  const touchTarget=activeTouchPlayer();
+  if(touch.enabled && touchTarget && p===touchTarget) {
     sx += touch.stick.dx;
     sy += touch.stick.dy;
   }
-  return {sx,sy, interact:keys.has(c.a)||(p.id===1&&touch.hold.interact),
-          build:keys.has(c.b)||(p.id===1&&touch.hold.build)};
+  const touchAct=touch.enabled && touchTarget && p===touchTarget;
+  return {
+    sx,sy,
+    interact:keys.has(c.a)||(touchAct&&touch.hold.interact),
+    build:keys.has(c.b)||(touchAct&&touch.hold.build),
+  };
+}
+
+/** Solo auto-fireman: steer P1 toward water when boiler is low, else idle. */
+function firemanStep(p, dt) {
+  if(!autoFiremanOn || game.players.length!==1) return null;
+  if(p.carry==="water") {
+    const w=sample(game.progress-1.65);
+    return steerToward(p, w.x, w.y, dt, {interact:dist(p,w)<2.1});
+  }
+  if(game.water>42) return null;
+  // Find nearest water tile in a modest radius around the engine.
+  const eng=sample(game.progress);
+  let best=null, bestD=1e9;
+  for(let x=Math.floor(eng.x)-10;x<=Math.floor(eng.x)+14;x++) {
+    for(let y=Math.floor(eng.y)-8;y<=Math.floor(eng.y)+8;y++) {
+      const t=tile(x,y);
+      if(t.type!=="water" || game.railSet.has(key(x,y))) continue;
+      const d=dist(p,t);
+      if(d<bestD) {bestD=d;best=t;}
+    }
+  }
+  if(!best) return null;
+  return steerToward(p, best.x, best.y, dt, {interact:bestD<1.55});
+}
+
+function steerToward(p, tx, ty, _dt, flags={}) {
+  const dx=tx-p.x, dy=ty-p.y;
+  const n=Math.hypot(dx,dy);
+  if(n<0.15) return {sx:0,sy:0, interact:!!flags.interact, build:false};
+  // Invert the isometric control map: world = (sx+sy, sy-sx).
+  let sx=(dx-dy)/2, sy=(dx+dy)/2;
+  const m=Math.hypot(sx,sy)||1;
+  sx/=m; sy/=m;
+  return {sx:clamp(sx,-1,1), sy:clamp(sy,-1,1),
+    interact:!!flags.interact, build:false};
 }
 
 function update(dt) {
@@ -910,10 +1130,23 @@ function update(dt) {
   if(zone!==game.zone) {
     game.zone=zone;
     notify(zone%3===2?"進入乾燥區：冷卻水消耗增加！":
-      "新區域！火車更快了，別讓前方的軌道耗盡。",4);
+      "新區域！火車更快了，留意斷橋與暴風帶。",4);
   }
 
-  game.water-=dt*waterDrainPerSec(game.zone, game.level, game.mode);
+  const enginePos=sample(game.progress);
+  const engineTile=tile(Math.round(enginePos.x),Math.round(enginePos.y));
+  const wasStorm=game.inStorm;
+  game.inStorm=!!engineTile.storm;
+  if(game.inStorm && !wasStorm) {
+    notify("進入暴風區！移動變慢，水耗上升。",3.5);
+    game.shake=.4;
+  }
+
+  game.water-=dt*waterDrainPerSec(game.zone, game.level, game.mode, {
+    waterMul:game.waterMul||1,
+    inStorm:game.inStorm,
+    hazardMul:game.hazardMul||1,
+  });
 
   if(!game.crafting && game.bank.wood>0 && game.bank.ore>0) {
     game.bank.wood--;game.bank.ore--;
@@ -925,19 +1158,39 @@ function update(dt) {
       game.bank.rail+=3;game.crafting=false;game.craft=0;
       const w=sample(game.progress-1.65);
       burst(w.x,w.y,"+3 鐵軌");
+      playScore();
     }
   }
+
+  const runway=(game.path.length-1-game.progress)/game.speed;
+  if(runway<12 && game.elapsed-lastRailAlert>2.8) {
+    playRailAlert();
+    lastRailAlert=game.elapsed;
+    game.warning=true;
+  } else if(runway>=12) game.warning=false;
 
   for(const p of game.players) {
     p.cooldown=Math.max(0,p.cooldown-dt);
     p.buildCD=Math.max(0,p.buildCD-dt);
     if(p.cooldown<=0) p.action=null;
-    const input=playerInput(p);
+    let input=playerInput(p);
+    if(p.id===1) {
+      const ai=firemanStep(p, dt);
+      // Auto-fireman only assists when the human isn't steering.
+      if(ai && Math.abs(input.sx)+Math.abs(input.sy)<.12 && !input.interact && !input.build) {
+        input={
+          sx:ai.sx, sy:ai.sy,
+          interact:ai.interact, build:false,
+        };
+        p.ai=true;
+      } else p.ai=false;
+    }
     let sx=clamp(input.sx,-1,1), sy=clamp(input.sy,-1,1);
     let dx=sx+sy,dy=sy-sx;
     const n=Math.hypot(dx,dy);
     if(n) {
-      const move=(p.carry?3.05:3.6)*dt;
+      const stormSlow=game.inStorm?0.72:1;
+      const move=(p.carry?3.05:3.6)*dt*(game.moveMul||1)*stormSlow;
       dx=dx/n*move;dy=dy/n*move;
       if(canStand(p.x+dx,p.y)) p.x+=dx;
       if(canStand(p.x,p.y+dy)) p.y+=dy;
@@ -975,11 +1228,17 @@ function update(dt) {
   const lerp=1-Math.exp(-dt*2.2);
   game.camera.x+=(cx-game.camera.x)*lerp;
   game.camera.y+=(cy-game.camera.y)*lerp;
+  if(game.shake>0) game.shake=Math.max(0,game.shake-dt);
 
   for(const p of game.particles) p.life-=dt;
   game.particles=game.particles.filter(p=>p.life>0);
 
-  if(game.progress>=game.path.length-1) {gameOver("rail");return;}
+  if(game.progress>=game.path.length-1) {
+    const tip=game.path[game.path.length-1];
+    const tipTile=tile(tip.x,tip.y);
+    gameOver(tipTile.type==="gap"?"gap":"rail");
+    return;
+  }
   if(game.water<=0) {game.water=0;gameOver("water");return;}
   updateUI();
 }
@@ -1003,26 +1262,45 @@ function updateUI() {
   $("waterBar").style.width=game.water+"%";
   $("waterBar").style.background=game.water<25?"#fa886d":"#65c7d3";
   $("craftBar").style.width=game.craft*100+"%";
+  $("cargoLeft").textContent=String(game.cargoCharges);
+  $("cargoBtn").disabled=game.cargoCharges<=0;
+  $("cargoBtn").textContent=game.cargoCharges>0
+    ?`投放貨廂（剩 ${game.cargoCharges}）`:"貨廂已用盡";
+  $("modBadges").innerHTML=(game.modLabels||[])
+    .map(l=>`<span class="badge gold">${l}</span>`).join("");
+  $("modDetail").textContent=game.mods?.length
+    ? game.mods.map(m=>m.blurb).join(" ")
+    : "本趟無額外修飾。";
   const biomes=["青翠林地","岩石丘陵","乾燥荒野"];
-  $("region").textContent="區域 "+String(game.zone+1).padStart(2,"0")+" · "+
-    biomes[game.zone%3]+(game.zone%3===2?" / 水耗增加":"");
-  $("players").innerHTML=game.players.map(p=>
-    `<div class="player"><b style="color:${p.color}">● P${p.id}</b>
-     <span style="float:right">${p.carry?names[p.carry]+" ×"+p.amount:"空手"}</span></div>`
-  ).join("");
+  let region="區域 "+String(game.zone+1).padStart(2,"0")+" · "+biomes[game.zone%3];
+  if(game.inStorm) region+=" · 暴風中";
+  else if(game.zone%3===2) region+=" / 水耗增加";
+  if(game.fog) region+=" · 濃霧";
+  $("region").textContent=region;
+  $("players").innerHTML=game.players.map(p=>{
+    const focus=touch.enabled && p===activeTouchPlayer()?" ←觸控":"";
+    const ai=p.ai?" · 司爐":"";
+    return `<div class="player"><b style="color:${p.color}">● P${p.id}${focus}${ai}</b>
+     <span style="float:right">${p.carry?names[p.carry]+" ×"+p.amount:"空手"}</span></div>`;
+  }).join("");
   $("upgradeTitle").textContent="車廂升級 · Lv."+(game.level+1);
-  const cost=6+game.level*3;
-  $("upgrade").textContent=game.level>=3?"已完成全部升級":
+  const cost=upgradeCost(game.level);
+  $("upgrade").textContent=game.level>=MAX_LEVEL?"已完成全部升級":
     `升級 · ${cost} 木材 + ${cost} 礦石`;
 
   let task="採集、交貨，維持產線";
-  let detail="木材與礦石各 1 份，可以製作 3 段鐵軌。記得預留架橋木材。";
+  let detail="木材與礦石各 1 份 → 3 段鐵軌。斷橋多耗 1 木材；記得預留架橋。";
   if(runway<20) {
     task="快鋪軌！只剩 "+Math.ceil(runway)+" 秒";
     detail="帶鐵軌到路線最前端。站在希望延伸的一側，按鋪軌。";
   } else if(game.water<30) {
     task="需要冷卻水！";
-    detail="空手到河岸互動取水，再靠近車廂交付。";
+    detail=autoFiremanOn && game.players.length===1
+      ?"自動司爐會去取水；你也可自己裝水送回。"
+      :"空手到河岸互動取水，再靠近車廂交付。";
+  } else if(game.inStorm) {
+    task="暴風區通行中";
+    detail="移動變慢、水耗上升。盡快走完這段，或投放貨廂補前線物資。";
   } else if(game.bank.rail>0 && !game.players.some(p=>p.carry==="rail")) {
     task="領取鐵軌，延伸路線";
     detail="空手靠近車廂互動領軌。黃色標記會依你的站位選擇延伸方向。";
@@ -1092,8 +1370,29 @@ function drawTile(t) {
     const drift=Math.sin(game.elapsed*1.5+t.x+t.y)*3;
     ctx.beginPath();ctx.moveTo(p.x-7*scale+drift,p.y);
     ctx.lineTo(p.x+4*scale+drift,p.y);ctx.stroke();
+  } else if(t.type==="gap" && !game.railSet.has(key(t.x,t.y))) {
+    diamond(t.x,t.y,"#4a3a32","#2a1f1a");
+    const p=project(t.x,t.y);
+    ctx.strokeStyle="#ff9275";ctx.lineWidth=2*scale;
+    ctx.beginPath();
+    ctx.moveTo(p.x-10*scale,p.y-2*scale);
+    ctx.lineTo(p.x+8*scale,p.y+4*scale);
+    ctx.stroke();
+    label(p.x,p.y-8*scale,"斷","#ffb39a",10);
   } else {
-    diamond(t.x,t.y,palettes[Math.floor(t.variant*4)],"#35573516");
+    const stormTint=t.storm?["#6d7a68","#74806f","#667266","#7a8574"]:palettes;
+    diamond(t.x,t.y,stormTint[Math.floor(t.variant*4)],"#35573516");
+    if(t.storm && !game.railSet.has(key(t.x,t.y))) {
+      const p=project(t.x,t.y);
+      ctx.globalAlpha=.35+Math.sin(game.elapsed*6+t.x)*.1;
+      ctx.strokeStyle="#cfd8e6";ctx.lineWidth=1.5*scale;
+      ctx.beginPath();
+      ctx.moveTo(p.x-6*scale,p.y-8*scale);
+      ctx.lineTo(p.x+2*scale,p.y+2*scale);
+      ctx.lineTo(p.x+8*scale,p.y-6*scale);
+      ctx.stroke();
+      ctx.globalAlpha=1;
+    }
     if(t.type==="grass" && t.variant>.86 && !game.railSet.has(key(t.x,t.y))) {
       const p=project(t.x,t.y);
       ctx.fillStyle=dry?"#d9cf83":"#c6d88b";
@@ -1190,8 +1489,11 @@ function drawWagon(w,i) {
   } else {
     box(w.x,w.y,.23,.23,7,"#b1e6e1","#6fb9c4","#85cbd0",23);
     label(p.x,p.y-35*scale,"≈","#287c92",18);
+    if(game.cargoCharges>0) {
+      label(p.x,p.y-48*scale,"貨×"+game.cargoCharges,"#ffe9a8",9);
+    }
   }
-  if(game.level) label(p.x,p.y+16*scale,"★".repeat(game.level),"#ffdf7b",9);
+  if(game.level) label(p.x,p.y+16*scale,"★".repeat(Math.min(5,game.level)),"#ffdf7b",9);
 }
 function drawItem(x,y,type,amount,z=0) {
   const p=project(x,y,z);
@@ -1238,6 +1540,7 @@ function drawGhost() {
     seen.add(key(t.x,t.y));
     const ground=tile(t.x,t.y);
     const blocked=ground.type==="tree" || ground.type==="rock";
+    const bridged=needsBridge(ground.type);
     ctx.save();
     ctx.globalAlpha=.8;
     ctx.setLineDash([5*scale,4*scale]);
@@ -1245,11 +1548,14 @@ function drawGhost() {
       project(t.x-.48,t.y-.48,3),project(t.x+.48,t.y-.48,3),
       project(t.x+.48,t.y+.48,3),project(t.x-.48,t.y+.48,3)
     ];
-    polygon(points,blocked?"#e96c5544":`rgba(255,220,110,${pulse*.5})`,
-      blocked?"#ffd0a5":"#ffe98e");
+    const fill=blocked?"#e96c5544"
+      :bridged?`rgba(120,200,220,${pulse*.55})`
+      :`rgba(255,220,110,${pulse*.5})`;
+    polygon(points,fill,blocked?"#ffd0a5":bridged?"#9deaff":"#ffe98e");
     ctx.restore();
     const p=project(t.x,t.y,7);
-    label(p.x,p.y,blocked?"!":"+",blocked?"#ffe0c1":"#fff3b0",18);
+    label(p.x,p.y,blocked?"!":bridged?"橋":"+",
+      blocked?"#ffe0c1":bridged?"#9deaff":"#fff3b0",18);
   }
   const p=project(e.x,e.y,18+Math.sin(game.elapsed*4)*3);
   label(p.x,p.y,"▼","#ffe594",17);
@@ -1330,10 +1636,20 @@ function draw() {
     ctx.lineWidth=12;ctx.strokeRect(0,0,W,H);
   }
 
-  const gradient=ctx.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,Math.max(W,H)*.7);
+  const fogStrength=game.fog?(game.inStorm?.55:.42):(game.inStorm?.28:.18);
+  const gradient=ctx.createRadialGradient(
+    W/2,H/2,H*(game.fog?.12:.2),
+    W/2,H/2,Math.max(W,H)*(game.fog?.55:.7));
   gradient.addColorStop(0,"#102a2000");
-  gradient.addColorStop(1,"#102a2040");
+  gradient.addColorStop(1,`rgba(16,42,32,${fogStrength})`);
   ctx.fillStyle=gradient;ctx.fillRect(0,0,W,H);
+
+  if(game.shake>0) {
+    const s=game.shake*4*scale;
+    ctx.strokeStyle=`rgba(200,210,230,${game.shake})`;
+    ctx.lineWidth=3;
+    ctx.strokeRect(s,s,W-s*2,H-s*2);
+  }
 }
 
 function frame(time) {
@@ -1344,7 +1660,162 @@ function frame(time) {
   requestAnimationFrame(frame);
 }
 refreshBestHud();
+
+/* ---------- WebMCP tools (graceful if unsupported) ---------- */
+const TRAIN_TOOLS = [
+  {
+    name: "train_get_state",
+    description: "Read Endless Train run state: mode, seed, modifiers, bank, water, cargo, players, runway.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: "train_start",
+    description: "Start a new Endless Train run.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mode: { type: "string", enum: ["easy","normal","hard"] },
+        players: { type: "integer", minimum: 1, maximum: 2 },
+        daily: { type: "boolean" },
+        seed: { type: "integer", minimum: 1, maximum: 999998 },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
+  {
+    name: "train_get_modifiers",
+    description: "Resolve 1–2 daily modifiers from a seed (defaults to today's daily seed).",
+    inputSchema: {
+      type: "object",
+      properties: { seed: { type: "integer", minimum: 1, maximum: 999998 } },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: "train_deploy_cargo",
+    description: "Deploy the one-shot cargo car (drops bank goods ahead of the rail tip).",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
+  {
+    name: "train_set_touch_player",
+    description: "Switch which player the touch stick/actions control (1 or 2).",
+    inputSchema: {
+      type: "object",
+      properties: { player: { type: "integer", minimum: 1, maximum: 2 } },
+      required: ["player"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
+  {
+    name: "train_set_autofireman",
+    description: "Enable or disable the solo auto-fireman (water AI).",
+    inputSchema: {
+      type: "object",
+      properties: { enabled: { type: "boolean" } },
+      required: ["enabled"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
+];
+
+function trainSnapshot() {
+  if(!game) return { ok:true, state, playing:false };
+  const runway=(game.path.length-1-game.progress)/game.speed;
+  return {
+    ok:true, state, playing:state==="playing",
+    mode:game.mode, seed:game.seed, daily:game.daily,
+    score:Math.floor(game.score), zone:game.zone, level:game.level,
+    maxLevel:MAX_LEVEL, water:Math.round(game.water),
+    bank:{...game.bank}, bridgeWood:game.bridgeWood,
+    cargoCharges:game.cargoCharges, modifiers:game.modIds||[],
+    modifierLabels:game.modLabels||[], fog:!!game.fog, inStorm:!!game.inStorm,
+    runwaySec:Math.max(0,runway),
+    players:game.players.map(p=>({
+      id:p.id, x:+p.x.toFixed(2), y:+p.y.toFixed(2),
+      carry:p.carry, amount:p.amount, ai:!!p.ai,
+    })),
+    touchPlayer:touch.activeIndex+1,
+    autoFireman:autoFiremanOn,
+  };
+}
+
+function invokeTrainTool(name, args={}) {
+  try {
+    if(name==="train_get_state") return trainSnapshot();
+    if(name==="train_get_modifiers") {
+      const seed=args.seed!=null?Number(args.seed):dailySeed();
+      const mods=modifiersFromSeed(seed);
+      const applied=applyRunModifiers(getDifficulty(selectedMode), mods);
+      return { ok:true, seed, modifiers:mods.map(m=>({id:m.id,label:m.label,blurb:m.blurb})), applied };
+    }
+    if(name==="train_start") {
+      start({
+        mode:args.mode||selectedMode,
+        players:args.players===2?2:1,
+        daily:!!args.daily,
+        seed:args.seed!=null?Number(args.seed):null,
+      });
+      return { ok:true, ...trainSnapshot() };
+    }
+    if(name==="train_deploy_cargo") {
+      const result=deployCargo(game?.players.find(nearTrain)||game?.players[0]||null);
+      return { ...result, state:trainSnapshot() };
+    }
+    if(name==="train_set_touch_player") {
+      const idx=Math.max(1,Math.min(2,Number(args.player)||1))-1;
+      if(!game || !game.players[idx]) return { ok:false, reason:"no_player" };
+      touch.activeIndex=idx;
+      layoutTouchChrome();
+      return { ok:true, touchPlayer:idx+1 };
+    }
+    if(name==="train_set_autofireman") {
+      autoFiremanOn=!!args.enabled;
+      const box=$("autoFireman");
+      if(box) box.checked=autoFiremanOn;
+      return { ok:true, autoFireman:autoFiremanOn };
+    }
+    return { ok:false, reason:"unknown_tool" };
+  } catch(error) {
+    return { ok:false, reason:String(error?.message||error) };
+  }
+}
+
+async function registerTrainWebMCP() {
+  if(!("modelContext" in document) || typeof document.modelContext?.registerTool!=="function") {
+    console.info("[不停號] WebMCP unsupported — human UI remains fully usable.");
+    return;
+  }
+  for(const def of TRAIN_TOOLS) {
+    try {
+      await document.modelContext.registerTool({
+        name:def.name,
+        description:def.description,
+        inputSchema:def.inputSchema,
+        annotations:def.annotations,
+        execute:async (args={})=>{
+          const result=invokeTrainTool(def.name, args);
+          return {
+            content:[{type:"text", text:JSON.stringify(result)}],
+            structuredContent:result,
+            isError:!result.ok,
+          };
+        },
+      });
+    } catch(error) {
+      console.warn("[不停號] WebMCP tool failed:", def.name, error);
+    }
+  }
+  console.info(`[不停號] Registered ${TRAIN_TOOLS.length} WebMCP tools.`);
+}
+
 menu();
+registerTrainWebMCP();
 requestAnimationFrame(frame);
 </script>
 </body>
