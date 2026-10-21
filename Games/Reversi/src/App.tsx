@@ -33,7 +33,11 @@ import {
   applyLadderWin,
   applyLadderLoss,
   applyPuzzleSolve,
+  formatStars,
+  isPuzzleUnlocked,
+  ratePuzzleAttempt,
   type LadderProgress,
+  type PuzzleStars,
 } from './utils/ladder';
 import { PUZZLES, getPuzzle, describePuzzleObjective, type PuzzleRuntime } from './utils/puzzles';
 import { isOptimalMove, bestExactReply, solveExact } from './utils/solver';
@@ -129,6 +133,9 @@ export default function App() {
   const [puzzlePlies, setPuzzlePlies] = useState(0);
   const [puzzleFailed, setPuzzleFailed] = useState(false);
   const [puzzleSolved, setPuzzleSolved] = useState(false);
+  const [puzzleUsedHint, setPuzzleUsedHint] = useState(false);
+  const [puzzleUsedUndo, setPuzzleUsedUndo] = useState(false);
+  const [lastPuzzleStars, setLastPuzzleStars] = useState<PuzzleStars | null>(null);
 
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
@@ -230,24 +237,29 @@ export default function App() {
 
   const finishPuzzleSuccess = useCallback(
     (finalBoard: Board) => {
+      const stars = ratePuzzleAttempt({
+        usedHint: puzzleUsedHint,
+        usedUndo: puzzleUsedUndo,
+      });
+      setLastPuzzleStars(stars);
       setPuzzleSolved(true);
       setState((s) => ({
         ...s,
         board: finalBoard,
         phase: 'over',
         winner: getWinner(finalBoard),
-        message: '謎題完成！',
+        message: `謎題完成！${formatStars(stars)}`,
       }));
       playWin();
       if (puzzle) {
         setLadder((prev) => {
-          const next = applyPuzzleSolve(prev, puzzle.id);
+          const next = applyPuzzleSolve(prev, puzzle.id, stars);
           saveLadder(next);
           return next;
         });
       }
     },
-    [puzzle],
+    [puzzle, puzzleUsedHint, puzzleUsedUndo],
   );
 
   const failPuzzle = useCallback((msg: string) => {
@@ -521,17 +533,21 @@ export default function App() {
     else if (puzzle.goal === 'draw') ok = winner === 'draw';
     else ok = diff === start.score;
     if (ok) {
-      setPuzzleSolved(true);
-      playWin();
-      setLadder((prev) => {
-        const next = applyPuzzleSolve(prev, puzzle.id);
-        saveLadder(next);
-        return next;
-      });
+      finishPuzzleSuccess(state.board);
     } else if (!puzzleFailed) {
       failPuzzle('終局未達目標。');
     }
-  }, [playMode, puzzle, puzzleFailed, puzzleSolved, state.phase, state.winner, state.board, failPuzzle]);
+  }, [
+    playMode,
+    puzzle,
+    puzzleFailed,
+    puzzleSolved,
+    state.phase,
+    state.winner,
+    state.board,
+    failPuzzle,
+    finishPuzzleSuccess,
+  ]);
 
   const handlePass = useCallback(() => {
     if (state.phase !== 'playing' || legalMoves.length > 0) return;
@@ -552,19 +568,24 @@ export default function App() {
     setPuzzlePlies(prev.puzzlePlies);
     setPuzzleFailed(false);
     setPuzzleSolved(false);
+    setLastPuzzleStars(null);
+    if (playMode === 'puzzle') setPuzzleUsedUndo(true);
     setHintCell(null);
     setReview(null);
     botScheduled.current = false;
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
-  }, [history, isBotTurn, state.phase]);
+  }, [history, isBotTurn, state.phase, playMode]);
 
   const handleHint = useCallback(() => {
     if (state.phase !== 'playing' || isBotTurn) return;
     if ((playMode === 'bot' || playMode === 'ladder') && state.currentTurn !== playerSide) return;
     if (playMode === 'puzzle' && puzzle) {
       const solved = solveExact(state.board, puzzle.side);
-      if (solved.bestMove) setHintCell(solved.bestMove);
+      if (solved.bestMove) {
+        setHintCell(solved.bestMove);
+        setPuzzleUsedHint(true);
+      }
       return;
     }
     if (legalMoves.length === 0) return;
@@ -587,6 +608,9 @@ export default function App() {
     setPuzzlePlies(0);
     setPuzzleFailed(false);
     setPuzzleSolved(false);
+    setPuzzleUsedHint(false);
+    setPuzzleUsedUndo(false);
+    setLastPuzzleStars(null);
     botScheduled.current = false;
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
@@ -642,26 +666,34 @@ export default function App() {
     [seriesLength],
   );
 
-  const startPuzzle = useCallback((index: number) => {
-    const p = getPuzzle(index);
-    if (!p) return;
-    setPlayMode('puzzle');
-    setPuzzle(p);
-    setPlayerSide(p.side);
-    setSeries(null);
-    setPuzzlePlies(0);
-    setPuzzleFailed(false);
-    setPuzzleSolved(false);
-    setState(getInitialState(p.board, p.side));
-    setHistory([]);
-    setHintCell(null);
-    setLastMove(null);
-    setReviewLog([]);
-    setReview(null);
-    botScheduled.current = false;
-    statsRecordedRef.current = false;
-    prevPhaseRef.current = 'playing';
-  }, []);
+  const startPuzzle = useCallback(
+    (index: number) => {
+      const p = getPuzzle(index);
+      if (!p) return;
+      // Prefer live React state; fall back to storage after a just-saved unlock.
+      if (!isPuzzleUnlocked(index, ladder) && !isPuzzleUnlocked(index, loadLadder())) return;
+      setPlayMode('puzzle');
+      setPuzzle(p);
+      setPlayerSide(p.side);
+      setSeries(null);
+      setPuzzlePlies(0);
+      setPuzzleFailed(false);
+      setPuzzleSolved(false);
+      setPuzzleUsedHint(false);
+      setPuzzleUsedUndo(false);
+      setLastPuzzleStars(null);
+      setState(getInitialState(p.board, p.side));
+      setHistory([]);
+      setHintCell(null);
+      setLastMove(null);
+      setReviewLog([]);
+      setReview(null);
+      botScheduled.current = false;
+      statsRecordedRef.current = false;
+      prevPhaseRef.current = 'playing';
+    },
+    [ladder],
+  );
 
   const replaySame = useCallback(() => {
     statsRecordedRef.current = false;
@@ -678,6 +710,9 @@ export default function App() {
       setPuzzlePlies(0);
       setPuzzleFailed(false);
       setPuzzleSolved(false);
+      setPuzzleUsedHint(false);
+      setPuzzleUsedUndo(false);
+      setLastPuzzleStars(null);
       setState(getInitialState(puzzle.board, puzzle.side));
       return;
     }
@@ -957,7 +992,9 @@ export default function App() {
           badge={
             playMode === 'puzzle'
               ? puzzleSolved
-                ? '過關'
+                ? lastPuzzleStars
+                  ? formatStars(lastPuzzleStars)
+                  : '過關'
                 : '失敗'
               : state.winner === 'draw'
                 ? '和局'
@@ -969,7 +1006,9 @@ export default function App() {
             review
               ? review.summary
               : playMode === 'puzzle' && puzzle
-                ? puzzle.tip
+                ? puzzleSolved
+                  ? `${puzzle.tip}（無提示／無悔棋可拿滿星）`
+                  : puzzle.tip
                 : activeOpponent
                   ? state.winner === playerSide
                     ? activeOpponent.catchphrases.lose
@@ -980,6 +1019,9 @@ export default function App() {
             { label: '黑子', value: black },
             { label: '白子', value: white },
             { label: '勝差', value: endMargin },
+            ...(playMode === 'puzzle' && puzzleSolved && lastPuzzleStars
+              ? [{ label: '星級', value: formatStars(lastPuzzleStars) }]
+              : []),
             ...(series && series.length > 1
               ? [{ label: '系列賽', value: seriesScoreLine(series) }]
               : []),
