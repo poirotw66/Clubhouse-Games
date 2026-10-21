@@ -586,6 +586,23 @@ export function pickBotMove(
     return legal[Math.floor(Math.random() * legal.length)];
   }
 
+  // Immediate wins (especially PopOut gravity wins) — check before deep search
+  // so a softened depth on wide/PopOut boards cannot miss a forced finish.
+  const instantWins: Move[] = [];
+  for (const move of legal) {
+    const dropRow =
+      move.kind === 'drop' ? getDropRow(board, move.col, rules) : null;
+    const next = applyMove(board, move, color, rules);
+    if (!next) continue;
+    if (resolveWinnerAfterMove(next, color, move, dropRow, rules) === color) {
+      instantWins.push(move);
+    }
+  }
+  if (instantWins.length === 1) return instantWins[0];
+  if (instantWins.length > 1) {
+    return instantWins[Math.floor(Math.random() * instantWins.length)];
+  }
+
   let best: Move[] = [];
   let bestScore = -Infinity;
   for (const move of orderMoves(legal, rules)) {
