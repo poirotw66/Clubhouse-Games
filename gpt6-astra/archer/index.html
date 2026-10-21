@@ -252,23 +252,45 @@
 <script type="module">
 import {
   LEGACY_SAVE_KEY,
-  MODE_ORDER,
+  LEGACY_SAVE_KEY_V2,
+  META_UNLOCK_ORDER,
+  META_UNLOCKS,
   MODES,
   STORAGE_KEY,
   awardedGold,
+  bossFanCount,
+  bossPatterns,
+  bossRingCount,
+  bossWindup,
+  buyMeta as purchaseUnlock,
   clearBonus,
+  dailyChallenge,
   endEyebrow,
   endTitle,
   enemyScale,
   getMode,
   incomingDamage,
+  isHealRoom,
+  isUnlockOwned,
   isVictoryRoom,
+  localDateKey,
   migrateMeta,
+  playerHpMul,
   recordRun,
   spawnCount,
-  upgradeCost,
+  startingBuildFromMeta,
+  visibleModes,
 } from "./rules.mjs";
-
+import {
+  isSfxMuted,
+  playArcherClear,
+  playArcherDeath,
+  playArcherHit,
+  playArcherShoot,
+  playArcherUpgrade,
+  setSfxMuted,
+  toggleSfxMuted,
+} from "../shared/sfx.mjs";
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -283,12 +305,20 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 const shuffle = a => [...a].sort(() => Math.random() - .5);
 
 let meta = loadMeta();
+save(); // persist v3 migration / legacy % refund
 let selectedMode = MODES[meta.lastMode] ? meta.lastMode : "normal";
 let runMode = selectedMode;
+/** @type {ReturnType<typeof dailyChallenge>|null} */
+let dailyPlan = null;
+let bannedAbilityIds = new Set();
 
 function loadMeta() {
   try {
-    const v2 = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    const v3 = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    if (v3) return migrateMeta(v3);
+  } catch (_) {}
+  try {
+    const v2 = JSON.parse(localStorage.getItem(LEGACY_SAVE_KEY_V2) || "null");
     if (v2) return migrateMeta(v2);
   } catch (_) {}
   try {
@@ -305,6 +335,10 @@ function save() {
 
 function modeBest(id = selectedMode) {
   return meta.bestByMode[id] || 0;
+}
+
+function currentZone() {
+  return Math.max(1, Math.ceil(room / 5));
 }
 
 let state = "lobby";
@@ -373,10 +407,10 @@ const abilities = [
 function n(id) { return build[id] || 0; }
 
 function refreshStats() {
+  const hpMul = playerHpMul(runMode);
   stats = {
-    maxHP: Math.round(100 * (1 + meta.health * .03)) + n("hp") * 25,
-    damage: 13 * (1 + meta.attack * .02) *
-            (1 + n("damage") * .22 + n("size") * .08),
+    maxHP: Math.round(100 * hpMul) + n("hp") * 25,
+    damage: 13 * (1 + n("damage") * .22 + n("size") * .08),
     interval: .62 / (1 + n("speed") * .22),
     speed: 190 * (1 + n("move") * .12),
     crit: .05 + n("crit") * .10,
@@ -407,10 +441,16 @@ function hidePanel() {
 function lobby({ preserveMode = false } = {}) {
   state = "lobby";
   if (!preserveMode && MODES[meta.lastMode]) selectedMode = meta.lastMode;
-  const mode = getMode(selectedMode);
-  const atkCost = upgradeCost("attack", meta.attack);
-  const hpCost = upgradeCost("health", meta.health);
-  const modeButtons = MODE_ORDER.map((id) => {
+  if (selectedMode !== "daily" && !visibleModes(meta).includes(selectedMode)) {
+    selectedMode = "normal";
+  }
+  const mode = getMode(selectedMode === "daily" ? "daily" : selectedMode);
+  const today = dailyChallenge();
+  const dailyBest = meta.bestDaily.date === today.dateKey
+    ? `今日最佳 ${meta.bestDaily.room}/${today.roomCap}${meta.bestDaily.win ? " · 通關" : ""}`
+    : "今日尚未挑戰";
+  const muted = isSfxMuted();
+  const modeButtons = visibleModes(meta).map((id) => {
     const m = MODES[id];
     const best = modeBest(id);
     const clears = meta.clearsByMode[id] || 0;
@@ -421,34 +461,45 @@ function lobby({ preserveMode = false } = {}) {
       <small>最遠 ${best}/${m.roomCap}${clears ? ` · 通關 ${clears}` : ""}</small>
     </button>`;
   }).join("");
+  const unlockButtons = META_UNLOCK_ORDER.map((id) => {
+    const def = META_UNLOCKS[id];
+    const owned = isUnlockOwned(meta, id);
+    const canBuy = !owned && meta.gold >= def.cost;
+    return `<button type="button" class="secondary" data-unlock="${id}"
+      ${owned || !canBuy ? "disabled" : ""}>
+      ${owned ? "✓ " : ""}${def.label}<br>
+      <small style="font-weight:400;color:#bfd6df">${owned ? "已解鎖" : `${def.cost} 金幣`}</small>
+    </button>`;
+  }).join("");
+  const startLabel = selectedMode === "daily"
+    ? `今日挑戰 · ${today.dateKey}`
+    : `開始 · ${mode.label}`;
   showPanel(`
     <div class="eyebrow">STILLSHOT · ROGUELITE</div>
     <h1>停步射手</h1>
     <p>每多射一箭，都值得冒險嗎？</p>
     <div class="rule">移動閃避 → 停步射擊<br>你只需要決定，何時停下。</div>
     <div class="modes">${modeButtons}</div>
-    <p class="tiny">目前：${mode.label} · ${mode.roomCap} 房${mode.kind === "limited" ? "（限房）" : ""}</p>
-    <button id="start">開始 · ${mode.label}</button>
+    <button type="button" class="mode ${selectedMode === "daily" ? "active" : ""}" id="pickDaily">
+      <b>今日挑戰</b>
+      <small>種子 ${today.seed} · 禁用 ${today.bannedAbilityIds.length} 項能力</small>
+      <small>${dailyBest}</small>
+    </button>
+    <p class="tiny">目前：${selectedMode === "daily" ? `今日挑戰 · ${today.dateKey}` : `${mode.label} · ${mode.roomCap} 房${mode.kind === "limited" ? "（限房）" : ""}`}</p>
+    <button id="start">${startLabel}</button>
+    <div class="row">
+      <button id="muteBtn" class="secondary">${muted ? "音效：關" : "音效：開"}</button>
+    </div>
     <p>手機：拖曳移動，放開射擊<br>
        電腦：WASD / 方向鍵移動，Esc 暫停</p>
     <div class="meta">
       <span class="gold">◆ ${meta.gold} 金幣</span>
       ｜全域最遠 ${meta.best} 房
-      <div class="row">
-        <button id="metaAtk" class="secondary"
-          ${meta.gold < atkCost || meta.attack >= 10 ? "disabled" : ""}>
-          永久攻擊 Lv.${meta.attack}<br>
-          ${meta.attack >= 10 ? "已滿級" : `+2% · ${atkCost} 金幣`}
-        </button>
-        <button id="metaHP" class="secondary"
-          ${meta.gold < hpCost || meta.health >= 10 ? "disabled" : ""}>
-          永久生命 Lv.${meta.health}<br>
-          ${meta.health >= 10 ? "已滿級" : `+3% · ${hpCost} 金幣`}
-        </button>
-      </div>
+      <p class="tiny" style="margin:10px 0 6px">永久樹 · 開局能力／泉水房／突襲變體</p>
+      <div class="row" style="flex-wrap:wrap">${unlockButtons}</div>
     </div>
-    <p class="tiny">難度影響敵勢；五房突襲為限房速通。<br>
-    永久加成有上限，走位與能力組合才是核心。</p>
+    <p class="tiny">舊版百分比永久加成已折現為金幣。<br>
+    解鎖改變開局身分與房間結構，而非純數值縮放。</p>
   `);
   overlay.querySelectorAll("[data-mode]").forEach((btn) => {
     btn.onclick = () => {
@@ -456,31 +507,51 @@ function lobby({ preserveMode = false } = {}) {
       lobby({ preserveMode: true });
     };
   });
+  document.getElementById("pickDaily").onclick = () => {
+    selectedMode = "daily";
+    lobby({ preserveMode: true });
+  };
   document.getElementById("start").onclick = () => startRun(selectedMode);
-  document.getElementById("metaAtk").onclick = () => buyMeta("attack");
-  document.getElementById("metaHP").onclick = () => buyMeta("health");
+  document.getElementById("muteBtn").onclick = () => {
+    toggleSfxMuted();
+    lobby({ preserveMode: true });
+  };
+  overlay.querySelectorAll("[data-unlock]").forEach((btn) => {
+    btn.onclick = () => buyMeta(btn.getAttribute("data-unlock"));
+  });
 }
 
-function buyMeta(type) {
-  const cost = upgradeCost(type, meta[type]);
-  if (meta.gold < cost || meta[type] >= 10) return;
-  meta.gold -= cost;
-  meta[type]++;
+function buyMeta(unlockId) {
+  const result = purchaseUnlock(meta, unlockId);
+  if (!result.ok) return;
+  meta = result.meta;
   save();
   lobby({ preserveMode: true });
 }
 
 function startRun(modeId = selectedMode) {
-  runMode = getMode(modeId).id;
+  const wantDaily = modeId === "daily";
+  runMode = wantDaily ? "daily" : getMode(modeId).id;
   selectedMode = runMode;
-  meta.lastMode = runMode;
-  save();
-  build = {};
+  if (!wantDaily) {
+    meta.lastMode = runMode;
+    save();
+  }
+
+  dailyPlan = wantDaily ? dailyChallenge() : null;
+  bannedAbilityIds = new Set(dailyPlan?.bannedAbilityIds || []);
+
+  build = { ...startingBuildFromMeta(meta) };
+  // Daily bans strip overlapping starting unlocks for fairness.
+  for (const id of bannedAbilityIds) delete build[id];
+
   refreshStats();
   player = {
     x: W / 2, y: 554, r: 12,
     hp: stats.maxHP, inv: 0, moving: false,
-    aim: -Math.PI / 2, shield: 0, shieldTime: 0
+    aim: -Math.PI / 2,
+    shield: n("shield") > 0 ? 1 : 0,
+    shieldTime: 0
   };
   level = 1; xp = 0; xpNeed = 21; pendingLevels = 0;
   room = 1; runGold = 0; kills = 0; time = 0;
@@ -508,17 +579,53 @@ function enterRoom() {
   player.x = W / 2; player.y = 559;
   player.inv = 1;
   const mode = getMode(runMode);
-  const zone = Math.ceil(room / 5);
+  const zone = currentZone();
   const zoneNames = ["翠葉庭院","琥珀遺跡","星光神殿"];
+
+  // Daily: fixed seeded room script.
+  if (runMode === "daily" && dailyPlan) {
+    const plan = dailyPlan.rooms[room - 1];
+    if (!plan) {
+      notify(`${mode.label} · 第 ${room}/${mode.roomCap} 房`, 2.2);
+      return;
+    }
+    if (plan.kind === "boss") {
+      spawnEnemy("boss", W / 2, 224);
+    } else {
+      const list = plan.enemies || [];
+      for (let i = 0; i < list.length; i++) {
+        const col = i % 4, row = Math.floor(i / 4);
+        spawnEnemy(
+          list[i],
+          68 + col * 94 + rand(-12, 12),
+          190 + row * 91 + rand(-10, 10)
+        );
+      }
+    }
+    notify(`${mode.label} · ${plan.label} · ${room}/${mode.roomCap}`, 2.5);
+    return;
+  }
+
+  // Permanent unlock: fountain rooms between zones (no combat).
+  if (isHealRoom(room, runMode, meta)) {
+    cleared = true;
+    clearTime = 0.5;
+    heal(stats.maxHP * 0.45);
+    notify(`${mode.label} · 泉水客房 · 回復並繼續`, 2.8);
+    return;
+  }
 
   if (room % 5 === 0) {
     spawnEnemy("boss", W / 2, 224);
-    notify(`${mode.label} · 第 ${zone} 區域 · 守門者`, 2.5);
+    const phaseHint = zone === 1 ? "衝刺守門者" : zone === 2 ? "落區守門者" : "環彈守門者";
+    notify(`${mode.label} · 第 ${zone} 區域 · ${phaseHint}`, 2.5);
   } else {
     const count = spawnCount(room, runMode);
     let types = ["chaser", "shooter", "fast"];
     if (room >= 2) types.push("spread");
     if (room >= 3) types.push("dash", "aoe");
+    // Night raid leans into spread / aoe pressure.
+    if (runMode === "raid_night") types.push("spread", "aoe", "dash");
 
     for (let i = 0; i < count; i++) {
       const col = i % 4, row = Math.floor(i / 4);
@@ -574,17 +681,23 @@ function addXP(amount) {
 
 function showUpgrade() {
   state = "upgrade";
-  const options = shuffle(abilities.filter(a => n(a.id) < a.max)).slice(0, 3);
+  const options = shuffle(
+    abilities.filter((a) => n(a.id) < a.max && !bannedAbilityIds.has(a.id)),
+  ).slice(0, 3);
   if (!options.length) {
     heal(30);
     pendingLevels--;
     state = "play";
     return;
   }
+  const banNote = bannedAbilityIds.size
+    ? `<p class="tiny">今日禁用：${[...bannedAbilityIds].slice(0, 3).join(" · ")}</p>`
+    : "";
   showPanel(`
     <div class="eyebrow">LEVEL ${level}</div>
     <h2>選擇你的力量</h2>
     <p>三選一 · 本局持續生效<br>戰鬥已暫停，慢慢決定。</p>
+    ${banNote}
     ${options.map((a, i) => `
       <button class="choice" data-choice="${i}">
         <span class="icon">${a.icon}</span>
@@ -603,6 +716,7 @@ function showUpgrade() {
         player.shield = 1;
         player.shieldTime = 0;
       }
+      playArcherUpgrade();
       pendingLevels--;
       state = "play";
       hidePanel();
@@ -641,9 +755,19 @@ function finish(win, retired = false) {
   settled = true;
   state = win ? "victory" : "dead";
   const mode = getMode(runMode);
-  if (win) runGold += clearBonus(runMode);
+  if (win) {
+    runGold += clearBonus(runMode);
+    playArcherClear(true);
+  } else if (!retired) {
+    playArcherDeath();
+  }
   meta.gold += runGold;
-  const recorded = recordRun(meta, { mode: runMode, room, win });
+  const recorded = recordRun(meta, {
+    mode: runMode,
+    room,
+    win,
+    dateKey: runMode === "daily" ? (dailyPlan?.dateKey || localDateKey()) : undefined,
+  });
   meta = recorded.meta;
   save();
   burst(player.x, player.y, win ? "#ffe79b" : "#87dfff", 30);
@@ -653,14 +777,20 @@ function finish(win, retired = false) {
       retired ? `<span class="badge">撤退</span>` :
       `<span class="badge bad">陣亡</span>`,
     recorded.isModeBest ? `<span class="badge gold">本模式新紀錄</span>` : "",
+    recorded.isDailyBest ? `<span class="badge gold">今日新紀錄</span>` : "",
   ].filter(Boolean).join(" ");
+  const outcomeBlurb = win
+    ? (mode.kind === "limited"
+      ? "限房突襲完成。短局也能練出好習慣。"
+      : mode.kind === "daily"
+        ? "今日種子已征服。明天又是新的配置。"
+        : "你完成了整趟區域挑戰。")
+    : "停步創造傷害，走位創造下一次機會。";
   showPanel(`
     <div class="eyebrow">${endEyebrow(win)}</div>
     <h2>${endTitle({ win, retired })}</h2>
     <div class="badges">${badges}</div>
-    <p>${win
-      ? (mode.kind === "limited" ? "限房突襲完成。短局也能練出好習慣。" : "你完成了整趟區域挑戰。")
-      : "停步創造傷害，走位創造下一次機會。"}</p>
+    <p>${outcomeBlurb}</p>
     <div class="rule">
       第 ${room} / ${mode.roomCap} 房 · 等級 ${level}<br>
       擊敗 ${kills} 名敵人<br>
@@ -714,6 +844,7 @@ function damageEnemy(e, amount, arrow = false, critical = false) {
   e.flash = .09;
 
   if (arrow) {
+    playArcherHit(critical);
     if (n("steal")) player.hp = Math.min(stats.maxHP, player.hp + dealt * n("steal") * .02);
     if (n("fire")) e.burn = 3;
     if (n("poison")) {
@@ -762,6 +893,7 @@ function fireVolley() {
   const rage = player.hp < stats.maxHP * .35 ? 1 + .35 * n("rage") : 1;
   const damage = stats.damage * penalty * rage;
 
+  playArcherShoot();
   for (let i = 0; i < frontCount; i++) {
     const offset = (i - (frontCount - 1) / 2) * 10;
     createArrow(angle, damage, offset);
@@ -831,10 +963,11 @@ function beginAttack(e, kind, duration) {
 
 function executeAttack(e) {
   const type = e.type;
+  const zone = currentZone();
   if (e.atk === "lunge" || e.atk === "dash") {
     e.mode = "dash";
-    e.timer = e.atk === "lunge" ? .17 : type === "boss" ? .58 : .40;
-    e.dashSpeed = e.atk === "lunge" ? 235 : type === "boss" ? 320 : 350;
+    e.timer = e.atk === "lunge" ? .17 : type === "boss" ? (zone === 1 ? .52 : .58) : .40;
+    e.dashSpeed = e.atk === "lunge" ? 235 : type === "boss" ? (zone === 1 ? 355 : 320) : 350;
     return;
   }
   if (e.atk === "area") {
@@ -842,23 +975,29 @@ function executeAttack(e) {
     if (type === "boss") {
       groundWarning(e.tx - 90, e.ty + 26, 46, 1.2);
       groundWarning(e.tx + 90, e.ty - 26, 46, 1.2);
-      if (e.phase === 2) {
+      // Zone 2+ fills more of the arena with ground hazards.
+      if (zone >= 2 || e.phase === 2) {
         groundWarning(e.tx, e.ty - 110, 46, 1.4);
         groundWarning(e.tx, e.ty + 110, 46, 1.4);
       }
+      if (zone >= 3 && e.phase === 2) {
+        groundWarning(e.tx - 70, e.ty - 70, 40, 1.55);
+        groundWarning(e.tx + 70, e.ty + 70, 40, 1.55);
+      }
     }
   } else if (e.atk === "ring") {
-    const count = e.phase === 2 ? 22 : 15;
-    const gap = e.angle + .5;
+    const count = type === "boss" ? bossRingCount(zone, e.phase) : (e.phase === 2 ? 22 : 15);
+    const gap = e.angle + (zone === 3 ? 0.38 : 0.5);
+    const gapWidth = zone === 3 ? 0.28 : 0.34;
     for (let i = 0; i < count; i++) {
       const a = i / count * TAU + time * .1;
       const delta = Math.atan2(Math.sin(a-gap), Math.cos(a-gap));
-      if (Math.abs(delta) > .34) enemyBullet(e, a, e.phase === 2 ? 116 : 97, 5);
+      if (Math.abs(delta) > gapWidth) enemyBullet(e, a, e.phase === 2 ? 116 : 97, 5);
     }
   } else if (e.atk === "fan") {
     fan(e, e.angle,
-      type === "boss" ? (e.phase === 2 ? 9 : 7) : type === "elite" ? 7 : 5,
-      type === "boss" ? 1.8 : 1.12,
+      type === "boss" ? bossFanCount(zone, e.phase) : type === "elite" ? 7 : 5,
+      type === "boss" ? (zone === 3 ? 2.05 : 1.8) : 1.12,
       type === "boss" ? 123 : 105
     );
   } else {
@@ -889,7 +1028,14 @@ function updateEnemy(e, dt) {
   if (e.type === "boss" && e.phase === 1 && e.hp < e.maxHP * .5) {
     e.phase = 2;
     e.color = "#ff507f";
-    notify("守門者狂怒 · 注意更密集的彈幕！", 2);
+    e.pattern = 0;
+    const zone = currentZone();
+    const rageHint = zone === 1
+      ? "守門者狂怒 · 連續衝刺！"
+      : zone === 2
+        ? "守門者狂怒 · 落區封鎖！"
+        : "守門者狂怒 · 環彈縫更窄！";
+    notify(rageHint, 2);
     burst(e.x, e.y, "#ff789d", 24);
   }
 
@@ -925,9 +1071,10 @@ function updateEnemy(e, dt) {
       e.y += Math.sin(angle) * e.speed * slowed * move * dt;
       if (e.cd <= 0) {
         if (e.type === "boss") {
-          const patterns = ["ring", "dash", "fan", "area"];
+          const zone = currentZone();
+          const patterns = bossPatterns(zone, e.phase);
           const kind = patterns[e.pattern++ % patterns.length];
-          beginAttack(e, kind, kind === "dash" ? .95 : .8);
+          beginAttack(e, kind, bossWindup(zone, kind));
         } else if (e.type === "dash") beginAttack(e, "dash", .8);
         else if (e.type === "aoe") beginAttack(e, "area", .55);
         else if (e.type === "spread" || e.type === "elite") beginAttack(e, "fan", .8);
@@ -1132,6 +1279,7 @@ function update(dt) {
     bullets = [];
     hazards = [];
     followShots = 0;
+    playArcherClear(false);
     runGold += awardedGold(5 + Math.ceil(room / 2), runMode);
     if (room % 3 === 0) {
       heal(stats.maxHP * .25);
@@ -2158,11 +2306,114 @@ window.__ASTRA_ARCHER__ = {
   get room() { return room; },
   get state() { return state; },
   get selectedMode() { return selectedMode; },
-  selectMode(id) { if (MODES[id]) { selectedMode = id; lobby({ preserveMode: true }); } },
+  get muted() { return isSfxMuted(); },
+  get daily() { return dailyChallenge(); },
+  get unlocks() { return { ...meta.unlocked }; },
+  selectMode(id) {
+    if (id === "daily" || MODES[id]) {
+      selectedMode = id;
+      lobby({ preserveMode: true });
+    }
+  },
   start(id) { startRun(id || selectedMode); },
+  startDaily() { startRun("daily"); },
+  buyUnlock(id) { buyMeta(id); },
+  setMuted(value) { setSfxMuted(!!value); if (state === "lobby") lobby({ preserveMode: true }); },
+  toggleMute() { toggleSfxMuted(); if (state === "lobby") lobby({ preserveMode: true }); },
   finish(win = false, retired = false) { finish(!!win, !!retired); },
   lobby() { lobby(); },
 };
+
+/** Optional WebMCP surface — same capabilities as __ASTRA_ARCHER__. */
+async function registerArcherWebMcp() {
+  if (!("modelContext" in document)) return;
+  const context = document.modelContext;
+  if (!context || typeof context.registerTool !== "function") return;
+  const tools = [
+    {
+      name: "stillshot_start",
+      description: "Start a Stillshot run. Pass mode id (easy|normal|hard|raid|raid_night|raid_glass|daily).",
+      inputSchema: {
+        type: "object",
+        properties: { mode: { type: "string" } },
+      },
+      async execute({ mode }) {
+        startRun(mode || selectedMode);
+        return { ok: true, mode: runMode, room };
+      },
+    },
+    {
+      name: "stillshot_start_daily",
+      description: "Start today's seeded Stillshot challenge (fixed rooms + banned abilities).",
+      inputSchema: { type: "object", properties: {} },
+      async execute() {
+        startRun("daily");
+        return { ok: true, daily: dailyChallenge(), room };
+      },
+    },
+    {
+      name: "stillshot_buy_unlock",
+      description: "Buy a permanent unlock with gold (startPierce, startMulti, healRooms, raidNight, …).",
+      inputSchema: {
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"],
+      },
+      async execute({ id }) {
+        const before = meta.gold;
+        buyMeta(id);
+        return { ok: meta.gold < before || isUnlockOwned(meta, id), unlocks: { ...meta.unlocked }, gold: meta.gold };
+      },
+    },
+    {
+      name: "stillshot_set_mute",
+      description: "Mute or unmute Stillshot / shared Astra SFX (persisted).",
+      inputSchema: {
+        type: "object",
+        properties: { muted: { type: "boolean" } },
+        required: ["muted"],
+      },
+      async execute({ muted }) {
+        setSfxMuted(!!muted);
+        return { muted: isSfxMuted() };
+      },
+    },
+    {
+      name: "stillshot_lobby",
+      description: "Return to the Stillshot lobby / meta tree.",
+      inputSchema: { type: "object", properties: {} },
+      async execute() {
+        lobby();
+        return { ok: true, state: "lobby", gold: meta.gold };
+      },
+    },
+    {
+      name: "stillshot_status",
+      description: "Read current Stillshot run / meta snapshot.",
+      inputSchema: { type: "object", properties: {} },
+      async execute() {
+        return {
+          state,
+          mode: runMode,
+          room,
+          gold: meta.gold,
+          unlocks: { ...meta.unlocked },
+          bestDaily: meta.bestDaily,
+          muted: isSfxMuted(),
+          daily: dailyChallenge(),
+        };
+      },
+    },
+  ];
+  for (const tool of tools) {
+    try {
+      await context.registerTool(tool);
+    } catch (_) {
+      /* browser may reject duplicate registration on hot reload */
+    }
+  }
+}
+registerArcherWebMcp();
 
 lobby();
 requestAnimationFrame(frame);
