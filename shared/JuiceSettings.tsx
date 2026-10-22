@@ -19,7 +19,7 @@ export interface JuiceSettingsPanelProps {
 const FX_OPTIONS: { value: JuiceFxLevel; label: string }[] = [
   { value: 'full', label: '完整' },
   { value: 'low', label: '輕量' },
-  { value: 'off', label: '關閉' },
+  { value: 'off', label: '無特效' },
 ];
 
 /**
