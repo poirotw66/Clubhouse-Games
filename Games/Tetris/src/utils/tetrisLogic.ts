@@ -348,17 +348,24 @@ export function createEmptyBoard(): Cell[][] {
   );
 }
 
-export function shuffleBag(bag: TetrominoType[]): TetrominoType[] {
+export function shuffleBagWith(
+  rand: () => number,
+  bag: TetrominoType[],
+): TetrominoType[] {
   const result = [...bag];
   for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rand() * (i + 1));
     [result[i], result[j]] = [result[j], result[i]];
   }
   return result;
 }
 
-export function createSevenBag(): TetrominoType[] {
-  return shuffleBag(['I', 'J', 'L', 'O', 'S', 'T', 'Z']);
+export function shuffleBag(bag: TetrominoType[]): TetrominoType[] {
+  return shuffleBagWith(Math.random, bag);
+}
+
+export function createSevenBag(rand: () => number = Math.random): TetrominoType[] {
+  return shuffleBagWith(rand, ['I', 'J', 'L', 'O', 'S', 'T', 'Z']);
 }
 
 export function getCellsForActive(piece: ActivePiece): Position[] {
@@ -734,7 +741,15 @@ export function applyGarbage(board: Cell[][], lines: number, holeCol: number): C
 
 /* ---------------- Game modes ---------------- */
 
-export type Mode = 'marathon' | 'sprint' | 'ultra' | 'versus';
+export type Mode =
+  | 'marathon'
+  | 'sprint'
+  | 'ultra'
+  | 'versus'
+  | 'dailySprint'
+  | 'dailyUltra'
+  | 'cheese'
+  | 'tspin';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -743,8 +758,8 @@ interface ModeConfig {
   blurb: string;
   lineGoal: number | null;
   timeLimitMs: number | null;
-  rank: 'fastest' | 'highest' | 'wins';
-  recordKind: 'time' | 'score' | 'wins';
+  rank: 'fastest' | 'highest' | 'wins' | 'stars';
+  recordKind: 'time' | 'score' | 'wins' | 'stars';
 }
 
 export const MODES: Record<Mode, ModeConfig> = {
@@ -780,6 +795,38 @@ export const MODES: Record<Mode, ModeConfig> = {
     rank: 'wins',
     recordKind: 'wins',
   },
+  dailySprint: {
+    label: '每日 40 行',
+    blurb: '今日固定序列，挑戰最快 40 行',
+    lineGoal: 40,
+    timeLimitMs: null,
+    rank: 'fastest',
+    recordKind: 'time',
+  },
+  dailyUltra: {
+    label: '每日 Ultra',
+    blurb: '今日固定序列，兩分鐘衝高分',
+    lineGoal: null,
+    timeLimitMs: 2 * 60 * 1000,
+    rank: 'highest',
+    recordKind: 'score',
+  },
+  cheese: {
+    label: 'Cheese 練習',
+    blurb: '挖掉垃圾行，練對戰清場',
+    lineGoal: 10,
+    timeLimitMs: null,
+    rank: 'stars',
+    recordKind: 'stars',
+  },
+  tspin: {
+    label: 'T-Spin 小題',
+    blurb: '固定盤面，打出指定 T-Spin',
+    lineGoal: null,
+    timeLimitMs: null,
+    rank: 'stars',
+    recordKind: 'stars',
+  },
 };
 
 export function isGoalMet(mode: Mode, lines: number, elapsedMs: number): boolean {
@@ -787,6 +834,18 @@ export function isGoalMet(mode: Mode, lines: number, elapsedMs: number): boolean
   if (config.lineGoal !== null && lines >= config.lineGoal) return true;
   if (config.timeLimitMs !== null && elapsedMs >= config.timeLimitMs) return true;
   return false;
+}
+
+export function isVersusMode(mode: Mode): boolean {
+  return mode === 'versus';
+}
+
+export function isDailyMode(mode: Mode): boolean {
+  return mode === 'dailySprint' || mode === 'dailyUltra';
+}
+
+export function isPracticeMode(mode: Mode): boolean {
+  return mode === 'cheese' || mode === 'tspin';
 }
 
 /* ---------------- Presentation ---------------- */
