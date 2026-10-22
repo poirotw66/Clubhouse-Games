@@ -192,7 +192,18 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
 .result-checklist .ok{color:#b6d392}.result-checklist .bad{color:#d9a18f}.result-checklist .soft{color:#d2c58f}
 .help-grid{display:grid;gap:12px;margin-top:18px}
 .help-grid strong{color:var(--gold)}
-.route-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0 6px}
+.route-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin:10px 0 6px}
+.daily-panel{
+  margin:12px 0 4px;padding:12px 14px;background:#151e18;border:1px solid #5c664c;
+}
+.daily-panel .daily-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
+.daily-panel .daily-meta{font-size:10px;color:#aeb99a;line-height:1.45;margin-top:8px}
+.daily-panel .daily-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.daily-panel textarea{
+  width:100%;min-height:72px;margin-top:8px;resize:vertical;font:11px/1.4 "Courier New",monospace;
+  background:#101613;color:#d8d2b2;border:1px solid #4f5a46;padding:8px;
+}
+.daily-chip{display:inline-block;padding:2px 7px;border:1px solid #7a7355;color:#e0d4a4;font-size:9px;letter-spacing:1px;margin-right:4px}
 .route-pick{
   text-align:left;padding:12px;background:#1c261f;border:1px solid #4f5a46;color:#c4cbb0;cursor:pointer;min-height:96px;
 }
@@ -235,6 +246,7 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
   .controls button{padding:6px 8px}.subtitle{letter-spacing:2px}
   .hand-header small{display:none}.boss-area{width:150px}
   .expedition-grid{grid-template-columns:1fr}
+  .route-grid{grid-template-columns:1fr}
 }
 @media(max-width:720px){
   .header{align-items:flex-start;flex-direction:column}.controls{width:100%}
@@ -247,9 +259,15 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
   .section-heading{grid-column:1/3}#equipment{grid-column:1/3;grid-template-columns:1fr 1fr}
   #loot{grid-column:1/3;grid-template-columns:1fr 1fr}.potion-row,#journal{grid-column:1/3}
   .footer{font-size:8px;letter-spacing:0}.modal{padding:20px}.modal h2{font-size:29px}
-  .route-grid,.craft-grid,.upgrade-grid{grid-template-columns:1fr}
+  .route-grid{grid-template-columns:1fr}.craft-grid,.upgrade-grid{grid-template-columns:1fr}
+  .daily-panel .daily-actions{flex-direction:column}
+  .daily-panel .daily-actions button{width:100%}
 }
-@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media(prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+  .loot-item{animation:none!important}
+  #loopBanner,#notification{transition:none!important}
+}
 </style>
 </head>
 <body>
@@ -373,6 +391,25 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
     <div class="result-line" id="runResult"></div>
     <div class="result-badges" id="resultBadges" hidden></div>
     <ul class="result-checklist" id="resultChecklist" hidden></ul>
+    <div class="section-heading" style="padding-left:0;padding-top:14px"><span>DAILY LOOP · TAIPEI</span><span>SEED · BEST · STREAK</span></div>
+    <div class="daily-panel" id="dailyPanel" data-testid="daily-panel">
+      <div class="daily-head">
+        <div>
+          <div class="eyebrow">ASIA / TAIPEI</div>
+          <strong id="dailyDateLabel">—</strong>
+        </div>
+        <div>
+          <span class="daily-chip" id="dailyStreakChip">STREAK 0</span>
+          <span class="daily-chip" id="dailyBestChip">BEST —</span>
+        </div>
+      </div>
+      <div class="daily-meta" id="dailyMeta"></div>
+      <div class="daily-actions">
+        <button type="button" id="dailyStartBtn" class="primary" data-testid="daily-start">今日迴路 →</button>
+        <button type="button" id="dailyShareBtn" data-testid="daily-share">複製分享文字</button>
+      </div>
+      <textarea id="dailyShareText" readonly aria-label="Daily share text" data-testid="daily-share-text"></textarea>
+    </div>
     <div class="section-heading" style="padding-left:0;padding-top:14px"><span>CHOOSE A ROUTE</span><span>MAP · KEEPER</span></div>
     <div class="route-grid" id="routeGrid" role="radiogroup" aria-label="Expedition route"></div>
     <div class="section-heading" style="padding-left:0;padding-top:14px"><span>CHOOSE AN EXPEDITION</span><span>GOAL · DIFFICULTY</span></div>
@@ -394,7 +431,7 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
     <p>You do not command the traveller. You decide what waits — and when to leave.</p>
     <div class="howto-steps">
       <div><strong>01 · Shape the loop</strong>The hero walks and fights alone. Place cards on lit cells to grow danger and rewards. The boss meter shows cards remaining to the Bell.</div>
-      <div><strong>02 · Pick a route and expedition</strong>Drowned Verge or Ashen Coil (unlock later). Ember / Wick / Ash set the goal. Craft buildings with bank materials.</div>
+      <div><strong>02 · Pick a route and expedition</strong>Drowned Verge, Ashen Coil, or Glassmere Rill (unlock later). Ember / Wick / Ash set the goal. Try the Taipei daily loop. Craft buildings with bank materials.</div>
       <div><strong>03 · Know the exit</strong>Camp keeps 100% haul · road retreat 60% · death 25%. Meet the goal to clear the tier.</div>
     </div>
     <div class="actions"><button id="howtoClose" class="primary">Choose an expedition</button></div>
@@ -409,9 +446,10 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
       <div><strong>01 · Walk without orders.</strong><br>The traveller follows the road and fights automatically. Camp restores 40% HP and refills draughts each circuit.</div>
       <div><strong>02 · Remember the world.</strong><br>Select or drag a card onto a highlighted cell. Road cards occupy the path; verge cards must touch it. Every placement awakens the Bell.</div>
       <div><strong>03 · Wear what survives.</strong><br>Click recovered equipment to replace a relic. Hover to compare. Arrows compare total weighted power, not your build.</div>
-      <div><strong>04 · Choose a route and expedition.</strong><br>Drowned Verge faces the Ninth Bell; Ashen Coil faces the Hollow Peal (unlock by clearing Wick or crafting the Cartographer's Desk). Ember / Wick / Ash set the goal.</div>
+      <div><strong>04 · Choose a route and expedition.</strong><br>Drowned Verge faces the Ninth Bell; Ashen Coil faces the Hollow Peal (unlock by clearing Wick or crafting the Cartographer's Desk). Glassmere Rill faces the Stillglass Knell after clearing the first two routes. Ember / Wick / Ash set the goal.</div>
       <div><strong>05 · Craft at camp.</strong><br>Spend bank materials on refuge buildings to unlock event cards, start with Bell progress, or open the second route.</div>
-      <div><strong>06 · Know when to leave.</strong><br>Camp retreat: 100% resources. Elsewhere: 60%. Death: 25%. The boss meter shows how many card placements remain until the Bell.</div>
+      <div><strong>06 · Daily loop (Taipei).</strong><br>Each Asia/Taipei calendar day seeds a route, opening hand, and one modifier. Track today's best circuit and your goal-clear streak; copy the share text.</div>
+      <div><strong>07 · Know when to leave.</strong><br>Camp retreat: 100% resources. Elsewhere: 60%. Death: 25%. The boss meter shows how many card placements remain until the Bell.</div>
     </div>
     <div class="actions"><button id="helpClose" class="primary">I will remember.</button></div>
   </div>
@@ -421,37 +459,51 @@ kbd{font:9px monospace;color:#bdbea0;border-bottom:1px solid #5e6750;padding:0 3
 "use strict";
 
 import {
+  BASE_CARD_KEYS,
   BOSS_DEFS,
   CRAFT_BUILDINGS,
+  DAILY_SAVE_KEY,
   ELITE_MODIFIERS,
   EVENT_CARD_DEFS,
   EXPEDITIONS,
+  ROUTE_CARD_DEFS,
   ROUTES,
   ROUTE_ORDER,
   SAVE_KEY,
   SAVE_KEY_LEGACY_V1,
   SAVE_KEY_LEGACY_V2,
+  SAVE_KEY_LEGACY_V3,
   applyEliteModifier,
   bossProgressLabel,
+  cardPoolForRoute,
   cardsUntilBell,
   craftBuilding,
+  currentDailyStreak,
+  dailyChallenge,
   emptyCleared,
   emptyResources,
+  emptyRouteClears,
   evaluateGoal as evaluateGoalStatus,
   eventCardPool,
+  formatDailyShareText,
   getBossDef,
+  getDailyModifier,
   getExpedition,
   getRoute,
   isRouteUnlocked,
+  mergeDailyAttempt,
+  migrateDailyPersist,
   migrateMeta,
   pickEliteModifier,
   sealHintText,
   startingBossProgress,
+  todayKeyTaipei,
 } from "./rules.mjs";
 import {
   playBellAwaken,
   playCardPlace,
   playCraft,
+  playDailyChime,
   playEliteMod,
   playEventCard,
 } from "../shared/sfx.mjs";
@@ -469,7 +521,8 @@ function loadMeta(){
   try{
     let raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(!raw){
-      raw=JSON.parse(localStorage.getItem(SAVE_KEY_LEGACY_V2)||"null")
+      raw=JSON.parse(localStorage.getItem(SAVE_KEY_LEGACY_V3)||"null")
+        || JSON.parse(localStorage.getItem(SAVE_KEY_LEGACY_V2)||"null")
         || JSON.parse(localStorage.getItem(SAVE_KEY_LEGACY_V1)||"null");
     }
     return migrateMeta(raw);
@@ -480,15 +533,29 @@ function saveMeta(){
   try{localStorage.setItem(SAVE_KEY,JSON.stringify(meta))}
   catch(e){storageAvailable=false}
 }
-function currentExpedition(){return getExpedition(meta.expeditionId)}
-function currentRoute(){return getRoute(meta.routeId)}
+function loadDaily(){
+  try{
+    return migrateDailyPersist(JSON.parse(localStorage.getItem(DAILY_SAVE_KEY)||"null"));
+  }catch(e){return migrateDailyPersist(null)}
+}
+let dailyPersist=loadDaily();
+function saveDaily(){
+  try{localStorage.setItem(DAILY_SAVE_KEY,JSON.stringify(dailyPersist))}
+  catch(e){}
+}
+function currentExpedition(){
+  return getExpedition(game?.expeditionId||meta.expeditionId);
+}
+function currentRoute(){return getRoute(game?.routeId||meta.routeId)}
 function currentBoss(){return getBossDef(currentRoute().bossId)}
 function currentPath(){return currentRoute().path}
+const reduceMotion=()=>window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 let uid=0, game=null, paused=false, speed=1, selected=null, hoverCell=null;
 let modalPause=false, uiClock=0, worldTime=0;
 let journal=[], particles=[], floaters=[], shake=0;
 let notifyTimer=0, bannerTimer=0;
 let audio=null, soundOn=false;
+let dailyPlan=dailyChallenge(todayKeyTaipei());
 function sound(kind){
   if(!soundOn)return;
   if(kind==="place"){playCardPlace();return}
@@ -496,6 +563,7 @@ function sound(kind){
   if(kind==="craft"){playCraft();return}
   if(kind==="elite"){playEliteMod();return}
   if(kind==="event"){playEventCard();return}
+  if(kind==="daily"){playDailyChime();return}
   try{
     audio ||= new (window.AudioContext||window.webkitAudioContext)();
     if(audio.state==="suspended") audio.resume();
@@ -652,9 +720,19 @@ const PALETTES={
   mage:{c:"#637d91",b:"#3c4d69",w:"#b8eddf",p:"#a9c3bc",a:"#8ee2da",s:"#878570"},
   elite:{g:"#d2a65b",d:"#807260",k:"#33342d",w:"#f2ce83",r:"#875b60"},
   boss:{g:"#b29a62",m:"#5b6d65",k:"#172e2c",a:"#b7f6d5",d:"#8f794d",c:"#4f6771",b:"#31474f"},
-  boss_hollow:{g:"#c4a070",m:"#6d5b4a",k:"#2c1e17",a:"#f6d5b7",d:"#8f6d4d",c:"#71614f",b:"#4f3d31"}
+  boss_hollow:{g:"#c4a070",m:"#6d5b4a",k:"#2c1e17",a:"#f6d5b7",d:"#8f6d4d",c:"#71614f",b:"#4f3d31"},
+  boss_glass:{g:"#8eb8c4",m:"#4a6570",k:"#142028",a:"#d5f0f6",d:"#6d8f9a",c:"#4f7178",b:"#31474f"},
+  brine:{s:"#8aa8a8",m:"#4a6568",y:"#c8e0d8",d:"#3a4c4e"},
+  echo:{c:"#7a9cb0",b:"#3c5569",w:"#d8f0f0",p:"#a9c3bc",a:"#b8e8f0",s:"#878570"},
+  reedkin:{r:"#6a9078",k:"#2a2e28",y:"#c8e0a0",d:"#405848"},
+  prism:{g:"#b8a0d0",d:"#605870",k:"#2a2834",w:"#e8d8f8",r:"#8870a0"}
 };
 SPRITES.boss_hollow = SPRITES.boss;
+SPRITES.boss_glass = SPRITES.boss;
+SPRITES.brine = SPRITES.armor;
+SPRITES.echo = SPRITES.mage;
+SPRITES.reedkin = SPRITES.fast;
+SPRITES.prism = SPRITES.elite;
 function drawSprite(ctx,type,x,y,s=2,opts={}){
   const rows=SPRITES[type]||SPRITES.moss,pal=PALETTES[type]||PALETTES.moss;
   const w=Math.max(...rows.map(r=>r.length))*s,h=rows.length*s;
@@ -720,6 +798,20 @@ function drawStructure(ctx,type,x,y,s=1,time=0){
       rect(-16,8,32,6,"#3a4550");
       ctx.fillStyle="#6a8494";ctx.beginPath();ctx.arc(0,-8,14,0,Math.PI*2);ctx.fill();
       ctx.fillStyle="#1a2228";ctx.beginPath();ctx.arc(5,-8,12,0,Math.PI*2);ctx.fill();break;
+    case "mirror":
+      rect(-14,6,28,8,"#4a6068");rect(-12,-18,24,26,"#8ec4d0");
+      rect(-8,-14,10,18,"#d8f4f8");rect(2,-10,6,12,"#a8dce8");break;
+    case "reed":
+      rect(-16,8,32,6,"#3a5040");
+      for(let i=0;i<5;i++){rect(-12+i*6,-22+i%2*4,3,30,"#6a9078");rect(-11+i*6,-28+i%2*3,2,8,"#a8d090")}
+      break;
+    case "tide":
+      rect(-16,4,32,10,"#456070");rect(-12,-4,24,10,"#6a90a8");
+      rect(-8,-14,16,12,"#90c0d8");rect(-3,-22,6,10,"#c8e8f0");break;
+    case "shard":
+      rect(-10,6,20,8,"#5a5070");
+      ctx.fillStyle="#c4b8e0";ctx.beginPath();ctx.moveTo(0,-32);ctx.lineTo(14,4);ctx.lineTo(-14,4);ctx.fill();
+      rect(-3,-18,6,16,"#e8d8f8");break;
   }
   ctx.restore();
 }
@@ -736,9 +828,13 @@ const CARD_DEFS={
   basin:{name:"Starglass Font",where:"road",short:"Heal 9% each pass.\nAll foes gain 4% HP.",effect:"Heals 9% max HP once per circuit when passed. All newly spawned enemies gain 4% max HP per font.",color:"#a9cccf"},
   bastion:{name:"Rook Bastion",where:"verge",short:"+3 adjacent defense.\n−2% attack speed.",effect:"Hero gains +3 defense while on adjacent road tiles. Its oppressive shadow lowers global hero attack speed by 2%.",color:"#b5bd94"},
   dial:{name:"Briar Orrery",where:"verge",short:"+4% critical chance.\n−5 maximum HP.",effect:"+4% hero critical chance and −5 max HP. Unlocked permanently at the refuge.",color:"#c0b483"},
+  ...ROUTE_CARD_DEFS,
   ...EVENT_CARD_DEFS
 };
-const CARD_KEYS=Object.keys(CARD_DEFS).filter(k=>k!=="dial"&&!CARD_DEFS[k].event);
+const CARD_KEYS=BASE_CARD_KEYS.slice();
+function activeCardPool(){
+  return cardPoolForRoute(game?.routeId||meta.routeId, meta.upgrades);
+}
 function makeMap(){
   const path=currentPath();
   const cells=[];
@@ -768,7 +864,7 @@ function validPlacement(c,key){
 }
 function grantCard(key){
   if(game.hand.length>=10){game.resources.wood++;return}
-  const pool=meta.upgrades.dial?[...CARD_KEYS,"dial"]:CARD_KEYS;
+  const pool=activeCardPool();
   game.hand.push({id:++uid,key:key||pick(pool)});renderHand();
 }
 function grantEventCard(){
@@ -788,7 +884,7 @@ function placeCard(c){
   }
   const def=CARD_DEFS[card.key];
   c.structure=card.key;game.hand=game.hand.filter(v=>v.id!==selected);selected=null;
-  const gain=currentExpedition().bossGain+(def.bossBonus||0);
+  const gain=currentExpedition().bossGain+(def.bossBonus||0)+(game.dailyMod?.bossGainBonus||0);
   game.placed++;game.bossProgress=clamp(game.bossProgress+gain,0,100);
   const p=center(c);burst(p.x,p.y,def.color,22);
   sound("place");log(def.name+" remembered.");
@@ -796,6 +892,7 @@ function placeCard(c){
   if(card.key==="burrow")spawnNearby(c,"fast");
   if(card.key==="lantern"&&Math.random()<.45)spawnNearby(c,"elite");
   if(card.key==="omen")spawnNearby(c,"moss");
+  if(card.key==="mirror")spawnNearby(c,"echo");
   recalcHero();renderHand();
   if(game.bossProgress>=100&&!game.bossSpawned)awakenBoss();
   renderUI();
@@ -831,8 +928,10 @@ function recalcHero(adjustHP=false){
   for(const item of Object.values(h.equipment))for(const [k,v] of Object.entries(item.stats))s[k]+=v;
   s.attack+=totalStructure("altar")*2;
   s.speed+=totalStructure("grove")*.03-totalStructure("bastion")*.02;
-  s.crit+=totalStructure("dial")*.04;
+  s.crit+=totalStructure("dial")*.04+totalStructure("shard")*.03;
+  s.evasion+=totalStructure("reed")*.03;
   s.maxHp-=totalStructure("dial")*5;
+  if(game.dailyMod?.startHpMul) s.maxHp*=game.dailyMod.startHpMul;
   s.maxHp=Math.max(45,Math.round(s.maxHp));s.speed=clamp(s.speed,.55,3.5);
   s.evasion=clamp(s.evasion,0,.45);s.crit=clamp(s.crit,0,.65);s.vamp=clamp(s.vamp,0,.35);
   h.stats=s;
@@ -862,8 +961,9 @@ function itemTooltip(it,compare=false){
 }
 function generateLoot(enemy,tile){
   let r=Math.random(),rarity=r<.45?0:r<.78?1:r<.96?2:3;
-  if(enemy.type==="elite")rarity=Math.max(rarity,1);
+  if(enemy.type==="elite"||enemy.type==="prism")rarity=Math.max(rarity,1);
   if(nearbyCount(tile,"lantern"))rarity=Math.min(3,rarity+1);
+  if(game.dailyMod?.lootTierBonus)rarity=Math.min(3,rarity+game.dailyMod.lootTierBonus);
   const slot=pick(Object.keys(SLOT_NAMES)),p=1+game.loop*.6+rarity*1.3;
   const names={
     weapon:["Cleaver","Pike","Needle","Falchion","Crook"],
@@ -914,20 +1014,30 @@ const ENEMIES={
   armor:{name:"Bell Husk",kind:"Construct / armored",hp:38,attack:8,defense:4,speed:.68,xp:6,color:"#bbc4b0"},
   mage:{name:"Pale Cantor",kind:"Apparition / magical",hp:29,attack:9,defense:0,speed:.9,xp:6,color:"#a5d4d8"},
   elite:{name:"Gilt Devourer",kind:"Elite / lifedrinker",hp:67,attack:12,defense:3,speed:.92,xp:11,color:"#e0b570"},
+  brine:{name:"Saltglass Wight",kind:"Glassmere / armored",hp:44,attack:9,defense:5,speed:.62,xp:7,color:"#8aa8a8"},
+  echo:{name:"Echo Moth",kind:"Glassmere / magical",hp:26,attack:10,defense:0,speed:1.15,xp:6,color:"#7a9cb0"},
+  reedkin:{name:"Glassreed Skitter",kind:"Glassmere / fast",hp:22,attack:6,defense:1,speed:1.65,xp:5,color:"#6a9078"},
+  prism:{name:"Prism Host",kind:"Glassmere / elite",hp:72,attack:13,defense:4,speed:.95,xp:13,color:"#b8a0d0"},
   boss:{...BOSS_DEFS.boss},
-  boss_hollow:{...BOSS_DEFS.boss_hollow}
+  boss_hollow:{...BOSS_DEFS.boss_hollow},
+  boss_glass:{...BOSS_DEFS.boss_glass}
 };
-function isBossType(type){return type==="boss"||type==="boss_hollow"}
+function isBossType(type){return type==="boss"||type==="boss_hollow"||type==="boss_glass"}
+function routeEnemyPool(){
+  const exclusive=currentRoute().exclusiveEnemies;
+  if(exclusive?.length) return exclusive;
+  return ["moss","fast","armor","mage"];
+}
 function makeEnemy(type,c){
   const d=ENEMIES[type]||ENEMIES.moss,exp=currentExpedition(),scale=(1+(game.loop-1)*.23)*exp.enemyScale;
   const boss=isBossType(type);
   const hp=Math.round(d.hp*(boss?1+(game.loop-1)*.1:scale)*(1+totalStructure("basin")*.04));
   let enemy={id:++uid,type,name:d.name,hp,maxHp:hp,
     attack:d.attack*(boss?1+(game.loop-1)*.13:scale)*(1+nearbyCount(c,"altar")*.2)*(1-eclipseDefenseBonus(c)),
-    defense:d.defense+Math.floor((game.loop-1)*.45*(boss?1:exp.enemyScale)),
-    speed:d.speed*(1+totalStructure("grove")*.01),
-    xp:d.xp,flash:0,hitTimer:.75,heroTimer:.3,toll:6,attacks:0,modifierId:null,pierce:0};
-  if(type==="elite"){
+    defense:d.defense+Math.floor((game.loop-1)*.45*(boss?1:exp.enemyScale))+(game.dailyMod?.enemyDefenseAdd||0)+nearbyCount(c,"shard")*2,
+    speed:d.speed*(1+totalStructure("grove")*.01)*(game.dailyMod?.enemySpeedMul||1),
+    xp:d.xp,flash:0,hitTimer:.75,heroTimer:.3,toll:6,attacks:0,modifierId:null,pierce:nearbyCount(c,"reed")*.12};
+  if(type==="elite"||type==="prism"){
     const modId=pickEliteModifier();
     enemy=applyEliteModifier(enemy,modId);
     enemy.name=`${ELITE_MODIFIERS[modId].label} ${d.name}`;
@@ -937,17 +1047,21 @@ function makeEnemy(type,c){
 function spawnEnemy(c,type){
   if(!c||c.roadIndex===0||c.enemies.length>=3)return;
   if(!type){
-    const eliteChance=.015+(game.loop-1)*.008+nearbyCount(c,"lantern")*.15;
-    type=Math.random()<eliteChance?"elite":
-      game.loop===1?pick(["moss","moss","fast"]):pick(["moss","fast","armor","mage"]);
+    const pool=routeEnemyPool();
+    const eliteChance=.015+(game.loop-1)*.008+nearbyCount(c,"lantern")*.15+(game.dailyMod?.eliteChanceBonus||0);
+    const eliteType=pool.includes("prism")?"prism":"elite";
+    type=Math.random()<eliteChance?eliteType:
+      game.loop===1?pick([pool[0],pool[0],pool[2]||pool[1]||pool[0]]):pick(pool);
   }
   const enemy=makeEnemy(type,c);
   c.enemies.push(enemy);
-  if(type==="elite"&&enemy.modifierId) sound("elite");
+  if((type==="elite"||type==="prism")&&enemy.modifierId) sound("elite");
 }
 function spawnCircuit(initial=false){
+  const pool=routeEnemyPool();
   if(initial){
-    [2,6,12,17].forEach((i,j)=>spawnEnemy(roadAt(i),j===2?"fast":"moss"));
+    const early=pool.includes("reedkin")?["brine","reedkin","echo","brine"]:["moss","moss","fast","moss"];
+    [2,6,12,17].forEach((i,j)=>spawnEnemy(roadAt(i),early[j]||pool[0]));
     return;
   }
   const count=Math.min(11,Math.max(2,4+game.loop+currentExpedition().spawnBonus));
@@ -958,7 +1072,8 @@ function spawnCircuit(initial=false){
   for(const c of game.map){
     if(c.structure==="cairn")spawnEnemy(c,"armor");
     if(c.structure==="burrow")spawnNearby(c,"fast");
-    if(c.structure==="lantern"&&Math.random()<.45)spawnNearby(c,"elite");
+    if(c.structure==="lantern"&&Math.random()<.45)spawnNearby(c,pool.includes("prism")?"prism":"elite");
+    if(c.structure==="mirror")spawnNearby(c,"echo");
   }
 }
 function awakenBoss(bossType){
@@ -968,7 +1083,7 @@ function awakenBoss(bossType){
   banner(boss.awakenTitle,boss.awakenSub);
   notify(`${boss.name} answers the road. The seal is occupied.`,6);
   log(`${boss.name} manifests at the ${currentRoute().sealLabel.toLowerCase()} seal.`);
-  const p=center(c);burst(p.x,p.y,boss.color,50);shake=8;sound("bell");
+  const p=center(c);burst(p.x,p.y,boss.color,50);if(!reduceMotion())shake=8;sound("bell");
 }
 function nextCircuit(){
   game.loop++;meta.best=Math.max(meta.best,game.loop);
@@ -1018,6 +1133,8 @@ function arrive(){
       heal(h.stats.maxHp*(funded?.14:.04),"ASHSTEAD");c.lastHeal=game.loop;
     }
     if(c.structure==="basin"){heal(h.stats.maxHp*.09,"STARGLASS");c.lastHeal=game.loop}
+    if(c.structure==="mirror"){heal(h.stats.maxHp*.08,"STILLGLASS");c.lastHeal=game.loop}
+    if(c.structure==="tide"){heal(h.stats.maxHp*.06,"TIDEMOON");c.lastHeal=game.loop}
   }
   h.wait=.2;
 }
@@ -1035,7 +1152,7 @@ function startCombat(c){
   $("combatHud").style.display="block";
   if(isBossType(e.type)){
     notify("THE TOLL — every six seconds, armor will not save you.",5);
-    sound("bell");shake=5;
+    sound("bell");if(!reduceMotion())shake=5;
   }else if(e.modifierLabel){
     notify(`${e.modifierLabel} elite · ${e.modifierBlurb}`,3.5);
   }
@@ -1046,7 +1163,7 @@ function damageHero(amount,piercing=false,pierceFrac=0){
   const damage=Math.max(1,Math.round(amount-def));
   h.hp=Math.max(0,h.hp-damage);h.flash=.16;
   floating(p.x-14,p.y-42,"−"+damage,piercing||pierceFrac?"#c7a1e4":"#e0997e",piercing?21:15);
-  burst(p.x,p.y-15,"#b97c61",6);shake=Math.max(shake,damage>14?5:2);sound("hurt");
+  burst(p.x,p.y-15,"#b97c61",6);if(!reduceMotion())shake=Math.max(shake,damage>14?5:2);sound("hurt");
   if(h.hp>0&&h.hp<h.stats.maxHp*.3&&h.potions>0){
     h.potions--;heal(h.stats.maxHp*.35,"DRAUGHT");log("An ember draught keeps the wick alive.");
   }
@@ -1061,7 +1178,7 @@ function updateCombat(dt){
   if(isBossType(e.type)){
     e.toll-=dt;
     if(e.toll<=0){
-      e.toll=6;shake=10;sound("bell");burst(p.x,p.y-12,"#adcfbb",45);
+      e.toll=6;if(!reduceMotion())shake=10;sound("bell");burst(p.x,p.y-12,"#adcfbb",45);
       damageHero(h.stats.maxHp*.16,true);
       if(game.phase!=="run")return;
       const toll=getBossDef(e.type).tollLabel||"THE TOLL";
@@ -1075,7 +1192,7 @@ function updateCombat(dt){
     e.hp=Math.max(0,e.hp-dmg);e.flash=.13;
     floating(p.x+26,p.y-48,(crit?"✦ ":"")+dmg,crit?"#f6d58b":"#e0dbc3",crit?21:16);
     burst(p.x+23,p.y-20,(ENEMIES[e.type]||ENEMIES.elite).color,crit?12:5);sound("hit");
-    if(crit)shake=Math.max(shake,3);
+    if(crit&&!reduceMotion())shake=Math.max(shake,3);
     if(h.stats.vamp)heal(dmg*h.stats.vamp);
     if(e.hp<=0){defeatEnemy(combat);return}
   }
@@ -1083,8 +1200,8 @@ function updateCombat(dt){
     e.hitTimer+=1/e.speed;e.attacks++;
     if(Math.random()<h.stats.evasion)floating(p.x-18,p.y-43,"DODGE","#a1caca",14);
     else{
-      const damage=damageHero(e.attack*rand(.9,1.1),e.type==="mage",e.pierce||0);
-      if(e.type==="elite"&&game.phase==="run"){
+      const damage=damageHero(e.attack*rand(.9,1.1),e.type==="mage"||e.type==="echo",e.pierce||0);
+      if((e.type==="elite"||e.type==="prism")&&game.phase==="run"){
         e.hp=Math.min(e.maxHp,e.hp+damage*.25);
         floating(p.x+25,p.y-35,"SIPHON","#d6b27e",11);
       }
@@ -1100,15 +1217,17 @@ function defeatEnemy(combat){
     for(const k in game.resources)game.resources[k]+=15;
     finishRun("victory",1);return;
   }
-  const reward=1+Math.floor(game.loop/2)+(e.type==="elite"?2:0);
-  const material=e.type==="armor"?"iron":e.type==="mage"?"dust":e.type==="fast"?"wood":pick(["wood","stone"]);
+  const reward=1+Math.floor(game.loop/2)+(e.type==="elite"||e.type==="prism"?2:0);
+  const material=e.type==="armor"||e.type==="brine"?"iron":
+    e.type==="mage"||e.type==="echo"?"dust":
+    e.type==="fast"||e.type==="reedkin"?"wood":pick(["wood","stone"]);
   game.resources[material]+=int(1,2)+reward;
   game.resources[pick(["wood","stone","dust","iron"])]+=reward;
   if(tile.structure==="cairn")game.resources.stone+=2;
   gainXP(e.xp+Math.floor(game.loop/2));
   const cardChance=.64+Math.min(.15,game.loop*.018)+nearbyCount(tile,"burrow")*.25;
   if(Math.random()<cardChance)grantCard();
-  if(game.hero.kills===1||Math.random()<.64+(e.type==="elite"?.3:0))generateLoot(e,tile);
+  if(game.hero.kills===1||Math.random()<.64+(e.type==="elite"||e.type==="prism"?.3:0))generateLoot(e,tile);
   if(game.hero.kills===1)notify("A relic survived. Click it in the right panel to equip.",5);
   log(e.name+" falls. +"+(reward+1)+" "+shortResource[material]+".");
 }
@@ -1219,11 +1338,20 @@ function updateMapChrome(){
   const tag=$("mapTag");
   if(tag) tag.innerHTML=`<span>↟</span> CAMP<br><span>◉</span> BELL SEAL / ${route.sealLabel}`;
   const title=document.querySelector(".map-panel .panel-title span");
-  if(title) title.textContent=route.id==="ashen"?"01 / THE ASHEN COIL":"01 / THE DROWNED VERGE";
+  if(title){
+    title.textContent=route.id==="ashen"?"01 / THE ASHEN COIL":
+      route.id==="glassmere"?"01 / THE GLASSMERE RILL":"01 / THE DROWNED VERGE";
+  }
   const area=$("bossArea");
   if(area) area.dataset.tip=`${boss.name}\nCard placements awaken the keeper (+expedition % each).\nAt 100%, it manifests on the ${route.sealLabel.toLowerCase()} seal.\n${sealHintText(currentExpedition(),game?.bossProgress||0)}`;
   const stir=$("bossStirLabel");
-  if(stir) stir.textContent=route.id==="ashen"?"THE PEAL STIRS":"THE BELL STIRS";
+  if(stir) stir.textContent=route.id==="ashen"?"THE PEAL STIRS":
+    route.id==="glassmere"?"THE KNELL STIRS":"THE BELL STIRS";
+}
+function routeLockBlurb(id){
+  if(id==="ashen") return "Clear Wick on Drowned Verge, or craft the Cartographer's Desk.";
+  if(id==="glassmere") return "Clear a goal on both Drowned Verge and Ashen Coil.";
+  return "Locked.";
 }
 function renderRoutes(){
   const grid=$("routeGrid");
@@ -1234,11 +1362,38 @@ function renderRoutes(){
     const b=document.createElement("button");
     b.type="button";b.className="route-pick"+(meta.routeId===id?" selected":"");
     b.disabled=!unlocked;
+    b.dataset.route=id;
     b.setAttribute("role","radio");b.setAttribute("aria-checked",meta.routeId===id?"true":"false");
-    b.innerHTML=`<span class="tier">${unlocked?"ROUTE":"LOCKED"}</span><strong>${route.name}</strong><span class="goal">${unlocked?route.blurb:`Clear Wick on Drowned Verge, or craft the Cartographer's Desk.`}<br>Keeper: ${boss.name}</span>`;
+    b.innerHTML=`<span class="tier">${unlocked?"ROUTE":"LOCKED"}</span><strong>${route.name}</strong><span class="goal">${unlocked?route.blurb:routeLockBlurb(id)}<br>Keeper: ${boss.name}</span>`;
     b.onclick=()=>selectRoute(id);
     return b;
   }));
+}
+function renderDailyPanel(){
+  dailyPlan=dailyChallenge(todayKeyTaipei());
+  const day=dailyPersist.days[dailyPlan.dateKey];
+  const streak=currentDailyStreak(dailyPersist, dailyPlan.dateKey);
+  const route=getRoute(dailyPlan.routeId);
+  const mod=dailyPlan.modifier||getDailyModifier(dailyPlan.modifierId);
+  $("dailyDateLabel").textContent=dailyPlan.dateKey;
+  $("dailyStreakChip").textContent=`STREAK ${streak}`;
+  $("dailyBestChip").textContent=day?.bestLoop
+    ?`BEST C.${day.bestLoop}${day.goalMet?" · CLEAR":""}`
+    :"BEST —";
+  $("dailyMeta").innerHTML=
+    `<span class="daily-chip">ROUTE ${route.name}</span>`+
+    `<span class="daily-chip">MOD ${mod.label}</span>`+
+    `<div style="margin-top:6px">${mod.blurb}<br>Opening hand: ${dailyPlan.startingDeck.map(k=>CARD_DEFS[k]?.name||k).join(" · ")}</div>`;
+  const share=formatDailyShareText({
+    dateKey:dailyPlan.dateKey,
+    routeName:route.name,
+    modifierLabel:mod.label,
+    bestLoop:day?.bestLoop||0,
+    bestKills:day?.bestKills||0,
+    streak,
+    goalMet:!!day?.goalMet,
+  });
+  $("dailyShareText").value=share;
 }
 function renderCraft(){
   const grid=$("craftGrid");
@@ -1295,29 +1450,55 @@ function renderResultFeedback(outcome,rate,kept,goal){
   ].join("");
   $("runResult").textContent=`${outcomeLabel(outcome)} · ${goal.status==="met"?"GOAL MET":goal.status==="failed"?"GOAL FAILED":goal.status==="late"?"LATE VICTORY":"GOAL ABANDONED"} · Loop ${game.loop} · ${Math.round(rate*100)}% base preserve`;
 }
-function startRun(){
+function startRun(opts={}){
   $("campModal").classList.remove("show");$("retreatModal").classList.remove("show");$("howtoModal").classList.remove("show");
   paused=false;selected=null;hoverCell=null;journal=[];particles=[];floaters=[];
   notifyTimer=0;bannerTimer=0;shake=0;
   $("loopBanner").classList.remove("show");$("notification").classList.remove("show");
+  const isDaily=!!opts.daily;
+  if(isDaily){
+    dailyPlan=dailyChallenge(todayKeyTaipei());
+    meta.routeId=dailyPlan.routeId;
+    // Daily uses Wick goal so a clear advances streak meaningfully.
+    meta.expeditionId="wick";
+    saveMeta();
+  }
   const exp=currentExpedition(),route=currentRoute();
+  const dailyMod=isDaily?getDailyModifier(dailyPlan.modifierId):null;
   buildTerrain();
   game={
     phase:"run",map:makeMap(),hero:null,hand:[],loot:[],resources:emptyResources(),
     loop:1,placed:0,bossProgress:startingBossProgress(meta.buildings),bossSpawned:false,combat:null,returnAtCamp:false,
-    elapsed:0,eventTimer:32,fog:0,tutorialIndex:0,showTutorial:!meta.tutorial,
-    expeditionId:exp.id,routeId:route.id,goalReady:false,goalExpired:false
+    elapsed:0,eventTimer:32,fog:dailyMod?.fogFloor||0,tutorialIndex:0,showTutorial:!meta.tutorial&&!isDaily,
+    expeditionId:exp.id,routeId:route.id,goalReady:false,goalExpired:false,
+    daily:isDaily,dailyDate:isDaily?dailyPlan.dateKey:null,dailyMod,
+    dailyModifierId:isDaily?dailyPlan.modifierId:null
   };
   game.hero=createHero();recalcHero();game.hero.hp=game.hero.stats.maxHp;
-  for(const k of CARD_KEYS)grantCard(k);
-  if(meta.upgrades.dial)grantCard("dial");
+  if(isDaily){
+    let deck=[...dailyPlan.startingDeck];
+    const trim=dailyMod?.handTrim||0;
+    if(trim>0) deck=deck.slice(0,Math.max(3,deck.length-trim));
+    for(const k of deck)grantCard(k);
+  }else{
+    const pool=activeCardPool().filter(k=>k!=="dial");
+    const exclusive=route.exclusiveCards||[];
+    const ordered=[...exclusive,...pool.filter(k=>!exclusive.includes(k))];
+    for(const k of ordered)grantCard(k);
+    if(meta.upgrades.dial)grantCard("dial");
+  }
   spawnCircuit(true);
   meta.runs++;saveMeta();renderEquipment();renderLoot();renderHand();renderUI();
   updateMapChrome();
-  log(`${route.name} · ${exp.name} begins. Goal: ${exp.goalLabel}. Keeper: ${currentBoss().name}.`);
+  const dailyTag=isDaily?` · DAILY ${dailyPlan.dateKey} · ${dailyMod.label}`:"";
+  log(`${route.name} · ${exp.name}${dailyTag} begins. Goal: ${exp.goalLabel}. Keeper: ${currentBoss().name}.`);
   $("hint").style.display="block";
-  $("hintText").textContent=game.showTutorial?"Your hero moves automatically. You shape the road.":`${route.name}: ${exp.goalLabel}`;
-  notify(`${route.name} · ${exp.name} · ${exp.cardsNeeded} cards to Bell`,4.5);
+  $("hintText").textContent=game.showTutorial?"Your hero moves automatically. You shape the road.":
+    isDaily?`Daily · ${dailyMod.label}: ${dailyMod.blurb}`:`${route.name}: ${exp.goalLabel}`;
+  notify(isDaily
+    ?`Daily loop · ${route.name} · ${dailyMod.label}`
+    :`${route.name} · ${exp.name} · ${exp.cardsNeeded} cards to Bell`,4.5);
+  if(isDaily)sound("daily");
   hideTooltip();
 }
 function openCamp(kind="result"){
@@ -1325,7 +1506,7 @@ function openCamp(kind="result"){
   paused=false;selected=null;hideTooltip();
   if(kind==="welcome"){
     $("campTitle").textContent="The Cinder Refuge";
-    $("campStory").textContent="Pick a route and expedition before lighting the wick. Craft buildings with bank materials. Ember teaches the road; Wick hunts the keeper; Ash demands the keeper before circuit 5.";
+    $("campStory").textContent="Pick a route and expedition before lighting the wick — or take today's Taipei daily loop. Craft buildings with bank materials. Ember teaches the road; Wick hunts the keeper; Ash demands the keeper before circuit 5. Clear the first two routes to open Glassmere Rill.";
     $("runResult").textContent="No haul yet · pick a route and tier, then begin.";
     $("resultBadges").hidden=true;$("resultChecklist").hidden=true;
     $("resultBadges").replaceChildren();$("resultChecklist").replaceChildren();
@@ -1379,10 +1560,27 @@ function finishRun(outcome,rate){
   const goal=evaluateGoal(outcome);
   if(goal.status==="met"){
     meta.cleared[exp.id]=(meta.cleared[exp.id]||0)+1;
+    meta.routeClears=meta.routeClears||emptyRouteClears();
+    const rid=game.routeId||meta.routeId;
+    meta.routeClears[rid]=(meta.routeClears[rid]||0)+1;
     if(exp.id==="wick"&&!meta.unlockedRoutes.includes("ashen")){
       meta.unlockedRoutes=[...meta.unlockedRoutes,"ashen"];
       notify("Ashen Coil route unlocked. A second keeper waits.",5);
     }
+    if(isRouteUnlocked(meta,"glassmere")&&!meta.unlockedRoutes.includes("glassmere")){
+      meta.unlockedRoutes=[...meta.unlockedRoutes,"glassmere"];
+      notify("Glassmere Rill unlocked. The Stillglass Knell waits.",5);
+    }
+  }
+  if(game.daily&&game.dailyDate){
+    dailyPersist=mergeDailyAttempt(dailyPersist, game.dailyDate, {
+      loop:game.loop,
+      kills:game.hero.kills,
+      goalMet:goal.status==="met",
+      routeId:game.routeId,
+      modifierId:game.dailyModifierId,
+    });
+    saveDaily();
   }
   saveMeta();
   const bossName=currentBoss().name;
@@ -1421,6 +1619,7 @@ function renderCamp(){
   renderRoutes();
   renderCraft();
   renderExpeditions();
+  renderDailyPanel();
   updateStartButton();
   updateMapChrome();
 }
@@ -1521,7 +1720,10 @@ function renderUI(){
     $("enemyHP").textContent=`${Math.ceil(e.hp)} / ${e.maxHp} HP · ${e.attack.toFixed(0)} ATK · ${e.defense} DEF`;
     $("enemySpecial").textContent=isBossType(e.type)?`NEXT PIERCING TOLL · ${Math.max(0,e.toll).toFixed(1)}s`:
       e.modifierBlurb?`${e.modifierLabel}: ${e.modifierBlurb} · Siphon 25%.`:
-      e.type==="mage"?"Its song ignores armor.":e.type==="elite"?"Heals for 25% of damage dealt.":e.type==="armor"?"Iron plates blunt each strike.":e.type==="fast"?"Quick claws. A fragile body.":"Teeth beneath the moss.";
+      e.type==="mage"||e.type==="echo"?"Its song ignores armor.":
+      e.type==="elite"||e.type==="prism"?"Heals for 25% of damage dealt.":
+      e.type==="armor"||e.type==="brine"?"Iron plates blunt each strike.":
+      e.type==="fast"||e.type==="reedkin"?"Quick claws. A fragile body.":"Teeth beneath the moss.";
   }else $("combatHud").style.display="none";
 }
 const HINTS=[
@@ -1766,6 +1968,25 @@ $("retreatAtCamp").onclick=()=>{
   game.returnAtCamp=true;closeRetreat();notify("Return arranged. Survive until the refuge to keep everything.",5);renderUI();
 };
 $("startBtn").onclick=()=>{if($("howtoModal").classList.contains("show"))return;startRun()};
+$("dailyStartBtn").onclick=()=>{
+  if($("howtoModal").classList.contains("show"))return;
+  startRun({daily:true});
+};
+$("dailyShareBtn").onclick=async()=>{
+  renderDailyPanel();
+  const text=$("dailyShareText").value;
+  try{
+    if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+    else{
+      $("dailyShareText").focus();$("dailyShareText").select();
+      document.execCommand("copy");
+    }
+    notify("分享文字已複製。",2.5);sound("daily");
+  }catch(e){
+    $("dailyShareText").focus();$("dailyShareText").select();
+    notify("請手動複製分享文字。",3);
+  }
+};
 $("howtoClose").onclick=()=>{
   meta.howto=true;saveMeta();$("howtoModal").classList.remove("show");
 };
@@ -1804,6 +2025,7 @@ function simulate(dt){
   }else updateMovement(dt);
   if(game.phase!=="run")return;
   game.fog=Math.max(0,game.fog-dt);
+  if(game.dailyMod?.fogFloor) game.fog=Math.max(game.fog, game.dailyMod.fogFloor);
   game.eventTimer-=dt;
   if(game.eventTimer<=0){game.eventTimer=rand(29,43);randomEvent()}
   updateTutorial();
@@ -1832,6 +2054,7 @@ openCamp("welcome");resizeCanvas();requestAnimationFrame(frame);
 window.__cinderDebug = {
   getGame:()=>game,
   finishRun,
+  startRun,
   selectExpedition,
   selectRoute,
   currentExpedition,
@@ -1847,9 +2070,14 @@ window.__cinderDebug = {
     return result;
   },
   getMeta:()=>meta,
+  setMeta:(next)=>{meta=migrateMeta({...meta,...next});saveMeta();renderCamp();return meta},
+  getDaily:()=>dailyPlan,
+  getDailyPersist:()=>dailyPersist,
+  renderDailyPanel,
   evaluateGoal,
   sealHintText:()=>sealHintText(currentExpedition(),game?.bossProgress||0),
-  cardsUntilBell:()=>cardsUntilBell(game?.bossProgress||0,currentExpedition().bossGain,currentExpedition().cardsNeeded)
+  cardsUntilBell:()=>cardsUntilBell(game?.bossProgress||0,currentExpedition().bossGain,currentExpedition().cardsNeeded),
+  isRouteUnlocked:(id)=>isRouteUnlocked(meta,id)
 };
 </script>
 </body>

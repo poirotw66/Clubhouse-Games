@@ -5,30 +5,45 @@
  */
 import assert from "node:assert/strict";
 import {
+  BASE_CARD_KEYS,
   BOSS_DEFS,
   CRAFT_BUILDINGS,
+  DAILY_MODIFIERS,
+  DAILY_MODIFIER_IDS,
   ELITE_MODIFIERS,
   EVENT_CARD_DEFS,
   EXPEDITIONS,
+  ROUTE_CARD_DEFS,
   ROUTES,
   ROUTE_ORDER,
   applyEliteModifier,
   bossProgressLabel,
+  cardPoolForRoute,
   cardsUntilBell,
   craftBuilding,
+  currentDailyStreak,
+  dailyChallenge,
+  dailySeed,
   emptyBuildings,
   emptyCleared,
+  emptyDailyPersist,
   emptyResources,
+  emptyRouteClears,
   evaluateGoal,
   eventCardPool,
+  formatDailyShareText,
   getBossDef,
   getExpedition,
   getRoute,
   isRouteUnlocked,
+  mergeDailyAttempt,
+  migrateDailyPersist,
   migrateMeta,
   pathStepsAdjacent,
+  previousDayKey,
   sealHintText,
   startingBossProgress,
+  todayKeyTaipei,
 } from "./rules.mjs";
 
 let failed = 0;
@@ -103,7 +118,8 @@ check("bossProgressLabel shows cards-to-Bell", () => {
 
 /* ── Routes & bosses ── */
 check("two routes with distinct bosses", () => {
-  assert.equal(ROUTE_ORDER.length, 2);
+  // Legacy drowned + ashen remain; length grows with glassmere.
+  assert.ok(ROUTE_ORDER.length >= 2);
   assert.equal(ROUTES.drowned.bossId, "boss");
   assert.equal(ROUTES.ashen.bossId, "boss_hollow");
   assert.ok(ROUTES.drowned.path.length >= 16);
@@ -241,10 +257,144 @@ check("emptyCleared keys", () => {
   assert.deepEqual(Object.keys(emptyCleared()).sort(), ["ash", "ember", "wick"]);
 });
 
+/* ── Glassmere third route (depth deepen) ── */
+check("glassmere route has exclusive boss, enemies, and ≥4 cards", () => {
+  assert.ok(ROUTE_ORDER.includes("glassmere"));
+  assert.equal(ROUTE_ORDER.length, 3);
+  const route = ROUTES.glassmere;
+  assert.equal(route.bossId, "boss_glass");
+  assert.ok(BOSS_DEFS.boss_glass);
+  assert.equal(getBossDef(route.bossId).name, "The Stillglass Knell");
+  assert.ok(Array.isArray(route.exclusiveEnemies));
+  assert.ok(route.exclusiveEnemies.length >= 4);
+  assert.ok(Array.isArray(route.exclusiveCards));
+  assert.ok(route.exclusiveCards.length >= 4);
+  for (const key of route.exclusiveCards) {
+    assert.ok(ROUTE_CARD_DEFS[key], `missing card def ${key}`);
+    assert.equal(ROUTE_CARD_DEFS[key].routeId, "glassmere");
+  }
+  assert.equal(ROUTES.drowned.path.length, ROUTES.glassmere.path.length);
+  assert.notEqual(BOSS_DEFS.boss_glass.name, BOSS_DEFS.boss.name);
+  assert.notEqual(BOSS_DEFS.boss_glass.name, BOSS_DEFS.boss_hollow.name);
+});
+
+check("glassmere unlocks only after clearing drowned and ashen", () => {
+  const locked = migrateMeta({});
+  assert.equal(isRouteUnlocked(locked, "glassmere"), false);
+  const one = migrateMeta({ routeClears: { drowned: 1, ashen: 0 } });
+  assert.equal(isRouteUnlocked(one, "glassmere"), false);
+  const both = migrateMeta({ routeClears: { drowned: 1, ashen: 1 } });
+  assert.equal(isRouteUnlocked(both, "glassmere"), true);
+  assert.ok(both.unlockedRoutes.includes("glassmere"));
+});
+
+check("cardPoolForRoute includes exclusives on glassmere only", () => {
+  assert.ok(BASE_CARD_KEYS.length >= 8);
+  const drowned = cardPoolForRoute("drowned");
+  const glass = cardPoolForRoute("glassmere");
+  assert.ok(!drowned.includes("mirror"));
+  assert.ok(glass.includes("mirror"));
+  assert.ok(glass.includes("reed"));
+  assert.ok(glass.includes("tide"));
+  assert.ok(glass.includes("shard"));
+  assert.ok(cardPoolForRoute("glassmere", { dial: 1 }).includes("dial"));
+});
+
+check("emptyRouteClears keys", () => {
+  assert.deepEqual(
+    Object.keys(emptyRouteClears()).sort(),
+    ["ashen", "drowned", "glassmere"],
+  );
+});
+
+/* ── Daily loop (Asia/Taipei) ── */
+check("todayKeyTaipei uses UTC+8 wall clock", () => {
+  // 2026-03-15 16:00 UTC → still 2026-03-16 00:00 Taipei
+  const lateUtc = new Date(Date.UTC(2026, 2, 15, 16, 0, 0));
+  assert.equal(todayKeyTaipei(lateUtc), "2026-03-16");
+  const earlyUtc = new Date(Date.UTC(2026, 2, 15, 15, 59, 0));
+  assert.equal(todayKeyTaipei(earlyUtc), "2026-03-15");
+});
+
+check("dailyChallenge stable for same Taipei date", () => {
+  const a = dailyChallenge("2026-10-22");
+  const b = dailyChallenge("2026-10-22");
+  assert.equal(a.seed, b.seed);
+  assert.equal(a.routeId, b.routeId);
+  assert.equal(a.modifierId, b.modifierId);
+  assert.deepEqual(a.startingDeck, b.startingDeck);
+  assert.ok(ROUTE_ORDER.includes(a.routeId));
+  assert.ok(DAILY_MODIFIER_IDS.includes(a.modifierId));
+  assert.ok(a.startingDeck.length >= 4);
+  assert.ok(DAILY_MODIFIERS[a.modifierId]);
+  const c = dailyChallenge("2026-10-23");
+  assert.notEqual(a.seed, c.seed);
+  assert.equal(dailySeed("2026-10-22"), a.seed);
+});
+
+check("daily streak and share text", () => {
+  let persist = emptyDailyPersist();
+  persist = mergeDailyAttempt(persist, "2026-10-20", {
+    loop: 4,
+    kills: 10,
+    goalMet: true,
+    routeId: "drowned",
+    modifierId: "fogbound",
+  });
+  assert.equal(persist.streak, 1);
+  assert.equal(persist.days["2026-10-20"].bestLoop, 4);
+  persist = mergeDailyAttempt(persist, "2026-10-21", {
+    loop: 5,
+    kills: 12,
+    goalMet: true,
+    routeId: "ashen",
+    modifierId: "thin_wick",
+  });
+  assert.equal(persist.streak, 2);
+  persist = mergeDailyAttempt(persist, "2026-10-21", {
+    loop: 6,
+    kills: 8,
+    goalMet: true,
+  });
+  assert.equal(persist.streak, 2, "same-day goal does not double streak");
+  assert.equal(persist.days["2026-10-21"].bestLoop, 6);
+  persist = mergeDailyAttempt(persist, "2026-10-23", {
+    loop: 3,
+    kills: 4,
+    goalMet: true,
+  });
+  assert.equal(persist.streak, 1, "gap resets streak");
+  assert.equal(previousDayKey("2026-10-22"), "2026-10-21");
+  assert.equal(currentDailyStreak(persist, "2026-10-23"), 1);
+  const share = formatDailyShareText({
+    dateKey: "2026-10-23",
+    routeName: "Glassmere Rill",
+    modifierLabel: "Fogbound Road",
+    bestLoop: 3,
+    bestKills: 4,
+    streak: 1,
+    goalMet: true,
+  });
+  assert.match(share, /每日迴路/);
+  assert.match(share, /連續天數/);
+  assert.match(share, /Glassmere/);
+});
+
+check("migrateDailyPersist sanitizes", () => {
+  const m = migrateDailyPersist({
+    days: { "2026-01-01": { bestLoop: 2.7, attempts: -1, completed: 1 } },
+    streak: "3",
+  });
+  assert.equal(m.days["2026-01-01"].bestLoop, 2);
+  assert.equal(m.days["2026-01-01"].attempts, 0);
+  assert.equal(m.streak, 3);
+  assert.deepEqual(migrateDailyPersist(null).days, {});
+});
+
 if (failed) {
   console.error(`self-check failed: ${failed} case(s)`);
   process.exit(1);
 }
 console.log(
-  `loop-hero self-check OK (${goalCases.length} goals + craft/routes/cardsNeeded/elites)`,
+  `loop-hero self-check OK (${goalCases.length} goals + craft/routes/cardsNeeded/elites + glassmere/daily)`,
 );
