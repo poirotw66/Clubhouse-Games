@@ -594,6 +594,50 @@ test('checkers: puzzle mode unlock ladder and first puzzle board', async ({ page
   await expect(page.getByText(/已解 0\/10/)).toBeVisible();
 });
 
+test('checkers: juice win shake and vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
+  await page.addInitScript(() => {
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Checkers/');
+  // Puzzle 1 is a forced one-move win — ideal for win juice.
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '謎題', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'black man at C3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'Empty E5', exact: true }), isMobile);
+  const result = page.getByRole('dialog');
+  await expect(result).toBeVisible();
+  await expect(page.locator('[data-ck-board]')).toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+});
+
+test('checkers: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Checkers/');
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '謎題', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'black man at C3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'Empty E5', exact: true }), isMobile);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('[data-ck-board]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
+});
+
 test('dialed-color: single-color round through feedback, overlay, and replay', async ({ page, isMobile }) => {
   test.skip(!includesGame('Dialed-Color'), 'selective CI');
   test.setTimeout(45_000);
