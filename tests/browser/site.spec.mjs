@@ -200,6 +200,7 @@ function activate(locator, isMobile) {
 }
 
 
+
 test('reversi: default series length is single under more modes', async ({ page, isMobile }) => {
   test.skip(!includesGame('Reversi'), 'selective CI');
   await page.goto('./Games/Reversi/');
@@ -209,11 +210,15 @@ test('reversi: default series length is single under more modes', async ({ page,
   await expect(page.getByRole('group', { name: '系列賽長度' })).toBeVisible();
   await activate(page.getByRole('button', { name: '三戰兩勝', exact: true }), isMobile);
   await expect(page.getByText('目前：三戰兩勝', { exact: false })).toBeVisible();
+});
+
 test('connect four: default lobby is single without series strip', async ({ page, isMobile }) => {
   test.skip(!includesGame('Connect-Four'), 'selective CI');
   await page.goto('./Games/Connect-Four/');
+  await expect(page.getByText('目前：單局', { exact: false })).toBeVisible();
   // Collapsed by default: series progress pill (先取 N 勝) not on the HUD.
   await expect(page.locator('span').filter({ hasText: /系列賽 \d/ })).toHaveCount(0);
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
   await expect(page.getByRole('button', { name: '單局', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: '系列賽目標' })).toBeVisible();
 });
