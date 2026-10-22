@@ -317,7 +317,9 @@ test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, is
   test.setTimeout(45_000);
   await page.goto('./Games/Pick-Red/');
   await activate(page.getByRole('button', { name: /困難/ }), isMobile);
-  // Default lobby is series (四圈); pin a seed and start.
+  // Default lobby is single; open「更多賽制」and pick fixed hands for this series check.
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: /打四圈/ }), isMobile);
   await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
   await activate(page.getByRole('button', { name: '開始系列賽', exact: true }), isMobile);
 
@@ -342,10 +344,25 @@ test('pick-red: single mode starts without series scoreboard', async ({ page, is
   test.skip(!includesGame('Pick-Red'), 'selective CI');
   test.setTimeout(30_000);
   await page.goto('./Games/Pick-Red/');
+  // Open「更多賽制」and explicitly pick 單局 (still available after default change).
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
   await activate(page.getByRole('button', { name: /^單局/ }), isMobile);
   await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
   await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
 
+  await expect(page.getByRole('region', { name: '系列賽計分板' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '紅♦Q，10 分', exact: true })).toBeVisible();
+});
+
+test('pick-red: default lobby is single without series scoreboard', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  test.setTimeout(30_000);
+  await page.goto('./Games/Pick-Red/');
+  await expect(page.getByRole('button', { name: '開始單局', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始系列賽', exact: true })).toHaveCount(0);
+  await page.getByPlaceholder('例如 64aa2bl7').fill('pw1');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
   await expect(page.getByRole('region', { name: '系列賽計分板' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
   await expect(page.getByRole('button', { name: '紅♦Q，10 分', exact: true })).toBeVisible();
@@ -379,11 +396,14 @@ test('pick-red: daily table entry and opponent ladder unlock', async ({ page, is
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
   test.skip(!includesGame('Big-Two'), 'selective CI');
   test.setTimeout(45_000);
-  // Skip the soft first-run guide so the lobby「開始系列賽」is the only match.
+  // Skip the soft first-run guide so the lobby start button is the only match.
   await page.addInitScript(() => {
     localStorage.setItem('clubhouse-big-two-howto-seen', '1');
   });
   await page.goto('./Games/Big-Two/');
+  // Default lobby is single; open「更多賽制」and pick fixed hands for this series check.
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: /打固定局數/ }), isMobile);
   await page.getByPlaceholder(/例如/).fill('abc');
   await activate(page.getByRole('button', { name: '開始系列賽', exact: true }), isMobile);
 
@@ -401,6 +421,22 @@ test('big-two: seeded opener plays ♣3, then undo after the table updates', asy
   await expect(undo).toBeEnabled({ timeout: 15_000 });
   await activate(undo, isMobile);
   await expect(hand.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
+});
+
+test('big-two: default lobby is single without series scoreboard', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Big-Two'), 'selective CI');
+  test.setTimeout(30_000);
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-big-two-howto-seen', '1');
+  });
+  await page.goto('./Games/Big-Two/');
+  await expect(page.getByRole('button', { name: '開始單局', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始系列賽', exact: true })).toHaveCount(0);
+  await page.getByPlaceholder(/例如/).fill('abc');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+  await expect(page.getByRole('region', { name: '系列賽計分板' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
 });
 
 test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {
