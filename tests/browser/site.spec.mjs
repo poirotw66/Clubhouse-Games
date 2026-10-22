@@ -289,8 +289,9 @@ test('blackjack: modes panel opens daily and tin tournament entries', async ({ p
   await expect(page.getByText('錫標賽')).toBeVisible();
   await expect(page.getByRole('button', { name: '開始每日' })).toBeEnabled();
   await activate(page.getByRole('button', { name: '開始每日' }), isMobile);
-  await expect(page.getByText('每日牌靴')).toBeVisible();
-  await expect(page.getByText(/每日 0\/20|每日牌靴/)).toBeVisible();
+  await expect(page.getByText('餘額 · 每日牌靴')).toBeVisible();
+  await expect(page.getByText(/每日牌靴 \d{4}-\d{2}-\d{2}/)).toBeVisible();
+  await expect(page.getByText(/每日 0\/20/)).toBeVisible();
   await activate(page.getByRole('button', { name: '模式' }), isMobile);
   await activate(page.getByRole('button', { name: /返回生涯桌/ }), isMobile);
   await expect(page.getByRole('button', { name: '$10', exact: true })).toBeVisible();
