@@ -215,9 +215,8 @@ export function isStageUnlocked(index: number, progress: CampaignProgress): bool
   if (index < 0 || index >= CAMPAIGN_STAGES.length) return false;
   const stage = CAMPAIGN_STAGES[index];
   if (!isChapterUnlocked(stage.chapter, progress)) return false;
-  // First stage of an unlocked chapter, or sequential clear.
-  const chapterFirst = CAMPAIGN_STAGES.findIndex((s) => s.chapter === stage.chapter);
-  if (index === chapterFirst) return true;
+  // Sequential clears within unlocked chapters (no skipping unfinished prior stages).
+  if (index === 0) return true;
   return index <= progress.clearedCount;
 }
 

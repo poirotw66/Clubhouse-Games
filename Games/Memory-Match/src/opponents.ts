@@ -76,7 +76,7 @@ export const OPPONENTS: readonly OpponentDef[] = [
   },
   {
     id: 'scholar',
-    name: '博學鴯',
+    name: '博學鸛',
     tagline: '高記性・絕不浪費',
     blurb: '記得最多，已知配對從不放過。',
     difficulty: 'hard',
