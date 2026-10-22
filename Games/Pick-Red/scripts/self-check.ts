@@ -42,6 +42,13 @@ import {
 } from '../src/game/cpu.js';
 import { advise } from '../src/game/hints.js';
 import {
+  buildDailyShareText,
+  computeDailyStreak,
+  dailyMatchConfig,
+  dailySeedCode,
+  taipeiDateKey,
+} from '../src/game/daily.js';
+import {
   applyHandResult,
   computeMatchMvp,
   createMatch,
@@ -52,9 +59,24 @@ import {
   handSeed,
   isSeriesMode,
   leaderForHand,
+  seatPersonalitiesFor,
 } from '../src/game/match.js';
+import {
+  NAMED_OPPONENTS,
+  isOpponentUnlocked,
+  ladderSeatPersonalities,
+  opponentById,
+  opponentCount,
+} from '../src/game/opponents.js';
 import { buildHandReview } from '../src/game/review.js';
-import { EMPTY_STATS, recordHandResult, recordMatchResult, recordResult } from '../src/game/storage.js';
+import {
+  EMPTY_STATS,
+  applyLadderResult,
+  recordDailyResult,
+  recordHandResult,
+  recordMatchResult,
+  recordResult,
+} from '../src/game/storage.js';
 import { createRng, normalizeSeedCode } from '../src/game/rng.js';
 import { HUMAN } from '../src/game/types.js';
 import type {
@@ -660,7 +682,7 @@ function expectStreakTracking(): void {
   assert.equal(stats.formats['hands-4'].played, 1);
   assert.equal(stats.formats['hands-4'].wins, 1);
 
-  // Single sessions must not inflate series / format tallies.
+  // Single sessions must not inflate series tallies (formats.single is separate).
   stats = recordMatchResult(stats, true, 99, {
     mode: 'single',
     hands: 4,
@@ -671,6 +693,8 @@ function expectStreakTracking(): void {
   });
   assert.equal(stats.matches, 1);
   assert.equal(stats.formats['hands-4'].played, 1);
+  assert.equal(stats.formats.single.played, 1);
+  assert.equal(stats.formats.single.wins, 1);
 }
 
 /** Chip settlement is (score − par) plus optional specials. */
@@ -743,7 +767,7 @@ function expectMatchSeries(): void {
   assert.equal(isSeriesMode('single'), false);
   assert.equal(isSeriesMode('hands'), true);
   assert.equal(formatKeyFor(match.config), 'hands-4');
-  assert.equal(formatKeyFor({ ...match.config, mode: 'single' }), null);
+  assert.equal(formatKeyFor({ ...match.config, mode: 'single' }), 'single');
 
   const review = buildHandReview(end, result);
   assert.ok(review.lessons.length >= 1);
@@ -858,6 +882,140 @@ function expectPersonalitiesAndHints(): void {
   }
 }
 
+/** Taipei daily seed is stable for a calendar day and drives a fixed-hand table. */
+function expectDailyTable(): void {
+  const key = '2026-10-22';
+  assert.equal(taipeiDateKey(new Date('2026-10-21T16:00:00.000Z')), key);
+  const seedA = dailySeedCode(key);
+  const seedB = dailySeedCode(key);
+  assert.equal(seedA, seedB);
+  assert.equal(seedA, 'pr-daily-2026-10-22');
+  assert.notEqual(dailySeedCode('2026-10-21'), seedA);
+
+  const config = dailyMatchConfig(key);
+  assert.equal(config.mode, 'daily');
+  assert.equal(config.seedCode, seedA);
+  assert.equal(config.rules.players, 2);
+
+  const match = createMatch(config);
+  assert.equal(isSeriesMode('daily'), true);
+  assert.equal(decideMatchWinner(config, [10, -10], 3), null);
+  assert.equal(decideMatchWinner(config, [10, -10], 4), 0);
+  assert.equal(formatKeyFor(config), 'daily');
+
+  let daily = recordDailyResult({ records: [] }, key, 20, true);
+  daily = recordDailyResult(daily, key, 12, true);
+  assert.equal(daily.records[0].bestChips, 20);
+  assert.equal(daily.records[0].attempts, 2);
+  assert.equal(computeDailyStreak(daily.records, key), 1);
+
+  daily = recordDailyResult(daily, '2026-10-21', 5, true);
+  assert.equal(computeDailyStreak(daily.records, key), 2);
+
+  const share = buildDailyShareText({
+    date: key,
+    seedCode: seedA,
+    chips: 20,
+    bestChips: 20,
+    streak: 2,
+    completed: true,
+  });
+  assert.ok(share.includes('撿紅點'));
+  assert.ok(share.includes(key));
+  assert.ok(share.includes(seedA));
+}
+
+/** Single-hand mode settles after one result and records format.single. */
+function expectSingleModeAndFormats(): void {
+  assert.equal(isSeriesMode('single'), false);
+  assert.equal(isSeriesMode('hands'), true);
+  assert.equal(isSeriesMode('daily'), true);
+
+  const one = createMatch({
+    mode: 'single',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(2),
+    seedCode: 'solo-check',
+  });
+  const end = playOut('solo-check', 'normal', 2);
+  const result = outcome(end);
+  const finished = applyHandResult(one, result, end.seedCode);
+  assert.equal(finished.phase, 'matchOver');
+  assert.equal(finished.history.length, 1);
+
+  let stats = EMPTY_STATS;
+  stats = recordMatchResult(
+    stats,
+    finished.winner === HUMAN,
+    finished.balances[HUMAN],
+    finished.config,
+  );
+  assert.equal(stats.formats.single.played, 1);
+  assert.equal(stats.matches, 0, 'single must not inflate series match count');
+
+  stats = recordMatchResult(stats, true, 8, {
+    mode: 'daily',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(2),
+    seedCode: 'd',
+  });
+  assert.equal(stats.formats.daily.played, 1);
+  assert.equal(stats.matches, 1);
+}
+
+/** Named ladder: 5 foes, unlock frontier, seat colouring. */
+function expectNamedOpponentLadder(): void {
+  assert.ok(opponentCount() >= 4 && opponentCount() <= 6);
+  assert.equal(NAMED_OPPONENTS.length, opponentCount());
+  assert.equal(new Set(NAMED_OPPONENTS.map((o) => o.id)).size, opponentCount());
+
+  assert.equal(isOpponentUnlocked(0, 0), true);
+  assert.equal(isOpponentUnlocked(1, 0), false);
+  assert.equal(isOpponentUnlocked(1, 1), true);
+
+  let ladder = applyLadderResult(
+    { clearedCount: 0, cleared: {}, lastIndex: 0 },
+    0,
+    true,
+    'ming',
+  );
+  assert.equal(ladder.clearedCount, 1);
+  assert.equal(ladder.cleared.ming, true);
+  assert.equal(isOpponentUnlocked(1, ladder.clearedCount), true);
+
+  // Winning a non-frontier foe does not skip ahead.
+  ladder = applyLadderResult(ladder, 0, true, 'ming');
+  assert.equal(ladder.clearedCount, 1);
+
+  const seats = ladderSeatPersonalities(opponentById('zhen')!);
+  assert.equal(seats[1], 'aceChaser');
+  const mapped = seatPersonalitiesFor({
+    mode: 'single',
+    hands: 4,
+    target: 100,
+    difficulty: 'hard',
+    rules: rules(2),
+    seedCode: 'ladder',
+    ladderOpponentId: 'zhen',
+  });
+  assert.deepEqual(mapped, seats);
+  assert.equal(
+    seatPersonalitiesFor({
+      mode: 'single',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: rules(2),
+      seedCode: 'plain',
+    }),
+    undefined,
+  );
+}
+
 function expectDoubleRedFiveDetection(): void {
   const base = deal('red5-check', 'normal', rules(2));
   const state: GameState = {
@@ -912,6 +1070,9 @@ const CHECKS: [string, () => void][] = [
   ['match MVP stats', expectMatchMvp],
   ['personalities and teaching hints', expectPersonalitiesAndHints],
   ['double red five detection', expectDoubleRedFiveDetection],
+  ['daily table (Taipei seed)', expectDailyTable],
+  ['single mode and format stats', expectSingleModeAndFormats],
+  ['named opponent ladder', expectNamedOpponentLadder],
 ];
 
 let failed = 0;

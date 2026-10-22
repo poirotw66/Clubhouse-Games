@@ -85,6 +85,9 @@ export interface HouseRules {
 /** @deprecated Prefer HouseRules; kept so older call sites still type-check. */
 export type Rules = HouseRules;
 
+/** Optional per-seat personality overrides (ladder / special tables). */
+export type SeatPersonalityMap = Partial<Record<1 | 2 | 3, PersonalityId>>;
+
 export interface GameState {
   seedCode: string;
   rules: HouseRules;
@@ -102,6 +105,8 @@ export interface GameState {
   log: CaptureEvent[];
   /** Cards highlighted by the last resolution, for the UI to animate. */
   spotlight: CardId[];
+  /** Ladder / special tables can recolour CPU seats. */
+  seatPersonalities?: SeatPersonalityMap;
 }
 
 export interface Outcome {
@@ -129,26 +134,58 @@ export interface Outcome {
 
 /**
  * Session shape:
- * - `single` — one hand, no series board or format record
+ * - `single` — one hand, settle immediately（計入 formats.single）
  * - `hands` — fixed N hands（打 N 圈／輪莊）
  * - `target` — first to N chips（打到 N 分）
+ * - `daily` — Taipei-seeded fixed-hand table shared by everyone that day
  */
-export type MatchMode = 'single' | 'hands' | 'target';
+export type MatchMode = 'single' | 'hands' | 'target' | 'daily';
 export type MatchLength = 4 | 8 | 12;
 export type TargetScore = 50 | 100 | 200;
 
 /** Stable key for per-format win/loss records（賽制戰績）. */
 export type FormatKey =
+  | 'single'
   | 'hands-4'
   | 'hands-8'
   | 'hands-12'
   | 'target-50'
   | 'target-100'
-  | 'target-200';
+  | 'target-200'
+  | 'daily';
 
 export interface FormatRecord {
   played: number;
   wins: number;
+}
+
+/**
+ * Capture / discard style for the named-opponent unlock ladder.
+ * Maps onto PersonalityId weights, with a readable blurb for the UI.
+ */
+export type PlayStyle = 'feeder' | 'miser' | 'aceChaser' | 'chaos';
+
+export type NamedOpponentId = 'ming' | 'mei' | 'cai' | 'zhen' | 'king';
+
+export interface NamedOpponent {
+  id: NamedOpponentId;
+  name: string;
+  tagline: string;
+  blurb: string;
+  style: PlayStyle;
+  /** Personality weights this opponent leans on. */
+  personality: PersonalityId;
+  difficulty: DifficultyId;
+}
+
+/** One completed (or in-progress best) daily table attempt. */
+export interface DailyRecord {
+  date: string;
+  /** Best end-of-table chip total for the human that day. */
+  bestChips: number;
+  /** True once a full daily table has been finished at least once. */
+  completed: boolean;
+  attempts: number;
 }
 
 export interface MatchConfig {
@@ -158,6 +195,11 @@ export interface MatchConfig {
   difficulty: DifficultyId;
   rules: HouseRules;
   seedCode: string;
+  /**
+   * Named-ladder duel: seat 1 wears this opponent's personality.
+   * Null/undefined = ordinary seat personalities.
+   */
+  ladderOpponentId?: NamedOpponentId | null;
 }
 
 export interface HandRecord {

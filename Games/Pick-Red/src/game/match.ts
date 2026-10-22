@@ -1,5 +1,7 @@
-import { deal, outcome } from './engine';
+import { DAILY_HANDS } from './daily';
+import { deal } from './engine';
 import { leaderFor } from './cpu';
+import { ladderSeatPersonalities, opponentById } from './opponents';
 import { normalizeSeedCode, seedFromCode, streamRng } from './rng';
 import { HUMAN } from './types';
 import type {
@@ -16,6 +18,7 @@ import type {
   Outcome,
   PlayerCount,
   Seat,
+  SeatPersonalityMap,
   TargetScore,
 } from './types';
 
@@ -26,15 +29,18 @@ export const MATCH_MODE_LABELS: Record<MatchMode, string> = {
   single: '單局',
   hands: '打四圈（輪莊）',
   target: '打到 N 分',
+  daily: '每日牌桌',
 };
 
 export const FORMAT_LABELS: Record<FormatKey, string> = {
+  single: '單局',
   'hands-4': '四圈',
   'hands-8': '八圈',
   'hands-12': '十二圈',
   'target-50': '先達 50',
   'target-100': '先達 100',
   'target-200': '先達 200',
+  daily: '每日牌桌',
 };
 
 export const DEFAULT_HOUSE_RULES: HouseRules = {
@@ -56,14 +62,17 @@ export function defaultMatchConfig(
     difficulty,
     rules: { ...rules },
     seedCode: '',
+    ladderOpponentId: null,
   };
 }
 
 export function isSeriesMode(mode: MatchMode): boolean {
-  return mode === 'hands' || mode === 'target';
+  return mode === 'hands' || mode === 'target' || mode === 'daily';
 }
 
 export function formatKeyFor(config: MatchConfig): FormatKey | null {
+  if (config.mode === 'single') return 'single';
+  if (config.mode === 'daily') return 'daily';
   if (config.mode === 'hands') {
     if (config.hands === 4) return 'hands-4';
     if (config.hands === 8) return 'hands-8';
@@ -102,7 +111,12 @@ export function createMatch(config: MatchConfig): MatchState {
   const seedCode = normalizeSeedCode(config.seedCode || `m${Date.now().toString(36)}`);
   const players = config.rules.players;
   return {
-    config: { ...config, seedCode, rules: { ...config.rules } },
+    config: {
+      ...config,
+      seedCode,
+      rules: { ...config.rules },
+      ladderOpponentId: config.ladderOpponentId ?? null,
+    },
     handIndex: 0,
     balances: Array.from({ length: players }, () => 0),
     history: [],
@@ -120,14 +134,24 @@ export function leaderForHand(match: MatchState): Seat {
   return (base + match.handIndex) % players;
 }
 
+export function seatPersonalitiesFor(config: MatchConfig): SeatPersonalityMap | undefined {
+  if (!config.ladderOpponentId) return undefined;
+  const opponent = opponentById(config.ladderOpponentId);
+  if (!opponent) return undefined;
+  return ladderSeatPersonalities(opponent);
+}
+
 export function dealHand(match: MatchState): GameState {
   const seed = handSeed(match.config.seedCode, match.handIndex);
-  return deal(
+  const dealt = deal(
     seed,
     match.config.difficulty,
     match.config.rules,
     leaderForHand(match),
   );
+  const overrides = seatPersonalitiesFor(match.config);
+  if (!overrides) return dealt;
+  return { ...dealt, seatPersonalities: overrides };
 }
 
 /**
@@ -192,6 +216,7 @@ export function applyHandResult(match: MatchState, result: Outcome, seedCode: st
  * Who won the match, or null if more hands remain.
  *
  * Single: ends after the first hand.
+ * Daily: after DAILY_HANDS.
  * Hands mode: after N hands, highest balance wins (ties break toward lowest seat).
  * Target mode: first seat to reach the target after a hand ends the match.
  */
@@ -202,6 +227,11 @@ export function decideMatchWinner(
 ): Seat | null {
   if (config.mode === 'single') {
     if (handsPlayed < 1) return null;
+    return seatWithMost(balances);
+  }
+
+  if (config.mode === 'daily') {
+    if (handsPlayed < DAILY_HANDS) return null;
     return seatWithMost(balances);
   }
 
@@ -267,6 +297,10 @@ export function advanceToNextHand(match: MatchState): MatchState {
 
 export function matchProgressLabel(match: MatchState): string {
   if (match.config.mode === 'single') return '單局';
+  if (match.config.mode === 'daily') {
+    const current = Math.min(match.handIndex + 1, DAILY_HANDS);
+    return `每日 ${current}／${DAILY_HANDS} 圈`;
+  }
   if (match.config.mode === 'hands') {
     const current = Math.min(match.handIndex + 1, match.config.hands);
     return `第 ${current}／${match.config.hands} 圈`;

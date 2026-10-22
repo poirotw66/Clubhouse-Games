@@ -337,6 +337,31 @@ test('pick-red: single mode starts without series scoreboard', async ({ page, is
   await expect(page.getByRole('button', { name: '紅♦Q，10 分', exact: true })).toBeVisible();
 });
 
+test('pick-red: daily table entry and opponent ladder unlock', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.goto('./Games/Pick-Red/');
+
+  await expect(page.getByRole('region', { name: '每日牌桌' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '挑戰今日', exact: true })).toBeEnabled();
+  await expect(page.getByText(/種子 pr-daily-\d{4}-\d{2}-\d{2}/)).toBeVisible();
+
+  await activate(page.getByRole('button', { name: '挑戰今日', exact: true }), isMobile);
+  await expect(page.getByRole('region', { name: '系列賽計分板' })).toBeVisible();
+  await expect(page.getByText(/每日 \d／4 圈/)).toBeVisible();
+  await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
+
+  await page.goto('./Games/Pick-Red/');
+  await activate(page.getByRole('tab', { name: '對手梯' }), isMobile);
+  await expect(page.getByRole('region', { name: '具名對手解鎖梯' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /菜鳥阿明/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /？？？/ }).first()).toBeDisabled();
+
+  await activate(page.getByRole('button', { name: /菜鳥阿明/ }), isMobile);
+  await expect(page.getByText(/挑戰 菜鳥阿明/)).toBeVisible();
+  await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
+});
+
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
   test.skip(!includesGame('Big-Two'), 'selective CI');
   test.setTimeout(45_000);

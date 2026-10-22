@@ -33,6 +33,14 @@ import {
   isFlashyDiscard,
   personalityForSeat,
 } from './game/cpu';
+import {
+  buildDailyShareText,
+  computeDailyStreak,
+  copyText,
+  dailyMatchConfig,
+  taipeiDateKey,
+  todayDailyRecord,
+} from './game/daily';
 import { applyPlay, choosePick, flip, handSize, outcome, playCard as playHandCard, score } from './game/engine';
 import { advise, seatHintBlurb } from './game/hints';
 import {
@@ -48,21 +56,37 @@ import {
   isSeriesMode,
   matchProgressLabel,
 } from './game/match';
+import {
+  NAMED_OPPONENTS,
+  PLAY_STYLE_LABEL,
+  isOpponentUnlocked,
+  ladderDifficulty,
+  opponentById,
+} from './game/opponents';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { buildHandReview } from './game/review';
 import type { HandReview } from './game/review';
 import {
+  EMPTY_DAILY,
+  EMPTY_LADDER,
   EMPTY_STATS,
+  applyLadderResult,
   clearSavedMatch,
+  loadDailyProgress,
+  loadLadder,
   loadMatch,
   loadStats,
+  recordDailyResult,
   recordHandResult,
   recordMatchResult,
   rememberSetup,
+  saveDailyProgress,
+  saveLadder,
   saveMatch,
   saveStats,
 } from './game/storage';
-import type { FormatKey } from './game/types';
+import type { LadderProgress } from './game/storage';
+import type { FormatKey, NamedOpponentId } from './game/types';
 import { HUMAN } from './game/types';
 import type {
   Card,
@@ -78,6 +102,7 @@ import type {
 } from './game/types';
 
 type Screen = 'setup' | 'game';
+type SetupTab = 'play' | 'ladder';
 
 interface HintHighlight {
   handId: string | null;
@@ -105,6 +130,11 @@ export default function App(): React.ReactElement {
   const [combo, setCombo] = useState(0);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [captureBurst, setCaptureBurst] = useState(0);
+  const [setupTab, setSetupTab] = useState<SetupTab>('play');
+  const [ladder, setLadder] = useState<LadderProgress>(EMPTY_LADDER);
+  const [dailyProgress, setDailyProgress] = useState(EMPTY_DAILY);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [dailyDate] = useState(() => taipeiDateKey());
   const handRecorded = useRef(false);
   const matchRecorded = useRef(false);
   const resultSoundPlayed = useRef(false);
@@ -113,6 +143,8 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     const saved = loadStats();
     setStats(saved);
+    setLadder(loadLadder());
+    setDailyProgress(loadDailyProgress());
     setConfig({
       ...defaultMatchConfig(saved.lastDifficulty, {
         players: saved.lastPlayers,
@@ -121,9 +153,10 @@ export default function App(): React.ReactElement {
         zeroScoreBonus: saved.lastZeroScoreBonus,
         rotateLeader: saved.lastRotateLeader,
       }),
-      mode: saved.lastMatchMode,
+      mode: saved.lastMatchMode === 'daily' ? 'hands' : saved.lastMatchMode,
       hands: saved.lastMatchHands,
       target: saved.lastMatchTarget,
+      ladderOpponentId: null,
     });
     const pending = loadMatch();
     setResumeAvailable(Boolean(pending && pending.phase !== 'matchOver'));
@@ -169,9 +202,11 @@ export default function App(): React.ReactElement {
         ...nextConfig,
         seedCode: normalizeSeedCode(nextConfig.seedCode || seedInput || randomSeedCode()),
         rules: { ...nextConfig.rules },
+        ladderOpponentId: nextConfig.ladderOpponentId ?? null,
       };
       const created = createMatch(seeded);
       matchRecorded.current = false;
+      setShareCopied(false);
       setStats((prev) => {
         const next = rememberSetup(prev, seeded);
         saveStats(next);
@@ -183,6 +218,33 @@ export default function App(): React.ReactElement {
       beginHand(created);
     },
     [beginHand, seedInput],
+  );
+
+  const startDaily = useCallback(() => {
+    startMatch(dailyMatchConfig(dailyDate));
+  }, [startMatch, dailyDate]);
+
+  const startLadder = useCallback(
+    (index: number) => {
+      const opponent = NAMED_OPPONENTS[index];
+      if (!opponent || !isOpponentUnlocked(index, ladder.clearedCount)) return;
+      startMatch({
+        mode: 'single',
+        hands: 4,
+        target: 100,
+        difficulty: ladderDifficulty(opponent),
+        rules: {
+          players: 2,
+          blackAces: false,
+          doubleRedFive: true,
+          zeroScoreBonus: true,
+          rotateLeader: false,
+        },
+        seedCode: randomSeedCode(),
+        ladderOpponentId: opponent.id,
+      });
+    },
+    [startMatch, ladder.clearedCount],
   );
 
   const resumeMatch = useCallback(() => {
@@ -218,7 +280,7 @@ export default function App(): React.ReactElement {
       setState((current) => {
         if (!current || current.turn === HUMAN) return current;
         const info = difficultyInfo(current.difficulty);
-        const person = personalityForSeat(current.turn)?.id ?? null;
+        const person = personalityForSeat(current.turn, current.seatPersonalities)?.id ?? null;
 
         if (current.phase === 'pick_play' || current.phase === 'pick_flip') {
           const options = capturableBy(current.pending!, current.table);
@@ -315,18 +377,49 @@ export default function App(): React.ReactElement {
       );
       if (nextMatch.phase === 'matchOver' && !matchRecorded.current) {
         matchRecorded.current = true;
+        const matchWon = nextMatch.winner === HUMAN;
         next = recordMatchResult(
           next,
-          nextMatch.winner === HUMAN,
+          matchWon,
           nextMatch.balances[HUMAN],
           nextMatch.config,
         );
         clearSavedMatch();
+
+        if (nextMatch.config.mode === 'daily') {
+          setDailyProgress((dailyPrev) => {
+            const updated = recordDailyResult(
+              dailyPrev,
+              dailyDate,
+              nextMatch.balances[HUMAN],
+              true,
+            );
+            saveDailyProgress(updated);
+            return updated;
+          });
+        }
+
+        if (nextMatch.config.ladderOpponentId) {
+          const opp = opponentById(nextMatch.config.ladderOpponentId);
+          if (opp) {
+            const index = NAMED_OPPONENTS.findIndex((o) => o.id === opp.id);
+            setLadder((ladderPrev) => {
+              const updated = applyLadderResult(
+                ladderPrev,
+                index,
+                matchWon,
+                opp.id as NamedOpponentId,
+              );
+              saveLadder(updated);
+              return updated;
+            });
+          }
+        }
       }
       saveStats(next);
       return next;
     });
-  }, [result, state, match]);
+  }, [result, state, match, dailyDate]);
 
   const pickPending = state?.phase === 'pick_play' || state?.phase === 'pick_flip';
   const targets = useMemo(() => {
@@ -421,15 +514,49 @@ export default function App(): React.ReactElement {
   const continueAfterReview = useCallback(() => {
     if (!match) return;
     if (match.phase === 'matchOver') {
+      if (match.config.mode === 'daily') {
+        startDaily();
+        return;
+      }
+      if (match.config.ladderOpponentId) {
+        const index = NAMED_OPPONENTS.findIndex((o) => o.id === match.config.ladderOpponentId);
+        if (index >= 0) startLadder(index);
+        return;
+      }
       startMatch({
         ...match.config,
         seedCode: randomSeedCode(),
+        ladderOpponentId: null,
       });
       return;
     }
     const advanced = advanceToNextHand(match);
     beginHand(advanced);
-  }, [match, beginHand, startMatch]);
+  }, [match, beginHand, startMatch, startDaily, startLadder]);
+
+  const handleDailyShare = useCallback(async () => {
+    const today = todayDailyRecord(dailyProgress.records, dailyDate);
+    const chips = match?.balances[HUMAN] ?? today?.bestChips ?? 0;
+    const text = buildDailyShareText({
+      date: dailyDate,
+      seedCode: dailyMatchConfig(dailyDate).seedCode,
+      chips,
+      bestChips: today?.bestChips ?? chips,
+      streak: computeDailyStreak(dailyProgress.records, dailyDate),
+      completed: Boolean(today?.completed) || match?.phase === 'matchOver',
+    });
+    const ok = await copyText(text);
+    setShareCopied(ok);
+  }, [dailyProgress, dailyDate, match]);
+
+  const seatNames = useMemo(() => {
+    const names = [...SEAT_NAMES];
+    if (match?.config.ladderOpponentId) {
+      const opp = opponentById(match.config.ladderOpponentId);
+      if (opp) names[1] = opp.name;
+    }
+    return names;
+  }, [match]);
 
   useEffect(() => {
     if (!callout) return;
@@ -446,7 +573,16 @@ export default function App(): React.ReactElement {
         setSeedInput={setSeedInput}
         stats={stats}
         resumeAvailable={resumeAvailable}
-        onStart={() => startMatch({ ...config, seedCode: seedInput })}
+        setupTab={setupTab}
+        setSetupTab={setSetupTab}
+        ladder={ladder}
+        dailyDate={dailyDate}
+        dailyProgress={dailyProgress}
+        shareCopied={shareCopied}
+        onShareDaily={handleDailyShare}
+        onStart={() => startMatch({ ...config, seedCode: seedInput, ladderOpponentId: null })}
+        onStartDaily={startDaily}
+        onStartLadder={startLadder}
         onResume={resumeMatch}
       />
     );
@@ -461,19 +597,27 @@ export default function App(): React.ReactElement {
     : parScore(match.config.rules.players, match.config.rules.blackAces);
   const deckTotal =
     TOTAL_POINTS + (match.config.rules.blackAces ? BLACK_ACE_POINTS : 0);
+  const ladderOpp = match.config.ladderOpponentId
+    ? opponentById(match.config.ladderOpponentId)
+    : null;
 
   return (
     <div className="min-h-screen flex flex-col items-center px-3 pb-6 pt-14 sm:pt-4">
       <BackToMenu />
 
       <div className="w-full max-w-2xl flex flex-col gap-3">
+        {ladderOpp && (
+          <p className="text-center text-xs text-emerald-200/70">
+            挑戰 {ladderOpp.name} · {PLAY_STYLE_LABEL[ladderOpp.style]}
+          </p>
+        )}
         <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
 
         {state && (
           <>
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <ScoreBar state={state} par={par} deckTotal={deckTotal} />
+                <ScoreBar state={state} par={par} deckTotal={deckTotal} seatNames={seatNames} />
               </div>
               <div className="flex gap-1 shrink-0 pt-0.5">
                 <button
@@ -501,8 +645,12 @@ export default function App(): React.ReactElement {
               seat === HUMAN ? null : (
                 <Pile
                   key={seat}
-                  name={SEAT_NAMES[seat]}
-                  personality={seatHintBlurb(state, seat)}
+                  name={seatNames[seat] ?? SEAT_NAMES[seat]}
+                  personality={
+                    ladderOpp && seat === 1
+                      ? ladderOpp.tagline
+                      : seatHintBlurb(state, seat)
+                  }
                   cards={state.captured[seat]}
                   count={state.hands[seat].length}
                   blackAces={state.rules.blackAces}
@@ -563,6 +711,7 @@ export default function App(): React.ReactElement {
               humanTurn={humanTurn}
               hintReason={hint?.reason ?? null}
               difficultyLabel={info.label}
+              seatNames={seatNames}
             />
 
             <section aria-label="你的手牌">
@@ -592,7 +741,7 @@ export default function App(): React.ReactElement {
             )}
 
             <Pile
-              name={SEAT_NAMES[HUMAN]}
+              name={seatNames[HUMAN]}
               personality=""
               cards={state.captured[HUMAN]}
               count={state.hands[HUMAN].length}
@@ -613,6 +762,15 @@ export default function App(): React.ReactElement {
             setScreen('setup');
             setResumeAvailable(Boolean(loadMatch() && loadMatch()?.phase !== 'matchOver'));
           }}
+          shareLabel={
+            match.config.mode === 'daily'
+              ? shareCopied
+                ? '已複製分享文案'
+                : '複製分享'
+              : null
+          }
+          onShare={match.config.mode === 'daily' ? handleDailyShare : null}
+          seatNames={seatNames}
         />
       )}
     </div>
@@ -623,10 +781,12 @@ function ScoreBar({
   state,
   par,
   deckTotal,
+  seatNames = SEAT_NAMES,
 }: {
   state: GameState;
   par: number;
   deckTotal: number;
+  seatNames?: string[];
 }): React.ReactElement {
   const scores = state.hands.map((_, seat) => score(state, seat));
   return (
@@ -634,7 +794,7 @@ function ScoreBar({
       <div className="flex justify-between items-baseline text-sm font-bold mb-1 gap-2">
         {scores.map((points, seat) => (
           <span key={seat} className={seat === HUMAN ? 'text-emerald-300' : 'text-rose-300'}>
-            {SEAT_NAMES[seat]} {points}
+            {seatNames[seat] ?? SEAT_NAMES[seat]} {points}
             {points > par && ' ✓'}
           </span>
         ))}
@@ -703,6 +863,7 @@ function Status({
   humanTurn,
   hintReason,
   difficultyLabel,
+  seatNames = SEAT_NAMES,
 }: {
   state: GameState;
   selected: Card | null;
@@ -711,8 +872,10 @@ function Status({
   humanTurn: boolean;
   hintReason: string | null;
   difficultyLabel: string;
+  seatNames?: string[];
 }): React.ReactElement {
   let message: string;
+  const nameOf = (seat: number) => seatNames[seat] ?? SEAT_NAMES[seat];
 
   if (state.phase === 'over') message = '牌局結束';
   else if (state.phase === 'flip') message = '翻牌中…';
@@ -722,10 +885,10 @@ function Status({
         ? `翻到 ${cardLabel(state.pending!)}，選一張要撿走的`
         : `選一張要撿走的（${targets.length} 張可撿）`;
   } else if (!humanTurn) {
-    const person = personalityForSeat(state.turn);
+    const person = personalityForSeat(state.turn, state.seatPersonalities);
     message = person
-      ? `${SEAT_NAMES[state.turn]}（${person.name}）思考中…`
-      : `${SEAT_NAMES[state.turn]}思考中…`;
+      ? `${nameOf(state.turn)}（${person.name}）思考中…`
+      : `${nameOf(state.turn)}思考中…`;
   } else if (selected && targets.length > 1)
     message = `${cardLabel(selected)} 可以撿 ${targets.length} 張，選一張`;
   else if (selected && targets.length === 1)
@@ -741,7 +904,7 @@ function Status({
       )}
       {last && (
         <p className="text-xs text-emerald-200/50">
-          {SEAT_NAMES[last.by]}
+          {nameOf(last.by)}
           {last.source === 'pile' ? '翻到' : '打出'} {cardLabel(last.played)}
           {last.taken ? ` → 撿走 ${cardLabel(last.taken)}（+${last.points}）` : '，留在桌上'}
           <span className="text-emerald-200/30"> · {difficultyLabel}</span>
@@ -758,7 +921,16 @@ function Setup({
   setSeedInput,
   stats,
   resumeAvailable,
+  setupTab,
+  setSetupTab,
+  ladder,
+  dailyDate,
+  dailyProgress,
+  shareCopied,
+  onShareDaily,
   onStart,
+  onStartDaily,
+  onStartLadder,
   onResume,
 }: {
   config: MatchConfig;
@@ -767,12 +939,36 @@ function Setup({
   setSeedInput: (value: string) => void;
   stats: ReturnType<typeof loadStats>;
   resumeAvailable: boolean;
+  setupTab: SetupTab;
+  setSetupTab: (tab: SetupTab) => void;
+  ladder: LadderProgress;
+  dailyDate: string;
+  dailyProgress: ReturnType<typeof loadDailyProgress>;
+  shareCopied: boolean;
+  onShareDaily: () => void;
   onStart: () => void;
+  onStartDaily: () => void;
+  onStartLadder: (index: number) => void;
   onResume: () => void;
 }): React.ReactElement {
   const { rules } = config;
   const patchRules = (patch: Partial<HouseRules>) =>
     setConfig((prev) => ({ ...prev, rules: { ...prev.rules, ...patch } }));
+  const setMode = (mode: MatchMode) =>
+    setConfig((prev) => ({
+      ...prev,
+      mode,
+      ladderOpponentId: null,
+      rules: {
+        ...prev.rules,
+        rotateLeader: mode === 'single' ? prev.rules.rotateLeader : true,
+      },
+    }));
+
+  const today = todayDailyRecord(dailyProgress.records, dailyDate);
+  const streak = computeDailyStreak(dailyProgress.records, dailyDate);
+  const dailySeed = dailyMatchConfig(dailyDate).seedCode;
+  const playModes: MatchMode[] = ['single', 'hands', 'target'];
 
   return (
     <div
@@ -785,9 +981,115 @@ function Setup({
         <header className="pr-title-hero text-center">
           <h1 className="text-4xl font-black tracking-tight">撿紅點</h1>
           <p className="text-emerald-200/60 text-sm mt-1">
-            湊十撿牌，只有紅牌算分．系列賽讓合格分累成籌碼
+            單局・系列賽・每日牌桌 · 湊十撿牌，只有紅牌算分
           </p>
         </header>
+
+        <div className="flex gap-2" role="tablist" aria-label="選單">
+          {(
+            [
+              ['play', '開打'],
+              ['ladder', '對手梯'],
+            ] as [SetupTab, string][]
+          ).map(([tab, label]) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={setupTab === tab}
+              onClick={() => setSetupTab(tab)}
+              className={`flex-1 min-h-[44px] rounded-xl border font-bold touch-manipulation ${
+                setupTab === tab
+                  ? 'border-emerald-400 bg-emerald-500/15'
+                  : 'border-slate-700 hover:bg-slate-800/60'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {setupTab === 'ladder' ? (
+          <section aria-label="具名對手解鎖梯" className="flex flex-col gap-3">
+            <p className="text-sm text-emerald-100/70 leading-relaxed">
+              贏過前一位才解鎖下一位。每位對手有不同出牌風格。
+            </p>
+            <ul className="flex flex-col gap-2">
+              {NAMED_OPPONENTS.map((op, index) => {
+                const unlocked = isOpponentUnlocked(index, ladder.clearedCount);
+                const cleared = Boolean(ladder.cleared[op.id]);
+                return (
+                  <li key={op.id}>
+                    <button
+                      type="button"
+                      disabled={!unlocked}
+                      onClick={() => unlocked && onStartLadder(index)}
+                      className={`w-full text-left min-h-[56px] rounded-xl px-4 py-3 border touch-manipulation ${
+                        unlocked
+                          ? 'border-emerald-400/50 bg-emerald-500/10 hover:bg-emerald-500/20'
+                          : 'border-slate-800 bg-slate-900/40 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-bold">
+                          {unlocked ? op.name : '？？？'}
+                          {cleared && (
+                            <span className="ml-2 text-[10px] font-normal text-amber-300">
+                              已擊敗
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[11px] text-emerald-200/60">
+                          {unlocked ? PLAY_STYLE_LABEL[op.style] : '未解鎖'}
+                        </span>
+                      </div>
+                      {unlocked && (
+                        <p className="mt-1 text-xs text-emerald-100/55 leading-relaxed">
+                          {op.blurb}
+                        </p>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : (
+          <>
+        <section
+          className="pr-felt rounded-2xl p-4 text-sm"
+          style={feltBackgroundStyle()}
+          aria-label="每日牌桌"
+        >
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="font-bold text-emerald-200">每日牌桌</h2>
+            <span className="text-[11px] text-emerald-100/50">{dailyDate} · 台北</span>
+          </div>
+          <p className="mt-1 text-emerald-100/65 text-xs leading-relaxed">
+            固定 4 圈比總分；種子全天相同。連續 {streak} 天
+            {today
+              ? ` · 今日最佳 ${today.bestChips >= 0 ? '+' : ''}${today.bestChips}`
+              : ' · 尚未挑戰'}
+          </p>
+          <p className="mt-1 text-[11px] font-mono text-emerald-100/40">種子 {dailySeed}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={onStartDaily}
+              className="flex-1 min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-500 font-black touch-manipulation"
+            >
+              挑戰今日
+            </button>
+            <button
+              type="button"
+              onClick={onShareDaily}
+              disabled={!today}
+              className="min-h-[48px] px-4 rounded-xl border border-amber-400/40 text-amber-100 text-sm font-bold disabled:opacity-40 touch-manipulation"
+            >
+              {shareCopied ? '已複製' : '複製分享'}
+            </button>
+          </div>
+        </section>
 
         <section className="pr-felt rounded-2xl p-4 text-sm" style={feltBackgroundStyle()}>
           <h2 className="font-bold mb-2 text-emerald-200">怎麼配對</h2>
@@ -799,28 +1101,19 @@ function Setup({
           </p>
           <p className="text-emerald-100/50 text-xs mt-2">
             計分：紅 A 二十分，紅 9、10、J、Q、K 各十分，紅 2～8 依牌面。籌碼＝（得分−標準分）。
+            單局／系列賽／每日分開記戰績。
           </p>
         </section>
 
         <section>
           <h2 className="font-bold mb-2 text-sm text-emerald-200">賽制</h2>
           <div className="flex flex-col gap-2">
-            {(Object.keys(MATCH_MODE_LABELS) as MatchMode[]).map((mode) => (
+            {playModes.map((mode) => (
               <div key={mode} className="flex flex-col gap-1.5">
                 <button
                   type="button"
-                  onClick={() =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      mode,
-                      // 輪莊是系列賽的核心；單局維持難度座位。
-                      rules: {
-                        ...prev.rules,
-                        rotateLeader: mode === 'single' ? prev.rules.rotateLeader : true,
-                      },
-                    }))
-                  }
-                  className={`text-left min-h-[44px] rounded-xl border px-4 py-2 text-sm transition-colors ${
+                  onClick={() => setMode(mode)}
+                  className={`text-left min-h-[44px] rounded-xl border px-4 py-2 text-sm transition-colors touch-manipulation ${
                     config.mode === mode
                       ? 'border-emerald-400 bg-emerald-500/15'
                       : 'border-slate-700 hover:bg-slate-800/60'
@@ -829,7 +1122,7 @@ function Setup({
                   <span className="font-bold">{MATCH_MODE_LABELS[mode]}</span>
                   <span className="block text-[11px] text-emerald-100/55">
                     {mode === 'single'
-                      ? '打完一局就結算，不進系列賽戰績'
+                      ? '打完一局就結算，計入單局戰績'
                       : mode === 'hands'
                         ? '固定圈數累計籌碼；預設每局輪莊'
                         : '先累積到目標籌碼者拿下系列賽'}
@@ -842,7 +1135,7 @@ function Setup({
                         key={n}
                         type="button"
                         onClick={() => setConfig((prev) => ({ ...prev, hands: n as MatchLength }))}
-                        className={`flex-1 min-h-[40px] rounded-xl border text-sm ${
+                        className={`flex-1 min-h-[40px] rounded-xl border text-sm touch-manipulation ${
                           config.hands === n
                             ? 'border-emerald-400 bg-emerald-500/15 font-bold'
                             : 'border-slate-700'
@@ -860,7 +1153,7 @@ function Setup({
                         key={n}
                         type="button"
                         onClick={() => setConfig((prev) => ({ ...prev, target: n as TargetScore }))}
-                        className={`flex-1 min-h-[40px] rounded-xl border text-sm ${
+                        className={`flex-1 min-h-[40px] rounded-xl border text-sm touch-manipulation ${
                           config.target === n
                             ? 'border-emerald-400 bg-emerald-500/15 font-bold'
                             : 'border-slate-700'
@@ -1005,6 +1298,8 @@ function Setup({
             )}
             <FormatRecordLine formats={stats.formats} />
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
