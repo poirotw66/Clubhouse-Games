@@ -12,6 +12,68 @@
   --animate-bounce-short: bounceShort 0.5s infinite;
   --animate-drop-in: dropIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   --animate-mix-flash: mixFlash 0.55s ease-out;
+  --animate-bottle-celebrate: bottleCelebrate 0.65s ease-out;
+}
+
+@keyframes bottleCelebrate {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.08); filter: brightness(1.35) saturate(1.25); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.animate-bottle-celebrate {
+  animation: var(--animate-bottle-celebrate);
+}
+
+.bottle-celebrate-burst {
+  background: radial-gradient(circle at 50% 30%, rgba(250, 204, 21, 0.55) 0%, transparent 55%);
+  animation: celebrateBurst 0.65s ease-out forwards;
+}
+
+@keyframes celebrateBurst {
+  0% { opacity: 0.95; transform: scale(0.7); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+.pour-stream {
+  width: 8px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(125, 211, 252, 0.75));
+  box-shadow: 0 0 10px rgba(125, 211, 252, 0.55);
+  animation: pourStream 0.4s ease-in forwards;
+  transform-origin: top center;
+}
+
+@keyframes pourStream {
+  0% { opacity: 0; transform: scaleY(0.2); }
+  35% { opacity: 1; transform: scaleY(1); }
+  100% { opacity: 0.35; transform: scaleY(1.05); }
+}
+
+.liquid-shimmer {
+  background-size: 200% 100%;
+  animation: liquidShimmer 2.4s linear infinite;
+}
+
+@keyframes liquidShimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bottle-celebrate,
+  .bottle-celebrate-burst,
+  .pour-stream,
+  .liquid-shimmer,
+  .animate-mix-flash,
+  .mix-spark,
+  .animate-bounce,
+  .animate-bounce-short,
+  .animate-float,
+  .animate-drop-in {
+    animation: none !important;
+  }
 }
 
 @keyframes mixFlash {

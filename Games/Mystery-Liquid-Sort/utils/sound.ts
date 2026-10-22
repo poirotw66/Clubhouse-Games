@@ -35,6 +35,12 @@ export const sounds = {
       playPaddleHit();
       playCapture();
     }),
+  /** Single bottle sealed / completed. */
+  bottleComplete: () =>
+    gated(() => {
+      playScore();
+      playMove();
+    }),
   score: () => gated(playScore),
   win: () => gated(playWin),
   error: () => gated(playError),

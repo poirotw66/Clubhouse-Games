@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameState, BottleData, GameMode, type QpVariant } from '../types';
 import {
@@ -25,6 +25,7 @@ import {
   checkStateRepetition,
   isMixingPour,
   findHintMove,
+  unlockNextBlockedBottle,
   MIXING_MIN_LEVEL,
 } from '../services/gameLogic';
 import {
@@ -41,9 +42,25 @@ import {
   persistMixStageClear,
   loadMixProgress,
 } from '../services/mixChallengePack';
+import {
+  getMechStage,
+  materializeMechStageAt,
+  mechStageCount,
+  persistMechStageClear,
+  loadMechProgress,
+  starsForMoves,
+} from '../services/mechanismPack';
+import {
+  getDailyBoard,
+  materializeDailyBoard,
+  markDailyCleared,
+} from '../services/dailyChallenge';
+import { recordPlayDay } from '../services/streakService';
+import { loadCosmetics } from '../services/cosmeticsService';
 import { loadCoins, saveCoins } from '../services/economyService';
 import { useDailyMissions } from '../hooks/useDailyMissions';
 import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { Bottle } from './Bottle';
 import { TopBar } from './TopBar';
 import { TargetArea } from './TargetArea';
@@ -56,6 +73,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { sounds } from '../utils/sound';
 import { getBackgroundByLevel, getSavedBackground } from '../utils/backgrounds';
 import { AlertTriangle, Home, RotateCcw, Repeat, ClipboardList } from 'lucide-react';
+
+const POUR_ANIM_MS = 380;
 
 function hasSeenMixIntro(): boolean {
   try {
@@ -99,10 +118,61 @@ export default function Game() {
         if (!Number.isFinite(n) || n < 0) return 0;
         return Math.min(mixStageCount() - 1, Math.floor(n));
     })();
+    const initialMechStageIndex: number = (() => {
+        const raw = location.state?.mechStageIndex;
+        const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '0'), 10);
+        if (!Number.isFinite(n) || n < 0) return 0;
+        return Math.min(mechStageCount() - 1, Math.floor(n));
+    })();
+
+    const reduceMotion = usePrefersReducedMotion();
+    const [cosmetics] = useState(() => loadCosmetics());
+    const pourTimerRef = useRef<number | null>(null);
 
     // Initialize state
     const [gameState, setGameState] = useState<GameState>(() => {
         const savedCoins = loadCoins(INITIAL_COINS);
+
+        if (initialMode === 'daily') {
+            const { board, dateKey } = getDailyBoard();
+            const { bottles, orders } = materializeDailyBoard(board);
+            const isWin = checkLevelComplete(bottles, orders);
+            return {
+                mode: 'daily',
+                level: 1,
+                difficultyLabel: dateKey,
+                coins: savedCoins,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            };
+        }
+
+        if (initialMode === 'mechanism_pack') {
+            const { bottles, orders, stage } = materializeMechStageAt(initialMechStageIndex);
+            const isWin = checkLevelComplete(bottles, orders);
+            return {
+                mode: 'mechanism_pack',
+                level: initialMechStageIndex,
+                difficultyLabel: stage.id,
+                coins: savedCoins,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            };
+        }
 
         if (initialMode === 'puzzle_pack') {
             const { bottles, orders, stage } = materializePackStageAt(initialPackStageIndex);
@@ -185,6 +255,13 @@ export default function Game() {
 
     const [hintIds, setHintIds] = useState<{ sourceId: string; targetId: string } | null>(null);
     const [mixFlashId, setMixFlashId] = useState<string | null>(null);
+    const [celebrateId, setCelebrateId] = useState<string | null>(null);
+    const [pourAnim, setPourAnim] = useState<{
+      sourceId: string;
+      targetId: string;
+      tilt: 'left' | 'right';
+    } | null>(null);
+    const [mechStars, setMechStars] = useState<number | null>(null);
     const [showMixGuidance, setShowMixGuidance] = useState(() => {
         if (initialMode === 'mix_challenge') return true;
         if (initialMode === 'adventure' && !hasSeenMixIntro()) {
@@ -205,12 +282,25 @@ export default function Game() {
     const packStageName = useMemo(() => {
         if (gameState.mode === 'puzzle_pack') return getPackStage(gameState.level)?.name;
         if (gameState.mode === 'mix_challenge') return getMixStage(gameState.level)?.name;
+        if (gameState.mode === 'mechanism_pack') return getMechStage(gameState.level)?.name;
+        if (gameState.mode === 'daily') return getDailyBoard().board.name;
         return undefined;
     }, [gameState.mode, gameState.level]);
 
     const mixTip = useMemo(() => {
-        if (gameState.mode !== 'mix_challenge') return undefined;
-        return getMixStage(gameState.level)?.tip;
+        if (gameState.mode === 'mix_challenge') return getMixStage(gameState.level)?.tip;
+        if (gameState.mode === 'mechanism_pack') return getMechStage(gameState.level)?.tip;
+        return undefined;
+    }, [gameState.mode, gameState.level]);
+
+    const mechMoveLimit = useMemo(() => {
+        if (gameState.mode !== 'mechanism_pack') return undefined;
+        return getMechStage(gameState.level)?.moveLimit;
+    }, [gameState.mode, gameState.level]);
+
+    const mechMinSteps = useMemo(() => {
+        if (gameState.mode !== 'mechanism_pack') return undefined;
+        return getMechStage(gameState.level)?.minSteps;
     }, [gameState.mode, gameState.level]);
 
     const mixingOnBoard = useMemo(
@@ -223,8 +313,15 @@ export default function Game() {
         if (gameState.mode === 'adventure') {
             return getBackgroundByLevel(gameState.level);
         }
-        if (gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge') {
+        if (
+          gameState.mode === 'puzzle_pack' ||
+          gameState.mode === 'mix_challenge' ||
+          gameState.mode === 'mechanism_pack'
+        ) {
             return getBackgroundByLevel(gameState.level + 1);
+        }
+        if (gameState.mode === 'daily') {
+            return getBackgroundByLevel(3);
         }
         return getSavedBackground();
     }, [gameState.level, gameState.mode]);
@@ -268,6 +365,11 @@ export default function Game() {
         if (!stage) return null;
         return loadMixProgress().bestMoves[stage.id] ?? null;
       }
+      if (initialMode === 'mechanism_pack') {
+        const stage = getMechStage(initialMechStageIndex);
+        if (!stage) return null;
+        return loadMechProgress().bestMoves[stage.id] ?? null;
+      }
       return null;
     });
 
@@ -309,19 +411,45 @@ export default function Game() {
                 setPackBestMoves(next.bestMoves[stage.id] ?? moves);
               }
             }
+            if (gameState.mode === 'mechanism_pack') {
+              const moves = gameState.history.length;
+              const next = persistMechStageClear(gameState.level, moves);
+              const stage = getMechStage(gameState.level);
+              if (stage) {
+                setPackBestMoves(next.bestMoves[stage.id] ?? moves);
+                setMechStars(next.bestStars[stage.id] ?? starsForMoves(moves, stage.minSteps));
+              }
+            }
+            if (gameState.mode === 'daily') {
+              markDailyCleared(gameState.difficultyLabel || undefined);
+            }
+            recordPlayDay();
             return;
         }
         if (!gameState.isWin && celebratedWin) {
             setCelebratedWin(false);
+            setMechStars(null);
         }
     }, [gameState.isWin, celebratedWin, gameState.mode, gameState.difficultyLabel, gameState.history.length, gameState.level]);
 
-    // Clear mix flash
+    // Clear mix flash / bottle celebrate
     useEffect(() => {
         if (!mixFlashId) return;
         const t = window.setTimeout(() => setMixFlashId(null), 550);
         return () => window.clearTimeout(t);
     }, [mixFlashId]);
+
+    useEffect(() => {
+        if (!celebrateId) return;
+        const t = window.setTimeout(() => setCelebrateId(null), 650);
+        return () => window.clearTimeout(t);
+    }, [celebrateId]);
+
+    useEffect(() => {
+        return () => {
+            if (pourTimerRef.current != null) window.clearTimeout(pourTimerRef.current);
+        };
+    }, []);
 
     // --- Helper to update missions from game events ---
     const handleClaimMission = (missionId: string) => {
@@ -425,6 +553,8 @@ export default function Game() {
                 }
 
                 currentBottles = currentBottles.filter(b => b.id !== bottleId);
+                // Mechanism pack: each delivery unlocks the next sealed bottle.
+                currentBottles = unlockNextBlockedBottle(currentBottles);
 
                 const nextLockedIndex = currentOrders.findIndex(o => o.isLocked);
                 if (nextLockedIndex !== -1) {
@@ -527,6 +657,54 @@ export default function Game() {
             return;
         }
 
+        if (gameState.mode === 'mechanism_pack') {
+            const { bottles, orders, stage } = materializeMechStageAt(levelInput);
+            const isWin = checkLevelComplete(bottles, orders);
+            setGameState(prev => ({
+                ...prev,
+                level: levelInput,
+                difficultyLabel: stage.id,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            }));
+            setProcessingMatch(null);
+            setWarningState({ type: null, message: '' });
+            setMechStars(null);
+            const best = loadMechProgress().bestMoves[stage.id];
+            setPackBestMoves(best ?? null);
+            return;
+        }
+
+        if (gameState.mode === 'daily') {
+            const { board, dateKey } = getDailyBoard();
+            const { bottles, orders } = materializeDailyBoard(board);
+            const isWin = checkLevelComplete(bottles, orders);
+            setGameState(prev => ({
+                ...prev,
+                level: 1,
+                difficultyLabel: dateKey,
+                bottles,
+                orders,
+                initialBoardState: {
+                    bottles: JSON.parse(JSON.stringify(bottles)),
+                    orders: JSON.parse(JSON.stringify(orders)),
+                },
+                selectedBottleId: null,
+                history: [],
+                isWin,
+            }));
+            setProcessingMatch(null);
+            setWarningState({ type: null, message: '' });
+            return;
+        }
+
         const { bottles, orders } = generateLevel(levelInput);
         const isWin = checkLevelComplete(bottles, orders);
         setGameState(prev => ({
@@ -566,6 +744,15 @@ export default function Game() {
                 return;
             }
             startLevel(nextIndex);
+        } else if (gameState.mode === 'mechanism_pack') {
+            const nextIndex = gameState.level + 1;
+            if (nextIndex >= mechStageCount()) {
+                navigate('/');
+                return;
+            }
+            startLevel(nextIndex);
+        } else if (gameState.mode === 'daily') {
+            navigate('/');
         } else {
             startLevel(gameState.level);
         }
@@ -600,101 +787,136 @@ export default function Game() {
         }
     }
 
-    const handleBottleClick = (bottleId: string) => {
-        if (gameState.isWin || isLose || processingMatch) return;
-
+    const commitPour = (sourceId: string, targetId: string) => {
         setGameState(prev => {
-            const { selectedBottleId, bottles, orders } = prev;
-
-            if (!selectedBottleId) {
-                const bottle = bottles.find(b => b.id === bottleId);
-                if (!bottle || bottle.layers.length === 0 || bottle.isCompleted) return prev;
-
-                sounds.pop();
-                setHintIds(null);
-                return { ...prev, selectedBottleId: bottleId };
-            }
-
-            if (selectedBottleId === bottleId) {
-                sounds.pop();
+            const sourceIndex = prev.bottles.findIndex(b => b.id === sourceId);
+            const targetIndex = prev.bottles.findIndex(b => b.id === targetId);
+            if (sourceIndex === -1 || targetIndex === -1) {
                 return { ...prev, selectedBottleId: null };
             }
 
-            const sourceIndex = bottles.findIndex(b => b.id === selectedBottleId);
-            const targetIndex = bottles.findIndex(b => b.id === bottleId);
-
-            if (sourceIndex === -1 || targetIndex === -1) return { ...prev, selectedBottleId: null };
-
-            const source = bottles[sourceIndex];
-            const target = bottles[targetIndex];
-
-            if (canPour(source, target)) {
-                // Valid Move
-                trackMissionProgress('POUR'); // TRACK MISSION: POUR
-
-                const historySnapshot = {
-                    bottles: JSON.parse(JSON.stringify(bottles)),
-                    orders: JSON.parse(JSON.stringify(orders))
-                };
-                const newHistory = [...prev.history, historySnapshot];
-
-                const mixing = isMixingPour(source, target);
-                const { newSource, newTarget } = pourLiquid(source, target);
-                if (mixing) {
-                    sounds.mix();
-                    setMixFlashId(newTarget.id);
-                } else {
-                    sounds.pour();
-                }
-                setHintIds(null);
-
-                let currentBottles = [...bottles];
-                currentBottles[sourceIndex] = newSource;
-                currentBottles[targetIndex] = newTarget;
-
-                const isTargetNewlyCompleted = newTarget.isCompleted && !target.isCompleted;
-                if (isTargetNewlyCompleted) {
-                    const match = findMatch(currentBottles, orders);
-                    if (!match) {
-                        sounds.pop();
-                    }
-                }
-
-                const isWin = checkLevelComplete(currentBottles, orders);
-
-                if (isWin) {
-                    trackMissionProgress('WIN_LEVEL');
-                }
-
-                // QP move-limit fail (count player pours = history length after this pour)
-                if (
-                  !isWin &&
-                  prev.mode === 'quick_play' &&
-                  initialQpVariant === 'moves' &&
-                  initialMoveLimit != null &&
-                  newHistory.length >= initialMoveLimit
-                ) {
-                    setIsLose(true);
-                    setLoseReason(`已用完 ${initialMoveLimit} 步`);
-                }
-
-                return {
-                    ...prev,
-                    bottles: currentBottles,
-                    selectedBottleId: null,
-                    history: newHistory,
-                    isWin
-                };
-            } else {
-                const targetBottle = bottles[targetIndex];
-                if (!targetBottle.isCompleted && targetBottle.layers.length > 0) {
-                    sounds.pop();
-                    return { ...prev, selectedBottleId: bottleId };
-                }
-                sounds.error();
+            const source = prev.bottles[sourceIndex];
+            const target = prev.bottles[targetIndex];
+            if (!canPour(source, target)) {
                 return { ...prev, selectedBottleId: null };
             }
+
+            trackMissionProgress('POUR');
+
+            const historySnapshot = {
+                bottles: JSON.parse(JSON.stringify(prev.bottles)),
+                orders: JSON.parse(JSON.stringify(prev.orders)),
+            };
+            const newHistory = [...prev.history, historySnapshot];
+
+            const mixing = isMixingPour(source, target);
+            const { newSource, newTarget } = pourLiquid(source, target);
+            if (mixing) {
+                setMixFlashId(newTarget.id);
+            }
+
+            let currentBottles = [...prev.bottles];
+            currentBottles[sourceIndex] = newSource;
+            currentBottles[targetIndex] = newTarget;
+
+            const isTargetNewlyCompleted = newTarget.isCompleted && !target.isCompleted;
+            if (isTargetNewlyCompleted) {
+                setCelebrateId(newTarget.id);
+                sounds.bottleComplete();
+            }
+
+            const isWin = checkLevelComplete(currentBottles, prev.orders);
+            if (isWin) {
+                trackMissionProgress('WIN_LEVEL');
+            }
+
+            if (
+              !isWin &&
+              prev.mode === 'quick_play' &&
+              initialQpVariant === 'moves' &&
+              initialMoveLimit != null &&
+              newHistory.length >= initialMoveLimit
+            ) {
+                setIsLose(true);
+                setLoseReason(`已用完 ${initialMoveLimit} 步`);
+            }
+
+            const stageLimit = prev.mode === 'mechanism_pack'
+              ? getMechStage(prev.level)?.moveLimit
+              : undefined;
+            if (!isWin && stageLimit != null && newHistory.length >= stageLimit) {
+                setIsLose(true);
+                setLoseReason(`已用完 ${stageLimit} 步`);
+            }
+
+            return {
+                ...prev,
+                bottles: currentBottles,
+                selectedBottleId: null,
+                history: newHistory,
+                isWin,
+            };
         });
+        setPourAnim(null);
+        setHintIds(null);
+    };
+
+    const handleBottleClick = (bottleId: string) => {
+        if (gameState.isWin || isLose || processingMatch || pourAnim) return;
+
+        const { selectedBottleId, bottles } = gameState;
+
+        if (!selectedBottleId) {
+            const bottle = bottles.find(b => b.id === bottleId);
+            if (!bottle || bottle.layers.length === 0 || bottle.isCompleted || bottle.isBlocked) return;
+            sounds.pop();
+            setHintIds(null);
+            setGameState(prev => ({ ...prev, selectedBottleId: bottleId }));
+            return;
+        }
+
+        if (selectedBottleId === bottleId) {
+            sounds.pop();
+            setGameState(prev => ({ ...prev, selectedBottleId: null }));
+            return;
+        }
+
+        const sourceIndex = bottles.findIndex(b => b.id === selectedBottleId);
+        const targetIndex = bottles.findIndex(b => b.id === bottleId);
+        if (sourceIndex === -1 || targetIndex === -1) {
+            setGameState(prev => ({ ...prev, selectedBottleId: null }));
+            return;
+        }
+
+        const source = bottles[sourceIndex];
+        const target = bottles[targetIndex];
+
+        if (canPour(source, target)) {
+            const mixing = isMixingPour(source, target);
+            if (mixing) sounds.mix();
+            else sounds.pour();
+
+            const runPour = () => commitPour(source.id, target.id);
+
+            if (reduceMotion) {
+                runPour();
+                return;
+            }
+
+            const tilt: 'left' | 'right' = sourceIndex < targetIndex ? 'right' : 'left';
+            setPourAnim({ sourceId: source.id, targetId: target.id, tilt });
+            if (pourTimerRef.current != null) window.clearTimeout(pourTimerRef.current);
+            pourTimerRef.current = window.setTimeout(runPour, POUR_ANIM_MS);
+            return;
+        }
+
+        if (!target.isCompleted && !target.isBlocked && target.layers.length > 0) {
+            sounds.pop();
+            setGameState(prev => ({ ...prev, selectedBottleId: bottleId }));
+            return;
+        }
+        sounds.error();
+        setGameState(prev => ({ ...prev, selectedBottleId: null }));
     };
 
     const handleUndo = () => {
@@ -742,7 +964,11 @@ export default function Game() {
                 ? (getPackStage(prev.level)?.capacity ?? 4)
                 : prev.mode === 'mix_challenge'
                   ? (getMixStage(prev.level)?.capacity ?? 4)
-                  : getCapacityForLevel(prev.level);
+                  : prev.mode === 'mechanism_pack'
+                    ? (getMechStage(prev.level)?.defaultCapacity ?? 4)
+                    : prev.mode === 'daily'
+                      ? (getDailyBoard().board.capacity)
+                      : getCapacityForLevel(prev.level);
 
             const newBottle: BottleData = {
                 id: Math.random().toString(),
@@ -848,6 +1074,13 @@ export default function Game() {
     };
 
     const challengeStatus = useMemo(() => {
+        if (gameState.mode === 'mechanism_pack' && mechMoveLimit != null) {
+            const used = gameState.history.length;
+            return `剩餘步數 ${Math.max(0, mechMoveLimit - used)}`;
+        }
+        if (gameState.mode === 'mechanism_pack' && mechMinSteps != null) {
+            return `3★ ≤ ${mechMinSteps} 步`;
+        }
         if (gameState.mode !== 'quick_play') return undefined;
         if (initialQpVariant === 'moves' && initialMoveLimit != null) {
             const used = gameState.history.length;
@@ -859,10 +1092,14 @@ export default function Game() {
             return `剩餘 ${m}:${s.toString().padStart(2, '0')}`;
         }
         return undefined;
-    }, [gameState.mode, gameState.history.length, initialQpVariant, initialMoveLimit, timeLeftSec]);
+    }, [gameState.mode, gameState.history.length, initialQpVariant, initialMoveLimit, timeLeftSec, mechMoveLimit, mechMinSteps]);
 
     const stageCount =
-      gameState.mode === 'mix_challenge' ? mixStageCount() : packStageCount();
+      gameState.mode === 'mix_challenge'
+        ? mixStageCount()
+        : gameState.mode === 'mechanism_pack'
+          ? mechStageCount()
+          : packStageCount();
 
     return (
         <div className="relative w-full h-screen flex flex-col items-center justify-between text-white overflow-hidden font-sans">
@@ -905,7 +1142,9 @@ export default function Game() {
                     <div className="flex-1 min-w-0">
                         <TopBar
                             level={
-                              gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge'
+                              gameState.mode === 'puzzle_pack' ||
+                              gameState.mode === 'mix_challenge' ||
+                              gameState.mode === 'mechanism_pack'
                                 ? gameState.level + 1
                                 : gameState.level
                             }
@@ -964,6 +1203,13 @@ export default function Game() {
                                   (hintIds.sourceId === bottle.id || hintIds.targetId === bottle.id)
                                 }
                                 isFlying={processingMatch?.bottleId === bottle.id}
+                                isPouringSource={pourAnim?.sourceId === bottle.id}
+                                isPouringTarget={pourAnim?.targetId === bottle.id}
+                                pourTilt={pourAnim?.sourceId === bottle.id ? pourAnim.tilt : null}
+                                isCelebrating={celebrateId === bottle.id}
+                                reduceMotion={reduceMotion}
+                                bottleSkin={cosmetics.equippedBottle}
+                                liquidSkin={cosmetics.equippedLiquid}
                                 onClick={() => handleBottleClick(bottle.id)}
                             />
                         ))}
@@ -1021,9 +1267,17 @@ export default function Game() {
                           ? `${packStageName ?? '關卡包'}完成`
                           : gameState.mode === 'mix_challenge'
                             ? `${packStageName ?? '混合挑戰'}完成`
+                          : gameState.mode === 'mechanism_pack'
+                            ? `${packStageName ?? '機制挑戰'}完成`
+                          : gameState.mode === 'daily'
+                            ? `每日一題・${packStageName ?? ''}完成`
                           : `${qpDifficultyLabel(gameState.difficultyLabel)} 完成`
                     }
-                    badge="太棒了！"
+                    badge={
+                      gameState.mode === 'mechanism_pack' && mechStars != null
+                        ? `${'★'.repeat(mechStars)}${'☆'.repeat(3 - mechStars)}`
+                        : '太棒了！'
+                    }
                     variant="win"
                     stats={[
                         {
@@ -1032,11 +1286,19 @@ export default function Game() {
                               ? '關卡包'
                               : gameState.mode === 'mix_challenge'
                                 ? '混合挑戰'
-                                : '關卡',
+                                : gameState.mode === 'mechanism_pack'
+                                  ? '機制挑戰'
+                                  : gameState.mode === 'daily'
+                                    ? '每日'
+                                    : '關卡',
                           value:
-                            gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge'
+                            gameState.mode === 'puzzle_pack' ||
+                            gameState.mode === 'mix_challenge' ||
+                            gameState.mode === 'mechanism_pack'
                               ? `${gameState.level + 1}/${stageCount}`
-                              : gameState.level,
+                              : gameState.mode === 'daily'
+                                ? gameState.difficultyLabel ?? '今日'
+                                : gameState.level,
                         },
                         { label: '金幣', value: gameState.coins },
                         { label: '瓶子數', value: gameState.bottles.length },
@@ -1044,18 +1306,27 @@ export default function Game() {
                         ...(gameState.mode === 'quick_play' && qpBestMoves != null
                           ? [{ label: '最佳倒次', value: qpBestMoves }]
                           : []),
-                        ...((gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge') &&
+                        ...((gameState.mode === 'puzzle_pack' ||
+                          gameState.mode === 'mix_challenge' ||
+                          gameState.mode === 'mechanism_pack') &&
                         packBestMoves != null
                           ? [{ label: '最佳倒次', value: packBestMoves }]
+                          : []),
+                        ...(gameState.mode === 'mechanism_pack' && mechMinSteps != null
+                          ? [{ label: '3★標準', value: mechMinSteps }]
                           : []),
                     ]}
                     primaryLabel={
                       gameState.mode === 'adventure'
                         ? '下一關'
-                        : gameState.mode === 'puzzle_pack' || gameState.mode === 'mix_challenge'
+                        : gameState.mode === 'puzzle_pack' ||
+                            gameState.mode === 'mix_challenge' ||
+                            gameState.mode === 'mechanism_pack'
                           ? gameState.level + 1 >= stageCount
                             ? '回主頁'
                             : '下一關'
+                          : gameState.mode === 'daily'
+                            ? '回主頁'
                           : '再來一局'
                     }
                     onPrimary={handleNextLevel}
@@ -1073,6 +1344,9 @@ export default function Game() {
                         ...(initialMoveLimit != null
                           ? [{ label: '步數上限', value: initialMoveLimit }]
                           : []),
+                        ...(mechMoveLimit != null
+                          ? [{ label: '步數上限', value: mechMoveLimit }]
+                          : []),
                         ...(initialTimeLimitSec != null
                           ? [{ label: '時限（秒）', value: initialTimeLimitSec }]
                           : []),
@@ -1081,6 +1355,7 @@ export default function Game() {
                     onPrimary={() => {
                       setIsLose(false);
                       setLoseReason('');
+                      setPourAnim(null);
                       if (gameState.initialBoardState) {
                         const resetBottles = JSON.parse(JSON.stringify(gameState.initialBoardState.bottles));
                         const resetOrders = JSON.parse(JSON.stringify(gameState.initialBoardState.orders));
