@@ -151,6 +151,20 @@ export default function App(): React.ReactElement {
     setResumeAvailable(Boolean(pending && pending.phase !== 'matchOver'));
     setLadder(loadLadder());
     setDailyProgress(loadDailyProgress());
+
+    // Playtest-only: `?demo=mvp` mounts a finished series so screenshots can
+    // capture the settlement MVP block without playing a full match.
+    if (typeof window !== 'undefined') {
+      const demo = new URLSearchParams(window.location.search).get('demo');
+      if (demo === 'mvp') {
+        const demoMatch = buildMvpDemoMatch();
+        setMatch(demoMatch);
+        setConfig(demoMatch.config);
+        setReview(buildMvpDemoReview());
+        setScreen('game');
+        setState(null);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -1193,4 +1207,76 @@ function FormatRecordLine({ formats }: { formats: FormatRecords }): React.ReactE
         .join(' · ')}
     </p>
   );
+}
+
+/** Synthetic finished series for `?demo=mvp` playtest screenshots. */
+function buildMvpDemoMatch(): MatchState {
+  const score = (seat: number, penalty: number) => ({
+    seat,
+    remaining: penalty,
+    base: penalty,
+    deuces: 0,
+    penalty,
+  });
+  const hand = (
+    handIndex: number,
+    winner: number,
+    deltas: number[],
+    bombs: number[],
+    winnerPlayCount: number,
+  ): MatchState['history'][number] => ({
+    handIndex,
+    seedCode: `demo-${handIndex}`,
+    winner,
+    scores: deltas.map((d, seat) => score(seat, d < 0 ? -d : 0)),
+    pot: Math.max(...deltas),
+    deltas,
+    bombs,
+    winnerPlayCount,
+  });
+  return {
+    config: {
+      mode: 'hands',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: {
+        straights: 'topCard',
+        sizeLadder: true,
+        deuceDouble: true,
+      },
+      seedCode: 'demo-mvp',
+      ladderOpponentId: null,
+    },
+    handIndex: 4,
+    balances: [42, -8, -20, -14],
+    history: [
+      hand(0, 1, [-18, 36, -10, -8], [0, 2, 0, 0], 7),
+      hand(1, 0, [40, -12, -14, -14], [1, 0, 0, 0], 4),
+      hand(2, 0, [20, -16, -2, -2], [0, 0, 1, 0], 5),
+      hand(3, 2, [0, -16, 28, -12], [0, 0, 0, 1], 6),
+    ],
+    phase: 'matchOver',
+    winner: 0,
+  };
+}
+
+function buildMvpDemoReview(): HandReview {
+  return {
+    winner: 0,
+    pot: 42,
+    scores: [
+      { seat: 0, remaining: 0, base: 0, deuces: 0, penalty: 0 },
+      { seat: 1, remaining: 8, base: 8, deuces: 0, penalty: 16 },
+      { seat: 2, remaining: 5, base: 5, deuces: 0, penalty: 5 },
+      { seat: 3, remaining: 6, base: 6, deuces: 0, penalty: 6 },
+    ],
+    highlight: '+42',
+    lessons: [
+      {
+        title: '系列賽籌碼結算',
+        detail: '四局累計後你以 +42 籌碼勝出；局末 MVP 標出最快出完、炸彈與翻盤。',
+      },
+    ],
+  };
 }
