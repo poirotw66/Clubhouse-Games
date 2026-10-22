@@ -372,15 +372,19 @@ export function applyRoundToMatch(
     match.scores[0] + roundTeams[0],
     match.scores[1] + roundTeams[1],
   ];
+  // Target 1 = single-round match: settle after this hand regardless of points.
+  const singleRound = match.target === 1;
   const bothReached =
     scores[0] >= match.target || scores[1] >= match.target;
-  if (bothReached && scores[0] !== scores[1]) {
+  if (singleRound || (bothReached && scores[0] !== scores[1])) {
+    const winner =
+      scores[0] > scores[1] ? 0 : scores[1] > scores[0] ? 1 : null;
     return {
       scores,
       target: match.target,
       round: match.round,
       matchOver: true,
-      matchWinner: scores[0] > scores[1] ? 0 : 1,
+      matchWinner: winner,
       playerCount,
     };
   }

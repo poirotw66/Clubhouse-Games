@@ -596,3 +596,14 @@ describe('hard AI void inference', () => {
     expect(next.suspectedLack[0]).toContain(5);
   });
 });
+
+
+describe('single-round match target', () => {
+  it('ends the match after one round when target is 1', () => {
+    let match = createMatchState(1, 2);
+    match = applyRoundToMatch(match, [10, 5]);
+    expect(match.matchOver).toBe(true);
+    expect(match.matchWinner).toBe(0);
+    expect(match.scores[0]).toBe(10);
+  });
+});

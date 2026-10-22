@@ -1024,3 +1024,14 @@ test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', as
     await expect(page.getByRole('button', { name: '衝刺' })).toBeVisible();
   }
 });
+
+test('dominoes: default target is single under more modes', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Dominoes'), 'selective CI');
+  await page.goto('./Games/Dominoes/');
+  await expect(page.getByText('目前：單局', { exact: false })).toBeVisible();
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await expect(page.getByRole('group', { name: '比賽目標分' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '100 分', exact: true }), isMobile);
+  await expect(page.getByText('目前：先達 100 分', { exact: false })).toBeVisible();
+});
+
