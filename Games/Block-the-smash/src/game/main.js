@@ -1192,6 +1192,15 @@ function createFeatherExplosion(pos, count = 8) {
   }
 }
 
+/** Ask the parent shell to fire shared `@clubhouse/shared/juice` haptics. */
+function notifyParentHaptic(preset) {
+  try {
+    parent.postMessage({ type: 'JUICE_HAPTIC', payload: preset }, '*');
+  } catch {
+    /* no parent */
+  }
+}
+
 function registerMiss(s) {
   if (s.userData.scored) return;
   s.userData.scored = true;
@@ -1214,6 +1223,7 @@ function registerMiss(s) {
   }
 
   AudioSys.playMiss();
+  notifyParentHaptic('error');
   if (!PREFERS_REDUCED) state.shake = Math.max(state.shake, 0.4);
   updateScoreHud();
 
@@ -1247,6 +1257,7 @@ function applyContactResult(s, grade) {
     // Hold shuttle near impact while player picks a return lane.
     s.userData.velocity.set(0, 2, -8);
     AudioSys.playHit('perfect');
+    notifyParentHaptic('success');
     if (!PREFERS_REDUCED) {
       state.shake = 0.65;
       state.flash = 1;
@@ -1266,6 +1277,7 @@ function applyContactResult(s, grade) {
     const dirX = aimZone === 'left' ? -14 : aimZone === 'right' ? 14 : (state.rng() - 0.5) * 8;
     s.userData.velocity.set(dirX, 10, -Math.abs(s.userData.velocity.z) - 12);
     AudioSys.playHit('good');
+    notifyParentHaptic('impact');
     if (!PREFERS_REDUCED) {
       state.shake = 0.4;
       state.flash = 0.6;
