@@ -199,3 +199,15 @@
     animation: none !important;
   }
 }
+
+
+.kk-more-modes > summary::-webkit-details-marker { display: none; }
+.kk-more-modes > summary::after {
+  content: '▸';
+  color: rgba(212, 175, 55, 0.55);
+  transition: transform 160ms ease;
+}
+.kk-more-modes[open] > summary::after { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .kk-more-modes > summary::after { transition: none; }
+}

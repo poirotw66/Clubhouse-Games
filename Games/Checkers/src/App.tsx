@@ -1099,7 +1099,6 @@ export default function App() {
                   [
                     ['two', '雙人', Users],
                     ['bot', '電腦', Bot],
-                    ['series', '系列賽', Trophy],
                     ['puzzle', '謎題', Puzzle],
                   ] as const
                 ).map(([mode, label, Icon]) => (
@@ -1125,10 +1124,6 @@ export default function App() {
                         return;
                       }
                       setGameMode(mode);
-                      if (mode === 'series') {
-                        const m = createMatch(matchTarget);
-                        setMatch(m);
-                      }
                       setState(getInitialState(ruleset));
                       setPlies([]);
                       setReview(null);
@@ -1150,6 +1145,42 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <details
+                className="ck-more-modes mt-2 rounded-lg border border-stone-700/70 bg-stone-950/40 px-3 py-2"
+                open={gameMode === 'series'}
+              >
+                <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-stone-400">
+                  <span>更多模式</span>
+                  <span className="text-[11px] text-stone-500">
+                    {gameMode === 'series' ? '目前：系列賽' : '系列賽（先取幾勝）'}
+                  </span>
+                </summary>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameMode('series');
+                    const m = createMatch(matchTarget);
+                    setMatch(m);
+                    setState(getInitialState(ruleset));
+                    setPlies([]);
+                    setReview(null);
+                    setHistory([]);
+                    setLastMove(null);
+                    setSelected(null);
+                    statsRecordedRef.current = false;
+                    prevPhaseRef.current = 'playing';
+                    setSettingsOpen(false);
+                  }}
+                  className={`mt-2 flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] rounded-full border transition-colors touch-manipulation ${
+                    gameMode === 'series'
+                      ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                      : 'border-stone-600 bg-stone-900 text-stone-300 hover:bg-stone-800'
+                  }`}
+                >
+                  <Trophy className="w-3 h-3" />
+                  系列賽
+                </button>
+              </details>
             </div>
 
             {(gameMode === 'bot' || gameMode === 'series') && (

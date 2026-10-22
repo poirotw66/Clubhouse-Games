@@ -45,6 +45,7 @@ import {
 import {
   applyGameToSeries,
   createSeriesState,
+  isSingleTarget,
   seriesProgressLabel,
   type SeriesState,
 } from './utils/match';
@@ -435,6 +436,7 @@ export default function App() {
         next.seriesOver &&
         next.seriesWinner &&
         gameMode === 'bot' &&
+        !isSingleTarget(next.target) &&
         !seriesRecordedRef.current
       ) {
         seriesRecordedRef.current = true;
@@ -574,7 +576,7 @@ export default function App() {
       return '';
     }
     if (state.phase !== 'over' || !state.winner) return '';
-    if (series.seriesOver && series.seriesWinner) {
+    if (series.seriesOver && series.seriesWinner && !isSingleTarget(series.target)) {
       if (gameMode === 'bot') {
         return series.seriesWinner === playerSide ? '系列賽勝利！' : '系列賽落敗';
       }
@@ -638,7 +640,7 @@ export default function App() {
           <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-sky-200 border border-sky-700/60">
             {RULE_VARIANTS[variant].label} · {BOARD_PRESETS[preset].label}
           </span>
-          {screen === 'play' && (
+          {screen === 'play' && !isSingleTarget(series.target) && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-200 border border-amber-700/60">
               {seriesProgressLabel(series)}
             </span>
@@ -865,31 +867,44 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <div
-              className="flex flex-wrap items-center justify-center gap-2"
-              role="group"
-              aria-label="系列賽目標"
+            <details
+              className="cf-more-modes w-full max-w-lg rounded-xl border border-slate-700/80 bg-slate-900/40 px-3 py-2"
+              open={!isSingleTarget(seriesTarget)}
             >
-              <span className="text-slate-400">先取勝場</span>
-              {SERIES_TARGETS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => {
-                    setSeriesTarget(n);
-                    startNewSeries(n);
-                  }}
-                  aria-pressed={seriesTarget === n}
-                  className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
-                    seriesTarget === n
-                      ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-                      : 'border-slate-600 bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  {n} 勝
-                </button>
-              ))}
-            </div>
+              <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-xs text-slate-300 font-semibold">
+                <span>更多賽制</span>
+                <span className="font-normal text-slate-500">
+                  {isSingleTarget(seriesTarget)
+                    ? '目前：單局'
+                    : `目前：先取 ${seriesTarget} 勝`}
+                </span>
+              </summary>
+              <div
+                className="mt-2 flex flex-wrap items-center justify-center gap-2"
+                role="group"
+                aria-label="系列賽目標"
+              >
+                <span className="text-slate-400">先取勝場</span>
+                {SERIES_TARGETS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => {
+                      setSeriesTarget(n);
+                      startNewSeries(n);
+                    }}
+                    aria-pressed={seriesTarget === n}
+                    className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
+                      seriesTarget === n
+                        ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                        : 'border-slate-600 bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    {n === 1 ? '單局' : `${n} 勝`}
+                  </button>
+                ))}
+              </div>
+            </details>
           </div>
 
           {gameMode === 'bot' && (
@@ -1172,7 +1187,7 @@ export default function App() {
                 : '失敗'
               : state.winner === 'draw'
                 ? '和局'
-                : series.seriesOver
+                : series.seriesOver && !isSingleTarget(series.target)
                   ? '系列賽'
                   : undefined
           }
@@ -1194,10 +1209,14 @@ export default function App() {
                         ? `電腦 · ${PERSONALITIES[personality].name}`
                         : '雙人對戰',
                   },
-                  {
-                    label: '系列賽',
-                    value: `${series.scores[0]}–${series.scores[1]} / ${series.target}`,
-                  },
+                  ...(!isSingleTarget(series.target)
+                    ? [
+                        {
+                          label: '系列賽',
+                          value: `${series.scores[0]}–${series.scores[1]} / ${series.target}`,
+                        },
+                      ]
+                    : []),
                   ...(gameMode === 'bot'
                     ? [
                         { label: '本模式', value: modeLabel },
@@ -1238,7 +1257,9 @@ export default function App() {
                 ? '下一題'
                 : '再試一次'
               : series.seriesOver
-                ? '新系列賽'
+                ? isSingleTarget(series.target)
+                  ? '再玩一局'
+                  : '新系列賽'
                 : '再玩一局'
           }
         />
