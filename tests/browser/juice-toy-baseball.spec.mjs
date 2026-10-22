@@ -76,7 +76,7 @@ test('toy-baseball: juice settings panel in menu overlay', async ({ page, isMobi
   expect(page.__runtimeErrors || []).toEqual([]);
 });
 
-test('toy-baseball: swing miss soft-error haptic; contact impact', async ({ page, isMobile }) => {
+test('toy-baseball: bat contact or miss fires shared haptic', async ({ page, isMobile }) => {
   test.skip(!includesGame('Toy-Baseball'), 'selective CI');
   test.setTimeout(60_000);
   await page.addInitScript(() => {
@@ -93,18 +93,19 @@ test('toy-baseball: swing miss soft-error haptic; contact impact', async ({ page
 
   await activate(page.getByRole('button', { name: '全壘打大賽' }), isMobile);
   await activate(page.getByRole('button', { name: '開始大賽' }), isMobile);
-  await expect(page.getByRole('button', { name: '揮棒' })).toBeVisible({ timeout: 10_000 });
+  const swing = page.getByRole('button', { name: '揮棒' });
+  await expect(swing).toBeVisible({ timeout: 10_000 });
 
-  // Early swing while the ball is still en route → processMiss soft error haptic.
+  // Pitch delay + flight; mash swing so either contact impact/win or late-miss error fires.
   const before = await page.evaluate(() => window.__vibrateCalls.length);
-  for (let i = 0; i < 8; i++) {
-    await page.keyboard.press('Space');
-    await page.waitForTimeout(180);
+  for (let i = 0; i < 48; i++) {
+    await activate(swing, isMobile);
+    await page.waitForTimeout(150);
     const n = await page.evaluate(() => window.__vibrateCalls.length);
     if (n > before) break;
   }
   await expect
-    .poll(async () => page.evaluate(() => window.__vibrateCalls.length))
+    .poll(async () => page.evaluate(() => window.__vibrateCalls.length), { timeout: 15_000 })
     .toBeGreaterThan(before);
 
   expect(page.__runtimeErrors || []).toEqual([]);
@@ -126,11 +127,12 @@ test('toy-baseball: juice respects haptics off', async ({ page, isMobile }) => {
   await dismissFirstRunIfPresent(page, isMobile);
   await activate(page.getByRole('button', { name: '全壘打大賽' }), isMobile);
   await activate(page.getByRole('button', { name: '開始大賽' }), isMobile);
-  await expect(page.getByRole('button', { name: '揮棒' })).toBeVisible({ timeout: 10_000 });
+  const swing = page.getByRole('button', { name: '揮棒' });
+  await expect(swing).toBeVisible({ timeout: 10_000 });
 
-  for (let i = 0; i < 6; i++) {
-    await page.keyboard.press('Space');
-    await page.waitForTimeout(200);
+  for (let i = 0; i < 12; i++) {
+    await activate(swing, isMobile);
+    await page.waitForTimeout(150);
   }
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBe(0);
