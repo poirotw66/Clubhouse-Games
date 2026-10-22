@@ -420,6 +420,12 @@ export function GameCanvas({ stateRef, juiceRef, paused, reduceMotion }: Props):
 
       ctx.restore();
 
+      // Full-field flash after bomb / capture / boss kill (gated by reduceMotion).
+      if (!reduceMotion && juice.flash > 0) {
+        ctx.fillStyle = `rgba(255, 248, 240, ${Math.min(0.55, juice.flash * 0.55)})`;
+        ctx.fillRect(0, 0, cssW, cssH);
+      }
+
       if (paused) {
         ctx.fillStyle = 'rgba(4,6,20,0.6)';
         ctx.fillRect(0, 0, cssW, cssH);

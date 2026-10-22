@@ -21,10 +21,11 @@
 
 - **介面**：直向為主；支援鍵盤與觸控。
 - **操作**：
-  - 鍵盤：方向鍵移動、`Shift` 集中模式、`Z` 靈擊、`P` 或 `Esc` 暫停。射擊為自動。
-  - 觸控：單指拖曳移動（戰機跟隨手指，帶固定偏移，避免手指蓋住判定點）；拖曳中長按進入集中模式；靈擊為畫面側邊的獨立按鍵。
+  - 鍵盤：方向鍵移動、`Shift` 集中模式、`Z` 靈擊、`X` 機體特技、`P` 或 `Esc` 暫停。射擊為自動。
+  - 觸控：單指拖曳移動（戰機跟隨手指，帶固定偏移，避免手指蓋住判定點）；拖曳中長按進入集中模式；靈擊與特技為畫面側邊的獨立按鍵。
 - **計分**：擊破分、擦彈倍率、符卡 Capture 加成；最佳成績存於瀏覽器本機（localStorage）。
-- **機體**：標題可選至少三架可玩機體（迅羽／重炮／縫影），射速、齊射寬度、傷害與集中／高速取捨各異；額外機體以通關次數解鎖。各機體最佳分與符卡 Capture 圖鑑存於 `danmaku-abyss:progress-v1`（與自由遊玩總最佳 `danmaku-abyss:best`、模式包進度分開）。
+- **機體**：標題可選至少三架可玩機體（迅羽／重炮／縫影），各有不同**射擊型態**（均衡扇射／寬幅重擊／細針集火）、判定大小、集中／高速取捨，以及專屬**特技**（X／觸控「特技」：羽閃／過載／縫隙，冷卻制、不花靈擊）；額外機體以通關次數解鎖。各機體最佳分與符卡 Capture 圖鑑存於 `danmaku-abyss:progress-v1`（與自由遊玩總最佳 `danmaku-abyss:best`、模式包進度、每日挑戰分開）。
+- **每日挑戰**：標題「今日挑戰」以當日日期種子（`DYYYYMMDD`）開局（遊戲本身已是種子決定性）；今日最佳存於 `danmaku-abyss:daily-v1`，結算可複製分享文案。
 
 ## 遊戲目標
 
@@ -60,7 +61,7 @@
 ### 回合流程
 
 1. **道中**：波次推進，敵機沿固定軌跡進場並依符卡發射彈幕。
-2. **王戰**：每階段結尾一名王，持有 2–3 張符卡；每張符卡有**計時**。
+2. **王戰**：每階段結尾一名王，持有多張符卡（目前各王 4 張，形狀互異）；每張符卡有**計時**。
 3. **Capture**：在時限內擊破該符卡可獲得加成；時間耗盡則符卡自行結束，不給加成。
 4. **強化**：階段結束後三選一，效果為純資料的效果鍵（傷害、擦彈範圍、集中速度、靈擊數、判定點縮小、符卡計時延長……）。
 5. **強度推進**：`intensity` 隨階段連續上升，並在王戰期間額外加權。
@@ -116,14 +117,16 @@
 | 4 | `hard-abyss` | 高難深潛：五階段全通，強度＋0.55，殘機／靈擊各 2 |
 | 5 | `spell-frost-rain` | 指定符卡：凍符「靜止的雨」，必須 Capture |
 | 6 | `spell-abyss-gaze` | 指定符卡：終符「深淵回望」，必須 Capture |
-| 7 | `spell-frost-duet` | 指定符卡：霜符「雙弦」（新），必須 Capture |
-| 8 | `spell-abyss-rift` | 指定符卡：淵符「裂壁」（新），必須 Capture |
+| 7 | `spell-frost-duet` | 指定符卡：霜符「雙弦」，必須 Capture |
+| 8 | `spell-abyss-rift` | 指定符卡：淵符「裂壁」，必須 Capture |
+| 9 | `spell-lamp-beacon` | 指定符卡：灯符「導標」，必須 Capture |
+| 10 | `spell-ember-bloom` | 指定符卡：燼符「花開」，必須 Capture |
 
 實作：`src/game/modes.ts`；引擎 `createRun` 接受 `endStage`／`skipMidway`／`singleCard`／`intensityBonus`／`craftId` 等 knobs。新符卡仍為發射器參數資料，不改引擎分支；平衡腳本仍只讀 `intensity` 曲線與卡池密度。
 
 ### 回饋（Juice）
 
-受擊、靈擊、王擊破會觸發畫面震動與粒子；擦彈連段或對王的重擊有短暫 hit-stop，並以 `synthAudio`（`playImpact`／`playCombo`／`playCapture`）配音。`prefers-reduced-motion: reduce` 時關閉震動、hit-stop 與粒子，模擬層不受影響。
+受擊、靈擊、特技、王擊破、道中擊破會觸發畫面震動／闃光與粒子；擦彈有微粒回饋，連段或對王的重擊有短暫 hit-stop，並以 `synthAudio`（`playImpact`／`playCombo`／`playCapture`）配音。`prefers-reduced-motion: reduce` 時關閉震動、hit-stop、粒子與閃光，模擬層不受影響。
 
 ## 備註
 
@@ -131,4 +134,5 @@
 - 全部彈幕與敵機行為皆為決定性，相同種子碼與相同輸入序列會重現完全相同的一趟。
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`danmaku-abyss:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「潛入深淵」衝突。
 - **機體／圖鑑**：`src/game/crafts.ts`；標題「選擇機體」「符卡圖鑑」。
+- **每日挑戰**：`src/game/daily.ts`；標題「今日挑戰」、結算分享文案。
 - 實作路徑：`Games/Danmaku-Abyss/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。

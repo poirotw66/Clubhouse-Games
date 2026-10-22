@@ -1,11 +1,29 @@
 /**
- * Playable crafts: distinct shot / focus tradeoffs. Starter is free; extras
- * unlock from free-play or mode-pack clears. Stats live in progress storage so
- * grinding a craft never overwrites the free-play best integer key.
+ * Playable crafts: distinct shot styles, hitboxes, and special skills. Starter
+ * is free; extras unlock from free-play or mode-pack clears. Stats live in
+ * progress storage so grinding a craft never overwrites the free-play best key.
  */
 import type { RunState } from './types';
 
 export const PROGRESS_STORAGE_KEY = 'danmaku-abyss:progress-v1';
+
+/** How hitscan volleys distribute damage across the field. */
+export type ShotStyle = 'balanced' | 'wide' | 'needle';
+
+/** Cooldown special unique to each craft (X / 特技 button). */
+export type SpecialKind = 'dash' | 'overdrive' | 'rift';
+
+export interface CraftSpecial {
+  kind: SpecialKind;
+  /** Traditional Chinese short name shown in HUD / picker. */
+  name: string;
+  /** One-line Traditional Chinese description. */
+  blurb: string;
+  /** Seconds before the special can be used again. */
+  cooldown: number;
+  /** Active window length in seconds. */
+  duration: number;
+}
 
 export interface CraftDef {
   id: string;
@@ -15,6 +33,9 @@ export interface CraftDef {
   blurb: string;
   /** Free-play / pack clears required to unlock (0 = starter). */
   unlockClears: number;
+  /** Hitscan distribution style — not just numeric multipliers. */
+  shotStyle: ShotStyle;
+  special: CraftSpecial;
   /** Multipliers applied on top of upgrade-derived stats. */
   fireRateMult: number;
   damageMult: number;
@@ -32,16 +53,24 @@ export interface CraftDef {
 
 /**
  * Three crafts with readable tradeoffs — not flat reskins:
- *   迅羽  balanced starter
- *   重炮  slow / hard / wide; sluggish focus
- *   縫影  tiny hitbox + fast focus; thin weak stream
+ *   迅羽  balanced starter + dash special
+ *   重炮  wide hard shots + overdrive special
+ *   縫影  needle stream, tiny hitbox + rift special
  */
 export const CRAFTS: readonly CraftDef[] = [
   {
     id: 'swift',
     name: '迅羽',
-    blurb: '均衡機體・射速與機動無偏科',
+    blurb: '均衡扇射・特技「羽閃」短距突進並短暫無敵',
     unlockClears: 0,
+    shotStyle: 'balanced',
+    special: {
+      kind: 'dash',
+      name: '羽閃',
+      blurb: '短距突進並短暫無敵',
+      cooldown: 7.5,
+      duration: 0.28,
+    },
     fireRateMult: 1,
     damageMult: 1,
     shotWidthBonus: 0,
@@ -56,8 +85,16 @@ export const CRAFTS: readonly CraftDef[] = [
   {
     id: 'cannon',
     name: '重炮',
-    blurb: '齊射更寬、單發更痛・射速與集中速度較慢',
+    blurb: '寬幅重擊・特技「過載」短暫暴傷但減速',
     unlockClears: 1,
+    shotStyle: 'wide',
+    special: {
+      kind: 'overdrive',
+      name: '過載',
+      blurb: '短暫暴傷，移動變慢',
+      cooldown: 9,
+      duration: 2.4,
+    },
     fireRateMult: 0.72,
     damageMult: 1.45,
     shotWidthBonus: 2,
@@ -72,8 +109,16 @@ export const CRAFTS: readonly CraftDef[] = [
   {
     id: 'stitch',
     name: '縫影',
-    blurb: '判定更小、集中更快・火力細弱、擦彈圈略大',
+    blurb: '細針集火・判定更小・特技「縫隙」清近彈並擴擦彈圈',
     unlockClears: 2,
+    shotStyle: 'needle',
+    special: {
+      kind: 'rift',
+      name: '縫隙',
+      blurb: '清近彈並短暫擴大擦彈圈',
+      cooldown: 8.5,
+      duration: 1.8,
+    },
     fireRateMult: 1.15,
     damageMult: 0.72,
     shotWidthBonus: -1,

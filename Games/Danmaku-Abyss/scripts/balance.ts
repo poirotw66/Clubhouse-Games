@@ -118,6 +118,8 @@ function pilot(s: RunState, bombPolicy: BombPolicy, stance: Stance = 'keepBack')
     dy: bestDir[1],
     focus,
     bomb: bombPolicy === 'panic' && closestNow < 8 && s.invuln <= 0,
+    // Balance harness does not exercise craft specials — keep the pilot fair.
+    special: false,
   };
 }
 

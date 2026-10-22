@@ -47,11 +47,22 @@ import {
   saveModeProgress,
   type ModeProgress,
 } from './game/modes';
+import {
+  buildDailyShareText,
+  copyText,
+  dailySeedCode,
+  loadDailyBest,
+  mergeDailyBest,
+  saveDailyBest,
+  todayKey,
+  type DailyBestRecord,
+} from './game/daily';
 import { randomSeedCode } from './game/rng';
 import { CONDITION_TEXT, UPGRADE_BY_ID } from './game/upgrades';
 import type { PlayerInput, RunState } from './game/types';
 
 type Screen = 'menu' | 'playing';
+type RunKind = 'free' | 'mode' | 'daily';
 
 const BEST_KEY = 'danmaku-abyss:best';
 
@@ -78,18 +89,24 @@ export default function App(): React.ReactElement {
   const [showCaptures, setShowCaptures] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const [reduceMotion, setReduceMotion] = useState(() => prefersReducedMotion());
+  const [dailyBest, setDailyBest] = useState<DailyBestRecord>(() => loadDailyBest());
+  const [shareCopied, setShareCopied] = useState(false);
   /** Mirrors the simulation for the HUD only; the canvas reads the ref directly. */
   const [hud, setHud] = useState<RunState | null>(null);
-  /** Mode id for the active run; null = free play. Kept so retry restarts the same mode. */
+  /** Mode id for the active run; null = free play / daily. Kept so retry restarts the same mode. */
   const activeModeIdRef = useRef<string | null>(null);
+  const runKindRef = useRef<RunKind>('free');
+  const dailyDateRef = useRef(todayKey());
   const modeResultAppliedRef = useRef<string | null>(null);
   const freePlayResultAppliedRef = useRef<string | null>(null);
+  const dailyResultAppliedRef = useRef<string | null>(null);
 
   const stateRef = useRef<RunState | null>(null);
   const juiceRef = useRef<JuiceState>(emptyJuice());
   const prevSimRef = useRef<RunState | null>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const bombRef = useRef(false);
+  const specialRef = useRef(false);
   const pointerRef = useRef<{ active: boolean; x: number; y: number; focus: boolean } | null>(null);
   const rafRef = useRef(0);
   const accRef = useRef(0);
@@ -113,10 +130,13 @@ export default function App(): React.ReactElement {
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  const beginRun = useCallback((state: RunState, modeId: string | null) => {
+  const beginRun = useCallback((state: RunState, modeId: string | null, kind: RunKind) => {
     activeModeIdRef.current = modeId;
+    runKindRef.current = kind;
     modeResultAppliedRef.current = null;
     freePlayResultAppliedRef.current = null;
+    dailyResultAppliedRef.current = null;
+    setShareCopied(false);
     stateRef.current = state;
     prevSimRef.current = null;
     juiceRef.current = emptyJuice();
@@ -131,6 +151,17 @@ export default function App(): React.ReactElement {
     beginRun(
       createRun(randomSeedCode(), { craftId: selectedCraftRef.current }),
       null,
+      'free',
+    );
+  }, [beginRun]);
+
+  const startDaily = useCallback(() => {
+    const date = todayKey();
+    dailyDateRef.current = date;
+    beginRun(
+      createRun(dailySeedCode(), { craftId: selectedCraftRef.current }),
+      null,
+      'daily',
     );
   }, [beginRun]);
 
@@ -145,6 +176,7 @@ export default function App(): React.ReactElement {
           craftId: selectedCraftRef.current,
         }),
         mode.id,
+        'mode',
       );
     },
     [beginRun],
@@ -207,7 +239,9 @@ export default function App(): React.ReactElement {
 
     const bomb = bombRef.current;
     bombRef.current = false;
-    return { dx, dy, focus, bomb };
+    const special = specialRef.current;
+    specialRef.current = false;
+    return { dx, dy, focus, bomb, special };
   }, []);
 
   useEffect(() => {
@@ -221,6 +255,11 @@ export default function App(): React.ReactElement {
       if (e.code === 'KeyZ') {
         e.preventDefault();
         bombRef.current = true;
+        return;
+      }
+      if (e.code === 'KeyX') {
+        e.preventDefault();
+        specialRef.current = true;
         return;
       }
       if (e.code.startsWith('Arrow') || e.code.startsWith('Shift') || 'KeyAKeyDKeyWKeyS'.includes(e.code)) {
@@ -288,9 +327,36 @@ export default function App(): React.ReactElement {
     return () => cancelAnimationFrame(rafRef.current);
   }, [screen, paused, readInput, reduceMotion]);
 
-  // Record free-play best, craft progress, and mode-pack progress once a run ends.
+  // Record free-play / daily / mode-pack progress once a run ends.
   useEffect(() => {
     if (!hud || (hud.phase !== 'lost' && hud.phase !== 'won')) return;
+
+    if (runKindRef.current === 'daily') {
+      const date = dailyDateRef.current || todayKey();
+      const resultKey = `daily:${date}:${hud.phase}:${hud.score}:${hud.craftId}`;
+      if (dailyResultAppliedRef.current === resultKey) return;
+      dailyResultAppliedRef.current = resultKey;
+
+      const merged = mergeDailyBest(
+        loadDailyBest(),
+        date,
+        hud.score,
+        hud.stage,
+        hud.craftId,
+        hud.captures,
+        hud.phase === 'won',
+      );
+      saveDailyBest(merged);
+      setDailyBest(merged);
+
+      // Daily feeds craft unlocks / gallery / craftBest, but never free-play BEST_KEY.
+      setProgress((prev) => {
+        const next = applyFreePlayResult(prev, hud);
+        saveProgress(next);
+        return next;
+      });
+      return;
+    }
 
     if (!hud.modeId) {
       const resultKey = `free:${hud.phase}:${hud.score}:${hud.craftId}:${hud.captures}`;
@@ -356,10 +422,32 @@ export default function App(): React.ReactElement {
   }, []);
 
   const retryCurrent = useCallback(() => {
+    if (runKindRef.current === 'daily') {
+      startDaily();
+      return;
+    }
     const modeId = activeModeIdRef.current;
     if (modeId) startMode(modeId);
     else startRun();
-  }, [startMode, startRun]);
+  }, [startMode, startRun, startDaily]);
+
+  const shareDailyResult = useCallback(async () => {
+    if (!hud) return;
+    const date = dailyDateRef.current || todayKey();
+    const text = buildDailyShareText({
+      date,
+      seedCode: hud.seedCode,
+      score: Math.max(hud.score, dailyBest.date === date ? dailyBest.bestScore : hud.score),
+      stage: hud.stage,
+      endStage: hud.config.endStage,
+      craftName: craftById(hud.craftId).name,
+      captures: hud.captures,
+      cleared: hud.phase === 'won' || (dailyBest.date === date && dailyBest.cleared),
+      attempts: dailyBest.date === date ? dailyBest.attempts : undefined,
+    });
+    const ok = await copyText(text);
+    setShareCopied(ok);
+  }, [hud, dailyBest]);
 
   // ── Pointer steering ───────────────────────────────────────────────────────
 
@@ -433,13 +521,15 @@ export default function App(): React.ReactElement {
             <li>傷害隨距離衰減，擦彈倍率隨距離上升——站哪裡是唯一重要的問題。</li>
             <li><b>集中模式</b>（Shift／長按）大幅減速並顯示判定點，能穿針但無法換位。</li>
             <li><b>靈擊</b>（Z）清空子彈換命，但會把擦彈倍率歸零。</li>
+            <li><b>特技</b>（X）為機體專屬冷卻技，不消耗靈擊。</li>
             <li>死亡扣一條命、掉一級火力，碎片會撒在你死掉的地方。</li>
-            <li>五個階段，每階段結束三選一強化。標題另有模式／關卡包可刷。</li>
+            <li>五個階段，每階段結束三選一強化。標題另有模式／關卡包與每日挑戰。</li>
           </ul>
         </div>
         {best > 0 && <p className="text-slate-400 text-sm">自由遊玩最佳 {best.toLocaleString('zh-Hant')}</p>}
         <p className="text-slate-400 text-sm">
           機體 <b className="text-sky-200">{selectedCraft.name}</b>
+          <span className="text-slate-500">・特技 {selectedCraft.special.name}</span>
           {progress.clearCount > 0 ? `・通關 ${progress.clearCount}` : ''}
           {captureCount > 0 ? `・符卡 ${captureCount}` : ''}
         </p>
@@ -451,6 +541,20 @@ export default function App(): React.ReactElement {
           >
             潛入深淵
           </button>
+          <button
+            type="button"
+            onClick={startDaily}
+            aria-label={`今日挑戰種子 ${dailySeedCode()}`}
+            className="min-h-[44px] w-full rounded-xl font-semibold text-amber-100 border border-amber-400/50 bg-amber-500/15 hover:bg-amber-500/25 transition-colors touch-manipulation px-6 py-3"
+          >
+            今日挑戰
+          </button>
+          <p className="-mt-1 text-center text-[11px] text-slate-500">
+            種子 {dailySeedCode()}
+            {dailyBest.date === todayKey() && dailyBest.attempts > 0
+              ? `・今日最佳 ${dailyBest.bestScore.toLocaleString('zh-Hant')}${dailyBest.cleared ? '・已通關' : ''}`
+              : '・尚無今日紀錄'}
+          </p>
           <button
             type="button"
             onClick={() => setShowCrafts(true)}
@@ -595,7 +699,7 @@ export default function App(): React.ReactElement {
                     選擇機體
                   </h2>
                   <p className="mt-1 text-xs text-slate-400">
-                    射速／集中取捨各異・通關解鎖・各機體另記最佳分
+                    射擊型態／判定／特技各異・通關解鎖・各機體另記最佳分
                   </p>
                 </div>
                 <button
@@ -640,6 +744,9 @@ export default function App(): React.ReactElement {
                         {unlocked && (
                           <>
                             <span className="mt-1 text-xs text-slate-400">{craft.blurb}</span>
+                            <span className="mt-1 text-[11px] text-amber-200/90">
+                              特技 {craft.special.name}：{craft.special.blurb}
+                            </span>
                             {typeof craftBest === 'number' && (
                               <span className="mt-1 text-[11px] text-sky-300/90">
                                 最佳 {craftBest.toLocaleString('zh-Hant')}
@@ -710,11 +817,19 @@ export default function App(): React.ReactElement {
   const s = hud;
   const ended = s && (s.phase === 'lost' || s.phase === 'won');
   const boss = s?.enemies.find((e) => e.isBoss);
+  const isDailyRun = runKindRef.current === 'daily';
   const activeMode = s?.modeId ? modeById(s.modeId) : undefined;
   const modeCleared = s && activeMode ? evaluateModeGoal(activeMode, s) : false;
-  const freePlayBestBeat = s && !s.modeId && s.score > best;
+  const freePlayBestBeat = s && !s.modeId && !isDailyRun && s.score > best;
+  const dailyBestBeat =
+    s &&
+    isDailyRun &&
+    dailyBest.date === dailyDateRef.current &&
+    s.score >= dailyBest.bestScore &&
+    dailyBest.attempts > 0;
   const modeBestPrev = activeMode ? modeProgress.bestScore[activeMode.id] ?? 0 : 0;
   const modeBestBeat = s && activeMode && s.score > modeBestPrev;
+  const activeCraft = craftById(s?.craftId ?? selectedCraft.id);
   // Only the conditions this run's picks actually key off are worth showing.
   const watched = new Set(
     (s?.upgrades ?? []).map((id) => UPGRADE_BY_ID[id]?.conditional?.when).filter(Boolean) as string[],
@@ -730,13 +845,24 @@ export default function App(): React.ReactElement {
       {/* HUD */}
       <div className="da-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
         <div className="flex gap-2 flex-wrap">
+          {isDailyRun && <span className="da-hud-chip text-amber-200">每日挑戰</span>}
           {activeMode && (
             <span className="da-hud-chip text-fuchsia-200">{activeMode.name}</span>
           )}
-          <span className="da-hud-chip">機體 <b className="text-sky-200">{craftById(s?.craftId ?? 'swift').name}</b></span>
+          <span className="da-hud-chip">機體 <b className="text-sky-200">{activeCraft.name}</b></span>
           <span className="da-hud-chip">階段 <b className="text-slate-100">{Math.min(s?.stage ?? 1, STAGE_COUNT)}/{s?.config.endStage ?? STAGE_COUNT}</b></span>
           <span className="da-hud-chip">殘機 <b className="text-rose-300">{'♥'.repeat(Math.max(0, s?.lives ?? 0)) || '—'}</b></span>
           <span className="da-hud-chip">靈擊 <b className="text-amber-300">{'✦'.repeat(Math.max(0, s?.bombs ?? 0)) || '—'}</b></span>
+          <span className="da-hud-chip">
+            特技{' '}
+            <b className={(s?.specialCd ?? 0) > 0 ? 'text-slate-400' : 'text-cyan-300'}>
+              {(s?.specialCd ?? 0) > 0
+                ? `${activeCraft.special.name} ${Math.ceil(s?.specialCd ?? 0)}s`
+                : (s?.specialLeft ?? 0) > 0
+                  ? `${activeCraft.special.name}!`
+                  : activeCraft.special.name}
+            </b>
+          </span>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <span className="da-hud-chip">火力 <b className="text-sky-300">{s?.powerTier ?? 1}</b></span>
@@ -821,8 +947,19 @@ export default function App(): React.ReactElement {
         )}
       </div>
 
-      {/* Touch bomb key: kept off the field so it can never be hit while steering. */}
-      <div className="shrink-0 flex justify-end px-3 py-2">
+      {/* Touch bomb / special: kept off the field so steering never hits them. */}
+      <div className="shrink-0 flex justify-end gap-2 px-3 py-2">
+        <button
+          type="button"
+          aria-label={`特技 ${activeCraft.special.name}`}
+          onPointerDown={() => {
+            specialRef.current = true;
+          }}
+          disabled={!s || s.specialCd > 0}
+          className="min-h-[44px] min-w-[88px] rounded-xl font-semibold bg-cyan-700/80 hover:bg-cyan-600 disabled:opacity-40 text-white"
+        >
+          {activeCraft.special.name} X
+        </button>
         <button
           type="button"
           aria-label="靈擊"
@@ -837,44 +974,74 @@ export default function App(): React.ReactElement {
       </div>
 
       {ended && s && (
-        <ResultOverlay
-          title={
-            s.phase === 'won'
-              ? activeMode
-                ? modeCleared
-                  ? '關卡達成'
-                  : '通過但未達標'
-                : '穿過深淵'
-              : '被吞沒'
-          }
-          subtitle={
-            s.phase === 'won'
-              ? activeMode
-                ? modeCleared
-                  ? activeMode.goalLabel
-                  : `未達成：${activeMode.goalLabel}`
-                : '五個階段都撐過來了。'
-              : activeMode
-                ? `倒在「${activeMode.name}」。`
-                : `倒在第 ${s.stage} 階段。`
-          }
-          variant={s.phase === 'won' && (!activeMode || modeCleared) ? 'win' : 'lose'}
-          badge={freePlayBestBeat || modeBestBeat ? '新紀錄' : undefined}
-          stats={[
-            ...(activeMode ? [{ label: '模式', value: activeMode.name }] : []),
-            { label: '機體', value: craftById(s.craftId).name },
-            { label: '分數', value: s.score.toLocaleString('zh-Hant') },
-            { label: '到達階段', value: `${Math.min(s.stage, STAGE_COUNT)} / ${s.config.endStage}` },
-            { label: 'Capture', value: String(s.captures) },
-            { label: '擦彈', value: String(s.grazeCount) },
-            { label: '最高倍率', value: `×${s.grazeMult.toFixed(2)}` },
-            { label: '種子碼', value: s.seedCode },
-          ]}
-          primaryLabel={activeMode ? '再挑戰' : '再潛一次'}
-          onPrimary={retryCurrent}
-          secondaryLabel="回標題"
-          onSecondary={() => setScreen('menu')}
-        />
+        <>
+          <ResultOverlay
+            title={
+              s.phase === 'won'
+                ? activeMode
+                  ? modeCleared
+                    ? '關卡達成'
+                    : '通過但未達標'
+                  : isDailyRun
+                    ? '今日挑戰通關'
+                    : '穿過深淵'
+                : '被吞沒'
+            }
+            subtitle={
+              s.phase === 'won'
+                ? activeMode
+                  ? modeCleared
+                    ? activeMode.goalLabel
+                    : `未達成：${activeMode.goalLabel}`
+                  : isDailyRun
+                    ? `今日種子 ${s.seedCode}・${dailyDateRef.current}`
+                    : '五個階段都撐過來了。'
+                : activeMode
+                  ? `倒在「${activeMode.name}」。`
+                  : isDailyRun
+                    ? `今日挑戰止於第 ${s.stage} 階段。`
+                    : `倒在第 ${s.stage} 階段。`
+            }
+            variant={s.phase === 'won' && (!activeMode || modeCleared) ? 'win' : 'lose'}
+            badge={freePlayBestBeat || modeBestBeat || dailyBestBeat ? '新紀錄' : undefined}
+            stats={[
+              ...(isDailyRun ? [{ label: '模式', value: '每日挑戰' }] : []),
+              ...(activeMode ? [{ label: '模式', value: activeMode.name }] : []),
+              { label: '機體', value: craftById(s.craftId).name },
+              { label: '分數', value: s.score.toLocaleString('zh-Hant') },
+              { label: '到達階段', value: `${Math.min(s.stage, STAGE_COUNT)} / ${s.config.endStage}` },
+              { label: 'Capture', value: String(s.captures) },
+              { label: '擦彈', value: String(s.grazeCount) },
+              { label: '最高倍率', value: `×${s.grazeMult.toFixed(2)}` },
+              { label: '種子碼', value: s.seedCode },
+              ...(isDailyRun && dailyBest.date === dailyDateRef.current
+                ? [
+                    {
+                      label: '今日最佳',
+                      value: dailyBest.bestScore.toLocaleString('zh-Hant'),
+                    },
+                  ]
+                : []),
+            ]}
+            primaryLabel={activeMode ? '再挑戰' : isDailyRun ? '再刷今日' : '再潛一次'}
+            onPrimary={retryCurrent}
+            secondaryLabel="回標題"
+            onSecondary={() => setScreen('menu')}
+          />
+          {isDailyRun && (
+            <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 pointer-events-none">
+              <button
+                type="button"
+                onClick={() => {
+                  void shareDailyResult();
+                }}
+                className="pointer-events-auto min-h-[44px] rounded-xl border border-amber-400/50 bg-slate-900/95 px-5 py-2 text-sm font-semibold text-amber-100 shadow-lg"
+              >
+                {shareCopied ? '已複製分享文案' : '複製今日分享文案'}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

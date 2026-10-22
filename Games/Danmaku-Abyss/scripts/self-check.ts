@@ -49,6 +49,13 @@ import {
   modeCount,
   modeIndexOf,
 } from '../src/game/modes.js';
+import {
+  EMPTY_DAILY_BEST,
+  buildDailyShareText,
+  dailySeedCode,
+  mergeDailyBest,
+  todayKey,
+} from '../src/game/daily.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
 import { UPGRADES, declaredConditions, declaredEffectKeys } from '../src/game/upgrades.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
@@ -59,7 +66,7 @@ function ok(label: string): void {
   console.log(`  ok  ${label}`);
 }
 
-const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
+const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false, special: false };
 
 // ── 1) Determinism ───────────────────────────────────────────────────────────
 //
@@ -69,7 +76,13 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   const inputs: PlayerInput[] = [];
   const r = mulberry32(99);
   for (let i = 0; i < 900; i++) {
-    inputs.push({ dx: r() * 2 - 1, dy: r() * 2 - 1, focus: r() < 0.4, bomb: r() < 0.004 });
+    inputs.push({
+      dx: r() * 2 - 1,
+      dy: r() * 2 - 1,
+      focus: r() < 0.4,
+      bomb: r() < 0.004,
+      special: r() < 0.003,
+    });
   }
   const play = (): RunState => {
     let s = createRun('DETERM');
@@ -94,7 +107,7 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   let s = createRun('PURE01');
   for (let i = 0; i < 200; i++) s = step(s, IDLE, FIXED_DT);
   const before = JSON.stringify(s);
-  step(s, { dx: 1, dy: -1, focus: true, bomb: true }, FIXED_DT);
+  step(s, { dx: 1, dy: -1, focus: true, bomb: true, special: false }, FIXED_DT);
   assert.equal(JSON.stringify(s), before, 'step() must return a new state, never mutate the one passed in');
   ok('step() leaves its input untouched');
 }
@@ -399,7 +412,7 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   const scoreBefore = s.score;
   const bombsBefore = s.bombs;
 
-  const after = step(s, { dx: 0, dy: 0, focus: false, bomb: true }, FIXED_DT);
+  const after = step(s, { dx: 0, dy: 0, focus: false, bomb: true, special: false }, FIXED_DT);
   assert.equal(after.bombs, bombsBefore - 1, 'a bomb must be consumed');
   assert.ok(after.bullets.length < s.bullets.length, 'a bomb must clear bullets');
   assert.equal(after.score, scoreBefore, 'a bomb must not pay score for the bullets it clears');
@@ -494,9 +507,18 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
 // ── 11) Every authored card is reachable and well-formed ─────────────────────
 {
   const cards = allCards();
-  assert.ok(cards.length >= 14, `only ${cards.length} spell cards authored`);
+  assert.ok(cards.length >= 17, `only ${cards.length} spell cards authored`);
   assert.ok(cards.some((c) => c.id === 'frost-4'), 'missing frost-4 雙弦');
   assert.ok(cards.some((c) => c.id === 'abyss-4'), 'missing abyss-4 裂壁');
+  assert.ok(cards.some((c) => c.id === 'lamp-4'), 'missing lamp-4 導標');
+  assert.ok(cards.some((c) => c.id === 'tide-4'), 'missing tide-4 交錯');
+  assert.ok(cards.some((c) => c.id === 'ember-4'), 'missing ember-4 花開');
+  for (let stage = 1; stage <= STAGE_COUNT; stage++) {
+    assert.ok(
+      bossFor(stage).cards.length >= 4,
+      `stage ${stage} boss should have at least 4 spell cards`,
+    );
+  }
   const ids = cards.map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length, 'spell card ids must be unique');
   for (const c of cards) {
@@ -728,7 +750,9 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
 // ── 13) The player is kept inside the field ──────────────────────────────────
 {
   let s = createRun('BOUND1');
-  for (let i = 0; i < 900; i++) s = step(s, { dx: -1, dy: -1, focus: false, bomb: false }, FIXED_DT);
+  for (let i = 0; i < 900; i++) {
+    s = step(s, { dx: -1, dy: -1, focus: false, bomb: false, special: false }, FIXED_DT);
+  }
   assert.ok(s.px >= 0 && s.px <= FIELD_W, `player left the field horizontally: ${s.px}`);
   assert.ok(s.py >= 0 && s.py <= FIELD_H, `player left the field vertically: ${s.py}`);
   ok('the ship cannot be driven off the field');
@@ -805,7 +829,7 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.equal(rainBoss?.cardIndex, 2);
   assert.equal(rainRun.config.singleCard, true);
 
-  // New spell challenges for frost-4 / abyss-4.
+  // Spell challenges for authored late cards.
   const duet = MODE_PACK.find((m) => m.id === 'spell-frost-duet');
   assert.ok(duet);
   const duetRun = createRun(duet.seedCode, { ...duet.run, modeId: duet.id });
@@ -814,6 +838,20 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.ok(rift);
   const riftRun = createRun(rift.seedCode, { ...rift.run, modeId: rift.id });
   assert.equal(riftRun.enemies.find((e) => e.isBoss)?.card?.id, 'abyss-4');
+  const beacon = MODE_PACK.find((m) => m.id === 'spell-lamp-beacon');
+  assert.ok(beacon);
+  assert.equal(
+    createRun(beacon.seedCode, { ...beacon.run, modeId: beacon.id }).enemies.find((e) => e.isBoss)
+      ?.card?.id,
+    'lamp-4',
+  );
+  const bloom = MODE_PACK.find((m) => m.id === 'spell-ember-bloom');
+  assert.ok(bloom);
+  assert.equal(
+    createRun(bloom.seedCode, { ...bloom.run, modeId: bloom.id }).enemies.find((e) => e.isBoss)
+      ?.card?.id,
+    'ember-4',
+  );
 
   // Hard abyss: full clear knobs.
   const hard = MODE_PACK.find((m) => m.id === 'hard-abyss');
@@ -889,6 +927,15 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.equal(isCraftUnlocked(CRAFTS[2], 1), false);
   assert.equal(isCraftUnlocked(CRAFTS[2], 2), true);
 
+  const styles = new Set(CRAFTS.map((c) => c.shotStyle));
+  assert.ok(styles.size >= 3, 'crafts must use distinct shot styles');
+  const specials = new Set(CRAFTS.map((c) => c.special.kind));
+  assert.ok(specials.size >= 3, 'crafts must use distinct specials');
+  for (const c of CRAFTS) {
+    assert.ok(c.special.cooldown > 1, `${c.id} special cooldown too short`);
+    assert.ok(c.special.duration > 0, `${c.id} special has no duration`);
+  }
+
   const base = createRun('CRAFT-BASE', { craftId: 'swift' });
   const cannon = createRun('CRAFT-BASE', { craftId: 'cannon' });
   const stitch = createRun('CRAFT-BASE', { craftId: 'stitch' });
@@ -903,10 +950,121 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false };
   assert.notEqual(shotDamage(base, 80), shotDamage(cannon, 80));
   assert.notEqual(moveSpeed({ ...base, focus: true }), moveSpeed({ ...stitch, focus: true }));
 
+  // Specials: dash grants invuln; overdrive boosts damage; rift clears near bullets.
+  let dash = createRun('SPEC-DASH', { craftId: 'swift' });
+  dash = step(dash, { dx: 0, dy: -1, focus: false, bomb: false, special: true }, FIXED_DT);
+  assert.ok(dash.specialLeft > 0, 'dash should activate');
+  assert.ok(dash.specialCd > 0, 'dash should start cooldown');
+  assert.ok(dash.invuln > 0, 'dash should grant brief invuln');
+
+  let over = createRun('SPEC-OVER', { craftId: 'cannon' });
+  over = step(over, { ...IDLE, special: true }, FIXED_DT);
+  assert.ok(over.specialLeft > 0);
+  assert.ok(shotDamage(over, 80) > shotDamage({ ...over, specialLeft: 0 }, 80));
+
+  let riftCraft = createRun('SPEC-RIFT', { craftId: 'stitch' });
+  riftCraft = {
+    ...riftCraft,
+    bullets: [
+      {
+        id: 99,
+        x: riftCraft.px,
+        y: riftCraft.py - 10,
+        angle: 0,
+        speed: 0,
+        r: 4,
+        hue: 200,
+        age: 0,
+        lifetime: 9,
+        waveform: 'linear',
+        curl: 0,
+        grazed: false,
+      },
+      {
+        id: 100,
+        x: 10,
+        y: 10,
+        angle: 0,
+        speed: 0,
+        r: 4,
+        hue: 200,
+        age: 0,
+        lifetime: 9,
+        waveform: 'linear',
+        curl: 0,
+        grazed: false,
+      },
+    ],
+  };
+  const beforeBullets = riftCraft.bullets.length;
+  riftCraft = step(riftCraft, { ...IDLE, special: true }, FIXED_DT);
+  assert.ok(riftCraft.bullets.length < beforeBullets, 'rift should cancel nearby bullets');
+  assert.equal(riftCraft.bullets.some((b) => b.id === 100), true, 'far bullets survive rift');
+
   // Unknown craft id falls back safely.
   assert.equal(craftById('nope').id, DEFAULT_CRAFT_ID);
 
-  ok('crafts unlock and alter fire / focus / hitbox tradeoffs');
+  ok('crafts unlock and alter fire / focus / hitbox / special tradeoffs');
+}
+
+// ── 17) Daily challenge: date seed, best merge, share text ───────────────────
+{
+  const fixed = new Date(2026, 9, 21, 12, 0, 0); // local Oct 21 2026
+  const key = todayKey(fixed);
+  assert.equal(key, '2026-10-21');
+  assert.equal(dailySeedCode(fixed), 'D20261021');
+
+  // Same date → same seed → deterministic run start.
+  const a = createRun(dailySeedCode(fixed), { craftId: 'swift' });
+  const b = createRun(dailySeedCode(fixed), { craftId: 'swift' });
+  assert.equal(a.seed, b.seed);
+  assert.equal(a.seedCode, 'D20261021');
+
+  const first = mergeDailyBest(EMPTY_DAILY_BEST, key, 1200, 2, 'swift', 1, false);
+  assert.equal(first.attempts, 1);
+  assert.equal(first.bestScore, 1200);
+  const second = mergeDailyBest(first, key, 900, 3, 'cannon', 0, false);
+  assert.equal(second.bestScore, 1200, 'weaker score must not overwrite best');
+  assert.equal(second.attempts, 2);
+  const third = mergeDailyBest(second, key, 5000, 5, 'stitch', 4, true);
+  assert.equal(third.bestScore, 5000);
+  assert.equal(third.cleared, true);
+  assert.equal(third.craftId, 'stitch');
+
+  const rolled = mergeDailyBest(third, '2026-10-22', 100, 1, 'swift', 0, false);
+  assert.equal(rolled.attempts, 1, 'new day resets attempts');
+  assert.equal(rolled.bestScore, 100);
+
+  const share = buildDailyShareText({
+    date: key,
+    seedCode: 'D20261021',
+    score: 5000,
+    stage: 5,
+    endStage: 5,
+    craftName: '縫影',
+    captures: 4,
+    cleared: true,
+    attempts: 3,
+  });
+  assert.ok(share.includes('彈幕深淵'));
+  assert.ok(share.includes(key));
+  assert.ok(share.includes('通關'));
+  assert.ok(share.includes('縫影'));
+
+  ok('daily seed, best merge, and share text hold');
+}
+
+// ── 18) Juice never mutates RunState; flash / destroy paths are wired ────────
+{
+  const juiceSrc = readFileSync(resolve('src/game/juice.ts'), 'utf8');
+  assert.ok(juiceSrc.includes('flash'), 'juice must track screen flash');
+  assert.ok(juiceSrc.includes('lastGrazeCount'), 'juice must spark per graze');
+  assert.ok(!/next\.(lives|score|bombs)\s*=/.test(juiceSrc), 'juice must not write RunState');
+  const canvasSrc = readFileSync(resolve('src/components/GameCanvas.tsx'), 'utf8');
+  assert.ok(canvasSrc.includes('juice.flash'), 'canvas must draw flash');
+  const appSrc = readFileSync(resolve('src/App.tsx'), 'utf8');
+  assert.ok(appSrc.includes('prefers-reduced-motion') || appSrc.includes('reduceMotion'), 'app gates juice');
+  ok('juice flash / graze sparks stay presentation-only and motion-gated');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);
