@@ -317,6 +317,8 @@ function simulateThroughWave(targetWave) {
   // check's model of the player decides what it is able to measure at all.
   const SLOTS = [[4, 3], [4, 5], [6, 3], [6, 5], [2, 3], [2, 5], [8, 3], [8, 5],
                  [3, 3], [3, 5], [5, 3], [5, 5], [7, 3], [7, 5], [9, 3], [9, 5]];
+  // Classic four-tower pilot — the difficulty band is calibrated on this mix.
+  // Hammer/mortar are covered by balance.mjs rows, not this ordering guard.
   const MIX = ['crossbow', 'grinder', 'frost', 'coil'];
   const spendAll = (start) => {
     let s = start;

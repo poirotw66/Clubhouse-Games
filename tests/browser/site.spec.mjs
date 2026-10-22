@@ -662,7 +662,8 @@ test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({
   await activate(page.getByRole('button', { name: '開始遊戲', exact: true }), isMobile);
 
   // Prep: select the cheapest tower and click the canvas to place, then undo.
-  const tower = page.locator('.grid.grid-cols-4 button').first();
+  // Palette is grid-cols-3 / sm:grid-cols-6 (six towers); target by tower name.
+  const tower = page.getByRole('button', { name: /發條弩台/ }).first();
   await expect(tower).toBeEnabled();
   await activate(tower, isMobile);
   const canvas = page.locator('canvas').first();
@@ -715,19 +716,23 @@ test('clockwork-keep: map unlocks, branch panel, and mission pack size', async (
   await expect(page.getByRole('heading', { name: '發條守城' })).toBeVisible();
   await expect(page.getByRole('button', { name: '分岔', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: '群島', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /雙口/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /隘道/ })).toBeDisabled();
   await activate(page.getByRole('button', { name: '分岔', exact: true }), isMobile);
   await expect(page.getByRole('button', { name: '分岔', exact: true })).toHaveClass(/border-amber-400/);
   // Accessible name comes from aria-label「開啟任務包。…」, not the visible label.
-  await activate(page.getByRole('button', { name: /開啟任務包.*2\/8/ }), isMobile);
+  await activate(page.getByRole('button', { name: /開啟任務包.*2\/10/ }), isMobile);
   await expect(page.getByRole('dialog', { name: /任務包/ })).toBeVisible();
   await expect(page.getByText('07・分岔試煉')).toBeVisible();
   await expect(page.getByText('08・群島嚴苛')).toBeVisible();
+  await expect(page.getByText('09・雙口夾擊')).toBeVisible();
+  await expect(page.getByText('10・隘道重錘')).toBeVisible();
   await activate(page.getByRole('button', { name: '關閉任務包' }), isMobile);
 
   // Branch UI on open map so the click cell is never a rock.
   await activate(page.getByRole('button', { name: '開闊', exact: true }), isMobile);
   await activate(page.getByRole('button', { name: '開始遊戲', exact: true }), isMobile);
-  const tower = page.locator('.grid.grid-cols-4 button').first();
+  const tower = page.getByRole('button', { name: /發條弩台/ }).first();
   await activate(tower, isMobile);
   const canvas = page.locator('canvas').first();
   const box = await canvas.boundingBox();

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { ENTRANCE, EXIT, GRID_H, GRID_W, TOWER_DEFS, type TowerType } from '../game/constants';
+import { GRID_H, GRID_W, TOWER_DEFS, type TowerType } from '../game/constants';
 import { resolveTowerStats } from '../game/economy';
 import { makeEmptyOccupancy, reconstructPath, wouldSealExit } from '../game/pathfinding';
 import {
@@ -22,6 +22,8 @@ const TOWER_COLORS: Record<TowerType, string> = {
   grinder: '#94a3b8',
   frost: '#38bdf8',
   coil: '#a78bfa',
+  hammer: '#c45c26',
+  mortar: '#6b8f3a',
 };
 
 const ENEMY_COLORS: Record<Enemy['type'], string> = {
@@ -30,6 +32,8 @@ const ENEMY_COLORS: Record<Enemy['type'], string> = {
   ironclad: '#64748b',
   kite: '#5eead4',
   gearbug: '#c4b5fd',
+  bloater: '#b45309',
+  shellbug: '#475569',
   boss: '#ef4444',
 };
 
@@ -47,6 +51,10 @@ function buildOccupancyFrom(state: GameState) {
   for (const r of state.rocks) grid[r.y][r.x] = true;
   for (const t of state.towers) grid[t.y][t.x] = true;
   return grid;
+}
+
+function isEntranceCell(state: GameState, x: number, y: number): boolean {
+  return state.entrances.some((e) => e.x === x && e.y === y);
 }
 
 function drawPathLine(ctx: CanvasRenderingContext2D, path: Cell[], color: string, dashed: boolean): void {
@@ -77,7 +85,6 @@ function draw(
 ): void {
   ctx.clearRect(0, 0, BOARD_W, BOARD_H);
 
-  // Panel background — soft wooden floor plate under the grid.
   ctx.fillStyle = '#1c1409';
   ctx.fillRect(0, 0, BOARD_W, BOARD_H);
   const floor = boardFloorImage();
@@ -90,13 +97,11 @@ function draw(
     ctx.fillRect(0, 0, BOARD_W, BOARD_H);
   }
 
-  // Grid cells
   for (let y = 0; y < state.gridH; y++) {
     for (let x = 0; x < state.gridW; x++) {
       const isRock = state.rocks.some((r) => r.x === x && r.y === y);
-      const isEntrance = x === ENTRANCE.x && y === ENTRANCE.y;
-      const isExit = x === EXIT.x && y === EXIT.y;
-      // Soft checker wash so pathfinding cells stay readable over the plate.
+      const isEntrance = isEntranceCell(state, x, y);
+      const isExit = x === state.exit.x && y === state.exit.y;
       ctx.fillStyle = isRock
         ? 'rgba(63, 47, 24, 0.72)'
         : (x + y) % 2 === 0
@@ -118,7 +123,11 @@ function draw(
         ctx.fillStyle = '#4ade80';
         ctx.font = 'bold 13px system-ui';
         ctx.textAlign = 'center';
-        ctx.fillText('入口', x * CELL + CELL / 2, y * CELL + CELL / 2 + 5);
+        ctx.fillText(
+          state.entrances.length > 1 ? '入口' : '入口',
+          x * CELL + CELL / 2,
+          y * CELL + CELL / 2 + 5,
+        );
       }
       if (isExit) {
         ctx.fillStyle = 'rgba(248, 113, 113, 0.3)';
@@ -131,12 +140,13 @@ function draw(
     }
   }
 
-  // Current shortest path guide line
   const occupancy = buildOccupancyFrom(state);
-  const currentPath = reconstructPath(occupancy, state.gridW, state.gridH, ENTRANCE, EXIT);
-  if (currentPath) drawPathLine(ctx, currentPath, 'rgba(250, 204, 21, 0.55)', true);
+  // Draw a guide path from each entrance (dual maps show both lanes).
+  for (const portal of state.entrances) {
+    const currentPath = reconstructPath(occupancy, state.gridW, state.gridH, portal, state.exit);
+    if (currentPath) drawPathLine(ctx, currentPath, 'rgba(250, 204, 21, 0.45)', true);
+  }
 
-  // Hover preview (placement hint)
   let previewLegal: boolean | null = null;
   if (hoverCell && selectedTowerType) {
     const { x, y } = hoverCell;
@@ -145,16 +155,18 @@ function draw(
       inBounds &&
       (state.rocks.some((r) => r.x === x && r.y === y) ||
         state.towers.some((t) => t.x === x && t.y === y) ||
-        (x === ENTRANCE.x && y === ENTRANCE.y) ||
-        (x === EXIT.x && y === EXIT.y));
+        isEntranceCell(state, x, y) ||
+        (x === state.exit.x && y === state.exit.y));
     if (inBounds && !occupied) {
-      const seals = wouldSealExit(occupancy, x, y, state.gridW, state.gridH, ENTRANCE, EXIT);
+      const seals = wouldSealExit(occupancy, x, y, state.gridW, state.gridH, state.entrances, state.exit);
       previewLegal = !seals;
       if (!seals) {
         const trial = occupancy.map((row) => row.slice());
         trial[y][x] = true;
-        const newPath = reconstructPath(trial, state.gridW, state.gridH, ENTRANCE, EXIT);
-        if (newPath) drawPathLine(ctx, newPath, 'rgba(74, 222, 128, 0.85)', false);
+        for (const portal of state.entrances) {
+          const newPath = reconstructPath(trial, state.gridW, state.gridH, portal, state.exit);
+          if (newPath) drawPathLine(ctx, newPath, 'rgba(74, 222, 128, 0.75)', false);
+        }
       }
       const def = TOWER_DEFS[selectedTowerType];
       const range = def.levels[0].range;
@@ -172,7 +184,6 @@ function draw(
     if (inBounds) ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
   }
 
-  // Towers
   for (const t of state.towers) {
     const cx = t.x * CELL + CELL / 2;
     const cy = t.y * CELL + CELL / 2;
@@ -201,20 +212,31 @@ function draw(
     ctx.stroke();
     ctx.restore();
 
-    // Level pips
     for (let i = 0; i <= t.level; i++) {
       ctx.fillStyle = '#fff';
       ctx.beginPath();
       ctx.arc(cx - 12 + i * 12, cy + size / 2 - 4, 3, 0, Math.PI * 2);
       ctx.fill();
     }
+    // Capstone branch letter so A/B tradeoff is visible at a glance.
+    if (t.level === 2 && t.branch) {
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.beginPath();
+      ctx.arc(cx + size / 2 - 8, cy - size / 2 + 8, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fde68a';
+      ctx.font = 'bold 10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.branch.toUpperCase(), cx + size / 2 - 8, cy - size / 2 + 8);
+    }
   }
 
-  // Enemies
   for (const e of state.enemies) {
     const cx = e.worldX * CELL;
     const cy = e.worldY * CELL;
-    const r = e.type === 'boss' ? 18 : e.type === 'ironclad' ? 14 : 10;
+    const r =
+      e.type === 'boss' ? 18 : e.type === 'ironclad' || e.type === 'bloater' ? 14 : 10;
     const img = enemySprite(e.type);
     const size = r * 2.4;
     if (!drawCenteredSprite(ctx, img, cx, cy, size)) {
@@ -235,7 +257,6 @@ function draw(
       ctx.stroke();
     }
 
-    // HP bar
     const barW = r * 2.2;
     const pct = Math.max(0, e.hp / e.maxHp);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -259,8 +280,10 @@ export function Battlefield({
   useEffect(() => {
     preloadBattlefieldSprites();
     const imgs = [
-      ...(['crossbow', 'grinder', 'frost', 'coil'] as const).map(towerSprite),
-      ...(['grunt', 'runner', 'ironclad', 'kite', 'boss'] as const).map(enemySprite),
+      ...(['crossbow', 'grinder', 'frost', 'coil', 'hammer', 'mortar'] as const).map(towerSprite),
+      ...(
+        ['grunt', 'runner', 'ironclad', 'kite', 'gearbug', 'bloater', 'shellbug', 'boss'] as const
+      ).map(enemySprite),
     ];
     const bump = () => setSpritesTick((n) => n + 1);
     for (const img of imgs) {

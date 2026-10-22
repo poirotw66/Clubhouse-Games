@@ -57,7 +57,7 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
             <p className="font-bold text-amber-300">選塔再放格</p>
             <p className="mt-0.5 text-amber-200/60">
-              點底部塔欄（或按 1–4）選塔，再點格子放置；點已放的塔可升級或售出。
+              點底部塔欄（或按 1–6）選塔，再點格子放置；點已放的塔可升級（高級二選一）或售出。
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
