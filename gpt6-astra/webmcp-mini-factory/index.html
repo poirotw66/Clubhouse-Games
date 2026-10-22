@@ -170,9 +170,12 @@ button,select,.tool-button,.prompt,.controls button{touch-action:manipulation}
 .research-list li.done{color:var(--green)}
 .stars-row{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11px;margin-top:8px}
 .campaign-meta{display:grid;gap:8px;font-size:11px;color:var(--muted)}
+#dailyButton.active{color:var(--cyan);background:#19343f;border-color:#4a9ba9}
+#shareText{background:#0f1821;border-color:#253340;color:var(--text)}
 @media(max-width:800px){
   .level-bar{width:100%}
   .level-bar select{flex:1;min-width:0}
+  #dailyButton{flex:0 0 auto}
 }
 </style>
 </head>
@@ -186,6 +189,7 @@ button,select,.tool-button,.prompt,.controls button{touch-action:manipulation}
     <div class="level-bar" aria-label="Campaign level">
       <label class="eyebrow" for="levelSelect">Level</label>
       <select id="levelSelect" aria-label="Select campaign level"></select>
+      <button id="dailyButton" type="button" aria-pressed="false" title="Asia/Taipei date-seeded daily blueprint" style="touch-action:manipulation">Daily Blueprint</button>
     </div>
     <span id="mcpStatus" class="badge warn"><span class="dot"></span>WebMCP Unsupported</span>
     <span class="badge"><span style="color:var(--orange)">◈</span> <strong id="credits">1,000</strong> credits</span>
@@ -252,6 +256,18 @@ button,select,.tool-button,.prompt,.controls button{touch-action:manipulation}
           <div class="stars-row"><span id="pbDisplay">No clear yet</span></div>
           <ul class="checks" id="checklist"></ul>
           <p class="muted" style="font-size:10px;margin-top:12px">Rates use simulation time. Allow a measurement window after changes; 4× helps. No automatic optimizer is running.</p>
+        </div>
+      </section>
+      <section class="panel" id="dailyPanel">
+        <div class="panel-head"><h2>Daily Blueprint</h2><span class="eyebrow">ASIA/TAIPEI</span></div>
+        <div class="panel-body">
+          <div class="campaign-meta">
+            <div>Date <strong id="dailyDate">—</strong> · Streak <strong id="dailyStreak">0</strong></div>
+            <div id="dailyKit" class="muted">Campaign research tree</div>
+          </div>
+          <label class="eyebrow" for="shareText" style="display:block;margin-top:10px">Share text</label>
+          <textarea id="shareText" readonly rows="5" aria-label="Daily blueprint share text" style="width:100%;margin-top:6px;padding:8px;font:11px/1.45 ui-monospace,monospace;resize:vertical;touch-action:manipulation"></textarea>
+          <button id="shareCopy" type="button" style="margin-top:8px;width:100%;touch-action:manipulation">Copy share text</button>
         </div>
       </section>
       <section class="panel">
