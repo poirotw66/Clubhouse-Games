@@ -70,7 +70,14 @@ export function applyGameToSeries(
   );
 }
 
+export function isSingleTarget(target: SeriesTarget): boolean {
+  return target === 1;
+}
+
 export function seriesProgressLabel(series: SeriesState): string {
+  if (isSingleTarget(series.target)) {
+    return series.seriesOver ? '單局結束' : '單局';
+  }
   if (series.seriesOver && series.seriesWinner) {
     return series.seriesWinner === 'red'
       ? `系列賽結束 · 紅方先取 ${series.target} 勝`
