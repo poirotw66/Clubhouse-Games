@@ -143,6 +143,8 @@ export default function App(): React.ReactElement {
   const prevLogLen = useRef(0);
   const comboRef = useRef(0);
   const feltRef = useRef<HTMLElement | null>(null);
+  /** Shake intensity queued until after `.pr-felt` remounts on captureBurst. */
+  const pendingFeltShake = useRef(0);
 
   useEffect(() => {
     const saved = loadStats();
@@ -355,10 +357,8 @@ export default function App(): React.ReactElement {
       if (flashy || nextCombo >= 2) {
         haptic(nextCombo >= 2 ? 'combo' : 'impact');
         particles('burst', { el: feltEl(), strength: flashy ? 1 : 0.75 });
-        // Felt remounts on captureBurst; shake after paint so the new node gets it.
-        requestAnimationFrame(() => {
-          shake(feltEl(), 0.45);
-        });
+        // Felt remounts via captureBurst key; apply shake in the effect below.
+        pendingFeltShake.current = 0.45;
       } else {
         haptic('place');
         particles('sparkle', { el: feltEl() });
@@ -375,6 +375,14 @@ export default function App(): React.ReactElement {
       particles('dust', { el: feltEl() });
     }
   }, [state]);
+
+  // Apply queued felt shake after captureBurst remounts the `.pr-felt` node.
+  useEffect(() => {
+    if (!captureBurst || pendingFeltShake.current <= 0) return;
+    const intensity = pendingFeltShake.current;
+    pendingFeltShake.current = 0;
+    shake(feltRef.current, intensity);
+  }, [captureBurst]);
 
   const result = useMemo(() => (state?.phase === 'over' ? outcome(state) : null), [state]);
 

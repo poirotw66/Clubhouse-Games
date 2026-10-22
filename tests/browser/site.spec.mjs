@@ -482,8 +482,9 @@ test('pick-red: juice flashy capture shake and vibrate stub', async ({ page, isM
       return true;
     };
   });
-  // Seed j0 opens with a flashy double-red-5 capture (♥5 takes ♦5).
+  // Hard lets the human lead; seed j0 opens with flashy double-red-5 (♥5 takes ♦5).
   await page.goto('./Games/Pick-Red/');
+  await activate(page.getByRole('button', { name: /困難/ }), isMobile);
   await page.getByPlaceholder('例如 64aa2bl7').fill('j0');
   await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
 
@@ -492,12 +493,12 @@ test('pick-red: juice flashy capture shake and vibrate stub', async ({ page, isM
   await expect(five).toBeVisible();
   await activate(five, isMobile);
   await activate(five, isMobile);
-  await expect(hand.getByRole('button')).toHaveCount(11);
-
+  // Assert shake while the short juice window is still active.
   await expect(page.locator('[data-pr-felt="1"]')).toHaveAttribute('data-juice-shake', '1');
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBeGreaterThan(0);
   await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1);
+  await expect(hand.getByRole('button')).toHaveCount(11);
 });
 
 test('pick-red: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
@@ -513,6 +514,7 @@ test('pick-red: juice respects reduced-motion and haptics off', async ({ page, i
     };
   });
   await page.goto('./Games/Pick-Red/');
+  await activate(page.getByRole('button', { name: /困難/ }), isMobile);
   await page.getByPlaceholder('例如 64aa2bl7').fill('j0');
   await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
 
