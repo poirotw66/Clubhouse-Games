@@ -200,6 +200,18 @@ function activate(locator, isMobile) {
 }
 
 
+
+test('reversi: default series length is single under more modes', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Reversi'), 'selective CI');
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '對戰電腦' }), isMobile);
+  await expect(page.getByText('目前：單局', { exact: false })).toBeVisible();
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await expect(page.getByRole('group', { name: '系列賽長度' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '三戰兩勝', exact: true }), isMobile);
+  await expect(page.getByText('目前：三戰兩勝', { exact: false })).toBeVisible();
+});
+
 test('connect four: default lobby is single without series strip', async ({ page, isMobile }) => {
   test.skip(!includesGame('Connect-Four'), 'selective CI');
   await page.goto('./Games/Connect-Four/');
