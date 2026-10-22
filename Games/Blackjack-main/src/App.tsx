@@ -19,6 +19,7 @@ import {
 } from './utils/rules';
 import {
   createShoe,
+  createSeededShoe,
   drawCard,
   drawCards,
   maybeReshuffle,
@@ -40,7 +41,7 @@ import {
   type BlackjackSettings,
   type HandOutcome,
 } from './utils/storage';
-import { TABLES, getTable, isTableUnlocked, unlockedTables } from './utils/tables';
+import { TABLES, getTable, isTableUnlocked, unlockedTables, type TableTier } from './utils/tables';
 import { recommendAction, STRATEGY_LABELS } from './utils/basicStrategy';
 import {
   evaluateDecision,
@@ -51,11 +52,74 @@ import {
 } from './utils/feedback';
 import { runningCountDelta, trueCount } from './utils/hiLo';
 import { playChip, playDealCard, playBetClear } from './utils/audio';
+import {
+  DAILY_CHIP_VALUES,
+  DAILY_HANDS,
+  DAILY_MAX_BET,
+  DAILY_MIN_BET,
+  DAILY_START_BALANCE,
+  createDailyShoe,
+  currentStreak,
+  formatDailyShareText,
+  loadDailyPersist,
+  mergeDailyAttempt,
+  saveDailyPersist,
+  todayKeyTaipei,
+  type DailyPersist,
+} from './utils/daily';
+import {
+  TIN_BUY_IN,
+  TIN_CHIP_VALUES,
+  TIN_HANDS,
+  TIN_MAX_BET,
+  TIN_MIN_BET,
+  TIN_START_CHIPS,
+  advanceRivalsOneHand,
+  buildStandings,
+  createRivalStates,
+  formatTournamentShare,
+  loadTournamentBest,
+  mergeTournamentResult,
+  prizeForRank,
+  saveTournamentBest,
+  tournamentSeed,
+  type RivalState,
+  type TournamentBest,
+} from './utils/tournament';
+import {
+  classifyPerfectPair,
+  maxPerfectPairsBet,
+  perfectPairsLabel,
+  perfectPairsPayout,
+} from './utils/sideBet';
 import { Card } from './components/Card';
 import { ShoeMeter } from './components/ShoeMeter';
 import { RulesPanel } from './components/RulesPanel';
-import { motion, AnimatePresence } from 'motion/react';
-import { Coins, RotateCcw, Play, Undo2, Lightbulb, Settings2, BarChart3 } from 'lucide-react';
+import { ModesPanel } from './components/ModesPanel';
+import { motion, AnimatePresence, useReducedMotion, MotionConfig } from 'motion/react';
+import { Coins, RotateCcw, Play, Undo2, Lightbulb, Settings2, BarChart3, Trophy } from 'lucide-react';
+
+type TableMode = 'career' | 'daily' | 'tournament';
+
+const DAILY_TABLE: TableTier = {
+  id: 'daily',
+  name: '每日牌靴',
+  minBet: DAILY_MIN_BET,
+  maxBet: DAILY_MAX_BET,
+  unlockPeak: 0,
+  recoveryStake: 0,
+  chipValues: [...DAILY_CHIP_VALUES],
+};
+
+const TIN_TABLE: TableTier = {
+  id: 'tin',
+  name: '錫標賽',
+  minBet: TIN_MIN_BET,
+  maxBet: TIN_MAX_BET,
+  unlockPeak: 0,
+  recoveryStake: 0,
+  chipValues: [...TIN_CHIP_VALUES],
+};
 
 const isTenValue = (rank: string): boolean =>
   ['10', 'J', 'Q', 'K'].includes(rank);
@@ -71,9 +135,11 @@ function cloneCards(cards: CardType[]): CardType[] {
 /** Bet-rail undo only — never snapshots the shoe (blocks card-peek exploit). */
 interface BetSnapshot {
   currentBet: number;
+  sideBet: number;
 }
 
 export default function App() {
+  const reduceMotion = useReducedMotion();
   const [settings, setSettings] = useState<BlackjackSettings>(() => loadSettings());
   const [stats, setStats] = useState<BlackjackStats>(() => loadStats());
   const [shoe, setShoe] = useState<ShoeState>(() =>
@@ -81,6 +147,7 @@ export default function App() {
   );
   const [balance, setBalance] = useState(() => loadBalance());
   const [currentBet, setCurrentBet] = useState(0);
+  const [sideBet, setSideBet] = useState(0);
   const [gameState, setGameState] = useState<GameState>('betting');
   const [dealerCards, setDealerCards] = useState<CardType[]>([]);
   const [playerHands, setPlayerHands] = useState<PlayerHand[]>([]);
@@ -93,19 +160,54 @@ export default function App() {
   const [hintLabel, setHintLabel] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showModes, setShowModes] = useState(false);
   const [handVerdicts, setHandVerdicts] = useState<DecisionVerdict[]>([]);
   const [runningHiLo, setRunningHiLo] = useState(0);
   const [dealKey, setDealKey] = useState(0);
   const [sessionStartBalance, setSessionStartBalance] = useState(() => loadBalance());
+  const [tableMode, setTableMode] = useState<TableMode>('career');
+  const [dailyPersist, setDailyPersist] = useState<DailyPersist>(() => loadDailyPersist());
+  const [todayKey] = useState(() => todayKeyTaipei());
+  const [dailyHandsPlayed, setDailyHandsPlayed] = useState(0);
+  const [dailyStrategyCorrect, setDailyStrategyCorrect] = useState(0);
+  const [dailyStrategyTotal, setDailyStrategyTotal] = useState(0);
+  const [tournamentBest, setTournamentBest] = useState<TournamentBest>(() => loadTournamentBest());
+  const [tinHandsPlayed, setTinHandsPlayed] = useState(0);
+  const [tinRivals, setTinRivals] = useState<RivalState[]>([]);
+  const [sessionResult, setSessionResult] = useState<{
+    kind: 'daily' | 'tournament';
+    title: string;
+    subtitle: string;
+    shareText: string;
+    stats: { label: string; value: string }[];
+  } | null>(null);
   const prevGameStateRef = useRef<GameState>('betting');
   const handStartBalanceRef = useRef(0);
   const handDecisionsRef = useRef<DecisionRecord[]>([]);
   const statsRecordedRef = useRef(false);
   const balanceRef = useRef(balance);
+  const pendingSideBetRef = useRef(0);
+  const dailyHandsRef = useRef(0);
+  const dailyStratCorrectRef = useRef(0);
+  const dailyStratTotalRef = useRef(0);
+  const tinHandsRef = useRef(0);
+  const tinRivalsRef = useRef<RivalState[]>([]);
+  const tableModeRef = useRef<TableMode>('career');
+  const sessionClosingRef = useRef(false);
 
   const rules = settings.rules;
-  const table = getTable(stats.tableId);
+  const table =
+    tableMode === 'daily' ? DAILY_TABLE : tableMode === 'tournament' ? TIN_TABLE : getTable(stats.tableId);
+  const sideBetsAllowed = tableMode !== 'tournament';
   const clearHint = () => setHintLabel(null);
+
+  useEffect(() => {
+    tableModeRef.current = tableMode;
+  }, [tableMode]);
+
+  useEffect(() => {
+    tinRivalsRef.current = tinRivals;
+  }, [tinRivals]);
 
   const setBalanceTracked = (updater: number | ((prev: number) => number)) => {
     const next =
@@ -117,8 +219,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    saveBalance(balance);
-  }, [balance]);
+    // Special modes keep their own chip stacks; career balance stays on disk.
+    if (tableMode === 'career') saveBalance(balance);
+  }, [balance, tableMode]);
 
   useEffect(() => {
     saveStats(stats);
@@ -129,30 +232,44 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
+    if (tableMode !== 'career') return;
     setStats(prev => ({
       ...prev,
       peakBankroll: Math.max(prev.peakBankroll, balance),
     }));
-  }, [balance]);
+  }, [balance, tableMode]);
 
   const pushBetHistory = () => {
-    setBetHistory(prev => [...prev, { currentBet }]);
+    setBetHistory(prev => [...prev, { currentBet, sideBet }]);
   };
 
   const placeBet = (amount: number) => {
     if (gameState !== 'betting') return;
     const next = currentBet + amount;
-    if (next > balance || next > table.maxBet) return;
+    const reserved = sideBetsAllowed ? sideBet : 0;
+    if (next + reserved > balance || next > table.maxBet) return;
     pushBetHistory();
     setCurrentBet(next);
     playChip();
   };
 
+  const placeSideBet = (amount: number) => {
+    if (gameState !== 'betting' || !sideBetsAllowed) return;
+    if (currentBet < table.minBet) return;
+    const next = sideBet + amount;
+    if (next > maxPerfectPairsBet(currentBet, balance - currentBet)) return;
+    if (currentBet + next > balance) return;
+    pushBetHistory();
+    setSideBet(next);
+    playChip();
+  };
+
   const clearBet = () => {
     if (gameState !== 'betting') return;
-    if (currentBet === 0) return;
+    if (currentBet === 0 && sideBet === 0) return;
     pushBetHistory();
     setCurrentBet(0);
+    setSideBet(0);
     playBetClear();
   };
 
@@ -161,6 +278,9 @@ export default function App() {
     if (balance < table.minBet) return;
     pushBetHistory();
     setCurrentBet(table.minBet);
+    if (sideBet > maxPerfectPairsBet(table.minBet, balance - table.minBet)) {
+      setSideBet(maxPerfectPairsBet(table.minBet, balance - table.minBet));
+    }
     playChip();
   };
 
@@ -171,6 +291,7 @@ export default function App() {
     const prev = betHistory[betHistory.length - 1];
     setBetHistory(h => h.slice(0, -1));
     setCurrentBet(prev.currentBet);
+    setSideBet(prev.sideBet);
     playBetClear();
   };
 
@@ -203,6 +324,78 @@ export default function App() {
     ];
   };
 
+  const finishDailyRun = useCallback(
+    (endingBalance: number, completed: boolean) => {
+      if (sessionClosingRef.current) return;
+      sessionClosingRef.current = true;
+      const next = mergeDailyAttempt(
+        loadDailyPersist(),
+        todayKey,
+        endingBalance,
+        dailyStratCorrectRef.current,
+        dailyStratTotalRef.current,
+        dailyHandsRef.current,
+        completed,
+      );
+      saveDailyPersist(next);
+      setDailyPersist(next);
+      const day = next.days[todayKey];
+      const streak = currentStreak(next, todayKey);
+      setSessionResult({
+        kind: 'daily',
+        title: completed ? '每日牌靴完成' : '每日牌靴結束',
+        subtitle: completed
+          ? `打完 ${DAILY_HANDS} 手`
+          : `籌碼不足，完成 ${dailyHandsRef.current}/${DAILY_HANDS} 手`,
+        shareText: formatDailyShareText(
+          todayKey,
+          day?.bestBalance ?? endingBalance,
+          day?.strategyCorrect ?? dailyStratCorrectRef.current,
+          day?.strategyTotal ?? dailyStratTotalRef.current,
+          streak,
+        ),
+        stats: [
+          { label: '結餘', value: `$${endingBalance}` },
+          { label: '今日最佳', value: `$${day?.bestBalance ?? endingBalance}` },
+          {
+            label: '策略',
+            value: day?.strategyTotal
+              ? `${day.strategyCorrect}/${day.strategyTotal}`
+              : '—',
+          },
+          { label: '連續', value: `${streak} 天` },
+        ],
+      });
+    },
+    [todayKey],
+  );
+
+  const finishTournament = useCallback((playerBalance: number) => {
+    if (sessionClosingRef.current) return;
+    sessionClosingRef.current = true;
+    const standings = buildStandings(playerBalance, '你', tinRivalsRef.current);
+    const playerRow = standings.find(r => r.isPlayer);
+    const rank = playerRow?.rank ?? standings.length;
+    const prize = prizeForRank(rank);
+    const career = loadBalance() + prize;
+    saveBalance(career);
+    const merged = mergeTournamentResult(loadTournamentBest(), rank, playerBalance);
+    saveTournamentBest(merged);
+    setTournamentBest(merged);
+    setSessionResult({
+      kind: 'tournament',
+      title: rank === 1 ? '錫標賽冠軍！' : `錫標賽 · 第 ${rank} 名`,
+      subtitle: prize > 0 ? `獎金 $${prize} 已匯入生涯籌碼` : '未進獎，買入已消耗',
+      shareText: formatTournamentShare(rank, playerBalance, prize),
+      stats: [
+        { label: '名次', value: `第 ${rank}` },
+        { label: '終點籌碼', value: `$${playerBalance}` },
+        { label: '獎金', value: `$${prize}` },
+        { label: '生涯餘額', value: `$${career}` },
+      ],
+    });
+  }, []);
+
   const finalizeHandStats = (hands: PlayerHand[], balanceAfter: number) => {
     if (statsRecordedRef.current) return;
     statsRecordedRef.current = true;
@@ -231,9 +424,42 @@ export default function App() {
     else if (hasWon) outcome = 'win';
 
     const profitDelta = balanceAfter - handStartBalanceRef.current;
-    setStats(prev =>
-      recordHandResult(prev, outcome, balanceAfter, profitDelta, feedback.correct, feedback.total),
-    );
+    const mode = tableModeRef.current;
+
+    if (mode === 'career') {
+      setStats(prev =>
+        recordHandResult(prev, outcome, balanceAfter, profitDelta, feedback.correct, feedback.total),
+      );
+      return;
+    }
+
+    if (mode === 'daily') {
+      dailyHandsRef.current += 1;
+      dailyStratCorrectRef.current += feedback.correct;
+      dailyStratTotalRef.current += feedback.total;
+      setDailyHandsPlayed(dailyHandsRef.current);
+      setDailyStrategyCorrect(dailyStratCorrectRef.current);
+      setDailyStrategyTotal(dailyStratTotalRef.current);
+      const completed = dailyHandsRef.current >= DAILY_HANDS;
+      const busted = balanceAfter < DAILY_MIN_BET;
+      if (completed || busted) {
+        finishDailyRun(balanceAfter, completed);
+      }
+      return;
+    }
+
+    if (mode === 'tournament') {
+      tinHandsRef.current += 1;
+      setTinHandsPlayed(tinHandsRef.current);
+      const nextRivals = advanceRivalsOneHand(tinRivalsRef.current, tinHandsRef.current);
+      tinRivalsRef.current = nextRivals;
+      setTinRivals(nextRivals);
+      const completed = tinHandsRef.current >= TIN_HANDS;
+      const busted = balanceAfter < TIN_MIN_BET;
+      if (completed || busted) {
+        finishTournament(balanceAfter);
+      }
+    }
   };
 
   /** Peek hole card when Ace/10 up. Returns false if round ended on dealer BJ. */
@@ -293,7 +519,15 @@ export default function App() {
   };
 
   const deal = () => {
-    if (currentBet < table.minBet || currentBet > balance || currentBet > table.maxBet) return;
+    const ppStake = sideBetsAllowed ? sideBet : 0;
+    if (
+      currentBet < table.minBet ||
+      currentBet + ppStake > balance ||
+      currentBet > table.maxBet
+    ) {
+      return;
+    }
+    if (sessionResult) return;
 
     let currentShoe = maybeReshuffle(shoe);
     if (currentShoe !== shoe) {
@@ -308,7 +542,9 @@ export default function App() {
     setHandVerdicts([]);
     setPeekResolved(false);
     handStartBalanceRef.current = balance;
-    setBalanceTracked(prev => prev - currentBet);
+    pendingSideBetRef.current = ppStake;
+    setBalanceTracked(prev => prev - currentBet - ppStake);
+    setSideBet(0);
     setInsuranceBet(0);
     setDealKey(k => k + 1);
 
@@ -324,6 +560,14 @@ export default function App() {
     const initialDealerCards = [dCard1, dCard2];
     setDealerCards(initialDealerCards);
 
+    let sideMsg = '';
+    if (ppStake > 0) {
+      const kind = classifyPerfectPair(initialPlayerCards);
+      const payout = perfectPairsPayout(ppStake, kind);
+      if (payout > 0) setBalanceTracked(prev => prev + payout);
+      sideMsg = `邊注：${perfectPairsLabel(kind)}${payout > 0 ? ` +$${payout - ppStake}` : ''}`;
+    }
+
     const isPlayerBJ = isBlackjack(initialPlayerCards);
     const upIsAce = dCard1.rank === 'A';
     const upIsTen = isTenValue(dCard1.rank);
@@ -338,7 +582,11 @@ export default function App() {
 
       if (upIsAce) {
         setGameState('evenMoney');
-        setMessage('Blackjack — 接受均分（1:1）或繼續比牌？');
+        setMessage(
+          sideMsg
+            ? `${sideMsg} · Blackjack — 接受均分（1:1）或繼續比牌？`
+            : 'Blackjack — 接受均分（1:1）或繼續比牌？',
+        );
         return;
       }
 
@@ -353,7 +601,7 @@ export default function App() {
         ];
         setPlayerHands(nextHands);
         setBalanceTracked(prev => prev + currentBet);
-        setMessage('和局！雙方皆 Blackjack。');
+        setMessage(sideMsg ? `${sideMsg} · 和局！雙方皆 Blackjack。` : '和局！雙方皆 Blackjack。');
         setGameState('gameOver');
         finalizeHandStats(nextHands, balanceRef.current);
       } else {
@@ -362,7 +610,11 @@ export default function App() {
         ];
         setPlayerHands(nextHands);
         setBalanceTracked(prev => prev + blackjackPayout(currentBet, rules.bjPayout));
-        setMessage(`Blackjack！贏得 ${blackjackPayoutLabel(rules.bjPayout)}。`);
+        setMessage(
+          sideMsg
+            ? `${sideMsg} · Blackjack！贏得 ${blackjackPayoutLabel(rules.bjPayout)}。`
+            : `Blackjack！贏得 ${blackjackPayoutLabel(rules.bjPayout)}。`,
+        );
         setGameState('gameOver');
         finalizeHandStats(nextHands, balanceRef.current);
       }
@@ -377,12 +629,12 @@ export default function App() {
     };
     setPlayerHands([hand]);
     setActiveHandIndex(0);
-    setMessage('');
+    setMessage(sideMsg);
 
     if (upIsAce) {
       setPeekPending(true);
       setGameState('insurance');
-      setMessage('莊家 Ace — 是否買保險？');
+      setMessage(sideMsg ? `${sideMsg} · 莊家 Ace — 是否買保險？` : '莊家 Ace — 是否買保險？');
     } else if (dealerPeeks) {
       setPeekPending(true);
       setGameState('playing');
@@ -797,25 +1049,114 @@ export default function App() {
     prevGameStateRef.current = gameState;
   }, [gameState, resultPrompt]);
 
-  const isBankrupt = balance < table.minBet && gameState === 'betting';
+  const isBankrupt = balance < table.minBet && gameState === 'betting' && !sessionResult;
+
+  const returnToCareer = useCallback(() => {
+    sessionClosingRef.current = false;
+    setSessionResult(null);
+    setTableMode('career');
+    tableModeRef.current = 'career';
+    const career = loadBalance();
+    setBalanceTracked(career);
+    setSessionStartBalance(career);
+    setCurrentBet(0);
+    setSideBet(0);
+    setBetHistory([]);
+    setShoe(createShoe(settings.rules.deckCount, settings.rules.penetration));
+    setRunningHiLo(0);
+    setGameState('betting');
+    setPlayerHands([]);
+    setDealerCards([]);
+    setMessage('');
+    setDailyHandsPlayed(0);
+    setDailyStrategyCorrect(0);
+    setDailyStrategyTotal(0);
+    dailyHandsRef.current = 0;
+    dailyStratCorrectRef.current = 0;
+    dailyStratTotalRef.current = 0;
+    setTinHandsPlayed(0);
+    setTinRivals([]);
+    tinHandsRef.current = 0;
+    tinRivalsRef.current = [];
+    setShowModes(false);
+  }, [settings.rules.deckCount, settings.rules.penetration]);
+
+  const startDaily = () => {
+    if (gameState !== 'betting' || tableMode !== 'career') return;
+    sessionClosingRef.current = false;
+    setSessionResult(null);
+    setTableMode('daily');
+    tableModeRef.current = 'daily';
+    setShoe(createDailyShoe(todayKey));
+    setRunningHiLo(0);
+    setBalanceTracked(DAILY_START_BALANCE);
+    setSessionStartBalance(DAILY_START_BALANCE);
+    setCurrentBet(0);
+    setSideBet(0);
+    setBetHistory([]);
+    setGameState('betting');
+    setPlayerHands([]);
+    setDealerCards([]);
+    dailyHandsRef.current = 0;
+    dailyStratCorrectRef.current = 0;
+    dailyStratTotalRef.current = 0;
+    setDailyHandsPlayed(0);
+    setDailyStrategyCorrect(0);
+    setDailyStrategyTotal(0);
+    setMessage(`每日牌靴 ${todayKey} · ${DAILY_HANDS} 手 · 起手 $${DAILY_START_BALANCE}`);
+    setShowModes(false);
+  };
+
+  const startTournament = () => {
+    const career = loadBalance();
+    if (career < TIN_BUY_IN) return;
+    if (gameState !== 'betting' || tableMode !== 'career') return;
+    saveBalance(career - TIN_BUY_IN);
+    sessionClosingRef.current = false;
+    setSessionResult(null);
+    const seed = tournamentSeed(`${Date.now()}:${career}`);
+    const rivals = createRivalStates(seed);
+    setTableMode('tournament');
+    tableModeRef.current = 'tournament';
+    setTinRivals(rivals);
+    tinRivalsRef.current = rivals;
+    tinHandsRef.current = 0;
+    setTinHandsPlayed(0);
+    setShoe(createSeededShoe(6, seed ^ 0xc0ffee));
+    setRunningHiLo(0);
+    setBalanceTracked(TIN_START_CHIPS);
+    setSessionStartBalance(TIN_START_CHIPS);
+    setCurrentBet(0);
+    setSideBet(0);
+    setBetHistory([]);
+    setGameState('betting');
+    setPlayerHands([]);
+    setDealerCards([]);
+    setMessage(`錫標賽開打 · 買入 $${TIN_BUY_IN} · ${TIN_HANDS} 手 · 不可救濟`);
+    setShowModes(false);
+  };
 
   const tryRecovery = () => {
+    if (tableMode !== 'career') return;
     const result = applyRecovery(stats, stats.tableId);
     if (!result) return;
     setStats(result.stats);
     setBalanceTracked(result.balance);
     setCurrentBet(0);
+    setSideBet(0);
     setBetHistory([]);
     setSessionStartBalance(result.balance);
     setMessage(`破產救濟：獲得 $${result.balance}（剩餘 ${MAX_RECOVERIES - result.stats.recoveriesUsed} 次）`);
   };
 
   const doHardReset = () => {
+    if (tableMode !== 'career') return;
     const reset = hardResetProgression();
     setStats(reset.stats);
     setSettings(reset.settings);
     setBalanceTracked(reset.balance);
     setCurrentBet(0);
+    setSideBet(0);
     setBetHistory([]);
     setShoe(createShoe(reset.settings.rules.deckCount, reset.settings.rules.penetration));
     setRunningHiLo(0);
@@ -824,6 +1165,7 @@ export default function App() {
   };
 
   const resetRoundToBetting = () => {
+    if (sessionResult) return;
     setGameState('betting');
     setPlayerHands([]);
     setDealerCards([]);
@@ -832,8 +1174,19 @@ export default function App() {
     setPeekPending(false);
     setPeekResolved(false);
     setBetHistory([]);
+    setSideBet(0);
     clearHint();
     // Keep handVerdicts visible until next deal.
+  };
+
+  const copySessionShare = async () => {
+    if (!sessionResult) return;
+    try {
+      await navigator.clipboard.writeText(sessionResult.shareText);
+      setMessage('分享文字已複製');
+    } catch {
+      setMessage('無法複製，請手動選取分享文字');
+    }
   };
 
   const playerDecisionPhase =
@@ -892,7 +1245,17 @@ export default function App() {
     return map[status];
   };
 
+  const tinStandings =
+    tableMode === 'tournament' ? buildStandings(balance, '你', tinRivals) : [];
+  const modeProgressLabel =
+    tableMode === 'daily'
+      ? `每日 ${dailyHandsPlayed}/${DAILY_HANDS}`
+      : tableMode === 'tournament'
+        ? `錫標 ${tinHandsPlayed}/${TIN_HANDS}`
+        : null;
+
   return (
+    <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
     <div
       className="min-h-screen h-screen max-h-screen flex flex-col items-center justify-between p-2 sm:p-3 md:p-4 font-sans text-white overflow-hidden relative bg-cover bg-center"
       style={{
@@ -926,7 +1289,9 @@ export default function App() {
           <div className="text-center px-1">
             <h1 className="text-sm sm:text-base font-black tracking-widest text-white/90">二十一點</h1>
             <div className="text-[9px] sm:text-[10px] text-white/45 tracking-wider">
-              {rules.dealerRule} · {rules.deckCount}副 · BJ {blackjackPayoutLabel(rules.bjPayout)}
+              {tableMode === 'career'
+                ? `${rules.dealerRule} · ${rules.deckCount}副 · BJ ${blackjackPayoutLabel(rules.bjPayout)}`
+                : modeProgressLabel}
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -951,6 +1316,16 @@ export default function App() {
             >
               <Lightbulb className={`w-4 h-4 ${hintLabel ? 'text-amber-300' : ''}`} />
               <span className="text-[8px] font-bold tracking-wider">提示</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowModes(true)}
+              className="min-h-[44px] min-w-[44px] px-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 touch-manipulation flex flex-col items-center justify-center gap-0.5"
+              title="模式（每日／錫標賽）"
+              aria-label="模式"
+            >
+              <Trophy className="w-4 h-4 text-amber-300" />
+              <span className="text-[8px] font-bold tracking-wider">模式</span>
             </button>
             <button
               type="button"
@@ -980,19 +1355,40 @@ export default function App() {
           <div className="text-right text-[10px] text-white/50 font-bold space-y-0.5">
             <div>
               下注 <span className="text-amber-400">${currentBet}</span>
+              {sideBetsAllowed && sideBet > 0 && (
+                <span className="text-sky-300"> · 邊注 ${sideBet}</span>
+              )}
               <span className="text-white/35"> · 下限 ${table.minBet}</span>
             </div>
-            {settings.mode === 'counting' && settings.showCount && (
+            {settings.mode === 'counting' && settings.showCount && tableMode === 'career' && (
               <div className="text-sky-300/90">
                 RC {runningHiLo >= 0 ? `+${runningHiLo}` : runningHiLo} · TC{' '}
                 {tc >= 0 ? `+${tc}` : tc} · ~{decksLeftApprox.toFixed(1)}副
               </div>
             )}
-            {settings.mode === 'counting' && !settings.showCount && (
+            {settings.mode === 'counting' && !settings.showCount && tableMode === 'career' && (
               <div className="text-sky-300/70">算牌練習（計數已隱藏）</div>
             )}
           </div>
         </div>
+
+        {tableMode === 'tournament' && tinStandings.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto px-0.5 pb-0.5" aria-label="錫標賽排名">
+            {tinStandings.map(row => (
+              <div
+                key={row.id}
+                className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-bold ${
+                  row.isPlayer
+                    ? 'border-amber-400/50 bg-amber-500/15 text-amber-100'
+                    : 'border-white/10 bg-black/30 text-white/70'
+                }`}
+              >
+                #{row.rank} {row.name} ${row.balance}
+                {row.eliminated ? ' · 淘汰' : ''}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -1126,60 +1522,86 @@ export default function App() {
         {isBankrupt ? (
           <div className="flex flex-col items-center gap-3 py-2">
             <p className="text-red-400 font-bold tracking-widest text-sm">籌碼不足（破產）</p>
-            <p className="text-white/50 text-xs text-center">
-              {table.name}下限 ${table.minBet}。已用救濟 {stats.recoveriesUsed}/{MAX_RECOVERIES} 次。
-            </p>
-            {stats.recoveriesUsed < MAX_RECOVERIES ? (
-              <button
-                type="button"
-                onClick={tryRecovery}
-                className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
-              >
-                <Coins className="w-5 h-5" />
-                領取救濟籌碼
-              </button>
+            {tableMode === 'career' ? (
+              <>
+                <p className="text-white/50 text-xs text-center">
+                  {table.name}下限 ${table.minBet}。已用救濟 {stats.recoveriesUsed}/{MAX_RECOVERIES}{' '}
+                  次。
+                </p>
+                {stats.recoveriesUsed < MAX_RECOVERIES ? (
+                  <button
+                    type="button"
+                    onClick={tryRecovery}
+                    className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
+                  >
+                    <Coins className="w-5 h-5" />
+                    領取救濟籌碼
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={doHardReset}
+                    className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    重置進度（${DEFAULT_BALANCE}）
+                  </button>
+                )}
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={doHardReset}
-                className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
-              >
-                <RotateCcw className="w-5 h-5" />
-                重置進度（${DEFAULT_BALANCE}）
-              </button>
+              <>
+                <p className="text-white/50 text-xs text-center">
+                  {tableMode === 'tournament'
+                    ? '錫標賽不可領取救濟，本場以目前籌碼結算。'
+                    : '每日牌靴以目前結餘記錄成績。'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (tableMode === 'daily') finishDailyRun(balance, false);
+                    else finishTournament(balance);
+                  }}
+                  className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg touch-manipulation"
+                >
+                  查看結算
+                </button>
+              </>
             )}
           </div>
         ) : gameState === 'betting' ? (
           <div className="flex flex-col items-center gap-2 sm:gap-3">
-            <div className="w-full flex gap-1.5 overflow-x-auto pb-1">
-              {TABLES.map(t => {
-                const unlocked = isTableUnlocked(t.id, stats.peakBankroll);
-                const active = t.id === stats.tableId;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    disabled={!unlocked}
-                    onClick={() => switchTable(t.id)}
-                    className={`shrink-0 px-2.5 py-2 min-h-[40px] rounded-lg text-[11px] font-bold border touch-manipulation ${
-                      active
-                        ? 'bg-amber-500/25 border-amber-400/60 text-amber-200'
-                        : unlocked
-                          ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                          : 'bg-black/30 border-white/5 text-white/25 cursor-not-allowed'
-                    }`}
-                    title={
-                      unlocked ? `下限 $${t.minBet}` : `峰值籌碼達 $${t.unlockPeak} 解鎖`
-                    }
-                  >
-                    {t.name}
-                    {!unlocked && ' 🔒'}
-                  </button>
-                );
-              })}
-            </div>
+            {tableMode === 'career' && (
+              <div className="w-full flex gap-1.5 overflow-x-auto pb-1">
+                {TABLES.map(t => {
+                  const unlocked = isTableUnlocked(t.id, stats.peakBankroll);
+                  const active = t.id === stats.tableId;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      disabled={!unlocked}
+                      onClick={() => switchTable(t.id)}
+                      className={`shrink-0 px-2.5 py-2 min-h-[40px] rounded-lg text-[11px] font-bold border touch-manipulation ${
+                        active
+                          ? 'bg-amber-500/25 border-amber-400/60 text-amber-200'
+                          : unlocked
+                            ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                            : 'bg-black/30 border-white/5 text-white/25 cursor-not-allowed'
+                      }`}
+                      title={
+                        unlocked ? `下限 $${t.minBet}` : `峰值籌碼達 $${t.unlockPeak} 解鎖`
+                      }
+                    >
+                      {t.name}
+                      {!unlocked && ' 🔒'}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div className="text-white/50 text-xs font-bold tracking-widest">
-              下注（下限 ${table.minBet}）
+              主注（下限 ${table.minBet}）
+              {modeProgressLabel ? ` · ${modeProgressLabel}` : ''}
             </div>
             <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
               {table.chipValues.map(amount => (
@@ -1187,13 +1609,41 @@ export default function App() {
                   key={amount}
                   type="button"
                   onClick={() => placeBet(amount)}
-                  disabled={currentBet + amount > balance || currentBet + amount > table.maxBet}
+                  disabled={
+                    currentBet + sideBet + amount > balance ||
+                    currentBet + amount > table.maxBet
+                  }
                   className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-amber-300 to-amber-600 border-2 border-amber-200 shadow-lg text-amber-950 font-black text-sm flex items-center justify-center hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-30 disabled:cursor-not-allowed transition-all touch-manipulation"
                 >
                   ${amount}
                 </button>
               ))}
             </div>
+            {sideBetsAllowed && (
+              <div className="w-full flex flex-col items-center gap-1.5">
+                <div className="text-white/45 text-[11px] font-bold tracking-wider">
+                  Perfect Pairs 邊注（最多主注一半）· 目前 ${sideBet}
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {[10, 25, 50].map(amount => (
+                    <button
+                      key={`pp-${amount}`}
+                      type="button"
+                      onClick={() => placeSideBet(amount)}
+                      disabled={
+                        currentBet < table.minBet ||
+                        sideBet + amount >
+                          maxPerfectPairsBet(currentBet, balance - currentBet) ||
+                        currentBet + sideBet + amount > balance
+                      }
+                      className="min-h-[40px] px-3 rounded-lg bg-sky-600/80 hover:bg-sky-500 text-white text-xs font-black tracking-wider disabled:opacity-30 touch-manipulation"
+                    >
+                      邊注 +${amount}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex justify-center gap-2 w-full max-w-sm mt-1">
               <button
                 type="button"
@@ -1213,7 +1663,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={deal}
-                disabled={currentBet < table.minBet || currentBet > balance}
+                disabled={
+                  currentBet < table.minBet || currentBet + sideBet > balance || !!sessionResult
+                }
                 className="flex-[2] py-2.5 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 touch-manipulation"
               >
                 <Play className="w-5 h-5 fill-current" />
@@ -1332,7 +1784,7 @@ export default function App() {
         )}
       </div>
 
-      {gameState === 'gameOver' && resultPrompt && (
+      {gameState === 'gameOver' && resultPrompt && !sessionResult && (
         <ResultOverlay
           title={
             resultPrompt === 'win' ? '你贏了！' : resultPrompt === 'lose' ? '你輸了' : '和局'
@@ -1346,9 +1798,19 @@ export default function App() {
           stats={[
             { label: '餘額', value: `$${balance}` },
             { label: '本局', value: `$${currentBet}` },
-            { label: '連勝', value: String(stats.streak) },
-            ...(strategyRate != null
+            ...(tableMode === 'career'
+              ? [{ label: '連勝', value: String(stats.streak) }]
+              : [{ label: '進度', value: modeProgressLabel ?? '—' }]),
+            ...(tableMode === 'career' && strategyRate != null
               ? [{ label: '策略命中', value: `${strategyRate}%` }]
+              : []),
+            ...(tableMode === 'daily' && dailyStrategyTotal > 0
+              ? [
+                  {
+                    label: '本日策略',
+                    value: `${dailyStrategyCorrect}/${dailyStrategyTotal}`,
+                  },
+                ]
               : []),
           ]}
           primaryLabel={balance < table.minBet ? '處理破產' : '下一局'}
@@ -1358,14 +1820,43 @@ export default function App() {
         />
       )}
 
+      {sessionResult && (
+        <ResultOverlay
+          title={sessionResult.title}
+          subtitle={sessionResult.subtitle}
+          variant={sessionResult.kind === 'tournament' ? 'win' : 'neutral'}
+          stats={sessionResult.stats}
+          primaryLabel="返回生涯桌"
+          onPrimary={returnToCareer}
+          secondaryLabel="複製分享"
+          onSecondary={() => {
+            void copySessionShare();
+          }}
+        />
+      )}
+
       {showRules && (
         <RulesPanel
           settings={settings}
-          disabled={gameState !== 'betting'}
+          disabled={gameState !== 'betting' || tableMode !== 'career'}
           onChange={applySettings}
           onClose={() => setShowRules(false)}
         />
       )}
+
+      <ModesPanel
+        open={showModes}
+        onClose={() => setShowModes(false)}
+        careerBalance={tableMode === 'career' ? balance : loadBalance()}
+        dailyPersist={dailyPersist}
+        todayKey={todayKey}
+        todayRecord={dailyPersist.days[todayKey]}
+        tournamentBest={tournamentBest}
+        onStartDaily={startDaily}
+        onStartTournament={startTournament}
+        onReturnCareer={returnToCareer}
+        activeMode={tableMode}
+      />
 
       {showStats && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
@@ -1400,6 +1891,13 @@ export default function App() {
                     : '—',
                 ],
                 ['已解鎖桌', unlockedTables(stats.peakBankroll).length],
+                ['每日連續', `${currentStreak(dailyPersist, todayKey)} 天`],
+                [
+                  '錫標最佳',
+                  tournamentBest.entries
+                    ? `第 ${tournamentBest.bestRank}（${tournamentBest.wins} 冠）`
+                    : '—',
+                ],
               ].map(([label, value]) => (
                 <div key={String(label)} className="bg-black/30 rounded-lg px-3 py-2 border border-white/10">
                   <dt className="text-[10px] text-white/45 font-bold tracking-wider">{label}</dt>
@@ -1414,5 +1912,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </MotionConfig>
   );
 }

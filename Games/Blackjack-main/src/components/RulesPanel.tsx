@@ -210,6 +210,26 @@ export const RulesPanel: React.FC<RulesPanelProps> = ({
           )}
         </div>
 
+        <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
+          <h3 className="text-sm font-black tracking-wider text-amber-200">邊注 · Perfect Pairs</h3>
+          <p className="text-[12px] text-white/55 leading-relaxed whitespace-pre-line">
+            {`發牌前可另下邊注（最多為主注一半）。只看玩家最初兩張是否完全同點（J≠Q）：
+· 完美對（同花色同點）賠 25:1
+· 同色對（同色異花）賠 12:1
+· 混色對賠 6:1
+· 非對子則輸掉邊注；不影響主注。
+錫標賽中不開放邊注。`}
+          </p>
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-white/10 space-y-1">
+          <h3 className="text-sm font-black tracking-wider text-emerald-300">每日牌靴／錫標賽</h3>
+          <p className="text-[12px] text-white/55 leading-relaxed">
+            從「模式」進入：每日以台北日期種子固定牌靴；錫標賽固定買入與手數、對戰具名
+            CPU，賽中不可免費救濟。詳見模式面板。
+          </p>
+        </div>
+
         {disabled && (
           <p className="mt-3 text-xs text-amber-300/90">請在下注階段變更規則（會重建牌靴）。</p>
         )}
