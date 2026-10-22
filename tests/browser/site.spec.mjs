@@ -1074,3 +1074,17 @@ test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', as
     await expect(page.getByRole('button', { name: '衝刺' })).toBeVisible();
   }
 });
+
+test('koi-koi: default win score is shortest under more modes', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Koi-Koi'), 'selective CI');
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-koi-koi-howto-seen', '1');
+  });
+  await page.goto('./Games/Koi-Koi/');
+  await expect(page.getByText('目前：先達 7', { exact: false })).toBeVisible();
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await expect(page.getByRole('group', { name: '對局長度' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '先達 12', exact: true }), isMobile);
+  await expect(page.getByText('目前：先達 12', { exact: false })).toBeVisible();
+});
+

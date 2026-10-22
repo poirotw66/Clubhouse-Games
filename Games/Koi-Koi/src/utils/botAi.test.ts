@@ -161,7 +161,7 @@ describe('mergeStats', () => {
       losses: 2,
       winStreak: 1,
       lastDifficulty: 'normal',
-      lastWinScore: 12,
+      lastWinScore: 7,
     });
   });
 
@@ -172,9 +172,9 @@ describe('mergeStats', () => {
   });
 
   it('defaults and preserves lastWinScore', () => {
-    expect(mergeStats({}).lastWinScore).toBe(12);
+    expect(mergeStats({}).lastWinScore).toBe(7);
     expect(mergeStats({ lastWinScore: 7 }).lastWinScore).toBe(7);
-    expect(mergeStats({ lastWinScore: 99 }).lastWinScore).toBe(12);
+    expect(mergeStats({ lastWinScore: 99 }).lastWinScore).toBe(7);
   });
 });
 
@@ -186,7 +186,7 @@ describe('recordResult', () => {
       losses: 0,
       winStreak: 2,
       lastDifficulty: 'normal',
-      lastWinScore: 12,
+      lastWinScore: 7,
     });
   });
 
@@ -197,7 +197,7 @@ describe('recordResult', () => {
       losses: 1,
       winStreak: 0,
       lastDifficulty: 'normal',
-      lastWinScore: 12,
+      lastWinScore: 7,
     });
   });
 });
