@@ -1294,6 +1294,12 @@
     function openLobby(){
       state = 'intro';
       isDailyRace = false;
+      // Daily races use a synthetic course id — restore a real campaign pick.
+      selectedCourse = getCourse(raceBaseCourseId);
+      if (!isUnlocked(progress, selectedCourse.id)) {
+        selectedCourse = getCourse('archipelago');
+        raceBaseCourseId = selectedCourse.id;
+      }
       resultOverlay.hide();
       $('finish-burst').classList.remove('show');
       $('overlay').classList.remove('hidden');

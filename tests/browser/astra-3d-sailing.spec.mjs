@@ -103,6 +103,12 @@ test.describe('Astra Windward (3D Sailing)', () => {
     await expect(page.locator('#daily-best')).not.toHaveText('—');
     await expect(page.locator('#share-text')).toHaveValue(new RegExp(dateKey));
     await expect(page.locator('#share-text')).toHaveValue(/連續天數/);
+    // Returning from daily must re-enable campaign start on a real course.
+    await expect(page.locator('#start')).toBeEnabled();
+    await page.locator('#start').click();
+    await expect.poll(async () =>
+      page.evaluate(() => window.__windward?.isDailyRace === false && window.__windward?.state === 'playing'),
+    ).toBe(true);
   });
 
   test('prefers-reduced-motion keeps lobby usable', async ({ page }) => {
