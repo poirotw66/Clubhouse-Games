@@ -476,6 +476,19 @@ test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile 
   await expect(page.getByRole('gridcell', { name: /第 \d+ 格/ }).and(page.locator(':enabled')).first()).toBeVisible();
 });
 
+
+test('checkers: default is bot single; series lives under more modes', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
+  await page.goto('./Games/Checkers/');
+  // Open the settings chevron (shows current mode like 對戰・電腦).
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await expect(page.getByText('更多模式', { exact: true })).toBeVisible();
+  await activate(page.getByText('更多模式', { exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: '系列賽', exact: true })).toBeVisible();
+  // Default bot play has no series score strip.
+  await expect(page.getByText(/系列 \d+:\d+/)).toHaveCount(0);
+});
+
 test('checkers: variants, two-player opening, undo, and new game', async ({ page, isMobile }) => {
   test.skip(!includesGame('Checkers'), 'selective CI');
   await page.goto('./Games/Checkers/');
