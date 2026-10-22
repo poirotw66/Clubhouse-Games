@@ -51,23 +51,49 @@ test.beforeEach(async ({ page, baseURL }) => {
 /** Hand tiles use aria-label "L-R"; end anchors use 「出在…」. */
 async function playOneTile(page, isMobile) {
   await activate(page.getByRole('button', { name: '雙人', exact: true }), isMobile);
+  // Draw rules give a clear 抽牌 path when the seat cannot match open ends.
+  await activate(page.getByRole('button', { name: '摸牌制', exact: true }), isMobile);
   await expect(page.locator('[data-dominoes-board="1"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^\d+-\d+$/ }).first()).toBeVisible({
+    timeout: 10_000,
+  });
 
-  const handTiles = page.getByRole('button', { name: /^\d+-\d+$/ });
-  await expect(handTiles.first()).toBeVisible({ timeout: 10_000 });
+  for (let attempt = 0; attempt < 24; attempt++) {
+    const drawBtn = page.getByRole('button', { name: '抽牌', exact: true });
+    if (await drawBtn.isVisible()) {
+      await activate(drawBtn, isMobile);
+      continue;
+    }
+    const passBtn = page.getByRole('button', { name: '跳過', exact: true });
+    if (await passBtn.isVisible()) {
+      await activate(passBtn, isMobile);
+      continue;
+    }
 
-  const count = await handTiles.count();
-  let placed = false;
-  for (let i = 0; i < count; i++) {
-    await activate(handTiles.nth(i), isMobile);
-    const endBtn = page.getByRole('button', { name: /出在/ }).and(page.locator(':enabled'));
-    if ((await endBtn.count()) > 0) {
-      await activate(endBtn.first(), isMobile);
-      placed = true;
-      break;
+    const endButtons = page.getByRole('button', { name: /出在/ });
+    const endCount = await endButtons.count();
+    const pips = new Set();
+    for (let e = 0; e < endCount; e++) {
+      const label = await endButtons.nth(e).getAttribute('aria-label');
+      const m = label && label.match(/（(\d+)）/);
+      if (m) pips.add(Number(m[1]));
+    }
+
+    const handTiles = page.getByRole('button', { name: /^\d+-\d+$/ });
+    const count = await handTiles.count();
+    for (let i = 0; i < count; i++) {
+      const name = await handTiles.nth(i).getAttribute('aria-label');
+      const parts = name ? name.split('-').map(Number) : [];
+      if (pips.size > 0 && !parts.some((p) => pips.has(p))) continue;
+      await activate(handTiles.nth(i), isMobile);
+      const enabledEnd = page.getByRole('button', { name: /出在/ }).and(page.locator(':enabled'));
+      if ((await enabledEnd.count()) > 0) {
+        await activate(enabledEnd.first(), isMobile);
+        return;
+      }
     }
   }
-  expect(placed).toBe(true);
+  throw new Error('could not place a dominoes tile for juice coverage');
 }
 
 test('dominoes: juice settings panel in rules modal', async ({ page, isMobile }) => {
