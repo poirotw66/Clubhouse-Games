@@ -822,9 +822,9 @@ test('puyo-puyo: modes, mission ladder, tutorial panel, and nightmare difficulty
   await expect(page.locator('#quest-panel')).toBeVisible();
   await expect(page.getByRole('heading', { name: /任務/ })).toBeVisible();
   await expect(page.locator('#mission-select')).toBeVisible();
-  // Ladder has ≥12 quests (later ones locked until earlier clears).
-  await expect(page.locator('#mission-select option')).toHaveCount(12);
-  await expect(page.locator('#career-stats')).toContainText(/任務\s*0\/12/);
+  // Ladder has ≥20 quests (pack 1 + pack 2; later ones locked until earlier clears).
+  await expect(page.locator('#mission-select option')).toHaveCount(22);
+  await expect(page.locator('#career-stats')).toContainText(/任務\s*0\/22/);
   await expect(page.locator('#player-card-p2')).toBeHidden({ timeout: 5_000 });
   await expect(page.locator('#player-card-p2')).toHaveAttribute('hidden', '');
   await expect(page.getByRole('button', { name: '顯示落點提示', exact: true })).toBeVisible();
@@ -848,6 +848,25 @@ test('puyo-puyo: modes, mission ladder, tutorial panel, and nightmare difficulty
   await expect(page.locator('#mode-badge')).toContainText('CPU');
   await expect(page.locator('#match-status')).toContainText('惡夢');
   await expect(page.locator('#match-status')).toContainText(/4\s*手前瞻|分帧/);
+});
+
+test('puyo-puyo: daily puzzle share + board theme unlock UI', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Puyo-Puyo'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.goto('./Games/Puyo-Puyo/');
+  const mode = page.locator('#match-mode');
+  await mode.selectOption('daily');
+  await expect(page.locator('#mode-badge')).toContainText('每日');
+  await expect(page.locator('#quest-panel')).toBeVisible();
+  await expect(page.locator('#daily-meta')).toBeVisible();
+  await expect(page.locator('#daily-meta')).toContainText(/台北|連勝/);
+  await expect(page.getByRole('button', { name: '複製分享', exact: true })).toBeVisible();
+  await activate(page.getByRole('button', { name: '複製分享', exact: true }), isMobile);
+  await expect(page.locator('#board-theme')).toBeVisible();
+  await expect(page.locator('#board-theme option')).toHaveCount(4);
+  await expect(page.locator('#board-theme option[value="classic"]')).toBeEnabled();
+  await expect(page.locator('#board-theme option[value="sunset"]')).toBeDisabled();
+  await expect(page.locator('#career-stats')).toContainText(/每日連勝/);
 });
 
 test('puyo-puyo: mission hint drop clears first quest overlay', async ({ page, isMobile }) => {

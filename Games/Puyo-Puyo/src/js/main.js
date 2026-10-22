@@ -1,5 +1,6 @@
 /**
- * Puyo Puyo loop: vs CPU / local 2P / mission ladder / chain tutorial / free practice.
+ * Puyo Puyo loop: vs CPU / local 2P / mission ladder / daily puzzle /
+ * chain tutorial / free practice / star-unlock board themes.
  * Plain script (no bundler) so the page runs from file:// as well as the dev server.
  */
 (function (global) {
@@ -7,6 +8,7 @@
 
   var L = global.PuyoLogic;
   var M = global.PuyoMissions;
+  var D = global.PuyoDaily;
   var R = global.PuyoRender;
   var A = global.PuyoAudio;
   var prefersReducedMotion = !!(
@@ -135,12 +137,16 @@
     difficultyField: document.getElementById('difficulty-field'),
     missionField: document.getElementById('mission-field'),
     missionSelect: document.getElementById('mission-select'),
+    themeField: document.getElementById('theme-field'),
+    themeSelect: document.getElementById('board-theme'),
     questPanel: document.getElementById('quest-panel'),
     questTitle: document.getElementById('quest-title'),
     questProgress: document.getElementById('quest-progress'),
     questBlurb: document.getElementById('quest-blurb'),
     questHintBtn: document.getElementById('btn-quest-hint'),
     questSkipBtn: document.getElementById('btn-quest-skip'),
+    dailyShareBtn: document.getElementById('btn-daily-share'),
+    dailyMeta: document.getElementById('daily-meta'),
     versusLayout: document.getElementById('versus-layout'),
     playerCardP2: document.getElementById('player-card-p2'),
     overlay: document.getElementById('result-overlay'),
@@ -188,6 +194,8 @@
     quest: null,
     tutorialIndex: 0,
     movesLeft: 0,
+    timeLeftMs: 0,
+    timeLimitSec: 0,
     lastChainPulse: 0,
   };
 
@@ -437,22 +445,32 @@
   }
 
   function isSoloMode() {
-    return match.mode === 'mission' || match.mode === 'tutorial' || match.mode === 'practice';
+    return (
+      match.mode === 'mission' ||
+      match.mode === 'tutorial' ||
+      match.mode === 'practice' ||
+      match.mode === 'daily'
+    );
+  }
+
+  function isQuestMode() {
+    return match.mode === 'mission' || match.mode === 'tutorial' || match.mode === 'daily';
   }
 
   function totalMissionStars(stats) {
-    var stars = stats.missionStars || {};
-    var sum = 0;
-    Object.keys(stars).forEach(function (id) {
-      sum += stars[id] | 0;
-    });
-    return sum;
+    return L.totalMissionStars(stats);
+  }
+
+  function dailyStreakFor(stats) {
+    if (!D) return 0;
+    return D.computeStreak(stats.dailyClears || [], D.taipeiDateKey());
   }
 
   function formatCareerLine(stats, difficulty) {
     var diffId = difficulty || stats.lastDifficulty;
     var preset = DIFFICULTY_PRESETS[diffId] || DIFFICULTY_PRESETS.normal;
     var mode = L.modeOf(stats, diffId);
+    var streak = dailyStreakFor(stats);
     return (
       '對 CPU（' +
       preset.label +
@@ -470,7 +488,9 @@
       M.MISSION_LADDER.length +
       '（★' +
       totalMissionStars(stats) +
-      '） · 生涯最大連鎖 ' +
+      '） · 每日連勝 ' +
+      streak +
+      ' · 生涯最大連鎖 ' +
       stats.bestChainOverall
     );
   }
@@ -555,6 +575,66 @@
     return L.VALID_MODES[value] ? value : 'cpu';
   }
 
+  function refreshThemeSelect() {
+    if (!ui.themeSelect) return;
+    var stars = totalMissionStars(career);
+    var html = '';
+    L.BOARD_THEMES.forEach(function (theme) {
+      var unlocked = L.isThemeUnlocked(theme.id, stars);
+      html +=
+        '<option value="' +
+        theme.id +
+        '"' +
+        (unlocked ? '' : ' disabled') +
+        '>' +
+        theme.label +
+        (unlocked ? '' : '（★' + theme.starsRequired + ' 解鎖）') +
+        '</option>';
+    });
+    ui.themeSelect.innerHTML = html;
+    var preferred = career.boardTheme || 'classic';
+    if (!L.isThemeUnlocked(preferred, stars)) preferred = 'classic';
+    ui.themeSelect.value = preferred;
+  }
+
+  function applyBoardTheme() {
+    var stars = totalMissionStars(career);
+    var id = normalizeThemeChoice(ui.themeSelect ? ui.themeSelect.value : career.boardTheme);
+    if (!L.isThemeUnlocked(id, stars)) id = 'classic';
+    var theme = L.themeById(id);
+    R.setBoardTheme(theme);
+    document.body.setAttribute('data-board-theme', theme.id);
+    document.body.style.background = theme.pageBg;
+    career = L.withBoardTheme(career, theme.id);
+  }
+
+  function normalizeThemeChoice(value) {
+    return typeof value === 'string' && L.VALID_THEMES[value] ? value : 'classic';
+  }
+
+  function formatTimeLeft() {
+    if (!match.timeLimitSec) return '';
+    var sec = Math.max(0, Math.ceil(match.timeLeftMs / 1000));
+    return ' · 剩餘 ' + sec + ' 秒';
+  }
+
+  function refreshDailyMeta() {
+    if (!ui.dailyMeta) return;
+    if (match.mode !== 'daily' || !D) {
+      ui.dailyMeta.hidden = true;
+      return;
+    }
+    var today = D.taipeiDateKey();
+    var streak = dailyStreakFor(career);
+    var best = career.dailyBest && career.dailyBest.dateKey === today ? career.dailyBest : null;
+    var bestLine = best && best.cleared
+      ? '今日最佳 ' + best.bestMoves + ' 手 · ' + starGlyph(best.bestStars)
+      : '今日尚未通關';
+    ui.dailyMeta.hidden = false;
+    ui.dailyMeta.textContent =
+      '台北 ' + today + ' · 連勝 ' + streak + ' 天 · ' + bestLine;
+  }
+
   function syncModeUi() {
     match.mode = selectedMode();
     var solo = isSoloMode();
@@ -564,6 +644,7 @@
     ui.p2Badge.textContent = isVersusMode() ? '玩家 2' : '自動對手';
     ui.p2Badge.classList.toggle('cpu-badge', !isVersusMode());
     if (match.mode === 'mission') ui.modeBadge.textContent = '任務模式 · 限手連鎖';
+    else if (match.mode === 'daily') ui.modeBadge.textContent = '每日謎題 · 台北日種子';
     else if (match.mode === 'tutorial') ui.modeBadge.textContent = '連鎖教室 · 互動教學';
     else if (match.mode === 'practice') ui.modeBadge.textContent = '自由練習 · 單人無對手';
     else if (isVersusMode()) ui.modeBadge.textContent = '1P vs 2P · 6×12 · 連鎖送垃圾';
@@ -571,14 +652,18 @@
 
     ui.difficultyField.hidden = match.mode !== 'cpu';
     ui.missionField.hidden = match.mode !== 'mission';
-    ui.questPanel.hidden = !(match.mode === 'mission' || match.mode === 'tutorial');
-    ui.colorSelect.disabled = match.mode === 'mission' || match.mode === 'tutorial';
+    ui.questPanel.hidden = !isQuestMode();
+    ui.colorSelect.disabled = isQuestMode();
     if (ui.playerCardP2) ui.playerCardP2.hidden = solo;
     if (ui.versusLayout) ui.versusLayout.classList.toggle('solo-layout', solo);
     document.body.classList.toggle('solo-mode', solo);
 
     ui.resultP2Label.textContent = solo ? '模式' : players[1].label + ' 分數';
-    ui.resultP2ChainLabel.textContent = solo ? '剩餘手数' : players[1].label + ' 最大連鎖';
+    ui.resultP2ChainLabel.textContent = solo
+      ? match.timeLimitSec
+        ? '剩餘時間／手数'
+        : '剩餘手数'
+      : players[1].label + ' 最大連鎖';
     ui.p2ControlsList.innerHTML = isVersusMode()
       ? '<li><kbd>A</kbd> <kbd>D</kbd> 左右移動</li>'
         + '<li><kbd>S</kbd> 加速落下</li>'
@@ -590,24 +675,39 @@
     if (ui.questSkipBtn) {
       ui.questSkipBtn.hidden = match.mode !== 'tutorial';
     }
+    if (ui.dailyShareBtn) {
+      ui.dailyShareBtn.hidden = match.mode !== 'daily';
+    }
+    refreshDailyMeta();
   }
 
   function updateQuestHud() {
     if (!match.quest) return;
     ui.questTitle.textContent = match.quest.title;
     ui.questBlurb.textContent = match.quest.blurb;
-    var stars = (career.missionStars && career.missionStars[match.quest.id]) || 0;
+    var stars = 0;
+    if (match.mode === 'mission') {
+      stars = (career.missionStars && career.missionStars[match.quest.id]) || 0;
+    } else if (match.mode === 'daily') {
+      var today = D ? D.taipeiDateKey() : '';
+      if (career.dailyBest && career.dailyBest.dateKey === today) {
+        stars = career.dailyBest.bestStars || 0;
+      }
+    }
     var starPart =
-      match.mode === 'mission'
+      match.mode === 'mission' || match.mode === 'daily'
         ? ' · 最佳 ' + starGlyph(stars)
         : '';
     ui.questProgress.textContent =
       M.goalLabel(match.quest) +
       ' · 剩餘 ' +
       match.movesLeft +
-      ' 手 · 本局最大連鎖 ' +
+      ' 手' +
+      formatTimeLeft() +
+      ' · 本局最大連鎖 ' +
       players[0].state.maxChain +
       starPart;
+    refreshDailyMeta();
   }
 
   function currentQuestDef() {
@@ -616,6 +716,9 @@
     }
     if (match.mode === 'tutorial') {
       return M.TUTORIAL_STAGES[match.tutorialIndex] || M.TUTORIAL_STAGES[0];
+    }
+    if (match.mode === 'daily' && D) {
+      return D.todayPuzzle();
     }
     return null;
   }
@@ -664,12 +767,15 @@
     clearHint();
     ui.pauseLabel.textContent = '暫停';
     ui.overlay.hidden = true;
-    syncModeUi();
+    match.mode = selectedMode();
     refreshMissionSelect();
 
     var quest = currentQuestDef();
     match.quest = quest;
     match.movesLeft = quest ? quest.moveLimit : 0;
+    match.timeLimitSec = quest && quest.timeLimitSec ? quest.timeLimitSec | 0 : 0;
+    match.timeLeftMs = match.timeLimitSec > 0 ? match.timeLimitSec * 1000 : 0;
+    syncModeUi();
 
     var colorCount = quest ? quest.colorCount : Number(ui.colorSelect.value) || 4;
     if (quest) ui.colorSelect.value = String(colorCount);
@@ -774,7 +880,7 @@
     if (type === 'allClear') base = '全消成功！';
     else if (type === 'clearColor') base = '指定顏色已消光！';
     else base = '達成 ' + chain + ' 連鎖！目標 ' + q.targetChain + ' 連鎖。';
-    if (match.mode === 'mission' && stars) {
+    if ((match.mode === 'mission' || match.mode === 'daily') && stars) {
       base += ' 評價 ' + starGlyph(stars) + '（' + stars + ' 星）';
     }
     return base;
@@ -792,12 +898,26 @@
 
     var chain = players[0].state.maxChain;
     var stars = 0;
+    var movesUsed = match.quest
+      ? Math.max(1, match.quest.moveLimit - match.movesLeft)
+      : 0;
     career = L.noteMaxChain(career, chain, null);
     if (match.mode === 'mission' && won && match.quest) {
-      var movesUsed = match.quest.moveLimit - match.movesLeft;
       stars = M.rateStars(match.quest, movesUsed);
       career = L.recordMissionClear(career, match.quest.id, chain, stars);
       refreshMissionSelect();
+      refreshThemeSelect();
+    }
+    if (match.mode === 'daily' && match.quest && D) {
+      if (won) stars = M.rateStars(match.quest, movesUsed);
+      career = L.recordDailyResult(career, {
+        dateKey: match.quest.dateKey || D.taipeiDateKey(),
+        cleared: !!won,
+        movesUsed: movesUsed,
+        stars: stars,
+        chain: chain,
+      });
+      refreshDailyMeta();
     }
     if (match.mode === 'tutorial' && won) {
       if (match.tutorialIndex >= M.TUTORIAL_STAGES.length - 1) {
@@ -807,6 +927,7 @@
     career = L.withPrefs(career, ui.difficultySelect.value, match.mode);
     saveCareer();
     refreshCareerUi();
+    applyBoardTheme();
     ui.resultCareer.hidden = false;
 
     if (won) A.playWin();
@@ -814,7 +935,9 @@
     ui.resultTitle.textContent = won
       ? match.mode === 'tutorial'
         ? '教室過關'
-        : '任務成功'
+        : match.mode === 'daily'
+          ? '每日通關'
+          : '任務成功'
       : '再試一次';
     ui.resultSummary.textContent =
       won && match.quest ? questSuccessSummary(chain, stars) : summary;
@@ -827,8 +950,12 @@
           ? match.quest
             ? match.quest.title + (stars ? ' ' + starGlyph(stars) : '')
             : '任務'
-          : '自由練習';
-    ui.resultP2Chain.textContent = String(match.movesLeft);
+          : match.mode === 'daily'
+            ? '每日 ' + (match.quest && match.quest.dateKey ? match.quest.dateKey : '')
+            : '自由練習';
+    ui.resultP2Chain.textContent = match.timeLimitSec
+      ? match.movesLeft + ' 手 / ' + Math.max(0, Math.ceil(match.timeLeftMs / 1000)) + ' 秒'
+      : String(match.movesLeft);
     ui.overlay.hidden = false;
     updateMatchStatus();
     refreshAssistButtons();
@@ -1077,7 +1204,20 @@
         M.goalLabel(match.quest) +
         '，剩餘 ' +
         match.movesLeft +
-        ' 手。用提示可看建議落點；越少手數星級越高。';
+        ' 手' +
+        (match.timeLimitSec
+          ? '、' + Math.max(0, Math.ceil(match.timeLeftMs / 1000)) + ' 秒'
+          : '') +
+        '。用提示可看建議落點；越少手數星級越高。';
+    } else if (match.mode === 'daily' && match.quest) {
+      ui.matchStatus.textContent =
+        '每日謎題（台北 ' +
+        (match.quest.dateKey || '') +
+        '）：' +
+        M.goalLabel(match.quest) +
+        '，剩餘 ' +
+        match.movesLeft +
+        ' 手。全站同題；通關後可複製分享。';
     } else if (match.mode === 'tutorial' && match.quest) {
       ui.matchStatus.textContent =
         '教室進度 ' +
@@ -1431,6 +1571,17 @@
       refreshAssistButtons();
       return;
     }
+
+    if (isQuestMode() && match.timeLimitSec > 0 && match.quest) {
+      var prevSec = Math.ceil(match.timeLeftMs / 1000);
+      match.timeLeftMs = Math.max(0, match.timeLeftMs - dt);
+      if (match.timeLeftMs <= 0) {
+        finishSolo(false, '時間到，未達成任務目標。');
+        return;
+      }
+      if (Math.ceil(match.timeLeftMs / 1000) !== prevSec) updateQuestHud();
+    }
+
     updateDasFor(0, dt);
     if (isVersusMode()) updateDasFor(1, dt);
 
@@ -1717,6 +1868,35 @@
       resetMatch();
     });
   }
+  if (ui.themeSelect) {
+    ui.themeSelect.addEventListener('change', function () {
+      career = L.withBoardTheme(career, ui.themeSelect.value);
+      saveCareer();
+      applyBoardTheme();
+    });
+  }
+  if (ui.dailyShareBtn) {
+    ui.dailyShareBtn.addEventListener('click', function () {
+      if (!D || match.mode !== 'daily') return;
+      var today = D.taipeiDateKey();
+      var best = career.dailyBest && career.dailyBest.dateKey === today ? career.dailyBest : null;
+      var text = D.buildShareText({
+        dateKey: today,
+        cleared: !!(best && best.cleared),
+        movesUsed: best && best.bestMoves,
+        stars: best && best.bestStars,
+        streak: dailyStreakFor(career),
+        bestMoves: best && best.bestMoves,
+        goalLabel: match.quest ? M.goalLabel(match.quest) : '謎題',
+      });
+      D.copyText(text).then(function (ok) {
+        ui.dailyShareBtn.textContent = ok ? '已複製！' : '複製失敗';
+        global.setTimeout(function () {
+          ui.dailyShareBtn.textContent = '複製分享';
+        }, prefersReducedMotion ? 600 : 1400);
+      });
+    });
+  }
 
   players.forEach(function (player) {
     setupCanvas(player.field, player.fieldCtx, L.COLS * CELL, L.ROWS * CELL);
@@ -1726,6 +1906,8 @@
   career = loadCareer();
   applySavedPrefs();
   refreshMissionSelect();
+  refreshThemeSelect();
+  applyBoardTheme();
   refreshCareerUi();
   resetMatch();
   global.requestAnimationFrame(frame);
