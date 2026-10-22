@@ -1027,6 +1027,9 @@ test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', as
 
 test('dominoes: default target is single under more modes', async ({ page, isMobile }) => {
   test.skip(!includesGame('Dominoes'), 'selective CI');
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-dominoes-howto-seen', '1');
+  });
   await page.goto('./Games/Dominoes/');
   await expect(page.getByText('目前：單局', { exact: false })).toBeVisible();
   await activate(page.getByText('更多賽制', { exact: true }), isMobile);
