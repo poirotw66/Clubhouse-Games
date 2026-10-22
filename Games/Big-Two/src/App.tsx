@@ -50,6 +50,7 @@ import {
   createMatch,
   dealHand,
   defaultMatchConfig,
+  isSeriesMode,
   matchProgressLabel,
 } from './game/match';
 import {
@@ -986,9 +987,21 @@ function Setup({
               </ul>
             </section>
 
-            <section>
-              <h2 className="font-bold mb-2 text-sm text-indigo-200">賽制</h2>
-              <div className="flex flex-col gap-2">
+            <details
+              className="bt-more-modes rounded-2xl border border-slate-700/80 bg-slate-900/40 px-4 py-3"
+              open={isSeriesMode(config.mode)}
+            >
+              <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-sm text-indigo-200 font-bold">
+                <span>更多賽制</span>
+                <span className="text-[11px] font-normal text-indigo-100/55">
+                  {config.mode === 'single'
+                    ? '目前：單局'
+                    : config.mode === 'hands'
+                      ? `目前：${config.hands} 局`
+                      : `目前：先達 ${config.target}`}
+                </span>
+              </summary>
+              <div className="mt-3 flex flex-col gap-2" role="group" aria-label="賽制">
                 {playModes.map((mode) => (
                   <button
                     key={mode}
@@ -1003,7 +1016,7 @@ function Setup({
                     <span className="font-bold">{MATCH_MODE_LABELS[mode]}</span>
                     <span className="block text-xs text-indigo-100/55">
                       {mode === 'single'
-                        ? '打完一局就結算，看 MVP'
+                        ? '打完一局就結算'
                         : mode === 'hands'
                           ? '打完指定局數，比累計籌碼'
                           : '有人先累積到目標分就結束'}
@@ -1012,7 +1025,7 @@ function Setup({
                 ))}
               </div>
               {config.mode === 'hands' && (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex gap-2" role="group" aria-label="局數">
                   {MATCH_LENGTHS.map((n) => (
                     <button
                       key={n}
@@ -1030,7 +1043,7 @@ function Setup({
                 </div>
               )}
               {config.mode === 'target' && (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex gap-2" role="group" aria-label="目標分">
                   {TARGET_SCORES.map((n) => (
                     <button
                       key={n}
@@ -1047,7 +1060,7 @@ function Setup({
                   ))}
                 </div>
               )}
-            </section>
+            </details>
 
             <section>
               <h2 className="font-bold mb-2 text-sm text-indigo-200">難度</h2>
@@ -1151,7 +1164,7 @@ function Setup({
                 onClick={onResume}
                 className="min-h-[48px] rounded-2xl border border-amber-400/40 bg-amber-500/10 text-amber-100 font-bold touch-manipulation hover:bg-amber-500/20"
               >
-                繼續未完的系列賽
+                繼續未完的對局
               </button>
             )}
 
@@ -1160,7 +1173,7 @@ function Setup({
               onClick={onStart}
               className="min-h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-lg font-black touch-manipulation"
             >
-              {config.mode === 'single' ? '開始單局' : '開始系列賽'}
+              {isSeriesMode(config.mode) ? '開始系列賽' : '開始單局'}
             </button>
 
             {(stats.games > 0 || Object.values(stats.formats).some((f) => f.played > 0)) && (

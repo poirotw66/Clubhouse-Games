@@ -64,7 +64,7 @@ export function defaultMatchConfig(
   rules: HouseRules = DEFAULT_HOUSE_RULES,
 ): MatchConfig {
   return {
-    mode: 'hands',
+    mode: 'single',
     hands: 4,
     target: 100,
     difficulty,

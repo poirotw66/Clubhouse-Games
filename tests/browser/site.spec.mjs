@@ -365,11 +365,14 @@ test('pick-red: daily table entry and opponent ladder unlock', async ({ page, is
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
   test.skip(!includesGame('Big-Two'), 'selective CI');
   test.setTimeout(45_000);
-  // Skip the soft first-run guide so the lobby「開始系列賽」is the only match.
+  // Skip the soft first-run guide so the lobby start button is the only match.
   await page.addInitScript(() => {
     localStorage.setItem('clubhouse-big-two-howto-seen', '1');
   });
   await page.goto('./Games/Big-Two/');
+  // Default lobby is single; open「更多賽制」and pick fixed hands for this series check.
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: /打固定局數/ }), isMobile);
   await page.getByPlaceholder(/例如/).fill('abc');
   await activate(page.getByRole('button', { name: '開始系列賽', exact: true }), isMobile);
 
@@ -387,6 +390,22 @@ test('big-two: seeded opener plays ♣3, then undo after the table updates', asy
   await expect(undo).toBeEnabled({ timeout: 15_000 });
   await activate(undo, isMobile);
   await expect(hand.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
+});
+
+test('big-two: default lobby is single without series scoreboard', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Big-Two'), 'selective CI');
+  test.setTimeout(30_000);
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-big-two-howto-seen', '1');
+  });
+  await page.goto('./Games/Big-Two/');
+  await expect(page.getByRole('button', { name: '開始單局', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始系列賽', exact: true })).toHaveCount(0);
+  await page.getByPlaceholder(/例如/).fill('abc');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+  await expect(page.getByRole('region', { name: '系列賽計分板' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
 });
 
 test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {

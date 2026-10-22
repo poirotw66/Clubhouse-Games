@@ -87,7 +87,7 @@ export const EMPTY_STATS: Stats = {
   formats: { ...EMPTY_FORMATS },
   lastDifficulty: 'normal',
   lastStraights: 'topCard',
-  lastMatchMode: 'hands',
+  lastMatchMode: 'single',
   lastMatchHands: 4,
   lastMatchTarget: 100,
   lastSizeLadder: true,
