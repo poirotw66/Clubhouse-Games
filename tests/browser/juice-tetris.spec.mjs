@@ -21,6 +21,29 @@ function activate(locator, isMobile) {
   return isMobile ? locator.tap() : locator.click();
 }
 
+/** Desktop hides on-screen controls (`md:hidden`); use keys. Mobile taps the pad. */
+async function focusPlayfield(page) {
+  await page.locator('[data-tetris-board="1"]').click({ position: { x: 8, y: 8 } });
+}
+
+async function rotateClockwise(page, isMobile) {
+  if (isMobile) {
+    await activate(page.getByRole('button', { name: '順時針旋轉' }), true);
+  } else {
+    await focusPlayfield(page);
+    await page.keyboard.press('ArrowUp');
+  }
+}
+
+async function hardDropPiece(page, isMobile) {
+  if (isMobile) {
+    await activate(page.getByRole('button', { name: '瞬間落下' }), true);
+  } else {
+    await focusPlayfield(page);
+    await page.keyboard.press('Space');
+  }
+}
+
 test('tetris: juice settings, rotate tap, hard-drop shake', async ({ page, isMobile }) => {
   test.skip(!includesGame('Tetris'), 'selective CI');
   await page.addInitScript(() => {
@@ -37,12 +60,12 @@ test('tetris: juice settings, rotate tap, hard-drop shake', async ({ page, isMob
   await expect(page.getByRole('checkbox', { name: '觸覺震動' })).toBeVisible();
 
   const beforeRotate = await page.evaluate(() => window.__vibrateCalls.length);
-  await activate(page.getByRole('button', { name: '順時針旋轉' }), isMobile);
+  await rotateClockwise(page, isMobile);
   await expect
     .poll(async () => page.evaluate(() => window.__vibrateCalls.length))
     .toBeGreaterThan(beforeRotate);
 
-  await activate(page.getByRole('button', { name: '瞬間落下' }), isMobile);
+  await hardDropPiece(page, isMobile);
   await expect(page.locator('[data-tetris-board="1"]')).toHaveAttribute('data-juice-shake', '1');
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBeGreaterThan(beforeRotate);
@@ -62,8 +85,8 @@ test('tetris: juice respects reduced-motion and haptics off', async ({ page, isM
   });
   await page.goto('./Games/Tetris/');
   await expect(page.locator('[data-juice-settings="1"]')).toBeVisible();
-  await activate(page.getByRole('button', { name: '順時針旋轉' }), isMobile);
-  await activate(page.getByRole('button', { name: '瞬間落下' }), isMobile);
+  await rotateClockwise(page, isMobile);
+  await hardDropPiece(page, isMobile);
   await expect(page.locator('[data-tetris-board="1"]')).not.toHaveAttribute('data-juice-shake', '1');
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBe(0);
