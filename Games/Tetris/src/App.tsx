@@ -15,7 +15,10 @@ import {
   cancelGarbage,
   collides,
   formatClearCallouts,
+  isDailyMode,
   isGoalMet,
+  isPracticeMode,
+  isVersusMode,
   movePiece,
   spawnPiece,
   tryRotateWithKick,
@@ -25,7 +28,6 @@ import {
   PLAYER_GARBAGE_DROP_CAP,
   findBestPlacement,
   thinkDelayMs,
-  type DifficultyPreset,
 } from './utils/cpuAi';
 import {
   createInitialField,
@@ -34,8 +36,54 @@ import {
   nextFromQueue,
   type FieldState,
 } from './utils/gameStep';
+import {
+  buildDailyShareText,
+  computeDailyStreak,
+  copyText,
+  dailyProgressRatio,
+  dailySeed,
+  formatShareTime,
+  generateSeededPieces,
+  getDayRecord,
+  loadDailyMeta,
+  mergeDailyResult,
+  saveDailyMeta,
+  todayKeyUTC8,
+  type DailyKind,
+  type DailyMeta,
+} from './utils/daily';
+import {
+  CHEESE_DEFAULT,
+  TSPIN_PUZZLES,
+  cheesePracticeSeed,
+  cheeseStars,
+  createCheeseBoard,
+  loadPracticeMeta,
+  mergeCheeseResult,
+  mergeTspinResult,
+  puzzleBoardFromRows,
+  savePracticeMeta,
+  tspinStars,
+  type PracticeMeta,
+  type TSpinPuzzle,
+} from './utils/practice';
+import {
+  CPU_STYLE_ORDER,
+  CPU_STYLES,
+  applyCpuStyle,
+  isStyleUnlocked,
+  loadVersusMeta,
+  recordSeriesGame,
+  resetSeries,
+  saveVersusMeta,
+  seriesComplete,
+  type CpuStyleId,
+  type VersusMeta,
+} from './utils/versusMeta';
 
 const MODE_ORDER: Mode[] = ['marathon', 'sprint', 'ultra', 'versus'];
+const DAILY_ORDER: Mode[] = ['dailySprint', 'dailyUltra'];
+const PRACTICE_ORDER: Mode[] = ['cheese', 'tspin'];
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'normal', 'hard'];
 
 const GRAVITY_LEVEL_INTERVAL = 800;
@@ -168,6 +216,11 @@ function flashTone(breakdown: ScoreBreakdown): 'good' | 'neutral' {
   return 'neutral';
 }
 
+function starsLabel(n: number): string {
+  if (n <= 0) return '—';
+  return '★'.repeat(n) + '☆'.repeat(3 - n);
+}
+
 export default function App() {
   const narrow = useNarrow();
   const [mode, setMode] = useState<Mode>('marathon');
@@ -188,6 +241,15 @@ export default function App() {
     tone: 'good' | 'neutral';
     key: number;
   } | null>(null);
+  const [dailyMeta, setDailyMeta] = useState<DailyMeta>(loadDailyMeta);
+  const [practiceMeta, setPracticeMeta] = useState<PracticeMeta>(loadPracticeMeta);
+  const [versusMeta, setVersusMeta] = useState<VersusMeta>(loadVersusMeta);
+  const [puzzleIndex, setPuzzleIndex] = useState(0);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [lastStars, setLastStars] = useState(0);
+  const cheeseAttemptRef = useRef(0);
+  const dailyRecordedRef = useRef(false);
+  const practiceRecordedRef = useRef(false);
 
   const lastDropTimeRef = useRef(performance.now());
   const cpuDropTimeRef = useRef(performance.now());
@@ -203,8 +265,18 @@ export default function App() {
   } | null>(null);
   const versusSettledRef = useRef(false);
 
-  const isVersus = mode === 'versus';
-  const preset: DifficultyPreset = DIFFICULTY_PRESETS[difficulty];
+  const isVersus = isVersusMode(mode);
+  const isDaily = isDailyMode(mode);
+  const isPractice = isPracticeMode(mode);
+  const today = todayKeyUTC8();
+  const todayDaily = getDayRecord(dailyMeta, today);
+  const dailyKind: DailyKind | null =
+    mode === 'dailySprint' ? 'sprint' : mode === 'dailyUltra' ? 'ultra' : null;
+  const todayKindBest =
+    dailyKind === 'sprint' ? todayDaily.sprint : dailyKind === 'ultra' ? todayDaily.ultra : null;
+  const dailyStreak = computeDailyStreak(dailyMeta, today);
+  const activePuzzle: TSpinPuzzle = TSPIN_PUZZLES[puzzleIndex] ?? TSPIN_PUZZLES[0];
+  const preset = applyCpuStyle(difficulty, versusMeta.style);
 
   const showPlayerFlash = useCallback((breakdown: ScoreBreakdown) => {
     const callouts = formatClearCallouts(breakdown);
@@ -229,26 +301,76 @@ export default function App() {
     });
   }, []);
 
-  const startRun = useCallback((nextMode: Mode, nextDifficulty: Difficulty = difficulty) => {
-    setMode(nextMode);
-    setDifficulty(nextDifficulty);
-    setFlash(null);
-    setCpuFlash(null);
-    setVersusWinner(null);
-    versusSettledRef.current = false;
-    wasGameOverRef.current = false;
-    softDropRowsRef.current = 0;
-    cpuSoftDropRef.current = 0;
-    cpuPlanRef.current = null;
-    setPlayer(createInitialField());
-    setCpu(createInitialField());
-    const now = performance.now();
-    lastDropTimeRef.current = now;
-    cpuDropTimeRef.current = now;
-    runStartRef.current = now;
-  }, [difficulty]);
+  const buildPlayerField = useCallback(
+    (nextMode: Mode, puzzle: TSpinPuzzle): FieldState => {
+      if (nextMode === 'dailySprint' || nextMode === 'dailyUltra') {
+        const kind: DailyKind = nextMode === 'dailySprint' ? 'sprint' : 'ultra';
+        const pieces = generateSeededPieces(dailySeed(todayKeyUTC8(), kind));
+        return createInitialField({ pieces, refillBags: false });
+      }
+      if (nextMode === 'cheese') {
+        cheeseAttemptRef.current += 1;
+        const seed = cheesePracticeSeed(cheeseAttemptRef.current);
+        return createInitialField({
+          board: createCheeseBoard(CHEESE_DEFAULT.garbageRows, seed),
+        });
+      }
+      if (nextMode === 'tspin') {
+        return createInitialField({
+          board: puzzleBoardFromRows(puzzle.rows),
+          pieces: puzzle.queue,
+          puzzleGoal: puzzle.require,
+          refillBags: false,
+          allowHold: false,
+        });
+      }
+      return createInitialField();
+    },
+    [],
+  );
 
-  const handleRestart = () => startRun(mode, difficulty);
+  const startRun = useCallback(
+    (
+      nextMode: Mode,
+      nextDifficulty: Difficulty = difficulty,
+      options: { puzzleIndex?: number; keepSeries?: boolean } = {},
+    ) => {
+      const nextPuzzleIndex =
+        options.puzzleIndex !== undefined ? options.puzzleIndex : puzzleIndex;
+      const puzzle = TSPIN_PUZZLES[nextPuzzleIndex] ?? TSPIN_PUZZLES[0];
+      setPuzzleIndex(nextPuzzleIndex);
+      setMode(nextMode);
+      setDifficulty(nextDifficulty);
+      setFlash(null);
+      setCpuFlash(null);
+      setVersusWinner(null);
+      setShareCopied(false);
+      setLastStars(0);
+      versusSettledRef.current = false;
+      dailyRecordedRef.current = false;
+      practiceRecordedRef.current = false;
+      wasGameOverRef.current = false;
+      softDropRowsRef.current = 0;
+      cpuSoftDropRef.current = 0;
+      cpuPlanRef.current = null;
+      setPlayer(buildPlayerField(nextMode, puzzle));
+      setCpu(createInitialField());
+      if (nextMode === 'versus' && !options.keepSeries) {
+        setVersusMeta((prev) => {
+          const next = resetSeries(prev);
+          saveVersusMeta(next);
+          return next;
+        });
+      }
+      const now = performance.now();
+      lastDropTimeRef.current = now;
+      cpuDropTimeRef.current = now;
+      runStartRef.current = now;
+    },
+    [difficulty, puzzleIndex, buildPlayerField],
+  );
+
+  const handleRestart = () => startRun(mode, difficulty, { keepSeries: true });
 
   useEffect(() => {
     const ended =
@@ -291,9 +413,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.gameOver, player.paused, mode, isVersus]);
 
-  // Solo personal bests.
+  // Solo personal bests (classic modes only — daily/practice use their own stores).
   useEffect(() => {
-    if (isVersus || !player.gameOver) return;
+    if (isVersus || isDaily || isPractice || !player.gameOver) return;
     const soloMode = mode as 'marathon' | 'sprint' | 'ultra';
     const config = MODES[soloMode];
     const value = config.recordKind === 'time' ? player.elapsedMs : player.score;
@@ -308,9 +430,63 @@ export default function App() {
       writeBest(next);
       return next;
     });
-  }, [player.gameOver, player.cleared, player.elapsedMs, player.score, mode, isVersus]);
+  }, [
+    player.gameOver,
+    player.cleared,
+    player.elapsedMs,
+    player.score,
+    mode,
+    isVersus,
+    isDaily,
+    isPractice,
+  ]);
 
-  // Versus win/loss + streak.
+  // Daily challenge records.
+  useEffect(() => {
+    if (!isDaily || !player.gameOver || dailyRecordedRef.current) return;
+    dailyRecordedRef.current = true;
+    const kind: DailyKind = mode === 'dailySprint' ? 'sprint' : 'ultra';
+    const value = kind === 'sprint' ? player.elapsedMs : player.score;
+    const cleared = kind === 'sprint' ? player.cleared : true;
+    setDailyMeta((prev) => {
+      const next = mergeDailyResult(prev, today, kind, value, player.lines, cleared);
+      saveDailyMeta(next);
+      return next;
+    });
+  }, [isDaily, player.gameOver, player.cleared, player.elapsedMs, player.score, player.lines, mode, today]);
+
+  // Practice stars.
+  useEffect(() => {
+    if (!isPractice || !player.gameOver || practiceRecordedRef.current) return;
+    practiceRecordedRef.current = true;
+    if (mode === 'cheese') {
+      const stars = cheeseStars(player.elapsedMs, player.cleared);
+      setLastStars(stars);
+      setPracticeMeta((prev) => {
+        const next = mergeCheeseResult(prev, stars, player.cleared);
+        savePracticeMeta(next);
+        return next;
+      });
+      return;
+    }
+    const stars = tspinStars(player.locks, player.cleared, activePuzzle);
+    setLastStars(stars);
+    setPracticeMeta((prev) => {
+      const next = mergeTspinResult(prev, activePuzzle.id, stars);
+      savePracticeMeta(next);
+      return next;
+    });
+  }, [
+    isPractice,
+    player.gameOver,
+    player.cleared,
+    player.elapsedMs,
+    player.locks,
+    mode,
+    activePuzzle,
+  ]);
+
+  // Versus win/loss + streak + optional BO3 series.
   useEffect(() => {
     if (!isVersus || versusSettledRef.current) return;
     let winner: 'player' | 'cpu' | null = null;
@@ -333,6 +509,11 @@ export default function App() {
         lastDifficulty: difficulty,
       };
       writeVersusStats(next);
+      return next;
+    });
+    setVersusMeta((prev) => {
+      const next = recordSeriesGame(prev, winner);
+      saveVersusMeta(next);
       return next;
     });
   }, [isVersus, player.gameOver, cpu.gameOver, difficulty]);
@@ -515,14 +696,30 @@ export default function App() {
 
   const holdPiece = useCallback(() => {
     setPlayer((prev) => {
-      if (!prev.active || prev.gameOver || prev.paused || prev.clearing || !prev.canHold) {
+      if (
+        !prev.active ||
+        prev.gameOver ||
+        prev.paused ||
+        prev.clearing ||
+        !prev.holdEnabled ||
+        !prev.canHold
+      ) {
         return prev;
       }
       if (isVersus && versusWinner) return prev;
       const currentType = prev.active.type;
       resetLock();
       if (prev.hold === null) {
-        const next = nextFromQueue(prev.queue);
+        const next = nextFromQueue(prev.queue, prev.refillBags);
+        if (next.type === null) {
+          return {
+            ...prev,
+            active: null,
+            queue: next.remaining,
+            hold: currentType,
+            gameOver: true,
+          };
+        }
         const active = spawnPiece(next.type);
         if (collides(prev.board, active)) {
           return {
@@ -892,19 +1089,84 @@ export default function App() {
   const statusText = gameOver
     ? isVersus
       ? versusWinner === 'player'
-        ? '勝利！'
-        : '敗北…'
-      : '遊戲結束'
+        ? versusMeta.bo3 && seriesComplete(versusMeta)
+          ? `系列賽勝利 ${versusMeta.seriesPlayer}–${versusMeta.seriesCpu}`
+          : '勝利！'
+        : versusMeta.bo3 && seriesComplete(versusMeta)
+          ? `系列賽敗北 ${versusMeta.seriesPlayer}–${versusMeta.seriesCpu}`
+          : '敗北…'
+      : player.cleared
+        ? isPractice
+          ? `過關！${starsLabel(lastStars)}`
+          : '完成！'
+        : '遊戲結束'
     : player.paused
       ? '暫停中'
       : isVersus
-        ? `對戰中（CPU：${preset.label}）`
-        : narrow
-          ? '按住左右／軟降可連續移動；下方有旋轉與暫存'
-          : '使用方向鍵與空白鍵操作；C 暫存';
+        ? `對戰中（CPU：${preset.label}・${CPU_STYLES[versusMeta.style].label}${
+            versusMeta.bo3
+              ? `・BO3 ${versusMeta.seriesPlayer}–${versusMeta.seriesCpu}`
+              : ''
+          }）`
+        : isDaily
+          ? `每日挑戰 ${today}・連勝 ${dailyStreak} 天`
+          : mode === 'tspin'
+            ? `${activePuzzle.name}：${activePuzzle.blurb}`
+            : mode === 'cheese'
+              ? `挖掉 ${CHEESE_DEFAULT.lineGoal} 行垃圾`
+              : narrow
+                ? '按住左右／軟降可連續移動；下方有旋轉與暫存'
+                : '使用方向鍵與空白鍵操作；C 暫存';
 
   const wellWidth = isVersus ? (narrow ? 148 : 240) : narrow ? 280 : 320;
   const nextPreviewCount = isVersus || narrow ? 3 : 5;
+
+  const dailyBar =
+    dailyKind === null
+      ? null
+      : dailyProgressRatio(
+          dailyKind,
+          player.lines,
+          player.score,
+          todayKindBest,
+        );
+
+  const handleShareDaily = async () => {
+    if (!dailyKind) return;
+    const value = dailyKind === 'sprint' ? player.elapsedMs : player.score;
+    const text = buildDailyShareText({
+      date: today,
+      kind: dailyKind,
+      value,
+      lines: player.lines,
+      cleared: dailyKind === 'sprint' ? player.cleared : true,
+      streak: computeDailyStreak(dailyMeta, today),
+    });
+    const ok = await copyText(text);
+    setShareCopied(ok);
+  };
+
+  const setBo3 = (bo3: boolean) => {
+    setVersusMeta((prev) => {
+      const next = resetSeries({ ...prev, bo3 });
+      saveVersusMeta(next);
+      return next;
+    });
+  };
+
+  const setCpuStyle = (style: CpuStyleId) => {
+    if (!isStyleUnlocked(style, versusStats.wins)) return;
+    setVersusMeta((prev) => {
+      const next = { ...prev, style };
+      saveVersusMeta(next);
+      return next;
+    });
+  };
+
+  const classicBest =
+    mode === 'marathon' || mode === 'sprint' || mode === 'ultra'
+      ? best[mode]
+      : undefined;
 
   const dismissCoach = () => {
     setCoachOpen(false);
@@ -984,23 +1246,136 @@ export default function App() {
                 );
               })}
             </div>
+            <div className="flex flex-wrap gap-1" role="group" aria-label="每日挑戰">
+              {DAILY_ORDER.map((id) => {
+                const selected = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => startRun(id, difficulty)}
+                    aria-pressed={selected}
+                    title={MODES[id].blurb}
+                    className={`text-xs min-h-[44px] px-3 py-2 rounded-full border transition-colors touch-manipulation ${
+                      selected
+                        ? 'bg-emerald-500/20 text-emerald-100 border-emerald-400'
+                        : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                    }`}
+                  >
+                    {MODES[id].label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-1" role="group" aria-label="精通訓練">
+              {PRACTICE_ORDER.map((id) => {
+                const selected = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => startRun(id, difficulty)}
+                    aria-pressed={selected}
+                    title={MODES[id].blurb}
+                    className={`text-xs min-h-[44px] px-3 py-2 rounded-full border transition-colors touch-manipulation ${
+                      selected
+                        ? 'bg-violet-500/20 text-violet-100 border-violet-400'
+                        : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                    }`}
+                  >
+                    {MODES[id].label}
+                  </button>
+                );
+              })}
+            </div>
             {isVersus && (
-              <div className="flex flex-wrap gap-1" role="group" aria-label="CPU 難度">
-                {DIFFICULTY_ORDER.map((id) => {
-                  const selected = difficulty === id;
+              <>
+                <div className="flex flex-wrap gap-1" role="group" aria-label="CPU 難度">
+                  {DIFFICULTY_ORDER.map((id) => {
+                    const selected = difficulty === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => startRun('versus', id)}
+                        aria-pressed={selected}
+                        className={`text-xs min-h-[44px] px-3 py-2 rounded-full border transition-colors touch-manipulation ${
+                          selected
+                            ? 'bg-amber-500/20 text-amber-100 border-amber-400'
+                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                        }`}
+                      >
+                        {DIFFICULTY_PRESETS[id].label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBo3(!versusMeta.bo3)}
+                  aria-pressed={versusMeta.bo3}
+                  className={`text-xs min-h-[44px] px-3 py-2 rounded-full border transition-colors touch-manipulation ${
+                    versusMeta.bo3
+                      ? 'bg-rose-500/20 text-rose-100 border-rose-400'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  BO3
+                </button>
+                <div className="flex flex-wrap gap-1" role="group" aria-label="CPU 打法">
+                  {CPU_STYLE_ORDER.map((id) => {
+                    const unlocked = isStyleUnlocked(id, versusStats.wins);
+                    const selected = versusMeta.style === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        disabled={!unlocked}
+                        onClick={() => {
+                          setCpuStyle(id);
+                          startRun('versus', difficulty);
+                        }}
+                        aria-pressed={selected}
+                        title={
+                          unlocked
+                            ? CPU_STYLES[id].blurb
+                            : `勝場 ${CPU_STYLES[id].unlockWins} 解鎖`
+                        }
+                        className={`text-xs min-h-[44px] px-3 py-2 rounded-full border transition-colors touch-manipulation ${
+                          !unlocked
+                            ? 'bg-slate-950 text-slate-600 border-slate-800 cursor-not-allowed'
+                            : selected
+                              ? 'bg-amber-500/20 text-amber-100 border-amber-400'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                        }`}
+                      >
+                        {unlocked ? CPU_STYLES[id].label : `${CPU_STYLES[id].label}（鎖）`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            {mode === 'tspin' && (
+              <div className="flex flex-wrap gap-1" role="group" aria-label="T-Spin 題目">
+                {TSPIN_PUZZLES.map((puzzle, index) => {
+                  const selected = puzzleIndex === index;
+                  const bestStars = practiceMeta.tspinStars[puzzle.id] ?? 0;
                   return (
                     <button
-                      key={id}
+                      key={puzzle.id}
                       type="button"
-                      onClick={() => startRun('versus', id)}
+                      onClick={() => startRun('tspin', difficulty, { puzzleIndex: index })}
                       aria-pressed={selected}
+                      title={puzzle.blurb}
                       className={`text-xs min-h-[44px] px-3 py-2 rounded-full border transition-colors touch-manipulation ${
                         selected
-                          ? 'bg-amber-500/20 text-amber-100 border-amber-400'
+                          ? 'bg-violet-500/20 text-violet-100 border-violet-400'
                           : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
                       }`}
                     >
-                      {DIFFICULTY_PRESETS[id].label}
+                      {puzzle.name}
+                      {bestStars > 0 ? ` ${starsLabel(bestStars)}` : ''}
                     </button>
                   );
                 })}
@@ -1131,16 +1506,73 @@ export default function App() {
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
-                  <span>最佳</span>
-                  <span className="font-mono tabular-nums">
-                    {best[mode as 'marathon' | 'sprint' | 'ultra'] === undefined
-                      ? '—'
-                      : MODES[mode].recordKind === 'time'
-                        ? formatTime(best[mode as 'sprint']!)
-                        : best[mode as 'marathon' | 'ultra']}
-                  </span>
-                </div>
+                {isDaily && dailyBar && (
+                  <div className="pt-2 space-y-1">
+                    <div className="flex justify-between text-emerald-200/90 text-[11px]">
+                      <span>今日進度</span>
+                      <span>連勝 {dailyStreak} 天</span>
+                    </div>
+                    <div
+                      className="relative h-2 rounded-full bg-slate-800 overflow-hidden"
+                      role="progressbar"
+                      aria-valuenow={Math.round(dailyBar.current * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label="每日挑戰進度"
+                    >
+                      <div
+                        className="absolute inset-y-0 left-0 bg-emerald-500/70 tetris-daily-fill"
+                        style={{ width: `${dailyBar.current * 100}%` }}
+                      />
+                      {dailyBar.ghost !== null && (
+                        <div
+                          className="absolute inset-y-0 w-0.5 bg-white/50"
+                          style={{ left: `${dailyBar.ghost * 100}%` }}
+                          title="今日最佳"
+                          aria-hidden
+                        />
+                      )}
+                    </div>
+                    <div className="flex justify-between text-slate-400 text-[11px]">
+                      <span>
+                        今日最佳
+                        {todayKindBest
+                          ? dailyKind === 'sprint'
+                            ? todayKindBest.cleared
+                              ? ` ${formatShareTime(todayKindBest.value)}`
+                              : ` ${todayKindBest.lines} 行`
+                            : ` ${todayKindBest.value} 分`
+                          : ' —'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {mode === 'cheese' && (
+                  <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
+                    <span>Cheese 星級</span>
+                    <span className="font-mono">{starsLabel(practiceMeta.cheeseBestStars)}</span>
+                  </div>
+                )}
+                {mode === 'tspin' && (
+                  <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
+                    <span>本題最佳</span>
+                    <span className="font-mono">
+                      {starsLabel(practiceMeta.tspinStars[activePuzzle.id] ?? 0)}
+                    </span>
+                  </div>
+                )}
+                {!isDaily && !isPractice && (
+                  <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
+                    <span>最佳</span>
+                    <span className="font-mono tabular-nums">
+                      {classicBest === undefined
+                        ? '—'
+                        : MODES[mode].recordKind === 'time'
+                          ? formatTime(classicBest)
+                          : classicBest}
+                    </span>
+                  </div>
+                )}
               </>
             )}
             {isVersus && (
@@ -1159,6 +1591,14 @@ export default function App() {
                   <span>連勝</span>
                   <span className="font-mono">{versusStats.streak}</span>
                 </div>
+                {versusMeta.bo3 && (
+                  <div className="flex justify-between text-rose-200">
+                    <span>BO3</span>
+                    <span className="font-mono">
+                      {versusMeta.seriesPlayer}–{versusMeta.seriesCpu}
+                    </span>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1318,12 +1758,20 @@ export default function App() {
           title={
             isVersus
               ? versusWinner === 'player'
-                ? '對戰勝利！'
-                : '對戰敗北'
+                ? versusMeta.bo3 && seriesComplete(versusMeta)
+                  ? '系列賽勝利！'
+                  : '對戰勝利！'
+                : versusMeta.bo3 && seriesComplete(versusMeta)
+                  ? '系列賽敗北'
+                  : '對戰敗北'
               : player.cleared
-                ? mode === 'sprint'
+                ? mode === 'sprint' || mode === 'dailySprint'
                   ? `完成 40 行！${formatTime(player.elapsedMs)}`
-                  : '時間到'
+                  : mode === 'cheese' || mode === 'tspin'
+                    ? `過關 ${starsLabel(lastStars)}`
+                    : mode === 'ultra' || mode === 'dailyUltra'
+                      ? '時間到'
+                      : '完成！'
                 : '遊戲結束'
           }
           variant={
@@ -1342,25 +1790,92 @@ export default function App() {
                   { label: 'CPU 分數', value: cpu.score },
                   { label: '戰績', value: `${versusStats.wins}勝 ${versusStats.losses}敗` },
                   { label: '目前連勝', value: versusStats.streak },
+                  ...(versusMeta.bo3
+                    ? [
+                        {
+                          label: 'BO3',
+                          value: `${versusMeta.seriesPlayer}–${versusMeta.seriesCpu}`,
+                        },
+                      ]
+                    : []),
                 ]
-              : [
-                  { label: '分數', value: player.score },
-                  { label: '消除行數', value: player.lines },
-                  MODES[mode].recordKind === 'time'
-                    ? { label: '用時', value: formatTime(player.elapsedMs) }
-                    : { label: '等級', value: player.level },
-                  {
-                    label: '最佳',
-                    value:
-                      best[mode as 'marathon' | 'sprint' | 'ultra'] === undefined
-                        ? '—'
-                        : MODES[mode].recordKind === 'time'
-                          ? formatTime(best[mode as 'sprint']!)
-                          : String(best[mode as 'marathon' | 'ultra']),
-                  },
-                ]
+              : isDaily
+                ? [
+                    { label: '分數', value: player.score },
+                    { label: '消除行數', value: player.lines },
+                    dailyKind === 'sprint'
+                      ? { label: '用時', value: formatTime(player.elapsedMs) }
+                      : { label: '等級', value: player.level },
+                    {
+                      label: '今日最佳',
+                      value: todayKindBest
+                        ? dailyKind === 'sprint'
+                          ? todayKindBest.cleared
+                            ? formatShareTime(todayKindBest.value)
+                            : `${todayKindBest.lines} 行`
+                          : String(todayKindBest.value)
+                        : '—',
+                    },
+                    { label: '連續天數', value: dailyStreak },
+                  ]
+                : isPractice
+                  ? [
+                      { label: '星級', value: starsLabel(lastStars) },
+                      { label: '用時', value: formatTime(player.elapsedMs) },
+                      { label: '鎖定次數', value: player.locks },
+                      {
+                        label: '最佳星級',
+                        value:
+                          mode === 'cheese'
+                            ? starsLabel(practiceMeta.cheeseBestStars)
+                            : starsLabel(practiceMeta.tspinStars[activePuzzle.id] ?? 0),
+                      },
+                    ]
+                  : [
+                      { label: '分數', value: player.score },
+                      { label: '消除行數', value: player.lines },
+                      MODES[mode].recordKind === 'time'
+                        ? { label: '用時', value: formatTime(player.elapsedMs) }
+                        : { label: '等級', value: player.level },
+                      {
+                        label: '最佳',
+                        value:
+                          classicBest === undefined
+                            ? '—'
+                            : MODES[mode].recordKind === 'time'
+                              ? formatTime(classicBest)
+                              : String(classicBest),
+                      },
+                    ]
           }
-          onPrimary={handleRestart}
+          onPrimary={
+            isVersus && versusMeta.bo3 && !seriesComplete(versusMeta)
+              ? () => startRun('versus', difficulty, { keepSeries: true })
+              : handleRestart
+          }
+          primaryLabel={
+            isVersus && versusMeta.bo3 && !seriesComplete(versusMeta)
+              ? '下一局'
+              : undefined
+          }
+          onSecondary={
+            isDaily
+              ? () => {
+                  void handleShareDaily();
+                }
+              : isVersus && versusMeta.bo3 && seriesComplete(versusMeta)
+                ? () => startRun('versus', difficulty)
+                : undefined
+          }
+          secondaryLabel={
+            isDaily
+              ? shareCopied
+                ? '已複製分享文字'
+                : '複製分享'
+              : isVersus && versusMeta.bo3 && seriesComplete(versusMeta)
+                ? '新系列賽'
+                : undefined
+          }
         />
       )}
     </div>
