@@ -105,7 +105,7 @@ test.describe('Astra Cinder Circuit (Loop Hero)', () => {
     expect(run.routeName).toBe('Glassmere Rill');
     expect(run.bossName).toBe('The Stillglass Knell');
     expect(run.hand.some((k) => run.exclusive.includes(k))).toBe(true);
-    await expect(page.locator('.map-panel .panel-title span')).toContainText('GLASSMERE');
+    await expect(page.locator('.map-panel .panel-title span').first()).toContainText('GLASSMERE');
   });
 
   test('touch: select card then place on highlighted road tile', async ({ page }) => {
