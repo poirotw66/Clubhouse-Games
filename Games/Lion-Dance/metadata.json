@@ -1,0 +1,5 @@
+{
+  "name": "花花舞獅踩街 (Bloom Lion Dance)",
+  "description": "QWOP 式四腳舞獅踩街遊戲。台灣廟會醒獅由兩人四腳操控，花花坐在獅頭擊鼓，50 公尺內採青搶紅包。自製簡易物理、程序化低多邊形醒獅與廟口街景。",
+  "requestFramePermissions": []
+}
