@@ -3,13 +3,19 @@
  * Logic checks for WebMCP Escape Room (multi-room depth-4).
  * Covers fixed seed codes, non-linear archive order, item combine,
  * endings, hints/rating, and persistence validation.
+ * Also covers second pack (greenhouse), Taipei daily layouts, and no-hint challenge.
  */
 import assert from "node:assert/strict";
 import {
   FIXED_SEED,
   STATE_VERSION,
   STORAGE_KEY,
+  FACILITY_PACK_ID,
+  GREENHOUSE_PACK_ID,
+  GREENHOUSE_FIXED_SEED,
+  PACKS,
   createPuzzle,
+  createFacilityLayout,
   initialState,
   canCombine,
   rateRun,
@@ -18,6 +24,11 @@ import {
   emptyMeta,
   progressSteps,
   seedFromString,
+  taipeiDateKey,
+  dailySeedFor,
+  formatShareText,
+  nextDailyStreak,
+  previousTaipeiDateKey,
 } from "./rules.mjs";
 import {
   GameEngine,
@@ -26,11 +37,14 @@ import {
   TOOLS,
   validateState,
   solveFullRun,
+  solveGreenhouseRun,
 } from "./engine.mjs";
 
 assert.equal(FIXED_SEED, "agent-demo");
-assert.equal(STATE_VERSION, 2);
-assert.equal(STORAGE_KEY, "webmcp-escape-room.v2");
+assert.equal(STATE_VERSION, 3);
+assert.equal(STORAGE_KEY, "webmcp-escape-room.v3");
+assert.ok(PACKS.facility && PACKS.greenhouse);
+assert.equal(PACKS.greenhouse.unlock, "open");
 
 const fixed = createPuzzle(FIXED_SEED);
 assert.equal(fixed.safeCode, "0317");
@@ -86,6 +100,9 @@ assert.ok(
     "game_get_timer",
     "game_new_run",
     "ending_get_summary",
+    "pack_list",
+    "daily_get_status",
+    "run_get_share_text",
   ]) {
     assert.ok(names.includes(required), `missing tool ${required}`);
   }
@@ -176,4 +193,155 @@ assert.ok(
   assert.ok(InventoryEngine.available(engine.state, "brass_key") || engine.state.objects.safe.open);
 }
 
-console.log(`check-escape-room: ${TOOLS.length} tools, fixed+random seeds, 3 endings, non-linear archive — OK`);
+/* ---- Depth features: greenhouse pack, daily layout, no-hint ---- */
+{
+  const dateKey = taipeiDateKey(Date.parse("2026-10-22T04:00:00+08:00"));
+  assert.equal(dateKey, "2026-10-22");
+  assert.equal(previousTaipeiDateKey("2026-10-22"), "2026-10-21");
+  const seed = dailySeedFor(dateKey, FACILITY_PACK_ID);
+  assert.equal(seed, "daily-2026-10-22-facility");
+  const layoutA = createFacilityLayout(seed);
+  const layoutB = createFacilityLayout(seed);
+  assert.deepEqual(layoutA, layoutB, "daily layout stable");
+  assert.ok(layoutA.archiveOrder);
+  const classic = createFacilityLayout(FIXED_SEED);
+  assert.equal(classic.wireSource, "desk_drawer");
+  assert.equal(classic.archiveOrder, "free");
+}
+
+{
+  const a = createPuzzle("daily-layout-probe-a", FACILITY_PACK_ID);
+  const b = createPuzzle("daily-layout-probe-b", FACILITY_PACK_ID);
+  assert.ok(a.layout && b.layout);
+  // Different seeds should usually differ in codes and/or layout; at least codes differ.
+  assert.notEqual(a.safeCode + a.vaultCode, b.safeCode + b.vaultCode);
+}
+
+{
+  const g = createPuzzle(GREENHOUSE_FIXED_SEED, GREENHOUSE_PACK_ID);
+  assert.equal(g.caseCode, "6200");
+  assert.equal(g.irrigationCode, "3719");
+  assert.equal(g.rooftopCode, "5842");
+  assert.ok(canCombine("nutrient_vial", "catalyst_crystal", GREENHOUSE_PACK_ID));
+  assert.equal(canCombine("copper_wire", "fuse", GREENHOUSE_PACK_ID), null);
+}
+
+{
+  const elev = solveGreenhouseRun(GREENHOUSE_FIXED_SEED, { ending: "elevator" });
+  assert.equal(elev.state.escaped, true);
+  assert.equal(elev.state.endingId, "elevator");
+  assert.ok(elev.state.roomsVisited.includes("lab"));
+  assert.ok(elev.state.roomsVisited.includes("nursery"));
+  assert.ok(elev.state.roomsVisited.includes("rooftop"));
+
+  const ladder = solveGreenhouseRun(GREENHOUSE_FIXED_SEED, { ending: "ladder" });
+  assert.equal(ladder.state.endingId, "ladder");
+
+  const bloom = solveGreenhouseRun(GREENHOUSE_FIXED_SEED, { ending: "bloom" });
+  assert.equal(bloom.state.endingId, "bloom");
+  assert.equal((bloom.state.hintsUsedIds || []).length, 0);
+  assert.ok(bloom.state.inventory.includes("specimen_tag"));
+
+  const nurseryFirst = solveGreenhouseRun(GREENHOUSE_FIXED_SEED, {
+    ending: "elevator",
+    branchOrder: "nursery-first",
+  });
+  assert.equal(nurseryFirst.state.escaped, true);
+}
+
+{
+  const dailySeed = dailySeedFor("2026-03-15", FACILITY_PACK_ID);
+  const solved = solveFullRun(dailySeed, {
+    ending: "standard",
+    isDaily: true,
+    dateKey: "2026-03-15",
+  });
+  assert.equal(solved.state.escaped, true);
+  assert.ok(solved.state.puzzle.layout);
+}
+
+{
+  const engine = new GameEngine(
+    initialState(FIXED_SEED, { packId: FACILITY_PACK_ID, noHintsChallenge: true }),
+  );
+  const blocked = engine.execute("hint_request", {}, "System");
+  assert.equal(blocked.success, false);
+  assert.match(blocked.error, /No-hint challenge/i);
+
+  const cleared = solveFullRun(FIXED_SEED, { ending: "standard", noHintsChallenge: true });
+  assert.equal(cleared.state.noHintsChallenge, true);
+  assert.equal((cleared.state.hintsUsedIds || []).length, 0);
+  const summary = cleared.execute("ending_get_summary", {}, "System");
+  assert.equal(summary.data.noHintClear, true);
+  assert.ok(summary.data.badges.some((b) => b.id === "no_hint_challenge"));
+  assert.ok(summary.data.shareText.includes("No-Hint"));
+}
+
+{
+  const meta = recordClear(emptyMeta(), {
+    elapsedMs: 90_000,
+    endingId: "elevator",
+    rating: "A",
+    packId: GREENHOUSE_PACK_ID,
+    hintsUsed: 0,
+    isDaily: true,
+    dateKey: "2026-10-22",
+  });
+  assert.ok(meta.packsCleared.includes(GREENHOUSE_PACK_ID));
+  assert.equal(meta.dailyStreak, 1);
+  assert.equal(meta.dailyBestByDate["2026-10-22"].ms, 90_000);
+  const streak2 = nextDailyStreak(meta, "2026-10-23");
+  assert.equal(streak2.dailyStreak, 2);
+  const share = formatShareText({
+    dateKey: "2026-10-22",
+    packId: FACILITY_PACK_ID,
+    packTitle: "Quiet Facility",
+    elapsedLabel: "01:30",
+    streak: 2,
+    noHints: true,
+    endingTitle: "Clean exit",
+    rating: "S",
+    isDaily: true,
+  });
+  assert.match(share, /Daily 2026-10-22/);
+  assert.match(share, /streak 2/);
+  assert.match(share, /No-Hint/);
+}
+
+{
+  const engine = new GameEngine(initialState(FIXED_SEED));
+  const packs = engine.execute("pack_list", {}, "System");
+  assert.equal(packs.success, true);
+  assert.equal(packs.data.unlockPolicy, "open");
+  assert.equal(packs.data.packs.length, 2);
+  const daily = engine.execute("daily_get_status", { packId: "greenhouse" }, "System");
+  assert.equal(daily.success, true);
+  assert.equal(daily.data.timeZone, "Asia/Taipei");
+  assert.ok(daily.data.seed.startsWith("daily-"));
+}
+
+{
+  const engine = new GameEngine(initialState(FIXED_SEED));
+  const started = engine.execute(
+    "game_new_run",
+    { packId: "greenhouse", daily: "true", noHintsChallenge: "true" },
+    "System",
+  );
+  assert.equal(started.success, true);
+  assert.equal(started.data.packId, GREENHOUSE_PACK_ID);
+  assert.equal(started.data.isDaily, true);
+  assert.equal(started.data.noHintsChallenge, true);
+  assert.equal(engine.state.packId, GREENHOUSE_PACK_ID);
+  assert.equal(engine.state.currentRoom, "atrium");
+}
+
+{
+  const gh = solveGreenhouseRun(GREENHOUSE_FIXED_SEED, { ending: "elevator" });
+  const saved = validateState(JSON.parse(JSON.stringify(gh.state)));
+  assert.equal(saved.packId, GREENHOUSE_PACK_ID);
+  assert.equal(saved.escaped, true);
+}
+
+console.log(
+  `check-escape-room: ${TOOLS.length} tools, facility+greenhouse, daily layouts, no-hint — OK`,
+);

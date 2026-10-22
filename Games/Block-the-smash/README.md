@@ -1,7 +1,7 @@
 # Block the Smash（羽毛球接殺訓練）
 
 **Block the Smash** 是一款 3D 羽毛球接殺小遊戲：  
-透過滑鼠控制球拍，在限定時間內盡可能成功擋下對手的殺球，訓練反應與判斷。
+讀殺球預備動作與假動作、卡時機揮拍；完美擋後進入回殺選擇落點。支援訓練、得分挑戰、八人 BO3 對戰階梯，以及台北日期種子的每日挑戰。
 
 本專案是 `Clubhouse-Games` 底下 `Games/Block-the-smash` 子專案，使用 React + TypeScript + Vite 建置，並透過 Three.js 在瀏覽器中呈現立體場景。
 

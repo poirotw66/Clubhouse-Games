@@ -1,5 +1,5 @@
 /**
- * Block-the-smash depth checks: smash types, timing windows, opponents, storage.
+ * Block-the-smash depth checks: smash types, timing, 8-opponent ladder, counter, daily.
  */
 import {
   PHASE_MIX,
@@ -25,9 +25,13 @@ import {
   chooseSmash,
   getOpponent,
   isOpponentUnlocked,
+  seriesWinsNeeded,
+  shouldStartBurst,
+  biasMixForHabit,
 } from './game/opponents.js';
 import {
   STATS_KEY,
+  applyDailyResult,
   applyDrillResult,
   applyScoreAttackResult,
   applyVersusResult,
@@ -42,6 +46,21 @@ import {
   scoreAttackWave,
 } from './game/scoring.js';
 import { createRng } from './game/rng.js';
+import {
+  COUNTER_WINDOW_SEC,
+  counterScoreBonus,
+  counterDisruptsRhythm,
+  resolvePerfectCounter,
+} from './game/counter.js';
+import {
+  DAILY_BALL_COUNT,
+  buildDailyScript,
+  buildDailyShareText,
+  computeDailyStreak,
+  dailySeedNumber,
+  previousTaipeiDay,
+  taipeiDateKey,
+} from './game/daily.js';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -147,22 +166,48 @@ assert(scoreForContact('perfect', 0, 'right') > scoreForContact('perfect', 0, 'c
   assert(goodVsWall < 80, 'good vs wall should often fail');
 }
 
-// Opponents: four styles, distinct fake rates, ladder unlock.
-assert(OPPONENTS.length === 4, 'four opponents');
+// Opponents: eight styles with habits, BO3, ladder unlock.
+assert(OPPONENTS.length === 8, 'eight opponents');
+assert(OPPONENTS.every((o) => o.habit?.id && o.habit?.label && o.bestOf === 3), 'habits + BO3');
+assert(seriesWinsNeeded(3) === 2, 'BO3 needs 2');
 assert(getOpponent('gui')?.style.fakeRate > getOpponent('hao')?.style.fakeRate, 'gui faker');
+assert(getOpponent('bao')?.habit.id === 'burst', 'bao burst habit');
+assert(getOpponent('king')?.unlockWins === 7, 'final boss unlock');
 assert(isOpponentUnlocked({}, OPPONENTS[0]), 'first unlocked');
 assert(!isOpponentUnlocked({}, OPPONENTS[1]), 'second locked');
 assert(isOpponentUnlocked({ hao: 1 }, OPPONENTS[1]), 'second after hao win');
+assert(!isOpponentUnlocked({ hao: 1, mei: 1, gui: 1, coach: 1 }, OPPONENTS[5]), 'bao locked');
+assert(
+  isOpponentUnlocked({ hao: 1, mei: 1, gui: 1, coach: 1, lu: 1 }, OPPONENTS[5]),
+  'bao after five',
+);
 assert(DIFFICULTY.hard.speedMul > DIFFICULTY.easy.speedMul, 'hard faster');
 
 {
   const style = getOpponent('gui').style;
   let fakes = 0;
   for (let i = 0; i < 300; i++) {
-    const pick = chooseSmash(style, PHASE_MIX[0], createRng(5000 + i));
+    const pick = chooseSmash(style, PHASE_MIX[0], createRng(5000 + i), {
+      habit: getOpponent('gui').habit,
+    });
     if (pick.isFake) fakes += 1;
   }
   assert(fakes > 80 && fakes < 180, `gui fake rate ~42% got ${fakes}/300`);
+}
+
+{
+  const burst = chooseSmash(getOpponent('bao').style, PHASE_MIX[0], createRng(1), {
+    habit: getOpponent('bao').habit,
+    forceBurst: true,
+  });
+  assert(!burst.isFake && (burst.real === 'straight' || burst.real === 'body'), 'forced burst heavy');
+  assert(shouldStartBurst(getOpponent('bao').habit, 'straight', () => 0) === true, 'burst roll 0');
+  assert(shouldStartBurst(getOpponent('bao').habit, 'drop', () => 0) === false, 'drop no burst');
+  const biased = biasMixForHabit(
+    { straight: 0.25, cross: 0.25, drop: 0.25, body: 0.25 },
+    { id: 'x', label: 'x', heavyBias: 0.2 },
+  );
+  assert(biased.straight > 0.25 && biased.drop < 0.25, 'heavy bias');
 }
 
 assert(phaseTierFromProgress(0.1) === 0, 'warm');
@@ -174,6 +219,68 @@ assert(
   'all contacts 100%',
 );
 
+// Counter phase helpers.
+assert(COUNTER_WINDOW_SEC > 0.5 && COUNTER_WINDOW_SEC < 2, 'counter window');
+assert(counterScoreBonus('left', 2) > counterScoreBonus('center', 2), 'corner counter pays more');
+{
+  const cover = { coverLeft: 0.2, coverCenter: 0.8, coverRight: 0.2, defense: 0.3 };
+  const scored = resolvePerfectCounter({
+    mode: 'scoreAttack',
+    zone: 'left',
+    combo: 3,
+    cover,
+    versusWinsPoint: versusReturnWinsPoint,
+    rng: createRng(9),
+  });
+  assert(scored.scoreDelta > 0, 'score counter bonus');
+  let disrupt = 0;
+  for (let i = 0; i < 100; i++) {
+    if (counterDisruptsRhythm('left', cover, createRng(2000 + i))) disrupt += 1;
+  }
+  assert(disrupt > 50, 'weak-side counter often disrupts');
+  const vs = resolvePerfectCounter({
+    mode: 'versus',
+    zone: 'left',
+    combo: 1,
+    cover,
+    versusWinsPoint: versusReturnWinsPoint,
+    rng: createRng(3),
+  });
+  assert(typeof vs.wonPoint === 'boolean' && typeof vs.disrupted === 'boolean', 'versus counter shape');
+}
+
+// Daily: Taipei key, deterministic script, streak, share.
+{
+  const key = taipeiDateKey(new Date('2026-10-21T16:00:00Z')); // UTC+8 → 2026-10-22
+  assert(key === '2026-10-22', `taipei date got ${key}`);
+  assert(previousTaipeiDay('2026-10-01') === '2026-09-30', 'prev day month');
+  const a = buildDailyScript('2026-10-22');
+  const b = buildDailyScript('2026-10-22');
+  assert(a.length === DAILY_BALL_COUNT, 'daily length');
+  assert(JSON.stringify(a) === JSON.stringify(b), 'daily deterministic');
+  assert(dailySeedNumber('2026-10-22') !== dailySeedNumber('2026-10-23'), 'seed differs by day');
+  const fakes = a.filter((s) => s.isFake).length;
+  assert(fakes >= 1, 'daily has some fakes');
+  assert(computeDailyStreak({}, '2026-10-22') === 0, 'empty streak');
+  assert(
+    computeDailyStreak({ '2026-10-22': 100, '2026-10-21': 80 }, '2026-10-22') === 2,
+    'two-day streak',
+  );
+  assert(
+    computeDailyStreak({ '2026-10-22': 100, '2026-10-20': 80 }, '2026-10-22') === 1,
+    'gap resets',
+  );
+  const share = buildDailyShareText({
+    dateKey: '2026-10-22',
+    score: 9000,
+    perfects: 8,
+    accuracy: 72,
+    streak: 3,
+  });
+  assert(share.includes('羽毛球接殺 每日 2026-10-22'), 'share header');
+  assert(share.includes('連續 3 天'), 'share streak');
+}
+
 // Storage sanitize + migrate-style roundtrip.
 {
   const mem = new Map();
@@ -181,10 +288,16 @@ assert(
     getItem: (k) => (mem.has(k) ? mem.get(k) : null),
     setItem: (k, v) => mem.set(k, v),
   };
-  const bad = normalizeStats({ careerPerfects: -3, drillBestAcc: { 'normal:25': 'nope', 'easy:10': 88 } });
+  const bad = normalizeStats({
+    careerPerfects: -3,
+    drillBestAcc: { 'normal:25': 'nope', 'easy:10': 88 },
+    dailyBest: { '2026-10-22': 12.5 },
+  });
   assert(bad.careerPerfects === 0, 'clamp perfects');
   assert(bad.drillBestAcc['easy:10'] === 88, 'keep good acc');
   assert(bad.drillBestAcc['normal:25'] == null, 'drop bad acc');
+  assert(bad.dailyBest['2026-10-22'] === 12, 'floor daily');
+  assert(bad.careerCounters === 0, 'default counters');
 
   let stats = emptyStats();
   assert(applyDrillResult(stats, { difficulty: 'normal', balls: 25, accuracy: 80, perfects: 4, maxCombo: 5 }));
@@ -192,12 +305,24 @@ assert(
   assert(stats.drillBestAcc['normal:25'] === 80, 'best kept');
 
   assert(applyScoreAttackResult(stats, { difficulty: 'hard', score: 9000, perfects: 2, maxCombo: 6 }));
-  applyVersusResult(stats, { opponentId: 'hao', won: true, perfects: 1, maxCombo: 3, streak: 2 });
+  applyVersusResult(stats, {
+    opponentId: 'hao',
+    won: true,
+    perfects: 1,
+    maxCombo: 3,
+    streak: 2,
+    counters: 4,
+  });
+  assert(stats.careerCounters === 4, 'versus counters');
+  assert(applyDailyResult(stats, { dateKey: '2026-10-22', score: 5000, perfects: 3, maxCombo: 4, counters: 2 }));
+  assert(stats.dailyBest['2026-10-22'] === 5000, 'daily best');
+  assert(stats.careerCounters === 6, 'daily counters stacked');
   saveStats(stats, storage);
   assert(mem.has(STATS_KEY), 'wrote v3 key');
   const loaded = loadStats(storage);
   assert(loaded.versusWins.hao === 1, 'versus win persisted');
   assert(loaded.scoreAttackBest.hard === 9000, 'score attack persisted');
+  assert(loaded.dailyBest['2026-10-22'] === 5000, 'daily persisted');
 }
 
 console.log('check-smash: ok');

@@ -1,9 +1,11 @@
-import type { Difficulty, MatchTarget, RuleVariant } from './types';
+import type { Difficulty, MatchTarget, PlayerCount, RuleVariant } from './types';
 import { DEFAULT_MATCH_TARGET, MATCH_TARGETS } from './types';
 
 const STATS_KEY = 'clubhouse-dominoes-stats';
 const MATCH_KEY = 'clubhouse-dominoes-match';
 const STREAK_KEY = 'clubhouse-dominoes-win-streak';
+
+export type GameMode = 'two' | 'bot' | 'partners' | 'daily';
 
 export interface DominoesStats {
   matches: number;
@@ -14,6 +16,7 @@ export interface DominoesStats {
   lastRule: RuleVariant;
   lastDifficulty: Difficulty;
   lastTarget: MatchTarget;
+  lastMode: GameMode;
 }
 
 export const EMPTY_STATS: DominoesStats = {
@@ -25,6 +28,7 @@ export const EMPTY_STATS: DominoesStats = {
   lastRule: 'fives',
   lastDifficulty: 'normal',
   lastTarget: DEFAULT_MATCH_TARGET,
+  lastMode: 'bot',
 };
 
 export interface PersistedMatch {
@@ -33,12 +37,14 @@ export interface PersistedMatch {
   round: number;
   ruleVariant: RuleVariant;
   difficulty: Difficulty;
-  gameMode: 'two' | 'bot';
+  gameMode: GameMode;
+  playerCount: PlayerCount;
 }
 
 const RULES = new Set<string>(['draw', 'block', 'fives']);
 const DIFFS = new Set<string>(['easy', 'normal', 'hard']);
 const TARGETS = new Set<number>(MATCH_TARGETS);
+const MODES = new Set<string>(['two', 'bot', 'partners', 'daily']);
 
 function num(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -57,14 +63,27 @@ function asTarget(value: unknown): MatchTarget {
   return TARGETS.has(n) ? (n as MatchTarget) : DEFAULT_MATCH_TARGET;
 }
 
+function asMode(value: unknown): GameMode {
+  return MODES.has(value as string) ? (value as GameMode) : 'bot';
+}
+
+function asPlayerCount(value: unknown, mode: GameMode): PlayerCount {
+  if (mode === 'partners') return 4;
+  if (value === 4) return 4;
+  return 2;
+}
+
 export function loadStats(): DominoesStats {
   try {
     const raw = localStorage.getItem(STATS_KEY);
     if (!raw) {
-      // Migrate legacy streak-only key if present.
       const legacy = Number(localStorage.getItem(STREAK_KEY));
       if (Number.isFinite(legacy) && legacy > 0) {
-        return { ...EMPTY_STATS, streak: Math.floor(legacy), bestStreak: Math.floor(legacy) };
+        return {
+          ...EMPTY_STATS,
+          streak: Math.floor(legacy),
+          bestStreak: Math.floor(legacy),
+        };
       }
       return { ...EMPTY_STATS };
     }
@@ -78,6 +97,7 @@ export function loadStats(): DominoesStats {
       lastRule: asRule(parsed.lastRule),
       lastDifficulty: asDiff(parsed.lastDifficulty),
       lastTarget: asTarget(parsed.lastTarget),
+      lastMode: asMode(parsed.lastMode),
     };
   } catch {
     return { ...EMPTY_STATS };
@@ -96,7 +116,12 @@ export function saveStats(stats: DominoesStats): void {
 export function recordMatchResult(
   stats: DominoesStats,
   won: boolean,
-  meta: { rule: RuleVariant; difficulty: Difficulty; target: MatchTarget },
+  meta: {
+    rule: RuleVariant;
+    difficulty: Difficulty;
+    target: MatchTarget;
+    mode: GameMode;
+  },
 ): DominoesStats {
   const streak = won ? stats.streak + 1 : 0;
   return {
@@ -108,6 +133,7 @@ export function recordMatchResult(
     lastRule: meta.rule,
     lastDifficulty: meta.difficulty,
     lastTarget: meta.target,
+    lastMode: meta.mode,
   };
 }
 
@@ -119,7 +145,9 @@ export function loadMatch(): PersistedMatch | null {
     const s0 = num(parsed.scores?.[0], -1);
     const s1 = num(parsed.scores?.[1], -1);
     if (s0 < 0 || s1 < 0) return null;
-    const gameMode = parsed.gameMode === 'two' ? 'two' : 'bot';
+    const gameMode = asMode(parsed.gameMode);
+    // Daily matches are not resumed — always start fresh for the day.
+    if (gameMode === 'daily') return null;
     return {
       scores: [Math.floor(s0), Math.floor(s1)],
       target: asTarget(parsed.target),
@@ -127,6 +155,7 @@ export function loadMatch(): PersistedMatch | null {
       ruleVariant: asRule(parsed.ruleVariant),
       difficulty: asDiff(parsed.difficulty),
       gameMode,
+      playerCount: asPlayerCount(parsed.playerCount, gameMode),
     };
   } catch {
     return null;
