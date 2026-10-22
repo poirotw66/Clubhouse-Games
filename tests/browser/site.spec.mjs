@@ -279,6 +279,25 @@ test('blackjack: bet, resolve a hand, and restart from the result overlay', asyn
   await expect(page.getByRole('button', { name: '發牌' })).toBeVisible();
 });
 
+test('blackjack: modes panel opens daily and tin tournament entries', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Blackjack-main'), 'selective CI');
+  test.setTimeout(30_000);
+  await page.goto('./Games/Blackjack-main/');
+  await activate(page.getByRole('button', { name: '模式' }), isMobile);
+  await expect(page.getByRole('heading', { name: '模式' })).toBeVisible();
+  await expect(page.getByText('每日牌靴')).toBeVisible();
+  await expect(page.getByText('錫標賽')).toBeVisible();
+  await expect(page.getByRole('button', { name: '開始每日' })).toBeEnabled();
+  await activate(page.getByRole('button', { name: '開始每日' }), isMobile);
+  await expect(page.getByText('餘額 · 每日牌靴')).toBeVisible();
+  await expect(page.getByText(/每日牌靴 \d{4}-\d{2}-\d{2}/)).toBeVisible();
+  // Progress lives only in the header subtitle (exact text avoids duplicate matches).
+  await expect(page.getByText('每日 0/20', { exact: true })).toBeVisible();
+  await activate(page.getByRole('button', { name: '模式' }), isMobile);
+  await activate(page.getByRole('button', { name: /返回生涯桌/ }), isMobile);
+  await expect(page.getByRole('button', { name: '$10', exact: true })).toBeVisible();
+});
+
 test('pick-red: seeded hard deal, capture mid-game, and undo', async ({ page, isMobile }) => {
   test.skip(!includesGame('Pick-Red'), 'selective CI');
   test.setTimeout(45_000);
