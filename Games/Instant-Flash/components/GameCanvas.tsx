@@ -639,6 +639,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           feintResolved.current = true;
           stats.current.score += SCORE_FEINT_PATIENCE;
           playScore();
+          haptic('success', 0.5);
           showFeedback(CounterResult.PERFECT, '看破');
           noteEventResolved(patternState.current, evt);
           scheduleNextAttack();
@@ -668,6 +669,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             setScreenShake(true);
             setTimeout(() => setScreenShake(false), 300);
             playError();
+            haptic('impact');
             triggerHitAnimation();
             if (currentEvent.current) {
               noteEventResolved(patternState.current, currentEvent.current);
