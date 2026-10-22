@@ -1,6 +1,6 @@
 import React from 'react';
 import { sizeMultiplier } from '../game/engine';
-import { computeMatchMvp } from '../game/match';
+import { computeMatchMvp, isSeriesMode } from '../game/match';
 import type { HandReview } from '../game/review';
 import type { MatchMvp, MatchState } from '../game/types';
 import { HUMAN } from '../game/types';
@@ -28,9 +28,11 @@ export function HandReviewPanel({
 }: Props): React.ReactElement {
   const single = match.config.mode === 'single';
   const daily = match.config.mode === 'daily';
+  const series = isSeriesMode(match.config.mode);
   const wonHand = review.winner === HUMAN;
   const wonMatch = matchOver && match.winner === HUMAN;
-  const mvp = matchOver ? computeMatchMvp(match) : null;
+  // Keep single-hand settlement short — MVP is a series wrap-up.
+  const mvp = matchOver && series ? computeMatchMvp(match) : null;
 
   const title = single
     ? '單局結束'
