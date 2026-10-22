@@ -32,11 +32,12 @@ test('puyo-puyo: move taps vibrate; mission win shakes field', async ({ page, is
   await page.locator('#match-mode').selectOption('mission');
   await expect(page.locator('#quest-panel')).toBeVisible();
 
-  // Sideways move → tap haptic.
+  // Sideways move → tap haptic, then restore spawn column for the mission drop.
   await page.keyboard.press('ArrowLeft');
   await expect
     .poll(async () => page.evaluate(() => window.__vibrateCalls.length))
     .toBeGreaterThan(0);
+  await page.keyboard.press('ArrowRight');
 
   // First mission: hint + hard drop clears a 2-chain win.
   await activate(page.getByRole('button', { name: '顯示落點提示', exact: true }), isMobile);
