@@ -178,7 +178,7 @@ test('connect four: popout, series target, personality, and puzzle smoke', async
   // Default is single; open「更多賽制」then pick 5 勝 for the series assertion.
   await activateBtn(page.getByText('更多賽制', { exact: true }));
   await activateBtn(page.getByRole('button', { name: '5 勝', exact: true }));
-  await expect(page.getByText('先取 5 勝', { exact: false })).toBeVisible();
+  await expect(page.getByText('目前：先取 5 勝', { exact: false })).toBeVisible();
   await activateBtn(page.getByRole('button', { name: '鐵壁', exact: true }));
   await expect(page.getByText('優先擋殺', { exact: false })).toBeVisible();
 
