@@ -3,8 +3,8 @@ name: Build
 on:
   push:
     branches: [main]
+  # Any PR base (including stacked feature branches) so juice follow-ups get CI.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
