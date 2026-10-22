@@ -70,3 +70,15 @@ body {
     animation: none;
   }
 }
+
+
+.ck-more-modes > summary::-webkit-details-marker { display: none; }
+.ck-more-modes > summary::after {
+  content: '▸';
+  color: rgba(168, 162, 158, 0.65);
+  transition: transform 160ms ease;
+}
+.ck-more-modes[open] > summary::after { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .ck-more-modes > summary::after { transition: none; }
+}
