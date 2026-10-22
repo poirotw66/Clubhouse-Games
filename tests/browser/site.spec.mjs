@@ -463,6 +463,70 @@ test('pick-red: daily table entry and opponent ladder unlock', async ({ page, is
   await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
 });
 
+test('pick-red: juice settings panel on setup', async ({ page }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  await page.goto('./Games/Pick-Red/');
+  const panel = page.locator('[data-juice-settings="1"]');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel('觸覺震動')).toBeVisible();
+  await expect(panel.getByRole('group', { name: '特效強度' })).toBeVisible();
+});
+
+test('pick-red: juice flashy capture shake and vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.addInitScript(() => {
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  // Seed j0 opens with a flashy double-red-5 capture (♥5 takes ♦5).
+  await page.goto('./Games/Pick-Red/');
+  await page.getByPlaceholder('例如 64aa2bl7').fill('j0');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  const five = hand.getByRole('button', { name: '紅♥5，5 分', exact: true });
+  await expect(five).toBeVisible();
+  await activate(five, isMobile);
+  await activate(five, isMobile);
+  await expect(hand.getByRole('button')).toHaveCount(11);
+
+  await expect(page.locator('[data-pr-felt="1"]')).toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+  await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1);
+});
+
+test('pick-red: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Pick-Red/');
+  await page.getByPlaceholder('例如 64aa2bl7').fill('j0');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  const five = hand.getByRole('button', { name: '紅♥5，5 分', exact: true });
+  await activate(five, isMobile);
+  await activate(five, isMobile);
+  await expect(hand.getByRole('button')).toHaveCount(11);
+
+  await expect(page.locator('[data-pr-felt="1"]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
+});
+
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
   test.skip(!includesGame('Big-Two'), 'selective CI');
   test.setTimeout(45_000);
