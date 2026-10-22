@@ -720,7 +720,9 @@ export default function App() {
       <div className="w-full max-w-md mb-2 sm:mb-3 rounded-xl border border-white/10 bg-slate-900/70 px-3 sm:px-4 py-2.5 sm:py-3">
         <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 mb-1">
           <span>
-            第 {match.round} 局 · 先達 {match.target} 分
+            {match.target === 1
+              ? `單局 · 第 ${match.round} 回合`
+              : `第 ${match.round} 局 · 先達 ${match.target} 分`}
           </span>
           <span>
             本局 {roundTeams[0]}–{roundTeams[1]}
@@ -803,31 +805,42 @@ export default function App() {
       )}
 
       {!isDaily && (
-        <div
-          className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
-          role="group"
-          aria-label="比賽目標分"
+        <details
+          className="dm-more-modes w-full max-w-md mb-2 rounded-xl border border-slate-700/80 bg-slate-900/40 px-3 py-2 text-xs"
+          open={matchTarget !== 1}
         >
-          <span className="text-slate-400">目標</span>
-          {MATCH_TARGETS.map((t) => {
-            const selected = matchTarget === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => startFreshMatch({ target: t })}
-                aria-pressed={selected}
-                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
-                  selected
-                    ? 'border-violet-400 bg-violet-500/20 text-violet-100'
-                    : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {t} 分
-              </button>
-            );
-          })}
-        </div>
+          <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-slate-300 font-semibold">
+            <span>更多賽制</span>
+            <span className="font-normal text-slate-500">
+              {matchTarget === 1 ? '目前：單局' : `目前：先達 ${matchTarget} 分`}
+            </span>
+          </summary>
+          <div
+            className="mt-2 flex flex-wrap items-center justify-center gap-2"
+            role="group"
+            aria-label="比賽目標分"
+          >
+            <span className="text-slate-400">目標</span>
+            {MATCH_TARGETS.map((t) => {
+              const selected = matchTarget === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => startFreshMatch({ target: t })}
+                  aria-pressed={selected}
+                  className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                    selected
+                      ? 'border-violet-400 bg-violet-500/20 text-violet-100'
+                      : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {t === 1 ? '單局' : `${t} 分`}
+                </button>
+              );
+            })}
+          </div>
+        </details>
       )}
 
       {(gameMode === 'bot' || gameMode === 'partners') && (
@@ -1104,7 +1117,7 @@ export default function App() {
                 ? '本局獲勝'
                 : '本局落敗'
           }
-          subtitle={`${p1Label} ${match.scores[0]} — ${match.scores[1]} ${p2Label} · 目標 ${match.target}`}
+          subtitle={`${p1Label} ${match.scores[0]} — ${match.scores[1]} ${p2Label}${match.target === 1 ? ' · 單局' : ` · 目標 ${match.target}`}`}
           badge={state.roundEndReason === 'blocked' ? '阻塞結算' : '出完手牌'}
           variant={
             gameMode === 'two'
@@ -1136,8 +1149,12 @@ export default function App() {
                   ? '今日挑戰敗北'
                   : '比賽敗北'
           }
-          subtitle={`終場 ${match.scores[0]} — ${match.scores[1]}（先達 ${match.target}）`}
-          badge={isDaily ? '每日挑戰' : '比賽結束'}
+          subtitle={
+            match.target === 1
+              ? `終場 ${match.scores[0]} — ${match.scores[1]}（單局）`
+              : `終場 ${match.scores[0]} — ${match.scores[1]}（先達 ${match.target}）`
+          }
+          badge={isDaily ? '每日挑戰' : match.target === 1 ? '單局結束' : '比賽結束'}
           variant={
             gameMode === 'two'
               ? 'neutral'
@@ -1325,7 +1342,7 @@ function ScoreBar({
       <div className="flex justify-between text-[11px] text-slate-300 mb-1">
         <span>{label}</span>
         <span className="tabular-nums">
-          {score} / {target}
+          {target === 1 ? score : `${score} / ${target}`}
         </span>
       </div>
       <div className="h-2 rounded-full bg-slate-800 overflow-hidden border border-white/10">

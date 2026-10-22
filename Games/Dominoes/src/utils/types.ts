@@ -33,9 +33,10 @@ export interface PlacedTile {
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
-export const MATCH_TARGETS = [61, 100, 150] as const;
+export const MATCH_TARGETS = [1, 61, 100, 150] as const;
 export type MatchTarget = (typeof MATCH_TARGETS)[number];
-export const DEFAULT_MATCH_TARGET: MatchTarget = 100;
+/** 1 = single round (一局結算); higher values are race-to-N points. */
+export const DEFAULT_MATCH_TARGET: MatchTarget = 1;
 
 /** Hand size by table size (double-six). */
 export function handSizeFor(playerCount: PlayerCount): number {

@@ -31,3 +31,15 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
     animation: none;
   }
 }
+
+
+.dm-more-modes > summary::-webkit-details-marker { display: none; }
+.dm-more-modes > summary::after {
+  content: '▸';
+  color: rgba(148, 163, 184, 0.7);
+  transition: transform 160ms ease;
+}
+.dm-more-modes[open] > summary::after { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .dm-more-modes > summary::after { transition: none; }
+}

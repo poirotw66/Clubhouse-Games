@@ -223,6 +223,19 @@ test('connect four: default lobby is single without series strip', async ({ page
   await expect(page.getByRole('group', { name: '系列賽目標' })).toBeVisible();
 });
 
+test('dominoes: default target is single under more modes', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Dominoes'), 'selective CI');
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-dominoes-howto-seen', '1');
+  });
+  await page.goto('./Games/Dominoes/');
+  await expect(page.getByText('目前：單局', { exact: false })).toBeVisible();
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await expect(page.getByRole('group', { name: '比賽目標分' })).toBeVisible();
+  await activate(page.getByRole('button', { name: '100 分', exact: true }), isMobile);
+  await expect(page.getByText('目前：先達 100 分', { exact: false })).toBeVisible();
+});
+
 test('reversi: two-player mid-game, undo, and new-game menu', async ({ page, isMobile }) => {
   test.skip(!includesGame('Reversi'), 'selective CI');
   await page.goto('./Games/Reversi/');
