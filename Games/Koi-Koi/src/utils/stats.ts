@@ -18,7 +18,7 @@ export const DEFAULT_STATS: MatchStats = {
   losses: 0,
   winStreak: 0,
   lastDifficulty: 'normal',
-  lastWinScore: 12,
+  lastWinScore: 7,
 };
 
 const DIFFICULTIES: ReadonlySet<string> = new Set(['easy', 'normal', 'hard']);
