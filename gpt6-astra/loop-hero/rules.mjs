@@ -3,9 +3,11 @@
  * Keep DOM-free so self-check.mjs / check scripts can import in Node.
  */
 
-export const SAVE_KEY = "cinder-circuit-refuge-v3";
+export const SAVE_KEY = "cinder-circuit-refuge-v4";
+export const SAVE_KEY_LEGACY_V3 = "cinder-circuit-refuge-v3";
 export const SAVE_KEY_LEGACY_V2 = "cinder-circuit-refuge-v2";
 export const SAVE_KEY_LEGACY_V1 = "cinder-circuit-refuge-v1";
+export const DAILY_SAVE_KEY = "cinder-circuit-daily-v1";
 
 export const COLS = 11;
 export const ROWS = 9;
@@ -71,6 +73,7 @@ export const EXPEDITIONS = {
 /**
  * Map routes. Seal sits at road index 10; camp at index 0.
  * `bossId` selects which keeper awakenBoss spawns.
+ * Optional `exclusiveEnemies` / `exclusiveCards` deepen a route's identity.
  */
 export const ROUTES = {
   drowned: {
@@ -133,6 +136,39 @@ export const ROUTES = {
       [3, 2],
     ],
   },
+  glassmere: {
+    id: "glassmere",
+    name: "Glassmere Rill",
+    blurb: "A bright cold circuit. The Stillglass Knell listens at the southern seal.",
+    unlockAfter: "ashen",
+    unlockRequiresRoutes: ["drowned", "ashen"],
+    bossId: "boss_glass",
+    sealLabel: "SOUTH",
+    exclusiveEnemies: ["brine", "echo", "reedkin", "prism"],
+    exclusiveCards: ["mirror", "reed", "tide", "shard"],
+    path: [
+      [5, 1],
+      [6, 1],
+      [7, 1],
+      [8, 2],
+      [9, 3],
+      [9, 4],
+      [8, 5],
+      [7, 6],
+      [6, 7],
+      [5, 7],
+      [4, 7],
+      [3, 6],
+      [2, 5],
+      [1, 4],
+      [1, 3],
+      [2, 2],
+      [3, 1],
+      [4, 1],
+      [4, 2],
+      [5, 2],
+    ],
+  },
 };
 
 /** Chebyshev adjacency for road steps (orthogonal or diagonal). */
@@ -146,7 +182,7 @@ export function pathStepsAdjacent(path) {
   return true;
 }
 
-export const ROUTE_ORDER = ["drowned", "ashen"];
+export const ROUTE_ORDER = ["drowned", "ashen", "glassmere"];
 
 export const BOSS_DEFS = {
   boss: {
@@ -178,6 +214,66 @@ export const BOSS_DEFS = {
     awakenTitle: "THE HOLLOW PEAL",
     awakenSub: "THE COIL ANSWERS WITHOUT A TONGUE",
     tollLabel: "THE HOLLOW TOLL",
+  },
+  boss_glass: {
+    id: "boss_glass",
+    type: "boss_glass",
+    name: "The Stillglass Knell",
+    kind: "Keeper of the glassmere rill",
+    hp: 340,
+    attack: 17,
+    defense: 6,
+    speed: 0.88,
+    xp: 50,
+    color: "#a8d4e0",
+    awakenTitle: "THE STILLGLASS KNELL",
+    awakenSub: "THE RILL REFLECTS WHAT YOU AWOKE",
+    tollLabel: "THE GLASS TOLL",
+  },
+};
+
+/** Route-exclusive world cards (Glassmere Rill). */
+export const ROUTE_CARD_DEFS = {
+  mirror: {
+    name: "Stillglass Pane",
+    where: "road",
+    short: "Heal 8% on pass.\nEcho moth each loop.",
+    effect:
+      "Heals 8% max HP when passed. Spawns an Echo Moth nearby each circuit, including immediately. Salvage for 1 wood.",
+    color: "#9ec9d4",
+    routeId: "glassmere",
+    salvage: 1,
+  },
+  reed: {
+    name: "Reedglass Copse",
+    where: "verge",
+    short: "+3% evasion.\nNearby foes pierce 12%.",
+    effect:
+      "+3% hero evasion. Adjacent enemies ignore 12% of defense. Stacks with other Reedglass Copses.",
+    color: "#8fb89a",
+    routeId: "glassmere",
+    salvage: 1,
+  },
+  tide: {
+    name: "Tidemoon Marker",
+    where: "road",
+    short: "+8% Bell on place.\nHeal 6% once / loop.",
+    effect:
+      "When placed, grants +8% Bell awakening. Once per circuit when passed, heals 6% max HP.",
+    color: "#7aa8c4",
+    routeId: "glassmere",
+    bossBonus: 8,
+    salvage: 1,
+  },
+  shard: {
+    name: "Prism Shrine",
+    where: "verge",
+    short: "+3% critical.\nNearby foes +2 DEF.",
+    effect:
+      "+3% hero critical chance. Adjacent enemies gain +2 defense. A bright risk for sharper strikes.",
+    color: "#c4b8e0",
+    routeId: "glassmere",
+    salvage: 1,
   },
 };
 
@@ -241,6 +337,52 @@ export const ELITE_MODIFIERS = {
 export const ELITE_MODIFIER_IDS = Object.keys(ELITE_MODIFIERS);
 
 /**
+ * Daily loop modifiers — one rule seeded per Asia/Taipei calendar day.
+ */
+export const DAILY_MODIFIERS = {
+  fogbound: {
+    id: "fogbound",
+    label: "Fogbound Road",
+    blurb: "Foes strike 18% faster; fog never fully lifts.",
+    enemySpeedMul: 1.18,
+    fogFloor: 8,
+  },
+  thin_wick: {
+    id: "thin_wick",
+    label: "Thin Wick",
+    blurb: "Start with 15% less max HP.",
+    startHpMul: 0.85,
+  },
+  bell_hunger: {
+    id: "bell_hunger",
+    label: "Bell Hunger",
+    blurb: "Each placement awakens +3% extra Bell progress.",
+    bossGainBonus: 3,
+  },
+  rich_veins: {
+    id: "rich_veins",
+    label: "Rich Veins",
+    blurb: "Loot rarity rolls one tier higher; elites appear more often.",
+    lootTierBonus: 1,
+    eliteChanceBonus: 0.08,
+  },
+  iron_road: {
+    id: "iron_road",
+    label: "Iron Road",
+    blurb: "All foes gain +3 defense.",
+    enemyDefenseAdd: 3,
+  },
+  frugal_hand: {
+    id: "frugal_hand",
+    label: "Frugal Hand",
+    blurb: "Opening hand is trimmed by two memories.",
+    handTrim: 2,
+  },
+};
+
+export const DAILY_MODIFIER_IDS = Object.keys(DAILY_MODIFIERS);
+
+/**
  * Camp card craft — spend bank materials to unlock / rank up refuge buildings.
  * Ranks permanently alter runs (new cards, stronger effects, route unlocks already separate).
  */
@@ -286,6 +428,10 @@ export function emptyCleared() {
   return { ember: 0, wick: 0, ash: 0 };
 }
 
+export function emptyRouteClears() {
+  return { drowned: 0, ashen: 0, glassmere: 0 };
+}
+
 export function emptyUpgrades() {
   return { vitality: 0, forge: 0, draught: 0, dial: 0 };
 }
@@ -300,6 +446,10 @@ export function getRoute(id) {
 
 export function getBossDef(bossId) {
   return BOSS_DEFS[bossId] || BOSS_DEFS.boss;
+}
+
+export function getDailyModifier(id) {
+  return DAILY_MODIFIERS[id] || DAILY_MODIFIERS.fogbound;
 }
 
 export function cardsUntilBell(bossProgress, bossGain, cardsNeeded) {
@@ -405,9 +555,45 @@ export function isRouteUnlocked(meta, routeId) {
   const route = getRoute(routeId);
   if (!route.unlockAfter) return true;
   if ((meta.unlockedRoutes || []).includes(routeId)) return true;
-  if ((meta.buildings?.cartographer || 0) >= 1) return true;
-  // Soft unlock: clear Wick once on the drowned verge.
-  return (meta.cleared?.wick || 0) >= 1;
+
+  if (routeId === "ashen") {
+    if ((meta.buildings?.cartographer || 0) >= 1) return true;
+    // Soft unlock: clear Wick once on the drowned verge.
+    return (meta.cleared?.wick || 0) >= 1;
+  }
+
+  if (routeId === "glassmere") {
+    const clears = meta.routeClears || emptyRouteClears();
+    const required = route.unlockRequiresRoutes || ["drowned", "ashen"];
+    return required.every((id) => (clears[id] || 0) >= 1);
+  }
+
+  return false;
+}
+
+/** Shared starter card keys (non-event, non-route-exclusive). */
+export const BASE_CARD_KEYS = [
+  "grove",
+  "cairn",
+  "altar",
+  "hamlet",
+  "burrow",
+  "lantern",
+  "basin",
+  "bastion",
+];
+
+/**
+ * Card keys available when starting / drawing on a route.
+ * @param {string} routeId
+ * @param {{ dial?: number }} [upgrades]
+ */
+export function cardPoolForRoute(routeId, upgrades = {}) {
+  const route = getRoute(routeId);
+  const exclusive = route.exclusiveCards || [];
+  const pool = [...BASE_CARD_KEYS, ...exclusive];
+  if ((upgrades?.dial || 0) >= 1) pool.push("dial");
+  return pool;
 }
 
 export function eventCardPool(buildings) {
@@ -443,8 +629,237 @@ export function applyEliteModifier(stats, modifierId) {
   };
 }
 
+/* ───────────────────────── Daily loop (Asia/Taipei seed) ───────────────────────── */
+
+const TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/** YYYY-MM-DD in Asia/Taipei (UTC+8 wall clock). */
+export function todayKeyTaipei(now = new Date()) {
+  const shifted = new Date(now.getTime() + TZ_OFFSET_MS);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export function previousDayKey(dateKey) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  utc.setUTCDate(utc.getUTCDate() - 1);
+  return todayKeyTaipei(new Date(utc.getTime() - TZ_OFFSET_MS));
+}
+
+export function seedFromString(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % 999999 || 1;
+}
+
+export function makeRng(seed) {
+  let a = (seed >>> 0) || 1;
+  return function rng() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function dailySeed(dateKey = todayKeyTaipei()) {
+  return seedFromString(`cinder-daily:${dateKey}`);
+}
+
 /**
- * Normalize / migrate saved meta from v1/v2/v3 shapes.
+ * Deterministic daily challenge: route, opening deck, one modifier.
+ * @param {string} [dateKey]
+ * @param {string[]} [baseCardKeys]
+ */
+export function dailyChallenge(
+  dateKey = todayKeyTaipei(),
+  baseCardKeys = BASE_CARD_KEYS,
+) {
+  const seed = dailySeed(dateKey);
+  const rng = makeRng(seed);
+  const routeId = ROUTE_ORDER[Math.floor(rng() * ROUTE_ORDER.length)];
+  const route = getRoute(routeId);
+  const modifierId =
+    DAILY_MODIFIER_IDS[Math.floor(rng() * DAILY_MODIFIER_IDS.length)];
+  const pool = cardPoolForRoute(routeId, { dial: 0 }).filter(
+    (k) => k !== "dial",
+  );
+  const deckSize = Math.min(6, Math.max(4, pool.length));
+  const bag = [...pool];
+  const startingDeck = [];
+  while (startingDeck.length < deckSize && bag.length) {
+    const idx = Math.floor(rng() * bag.length);
+    startingDeck.push(bag.splice(idx, 1)[0]);
+  }
+  // Ensure at least one exclusive card when the route has them.
+  if (route.exclusiveCards?.length) {
+    const hasExclusive = startingDeck.some((k) =>
+      route.exclusiveCards.includes(k),
+    );
+    if (!hasExclusive) {
+      const exclusive =
+        route.exclusiveCards[
+          Math.floor(rng() * route.exclusiveCards.length)
+        ];
+      startingDeck[startingDeck.length - 1] = exclusive;
+    }
+  }
+  // Prefer shared base cards when route has no exclusives — keep deck from base.
+  if (!route.exclusiveCards?.length && baseCardKeys?.length) {
+    /* deck already drawn from BASE_CARD_KEYS via cardPoolForRoute */
+  }
+  return {
+    dateKey,
+    seed,
+    routeId,
+    modifierId,
+    modifier: getDailyModifier(modifierId),
+    startingDeck,
+  };
+}
+
+export function emptyDailyPersist() {
+  return {
+    days: {},
+    lastCompletedDate: null,
+    streak: 0,
+    bestStreak: 0,
+  };
+}
+
+/**
+ * @param {unknown} raw
+ */
+export function migrateDailyPersist(raw) {
+  const base = emptyDailyPersist();
+  if (!raw || typeof raw !== "object") return base;
+  const src = /** @type {Record<string, unknown>} */ (raw);
+  const days = {};
+  if (src.days && typeof src.days === "object") {
+    for (const [key, value] of Object.entries(
+      /** @type {Record<string, unknown>} */ (src.days),
+    )) {
+      if (!value || typeof value !== "object") continue;
+      const v = /** @type {Record<string, unknown>} */ (value);
+      days[key] = {
+        date: typeof v.date === "string" ? v.date : key,
+        bestLoop: Math.max(0, Math.floor(Number(v.bestLoop) || 0)),
+        bestKills: Math.max(0, Math.floor(Number(v.bestKills) || 0)),
+        attempts: Math.max(0, Math.floor(Number(v.attempts) || 0)),
+        completed: Boolean(v.completed),
+        goalMet: Boolean(v.goalMet),
+        routeId: typeof v.routeId === "string" ? v.routeId : null,
+        modifierId: typeof v.modifierId === "string" ? v.modifierId : null,
+      };
+    }
+  }
+  return {
+    days,
+    lastCompletedDate:
+      typeof src.lastCompletedDate === "string" ? src.lastCompletedDate : null,
+    streak: Math.max(0, Math.floor(Number(src.streak) || 0)),
+    bestStreak: Math.max(0, Math.floor(Number(src.bestStreak) || 0)),
+  };
+}
+
+/**
+ * Merge a finished daily attempt into persisted bests.
+ * `completed` = any finished attempt counts for attempt tracking;
+ * streak advances when goalMet (expedition goal cleared) for that day.
+ */
+export function mergeDailyAttempt(
+  prev,
+  dateKey,
+  {
+    loop = 1,
+    kills = 0,
+    goalMet = false,
+    routeId = null,
+    modifierId = null,
+  } = {},
+) {
+  const existing = prev.days[dateKey];
+  const bestLoop = Math.max(existing?.bestLoop || 0, Math.floor(loop) || 0);
+  const better =
+    !existing ||
+    loop > (existing.bestLoop || 0) ||
+    (loop === (existing.bestLoop || 0) && kills > (existing.bestKills || 0));
+  const day = {
+    date: dateKey,
+    bestLoop,
+    bestKills: better
+      ? Math.max(0, Math.floor(kills) || 0)
+      : (existing?.bestKills ?? Math.max(0, Math.floor(kills) || 0)),
+    attempts: (existing?.attempts || 0) + 1,
+    completed: true,
+    goalMet: Boolean(existing?.goalMet) || Boolean(goalMet),
+    routeId: routeId || existing?.routeId || null,
+    modifierId: modifierId || existing?.modifierId || null,
+  };
+
+  let streak = prev.streak;
+  let bestStreak = prev.bestStreak;
+  let lastCompletedDate = prev.lastCompletedDate;
+
+  if (goalMet) {
+    if (lastCompletedDate === dateKey) {
+      // already counted today
+    } else if (lastCompletedDate === previousDayKey(dateKey)) {
+      streak = streak + 1;
+      lastCompletedDate = dateKey;
+    } else {
+      streak = 1;
+      lastCompletedDate = dateKey;
+    }
+    bestStreak = Math.max(bestStreak, streak);
+  }
+
+  return {
+    days: { ...prev.days, [dateKey]: day },
+    lastCompletedDate,
+    streak,
+    bestStreak,
+  };
+}
+
+export function currentDailyStreak(
+  persist,
+  today = todayKeyTaipei(),
+) {
+  const todayDone = persist.days[today]?.goalMet;
+  if (todayDone) return persist.streak;
+  if (persist.lastCompletedDate === previousDayKey(today)) return persist.streak;
+  return 0;
+}
+
+export function formatDailyShareText({
+  dateKey,
+  routeName,
+  modifierLabel,
+  bestLoop,
+  bestKills,
+  streak,
+  goalMet,
+}) {
+  return [
+    `【Cinder Circuit · 每日迴路】`,
+    `日期 ${dateKey}（台北）`,
+    `路線 ${routeName} · 修正 ${modifierLabel}`,
+    `今日最佳 迴路 ${bestLoop} · 擊殺 ${bestKills}${goalMet ? " · 目標達成" : ""}`,
+    `連續天數 ${streak}`,
+    `#CinderCircuit #每日迴路`,
+  ].join("\n");
+}
+
+/**
+ * Normalize / migrate saved meta from v1/v2/v3/v4 shapes.
  * @param {unknown} raw
  */
 export function migrateMeta(raw) {
@@ -461,6 +876,7 @@ export function migrateMeta(raw) {
     routeId: "drowned",
     unlockedRoutes: ["drowned"],
     cleared: emptyCleared(),
+    routeClears: emptyRouteClears(),
   };
   if (!raw || typeof raw !== "object") return base;
   const src = /** @type {Record<string, unknown>} */ (raw);
@@ -495,6 +911,12 @@ export function migrateMeta(raw) {
   for (const k of Object.keys(base.cleared)) {
     base.cleared[k] = Math.max(0, Number(cleared[k]) || 0);
   }
+  const routeClears = /** @type {Record<string, unknown>} */ (
+    src.routeClears || {}
+  );
+  for (const k of Object.keys(base.routeClears)) {
+    base.routeClears[k] = Math.max(0, Number(routeClears[k]) || 0);
+  }
   const unlocked = Array.isArray(src.unlockedRoutes)
     ? src.unlockedRoutes.filter((id) => typeof id === "string" && ROUTES[id])
     : [];
@@ -504,6 +926,12 @@ export function migrateMeta(raw) {
   }
   if (base.cleared.wick >= 1 && !base.unlockedRoutes.includes("ashen")) {
     base.unlockedRoutes.push("ashen");
+  }
+  if (
+    isRouteUnlocked(base, "glassmere") &&
+    !base.unlockedRoutes.includes("glassmere")
+  ) {
+    base.unlockedRoutes.push("glassmere");
   }
   if (!isRouteUnlocked(base, base.routeId)) base.routeId = "drowned";
   return base;

@@ -6,14 +6,21 @@
 
 循環路線建造式 Roguelike（遊戲內名 **Cinder Circuit**）。玩家不直接操作旅人，而是放置世界卡、裝備戰利品，並決定何時撤退。
 
-## 路線（深度 5）
+## 路線
 
-營火可選兩條迴路（地圖與 Boss 不同；`awakenBoss` 共用）：
+營火可選三條迴路（地圖與 Boss 不同；`awakenBoss` 共用）：
 
 | 路線 | 名稱 | Keeper | 解鎖 |
 |------|------|--------|------|
 | drowned | Drowned Verge | The Ninth Bell | 預設 |
 | ashen | Ashen Coil | The Hollow Peal | 通關 Wick，或工藝「Cartographer's Desk」 |
+| glassmere | Glassmere Rill | The Stillglass Knell | 通關前兩條路線各至少一次目標 |
+
+Glassmere 專屬：敵人 Saltglass Wight／Echo Moth／Glassreed Skitter／Prism Host；卡池含 Stillglass Pane、Reedglass Copse、Tidemoon Marker、Prism Shrine（≥4）。
+
+## 每日迴路（Asia/Taipei）
+
+以台北日曆日為種子，決定當日路線、起始卡組與一則修正規則。本地保存今日最佳迴路／擊殺、目標達成連續天數，並可複製分享文字。
 
 ## 遠征目標／難度檔
 
@@ -63,5 +70,6 @@
 - 類型：`game`
 - 建置：純靜態 HTML + ESM（無 Vite／React／CDN）；Pages 部署時整包複製 `gpt6-astra/`。
 - 純邏輯：`rules.mjs`；檢查：`npm run check:astra-loop-hero` → `self-check.mjs`。
-- Meta：`localStorage` 鍵 `cinder-circuit-refuge-v3`（可從 v1／v2 遷移）。
-- 音效：`shared/sfx.mjs` 新增 `playCardPlace`／`playBellAwaken`／`playCraft`／`playEliteMod`／`playEventCard`（不改既有函式）。
+- Meta：`localStorage` 鍵 `cinder-circuit-refuge-v4`（可從 v1／v2／v3 遷移）；每日 `cinder-circuit-daily-v1`。
+- 音效：`shared/sfx.mjs` 新增 `playCardPlace`／`playBellAwaken`／`playCraft`／`playEliteMod`／`playEventCard`／`playDailyChime`（不改既有函式）。
+- Playwright：`tests/browser/astra-loop-hero.spec.mjs`（desktop + mobile projects）。

@@ -409,3 +409,9 @@ export function playEliminate() {
 
 /** Soft industrial build / place click (Mini Factory). */
 
+/** Cinder Circuit — daily loop start / share chime. Add-only. */
+export function playDailyChime() {
+  playTone(392, 'sine', 0.1, 0, 0.06);
+  playTone(523.25, 'triangle', 0.12, 0.08, 0.055);
+  playTone(659.25, 'sine', 0.14, 0.16, 0.045);
+}
