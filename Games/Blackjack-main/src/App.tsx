@@ -1601,7 +1601,6 @@ export default function App() {
             )}
             <div className="text-white/50 text-xs font-bold tracking-widest">
               主注（下限 ${table.minBet}）
-              {modeProgressLabel ? ` · ${modeProgressLabel}` : ''}
             </div>
             <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
               {table.chipValues.map(amount => (
