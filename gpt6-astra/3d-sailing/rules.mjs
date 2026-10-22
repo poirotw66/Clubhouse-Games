@@ -11,8 +11,22 @@ const MAX_SAMPLES = 2400;
 
 /**
  * @typedef {{ x: number, z: number, r: number }} Island
- * @typedef {{ id: string, name: string, blurb: string, unlockAfter: string|null, timeLimit: number, start: { x: number, z: number, heading: number }, wind: { dirX: number, dirZ: number, baseSpeed: number, gustAmp: number, gustRate: number, shiftAmp: number, shiftRate: number }, gates: [number, number][] }} CourseDef
- * @typedef {{ bestTime: number|null, collisions: number|null }} CourseBest
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   blurb: string,
+ *   unlockAfter: string|null,
+ *   unlockStars?: number,
+ *   unlockBestUnder?: { courseId: string, time: number },
+ *   timeLimit: number,
+ *   difficulty: number,
+ *   starTimes: [number, number],
+ *   collisionPen?: number,
+ *   start: { x: number, z: number, heading: number },
+ *   wind: { dirX: number, dirZ: number, baseSpeed: number, gustAmp: number, gustRate: number, shiftAmp: number, shiftRate: number },
+ *   gates: [number, number][]
+ * }} CourseDef
+ * @typedef {{ bestTime: number|null, collisions: number|null, stars: number }} CourseBest
  * @typedef {{ bests: Record<string, CourseBest>, unlocked: string[], races: number, clears: number }} Progress
  * @typedef {{ t: number, x: number, z: number, heading: number }} GhostSample
  * @typedef {{ time: number, samples: GhostSample[] }} GhostTape
@@ -38,6 +52,8 @@ export const COURSES = [
     blurb: '經典八道門；東南微風，適合熱身與記航線。',
     unlockAfter: null,
     timeLimit: 180,
+    difficulty: 1,
+    starTimes: [95, 120],
     start: { x: 0, z: 45, heading: 0 },
     wind: {
       dirX: -0.68,
@@ -65,6 +81,8 @@ export const COURSES = [
     blurb: '偏東風鎖定橫風腿；長直道加速，轉彎要提前收帆。',
     unlockAfter: 'archipelago',
     timeLimit: 165,
+    difficulty: 2,
+    starTimes: [88, 110],
     start: { x: -20, z: 80, heading: -0.35 },
     wind: {
       dirX: 1,
@@ -92,6 +110,9 @@ export const COURSES = [
     blurb: '陣風與緩移風向；貼島穿門，碰撞代價更高。',
     unlockAfter: 'beam-reach',
     timeLimit: 150,
+    difficulty: 3,
+    starTimes: [95, 115],
+    collisionPen: 6,
     start: { x: 20, z: 60, heading: 0.2 },
     wind: {
       dirX: -0.35,
@@ -114,6 +135,165 @@ export const COURSES = [
       [-50, -50],
     ],
   },
+  {
+    id: 'close-hauled',
+    name: '迎風折線',
+    blurb: '頂風之字形；需要精準轉向，效率掉得很快。',
+    unlockAfter: 'gusty-slalom',
+    timeLimit: 170,
+    difficulty: 3,
+    starTimes: [105, 130],
+    start: { x: -40, z: 100, heading: 0.55 },
+    wind: {
+      dirX: 0.12,
+      dirZ: -0.99,
+      baseSpeed: 0.98,
+      gustAmp: 0.08,
+      gustRate: 0.3,
+      shiftAmp: 0.08,
+      shiftRate: 0.06,
+    },
+    gates: [
+      [-10, 20],
+      [70, -40],
+      [-20, -100],
+      [90, -160],
+      [160, -80],
+      [40, 10],
+      [-80, 50],
+      [-140, -20],
+      [-60, -90],
+    ],
+  },
+  {
+    id: 'narrow-channel',
+    name: '窄灣穿梭',
+    blurb: '門距更近、貼島通道；需星級累積才開鎖。',
+    unlockAfter: null,
+    unlockStars: 5,
+    timeLimit: 155,
+    difficulty: 4,
+    starTimes: [100, 125],
+    collisionPen: 5,
+    start: { x: 60, z: -40, heading: -0.9 },
+    wind: {
+      dirX: -0.92,
+      dirZ: 0.38,
+      baseSpeed: 1.05,
+      gustAmp: 0.14,
+      gustRate: 0.48,
+      shiftAmp: 0.18,
+      shiftRate: 0.1,
+    },
+    gates: [
+      [20, -100],
+      [-50, -150],
+      [-130, -80],
+      [-90, 30],
+      [10, 90],
+      [110, 50],
+      [180, -20],
+      [120, -110],
+      [40, -180],
+    ],
+  },
+  {
+    id: 'tradewind-loop',
+    name: '信風環島',
+    blurb: '穩定偏南信風、長環線；需在橫風疾航跑進百秒內。',
+    unlockAfter: null,
+    unlockBestUnder: { courseId: 'beam-reach', time: 100 },
+    timeLimit: 200,
+    difficulty: 3,
+    starTimes: [120, 150],
+    start: { x: -60, z: -20, heading: 0.1 },
+    wind: {
+      dirX: 0.25,
+      dirZ: 0.97,
+      baseSpeed: 1.15,
+      gustAmp: 0.05,
+      gustRate: 0.22,
+      shiftAmp: 0.05,
+      shiftRate: 0.04,
+    },
+    gates: [
+      [30, -90],
+      [140, -160],
+      [240, -60],
+      [200, 80],
+      [80, 180],
+      [-80, 160],
+      [-170, 40],
+      [-140, -100],
+      [-40, -180],
+      [40, -40],
+    ],
+  },
+  {
+    id: 'lee-shore',
+    name: '下風岸邊',
+    blurb: '強順風腿後急轉；門配置偏向南方岸線。',
+    unlockAfter: 'close-hauled',
+    unlockStars: 8,
+    timeLimit: 160,
+    difficulty: 4,
+    starTimes: [98, 122],
+    start: { x: 100, z: 120, heading: 2.4 },
+    wind: {
+      dirX: -0.55,
+      dirZ: 0.84,
+      baseSpeed: 1.18,
+      gustAmp: 0.16,
+      gustRate: 0.5,
+      shiftAmp: 0.22,
+      shiftRate: 0.09,
+    },
+    gates: [
+      [40, 40],
+      [-40, -40],
+      [-120, -120],
+      [30, -200],
+      [160, -140],
+      [220, -20],
+      [140, 100],
+      [20, 160],
+      [-80, 80],
+    ],
+  },
+  {
+    id: 'typhoon-run',
+    name: '颱風前哨',
+    blurb: '高陣風、大幅偏轉；星級與完賽時間雙重門檻。',
+    unlockAfter: null,
+    unlockStars: 14,
+    unlockBestUnder: { courseId: 'gusty-slalom', time: 110 },
+    timeLimit: 145,
+    difficulty: 5,
+    starTimes: [90, 115],
+    collisionPen: 7,
+    start: { x: -30, z: 40, heading: -0.15 },
+    wind: {
+      dirX: 0.7,
+      dirZ: -0.72,
+      baseSpeed: 1.22,
+      gustAmp: 0.26,
+      gustRate: 0.7,
+      shiftAmp: 0.34,
+      shiftRate: 0.14,
+    },
+    gates: [
+      [50, -50],
+      [150, -120],
+      [80, -210],
+      [-40, -180],
+      [-150, -80],
+      [-100, 60],
+      [20, 140],
+      [130, 90],
+      [180, -10],
+      [60, -80],
+    ],
+  },
 ];
 
 export const COURSE_ORDER = COURSES.map((c) => c.id);
@@ -130,7 +310,7 @@ function emptyBests() {
   /** @type {Record<string, CourseBest>} */
   const bests = {};
   for (const c of COURSES) {
-    bests[c.id] = { bestTime: null, collisions: null };
+    bests[c.id] = { bestTime: null, collisions: null, stars: 0 };
   }
   return bests;
 }
@@ -151,6 +331,11 @@ function asFinitePositive(v) {
 
 function asNonNegInt(v) {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null;
+}
+
+function asStars(v) {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(3, Math.floor(v)));
 }
 
 function clone(progress) {
@@ -175,7 +360,12 @@ export function loadProgress(storage = globalThis.localStorage) {
           bests[id] = {
             bestTime: asFinitePositive(row.bestTime),
             collisions: asNonNegInt(row.collisions),
+            stars: asStars(row.stars),
           };
+          // Migrate: any prior PB implies at least 1★ so unlock ladders keep working.
+          if (bests[id].bestTime != null && bests[id].stars < 1) {
+            bests[id].stars = 1;
+          }
         }
       }
     }
@@ -187,12 +377,15 @@ export function loadProgress(storage = globalThis.localStorage) {
       : ['archipelago'];
     if (!unlocked.includes('archipelago')) unlocked.unshift('archipelago');
 
-    return {
+    const progress = {
       bests,
       unlocked: [...new Set(unlocked)],
       races: typeof parsed.races === 'number' && parsed.races >= 0 ? parsed.races : 0,
       clears: typeof parsed.clears === 'number' && parsed.clears >= 0 ? parsed.clears : 0,
     };
+    // Re-evaluate star / time unlocks against migrated bests.
+    applyUnlocks(progress);
+    return progress;
   } catch {
     return base;
   }
@@ -213,7 +406,108 @@ export function isUnlocked(progress, courseId) {
 }
 
 export function bestFor(progress, courseId) {
-  return progress.bests[courseId] ?? { bestTime: null, collisions: null };
+  return progress.bests[courseId] ?? { bestTime: null, collisions: null, stars: 0 };
+}
+
+export function totalStars(progress) {
+  let n = 0;
+  for (const id of Object.keys(progress.bests)) {
+    n += progress.bests[id]?.stars || 0;
+  }
+  return n;
+}
+
+/**
+ * Rate a finish: 3★ under gold + zero collisions, 2★ under silver, else 1★.
+ * @param {CourseDef|string} courseOrId
+ * @param {number} time
+ * @param {number} collisions
+ */
+export function rateStars(courseOrId, time, collisions) {
+  const course = typeof courseOrId === 'string' ? getCourse(courseOrId) : courseOrId;
+  const [gold, silver] = course.starTimes || [90, 120];
+  if (time <= gold && collisions <= 0) return 3;
+  if (time <= silver) return 2;
+  return 1;
+}
+
+export function starGlyph(stars) {
+  const n = Math.max(0, Math.min(3, Math.floor(stars || 0)));
+  return '★'.repeat(n) + '☆'.repeat(3 - n);
+}
+
+/**
+ * Human-readable lock reason when a course is still locked.
+ * @param {Progress} progress
+ * @param {CourseDef} course
+ */
+export function unlockHint(progress, course) {
+  if (isUnlocked(progress, course.id)) return '';
+  /** @type {string[]} */
+  const parts = [];
+  if (course.unlockAfter) {
+    const pre = getCourse(course.unlockAfter);
+    if (!bestFor(progress, course.unlockAfter).bestTime) {
+      parts.push(`完成「${pre.name}」`);
+    }
+  }
+  if (course.unlockStars != null && totalStars(progress) < course.unlockStars) {
+    parts.push(`累積 ${course.unlockStars}★（目前 ${totalStars(progress)}★）`);
+  }
+  if (course.unlockBestUnder) {
+    const { courseId, time } = course.unlockBestUnder;
+    const pre = getCourse(courseId);
+    const pb = bestFor(progress, courseId).bestTime;
+    if (pb == null || pb > time) {
+      parts.push(`「${pre.name}」PB ≤ ${formatTimePrecise(time)}`);
+    }
+  }
+  return parts.length ? parts.join(' · ') : '尚未解鎖';
+}
+
+/**
+ * Mutates progress.unlocked; returns newly unlocked ids.
+ * @param {Progress} progress
+ * @param {string} [justFinishedId]
+ * @returns {string[]}
+ */
+function applyUnlocks(progress, justFinishedId) {
+  /** @type {string[]} */
+  const unlocked = [];
+  const stars = totalStars(progress);
+
+  for (const c of COURSES) {
+    if (progress.unlocked.includes(c.id)) continue;
+
+    let ok = true;
+    if (c.unlockAfter) {
+      const viaFinish = justFinishedId === c.unlockAfter;
+      const viaBest = bestFor(progress, c.unlockAfter).bestTime != null;
+      if (!viaFinish && !viaBest) ok = false;
+    }
+    if (ok && c.unlockStars != null && stars < c.unlockStars) ok = false;
+    if (ok && c.unlockBestUnder) {
+      const pb = bestFor(progress, c.unlockBestUnder.courseId).bestTime;
+      if (pb == null || pb > c.unlockBestUnder.time) ok = false;
+    }
+    // Courses with no unlockAfter / unlockStars / unlockBestUnder stay locked
+    // unless they are the starter (archipelago already unlocked).
+    if (
+      ok &&
+      c.unlockAfter == null &&
+      c.unlockStars == null &&
+      c.unlockBestUnder == null &&
+      c.id !== 'archipelago'
+    ) {
+      ok = false;
+    }
+
+    if (ok) {
+      progress.unlocked.push(c.id);
+      unlocked.push(c.id);
+    }
+  }
+  return unlocked;
 }
 
 /**
@@ -224,35 +518,26 @@ export function bestFor(progress, courseId) {
  */
 export function recordFinish(progress, courseId, time, collisions) {
   const next = clone(progress);
-  if (!next.bests[courseId]) next.bests[courseId] = { bestTime: null, collisions: null };
+  if (!next.bests[courseId]) {
+    next.bests[courseId] = { bestTime: null, collisions: null, stars: 0 };
+  }
   const prev = next.bests[courseId].bestTime;
   const isRecord = prev == null || time < prev;
   if (isRecord) {
     next.bests[courseId].bestTime = time;
     next.bests[courseId].collisions = collisions;
   }
+  const earned = rateStars(courseId, time, collisions);
+  if (earned > (next.bests[courseId].stars || 0)) {
+    next.bests[courseId].stars = earned;
+  }
   next.races += 1;
   next.clears += 1;
 
-  /** @type {string[]} */
-  const unlocked = [];
-  for (const c of COURSES) {
-    if (c.unlockAfter === courseId && !next.unlocked.includes(c.id)) {
-      next.unlocked.push(c.id);
-      unlocked.push(c.id);
-    }
-  }
-  for (const c of COURSES) {
-    if (!c.unlockAfter || next.unlocked.includes(c.id)) continue;
-    const pre = next.bests[c.unlockAfter];
-    if (pre && pre.bestTime != null) {
-      next.unlocked.push(c.id);
-      unlocked.push(c.id);
-    }
-  }
+  const unlocked = applyUnlocks(next, courseId);
 
   saveProgress(next);
-  return { progress: next, isRecord, unlocked: [...new Set(unlocked)] };
+  return { progress: next, isRecord, unlocked: [...new Set(unlocked)], starsEarned: earned };
 }
 
 /** @param {Progress} progress */
@@ -327,8 +612,10 @@ export function sampleWind(profile, t) {
   };
 }
 
-/** Collision time penalty seconds (gusty course bites harder). */
+/** Collision time penalty seconds (gusty / hard courses bite harder). */
 export function collisionPenalty(courseId) {
+  const course = COURSES.find((c) => c.id === courseId);
+  if (course?.collisionPen != null) return course.collisionPen;
   return courseId === 'gusty-slalom' ? 6 : 4;
 }
 
