@@ -159,10 +159,19 @@ var ClubhouseJuice = (() => {
     if (typeof pattern === "number") return Math.max(1, Math.round(pattern * s));
     return pattern.map((n, i) => i % 2 === 1 ? n : Math.max(1, Math.round(n * s)));
   }
+  function canVibrate() {
+    if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return false;
+    try {
+      const activation = navigator.userActivation;
+      if (activation && activation.hasBeenActive === false) return false;
+    } catch (e) {
+    }
+    return true;
+  }
   function haptic(preset, strength = 1) {
     const settings = loadJuiceSettings();
     if (!settings.haptics) return;
-    if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+    if (!canVibrate()) return;
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     if (now - lastHapticAt < HAPTIC_MIN_INTERVAL_MS) return;
     lastHapticAt = now;
