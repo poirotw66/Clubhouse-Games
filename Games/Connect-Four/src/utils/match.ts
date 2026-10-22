@@ -3,6 +3,11 @@
  */
 
 import {
+  applyWinSeriesResult,
+  createWinSeries,
+  type WinSeriesState,
+} from '@clubhouse/shared/MatchSession';
+import {
   DEFAULT_SERIES_TARGET,
   SERIES_TARGETS,
   type PieceColor,
@@ -21,14 +26,33 @@ export interface SeriesState {
   seriesWinner: PieceColor | null;
 }
 
-export function createSeriesState(target: SeriesTarget = DEFAULT_SERIES_TARGET): SeriesState {
+function toPublic(state: WinSeriesState, target: SeriesTarget): SeriesState {
   return {
     target,
-    scores: [0, 0],
-    gamesPlayed: 0,
-    seriesOver: false,
-    seriesWinner: null,
+    scores: [state.scores[0], state.scores[1]],
+    gamesPlayed: state.gameIndex,
+    seriesOver: state.over,
+    seriesWinner:
+      state.winner === 0 ? 'red' : state.winner === 1 ? 'yellow' : null,
   };
+}
+
+function toShared(series: SeriesState): WinSeriesState {
+  return {
+    kind: 'firstTo',
+    winsNeeded: series.target,
+    length: null,
+    scores: [series.scores[0], series.scores[1]],
+    draws: 0,
+    gameIndex: series.gamesPlayed,
+    over: series.seriesOver,
+    winner:
+      series.seriesWinner === 'red' ? 0 : series.seriesWinner === 'yellow' ? 1 : null,
+  };
+}
+
+export function createSeriesState(target: SeriesTarget = DEFAULT_SERIES_TARGET): SeriesState {
+  return toPublic(createWinSeries({ kind: 'firstTo', value: target }), target);
 }
 
 export function seatForColor(color: PieceColor): 0 | 1 {
@@ -39,27 +63,11 @@ export function applyGameToSeries(
   series: SeriesState,
   winner: PieceColor | 'draw',
 ): SeriesState {
-  if (series.seriesOver) return series;
-  const scores: [number, number] = [...series.scores];
-  let seriesWinner: PieceColor | null = null;
-  let seriesOver = false;
-
-  if (winner !== 'draw') {
-    const seat = seatForColor(winner);
-    scores[seat] += 1;
-    if (scores[seat] >= series.target) {
-      seriesOver = true;
-      seriesWinner = winner;
-    }
-  }
-
-  return {
-    target: series.target,
-    scores,
-    gamesPlayed: series.gamesPlayed + 1,
-    seriesOver,
-    seriesWinner,
-  };
+  const side = winner === 'draw' ? 'draw' : seatForColor(winner);
+  return toPublic(
+    applyWinSeriesResult(toShared(series), side, { settleOnExhaust: false }),
+    series.target,
+  );
 }
 
 export function seriesProgressLabel(series: SeriesState): string {

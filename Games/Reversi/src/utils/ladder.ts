@@ -1,5 +1,11 @@
 /** Sequential opponent ladder — beat one to unlock the next. */
 
+import {
+  applyFrontierLoss,
+  applyFrontierWin,
+  isFrontierComplete,
+  isFrontierUnlocked,
+} from '@clubhouse/shared/opponentLadder';
 import { OPPONENTS, opponentByIndex, opponentCount, type OpponentId } from './opponents';
 import { PUZZLES } from './puzzles';
 
@@ -94,8 +100,7 @@ export function mergeLadder(raw: unknown): LadderProgress {
 }
 
 export function isOpponentUnlocked(index: number, clearedCount: number): boolean {
-  if (index < 0 || index >= opponentCount()) return false;
-  return index <= clearedCount;
+  return isFrontierUnlocked(index, clearedCount, opponentCount());
 }
 
 export function applyLadderWin(
@@ -105,25 +110,40 @@ export function applyLadderWin(
   const opp = opponentByIndex(opponentIndex);
   if (!opp) return { progress, newlyCleared: false };
 
-  const cleared = { ...progress.cleared, [opp.id]: true as const };
-  let clearedCount = progress.clearedCount;
-  let newlyCleared = false;
-
-  if (opponentIndex === clearedCount) {
-    clearedCount = Math.min(opponentCount(), clearedCount + 1);
-    newlyCleared = true;
-  } else if (!progress.cleared[opp.id]) {
-    newlyCleared = true;
-  }
+  const result = applyFrontierWin(
+    {
+      clearedCount: progress.clearedCount,
+      cleared: progress.cleared,
+      lastIndex: progress.lastIndex,
+    },
+    {
+      opponentIndex,
+      opponentId: opp.id,
+      opponentCount: opponentCount(),
+    },
+  );
 
   return {
-    progress: { ...progress, clearedCount, cleared, lastIndex: opponentIndex },
-    newlyCleared,
+    progress: {
+      ...progress,
+      clearedCount: result.progress.clearedCount,
+      cleared: result.progress.cleared as Record<string, true>,
+      lastIndex: result.progress.lastIndex,
+    },
+    newlyCleared: result.newlyCleared,
   };
 }
 
 export function applyLadderLoss(progress: LadderProgress, opponentIndex: number): LadderProgress {
-  return { ...progress, lastIndex: opponentIndex };
+  const next = applyFrontierLoss(
+    {
+      clearedCount: progress.clearedCount,
+      cleared: progress.cleared,
+      lastIndex: progress.lastIndex,
+    },
+    opponentIndex,
+  );
+  return { ...progress, lastIndex: next.lastIndex };
 }
 
 export function applyPuzzleSolve(
@@ -200,7 +220,7 @@ export function saveLadder(
 }
 
 export function isLadderComplete(progress: LadderProgress): boolean {
-  return progress.clearedCount >= opponentCount();
+  return isFrontierComplete(progress, opponentCount());
 }
 
 export type { OpponentId };

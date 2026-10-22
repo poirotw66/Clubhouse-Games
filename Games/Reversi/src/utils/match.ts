@@ -1,5 +1,13 @@
 /** Best-of series match state for vs-bot / ladder games. */
 
+import {
+  applyWinSeriesResult,
+  bestOfLabel,
+  createWinSeries,
+  winSeriesScoreLine as sharedScoreLine,
+  type WinSeriesState,
+} from '@clubhouse/shared/MatchSession';
+
 export type SeriesLength = 1 | 3 | 5;
 
 export const SERIES_OPTIONS: SeriesLength[] = [1, 3, 5];
@@ -17,54 +25,48 @@ export interface SeriesMatch {
   winner: 'player' | 'cpu' | null;
 }
 
-export function createSeries(length: SeriesLength): SeriesMatch {
-  const winsNeeded = Math.ceil(length / 2) as 1 | 2 | 3;
+function toPublic(state: WinSeriesState): SeriesMatch {
   return {
-    winsNeeded,
-    length,
-    playerWins: 0,
-    cpuWins: 0,
-    draws: 0,
-    gameIndex: 0,
-    over: false,
-    winner: null,
+    winsNeeded: state.winsNeeded as 1 | 2 | 3,
+    length: (state.length ?? 1) as SeriesLength,
+    playerWins: state.scores[0],
+    cpuWins: state.scores[1],
+    draws: state.draws,
+    gameIndex: state.gameIndex,
+    over: state.over,
+    winner: state.winner === 0 ? 'player' : state.winner === 1 ? 'cpu' : null,
   };
 }
 
+function toShared(match: SeriesMatch): WinSeriesState {
+  return {
+    kind: 'bestOf',
+    winsNeeded: match.winsNeeded,
+    length: match.length,
+    scores: [match.playerWins, match.cpuWins],
+    draws: match.draws,
+    gameIndex: match.gameIndex,
+    over: match.over,
+    winner: match.winner === 'player' ? 0 : match.winner === 'cpu' ? 1 : null,
+  };
+}
+
+export function createSeries(length: SeriesLength): SeriesMatch {
+  return toPublic(createWinSeries({ kind: 'bestOf', value: length }));
+}
+
 export function seriesLabel(length: SeriesLength): string {
-  if (length === 1) return '單局';
-  if (length === 3) return '三戰兩勝';
-  return '五戰三勝';
+  return bestOfLabel(length);
 }
 
 export function applySeriesResult(
   match: SeriesMatch,
   result: 'player' | 'cpu' | 'draw',
 ): SeriesMatch {
-  if (match.over) return match;
-  const next: SeriesMatch = {
-    ...match,
-    gameIndex: match.gameIndex + 1,
-    playerWins: match.playerWins + (result === 'player' ? 1 : 0),
-    cpuWins: match.cpuWins + (result === 'cpu' ? 1 : 0),
-    draws: match.draws + (result === 'draw' ? 1 : 0),
-  };
-
-  if (next.playerWins >= match.winsNeeded) {
-    return { ...next, over: true, winner: 'player' };
-  }
-  if (next.cpuWins >= match.winsNeeded) {
-    return { ...next, over: true, winner: 'cpu' };
-  }
-  // Exhausted all games without either reaching winsNeeded (draw-heavy series).
-  if (next.gameIndex >= match.length) {
-    if (next.playerWins > next.cpuWins) return { ...next, over: true, winner: 'player' };
-    if (next.cpuWins > next.playerWins) return { ...next, over: true, winner: 'cpu' };
-    return { ...next, over: true, winner: null };
-  }
-  return next;
+  const side = result === 'player' ? 0 : result === 'cpu' ? 1 : 'draw';
+  return toPublic(applyWinSeriesResult(toShared(match), side));
 }
 
 export function seriesScoreLine(match: SeriesMatch): string {
-  return `${match.playerWins} — ${match.cpuWins}` + (match.draws ? `（和 ${match.draws}）` : '');
+  return sharedScoreLine(toShared(match), { includeDraws: true });
 }

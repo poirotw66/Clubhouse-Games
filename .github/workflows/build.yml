@@ -127,6 +127,10 @@ jobs:
         if: matrix.id == 'rest-1' || matrix.id == 'selective'
         run: npm run check:shared-styles
 
+      - name: Shared MatchSession / opponentLadder checks
+        if: matrix.id == 'rest-1' || matrix.id == 'selective'
+        run: npm run check:shared
+
       - name: Verify local dev server MIME types
         if: matrix.id == 'rest-1' || matrix.id == 'selective'
         run: npm run check:dev-server-mime

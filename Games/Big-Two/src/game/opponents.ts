@@ -3,6 +3,7 @@
  * Each opponent wears a distinct memory / discard style.
  */
 
+import { isFrontierUnlocked } from '@clubhouse/shared/opponentLadder';
 import type {
   DifficultyId,
   MemoryStyle,
@@ -87,7 +88,7 @@ export function opponentIndexOf(id: NamedOpponentId): number {
 
 /** Frontier: indices < clearedCount are cleared; index === clearedCount is playable. */
 export function isOpponentUnlocked(index: number, clearedCount: number): boolean {
-  return index <= clearedCount;
+  return isFrontierUnlocked(index, clearedCount, NAMED_OPPONENTS.length);
 }
 
 export function stylePersonality(style: MemoryStyle): PersonalityId {

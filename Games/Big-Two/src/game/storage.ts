@@ -1,3 +1,4 @@
+import { applyFrontierResult } from '@clubhouse/shared/opponentLadder';
 import { formatKeyFor, isSeriesMode } from './match';
 import { opponentCount } from './opponents';
 import type {
@@ -374,17 +375,15 @@ export function applyLadderResult(
   won: boolean,
   opponentId: NamedOpponentId,
 ): LadderProgress {
-  const cleared = { ...progress.cleared };
-  let clearedCount = progress.clearedCount;
-  if (won) {
-    cleared[opponentId] = true;
-    if (opponentIndex === clearedCount && clearedCount < opponentCount()) {
-      clearedCount = opponentIndex + 1;
-    }
-  }
+  const next = applyFrontierResult(progress, {
+    opponentIndex,
+    opponentId,
+    won,
+    opponentCount: opponentCount(),
+  });
   return {
-    clearedCount,
-    cleared,
-    lastIndex: opponentIndex,
+    clearedCount: next.clearedCount,
+    cleared: next.cleared as Partial<Record<NamedOpponentId, boolean>>,
+    lastIndex: next.lastIndex,
   };
 }

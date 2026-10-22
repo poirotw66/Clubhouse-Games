@@ -1,3 +1,15 @@
+import {
+  advanceScoreSeriesHand,
+  applyScoreHandResult,
+  createScoreSeries,
+  decideScoreSeriesWinner,
+  formatKeyFor as sharedFormatKeyFor,
+  isScoreSeriesComplete,
+  isSeriesMode as sharedIsSeriesMode,
+  scoreSeriesProgressLabel,
+  seatWithMost,
+  type ScoreSeriesConfig,
+} from '@clubhouse/shared/MatchSession';
 import { DAILY_HANDS } from './daily';
 import { deal, outcome } from './engine';
 import { ladderSeatPersonalities, opponentById } from './opponents';
@@ -63,25 +75,14 @@ export function defaultMatchConfig(
 }
 
 export function isSeriesMode(mode: MatchMode): boolean {
-  return mode === 'hands' || mode === 'target' || mode === 'daily';
+  return sharedIsSeriesMode(mode);
 }
 
 export function formatKeyFor(config: MatchConfig): FormatKey | null {
-  if (config.mode === 'single') return 'single';
-  if (config.mode === 'daily') return 'daily';
-  if (config.mode === 'hands') {
-    if (config.hands === 4) return 'hands-4';
-    if (config.hands === 8) return 'hands-8';
-    if (config.hands === 12) return 'hands-12';
-    return null;
-  }
-  if (config.mode === 'target') {
-    if (config.target === 50) return 'target-50';
-    if (config.target === 100) return 'target-100';
-    if (config.target === 200) return 'target-200';
-    return null;
-  }
-  return null;
+  return sharedFormatKeyFor(config, {
+    handLengths: MATCH_LENGTHS,
+    targetScores: TARGET_SCORES,
+  }) as FormatKey | null;
 }
 
 /**
@@ -104,20 +105,16 @@ export function handSeed(baseCode: string, handIndex: number): string {
 }
 
 export function createMatch(config: MatchConfig): MatchState {
-  const seedCode = normalizeSeedCode(config.seedCode || `m${Date.now().toString(36)}`);
-  return {
-    config: {
-      ...config,
-      seedCode,
-      rules: { ...config.rules },
-      ladderOpponentId: config.ladderOpponentId ?? null,
-    },
-    handIndex: 0,
-    balances: Array.from({ length: SEATS }, () => 0),
-    history: [],
-    phase: 'playing',
-    winner: null,
-  };
+  return createScoreSeries({
+    config,
+    seatCount: SEATS,
+    normalizeConfig: (cfg) => ({
+      ...cfg,
+      seedCode: normalizeSeedCode(cfg.seedCode || `m${Date.now().toString(36)}`),
+      rules: { ...cfg.rules },
+      ladderOpponentId: cfg.ladderOpponentId ?? null,
+    }),
+  });
 }
 
 export function seatPersonalitiesFor(config: MatchConfig): SeatPersonalityMap | undefined {
@@ -170,10 +167,7 @@ export function applyHandResult(
   seedCode: string,
   state?: GameState,
 ): MatchState {
-  if (match.phase === 'matchOver') return match;
-
   const deltas = handDeltas(result);
-  const balances = match.balances.map((chip, seat) => chip + deltas[seat]);
   const extras = state
     ? handExtras(state, result.winner)
     : { bombs: Array.from({ length: SEATS }, () => 0), winnerPlayCount: 0 };
@@ -187,29 +181,7 @@ export function applyHandResult(
     bombs: extras.bombs,
     winnerPlayCount: extras.winnerPlayCount,
   };
-  const history = [...match.history, record];
-  const nextHand = match.handIndex + 1;
-
-  const matchWinner = decideMatchWinner(match.config, balances, nextHand);
-  if (matchWinner !== null) {
-    return {
-      ...match,
-      balances,
-      history,
-      handIndex: nextHand,
-      phase: 'matchOver',
-      winner: matchWinner,
-    };
-  }
-
-  return {
-    ...match,
-    balances,
-    history,
-    handIndex: nextHand,
-    phase: 'handOver',
-    winner: null,
-  };
+  return applyScoreHandResult(match, deltas, record, { dailyHands: DAILY_HANDS });
 }
 
 /**
@@ -223,34 +195,14 @@ export function decideMatchWinner(
   balances: readonly number[],
   handsPlayed: number,
 ): Seat | null {
-  if (config.mode === 'single') {
-    if (handsPlayed < 1) return null;
-    return seatWithMost(balances);
-  }
-
-  if (config.mode === 'daily') {
-    if (handsPlayed < DAILY_HANDS) return null;
-    return seatWithMost(balances);
-  }
-
-  if (config.mode === 'target') {
-    const reached = balances
-      .map((chip, seat) => ({ chip, seat }))
-      .filter((entry) => entry.chip >= config.target)
-      .sort((a, b) => b.chip - a.chip || a.seat - b.seat);
-    return reached.length > 0 ? reached[0].seat : null;
-  }
-
-  if (handsPlayed < config.hands) return null;
-  return seatWithMost(balances);
-}
-
-function seatWithMost(balances: readonly number[]): Seat {
-  let best = 0;
-  for (let seat = 1; seat < balances.length; seat++) {
-    if (balances[seat] > balances[best]) best = seat;
-  }
-  return best;
+  const seriesConfig: ScoreSeriesConfig = {
+    mode: config.mode,
+    hands: config.hands,
+    target: config.target,
+    dailyHands: DAILY_HANDS,
+  };
+  const winner = decideScoreSeriesWinner(seriesConfig, balances, handsPlayed);
+  return winner as Seat | null;
 }
 
 /**
@@ -272,8 +224,8 @@ export function computeMatchMvp(match: MatchState): MatchMvp | null {
     finishPlays.push({ seat: hand.winner, plays: hand.winnerPlayCount ?? 99 });
   }
 
-  let fastestSeat = finishPlays[0].seat;
-  let fastestPlays = finishPlays[0].plays;
+  let fastestSeat = finishPlays[0]!.seat;
+  let fastestPlays = finishPlays[0]!.plays;
   for (const entry of finishPlays) {
     if (entry.plays < fastestPlays || (entry.plays === fastestPlays && entry.seat < fastestSeat)) {
       fastestPlays = entry.plays;
@@ -284,7 +236,7 @@ export function computeMatchMvp(match: MatchState): MatchMvp | null {
   let mostBombsSeat = 0;
   for (let seat = 1; seat < seats; seat++) {
     if (
-      bombTotals[seat] > bombTotals[mostBombsSeat] ||
+      bombTotals[seat]! > bombTotals[mostBombsSeat]! ||
       (bombTotals[seat] === bombTotals[mostBombsSeat] && seat < mostBombsSeat)
     ) {
       mostBombsSeat = seat;
@@ -296,15 +248,15 @@ export function computeMatchMvp(match: MatchState): MatchMvp | null {
   const running = Array.from({ length: seats }, () => 0);
   for (const hand of match.history) {
     for (let seat = 0; seat < seats; seat++) {
-      running[seat] += hand.deltas[seat] ?? 0;
-      if (running[seat] < trough[seat]) trough[seat] = running[seat];
+      running[seat]! += hand.deltas[seat] ?? 0;
+      if (running[seat]! < trough[seat]!) trough[seat] = running[seat]!;
     }
   }
-  const recoveries = match.balances.map((final, seat) => final - trough[seat]);
+  const recoveries = match.balances.map((final, seat) => final - trough[seat]!);
   let biggestComebackSeat = 0;
   for (let seat = 1; seat < seats; seat++) {
     if (
-      recoveries[seat] > recoveries[biggestComebackSeat] ||
+      recoveries[seat]! > recoveries[biggestComebackSeat]! ||
       (recoveries[seat] === recoveries[biggestComebackSeat] && seat < biggestComebackSeat)
     ) {
       biggestComebackSeat = seat;
@@ -312,41 +264,34 @@ export function computeMatchMvp(match: MatchState): MatchMvp | null {
   }
 
   return {
-    fastestSeat,
+    fastestSeat: fastestSeat as Seat,
     fastestPlays,
-    mostBombsSeat,
-    mostBombsCount: bombTotals[mostBombsSeat],
-    biggestComebackSeat,
-    biggestComebackDelta: recoveries[biggestComebackSeat],
-    chipLeaderSeat: seatWithMost(match.balances),
+    mostBombsSeat: mostBombsSeat as Seat,
+    mostBombsCount: bombTotals[mostBombsSeat]!,
+    biggestComebackSeat: biggestComebackSeat as Seat,
+    biggestComebackDelta: recoveries[biggestComebackSeat]!,
+    chipLeaderSeat: seatWithMost(match.balances) as Seat,
     chipLeaderTotal: Math.max(...match.balances),
   };
 }
 
 export function advanceToNextHand(match: MatchState): MatchState {
-  if (match.phase !== 'handOver') return match;
-  return { ...match, phase: 'playing' };
+  return advanceScoreSeriesHand(match);
 }
 
 export function matchProgressLabel(match: MatchState): string {
-  if (match.config.mode === 'single') return '單局';
-  if (match.config.mode === 'daily') {
-    const current = Math.min(match.handIndex + 1, DAILY_HANDS);
-    return `每日 ${current}／${DAILY_HANDS} 局`;
-  }
-  if (match.config.mode === 'hands') {
-    const current = Math.min(match.handIndex + 1, match.config.hands);
-    return `第 ${current}／${match.config.hands} 局`;
-  }
-  return `目標 ${match.config.target} 分`;
+  return scoreSeriesProgressLabel(match, {
+    unit: '局',
+    dailyTotal: DAILY_HANDS,
+  });
 }
 
 export function humanMatchDelta(match: MatchState): number {
-  return match.balances[HUMAN];
+  return match.balances[HUMAN]!;
 }
 
 export function isMatchComplete(match: MatchState): boolean {
-  return match.phase === 'matchOver';
+  return isScoreSeriesComplete(match);
 }
 
 /** Re-export so callers that only import match can still resolve outcomes in tests. */

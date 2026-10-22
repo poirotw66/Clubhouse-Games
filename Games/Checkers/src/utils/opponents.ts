@@ -2,6 +2,7 @@
  * CPU roster with distinct styles and an unlock ladder.
  */
 
+import { isChainUnlocked } from '@clubhouse/shared/opponentLadder';
 import type { BotStyle, Difficulty } from './checkersLogic';
 
 export type OpponentId =
@@ -136,7 +137,5 @@ export function isOpponentUnlocked(
   beaten: ReadonlySet<OpponentId> | readonly OpponentId[],
 ): boolean {
   const opp = getOpponent(id);
-  if (!opp.unlockAfter) return true;
-  const set = beaten instanceof Set ? beaten : new Set(beaten);
-  return set.has(opp.unlockAfter);
+  return isChainUnlocked(opp.unlockAfter, beaten);
 }
