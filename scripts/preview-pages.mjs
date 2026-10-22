@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const prefix = `/${process.env.REPO_NAME || 'Clubhouse-Games'}/`;
 const port = Number(process.env.PREVIEW_PORT || 4173);
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.css': 'text/css',
+// .mjs must be text/javascript so browsers accept Astra ES modules (borderland/archer/train).
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript',
+  '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css',
   '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
   '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.md': 'text/markdown; charset=utf-8' };
 

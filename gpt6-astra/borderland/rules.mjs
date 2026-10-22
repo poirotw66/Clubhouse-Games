@@ -3,10 +3,11 @@
  * Keep this free of DOM so check-borderland.mjs can import it in Node.
  */
 
-export const STORAGE_KEY = "dust-riot-v2";
-export const LEGACY_STORAGE_KEY = "dust-riot-v1";
+export const STORAGE_KEY = "dust-riot-v3";
+export const LEGACY_STORAGE_KEY = "dust-riot-v2";
+export const LEGACY_STORAGE_KEY_V1 = "dust-riot-v1";
 
-/** @typedef {"easy"|"normal"|"hard"} DifficultyId */
+/** @typedef {"easy"|"normal"|"hard"|"daily"} DifficultyId */
 /** @typedef {"smg"|"rifle"|"shotgun"} WeaponId */
 /** @typedef {"grunt"|"rusher"|"mortar"|"shield"} EnemyKind */
 
@@ -86,12 +87,48 @@ export const DIFFICULTIES = {
     betweenWaveHeal: 10,
     pickupHeal: 22,
   },
+  /**
+   * Daily uses normal combat scalars as the base; banned weapon / focus
+   * enemy / mutation come from dailyChallenge(Asia/Taipei date).
+   */
+  daily: {
+    id: "daily",
+    label: "每日突變",
+    blurb: "以台北日為種子：禁用武器、主力兵種、一則突變規則。",
+    enemyHpBase: 65,
+    enemyHpPerWave: 7,
+    enemySpeedBase: 1.6,
+    enemySpeedPerWave: 0.14,
+    enemySpeedCapAdd: 1.8,
+    enemyDamage: 11,
+    spawnBase: 3,
+    spawnPerWave: 2,
+    spawnCap: 22,
+    fireCooldownBase: 2,
+    fireCooldownWave: 0.06,
+    fireCooldownMin: 0.75,
+    projectileSpeedBase: 11,
+    projectileSpeedWave: 1,
+    clearWave: 8,
+    startingHp: 100,
+    betweenWaveHeal: 15,
+    pickupHeal: 28,
+  },
 };
 
-export const DIFFICULTY_ORDER = /** @type {DifficultyId[]} */ ([
+/** Lobby difficulty buttons (daily is separate). */
+export const DIFFICULTY_ORDER = /** @type {Exclude<DifficultyId, "daily">[]} */ ([
   "easy",
   "normal",
   "hard",
+]);
+
+/** All modes that track best/clears, including daily. */
+export const MODE_ORDER = /** @type {DifficultyId[]} */ ([
+  "easy",
+  "normal",
+  "hard",
+  "daily",
 ]);
 
 /**
@@ -318,20 +355,36 @@ export function isEliteWave(wave) {
 /**
  * Pick enemy kinds for a wave. Mix unlocks with wave progress;
  * elite waves guarantee one elite + more pressure units.
+ * Optional focusKind biases slots toward that kind once unlocked.
+ * eliteEvery overrides the default ELITE_EVERY cadence (daily mutations).
  */
-export function pickWaveComposition(wave, count) {
+export function pickWaveComposition(
+  wave,
+  count,
+  focusKind = null,
+  eliteEvery = ELITE_EVERY,
+) {
   /** @type {{ kind: EnemyKind, elite: boolean }[]} */
   const list = [];
-  const eliteWave = isEliteWave(wave);
+  const eliteWave = isEliteWaveFor(wave, eliteEvery);
   const pool = /** @type {EnemyKind[]} */ (["grunt"]);
   if (wave >= 2) pool.push("rusher");
   if (wave >= 3) pool.push("mortar");
   if (wave >= 4) pool.push("shield");
+  const focus =
+    focusKind && ENEMY_KINDS[focusKind] && pool.includes(focusKind)
+      ? focusKind
+      : null;
 
   let remaining = Math.max(0, Math.floor(count));
   if (eliteWave && remaining > 0) {
-    const eliteKind =
-      wave >= 8 ? "shield" : wave >= 4 ? "mortar" : "rusher";
+    const eliteKind = focus
+      ? focus
+      : wave >= 8
+        ? "shield"
+        : wave >= 4
+          ? "mortar"
+          : "rusher";
     list.push({ kind: eliteKind, elite: true });
     remaining--;
   }
@@ -342,17 +395,440 @@ export function pickWaveComposition(wave, count) {
     if (wave >= 5 && i % 3 === 0 && pool.includes("rusher")) kind = "rusher";
     if (wave >= 6 && i % 4 === 1 && pool.includes("mortar")) kind = "mortar";
     if (wave >= 7 && i % 5 === 2 && pool.includes("shield")) kind = "shield";
+    if (focus && i % 5 < 2) kind = focus;
     list.push({ kind, elite: false });
   }
   return list;
 }
 
+/* ---- Asia/Taipei daily mutation ---- */
+
+const TAIPEI_OFFSET_MINUTES = 8 * 60;
+
+/** Calendar date YYYY-MM-DD in Asia/Taipei. */
+export function taipeiDateKey(now = new Date()) {
+  const shifted = new Date(now.getTime() + TAIPEI_OFFSET_MINUTES * 60_000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export function previousTaipeiDay(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  utc.setUTCDate(utc.getUTCDate() - 1);
+  return taipeiDateKey(new Date(utc.getTime() - TAIPEI_OFFSET_MINUTES * 60_000));
+}
+
+/** Stable 1..999998 seed from a string. */
+export function seedFromString(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % 999999 || 1;
+}
+
+export function dailySeed(date = new Date()) {
+  return seedFromString(`dust-riot-daily:${taipeiDateKey(date)}`);
+}
+
+/** Deterministic PRNG (mulberry32). */
+export function makeRng(seed) {
+  let a = (seed >>> 0) || 1;
+  return function rng() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Daily mutation rules — one is picked per Taipei day.
+ * Effects fold into applyDailyMutation / elite cadence / fog.
+ */
+export const DAILY_MUTATIONS = {
+  ammo_drought: {
+    id: "ammo_drought",
+    label: "彈匣乾旱",
+    blurb: "彈匣容量只剩六成，每一發都要算準。",
+    magMul: 0.6,
+    enemyHpMul: 1,
+    enemySpeedMul: 1,
+    enemyDamageMul: 1,
+    reloadMul: 1,
+    fogNear: false,
+    eliteEvery: ELITE_EVERY,
+  },
+  thick_fog: {
+    id: "thick_fog",
+    label: "濃霧壓境",
+    blurb: "視線縮短，遠距點殺變難。",
+    magMul: 1,
+    enemyHpMul: 1,
+    enemySpeedMul: 1,
+    enemyDamageMul: 1,
+    reloadMul: 1,
+    fogNear: true,
+    eliteEvery: ELITE_EVERY,
+  },
+  blood_rush: {
+    id: "blood_rush",
+    label: "血色衝鋒",
+    blurb: "敵軍移速提高，衝鋒壓力更大。",
+    magMul: 1,
+    enemyHpMul: 1,
+    enemySpeedMul: 1.22,
+    enemyDamageMul: 1,
+    reloadMul: 1,
+    fogNear: false,
+    eliteEvery: ELITE_EVERY,
+  },
+  iron_hide: {
+    id: "iron_hide",
+    label: "鐵皮外包",
+    blurb: "敵人體力加厚，清場更慢。",
+    magMul: 1,
+    enemyHpMul: 1.28,
+    enemySpeedMul: 1,
+    enemyDamageMul: 1,
+    reloadMul: 1,
+    fogNear: false,
+    eliteEvery: ELITE_EVERY,
+  },
+  glass_line: {
+    id: "glass_line",
+    label: "玻璃防線",
+    blurb: "敵彈更痛，但補血箱也更慷慨。",
+    magMul: 1,
+    enemyHpMul: 1,
+    enemySpeedMul: 1,
+    enemyDamageMul: 1.35,
+    reloadMul: 1,
+    fogNear: false,
+    eliteEvery: ELITE_EVERY,
+    pickupHealMul: 1.4,
+  },
+  slow_hands: {
+    id: "slow_hands",
+    label: "鏽蝕槍機",
+    blurb: "換彈變慢，節奏被打亂。",
+    magMul: 1,
+    enemyHpMul: 1,
+    enemySpeedMul: 1,
+    enemyDamageMul: 1,
+    reloadMul: 1.4,
+    fogNear: false,
+    eliteEvery: ELITE_EVERY,
+  },
+  elite_tide: {
+    id: "elite_tide",
+    label: "精英潮汐",
+    blurb: "每 2 波就有精英壓陣。",
+    magMul: 1,
+    enemyHpMul: 1,
+    enemySpeedMul: 1,
+    enemyDamageMul: 1,
+    reloadMul: 1,
+    fogNear: false,
+    eliteEvery: 2,
+  },
+};
+
+export const MUTATION_ORDER = Object.keys(DAILY_MUTATIONS);
+
+/**
+ * @returns {{
+ *   dateKey: string,
+ *   seed: number,
+ *   bannedWeapon: WeaponId,
+ *   focusEnemy: EnemyKind,
+ *   mutation: typeof DAILY_MUTATIONS[keyof typeof DAILY_MUTATIONS],
+ * }}
+ */
+export function dailyChallenge(date = new Date()) {
+  const dateKey = taipeiDateKey(date);
+  const seed = dailySeed(date);
+  const rng = makeRng(seed);
+  const bannedWeapon =
+    WEAPON_ORDER[Math.floor(rng() * WEAPON_ORDER.length)];
+  const focusEnemy =
+    ENEMY_KIND_ORDER[Math.floor(rng() * ENEMY_KIND_ORDER.length)];
+  const mutation =
+    DAILY_MUTATIONS[
+      MUTATION_ORDER[Math.floor(rng() * MUTATION_ORDER.length)]
+    ];
+  return { dateKey, seed, bannedWeapon, focusEnemy, mutation };
+}
+
+export function getMutation(id) {
+  return DAILY_MUTATIONS[id] || null;
+}
+
+/**
+ * Fold daily mutation into difficulty scalars used by the loop.
+ * @param {ReturnType<typeof getDifficulty>} difficulty
+ * @param {typeof DAILY_MUTATIONS[keyof typeof DAILY_MUTATIONS]|null} mutation
+ */
+export function applyDailyMutation(difficulty, mutation) {
+  const m = mutation || null;
+  if (!m) {
+    return {
+      ...difficulty,
+      magMul: 1,
+      reloadMul: 1,
+      enemyHpMul: 1,
+      enemySpeedMul: 1,
+      enemyDamageMul: 1,
+      pickupHealMul: 1,
+      fogNear: false,
+      eliteEvery: ELITE_EVERY,
+    };
+  }
+  return {
+    ...difficulty,
+    enemyDamage: Math.round(difficulty.enemyDamage * (m.enemyDamageMul || 1)),
+    pickupHeal: Math.round(
+      difficulty.pickupHeal * (m.pickupHealMul || 1),
+    ),
+    magMul: m.magMul || 1,
+    reloadMul: m.reloadMul || 1,
+    enemyHpMul: m.enemyHpMul || 1,
+    enemySpeedMul: m.enemySpeedMul || 1,
+    enemyDamageMul: m.enemyDamageMul || 1,
+    pickupHealMul: m.pickupHealMul || 1,
+    fogNear: !!m.fogNear,
+    eliteEvery: m.eliteEvery || ELITE_EVERY,
+  };
+}
+
+export function isEliteWaveFor(wave, eliteEvery = ELITE_EVERY) {
+  const n = Math.max(1, Math.floor(eliteEvery) || ELITE_EVERY);
+  return wave > 0 && wave % n === 0;
+}
+
+/* ---- Permanent meta unlocks (scrap points) ---- */
+
+/**
+ * One-time permanent unlocks — starting gear or small passives.
+ * Bought with scrap earned from clears / milestones.
+ */
+export const META_UNLOCKS = {
+  startBandage: {
+    id: "startBandage",
+    label: "開局繃帶",
+    blurb: "每局開場生命值 +15。",
+    cost: 40,
+    startingHpBonus: 15,
+  },
+  extraMag: {
+    id: "extraMag",
+    label: "備用彈匣",
+    blurb: "開局彈匣容量 +40%（向上取整）。",
+    cost: 50,
+    magMul: 1.4,
+  },
+  quickHands: {
+    id: "quickHands",
+    label: "快手換彈",
+    blurb: "換彈時間 −15%。",
+    cost: 55,
+    reloadMul: 0.85,
+  },
+  scrapVest: {
+    id: "scrapVest",
+    label: "廢鐵背心",
+    blurb: "每局第一次受傷無效。",
+    cost: 70,
+    absorbFirstHit: true,
+  },
+  fieldMedic: {
+    id: "fieldMedic",
+    label: "戰地醫包",
+    blurb: "波次間補血 +8。",
+    cost: 45,
+    betweenWaveHealBonus: 8,
+  },
+  keenEye: {
+    id: "keenEye",
+    label: "銳眼瞄具",
+    blurb: "爆頭傷害倍率 +0.25。",
+    cost: 80,
+    headMultBonus: 0.25,
+  },
+  scavKit: {
+    id: "scavKit",
+    label: "拾荒套件",
+    blurb: "綠箱補血 +10。",
+    cost: 35,
+    pickupHealBonus: 10,
+  },
+};
+
+export const META_UNLOCK_ORDER = Object.keys(META_UNLOCKS);
+
+/** @typedef {keyof typeof META_UNLOCKS} MetaUnlockId */
+
+export function emptyUnlocked() {
+  /** @type {Record<string, boolean>} */
+  const unlocked = {};
+  for (const id of META_UNLOCK_ORDER) unlocked[id] = false;
+  return unlocked;
+}
+
+export function unlockCost(id) {
+  return META_UNLOCKS[id]?.cost ?? Infinity;
+}
+
+export function isUnlockOwned(stats, id) {
+  return !!(stats?.unlocked && stats.unlocked[id]);
+}
+
+/**
+ * Spend scrap on a one-time unlock. Returns { ok, stats, reason? }.
+ */
+export function buyMeta(stats, unlockId) {
+  const next = migrateStats(stats);
+  const def = META_UNLOCKS[unlockId];
+  if (!def) return { ok: false, stats: next, reason: "unknown" };
+  if (next.unlocked[unlockId]) return { ok: false, stats: next, reason: "owned" };
+  if (next.scrap < def.cost) return { ok: false, stats: next, reason: "scrap" };
+  next.scrap -= def.cost;
+  next.unlocked[unlockId] = true;
+  return { ok: true, stats: next };
+}
+
+/**
+ * Aggregate permanent modifiers from owned unlocks.
+ */
+export function metaRunBonuses(stats) {
+  const m = migrateStats(stats);
+  let startingHpBonus = 0;
+  let magMul = 1;
+  let reloadMul = 1;
+  let absorbFirstHit = false;
+  let betweenWaveHealBonus = 0;
+  let headMultBonus = 0;
+  let pickupHealBonus = 0;
+  for (const id of META_UNLOCK_ORDER) {
+    if (!m.unlocked[id]) continue;
+    const def = META_UNLOCKS[id];
+    startingHpBonus += def.startingHpBonus || 0;
+    if (def.magMul) magMul *= def.magMul;
+    if (def.reloadMul) reloadMul *= def.reloadMul;
+    if (def.absorbFirstHit) absorbFirstHit = true;
+    betweenWaveHealBonus += def.betweenWaveHealBonus || 0;
+    headMultBonus += def.headMultBonus || 0;
+    pickupHealBonus += def.pickupHealBonus || 0;
+  }
+  return {
+    startingHpBonus,
+    magMul,
+    reloadMul,
+    absorbFirstHit,
+    betweenWaveHealBonus,
+    headMultBonus,
+    pickupHealBonus,
+  };
+}
+
+/**
+ * Effective weapon for a run after daily mag/reload + meta bonuses.
+ */
+export function effectiveWeapon(weaponId, { mutation = null, meta = null } = {}) {
+  const base = getWeapon(weaponId);
+  const mut = mutation || { magMul: 1, reloadMul: 1 };
+  const bonuses = meta || {
+    magMul: 1,
+    reloadMul: 1,
+    headMultBonus: 0,
+  };
+  const magMul = (mut.magMul || 1) * (bonuses.magMul || 1);
+  const reloadMul = (mut.reloadMul || 1) * (bonuses.reloadMul || 1);
+  return {
+    ...base,
+    magSize: Math.max(1, Math.round(base.magSize * magMul)),
+    reloadSec: Math.max(0.4, base.reloadSec * reloadMul),
+    headMult: base.headMult + (bonuses.headMultBonus || 0),
+  };
+}
+
+/**
+ * Scrap awarded for a finished run (clears + wave milestones).
+ */
+export function scrapForRun({ mode, wave, score, won }) {
+  const d = getDifficulty(mode);
+  let scrap = Math.floor(Math.max(0, wave) * 2 + Math.max(0, score) / 400);
+  if (wave >= 3) scrap += 5;
+  if (wave >= 5) scrap += 8;
+  if (wave >= d.clearWave) scrap += 12;
+  if (won) {
+    if (mode === "easy") scrap += 25;
+    else if (mode === "normal") scrap += 40;
+    else if (mode === "hard") scrap += 65;
+    else if (mode === "daily") scrap += 45;
+  }
+  return Math.max(0, Math.floor(scrap));
+}
+
+/**
+ * Consecutive Taipei days with a recorded daily run (play streak).
+ * @param {string[]} playDates
+ * @param {string} today
+ */
+export function computeDailyStreak(playDates, today) {
+  const days = new Set(
+    (Array.isArray(playDates) ? playDates : []).filter(
+      (k) => typeof k === "string" && /^\d{4}-\d{2}-\d{2}$/.test(k),
+    ),
+  );
+  let cursor = days.has(today) ? today : previousTaipeiDay(today);
+  if (!days.has(cursor)) return 0;
+  let streak = 0;
+  while (days.has(cursor)) {
+    streak += 1;
+    cursor = previousTaipeiDay(cursor);
+  }
+  return streak;
+}
+
+/**
+ * Traditional Chinese share blurb for today's daily run.
+ */
+export function formatDailyShareText({
+  dateKey,
+  wave,
+  score,
+  won,
+  streak,
+  bannedWeapon,
+  focusEnemy,
+  mutation,
+}) {
+  const w = getWeapon(bannedWeapon);
+  const e = getEnemyKind(focusEnemy);
+  const mut = typeof mutation === "string" ? getMutation(mutation) : mutation;
+  const lines = [
+    `DUST RIOT 每日突變 ${dateKey}`,
+    `波次 ${wave} · ${score.toLocaleString()} 分 · ${won ? "通關" : "戰敗"}`,
+    `禁用：${w.label} · 主力：${e.label} · 突變：${mut?.label || "—"}`,
+    `連續 ${streak} 天`,
+    `#DustRiot #ClubhouseGames`,
+  ];
+  return lines.join("\n");
+}
+
 /**
  * Damage after range falloff. Pellets each call this independently.
+ * Optional weaponOverride lets callers pass effectiveWeapon(...) (meta/daily).
  * Returns { damage, inRange }.
  */
-export function weaponHitDamage(weaponId, distance, isHead) {
-  const w = getWeapon(weaponId);
+export function weaponHitDamage(weaponId, distance, isHead, weaponOverride = null) {
+  const w = weaponOverride || getWeapon(weaponId);
   if (distance > w.range) return { damage: 0, inRange: false };
   let mult = 1;
   if (distance > w.falloffStart) {
@@ -398,11 +874,16 @@ export function emptyStats() {
       easy: emptyModeBest(),
       normal: emptyModeBest(),
       hard: emptyModeBest(),
+      daily: emptyModeBest(),
     },
-    clearsByMode: { easy: 0, normal: 0, hard: 0 },
+    clearsByMode: { easy: 0, normal: 0, hard: 0, daily: 0 },
     lastMode: "normal",
     lastWeapon: "rifle",
     weaponClears: { smg: 0, rifle: 0, shotgun: 0 },
+    scrap: 0,
+    unlocked: emptyUnlocked(),
+    bestDaily: { date: "", wave: 0, score: 0, win: false },
+    dailyPlayDates: [],
   };
 }
 
@@ -415,7 +896,7 @@ function sanitizeBest(raw) {
 export function migrateStats(raw) {
   const base = emptyStats();
   if (!raw || typeof raw !== "object") return base;
-  for (const id of DIFFICULTY_ORDER) {
+  for (const id of MODE_ORDER) {
     const entry = raw.bestByMode?.[id];
     if (entry && typeof entry === "object") {
       base.bestByMode[id] = sanitizeBest(entry);
@@ -437,32 +918,61 @@ export function migrateStats(raw) {
     const n = Number(raw.weaponClears?.[id]);
     if (Number.isFinite(n) && n > 0) base.weaponClears[id] = Math.floor(n);
   }
+  const scrap = Number(raw.scrap);
+  if (Number.isFinite(scrap) && scrap > 0) base.scrap = Math.floor(scrap);
+  if (raw.unlocked && typeof raw.unlocked === "object") {
+    for (const id of META_UNLOCK_ORDER) {
+      if (raw.unlocked[id]) base.unlocked[id] = true;
+    }
+  }
+  if (raw.bestDaily && typeof raw.bestDaily === "object") {
+    base.bestDaily = {
+      date: String(raw.bestDaily.date || ""),
+      wave: Math.max(0, Math.floor(Number(raw.bestDaily.wave) || 0)),
+      score: Math.max(0, Math.floor(Number(raw.bestDaily.score) || 0)),
+      win: !!raw.bestDaily.win,
+    };
+  }
+  if (Array.isArray(raw.dailyPlayDates)) {
+    base.dailyPlayDates = [
+      ...new Set(
+        raw.dailyPlayDates.filter(
+          (k) => typeof k === "string" && /^\d{4}-\d{2}-\d{2}$/.test(k),
+        ),
+      ),
+    ].slice(-60);
+  }
   return base;
 }
 
 /**
  * Apply a finished run into persisted stats.
  * Best wave and best score are tracked independently per mode.
- * Returns { stats, isWaveBest, isScoreBest }.
+ * Awards scrap; daily updates bestDaily + play dates for streak.
+ * Returns { stats, isWaveBest, isScoreBest, isDailyBest, scrapGained, streak }.
  */
-export function recordRun(stats, { mode, wave, score, won, weapon }) {
+export function recordRun(
+  stats,
+  { mode, wave, score, won, weapon, dateKey = null },
+) {
   const id = DIFFICULTIES[mode] ? mode : "normal";
   const weaponId = WEAPONS[weapon] ? weapon : "rifle";
-  const next = {
-    bestByMode: {
-      easy: { ...stats.bestByMode.easy },
-      normal: { ...stats.bestByMode.normal },
-      hard: { ...stats.bestByMode.hard },
-    },
-    clearsByMode: { ...stats.clearsByMode },
-    lastMode: id,
-    lastWeapon: weaponId,
-    weaponClears: {
-      smg: stats.weaponClears?.smg || 0,
-      rifle: stats.weaponClears?.rifle || 0,
-      shotgun: stats.weaponClears?.shotgun || 0,
-    },
+  const next = migrateStats(stats);
+  next.bestByMode = {
+    easy: { ...next.bestByMode.easy },
+    normal: { ...next.bestByMode.normal },
+    hard: { ...next.bestByMode.hard },
+    daily: { ...next.bestByMode.daily },
   };
+  next.clearsByMode = { ...next.clearsByMode };
+  next.weaponClears = {
+    smg: next.weaponClears.smg || 0,
+    rifle: next.weaponClears.rifle || 0,
+    shotgun: next.weaponClears.shotgun || 0,
+  };
+  next.unlocked = { ...next.unlocked };
+  next.dailyPlayDates = [...next.dailyPlayDates];
+
   const w = Math.max(0, Math.floor(wave));
   const s = Math.max(0, Math.floor(score));
   const prev = next.bestByMode[id] || emptyModeBest();
@@ -476,5 +986,37 @@ export function recordRun(stats, { mode, wave, score, won, weapon }) {
     next.clearsByMode[id] = (next.clearsByMode[id] || 0) + 1;
     next.weaponClears[weaponId] = (next.weaponClears[weaponId] || 0) + 1;
   }
-  return { stats: next, isWaveBest, isScoreBest };
+  if (id !== "daily") next.lastMode = id;
+  next.lastWeapon = weaponId;
+
+  const scrapGained = scrapForRun({ mode: id, wave: w, score: s, won });
+  next.scrap += scrapGained;
+
+  let isDailyBest = false;
+  let streak = computeDailyStreak(next.dailyPlayDates, dateKey || "");
+  if (id === "daily" && dateKey) {
+    if (!next.dailyPlayDates.includes(dateKey)) {
+      next.dailyPlayDates.push(dateKey);
+      next.dailyPlayDates = next.dailyPlayDates.slice(-60);
+    }
+    streak = computeDailyStreak(next.dailyPlayDates, dateKey);
+    const sameDay = next.bestDaily.date === dateKey;
+    const betterWave = w > (next.bestDaily.wave || 0);
+    const betterScore =
+      w === (next.bestDaily.wave || 0) && s > (next.bestDaily.score || 0);
+    const betterWin = won && !next.bestDaily.win && w >= (next.bestDaily.wave || 0);
+    if (!sameDay || betterWave || betterScore || betterWin) {
+      next.bestDaily = { date: dateKey, wave: w, score: s, win: !!won };
+      isDailyBest = true;
+    }
+  }
+
+  return {
+    stats: next,
+    isWaveBest,
+    isScoreBest,
+    isDailyBest,
+    scrapGained,
+    streak,
+  };
 }
