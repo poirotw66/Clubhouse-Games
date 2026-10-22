@@ -1,6 +1,6 @@
 /**
  * Double-six dominoes: Draw, Block, and All Fives (Muggins) variants.
- * Match play accumulates round scores to a configurable target (default 100).
+ * Supports 2-seat and 4-seat partners tables; match play to a target score.
  */
 
 import {
@@ -23,21 +23,37 @@ import type {
   Difficulty,
   EndId,
   MatchTarget,
+  PlayerCount,
   PlayerId,
   PlacedTile,
   RuleVariant,
+  SeatId,
+  TeamId,
   Tile,
 } from './types';
-import { DEFAULT_MATCH_TARGET, MATCH_TARGETS } from './types';
+import {
+  DEFAULT_MATCH_TARGET,
+  MATCH_TARGETS,
+  handSizeFor,
+  nextSeat,
+  opponentSeats,
+  partnerOf,
+  seatsFor,
+  teamOf,
+} from './types';
+import { shuffleWithRng, shuffleWithSeed } from './rng';
 
 export type {
   Board,
   Difficulty,
   EndId,
   MatchTarget,
+  PlayerCount,
   PlayerId,
   PlacedTile,
   RuleVariant,
+  SeatId,
+  TeamId,
   Tile,
 };
 export {
@@ -56,45 +72,49 @@ export {
   sumOpenEnds,
   DEFAULT_MATCH_TARGET,
   MATCH_TARGETS,
+  handSizeFor,
+  nextSeat,
+  opponentSeats,
+  partnerOf,
+  seatsFor,
+  teamOf,
 };
 
-// ponytail: local shuffle so check scripts can import without Vite aliases.
 function shuffleArray<T>(items: readonly T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
+  return shuffleWithRng(items, Math.random);
 }
 
 export interface DominoesState {
-  currentPlayer: PlayerId;
-  hands: [Tile[], Tile[]];
+  currentPlayer: SeatId;
+  playerCount: PlayerCount;
+  hands: Tile[][];
   board: Board;
   boneyard: Tile[];
   phase: 'playing' | 'roundOver';
-  winner: PlayerId | null;
+  /** Seat that went out / represents the winning side on a block. */
+  winner: SeatId | null;
+  winningTeam: TeamId | null;
   roundEndReason: 'domino' | 'blocked' | null;
   ruleVariant: RuleVariant;
-  /** Points scored this hand (mid-play + round-end bonus). */
-  handScores: [number, number];
+  /** Mid-play + round-end points credited to each seat. */
+  handScores: number[];
   lastPlayScore: number;
   lastOpenSum: number;
-  /** Suits each player appears to lack after draw/pass. */
-  suspectedLack: [number[], number[]];
+  /** Suits each seat appears to lack after draw/pass. */
+  suspectedLack: number[][];
 }
 
 export interface MatchState {
+  /** Team scores (2p: seat === team; 4p: even vs odd). */
   scores: [number, number];
   target: number;
   round: number;
   matchOver: boolean;
-  matchWinner: PlayerId | null;
+  matchWinner: TeamId | null;
+  playerCount: PlayerCount;
 }
 
 const BONEYARD_LEAVE = 2;
-const HAND_SIZE = 7;
 
 export function createSet(): Tile[] {
   const tiles: Tile[] = [];
@@ -119,7 +139,7 @@ export function roundToNearestFive(pips: number): number {
   return Math.round(pips / 5) * 5;
 }
 
-/** Round-end points from the loser's remaining hand. */
+/** Round-end points from remaining opponent tiles. */
 export function roundEndPoints(
   loserHand: Tile[],
   ruleVariant: RuleVariant,
@@ -165,76 +185,109 @@ function highestDouble(hand: Tile[]): Tile | null {
   return null;
 }
 
-export function createMatchState(target: number = DEFAULT_MATCH_TARGET): MatchState {
+function emptyLacks(playerCount: PlayerCount): number[][] {
+  return seatsFor(playerCount).map(() => []);
+}
+
+function emptyScores(playerCount: PlayerCount): number[] {
+  return seatsFor(playerCount).map(() => 0);
+}
+
+export function createMatchState(
+  target: number = DEFAULT_MATCH_TARGET,
+  playerCount: PlayerCount = 2,
+): MatchState {
   return {
     scores: [0, 0],
     target,
     round: 1,
     matchOver: false,
     matchWinner: null,
+    playerCount,
   };
+}
+
+export interface CreateStateOptions {
+  playerCount?: PlayerCount;
+  /** Deterministic deal seed (daily challenge). */
+  seed?: string;
 }
 
 export function createInitialState(
   ruleVariant: RuleVariant = 'draw',
+  options: CreateStateOptions = {},
 ): DominoesState {
-  const shuffled = shuffleArray(createSet());
-  const hand0: Tile[] = shuffled.slice(0, HAND_SIZE);
-  const hand1: Tile[] = shuffled.slice(HAND_SIZE, HAND_SIZE * 2);
-  const boneyard = shuffled.slice(HAND_SIZE * 2);
+  const playerCount: PlayerCount = options.playerCount ?? 2;
+  const handSize = handSizeFor(playerCount);
+  const shuffled = options.seed
+    ? shuffleWithSeed(createSet(), options.seed)
+    : shuffleArray(createSet());
 
-  const d0 = highestDouble(hand0);
-  const d1 = highestDouble(hand1);
-  let hands: [Tile[], Tile[]] = [[...hand0], [...hand1]];
+  const hands: Tile[][] = [];
+  for (let i = 0; i < playerCount; i++) {
+    hands.push(shuffled.slice(i * handSize, (i + 1) * handSize));
+  }
+  const boneyard = shuffled.slice(playerCount * handSize);
+
   let board = emptyBoard();
-  let firstPlayer: PlayerId = 0;
+  let firstPlayer: SeatId = 0;
 
-  const playOpening = (player: PlayerId, tile: Tile) => {
+  const playOpening = (player: SeatId, tile: Tile) => {
     board = placeFirstTile(board, tile, ruleVariant);
     hands[player] = removeFromHand(hands[player], tile.id);
     firstPlayer = player;
   };
 
-  if (d0 && d1) {
-    const player: PlayerId = d0.left >= d1.left ? 0 : 1;
-    playOpening(player, player === 0 ? d0 : d1);
-  } else if (d0) {
-    playOpening(0, d0);
-  } else if (d1) {
-    playOpening(1, d1);
+  // Highest double across the table opens; ties break by seat order.
+  let bestSeat: SeatId | null = null;
+  let bestDouble: Tile | null = null;
+  for (const seat of seatsFor(playerCount)) {
+    const d = highestDouble(hands[seat]);
+    if (!d) continue;
+    if (!bestDouble || d.left > bestDouble.left) {
+      bestDouble = d;
+      bestSeat = seat;
+    }
+  }
+
+  if (bestSeat !== null && bestDouble) {
+    playOpening(bestSeat, bestDouble);
   } else {
     playOpening(0, hands[0][0]);
   }
 
   const openingScore = ruleVariant === 'fives' ? scoreOpenEnds(board) : 0;
-  const handScores: [number, number] = [0, 0];
+  const handScores = emptyScores(playerCount);
   if (openingScore > 0) handScores[firstPlayer] = openingScore;
 
   return {
-    currentPlayer: firstPlayer === 0 ? 1 : 0,
+    currentPlayer: nextSeat(firstPlayer, playerCount),
+    playerCount,
     hands,
     board,
     boneyard,
     phase: 'playing',
     winner: null,
+    winningTeam: null,
     roundEndReason: null,
     ruleVariant,
     handScores,
     lastPlayScore: openingScore,
     lastOpenSum: sumOpenEnds(board),
-    suspectedLack: [[], []],
+    suspectedLack: emptyLacks(playerCount),
   };
+}
+
+function cloneLacks(state: DominoesState): number[][] {
+  return state.suspectedLack.map((row) => [...row]);
 }
 
 function withLackNote(
   state: DominoesState,
-  player: PlayerId,
+  player: SeatId,
   ends: number[],
-): [number[], number[]] {
-  const next: [number[], number[]] = [
-    [...state.suspectedLack[0]],
-    [...state.suspectedLack[1]],
-  ];
+): number[][] {
+  const next = cloneLacks(state);
   const set = new Set(next[player]);
   for (const e of ends) set.add(e);
   next[player] = [...set];
@@ -243,13 +296,10 @@ function withLackNote(
 
 function clearLackForTile(
   state: DominoesState,
-  player: PlayerId,
+  player: SeatId,
   tile: Tile,
-): [number[], number[]] {
-  const next: [number[], number[]] = [
-    [...state.suspectedLack[0]],
-    [...state.suspectedLack[1]],
-  ];
+): number[][] {
+  const next = cloneLacks(state);
   next[player] = next[player].filter((n) => n !== tile.left && n !== tile.right);
   return next;
 }
@@ -260,35 +310,67 @@ function openPipsOf(board: Board): number[] {
     .filter((p): p is number => p !== null);
 }
 
+/** Combined remaining tiles for a team (partners). */
+export function teamHandSum(
+  hands: Tile[][],
+  team: TeamId,
+  playerCount: PlayerCount,
+): number {
+  let sum = 0;
+  for (const seat of seatsFor(playerCount)) {
+    if (teamOf(seat, playerCount) === team) sum += handSum(hands[seat]);
+  }
+  return sum;
+}
+
+/** Team hand scores for the current round. */
+export function teamHandScores(
+  handScores: number[],
+  playerCount: PlayerCount,
+): [number, number] {
+  const out: [number, number] = [0, 0];
+  for (const seat of seatsFor(playerCount)) {
+    out[teamOf(seat, playerCount)] += handScores[seat] ?? 0;
+  }
+  return out;
+}
+
 function finishRound(
   state: DominoesState,
-  winner: PlayerId,
+  winnerSeat: SeatId,
   reason: 'domino' | 'blocked',
 ): DominoesState {
-  const loser: PlayerId = winner === 0 ? 1 : 0;
-  const bonus = roundEndPoints(state.hands[loser], state.ruleVariant);
-  const handScores: [number, number] = [...state.handScores];
-  handScores[winner] += bonus;
+  const winTeam = teamOf(winnerSeat, state.playerCount);
+  const oppTiles: Tile[] = [];
+  for (const seat of opponentSeats(winnerSeat, state.playerCount)) {
+    oppTiles.push(...state.hands[seat]);
+  }
+  const bonus = roundEndPoints(oppTiles, state.ruleVariant);
+  const handScores = [...state.handScores];
+  handScores[winnerSeat] += bonus;
   return {
     ...state,
     phase: 'roundOver',
-    winner,
+    winner: winnerSeat,
+    winningTeam: winTeam,
     roundEndReason: reason,
     handScores,
     lastPlayScore: bonus,
-    currentPlayer: winner,
+    currentPlayer: winnerSeat,
   };
 }
 
-/** Fold a completed hand into the match scoreboard. */
+/** Fold a completed hand into the match scoreboard (by team). */
 export function applyRoundToMatch(
   match: MatchState,
-  handScores: [number, number],
+  handScores: number[],
 ): MatchState {
   if (match.matchOver) return match;
+  const playerCount = match.playerCount;
+  const roundTeams = teamHandScores(handScores, playerCount);
   const scores: [number, number] = [
-    match.scores[0] + handScores[0],
-    match.scores[1] + handScores[1],
+    match.scores[0] + roundTeams[0],
+    match.scores[1] + roundTeams[1],
   ];
   const bothReached =
     scores[0] >= match.target || scores[1] >= match.target;
@@ -296,20 +378,19 @@ export function applyRoundToMatch(
     return {
       scores,
       target: match.target,
-      // Keep the completed round number on the match-over screen.
       round: match.round,
       matchOver: true,
       matchWinner: scores[0] > scores[1] ? 0 : 1,
+      playerCount,
     };
   }
-  // Do not bump `round` here — the between-round overlay still shows this
-  // hand's results; `advanceMatchRound` runs when the next hand deals.
   return {
     scores,
     target: match.target,
     round: match.round,
     matchOver: false,
     matchWinner: null,
+    playerCount,
   };
 }
 
@@ -321,7 +402,7 @@ export function advanceMatchRound(match: MatchState): MatchState {
 
 export function playTile(
   state: DominoesState,
-  player: PlayerId,
+  player: SeatId,
   tileId: number,
   end: EndId,
 ): DominoesState | null {
@@ -332,11 +413,12 @@ export function playTile(
   const newBoard = placeTile(state.board, tile, end, state.ruleVariant);
   if (!newBoard) return null;
 
-  const newHands: [Tile[], Tile[]] = [...state.hands];
-  newHands[player] = removeFromHand(hand, tileId);
+  const newHands = state.hands.map((h, i) =>
+    i === player ? removeFromHand(h, tileId) : h,
+  );
   const playScore =
     state.ruleVariant === 'fives' ? scoreOpenEnds(newBoard) : 0;
-  const handScores: [number, number] = [...state.handScores];
+  const handScores = [...state.handScores];
   handScores[player] += playScore;
 
   const base: DominoesState = {
@@ -355,11 +437,11 @@ export function playTile(
 
   return {
     ...base,
-    currentPlayer: player === 0 ? 1 : 0,
+    currentPlayer: nextSeat(player, state.playerCount),
   };
 }
 
-export function drawTiles(state: DominoesState, player: PlayerId): DominoesState {
+export function drawTiles(state: DominoesState, player: SeatId): DominoesState {
   if (state.phase !== 'playing' || state.currentPlayer !== player) return state;
   if (!usesDraw(state.ruleVariant)) {
     return pass(state, player) ?? state;
@@ -375,8 +457,9 @@ export function drawTiles(state: DominoesState, player: PlayerId): DominoesState
     const [newBoneyard, drawn] = drawOne(s.boneyard);
     if (!drawn) break;
     drew = true;
-    const newHands: [Tile[], Tile[]] = [...s.hands];
-    newHands[player] = [...newHands[player], drawn];
+    const newHands = s.hands.map((h, i) =>
+      i === player ? [...h, drawn] : h,
+    );
     s = { ...s, boneyard: newBoneyard, hands: newHands };
   }
 
@@ -389,23 +472,36 @@ export function drawTiles(state: DominoesState, player: PlayerId): DominoesState
   return s;
 }
 
-function passTurn(state: DominoesState): DominoesState {
-  const next: PlayerId = state.currentPlayer === 0 ? 1 : 0;
-  const nextCanPlay = canPlay(state.hands[next], state.board);
+function allBlocked(state: DominoesState): boolean {
   const boneyardExhausted =
     !usesDraw(state.ruleVariant) || state.boneyard.length <= BONEYARD_LEAVE;
-  if (!nextCanPlay && boneyardExhausted) {
-    const sum0 = handSum(state.hands[0]);
-    const sum1 = handSum(state.hands[1]);
-    const winner: PlayerId = sum0 <= sum1 ? 0 : 1;
-    return finishRound(state, winner, 'blocked');
+  if (!boneyardExhausted) return false;
+  return seatsFor(state.playerCount).every(
+    (seat) => !canPlay(state.hands[seat], state.board),
+  );
+}
+
+function passTurn(state: DominoesState): DominoesState {
+  if (allBlocked(state)) {
+    // Lowest team pip count wins the block.
+    const sum0 = teamHandSum(state.hands, 0, state.playerCount);
+    const sum1 = teamHandSum(state.hands, 1, state.playerCount);
+    const winTeam: TeamId = sum0 <= sum1 ? 0 : 1;
+    const winnerSeat =
+      seatsFor(state.playerCount).find(
+        (s) => teamOf(s, state.playerCount) === winTeam,
+      ) ?? 0;
+    return finishRound(state, winnerSeat, 'blocked');
   }
-  return { ...state, currentPlayer: next };
+  return {
+    ...state,
+    currentPlayer: nextSeat(state.currentPlayer, state.playerCount),
+  };
 }
 
 export function pass(
   state: DominoesState,
-  player: PlayerId,
+  player: SeatId,
 ): DominoesState | null {
   if (state.phase !== 'playing' || state.currentPlayer !== player) return null;
   if (canPlay(state.hands[player], state.board)) return null;
@@ -464,7 +560,7 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
   easy: '常亂接，先丟輕牌',
   normal: '會出重點，偶有失手',
-  hard: '算得分、堵對手端點',
+  hard: '記過牌缺門、算得分與堵端',
 };
 
 export const RULE_LABELS: Record<RuleVariant, string> = {
@@ -486,6 +582,10 @@ export type DifficultyConfig = {
   scoreWeight: number;
   leaveScorePenalty: number;
   lackFeedWeight: number;
+  /** Extra weight when hard AI remembers pass-voids (pip inference). */
+  voidMemoryWeight: number;
+  /** Partners: prefer leaving ends the partner can still use. */
+  partnerHelpWeight: number;
 };
 
 const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
@@ -496,6 +596,8 @@ const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     scoreWeight: 0,
     leaveScorePenalty: 0,
     lackFeedWeight: 0,
+    voidMemoryWeight: 0,
+    partnerHelpWeight: 0,
   },
   normal: {
     blunderRate: 0.12,
@@ -504,6 +606,8 @@ const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     scoreWeight: 4,
     leaveScorePenalty: 0,
     lackFeedWeight: 0,
+    voidMemoryWeight: 0,
+    partnerHelpWeight: 2,
   },
   hard: {
     blunderRate: 0,
@@ -512,6 +616,8 @@ const DIFFICULTY: Record<Difficulty, DifficultyConfig> = {
     scoreWeight: 12,
     leaveScorePenalty: 10,
     lackFeedWeight: 8,
+    voidMemoryWeight: 14,
+    partnerHelpWeight: 10,
   },
 };
 
@@ -560,30 +666,74 @@ function estimateLeaveDanger(
   return Math.max(0, danger);
 }
 
+/**
+ * Count how often each pip still appears among unseen tiles
+ * (set minus board minus known hand). Used by hard AI as a soft prior.
+ */
+export function remainingPipCounts(
+  board: Board,
+  knownHand: Tile[],
+): number[] {
+  const counts = Array.from({ length: 7 }, () => 0);
+  for (const t of createSet()) {
+    counts[t.left] += 1;
+    counts[t.right] += 1;
+  }
+  const seen = new Set<number>();
+  const mark = (t: Tile) => {
+    if (seen.has(t.id)) return;
+    seen.add(t.id);
+    counts[t.left] -= 1;
+    counts[t.right] -= 1;
+  };
+  if (board.hub) mark(board.hub.tile);
+  for (const end of ['left', 'right', 'up', 'down'] as EndId[]) {
+    for (const p of board.arms[end]) mark(p.tile);
+  }
+  for (const t of knownHand) mark(t);
+  return counts.map((c) => Math.max(0, c));
+}
+
 export type BotMove = { tileId: number; end: EndId };
+
+export type BotOptions = {
+  ruleVariant?: RuleVariant;
+  /** Combined pip voids for opposing seats. */
+  opponentLack?: number[];
+  /** Pips the partner appears to lack — avoid leaving those ends. */
+  partnerLack?: number[];
+  /** When true, bot cooperates with a partner (partners table). */
+  cooperative?: boolean;
+  /** Prefer deterministic tie-break (daily / tests). */
+  deterministic?: boolean;
+};
 
 export function pickBotMove(
   hand: Tile[],
   board: Board,
   opponentHandSize: number = 7,
   difficulty: Difficulty = 'normal',
-  options: {
-    ruleVariant?: RuleVariant;
-    opponentLack?: number[];
-  } = {},
+  options: BotOptions = {},
 ): BotMove | null {
   const ruleVariant = options.ruleVariant ?? 'draw';
   const opponentLack = options.opponentLack ?? [];
+  const partnerLack = options.partnerLack ?? [];
+  const cooperative = options.cooperative ?? false;
   const moves = getValidMoves(hand, board, ruleVariant);
   if (moves.length === 0) return null;
   if (moves.length === 1) return moves[0];
 
   const config = DIFFICULTY[difficulty];
-  if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
+  if (
+    !options.deterministic &&
+    config.blunderRate > 0 &&
+    Math.random() < config.blunderRate
+  ) {
     return moves[Math.floor(Math.random() * moves.length)];
   }
 
   const tileById = new Map(hand.map((t) => [t.id, t]));
+  const pipRemain = remainingPipCounts(board, hand);
   let best: BotMove[] = [];
   let bestScore = -Infinity;
 
@@ -622,10 +772,43 @@ export function pickBotMove(
       }
     }
 
+    const newEnds = openPipsOf(nextBoard);
+
+    // Feed suits opponents appear to lack (block them).
     if (config.lackFeedWeight > 0 && opponentLack.length > 0) {
-      const newEnds = openPipsOf(nextBoard);
       const lackHits = newEnds.filter((p) => opponentLack.includes(p)).length;
       score += lackHits * config.lackFeedWeight;
+    }
+
+    // Hard: stronger void memory — prefer ends opponents passed on;
+    // avoid opening suits that still look plentiful for them.
+    if (config.voidMemoryWeight > 0) {
+      for (const pip of newEnds) {
+        if (opponentLack.includes(pip)) {
+          score += config.voidMemoryWeight;
+        } else {
+          // Soft prior: fewer remaining copies → safer to leave for them.
+          score -= Math.min(4, pipRemain[pip] ?? 0) * 0.35;
+        }
+      }
+    }
+
+    // Partners: do not leave ends the partner has voided; prefer ends they can use.
+    if (cooperative && config.partnerHelpWeight > 0) {
+      for (const pip of newEnds) {
+        if (partnerLack.includes(pip)) {
+          score -= config.partnerHelpWeight;
+        } else {
+          score += config.partnerHelpWeight * 0.35;
+        }
+      }
+      // Avoid giving opponents an easy All Fives leave when partnering.
+      if (ruleVariant === 'fives') {
+        const leave = sumOpenEnds(nextBoard);
+        if (leave > 0 && leave % 5 === 0) {
+          score -= leave * 0.5;
+        }
+      }
     }
 
     if (score > bestScore) {
@@ -637,5 +820,18 @@ export function pickBotMove(
   }
 
   if (best.length === 0) return moves[0];
+  if (options.deterministic) {
+    best.sort((a, b) => a.tileId - b.tileId || a.end.localeCompare(b.end));
+    return best[0];
+  }
   return best[Math.floor(Math.random() * best.length)];
+}
+
+/** Merge suspected-lack lists from several opposing seats. */
+export function mergeLackLists(lists: number[][]): number[] {
+  const set = new Set<number>();
+  for (const list of lists) {
+    for (const p of list) set.add(p);
+  }
+  return [...set];
 }

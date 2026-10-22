@@ -16,6 +16,20 @@ export type PitchType =
 
 export type PitchLoc = 'left' | 'center' | 'right';
 
+/** Named-opponent arsenal bias layered on count-aware CPU sequencing. */
+export interface PitcherProfile {
+  name: string;
+  style: 'power' | 'finesse' | 'trickster' | 'balanced';
+  /** Relative pitch weights multiplied onto the count-aware base mix. */
+  weightMul: Record<PitchType, number>;
+  /** Extra preference for left/right vs center (0–1). */
+  cornerBias: number;
+  /** When ahead in the count, bias toward chaseable balls (0–1). */
+  chaseBait: number;
+  /** One-line tell for the scouting card. */
+  habit: string;
+}
+
 export const PITCH_TYPES: readonly PitchType[] = [
   'fastball',
   'curve',
@@ -174,21 +188,24 @@ export interface CountState {
 /**
  * CPU pitcher tendencies: count-aware mix so reading sequences is a skill.
  * Weights are relative; harder difficulties tighten the zone and favor heat.
+ * Optional `profile` (named opponent) multiplies arsenal bias and corner/chase habits.
  */
 export function chooseCpuPitch(
   count: CountState,
   difficulty: Difficulty,
   rng: Rng,
+  profile: PitcherProfile | null = null,
 ): { type: PitchType; loc: PitchLoc } {
-  const weights = baseWeights(count, difficulty);
+  const weights = baseWeights(count, difficulty, profile);
   const type = weightedPick(weights, rng);
-  const loc = chooseLoc(count, difficulty, type, rng);
+  const loc = chooseLoc(count, difficulty, type, rng, profile);
   return { type, loc };
 }
 
 function baseWeights(
   count: CountState,
   difficulty: Difficulty,
+  profile: PitcherProfile | null,
 ): Record<PitchType, number> {
   const w: Record<PitchType, number> = {
     fastball: 28,
@@ -234,6 +251,12 @@ function baseWeights(
     w.fastball -= 6;
   }
 
+  if (profile) {
+    for (const k of PITCH_TYPES) {
+      w[k] *= profile.weightMul[k] ?? 1;
+    }
+  }
+
   for (const k of PITCH_TYPES) {
     w[k] = Math.max(1, w[k]);
   }
@@ -256,31 +279,50 @@ function chooseLoc(
   difficulty: Difficulty,
   type: PitchType,
   rng: Rng,
+  profile: PitcherProfile | null = null,
 ): PitchLoc {
   const locs: PitchLoc[] = ['left', 'center', 'right'];
+  const cornerBias = profile?.cornerBias ?? 0;
+  const chaseBait = profile?.chaseBait ?? 0;
+
+  // Trickster ahead in count: bait chases on the corners.
+  if (
+    chaseBait > 0.3
+    && count.strikes > count.balls
+    && count.strikes >= 1
+    && rng() < chaseBait * 0.55
+  ) {
+    if (type === 'slider') return 'right';
+    if (type === 'curve' || type === 'changeup') return 'left';
+    return pick(rng, ['left', 'right'] as const);
+  }
 
   // Put-away pitches live on the corners.
   if (count.strikes >= 2) {
-    if (type === 'slider') return rng() < 0.7 ? 'right' : pick(rng, locs);
-    if (type === 'curve') return rng() < 0.7 ? 'left' : pick(rng, locs);
+    if (type === 'slider') return rng() < 0.7 + cornerBias * 0.15 ? 'right' : pick(rng, locs);
+    if (type === 'curve') return rng() < 0.7 + cornerBias * 0.15 ? 'left' : pick(rng, locs);
     if (type === 'forkball' || type === 'changeup') {
-      return rng() < 0.45 ? 'center' : pick(rng, ['left', 'right'] as const);
+      return rng() < 0.45 - cornerBias * 0.15
+        ? 'center'
+        : pick(rng, ['left', 'right'] as const);
     }
   }
 
   // Behind in count: more strikes through the middle.
   if (count.balls >= 3) {
-    return rng() < 0.7 ? 'center' : pick(rng, locs);
+    return rng() < 0.7 - cornerBias * 0.15 ? 'center' : pick(rng, locs);
   }
 
   if (difficulty === 'easy') {
     return pick(rng, locs);
   }
-  if (difficulty === 'hard') {
+  if (difficulty === 'hard' || cornerBias >= 0.5) {
     // Paint corners more often.
-    return rng() < 0.35 ? 'center' : pick(rng, ['left', 'right'] as const);
+    const centerChance = Math.max(0.18, 0.35 - cornerBias * 0.2);
+    return rng() < centerChance ? 'center' : pick(rng, ['left', 'right'] as const);
   }
-  return rng() < 0.45 ? 'center' : pick(rng, locs);
+  const centerChance = Math.max(0.25, 0.45 - cornerBias * 0.25);
+  return rng() < centerChance ? 'center' : pick(rng, locs);
 }
 
 /** CPU batter recognition: true = they "read" the pitch type for aim. */
