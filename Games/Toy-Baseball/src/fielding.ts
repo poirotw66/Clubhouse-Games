@@ -99,6 +99,10 @@ export interface FairBallInput {
   flightTime: number;
   alignment?: DefenseAlignment;
   cfg: DifficultyConfig;
+  /** Park fence distance override (defaults to FENCE_DIST). */
+  fenceDist?: number;
+  /** Park gap openness multiplier (defaults to 1). */
+  gapMul?: number;
 }
 
 /**
@@ -114,14 +118,17 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
     flightTime,
     cfg,
     alignment = 'normal',
+    fenceDist = FENCE_DIST,
+    gapMul = 1,
   } = input;
   const fielders = getFielders(alignment);
   const dist = distFromHome(landingX, landingY);
   // Loft / hang decides fly vs grounder — quality alone must not force a catch.
   const isFly = peakZ > 85;
+  const fence = Math.max(420, fenceDist);
 
   // Wall clearance with authority → home run.
-  if (dist >= FENCE_DIST && quality >= 0.58 && peakZ > 95) {
+  if (dist >= fence && quality >= 0.58 && peakZ > 95) {
     return {
       result: '全壘打！',
       bases: 4,
@@ -133,7 +140,7 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
   }
 
   // Deep fly that dies at the track / warning track catch.
-  if (dist >= FENCE_DIST * 0.92 && quality < 0.58) {
+  if (dist >= fence * 0.92 && quality < 0.58) {
     const cf = fielders.find((f) => f.id === 'CF') ?? null;
     return {
       result: '牆前接殺 (OUT)',
@@ -152,7 +159,7 @@ export function resolveFairBall(input: FairBallInput): FieldOutcome {
   const arriveTime = travel / Math.max(40, nearest.speed * chaseMul);
   // Soft contact gives fielders more effective time.
   const effectiveFlight = flightTime * (0.7 + quality * 0.35);
-  const openGap = gapScore(fielders, landingX, landingY);
+  const openGap = Math.min(1, gapScore(fielders, landingX, landingY) * gapMul);
   // Need a real margin to glove a ball in open grass — gaps stay hits.
   const reachSlack = openGap > 0.55 ? -0.2 : 0.04;
   const canReach = arriveTime <= effectiveFlight + reachSlack;
