@@ -87,12 +87,31 @@ body {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Collapsible 「更多賽制」: hide the default disclosure marker for a clean row. */
+.bt-more-modes > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bt-more-modes > summary::after {
+  content: '▸';
+  color: rgba(199, 210, 254, 0.55);
+  transition: transform 160ms ease;
+}
+
+.bt-more-modes[open] > summary::after {
+  transform: rotate(90deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bt-card,
   .bt-played,
   .bt-threat,
   .bt-review-panel {
     animation: none;
+    transition: none;
+  }
+
+  .bt-more-modes > summary::after {
     transition: none;
   }
 }

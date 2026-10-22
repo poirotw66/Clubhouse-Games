@@ -1,5 +1,6 @@
 import React from 'react';
 import { personalityForSeat } from '../game/cpu';
+import { isSeriesMode } from '../game/match';
 import type { MatchState } from '../game/types';
 import { HUMAN } from '../game/types';
 
@@ -10,21 +11,20 @@ interface Props {
   progress: string;
 }
 
-export function MatchScoreboard({ match, progress }: Props): React.ReactElement {
+export function MatchScoreboard({ match, progress }: Props): React.ReactElement | null {
+  // Single-hand sessions skip the series strip so the table stays the focus.
+  if (!isSeriesMode(match.config.mode)) return null;
+
   const target =
     match.config.mode === 'target' ? match.config.target : null;
   const maxAbs = Math.max(1, ...match.balances.map((n) => Math.abs(n)));
   const heading =
-    match.config.mode === 'single'
-      ? '單局'
-      : match.config.mode === 'daily'
-        ? '每日牌桌'
-        : '系列賽';
+    match.config.mode === 'daily' ? '每日牌桌' : '系列賽';
 
   return (
     <section
       className="rounded-xl border border-indigo-400/20 bg-slate-900/70 px-3 py-2"
-      aria-label="計分板"
+      aria-label="系列賽計分板"
     >
       <div className="mb-2 flex items-center justify-between text-[11px] text-indigo-200/70">
         <span className="font-bold tracking-wide">{heading}</span>
