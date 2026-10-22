@@ -864,8 +864,9 @@ test('puyo-puyo: daily puzzle share + board theme unlock UI', async ({ page, isM
   await activate(page.getByRole('button', { name: '複製分享', exact: true }), isMobile);
   await expect(page.locator('#board-theme')).toBeVisible();
   await expect(page.locator('#board-theme option')).toHaveCount(4);
-  await expect(page.locator('#board-theme option[value="classic"]')).toBeEnabled();
-  await expect(page.locator('#board-theme option[value="sunset"]')).toBeDisabled();
+  await expect(page.locator('#board-theme option[value="classic"]')).not.toHaveAttribute('disabled');
+  // Locked themes keep the HTML disabled attribute (Playwright's toBeDisabled is flaky on <option>).
+  await expect(page.locator('#board-theme option[value="sunset"]')).toHaveAttribute('disabled', '');
   await expect(page.locator('#career-stats')).toContainText(/每日連勝/);
 });
 
