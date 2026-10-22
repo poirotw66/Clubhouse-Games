@@ -105,9 +105,13 @@ export function personalityInfo(id: PersonalityId): Personality {
   return PERSONALITIES.find((p) => p.id === id) ?? PERSONALITIES[0];
 }
 
-export function personalityForSeat(seat: Seat): Personality | null {
+export function personalityForSeat(
+  seat: Seat,
+  map?: Partial<Record<1 | 2 | 3, PersonalityId>> | null,
+): Personality | null {
   if (seat !== 1 && seat !== 2 && seat !== 3) return null;
-  return personalityInfo(SEAT_PERSONALITIES[seat]);
+  const id = map?.[seat] ?? SEAT_PERSONALITIES[seat];
+  return personalityInfo(id);
 }
 
 /**
@@ -234,7 +238,9 @@ export function chooseMove(
   const blackAces = state.rules.blackAces;
   const person =
     personality ??
-    (state.turn === HUMAN ? null : personalityForSeat(state.turn)?.id ?? null);
+    (state.turn === HUMAN
+      ? null
+      : personalityForSeat(state.turn, state.seatPersonalities)?.id ?? null);
 
   const capturing = state.hands[state.turn]
     .map((card) => ({ card, taken: bestCapture(card, state.table, blackAces) }))
@@ -259,7 +265,7 @@ export function chooseMove(
 /** Convenience for callers that only hold a difficulty. */
 export function chooseMoveFor(state: GameState): CpuMove {
   const info = difficultyInfo(state.difficulty);
-  const person = personalityForSeat(state.turn)?.id ?? null;
+  const person = personalityForSeat(state.turn, state.seatPersonalities)?.id ?? null;
   return chooseMove(state, info.brain, info.captureBlunderRate, person);
 }
 
@@ -279,7 +285,9 @@ export function chooseCaptureTarget(
 
   const person =
     personality ??
-    (state.turn === HUMAN ? null : personalityForSeat(state.turn)?.id ?? null);
+    (state.turn === HUMAN
+      ? null
+      : personalityForSeat(state.turn, state.seatPersonalities)?.id ?? null);
   const blackAces = state.rules.blackAces;
 
   if (captureBlunderRate > 0) {

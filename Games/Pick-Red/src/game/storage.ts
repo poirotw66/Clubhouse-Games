@@ -1,5 +1,7 @@
 import { formatKeyFor, isSeriesMode } from './match';
+import { opponentCount } from './opponents';
 import type {
+  DailyRecord,
   DifficultyId,
   FormatKey,
   FormatRecord,
@@ -7,12 +9,15 @@ import type {
   MatchLength,
   MatchMode,
   MatchState,
+  NamedOpponentId,
   PlayerCount,
   TargetScore,
 } from './types';
 
 const STATS_KEY = 'pick-red:stats:v1';
 const MATCH_KEY = 'pick-red:match:v1';
+const DAILY_KEY = 'pick-red:daily:v1';
+const LADDER_KEY = 'pick-red:ladder:v1';
 
 export type FormatRecords = Record<FormatKey, FormatRecord>;
 
@@ -25,7 +30,7 @@ export interface Stats {
   bestStreak: number;
   /** Lifetime chip total from settled hands. */
   chips: number;
-  /** Completed series (fixed hands or race-to-target). Single hands do not count. */
+  /** Completed series (fixed hands, race-to-target, or daily). Single hands use formats.single. */
   matches: number;
   matchWins: number;
   matchStreak: number;
@@ -48,15 +53,28 @@ export interface Stats {
   lastMatchTarget: TargetScore;
 }
 
+export interface LadderProgress {
+  /** Opponents with index < clearedCount are cleared; index === clearedCount is unlocked. */
+  clearedCount: number;
+  cleared: Partial<Record<NamedOpponentId, boolean>>;
+  lastIndex: number;
+}
+
+export interface DailyProgress {
+  records: DailyRecord[];
+}
+
 const EMPTY_FORMAT: FormatRecord = { played: 0, wins: 0 };
 
 export const EMPTY_FORMATS: FormatRecords = {
+  single: { ...EMPTY_FORMAT },
   'hands-4': { ...EMPTY_FORMAT },
   'hands-8': { ...EMPTY_FORMAT },
   'hands-12': { ...EMPTY_FORMAT },
   'target-50': { ...EMPTY_FORMAT },
   'target-100': { ...EMPTY_FORMAT },
   'target-200': { ...EMPTY_FORMAT },
+  daily: { ...EMPTY_FORMAT },
 };
 
 export const EMPTY_STATS: Stats = {
@@ -87,8 +105,16 @@ export const EMPTY_STATS: Stats = {
   lastMatchTarget: 100,
 };
 
+export const EMPTY_LADDER: LadderProgress = {
+  clearedCount: 0,
+  cleared: {},
+  lastIndex: 0,
+};
+
+export const EMPTY_DAILY: DailyProgress = { records: [] };
+
 const DIFFICULTIES = new Set<string>(['easy', 'normal', 'hard']);
-const MODES = new Set<string>(['single', 'hands', 'target']);
+const MODES = new Set<string>(['single', 'hands', 'target', 'daily']);
 const HANDS = new Set<number>([4, 8, 12]);
 const TARGETS = new Set<number>([50, 100, 200]);
 const FORMAT_KEYS = Object.keys(EMPTY_FORMATS) as FormatKey[];
@@ -125,6 +151,7 @@ export function loadStats(): Stats {
     const raw = localStorage.getItem(STATS_KEY);
     if (!raw) return EMPTY_STATS;
     const parsed = JSON.parse(raw) as Partial<Record<keyof Stats, unknown>>;
+    const lastMode = parsed.lastMatchMode as string;
     return {
       wins: num(parsed.wins, 0),
       losses: num(parsed.losses, 0),
@@ -152,9 +179,10 @@ export function loadStats(): Stats {
       lastDoubleRedFive: bool(parsed.lastDoubleRedFive, true),
       lastZeroScoreBonus: bool(parsed.lastZeroScoreBonus, true),
       lastRotateLeader: bool(parsed.lastRotateLeader, true),
-      lastMatchMode: MODES.has(parsed.lastMatchMode as string)
-        ? (parsed.lastMatchMode as MatchMode)
-        : 'hands',
+      lastMatchMode:
+        MODES.has(lastMode) && lastMode !== 'daily'
+          ? (lastMode as MatchMode)
+          : 'hands',
       lastMatchHands: HANDS.has(parsed.lastMatchHands as number)
         ? (parsed.lastMatchHands as MatchLength)
         : 4,
@@ -216,10 +244,6 @@ export function recordMatchResult(
   endChips: number,
   config?: MatchConfig,
 ): Stats {
-  // Single-hand sessions keep ordinary hand W/L only — not series tallies.
-  if (config && !isSeriesMode(config.mode)) return stats;
-
-  const matchStreak = won ? stats.matchStreak + 1 : 0;
   const formats = { ...stats.formats };
   const key = config ? formatKeyFor(config) : null;
   if (key) {
@@ -230,6 +254,12 @@ export function recordMatchResult(
     };
   }
 
+  // Single-hand sessions tally format.single only — not series match streaks.
+  if (config && !isSeriesMode(config.mode)) {
+    return { ...stats, formats };
+  }
+
+  const matchStreak = won ? stats.matchStreak + 1 : 0;
   return {
     ...stats,
     matches: stats.matches + 1,
@@ -250,7 +280,7 @@ export function rememberSetup(stats: Stats, config: MatchConfig): Stats {
     lastDoubleRedFive: config.rules.doubleRedFive,
     lastZeroScoreBonus: config.rules.zeroScoreBonus,
     lastRotateLeader: config.rules.rotateLeader,
-    lastMatchMode: config.mode,
+    lastMatchMode: config.mode === 'daily' ? stats.lastMatchMode : config.mode,
     lastMatchHands: config.hands,
     lastMatchTarget: config.target,
   };
@@ -287,4 +317,118 @@ export function loadMatch(): MatchState | null {
   } catch {
     return null;
   }
+}
+
+export function loadDailyProgress(): DailyProgress {
+  try {
+    const raw = localStorage.getItem(DAILY_KEY);
+    if (!raw) return EMPTY_DAILY;
+    const parsed = JSON.parse(raw) as { records?: unknown };
+    if (!Array.isArray(parsed.records)) return EMPTY_DAILY;
+    const records: DailyRecord[] = [];
+    for (const item of parsed.records) {
+      if (!item || typeof item !== 'object') continue;
+      const r = item as Partial<DailyRecord>;
+      if (typeof r.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) continue;
+      records.push({
+        date: r.date,
+        bestChips: num(r.bestChips, 0),
+        completed: Boolean(r.completed),
+        attempts: num(r.attempts, 0),
+      });
+    }
+    records.sort((a, b) => a.date.localeCompare(b.date));
+    return { records: records.slice(-60) };
+  } catch {
+    return EMPTY_DAILY;
+  }
+}
+
+export function saveDailyProgress(progress: DailyProgress): void {
+  try {
+    localStorage.setItem(DAILY_KEY, JSON.stringify(progress));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function recordDailyResult(
+  progress: DailyProgress,
+  date: string,
+  endChips: number,
+  completed: boolean,
+): DailyProgress {
+  const existing = progress.records.find((r) => r.date === date);
+  const next: DailyRecord = existing
+    ? {
+        date,
+        bestChips: Math.max(existing.bestChips, endChips),
+        completed: existing.completed || completed,
+        attempts: existing.attempts + 1,
+      }
+    : {
+        date,
+        bestChips: endChips,
+        completed,
+        attempts: 1,
+      };
+  const others = progress.records.filter((r) => r.date !== date);
+  others.push(next);
+  others.sort((a, b) => a.date.localeCompare(b.date));
+  return { records: others.slice(-60) };
+}
+
+export function loadLadder(): LadderProgress {
+  try {
+    const raw = localStorage.getItem(LADDER_KEY);
+    if (!raw) return EMPTY_LADDER;
+    const parsed = JSON.parse(raw) as Partial<LadderProgress>;
+    const clearedCount = Math.max(
+      0,
+      Math.min(opponentCount(), Math.floor(num(parsed.clearedCount, 0))),
+    );
+    const cleared: Partial<Record<NamedOpponentId, boolean>> = {};
+    if (parsed.cleared && typeof parsed.cleared === 'object') {
+      for (const [id, val] of Object.entries(parsed.cleared)) {
+        if (val) cleared[id as NamedOpponentId] = true;
+      }
+    }
+    return {
+      clearedCount,
+      cleared,
+      lastIndex: Math.max(0, Math.min(opponentCount() - 1, Math.floor(num(parsed.lastIndex, 0)))),
+    };
+  } catch {
+    return EMPTY_LADDER;
+  }
+}
+
+export function saveLadder(progress: LadderProgress): void {
+  try {
+    localStorage.setItem(LADDER_KEY, JSON.stringify(progress));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Apply a finished ladder duel. Winning the frontier opponent unlocks the next. */
+export function applyLadderResult(
+  progress: LadderProgress,
+  opponentIndex: number,
+  won: boolean,
+  opponentId: NamedOpponentId,
+): LadderProgress {
+  const cleared = { ...progress.cleared };
+  let clearedCount = progress.clearedCount;
+  if (won) {
+    cleared[opponentId] = true;
+    if (opponentIndex === clearedCount && clearedCount < opponentCount()) {
+      clearedCount = opponentIndex + 1;
+    }
+  }
+  return {
+    clearedCount,
+    cleared,
+    lastIndex: opponentIndex,
+  };
 }

@@ -90,7 +90,7 @@ function playReason(state: GameState, card: Card, taken: Card | null): string {
 
 /** One-line seat blurb for the table chrome. */
 export function seatHintBlurb(state: GameState, seat: number): string {
-  const person = personalityForSeat(seat);
+  const person = personalityForSeat(seat, state.seatPersonalities);
   if (!person) return '';
   const n = state.hands[seat]?.length ?? 0;
   if (n <= 2 && n > 0) return `${person.name}・快出完了`;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { personalityForSeat } from '../game/cpu';
 import { isSeriesMode } from '../game/match';
+import { opponentById } from '../game/opponents';
 import type { MatchState } from '../game/types';
 import { HUMAN } from '../game/types';
 
@@ -17,6 +18,11 @@ export function MatchScoreboard({ match, progress }: Props): React.ReactElement 
   const target = match.config.mode === 'target' ? match.config.target : null;
   const maxAbs = Math.max(1, ...match.balances.map((n) => Math.abs(n)));
   const cols = match.balances.length;
+  const ladderOpp = match.config.ladderOpponentId
+    ? opponentById(match.config.ladderOpponentId)
+    : null;
+  const heading =
+    match.config.mode === 'daily' ? '每日牌桌' : ladderOpp ? '對手挑戰' : '系列賽';
 
   return (
     <section
@@ -24,7 +30,7 @@ export function MatchScoreboard({ match, progress }: Props): React.ReactElement 
       aria-label="系列賽計分板"
     >
       <div className="mb-2 flex items-center justify-between text-[11px] text-emerald-200/70">
-        <span className="font-bold tracking-wide">系列賽</span>
+        <span className="font-bold tracking-wide">{heading}</span>
         <span>{progress}</span>
       </div>
       <div
@@ -33,6 +39,8 @@ export function MatchScoreboard({ match, progress }: Props): React.ReactElement 
       >
         {match.balances.map((chips, seat) => {
           const person = personalityForSeat(seat);
+          const name =
+            ladderOpp && seat === 1 ? ladderOpp.name : SEAT_NAMES[seat];
           const leading =
             chips === Math.max(...match.balances) &&
             match.balances.some((c) => c !== chips || chips !== 0);
@@ -46,10 +54,14 @@ export function MatchScoreboard({ match, progress }: Props): React.ReactElement 
               }`}
             >
               <div className="truncate text-[10px] font-bold text-emerald-100">
-                {SEAT_NAMES[seat]}
-                {person ? (
+                {name}
+                {person && !(ladderOpp && seat === 1) ? (
                   <span className="block truncate font-normal text-emerald-200/45">
                     {person.name}
+                  </span>
+                ) : ladderOpp && seat === 1 ? (
+                  <span className="block truncate font-normal text-emerald-200/45">
+                    {ladderOpp.tagline}
                   </span>
                 ) : null}
               </div>
