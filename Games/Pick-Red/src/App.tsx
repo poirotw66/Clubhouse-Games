@@ -161,8 +161,8 @@ export default function App(): React.ReactElement {
     const pending = loadMatch();
     setResumeAvailable(Boolean(pending && pending.phase !== 'matchOver'));
 
-    // Playtest-only: `?demo=mvp` mounts a finished series so screenshots can
-    // capture the settlement MVP block without playing four full hands.
+    // Playtest-only: `?demo=mvp` mounts a finished series; `?demo=single`
+    // mounts a compact single-hand settlement for screenshots.
     if (typeof window !== 'undefined') {
       const demo = new URLSearchParams(window.location.search).get('demo');
       if (demo === 'mvp') {
@@ -170,6 +170,13 @@ export default function App(): React.ReactElement {
         setMatch(demoMatch);
         setConfig(demoMatch.config);
         setReview(buildMvpDemoReview());
+        setScreen('game');
+        setState(null);
+      } else if (demo === 'single') {
+        const demoMatch = buildSingleDemoMatch();
+        setMatch(demoMatch);
+        setConfig(demoMatch.config);
+        setReview(buildSingleDemoReview());
         setScreen('game');
         setState(null);
       }
@@ -1105,9 +1112,21 @@ function Setup({
           </p>
         </section>
 
-        <section>
-          <h2 className="font-bold mb-2 text-sm text-emerald-200">賽制</h2>
-          <div className="flex flex-col gap-2">
+        <details
+          className="pr-more-modes rounded-2xl border border-slate-700/80 bg-slate-900/40 px-4 py-3"
+          open={isSeriesMode(config.mode)}
+        >
+          <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-sm text-emerald-200 font-bold">
+            <span>更多賽制</span>
+            <span className="text-[11px] font-normal text-emerald-100/55">
+              {config.mode === 'single'
+                ? '目前：單局'
+                : config.mode === 'hands'
+                  ? `目前：${config.hands} 圈`
+                  : `目前：先達 ${config.target}`}
+            </span>
+          </summary>
+          <div className="mt-3 flex flex-col gap-2" role="group" aria-label="賽制">
             {playModes.map((mode) => (
               <div key={mode} className="flex flex-col gap-1.5">
                 <button
@@ -1167,7 +1186,7 @@ function Setup({
               </div>
             ))}
           </div>
-        </section>
+        </details>
 
         <section>
           <h2 className="font-bold mb-2 text-sm text-emerald-200">人數</h2>
@@ -1380,6 +1399,59 @@ function buildMvpDemoReview(): HandReview {
       {
         title: '系列賽籌碼結算',
         detail: '四圈累計後你以 +28 籌碼勝出；合格分每一圈都在加減籌碼。',
+      },
+    ],
+  };
+}
+
+
+/** Synthetic finished single hand for `?demo=single` playtest screenshots. */
+function buildSingleDemoMatch(): MatchState {
+  return {
+    config: {
+      mode: 'single',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: {
+        players: 2,
+        blackAces: false,
+        doubleRedFive: true,
+        zeroScoreBonus: true,
+        rotateLeader: true,
+      },
+      seedCode: 'demo-single',
+    },
+    handIndex: 1,
+    balances: [13, -13],
+    history: [
+      {
+        handIndex: 0,
+        seedCode: 'demo-single',
+        winner: 0,
+        scores: [118, 92],
+        deltas: [13, -13],
+        qualified: [0],
+        doubleRedFiveSeat: null,
+        zeroScoreSeat: null,
+      },
+    ],
+    phase: 'matchOver',
+    winner: 0,
+  };
+}
+
+function buildSingleDemoReview(): HandReview {
+  return {
+    winners: [0],
+    scores: [118, 92],
+    par: 105,
+    deltas: [13, -13],
+    highlight: '+13',
+    lessons: [
+      {
+        title: '單局結算',
+        detail: '打完一局就結束；籌碼與戰績記入單局，不含系列賽累計。',
       },
     ],
   };

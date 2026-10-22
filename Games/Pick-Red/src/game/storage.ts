@@ -101,7 +101,7 @@ export const EMPTY_STATS: Stats = {
   lastDoubleRedFive: true,
   lastZeroScoreBonus: true,
   lastRotateLeader: true,
-  lastMatchMode: 'hands',
+  lastMatchMode: 'single',
   lastMatchHands: 4,
   lastMatchTarget: 100,
 };
