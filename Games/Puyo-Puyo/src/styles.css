@@ -528,6 +528,35 @@ body.all-clear-flash {
   gap: 8px;
 }
 
+.daily-meta {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.daily-meta[hidden] {
+  display: none !important;
+}
+
+body[data-board-theme='sunset'] {
+  --panel: rgba(44, 18, 12, 0.82);
+  --accent: #ffb347;
+  --cta: #e07040;
+}
+
+body[data-board-theme='aurora'] {
+  --panel: rgba(8, 28, 32, 0.82);
+  --accent: #5dffc8;
+  --cta: #2a9d8f;
+}
+
+body[data-board-theme='candy'] {
+  --panel: rgba(40, 16, 44, 0.82);
+  --accent: #ff8ec8;
+  --cta: #c45a9e;
+}
+
 .versus-layout.solo-layout {
   grid-template-columns: minmax(0, 420px);
   justify-content: center;
@@ -537,7 +566,10 @@ body.all-clear-flash {
 .player-card-p2[hidden],
 .quest-panel[hidden],
 #mission-field[hidden],
-#difficulty-field[hidden] {
+#difficulty-field[hidden],
+#theme-field[hidden],
+#btn-daily-share[hidden],
+#btn-quest-skip[hidden] {
   display: none !important;
 }
 

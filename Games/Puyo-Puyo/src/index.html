@@ -21,6 +21,7 @@
             <select id="match-mode">
               <option value="cpu" selected>1P vs CPU</option>
               <option value="versus">1P vs 2P</option>
+              <option value="daily">每日謎題</option>
               <option value="mission">任務模式</option>
               <option value="tutorial">連鎖教室</option>
               <option value="practice">自由練習</option>
@@ -47,6 +48,10 @@
               <option value="nightmare">惡夢</option>
             </select>
           </label>
+          <label class="select-field" id="theme-field">
+            <span>場地</span>
+            <select id="board-theme" aria-label="場地主題"></select>
+          </label>
           <button type="button" id="btn-mute" class="ghost-button" aria-pressed="false">🔊 音效</button>
           <button type="button" id="btn-undo" class="ghost-button" disabled>復原</button>
           <button type="button" id="btn-hint" class="ghost-button">提示</button>
@@ -68,7 +73,9 @@
         <div class="quest-actions">
           <button type="button" id="btn-quest-hint" class="ghost-button">顯示落點提示</button>
           <button type="button" id="btn-quest-skip" class="ghost-button" hidden>下一課</button>
+          <button type="button" id="btn-daily-share" class="ghost-button" hidden>複製分享</button>
         </div>
+        <p id="daily-meta" class="daily-meta" hidden aria-live="polite"></p>
       </section>
 
       <main class="versus-layout" id="versus-layout">
@@ -205,6 +212,7 @@
     <script src="js/clubhouse-synth-audio.js"></script>
     <script src="js/logic.js"></script>
     <script src="js/missions.js"></script>
+    <script src="js/daily.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/render.js"></script>
     <script src="js/main.js"></script>
