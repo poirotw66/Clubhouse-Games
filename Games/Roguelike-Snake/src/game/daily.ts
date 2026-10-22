@@ -1,6 +1,6 @@
 /**
  * Daily seed helpers — calendar day string matches the title-screen seed,
- * and clear records drive streak / unlock meta.
+ * and clear records drive streak / unlock meta / share text.
  */
 
 export type DailyClearRecord = {
@@ -9,6 +9,16 @@ export type DailyClearRecord = {
   cleared: boolean;
   score: number;
   floor: number;
+};
+
+export type DailyShareInput = {
+  date: string;
+  cleared: boolean;
+  score: number;
+  floor: number;
+  streak: number;
+  /** Traditional Chinese build name, optional. */
+  buildName?: string;
 };
 
 /** Local calendar day as YYYYMMDD (same format the title screen already uses). */
@@ -58,4 +68,41 @@ export function mergeDailyRecord(
   without.push(merged);
   without.sort((a, b) => a.date.localeCompare(b.date));
   return without.slice(-60);
+}
+
+/** Wordle-style clipboard text for comparing the same daily seed. */
+export function buildDailyShareText(input: DailyShareInput): string {
+  const resultLine = input.cleared
+    ? `✓ 逃出 · ${input.score} 分 · 第 ${input.floor} 層`
+    : `✗ 第 ${input.floor} 層 · ${input.score} 分`;
+  const metaParts = [`連勝 ${input.streak} 天`];
+  if (input.buildName) metaParts.push(`身分 ${input.buildName}`);
+  return [`蛇窟迴廊 每日 ${input.date}`, resultLine, metaParts.join(' · ')].join('\n');
+}
+
+/** Copy text to clipboard; falls back to execCommand when Clipboard API is blocked. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    if (typeof document === 'undefined') return false;
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.setAttribute('readonly', '');
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    document.body.appendChild(el);
+    el.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(el);
+    return ok;
+  } catch {
+    return false;
+  }
 }

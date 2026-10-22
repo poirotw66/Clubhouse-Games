@@ -12,7 +12,7 @@ import {
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { Home, Pause, Play, RefreshCw, Trophy } from 'lucide-react';
+import { Copy, Home, Pause, Play, RefreshCw, Trophy } from 'lucide-react';
 import { Arena, type ArenaHandle } from './components/Arena';
 import { Hud, type HudSnapshot } from './components/Hud';
 import { RelicPicker } from './components/RelicPicker';
@@ -26,7 +26,12 @@ import {
 } from './game/challenges';
 import type { ChallengeProgress, SeedChallenge } from './game/challenges';
 import { MAX_FLOOR } from './game/config';
-import { todaySeedKey } from './game/daily';
+import {
+  buildDailyShareText,
+  computeDailyStreak,
+  copyText,
+  todaySeedKey,
+} from './game/daily';
 import {
   buyHeal,
   chooseRelic,
@@ -90,6 +95,7 @@ function snapshot(state: GameState): HudSnapshot {
     dashReady: state.time >= state.dashReadyAt,
     endless: state.endless,
     ironsnake: state.ironsnake,
+    daily: state.daily,
     buildName: build?.name ?? state.buildId,
   };
 }
@@ -113,6 +119,7 @@ function signatureOf(hud: HudSnapshot): string {
     hud.dashReady,
     hud.endless,
     hud.ironsnake,
+    hud.daily,
     hud.buildName,
   ].join('|');
 }
@@ -145,6 +152,7 @@ export default function App() {
   const [flash, setFlash] = useState<{ text: string; tone: 'good' | 'bad' | 'neutral'; key: number } | null>(
     null,
   );
+  const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -231,10 +239,13 @@ export default function App() {
       setSeedLabel(input.trim() || String(seed));
       setHud(snapshot(state));
       setPaused(false);
+      setShareCopied(false);
       setFlash(
         ironsnake
           ? { text: 'Ironsnake・一擊即死', tone: 'bad', key: Date.now() }
-          : null,
+          : daily
+            ? { text: '今日挑戰開始', tone: 'neutral', key: Date.now() }
+            : null,
       );
       setFloorPulse(false);
       setScreen('run');
@@ -479,6 +490,28 @@ export default function App() {
     setScreen('title');
   };
 
+  const copyDailyShare = async (cleared: boolean) => {
+    if (!hud || !runOptsRef.current.daily) return;
+    const date = seedLabel || todaySeedKey();
+    const streak = computeDailyStreak(meta.dailyRecords, todaySeedKey());
+    const text = buildDailyShareText({
+      date,
+      cleared,
+      score: hud.score,
+      floor: hud.floor,
+      streak,
+      buildName: hud.buildName,
+    });
+    const ok = await copyText(text);
+    setShareCopied(ok);
+    if (ok) {
+      setFlash({ text: '已複製分享文案', tone: 'good', key: Date.now() });
+      window.setTimeout(() => setShareCopied(false), 1800);
+    } else {
+      setFlash({ text: '無法複製', tone: 'bad', key: Date.now() });
+    }
+  };
+
   if (screen === 'title' || !hud) {
     return (
       <div
@@ -508,7 +541,9 @@ export default function App() {
     ? `挑戰・${activeChallenge.name}｜目標：${activeChallenge.goalLabel}`
     : hud.ironsnake
       ? 'Ironsnake 硬派・HP=1・遺物四選一'
-      : null;
+      : hud.daily
+        ? `每日挑戰・種子 ${seedLabel || todaySeedKey()}`
+        : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-3 pt-14 sm:pt-4">
@@ -551,7 +586,9 @@ export default function App() {
           className={`mb-2 w-full max-w-xl rounded-xl border px-3 py-2 text-center text-xs ${
             hud.ironsnake && !activeChallenge
               ? 'border-rose-700/50 bg-rose-950/50 text-rose-100'
-              : 'border-sky-700/50 bg-sky-950/50 text-sky-100'
+              : hud.daily && !activeChallenge
+                ? 'border-emerald-700/50 bg-emerald-950/50 text-emerald-100'
+                : 'border-sky-700/50 bg-sky-950/50 text-sky-100'
           }`}
         >
           {challengeBanner}
@@ -603,7 +640,9 @@ export default function App() {
             ? `目標：${activeChallenge.goalLabel}`
             : hud.ironsnake
               ? '硬派：一擊即死'
-              : `目標：抵達第 ${MAX_FLOOR} 層並擊敗首領`}
+              : hud.daily
+                ? '今日挑戰・同種子可比'
+                : `目標：抵達第 ${MAX_FLOOR} 層並擊敗首領`}
         </span>
       </p>
 
@@ -615,6 +654,7 @@ export default function App() {
           hp={state.hp}
           maxHp={state.maxHp}
           picksLeft={state.pendingPicks}
+          ironsnake={state.ironsnake}
           onChoose={handleChoose}
           onReroll={withState(rerollRelics)}
           onHeal={withState(buyHeal)}
@@ -630,7 +670,9 @@ export default function App() {
                 : '挑戰未達成'
               : hud.ironsnake
                 ? '鐵蛇折斷'
-                : '蛇窟吞噬了你'
+                : hud.daily
+                  ? '今日挑戰結束'
+                  : '蛇窟吞噬了你'
           }
           variant={activeChallenge && challengeCleared ? 'win' : 'lose'}
           badge={
@@ -638,14 +680,16 @@ export default function App() {
               ? challengeCleared
                 ? activeChallenge.name
                 : `目標：${activeChallenge.goalLabel}`
-              : `第 ${hud.floor} 層${hud.ironsnake ? ' · 鐵蛇' : ''}`
+              : `第 ${hud.floor} 層${hud.ironsnake ? ' · 鐵蛇' : ''}${hud.daily ? ' · 每日' : ''}`
           }
           subtitle={
             activeChallenge
               ? challengeCleared
                 ? `已記入通關・最佳分數可重刷`
                 : `再試一次・${activeChallenge.goalLabel}`
-              : `最佳紀錄：${meta.score} 分 · 第 ${meta.floor} 層`
+              : hud.daily
+                ? `今日最佳已更新・連勝 ${computeDailyStreak(meta.dailyRecords, todaySeedKey())} 天`
+                : `最佳紀錄：${meta.score} 分 · 第 ${meta.floor} 層`
           }
           stats={[
             { label: '分數', value: hud.score },
@@ -655,8 +699,22 @@ export default function App() {
           ]}
           primaryLabel={activeChallenge ? '再挑戰一次' : '再玩一局'}
           onPrimary={retryRun}
-          secondaryLabel={activeChallenge || hud.ironsnake ? '返回標題' : undefined}
-          onSecondary={activeChallenge || hud.ironsnake ? returnToTitle : undefined}
+          secondaryLabel={
+            hud.daily
+              ? shareCopied
+                ? '已複製'
+                : '複製分享結果'
+              : activeChallenge || hud.ironsnake
+                ? '返回標題'
+                : undefined
+          }
+          onSecondary={
+            hud.daily
+              ? () => void copyDailyShare(false)
+              : activeChallenge || hud.ironsnake
+                ? returnToTitle
+                : undefined
+          }
         />
       )}
 
@@ -710,13 +768,23 @@ export default function App() {
               ))}
             </dl>
             <div className="flex flex-col gap-2">
-              {!activeChallenge && (
+              {!activeChallenge && !hud.daily && (
                 <button
                   type="button"
                   onClick={withState(continueEndless)}
                   className="w-full rounded-xl bg-amber-600 px-6 py-3 font-semibold hover:bg-amber-500"
                 >
                   繼續深入（無盡模式）
+                </button>
+              )}
+              {hud.daily && (
+                <button
+                  type="button"
+                  onClick={() => void copyDailyShare(true)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-600/60 bg-emerald-950/50 px-6 py-3 font-semibold text-emerald-100 hover:bg-emerald-900/60"
+                >
+                  <Copy className="h-4 w-4" />
+                  {shareCopied ? '已複製分享文案' : '複製分享結果'}
                 </button>
               )}
               <button
