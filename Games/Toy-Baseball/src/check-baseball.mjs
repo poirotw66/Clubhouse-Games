@@ -1,8 +1,10 @@
-// Assert pitching arsenal, fielding gaps, seeded RNG, difficulty order, and stats.
+// Assert pitching arsenal, fielding gaps, seeded RNG, difficulty order, stats,
+// season standings, named pitcher tendencies, park fence, and hit-feel grades.
 import {
   DIFFICULTY,
   DIFFICULTY_BLURBS,
   INNINGS_OPTIONS,
+  PLAY_MODE_LABELS,
   cpuSwingTargetY,
   gradeContact,
 } from './difficulty.ts';
@@ -34,6 +36,25 @@ import {
 } from './fielding.ts';
 import { computeHitLaunch } from './hitting.ts';
 import { createRng } from './rng.ts';
+import {
+  PLAYER_TEAM_ID,
+  TEAMS,
+  fenceDistanceForPark,
+  getTeam,
+  opponentTeams,
+  teamCount,
+} from './teams.ts';
+import {
+  SEASON_KEY,
+  applyPlayerResult,
+  computeStandings,
+  createSeason,
+  loadSeason,
+  mergeSeason,
+  nextUnplayedPlayerGame,
+  saveSeason,
+} from './season.ts';
+import { createHitFeelBurst, updateHitParticles } from './hitFeel.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -352,6 +373,139 @@ assert(
   const migrated = loadBestsMap(storage);
   assert(migrated.normal.matchWins === 2, 'legacy → normal');
   assert(mem.has(STORAGE_KEY_V2), 'migration writes v2');
+}
+
+// Play modes include season.
+assert(PLAY_MODE_LABELS.season, 'season play mode label');
+assert(PLAY_MODE_LABELS.match && PLAY_MODE_LABELS.derby, 'match/derby labels');
+
+// --- Teams / parks / named pitchers ---
+assert(teamCount() === 4, 'expected 4 league teams');
+assert(opponentTeams().length === 3, 'three CPU opponents');
+assert(getTeam(PLAYER_TEAM_ID).id === 'tigers', 'player team is tigers');
+{
+  const styles = new Set(TEAMS.map((t) => t.pitcher.style));
+  assert(styles.has('power') && styles.has('finesse') && styles.has('trickster'), 'pitcher styles');
+  const fences = TEAMS.map((t) => fenceDistanceForPark(t.park, FENCE_DIST));
+  assert(new Set(fences).size >= 3, 'parks should differ in fence depth');
+  assert(Math.min(...fences) < FENCE_DIST && Math.max(...fences) > FENCE_DIST, 'bandbox + deep park');
+}
+
+// Named power pitcher throws more heat than finesse pitcher (seeded batch).
+{
+  const power = getTeam('bears').pitcher;
+  const finesse = getTeam('lizards').pitcher;
+  let powerHeat = 0;
+  let finesseHeat = 0;
+  let powerSoft = 0;
+  let finesseSoft = 0;
+  for (let i = 0; i < 300; i++) {
+    const a = chooseCpuPitch({ balls: 0, strikes: 0 }, 'normal', createRng(3000 + i), power);
+    const b = chooseCpuPitch({ balls: 0, strikes: 0 }, 'normal', createRng(3000 + i), finesse);
+    if (a.type === 'fastball' || a.type === 'sinker') powerHeat += 1;
+    if (b.type === 'fastball' || b.type === 'sinker') finesseHeat += 1;
+    if (a.type === 'changeup' || a.type === 'curve' || a.type === 'forkball') powerSoft += 1;
+    if (b.type === 'changeup' || b.type === 'curve' || b.type === 'forkball') finesseSoft += 1;
+  }
+  assert(powerHeat > finesseHeat, `power should throw more heat (${powerHeat} vs ${finesseHeat})`);
+  assert(finesseSoft > powerSoft, `finesse should throw more soft (${finesseSoft} vs ${powerSoft})`);
+}
+
+// Trickster paints corners more often than balanced first pitch.
+{
+  const trick = getTeam('hares').pitcher;
+  let trickCorners = 0;
+  let baseCorners = 0;
+  for (let i = 0; i < 250; i++) {
+    const a = chooseCpuPitch({ balls: 0, strikes: 1 }, 'normal', createRng(5000 + i), trick);
+    const b = chooseCpuPitch({ balls: 0, strikes: 1 }, 'normal', createRng(5000 + i), null);
+    if (a.loc !== 'center') trickCorners += 1;
+    if (b.loc !== 'center') baseCorners += 1;
+  }
+  assert(trickCorners > baseCorners, `trickster corners ${trickCorners} vs ${baseCorners}`);
+}
+
+// Shallow park: same landing clears fence where standard does not.
+{
+  const landingY = 450 - Math.round(FENCE_DIST * 0.96);
+  const deep = resolveFairBall({
+    landingX: 400,
+    landingY,
+    peakZ: 160,
+    quality: 0.7,
+    flightTime: 1.5,
+    cfg: DIFFICULTY.normal,
+    fenceDist: Math.round(FENCE_DIST * 1.08),
+  });
+  const short = resolveFairBall({
+    landingX: 400,
+    landingY,
+    peakZ: 160,
+    quality: 0.7,
+    flightTime: 1.5,
+    cfg: DIFFICULTY.normal,
+    fenceDist: Math.round(FENCE_DIST * 0.94),
+  });
+  assert(short.bases === 4, `bandbox should be HR, got ${short.result}`);
+  assert(deep.bases < 4, `deep park should not be auto-HR, got ${deep.result}`);
+}
+
+// Season: schedule, standings, save, finals.
+{
+  const s0 = createSeason({ seed: 42, difficulty: 'normal', inningsLength: 3 });
+  assert(s0.schedule.length === 6, `round-robin should be 6 games, got ${s0.schedule.length}`);
+  const playerGames = s0.schedule.filter(
+    (g) => g.homeId === PLAYER_TEAM_ID || g.awayId === PLAYER_TEAM_ID,
+  );
+  assert(playerGames.length === 3, 'player plays 3 regular games');
+  assert(nextUnplayedPlayerGame(s0)?.id === playerGames[0].id, 'first unplayed is first player game');
+
+  let s = s0;
+  for (const g of playerGames) {
+    s = applyPlayerResult(s, g.id, 4, 2);
+  }
+  // CPU games should auto-sim as we advance.
+  assert(s.schedule.every((g) => g.played), 'all regular games played after player slate');
+  assert(s.phase === 'finals' || s.phase === 'complete', `expected finals/complete, got ${s.phase}`);
+  const standings = computeStandings(s.schedule);
+  assert(standings.length === 4, 'four standing rows');
+  assert(standings[0].wins + standings[0].losses + standings[0].ties > 0, 'leader has games');
+
+  if (s.phase === 'finals' && s.finals) {
+    const finals = nextUnplayedPlayerGame(s);
+    assert(finals?.slot === 'finals', 'next game is finals');
+    s = applyPlayerResult(s, s.finals.id, 3, 1);
+    assert(s.phase === 'complete', 'finals result completes season');
+    assert(s.championId === PLAYER_TEAM_ID, 'player champion on win');
+  }
+
+  const mem = new Map();
+  const storage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => mem.set(k, v),
+    removeItem: (k) => mem.delete(k),
+  };
+  saveSeason(s, storage);
+  assert(mem.has(SEASON_KEY), 'season key written');
+  const loaded = loadSeason(storage);
+  assert(loaded?.phase === 'complete', 'season round-trip');
+  assert(mergeSeason({ version: 1, schedule: [] }) === null, 'empty schedule rejected');
+  assert(mergeSeason('nope') === null, 'junk season → null');
+}
+
+// Hit feel: grade intensity + reduced motion clears FX; particles decay.
+{
+  const perfect = createHitFeelBurst('perfect', 400, 400, createRng(1), false);
+  const weak = createHitFeelBurst('weak', 400, 400, createRng(1), false);
+  assert(perfect.screenShake > weak.screenShake, 'perfect shakes more');
+  assert(perfect.hitStop > weak.hitStop, 'perfect hit-stop longer');
+  assert(perfect.particles.length > weak.particles.length, 'perfect more particles');
+  const quiet = createHitFeelBurst('perfect', 400, 400, createRng(1), true);
+  assert(quiet.screenShake === 0 && quiet.particles.length === 0, 'reduced motion silences FX');
+  const stepped = updateHitParticles(perfect.particles, 0.05);
+  assert(stepped.length <= perfect.particles.length, 'particles only shrink');
+  const drained = updateHitParticles(perfect.particles, 10);
+  assert(drained.length === 0, 'long dt clears particles');
 }
 
 console.log('check-baseball: ok');

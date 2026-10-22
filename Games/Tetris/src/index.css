@@ -64,3 +64,14 @@ body {
     opacity: 1;
   }
 }
+
+/* Daily progress fill — width is set inline; only animate when motion is OK. */
+.tetris-daily-fill {
+  transition: width 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tetris-daily-fill {
+    transition: none;
+  }
+}
