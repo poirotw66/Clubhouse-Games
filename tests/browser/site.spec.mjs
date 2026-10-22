@@ -175,6 +175,8 @@ test('connect four: popout, series target, personality, and puzzle smoke', async
   await expect(page.getByRole('button', { name: 'PopOut 取出', exact: true })).toBeVisible();
   await activateBtn(page.getByRole('button', { name: '8×7', exact: true }));
   await expect(page.getByRole('button', { name: '投入第 8 欄', exact: true })).toBeVisible();
+  // Default is single; open「更多賽制」then pick 5 勝 for the series assertion.
+  await activateBtn(page.getByText('更多賽制', { exact: true }));
   await activateBtn(page.getByRole('button', { name: '5 勝', exact: true }));
   await expect(page.getByText('先取 5 勝', { exact: false })).toBeVisible();
   await activateBtn(page.getByRole('button', { name: '鐵壁', exact: true }));
@@ -196,6 +198,18 @@ test('connect four: popout, series target, personality, and puzzle smoke', async
 function activate(locator, isMobile) {
   return isMobile ? locator.tap() : locator.click();
 }
+
+
+test('connect four: default lobby is single without series strip', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Connect-Four'), 'selective CI');
+  await page.goto('./Games/Connect-Four/');
+  await expect(page.getByText('目前：單局', { exact: false })).toBeVisible();
+  // Collapsed by default: series progress pill (先取 N 勝) not on the HUD.
+  await expect(page.locator('span').filter({ hasText: /系列賽 \d/ })).toHaveCount(0);
+  await activate(page.getByText('更多賽制', { exact: true }), isMobile);
+  await expect(page.getByRole('button', { name: '單局', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: '系列賽目標' })).toBeVisible();
+});
 
 test('reversi: two-player mid-game, undo, and new-game menu', async ({ page, isMobile }) => {
   test.skip(!includesGame('Reversi'), 'selective CI');
