@@ -298,6 +298,13 @@ body,
   justify-content: space-between;
 }
 
+/* Own media rule so later .touch-pad { display:flex } does not beat Tailwind md:hidden */
+@media (min-width: 768px) {
+  .touch-pad {
+    display: none;
+  }
+}
+
 .touch-col {
   display: flex;
   flex-direction: column;

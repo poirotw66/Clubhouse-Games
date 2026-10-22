@@ -130,12 +130,12 @@ export function createLionWorld(): LionWorld {
 
     applyLegPose(legs, snapshotHud(sim, TIME_LIMIT).legLift, snapshotHud(sim, TIME_LIMIT).legSwing);
 
-    // Chase camera
-    const target = new THREE.Vector3(sim.x - 0.2, 1.6 + (sim.fallen ? 0.4 : 0), 0);
+    // Chase camera — slightly elevated 3/4 view so the lion silhouette reads clearly
+    const target = new THREE.Vector3(sim.x + 0.6, 1.35 + (sim.fallen ? 0.5 : 0), 0);
     const camPos = new THREE.Vector3(
-      sim.x - 5.2,
-      3.4 + Math.abs(sim.pitch) * 0.4,
-      5.8 + Math.abs(sim.roll) * 0.5,
+      sim.x - 4.6,
+      3.1 + Math.abs(sim.pitch) * 0.35,
+      6.2 + Math.abs(sim.roll) * 0.45,
     );
     if (reduced) {
       camera.position.copy(camPos);

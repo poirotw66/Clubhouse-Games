@@ -225,10 +225,19 @@ export function buildStreet(scene: THREE.Scene, reducedMotion: boolean): {
     }
   }
 
-  // Start marker
-  const startArch = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.5, 5), mat(WOOD));
-  startArch.position.set(-1.2, 1.25, 0);
-  scene.add(startArch);
+  // Start line on the ground (avoid a tall wall that blocks the chase camera)
+  const startLine = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 2.8), mat(RED));
+  startLine.position.set(-0.4, 0.04, 0);
+  scene.add(startLine);
+  const startPosts = [-1.5, 1.5];
+  for (const z of startPosts) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.6, 6), mat(WOOD));
+    post.position.set(-0.4, 0.8, z);
+    scene.add(post);
+    const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.04), mat(GOLD));
+    ribbon.position.set(-0.4, 1.35, z);
+    scene.add(ribbon);
+  }
 
   // Temple gate at finish
   const gate = new THREE.Group();

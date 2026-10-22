@@ -22,7 +22,7 @@ export function TouchPad({ visible, s, onLeg, onGetUp }: TouchPadProps): ReactEl
   if (!visible) return null;
 
   return (
-    <div className="touch-pad md:hidden" aria-label="觸控操作">
+    <div className="touch-pad" aria-label="觸控操作">
       <div className="touch-col">
         <TouchButton
           className="lion-touch"
