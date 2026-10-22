@@ -1,20 +1,28 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 二十一點（Blackjack-main）
 
-# Run and deploy your AI Studio app
+俱樂部紙牌遊戲：生涯桌＋每日牌靴＋錫標賽。
 
-This contains everything you need to run your app locally.
+## 已有深度
 
-View your app in AI Studio: https://ai.studio/apps/49c5ad4f-c80c-45f1-a1e7-0b95165238c3
+- 多副牌靴與切牌／穿透顯示
+- 桌級解鎖、有限破產救濟
+- 基本策略提示與局後對錯回饋
+- Hi-Lo 算牌練習模式
 
-## Run Locally
+## 本輪加深
 
-**Prerequisites:**  Node.js
+1. **每日牌靴**：台北日期種子固定牌靴，20 手／起手 $1000，記錄最佳結餘與策略命中、連續天數，可複製分享。
+2. **錫標賽**：買入 $500、15 手，對戰四位具名 CPU（下注風格不同），依終點籌碼排名發獎；賽中不可免費救濟。
+3. **Perfect Pairs 邊注**：主注一半為上限；完美 25:1／同色 12:1／混色 6:1（錫標賽關閉）。
 
+## 本機
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install   # 在 repo 根目錄 setup 亦可
+npm run lint
+npm run check
+npm run build
+npm run dev   # vite --port 3000
+```
+
+根目錄 `npm run dev` 可從總覽選單進入建置後的遊戲。

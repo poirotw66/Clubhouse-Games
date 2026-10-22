@@ -7,6 +7,7 @@ import {
   type PairCount,
   unmatchedIndices,
 } from './memoryLogic.ts';
+import type { CpuPlayStyle, OpponentDef } from './opponents.ts';
 
 /** One remembered sighting of a face-down card. */
 export interface MemoryEntry {
@@ -136,14 +137,40 @@ export interface CpuPickContext {
   /** When true and difficulty is hard, may stall with known non-matching cards. */
   preferStall?: boolean;
   rand?: () => number;
+  /** Named opponent style overrides (beyond retain/capacity). */
+  style?: CpuPlayStyle;
+  skipKnownChance?: number;
+  exploreBias?: number;
+  stallWhenBehind?: boolean;
+}
+
+export function styleFromOpponent(opponent: OpponentDef): Pick<
+  CpuPickContext,
+  'style' | 'skipKnownChance' | 'exploreBias' | 'stallWhenBehind' | 'difficulty'
+> {
+  return {
+    style: opponent.style,
+    skipKnownChance: opponent.skipKnownChance,
+    exploreBias: opponent.exploreBias,
+    stallWhenBehind: opponent.stallWhenBehind,
+    difficulty: opponent.difficulty,
+  };
 }
 
 /**
  * Choose two unmatched indices for the CPU turn.
  * Never selects already-matched cards.
+ * Styles:
+ * - adventurous: may skip known matches; prefer unknown cards
+ * - conservative: prefer known singles over unknown exploration
+ * - stall: behind → known non-match stall
+ * - perfect / balanced: take known matches when recalled
  */
 export function pickCpuMove(ctx: CpuPickContext): [number, number] {
   const rand = ctx.rand ?? Math.random;
+  const style: CpuPlayStyle = ctx.style ?? 'balanced';
+  const skipKnown = ctx.skipKnownChance ?? 0;
+  const exploreBias = ctx.exploreBias ?? 0.7;
   const open = unmatchedIndices(ctx.cards);
   if (open.length < 2) {
     throw new Error('pickCpuMove requires at least two unmatched cards');
@@ -152,21 +179,40 @@ export function pickCpuMove(ctx: CpuPickContext): [number, number] {
   const recalled = recalledEntries(ctx.memory, ctx.cards, ctx.turn, ctx.difficulty, rand);
   const known = knownMatchPair(recalled);
 
-  if (
-    ctx.difficulty === 'hard' &&
-    ctx.preferStall &&
-    rand() < HARD_STALL_CHANCE &&
-    !known
-  ) {
+  const allowStall =
+    (ctx.stallWhenBehind || (ctx.difficulty === 'hard' && style !== 'perfect')) &&
+    (ctx.preferStall || ctx.stallWhenBehind) &&
+    style !== 'conservative';
+
+  if (allowStall && rand() < HARD_STALL_CHANCE && !known) {
     const stall = stallPair(recalled, rand);
     if (stall) return stall;
   }
 
-  if (known) return known;
+  // Adventurous may intentionally skip a known match to dig for new info.
+  const takeKnown =
+    known &&
+    style !== 'adventurous'
+      ? true
+      : known && style === 'adventurous'
+        ? rand() >= skipKnown
+        : Boolean(known);
 
-  // First flip: unknown card preferred.
+  if (known && takeKnown) return known;
+  if (known && style === 'perfect') return known;
+
   const unknown = open.filter((i) => !recalled.some((e) => e.index === i));
-  const firstPool = unknown.length > 0 ? unknown : open;
+  const knownSingles = open.filter((i) => recalled.some((e) => e.index === i));
+
+  let firstPool: number[];
+  if (style === 'conservative') {
+    // Prefer known cards; only explore when nothing is remembered.
+    firstPool = knownSingles.length > 0 ? knownSingles : open;
+  } else if (style === 'adventurous' || rand() < exploreBias) {
+    firstPool = unknown.length > 0 ? unknown : open;
+  } else {
+    firstPool = unknown.length > 0 ? unknown : open;
+  }
   const first = pickRandom(firstPool, rand);
 
   // After seeing first (simulated), try to match from memory of that face.
@@ -174,7 +220,14 @@ export function pickCpuMove(ctx: CpuPickContext): [number, number] {
   const mate = recalled.find((e) => e.face === firstFace && e.index !== first);
   if (mate) return [first, mate.index];
 
-  const secondPool = open.filter((i) => i !== first);
+  let secondPool = open.filter((i) => i !== first);
+  if (style === 'conservative' && knownSingles.length > 0) {
+    const knownOther = knownSingles.filter((i) => i !== first);
+    if (knownOther.length > 0) secondPool = knownOther;
+  } else if (style === 'adventurous') {
+    const unknownOther = unknown.filter((i) => i !== first);
+    if (unknownOther.length > 0) secondPool = unknownOther;
+  }
   const second = pickRandom(secondPool, rand);
   return [first, second];
 }

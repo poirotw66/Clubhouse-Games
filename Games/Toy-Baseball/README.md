@@ -1,20 +1,25 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 玩具棒球（Toy Baseball）
 
-# Run and deploy your AI Studio app
+Clubhouse 機檯棒球：讀球、控球、打向空檔。
 
-This contains everything you need to run your app locally.
+## 模式
 
-View your app in AI Studio: https://ai.studio/apps/ead1dcf6-4809-4462-833b-ee7b81b140f8
+- **正規賽**：3／6／9 局，客場先打，六球種＋出手後控球，九人守備。
+- **球季模式**：四隊循環＋冠軍賽；戰績表；具名投手傾向；球場外野深度；`localStorage` 可續玩。
+- **全壘打大賽**：10 次揮擊拚全壘打數。
 
-## Run Locally
+## 打擊手感
 
-**Prerequisites:**  Node.js
+依接觸品質觸發畫面震動、短暫停格、塵土／火花粒子；`prefers-reduced-motion` 時關閉。
 
+## 開發
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+npm run dev
+npm run lint
+npm run check
+npm run build
+```
+
+規格見 [`04-sports-arcade/toy-baseball.md`](../../04-sports-arcade/toy-baseball.md)。

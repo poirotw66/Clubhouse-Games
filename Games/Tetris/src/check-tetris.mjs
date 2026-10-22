@@ -1,4 +1,4 @@
-// Core pure-logic checks for Tetris (SRS, T-Spin, B2B, garbage, modes).
+// Core pure-logic checks for Tetris (SRS, T-Spin, B2B, garbage, modes, daily/practice).
 import assert from 'node:assert/strict';
 import {
   BOARD_SIZE,
@@ -26,6 +26,33 @@ import {
   findBestPlacement,
   reachPlacement,
 } from './utils/cpuAi.ts';
+import {
+  buildDailyShareText,
+  computeDailyStreak,
+  dailySeed,
+  emptyDailyMeta,
+  generateSeededPieces,
+  mergeDailyResult,
+  todayKeyUTC8,
+} from './utils/daily.ts';
+import {
+  CHEESE_DEFAULT,
+  TSPIN_PUZZLES,
+  cheeseStars,
+  createCheeseBoard,
+  puzzleBoardFromRows,
+  puzzleMatchesClear,
+  tspinStars,
+} from './utils/practice.ts';
+import {
+  CPU_STYLES,
+  applyCpuStyle,
+  isStyleUnlocked,
+  recordSeriesGame,
+  resetSeries,
+  seriesComplete,
+} from './utils/versusMeta.ts';
+import { createInitialField, finishClearing, lockPiece } from './utils/gameStep.ts';
 
 function fillRow(board, row, type = 'I') {
   for (let c = 0; c < BOARD_SIZE.cols; c++) board[row][c] = type;
@@ -394,6 +421,10 @@ function fillRow(board, row, type = 'I') {
   assert.equal(isGoalMet('ultra', 0, 2 * 60 * 1000), true);
   assert.equal(isGoalMet('marathon', 999, 9_999_999), false);
   assert.equal(isGoalMet('versus', 999, 9_999_999), false);
+  assert.equal(isGoalMet('dailySprint', 40, 0), true);
+  assert.equal(isGoalMet('dailyUltra', 0, 2 * 60 * 1000), true);
+  assert.equal(isGoalMet('cheese', 10, 0), true);
+  assert.equal(isGoalMet('tspin', 99, 0), false, 'tspin goals are puzzle-driven, not line/time');
 }
 
 // CPU AI finds a legal placement on an empty board.
@@ -428,6 +459,129 @@ function fillRow(board, row, type = 'I') {
   assert.ok(DIFFICULTY_PRESETS.easy.garbageDropCap <= DIFFICULTY_PRESETS.normal.garbageDropCap);
   assert.ok(PLAYER_GARBAGE_DROP_CAP >= 4 && PLAYER_GARBAGE_DROP_CAP <= 12);
   assert.equal(DIFFICULTY_PRESETS.hard.candidatePool, 1);
+}
+
+// Daily: same date+kind → identical piece sequence; different kind diverges.
+{
+  const a = generateSeededPieces(dailySeed('2026-10-22', 'sprint'), 28);
+  const b = generateSeededPieces(dailySeed('2026-10-22', 'sprint'), 28);
+  const c = generateSeededPieces(dailySeed('2026-10-22', 'ultra'), 28);
+  assert.deepEqual(a, b, 'daily bag must be deterministic');
+  assert.notDeepEqual(a, c, 'sprint and ultra seeds must differ');
+  assert.equal(a.length, 28);
+  // 7-bag: first 7 are a permutation of IJLOSTZ.
+  const firstBag = [...a.slice(0, 7)].sort().join('');
+  assert.equal(firstBag, 'IJLOSTZ');
+  assert.match(todayKeyUTC8(new Date('2026-10-21T16:00:00Z')), /^\d{4}-\d{2}-\d{2}$/);
+}
+
+// Daily meta: merge bests + streak across consecutive clears.
+{
+  let meta = emptyDailyMeta();
+  meta = mergeDailyResult(meta, '2026-10-20', 'sprint', 50_000, 40, true);
+  meta = mergeDailyResult(meta, '2026-10-21', 'ultra', 12_000, 20, true);
+  meta = mergeDailyResult(meta, '2026-10-22', 'sprint', 40_000, 40, true);
+  // Faster sprint on same day replaces time.
+  meta = mergeDailyResult(meta, '2026-10-22', 'sprint', 35_000, 40, true);
+  const day = meta.days.find((d) => d.date === '2026-10-22');
+  assert.equal(day.sprint.value, 35_000);
+  assert.equal(day.sprint.attempts, 2);
+  assert.equal(computeDailyStreak(meta, '2026-10-22'), 3);
+  const share = buildDailyShareText({
+    date: '2026-10-22',
+    kind: 'sprint',
+    value: 35_000,
+    lines: 40,
+    cleared: true,
+    streak: 3,
+  });
+  assert.ok(share.includes('每日 40 行'));
+  assert.ok(share.includes('連續 3 天'));
+}
+
+// Cheese board: N garbage rows with a single hole each.
+{
+  const board = createCheeseBoard(10, 42);
+  let garbageRows = 0;
+  for (let r = 0; r < BOARD_SIZE.rows; r++) {
+    const g = board[r].filter((c) => c === 'G').length;
+    const empty = board[r].filter((c) => c === null).length;
+    if (g > 0) {
+      garbageRows += 1;
+      assert.equal(g, BOARD_SIZE.cols - 1);
+      assert.equal(empty, 1);
+    }
+  }
+  assert.equal(garbageRows, 10);
+  assert.equal(cheeseStars(30_000, true), 3);
+  assert.equal(cheeseStars(60_000, true), 2);
+  assert.equal(cheeseStars(90_000, true), 1);
+  assert.equal(cheeseStars(10_000, false), 0);
+  assert.equal(CHEESE_DEFAULT.lineGoal, 10);
+}
+
+// T-Spin puzzles: boards parse; TSD puzzle can be cleared with one T lock after rotate.
+{
+  assert.ok(TSPIN_PUZZLES.length >= 2);
+  const puzzle = TSPIN_PUZZLES.find((p) => p.id === 'ts-double-1');
+  assert.ok(puzzle);
+  const board = puzzleBoardFromRows(puzzle.rows);
+  assert.equal(board[BOARD_SIZE.rows - 1].every((c) => c === 'G'), true);
+  // Drop T into the well and rotate to pointing-down for a full TSD.
+  let field = createInitialField({
+    board,
+    pieces: ['T', 'I', 'J'],
+    puzzleGoal: puzzle.require,
+    refillBags: false,
+    allowHold: false,
+  });
+  assert.equal(field.holdEnabled, false);
+  assert.ok(field.active);
+  // Place T already in the TSD slot (rot 2, col 3) — mirrors detectTSpin setup.
+  const piece = {
+    type: 'T',
+    rotation: 2,
+    position: { row: BOARD_SIZE.rows - 4, col: 3 },
+  };
+  assert.equal(collides(field.board, piece), false, 'TSD slot must accept T');
+  assert.equal(detectTSpin(field.board, piece, 'rotate', 0), 'full');
+  const outcome = lockPiece(
+    { ...field, active: piece, lastAction: 'rotate', lastKickIndex: 0 },
+    'tspin',
+    0,
+    0,
+  );
+  assert.ok(outcome.linesCleared >= 2, 'TSD setup should clear two lines');
+  let next = outcome.field;
+  if (next.clearing) {
+    next = finishClearing(next, 'tspin');
+  }
+  assert.equal(next.cleared, true, 'puzzle goal should mark cleared');
+  assert.equal(puzzleMatchesClear(puzzle, 'full', 2), true);
+  assert.equal(tspinStars(1, true, puzzle), 3);
+  assert.equal(tspinStars(10, true, puzzle), 1);
+}
+
+// Versus meta: style unlocks + BO3 series + weight multipliers.
+{
+  assert.equal(isStyleUnlocked('balanced', 0), true);
+  assert.equal(isStyleUnlocked('conservative', 0), false);
+  assert.equal(isStyleUnlocked('conservative', 1), true);
+  assert.equal(isStyleUnlocked('digger', 3), true);
+  assert.equal(isStyleUnlocked('tspin', 4), false);
+  assert.equal(isStyleUnlocked('tspin', 5), true);
+  const digger = applyCpuStyle('normal', 'digger');
+  const base = DIFFICULTY_PRESETS.normal;
+  assert.ok(digger.clearWeight > base.clearWeight);
+  assert.ok(digger.holeWeight < base.holeWeight);
+  let series = { bo3: true, style: 'balanced', seriesPlayer: 0, seriesCpu: 0 };
+  series = recordSeriesGame(series, 'player');
+  series = recordSeriesGame(series, 'player');
+  assert.equal(seriesComplete(series), true);
+  assert.equal(series.seriesPlayer, 2);
+  series = resetSeries(series);
+  assert.equal(series.seriesPlayer, 0);
+  assert.ok(CPU_STYLES.tspin.unlockWins >= 5);
 }
 
 console.log('check-tetris: ok');

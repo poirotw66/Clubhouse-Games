@@ -1,5 +1,5 @@
 import type { Card } from '../types.ts';
-import { createDeck } from './deck.ts';
+import { createDeck, createSeededDeck } from './deck.ts';
 
 /** Fraction of the shoe dealt before the cut card triggers a reshuffle after the hand. */
 export const DEFAULT_PENETRATION = 0.75;
@@ -14,13 +14,17 @@ export interface ShoeState {
   needsReshuffle: boolean;
   deckCount: number;
   penetration: number;
+  /** When set, reshuffles stay deterministic (seed + reshuffle index). */
+  seed?: number;
+  reshuffleIndex?: number;
 }
 
-export function createShoe(
+function shoeFromCards(
+  cards: Card[],
   deckCount: number,
-  penetration: number = DEFAULT_PENETRATION,
+  penetration: number,
+  extras?: Pick<ShoeState, 'seed' | 'reshuffleIndex'>,
 ): ShoeState {
-  const cards = createDeck(deckCount);
   const capacity = cards.length;
   const cutAt = Math.max(1, Math.floor(capacity * (1 - penetration)));
   return {
@@ -30,7 +34,27 @@ export function createShoe(
     needsReshuffle: false,
     deckCount,
     penetration,
+    ...extras,
   };
+}
+
+export function createShoe(
+  deckCount: number,
+  penetration: number = DEFAULT_PENETRATION,
+): ShoeState {
+  return shoeFromCards(createDeck(deckCount), deckCount, penetration);
+}
+
+/** Fixed-order shoe for daily / tournament modes. */
+export function createSeededShoe(
+  deckCount: number,
+  seed: number,
+  penetration: number = DEFAULT_PENETRATION,
+): ShoeState {
+  return shoeFromCards(createSeededDeck(deckCount, seed), deckCount, penetration, {
+    seed,
+    reshuffleIndex: 0,
+  });
 }
 
 export function cardsRemaining(shoe: ShoeState): number {
@@ -79,5 +103,16 @@ export function drawCards(
 /** Reshuffle when armed (or force). Returns a fresh shoe. */
 export function maybeReshuffle(shoe: ShoeState, force = false): ShoeState {
   if (!force && !shoe.needsReshuffle) return shoe;
+  if (shoe.seed != null) {
+    const nextIndex = (shoe.reshuffleIndex ?? 0) + 1;
+    // Mix original seed with reshuffle count so cut-card reshuffles stay reproducible.
+    const nextSeed = (shoe.seed ^ Math.imul(nextIndex + 1, 0x9e3779b9)) >>> 0;
+    return shoeFromCards(
+      createSeededDeck(shoe.deckCount, nextSeed),
+      shoe.deckCount,
+      shoe.penetration,
+      { seed: shoe.seed, reshuffleIndex: nextIndex },
+    );
+  }
   return createShoe(shoe.deckCount, shoe.penetration);
 }
