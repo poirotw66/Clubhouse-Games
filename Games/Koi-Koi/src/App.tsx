@@ -836,23 +836,34 @@ export default function App() {
             <p className="text-center text-xs text-gold/70 mb-2 min-h-[1.25rem]">
               {DIFFICULTY_BLURBS[difficulty]}
             </p>
-            <p className="text-xs text-cream/60 mb-3 mt-4 text-center tracking-wide">對局長度</p>
-            <div className="flex justify-center gap-2 mb-2">
-              {WIN_SCORE_OPTIONS.map(target => (
-                <button
-                  key={target}
-                  type="button"
-                  onClick={() => applyWinScore(target)}
-                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                    winScore === target
-                      ? 'bg-gold/20 text-gold border border-gold/50'
-                      : 'text-cream/60 border border-gold/20 hover:border-gold/40 hover:text-cream'
-                  }`}
-                >
-                  {WIN_SCORE_LABELS[target]}
-                </button>
-              ))}
-            </div>
+            <details
+              className="kk-more-modes mt-4 mb-2 rounded-xl border border-gold/20 bg-black/20 px-3 py-2"
+              open={winScore !== 7}
+            >
+              <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-xs text-cream/70 font-semibold tracking-wide">
+                <span>更多賽制</span>
+                <span className="font-normal text-cream/45">
+                  {winScore === 7 ? '目前：先達 7' : `目前：${WIN_SCORE_LABELS[winScore]}`}
+                </span>
+              </summary>
+              <p className="text-xs text-cream/50 mb-2 mt-2 text-center tracking-wide">對局長度</p>
+              <div className="flex justify-center gap-2" role="group" aria-label="對局長度">
+                {WIN_SCORE_OPTIONS.map(target => (
+                  <button
+                    key={target}
+                    type="button"
+                    onClick={() => applyWinScore(target)}
+                    className={`px-4 py-2 min-h-[44px] rounded-lg text-sm transition-colors touch-manipulation ${
+                      winScore === target
+                        ? 'bg-gold/20 text-gold border border-gold/50'
+                        : 'text-cream/60 border border-gold/20 hover:border-gold/40 hover:text-cream'
+                    }`}
+                  >
+                    {WIN_SCORE_LABELS[target]}
+                  </button>
+                ))}
+              </div>
+            </details>
           </div>
 
           <div className="wafu-panel rounded-2xl p-4 sm:p-6 w-full">

@@ -51,3 +51,15 @@ body {
     animation: none;
   }
 }
+
+
+.rv-more-modes > summary::-webkit-details-marker { display: none; }
+.rv-more-modes > summary::after {
+  content: '▸';
+  color: rgba(168, 162, 158, 0.7);
+  transition: transform 160ms ease;
+}
+.rv-more-modes[open] > summary::after { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .rv-more-modes > summary::after { transition: none; }
+}

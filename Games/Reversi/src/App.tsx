@@ -47,7 +47,9 @@ import {
   STREAK_KEY,
   BEST_STREAK_KEY,
   MARGIN_KEY,
+  loadSeriesLength,
   readStoredInt,
+  saveSeriesLength,
   writeStoredInt,
 } from './utils/storage';
 
@@ -125,7 +127,11 @@ export default function App() {
   const [playMode, setPlayMode] = useState<PlayMode | null>(null);
   const [playerSide, setPlayerSide] = useState<Piece>('black');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
-  const [seriesLength, setSeriesLength] = useState<SeriesLength>(1);
+  const [seriesLength, setSeriesLength] = useState<SeriesLength>(() => loadSeriesLength());
+  const setSeriesLengthAndRemember = (n: SeriesLength) => {
+    setSeriesLength(n);
+    saveSeriesLength(n);
+  };
   const [series, setSeries] = useState<SeriesMatch | null>(null);
   const [ladderIndex, setLadderIndex] = useState(0);
   const [ladder, setLadder] = useState<LadderProgress>(() => loadLadder());
@@ -734,7 +740,7 @@ export default function App() {
         difficulty={difficulty}
         setDifficulty={setDifficulty}
         seriesLength={seriesLength}
-        setSeriesLength={setSeriesLength}
+        setSeriesLength={setSeriesLengthAndRemember}
         ladder={ladder}
         puzzles={PUZZLES}
         winStreak={winStreak}

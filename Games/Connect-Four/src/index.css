@@ -63,3 +63,25 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
     animation: none;
   }
 }
+
+
+/* Collapsible series options */
+.cf-more-modes > summary::-webkit-details-marker {
+  display: none;
+}
+
+.cf-more-modes > summary::after {
+  content: '▸';
+  color: rgba(148, 163, 184, 0.7);
+  transition: transform 160ms ease;
+}
+
+.cf-more-modes[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-more-modes > summary::after {
+    transition: none;
+  }
+}
