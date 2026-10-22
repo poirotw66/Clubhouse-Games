@@ -153,8 +153,8 @@ export default function App(): React.ReactElement {
     setLadder(loadLadder());
     setDailyProgress(loadDailyProgress());
 
-    // Playtest-only: `?demo=mvp` mounts a finished series so screenshots can
-    // capture the settlement MVP block without playing a full match.
+    // Playtest-only: `?demo=mvp` mounts a finished series; `?demo=single`
+    // mounts a compact single-hand settlement for screenshots.
     if (typeof window !== 'undefined') {
       const demo = new URLSearchParams(window.location.search).get('demo');
       if (demo === 'mvp') {
@@ -162,6 +162,13 @@ export default function App(): React.ReactElement {
         setMatch(demoMatch);
         setConfig(demoMatch.config);
         setReview(buildMvpDemoReview());
+        setScreen('game');
+        setState(null);
+      } else if (demo === 'single') {
+        const demoMatch = buildSingleDemoMatch();
+        setMatch(demoMatch);
+        setConfig(demoMatch.config);
+        setReview(buildSingleDemoReview());
         setScreen('game');
         setState(null);
       }
@@ -1289,6 +1296,66 @@ function buildMvpDemoReview(): HandReview {
       {
         title: '系列賽籌碼結算',
         detail: '四局累計後你以 +42 籌碼勝出；局末 MVP 標出最快出完、炸彈與翻盤。',
+      },
+    ],
+  };
+}
+
+/** Synthetic finished single hand for `?demo=single` playtest screenshots. */
+function buildSingleDemoMatch(): MatchState {
+  return {
+    config: {
+      mode: 'single',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: {
+        straights: 'topCard',
+        sizeLadder: true,
+        deuceDouble: true,
+      },
+      seedCode: 'demo-single',
+      ladderOpponentId: null,
+    },
+    handIndex: 1,
+    balances: [27, -16, -5, -6],
+    history: [
+      {
+        handIndex: 0,
+        seedCode: 'demo-single',
+        winner: 0,
+        scores: [
+          { seat: 0, remaining: 0, base: 0, deuces: 0, penalty: 0 },
+          { seat: 1, remaining: 8, base: 8, deuces: 0, penalty: 16 },
+          { seat: 2, remaining: 5, base: 5, deuces: 0, penalty: 5 },
+          { seat: 3, remaining: 6, base: 6, deuces: 0, penalty: 6 },
+        ],
+        pot: 27,
+        deltas: [27, -16, -5, -6],
+        bombs: [0, 0, 0, 0],
+        winnerPlayCount: 5,
+      },
+    ],
+    phase: 'matchOver',
+    winner: 0,
+  };
+}
+
+function buildSingleDemoReview(): HandReview {
+  return {
+    winner: 0,
+    pot: 27,
+    scores: [
+      { seat: 0, remaining: 0, base: 0, deuces: 0, penalty: 0 },
+      { seat: 1, remaining: 8, base: 8, deuces: 0, penalty: 16 },
+      { seat: 2, remaining: 5, base: 5, deuces: 0, penalty: 5 },
+      { seat: 3, remaining: 6, base: 6, deuces: 0, penalty: 6 },
+    ],
+    highlight: '+27',
+    lessons: [
+      {
+        title: '單局結算',
+        detail: '打完一局就結束；籌碼與戰績記入單局，不含系列賽累計。',
       },
     ],
   };
