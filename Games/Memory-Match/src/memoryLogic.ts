@@ -71,7 +71,7 @@ export const FACE_EMOJI: Record<FaceId, string> = {
 
 export type PairCount = 6 | 12 | 18 | 24;
 
-export type PlayMode = 'classic' | 'sprint' | 'versus' | 'special';
+export type PlayMode = 'classic' | 'sprint' | 'versus' | 'special' | 'daily' | 'campaign';
 
 export type ThemeId = 'classic' | 'night' | 'orchard' | 'jewel';
 
@@ -230,7 +230,7 @@ export const THEME_OPTIONS: {
   },
 ];
 
-export type CardKind = 'normal' | 'insight';
+export type CardKind = 'normal' | 'insight' | 'bomb';
 
 export interface MemoryCard {
   id: string;
@@ -238,6 +238,14 @@ export interface MemoryCard {
   matched: boolean;
   kind: CardKind;
 }
+
+export type BuildDeckOptions = {
+  specialInsight?: boolean;
+  /** 2 = classic pairs; 3 = match-three groups. */
+  copiesPerFace?: 2 | 3;
+  /** Mark one face as a bomb pair/group (miss with bomb costs time in campaign). */
+  bombPair?: boolean;
+};
 
 export function themeFaces(themeId: ThemeId): readonly FaceId[] {
   const found = THEME_OPTIONS.find((t) => t.id === themeId);
@@ -259,37 +267,38 @@ export function clampPairCount(themeId: ThemeId, pairCount: PairCount): PairCoun
   return allowed[allowed.length - 1] ?? 6;
 }
 
-export function gridColsClass(pairCount: PairCount): string {
-  switch (pairCount) {
-    case 6:
-      return 'grid-cols-3 sm:grid-cols-4';
-    case 12:
-      return 'grid-cols-4 sm:grid-cols-6';
-    case 18:
-      // 4 cols on phones so cards stay tappable; 6 from sm up.
-      return 'grid-cols-4 sm:grid-cols-6';
-    case 24:
-      // Avoid 6-col phone grids (≈56×74) — 4 cols keeps targets near 80×+ px.
-      return 'grid-cols-4 sm:grid-cols-6 lg:grid-cols-8';
-    default:
-      return 'grid-cols-4';
-  }
+export function gridColsClass(pairCount: number): string {
+  if (pairCount <= 4) return 'grid-cols-3 sm:grid-cols-4';
+  if (pairCount <= 6) return 'grid-cols-3 sm:grid-cols-4';
+  if (pairCount <= 12) return 'grid-cols-4 sm:grid-cols-6';
+  if (pairCount <= 18) return 'grid-cols-4 sm:grid-cols-6';
+  // Avoid 6-col phone grids (≈56×74) — 4 cols keeps targets near 80×+ px.
+  return 'grid-cols-4 sm:grid-cols-6 lg:grid-cols-8';
 }
 
-export function gridGapClass(pairCount: PairCount): string {
+export function gridGapClass(pairCount: number): string {
   return pairCount >= 18 ? 'gap-1.5 sm:gap-2' : 'gap-2';
 }
 
+/**
+ * Build a shuffled deck. `faceCount` is clamped to the theme pool.
+ * When `copiesPerFace` is 3, each face appears three times (match-three).
+ */
 export function buildDeck(
-  pairCount: PairCount = 12,
+  faceCount: number = 12,
   themeId: ThemeId = 'classic',
   rand: () => number = Math.random,
-  options: { specialInsight?: boolean } = {},
+  options: BuildDeckOptions = {},
 ): MemoryCard[] {
   const pool = themeFaces(themeId);
-  const n = clampPairCount(themeId, pairCount);
+  const copies = options.copiesPerFace ?? 2;
+  const maxFaces = Math.min(pool.length, maxPairsForTheme(themeId));
+  const n = Math.max(1, Math.min(Math.floor(faceCount), maxFaces));
   const chosen = pool.slice(0, n);
-  const faces = [...chosen, ...chosen];
+  const faces: FaceId[] = [];
+  for (const face of chosen) {
+    for (let c = 0; c < copies; c++) faces.push(face);
+  }
   for (let i = faces.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     const tmp = faces[i];
@@ -303,12 +312,24 @@ export function buildDeck(
     insightFace = chosen[idx];
   }
 
-  return faces.map((face, i) => ({
-    id: `${face}-${i}`,
-    face,
-    matched: false,
-    kind: insightFace !== null && face === insightFace ? 'insight' : 'normal',
-  }));
+  let bombFace: FaceId | null = null;
+  if (options.bombPair && chosen.length > 0) {
+    const candidates = chosen.filter((f) => f !== insightFace);
+    const poolForBomb = candidates.length > 0 ? candidates : chosen;
+    bombFace = poolForBomb[Math.floor(rand() * poolForBomb.length)];
+  }
+
+  return faces.map((face, i) => {
+    let kind: CardKind = 'normal';
+    if (insightFace !== null && face === insightFace) kind = 'insight';
+    else if (bombFace !== null && face === bombFace) kind = 'bomb';
+    return {
+      id: `${face}-${i}`,
+      face,
+      matched: false,
+      kind,
+    };
+  });
 }
 
 export function allMatched(cards: MemoryCard[]): boolean {
@@ -324,9 +345,10 @@ export function unmatchedIndices(cards: MemoryCard[]): number[] {
 }
 
 /**
- * Pick one unmatched face and return both card indices (for a brief peek hint).
+ * Pick one unmatched face and return `need` card indices (for a brief peek hint).
+ * Defaults to a classic pair (need=2).
  */
-export function hintPairIndices(cards: MemoryCard[]): [number, number] | null {
+export function hintPairIndices(cards: MemoryCard[], need = 2): number[] | null {
   const byFace = new Map<FaceId, number[]>();
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
@@ -336,9 +358,49 @@ export function hintPairIndices(cards: MemoryCard[]): [number, number] | null {
     byFace.set(card.face, list);
   }
   for (const indices of byFace.values()) {
-    if (indices.length >= 2) return [indices[0], indices[1]];
+    if (indices.length >= need) return indices.slice(0, need);
   }
   return null;
+}
+
+/** True when all flipped indices share the same face. */
+export function isMatchGroup(cards: MemoryCard[], indices: readonly number[]): boolean {
+  if (indices.length < 2) return false;
+  const face = cards[indices[0]]?.face;
+  if (!face) return false;
+  return indices.every((i) => cards[i]?.face === face);
+}
+
+/**
+ * Swap positions of two face-down unmatched cards (campaign swap mechanic).
+ * Returns a new array; no-op when fewer than two eligible cards.
+ */
+export function swapTwoHiddenCards(
+  cards: MemoryCard[],
+  flipped: readonly number[],
+  rand: () => number,
+): MemoryCard[] {
+  const eligible: number[] = [];
+  for (let i = 0; i < cards.length; i++) {
+    if (cards[i].matched) continue;
+    if (flipped.includes(i)) continue;
+    eligible.push(i);
+  }
+  if (eligible.length < 2) return cards;
+  const i = eligible[Math.floor(rand() * eligible.length)];
+  let j = eligible[Math.floor(rand() * eligible.length)];
+  let guard = 0;
+  while (j === i && guard < 8) {
+    j = eligible[Math.floor(rand() * eligible.length)];
+    guard += 1;
+  }
+  if (j === i) return cards;
+  const next = cards.slice();
+  const a = next[i];
+  const b = next[j];
+  next[i] = { ...b, id: `${b.face}-swap-${i}-${b.id}` };
+  next[j] = { ...a, id: `${a.face}-swap-${j}-${a.id}` };
+  return next;
 }
 
 /** Combo scoring: each consecutive match multiplies base points. */
@@ -372,27 +434,31 @@ export function bestStorageSlot(
   const n = clampPairCount(themeId, pairCount);
   const metric = extra?.metric ?? (mode === 'sprint' ? 'time' : 'moves');
 
-  if (mode === 'versus') {
+  // Daily / campaign use dedicated storage modules — keep free-play slots stable.
+  const slotMode: PlayMode =
+    mode === 'daily' || mode === 'campaign' ? 'classic' : mode;
+
+  if (slotMode === 'versus') {
     const diff = extra?.cpuDifficulty ?? 'normal';
     return `versus-${diff}-${themeId}-${n}`;
   }
 
   if (metric === 'score') {
-    return `score-${mode}-${themeId}-${n}`;
+    return `score-${slotMode}-${themeId}-${n}`;
   }
 
-  if (metric === 'time' && mode === 'classic') {
+  if (metric === 'time' && slotMode === 'classic') {
     return themeId === 'classic' ? `time-${n}` : `time-${themeId}-${n}`;
   }
 
-  if (mode === 'sprint' || (metric === 'time' && mode === 'special')) {
-    if (themeId === 'classic' && mode === 'sprint') return `sprint-${n}`;
-    return mode === 'sprint' ? `sprint-${themeId}-${n}` : `time-special-${themeId}-${n}`;
+  if (slotMode === 'sprint' || (metric === 'time' && slotMode === 'special')) {
+    if (themeId === 'classic' && slotMode === 'sprint') return `sprint-${n}`;
+    return slotMode === 'sprint' ? `sprint-${themeId}-${n}` : `time-special-${themeId}-${n}`;
   }
 
   // classic / special moves
-  if (themeId === 'classic' && mode === 'classic') return String(n);
-  if (mode === 'special') return `special-${themeId}-${n}`;
+  if (themeId === 'classic' && slotMode === 'classic') return String(n);
+  if (slotMode === 'special') return `special-${themeId}-${n}`;
   return `${themeId}-${n}`;
 }
 
