@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * Record a short mobile + desktop playthrough with mixed enemy waves.
- * Output: /opt/cursor/artifacts/borderland-demo-*.webm and refreshed PNGs.
+ * Record a short mobile + desktop playthrough covering daily + combat.
+ * Output: /opt/cursor/artifacts/bl-demo-*.webm|mp4 and refreshed PNGs.
  */
 import { chromium, devices } from "playwright";
 import path from "node:path";
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 
 const PORT = Number(process.env.PORT) || 3000;
 const BASE = `http://127.0.0.1:${PORT}/gpt6-astra/borderland/`;
@@ -17,6 +18,20 @@ const LAUNCH = {
   executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome-stable",
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--no-sandbox"],
 };
+
+function webmToMp4(webmPath, mp4Path) {
+  const r = spawnSync(
+    "ffmpeg",
+    ["-y", "-i", webmPath, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", mp4Path],
+    { encoding: "utf8" },
+  );
+  if (r.status !== 0) {
+    console.warn("ffmpeg convert failed", r.stderr?.slice(0, 200));
+    return false;
+  }
+  console.log("mp4", mp4Path);
+  return true;
+}
 
 async function playCombat(page, seconds = 8) {
   await page.evaluate(async (sec) => {
@@ -52,29 +67,34 @@ const browser = await chromium.launch(LAUNCH);
   });
   const page = await context.newPage();
   await page.goto(`${BASE}?test=1`, { waitUntil: "networkidle" });
+  await page.click('[data-mode="daily"]');
+  await page.waitForSelector("#dailyCard");
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(OUT, "bl-daily-desktop.png") });
+  await page.click("#openMeta");
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(OUT, "bl-meta-desktop.png") });
+  await page.click("#metaBack");
   await page.click('[data-weapon="rifle"]');
+  // Prefer a non-banned weapon if daily still selected — switch to easy for combat clarity
   await page.click('[data-mode="easy"]');
   await page.click("#start");
   await page.waitForTimeout(500);
   await page.evaluate(() => window.__dustRiotTest.enableUnlockPlay());
   await playCombat(page, 6);
-  // Jump to a later wave composition visually by finishing and noting kinds via API
-  const kinds = await page.evaluate(() => {
-    // Force wave 4 roster into scene by calling internal beginWave loop via finish+restart is heavy;
-    // instead report current kinds and take screenshot after combat.
-    return window.__dustRiotTest.getEnemyKinds();
-  });
+  const kinds = await page.evaluate(() => window.__dustRiotTest.getEnemyKinds());
   console.log("desktop kinds after combat", kinds);
-  await page.screenshot({ path: path.join(OUT, "borderland-combat-desktop.png") });
+  await page.screenshot({ path: path.join(OUT, "bl-combat-desktop.png") });
   const video = await page.video();
   await context.close();
   const vpath = await video.path();
-  const dest = path.join(OUT, "borderland-demo-desktop.webm");
+  const dest = path.join(OUT, "bl-demo-desktop.webm");
   fs.renameSync(vpath, dest);
   console.log("video", dest);
+  webmToMp4(dest, path.join(OUT, "bl-demo-desktop.mp4"));
 }
 
-// ---- Mobile demo: enter, stick, fire, reach mixed wave ----
+// ---- Mobile demo ----
 {
   const iPhone = devices["iPhone 13"];
   const context = await browser.newContext({
@@ -87,12 +107,15 @@ const browser = await chromium.launch(LAUNCH);
   });
   const page = await context.newPage();
   await page.goto(`${BASE}?test=1&touch=1`, { waitUntil: "networkidle" });
-  await page.click('[data-weapon="smg"]');
+  await page.click('[data-mode="daily"]');
+  await page.waitForSelector("#dailyCard");
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(OUT, "bl-daily-mobile.png") });
   await page.click('[data-mode="easy"]');
+  await page.click('[data-weapon="smg"]');
   await page.click("#start");
   await page.waitForTimeout(400);
 
-  // Drive sticks via pointer events for several seconds
   async function dragStick(sel, dx, dy, holdMs) {
     const el = await page.$(sel);
     const box = await el.boundingBox();
@@ -110,7 +133,7 @@ const browser = await chromium.launch(LAUNCH);
     });
   }
 
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 5; i++) {
     await dragStick("#lookStick", 30 - i * 4, -10, 200);
     await dragStick("#moveStick", 0, -40, 300);
     const fire = await page.$("#btnFire");
@@ -127,39 +150,39 @@ const browser = await chromium.launch(LAUNCH);
     });
   }
 
-  // Advance waves by wiping enemies via test + beginWave path: finish mid then show wave 4 kinds
-  const waveInfo = await page.evaluate(() => {
-    // Use private path: repeatedly call finish is wrong. Spawn check of composition via rules not exposed.
-    // Kill all enemies by setting hp and triggering damage is complex.
-    // Instead jump wave counter by finishing run and starting, then document touch chrome.
-    return {
-      ui: window.__dustRiotTest.getUi(),
-      wave: window.__dustRiotTest.getWave(),
-      kinds: window.__dustRiotTest.getEnemyKinds(),
-      ammo: window.__dustRiotTest.getAmmo(),
-      hp: window.__dustRiotTest.getPlayerHp(),
-    };
-  });
+  const waveInfo = await page.evaluate(() => ({
+    ui: window.__dustRiotTest.getUi(),
+    wave: window.__dustRiotTest.getWave(),
+    kinds: window.__dustRiotTest.getEnemyKinds(),
+    ammo: window.__dustRiotTest.getAmmo(),
+    hp: window.__dustRiotTest.getPlayerHp(),
+  }));
   console.log("mobile mid", waveInfo);
-  await page.screenshot({ path: path.join(OUT, "borderland-combat-mobile.png") });
+  await page.screenshot({ path: path.join(OUT, "bl-combat-mobile.png") });
 
-  // Pause via button to show pause works on phone
   await page.click("#pauseBtn");
   await page.waitForTimeout(400);
-  await page.screenshot({ path: path.join(OUT, "borderland-pause-mobile.png") });
+  await page.screenshot({ path: path.join(OUT, "bl-pause-mobile.png") });
   await page.click("#resume");
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(300);
 
+  await page.evaluate(() => {
+    window.__dustRiotTest.setMode("daily");
+    window.__dustRiotTest.beginRun();
+  });
+  await page.waitForTimeout(400);
   await page.evaluate(() => window.__dustRiotTest.finishRun("victory"));
-  await page.waitForSelector("#again");
+  await page.waitForSelector("#shareText");
   await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(OUT, "bl-result-mobile.png") });
 
   const video = await page.video();
   await context.close();
   const vpath = await video.path();
-  const dest = path.join(OUT, "borderland-demo-mobile.webm");
+  const dest = path.join(OUT, "bl-demo-mobile.webm");
   fs.renameSync(vpath, dest);
   console.log("video", dest);
+  webmToMp4(dest, path.join(OUT, "bl-demo.mp4"));
 }
 
 await browser.close();

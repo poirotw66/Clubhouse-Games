@@ -1,4 +1,5 @@
 import React from 'react';
+import { DAILY_HANDS } from '../game/daily';
 import { computeMatchMvp, isSeriesMode } from '../game/match';
 import type { HandReview } from '../game/review';
 import type { MatchMvp, MatchState } from '../game/types';
@@ -12,6 +13,9 @@ interface Props {
   matchOver: boolean;
   onContinue: () => void;
   onSetup: () => void;
+  shareLabel?: string | null;
+  onShare?: (() => void) | null;
+  seatNames?: string[];
 }
 
 export function HandReviewPanel({
@@ -20,8 +24,12 @@ export function HandReviewPanel({
   matchOver,
   onContinue,
   onSetup,
+  shareLabel,
+  onShare,
+  seatNames = SEAT_NAMES,
 }: Props): React.ReactElement {
   const series = isSeriesMode(match.config.mode);
+  const daily = match.config.mode === 'daily';
   const wonHand = review.winners.length === 1 && review.winners[0] === HUMAN;
   const drewHand = review.winners.includes(HUMAN) && review.winners.length > 1;
   const wonMatch = matchOver && match.winner === HUMAN;
@@ -29,25 +37,39 @@ export function HandReviewPanel({
 
   const title = !series
     ? '單局結束'
-    : matchOver
-      ? '系列賽結束'
-      : '本局複盤';
+    : daily && matchOver
+      ? '每日牌桌結束'
+      : matchOver
+        ? '系列賽結束'
+        : '本局複盤';
 
   const headline = !series
     ? wonHand
       ? '你贏了'
       : drewHand
         ? '平手'
-        : `${SEAT_NAMES[review.winners[0] ?? 0]}贏了`
+        : `${seatNames[review.winners[0] ?? 0]}贏了`
     : matchOver
       ? wonMatch
-        ? '系列賽獲勝'
-        : `${SEAT_NAMES[match.winner ?? 0]}拿下系列賽`
+        ? daily
+          ? '今日牌桌獲勝'
+          : '系列賽獲勝'
+        : `${seatNames[match.winner ?? 0]}拿下${daily ? '今日牌桌' : '系列賽'}`
       : wonHand
         ? '你贏了這一局'
         : drewHand
           ? '本局平手'
-          : `${SEAT_NAMES[review.winners[0] ?? 0]}贏了這一局`;
+          : `${seatNames[review.winners[0] ?? 0]}贏了這一局`;
+
+  const continueLabel = !series
+    ? '再打一局'
+    : matchOver
+      ? daily
+        ? '再挑戰今日'
+        : match.config.ladderOpponentId
+          ? '再挑戰'
+          : '再打一場系列賽'
+      : '下一圈';
 
   return (
     <div
@@ -85,7 +107,9 @@ export function HandReviewPanel({
               {match.balances[HUMAN]}
               {match.config.mode === 'hands'
                 ? ` · 已打 ${match.history.length}/${match.config.hands} 圈`
-                : ` · 目標 ${match.config.target}`}
+                : match.config.mode === 'daily'
+                  ? ` · 已打 ${match.history.length}/${DAILY_HANDS} 圈`
+                  : ` · 目標 ${match.config.target}`}
               {` · 標準分 ${review.par}`}
             </>
           ) : (
@@ -100,7 +124,7 @@ export function HandReviewPanel({
               className="flex justify-between rounded-lg border border-white/5 bg-slate-800/80 px-3 py-2"
             >
               <dt className="text-slate-400">
-                {SEAT_NAMES[seat]}
+                {seatNames[seat] ?? SEAT_NAMES[seat]}
                 {review.winners.includes(seat) ? ' ★' : ''}
                 {points > review.par ? ' 合格' : ''}
               </dt>
@@ -123,7 +147,7 @@ export function HandReviewPanel({
           ))}
         </dl>
 
-        {mvp && <MvpBlock mvp={mvp} />}
+        {mvp && <MvpBlock mvp={mvp} seatNames={seatNames} />}
 
         <ul className="mt-4 space-y-2">
           {review.lessons.map((lesson) => (
@@ -143,12 +167,17 @@ export function HandReviewPanel({
             onClick={onContinue}
             className="min-h-[48px] w-full rounded-xl bg-emerald-600 px-6 py-3 font-semibold touch-manipulation hover:bg-emerald-500"
           >
-            {!series
-              ? '再打一局'
-              : matchOver
-                ? '再打一場系列賽'
-                : '下一圈'}
+            {continueLabel}
           </button>
+          {onShare && (
+            <button
+              type="button"
+              onClick={onShare}
+              className="min-h-[44px] w-full rounded-xl border border-amber-400/40 bg-amber-500/10 px-6 py-3 font-semibold text-amber-100 touch-manipulation hover:bg-amber-500/20"
+            >
+              {shareLabel ?? '複製分享'}
+            </button>
+          )}
           <button
             type="button"
             onClick={onSetup}
@@ -162,7 +191,13 @@ export function HandReviewPanel({
   );
 }
 
-function MvpBlock({ mvp }: { mvp: MatchMvp }): React.ReactElement {
+function MvpBlock({
+  mvp,
+  seatNames = SEAT_NAMES,
+}: {
+  mvp: MatchMvp;
+  seatNames?: string[];
+}): React.ReactElement {
   const rows: { label: string; seat: number; value: string }[] = [
     {
       label: '最多紅點',
@@ -194,7 +229,7 @@ function MvpBlock({ mvp }: { mvp: MatchMvp }): React.ReactElement {
           >
             <span className="text-amber-100/70">{row.label}</span>
             <span className="text-right font-semibold text-amber-50">
-              {SEAT_NAMES[row.seat]}
+              {seatNames[row.seat] ?? SEAT_NAMES[row.seat]}
               <span className="ml-2 font-mono text-xs font-normal text-amber-200/60">
                 {row.value}
               </span>

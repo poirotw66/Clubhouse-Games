@@ -4,6 +4,8 @@
  */
 import assert from 'node:assert/strict';
 import {
+  DAILY_LEVEL_ID,
+  GATED_RECIPES,
   LEVELS,
   LEGACY_LAYOUT_KEY,
   MACHINE_POWER,
@@ -11,13 +13,16 @@ import {
   STORAGE_KEY,
   canAffordPower,
   canEnablePower,
+  dailyBlueprint,
   emptyProgress,
+  formatDailyShareText,
   getLevel,
   grantLevelResearch,
   hasResearch,
   isLevelUnlocked,
   maxMachineLevel,
   migrateProgress,
+  minerCycleMult,
   nextLevelId,
   powerDiscount,
   powerDraw,
@@ -25,6 +30,11 @@ import {
   productLabel,
   rateStars,
   recordClear,
+  recordDailyClear,
+  seedFromString,
+  shiftDateKey,
+  storageMult,
+  taipeiDateKey,
   totalStars,
   unlockedMachineTypes,
   unlockedRecipes,
@@ -166,6 +176,8 @@ assert.equal(migrated.currentLevelId, 'L01');
 assert.deepEqual(migrated.research.sort(), ['splitter'].sort());
 assert.equal(migrated.clears.L01.stars, 2);
 assert.ok(migrated.layouts.L01);
+assert.ok(migrated.daily);
+assert.equal(migrated.mode, 'campaign');
 
 const fromLegacyOnly = migrateProgress(null, { version: 1, credits: 800, machines: [], conveyors: [] });
 assert.ok(fromLegacyOnly.layouts.L01);
@@ -174,6 +186,111 @@ assert.equal(totalStars(progress) >= 3, true);
 assert.ok(RESEARCH.every((r) => r.id && r.unlocks));
 assert.ok(MACHINE_POWER.robot_assembler > MACHINE_POWER.assembler);
 
+/* ---- Expanded research + new products ---- */
+assert.ok(RESEARCH.length >= 8, 'research tree should have at least 8 nodes');
+const researchIds = new Set(RESEARCH.map((r) => r.id));
+for (const id of [
+  'splitter',
+  'circuits',
+  'robotics',
+  'overclock',
+  'wiring',
+  'motors',
+  'bulk_storage',
+  'deep_mining',
+]) {
+  assert.ok(researchIds.has(id), `missing research ${id}`);
+}
+assert.ok(GATED_RECIPES.has('wire'));
+assert.ok(GATED_RECIPES.has('motor'));
+assert.equal(productLabel('wire'), 'wire');
+assert.equal(productLabel('motor'), 'motors');
+
+assert.equal(storageMult(emptyProgress()), 1);
+assert.equal(minerCycleMult(emptyProgress()), 1);
+const bonusProgress = emptyProgress();
+bonusProgress.research.push('bulk_storage', 'deep_mining', 'wiring', 'motors');
+assert.equal(storageMult(bonusProgress), 2);
+assert.equal(minerCycleMult(bonusProgress), 0.75);
+assert.ok(unlockedRecipes(bonusProgress).includes('wire'));
+assert.ok(unlockedRecipes(bonusProgress).includes('motor'));
+
+assert.ok(LEVELS.find((l) => l.id === 'L04')?.unlockResearch.includes('wiring'));
+assert.ok(LEVELS.find((l) => l.id === 'L06')?.unlockResearch.includes('bulk_storage'));
+assert.ok(LEVELS.find((l) => l.id === 'L08')?.unlockResearch.includes('motors'));
+assert.ok(LEVELS.find((l) => l.id === 'L09')?.unlockResearch.includes('deep_mining'));
+
+/* ---- Daily blueprint (Asia/Taipei) ---- */
+const dateKey = taipeiDateKey(new Date('2026-10-20T04:00:00Z'));
+assert.match(dateKey, /^\d{4}-\d{2}-\d{2}$/);
+// 04:00 UTC is 12:00 Taipei — still Oct 20
+assert.equal(dateKey, '2026-10-20');
+const lateUtc = taipeiDateKey(new Date('2026-10-20T16:30:00Z'));
+// 16:30 UTC = 00:30 next day Taipei
+assert.equal(lateUtc, '2026-10-21');
+
+const bpA = dailyBlueprint(new Date('2026-06-15T04:00:00Z'));
+const bpB = dailyBlueprint(new Date('2026-06-15T10:00:00Z'));
+const bpC = dailyBlueprint(new Date('2026-06-16T04:00:00Z'));
+assert.equal(bpA.id, DAILY_LEVEL_ID);
+assert.equal(bpA.dateKey, bpB.dateKey);
+assert.equal(bpA.seed, bpB.seed);
+assert.equal(bpA.product, bpB.product);
+assert.equal(bpA.target, bpB.target);
+assert.notEqual(bpA.seed, bpC.seed);
+assert.ok(['gear', 'circuit', 'robot', 'wire', 'motor'].includes(bpA.product));
+assert.ok(bpA.target > 0);
+assert.ok(Array.isArray(bpA.researchGrant));
+assert.ok(bpA.researchGrant.every((id) => researchIds.has(id)));
+assert.ok(Array.isArray(bpA.allowedMachines));
+assert.ok(bpA.allowedMachines.includes('assembler'));
+
+assert.equal(shiftDateKey('2026-06-15', 1), '2026-06-16');
+assert.equal(seedFromString('mini-factory-daily:2026-06-15'), bpA.seed);
+
+const dailyProgress = emptyProgress();
+const dailyClear = recordDailyClear(dailyProgress, bpA, {
+  machineCount: 5,
+  powerPeak: 20,
+  creditsLeft: 400,
+  completeTime: 55,
+  rate: bpA.target,
+});
+assert.ok(dailyClear.stars >= 1);
+assert.equal(dailyClear.streak, 1);
+assert.equal(dailyProgress.daily.streak, 1);
+assert.equal(dailyProgress.daily.lastClearedDate, bpA.dateKey);
+assert.equal(dailyProgress.daily.byDate[bpA.dateKey].stars, dailyClear.stars);
+
+const sameDay = recordDailyClear(dailyProgress, bpA, {
+  machineCount: 9,
+  powerPeak: 40,
+  creditsLeft: 0,
+  completeTime: 90,
+  rate: bpA.target,
+});
+assert.equal(sameDay.streak, 1);
+assert.equal(
+  dailyProgress.daily.byDate[bpA.dateKey].stars,
+  Math.max(dailyClear.stars, sameDay.stars),
+);
+
+const nextDayBp = { ...bpC, dateKey: shiftDateKey(bpA.dateKey, 1) };
+const streak2 = recordDailyClear(dailyProgress, nextDayBp, {
+  machineCount: 6,
+  powerPeak: 22,
+  creditsLeft: 300,
+  completeTime: 60,
+  rate: nextDayBp.target,
+});
+assert.equal(streak2.streak, 2);
+
+const share = formatDailyShareText(dailyProgress, bpA);
+assert.ok(share.includes('每日藍圖'));
+assert.ok(share.includes(bpA.dateKey));
+assert.ok(share.includes('連續天數'));
+assert.ok(share.includes('Asia/Taipei'));
+
 console.log(
-  `Mini Factory check OK · ${LEVELS.length} levels · ${RESEARCH.length} research · L01 classic mission intact`,
+  `Mini Factory check OK · ${LEVELS.length} levels · ${RESEARCH.length} research · daily ${bpA.dateKey} · L01 classic mission intact`,
 );

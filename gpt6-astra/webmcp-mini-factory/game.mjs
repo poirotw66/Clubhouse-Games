@@ -3,6 +3,8 @@
  * Side-effect boot on import; shares FactoryEngine with human UI and WebMCP tools.
  */
 import {
+  DAILY_LEVEL_ID,
+  GATED_RECIPES,
   LEVELS,
   LEGACY_LAYOUT_KEY,
   MACHINE_POWER,
@@ -10,18 +12,24 @@ import {
   STORAGE_KEY,
   canAffordPower,
   canEnablePower,
+  dailyBlueprint,
   emptyProgress,
+  formatDailyShareText,
   getLevel,
   hasResearch,
   isLevelUnlocked,
   maxMachineLevel,
   migrateProgress,
+  minerCycleMult,
   nextLevelId,
   powerDiscount,
   powerDraw,
   powerUsed,
   productLabel,
   recordClear,
+  recordDailyClear,
+  storageMult,
+  taipeiDateKey,
   totalStars,
   unlockedMachineTypes,
   unlockedRecipes,
@@ -47,7 +55,9 @@ const RESOURCES = {
   copper_plate:{name:"Copper plate",color:"#efb084",symbol:"▰"},
   gear:{name:"Gear",color:"#8de5c1",symbol:"⚙"},
   circuit:{name:"Circuit",color:"#a99de6",symbol:"▦"},
-  robot:{name:"Robot",color:"#7ec8e8",symbol:"🤖"}
+  robot:{name:"Robot",color:"#7ec8e8",symbol:"🤖"},
+  wire:{name:"Wire",color:"#e8c56a",symbol:"⌁"},
+  motor:{name:"Motor",color:"#7ed4b0",symbol:"◎"}
 };
 const RECIPES = {
   iron_ore:{machine:"miner",inputs:{},outputs:{iron_ore:1},cycleTime:1.5},
@@ -56,7 +66,9 @@ const RECIPES = {
   copper_plate:{machine:"smelter",inputs:{copper_ore:1},outputs:{copper_plate:1},cycleTime:5},
   gear:{machine:"assembler",inputs:{iron_plate:2},outputs:{gear:1},cycleTime:3},
   circuit:{machine:"assembler",inputs:{iron_plate:1,copper_plate:2},outputs:{circuit:1},cycleTime:4},
-  robot:{machine:"robot_assembler",inputs:{gear:2,circuit:1},outputs:{robot:1},cycleTime:5}
+  robot:{machine:"robot_assembler",inputs:{gear:2,circuit:1},outputs:{robot:1},cycleTime:5},
+  wire:{machine:"assembler",inputs:{copper_plate:1},outputs:{wire:2},cycleTime:2},
+  motor:{machine:"assembler",inputs:{gear:1,wire:2},outputs:{motor:1},cycleTime:4}
 };
 const DEFINITIONS = {
   miner:{name:"Miner",cost:200,capacity:12,icon:"⛏"},
@@ -161,8 +173,41 @@ function buildStarter(level){
       newConveyor("conveyor-5","smelter-2","assembler-2",[{x:6,y:6},{x:7,y:6},{x:8,y:6},{x:8,y:5}],1)
     ]};
   };
+  const wire_seed=()=>{
+    const machines=[
+      newMachine("miner-1","miner",4,6,"copper_ore"),
+      newMachine("smelter-1","smelter",6,6,"copper_plate"),
+      newMachine("assembler-1","assembler",8,5,"wire"),
+      newMachine("storage-1","storage",9,3)
+    ];
+    return {machines,conveyors:[
+      newConveyor("conveyor-1","miner-1","smelter-1",[{x:4,y:6},{x:5,y:6},{x:6,y:6}],2),
+      newConveyor("conveyor-2","smelter-1","assembler-1",[{x:6,y:6},{x:7,y:6},{x:8,y:6},{x:8,y:5}],1),
+      newConveyor("conveyor-3","assembler-1","storage-1",[{x:8,y:5},{x:9,y:5},{x:9,y:4},{x:9,y:3}],1)
+    ]};
+  };
+  const motor_seed=()=>{
+    const machines=[
+      newMachine("miner-1","miner",1,2,"iron_ore"),
+      newMachine("smelter-1","smelter",3,2,"iron_plate"),
+      newMachine("assembler-1","assembler",5,2,"gear"),
+      newMachine("miner-2","miner",4,6,"copper_ore"),
+      newMachine("smelter-2","smelter",6,6,"copper_plate"),
+      newMachine("assembler-2","assembler",8,6,"wire"),
+      newMachine("assembler-3","assembler",8,3,"motor"),
+      newMachine("storage-1","storage",9,3)
+    ];
+    return {machines,conveyors:[
+      newConveyor("conveyor-1","miner-1","smelter-1",[{x:1,y:2},{x:2,y:2},{x:3,y:2}],2),
+      newConveyor("conveyor-2","smelter-1","assembler-1",[{x:3,y:2},{x:4,y:2},{x:5,y:2}],2),
+      newConveyor("conveyor-3","miner-2","smelter-2",[{x:4,y:6},{x:5,y:6},{x:6,y:6}],2),
+      newConveyor("conveyor-4","smelter-2","assembler-2",[{x:6,y:6},{x:7,y:6},{x:8,y:6}],1),
+      newConveyor("conveyor-5","assembler-1","assembler-3",[{x:5,y:2},{x:6,y:2},{x:7,y:2},{x:8,y:2},{x:8,y:3}],1),
+      newConveyor("conveyor-6","assembler-2","assembler-3",[{x:8,y:6},{x:8,y:5},{x:8,y:4},{x:8,y:3}],1)
+    ]};
+  };
   const blank=()=>({machines:[],conveyors:[]});
-  const builders={classic,copper_seed,circuit_seed,robot_seed,blank};
+  const builders={classic,copper_seed,circuit_seed,robot_seed,wire_seed,motor_seed,blank};
   const built=(builders[level.starter]||classic)();
   return {
     version:1,credits,time:0,speed:1,serial:2,
@@ -194,10 +239,20 @@ class UndoManager {
 
 /* PRODUCTION ENGINE */
 class ProductionEngine {
+  static cycleTime(engine,m,recipe){
+    const base=recipe.cycleTime/MACHINE_MULT[m.level];
+    if(m.type==="miner")return base*minerCycleMult(engine.progress);
+    return base;
+  }
+  static capacityFor(engine,m){
+    const base=DEFINITIONS[m.type].capacity*MACHINE_MULT[m.level];
+    if(m.type==="storage")return base*storageMult(engine.progress);
+    return base;
+  }
   static step(engine,dt){
     const s=engine.s;
     for(const m of s.machines){
-      m.capacity=DEFINITIONS[m.type].capacity*MACHINE_MULT[m.level];
+      m.capacity=ProductionEngine.capacityFor(engine,m);
       if(!m.online){m.status="OFFLINE";continue}
       if(isRelay(m)){
         m.status=sum(m.inputBuffer)>=m.capacity?"BLOCKED":sum(m.inputBuffer)>0?"WORKING":"IDLE";continue;
@@ -208,7 +263,7 @@ class ProductionEngine {
       if(Object.entries(r.inputs).some(([resource,n])=>(m.inputBuffer[resource]||0)<n)){m.status="STARVED";continue}
       m.status="WORKING";
       m.progress+=dt;
-      const cycle=r.cycleTime/MACHINE_MULT[m.level];
+      const cycle=ProductionEngine.cycleTime(engine,m,r);
       if(m.progress+1e-9>=cycle){
         m.progress=Math.max(0,m.progress-cycle);
         for(const [resource,n] of Object.entries(r.inputs)){
@@ -364,7 +419,7 @@ class BottleneckAnalyzer {
     for(const c of s.conveyors){
       const source=engine.machine(c.fromMachineId),dest=engine.machine(c.toMachineId);
       const possible=FlowEngine.possibleOutputs(engine,source);
-      const demand=dest.recipe==="gear"?20:dest.recipe==="iron_plate"?20:dest.recipe==="circuit"?16:dest.recipe==="robot"?12:possible.includes(engine.level().product)?engine.level().target:0;
+      const demand=dest.recipe==="gear"?20:dest.recipe==="iron_plate"?20:dest.recipe==="circuit"?16:dest.recipe==="robot"?12:dest.recipe==="wire"?18:dest.recipe==="motor"?14:possible.includes(engine.level().product)?engine.level().target:0;
       if(c.capacity<demand)add("CONVEYOR_CAPACITY",c.id,`${c.id} can carry ${c.capacity} items/min; this mission path needs ${demand}/min.`,c.throughput,demand,"high",true);
       else if(c.utilization>=.9)add("CONVEYOR_CAPACITY",c.id,`${c.id} is ${Math.round(c.utilization*100)}% utilized.`,c.throughput,c.capacity,"medium",true);
     }
@@ -384,25 +439,52 @@ class FactoryEngine {
   constructor({warm=true,logger=null,persistent=false,progress=null,levelId="L01"}={}){
     this.logger=logger;this.persistent=persistent;
     this.progress=progress||emptyProgress();
-    this.progress.currentLevelId=getLevel(levelId)?levelId:this.progress.currentLevelId||"L01";
+    this.campaignResearch=null;
+    this.dailyBlueprint=null;
+    if(this.progress.mode==="daily"){
+      this.dailyBlueprint=dailyBlueprint();
+      this.campaignResearch=[...(this.progress.research||[])];
+      this.progress.research=[...(this.dailyBlueprint.researchGrant||[])];
+    }else{
+      this.progress.currentLevelId=getLevel(levelId)?levelId:this.progress.currentLevelId||"L01";
+    }
     this.undo=new UndoManager();this.simulation=new SimulationEngine(this);
     this.onChange=null;this.onTick=null;this.onMissionComplete=null;
     this.s=initialState(this.level());
     if(warm)for(let i=0;i<180/CONFIG.tick;i++)this.simulation.step();
     this.refreshMetrics();this.lastAnnouncedRate=this.rate("produced",this.level().product);
   }
-  level(){return getLevel(this.s?.levelId||this.progress?.currentLevelId)||getLevel("L01")}
+  isDaily(){return this.progress.mode==="daily"}
+  level(){
+    if(this.isDaily()){
+      if(!this.dailyBlueprint||this.dailyBlueprint.dateKey!==taipeiDateKey()){
+        this.dailyBlueprint=dailyBlueprint();
+        this.progress.research=[...(this.dailyBlueprint.researchGrant||[])];
+      }
+      return this.dailyBlueprint;
+    }
+    return getLevel(this.s?.levelId||this.progress?.currentLevelId)||getLevel("L01");
+  }
   machine(id){const m=this.s.machines.find(m=>m.id===id);assertValid(m,`Machine '${id}' does not exist.`);return m}
   conveyor(id){const c=this.s.conveyors.find(c=>c.id===id);assertValid(c,`Conveyor '${id}' does not exist.`);return c}
   record(event){this.s.events.push({t:this.s.time,...event})}
   rate(kind,resource=null,id=null,window=60){
     return this.s.events.filter(e=>e.kind===kind&&e.t>this.s.time-window&&(!resource||e.resource===resource)&&(!id||e.machineId===id||e.conveyorId===id)).reduce((n,e)=>n+e.n,0)*60/window;
   }
-  nominal(m){return RECIPES[m.recipe]?60/RECIPES[m.recipe].cycleTime*MACHINE_MULT[m.level]:0}
+  nominal(m){
+    if(!RECIPES[m.recipe])return 0;
+    const cycle=ProductionEngine.cycleTime(this,m,RECIPES[m.recipe]);
+    return cycle?60/cycle:0;
+  }
   maxLevel(){return maxMachineLevel(this.progress)}
+  allowedMachineSet(){
+    const level=this.level();
+    if(level.allowedMachines?.length)return new Set(level.allowedMachines);
+    return new Set(unlockedMachineTypes(this.progress));
+  }
   refreshMetrics(){
     for(const m of this.s.machines){
-      m.capacity=DEFINITIONS[m.type].capacity*MACHINE_MULT[m.level];
+      m.capacity=ProductionEngine.capacityFor(this,m);
       m.productionRate=this.rate("produced",null,m.id);
       m.efficiency=this.nominal(m)?Math.min(1,m.productionRate/this.nominal(m)):0;
       m.connections={
@@ -438,24 +520,53 @@ class FactoryEngine {
     const level=this.level();
     const used=powerUsed(this.s.machines,MACHINE_POWER,this.progress);
     return {
-      levelId:level.id,powerBudget:level.powerBudget,powerUsed:used,powerPeak:this.s.mission.powerPeak||0,powerDiscount:powerDiscount(this.progress),
+      levelId:level.id,mode:this.progress.mode||"campaign",
+      powerBudget:level.powerBudget,powerUsed:used,powerPeak:this.s.mission.powerPeak||0,powerDiscount:powerDiscount(this.progress),
+      storageMult:storageMult(this.progress),minerCycleMult:minerCycleMult(this.progress),
       maxMachines:level.maxMachines,machineCount:this.s.machines.length,
-      maxMachineLevel:this.maxLevel(),unlockedMachines:unlockedMachineTypes(this.progress),
-      unlockedRecipes:unlockedRecipes(this.progress),machinePower:clone(MACHINE_POWER)
+      maxMachineLevel:this.maxLevel(),unlockedMachines:[...this.allowedMachineSet()],
+      unlockedRecipes:unlockedRecipes(this.progress),machinePower:clone(MACHINE_POWER),
+      allowedMachines:level.allowedMachines||null,dateKey:level.dateKey||null
     };
   }
   listLevels(){
     return {levels:LEVELS.map(level=>({
       id:level.id,index:level.index,title:level.title,blurb:level.blurb,product:level.product,
       target:level.target,sustain:level.sustain,unlocked:isLevelUnlocked(this.progress,level.id),
-      stars:this.progress.clears[level.id]?.stars||0,current:level.id===this.level().id
-    }))};
+      stars:this.progress.clears[level.id]?.stars||0,current:!this.isDaily()&&level.id===this.level().id
+    })),mode:this.progress.mode||"campaign"};
   }
   getProgress(){
+    const dateKey=taipeiDateKey();
+    const dailyEntry=this.progress.daily?.byDate?.[dateKey]||null;
     return {
+      mode:this.progress.mode||"campaign",
       currentLevelId:this.progress.currentLevelId,totalStars:totalStars(this.progress),
       research:[...this.progress.research],clears:clone(this.progress.clears),
-      level:this.level(),constraints:this.constraints()
+      level:this.level(),constraints:this.constraints(),
+      daily:{
+        dateKey,
+        streak:this.progress.daily?.streak||0,
+        lastClearedDate:this.progress.daily?.lastClearedDate||null,
+        today:dailyEntry,
+        blueprint:this.isDaily()?clone(this.level()):dailyBlueprint()
+      }
+    };
+  }
+  getDaily(){
+    const blueprint=this.isDaily()?this.level():dailyBlueprint();
+    const dateKey=blueprint.dateKey||taipeiDateKey();
+    const entry=this.progress.daily?.byDate?.[dateKey]||null;
+    return {
+      dateKey,
+      seed:blueprint.seed,
+      blueprint:clone(blueprint),
+      stars:entry?.stars||0,
+      bestTime:entry?.bestTime??null,
+      bestRate:entry?.bestRate??null,
+      streak:this.progress.daily?.streak||0,
+      shareText:formatDailyShareText(this.progress,blueprint),
+      active:this.isDaily()
     };
   }
   getResearch(){
@@ -466,7 +577,7 @@ class FactoryEngine {
   inspectMachine(id){
     this.refreshMetrics();const m=this.machine(id);
     const max=this.maxLevel();
-    return {...clone(m),nominalCapacityPerMin:round(this.nominal(m)),cycleTime:RECIPES[m.recipe]?round(RECIPES[m.recipe].cycleTime/MACHINE_MULT[m.level]):null,
+    return {...clone(m),nominalCapacityPerMin:round(this.nominal(m)),cycleTime:RECIPES[m.recipe]?round(ProductionEngine.cycleTime(this,m,RECIPES[m.recipe])):null,
       inputRate:round(this.s.events.filter(e=>e.kind==="flow"&&e.toMachineId===m.id).reduce((n,e)=>n+e.n,0)),
       outputRate:round(this.s.events.filter(e=>e.kind==="flow"&&e.fromMachineId===m.id).reduce((n,e)=>n+e.n,0)),
       connectedInputs:this.s.conveyors.filter(c=>c.toMachineId===id).map(c=>({conveyorId:c.id,machineId:c.fromMachineId})),
@@ -486,7 +597,7 @@ class FactoryEngine {
     return this.s.conveyors.map(c=>({conveyorId:c.id,fromMachineId:c.fromMachineId,toMachineId:c.toMachineId,resources:FlowEngine.possibleOutputs(this,this.machine(c.fromMachineId)),transportedResource:c.transportedResource,measuredFlowPerMin:round(this.rate("flow",null,c.id)),capacity:c.capacity,inTransit:c.items.length}));
   }
   available(){
-    const unlocked=new Set(unlockedMachineTypes(this.progress));
+    const unlocked=this.allowedMachineSet();
     const recipes=Object.fromEntries(Object.entries(RECIPES).filter(([id])=>unlockedRecipes(this.progress).includes(id)||RECIPES[id].machine==="miner"||RECIPES[id].machine==="smelter"||id==="gear"));
     const types=Object.fromEntries(Object.entries(DEFINITIONS).filter(([id])=>unlocked.has(id)));
     return {machineTypes:types,allMachineTypes:clone(DEFINITIONS),machineUpgradeCosts:{2:150,3:250},maxMachineLevel:this.maxLevel(),machineMultipliers:{1:1,2:1.5,3:2},conveyor:{costPerInteriorTile:15,minimumCost:15,capacityPerMin:{1:8,2:16,3:24},upgradeCosts:{2:60,3:100},routing:"Adjacent orthogonal cells; cannot cross machines or other belts."},bounds:{x:{min:0,max:9},y:{min:0,max:7}},resourceNodes:clone(NODES),recipes,allRecipes:clone(RECIPES),credits:this.s.credits,refundFraction:.5,constraints:this.constraints()};
@@ -498,7 +609,7 @@ class FactoryEngine {
   }
   build({type,x,y}){
     assertValid(DEFINITIONS[type],`Invalid machine type '${type}'.`);
-    assertValid(unlockedMachineTypes(this.progress).includes(type),`Machine type '${type}' is locked. Complete earlier levels to unlock research.`);
+    assertValid(this.allowedMachineSet().has(type),`Machine type '${type}' is locked for this floor. Complete earlier levels or check today's daily kit.`);
     assertValid(inside({x,y}),"Coordinates must be integer tiles inside x: 0–9, y: 0–7.");
     assertValid(!this.s.machines.some(m=>m.x===x&&m.y===y),`Tile (${x},${y}) is already occupied.`);
     assertValid(!this.s.conveyors.some(c=>c.path.slice(1,-1).some(p=>p.x===x&&p.y===y)),`Tile (${x},${y}) contains a conveyor.`);
@@ -521,7 +632,7 @@ class FactoryEngine {
   recipe({machineId,recipe}){
     const m=this.machine(machineId),r=RECIPES[recipe];
     assertValid(r&&r.machine===m.type,`Recipe '${recipe}' is not supported by ${m.type}s.`);
-    if(recipe==="circuit"||recipe==="robot"){
+    if(GATED_RECIPES.has(recipe)){
       assertValid(unlockedRecipes(this.progress).includes(recipe),`Recipe '${recipe}' is locked behind research.`);
     }
     if(m.type==="miner")assertValid(NODES.some(n=>same(n,m)&&n.resource===recipe),"Miner recipe must match the resource node.");
@@ -592,6 +703,7 @@ class FactoryEngine {
     this.s.credits=config.credits;this.s.mission.held=0;this.refreshMetrics();
   }
   bootLevel(levelId,{warm=true,config=null}={}){
+    assertValid(!this.isDaily(),"Exit daily blueprint before selecting a campaign level.");
     const level=getLevel(levelId);assertValid(level,`Unknown level '${levelId}'.`);
     assertValid(isLevelUnlocked(this.progress,levelId),`Level ${levelId} is locked.`);
     this.progress.currentLevelId=levelId;
@@ -607,13 +719,65 @@ class FactoryEngine {
     return {levelId,credits:this.s.credits,message:`Loaded ${level.title}.`};
   }
   selectLevel({levelId}){
-    this.stashLayout();
+    if(this.isDaily()){
+      this.stashLayout();
+      if(this.campaignResearch)this.progress.research=[...this.campaignResearch];
+      this.campaignResearch=null;
+      this.dailyBlueprint=null;
+      this.progress.mode="campaign";
+    }else{
+      this.stashLayout();
+    }
     const saved=this.progress.layouts[levelId]||null;
     if(saved){
       try{validateSavedConfiguration(saved);return this.bootLevel(levelId,{warm:false,config:saved})}
       catch{/* fall through to starter */}
     }
     return this.bootLevel(levelId,{warm:true});
+  }
+  enterDaily(){
+    if(this.isDaily()){
+      const blueprint=this.level();
+      return {mode:"daily",dateKey:blueprint.dateKey,message:`Already on today's daily blueprint (${blueprint.dateKey}).`,blueprint:clone(blueprint)};
+    }
+    this.stashLayout();
+    this.campaignResearch=[...(this.progress.research||[])];
+    this.dailyBlueprint=dailyBlueprint();
+    this.progress.mode="daily";
+    this.progress.research=[...(this.dailyBlueprint.researchGrant||[])];
+    this.undo.clear();
+    const dateKey=this.dailyBlueprint.dateKey;
+    const saved=this.progress.daily?.layoutDate===dateKey?this.progress.daily.layout:null;
+    if(saved){
+      try{
+        validateSavedConfiguration(saved);
+        this.s=initialState(this.dailyBlueprint);this.s.events=[];this.s.history=[];this.s.time=0;this.s.mission=missionBlob();
+        this.applyConfiguration(saved,false);
+        this.refreshMetrics();this.lastAnnouncedRate=this.rate("produced",this.dailyBlueprint.product);
+        return {mode:"daily",dateKey,credits:this.s.credits,message:`Loaded daily blueprint ${dateKey} (saved layout).`,blueprint:clone(this.dailyBlueprint)};
+      }catch{/* fall through */}
+    }
+    this.s=initialState(this.dailyBlueprint);
+    for(let i=0;i<180/CONFIG.tick;i++)this.simulation.step();
+    this.refreshMetrics();this.lastAnnouncedRate=this.rate("produced",this.dailyBlueprint.product);
+    return {mode:"daily",dateKey,credits:this.s.credits,message:`Loaded daily blueprint ${dateKey}.`,blueprint:clone(this.dailyBlueprint)};
+  }
+  exitDaily({preserveCampaignLoad=true}={}){
+    assertValid(this.isDaily(),"Not currently on the daily blueprint.");
+    this.stashLayout();
+    if(this.campaignResearch)this.progress.research=[...this.campaignResearch];
+    this.campaignResearch=null;
+    this.dailyBlueprint=null;
+    this.progress.mode="campaign";
+    this.undo.clear();
+    if(!preserveCampaignLoad)return {mode:"campaign",message:"Exited daily blueprint."};
+    const levelId=getLevel(this.progress.currentLevelId)?this.progress.currentLevelId:"L01";
+    const saved=this.progress.layouts[levelId]||null;
+    if(saved){
+      try{validateSavedConfiguration(saved);return {...this.bootLevel(levelId,{warm:false,config:saved}),mode:"campaign"}}
+      catch{/* fall through */}
+    }
+    return {...this.bootLevel(levelId,{warm:true}),mode:"campaign"};
   }
   reset(){
     const level=this.level();
@@ -633,11 +797,22 @@ class FactoryEngine {
       completeTime:this.s.mission.completedAt??this.s.time,
       rate:this.rate("produced",level.product)
     };
+    if(this.isDaily()){
+      const result=recordDailyClear(this.progress,level,attempt);
+      this.stashLayout();this.save();
+      return {...result,attempt,levelId:level.id,nextLevelId:null,daily:true,shareText:formatDailyShareText(this.progress,level)};
+    }
     const result=recordClear(this.progress,level.id,attempt);
     this.stashLayout();this.save();
-    return {...result,attempt,levelId:level.id,nextLevelId:nextLevelId(level.id)};
+    return {...result,attempt,levelId:level.id,nextLevelId:nextLevelId(level.id),daily:false};
   }
   stashLayout(){
+    if(this.isDaily()){
+      if(!this.progress.daily)this.progress.daily={streak:0,lastClearedDate:null,byDate:{},layout:null,layoutDate:null};
+      this.progress.daily.layout=this.configuration();
+      this.progress.daily.layoutDate=this.level().dateKey||taipeiDateKey();
+      return;
+    }
     this.progress.layouts[this.level().id]=this.configuration();
     this.progress.currentLevelId=this.level().id;
   }
@@ -654,7 +829,7 @@ class FactoryEngine {
       }
       const data=tool.run(this,args);
       if(!tool.readOnly){
-        if(name==="factory_reset"||name==="factory_select_level")this.undo.clear();
+        if(name==="factory_reset"||name==="factory_select_level"||name==="factory_enter_daily"||name==="factory_exit_daily")this.undo.clear();
         else if(name!=="factory_undo"&&name!=="simulation_set_speed")this.undo.push(before);
         this.refreshMetrics();this.save();
         if(source==="WebMCP"){
@@ -701,6 +876,39 @@ class FactoryEngine {
       try{raw=JSON.parse(localStorage.getItem(STORAGE_KEY)||"null")}catch{raw=null}
       try{legacy=JSON.parse(localStorage.getItem(LEGACY_LAYOUT_KEY)||"null")}catch{legacy=null}
       this.progress=migrateProgress(raw,legacy);
+      if(this.progress.mode==="daily"){
+        this.campaignResearch=[...(this.progress.research||[])];
+        // Research in save while daily may already be the grant; prefer campaign tree from clears.
+        const campaignTree=[];
+        for(const id of Object.keys(this.progress.clears||{})){
+          if((this.progress.clears[id].stars||0)>=1){
+            const level=getLevel(id);
+            for(const rid of level?.unlockResearch||[]){
+              if(!campaignTree.includes(rid))campaignTree.push(rid);
+            }
+          }
+        }
+        this.campaignResearch=campaignTree.length?campaignTree:[...(this.progress.research||[])];
+        this.dailyBlueprint=dailyBlueprint();
+        this.progress.research=[...(this.dailyBlueprint.researchGrant||[])];
+        const dateKey=this.dailyBlueprint.dateKey;
+        const saved=this.progress.daily?.layoutDate===dateKey?this.progress.daily.layout:null;
+        if(saved){
+          try{
+            validateSavedConfiguration(saved);
+            this.s=initialState(this.dailyBlueprint);this.s.events=[];this.s.history=[];this.s.time=0;this.s.mission=missionBlob();
+            this.applyConfiguration(saved,false);
+            this.refreshMetrics();this.lastAnnouncedRate=this.rate("produced",this.dailyBlueprint.product);
+            this.logger?.add("System",`Daily blueprint ${dateKey} layout restored.`);
+            return true;
+          }catch{/* fall through */}
+        }
+        this.s=initialState(this.dailyBlueprint);
+        for(let i=0;i<180/CONFIG.tick;i++)this.simulation.step();
+        this.refreshMetrics();this.lastAnnouncedRate=this.rate("produced",this.dailyBlueprint.product);
+        this.logger?.add("System",`Daily blueprint ${dateKey} loaded.`);
+        return false;
+      }
       const levelId=this.progress.currentLevelId;
       const saved=this.progress.layouts[levelId];
       if(saved){
@@ -798,8 +1006,11 @@ defineTool("factory_get_mission","Return the current level mission: product, tar
 defineTool("factory_list_levels","List campaign floors with unlock state, star rating, product targets and which level is currently loaded.",true,{},e=>e.listLevels());
 defineTool("factory_get_progress","Return campaign progress: current level, total stars, research unlocks, personal-best clears and live constraints for the active floor.",true,{},e=>e.getProgress());
 defineTool("factory_select_level","Switch to an unlocked campaign level. Saves the current layout into versioned progress, then loads that level's saved layout or its deterministic starter with warm-up.",false,{levelId:{type:"string",minLength:1,description:"Level id such as L01 or L08."}},(e,a)=>e.selectLevel(a));
-defineTool("factory_get_research","List research nodes with unlock status. Research is granted by clearing levels and gates splitters, circuit/robot recipes, robot assemblers and Overclock power discounts.",true,{},e=>e.getResearch());
+defineTool("factory_get_research","List research nodes with unlock status. Research is granted by clearing levels and gates splitters, circuit/robot/wire/motor recipes, robot assemblers, Overclock, bulk storage and deep mining.",true,{},e=>e.getResearch());
 defineTool("factory_get_constraints","Return the active floor's power budget, current power draw, power peak, Overclock discount, machine count cap, max machine level and unlocked machine/recipe sets.",true,{},e=>e.constraints());
+defineTool("factory_get_daily","Return today's Asia/Taipei daily blueprint: product target, power/machine caps, allowed machines, research grant, today's best stars, streak and share text.",true,{},e=>e.getDaily());
+defineTool("factory_enter_daily","Switch to today's date-seeded daily blueprint. Saves the campaign layout, applies today's research grant and kit limits, then loads the daily starter or saved daily layout.",false,{},e=>e.enterDaily());
+defineTool("factory_exit_daily","Leave the daily blueprint and restore the campaign research tree plus the last campaign floor layout.",false,{},e=>e.exitDaily());
 defineTool("factory_undo","Undo the last logical construction/configuration mutation by restoring its layout, levels, recipes, power and credits. Does not rewind simulation time, production history, existing buffers or individual transfers. Deleted/re-created machines return with empty buffers. Reset clears undo history.",false,{},e=>{e.applyConfiguration(e.undo.pop());return {message:"Previous configuration restored. Simulation time was not rewound."}});
 defineTool("factory_reset","Restore the current level's deterministic starter factory with its credit budget and simulated warm-up baseline. Clears construction undo history and overwrites the saved layout for this level.",false,{},e=>e.reset());
 
@@ -891,7 +1102,7 @@ class FactoryRenderer {
       element.querySelector(".machine-level").textContent="L"+m.level;
       element.querySelector(".machine-name").textContent=m.type+" "+m.id.split("-").at(-1);
       element.querySelector(".machine-alert").textContent=["STARVED","BLOCKED"].includes(m.status)?"⚠":"";
-      const cycle=RECIPES[m.recipe]?.cycleTime/MACHINE_MULT[m.level];
+      const cycle=m.recipe&&RECIPES[m.recipe]?ProductionEngine.cycleTime(e,m,RECIPES[m.recipe]):null;
       element.querySelector(".machine-progress i").style.width=(cycle?Math.min(100,m.progress/cycle*100):0)+"%";
       element.setAttribute("aria-label",`${m.id}, ${m.status}, level ${m.level}, tile (${m.x}, ${m.y})`);
       element.title=`${m.id} · ${m.status}\n${m.recipe||"No recipe"} · ${round(e.nominal(m))}/min capacity\n(${m.x}, ${m.y})`;
@@ -948,8 +1159,10 @@ class FactoryRenderer {
     if($("gearRate"))$("gearRate").textContent=t.gear_per_min.toFixed(1);
     if($("plateRate"))$("plateRate").textContent=t.iron_plate_per_min.toFixed(1);
     if($("oreRate"))$("oreRate").textContent=t.iron_ore_per_min.toFixed(1);
-    if($("circuitRate"))$("circuitRate").textContent=(level.product==="robot"?t.robot_per_min:t.circuit_per_min).toFixed(1);
-    if($("statCircuitLabel"))$("statCircuitLabel").textContent=level.product==="robot"?"▦ Robots / min":"▦ Circuits / min";
+    const fourthKey=level.product==="robot"?"robot":level.product==="motor"?"motor":level.product==="wire"?"wire":"circuit";
+    if($("circuitRate"))$("circuitRate").textContent=(t[fourthKey+"_per_min"]||0).toFixed(1);
+    if($("statCircuitLabel"))$("statCircuitLabel").textContent=
+      fourthKey==="robot"?"▦ Robots / min":fourthKey==="motor"?"◎ Motors / min":fourthKey==="wire"?"⌁ Wire / min":"▦ Circuits / min";
     if($("missionBlurb"))$("missionBlurb").innerHTML=`${esc(level.blurb)} Target: <strong>${level.target} ${esc(productLabel(level.product))}/min</strong> for ${level.sustain}s.`;
     if($("missionTarget"))$("missionTarget").innerHTML=`${level.target}<span class="unit"> / min</span>`;
     $("missionCurrent").textContent=m.current.toFixed(1);
@@ -962,7 +1175,7 @@ class FactoryRenderer {
     const checks=[
       [e.s.speed>0,"Factory running"],
       [this.ui.diagnosed,"Identify bottleneck"],
-      [level.product==="gear"?t.iron_plate_per_min>8:t.iron_plate_per_min>4,"Improve plate supply"],
+      [level.product==="gear"||level.product==="wire"?t.iron_plate_per_min+t.copper_plate_per_min>6:t.iron_plate_per_min>4,"Improve plate supply"],
       [productRate>level.target*0.4,`Raise ${productLabel(level.product)} throughput`],
       [m.complete,`Sustain ${level.target} ${productLabel(level.product)}/min`]
     ];
@@ -982,10 +1195,17 @@ class FactoryRenderer {
       $("machineCap").textContent=level.maxMachines==null?`${c.machineCount} machines`:`${c.machineCount} / ${level.maxMachines} machines`;
     }
     if($("starsDisplay")){
-      const clear=e.progress.clears[level.id];
-      const stars=clear?.stars||0;
-      $("starsDisplay").textContent=`${"★".repeat(stars)}${"☆".repeat(3-stars)} · ${totalStars(e.progress)} total`;
-      $("pbDisplay").textContent=clear?.bestTime!=null?`PB ${clear.bestTime.toFixed?.(1)??clear.bestTime}s · best ${clear.bestRate??"—"}/min`:"No clear yet";
+      if(e.isDaily()){
+        const entry=e.progress.daily?.byDate?.[level.dateKey];
+        const stars=entry?.stars||0;
+        $("starsDisplay").textContent=`${"★".repeat(stars)}${"☆".repeat(3-stars)} · streak ${e.progress.daily?.streak||0}`;
+        $("pbDisplay").textContent=entry?.bestTime!=null?`Daily PB ${Number(entry.bestTime).toFixed(1)}s · ${entry.bestRate??"—"}/min`:"No daily clear yet";
+      }else{
+        const clear=e.progress.clears[level.id];
+        const stars=clear?.stars||0;
+        $("starsDisplay").textContent=`${"★".repeat(stars)}${"☆".repeat(3-stars)} · ${totalStars(e.progress)} total`;
+        $("pbDisplay").textContent=clear?.bestTime!=null?`PB ${clear.bestTime.toFixed?.(1)??clear.bestTime}s · best ${clear.bestRate??"—"}/min`:"No clear yet";
+      }
     }
     if($("researchList")){
       $("researchList").innerHTML=RESEARCH.map(node=>{
@@ -993,8 +1213,23 @@ class FactoryRenderer {
         return `<li class="${on?"done":""}">${on?"☑":"☐"} <strong>${esc(node.name)}</strong> — ${esc(node.description)}</li>`;
       }).join("");
     }
+    if($("dailyDate"))$("dailyDate").textContent=e.isDaily()?(level.dateKey||taipeiDateKey()):taipeiDateKey();
+    if($("dailyStreak"))$("dailyStreak").textContent=String(e.progress.daily?.streak||0);
+    if($("dailyKit")){
+      const kit=level.allowedMachines||unlockedMachineTypes(e.progress);
+      $("dailyKit").textContent=e.isDaily()?`Kit: ${kit.join(", ")} · P${level.powerBudget??"∞"} · M${level.maxMachines??"∞"}`:"Campaign research tree";
+    }
+    if($("shareText")){
+      $("shareText").value=formatDailyShareText(e.progress,e.isDaily()?level:dailyBlueprint());
+    }
+    if($("dailyButton")){
+      $("dailyButton").textContent=e.isDaily()?"Leave Daily":"Daily Blueprint";
+      $("dailyButton").setAttribute("aria-pressed",String(e.isDaily()));
+      $("dailyButton").classList.toggle("active",e.isDaily());
+    }
     if($("levelSelect")){
       const sel=$("levelSelect");
+      sel.disabled=e.isDaily();
       if(sel.dataset.bound!=="1"){
         sel.innerHTML=LEVELS.map(l=>{
           const unlocked=isLevelUnlocked(e.progress,l.id);
@@ -1009,9 +1244,9 @@ class FactoryRenderer {
           this.ui.refreshToolbar();
         };
       }
-      if(sel.value!==level.id)sel.value=level.id;
+      if(!e.isDaily()&&sel.value!==level.id)sel.value=level.id;
     }
-    if($("floorLabel"))$("floorLabel").textContent=`/ ${level.id}`;
+    if($("floorLabel"))$("floorLabel").textContent=e.isDaily()?`/ Daily ${level.dateKey||""}`:`/ ${level.id}`;
     if($("graphTitle"))$("graphTitle").textContent=`${RESOURCES[level.product]?.name||level.product} throughput`;
   }
   bufferHTML(buffer){return Object.entries(buffer).filter(([,n])=>n>0).map(([r,n])=>`${RESOURCES[r].symbol} ${n} ${esc(RESOURCES[r].name)}`).join("<br>")||'<span class="muted">Empty</span>'}
@@ -1091,7 +1326,7 @@ class UIController {
     else if(!TOOLS.find(t=>t.name===name)?.readOnly){
       if(name==="machine_build")playBuild();
       else if(name==="conveyor_connect"||name==="factory_undo")playMove();
-      else if(name==="factory_select_level")playSelect();
+      else if(name==="factory_select_level"||name==="factory_enter_daily"||name==="factory_exit_daily")playSelect();
       this.toast(result.message||`${name.replaceAll("_"," ")} ✓${result.cost!==undefined?" · "+result.cost+" credits":""}`);
     }
     return result;
@@ -1107,7 +1342,7 @@ class UIController {
     $("hint").textContent=hints[tool]||`Build ${DEFINITIONS[tool].name} · ${DEFINITIONS[tool].cost} credits · power ${powerDraw(tool,this.engine.progress)}. Click an empty tile${tool==="miner"?" on a visible resource deposit":""}.`;
   }
   refreshToolbar(){
-    const unlocked=new Set(unlockedMachineTypes(this.engine.progress));
+    const unlocked=this.engine.allowedMachineSet();
     const tools=[["inspect","⌖","Inspect","select"],...Object.entries(DEFINITIONS).filter(([id])=>unlocked.has(id)).map(([id,d])=>[id,d.icon,d.name,d.cost+" cr"]),["conveyor","⇢","Conveyor","15 / tile"],["delete","⌫","Delete","50% refund"]];
     $("toolbar").innerHTML=tools.map(([id,icon,name,cost])=>`<button class="tool-button ${id===this.tool?"active":""}" data-tool="${id}" aria-label="${name}, ${cost}" aria-pressed="${id===this.tool}" style="touch-action:manipulation"><span class="glyph" aria-hidden="true">${icon}</span>${name}<small>${cost}</small></button>`).join("");
     document.querySelectorAll(".tool-button").forEach(b=>b.onclick=()=>this.setTool(b.dataset.tool));
@@ -1144,6 +1379,28 @@ class UIController {
     document.querySelectorAll(".speed").forEach(b=>b.onclick=()=>this.call("simulation_set_speed",{speed:Number(b.dataset.speed)}));
     $("undoButton").onclick=()=>this.call("factory_undo");
     $("resetButton").onclick=()=>{if(confirm("Restore this level's starter factory? Your current layout and undo history will be replaced.")){this.selected=null;this.diagnosed=false;this.connectSource=null;this.call("factory_reset")}};
+    if($("dailyButton")){
+      $("dailyButton").onclick=()=>{
+        playSelect();
+        if(this.engine.isDaily())this.call("factory_exit_daily");
+        else this.call("factory_enter_daily");
+        this.refreshToolbar();
+        if($("levelSelect"))$("levelSelect").dataset.bound="0";
+        this.renderer?.render();
+      };
+    }
+    if($("shareCopy")){
+      $("shareCopy").onclick=async()=>{
+        const text=$("shareText")?.value||formatDailyShareText(this.engine.progress,dailyBlueprint());
+        try{
+          await navigator.clipboard.writeText(text);
+          this.toast("Daily share text copied.");
+        }catch{
+          if($("shareText")){$("shareText").focus();$("shareText").select()}
+          this.toast("Clipboard unavailable — select and copy the share text.",true);
+        }
+      };
+    }
     const prompts=[
       "Increase gear production to at least 10 gears per minute.",
       "Why is gear production so slow?",
@@ -1158,7 +1415,9 @@ class UIController {
       "Which machines are currently idle or starved?",
       "Can this factory reach 10 gears/min with the credits we have?",
       "List campaign levels and my research unlocks.",
-      "What is my power budget and current draw?"
+      "What is my power budget and current draw?",
+      "Load today's daily blueprint and summarize the constraints.",
+      "What research unlocks wire and motor recipes?"
     ];
     for(const text of prompts){
       const b=document.createElement("button");b.className="prompt";b.textContent="“"+text+"”";b.style.touchAction="manipulation";
@@ -1369,11 +1628,46 @@ function runSelfTests(){
   });
   test("New campaign tools exist",()=>{
     const names=new Set(TOOLS.map(t=>t.name));
-    for(const n of ["factory_list_levels","factory_get_progress","factory_select_level","factory_get_research","factory_get_constraints"])check(names.has(n));
+    for(const n of ["factory_list_levels","factory_get_progress","factory_select_level","factory_get_research","factory_get_constraints","factory_get_daily","factory_enter_daily","factory_exit_daily"])check(names.has(n));
     const e=fresh();
     check(run(e,"factory_list_levels").levels.length===LEVELS.length);
     check(run(e,"factory_get_constraints").powerBudget===null);
     check(run(e,"factory_get_research").research.length===RESEARCH.length);
+  });
+  test("Wire and motor recipes gated by research",()=>{
+    const e=fresh();
+    check(!run(e,"machine_set_recipe",{machineId:"assembler-1",recipe:"wire"}).success);
+    check(!run(e,"machine_set_recipe",{machineId:"assembler-1",recipe:"motor"}).success);
+    e.progress.research.push("wiring");
+    run(e,"conveyor_disconnect",{conveyorId:"conveyor-2"});
+    run(e,"conveyor_disconnect",{conveyorId:"conveyor-3"});
+    check(run(e,"machine_set_recipe",{machineId:"assembler-1",recipe:"wire"}).success);
+    e.progress.research.push("motors");
+    check(run(e,"machine_set_recipe",{machineId:"assembler-1",recipe:"motor"}).success);
+  });
+  test("Bulk storage and deep mining bonuses",()=>{
+    const e=fresh();
+    const storage=e.machine("storage-1");
+    const baseCap=storage.capacity;
+    e.progress.research.push("bulk_storage");
+    e.refreshMetrics();
+    check(e.machine("storage-1").capacity===baseCap*2);
+    const miner=e.machine("miner-1");
+    const before=ProductionEngine.cycleTime(e,miner,RECIPES.iron_ore);
+    e.progress.research.push("deep_mining");
+    const after=ProductionEngine.cycleTime(e,miner,RECIPES.iron_ore);
+    check(after<before);
+  });
+  test("Daily blueprint enter/exit and share text",()=>{
+    const e=fresh();
+    const daily=run(e,"factory_get_daily");
+    check(daily.success&&/^\d{4}-\d{2}-\d{2}$/.test(daily.dateKey)&&daily.blueprint?.product);
+    check(typeof daily.shareText==="string"&&daily.shareText.includes("每日藍圖"));
+    check(run(e,"factory_enter_daily").success&&e.isDaily());
+    check(e.level().id===DAILY_LEVEL_ID);
+    check(e.level().powerBudget!=null||e.level().maxMachines!=null||e.level().target>0);
+    check(run(e,"factory_exit_daily").success&&!e.isDaily());
+    check(e.level().id==="L01");
   });
   console.info(`[Mini Factory self-tests] ${passed} passed, ${failed} failed. Tests used isolated engines; live factory untouched.`);
 }
@@ -1402,26 +1696,34 @@ function presentSettlement(settlement){
       logger.add("System",`Research unlocked: ${node?.name||id}.`);
     }
   }
-  const level=getLevel(settlement.levelId);
-  const next=settlement.nextLevelId&&isLevelUnlocked(factoryEngine.progress,settlement.nextLevelId)?settlement.nextLevelId:null;
+  const isDaily=Boolean(settlement.daily);
+  const level=isDaily?factoryEngine.level():getLevel(settlement.levelId);
+  const next=!isDaily&&settlement.nextLevelId&&isLevelUnlocked(factoryEngine.progress,settlement.nextLevelId)?settlement.nextLevelId:null;
+  if(isDaily&&settlement.shareText&&$("shareText"))$("shareText").value=settlement.shareText;
   resultOverlay.show({
     variant:"win",
     badge:`${"★".repeat(settlement.stars)}${"☆".repeat(3-settlement.stars)}`,
-    title:`${level?.title||settlement.levelId} cleared`,
-    subtitle:settlement.newlyResearch?.length?`Unlocked: ${settlement.newlyResearch.map(id=>RESEARCH.find(r=>r.id===id)?.name||id).join(", ")}`:(settlement.isNewBest?"New personal best!":"Floor complete."),
+    title:isDaily?`Daily ${settlement.dateKey||taipeiDateKey()} cleared`:`${level?.title||settlement.levelId} cleared`,
+    subtitle:isDaily
+      ?`Streak ${settlement.streak||1} day${(settlement.streak||1)===1?"":"s"}${settlement.isNewBest?" · New daily best!":""}`
+      :(settlement.newlyResearch?.length?`Unlocked: ${settlement.newlyResearch.map(id=>RESEARCH.find(r=>r.id===id)?.name||id).join(", ")}`:(settlement.isNewBest?"New personal best!":"Floor complete.")),
     stats:[
       {label:"Product rate",value:`${settlement.attempt.rate.toFixed(1)} / min`},
       {label:"Machines",value:String(settlement.attempt.machineCount)},
       {label:"Power peak",value:String(settlement.attempt.powerPeak)},
-      {label:"Credits left",value:String(settlement.attempt.creditsLeft)}
+      {label:isDaily?"Streak":"Credits left",value:isDaily?String(settlement.streak||1):String(settlement.attempt.creditsLeft)}
     ],
-    primaryLabel:next?"Next level":"Keep optimizing",
+    primaryLabel:next?"Next level":(isDaily?"Copy share text":"Keep optimizing"),
     onPrimary:()=>{
       resultOverlay.hide();
       if(next){
         ui.call("factory_select_level",{levelId:next});
         ui.refreshToolbar();
         if($("levelSelect"))$("levelSelect").dataset.bound="0";
+      }else if(isDaily&&settlement.shareText){
+        navigator.clipboard?.writeText(settlement.shareText).then(()=>ui.toast("Daily share text copied.")).catch(()=>{
+          if($("shareText")){$("shareText").focus();$("shareText").select()}
+        });
       }
       renderer.render();
     },
@@ -1441,7 +1743,7 @@ factoryEngine.onChange=event=>{
   if(event.result.success){
     if(["factory_get_bottlenecks","machine_inspect","conveyor_inspect"].includes(event.name))ui.diagnosed=true;
     if(event.source==="WebMCP"&&event.mutation)renderer.highlight(event);
-    if(event.name==="factory_reset"||event.name==="factory_select_level"){
+    if(event.name==="factory_reset"||event.name==="factory_select_level"||event.name==="factory_enter_daily"||event.name==="factory_exit_daily"){
       ui.selected=null;ui.diagnosed=false;ui.connectSource=null;ui.refreshToolbar();
       if($("levelSelect"))$("levelSelect").dataset.bound="0";
     }
