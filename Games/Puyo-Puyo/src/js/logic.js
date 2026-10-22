@@ -37,13 +37,20 @@
     lastMode: 'cpu',
     byDifficulty: null,
     missionClears: null,
+    missionStars: null,
     missionsClearedCount: 0,
     tutorialComplete: false,
     bestChainOverall: 0,
   };
-  var VALID_DIFFICULTIES = { easy: true, normal: true, hard: true, master: true };
+  var VALID_DIFFICULTIES = {
+    easy: true,
+    normal: true,
+    hard: true,
+    master: true,
+    nightmare: true,
+  };
   var VALID_MODES = { cpu: true, versus: true, mission: true, tutorial: true, practice: true };
-  var DIFFICULTY_IDS = ['easy', 'normal', 'hard', 'master'];
+  var DIFFICULTY_IDS = ['easy', 'normal', 'hard', 'master', 'nightmare'];
 
   function asNonNegInt(value) {
     var n = Number(value);
@@ -57,6 +64,7 @@
       normal: Object.assign({}, EMPTY_MODE),
       hard: Object.assign({}, EMPTY_MODE),
       master: Object.assign({}, EMPTY_MODE),
+      nightmare: Object.assign({}, EMPTY_MODE),
     };
   }
 
@@ -66,6 +74,23 @@
     Object.keys(raw).forEach(function (key) {
       if (raw[key]) out[key] = true;
     });
+    return out;
+  }
+
+  /** Best star rating per mission id (1–3). Legacy boolean clears → 1 star. */
+  function normalizeMissionStars(rawStars, clears) {
+    var out = {};
+    if (rawStars && typeof rawStars === 'object') {
+      Object.keys(rawStars).forEach(function (key) {
+        var n = asNonNegInt(rawStars[key]);
+        if (n > 0) out[key] = Math.min(3, n);
+      });
+    }
+    if (clears && typeof clears === 'object') {
+      Object.keys(clears).forEach(function (key) {
+        if (clears[key] && !out[key]) out[key] = 1;
+      });
+    }
     return out;
   }
 
@@ -90,6 +115,7 @@
         lastMode: DEFAULT_STATS.lastMode,
         byDifficulty: byDifficulty,
         missionClears: {},
+        missionStars: {},
         missionsClearedCount: 0,
         tutorialComplete: false,
         bestChainOverall: 0,
@@ -102,6 +128,11 @@
       ? raw.lastMode
       : DEFAULT_STATS.lastMode;
     var missionClears = normalizeMissionClears(raw.missionClears);
+    var missionStars = normalizeMissionStars(raw.missionStars, missionClears);
+    // Stars imply clear; keep clears in sync for unlock helpers.
+    Object.keys(missionStars).forEach(function (key) {
+      missionClears[key] = true;
+    });
     var missionsClearedCount = Math.max(
       asNonNegInt(raw.missionsClearedCount),
       Object.keys(missionClears).length
@@ -122,6 +153,7 @@
         lastMode: lastMode,
         byDifficulty: byDifficulty,
         missionClears: missionClears,
+        missionStars: missionStars,
         missionsClearedCount: missionsClearedCount,
         tutorialComplete: tutorialComplete,
         bestChainOverall: bestChainOverall,
@@ -144,6 +176,7 @@
       lastMode: lastMode,
       byDifficulty: byDifficulty,
       missionClears: missionClears,
+      missionStars: missionStars,
       missionsClearedCount: missionsClearedCount,
       tutorialComplete: tutorialComplete,
       bestChainOverall: bestChainOverall,
@@ -192,14 +225,21 @@
     return next;
   }
 
-  /** Record a cleared mission id (idempotent). */
-  function recordMissionClear(stats, missionId, chain) {
+  /**
+   * Record a cleared mission id and best star rating (1–3).
+   * Idempotent for clears; stars only climb.
+   */
+  function recordMissionClear(stats, missionId, chain, stars) {
     var next = mergeStats(stats);
     if (typeof missionId !== 'string' || !missionId) return next;
     if (!next.missionClears[missionId]) {
       next.missionClears[missionId] = true;
       next.missionsClearedCount = Object.keys(next.missionClears).length;
     }
+    var rated = Math.min(3, Math.max(1, asNonNegInt(stars) || 1));
+    var prev = asNonNegInt(next.missionStars[missionId]);
+    if (rated > prev) next.missionStars[missionId] = rated;
+    else if (!prev) next.missionStars[missionId] = rated;
     return noteMaxChain(next, chain, null);
   }
 
@@ -632,6 +672,63 @@
     return score;
   }
 
+  /**
+   * Extra score for 3-groups that already have an empty adjacent cell (near trigger).
+   * Helps deeper CPU favour chain-ready scaffolding over inert stacks.
+   */
+  function nearTriggerScore(board) {
+    var seen = [];
+    for (var r = 0; r < ROWS; r += 1) seen.push(new Array(COLS).fill(false));
+    var score = 0;
+
+    for (var row = HIDDEN_ROWS; row < ROWS; row += 1) {
+      for (var col = 0; col < COLS; col += 1) {
+        var color = board[row][col];
+        if (color === null || color === GARBAGE || seen[row][col]) continue;
+        var cells = [];
+        var stack = [{ r: row, c: col }];
+        seen[row][col] = true;
+        while (stack.length > 0) {
+          var cell = stack.pop();
+          cells.push(cell);
+          var neighbours = [
+            { r: cell.r - 1, c: cell.c },
+            { r: cell.r + 1, c: cell.c },
+            { r: cell.r, c: cell.c - 1 },
+            { r: cell.r, c: cell.c + 1 },
+          ];
+          for (var i = 0; i < neighbours.length; i += 1) {
+            var n = neighbours[i];
+            if (n.r < HIDDEN_ROWS || n.r >= ROWS || n.c < 0 || n.c >= COLS) continue;
+            if (seen[n.r][n.c] || board[n.r][n.c] !== color) continue;
+            seen[n.r][n.c] = true;
+            stack.push(n);
+          }
+        }
+        if (cells.length !== 3) continue;
+        var open = false;
+        for (var j = 0; j < cells.length && !open; j += 1) {
+          var adj = [
+            { r: cells[j].r - 1, c: cells[j].c },
+            { r: cells[j].r + 1, c: cells[j].c },
+            { r: cells[j].r, c: cells[j].c - 1 },
+            { r: cells[j].r, c: cells[j].c + 1 },
+          ];
+          for (var k = 0; k < adj.length; k += 1) {
+            var a = adj[k];
+            if (a.r < HIDDEN_ROWS || a.r >= ROWS || a.c < 0 || a.c >= COLS) continue;
+            if (board[a.r][a.c] === null) {
+              open = true;
+              break;
+            }
+          }
+        }
+        if (open) score += 70;
+      }
+    }
+    return score;
+  }
+
   global.PuyoLogic = {
     COLS: COLS,
     ROWS: ROWS,
@@ -665,6 +762,7 @@
     isDead: isDead,
     garbagePreviewIcons: garbagePreviewIcons,
     setupPotential: setupPotential,
+    nearTriggerScore: nearTriggerScore,
 
     // Vs-CPU career stats (pure helpers; localStorage I/O lives in main.js).
     STATS_KEY: STATS_KEY,

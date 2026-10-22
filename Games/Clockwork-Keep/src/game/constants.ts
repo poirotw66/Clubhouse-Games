@@ -7,9 +7,14 @@
 export const GRID_W = 12;
 export const GRID_H = 8;
 
-/** Fixed single-cell entrance / exit, at the vertical mid-point of each edge. */
+/** Default single-cell entrance / exit, at the vertical mid-point of each edge. */
 export const ENTRANCE = { x: 0, y: 4 } as const;
 export const EXIT = { x: GRID_W - 1, y: 4 } as const;
+
+export interface PortalCell {
+  x: number;
+  y: number;
+}
 
 /**
  * Neighbor expansion order used by every BFS/flow-field pass. Fixing this
@@ -51,16 +56,18 @@ export interface DifficultyConfig {
  * standard at 1.0 were the SAME experience — both flawless clears — and only
  * harsh did anything, from the far side of the plateau.
  *
- * Spread across the responsive band the three now cost 0 / 5 / 12 lives.
- * expectDifficultiesDiffer() in check-economy.mjs holds them apart.
+ * After bloater/shellbug entered the wave table, the old 1.0 / 1.1 / 1.2 band
+ * collapsed again (extra kill gold funded perfect mid-game clears). Retuned on
+ * the classic four-tower spend-all pilot to land near 0 / 5 / 13 lives lost.
+ * check-economy.mjs holds the three apart.
  */
 export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   relaxed: { startingGold: 260, startingLives: 24, enemyHpMult: 1.0 },
-  standard: { startingGold: 200, startingLives: 20, enemyHpMult: 1.1 },
-  harsh: { startingGold: 150, startingLives: 14, enemyHpMult: 1.2 },
+  standard: { startingGold: 200, startingLives: 20, enemyHpMult: 1.12 },
+  harsh: { startingGold: 150, startingLives: 14, enemyHpMult: 1.15 },
 };
 
-export type MapId = 'open' | 'corridor' | 'fork' | 'islands';
+export type MapId = 'open' | 'corridor' | 'fork' | 'islands' | 'dual' | 'gauntlet';
 
 /** Fixed rock cells per map — impassable and unplaceable, used to shape the board. */
 export const MAP_ROCKS: Record<MapId, Array<{ x: number; y: number }>> = {
@@ -96,6 +103,48 @@ export const MAP_ROCKS: Record<MapId, Array<{ x: number; y: number }>> = {
     { x: 8, y: 2 }, { x: 8, y: 3 }, { x: 8, y: 6 },
     { x: 10, y: 1 }, { x: 10, y: 5 }, { x: 10, y: 6 },
   ],
+  /**
+   * 雙口：上下兩個入口匯向同一出口。中段岩牆切開雙廊，逼玩家同時覆蓋兩路
+   * （或把火力壓在匯合點）。
+   */
+  dual: [
+    { x: 2, y: 3 }, { x: 2, y: 4 }, { x: 2, y: 5 },
+    { x: 4, y: 0 }, { x: 4, y: 2 }, { x: 4, y: 3 }, { x: 4, y: 4 }, { x: 4, y: 5 }, { x: 4, y: 6 },
+    { x: 6, y: 1 }, { x: 6, y: 2 }, { x: 6, y: 5 }, { x: 6, y: 6 },
+    { x: 8, y: 3 }, { x: 8, y: 4 }, { x: 8, y: 5 },
+    { x: 9, y: 1 }, { x: 9, y: 6 },
+  ],
+  /**
+   * 隘道：密集岩障形成可拉長的曲折廊道，擺位空間緊、錯一格就封路風險高。
+   */
+  gauntlet: [
+    { x: 1, y: 1 }, { x: 1, y: 2 }, { x: 1, y: 5 }, { x: 1, y: 6 },
+    { x: 2, y: 3 }, { x: 2, y: 4 },
+    { x: 3, y: 0 }, { x: 3, y: 1 }, { x: 3, y: 6 }, { x: 3, y: 7 },
+    { x: 4, y: 3 }, { x: 4, y: 4 }, { x: 4, y: 5 },
+    { x: 5, y: 1 }, { x: 5, y: 2 },
+    { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 6, y: 6 },
+    { x: 7, y: 0 }, { x: 7, y: 1 }, { x: 7, y: 2 },
+    { x: 8, y: 4 }, { x: 8, y: 5 },
+    { x: 9, y: 1 }, { x: 9, y: 2 }, { x: 9, y: 3 }, { x: 9, y: 6 },
+    { x: 10, y: 5 }, { x: 10, y: 6 },
+  ],
+};
+
+/**
+ * Entrances per map. Most maps keep the classic single mid-left portal;
+ * `dual` uses two left-edge portals that must both stay path-connected.
+ */
+export const MAP_ENTRANCES: Record<MapId, readonly PortalCell[]> = {
+  open: [ENTRANCE],
+  corridor: [ENTRANCE],
+  fork: [ENTRANCE],
+  islands: [ENTRANCE],
+  dual: [
+    { x: 0, y: 1 },
+    { x: 0, y: 6 },
+  ],
+  gauntlet: [ENTRANCE],
 };
 
 /** Mission clears required before a map appears in free-play setup. */
@@ -104,9 +153,11 @@ export const MAP_UNLOCK_CLEARS: Record<MapId, number> = {
   corridor: 0,
   fork: 1,
   islands: 2,
+  dual: 3,
+  gauntlet: 4,
 };
 
-export type TowerType = 'crossbow' | 'grinder' | 'frost' | 'coil';
+export type TowerType = 'crossbow' | 'grinder' | 'frost' | 'coil' | 'hammer' | 'mortar';
 
 /** Exclusive capstone after shared base levels (L0 buy → L1 shared → choose A or B). */
 export type BranchId = 'a' | 'b';
@@ -282,6 +333,82 @@ export const TOWER_DEFS: Record<TowerType, TowerDef> = {
       },
     ],
   },
+  /**
+   * 彈簧錘：短程高單發、極低射速。專剋鐵皮／腫脹／首領；對疾走鼠與紙鳶偏弱。
+   * 與弩台形成「射速清雜 vs 重擊破甲」取捨。
+   */
+  hammer: {
+    type: 'hammer',
+    name: '彈簧錘',
+    targetsAir: false,
+    splashRadius: 0,
+    chainTargets: 1,
+    slowPercent: 0,
+    slowDurationSec: 0,
+    levels: [
+      { damage: 28, range: 1.7, fireRate: 0.55, cost: 65, armorPierce: 2 },
+      { damage: 40, range: 1.85, fireRate: 0.6, cost: 55, armorPierce: 3 },
+    ],
+    branches: [
+      {
+        id: 'a',
+        name: '碎甲錘',
+        blurb: '高穿甲、單發略低——剋鐵殼／首領',
+        stats: { damage: 48, range: 2.0, fireRate: 0.65, cost: 80, armorPierce: 8 },
+      },
+      {
+        id: 'b',
+        name: '震盪錘',
+        blurb: '更高單發＋小濺射——清腫脹團',
+        stats: { damage: 62, range: 1.95, fireRate: 0.55, cost: 80, armorPierce: 2, splashRadius: 0.85 },
+      },
+    ],
+  },
+  /**
+   * 發條迫擊砲：長射程濺射、可對空、射速慢。專剋腫脹團與鐵殼甲蟲；近身漏怪時偏弱。
+   */
+  mortar: {
+    type: 'mortar',
+    name: '發條迫擊砲',
+    targetsAir: true,
+    splashRadius: 1.35,
+    chainTargets: 1,
+    slowPercent: 0,
+    slowDurationSec: 0,
+    levels: [
+      { damage: 14, range: 3.6, fireRate: 0.65, cost: 80, targetsAir: true },
+      { damage: 20, range: 3.85, fireRate: 0.7, cost: 65, targetsAir: true },
+    ],
+    branches: [
+      {
+        id: 'a',
+        name: '散彈砲',
+        blurb: '濺射更大、單發略低——打群',
+        stats: {
+          damage: 26,
+          range: 4.05,
+          fireRate: 0.75,
+          cost: 95,
+          splashRadius: 1.85,
+          targetsAir: true,
+        },
+      },
+      {
+        id: 'b',
+        name: '穿空彈',
+        blurb: '濺射縮小＋穿甲——剋鐵殼甲蟲',
+        stats: {
+          damage: 34,
+          range: 4.2,
+          fireRate: 0.7,
+          cost: 95,
+          splashRadius: 1.05,
+          armorPierce: 5,
+          targetsAir: true,
+        },
+      },
+    ],
+  },
 };
 
 /** Chain lightning hops to the next-nearest unhit target within this radius. */
@@ -290,7 +417,15 @@ export const CHAIN_RADIUS = 2.5;
 /** Slow effective speed can never drop below this fraction of base speed. */
 export const MIN_SPEED_FACTOR = 0.4;
 
-export type EnemyType = 'grunt' | 'runner' | 'ironclad' | 'kite' | 'gearbug' | 'boss';
+export type EnemyType =
+  | 'grunt'
+  | 'runner'
+  | 'ironclad'
+  | 'kite'
+  | 'gearbug'
+  | 'bloater'
+  | 'shellbug'
+  | 'boss';
 
 export interface EnemyDef {
   type: EnemyType;
@@ -310,6 +445,10 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
   kite: { type: 'kite', name: '紙鳶', hp: 22, speed: 1.8, armor: 0, flying: true, killReward: 6, lifeCost: 1 },
   /** Compact armored pest — forces pierce or splash earlier than ironclad packs. */
   gearbug: { type: 'gearbug', name: '齒輪蟲', hp: 40, speed: 1.9, armor: 4, flying: false, killReward: 7, lifeCost: 1 },
+  /** High-HP sponge with no armor — rewards splash / mortar over pierce DPS. */
+  bloater: { type: 'bloater', name: '腫脹兵', hp: 120, speed: 0.85, armor: 0, flying: false, killReward: 8, lifeCost: 1 },
+  /** Flying + flat armor — ground-only or non-pierce air towers struggle. */
+  shellbug: { type: 'shellbug', name: '鐵殼甲蟲', hp: 40, speed: 1.55, armor: 5, flying: true, killReward: 7, lifeCost: 1 },
   boss: { type: 'boss', name: '首領', hp: 600, speed: 0.9, armor: 10, flying: false, killReward: 80, lifeCost: 5 },
 };
 

@@ -31,6 +31,15 @@ import {
   type TowerType,
 } from './game/constants';
 import {
+  dailyChallengeFor,
+  loadDailyBest,
+  mergeDailyBest,
+  saveDailyBest,
+  todayKeyUTC8,
+  type DailyBestRecord,
+  type DailyChallenge,
+} from './game/daily';
+import {
   branchUpgradeCost,
   isBranchUnlocked,
   purchaseCost,
@@ -48,6 +57,7 @@ import {
   upgradeTower,
   withRocks,
   type CommandResult,
+  type RunModifiers,
 } from './game/engine';
 import {
   MISSION_PACK,
@@ -67,8 +77,15 @@ import {
 } from './game/missions';
 import type { Cell, GameState } from './game/types';
 
-const TOWER_ORDER: TowerType[] = ['crossbow', 'grinder', 'frost', 'coil'];
-const TOWER_HOTKEYS: Record<string, TowerType> = { '1': 'crossbow', '2': 'grinder', '3': 'frost', '4': 'coil' };
+const TOWER_ORDER: TowerType[] = ['crossbow', 'grinder', 'frost', 'coil', 'hammer', 'mortar'];
+const TOWER_HOTKEYS: Record<string, TowerType> = {
+  '1': 'crossbow',
+  '2': 'grinder',
+  '3': 'frost',
+  '4': 'coil',
+  '5': 'hammer',
+  '6': 'mortar',
+};
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = { relaxed: '悠閒', standard: '標準', harsh: '嚴苛' };
 const MAP_LABELS: Record<MapId, string> = {
@@ -76,8 +93,10 @@ const MAP_LABELS: Record<MapId, string> = {
   corridor: '窄廊',
   fork: '分岔',
   islands: '群島',
+  dual: '雙口',
+  gauntlet: '隘道',
 };
-const MAP_ORDER: MapId[] = ['open', 'corridor', 'fork', 'islands'];
+const MAP_ORDER: MapId[] = ['open', 'corridor', 'fork', 'islands', 'dual', 'gauntlet'];
 
 function prefersReducedMotion(): boolean {
   try {
@@ -140,6 +159,11 @@ export default function App(): ReactElement {
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [lastMissionCleared, setLastMissionCleared] = useState<boolean | null>(null);
 
+  const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge>(() =>
+    dailyChallengeFor(todayKeyUTC8()),
+  );
+  const [dailyBest, setDailyBest] = useState<DailyBestRecord | null>(() => loadDailyBest());
+
   const activeMission: MissionDef | null = activeMissionId ? (missionById(activeMissionId) ?? null) : null;
   const packContinue = continueMissionIndex(missionProgress.clearedCount);
   const packSubtitle = `${missionProgress.clearedCount}/${missionCount()} 通關`;
@@ -191,6 +215,7 @@ export default function App(): ReactElement {
       mapId: MapId;
       endless: boolean;
       mission: MissionDef | null;
+      modifiers?: RunModifiers | null;
     }) => {
       const missionOpts = opts.mission
         ? {
@@ -200,7 +225,13 @@ export default function App(): ReactElement {
             winAtWave: opts.mission.run.winAtWave,
           }
         : null;
-      let fresh = createInitialState(opts.difficulty, opts.mapId, opts.endless, missionOpts);
+      let fresh = createInitialState(
+        opts.difficulty,
+        opts.mapId,
+        opts.endless,
+        missionOpts,
+        opts.modifiers ?? null,
+      );
       fresh = withRocks(fresh, MAP_ROCKS[opts.mapId]);
       stateRef.current = fresh;
       setState(fresh);
@@ -219,6 +250,18 @@ export default function App(): ReactElement {
   const startGame = useCallback(() => {
     beginRun({ difficulty, mapId, endless, mission: null });
   }, [beginRun, difficulty, mapId, endless]);
+
+  const startDaily = useCallback(() => {
+    const challenge = dailyChallengeFor(todayKeyUTC8());
+    setDailyChallenge(challenge);
+    beginRun({
+      difficulty: challenge.difficulty,
+      mapId: challenge.mapId,
+      endless: false,
+      mission: null,
+      modifiers: challenge.modifiers,
+    });
+  }, [beginRun]);
 
   const startMission = useCallback(
     (mission: MissionDef) => {
@@ -283,8 +326,8 @@ export default function App(): ReactElement {
     if (state.phase === 'won') playWin();
     else playLose();
 
-    // Free-play bests only — mission progress is stored separately.
-    if (!state.missionId) {
+    // Free-play bests only — mission / daily progress is stored separately.
+    if (!state.missionId && !state.dailyDate) {
       const waveKey = BEST_WAVE_KEY_PREFIX + state.difficulty;
       const scoreKey = BEST_SCORE_KEY_PREFIX + state.difficulty;
       const timeKey = BEST_TIME_KEY_PREFIX + state.difficulty;
@@ -300,6 +343,19 @@ export default function App(): ReactElement {
       }
       setBestWave(Math.max(prevWave, reachedWave));
       setBestScore(Math.max(prevScore, Math.round(state.score)));
+    }
+
+    if (state.dailyDate) {
+      const reachedWave = state.phase === 'won' ? TOTAL_WAVES : state.wave;
+      const nextBest = mergeDailyBest(
+        dailyBest?.date === state.dailyDate ? dailyBest : loadDailyBest(),
+        state.dailyDate,
+        state.score,
+        reachedWave,
+        state.phase === 'won',
+      );
+      saveDailyBest(nextBest);
+      setDailyBest(nextBest);
     }
 
     if (state.missionId) {
@@ -450,10 +506,26 @@ export default function App(): ReactElement {
           <button
             type="button"
             onClick={() => setShowMissions(true)}
-            className="mb-6 w-full py-2.5 rounded-lg border border-amber-500/50 bg-amber-600/25 text-sm font-semibold text-amber-100 hover:bg-amber-600/35 transition-colors min-h-[44px] touch-manipulation"
+            className="mb-3 w-full py-2.5 rounded-lg border border-amber-500/50 bg-amber-600/25 text-sm font-semibold text-amber-100 hover:bg-amber-600/35 transition-colors min-h-[44px] touch-manipulation"
             aria-label={`開啟任務包。${packSubtitle}`}
           >
             任務包・{packSubtitle}
+          </button>
+
+          <button
+            type="button"
+            onClick={startDaily}
+            className="mb-6 w-full py-2.5 rounded-lg border border-sky-500/45 bg-sky-900/35 text-sm font-semibold text-sky-100 hover:bg-sky-800/45 transition-colors min-h-[44px] touch-manipulation text-left px-3"
+            aria-label={`開始每日挑戰 ${dailyChallenge.date}`}
+          >
+            <span className="block">每日挑戰・{dailyChallenge.date}</span>
+            <span className="block text-[11px] font-normal text-sky-100/70 mt-0.5">
+              {MAP_LABELS[dailyChallenge.mapId]}・{DIFFICULTY_LABELS[dailyChallenge.difficulty]}・
+              {dailyChallenge.affixLabels.join('／')}
+              {dailyBest?.date === dailyChallenge.date
+                ? `・今日最佳 ${dailyBest.bestScore}`
+                : '・尚未挑戰'}
+            </span>
           </button>
 
           <div className="mb-4">
@@ -478,7 +550,7 @@ export default function App(): ReactElement {
 
           <div className="mb-4">
             <p className="text-xs text-amber-300/80 mb-2 font-semibold">地圖</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {MAP_ORDER.map((m) => {
                 const unlocked = missionProgress.clearedCount >= MAP_UNLOCK_CLEARS[m];
                 return (
@@ -507,7 +579,7 @@ export default function App(): ReactElement {
               })}
             </div>
             <p className="mt-2 text-[11px] text-amber-200/50">
-              分岔／群島需任務進度解鎖；分支 B（各塔第二路線）通關 2 則任務後開放。
+              分岔／群島／雙口／隘道依任務進度解鎖；分支 B 通關 2 則任務後開放。
             </p>
           </div>
 
@@ -555,7 +627,7 @@ export default function App(): ReactElement {
           <details className="mt-4 text-xs text-amber-200/70">
             <summary className="cursor-pointer select-none">操作說明</summary>
             <ul className="mt-2 space-y-1 list-disc pl-4">
-              <li>點擊底部塔欄選塔（或按 1–4），點擊格子放置</li>
+              <li>點擊底部塔欄選塔（或按 1–6），點擊格子放置</li>
               <li>點擊已放置的塔可升級或售出</li>
               <li>空白鍵：戰鬥中按下可「強行加壓」——把下一波直接疊上來，依場上未解決的敵人數換取金幣</li>
               <li>Z：撤銷本波尚未開始前的最後一次放置／升級</li>
@@ -671,6 +743,7 @@ export default function App(): ReactElement {
   const isOver = state.phase === 'won' || state.phase === 'lost';
   const missionGoalMet =
     activeMission && state.phase === 'won' ? evaluateMissionGoal(activeMission, state) : false;
+  const isDailyRun = Boolean(state.dailyDate);
 
   return (
     <div
@@ -683,6 +756,7 @@ export default function App(): ReactElement {
           發條守城
           <span className="ml-2 text-xs font-normal text-amber-200/60">
             {MAP_LABELS[state.mapId]}
+            {isDailyRun ? '・每日' : ''}
           </span>
         </h1>
         <div className="flex items-center gap-3 font-mono tabular-nums">
@@ -718,6 +792,13 @@ export default function App(): ReactElement {
         <div className="w-full max-w-3xl mb-2 py-1.5 px-3 rounded-lg bg-amber-900/35 border border-amber-500/35 text-sm flex flex-wrap items-center justify-between gap-2">
           <span className="font-semibold text-amber-100">任務・{activeMission.name}</span>
           <span className="text-amber-200/75 text-xs">{activeMission.goalLabel}</span>
+        </div>
+      )}
+
+      {isDailyRun && (
+        <div className="w-full max-w-3xl mb-2 py-1.5 px-3 rounded-lg bg-sky-950/50 border border-sky-500/35 text-sm flex flex-wrap items-center justify-between gap-2">
+          <span className="font-semibold text-sky-100">每日挑戰・{state.dailyDate}</span>
+          <span className="text-sky-100/75 text-xs">{state.dailyAffixes.join('・')}</span>
         </div>
       )}
 
@@ -766,7 +847,7 @@ export default function App(): ReactElement {
       </div>
 
       {/* Tower palette */}
-      <div className="w-full max-w-3xl mt-3 grid grid-cols-4 gap-2">
+      <div className="w-full max-w-3xl mt-3 grid grid-cols-3 sm:grid-cols-6 gap-2">
         {TOWER_ORDER.map((type, i) => {
           const def = TOWER_DEFS[type];
           const cost = purchaseCost(type);
@@ -905,9 +986,13 @@ export default function App(): ReactElement {
                 : state.phase === 'won'
                   ? '任務未過'
                   : '城池失守'
-              : state.phase === 'won'
-                ? '守城成功！'
-                : '城池失守'
+              : isDailyRun
+                ? state.phase === 'won'
+                  ? '每日通關！'
+                  : '每日挑戰失守'
+                : state.phase === 'won'
+                  ? '守城成功！'
+                  : '城池失守'
           }
           variant={
             activeMission
@@ -925,12 +1010,17 @@ export default function App(): ReactElement {
                 : state.phase === 'won'
                   ? `未達成：${activeMission.goalLabel}`
                   : `倒在「${activeMission.name}」第 ${state.wave} 波。`
-              : state.phase === 'won'
-                ? '你撐過了全部波次。'
-                : `倒在第 ${state.wave} 波。`
+              : isDailyRun
+                ? state.phase === 'won'
+                  ? `${state.dailyDate} 詞綴：${state.dailyAffixes.join('・')}`
+                  : `倒在第 ${state.wave} 波。${state.dailyAffixes.join('・')}`
+                : state.phase === 'won'
+                  ? '你撐過了全部波次。'
+                  : `倒在第 ${state.wave} 波。`
           }
           stats={[
             ...(activeMission ? [{ label: '任務', value: activeMission.name }] : []),
+            ...(isDailyRun ? [{ label: '日期', value: state.dailyDate ?? '' }] : []),
             {
               label: '波次',
               value:
@@ -949,13 +1039,20 @@ export default function App(): ReactElement {
                     value: missionProgress.bestScore[activeMission.id] ?? Math.round(state.score),
                   },
                 ]
-              : [
-                  { label: '最佳波次', value: bestWave },
-                  { label: '最佳分數', value: bestScore },
-                ]),
+              : isDailyRun
+                ? [
+                    {
+                      label: '今日最佳',
+                      value: dailyBest?.date === state.dailyDate ? dailyBest.bestScore : Math.round(state.score),
+                    },
+                  ]
+                : [
+                    { label: '最佳波次', value: bestWave },
+                    { label: '最佳分數', value: bestScore },
+                  ]),
           ]}
-          primaryLabel={activeMission ? '再挑戰' : '再玩一次'}
-          onPrimary={activeMission ? retryMission : startGame}
+          primaryLabel={activeMission ? '再挑戰' : isDailyRun ? '再挑戰今日' : '再玩一次'}
+          onPrimary={activeMission ? retryMission : isDailyRun ? startDaily : startGame}
           secondaryLabel="回設定"
           onSecondary={backToSetup}
         />

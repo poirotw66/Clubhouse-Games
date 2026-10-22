@@ -11,6 +11,8 @@ interface RelicPickerProps {
   hp: number;
   maxHp: number;
   picksLeft: number;
+  /** Ironsnake: HP is fixed at 1, so shop heal is hidden. */
+  ironsnake?: boolean;
   onChoose: (id: RelicId) => void;
   onReroll: () => void;
   onHeal: () => void;
@@ -23,12 +25,13 @@ export function RelicPicker({
   hp,
   maxHp,
   picksLeft,
+  ironsnake = false,
   onChoose,
   onReroll,
   onHeal,
 }: RelicPickerProps) {
   const canReroll = coins >= REROLL_COST;
-  const canHeal = coins >= HEAL_COST && hp < maxHp;
+  const canHeal = !ironsnake && coins >= HEAL_COST && hp < maxHp;
 
   return (
     <div
@@ -90,15 +93,20 @@ export function RelicPicker({
             <Dices className="w-4 h-4" />
             重抽（{REROLL_COST} 金幣）
           </button>
-          <button
-            type="button"
-            onClick={onHeal}
-            disabled={!canHeal}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-700/70 bg-rose-950/60 px-4 py-2 text-sm font-semibold hover:bg-rose-900/60 disabled:opacity-40 disabled:hover:bg-rose-950/60"
-          >
-            <HeartPulse className="w-4 h-4" />
-            治療 1 HP（{HEAL_COST} 金幣）
-          </button>
+          {!ironsnake && (
+            <button
+              type="button"
+              onClick={onHeal}
+              disabled={!canHeal}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-700/70 bg-rose-950/60 px-4 py-2 text-sm font-semibold hover:bg-rose-900/60 disabled:opacity-40 disabled:hover:bg-rose-950/60"
+            >
+              <HeartPulse className="w-4 h-4" />
+              治療 1 HP（{HEAL_COST} 金幣）
+            </button>
+          )}
+          {ironsnake && (
+            <span className="text-xs text-rose-300/80">Ironsnake・HP 固定 1，無法治療</span>
+          )}
         </div>
       </div>
     </div>

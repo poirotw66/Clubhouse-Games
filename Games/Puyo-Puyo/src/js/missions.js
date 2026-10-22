@@ -46,15 +46,53 @@
     };
   }
 
+  function countColor(board, color) {
+    var n = 0;
+    for (var r = 0; r < L.ROWS; r += 1) {
+      for (var c = 0; c < L.COLS; c += 1) {
+        if (board[r][c] === color) n += 1;
+      }
+    }
+    return n;
+  }
+
   /**
-   * Interactive teaching stages (2 → 3 → 4 chain), then free practice.
-   * solution hints are (col, rot) for the given first pair.
+   * Interactive teaching stages: connect → 2-chain stair → 3-chain → 4-chain.
+   * `hint` / `solution` are (col, rot) for the active queue step.
    */
   var TUTORIAL_STAGES = [
     {
-      id: 'teach-2',
-      title: '二連鎖教室',
-      blurb: '同色連成 4 顆會消除；消除後上方落下若再連成 4 顆，就是連鎖。請用這組氣泡引爆 2 連鎖。',
+      id: 'teach-connect',
+      title: '消除入門',
+      blurb: '同色上下左右連成 4 顆就會消除。請依金色落點提示，把紅氣泡接上。',
+      goalType: 'chain',
+      targetChain: 1,
+      moveLimit: 1,
+      colorCount: 4,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        'RRR...',
+        'GGG...',
+      ],
+      queue: [pairOf('red', 'green', 2, 0)],
+      hint: { col: 0, rot: 1 },
+      solution: [{ col: 0, rot: 1 }],
+      autoHint: true,
+    },
+    {
+      id: 'teach-stair',
+      title: '階梯型二連鎖',
+      blurb: '階梯埋設：綠在底、紅錯一格、黃再錯一格。拔掉綠色後紅黃會依序接上——打出 2 連鎖。',
+      goalType: 'chain',
       targetChain: 2,
       moveLimit: 1,
       colorCount: 4,
@@ -74,11 +112,14 @@
       ],
       queue: [pairOf('red', 'yellow', 2, 0)],
       hint: { col: 2, rot: 0 },
+      solution: [{ col: 2, rot: 0 }],
+      autoHint: true,
     },
     {
       id: 'teach-3',
       title: '三連鎖教室',
-      blurb: '階梯埋設：先爆紅／綠，黃與藍會依序掉落接上。請打出 3 連鎖。',
+      blurb: '在階梯上再疊藍／黃土台。先爆紅／綠，黃與藍會依序掉落接上。請打出 3 連鎖。',
+      goalType: 'chain',
       targetChain: 3,
       moveLimit: 1,
       colorCount: 4,
@@ -98,11 +139,14 @@
       ],
       queue: [pairOf('red', 'blue', 1, 0)],
       hint: { col: 1, rot: 0 },
+      solution: [{ col: 1, rot: 0 }],
+      autoHint: true,
     },
     {
       id: 'teach-4',
       title: '四連鎖教室',
       blurb: '在三連鎖骨架上再加上紫色土台。打出 4 連鎖看看氣勢！',
+      goalType: 'chain',
       targetChain: 4,
       moveLimit: 1,
       colorCount: 5,
@@ -122,15 +166,21 @@
       ],
       queue: [pairOf('purple', 'blue', 0, 1)],
       hint: { col: 0, rot: 1 },
+      solution: [{ col: 0, rot: 1 }],
+      autoHint: true,
     },
   ];
 
-  /** Quest ladder: clear in order. Later missions unlock after earlier clears. */
+  /**
+   * Quest ladder (≥12): chain / all-clear / clear-color goals.
+   * Later missions unlock after earlier clears. `solution` enables auto-verify.
+   */
   var MISSION_LADDER = [
     {
       id: 'm1-two',
       title: '任務 1：二連鎖入門',
       blurb: '一手引爆 2 連鎖。',
+      goalType: 'chain',
       targetChain: 2,
       moveLimit: 1,
       colorCount: 4,
@@ -150,11 +200,13 @@
       ],
       queue: [pairOf('red', 'yellow', 2, 0)],
       hint: { col: 2, rot: 0 },
+      solution: [{ col: 2, rot: 0 }],
     },
     {
       id: 'm2-three',
       title: '任務 2：三連鎖',
       blurb: '一手打出 3 連鎖。',
+      goalType: 'chain',
       targetChain: 3,
       moveLimit: 1,
       colorCount: 4,
@@ -174,11 +226,13 @@
       ],
       queue: [pairOf('red', 'blue', 1, 0)],
       hint: { col: 1, rot: 0 },
+      solution: [{ col: 1, rot: 0 }],
     },
     {
       id: 'm3-four',
       title: '任務 3：四連鎖',
       blurb: '一手打出 4 連鎖。',
+      goalType: 'chain',
       targetChain: 4,
       moveLimit: 1,
       colorCount: 5,
@@ -198,11 +252,13 @@
       ],
       queue: [pairOf('red', 'blue', 0, 1)],
       hint: { col: 0, rot: 1 },
+      solution: [{ col: 0, rot: 1 }],
     },
     {
       id: 'm4-two-build',
       title: '任務 4：兩手二連鎖',
-      blurb: '最多兩手，達成至少 2 連鎖（可先埋再爆）。',
+      blurb: '最多兩手：先補齊綠色，再用紅／黃引爆 2 連鎖。',
+      goalType: 'chain',
       targetChain: 2,
       moveLimit: 2,
       colorCount: 4,
@@ -216,20 +272,221 @@
         '......',
         '......',
         '......',
-        'Y.....',
+        '......',
         'RRR...',
-        'GGGG..',
+        'GGG...',
       ],
       queue: [
-        pairOf('yellow', 'red', 2, 0),
         pairOf('green', 'yellow', 3, 0),
+        pairOf('red', 'yellow', 2, 0),
       ],
-      hint: null,
+      hint: { col: 0, rot: 0 },
+      solution: [
+        { col: 0, rot: 0 },
+        { col: 1, rot: 0 },
+      ],
     },
     {
       id: 'm5-three-build',
-      title: '任務 5：三連鎖限手',
-      blurb: '三手內打出 3 連鎖。',
+      title: '任務 5：兩手三連鎖',
+      blurb: '兩手內補土台並打出 3 連鎖。',
+      goalType: 'chain',
+      targetChain: 3,
+      moveLimit: 2,
+      colorCount: 4,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        'B.....',
+        'BY....',
+        'BYY...',
+        'RRR...',
+        'GGG...',
+      ],
+      queue: [
+        pairOf('green', 'red', 2, 0),
+        pairOf('red', 'blue', 1, 0),
+      ],
+      hint: { col: 0, rot: 2 },
+      solution: [
+        { col: 0, rot: 2 },
+        { col: 0, rot: 1 },
+      ],
+    },
+    {
+      id: 'm6-four-alt',
+      title: '任務 6：四連鎖再演',
+      blurb: '換一組土台，一手 4 連鎖。',
+      goalType: 'chain',
+      targetChain: 4,
+      moveLimit: 1,
+      colorCount: 5,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        'P.....',
+        'P.....',
+        'BP....',
+        'BY....',
+        'BYY...',
+        'RRRY..',
+        'RGGGY.',
+        'GGGGR.',
+      ],
+      queue: [pairOf('purple', 'blue', 0, 1)],
+      hint: { col: 0, rot: 1 },
+      solution: [{ col: 0, rot: 1 }],
+    },
+    {
+      id: 'm7-all-clear',
+      title: '任務 7：全消入門',
+      blurb: '一手把場上氣泡全部消光（全消）。',
+      goalType: 'allClear',
+      targetChain: 1,
+      moveLimit: 1,
+      colorCount: 4,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        'RRR...',
+        'R.....',
+      ],
+      queue: [pairOf('red', 'red', 1, 0)],
+      hint: { col: 0, rot: 0 },
+      solution: [{ col: 0, rot: 0 }],
+    },
+    {
+      id: 'm8-clear-red',
+      title: '任務 8：清掉紅色',
+      blurb: '一手內讓場上不再有紅色氣泡（綠色可留下）。',
+      goalType: 'clearColor',
+      clearColor: 'red',
+      targetChain: 1,
+      moveLimit: 1,
+      colorCount: 4,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        'GGG...',
+        'RRR...',
+        'R.....',
+      ],
+      queue: [pairOf('red', 'red', 2, 0)],
+      hint: { col: 3, rot: 0 },
+      solution: [{ col: 3, rot: 0 }],
+    },
+    {
+      id: 'm9-clear-yellow',
+      title: '任務 9：清掉黃色',
+      blurb: '一手消光所有黃色氣泡。',
+      goalType: 'clearColor',
+      clearColor: 'yellow',
+      targetChain: 1,
+      moveLimit: 1,
+      colorCount: 4,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        'YYY...',
+        'RRRY..',
+        'GGGG..',
+      ],
+      queue: [pairOf('yellow', 'red', 2, 0)],
+      hint: { col: 3, rot: 0 },
+      solution: [{ col: 3, rot: 0 }],
+    },
+    {
+      id: 'm10-all-clear-ojama',
+      title: '任務 10：帶垃圾全消',
+      blurb: '紅色消除時會帶走相鄰垃圾。一手全消！',
+      goalType: 'allClear',
+      targetChain: 1,
+      moveLimit: 1,
+      colorCount: 4,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        'XXX...',
+        'RRRX..',
+        'RRR...',
+      ],
+      queue: [pairOf('red', 'red', 2, 0)],
+      hint: { col: 3, rot: 0 },
+      solution: [{ col: 3, rot: 0 }],
+    },
+    {
+      id: 'm11-two-alt',
+      title: '任務 11：埋設再爆',
+      blurb: '兩手內先補黃再引爆，達成至少 2 連鎖。',
+      goalType: 'chain',
+      targetChain: 2,
+      moveLimit: 2,
+      colorCount: 4,
+      lines: [
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        '......',
+        'YY....',
+        'RRR...',
+        'GGG...',
+      ],
+      queue: [
+        pairOf('green', 'red', 3, 0),
+        pairOf('yellow', 'red', 2, 0),
+      ],
+      hint: { col: 2, rot: 0 },
+      solution: [
+        { col: 2, rot: 0 },
+        { col: 3, rot: 0 },
+      ],
+    },
+    {
+      id: 'm12-three-limit',
+      title: '任務 12：三連鎖限手',
+      blurb: '沿用教室土台，三手內打出 3 連鎖（可先埋再爆）。',
+      goalType: 'chain',
       targetChain: 3,
       moveLimit: 3,
       colorCount: 4,
@@ -252,31 +509,12 @@
         pairOf('yellow', 'blue', 1, 0),
         pairOf('red', 'blue', 1, 0),
       ],
-      hint: null,
-    },
-    {
-      id: 'm6-four-alt',
-      title: '任務 6：四連鎖再演',
-      blurb: '換一組土台，一手 4 連鎖。',
-      targetChain: 4,
-      moveLimit: 1,
-      colorCount: 5,
-      lines: [
-        '......',
-        '......',
-        '......',
-        '......',
-        'P.....',
-        'P.....',
-        'BP....',
-        'BY....',
-        'BYY...',
-        'RRRY..',
-        'RGGGY.',
-        'GGGGR.',
+      hint: { col: 0, rot: 0 },
+      solution: [
+        { col: 0, rot: 0 },
+        { col: 0, rot: 0 },
+        { col: 0, rot: 1 },
       ],
-      queue: [pairOf('purple', 'blue', 0, 1)],
-      hint: { col: 0, rot: 1 },
     },
   ];
 
@@ -312,47 +550,143 @@
     return false;
   }
 
+  function goalTypeOf(def) {
+    return def.goalType || 'chain';
+  }
+
+  /** Human-readable goal line for HUD. */
+  function goalLabel(def) {
+    var type = goalTypeOf(def);
+    if (type === 'allClear') return '全消';
+    if (type === 'clearColor') {
+      var names = {
+        red: '紅色',
+        green: '綠色',
+        blue: '藍色',
+        yellow: '黃色',
+        purple: '紫色',
+      };
+      return '消光' + (names[def.clearColor] || def.clearColor);
+    }
+    return '目標 ' + def.targetChain + ' 連鎖';
+  }
+
   /**
-   * Verify a one-move puzzle: dropping the first queue pair at hint (or any placement)
-   * can reach targetChain. Used by check-logic.
+   * Star rating 1–3 from moves used vs optimal solution length.
+   * 3 = optimal (or better), 2 = within mid band, 1 = cleared within limit.
    */
-  function verifyOneMove(def) {
+  function rateStars(def, movesUsed) {
+    var used = Math.max(1, movesUsed | 0);
+    var limit = Math.max(1, def.moveLimit | 0);
+    var optimal =
+      def.solution && def.solution.length
+        ? def.solution.length
+        : Math.min(limit, 1);
+    if (used <= optimal) return 3;
+    if (used <= Math.ceil((optimal + limit) / 2)) return 2;
+    return 1;
+  }
+
+  function applySolutionStep(board, pair, step) {
+    var candidate = {
+      row: L.HIDDEN_ROWS,
+      col: step.col,
+      rot: step.rot,
+      axis: pair.axis,
+      child: pair.child,
+    };
+    if (!L.fits(board, candidate)) return null;
+    return L.simulateLock(board, L.dropPair(board, candidate), 70);
+  }
+
+  function goalMetOnBoard(def, board, maxChain) {
+    var type = goalTypeOf(def);
+    if (type === 'allClear') return L.isBoardEmpty(board);
+    if (type === 'clearColor') return countColor(board, def.clearColor) === 0;
+    return maxChain >= (def.targetChain || 1);
+  }
+
+  /**
+   * Replay `solution` (or single `hint`) and confirm the goal is reachable.
+   * Used by check-logic for every mission / tutorial stage.
+   */
+  function verifyMission(def) {
+    var steps =
+      def.solution && def.solution.length
+        ? def.solution
+        : def.hint
+          ? [def.hint]
+          : null;
+    if (!steps || !steps.length) {
+      return { ok: false, reason: 'missing solution' };
+    }
+    if (steps.length > def.moveLimit) {
+      return { ok: false, reason: 'solution longer than moveLimit' };
+    }
+    if (steps.length > def.queue.length) {
+      return { ok: false, reason: 'solution longer than queue' };
+    }
+
     var board = boardFromLines(def.lines);
-    var pair = def.queue[0];
-    if (def.hint) {
-      var hinted = {
-        row: L.HIDDEN_ROWS,
-        col: def.hint.col,
-        rot: def.hint.rot,
-        axis: pair.axis,
-        child: pair.child,
-      };
-      if (!L.fits(board, hinted)) return { ok: false, reason: 'hint does not fit' };
-      var result = L.simulateLock(board, L.dropPair(board, hinted), 70);
-      return {
-        ok: result.chain >= def.targetChain,
-        chain: result.chain,
-        score: result.score,
-      };
+    var maxChain = 0;
+    var last = null;
+    for (var i = 0; i < steps.length; i += 1) {
+      var pair = def.queue[i];
+      last = applySolutionStep(board, pair, steps[i]);
+      if (!last) {
+        return { ok: false, reason: 'step ' + i + ' does not fit', step: i };
+      }
+      if (last.chain > maxChain) maxChain = last.chain;
+      board = last.board;
+      if (goalMetOnBoard(def, board, maxChain)) {
+        return {
+          ok: true,
+          chain: maxChain,
+          score: last.score,
+          moves: i + 1,
+          stars: rateStars(def, i + 1),
+        };
+      }
     }
-    var placements = L.enumeratePlacements(board, pair);
-    var best = 0;
-    for (var i = 0; i < placements.length; i += 1) {
-      var r = L.simulateLock(board, placements[i], 70);
-      if (r.chain > best) best = r.chain;
+    return {
+      ok: false,
+      reason: 'goal not met after solution',
+      chain: maxChain,
+      goalType: goalTypeOf(def),
+    };
+  }
+
+  /** @deprecated alias — prefer verifyMission (supports multi-move + goal types). */
+  function verifyOneMove(def) {
+    return verifyMission(def);
+  }
+
+  /** Hint for the current move index (0-based). */
+  function hintForMove(def, moveIndex) {
+    if (!def) return null;
+    if (def.solution && def.solution.length && moveIndex < def.solution.length) {
+      return def.solution[moveIndex];
     }
-    return { ok: best >= def.targetChain, chain: best };
+    if (moveIndex === 0 && def.hint) return def.hint;
+    return null;
   }
 
   global.PuyoMissions = {
     boardFromLines: boardFromLines,
     pairOf: pairOf,
+    countColor: countColor,
     TUTORIAL_STAGES: TUTORIAL_STAGES,
     MISSION_LADDER: MISSION_LADDER,
     missionById: missionById,
     tutorialStageById: tutorialStageById,
     nextMissionId: nextMissionId,
     isMissionUnlocked: isMissionUnlocked,
+    goalTypeOf: goalTypeOf,
+    goalLabel: goalLabel,
+    rateStars: rateStars,
+    goalMetOnBoard: goalMetOnBoard,
+    verifyMission: verifyMission,
     verifyOneMove: verifyOneMove,
+    hintForMove: hintForMove,
   };
 })(window);

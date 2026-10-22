@@ -5,9 +5,13 @@ A puzzle game where you sort colored liquids into bottles. Complete customer ord
 ## Features
 
 - **Adventure mode**: Progressive levels with increasing difficulty (more colors, hidden layers).
-- **Quick play**: Choose difficulty (Easy / Medium / Hard / Expert) for a single run.
+- **Quick play**: Choose difficulty (Easy / Medium / Hard / Expert) for a single run; optional move/time limits.
+- **Puzzle pack / Mix challenge / Mechanism pack**: Hand-authored stages (hidden layers, forced mixing, blocked bottles + mixed capacities + star ratings by min steps).
+- **Daily puzzle**: Date-keyed board, share text, consecutive-day streak.
+- **Cosmetics shop**: Unlock bottle/liquid looks with coins.
+- **Feel**: Pour tilt + stream, bottle-complete celebration; respects `prefers-reduced-motion`.
 - **Daily missions**: Complete tasks (e.g. pour liquid, win levels, use items) to earn coins.
-- **Power-ups**: Undo, shuffle, add empty bottle, reveal hidden layers (cost coins).
+- **Power-ups**: Undo, shuffle, add empty bottle, reveal hidden layers, hint (cost coins).
 - **Settings**: Sound on/off, language (繁體中文 / English).
 
 ## Prerequisites

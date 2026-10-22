@@ -1,14 +1,18 @@
 /**
- * Branching upgrades + new maps + unlock gates.
+ * Branching upgrades + new maps + unlock gates + new towers/enemies + daily.
  * Run via npm run check.
  */
 import assert from 'node:assert/strict';
 import {
   BRANCH_B_UNLOCK_CLEARS,
+  ENEMY_DEFS,
+  EXIT,
+  MAP_ENTRANCES,
   MAP_ROCKS,
   MAP_UNLOCK_CLEARS,
   TOWER_DEFS,
 } from './game/constants.ts';
+import { dailyChallengeFor, hashString, todayKeyUTC8 } from './game/daily.ts';
 import {
   branchUpgradeCost,
   cumulativeCost,
@@ -23,8 +27,26 @@ import {
   upgradeTower,
   withRocks,
 } from './game/engine.ts';
-import { ENTRANCE, EXIT } from './game/constants.ts';
-import { computeFlowField, wouldSealExit, makeEmptyOccupancy } from './game/pathfinding.ts';
+import {
+  allEntrancesReachExit,
+  computeFlowField,
+  wouldSealExit,
+  makeEmptyOccupancy,
+} from './game/pathfinding.ts';
+
+assert.ok(TOWER_DEFS.hammer, 'hammer tower exists');
+assert.ok(TOWER_DEFS.mortar, 'mortar tower exists');
+assert.equal(TOWER_DEFS.hammer.targetsAir, false);
+assert.equal(TOWER_DEFS.mortar.targetsAir, true);
+assert.ok((TOWER_DEFS.hammer.levels[0].armorPierce ?? 0) > 0, 'hammer starts with pierce');
+assert.ok((TOWER_DEFS.mortar.levels[0].splashRadius ?? TOWER_DEFS.mortar.splashRadius) > 0);
+
+assert.ok(ENEMY_DEFS.bloater, 'bloater enemy exists');
+assert.ok(ENEMY_DEFS.shellbug, 'shellbug enemy exists');
+assert.equal(ENEMY_DEFS.bloater.armor, 0);
+assert.ok(ENEMY_DEFS.bloater.hp > ENEMY_DEFS.grunt.hp);
+assert.equal(ENEMY_DEFS.shellbug.flying, true);
+assert.ok(ENEMY_DEFS.shellbug.armor > 0);
 
 // Every tower has exactly two exclusive branches with distinct names/blurbs.
 for (const type of Object.keys(TOWER_DEFS)) {
@@ -90,20 +112,47 @@ assert.equal(
   purchaseCost('coil') + TOWER_DEFS.coil.levels[1].cost + branchUpgradeCost('coil', 'b'),
 );
 
-// New maps exist, unlock gates, and stay path-connected.
-for (const mapId of ['fork', 'islands']) {
+// Gated maps exist, unlock, and stay path-connected from every entrance.
+for (const mapId of ['fork', 'islands', 'dual', 'gauntlet']) {
   assert.ok(MAP_ROCKS[mapId].length > 0, `${mapId} has rocks`);
   assert.ok(MAP_UNLOCK_CLEARS[mapId] > 0, `${mapId} is gated`);
+  const entrances = MAP_ENTRANCES[mapId];
+  assert.ok(entrances.length >= 1, `${mapId} has entrances`);
   const occ = makeEmptyOccupancy(12, 8);
   for (const r of MAP_ROCKS[mapId]) occ[r.y][r.x] = true;
-  const field = computeFlowField(occ, 12, 8, EXIT);
-  assert.notEqual(
-    field.distance[ENTRANCE.y][ENTRANCE.x],
-    Infinity,
-    `${mapId} entrance reaches exit`,
+  assert.equal(
+    allEntrancesReachExit(occ, entrances, 12, 8, EXIT),
+    true,
+    `${mapId} all entrances reach exit`,
   );
-  // Placing on a free mid cell must not always seal (sanity).
-  assert.equal(wouldSealExit(occ, 1, 4, 12, 8, ENTRANCE, EXIT), false);
+  assert.equal(wouldSealExit(occ, 1, 4, 12, 8, entrances, EXIT), false);
+}
+
+// Dual map: two entrances; sealing one lane is illegal.
+{
+  const entrances = MAP_ENTRANCES.dual;
+  assert.equal(entrances.length, 2, 'dual has two entrances');
+  const occ = makeEmptyOccupancy(12, 8);
+  for (const r of MAP_ROCKS.dual) occ[r.y][r.x] = true;
+  let state = createInitialState('standard', 'dual', false);
+  state = withRocks(state, MAP_ROCKS.dual);
+  state = { ...state, gold: 9999 };
+  // Must not place on an entrance cell.
+  const onPortal = placeTower(state, entrances[0].x, entrances[0].y, 'crossbow');
+  assert.equal(onPortal.ok, false, 'cannot place on entrance');
+}
+
+// Daily challenge is deterministic per date.
+{
+  const a = dailyChallengeFor('2026-10-21');
+  const b = dailyChallengeFor('2026-10-21');
+  assert.deepEqual(a, b, 'same date → identical daily challenge');
+  const c = dailyChallengeFor('2026-10-22');
+  assert.notEqual(JSON.stringify(a), JSON.stringify(c), 'different dates usually differ');
+  assert.ok(MAP_ROCKS[a.mapId], 'daily map is valid');
+  assert.ok(a.affixIds.length >= 1 && a.affixIds.length <= 2);
+  assert.equal(hashString('x'), hashString('x'));
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(todayKeyUTC8(new Date('2026-10-21T12:00:00Z'))));
 }
 
 console.log('check-branches: ok');

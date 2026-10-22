@@ -74,8 +74,19 @@ export const MIXING_MIN_LEVEL = 4;
 /**
  * Checks if a move is valid.
  */
+/**
+ * Unlocks the first still-blocked bottle (stable board order). Used after
+ * each order delivery in mechanism-pack stages.
+ */
+export const unlockNextBlockedBottle = (bottles: BottleData[]): BottleData[] => {
+  const idx = bottles.findIndex((b) => b.isBlocked);
+  if (idx === -1) return bottles;
+  return bottles.map((b, i) => (i === idx ? { ...b, isBlocked: false } : b));
+};
+
 export const canPour = (source: BottleData, target: BottleData): boolean => {
   if (source.id === target.id) return false;
+  if (source.isBlocked || target.isBlocked) return false;
   if (source.layers.length === 0) return false; // Source empty
   if (target.isCompleted) return false; // Cannot pour into a completed/capped bottle
   if (target.layers.length >= target.capacity) return false; // Target full
@@ -229,7 +240,9 @@ export const revealHiddenLayers = (bottles: BottleData[]): BottleData[] => {
  * the caller in Game.tsx, which only replaces `bottles`, not `orders`.
  */
 export const shuffleBottles = (bottles: BottleData[]): BottleData[] => {
-  const incomplete = bottles.filter(b => !b.isCompleted);
+  // Blocked bottles stay put — shuffling away sealed liquid would break
+  // mechanism-pack sequencing.
+  const incomplete = bottles.filter(b => !b.isCompleted && !b.isBlocked);
   if (incomplete.length === 0) return bottles;
 
   const capacity = incomplete[0].capacity;
