@@ -41,103 +41,73 @@ async function openEasyBoard(page, isMobile) {
   await expect(page.locator('[data-mm-grid="1"] .mm-card')).toHaveCount(12);
 }
 
-/** Face-down cards use aria-label "背面牌"; revealed/matched use the face id. */
-async function faceDownCards(page) {
-  return page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]');
+async function waitBoardUnlocked(page) {
+  // After a resolve, no unmatched card should stay disabled from locks.
+  await expect
+    .poll(async () =>
+      page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched):disabled').count(),
+    )
+    .toBe(0);
 }
 
-async function waitResolve(page) {
-  await expect(page.locator('[data-mm-grid="1"] .mm-card:disabled').first())
-    .toBeHidden({ timeout: 3_000 })
-    .catch(() => {});
-  // Resolve timers: match ~480ms, miss ~780ms; give headroom.
-  await page.waitForTimeout(900);
+/** Use the in-game hint peek to learn a matching pair, then flip those two cards. */
+async function matchViaHint(page, isMobile) {
+  await waitBoardUnlocked(page);
+  const hintBtn = page.getByRole('button', { name: '提示', exact: true });
+  await expect(hintBtn).toBeEnabled();
+  await activate(hintBtn, isMobile);
+
+  const peeked = page.locator('[data-mm-grid="1"] .mm-card.is-flipped:not(.is-matched)');
+  await expect(peeked).toHaveCount(2, { timeout: 1_500 });
+  const idxs = await peeked.evaluateAll((els) => {
+    const all = [...els[0].closest('[data-mm-grid="1"]').querySelectorAll('.mm-card')];
+    return els.map((el) => all.indexOf(el));
+  });
+
+  // Wait for hint peek to end before flipping for real.
+  await expect(peeked).toHaveCount(0, { timeout: 2_000 });
+  await waitBoardUnlocked(page);
+
+  const cards = page.locator('[data-mm-grid="1"] .mm-card');
+  await activate(cards.nth(idxs[0]), isMobile);
+  await activate(cards.nth(idxs[1]), isMobile);
+  // ScoreFlash (not the HUD "連擊 N" line)
+  await expect(page.getByText(/配對 \+|連擊！/)).toBeVisible({ timeout: 2_000 });
+  await waitBoardUnlocked(page);
 }
 
 /**
- * Flip one unmatched pair using known faces after an exploratory reveal.
- * Returns 'match' | 'miss'.
+ * Flip two face-down cards until a miss. Soft shake is brief (~300ms) and starts
+ * when the miss resolves — assert `data-juice-shake` as soon as 「未中」 appears.
  */
-async function flipOnePairAttempt(page, isMobile, memory) {
-  const down = await faceDownCards(page);
-  const n = await down.count();
-  if (n < 2) return 'done';
+async function forceMiss(page, isMobile) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await waitBoardUnlocked(page);
+    const down = page.locator(
+      '[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]',
+    );
+    const n = await down.count();
+    if (n < 2) return false;
 
-  // Prefer a known match in memory.
-  for (const [face, idxs] of memory) {
-    if (idxs.length >= 2) {
-      const cards = page.locator('[data-mm-grid="1"] .mm-card');
-      const a = cards.nth(idxs[0]);
-      const b = cards.nth(idxs[1]);
-      if ((await a.getAttribute('aria-label')) === '背面牌' && (await b.getAttribute('aria-label')) === '背面牌') {
-        await activate(a, isMobile);
-        await activate(b, isMobile);
-        memory.delete(face);
-        await waitResolve(page);
-        return 'match';
-      }
+    await activate(down.nth(0), isMobile);
+    const down2 = page.locator(
+      '[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]',
+    );
+    await activate(down2.nth(Math.min(1, (await down2.count()) - 1)), isMobile);
+
+    const flash = page.getByText(/配對 \+|連擊！|未中/);
+    await expect(flash).toBeVisible({ timeout: 2_000 });
+    const text = (await flash.textContent()) || '';
+    if (text.includes('未中')) {
+      await expect(page.locator('[data-mm-grid="1"]')).toHaveAttribute('data-juice-shake', '1', {
+        timeout: 1_000,
+      });
+      await waitBoardUnlocked(page);
+      return true;
     }
+    await waitBoardUnlocked(page);
   }
-
-  // Flip an unknown card, then try to match from memory or a second unknown.
-  const first = down.first();
-  const firstIndex = await first.evaluate((el) => {
-    const all = [...el.closest('[data-mm-grid="1"]').querySelectorAll('.mm-card')];
-    return all.indexOf(el);
-  });
-  await activate(first, isMobile);
-  const face = await page
-    .locator('[data-mm-grid="1"] .mm-card')
-    .nth(firstIndex)
-    .getAttribute('aria-label');
-  if (!face || face === '背面牌') throw new Error('flip did not reveal face');
-
-  const known = memory.get(face) || [];
-  const partner = known.find((i) => i !== firstIndex);
-  if (partner != null) {
-    await activate(page.locator('[data-mm-grid="1"] .mm-card').nth(partner), isMobile);
-    memory.delete(face);
-    await waitResolve(page);
-    return 'match';
-  }
-
-  // Pick another face-down card that is not firstIndex.
-  const remaining = page.locator(
-    '[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]',
-  );
-  await expect(remaining.first()).toBeVisible();
-  const second = remaining.first();
-  const secondIndex = await second.evaluate((el) => {
-    const all = [...el.closest('[data-mm-grid="1"]').querySelectorAll('.mm-card')];
-    return all.indexOf(el);
-  });
-  await activate(second, isMobile);
-  const face2 = await page
-    .locator('[data-mm-grid="1"] .mm-card')
-    .nth(secondIndex)
-    .getAttribute('aria-label');
-
-  // Record both faces while they are briefly visible / before miss flip-back.
-  for (const [f, i] of [
-    [face, firstIndex],
-    [face2, secondIndex],
-  ]) {
-    if (!f || f === '背面牌') continue;
-    const list = memory.get(f) || [];
-    if (!list.includes(i)) list.push(i);
-    memory.set(f, list);
-  }
-
-  await waitResolve(page);
-  const stillMatched = await page
-    .locator('[data-mm-grid="1"] .mm-card')
-    .nth(firstIndex)
-    .evaluate((el) => el.classList.contains('is-matched'));
-  if (stillMatched) {
-    memory.delete(face);
-    return 'match';
-  }
-  return 'miss';
+  return false;
 }
 
 test.beforeEach(async ({ page, baseURL }) => {
@@ -204,12 +174,21 @@ test('memory-match: flip tap, match sparkle, miss soft-shake, clear confetti', a
   test.setTimeout(120_000);
   await page.addInitScript(() => {
     window.__vibrateCalls = [];
+    window.__sawGridShake = false;
     navigator.vibrate = (pattern) => {
       window.__vibrateCalls.push(pattern);
       return true;
     };
   });
   await openEasyBoard(page, isMobile);
+  await page.evaluate(() => {
+    window.__sawGridShake = false;
+    const grid = document.querySelector('[data-mm-grid="1"]');
+    if (!grid) throw new Error('missing data-mm-grid');
+    new MutationObserver(() => {
+      if (grid.getAttribute('data-juice-shake') === '1') window.__sawGridShake = true;
+    }).observe(grid, { attributes: true, attributeFilter: ['data-juice-shake'] });
+  });
 
   // Flip → tap haptic
   const beforeFlip = await page.evaluate(() => window.__vibrateCalls.length);
@@ -221,50 +200,56 @@ test('memory-match: flip tap, match sparkle, miss soft-shake, clear confetti', a
     .poll(async () => page.evaluate(() => window.__vibrateCalls.length))
     .toBeGreaterThan(beforeFlip);
 
-  // Continue until at least one match and one miss, then clear the board.
-  const memory = new Map();
-  let sawMatch = false;
-  let sawMiss = false;
-  for (let i = 0; i < 40; i++) {
-    const remaining = await faceDownCards(page);
-    if ((await remaining.count()) === 0) break;
-    // If first flip left a single card open from the tap check, close it with a second flip.
-    const openFace = page.locator(
-      '[data-mm-grid="1"] .mm-card.is-flipped:not(.is-matched)',
+  // Close the lone open card with a second flip (likely a miss), then continue.
+  const stillOpen = page.locator('[data-mm-grid="1"] .mm-card.is-flipped:not(.is-matched)');
+  if ((await stillOpen.count()) === 1) {
+    await activate(
+      page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]').first(),
+      isMobile,
     );
-    if ((await openFace.count()) === 1 && (await remaining.count()) >= 1) {
-      await activate(remaining.first(), isMobile);
-      await waitResolve(page);
-      const matched = await page.locator('[data-mm-grid="1"] .mm-card.is-matched').count();
-      if (matched > 0) sawMatch = true;
-      else sawMiss = true;
-      continue;
-    }
-    const result = await flipOnePairAttempt(page, isMobile, memory);
-    if (result === 'match') sawMatch = true;
-    if (result === 'miss') sawMiss = true;
-    if (result === 'done') break;
+    await waitBoardUnlocked(page);
   }
 
-  expect(sawMatch).toBe(true);
-  expect(sawMiss).toBe(true);
-  await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1, {
-    timeout: 5_000,
+  // Miss → error haptic + soft shake on the grid (asserted inside forceMiss)
+  const missed = await forceMiss(page, isMobile);
+  expect(missed).toBe(true);
+  await expect(page.locator('[data-mm-grid="1"]')).not.toHaveAttribute('data-juice-shake', '1', {
+    timeout: 2_000,
   });
 
-  // Finish clearing if needed.
-  for (let i = 0; i < 30; i++) {
-    if ((await faceDownCards(page).count()) === 0) break;
-    await flipOnePairAttempt(page, isMobile, memory);
+  // Match → success/combo + sparkle particles
+  const beforeMatch = await page.evaluate(() => window.__vibrateCalls.length);
+  await matchViaHint(page, isMobile);
+  await expect
+    .poll(async () => page.evaluate(() => window.__vibrateCalls.length))
+    .toBeGreaterThan(beforeMatch);
+  await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1);
+
+  // Combo match (second consecutive) → combo haptic + sparkle
+  await matchViaHint(page, isMobile);
+  await expect(page.getByText(/連擊！/)).toBeVisible();
+
+  // Clear remaining pairs via hint, then confetti + grid shake
+  await page.evaluate(() => {
+    window.__sawGridShake = false;
+  });
+  for (let i = 0; i < 8; i++) {
+    const left = await page
+      .locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]')
+      .count();
+    if (left === 0) break;
+    await matchViaHint(page, isMobile);
   }
   await expect(page.locator('[data-mm-grid="1"] .mm-card.is-matched')).toHaveCount(12, {
-    timeout: 15_000,
+    timeout: 10_000,
   });
-  await expect(page.locator('[data-mm-grid="1"]')).toHaveAttribute('data-juice-shake', '1', {
-    timeout: 3_000,
-  });
+  // Clear-board shake is short; MutationObserver may be the only reliable catch.
+  await expect
+    .poll(async () => page.evaluate(() => window.__sawGridShake === true))
+    .toBe(true);
+  await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1);
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
-  expect(vibrateCount).toBeGreaterThan(3);
+  expect(vibrateCount).toBeGreaterThan(5);
 });
 
 test('memory-match: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
@@ -283,8 +268,11 @@ test('memory-match: juice respects reduced-motion and haptics off', async ({ pag
 
   const down = page.locator('[data-mm-grid="1"] .mm-card[aria-label="背面牌"]');
   await activate(down.nth(0), isMobile);
-  await activate(down.nth(1), isMobile);
-  await waitResolve(page);
+  await activate(
+    page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]').first(),
+    isMobile,
+  );
+  await waitBoardUnlocked(page);
 
   await expect(page.locator('[data-mm-grid="1"]')).not.toHaveAttribute('data-juice-shake', '1');
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
