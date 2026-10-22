@@ -5,11 +5,17 @@
 
 import {
   FIXED_SEED,
+  FACILITY_PACK_ID,
+  GREENHOUSE_PACK_ID,
+  GREENHOUSE_FIXED_SEED,
+  DEFAULT_PACK_ID,
   STATE_VERSION,
   STORAGE_KEY,
   META_KEY,
   ROOM_META,
+  ROOM_ORDER,
   ENDINGS,
+  PACKS,
   createPuzzle,
   initialState,
   visibleObjects,
@@ -24,15 +30,28 @@ import {
   migrateMeta,
   emptyMeta,
   formatElapsed,
+  normalizePackId,
+  endingsForPack,
+  archivePathAllowed,
+  taipeiDateKey,
+  dailySeedFor,
+  formatShareText,
+  createFacilityLayout,
 } from "./rules.mjs";
 
 export {
   FIXED_SEED,
+  FACILITY_PACK_ID,
+  GREENHOUSE_PACK_ID,
+  GREENHOUSE_FIXED_SEED,
+  DEFAULT_PACK_ID,
   STATE_VERSION,
   STORAGE_KEY,
   META_KEY,
   ROOM_META,
+  ROOM_ORDER,
   ENDINGS,
+  PACKS,
   createPuzzle,
   initialState,
   rateRun,
@@ -41,6 +60,12 @@ export {
   emptyMeta,
   formatElapsed,
   canCombine,
+  normalizePackId,
+  endingsForPack,
+  taipeiDateKey,
+  dailySeedFor,
+  formatShareText,
+  createFacilityLayout,
 };
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -56,13 +81,22 @@ function cluesFor(state) {
 /* ==================== PUZZLE / INVENTORY ==================== */
 export class PuzzleEngine {
   static code(state, objectId, code) {
-    const codeTargets = {
-      safe: state.puzzle.safeCode,
-      exit_door: state.puzzle.studyExitCode,
-      filing_cabinet: state.puzzle.filingCode,
-      archive_gate: state.puzzle.vaultCode,
-      vault_exit: state.puzzle.vaultCode,
-    };
+    const packId = normalizePackId(state.packId);
+    const codeTargets =
+      packId === GREENHOUSE_PACK_ID
+        ? {
+            specimen_case: state.puzzle.caseCode,
+            irrigation_panel: state.puzzle.irrigationCode,
+            rooftop_hatch: state.puzzle.rooftopCode,
+            glass_elevator: state.puzzle.rooftopCode,
+          }
+        : {
+            safe: state.puzzle.safeCode,
+            exit_door: state.puzzle.studyExitCode,
+            filing_cabinet: state.puzzle.filingCode,
+            archive_gate: state.puzzle.vaultCode,
+            vault_exit: state.puzzle.vaultCode,
+          };
     assertGame(Object.hasOwn(codeTargets, objectId), "This object does not accept a code.");
     assertGame(/^\d{4}$/.test(code), "Code must be exactly four digits, supplied as a string.");
     const object = state.objects[objectId];
@@ -73,22 +107,45 @@ export class PuzzleEngine {
         "The exit decoder is unpowered. Insert a battery into the keypad box first.",
       );
     }
+    if (objectId === "filing_cabinet") {
+      assertGame(
+        archivePathAllowed(state, "file"),
+        "Today's layout requires fuse power before the filing cabinet.",
+      );
+    }
     if (objectId === "archive_gate" || objectId === "vault_exit") {
       assertGame(
         state.inventory.includes("vault_slip") || state.cluesDiscovered.includes("vault_combined"),
         "Combine cipher card + override token into a vault slip, then enter its code.",
       );
     }
+    if (objectId === "rooftop_hatch" || objectId === "glass_elevator") {
+      assertGame(
+        state.inventory.includes("rooftop_pass") || state.cluesDiscovered.includes("rooftop_combined"),
+        "Combine spectral chip + moisture token into a rooftop pass, then enter its code.",
+      );
+    }
     const expected = codeTargets[objectId];
     assertGame(code === expected, "Incorrect code. The lock remains secured.");
     object.locked = false;
-    if (objectId === "safe" || objectId === "filing_cabinet") object.open = true;
+    if (
+      objectId === "safe" ||
+      objectId === "filing_cabinet" ||
+      objectId === "specimen_case" ||
+      objectId === "irrigation_panel"
+    ) {
+      object.open = true;
+    }
     const labels = {
       safe: "Digital Safe unlocked and opened.",
       exit_door: "Hallway Door unlocked. Open it, then enter the archive.",
       filing_cabinet: "Filing Cabinet unlocked and opened.",
       archive_gate: "Vault Gate unlocked. Open it, then enter the vault.",
       vault_exit: "Vault Exit unlocked. Open it, then escape.",
+      specimen_case: "Specimen Case unlocked and opened.",
+      irrigation_panel: "Irrigation Panel unlocked and opened.",
+      rooftop_hatch: "Rooftop Hatch unlocked. Open it, then enter the rooftop.",
+      glass_elevator: "Glass Elevator unlocked. Open it, then escape.",
     };
     return labels[objectId];
   }
@@ -178,6 +235,7 @@ export class InventoryEngine {
       return "Battery inserted. The keypad box is online; inspect its display.";
     }
     if (itemId === "patch_cable" && targetId === "fuse_panel") {
+      assertGame(archivePathAllowed(state, "fuse"), "Today's layout requires the filing cabinet before fuse power.");
       assertGame(!target.state.powered, "The fuse panel is already restored.");
       target.state.powered = true;
       state.objects.server_console.state.powered = true;
@@ -191,6 +249,30 @@ export class InventoryEngine {
       target.locked = false;
       return "Service Hatch unlocked with the Override Token. Open it, then escape for the alternate ending.";
     }
+    if (itemId === "access_badge" && (targetId === "lab_door" || targetId === "nursery_door")) {
+      assertGame(target.locked, `${target.name} is already unlocked.`);
+      target.locked = false;
+      return `${target.name} unlocked with the Access Badge. Open it, then enter.`;
+    }
+    if (itemId === "access_badge" && targetId === "seed_vault") {
+      assertGame(target.locked, "Seed Vault is already unlocked.");
+      target.locked = false;
+      target.open = true;
+      return "Seed Vault unlocked and opened with the Access Badge.";
+    }
+    if (itemId === "growth_serum" && targetId === "spectrometer") {
+      assertGame(!target.state.powered, "The spectrometer is already fed.");
+      target.state.powered = true;
+      target.open = true;
+      state.inventory = state.inventory.filter((id) => id !== itemId);
+      state.usedItems.push(itemId);
+      return "Growth serum accepted. Spectrometer online — take the spectral chip.";
+    }
+    if (itemId === "pruning_shears" && targetId === "fire_ladder") {
+      assertGame(target.locked, "Fire Ladder is already unlocked.");
+      target.locked = false;
+      return "Fire Ladder strap cut. Open it, then escape for the alternate ending.";
+    }
     throw new Error("This item has no effect in the current state.");
   }
 
@@ -198,7 +280,7 @@ export class InventoryEngine {
     this.requireHeld(state, itemA);
     this.requireHeld(state, itemB);
     assertGame(itemA !== itemB, "Choose two distinct inventory items.");
-    const recipe = canCombine(itemA, itemB);
+    const recipe = canCombine(itemA, itemB, state.packId);
     assertGame(recipe, "These items cannot be combined.");
     for (const id of recipe.consumes) {
       state.inventory = state.inventory.filter((x) => x !== id);
@@ -207,9 +289,6 @@ export class InventoryEngine {
     const product = state.items[recipe.product];
     product.discovered = true;
     if (!state.inventory.includes(recipe.product)) state.inventory.push(recipe.product);
-    if (!state.inspectedItems.includes(recipe.product)) {
-      // auto-reveal vault slip text on craft
-    }
     return {
       message: `Combined into ${product.name}.`,
       productId: recipe.product,
@@ -245,8 +324,11 @@ const objectIdSchema = stringProperty(
 const itemIdSchema = stringProperty(
   "Exact item ID. Discover accessible or held items with room_get_state or game_get_available_options.",
 );
-const roomIdSchema = stringProperty("Target room ID: study, archive, or vault.");
-const seedSchema = stringProperty("Run seed string. Use agent-demo for the fixed agent/test seed.");
+const roomIdSchema = stringProperty(
+  "Target room ID for the active pack (facility: study/archive/vault; greenhouse: atrium/lab/nursery/rooftop).",
+);
+const seedSchema = stringProperty("Run seed string. Use agent-demo or greenhouse-demo for fixed agent/test seeds.");
+const packIdSchema = stringProperty("Scenario pack ID: facility or greenhouse.");
 
 export const TOOLS = [
   toolDefinition(
@@ -291,7 +373,7 @@ export const TOOLS = [
   toolDefinition(
     "code_enter",
     false,
-    "Enter a four-digit string into safe, exit_door (hallway), filing_cabinet, archive_gate, or vault_exit. Preserve leading zeroes.",
+    "Enter a four-digit string into a code lock (facility: safe/exit_door/filing_cabinet/archive_gate/vault_exit; greenhouse: specimen_case/irrigation_panel/rooftop_hatch/glass_elevator). Preserve leading zeroes.",
     {
       objectId: objectIdSchema,
       code: {
@@ -327,7 +409,7 @@ export const TOOLS = [
   toolDefinition(
     "item_combine",
     false,
-    "Combine two held items when a recipe exists: copper_wire+fuse→patch_cable; cipher_card+override_token→vault_slip.",
+    "Combine two held items when a recipe exists (facility: copper_wire+fuse→patch_cable, cipher_card+override_token→vault_slip; greenhouse: nutrient_vial+catalyst_crystal→growth_serum, spectral_chip+moisture_token→rooftop_pass).",
     { itemA: itemIdSchema, itemB: itemIdSchema },
   ),
   toolDefinition(
@@ -389,25 +471,57 @@ export const TOOLS = [
   toolDefinition(
     "game_new_run",
     false,
-    "Start a fresh run with an optional seed. Omit seed or pass agent-demo for the fixed test seed; any other string randomizes codes.",
+    "Start a fresh run. Optional seed, packId (facility|greenhouse), daily (Taipei date seed + layout variant), and noHintsChallenge.",
     { seed: { ...seedSchema, minLength: 0 } },
   ),
   toolDefinition(
     "ending_get_summary",
     true,
-    "After escape, return ending id, rating, elapsed time, hints used, and personal best. Before escape returns status only.",
+    "After escape, return ending id, rating, elapsed time, hints used, badges, daily streak, and personal best. Before escape returns status only.",
+  ),
+  toolDefinition(
+    "pack_list",
+    true,
+    "List scenario packs (facility, greenhouse), unlock policy, and which packs have been cleared.",
+  ),
+  toolDefinition(
+    "daily_get_status",
+    true,
+    "Return Asia/Taipei date key, daily seed for the active/requested pack, today's best time, streak, and share text helper fields.",
+    { packId: { ...packIdSchema, minLength: 0 } },
+  ),
+  toolDefinition(
+    "run_get_share_text",
+    true,
+    "Return a copy-ready share string for the current (or last) clear including daily streak and no-hint badge when applicable.",
   ),
 ];
 
-// game_new_run has optional seed — fix schema required list
+// Optional-arg tools
 TOOLS.find((t) => t.name === "game_new_run").inputSchema.required = [];
 TOOLS.find((t) => t.name === "game_new_run").inputSchema.properties = {
   seed: {
     type: "string",
     maxLength: 100,
-    description: "Optional. agent-demo = fixed codes; other strings reseed puzzles.",
+    description: "Optional. agent-demo / greenhouse-demo = fixed; other strings reseed. Ignored when daily=true.",
+  },
+  packId: {
+    type: "string",
+    maxLength: 40,
+    description: "facility (default) or greenhouse.",
+  },
+  daily: {
+    type: "string",
+    maxLength: 8,
+    description: "Pass \"true\" to use Asia/Taipei daily seed + layout variant for the pack.",
+  },
+  noHintsChallenge: {
+    type: "string",
+    maxLength: 8,
+    description: "Pass \"true\" to disable hint_request for this run (no-hint challenge).",
   },
 };
+TOOLS.find((t) => t.name === "daily_get_status").inputSchema.required = [];
 
 export const TOOL_MAP = Object.fromEntries(TOOLS.map((t) => [t.name, t]));
 
@@ -533,6 +647,9 @@ export class GameEngine {
     if (id === "server_console" && o.state.powered) {
       return `Console online. Footer: vault digits ··${p.vaultHalfB}. Take the override token from the tray.`;
     }
+    if (id === "spectrometer" && o.state.powered) {
+      return `Spectrometer online. Footer: rooftop digits ${p.rooftopHalfA}··. Take the spectral chip.`;
+    }
     if (id === "safe" && !o.locked) {
       return o.open ? "The safe door is open. Its contents are available below." : "The safe is unlocked but closed.";
     }
@@ -541,6 +658,12 @@ export class GameEngine {
     }
     if (id === "filing_cabinet" && !o.locked) {
       return o.open ? "The cabinet is open. A cipher card rests inside." : "The filing cabinet is unlocked but closed.";
+    }
+    if (id === "specimen_case" && !o.locked) {
+      return o.open ? "The specimen case is open." : "Specimen case unlocked but closed.";
+    }
+    if (id === "irrigation_panel" && !o.locked) {
+      return o.open ? "Irrigation open — take the moisture token." : "Irrigation unlocked but closed.";
     }
     if (id === "exit_door" && !o.locked) {
       return o.open
@@ -551,6 +674,21 @@ export class GameEngine {
       return o.open
         ? "The vault gate is open. Use room_enter({roomId:\"vault\"})."
         : "Gate unlocked. Open it, then enter the vault.";
+    }
+    if (id === "lab_door" && !o.locked) {
+      return o.open
+        ? 'Lab door open. Use room_enter({roomId:"lab"}).'
+        : "Lab door unlocked. Open it, then enter.";
+    }
+    if (id === "nursery_door" && !o.locked) {
+      return o.open
+        ? 'Nursery door open. Use room_enter({roomId:"nursery"}).'
+        : "Nursery door unlocked. Open it, then enter.";
+    }
+    if (id === "rooftop_hatch" && !o.locked) {
+      return o.open
+        ? 'Hatch open. Use room_enter({roomId:"rooftop"}).'
+        : "Hatch unlocked. Open it, then climb up.";
     }
     if (id === "vault_exit" && !o.locked) {
       return this.state.escaped && this.state.endingId !== "service"
@@ -564,8 +702,21 @@ export class GameEngine {
         ? "The service hatch is open. Escape through it for the alternate ending."
         : "Service hatch unlocked. Open it, then escape.";
     }
+    if (id === "glass_elevator" && !o.locked) {
+      return o.open
+        ? "Glass elevator open. Use exit_try_escape."
+        : "Elevator unlocked. Open it to escape.";
+    }
+    if (id === "fire_ladder" && !o.locked) {
+      return o.open
+        ? "Fire ladder open. Escape for the alternate ending."
+        : "Fire ladder unlocked. Open it, then escape.";
+    }
     if (id === "evidence_locker" && !o.locked) {
       return o.open ? "The locker is open. A master tag waits inside." : "Evidence locker unlocked but closed.";
+    }
+    if (id === "seed_vault" && !o.locked) {
+      return o.open ? "Seed vault open. A specimen tag waits inside." : "Seed vault unlocked but closed.";
     }
     return o.description;
   }
@@ -591,6 +742,7 @@ export class GameEngine {
     const clues = [...object.clues];
     if (id === "keypad_box" && object.state.powered) clues.push("symbol_values");
     if (id === "server_console" && object.state.powered) clues.push("console_half");
+    if (id === "spectrometer" && object.state.powered) clues.push("spectral_half");
     return {
       id: object.id,
       name: object.name,
@@ -623,6 +775,7 @@ export class GameEngine {
 
   availableActions(objectId = null) {
     const s = this.state;
+    const packId = normalizePackId(s.packId);
     const result = [];
     for (const object of visibleObjects(s)) {
       if (objectId && objectId !== object.id) continue;
@@ -633,12 +786,19 @@ export class GameEngine {
         result.push(action(object.open ? "object_close" : "object_open", { objectId: id }));
       }
       const codeReady =
-        (id === "safe") ||
-        (id === "exit_door" && s.objects.keypad_box.state.powered) ||
-        (id === "filing_cabinet") ||
-        (id === "archive_gate" && s.inventory.includes("vault_slip")) ||
-        (id === "vault_exit" &&
-          (s.inventory.includes("vault_slip") || s.cluesDiscovered.includes("vault_combined")));
+        packId === GREENHOUSE_PACK_ID
+          ? id === "specimen_case" ||
+            id === "irrigation_panel" ||
+            (id === "rooftop_hatch" && s.inventory.includes("rooftop_pass")) ||
+            (id === "glass_elevator" &&
+              (s.inventory.includes("rooftop_pass") ||
+                s.cluesDiscovered.includes("rooftop_combined")))
+          : id === "safe" ||
+            (id === "exit_door" && s.objects.keypad_box.state.powered) ||
+            (id === "filing_cabinet" && archivePathAllowed(s, "file")) ||
+            (id === "archive_gate" && s.inventory.includes("vault_slip")) ||
+            (id === "vault_exit" &&
+              (s.inventory.includes("vault_slip") || s.cluesDiscovered.includes("vault_combined")));
       if (object.locked && codeReady) {
         result.push({
           tool: "code_enter",
@@ -653,9 +813,24 @@ export class GameEngine {
           result.push(action("item_use", { itemId, targetId: id }));
         } else if (itemId === "battery" && id === "keypad_box" && !object.state.powered) {
           result.push(action("item_use", { itemId, targetId: id }));
-        } else if (itemId === "patch_cable" && id === "fuse_panel" && !object.state.powered) {
+        } else if (
+          itemId === "patch_cable" &&
+          id === "fuse_panel" &&
+          !object.state.powered &&
+          archivePathAllowed(s, "fuse")
+        ) {
           result.push(action("item_use", { itemId, targetId: id }));
         } else if (itemId === "override_token" && id === "service_hatch" && object.locked) {
+          result.push(action("item_use", { itemId, targetId: id }));
+        } else if (
+          itemId === "access_badge" &&
+          (id === "lab_door" || id === "nursery_door" || id === "seed_vault") &&
+          object.locked
+        ) {
+          result.push(action("item_use", { itemId, targetId: id }));
+        } else if (itemId === "growth_serum" && id === "spectrometer" && !object.state.powered) {
+          result.push(action("item_use", { itemId, targetId: id }));
+        } else if (itemId === "pruning_shears" && id === "fire_ladder" && object.locked) {
           result.push(action("item_use", { itemId, targetId: id }));
         }
       }
@@ -665,27 +840,36 @@ export class GameEngine {
         }
       }
       if (
-        (id === "vault_exit" || id === "service_hatch") &&
+        (id === "vault_exit" ||
+          id === "service_hatch" ||
+          id === "glass_elevator" ||
+          id === "fire_ladder") &&
         !object.locked &&
         object.open
       ) {
         result.push(action("exit_try_escape"));
       }
-      if (
-        id === "exit_door" &&
-        !object.locked &&
-        object.open &&
-        s.currentRoom === "study"
-      ) {
+      if (id === "exit_door" && !object.locked && object.open && s.currentRoom === "study") {
         result.push(action("room_enter", { roomId: "archive" }));
       }
-      if (
-        id === "archive_gate" &&
-        !object.locked &&
-        object.open &&
-        s.currentRoom === "archive"
-      ) {
+      if (id === "archive_gate" && !object.locked && object.open && s.currentRoom === "archive") {
         result.push(action("room_enter", { roomId: "vault" }));
+      }
+      if (id === "lab_door" && !object.locked && object.open && s.currentRoom === "atrium") {
+        result.push(action("room_enter", { roomId: "lab" }));
+      }
+      if (id === "nursery_door" && !object.locked && object.open && s.currentRoom === "atrium") {
+        result.push(action("room_enter", { roomId: "nursery" }));
+      }
+      if (id === "rooftop_hatch" && !object.locked && object.open && s.currentRoom === "atrium") {
+        result.push(action("room_enter", { roomId: "rooftop" }));
+      }
+      if (
+        (id === "lab_return" || id === "nursery_return" || id === "rooftop_return") &&
+        object.open &&
+        ["lab", "nursery", "rooftop"].includes(s.currentRoom)
+      ) {
+        result.push(action("room_enter", { roomId: "atrium" }));
       }
     }
 
@@ -700,10 +884,9 @@ export class GameEngine {
 
     if (!objectId) {
       for (const itemId of s.inventory) deduped.push(action("item_inspect", { itemId }));
-      // combine suggestions
       for (let i = 0; i < s.inventory.length; i++) {
         for (let j = i + 1; j < s.inventory.length; j++) {
-          if (canCombine(s.inventory[i], s.inventory[j])) {
+          if (canCombine(s.inventory[i], s.inventory[j], s.packId)) {
             deduped.push(
               action("item_combine", { itemA: s.inventory[i], itemB: s.inventory[j] }),
             );
@@ -711,29 +894,33 @@ export class GameEngine {
         }
       }
       if (!s.escaped) {
-        if (
-          s.currentRoom === "study" &&
-          !s.objects.exit_door.locked &&
-          s.objects.exit_door.open
-        ) {
-          deduped.push(action("room_enter", { roomId: "archive" }));
-        }
-        if (
-          s.currentRoom === "archive" &&
-          !s.objects.archive_gate.locked &&
-          s.objects.archive_gate.open
-        ) {
-          deduped.push(action("room_enter", { roomId: "vault" }));
-        }
-        if (s.currentRoom === "archive" && s.roomsVisited.includes("study")) {
-          // no backtracking required for demo
+        for (const enter of this.listRoomEnters(s)) {
+          deduped.push(action("room_enter", { roomId: enter }));
         }
       }
       if (this.undo.available) deduped.push(action("game_undo"));
       deduped.push(action("game_reset"));
-      deduped.push(action("hint_request"));
+      if (!s.noHintsChallenge) deduped.push(action("hint_request"));
     }
     return deduped;
+  }
+
+  listRoomEnters(s = this.state) {
+    const o = s.objects;
+    const out = [];
+    if (normalizePackId(s.packId) === GREENHOUSE_PACK_ID) {
+      if (s.currentRoom === "atrium") {
+        if (!o.lab_door.locked && o.lab_door.open) out.push("lab");
+        if (!o.nursery_door.locked && o.nursery_door.open) out.push("nursery");
+        if (!o.rooftop_hatch.locked && o.rooftop_hatch.open) out.push("rooftop");
+      } else if (["lab", "nursery", "rooftop"].includes(s.currentRoom)) {
+        out.push("atrium");
+      }
+      return out;
+    }
+    if (s.currentRoom === "study" && !o.exit_door.locked && o.exit_door.open) out.push("archive");
+    if (s.currentRoom === "archive" && !o.archive_gate.locked && o.archive_gate.open) out.push("vault");
+    return out;
   }
 
   elapsedMs(now = Date.now()) {
@@ -746,9 +933,25 @@ export class GameEngine {
 
   getState() {
     const s = this.state;
+    const packId = normalizePackId(s.packId);
+    const door =
+      packId === GREENHOUSE_PACK_ID
+        ? {
+            locked: s.objects.rooftop_hatch.locked,
+            open: s.objects.rooftop_hatch.open,
+          }
+        : {
+            locked: s.objects.exit_door.locked,
+            open: s.objects.exit_door.open,
+          };
     return {
       version: s.version,
       seed: s.seed,
+      packId,
+      pack: clone(PACKS[packId]),
+      noHintsChallenge: !!s.noHintsChallenge,
+      isDaily: !!s.isDaily,
+      dateKey: s.dateKey || null,
       currentRoom: s.currentRoom,
       room: clone(ROOM_META[s.currentRoom]),
       roomsVisited: clone(s.roomsVisited),
@@ -757,19 +960,19 @@ export class GameEngine {
       installedItems: clone(s.usedItems),
       cluesDiscovered: s.cluesDiscovered.map((id) => clone(cluesFor(s)[id])).filter(Boolean),
       progress: PuzzleEngine.progress(s),
-      doorState: {
-        locked: s.objects.exit_door.locked,
-        open: s.objects.exit_door.open,
-      },
+      doorState: door,
       escaped: s.escaped,
       endingId: s.endingId,
       hintsUsed: (s.hintsUsedIds || []).length,
+      badges: this.runBadges(),
       timer: {
         started: !!s.startedAt,
         elapsedMs: this.elapsedMs(),
         elapsedLabel: formatElapsed(this.elapsedMs()),
         bestMs: this.meta.bestMs,
         bestLabel: this.meta.bestMs == null ? null : formatElapsed(this.meta.bestMs),
+        dailyBestMs: s.isDaily && s.dateKey ? this.meta.dailyBestByDate?.[s.dateKey]?.ms ?? null : null,
+        dailyStreak: this.meta.dailyStreak || 0,
       },
       selectedObject: s.selectedObject,
       lastAction: clone(s.lastAction),
@@ -778,8 +981,33 @@ export class GameEngine {
     };
   }
 
+  runBadges() {
+    const s = this.state;
+    const hints = (s.hintsUsedIds || []).length;
+    const badges = [];
+    if (s.noHintsChallenge) badges.push({ id: "no_hint_challenge", label: "No-Hint Challenge" });
+    if (s.escaped && hints === 0) badges.push({ id: "no_hint_clear", label: "No-Hint Clear" });
+    if (s.isDaily) badges.push({ id: "daily", label: `Daily ${s.dateKey || ""}`.trim() });
+    return badges;
+  }
+
   resolveEnding() {
     const s = this.state;
+    if (normalizePackId(s.packId) === GREENHOUSE_PACK_ID) {
+      const ladderOpen = !s.objects.fire_ladder.locked && s.objects.fire_ladder.open;
+      const elevOpen = !s.objects.glass_elevator.locked && s.objects.glass_elevator.open;
+      assertGame(ladderOpen || elevOpen, "Open an unlocked glass elevator or fire ladder first.");
+      if (ladderOpen && !elevOpen) return "ladder";
+      if (
+        elevOpen &&
+        (s.hintsUsedIds || []).length === 0 &&
+        s.inventory.includes("specimen_tag")
+      ) {
+        return "bloom";
+      }
+      if (elevOpen) return "elevator";
+      return "ladder";
+    }
     const hatchOpen = !s.objects.service_hatch.locked && s.objects.service_hatch.open;
     const vaultOpen = !s.objects.vault_exit.locked && s.objects.vault_exit.open;
     assertGame(hatchOpen || vaultOpen, "Open an unlocked vault exit or service hatch first.");
@@ -794,6 +1022,30 @@ export class GameEngine {
     }
     if (vaultOpen) return "standard";
     return "service";
+  }
+
+  shareTextForRun(extra = {}) {
+    const s = this.state;
+    const packId = normalizePackId(s.packId);
+    const elapsed = extra.elapsedMs ?? this.elapsedMs();
+    const endingId = extra.endingId || s.endingId;
+    const hintsUsed = extra.hintsUsed ?? (s.hintsUsedIds || []).length;
+    const rating =
+      extra.rating ||
+      (endingId
+        ? rateRun({ elapsedMs: elapsed, hintsUsed, endingId })
+        : null);
+    return formatShareText({
+      dateKey: s.dateKey || taipeiDateKey(),
+      packId,
+      packTitle: PACKS[packId]?.title,
+      elapsedLabel: formatElapsed(elapsed),
+      streak: this.meta.dailyStreak || 0,
+      noHints: hintsUsed === 0,
+      endingTitle: endingId ? ENDINGS[endingId]?.title : null,
+      rating,
+      isDaily: !!s.isDaily,
+    });
   }
 
   execute(name, args = {}, source = "UI") {
@@ -831,19 +1083,28 @@ export class GameEngine {
         case "room_get_state":
           data = this.getState();
           break;
-        case "room_get_objective":
+        case "room_get_objective": {
+          const packId = normalizePackId(s.packId);
+          const greenhouse = packId === GREENHOUSE_PACK_ID;
           data = {
             objective: s.escaped
               ? `You escaped (${s.endingId}).`
-              : "Escape the facility through the vault antechamber.",
-            winCondition:
-              "Solve the study, enter the archive, finish both archive paths, reach the vault, then exit_try_escape.",
+              : greenhouse
+                ? "Escape the midnight greenhouse via the rooftop."
+                : "Escape the facility through the vault antechamber.",
+            winCondition: greenhouse
+              ? "Open the specimen case, clear lab and nursery wings, combine the rooftop pass, reach the rooftop, then exit_try_escape."
+              : "Solve the study, enter the archive, finish both archive paths, reach the vault, then exit_try_escape.",
             guidance:
-              "Inspect objects, combine items when recipes exist, carry inventory between rooms via room_enter. Hints lower your rating.",
-            rooms: ROOM_ORDER_LABELS(),
-            fixedSeed: FIXED_SEED,
+              "Inspect objects, combine items when recipes exist, carry inventory between rooms via room_enter. Hints lower your rating. No-hint challenge blocks hint_request.",
+            rooms: ROOM_ORDER_LABELS(packId),
+            packId,
+            fixedSeed: greenhouse ? GREENHOUSE_FIXED_SEED : FIXED_SEED,
+            noHintsChallenge: !!s.noHintsChallenge,
+            isDaily: !!s.isDaily,
           };
           break;
+        }
         case "room_list_objects":
           data = {
             currentRoom: s.currentRoom,
@@ -865,6 +1126,7 @@ export class GameEngine {
           this.discover(o.clues);
           if (o.id === "keypad_box" && o.state.powered) this.discover(["symbol_values"]);
           if (o.id === "server_console" && o.state.powered) this.discover(["console_half"]);
+          if (o.id === "spectrometer" && o.state.powered) this.discover(["spectral_half"]);
           if (o.open) {
             for (const id of o.contains) {
               if (InventoryEngine.available(s, id)) s.items[id].discovered = true;
@@ -898,7 +1160,11 @@ export class GameEngine {
         case "object_unlock": {
           const ok =
             (args.itemId === "brass_key" && args.objectId === "desk_drawer") ||
-            (args.itemId === "brass_key" && args.objectId === "evidence_locker");
+            (args.itemId === "brass_key" && args.objectId === "evidence_locker") ||
+            (args.itemId === "access_badge" &&
+              (args.objectId === "lab_door" ||
+                args.objectId === "nursery_door" ||
+                args.objectId === "seed_vault"));
           assertGame(ok, "This key and lock are incompatible. Code locks require code_enter.");
           message = InventoryEngine.use(s, args.itemId, args.objectId);
           changed = true;
@@ -929,6 +1195,9 @@ export class GameEngine {
           if (item.id === "safe_note") this.discover(["safe_note"]);
           if (item.id === "vault_slip") this.discover(["vault_combined"]);
           if (item.id === "cipher_card") this.discover(["chalk_cipher"]);
+          if (item.id === "rooftop_pass") this.discover(["rooftop_combined"]);
+          if (item.id === "spectral_chip") this.discover(["spectral_half"]);
+          if (item.id === "moisture_token") this.discover(["moisture_half"]);
           data = this.itemView(item.id, true);
           message = `${item.name} inspected.`;
           break;
@@ -941,12 +1210,12 @@ export class GameEngine {
           InventoryEngine.requireHeld(s, args.itemA);
           InventoryEngine.requireHeld(s, args.itemB);
           assertGame(args.itemA !== args.itemB, "Choose two distinct inventory items.");
-          if (!canCombine(args.itemA, args.itemB)) {
+          if (!canCombine(args.itemA, args.itemB, s.packId)) {
             result = {
               success: false,
               action: name,
               error:
-                "Those items cannot be combined. Valid recipes: copper_wire+fuse → patch_cable; cipher_card+override_token → vault_slip.",
+                "Those items cannot be combined. Check pack recipes (facility: wire+fuse / cipher+token; greenhouse: nutrient+catalyst / spectral+moisture).",
               errorCode: "NO_COMBINATION",
             };
             break;
@@ -959,6 +1228,10 @@ export class GameEngine {
             if (!s.inspectedItems.includes("vault_slip")) s.inspectedItems.push("vault_slip");
             this.discover(["vault_combined"]);
           }
+          if (combined.productId === "rooftop_pass") {
+            if (!s.inspectedItems.includes("rooftop_pass")) s.inspectedItems.push("rooftop_pass");
+            this.discover(["rooftop_combined"]);
+          }
           break;
         }
         case "room_get_available_actions":
@@ -969,25 +1242,44 @@ export class GameEngine {
           break;
         case "exit_try_escape": {
           const ending = this.resolveEnding();
-          const doorId = ending === "service" ? "service_hatch" : "vault_exit";
+          const doorId =
+            ending === "service"
+              ? "service_hatch"
+              : ending === "ladder"
+                ? "fire_ladder"
+                : ending === "elevator" || ending === "bloom"
+                  ? "glass_elevator"
+                  : "vault_exit";
           affected = doorId;
           s.escaped = true;
           s.endingId = ending;
           s.finishedAt = Date.now();
           if (!s.startedAt) s.startedAt = s.finishedAt;
           const elapsed = this.elapsedMs();
+          const hintsUsed = (s.hintsUsedIds || []).length;
           const rating = rateRun({
             elapsedMs: elapsed,
-            hintsUsed: (s.hintsUsedIds || []).length,
+            hintsUsed,
             endingId: ending,
           });
           this.meta = recordClear(this.meta, {
             elapsedMs: elapsed,
             endingId: ending,
             rating,
+            packId: s.packId,
+            hintsUsed,
+            noHintsChallenge: !!s.noHintsChallenge,
+            isDaily: !!s.isDaily,
+            dateKey: s.dateKey || (s.isDaily ? taipeiDateKey() : null),
           });
           metaChanged = true;
           changed = true;
+          const shareText = this.shareTextForRun({
+            elapsedMs: elapsed,
+            endingId: ending,
+            hintsUsed,
+            rating,
+          });
           message = `Escape successful (${ENDINGS[ending].title}). Rating ${rating}.`;
           data = {
             endingId: ending,
@@ -995,8 +1287,17 @@ export class GameEngine {
             rating,
             elapsedMs: elapsed,
             elapsedLabel: formatElapsed(elapsed),
-            hintsUsed: (s.hintsUsedIds || []).length,
+            hintsUsed,
+            noHintsChallenge: !!s.noHintsChallenge,
+            noHintClear: hintsUsed === 0,
+            badges: this.runBadges(),
+            isDaily: !!s.isDaily,
+            dateKey: s.dateKey,
+            dailyStreak: this.meta.dailyStreak || 0,
+            dailyBestMs: s.isDaily && s.dateKey ? this.meta.dailyBestByDate?.[s.dateKey]?.ms ?? null : null,
+            shareText,
             isPersonalBest: this.meta.bestMs === elapsed,
+            packId: normalizePackId(s.packId),
           };
           break;
         }
@@ -1013,12 +1314,17 @@ export class GameEngine {
         case "game_reset": {
           const oldLog = s.activityLog;
           const seed = s.seed || FIXED_SEED;
-          this.state = initialState(seed);
+          this.state = initialState(seed, {
+            packId: s.packId,
+            noHintsChallenge: s.noHintsChallenge,
+            isDaily: s.isDaily,
+            dateKey: s.dateKey,
+          });
           this.state.activityLog = oldLog;
           this.undo.clear();
           changed = true;
           affected = null;
-          message = `Room reset (seed ${seed}).`;
+          message = `Room reset (seed ${seed}, pack ${this.state.packId}).`;
           break;
         }
         case "game_get_available_options":
@@ -1028,8 +1334,9 @@ export class GameEngine {
             accessibleItemIds: Object.keys(s.items).filter((id) =>
               InventoryEngine.available(s, id),
             ),
-            roomIds: ["study", "archive", "vault"],
+            roomIds: clone(PACKS[normalizePackId(s.packId)].roomOrder),
             currentRoom: s.currentRoom,
+            packId: normalizePackId(s.packId),
             supportedActionTypes: TOOLS.map((t) => t.name),
           };
           break;
@@ -1038,16 +1345,19 @@ export class GameEngine {
             currentRoom: s.currentRoom,
             room: clone(ROOM_META[s.currentRoom]),
             roomsVisited: clone(s.roomsVisited),
-            canEnter: this.availableActions()
-              .filter((a) => a.tool === "room_enter")
-              .map((a) => a.args.roomId),
+            canEnter: this.listRoomEnters(s),
+            packId: normalizePackId(s.packId),
           };
           break;
         case "room_enter": {
           const roomId = args.roomId;
-          assertGame(["study", "archive", "vault"].includes(roomId), "Unknown room ID.");
+          const packId = normalizePackId(s.packId);
+          const allowed = this.listRoomEnters(s);
+          assertGame(allowed.includes(roomId), `Cannot enter ${roomId} from ${s.currentRoom} right now.`);
           assertGame(roomId !== s.currentRoom, `Already in ${roomId}.`);
-          if (roomId === "archive") {
+          if (packId === GREENHOUSE_PACK_ID) {
+            // adjacency already validated via listRoomEnters
+          } else if (roomId === "archive") {
             assertGame(s.currentRoom === "study", "Archive is reached from the study hallway.");
             assertGame(!s.objects.exit_door.locked && s.objects.exit_door.open, "Open the unlocked hallway door first.");
           } else if (roomId === "vault") {
@@ -1061,14 +1371,23 @@ export class GameEngine {
           }
           s.currentRoom = roomId;
           if (!s.roomsVisited.includes(roomId)) s.roomsVisited.push(roomId);
-          const defaults = { archive: "chalkboard", vault: "vault_sign", study: "desk" };
-          s.selectedObject = defaults[roomId];
+          const defaults = {
+            archive: "chalkboard",
+            vault: "vault_sign",
+            study: "desk",
+            atrium: "specimen_case",
+            lab: "spectrometer",
+            nursery: "trellis",
+            rooftop: "rooftop_sign",
+          };
+          s.selectedObject = defaults[roomId] || Object.keys(s.objects).find((id) => s.objects[id].room === roomId);
           changed = true;
           message = `Entered ${ROOM_META[roomId].name}. Inventory carried over.`;
           data = { currentRoom: roomId, room: clone(ROOM_META[roomId]) };
           break;
         }
         case "hint_request": {
+          assertGame(!s.noHintsChallenge, "No-hint challenge is active — hints are disabled for this run.");
           const hint = nextHint(s, s.puzzle);
           assertGame(hint, "No further hints remain.");
           s.hintsUsedIds = s.hintsUsedIds || [];
@@ -1089,6 +1408,8 @@ export class GameEngine {
             hintsUsedIds: clone(s.hintsUsedIds || []),
             remaining: hintCatalog(s.puzzle).length - (s.hintsUsedIds || []).length,
             affectsRating: true,
+            noHintsChallenge: !!s.noHintsChallenge,
+            hintsDisabled: !!s.noHintsChallenge,
           };
           break;
         case "game_get_timer":
@@ -1099,20 +1420,44 @@ export class GameEngine {
             bestMs: this.meta.bestMs,
             bestLabel: this.meta.bestMs == null ? null : formatElapsed(this.meta.bestMs),
             finished: s.escaped,
+            isDaily: !!s.isDaily,
+            dateKey: s.dateKey,
+            dailyStreak: this.meta.dailyStreak || 0,
+            dailyBestMs:
+              s.isDaily && s.dateKey ? this.meta.dailyBestByDate?.[s.dateKey]?.ms ?? null : null,
           };
           break;
         case "game_new_run": {
-          const seed =
-            args.seed === undefined || args.seed === ""
-              ? FIXED_SEED
-              : String(args.seed);
+          const packId = normalizePackId(args.packId || DEFAULT_PACK_ID);
+          const isDaily = String(args.daily || "").toLowerCase() === "true";
+          const noHintsChallenge = String(args.noHintsChallenge || "").toLowerCase() === "true";
+          const dateKey = isDaily ? taipeiDateKey() : null;
+          let seed;
+          if (isDaily) {
+            seed = dailySeedFor(dateKey, packId);
+          } else if (args.seed === undefined || args.seed === "") {
+            seed = packId === GREENHOUSE_PACK_ID ? GREENHOUSE_FIXED_SEED : FIXED_SEED;
+          } else {
+            seed = String(args.seed);
+          }
           const oldLog = s.activityLog;
-          this.state = initialState(seed);
+          this.state = initialState(seed, { packId, noHintsChallenge, isDaily, dateKey });
           this.state.activityLog = oldLog;
           this.undo.clear();
           changed = true;
-          message = `New run started (seed ${this.state.seed}).`;
-          data = { seed: this.state.seed, puzzlePreview: { clockDisplay: this.state.puzzle.clockDisplay } };
+          message = `New run started (pack ${packId}, seed ${this.state.seed}${isDaily ? ", daily" : ""}${noHintsChallenge ? ", no-hints" : ""}).`;
+          data = {
+            seed: this.state.seed,
+            packId,
+            isDaily,
+            dateKey,
+            noHintsChallenge,
+            puzzlePreview: {
+              clockDisplay: this.state.puzzle.clockDisplay || null,
+              humidityDisplay: this.state.puzzle.humidityDisplay || null,
+              layout: this.state.puzzle.layout || null,
+            },
+          };
           break;
         }
         case "ending_get_summary":
@@ -1120,23 +1465,74 @@ export class GameEngine {
             data = { escaped: false, message: "Not escaped yet." };
           } else {
             const elapsed = this.elapsedMs();
+            const hintsUsed = (s.hintsUsedIds || []).length;
             data = {
               escaped: true,
               endingId: s.endingId,
               ending: ENDINGS[s.endingId],
               rating: rateRun({
                 elapsedMs: elapsed,
-                hintsUsed: (s.hintsUsedIds || []).length,
+                hintsUsed,
                 endingId: s.endingId,
               }),
               elapsedMs: elapsed,
               elapsedLabel: formatElapsed(elapsed),
-              hintsUsed: (s.hintsUsedIds || []).length,
+              hintsUsed,
+              noHintsChallenge: !!s.noHintsChallenge,
+              noHintClear: hintsUsed === 0,
+              badges: this.runBadges(),
+              isDaily: !!s.isDaily,
+              dateKey: s.dateKey,
+              dailyStreak: this.meta.dailyStreak || 0,
+              shareText: this.shareTextForRun({ elapsedMs: elapsed, hintsUsed }),
               bestMs: this.meta.bestMs,
               clears: this.meta.clears,
+              noHintClears: this.meta.noHintClears || 0,
               endingsSeen: clone(this.meta.endingsSeen),
+              packsCleared: clone(this.meta.packsCleared || []),
+              packId: normalizePackId(s.packId),
             };
           }
+          break;
+        case "pack_list":
+          data = {
+            packs: Object.values(PACKS).map((p) => ({
+              ...p,
+              cleared: (this.meta.packsCleared || []).includes(p.id),
+            })),
+            unlockPolicy: "open",
+            unlockReason:
+              "Both packs stay open so WebMCP agents and demos can exercise either topology without grinding a clear first. Progression lives in daily streak, endings, and no-hint badges.",
+            activePackId: normalizePackId(s.packId),
+          };
+          break;
+        case "daily_get_status": {
+          const packId = normalizePackId(args.packId || s.packId || DEFAULT_PACK_ID);
+          const dateKey = taipeiDateKey();
+          const seed = dailySeedFor(dateKey, packId);
+          const best = this.meta.dailyBestByDate?.[dateKey] || null;
+          data = {
+            timeZone: "Asia/Taipei",
+            dateKey,
+            packId,
+            seed,
+            layoutPreview:
+              packId === GREENHOUSE_PACK_ID
+                ? createPuzzle(seed, packId).layout
+                : createFacilityLayout(seed),
+            todayBestMs: best?.ms ?? null,
+            todayBestLabel: best?.ms != null ? formatElapsed(best.ms) : null,
+            streak: this.meta.dailyStreak || 0,
+            lastDailyClearDate: this.meta.lastDailyClearDate || null,
+          };
+          break;
+        }
+        case "run_get_share_text":
+          data = {
+            shareText: this.shareTextForRun(),
+            dailyStreak: this.meta.dailyStreak || 0,
+            badges: this.runBadges(),
+          };
           break;
       }
 
@@ -1212,20 +1608,27 @@ export class GameEngine {
   }
 }
 
-function ROOM_ORDER_LABELS() {
-  return ["study", "archive", "vault"].map((id) => clone(ROOM_META[id]));
+function ROOM_ORDER_LABELS(packId = DEFAULT_PACK_ID) {
+  const order = PACKS[normalizePackId(packId)]?.roomOrder || ROOM_ORDER;
+  return order.map((id) => clone(ROOM_META[id]));
 }
 
 /* ==================== PERSISTENCE HELPERS ==================== */
 export function validateState(value) {
   assertGame(value && value.version === STATE_VERSION, "Unsupported saved-state version.");
   assertGame(value.objects && value.items && value.puzzle, "Missing state data.");
-  assertGame(["study", "archive", "vault"].includes(value.currentRoom), "Invalid room.");
+  const packId = normalizePackId(value.packId || value.puzzle?.packId || DEFAULT_PACK_ID);
+  const rooms = PACKS[packId].roomOrder;
+  assertGame(rooms.includes(value.currentRoom), "Invalid room.");
   assertGame(typeof value.escaped === "boolean", "Invalid escaped flag.");
   assertGame(Array.isArray(value.inventory), "Invalid inventory.");
   assertGame(Array.isArray(value.roomsVisited), "Invalid roomsVisited.");
-  // Rebuild from seed and overlay mutable fields for safety
-  const fresh = initialState(value.seed || FIXED_SEED);
+  const fresh = initialState(value.seed || FIXED_SEED, {
+    packId,
+    noHintsChallenge: !!value.noHintsChallenge,
+    isDaily: !!value.isDaily,
+    dateKey: value.dateKey || null,
+  });
   const clean = clone(fresh);
   const copyArrays = [
     "inventory",
@@ -1247,8 +1650,12 @@ export function validateState(value) {
   clean.startedAt = value.startedAt || null;
   clean.finishedAt = value.finishedAt || null;
   clean.lastAction = value.lastAction || null;
-  clean.seed = value.seed || FIXED_SEED;
-  clean.puzzle = createPuzzle(clean.seed);
+  clean.seed = value.seed || fresh.seed;
+  clean.packId = packId;
+  clean.noHintsChallenge = !!value.noHintsChallenge;
+  clean.isDaily = !!value.isDaily;
+  clean.dateKey = value.dateKey || null;
+  clean.puzzle = createPuzzle(clean.seed, packId);
 
   for (const [id, obj] of Object.entries(fresh.objects)) {
     const saved = value.objects[id];
@@ -1269,63 +1676,103 @@ export function validateState(value) {
   }
   assertGame(Object.hasOwn(clean.objects, clean.selectedObject), "Invalid selection.");
   if (clean.escaped) {
-    assertGame(
-      (!clean.objects.vault_exit.locked && clean.objects.vault_exit.open) ||
-        (!clean.objects.service_hatch.locked && clean.objects.service_hatch.open),
-      "Invalid escaped state.",
-    );
+    if (packId === GREENHOUSE_PACK_ID) {
+      assertGame(
+        (!clean.objects.glass_elevator.locked && clean.objects.glass_elevator.open) ||
+          (!clean.objects.fire_ladder.locked && clean.objects.fire_ladder.open),
+        "Invalid escaped state.",
+      );
+    } else {
+      assertGame(
+        (!clean.objects.vault_exit.locked && clean.objects.vault_exit.open) ||
+          (!clean.objects.service_hatch.locked && clean.objects.service_hatch.open),
+        "Invalid escaped state.",
+      );
+    }
   }
   clean.activityLog = (clean.activityLog || []).slice(-50);
   return clean;
 }
 
+function pickupFromSource(call, engine, itemId) {
+  const item = engine.state.items[itemId];
+  const sourceId = item.source;
+  const source = engine.state.objects[sourceId];
+  if (source && source.openable && !source.open && !source.locked) {
+    call("object_open", { objectId: sourceId });
+  }
+  if (source && source.room !== engine.state.currentRoom) {
+    // should already be in room
+  }
+  call("item_pickup", { itemId });
+}
+
 /** Solve the full game on a fresh engine (for checks). */
 export function solveFullRun(seed = FIXED_SEED, opts = {}) {
-  const engine = new GameEngine(initialState(seed));
+  const packId = normalizePackId(opts.packId || DEFAULT_PACK_ID);
+  if (packId === GREENHOUSE_PACK_ID) {
+    return solveGreenhouseRun(seed, opts);
+  }
+  const engine = new GameEngine(
+    initialState(seed, {
+      packId: FACILITY_PACK_ID,
+      noHintsChallenge: !!opts.noHintsChallenge,
+      isDaily: !!opts.isDaily,
+      dateKey: opts.dateKey || null,
+    }),
+  );
   const call = (name, args = {}) => {
     const r = engine.execute(name, args, "System");
     if (!r.success) throw new Error(`${name} failed: ${r.error}`);
     return r;
   };
   const p = engine.state.puzzle;
+  const layout = p.layout || createFacilityLayout(seed);
 
   call("object_inspect", { objectId: "clock" });
   call("code_enter", { objectId: "safe", code: p.safeCode });
   call("item_pickup", { itemId: "brass_key" });
   call("item_pickup", { itemId: "safe_note" });
   call("object_unlock", { objectId: "desk_drawer", itemId: "brass_key" });
-  call("item_pickup", { itemId: "battery" });
   call("item_pickup", { itemId: "folded_note" });
-  call("item_pickup", { itemId: "copper_wire" });
+  if (layout.batterySource === "desk_drawer") call("item_pickup", { itemId: "battery" });
+  if (layout.wireSource === "desk_drawer") call("item_pickup", { itemId: "copper_wire" });
+  if (layout.batterySource === "bookshelf") pickupFromSource(call, engine, "battery");
+  if (layout.wireSource === "plant") pickupFromSource(call, engine, "copper_wire");
   call("item_use", { itemId: "battery", targetId: "keypad_box" });
   call("code_enter", { objectId: "exit_door", code: p.studyExitCode });
   call("object_open", { objectId: "exit_door" });
   call("room_enter", { roomId: "archive" });
 
-  // Non-linear: filing first then fuse (or reverse via opts)
-  if (opts.archiveOrder === "fuse-first") {
-    call("object_open", { objectId: "spare_bin" });
-    call("item_pickup", { itemId: "fuse" });
+  const filingClue = layout.filingClueOn === "cable_tray" ? "cable_tray" : "chalkboard";
+  const doFile = () => {
+    call("object_inspect", { objectId: filingClue });
+    call("code_enter", { objectId: "filing_cabinet", code: p.filingCode });
+    call("item_pickup", { itemId: "cipher_card" });
+  };
+  const doFuse = () => {
+    const fuseHost = layout.fuseSource === "cable_tray" ? "cable_tray" : "spare_bin";
+    pickupFromSource(call, engine, "fuse");
+    // ensure host opened — pickupFromSource handles openable
+    void fuseHost;
     call("item_combine", { itemA: "copper_wire", itemB: "fuse" });
     call("item_use", { itemId: "patch_cable", targetId: "fuse_panel" });
     call("item_pickup", { itemId: "override_token" });
-    call("object_inspect", { objectId: "chalkboard" });
-    call("code_enter", { objectId: "filing_cabinet", code: p.filingCode });
-    call("item_pickup", { itemId: "cipher_card" });
+  };
+
+  const forced = layout.archiveOrder;
+  const prefer =
+    opts.archiveOrder ||
+    (forced === "fuse-first" ? "fuse-first" : forced === "file-first" ? "file-first" : "file-first");
+  if (prefer === "fuse-first") {
+    doFuse();
+    doFile();
   } else {
-    call("object_inspect", { objectId: "chalkboard" });
-    call("code_enter", { objectId: "filing_cabinet", code: p.filingCode });
-    call("item_pickup", { itemId: "cipher_card" });
-    call("object_open", { objectId: "spare_bin" });
-    call("item_pickup", { itemId: "fuse" });
-    call("item_combine", { itemA: "copper_wire", itemB: "fuse" });
-    call("item_use", { itemId: "patch_cable", targetId: "fuse_panel" });
-    call("item_pickup", { itemId: "override_token" });
+    doFile();
+    doFuse();
   }
 
   call("item_combine", { itemA: "cipher_card", itemB: "override_token" });
-  // override consumed — for service ending we need to keep token; combine consumes it.
-  // For standard/ghost we only need vault_slip.
   call("item_inspect", { itemId: "vault_slip" });
   call("code_enter", { objectId: "archive_gate", code: p.vaultCode });
   call("object_open", { objectId: "archive_gate" });
@@ -1345,6 +1792,82 @@ export function solveFullRun(seed = FIXED_SEED, opts = {}) {
 
   call("code_enter", { objectId: "vault_exit", code: p.vaultCode });
   call("object_open", { objectId: "vault_exit" });
+  call("exit_try_escape");
+  return engine;
+}
+
+export function solveGreenhouseRun(seed = GREENHOUSE_FIXED_SEED, opts = {}) {
+  const engine = new GameEngine(
+    initialState(seed, {
+      packId: GREENHOUSE_PACK_ID,
+      noHintsChallenge: !!opts.noHintsChallenge,
+      isDaily: !!opts.isDaily,
+      dateKey: opts.dateKey || null,
+    }),
+  );
+  const call = (name, args = {}) => {
+    const r = engine.execute(name, args, "System");
+    if (!r.success) throw new Error(`${name} failed: ${r.error}`);
+    return r;
+  };
+  const p = engine.state.puzzle;
+  const layout = p.layout;
+
+  call("object_inspect", { objectId: layout.humidityClueOn });
+  call("code_enter", { objectId: "specimen_case", code: p.caseCode });
+  call("item_pickup", { itemId: "access_badge" });
+  call("item_pickup", { itemId: "nutrient_vial" });
+  call("item_pickup", { itemId: "pruning_shears" });
+  call("item_use", { itemId: "access_badge", targetId: "lab_door" });
+  call("object_open", { objectId: "lab_door" });
+  call("item_use", { itemId: "access_badge", targetId: "nursery_door" });
+  call("object_open", { objectId: "nursery_door" });
+
+  const doLab = () => {
+    if (engine.state.currentRoom !== "lab") call("room_enter", { roomId: "lab" });
+    pickupFromSource(call, engine, "catalyst_crystal");
+    call("item_combine", { itemA: "nutrient_vial", itemB: "catalyst_crystal" });
+    call("item_use", { itemId: "growth_serum", targetId: "spectrometer" });
+    call("item_pickup", { itemId: "spectral_chip" });
+    call("room_enter", { roomId: "atrium" });
+  };
+  const doNursery = () => {
+    if (engine.state.currentRoom !== "nursery") call("room_enter", { roomId: "nursery" });
+    call("object_inspect", { objectId: layout.leafOrderOn });
+    call("object_inspect", { objectId: layout.leafLegendOn });
+    call("code_enter", { objectId: "irrigation_panel", code: p.irrigationCode });
+    call("item_pickup", { itemId: "moisture_token" });
+    call("room_enter", { roomId: "atrium" });
+  };
+
+  if (opts.branchOrder === "nursery-first" || layout.branchPreference === "nursery-first") {
+    doNursery();
+    doLab();
+  } else {
+    doLab();
+    doNursery();
+  }
+
+  call("item_combine", { itemA: "spectral_chip", itemB: "moisture_token" });
+  call("item_inspect", { itemId: "rooftop_pass" });
+  call("code_enter", { objectId: "rooftop_hatch", code: p.rooftopCode });
+  call("object_open", { objectId: "rooftop_hatch" });
+  call("room_enter", { roomId: "rooftop" });
+
+  if (opts.ending === "ladder") {
+    call("item_use", { itemId: "pruning_shears", targetId: "fire_ladder" });
+    call("object_open", { objectId: "fire_ladder" });
+    call("exit_try_escape");
+    return engine;
+  }
+
+  if (opts.ending === "bloom") {
+    call("object_unlock", { objectId: "seed_vault", itemId: "access_badge" });
+    call("item_pickup", { itemId: "specimen_tag" });
+  }
+
+  call("code_enter", { objectId: "glass_elevator", code: p.rooftopCode });
+  call("object_open", { objectId: "glass_elevator" });
   call("exit_try_escape");
   return engine;
 }

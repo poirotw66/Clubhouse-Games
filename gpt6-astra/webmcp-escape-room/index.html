@@ -128,9 +128,24 @@ footer{display:flex;justify-content:space-between;gap:12px;margin-top:20px;color
 @keyframes toastIn{from{opacity:0;transform:translateY(8px)}}
 .seed-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .seed-bar input{padding:10px 12px;min-height:44px;min-width:160px}
+.mode-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:12px;color:var(--muted)}
+.mode-bar label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#1a222e;cursor:pointer}
+.mode-bar input{width:18px;height:18px;accent-color:var(--gold)}
+.pack-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.pack-card{text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:#1a222e;min-height:88px}
+.pack-card.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px #e8c38a55}
+.pack-card strong{display:block;color:var(--gold);margin-bottom:4px}
+.pack-card span{font-size:11px;color:var(--muted)}
+.badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.run-badge{font-size:10px;letter-spacing:.4px;padding:4px 8px;border-radius:999px;border:1px solid #5a6a4a;color:var(--green);background:#1d2a22}
+.start-overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(8,10,14,.88);backdrop-filter:blur(8px)}
+.start-card{width:min(520px,100%);padding:22px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(160deg,#1d2430,#141a23)}
+.start-card h2{margin:6px 0 8px;font-size:22px}
+.start-card p{color:var(--muted);font-size:13px}
+.start-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
 [hidden]{display:none!important}
-@media(max-width:900px){.game-grid,.bottom-grid,.education{grid-template-columns:1fr}.side{grid-template-columns:1fr}}
+@media(max-width:900px){.game-grid,.bottom-grid,.education,.pack-grid{grid-template-columns:1fr}.side{grid-template-columns:1fr}}
 @media(max-width:560px){.shell{padding:14px 12px 36px}h1{font-size:20px}.scene-overlay p{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
@@ -142,7 +157,7 @@ footer{display:flex;justify-content:space-between;gap:12px;margin-top:20px;color
       <div class="logo" aria-hidden="true">⌘</div>
       <div>
         <h1>WebMCP Escape Room</h1>
-        <p class="subtitle">Three rooms. Shared state. Escape through UI or AI tools.</p>
+        <p class="subtitle">Two packs · Daily Taipei layouts · Shared WebMCP state</p>
       </div>
     </div>
     <div class="header-actions">
@@ -150,6 +165,8 @@ footer{display:flex;justify-content:space-between;gap:12px;margin-top:20px;color
       <span id="timer" class="timer-pill" aria-live="polite">00:00</span>
       <button id="undo-button" aria-label="Undo last action">↶ Undo</button>
       <button id="hint-button" aria-label="Request a hint (affects rating)">Hint</button>
+      <button id="share-button" class="quiet" aria-label="Copy share text">Share</button>
+      <button id="menu-button" class="quiet" aria-label="Open start menu">Packs</button>
       <button id="new-run-button" class="quiet" aria-label="Start a new seeded run">New Run</button>
       <button id="reset-button" class="quiet" aria-label="Reset current seed">Reset</button>
     </div>
@@ -157,20 +174,28 @@ footer{display:flex;justify-content:space-between;gap:12px;margin-top:20px;color
 
   <div class="intro">
     <div>
-      <div class="eyebrow">Depth 4 · Multi-room WebMCP demo</div>
-      <p>Study → Archive → Vault. Combine items, pick your ending, and race your personal best. Fixed seed <code>agent-demo</code> keeps classic codes for agents.</p>
+      <div class="eyebrow">Depth 4+ · Multi-pack WebMCP demo</div>
+      <p id="intro-blurb">Facility or Greenhouse. Daily Taipei seeds reshape item placement and path order — not only passwords. Fixed seeds keep classic codes for agents.</p>
+      <div id="run-badges" class="badge-row" hidden></div>
     </div>
     <div class="meta-row">
       <span>Best <strong id="best-time">—</strong></span>
       <span>Clears <strong id="clear-count">0</strong></span>
+      <span>Daily <strong id="daily-best">—</strong></span>
+      <span>Streak <strong id="daily-streak">0</strong></span>
+      <span>Pack <strong id="pack-label">facility</strong></span>
       <span>Seed <strong id="seed-label">agent-demo</strong></span>
     </div>
   </div>
 
+  <div class="mode-bar" aria-label="Run options">
+    <label><input type="checkbox" id="opt-daily"> Daily (Asia/Taipei)</label>
+    <label><input type="checkbox" id="opt-nohints"> No-hint challenge</label>
+  </div>
   <div class="seed-bar">
     <label class="sr-only" for="seed-input">Run seed</label>
-    <input id="seed-input" type="text" value="agent-demo" maxlength="80" placeholder="seed (agent-demo = fixed)" autocomplete="off">
-    <button id="seed-fixed" class="quiet">Use agent-demo</button>
+    <input id="seed-input" type="text" value="agent-demo" maxlength="80" placeholder="seed (agent-demo / greenhouse-demo)" autocomplete="off">
+    <button id="seed-fixed" class="quiet">Fixed seed</button>
     <button id="seed-random" class="quiet">Random seed</button>
     <button id="seed-start" class="primary">Start run</button>
   </div>
@@ -345,6 +370,64 @@ footer{display:flex;justify-content:space-between;gap:12px;margin-top:20px;color
   <circle class="done" cx="252" cy="88" r="4"/>
 </g>
 </svg>
+          <svg class="scene-layer" data-room="atrium" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" aria-labelledby="title-atrium">
+  <title id="title-atrium">Glass atrium</title>
+  <defs>
+    <linearGradient id="wall-atrium" x2="0" y2="1"><stop stop-color="#243528"/><stop offset="1" stop-color="#1a2420"/></linearGradient>
+    <linearGradient id="floor-atrium" x2="0" y2="1"><stop stop-color="#2f3c34"/><stop offset="1" stop-color="#141c18"/></linearGradient>
+  </defs>
+  <rect width="900" height="520" fill="url(#wall-atrium)"/>
+  <path d="M0 360H900V520H0Z" fill="url(#floor-atrium)"/>
+  <path d="M0 350H900" stroke="#0f1a14" stroke-width="10"/>
+  <g id="obj-hygrometer" class="hotspot" data-object="hygrometer" tabindex="0" role="button" aria-label="Hygrometer"><rect class="hit" x="70" y="50" width="100" height="70" rx="6"/><text class="label" x="78" y="46">HYGRO</text><circle class="done" cx="162" cy="58" r="4"/></g>
+  <g id="obj-mist_panel" class="hotspot" data-object="mist_panel" tabindex="0" role="button" aria-label="Mist panel"><rect class="hit" x="200" y="50" width="110" height="70" rx="6"/><text class="label" x="210" y="46">MIST</text><circle class="done" cx="302" cy="58" r="4"/></g>
+  <g id="obj-atrium_map" class="hotspot" data-object="atrium_map" tabindex="0" role="button" aria-label="Map"><rect class="hit" x="340" y="50" width="120" height="70" rx="6"/><text class="label" x="370" y="46">MAP</text><circle class="done" cx="452" cy="58" r="4"/></g>
+  <g id="obj-specimen_case" class="hotspot" data-object="specimen_case" tabindex="0" role="button" aria-label="Specimen case"><rect class="hit" x="120" y="220" width="140" height="120" rx="6"/><text class="label" x="135" y="216">CASE</text><circle class="done" cx="252" cy="228" r="4"/></g>
+  <g id="obj-atrium_plant" class="hotspot" data-object="atrium_plant" tabindex="0" role="button" aria-label="Fig"><rect class="hit" x="300" y="260" width="80" height="90" rx="6"/><text class="label" x="320" y="256">FIG</text><circle class="done" cx="372" cy="268" r="4"/></g>
+  <g id="obj-lab_door" class="hotspot" data-object="lab_door" tabindex="0" role="button" aria-label="Lab door"><rect class="hit" x="520" y="90" width="100" height="250" rx="6"/><text class="label" x="540" y="86">LAB</text><circle class="done" cx="612" cy="98" r="4"/></g>
+  <g id="obj-nursery_door" class="hotspot" data-object="nursery_door" tabindex="0" role="button" aria-label="Nursery door"><rect class="hit" x="640" y="90" width="100" height="250" rx="6"/><text class="label" x="650" y="86">NURSERY</text><circle class="done" cx="732" cy="98" r="4"/></g>
+  <g id="obj-rooftop_hatch" class="hotspot" data-object="rooftop_hatch" tabindex="0" role="button" aria-label="Rooftop hatch"><rect class="hit" x="760" y="40" width="110" height="70" rx="6"/><text class="label" x="770" y="36">HATCH</text><circle class="done" cx="862" cy="48" r="4"/></g>
+</svg>
+          <svg class="scene-layer" data-room="lab" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" aria-labelledby="title-lab">
+  <title id="title-lab">Night lab</title>
+  <defs>
+    <linearGradient id="wall-lab" x2="0" y2="1"><stop stop-color="#2a3040"/><stop offset="1" stop-color="#1a2030"/></linearGradient>
+  </defs>
+  <rect width="900" height="520" fill="url(#wall-lab)"/>
+  <path d="M0 360H900V520H0Z" fill="#171d29"/>
+  <g id="obj-reagent_fridge" class="hotspot" data-object="reagent_fridge" tabindex="0" role="button" aria-label="Fridge"><rect class="hit" x="80" y="120" width="110" height="200" rx="6"/><text class="label" x="100" y="116">FRIDGE</text><circle class="done" cx="182" cy="128" r="4"/></g>
+  <g id="obj-lab_shelf" class="hotspot" data-object="lab_shelf" tabindex="0" role="button" aria-label="Shelf"><rect class="hit" x="230" y="80" width="140" height="100" rx="6"/><text class="label" x="260" y="76">SHELF</text><circle class="done" cx="362" cy="88" r="4"/></g>
+  <g id="obj-spectrometer" class="hotspot" data-object="spectrometer" tabindex="0" role="button" aria-label="Spectrometer"><rect class="hit" x="420" y="180" width="180" height="140" rx="6"/><text class="label" x="445" y="176">SPECTRO</text><circle class="done" cx="592" cy="188" r="4"/></g>
+  <g id="obj-lab_bench" class="hotspot" data-object="lab_bench" tabindex="0" role="button" aria-label="Bench"><rect class="hit" x="240" y="320" width="220" height="70" rx="6"/><text class="label" x="310" y="316">BENCH</text><circle class="done" cx="452" cy="328" r="4"/></g>
+  <g id="obj-lab_return" class="hotspot" data-object="lab_return" tabindex="0" role="button" aria-label="Return"><rect class="hit" x="720" y="100" width="120" height="240" rx="6"/><text class="label" x="740" y="96">ATRIUM</text><circle class="done" cx="832" cy="108" r="4"/></g>
+</svg>
+          <svg class="scene-layer" data-room="nursery" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" aria-labelledby="title-nursery">
+  <title id="title-nursery">Mist nursery</title>
+  <defs>
+    <linearGradient id="wall-nursery" x2="0" y2="1"><stop stop-color="#2a3a30"/><stop offset="1" stop-color="#1a281f"/></linearGradient>
+  </defs>
+  <rect width="900" height="520" fill="url(#wall-nursery)"/>
+  <path d="M0 360H900V520H0Z" fill="#152018"/>
+  <g id="obj-trellis" class="hotspot" data-object="trellis" tabindex="0" role="button" aria-label="Trellis"><rect class="hit" x="80" y="80" width="160" height="200" rx="6"/><text class="label" x="120" y="76">TRELLIS</text><circle class="done" cx="232" cy="88" r="4"/></g>
+  <g id="obj-nursery_sign" class="hotspot" data-object="nursery_sign" tabindex="0" role="button" aria-label="Sign"><rect class="hit" x="280" y="60" width="120" height="60" rx="6"/><text class="label" x="310" y="56">SIGN</text><circle class="done" cx="392" cy="68" r="4"/></g>
+  <g id="obj-potting_bench" class="hotspot" data-object="potting_bench" tabindex="0" role="button" aria-label="Potting"><rect class="hit" x="280" y="280" width="200" height="80" rx="6"/><text class="label" x="330" y="276">POTTING</text><circle class="done" cx="472" cy="288" r="4"/></g>
+  <g id="obj-watering_can" class="hotspot" data-object="watering_can" tabindex="0" role="button" aria-label="Can"><rect class="hit" x="520" y="300" width="90" height="70" rx="6"/><text class="label" x="540" y="296">CAN</text><circle class="done" cx="602" cy="308" r="4"/></g>
+  <g id="obj-irrigation_panel" class="hotspot" data-object="irrigation_panel" tabindex="0" role="button" aria-label="Irrigation"><rect class="hit" x="520" y="100" width="120" height="140" rx="6"/><text class="label" x="535" y="96">IRRIGATE</text><circle class="done" cx="632" cy="108" r="4"/></g>
+  <g id="obj-nursery_return" class="hotspot" data-object="nursery_return" tabindex="0" role="button" aria-label="Return"><rect class="hit" x="720" y="100" width="120" height="240" rx="6"/><text class="label" x="740" y="96">ATRIUM</text><circle class="done" cx="832" cy="108" r="4"/></g>
+</svg>
+          <svg class="scene-layer" data-room="rooftop" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" aria-labelledby="title-rooftop">
+  <title id="title-rooftop">Rooftop hatch</title>
+  <defs>
+    <linearGradient id="wall-roof" x2="0" y2="1"><stop stop-color="#2a3048"/><stop offset="1" stop-color="#151a28"/></linearGradient>
+  </defs>
+  <rect width="900" height="520" fill="url(#wall-roof)"/>
+  <path d="M0 360H900V520H0Z" fill="#12161f"/>
+  <g id="obj-glass_elevator" class="hotspot" data-object="glass_elevator" tabindex="0" role="button" aria-label="Elevator"><rect class="hit" x="680" y="80" width="150" height="280" rx="6"/><text class="label" x="700" y="76">ELEVATOR</text><circle class="done" cx="822" cy="88" r="4"/></g>
+  <g id="obj-fire_ladder" class="hotspot" data-object="fire_ladder" tabindex="0" role="button" aria-label="Ladder"><rect class="hit" x="80" y="200" width="100" height="200" rx="6"/><text class="label" x="95" y="196">LADDER</text><circle class="done" cx="172" cy="208" r="4"/></g>
+  <g id="obj-seed_vault" class="hotspot" data-object="seed_vault" tabindex="0" role="button" aria-label="Seed vault"><rect class="hit" x="260" y="180" width="140" height="140" rx="6"/><text class="label" x="285" y="176">SEED VAULT</text><circle class="done" cx="392" cy="188" r="4"/></g>
+  <g id="obj-rooftop_sign" class="hotspot" data-object="rooftop_sign" tabindex="0" role="button" aria-label="Sign"><rect class="hit" x="440" y="60" width="160" height="50" rx="6"/><text class="label" x="480" y="56">SIGN</text><circle class="done" cx="592" cy="68" r="4"/></g>
+  <g id="obj-rooftop_return" class="hotspot" data-object="rooftop_return" tabindex="0" role="button" aria-label="Hatch down"><rect class="hit" x="440" y="300" width="140" height="70" rx="6"/><text class="label" x="460" y="296">HATCH ↓</text><circle class="done" cx="572" cy="308" r="4"/></g>
+</svg>
         </div>
         <div class="room-footer">
           <span id="room-status">● Exit secured</span>
@@ -416,27 +499,57 @@ exit_try_escape()</pre></div>
     </div>
   </main>
   <footer>
-    <span>WEBMCP ESCAPE ROOM / DEPTH 4</span>
+    <span>WEBMCP ESCAPE ROOM / FACILITY + GREENHOUSE</span>
     <span id="persistence-status">Progress saved locally · Versioned key</span>
   </footer>
 </div>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<div id="start-overlay" class="start-overlay" role="dialog" aria-modal="true" aria-labelledby="start-title" hidden>
+  <div class="start-card">
+    <div class="eyebrow">Choose your escape</div>
+    <h2 id="start-title">Scenario packs</h2>
+    <p>Both packs are open from the start so WebMCP agents can demo either topology without grinding. Daily Taipei seeds reshuffle placements; no-hint locks the Hint button.</p>
+    <div class="pack-grid">
+      <button type="button" class="pack-card active" data-pack="facility" id="pack-facility">
+        <strong>Quiet Facility</strong>
+        <span>Linear Study → Archive → Vault with dual archive paths.</span>
+      </button>
+      <button type="button" class="pack-card" data-pack="greenhouse" id="pack-greenhouse">
+        <strong>Midnight Greenhouse</strong>
+        <span>Atrium hub, parallel lab &amp; nursery, then rooftop endings.</span>
+      </button>
+    </div>
+    <div class="mode-bar">
+      <label><input type="checkbox" id="start-daily"> Daily (Asia/Taipei)</label>
+      <label><input type="checkbox" id="start-nohints"> No-hint challenge</label>
+    </div>
+    <div class="start-actions">
+      <button type="button" id="start-confirm" class="primary">Begin escape</button>
+      <button type="button" id="start-dismiss" class="quiet">Keep current run</button>
+    </div>
+  </div>
+</div>
 
 <script type="module">
 import {
-  GameEngine, TOOLS, FIXED_SEED, ROOM_META, ENDINGS,
+  GameEngine, TOOLS, FIXED_SEED, GREENHOUSE_FIXED_SEED, ROOM_META, ENDINGS, PACKS,
   STORAGE_KEY, META_KEY, validateState, migrateMeta, emptyMeta,
-  formatElapsed, initialState, PuzzleEngine, canCombine
+  formatElapsed, initialState, PuzzleEngine, canCombine,
+  DEFAULT_PACK_ID, FACILITY_PACK_ID, GREENHOUSE_PACK_ID, normalizePackId,
+  taipeiDateKey, dailySeedFor
 } from "./engine.mjs";
 import {
   playSelect, playError, playWin, playGoal,
-  sfxEscapeUnlock, sfxEscapeCombine, sfxEscapeHint, sfxEscapeRoomEnter
+  sfxEscapeUnlock, sfxEscapeCombine, sfxEscapeHint, sfxEscapeRoomEnter,
+  sfxEscapeBadge
 } from "../shared/sfx.mjs";
 import { createResultOverlay } from "../shared/result-overlay.mjs";
 
 const $ = (id) => document.getElementById(id);
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const escapeHTML = (v) => String(v).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let selectedPackId = FACILITY_PACK_ID;
+let startMenuOpen = false;
 
 function loadMeta() {
   try {
@@ -451,7 +564,7 @@ function saveMeta(meta) {
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { state: initialState(FIXED_SEED), message: "Room initialized. Three rooms await." };
+    if (!raw) return { state: initialState(FIXED_SEED), message: "Room initialized. Pick a pack or dive into the facility." };
     return { state: validateState(JSON.parse(raw)), message: "Saved run restored." };
   } catch (error) {
     console.warn("Escape Room: invalid save; resetting.", error);
@@ -522,11 +635,19 @@ class RoomRenderer {
         ? (s.objects.exit_door.locked ? "● Hallway secured" : "● Hallway unlocked")
         : s.currentRoom === "archive"
           ? (s.objects.archive_gate.locked ? "● Vault gate secured" : "● Vault gate unlocked")
-          : "● Choose your exit";
+          : s.currentRoom === "atrium"
+            ? (s.objects.rooftop_hatch.locked ? "● Hatch secured" : "● Hatch unlocked")
+            : s.currentRoom === "lab" || s.currentRoom === "nursery"
+              ? "● Wing active — return via atrium when ready"
+              : s.currentRoom === "rooftop" || s.currentRoom === "vault"
+                ? "● Choose your exit"
+                : "● Explore";
     $("room-status").textContent = status;
-    $("room-status").style.color = s.escaped || status.includes("unlocked") || status.includes("Choose") ? "var(--green)" : "var(--gold)";
-    $("room-hint-meta").textContent = `Hints used: ${(s.hintsUsedIds || []).length} · Room ${s.currentRoom}`;
+    $("room-status").style.color = s.escaped || status.includes("unlocked") || status.includes("Choose") || status.includes("Wing") ? "var(--green)" : "var(--gold)";
+    const hintLock = s.noHintsChallenge ? " · No-hint locked" : "";
+    $("room-hint-meta").textContent = `Hints used: ${(s.hintsUsedIds || []).length}${hintLock} · Room ${s.currentRoom}`;
     $("undo-button").disabled = !this.engine.undo.available;
+    $("hint-button").disabled = !!s.noHintsChallenge || s.escaped;
     const visible = Object.values(s.objects).filter((o) => o.room === s.currentRoom);
     $("object-strip").innerHTML = visible.map((o) => {
       const done = (o.openable && !o.locked) || o.state?.powered;
@@ -557,8 +678,13 @@ function toast(text, error = false, ai = false) {
 
 function showEnding(data) {
   const ending = ENDINGS[data.endingId] || ENDINGS.standard;
+  const badgeBits = [ending.badge];
+  if (data.noHintClear || data.hintsUsed === 0) badgeBits.push("No-Hint ✓");
+  if (data.noHintsChallenge) badgeBits.push("Challenge");
+  if (data.isDaily) badgeBits.push(`Daily ${data.dateKey || ""}`.trim());
+  if (data.dailyStreak) badgeBits.push(`Streak ${data.dailyStreak}`);
   resultOverlay.show({
-    badge: ending.badge,
+    badge: badgeBits.join(" · "),
     title: ending.title,
     variant: "win",
     subtitle: ending.subtitle,
@@ -567,20 +693,34 @@ function showEnding(data) {
       { label: "Time", value: data.elapsedLabel },
       { label: "Hints", value: String(data.hintsUsed) },
       { label: "Best", value: gameEngine.meta.bestMs == null ? "—" : formatElapsed(gameEngine.meta.bestMs) },
+      ...(data.isDaily
+        ? [{ label: "Daily best", value: data.dailyBestMs == null ? data.elapsedLabel : formatElapsed(data.dailyBestMs) }]
+        : []),
     ],
-    primaryLabel: "Play again (same seed)",
-    secondaryLabel: "New random run",
+    primaryLabel: "Play again (same setup)",
+    secondaryLabel: data.shareText ? "Copy share text" : "New random run",
     onPrimary: () => {
       resultOverlay.hide();
       gameEngine.execute("game_reset", {}, "UI");
     },
-    onSecondary: () => {
+    onSecondary: async () => {
+      if (data.shareText) {
+        try {
+          await navigator.clipboard.writeText(data.shareText);
+          toast("Share text copied.");
+          sfxEscapeBadge();
+        } catch {
+          window.prompt("Copy share text:", data.shareText);
+        }
+        return;
+      }
       resultOverlay.hide();
       const seed = "run-" + Math.random().toString(36).slice(2, 10);
       $("seed-input").value = seed;
-      gameEngine.execute("game_new_run", { seed }, "UI");
+      startRunFromUi({ seed });
     },
   });
+  if (data.noHintClear || data.isDaily) sfxEscapeBadge();
 }
 
 function renderInteraction() {
@@ -633,7 +773,7 @@ function renderInventory() {
   const combos = [];
   for (let i = 0; i < s.inventory.length; i++) {
     for (let j = i + 1; j < s.inventory.length; j++) {
-      if (canCombine(s.inventory[i], s.inventory[j])) combos.push([s.inventory[i], s.inventory[j]]);
+      if (canCombine(s.inventory[i], s.inventory[j], s.packId)) combos.push([s.inventory[i], s.inventory[j]]);
     }
   }
   if (combos.length) {
@@ -654,8 +794,14 @@ function renderInventory() {
 
 function renderProgress() {
   const p = PuzzleEngine.progress(gameEngine.state);
+  const packId = normalizePackId(gameEngine.state.packId);
+  const blurb = p.escaped
+    ? "Cleared."
+    : packId === GREENHOUSE_PACK_ID
+      ? "Atrium → lab & nursery wings → rooftop endings."
+      : "Study → Archive paths → Vault endings.";
   $("progress-count").textContent = `${p.completed}/${p.total}`;
-  $("progress").innerHTML = `<div style="color:var(--muted);font-size:12px">${p.escaped ? "Facility cleared." : "Study → Archive paths → Vault endings."}</div>
+  $("progress").innerHTML = `<div style="color:var(--muted);font-size:12px">${blurb}</div>
     <div class="progress-track" role="progressbar" aria-valuenow="${p.completed}" aria-valuemin="0" aria-valuemax="${p.total}"><div class="progress-fill" style="width:${p.completed/p.total*100}%"></div></div>
     ${p.steps.map((step) => `<div class="progress-item ${step.done?"done":""}"><span>${step.done?"✓":"○"}</span><span>${escapeHTML(step.label)}</span></div>`).join("")}
     <div class="progress-meta">${p.cluesDiscovered} clues · ${p.blockers[0] || "No blockers"}</div>`;
@@ -672,11 +818,65 @@ function renderLog() {
 }
 
 function renderMeta() {
-  $("seed-label").textContent = gameEngine.state.seed;
-  $("seed-input").value = gameEngine.state.seed;
+  const s = gameEngine.state;
+  const packId = normalizePackId(s.packId);
+  selectedPackId = packId;
+  $("seed-label").textContent = s.seed;
+  $("seed-input").value = s.seed;
+  $("pack-label").textContent = PACKS[packId]?.title || packId;
   $("best-time").textContent = gameEngine.meta.bestMs == null ? "—" : formatElapsed(gameEngine.meta.bestMs);
   $("clear-count").textContent = String(gameEngine.meta.clears);
+  $("daily-streak").textContent = String(gameEngine.meta.dailyStreak || 0);
+  const today = taipeiDateKey();
+  const dailyBest = gameEngine.meta.dailyBestByDate?.[today];
+  $("daily-best").textContent = dailyBest?.ms != null ? formatElapsed(dailyBest.ms) : "—";
   $("timer").textContent = formatElapsed(gameEngine.elapsedMs());
+  $("opt-daily").checked = !!s.isDaily;
+  $("opt-nohints").checked = !!s.noHintsChallenge;
+  $("intro-blurb").textContent = PACKS[packId]?.blurb || "";
+  const badges = [];
+  if (s.noHintsChallenge) badges.push("No-Hint Challenge");
+  if (s.isDaily) badges.push(`Daily ${s.dateKey || today}`);
+  if ((s.hintsUsedIds || []).length === 0 && s.escaped) badges.push("No-Hint Clear");
+  const row = $("run-badges");
+  if (badges.length) {
+    row.hidden = false;
+    row.innerHTML = badges.map((b) => `<span class="run-badge">${escapeHTML(b)}</span>`).join("");
+  } else {
+    row.hidden = true;
+    row.innerHTML = "";
+  }
+  document.querySelectorAll(".pack-card").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.pack === packId);
+  });
+}
+
+function startRunFromUi({ seed, packId, daily, noHintsChallenge } = {}) {
+  const pack = normalizePackId(packId || selectedPackId || DEFAULT_PACK_ID);
+  const isDaily = daily ?? $("opt-daily").checked;
+  const noHints = noHintsChallenge ?? $("opt-nohints").checked;
+  const args = {
+    packId: pack,
+    daily: isDaily ? "true" : "false",
+    noHintsChallenge: noHints ? "true" : "false",
+  };
+  if (!isDaily) args.seed = seed || $("seed-input").value.trim() || (pack === GREENHOUSE_PACK_ID ? GREENHOUSE_FIXED_SEED : FIXED_SEED);
+  return gameEngine.execute("game_new_run", args, "UI");
+}
+
+function openStartMenu(showDismiss = true) {
+  startMenuOpen = true;
+  $("start-overlay").hidden = false;
+  $("start-dismiss").hidden = !showDismiss;
+  $("start-daily").checked = $("opt-daily").checked;
+  $("start-nohints").checked = $("opt-nohints").checked;
+  document.querySelectorAll(".pack-card").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.pack === selectedPackId);
+  });
+}
+function closeStartMenu() {
+  startMenuOpen = false;
+  $("start-overlay").hidden = true;
 }
 
 function renderAll() {
@@ -774,16 +974,51 @@ $("hint-button").addEventListener("click", () => run("hint_request"));
 $("reset-button").addEventListener("click", () => {
   if (confirm("Reset this seed's progress?")) run("game_reset");
 });
-$("new-run-button").addEventListener("click", () => $("seed-start").click());
-$("seed-fixed").addEventListener("click", () => { $("seed-input").value = FIXED_SEED; });
+$("new-run-button").addEventListener("click", () => openStartMenu(true));
+$("menu-button").addEventListener("click", () => openStartMenu(true));
+$("share-button").addEventListener("click", async () => {
+  const share = gameEngine.execute("run_get_share_text", {}, "UI");
+  const text = share.data?.shareText || "";
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Share text copied.");
+  } catch {
+    window.prompt("Copy share text:", text);
+  }
+});
+$("seed-fixed").addEventListener("click", () => {
+  const pack = selectedPackId === GREENHOUSE_PACK_ID ? GREENHOUSE_FIXED_SEED : FIXED_SEED;
+  $("seed-input").value = pack;
+  $("opt-daily").checked = false;
+});
 $("seed-random").addEventListener("click", () => {
   $("seed-input").value = "run-" + Math.random().toString(36).slice(2, 10);
+  $("opt-daily").checked = false;
 });
 $("seed-start").addEventListener("click", () => {
   const seed = $("seed-input").value.trim() || FIXED_SEED;
-  if (!confirm(`Start a new run with seed "${seed}"? Progress for the current run will be replaced.`)) return;
-  run("game_new_run", { seed });
+  const label = $("opt-daily").checked ? `daily ${taipeiDateKey()}` : `seed "${seed}"`;
+  if (!confirm(`Start a new ${selectedPackId} run (${label})? Progress for the current run will be replaced.`)) return;
+  startRunFromUi({ seed, packId: selectedPackId });
 });
+document.querySelectorAll(".pack-card").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    selectedPackId = btn.dataset.pack;
+    document.querySelectorAll(".pack-card").forEach((b) => b.classList.toggle("active", b === btn));
+  });
+});
+$("start-confirm").addEventListener("click", () => {
+  $("opt-daily").checked = $("start-daily").checked;
+  $("opt-nohints").checked = $("start-nohints").checked;
+  closeStartMenu();
+  startRunFromUi({
+    packId: selectedPackId,
+    daily: $("start-daily").checked,
+    noHintsChallenge: $("start-nohints").checked,
+    seed: selectedPackId === GREENHOUSE_PACK_ID ? GREENHOUSE_FIXED_SEED : FIXED_SEED,
+  });
+});
+$("start-dismiss").addEventListener("click", () => closeStartMenu());
 
 const prompts = [
   "Escape the facility.",
@@ -794,6 +1029,9 @@ const prompts = [
   "Request a hint only if stuck.",
   "Try the service hatch alternate ending.",
   "Attempt the ghost ending with zero hints.",
+  "Start the greenhouse pack and escape via the glass elevator.",
+  "Start today's Taipei daily challenge with no hints.",
+  "List packs and daily status, then share my clear text.",
 ];
 $("prompts").innerHTML = prompts.map((p) => `<button data-prompt="${escapeHTML(p)}">${escapeHTML(p)} ↗</button>`).join("");
 $("prompts").addEventListener("click", async (ev) => {
@@ -880,6 +1118,7 @@ class WebMCPAdapter {
 }
 
 const webMCP = new WebMCPAdapter(gameEngine);
+selectedPackId = normalizePackId(gameEngine.state.packId);
 renderAll();
 gameEngine.systemMessage(restored.message);
 webMCP.initialize();
@@ -893,9 +1132,17 @@ if (gameEngine.state.escaped) {
       rating: summary.data.rating,
       elapsedLabel: summary.data.elapsedLabel,
       hintsUsed: summary.data.hintsUsed,
+      noHintClear: summary.data.noHintClear,
+      noHintsChallenge: summary.data.noHintsChallenge,
+      isDaily: summary.data.isDaily,
+      dateKey: summary.data.dateKey,
+      dailyStreak: summary.data.dailyStreak,
+      shareText: summary.data.shareText,
       isPersonalBest: false,
     });
   }
+} else if (!localStorage.getItem(STORAGE_KEY)) {
+  openStartMenu(false);
 }
 
 Object.defineProperty(window, "escapeRoom", {
