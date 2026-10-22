@@ -23,6 +23,7 @@
     "check:all": "node scripts/run-in-games.mjs check",
     "check:no-cdn": "node scripts/check-no-cdn.mjs",
     "check:shared-styles": "node scripts/check-shared-styles.mjs",
+    "check:shared": "npm run check -w @clubhouse/shared && npm run lint -w @clubhouse/shared",
     "check:dev-server-mime": "node scripts/check-dev-server-mime.mjs",
     "check:astra-train": "node gpt6-astra/train/check-train.mjs",
     "check:astra-archer": "node gpt6-astra/archer/check-archer.mjs",
