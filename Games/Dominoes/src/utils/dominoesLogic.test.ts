@@ -15,7 +15,9 @@ import {
   getValidMoves,
   handSum,
   isValidPlay,
+  mergeLackLists,
   pass,
+  partnerOf,
   pickBotMove,
   placeFirstTile,
   placeTile,
@@ -24,14 +26,45 @@ import {
   roundToNearestFive,
   scoreOpenEnds,
   sumOpenEnds,
+  teamHandScores,
+  teamOf,
   tileSum,
   DIFFICULTY_BLURBS,
   type DominoesState,
   type Tile,
 } from './dominoesLogic';
+import {
+  dailyDealSeed,
+  dailyStreak,
+  formatDailyShareText,
+  parseDailyProgress,
+  recordDailyMatch,
+  todayKeyTaipei,
+} from './daily';
 
 function tile(id: number, left: number, right: number): Tile {
   return { id, left, right };
+}
+
+/** Minimal 2-seat playing state for unit tests. */
+function baseState(
+  overrides: Partial<DominoesState> &
+    Pick<DominoesState, 'hands' | 'board' | 'ruleVariant'>,
+): DominoesState {
+  return {
+    currentPlayer: 0,
+    playerCount: 2,
+    boneyard: [],
+    phase: 'playing',
+    winner: null,
+    winningTeam: null,
+    roundEndReason: null,
+    handScores: [0, 0],
+    lastPlayScore: 0,
+    lastOpenSum: 0,
+    suspectedLack: [[], []],
+    ...overrides,
+  };
 }
 
 afterEach(() => {
@@ -162,21 +195,14 @@ describe('All Fives scoring', () => {
   });
 
   it('awards play score via playTile in fives variant', () => {
-    const state: DominoesState = {
-      currentPlayer: 0,
+    const state = baseState({
       // Keep an extra tile so the hand does not end on this play.
       hands: [[tile(7, 5, 0), tile(12, 2, 2)], [tile(8, 1, 1)]],
       board: placeFirstTile(emptyBoard(), tile(9, 5, 5), 'fives'),
       boneyard: [tile(10, 0, 0), tile(11, 0, 1)],
-      phase: 'playing',
-      winner: null,
-      roundEndReason: null,
       ruleVariant: 'fives',
-      handScores: [0, 0],
-      lastPlayScore: 0,
       lastOpenSum: 10,
-      suspectedLack: [[], []],
-    };
+    });
     const next = playTile(state, 0, 7, 'left');
     expect(next).not.toBeNull();
     expect(next!.phase).toBe('playing');
@@ -200,20 +226,13 @@ describe('win / block / draw rules', () => {
     const last = tile(7, 2, 6);
     let board = emptyBoard();
     board = placeFirstTile(board, tile(9, 6, 6), 'draw');
-    const state: DominoesState = {
-      currentPlayer: 0,
+    const state = baseState({
       hands: [[last], [tile(8, 1, 1)]],
       board,
       boneyard: [tile(10, 0, 0), tile(11, 0, 1)],
-      phase: 'playing',
-      winner: null,
-      roundEndReason: null,
       ruleVariant: 'draw',
-      handScores: [0, 0],
-      lastPlayScore: 0,
       lastOpenSum: 12,
-      suspectedLack: [[], []],
-    };
+    });
     const next = playTile(state, 0, 7, 'right');
     expect(next).not.toBeNull();
     expect(next!.phase).toBe('roundOver');
@@ -236,20 +255,13 @@ describe('win / block / draw rules', () => {
   it('block variant: stuck pass ends the round when both cannot play', () => {
     let board = emptyBoard();
     board = placeFirstTile(board, tile(1, 6, 6), 'block');
-    const state: DominoesState = {
-      currentPlayer: 0,
+    const state = baseState({
       hands: [[tile(2, 1, 2)], [tile(3, 3, 4)]],
       board,
       boneyard: [tile(4, 0, 0), tile(5, 0, 1), tile(6, 0, 2)],
-      phase: 'playing',
-      winner: null,
-      roundEndReason: null,
       ruleVariant: 'block',
-      handScores: [0, 0],
-      lastPlayScore: 0,
       lastOpenSum: 12,
-      suspectedLack: [[], []],
-    };
+    });
     expect(pass(state, 0)).not.toBeNull();
     expect(pass(state, 0)!.phase).toBe('roundOver');
     expect(pass(state, 0)!.roundEndReason).toBe('blocked');
@@ -259,20 +271,13 @@ describe('win / block / draw rules', () => {
   it('draw variant: cannot pass while drawable tiles remain', () => {
     let board = emptyBoard();
     board = placeFirstTile(board, tile(1, 6, 6), 'draw');
-    const state: DominoesState = {
-      currentPlayer: 0,
+    const state = baseState({
       hands: [[tile(2, 1, 2)], [tile(3, 3, 4)]],
       board,
       boneyard: [tile(4, 0, 0), tile(5, 0, 1), tile(6, 5, 5)],
-      phase: 'playing',
-      winner: null,
-      roundEndReason: null,
       ruleVariant: 'draw',
-      handScores: [0, 0],
-      lastPlayScore: 0,
       lastOpenSum: 12,
-      suspectedLack: [[], []],
-    };
+    });
     expect(pass(state, 0)).toBeNull();
     const drawn = drawTiles(state, 0);
     expect(drawn.hands[0].length).toBeGreaterThanOrEqual(2);
@@ -281,20 +286,13 @@ describe('win / block / draw rules', () => {
   it('notes suspected lack suits when a player must draw', () => {
     let board = emptyBoard();
     board = placeFirstTile(board, tile(1, 6, 6), 'draw');
-    const state: DominoesState = {
-      currentPlayer: 0,
+    const state = baseState({
       hands: [[tile(2, 1, 2)], [tile(3, 3, 4)]],
       board,
       boneyard: [tile(4, 0, 0), tile(5, 0, 1), tile(6, 5, 5)],
-      phase: 'playing',
-      winner: null,
-      roundEndReason: null,
       ruleVariant: 'draw',
-      handScores: [0, 0],
-      lastPlayScore: 0,
       lastOpenSum: 12,
-      suspectedLack: [[], []],
-    };
+    });
     const drawn = drawTiles(state, 0);
     expect(drawn.suspectedLack[0]).toContain(6);
   });
@@ -439,5 +437,162 @@ describe('difficulty tiers', () => {
     board = placeFirstTile(board, tile(1, 6, 3), 'draw');
     const hand = [tile(2, 6, 6), tile(3, 3, 1)];
     expect(pickBotMove(hand, board, 7, 'easy')).toEqual({ tileId: 3, end: 'right' });
+  });
+
+  it('hard voidMemoryWeight is stronger than lackFeedWeight', () => {
+    const hard = getDifficultyConfig('hard');
+    expect(hard.voidMemoryWeight).toBeGreaterThan(hard.lackFeedWeight);
+    expect(hard.partnerHelpWeight).toBeGreaterThan(0);
+  });
+});
+
+describe('partners (4-seat)', () => {
+  it('teams even seats vs odd seats', () => {
+    expect(teamOf(0, 4)).toBe(0);
+    expect(teamOf(2, 4)).toBe(0);
+    expect(teamOf(1, 4)).toBe(1);
+    expect(teamOf(3, 4)).toBe(1);
+    expect(partnerOf(0)).toBe(2);
+    expect(partnerOf(1)).toBe(3);
+  });
+
+  it('deals 5 tiles each with a seeded shuffle', () => {
+    const a = createInitialState('fives', { playerCount: 4, seed: 'test-partners' });
+    const b = createInitialState('fives', { playerCount: 4, seed: 'test-partners' });
+    expect(a.playerCount).toBe(4);
+    expect(a.hands).toHaveLength(4);
+    for (const hand of a.hands) expect(hand.length).toBeLessThanOrEqual(5);
+    expect(a.hands.map((h) => h.map((t) => t.id))).toEqual(
+      b.hands.map((h) => h.map((t) => t.id)),
+    );
+    expect(a.boneyard.map((t) => t.id)).toEqual(b.boneyard.map((t) => t.id));
+  });
+
+  it('sums hand scores by team', () => {
+    expect(teamHandScores([10, 3, 5, 7], 4)).toEqual([15, 10]);
+    expect(teamHandScores([10, 3], 2)).toEqual([10, 3]);
+  });
+
+  it('awards opponent-team pips when a seat goes out', () => {
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(9, 6, 6), 'block');
+    const state = baseState({
+      playerCount: 4,
+      hands: [
+        [tile(7, 6, 1)],
+        [tile(8, 2, 2)],
+        [tile(10, 3, 3)],
+        [tile(11, 4, 4)],
+      ],
+      board,
+      handScores: [0, 0, 0, 0],
+      suspectedLack: [[], [], [], []],
+      ruleVariant: 'block',
+    });
+    const next = playTile(state, 0, 7, 'left');
+    expect(next).not.toBeNull();
+    expect(next!.phase).toBe('roundOver');
+    expect(next!.winningTeam).toBe(0);
+    // Opponents seats 1+3: 4 + 8 = 12
+    expect(next!.handScores[0]).toBe(12);
+  });
+
+  it('match scoring uses team totals for four seats', () => {
+    let match = createMatchState(61, 4);
+    match = applyRoundToMatch(match, [10, 0, 5, 0]);
+    expect(match.scores).toEqual([15, 0]);
+    expect(match.playerCount).toBe(4);
+  });
+
+  it('cooperative partner bot avoids leaving a partner-voided pip', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(1, 3, 4), 'block');
+    // left=3, right=4. Playing 3-6 opens 6; playing 3-2 opens 2.
+    // Partner lacks 6 → cooperative hard should prefer opening 2.
+    const hand = [tile(2, 3, 6), tile(3, 3, 2)];
+    const picked = pickBotMove(hand, board, 7, 'hard', {
+      ruleVariant: 'block',
+      partnerLack: [6],
+      cooperative: true,
+      deterministic: true,
+    });
+    expect(picked?.tileId).toBe(3);
+  });
+});
+
+describe('daily All Fives helpers', () => {
+  it('uses Taipei (UTC+8) calendar day', () => {
+    // 2026-10-21 16:00 UTC → 2026-10-22 00:00 Taipei
+    expect(todayKeyTaipei(new Date('2026-10-21T16:00:00Z'))).toBe('2026-10-22');
+    expect(todayKeyTaipei(new Date('2026-10-21T15:59:00Z'))).toBe('2026-10-21');
+  });
+
+  it('seeds a fixed deal for a date', () => {
+    const seed = dailyDealSeed('2026-10-22');
+    const a = createInitialState('fives', { seed });
+    const b = createInitialState('fives', { seed });
+    expect(a.hands[0].map((t) => t.id)).toEqual(b.hands[0].map((t) => t.id));
+    expect(dailyDealSeed('2026-10-22')).toBe(dailyDealSeed('2026-10-22'));
+    expect(dailyDealSeed('2026-10-22')).not.toBe(dailyDealSeed('2026-10-23'));
+  });
+
+  it('tracks best score and consecutive completed days', () => {
+    let progress = parseDailyProgress({ records: [] });
+    progress = recordDailyMatch(progress, '2026-10-20', 40, false);
+    progress = recordDailyMatch(progress, '2026-10-21', 55, true);
+    progress = recordDailyMatch(progress, '2026-10-21', 70, true);
+    const rec = progress.records.find((r) => r.dateKey === '2026-10-21');
+    expect(rec?.bestScore).toBe(70);
+    expect(rec?.attempts).toBe(2);
+    expect(dailyStreak(progress, '2026-10-21')).toBe(2);
+    expect(dailyStreak(progress, '2026-10-22')).toBe(2);
+  });
+
+  it('formats Traditional Chinese share text', () => {
+    const text = formatDailyShareText({
+      dateKey: '2026-10-22',
+      bestScore: 70,
+      streak: 3,
+      won: true,
+    });
+    expect(text).toContain('每日五倍數');
+    expect(text).toContain('2026-10-22');
+    expect(text).toContain('連續 3 天');
+    expect(text).toContain('勝');
+  });
+});
+
+describe('hard AI void inference', () => {
+  it('merges opponent lack lists', () => {
+    expect(mergeLackLists([[6, 1], [1, 3], []])).toEqual(
+      expect.arrayContaining([6, 1, 3]),
+    );
+  });
+
+  it('hard prefers feeding a remembered pass-void even more than normal feed', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(1, 3, 4), 'draw');
+    const hand = [tile(2, 3, 6), tile(3, 3, 2)];
+    const withVoid = pickBotMove(hand, board, 7, 'hard', {
+      ruleVariant: 'draw',
+      opponentLack: [6],
+      deterministic: true,
+    });
+    expect(withVoid?.tileId).toBe(2);
+  });
+
+  it('pass records open pips as suspected lack', () => {
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(1, 5, 5), 'block');
+    const state = baseState({
+      hands: [[tile(2, 1, 2)], [tile(3, 5, 0)]],
+      board,
+      ruleVariant: 'block',
+    });
+    // Seat 0 cannot play on 5 — pass notes lack of 5.
+    const next = pass(state, 0)!;
+    expect(next.suspectedLack[0]).toContain(5);
   });
 });
