@@ -8,7 +8,7 @@ export type Difficulty = 'easy' | 'normal' | 'hard';
 export type PersonalityId = 'rusher' | 'blocker' | 'architect';
 export type BoardPresetId = '7x6' | '8x7' | '9x7';
 export type RuleVariantId = 'classic' | 'popout' | 'five';
-export type SeriesTarget = 2 | 3 | 5;
+export type SeriesTarget = 1 | 2 | 3 | 5;
 export type GameMode = 'two' | 'bot' | 'puzzle';
 export type MoveKind = 'drop' | 'pop';
 
@@ -95,8 +95,8 @@ export const RULE_VARIANTS: Record<RuleVariantId, RuleVariant> = {
   },
 };
 
-export const SERIES_TARGETS: SeriesTarget[] = [2, 3, 5];
-export const DEFAULT_SERIES_TARGET: SeriesTarget = 3;
+export const SERIES_TARGETS: SeriesTarget[] = [1, 2, 3, 5];
+export const DEFAULT_SERIES_TARGET: SeriesTarget = 1;
 
 export function buildRules(
   variant: RuleVariantId,
