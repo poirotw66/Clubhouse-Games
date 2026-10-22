@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playMove,
   playCapture,
@@ -192,6 +194,7 @@ export default function App() {
   const prevPhaseRef = useRef<GamePhase>('playing');
   const seriesRecordedRef = useRef(false);
   const gameRecordedRef = useRef(false);
+  const boardShellRef = useRef<HTMLDivElement | null>(null);
 
   const legalDrops =
     state.phase === 'playing' ? getLegalDropColumns(state.board, rules) : [];
@@ -242,7 +245,7 @@ export default function App() {
   );
 
   const playMoveFx = useCallback(
-    (board: Board, move: Move, _color: PieceColor) => {
+    (board: Board, move: Move, _color: PieceColor, won = false) => {
       if (move.kind === 'drop') {
         // After apply, the new piece is the topmost filled cell in that column.
         let dropRow = 0;
@@ -254,9 +257,25 @@ export default function App() {
         }
         setDropFx({ row: dropRow, col: move.col, key: Date.now() });
         playMove();
+        const cell = boardShellRef.current?.querySelector(
+          `[data-c4-cell="${dropRow},${move.col}"]`,
+        );
+        haptic('place');
+        particles('dust', { el: cell ?? boardShellRef.current });
+        if (won) {
+          haptic('win');
+          particles('confetti', { el: boardShellRef.current, strength: 1.1 });
+          shake(boardShellRef.current, 0.95);
+        }
       } else {
         playCapture();
         setDropFx(null);
+        haptic('tap');
+        if (won) {
+          haptic('win');
+          particles('confetti', { el: boardShellRef.current, strength: 1.1 });
+          shake(boardShellRef.current, 0.95);
+        }
       }
     },
     [rules],
@@ -288,7 +307,7 @@ export default function App() {
         setHistory((h) => [...h, state]);
       }
       setHintMove(null);
-      playMoveFx(nextBoard, move, color);
+      playMoveFx(nextBoard, move, color, Boolean(winner));
 
       const nextState: GameState = {
         board: nextBoard,
@@ -359,7 +378,7 @@ export default function App() {
         rules,
       );
       const full = !winner && isBoardFull(nextBoard, rules);
-      playMoveFx(nextBoard, move, botColor);
+      playMoveFx(nextBoard, move, botColor, Boolean(winner));
       setState({
         board: nextBoard,
         currentTurn: botColor === 'red' ? 'yellow' : 'red',
@@ -1045,6 +1064,8 @@ export default function App() {
           </p>
 
           <div
+            ref={boardShellRef}
+            data-c4-board
             className="inline-block p-3 rounded-xl shadow-lg w-full bg-cover bg-center"
             style={{
               maxWidth: boardMaxWidth,
@@ -1136,6 +1157,7 @@ export default function App() {
                 return (
                   <div
                     key={`${row}-${col}`}
+                    data-c4-cell={`${row},${col}`}
                     className={`rounded-full bg-slate-800 flex items-center justify-center aspect-square max-w-full ${
                       isWinning
                         ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-blue-800'
@@ -1299,6 +1321,9 @@ export default function App() {
                 難度」分開記錄。
               </li>
             </ul>
+            <div className="mt-4">
+              <JuiceSettingsPanel />
+            </div>
             <button
               type="button"
               onClick={() => setShowRules(false)}

@@ -11,6 +11,8 @@
     "./ScoreFlash": "./ScoreFlash.tsx",
     "./TouchButton": "./TouchButton.tsx",
     "./synthAudio": "./synthAudio.ts",
+    "./juice": "./juice.ts",
+    "./JuiceSettings": "./JuiceSettings.tsx",
     "./shuffle": "./shuffle.ts",
     "./MatchSession": "./MatchSession.ts",
     "./opponentLadder": "./opponentLadder.ts",
@@ -41,8 +43,8 @@
   },
   "scripts": {
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts",
-    "check": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts"
+    "test": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts",
+    "check": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

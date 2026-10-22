@@ -223,6 +223,51 @@ test('connect four: default lobby is single without series strip', async ({ page
   await expect(page.getByRole('group', { name: '系列賽目標' })).toBeVisible();
 });
 
+test('connect four: juice win shake and vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Connect-Four'), 'selective CI');
+  await page.addInitScript(() => {
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Connect-Four/');
+  await activate(page.getByRole('button', { name: '雙人對戰' }), isMobile);
+  await activate(page.getByRole('button', { name: '經典', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '7×6', exact: true }), isMobile);
+  for (const column of [1, 2, 1, 2, 1, 2, 1]) {
+    await activate(page.getByRole('button', { name: `投入第 ${column} 欄`, exact: true }), isMobile);
+  }
+  const result = page.getByRole('dialog');
+  await expect(result).toBeVisible();
+  await expect(page.locator('[data-c4-board]')).toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+});
+
+test('connect four: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Connect-Four'), 'selective CI');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Connect-Four/');
+  await activate(page.getByRole('button', { name: '雙人對戰' }), isMobile);
+  for (const column of [1, 2, 1, 2, 1, 2, 1]) {
+    await activate(page.getByRole('button', { name: `投入第 ${column} 欄`, exact: true }), isMobile);
+  }
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('[data-c4-board]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
+});
+
 test('dominoes: default target is single under more modes', async ({ page, isMobile }) => {
   test.skip(!includesGame('Dominoes'), 'selective CI');
   await page.addInitScript(() => {
