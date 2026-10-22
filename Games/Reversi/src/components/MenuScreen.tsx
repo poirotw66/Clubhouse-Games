@@ -265,24 +265,31 @@ function BotSetup({
       </div>
       <p className="text-stone-500 text-xs">{DIFFICULTY_BLURBS[difficulty]}</p>
 
-      <p className="text-stone-300 text-sm">系列賽</p>
-      <div className="flex gap-2" role="group" aria-label="系列賽長度">
-        {SERIES_OPTIONS.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => setSeriesLength(n)}
-            aria-pressed={seriesLength === n}
-            className={`flex-1 px-2 py-2 rounded-xl border text-xs font-medium ${
-              seriesLength === n
-                ? 'bg-amber-700/50 border-amber-400 text-amber-100'
-                : 'bg-stone-800 border-stone-600 text-stone-300'
-            }`}
-          >
-            {seriesLabel(n)}
-          </button>
-        ))}
-      </div>
+      <details className="rv-more-modes rounded-xl border border-stone-700/80 bg-stone-900/40 px-3 py-2" open={seriesLength > 1}>
+        <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-sm text-stone-300 font-medium">
+          <span>更多賽制</span>
+          <span className="text-xs font-normal text-stone-500">
+            {seriesLength === 1 ? '目前：單局' : `目前：${seriesLabel(seriesLength)}`}
+          </span>
+        </summary>
+        <div className="mt-2 flex gap-2" role="group" aria-label="系列賽長度">
+          {SERIES_OPTIONS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setSeriesLength(n)}
+              aria-pressed={seriesLength === n}
+              className={`flex-1 px-2 py-2 min-h-[44px] rounded-xl border text-xs font-medium touch-manipulation ${
+                seriesLength === n
+                  ? 'bg-amber-700/50 border-amber-400 text-amber-100'
+                  : 'bg-stone-800 border-stone-600 text-stone-300'
+              }`}
+            >
+              {seriesLabel(n)}
+            </button>
+          ))}
+        </div>
+      </details>
 
       <p className="text-stone-300 text-sm mt-1">選擇執子</p>
       <div className="flex gap-4">
@@ -312,23 +319,31 @@ function LadderSetup({
         ← 返回
       </button>
       <p className="text-sm text-stone-300">打贏解鎖下一位。每位對手風格不同。</p>
-      <div className="flex gap-2 mb-1" role="group" aria-label="系列賽長度">
-        {SERIES_OPTIONS.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => setSeriesLength(n)}
-            aria-pressed={seriesLength === n}
-            className={`flex-1 px-2 py-1.5 rounded-lg border text-xs ${
-              seriesLength === n
-                ? 'bg-amber-700/50 border-amber-400'
-                : 'bg-stone-800 border-stone-600'
-            }`}
-          >
-            {seriesLabel(n)}
-          </button>
-        ))}
-      </div>
+      <details className="rv-more-modes rounded-xl border border-stone-700/80 bg-stone-900/40 px-3 py-2 mb-1" open={seriesLength > 1}>
+        <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-xs text-stone-300 font-medium">
+          <span>更多賽制</span>
+          <span className="font-normal text-stone-500">
+            {seriesLength === 1 ? '目前：單局' : `目前：${seriesLabel(seriesLength)}`}
+          </span>
+        </summary>
+        <div className="mt-2 flex gap-2" role="group" aria-label="系列賽長度">
+          {SERIES_OPTIONS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setSeriesLength(n)}
+              aria-pressed={seriesLength === n}
+              className={`flex-1 px-2 py-1.5 min-h-[44px] rounded-lg border text-xs touch-manipulation ${
+                seriesLength === n
+                  ? 'bg-amber-700/50 border-amber-400'
+                  : 'bg-stone-800 border-stone-600'
+              }`}
+            >
+              {seriesLabel(n)}
+            </button>
+          ))}
+        </div>
+      </details>
       <ul className="flex flex-col gap-2 max-h-[55vh] overflow-y-auto">
         {OPPONENTS.map((op, index) => (
           <OpponentCard
