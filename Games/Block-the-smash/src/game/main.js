@@ -27,9 +27,12 @@ import {
   OPPONENTS,
   chooseSmash,
   getOpponent,
+  seriesWinsNeeded,
+  shouldStartBurst,
 } from './opponents.js';
 import {
   PHASES,
+  applyDailyResult,
   applyDrillResult,
   applyScoreAttackResult,
   applyVersusResult,
@@ -41,6 +44,16 @@ import {
   saveStats,
   scoreAttackWave,
 } from './scoring.js';
+import {
+  COUNTER_WINDOW_SEC,
+  resolvePerfectCounter,
+} from './counter.js';
+import {
+  DAILY_BALL_COUNT,
+  buildDailyScript,
+  computeDailyStreak,
+  taipeiDateKey,
+} from './daily.js';
 
 const DISPLAY_SPEED_MIN = 280;
 const DISPLAY_SPEED_MAX = 550;
@@ -179,7 +192,7 @@ let lastOut = 0;
 
 // --- STATE ---
 let state = {
-  mode: 'drill', // drill | scoreAttack | versus
+  mode: 'drill', // drill | scoreAttack | versus | daily
   hits: 0,
   misses: 0,
   blocks: 0,
@@ -209,7 +222,7 @@ let state = {
   muted: false,
   toastTimer: 0,
   lives: 3,
-  windup: null, // { remaining, total, tell, real, isFake }
+  windup: null, // { remaining, total, tell, real, isFake, sideSign }
   opponentId: 'hao',
   playerPoints: 0,
   cpuPoints: 0,
@@ -217,6 +230,24 @@ let state = {
   versusStreak: 0,
   rallyPressure: 0,
   waitingForNextSmash: false,
+  // BO3 series
+  seriesBestOf: 3,
+  seriesNeed: 2,
+  seriesPlayer: 0,
+  seriesCpu: 0,
+  gameInSeries: 1,
+  // Habit runtime
+  habitBurstLeft: 0,
+  habitTempoFlip: false,
+  rhythmDelay: 0,
+  fakeSoftUntil: 0,
+  // Counter-attack phase after Perfect
+  counter: null, // { shuttle, remaining, comboAtHit }
+  countersLanded: 0,
+  // Daily
+  dailyDateKey: '',
+  dailyScript: /** @type {import('./daily.js').DailyShot[] | null} */ (null),
+  dailyIndex: 0,
   rng: createRng(Date.now() >>> 0),
 };
 
@@ -577,6 +608,9 @@ function phaseProgress() {
 function phaseTier() {
   if (state.mode === 'scoreAttack') return Math.min(2, scoreAttackWave(state.clearedBalls));
   if (state.mode === 'versus') return Math.min(2, state.playerPoints + state.cpuPoints);
+  if (state.mode === 'daily') {
+    return phaseTierFromProgress(state.maxBalls > 0 ? state.spawnedBalls / state.maxBalls : 0);
+  }
   return phaseTierFromProgress(phaseProgress());
 }
 
@@ -608,6 +642,8 @@ function updatePhaseBanner() {
   if (state.mode === 'versus') {
     const opp = getOpponent(state.opponentId);
     el.textContent = opp ? opp.name : '對戰';
+  } else if (state.mode === 'daily') {
+    el.textContent = `每日 ${state.dailyDateKey || ''}`.trim();
   } else if (state.mode === 'scoreAttack') {
     el.textContent = `波次 ${scoreAttackWave(state.clearedBalls) + 1}`;
   } else {
@@ -623,11 +659,15 @@ function updateScoreHud() {
   const versusEl = document.getElementById('versus-score');
   const scoreLabel = document.getElementById('score-label');
 
-  if (state.mode === 'scoreAttack') {
-    if (scoreLabel) scoreLabel.textContent = '得分';
+  if (state.mode === 'scoreAttack' || state.mode === 'daily') {
+    if (scoreLabel) scoreLabel.textContent = state.mode === 'daily' ? '每日' : '得分';
     if (scoreVal) scoreVal.textContent = String(state.score);
-    if (maxVal) maxVal.textContent = `♥${state.lives}`;
+    if (maxVal) {
+      maxVal.textContent =
+        state.mode === 'daily' ? `${state.spawnedBalls}/${state.maxBalls}` : `♥${state.lives}`;
+    }
     if (missVal) missVal.textContent = String(state.misses);
+    if (versusEl) versusEl.style.display = 'none';
   } else if (state.mode === 'versus') {
     if (scoreLabel) scoreLabel.textContent = '比分';
     if (scoreVal) scoreVal.textContent = `${state.playerPoints}`;
@@ -635,7 +675,7 @@ function updateScoreHud() {
     if (missVal) missVal.textContent = String(state.misses);
     if (versusEl) {
       versusEl.style.display = 'block';
-      versusEl.textContent = `先至 ${state.pointsToWin} 分`;
+      versusEl.textContent = `BO${state.seriesBestOf} ${state.seriesPlayer}-${state.seriesCpu} · 第${state.gameInSeries}局 · 先至${state.pointsToWin}`;
     }
   } else {
     if (scoreLabel) scoreLabel.textContent = '擋下';
@@ -726,15 +766,185 @@ function runCountdown(callback) {
   }, 800);
 }
 
+function hideCounterUi() {
+  const panel = document.getElementById('counter-panel');
+  if (panel) {
+    panel.classList.remove('show');
+    panel.setAttribute('aria-hidden', 'true');
+  }
+  state.counter = null;
+}
+
+function showCounterUi() {
+  const panel = document.getElementById('counter-panel');
+  if (!panel) return;
+  panel.classList.add('show');
+  panel.setAttribute('aria-hidden', 'false');
+  const hint = document.getElementById('counter-hint');
+  if (hint) {
+    hint.textContent = PREFERS_REDUCED ? '選擇回球落點（自動讀取指標）' : '選擇回球落點';
+  }
+}
+
+/**
+ * @param {'left'|'center'|'right'} zone
+ */
+function completeCounter(zone) {
+  if (!state.counter) return;
+  const pending = state.counter;
+  hideCounterUi();
+  const s = pending.shuttle;
+  const style = opponentStyle();
+  const cover = style
+    ? {
+        coverLeft: style.coverLeft,
+        coverCenter: style.coverCenter,
+        coverRight: style.coverRight,
+        defense: style.defense,
+      }
+    : null;
+
+  const resolved = resolvePerfectCounter({
+    mode: state.mode,
+    zone,
+    combo: pending.comboAtHit,
+    cover,
+    versusWinsPoint: versusReturnWinsPoint,
+    rng: state.rng,
+  });
+
+  state.countersLanded += 1;
+  const dirX = zone === 'left' ? -24 : zone === 'right' ? 24 : (state.rng() - 0.5) * 6;
+  if (s && s.visible) {
+    s.userData.velocity.set(dirX, 16, -Math.abs(s.userData.velocity.z) * 1.2 - 24);
+  }
+
+  showToast(resolved.toast, resolved.wonPoint || state.mode !== 'versus' ? 'perfect' : 'good');
+
+  if (state.mode === 'scoreAttack' || state.mode === 'daily') {
+    state.score += scoreForContact('perfect', pending.comboAtHit, zone) + resolved.scoreDelta;
+    state.clearedBalls += 1;
+    state.waitingForNextSmash = false;
+  } else if (state.mode === 'versus' && cover) {
+    if (resolved.wonPoint) {
+      state.playerPoints += 1;
+      state.rallyPressure = 0;
+      if (state.playerPoints >= state.pointsToWin) {
+        updateScoreHud();
+        endVersusGame(true);
+        return;
+      }
+    } else {
+      state.rallyPressure = 0;
+    }
+    if (resolved.disrupted) {
+      state.rhythmDelay = 0.55 + state.rng() * 0.35;
+      state.fakeSoftUntil = clock.getElapsedTime() + 2.2;
+    }
+    state.waitingForNextSmash = true;
+    const delay = resolved.disrupted ? 900 : 650;
+    setTimeout(() => {
+      if (state.isRunning && !state.counter) {
+        state.waitingForNextSmash = false;
+        queueWindup();
+      }
+    }, delay);
+  } else {
+    // Drill: soft pacing break after corner counter.
+    state.waitingForNextSmash = false;
+    if (resolved.disrupted) state.rhythmDelay = 0.25;
+  }
+
+  updateScoreHud();
+}
+
+function beginCounterPhase(s) {
+  state.counter = {
+    shuttle: s,
+    remaining: PREFERS_REDUCED ? 0.05 : COUNTER_WINDOW_SEC,
+    comboAtHit: Math.max(0, state.combo - 1),
+  };
+  if (PREFERS_REDUCED) {
+    // Instant: use current pointer zone without waiting on UI.
+    completeCounter(aimZoneFromMouse(state.mouse.x));
+    return;
+  }
+  showCounterUi();
+}
+
+function resetGamePoints() {
+  state.playerPoints = 0;
+  state.cpuPoints = 0;
+  state.rallyPressure = 0;
+  state.waitingForNextSmash = false;
+  state.habitBurstLeft = 0;
+  state.rhythmDelay = 0;
+  state.fakeSoftUntil = 0;
+}
+
+/**
+ * @param {boolean} playerWonGame
+ */
+function endVersusGame(playerWonGame) {
+  if (playerWonGame) state.seriesPlayer += 1;
+  else state.seriesCpu += 1;
+  updateScoreHud();
+
+  if (state.seriesPlayer >= state.seriesNeed || state.seriesCpu >= state.seriesNeed) {
+    finishMatch();
+    return;
+  }
+
+  // Next game in BO3 series.
+  state.gameInSeries += 1;
+  resetGamePoints();
+  shuttlePool.reset();
+  shuttlePool.pool.forEach((s) => {
+    if (s.userData.trail) s.userData.trail.visible = false;
+    if (s.userData.shadow) s.userData.shadow.visible = false;
+  });
+  hideCounterUi();
+  showToast(`第 ${state.gameInSeries} 局`, 'good');
+  state.isRunning = false;
+  runCountdown(() => {
+    state.isRunning = true;
+    state.lastSpawnTime = clock.getElapsedTime();
+    queueWindup();
+  });
+}
+
 function startMatch(opts = {}) {
-  const mode = opts.mode === 'scoreAttack' || opts.mode === 'versus' ? opts.mode : 'drill';
+  const mode =
+    opts.mode === 'scoreAttack' || opts.mode === 'versus' || opts.mode === 'daily'
+      ? opts.mode
+      : 'drill';
   state.mode = mode;
   state.difficulty = DIFFICULTY[opts.difficulty] ? opts.difficulty : 'normal';
-  state.maxBalls = mode === 'drill' ? opts.balls ?? 25 : 999;
+  if (mode === 'daily') {
+    state.difficulty = 'normal';
+    state.dailyDateKey = typeof opts.dateKey === 'string' ? opts.dateKey : taipeiDateKey();
+    state.dailyScript = buildDailyScript(state.dailyDateKey, opts.balls ?? DAILY_BALL_COUNT);
+    state.dailyIndex = 0;
+    state.maxBalls = state.dailyScript.length;
+    state.rng = createRng(
+      (opts.seed != null ? opts.seed : hashSeedFromDaily(state.dailyDateKey)) >>> 0,
+    );
+  } else {
+    state.dailyDateKey = '';
+    state.dailyScript = null;
+    state.dailyIndex = 0;
+    state.maxBalls = mode === 'drill' ? opts.balls ?? 25 : 999;
+    state.rng = createRng((Date.now() ^ (opts.seed ?? 0)) >>> 0);
+  }
+
   state.opponentId = opts.opponentId || 'hao';
   const opp = getOpponent(state.opponentId);
   state.pointsToWin = opp?.pointsToWin ?? 5;
-  state.rng = createRng((Date.now() ^ (opts.seed ?? 0)) >>> 0);
+  state.seriesBestOf = opp?.bestOf ?? 3;
+  state.seriesNeed = seriesWinsNeeded(state.seriesBestOf);
+  state.seriesPlayer = 0;
+  state.seriesCpu = 0;
+  state.gameInSeries = 1;
 
   state.spawnedBalls = 0;
   state.clearedBalls = 0;
@@ -751,12 +961,12 @@ function startMatch(opts = {}) {
   state.swinging = false;
   state.hitStop = 0;
   state.lives = diffCfg().lives;
-  state.playerPoints = 0;
-  state.cpuPoints = 0;
-  state.rallyPressure = 0;
-  state.waitingForNextSmash = false;
+  resetGamePoints();
   state.windup = null;
   state.versusStreak = 0;
+  state.countersLanded = 0;
+  state.habitTempoFlip = false;
+  hideCounterUi();
 
   document.getElementById('game-over').style.display = 'none';
   document.getElementById('speed-val').innerText = '0';
@@ -775,8 +985,18 @@ function startMatch(opts = {}) {
   runCountdown(() => {
     state.isRunning = true;
     state.lastSpawnTime = clock.getElapsedTime();
-    if (state.mode === 'versus') queueWindup();
+    if (state.mode === 'versus' || state.mode === 'daily') queueWindup();
   });
+}
+
+function hashSeedFromDaily(dateKey) {
+  let h = 2166136261;
+  const str = `bts-play-${dateKey}`;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
 function currentMix() {
@@ -788,39 +1008,84 @@ function opponentStyle() {
   return getOpponent(state.opponentId)?.style ?? null;
 }
 
+function opponentHabit() {
+  if (state.mode !== 'versus') return null;
+  return getOpponent(state.opponentId)?.habit ?? null;
+}
+
 function queueWindup() {
-  if (!state.isRunning) return;
-  if (state.mode === 'drill' && state.spawnedBalls >= state.maxBalls) return;
+  if (!state.isRunning || state.counter) return;
+  if ((state.mode === 'drill' || state.mode === 'daily') && state.spawnedBalls >= state.maxBalls) {
+    return;
+  }
   if (state.windup) return;
+  if (state.waitingForNextSmash) return;
+  if (state.rhythmDelay > 0) return;
 
   const style = opponentStyle();
+  const habit = opponentHabit();
   const cfg = diffCfg();
   const mix = currentMix();
-  /** @type {import('./opponents.js').OpponentStyle | null} */
-  let pickStyle = style;
-  if (!pickStyle) {
-    pickStyle = {
-      straight: mix.straight,
-      cross: mix.cross,
-      drop: mix.drop,
-      body: mix.body,
-      fakeRate: Math.min(0.5, 0.1 * cfg.fakeMul * (1 + phaseTier())),
-      speedMul: 1,
-      spawnMul: 1,
-      defense: 0.3,
-      coverLeft: 0.4,
-      coverCenter: 0.4,
-      coverRight: 0.4,
-      aimSpread: cfg.aimSpread,
+
+  /** @type {{ real: import('./smashTypes.js').SmashTypeId, tell: import('./smashTypes.js').SmashTypeId, isFake: boolean, sideSign?: number }} */
+  let pick;
+
+  if (state.mode === 'daily' && state.dailyScript) {
+    const shot = state.dailyScript[state.dailyIndex];
+    if (!shot) return;
+    state.dailyIndex += 1;
+    pick = {
+      real: shot.real,
+      tell: shot.tell,
+      isFake: shot.isFake,
+      sideSign: shot.sideSign,
     };
+  } else {
+    /** @type {import('./opponents.js').OpponentStyle | null} */
+    let pickStyle = style;
+    if (!pickStyle) {
+      pickStyle = {
+        straight: mix.straight,
+        cross: mix.cross,
+        drop: mix.drop,
+        body: mix.body,
+        fakeRate: Math.min(0.5, 0.1 * cfg.fakeMul * (1 + phaseTier())),
+        speedMul: 1,
+        spawnMul: 1,
+        defense: 0.3,
+        coverLeft: 0.4,
+        coverCenter: 0.4,
+        coverRight: 0.4,
+        aimSpread: cfg.aimSpread,
+      };
+    }
+    // Soften fakes briefly after a disrupting counter.
+    if (state.fakeSoftUntil > clock.getElapsedTime() && pickStyle) {
+      pickStyle = { ...pickStyle, fakeRate: pickStyle.fakeRate * 0.35 };
+    }
+    const forceBurst = state.habitBurstLeft > 0;
+    if (forceBurst) state.habitBurstLeft -= 1;
+    pick = chooseSmash(pickStyle, mix, state.rng, { habit, forceBurst });
+    if (!forceBurst && shouldStartBurst(habit, pick.real, state.rng)) {
+      state.habitBurstLeft = Math.max(0, (habit?.burstLen ?? 1) - 1);
+    }
   }
-  const pick = chooseSmash(pickStyle, mix, state.rng);
 
   const tellDef = SMASH_DEFS[pick.tell];
-  const sideSign = state.rng() < 0.5 ? -1 : 1;
+  const sideSign = pick.sideSign ?? (state.rng() < 0.5 ? -1 : 1);
+  let windupSec = tellDef.windupSec * (style ? 1 : 1 - phaseTier() * 0.06);
+  if (habit?.tempoJitter) {
+    windupSec *= 1 + (state.rng() * 2 - 1) * habit.tempoJitter;
+  }
+  if (habit?.altTempo) {
+    windupSec *= state.habitTempoFlip ? 1.28 : 0.72;
+    state.habitTempoFlip = !state.habitTempoFlip;
+  }
+  windupSec = Math.max(0.22, windupSec);
+
   state.windup = {
-    remaining: tellDef.windupSec * (style ? 1 : 1 - phaseTier() * 0.06),
-    total: tellDef.windupSec,
+    remaining: windupSec,
+    total: windupSec,
     tell: pick.tell,
     real: pick.real,
     isFake: pick.isFake,
@@ -942,6 +1207,8 @@ function registerMiss(s) {
     state.cpuPoints += 1;
     showToast('對手得分', 'bad');
     state.waitingForNextSmash = true;
+  } else if (state.mode === 'daily') {
+    showToast('漏接!', 'bad');
   } else {
     showToast('漏接!', 'bad');
   }
@@ -953,10 +1220,10 @@ function registerMiss(s) {
   if (state.mode === 'scoreAttack' && state.lives <= 0) {
     finishMatch();
   } else if (state.mode === 'versus') {
-    if (state.cpuPoints >= state.pointsToWin) finishMatch();
+    if (state.cpuPoints >= state.pointsToWin) endVersusGame(false);
     else {
       setTimeout(() => {
-        if (state.isRunning) {
+        if (state.isRunning && !state.counter) {
           state.waitingForNextSmash = false;
           queueWindup();
         }
@@ -977,49 +1244,19 @@ function applyContactResult(s, grade) {
     state.combo += 1;
     state.maxCombo = Math.max(state.maxCombo, state.combo);
     createFeatherExplosion(s.position, 16);
-    // Counter: aim return by pointer zone
-    const dirX = aimZone === 'left' ? -22 : aimZone === 'right' ? 22 : (state.rng() - 0.5) * 6;
-    s.userData.velocity.set(dirX, 14, -Math.abs(s.userData.velocity.z) * 1.15 - 20);
+    // Hold shuttle near impact while player picks a return lane.
+    s.userData.velocity.set(0, 2, -8);
     AudioSys.playHit('perfect');
     if (!PREFERS_REDUCED) {
       state.shake = 0.65;
       state.flash = 1;
       state.hitStop = HIT_STOP_PERFECT;
     }
-    showToast(aimZone === 'center' ? '完美!' : `完美・${aimZone === 'left' ? '左' : '右'}路`, 'perfect');
-
-    if (state.mode === 'scoreAttack') {
-      state.score += scoreForContact('perfect', state.combo - 1, aimZone);
-      state.clearedBalls += 1;
-    } else if (state.mode === 'versus') {
-      if (versusReturnWinsPoint('perfect', aimZone, style, state.rng)) {
-        state.playerPoints += 1;
-        state.rallyPressure = 0;
-        state.waitingForNextSmash = true;
-        showToast('得分!', 'perfect');
-        if (state.playerPoints >= state.pointsToWin) {
-          updateScoreHud();
-          finishMatch();
-          return;
-        }
-        setTimeout(() => {
-          if (state.isRunning) {
-            state.waitingForNextSmash = false;
-            queueWindup();
-          }
-        }, 650);
-      } else {
-        state.rallyPressure = 0;
-        state.waitingForNextSmash = true;
-        showToast('對手接住!', 'good');
-        setTimeout(() => {
-          if (state.isRunning) {
-            state.waitingForNextSmash = false;
-            queueWindup();
-          }
-        }, 550);
-      }
-    }
+    showToast('完美! 回殺', 'perfect');
+    state.waitingForNextSmash = true;
+    beginCounterPhase(s);
+    updateScoreHud();
+    return;
   } else if (grade === 'good') {
     state.goods += 1;
     state.hits += 1;
@@ -1036,7 +1273,7 @@ function applyContactResult(s, grade) {
     }
     showToast('擋下!', 'good');
 
-    if (state.mode === 'scoreAttack') {
+    if (state.mode === 'scoreAttack' || state.mode === 'daily') {
       state.score += scoreForContact('good', state.combo - 1, aimZone);
       state.clearedBalls += 1;
     } else if (state.mode === 'versus') {
@@ -1046,11 +1283,11 @@ function applyContactResult(s, grade) {
         state.waitingForNextSmash = true;
         if (state.playerPoints >= state.pointsToWin) {
           updateScoreHud();
-          finishMatch();
+          endVersusGame(true);
           return;
         }
         setTimeout(() => {
-          if (state.isRunning) {
+          if (state.isRunning && !state.counter) {
             state.waitingForNextSmash = false;
             queueWindup();
           }
@@ -1059,7 +1296,7 @@ function applyContactResult(s, grade) {
         state.rallyPressure += 1;
         state.waitingForNextSmash = true;
         setTimeout(() => {
-          if (state.isRunning) {
+          if (state.isRunning && !state.counter) {
             state.waitingForNextSmash = false;
             queueWindup();
           }
@@ -1074,7 +1311,7 @@ function applyContactResult(s, grade) {
     s.userData.velocity.set((state.rng() - 0.5) * 8, 5, 5);
     AudioSys.playHit('block');
     showToast('輕擋', 'good');
-    if (state.mode === 'scoreAttack') {
+    if (state.mode === 'scoreAttack' || state.mode === 'daily') {
       state.score += scoreForContact('block', 0, 'center');
       state.clearedBalls += 1;
     } else if (state.mode === 'versus') {
@@ -1085,13 +1322,13 @@ function applyContactResult(s, grade) {
         showToast('被壓死!', 'bad');
         if (state.cpuPoints >= state.pointsToWin) {
           updateScoreHud();
-          finishMatch();
+          endVersusGame(false);
           return;
         }
       }
       state.waitingForNextSmash = true;
       setTimeout(() => {
-        if (state.isRunning) {
+        if (state.isRunning && !state.counter) {
           state.waitingForNextSmash = false;
           queueWindup();
         }
@@ -1113,6 +1350,7 @@ function setStatLabels(hitLabel, accLabel, bestLabel) {
 function finishMatch() {
   state.isRunning = false;
   state.windup = null;
+  hideCounterUi();
   resetOpponentPose();
 
   const stats = loadStats(storage());
@@ -1128,6 +1366,7 @@ function finishMatch() {
       perfects: state.perfects,
       maxCombo: state.maxCombo,
     });
+    stats.careerCounters += state.countersLanded;
     summaryTitle = grade.title;
     document.getElementById('final-hits').innerText = String(state.score);
     document.getElementById('final-misses').innerText = String(state.misses);
@@ -1137,8 +1376,36 @@ function finishMatch() {
       stats.scoreAttackBest[state.difficulty] ?? state.score,
     );
     setStatLabels('得分', '完美次數', '此難度最佳得分');
+  } else if (state.mode === 'daily') {
+    const acc = drillAccuracy({
+      perfects: state.perfects,
+      goods: state.goods,
+      blocks: state.blocks,
+      misses: state.misses,
+      maxBalls: state.maxBalls,
+    });
+    // Blend contact accuracy into a daily score so soft blocks still count.
+    const dailyScore = state.score + acc * 20 + state.countersLanded * 150;
+    state.score = dailyScore;
+    grade = gradeFromScore(dailyScore);
+    isRecord = applyDailyResult(stats, {
+      dateKey: state.dailyDateKey,
+      score: dailyScore,
+      perfects: state.perfects,
+      maxCombo: state.maxCombo,
+      counters: state.countersLanded,
+    });
+    const streak = computeDailyStreak(stats.dailyBest, state.dailyDateKey);
+    summaryTitle = grade.title;
+    document.getElementById('final-hits').innerText = String(dailyScore);
+    document.getElementById('final-misses').innerText = String(state.misses);
+    document.getElementById('final-accuracy').innerText = `${acc}%`;
+    document.getElementById('final-combo').innerText = String(state.maxCombo);
+    document.getElementById('final-best').innerText =
+      `${stats.dailyBest[state.dailyDateKey] ?? dailyScore} · 連${streak}天`;
+    setStatLabels('每日得分', '命中率', '今日最佳・連續天數');
   } else if (state.mode === 'versus') {
-    const won = state.playerPoints >= state.pointsToWin;
+    const won = state.seriesPlayer >= state.seriesNeed;
     if (won) state.versusStreak += 1;
     else state.versusStreak = 0;
     applyVersusResult(stats, {
@@ -1147,19 +1414,20 @@ function finishMatch() {
       perfects: state.perfects,
       maxCombo: state.maxCombo,
       streak: state.versusStreak,
+      counters: state.countersLanded,
     });
     grade = won
-      ? { grade: 'S', title: '比賽勝利', cls: 'grade-s' }
-      : { grade: 'D', title: '惜敗', cls: 'grade-d' };
+      ? { grade: 'S', title: '系列賽勝利', cls: 'grade-s' }
+      : { grade: 'D', title: '系列賽惜敗', cls: 'grade-d' };
     summaryTitle = grade.title;
     isRecord = won;
-    document.getElementById('final-hits').innerText = `${state.playerPoints} - ${state.cpuPoints}`;
+    document.getElementById('final-hits').innerText = `${state.seriesPlayer} - ${state.seriesCpu}`;
     document.getElementById('final-misses').innerText = String(state.misses);
     document.getElementById('final-accuracy').innerText = `${state.perfects}`;
     document.getElementById('final-combo').innerText = String(state.maxCombo);
     const wins = stats.versusWins[state.opponentId] ?? 0;
-    document.getElementById('final-best').innerText = `${wins} 勝`;
-    setStatLabels('比分', '完美次數', '對此對手勝場');
+    document.getElementById('final-best').innerText = `${wins} 勝 (BO${state.seriesBestOf})`;
+    setStatLabels('局數', '完美次數', '對此對手系列勝場');
   } else {
     const acc = drillAccuracy({
       perfects: state.perfects,
@@ -1177,6 +1445,7 @@ function finishMatch() {
       perfects: state.perfects,
       maxCombo: state.maxCombo,
     });
+    stats.careerCounters += state.countersLanded;
     summaryTitle = grade.title;
     document.getElementById('final-hits').innerText = `${state.perfects + state.goods} / ${state.maxBalls}`;
     document.getElementById('final-misses').innerText = String(state.misses);
@@ -1195,11 +1464,23 @@ function finishMatch() {
   const recordEl = document.getElementById('new-record');
   if (recordEl) {
     recordEl.style.display = isRecord ? 'block' : 'none';
-    recordEl.textContent = state.mode === 'versus' ? '挑戰成功！' : '新紀錄！';
+    recordEl.textContent =
+      state.mode === 'versus' ? '挑戰成功！' : state.mode === 'daily' ? '今日最佳！' : '新紀錄！';
   }
 
   document.getElementById('game-over').style.display = 'block';
   document.body.style.cursor = 'auto';
+
+  const accPayload =
+    state.mode === 'drill' || state.mode === 'daily'
+      ? drillAccuracy({
+          perfects: state.perfects,
+          goods: state.goods,
+          blocks: state.blocks,
+          misses: state.misses,
+          maxBalls: state.maxBalls,
+        })
+      : 0;
 
   try {
     parent.postMessage(
@@ -1211,20 +1492,19 @@ function finishMatch() {
           misses: state.misses,
           perfects: state.perfects,
           score: state.score,
-          accuracy:
-            state.mode === 'drill'
-              ? drillAccuracy({
-                  perfects: state.perfects,
-                  goods: state.goods,
-                  blocks: state.blocks,
-                  misses: state.misses,
-                  maxBalls: state.maxBalls,
-                })
-              : 0,
+          accuracy: accPayload,
           grade: grade.grade,
           opponentId: state.opponentId,
           playerPoints: state.playerPoints,
           cpuPoints: state.cpuPoints,
+          seriesPlayer: state.seriesPlayer,
+          seriesCpu: state.seriesCpu,
+          dateKey: state.dailyDateKey,
+          counters: state.countersLanded,
+          streak:
+            state.mode === 'daily'
+              ? computeDailyStreak(stats.dailyBest, state.dailyDateKey)
+              : 0,
         },
       },
       '*',
@@ -1237,20 +1517,31 @@ function finishMatch() {
 function replayDrill() {
   startMatch({
     mode: state.mode,
-    balls: state.maxBalls,
+    balls: state.mode === 'daily' ? DAILY_BALL_COUNT : state.maxBalls,
     difficulty: state.difficulty,
     opponentId: state.opponentId,
+    dateKey: state.dailyDateKey || undefined,
   });
 }
 
 document.getElementById('restart-btn').addEventListener('click', replayDrill);
 document.getElementById('menu-btn')?.addEventListener('click', () => {
   document.getElementById('game-over').style.display = 'none';
+  hideCounterUi();
   try {
     parent.postMessage({ type: 'SHOW_MENU' }, '*');
   } catch {
     /* no parent */
   }
+});
+
+document.querySelectorAll('[data-counter-zone]').forEach((btn) => {
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const zone = /** @type {'left'|'center'|'right'} */ (btn.getAttribute('data-counter-zone'));
+    if (zone === 'left' || zone === 'center' || zone === 'right') completeCounter(zone);
+  });
 });
 
 // --- MAIN LOOP ---
@@ -1279,6 +1570,28 @@ function animate() {
   }
 
   if (state.isRunning) {
+    if (state.rhythmDelay > 0) {
+      state.rhythmDelay -= delta;
+      if (state.rhythmDelay <= 0) {
+        state.rhythmDelay = 0;
+        if (!state.windup && !state.counter && !state.waitingForNextSmash) {
+          if (state.mode === 'versus' || state.mode === 'daily') queueWindup();
+        }
+      }
+    }
+
+    if (state.counter) {
+      state.counter.remaining -= delta;
+      const bar = document.getElementById('counter-timer');
+      if (bar) {
+        const pct = Math.max(0, state.counter.remaining / COUNTER_WINDOW_SEC);
+        bar.style.transform = `scaleX(${pct})`;
+      }
+      if (state.counter.remaining <= 0) {
+        completeCounter(aimZoneFromMouse(state.mouse.x));
+      }
+    }
+
     if (state.toastTimer > 0) {
       state.toastTimer -= delta;
       if (state.toastTimer <= 0) {
@@ -1311,10 +1624,11 @@ function animate() {
     updateWindupVisual(delta);
 
     if (
-      state.mode === 'drill' &&
+      (state.mode === 'drill' || state.mode === 'daily') &&
       state.spawnedBalls >= state.maxBalls &&
       shuttlePool.active.length === 0 &&
-      !state.windup
+      !state.windup &&
+      !state.counter
     ) {
       finishMatch();
     }
@@ -1344,12 +1658,17 @@ function animate() {
       wristPivot.rotation.x = Math.sin(now * 4) * 0.05;
     }
 
-    // Spawn pacing (drill / score-attack). Versus uses point callbacks.
-    if (state.mode !== 'versus' && !state.windup) {
+    // Spawn pacing (drill / score-attack / daily). Versus uses point callbacks.
+    if (state.mode !== 'versus' && !state.windup && !state.counter && state.rhythmDelay <= 0) {
       const cfg = diffCfg();
       const style = opponentStyle();
+      const habit = opponentHabit();
       const tier = phaseTier();
-      const baseDelay = (0.95 - tier * 0.18) * cfg.spawnMul * (style?.spawnMul ?? 1);
+      let baseDelay = (0.95 - tier * 0.18) * cfg.spawnMul * (style?.spawnMul ?? 1);
+      if (habit?.spawnJitter) {
+        baseDelay *= 1 + (state.rng() * 2 - 1) * habit.spawnJitter * 0.5;
+      }
+      if (state.mode === 'daily') baseDelay *= 1.05;
       const spawnDelay = Math.max(0.35, baseDelay);
       const canSpawn =
         state.mode === 'scoreAttack' || state.spawnedBalls < state.maxBalls;
