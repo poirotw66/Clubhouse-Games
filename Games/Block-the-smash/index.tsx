@@ -9,8 +9,15 @@ import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { createRoot } from 'react-dom/client';
 import { DIFFICULTY, OPPONENTS, isOpponentUnlocked } from './src/game/opponents.js';
 import { loadStats } from './src/game/scoring.js';
+import {
+  DAILY_BALL_COUNT,
+  buildDailyShareText,
+  computeDailyStreak,
+  copyText,
+  taipeiDateKey,
+} from './src/game/daily.js';
 
-type Mode = 'drill' | 'scoreAttack' | 'versus';
+type Mode = 'drill' | 'scoreAttack' | 'versus' | 'daily';
 type Diff = 'easy' | 'normal' | 'hard';
 
 const styles = {
@@ -112,7 +119,7 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '24px',
     padding: '28px',
-    width: '520px',
+    width: '560px',
     maxWidth: '94%',
     color: '#fff',
     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
@@ -178,8 +185,17 @@ function App() {
   const [opponentId, setOpponentId] = useState('hao');
   const [isLoading, setIsLoading] = useState(true);
   const [statsTick, setStatsTick] = useState(0);
+  const [shareNote, setShareNote] = useState('');
+  const [lastDaily, setLastDaily] = useState<{
+    dateKey: string;
+    score: number;
+    perfects: number;
+    accuracy: number;
+    streak: number;
+  } | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const todayKey = taipeiDateKey();
 
   const stats = loadStats(
     (() => {
@@ -191,6 +207,9 @@ function App() {
     })(),
   );
   void statsTick;
+
+  const dailyBestToday = stats.dailyBest[todayKey];
+  const dailyStreak = computeDailyStreak(stats.dailyBest, todayKey);
 
   const formatDrillBest = (balls: number): string => {
     const best = stats.drillBestAcc[`${difficulty}:${balls}`];
@@ -204,6 +223,7 @@ function App() {
 
   const startMatch = (payload: Record<string, unknown>) => {
     setShowMenu(false);
+    setShareNote('');
     if (iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: 'START_MATCH', payload }, '*');
     }
@@ -228,17 +248,29 @@ function App() {
           iframeRef.current.contentWindow.postMessage({ type: 'PAUSE_GAME', payload: true }, '*');
         }
       }
-      if (event.data?.type === 'DRILL_OVER' && !muted) {
-        const grade = String(event.data.payload?.grade ?? '');
-        if (grade === 'S' || grade === 'A') playWin();
-        else if (grade === 'B') playGoal();
-        else playLose();
+      if (event.data?.type === 'DRILL_OVER') {
+        const payload = event.data.payload ?? {};
+        if (!muted) {
+          const grade = String(payload.grade ?? '');
+          if (grade === 'S' || grade === 'A') playWin();
+          else if (grade === 'B') playGoal();
+          else playLose();
+        }
         setStatsTick((n) => n + 1);
+        if (payload.mode === 'daily') {
+          setLastDaily({
+            dateKey: String(payload.dateKey || todayKey),
+            score: Number(payload.score) || 0,
+            perfects: Number(payload.perfects) || 0,
+            accuracy: Number(payload.accuracy) || 0,
+            streak: Number(payload.streak) || 0,
+          });
+        }
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [muted]);
+  }, [muted, todayKey]);
 
   const handleIFrameLoad = () => {
     setIsLoading(false);
@@ -278,13 +310,37 @@ function App() {
         background: mode === id ? '#c8f5d8' : 'rgba(255,255,255,0.08)',
         color: mode === id ? '#062010' : '#ddd',
         border: mode === id ? 'none' : '1px solid rgba(255,255,255,0.15)',
-        fontSize: '15px',
+        fontSize: '14px',
+        padding: '12px 8px',
       }}
       onClick={() => setMode(id)}
     >
       {label}
     </button>
   );
+
+  const shareDaily = async () => {
+    const source = lastDaily ?? {
+      dateKey: todayKey,
+      score: dailyBestToday ?? 0,
+      perfects: 0,
+      accuracy: 0,
+      streak: dailyStreak,
+    };
+    if (!source.score && dailyBestToday == null) {
+      setShareNote('先打完今日挑戰再分享');
+      return;
+    }
+    const text = buildDailyShareText({
+      dateKey: source.dateKey,
+      score: source.score || dailyBestToday || 0,
+      perfects: source.perfects,
+      accuracy: source.accuracy,
+      streak: source.streak || dailyStreak,
+    });
+    const ok = await copyText(text);
+    setShareNote(ok ? '已複製分享文字' : '複製失敗，請手動選取');
+  };
 
   return (
     <div style={styles.container}>
@@ -293,6 +349,9 @@ function App() {
         @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;700&family=Noto+Sans+TC:wght@400;700&display=swap');
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
         @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation: none !important; transition: none !important; }
+        }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
       `}</style>
@@ -346,17 +405,25 @@ function App() {
               羽毛球接殺
             </h2>
             <p style={{ ...styles.modalSub, color: '#ccc' }}>
-              讀對手預備動作與假動作，卡進時機窗揮拍。完美擋可依指標左右反擊路線。
+              讀對手預備動作與假動作，卡進時機窗揮拍。完美擋後進入回殺，選擇落點得分或打亂節奏。
             </p>
 
             <p style={{ margin: '0 0 8px', color: '#aaa', fontSize: 13 }}>模式</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
               {modeTab('drill', '訓練')}
               {modeTab('scoreAttack', '得分挑戰')}
               {modeTab('versus', '對戰階梯')}
+              {modeTab('daily', '每日挑戰')}
             </div>
 
-            {mode !== 'versus' && (
+            {mode !== 'versus' && mode !== 'daily' && (
               <>
                 <p style={{ margin: '0 0 8px', color: '#aaa', fontSize: 13 }}>難度</p>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
@@ -399,7 +466,7 @@ function App() {
             {mode === 'scoreAttack' && (
               <div>
                 <p style={{ margin: '0 0 12px', color: '#bbb', fontSize: 14 }}>
-                  波次加壓、生命耗盡為止。完美＋邊線反擊分較高。{formatScoreBest()}
+                  波次加壓、生命耗盡為止。完美回殺可額外得分。{formatScoreBest()}
                 </p>
                 <button
                   type="button"
@@ -412,7 +479,10 @@ function App() {
             )}
 
             {mode === 'versus' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 340, overflowY: 'auto' }}>
+                <p style={{ margin: '0 0 4px', color: '#bbb', fontSize: 13 }}>
+                  BO3 系列賽：打贏解鎖下一位。每位有招牌習慣。
+                </p>
                 {OPPONENTS.map((opp) => {
                   const unlocked = isOpponentUnlocked(stats.versusWins, opp);
                   const wins = stats.versusWins[opp.id] ?? 0;
@@ -433,13 +503,14 @@ function App() {
                         color: !unlocked ? '#666' : selected ? '#062010' : '#eee',
                         border: selected ? 'none' : '1px solid rgba(255,255,255,0.12)',
                         cursor: unlocked ? 'pointer' : 'not-allowed',
+                        padding: '12px 14px',
                       }}
                       onClick={() => unlocked && setOpponentId(opp.id)}
                     >
-                      <div style={{ fontSize: 18 }}>{unlocked ? opp.name : '???（未解鎖）'}</div>
+                      <div style={{ fontSize: 17 }}>{unlocked ? opp.name : '???（未解鎖）'}</div>
                       <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 500, marginTop: 2 }}>
                         {unlocked
-                          ? `${opp.tagline} · 先至 ${opp.pointsToWin} · 勝 ${wins}`
+                          ? `${opp.habit.label} · ${opp.tagline} · 先至 ${opp.pointsToWin} · 勝 ${wins}`
                           : '先擊敗前一位對手'}
                       </div>
                     </button>
@@ -453,14 +524,54 @@ function App() {
                   }
                   disabled={!isOpponentUnlocked(stats.versusWins, OPPONENTS.find((o) => o.id === opponentId)!)}
                 >
-                  挑戰「{OPPONENTS.find((o) => o.id === opponentId)?.name ?? ''}」
+                  BO3 挑戰「{OPPONENTS.find((o) => o.id === opponentId)?.name ?? ''}」
                 </button>
               </div>
             )}
 
+            {mode === 'daily' && (
+              <div>
+                <p style={{ margin: '0 0 8px', color: '#bbb', fontSize: 14 }}>
+                  台北日曆 {todayKey} · 固定 {DAILY_BALL_COUNT} 球腳本（含假動作）
+                </p>
+                <p style={{ margin: '0 0 12px', color: '#9fdfb8', fontSize: 14 }}>
+                  今日最佳 {dailyBestToday == null ? '尚無' : dailyBestToday} · 連續{' '}
+                  {dailyStreak} 天
+                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    style={{ ...styles.modeBtn, flex: 1, minWidth: 140 }}
+                    onClick={() =>
+                      startMatch({ mode: 'daily', dateKey: todayKey, balls: DAILY_BALL_COUNT })
+                    }
+                  >
+                    開始今日挑戰
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.modeBtn,
+                      flex: 1,
+                      minWidth: 140,
+                      background: 'rgba(255,255,255,0.1)',
+                      color: '#eee',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                    }}
+                    onClick={() => void shareDaily()}
+                  >
+                    複製分享文字
+                  </button>
+                </div>
+                {shareNote ? (
+                  <p style={{ margin: '10px 0 0', color: '#ffe566', fontSize: 13 }}>{shareNote}</p>
+                ) : null}
+              </div>
+            )}
+
             <p style={{ margin: '16px 0 0', color: '#777', fontSize: 12 }}>
-              生涯完美 {stats.careerPerfects} · 最高連擋 {stats.careerMaxCombo} · 場次{' '}
-              {stats.careerPlays}
+              生涯完美 {stats.careerPerfects} · 回殺 {stats.careerCounters} · 最高連擋{' '}
+              {stats.careerMaxCombo} · 場次 {stats.careerPlays}
             </p>
           </div>
         </div>

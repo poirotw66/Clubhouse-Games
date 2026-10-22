@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
@@ -7,10 +7,11 @@ import type {
   DominoesState,
   EndId,
   MatchState,
-  PlayerId,
+  SeatId,
   Difficulty,
   RuleVariant,
   MatchTarget,
+  PlayerCount,
 } from './utils/dominoesLogic';
 import {
   createInitialState,
@@ -26,9 +27,12 @@ import {
   getPlayableTiles,
   getValidMoves,
   pickBotMove,
-  handSum,
   sumOpenEnds,
   boardToChain,
+  teamHandScores,
+  mergeLackLists,
+  partnerOf,
+  teamOf,
   DIFFICULTY_LABELS,
   DIFFICULTY_BLURBS,
   RULE_LABELS,
@@ -44,15 +48,39 @@ import {
   saveMatch,
   clearMatch,
   type DominoesStats,
+  type GameMode,
 } from './utils/storage';
+import {
+  DAILY_MATCH_TARGET,
+  dailyDealSeed,
+  dailyStreak,
+  formatDailyShareText,
+  loadDailyProgress,
+  recordDailyMatch,
+  saveDailyProgress,
+  todayKeyTaipei,
+  todayRecord,
+  type DailyProgress,
+} from './utils/daily';
 import { DominoTile, PlacedDominoTile } from './components/DominoTile';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
 } from './components/FirstRunGuide';
-import { RefreshCw, BookOpen, Users, Bot, Undo2, Lightbulb } from 'lucide-react';
+import {
+  RefreshCw,
+  BookOpen,
+  Users,
+  Bot,
+  Undo2,
+  Lightbulb,
+  CalendarDays,
+  UserRound,
+} from 'lucide-react';
 
-type GameMode = 'two' | 'bot';
+function playerCountFor(mode: GameMode): PlayerCount {
+  return mode === 'partners' ? 4 : 2;
+}
 
 function persistMatchSnapshot(opts: {
   match: MatchState;
@@ -60,8 +88,8 @@ function persistMatchSnapshot(opts: {
   difficulty: Difficulty;
   gameMode: GameMode;
 }): void {
-  if (opts.match.matchOver) {
-    clearMatch();
+  if (opts.match.matchOver || opts.gameMode === 'daily') {
+    if (opts.match.matchOver) clearMatch();
     return;
   }
   saveMatch({
@@ -71,12 +99,35 @@ function persistMatchSnapshot(opts: {
     ruleVariant: opts.ruleVariant,
     difficulty: opts.difficulty,
     gameMode: opts.gameMode,
+    playerCount: opts.match.playerCount,
   });
+}
+
+function seatLabel(
+  seat: SeatId,
+  mode: GameMode,
+): string {
+  if (mode === 'partners') {
+    if (seat === 0) return '你';
+    if (seat === 2) return '搭檔';
+    if (seat === 1) return '對手 A';
+    return '對手 B';
+  }
+  if (mode === 'bot' || mode === 'daily') {
+    return seat === 0 ? '你' : '電腦';
+  }
+  return `玩家 ${seat + 1}`;
 }
 
 export default function App() {
   const saved = loadMatch();
   const initialStats = loadStats();
+  const todayKey = todayKeyTaipei();
+  const [dailyProgress, setDailyProgress] = useState<DailyProgress>(() =>
+    loadDailyProgress(),
+  );
+  const [shareCopied, setShareCopied] = useState(false);
+
   const [gameMode, setGameMode] = useState<GameMode>(saved?.gameMode ?? 'bot');
   const [difficulty, setDifficulty] = useState<Difficulty>(
     saved?.difficulty ?? initialStats.lastDifficulty,
@@ -95,12 +146,15 @@ export default function App() {
         round: saved.round,
         matchOver: false,
         matchWinner: null,
+        playerCount: saved.playerCount,
       };
     }
-    return createMatchState(matchTarget);
+    return createMatchState(matchTarget, 2);
   });
   const [state, setState] = useState<DominoesState>(() =>
-    createInitialState(saved?.ruleVariant ?? 'fives'),
+    createInitialState(saved?.ruleVariant ?? 'fives', {
+      playerCount: saved?.playerCount ?? 2,
+    }),
   );
   const [history, setHistory] = useState<DominoesState[]>([]);
   const [hintMove, setHintMove] = useState<{ tileId: number; end: EndId } | null>(
@@ -119,9 +173,12 @@ export default function App() {
   const prevPhaseRef = useRef(state.phase);
   const matchRecordedRef = useRef(false);
 
-  const currentHand = state.hands[state.currentPlayer];
+  const isPartners = gameMode === 'partners';
+  const isDaily = gameMode === 'daily';
+  const humanSeat: SeatId = 0;
+
+  const currentHand = state.hands[state.currentPlayer] ?? [];
   const playable = getPlayableTiles(currentHand, state.board);
-  const playableIds = new Set(playable.map((t) => t.id));
   const ends = getChainEnds(state.board);
   const canPlayAny = playable.length > 0;
   const playableEndIds = getPlayableEnds(state.board);
@@ -130,14 +187,22 @@ export default function App() {
   const showSpinnerCross =
     ruleVariant === 'fives' && state.board.spinnerActive;
 
+  const isCpuSeat = useCallback(
+    (seat: SeatId): boolean => {
+      if (gameMode === 'two') return false;
+      if (gameMode === 'bot' || gameMode === 'daily') return seat === 1;
+      // partners: seats 1,2,3 are CPU (2 is ally)
+      return seat !== 0;
+    },
+    [gameMode],
+  );
+
   const isBotTurn =
-    gameMode === 'bot' &&
-    state.phase === 'playing' &&
-    state.currentPlayer === 1;
+    state.phase === 'playing' && isCpuSeat(state.currentPlayer);
 
   const humanCanAct =
     state.phase === 'playing' &&
-    (gameMode === 'two' || state.currentPlayer === 0);
+    (gameMode === 'two' || state.currentPlayer === humanSeat);
 
   const flashScore = useCallback((points: number) => {
     if (points <= 0) return;
@@ -145,18 +210,37 @@ export default function App() {
     setScoreFlash({ text: `+${points}`, key: Date.now() });
   }, []);
 
+  const effectiveDifficulty: Difficulty = isDaily ? 'hard' : difficulty;
+
   useEffect(() => {
     if (!isBotTurn || botScheduled.current) return;
     botScheduled.current = true;
+    const seat = state.currentPlayer;
     const timer = setTimeout(() => {
-      const hand = state.hands[1];
-      if (canPlay(hand, state.board)) {
-        const move = pickBotMove(hand, state.board, state.hands[0].length, difficulty, {
+      const hand = state.hands[seat];
+      const oppSeats = state.hands
+        .map((_, i) => i as SeatId)
+        .filter((s) => teamOf(s, state.playerCount) !== teamOf(seat, state.playerCount));
+      const partner =
+        state.playerCount === 4 ? partnerOf(seat) : null;
+      const opponentLack = mergeLackLists(
+        oppSeats.map((s) => state.suspectedLack[s] ?? []),
+      );
+      const partnerLack =
+        partner !== null ? (state.suspectedLack[partner] ?? []) : [];
+      let oppHandSize = 0;
+      for (const s of oppSeats) oppHandSize += state.hands[s].length;
+
+      if (canPlayHand(hand, state.board)) {
+        const move = pickBotMove(hand, state.board, oppHandSize, effectiveDifficulty, {
           ruleVariant: state.ruleVariant,
-          opponentLack: state.suspectedLack[0],
+          opponentLack,
+          partnerLack,
+          cooperative: isPartners && seat === 2,
+          deterministic: isDaily,
         });
         if (move) {
-          const next = playTile(state, 1, move.tileId, move.end);
+          const next = playTile(state, seat, move.tileId, move.end);
           if (next) {
             playMove();
             setLastPlacedId(move.tileId);
@@ -167,20 +251,26 @@ export default function App() {
           }
         }
       } else if (state.ruleVariant === 'block') {
-        const next = pass(state, 1);
+        const next = pass(state, seat);
         if (next) setState(next);
       } else {
-        setState(drawTiles(state, 1));
+        setState(drawTiles(state, seat));
       }
       botScheduled.current = false;
-    }, 600);
+    }, isPartners ? 420 : 600);
     return () => {
       clearTimeout(timer);
       botScheduled.current = false;
     };
-  }, [isBotTurn, state, difficulty, flashScore]);
+  }, [
+    isBotTurn,
+    state,
+    effectiveDifficulty,
+    flashScore,
+    isPartners,
+    isDaily,
+  ]);
 
-  // Round over → apply to match; flash round bonus.
   useEffect(() => {
     if (state.phase === 'playing') {
       prevPhaseRef.current = 'playing';
@@ -198,34 +288,65 @@ export default function App() {
       persistMatchSnapshot({
         match: next,
         ruleVariant,
-        difficulty,
+        difficulty: effectiveDifficulty,
         gameMode,
       });
       return next;
     });
     setRoundBanner(true);
-  }, [state.phase, state.handScores, state.lastPlayScore, ruleVariant, difficulty, gameMode, flashScore]);
+  }, [
+    state.phase,
+    state.handScores,
+    state.lastPlayScore,
+    ruleVariant,
+    effectiveDifficulty,
+    gameMode,
+    flashScore,
+  ]);
 
-  // Match over → record stats + sound once.
   useEffect(() => {
     if (!match.matchOver || matchRecordedRef.current) return;
     matchRecordedRef.current = true;
     clearMatch();
-    if (gameMode === 'bot' && match.matchWinner !== null) {
-      const won = match.matchWinner === 0;
-      if (won) playWin();
+    const humanWon = match.matchWinner === 0;
+    if (gameMode === 'bot' || gameMode === 'partners' || gameMode === 'daily') {
+      if (humanWon) playWin();
       else playLose();
+    }
+    if (gameMode === 'bot' || gameMode === 'partners') {
       setStats((prev) => {
-        const next = recordMatchResult(prev, won, {
+        const next = recordMatchResult(prev, humanWon, {
           rule: ruleVariant,
-          difficulty,
+          difficulty: effectiveDifficulty,
           target: matchTarget,
+          mode: gameMode,
         });
         saveStats(next);
         return next;
       });
     }
-  }, [match.matchOver, match.matchWinner, gameMode, ruleVariant, difficulty, matchTarget]);
+    if (gameMode === 'daily') {
+      setDailyProgress((prev) => {
+        const next = recordDailyMatch(
+          prev,
+          todayKey,
+          match.scores[0],
+          humanWon,
+        );
+        saveDailyProgress(next);
+        return next;
+      });
+    }
+  }, [
+    match.matchOver,
+    match.matchWinner,
+    match.scores,
+    gameMode,
+    ruleVariant,
+    effectiveDifficulty,
+    matchTarget,
+    todayKey,
+  ]);
 
   const pushHistory = useCallback(() => {
     setHistory((h) => [...h, state]);
@@ -234,8 +355,9 @@ export default function App() {
   const handlePlayAt = useCallback(
     (end: EndId) => {
       if (state.phase !== 'playing' || !selectedTileId) return;
-      if (gameMode === 'bot' && state.currentPlayer !== 0) return;
-      const next = playTile(state, state.currentPlayer, selectedTileId, end);
+      if (gameMode !== 'two' && state.currentPlayer !== humanSeat) return;
+      const actor = state.currentPlayer;
+      const next = playTile(state, actor, selectedTileId, end);
       if (next) {
         pushHistory();
         playMove();
@@ -254,7 +376,7 @@ export default function App() {
   const handleDraw = useCallback(() => {
     if (state.phase !== 'playing' || canPlayAny) return;
     if (state.ruleVariant === 'block' || state.boneyard.length <= 2) return;
-    if (gameMode === 'bot' && state.currentPlayer !== 0) return;
+    if (gameMode !== 'two' && state.currentPlayer !== humanSeat) return;
     pushHistory();
     setHintMove(null);
     setState(drawTiles(state, state.currentPlayer));
@@ -262,7 +384,7 @@ export default function App() {
 
   const handlePass = useCallback(() => {
     if (state.phase !== 'playing' || canPlayAny) return;
-    if (gameMode === 'bot' && state.currentPlayer !== 0) return;
+    if (gameMode !== 'two' && state.currentPlayer !== humanSeat) return;
     const next = pass(state, state.currentPlayer);
     if (!next) return;
     pushHistory();
@@ -270,7 +392,8 @@ export default function App() {
     setState(next);
   }, [state, canPlayAny, gameMode, pushHistory]);
 
-  const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
+  const canUndo =
+    history.length > 0 && !isBotTurn && state.phase === 'playing';
 
   const handleUndo = useCallback(() => {
     if (!canUndo) return;
@@ -284,22 +407,32 @@ export default function App() {
 
   const handleHint = useCallback(() => {
     if (!humanCanAct || !canPlayAny) return;
-    const oppId: PlayerId = state.currentPlayer === 0 ? 1 : 0;
+    const oppSeats = state.hands
+      .map((_, i) => i as SeatId)
+      .filter((s) => teamOf(s, state.playerCount) !== 0);
+    const partner = state.playerCount === 4 ? partnerOf(0) : null;
+    let oppHandSize = 0;
+    for (const s of oppSeats) oppHandSize += state.hands[s].length;
     const move = pickBotMove(
-      state.hands[state.currentPlayer],
+      state.hands[0],
       state.board,
-      state.hands[oppId].length,
+      oppHandSize,
       'hard',
       {
         ruleVariant: state.ruleVariant,
-        opponentLack: state.suspectedLack[oppId],
+        opponentLack: mergeLackLists(
+          oppSeats.map((s) => state.suspectedLack[s] ?? []),
+        ),
+        partnerLack: partner !== null ? state.suspectedLack[partner] : [],
+        cooperative: isPartners,
+        deterministic: true,
       },
     );
     if (move) {
       setHintMove(move);
       setSelectedTileId(move.tileId);
     }
-  }, [humanCanAct, canPlayAny, state]);
+  }, [humanCanAct, canPlayAny, state, isPartners]);
 
   const startFreshMatch = useCallback(
     (opts?: {
@@ -308,23 +441,40 @@ export default function App() {
       mode?: GameMode;
       diff?: Difficulty;
     }) => {
-      const variant = opts?.variant ?? ruleVariant;
-      const target = opts?.target ?? matchTarget;
       const mode = opts?.mode ?? gameMode;
-      const diff = opts?.diff ?? difficulty;
+      const count = playerCountFor(mode);
+      let variant = opts?.variant ?? ruleVariant;
+      let target = opts?.target ?? matchTarget;
+      let diff = opts?.diff ?? difficulty;
+
+      if (mode === 'daily') {
+        variant = 'fives';
+        target = DAILY_MATCH_TARGET;
+        diff = 'hard';
+      } else if (mode === 'partners') {
+        // Partners: All Fives / block (draw also works but default fives).
+        if (variant === 'draw') variant = 'fives';
+      }
+
       setRuleVariant(variant);
       setMatchTarget(target);
       setGameMode(mode);
       setDifficulty(diff);
-      const nextMatch = createMatchState(target);
+      const nextMatch = createMatchState(target, count);
       setMatch(nextMatch);
-      setState(createInitialState(variant));
+      setState(
+        createInitialState(variant, {
+          playerCount: count,
+          seed: mode === 'daily' ? dailyDealSeed(todayKey) : undefined,
+        }),
+      );
       setHistory([]);
       setSelectedTileId(null);
       setHintMove(null);
       setLastPlacedId(null);
       setRoundBanner(false);
       setScoreFlash(null);
+      setShareCopied(false);
       botScheduled.current = false;
       prevPhaseRef.current = 'playing';
       matchRecordedRef.current = false;
@@ -335,7 +485,7 @@ export default function App() {
         gameMode: mode,
       });
     },
-    [ruleVariant, matchTarget, gameMode, difficulty],
+    [ruleVariant, matchTarget, gameMode, difficulty, todayKey],
   );
 
   const handleNextRound = useCallback(() => {
@@ -348,12 +498,20 @@ export default function App() {
       persistMatchSnapshot({
         match: next,
         ruleVariant,
-        difficulty,
+        difficulty: effectiveDifficulty,
         gameMode,
       });
       return next;
     });
-    setState(createInitialState(ruleVariant));
+    setState(
+      createInitialState(ruleVariant, {
+        playerCount: match.playerCount,
+        seed:
+          gameMode === 'daily'
+            ? `${dailyDealSeed(todayKey)}:r${match.round + 1}`
+            : undefined,
+      }),
+    );
     setHistory([]);
     setSelectedTileId(null);
     setHintMove(null);
@@ -361,7 +519,35 @@ export default function App() {
     setRoundBanner(false);
     botScheduled.current = false;
     prevPhaseRef.current = 'playing';
-  }, [match.matchOver, ruleVariant, difficulty, gameMode, startFreshMatch]);
+  }, [
+    match.matchOver,
+    match.playerCount,
+    match.round,
+    ruleVariant,
+    effectiveDifficulty,
+    gameMode,
+    startFreshMatch,
+    todayKey,
+  ]);
+
+  const handleCopyShare = useCallback(async () => {
+    const rec = todayRecord(dailyProgress, todayKey);
+    const streak = dailyStreak(dailyProgress, todayKey);
+    const text = formatDailyShareText({
+      dateKey: todayKey,
+      bestScore: rec?.bestScore ?? match.scores[0],
+      streak,
+      won: rec?.won ?? match.matchWinner === 0,
+      target: DAILY_MATCH_TARGET,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, [dailyProgress, todayKey, match.scores, match.matchWinner]);
 
   const isValidEnd = useCallback(
     (tileId: number, end: EndId) => {
@@ -375,16 +561,28 @@ export default function App() {
     [state.hands, state.currentPlayer, state.board, state.ruleVariant],
   );
 
+  const roundTeams = useMemo(
+    () => teamHandScores(state.handScores, state.playerCount),
+    [state.handScores, state.playerCount],
+  );
+
+  const dailyRec = todayRecord(dailyProgress, todayKey);
+  const streak = dailyStreak(dailyProgress, todayKey);
+
   const statusMessage =
     state.phase === 'roundOver'
       ? state.roundEndReason === 'domino'
-        ? `玩家 ${(state.winner! as number) + 1} 出完 · 本局 +${state.handScores[state.winner!]}`
-        : `阻塞：玩家 ${(state.winner! as number) + 1} 點數較少 · 本局 +${state.handScores[state.winner!]}`
-      : gameMode === 'bot'
-        ? state.currentPlayer === 0
-          ? '輪到你'
-          : '電腦思考中…'
-        : `玩家 ${state.currentPlayer + 1} 的回合`;
+        ? `${seatLabel(state.winner!, gameMode)} 出完 · 本局隊伍 +${
+            roundTeams[state.winningTeam ?? 0]
+          }`
+        : `阻塞：${
+            state.winningTeam === 0 ? '我方' : '對方'
+          } 點數較少 · 本局 +${roundTeams[state.winningTeam ?? 0]}`
+      : isBotTurn
+        ? `${seatLabel(state.currentPlayer, gameMode)} 思考中…`
+        : gameMode === 'two'
+          ? `玩家 ${state.currentPlayer + 1} 的回合`
+          : '輪到你';
 
   const endHintClass = (end: EndId) =>
     hintMove && selectedTileId === hintMove.tileId && hintMove.end === end
@@ -403,25 +601,41 @@ export default function App() {
         disabled={
           state.phase !== 'playing' ||
           !selectedTileId ||
-          (gameMode === 'bot' && state.currentPlayer !== 0) ||
+          !humanCanAct ||
           !isValidEnd(selectedTileId, end)
         }
-        className={`flex flex-col items-center justify-center w-10 h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation ${endHintClass(end)}`}
+        className={`flex flex-col items-center justify-center w-9 h-16 sm:w-10 sm:h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation ${endHintClass(end)}`}
         title={`出在${label}`}
         aria-label={`出在${label}（${pip}）`}
       >
-        <span className="text-lg font-bold">{pip}</span>
-        <span className="text-xs">{label}</span>
+        <span className="text-base sm:text-lg font-bold">{pip}</span>
+        <span className="text-[10px] sm:text-xs">{label}</span>
       </button>
     );
   };
 
-  const p1Label = gameMode === 'bot' ? '你' : '玩家 1';
-  const p2Label = gameMode === 'bot' ? '電腦' : '玩家 2';
+  const modeBadge =
+    gameMode === 'bot'
+      ? '對戰電腦'
+      : gameMode === 'two'
+        ? '雙人'
+        : gameMode === 'partners'
+          ? '四人搭檔'
+          : '每日挑戰';
+
+  const p1Label = isPartners ? '我方' : seatLabel(0, gameMode);
+  const p2Label = isPartners ? '對方' : seatLabel(1, gameMode);
+
+  const allowedRules: RuleVariant[] =
+    gameMode === 'daily'
+      ? ['fives']
+      : gameMode === 'partners'
+        ? ['fives', 'block']
+        : ['fives', 'draw', 'block'];
 
   return (
     <div
-      className="min-h-screen text-white flex flex-col items-center p-4 min-w-0 bg-cover bg-center relative"
+      className="min-h-screen text-white flex flex-col items-center p-3 sm:p-4 min-w-0 bg-cover bg-center relative"
       style={{
         backgroundColor: '#0f172a',
         backgroundImage: [
@@ -441,22 +655,27 @@ export default function App() {
         />
       )}
 
-      <header className="w-full max-w-2xl flex justify-between items-center mb-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-xl font-bold tracking-tight">西洋骨牌</h1>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
-            {gameMode === 'bot' ? '對戰電腦' : '雙人'}
+      <header className="w-full max-w-2xl flex justify-between items-center mb-2 sm:mb-3 gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight">西洋骨牌</h1>
+          <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
+            {modeBadge}
           </span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
+          <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
             {RULE_LABELS[ruleVariant]}
           </span>
-          {gameMode === 'bot' && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-200 border border-amber-700/60">
+          {(gameMode === 'bot' || gameMode === 'partners') && (
+            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-200 border border-amber-700/60">
               連勝 {stats.streak}
             </span>
           )}
+          {isDaily && (
+            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-800 text-emerald-200 border border-emerald-700/60">
+              {todayKey} · 連續 {streak} 天
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={handleUndo}
@@ -498,110 +717,121 @@ export default function App() {
         </div>
       </header>
 
-      {/* Match scoreboard */}
-      <div className="w-full max-w-md mb-3 rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3">
-        <div className="flex justify-between text-xs text-slate-400 mb-1">
+      <div className="w-full max-w-md mb-2 sm:mb-3 rounded-xl border border-white/10 bg-slate-900/70 px-3 sm:px-4 py-2.5 sm:py-3">
+        <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 mb-1">
           <span>
             第 {match.round} 局 · 先達 {match.target} 分
           </span>
           <span>
-            本局 {state.handScores[0]}–{state.handScores[1]}
+            本局 {roundTeams[0]}–{roundTeams[1]}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <ScoreBar label={p1Label} score={match.scores[0]} target={match.target} accent="sky" />
           <ScoreBar label={p2Label} score={match.scores[1]} target={match.target} accent="amber" />
         </div>
-        {gameMode === 'bot' && (
+        {(gameMode === 'bot' || gameMode === 'partners') && (
           <p className="mt-1.5 text-center text-[10px] text-slate-500">
             戰績 {stats.wins}勝 {stats.losses}敗
             {stats.bestStreak > 0 ? ` · 最佳連勝 ${stats.bestStreak}` : ''}
           </p>
         )}
+        {isDaily && (
+          <p className="mt-1.5 text-center text-[10px] text-emerald-400/90">
+            今日最佳 {dailyRec?.bestScore ?? '—'}
+            {dailyRec?.won ? ' · 已獲勝' : dailyRec?.completed ? ' · 已完賽' : ' · 尚未完賽'}
+          </p>
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 mb-2 text-sm">
-        <button
-          type="button"
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mb-2 text-sm">
+        <ModeButton
+          active={gameMode === 'two'}
           onClick={() => startFreshMatch({ mode: 'two' })}
-          className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
-            gameMode === 'two'
-              ? 'border-sky-400 bg-sky-500/20 text-sky-100'
-              : 'border-slate-600 bg-slate-800 text-slate-300'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>雙人</span>
-        </button>
-        <button
-          type="button"
+          icon={<Users className="w-4 h-4" />}
+          label="雙人"
+        />
+        <ModeButton
+          active={gameMode === 'bot'}
           onClick={() => startFreshMatch({ mode: 'bot' })}
-          className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
-            gameMode === 'bot'
-              ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-              : 'border-slate-600 bg-slate-800 text-slate-300'
-          }`}
+          icon={<Bot className="w-4 h-4" />}
+          label="對戰電腦"
+        />
+        <ModeButton
+          active={gameMode === 'partners'}
+          onClick={() => startFreshMatch({ mode: 'partners', variant: 'fives' })}
+          icon={<UserRound className="w-4 h-4" />}
+          label="四人搭檔"
+          accent="emerald"
+        />
+        <ModeButton
+          active={gameMode === 'daily'}
+          onClick={() => startFreshMatch({ mode: 'daily' })}
+          icon={<CalendarDays className="w-4 h-4" />}
+          label="每日"
+          accent="violet"
+        />
+      </div>
+
+      {!isDaily && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
+          role="group"
+          aria-label="規則變體"
         >
-          <Bot className="w-4 h-4" />
-          <span>對戰電腦</span>
-        </button>
-      </div>
+          <span className="text-slate-400">規則</span>
+          {allowedRules.map((id) => {
+            const selected = ruleVariant === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => startFreshMatch({ variant: id })}
+                aria-pressed={selected}
+                title={RULE_BLURBS[id]}
+                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                  selected
+                    ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+                    : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {RULE_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      <div
-        className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
-        role="group"
-        aria-label="規則變體"
-      >
-        <span className="text-slate-400">規則</span>
-        {(['fives', 'draw', 'block'] as RuleVariant[]).map((id) => {
-          const selected = ruleVariant === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => startFreshMatch({ variant: id })}
-              aria-pressed={selected}
-              title={RULE_BLURBS[id]}
-              className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
-                selected
-                  ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
-                  : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {RULE_LABELS[id]}
-            </button>
-          );
-        })}
-      </div>
+      {!isDaily && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
+          role="group"
+          aria-label="比賽目標分"
+        >
+          <span className="text-slate-400">目標</span>
+          {MATCH_TARGETS.map((t) => {
+            const selected = matchTarget === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => startFreshMatch({ target: t })}
+                aria-pressed={selected}
+                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
+                  selected
+                    ? 'border-violet-400 bg-violet-500/20 text-violet-100'
+                    : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {t} 分
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      <div
-        className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
-        role="group"
-        aria-label="比賽目標分"
-      >
-        <span className="text-slate-400">目標</span>
-        {MATCH_TARGETS.map((t) => {
-          const selected = matchTarget === t;
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => startFreshMatch({ target: t })}
-              aria-pressed={selected}
-              className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
-                selected
-                  ? 'border-violet-400 bg-violet-500/20 text-violet-100'
-                  : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {t} 分
-            </button>
-          );
-        })}
-      </div>
-
-      {gameMode === 'bot' && (
-        <div className="flex flex-col items-center gap-1 mb-3 text-xs">
+      {(gameMode === 'bot' || gameMode === 'partners') && (
+        <div className="flex flex-col items-center gap-1 mb-2 sm:mb-3 text-xs">
           <div
             className="flex flex-wrap items-center justify-center gap-2"
             role="group"
@@ -632,7 +862,13 @@ export default function App() {
         </div>
       )}
 
-      <p className="text-slate-200 text-sm mb-2">{statusMessage}</p>
+      {isDaily && (
+        <p className="text-violet-200/90 text-xs mb-2 text-center px-2">
+          今日固定發牌（台北日曆）· 困難 AI · 目標 {DAILY_MATCH_TARGET} 分
+        </p>
+      )}
+
+      <p className="text-slate-200 text-sm mb-1 sm:mb-2">{statusMessage}</p>
 
       {ruleVariant === 'fives' && (
         <p className="text-emerald-300/90 text-xs mb-2 tabular-nums">
@@ -641,10 +877,34 @@ export default function App() {
         </p>
       )}
 
-      {/* Board */}
-      <div className="w-full max-w-2xl overflow-x-auto py-3 relative">
+      {/* Partners table chrome — compact for phones */}
+      {isPartners && (
+        <div className="w-full max-w-md mb-2 grid grid-cols-3 gap-1 text-[10px] sm:text-xs text-center">
+          <div />
+          <SeatChip
+            label={seatLabel(2, gameMode)}
+            count={state.hands[2]?.length ?? 0}
+            active={state.currentPlayer === 2}
+            ally
+          />
+          <div />
+          <SeatChip
+            label={seatLabel(3, gameMode)}
+            count={state.hands[3]?.length ?? 0}
+            active={state.currentPlayer === 3}
+          />
+          <div className="flex items-center justify-center text-slate-500">桌面</div>
+          <SeatChip
+            label={seatLabel(1, gameMode)}
+            count={state.hands[1]?.length ?? 0}
+            active={state.currentPlayer === 1}
+          />
+        </div>
+      )}
+
+      <div className="w-full max-w-2xl overflow-x-auto py-2 sm:py-3 relative">
         {showSpinnerCross ? (
-          <div className="flex flex-col items-center gap-1 min-h-[8rem]">
+          <div className="flex flex-col items-center gap-1 min-h-[7rem] sm:min-h-[8rem]">
             <div className="flex items-center gap-1">
               {endButton('up', '上')}
               <div className="flex flex-col items-center gap-0.5">
@@ -716,7 +976,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center gap-0 min-h-[5rem]">
+          <div className="flex items-center justify-center gap-0 min-h-[4.5rem] sm:min-h-[5rem]">
             {ends && endButton('left', '左')}
             <div className="flex items-center gap-0.5 flex-nowrap relative">
               {chain.map((placed) => (
@@ -746,17 +1006,17 @@ export default function App() {
 
       <p className="text-slate-400 text-xs mb-2">
         牌堆：{state.boneyard.length} 張
-        {gameMode === 'bot' && (
-          <span className="ml-3">電腦手牌：{state.hands[1].length}</span>
+        {!isPartners && (gameMode === 'bot' || gameMode === 'daily') && (
+          <span className="ml-3">電腦手牌：{state.hands[1]?.length ?? 0}</span>
         )}
       </p>
 
       <div className="w-full max-w-2xl">
         <p className="text-slate-300 text-sm mb-2">
-          {gameMode === 'bot' && state.currentPlayer === 1
-            ? '電腦手牌'
-            : `玩家 ${state.currentPlayer + 1} 手牌`}
-          {state.phase === 'playing' && state.currentPlayer === 0 && gameMode === 'bot' && (
+          {gameMode === 'two'
+            ? `${seatLabel(state.currentPlayer as SeatId, gameMode)} 手牌`
+            : '你的手牌'}
+          {humanCanAct && (
             <span className="ml-2 text-amber-400">
               {canPlayAny
                 ? '選一張牌再點端點出牌'
@@ -765,54 +1025,58 @@ export default function App() {
                   : '無法出牌，請抽牌'}
             </span>
           )}
+          {isBotTurn && (
+            <span className="ml-2 text-slate-500">
+              {seatLabel(state.currentPlayer, gameMode)} 出牌中…
+            </span>
+          )}
         </p>
-        {state.phase === 'playing' &&
-          (gameMode === 'bot' && state.currentPlayer === 1 ? (
-            <div className="flex gap-1 flex-wrap justify-center">
-              {currentHand.map((t) => (
-                <div
-                  key={t.id}
-                  className="rounded border-2 border-slate-600 bg-slate-700 w-12 h-24 flex items-center justify-center text-slate-500"
-                >
-                  ?
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex gap-2 flex-wrap justify-center items-end pb-4">
-              {currentHand.map((t) => (
+        {state.phase === 'playing' && (
+          <div className="flex gap-1.5 sm:gap-2 flex-wrap justify-center items-end pb-4">
+            {(gameMode === 'two' ? currentHand : state.hands[0]).map((t) => {
+              const hand = gameMode === 'two' ? currentHand : state.hands[0];
+              const ids = new Set(
+                getPlayableTiles(hand, state.board).map((x) => x.id),
+              );
+              const selectable = humanCanAct && ids.has(t.id);
+              return (
                 <DominoTile
                   key={t.id}
                   tile={t}
                   vertical={false}
-                  highlight={playableIds.has(t.id) && selectedTileId === t.id}
-                  hint={hintMove?.tileId === t.id && selectedTileId !== t.id}
+                  highlight={selectable && selectedTileId === t.id}
+                  hint={
+                    humanCanAct &&
+                    hintMove?.tileId === t.id &&
+                    selectedTileId !== t.id
+                  }
                   playable={
-                    playableIds.has(t.id) &&
+                    selectable &&
                     selectedTileId !== t.id &&
                     hintMove?.tileId !== t.id
                   }
                   size="normal"
                   onClick={() => {
-                    if (!playableIds.has(t.id)) return;
+                    if (!selectable) return;
                     setSelectedTileId(selectedTileId === t.id ? null : t.id);
                     if (hintMove && hintMove.tileId !== t.id) setHintMove(null);
                   }}
                 />
-              ))}
-            </div>
-          ))}
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {state.phase === 'playing' &&
         !canPlayAny &&
-        (gameMode === 'two' || state.currentPlayer === 0) &&
+        humanCanAct &&
         ruleVariant !== 'block' &&
         state.boneyard.length > 2 && (
           <button
             type="button"
             onClick={handleDraw}
-            className="mt-4 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium transition-colors touch-manipulation min-h-[44px]"
+            className="mt-3 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium transition-colors touch-manipulation min-h-[44px]"
           >
             抽牌
           </button>
@@ -820,41 +1084,38 @@ export default function App() {
 
       {state.phase === 'playing' &&
         !canPlayAny &&
-        (gameMode === 'two' || state.currentPlayer === 0) &&
+        humanCanAct &&
         (ruleVariant === 'block' || state.boneyard.length <= 2) && (
           <button
             type="button"
             onClick={handlePass}
-            className="mt-4 px-6 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 font-medium transition-colors touch-manipulation min-h-[44px]"
+            className="mt-3 px-6 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 font-medium transition-colors touch-manipulation min-h-[44px]"
           >
             跳過
           </button>
         )}
 
-      {/* Round result (match continues) */}
       {roundBanner && state.phase === 'roundOver' && !match.matchOver && (
         <ResultOverlay
           title={
-            gameMode === 'bot'
-              ? state.winner === 0
+            gameMode === 'two'
+              ? `玩家 ${(state.winner as SeatId) + 1} 拿下本局`
+              : state.winningTeam === 0
                 ? '本局獲勝'
                 : '本局落敗'
-              : `玩家 ${(state.winner as PlayerId) + 1} 拿下本局`
           }
           subtitle={`${p1Label} ${match.scores[0]} — ${match.scores[1]} ${p2Label} · 目標 ${match.target}`}
           badge={state.roundEndReason === 'blocked' ? '阻塞結算' : '出完手牌'}
           variant={
-            gameMode === 'bot'
-              ? state.winner === 0
+            gameMode === 'two'
+              ? 'neutral'
+              : state.winningTeam === 0
                 ? 'win'
                 : 'lose'
-              : 'neutral'
           }
           stats={[
-            { label: `${p1Label} 本局`, value: state.handScores[0] },
-            { label: `${p2Label} 本局`, value: state.handScores[1] },
-            { label: `${p1Label} 手牌點`, value: handSum(state.hands[0]) },
-            { label: `${p2Label} 手牌點`, value: handSum(state.hands[1]) },
+            { label: `${p1Label} 本局`, value: roundTeams[0] },
+            { label: `${p2Label} 本局`, value: roundTeams[1] },
             { label: '規則', value: RULE_LABELS[ruleVariant] },
           ]}
           primaryLabel="下一局"
@@ -862,39 +1123,54 @@ export default function App() {
         />
       )}
 
-      {/* Match result */}
       {match.matchOver && (
         <ResultOverlay
           title={
-            gameMode === 'bot'
-              ? match.matchWinner === 0
-                ? '比賽勝利！'
-                : '比賽敗北'
-              : `玩家 ${(match.matchWinner as PlayerId) + 1} 贏得比賽`
+            gameMode === 'two'
+              ? `玩家 ${(match.matchWinner as number) + 1} 贏得比賽`
+              : match.matchWinner === 0
+                ? isDaily
+                  ? '今日挑戰勝利！'
+                  : '比賽勝利！'
+                : isDaily
+                  ? '今日挑戰敗北'
+                  : '比賽敗北'
           }
           subtitle={`終場 ${match.scores[0]} — ${match.scores[1]}（先達 ${match.target}）`}
-          badge="比賽結束"
+          badge={isDaily ? '每日挑戰' : '比賽結束'}
           variant={
-            gameMode === 'bot'
-              ? match.matchWinner === 0
+            gameMode === 'two'
+              ? 'neutral'
+              : match.matchWinner === 0
                 ? 'win'
                 : 'lose'
-              : 'neutral'
           }
           stats={[
             { label: `${p1Label} 總分`, value: match.scores[0] },
             { label: `${p2Label} 總分`, value: match.scores[1] },
             { label: '局數', value: match.round },
             { label: '規則', value: RULE_LABELS[ruleVariant] },
-            ...(gameMode === 'bot'
+            ...(isDaily
               ? [
-                  { label: '連勝', value: String(stats.streak) },
-                  { label: '生涯勝場', value: String(stats.wins) },
+                  { label: '連續天數', value: String(streak) },
+                  {
+                    label: '今日最佳',
+                    value: String(
+                      Math.max(dailyRec?.bestScore ?? 0, match.scores[0]),
+                    ),
+                  },
                 ]
-              : []),
+              : gameMode !== 'two'
+                ? [
+                    { label: '連勝', value: String(stats.streak) },
+                    { label: '生涯勝場', value: String(stats.wins) },
+                  ]
+                : []),
           ]}
-          primaryLabel="再打一場"
+          primaryLabel={isDaily ? '再挑戰今日' : '再打一場'}
           onPrimary={() => startFreshMatch()}
+          secondaryLabel={isDaily ? (shareCopied ? '已複製' : '複製分享結果') : undefined}
+          onSecondary={isDaily ? handleCopyShare : undefined}
         />
       )}
 
@@ -910,8 +1186,24 @@ export default function App() {
               規則說明（{RULE_LABELS[ruleVariant]}）
             </h2>
             <ul className="text-sm text-slate-200 space-y-2 list-disc pl-4">
-              <li>雙六組 28 張牌，每人 7 張，其餘為牌堆。</li>
+              <li>
+                雙六組 28 張牌
+                {isPartners
+                  ? '，四人各 5 張，其餘為牌堆；對家為搭檔，團隊計分。'
+                  : '，每人 7 張，其餘為牌堆。'}
+              </li>
               <li>輪流出牌：選一張手牌與開放端點點數相同的一邊相接。</li>
+              {isPartners && (
+                <li>
+                  搭檔模式：你與對家 CPU 為一隊，兩側為對手；搭檔會避免堵你需要的點數。
+                </li>
+              )}
+              {isDaily && (
+                <li>
+                  每日挑戰：以台北日期固定發牌，困難 AI，目標 {DAILY_MATCH_TARGET}{' '}
+                  分；可記錄最佳分與連續天數並複製分享。
+                </li>
+              )}
               {ruleVariant === 'fives' ? (
                 <>
                   <li>
@@ -919,20 +1211,21 @@ export default function App() {
                     的倍數，立即得該和為分。雙張在端點時計兩倍；第一張雙張為轉軸，四邊可接。
                   </li>
                   <li>
-                    一手結束：出完者得對手手牌點數和（四捨五入到 5）；阻塞時點數較少者得分。
+                    一手結束：出完方隊伍得對手手牌點數和（四捨五入到
+                    5）；阻塞時點數較少隊伍得分。
                   </li>
-                  <li>整場先累積到 {matchTarget} 分者勝（可選 61／100／150）。</li>
+                  <li>整場先累積到 {match.target} 分者勝。</li>
                 </>
               ) : (
                 <>
                   <li>
                     {ruleVariant === 'draw'
                       ? '摸牌制：無法出牌時從牌堆抽牌，直到能出或牌堆剩 2 張；之後才能跳過。'
-                      : '封鎖制：無法出牌時直接跳過（不摸牌）；雙方都無法出牌即阻塞結算。'}
+                      : '封鎖制：無法出牌時直接跳過（不摸牌）；全員都無法出牌即阻塞結算。'}
                   </li>
                   <li>
-                    出完者得對手手牌點數和；阻塞時點數較少者得對手點數。整場先達{' '}
-                    {matchTarget} 分勝。
+                    出完者隊伍得對手手牌點數和；阻塞時點數較少隊伍得分。整場先達{' '}
+                    {match.target} 分勝。
                   </li>
                 </>
               )}
@@ -952,6 +1245,68 @@ export default function App() {
   );
 }
 
+function ModeButton({
+  active,
+  onClick,
+  icon,
+  label,
+  accent = 'amber',
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactElement;
+  label: string;
+  accent?: 'amber' | 'emerald' | 'violet' | 'sky';
+}) {
+  const on =
+    accent === 'emerald'
+      ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+      : accent === 'violet'
+        ? 'border-violet-400 bg-violet-500/20 text-violet-100'
+        : accent === 'sky'
+          ? 'border-sky-400 bg-sky-500/20 text-sky-100'
+          : 'border-amber-400 bg-amber-500/20 text-amber-100';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation text-xs sm:text-sm ${
+        active ? on : 'border-slate-600 bg-slate-800 text-slate-300'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SeatChip({
+  label,
+  count,
+  active,
+  ally = false,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  ally?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-lg border px-1.5 py-1 ${
+        active
+          ? 'border-amber-400 bg-amber-500/15 text-amber-100'
+          : ally
+            ? 'border-sky-700/60 bg-sky-950/40 text-sky-200'
+            : 'border-slate-700 bg-slate-900/50 text-slate-300'
+      }`}
+    >
+      <div className="font-medium truncate">{label}</div>
+      <div className="tabular-nums text-slate-400">{count} 張</div>
+    </div>
+  );
+}
+
 function ScoreBar({
   label,
   score,
@@ -964,8 +1319,7 @@ function ScoreBar({
   accent: 'sky' | 'amber';
 }) {
   const pct = Math.min(100, (score / target) * 100);
-  const bar =
-    accent === 'sky' ? 'bg-sky-400' : 'bg-amber-400';
+  const bar = accent === 'sky' ? 'bg-sky-400' : 'bg-amber-400';
   return (
     <div>
       <div className="flex justify-between text-[11px] text-slate-300 mb-1">
@@ -984,7 +1338,7 @@ function ScoreBar({
   );
 }
 
-function canPlay(
+function canPlayHand(
   hand: DominoesState['hands'][0],
   board: DominoesState['board'],
 ): boolean {

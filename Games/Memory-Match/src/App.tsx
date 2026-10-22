@@ -12,13 +12,37 @@ import {
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import {
+  CAMPAIGN_STAGES,
+  CHAPTER_STAR_GATES,
+  clearStageAndPersist,
+  continueStageIndex,
+  copiesPerFace,
+  flipTarget as stageFlipTarget,
+  isChapterUnlocked,
+  isStageUnlocked,
+  loadCampaignProgress,
+  stageSeed,
+  starsEarned,
+  totalStarsInChapter,
+  type CampaignProgress,
+  type CampaignStage,
+} from './campaign';
+import {
   emptyCpuMemory,
   pickCpuMove,
   rememberRevealed,
+  styleFromOpponent,
   type CpuMemory,
 } from './cpuAi';
 import {
-  CPU_DIFFICULTY_OPTIONS,
+  buildDailyShareText,
+  computeStreak,
+  copyText,
+  dailyConfig,
+  dailySeedNumber,
+  dateKey,
+} from './daily';
+import {
   FACE_EMOJI,
   FACE_TINT,
   PAIR_OPTIONS,
@@ -30,12 +54,12 @@ import {
   gridColsClass,
   gridGapClass,
   hintPairIndices,
+  isMatchGroup,
   loadBestMoves,
   loadBestScore,
   loadBestSprintSec,
   loadBestTimeSec,
   loadVersusWins,
-  maxPairsForTheme,
   nextCombo,
   saveBestMoves,
   saveBestScore,
@@ -44,12 +68,28 @@ import {
   saveVersusWin,
   scoreForMatch,
   sprintLimitSec,
+  swapTwoHiddenCards,
   type CpuDifficulty,
   type MemoryCard,
   type PairCount,
   type PlayMode,
   type ThemeId,
 } from './memoryLogic';
+import {
+  OPPONENTS,
+  isOpponentUnlocked,
+  opponentById,
+  type OpponentId,
+} from './opponents';
+import { createRng } from './rng';
+import {
+  loadDaily,
+  loadRosterProgress,
+  recordDaily,
+  recordRosterWin,
+  type DailyRecord,
+  type RosterProgress,
+} from './storage';
 
 const HINT_PEEK_MS = 900;
 const INSIGHT_PEEK_MS = 1200;
@@ -66,6 +106,7 @@ const CPU_SECOND_FLIP_MS = 420;
 const TIPS_KEY = 'clubhouse-memory-match-tips';
 
 type TurnOwner = 'player' | 'cpu';
+type Screen = 'play' | 'campaign' | 'roster';
 
 function cardFaceStyle(face: MemoryCard['face'], kind: MemoryCard['kind']): CSSProperties {
   if (faceUsesPhoto(face)) {
@@ -78,7 +119,8 @@ function cardFaceStyle(face: MemoryCard['face'], kind: MemoryCard['kind']): CSSP
     };
   }
   return {
-    backgroundColor: kind === 'insight' ? '#fff7ed' : FACE_TINT[face] ?? '#f8fafc',
+    backgroundColor:
+      kind === 'insight' ? '#fff7ed' : kind === 'bomb' ? '#fee2e2' : FACE_TINT[face] ?? '#f8fafc',
   };
 }
 
@@ -95,6 +137,25 @@ function saveTipsDismissed(): void {
     localStorage.setItem(TIPS_KEY, '1');
   } catch {
     /* ignore */
+  }
+}
+
+function modeLabel(mode: PlayMode, sprintLimit: number): string {
+  switch (mode) {
+    case 'classic':
+      return '經典';
+    case 'sprint':
+      return `衝刺 ${sprintLimit}s`;
+    case 'versus':
+      return '對戰';
+    case 'special':
+      return '洞察特牌';
+    case 'daily':
+      return '每日盤';
+    case 'campaign':
+      return '戰役';
+    default:
+      return mode;
   }
 }
 
@@ -143,8 +204,8 @@ function FlipCard({
         />
         <span
           className={`mm-face mm-face-front ${card.kind === 'insight' ? 'is-insight' : ''} ${
-            hinted ? 'ring-2 ring-amber-400' : ''
-          }`}
+            card.kind === 'bomb' ? 'is-bomb' : ''
+          } ${hinted ? 'ring-2 ring-amber-400' : ''}`}
           style={cardFaceStyle(card.face, card.kind)}
         >
           {!faceUsesPhoto(card.face) && (
@@ -157,6 +218,11 @@ function FlipCard({
               洞察
             </span>
           )}
+          {card.kind === 'bomb' && (
+            <span className="absolute bottom-0.5 right-0.5 rounded bg-rose-600/90 px-1 text-[9px] sm:text-[10px] font-bold text-rose-50">
+              炸彈
+            </span>
+          )}
         </span>
         {matchPulse && <span className="mm-burst" aria-hidden />}
       </button>
@@ -164,11 +230,18 @@ function FlipCard({
   );
 }
 
+function starGlyphs(n: number): string {
+  return '★'.repeat(Math.max(0, Math.min(3, n))) + '☆'.repeat(Math.max(0, 3 - n));
+}
+
 export default function App() {
+  const [screen, setScreen] = useState<Screen>('play');
   const [themeId, setThemeId] = useState<ThemeId>('classic');
   const [pairCount, setPairCount] = useState<PairCount>(12);
   const [mode, setMode] = useState<PlayMode>('classic');
   const [cpuDifficulty, setCpuDifficulty] = useState<CpuDifficulty>('normal');
+  const [opponentId, setOpponentId] = useState<OpponentId>('scatter');
+  const [stageIndex, setStageIndex] = useState<number | null>(null);
   const [cards, setCards] = useState<MemoryCard[]>(() => buildDeck(12, 'classic'));
   const [flipped, setFlipped] = useState<number[]>([]);
   const [locks, setLocks] = useState(false);
@@ -202,6 +275,16 @@ export default function App() {
   const [cpuMemory, setCpuMemory] = useState<CpuMemory>(() => emptyCpuMemory());
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [showTip, setShowTip] = useState(() => !loadTipsDismissed());
+  const [dailyRecords, setDailyRecords] = useState<DailyRecord[]>(() => loadDaily());
+  const [campaign, setCampaign] = useState<CampaignProgress>(() => loadCampaignProgress());
+  const [roster, setRoster] = useState<RosterProgress>(() => loadRosterProgress());
+  const [lastStars, setLastStars] = useState<1 | 2 | 3 | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [flipNeed, setFlipNeed] = useState(2);
+  const [timeLimitSec, setTimeLimitSec] = useState<number | null>(null);
+  const [swapEverySec, setSwapEverySec] = useState<number | null>(null);
+  const [bombPenaltySec, setBombPenaltySec] = useState(0);
+
   const turnRef = useRef(0);
   const resolvingRef = useRef(false);
   const cpuScheduledRef = useRef(false);
@@ -215,12 +298,122 @@ export default function App() {
   const elapsedRef = useRef(0);
   const pairCountRef = useRef(pairCount);
   pairCountRef.current = pairCount;
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+  const flippedRef = useRef(flipped);
+  flippedRef.current = flipped;
+
+  const today = dateKey();
+  const streak = computeStreak(dailyRecords, today);
+  const todayRecord = dailyRecords.find((r) => r.date === today) ?? null;
+  const activeStage: CampaignStage | null =
+    mode === 'campaign' && stageIndex != null ? CAMPAIGN_STAGES[stageIndex] ?? null : null;
+  const activeOpponent = opponentById(opponentId);
 
   const showFlash = useCallback((text: string, tone: 'good' | 'bad' | 'neutral' = 'good') => {
     setFlashText(text);
     setFlashTone(tone);
     setFlashKey((k) => k + 1);
   }, []);
+
+  const resetTransient = useCallback(() => {
+    setFlipped([]);
+    setLocks(false);
+    setMoves(0);
+    setElapsed(0);
+    setWon(false);
+    setLost(false);
+    setCombo(0);
+    setScore(0);
+    setNewRecord(false);
+    setHintFlash([]);
+    setPeekFlash([]);
+    setPeekCharges(0);
+    setPeekArmed(false);
+    setMissPulse([]);
+    setMatchPulse([]);
+    setFlashText('');
+    setTurnOwner('player');
+    setPlayerPairs(0);
+    setCpuPairs(0);
+    setVersusOutcome(null);
+    setCpuMemory(emptyCpuMemory());
+    setLastStars(null);
+    setShareCopied(false);
+    turnRef.current = 0;
+    resolvingRef.current = false;
+    cpuScheduledRef.current = false;
+    if (cpuSecondFlipRef.current != null) {
+      window.clearTimeout(cpuSecondFlipRef.current);
+      cpuSecondFlipRef.current = null;
+    }
+    playerPairsRef.current = 0;
+    cpuPairsRef.current = 0;
+    comboRef.current = 0;
+    scoreRef.current = 0;
+    movesRef.current = 0;
+    endedRef.current = false;
+    elapsedRef.current = 0;
+  }, []);
+
+  const beginBoard = useCallback(
+    (opts: {
+      nextMode: PlayMode;
+      nextTheme: ThemeId;
+      faceCount: number;
+      nextCpu?: CpuDifficulty;
+      nextOpponent?: OpponentId;
+      nextStageIndex?: number | null;
+      rand?: () => number;
+      deckOptions?: Parameters<typeof buildDeck>[3];
+      timeLimit?: number | null;
+      swapEvery?: number | null;
+      bombPenalty?: number;
+      flips?: number;
+    }) => {
+      const nextCpu = opts.nextCpu ?? cpuDifficulty;
+      const nextOpp = opts.nextOpponent ?? opponentId;
+      const opp = opponentById(nextOpp);
+      const displayCount = clampPairCount(
+        opts.nextTheme,
+        nearestPairCount(opts.faceCount),
+      );
+
+      setScreen('play');
+      setThemeId(opts.nextTheme);
+      setPairCount(displayCount);
+      setMode(opts.nextMode);
+      setCpuDifficulty(opts.nextMode === 'versus' ? opp.difficulty : nextCpu);
+      setOpponentId(nextOpp);
+      setStageIndex(opts.nextStageIndex ?? null);
+      setFlipNeed(opts.flips ?? 2);
+      setTimeLimitSec(opts.timeLimit ?? null);
+      setSwapEverySec(opts.swapEvery ?? null);
+      setBombPenaltySec(opts.bombPenalty ?? 0);
+      setCards(
+        buildDeck(opts.faceCount, opts.nextTheme, opts.rand ?? Math.random, opts.deckOptions ?? {}),
+      );
+      resetTransient();
+      const freeMode: PlayMode =
+        opts.nextMode === 'special'
+          ? 'special'
+          : opts.nextMode === 'sprint'
+            ? 'sprint'
+            : 'classic';
+      setBestMoves(
+        loadBestMoves(displayCount, opts.nextTheme, freeMode === 'special' ? 'special' : 'classic'),
+      );
+      setBestSprint(loadBestSprintSec(displayCount, opts.nextTheme));
+      setBestTime(
+        loadBestTimeSec(displayCount, opts.nextTheme, freeMode === 'special' ? 'special' : 'classic'),
+      );
+      setBestScore(
+        loadBestScore(opts.nextMode === 'versus' ? 'classic' : freeMode, displayCount, opts.nextTheme),
+      );
+      setVersusWins(loadVersusWins(displayCount, opts.nextTheme, opp.difficulty));
+    },
+    [cpuDifficulty, opponentId, resetTransient],
+  );
 
   const restart = useCallback(
     (
@@ -229,58 +422,101 @@ export default function App() {
       nextTheme: ThemeId = themeId,
       nextCpu: CpuDifficulty = cpuDifficulty,
     ) => {
-      const clamped = clampPairCount(nextTheme, count);
-      setThemeId(nextTheme);
-      setPairCount(clamped);
-      setMode(nextMode);
-      setCpuDifficulty(nextCpu);
-      setCards(
-        buildDeck(clamped, nextTheme, Math.random, {
-          specialInsight: nextMode === 'special',
-        }),
-      );
-      setFlipped([]);
-      setLocks(false);
-      setMoves(0);
-      setElapsed(0);
-      setWon(false);
-      setLost(false);
-      setCombo(0);
-      setScore(0);
-      setNewRecord(false);
-      setHintFlash([]);
-      setPeekFlash([]);
-      setPeekCharges(0);
-      setPeekArmed(false);
-      setMissPulse([]);
-      setMatchPulse([]);
-      setFlashText('');
-      setTurnOwner('player');
-      setPlayerPairs(0);
-      setCpuPairs(0);
-      setVersusOutcome(null);
-      setCpuMemory(emptyCpuMemory());
-      turnRef.current = 0;
-      resolvingRef.current = false;
-      cpuScheduledRef.current = false;
-      if (cpuSecondFlipRef.current != null) {
-        window.clearTimeout(cpuSecondFlipRef.current);
-        cpuSecondFlipRef.current = null;
+      if (nextMode === 'daily') {
+        const cfg = dailyConfig(today);
+        beginBoard({
+          nextMode: 'daily',
+          nextTheme: cfg.themeId,
+          faceCount: cfg.pairCount,
+          rand: createRng(dailySeedNumber(today)),
+          timeLimit: null,
+          flips: 2,
+        });
+        return;
       }
-      playerPairsRef.current = 0;
-      cpuPairsRef.current = 0;
-      comboRef.current = 0;
-      scoreRef.current = 0;
-      movesRef.current = 0;
-      endedRef.current = false;
-      elapsedRef.current = 0;
-      setBestMoves(loadBestMoves(clamped, nextTheme, nextMode === 'special' ? 'special' : 'classic'));
-      setBestSprint(loadBestSprintSec(clamped, nextTheme));
-      setBestTime(loadBestTimeSec(clamped, nextTheme, nextMode === 'special' ? 'special' : 'classic'));
-      setBestScore(loadBestScore(nextMode === 'versus' ? 'classic' : nextMode, clamped, nextTheme));
-      setVersusWins(loadVersusWins(clamped, nextTheme, nextCpu));
+      if (nextMode === 'campaign' && stageIndex != null) {
+        const stage = CAMPAIGN_STAGES[stageIndex];
+        if (stage) {
+          beginBoard({
+            nextMode: 'campaign',
+            nextTheme: stage.themeId,
+            faceCount: stage.faceCount,
+            nextStageIndex: stageIndex,
+            rand: createRng(stageSeed(stage)),
+            deckOptions: {
+              copiesPerFace: copiesPerFace(stage),
+              bombPair: stage.mechanic === 'bomb',
+            },
+            timeLimit: stage.timeLimitSec,
+            swapEvery: stage.mechanic === 'swap' ? (stage.swapEverySec ?? 9) : null,
+            bombPenalty: stage.bombPenaltySec ?? 0,
+            flips: stageFlipTarget(stage),
+          });
+          return;
+        }
+      }
+      beginBoard({
+        nextMode,
+        nextTheme,
+        faceCount: count,
+        nextCpu,
+        deckOptions: { specialInsight: nextMode === 'special' },
+        timeLimit: nextMode === 'sprint' ? sprintLimitSec(count) : null,
+        flips: 2,
+      });
     },
-    [pairCount, mode, themeId, cpuDifficulty],
+    [pairCount, mode, themeId, cpuDifficulty, stageIndex, today, beginBoard],
+  );
+
+  const startDaily = useCallback(() => {
+    const cfg = dailyConfig(today);
+    beginBoard({
+      nextMode: 'daily',
+      nextTheme: cfg.themeId,
+      faceCount: cfg.pairCount,
+      rand: createRng(dailySeedNumber(today)),
+      flips: 2,
+    });
+  }, [today, beginBoard]);
+
+  const startCampaignStage = useCallback(
+    (index: number) => {
+      const stage = CAMPAIGN_STAGES[index];
+      if (!stage || !isStageUnlocked(index, campaign)) return;
+      beginBoard({
+        nextMode: 'campaign',
+        nextTheme: stage.themeId,
+        faceCount: stage.faceCount,
+        nextStageIndex: index,
+        rand: createRng(stageSeed(stage)),
+        deckOptions: {
+          copiesPerFace: copiesPerFace(stage),
+          bombPair: stage.mechanic === 'bomb',
+        },
+        timeLimit: stage.timeLimitSec,
+        swapEvery: stage.mechanic === 'swap' ? (stage.swapEverySec ?? 9) : null,
+        bombPenalty: stage.bombPenaltySec ?? 0,
+        flips: stageFlipTarget(stage),
+      });
+    },
+    [campaign, beginBoard],
+  );
+
+  const startVersusOpponent = useCallback(
+    (id: OpponentId) => {
+      const index = OPPONENTS.findIndex((o) => o.id === id);
+      if (!isOpponentUnlocked(index, roster.unlockedIndex)) return;
+      const opp = opponentById(id);
+      beginBoard({
+        nextMode: 'versus',
+        nextTheme: themeId,
+        faceCount: pairCount,
+        nextOpponent: id,
+        nextCpu: opp.difficulty,
+        flips: 2,
+      });
+    },
+    [roster.unlockedIndex, themeId, pairCount, beginBoard],
   );
 
   useEffect(() => {
@@ -294,13 +530,31 @@ export default function App() {
 
   useEffect(() => {
     if (won || lost || versusOutcome) return;
-    if (mode === 'sprint' && elapsed >= sprintLimitSec(pairCount)) {
+    const limit =
+      timeLimitSec != null
+        ? timeLimitSec
+        : mode === 'sprint'
+          ? sprintLimitSec(pairCount)
+          : null;
+    if (limit != null && elapsed >= limit) {
       setLost(true);
       playLose();
     }
-  }, [elapsed, mode, pairCount, won, lost, versusOutcome]);
+  }, [elapsed, mode, pairCount, won, lost, versusOutcome, timeLimitSec]);
 
-  // Collapse settings as soon as a card is revealed (moves only ticks after a pair resolves).
+  // Campaign swap mechanic — periodically swap two face-down cards.
+  useEffect(() => {
+    if (mode !== 'campaign' || swapEverySec == null) return;
+    if (won || lost) return;
+    const id = window.setInterval(() => {
+      if (endedRef.current || resolvingRef.current) return;
+      if (flippedRef.current.length > 0) return;
+      setCards((prev) => swapTwoHiddenCards(prev, flippedRef.current, Math.random));
+      showFlash('牌位互換！', 'neutral');
+    }, swapEverySec * 1000);
+    return () => window.clearInterval(id);
+  }, [mode, swapEverySec, won, lost, cards, showFlash]);
+
   useEffect(() => {
     if ((flipped.length > 0 || moves > 0) && settingsOpen) setSettingsOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- collapse on first interaction only
@@ -335,6 +589,35 @@ export default function App() {
       setWon(true);
       playWin();
       let record = false;
+
+      if (mode === 'daily') {
+        const next = recordDaily({
+          date: today,
+          moves: finalMoves,
+          elapsedSec: finalElapsed,
+          score: finalScore,
+          pairCount,
+        });
+        setDailyRecords(next);
+        const prev = todayRecord;
+        record =
+          !prev ||
+          finalMoves < prev.moves ||
+          (finalMoves === prev.moves && finalElapsed < prev.elapsedSec);
+        setNewRecord(record);
+        return;
+      }
+
+      if (mode === 'campaign' && stageIndex != null) {
+        const stage = CAMPAIGN_STAGES[stageIndex];
+        const earned = stage ? starsEarned(stage, finalMoves, finalElapsed) : 1;
+        setLastStars(earned);
+        const next = clearStageAndPersist(stageIndex, finalMoves, finalElapsed);
+        setCampaign(next);
+        setNewRecord(earned >= (campaign.stars[stage?.id ?? ''] ?? 0));
+        return;
+      }
+
       if (mode === 'sprint') {
         const saved = saveBestSprintSec(pairCount, finalElapsed, themeId);
         setBestSprint(saved);
@@ -348,12 +631,14 @@ export default function App() {
         setBestTime(savedTime);
         if (savedTime === finalElapsed) record = true;
       }
-      const savedScore = saveBestScore(mode === 'versus' ? 'classic' : mode, pairCount, finalScore, themeId);
+      const scoreMode: PlayMode =
+        mode === 'versus' || mode === 'campaign' ? 'classic' : mode === 'special' ? 'special' : mode === 'sprint' ? 'sprint' : 'classic';
+      const savedScore = saveBestScore(scoreMode, pairCount, finalScore, themeId);
       setBestScore(savedScore);
       if (savedScore === finalScore) record = true;
       setNewRecord(record);
     },
-    [mode, pairCount, themeId],
+    [mode, pairCount, themeId, today, todayRecord, stageIndex, campaign.stars],
   );
 
   const finishVersus = useCallback(
@@ -367,6 +652,9 @@ export default function App() {
         playWin();
         const wins = saveVersusWin(pairCount, themeId, cpuDifficulty);
         setVersusWins(wins);
+        const oppIndex = OPPONENTS.findIndex((o) => o.id === opponentId);
+        const nextRoster = recordRosterWin(opponentId, Math.max(0, oppIndex));
+        setRoster(nextRoster);
         setNewRecord(true);
       } else if (outcome === 'lose') {
         playLose();
@@ -374,15 +662,15 @@ export default function App() {
         playMove();
       }
     },
-    [pairCount, themeId, cpuDifficulty],
+    [pairCount, themeId, cpuDifficulty, opponentId],
   );
 
-  // Resolve a completed two-card flip.
+  // Resolve a completed flip group (pair or triple).
   useEffect(() => {
-    if (flipped.length !== 2 || resolvingRef.current) return;
+    if (flipped.length !== flipNeed || resolvingRef.current) return;
     resolvingRef.current = true;
-    const [a, b] = flipped;
-    const match = cards[a].face === cards[b].face;
+    const indices = flipped.slice();
+    const match = isMatchGroup(cards, indices);
     const actor = mode === 'versus' ? turnOwner : 'player';
     setLocks(true);
     movesRef.current += 1;
@@ -391,7 +679,7 @@ export default function App() {
     const turn = turnRef.current;
 
     setCpuMemory((mem) =>
-      rememberRevealed(mem, cards, [a, b], turn, cpuDifficulty, pairCountRef.current),
+      rememberRevealed(mem, cards, indices, turn, cpuDifficulty, pairCountRef.current),
     );
 
     const delay = match ? FLIP_RESOLVE_MATCH_MS : FLIP_RESOLVE_MISS_MS;
@@ -401,7 +689,7 @@ export default function App() {
         playScore();
         const newCombo = nextCombo(comboRef.current, true);
         if (newCombo >= 2) playCapture();
-        setMatchPulse([a, b]);
+        setMatchPulse(indices);
         const gained = scoreForMatch(newCombo);
         comboRef.current = newCombo;
         scoreRef.current += gained;
@@ -410,8 +698,9 @@ export default function App() {
         if (newCombo >= 2) showFlash(`${newCombo} 連擊！+${gained}`, 'good');
         else showFlash(`配對 +${gained}`, 'good');
 
-        const insightBonus = cards[a].kind === 'insight';
-        nextCards = cards.map((c, i) => (i === a || i === b ? { ...c, matched: true } : c));
+        const insightBonus = indices.some((i) => cards[i].kind === 'insight');
+        const matchedSet = new Set(indices);
+        nextCards = cards.map((c, i) => (matchedSet.has(i) ? { ...c, matched: true } : c));
         setCards(nextCards);
 
         if (mode === 'versus') {
@@ -422,17 +711,23 @@ export default function App() {
             cpuPairsRef.current += 1;
             setCpuPairs(cpuPairsRef.current);
           }
-          // Match grants another turn — stay on actor.
         } else if (insightBonus && mode === 'special') {
           setPeekCharges((c) => c + 1);
           showFlash('獲得洞察！', 'neutral');
         }
       } else {
         playError();
-        setMissPulse([a, b]);
+        setMissPulse(indices);
         comboRef.current = 0;
         setCombo(0);
-        showFlash('未中', 'bad');
+        const hitBomb = indices.some((i) => cards[i].kind === 'bomb');
+        if (hitBomb && bombPenaltySec > 0) {
+          elapsedRef.current += bombPenaltySec;
+          setElapsed(elapsedRef.current);
+          showFlash(`炸彈罰時 +${bombPenaltySec}s`, 'bad');
+        } else {
+          showFlash('未中', 'bad');
+        }
         if (mode === 'versus') {
           setTurnOwner(actor === 'player' ? 'cpu' : 'player');
         }
@@ -456,8 +751,8 @@ export default function App() {
       window.clearTimeout(t);
       resolvingRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resolve once per flip pair
-  }, [flipped]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resolve once per flip group
+  }, [flipped, flipNeed]);
 
   // CPU turn scheduler — flips one card, then the second, so the turn is human-readable.
   useEffect(() => {
@@ -469,21 +764,19 @@ export default function App() {
     if (cpuScheduledRef.current) return;
     cpuScheduledRef.current = true;
 
-    // Stall only when clearly behind so it doesn't feel like constant cheating.
     const preferStall = playerPairs >= cpuPairs + 2;
+    const styleOpts = styleFromOpponent(activeOpponent);
     const think = window.setTimeout(() => {
       try {
         const [i, j] = pickCpuMove({
           cards,
           memory: cpuMemory,
           turn: turnRef.current,
-          difficulty: cpuDifficulty,
           preferStall,
+          ...styleOpts,
         });
         playCard();
         setFlipped([i]);
-        // Second flip lives outside this effect's cleanup: when flipped.length
-        // becomes 1 the effect re-runs, and clearing here would abort the reveal.
         if (cpuSecondFlipRef.current != null) {
           window.clearTimeout(cpuSecondFlipRef.current);
         }
@@ -496,7 +789,7 @@ export default function App() {
         cpuScheduledRef.current = false;
         setTurnOwner('player');
       }
-    }, CPU_THINK_MS[cpuDifficulty]);
+    }, CPU_THINK_MS[styleOpts.difficulty]);
 
     return () => {
       window.clearTimeout(think);
@@ -508,12 +801,12 @@ export default function App() {
     flipped.length,
     cards,
     cpuMemory,
-    cpuDifficulty,
     playerPairs,
     cpuPairs,
     versusOutcome,
     won,
     lost,
+    activeOpponent,
   ]);
 
   const onCard = (index: number) => {
@@ -537,7 +830,7 @@ export default function App() {
 
     const card = cards[index];
     if (card.matched || flipped.includes(index)) return;
-    if (flipped.length >= 2) return;
+    if (flipped.length >= flipNeed) return;
     playCard();
     setFlipped((f) => [...f, index]);
   };
@@ -545,11 +838,11 @@ export default function App() {
   const handleHint = () => {
     if (mode === 'versus') return;
     if (locks || won || lost || flipped.length > 0 || hintFlash.length > 0) return;
-    const pair = hintPairIndices(cards);
-    if (!pair) return;
-    setHintFlash(pair);
+    const group = hintPairIndices(cards, flipNeed);
+    if (!group) return;
+    setHintFlash(group);
     setCpuMemory((mem) =>
-      rememberRevealed(mem, cards, pair, turnRef.current, cpuDifficulty, pairCount),
+      rememberRevealed(mem, cards, group, turnRef.current, cpuDifficulty, pairCount),
     );
     playMove();
   };
@@ -562,10 +855,29 @@ export default function App() {
     showFlash('點選一張牌窺視', 'neutral');
   };
 
-  const themeMax = maxPairsForTheme(themeId);
+  const handleShareDaily = async () => {
+    const rec = dailyRecords.find((r) => r.date === today);
+    if (!rec) return;
+    const themeLabel = THEME_OPTIONS.find((t) => t.id === dailyConfig(today).themeId)?.label ?? '';
+    const text = buildDailyShareText({
+      date: today,
+      moves: rec.moves,
+      elapsedSec: rec.elapsedSec,
+      streak: computeStreak(dailyRecords, today),
+      pairCount: rec.pairCount,
+      themeLabel,
+    });
+    const ok = await copyText(text);
+    setShareCopied(ok);
+    showFlash(ok ? '已複製分享文案' : '複製失敗', ok ? 'good' : 'bad');
+  };
+
+  const themeMax = THEME_OPTIONS.find((t) => t.id === themeId)?.faces.length ?? 24;
   const pairChoices = PAIR_OPTIONS.filter(({ count }) => count <= themeMax);
   const sprintLimit = sprintLimitSec(pairCount);
-  const remain = Math.max(0, sprintLimit - elapsed);
+  const effectiveLimit =
+    timeLimitSec != null ? timeLimitSec : mode === 'sprint' ? sprintLimit : null;
+  const remain = effectiveLimit != null ? Math.max(0, effectiveLimit - elapsed) : null;
   const canHint =
     mode !== 'versus' &&
     !locks &&
@@ -574,10 +886,11 @@ export default function App() {
     flipped.length === 0 &&
     hintFlash.length === 0;
   const themeLabel = THEME_OPTIONS.find((t) => t.id === themeId)?.label ?? themeId;
+  const faceLike = Math.ceil(cards.length / flipNeed);
   const boardWide =
-    pairCount >= 18
+    faceLike >= 18
       ? 'w-[min(96vw,720px)]'
-      : pairCount >= 12
+      : faceLike >= 12
         ? 'w-[min(94vw,560px)]'
         : 'w-[min(94vw,440px)]';
 
@@ -590,28 +903,146 @@ export default function App() {
 
   const settingsSummary = [
     themeLabel,
-    `${pairCount} 對`,
-    mode === 'classic'
-      ? '經典'
-      : mode === 'sprint'
-        ? `衝刺 ${sprintLimit}s`
-        : mode === 'versus'
-          ? `對戰 · ${CPU_DIFFICULTY_OPTIONS.find((d) => d.id === cpuDifficulty)?.label ?? ''}`
-          : '洞察特牌',
-  ].join(' · ');
+    mode === 'campaign' && activeStage
+      ? activeStage.name
+      : mode === 'daily'
+        ? `每日 ${today}`
+        : `${faceLike} ${flipNeed === 3 ? '組' : '對'}`,
+    modeLabel(mode, sprintLimit),
+    mode === 'versus' ? activeOpponent.name : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  if (screen === 'campaign') {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center p-3 sm:p-4 gap-3 relative"
+        style={shellBg()}
+      >
+        <BackToMenu />
+        <h1 className="text-xl sm:text-2xl font-bold tracking-wide mt-1">短戰役</h1>
+        <p className="text-sm text-slate-300 text-center max-w-md">
+          逐關解鎖機制；星數開啟下一章（第二章需 {CHAPTER_STAR_GATES[2]} 星，第三章需{' '}
+          {CHAPTER_STAR_GATES[3]} 星）。
+        </p>
+        {([1, 2, 3] as const).map((chapter) => {
+          const unlocked = isChapterUnlocked(chapter, campaign);
+          const chStars = totalStarsInChapter(campaign, chapter);
+          return (
+            <section key={chapter} className="w-full max-w-xl flex flex-col gap-2">
+              <h2 className="text-base font-semibold text-slate-100">
+                第 {chapter} 章
+                {!unlocked ? ' · 未解鎖' : ` · ${chStars} 星`}
+              </h2>
+              <div className="flex flex-col gap-2">
+                {CAMPAIGN_STAGES.map((stage, i) => {
+                  if (stage.chapter !== chapter) return null;
+                  const open = isStageUnlocked(i, campaign);
+                  const stars = campaign.stars[stage.id] ?? 0;
+                  return (
+                    <button
+                      key={stage.id}
+                      type="button"
+                      disabled={!open}
+                      onClick={() => startCampaignStage(i)}
+                      className={`min-h-[52px] w-full rounded-xl border px-3 py-2 text-left touch-manipulation disabled:opacity-40 ${
+                        open
+                          ? 'border-emerald-500/40 bg-slate-800/80 hover:bg-slate-700/80'
+                          : 'border-slate-700 bg-slate-900/60'
+                      }`}
+                    >
+                      <div className="flex justify-between gap-2 items-baseline">
+                        <span className="font-medium text-slate-100">
+                          {i + 1}. {stage.name}
+                        </span>
+                        <span className="text-amber-300 text-sm tracking-widest" aria-label={`${stars} 星`}>
+                          {starGlyphs(stars)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{stage.blurb}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+        <div className="flex flex-wrap gap-2 justify-center">
+          <button
+            type="button"
+            onClick={() => startCampaignStage(continueStageIndex(campaign))}
+            className="min-h-[44px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-medium touch-manipulation"
+          >
+            繼續挑戰
+          </button>
+          <button
+            type="button"
+            onClick={() => setScreen('play')}
+            className="min-h-[44px] px-5 rounded-xl border border-slate-500 bg-slate-800 touch-manipulation"
+          >
+            返回
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'roster') {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center p-3 sm:p-4 gap-3 relative"
+        style={shellBg()}
+      >
+        <BackToMenu />
+        <h1 className="text-xl sm:text-2xl font-bold tracking-wide mt-1">CPU 名冊</h1>
+        <p className="text-sm text-slate-300 text-center max-w-md">
+          每位對手打法不同。打贏可解鎖下一位。
+        </p>
+        <div className="w-full max-w-xl flex flex-col gap-2">
+          {OPPONENTS.map((opp, i) => {
+            const open = isOpponentUnlocked(i, roster.unlockedIndex);
+            const wins = roster.wins[opp.id] ?? 0;
+            return (
+              <button
+                key={opp.id}
+                type="button"
+                disabled={!open}
+                onClick={() => startVersusOpponent(opp.id)}
+                className={`min-h-[56px] w-full rounded-xl border px-3 py-2 text-left touch-manipulation disabled:opacity-40 ${
+                  open
+                    ? 'border-rose-400/40 bg-slate-800/80 hover:bg-slate-700/80'
+                    : 'border-slate-700 bg-slate-900/60'
+                }`}
+              >
+                <div className="flex justify-between gap-2">
+                  <span className="font-medium text-slate-100">
+                    {opp.name}
+                    {!open ? ' · 未解鎖' : ''}
+                  </span>
+                  <span className="text-xs text-slate-400">{opp.tagline}</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">{opp.blurb}</p>
+                {wins > 0 && <p className="text-xs text-emerald-300/90 mt-1">勝場 {wins}</p>}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => setScreen('play')}
+          className="min-h-[44px] px-5 rounded-xl border border-slate-500 bg-slate-800 touch-manipulation"
+        >
+          返回
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-start sm:justify-center p-3 sm:p-4 gap-2 sm:gap-3 relative"
-      style={{
-        backgroundColor: '#1e293b',
-        backgroundImage: [
-          'linear-gradient(rgba(15,23,42,0.5), rgba(15,23,42,0.72))',
-          `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
-        ].join(', '),
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
+      style={shellBg()}
     >
       <BackToMenu />
       <h1 className="text-xl sm:text-2xl font-bold tracking-wide mt-1">記憶配對</h1>
@@ -622,7 +1053,8 @@ export default function App() {
           role="note"
         >
           <p className="flex-1 leading-snug">
-            點兩張牌翻開；圖案相同即配對留下。對戰時輪流翻，配對成功可再翻一次。大盤面可先收合設定騰出空間。
+            點牌翻開配對。可玩每日盤（同日同局）、短戰役（星數解鎖章節），或挑戰有個性的 CPU
+            名冊。大盤面可先收合設定。
           </p>
           <button
             type="button"
@@ -655,12 +1087,19 @@ export default function App() {
                   { id: 'sprint' as const, label: `衝刺 ${sprintLimit}s` },
                   { id: 'versus' as const, label: '對戰 CPU' },
                   { id: 'special' as const, label: '洞察特牌' },
+                  { id: 'daily' as const, label: '每日盤' },
+                  { id: 'campaign' as const, label: '短戰役' },
                 ] as const
               ).map(({ id, label }) => (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => restart(pairCount, id, themeId, cpuDifficulty)}
+                  onClick={() => {
+                    if (id === 'daily') startDaily();
+                    else if (id === 'campaign') setScreen('campaign');
+                    else if (id === 'versus') setScreen('roster');
+                    else restart(pairCount, id, themeId, cpuDifficulty);
+                  }}
                   className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
                     mode === id
                       ? 'border-emerald-400 bg-emerald-500/25 text-emerald-100'
@@ -672,72 +1111,86 @@ export default function App() {
               ))}
             </div>
 
-            <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="牌組">
-              {THEME_OPTIONS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => restart(pairCount, mode, id, cpuDifficulty)}
-                  className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-                    themeId === id
-                      ? 'border-violet-400 bg-violet-500/25 text-violet-100'
-                      : 'border-slate-600 bg-slate-800/80 text-slate-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            {mode !== 'daily' && mode !== 'campaign' && (
+              <>
+                <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="牌組">
+                  {THEME_OPTIONS.map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => restart(pairCount, mode, id, cpuDifficulty)}
+                      className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+                        themeId === id
+                          ? 'border-violet-400 bg-violet-500/25 text-violet-100'
+                          : 'border-slate-600 bg-slate-800/80 text-slate-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
 
-            <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="盤面大小">
-              {pairChoices.map(({ count, label }) => (
-                <button
-                  key={count}
-                  type="button"
-                  onClick={() => restart(count, mode, themeId, cpuDifficulty)}
-                  className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-                    pairCount === count
-                      ? 'border-sky-400 bg-sky-500/25 text-sky-100'
-                      : 'border-slate-600 bg-slate-800/80 text-slate-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+                <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="盤面大小">
+                  {pairChoices.map(({ count, label }) => (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => restart(count, mode, themeId, cpuDifficulty)}
+                      className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
+                        pairCount === count
+                          ? 'border-sky-400 bg-sky-500/25 text-sky-100'
+                          : 'border-slate-600 bg-slate-800/80 text-slate-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             {mode === 'versus' && (
-              <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="CPU 難度">
-                {CPU_DIFFICULTY_OPTIONS.map(({ id, label, blurb }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    title={blurb}
-                    onClick={() => restart(pairCount, mode, themeId, id)}
-                    className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-                      cpuDifficulty === id
-                        ? 'border-rose-400 bg-rose-500/25 text-rose-100'
-                        : 'border-slate-600 bg-slate-800/80 text-slate-300'
-                    }`}
-                  >
-                    CPU · {label}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setScreen('roster')}
+                className="min-h-[44px] px-4 rounded-full border border-rose-400/50 bg-rose-500/15 text-rose-100 text-sm touch-manipulation"
+              >
+                對手：{activeOpponent.name} · 換人
+              </button>
+            )}
+
+            {mode === 'daily' && (
+              <p className="text-xs text-slate-400 text-center">
+                今日 {today}
+                {streak > 0 ? ` · 連續 ${streak} 天` : ''}
+                {todayRecord
+                  ? ` · 最佳 ${todayRecord.moves} 翻／${todayRecord.elapsedSec}s`
+                  : ' · 尚未通關'}
+              </p>
+            )}
+
+            {mode === 'campaign' && activeStage && (
+              <button
+                type="button"
+                onClick={() => setScreen('campaign')}
+                className="min-h-[40px] px-4 rounded-full border border-emerald-500/40 text-sm text-emerald-100 touch-manipulation"
+              >
+                關卡選單 · {activeStage.name}
+              </button>
             )}
           </div>
         )}
       </div>
 
       <p className="text-sm text-slate-300 text-center max-w-xl px-1">
-        {themeLabel} · {pairCount} 對
+        {themeLabel} · {faceLike} {flipNeed === 3 ? '組×3' : '對'}
         {mode === 'versus' ? (
           <>
             {' '}
-            · 你 {playerPairs} : {cpuPairs} CPU
+            · 你 {playerPairs} : {cpuPairs} {activeOpponent.name}
             {' · '}
             <span className={turnOwner === 'cpu' ? 'text-rose-300 font-medium' : 'text-emerald-300 font-medium'}>
-              {turnOwner === 'player' ? '你的回合' : 'CPU 思考中…'}
+              {turnOwner === 'player' ? '你的回合' : `${activeOpponent.name} 思考中…`}
             </span>
             {versusWins > 0 ? ` · 勝場 ${versusWins}` : ''}
           </>
@@ -746,18 +1199,26 @@ export default function App() {
             {' · '}翻牌 {moves}
             {' · '}連擊 {combo}
             {' · '}分數 {score}
-            {mode === 'sprint' ? ` · 剩餘 ${remain}s` : ` · ${elapsed}s`}
+            {remain != null ? ` · 剩餘 ${remain}s` : ` · ${elapsed}s`}
             {mode === 'classic' && bestMoves != null ? ` · 最佳翻牌 ${bestMoves}` : ''}
             {mode === 'classic' && bestTime != null ? ` · 最佳時間 ${bestTime}s` : ''}
             {mode === 'sprint' && bestSprint != null ? ` · 最佳 ${bestSprint}s` : ''}
-            {bestScore != null ? ` · 最高分 ${bestScore}` : ''}
+            {mode === 'daily' && todayRecord
+              ? ` · 今日最佳 ${todayRecord.moves}／${todayRecord.elapsedSec}s`
+              : ''}
+            {mode === 'daily' && streak > 0 ? ` · 連續 ${streak} 天` : ''}
+            {bestScore != null && mode !== 'daily' && mode !== 'campaign'
+              ? ` · 最高分 ${bestScore}`
+              : ''}
             {mode === 'special' ? ` · 洞察×${peekCharges}` : ''}
+            {activeStage?.mechanic === 'swap' ? ' · 互換中' : ''}
+            {activeStage?.mechanic === 'bomb' ? ' · 含炸彈' : ''}
           </>
         )}
       </p>
 
       <div
-        className={`relative grid ${gridColsClass(pairCount)} ${gridGapClass(pairCount)} ${boardWide}`}
+        className={`relative grid ${gridColsClass(faceLike)} ${gridGapClass(faceLike)} ${boardWide}`}
       >
         {flashText && (
           <ScoreFlash text={flashText} tone={flashTone} flashKey={flashKey} onDone={() => setFlashText('')} />
@@ -776,7 +1237,7 @@ export default function App() {
               hinted={hintFlash.includes(i) || peekFlash.includes(i)}
               missPulse={missPulse.includes(i)}
               matchPulse={matchPulse.includes(i)}
-              dense={pairCount >= 18}
+              dense={faceLike >= 18 || cards.length >= 30}
               disabled={
                 locks ||
                 hintFlash.length > 0 ||
@@ -814,6 +1275,15 @@ export default function App() {
             {peekArmed ? '點牌窺視中' : `使用洞察 (${peekCharges})`}
           </button>
         )}
+        {mode === 'daily' && todayRecord && (
+          <button
+            type="button"
+            onClick={() => void handleShareDaily()}
+            className="min-h-[44px] px-5 rounded-xl border border-sky-500/50 bg-sky-500/15 text-sky-100 font-medium touch-manipulation"
+          >
+            {shareCopied ? '已複製' : '複製分享'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => restart()}
@@ -830,40 +1300,88 @@ export default function App() {
       )}
       {mode === 'versus' && (
         <p className="text-xs text-slate-400 text-center max-w-md">
-          輪流翻牌；配對成功可再翻一次。CPU 記性會隨時間衰退，難度越高記得越牢。
+          對上 {activeOpponent.name}：{activeOpponent.blurb}
+        </p>
+      )}
+      {mode === 'campaign' && activeStage && (
+        <p className="text-xs text-slate-400 text-center max-w-md">{activeStage.blurb}</p>
+      )}
+      {mode === 'daily' && (
+        <p className="text-xs text-slate-400 text-center max-w-md">
+          每日盤以日期為種子，全站同日同局。通關後可複製分享文字。
         </p>
       )}
 
       {overlayOpen && mode !== 'versus' && won && (
         <ResultOverlay
-          title="全部配對！"
+          title={mode === 'campaign' ? '關卡通過！' : mode === 'daily' ? '每日通關！' : '全部配對！'}
           variant="win"
-          badge={newRecord ? '新紀錄' : undefined}
+          badge={
+            mode === 'campaign' && lastStars
+              ? starGlyphs(lastStars)
+              : newRecord
+                ? '新紀錄'
+                : undefined
+          }
           stats={[
             { label: '牌組', value: themeLabel },
             { label: '翻牌次數', value: moves },
             { label: '用時', value: `${elapsed}s` },
             { label: '連擊分數', value: score },
-            { label: '配對數', value: pairCount },
-            {
-              label: mode === 'sprint' ? '最佳衝刺' : '最佳翻牌',
-              value:
-                mode === 'sprint'
-                  ? `${bestSprint ?? elapsed}s`
-                  : (bestMoves ?? moves),
-            },
+            ...(mode === 'campaign' && lastStars
+              ? [{ label: '星數', value: starGlyphs(lastStars) }]
+              : []),
+            ...(mode === 'daily'
+              ? [{ label: '連續天數', value: computeStreak(dailyRecords, today) }]
+              : []),
+            ...(mode !== 'daily' && mode !== 'campaign'
+              ? [
+                  {
+                    label: mode === 'sprint' ? '最佳衝刺' : '最佳翻牌',
+                    value:
+                      mode === 'sprint' ? `${bestSprint ?? elapsed}s` : (bestMoves ?? moves),
+                  },
+                ]
+              : []),
           ]}
-          onPrimary={() => restart()}
+          onPrimary={() => {
+            if (mode === 'campaign' && stageIndex != null) {
+              const next = stageIndex + 1;
+              if (next < CAMPAIGN_STAGES.length && isStageUnlocked(next, campaign)) {
+                startCampaignStage(next);
+                return;
+              }
+              setScreen('campaign');
+              return;
+            }
+            restart();
+          }}
+          primaryLabel={
+            mode === 'campaign'
+              ? stageIndex != null &&
+                stageIndex + 1 < CAMPAIGN_STAGES.length &&
+                isStageUnlocked(stageIndex + 1, campaign)
+                ? '下一關'
+                : '關卡選單'
+              : '再玩一局'
+          }
         />
       )}
       {overlayOpen && mode !== 'versus' && lost && (
         <ResultOverlay
           title="時間到"
           variant="lose"
-          subtitle={`衝刺限時 ${sprintLimit} 秒 · ${themeLabel}`}
+          subtitle={
+            effectiveLimit != null
+              ? `限時 ${effectiveLimit} 秒 · ${themeLabel}`
+              : themeLabel
+          }
           stats={[
             { label: '翻牌次數', value: moves },
-            { label: '已配對', value: cards.filter((c) => c.matched).length / 2 },
+            {
+              label: '已配對',
+              value: Math.floor(cards.filter((c) => c.matched).length / flipNeed),
+            },
             { label: '分數', value: score },
           ]}
           onPrimary={() => restart()}
@@ -872,20 +1390,71 @@ export default function App() {
       {versusOutcome && (
         <ResultOverlay
           title={
-            versusOutcome === 'win' ? '你贏了！' : versusOutcome === 'lose' ? 'CPU 獲勝' : '平手'
+            versusOutcome === 'win'
+              ? `贏了 ${activeOpponent.name}！`
+              : versusOutcome === 'lose'
+                ? `${activeOpponent.name} 獲勝`
+                : '平手'
           }
           variant={versusOutcome === 'win' ? 'win' : versusOutcome === 'lose' ? 'lose' : 'neutral'}
-          badge={versusOutcome === 'win' && newRecord ? '勝場 +1' : undefined}
+          badge={
+            versusOutcome === 'win' && newRecord
+              ? roster.unlockedIndex > OPPONENTS.findIndex((o) => o.id === opponentId)
+                ? '解鎖下一位'
+                : '勝場 +1'
+              : undefined
+          }
           stats={[
             { label: '比數', value: `${playerPairs} : ${cpuPairs}` },
-            { label: 'CPU', value: CPU_DIFFICULTY_OPTIONS.find((d) => d.id === cpuDifficulty)?.label ?? '' },
+            { label: '對手', value: activeOpponent.name },
             { label: '盤面', value: `${themeLabel} · ${pairCount} 對` },
             { label: '翻牌次數', value: moves },
             { label: '累計勝場', value: versusWins },
           ]}
-          onPrimary={() => restart()}
+          onPrimary={() => {
+            if (versusOutcome === 'win') {
+              const idx = OPPONENTS.findIndex((o) => o.id === opponentId);
+              const next = OPPONENTS[idx + 1];
+              if (next && isOpponentUnlocked(idx + 1, roster.unlockedIndex)) {
+                startVersusOpponent(next.id);
+                return;
+              }
+            }
+            restart();
+          }}
+          primaryLabel={
+            versusOutcome === 'win' &&
+            (() => {
+              const idx = OPPONENTS.findIndex((o) => o.id === opponentId);
+              return (
+                idx + 1 < OPPONENTS.length &&
+                isOpponentUnlocked(idx + 1, roster.unlockedIndex)
+              );
+            })()
+              ? '挑戰下一位'
+              : '再戰一局'
+          }
         />
       )}
     </div>
   );
+}
+
+function nearestPairCount(faceCount: number): PairCount {
+  if (faceCount <= 6) return 6;
+  if (faceCount <= 12) return 12;
+  if (faceCount <= 18) return 18;
+  return 24;
+}
+
+function shellBg(): CSSProperties {
+  return {
+    backgroundColor: '#1e293b',
+    backgroundImage: [
+      'linear-gradient(rgba(15,23,42,0.5), rgba(15,23,42,0.72))',
+      `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
+    ].join(', '),
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  };
 }

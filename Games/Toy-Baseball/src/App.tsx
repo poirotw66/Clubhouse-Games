@@ -80,6 +80,32 @@ import {
 } from './fielding';
 import { computeHitLaunch, type SwingDir } from './hitting';
 import { createRng, freshSeed, type Rng } from './rng';
+import {
+  PLAYER_TEAM_ID,
+  fenceDistanceForPark,
+  getTeam,
+  type TeamId,
+} from './teams';
+import {
+  applyPlayerResult,
+  clearSeason,
+  computeStandings,
+  createSeason,
+  loadSeason,
+  nextUnplayedPlayerGame,
+  recordLabel,
+  saveSeason,
+  seasonTitle,
+  type SeasonGame,
+  type SeasonState,
+} from './season';
+import {
+  createHitFeelBurst,
+  drawHitParticles,
+  prefersReducedMotion,
+  updateHitParticles,
+  type HitParticle,
+} from './hitFeel';
 
 function resultFlashTone(text: string): ScoreFlashTone {
   if (text.includes('全壘打') || text.includes('安打') || text.includes('保送') || text.includes('完美')) {
@@ -222,6 +248,7 @@ const AIR_RESISTANCE = 0.2;
 
 type GameMode = 'menu' | 'playing' | 'gameOver';
 type BallState = 'idle' | 'pitching' | 'flying';
+type MenuView = 'home' | 'season';
 
 interface GameState {
   mode: GameMode;
@@ -270,6 +297,15 @@ interface GameState {
   lastFielderId: FielderId | null;
   peakZ: number;
   crowdPulse: number;
+  /** Season opponent team (home); null in exhibition match/derby. */
+  opponentTeamId: TeamId | null;
+  seasonGameId: string | null;
+  parkFenceDist: number;
+  parkGapMul: number;
+  screenShake: number;
+  hitStop: number;
+  hitParticles: HitParticle[];
+  reducedMotion: boolean;
 }
 
 // --- Game Engine ---
@@ -340,6 +376,14 @@ class GameEngine {
       lastFielderId: null,
       peakZ: 0,
       crowdPulse: 0,
+      opponentTeamId: null,
+      seasonGameId: null,
+      parkFenceDist: FENCE_DIST,
+      parkGapMul: 1,
+      screenShake: 0,
+      hitStop: 0,
+      hitParticles: [],
+      reducedMotion: prefersReducedMotion(),
     };
   }
 
@@ -399,10 +443,67 @@ class GameEngine {
     this.state.lastLanding = null;
     this.state.lastFielderId = null;
     this.state.crowdPulse = 0;
+    this.state.opponentTeamId = null;
+    this.state.seasonGameId = null;
+    this.state.parkFenceDist = FENCE_DIST;
+    this.state.parkGapMul = 1;
+    this.state.screenShake = 0;
+    this.state.hitStop = 0;
+    this.state.hitParticles = [];
+    this.state.reducedMotion = prefersReducedMotion();
     if (this.state.playMode === 'derby') this.state.halfInning = 0;
     this.refreshDefense();
     this.nextBatter();
     this.onStateChange(this.state);
+  }
+
+  /** Season match: player always bats first (away) at the opponent's park. */
+  startSeasonGame(opts: {
+    game: SeasonGame;
+    difficulty: Difficulty;
+    inningsLength: InningsLength;
+    handedness: 'left' | 'right';
+  }) {
+    const home = getTeam(opts.game.homeId);
+    this.state.playMode = 'season';
+    this.state.difficulty = opts.difficulty;
+    this.state.inningsLength = opts.inningsLength;
+    this.state.handedness = opts.handedness;
+    this.state.opponentTeamId = opts.game.homeId === PLAYER_TEAM_ID
+      ? opts.game.awayId
+      : opts.game.homeId;
+    this.state.seasonGameId = opts.game.id;
+    this.state.parkFenceDist = fenceDistanceForPark(home.park, FENCE_DIST);
+    this.state.parkGapMul = home.park.gapMul;
+    this.state.seed = freshSeed();
+    this.rng = createRng(this.state.seed);
+    this.pitchIndex = 0;
+    this.hitIndex = 0;
+    this.state.mode = 'playing';
+    this.state.inning = 1;
+    this.state.halfInning = 0;
+    this.state.score = { away: 0, home: 0 };
+    this.state.lineScore = {
+      away: Array(this.state.inningsLength).fill(0),
+      home: Array(this.state.inningsLength).fill(0),
+    };
+    this.state.outs = 0;
+    this.state.bases = [false, false, false];
+    this.state.lastLanding = null;
+    this.state.lastFielderId = null;
+    this.state.crowdPulse = 0;
+    this.state.screenShake = 0;
+    this.state.hitStop = 0;
+    this.state.hitParticles = [];
+    this.state.reducedMotion = prefersReducedMotion();
+    this.refreshDefense();
+    this.nextBatter();
+    this.onStateChange(this.state);
+  }
+
+  private cpuPitcherProfile() {
+    if (!this.state.opponentTeamId) return null;
+    return getTeam(this.state.opponentTeamId).pitcher;
   }
 
   /** Test helper: pin seed before start for deterministic checks. */
@@ -516,6 +617,19 @@ class GameEngine {
     if (this.state.contactFlash > 0) {
       this.state.contactFlash = Math.max(0, this.state.contactFlash - dt);
     }
+    if (this.state.screenShake > 0) {
+      this.state.screenShake = Math.max(0, this.state.screenShake - dt * 5);
+    }
+    if (this.state.hitParticles.length > 0) {
+      this.state.hitParticles = updateHitParticles(this.state.hitParticles, dt);
+    }
+
+    // Brief freeze on contact — still tick juice timers above.
+    if (this.state.hitStop > 0) {
+      this.state.hitStop = Math.max(0, this.state.hitStop - dt);
+      this.onStateChange(this.state);
+      return;
+    }
 
     if (this.state.resultTimer > 0) {
       this.state.resultTimer -= dt;
@@ -549,6 +663,7 @@ class GameEngine {
             { balls: this.state.balls, strikes: this.state.strikes },
             this.state.difficulty,
             () => this.nextRoll(`cpuPitch:${this.pitchIndex++}`),
+            this.cpuPitcherProfile(),
           );
           this.handlePitch(choice.type, choice.loc);
         }
@@ -698,6 +813,17 @@ class GameEngine {
     this.state.peakZ = launch.peakZ;
     this.state.crowdPulse = launch.contactQuality >= 0.85 ? 1.4 : launch.contactQuality >= 0.65 ? 0.8 : 0.35;
 
+    const feel = createHitFeelBurst(
+      this.state.contactGrade,
+      this.state.ballPos?.x ?? 400,
+      (this.state.ballPos?.y ?? 450) - (this.state.ballPos?.z ?? 0),
+      () => this.nextRoll(`feel:${this.hitIndex}`),
+      this.state.reducedMotion,
+    );
+    this.state.screenShake = feel.screenShake;
+    this.state.hitStop = feel.hitStop;
+    this.state.hitParticles = feel.particles;
+
     this.onStateChange(this.state);
   }
 
@@ -711,11 +837,12 @@ class GameEngine {
     const dist = Math.sqrt((x - 400) ** 2 + (y - 450) ** 2);
     const quality = this.state.contactQuality;
     const foul = isFoulTerritory(x, y);
+    const fence = this.state.parkFenceDist || FENCE_DIST;
     const clearedFence =
       !foul
       && (
         (type === 'HR' && quality >= 0.58 && this.state.peakZ > 95)
-        || (dist >= FENCE_DIST && quality >= 0.58 && this.state.peakZ > 95)
+        || (dist >= fence && quality >= 0.58 && this.state.peakZ > 95)
       );
 
     if (clearedFence) {
@@ -728,7 +855,7 @@ class GameEngine {
         this.state.derbyHrs += 1;
         this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
       }
-    } else if (type === 'HR' || (!foul && dist >= FENCE_DIST * 0.92 && this.state.peakZ > 70)) {
+    } else if (type === 'HR' || (!foul && dist >= fence * 0.92 && this.state.peakZ > 70)) {
       if (foul) {
         result = '界外球 (FOUL)';
         hitType = 'foul';
@@ -744,6 +871,8 @@ class GameEngine {
           flightTime: estimateFlightTime(this.state.ballVel?.z ?? 0, this.state.peakZ),
           alignment: this.state.defenseAlignment,
           cfg: this.cfg,
+          fenceDist: fence,
+          gapMul: this.state.parkGapMul,
         });
         result = graded.result;
         bases = graded.bases;
@@ -779,6 +908,8 @@ class GameEngine {
         flightTime,
         alignment: this.state.defenseAlignment,
         cfg: this.cfg,
+        fenceDist: fence,
+        gapMul: this.state.parkGapMul,
       });
       result = graded.result;
       bases = graded.bases;
@@ -910,7 +1041,7 @@ class GameEngine {
   }
 
   checkWalkOff() {
-    if (this.state.playMode !== 'match') return;
+    if (this.state.playMode !== 'match' && this.state.playMode !== 'season') return;
     if (
       this.state.inning >= this.state.inningsLength
       && this.state.halfInning === 1
@@ -952,6 +1083,12 @@ class GameEngine {
 
   draw(ctx: CanvasRenderingContext2D) {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    ctx.save();
+    if (this.state.screenShake > 0 && !this.state.reducedMotion) {
+      const amt = this.state.screenShake * 10;
+      ctx.translate((Math.random() - 0.5) * amt, (Math.random() - 0.5) * amt);
+    }
 
     const sky = fieldSkyImage();
     if (sky.complete && sky.naturalWidth > 0) {
@@ -1231,6 +1368,10 @@ class GameEngine {
       }
     }
 
+    if (this.state.hitParticles.length > 0) {
+      drawHitParticles(ctx, this.state.hitParticles);
+    }
+
     if (this.state.hitEffect > 0) {
       ctx.fillStyle = `rgba(255, 255, 255, ${this.state.hitEffect * 0.4})`;
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -1262,6 +1403,8 @@ class GameEngine {
       ctx.fillRect(0, 0, CANVAS_WIDTH, 40);
       ctx.fillRect(0, CANVAS_HEIGHT - 40, CANVAS_WIDTH, 40);
     }
+
+    ctx.restore();
   }
 }
 
@@ -1285,7 +1428,14 @@ export default function App() {
   );
   const [bestsMap, setBestsMap] = useState<BestsMap>(() => loadBestsMap());
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [menuView, setMenuView] = useState<MenuView>('home');
+  const [season, setSeason] = useState<SeasonState | null>(() => loadSeason());
   const bests: BaseballBests = bestsMap[gameState.difficulty] ?? bestsMap.normal;
+  const opponentTeam = gameState.opponentTeamId
+    ? getTeam(gameState.opponentTeamId)
+    : null;
+  const seasonStandings = season ? computeStandings(season.schedule) : [];
+  const nextSeasonGame = season ? nextUnplayedPlayerGame(season) : null;
 
   const isPlayerBatting =
     gameState.playMode === 'derby' || gameState.halfInning === 0;
@@ -1344,6 +1494,31 @@ export default function App() {
           const next = updateDerbyBests(loadBests(diff), state.derbyHrs, state.derbyBestDist);
           saveBests(diff, next);
           setBestsMap(loadBestsMap());
+        } else if (state.playMode === 'season') {
+          if (state.score.away > state.score.home) playWin();
+          else if (state.score.away < state.score.home) playLose();
+          const next = updateMatchBests(
+            loadBests(diff),
+            state.score.away,
+            state.score.home,
+            state.inningsLength,
+          );
+          saveBests(diff, next);
+          setBestsMap(loadBestsMap());
+          if (state.seasonGameId) {
+            setSeason((prev) => {
+              const base = prev ?? loadSeason();
+              if (!base) return prev;
+              const updated = applyPlayerResult(
+                base,
+                state.seasonGameId!,
+                state.score.away,
+                state.score.home,
+              );
+              saveSeason(updated);
+              return updated;
+            });
+          }
         } else {
           if (state.score.away > state.score.home) playWin();
           else if (state.score.away < state.score.home) playLose();
@@ -1435,23 +1610,90 @@ export default function App() {
   const handleStart = () => {
     const eng = engineRef.current;
     if (!eng) return;
+    if (eng.state.playMode === 'season') {
+      setMenuView('season');
+      return;
+    }
     eng.start(eng.state.playMode, eng.state.difficulty, eng.state.inningsLength);
   };
 
   const handleRematch = () => {
     const eng = engineRef.current;
     if (!eng) return;
+    if (eng.state.playMode === 'season') {
+      eng.reset();
+      setMenuView('season');
+      return;
+    }
     eng.start(eng.state.playMode, eng.state.difficulty, eng.state.inningsLength);
   };
 
   const handleReset = () => {
     engineRef.current?.reset();
+    setMenuView('home');
+  };
+
+  const startNewSeason = () => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    const next = createSeason({
+      difficulty: eng.state.difficulty,
+      inningsLength: eng.state.inningsLength,
+      handedness: eng.state.handedness,
+    });
+    saveSeason(next);
+    setSeason(next);
+    setMenuView('season');
+    eng.state.playMode = 'season';
+    eng.onStateChange(eng.state);
+  };
+
+  const resumeSeasonHub = () => {
+    const loaded = loadSeason();
+    if (!loaded) return;
+    setSeason(loaded);
+    setMenuView('season');
+    const eng = engineRef.current;
+    if (eng) {
+      eng.state.playMode = 'season';
+      eng.state.difficulty = loaded.difficulty;
+      eng.state.inningsLength = loaded.inningsLength;
+      eng.state.handedness = loaded.handedness;
+      eng.onStateChange(eng.state);
+    }
+  };
+
+  const playNextSeasonGame = () => {
+    const eng = engineRef.current;
+    const current = season ?? loadSeason();
+    if (!eng || !current) return;
+    const game = nextUnplayedPlayerGame(current);
+    if (!game) return;
+    setSeason(current);
+    eng.startSeasonGame({
+      game,
+      difficulty: current.difficulty,
+      inningsLength: current.inningsLength,
+      handedness: current.handedness,
+    });
+  };
+
+  const abandonSeason = () => {
+    clearSeason();
+    setSeason(null);
+    setMenuView('home');
+    const eng = engineRef.current;
+    if (eng) {
+      eng.state.playMode = 'match';
+      eng.onStateChange(eng.state);
+    }
   };
 
   const setMenuPlayMode = (playMode: PlayMode) => {
     const eng = engineRef.current;
     if (!eng) return;
     eng.state.playMode = playMode;
+    setMenuView('home');
     eng.onStateChange(eng.state);
   };
 
@@ -1520,7 +1762,9 @@ export default function App() {
                       draggable={false}
                     />
                     <div className="flex flex-col">
-                      <span className="text-[10px] tracking-widest text-zinc-500 font-bold">客場（你）</span>
+                      <span className="text-[10px] tracking-widest text-zinc-500 font-bold">
+                        {gameState.playMode === 'season' ? getTeam(PLAYER_TEAM_ID).shortName : '客場（你）'}
+                      </span>
                       <span className="text-2xl sm:text-4xl font-mono font-bold text-blue-400 tabular-nums">
                         {gameState.score.away}
                       </span>
@@ -1529,7 +1773,9 @@ export default function App() {
                   <BaseDiamond bases={gameState.bases} />
                   <div className="flex items-center gap-2">
                     <div className="flex flex-col items-end">
-                      <span className="text-[10px] tracking-widest text-zinc-500 font-bold">主場（電腦）</span>
+                      <span className="text-[10px] tracking-widest text-zinc-500 font-bold">
+                        {opponentTeam ? opponentTeam.shortName : '主場（電腦）'}
+                      </span>
                       <span className="text-2xl sm:text-4xl font-mono font-bold text-red-400 tabular-nums">
                         {gameState.score.home}
                       </span>
@@ -1571,9 +1817,16 @@ export default function App() {
                     ? `全壘打大賽 · ${DIFFICULTY_LABELS[gameState.difficulty]}`
                     : `${gameState.inning}/${gameState.inningsLength} 局 ${
                       gameState.halfInning === 0 ? '上' : '下'
-                    } · ${DIFFICULTY_LABELS[gameState.difficulty]}`}
+                    } · ${DIFFICULTY_LABELS[gameState.difficulty]}${
+                      opponentTeam ? ` · vs ${opponentTeam.pitcher.name}` : ''
+                    }`}
                 </span>
               </div>
+              {opponentTeam && gameState.mode === 'playing' && isPlayerBatting && (
+                <span className="text-[10px] font-bold text-amber-200/85 max-w-[11rem] text-right leading-snug">
+                  {opponentTeam.pitcher.habit}
+                </span>
+              )}
               {gameState.playMode !== 'derby' && (
                 <div className="flex flex-col items-end gap-0.5">
                   <CountRow
@@ -1666,129 +1919,301 @@ export default function App() {
                   讀球 · 控球 · 打向空檔
                 </p>
 
-                <div className="w-full max-w-md mb-4 grid grid-cols-2 gap-2">
-                  {(['match', 'derby'] as PlayMode[]).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMenuPlayMode(m)}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border font-bold text-sm transition-all ${
-                        gameState.playMode === m
-                          ? 'bg-yellow-500/15 border-yellow-400/50 text-yellow-200 shadow-[0_0_20px_rgba(234,179,8,0.15)]'
-                          : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:border-white/20'
-                      }`}
-                    >
-                      {m === 'match' ? <Target className="w-6 h-6" /> : <Trophy className="w-6 h-6" />}
-                      {PLAY_MODE_LABELS[m]}
-                    </button>
-                  ))}
-                </div>
-
-                {gameState.playMode === 'match' && (
-                  <div className="w-full max-w-md mb-4">
-                    <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">
-                      局數
-                    </p>
-                    <div className="flex gap-2 justify-center">
-                      {INNINGS_OPTIONS.map((n) => (
+                {menuView === 'home' && (
+                  <>
+                    <div className="w-full max-w-md mb-4 grid grid-cols-3 gap-2">
+                      {(['match', 'season', 'derby'] as PlayMode[]).map((m) => (
                         <button
-                          key={n}
+                          key={m}
                           type="button"
-                          onClick={() => setMenuInnings(n)}
-                          className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${
-                            gameState.inningsLength === n
-                              ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.45)]'
-                              : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                          onClick={() => setMenuPlayMode(m)}
+                          className={`flex flex-col items-center gap-2 p-3 sm:p-4 rounded-2xl border font-bold text-xs sm:text-sm transition-all min-h-[44px] ${
+                            gameState.playMode === m
+                              ? 'bg-yellow-500/15 border-yellow-400/50 text-yellow-200 shadow-[0_0_20px_rgba(234,179,8,0.15)]'
+                              : 'bg-zinc-900/80 border-white/10 text-zinc-400 hover:border-white/20'
                           }`}
                         >
-                          {INNINGS_LABELS[n]}
+                          {m === 'match' ? (
+                            <Target className="w-5 h-5 sm:w-6 sm:h-6" />
+                          ) : (
+                            <Trophy className="w-5 h-5 sm:w-6 sm:h-6" />
+                          )}
+                          {PLAY_MODE_LABELS[m]}
                         </button>
                       ))}
                     </div>
-                  </div>
+
+                    {(gameState.playMode === 'match' || gameState.playMode === 'season') && (
+                      <div className="w-full max-w-md mb-4">
+                        <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">
+                          局數
+                        </p>
+                        <div className="flex gap-2 justify-center">
+                          {INNINGS_OPTIONS.map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => setMenuInnings(n)}
+                              className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-sm transition-all min-h-[44px] ${
+                                gameState.inningsLength === n
+                                  ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.45)]'
+                                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                              }`}
+                            >
+                              {INNINGS_LABELS[n]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="w-full max-w-md mb-4">
+                      <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">
+                        難度
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => setMenuDifficulty(d)}
+                            className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-sm transition-all min-h-[44px] ${
+                              gameState.difficulty === d
+                                ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                            }`}
+                          >
+                            {DIFFICULTY_LABELS[d]}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-center text-sm text-amber-300/90 font-medium">
+                        {DIFFICULTY_BLURBS[gameState.difficulty]}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 mb-5 w-full max-w-md">
+                      {(['right', 'left'] as const).map((hand) => (
+                        <button
+                          key={hand}
+                          type="button"
+                          onClick={() => {
+                            engineRef.current!.state.handedness = hand;
+                            setGameState({ ...engineRef.current!.state });
+                          }}
+                          className={`flex-1 py-2.5 rounded-xl font-bold transition-all min-h-[44px] ${
+                            gameState.handedness === hand
+                              ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                              : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {hand === 'right' ? '右打' : '左打'}
+                        </button>
+                      ))}
+                    </div>
+
+                    <p className="text-zinc-500 text-xs mb-3 text-center max-w-sm leading-relaxed">
+                      {gameState.playMode === 'derby'
+                        ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。時機與方向決定落點。`
+                        : gameState.playMode === 'season'
+                          ? '四隊循環＋冠軍賽；具名投手配球傾向不同，球場外野深度有差。可中斷存檔。'
+                          : `${INNINGS_LABELS[gameState.inningsLength]}正規賽。六種球路出手後可微調；往野手間的空檔打。`}
+                    </p>
+
+                    <p className="text-zinc-400 text-xs mb-5 text-center font-medium">
+                      {gameState.playMode === 'derby'
+                        ? `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
+                        : `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak} · 最佳連勝 ${bests.matchBestWinStreak}${
+                          bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
+                        }${
+                          bests.matchBestInnings > 0
+                            ? ` · 最長勝場 ${bests.matchBestInnings} 局`
+                            : ''
+                        }`}
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (gameState.playMode === 'season') {
+                            if (season && season.phase !== 'complete') resumeSeasonHub();
+                            else startNewSeason();
+                          } else {
+                            handleStart();
+                          }
+                        }}
+                        className="group relative flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold text-xl hover:scale-105 transition-all active:scale-95 min-h-[52px]"
+                      >
+                        <Play className="fill-current" />
+                        {gameState.playMode === 'derby'
+                          ? '開始大賽'
+                          : gameState.playMode === 'season'
+                            ? season && season.phase !== 'complete'
+                              ? '續玩球季'
+                              : '開打球季'
+                            : '開始比賽'}
+                        <div className="absolute -inset-1 bg-white/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowFirstRun(true)}
+                        className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-zinc-300 hover:border-amber-400/50 hover:text-amber-200 transition-all min-h-[44px]"
+                      >
+                        操作教學
+                      </button>
+                    </div>
+                  </>
                 )}
 
-                <div className="w-full max-w-md mb-4">
-                  <p className="text-[10px] tracking-widest text-zinc-500 font-bold text-center mb-2">
-                    難度
-                  </p>
-                  <div className="flex gap-2 justify-center">
-                    {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setMenuDifficulty(d)}
-                        className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${
-                          gameState.difficulty === d
-                            ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]'
-                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                        }`}
-                      >
-                        {DIFFICULTY_LABELS[d]}
-                      </button>
-                    ))}
+                {menuView === 'season' && (
+                  <div className="w-full max-w-lg flex flex-col gap-3">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-center italic tracking-tight">
+                      {seasonTitle()}
+                    </h2>
+                    <p className="text-zinc-400 text-xs text-center leading-relaxed">
+                      你率領{getTeam(PLAYER_TEAM_ID).name}。循環賽後前二名爭冠；戰績會自動存檔。
+                    </p>
+
+                    {season ? (
+                      <>
+                        <div className="rounded-2xl border border-white/10 bg-zinc-950/70 overflow-hidden">
+                          <table className="w-full text-xs sm:text-sm">
+                            <thead>
+                              <tr className="text-zinc-500 text-left">
+                                <th className="px-3 py-2 font-bold">排名</th>
+                                <th className="px-2 py-2 font-bold">球隊</th>
+                                <th className="px-2 py-2 font-bold text-right">戰績</th>
+                                <th className="px-3 py-2 font-bold text-right">得失</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {seasonStandings.map((row, i) => {
+                                const team = getTeam(row.teamId);
+                                const isYou = row.teamId === PLAYER_TEAM_ID;
+                                return (
+                                  <tr
+                                    key={row.teamId}
+                                    className={isYou ? 'bg-amber-500/10' : ''}
+                                  >
+                                    <td className="px-3 py-2 tabular-nums text-zinc-400">{i + 1}</td>
+                                    <td className="px-2 py-2 font-bold" style={{ color: team.accent }}>
+                                      {team.shortName}
+                                      {isYou ? '（你）' : ''}
+                                    </td>
+                                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">
+                                      {recordLabel(row)}
+                                    </td>
+                                    <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
+                                      {row.runsFor}-{row.runsAgainst}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {season.phase === 'complete' ? (
+                          <p className="text-center text-amber-200 font-bold text-sm">
+                            {season.championId === PLAYER_TEAM_ID
+                              ? '你奪得玩具聯盟冠軍！'
+                              : `冠軍：${getTeam(season.championId ?? PLAYER_TEAM_ID).name}`}
+                          </p>
+                        ) : nextSeasonGame ? (
+                          <div className="rounded-2xl border border-white/10 bg-zinc-900/80 p-3 sm:p-4">
+                            <p className="text-[10px] tracking-widest text-zinc-500 font-bold mb-1">
+                              {nextSeasonGame.slot === 'finals' ? '冠軍賽' : '下一場'}
+                            </p>
+                            <p className="font-bold text-zinc-100 text-sm sm:text-base">
+                              vs {getTeam(
+                                nextSeasonGame.homeId === PLAYER_TEAM_ID
+                                  ? nextSeasonGame.awayId
+                                  : nextSeasonGame.homeId,
+                              ).name}
+                            </p>
+                            {(() => {
+                              const opp = getTeam(
+                                nextSeasonGame.homeId === PLAYER_TEAM_ID
+                                  ? nextSeasonGame.awayId
+                                  : nextSeasonGame.homeId,
+                              );
+                              return (
+                                <div className="mt-2 space-y-1 text-xs text-zinc-400 leading-relaxed">
+                                  <p>
+                                    投手 <span className="text-amber-200 font-bold">{opp.pitcher.name}</span>
+                                    ：{opp.pitcher.habit}
+                                  </p>
+                                  <p>
+                                    球場 <span className="text-emerald-200 font-bold">{opp.parkName}</span>
+                                    ：{opp.park.blurb}
+                                  </p>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          <p className="text-center text-zinc-400 text-sm">等待戰績結算…</p>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                          {season.phase !== 'complete' && nextSeasonGame && (
+                            <button
+                              type="button"
+                              onClick={playNextSeasonGame}
+                              className="flex items-center justify-center gap-2 bg-white text-black px-8 py-3.5 rounded-full font-bold text-lg hover:scale-105 transition-all active:scale-95 min-h-[48px]"
+                            >
+                              <Play className="fill-current w-5 h-5" />
+                              {nextSeasonGame.slot === 'finals' ? '打冠軍賽' : '開打'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setMenuView('home')}
+                            className="px-4 py-3 rounded-2xl text-sm font-bold border border-white/15 text-zinc-300 hover:border-white/30 min-h-[44px]"
+                          >
+                            回模式選單
+                          </button>
+                          <button
+                            type="button"
+                            onClick={abandonSeason}
+                            className="px-4 py-3 rounded-2xl text-sm font-bold border border-red-400/30 text-red-200/90 hover:border-red-400/60 min-h-[44px]"
+                          >
+                            {season.phase === 'complete' ? '開新球季' : '放棄球季'}
+                          </button>
+                        </div>
+                        {season.phase === 'complete' && (
+                          <button
+                            type="button"
+                            onClick={startNewSeason}
+                            className="mx-auto flex items-center justify-center gap-2 bg-amber-400 text-zinc-950 px-8 py-3 rounded-full font-bold min-h-[48px]"
+                          >
+                            再開一季
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3">
+                        <p className="text-zinc-400 text-sm text-center">尚未有進行中的球季。</p>
+                        <button
+                          type="button"
+                          onClick={startNewSeason}
+                          className="flex items-center gap-2 bg-white text-black px-8 py-3.5 rounded-full font-bold min-h-[48px]"
+                        >
+                          <Play className="fill-current" />
+                          開打球季
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMenuView('home')}
+                          className="px-4 py-3 rounded-2xl text-sm font-bold border border-white/15 text-zinc-300 min-h-[44px]"
+                        >
+                          回模式選單
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <p className="mt-2 text-center text-sm text-amber-300/90 font-medium">
-                    {DIFFICULTY_BLURBS[gameState.difficulty]}
-                  </p>
-                </div>
-
-                <div className="flex gap-2 mb-5 w-full max-w-md">
-                  {(['right', 'left'] as const).map((hand) => (
-                    <button
-                      key={hand}
-                      type="button"
-                      onClick={() => {
-                        engineRef.current!.state.handedness = hand;
-                        setGameState({ ...engineRef.current!.state });
-                      }}
-                      className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${
-                        gameState.handedness === hand
-                          ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]'
-                          : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
-                      }`}
-                    >
-                      {hand === 'right' ? '右打' : '左打'}
-                    </button>
-                  ))}
-                </div>
-
-                <p className="text-zinc-500 text-xs mb-3 text-center max-w-sm leading-relaxed">
-                  {gameState.playMode === 'derby'
-                    ? `限 ${DERBY_SWINGS} 次揮擊，拚全壘打數。時機與方向決定落點。`
-                    : `${INNINGS_LABELS[gameState.inningsLength]}正規賽。六種球路出手後可微調；往野手間的空檔打。`}
-                </p>
-
-                <p className="text-zinc-400 text-xs mb-5 text-center font-medium">
-                  {gameState.playMode === 'derby'
-                    ? `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：全壘打 ${bests.derbyBestHrs} · 最遠 ${Math.round(bests.derbyBestDist)}`
-                    : `${DIFFICULTY_LABELS[gameState.difficulty]}最佳：勝場 ${bests.matchWins} · 連勝 ${bests.matchWinStreak} · 最佳連勝 ${bests.matchBestWinStreak}${
-                      bests.matchBestRuns > 0 ? ` · 勝場最高得分 ${bests.matchBestRuns}` : ''
-                    }${
-                      bests.matchBestInnings > 0
-                        ? ` · 最長勝場 ${bests.matchBestInnings} 局`
-                        : ''
-                    }`}
-                </p>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleStart}
-                    className="group relative flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold text-xl hover:scale-105 transition-all active:scale-95 min-h-[52px]"
-                  >
-                    <Play className="fill-current" />
-                    {gameState.playMode === 'derby' ? '開始大賽' : '開始比賽'}
-                    <div className="absolute -inset-1 bg-white/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowFirstRun(true)}
-                    className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-zinc-300 hover:border-amber-400/50 hover:text-amber-200 transition-all min-h-[44px]"
-                  >
-                    操作教學
-                  </button>
-                </div>
+                )}
               </motion.div>
             )}
 
@@ -1800,9 +2225,13 @@ export default function App() {
                       ? `轟出 ${gameState.derbyHrs} 支全壘打！`
                       : '沒有全壘打…再來一次！'
                     : gameState.score.away > gameState.score.home
-                      ? '你贏了！'
+                      ? gameState.playMode === 'season'
+                        ? '本場勝利！'
+                        : '你贏了！'
                       : gameState.score.away < gameState.score.home
-                        ? '電腦獲勝'
+                        ? gameState.playMode === 'season'
+                          ? '本場敗北…'
+                          : '電腦獲勝'
                         : '平手'
                 }
                 variant={
@@ -1826,8 +2255,16 @@ export default function App() {
                         { label: '難度', value: DIFFICULTY_LABELS[gameState.difficulty] },
                       ]
                     : [
-                        { label: '客隊（你）', value: gameState.score.away },
-                        { label: '主隊（電腦）', value: gameState.score.home },
+                        {
+                          label: gameState.playMode === 'season'
+                            ? getTeam(PLAYER_TEAM_ID).shortName
+                            : '客隊（你）',
+                          value: gameState.score.away,
+                        },
+                        {
+                          label: opponentTeam?.shortName ?? '主隊（電腦）',
+                          value: gameState.score.home,
+                        },
                         { label: '局數', value: gameState.inningsLength },
                         { label: '勝場', value: bests.matchWins },
                         { label: '連勝', value: bests.matchWinStreak },
@@ -1835,7 +2272,7 @@ export default function App() {
                       ]
                 }
                 onPrimary={handleRematch}
-                primaryLabel="再玩一局"
+                primaryLabel={gameState.playMode === 'season' ? '回戰績表' : '再玩一局'}
                 onSecondary={handleReset}
                 secondaryLabel="回選單"
               />

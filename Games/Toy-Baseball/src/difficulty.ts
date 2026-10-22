@@ -1,7 +1,7 @@
 // Match / derby difficulty knobs for Toy Baseball.
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
-export type PlayMode = 'match' | 'derby';
+export type PlayMode = 'match' | 'derby' | 'season';
 export type InningsLength = 3 | 6 | 9;
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
@@ -20,6 +20,7 @@ export const DIFFICULTY_BLURBS: Record<Difficulty, string> = {
 export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
   match: '正規賽',
   derby: '全壘打大賽',
+  season: '球季模式',
 };
 
 export const INNINGS_OPTIONS: InningsLength[] = [3, 6, 9];
