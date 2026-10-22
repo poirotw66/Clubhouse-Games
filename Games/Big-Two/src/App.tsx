@@ -50,6 +50,7 @@ import {
   createMatch,
   dealHand,
   defaultMatchConfig,
+  isSeriesMode,
   matchProgressLabel,
 } from './game/match';
 import {
@@ -152,8 +153,8 @@ export default function App(): React.ReactElement {
     setLadder(loadLadder());
     setDailyProgress(loadDailyProgress());
 
-    // Playtest-only: `?demo=mvp` mounts a finished series so screenshots can
-    // capture the settlement MVP block without playing a full match.
+    // Playtest-only: `?demo=mvp` mounts a finished series; `?demo=single`
+    // mounts a compact single-hand settlement for screenshots.
     if (typeof window !== 'undefined') {
       const demo = new URLSearchParams(window.location.search).get('demo');
       if (demo === 'mvp') {
@@ -161,6 +162,13 @@ export default function App(): React.ReactElement {
         setMatch(demoMatch);
         setConfig(demoMatch.config);
         setReview(buildMvpDemoReview());
+        setScreen('game');
+        setState(null);
+      } else if (demo === 'single') {
+        const demoMatch = buildSingleDemoMatch();
+        setMatch(demoMatch);
+        setConfig(demoMatch.config);
+        setReview(buildSingleDemoReview());
         setScreen('game');
         setState(null);
       }
@@ -986,9 +994,21 @@ function Setup({
               </ul>
             </section>
 
-            <section>
-              <h2 className="font-bold mb-2 text-sm text-indigo-200">賽制</h2>
-              <div className="flex flex-col gap-2">
+            <details
+              className="bt-more-modes rounded-2xl border border-slate-700/80 bg-slate-900/40 px-4 py-3"
+              open={isSeriesMode(config.mode)}
+            >
+              <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-sm text-indigo-200 font-bold">
+                <span>更多賽制</span>
+                <span className="text-[11px] font-normal text-indigo-100/55">
+                  {config.mode === 'single'
+                    ? '目前：單局'
+                    : config.mode === 'hands'
+                      ? `目前：${config.hands} 局`
+                      : `目前：先達 ${config.target}`}
+                </span>
+              </summary>
+              <div className="mt-3 flex flex-col gap-2" role="group" aria-label="賽制">
                 {playModes.map((mode) => (
                   <button
                     key={mode}
@@ -1003,7 +1023,7 @@ function Setup({
                     <span className="font-bold">{MATCH_MODE_LABELS[mode]}</span>
                     <span className="block text-xs text-indigo-100/55">
                       {mode === 'single'
-                        ? '打完一局就結算，看 MVP'
+                        ? '打完一局就結算'
                         : mode === 'hands'
                           ? '打完指定局數，比累計籌碼'
                           : '有人先累積到目標分就結束'}
@@ -1012,7 +1032,7 @@ function Setup({
                 ))}
               </div>
               {config.mode === 'hands' && (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex gap-2" role="group" aria-label="局數">
                   {MATCH_LENGTHS.map((n) => (
                     <button
                       key={n}
@@ -1030,7 +1050,7 @@ function Setup({
                 </div>
               )}
               {config.mode === 'target' && (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex gap-2" role="group" aria-label="目標分">
                   {TARGET_SCORES.map((n) => (
                     <button
                       key={n}
@@ -1047,7 +1067,7 @@ function Setup({
                   ))}
                 </div>
               )}
-            </section>
+            </details>
 
             <section>
               <h2 className="font-bold mb-2 text-sm text-indigo-200">難度</h2>
@@ -1151,7 +1171,7 @@ function Setup({
                 onClick={onResume}
                 className="min-h-[48px] rounded-2xl border border-amber-400/40 bg-amber-500/10 text-amber-100 font-bold touch-manipulation hover:bg-amber-500/20"
               >
-                繼續未完的系列賽
+                繼續未完的對局
               </button>
             )}
 
@@ -1160,7 +1180,7 @@ function Setup({
               onClick={onStart}
               className="min-h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-lg font-black touch-manipulation"
             >
-              {config.mode === 'single' ? '開始單局' : '開始系列賽'}
+              {isSeriesMode(config.mode) ? '開始系列賽' : '開始單局'}
             </button>
 
             {(stats.games > 0 || Object.values(stats.formats).some((f) => f.played > 0)) && (
@@ -1276,6 +1296,66 @@ function buildMvpDemoReview(): HandReview {
       {
         title: '系列賽籌碼結算',
         detail: '四局累計後你以 +42 籌碼勝出；局末 MVP 標出最快出完、炸彈與翻盤。',
+      },
+    ],
+  };
+}
+
+/** Synthetic finished single hand for `?demo=single` playtest screenshots. */
+function buildSingleDemoMatch(): MatchState {
+  return {
+    config: {
+      mode: 'single',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: {
+        straights: 'topCard',
+        sizeLadder: true,
+        deuceDouble: true,
+      },
+      seedCode: 'demo-single',
+      ladderOpponentId: null,
+    },
+    handIndex: 1,
+    balances: [27, -16, -5, -6],
+    history: [
+      {
+        handIndex: 0,
+        seedCode: 'demo-single',
+        winner: 0,
+        scores: [
+          { seat: 0, remaining: 0, base: 0, deuces: 0, penalty: 0 },
+          { seat: 1, remaining: 8, base: 8, deuces: 0, penalty: 16 },
+          { seat: 2, remaining: 5, base: 5, deuces: 0, penalty: 5 },
+          { seat: 3, remaining: 6, base: 6, deuces: 0, penalty: 6 },
+        ],
+        pot: 27,
+        deltas: [27, -16, -5, -6],
+        bombs: [0, 0, 0, 0],
+        winnerPlayCount: 5,
+      },
+    ],
+    phase: 'matchOver',
+    winner: 0,
+  };
+}
+
+function buildSingleDemoReview(): HandReview {
+  return {
+    winner: 0,
+    pot: 27,
+    scores: [
+      { seat: 0, remaining: 0, base: 0, deuces: 0, penalty: 0 },
+      { seat: 1, remaining: 8, base: 8, deuces: 0, penalty: 16 },
+      { seat: 2, remaining: 5, base: 5, deuces: 0, penalty: 5 },
+      { seat: 3, remaining: 6, base: 6, deuces: 0, penalty: 6 },
+    ],
+    highlight: '+27',
+    lessons: [
+      {
+        title: '單局結算',
+        detail: '打完一局就結束；籌碼與戰績記入單局，不含系列賽累計。',
       },
     ],
   };
