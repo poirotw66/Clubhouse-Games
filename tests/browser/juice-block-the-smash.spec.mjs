@@ -27,17 +27,36 @@ async function openSmash(page) {
   await expect(page.locator('[data-juice-settings="1"]')).toBeVisible();
 }
 
+async function gameFrame(page) {
+  const frame = page.frames().find((f) => /game\.html/i.test(f.url()));
+  if (!frame) throw new Error('game.html iframe not found');
+  return frame;
+}
+
 async function startEasyDrill(page, isMobile) {
   await activate(page.getByRole('button', { name: '簡單', exact: true }), isMobile);
   await activate(page.getByRole('button', { name: /10 球/ }), isMobile);
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  // Park the racket in a corner so approaching shuttles are not soft-blocked (no swing).
+  const frame = await gameFrame(page);
+  await frame.evaluate(() => {
+    window.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: 8, clientY: 8, bubbles: true }),
+    );
+  });
 }
 
 async function waitForMissHaptic(page) {
-  // Stand still: first shuttle past the racket → iframe posts JUICE_HAPTIC → parent haptic('error').
+  const frame = await gameFrame(page);
+  // Natural miss: shuttle clears the court → iframe posts JUICE_HAPTIC → parent haptic('error').
+  await expect
+    .poll(async () => frame.evaluate(() => document.getElementById('miss-val')?.textContent || '0'), {
+      timeout: 30_000,
+    })
+    .not.toBe('0');
   await expect
     .poll(async () => page.evaluate(() => window.__vibrateCalls?.length ?? 0), {
-      timeout: 20_000,
+      timeout: 5_000,
     })
     .toBeGreaterThan(0);
 }
@@ -60,7 +79,7 @@ test('block-the-smash: juice settings persist under clubhouse:juice', async ({ p
 
 test('block-the-smash: miss posts shared haptic through parent shell', async ({ page, isMobile }) => {
   test.skip(!includesGame('Block-the-smash'), 'selective CI');
-  test.setTimeout(45_000);
+  test.setTimeout(60_000);
   await page.addInitScript(() => {
     window.__vibrateCalls = [];
     navigator.vibrate = (pattern) => {
@@ -73,13 +92,13 @@ test('block-the-smash: miss posts shared haptic through parent shell', async ({ 
   await waitForMissHaptic(page);
   const patterns = await page.evaluate(() => window.__vibrateCalls);
   expect(patterns.length).toBeGreaterThan(0);
-  // error preset is a two-pulse array
+  // error preset is a multi-pulse array
   expect(Array.isArray(patterns[0])).toBe(true);
 });
 
 test('block-the-smash: juice respects haptics off on miss', async ({ page, isMobile }) => {
   test.skip(!includesGame('Block-the-smash'), 'selective CI');
-  test.setTimeout(45_000);
+  test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(() => {
     localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
@@ -91,8 +110,12 @@ test('block-the-smash: juice respects haptics off on miss', async ({ page, isMob
   });
   await openSmash(page);
   await startEasyDrill(page, isMobile);
-  // Give the drill time to miss at least once while haptics stay silent.
-  await page.waitForTimeout(8_000);
+  const frame = await gameFrame(page);
+  await expect
+    .poll(async () => frame.evaluate(() => document.getElementById('miss-val')?.textContent || '0'), {
+      timeout: 30_000,
+    })
+    .not.toBe('0');
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBe(0);
 });
