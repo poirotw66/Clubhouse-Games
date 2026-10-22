@@ -23,9 +23,10 @@ test.describe('Astra Windward (3D Sailing)', () => {
     await expect(locked).toBeVisible();
     await expect(locked.locator('.lock')).toHaveText('鎖定');
 
-    // Touch controls exist in DOM (shown on coarse pointers).
+    // Touch controls exist in DOM (visible on coarse pointers / mobile project).
     await expect(page.locator('#touch-controls')).toHaveCount(1);
-    await expect(page.getByRole('button', { name: 'Brake' })).toHaveCount(1);
+    await expect(page.locator('#touch-controls [data-key="Space"]')).toHaveCount(1);
+    await expect(page.locator('#touch-controls [data-action="restart"]')).toHaveCount(1);
 
     const api = await page.evaluate(() => {
       const w = window.__windward;
@@ -61,7 +62,7 @@ test.describe('Astra Windward (3D Sailing)', () => {
     ).toBeGreaterThanOrEqual(1);
 
     // Result overlay present with Traditional Chinese labels.
-    await expect(page.getByText(/新紀錄|完賽/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /新紀錄|完賽/ })).toBeVisible();
     await page.getByRole('button', { name: '選航線' }).click();
     await expect(page.locator('#overlay')).not.toHaveClass(/hidden/);
     await expect(page.locator('#course-list .course-btn').nth(1)).toBeEnabled();

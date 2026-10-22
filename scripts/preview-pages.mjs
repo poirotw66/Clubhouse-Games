@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const prefix = `/${process.env.REPO_NAME || 'Clubhouse-Games'}/`;
 const port = Number(process.env.PREVIEW_PORT || 4173);
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.css': 'text/css',
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript',
+  // Match server.mjs — browsers reject ES modules served as application/octet-stream.
+  '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
   '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.md': 'text/markdown; charset=utf-8' };
 
