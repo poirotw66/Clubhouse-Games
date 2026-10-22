@@ -1,12 +1,84 @@
 /**
  * Pure puzzle logic for WebMCP Escape Room (depth-4 multi-room).
  * Headless-safe: no DOM. Imported by index.html and check-escape-room.mjs.
+ *
+ * Packs: facility (classic linear Study→Archive→Vault) and greenhouse
+ * (hub + parallel wings). Daily Taipei seeds also reshuffle placements.
  */
 
+import {
+  seedFromString,
+  createRng,
+  makeObject,
+  shuffle,
+  pickUniqueDigits,
+  fourDigit,
+  formatElapsed,
+} from "./core.mjs";
+import {
+  GREENHOUSE_PACK_ID,
+  GREENHOUSE_FIXED_SEED,
+  GREENHOUSE_ROOM_ORDER,
+  GREENHOUSE_ROOM_META,
+  GREENHOUSE_ENDINGS,
+  createGreenhousePuzzle,
+  buildGreenhouseItems,
+  buildGreenhouseClues,
+  buildGreenhouseObjects,
+  greenhouseCanCombine,
+  greenhouseProgressSteps,
+  greenhouseHintCatalog,
+  greenhouseBlockers,
+  greenhouseInitialExtras,
+} from "./greenhouse.mjs";
+import {
+  taipeiDateKey,
+  dailySeedFor,
+  nextDailyStreak,
+  formatShareText,
+  previousTaipeiDateKey,
+} from "./daily.mjs";
+
+export {
+  seedFromString,
+  createRng,
+  makeObject,
+  formatElapsed,
+  taipeiDateKey,
+  dailySeedFor,
+  nextDailyStreak,
+  formatShareText,
+  previousTaipeiDateKey,
+  GREENHOUSE_PACK_ID,
+  GREENHOUSE_FIXED_SEED,
+};
+
 export const FIXED_SEED = "agent-demo";
-export const STORAGE_KEY = "webmcp-escape-room.v2";
-export const META_KEY = "webmcp-escape-room.meta.v2";
-export const STATE_VERSION = 2;
+export const FACILITY_PACK_ID = "facility";
+export const DEFAULT_PACK_ID = FACILITY_PACK_ID;
+export const STORAGE_KEY = "webmcp-escape-room.v3";
+export const META_KEY = "webmcp-escape-room.meta.v3";
+export const STATE_VERSION = 3;
+
+/** Both packs are open from the start (WebMCP agents must not grind to demo pack 2). */
+export const PACKS = {
+  facility: {
+    id: FACILITY_PACK_ID,
+    title: "Quiet Facility",
+    blurb: "Study → Archive → Vault. Classic three-room chain with dual archive paths.",
+    unlock: "open",
+    roomOrder: ["study", "archive", "vault"],
+    fixedSeed: FIXED_SEED,
+  },
+  greenhouse: {
+    id: GREENHOUSE_PACK_ID,
+    title: "Midnight Greenhouse",
+    blurb: "Atrium hub with parallel lab & nursery wings, then rooftop. Distinct topology.",
+    unlock: "open",
+    roomOrder: GREENHOUSE_ROOM_ORDER,
+    fixedSeed: GREENHOUSE_FIXED_SEED,
+  },
+};
 
 export const ROOM_ORDER = ["study", "archive", "vault"];
 
@@ -32,6 +104,7 @@ export const ROOM_META = {
     headline: "Choose your exit.",
     blurb: "Standard escape, service hatch, or a ghost run.",
   },
+  ...GREENHOUSE_ROOM_META,
 };
 
 export const ENDINGS = {
@@ -53,63 +126,82 @@ export const ENDINGS = {
     badge: "Hidden ending",
     subtitle: "Zero hints, brass master path, vault exit. The cameras never saw you.",
   },
+  ...GREENHOUSE_ENDINGS,
 };
 
 const SYMBOLS = ["triangle", "circle", "square", "diamond"];
 
-/** Mulberry32 PRNG from a string seed. */
-export function seedFromString(str) {
-  let h = 2166136261 >>> 0;
-  const s = String(str || "");
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) || 1;
+export function normalizePackId(packId) {
+  const id = String(packId || DEFAULT_PACK_ID);
+  return Object.hasOwn(PACKS, id) ? id : DEFAULT_PACK_ID;
 }
 
-export function createRng(seed) {
-  let t = seedFromString(seed) >>> 0;
-  return function next() {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+export function endingsForPack(packId) {
+  const id = normalizePackId(packId);
+  if (id === GREENHOUSE_PACK_ID) return { ...GREENHOUSE_ENDINGS };
+  return {
+    standard: ENDINGS.standard,
+    service: ENDINGS.service,
+    ghost: ENDINGS.ghost,
   };
 }
 
-function pickUniqueDigits(rng, count) {
-  const pool = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const idx = Math.floor(rng() * pool.length);
-    out.push(pool.splice(idx, 1)[0]);
+/**
+ * Facility daily/layout variant: moves items & clue hosts, may force archive order.
+ * Fixed seed keeps the classic demo placement.
+ */
+export function createFacilityLayout(seed) {
+  const normalized = String(seed || FIXED_SEED).trim() || FIXED_SEED;
+  if (normalized === FIXED_SEED) {
+    return {
+      seed: normalized,
+      wireSource: "desk_drawer",
+      fuseSource: "spare_bin",
+      filingClueOn: "chalkboard",
+      timeHintOn: "painting",
+      batterySource: "desk_drawer",
+      archiveOrder: "free",
+      swapVaultHalves: false,
+    };
   }
-  return out;
-}
-
-function shuffle(rng, arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function fourDigit(digits) {
-  return digits.map((d) => String(d)).join("").padStart(4, "0");
+  const rng = createRng(`layout-fac-${normalized}`);
+  const wireSources = ["desk_drawer", "plant"];
+  const fuseSources = ["spare_bin", "cable_tray"];
+  const filingHosts = ["chalkboard", "cable_tray"];
+  const timeHosts = ["painting", "monitor"];
+  const batterySources = ["desk_drawer", "bookshelf"];
+  const orders = ["free", "fuse-first", "file-first"];
+  return {
+    seed: normalized,
+    wireSource: wireSources[Math.floor(rng() * wireSources.length)],
+    fuseSource: fuseSources[Math.floor(rng() * fuseSources.length)],
+    filingClueOn: filingHosts[Math.floor(rng() * filingHosts.length)],
+    timeHintOn: timeHosts[Math.floor(rng() * timeHosts.length)],
+    batterySource: batterySources[Math.floor(rng() * batterySources.length)],
+    archiveOrder: orders[Math.floor(rng() * orders.length)],
+    swapVaultHalves: rng() > 0.45,
+  };
 }
 
 /**
  * Deterministic puzzle parameters for a run.
  * Fixed seed preserves the classic study codes (0317 / 8426).
+ * @param {string} seed
+ * @param {string} [packId]
  */
-export function createPuzzle(seed = FIXED_SEED) {
+export function createPuzzle(seed = FIXED_SEED, packId = DEFAULT_PACK_ID) {
+  const pack = normalizePackId(packId);
+  if (pack === GREENHOUSE_PACK_ID) {
+    return createGreenhousePuzzle(seed);
+  }
+
   const normalized = String(seed || FIXED_SEED).trim() || FIXED_SEED;
+  const layout = createFacilityLayout(normalized);
+
   if (normalized === FIXED_SEED) {
     return {
       seed: FIXED_SEED,
+      packId: FACILITY_PACK_ID,
       clockDisplay: "03:17",
       safeCode: "0317",
       studyExitCode: "8426",
@@ -119,6 +211,7 @@ export function createPuzzle(seed = FIXED_SEED) {
       vaultCode: "7391",
       vaultHalfA: "73",
       vaultHalfB: "91",
+      layout,
     };
   }
 
@@ -129,7 +222,6 @@ export function createPuzzle(seed = FIXED_SEED) {
   const safeCode = `${String(hour).padStart(2, "0")}${String(minute).padStart(2, "0")}`;
 
   const values = pickUniqueDigits(rng, 4).map((d) => (d === 0 ? 1 + Math.floor(rng() * 9) : d));
-  // Ensure four distinct non-zero digits for legend
   const uniq = [...new Set(values)];
   while (uniq.length < 4) {
     const n = 1 + Math.floor(rng() * 9);
@@ -147,12 +239,17 @@ export function createPuzzle(seed = FIXED_SEED) {
   const filingDigits = pickUniqueDigits(rng, 4);
   const filingCode = fourDigit(filingDigits);
   const vaultDigits = pickUniqueDigits(rng, 4);
-  const vaultCode = fourDigit(vaultDigits);
-  const vaultHalfA = vaultCode.slice(0, 2);
-  const vaultHalfB = vaultCode.slice(2, 4);
+  let vaultCode = fourDigit(vaultDigits);
+  let vaultHalfA = vaultCode.slice(0, 2);
+  let vaultHalfB = vaultCode.slice(2, 4);
+  if (layout.swapVaultHalves) {
+    [vaultHalfA, vaultHalfB] = [vaultHalfB, vaultHalfA];
+    vaultCode = vaultHalfA + vaultHalfB;
+  }
 
   return {
     seed: normalized,
+    packId: FACILITY_PACK_ID,
     clockDisplay,
     safeCode,
     studyExitCode,
@@ -162,14 +259,8 @@ export function createPuzzle(seed = FIXED_SEED) {
     vaultCode,
     vaultHalfA,
     vaultHalfB,
+    layout,
   };
-}
-
-export function formatElapsed(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 export function emptyMeta() {
@@ -180,12 +271,19 @@ export function emptyMeta() {
     bestRating: null,
     clears: 0,
     endingsSeen: [],
+    noHintClears: 0,
+    packsCleared: [],
+    dailyBestByDate: {},
+    dailyStreak: 0,
+    lastDailyClearDate: null,
   };
 }
 
 export function migrateMeta(raw) {
   const base = emptyMeta();
   if (!raw || typeof raw !== "object") return base;
+  const dailyBestByDate =
+    raw.dailyBestByDate && typeof raw.dailyBestByDate === "object" ? { ...raw.dailyBestByDate } : {};
   return {
     version: STATE_VERSION,
     bestMs: typeof raw.bestMs === "number" && raw.bestMs >= 0 ? raw.bestMs : null,
@@ -195,6 +293,15 @@ export function migrateMeta(raw) {
     endingsSeen: Array.isArray(raw.endingsSeen)
       ? [...new Set(raw.endingsSeen.filter((id) => Object.hasOwn(ENDINGS, id)))]
       : [],
+    noHintClears:
+      Number.isFinite(raw.noHintClears) && raw.noHintClears >= 0 ? Math.floor(raw.noHintClears) : 0,
+    packsCleared: Array.isArray(raw.packsCleared)
+      ? [...new Set(raw.packsCleared.filter((id) => Object.hasOwn(PACKS, id)))]
+      : [],
+    dailyBestByDate,
+    dailyStreak:
+      Number.isFinite(raw.dailyStreak) && raw.dailyStreak >= 0 ? Math.floor(raw.dailyStreak) : 0,
+    lastDailyClearDate: typeof raw.lastDailyClearDate === "string" ? raw.lastDailyClearDate : null,
   };
 }
 
@@ -207,8 +314,8 @@ export function rateRun({ elapsedMs, hintsUsed, endingId }) {
   if (elapsedMs > 600_000) score -= 25;
   else if (elapsedMs > 360_000) score -= 15;
   else if (elapsedMs > 180_000) score -= 5;
-  if (endingId === "ghost") score += 15;
-  else if (endingId === "service") score += 5;
+  if (endingId === "ghost" || endingId === "bloom") score += 15;
+  else if (endingId === "service" || endingId === "ladder") score += 5;
   if (score >= 90) return "S";
   if (score >= 75) return "A";
   if (score >= 55) return "B";
@@ -221,6 +328,13 @@ export function recordClear(meta, run) {
   if (run.endingId && !next.endingsSeen.includes(run.endingId)) {
     next.endingsSeen.push(run.endingId);
   }
+  const packId = normalizePackId(run.packId || DEFAULT_PACK_ID);
+  if (!next.packsCleared.includes(packId)) next.packsCleared.push(packId);
+
+  const hintsUsed = run.hintsUsed || 0;
+  const noHints = !!run.noHintsChallenge || hintsUsed === 0;
+  if (noHints && hintsUsed === 0) next.noHintClears += 1;
+
   const betterTime =
     next.bestMs === null || (typeof run.elapsedMs === "number" && run.elapsedMs < next.bestMs);
   if (betterTime) {
@@ -230,10 +344,29 @@ export function recordClear(meta, run) {
   } else if (!next.bestRating && run.rating) {
     next.bestRating = run.rating;
   }
+
+  if (run.isDaily && run.dateKey) {
+    const streakInfo = nextDailyStreak(next, run.dateKey);
+    next.dailyStreak = streakInfo.dailyStreak;
+    next.lastDailyClearDate = streakInfo.lastDailyClearDate;
+    const prev = next.dailyBestByDate[run.dateKey];
+    if (!prev || (typeof run.elapsedMs === "number" && run.elapsedMs < prev.ms)) {
+      next.dailyBestByDate[run.dateKey] = {
+        ms: run.elapsedMs,
+        packId,
+        noHints: hintsUsed === 0,
+        endingId: run.endingId,
+        rating: run.rating,
+      };
+    }
+  }
   return next;
 }
 
-export function canCombine(itemA, itemB) {
+export function canCombine(itemA, itemB, packId = DEFAULT_PACK_ID) {
+  if (normalizePackId(packId) === GREENHOUSE_PACK_ID) {
+    return greenhouseCanCombine(itemA, itemB);
+  }
   const pair = new Set([itemA, itemB]);
   if (pair.has("copper_wire") && pair.has("fuse")) {
     return { product: "patch_cable", consumes: ["copper_wire", "fuse"] };
@@ -246,6 +379,9 @@ export function canCombine(itemA, itemB) {
 }
 
 export function progressSteps(state) {
+  if (normalizePackId(state.packId) === GREENHOUSE_PACK_ID) {
+    return greenhouseProgressSteps(state);
+  }
   const o = state.objects;
   return [
     { id: "observe", label: "Discover the stopped time", done: state.cluesDiscovered.includes("stopped_time") },
@@ -263,6 +399,21 @@ export function progressSteps(state) {
 }
 
 export function hintCatalog(puzzle) {
+  if (puzzle?.packId === GREENHOUSE_PACK_ID || normalizePackId(puzzle?.packId) === GREENHOUSE_PACK_ID) {
+    return greenhouseHintCatalog(puzzle);
+  }
+  const layout = puzzle.layout || createFacilityLayout(puzzle.seed);
+  const fuseHint =
+    layout.fuseSource === "cable_tray"
+      ? "Combine copper wire with a fuse from the cable tray"
+      : "Combine copper wire with a fuse from the spare bin";
+  const filingHost = layout.filingClueOn === "cable_tray" ? "cable tray" : "chalkboard";
+  const orderNote =
+    layout.archiveOrder === "free"
+      ? "Do both archive paths in either order."
+      : layout.archiveOrder === "fuse-first"
+        ? "Today's layout requires fuse power before the filing cabinet."
+        : "Today's layout requires the filing cabinet before fuse power.";
   return [
     {
       id: "h1",
@@ -272,7 +423,7 @@ export function hintCatalog(puzzle) {
     {
       id: "h2",
       room: "study",
-      text: "Safe opens to a brass key. Use the key on the desk drawer, then power the keypad box.",
+      text: `Safe opens to a brass key. Battery is in the ${layout.batterySource.replace("_", " ")}; wire in the ${layout.wireSource.replace("_", " ")}. Power the keypad box.`,
     },
     {
       id: "h3",
@@ -282,12 +433,12 @@ export function hintCatalog(puzzle) {
     {
       id: "h4",
       room: "archive",
-      text: "Combine copper wire (from the study) with a fuse from the spare bin, then install the patch cable on the fuse panel.",
+      text: `${fuseHint}, then install the patch cable on the fuse panel.`,
     },
     {
       id: "h5",
       room: "archive",
-      text: `The chalkboard cipher unlocks the filing cabinet with code ${puzzle.filingCode}. Do both archive paths in either order.`,
+      text: `The ${filingHost} cipher unlocks the filing cabinet with code ${puzzle.filingCode}. ${orderNote}`,
     },
     {
       id: "h6",
@@ -315,27 +466,13 @@ export function nextHint(state, puzzle) {
   return catalog.find((h) => !used.includes(h.id)) || null;
 }
 
-export function makeObject(id, name, type, description, extras = {}) {
-  return {
-    id,
-    name,
-    type,
-    visible: true,
-    inspectable: true,
-    interactable: true,
-    locked: false,
-    open: false,
-    openable: false,
-    room: "study",
-    description,
-    state: {},
-    contains: [],
-    clues: [],
-    ...extras,
-  };
-}
-
 export function buildItems(puzzle) {
+  if (puzzle.packId === GREENHOUSE_PACK_ID) {
+    const items = buildGreenhouseItems(puzzle);
+    delete items._meta;
+    return items;
+  }
+  const layout = puzzle.layout || createFacilityLayout(puzzle.seed);
   const orderText = puzzle.symbolOrder.join(" → ");
   const legendParts = Object.entries(puzzle.symbolValues)
     .map(([k, v]) => `${k} = ${v}`)
@@ -365,7 +502,7 @@ export function buildItems(puzzle) {
       description: "A fresh battery. Its contacts match the slot in the keypad box.",
       usableOn: ["keypad_box"],
       discovered: false,
-      source: "desk_drawer",
+      source: layout.batterySource,
       icon: "▣",
     },
     folded_note: {
@@ -383,16 +520,16 @@ export function buildItems(puzzle) {
       description: "A short length of copper wire. Combine with a fuse to jury-rig power in the archive.",
       usableOn: [],
       discovered: false,
-      source: "desk_drawer",
+      source: layout.wireSource,
       icon: "⌇",
     },
     fuse: {
       id: "fuse",
       name: "Spare Fuse",
-      description: "A ceramic fuse from the spare bin. Combine with copper wire.",
+      description: `A ceramic fuse from the ${layout.fuseSource.replace("_", " ")}. Combine with copper wire.`,
       usableOn: [],
       discovered: false,
-      source: "spare_bin",
+      source: layout.fuseSource,
       icon: "⌁",
     },
     patch_cable: {
@@ -447,10 +584,18 @@ export function buildItems(puzzle) {
 }
 
 export function buildClues(puzzle) {
+  if (puzzle.packId === GREENHOUSE_PACK_ID) return buildGreenhouseClues(puzzle);
+  const layout = puzzle.layout || createFacilityLayout(puzzle.seed);
   const orderText = puzzle.symbolOrder.join(" → ");
   const legend = Object.entries(puzzle.symbolValues)
     .map(([k, v]) => `${k} = ${v}`)
     .join("; ");
+  const orderNote =
+    layout.archiveOrder === "free"
+      ? "Order does not matter — finish power and filing both."
+      : layout.archiveOrder === "fuse-first"
+        ? "Today: restore fuse power before opening the filing cabinet."
+        : "Today: unlock the filing cabinet before restoring fuse power.";
   return {
     stopped_time: {
       id: "stopped_time",
@@ -459,7 +604,7 @@ export function buildClues(puzzle) {
     },
     painting_hint: {
       id: "painting_hint",
-      source: "painting",
+      source: layout.timeHintOn === "painting" ? "painting" : "monitor",
       text: "The safe's secret is the stopped time, written as four digits without punctuation.",
     },
     safe_engraving: {
@@ -489,8 +634,8 @@ export function buildClues(puzzle) {
     },
     chalk_cipher: {
       id: "chalk_cipher",
-      source: "chalkboard",
-      text: `Chalk reads: FILE=${puzzle.filingCode}. Order does not matter — finish power and filing both.`,
+      source: layout.filingClueOn,
+      text: `Filing cipher: FILE=${puzzle.filingCode}. ${orderNote}`,
     },
     console_half: {
       id: "console_half",
@@ -506,6 +651,34 @@ export function buildClues(puzzle) {
 }
 
 export function buildObjects(puzzle) {
+  if (puzzle.packId === GREENHOUSE_PACK_ID) return buildGreenhouseObjects(puzzle);
+  const layout = puzzle.layout || createFacilityLayout(puzzle.seed);
+
+  const drawerContains = ["folded_note"];
+  if (layout.batterySource === "desk_drawer") drawerContains.push("battery");
+  if (layout.wireSource === "desk_drawer") drawerContains.push("copper_wire");
+
+  const bookshelfContains = [];
+  if (layout.batterySource === "bookshelf") bookshelfContains.push("battery");
+
+  const plantContains = [];
+  if (layout.wireSource === "plant") plantContains.push("copper_wire");
+
+  const spareContains = layout.fuseSource === "spare_bin" ? ["fuse"] : [];
+  const trayContains = layout.fuseSource === "cable_tray" ? ["fuse"] : [];
+
+  const paintingClues = layout.timeHintOn === "painting" ? ["painting_hint"] : [];
+  const monitorClues = layout.timeHintOn === "monitor" ? ["painting_hint"] : [];
+  const chalkClues = layout.filingClueOn === "chalkboard" ? ["chalk_cipher"] : [];
+  const trayClues = layout.filingClueOn === "cable_tray" ? ["chalk_cipher"] : [];
+
+  const orderLabel =
+    layout.archiveOrder === "free"
+      ? "POWER PATH · FILING PATH — either order works."
+      : layout.archiveOrder === "fuse-first"
+        ? "TODAY: POWER PATH before FILING PATH."
+        : "TODAY: FILING PATH before POWER PATH.";
+
   return {
     exit_door: makeObject(
       "exit_door",
@@ -542,7 +715,7 @@ export function buildObjects(puzzle) {
       {
         locked: true,
         openable: true,
-        contains: ["battery", "folded_note", "copper_wire"],
+        contains: drawerContains,
         room: "study",
       },
     ),
@@ -557,22 +730,39 @@ export function buildObjects(puzzle) {
       "painting",
       "Framed Picture",
       "clue",
-      "An abstract landscape in a brass frame. The plaque reads: “The time has stopped, but the secret hasn't. Four digits, no punctuation.”",
-      { clues: ["painting_hint"], room: "study" },
+      layout.timeHintOn === "painting"
+        ? "An abstract landscape in a brass frame. The plaque reads: “The time has stopped, but the secret hasn't. Four digits, no punctuation.”"
+        : "An abstract landscape. Today's safe hint is on the monitor instead.",
+      { clues: paintingClues, room: "study" },
     ),
     bookshelf: makeObject(
       "bookshelf",
       "Bookshelf",
-      "furniture",
-      "Books on architecture and ciphers. One spine reads: “Order matters. Carry wire forward.”",
-      { clues: ["order_hint"], room: "study" },
+      bookshelfContains.length ? "container" : "furniture",
+      bookshelfContains.length
+        ? "Books on architecture and ciphers. A hollow spine hides a battery today."
+        : "Books on architecture and ciphers. One spine reads: “Order matters. Carry wire forward.”",
+      {
+        clues: ["order_hint"],
+        room: "study",
+        openable: bookshelfContains.length > 0,
+        open: false,
+        contains: bookshelfContains,
+      },
     ),
     plant: makeObject(
       "plant",
       "Potted Plant",
-      "decoration",
-      "A healthy rubber plant. No key beneath it — some things are just plants.",
-      { room: "study" },
+      plantContains.length ? "container" : "decoration",
+      plantContains.length
+        ? "A rubber plant with disturbed soil — a coil of copper wire is tucked under the rim."
+        : "A healthy rubber plant. No key beneath it — some things are just plants.",
+      {
+        room: "study",
+        openable: plantContains.length > 0,
+        open: false,
+        contains: plantContains,
+      },
     ),
     lamp: makeObject(
       "lamp",
@@ -585,8 +775,10 @@ export function buildObjects(puzzle) {
       "monitor",
       "Monitor",
       "terminal",
-      "Welcome: “Restore the desk box, translate the sequence, then carry what you find into the archive.”",
-      { room: "study" },
+      layout.timeHintOn === "monitor"
+        ? `Boot splash: “SAFE = stopped time as four digits (${puzzle.clockDisplay} → no colon).”`
+        : "Welcome: “Restore the desk box, translate the sequence, then carry what you find into the archive.”",
+      { clues: monitorClues, room: "study" },
     ),
     rug: makeObject(
       "rug",
@@ -603,13 +795,14 @@ export function buildObjects(puzzle) {
       { state: { powered: false }, room: "study" },
     ),
 
-    // Archive
     spare_bin: makeObject(
       "spare_bin",
       "Spare Bin",
       "container",
-      "An unlocked bin of spare electrical parts. A fuse sits on top.",
-      { openable: true, open: false, contains: ["fuse"], room: "archive" },
+      spareContains.length
+        ? "An unlocked bin of spare electrical parts. A fuse sits on top."
+        : "Spare parts bin. Today's fuse was staged on the cable tray instead.",
+      { openable: true, open: false, contains: spareContains, room: "archive" },
     ),
     fuse_panel: makeObject(
       "fuse_panel",
@@ -622,14 +815,16 @@ export function buildObjects(puzzle) {
       "chalkboard",
       "Chalkboard",
       "clue",
-      `Dusty chalk marks: a filing cipher. One line is still legible: FILE=${puzzle.filingCode}.`,
-      { clues: ["chalk_cipher"], room: "archive" },
+      chalkClues.length
+        ? `Dusty chalk marks: a filing cipher. One line is still legible: FILE=${puzzle.filingCode}.`
+        : "Chalkboard wiped clean today — the filing cipher is on the cable tray label.",
+      { clues: chalkClues, room: "archive" },
     ),
     filing_cabinet: makeObject(
       "filing_cabinet",
       "Filing Cabinet",
       "safe",
-      "A four-digit filing cabinet. The chalkboard holds its cipher.",
+      "A four-digit filing cabinet. Look for today's filing cipher in the room.",
       {
         locked: true,
         openable: true,
@@ -661,9 +856,21 @@ export function buildObjects(puzzle) {
     cable_tray: makeObject(
       "cable_tray",
       "Cable Tray",
-      "decoration",
-      "Labeled trays: POWER PATH · FILING PATH — either order works.",
-      { room: "archive" },
+      trayContains.length || trayClues.length ? "container" : "decoration",
+      [
+        `Labeled trays: ${orderLabel}`,
+        trayContains.length ? "A spare fuse rests in the POWER bay." : "",
+        trayClues.length ? `FILING tag reads FILE=${puzzle.filingCode}.` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+      {
+        room: "archive",
+        openable: trayContains.length > 0,
+        open: false,
+        contains: trayContains,
+        clues: trayClues,
+      },
     ),
     archive_plant: makeObject(
       "archive_plant",
@@ -673,7 +880,6 @@ export function buildObjects(puzzle) {
       { room: "archive" },
     ),
 
-    // Vault
     vault_exit: makeObject(
       "vault_exit",
       "Vault Exit",
@@ -717,16 +923,21 @@ export function buildObjects(puzzle) {
   };
 }
 
-export function initialState(seed = FIXED_SEED) {
-  const puzzle = createPuzzle(seed);
+/**
+ * @param {string} [seed]
+ * @param {{ packId?: string, noHintsChallenge?: boolean, isDaily?: boolean, dateKey?: string|null }} [opts]
+ */
+export function initialState(seed = FIXED_SEED, opts = {}) {
+  const packId = normalizePackId(opts.packId || DEFAULT_PACK_ID);
+  const puzzle = createPuzzle(seed, packId);
   const items = buildItems(puzzle);
   delete items._legend;
-  return {
+
+  const base = {
     version: STATE_VERSION,
     seed: puzzle.seed,
+    packId,
     puzzle,
-    currentRoom: "study",
-    roomsVisited: ["study"],
     objects: buildObjects(puzzle),
     items,
     inventory: [],
@@ -734,14 +945,26 @@ export function initialState(seed = FIXED_SEED) {
     inspectedObjects: [],
     inspectedItems: [],
     cluesDiscovered: [],
-    selectedObject: "desk",
     escaped: false,
     endingId: null,
     hintsUsedIds: [],
+    noHintsChallenge: !!opts.noHintsChallenge,
+    isDaily: !!opts.isDaily,
+    dateKey: opts.dateKey || null,
     startedAt: null,
     finishedAt: null,
     lastAction: null,
     activityLog: [],
+  };
+
+  if (packId === GREENHOUSE_PACK_ID) {
+    return { ...base, ...greenhouseInitialExtras() };
+  }
+  return {
+    ...base,
+    currentRoom: "study",
+    roomsVisited: ["study"],
+    selectedObject: "desk",
   };
 }
 
@@ -752,9 +975,13 @@ export function visibleObjects(state) {
 }
 
 export function computeBlockers(state) {
+  if (normalizePackId(state.packId) === GREENHOUSE_PACK_ID) {
+    return greenhouseBlockers(state);
+  }
   const o = state.objects;
   const blockers = [];
   if (state.escaped) return blockers;
+  const archiveOrder = state.puzzle?.layout?.archiveOrder || "free";
   if (state.currentRoom === "study") {
     if (o.safe.locked) blockers.push("The safe needs a four-digit code suggested by objects in the room.");
     if (o.desk_drawer.locked) blockers.push("The desk drawer needs its brass key.");
@@ -763,8 +990,14 @@ export function computeBlockers(state) {
     else if (!o.exit_door.open) blockers.push("Open the hallway door, then enter the archive.");
     else blockers.push("Use room_enter to step into the archive.");
   } else if (state.currentRoom === "archive") {
+    if (archiveOrder === "fuse-first" && !o.fuse_panel.state.powered && o.filing_cabinet.locked) {
+      blockers.push("Today's layout: restore fuse power before unlocking the filing cabinet.");
+    }
+    if (archiveOrder === "file-first" && o.filing_cabinet.locked && !o.fuse_panel.state.powered) {
+      blockers.push("Today's layout: unlock the filing cabinet before restoring fuse power.");
+    }
     if (!o.fuse_panel.state.powered) blockers.push("Restore fuse power: combine copper wire + fuse, install on fuse_panel.");
-    if (o.filing_cabinet.locked) blockers.push("Unlock the filing cabinet using the chalkboard cipher.");
+    if (o.filing_cabinet.locked) blockers.push("Unlock the filing cabinet using today's filing cipher.");
     if (o.archive_gate.locked) blockers.push("Combine cipher card + override token, then enter the vault code on archive_gate.");
     else if (!o.archive_gate.open) blockers.push("Open the vault gate, then enter the vault.");
     else blockers.push("Use room_enter to step into the vault antechamber.");
@@ -776,4 +1009,14 @@ export function computeBlockers(state) {
     }
   }
   return blockers;
+}
+
+/** Whether archive path A is currently allowed given daily order constraints. */
+export function archivePathAllowed(state, path) {
+  const order = state.puzzle?.layout?.archiveOrder || "free";
+  if (order === "free") return true;
+  const o = state.objects;
+  if (path === "file" && order === "fuse-first") return !!o.fuse_panel?.state?.powered;
+  if (path === "fuse" && order === "file-first") return !o.filing_cabinet?.locked;
+  return true;
 }
