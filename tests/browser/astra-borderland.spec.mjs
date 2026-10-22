@@ -3,44 +3,54 @@ import { test, expect } from '@playwright/test';
 /**
  * Astra Dust Riot / Borderland — daily mutation + meta unlocks.
  * Runs under both desktop and mobile Playwright projects.
+ * Three.js boot is slow on CI shards; keep generous timeouts.
  */
 test.describe('Astra Borderland (Dust Riot)', () => {
+  test.beforeEach(async ({ page }) => {
+    test.setTimeout(60_000);
+  });
+
+  async function bootMenu(page, isMobile) {
+    await page.goto(
+      'gpt6-astra/borderland/?test=1' + (isMobile ? '&touch=1' : ''),
+      { waitUntil: 'domcontentloaded' },
+    );
+    await expect(page.locator('#start')).toBeVisible({ timeout: 45_000 });
+    await expect
+      .poll(() => page.evaluate(() => !!window.__dustRiotTest), { timeout: 45_000 })
+      .toBe(true);
+  }
+
+  async function activate(locator, isMobile) {
+    if (isMobile) await locator.tap();
+    else await locator.click();
+  }
+
   test('menu shows daily mutation and meta shop', async ({ page, isMobile }) => {
-    await page.goto('gpt6-astra/borderland/?test=1' + (isMobile ? '&touch=1' : ''));
-    await expect(page.locator('#start')).toBeVisible();
+    await bootMenu(page, isMobile);
     await expect(page.locator('[data-mode="daily"]')).toBeVisible();
     await expect(page.locator('#openMeta')).toBeVisible();
     await expect(page.locator('#scrapDisplay')).toContainText('廢鐵');
 
-    const activate = async (locator) => {
-      if (isMobile) await locator.tap();
-      else await locator.click();
-    };
-
-    await activate(page.locator('[data-mode="daily"]'));
-    await expect(page.locator('#dailyCard')).toBeVisible();
+    await activate(page.locator('[data-mode="daily"]'), isMobile);
+    await expect(page.locator('#dailyCard')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('#dailyCard')).toContainText('今日突變');
     await expect(page.locator('#dailyCard')).toContainText('禁用');
 
     const banned = await page.evaluate(() => window.__dustRiotTest.getDaily().bannedWeapon);
     await expect(page.locator(`[data-weapon="${banned}"]`)).toBeDisabled();
 
-    await activate(page.locator('#openMeta'));
-    await expect(page.getByRole('heading', { name: '永久解鎖' })).toBeVisible();
+    await activate(page.locator('#openMeta'), isMobile);
+    await expect(page.getByRole('heading', { name: '永久解鎖' })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.locator('[data-unlock="startBandage"]')).toBeVisible();
-    await activate(page.locator('#metaBack'));
+    await activate(page.locator('#metaBack'), isMobile);
     await expect(page.locator('#start')).toBeVisible();
   });
 
   test('daily run records best + share text; meta unlock persists', async ({ page, isMobile }) => {
-    test.setTimeout(45_000);
-    await page.goto('gpt6-astra/borderland/?test=1' + (isMobile ? '&touch=1' : ''));
-    await expect(page.locator('#start')).toBeVisible();
-
-    const activate = async (locator) => {
-      if (isMobile) await locator.tap();
-      else await locator.click();
-    };
+    await bootMenu(page, isMobile);
 
     await page.evaluate(() => {
       const t = window.__dustRiotTest;
@@ -54,32 +64,40 @@ test.describe('Astra Borderland (Dust Riot)', () => {
       });
     });
 
-    await activate(page.locator('#openMeta'));
-    await activate(page.locator('[data-unlock="scavKit"]'));
+    await activate(page.locator('#openMeta'), isMobile);
+    await expect(page.locator('[data-unlock="scavKit"]')).toBeVisible({ timeout: 15_000 });
+    await activate(page.locator('[data-unlock="scavKit"]'), isMobile);
     await expect(page.locator('[data-unlock="scavKit"]')).toHaveClass(/owned/);
-    await activate(page.locator('#metaBack'));
+    await activate(page.locator('#metaBack'), isMobile);
 
-    await activate(page.locator('[data-mode="daily"]'));
-    await activate(page.locator('#start'));
-    await page.waitForTimeout(500);
+    await activate(page.locator('[data-mode="daily"]'), isMobile);
+    await expect(page.locator('#dailyCard')).toBeVisible({ timeout: 15_000 });
+    await activate(page.locator('#start'), isMobile);
 
-    const playing = await page.evaluate(() => {
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const t = window.__dustRiotTest;
+            if (!t) return null;
+            if (t.getUi() !== 'playing') t.beginRun();
+            t.enableUnlockPlay();
+            return { ui: t.getUi(), mode: t.getMode() };
+          }),
+        { timeout: 20_000 },
+      )
+      .toEqual({ ui: 'playing', mode: 'daily' });
+
+    const state = await page.evaluate(() => {
       const t = window.__dustRiotTest;
-      if (t.getUi() !== 'playing') t.beginRun();
-      t.enableUnlockPlay();
       return {
-        ui: t.getUi(),
-        mode: t.getMode(),
         mutation: t.getRunMutation()?.id || null,
         banned: t.getActiveDaily()?.bannedWeapon || null,
         weapon: t.getWeapon(),
-        touch: t.isTouchMode(),
       };
     });
-    expect(playing.ui).toBe('playing');
-    expect(playing.mode).toBe('daily');
-    expect(playing.mutation).toBeTruthy();
-    expect(playing.weapon).not.toBe(playing.banned);
+    expect(state.mutation).toBeTruthy();
+    expect(state.weapon).not.toBe(state.banned);
 
     if (isMobile) {
       await expect(page.locator('#touchUI.show')).toBeVisible();
@@ -89,7 +107,7 @@ test.describe('Astra Borderland (Dust Riot)', () => {
     await page.evaluate(() => {
       window.__dustRiotTest.finishRun('victory');
     });
-    await expect(page.locator('#again')).toBeVisible();
+    await expect(page.locator('#again')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('#shareText')).toBeVisible();
     await expect(page.locator('#shareText')).not.toHaveValue('');
     await expect(page.locator('#copyShare')).toBeVisible();
@@ -106,29 +124,30 @@ test.describe('Astra Borderland (Dust Riot)', () => {
   });
 
   test('classic easy start still works with weapons', async ({ page, isMobile }) => {
-    await page.goto('gpt6-astra/borderland/?test=1' + (isMobile ? '&touch=1' : ''));
-    const activate = async (locator) => {
-      if (isMobile) await locator.tap();
-      else await locator.click();
-    };
-    await activate(page.locator('[data-mode="easy"]'));
-    await activate(page.locator('[data-weapon="shotgun"]'));
-    await activate(page.locator('#start'));
-    await page.waitForTimeout(400);
+    await bootMenu(page, isMobile);
+    await activate(page.locator('[data-mode="easy"]'), isMobile);
+    await activate(page.locator('[data-weapon="shotgun"]'), isMobile);
+    await activate(page.locator('#start'), isMobile);
+
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const t = window.__dustRiotTest;
+            if (!t) return null;
+            if (t.getUi() !== 'playing') t.beginRun();
+            t.enableUnlockPlay();
+            return { ui: t.getUi(), weapon: t.getWeapon() };
+          }),
+        { timeout: 20_000 },
+      )
+      .toEqual({ ui: 'playing', weapon: 'shotgun' });
+
     const state = await page.evaluate(() => {
       const t = window.__dustRiotTest;
-      if (t.getUi() !== 'playing') t.beginRun();
-      t.enableUnlockPlay();
-      return {
-        ui: t.getUi(),
-        weapon: t.getWeapon(),
-        wave: t.getWave(),
-        kinds: t.getEnemyKinds(),
-      };
+      return { wave: t.getWave(), kinds: t.getEnemyKinds().length };
     });
-    expect(state.ui).toBe('playing');
-    expect(state.weapon).toBe('shotgun');
     expect(state.wave).toBeGreaterThanOrEqual(1);
-    expect(state.kinds.length).toBeGreaterThan(0);
+    expect(state.kinds).toBeGreaterThan(0);
   });
 });
