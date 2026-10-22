@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Logic check for Astra Windward (3D Sailing).
- * Covers course ladder, PB recording, unlocks, gate crossing, wind, ghosts.
+ * Covers course ladder, PB recording, unlocks, gate crossing, wind, ghosts,
+ * stars, and Asia/Taipei daily ghost challenge.
  */
 import assert from 'node:assert/strict';
 import {
@@ -22,12 +23,31 @@ import {
   listCourses,
   loadGhost,
   loadProgress,
+  rateStars,
   recordDnf,
   recordFinish,
   sampleWind,
   saveGhost,
   saveProgress,
+  starGlyph,
+  totalStars,
+  unlockHint,
 } from './rules.mjs';
+import {
+  STORAGE_DAILY,
+  STORAGE_DAILY_GHOSTS,
+  dailyCourseFromChallenge,
+  defaultDailyProgress,
+  formatDailyShareText,
+  getDailyChallenge,
+  loadDailyGhost,
+  loadDailyProgress,
+  previousTaipeiDateKey,
+  recordDailyFinish,
+  saveDailyGhost,
+  seedFromString,
+  taipeiDateKey,
+} from './daily.mjs';
 
 // Minimal localStorage for Node.
 if (typeof globalThis.localStorage === 'undefined') {
@@ -41,9 +61,12 @@ if (typeof globalThis.localStorage === 'undefined') {
 
 localStorage.removeItem(STORAGE_PROGRESS);
 localStorage.removeItem(STORAGE_GHOSTS);
+localStorage.removeItem(STORAGE_DAILY);
+localStorage.removeItem(STORAGE_DAILY_GHOSTS);
 
-assert.equal(COURSE_ORDER.length, 3);
-assert.equal(listCourses().length, 3);
+assert.ok(COURSE_ORDER.length >= 8, 'need at least 8 courses');
+assert.ok(listCourses().length >= 8);
+assert.equal(listCourses().length, COURSE_ORDER.length);
 assert.equal(COURSES[0].id, 'archipelago');
 assert.equal(COURSES[0].unlockAfter, null);
 assert.equal(COURSES[1].unlockAfter, 'archipelago');
@@ -54,6 +77,9 @@ for (const c of COURSES) {
   assert.ok(c.timeLimit >= 120 && c.timeLimit <= 240, `${c.id} time limit`);
   assert.ok(c.wind.baseSpeed > 0);
   assert.ok(Number.isFinite(c.start.x) && Number.isFinite(c.start.z));
+  assert.ok(c.difficulty >= 1 && c.difficulty <= 5, `${c.id} difficulty`);
+  assert.ok(Array.isArray(c.starTimes) && c.starTimes.length === 2, `${c.id} starTimes`);
+  assert.ok(c.starTimes[0] < c.starTimes[1], `${c.id} gold < silver`);
 }
 
 assert.notEqual(
@@ -67,17 +93,35 @@ assert.notEqual(
   'courses must differ in gate layout',
 );
 
+// Distinct wind / gates across the expanded pack.
+{
+  const winds = new Set(COURSES.map((c) => JSON.stringify(c.wind)));
+  const gates = new Set(COURSES.map((c) => JSON.stringify(c.gates)));
+  assert.ok(winds.size >= 8, 'each course should have distinct wind');
+  assert.ok(gates.size >= 8, 'each course should have distinct gates');
+}
+
 assert.equal(collisionPenalty('archipelago'), 4);
 assert.equal(collisionPenalty('gusty-slalom'), 6);
 assert.ok(collisionPenalty('gusty-slalom') > collisionPenalty('beam-reach'));
+assert.ok(collisionPenalty('typhoon-run') >= collisionPenalty('gusty-slalom'));
 
 assert.equal(formatTime(125.2), '2:06');
 assert.match(formatTimePrecise(65.123), /^1:05\./);
+
+assert.equal(rateStars('archipelago', 90, 0), 3);
+assert.equal(rateStars('archipelago', 100, 0), 2);
+assert.equal(rateStars('archipelago', 150, 2), 1);
+assert.equal(starGlyph(2), '★★☆');
 
 let progress = defaultProgress();
 assert.ok(isUnlocked(progress, 'archipelago'));
 assert.ok(!isUnlocked(progress, 'beam-reach'));
 assert.ok(!isUnlocked(progress, 'gusty-slalom'));
+assert.ok(!isUnlocked(progress, 'narrow-channel'));
+assert.ok(!isUnlocked(progress, 'tradewind-loop'));
+assert.ok(!isUnlocked(progress, 'typhoon-run'));
+assert.match(unlockHint(progress, getCourse('narrow-channel')), /5★/);
 
 const fin = recordFinish(progress, 'archipelago', 92.4, 1);
 progress = fin.progress;
@@ -86,30 +130,60 @@ assert.deepEqual(fin.unlocked, ['beam-reach']);
 assert.ok(isUnlocked(progress, 'beam-reach'));
 assert.equal(bestFor(progress, 'archipelago').bestTime, 92.4);
 assert.equal(bestFor(progress, 'archipelago').collisions, 1);
+assert.equal(bestFor(progress, 'archipelago').stars, 2, 'gold time with a collision is 2★');
 assert.equal(progress.clears, 1);
+assert.equal(totalStars(progress), 2);
 
 const worse = recordFinish(progress, 'archipelago', 100, 0);
 assert.ok(!worse.isRecord);
 progress = worse.progress;
 assert.equal(bestFor(progress, 'archipelago').bestTime, 92.4);
 assert.equal(bestFor(progress, 'archipelago').collisions, 1, 'PB collisions stay with the record run');
+assert.equal(bestFor(progress, 'archipelago').stars, 2, 'stars never downgrade on slower run');
+
+const gold = recordFinish(progress, 'archipelago', 90, 0);
+progress = gold.progress;
+assert.ok(gold.isRecord);
+assert.equal(bestFor(progress, 'archipelago').stars, 3, 'clean gold run upgrades to 3★');
+assert.equal(totalStars(progress), 3);
 
 const better = recordFinish(progress, 'archipelago', 88, 3);
 progress = better.progress;
 assert.ok(better.isRecord);
 assert.equal(bestFor(progress, 'archipelago').bestTime, 88);
 assert.equal(bestFor(progress, 'archipelago').collisions, 3);
+assert.equal(bestFor(progress, 'archipelago').stars, 3, 'stars never downgrade on dirtier PB');
 
 progress = recordFinish(progress, 'beam-reach', 110, 0).progress;
 assert.ok(isUnlocked(progress, 'gusty-slalom'));
 
 progress = recordDnf(progress);
-assert.equal(progress.races, 5);
+assert.equal(progress.races, 6);
 
 saveProgress(progress);
 const reloaded = loadProgress();
 assert.equal(reloaded.bests.archipelago.bestTime, 88);
 assert.ok(reloaded.unlocked.includes('gusty-slalom'));
+assert.ok(reloaded.bests.archipelago.stars >= 1);
+
+// Star-gated unlock (narrow-channel needs 5★).
+{
+  let p = defaultProgress();
+  p = recordFinish(p, 'archipelago', 90, 0).progress; // 3★
+  assert.ok(!isUnlocked(p, 'narrow-channel'));
+  p = recordFinish(p, 'beam-reach', 85, 0).progress; // +3★ = 6★
+  assert.ok(isUnlocked(p, 'narrow-channel'), '5★ should unlock narrow-channel');
+}
+
+// Time-gated unlock (tradewind-loop needs beam-reach PB ≤ 100).
+{
+  let p = defaultProgress();
+  p = recordFinish(p, 'archipelago', 100, 0).progress;
+  p = recordFinish(p, 'beam-reach', 105, 0).progress;
+  assert.ok(!isUnlocked(p, 'tradewind-loop'));
+  p = recordFinish(p, 'beam-reach', 99, 0).progress;
+  assert.ok(isUnlocked(p, 'tradewind-loop'), 'PB under 100 unlocks tradewind-loop');
+}
 
 // Gate crossing: sail north through a gate facing north from south.
 {
@@ -161,6 +235,76 @@ assert.ok(reloaded.unlocked.includes('gusty-slalom'));
   assert.ok(Number.isFinite(mid.x) && Number.isFinite(mid.z));
   const done = play.sample(999);
   assert.ok(done.done);
+}
+
+// ——— Daily ghost (Asia/Taipei) ———
+{
+  assert.match(taipeiDateKey(Date.parse('2026-10-22T04:00:00+08:00')), /^2026-10-22$/);
+  assert.equal(previousTaipeiDateKey('2026-10-22'), '2026-10-21');
+  assert.equal(
+    seedFromString('windward-daily:2026-10-22'),
+    seedFromString('windward-daily:2026-10-22'),
+  );
+  assert.notEqual(
+    seedFromString('windward-daily:2026-10-22'),
+    seedFromString('windward-daily:2026-10-23'),
+  );
+
+  const dayA = getDailyChallenge('2026-10-22');
+  const dayA2 = getDailyChallenge('2026-10-22');
+  const dayB = getDailyChallenge('2026-10-23');
+  assert.equal(dayA.courseId, dayA2.courseId);
+  assert.equal(JSON.stringify(dayA.wind), JSON.stringify(dayA2.wind));
+  assert.ok(
+    dayA.courseId !== dayB.courseId ||
+      JSON.stringify(dayA.wind) !== JSON.stringify(dayB.wind) ||
+      dayA.timeLimit !== dayB.timeLimit,
+    'different dates should vary challenge',
+  );
+  assert.ok(COURSES.some((c) => c.id === dayA.courseId));
+
+  const playable = dailyCourseFromChallenge(dayA);
+  assert.equal(playable.gates.length, getCourse(dayA.courseId).gates.length);
+  assert.ok(playable.id.startsWith('daily:'));
+
+  let daily = defaultDailyProgress();
+  const r1 = recordDailyFinish(daily, '2026-10-22', dayA.courseId, 100, 1);
+  daily = r1.daily;
+  assert.ok(r1.isRecord);
+  assert.equal(daily.streak, 1);
+  assert.equal(daily.byDate['2026-10-22'].bestTime, 100);
+
+  const r2 = recordDailyFinish(daily, '2026-10-22', dayA.courseId, 110, 0);
+  daily = r2.daily;
+  assert.ok(!r2.isRecord);
+  assert.equal(daily.byDate['2026-10-22'].bestTime, 100);
+  assert.equal(daily.streak, 1, 'same-day streak unchanged');
+
+  const r3 = recordDailyFinish(daily, '2026-10-23', dayB.courseId, 95, 0);
+  daily = r3.daily;
+  assert.equal(daily.streak, 2, 'consecutive day increments streak');
+
+  const r4 = recordDailyFinish(daily, '2026-10-25', dayB.courseId, 90, 0);
+  daily = r4.daily;
+  assert.equal(daily.streak, 1, 'gap resets streak');
+
+  const share = formatDailyShareText(daily, '2026-10-25');
+  assert.match(share, /2026-10-25/);
+  assert.match(share, /連續天數/);
+  assert.match(share, /今日最佳/);
+
+  const rec = createGhostRecorder();
+  for (let i = 0; i < 10; i++) {
+    rec.push(0.2, i * 0.2, { x: i, z: -i, heading: 0 });
+  }
+  assert.ok(saveDailyGhost('2026-10-22', rec.samples(), 12));
+  assert.ok(!saveDailyGhost('2026-10-22', rec.samples(), 13));
+  const tape = loadDailyGhost('2026-10-22');
+  assert.ok(tape && tape.time === 12);
+
+  const roundTrip = loadDailyProgress();
+  assert.equal(roundTrip.streak, 1);
+  assert.equal(roundTrip.byDate['2026-10-25'].bestTime, 90);
 }
 
 console.log('check-sailing: ok');

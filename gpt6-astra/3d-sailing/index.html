@@ -446,6 +446,113 @@
     }
     .finish-burst.show { opacity: 1; }
 
+    .course-btn .stars {
+      grid-column: 1 / -1;
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: #d4a017;
+    }
+
+    .course-btn .diff {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      opacity: .55;
+    }
+
+    .daily-box {
+      text-align: left;
+      margin: 0 0 16px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1.5px solid #248aa533;
+      background: #e8f6f9;
+    }
+
+    .daily-box h2 {
+      margin: 0 0 6px;
+      font: 650 15px "Space Grotesk", sans-serif;
+      letter-spacing: -.2px;
+    }
+
+    .daily-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      font-size: 12px;
+      opacity: .8;
+      margin: 6px 0 10px;
+    }
+
+    .daily-meta strong {
+      font-family: "Space Grotesk", sans-serif;
+      font-variant-numeric: tabular-nums;
+      color: var(--teal);
+    }
+
+    .daily-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .daily-actions button {
+      border: 1.5px solid #163d4822;
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 650;
+      font-size: 13px;
+    }
+
+    .daily-actions button.primary-lite {
+      background: var(--teal);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .daily-actions button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    #share-text {
+      width: 100%;
+      margin-top: 10px;
+      min-height: 64px;
+      resize: vertical;
+      border-radius: 10px;
+      border: 1px solid #163d4822;
+      padding: 8px 10px;
+      font: 12px/1.45 "DM Sans", sans-serif;
+      color: var(--ink);
+      background: #fffdf5;
+    }
+
+    .card {
+      max-height: min(92vh, 920px);
+      overflow: auto;
+    }
+
+    .course-list {
+      max-height: 240px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+      }
+      .finish-burst { display: none; }
+      .course-btn:hover:not(:disabled) { transform: none; }
+      .primary:hover, .primary:active { transform: none; }
+    }
+
     @media (pointer: coarse) {
       #touch-controls { display: flex; }
       .help { display: none; }
@@ -561,8 +668,24 @@
       <div class="eyebrow" id="card-label">Astra · Windward</div>
       <h1 id="card-title">Find your<br />fair wind.</h1>
       <p class="lead" id="card-copy">
-        三條航線、個人最佳與幽靈船。抓準橫風，避開淺灘，挑戰自己的 PB。
+        八條航線、星級解鎖、個人最佳與幽靈船。每日以台北時間種子挑戰自己的幽靈。
       </p>
+      <div class="daily-box" id="daily-box" aria-live="polite">
+        <h2>每日幽靈賽</h2>
+        <p class="footnote" id="daily-date-line" style="margin:0;opacity:.7">Asia/Taipei 日期種子</p>
+        <div class="daily-meta">
+          <span>航線 <strong id="daily-course">—</strong></span>
+          <span>今日最佳 <strong id="daily-best">—</strong></span>
+          <span>連續 <strong id="daily-streak">0</strong> 天</span>
+          <span>總星 <strong id="total-stars">0</strong>★</span>
+        </div>
+        <div class="daily-actions">
+          <button type="button" class="primary-lite" id="btn-daily">開始每日賽</button>
+          <button type="button" id="btn-copy-share">複製分享文字</button>
+        </div>
+        <label class="footnote" for="share-text" style="display:block;margin-top:10px;text-align:left">分享文字</label>
+        <textarea id="share-text" readonly rows="4" aria-label="每日分享文字"></textarea>
+      </div>
       <div class="course-list" id="course-list" role="listbox" aria-label="航線"></div>
       <button class="primary" id="start">Set sail &nbsp; ↗</button>
       <div class="footnote">W/S 動力 · A/D 轉向 · Space 煞車 · R 重開 · Esc 選單</div>
@@ -589,7 +712,20 @@
       recordFinish,
       sampleWind,
       saveGhost,
+      starGlyph,
+      totalStars,
+      unlockHint,
     } from './rules.mjs';
+    import {
+      dailyCourseFromChallenge,
+      formatDailyShareText,
+      getDailyChallenge,
+      loadDailyGhost,
+      loadDailyProgress,
+      recordDailyFinish,
+      saveDailyGhost,
+      taipeiDateKey,
+    } from './daily.mjs';
     import {
       sfxCollision,
       sfxFail,
@@ -601,6 +737,7 @@
     import { createResultOverlay } from '../shared/result-overlay.mjs';
 
     const $ = id => document.getElementById(id);
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const renderer = new THREE.WebGLRenderer({
       canvas: $('world'),
@@ -1034,7 +1171,12 @@
     });
 
     let progress = loadProgress();
+    let dailyProgress = loadDailyProgress();
     let selectedCourse = getCourse('archipelago');
+    /** Base campaign course id while racing a daily variant. */
+    let raceBaseCourseId = 'archipelago';
+    let isDailyRace = false;
+    let dailyDateKey = taipeiDateKey();
     let state='intro';
     let heading=0,speed=0,power=.65,efficiency=0;
     let timeLeft=180,nextGate=0,collisionCooldown=0;
@@ -1058,7 +1200,7 @@
       $('toast').textContent=text;
       $('toast').classList.add('show');
       clearTimeout(toastTimeout);
-      toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),2300);
+      toastTimeout=setTimeout(()=>$('toast').classList.remove('show'), reducedMotion ? 900 : 2300);
     }
 
     function updateGateAppearance(){
@@ -1071,17 +1213,33 @@
       });
     }
 
+    function refreshDailyPanel(){
+      dailyDateKey = taipeiDateKey();
+      const challenge = getDailyChallenge(dailyDateKey);
+      const entry = dailyProgress.byDate[dailyDateKey];
+      const course = getCourse(challenge.courseId);
+      $('daily-date-line').textContent =
+        `今日 ${dailyDateKey}（Asia/Taipei）· 與自己今天的最佳幽靈比賽`;
+      $('daily-course').textContent = course.name;
+      $('daily-best').textContent =
+        entry?.bestTime != null ? formatTimePrecise(entry.bestTime) : '—';
+      $('daily-streak').textContent = String(dailyProgress.streak || 0);
+      $('total-stars').textContent = String(totalStars(progress));
+      $('share-text').value = formatDailyShareText(dailyProgress, dailyDateKey);
+    }
+
     function renderCourseList(){
       const list = $('course-list');
       list.replaceChildren();
+      const listingId = isDailyRace ? raceBaseCourseId : selectedCourse.id;
       for (const course of COURSES) {
         const unlocked = isUnlocked(progress, course.id);
         const best = bestFor(progress, course.id);
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'course-btn' + (course.id === selectedCourse.id ? ' selected' : '');
+        btn.className = 'course-btn' + (course.id === listingId && !isDailyRace ? ' selected' : '');
         btn.setAttribute('role', 'option');
-        btn.setAttribute('aria-selected', course.id === selectedCourse.id ? 'true' : 'false');
+        btn.setAttribute('aria-selected', course.id === listingId && !isDailyRace ? 'true' : 'false');
         btn.disabled = !unlocked;
         btn.dataset.courseId = course.id;
 
@@ -1100,26 +1258,42 @@
             : '尚無 PB';
         }
 
+        const diff = document.createElement('span');
+        diff.className = 'diff';
+        diff.textContent = `難度 ${'◆'.repeat(course.difficulty)}${'◇'.repeat(5 - course.difficulty)}`;
+
+        const stars = document.createElement('span');
+        stars.className = 'stars';
+        stars.textContent = unlocked
+          ? `${starGlyph(best.stars || 0)} · 金牌 ${formatTimePrecise(course.starTimes[0])}`
+          : starGlyph(0);
+
         const blurb = document.createElement('span');
         blurb.className = 'blurb';
         blurb.textContent = unlocked
           ? `${course.blurb} · ${course.gates.length} 門 · 限時 ${formatTime(course.timeLimit)}`
-          : `完成「${getCourse(course.unlockAfter).name}」後解鎖`;
+          : unlockHint(progress, course);
 
-        btn.append(name, meta, blurb);
+        btn.append(name, meta, diff, stars, blurb);
         btn.addEventListener('click', () => {
           if (!unlocked) return;
+          isDailyRace = false;
           selectedCourse = course;
+          raceBaseCourseId = course.id;
           sfxSelect();
           renderCourseList();
         });
         list.appendChild(btn);
       }
-      $('start').disabled = !isUnlocked(progress, selectedCourse.id);
+      $('start').disabled = isDailyRace
+        ? false
+        : !isUnlocked(progress, selectedCourse.id);
+      refreshDailyPanel();
     }
 
     function openLobby(){
       state = 'intro';
+      isDailyRace = false;
       resultOverlay.hide();
       $('finish-burst').classList.remove('show');
       $('overlay').classList.remove('hidden');
@@ -1127,12 +1301,18 @@
       $('card-label').textContent = 'Astra · Windward';
       $('card-title').innerHTML = 'Find your<br />fair wind.';
       $('card-copy').textContent =
-        '三條航線、個人最佳與幽靈船。抓準橫風，避開淺灘，挑戰自己的 PB。';
+        '八條航線、星級解鎖、個人最佳與幽靈船。每日以台北時間種子挑戰自己的幽靈。';
       renderCourseList();
     }
 
-    function startGame(){
-      selectedCourse = getCourse(selectedCourse.id);
+    function beginRace(course, { daily = false, dateKey = null } = {}){
+      selectedCourse = course;
+      raceBaseCourseId = daily
+        ? getDailyChallenge(dateKey || dailyDateKey).courseId
+        : course.id;
+      isDailyRace = daily;
+      if (dateKey) dailyDateKey = dateKey;
+
       rebuildGates(selectedCourse.gates);
 
       position.set(selectedCourse.start.x, 0, selectedCourse.start.z);
@@ -1148,9 +1328,14 @@
       state = 'playing';
 
       ghostRecorder.reset();
-      const tape = loadGhost(selectedCourse.id);
+      const tape = daily
+        ? loadDailyGhost(dailyDateKey)
+        : loadGhost(raceBaseCourseId);
       ghostPlayback = tape ? createGhostPlayback(tape) : null;
-      ghostPbTime = tape?.time ?? bestFor(progress, selectedCourse.id).bestTime;
+      ghostPbTime = tape?.time
+        ?? (daily
+          ? (dailyProgress.byDate[dailyDateKey]?.bestTime ?? null)
+          : bestFor(progress, raceBaseCourseId).bestTime);
       ghostBoat.visible = !!ghostPlayback;
       if (ghostPlayback) ghostPlayback.reset();
 
@@ -1168,13 +1353,32 @@
       );
       cameraLook.set(position.x, 2, position.z - 5);
       updateGateAppearance();
-      showToast(`Fair winds — ${selectedCourse.name}`);
+      showToast(daily
+        ? `每日幽靈賽 — ${getCourse(raceBaseCourseId).name}`
+        : `Fair winds — ${selectedCourse.name}`);
+    }
+
+    function startGame(){
+      if (isDailyRace) {
+        const challenge = getDailyChallenge(dailyDateKey);
+        beginRace(dailyCourseFromChallenge(challenge), { daily: true, dateKey: dailyDateKey });
+        return;
+      }
+      beginRace(getCourse(selectedCourse.id), { daily: false });
+    }
+
+    function startDaily(){
+      dailyDateKey = taipeiDateKey();
+      const challenge = getDailyChallenge(dailyDateKey);
+      sfxSelect();
+      beginRace(dailyCourseFromChallenge(challenge), { daily: true, dateKey: dailyDateKey });
     }
 
     function endGame(won){
       if (state !== 'playing') return;
       state = won ? 'won' : 'lost';
       ghostBoat.visible = false;
+      const penaltyId = raceBaseCourseId;
 
       if (!won) {
         progress = recordDnf(progress);
@@ -1196,30 +1400,80 @@
         return;
       }
 
-      const result = recordFinish(progress, selectedCourse.id, elapsed, penalties);
+      if (isDailyRace) {
+        const dailyResult = recordDailyFinish(
+          dailyProgress,
+          dailyDateKey,
+          raceBaseCourseId,
+          elapsed,
+          penalties,
+        );
+        dailyProgress = dailyResult.daily;
+        const savedGhost = saveDailyGhost(dailyDateKey, ghostRecorder.samples(), elapsed);
+        sfxFinish(dailyResult.isRecord);
+        if (!reducedMotion) {
+          $('finish-burst').classList.add('show');
+          setTimeout(() => $('finish-burst').classList.remove('show'), 1800);
+        }
+        refreshDailyPanel();
+        const delta = ghostPbTime != null ? elapsed - ghostPbTime : null;
+        resultOverlay.show({
+          title: dailyResult.isRecord ? '每日新最佳！' : '每日完賽',
+          badge: dailyResult.isRecord ? 'DAILY BEST' : 'DAILY',
+          subtitle: savedGhost
+            ? '今日幽靈已更新。明天同一種子會換成新航線／風況。'
+            : '漂亮的航行。繼續壓過今天的幽靈吧。',
+          variant: 'win',
+          stats: [
+            { label: '日期', value: dailyDateKey },
+            { label: '航線', value: getCourse(raceBaseCourseId).name },
+            { label: '完賽時間', value: formatTimePrecise(elapsed) },
+            {
+              label: '今日最佳',
+              value: formatTimePrecise(dailyProgress.byDate[dailyDateKey].bestTime),
+            },
+            {
+              label: '較幽靈',
+              value: delta == null ? '今日首航' : `${delta <= 0 ? '' : '+'}${delta.toFixed(2)}s`,
+            },
+            { label: '連續天數', value: String(dailyProgress.streak || 0) },
+            { label: '碰撞', value: String(penalties) },
+          ],
+          primaryLabel: '再航一次',
+          onPrimary: () => startGame(),
+          secondaryLabel: '選航線',
+          onSecondary: () => openLobby(),
+        });
+        return;
+      }
+
+      const result = recordFinish(progress, penaltyId, elapsed, penalties);
       progress = result.progress;
-      const savedGhost = saveGhost(selectedCourse.id, ghostRecorder.samples(), elapsed);
+      const savedGhost = saveGhost(penaltyId, ghostRecorder.samples(), elapsed);
       sfxFinish(result.isRecord);
-      $('finish-burst').classList.add('show');
-      setTimeout(() => $('finish-burst').classList.remove('show'), 1800);
+      if (!reducedMotion) {
+        $('finish-burst').classList.add('show');
+        setTimeout(() => $('finish-burst').classList.remove('show'), 1800);
+      }
 
       if (result.unlocked.length) {
         sfxUnlock();
         showToast(`解鎖：${result.unlocked.map((id) => getCourse(id).name).join('、')}`);
       }
 
-      const pb = bestFor(progress, selectedCourse.id);
+      const pb = bestFor(progress, penaltyId);
       const delta = ghostPbTime != null ? elapsed - ghostPbTime : null;
       resultOverlay.show({
         title: result.isRecord ? '新紀錄！' : '完賽',
         badge: result.isRecord ? 'PERSONAL BEST' : (savedGhost ? undefined : 'FINISHED'),
         subtitle: result.unlocked.length
           ? `解鎖 ${result.unlocked.map((id) => getCourse(id).name).join('、')}`
-          : '漂亮的航行。幽靈船已更新到你的最佳軌跡。',
+          : `本航 ${starGlyph(result.starsEarned)} · 幽靈船已更新到你的最佳軌跡。`,
         variant: 'win',
         stats: [
           { label: '航線', value: selectedCourse.name },
           { label: '完賽時間', value: formatTimePrecise(elapsed) },
+          { label: '星級', value: starGlyph(pb.stars || 0) },
           { label: '個人最佳', value: pb.bestTime != null ? formatTimePrecise(pb.bestTime) : '—' },
           {
             label: '較 PB',
@@ -1236,7 +1490,24 @@
 
     $('start').addEventListener('click', () => {
       sfxSelect();
+      isDailyRace = false;
       startGame();
+    });
+    $('btn-daily').addEventListener('click', () => startDaily());
+    $('btn-copy-share').addEventListener('click', async () => {
+      const text = $('share-text').value;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          $('share-text').select();
+          document.execCommand('copy');
+        }
+        showToast('已複製分享文字');
+      } catch {
+        $('share-text').select();
+        showToast('請手動複製分享文字');
+      }
     });
 
     renderCourseList();
@@ -1376,7 +1647,7 @@
           position.z=island.z+uz*safeRadius;
           speed*=.45;
           if(collisionCooldown===0){
-            const pen = collisionPenalty(selectedCourse.id);
+            const pen = collisionPenalty(raceBaseCourseId);
             timeLeft-=pen;
             penalties++;
             collisionCooldown=2.5;
@@ -1402,7 +1673,8 @@
         const pose = ghostPlayback.sample(elapsed);
         ghostBoat.visible = !pose.done;
         if (!pose.done) {
-          ghostBoat.position.set(pose.x, waveHeight(pose.x, pose.z, t) + .15, pose.z);
+          const gy = reducedMotion ? 0 : waveHeight(pose.x, pose.z, t);
+          ghostBoat.position.set(pose.x, gy + .15, pose.z);
           ghostBoat.rotation.y = -pose.heading;
         }
       }
@@ -1429,12 +1701,18 @@
     }
 
     function updateBoat(dt,t){
-      boat.position.set(position.x,waveHeight(position.x,position.z,t)+.15,position.z);
+      const waveY = reducedMotion ? 0 : waveHeight(position.x,position.z,t);
+      boat.position.set(position.x, waveY + .15, position.z);
       boat.rotation.y=-heading;
       const steer=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
       const heel=Math.sin(windHeading-heading)*.10*(speed/14)+steer*speed*.006;
-      boat.rotation.z=THREE.MathUtils.lerp(boat.rotation.z,heel+Math.sin(t*1.6)*.025,1-Math.exp(-dt*4));
-      boat.rotation.x=Math.sin(t*1.8)*.025;
+      if (reducedMotion) {
+        boat.rotation.z = heel;
+        boat.rotation.x = 0;
+      } else {
+        boat.rotation.z=THREE.MathUtils.lerp(boat.rotation.z,heel+Math.sin(t*1.6)*.025,1-Math.exp(-dt*4));
+        boat.rotation.x=Math.sin(t*1.8)*.025;
+      }
 
       const relativeWind=Math.sin(windHeading-heading);
       const sailTarget=THREE.MathUtils.clamp(relativeWind*.9,-1.0,1.0);
@@ -1444,22 +1722,24 @@
         g.buoys.forEach((b,j)=>{
           const wx=g.group.position.x+b.position.x;
           const wz=g.group.position.z+b.position.z;
-          b.position.y=waveHeight(wx,wz,t);
-          b.rotation.z=Math.sin(t*1.5+i+j)*.065;
+          b.position.y = reducedMotion ? 0 : waveHeight(wx,wz,t);
+          b.rotation.z = reducedMotion ? 0 : Math.sin(t*1.5+i+j)*.065;
         });
-        g.ring.position.y=.27+Math.sin(t*1.8)*.06;
-        g.arrow.position.y=8.4+Math.sin(t*2.4)*.5;
-        g.arrow.rotation.y=t*.7;
+        g.ring.position.y = reducedMotion ? .27 : .27+Math.sin(t*1.8)*.06;
+        g.arrow.position.y = reducedMotion ? 8.4 : 8.4+Math.sin(t*2.4)*.5;
+        g.arrow.rotation.y = reducedMotion ? 0 : t*.7;
       });
 
-      wakeAccumulator+=dt*speed*3;
-      while(wakeAccumulator>=1){
-        wakeAccumulator--;
-        const i=wakeCursor++%wakeCount;
-        const side=(Math.random()-.5)*1.7;
-        wakePosition[i*3]=position.x-Math.sin(heading)*2.65+Math.cos(heading)*side;
-        wakePosition[i*3+2]=position.z+Math.cos(heading)*2.65+Math.sin(heading)*side;
-        wakeLife[i]=2.8;
+      if (!reducedMotion) {
+        wakeAccumulator+=dt*speed*3;
+        while(wakeAccumulator>=1){
+          wakeAccumulator--;
+          const i=wakeCursor++%wakeCount;
+          const side=(Math.random()-.5)*1.7;
+          wakePosition[i*3]=position.x-Math.sin(heading)*2.65+Math.cos(heading)*side;
+          wakePosition[i*3+2]=position.z+Math.cos(heading)*2.65+Math.sin(heading)*side;
+          wakeLife[i]=2.8;
+        }
       }
       for(let i=0;i<wakeCount;i++){
         if(wakeLife[i]>0){
@@ -1489,8 +1769,11 @@
       // Static PB readout; the ghost boat is the live comparison.
       if (ghostPbTime != null) {
         pbEl.textContent = formatTimePrecise(ghostPbTime);
+      } else if (isDailyRace) {
+        const stored = dailyProgress.byDate[dailyDateKey]?.bestTime;
+        pbEl.textContent = stored != null ? formatTimePrecise(stored) : '—';
       } else {
-        const stored = bestFor(progress, selectedCourse.id).bestTime;
+        const stored = bestFor(progress, raceBaseCourseId).bestTime;
         pbEl.textContent = stored != null ? formatTimePrecise(stored) : '—';
       }
       pbEl.classList.remove('ahead', 'behind');
@@ -1564,11 +1847,18 @@
       window.__windward = {
         get state() { return state; },
         get progress() { return progress; },
-        getCourseId: () => selectedCourse.id,
+        get dailyProgress() { return dailyProgress; },
+        get isDailyRace() { return isDailyRace; },
+        get dailyDateKey() { return dailyDateKey; },
+        getCourseId: () => raceBaseCourseId,
+        getSelectedName: () => selectedCourse.name,
+        listCourseIds: () => COURSES.map((c) => c.id),
         openLobby,
         startGame,
+        startDaily,
         forceFinish: (won = true) => endGame(won),
         setElapsed: (t) => { elapsed = t; },
+        totalStars: () => totalStars(progress),
       };
     }
   </script>
