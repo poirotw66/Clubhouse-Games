@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Smoke: desktop menu→start, mobile touch chrome enterable.
+ * Smoke: desktop menu→start, mobile touch chrome enterable,
+ * daily mutation + meta unlock surfaces.
  * Requires a running server on PORT (default 3000).
+ * Artifact filenames use the bl- prefix.
  */
 import { chromium, devices } from "playwright";
 import path from "node:path";
@@ -39,10 +41,21 @@ const browser = await chromium.launch(LAUNCH);
   await page.goto(`${BASE}?test=1`, { waitUntil: "networkidle" });
   await page.waitForSelector("#start");
   await page.waitForSelector('[data-weapon="smg"]');
-  await shot(page, "borderland-menu-desktop.png");
+  await page.waitForSelector('[data-mode="daily"]');
+  await page.waitForSelector("#openMeta");
+  await shot(page, "bl-menu-desktop.png");
 
-  await page.click('[data-weapon="shotgun"]');
+  await page.click('[data-mode="daily"]');
+  await page.waitForSelector("#dailyCard");
+  await shot(page, "bl-daily-desktop.png");
+
+  await page.click("#openMeta");
+  await page.waitForSelector('[data-unlock="startBandage"]');
+  await shot(page, "bl-meta-desktop.png");
+  await page.click("#metaBack");
+
   await page.click('[data-mode="easy"]');
+  await page.click('[data-weapon="shotgun"]');
   await page.click("#start");
   await page.waitForTimeout(400);
 
@@ -66,7 +79,7 @@ const browser = await chromium.launch(LAUNCH);
   if (state.weapon !== "shotgun") throw new Error("weapon not shotgun");
   if (!state.kinds.length) throw new Error("no enemies on desktop");
 
-  await shot(page, "borderland-ingame-desktop.png");
+  await shot(page, "bl-ingame-desktop.png");
   await context.close();
   if (errors.length) console.warn("desktop pageerrors", errors.slice(0, 5));
 }
@@ -85,7 +98,11 @@ const browser = await chromium.launch(LAUNCH);
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto(`${BASE}?test=1&touch=1`, { waitUntil: "networkidle" });
   await page.waitForSelector("#start");
-  await shot(page, "borderland-menu-mobile.png");
+  await shot(page, "bl-menu-mobile.png");
+
+  await page.click('[data-mode="daily"]');
+  await page.waitForSelector("#dailyCard");
+  await shot(page, "bl-daily-mobile.png");
 
   await page.click('[data-mode="easy"]');
   await page.click('[data-weapon="smg"]');
@@ -137,28 +154,37 @@ const browser = await chromium.launch(LAUNCH);
   await page.touchscreen.tap(fb.x + fb.width / 2, fb.y + fb.height / 2);
   await page.waitForTimeout(500);
 
-  await shot(page, "borderland-ingame-mobile.png");
+  await shot(page, "bl-ingame-mobile.png");
 
+  await page.evaluate(() => {
+    const t = window.__dustRiotTest;
+    t.setMode("daily");
+    t.beginRun();
+  });
+  await page.waitForTimeout(400);
   await page.evaluate(() => {
     window.__dustRiotTest.finishRun("victory");
   });
   await page.waitForSelector("#again");
-  await shot(page, "borderland-result-mobile.png");
+  await page.waitForSelector("#shareText");
+  await shot(page, "bl-result-mobile.png");
 
   const storage = await page.evaluate(() => {
-    const v2 = localStorage.getItem("dust-riot-v2");
+    const v3 = localStorage.getItem("dust-riot-v3");
     const foreign = Object.keys(localStorage).filter(
       (k) => !k.startsWith("dust-riot-") && k.includes("riot"),
     );
-    return { v2: v2 ? JSON.parse(v2) : null, foreign };
+    return { v3: v3 ? JSON.parse(v3) : null, foreign };
   });
   console.log("storage", {
-    hasV2: !!storage.v2,
-    lastWeapon: storage.v2?.lastWeapon,
+    hasV3: !!storage.v3,
+    lastWeapon: storage.v3?.lastWeapon,
+    daily: storage.v3?.bestDaily,
     foreign: storage.foreign,
   });
-  if (!storage.v2) throw new Error("dust-riot-v2 not written");
+  if (!storage.v3) throw new Error("dust-riot-v3 not written");
   if (storage.foreign.length) throw new Error("touched foreign keys");
+  if (!storage.v3.bestDaily?.date) throw new Error("bestDaily missing");
 
   await context.close();
   if (errors.length) {
