@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const prefix = `/${process.env.REPO_NAME || 'Clubhouse-Games'}/`;
 const port = Number(process.env.PREVIEW_PORT || 4173);
+// .mjs must be text/javascript (not octet-stream; match server.mjs) so browsers accept
+// Astra ES modules (mini-factory, borderland, loop-hero, archer, train, 3d-sailing deps).
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript',
-  // Match server.mjs — browsers reject ES modules served as application/octet-stream.
-  '.mjs': 'text/javascript', '.css': 'text/css',
+  '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css',
   '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
   '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.md': 'text/markdown; charset=utf-8' };
 

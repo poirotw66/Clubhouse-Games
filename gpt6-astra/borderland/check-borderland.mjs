@@ -13,23 +13,41 @@ import {
   ENEMY_KIND_ORDER,
   ELITE_EVERY,
   STORAGE_KEY,
+  META_UNLOCKS,
+  META_UNLOCK_ORDER,
+  DAILY_MUTATIONS,
+  MUTATION_ORDER,
+  MODE_ORDER,
+  applyDailyMutation,
+  buyMeta,
+  computeDailyStreak,
+  dailyChallenge,
+  dailySeed,
+  effectiveWeapon,
   emptyStats,
   endReasonLabel,
   enemyFireCooldown,
   enemyHp,
   enemySpeed,
+  formatDailyShareText,
   getDifficulty,
   getWeapon,
   getEnemyKind,
   isEliteWave,
+  isEliteWaveFor,
+  isUnlockOwned,
   killScore,
+  metaRunBonuses,
   migrateStats,
   pickWaveComposition,
+  previousTaipeiDay,
   projectileSpeed,
   reachedClearWave,
   recordRun,
+  scrapForRun,
   shieldBlocksHit,
   spawnCount,
+  taipeiDateKey,
   weaponHitDamage,
 } from "./rules.mjs";
 
@@ -50,7 +68,7 @@ function assertOrdered(getter, label, ascending = true) {
   }
 }
 
-assert.equal(STORAGE_KEY, "dust-riot-v2", "save key must stay game-prefixed");
+assert.equal(STORAGE_KEY, "dust-riot-v3", "save key must stay game-prefixed");
 assert.match(STORAGE_KEY, /^dust-riot-/);
 
 assert.equal(DIFFICULTY_ORDER.length, 3);
@@ -228,6 +246,136 @@ assert.equal(again.isWaveBest, false);
 assert.equal(again.isScoreBest, false);
 assert.equal(again.stats.bestByMode.hard.wave, 12);
 
-assert.deepEqual(emptyStats().clearsByMode, { easy: 0, normal: 0, hard: 0 });
+assert.deepEqual(emptyStats().clearsByMode, {
+  easy: 0,
+  normal: 0,
+  hard: 0,
+  daily: 0,
+});
+assert.equal(emptyStats().scrap, 0);
+assert.equal(Object.keys(emptyStats().unlocked).length, META_UNLOCK_ORDER.length);
+
+/* ---- Daily mutation (Asia/Taipei) ---- */
+assert.equal(taipeiDateKey(new Date("2026-10-18T16:00:00Z")), "2026-10-19");
+assert.equal(taipeiDateKey(new Date("2026-10-18T15:59:00Z")), "2026-10-18");
+assert.equal(previousTaipeiDay("2026-10-19"), "2026-10-18");
+
+const dayA = new Date("2026-10-20T04:00:00Z");
+const dayB = new Date("2026-10-21T04:00:00Z");
+const challengeA = dailyChallenge(dayA);
+const challengeA2 = dailyChallenge(dayA);
+assert.equal(challengeA.dateKey, "2026-10-20");
+assert.equal(challengeA.seed, dailySeed(dayA));
+assert.equal(challengeA2.seed, challengeA.seed);
+assert.equal(challengeA2.bannedWeapon, challengeA.bannedWeapon);
+assert.equal(challengeA2.focusEnemy, challengeA.focusEnemy);
+assert.equal(challengeA2.mutation.id, challengeA.mutation.id);
+assert.notEqual(dailyChallenge(dayB).seed, challengeA.seed);
+assert.ok(WEAPON_ORDER.includes(challengeA.bannedWeapon));
+assert.ok(ENEMY_KIND_ORDER.includes(challengeA.focusEnemy));
+assert.ok(MUTATION_ORDER.includes(challengeA.mutation.id));
+assert.equal(MUTATION_ORDER.length, Object.keys(DAILY_MUTATIONS).length);
+
+const mutFog = applyDailyMutation(DIFFICULTIES.daily, DAILY_MUTATIONS.thick_fog);
+assert.equal(mutFog.fogNear, true);
+const mutElite = applyDailyMutation(DIFFICULTIES.daily, DAILY_MUTATIONS.elite_tide);
+assert.equal(mutElite.eliteEvery, 2);
+assert.equal(isEliteWaveFor(2, 2), true);
+assert.equal(isEliteWaveFor(2, 4), false);
+assert.equal(isEliteWave(4), true);
+
+const focusComp = pickWaveComposition(5, 8, "rusher", 4);
+assert.ok(focusComp.filter((s) => s.kind === "rusher").length >= 2);
+
+const streak0 = computeDailyStreak([], "2026-10-22");
+assert.equal(streak0, 0);
+const streak2 = computeDailyStreak(["2026-10-21", "2026-10-22"], "2026-10-22");
+assert.equal(streak2, 2);
+const streakGap = computeDailyStreak(["2026-10-20", "2026-10-22"], "2026-10-22");
+assert.equal(streakGap, 1);
+
+const share = formatDailyShareText({
+  dateKey: "2026-10-22",
+  wave: 5,
+  score: 1200,
+  won: true,
+  streak: 3,
+  bannedWeapon: "shotgun",
+  focusEnemy: "shield",
+  mutation: DAILY_MUTATIONS.thick_fog,
+});
+assert.match(share, /每日突變/);
+assert.match(share, /連續 3 天/);
+assert.match(share, /濃霧/);
+
+const dailyRec = recordRun(emptyStats(), {
+  mode: "daily",
+  wave: 6,
+  score: 900,
+  won: false,
+  weapon: "rifle",
+  dateKey: "2026-10-22",
+});
+assert.equal(dailyRec.isDailyBest, true);
+assert.equal(dailyRec.stats.bestDaily.wave, 6);
+assert.equal(dailyRec.streak, 1);
+assert.ok(dailyRec.scrapGained > 0);
+assert.ok(dailyRec.stats.dailyPlayDates.includes("2026-10-22"));
+
+const dailyWorse = recordRun(dailyRec.stats, {
+  mode: "daily",
+  wave: 3,
+  score: 100,
+  won: false,
+  weapon: "smg",
+  dateKey: "2026-10-22",
+});
+assert.equal(dailyWorse.stats.bestDaily.wave, 6);
+assert.equal(dailyWorse.isDailyBest, false);
+
+/* ---- Meta unlocks ---- */
+assert.equal(META_UNLOCK_ORDER.length, Object.keys(META_UNLOCKS).length);
+for (const id of META_UNLOCK_ORDER) {
+  assert.ok(META_UNLOCKS[id].cost > 0, `${id} needs cost`);
+  assert.ok(META_UNLOCKS[id].label, `${id} needs label`);
+  assert.ok(META_UNLOCKS[id].blurb, `${id} needs blurb`);
+}
+
+let metaStats = emptyStats();
+metaStats.scrap = 40;
+const bought = buyMeta(metaStats, "startBandage");
+assert.equal(bought.ok, true);
+assert.equal(bought.stats.scrap, 0);
+assert.equal(isUnlockOwned(bought.stats, "startBandage"), true);
+const boughtAgain = buyMeta(bought.stats, "startBandage");
+assert.equal(boughtAgain.ok, false);
+assert.equal(boughtAgain.reason, "owned");
+
+const bonuses = metaRunBonuses(bought.stats);
+assert.equal(bonuses.startingHpBonus, 15);
+
+const ew = effectiveWeapon("rifle", {
+  mutation: DAILY_MUTATIONS.ammo_drought,
+  meta: { magMul: 1.4, reloadMul: 0.85, headMultBonus: 0.25 },
+});
+assert.ok(ew.magSize < WEAPONS.rifle.magSize * 1.4);
+assert.ok(ew.magSize >= Math.round(WEAPONS.rifle.magSize * 0.6 * 1.4) - 1);
+assert.ok(ew.headMult > WEAPONS.rifle.headMult);
+
+assert.ok(scrapForRun({ mode: "hard", wave: 12, score: 2000, won: true }) >
+  scrapForRun({ mode: "easy", wave: 5, score: 500, won: true }));
+
+assert.ok(MODE_ORDER.includes("daily"));
+assert.equal(getDifficulty("daily").id, "daily");
+
+const migratedV2 = migrateStats({
+  bestByMode: { normal: { wave: 4, score: 800 } },
+  clearsByMode: { normal: 1 },
+  lastWeapon: "shotgun",
+  weaponClears: { shotgun: 1 },
+});
+assert.equal(migratedV2.bestByMode.normal.wave, 4);
+assert.equal(migratedV2.scrap, 0);
+assert.equal(migratedV2.lastWeapon, "shotgun");
 
 console.log("check-borderland: ok");

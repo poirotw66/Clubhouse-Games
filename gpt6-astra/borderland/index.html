@@ -68,6 +68,22 @@ font-size:12px;font-weight:900;letter-spacing:1px}
 .result-score{font-size:clamp(28px,8vw,42px);font-weight:1000;color:#ffd653;margin:8px 0}
 #status{font-size:12px;color:#e7b890;margin-top:12px}
 .actions{display:flex;flex-wrap:wrap;align-items:center;margin-top:8px}
+.meta-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.scrap{font-weight:1000;color:#ffcf49;letter-spacing:1px}
+.daily-card{background:#2a222c;padding:12px 14px;margin:10px 0;border-left:4px solid #ff8f5a}
+.daily-card strong{color:#ffd653}
+.share-box{width:100%;min-height:72px;margin:8px 0;padding:10px;background:#171119;color:#ffe7b0;
+border:2px solid #3a3038;font-size:12px;line-height:1.5;resize:vertical;font-family:ui-monospace,monospace}
+.panel button.unlock{display:block;width:100%;text-align:left;background:#2a222c;color:#ffe7b0;
+box-shadow:3px 3px 0 #120e14;margin:6px 0;padding:10px 12px}
+.panel button.unlock.owned{background:#3a5038;color:#d6ffc8}
+.panel button.unlock:disabled{opacity:.55;cursor:not-allowed}
+.panel button.weapon:disabled{opacity:.4;cursor:not-allowed;text-decoration:line-through}
+@media (prefers-reduced-motion: reduce){
+  #health{transition:none}
+  #hit,#damage{transition:none}
+  .panel button,.actions button{box-shadow:3px 3px 0 #b14d31}
+}
 
 /* Touch chrome */
 #touchUI{position:fixed;inset:0;z-index:4;pointer-events:none;display:none}
@@ -148,14 +164,25 @@ import {
   ENEMY_KINDS,
   STORAGE_KEY,
   LEGACY_STORAGE_KEY,
+  LEGACY_STORAGE_KEY_V1,
+  META_UNLOCKS,
+  META_UNLOCK_ORDER,
+  buyMeta,
+  computeDailyStreak,
+  dailyChallenge,
+  effectiveWeapon,
   enemyFireCooldown,
   enemyHp,
   enemySpeed,
   endReasonLabel,
+  formatDailyShareText,
   getDifficulty,
   getWeapon,
   getEnemyKind,
+  isEliteWaveFor,
+  isUnlockOwned,
   killScore,
+  metaRunBonuses,
   migrateStats,
   pickWaveComposition,
   projectileSpeed,
@@ -163,8 +190,9 @@ import {
   recordRun,
   shieldBlocksHit,
   spawnCount,
+  taipeiDateKey,
+  applyDailyMutation,
   weaponHitDamage,
-  isEliteWave,
 } from "./rules.mjs";
 import {
   playCapture,
@@ -175,9 +203,11 @@ import {
   playLose,
   playReload,
   playScore,
+  playSelect,
   playShoot,
   playWave,
   playWin,
+  sfxUnlock,
 } from "../shared/sfx.mjs";
 
 const $ = id => document.getElementById(id);
@@ -188,6 +218,7 @@ const isTouch =
   matchMedia("(pointer:coarse)").matches ||
   matchMedia("(hover:none) and (max-width: 900px)").matches ||
   ("ontouchstart" in window && Math.min(innerWidth, innerHeight) < 900);
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xe5b681);
@@ -352,7 +383,12 @@ layoutGun();
 let selectedMode="normal";
 let selectedWeapon="rifle";
 let stats=loadStats();
-let ui="menu"; // menu | playing | paused | over
+let todayDaily=dailyChallenge();
+let activeDaily=null; // snapshot for current run when mode===daily
+let runMutation=null;
+let runMeta=null;
+let absorbLeft=false;
+let ui="menu"; // menu | playing | paused | over | meta
 const player = {pos:new THREE.Vector3(0,1.7,18), hp:100, vy:0};
 let enemies=[], shots=[], effects=[], pickups=[];
 let wave=0,kills=0,score=0,ammo=24,reload=0;
@@ -380,6 +416,9 @@ function loadStats() {
   if (!raw) {
     try { raw=JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || "null"); } catch(e) {}
   }
+  if (!raw) {
+    try { raw=JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY_V1) || "null"); } catch(e) {}
+  }
   return migrateStats(raw);
 }
 function saveStats() {
@@ -389,10 +428,33 @@ function modeBest(mode=selectedMode) {
   return stats.bestByMode[mode] || { wave:0, score:0 };
 }
 function rules() {
-  return getDifficulty(selectedMode);
+  const base = getDifficulty(selectedMode);
+  if (selectedMode === "daily" && runMutation) {
+    return applyDailyMutation(base, runMutation);
+  }
+  return applyDailyMutation(base, null);
 }
 function weapon() {
-  return getWeapon(selectedWeapon);
+  return effectiveWeapon(selectedWeapon, {
+    mutation: selectedMode === "daily" ? runMutation : null,
+    meta: runMeta,
+  });
+}
+function eliteEvery() {
+  return rules().eliteEvery || 4;
+}
+function ensureWeaponAllowed() {
+  if (selectedMode === "daily" && selectedWeapon === todayDaily.bannedWeapon) {
+    selectedWeapon = WEAPON_ORDER.find((id) => id !== todayDaily.bannedWeapon) || "rifle";
+  }
+}
+function applyWorldFog() {
+  const nearFog = selectedMode === "daily" && runMutation?.fogNear;
+  if (nearFog) {
+    scene.fog = new THREE.Fog(0xe5b681, reduceMotion ? 18 : 14, reduceMotion ? 55 : 48);
+  } else {
+    scene.fog = new THREE.Fog(0xe5b681, 35, 115);
+  }
 }
 
 function blocked(x,z,r=.48) {
@@ -413,14 +475,16 @@ function setTouchChrome(show) {
 function updateHUD(){
   const d=rules();
   const w=weapon();
-  $("health").style.width=Math.max(0, Math.min(100, player.hp / d.startingHp * 100))+"%";
+  const maxHp = d.startingHp + (runMeta?.startingHpBonus || 0);
+  $("health").style.width=Math.max(0, Math.min(100, player.hp / maxHp * 100))+"%";
   $("hpText").textContent=Math.ceil(player.hp);
   $("rounds").textContent=reload>0?"••":ammo;
   $("weapon").textContent=reload>0?"RELOADING // 換彈中":w.code;
-  $("modeSub").textContent=`${d.label} · ${w.label} · 目標第 ${d.clearWave} 波`;
-  $("wave").innerHTML=`波次 ${String(wave).padStart(2,"0")} / ${String(d.clearWave).padStart(2,"0")}<br><small>敵人 ${enemies.length}${isEliteWave(wave)?" · 精英":""}</small>`;
+  const mutTag = selectedMode==="daily" && runMutation ? ` · ${runMutation.label}` : "";
+  $("modeSub").textContent=`${d.label} · ${w.label} · 目標第 ${d.clearWave} 波${mutTag}`;
+  $("wave").innerHTML=`波次 ${String(wave).padStart(2,"0")} / ${String(d.clearWave).padStart(2,"0")}<br><small>敵人 ${enemies.length}${isEliteWaveFor(wave, eliteEvery())?" · 精英":""}</small>`;
   const best=modeBest();
-  $("stats").textContent=`擊殺 ${kills}　 /　 分數 ${score.toLocaleString()}　 /　 最佳波 ${best.wave}`;
+  $("stats").textContent=`擊殺 ${kills}　 /　 分數 ${score.toLocaleString()}　 /　 最佳波 ${best.wave}　 /　 廢鐵 ${stats.scrap}`;
 }
 
 function showOverlay(html) {
@@ -432,62 +496,100 @@ function hideOverlay() {
 }
 
 function modeButtonsHtml() {
-  return DIFFICULTY_ORDER.map(id=>{
-    const d=DIFFICULTIES[id];
-    const best=stats.bestByMode[id]||{wave:0,score:0};
-    const clears=stats.clearsByMode[id]||0;
-    return `<button type="button" class="mode ${id===selectedMode?"active":""}" data-mode="${id}">
+  const modes = [
+    ...DIFFICULTY_ORDER.map((id) => ({ id, d: DIFFICULTIES[id] })),
+    { id: "daily", d: DIFFICULTIES.daily },
+  ];
+  return modes.map(({ id, d }) => {
+    const best = stats.bestByMode[id] || { wave: 0, score: 0 };
+    const clears = stats.clearsByMode[id] || 0;
+    return `<button type="button" class="mode ${id === selectedMode ? "active" : ""}" data-mode="${id}">
       <b>${d.label}</b> · 最佳波 ${best.wave} · 最高分 ${best.score.toLocaleString()} · 通關 ${clears}
       <small>${d.blurb}</small>
     </button>`;
   }).join("");
 }
 function weaponButtonsHtml() {
-  return WEAPON_ORDER.map(id=>{
-    const w=WEAPONS[id];
-    const clears=stats.weaponClears?.[id]||0;
-    return `<button type="button" class="weapon ${id===selectedWeapon?"active":""}" data-weapon="${id}">
-      <b>${w.label}</b> · 通關 ${clears}
-      <small>${w.blurb}</small>
+  const banned = selectedMode === "daily" ? todayDaily.bannedWeapon : null;
+  return WEAPON_ORDER.map((id) => {
+    const w = WEAPONS[id];
+    const clears = stats.weaponClears?.[id] || 0;
+    const disabled = banned === id;
+    return `<button type="button" class="weapon ${id === selectedWeapon ? "active" : ""}" data-weapon="${id}" ${disabled ? "disabled" : ""}>
+      <b>${w.label}</b> · 通關 ${clears}${disabled ? " · 今日禁用" : ""}
+      <small>${disabled ? "今日突變禁用此武器" : w.blurb}</small>
     </button>`;
   }).join("");
 }
+function dailyCardHtml() {
+  if (selectedMode !== "daily") return "";
+  const ban = getWeapon(todayDaily.bannedWeapon);
+  const focus = getEnemyKind(todayDaily.focusEnemy);
+  const mut = todayDaily.mutation;
+  const best =
+    stats.bestDaily?.date === todayDaily.dateKey
+      ? stats.bestDaily
+      : { wave: 0, score: 0, win: false };
+  const streak = computeDailyStreak(stats.dailyPlayDates, todayDaily.dateKey);
+  return `<div class="daily-card" id="dailyCard">
+    <div class="section-label" style="margin-top:0">今日突變 · ${todayDaily.dateKey}（台北）</div>
+    <p style="margin:4px 0"><strong>禁用</strong> ${ban.label}　·　<strong>主力</strong> ${focus.label}　·　<strong>突變</strong> ${mut.label}</p>
+    <p style="margin:4px 0;font-size:12px;color:#e7b890">${mut.blurb}</p>
+    <p style="margin:4px 0">今日最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分${best.win ? " · 已通關" : ""}　·　連續 ${streak} 天</p>
+  </div>`;
+}
 
 function bindMenuButtons() {
-  $("panel").querySelectorAll("[data-mode]").forEach(btn=>{
-    btn.onclick=()=>{
-      selectedMode=btn.getAttribute("data-mode");
-      menu({ preserveMode:true, preserveWeapon:true });
+  $("panel").querySelectorAll("[data-mode]").forEach((btn) => {
+    btn.onclick = () => {
+      selectedMode = btn.getAttribute("data-mode");
+      ensureWeaponAllowed();
+      playSelect();
+      menu({ preserveMode: true, preserveWeapon: true });
     };
   });
-  $("panel").querySelectorAll("[data-weapon]").forEach(btn=>{
-    btn.onclick=()=>{
-      selectedWeapon=btn.getAttribute("data-weapon");
-      menu({ preserveMode:true, preserveWeapon:true });
+  $("panel").querySelectorAll("[data-weapon]").forEach((btn) => {
+    if (btn.disabled) return;
+    btn.onclick = () => {
+      selectedWeapon = btn.getAttribute("data-weapon");
+      playSelect();
+      menu({ preserveMode: true, preserveWeapon: true });
     };
   });
 }
 
-function menu({ preserveMode=false, preserveWeapon=false }={}) {
-  ui="menu";
-  won=false;
-  $("hud").style.display="none";
+function menu({ preserveMode = false, preserveWeapon = false } = {}) {
+  ui = "menu";
+  won = false;
+  activeDaily = null;
+  runMutation = null;
+  runMeta = null;
+  todayDaily = dailyChallenge();
+  $("hud").style.display = "none";
   setTouchChrome(false);
-  if(document.pointerLockElement) document.exitPointerLock();
-  if(!preserveMode && DIFFICULTIES[stats.lastMode]) selectedMode=stats.lastMode;
-  if(!preserveWeapon && WEAPONS[stats.lastWeapon]) selectedWeapon=stats.lastWeapon;
-  const best=modeBest();
-  const w=weapon();
+  if (document.pointerLockElement) document.exitPointerLock();
+  if (!preserveMode && DIFFICULTIES[stats.lastMode] && stats.lastMode !== "daily") {
+    selectedMode = stats.lastMode;
+  }
+  if (!preserveWeapon && WEAPONS[stats.lastWeapon]) selectedWeapon = stats.lastWeapon;
+  ensureWeaponAllowed();
+  const best = modeBest();
+  const w = getWeapon(selectedWeapon);
+  const streak = computeDailyStreak(stats.dailyPlayDates, todayDaily.dateKey);
   showOverlay(`
     <div class="tag">INK. IRON. MAYHEM.</div>
     <h1>DUST RIOT</h1><h2>荒 土 暴 動</h2>
-    <p>選難度與武器身分。衝鋒槍壓制衝鋒、步槍點殺迫擊、散彈破盾——取捨真實存在。</p>
-    <div class="section-label">難度</div>
+    <p>選難度與武器身分。通關賺廢鐵，解鎖永久起始裝備；每日突變以台北日為種子。</p>
+    <div class="meta-row"><span class="scrap" id="scrapDisplay">廢鐵 ${stats.scrap}</span>
+      <button type="button" class="secondary" id="openMeta">永久解鎖</button>
+    </div>
+    <div class="section-label">難度／每日</div>
     <div>${modeButtonsHtml()}</div>
+    ${dailyCardHtml()}
     <div class="section-label">開局武器</div>
     <div>${weaponButtonsHtml()}</div>
     <p>頭部雙倍傷害；綠箱補血；盾兵正面會擋彈（散彈近距可破）。<br>
-    本模式最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分<br>
+    本模式最佳：第 ${best.wave} 波 · ${best.score.toLocaleString()} 分 · 連續每日 ${streak} 天<br>
     目前武裝：${w.label} — ${w.tip}</p>
     <div class="actions">
       <button type="button" id="start">進入荒土 →</button>
@@ -496,7 +598,48 @@ function menu({ preserveMode=false, preserveWeapon=false }={}) {
       ? "觸控就緒 · 左搖桿移動 · 右搖桿瞄準 · 開火鍵射擊"
       : "引擎就緒 · 點擊開始以鎖定滑鼠（桌面瀏覽器）"}</div>`);
   bindMenuButtons();
-  $("start").onclick=()=>beginRun();
+  $("start").onclick = () => beginRun();
+  $("openMeta").onclick = () => metaShop();
+}
+
+function metaShop() {
+  ui = "meta";
+  $("hud").style.display = "none";
+  setTouchChrome(false);
+  if (document.pointerLockElement) document.exitPointerLock();
+  const rows = META_UNLOCK_ORDER.map((id) => {
+    const def = META_UNLOCKS[id];
+    const owned = isUnlockOwned(stats, id);
+    const can = !owned && stats.scrap >= def.cost;
+    return `<button type="button" class="unlock ${owned ? "owned" : ""}" data-unlock="${id}" ${owned || !can ? "disabled" : ""}>
+      <b>${def.label}</b> · ${owned ? "已解鎖" : `${def.cost} 廢鐵`}
+      <small style="display:block;margin-top:4px;opacity:.85">${def.blurb}</small>
+    </button>`;
+  }).join("");
+  showOverlay(`
+    <div class="tag">SCRAP YARD</div>
+    <h1>永久解鎖</h1>
+    <p>通關與波次里程碑賺廢鐵。解鎖後每局生效，進度寫入本機。</p>
+    <div class="meta-row"><span class="scrap">廢鐵 ${stats.scrap}</span></div>
+    <div class="section-label">起始裝備／被動</div>
+    <div>${rows}</div>
+    <div class="actions">
+      <button type="button" class="secondary" id="metaBack">返回選單</button>
+    </div>
+    <div id="status">存檔鍵 ${STORAGE_KEY}</div>`);
+  $("metaBack").onclick = () => menu({ preserveMode: true, preserveWeapon: true });
+  $("panel").querySelectorAll("[data-unlock]").forEach((btn) => {
+    if (btn.disabled) return;
+    btn.onclick = () => {
+      const id = btn.getAttribute("data-unlock");
+      const result = buyMeta(stats, id);
+      if (!result.ok) return;
+      stats = result.stats;
+      saveStats();
+      sfxUnlock();
+      metaShop();
+    };
+  });
 }
 
 async function requestLock() {
@@ -516,35 +659,58 @@ async function requestLock() {
 }
 
 function beginRun() {
+  ensureWeaponAllowed();
+  if (selectedMode === "daily") {
+    todayDaily = dailyChallenge();
+    activeDaily = todayDaily;
+    runMutation = todayDaily.mutation;
+  } else {
+    activeDaily = null;
+    runMutation = null;
+  }
+  runMeta = metaRunBonuses(stats);
+  absorbLeft = !!runMeta.absorbFirstHit;
+  applyWorldFog();
   resetRun();
-  ui="playing";
-  everLocked=false;
-  unlockPlay=isTouch;
-  $("hud").style.display="block";
+  ui = "playing";
+  everLocked = false;
+  unlockPlay = isTouch;
+  $("hud").style.display = "block";
   hideOverlay();
   setTouchChrome(true);
-  requestLock().then((ok)=>{
-    if(!ok && !isTouch) unlockPlay=true;
+  requestLock().then((ok) => {
+    if (!ok && !isTouch) unlockPlay = true;
   });
 }
 
 function resetRun() {
-  enemies.forEach(e=>scene.remove(e.g));
-  shots.forEach(s=>scene.remove(s.m));
+  enemies.forEach((e) => scene.remove(e.g));
+  shots.forEach((s) => scene.remove(s.m));
   effects.forEach(removeEffect);
-  pickups.forEach(p=>scene.remove(p.g));
-  enemies=[];shots=[];effects=[];pickups=[];
-  Object.keys(keys).forEach(k=>delete keys[k]);
-  touchState.move.dx=touchState.move.dy=0;
-  touchState.look.dx=touchState.look.dy=0;
-  touchState.fire=false;
-  const d=rules();
-  const w=weapon();
+  pickups.forEach((p) => scene.remove(p.g));
+  enemies = [];
+  shots = [];
+  effects = [];
+  pickups = [];
+  Object.keys(keys).forEach((k) => delete keys[k]);
+  touchState.move.dx = touchState.move.dy = 0;
+  touchState.look.dx = touchState.look.dy = 0;
+  touchState.fire = false;
+  const d = rules();
+  const w = weapon();
   rebuildGunVisual(selectedWeapon);
-  player.pos.set(0,1.7,18);player.hp=d.startingHp;player.vy=0;
-  wave=kills=score=reload=fireWait=recoil=nextWave=0;
-  hurtTime=hitTime=flash=shake=combo=0;ammo=w.magSize;yaw=pitch=0;elapsed=0;
-  won=false;firing=false;spaceHeld=false;
+  const startHp = d.startingHp + (runMeta?.startingHpBonus || 0);
+  player.pos.set(0, 1.7, 18);
+  player.hp = startHp;
+  player.vy = 0;
+  wave = kills = score = reload = fireWait = recoil = nextWave = 0;
+  hurtTime = hitTime = flash = shake = combo = 0;
+  ammo = w.magSize;
+  yaw = pitch = 0;
+  elapsed = 0;
+  won = false;
+  firing = false;
+  spaceHeld = false;
   beginWave();
   updateHUD();
 }
@@ -567,10 +733,13 @@ function spawnEnemy(kind="grunt", elite=false){
   const def=getEnemyKind(kind);
   const g=new THREE.Group();scene.add(g);g.position.set(x,0,z);
   const scale = elite ? 1.35 : 1;
+  const dRules = rules();
+  const hpMul = dRules.enemyHpMul || 1;
+  const speedMul = dRules.enemySpeedMul || 1;
   const e={
     g, kind, elite, def,
-    hp:enemyHp(wave, selectedMode, kind, elite),
-    speed:enemySpeed(wave, selectedMode, kind, elite),
+    hp:Math.round(enemyHp(wave, selectedMode, kind, elite) * hpMul),
+    speed:enemySpeed(wave, selectedMode, kind, elite) * speedMul,
     cooldown:1+Math.random()*2,phase:Math.random()*6,parts:[],
     shieldMesh:null,
   };
@@ -612,18 +781,19 @@ function spawnEnemy(kind="grunt", elite=false){
 function beginWave(){
   wave++;
   const n=spawnCount(wave, selectedMode);
-  const comp=pickWaveComposition(wave, n);
+  const focus = selectedMode === "daily" ? activeDaily?.focusEnemy : null;
+  const comp=pickWaveComposition(wave, n, focus, eliteEvery());
   let spawned=0;
   for(const slot of comp){
     if(spawnEnemy(slot.kind, slot.elite)) spawned++;
   }
   // guarantee at least one enemy
   while(spawned===0 && enemies.length===0){
-    if(spawnEnemy("grunt", false)) spawned++;
+    if(spawnEnemy(focus || "grunt", false)) spawned++;
     else break;
   }
   const d=rules();
-  const eliteTag=isEliteWave(wave)?" · 精英波":"";
+  const eliteTag=isEliteWaveFor(wave, eliteEvery())?" · 精英波":"";
   announce(`第 ${wave} 波 // 目標 ${d.clearWave}${eliteTag}`,2.8);
   playWave();
   updateHUD();
@@ -636,10 +806,11 @@ function addPickup(pos){
   pickups.push({g,time:28});
 }
 function particles(pos,color,n=7){
-  for(let i=0;i<n;i++){
+  const count = reduceMotion ? Math.min(3, n) : n;
+  for(let i=0;i<count;i++){
     const m=new THREE.Mesh(boxGeo,mat(color));
     m.scale.setScalar(.055+Math.random()*.09);m.position.copy(pos);scene.add(m);
-    effects.push({m,time:.35,vel:new THREE.Vector3(
+    effects.push({m,time:reduceMotion?.2:.35,vel:new THREE.Vector3(
       (Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5
     )});
   }
@@ -689,7 +860,7 @@ function shootRay(spreadYaw, spreadPitch){
     const dist=h.distance;
     if(h.object.userData.enemy){
       const enemy=h.object.userData.enemy;
-      const {damage,inRange}=weaponHitDamage(selectedWeapon, dist, !!h.object.userData.head);
+      const {damage,inRange}=weaponHitDamage(selectedWeapon, dist, !!h.object.userData.head, w);
       if(!inRange || damage<=0){
         particles(end,0xffdaa0,2);
       } else {
@@ -756,8 +927,11 @@ function finishRun(outcome) {
   const d=rules();
   const w=weapon();
   if(won) playWin(); else playLose();
+  const dateKey = selectedMode === "daily"
+    ? (activeDaily?.dateKey || taipeiDateKey())
+    : null;
   const result=recordRun(stats, {
-    mode:selectedMode, wave, score, won, weapon:selectedWeapon
+    mode:selectedMode, wave, score, won, weapon:selectedWeapon, dateKey,
   });
   stats=result.stats;
   saveStats();
@@ -768,32 +942,78 @@ function finishRun(outcome) {
     won?`<span class="badge gold">通關</span>`:`<span class="badge">戰敗</span>`,
     result.isWaveBest?`<span class="badge gold">最高波次</span>`:"",
     result.isScoreBest?`<span class="badge gold">最高分數</span>`:"",
+    result.isDailyBest?`<span class="badge gold">今日最佳</span>`:"",
+    result.scrapGained>0?`<span class="badge">+${result.scrapGained} 廢鐵</span>`:"",
   ].filter(Boolean).join("");
+  let shareBlock = "";
+  if (selectedMode === "daily" && activeDaily) {
+    const share = formatDailyShareText({
+      dateKey: activeDaily.dateKey,
+      wave,
+      score,
+      won,
+      streak: result.streak,
+      bannedWeapon: activeDaily.bannedWeapon,
+      focusEnemy: activeDaily.focusEnemy,
+      mutation: activeDaily.mutation,
+    });
+    shareBlock = `
+      <div class="section-label">分享今日成績</div>
+      <textarea class="share-box" id="shareText" readonly>${share.replace(/</g, "&lt;")}</textarea>
+      <div class="actions">
+        <button type="button" class="secondary" id="copyShare">複製分享文字</button>
+      </div>
+      <p style="margin:4px 0;font-size:12px;color:#e7b890">連續 ${result.streak} 天 · 今日最佳波 ${stats.bestDaily.wave}</p>`;
+  }
   showOverlay(`
     <div class="tag">${won?"HOLD THE LINE":"DUST TO DUST"}</div>
     <h1>${won?"哨站守住了！":"你倒在荒土上。"}</h1>
     <p>${badges}</p>
     <div class="result-score">${score.toLocaleString()}<span> 分</span></div>
-    <p style="margin:0">${endReasonLabel(outcome)} · 第 ${wave} 波 · 擊殺 ${kills}</p>
+    <p style="margin:0">${endReasonLabel(outcome)} · 第 ${wave} 波 · 擊殺 ${kills} · 廢鐵 ${stats.scrap}</p>
     <div class="result-grid">
       <div><small>本局波次</small><b>${wave}</b></div>
       <div><small>目標波次</small><b>${d.clearWave}</b></div>
       <div><small>本模式最佳波</small><b>${best.wave}</b></div>
       <div><small>本模式最高分</small><b>${best.score.toLocaleString()}</b></div>
     </div>
+    ${shareBlock}
     <div class="actions">
       <button type="button" id="again">再來一局</button>
       <button type="button" class="ghost" id="back">換模式／武器</button>
+      <button type="button" class="secondary" id="toMeta">永久解鎖</button>
     </div>
     <div id="status">紀錄已寫入本機（${STORAGE_KEY}）</div>`);
   $("again").onclick=()=>beginRun();
   $("back").onclick=()=>menu();
+  $("toMeta").onclick=()=>metaShop();
+  const copyBtn = $("copyShare");
+  if (copyBtn) {
+    copyBtn.onclick = async () => {
+      const text = $("shareText")?.value || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = "已複製";
+      } catch (e) {
+        $("shareText")?.select();
+        copyBtn.textContent = "請手動複製";
+      }
+    };
+  }
 }
 
 function hurt(amount){
   if(ui!=="playing")return;
+  if(absorbLeft){
+    absorbLeft=false;
+    announce("廢鐵背心擋下傷害！",1.2);
+    playGoal();
+    hurtTime=.2;
+    updateHUD();
+    return;
+  }
   player.hp=Math.max(0,player.hp-amount);hurtTime=.35;
-  shake=Math.min(0.35, shake+0.12);
+  shake=Math.min(0.35, shake+(reduceMotion?0.04:0.12));
   playHurt();
   updateHUD();
   if(player.hp<=0) finishRun("defeat");
@@ -1002,8 +1222,8 @@ function update(dt){
   player.vy-=17*dt;player.pos.y+=player.vy*dt;
   if(player.pos.y<1.7){player.pos.y=1.7;player.vy=0;}
   camera.position.copy(player.pos);
-  if(len&&player.pos.y<=1.7)camera.position.y+=Math.sin(elapsed*13)*.035;
-  if(shake>0){
+  if(len&&player.pos.y<=1.7&&!reduceMotion)camera.position.y+=Math.sin(elapsed*13)*.035;
+  if(shake>0&&!reduceMotion){
     camera.position.x += (Math.random()-.5)*shake*0.55;
     camera.position.y += (Math.random()-.5)*shake*0.35;
   }
@@ -1117,9 +1337,11 @@ function update(dt){
     const p=pickups[i];p.time-=dt;p.g.rotation.y+=dt*2;
     p.g.position.y=.65+Math.sin(elapsed*3)*.13;
     const near=Math.hypot(p.g.position.x-player.pos.x,p.g.position.z-player.pos.z)<1.3;
-    if(near&&player.hp<d.startingHp){
-      player.hp=Math.min(d.startingHp,player.hp+d.pickupHeal);
-      announce(`+${d.pickupHeal} 生命值`,.8);updateHUD();
+    const maxHp = d.startingHp + (runMeta?.startingHpBonus || 0);
+    const healAmt = d.pickupHeal + (runMeta?.pickupHealBonus || 0);
+    if(near&&player.hp<maxHp){
+      player.hp=Math.min(maxHp,player.hp+healAmt);
+      announce(`+${healAmt} 生命值`,.8);updateHUD();
       playGoal();
       p.time=0;
     }
@@ -1137,8 +1359,10 @@ function update(dt){
     }
     if(nextWave===0){
       nextWave=3;
-      player.hp=Math.min(d.startingHp,player.hp+d.betweenWaveHeal);
-      announce(`區域淨空 // +${d.betweenWaveHeal} 生命值`,2.5);updateHUD();
+      const maxHp = d.startingHp + (runMeta?.startingHpBonus || 0);
+      const heal = d.betweenWaveHeal + (runMeta?.betweenWaveHealBonus || 0);
+      player.hp=Math.min(maxHp,player.hp+heal);
+      announce(`區域淨空 // +${heal} 生命值`,2.5);updateHUD();
     }else{
       nextWave-=dt;
       if(nextWave<=0){nextWave=0;beginWave();}
@@ -1168,20 +1392,32 @@ if (new URLSearchParams(location.search).has("test")) {
       finishRun,
       beginRun,
       menu,
+      metaShop,
       pauseGame,
       getMode: () => selectedMode,
-      setMode: (id) => { selectedMode = id; },
+      setMode: (id) => { selectedMode = id; ensureWeaponAllowed(); },
       getWeapon: () => selectedWeapon,
       setWeapon: (id) => { selectedWeapon = id; rebuildGunVisual(id); },
       getStats: () => structuredClone(stats),
+      setStats: (next) => { stats = migrateStats(next); saveStats(); },
       getWave: () => wave,
       getScore: () => score,
       getUi: () => ui,
       getEnemyKinds: () => enemies.map(e => ({ kind: e.kind, elite: e.elite })),
       isTouchMode: () => isTouch,
+      reduceMotion: () => reduceMotion,
       enableUnlockPlay: () => { unlockPlay = true; },
       getAmmo: () => ammo,
       getPlayerHp: () => player.hp,
+      getDaily: () => structuredClone(todayDaily),
+      getActiveDaily: () => (activeDaily ? structuredClone(activeDaily) : null),
+      getRunMutation: () => (runMutation ? structuredClone(runMutation) : null),
+      getScrap: () => stats.scrap,
+      buyUnlock: (id) => {
+        const result = buyMeta(stats, id);
+        if (result.ok) { stats = result.stats; saveStats(); }
+        return result;
+      },
       /** QA helper: wipe field and start a given 1-based wave. */
       jumpToWave: (n) => {
         enemies.forEach((e) => scene.remove(e.g));
