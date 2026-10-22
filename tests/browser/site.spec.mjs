@@ -1027,6 +1027,9 @@ test('roguelike-snake: builds, Ironsnake warning, daily streak, and run HUD', as
 
 test('koi-koi: default win score is shortest under more modes', async ({ page, isMobile }) => {
   test.skip(!includesGame('Koi-Koi'), 'selective CI');
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-koi-koi-howto-seen', '1');
+  });
   await page.goto('./Games/Koi-Koi/');
   await expect(page.getByText('目前：先達 7', { exact: false })).toBeVisible();
   await activate(page.getByText('更多賽制', { exact: true }), isMobile);
