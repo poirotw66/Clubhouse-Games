@@ -302,6 +302,12 @@ export function sfxEscapeRoomEnter() {
   playTone(440, 'triangle', 0.12, 0.14, 0.05);
 }
 
+/** Escape-room: no-hint / daily badge sting (new only — do not alter prior sfx). */
+export function sfxEscapeBadge() {
+  playTone(520, 'sine', 0.07, 0, 0.05);
+  playTone(780, 'triangle', 0.12, 0.06, 0.06);
+}
+
 /** Rubik's Cube Academy — soft face-turn click (thin wrapper over playMove). */
 export function playCubeTurn() {
   playMove();

@@ -41,6 +41,9 @@
     missionsClearedCount: 0,
     tutorialComplete: false,
     bestChainOverall: 0,
+    dailyBest: null,
+    dailyClears: null,
+    boardTheme: 'classic',
   };
   var VALID_DIFFICULTIES = {
     easy: true,
@@ -49,8 +52,66 @@
     master: true,
     nightmare: true,
   };
-  var VALID_MODES = { cpu: true, versus: true, mission: true, tutorial: true, practice: true };
+  var VALID_MODES = {
+    cpu: true,
+    versus: true,
+    mission: true,
+    tutorial: true,
+    practice: true,
+    daily: true,
+  };
   var DIFFICULTY_IDS = ['easy', 'normal', 'hard', 'master', 'nightmare'];
+
+  /**
+   * Board / page themes unlocked by total mission stars.
+   * classic is always free; others unlock at rising star thresholds.
+   */
+  var BOARD_THEMES = [
+    {
+      id: 'classic',
+      label: '經典夜場',
+      starsRequired: 0,
+      pageBg:
+        'linear-gradient(rgba(6, 4, 23, 0.55), rgba(6, 4, 23, 0.78)), url("./art/stage-bg.jpg") center / cover no-repeat, radial-gradient(900px 520px at 50% -10%, rgba(122, 66, 214, 0.35), transparent 70%), #060417',
+      fieldTop: '#1b1440',
+      fieldBottom: '#120d2c',
+      fieldTint: 'rgba(18, 13, 44, 0.45)',
+    },
+    {
+      id: 'sunset',
+      label: '夕燒海岸',
+      starsRequired: 10,
+      pageBg:
+        'linear-gradient(rgba(40, 12, 8, 0.55), rgba(20, 8, 6, 0.82)), radial-gradient(800px 480px at 70% 0%, rgba(255, 140, 60, 0.45), transparent 65%), radial-gradient(600px 400px at 20% 100%, rgba(255, 80, 100, 0.25), transparent 60%), #1a0c08',
+      fieldTop: '#4a1e14',
+      fieldBottom: '#1a0c10',
+      fieldTint: 'rgba(60, 20, 12, 0.4)',
+    },
+    {
+      id: 'aurora',
+      label: '極光庭園',
+      starsRequired: 24,
+      pageBg:
+        'linear-gradient(rgba(4, 18, 22, 0.6), rgba(4, 12, 18, 0.85)), radial-gradient(700px 420px at 30% 10%, rgba(60, 220, 180, 0.35), transparent 60%), radial-gradient(500px 360px at 90% 80%, rgba(80, 140, 255, 0.3), transparent 55%), #041216',
+      fieldTop: '#0d2e36',
+      fieldBottom: '#061820',
+      fieldTint: 'rgba(8, 28, 32, 0.42)',
+    },
+    {
+      id: 'candy',
+      label: '糖果工房',
+      starsRequired: 40,
+      pageBg:
+        'linear-gradient(rgba(28, 10, 28, 0.55), rgba(18, 8, 22, 0.82)), radial-gradient(700px 400px at 50% -5%, rgba(255, 120, 180, 0.4), transparent 60%), radial-gradient(500px 340px at 10% 90%, rgba(120, 200, 255, 0.28), transparent 55%), #160816',
+      fieldTop: '#3a1840',
+      fieldBottom: '#1a0c22',
+      fieldTint: 'rgba(40, 16, 44, 0.4)',
+    },
+  ];
+  var VALID_THEMES = {};
+  BOARD_THEMES.forEach(function (theme) {
+    VALID_THEMES[theme.id] = true;
+  });
 
   function asNonNegInt(value) {
     var n = Number(value);
@@ -106,6 +167,60 @@
     };
   }
 
+  function normalizeDailyBest(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.dateKey !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.dateKey)) return null;
+    return {
+      dateKey: raw.dateKey,
+      cleared: !!raw.cleared,
+      bestMoves: asNonNegInt(raw.bestMoves) || 0,
+      bestStars: Math.min(3, asNonNegInt(raw.bestStars)),
+      bestChain: asNonNegInt(raw.bestChain),
+      attempts: asNonNegInt(raw.attempts),
+    };
+  }
+
+  function normalizeDailyClears(raw) {
+    var out = [];
+    if (!Array.isArray(raw)) return out;
+    var seen = {};
+    raw.forEach(function (key) {
+      if (typeof key !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(key);
+    });
+    out.sort();
+    return out.slice(-90);
+  }
+
+  function totalMissionStars(stats) {
+    var stars = (stats && stats.missionStars) || {};
+    var sum = 0;
+    Object.keys(stars).forEach(function (id) {
+      sum += asNonNegInt(stars[id]);
+    });
+    return sum;
+  }
+
+  function themeById(id) {
+    for (var i = 0; i < BOARD_THEMES.length; i += 1) {
+      if (BOARD_THEMES[i].id === id) return BOARD_THEMES[i];
+    }
+    return BOARD_THEMES[0];
+  }
+
+  function isThemeUnlocked(themeId, starTotal) {
+    var theme = themeById(themeId);
+    return asNonNegInt(starTotal) >= theme.starsRequired;
+  }
+
+  function normalizeBoardTheme(rawTheme, starTotal) {
+    var id = typeof rawTheme === 'string' && VALID_THEMES[rawTheme] ? rawTheme : 'classic';
+    if (!isThemeUnlocked(id, starTotal)) return 'classic';
+    return id;
+  }
+
   /** Merge partial / corrupt storage into a valid career-stats object. */
   function mergeStats(raw) {
     var byDifficulty = emptyByDifficulty();
@@ -119,6 +234,9 @@
         missionsClearedCount: 0,
         tutorialComplete: false,
         bestChainOverall: 0,
+        dailyBest: null,
+        dailyClears: [],
+        boardTheme: 'classic',
       };
     }
     var lastDifficulty = typeof raw.lastDifficulty === 'string' && VALID_DIFFICULTIES[raw.lastDifficulty]
@@ -139,6 +257,20 @@
     );
     var tutorialComplete = !!raw.tutorialComplete;
     var bestChainOverall = asNonNegInt(raw.bestChainOverall);
+    var dailyBest = normalizeDailyBest(raw.dailyBest);
+    var dailyClears = normalizeDailyClears(raw.dailyClears);
+    var starTotal = 0;
+    Object.keys(missionStars).forEach(function (key) {
+      starTotal += asNonNegInt(missionStars[key]);
+    });
+    var boardTheme = normalizeBoardTheme(raw.boardTheme, starTotal);
+
+    function finish(payload) {
+      payload.dailyBest = dailyBest;
+      payload.dailyClears = dailyClears;
+      payload.boardTheme = boardTheme;
+      return payload;
+    }
 
     if (raw.byDifficulty && typeof raw.byDifficulty === 'object') {
       for (var i = 0; i < DIFFICULTY_IDS.length; i += 1) {
@@ -148,7 +280,7 @@
           bestChainOverall = byDifficulty[id].bestMaxChain;
         }
       }
-      return {
+      return finish({
         lastDifficulty: lastDifficulty,
         lastMode: lastMode,
         byDifficulty: byDifficulty,
@@ -157,7 +289,7 @@
         missionsClearedCount: missionsClearedCount,
         tutorialComplete: tutorialComplete,
         bestChainOverall: bestChainOverall,
-      };
+      });
     }
 
     // Legacy flat career → migrate into normal.
@@ -171,7 +303,7 @@
     if (byDifficulty.normal.bestMaxChain > bestChainOverall) {
       bestChainOverall = byDifficulty.normal.bestMaxChain;
     }
-    return {
+    return finish({
       lastDifficulty: lastDifficulty,
       lastMode: lastMode,
       byDifficulty: byDifficulty,
@@ -180,7 +312,7 @@
       missionsClearedCount: missionsClearedCount,
       tutorialComplete: tutorialComplete,
       bestChainOverall: bestChainOverall,
-    };
+    });
   }
 
   function modeOf(stats, difficulty) {
@@ -257,6 +389,51 @@
     if (typeof mode === 'string' && VALID_MODES[mode]) {
       next.lastMode = mode;
     }
+    return next;
+  }
+
+  /**
+   * Record a daily clear / attempt. Best moves only improve (lower wins);
+   * stars only climb. Clears list drives streak.
+   */
+  function recordDailyResult(stats, result) {
+    var next = mergeStats(stats);
+    if (!result || typeof result.dateKey !== 'string') return next;
+    var dateKey = result.dateKey;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return next;
+
+    var prev = next.dailyBest && next.dailyBest.dateKey === dateKey ? next.dailyBest : null;
+    var attempts = (prev ? prev.attempts : 0) + 1;
+    var cleared = !!(prev && prev.cleared) || !!result.cleared;
+    var bestMoves = prev && prev.bestMoves > 0 ? prev.bestMoves : 0;
+    var bestStars = prev ? prev.bestStars : 0;
+    var bestChain = prev ? prev.bestChain : 0;
+    var chain = asNonNegInt(result.chain);
+    if (chain > bestChain) bestChain = chain;
+    if (result.cleared) {
+      var moves = Math.max(1, asNonNegInt(result.movesUsed) || 1);
+      var stars = Math.min(3, Math.max(1, asNonNegInt(result.stars) || 1));
+      if (!bestMoves || moves < bestMoves) bestMoves = moves;
+      if (stars > bestStars) bestStars = stars;
+      if (next.dailyClears.indexOf(dateKey) < 0) {
+        next.dailyClears = next.dailyClears.concat([dateKey]).sort().slice(-90);
+      }
+    }
+    next.dailyBest = {
+      dateKey: dateKey,
+      cleared: cleared,
+      bestMoves: bestMoves,
+      bestStars: bestStars,
+      bestChain: bestChain,
+      attempts: attempts,
+    };
+    return noteMaxChain(next, chain, null);
+  }
+
+  function withBoardTheme(stats, themeId) {
+    var next = mergeStats(stats);
+    var stars = totalMissionStars(next);
+    next.boardTheme = normalizeBoardTheme(themeId, stars);
     return next;
   }
 
@@ -770,6 +947,8 @@
     VALID_DIFFICULTIES: VALID_DIFFICULTIES,
     VALID_MODES: VALID_MODES,
     DIFFICULTY_IDS: DIFFICULTY_IDS,
+    BOARD_THEMES: BOARD_THEMES,
+    VALID_THEMES: VALID_THEMES,
     mergeStats: mergeStats,
     modeOf: modeOf,
     recordCpuResult: recordCpuResult,
@@ -777,6 +956,11 @@
     recordMissionClear: recordMissionClear,
     markTutorialComplete: markTutorialComplete,
     withPrefs: withPrefs,
+    recordDailyResult: recordDailyResult,
+    withBoardTheme: withBoardTheme,
+    totalMissionStars: totalMissionStars,
+    themeById: themeById,
+    isThemeUnlocked: isThemeUnlocked,
     heightVariance: heightVariance,
   };
 })(window);

@@ -26,6 +26,25 @@
   STAGE_IMAGE.decoding = 'async';
   STAGE_IMAGE.src = './art/stage-bg.jpg';
 
+  var activeTheme = {
+    id: 'classic',
+    fieldTop: '#1b1440',
+    fieldBottom: '#120d2c',
+    fieldTint: 'rgba(18, 13, 44, 0.45)',
+    useStageImage: true,
+  };
+
+  function setBoardTheme(theme) {
+    if (!theme || typeof theme !== 'object') return;
+    activeTheme = {
+      id: theme.id || 'classic',
+      fieldTop: theme.fieldTop || '#1b1440',
+      fieldBottom: theme.fieldBottom || '#120d2c',
+      fieldTint: theme.fieldTint || 'rgba(18, 13, 44, 0.45)',
+      useStageImage: theme.id === 'classic' || theme.useStageImage === true,
+    };
+  }
+
   function paletteFor(color) {
     return PALETTE[color] || PALETTE.red;
   }
@@ -152,15 +171,21 @@
     var height = rows * cell;
     ctx.clearRect(0, 0, width, height);
 
-    if (STAGE_IMAGE.complete && STAGE_IMAGE.naturalWidth > 0) {
+    if (
+      activeTheme.useStageImage &&
+      STAGE_IMAGE.complete &&
+      STAGE_IMAGE.naturalWidth > 0
+    ) {
       ctx.drawImage(STAGE_IMAGE, 0, 0, width, height);
-      ctx.fillStyle = 'rgba(18, 13, 44, 0.45)';
+      ctx.fillStyle = activeTheme.fieldTint;
       ctx.fillRect(0, 0, width, height);
     } else {
       var backdrop = ctx.createLinearGradient(0, 0, 0, height);
-      backdrop.addColorStop(0, '#1b1440');
-      backdrop.addColorStop(1, '#120d2c');
+      backdrop.addColorStop(0, activeTheme.fieldTop);
+      backdrop.addColorStop(1, activeTheme.fieldBottom);
       ctx.fillStyle = backdrop;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = activeTheme.fieldTint;
       ctx.fillRect(0, 0, width, height);
     }
 
@@ -263,6 +288,7 @@
 
   global.PuyoRender = {
     PALETTE: PALETTE,
+    setBoardTheme: setBoardTheme,
     drawFieldBackground: drawFieldBackground,
     drawFieldMarkers: drawFieldMarkers,
     drawGhost: drawGhost,

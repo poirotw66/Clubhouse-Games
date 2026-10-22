@@ -12,9 +12,11 @@ function loadScript(relPath, context) {
 const context = { window: {}, console };
 loadScript('src/js/logic.js', context);
 loadScript('src/js/missions.js', context);
+loadScript('src/js/daily.js', context);
 
 const L = context.window.PuyoLogic;
 const M = context.window.PuyoMissions;
+const D = context.window.PuyoDaily;
 
 function runTests() {
   const board = L.createBoard();
@@ -163,6 +165,15 @@ function runTests() {
   // Mission ladder + tutorial coverage and solvability.
   assert.ok(M.TUTORIAL_STAGES.length >= 4, 'tutorial covers connect + stair + 3 + 4');
   assert.ok(M.MISSION_LADDER.length >= 12, 'mission ladder has at least 12 quests');
+  assert.ok(M.MISSION_LADDER.length >= 20, 'mission pack 2 extends ladder to ≥20');
+  assert.ok(
+    M.MISSION_LADDER.filter(function (m) { return m.pack === 2; }).length >= 8,
+    'pack 2 has at least 8 quests'
+  );
+  assert.ok(
+    M.MISSION_LADDER.some(function (m) { return m.timeLimitSec > 0; }),
+    'includes timed mission'
+  );
   assert.ok(
     M.MISSION_LADDER.some(function (m) { return m.goalType === 'allClear'; }),
     'includes all-clear mission'
@@ -240,6 +251,88 @@ function runTests() {
   assert.equal(M.isMissionUnlocked('m2-three', { 'm1-two': true }), true);
   assert.equal(M.goalLabel(M.missionById('m7-all-clear')), '全消');
   assert.ok(M.goalLabel(M.missionById('m8-clear-red')).indexOf('紅') >= 0);
+  assert.ok(M.missionById('m13-stair-mirror'), 'pack 2 starts at m13');
+  assert.ok(M.missionById('m22-clear-green-ojama'), 'pack 2 ends at m22');
+
+  // Daily puzzle — Taipei seed, deterministic pool, streak + share text.
+  assert.ok(D, 'PuyoDaily loaded');
+  assert.ok(D.DAILY_POOL.length >= 8, 'daily pool has several puzzles');
+  {
+    const key = D.taipeiDateKey(new Date(Date.UTC(2026, 9, 21, 16, 0, 0))); // 2026-10-22 00:00 Taipei
+    assert.equal(key, '2026-10-22', 'UTC evening maps to next Taipei calendar day');
+    const a = D.puzzleForDate('2026-10-22');
+    const b = D.puzzleForDate('2026-10-22');
+    assert.equal(a.poolId, b.poolId, 'same date → same pool entry');
+    assert.equal(a.dateKey, '2026-10-22');
+    assert.equal(a.id, 'daily-2026-10-22');
+    const verified = M.verifyMission(a);
+    assert.ok(verified.ok, 'today-style daily puzzle solvable');
+    D.DAILY_POOL.forEach(function (entry) {
+      const result = M.verifyMission(entry);
+      assert.ok(result.ok, entry.poolId + ' pool entry solvable');
+      assert.equal(result.stars, 3, entry.poolId + ' optimal is 3★');
+    });
+    assert.equal(D.computeStreak(['2026-10-20', '2026-10-21'], '2026-10-22'), 2);
+    assert.equal(D.computeStreak(['2026-10-22'], '2026-10-22'), 1);
+    assert.equal(D.computeStreak([], '2026-10-22'), 0);
+    const share = D.buildShareText({
+      dateKey: '2026-10-22',
+      cleared: true,
+      movesUsed: 1,
+      stars: 3,
+      streak: 2,
+      goalLabel: '目標 2 連鎖',
+    });
+    assert.ok(share.indexOf('2026-10-22') >= 0);
+    assert.ok(share.indexOf('連勝 2 天') >= 0);
+    assert.ok(share.indexOf('魔法氣泡') >= 0);
+  }
+
+  // Board themes unlock by total mission stars.
+  assert.ok(L.BOARD_THEMES.length >= 3, 'at least classic + 2 unlockable themes');
+  assert.equal(L.isThemeUnlocked('classic', 0), true);
+  assert.equal(L.isThemeUnlocked('sunset', 0), false);
+  assert.equal(L.isThemeUnlocked('sunset', 10), true);
+  assert.equal(L.isThemeUnlocked('aurora', 24), true);
+  assert.equal(L.isThemeUnlocked('candy', 39), false);
+  assert.equal(L.isThemeUnlocked('candy', 40), true);
+  {
+    let s = L.mergeStats(null);
+    assert.equal(s.boardTheme, 'classic');
+    assert.equal(s.dailyClears.length, 0);
+    assert.equal(s.dailyBest, null);
+    s = L.recordDailyResult(s, {
+      dateKey: '2026-10-22',
+      cleared: true,
+      movesUsed: 2,
+      stars: 2,
+      chain: 3,
+    });
+    assert.equal(s.dailyBest.dateKey, '2026-10-22');
+    assert.equal(s.dailyBest.bestMoves, 2);
+    assert.equal(s.dailyBest.bestStars, 2);
+    assert.ok(s.dailyClears.indexOf('2026-10-22') >= 0);
+    s = L.recordDailyResult(s, {
+      dateKey: '2026-10-22',
+      cleared: true,
+      movesUsed: 1,
+      stars: 3,
+      chain: 4,
+    });
+    assert.equal(s.dailyBest.bestMoves, 1, 'best moves only improve');
+    assert.equal(s.dailyBest.bestStars, 3, 'stars only climb');
+    assert.equal(s.dailyBest.attempts, 2);
+    s = L.withBoardTheme(s, 'candy');
+    assert.equal(s.boardTheme, 'classic', 'locked theme rejected');
+    // Unlock candy via mission stars.
+    for (let i = 0; i < 14; i += 1) {
+      s = L.recordMissionClear(s, 'star-fill-' + i, 2, 3);
+    }
+    assert.ok(L.totalMissionStars(s) >= 40);
+    s = L.withBoardTheme(s, 'candy');
+    assert.equal(s.boardTheme, 'candy');
+    assert.ok(L.VALID_MODES.daily, 'daily mode registered');
+  }
 }
 
 runTests();

@@ -33,24 +33,52 @@ import {
 } from '../src/game/cpu.js';
 import { advise } from '../src/game/hints.js';
 import {
+  buildDailyShareText,
+  computeDailyStreak,
+  dailyMatchConfig,
+  dailySeedCode,
+  DAILY_HANDS,
+  taipeiDateKey,
+} from '../src/game/daily.js';
+import {
   applyHandResult,
+  computeMatchMvp,
   createMatch,
   dealHand,
   decideMatchWinner,
+  formatKeyFor,
   handDeltas,
+  handExtras,
   handSeed,
+  isSeriesMode,
 } from '../src/game/match.js';
 import { remainingCards } from '../src/game/memory.js';
+import {
+  NAMED_OPPONENTS,
+  isOpponentUnlocked,
+  ladderSeatPersonalities,
+  opponentById,
+  opponentCount,
+} from '../src/game/opponents.js';
 import { buildHandReview } from '../src/game/review.js';
-import { EMPTY_STATS, recordHandResult, recordMatchResult } from '../src/game/storage.js';
+import {
+  EMPTY_STATS,
+  applyLadderResult,
+  recordDailyResult,
+  recordHandResult,
+  recordMatchResult,
+} from '../src/game/storage.js';
 import { createRng } from '../src/game/rng.js';
 import { HAND_SIZE, HUMAN, SEATS } from '../src/game/types.js';
 import type {
   Card,
   DifficultyId,
   GameState,
+  HandRecord,
   HouseRules,
+  MatchState,
   Play,
+  SeatScore,
   StraightRule,
 } from '../src/game/types.js';
 
@@ -716,6 +744,218 @@ function expectHandReview(): void {
   assert.ok(review.highlight.length > 0);
 }
 
+/** Taipei daily seed is stable for a calendar day and drives a 5-hand table. */
+function expectDailyTable(): void {
+  const key = taipeiDateKey(new Date(Date.UTC(2026, 9, 22, 4, 0, 0))); // 12:00 Taipei
+  assert.equal(key, '2026-10-22');
+  // Same UTC instant just before Taipei midnight still belongs to the prior day.
+  const late = taipeiDateKey(new Date(Date.UTC(2026, 9, 21, 15, 30, 0))); // 23:30 Taipei Oct 21
+  assert.equal(late, '2026-10-21');
+  const seedA = dailySeedCode(key);
+  const seedB = dailySeedCode(key);
+  assert.equal(seedA, seedB);
+  assert.equal(seedA, 'b2-daily-2026-10-22');
+  assert.notEqual(dailySeedCode('2026-10-21'), seedA);
+
+  const config = dailyMatchConfig(key);
+  assert.equal(config.mode, 'daily');
+  assert.equal(config.seedCode, seedA);
+  assert.equal(DAILY_HANDS, 5);
+
+  let match = createMatch(config);
+  assert.equal(decideMatchWinner(match.config, [10, -5, -3, -2], 4), null);
+  assert.equal(decideMatchWinner(match.config, [10, -5, -3, -2], 5), HUMAN);
+
+  // Deterministic first deal across two createMatch calls.
+  const a = dealHand(createMatch(config));
+  const b = dealHand(createMatch(config));
+  assert.deepEqual(
+    a.hands[0].map((c) => c.id),
+    b.hands[0].map((c) => c.id),
+  );
+
+  const streak = computeDailyStreak(
+    [
+      { date: '2026-10-20', bestChips: 5, completed: true, attempts: 1 },
+      { date: '2026-10-21', bestChips: 12, completed: true, attempts: 1 },
+      { date: '2026-10-22', bestChips: 8, completed: true, attempts: 1 },
+    ],
+    '2026-10-22',
+  );
+  assert.equal(streak, 3);
+  assert.equal(
+    computeDailyStreak(
+      [{ date: '2026-10-20', bestChips: 1, completed: true, attempts: 1 }],
+      '2026-10-22',
+    ),
+    0,
+  );
+
+  let daily = recordDailyResult({ records: [] }, key, 20, true);
+  daily = recordDailyResult(daily, key, 12, true);
+  assert.equal(daily.records[0].bestChips, 20);
+  assert.equal(daily.records[0].attempts, 2);
+
+  const share = buildDailyShareText({
+    date: key,
+    seedCode: seedA,
+    chips: 20,
+    bestChips: 20,
+    streak: 3,
+    completed: true,
+  });
+  assert.ok(share.includes('每日牌桌'));
+  assert.ok(share.includes(seedA));
+  assert.ok(share.includes('連續 3 天'));
+
+  const finished = playOut(seedA, 'normal', 'topCard');
+  const handResult = outcome(finished);
+  assert.ok(handResult);
+  match = applyHandResult(match, handResult!, seedA, finished);
+  assert.equal(match.history.length, 1);
+  assert.equal(match.phase, 'handOver');
+}
+
+/** Single-hand mode settles after one result and records format.single. */
+function expectSingleModeAndFormats(): void {
+  assert.equal(isSeriesMode('single'), false);
+  assert.equal(isSeriesMode('hands'), true);
+  assert.equal(isSeriesMode('daily'), true);
+  assert.equal(
+    formatKeyFor({
+      mode: 'single',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: rules(),
+      seedCode: 'x',
+    }),
+    'single',
+  );
+  assert.equal(
+    formatKeyFor({
+      mode: 'daily',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: rules(),
+      seedCode: 'x',
+    }),
+    'daily',
+  );
+
+  const one = createMatch({
+    mode: 'single',
+    hands: 4,
+    target: 100,
+    difficulty: 'normal',
+    rules: rules(),
+    seedCode: 'solo-check',
+  });
+  const end = playOut('solo-check', 'normal', 'topCard');
+  const result = outcome(end)!;
+  const finished = applyHandResult(one, result, end.seedCode, end);
+  assert.equal(finished.phase, 'matchOver');
+  assert.equal(finished.history.length, 1);
+  assert.ok(finished.history[0].bombs.length === SEATS);
+  assert.ok(finished.history[0].winnerPlayCount >= 1);
+
+  let stats = EMPTY_STATS;
+  stats = recordMatchResult(stats, finished.winner === HUMAN, finished.balances[HUMAN], finished.config);
+  assert.equal(stats.formats.single.played, 1);
+  assert.equal(stats.matches, 0, 'single must not inflate series match count');
+}
+
+/** MVP picks fastest empty, most bombs, and biggest comeback. */
+function expectMatchMvp(): void {
+  const score = (seat: number, penalty: number): SeatScore => ({
+    seat,
+    remaining: penalty,
+    base: penalty,
+    deuces: 0,
+    penalty,
+  });
+  const hand = (
+    index: number,
+    winner: number,
+    deltas: number[],
+    bombs: number[],
+    winnerPlayCount: number,
+  ): HandRecord => ({
+    handIndex: index,
+    seedCode: `h${index}`,
+    winner,
+    scores: deltas.map((d, seat) => score(seat, d < 0 ? -d : 0)),
+    pot: deltas[winner],
+    deltas,
+    bombs,
+    winnerPlayCount,
+  });
+
+  const match: MatchState = {
+    config: {
+      mode: 'hands',
+      hands: 4,
+      target: 100,
+      difficulty: 'normal',
+      rules: rules(),
+      seedCode: 'mvp',
+    },
+    handIndex: 3,
+    balances: [30, -10, -15, -5],
+    history: [
+      hand(0, 1, [-20, 40, -10, -10], [0, 2, 0, 0], 6),
+      hand(1, 0, [50, -20, -15, -15], [1, 0, 0, 0], 4),
+      hand(2, 0, [0, -30, 10, 20], [0, 0, 1, 0], 5),
+    ],
+    phase: 'matchOver',
+    winner: 0,
+  };
+
+  const mvp = computeMatchMvp(match);
+  assert.ok(mvp);
+  assert.equal(mvp!.fastestSeat, 0, 'human finished in 4 plays');
+  assert.equal(mvp!.fastestPlays, 4);
+  assert.equal(mvp!.mostBombsSeat, 1);
+  assert.equal(mvp!.mostBombsCount, 2);
+  assert.equal(mvp!.chipLeaderSeat, 0);
+  assert.ok(mvp!.biggestComebackDelta >= 0);
+
+  const extras = handExtras(playOut('mvp-live', 'normal', 'topCard'), 0);
+  assert.equal(extras.bombs.length, SEATS);
+  assert.ok(extras.winnerPlayCount >= 0);
+}
+
+/** Named ladder: 5 foes, unlock frontier, seat colouring. */
+function expectNamedOpponentLadder(): void {
+  assert.ok(opponentCount() >= 4 && opponentCount() <= 6);
+  assert.equal(NAMED_OPPONENTS.length, opponentCount());
+  assert.equal(new Set(NAMED_OPPONENTS.map((o) => o.id)).size, opponentCount());
+  assert.ok(isOpponentUnlocked(0, 0));
+  assert.ok(!isOpponentUnlocked(1, 0));
+  assert.ok(isOpponentUnlocked(1, 1));
+
+  const first = NAMED_OPPONENTS[0];
+  let progress = applyLadderResult(
+    { clearedCount: 0, cleared: {}, lastIndex: 0 },
+    0,
+    true,
+    first.id,
+  );
+  assert.equal(progress.clearedCount, 1);
+  assert.equal(progress.cleared[first.id], true);
+  assert.ok(isOpponentUnlocked(1, progress.clearedCount));
+
+  // Losing the frontier must not unlock the next.
+  progress = applyLadderResult(progress, 1, false, NAMED_OPPONENTS[1].id);
+  assert.equal(progress.clearedCount, 1);
+
+  const seats = ladderSeatPersonalities(opponentById('zhen')!);
+  assert.equal(seats[1], 'counter');
+  assert.ok(seats[2]);
+  assert.ok(seats[3]);
+}
+
 const CHECKS: [string, () => void][] = [
   ['card order (2 is highest)', expectCardOrder],
   ['play detection', expectPlayDetection],
@@ -738,6 +978,10 @@ const CHECKS: [string, () => void][] = [
   ['teaching hints', expectTeachingHints],
   ['card memory', expectCardMemory],
   ['hand review', expectHandReview],
+  ['daily table (Taipei seed)', expectDailyTable],
+  ['single mode and format stats', expectSingleModeAndFormats],
+  ['match MVP stats', expectMatchMvp],
+  ['named opponent ladder', expectNamedOpponentLadder],
 ];
 
 let failed = 0;

@@ -14,14 +14,20 @@ export function MatchScoreboard({ match, progress }: Props): React.ReactElement 
   const target =
     match.config.mode === 'target' ? match.config.target : null;
   const maxAbs = Math.max(1, ...match.balances.map((n) => Math.abs(n)));
+  const heading =
+    match.config.mode === 'single'
+      ? '單局'
+      : match.config.mode === 'daily'
+        ? '每日牌桌'
+        : '系列賽';
 
   return (
     <section
       className="rounded-xl border border-indigo-400/20 bg-slate-900/70 px-3 py-2"
-      aria-label="系列賽計分板"
+      aria-label="計分板"
     >
       <div className="mb-2 flex items-center justify-between text-[11px] text-indigo-200/70">
-        <span className="font-bold tracking-wide">系列賽</span>
+        <span className="font-bold tracking-wide">{heading}</span>
         <span>{progress}</span>
       </div>
       <div className="grid grid-cols-4 gap-1.5">
