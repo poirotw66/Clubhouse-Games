@@ -95,9 +95,9 @@ export function pathLength(
 }
 
 /**
- * Would placing a blocker at (x,y) still leave a route from entrance to
- * exit? This is the hard "no sealing the exit" rule — legality is decided
- * before gold changes hands.
+ * Would placing a blocker at (x,y) still leave a route from *every* entrance
+ * to the exit? Dual-entrance maps require both portals to stay connected —
+ * sealing either lane is illegal even if the other remains open.
  */
 export function wouldSealExit(
   occupancy: OccupancyGrid,
@@ -105,12 +105,29 @@ export function wouldSealExit(
   y: number,
   gridW: number = GRID_W,
   gridH: number = GRID_H,
-  entrance: Cell = ENTRANCE,
+  entrance: Cell | readonly Cell[] = ENTRANCE,
   exit: Cell = EXIT,
 ): boolean {
   const trial = cloneOccupancy(occupancy);
   trial[y][x] = true;
-  return pathLength(trial, gridW, gridH, entrance, exit) === Infinity;
+  const field = computeFlowField(trial, gridW, gridH, exit);
+  const portals = Array.isArray(entrance) ? entrance : [entrance];
+  for (const portal of portals) {
+    if (distanceToExit(field, portal.x, portal.y) === Infinity) return true;
+  }
+  return false;
+}
+
+/** True when every listed entrance can still reach the exit. */
+export function allEntrancesReachExit(
+  occupancy: OccupancyGrid,
+  entrances: readonly Cell[],
+  gridW: number = GRID_W,
+  gridH: number = GRID_H,
+  exit: Cell = EXIT,
+): boolean {
+  const field = computeFlowField(occupancy, gridW, gridH, exit);
+  return entrances.every((e) => distanceToExit(field, e.x, e.y) !== Infinity);
 }
 
 /** Full entrance -> exit cell path, following the flow field. Null if sealed. */

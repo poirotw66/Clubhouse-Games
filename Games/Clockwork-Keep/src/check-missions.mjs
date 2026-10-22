@@ -33,11 +33,14 @@ import {
 } from './game/missions.ts';
 
 assertMissionConfigs();
-assert.equal(missionCount(), 8, 'pack ships eight missions (incl. fork / islands)');
+assert.equal(missionCount(), 10, 'pack ships ten missions (incl. dual / gauntlet)');
 assert.equal(MISSION_PACK[0].id, 'corridor-standard');
-assert.equal(MISSION_PACK[MISSION_PACK.length - 1].id, 'islands-harsh');
+assert.equal(MISSION_PACK[MISSION_PACK.length - 1].id, 'gauntlet-hammer');
 assert.equal(missionById('fork-standard')?.run.mapId, 'fork');
 assert.equal(missionById('islands-harsh')?.run.mapId, 'islands');
+assert.equal(missionById('dual-standard')?.run.mapId, 'dual');
+assert.equal(missionById('gauntlet-hammer')?.run.mapId, 'gauntlet');
+assert.deepEqual(missionById('gauntlet-hammer')?.run.allowedTowers, ['hammer', 'mortar']);
 
 {
   assert.equal(isMissionUnlocked(0, 0), true, 'first mission always unlocked');
@@ -45,7 +48,7 @@ assert.equal(missionById('islands-harsh')?.run.mapId, 'islands');
   assert.equal(isMissionUnlocked(1, 1), true);
   assert.equal(continueMissionIndex(0), 0);
   assert.equal(continueMissionIndex(3), 3);
-  assert.equal(continueMissionIndex(8), 7, 'complete pack continues on last card');
+  assert.equal(continueMissionIndex(10), 9, 'complete pack continues on last card');
   assert.equal(missionIndexOf('dual-tower'), 2);
   assert.equal(missionById('no-sell')?.run.allowSell, false);
   assert.ok(missionAt(4)?.run.endless, 'endless-thirty is endless');

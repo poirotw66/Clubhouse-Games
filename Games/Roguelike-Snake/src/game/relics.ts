@@ -122,13 +122,33 @@ export const RARITY_CLASS: Record<Rarity, string> = {
   consumable: 'border-emerald-600/70 bg-emerald-950/50 text-emerald-100',
 };
 
+/**
+ * Relics that only raise / restore HP are dead picks under Ironsnake (HP fixed at 1).
+ * Filtering them keeps the 4-pick-1 offer honest instead of padding with no-ops.
+ */
+export function isIronsnakeDeadRelic(id: RelicId): boolean {
+  if (id === 'heart' || id === 'mend') return true;
+  const maxHp = RELIC_BY_ID[id]?.mods?.maxHp ?? 0;
+  return maxHp > 0;
+}
+
+export interface RollRelicOptions {
+  /** When true, skip HP-only relics that cannot help Ironsnake. */
+  ironsnake?: boolean;
+}
+
 /** Weighted draw of `count` distinct offers, skipping relics already owned. */
 export function rollRelicChoices(
   rng: () => number,
   owned: RelicId[],
   count: number,
+  options: RollRelicOptions = {},
 ): RelicId[] {
-  const pool = RELICS.filter((relic) => relic.repeatable || !owned.includes(relic.id));
+  const pool = RELICS.filter((relic) => {
+    if (!relic.repeatable && owned.includes(relic.id)) return false;
+    if (options.ironsnake && isIronsnakeDeadRelic(relic.id)) return false;
+    return true;
+  });
   const chosen: RelicId[] = [];
 
   while (chosen.length < count && chosen.length < pool.length) {

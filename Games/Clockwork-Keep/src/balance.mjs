@@ -195,8 +195,12 @@ const MIXES = {
   '磨盤單一': ['grinder'],
   '冰霜單一': ['frost'],
   '線圈單一': ['coil'],
+  '錘單一': ['hammer'],
+  '迫擊砲單一': ['mortar'],
   '弩台+線圈': ['crossbow', 'coil'],
+  '錘+迫擊砲': ['hammer', 'mortar'],
   '四種輪流': ['crossbow', 'grinder', 'frost', 'coil'],
+  '六種輪流': ['crossbow', 'grinder', 'frost', 'coil', 'hammer', 'mortar'],
 };
 
 /**
@@ -208,11 +212,15 @@ const MIXES = {
  */
 const AIR_COVERED = {
   '全線圈': ['coil'],
+  '全迫擊砲': ['mortar'],
   '線圈+弩台×3': ['coil', 'crossbow', 'crossbow', 'crossbow'],
   '線圈+磨盤×3': ['coil', 'grinder', 'grinder', 'grinder'],
   '線圈+冰霜×3': ['coil', 'frost', 'frost', 'frost'],
+  '線圈+錘×3': ['coil', 'hammer', 'hammer', 'hammer'],
+  '迫擊砲+錘×3': ['mortar', 'hammer', 'hammer', 'hammer'],
   '線圈+弩台+冰霜': ['coil', 'crossbow', 'frost'],
   '線圈+磨盤+冰霜': ['coil', 'grinder', 'frost'],
+  '六種輪流': ['crossbow', 'grinder', 'frost', 'coil', 'hammer', 'mortar'],
 };
 
 const OVERLAP_LABEL = { never: '不加壓', safe: '保守加壓', always: '全力加壓' };
@@ -266,19 +274,31 @@ for (const overlap of ['never', 'safe', 'always']) {
   console.log(`  已投入塔上    ${String(r.income.spentGold).padStart(6)}   蓋了 ${r.towers} 座\n`);
 }
 
-console.log('=== 難度三檔（四種輪流、全力加壓）===\n');
+console.log('=== 難度三檔（六種輪流、全力加壓）===\n');
+for (const difficulty of ['relaxed', 'standard', 'harsh']) {
+  const r = run({ mix: MIXES['六種輪流'], overlap: 'always', difficulty });
+  console.log(
+    `${difficulty.padEnd(9)} 到達 ${String(r.reached).padStart(2)}/${TOTAL_WAVES}  ` +
+      `存活 ${String(r.lives).padStart(2)}/${DIFFICULTIES[difficulty].startingLives}  ` +
+      `${r.won ? '通關' : '失守'}  分數 ${r.score}  損失 ${DIFFICULTIES[difficulty].startingLives - r.lives}`,
+  );
+}
+
+console.log('\n=== 難度三檔（四種輪流、全力加壓・回歸基線）===\n');
 for (const difficulty of ['relaxed', 'standard', 'harsh']) {
   const r = run({ mix: MIXES['四種輪流'], overlap: 'always', difficulty });
   console.log(
     `${difficulty.padEnd(9)} 到達 ${String(r.reached).padStart(2)}/${TOTAL_WAVES}  ` +
       `存活 ${String(r.lives).padStart(2)}/${DIFFICULTIES[difficulty].startingLives}  ` +
-      `${r.won ? '通關' : '失守'}  分數 ${r.score}`,
+      `${r.won ? '通關' : '失守'}  分數 ${r.score}  損失 ${DIFFICULTIES[difficulty].startingLives - r.lives}`,
   );
 }
 
 console.log('\n=== 塔的傷害對上護甲（每發實際傷害）===\n');
 const ARMORS = [
-  ['步兵/疾走鼠/紙鳶', 0],
+  ['步兵/疾走鼠/紙鳶/腫脹', 0],
+  ['齒輪蟲', 4],
+  ['鐵殼甲蟲', 5],
   ['鐵皮兵', 6],
   ['首領', 10],
 ];

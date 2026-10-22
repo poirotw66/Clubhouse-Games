@@ -48,6 +48,10 @@ export function waveComposition(waveNumber: number): CompositionEntry[] {
   if (waveNumber >= 6) comp.push({ type: 'ironclad', count: 1 + Math.floor(waveNumber / 5) });
   if (waveNumber >= 4) comp.push({ type: 'kite', count: 1 + Math.floor(waveNumber / 4) });
   if (waveNumber >= 8) comp.push({ type: 'gearbug', count: 1 + Math.floor(waveNumber / 6) });
+  // High-HP sponges — make splash / mortar meaningful without touching early waves.
+  if (waveNumber >= 7) comp.push({ type: 'bloater', count: 1 + Math.floor(waveNumber / 7) });
+  // Armored flyers — ground-only or non-pierce air coverage is not enough.
+  if (waveNumber >= 9) comp.push({ type: 'shellbug', count: 1 + Math.floor(waveNumber / 8) });
   // Wave 20 (and every 20th thereafter): dual-boss escort pattern.
   if (isBossWave(waveNumber)) {
     const bosses = waveNumber % 20 === 0 ? 2 : 1;

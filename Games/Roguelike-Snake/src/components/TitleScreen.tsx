@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Play, Sparkles, Target, Zap } from 'lucide-react';
+import { AlertTriangle, Copy, Play, Sparkles, Target, Zap } from 'lucide-react';
 import { ACHIEVEMENTS, achievementById } from '../game/achievements';
 import {
   STARTING_BUILDS,
@@ -14,8 +14,15 @@ import {
 } from '../game/challenges';
 import type { ChallengeProgress } from '../game/challenges';
 import { MAX_FLOOR } from '../game/config';
-import { computeDailyStreak, todaySeedKey } from '../game/daily';
+import {
+  buildDailyShareText,
+  computeDailyStreak,
+  copyText,
+  todaySeedKey,
+} from '../game/daily';
+import { RELIC_BY_ID } from '../game/relics';
 import type { MetaProgress } from '../game/storage';
+import type { RelicId } from '../game/types';
 
 export interface StartOptions {
   seedInput: string;
@@ -39,6 +46,11 @@ const RULES: Array<[string, string]> = [
   ['👹 首領', '每 5 層一場，只有衝刺能傷到它'],
 ];
 
+function startingRelicLabel(relicIds: readonly RelicId[]): string {
+  if (relicIds.length === 0) return '無起始遺物';
+  return relicIds.map((id) => RELIC_BY_ID[id]?.name ?? id).join('、');
+}
+
 export function TitleScreen({
   meta,
   challengeProgress,
@@ -50,10 +62,12 @@ export function TitleScreen({
   const [showChallenges, setShowChallenges] = useState(false);
   const [showIronsnakeWarn, setShowIronsnakeWarn] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const today = todaySeedKey();
   const dailyStreak = computeDailyStreak(meta.dailyRecords, today);
   const todayRecord = meta.dailyRecords.find((r) => r.date === today);
+  const selectedBuild = STARTING_BUILDS.find((b) => b.id === meta.selectedBuildId);
   const unlockCtx = {
     bestFloor: meta.floor,
     escapes: meta.escapes,
@@ -71,6 +85,21 @@ export function TitleScreen({
   }, [challengeProgress.clearedCount, packTotal]);
 
   const unlockedAchievementCount = meta.achievements.length;
+
+  const handleCopyDailyShare = async () => {
+    if (!todayRecord) return;
+    const text = buildDailyShareText({
+      date: today,
+      cleared: todayRecord.cleared,
+      score: todayRecord.score,
+      floor: todayRecord.floor,
+      streak: dailyStreak,
+      buildName: selectedBuild?.name,
+    });
+    const ok = await copyText(text);
+    setShareCopied(ok);
+    if (ok) window.setTimeout(() => setShareCopied(false), 1800);
+  };
 
   return (
     <div className="w-full max-w-lg mx-auto text-center">
@@ -128,12 +157,57 @@ export function TitleScreen({
                 {unlocked && (
                   <span className="mt-1 block font-mono text-[10px] text-slate-500">
                     HP {build.startHp} · 能量 {build.startEnergy}
-                    {build.startingRelics.length > 0 ? ` · 起始遺物 ${build.startingRelics.length}` : ''}
+                    {build.startCoins ? ` · 金幣 ${build.startCoins}` : ''}
+                    {' · '}
+                    {startingRelicLabel(build.startingRelics)}
                   </span>
                 )}
               </button>
             );
           })}
+        </div>
+      </section>
+
+      <section
+        className="mb-5 rounded-2xl border border-emerald-700/50 bg-emerald-950/35 p-3 text-left"
+        aria-labelledby="daily-challenge-title"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 id="daily-challenge-title" className="text-sm font-bold text-emerald-100">
+              每日挑戰
+            </h2>
+            <p className="mt-0.5 font-mono text-[11px] text-emerald-200/80">種子 {today}</p>
+          </div>
+          <span className="shrink-0 rounded-lg border border-emerald-600/40 bg-emerald-900/50 px-2 py-1 text-[11px] font-semibold text-emerald-100">
+            連勝 {dailyStreak}
+          </span>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-emerald-100/85">
+          {todayRecord
+            ? todayRecord.cleared
+              ? `今日已通關 · 最佳 ${todayRecord.score} 分 · 第 ${todayRecord.floor} 層`
+              : `今日最佳 ${todayRecord.score} 分 · 第 ${todayRecord.floor} 層`
+            : '今日尚未挑戰 · 所有人面對同一地窟'}
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => onStart({ seedInput: today, daily: true })}
+            className="flex-1 min-h-[44px] rounded-xl border border-emerald-500 bg-emerald-600/70 px-3 text-sm font-bold text-emerald-50 hover:bg-emerald-500/80"
+          >
+            開始今日挑戰
+          </button>
+          <button
+            type="button"
+            disabled={!todayRecord}
+            onClick={() => void handleCopyDailyShare()}
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-700/60 bg-emerald-950/60 px-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-900/70 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="複製每日挑戰分享文案"
+          >
+            <Copy className="h-4 w-4" />
+            {shareCopied ? '已複製' : todayRecord ? '複製分享' : '尚無紀錄'}
+          </button>
         </div>
       </section>
 
@@ -156,30 +230,15 @@ export function TitleScreen({
           清除
         </button>
       </div>
-      <div className="flex gap-2 mb-2">
+      <div className="flex gap-2 mb-5">
         <button
           type="button"
           onClick={() => setSeed(today)}
-          className="flex-1 min-h-[44px] rounded-xl border border-emerald-700/60 bg-emerald-900/40 px-3 text-sm text-emerald-200 hover:bg-emerald-800/50"
+          className="flex-1 min-h-[44px] rounded-xl border border-slate-600 bg-slate-800/80 px-3 text-sm text-slate-200 hover:bg-slate-700"
         >
-          今日種子
-        </button>
-        <button
-          type="button"
-          onClick={() => onStart({ seedInput: today, daily: true })}
-          className="flex-1 min-h-[44px] rounded-xl border border-emerald-600 bg-emerald-700/50 px-3 text-sm text-emerald-100 hover:bg-emerald-600/60"
-        >
-          開始今日挑戰
+          填入今日種子
         </button>
       </div>
-      <p className="mb-5 text-center text-[11px] text-emerald-200/80">
-        每日連勝 {dailyStreak}
-        {todayRecord
-          ? todayRecord.cleared
-            ? ` · 今日已通關（最佳 ${todayRecord.score} 分）`
-            : ` · 今日最佳 ${todayRecord.score} 分 · 第 ${todayRecord.floor} 層`
-          : ' · 今日尚未挑戰'}
-      </p>
 
       <button
         type="button"
@@ -200,7 +259,7 @@ export function TitleScreen({
         Ironsnake 硬派
       </button>
       <p className="mt-1 text-center text-[11px] text-rose-300/70">
-        HP 固定 1 · 遺物 4 選 1
+        HP 固定 1 · 遺物 4 選 1 · 不加血遺物
         {meta.ironsnakeClears > 0
           ? ` · 通關 ${meta.ironsnakeClears} 次 · 最佳 ${meta.ironsnakeBestScore}`
           : ' · 一擊即死，請謹慎'}
@@ -253,7 +312,7 @@ export function TitleScreen({
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-slate-300">
                   HP 固定為 1（一擊即死），每層遺物改為 <strong className="text-rose-100">4 選 1</strong>
-                  。受傷、撞牆、被敵人碰到都會立刻結束本局。確定要挑戰嗎？
+                  ，且不會出現加血／回血遺物。受傷、撞牆、被敵人碰到都會立刻結束本局。確定要挑戰嗎？
                 </p>
               </div>
             </div>
