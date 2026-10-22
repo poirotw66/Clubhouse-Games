@@ -85,14 +85,38 @@ export interface GameState {
   log: TrickEntry[];
   /** Set once someone empties their hand. */
   winner: Seat | null;
+  /** Ladder / special tables can recolour CPU seats. */
+  seatPersonalities?: SeatPersonalityMap;
 }
 
 export type DifficultyId = 'easy' | 'normal' | 'hard';
 
-/** Fixed-hand series or race-to-target — the mid-session hook the audit asked for. */
-export type MatchMode = 'hands' | 'target';
+/**
+ * Session shape:
+ * - `single` — one hand, settle immediately
+ * - `hands` — fixed N hands（打 N 局）
+ * - `target` — first to N chips（先達目標分）
+ * - `daily` — Taipei-seeded 5-hand table shared by everyone that day
+ */
+export type MatchMode = 'single' | 'hands' | 'target' | 'daily';
 export type MatchLength = 4 | 8 | 12;
 export type TargetScore = 50 | 100 | 200;
+
+/** Stable key for per-format win/loss records（賽制戰績）. */
+export type FormatKey =
+  | 'single'
+  | 'hands-4'
+  | 'hands-8'
+  | 'hands-12'
+  | 'target-50'
+  | 'target-100'
+  | 'target-200'
+  | 'daily';
+
+export interface FormatRecord {
+  played: number;
+  wins: number;
+}
 
 export interface MatchConfig {
   mode: MatchMode;
@@ -101,6 +125,11 @@ export interface MatchConfig {
   difficulty: DifficultyId;
   rules: HouseRules;
   seedCode: string;
+  /**
+   * Named-ladder duel: seat 1 wears this opponent's memory style.
+   * Null/undefined = ordinary table personalities.
+   */
+  ladderOpponentId?: NamedOpponentId | null;
 }
 
 export interface HandRecord {
@@ -111,6 +140,10 @@ export interface HandRecord {
   pot: number;
   /** Per-seat chip change this hand. Winner gets +pot; losers pay −penalty. */
   deltas: number[];
+  /** Quads + straight-flush count per seat this hand. */
+  bombs: number[];
+  /** How many real plays the winner needed to empty their hand. */
+  winnerPlayCount: number;
 }
 
 export type MatchPhase = 'playing' | 'handOver' | 'matchOver';
@@ -152,8 +185,60 @@ export interface Personality {
   blurb: string;
 }
 
+/**
+ * Memory / discard style for the named-opponent unlock ladder.
+ * Maps onto PersonalityId weights, with a readable blurb for the UI.
+ */
+export type MemoryStyle = 'split' | 'hoard' | 'count' | 'pressure' | 'chaos';
+
+export type NamedOpponentId =
+  | 'ming'
+  | 'mei'
+  | 'qiang'
+  | 'zhen'
+  | 'king';
+
+export interface NamedOpponent {
+  id: NamedOpponentId;
+  name: string;
+  tagline: string;
+  blurb: string;
+  style: MemoryStyle;
+  /** Personality weights this opponent leans on. */
+  personality: PersonalityId;
+  difficulty: DifficultyId;
+}
+
+/** One completed (or in-progress best) daily table attempt. */
+export interface DailyRecord {
+  date: string;
+  /** Best end-of-table chip total for the human that day. */
+  bestChips: number;
+  /** True once a full 5-hand daily table has been finished at least once. */
+  completed: boolean;
+  attempts: number;
+}
+
+/**
+ * End-of-match MVP — fastest empty, most bombs, biggest comeback.
+ * Ties break toward the lowest seat so the result is deterministic.
+ */
+export interface MatchMvp {
+  fastestSeat: Seat;
+  fastestPlays: number;
+  mostBombsSeat: Seat;
+  mostBombsCount: number;
+  biggestComebackSeat: Seat;
+  biggestComebackDelta: number;
+  chipLeaderSeat: Seat;
+  chipLeaderTotal: number;
+}
+
 export interface HintAdvice {
   /** null means the teachable line is to pass. */
   play: Play | null;
   reason: string;
 }
+
+/** Optional per-seat personality overrides (ladder / daily flavour). */
+export type SeatPersonalityMap = Partial<Record<1 | 2 | 3, PersonalityId>>;
