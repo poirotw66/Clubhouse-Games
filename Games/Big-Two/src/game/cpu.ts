@@ -54,8 +54,13 @@ export function personalityInfo(id: PersonalityId): Personality {
   return PERSONALITIES.find((p) => p.id === id) ?? PERSONALITIES[0];
 }
 
-export function personalityForSeat(seat: Seat): Personality | null {
+export function personalityForSeat(
+  seat: Seat,
+  overrides?: GameState['seatPersonalities'],
+): Personality | null {
   if (seat !== 1 && seat !== 2 && seat !== 3) return null;
+  const fromOverride = overrides?.[seat];
+  if (fromOverride) return personalityInfo(fromOverride);
   return personalityInfo(SEAT_PERSONALITIES[seat]);
 }
 
@@ -186,7 +191,7 @@ export function chooseMove(state: GameState): Play | null {
   if (finisher) return finisher;
 
   const difficulty = state.difficulty;
-  const personality = personalityForSeat(state.turn)?.id ?? null;
+  const personality = personalityForSeat(state.turn, state.seatPersonalities)?.id ?? null;
 
   if (difficulty === 'easy') {
     const r = streamRng(seedFromCode(state.seedCode), `cpu:${state.turn}:${state.log.length}`);
