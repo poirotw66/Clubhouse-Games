@@ -11,12 +11,34 @@ const GREEN = 0x2f6b3a;
 const FLOWER_PINK = 0xf2a0b8;
 const FLOWER_YELLOW = 0xffe066;
 
+const matCache = new Map<string, THREE.MeshStandardMaterial>();
+
 function mat(color: number, opts?: { rough?: number; metal?: number }): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color,
-    roughness: opts?.rough ?? 0.72,
-    metalness: opts?.metal ?? 0.05,
-  });
+  const rough = opts?.rough ?? 0.72;
+  const metal = opts?.metal ?? 0.05;
+  const key = `${color}|${rough}|${metal}`;
+  let m = matCache.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
+    matCache.set(key, m);
+  }
+  return m;
+}
+
+const geoCache = {
+  box: new Map<string, THREE.BoxGeometry>(),
+  sphere: new Map<string, THREE.SphereGeometry>(),
+  cyl: new Map<string, THREE.CylinderGeometry>(),
+};
+
+function boxGeo(w: number, h: number, d: number): THREE.BoxGeometry {
+  const key = `${w},${h},${d}`;
+  let g = geoCache.box.get(key);
+  if (!g) {
+    g = new THREE.BoxGeometry(w, h, d);
+    geoCache.box.set(key, g);
+  }
+  return g;
 }
 
 export interface LionMeshes {
@@ -170,11 +192,27 @@ function buildFlower(): THREE.Group {
   return g;
 }
 
+export function buildGhostMarker(): THREE.Group {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(boxGeo(0.08, 1.4, 0.08), mat(GOLD, { metal: 0.35 }));
+  pole.position.y = 0.7;
+  g.add(pole);
+  const flag = new THREE.Mesh(boxGeo(0.55, 0.28, 0.04), mat(RED));
+  flag.position.set(0.28, 1.25, 0);
+  g.add(flag);
+  const gem = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(GOLD, { metal: 0.5 }));
+  gem.position.y = 1.45;
+  g.add(gem);
+  g.visible = false;
+  return g;
+}
+
 export function buildStreet(scene: THREE.Scene, reducedMotion: boolean): {
   lanterns: THREE.Object3D[];
   gate: THREE.Group;
   envelope: THREE.Group;
   confetti: THREE.Points | null;
+  sparkBurst: THREE.Points | null;
 } {
   // Ground
   const ground = new THREE.Mesh(
@@ -283,16 +321,26 @@ export function buildStreet(scene: THREE.Scene, reducedMotion: boolean): {
   envelope.add(leaf);
   scene.add(envelope);
 
-  // Distance ticks
+  // Distance markers every 10m (tick + floating label plate)
   for (let m = 10; m < TRACK_LENGTH; m += 10) {
-    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 2.6), mat(GOLD));
+    const tick = new THREE.Mesh(boxGeo(0.18, 0.06, 2.8), mat(GOLD));
     tick.position.set(m, 0.03, 0);
     scene.add(tick);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.9, 6), mat(WOOD));
+    post.position.set(m, 0.45, -2.1);
+    scene.add(post);
+    const plate = new THREE.Mesh(boxGeo(0.55, 0.32, 0.06), mat(CREAM, { rough: 0.85 }));
+    plate.position.set(m, 1.05, -2.1);
+    scene.add(plate);
+    const stripe = new THREE.Mesh(boxGeo(0.4, 0.08, 0.07), mat(RED));
+    stripe.position.set(m, 1.05, -2.06);
+    scene.add(stripe);
   }
 
   let confetti: THREE.Points | null = null;
+  let sparkBurst: THREE.Points | null = null;
   if (!reducedMotion) {
-    const count = 180;
+    const count = 220;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
     const palette = [
@@ -302,9 +350,9 @@ export function buildStreet(scene: THREE.Scene, reducedMotion: boolean): {
       new THREE.Color(0xff6644),
     ];
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = TRACK_LENGTH + (Math.random() - 0.5) * 4;
-      positions[i * 3 + 1] = 2 + Math.random() * 4;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 6;
+      positions[i * 3] = TRACK_LENGTH + (Math.random() - 0.5) * 5;
+      positions[i * 3 + 1] = 2.2 + Math.random() * 4.5;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 7;
       const c = palette[i % palette.length]!;
       colors[i * 3] = c.r;
       colors[i * 3 + 1] = c.g;
@@ -315,18 +363,38 @@ export function buildStreet(scene: THREE.Scene, reducedMotion: boolean): {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     confetti = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ size: 0.12, vertexColors: true, transparent: true, opacity: 0 }),
+      new THREE.PointsMaterial({ size: 0.14, vertexColors: true, transparent: true, opacity: 0 }),
     );
     confetti.visible = false;
     scene.add(confetti);
+
+    const sparkN = 90;
+    const sparkPos = new Float32Array(sparkN * 3);
+    const sparkCol = new Float32Array(sparkN * 3);
+    for (let i = 0; i < sparkN; i++) {
+      sparkPos[i * 3] = TRACK_LENGTH;
+      sparkPos[i * 3 + 1] = 2.5;
+      sparkPos[i * 3 + 2] = 0;
+      sparkCol[i * 3] = 1;
+      sparkCol[i * 3 + 1] = 0.75 + Math.random() * 0.25;
+      sparkCol[i * 3 + 2] = 0.2;
+    }
+    const sparkGeo = new THREE.BufferGeometry();
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+    sparkGeo.setAttribute('color', new THREE.BufferAttribute(sparkCol, 3));
+    sparkBurst = new THREE.Points(
+      sparkGeo,
+      new THREE.PointsMaterial({ size: 0.1, vertexColors: true, transparent: true, opacity: 0 }),
+    );
+    sparkBurst.visible = false;
+    scene.add(sparkBurst);
   }
 
-  // Soft sky backdrop planes (no texture)
   const skyMat = new THREE.MeshBasicMaterial({ color: 0xf7d9a8, side: THREE.BackSide });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(80, 16, 12), skyMat);
   scene.add(sky);
 
-  return { lanterns, gate, envelope, confetti };
+  return { lanterns, gate, envelope, confetti, sparkBurst };
 }
 
 export function applyLegPose(

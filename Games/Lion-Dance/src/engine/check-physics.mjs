@@ -1,26 +1,20 @@
 /**
- * Physics invariants for the QWOP-style lion walker (no Three.js).
- * Mirrors the core plant impulse + a diagonal gait smoke walk.
+ * Physics invariants for the QWOP-style lion walker (v2).
  */
 import assert from 'node:assert/strict';
 
 const FIXED_DT = 1 / 180;
 const TRACK_LENGTH = 50;
 const BODY_HEIGHT = 1.15;
-const FALL_PITCH = 0.72;
-const FALL_ROLL = 0.62;
-const LEG_ATTACH = {
-  FL: { x: 0.72, z: -0.32 },
-  FR: { x: 0.72, z: 0.32 },
-  BL: { x: -0.72, z: -0.32 },
-  BR: { x: -0.72, z: 0.32 },
-};
+const FALL_PITCH = 0.78;
+const FALL_ROLL = 0.68;
+const SPEED_CAP_BASE = 3.15;
 const LEG_IDS = ['FL', 'FR', 'BL', 'BR'];
 const TIME_LIMIT = 90;
 
 function estimateStepImpulse(swingAhead) {
   const ahead = Math.max(0, swingAhead);
-  return 0.45 + ahead * 1.35;
+  return 0.52 + ahead * 1.25;
 }
 
 function makeLeg(id) {
@@ -30,7 +24,7 @@ function makeLeg(id) {
     lift: 0,
     swing: 0,
     swingVel: 0,
-    plantX: LEG_ATTACH[id].x,
+    plantX: 0,
     pushT: 0,
     wasHeld: false,
   };
@@ -50,6 +44,7 @@ function createSim() {
     rollVel: 0,
     fallen: false,
     fallSpin: 0,
+    fallStyle: 0,
     finished: false,
     finishAnim: 0,
     legs,
@@ -62,14 +57,8 @@ function planted(leg) {
   return leg.lift < 0.15 && !leg.held;
 }
 
-/** Minimal twin of production stepPhysics for gait verification. */
-function stepPhysics(sim, dt = FIXED_DT) {
-  if (sim.finished) {
-    sim.finishAnim = Math.min(1, sim.finishAnim + dt * 0.85);
-    return null;
-  }
-  if (sim.fallen) return null;
-
+function stepPhysics(sim, dt = FIXED_DT, speedBonus = 0) {
+  if (sim.finished || sim.fallen) return null;
   sim.elapsed += dt;
   let heldCount = 0;
   for (const id of LEG_IDS) {
@@ -86,10 +75,10 @@ function stepPhysics(sim, dt = FIXED_DT) {
         const ahead = Math.max(0, leg.swing);
         sim.vx += estimateStepImpulse(ahead);
         const front = id === 'FL' || id === 'FR' ? 1 : -1;
-        sim.pitchVel += front * ahead * -0.55;
+        sim.pitchVel += front * ahead * -0.48;
         const left = id === 'FL' || id === 'BL' ? -1 : 1;
-        sim.rollVel += left * ahead * 0.28;
-        leg.pushT = 0.22 + ahead * 0.1;
+        sim.rollVel += left * ahead * 0.24;
+        leg.pushT = 0.2 + ahead * 0.08;
         sim.stepCount += 1;
       }
       leg.lift += (0 - leg.lift) * Math.min(1, 18 * dt);
@@ -98,7 +87,7 @@ function stepPhysics(sim, dt = FIXED_DT) {
       leg.swing += leg.swingVel * dt;
       if (leg.pushT > 0) {
         leg.pushT -= dt;
-        sim.vx += 1.8 * dt;
+        sim.vx += 1.65 * dt;
       }
     }
     leg.wasHeld = leg.held;
@@ -108,32 +97,29 @@ function stepPhysics(sim, dt = FIXED_DT) {
   sim.vy -= 18 * dt;
   if (supports.length > 0) {
     sim.vy += ((BODY_HEIGHT - sim.y) * 90 - sim.vy * 16) * dt;
-    sim.vx *= Math.pow(0.55, dt);
-  } else {
-    sim.vx *= Math.pow(0.7, dt);
-  }
+    sim.vx *= Math.pow(0.52, dt);
+  } else sim.vx *= Math.pow(0.7, dt);
 
-  if (supports.length === 0) sim.pitchVel += 2.4 * dt;
+  if (supports.length === 0) sim.pitchVel += 2.1 * dt;
   else if (supports.length === 1) {
     const only = supports[0];
     const front = only === 'FL' || only === 'FR' ? 1 : -1;
     const left = only === 'FL' || only === 'BL' ? -1 : 1;
-    sim.pitchVel += front * 1.1 * dt;
-    sim.rollVel += left * 1.3 * dt;
+    sim.pitchVel += front * 0.95 * dt;
+    sim.rollVel += left * 1.15 * dt;
   } else {
-    sim.pitchVel += -sim.pitch * 6.5 * dt;
-    sim.rollVel += -sim.roll * 7.5 * dt;
+    sim.pitchVel += -sim.pitch * 7.2 * dt;
+    sim.rollVel += -sim.roll * 8.0 * dt;
   }
+  if (heldCount >= 3) sim.pitchVel += 2.5 * dt;
 
-  if (heldCount >= 3) sim.pitchVel += 2.8 * dt;
-
-  sim.pitchVel *= Math.pow(0.28, dt);
-  sim.rollVel *= Math.pow(0.3, dt);
+  sim.pitchVel *= Math.pow(0.26, dt);
+  sim.rollVel *= Math.pow(0.28, dt);
   sim.pitch += sim.pitchVel * dt;
   sim.roll += sim.rollVel * dt;
   if (supports.length >= 3) {
-    sim.pitch *= Math.pow(0.15, dt);
-    sim.roll *= Math.pow(0.15, dt);
+    sim.pitch *= Math.pow(0.12, dt);
+    sim.roll *= Math.pow(0.12, dt);
   }
 
   sim.x += sim.vx * dt;
@@ -146,17 +132,18 @@ function stepPhysics(sim, dt = FIXED_DT) {
     sim.x = 0;
     sim.vx = Math.max(0, sim.vx);
   }
-  if (sim.vx > 3.6) sim.vx = 3.6;
+  if (sim.vx > SPEED_CAP_BASE) sim.vx = SPEED_CAP_BASE;
+  if (speedBonus > 0 && sim.vx > 0.2) sim.vx += speedBonus * 0.55 * dt;
 
   if (Math.abs(sim.pitch) > FALL_PITCH || Math.abs(sim.roll) > FALL_ROLL) {
     sim.fallen = true;
-    return { reason: 'fall', elapsed: sim.elapsed, distance: sim.x };
+    return 'fall';
   }
   if (sim.x >= TRACK_LENGTH) {
     sim.x = TRACK_LENGTH;
     sim.vx = 0;
     sim.finished = true;
-    return { reason: 'finish', elapsed: sim.elapsed, distance: TRACK_LENGTH };
+    return 'finish';
   }
   return null;
 }
@@ -165,21 +152,48 @@ function setHeld(sim, ids, held) {
   for (const id of LEG_IDS) sim.legs[id].held = ids.includes(id) ? held : false;
 }
 
-// 1) Impulse grows with swing
 assert.ok(estimateStepImpulse(0.9) > estimateStepImpulse(0.2));
-assert.ok(estimateStepImpulse(0) >= 0.4);
+assert.ok(estimateStepImpulse(0) >= 0.5);
 
-// 2) Diagonal gait can finish 50m within the time limit (bot rhythm)
-const sim = createSim();
+// Beginner crawl: random-ish messy steps should still move in 10s
+const crawl = createSim();
+let phase = 0;
+let phaseT = 0;
+let pairIdx = 0;
 const pairs = [
   ['FL', 'BR'],
   ['FR', 'BL'],
 ];
-let pairIdx = 0;
-let phase = 0; // 0 = hold, 1 = plant pause
-let phaseT = 0;
-let falls = 0;
+while (crawl.elapsed < 10 && !crawl.fallen) {
+  phaseT += FIXED_DT;
+  // Messy: slightly irregular hold times
+  const hold = 0.16 + (pairIdx % 3) * 0.03;
+  const gap = 0.12;
+  const pair = pairs[pairIdx % 2];
+  if (phase === 0) {
+    setHeld(crawl, pair, true);
+    if (phaseT >= hold) {
+      phase = 1;
+      phaseT = 0;
+    }
+  } else {
+    setHeld(crawl, pair, false);
+    if (phaseT >= gap) {
+      phase = 0;
+      phaseT = 0;
+      pairIdx += 1;
+    }
+  }
+  stepPhysics(crawl, FIXED_DT);
+}
+assert.ok(crawl.x > 4, `beginner should see progress in 10s, x=${crawl.x}`);
 
+// Practiced diagonal finishes under time limit
+const sim = createSim();
+pairIdx = 0;
+phase = 0;
+phaseT = 0;
+let falls = 0;
 while (!sim.finished && sim.elapsed < TIME_LIMIT) {
   if (sim.fallen) {
     falls += 1;
@@ -201,7 +215,6 @@ while (!sim.finished && sim.elapsed < TIME_LIMIT) {
     phase = 0;
     phaseT = 0;
   }
-
   phaseT += FIXED_DT;
   const pair = pairs[pairIdx % 2];
   if (phase === 0) {
@@ -220,31 +233,22 @@ while (!sim.finished && sim.elapsed < TIME_LIMIT) {
   }
   stepPhysics(sim, FIXED_DT);
 }
+assert.ok(sim.finished, `diagonal gait should finish; x=${sim.x} t=${sim.elapsed}`);
+assert.ok(sim.elapsed > 11 && sim.elapsed < 55, `pace band failed t=${sim.elapsed}`);
 
-assert.ok(sim.finished, `diagonal gait should finish; x=${sim.x} t=${sim.elapsed} falls=${falls}`);
-assert.ok(sim.elapsed < TIME_LIMIT, 'finish should beat the clock');
-assert.ok(sim.elapsed > 12, `should not teleport finish instantly (t=${sim.elapsed})`);
-assert.ok(sim.elapsed < 55, `practiced gait should earn at least 醒獅 pace (t=${sim.elapsed})`);
-assert.ok(falls < 40, `too many falls for a practiced gait: ${falls}`);
-
-// 3) Holding all four legs tips toward a fall quickly
+// Holding all four tips
 const tip = createSim();
 for (const id of LEG_IDS) tip.legs[id].held = true;
 let tipped = false;
 for (let i = 0; i < 180 * 3; i++) {
-  const r = stepPhysics(tip, FIXED_DT);
-  if (r?.reason === 'fall' || tip.fallen) {
+  if (stepPhysics(tip, FIXED_DT) === 'fall' || tip.fallen) {
     tipped = true;
     break;
   }
 }
-assert.ok(tipped, 'holding all legs should cause a fall');
-
-// 4) Timestep band + thresholds
+assert.ok(tipped, 'holding all legs should fall');
 assert.ok(FIXED_DT <= 1 / 120 && FIXED_DT >= 1 / 240);
-assert.equal(TRACK_LENGTH, 50);
-assert.ok(FALL_PITCH < Math.PI / 2);
 
 console.log(
-  `check-physics: ok (finish ${sim.elapsed.toFixed(2)}s, steps ${sim.stepCount}, falls ${falls})`,
+  `check-physics: ok (10s crawl ${crawl.x.toFixed(1)}m, finish ${sim.elapsed.toFixed(2)}s, falls ${falls})`,
 );

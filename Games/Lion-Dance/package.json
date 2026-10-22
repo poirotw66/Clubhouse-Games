@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "check": "node src/engine/check-physics.mjs && node src/engine/check-titles.mjs"
+    "check": "node src/engine/check-physics.mjs && node src/engine/check-titles.mjs && node src/engine/check-beat.mjs"
   },
   "dependencies": {
     "@clubhouse/shared": "*",
