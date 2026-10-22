@@ -271,6 +271,61 @@
             letter-spacing: 0.14em;
             text-transform: uppercase;
         }
+        #counter-panel {
+            display: none;
+            position: absolute;
+            left: 50%;
+            bottom: 18%;
+            transform: translateX(-50%);
+            width: min(420px, 92vw);
+            padding: 14px 16px 16px;
+            border-radius: 12px;
+            background: rgba(0, 24, 12, 0.88);
+            border: 1px solid rgba(255, 229, 102, 0.45);
+            pointer-events: auto;
+            text-align: center;
+            z-index: 30;
+        }
+        #counter-panel.show { display: block; }
+        #counter-hint {
+            color: #ffe566;
+            font-size: 22px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        #counter-timer-track {
+            height: 4px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        #counter-timer {
+            height: 100%;
+            width: 100%;
+            transform-origin: left center;
+            transform: scaleX(1);
+            background: linear-gradient(90deg, #ffe566, #7dffb3);
+        }
+        #counter-choices {
+            display: flex;
+            gap: 8px;
+        }
+        #counter-choices button {
+            flex: 1;
+            font-size: 22px;
+            padding: 12px 8px;
+            min-height: 48px;
+            touch-action: manipulation;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #hit-toast, #tell-banner, #countdown, #counter-panel {
+                transition: none !important;
+                animation: none !important;
+            }
+            #counter-timer { transition: none; }
+        }
         button {
             background: #fff;
             border: none;
@@ -327,6 +382,16 @@
         <div id="lives-hud">生命 <span id="lives-val">3</span></div>
         <div id="combo-hud">連擋 <span id="combo-val">0</span></div>
         <div id="hit-toast"></div>
+
+        <div id="counter-panel" aria-hidden="true">
+            <div id="counter-hint">選擇回球落點</div>
+            <div id="counter-timer-track"><div id="counter-timer"></div></div>
+            <div id="counter-choices">
+                <button type="button" data-counter-zone="left">左路</button>
+                <button type="button" data-counter-zone="center">中路</button>
+                <button type="button" data-counter-zone="right">右路</button>
+            </div>
+        </div>
         
         <div id="countdown"></div>
 
@@ -362,7 +427,7 @@
             </div>
         </div>
 
-        <div id="instructions">讀預備動作 · 對位揮拍 · 完美可反擊（指標左右決定回球路線）</div>
+        <div id="instructions">讀預備動作 · 對位揮拍 · 完美後選擇回殺落點</div>
     </div>
 
     <script type="module" src="/src/game/main.js"></script>

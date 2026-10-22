@@ -10,11 +10,13 @@ export const STATS_KEY = 'clubhouse:block-the-smash-stats-v3';
  * @typedef {object} SmashStats
  * @property {Record<string, number>} drillBestAcc  `${diff}:${balls}` → %
  * @property {Record<string, number>} scoreAttackBest  `${diff}` → score
- * @property {Record<string, number>} versusWins  opponentId → wins
+ * @property {Record<string, number>} versusWins  opponentId → series wins
  * @property {Record<string, number>} versusBestStreak
+ * @property {Record<string, number>} dailyBest  Taipei dateKey → score
  * @property {number} careerPerfects
  * @property {number} careerMaxCombo
  * @property {number} careerPlays
+ * @property {number} careerCounters  successful Perfect counter choices
  */
 
 /** @returns {SmashStats} */
@@ -24,9 +26,11 @@ export function emptyStats() {
     scoreAttackBest: {},
     versusWins: {},
     versusBestStreak: {},
+    dailyBest: {},
     careerPerfects: 0,
     careerMaxCombo: 0,
     careerPlays: 0,
+    careerCounters: 0,
   };
 }
 
@@ -55,9 +59,11 @@ export function normalizeStats(raw) {
     scoreAttackBest: copyNumMap(o.scoreAttackBest),
     versusWins: copyNumMap(o.versusWins),
     versusBestStreak: copyNumMap(o.versusBestStreak),
+    dailyBest: copyNumMap(o.dailyBest),
     careerPerfects: Math.max(0, Math.floor(Number(o.careerPerfects) || 0)),
     careerMaxCombo: Math.max(0, Math.floor(Number(o.careerMaxCombo) || 0)),
     careerPlays: Math.max(0, Math.floor(Number(o.careerPlays) || 0)),
+    careerCounters: Math.max(0, Math.floor(Number(o.careerCounters) || 0)),
   };
 }
 
@@ -192,7 +198,7 @@ export function applyScoreAttackResult(stats, result) {
 
 /**
  * @param {SmashStats} stats
- * @param {{ opponentId: string, won: boolean, perfects: number, maxCombo: number, streak: number }} result
+ * @param {{ opponentId: string, won: boolean, perfects: number, maxCombo: number, streak: number, counters?: number }} result
  */
 export function applyVersusResult(stats, result) {
   if (result.won) {
@@ -202,7 +208,28 @@ export function applyVersusResult(stats, result) {
   }
   stats.careerPerfects += result.perfects;
   stats.careerMaxCombo = Math.max(stats.careerMaxCombo, result.maxCombo);
+  stats.careerCounters += Math.max(0, Math.floor(result.counters ?? 0));
   stats.careerPlays += 1;
+}
+
+/**
+ * Record a daily run. Returns whether today's best improved.
+ * @param {SmashStats} stats
+ * @param {{ dateKey: string, score: number, perfects: number, maxCombo: number, counters?: number }} result
+ */
+export function applyDailyResult(stats, result) {
+  const prev = stats.dailyBest[result.dateKey] ?? 0;
+  const isRecord = result.score > prev;
+  if (isRecord) stats.dailyBest[result.dateKey] = result.score;
+  else if (prev === 0 && result.score >= 0) {
+    // First play of the day still stamps a score so streak counts.
+    stats.dailyBest[result.dateKey] = result.score;
+  }
+  stats.careerPerfects += result.perfects;
+  stats.careerMaxCombo = Math.max(stats.careerMaxCombo, result.maxCombo);
+  stats.careerCounters += Math.max(0, Math.floor(result.counters ?? 0));
+  stats.careerPlays += 1;
+  return isRecord || prev === 0;
 }
 
 export const PHASES = Object.freeze([
