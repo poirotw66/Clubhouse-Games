@@ -27,20 +27,53 @@ function activate(locator, isMobile) {
   return isMobile ? locator.tap() : locator.click();
 }
 
-/** Deterministic Fisher–Yates via mulberry32(seed) replacing Math.random. */
-function installSeededRandom(seed) {
-  return `
-    (() => {
-      let a = ${seed} >>> 0;
-      Math.random = () => {
-        a |= 0;
-        a = (a + 0x6d2b79f5) | 0;
-        let t = Math.imul(a ^ (a >>> 15), 1 | a);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
-    })();
-  `;
+function monthFromAlt(alt) {
+  const m = String(alt || '').match(/^(\d+)月/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Play one capturing hand card (and field pick when two options).
+ * Avoids `.animate-pulse` — hint marks both hand and field, and field is first in DOM.
+ */
+async function playOneCapture(page, isMobile) {
+  const fieldImgs = page.locator('[data-kk-table="1"] img[alt]');
+  const fieldMonths = await fieldImgs.evaluateAll((els) =>
+    els.map((el) => {
+      const m = (el.getAttribute('alt') || '').match(/^(\d+)月/);
+      return m ? Number(m[1]) : null;
+    }).filter((n) => n != null),
+  );
+  const counts = new Map();
+  for (const month of fieldMonths) counts.set(month, (counts.get(month) || 0) + 1);
+
+  const handPanel = page.locator('.wafu-panel').filter({ has: page.getByText('你的手牌', { exact: true }) });
+  const handImgs = handPanel.locator('img[alt]');
+  const n = await handImgs.count();
+
+  let pick = -1;
+  let pickMonth = null;
+  // Prefer single/triple field matches so playSfx('match') fires on the hand click.
+  for (let prefer of [1, 3, 2]) {
+    for (let i = 0; i < n; i++) {
+      const alt = await handImgs.nth(i).getAttribute('alt');
+      const month = monthFromAlt(alt);
+      if (month != null && counts.get(month) === prefer) {
+        pick = i;
+        pickMonth = month;
+        break;
+      }
+    }
+    if (pick >= 0) break;
+  }
+  if (pick < 0) throw new Error('no hand/field month match available');
+
+  await activate(handImgs.nth(pick).locator('xpath=..'), isMobile);
+
+  if (counts.get(pickMonth) === 2) {
+    const fieldCard = page.locator(`[data-kk-table="1"] img[alt^="${pickMonth}月"]`).first();
+    await activate(fieldCard.locator('xpath=..'), isMobile);
+  }
 }
 
 test.beforeEach(async ({ page, baseURL }) => {
@@ -88,9 +121,7 @@ test('koi-koi: juice settings panel in rules modal', async ({ page, isMobile }) 
 
 test('koi-koi: juice match place+sparkle vibrate stub', async ({ page, isMobile }) => {
   test.skip(!includesGame('Koi-Koi'), 'selective CI');
-  test.setTimeout(45_000);
-  // Seed 0: player hand has a single-month field match (12月 桐) for an instant capture.
-  await page.addInitScript(installSeededRandom(0));
+  test.setTimeout(60_000);
   await page.addInitScript(() => {
     localStorage.setItem('clubhouse-koi-koi-howto-seen', '1');
     window.__vibrateCalls = [];
@@ -100,14 +131,29 @@ test('koi-koi: juice match place+sparkle vibrate stub', async ({ page, isMobile 
     };
   });
   await page.goto('./Games/Koi-Koi/');
-  await activate(page.getByRole('button', { name: '開始對局' }), isMobile);
-  await expect(page.locator('[data-kk-table="1"]')).toBeVisible();
-  await activate(page.getByRole('button', { name: '提示' }), isMobile);
-  // After hint, only the recommended hand card pulses (field is not highlighted yet).
-  const hinted = page.locator('.animate-pulse').first();
-  await expect(hinted).toBeVisible();
-  await activate(hinted, isMobile);
-  await expect(page.getByText('配對成功', { exact: false })).toBeVisible({ timeout: 5_000 });
+
+  // Restart deals until a month match exists (most deals do).
+  let captured = false;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    if (attempt === 0) {
+      await activate(page.getByRole('button', { name: '開始對局' }), isMobile);
+    } else {
+      // Undo is unavailable at open; start a fresh deal via idle restart.
+      await page.goto('./Games/Koi-Koi/');
+      await activate(page.getByRole('button', { name: '開始對局' }), isMobile);
+    }
+    await expect(page.locator('[data-kk-table="1"]')).toBeVisible();
+    try {
+      await playOneCapture(page, isMobile);
+      await expect(page.getByText('配對成功', { exact: false })).toBeVisible({ timeout: 3_000 });
+      captured = true;
+      break;
+    } catch {
+      // try another deal
+    }
+  }
+  expect(captured).toBe(true);
+
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBeGreaterThan(0);
   await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1);
@@ -115,9 +161,8 @@ test('koi-koi: juice match place+sparkle vibrate stub', async ({ page, isMobile 
 
 test('koi-koi: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
   test.skip(!includesGame('Koi-Koi'), 'selective CI');
-  test.setTimeout(45_000);
+  test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.addInitScript(installSeededRandom(0));
   await page.addInitScript(() => {
     localStorage.setItem('clubhouse-koi-koi-howto-seen', '1');
     localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
@@ -128,11 +173,26 @@ test('koi-koi: juice respects reduced-motion and haptics off', async ({ page, is
     };
   });
   await page.goto('./Games/Koi-Koi/');
-  await activate(page.getByRole('button', { name: '開始對局' }), isMobile);
-  await activate(page.getByRole('button', { name: '提示' }), isMobile);
-  const hinted = page.locator('.animate-pulse').first();
-  await activate(hinted, isMobile);
-  await expect(page.getByText('配對成功', { exact: false })).toBeVisible({ timeout: 5_000 });
+
+  let captured = false;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    if (attempt === 0) {
+      await activate(page.getByRole('button', { name: '開始對局' }), isMobile);
+    } else {
+      await page.goto('./Games/Koi-Koi/');
+      await activate(page.getByRole('button', { name: '開始對局' }), isMobile);
+    }
+    try {
+      await playOneCapture(page, isMobile);
+      await expect(page.getByText('配對成功', { exact: false })).toBeVisible({ timeout: 3_000 });
+      captured = true;
+      break;
+    } catch {
+      // try another deal
+    }
+  }
+  expect(captured).toBe(true);
+
   await expect(page.locator('[data-kk-table="1"]')).not.toHaveAttribute('data-juice-shake', '1');
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBe(0);
