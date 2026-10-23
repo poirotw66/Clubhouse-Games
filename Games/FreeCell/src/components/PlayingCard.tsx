@@ -48,7 +48,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
     return (
       <div
         className={cn(
-          "w-full aspect-[2/3] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100/50 flex items-center justify-center overflow-hidden bg-cover bg-center",
+          "fc-card-face w-full aspect-[2/3] rounded-xl border-2 border-dashed border-stone-300 bg-stone-100/50 flex items-center justify-center overflow-hidden bg-cover bg-center",
           isHinted && "ring-4 ring-sky-400 bg-sky-50/80",
           className,
         )}
@@ -100,7 +100,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={cn(
-        "relative w-full aspect-[2/3] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-stone-200 flex flex-col select-none cursor-pointer overflow-hidden bg-cover bg-center",
+        "fc-card-face relative w-full aspect-[2/3] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-stone-200 flex flex-col select-none cursor-pointer overflow-hidden bg-cover bg-center touch-manipulation",
         isRed ? "text-rose-600" : "text-stone-800",
         isSelectable && "hover:-translate-y-2 hover:shadow-[0_8px_16px_rgba(0,0,0,0.12)] transition-all duration-200",
         isSelected && "ring-2 ring-stone-800 -translate-y-3 shadow-[0_12px_24px_rgba(0,0,0,0.15)] z-50",
@@ -109,21 +109,27 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       )}
       style={faceStyle}
     >
-      <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 flex flex-col items-center leading-none z-10">
-        <span className="text-[11px] sm:text-sm md:text-base font-bold tracking-tighter">{rankStr}</span>
-        <span className="text-[11px] sm:text-sm md:text-base">{symbol}</span>
+      <div
+        data-card-corner="top"
+        className="fc-card-corner absolute top-[0.28em] left-[0.28em] flex flex-col items-center leading-none z-10"
+      >
+        <span className="font-bold tracking-tighter">{rankStr}</span>
+        <span>{symbol}</span>
       </div>
       <div className="flex-1 flex items-center justify-center">
         <img
           src={`${import.meta.env.BASE_URL}suits/${card.suit}.jpg`}
           alt=""
           aria-hidden
-          className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain opacity-50 pointer-events-none"
+          className="w-[45%] max-w-16 aspect-square object-contain opacity-50 pointer-events-none"
         />
       </div>
-      <div className="absolute bottom-1.5 right-1.5 sm:bottom-2 sm:right-2 flex flex-col items-center leading-none rotate-180 z-10">
-        <span className="text-[11px] sm:text-sm md:text-base font-bold tracking-tighter">{rankStr}</span>
-        <span className="text-[11px] sm:text-sm md:text-base">{symbol}</span>
+      <div
+        data-card-corner="bottom"
+        className="fc-card-corner absolute bottom-[0.28em] right-[0.28em] flex flex-col items-center leading-none rotate-180 z-10"
+      >
+        <span className="font-bold tracking-tighter">{rankStr}</span>
+        <span>{symbol}</span>
       </div>
     </motion.div>
   );

@@ -3,6 +3,48 @@
 /* Scan @clubhouse/shared via shared/tailwind-source.css (path-depth independent @source). */
 @import "../../../shared/tailwind-source.css";
 
+/*
+  Tableau / waste fans must leave enough of each covered card to show the
+  corner rank+suit. The previous face-up step was a fixed 20px while corner
+  text used text-xl (~40px tall), so stacked face-up cards clipped each other
+  on every width. Peek and font both derive from the column container size.
+*/
+.kl-tableau-col,
+.kl-waste-fan {
+  container-type: inline-size;
+  --kl-corner-size: clamp(0.7rem, 20cqi, 1.05rem);
+  /* 2 lines + padding air so suit glyphs clear the next card's top edge. */
+  --kl-fan-face-up: calc(var(--kl-corner-size) * 2.35 + 0.5rem);
+  --kl-fan-face-down: max(0.55rem, calc(var(--kl-corner-size) * 0.75));
+  --kl-waste-fan-x: calc(var(--kl-corner-size) * 1.15 + 0.45rem);
+}
+
+.kl-card-face {
+  container-type: inline-size;
+}
+
+.kl-card-corner {
+  font-size: var(--kl-corner-size, clamp(0.7rem, 18cqi, 1.05rem));
+  line-height: 1;
+}
+
+/* Covered tableau cards: hit-test/paint only the exposed fan strip. */
+.kl-tableau-col > [data-tableau-slot]:not(:last-child) .kl-card-face {
+  clip-path: inset(0 0 calc(100% - var(--kl-slot-peek, var(--kl-fan-face-up))) 0);
+}
+
+.kl-tableau-col > [data-tableau-slot]:not(:last-child)[data-face-up='false'] {
+  --kl-slot-peek: var(--kl-fan-face-down);
+}
+
+.kl-tableau-col > [data-tableau-slot]:not(:last-child)[data-face-up='true'] {
+  --kl-slot-peek: var(--kl-fan-face-up);
+}
+
+.kl-tableau-col > [data-tableau-slot]:not(:last-child) .kl-card-face img {
+  visibility: hidden;
+}
+
 @keyframes klondike-cascade-fall {
   0% {
     transform: translate3d(0, 0, 0) rotate(var(--cascade-rot, 0deg)) scale(0.9);
@@ -25,5 +67,10 @@
   .klondike-cascade-card {
     animation: none;
     display: none;
+  }
+
+  .kl-card-face {
+    transition: none !important;
+    transform: none !important;
   }
 }
