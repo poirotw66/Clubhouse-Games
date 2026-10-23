@@ -278,7 +278,7 @@ export function createLionWorld(): LionWorld {
       tail.rotation.y = Math.sin(idleT * 2.4) * 0.4;
       // Hem sway + two-hump undulation (out of phase with front/rear steps)
       hem.rotation.z = Math.sin(idleT * 2.8) * 0.04 + (frontLift - rearLift) * 0.03;
-      hem.position.y = 0.12 + Math.sin(idleT * 3.1) * 0.03;
+      hem.position.y = 0.02 + Math.sin(idleT * 3.1) * 0.03;
       frontHump.position.y =
         frontHumpHomeY + frontLift * 0.12 + Math.sin(idleT * 3.4 + 0.4) * 0.03;
       rearHump.position.y =
@@ -291,7 +291,7 @@ export function createLionWorld(): LionWorld {
       frontHump.position.y = frontHumpHomeY;
       rearHump.position.y = rearHumpHomeY;
       hem.rotation.z = 0;
-      hem.position.y = 0.12;
+      hem.position.y = 0.02;
       jaw.rotation.x = sim.fallen ? 0.2 : 0.05;
     }
 
@@ -345,7 +345,7 @@ export function createLionWorld(): LionWorld {
       cloth.rotation.z = side * 0.18 * land + Math.sin(sim.fallSpin * 2.2) * 0.08;
       cloth.rotation.x = 0.12 * land;
       cloth.position.y = -0.15 * land;
-      hem.position.y = 0.12 - 0.2 * land;
+      hem.position.y = 0.02 - 0.22 * land;
       hem.rotation.z = side * 0.25 * land;
       frontHump.position.y = frontHumpHomeY - 0.25 * land;
       rearHump.position.y = rearHumpHomeY - 0.2 * land;
@@ -460,8 +460,10 @@ export function createLionWorld(): LionWorld {
       } else ghostMark.visible = false;
     }
 
-    // Smooth horizontal follow only
-    const targetX = sim.x + (attract ? 0 : 0.55);
+    // Smooth horizontal follow only — small lead on portrait so the long lion isn't cropped.
+    const aspect = camera.aspect || 1.5;
+    const lead = attract ? 0 : aspect < 0.7 ? 0.08 : aspect < 1 ? 0.28 : 0.55;
+    const targetX = sim.x + lead;
     const follow = reduced ? 1 : 1 - Math.pow(0.00005, dt);
     camX += (targetX - camX) * follow;
     applyCameraRig(camX);
@@ -803,7 +805,7 @@ export function createLionWorld(): LionWorld {
           lion.cloth.rotation.set(0, 0, 0);
           lion.cloth.position.set(0, 0, 0);
           lion.hem.rotation.z = 0;
-          lion.hem.position.y = 0.12;
+          lion.hem.position.y = 0.02;
           lion.frontHump.position.y = lion.frontHumpHomeY;
           lion.rearHump.position.y = lion.rearHumpHomeY;
         }

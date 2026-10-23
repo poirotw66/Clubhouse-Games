@@ -9,10 +9,10 @@ export const FIXED_DT = 1 / 180;
 export const MAX_FRAME_DT = 0.05;
 
 /** Hip height — raised so slender jointed legs stay fully visible under the cloth. */
-export const BODY_HEIGHT = 2.85;
-/** Draped cloth length (~2.4× head width) — two-performer 醒獅 silhouette. */
-export const BODY_LENGTH = 5.5;
-export const BODY_WIDTH = 1.15;
+export const BODY_HEIGHT = 2.9;
+/** Draped cloth length (~2.55× head width) — two-performer 醒獅 silhouette. */
+export const BODY_LENGTH = 6.5;
+export const BODY_WIDTH = 1.2;
 export const LEG_LENGTH = 2.4;
 
 /**
@@ -94,10 +94,10 @@ export const LEG_KEY_LABEL: Record<LegId, string> = {
 /** Hip attachment in body-local space (x forward, y up, z right / toward camera). */
 export const LEG_ATTACH: Record<LegId, { x: number; z: number }> = {
   // Under the front / rear cloth humps — classic 2-person lion silhouette.
-  FL: { x: 1.85, z: -0.58 },
-  FR: { x: 1.85, z: 0.62 },
-  BL: { x: -1.85, z: -0.58 },
-  BR: { x: -1.85, z: 0.62 },
+  FL: { x: 2.15, z: -0.6 },
+  FR: { x: 2.15, z: 0.64 },
+  BL: { x: -2.15, z: -0.6 },
+  BR: { x: -2.15, z: 0.64 },
 };
 
 export const KEY_TO_LEG: Record<string, LegId> = {
