@@ -989,6 +989,54 @@ test('reversi: two-player completes a round through the result overlay', async (
   await expect(page.getByRole('button', { name: /可下於/ }).and(page.locator(':enabled')).first()).toBeVisible();
 });
 
+test('reversi: juice win shake and vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Reversi'), 'selective CI');
+  await page.addInitScript(() => {
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
+  const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
+  await expect(corner).toBeVisible();
+  await activate(corner, isMobile);
+  const result = page.getByRole('dialog');
+  await expect(result).toBeVisible({ timeout: 10_000 });
+  await expect(result).toHaveAttribute('aria-label', /謎題完成/);
+  await expect(page.locator('[data-reversi-board]')).toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+  expect(page.__runtimeErrors).toEqual([]);
+});
+
+test('reversi: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Reversi'), 'selective CI');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
+  const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
+  await expect(corner).toBeVisible();
+  await activate(corner, isMobile);
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-reversi-board]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
+  expect(page.__runtimeErrors).toEqual([]);
+});
+
 test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({ page, isMobile }) => {
   test.skip(!includesGame('Clockwork-Keep'), 'selective CI');
   // Undefended harsh lose is ~50s of rAF time once waves keep advancing.

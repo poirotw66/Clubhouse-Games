@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playFlip, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
 import { RefreshCw, BookOpen, Undo2, Lightbulb } from 'lucide-react';
 import { BoardGrid } from './components/BoardGrid';
@@ -160,6 +162,19 @@ export default function App() {
   const prevPhaseRef = useRef<GamePhase>('playing');
   const statsRecordedRef = useRef(false);
   const flipTimer = useRef<number | null>(null);
+  const boardShellRef = useRef<HTMLDivElement | null>(null);
+
+  const placePieceFx = useCallback((r: number, c: number) => {
+    const cell = boardShellRef.current?.querySelector(`[data-reversi-cell="${r},${c}"]`);
+    haptic('place');
+    particles('dust', { el: cell ?? boardShellRef.current });
+  }, []);
+
+  const celebrateWin = useCallback(() => {
+    haptic('win');
+    particles('confetti', { el: boardShellRef.current, strength: 1.1 });
+    shake(boardShellRef.current, 0.95);
+  }, []);
 
   const activeOpponent =
     playMode === 'ladder' ? opponentByIndex(ladderIndex) : undefined;
@@ -193,6 +208,11 @@ export default function App() {
     const keys = new Set(cells.map(([r, c]) => `${r},${c}`));
     setFlipCells(keys);
     playFlip();
+    haptic('tap');
+    for (const [r, c] of cells) {
+      const el = boardShellRef.current?.querySelector(`[data-reversi-cell="${r},${c}"]`);
+      particles('sparkle', { el: el ?? boardShellRef.current, strength: 0.35 });
+    }
     if (flipTimer.current) window.clearTimeout(flipTimer.current);
     flipTimer.current = window.setTimeout(() => setFlipCells(new Set()), FLIP_MS);
   }, []);
@@ -257,6 +277,7 @@ export default function App() {
         message: `謎題完成！${formatStars(stars)}`,
       }));
       playWin();
+      celebrateWin();
       if (puzzle) {
         setLadder((prev) => {
           const next = applyPuzzleSolve(prev, puzzle.id, stars);
@@ -265,7 +286,7 @@ export default function App() {
         });
       }
     },
-    [puzzle, puzzleUsedHint, puzzleUsedUndo],
+    [puzzle, puzzleUsedHint, puzzleUsedUndo, celebrateWin],
   );
 
   const failPuzzle = useCallback((msg: string) => {
@@ -312,6 +333,7 @@ export default function App() {
       const flips = getFlips(state.board, r, c, botColor);
       const nextBoard = applyMove(state.board, r, c, botColor);
       playMove();
+      placePieceFx(r, c);
       triggerFlips(flips);
       setLastMove([r, c]);
       setReviewLog((log) => appendReviewMove(log, state.board, botColor, [r, c], false));
@@ -341,6 +363,7 @@ export default function App() {
     playerSide,
     applyMoveAndAdvance,
     triggerFlips,
+    placePieceFx,
   ]);
 
   // End-of-game: audio, streaks, ladder, series, review
@@ -353,6 +376,10 @@ export default function App() {
 
     if (playMode === 'puzzle') {
       return;
+    }
+
+    if (state.winner && state.winner !== 'draw') {
+      celebrateWin();
     }
 
     const vsCpu = playMode === 'bot' || playMode === 'ladder';
@@ -420,6 +447,7 @@ export default function App() {
     ladderIndex,
     series,
     reviewLog,
+    celebrateWin,
   ]);
 
   const handleCellClick = useCallback(
@@ -440,6 +468,7 @@ export default function App() {
           const flips = getFlips(state.board, r, c, puzzle.side);
           const nextBoard = applyMove(state.board, r, c, puzzle.side);
           playMove();
+          placePieceFx(r, c);
           triggerFlips(flips);
           setLastMove([r, c]);
           failPuzzle('這手無法達成目標。再試一次！');
@@ -454,6 +483,7 @@ export default function App() {
       const flips = getFlips(state.board, r, c, color);
       const nextBoard = applyMove(state.board, r, c, color);
       playMove();
+      placePieceFx(r, c);
       triggerFlips(flips);
       setLastMove([r, c]);
       setReviewLog((log) => appendReviewMove(log, state.board, color, [r, c], true));
@@ -520,6 +550,7 @@ export default function App() {
       applyMoveAndAdvance,
       pushHistory,
       triggerFlips,
+      placePieceFx,
       failPuzzle,
       finishPuzzleSuccess,
     ],
@@ -979,6 +1010,7 @@ export default function App() {
         humanCanClick={humanCanClick}
         phasePlaying={state.phase === 'playing'}
         onCellClick={handleCellClick}
+        shellRef={boardShellRef}
       />
 
       {state.phase === 'playing' && humanCanClick && legalMoves.length === 0 && (
@@ -1095,6 +1127,9 @@ export default function App() {
               <li>無合法手時須 Pass；雙方都無法下則終局，子多者勝。</li>
               <li>角地、機動、奇偶是中盤與殘局的核心概念——見「戰略要點」。</li>
             </ul>
+            <div className="mt-4">
+              <JuiceSettingsPanel />
+            </div>
             <button
               type="button"
               onClick={() => setShowRules(false)}
