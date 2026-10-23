@@ -18,6 +18,42 @@ function boxesOverlap(a, b, pad = 1) {
   );
 }
 
+async function cropLion(page, label, tag, viewport) {
+  const frame = await page.evaluate(() => window.__lionWorld?.checkFraming() ?? null);
+  if (!frame?.bounds) return;
+  const b = frame.bounds;
+  const padX = 0.04;
+  const padY = 0.03;
+  // Face: upper ~45% of lion AABB; legs: lower ~55%
+  const face = {
+    x: Math.max(0, (b.minX - padX) * viewport.width),
+    y: Math.max(0, (b.minY - padY) * viewport.height),
+    width: Math.min(viewport.width, (b.maxX - b.minX + padX * 2) * viewport.width),
+    height: Math.min(viewport.height, (b.heightFrac * 0.5 + padY) * viewport.height),
+  };
+  const legs = {
+    x: Math.max(0, (b.minX - padX * 1.5) * viewport.width),
+    y: Math.max(0, (b.minY + b.heightFrac * 0.28) * viewport.height),
+    width: Math.min(viewport.width, (b.maxX - b.minX + padX * 3) * viewport.width),
+    height: Math.min(
+      viewport.height - (b.minY + b.heightFrac * 0.28) * viewport.height,
+      (b.heightFrac * 0.8 + padY * 2) * viewport.height,
+    ),
+  };
+  for (const [name, clip] of [
+    ['face', face],
+    ['legs', legs],
+  ]) {
+    clip.x = Math.floor(clip.x);
+    clip.y = Math.floor(clip.y);
+    clip.width = Math.max(40, Math.floor(clip.width));
+    clip.height = Math.max(40, Math.floor(clip.height));
+    if (clip.x + clip.width > viewport.width) clip.width = viewport.width - clip.x;
+    if (clip.y + clip.height > viewport.height) clip.height = viewport.height - clip.y;
+    await page.screenshot({ path: `${OUT}/v4-${label}-${tag}-${name}.png`, clip });
+  }
+}
+
 async function assertHudNoOverlap(page, label) {
   const boxes = await page.evaluate(() => {
     const pick = (sel) => {
@@ -66,19 +102,19 @@ async function runViewport(browser, label, viewport) {
   await page.getByRole('button', { name: /開始踩街/ }).click();
   await page.waitForTimeout(2200);
   await page.screenshot({ path: `${OUT}/v4-${label}-play.png` });
+  await cropLion(page, label, 'play', viewport);
   await assertHudNoOverlap(page, label);
 
   frame = await page.evaluate(() => window.__lionWorld?.checkFraming() ?? null);
   console.log(label, 'play framing', JSON.stringify(frame));
   if (!frame?.ok) throw new Error(`${label} play framing failed: ${frame?.reasons}`);
 
-  // Mid-step: hold diagonal long enough for a clear knee bend + raised boots
+  // Mid-step: lift front-left high so thigh/shin knee bend is obvious
   await page.keyboard.down('q');
-  await page.keyboard.down('p');
-  await page.waitForTimeout(550);
+  await page.waitForTimeout(700);
   await page.screenshot({ path: `${OUT}/v4-${label}-step.png` });
+  await cropLion(page, label, 'step', viewport);
   await page.keyboard.up('q');
-  await page.keyboard.up('p');
   await page.waitForTimeout(180);
 
   // Tip over

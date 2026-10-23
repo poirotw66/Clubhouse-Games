@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 const FIXED_DT = 1 / 180;
 const TRACK_LENGTH = 50;
-const BODY_HEIGHT = 2.5;
+const BODY_HEIGHT = 2.8;
 const FALL_PITCH = 0.48;
 const FALL_ROLL = 0.42;
 const ASSIST_FALL_SCALE = 1.45;
@@ -20,7 +20,7 @@ const LEG_ATTACH = {
   BL: { x: -1.35, z: -0.55 },
   BR: { x: -1.35, z: 0.58 },
 };
-const LEG_LENGTH = 2.0;
+const LEG_LENGTH = 2.4;
 const TIME_LIMIT = 90;
 
 function estimateStepImpulse(swingAhead) {

@@ -90,16 +90,19 @@ export interface LionMeshes {
   root: THREE.Group;
   body: THREE.Group;
   head: THREE.Group;
+  headHomeY: number;
   legs: Record<LegId, LegMeshes>;
   flower: THREE.Group;
   flowerHome: THREE.Vector3;
   shadow: THREE.Mesh;
-  leftEye: THREE.Mesh;
-  rightEye: THREE.Mesh;
+  leftEye: THREE.Object3D;
+  rightEye: THREE.Object3D;
   leftEar: THREE.Object3D;
   rightEar: THREE.Object3D;
   tail: THREE.Object3D;
   jaw: THREE.Object3D;
+  mouthSmile: THREE.Object3D;
+  mouthO: THREE.Object3D;
   dust: THREE.Points | null;
 }
 
@@ -169,166 +172,183 @@ export function buildLion(): LionMeshes {
   }
   body.add(tail);
 
-  // ── Head: cute mascot face on the CAMERA side (+Z), snout toward +X ─
+  // ── Head: kawaii 醒獅, face on camera (+Z), snout toward travel (+X) ─
+  const headHomeY = 0.95;
   const head = new THREE.Group();
-  head.position.set(BODY_LENGTH * 0.48, 0.9, 0.15);
-  head.rotation.y = 0.28; // slight ¾; face features live on +Z for the side camera
+  head.position.set(BODY_LENGTH * 0.48, headHomeY, 0.12);
+  head.rotation.y = 0.32;
   body.add(head);
 
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.0, 24, 20), mat(RED, { rough: 0.4 }));
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.02, 24, 20), mat(RED, { rough: 0.42 }));
   head.add(skull);
-  addOutline(head, skull, 1.05);
+  addOutline(head, skull, 1.04);
 
-  // Gold forehead ornament (top, camera-visible)
+  // Soft fluffy mane — rounded tufts (red / orange / gold), denser ring
+  const maneColors = [RED, 0xf97316, GOLD, 0xe23a2e, 0xffb347];
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    if (Math.cos(a) > 0.78) continue; // leave face clear
+    const tuft = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22 + (i % 3) * 0.04, 10, 8),
+      mat(maneColors[i % maneColors.length]!, { rough: 0.55 }),
+    );
+    tuft.scale.set(0.9, 1.2, 0.9);
+    tuft.position.set(Math.sin(a) * 1.0, Math.sin(a * 2) * 0.1 + 0.2, Math.cos(a) * 1.0);
+    head.add(tuft);
+  }
+  for (let i = 0; i < 6; i++) {
+    const tuft = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 10, 8),
+      mat(i % 2 === 0 ? GOLD : 0xf97316, { rough: 0.5 }),
+    );
+    tuft.position.set(-0.2 + i * 0.12, 1.0, 0.4 - Math.abs(i - 2.5) * 0.06);
+    head.add(tuft);
+  }
+
+  // Gold forehead ornament
   const browPlate = new THREE.Mesh(
-    new THREE.SphereGeometry(0.36, 14, 12),
-    mat(GOLD, { metal: 0.55, emissive: GOLD, eInt: 0.35 }),
+    new THREE.SphereGeometry(0.28, 14, 12),
+    mat(GOLD, { metal: 0.55, emissive: GOLD, eInt: 0.3 }),
   );
-  browPlate.scale.set(1.15, 0.45, 0.95);
-  browPlate.position.set(0.15, 0.75, 0.55);
+  browPlate.scale.set(1.2, 0.4, 0.85);
+  browPlate.position.set(0.1, 0.72, 0.7);
   head.add(browPlate);
   const browGem = new THREE.Mesh(
-    new THREE.SphereGeometry(0.15, 12, 10),
-    mat(0xff6b6b, { metal: 0.35, emissive: 0xff6b6b, eInt: 0.35 }),
+    new THREE.SphereGeometry(0.11, 10, 8),
+    mat(0xff6b6b, { metal: 0.35, emissive: 0xff6b6b, eInt: 0.3 }),
   );
-  browGem.position.set(0.2, 0.78, 0.78);
+  browGem.position.set(0.12, 0.74, 0.88);
   head.add(browGem);
-  const horn = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.07, 0.22, 4, 8),
-    mat(GOLD, { metal: 0.55, emissive: GOLD, eInt: 0.2 }),
-  );
-  horn.position.set(0.05, 1.05, 0.2);
-  head.add(horn);
 
-  // Mane — fluffy fringe arc over the crown (visible from the side camera)
-  for (let i = 0; i < 12; i++) {
-    const t = i / 11;
-    const a = -0.9 + t * 1.8; // arc from back-left to front-ish, above the face
-    const strip = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.11, 0.58 + (i % 3) * 0.06, 3, 6),
-      mat(i % 2 === 0 ? GOLD : RED, { rough: 0.55 }),
-    );
-    strip.position.set(Math.sin(a) * 0.35 - 0.15, 0.85 + Math.cos(a) * 0.35, Math.sin(a) * 0.55);
-    strip.rotation.z = 0.55;
-    strip.rotation.x = a * 0.25;
-    head.add(strip);
-  }
-  // Side fringe under the cheeks (not covering eyes)
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 4; i++) {
-      const strip = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.09, 0.45, 3, 6),
-        mat(i % 2 === 0 ? GOLD : RED, { rough: 0.55 }),
-      );
-      strip.position.set(-0.1 - i * 0.08, -0.15 - i * 0.08, side * (0.95 - i * 0.05));
-      strip.rotation.z = 0.9;
-      head.add(strip);
-    }
-  }
-
-  // Ears on top
+  // Short rounded ears
   const leftEar = new THREE.Group();
-  leftEar.position.set(-0.15, 0.9, -0.55);
-  const earL = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mat(RED));
-  earL.scale.set(0.55, 1.15, 0.5);
+  leftEar.position.set(-0.2, 0.85, -0.55);
+  const earL = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(RED));
+  earL.scale.set(0.55, 1.05, 0.5);
   leftEar.add(earL);
-  const earLin = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), mat(0xffc0cb));
-  earLin.scale.set(0.5, 1, 0.35);
+  const earLin = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), mat(0xffb7c5));
+  earLin.scale.set(0.5, 0.95, 0.35);
   earLin.position.set(0.03, 0.02, -0.02);
   leftEar.add(earLin);
   head.add(leftEar);
 
   const rightEar = new THREE.Group();
-  rightEar.position.set(-0.1, 0.92, 0.55);
-  const earR = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mat(RED));
-  earR.scale.set(0.55, 1.15, 0.5);
+  rightEar.position.set(-0.15, 0.88, 0.55);
+  const earR = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(RED));
+  earR.scale.set(0.55, 1.05, 0.5);
   rightEar.add(earR);
-  const earRin = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), mat(0xffc0cb));
-  earRin.scale.set(0.5, 1, 0.35);
+  const earRin = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), mat(0xffb7c5));
+  earRin.scale.set(0.5, 0.95, 0.35);
   earRin.position.set(0.03, 0.02, 0.02);
   rightEar.add(earRin);
   head.add(rightEar);
 
-  // Face plate toward camera: BIG white sclera + smaller pupils (must read as eyes)
-  const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.38, 18, 14), mat(0xfffaf5, { rough: 0.14 }));
-  leftEye.position.set(-0.28, 0.28, 0.92);
+  // Kawaii eyes — tall glossy dark ovals, flush, set low & wide
+  function makeEye(x: number): THREE.Group {
+    const g = new THREE.Group();
+    g.position.set(x, -0.02, 0.99);
+    const oval = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 16, 12),
+      mat(0x1a1208, { rough: 0.16, metal: 0.12 }),
+    );
+    oval.scale.set(0.68, 1.25, 0.38);
+    g.add(oval);
+    const lid = new THREE.Mesh(
+      new THREE.TorusGeometry(0.18, 0.04, 6, 14, Math.PI * 0.95),
+      mat(0x3a2010, { rough: 0.5 }),
+    );
+    lid.rotation.x = Math.PI / 2;
+    lid.rotation.z = Math.PI;
+    lid.position.set(0, 0.15, 0.05);
+    lid.scale.set(0.85, 1, 0.7);
+    g.add(lid);
+    const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), basic(0xffffff));
+    h1.position.set(0.045, 0.07, 0.1);
+    g.add(h1);
+    const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), basic(0xffffff));
+    h2.position.set(-0.05, -0.05, 0.09);
+    g.add(h2);
+    return g;
+  }
+  const leftEye = makeEye(-0.42);
+  const rightEye = makeEye(0.42);
   head.add(leftEye);
-  const leftPupil = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), mat(0x1a1208));
-  leftPupil.position.set(-0.22, 0.28, 1.18);
-  head.add(leftPupil);
-  const leftShine = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), basic(0xffffff));
-  leftShine.position.set(-0.14, 0.36, 1.26);
-  head.add(leftShine);
-
-  const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.38, 18, 14), mat(0xfffaf5, { rough: 0.14 }));
-  rightEye.position.set(0.38, 0.28, 0.92);
   head.add(rightEye);
-  const rightPupil = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), mat(0x1a1208));
-  rightPupil.position.set(0.44, 0.28, 1.18);
-  head.add(rightPupil);
-  const shine = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), basic(0xffffff));
-  shine.position.set(0.52, 0.36, 1.26);
-  head.add(shine);
 
-  // Snout toward travel (+X) with round nose
-  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 12), mat(DARK_RED, { rough: 0.48 }));
-  snout.scale.set(1.15, 0.85, 0.95);
-  snout.position.set(0.95, -0.05, 0.25);
-  head.add(snout);
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), mat(0x2a1810));
-  nose.position.set(1.35, 0.08, 0.3);
+  // Rosy blush cheeks
+  for (const x of [-0.58, 0.58]) {
+    const blush = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 10, 8),
+      mat(0xff8fab, { rough: 0.6, emissive: 0xff8fab, eInt: 0.28 }),
+    );
+    blush.scale.set(1.15, 0.65, 0.32);
+    blush.position.set(x, -0.22, 0.9);
+    head.add(blush);
+  }
+
+  // Small round nose + tiny friendly smile
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), mat(0x2a1810));
+  nose.position.set(0.12, -0.18, 1.06);
   head.add(nose);
 
-  // Big smile + tongue on the camera face
   const jaw = new THREE.Group();
-  jaw.position.set(0.15, -0.35, 0.85);
-  const smile = new THREE.Mesh(new THREE.SphereGeometry(0.38, 14, 10), mat(0x2a1810, { rough: 0.7 }));
-  smile.scale.set(1.35, 0.55, 0.55);
-  jaw.add(smile);
-  const tongue = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), mat(0xff4d6d, { rough: 0.4 }));
-  tongue.scale.set(1.2, 0.55, 0.7);
-  tongue.position.set(0.05, -0.06, 0.12);
-  jaw.add(tongue);
-  for (const x of [-0.12, 0.14]) {
-    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.08), mat(0xfffaf0));
-    tooth.position.set(x, 0.12, 0.1);
-    jaw.add(tooth);
-  }
+  jaw.position.set(0.1, -0.42, 0.96);
   head.add(jaw);
 
-  // Cheek pompoms (camera side)
-  const cheek = new THREE.Mesh(
-    new THREE.SphereGeometry(0.26, 12, 10),
-    mat(GOLD, { metal: 0.3, emissive: GOLD, eInt: 0.18 }),
+  const mouthSmile = new THREE.Group();
+  // Curved smile via short torus arc
+  const smileArc = new THREE.Mesh(
+    new THREE.TorusGeometry(0.16, 0.035, 6, 16, Math.PI * 0.9),
+    mat(0x2a1810, { rough: 0.55 }),
   );
-  cheek.position.set(-0.55, -0.05, 0.7);
-  head.add(cheek);
-  const cheek2 = cheek.clone();
-  cheek2.position.set(0.6, -0.05, 0.7);
-  head.add(cheek2);
+  smileArc.rotation.x = Math.PI / 2;
+  smileArc.rotation.z = Math.PI;
+  smileArc.scale.set(1.15, 1, 0.7);
+  mouthSmile.add(smileArc);
+  const tongue = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat(0xff6b8a, { rough: 0.4 }));
+  tongue.scale.set(1.1, 0.55, 0.7);
+  tongue.position.set(0.02, -0.06, 0.04);
+  mouthSmile.add(tongue);
+  jaw.add(mouthSmile);
 
-  // 花花 + drum above/behind — clear of eyes
+  // Surprised 'O' mouth (hidden until fall)
+  const mouthO = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 12, 10),
+    mat(0x2a1810, { rough: 0.55 }),
+  );
+  mouthO.scale.set(0.85, 1.05, 0.55);
+  mouthO.position.set(0.02, -0.02, 0.02);
+  mouthO.visible = false;
+  jaw.add(mouthO);
+
+  // Soft snout hint toward travel (keeps profile readable, doesn't hide face)
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), mat(DARK_RED, { rough: 0.5 }));
+  snout.scale.set(1.1, 0.75, 0.85);
+  snout.position.set(0.85, -0.05, 0.2);
+  head.add(snout);
+
+  // 花花 + drum on top / behind — face unobstructed
   const flower = buildFlower();
-  const flowerHome = new THREE.Vector3(-0.35, 1.2, 0.15);
+  const flowerHome = new THREE.Vector3(-0.4, 1.15, 0.1);
   flower.position.copy(flowerHome);
-  flower.scale.setScalar(1.15);
+  flower.scale.setScalar(1.1);
   head.add(flower);
 
-  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.2, 16), mat(RED));
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.18, 16), mat(RED));
   drum.rotation.z = Math.PI / 2;
-  drum.position.set(-0.4, 1.1, -0.45);
+  drum.position.set(-0.45, 1.05, -0.4);
   head.add(drum);
-  const drumSkin = new THREE.Mesh(new THREE.CircleGeometry(0.21, 16), mat(CREAM));
+  const drumSkin = new THREE.Mesh(new THREE.CircleGeometry(0.195, 16), mat(CREAM));
   drumSkin.rotation.y = Math.PI / 2;
-  drumSkin.position.set(-0.29, 1.1, -0.45);
+  drumSkin.position.set(-0.35, 1.05, -0.4);
   head.add(drumSkin);
 
-  // Legs — thick trousers hanging under the raised belly
+  // Slender jointed legs — clear of the belly
   const legs = {} as Record<LegId, LegMeshes>;
   for (const id of LEG_IDS) {
     const leg = buildLeg(id);
     const a = LEG_ATTACH[id];
-    leg.root.position.set(a.x, -0.45, a.z);
+    leg.root.position.set(a.x, -0.4, a.z);
     leg.root.renderOrder = 5;
     leg.root.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.renderOrder = 5;
@@ -377,6 +397,7 @@ export function buildLion(): LionMeshes {
     root,
     body,
     head,
+    headHomeY,
     legs,
     flower,
     flowerHome,
@@ -387,8 +408,15 @@ export function buildLion(): LionMeshes {
     rightEar,
     tail,
     jaw,
+    mouthSmile,
+    mouthO,
     dust,
   };
+}
+
+/** Tapered cylinder helper — avoids fat uniform-capsule “pillar” look. */
+function taper(rTop: number, rBot: number, len: number, segs = 12): THREE.CylinderGeometry {
+  return new THREE.CylinderGeometry(rTop, rBot, len, segs);
 }
 
 function buildLeg(id: LegId): LegMeshes {
@@ -400,60 +428,69 @@ function buildLeg(id: LegId): LegMeshes {
   thigh.position.y = 0;
   root.add(thigh);
 
-  // Thick solid coloured trousers (smooth fabric — no ring stacks)
+  // Slender ruffled trousers on thigh only (≈40% thinner than fat-pillar pass)
   const thighMesh = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.36, 0.75, 6, 14),
-    mat(color, { rough: 0.48, emissive: color, eInt: 0.18 }),
+    taper(0.155, 0.115, 1.05, 14),
+    mat(color, { rough: 0.5, emissive: color, eInt: 0.14 }),
   );
-  thighMesh.position.y = -0.52;
+  thighMesh.position.y = -0.6;
   thigh.add(thighMesh);
-  for (const z of [-0.22, 0.22]) {
-    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mat(color, { rough: 0.5 }));
-    puff.position.set(0.06, -0.04, z);
-    thigh.add(puff);
+  // Soft fabric folds (subtle — avoid “stacked white rings” look)
+  for (const y of [-0.4, -0.75]) {
+    const ruffle = new THREE.Mesh(
+      taper(0.165, 0.15, 0.04, 12),
+      mat(color, { rough: 0.55, emissive: color, eInt: 0.05 }),
+    );
+    ruffle.position.y = y;
+    thigh.add(ruffle);
   }
+  const hipPuff = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), mat(color, { rough: 0.5 }));
+  hipPuff.scale.set(1.15, 0.65, 1.15);
+  hipPuff.position.set(0.02, -0.06, 0);
+  thigh.add(hipPuff);
 
-  // Visible knee joint (cream) so bend reads from the side camera
+  // Small round knee (reads as the joint)
   const knee = new THREE.Mesh(
-    new THREE.SphereGeometry(0.28, 12, 10),
-    mat(CREAM, { rough: 0.55, emissive: CREAM, eInt: 0.08 }),
+    new THREE.SphereGeometry(0.1, 12, 10),
+    mat(0xffe8c8, { rough: 0.45, emissive: 0xffe8c8, eInt: 0.1 }),
   );
-  knee.position.y = -1.02;
+  knee.position.y = -1.2;
   thigh.add(knee);
 
   const shin = new THREE.Group();
-  shin.position.y = -1.05;
+  shin.position.y = -1.22;
   thigh.add(shin);
 
+  // Clean tapered shin — soft fabric beige (NOT dark pole brown)
   const shinMesh = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.3, 0.62, 6, 14),
-    mat(color, { rough: 0.48, emissive: color, eInt: 0.16 }),
+    taper(0.1, 0.075, 0.85, 12),
+    mat(0xe8d4b0, { rough: 0.55 }),
   );
-  shinMesh.position.y = -0.42;
+  shinMesh.position.y = -0.45;
   shin.add(shinMesh);
 
-  // Bright anklet band (single clear colour cue)
+  // Coloured anklet band
   const anklet = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.34, 0.12, 4, 14),
-    mat(color, { metal: 0.25, emissive: color, eInt: 0.65 }),
+    taper(0.11, 0.11, 0.09, 12),
+    mat(color, { metal: 0.2, emissive: color, eInt: 0.6 }),
   );
-  anklet.position.y = -0.78;
+  anklet.position.y = -0.88;
   shin.add(anklet);
 
   const foot = new THREE.Group();
-  foot.position.y = -0.9;
+  foot.position.y = -0.98;
   shin.add(foot);
 
+  // Smaller neat dark boot + slight toe
   const boot = new THREE.Mesh(
-    new THREE.BoxGeometry(0.7, 0.32, 0.48),
+    new THREE.BoxGeometry(0.36, 0.14, 0.22),
     mat(BOOT, { rough: 0.65 }),
   );
-  boot.position.set(0.16, -0.04, 0);
+  boot.position.set(0.07, -0.02, 0);
   foot.add(boot);
-  addOutline(foot, boot, 1.05);
-  const toe = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), mat(BOOT, { rough: 0.65 }));
-  toe.scale.set(1.3, 0.75, 1.05);
-  toe.position.set(0.45, -0.02, 0);
+  const toe = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), mat(BOOT, { rough: 0.65 }));
+  toe.scale.set(1.35, 0.6, 0.95);
+  toe.position.set(0.24, -0.01, 0);
   foot.add(toe);
 
   return { root, thigh, shin, foot, knee };
@@ -482,7 +519,11 @@ function buildFlower(): THREE.Group {
   return g;
 }
 
-/** FK pose from physics lift/swing — knee flexes on lift, swings forward. */
+/**
+ * FK pose — slender performer legs that scissor in the side-view plane.
+ * Rotations are around Z (XY / track plane) so knee bend is visible from +Z camera.
+ * Lift: thigh ~45° forward, shin folds ~70°; plant: nearly straight.
+ */
 export function applyLegPose(
   legs: Record<LegId, LegMeshes>,
   lift: Record<LegId, number>,
@@ -490,31 +531,35 @@ export function applyLegPose(
   flailT = 0,
   fallen = false,
 ): void {
+  const DEG = Math.PI / 180;
   for (const id of LEG_IDS) {
     const leg = legs[id];
-    const L = lift[id] ?? 0;
+    const L = Math.min(1, lift[id] ?? 0);
     const S = swing[id] ?? 0;
     if (fallen && flailT > 0) {
       const phase = flailT * (3.6 + LEG_ATTACH[id].x * 0.4) + LEG_ATTACH[id].z * 7;
       const kick = 0.55 + 0.7 * Math.abs(Math.sin(phase));
-      // Big readable kicks once rolled feet-toward-camera
-      leg.root.position.y = 0.05 + Math.abs(Math.sin(phase * 0.8)) * 0.25;
-      leg.thigh.rotation.x = -Math.sin(phase) * 1.25;
-      leg.thigh.rotation.z = Math.cos(phase * 0.85) * 0.55;
-      leg.thigh.rotation.y = Math.sin(phase * 0.6) * 0.35;
-      leg.shin.rotation.x = kick * 1.65;
-      leg.foot.rotation.x = -kick * 0.65 + Math.sin(phase * 1.4) * 0.25;
+      leg.root.position.y = -0.1 + Math.abs(Math.sin(phase * 0.8)) * 0.3;
+      // Flail in-plane + a little out-of-plane for volume
+      leg.thigh.rotation.z = Math.sin(phase) * 0.9;
+      leg.thigh.rotation.x = Math.cos(phase * 0.85) * 0.35;
+      leg.thigh.rotation.y = Math.sin(phase * 0.6) * 0.25;
+      leg.shin.rotation.z = -kick * 1.2;
+      leg.shin.rotation.x = 0;
+      leg.foot.rotation.z = kick * 0.35;
       continue;
     }
-    // Hip swings forward; knee bends hard on lift so the joint reads clearly
-    // (shin flexes past 90° at full lift — readable from the side camera)
-    leg.thigh.rotation.x = -S * 1.5 - L * 0.7;
-    leg.thigh.rotation.z = 0;
+    // Clear depth rotations — bend must read in the side view
+    leg.thigh.rotation.x = 0;
     leg.thigh.rotation.y = 0;
-    leg.shin.rotation.x = 0.45 + L * 2.2;
-    leg.foot.rotation.x = -L * 0.85 + Math.max(0, S) * 0.35;
-    // Raise whole leg when lifted so boots clear the ground
-    leg.root.position.y = -0.45 + L * 1.05;
+    leg.shin.rotation.x = 0;
+    // Thigh swings forward along +X (~45° at full lift) + gait scissor
+    leg.thigh.rotation.z = S * 0.45 + L * 45 * DEG;
+    // Shin folds the OPPOSITE way so the foot drops into a dog-leg (not up)
+    leg.shin.rotation.z = -(12 * DEG + L * 70 * DEG);
+    leg.foot.rotation.z = L * 15 * DEG;
+    leg.foot.rotation.x = 0;
+    leg.root.position.y = -0.4 + L * 0.55;
   }
 }
 

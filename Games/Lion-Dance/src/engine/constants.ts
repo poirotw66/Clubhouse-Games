@@ -8,11 +8,11 @@ export const TIME_LIMIT = 90;
 export const FIXED_DT = 1 / 180;
 export const MAX_FRAME_DT = 0.05;
 
-/** Hip height — raised so jointed legs stay fully visible under the cloth. */
-export const BODY_HEIGHT = 2.5;
+/** Hip height — raised so slender jointed legs stay fully visible under the cloth. */
+export const BODY_HEIGHT = 2.8;
 export const BODY_LENGTH = 3.0;
 export const BODY_WIDTH = 1.05;
-export const LEG_LENGTH = 2.0;
+export const LEG_LENGTH = 2.4;
 
 /**
  * Fall thresholds — much stricter than v2 so button-mashing fails.

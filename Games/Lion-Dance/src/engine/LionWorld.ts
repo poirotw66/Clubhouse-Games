@@ -73,6 +73,8 @@ export interface LionWorld {
   getGhostSamples(): GhostSample[];
   /** Project lion AABB → screen; used by Playwright framing check. */
   checkFraming(): FrameCheck | null;
+  /** Playtest helper — FK angles / world hip-knee-foot. */
+  debugLegs(): Record<string, unknown> | null;
   onHud(cb: (hud: HudSnapshot) => void): void;
   onRunEnd(cb: (result: RunResult) => void): void;
 }
@@ -221,24 +223,55 @@ export function createLionWorld(): LionWorld {
 
   function syncMeshes(dt: number): void {
     if (!lion || !camera || !envelope) return;
-    const { root, head, legs, flower, flowerHome, shadow, leftEye, rightEye, leftEar, rightEar, tail, jaw, dust } =
-      lion;
+    const {
+      root,
+      head,
+      headHomeY,
+      legs,
+      flower,
+      flowerHome,
+      shadow,
+      leftEye,
+      rightEye,
+      leftEar,
+      rightEar,
+      tail,
+      jaw,
+      mouthSmile,
+      mouthO,
+      dust,
+    } = lion;
 
     idleT += dt;
     blinkT -= dt;
-    if (blinkT < -2.5 - Math.random()) blinkT = 0.12;
-    const eyeScale = blinkT > 0 ? 0.12 : 1;
-    leftEye.scale.set(1, eyeScale, 1);
-    rightEye.scale.set(1, eyeScale, 1);
+    if (blinkT < -2.5 - Math.random()) blinkT = 0.1;
+    // Blink: squash eye groups on Y (kawaii ovals close)
+    // Fall: slightly bigger DARK ovals (keep oval ratio — never round “googly” spheres)
+    const blinking = blinkT > 0 && !sim.fallen;
+    const eyeY = blinking ? 0.12 : sim.fallen ? 1.35 : 1;
+    const eyeXZ = sim.fallen ? 1.05 : 1;
+    leftEye.scale.set(eyeXZ, eyeY, eyeXZ);
+    rightEye.scale.set(eyeXZ, eyeY, eyeXZ);
+    // Surprised 'O' mouth while fallen; soft smile otherwise
+    mouthSmile.visible = !sim.fallen;
+    mouthO.visible = sim.fallen;
 
     if (!reduced) {
       leftEar.rotation.z = Math.sin(idleT * 3.2) * 0.14;
       rightEar.rotation.z = Math.sin(idleT * 3.2 + 0.8) * 0.14;
       tail.rotation.y = Math.sin(idleT * 2.4) * 0.4;
-      jaw.rotation.x = Math.sin(idleT * 1.6) * 0.08;
+      jaw.rotation.x = sim.fallen ? 0 : Math.sin(idleT * 1.6) * 0.05;
     }
 
     const hudSnap = snapshotHudBase(sim, TIME_LIMIT);
+    // Head-bob in sync with gait / steps
+    const avgLift =
+      (hudSnap.legLift.FL + hudSnap.legLift.FR + hudSnap.legLift.BL + hudSnap.legLift.BR) * 0.25;
+    const gaitBob =
+      Math.sin(sim.elapsed * 10 + sim.stepCount * 0.7) *
+      0.04 *
+      Math.min(1, Math.abs(sim.vx) * 1.8 + (attract ? 0.4 : 0));
+    const headBobY = headHomeY + avgLift * 0.06 + gaitBob;
 
     if (attract) {
       root.position.set(2.5, sim.y, 0);
@@ -246,10 +279,16 @@ export function createLionWorld(): LionWorld {
       root.scale.set(1, 1, 1);
       for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
         const phase = idleT * 2.2 + (id === 'FL' || id === 'BR' ? 0 : Math.PI);
-        sim.legs[id].lift = 0.15 + Math.max(0, Math.sin(phase)) * 0.35;
-        sim.legs[id].swing = Math.sin(phase) * 0.4;
+        sim.legs[id].lift = 0.2 + Math.max(0, Math.sin(phase)) * 0.55;
+        sim.legs[id].swing = Math.sin(phase) * 0.65;
       }
-      applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing);
+      const attractHud = snapshotHudBase(sim, TIME_LIMIT);
+      applyLegPose(legs, attractHud.legLift, attractHud.legSwing);
+      head.position.y =
+        headHomeY +
+        (attractHud.legLift.FL + attractHud.legLift.FR) * 0.03 +
+        Math.sin(idleT * 4) * 0.03;
+      head.rotation.x = Math.sin(idleT * 2.2) * 0.04;
       if (!flowerDetached) {
         flower.position.copy(flowerHome);
         flower.rotation.set(0, idleT * 1.1, 0);
@@ -298,6 +337,8 @@ export function createLionWorld(): LionWorld {
       flower.position.copy(flowerWorld);
       flower.rotation.set(sim.fallSpin * 2.1, sim.fallSpin * 1.7, sim.fallSpin);
       applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing, sim.fallSpin, true);
+      head.position.y = headHomeY;
+      head.rotation.x = -0.15;
 
       if (dust && dustVel && dust.visible) {
         const mat = dust.material as THREE.PointsMaterial;
@@ -319,7 +360,7 @@ export function createLionWorld(): LionWorld {
       root.position.set(sim.x, sim.y + Math.sin(t * 10) * 0.08 * (1 - t), 0);
       root.rotation.set(-t * 0.55, 0, 0);
       head.rotation.x = -t * 0.95;
-      head.position.y = 0.55 + t * 0.45;
+      head.position.y = headHomeY + t * 0.45;
       envelope.position.y = 4.0 - t * 2.0;
       envelope.rotation.z = t * 1.2;
       flower.position.copy(flowerHome);
@@ -362,6 +403,7 @@ export function createLionWorld(): LionWorld {
       // Subtle body lean only — camera horizon stays level
       root.rotation.set(sim.pitch * 0.75, 0, sim.roll * 0.8);
       head.rotation.x = THREE.MathUtils.clamp(-sim.pitch * 0.2, -0.18, 0.18);
+      head.position.y = headBobY;
       flower.position.copy(flowerHome);
       flower.rotation.set(0, reduced ? 0 : idleT * 1.2, 0);
       flower.scale.setScalar(1.05 + beat.pulse * 0.18);
@@ -740,6 +782,33 @@ export function createLionWorld(): LionWorld {
       const core = lion.root.getObjectByName('frameCore') ?? lion.root;
       const bounds = projectObjectBounds(core, camera);
       return checkLionFramed(bounds);
+    },
+
+    /** Debug helper for playtests — leg FK angles + lifts. */
+    debugLegs() {
+      if (!lion) return null;
+      const out: Record<string, unknown> = {};
+      const tmp = new THREE.Vector3();
+      for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
+        const L = lion.legs[id];
+        L.knee.getWorldPosition(tmp);
+        const knee = tmp.clone();
+        L.foot.getWorldPosition(tmp);
+        const foot = tmp.clone();
+        L.root.getWorldPosition(tmp);
+        const hip = tmp.clone();
+        out[id] = {
+          lift: +sim.legs[id].lift.toFixed(3),
+          swing: +sim.legs[id].swing.toFixed(3),
+          held: sim.legs[id].held,
+          thighZ: +L.thigh.rotation.z.toFixed(3),
+          shinZ: +L.shin.rotation.z.toFixed(3),
+          hip: [+hip.x.toFixed(2), +hip.y.toFixed(2), +hip.z.toFixed(2)],
+          knee: [+knee.x.toFixed(2), +knee.y.toFixed(2), +knee.z.toFixed(2)],
+          foot: [+foot.x.toFixed(2), +foot.y.toFixed(2), +foot.z.toFixed(2)],
+        };
+      }
+      return out;
     },
 
     onHud(cb) {
