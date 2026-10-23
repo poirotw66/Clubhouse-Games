@@ -1,5 +1,7 @@
 // ponytail: cascade caps, hints, scoring, daily streak, challenges, difficulty.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   canMove,
   checkWin,
@@ -21,6 +23,7 @@ import {
   pointsUndo,
 } from './utils/scoring.ts';
 import { modeKey, recordGameResult, winRate } from './utils/storage.ts';
+import { FC_FAN } from './layoutFan.mjs';
 
 function card(suit, rank) {
   const color = suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black';
@@ -262,6 +265,18 @@ function emptyState(overrides = {}) {
   assert.equal(meta.seed, 42);
   assert.equal(meta.parMoves, null);
   assert.equal(meta.difficulty, 'any');
+}
+
+// —— Tableau fan must keep rank+suit fully visible (no -mt-[115%] regression) ——
+{
+  const cssPath = fileURLToPath(new URL('./index.css', import.meta.url));
+  const css = fs.readFileSync(cssPath, 'utf8');
+  assert.match(css, /\.fc-tableau-slot--stacked\s*\{[^}]*margin-top:\s*calc\(-150%\s*\+\s*var\(--fc-fan-peek\)\)/s);
+  assert.match(css, /--fc-fan-peek:\s*calc\(var\(--fc-corner-size\)\s*\*\s*2\.35/);
+  assert.equal(FC_FAN.aspectHeightPercent, 150);
+  assert.equal(FC_FAN.stackedMarginCss, 'calc(-150% + var(--fc-fan-peek))');
+  const app = fs.readFileSync(fileURLToPath(new URL('./App.tsx', import.meta.url)), 'utf8');
+  assert.equal(app.includes('-mt-[115%]'), false, 'legacy fixed tableau fan class must stay removed');
 }
 
 console.log('check-freecell: ok');
