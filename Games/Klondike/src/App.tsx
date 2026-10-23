@@ -1205,7 +1205,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="relative w-16 h-24 sm:w-24 sm:h-36 shrink-0">
+            <div className="kl-waste-fan relative w-16 h-24 sm:w-24 sm:h-36 shrink-0">
               {gameState.waste.length === 0 ? (
                 <EmptySlot />
               ) : (
@@ -1218,7 +1218,10 @@ export default function App() {
                     <div
                       key={card.id}
                       className="absolute top-0 left-0"
-                      style={{ transform: `translateX(${displayIndex * 12}px)` }}
+                      data-waste-fan={displayIndex}
+                      style={{
+                        transform: `translateX(calc(${displayIndex} * var(--kl-waste-fan-x)))`,
+                      }}
                     >
                       <Card
                         card={card}
@@ -1286,7 +1289,8 @@ export default function App() {
           {gameState.tableau.map((col, colIndex) => (
             <div
               key={`tableau-${colIndex}`}
-              className={`relative w-16 sm:w-24 min-h-[50vh] shrink-0 ${isTargetHinted('tableau', colIndex) ? 'ring-4 ring-sky-400/80 rounded-xl' : ''}`}
+              data-tableau-col={colIndex}
+              className={`kl-tableau-col relative w-16 sm:w-24 min-h-[50vh] shrink-0 ${isTargetHinted('tableau', colIndex) ? 'ring-4 ring-sky-400/80 rounded-xl' : ''}`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDropOnTableau(e, colIndex)}
               onClick={() => col.length === 0 && handleTableauZoneTap(colIndex)}
@@ -1299,12 +1303,17 @@ export default function App() {
                   selectedSource?.type === 'tableau' &&
                   selectedSource.colIndex === colIndex &&
                   cardIndex >= selectedSource.cardIndex;
+                const above = col.slice(0, cardIndex);
+                const faceDownAbove = above.filter((c) => !c.faceUp).length;
+                const faceUpAbove = above.filter((c) => c.faceUp).length;
                 return (
                   <div
                     key={card.id}
+                    data-tableau-slot={cardIndex}
+                    data-face-up={card.faceUp ? 'true' : 'false'}
                     className="absolute top-0 left-0"
                     style={{
-                      top: `${col.slice(0, cardIndex).reduce((acc, c) => acc + (c.faceUp ? 20 : 10), 0)}px`,
+                      top: `calc(${faceDownAbove} * var(--kl-fan-face-down) + ${faceUpAbove} * var(--kl-fan-face-up))`,
                     }}
                   >
                     <Card
