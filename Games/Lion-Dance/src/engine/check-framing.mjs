@@ -5,9 +5,9 @@
  */
 import assert from 'node:assert/strict';
 
-const LION_WORLD_HEIGHT = 4.0;
-const LION_WORLD_LENGTH = 5.0;
-const LION_FILL = 0.37;
+const LION_WORLD_HEIGHT = 4.15;
+const LION_WORLD_LENGTH = 8.8;
+const LION_FILL = 0.34;
 const FRAME_MARGIN_NDC = 0.04;
 
 function computeCameraFrame(aspect) {
@@ -20,9 +20,9 @@ function computeCameraFrame(aspect) {
   const halfV = Math.tan(vFov / 2);
   const distH = LION_WORLD_HEIGHT / LION_FILL / (2 * halfV);
   const halfH = halfV * Math.max(0.35, aspect);
-  const widthFill = aspect < 0.7 ? 0.68 : aspect < 1 ? 0.62 : 0.52;
+  const widthFill = aspect < 0.7 ? 0.88 : aspect < 1 ? 0.74 : 0.6;
   const distW = LION_WORLD_LENGTH / widthFill / (2 * halfH);
-  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.12 : aspect < 1 ? 1.08 : 1.02);
+  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.06 : aspect < 1 ? 1.08 : 1.04);
   return { fov, distance };
 }
 
@@ -52,8 +52,8 @@ function fillAt(frame) {
 const fill = fillAt(desk);
 const fillM = fillAt(mobile);
 assert.ok(fill > 0.3 && fill < 0.45, `desktop fill band failed ${fill.toFixed(3)}`);
-// Portrait is width-limited for a side-on lion; height fill sits lower by design.
-assert.ok(fillM > 0.18 && fillM < 0.4, `mobile fill band failed ${fillM.toFixed(3)}`);
+// Portrait is width-limited for the long draped lion; keep readable (≥14%).
+assert.ok(fillM > 0.14 && fillM < 0.4, `mobile fill band failed ${fillM.toFixed(3)}`);
 
 assert.ok(
   checkLionFramed({ minX: 0.1, maxX: 0.7, minY: 0.2, maxY: 0.55, heightFrac: 0.35 }).ok,

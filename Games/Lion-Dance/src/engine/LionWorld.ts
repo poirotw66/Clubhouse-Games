@@ -225,6 +225,12 @@ export function createLionWorld(): LionWorld {
     if (!lion || !camera || !envelope) return;
     const {
       root,
+      cloth,
+      frontHump,
+      rearHump,
+      frontHumpHomeY,
+      rearHumpHomeY,
+      hem,
       head,
       headHomeY,
       legs,
@@ -256,27 +262,45 @@ export function createLionWorld(): LionWorld {
     mouthSmile.visible = !sim.fallen;
     mouthO.visible = sim.fallen;
 
-    if (!reduced) {
-      leftEar.rotation.z = Math.sin(idleT * 3.2) * 0.14;
-      rightEar.rotation.z = Math.sin(idleT * 3.2 + 0.8) * 0.14;
-      tail.rotation.y = Math.sin(idleT * 2.4) * 0.4;
-      jaw.rotation.x = sim.fallen ? 0 : Math.sin(idleT * 1.6) * 0.05;
-    }
-
     const hudSnap = snapshotHudBase(sim, TIME_LIMIT);
-    // Head-bob in sync with gait / steps
-    const avgLift =
-      (hudSnap.legLift.FL + hudSnap.legLift.FR + hudSnap.legLift.BL + hudSnap.legLift.BR) * 0.25;
+    const frontLift = (hudSnap.legLift.FL + hudSnap.legLift.FR) * 0.5;
+    const rearLift = (hudSnap.legLift.BL + hudSnap.legLift.BR) * 0.5;
+    const avgLift = (frontLift + rearLift) * 0.5;
     const gaitBob =
       Math.sin(sim.elapsed * 10 + sim.stepCount * 0.7) *
       0.04 *
       Math.min(1, Math.abs(sim.vx) * 1.8 + (attract ? 0.4 : 0));
     const headBobY = headHomeY + avgLift * 0.06 + gaitBob;
 
+    if (!reduced) {
+      leftEar.rotation.z = Math.sin(idleT * 3.2) * 0.14;
+      rightEar.rotation.z = Math.sin(idleT * 3.2 + 0.8) * 0.14;
+      tail.rotation.y = Math.sin(idleT * 2.4) * 0.4;
+      // Hem sway + two-hump undulation (out of phase with front/rear steps)
+      hem.rotation.z = Math.sin(idleT * 2.8) * 0.04 + (frontLift - rearLift) * 0.03;
+      hem.position.y = 0.12 + Math.sin(idleT * 3.1) * 0.03;
+      frontHump.position.y =
+        frontHumpHomeY + frontLift * 0.12 + Math.sin(idleT * 3.4 + 0.4) * 0.03;
+      rearHump.position.y =
+        rearHumpHomeY + rearLift * 0.12 + Math.sin(idleT * 3.4 + 2.2) * 0.03;
+      // Hinged mouth opens slightly on front steps
+      jaw.rotation.x = sim.fallen
+        ? 0.25
+        : 0.04 + frontLift * 0.22 + Math.sin(idleT * 1.6) * 0.03;
+    } else {
+      frontHump.position.y = frontHumpHomeY;
+      rearHump.position.y = rearHumpHomeY;
+      hem.rotation.z = 0;
+      hem.position.y = 0.12;
+      jaw.rotation.x = sim.fallen ? 0.2 : 0.05;
+    }
+
     if (attract) {
       root.position.set(2.5, sim.y, 0);
       root.rotation.set(0, 0, 0);
       root.scale.set(1, 1, 1);
+      cloth.rotation.set(0, 0, 0);
+      cloth.position.set(0, 0, 0);
       for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
         const phase = idleT * 2.2 + (id === 'FL' || id === 'BR' ? 0 : Math.PI);
         sim.legs[id].lift = 0.2 + Math.max(0, Math.sin(phase)) * 0.55;
@@ -284,11 +308,9 @@ export function createLionWorld(): LionWorld {
       }
       const attractHud = snapshotHudBase(sim, TIME_LIMIT);
       applyLegPose(legs, attractHud.legLift, attractHud.legSwing);
-      head.position.y =
-        headHomeY +
-        (attractHud.legLift.FL + attractHud.legLift.FR) * 0.03 +
-        Math.sin(idleT * 4) * 0.03;
-      head.rotation.x = Math.sin(idleT * 2.2) * 0.04;
+      const aFront = (attractHud.legLift.FL + attractHud.legLift.FR) * 0.5;
+      head.position.y = headHomeY + aFront * 0.04 + Math.sin(idleT * 4) * 0.03;
+      head.rotation.x = Math.sin(idleT * 2.2) * 0.04 - aFront * 0.06;
       if (!flowerDetached) {
         flower.position.copy(flowerHome);
         flower.rotation.set(0, idleT * 1.1, 0);
@@ -319,6 +341,14 @@ export function createLionWorld(): LionWorld {
         side * 0.12 * land,
         THREE.MathUtils.clamp(sim.pitch * 0.3, -0.4, 0.3) + side * 0.18 * land,
       );
+      // Cloth drapes / flops over the legs while fallen
+      cloth.rotation.z = side * 0.18 * land + Math.sin(sim.fallSpin * 2.2) * 0.08;
+      cloth.rotation.x = 0.12 * land;
+      cloth.position.y = -0.15 * land;
+      hem.position.y = 0.12 - 0.2 * land;
+      hem.rotation.z = side * 0.25 * land;
+      frontHump.position.y = frontHumpHomeY - 0.25 * land;
+      rearHump.position.y = rearHumpHomeY - 0.2 * land;
       // 花花 flung in an arc (world-ish local)
       if (!flowerDetached) {
         flowerDetached = true;
@@ -356,6 +386,8 @@ export function createLionWorld(): LionWorld {
     } else if (sim.finished) {
       root.scale.set(1, 1, 1);
       flowerDetached = false;
+      cloth.rotation.set(0, 0, 0);
+      cloth.position.set(0, 0, 0);
       const t = sim.finishAnim;
       root.position.set(sim.x, sim.y + Math.sin(t * 10) * 0.08 * (1 - t), 0);
       root.rotation.set(-t * 0.55, 0, 0);
@@ -402,7 +434,14 @@ export function createLionWorld(): LionWorld {
       root.position.set(sim.x, sim.y, 0);
       // Subtle body lean only — camera horizon stays level
       root.rotation.set(sim.pitch * 0.75, 0, sim.roll * 0.8);
-      head.rotation.x = THREE.MathUtils.clamp(-sim.pitch * 0.2, -0.18, 0.18);
+      cloth.rotation.set(0, 0, 0);
+      cloth.position.set(0, 0, 0);
+      // Head tilts forward slightly with each front step
+      head.rotation.x = THREE.MathUtils.clamp(
+        -sim.pitch * 0.2 - frontLift * 0.1,
+        -0.28,
+        0.18,
+      );
       head.position.y = headBobY;
       flower.position.copy(flowerHome);
       flower.rotation.set(0, reduced ? 0 : idleT * 1.2, 0);
@@ -761,6 +800,12 @@ export function createLionWorld(): LionWorld {
           lion.flower.position.copy(lion.flowerHome);
           lion.flower.rotation.set(0, 0, 0);
           lion.root.scale.set(1, 1, 1);
+          lion.cloth.rotation.set(0, 0, 0);
+          lion.cloth.position.set(0, 0, 0);
+          lion.hem.rotation.z = 0;
+          lion.hem.position.y = 0.12;
+          lion.frontHump.position.y = lion.frontHumpHomeY;
+          lion.rearHump.position.y = lion.rearHumpHomeY;
         }
         paused = false;
         emitHud();

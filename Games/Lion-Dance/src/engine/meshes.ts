@@ -89,6 +89,12 @@ export interface LegMeshes {
 export interface LionMeshes {
   root: THREE.Group;
   body: THREE.Group;
+  cloth: THREE.Group;
+  frontHump: THREE.Object3D;
+  rearHump: THREE.Object3D;
+  frontHumpHomeY: number;
+  rearHumpHomeY: number;
+  hem: THREE.Group;
   head: THREE.Group;
   headHomeY: number;
   legs: Record<LegId, LegMeshes>;
@@ -112,243 +118,434 @@ export function buildLion(): LionMeshes {
   root.add(body);
 
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.4, 28),
+    new THREE.CircleGeometry(2.4, 32),
     basic(0x000000, 0.16),
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.02;
+  shadow.scale.set(1.55, 1, 0.7);
   root.add(shadow);
 
-  // Soft draped body — high, compact belly so trousers show a clear gap under it
-  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.72, 18, 14), mat(RED, { rough: 0.48 }));
-  torso.scale.set(1.65, 0.7, 0.82);
-  torso.position.set(0, 0.7, 0);
-  body.add(torso);
-  addOutline(body, torso, 1.05);
+  // ── Long draped cloth body (performers' blanket) — 2 humps ───────────
+  const cloth = new THREE.Group();
+  body.add(cloth);
 
-  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.58, 16, 12), mat(RED, { rough: 0.48 }));
-  chest.scale.set(1.0, 0.8, 0.85);
-  chest.position.set(0.95, 0.72, 0);
-  body.add(chest);
+  // Long belly / blanket mass (red, elongated)
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.95, 22, 16), mat(RED, { rough: 0.48 }));
+  belly.scale.set(BODY_LENGTH * 0.48, 0.72, 0.78);
+  belly.position.set(0, 0.55, 0);
+  cloth.add(belly);
+  addOutline(cloth, belly, 1.04);
 
-  const rump = new THREE.Mesh(new THREE.SphereGeometry(0.56, 16, 12), mat(DARK_RED, { rough: 0.52 }));
-  rump.scale.set(0.95, 0.75, 0.85);
-  rump.position.set(-0.95, 0.68, 0);
-  body.add(rump);
+  // Front performer hump (tall, rounded)
+  const frontHumpHomeY = 1.05;
+  const frontHump = new THREE.Group();
+  frontHump.position.set(BODY_LENGTH * 0.28, frontHumpHomeY, 0);
+  cloth.add(frontHump);
+  const fhMain = new THREE.Mesh(new THREE.SphereGeometry(0.72, 18, 14), mat(RED, { rough: 0.45 }));
+  fhMain.scale.set(1.05, 1.15, 0.95);
+  frontHump.add(fhMain);
+  addOutline(frontHump, fhMain, 1.05);
+  const fhCap = new THREE.Mesh(new THREE.SphereGeometry(0.38, 14, 12), mat(DARK_RED, { rough: 0.5 }));
+  fhCap.scale.set(1.1, 0.7, 1);
+  fhCap.position.set(0.1, 0.45, 0);
+  frontHump.add(fhCap);
 
-  // Gold trim ribbons (along flanks, above the legs)
-  for (const z of [-0.42, 0.42]) {
+  // Rear performer hump
+  const rearHumpHomeY = 0.98;
+  const rearHump = new THREE.Group();
+  rearHump.position.set(-BODY_LENGTH * 0.28, rearHumpHomeY, 0);
+  cloth.add(rearHump);
+  const rhMain = new THREE.Mesh(new THREE.SphereGeometry(0.68, 18, 14), mat(RED, { rough: 0.48 }));
+  rhMain.scale.set(1.0, 1.1, 0.95);
+  rearHump.add(rhMain);
+  addOutline(rearHump, rhMain, 1.05);
+  const rhCap = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 10), mat(DARK_RED, { rough: 0.52 }));
+  rhCap.scale.set(1.05, 0.65, 1);
+  rhCap.position.set(-0.08, 0.4, 0);
+  rearHump.add(rhCap);
+
+  // Soft saddle dip between humps
+  const saddle = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 12), mat(DARK_RED, { rough: 0.55 }));
+  saddle.scale.set(1.6, 0.55, 0.9);
+  saddle.position.set(0, 0.85, 0);
+  cloth.add(saddle);
+
+  // Gold trim bands along flanks + spine
+  for (const z of [-0.55, 0.55]) {
     const ribbon = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.05, BODY_LENGTH * 0.65, 3, 8),
-      mat(GOLD, { metal: 0.45, emissive: GOLD, eInt: 0.1 }),
+      new THREE.CapsuleGeometry(0.055, BODY_LENGTH * 0.72, 3, 8),
+      mat(GOLD, { metal: 0.5, emissive: GOLD, eInt: 0.12 }),
     );
     ribbon.rotation.z = Math.PI / 2;
-    ribbon.position.set(0, 0.85, z);
-    body.add(ribbon);
+    ribbon.position.set(0, 0.72, z);
+    cloth.add(ribbon);
+  }
+  const spineTrim = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.04, BODY_LENGTH * 0.55, 3, 8),
+    mat(GOLD, { metal: 0.45, emissive: GOLD, eInt: 0.1 }),
+  );
+  spineTrim.rotation.z = Math.PI / 2;
+  spineTrim.position.set(0, 1.15, 0);
+  cloth.add(spineTrim);
+
+  // Gold/yellow scale · cloud · spiral-dot patterns (reused materials)
+  const patternCols = [GOLD, 0xffe066, 0xf0c14b, 0xffd98a];
+  for (let i = 0; i < 28; i++) {
+    const t = i / 27;
+    const x = -BODY_LENGTH * 0.42 + t * BODY_LENGTH * 0.84;
+    const side = i % 2 === 0 ? 1 : -1;
+    const kind = i % 3;
+    if (kind === 0) {
+      // Scale disc
+      const scale = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 8, 6),
+        mat(patternCols[i % patternCols.length]!, { metal: 0.35, emissive: GOLD, eInt: 0.06 }),
+      );
+      scale.scale.set(1.2, 0.35, 1);
+      scale.position.set(x, 0.55 + (i % 4) * 0.08, side * (0.62 + (i % 3) * 0.05));
+      cloth.add(scale);
+    } else if (kind === 1) {
+      // Cloud puff cluster
+      for (let k = 0; k < 3; k++) {
+        const puff = new THREE.Mesh(
+          new THREE.SphereGeometry(0.07, 8, 6),
+          mat(0xffe8a8, { rough: 0.5, emissive: GOLD, eInt: 0.05 }),
+        );
+        puff.position.set(
+          x + (k - 1) * 0.08,
+          0.7 + Math.abs(k - 1) * 0.04,
+          side * 0.5,
+        );
+        cloth.add(puff);
+      }
+    } else {
+      // Spiral / coin dots
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 8, 6),
+        mat(GOLD, { metal: 0.55, emissive: GOLD, eInt: 0.15 }),
+      );
+      dot.position.set(x, 0.95, side * 0.35);
+      cloth.add(dot);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.09, 0.018, 4, 10),
+        mat(0xffe066, { metal: 0.4 }),
+      );
+      ring.position.copy(dot.position);
+      ring.rotation.y = Math.PI / 2;
+      cloth.add(ring);
+    }
   }
 
-  // Spine pompoms
-  for (let i = 0; i < 5; i++) {
-    const pom = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 10, 8),
-      mat(i % 2 === 0 ? GOLD : 0xffe8a8, { metal: 0.35, emissive: GOLD, eInt: 0.08 }),
+  // Wavy / scalloped hem + fringe (hides hips, leaves thighs visible)
+  const hem = new THREE.Group();
+  hem.position.set(0, 0.12, 0);
+  cloth.add(hem);
+  const hemN = 18;
+  for (let i = 0; i < hemN; i++) {
+    const t = i / (hemN - 1);
+    const x = -BODY_LENGTH * 0.46 + t * BODY_LENGTH * 0.92;
+    const wave = Math.sin(t * Math.PI * 5) * 0.08;
+    for (const z of [-0.7, 0.7]) {
+      const scallop = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2 + (i % 3) * 0.02, 10, 8),
+        mat(i % 2 === 0 ? RED : DARK_RED, { rough: 0.55 }),
+      );
+      scallop.scale.set(0.85, 1.15, 0.7);
+      scallop.position.set(x, wave - 0.15, z * (0.95 + Math.abs(wave) * 0.2));
+      hem.add(scallop);
+      // Gold hem trim bead
+      const bead = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05, 6, 5),
+        mat(GOLD, { metal: 0.5, emissive: GOLD, eInt: 0.1 }),
+      );
+      bead.position.set(x, wave - 0.32, z * 0.98);
+      hem.add(bead);
+      // Fringe strand
+      const fringe = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.025, 0.22 + (i % 4) * 0.04, 3, 5),
+        mat(i % 3 === 0 ? GOLD : 0xffe8a8, { rough: 0.45 }),
+      );
+      fringe.position.set(x, wave - 0.48, z * 0.95);
+      hem.add(fringe);
+    }
+  }
+  // Center-front / center-rear hem flaps (read as hanging cloth)
+  for (const x of [-BODY_LENGTH * 0.4, 0, BODY_LENGTH * 0.4]) {
+    const flap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 12, 10),
+      mat(RED, { rough: 0.52 }),
     );
-    pom.position.set(-0.9 + i * 0.45, 1.0, 0);
-    body.add(pom);
+    flap.scale.set(1.4, 1.1, 0.55);
+    flap.position.set(x, -0.22, 0);
+    hem.add(flap);
   }
 
-  // Curly tail
+  // Fluffy pom-pom tail (~17% of total length)
   const tail = new THREE.Group();
-  tail.position.set(-BODY_LENGTH * 0.52, 0.35, 0);
+  tail.position.set(-BODY_LENGTH * 0.52, 0.55, 0);
+  cloth.add(tail);
   let prev: THREE.Object3D = tail;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     const seg = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2 - i * 0.015, 10, 8),
-      mat(i === 4 ? GOLD : RED, { rough: 0.5 }),
+      new THREE.SphereGeometry(0.28 - i * 0.02, 12, 10),
+      mat(i >= 4 ? GOLD : i % 2 === 0 ? RED : DARK_RED, { rough: 0.5 }),
     );
-    seg.position.set(-0.22 - i * 0.02, Math.sin(i * 0.9) * 0.12, Math.cos(i) * 0.04);
+    seg.position.set(-0.28 - i * 0.02, 0.08 + Math.sin(i * 0.7) * 0.1, Math.cos(i) * 0.03);
     prev.add(seg);
     prev = seg;
   }
-  body.add(tail);
+  // Fluffy tip burst
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const fluff = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 8, 6),
+      mat(i % 2 === 0 ? GOLD : 0xffe8a8, { rough: 0.45, emissive: GOLD, eInt: 0.08 }),
+    );
+    fluff.position.set(-0.15 + Math.cos(a) * 0.12, Math.sin(a) * 0.12, Math.sin(a * 2) * 0.08);
+    prev.add(fluff);
+  }
 
-  // ── Head: kawaii 醒獅, face on camera (+Z), snout toward travel (+X) ─
-  const headHomeY = 0.95;
+  // ── Head: classic 醒獅 silhouette + cute kawaii face ─────────────────
+  // Proportions: head ≈ 28% of total length (r≈1.2 → ~2.4 dia on ~8.6 total)
+  const headHomeY = 1.15;
   const head = new THREE.Group();
-  head.position.set(BODY_LENGTH * 0.48, headHomeY, 0.12);
-  head.rotation.y = 0.32;
+  head.position.set(BODY_LENGTH * 0.48, headHomeY, 0.1);
+  head.rotation.y = 0.28;
   body.add(head);
 
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.02, 24, 20), mat(RED, { rough: 0.42 }));
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.15, 26, 22), mat(RED, { rough: 0.42 }));
   head.add(skull);
   addOutline(head, skull, 1.04);
 
-  // Soft fluffy mane — rounded tufts (red / orange / gold), denser ring
+  // Big forehead dome
+  const forehead = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 14), mat(RED, { rough: 0.42 }));
+  forehead.scale.set(1.15, 0.85, 1.05);
+  forehead.position.set(0.15, 0.85, 0.55);
+  head.add(forehead);
+  addOutline(head, forehead, 1.05);
+
+  // Single gold horn / ornament on top
+  const hornBase = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 10, 8),
+    mat(GOLD, { metal: 0.55, emissive: GOLD, eInt: 0.25 }),
+  );
+  hornBase.position.set(0.05, 1.35, 0.25);
+  head.add(hornBase);
+  const horn = new THREE.Mesh(
+    new THREE.ConeGeometry(0.12, 0.45, 8),
+    mat(GOLD, { metal: 0.6, emissive: GOLD, eInt: 0.35 }),
+  );
+  horn.position.set(0.05, 1.62, 0.25);
+  head.add(horn);
+  const hornTip = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 8, 6),
+    mat(0xffe066, { metal: 0.5, emissive: GOLD, eInt: 0.3 }),
+  );
+  hornTip.position.set(0.05, 1.85, 0.25);
+  head.add(hornTip);
+
+  // Soft fluffy mane — leave face clear
   const maneColors = [RED, 0xf97316, GOLD, 0xe23a2e, 0xffb347];
-  for (let i = 0; i < 20; i++) {
-    const a = (i / 20) * Math.PI * 2;
-    if (Math.cos(a) > 0.78) continue; // leave face clear
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2;
+    if (Math.cos(a) > 0.72) continue;
     const tuft = new THREE.Mesh(
-      new THREE.SphereGeometry(0.22 + (i % 3) * 0.04, 10, 8),
+      new THREE.SphereGeometry(0.24 + (i % 3) * 0.04, 10, 8),
       mat(maneColors[i % maneColors.length]!, { rough: 0.55 }),
     );
-    tuft.scale.set(0.9, 1.2, 0.9);
-    tuft.position.set(Math.sin(a) * 1.0, Math.sin(a * 2) * 0.1 + 0.2, Math.cos(a) * 1.0);
-    head.add(tuft);
-  }
-  for (let i = 0; i < 6; i++) {
-    const tuft = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 10, 8),
-      mat(i % 2 === 0 ? GOLD : 0xf97316, { rough: 0.5 }),
-    );
-    tuft.position.set(-0.2 + i * 0.12, 1.0, 0.4 - Math.abs(i - 2.5) * 0.06);
+    tuft.scale.set(0.9, 1.25, 0.9);
+    tuft.position.set(Math.sin(a) * 1.12, Math.sin(a * 2) * 0.12 + 0.25, Math.cos(a) * 1.12);
     head.add(tuft);
   }
 
-  // Gold forehead ornament
+  // Gold brow plate + gem
   const browPlate = new THREE.Mesh(
-    new THREE.SphereGeometry(0.28, 14, 12),
+    new THREE.SphereGeometry(0.32, 14, 12),
     mat(GOLD, { metal: 0.55, emissive: GOLD, eInt: 0.3 }),
   );
-  browPlate.scale.set(1.2, 0.4, 0.85);
-  browPlate.position.set(0.1, 0.72, 0.7);
+  browPlate.scale.set(1.25, 0.42, 0.9);
+  browPlate.position.set(0.12, 0.78, 0.85);
   head.add(browPlate);
   const browGem = new THREE.Mesh(
-    new THREE.SphereGeometry(0.11, 10, 8),
+    new THREE.SphereGeometry(0.12, 10, 8),
     mat(0xff6b6b, { metal: 0.35, emissive: 0xff6b6b, eInt: 0.3 }),
   );
-  browGem.position.set(0.12, 0.74, 0.88);
+  browGem.position.set(0.14, 0.8, 1.05);
   head.add(browGem);
 
-  // Short rounded ears
-  const leftEar = new THREE.Group();
-  leftEar.position.set(-0.2, 0.85, -0.55);
-  const earL = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(RED));
-  earL.scale.set(0.55, 1.05, 0.5);
-  leftEar.add(earL);
-  const earLin = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), mat(0xffb7c5));
-  earLin.scale.set(0.5, 0.95, 0.35);
-  earLin.position.set(0.03, 0.02, -0.02);
-  leftEar.add(earLin);
+  // Big floppy decorated ears
+  function makeEar(side: 1 | -1): THREE.Group {
+    const g = new THREE.Group();
+    g.position.set(-0.15, 0.95, side * 0.95);
+    g.rotation.z = side * -0.35;
+    g.rotation.x = side * 0.15;
+    const outer = new THREE.Mesh(new THREE.SphereGeometry(0.38, 14, 12), mat(RED, { rough: 0.5 }));
+    outer.scale.set(0.45, 1.35, 0.85);
+    g.add(outer);
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mat(0xffb7c5, { rough: 0.55 }));
+    inner.scale.set(0.4, 1.15, 0.55);
+    inner.position.set(0.06, 0.02, side * 0.04);
+    g.add(inner);
+    // Gold ear trim
+    const trim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.28, 0.035, 4, 12, Math.PI * 1.2),
+      mat(GOLD, { metal: 0.5, emissive: GOLD, eInt: 0.15 }),
+    );
+    trim.rotation.y = Math.PI / 2;
+    trim.position.set(0.02, 0.05, 0);
+    g.add(trim);
+    const pom = new THREE.Mesh(
+      new THREE.SphereGeometry(0.1, 8, 6),
+      mat(GOLD, { metal: 0.4, emissive: GOLD, eInt: 0.12 }),
+    );
+    pom.position.set(0, -0.45, 0);
+    g.add(pom);
+    return g;
+  }
+  const leftEar = makeEar(-1);
+  const rightEar = makeEar(1);
   head.add(leftEar);
-
-  const rightEar = new THREE.Group();
-  rightEar.position.set(-0.15, 0.88, 0.55);
-  const earR = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(RED));
-  earR.scale.set(0.55, 1.05, 0.5);
-  rightEar.add(earR);
-  const earRin = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), mat(0xffb7c5));
-  earRin.scale.set(0.5, 0.95, 0.35);
-  earRin.position.set(0.03, 0.02, 0.02);
-  rightEar.add(earRin);
   head.add(rightEar);
 
   // Kawaii eyes — tall glossy dark ovals, flush, set low & wide
   function makeEye(x: number): THREE.Group {
     const g = new THREE.Group();
-    g.position.set(x, -0.02, 0.99);
+    g.position.set(x, 0.02, 1.12);
     const oval = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 16, 12),
+      new THREE.SphereGeometry(0.22, 16, 12),
       mat(0x1a1208, { rough: 0.16, metal: 0.12 }),
     );
-    oval.scale.set(0.68, 1.25, 0.38);
+    oval.scale.set(0.68, 1.28, 0.38);
     g.add(oval);
     const lid = new THREE.Mesh(
-      new THREE.TorusGeometry(0.18, 0.04, 6, 14, Math.PI * 0.95),
+      new THREE.TorusGeometry(0.2, 0.04, 6, 14, Math.PI * 0.95),
       mat(0x3a2010, { rough: 0.5 }),
     );
     lid.rotation.x = Math.PI / 2;
     lid.rotation.z = Math.PI;
-    lid.position.set(0, 0.15, 0.05);
+    lid.position.set(0, 0.16, 0.05);
     lid.scale.set(0.85, 1, 0.7);
     g.add(lid);
-    const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), basic(0xffffff));
-    h1.position.set(0.045, 0.07, 0.1);
+    const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), basic(0xffffff));
+    h1.position.set(0.05, 0.08, 0.1);
     g.add(h1);
-    const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), basic(0xffffff));
-    h2.position.set(-0.05, -0.05, 0.09);
+    const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), basic(0xffffff));
+    h2.position.set(-0.055, -0.055, 0.09);
     g.add(h2);
     return g;
   }
-  const leftEye = makeEye(-0.42);
-  const rightEye = makeEye(0.42);
+  const leftEye = makeEye(-0.48);
+  const rightEye = makeEye(0.48);
   head.add(leftEye);
   head.add(rightEye);
 
   // Rosy blush cheeks
-  for (const x of [-0.58, 0.58]) {
+  for (const x of [-0.68, 0.68]) {
     const blush = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 10, 8),
+      new THREE.SphereGeometry(0.15, 10, 8),
       mat(0xff8fab, { rough: 0.6, emissive: 0xff8fab, eInt: 0.28 }),
     );
     blush.scale.set(1.15, 0.65, 0.32);
-    blush.position.set(x, -0.22, 0.9);
+    blush.position.set(x, -0.2, 1.0);
     head.add(blush);
   }
 
-  // Small round nose + tiny friendly smile
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), mat(0x2a1810));
-  nose.position.set(0.12, -0.18, 1.06);
+  // Small round nose
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), mat(0x2a1810));
+  nose.position.set(0.15, -0.15, 1.2);
   head.add(nose);
 
+  // Hinged jaw + wide beard / jaw fringe (white + gold fur)
   const jaw = new THREE.Group();
-  jaw.position.set(0.1, -0.42, 0.96);
+  jaw.position.set(0.12, -0.55, 0.95);
   head.add(jaw);
 
+  const jawPlate = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42, 14, 12),
+    mat(RED, { rough: 0.48 }),
+  );
+  jawPlate.scale.set(1.15, 0.55, 0.85);
+  jawPlate.position.set(0.05, -0.05, 0.1);
+  jaw.add(jawPlate);
+
   const mouthSmile = new THREE.Group();
-  // Curved smile via short torus arc
   const smileArc = new THREE.Mesh(
-    new THREE.TorusGeometry(0.16, 0.035, 6, 16, Math.PI * 0.9),
+    new THREE.TorusGeometry(0.18, 0.038, 6, 16, Math.PI * 0.9),
     mat(0x2a1810, { rough: 0.55 }),
   );
   smileArc.rotation.x = Math.PI / 2;
   smileArc.rotation.z = Math.PI;
   smileArc.scale.set(1.15, 1, 0.7);
   mouthSmile.add(smileArc);
-  const tongue = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat(0xff6b8a, { rough: 0.4 }));
+  const tongue = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(0xff6b8a, { rough: 0.4 }));
   tongue.scale.set(1.1, 0.55, 0.7);
-  tongue.position.set(0.02, -0.06, 0.04);
+  tongue.position.set(0.02, -0.08, 0.05);
   mouthSmile.add(tongue);
   jaw.add(mouthSmile);
 
-  // Surprised 'O' mouth (hidden until fall)
   const mouthO = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 12, 10),
+    new THREE.SphereGeometry(0.14, 12, 10),
     mat(0x2a1810, { rough: 0.55 }),
   );
   mouthO.scale.set(0.85, 1.05, 0.55);
-  mouthO.position.set(0.02, -0.02, 0.02);
+  mouthO.position.set(0.02, -0.02, 0.05);
   mouthO.visible = false;
   jaw.add(mouthO);
 
-  // Soft snout hint toward travel (keeps profile readable, doesn't hide face)
-  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), mat(DARK_RED, { rough: 0.5 }));
-  snout.scale.set(1.1, 0.75, 0.85);
-  snout.position.set(0.85, -0.05, 0.2);
+  // Beard / jaw fringe fan
+  for (let i = 0; i < 14; i++) {
+    const a = -0.9 + (i / 13) * 1.8;
+    const strand = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12 + (i % 3) * 0.02, 8, 6),
+      mat(i % 3 === 0 ? GOLD : 0xfff6e4, { rough: 0.55 }),
+    );
+    strand.scale.set(0.7, 1.4, 0.6);
+    strand.position.set(
+      Math.sin(a) * 0.15 + 0.05,
+      -0.28 - Math.cos(a * 0.5) * 0.12,
+      0.25 + Math.cos(a) * 0.35,
+    );
+    jaw.add(strand);
+  }
+
+  // Soft snout toward travel
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 10), mat(DARK_RED, { rough: 0.5 }));
+  snout.scale.set(1.15, 0.75, 0.9);
+  snout.position.set(0.95, -0.02, 0.25);
   head.add(snout);
 
-  // 花花 + drum on top / behind — face unobstructed
+  // 花花 + drum on head back/top — face clear
   const flower = buildFlower();
-  const flowerHome = new THREE.Vector3(-0.4, 1.15, 0.1);
+  const flowerHome = new THREE.Vector3(-0.55, 1.25, 0.05);
   flower.position.copy(flowerHome);
-  flower.scale.setScalar(1.1);
+  flower.scale.setScalar(1.15);
   head.add(flower);
 
-  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.18, 16), mat(RED));
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.2, 16), mat(RED));
   drum.rotation.z = Math.PI / 2;
-  drum.position.set(-0.45, 1.05, -0.4);
+  drum.position.set(-0.55, 1.1, -0.45);
   head.add(drum);
-  const drumSkin = new THREE.Mesh(new THREE.CircleGeometry(0.195, 16), mat(CREAM));
+  const drumSkin = new THREE.Mesh(new THREE.CircleGeometry(0.215, 16), mat(CREAM));
   drumSkin.rotation.y = Math.PI / 2;
-  drumSkin.position.set(-0.35, 1.05, -0.4);
+  drumSkin.position.set(-0.44, 1.1, -0.45);
   head.add(drumSkin);
+  for (const dz of [-0.12, 0.12]) {
+    const stick = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.025, 0.28, 3, 6),
+      mat(WOOD),
+    );
+    stick.position.set(-0.5, 1.28, -0.45 + dz);
+    stick.rotation.z = 0.5;
+    head.add(stick);
+  }
 
-  // Slender jointed legs — clear of the belly
+  // Slender jointed legs under the humps (hips partly hidden by hem)
   const legs = {} as Record<LegId, LegMeshes>;
   for (const id of LEG_IDS) {
     const leg = buildLeg(id);
     const a = LEG_ATTACH[id];
-    leg.root.position.set(a.x, -0.4, a.z);
+    leg.root.position.set(a.x, -0.35, a.z);
     leg.root.renderOrder = 5;
     leg.root.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.renderOrder = 5;
@@ -383,19 +580,25 @@ export function buildLion(): LionMeshes {
     root.add(dust);
   }
 
-  // Invisible core AABB for camera framing checks (excludes fluffy mane / outlines)
+  // Invisible core AABB for camera framing (nose→tail, feet→horn)
   const frameCore = new THREE.Mesh(
-    new THREE.BoxGeometry(BODY_LENGTH + 2.2, BODY_HEIGHT + 0.55, BODY_WIDTH + 0.7),
+    new THREE.BoxGeometry(BODY_LENGTH + 3.6, BODY_HEIGHT + 0.7, BODY_WIDTH + 0.85),
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   frameCore.name = 'frameCore';
-  frameCore.position.set(0.15, -0.35, 0);
+  frameCore.position.set(0.1, -0.3, 0);
   root.add(frameCore);
 
   root.position.y = BODY_HEIGHT;
   return {
     root,
     body,
+    cloth,
+    frontHump,
+    rearHump,
+    frontHumpHomeY,
+    rearHumpHomeY,
+    hem,
     head,
     headHomeY,
     legs,
@@ -539,7 +742,7 @@ export function applyLegPose(
     if (fallen && flailT > 0) {
       const phase = flailT * (3.6 + LEG_ATTACH[id].x * 0.4) + LEG_ATTACH[id].z * 7;
       const kick = 0.55 + 0.7 * Math.abs(Math.sin(phase));
-      leg.root.position.y = -0.1 + Math.abs(Math.sin(phase * 0.8)) * 0.3;
+      leg.root.position.y = -0.05 + Math.abs(Math.sin(phase * 0.8)) * 0.3;
       // Flail in-plane + a little out-of-plane for volume
       leg.thigh.rotation.z = Math.sin(phase) * 0.9;
       leg.thigh.rotation.x = Math.cos(phase * 0.85) * 0.35;
@@ -559,7 +762,7 @@ export function applyLegPose(
     leg.shin.rotation.z = -(12 * DEG + L * 70 * DEG);
     leg.foot.rotation.z = L * 15 * DEG;
     leg.foot.rotation.x = 0;
-    leg.root.position.y = -0.4 + L * 0.55;
+    leg.root.position.y = -0.35 + L * 0.55;
   }
 }
 

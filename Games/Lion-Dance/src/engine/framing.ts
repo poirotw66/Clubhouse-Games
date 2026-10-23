@@ -6,12 +6,12 @@
 import * as THREE from 'three';
 
 /** Approximate upright lion height in world metres (feet→horn). */
-export const LION_WORLD_HEIGHT = 4.0;
-/** Core silhouette length (nose→tail) used for width framing. */
-export const LION_WORLD_LENGTH = 5.0;
+export const LION_WORLD_HEIGHT = 4.15;
+/** Core silhouette length (nose→tail tip) — longer draped 醒獅 body. */
+export const LION_WORLD_LENGTH = 8.8;
 
 /** Desired lion height as fraction of viewport height. */
-export const LION_FILL = 0.37;
+export const LION_FILL = 0.34;
 
 /** NDC margin that must remain clear around the projected AABB. */
 export const FRAME_MARGIN_NDC = 0.04;
@@ -41,17 +41,18 @@ export function computeCameraFrame(aspect: number): CameraFrame {
   const halfH = halfV * Math.max(0.35, aspect);
   // Portrait is width-limited for a side-on lion — pull back enough for clear
   // side margins (height fill will sit under the desktop band).
-  const widthFill = aspect < 0.7 ? 0.68 : aspect < 1 ? 0.62 : 0.52;
+  // Longer lion is width-limited — portrait may sit under the desktop height band.
+  const widthFill = aspect < 0.7 ? 0.88 : aspect < 1 ? 0.74 : 0.6;
   const distW = LION_WORLD_LENGTH / widthFill / (2 * halfH);
-  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.12 : aspect < 1 ? 1.08 : 1.02);
+  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.06 : aspect < 1 ? 1.08 : 1.04);
 
   return {
     fov,
     distance,
-    camY: LION_WORLD_HEIGHT * 0.48,
-    lookY: LION_WORLD_HEIGHT * 0.42,
+    camY: LION_WORLD_HEIGHT * 0.46,
+    lookY: LION_WORLD_HEIGHT * 0.4,
     // Slight left bias so space sits ahead; keep portrait nearly centred.
-    lookAhead: aspect < 0.7 ? 0.02 : aspect < 1 ? 0.2 : 0.65,
+    lookAhead: aspect < 0.7 ? 0.05 : aspect < 1 ? 0.25 : 0.55,
   };
 }
 
