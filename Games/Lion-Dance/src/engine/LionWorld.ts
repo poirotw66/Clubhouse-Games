@@ -263,15 +263,17 @@ export function createLionWorld(): LionWorld {
 
     if (sim.fallen) {
       const side = sim.fallSide || 1;
-      const land = Math.min(1, sim.fallSpin * 0.55);
+      const land = Math.min(1, sim.fallSpin * 0.7);
       // Squash on impact
-      const squash = 1 - 0.12 * Math.sin(Math.min(1, sim.fallBounce) * Math.PI);
-      root.scale.set(1 + (1 - squash) * 0.15, squash, 1 + (1 - squash) * 0.1);
-      root.position.set(sim.x, Math.max(0.45, sim.y * 0.55), side * 0.2 * land);
+      const squash = 1 - 0.14 * Math.sin(Math.min(1, sim.fallBounce) * Math.PI);
+      root.scale.set(1 + (1 - squash) * 0.12, squash, 1 + (1 - squash) * 0.18);
+      // Roll around X (track axis) so the long body stays horizontal on screen
+      // while tipping onto its side toward/away from the camera.
+      root.position.set(sim.x, Math.max(0.55, 0.55 + sim.y * 0.15 * (1 - land)), side * 0.35 * land);
       root.rotation.set(
-        THREE.MathUtils.clamp(sim.pitch * 0.4, -0.5, 0.3),
+        side * (Math.PI / 2) * land + Math.sin(sim.fallSpin * 1.5) * 0.08 * (1 - land),
         0,
-        side * (Math.PI / 2) * land,
+        THREE.MathUtils.clamp(sim.pitch * 0.25, -0.35, 0.25),
       );
       // 花花 flung in an arc (world-ish local)
       if (!flowerDetached) {
@@ -728,7 +730,10 @@ export function createLionWorld(): LionWorld {
       if (!lion || !camera) return null;
       lion.root.updateWorldMatrix(true, true);
       camera.updateMatrixWorld(true);
-      const bounds = projectObjectBounds(lion.root, camera);
+      // Prefer a tight core box (body+head+feet) so mane outlines don't force
+      // an overly long pull-back — still fail if that core is cropped.
+      const core = lion.root.getObjectByName('frameCore') ?? lion.root;
+      const bounds = projectObjectBounds(core, camera);
       return checkLionFramed(bounds);
     },
 

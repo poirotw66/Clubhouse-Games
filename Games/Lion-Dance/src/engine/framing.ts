@@ -7,7 +7,8 @@ import * as THREE from 'three';
 
 /** Approximate upright lion height in world metres (feet→horn). */
 export const LION_WORLD_HEIGHT = 3.35;
-export const LION_WORLD_LENGTH = 4.2;
+/** Core silhouette length (nose→tail) used for width framing. */
+export const LION_WORLD_LENGTH = 4.5;
 
 /** Desired lion height as fraction of viewport height. */
 export const LION_FILL = 0.37;
@@ -27,22 +28,29 @@ export interface CameraFrame {
 /** Aspect-adaptive FOV + distance so portrait/mobile does not crop. */
 export function computeCameraFrame(aspect: number): CameraFrame {
   let fov = 28;
-  if (aspect < 0.7) fov = 46;
-  else if (aspect < 0.9) fov = 40;
+  if (aspect < 0.7) fov = 48;
+  else if (aspect < 0.9) fov = 42;
   else if (aspect < 1.15) fov = 34;
   else if (aspect < 1.45) fov = 30;
 
   const vFov = (fov * Math.PI) / 180;
-  const visibleH = LION_WORLD_HEIGHT / LION_FILL;
-  const distance = visibleH / (2 * Math.tan(vFov / 2));
-  // Portrait: pull back a bit more so length fits
-  const distMul = aspect < 1 ? 1.12 : 1;
+  const halfV = Math.tan(vFov / 2);
+  // Distance from height fill target
+  const distH = LION_WORLD_HEIGHT / LION_FILL / (2 * halfV);
+  // Distance from length so the whole lion fits horizontally with margin
+  const halfH = halfV * Math.max(0.35, aspect);
+  // Portrait is width-limited for a side-on lion — keep as close as possible
+  // while fully visible (height fill will be a bit under the desktop band).
+  const widthFill = aspect < 0.7 ? 0.82 : aspect < 1 ? 0.7 : 0.55;
+  const distW = LION_WORLD_LENGTH / widthFill / (2 * halfH);
+  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.04 : aspect < 1 ? 1.04 : 1.02);
+
   return {
     fov,
-    distance: distance * distMul,
+    distance,
     camY: LION_WORLD_HEIGHT * 0.48,
     lookY: LION_WORLD_HEIGHT * 0.42,
-    lookAhead: aspect < 1 ? 0.35 : 0.9,
+    lookAhead: aspect < 1 ? 0.08 : 0.7,
   };
 }
 

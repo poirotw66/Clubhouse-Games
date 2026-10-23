@@ -361,6 +361,15 @@ export function buildLion(): LionMeshes {
     root.add(dust);
   }
 
+  // Invisible core AABB for camera framing checks (excludes fluffy mane / outlines)
+  const frameCore = new THREE.Mesh(
+    new THREE.BoxGeometry(BODY_LENGTH + 1.6, BODY_HEIGHT + 0.35, BODY_WIDTH + 0.5),
+    new THREE.MeshBasicMaterial({ visible: false }),
+  );
+  frameCore.name = 'frameCore';
+  frameCore.position.set(0.1, -0.15, 0);
+  root.add(frameCore);
+
   root.position.y = BODY_HEIGHT;
   return {
     root,
@@ -490,13 +499,13 @@ export function applyLegPose(
       leg.foot.rotation.x = -kick * 0.5;
       continue;
     }
-    // Hip swings forward; knee bends with lift
-    leg.thigh.rotation.x = -S * 0.95;
+    // Hip swings forward; knee bends with lift (readable FK)
+    leg.thigh.rotation.x = -S * 1.05 - L * 0.25;
     leg.thigh.rotation.z = 0;
-    leg.shin.rotation.x = L * 1.25;
-    leg.foot.rotation.x = -L * 0.4 + Math.max(0, S) * 0.15;
-    // Slight raise of whole leg when lifted
-    leg.root.position.y = -0.05 + L * 0.35;
+    leg.shin.rotation.x = 0.15 + L * 1.45;
+    leg.foot.rotation.x = -L * 0.55 + Math.max(0, S) * 0.2;
+    // Raise whole leg when lifted so feet clear the ground visibly
+    leg.root.position.y = -0.05 + L * 0.55;
   }
 }
 
