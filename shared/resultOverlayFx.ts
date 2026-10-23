@@ -86,12 +86,18 @@ export function countUpStat(
     return { cancel() {} };
   }
 
-  const duration = Math.max(420, Math.min(1400, opts.durationMs ?? 900 * fxMultiplier()));
+  const duration = Math.max(480, Math.min(1500, opts.durationMs ?? 980 * fxMultiplier()));
   const start = performance.now();
   const from = 0;
   const to = parsed.value;
   let raf = 0;
   let cancelled = false;
+
+  const punch = () => {
+    el.classList.remove('is-punch');
+    void el.offsetWidth;
+    el.classList.add('is-punch');
+  };
 
   const tick = (now: number) => {
     if (cancelled) return;
@@ -100,7 +106,10 @@ export function countUpStat(
     const current = from + (to - from) * eased;
     el.textContent = formatCountedValue(parsed, current);
     if (t < 1) raf = requestAnimationFrame(tick);
-    else el.textContent = formatCountedValue(parsed, to);
+    else {
+      el.textContent = formatCountedValue(parsed, to);
+      punch();
+    }
   };
   raf = requestAnimationFrame(tick);
 
@@ -158,7 +167,7 @@ export function celebrateResultOverlay(opts: {
   const emphasis = opts.emphasis ?? 'standard';
   const isRecord = emphasis === 'record';
   const strength =
-    (isRecord ? 1.35 : opts.variant === 'win' ? 1.15 : opts.variant === 'lose' ? 0.6 : 0.8) *
+    (isRecord ? 1.45 : opts.variant === 'win' ? 1.25 : opts.variant === 'lose' ? 0.75 : 0.9) *
     Math.max(0.4, mult);
 
   const colors =
@@ -170,12 +179,15 @@ export function celebrateResultOverlay(opts: {
           ? LOSE_COLORS
           : NEUTRAL_COLORS;
 
+  const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+
   const primary = isRecord ? 'confetti' : variantParticlePreset(opts.variant);
   if (primary) {
     particles(primary, {
       el: opts.cardEl ?? null,
       strength,
-      count: isRecord || opts.variant === 'win' ? 40 : opts.variant === 'lose' ? 14 : 20,
+      count: isRecord || opts.variant === 'win' ? 48 : opts.variant === 'lose' ? 22 : 28,
       colors,
     });
   }
@@ -184,52 +196,138 @@ export function celebrateResultOverlay(opts: {
     window.setTimeout(() => {
       particles('sparkle', {
         el: opts.cardEl ?? null,
-        strength: strength * 0.9,
+        strength: strength * 1.05,
+        count: 36,
+        colors,
+      });
+      particles('burst', {
+        el: opts.cardEl ?? null,
+        strength: strength * 0.95,
         count: 28,
         colors,
       });
-    }, 160);
+    }, 120);
     window.setTimeout(() => {
       particles('confetti', {
-        x: typeof window !== 'undefined' ? window.innerWidth * 0.25 : undefined,
-        y: typeof window !== 'undefined' ? window.innerHeight * 0.28 : undefined,
-        strength: strength * 0.85,
-        count: 32,
+        x: w * 0.18,
+        y: h * 0.22,
+        strength: strength * 0.95,
+        count: 40,
         colors,
       });
       particles('confetti', {
-        x: typeof window !== 'undefined' ? window.innerWidth * 0.75 : undefined,
-        y: typeof window !== 'undefined' ? window.innerHeight * 0.28 : undefined,
-        strength: strength * 0.85,
+        x: w * 0.82,
+        y: h * 0.22,
+        strength: strength * 0.95,
+        count: 40,
+        colors,
+      });
+    }, 280);
+    window.setTimeout(() => {
+      particles('confetti', {
+        x: w * 0.5,
+        y: h * 0.12,
+        strength: strength * 1.05,
+        count: 44,
+        colors,
+      });
+      particles('sparkle', {
+        x: w * 0.5,
+        y: h * 0.35,
+        strength: strength,
         count: 32,
         colors,
       });
-    }, 320);
+    }, 460);
     window.setTimeout(() => {
       particles('burst', {
         el: opts.cardEl ?? null,
-        strength: strength * 1.1,
-        count: 24,
+        strength: strength * 1.2,
+        count: 36,
         colors,
       });
-    }, 520);
+      particles('confetti', {
+        x: w * 0.32,
+        y: h * 0.4,
+        strength: strength * 0.8,
+        count: 28,
+        colors,
+      });
+      particles('confetti', {
+        x: w * 0.68,
+        y: h * 0.4,
+        strength: strength * 0.8,
+        count: 28,
+        colors,
+      });
+    }, 680);
+    if (isRecord) {
+      window.setTimeout(() => {
+        particles('confetti', {
+          x: w * 0.5,
+          y: h * 0.18,
+          strength: 1.4,
+          count: 48,
+          colors: RECORD_COLORS,
+        });
+        particles('sparkle', {
+          el: opts.cardEl ?? null,
+          strength: 1.3,
+          count: 40,
+          colors: RECORD_COLORS,
+        });
+      }, 900);
+    }
   } else if (opts.variant === 'lose') {
     window.setTimeout(() => {
       particles('dust', {
         el: opts.cardEl ?? null,
+        strength: 0.9,
+        count: 28,
+        colors: LOSE_COLORS,
+      });
+    }, 140);
+    window.setTimeout(() => {
+      particles('dust', {
+        x: w * 0.35,
+        y: h * 0.4,
         strength: 0.7,
+        count: 18,
+        colors: LOSE_COLORS,
+      });
+      particles('dust', {
+        x: w * 0.65,
+        y: h * 0.4,
+        strength: 0.7,
+        count: 18,
+        colors: LOSE_COLORS,
+      });
+    }, 320);
+    window.setTimeout(() => {
+      particles('sparkle', {
+        el: opts.cardEl ?? null,
+        strength: 0.55,
         count: 16,
         colors: LOSE_COLORS,
       });
-    }, 200);
+    }, 520);
+  } else {
+    window.setTimeout(() => {
+      particles('sparkle', {
+        el: opts.cardEl ?? null,
+        strength: strength * 0.85,
+        count: 24,
+        colors,
+      });
+    }, 180);
   }
 
-  if (isRecord) haptic('win', 1.2);
-  else if (opts.variant === 'win') haptic('win', 1);
-  else if (opts.variant === 'lose') haptic('error', 0.75);
-  else haptic('success', 0.6);
+  if (isRecord) haptic('win', 1.25);
+  else if (opts.variant === 'win') haptic('win', 1.05);
+  else if (opts.variant === 'lose') haptic('error', 0.8);
+  else haptic('success', 0.65);
 
-  if (opts.cardEl) pulse(opts.cardEl, isRecord ? 1.08 : opts.variant === 'win' ? 1.06 : 1.03);
+  if (opts.cardEl) pulse(opts.cardEl, isRecord ? 1.1 : opts.variant === 'win' ? 1.07 : 1.04);
 }
 
 /** Split a title into per-character spans for kinetic entrance (keeps spaces). */

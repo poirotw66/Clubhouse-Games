@@ -44,6 +44,9 @@ test('result overlay mist-neon chrome + juice particles on connect-four end', as
   await expect(result.locator('.result-overlay__billboard, .clubhouse-result-overlay__billboard')).toBeVisible();
   await expect(result.locator('.result-overlay__sheen, .clubhouse-result-overlay__sheen').first()).toBeVisible();
   await expect(result.locator('.result-overlay__card, .clubhouse-result-overlay__card').first()).toBeVisible();
+  await expect(result.locator('.result-overlay__aurora, .clubhouse-result-overlay__aurora').first()).toBeVisible();
+  await expect(result.locator('.result-overlay__sparks, .clubhouse-result-overlay__sparks').first()).toBeVisible();
+  await expect(result.locator('.result-overlay__bloom, .clubhouse-result-overlay__bloom').first()).toBeVisible();
   await expect(result.locator('.result-overlay__star, .clubhouse-result-overlay__star')).toHaveCount(5);
   await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1);
   await activate(result.getByRole('button', { name: '再玩一局' }), isMobile);
