@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import { playMove, playScore, playWin, playLose } from '@clubhouse/shared/synthAudio';
@@ -172,6 +174,12 @@ export default function App() {
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef(state.phase);
   const matchRecordedRef = useRef(false);
+  const boardShellRef = useRef<HTMLDivElement | null>(null);
+
+  const placeTileFx = useCallback(() => {
+    haptic('place');
+    particles('dust', { el: boardShellRef.current });
+  }, []);
 
   const isPartners = gameMode === 'partners';
   const isDaily = gameMode === 'daily';
@@ -207,6 +215,8 @@ export default function App() {
   const flashScore = useCallback((points: number) => {
     if (points <= 0) return;
     playScore();
+    haptic('success');
+    particles('sparkle', { el: boardShellRef.current, strength: 0.85 });
     setScoreFlash({ text: `+${points}`, key: Date.now() });
   }, []);
 
@@ -243,6 +253,7 @@ export default function App() {
           const next = playTile(state, seat, move.tileId, move.end);
           if (next) {
             playMove();
+            placeTileFx();
             setLastPlacedId(move.tileId);
             if (next.lastPlayScore > 0 && next.phase === 'playing') {
               flashScore(next.lastPlayScore);
@@ -267,6 +278,7 @@ export default function App() {
     state,
     effectiveDifficulty,
     flashScore,
+    placeTileFx,
     isPartners,
     isDaily,
   ]);
@@ -308,6 +320,9 @@ export default function App() {
     if (!match.matchOver || matchRecordedRef.current) return;
     matchRecordedRef.current = true;
     clearMatch();
+    haptic('win');
+    particles('confetti', { el: boardShellRef.current, strength: 1.1 });
+    shake(boardShellRef.current, 0.95);
     const humanWon = match.matchWinner === 0;
     if (gameMode === 'bot' || gameMode === 'partners' || gameMode === 'daily') {
       if (humanWon) playWin();
@@ -361,6 +376,7 @@ export default function App() {
       if (next) {
         pushHistory();
         playMove();
+        placeTileFx();
         setLastPlacedId(selectedTileId);
         if (next.lastPlayScore > 0 && next.phase === 'playing') {
           flashScore(next.lastPlayScore);
@@ -370,7 +386,7 @@ export default function App() {
         setHintMove(null);
       }
     },
-    [state, selectedTileId, gameMode, pushHistory, flashScore],
+    [state, selectedTileId, gameMode, pushHistory, flashScore, placeTileFx],
   );
 
   const handleDraw = useCallback(() => {
@@ -915,7 +931,11 @@ export default function App() {
         </div>
       )}
 
-      <div className="w-full max-w-2xl overflow-x-auto py-2 sm:py-3 relative">
+      <div
+        ref={boardShellRef}
+        data-dominoes-board="1"
+        className="w-full max-w-2xl overflow-x-auto py-2 sm:py-3 relative"
+      >
         {showSpinnerCross ? (
           <div className="flex flex-col items-center gap-1 min-h-[7rem] sm:min-h-[8rem]">
             <div className="flex items-center gap-1">
@@ -1248,6 +1268,9 @@ export default function App() {
               )}
             </ul>
             <p className="mt-3 text-xs text-slate-400">{RULE_BLURBS[ruleVariant]}</p>
+            <div className="mt-4">
+              <JuiceSettingsPanel />
+            </div>
             <button
               type="button"
               onClick={() => setShowRules(false)}

@@ -5,6 +5,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { fxMultiplier, haptic } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash, type ScoreFlashTone } from '@clubhouse/shared/ScoreFlash';
 import {
@@ -820,9 +822,18 @@ class GameEngine {
       () => this.nextRoll(`feel:${this.hitIndex}`),
       this.state.reducedMotion,
     );
-    this.state.screenShake = feel.screenShake;
+    // Local particles stay as-is; clubhouse:juice fx only scales canvas shake.
+    const fx = fxMultiplier();
+    this.state.screenShake = feel.screenShake * fx;
     this.state.hitStop = feel.hitStop;
     this.state.hitParticles = feel.particles;
+
+    // Shared haptics: impact by quality; perfect contact uses win cue.
+    if (this.state.contactGrade === 'perfect') {
+      haptic('win');
+    } else {
+      haptic('impact', 0.35 + launch.contactQuality * 0.85);
+    }
 
     this.onStateChange(this.state);
   }
@@ -851,6 +862,7 @@ class GameEngine {
       hitType = 'fair';
       this.state.lastLanding = { x, y: Math.min(y, 40) };
       this.state.lastFielderId = null;
+      haptic('win');
       if (this.state.playMode === 'derby') {
         this.state.derbyHrs += 1;
         this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
@@ -961,6 +973,7 @@ class GameEngine {
       } else {
         this.state.resultText = '揮棒落空 (STRIKE)';
       }
+      haptic('error', 0.4);
     } else if (isStrike) {
       this.state.strikes++;
       this.state.resultText = '好球 (STRIKE)';
@@ -2062,6 +2075,10 @@ export default function App() {
                       >
                         操作教學
                       </button>
+                    </div>
+
+                    <div className="mt-5 w-full max-w-md">
+                      <JuiceSettingsPanel compact className="text-zinc-200" />
                     </div>
                   </>
                 )}

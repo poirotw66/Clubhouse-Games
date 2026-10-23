@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import {
   playCard,
@@ -134,6 +136,8 @@ export default function App(): React.ReactElement {
   const matchRecorded = useRef(false);
   const resultSoundPlayed = useRef(false);
   const prevTableRef = useRef<string | null>(null);
+  const prevLogLenRef = useRef(0);
+  const feltRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const saved = loadStats();
@@ -192,6 +196,7 @@ export default function App(): React.ReactElement {
     handRecorded.current = false;
     resultSoundPlayed.current = false;
     prevTableRef.current = null;
+    prevLogLenRef.current = 0;
     saveMatch(nextMatch);
   }, []);
 
@@ -270,7 +275,7 @@ export default function App(): React.ReactElement {
     return () => clearTimeout(timer);
   }, [state]);
 
-  // Juice: animate / announce whenever the table play changes.
+  // Presentation juice + callouts whenever the table play changes (rules untouched).
   useEffect(() => {
     if (!state?.table) {
       prevTableRef.current = null;
@@ -280,12 +285,47 @@ export default function App(): React.ReactElement {
     if (key === prevTableRef.current) return;
     prevTableRef.current = key;
     playCard();
+
+    const size = state.table.cards.length;
+    const strength = Math.min(1.2, 0.35 + size * 0.15);
+    const bombish =
+      state.table.type === 'fullHouse' ||
+      state.table.type === 'quads' ||
+      state.table.type === 'straightFlush';
+    const felt = feltRef.current;
+
+    if (bombish) {
+      haptic(state.table.type === 'fullHouse' ? 'combo' : 'impact', strength);
+      particles('burst', { el: felt, strength });
+      shake(felt, 0.45 * strength);
+    } else {
+      haptic(size >= 2 ? 'place' : 'tap', strength);
+      particles('dust', { el: felt, strength: Math.min(1, strength) });
+    }
+
     if (isFlashyPlay(state.table)) {
       const label = TYPE_LABEL[state.table.type];
       setCallout({ text: label, key: Date.now() });
       if (state.table.type === 'straightFlush' || state.table.type === 'quads') playGoal();
       else if (state.table.type === 'fullHouse') playCapture();
       else playScore();
+    }
+  }, [state]);
+
+  // Pass: light tap only (human + CPU), scaled by nothing — presentation only.
+  useEffect(() => {
+    if (!state) {
+      prevLogLenRef.current = 0;
+      return;
+    }
+    if (state.log.length < prevLogLenRef.current) {
+      prevLogLenRef.current = state.log.length;
+      return;
+    }
+    const added = state.log.slice(prevLogLenRef.current);
+    prevLogLenRef.current = state.log.length;
+    for (const entry of added) {
+      if (entry.play === null) haptic('tap');
     }
   }, [state]);
 
@@ -300,8 +340,11 @@ export default function App(): React.ReactElement {
     const won = result.winner === HUMAN;
     if (!resultSoundPlayed.current) {
       resultSoundPlayed.current = true;
-      if (won) playWin();
-      else playLose();
+      if (won) {
+        playWin();
+        haptic('win');
+        particles('confetti', { el: feltRef.current, strength: 1.1 });
+      } else playLose();
     }
 
     const delta = won ? result.pot : -result.scores[HUMAN].penalty;
@@ -561,7 +604,7 @@ export default function App(): React.ReactElement {
               })}
             </div>
 
-            <Table state={state} seatLabel={seatLabel} />
+            <Table state={state} seatLabel={seatLabel} feltRef={feltRef} />
 
             {callout && (
               <ScoreFlash
@@ -718,9 +761,11 @@ function Opponent({
 function Table({
   state,
   seatLabel,
+  feltRef,
 }: {
   state: GameState;
   seatLabel: (seat: number) => string;
+  feltRef: React.RefObject<HTMLElement | null>;
 }): React.ReactElement {
   const tableKey = state.table
     ? `${state.tableOwner}-${state.table.cards.map((c) => c.id).join(',')}`
@@ -728,6 +773,10 @@ function Table({
 
   return (
     <section
+      ref={(el) => {
+        feltRef.current = el;
+      }}
+      data-bt-felt="1"
       className="bt-felt relative rounded-2xl p-4 min-h-[7rem] flex flex-col items-center justify-center gap-2 overflow-hidden"
       style={feltBackgroundStyle()}
       aria-label="檯面"
@@ -1151,6 +1200,9 @@ function Setup({
                     每留一張 2，牌分再乘 2
                   </span>
                 </button>
+              </div>
+              <div className="mt-3">
+                <JuiceSettingsPanel compact />
               </div>
             </section>
 

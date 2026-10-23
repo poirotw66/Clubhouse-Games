@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { haptic } from '@clubhouse/shared/juice';
 import {
   BASE_SPEED,
   BOOST_DURATION,
@@ -568,6 +569,7 @@ export function createGameWorld(config: RunConfig): GameWorld {
       shieldFlashT = SHIELD_FLASH_SEC;
       shake = Math.max(shake, 0.28);
       iframeT = 0.45;
+      haptic('impact', 0.7);
       return true;
     }
     return false;
@@ -609,6 +611,7 @@ export function createGameWorld(config: RunConfig): GameWorld {
           registerNearMiss(score, perfect);
           nearMissSpeed = Math.min(14, nearMissSpeed + NEAR_MISS_SPEED_BONUS);
           shake = Math.max(shake, perfect ? 0.28 : 0.16);
+          haptic(perfect ? 'success' : 'tap', perfect ? 0.75 : 0.45);
         }
       }
     }
@@ -668,9 +671,11 @@ export function createGameWorld(config: RunConfig): GameWorld {
             registerBoostPickup(score);
             boostT = BOOST_DURATION;
             shake = Math.max(shake, 0.1);
+            haptic('tap', 0.5);
           } else {
             applyPowerup(p.kind);
             shake = Math.max(shake, 0.12);
+            haptic('place', 0.55);
           }
         }
       }
@@ -689,6 +694,7 @@ export function createGameWorld(config: RunConfig): GameWorld {
     phase = 'over';
     shake = 0.55;
     boostT = 0;
+    haptic('error');
     breakCombo(score);
     const credits = creditsFromRun({
       score: score.score,
@@ -851,6 +857,7 @@ export function createGameWorld(config: RunConfig): GameWorld {
       dashCd = dashCdMax;
       registerDash(score);
       shake = Math.max(shake, 0.12);
+      haptic('tap', 0.4);
     },
     getHud() {
       return toHud(score, speed, boostT, hudExtras());
