@@ -1,4 +1,5 @@
 import {
+  STORAGE_ASSIST_KEY,
   STORAGE_BEST_1P,
   STORAGE_BEST_2P,
   STORAGE_BEST_LEGACY,
@@ -79,7 +80,6 @@ export function loadGhost(mode: PlayMode): GhostSample[] | null {
 export function saveGhost(mode: PlayMode, samples: GhostSample[]): void {
   if (samples.length < 2) return;
   try {
-    // Keep payload small
     const slim = samples.length > 600 ? samples.filter((_, i) => i % 2 === 0) : samples;
     localStorage.setItem(ghostKey(mode), JSON.stringify(slim));
   } catch {
@@ -134,6 +134,23 @@ export function loadMode(): PlayMode {
 export function saveMode(mode: PlayMode): void {
   try {
     localStorage.setItem(STORAGE_MODE_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Beginner assist — off by default. */
+export function loadAssist(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_ASSIST_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveAssist(on: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_ASSIST_KEY, on ? '1' : '0');
   } catch {
     /* ignore */
   }

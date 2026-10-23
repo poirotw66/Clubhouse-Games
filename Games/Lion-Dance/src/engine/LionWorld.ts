@@ -9,6 +9,7 @@ import {
   type BeatState,
 } from './beat';
 import {
+  FALL_GRACE,
   FIXED_DT,
   GHOST_SAMPLE_DT,
   KEY_TO_LEG,
@@ -48,6 +49,9 @@ export { formatOnBeatPercent };
 export interface WorldConfig {
   mode: PlayMode;
   muted: boolean;
+  assist: boolean;
+  /** Attract / title idle — no sim ticking, just animate. */
+  attract?: boolean;
   reducedMotion?: boolean;
 }
 
@@ -57,6 +61,7 @@ export interface LionWorld {
   start(config: WorldConfig): void;
   setPaused(paused: boolean): void;
   setMuted(muted: boolean): void;
+  setAssist(assist: boolean): void;
   setLeg(id: LegId, held: boolean): void;
   restart(): void;
   getUpOrRestart(): void;
@@ -92,6 +97,8 @@ export function createLionWorld(): LionWorld {
   let beat: BeatState = createBeatState();
   let mode: PlayMode = '1p';
   let muted = false;
+  let assist = false;
+  let attract = false;
   let renderer: THREE.WebGLRenderer | null = null;
   let scene: THREE.Scene | null = null;
   let camera: THREE.PerspectiveCamera | null = null;
@@ -120,8 +127,9 @@ export function createLionWorld(): LionWorld {
   let ghostSamples: GhostSample[] = [];
   let liveGhost: GhostSample[] = [];
   let ghostSampleAcc = 0;
-  let camPos = new THREE.Vector3(-4.6, 3.1, 6.2);
-  let camTarget = new THREE.Vector3(0.6, 1.35, 0);
+  let camX = 0;
+  let blinkT = 0;
+  let idleT = 0;
   let visibilityPaused = false;
 
   function emitHud(): void {
@@ -146,6 +154,7 @@ export function createLionWorld(): LionWorld {
       onBeatRatio: onBeatRatio(beat.perfects, beat.plants),
       maxCombo,
       mode,
+      fallCount: sim.fallCount,
     };
   }
 
@@ -168,108 +177,128 @@ export function createLionWorld(): LionWorld {
 
   function syncMeshes(dt: number): void {
     if (!lion || !camera || !envelope) return;
-    const { root, head, legs, flower } = lion;
+    const { root, body, head, legs, flower, shadow, leftEye, rightEye, leftEar, rightEar, tail, jaw } =
+      lion;
+
+    idleT += dt;
+    blinkT -= dt;
+    if (blinkT < -2.5 - Math.random()) blinkT = 0.12;
+    const eyeScale = blinkT > 0 ? 0.15 : 1;
+    leftEye.scale.set(1, eyeScale, 1);
+    rightEye.scale.set(1, eyeScale, 1);
+
+    if (!reduced) {
+      leftEar.rotation.z = Math.sin(idleT * 3.2) * 0.12;
+      rightEar.rotation.z = Math.sin(idleT * 3.2 + 0.8) * 0.12;
+      tail.rotation.y = Math.sin(idleT * 2.4) * 0.35;
+      jaw.rotation.x = Math.sin(idleT * 1.6) * 0.06;
+    }
+
+    if (attract) {
+      root.position.set(2.5, sim.y, 0);
+      root.rotation.set(0, 0, Math.sin(idleT * 0.8) * 0.04);
+      // Gentle marching idle
+      for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
+        const phase = idleT * 2.2 + (id === 'FL' || id === 'BR' ? 0 : Math.PI);
+        sim.legs[id].lift = 0.15 + Math.max(0, Math.sin(phase)) * 0.35;
+        sim.legs[id].swing = Math.sin(phase) * 0.4;
+      }
+      applyLegPose(legs, snapshotHudBase(sim, TIME_LIMIT).legLift, snapshotHudBase(sim, TIME_LIMIT).legSwing);
+      flower.scale.setScalar(1 + beat.pulse * 0.1);
+      shadow.position.set(root.position.x, 0.02, 0);
+      camX += (2.5 - camX) * Math.min(1, dt * 3);
+      camera.position.set(camX + 0.4, 3.2, 10.2);
+      camera.lookAt(camX + 1.2, 1.85, 0);
+      return;
+    }
 
     if (sim.fallen) {
-      const wobble = Math.sin(sim.fallSpin * 2.2) * 0.25;
-      root.position.set(sim.x, sim.y, wobble * 0.15);
+      const side = Math.sign(sim.roll) || 1;
+      root.position.set(sim.x, Math.max(0.55, sim.y * 0.45), side * 0.15);
       root.rotation.set(
-        sim.pitch * 0.85,
-        sim.fallSpin * (0.55 + sim.fallStyle * 0.35),
-        sim.roll + Math.sin(sim.fallSpin * 1.6) * 0.55,
+        THREE.MathUtils.clamp(sim.pitch, -0.6, 0.4),
+        0,
+        side * (Math.PI / 2) * Math.min(1, sim.fallSpin * 0.55) + Math.sin(sim.fallSpin * 2) * 0.15,
       );
+      // 花花 flung
+      flower.position.set(
+        -0.05 + Math.sin(sim.fallSpin * 2) * 0.8,
+        0.78 + Math.abs(Math.sin(sim.fallSpin)) * 0.9,
+        Math.cos(sim.fallSpin * 1.5) * 0.6,
+      );
+      flower.rotation.set(sim.fallSpin, sim.fallSpin * 1.3, sim.fallSpin * 0.7);
     } else if (sim.finished) {
       const t = sim.finishAnim;
-      root.position.set(sim.x, sim.y + Math.sin(t * 10) * 0.06 * (1 - t), 0);
-      root.rotation.set(sim.pitch - t * 0.6, Math.sin(t * 6) * 0.08, sim.roll);
-      head.rotation.x = -t * 1.05;
-      head.position.y = 0.15 + t * 0.42;
-      envelope.position.y = 3.4 - t * 1.75;
-      envelope.rotation.z = t * 1.1;
-      envelope.rotation.y = t * 2.2;
-      if (t > 0.4 && confetti) {
+      root.position.set(sim.x, sim.y + Math.sin(t * 10) * 0.08 * (1 - t), 0);
+      root.rotation.set(-t * 0.55, 0, Math.sin(t * 5) * 0.05);
+      head.rotation.x = -t * 0.95;
+      head.position.y = 0.35 + t * 0.55;
+      envelope.position.y = 4.2 - t * 2.1;
+      envelope.rotation.z = t * 1.2;
+      flower.position.set(-0.1, 0.95, 0.1);
+      flower.rotation.set(0, 0, 0);
+      if (t > 0.35 && confetti) {
         confetti.visible = true;
-        const mat = confetti.material as THREE.PointsMaterial;
-        mat.opacity = Math.min(1, (t - 0.4) * 2.5);
+        (confetti.material as THREE.PointsMaterial).opacity = Math.min(1, (t - 0.35) * 2.5);
         if (!reduced && confettiVel) {
           const pos = confetti.geometry.getAttribute('position') as THREE.BufferAttribute;
           for (let i = 0; i < pos.count; i++) {
             pos.setY(i, pos.getY(i) + confettiVel[i]! * dt);
-            confettiVel[i]! -= 10 * dt;
-            pos.setX(i, pos.getX(i) + Math.sin(i + t * 12) * 0.55 * dt);
-            pos.setZ(i, pos.getZ(i) + Math.cos(i * 0.7 + t * 9) * 0.4 * dt);
+            confettiVel[i]! -= 11 * dt;
+            pos.setX(i, pos.getX(i) + Math.sin(i + t * 10) * 0.5 * dt);
           }
           pos.needsUpdate = true;
         }
       }
-      if (t > 0.35 && sparkBurst && sparkVel) {
+      if (t > 0.3 && sparkBurst && sparkVel) {
         sparkBurst.visible = true;
         const mat = sparkBurst.material as THREE.PointsMaterial;
-        mat.opacity = Math.min(1, (t - 0.35) * 3) * (1 - Math.max(0, t - 0.75) * 3);
+        mat.opacity = Math.min(1, (t - 0.3) * 3) * (1 - Math.max(0, t - 0.75) * 3);
         const pos = sparkBurst.geometry.getAttribute('position') as THREE.BufferAttribute;
         for (let i = 0; i < pos.count; i++) {
-          const ix = i * 3;
-          // radial burst stored in vel as dx,dy,dz packed: we use 3 floats per particle in sparkVel
-          pos.setX(i, pos.getX(i) + sparkVel[ix]! * dt);
-          pos.setY(i, pos.getY(i) + sparkVel[ix + 1]! * dt);
-          pos.setZ(i, pos.getZ(i) + sparkVel[ix + 2]! * dt);
-          sparkVel[ix + 1]! -= 14 * dt;
+          pos.setX(i, pos.getX(i) + sparkVel[i * 3]! * dt);
+          pos.setY(i, pos.getY(i) + sparkVel[i * 3 + 1]! * dt);
+          pos.setZ(i, pos.getZ(i) + sparkVel[i * 3 + 2]! * dt);
+          sparkVel[i * 3 + 1]! -= 14 * dt;
         }
         pos.needsUpdate = true;
       }
-      if (t > 0.15 && !finishFxPlayed) {
+      if (t > 0.12 && !finishFxPlayed) {
         finishFxPlayed = true;
         playFinishFanfare();
       }
     } else {
       root.position.set(sim.x, sim.y, 0);
-      root.rotation.set(sim.pitch, 0, sim.roll);
-      head.rotation.x = THREE.MathUtils.clamp(-sim.pitch * 0.3, -0.25, 0.25);
-      // Drum pulse on flower
-      const pulse = 1 + beat.pulse * 0.18;
-      flower.scale.setScalar(pulse);
-      if (!reduced) flower.rotation.y += dt * 1.4;
+      root.rotation.set(sim.pitch * 0.85, 0, sim.roll * 0.9);
+      head.rotation.x = THREE.MathUtils.clamp(-sim.pitch * 0.25, -0.2, 0.2);
+      flower.position.set(-0.1, 0.95, 0.1);
+      flower.rotation.set(0, reduced ? 0 : idleT * 1.2, 0);
+      flower.scale.setScalar(1.15 + beat.pulse * 0.2);
     }
 
     applyLegPose(legs, snapshotHudBase(sim, TIME_LIMIT).legLift, snapshotHudBase(sim, TIME_LIMIT).legSwing);
+    shadow.position.set(root.position.x, 0.02, 0);
+    shadow.scale.setScalar(sim.fallen ? 1.4 : 1 + Math.abs(sim.pitch) * 0.2);
 
-    // Ghost marker follows best-run distance at current elapsed
     if (ghostMark) {
       const gx = ghostXAt(ghostSamples, sim.elapsed);
       if (gx != null && gx > 0.5) {
         ghostMark.visible = true;
-        ghostMark.position.set(gx, 0, 1.65);
-        if (!reduced) ghostMark.rotation.y = Math.sin(performance.now() * 0.002) * 0.15;
-      } else {
-        ghostMark.visible = false;
-      }
+        ghostMark.position.set(gx, 0, 2.2);
+      } else ghostMark.visible = false;
     }
 
-    const wantPos = new THREE.Vector3(
-      sim.x - 4.6,
-      3.05 + Math.abs(sim.pitch) * 0.3 + (sim.fallen ? 0.35 : 0),
-      6.15 + Math.abs(sim.roll) * 0.4,
-    );
-    const wantTarget = new THREE.Vector3(
-      sim.x + 0.7,
-      1.3 + (sim.fallen ? 0.45 : 0) + beat.pulse * 0.05,
-      0,
-    );
-    if (reduced) {
-      camPos.copy(wantPos);
-      camTarget.copy(wantTarget);
-    } else {
-      const k = 1 - Math.pow(0.00012, dt);
-      camPos.lerp(wantPos, k);
-      camTarget.lerp(wantTarget, k);
-    }
-    camera.position.copy(camPos);
-    camera.lookAt(camTarget);
+    // Side-on chase: camera on +Z looking at origin Z, follow X
+    const targetX = sim.x + 0.8;
+    const follow = reduced ? 1 : 1 - Math.pow(0.00008, dt);
+    camX += (targetX - camX) * follow;
+    camera.position.set(camX, 3.2, 10.2);
+    camera.lookAt(camX + 0.6, 1.85, 0);
 
     if (!reduced) {
       const t = performance.now() * 0.001;
       for (let i = 0; i < lanterns.length; i++) {
-        lanterns[i]!.rotation.z = Math.sin(t * 1.4 + i) * 0.08;
+        lanterns[i]!.rotation.z = Math.sin(t * 1.3 + i) * 0.1;
       }
     }
   }
@@ -280,6 +309,13 @@ export function createLionWorld(): LionWorld {
     const frameDt = Math.min(MAX_FRAME_DT, (now - lastT) / 1000 || FIXED_DT);
     lastT = now;
     perfectFlash = Math.max(0, perfectFlash - frameDt * 2.8);
+
+    if (attract) {
+      stepBeat(beat, idleT, frameDt);
+      syncMeshes(frameDt);
+      renderer.render(scene, camera);
+      return;
+    }
 
     if (!paused && running && !ended) {
       acc += frameDt;
@@ -301,8 +337,9 @@ export function createLionWorld(): LionWorld {
         if (fired && !sim.fallen && !sim.finished) playMetronomeDrum();
 
         const speedBonus = comboSpeedBonus(beat.combo);
-        const { end, plantEvents } = stepPhysics(sim, FIXED_DT, {
+        const { end } = stepPhysics(sim, FIXED_DT, {
           speedBonus,
+          assist,
           onPlant: (_leg, elapsed) => {
             const r = registerPlant(beat, elapsed);
             if (r.perfect) {
@@ -313,7 +350,6 @@ export function createLionWorld(): LionWorld {
             return { leg: _leg, ...r };
           },
         });
-        void plantEvents;
         acc -= FIXED_DT;
 
         ghostSampleAcc += FIXED_DT;
@@ -322,15 +358,15 @@ export function createLionWorld(): LionWorld {
           liveGhost.push({ t: sim.elapsed, x: sim.x });
         }
 
-        if (end === 'finish') {
-          fallEndTimer = 0;
-        } else if (end === 'fall') {
-          fallEndTimer = 1.4;
+        if (end === 'finish') fallEndTimer = 0;
+        else if (end === 'fall') {
+          fallEndTimer = FALL_GRACE;
+          playFall();
         }
       }
 
       if (sim.finished) {
-        stepPhysics(sim, Math.min(frameDt, 0.05));
+        stepPhysics(sim, Math.min(frameDt, 0.05), { speedBonus: 0, assist, onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }) });
         if (sim.finishAnim >= 0.98) endRun('finish');
       }
 
@@ -341,8 +377,12 @@ export function createLionWorld(): LionWorld {
 
       emitHud();
     } else if (sim.finished && !ended) {
-      stepPhysics(sim, Math.min(frameDt, 0.05));
+      stepPhysics(sim, Math.min(frameDt, 0.05), { speedBonus: 0, assist, onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }) });
       if (sim.finishAnim >= 0.98) endRun('finish');
+      emitHud();
+    } else if (sim.fallen && !ended) {
+      // Keep flop anim ticking while waiting for get-up / grace
+      stepPhysics(sim, Math.min(frameDt, 0.05), { speedBonus: 0, assist, onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }) });
       emitHud();
     }
 
@@ -351,7 +391,7 @@ export function createLionWorld(): LionWorld {
   }
 
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.repeat) return;
+    if (e.repeat || attract) return;
     const key = e.key.toLowerCase();
     if (key === 'r') {
       e.preventDefault();
@@ -368,6 +408,7 @@ export function createLionWorld(): LionWorld {
   };
 
   const onKeyUp = (e: KeyboardEvent): void => {
+    if (attract) return;
     const leg = KEY_TO_LEG[e.key.toLowerCase()];
     if (leg) {
       e.preventDefault();
@@ -388,23 +429,23 @@ export function createLionWorld(): LionWorld {
   };
 
   const api: LionWorld = {
-    mount(host: HTMLElement) {
+    mount(host) {
       hostEl = host;
       reduced = prefersReducedMotion();
       scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2(0xf3e6c8, 0.018);
-      scene.background = new THREE.Color(0xf7d9a8);
+      scene.fog = new THREE.Fog(0xc8e4f0, 55, 95);
+      scene.background = new THREE.Color(0x9ed4ef);
 
-      camera = new THREE.PerspectiveCamera(50, 1, 0.1, 120);
-      camera.position.copy(camPos);
+      // Narrow FOV ≈ orthographic side view
+      camera = new THREE.PerspectiveCamera(30, 1, 0.1, 140);
+      camera.position.set(0, 3.2, 10.2);
 
       renderer = new THREE.WebGLRenderer({
         antialias: !reduced,
         alpha: false,
         powerPreference: 'high-performance',
       });
-      const pr = Math.min(window.devicePixelRatio || 1, reduced ? PIXEL_RATIO_REDUCED : PIXEL_RATIO_CAP);
-      renderer.setPixelRatio(pr);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, reduced ? PIXEL_RATIO_REDUCED : PIXEL_RATIO_CAP));
       renderer.shadowMap.enabled = !reduced;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       host.appendChild(renderer.domElement);
@@ -415,22 +456,22 @@ export function createLionWorld(): LionWorld {
         touchAction: 'none',
       });
 
-      scene.add(new THREE.HemisphereLight(0xffe6c8, 0x6b3e26, 0.85));
-      const sun = new THREE.DirectionalLight(0xffd6a0, 1.15);
-      sun.position.set(-4, 12, 6);
+      scene.add(new THREE.HemisphereLight(0xfff0d8, 0x5a8a4a, 0.95));
+      const sun = new THREE.DirectionalLight(0xfff2d0, 1.25);
+      sun.position.set(-6, 16, 10);
       sun.castShadow = !reduced;
       if (!reduced) {
         sun.shadow.mapSize.set(512, 512);
-        sun.shadow.camera.near = 1;
-        sun.shadow.camera.far = 40;
-        sun.shadow.camera.left = -12;
-        sun.shadow.camera.right = 12;
+        sun.shadow.camera.near = 2;
+        sun.shadow.camera.far = 50;
+        sun.shadow.camera.left = -16;
+        sun.shadow.camera.right = 16;
         sun.shadow.camera.top = 12;
-        sun.shadow.camera.bottom = -12;
+        sun.shadow.camera.bottom = -8;
       }
       scene.add(sun);
-      const fill = new THREE.DirectionalLight(0xff8866, 0.35);
-      fill.position.set(6, 4, -4);
+      const fill = new THREE.DirectionalLight(0xa8d4ff, 0.4);
+      fill.position.set(8, 4, 6);
       scene.add(fill);
 
       const street = buildStreet(scene, reduced);
@@ -495,9 +536,11 @@ export function createLionWorld(): LionWorld {
       running = false;
     },
 
-    start(config: WorldConfig) {
+    start(config) {
       mode = config.mode;
       muted = config.muted;
+      assist = config.assist;
+      attract = !!config.attract;
       setAudioMuted(muted);
       if (config.reducedMotion != null) reduced = config.reducedMotion;
       unlockAudio();
@@ -511,11 +554,12 @@ export function createLionWorld(): LionWorld {
       maxCombo = 0;
       liveGhost = [{ t: 0, x: 0 }];
       ghostSampleAcc = 0;
-      ghostSamples = loadGhost(mode) ?? [];
-      paused = false;
-      running = true;
+      ghostSamples = attract ? [] : loadGhost(mode) ?? [];
+      paused = attract ? true : false;
+      running = !attract;
       visibilityPaused = false;
       acc = 0;
+      idleT = 0;
       if (confetti) {
         confetti.visible = false;
         (confetti.material as THREE.PointsMaterial).opacity = 0;
@@ -523,50 +567,51 @@ export function createLionWorld(): LionWorld {
       if (sparkBurst) {
         sparkBurst.visible = false;
         (sparkBurst.material as THREE.PointsMaterial).opacity = 0;
-        // reset spark origins
-        const pos = sparkBurst.geometry.getAttribute('position') as THREE.BufferAttribute;
-        for (let i = 0; i < pos.count; i++) {
-          pos.setXYZ(i, TRACK_LENGTH, 2.5, 0);
-        }
-        pos.needsUpdate = true;
       }
       if (envelope) {
-        envelope.position.y = 3.4;
+        envelope.position.y = 4.2;
         envelope.rotation.set(0, 0, 0);
       }
       emitHud();
     },
 
-    setPaused(p: boolean) {
+    setPaused(p) {
+      if (attract) return;
       paused = p || visibilityPaused;
     },
 
-    setMuted(m: boolean) {
+    setMuted(m) {
       muted = m;
       setAudioMuted(m);
     },
 
+    setAssist(a) {
+      assist = a;
+    },
+
     setLeg(id, held) {
+      if (attract) return;
       unlockAudio();
       setLegHeld(sim, id, held);
     },
 
     restart() {
-      this.start({ mode, muted, reducedMotion: reduced });
+      this.start({ mode, muted, assist, reducedMotion: reduced });
     },
 
     getUpOrRestart() {
-      if (ended || (sim.fallen && fallEndTimer <= 0)) {
-        this.start({ mode, muted, reducedMotion: reduced });
+      if (ended) {
+        this.start({ mode, muted, assist, reducedMotion: reduced });
         return;
       }
       if (sim.fallen) {
         getUpInPlace(sim);
         fallEndTimer = 0;
+        paused = false;
         emitHud();
         return;
       }
-      this.start({ mode, muted, reducedMotion: reduced });
+      this.start({ mode, muted, assist, reducedMotion: reduced });
     },
 
     getGhostSamples() {

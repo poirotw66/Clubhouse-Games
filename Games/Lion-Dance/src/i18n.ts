@@ -6,47 +6,57 @@ const STR = {
   zh: {
     title: '花花舞獅踩街',
     subtitle: '廟口 50 公尺・醒獅採青',
-    tagline: '跟著鼓點踩街：Q W 前腳　O P 後腳',
-    start: '開始踩街',
+    tagline: '對角輪替踩街：Q+P ↔ W+O',
+    start: '開始踩街（Space）',
     howTo: '操作說明',
     best: '最佳',
     best1p: '單人最佳',
     best2p: '雙人最佳',
     noBest: '尚無紀錄',
     langToggle: 'English',
-    muteOn: '取消靜音',
+    muteOn: '開聲',
     muteOff: '靜音',
     mode1p: '單人',
     mode2p: '雙人',
     modeHint1p: '一人控四腳',
     modeHint2p: '一人獅頭（Q/W），一人獅尾（O/P）',
+    distanceToGoal: '距離終點',
     distance: '距離',
-    time: '剩餘',
-    getUp: '起身／重來',
-    frontLeft: '前左 Q',
-    frontRight: '前右 W',
-    backLeft: '後左 O',
-    backRight: '後右 P',
+    time: '時間',
+    falls: '跌倒',
+    getUp: '起身 (R)',
+    frontLeft: '前左',
+    frontRight: '前右',
+    backLeft: '後左',
+    backRight: '後右',
     headLabel: '獅頭',
     tailLabel: '獅尾',
-    touchAria: '觸控操作',
-    fallHint: '跌倒了！按 R 起身',
+    touchAria: '四腳操作',
+    fallStamp: '踩街中斷!!',
+    fallStampAlt: '獅腳一軟!!',
+    fallHint: '按 R 起身，或稍候結算',
     finishHint: '採青！',
     perfect: 'Perfect!',
     combo: '連擊',
-    onBeat: '鼓點命中',
+    onBeat: '鼓點',
     playAgain: '再玩一局',
     share: '分享到 X',
     backMenu: '回選單',
+    assist: '新手輔助',
+    assistHint: '放寬傾倒門檻（預設關閉）',
+    rules: [
+      '按住抬腳向前擺，放開踩地出力。',
+      '對角輪替：Q+P 與 W+O 交替，同側兩腳會倒。',
+      '鼓點附近踩地可小幅加速，但亂按幾乎走不遠。',
+    ] as const,
     howtoBody: [
-      'Q／W：前左／前右腳 — 按住抬起並向前擺，放開踩地出力。',
-      'O／P：後左／後右腳 — 同樣按住擺、放開踩。',
-      '對角輪替（Q+P ↔ W+O），並在花花鼓點附近踩地可加速。',
-      '雙人模式：一人控獅頭（Q/W），一人控獅尾（O/P）。',
-      '90 秒內走到 50 公尺終點採青；跌倒後按 R 可短暫起身。',
+      '四隻腳各有顏色腳環，對應下方彩色按鈕（Q／W／O／P）。',
+      '按住：腳抬高並向前擺；放開：踩地出力前進。',
+      '穩定走法是對角輪替 Q+P ↔ W+O；同側或四腳全抬會立刻傾倒。',
+      '雙人：一人控獅頭（Q/W），一人控獅尾（O/P）。',
+      '90 秒內走完 50 公尺採青；跌倒後可按「起身 (R)」再試。',
     ],
-    hintRhythm: 'Q+P  ↔  W+O',
-    hintCopy: '跟著鼓點放開踩地；對角輪替比較穩。',
+    hintCopy: '按住抬腳・放開踩地　｜　Q+P ↔ W+O',
     gotIt: '知道了',
     close: '關閉',
     ranks: {
@@ -69,8 +79,8 @@ const STR = {
   en: {
     title: 'Bloom Lion Dance',
     subtitle: '50 m temple street · catch the greens',
-    tagline: 'Plant on the drum beat · Q W front · O P back',
-    start: 'Start the parade',
+    tagline: 'Diagonal gait: Q+P ↔ W+O',
+    start: 'Start (Space)',
     howTo: 'How to play',
     best: 'Best',
     best1p: '1P best',
@@ -83,17 +93,21 @@ const STR = {
     mode2p: '2 Players',
     modeHint1p: 'One player, four legs',
     modeHint2p: 'P1 head (Q/W), P2 tail (O/P)',
+    distanceToGoal: 'To goal',
     distance: 'Distance',
-    time: 'Time left',
-    getUp: 'Get up / Restart',
-    frontLeft: 'FL Q',
-    frontRight: 'FR W',
-    backLeft: 'BL O',
-    backRight: 'BR P',
+    time: 'Time',
+    falls: 'Falls',
+    getUp: 'Get up (R)',
+    frontLeft: 'FL',
+    frontRight: 'FR',
+    backLeft: 'BL',
+    backRight: 'BR',
     headLabel: 'Head',
     tailLabel: 'Tail',
-    touchAria: 'Touch controls',
-    fallHint: 'Down! Press R to get up',
+    touchAria: 'Leg controls',
+    fallStamp: 'Parade halted!!',
+    fallStampAlt: 'Legs gave out!!',
+    fallHint: 'Press R to get up, or wait for results',
     finishHint: 'Greens!',
     perfect: 'Perfect!',
     combo: 'Combo',
@@ -101,15 +115,21 @@ const STR = {
     playAgain: 'Play again',
     share: 'Share on X',
     backMenu: 'Menu',
+    assist: 'Beginner assist',
+    assistHint: 'Wider fall tolerance (off by default)',
+    rules: [
+      'Hold to lift & swing; release to plant and push.',
+      'Alternate diagonals Q+P ↔ W+O — same-side tips you.',
+      'Plant near the drum for a small boost; mashing barely moves.',
+    ] as const,
     howtoBody: [
-      'Q / W: front-left / front-right — hold to lift & swing, release to plant.',
-      'O / P: back-left / back-right — same lift / plant rhythm.',
-      'Alternate diagonals (Q+P ↔ W+O) and plant near Bloom’s drum beat for speed.',
-      '2P: one player drives the head (Q/W), the other the tail (O/P).',
-      'Reach 50 m in 90 s; press R quickly after a fall to get up.',
+      'Each leg has a colour band matching the on-screen buttons (Q / W / O / P).',
+      'Hold: lift high and swing forward; release: plant and push.',
+      'Stable gait is diagonal pairs Q+P ↔ W+O; same-side or all-up tips over.',
+      '2P: one drives the head (Q/W), the other the tail (O/P).',
+      'Reach 50 m in 90 s; after a fall, press Get up (R) to continue.',
     ],
-    hintRhythm: 'Q+P  ↔  W+O',
-    hintCopy: 'Release on the drum beat; diagonal pairs stay steadier.',
+    hintCopy: 'Hold to lift · release to plant  |  Q+P ↔ W+O',
     gotIt: 'Got it',
     close: 'Close',
     ranks: {
@@ -148,8 +168,10 @@ export type Strings = {
   mode2p: string;
   modeHint1p: string;
   modeHint2p: string;
+  distanceToGoal: string;
   distance: string;
   time: string;
+  falls: string;
   getUp: string;
   frontLeft: string;
   frontRight: string;
@@ -158,6 +180,8 @@ export type Strings = {
   headLabel: string;
   tailLabel: string;
   touchAria: string;
+  fallStamp: string;
+  fallStampAlt: string;
   fallHint: string;
   finishHint: string;
   perfect: string;
@@ -166,8 +190,10 @@ export type Strings = {
   playAgain: string;
   share: string;
   backMenu: string;
+  assist: string;
+  assistHint: string;
+  rules: readonly string[];
   howtoBody: readonly string[];
-  hintRhythm: string;
   hintCopy: string;
   gotIt: string;
   close: string;
@@ -182,7 +208,7 @@ export type Strings = {
 };
 
 export function t(lang: Lang): Strings {
-  return STR[lang];
+  return STR[lang] as Strings;
 }
 
 export function formatTime(seconds: number): string {
