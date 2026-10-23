@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { haptic } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import GameCanvas from './components/GameCanvas';
 import { GameState, GameStats, PlayMode } from './types';
@@ -166,15 +168,19 @@ export default function App() {
         lastStats.duelWon
       ) {
         playWin();
+        haptic('win');
       } else if (
         (playMode === 'duel' || playMode === 'daily') &&
         lastStats.duelWon === false
       ) {
         playLose();
+        haptic('error');
       } else if (lastStats.score >= 5000) {
         playWin();
+        haptic('win');
       } else {
         playLose();
+        haptic('error');
       }
     }
     previousStateRef.current = gameState;
@@ -509,6 +515,9 @@ export default function App() {
               <p className="md:hidden text-emerald-400/90 text-xs mt-4 text-center">
                 觸控：按住左或右半螢幕待機，放開即反擊
               </p>
+              <div className="mt-4">
+                <JuiceSettingsPanel compact />
+              </div>
             </div>
           </div>
         </div>
