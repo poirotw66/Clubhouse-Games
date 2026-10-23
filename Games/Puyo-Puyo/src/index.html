@@ -53,6 +53,21 @@
             <select id="board-theme" aria-label="場地主題"></select>
           </label>
           <button type="button" id="btn-mute" class="ghost-button" aria-pressed="false">🔊 音效</button>
+          <fieldset class="juice-settings" data-juice-settings="1">
+            <legend class="juice-settings-legend">手感與特效</legend>
+            <label class="juice-haptics-label">
+              <input type="checkbox" id="juice-haptics" checked aria-label="觸覺震動" />
+              <span>觸覺</span>
+            </label>
+            <label class="select-field juice-fx-field">
+              <span>特效</span>
+              <select id="juice-fx" aria-label="特效強度">
+                <option value="full" selected>完整</option>
+                <option value="low">輕量</option>
+                <option value="off">無特效</option>
+              </select>
+            </label>
+          </fieldset>
           <button type="button" id="btn-undo" class="ghost-button" disabled>復原</button>
           <button type="button" id="btn-hint" class="ghost-button">提示</button>
           <button type="button" id="btn-pause" class="ghost-button">
@@ -210,10 +225,12 @@
     </div>
 
     <script src="js/clubhouse-synth-audio.js"></script>
+    <script src="js/clubhouse-juice.js"></script>
     <script src="js/logic.js"></script>
     <script src="js/missions.js"></script>
     <script src="js/daily.js"></script>
     <script src="js/audio.js"></script>
+    <script src="js/juice.js"></script>
     <script src="js/render.js"></script>
     <script src="js/main.js"></script>
   </body>

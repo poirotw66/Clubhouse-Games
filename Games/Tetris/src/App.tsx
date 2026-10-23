@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import { playGoal, playImpact, playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
@@ -204,6 +206,20 @@ function playClearFeedback(breakdown: ScoreBreakdown) {
   }
 }
 
+/** Presentation-only scale for clear / T-Spin / B2B juice — does not affect scoring. */
+function clearJuiceStrength(breakdown: ScoreBreakdown): number {
+  let strength = 0.5;
+  if (breakdown.label.includes('DOUBLE')) strength = 0.7;
+  else if (breakdown.label.includes('TRIPLE')) strength = 0.85;
+  else if (breakdown.label.includes('TETRIS')) strength = 1.15;
+  if (breakdown.label.includes('T-SPIN')) strength = Math.max(strength, 0.9);
+  if (breakdown.isBackToBack) strength = Math.min(1.45, strength + 0.2);
+  if (breakdown.nextCombo >= 2) {
+    strength = Math.min(1.5, strength + 0.06 * Math.min(breakdown.nextCombo, 8));
+  }
+  return strength;
+}
+
 function flashTone(breakdown: ScoreBreakdown): 'good' | 'neutral' {
   if (
     breakdown.isBackToBack ||
@@ -250,6 +266,7 @@ export default function App() {
   const cheeseAttemptRef = useRef(0);
   const dailyRecordedRef = useRef(false);
   const practiceRecordedRef = useRef(false);
+  const boardShellRef = useRef<HTMLDivElement>(null);
 
   const lastDropTimeRef = useRef(performance.now());
   const cpuDropTimeRef = useRef(performance.now());
@@ -285,6 +302,13 @@ export default function App() {
       callouts.length > 0 ? callouts.join(' · ') : `+${breakdown.total}`;
     queueMicrotask(() => {
       playClearFeedback(breakdown);
+      const el = boardShellRef.current;
+      const strength = clearJuiceStrength(breakdown);
+      haptic('combo', strength);
+      particles('burst', { el, strength });
+      if (breakdown.label.includes('TETRIS')) {
+        particles('confetti', { el, strength: Math.max(1, strength) });
+      }
       setFlash({ text, tone: flashTone(breakdown), key: Date.now() });
     });
   }, []);
@@ -377,10 +401,15 @@ export default function App() {
       player.gameOver || (isVersus && (cpu.gameOver || versusWinner !== null));
     if (ended && !wasGameOverRef.current) {
       if (isVersus) {
-        if (versusWinner === 'player') playWin();
-        else playLose();
+        if (versusWinner === 'player') {
+          playWin();
+          haptic('win');
+          particles('confetti', { el: boardShellRef.current, strength: 1.1 });
+        } else playLose();
       } else if (player.cleared) {
         playWin();
+        haptic('win');
+        particles('confetti', { el: boardShellRef.current, strength: 1.1 });
       } else {
         playLose();
       }
@@ -637,7 +666,10 @@ export default function App() {
           dir,
         );
         if (kickIndex < 0) return prev;
-        queueMicrotask(() => playMove());
+        queueMicrotask(() => {
+          playMove();
+          haptic('tap');
+        });
         refreshLock(prev.board, rotated, now);
         return {
           ...prev,
@@ -652,6 +684,8 @@ export default function App() {
 
   const hardDrop = useCallback(() => {
     playImpact(0.45);
+    haptic('impact');
+    shake(boardShellRef.current, 0.4);
     setPlayer((prev) => {
       if (!prev.active || prev.gameOver || prev.paused || prev.clearing) return prev;
       if (isVersus && versusWinner) return prev;
@@ -1446,6 +1480,9 @@ export default function App() {
                 {PLAYER_GARBAGE_DROP_CAP} 行）。
               </li>
             </ul>
+            <div className="mt-3">
+              <JuiceSettingsPanel />
+            </div>
           </div>
         )}
       </header>
@@ -1623,7 +1660,11 @@ export default function App() {
             narrow ? 'order-1' : ''
           } ${isVersus && narrow ? 'flex-nowrap' : ''}`}
         >
-          <div className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm">
+          <div
+            ref={boardShellRef}
+            data-tetris-board="1"
+            className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm"
+          >
             <div className="text-center text-xs text-slate-300 mb-1 font-semibold">
               玩家
               {player.incomingGarbage > 0 && (

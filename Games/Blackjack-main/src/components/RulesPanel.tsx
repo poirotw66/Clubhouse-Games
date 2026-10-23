@@ -1,4 +1,5 @@
 import React from 'react';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import type { BlackjackSettings, GameRulesConfig } from '../utils/storage';
 
 interface RulesPanelProps {
@@ -228,6 +229,10 @@ export const RulesPanel: React.FC<RulesPanelProps> = ({
             從「模式」進入：每日以台北日期種子固定牌靴；錫標賽固定買入與手數、對戰具名
             CPU，賽中不可免費救濟。詳見模式面板。
           </p>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-white/10">
+          <JuiceSettingsPanel className="text-white" />
         </div>
 
         {disabled && (
