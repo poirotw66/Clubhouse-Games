@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameCanvas } from './components/GameCanvas';
 import { HowToHint } from './components/HowToHint';
 import { Hud } from './components/Hud';
+import { LionResult } from './components/LionResult';
 import { TouchPad } from './components/TouchPad';
 import { formatOnBeatPercent } from './engine/beat';
 import { GAME_PATH, TRACK_LENGTH, type LegId, type PlayMode } from './engine/constants';
@@ -81,7 +81,7 @@ export default function App(): ReactElement {
         setShowHint(false);
       }
       if (next.fallen && !next.finished) {
-        setStampText((prev) => prev ?? (Math.random() < 0.5 ? s.fallStamp : s.fallStampAlt));
+        setStampText((prev) => prev ?? s.fallStampAlt);
       } else if (!next.fallen) {
         setStampText(null);
       }
@@ -209,7 +209,38 @@ export default function App(): ReactElement {
         worldRef={worldRef}
       />
 
-      {screen === 'playing' && <Hud hud={hud} s={s} lang={lang} />}
+      {screen === 'playing' && (
+        <Hud
+          hud={hud}
+          s={s}
+          lang={lang}
+          tools={
+            <>
+              <button
+                type="button"
+                className="lion-icon-btn lion-icon-mute"
+                data-testid="lion-icon-mute"
+                onClick={toggleMute}
+                aria-pressed={muted}
+                title={muted ? s.muteOn : s.muteOff}
+                aria-label={muted ? s.muteOn : s.muteOff}
+              >
+                {muted ? '×♪' : '♪'}
+              </button>
+              <button
+                type="button"
+                className="lion-icon-btn lion-icon-help"
+                data-testid="lion-icon-help"
+                onClick={() => setShowHowTo(true)}
+                title={s.howTo}
+                aria-label={s.howTo}
+              >
+                ?
+              </button>
+            </>
+          }
+        />
+      )}
 
       <HowToHint s={s} visible={screen === 'playing' && showHint} />
 
@@ -219,6 +250,9 @@ export default function App(): ReactElement {
         s={s}
         held={hud.legHeld}
         showGetUp={hud.fallen && !hud.finished}
+        combo={hud.combo}
+        onBeatRatio={hud.onBeatRatio}
+        beatPulse={hud.beatPulse}
         onLeg={onLeg}
         onGetUp={onGetUp}
       />
@@ -226,30 +260,6 @@ export default function App(): ReactElement {
       {screen === 'playing' && stampText && hud.fallen && (
         <div className="lion-fall-stamp" aria-live="assertive">
           {stampText}
-        </div>
-      )}
-
-      {screen === 'playing' && (
-        <div className="lion-icon-tools">
-          <button
-            type="button"
-            className="lion-icon-btn lion-icon-mute"
-            onClick={toggleMute}
-            aria-pressed={muted}
-            title={muted ? s.muteOn : s.muteOff}
-            aria-label={muted ? s.muteOn : s.muteOff}
-          >
-            {muted ? '×♪' : '♪'}
-          </button>
-          <button
-            type="button"
-            className="lion-icon-btn lion-icon-help"
-            onClick={() => setShowHowTo(true)}
-            title={s.howTo}
-            aria-label={s.howTo}
-          >
-            ?
-          </button>
         </div>
       )}
 
@@ -345,7 +355,7 @@ export default function App(): ReactElement {
       )}
 
       {screen === 'result' && result && rank && (
-        <ResultOverlay
+        <LionResult
           title={s.ranks[rank.id]}
           badge={result.reason === 'finish' ? s.resultFinish : s.resultFail}
           subtitle={

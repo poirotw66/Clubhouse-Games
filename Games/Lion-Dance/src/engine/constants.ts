@@ -8,11 +8,12 @@ export const TIME_LIMIT = 90;
 export const FIXED_DT = 1 / 180;
 export const MAX_FRAME_DT = 0.05;
 
-/** Larger 醒獅 silhouette for side-view framing (~40–50% screen height). */
-export const BODY_HEIGHT = 2.05;
-export const BODY_LENGTH = 3.1;
-export const BODY_WIDTH = 1.15;
-export const LEG_LENGTH = 1.45;
+/** Hip height — raised so slender jointed legs stay fully visible under the cloth. */
+export const BODY_HEIGHT = 2.9;
+/** Draped cloth length (~2.55× head width) — two-performer 醒獅 silhouette. */
+export const BODY_LENGTH = 6.5;
+export const BODY_WIDTH = 1.2;
+export const LEG_LENGTH = 2.4;
 
 /**
  * Fall thresholds — much stricter than v2 so button-mashing fails.
@@ -46,8 +47,8 @@ export const PIXEL_RATIO_CAP = 1.5;
 export const PIXEL_RATIO_REDUCED = 1.2;
 export const GHOST_SAMPLE_DT = 0.1;
 
-/** Seconds of flop before run ends if player does not get up. */
-export const FALL_GRACE = 2.4;
+/** Seconds of flop / flail before run ends if player does not get up. */
+export const FALL_GRACE = 4.0;
 
 export const STORAGE_BEST_1P = 'lion-dance:best-time-1p-v2';
 export const STORAGE_BEST_2P = 'lion-dance:best-time-2p-v2';
@@ -92,10 +93,11 @@ export const LEG_KEY_LABEL: Record<LegId, string> = {
 
 /** Hip attachment in body-local space (x forward, y up, z right / toward camera). */
 export const LEG_ATTACH: Record<LegId, { x: number; z: number }> = {
-  FL: { x: 1.05, z: -0.42 },
-  FR: { x: 1.05, z: 0.42 },
-  BL: { x: -1.05, z: -0.42 },
-  BR: { x: -1.05, z: 0.42 },
+  // Under the front / rear cloth humps — classic 2-person lion silhouette.
+  FL: { x: 2.15, z: -0.6 },
+  FR: { x: 2.15, z: 0.64 },
+  BL: { x: -2.15, z: -0.6 },
+  BR: { x: -2.15, z: 0.64 },
 };
 
 export const KEY_TO_LEG: Record<string, LegId> = {
