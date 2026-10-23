@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playCard,
@@ -285,6 +287,7 @@ export default function App() {
   const [swapEverySec, setSwapEverySec] = useState<number | null>(null);
   const [bombPenaltySec, setBombPenaltySec] = useState(0);
 
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const turnRef = useRef(0);
   const resolvingRef = useRef(false);
   const cpuScheduledRef = useRef(false);
@@ -689,6 +692,9 @@ export default function App() {
         playScore();
         const newCombo = nextCombo(comboRef.current, true);
         if (newCombo >= 2) playCapture();
+        // Juice: match → success+sparkle; combo match → combo+sparkle
+        haptic(newCombo >= 2 ? 'combo' : 'success');
+        particles('sparkle', { el: gridRef.current });
         setMatchPulse(indices);
         const gained = scoreForMatch(newCombo);
         comboRef.current = newCombo;
@@ -717,6 +723,9 @@ export default function App() {
         }
       } else {
         playError();
+        // Juice: miss → error haptic; soft shake only (cards already CSS-pulse)
+        haptic('error');
+        shake(gridRef.current, 0.28);
         setMissPulse(indices);
         comboRef.current = 0;
         setCombo(0);
@@ -739,6 +748,9 @@ export default function App() {
 
       if (!endedRef.current && allMatched(nextCards)) {
         endedRef.current = true;
+        // Juice: clear board → confetti + shake grid
+        particles('confetti', { el: gridRef.current, strength: 1.1 });
+        shake(gridRef.current, 0.95);
         if (mode === 'versus') {
           finishVersus(playerPairsRef.current, cpuPairsRef.current);
         } else {
@@ -776,6 +788,7 @@ export default function App() {
           ...styleOpts,
         });
         playCard();
+        haptic('tap');
         setFlipped([i]);
         if (cpuSecondFlipRef.current != null) {
           window.clearTimeout(cpuSecondFlipRef.current);
@@ -783,6 +796,7 @@ export default function App() {
         cpuSecondFlipRef.current = window.setTimeout(() => {
           cpuSecondFlipRef.current = null;
           playCard();
+          haptic('tap');
           setFlipped([i, j]);
         }, CPU_SECOND_FLIP_MS);
       } catch {
@@ -832,6 +846,7 @@ export default function App() {
     if (card.matched || flipped.includes(index)) return;
     if (flipped.length >= flipNeed) return;
     playCard();
+    haptic('tap');
     setFlipped((f) => [...f, index]);
   };
 
@@ -1080,6 +1095,7 @@ export default function App() {
 
         {settingsOpen && (
           <div id="mm-settings" className="w-full flex flex-col gap-2 items-center">
+            <JuiceSettingsPanel className="w-full max-w-md text-slate-200" />
             <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="模式">
               {(
                 [
@@ -1218,6 +1234,8 @@ export default function App() {
       </p>
 
       <div
+        ref={gridRef}
+        data-mm-grid="1"
         className={`relative grid ${gridColsClass(faceLike)} ${gridGapClass(faceLike)} ${boardWide}`}
       >
         {flashText && (

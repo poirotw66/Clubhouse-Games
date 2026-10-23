@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { haptic } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playCombo,
@@ -77,6 +79,34 @@ const JUICE_AUDIO = {
   combo: playCombo,
   capture: playCapture,
 };
+
+/** Shared haptics only — keeps local juice.ts presentation-only for self-check. */
+function pulseHaptics(prev: RunState | null, next: RunState): void {
+  if (!prev) return;
+  if (next.lives < prev.lives) haptic('impact');
+  if (next.bombs < prev.bombs) haptic('impact', 0.9);
+  if (next.specialCd > prev.specialCd && next.specialLeft > prev.specialLeft) {
+    haptic('tap', 0.75);
+  }
+  if (
+    next.lastCardResult &&
+    next.lastCardResult !== prev.lastCardResult &&
+    next.lastCardResult === 'captured'
+  ) {
+    haptic('success');
+  }
+  const prevBoss = prev.enemies.find((e) => e.isBoss);
+  const nextBoss = next.enemies.find((e) => e.isBoss);
+  if (prevBoss && !nextBoss && next.bossSpawned) haptic('combo', 1.1);
+  if (prev.enemies.length > next.enemies.length) {
+    const nextIds = new Set(next.enemies.map((e) => e.id));
+    const killed = prev.enemies.some((e) => !e.isBoss && !nextIds.has(e.id));
+    if (killed) haptic('tap', 0.45);
+  }
+  if (next.grazeCount > prev.grazeCount && next.grazeCount > 0 && next.grazeCount % 8 === 0) {
+    haptic('combo', 0.55);
+  }
+}
 
 export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('menu');
@@ -309,6 +339,7 @@ export default function App(): React.ReactElement {
         accRef.current -= FIXED_DT;
         const prev = next;
         next = step(next, readInput(next), FIXED_DT);
+        pulseHaptics(prevSimRef.current ?? prev, next);
         if (!reduceMotion) {
           observeJuice(juiceRef.current, prevSimRef.current ?? prev, next, JUICE_AUDIO);
         }
@@ -407,8 +438,13 @@ export default function App(): React.ReactElement {
     endSfxSeed.current = key;
     const mode = hud.modeId ? modeById(hud.modeId) : undefined;
     const success = hud.phase === 'won' && (!mode || evaluateModeGoal(mode, hud));
-    if (success) playWin();
-    else playLose();
+    if (success) {
+      playWin();
+      haptic('win');
+    } else {
+      playLose();
+      haptic('error');
+    }
   }, [hud]);
 
   const pick = useCallback((id: string) => {
@@ -525,6 +561,9 @@ export default function App(): React.ReactElement {
             <li>死亡扣一條命、掉一級火力，碎片會撒在你死掉的地方。</li>
             <li>五個階段，每階段結束三選一強化。標題另有模式／關卡包與每日挑戰。</li>
           </ul>
+          <div className="mt-4">
+            <JuiceSettingsPanel compact />
+          </div>
         </div>
         {best > 0 && <p className="text-slate-400 text-sm">自由遊玩最佳 {best.toLocaleString('zh-Hant')}</p>}
         <p className="text-slate-400 text-sm">
