@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { haptic } from '@clubhouse/shared/juice';
 import {
   playCombo,
   playError,
@@ -295,30 +297,37 @@ export default function App(): React.ReactElement {
     if (next.hitsTotal > prev.hits) {
       triggerHit(fx, px, py);
       playError();
+      haptic('impact');
     }
     if (next.branchesCleared > prev.branches) {
       playScore();
+      haptic('success', 0.7);
     }
     if (!prev.active && next.activeBranch) {
       triggerSwitch(fx, px, py - 40, '#34d399');
       playMove();
+      haptic('place', 0.85);
     }
     if (next.scoreMult > prev.scoreMult) {
       triggerPickup(fx, px, py - 20, 'score');
       playScore();
+      haptic('success', 0.55);
     }
     if (next.buffer > prev.buffer + 20 && next.hitsTotal === prev.hits) {
       // Supply pickup (buffer jump without a hit).
       triggerPickup(fx, px, py - 20, 'supply');
       playScore();
+      haptic('tap', 0.6);
     }
     if (resolvedObs > prev.resolvedObs && next.hitsTotal === prev.hits) {
       triggerNearMiss(fx, px, py);
+      haptic('tap', 0.5);
     }
     if (next.noHitStreak > prev.streak && next.noHitStreak >= 2) {
       triggerCombo(fx, next.noHitStreak);
       setComboFlash(next.noHitStreak);
       playCombo(next.noHitStreak);
+      haptic('combo', Math.min(1.2, 0.45 + next.noHitStreak * 0.08));
     }
 
     juiceSnap.current = {
@@ -419,6 +428,7 @@ export default function App(): React.ReactElement {
       if (endSfxKey.current === key) return;
       endSfxKey.current = key;
       playWin();
+      haptic('win');
       return;
     }
     if (hud.phase !== 'caught') {
@@ -429,6 +439,7 @@ export default function App(): React.ReactElement {
     if (endSfxKey.current === key) return;
     endSfxKey.current = key;
     playLose();
+    haptic('error');
   }, [hud, challengeWon]);
 
   // Lane-change move SFX (not covered by applyJuice when no branch lock).
@@ -498,6 +509,9 @@ export default function App(): React.ReactElement {
             <li>← → 換股道／扳道，↑ 跳過低欄，↓ 滑過高架，P／Esc 暫停。</li>
             <li>觸控：左右滑動換道、上滑跳躍、下滑滑行。</li>
           </ul>
+          <div className="mt-4">
+            <JuiceSettingsPanel compact />
+          </div>
         </div>
         <p className="text-slate-400 text-sm">
           鐵道螺栓 <b className="text-amber-300">{meta.bolts.toLocaleString('zh-Hant')}</b>

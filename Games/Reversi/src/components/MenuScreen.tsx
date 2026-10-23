@@ -1,4 +1,5 @@
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { BookOpen, Brain, Puzzle, Swords, Users } from 'lucide-react';
 import type { ReactElement } from 'react';
 import {
@@ -210,6 +211,9 @@ export function MenuScreen({
               <li>無合法手時須 Pass，改由對方下；若雙方都無合法手則終局。</li>
               <li>終局時己色子數多者勝，相同則和局。</li>
             </ul>
+            <div className="mt-4">
+              <JuiceSettingsPanel />
+            </div>
             <button
               type="button"
               onClick={() => setShowRules(false)}
