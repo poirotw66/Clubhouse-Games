@@ -49,6 +49,7 @@ import type { OpponentDef } from '../opponents';
 import { resolveCounter } from '../resolveCounter';
 import { computeReactionRank } from '../ranks';
 import { createRng } from '../rng';
+import { haptic } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playCombo,
@@ -313,6 +314,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       if (result === CounterResult.PERFECT) {
         playGoal();
         playCombo(stats.current.combo + 1);
+        haptic('combo', Math.min(1.2, 0.55 + stats.current.combo * 0.06));
         stats.current.score += SCORE_PERFECT + stats.current.combo * 100;
         stats.current.combo++;
         stats.current.perfects++;
@@ -326,6 +328,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       } else if (result === CounterResult.GOOD) {
         playScore();
         playImpact(0.45);
+        haptic('success', 0.55);
         stats.current.score += SCORE_GOOD + stats.current.combo * 10;
         stats.current.combo++;
         stats.current.goods++;
@@ -336,6 +339,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         hitStopTimer.current = HIT_STOP_DURATION / 2;
       } else if (result === CounterResult.EARLY) {
         playError();
+        haptic('error', 0.7);
         stats.current.combo = 0;
         stats.current.earlies++;
         stats.current.misses++;
@@ -346,6 +350,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       } else if (result === CounterResult.FEINT) {
         playError();
         playImpact(0.7);
+        haptic('impact', 0.85);
         stats.current.combo = 0;
         stats.current.feints++;
         stats.current.misses++;
@@ -355,6 +360,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         triggerHitAnimation();
       } else if (result === CounterResult.WRONG_SIDE) {
         playError();
+        haptic('error', 0.75);
         stats.current.combo = 0;
         stats.current.wrongSides++;
         stats.current.misses++;
@@ -365,6 +371,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       } else {
         // LATE / MISS
         playError();
+        haptic('impact');
         stats.current.combo = 0;
         stats.current.misses++;
         takePlayerDamage(DAMAGE_PLAYER_HIT);
@@ -466,16 +473,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       if (winner === 1) {
         stats.current.versusP1 += 1;
         playGoal();
+        haptic('success');
         showFeedback(CounterResult.PERFECT, 'P1 得分');
       } else if (winner === 2) {
         stats.current.versusP2 += 1;
         playGoal();
+        haptic('success');
         showFeedback(CounterResult.GOOD, 'P2 得分');
       } else if (winner === 'foul-both') {
         playError();
+        haptic('error');
         showFeedback(CounterResult.EARLY, '雙雙犯規');
       } else {
         playError();
+        haptic('tap', 0.5);
         showFeedback(CounterResult.MISS, '無人出刀');
       }
 
@@ -628,6 +639,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           feintResolved.current = true;
           stats.current.score += SCORE_FEINT_PATIENCE;
           playScore();
+          haptic('success', 0.5);
           showFeedback(CounterResult.PERFECT, '看破');
           noteEventResolved(patternState.current, evt);
           scheduleNextAttack();
@@ -657,6 +669,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             setScreenShake(true);
             setTimeout(() => setScreenShake(false), 300);
             playError();
+            haptic('impact');
             triggerHitAnimation();
             if (currentEvent.current) {
               noteEventResolved(patternState.current, currentEvent.current);
