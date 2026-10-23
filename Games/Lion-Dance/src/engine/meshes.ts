@@ -197,11 +197,11 @@ export function buildLion(): LionMeshes {
   hem.add(skirt);
   // Bright gold hem roll
   const hemTrim = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.07, BODY_LENGTH * 0.7, 3, 8),
-    mat(GOLD, { metal: 0.4, emissive: GOLD, eInt: 0.28 }),
+    new THREE.CapsuleGeometry(0.085, BODY_LENGTH * 0.72, 3, 8),
+    mat(GOLD, { metal: 0.45, emissive: GOLD, eInt: 0.38 }),
   );
   hemTrim.rotation.z = Math.PI / 2;
-  hemTrim.position.set(0, -0.55, 0.7);
+  hemTrim.position.set(0, -0.55, 0.72);
   hem.add(hemTrim);
 
   for (const x of [-BODY_LENGTH * 0.15, BODY_LENGTH * 0.15]) {
@@ -485,41 +485,41 @@ function buildLeg(id: LegId): LegMeshes {
   thighMesh.position.y = -0.72;
   thigh.add(thighMesh);
 
-  // Soft hem cuff that drapes over the shin (reads as continuous cloth)
+  // Soft hem cuff that drapes over the shin (hides the bend seam)
   const thighCuff = new THREE.Mesh(
-    taper(0.36, 0.38, 0.22, 16),
-    mat(RED, { rough: 0.48, emissive: RED, eInt: 0.14 }),
+    taper(0.35, 0.4, 0.38, 18),
+    mat(RED_LIT, { rough: 0.45, emissive: RED_LIT, eInt: 0.15 }),
   );
-  thighCuff.position.y = -1.32;
+  thighCuff.position.y = -1.28;
   thigh.add(thighCuff);
 
   // Tiny camera-facing gold buckle (not a full ring / bone)
   const knee = new THREE.Mesh(
-    new THREE.SphereGeometry(0.09, 10, 8),
-    mat(GOLD, { metal: 0.45, emissive: GOLD, eInt: 0.35 }),
+    new THREE.SphereGeometry(0.085, 10, 8),
+    mat(GOLD, { metal: 0.45, emissive: GOLD, eInt: 0.38 }),
   );
-  knee.scale.set(0.7, 0.7, 0.55);
-  knee.position.set(0.02, -1.2, 0.34);
+  knee.scale.set(0.65, 0.65, 0.5);
+  knee.position.set(0.02, -1.18, 0.36);
   thigh.add(knee);
 
-  // Shin pivot slightly inside the thigh cuff
+  // Shin pivot tucked inside the cuff
   const shin = new THREE.Group();
-  shin.position.y = -1.22;
+  shin.position.y = -1.18;
   thigh.add(shin);
 
-  // Shin starts wide under the cuff, tapers to ankle — continuous lantern pant
+  // Same lit red as thigh so the knee reads as cloth, not a second segment
   const shinMesh = new THREE.Mesh(
-    taper(0.37, 0.27, 1.05, 18),
-    mat(RED, { rough: 0.48, emissive: RED, eInt: 0.12 }),
+    taper(0.38, 0.26, 1.08, 18),
+    mat(RED_LIT, { rough: 0.46, emissive: RED_LIT, eInt: 0.14 }),
   );
-  shinMesh.position.y = -0.42;
+  shinMesh.position.y = -0.48;
   shin.add(shinMesh);
   const shinCap = new THREE.Mesh(
-    new THREE.SphereGeometry(0.37, 12, 10),
-    mat(RED, { rough: 0.48, emissive: RED, eInt: 0.12 }),
+    new THREE.SphereGeometry(0.38, 12, 10),
+    mat(RED_LIT, { rough: 0.46, emissive: RED_LIT, eInt: 0.14 }),
   );
-  shinCap.scale.set(1, 0.45, 1);
-  shinCap.position.y = 0.05;
+  shinCap.scale.set(1, 0.5, 1);
+  shinCap.position.y = 0.08;
   shin.add(shinCap);
 
   // Q/W/O/P ankle ring

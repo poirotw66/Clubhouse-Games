@@ -649,17 +649,17 @@ export function createLionWorld(): LionWorld {
 
       // Bright festive lighting — strong camera-side fill so the far flank
       // never reads as a dark “trunk” glued to the silhouette (no shadow maps).
-      scene.add(new THREE.AmbientLight(0xfff0e4, 0.55));
-      scene.add(new THREE.HemisphereLight(0xfff8f0, 0xe0ecd8, 0.85));
-      const sun = new THREE.DirectionalLight(0xfff4e0, 0.95);
-      sun.position.set(-2, 22, 18);
+      scene.add(new THREE.AmbientLight(0xfff2e8, 0.72));
+      scene.add(new THREE.HemisphereLight(0xfffaf4, 0xe8f0e0, 0.9));
+      const sun = new THREE.DirectionalLight(0xfff6e8, 0.85);
+      sun.position.set(-1, 24, 20);
       scene.add(sun);
       // Key fill from the camera (+Z) — flattens the body into festive toon red
-      const camFill = new THREE.DirectionalLight(0xffe8d8, 1.15);
-      camFill.position.set(0, 8, 24);
+      const camFill = new THREE.DirectionalLight(0xffece0, 1.35);
+      camFill.position.set(0, 10, 28);
       scene.add(camFill);
-      const rim = new THREE.DirectionalLight(0xfff2c8, 0.45);
-      rim.position.set(-6, 6, -4);
+      const rim = new THREE.DirectionalLight(0xfff4d0, 0.55);
+      rim.position.set(-4, 8, -2);
       scene.add(rim);
 
       const street = buildStreet(scene, reduced);
