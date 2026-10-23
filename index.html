@@ -6,24 +6,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Clubhouse Games｜遊戲總覽</title>
   <meta name="description" content="Clubhouse Games 遊戲總覽：紙牌、棋盤、牌張、運動機檯、益智與迷你遊戲共 17 款，可直接在瀏覽器開玩，並附完整規格文件。" />
-  <meta name="theme-color" content="#0f0f23" />
+  <meta name="theme-color" content="#06080f" />
   <meta name="color-scheme" content="dark" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Clubhouse Games｜遊戲總覽" />
   <meta property="og:description" content="紙牌、棋盤、運動機檯、益智與迷你遊戲共 17 款，開瀏覽器就能玩。" />
   <meta property="og:image" content="title-image.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f0f23'/%3E%3Cpath d='M9 20a3 3 0 100-6 3 3 0 000 6zm14 0a3 3 0 100-6 3 3 0 000 6z' fill='%23a78bfa'/%3E%3Cpath d='M16 9v14' stroke='%23f43f5e' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2306080f'/%3E%3Cpath d='M9 20a3 3 0 100-6 3 3 0 000 6zm14 0a3 3 0 100-6 3 3 0 000 6z' fill='%232dd4bf'/%3E%3Cpath d='M16 9v14' stroke='%23fb7185' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/menu.css" />
   <link rel="stylesheet" href="assets/fonts/hub.css" />
 </head>
 <body class="antialiased">
   <a href="#main-content" class="skip-link">跳至主要內容</a>
 
-  <div class="dream-bg" aria-hidden="true">
-    <div class="dream-orb dream-orb-1"></div>
-    <div class="dream-orb dream-orb-2"></div>
-    <div class="dream-orb dream-orb-3"></div>
+  <div class="dream-bg" id="dream-bg" aria-hidden="true">
+    <div class="dream-orb-track" data-parallax="0.04"><div class="dream-orb dream-orb-1"></div></div>
+    <div class="dream-orb-track" data-parallax="0.07"><div class="dream-orb dream-orb-2"></div></div>
+    <div class="dream-orb-track" data-parallax="0.025"><div class="dream-orb dream-orb-3"></div></div>
+    <div class="dream-sweep" data-lobby-sweep></div>
+    <div class="dream-veil"></div>
+    <canvas id="lobby-fx" width="1" height="1"></canvas>
   </div>
 
   <header class="site-header">

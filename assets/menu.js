@@ -20,6 +20,8 @@
 
   const RECENT_KEY = 'clubhouse:recent-games';
   const RECENT_LIMIT = 4;
+  /** Same key as shared/juice.ts — lobby FX must respect clubhouse juice settings. */
+  const JUICE_STORAGE_KEY = 'clubhouse:juice';
 
   let currentQuery = '';
   let currentCategory = 'all';
@@ -27,6 +29,46 @@
   if (gameCountStat) gameCountStat.textContent = String(tiles.length);
   if (categoryCountStat) categoryCountStat.textContent = String(groups.length);
   if (emptyTotal) emptyTotal.textContent = String(tiles.length);
+
+  /* ---------- juice / reduced-motion gate for lobby FX ---------- */
+
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+      return false;
+    }
+  }
+
+  function readJuiceFx() {
+    try {
+      const raw = localStorage.getItem(JUICE_STORAGE_KEY);
+      if (!raw) return 'full';
+      const parsed = JSON.parse(raw);
+      if (parsed && (parsed.fx === 'off' || parsed.fx === 'low' || parsed.fx === 'full')) {
+        return parsed.fx;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 'full';
+  }
+
+  function fxMultiplier() {
+    if (prefersReducedMotion()) return 0;
+    const fx = readJuiceFx();
+    if (fx === 'off') return 0;
+    if (fx === 'low') return 0.35;
+    return 1;
+  }
+
+  function syncJuiceAttr() {
+    const fx = prefersReducedMotion() ? 'off' : readJuiceFx();
+    document.documentElement.setAttribute('data-juice-fx', fx);
+    return fx;
+  }
+
+  syncJuiceAttr();
 
   /* ---------- filtering ---------- */
 
@@ -218,12 +260,186 @@
     window.addEventListener('scroll', toggleBackToTop, { passive: true });
     toggleBackToTop();
     backToTop.addEventListener('click', () => {
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const reduceMotion = prefersReducedMotion();
       window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
       // Move focus to the top of the page without opening a mobile keyboard.
       document.querySelector('.brand')?.focus();
     });
   }
+
+  /* ---------- mist-neon ambient FX (transform/opacity only) ---------- */
+
+  const dreamBg = document.getElementById('dream-bg');
+  const lobbyCanvas = document.getElementById('lobby-fx');
+  const parallaxOrbs = dreamBg ? [...dreamBg.querySelectorAll('[data-parallax]')] : [];
+
+  let pageVisible = document.visibilityState !== 'hidden';
+  let rafId = 0;
+  let pointerX = 0.5;
+  let pointerY = 0.5;
+  let dust = [];
+  let lastDustAt = 0;
+
+  function dustBudget() {
+    const mult = fxMultiplier();
+    if (mult <= 0) return 0;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const narrow = window.innerWidth < 768;
+    const base = coarse || narrow ? 18 : 36;
+    return Math.max(0, Math.round(base * mult));
+  }
+
+  function resizeLobbyCanvas() {
+    if (!lobbyCanvas) return;
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    lobbyCanvas.width = Math.max(1, Math.floor(w * dpr));
+    lobbyCanvas.height = Math.max(1, Math.floor(h * dpr));
+    lobbyCanvas.style.width = `${w}px`;
+    lobbyCanvas.style.height = `${h}px`;
+    const ctx = lobbyCanvas.getContext('2d');
+    ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function seedDust() {
+    const budget = dustBudget();
+    dust = [];
+    if (budget <= 0 || !lobbyCanvas) return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const colors = ['#67e8f9', '#2dd4bf', '#a5f3fc', '#f472b6', '#fb7185'];
+    for (let i = 0; i < budget; i += 1) {
+      dust.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: 0.6 + Math.random() * 1.8,
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: -0.08 - Math.random() * 0.22,
+        a: 0.15 + Math.random() * 0.45,
+        color: colors[i % colors.length],
+      });
+    }
+  }
+
+  function paintDust(now) {
+    if (!lobbyCanvas || fxMultiplier() <= 0) return;
+    const ctx = lobbyCanvas.getContext('2d');
+    if (!ctx) return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    ctx.clearRect(0, 0, w, h);
+    for (const p of dust) {
+      p.x += p.vx + (pointerX - 0.5) * 0.12;
+      p.y += p.vy + (pointerY - 0.5) * 0.04;
+      if (p.y < -8) {
+        p.y = h + 4;
+        p.x = Math.random() * w;
+      }
+      if (p.x < -8) p.x = w + 4;
+      if (p.x > w + 8) p.x = -4;
+      const pulse = 0.65 + 0.35 * Math.sin((now + p.x * 12) * 0.0015);
+      ctx.globalAlpha = p.a * pulse;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function applyParallax() {
+    const mult = fxMultiplier();
+    if (mult <= 0) {
+      parallaxOrbs.forEach((orb) => {
+        orb.style.transform = '';
+      });
+      return;
+    }
+    const dx = (pointerX - 0.5) * 2;
+    const dy = (pointerY - 0.5) * 2;
+    parallaxOrbs.forEach((orb) => {
+      const depth = Number(orb.dataset.parallax) || 0.04;
+      const x = dx * depth * 48 * mult;
+      const y = dy * depth * 36 * mult;
+      orb.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+    });
+  }
+
+  function tick(now) {
+    rafId = 0;
+    if (!pageVisible || fxMultiplier() <= 0) {
+      if (lobbyCanvas) {
+        const ctx = lobbyCanvas.getContext('2d');
+        ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+      return;
+    }
+    if (now - lastDustAt > 32) {
+      paintDust(now);
+      lastDustAt = now;
+    }
+    applyParallax();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function startFxLoop() {
+    if (rafId || fxMultiplier() <= 0 || !pageVisible) return;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function stopFxLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+
+  function bootLobbyFx() {
+    syncJuiceAttr();
+    resizeLobbyCanvas();
+    seedDust();
+    stopFxLoop();
+    if (fxMultiplier() > 0) startFxLoop();
+  }
+
+  window.addEventListener(
+    'pointermove',
+    (event) => {
+      if (fxMultiplier() <= 0) return;
+      pointerX = event.clientX / Math.max(1, window.innerWidth);
+      pointerY = event.clientY / Math.max(1, window.innerHeight);
+    },
+    { passive: true },
+  );
+
+  window.addEventListener(
+    'resize',
+    () => {
+      resizeLobbyCanvas();
+      seedDust();
+    },
+    { passive: true },
+  );
+
+  document.addEventListener('visibilitychange', () => {
+    pageVisible = document.visibilityState !== 'hidden';
+    if (pageVisible) startFxLoop();
+    else stopFxLoop();
+  });
+
+  try {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onMotionChange = () => bootLobbyFx();
+    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMotionChange);
+    else if (typeof mq.addListener === 'function') mq.addListener(onMotionChange);
+  } catch {
+    /* ignore */
+  }
+
+  window.addEventListener('storage', (event) => {
+    if (event.key === JUICE_STORAGE_KEY) bootLobbyFx();
+  });
+
+  bootLobbyFx();
 
   /* ---------- restore state from the URL ---------- */
 
