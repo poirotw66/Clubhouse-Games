@@ -13,12 +13,11 @@ import {
 } from './juice.ts';
 
 export type ResultOverlayVariant = 'win' | 'lose' | 'neutral';
+export type ResultOverlayEmphasis = 'standard' | 'record';
 
 export interface ParsedStatValue {
   kind: 'number' | 'text';
-  /** Raw display string when kind === 'text'. */
   text: string;
-  /** Absolute numeric magnitude when kind === 'number'. */
   value: number;
   prefix: string;
   suffix: string;
@@ -26,6 +25,7 @@ export interface ParsedStatValue {
 }
 
 const NUMBER_RE = /^(\D*?)(-?\d+(?:\.\d+)?)(\D*)$/;
+const RECORD_RE = /紀錄|破紀錄|新高|record|high\s*score|best/i;
 
 /** Pull a countable number out of a stat value when the shape is simple enough. */
 export function parseStatValue(raw: string | number): ParsedStatValue {
@@ -86,7 +86,7 @@ export function countUpStat(
     return { cancel() {} };
   }
 
-  const duration = Math.max(280, Math.min(1200, opts.durationMs ?? 700 * fxMultiplier()));
+  const duration = Math.max(420, Math.min(1400, opts.durationMs ?? 900 * fxMultiplier()));
   const start = performance.now();
   const from = 0;
   const to = parsed.value;
@@ -113,39 +113,126 @@ export function countUpStat(
   };
 }
 
+export function resolveEmphasis(
+  opts: {
+    emphasis?: ResultOverlayEmphasis;
+    badge?: string;
+    title?: string;
+  } = {},
+): ResultOverlayEmphasis {
+  if (opts.emphasis === 'record' || opts.emphasis === 'standard') return opts.emphasis;
+  const hay = `${opts.badge ?? ''} ${opts.title ?? ''}`;
+  return RECORD_RE.test(hay) ? 'record' : 'standard';
+}
+
+export function starCountFor(
+  variant: ResultOverlayVariant,
+  emphasis: ResultOverlayEmphasis,
+): number {
+  if (emphasis === 'record') return 5;
+  if (variant === 'win') return 5;
+  if (variant === 'lose') return 1;
+  return 3;
+}
+
 export function variantParticlePreset(variant: ResultOverlayVariant): ParticlePreset | null {
   if (variant === 'win') return 'confetti';
   if (variant === 'lose') return 'dust';
   return 'sparkle';
 }
 
-/** One-shot celebration when a result overlay opens. */
+const WIN_COLORS = ['#2dd4bf', '#67e8f9', '#f472b6', '#fbbf24', '#fb7185', '#a5f3fc', '#ffffff'];
+const LOSE_COLORS = ['#fb7185', '#f43f5e', '#94a3b8', '#64748b', '#fda4af'];
+const NEUTRAL_COLORS = ['#67e8f9', '#a5f3fc', '#2dd4bf', '#e2e8f0'];
+const RECORD_COLORS = ['#fbbf24', '#f59e0b', '#fde68a', '#ffffff', '#fb7185', '#2dd4bf'];
+
+/** One-shot layered celebration when a result overlay opens. */
 export function celebrateResultOverlay(opts: {
   variant: ResultOverlayVariant;
+  emphasis?: ResultOverlayEmphasis;
   cardEl?: Element | null;
 }): void {
   const mult = fxMultiplier();
   if (mult <= 0) return;
 
-  const preset = variantParticlePreset(opts.variant);
-  if (preset) {
-    const strength = opts.variant === 'win' ? 1 : opts.variant === 'lose' ? 0.55 : 0.7;
-    particles(preset, {
+  const emphasis = opts.emphasis ?? 'standard';
+  const isRecord = emphasis === 'record';
+  const strength =
+    (isRecord ? 1.35 : opts.variant === 'win' ? 1.15 : opts.variant === 'lose' ? 0.6 : 0.8) *
+    Math.max(0.4, mult);
+
+  const colors =
+    isRecord
+      ? RECORD_COLORS
+      : opts.variant === 'win'
+        ? WIN_COLORS
+        : opts.variant === 'lose'
+          ? LOSE_COLORS
+          : NEUTRAL_COLORS;
+
+  const primary = isRecord ? 'confetti' : variantParticlePreset(opts.variant);
+  if (primary) {
+    particles(primary, {
       el: opts.cardEl ?? null,
-      strength: strength * Math.max(0.35, mult),
-      count: opts.variant === 'win' ? 32 : opts.variant === 'lose' ? 12 : 16,
-      colors:
-        opts.variant === 'win'
-          ? ['#2dd4bf', '#67e8f9', '#f472b6', '#fbbf24', '#fb7185', '#a5f3fc']
-          : opts.variant === 'lose'
-            ? ['#94a3b8', '#64748b', '#fb7185']
-            : ['#67e8f9', '#a5f3fc', '#2dd4bf'],
+      strength,
+      count: isRecord || opts.variant === 'win' ? 40 : opts.variant === 'lose' ? 14 : 20,
+      colors,
     });
   }
 
-  if (opts.variant === 'win') haptic('win', 0.9);
-  else if (opts.variant === 'lose') haptic('error', 0.7);
-  else haptic('success', 0.55);
+  if (opts.variant === 'win' || isRecord) {
+    window.setTimeout(() => {
+      particles('sparkle', {
+        el: opts.cardEl ?? null,
+        strength: strength * 0.9,
+        count: 28,
+        colors,
+      });
+    }, 160);
+    window.setTimeout(() => {
+      particles('confetti', {
+        x: typeof window !== 'undefined' ? window.innerWidth * 0.25 : undefined,
+        y: typeof window !== 'undefined' ? window.innerHeight * 0.28 : undefined,
+        strength: strength * 0.85,
+        count: 32,
+        colors,
+      });
+      particles('confetti', {
+        x: typeof window !== 'undefined' ? window.innerWidth * 0.75 : undefined,
+        y: typeof window !== 'undefined' ? window.innerHeight * 0.28 : undefined,
+        strength: strength * 0.85,
+        count: 32,
+        colors,
+      });
+    }, 320);
+    window.setTimeout(() => {
+      particles('burst', {
+        el: opts.cardEl ?? null,
+        strength: strength * 1.1,
+        count: 24,
+        colors,
+      });
+    }, 520);
+  } else if (opts.variant === 'lose') {
+    window.setTimeout(() => {
+      particles('dust', {
+        el: opts.cardEl ?? null,
+        strength: 0.7,
+        count: 16,
+        colors: LOSE_COLORS,
+      });
+    }, 200);
+  }
 
-  if (opts.cardEl) pulse(opts.cardEl, opts.variant === 'win' ? 1.04 : 1.02);
+  if (isRecord) haptic('win', 1.2);
+  else if (opts.variant === 'win') haptic('win', 1);
+  else if (opts.variant === 'lose') haptic('error', 0.75);
+  else haptic('success', 0.6);
+
+  if (opts.cardEl) pulse(opts.cardEl, isRecord ? 1.08 : opts.variant === 'win' ? 1.06 : 1.03);
+}
+
+/** Split a title into per-character spans for kinetic entrance (keeps spaces). */
+export function splitTitleChars(title: string): string[] {
+  return Array.from(title);
 }

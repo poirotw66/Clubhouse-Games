@@ -4,6 +4,8 @@ import { __resetJuiceForTests, saveJuiceSettings } from './juice.ts';
 import {
   formatCountedValue,
   parseStatValue,
+  resolveEmphasis,
+  starCountFor,
   variantParticlePreset,
 } from './resultOverlayFx.ts';
 
@@ -52,5 +54,20 @@ describe('variantParticlePreset', () => {
   it('juice settings stay independent of parsing helpers', () => {
     saveJuiceSettings({ fx: 'off' });
     assert.equal(variantParticlePreset('win'), 'confetti');
+  });
+});
+
+describe('resolveEmphasis / starCountFor', () => {
+  it('detects record emphasis from badge or title', () => {
+    assert.equal(resolveEmphasis({ badge: '破紀錄' }), 'record');
+    assert.equal(resolveEmphasis({ title: '新高分！' }), 'record');
+    assert.equal(resolveEmphasis({ title: '你贏了！' }), 'standard');
+  });
+
+  it('maps stars by variant and emphasis', () => {
+    assert.equal(starCountFor('win', 'standard'), 5);
+    assert.equal(starCountFor('lose', 'standard'), 1);
+    assert.equal(starCountFor('neutral', 'standard'), 3);
+    assert.equal(starCountFor('lose', 'record'), 5);
   });
 });
