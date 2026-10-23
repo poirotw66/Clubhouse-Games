@@ -267,13 +267,18 @@ export function createLionWorld(): LionWorld {
       // Squash on impact
       const squash = 1 - 0.14 * Math.sin(Math.min(1, sim.fallBounce) * Math.PI);
       root.scale.set(1 + (1 - squash) * 0.12, squash, 1 + (1 - squash) * 0.18);
-      // Roll around X (track axis) so the long body stays horizontal on screen
-      // while tipping onto its side toward/away from the camera.
-      root.position.set(sim.x, Math.max(0.55, 0.55 + sim.y * 0.15 * (1 - land)), side * 0.35 * land);
+      // Always roll feet toward the camera (−X) so all four legs stay readable;
+      // fallSide only steers flower / stamp / lean for left-vs-right variety.
+      const roll = -Math.PI / 2;
+      root.position.set(
+        sim.x,
+        Math.max(0.7, 0.7 + sim.y * 0.12 * (1 - land)),
+        -0.15 * land,
+      );
       root.rotation.set(
-        side * (Math.PI / 2) * land + Math.sin(sim.fallSpin * 1.5) * 0.08 * (1 - land),
-        0,
-        THREE.MathUtils.clamp(sim.pitch * 0.25, -0.35, 0.25),
+        roll * land + Math.sin(sim.fallSpin * 1.5) * 0.1 * (1 - land),
+        side * 0.12 * land,
+        THREE.MathUtils.clamp(sim.pitch * 0.3, -0.4, 0.3) + side * 0.18 * land,
       );
       // 花花 flung in an arc (world-ish local)
       if (!flowerDetached) {

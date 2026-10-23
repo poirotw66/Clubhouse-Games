@@ -20,18 +20,18 @@ function computeCameraFrame(aspect) {
   const halfV = Math.tan(vFov / 2);
   const distH = LION_WORLD_HEIGHT / LION_FILL / (2 * halfV);
   const halfH = halfV * Math.max(0.35, aspect);
-  const widthFill = aspect < 0.7 ? 0.82 : aspect < 1 ? 0.7 : 0.55;
+  const widthFill = aspect < 0.7 ? 0.68 : aspect < 1 ? 0.62 : 0.52;
   const distW = LION_WORLD_LENGTH / widthFill / (2 * halfH);
-  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.04 : aspect < 1 ? 1.04 : 1.02);
+  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.12 : aspect < 1 ? 1.08 : 1.02);
   return { fov, distance };
 }
 
 function checkLionFramed(bounds, margin = FRAME_MARGIN_NDC) {
   const reasons = [];
-  if (bounds.minX < -margin) reasons.push('left');
-  if (bounds.maxX > 1 + margin) reasons.push('right');
-  if (bounds.minY < -margin) reasons.push('top');
-  if (bounds.maxY > 1 + margin) reasons.push('bottom');
+  if (bounds.minX < margin) reasons.push('left');
+  if (bounds.maxX > 1 - margin) reasons.push('right');
+  if (bounds.minY < margin) reasons.push('top');
+  if (bounds.maxY > 1 - margin) reasons.push('bottom');
   if (bounds.heightFrac > 0.62) reasons.push('too tall');
   return { ok: reasons.length === 0, reasons };
 }
@@ -52,10 +52,15 @@ function fillAt(frame) {
 const fill = fillAt(desk);
 const fillM = fillAt(mobile);
 assert.ok(fill > 0.3 && fill < 0.45, `desktop fill band failed ${fill.toFixed(3)}`);
-assert.ok(fillM > 0.22 && fillM < 0.45, `mobile fill band failed ${fillM.toFixed(3)}`);
+// Portrait is width-limited for a side-on lion; height fill sits lower by design.
+assert.ok(fillM > 0.18 && fillM < 0.4, `mobile fill band failed ${fillM.toFixed(3)}`);
 
 assert.ok(
   checkLionFramed({ minX: 0.1, maxX: 0.7, minY: 0.2, maxY: 0.55, heightFrac: 0.35 }).ok,
+);
+assert.ok(
+  !checkLionFramed({ minX: 0.01, maxX: 0.7, minY: 0.2, maxY: 0.55, heightFrac: 0.35 }).ok,
+  'inward margin must reject near-edge AABB',
 );
 assert.ok(
   !checkLionFramed({ minX: -0.1, maxX: 0.7, minY: 0.2, maxY: 0.55, heightFrac: 0.35 }).ok,

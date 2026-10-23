@@ -491,12 +491,15 @@ export function applyLegPose(
     const L = lift[id] ?? 0;
     const S = swing[id] ?? 0;
     if (fallen && flailT > 0) {
-      const phase = flailT * (3.2 + LEG_ATTACH[id].x) + LEG_ATTACH[id].z * 6;
-      const kick = 0.4 + 0.55 * Math.abs(Math.sin(phase));
-      leg.thigh.rotation.x = -Math.sin(phase) * 0.9;
-      leg.thigh.rotation.z = Math.cos(phase * 0.7) * 0.35;
-      leg.shin.rotation.x = kick * 1.4;
-      leg.foot.rotation.x = -kick * 0.5;
+      const phase = flailT * (3.6 + LEG_ATTACH[id].x * 0.4) + LEG_ATTACH[id].z * 7;
+      const kick = 0.55 + 0.7 * Math.abs(Math.sin(phase));
+      // Big readable kicks once rolled feet-toward-camera
+      leg.root.position.y = 0.05 + Math.abs(Math.sin(phase * 0.8)) * 0.25;
+      leg.thigh.rotation.x = -Math.sin(phase) * 1.25;
+      leg.thigh.rotation.z = Math.cos(phase * 0.85) * 0.55;
+      leg.thigh.rotation.y = Math.sin(phase * 0.6) * 0.35;
+      leg.shin.rotation.x = kick * 1.65;
+      leg.foot.rotation.x = -kick * 0.65 + Math.sin(phase * 1.4) * 0.25;
       continue;
     }
     // Hip swings forward; knee bends with lift (readable FK)

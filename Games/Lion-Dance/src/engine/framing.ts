@@ -39,18 +39,19 @@ export function computeCameraFrame(aspect: number): CameraFrame {
   const distH = LION_WORLD_HEIGHT / LION_FILL / (2 * halfV);
   // Distance from length so the whole lion fits horizontally with margin
   const halfH = halfV * Math.max(0.35, aspect);
-  // Portrait is width-limited for a side-on lion — keep as close as possible
-  // while fully visible (height fill will be a bit under the desktop band).
-  const widthFill = aspect < 0.7 ? 0.82 : aspect < 1 ? 0.7 : 0.55;
+  // Portrait is width-limited for a side-on lion — pull back enough for clear
+  // side margins (height fill will sit under the desktop band).
+  const widthFill = aspect < 0.7 ? 0.68 : aspect < 1 ? 0.62 : 0.52;
   const distW = LION_WORLD_LENGTH / widthFill / (2 * halfH);
-  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.04 : aspect < 1 ? 1.04 : 1.02);
+  const distance = Math.max(distH, distW) * (aspect < 0.7 ? 1.12 : aspect < 1 ? 1.08 : 1.02);
 
   return {
     fov,
     distance,
     camY: LION_WORLD_HEIGHT * 0.48,
     lookY: LION_WORLD_HEIGHT * 0.42,
-    lookAhead: aspect < 1 ? 0.08 : 0.7,
+    // Slight left bias so space sits ahead; keep portrait nearly centred.
+    lookAhead: aspect < 0.7 ? 0.02 : aspect < 1 ? 0.2 : 0.65,
   };
 }
 
@@ -117,13 +118,13 @@ export interface FrameCheck {
   reasons: string[];
 }
 
-/** Fail if any part of the AABB is outside the viewport (+ margin). */
+/** Fail if any part of the AABB lacks clear margin inside the viewport. */
 export function checkLionFramed(bounds: ScreenBounds, margin = FRAME_MARGIN_NDC): FrameCheck {
   const reasons: string[] = [];
-  if (bounds.minX < -margin) reasons.push(`left ${bounds.minX.toFixed(3)}`);
-  if (bounds.maxX > 1 + margin) reasons.push(`right ${bounds.maxX.toFixed(3)}`);
-  if (bounds.minY < -margin) reasons.push(`top ${bounds.minY.toFixed(3)}`);
-  if (bounds.maxY > 1 + margin) reasons.push(`bottom ${bounds.maxY.toFixed(3)}`);
+  if (bounds.minX < margin) reasons.push(`left ${bounds.minX.toFixed(3)}`);
+  if (bounds.maxX > 1 - margin) reasons.push(`right ${bounds.maxX.toFixed(3)}`);
+  if (bounds.minY < margin) reasons.push(`top ${bounds.minY.toFixed(3)}`);
+  if (bounds.maxY > 1 - margin) reasons.push(`bottom ${bounds.maxY.toFixed(3)}`);
   // Soft preference: height fill band (allow wider band when fallen)
   if (bounds.heightFrac > 0.62) reasons.push(`too tall ${bounds.heightFrac.toFixed(3)}`);
   return { ok: reasons.length === 0, bounds, reasons };
