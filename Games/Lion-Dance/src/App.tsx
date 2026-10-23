@@ -158,14 +158,6 @@ export default function App(): ReactElement {
     if (screen === 'result') startRun();
   }, [screen, startRun]);
 
-  const backToTitle = useCallback(() => {
-    setScreen('title');
-    setResult(null);
-    setStampText(null);
-    setShowHint(false);
-    setRunId((n) => n + 1);
-  }, []);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.repeat) return;
@@ -238,12 +230,9 @@ export default function App(): ReactElement {
 
       {screen === 'playing' && (
         <div className="lion-icon-tools">
-          <button type="button" className="lion-icon-btn" onClick={backToTitle} title={s.backMenu} aria-label={s.backMenu}>
-            ←
-          </button>
           <button
             type="button"
-            className="lion-icon-btn"
+            className="lion-icon-btn lion-icon-mute"
             onClick={toggleMute}
             aria-pressed={muted}
             title={muted ? s.muteOn : s.muteOff}
@@ -253,7 +242,7 @@ export default function App(): ReactElement {
           </button>
           <button
             type="button"
-            className="lion-icon-btn"
+            className="lion-icon-btn lion-icon-help"
             onClick={() => setShowHowTo(true)}
             title={s.howTo}
             aria-label={s.howTo}

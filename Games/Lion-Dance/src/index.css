@@ -288,7 +288,6 @@ body,
 
 .lion-hud-card {
   position: absolute;
-  top: max(0.65rem, env(safe-area-inset-top, 0px));
   background: rgba(255, 252, 245, 0.94);
   border: 2px solid rgba(34, 160, 90, 0.55);
   border-radius: 0.75rem;
@@ -298,10 +297,13 @@ body,
 }
 
 .lion-hud-left {
+  /* Sit below shared BackToMenu pill */
+  top: max(3.6rem, calc(env(safe-area-inset-top, 0px) + 3.1rem));
   left: 0.75rem;
 }
 
 .lion-hud-right {
+  top: max(0.65rem, env(safe-area-inset-top, 0px));
   right: 0.75rem;
   display: flex;
   gap: 0.85rem;
@@ -446,15 +448,9 @@ body,
 /* ── Icon tools ────────────────────────────────────────────────────── */
 
 .lion-icon-tools {
-  position: fixed;
-  top: max(0.55rem, env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9200;
-  display: none;
+  display: contents;
 }
 
-/* Keep mute/back/help as small icons near top-right under HUD cards on narrow */
 .lion-icon-btn {
   position: fixed;
   z-index: 9200;
@@ -472,45 +468,14 @@ body,
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(59, 36, 22, 0.1);
+  top: max(3.55rem, calc(env(safe-area-inset-top, 0px) + 3.05rem));
 }
 
-.lion-icon-tools .lion-icon-btn:nth-child(1),
-.lion-app > .lion-icon-tools + .lion-icon-btn {
-  /* unused */
-}
-
-.lion-icon-btn:nth-of-type(1) {
-  top: max(4.4rem, calc(env(safe-area-inset-top, 0px) + 3.7rem));
-  left: 0.75rem;
-}
-
-.lion-icon-btn:nth-of-type(2) {
-  top: max(4.4rem, calc(env(safe-area-inset-top, 0px) + 3.7rem));
-  right: 0.75rem;
-}
-
-.lion-icon-btn:nth-of-type(3) {
-  top: max(4.4rem, calc(env(safe-area-inset-top, 0px) + 3.7rem));
+.lion-icon-mute {
   right: 3.4rem;
 }
 
-/* Better: position via classes on wrapper children */
-.lion-icon-tools {
-  display: contents;
-}
-
-.lion-icon-tools > .lion-icon-btn:nth-child(1) {
-  top: max(4.35rem, calc(env(safe-area-inset-top, 0px) + 3.65rem));
-  left: 0.75rem;
-}
-
-.lion-icon-tools > .lion-icon-btn:nth-child(2) {
-  top: max(4.35rem, calc(env(safe-area-inset-top, 0px) + 3.65rem));
-  right: 3.4rem;
-}
-
-.lion-icon-tools > .lion-icon-btn:nth-child(3) {
-  top: max(4.35rem, calc(env(safe-area-inset-top, 0px) + 3.65rem));
+.lion-icon-help {
   right: 0.75rem;
 }
 

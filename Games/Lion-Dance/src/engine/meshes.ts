@@ -18,10 +18,10 @@ const WOOD = 0x6b3e26;
 const GREEN = 0x3d8b4f;
 const FLOWER_PINK = 0xf2a0b8;
 const FLOWER_YELLOW = 0xffe066;
-const SKY_TOP = 0x7ec8e8;
-const SKY_BOT = 0xffe2b0;
-const HILL = 0x5fa86a;
-const STREET = 0xe8d5b0;
+const SKY_TOP = 0x6ec4f0;
+const SKY_BOT = 0xffd9a0;
+const HILL = 0x4f9e5c;
+const STREET = 0xf0e0b8;
 
 const matCache = new Map<string, THREE.MeshStandardMaterial>();
 
@@ -67,6 +67,15 @@ export interface LionMeshes {
   jaw: THREE.Object3D;
 }
 
+function outline(mesh: THREE.Mesh, scale = 1.08): THREE.Mesh {
+  const geo = mesh.geometry;
+  const m = new THREE.MeshBasicMaterial({ color: 0x2a1208, side: THREE.BackSide });
+  const o = new THREE.Mesh(geo, m);
+  o.scale.setScalar(scale);
+  o.renderOrder = -1;
+  return o;
+}
+
 export function buildLion(): LionMeshes {
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -74,157 +83,219 @@ export function buildLion(): LionMeshes {
 
   // Soft ground blob shadow
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.35, 24),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }),
+    new THREE.CircleGeometry(1.55, 28),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }),
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.02;
   root.add(shadow);
 
-  // Draping torso cloth (layered boxes for volume)
-  const torso = box(BODY_LENGTH * 0.95, 0.85, BODY_WIDTH, RED, { rough: 0.55 });
-  torso.position.y = 0.1;
+  // Draping torso — layered volumes so side silhouette is not a single box
+  const torso = box(BODY_LENGTH * 0.92, 0.95, BODY_WIDTH * 0.95, RED, { rough: 0.5 });
+  torso.position.y = 0.12;
   torso.castShadow = true;
   body.add(torso);
+  body.add(outline(torso, 1.04));
 
-  const belly = box(BODY_LENGTH * 0.85, 0.35, BODY_WIDTH * 0.85, DARK_RED, { rough: 0.7 });
-  belly.position.y = -0.35;
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.72, 14, 12), mat(RED, { rough: 0.48 }));
+  chest.scale.set(1.15, 0.85, 1.05);
+  chest.position.set(0.85, 0.15, 0);
+  body.add(chest);
+
+  const rump = new THREE.Mesh(new THREE.SphereGeometry(0.65, 14, 12), mat(DARK_RED, { rough: 0.55 }));
+  rump.scale.set(1.05, 0.8, 1);
+  rump.position.set(-0.95, 0.05, 0);
+  body.add(rump);
+
+  const belly = box(BODY_LENGTH * 0.78, 0.4, BODY_WIDTH * 0.78, DARK_RED, { rough: 0.7 });
+  belly.position.y = -0.42;
   body.add(belly);
 
-  // Gold trims + pompoms along spine
-  for (const z of [-BODY_WIDTH * 0.48, BODY_WIDTH * 0.48]) {
-    const trim = box(BODY_LENGTH * 0.9, 0.12, 0.08, GOLD, { metal: 0.45 });
-    trim.position.set(0, 0.48, z);
+  // Gold spine scales / pompoms
+  for (const z of [-BODY_WIDTH * 0.5, BODY_WIDTH * 0.5]) {
+    const trim = box(BODY_LENGTH * 0.85, 0.14, 0.1, GOLD, { metal: 0.5 });
+    trim.position.set(0, 0.58, z);
     body.add(trim);
   }
-  for (let i = 0; i < 6; i++) {
-    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), mat(GOLD, { metal: 0.35 }));
-    pom.position.set(-1.1 + i * 0.42, 0.62, 0);
+  for (let i = 0; i < 7; i++) {
+    const pom = new THREE.Mesh(
+      new THREE.SphereGeometry(0.16, 10, 8),
+      mat(i % 2 === 0 ? GOLD : 0xffe8a0, { metal: 0.4, emissive: GOLD, eInt: 0.08 }),
+    );
+    pom.position.set(-1.2 + i * 0.4, 0.72, 0);
     body.add(pom);
   }
 
-  // Cloth flaps (skirt)
-  for (const z of [-0.55, 0.55]) {
-    const flap = box(BODY_LENGTH * 0.7, 0.55, 0.12, RED, { rough: 0.6 });
-    flap.position.set(0, -0.45, z);
-    flap.rotation.x = z > 0 ? 0.25 : -0.25;
+  // Cloth skirt flaps (hanging fur)
+  for (let i = 0; i < 5; i++) {
+    const flap = box(0.45, 0.7, 0.14, i % 2 === 0 ? RED : GOLD, { rough: 0.6 });
+    flap.position.set(-0.9 + i * 0.45, -0.55, BODY_WIDTH * 0.52);
+    flap.rotation.x = 0.35;
     body.add(flap);
+    const flapB = flap.clone();
+    flapB.position.z = -BODY_WIDTH * 0.52;
+    flapB.rotation.x = -0.35;
+    body.add(flapB);
   }
 
-  // Tail
+  // Tail with fur tassel
   const tail = new THREE.Group();
-  tail.position.set(-BODY_LENGTH * 0.52, 0.15, 0);
-  const tailBase = box(0.35, 0.25, 0.25, GOLD, { metal: 0.3 });
+  tail.position.set(-BODY_LENGTH * 0.55, 0.25, 0);
+  const tailBase = box(0.4, 0.28, 0.28, GOLD, { metal: 0.35 });
   tail.add(tailBase);
-  const tailFur = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), mat(RED));
-  tailFur.position.set(-0.35, 0.05, 0);
+  const tailMid = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.35, 4, 8), mat(RED));
+  tailMid.rotation.z = Math.PI / 2;
+  tailMid.position.set(-0.35, 0.05, 0);
+  tail.add(tailMid);
+  const tailFur = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 10), mat(RED, { rough: 0.55 }));
+  tailFur.position.set(-0.7, 0.05, 0);
   tail.add(tailFur);
+  const tailTip = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mat(GOLD, { metal: 0.35 }));
+  tailTip.position.set(-0.95, 0.08, 0);
+  tail.add(tailTip);
   body.add(tail);
 
-  // ── Head ──────────────────────────────────────────────────────────
+  // ── Head (yawed toward camera so face reads in side view) ─────────
   const head = new THREE.Group();
-  head.position.set(BODY_LENGTH * 0.52, 0.35, 0);
+  head.position.set(BODY_LENGTH * 0.48, 0.55, 0.15);
+  head.rotation.y = 0.55; // ~31° toward +Z camera
   body.add(head);
 
-  const skull = box(1.15, 0.95, 1.05, RED, { rough: 0.5 });
+  // Big skull
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 14), mat(RED, { rough: 0.45 }));
+  skull.scale.set(1.15, 1.05, 1.1);
   skull.castShadow = true;
   head.add(skull);
+  head.add(outline(skull, 1.06));
+
+  const brow = box(0.95, 0.28, 0.85, DARK_RED, { rough: 0.5 });
+  brow.position.set(0.25, 0.45, 0);
+  head.add(brow);
 
   // Forehead mirror / horn
   const mirror = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12, 0.2, 0.28, 8),
-    mat(GOLD, { metal: 0.55, emissive: GOLD, eInt: 0.15 }),
+    new THREE.CylinderGeometry(0.1, 0.22, 0.38, 8),
+    mat(GOLD, { metal: 0.6, emissive: GOLD, eInt: 0.22 }),
   );
-  mirror.position.set(0.05, 0.58, 0);
+  mirror.position.set(0.15, 0.78, 0);
   head.add(mirror);
+  const hornBall = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), mat(GOLD, { metal: 0.55 }));
+  hornBall.position.set(0.15, 1.0, 0);
+  head.add(hornBall);
 
-  // Mane fringe
-  for (let i = 0; i < 8; i++) {
-    const a = -0.9 + (i / 7) * 1.8;
-    const fringe = box(0.22, 0.55, 0.14, GOLD, { metal: 0.25 });
-    fringe.position.set(-0.45, 0.15 + Math.cos(a) * 0.1, Math.sin(a) * 0.55);
-    fringe.rotation.z = 0.35;
+  // Cascading mane fringe (silhouette from side)
+  for (let i = 0; i < 12; i++) {
+    const a = -1.1 + (i / 11) * 2.2;
+    const fringe = box(0.18, 0.75 + (i % 3) * 0.08, 0.16, i % 2 === 0 ? GOLD : RED, { metal: 0.2 });
+    fringe.position.set(-0.55, 0.05 + Math.cos(a) * 0.15, Math.sin(a) * 0.7);
+    fringe.rotation.z = 0.45;
     head.add(fringe);
+  }
+  // Extra mane strips hanging under chin / back of head
+  for (let i = 0; i < 5; i++) {
+    const strip = box(0.14, 0.9, 0.12, GOLD, { metal: 0.25 });
+    strip.position.set(-0.7, -0.35, -0.35 + i * 0.18);
+    strip.rotation.z = 0.55;
+    head.add(strip);
   }
 
   // Ears
   const leftEar = new THREE.Group();
-  leftEar.position.set(0.1, 0.55, -0.52);
-  const earL = box(0.22, 0.35, 0.12, RED);
-  earL.rotation.z = 0.3;
+  leftEar.position.set(0.05, 0.72, -0.55);
+  const earL = box(0.28, 0.42, 0.14, RED);
+  earL.rotation.z = 0.35;
   leftEar.add(earL);
+  const earLIn = box(0.16, 0.25, 0.08, CREAM);
+  earLIn.position.set(0.02, 0.02, -0.02);
+  leftEar.add(earLIn);
   head.add(leftEar);
 
   const rightEar = new THREE.Group();
-  rightEar.position.set(0.1, 0.55, 0.52);
-  const earR = box(0.22, 0.35, 0.12, RED);
-  earR.rotation.z = 0.3;
+  rightEar.position.set(0.05, 0.72, 0.55);
+  const earR = box(0.28, 0.42, 0.14, RED);
+  earR.rotation.z = 0.35;
   rightEar.add(earR);
+  const earRIn = box(0.16, 0.25, 0.08, CREAM);
+  earRIn.position.set(0.02, 0.02, 0.02);
+  rightEar.add(earRIn);
   head.add(rightEar);
 
-  // Eyes (big expressive)
-  const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), mat(CREAM, { rough: 0.35 }));
-  leftEye.position.set(0.48, 0.22, -0.28);
+  // Big expressive eyes — camera-side eye oversized for readability
+  const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12), mat(CREAM, { rough: 0.3 }));
+  leftEye.position.set(0.55, 0.28, -0.38);
   head.add(leftEye);
-  const leftPupil = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), mat(0x1a1208));
-  leftPupil.position.set(0.58, 0.22, -0.28);
+  const leftPupil = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), mat(0x1a1208));
+  leftPupil.position.set(0.7, 0.28, -0.38);
   head.add(leftPupil);
 
-  const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), mat(CREAM, { rough: 0.35 }));
-  rightEye.position.set(0.48, 0.22, 0.28);
+  const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 12), mat(CREAM, { rough: 0.28 }));
+  rightEye.position.set(0.5, 0.3, 0.48);
   head.add(rightEye);
-  const rightPupil = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), mat(0x1a1208));
-  rightPupil.position.set(0.58, 0.22, 0.28);
+  const rightPupil = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), mat(0x1a1208));
+  rightPupil.position.set(0.68, 0.3, 0.52);
   head.add(rightPupil);
+  const eyeShine = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat(0xffffff));
+  eyeShine.position.set(0.72, 0.38, 0.55);
+  head.add(eyeShine);
 
-  // Snout + jaw
-  const snout = box(0.55, 0.42, 0.72, DARK_RED, { rough: 0.55 });
-  snout.position.set(0.72, -0.05, 0);
+  // Wide open mouth / snout
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.85), mat(DARK_RED, { rough: 0.5 }));
+  snout.position.set(0.85, -0.05, 0);
   head.add(snout);
+  head.add(outline(snout as THREE.Mesh, 1.05));
 
   const jaw = new THREE.Group();
-  jaw.position.set(0.7, -0.32, 0);
-  const jawMesh = box(0.5, 0.18, 0.65, CREAM, { rough: 0.7 });
+  jaw.position.set(0.82, -0.38, 0);
+  const jawMesh = box(0.65, 0.22, 0.78, CREAM, { rough: 0.65 });
   jaw.add(jawMesh);
-  // Teeth
-  for (const z of [-0.18, 0.18]) {
-    const tooth = box(0.08, 0.14, 0.08, 0xfffaf0);
-    tooth.position.set(0.2, 0.12, z);
+  for (const z of [-0.22, -0.08, 0.08, 0.22]) {
+    const tooth = box(0.1, 0.18, 0.09, 0xfffaf0);
+    tooth.position.set(0.22, 0.16, z);
     jaw.add(tooth);
   }
   head.add(jaw);
 
-  // Nose
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0x2a1810));
-  nose.position.set(0.98, 0.05, 0);
+  // Upper fangs
+  for (const z of [-0.2, 0.2]) {
+    const fang = box(0.09, 0.22, 0.09, 0xfffaf0);
+    fang.position.set(1.05, -0.12, z);
+    head.add(fang);
+  }
+
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), mat(0x2a1810));
+  nose.position.set(1.18, 0.12, 0);
   head.add(nose);
 
-  // Cheek pompoms
-  for (const z of [-0.55, 0.55]) {
-    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(GOLD, { metal: 0.3 }));
-    cheek.position.set(0.25, -0.15, z);
+  // Cheek pompoms (醒獅 classic)
+  for (const z of [-0.62, 0.62]) {
+    const cheek = new THREE.Mesh(
+      new THREE.SphereGeometry(0.26, 12, 10),
+      mat(GOLD, { metal: 0.35, emissive: GOLD, eInt: 0.12 }),
+    );
+    cheek.position.set(0.35, -0.12, z);
     head.add(cheek);
   }
 
-  // 花花 + drum
+  // 花花 + drum on crown
   const flower = buildFlower();
-  flower.position.set(-0.05, 0.78, 0);
+  flower.position.set(-0.1, 0.95, 0.1);
+  flower.scale.setScalar(1.15);
   head.add(flower);
 
-  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.14, 14), mat(RED));
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.16, 14), mat(RED));
   drum.rotation.z = Math.PI / 2;
-  drum.position.set(0.35, 0.7, 0.28);
+  drum.position.set(0.4, 0.85, 0.35);
   head.add(drum);
-  const drumSkin = new THREE.Mesh(new THREE.CircleGeometry(0.155, 14), mat(CREAM));
+  const drumSkin = new THREE.Mesh(new THREE.CircleGeometry(0.175, 14), mat(CREAM));
   drumSkin.rotation.y = Math.PI / 2;
-  drumSkin.position.set(0.425, 0.7, 0.28);
+  drumSkin.position.set(0.485, 0.85, 0.35);
   head.add(drumSkin);
 
   const legs = {} as Record<LegId, THREE.Group>;
   for (const id of LEG_IDS) {
     const leg = buildLeg(id);
     const a = LEG_ATTACH[id];
-    leg.position.set(a.x, -0.25, a.z);
+    leg.position.set(a.x, -0.2, a.z);
     body.add(leg);
     legs[id] = leg;
   }
@@ -252,39 +323,40 @@ function buildLeg(id: LegId): THREE.Group {
   const color = LEG_COLOR[id];
 
   const thigh = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.16, 0.45, 4, 10),
-    mat(RED, { rough: 0.55 }),
+    new THREE.CapsuleGeometry(0.2, 0.48, 4, 12),
+    mat(RED, { rough: 0.5 }),
   );
-  thigh.position.y = -0.35;
+  thigh.position.y = -0.38;
   g.add(thigh);
+  g.add(outline(thigh, 1.08));
 
   const shin = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.13, 0.4, 4, 10),
-    mat(DARK_RED, { rough: 0.6 }),
+    new THREE.CapsuleGeometry(0.16, 0.42, 4, 12),
+    mat(DARK_RED, { rough: 0.55 }),
   );
-  shin.position.y = -0.95;
+  shin.position.y = -1.0;
   shin.name = 'shin';
   g.add(shin);
 
-  // Colour anklet band
+  // Thick colour anklet band
   const band = new THREE.Mesh(
-    new THREE.TorusGeometry(0.2, 0.07, 8, 16),
-    mat(color, { metal: 0.2, emissive: color, eInt: 0.25 }),
+    new THREE.TorusGeometry(0.24, 0.09, 8, 18),
+    mat(color, { metal: 0.25, emissive: color, eInt: 0.35 }),
   );
   band.rotation.x = Math.PI / 2;
-  band.position.y = -1.15;
+  band.position.y = -1.22;
   band.name = 'band';
   g.add(band);
 
   // Boot / paw
-  const foot = box(0.48, 0.18, 0.32, color, { metal: 0.15, emissive: color, eInt: 0.12 });
-  foot.position.set(0.1, -1.38, 0);
+  const foot = box(0.55, 0.22, 0.38, color, { metal: 0.15, emissive: color, eInt: 0.18 });
+  foot.position.set(0.12, -1.42, 0);
   foot.name = 'foot';
   g.add(foot);
 
-  const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.04, 6, 12), mat(GOLD, { metal: 0.4 }));
+  const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 6, 14), mat(GOLD, { metal: 0.45 }));
   cuff.rotation.x = Math.PI / 2;
-  cuff.position.y = -0.7;
+  cuff.position.y = -0.72;
   g.add(cuff);
 
   return g;
@@ -583,7 +655,7 @@ export function applyLegPose(
     const S = swing[id] ?? 0;
     // High visible lift + forward swing (side view reads as rotation around Z visually via X rot)
     leg.rotation.x = -S * 1.05;
-    leg.position.y = -0.25 + L * 0.75;
+    leg.position.y = -0.2 + L * 0.85;
     const shin = leg.getObjectByName('shin');
     if (shin) shin.rotation.x = L * 0.85;
     const foot = leg.getObjectByName('foot');

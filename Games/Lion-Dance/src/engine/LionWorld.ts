@@ -207,8 +207,8 @@ export function createLionWorld(): LionWorld {
       flower.scale.setScalar(1 + beat.pulse * 0.1);
       shadow.position.set(root.position.x, 0.02, 0);
       camX += (2.5 - camX) * Math.min(1, dt * 3);
-      camera.position.set(camX + 0.4, 3.6, 11.5);
-      camera.lookAt(camX + 1.2, 2.0, 0);
+      camera.position.set(camX + 0.4, 3.2, 10.2);
+      camera.lookAt(camX + 1.2, 1.85, 0);
       return;
     }
 
@@ -235,7 +235,7 @@ export function createLionWorld(): LionWorld {
       head.position.y = 0.35 + t * 0.55;
       envelope.position.y = 4.2 - t * 2.1;
       envelope.rotation.z = t * 1.2;
-      flower.position.set(-0.05, 0.78, 0);
+      flower.position.set(-0.1, 0.95, 0.1);
       flower.rotation.set(0, 0, 0);
       if (t > 0.35 && confetti) {
         confetti.visible = true;
@@ -271,9 +271,9 @@ export function createLionWorld(): LionWorld {
       root.position.set(sim.x, sim.y, 0);
       root.rotation.set(sim.pitch * 0.85, 0, sim.roll * 0.9);
       head.rotation.x = THREE.MathUtils.clamp(-sim.pitch * 0.25, -0.2, 0.2);
-      flower.position.set(-0.05, 0.78, 0);
+      flower.position.set(-0.1, 0.95, 0.1);
       flower.rotation.set(0, reduced ? 0 : idleT * 1.2, 0);
-      flower.scale.setScalar(1 + beat.pulse * 0.2);
+      flower.scale.setScalar(1.15 + beat.pulse * 0.2);
     }
 
     applyLegPose(legs, snapshotHudBase(sim, TIME_LIMIT).legLift, snapshotHudBase(sim, TIME_LIMIT).legSwing);
@@ -292,8 +292,8 @@ export function createLionWorld(): LionWorld {
     const targetX = sim.x + 0.8;
     const follow = reduced ? 1 : 1 - Math.pow(0.00008, dt);
     camX += (targetX - camX) * follow;
-    camera.position.set(camX, 3.55, 11.8);
-    camera.lookAt(camX + 0.6, 2.05, 0);
+    camera.position.set(camX, 3.2, 10.2);
+    camera.lookAt(camX + 0.6, 1.85, 0);
 
     if (!reduced) {
       const t = performance.now() * 0.001;
@@ -437,8 +437,8 @@ export function createLionWorld(): LionWorld {
       scene.background = new THREE.Color(0x9ed4ef);
 
       // Narrow FOV ≈ orthographic side view
-      camera = new THREE.PerspectiveCamera(32, 1, 0.1, 140);
-      camera.position.set(0, 3.55, 11.8);
+      camera = new THREE.PerspectiveCamera(30, 1, 0.1, 140);
+      camera.position.set(0, 3.2, 10.2);
 
       renderer = new THREE.WebGLRenderer({
         antialias: !reduced,
