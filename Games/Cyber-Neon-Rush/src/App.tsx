@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { haptic } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playError,
@@ -138,10 +140,13 @@ export default function App(): ReactElement {
         creditsEarned: r.creditsEarned,
       }),
     );
-    if (r.isNewBest || r.score >= 5000) playWin();
-    else {
+    if (r.isNewBest || r.score >= 5000) {
+      playWin();
+      haptic('win');
+    } else {
       playError();
       playLose();
+      // Crash already pulsed impact/error in GameWorld; keep end soft.
     }
   }, []);
 
@@ -443,6 +448,9 @@ export default function App(): ReactElement {
           <div className="menu-card">
             <h2 className="font-display text-3xl neon-text mb-2">暫停</h2>
             <p className="hint">按 P 或 Esc 繼續</p>
+            <div className="mb-4 text-left">
+              <JuiceSettingsPanel compact />
+            </div>
             <button type="button" className="cta" onClick={() => setScreen('playing')}>
               繼續疾馳
             </button>

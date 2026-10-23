@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playCard,
@@ -139,6 +141,10 @@ export default function App(): React.ReactElement {
   const matchRecorded = useRef(false);
   const resultSoundPlayed = useRef(false);
   const prevLogLen = useRef(0);
+  const comboRef = useRef(0);
+  const feltRef = useRef<HTMLElement | null>(null);
+  /** Shake intensity queued until after `.pr-felt` remounts on captureBurst. */
+  const pendingFeltShake = useRef(0);
 
   useEffect(() => {
     const saved = loadStats();
@@ -196,6 +202,7 @@ export default function App(): React.ReactElement {
     setHint(null);
     setReview(null);
     setCombo(0);
+    comboRef.current = 0;
     setCallout(null);
     handRecorded.current = false;
     resultSoundPlayed.current = false;
@@ -319,10 +326,13 @@ export default function App(): React.ReactElement {
     prevLogLen.current = state.log.length;
     if (!last) return;
 
+    const feltEl = () => feltRef.current;
+
     if (last.taken) {
       setCaptureBurst((n) => n + 1);
       const pts = last.points;
-      if (isFlashyCapture(last.played, last.taken, state.rules.blackAces)) {
+      const flashy = isFlashyCapture(last.played, last.taken, state.rules.blackAces);
+      if (flashy) {
         const label =
           last.played.rank === 1 || last.taken.rank === 1
             ? '搶 A！'
@@ -336,23 +346,43 @@ export default function App(): React.ReactElement {
       } else {
         playCapture();
       }
-      setCombo((c) => {
-        const next = c + 1;
-        if (next >= 2) {
-          playCombo(next);
-          if (next >= 3) setCallout({ text: `${next} 連撿！`, key: Date.now() });
-        }
-        return next;
-      });
+      comboRef.current += 1;
+      const nextCombo = comboRef.current;
+      setCombo(nextCombo);
+      if (nextCombo >= 2) {
+        playCombo(nextCombo);
+        if (nextCombo >= 3) setCallout({ text: `${nextCombo} 連撿！`, key: Date.now() });
+      }
+      // Presentation juice only — does not change scores or rules.
+      if (flashy || nextCombo >= 2) {
+        haptic(nextCombo >= 2 ? 'combo' : 'impact');
+        particles('burst', { el: feltEl(), strength: flashy ? 1 : 0.75 });
+        // Felt remounts via captureBurst key; apply shake in the effect below.
+        pendingFeltShake.current = 0.45;
+      } else {
+        haptic('place');
+        particles('sparkle', { el: feltEl() });
+      }
       playScore();
     } else {
+      comboRef.current = 0;
       setCombo(0);
       if (isFlashyDiscard(last.played, null, state.rules.blackAces)) {
         setCallout({ text: `丟出 ${cardLabel(last.played)}`, key: Date.now() });
       }
       playCard();
+      haptic('tap');
+      particles('dust', { el: feltEl() });
     }
   }, [state]);
+
+  // Apply queued felt shake after captureBurst remounts the `.pr-felt` node.
+  useEffect(() => {
+    if (!captureBurst || pendingFeltShake.current <= 0) return;
+    const intensity = pendingFeltShake.current;
+    pendingFeltShake.current = 0;
+    shake(feltRef.current, intensity);
+  }, [captureBurst]);
 
   const result = useMemo(() => (state?.phase === 'over' ? outcome(state) : null), [state]);
 
@@ -363,8 +393,13 @@ export default function App(): React.ReactElement {
 
     if (!resultSoundPlayed.current) {
       resultSoundPlayed.current = true;
-      if (result.result === 'win') playWin();
-      else if (result.result === 'loss') playLose();
+      if (result.result === 'win') {
+        playWin();
+        haptic('win');
+        particles('confetti', { el: feltRef.current, strength: 1.1 });
+      } else if (result.result === 'loss') {
+        playLose();
+      }
     }
 
     const nextMatch = applyHandResult(match, result, state.seedCode);
@@ -667,6 +702,8 @@ export default function App(): React.ReactElement {
             )}
 
             <section
+              ref={feltRef}
+              data-pr-felt="1"
               className={`pr-felt rounded-2xl p-3 sm:p-4 relative ${captureBurst ? 'pr-felt-flash' : ''}`}
               style={feltBackgroundStyle()}
               aria-label="桌面"
@@ -1269,6 +1306,8 @@ function Setup({
             )}
           </div>
         </section>
+
+        <JuiceSettingsPanel className="text-emerald-100" />
 
         <label className="text-sm">
           <span className="font-bold text-emerald-200">種子碼</span>
