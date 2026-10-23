@@ -575,6 +575,59 @@ test('big-two: default lobby is single without series scoreboard', async ({ page
   await expect(page.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
 });
 
+test('big-two: juice settings and play vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Big-Two'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-big-two-howto-seen', '1');
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Big-Two/');
+  await expect(page.locator('[data-juice-settings="1"]')).toBeVisible();
+  await page.getByPlaceholder(/例如/).fill('abc');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  await activate(hand.getByRole('button', { name: '♣3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '出牌', exact: true }), isMobile);
+  await expect(page.getByRole('region', { name: '檯面' }).getByRole('img', { name: '♣3' })).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(page.locator('[data-bt-felt="1"]')).toBeVisible();
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+});
+
+test('big-two: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Big-Two'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-big-two-howto-seen', '1');
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Big-Two/');
+  await page.getByPlaceholder(/例如/).fill('abc');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  await activate(hand.getByRole('button', { name: '♣3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '出牌', exact: true }), isMobile);
+  await expect(page.getByRole('region', { name: '檯面' }).getByRole('img', { name: '♣3' })).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(page.locator('[data-bt-felt="1"]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
+});
+
 test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {
   test.skip(!includesGame('Fifteen-Puzzle'), 'selective CI');
   await page.goto('./Games/Fifteen-Puzzle/');
