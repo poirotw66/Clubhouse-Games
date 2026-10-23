@@ -1,4 +1,5 @@
 import React from 'react';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 
 interface RulesModalProps {
   onClose: () => void;
@@ -49,6 +50,10 @@ export const RulesModal: React.FC<RulesModalProps> = ({onClose, winScore}) => {
             <li>月見酒 / 花見酒 — 5 分</li>
             <li>種 / 短冊 / 菓子 — 5 張起 1 分+</li>
           </ul>
+        </section>
+
+        <section className="mb-6">
+          <JuiceSettingsPanel className="text-cream" />
         </section>
 
         <button type="button" onClick={onClose} className="wafu-btn-gold w-full py-3 min-h-[44px] rounded-xl touch-manipulation">

@@ -5,6 +5,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, type HapticPreset } from '@clubhouse/shared/juice';
 import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { createRoot } from 'react-dom/client';
 import { DIFFICULTY, OPPONENTS, isOpponentUnlocked } from './src/game/opponents.js';
@@ -16,6 +18,20 @@ import {
   copyText,
   taipeiDateKey,
 } from './src/game/daily.js';
+
+const HAPTIC_PRESETS = new Set<HapticPreset>([
+  'tap',
+  'place',
+  'success',
+  'combo',
+  'impact',
+  'error',
+  'win',
+]);
+
+function isHapticPreset(value: unknown): value is HapticPreset {
+  return typeof value === 'string' && HAPTIC_PRESETS.has(value as HapticPreset);
+}
 
 type Mode = 'drill' | 'scoreAttack' | 'versus' | 'daily';
 type Diff = 'easy' | 'normal' | 'hard';
@@ -241,6 +257,11 @@ function App() {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'GAME_READY') setIsLoading(false);
+      if (event.data?.type === 'JUICE_HAPTIC') {
+        const preset = event.data.payload;
+        if (isHapticPreset(preset)) haptic(preset);
+        return;
+      }
       if (event.data?.type === 'SHOW_MENU') {
         setShowMenu(true);
         setStatsTick((n) => n + 1);
@@ -568,6 +589,10 @@ function App() {
                 ) : null}
               </div>
             )}
+
+            <div style={{ marginTop: 16 }}>
+              <JuiceSettingsPanel />
+            </div>
 
             <p style={{ margin: '16px 0 0', color: '#777', fontSize: 12 }}>
               生涯完美 {stats.careerPerfects} · 回殺 {stats.careerCounters} · 最高連擋{' '}

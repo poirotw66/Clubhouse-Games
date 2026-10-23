@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { haptic, particles } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { Card as CardType, GameState, PlayerHand } from './types';
 import {
@@ -194,6 +195,7 @@ export default function App() {
   const tinRivalsRef = useRef<RivalState[]>([]);
   const tableModeRef = useRef<TableMode>('career');
   const sessionClosingRef = useRef(false);
+  const feltRef = useRef<HTMLDivElement | null>(null);
 
   const rules = settings.rules;
   const table =
@@ -251,6 +253,7 @@ export default function App() {
     pushBetHistory();
     setCurrentBet(next);
     playChip();
+    haptic('tap');
   };
 
   const placeSideBet = (amount: number) => {
@@ -262,6 +265,7 @@ export default function App() {
     pushBetHistory();
     setSideBet(next);
     playChip();
+    haptic('tap');
   };
 
   const clearBet = () => {
@@ -282,6 +286,7 @@ export default function App() {
       setSideBet(maxPerfectPairsBet(table.minBet, balance - table.minBet));
     }
     playChip();
+    haptic('tap');
   };
 
   const canUndoBet = gameState === 'betting' && betHistory.length > 0;
@@ -574,6 +579,8 @@ export default function App() {
     const dealerPeeks = upIsAce || upIsTen;
 
     playDealCard();
+    haptic('place');
+    particles('dust', { el: feltRef.current });
 
     if (isPlayerBJ) {
       setPlayerHands([{ id: '1', cards: initialPlayerCards, bet: currentBet, status: 'playing' }]);
@@ -822,6 +829,7 @@ export default function App() {
     const score = calculateScore(newHands[activeHandIndex].cards);
     if (score > 21) {
       newHands[activeHandIndex].status = 'busted';
+      haptic('error');
       advanceHand(newHands);
     } else {
       setPlayerHands(newHands);
@@ -859,6 +867,7 @@ export default function App() {
     });
     setBalanceTracked(prev => prev - activeHand.bet);
     playChip();
+    haptic('impact');
 
     const { card, shoe: nextShoe } = drawCard(shoe);
     setShoe(nextShoe);
@@ -870,6 +879,7 @@ export default function App() {
 
     const score = calculateScore(newHands[activeHandIndex].cards);
     newHands[activeHandIndex].status = score > 21 ? 'busted' : 'stood';
+    if (score > 21) haptic('error');
     advanceHand(newHands);
     playDealCard();
   };
@@ -888,6 +898,7 @@ export default function App() {
 
     setBalanceTracked(prev => prev - hand.bet);
     playChip();
+    haptic('impact');
 
     const drawn = drawCards(shoe, 2);
     setShoe(drawn.shoe);
@@ -1043,8 +1054,11 @@ export default function App() {
 
   useEffect(() => {
     if (gameState === 'gameOver' && prevGameStateRef.current !== 'gameOver') {
-      if (resultPrompt === 'win') playWin();
-      else if (resultPrompt === 'lose') playLose();
+      if (resultPrompt === 'win') {
+        playWin();
+        haptic('win');
+        particles('confetti', { el: feltRef.current, strength: 1.1 });
+      } else if (resultPrompt === 'lose') playLose();
     }
     prevGameStateRef.current = gameState;
   }, [gameState, resultPrompt]);
@@ -1257,6 +1271,8 @@ export default function App() {
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
     <div
+      ref={feltRef}
+      data-bj-felt="1"
       className="min-h-screen h-screen max-h-screen flex flex-col items-center justify-between p-2 sm:p-3 md:p-4 font-sans text-white overflow-hidden relative bg-cover bg-center"
       style={{
         backgroundColor: '#064e3b',
