@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from 'react';
+import type { CSSProperties, ReactElement, Ref } from 'react';
 import type { Board, Cell } from '../utils/reversiLogic';
 import { SIZE } from '../utils/reversiLogic';
 
@@ -13,6 +13,8 @@ export interface BoardGridProps {
   humanCanClick: boolean;
   phasePlaying: boolean;
   onCellClick: (r: number, c: number) => void;
+  /** Outer board shell — used for shake / particle anchors. */
+  shellRef?: Ref<HTMLDivElement>;
 }
 
 function pieceStyle(cell: 'black' | 'white'): CSSProperties {
@@ -33,9 +35,14 @@ export function BoardGrid({
   humanCanClick,
   phasePlaying,
   onCellClick,
+  shellRef,
 }: BoardGridProps): ReactElement {
   return (
-    <div className="inline-block p-2 rounded-xl bg-emerald-900/80 shadow-lg box-border w-full max-w-[min(92vw,360px)] aspect-square">
+    <div
+      ref={shellRef}
+      data-reversi-board
+      className="inline-block p-2 rounded-xl bg-emerald-900/80 shadow-lg box-border w-full max-w-[min(92vw,360px)] aspect-square"
+    >
       <div
         className="grid gap-0.5 bg-stone-800 rounded-lg p-1 w-full h-full"
         style={{
@@ -57,6 +64,7 @@ export function BoardGrid({
             <button
               key={key}
               type="button"
+              data-reversi-cell={`${r},${c}`}
               onClick={() => onCellClick(r, c)}
               disabled={!phasePlaying || !humanCanClick || (humanCanClick && !isLegal)}
               className={`

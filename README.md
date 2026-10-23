@@ -40,7 +40,7 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 | 紙牌類型 | [01-cards/](01-cards/) | 6 |
 | 棋盤類型 | [02-board/](02-board/) | 3 |
 | 牌張類型 | [03-tiles-dice/](03-tiles-dice/) | 1 |
-| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 10 |
+| 運動機檯類型 | [04-sports-arcade/](04-sports-arcade/) | 11 |
 | 串聯拼砌類型 | [05-puzzle/](05-puzzle/) | 8 |
 | 迷你遊戲類型 | [06-minigames/](06-minigames/) | 3 |
 | Astra 實驗 | [07-astra/](07-astra/) | 15 |
@@ -76,6 +76,7 @@ New games are also built first with `npm run build:game <folder-name>`, then ent
 - [x] [球團王朝](04-sports-arcade/dynasty.md) → [Games/Dynasty/](Games/Dynasty/)
 - [x] [彈幕深淵](04-sports-arcade/danmaku-abyss.md) → [Games/Danmaku-Abyss/](Games/Danmaku-Abyss/)
 - [x] [岔道疾走](04-sports-arcade/switchpoint-run.md) → [Games/Switchpoint-Run/](Games/Switchpoint-Run/)
+- [x] [花花舞獅踩街](04-sports-arcade/lion-dance.md) → [Games/Lion-Dance/](Games/Lion-Dance/)
 
 ## 05-益智遊戲
 - [x] [神秘液體排序](05-puzzle/mystery-liquid-sort.md) → [Games/Mystery-Liquid-Sort/](Games/Mystery-Liquid-Sort/)

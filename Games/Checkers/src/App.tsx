@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playMove,
@@ -254,6 +256,7 @@ export default function App() {
   const prevPhaseRef = useRef<GamePhase>('playing');
   const statsRecordedRef = useRef(false);
   const animLock = useRef(false);
+  const boardShellRef = useRef<HTMLDivElement | null>(null);
 
   const rules = RULESETS[ruleset];
   const size = rules.size;
@@ -310,30 +313,66 @@ export default function App() {
       ? (originSet.values().next().value as string)
       : null;
 
-  const playMoveJuice = useCallback((move: Move) => {
-    const hops = captureHopCount(move);
-    if (hops > 0) {
-      playCapture();
-      if (hops >= 2) playScore();
-      const fx = new Set<string>();
-      for (let i = 1; i < move.path.length; i++) {
-        const [pr, pc] = move.path[i - 1];
-        const [r, c] = move.path[i];
-        const midR = (pr + r) >> 1;
-        const midC = (pc + c) >> 1;
-        // For flying kings mid isn't halfway — flash both ends of hop.
-        if (Math.abs(r - pr) === 2) fx.add(sq(midR, midC));
-        else fx.add(sq(r, c));
+  const playMoveJuice = useCallback(
+    (move: Move, opts: { won?: boolean; promoted?: boolean } = {}) => {
+      const hops = captureHopCount(move);
+      const boardEl = boardShellRef.current;
+      const [lr, lc] = move.path[move.path.length - 1];
+      const destEl =
+        boardEl?.querySelector(`[data-ck-cell="${lr},${lc}"]`) ?? null;
+
+      if (hops > 0) {
+        playCapture();
+        if (hops >= 2) playScore();
+        const fx = new Set<string>();
+        for (let i = 1; i < move.path.length; i++) {
+          const [pr, pc] = move.path[i - 1];
+          const [r, c] = move.path[i];
+          const midR = (pr + r) >> 1;
+          const midC = (pc + c) >> 1;
+          // For flying kings mid isn't halfway — flash both ends of hop.
+          if (Math.abs(r - pr) === 2) fx.add(sq(midR, midC));
+          else fx.add(sq(r, c));
+        }
+        setCaptureFx(fx);
+        window.setTimeout(() => setCaptureFx(new Set()), 420);
+
+        if (hops >= 2) {
+          haptic('combo');
+          shake(boardEl, 0.75);
+        } else {
+          haptic('impact');
+        }
+        for (const key of fx) {
+          const [cr, cc] = key.split(',').map(Number);
+          const cell =
+            boardEl?.querySelector(`[data-ck-cell="${cr},${cc}"]`) ?? null;
+          particles(hops >= 2 ? 'burst' : 'dust', {
+            el: cell ?? destEl ?? boardEl,
+            strength: hops >= 2 ? 1.05 : 0.9,
+          });
+        }
+      } else {
+        playMove();
+        haptic('place');
+        particles('dust', { el: destEl ?? boardEl, strength: 0.55 });
       }
-      setCaptureFx(fx);
-      window.setTimeout(() => setCaptureFx(new Set()), 420);
-    } else {
-      playMove();
-    }
-    const [lr, lc] = move.path[move.path.length - 1];
-    setHopDest(sq(lr, lc));
-    window.setTimeout(() => setHopDest(null), ANIM_MS);
-  }, []);
+
+      setHopDest(sq(lr, lc));
+      window.setTimeout(() => setHopDest(null), ANIM_MS);
+
+      // Win juice only on game-over path; promote gets confetti without board shake.
+      if (opts.won) {
+        haptic('win');
+        particles('confetti', { el: boardEl, strength: 1.15 });
+        shake(boardEl, 1);
+      } else if (opts.promoted) {
+        haptic('win');
+        particles('confetti', { el: boardEl ?? destEl, strength: 0.9 });
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (state.phase !== 'playing' || !humanCanPlay || isBotTurn || !autoSelectKey) return;
@@ -359,14 +398,20 @@ export default function App() {
         return;
       }
       const boardBefore = state.board;
-      playMoveJuice(move);
       const nextBoard = applyMove(state.board, move, ruleset);
       const [lastR, lastC] = move.path[move.path.length - 1];
+      const pieceBefore = boardBefore[move.from[0]][move.from[1]];
+      const promoted = !!(
+        pieceBefore &&
+        !pieceBefore.king &&
+        nextBoard[lastR][lastC]?.king
+      );
       const moreCaptures = getLegalMovesFrom(nextBoard, botColor, lastR, lastC, ruleset).filter(
         (m) => isCaptureMove(m),
       );
       setPlies((p) => [...p, { color: botColor, move, boardBefore }]);
       if (moreCaptures.length > 0) {
+        playMoveJuice(move, { promoted });
         setState({
           board: nextBoard,
           currentTurn: botColor,
@@ -377,6 +422,7 @@ export default function App() {
       } else {
         const nextTurn: PieceColor = botColor === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn, ruleset);
+        playMoveJuice(move, { won: winner != null, promoted });
         setState({
           board: nextBoard,
           currentTurn: nextTurn,
@@ -487,9 +533,14 @@ export default function App() {
       setHintMove(null);
       setHintReason(null);
       const boardBefore = state.board;
-      playMoveJuice(move);
       const nextBoard = applyMove(state.board, move, ruleset);
       const [lastR, lastC] = move.path[move.path.length - 1];
+      const pieceBefore = boardBefore[move.from[0]][move.from[1]];
+      const promoted = !!(
+        pieceBefore &&
+        !pieceBefore.king &&
+        nextBoard[lastR][lastC]?.king
+      );
       const moreCaptures = getLegalMovesFrom(
         nextBoard,
         state.currentTurn,
@@ -502,6 +553,7 @@ export default function App() {
         setPuzzleMoves((n) => n + 1);
       }
       if (moreCaptures.length > 0) {
+        playMoveJuice(move, { promoted });
         setState({
           board: nextBoard,
           currentTurn: state.currentTurn,
@@ -512,6 +564,7 @@ export default function App() {
       } else {
         const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn, ruleset);
+        playMoveJuice(move, { won: winner != null, promoted });
         setState({
           board: nextBoard,
           currentTurn: nextTurn,
@@ -959,6 +1012,8 @@ export default function App() {
             ))}
           </div>
           <div
+            ref={boardShellRef}
+            data-ck-board
             className="flex-1 rounded-xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.5)] border border-amber-900/60"
             style={{ aspectRatio: '1' }}
           >
@@ -1005,6 +1060,7 @@ export default function App() {
                   <button
                     key={cellKey}
                     type="button"
+                    data-ck-cell={`${r},${c}`}
                     onClick={() => handleCellClick(r, c)}
                     className="relative flex items-center justify-center touch-manipulation transition-colors duration-100 bg-cover bg-center"
                     style={{
@@ -1322,6 +1378,8 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            <JuiceSettingsPanel compact />
           </div>
         )}
       </div>
@@ -1475,6 +1533,9 @@ export default function App() {
               <li>無合法移動或無子的一方輸。</li>
               <li>模式：雙人／電腦名冊／系列賽／殘局謎題；提示會說明建議理由。</li>
             </ul>
+            <div className="mt-4">
+              <JuiceSettingsPanel />
+            </div>
             <button
               type="button"
               onClick={() => setShowRules(false)}
