@@ -23,6 +23,7 @@ test('puyo-puyo: move taps vibrate; mission win shakes field', async ({ page, is
   test.setTimeout(60_000);
   await page.addInitScript(() => {
     window.__vibrateCalls = [];
+    window.__juiceShakeHits = 0;
     navigator.vibrate = (pattern) => {
       window.__vibrateCalls.push(pattern);
       return true;
@@ -30,6 +31,7 @@ test('puyo-puyo: move taps vibrate; mission win shakes field', async ({ page, is
   });
   await page.goto('./Games/Puyo-Puyo/');
   await page.locator('#match-mode').selectOption('mission');
+  await page.locator('#mission-select').selectOption('m1-two');
   await expect(page.locator('#quest-panel')).toBeVisible();
 
   // Sideways move → tap haptic, then restore spawn column for the mission drop.
@@ -39,16 +41,30 @@ test('puyo-puyo: move taps vibrate; mission win shakes field', async ({ page, is
     .toBeGreaterThan(0);
   await page.keyboard.press('ArrowRight');
 
-  // First mission: hint + hard drop clears a 2-chain win.
-  // Watch for shake during the chain — it ends before the result dialog stays up.
+  // Mission-win shake is ~400ms and finishes before the result dialog stays up.
+  // Observe the attribute (web-first expect alone can miss the brief pulse).
+  await page.evaluate(() => {
+    window.__juiceShakeHits = 0;
+    const mo = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes' && m.attributeName === 'data-juice-shake') {
+          if (m.target.getAttribute('data-juice-shake') === '1') window.__juiceShakeHits += 1;
+        }
+      }
+    });
+    document.querySelectorAll('.field-frame, #p1-field').forEach((el) => {
+      mo.observe(el, { attributes: true, attributeFilter: ['data-juice-shake'] });
+    });
+  });
+
   await activate(page.getByRole('button', { name: '顯示落點提示', exact: true }), isMobile);
-  const shook = page.locator('.field-frame[data-juice-shake="1"], #p1-field[data-juice-shake="1"]');
-  const shakeSeen = expect(shook.first()).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press(' ');
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#result-title')).toContainText(/成功/);
-  await shakeSeen;
+  await expect
+    .poll(async () => page.evaluate(() => window.__juiceShakeHits))
+    .toBeGreaterThan(0);
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBeGreaterThan(1);
 });
