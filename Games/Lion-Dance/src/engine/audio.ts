@@ -1,6 +1,6 @@
 /**
  * Temple-fair SFX on top of shared synth helpers.
- * Drum / gong / cymbal / firecracker are synthesized live via Web Audio.
+ * Respects a mute flag remembered via setMuted().
  */
 
 import { playGoal, playImpact, playLose, playWin } from '@clubhouse/shared/synthAudio';
@@ -13,9 +13,18 @@ const AudioContextCtor =
     : undefined;
 
 let ctx: AudioContext | null = null;
+let muted = false;
+
+export function setMuted(next: boolean): void {
+  muted = next;
+}
+
+export function isMuted(): boolean {
+  return muted;
+}
 
 function getCtx(): AudioContext | null {
-  if (!AudioContextCtor) return null;
+  if (muted || !AudioContextCtor) return null;
   if (!ctx) ctx = new AudioContextCtor();
   if (ctx.state === 'suspended') void ctx.resume();
   return ctx;
@@ -69,18 +78,28 @@ function noiseBurst(duration: number, delay = 0, volume = 0.05, bandHz = 800): v
   src.stop(start + duration + 0.02);
 }
 
-/** Deep festival drum thump on plant. */
+/** Metronome drum from 花花 — steady tempo pulse. */
+export function playMetronomeDrum(): void {
+  tone(95, 'sine', 0.14, 0, 0.1);
+  tone(58, 'triangle', 0.18, 0.01, 0.07);
+  noiseBurst(0.05, 0, 0.03, 160);
+}
+
 export function playDrum(): void {
   tone(90, 'sine', 0.18, 0, 0.11);
   tone(55, 'triangle', 0.22, 0.01, 0.08);
   noiseBurst(0.06, 0, 0.035, 180);
-  playImpact(0.45);
+  if (!muted) playImpact(0.45);
 }
 
-/** Soft mid drum when lifting a leg. */
 export function playDrumTap(): void {
   tone(140, 'sine', 0.07, 0, 0.05);
   tone(200, 'triangle', 0.05, 0.02, 0.03);
+}
+
+export function playPerfect(): void {
+  tone(660, 'triangle', 0.08, 0, 0.07);
+  tone(990, 'sine', 0.1, 0.04, 0.05);
 }
 
 export function playGong(): void {
@@ -96,27 +115,32 @@ export function playCymbal(): void {
 }
 
 export function playFirecrackers(): void {
-  for (let i = 0; i < 8; i++) {
-    const d = i * 0.05;
-    noiseBurst(0.05 + Math.random() * 0.04, d, 0.045, 1200 + Math.random() * 3000);
-    tone(600 + Math.random() * 800, 'square', 0.04, d, 0.025);
+  for (let i = 0; i < 12; i++) {
+    const d = i * 0.045;
+    noiseBurst(0.05 + Math.random() * 0.05, d, 0.05, 1000 + Math.random() * 3500);
+    tone(500 + Math.random() * 900, 'square', 0.04, d, 0.028);
   }
-  playGoal();
+  if (!muted) playGoal();
 }
 
 export function playFall(): void {
-  playLose();
+  if (!muted) playLose();
   tone(160, 'sawtooth', 0.3, 0, 0.05);
   noiseBurst(0.25, 0.05, 0.05, 400);
+  tone(120, 'triangle', 0.2, 0.15, 0.04);
 }
 
 export function playFinishFanfare(): void {
   playGong();
   playCymbal();
-  window.setTimeout(() => playFirecrackers(), 280);
-  window.setTimeout(() => playWin(), 500);
+  window.setTimeout(() => playFirecrackers(), 220);
+  window.setTimeout(() => playFirecrackers(), 480);
+  window.setTimeout(() => {
+    if (!muted) playWin();
+  }, 550);
 }
 
 export function unlockAudio(): void {
+  if (muted) return;
   getCtx();
 }

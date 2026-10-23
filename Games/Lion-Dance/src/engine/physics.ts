@@ -1,6 +1,6 @@
 /**
- * Custom fixed-timestep QWOP-style 4-leg walker.
- * No external physics engine — spring supports, swing impulses, tip-to-fall.
+ * Custom fixed-timestep QWOP-style 4-leg walker (v2).
+ * Beat bonuses and combo speed arrive from LionWorld via PlantContext.
  */
 
 import {
@@ -12,6 +12,8 @@ import {
   LEG_ATTACH,
   LEG_IDS,
   LEG_LENGTH,
+  SPEED_CAP_BASE,
+  SPEED_CAP_COMBO,
   TRACK_LENGTH,
   type LegId,
 } from './constants';
@@ -19,14 +21,10 @@ import {
 export interface LegState {
   id: LegId;
   held: boolean;
-  /** 0 = planted, 1 = fully lifted. */
   lift: number;
-  /** Swing angle (rad); +forward. */
   swing: number;
   swingVel: number;
-  /** Forward plant offset relative to hip when last planted. */
   plantX: number;
-  /** Seconds remaining of plant-push thrust. */
   pushT: number;
   wasHeld: boolean;
 }
@@ -42,6 +40,7 @@ export interface SimState {
   rollVel: number;
   fallen: boolean;
   fallSpin: number;
+  fallStyle: number;
   finished: boolean;
   finishAnim: number;
   legs: Record<LegId, LegState>;
@@ -60,6 +59,11 @@ export interface HudSnapshot {
   roll: number;
   legLift: Record<LegId, number>;
   legSwing: Record<LegId, number>;
+  beatPulse: number;
+  combo: number;
+  perfectFlash: number;
+  onBeatRatio: number;
+  speedBonus: number;
 }
 
 export type RunEndReason = 'finish' | 'timeout' | 'fall';
@@ -68,6 +72,23 @@ export interface RunResult {
   reason: RunEndReason;
   elapsed: number;
   distance: number;
+  perfects: number;
+  plants: number;
+  onBeatRatio: number;
+  maxCombo: number;
+  mode: '1p' | '2p';
+}
+
+export interface PlantEvent {
+  leg: LegId;
+  perfect: boolean;
+  combo: number;
+  bonusImpulse: number;
+}
+
+export interface StepContext {
+  speedBonus: number;
+  onPlant: (leg: LegId, elapsed: number) => PlantEvent;
 }
 
 function makeLeg(id: LegId): LegState {
@@ -97,6 +118,7 @@ export function createSim(): SimState {
     rollVel: 0,
     fallen: false,
     fallSpin: 0,
+    fallStyle: 0,
     finished: false,
     finishAnim: 0,
     legs,
@@ -110,22 +132,14 @@ export function setLegHeld(sim: SimState, id: LegId, held: boolean): void {
   sim.legs[id].held = held;
 }
 
-export function resetAfterFall(sim: SimState): void {
-  const x = Math.max(0, sim.x - 0.4);
-  const next = createSim();
-  next.x = x;
-  next.elapsed = sim.elapsed;
-  Object.assign(sim, next);
-}
-
-/** Soft get-up used by R when fallen mid-run before overlay settles. */
 export function getUpInPlace(sim: SimState): void {
   if (!sim.fallen) return;
   sim.fallen = false;
   sim.fallSpin = 0;
+  sim.fallStyle = 0;
   sim.y = BODY_HEIGHT;
   sim.vy = 0;
-  sim.vx *= 0.15;
+  sim.vx *= 0.12;
   sim.pitch = 0;
   sim.roll = 0;
   sim.pitchVel = 0;
@@ -146,24 +160,36 @@ function planted(leg: LegState): boolean {
   return leg.lift < 0.15 && !leg.held;
 }
 
-export function stepPhysics(sim: SimState, dt: number = FIXED_DT): RunResult | null {
+const DEFAULT_CTX: StepContext = {
+  speedBonus: 0,
+  onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }),
+};
+
+export function stepPhysics(
+  sim: SimState,
+  dt: number = FIXED_DT,
+  ctx: StepContext = DEFAULT_CTX,
+): { end: RunEndReason | null; plantEvents: PlantEvent[] } {
+  const plantEvents: PlantEvent[] = [];
+
   if (sim.finished) {
-    sim.finishAnim = Math.min(1, sim.finishAnim + dt * 0.85);
-    return null;
+    sim.finishAnim = Math.min(1, sim.finishAnim + dt * 0.75);
+    return { end: null, plantEvents };
   }
   if (sim.fallen) {
-    sim.fallSpin += dt * 4.2;
-    sim.y = Math.max(0.35, sim.y + sim.vy * dt);
-    sim.vy -= 12 * dt;
-    if (sim.y <= 0.35) {
-      sim.y = 0.35;
-      sim.vy *= -0.25;
+    sim.fallSpin += dt * (3.6 + sim.fallStyle * 0.8);
+    sim.y = Math.max(0.32, sim.y + sim.vy * dt);
+    sim.vy -= 11 * dt;
+    if (sim.y <= 0.32) {
+      sim.y = 0.32;
+      sim.vy *= -0.22;
     }
-    sim.pitch += sim.pitchVel * dt;
+    // Funnier but readable: exaggerate spin, clamp pitch so the silhouette stays clear
+    sim.pitch = Math.max(-1.1, Math.min(1.1, sim.pitch + sim.pitchVel * dt));
     sim.roll += sim.rollVel * dt;
-    sim.pitchVel *= 0.98;
-    sim.rollVel *= 0.98;
-    return null;
+    sim.pitchVel *= 0.985;
+    sim.rollVel *= 0.985;
+    return { end: null, plantEvents };
   }
 
   sim.elapsed += dt;
@@ -175,21 +201,22 @@ export function stepPhysics(sim: SimState, dt: number = FIXED_DT): RunResult | n
 
     if (leg.held) {
       leg.lift += (1 - leg.lift) * Math.min(1, 16 * dt);
-      const swingTarget = 1.05;
-      const swingForce = (swingTarget - leg.swing) * 22 - leg.swingVel * 5;
+      const swingForce = (1.05 - leg.swing) * 22 - leg.swingVel * 5;
       leg.swingVel += swingForce * dt;
       leg.swing += leg.swingVel * dt;
       leg.pushT = 0;
     } else {
       if (leg.wasHeld && leg.lift > 0.18) {
         const ahead = Math.max(0, leg.swing);
-        // Arcade push — practiced diagonal gait finishes well under 90s
         const impulse = estimateStepImpulse(ahead);
-        sim.vx += impulse;
+        const plant = ctx.onPlant(id, sim.elapsed);
+        plant.leg = id;
+        plantEvents.push(plant);
+        sim.vx += impulse + plant.bonusImpulse;
         const front = id === 'FL' || id === 'FR' ? 1 : -1;
-        sim.pitchVel += front * ahead * -0.55;
+        sim.pitchVel += front * ahead * -0.48;
         const left = id === 'FL' || id === 'BL' ? -1 : 1;
-        sim.rollVel += left * ahead * 0.28;
+        sim.rollVel += left * ahead * 0.24;
         leg.pushT = 0.2 + ahead * 0.08;
         leg.plantX = LEG_ATTACH[id].x + Math.sin(leg.swing) * LEG_LENGTH * 0.5;
         sim.stepCount += 1;
@@ -200,7 +227,7 @@ export function stepPhysics(sim: SimState, dt: number = FIXED_DT): RunResult | n
       leg.swing += leg.swingVel * dt;
       if (leg.pushT > 0) {
         leg.pushT -= dt;
-        sim.vx += 1.8 * dt;
+        sim.vx += 1.65 * dt;
       }
     }
     leg.wasHeld = leg.held;
@@ -211,60 +238,53 @@ export function stepPhysics(sim: SimState, dt: number = FIXED_DT): RunResult | n
     if (planted(sim.legs[id])) supports.push(id);
   }
 
-  const g = 18;
-  sim.vy -= g * dt;
+  sim.vy -= 18 * dt;
 
   if (supports.length > 0) {
-    const spring = 90;
-    const damp = 16;
-    sim.vy += ((BODY_HEIGHT - sim.y) * spring - sim.vy * damp) * dt;
-    // Mild ground drag — keep momentum between steps
-    sim.vx *= Math.pow(0.55, dt);
+    sim.vy += ((BODY_HEIGHT - sim.y) * 90 - sim.vy * 16) * dt;
+    sim.vx *= Math.pow(0.52, dt);
   } else {
     sim.vx *= Math.pow(0.7, dt);
   }
 
-  // Tip from asymmetric / airborne support
+  // Tip rates — slightly gentler than v1 so first 10s show forward progress
   if (supports.length === 0) {
-    sim.pitchVel += 2.4 * dt;
+    sim.pitchVel += 2.1 * dt;
   } else if (supports.length === 1) {
     const only = supports[0]!;
     const front = only === 'FL' || only === 'FR' ? 1 : -1;
     const left = only === 'FL' || only === 'BL' ? -1 : 1;
-    sim.pitchVel += front * 1.1 * dt;
-    sim.rollVel += left * 1.3 * dt;
+    sim.pitchVel += front * 0.95 * dt;
+    sim.rollVel += left * 1.15 * dt;
   } else {
-    // Restoring when 2+ planted
-    sim.pitchVel += -sim.pitch * 6.5 * dt;
-    sim.rollVel += -sim.roll * 7.5 * dt;
+    sim.pitchVel += -sim.pitch * 7.2 * dt;
+    sim.rollVel += -sim.roll * 8.0 * dt;
   }
 
   if (heldCount >= 3) {
-    sim.pitchVel += 2.8 * dt;
-    sim.rollVel += (heldCount === 4 ? 1 : -1) * 1.2 * dt;
+    sim.pitchVel += 2.5 * dt;
+    sim.rollVel += (heldCount === 4 ? 1 : -1) * 1.1 * dt;
   }
 
   const leftHeld = (sim.legs.FL.held ? 1 : 0) + (sim.legs.BL.held ? 1 : 0);
   const rightHeld = (sim.legs.FR.held ? 1 : 0) + (sim.legs.BR.held ? 1 : 0);
   if (Math.abs(leftHeld - rightHeld) === 2) {
-    sim.rollVel += (rightHeld - leftHeld) * 0.9 * dt;
+    sim.rollVel += (rightHeld - leftHeld) * 0.85 * dt;
   }
 
-  // Holding both front or both back tips pitch
   const frontHeld = (sim.legs.FL.held ? 1 : 0) + (sim.legs.FR.held ? 1 : 0);
   const backHeld = (sim.legs.BL.held ? 1 : 0) + (sim.legs.BR.held ? 1 : 0);
-  if (frontHeld === 2 && backHeld === 0) sim.pitchVel -= 1.6 * dt;
-  if (backHeld === 2 && frontHeld === 0) sim.pitchVel += 1.6 * dt;
+  if (frontHeld === 2 && backHeld === 0) sim.pitchVel -= 1.45 * dt;
+  if (backHeld === 2 && frontHeld === 0) sim.pitchVel += 1.45 * dt;
 
-  sim.pitchVel *= Math.pow(0.28, dt);
-  sim.rollVel *= Math.pow(0.3, dt);
+  sim.pitchVel *= Math.pow(0.26, dt);
+  sim.rollVel *= Math.pow(0.28, dt);
   sim.pitch += sim.pitchVel * dt;
   sim.roll += sim.rollVel * dt;
 
-  // Clamp gentle lean while well supported
   if (supports.length >= 3) {
-    sim.pitch *= Math.pow(0.15, dt);
-    sim.roll *= Math.pow(0.15, dt);
+    sim.pitch *= Math.pow(0.12, dt);
+    sim.roll *= Math.pow(0.12, dt);
   }
 
   sim.x += sim.vx * dt;
@@ -277,15 +297,22 @@ export function stepPhysics(sim: SimState, dt: number = FIXED_DT): RunResult | n
     sim.x = 0;
     sim.vx = Math.max(0, sim.vx);
   }
-  // Soft speed cap — theoretical floor ~14s at perfect cadence
-  if (sim.vx > 3.6) sim.vx = 3.6;
+
+  const cap = SPEED_CAP_BASE + (SPEED_CAP_COMBO - SPEED_CAP_BASE) * Math.min(1, ctx.speedBonus / 0.16);
+  if (sim.vx > cap) sim.vx = cap;
+  // Apply gentle continuous combo bonus as residual accel while moving
+  if (ctx.speedBonus > 0 && sim.vx > 0.2) {
+    sim.vx += ctx.speedBonus * 0.55 * dt;
+    if (sim.vx > cap) sim.vx = cap;
+  }
 
   if (Math.abs(sim.pitch) > FALL_PITCH || Math.abs(sim.roll) > FALL_ROLL) {
     sim.fallen = true;
-    sim.pitchVel += (Math.random() - 0.5) * 5;
-    sim.rollVel += (Math.random() - 0.5) * 7;
-    sim.vy = 2.2;
-    return { reason: 'fall', elapsed: sim.elapsed, distance: sim.x };
+    sim.fallStyle = Math.random();
+    sim.pitchVel += (Math.random() - 0.5) * 4.5;
+    sim.rollVel += (0.8 + Math.random() * 1.4) * (Math.random() < 0.5 ? -1 : 1) * 5;
+    sim.vy = 2.4;
+    return { end: 'fall', plantEvents };
   }
 
   if (sim.x >= TRACK_LENGTH) {
@@ -293,13 +320,16 @@ export function stepPhysics(sim: SimState, dt: number = FIXED_DT): RunResult | n
     sim.vx = 0;
     sim.finished = true;
     sim.finishAnim = 0;
-    return { reason: 'finish', elapsed: sim.elapsed, distance: TRACK_LENGTH };
+    return { end: 'finish', plantEvents };
   }
 
-  return null;
+  return { end: null, plantEvents };
 }
 
-export function snapshotHud(sim: SimState, timeLimit: number): HudSnapshot {
+export function snapshotHudBase(sim: SimState, timeLimit: number): Omit<
+  HudSnapshot,
+  'beatPulse' | 'combo' | 'perfectFlash' | 'onBeatRatio' | 'speedBonus'
+> {
   const legLift = {} as Record<LegId, number>;
   const legSwing = {} as Record<LegId, number>;
   for (const id of LEG_IDS) {
@@ -320,10 +350,10 @@ export function snapshotHud(sim: SimState, timeLimit: number): HudSnapshot {
   };
 }
 
-/** Plant impulse magnitude — shared with check-physics. */
+/** Plant impulse — tuned so messy first steps still crawl forward. */
 export function estimateStepImpulse(swingAhead: number): number {
   const ahead = Math.max(0, swingAhead);
-  return 0.45 + ahead * 1.35;
+  return 0.52 + ahead * 1.25;
 }
 
 export { BODY_LENGTH };

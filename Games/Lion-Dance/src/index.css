@@ -284,6 +284,244 @@ body,
   color: var(--red-deep);
 }
 
+.lion-beat-row {
+  margin: 0.45rem auto 0;
+  max-width: 920px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.lion-beat-pulse {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ffe9a0, var(--red));
+  box-shadow: 0 0 0 2px rgba(232, 184, 74, 0.45);
+  transition: transform 60ms linear;
+}
+
+.lion-beat-pulse.is-hot {
+  box-shadow: 0 0 14px rgba(255, 179, 71, 0.85);
+}
+
+.lion-combo,
+.lion-speed-bonus {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--red-deep);
+  background: rgba(255, 248, 232, 0.85);
+  border: 1px solid rgba(232, 184, 74, 0.5);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+}
+
+.lion-speed-bonus {
+  color: #8a4b00;
+}
+
+.lion-perfect {
+  margin: 0.4rem auto 0;
+  width: fit-content;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  color: var(--red);
+  text-shadow: 0 1px 0 rgba(255, 233, 160, 0.9);
+  animation: lion-pop 0.4s ease-out both;
+}
+
+.lion-mode-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.lion-mode-chip {
+  min-height: 44px;
+  min-width: 6.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: 0.85rem;
+  border: 1.5px solid rgba(196, 40, 28, 0.35);
+  background: rgba(255, 248, 232, 0.7);
+  color: var(--red-deep);
+  font-family: var(--font-display);
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-mode-chip.is-active {
+  background: linear-gradient(180deg, var(--red), var(--red-deep));
+  color: #fff8e8;
+  border-color: transparent;
+  box-shadow: 0 4px 0 rgba(90, 16, 10, 0.4);
+}
+
+.lion-mode-chip:focus-visible,
+.lion-cta:focus-visible,
+.lion-cta-ghost:focus-visible,
+.lion-lang:focus-visible,
+.lion-mute-fab:focus-visible,
+.hint-dismiss:focus-visible,
+.lion-touch:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.lion-mode-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.8rem;
+  color: #6b452e;
+}
+
+.lion-best-sep {
+  margin: 0 0.45rem;
+  opacity: 0.5;
+}
+
+.lion-title-tools {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.35rem;
+}
+
+.lion-mute-fab {
+  position: fixed;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  right: 0.75rem;
+  z-index: 9200;
+  min-height: 44px;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 184, 74, 0.55);
+  background: rgba(255, 248, 232, 0.88);
+  color: var(--red-deep);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-run-hint {
+  position: fixed;
+  left: 50%;
+  top: max(6.5rem, calc(env(safe-area-inset-top, 0px) + 5.5rem));
+  transform: translateX(-50%);
+  z-index: 9100;
+  width: min(22rem, calc(100% - 1.25rem));
+  padding: 0.85rem 1rem 1rem;
+  border-radius: 1rem;
+  border: 2px solid rgba(232, 184, 74, 0.65);
+  background: rgba(255, 248, 232, 0.95);
+  box-shadow: 0 10px 28px rgba(59, 36, 22, 0.18);
+  text-align: center;
+}
+
+.hint-lion {
+  margin: 0 auto;
+}
+
+.hint-body {
+  position: relative;
+  width: 9.5rem;
+  height: 4.2rem;
+  margin: 0.25rem auto 0.5rem;
+  border-radius: 1.1rem;
+  background: linear-gradient(180deg, var(--red), var(--red-deep));
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12);
+}
+
+.hint-key {
+  position: absolute;
+  min-width: 1.7rem;
+  min-height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  background: #fff8e8;
+  color: var(--red-deep);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  border: 2px solid var(--gold);
+}
+
+.hint-fl {
+  left: 0.55rem;
+  top: -0.55rem;
+}
+.hint-fr {
+  right: 0.55rem;
+  top: -0.55rem;
+}
+.hint-bl {
+  left: 0.55rem;
+  bottom: -0.55rem;
+}
+.hint-br {
+  right: 0.55rem;
+  bottom: -0.55rem;
+}
+
+.hint-key.is-a {
+  animation: hint-pair-a 1.4s ease-in-out infinite;
+}
+.hint-key.is-b {
+  animation: hint-pair-b 1.4s ease-in-out infinite;
+}
+
+.hint-rhythm {
+  margin: 0.85rem 0 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--red);
+}
+
+.hint-copy {
+  margin: 0.45rem 0 0;
+  font-size: 0.85rem;
+  color: #5c3d28;
+  line-height: 1.45;
+}
+
+.hint-dismiss {
+  margin-top: 0.65rem;
+}
+
+@keyframes hint-pair-a {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  20% {
+    transform: translateY(-6px) scale(1.08);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes hint-pair-b {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  70% {
+    transform: translateY(-6px) scale(1.08);
+    filter: brightness(1.15);
+  }
+}
+
 .touch-pad {
   position: fixed;
   bottom: max(0.65rem, env(safe-area-inset-bottom, 0px));
@@ -332,6 +570,50 @@ body,
   color: var(--ink) !important;
   font-size: 0.8rem !important;
   align-self: center;
+}
+
+.touch-pad-2p {
+  width: min(36rem, calc(100% - 0.5rem));
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.touch-half {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem;
+  border-radius: 0.9rem;
+  border: 2px solid rgba(232, 184, 74, 0.55);
+  background: rgba(255, 248, 232, 0.72);
+}
+
+.touch-half-head {
+  border-color: rgba(196, 40, 28, 0.55);
+}
+
+.touch-half-tail {
+  border-color: rgba(47, 107, 58, 0.45);
+}
+
+.touch-half-label {
+  margin: 0 0 0.3rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--red-deep);
+  letter-spacing: 0.08em;
+}
+
+.touch-half-row {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+.touch-half .lion-touch {
+  min-width: 4.6rem !important;
+  flex: 1;
 }
 
 .lion-howto {
@@ -426,10 +708,14 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .lion-title-card,
   .lion-banner,
-  .lion-stat-value.is-urgent {
+  .lion-perfect,
+  .lion-stat-value.is-urgent,
+  .hint-key.is-a,
+  .hint-key.is-b {
     animation: none;
   }
-  .lion-track-fill {
+  .lion-track-fill,
+  .lion-beat-pulse {
     transition: none;
   }
 }
