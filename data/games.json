@@ -193,6 +193,14 @@
           "players": "1 人",
           "specPath": "04-sports-arcade/switchpoint-run.md",
           "gameFolder": "Switchpoint-Run"
+        },
+        {
+          "name": "花花舞獅踩街",
+          "en": "Bloom Lion Dance",
+          "desc": "QWOP 式四腳舞獅踩街：單人／雙人合作、踩鼓點加速，90 秒內採青搶紅包。",
+          "players": "1–2 人",
+          "specPath": "04-sports-arcade/lion-dance.md",
+          "gameFolder": "Lion-Dance"
         }
       ]
     },

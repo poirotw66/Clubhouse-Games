@@ -1,0 +1,721 @@
+@import '../../../shared/fonts/koi-koi.css';
+@import 'tailwindcss';
+@import '../../../shared/tailwind-source.css';
+
+:root {
+  --cream: #f3e6c8;
+  --cream-deep: #e8d4a8;
+  --red: #c4281c;
+  --red-deep: #8b1a12;
+  --gold: #e8b84a;
+  --gold-bright: #f5d76e;
+  --ink: #3b2416;
+  --lantern: #ffb347;
+  --panel: rgba(243, 230, 200, 0.88);
+  --font-display: 'Noto Serif TC', 'PingFang TC', 'Microsoft JhengHei', 'Songti TC', serif;
+  --font-body: 'Zen Maru Gothic', 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 179, 71, 0.35), transparent 50%),
+    radial-gradient(ellipse at 90% 10%, rgba(196, 40, 28, 0.18), transparent 45%),
+    linear-gradient(180deg, #f7d9a8 0%, var(--cream) 45%, #e6c992 100%);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+.lion-app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.lion-title-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 7000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(255, 179, 71, 0.28), transparent 55%),
+    linear-gradient(180deg, rgba(243, 230, 200, 0.2), rgba(139, 26, 18, 0.28));
+  pointer-events: auto;
+}
+
+.lion-title-card {
+  width: min(26rem, calc(100% - 1rem));
+  text-align: center;
+  padding: 1.75rem 1.4rem 1.5rem;
+  border-radius: 1.25rem;
+  border: 2px solid rgba(232, 184, 74, 0.65);
+  background: var(--panel);
+  box-shadow:
+    0 0 0 1px rgba(196, 40, 28, 0.15),
+    0 18px 40px rgba(59, 36, 22, 0.18);
+  animation: lion-rise 0.7s ease-out both;
+}
+
+.lion-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--red-deep);
+  font-weight: 700;
+}
+
+.lion-brand {
+  margin: 0.35rem 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 6vw, 2.55rem);
+  font-weight: 700;
+  color: var(--red);
+  text-shadow: 0 1px 0 rgba(245, 215, 110, 0.55);
+  line-height: 1.2;
+}
+
+.lion-sub {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.lion-tag {
+  margin: 0.85rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #5c3d28;
+}
+
+.lion-best-line {
+  margin: 0.85rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--red-deep);
+}
+
+.lion-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 1.15rem;
+  min-height: 48px;
+  padding: 0.75rem 1.2rem;
+  border: none;
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, var(--red) 0%, var(--red-deep) 100%);
+  color: #fff8e8;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: 0 6px 0 rgba(90, 16, 10, 0.45);
+  touch-action: manipulation;
+}
+
+.lion-cta:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 rgba(90, 16, 10, 0.45);
+}
+
+.lion-cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.65rem;
+  min-height: 44px;
+  padding: 0.65rem 1.2rem;
+  border-radius: 0.85rem;
+  border: 1.5px solid rgba(196, 40, 28, 0.45);
+  background: rgba(255, 248, 232, 0.65);
+  color: var(--red-deep);
+  font-family: var(--font-body);
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-lang {
+  margin-top: 0.85rem;
+  min-height: 44px;
+  padding: 0.4rem 1rem;
+  border: none;
+  background: transparent;
+  color: #6b452e;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9000;
+  pointer-events: none;
+  padding: 0.65rem 0.85rem 0.5rem;
+  padding-top: max(0.65rem, env(safe-area-inset-top, 0px));
+  background: linear-gradient(
+    180deg,
+    rgba(243, 230, 200, 0.92) 0%,
+    rgba(243, 230, 200, 0.55) 70%,
+    transparent 100%
+  );
+}
+
+@media (max-width: 640px) {
+  .lion-hud {
+    padding-top: 3.2rem;
+  }
+}
+
+.lion-hud-row {
+  margin: 0 auto;
+  max-width: 920px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.lion-stat {
+  background: rgba(255, 248, 232, 0.82);
+  border: 1px solid rgba(232, 184, 74, 0.55);
+  border-radius: 0.75rem;
+  padding: 0.4rem 0.55rem;
+  box-shadow: 0 0 18px rgba(255, 179, 71, 0.12);
+}
+
+.lion-stat-center {
+  text-align: center;
+}
+
+.lion-stat-end {
+  text-align: right;
+}
+
+.lion-stat-label {
+  display: block;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  color: #8a5a3a;
+  font-weight: 700;
+}
+
+.lion-stat-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.lion-stat-value.is-urgent {
+  color: var(--red);
+  animation: lion-pulse 0.8s ease-in-out infinite;
+}
+
+.lion-track {
+  position: relative;
+  margin: 0.55rem auto 0;
+  max-width: 920px;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(139, 26, 18, 0.18);
+  overflow: visible;
+}
+
+.lion-track-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold), var(--red));
+  box-shadow: 0 0 12px rgba(255, 179, 71, 0.45);
+  transition: width 80ms linear;
+}
+
+.lion-track-mark {
+  position: absolute;
+  top: -0.55rem;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--red);
+}
+
+.lion-banner {
+  margin: 0.55rem auto 0;
+  width: fit-content;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  animation: lion-pop 0.45s ease-out both;
+}
+
+.lion-banner.is-fall {
+  background: rgba(196, 40, 28, 0.92);
+  color: #fff8e8;
+}
+
+.lion-banner.is-win {
+  background: linear-gradient(90deg, var(--gold), #ffe9a0);
+  color: var(--red-deep);
+}
+
+.lion-beat-row {
+  margin: 0.45rem auto 0;
+  max-width: 920px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.lion-beat-pulse {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ffe9a0, var(--red));
+  box-shadow: 0 0 0 2px rgba(232, 184, 74, 0.45);
+  transition: transform 60ms linear;
+}
+
+.lion-beat-pulse.is-hot {
+  box-shadow: 0 0 14px rgba(255, 179, 71, 0.85);
+}
+
+.lion-combo,
+.lion-speed-bonus {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--red-deep);
+  background: rgba(255, 248, 232, 0.85);
+  border: 1px solid rgba(232, 184, 74, 0.5);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+}
+
+.lion-speed-bonus {
+  color: #8a4b00;
+}
+
+.lion-perfect {
+  margin: 0.4rem auto 0;
+  width: fit-content;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  color: var(--red);
+  text-shadow: 0 1px 0 rgba(255, 233, 160, 0.9);
+  animation: lion-pop 0.4s ease-out both;
+}
+
+.lion-mode-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.lion-mode-chip {
+  min-height: 44px;
+  min-width: 6.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: 0.85rem;
+  border: 1.5px solid rgba(196, 40, 28, 0.35);
+  background: rgba(255, 248, 232, 0.7);
+  color: var(--red-deep);
+  font-family: var(--font-display);
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-mode-chip.is-active {
+  background: linear-gradient(180deg, var(--red), var(--red-deep));
+  color: #fff8e8;
+  border-color: transparent;
+  box-shadow: 0 4px 0 rgba(90, 16, 10, 0.4);
+}
+
+.lion-mode-chip:focus-visible,
+.lion-cta:focus-visible,
+.lion-cta-ghost:focus-visible,
+.lion-lang:focus-visible,
+.lion-mute-fab:focus-visible,
+.hint-dismiss:focus-visible,
+.lion-touch:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.lion-mode-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.8rem;
+  color: #6b452e;
+}
+
+.lion-best-sep {
+  margin: 0 0.45rem;
+  opacity: 0.5;
+}
+
+.lion-title-tools {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.35rem;
+}
+
+.lion-mute-fab {
+  position: fixed;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  right: 0.75rem;
+  z-index: 9200;
+  min-height: 44px;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 184, 74, 0.55);
+  background: rgba(255, 248, 232, 0.88);
+  color: var(--red-deep);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-run-hint {
+  position: fixed;
+  left: 50%;
+  top: max(6.5rem, calc(env(safe-area-inset-top, 0px) + 5.5rem));
+  transform: translateX(-50%);
+  z-index: 9100;
+  width: min(22rem, calc(100% - 1.25rem));
+  padding: 0.85rem 1rem 1rem;
+  border-radius: 1rem;
+  border: 2px solid rgba(232, 184, 74, 0.65);
+  background: rgba(255, 248, 232, 0.95);
+  box-shadow: 0 10px 28px rgba(59, 36, 22, 0.18);
+  text-align: center;
+}
+
+.hint-lion {
+  margin: 0 auto;
+}
+
+.hint-body {
+  position: relative;
+  width: 9.5rem;
+  height: 4.2rem;
+  margin: 0.25rem auto 0.5rem;
+  border-radius: 1.1rem;
+  background: linear-gradient(180deg, var(--red), var(--red-deep));
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12);
+}
+
+.hint-key {
+  position: absolute;
+  min-width: 1.7rem;
+  min-height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  background: #fff8e8;
+  color: var(--red-deep);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  border: 2px solid var(--gold);
+}
+
+.hint-fl {
+  left: 0.55rem;
+  top: -0.55rem;
+}
+.hint-fr {
+  right: 0.55rem;
+  top: -0.55rem;
+}
+.hint-bl {
+  left: 0.55rem;
+  bottom: -0.55rem;
+}
+.hint-br {
+  right: 0.55rem;
+  bottom: -0.55rem;
+}
+
+.hint-key.is-a {
+  animation: hint-pair-a 1.4s ease-in-out infinite;
+}
+.hint-key.is-b {
+  animation: hint-pair-b 1.4s ease-in-out infinite;
+}
+
+.hint-rhythm {
+  margin: 0.85rem 0 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--red);
+}
+
+.hint-copy {
+  margin: 0.45rem 0 0;
+  font-size: 0.85rem;
+  color: #5c3d28;
+  line-height: 1.45;
+}
+
+.hint-dismiss {
+  margin-top: 0.65rem;
+}
+
+@keyframes hint-pair-a {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  20% {
+    transform: translateY(-6px) scale(1.08);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes hint-pair-b {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  70% {
+    transform: translateY(-6px) scale(1.08);
+    filter: brightness(1.15);
+  }
+}
+
+.touch-pad {
+  position: fixed;
+  bottom: max(0.65rem, env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8000;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+  padding: 0.35rem;
+  width: min(28rem, calc(100% - 0.75rem));
+  justify-content: space-between;
+}
+
+/* Own media rule so later .touch-pad { display:flex } does not beat Tailwind md:hidden */
+@media (min-width: 768px) {
+  .touch-pad {
+    display: none;
+  }
+}
+
+.touch-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.lion-touch {
+  min-width: 5.5rem !important;
+  min-height: 4.25rem !important;
+  padding: 0.45rem 0.65rem !important;
+  border-radius: 1rem !important;
+  border: 2px solid rgba(232, 184, 74, 0.75) !important;
+  background: rgba(255, 248, 232, 0.88) !important;
+  color: var(--red-deep) !important;
+  font-family: var(--font-display) !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 0 rgba(139, 26, 18, 0.25);
+}
+
+.lion-touch-up {
+  min-width: 4.5rem !important;
+  min-height: 3.5rem !important;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold)) !important;
+  color: var(--ink) !important;
+  font-size: 0.8rem !important;
+  align-self: center;
+}
+
+.touch-pad-2p {
+  width: min(36rem, calc(100% - 0.5rem));
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.touch-half {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem;
+  border-radius: 0.9rem;
+  border: 2px solid rgba(232, 184, 74, 0.55);
+  background: rgba(255, 248, 232, 0.72);
+}
+
+.touch-half-head {
+  border-color: rgba(196, 40, 28, 0.55);
+}
+
+.touch-half-tail {
+  border-color: rgba(47, 107, 58, 0.45);
+}
+
+.touch-half-label {
+  margin: 0 0 0.3rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--red-deep);
+  letter-spacing: 0.08em;
+}
+
+.touch-half-row {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+.touch-half .lion-touch {
+  min-width: 4.6rem !important;
+  flex: 1;
+}
+
+.lion-howto {
+  position: fixed;
+  inset: 0;
+  z-index: 9600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(59, 36, 22, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.lion-howto-card {
+  width: min(26rem, 100%);
+  padding: 1.4rem 1.25rem;
+  border-radius: 1rem;
+  border: 2px solid rgba(232, 184, 74, 0.6);
+  background: rgba(255, 248, 232, 0.97);
+  text-align: left;
+}
+
+.lion-howto-card h2 {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-display);
+  color: var(--red);
+  text-align: center;
+}
+
+.lion-howto-card ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #5c3d28;
+}
+
+.lion-howto-card li + li {
+  margin-top: 0.5rem;
+}
+
+.lion-desktop-hint {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 7100;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.55rem;
+  background: rgba(255, 248, 232, 0.7);
+  border: 1px solid rgba(232, 184, 74, 0.45);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--red-deep);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+@keyframes lion-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes lion-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes lion-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lion-title-card,
+  .lion-banner,
+  .lion-perfect,
+  .lion-stat-value.is-urgent,
+  .hint-key.is-a,
+  .hint-key.is-b {
+    animation: none;
+  }
+  .lion-track-fill,
+  .lion-beat-pulse {
+    transition: none;
+  }
+}
