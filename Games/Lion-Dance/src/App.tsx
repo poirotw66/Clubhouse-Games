@@ -197,7 +197,8 @@ export default function App(): ReactElement {
 
   return (
     <div className="lion-app">
-      {screen !== 'title' && <BackToMenu />}
+      {/* Always mount shared chrome — site.spec and players expect 返回總覽 on the title screen too. */}
+      <BackToMenu />
       <GameCanvas
         runId={runId}
         active={canvasActive}
