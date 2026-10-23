@@ -15,21 +15,22 @@ import {
   type LegId,
 } from './constants';
 
-/** Limited palette — 朱紅 / 金黃 / 奶油 / 深描邊 */
-const RED = 0xd9402f;
-const RED_DEEP = 0xc23428;
-const GOLD = 0xf2b632;
-const CREAM = 0xfff4e0;
+/** Festive palette — bright 朱紅 / 金黃 / 奶油；描邊用柔和朱紅，避免深咖拱影 */
+const RED = 0xe8452f;
+const RED_LIT = 0xf0503a;
+const RED_SHADE = 0xd43828;
+const GOLD = 0xf6c543;
+const CREAM = 0xfff6e8;
 const BLUSH = 0xf5a0b0;
-const BOOT = 0x3a1f1a;
-const OUTLINE = 0x3a1f1a;
-const SKY_TOP = 0xe8f0ea;
-const SKY_BOT = 0xf7ebe0;
-const HILL = 0xc9dcc4;
-const HILL_FAR = 0xd8e6d4;
-const GROUND = 0xf0e4d0;
-const PATH = 0xe8d8c0;
-const WOOD = 0xc4a574;
+const BOOT = 0x4a2820;
+const OUTLINE = 0xb83228;
+const SKY_TOP = 0xeef4f0;
+const SKY_BOT = 0xfff2e6;
+const HILL = 0xd0e2cc;
+const HILL_FAR = 0xdfead8;
+const GROUND = 0xf3e8d6;
+const PATH = 0xecdcc4;
+const WOOD = 0xd2b48c;
 const INK = 0x2a1810;
 
 const matCache = new Map<string, THREE.MeshStandardMaterial>();
@@ -73,7 +74,8 @@ function basic(color: number, opacity = 1): THREE.MeshBasicMaterial {
   return m;
 }
 
-function addOutline(parent: THREE.Object3D, mesh: THREE.Mesh, scale = 1.05): void {
+/** Thin festive outline — never dark-brown (that read as a trunk behind the lion). */
+function addOutline(parent: THREE.Object3D, mesh: THREE.Mesh, scale = 1.03): void {
   const o = new THREE.Mesh(mesh.geometry, basic(OUTLINE));
   o.scale.setScalar(scale);
   o.renderOrder = -1;
@@ -120,104 +122,115 @@ export function buildLion(): LionMeshes {
   const body = new THREE.Group();
   root.add(body);
 
-  // Soft ground blob shadow
-  const shadow = new THREE.Mesh(new THREE.CircleGeometry(2.8, 32), basic(0x3a1f1a, 0.12));
+  // Soft pale ground blob (never a dark arch)
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(2.6, 32), basic(0x8b5a40, 0.08));
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.015;
-  shadow.scale.set(1.7, 1, 0.55);
+  shadow.position.y = 0.012;
+  shadow.scale.set(1.55, 1, 0.5);
   root.add(shadow);
 
-  // ── Body: one smooth long capsule + soft humps + clean scalloped skirt ──
+  // ── Body: bright toon layers (lit top / mid / shade skirt) ───────────
   const cloth = new THREE.Group();
   body.add(cloth);
 
+  // Flattened in Z so the far flank doesn't form a dark second silhouette
   const blanket = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.95, BODY_LENGTH * 0.68, 8, 28),
-    mat(RED, { rough: 0.55 }),
+    mat(RED_LIT, { rough: 0.42, emissive: RED_LIT, eInt: 0.22 }),
   );
   blanket.rotation.z = Math.PI / 2;
-  blanket.scale.set(1, 1, 0.95);
-  blanket.position.set(0, 0.85, 0);
+  blanket.scale.set(1, 1, 0.72);
+  blanket.position.set(0, 0.85, 0.12);
   cloth.add(blanket);
-  addOutline(cloth, blanket, 1.04);
 
-  // Front / rear performer peaks — soft merge into one blanket
+  // Lit ridge along the top (clear toon highlight band)
+  const litBand = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.32, BODY_LENGTH * 0.55, 4, 12),
+    mat(0xff6a4a, { rough: 0.4, emissive: 0xff6a4a, eInt: 0.35 }),
+  );
+  litBand.rotation.z = Math.PI / 2;
+  litBand.position.set(0, 1.28, 0.28);
+  cloth.add(litBand);
+
+  // Front / rear performer peaks
   const frontHumpHomeY = 1.28;
   const frontHump = new THREE.Group();
   frontHump.position.set(BODY_LENGTH * 0.22, frontHumpHomeY, 0);
   cloth.add(frontHump);
-  const fh = new THREE.Mesh(new THREE.SphereGeometry(0.9, 22, 18), mat(RED, { rough: 0.55 }));
-  fh.scale.set(1.15, 1.22, 1.08);
+  const fh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.9, 22, 18),
+    mat(RED_LIT, { rough: 0.45, emissive: RED_LIT, eInt: 0.2 }),
+  );
+  fh.scale.set(1.15, 1.22, 0.85);
   frontHump.add(fh);
-  addOutline(frontHump, fh, 1.04);
 
   const rearHumpHomeY = 1.18;
   const rearHump = new THREE.Group();
   rearHump.position.set(-BODY_LENGTH * 0.22, rearHumpHomeY, 0);
   cloth.add(rearHump);
-  const rh = new THREE.Mesh(new THREE.SphereGeometry(0.82, 22, 18), mat(RED, { rough: 0.55 }));
-  rh.scale.set(1.1, 1.18, 1.05);
+  const rh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.82, 22, 18),
+    mat(RED_LIT, { rough: 0.48, emissive: RED_LIT, eInt: 0.18 }),
+  );
+  rh.scale.set(1.1, 1.18, 0.82);
   rearHump.add(rh);
-  addOutline(rearHump, rh, 1.04);
 
-  // Mid fill
-  const mid = new THREE.Mesh(new THREE.SphereGeometry(0.75, 18, 14), mat(RED, { rough: 0.58 }));
-  mid.scale.set(2.2, 0.8, 1.05);
-  mid.position.set(0, 1.02, 0);
+  const mid = new THREE.Mesh(
+    new THREE.SphereGeometry(0.75, 18, 14),
+    mat(RED, { rough: 0.48, emissive: RED_LIT, eInt: 0.14 }),
+  );
+  mid.scale.set(2.2, 0.8, 0.75);
+  mid.position.set(0, 1.02, 0.1);
   cloth.add(mid);
 
-  // ONE continuous skirt — elongated capsule hanging under the blanket
+  // Camera-facing skirt only (no far-side volume = no dark arch)
   const hem = new THREE.Group();
   hem.position.set(0, 0.0, 0);
   cloth.add(hem);
   const skirt = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.7, BODY_LENGTH * 0.68, 8, 28),
-    mat(RED, { rough: 0.58 }),
+    new THREE.CapsuleGeometry(0.5, BODY_LENGTH * 0.64, 8, 28),
+    mat(RED, { rough: 0.5, emissive: RED, eInt: 0.14 }),
   );
   skirt.rotation.z = Math.PI / 2;
-  skirt.scale.set(1.0, 1.25, 0.9);
-  skirt.position.set(0, -0.12, 0);
+  skirt.scale.set(1.0, 1.1, 0.4);
+  skirt.position.set(0, -0.06, 0.55);
   hem.add(skirt);
-  // Single gold roll on the camera-facing hem edge
+  // Bright gold hem roll
   const hemTrim = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.065, BODY_LENGTH * 0.7, 3, 8),
-    mat(GOLD, { metal: 0.35, emissive: GOLD, eInt: 0.16 }),
+    new THREE.CapsuleGeometry(0.07, BODY_LENGTH * 0.7, 3, 8),
+    mat(GOLD, { metal: 0.4, emissive: GOLD, eInt: 0.28 }),
   );
   hemTrim.rotation.z = Math.PI / 2;
   hemTrim.position.set(0, -0.55, 0.7);
   hem.add(hemTrim);
 
-  // Two simple gold cloud marks
   for (const x of [-BODY_LENGTH * 0.15, BODY_LENGTH * 0.15]) {
     const motif = new THREE.Mesh(
       new THREE.SphereGeometry(0.2, 10, 8),
-      mat(GOLD, { metal: 0.3, emissive: GOLD, eInt: 0.14 }),
+      mat(GOLD, { metal: 0.35, emissive: GOLD, eInt: 0.22 }),
     );
     motif.scale.set(1.6, 0.35, 1.2);
     motif.position.set(x, 0.75, 0.88);
     cloth.add(motif);
   }
 
-  // Smooth tapering tail + one gold pom
   const tail = new THREE.Group();
   tail.position.set(-BODY_LENGTH * 0.52, 0.75, 0);
   cloth.add(tail);
   const tailMesh = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.18, 1.35, 4, 12),
-    mat(RED, { rough: 0.55 }),
+    mat(RED, { rough: 0.5, emissive: RED, eInt: 0.06 }),
   );
   tailMesh.rotation.z = Math.PI / 2 + 0.25;
   tailMesh.position.set(-0.7, 0.15, 0);
   tailMesh.scale.set(1, 1, 0.85);
   tail.add(tailMesh);
-  addOutline(tail, tailMesh, 1.04);
   const pom = new THREE.Mesh(
     new THREE.SphereGeometry(0.32, 14, 12),
-    mat(GOLD, { rough: 0.5, emissive: GOLD, eInt: 0.15 }),
+    mat(GOLD, { rough: 0.45, emissive: GOLD, eInt: 0.25 }),
   );
   pom.position.set(-1.45, 0.35, 0);
   tail.add(pom);
-  addOutline(tail, pom, 1.05);
 
   // ── Head: large rounded cute 醒獅 (~60% of body height) ──────────────
   const headHomeY = 1.45;
@@ -227,10 +240,13 @@ export function buildLion(): LionMeshes {
   body.add(head);
 
   // Big rounded skull
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.45, 28, 22), mat(RED, { rough: 0.5 }));
+  const skull = new THREE.Mesh(
+    new THREE.SphereGeometry(1.45, 28, 22),
+    mat(RED_LIT, { rough: 0.45, emissive: RED_LIT, eInt: 0.1 }),
+  );
   skull.scale.set(1.02, 0.96, 1.0);
   head.add(skull);
-  addOutline(head, skull, 1.045);
+  addOutline(head, skull, 1.03);
 
   // Soft forehead
   const brow = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), mat(RED, { rough: 0.5 }));
@@ -339,7 +355,7 @@ export function buildLion(): LionMeshes {
   jaw.add(mouthO);
 
   // Soft snout toward travel
-  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 12), mat(RED_DEEP, { rough: 0.55 }));
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 12), mat(RED_SHADE, { rough: 0.55 }));
   snout.scale.set(1.15, 0.7, 0.85);
   snout.position.set(1.05, -0.05, 0.22);
   head.add(snout);
@@ -351,7 +367,7 @@ export function buildLion(): LionMeshes {
   flower.scale.setScalar(0.85);
   head.add(flower);
 
-  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 12), mat(RED_DEEP));
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 12), mat(RED_SHADE));
   drum.rotation.z = Math.PI / 2;
   drum.position.set(-0.8, 0.9, -0.65);
   head.add(drum);
@@ -439,7 +455,11 @@ function taper(rTop: number, rBot: number, len: number, segs = 12): THREE.Cylind
   return new THREE.CylinderGeometry(rTop, rBot, len, segs);
 }
 
-/** Chunky lantern-pants legs — vermillion + gold stripes; QWOP color only at ankle. */
+/**
+ * Smooth lantern-pants — continuous tapered cloth (no ball stacks / exposed bone).
+ * Thigh overhangs shin so bend never opens a gap; knee = tiny gold buckle only.
+ * QWOP color only at ankle.
+ */
 function buildLeg(id: LegId): LegMeshes {
   const root = new THREE.Group();
   root.name = id;
@@ -448,65 +468,80 @@ function buildLeg(id: LegId): LegMeshes {
   const thigh = new THREE.Group();
   root.add(thigh);
 
-  // Fat lantern pant — long enough to plant, chubby enough to read at distance
-  const thighMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 14), mat(RED, { rough: 0.55 }));
-  thighMesh.scale.set(1.1, 1.55, 1.1);
-  thighMesh.position.y = -0.62;
+  // Soft hip puff into body
+  const hipCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 16, 14),
+    mat(RED_LIT, { rough: 0.45, emissive: RED_LIT, eInt: 0.16 }),
+  );
+  hipCap.scale.set(1.08, 0.62, 1.08);
+  hipCap.position.y = -0.06;
+  thigh.add(hipCap);
+
+  // Long lantern thigh — extends past the knee pivot to hide the joint when bent
+  const thighMesh = new THREE.Mesh(
+    taper(0.5, 0.34, 1.35, 20),
+    mat(RED_LIT, { rough: 0.45, emissive: RED_LIT, eInt: 0.16 }),
+  );
+  thighMesh.position.y = -0.72;
   thigh.add(thighMesh);
 
-  for (const y of [-0.35, -0.8]) {
-    const stripe = new THREE.Mesh(
-      taper(0.54, 0.53, 0.1, 14),
-      mat(GOLD, { metal: 0.3, emissive: GOLD, eInt: 0.14 }),
-    );
-    stripe.position.y = y;
-    thigh.add(stripe);
-  }
+  // Soft hem cuff that drapes over the shin (reads as continuous cloth)
+  const thighCuff = new THREE.Mesh(
+    taper(0.36, 0.38, 0.22, 16),
+    mat(RED, { rough: 0.48, emissive: RED, eInt: 0.14 }),
+  );
+  thighCuff.position.y = -1.32;
+  thigh.add(thighCuff);
 
-  const hipPuff = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 12), mat(RED, { rough: 0.55 }));
-  hipPuff.scale.set(1.25, 0.75, 1.25);
-  hipPuff.position.set(0.02, -0.02, 0);
-  thigh.add(hipPuff);
-
-  const knee = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), mat(CREAM, { rough: 0.5 }));
-  knee.position.y = -1.28;
+  // Tiny camera-facing gold buckle (not a full ring / bone)
+  const knee = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 10, 8),
+    mat(GOLD, { metal: 0.45, emissive: GOLD, eInt: 0.35 }),
+  );
+  knee.scale.set(0.7, 0.7, 0.55);
+  knee.position.set(0.02, -1.2, 0.34);
   thigh.add(knee);
 
+  // Shin pivot slightly inside the thigh cuff
   const shin = new THREE.Group();
-  shin.position.y = -1.32;
+  shin.position.y = -1.22;
   thigh.add(shin);
 
-  const shinMesh = new THREE.Mesh(new THREE.SphereGeometry(0.36, 14, 12), mat(RED, { rough: 0.55 }));
-  shinMesh.scale.set(1.05, 1.55, 1.05);
-  shinMesh.position.y = -0.48;
+  // Shin starts wide under the cuff, tapers to ankle — continuous lantern pant
+  const shinMesh = new THREE.Mesh(
+    taper(0.37, 0.27, 1.05, 18),
+    mat(RED, { rough: 0.48, emissive: RED, eInt: 0.12 }),
+  );
+  shinMesh.position.y = -0.42;
   shin.add(shinMesh);
-
-  const shinStripe = new THREE.Mesh(
-    taper(0.38, 0.37, 0.09, 12),
-    mat(GOLD, { metal: 0.3, emissive: GOLD, eInt: 0.14 }),
+  const shinCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.37, 12, 10),
+    mat(RED, { rough: 0.48, emissive: RED, eInt: 0.12 }),
   );
-  shinStripe.position.y = -0.65;
-  shin.add(shinStripe);
+  shinCap.scale.set(1, 0.45, 1);
+  shinCap.position.y = 0.05;
+  shin.add(shinCap);
 
-  // Q/W/O/P — thin ankle ring only
+  // Q/W/O/P ankle ring
   const anklet = new THREE.Mesh(
-    taper(0.32, 0.32, 0.08, 12),
-    mat(accent, { metal: 0.12, emissive: accent, eInt: 0.28 }),
+    taper(0.29, 0.29, 0.07, 12),
+    mat(accent, { metal: 0.12, emissive: accent, eInt: 0.3 }),
   );
-  anklet.position.y = -0.95;
+  anklet.position.y = -0.92;
   shin.add(anklet);
 
   const foot = new THREE.Group();
-  foot.position.y = -1.08;
+  foot.position.y = -1.05;
   shin.add(foot);
 
-  const boot = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), mat(BOOT, { rough: 0.65 }));
-  boot.scale.set(1.45, 0.75, 1.15);
-  boot.position.set(0.1, -0.02, 0);
+  // Round dark cloth shoe
+  const boot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), mat(BOOT, { rough: 0.62 }));
+  boot.scale.set(1.5, 0.7, 1.15);
+  boot.position.set(0.12, -0.02, 0);
   foot.add(boot);
   const tip = new THREE.Mesh(
-    new THREE.SphereGeometry(0.09, 8, 6),
-    mat(accent, { metal: 0.1, emissive: accent, eInt: 0.2 }),
+    new THREE.SphereGeometry(0.075, 8, 6),
+    mat(accent, { metal: 0.1, emissive: accent, eInt: 0.22 }),
   );
   tip.position.set(0.28, 0.0, 0);
   foot.add(tip);
@@ -565,7 +600,9 @@ export function applyLegPose(
     leg.shin.rotation.z = -(12 * DEG + L * 70 * DEG);
     leg.foot.rotation.z = L * 15 * DEG;
     leg.foot.rotation.x = 0;
+    // Slight forward lean while lifting reads as a walking bend
     leg.root.position.y = -0.28 + L * 0.5;
+    if (!fallen) leg.thigh.rotation.x = L * 0.08;
   }
 }
 
@@ -674,20 +711,29 @@ export function buildStreet(
   rail.position.set(TRACK_LENGTH / 2 + 5, 0.7, -9);
   scene.add(rail);
 
-  // Sparse muted lanterns — kept far so poles never read behind the lion
+  // Pale distant props only (cream trees + soft lanterns) — never dark trunks behind the lion
   const lanterns: THREE.Object3D[] = [];
-  for (let i = 8; i <= TRACK_LENGTH; i += 18) {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.6, 5), mat(WOOD, { rough: 0.9 }));
-    pole.position.set(i, 1.3, -11);
-    scene.add(pole);
+  for (let i = 20; i <= TRACK_LENGTH; i += 16) {
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.08, 1.4, 6),
+      mat(0xe8d4b8, { rough: 0.9 }),
+    );
+    trunk.position.set(i, 0.7, -12);
+    scene.add(trunk);
+    const canopy = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 12, 10),
+      mat(0xc8dcc0, { rough: 0.95 }),
+    );
+    canopy.position.set(i, 1.7, -12);
+    scene.add(canopy);
     const lantern = new THREE.Group();
     const paper = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 10, 8),
-      mat(RED, { rough: 0.6, emissive: RED, eInt: 0.04 }),
+      new THREE.SphereGeometry(0.16, 10, 8),
+      mat(0xffe0a8, { rough: 0.55, emissive: GOLD, eInt: 0.12 }),
     );
     paper.scale.set(1, 1.15, 1);
     lantern.add(paper);
-    lantern.position.set(i, 2.6, -11);
+    lantern.position.set(i + 1.2, 2.2, -11.5);
     scene.add(lantern);
     lanterns.push(lantern);
   }
@@ -702,7 +748,7 @@ export function buildStreet(
   // Quiet temple gate
   const gate = new THREE.Group();
   gate.position.set(TRACK_LENGTH + 2.2, 0, 0);
-  const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 4.6, 0.45), mat(RED_DEEP, { rough: 0.7 }));
+  const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 4.6, 0.45), mat(RED_SHADE, { rough: 0.7 }));
   pillarL.position.set(0, 2.3, -2.4);
   gate.add(pillarL);
   const pillarR = pillarL.clone();

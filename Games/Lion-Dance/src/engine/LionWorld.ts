@@ -647,16 +647,19 @@ export function createLionWorld(): LionWorld {
         touchAction: 'none',
       });
 
-      // Soft single-key lighting — lion pops on muted bg (no shadow maps)
-      scene.add(new THREE.HemisphereLight(0xfff4ea, 0xc5d8c0, 0.95));
-      const sun = new THREE.DirectionalLight(0xfff0dc, 0.95);
-      sun.position.set(-5, 18, 12);
+      // Bright festive lighting — strong camera-side fill so the far flank
+      // never reads as a dark “trunk” glued to the silhouette (no shadow maps).
+      scene.add(new THREE.AmbientLight(0xfff0e4, 0.55));
+      scene.add(new THREE.HemisphereLight(0xfff8f0, 0xe0ecd8, 0.85));
+      const sun = new THREE.DirectionalLight(0xfff4e0, 0.95);
+      sun.position.set(-2, 22, 18);
       scene.add(sun);
-      const fill = new THREE.DirectionalLight(0xd8e4f0, 0.32);
-      fill.position.set(8, 5, 6);
-      scene.add(fill);
-      const rim = new THREE.DirectionalLight(0xffe8c8, 0.2);
-      rim.position.set(-2, 3, -8);
+      // Key fill from the camera (+Z) — flattens the body into festive toon red
+      const camFill = new THREE.DirectionalLight(0xffe8d8, 1.15);
+      camFill.position.set(0, 8, 24);
+      scene.add(camFill);
+      const rim = new THREE.DirectionalLight(0xfff2c8, 0.45);
+      rim.position.set(-6, 6, -4);
       scene.add(rim);
 
       const street = buildStreet(scene, reduced);
