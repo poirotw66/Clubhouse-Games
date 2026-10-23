@@ -41,6 +41,9 @@ export interface SimState {
   fallen: boolean;
   fallSpin: number;
   fallStyle: number;
+  /** −1 left / +1 right side collapse. */
+  fallSide: number;
+  fallBounce: number;
   finished: boolean;
   finishAnim: number;
   legs: Record<LegId, LegState>;
@@ -127,6 +130,8 @@ export function createSim(): SimState {
     fallen: false,
     fallSpin: 0,
     fallStyle: 0,
+    fallSide: 1,
+    fallBounce: 0,
     finished: false,
     finishAnim: 0,
     legs,
@@ -147,6 +152,8 @@ export function getUpInPlace(sim: SimState): void {
   sim.fallen = false;
   sim.fallSpin = 0;
   sim.fallStyle = 0;
+  sim.fallSide = 1;
+  sim.fallBounce = 0;
   sim.flowerFlung = false;
   sim.y = BODY_HEIGHT;
   sim.vy = 0;
@@ -193,24 +200,26 @@ export function stepPhysics(
   }
 
   if (sim.fallen) {
-    sim.fallSpin += dt * 5.2;
+    sim.fallSpin += dt * 4.8;
     sim.flowerFlung = true;
-    sim.y = Math.max(0.55, sim.y + sim.vy * dt);
-    sim.vy -= 14 * dt;
-    if (sim.y <= 0.55) {
-      sim.y = 0.55;
-      sim.vy *= -0.18;
+    sim.fallBounce = Math.min(1, sim.fallBounce + dt * 1.8);
+    // Squash-and-bounce onto the side
+    sim.y = Math.max(0.42, sim.y + sim.vy * dt);
+    sim.vy -= 16 * dt;
+    if (sim.y <= 0.42) {
+      sim.y = 0.42;
+      if (Math.abs(sim.vy) > 1.2) sim.vy *= -0.35;
+      else sim.vy = 0;
     }
-    // Keep legs flailing while down
     for (const id of LEG_IDS) {
       const leg = sim.legs[id];
-      leg.lift = 0.35 + 0.45 * Math.abs(Math.sin(sim.fallSpin * 3 + LEG_ATTACH[id].x));
-      leg.swing = Math.sin(sim.fallSpin * 4.5 + LEG_ATTACH[id].z * 8) * 0.9;
+      const phase = sim.fallSpin * 3.4 + LEG_ATTACH[id].x * 2 + LEG_ATTACH[id].z * 5;
+      leg.lift = 0.4 + 0.55 * Math.abs(Math.sin(phase));
+      leg.swing = Math.sin(phase * 1.3) * 1.1;
     }
-    sim.pitch = Math.max(-1.35, Math.min(0.35, sim.pitch + sim.pitchVel * dt));
-    sim.roll += sim.rollVel * dt;
+    sim.pitch = Math.max(-0.9, Math.min(0.4, sim.pitch + sim.pitchVel * dt));
+    sim.rollVel *= 0.985;
     sim.pitchVel *= 0.99;
-    sim.rollVel *= 0.992;
     return { end: null, plantEvents };
   }
 
@@ -354,11 +363,13 @@ export function stepPhysics(
     sim.fallCount += 1;
     sim.flowerFlung = true;
     sim.fallStyle = Math.random();
+    sim.fallBounce = 0;
     const side = Math.sign(sim.roll) || (Math.random() < 0.5 ? -1 : 1);
-    sim.rollVel = side * (4.5 + Math.random() * 3);
-    sim.pitchVel += (Math.random() - 0.5) * 3;
-    sim.vy = 3.2;
-    sim.vx *= 0.3;
+    sim.fallSide = side;
+    sim.rollVel = side * (5.2 + Math.random() * 2.5);
+    sim.pitchVel += (Math.random() - 0.5) * 2.5;
+    sim.vy = 4.0;
+    sim.vx *= 0.25;
     return { end: 'fall', plantEvents };
   }
 

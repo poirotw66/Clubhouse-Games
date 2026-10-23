@@ -14,6 +14,9 @@ interface TouchPadProps {
   s: Strings;
   held: Record<LegId, boolean>;
   showGetUp: boolean;
+  combo: number;
+  onBeatRatio: number;
+  beatPulse: number;
   onLeg: (id: LegId, held: boolean) => void;
   onGetUp: () => void;
 }
@@ -35,6 +38,9 @@ export function TouchPad({
   s,
   held,
   showGetUp,
+  combo,
+  onBeatRatio,
+  beatPulse,
   onLeg,
   onGetUp,
 }: TouchPadProps): ReactElement | null {
@@ -65,6 +71,19 @@ export function TouchPad({
 
   return (
     <div className={`touch-pad ${mode === '2p' ? 'touch-pad-2p' : ''}`} aria-label={s.touchAria}>
+      <div className="lion-beat-chip" aria-hidden="true">
+        <div
+          className={`lion-beat-pulse ${beatPulse > 0.55 ? 'is-hot' : ''}`}
+          style={{ transform: `scale(${0.85 + beatPulse * 0.35})` }}
+        />
+        <span className="lion-combo">
+          {s.combo} {combo > 0 ? `×${combo}` : '—'}
+        </span>
+        <span className="lion-onbeat">
+          {s.onBeat} {Math.round(onBeatRatio * 100)}%
+        </span>
+      </div>
+
       {showGetUp && (
         <TouchButton
           className="lion-touch-up"
@@ -88,7 +107,6 @@ export function TouchPad({
       ) : (
         <div className="touch-row">{ORDER_1P.map(renderBtn)}</div>
       )}
-      {/* Colour CSS vars for buttons */}
       <style>{`
         .lion-leg-fl { --leg-c: ${LEG_COLOR_CSS.FL}; }
         .lion-leg-fr { --leg-c: ${LEG_COLOR_CSS.FR}; }

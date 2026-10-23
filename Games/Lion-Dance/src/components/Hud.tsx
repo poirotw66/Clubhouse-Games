@@ -29,19 +29,6 @@ export function Hud({ hud, s, lang }: HudProps): ReactElement {
         </div>
       </div>
 
-      <div className="lion-beat-chip" aria-hidden="true">
-        <div
-          className={`lion-beat-pulse ${hud.beatPulse > 0.55 ? 'is-hot' : ''}`}
-          style={{ transform: `scale(${0.85 + hud.beatPulse * 0.35})` }}
-        />
-        <span className="lion-combo">
-          {s.combo} {hud.combo > 0 ? `×${hud.combo}` : '—'}
-        </span>
-        <span className="lion-onbeat">
-          {s.onBeat} {Math.round(hud.onBeatRatio * 100)}%
-        </span>
-      </div>
-
       {hud.perfectFlash > 0.2 && (
         <p className="lion-perfect" aria-live="assertive">
           {s.perfect}

@@ -30,6 +30,12 @@ import {
   setMuted as setAudioMuted,
   unlockAudio,
 } from './audio';
+import {
+  checkLionFramed,
+  computeCameraFrame,
+  projectObjectBounds,
+  type FrameCheck,
+} from './framing';
 import { applyLegPose, buildGhostMarker, buildLion, buildStreet, type LionMeshes } from './meshes';
 import {
   createSim,
@@ -50,7 +56,6 @@ export interface WorldConfig {
   mode: PlayMode;
   muted: boolean;
   assist: boolean;
-  /** Attract / title idle — no sim ticking, just animate. */
   attract?: boolean;
   reducedMotion?: boolean;
 }
@@ -66,6 +71,8 @@ export interface LionWorld {
   restart(): void;
   getUpOrRestart(): void;
   getGhostSamples(): GhostSample[];
+  /** Project lion AABB → screen; used by Playwright framing check. */
+  checkFraming(): FrameCheck | null;
   onHud(cb: (hud: HudSnapshot) => void): void;
   onRunEnd(cb: (result: RunResult) => void): void;
 }
@@ -121,16 +128,22 @@ export function createLionWorld(): LionWorld {
   let prevHeld: Partial<Record<LegId, boolean>> = {};
   let confettiVel: Float32Array | null = null;
   let sparkVel: Float32Array | null = null;
+  let dustVel: Float32Array | null = null;
   let finishFxPlayed = false;
+  let fallFxPlayed = false;
   let perfectFlash = 0;
   let maxCombo = 0;
   let ghostSamples: GhostSample[] = [];
   let liveGhost: GhostSample[] = [];
   let ghostSampleAcc = 0;
   let camX = 0;
+  let frame = computeCameraFrame(16 / 9);
   let blinkT = 0;
   let idleT = 0;
   let visibilityPaused = false;
+  let flowerWorld = new THREE.Vector3();
+  let flowerVel = new THREE.Vector3();
+  let flowerDetached = false;
 
   function emitHud(): void {
     const base = snapshotHudBase(sim, TIME_LIMIT);
@@ -162,81 +175,149 @@ export function createLionWorld(): LionWorld {
     if (ended) return;
     ended = true;
     paused = true;
-    if (reason === 'fall') playFall();
     endCb?.(buildResult(reason));
+  }
+
+  function applyCameraRig(followX: number): void {
+    if (!camera) return;
+    // Stable horizon: fixed Y / lookY, only X follows — no roll/tilt.
+    camera.fov = frame.fov;
+    camera.updateProjectionMatrix();
+    camera.position.set(followX, frame.camY, frame.distance);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(followX + frame.lookAhead, frame.lookY, 0);
   }
 
   function resize(): void {
     if (!renderer || !camera || !hostEl) return;
     const w = hostEl.clientWidth || window.innerWidth;
     const h = hostEl.clientHeight || window.innerHeight;
-    camera.aspect = w / Math.max(1, h);
+    const aspect = w / Math.max(1, h);
+    camera.aspect = aspect;
+    frame = computeCameraFrame(aspect);
+    camera.fov = frame.fov;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
+    applyCameraRig(camX);
+  }
+
+  function triggerDust(): void {
+    if (!lion?.dust || reduced) return;
+    const dust = lion.dust;
+    dust.visible = true;
+    const mat = dust.material as THREE.PointsMaterial;
+    mat.opacity = 0.85;
+    const pos = dust.geometry.getAttribute('position') as THREE.BufferAttribute;
+    dustVel = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      pos.setXYZ(i, (Math.random() - 0.5) * 0.4, Math.random() * 0.15, (Math.random() - 0.5) * 0.4);
+      dustVel[i * 3] = (Math.random() - 0.5) * 2.5;
+      dustVel[i * 3 + 1] = 1.5 + Math.random() * 2.5;
+      dustVel[i * 3 + 2] = (Math.random() - 0.5) * 2.5;
+    }
+    pos.needsUpdate = true;
+    dust.position.set(sim.x, 0.1, 0);
   }
 
   function syncMeshes(dt: number): void {
     if (!lion || !camera || !envelope) return;
-    const { root, body, head, legs, flower, shadow, leftEye, rightEye, leftEar, rightEar, tail, jaw } =
+    const { root, head, legs, flower, flowerHome, shadow, leftEye, rightEye, leftEar, rightEar, tail, jaw, dust } =
       lion;
 
     idleT += dt;
     blinkT -= dt;
     if (blinkT < -2.5 - Math.random()) blinkT = 0.12;
-    const eyeScale = blinkT > 0 ? 0.15 : 1;
+    const eyeScale = blinkT > 0 ? 0.12 : 1;
     leftEye.scale.set(1, eyeScale, 1);
     rightEye.scale.set(1, eyeScale, 1);
 
     if (!reduced) {
-      leftEar.rotation.z = Math.sin(idleT * 3.2) * 0.12;
-      rightEar.rotation.z = Math.sin(idleT * 3.2 + 0.8) * 0.12;
-      tail.rotation.y = Math.sin(idleT * 2.4) * 0.35;
-      jaw.rotation.x = Math.sin(idleT * 1.6) * 0.06;
+      leftEar.rotation.z = Math.sin(idleT * 3.2) * 0.14;
+      rightEar.rotation.z = Math.sin(idleT * 3.2 + 0.8) * 0.14;
+      tail.rotation.y = Math.sin(idleT * 2.4) * 0.4;
+      jaw.rotation.x = Math.sin(idleT * 1.6) * 0.08;
     }
+
+    const hudSnap = snapshotHudBase(sim, TIME_LIMIT);
 
     if (attract) {
       root.position.set(2.5, sim.y, 0);
-      root.rotation.set(0, 0, Math.sin(idleT * 0.8) * 0.04);
-      // Gentle marching idle
+      root.rotation.set(0, 0, 0);
+      root.scale.set(1, 1, 1);
       for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
         const phase = idleT * 2.2 + (id === 'FL' || id === 'BR' ? 0 : Math.PI);
         sim.legs[id].lift = 0.15 + Math.max(0, Math.sin(phase)) * 0.35;
         sim.legs[id].swing = Math.sin(phase) * 0.4;
       }
-      applyLegPose(legs, snapshotHudBase(sim, TIME_LIMIT).legLift, snapshotHudBase(sim, TIME_LIMIT).legSwing);
-      flower.scale.setScalar(1 + beat.pulse * 0.1);
+      applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing);
+      if (!flowerDetached) {
+        flower.position.copy(flowerHome);
+        flower.rotation.set(0, idleT * 1.1, 0);
+        flower.scale.setScalar(1.05 + beat.pulse * 0.1);
+      }
       shadow.position.set(root.position.x, 0.02, 0);
       camX += (2.5 - camX) * Math.min(1, dt * 3);
-      camera.position.set(camX + 0.4, 3.2, 10.2);
-      camera.lookAt(camX + 1.2, 1.85, 0);
+      applyCameraRig(camX);
       return;
     }
 
     if (sim.fallen) {
-      const side = Math.sign(sim.roll) || 1;
-      root.position.set(sim.x, Math.max(0.55, sim.y * 0.45), side * 0.15);
+      const side = sim.fallSide || 1;
+      const land = Math.min(1, sim.fallSpin * 0.55);
+      // Squash on impact
+      const squash = 1 - 0.12 * Math.sin(Math.min(1, sim.fallBounce) * Math.PI);
+      root.scale.set(1 + (1 - squash) * 0.15, squash, 1 + (1 - squash) * 0.1);
+      root.position.set(sim.x, Math.max(0.45, sim.y * 0.55), side * 0.2 * land);
       root.rotation.set(
-        THREE.MathUtils.clamp(sim.pitch, -0.6, 0.4),
+        THREE.MathUtils.clamp(sim.pitch * 0.4, -0.5, 0.3),
         0,
-        side * (Math.PI / 2) * Math.min(1, sim.fallSpin * 0.55) + Math.sin(sim.fallSpin * 2) * 0.15,
+        side * (Math.PI / 2) * land,
       );
-      // 花花 flung
-      flower.position.set(
-        -0.05 + Math.sin(sim.fallSpin * 2) * 0.8,
-        0.78 + Math.abs(Math.sin(sim.fallSpin)) * 0.9,
-        Math.cos(sim.fallSpin * 1.5) * 0.6,
-      );
-      flower.rotation.set(sim.fallSpin, sim.fallSpin * 1.3, sim.fallSpin * 0.7);
+      // 花花 flung in an arc (world-ish local)
+      if (!flowerDetached) {
+        flowerDetached = true;
+        flowerWorld.set(0.2, 1.2, 0);
+        flowerVel.set(-side * 2.2, 5.5, side * 1.8);
+      }
+      flowerVel.y -= 14 * dt;
+      flowerWorld.x += flowerVel.x * dt;
+      flowerWorld.y += flowerVel.y * dt;
+      flowerWorld.z += flowerVel.z * dt;
+      if (flowerWorld.y < 0.15) {
+        flowerWorld.y = 0.15;
+        flowerVel.y *= -0.35;
+        flowerVel.x *= 0.7;
+      }
+      flower.position.copy(flowerWorld);
+      flower.rotation.set(sim.fallSpin * 2.1, sim.fallSpin * 1.7, sim.fallSpin);
+      applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing, sim.fallSpin, true);
+
+      if (dust && dustVel && dust.visible) {
+        const mat = dust.material as THREE.PointsMaterial;
+        mat.opacity = Math.max(0, mat.opacity - dt * 0.7);
+        const pos = dust.geometry.getAttribute('position') as THREE.BufferAttribute;
+        for (let i = 0; i < pos.count; i++) {
+          pos.setX(i, pos.getX(i) + dustVel[i * 3]! * dt);
+          pos.setY(i, pos.getY(i) + dustVel[i * 3 + 1]! * dt);
+          pos.setZ(i, pos.getZ(i) + dustVel[i * 3 + 2]! * dt);
+          dustVel[i * 3 + 1]! -= 8 * dt;
+        }
+        pos.needsUpdate = true;
+        if (mat.opacity <= 0.02) dust.visible = false;
+      }
     } else if (sim.finished) {
+      root.scale.set(1, 1, 1);
+      flowerDetached = false;
       const t = sim.finishAnim;
       root.position.set(sim.x, sim.y + Math.sin(t * 10) * 0.08 * (1 - t), 0);
-      root.rotation.set(-t * 0.55, 0, Math.sin(t * 5) * 0.05);
+      root.rotation.set(-t * 0.55, 0, 0);
       head.rotation.x = -t * 0.95;
-      head.position.y = 0.35 + t * 0.55;
-      envelope.position.y = 4.2 - t * 2.1;
+      head.position.y = 0.55 + t * 0.45;
+      envelope.position.y = 4.0 - t * 2.0;
       envelope.rotation.z = t * 1.2;
-      flower.position.set(-0.1, 0.95, 0.1);
+      flower.position.copy(flowerHome);
       flower.rotation.set(0, 0, 0);
+      applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing);
       if (t > 0.35 && confetti) {
         confetti.visible = true;
         (confetti.material as THREE.PointsMaterial).opacity = Math.min(1, (t - 0.35) * 2.5);
@@ -268,37 +349,39 @@ export function createLionWorld(): LionWorld {
         playFinishFanfare();
       }
     } else {
+      root.scale.set(1, 1, 1);
+      flowerDetached = false;
       root.position.set(sim.x, sim.y, 0);
-      root.rotation.set(sim.pitch * 0.85, 0, sim.roll * 0.9);
-      head.rotation.x = THREE.MathUtils.clamp(-sim.pitch * 0.25, -0.2, 0.2);
-      flower.position.set(-0.1, 0.95, 0.1);
+      // Subtle body lean only — camera horizon stays level
+      root.rotation.set(sim.pitch * 0.75, 0, sim.roll * 0.8);
+      head.rotation.x = THREE.MathUtils.clamp(-sim.pitch * 0.2, -0.18, 0.18);
+      flower.position.copy(flowerHome);
       flower.rotation.set(0, reduced ? 0 : idleT * 1.2, 0);
-      flower.scale.setScalar(1.15 + beat.pulse * 0.2);
+      flower.scale.setScalar(1.05 + beat.pulse * 0.18);
+      applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing);
     }
 
-    applyLegPose(legs, snapshotHudBase(sim, TIME_LIMIT).legLift, snapshotHudBase(sim, TIME_LIMIT).legSwing);
-    shadow.position.set(root.position.x, 0.02, 0);
-    shadow.scale.setScalar(sim.fallen ? 1.4 : 1 + Math.abs(sim.pitch) * 0.2);
+    shadow.position.set(root.position.x, 0.02, root.position.z);
+    shadow.scale.setScalar(sim.fallen ? 1.55 : 1 + Math.abs(sim.pitch) * 0.15);
 
     if (ghostMark) {
       const gx = ghostXAt(ghostSamples, sim.elapsed);
       if (gx != null && gx > 0.5) {
         ghostMark.visible = true;
-        ghostMark.position.set(gx, 0, 2.2);
+        ghostMark.position.set(gx, 0, 2.4);
       } else ghostMark.visible = false;
     }
 
-    // Side-on chase: camera on +Z looking at origin Z, follow X
-    const targetX = sim.x + 0.8;
-    const follow = reduced ? 1 : 1 - Math.pow(0.00008, dt);
+    // Smooth horizontal follow only
+    const targetX = sim.x + (attract ? 0 : 0.55);
+    const follow = reduced ? 1 : 1 - Math.pow(0.00005, dt);
     camX += (targetX - camX) * follow;
-    camera.position.set(camX, 3.2, 10.2);
-    camera.lookAt(camX + 0.6, 1.85, 0);
+    applyCameraRig(camX);
 
-    if (!reduced) {
+    if (!reduced && lanterns.length) {
       const t = performance.now() * 0.001;
       for (let i = 0; i < lanterns.length; i++) {
-        lanterns[i]!.rotation.z = Math.sin(t * 1.3 + i) * 0.1;
+        lanterns[i]!.rotation.z = Math.sin(t * 1.1 + i) * 0.08;
       }
     }
   }
@@ -361,12 +444,20 @@ export function createLionWorld(): LionWorld {
         if (end === 'finish') fallEndTimer = 0;
         else if (end === 'fall') {
           fallEndTimer = FALL_GRACE;
-          playFall();
+          if (!fallFxPlayed) {
+            fallFxPlayed = true;
+            playFall();
+            triggerDust();
+          }
         }
       }
 
       if (sim.finished) {
-        stepPhysics(sim, Math.min(frameDt, 0.05), { speedBonus: 0, assist, onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }) });
+        stepPhysics(sim, Math.min(frameDt, 0.05), {
+          speedBonus: 0,
+          assist,
+          onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }),
+        });
         if (sim.finishAnim >= 0.98) endRun('finish');
       }
 
@@ -377,12 +468,19 @@ export function createLionWorld(): LionWorld {
 
       emitHud();
     } else if (sim.finished && !ended) {
-      stepPhysics(sim, Math.min(frameDt, 0.05), { speedBonus: 0, assist, onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }) });
+      stepPhysics(sim, Math.min(frameDt, 0.05), {
+        speedBonus: 0,
+        assist,
+        onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }),
+      });
       if (sim.finishAnim >= 0.98) endRun('finish');
       emitHud();
     } else if (sim.fallen && !ended) {
-      // Keep flop anim ticking while waiting for get-up / grace
-      stepPhysics(sim, Math.min(frameDt, 0.05), { speedBonus: 0, assist, onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }) });
+      stepPhysics(sim, Math.min(frameDt, 0.05), {
+        speedBonus: 0,
+        assist,
+        onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }),
+      });
       emitHud();
     }
 
@@ -433,21 +531,24 @@ export function createLionWorld(): LionWorld {
       hostEl = host;
       reduced = prefersReducedMotion();
       scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0xc8e4f0, 55, 95);
-      scene.background = new THREE.Color(0x9ed4ef);
+      // Soft far fog only — no beige haze / vignette
+      scene.fog = new THREE.Fog(0xd8eef8, 70, 110);
+      scene.background = new THREE.Color(0xb8e4f8);
 
-      // Narrow FOV ≈ orthographic side view
-      camera = new THREE.PerspectiveCamera(30, 1, 0.1, 140);
-      camera.position.set(0, 3.2, 10.2);
+      frame = computeCameraFrame(16 / 9);
+      camera = new THREE.PerspectiveCamera(frame.fov, 1, 0.1, 160);
+      applyCameraRig(0);
 
       renderer = new THREE.WebGLRenderer({
         antialias: !reduced,
         alpha: false,
         powerPreference: 'high-performance',
       });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, reduced ? PIXEL_RATIO_REDUCED : PIXEL_RATIO_CAP));
-      renderer.shadowMap.enabled = !reduced;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio || 1, reduced ? PIXEL_RATIO_REDUCED : PIXEL_RATIO_CAP),
+      );
+      // Blob shadow only — skip shadow maps for mobile/perf
+      renderer.shadowMap.enabled = false;
       host.appendChild(renderer.domElement);
       Object.assign(renderer.domElement.style, {
         width: '100%',
@@ -456,23 +557,16 @@ export function createLionWorld(): LionWorld {
         touchAction: 'none',
       });
 
-      scene.add(new THREE.HemisphereLight(0xfff0d8, 0x5a8a4a, 0.95));
-      const sun = new THREE.DirectionalLight(0xfff2d0, 1.25);
-      sun.position.set(-6, 16, 10);
-      sun.castShadow = !reduced;
-      if (!reduced) {
-        sun.shadow.mapSize.set(512, 512);
-        sun.shadow.camera.near = 2;
-        sun.shadow.camera.far = 50;
-        sun.shadow.camera.left = -16;
-        sun.shadow.camera.right = 16;
-        sun.shadow.camera.top = 12;
-        sun.shadow.camera.bottom = -8;
-      }
+      scene.add(new THREE.HemisphereLight(0xfff6e8, 0xa8d0a0, 1.05));
+      const sun = new THREE.DirectionalLight(0xfff4dc, 1.15);
+      sun.position.set(-5, 18, 12);
       scene.add(sun);
-      const fill = new THREE.DirectionalLight(0xa8d4ff, 0.4);
-      fill.position.set(8, 4, 6);
+      const fill = new THREE.DirectionalLight(0xc8e4ff, 0.45);
+      fill.position.set(8, 5, 6);
       scene.add(fill);
+      const rim = new THREE.DirectionalLight(0xfff0c8, 0.35);
+      rim.position.set(-2, 3, -8);
+      scene.add(rim);
 
       const street = buildStreet(scene, reduced);
       lanterns = street.lanterns;
@@ -500,12 +594,6 @@ export function createLionWorld(): LionWorld {
       scene.add(ghostMark);
 
       lion = buildLion();
-      lion.root.traverse((o) => {
-        if ((o as THREE.Mesh).isMesh) {
-          o.castShadow = !reduced;
-          o.receiveShadow = !reduced;
-        }
-      });
       scene.add(lion.root);
 
       resize();
@@ -549,6 +637,8 @@ export function createLionWorld(): LionWorld {
       ended = false;
       fallEndTimer = 0;
       finishFxPlayed = false;
+      fallFxPlayed = false;
+      flowerDetached = false;
       prevHeld = {};
       perfectFlash = 0;
       maxCombo = 0;
@@ -560,6 +650,15 @@ export function createLionWorld(): LionWorld {
       visibilityPaused = false;
       acc = 0;
       idleT = 0;
+      if (lion) {
+        lion.flower.position.copy(lion.flowerHome);
+        lion.flower.rotation.set(0, 0, 0);
+        if (lion.dust) {
+          lion.dust.visible = false;
+          (lion.dust.material as THREE.PointsMaterial).opacity = 0;
+        }
+        lion.root.scale.set(1, 1, 1);
+      }
       if (confetti) {
         confetti.visible = false;
         (confetti.material as THREE.PointsMaterial).opacity = 0;
@@ -569,7 +668,7 @@ export function createLionWorld(): LionWorld {
         (sparkBurst.material as THREE.PointsMaterial).opacity = 0;
       }
       if (envelope) {
-        envelope.position.y = 4.2;
+        envelope.position.y = 4.0;
         envelope.rotation.set(0, 0, 0);
       }
       emitHud();
@@ -607,6 +706,13 @@ export function createLionWorld(): LionWorld {
       if (sim.fallen) {
         getUpInPlace(sim);
         fallEndTimer = 0;
+        fallFxPlayed = false;
+        flowerDetached = false;
+        if (lion) {
+          lion.flower.position.copy(lion.flowerHome);
+          lion.flower.rotation.set(0, 0, 0);
+          lion.root.scale.set(1, 1, 1);
+        }
         paused = false;
         emitHud();
         return;
@@ -616,6 +722,14 @@ export function createLionWorld(): LionWorld {
 
     getGhostSamples() {
       return liveGhost;
+    },
+
+    checkFraming() {
+      if (!lion || !camera) return null;
+      lion.root.updateWorldMatrix(true, true);
+      camera.updateMatrixWorld(true);
+      const bounds = projectObjectBounds(lion.root, camera);
+      return checkLionFramed(bounds);
     },
 
     onHud(cb) {

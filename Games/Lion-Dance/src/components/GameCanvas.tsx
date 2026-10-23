@@ -40,13 +40,16 @@ export function GameCanvas({
     if (!host) return;
     const world = createLionWorld();
     worldRef.current = world;
+    // Expose for Playwright framing / automation checks
+    (window as Window & { __lionWorld?: LionWorld }).__lionWorld = world;
     world.onHud((hud) => onHudRef.current(hud));
     world.onRunEnd((result) => onEndRef.current(result));
     world.mount(host);
-    // Kick attract immediately so title shows an idling lion
     world.start({ ...configRef.current, attract: true });
     return () => {
       world.unmount();
+      const w = window as Window & { __lionWorld?: LionWorld };
+      if (w.__lionWorld === world) delete w.__lionWorld;
       if (worldRef.current === world) worldRef.current = null;
     };
   }, [worldRef]);

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameCanvas } from './components/GameCanvas';
 import { HowToHint } from './components/HowToHint';
 import { Hud } from './components/Hud';
+import { LionResult } from './components/LionResult';
 import { TouchPad } from './components/TouchPad';
 import { formatOnBeatPercent } from './engine/beat';
 import { GAME_PATH, TRACK_LENGTH, type LegId, type PlayMode } from './engine/constants';
@@ -81,7 +81,7 @@ export default function App(): ReactElement {
         setShowHint(false);
       }
       if (next.fallen && !next.finished) {
-        setStampText((prev) => prev ?? (Math.random() < 0.5 ? s.fallStamp : s.fallStampAlt));
+        setStampText((prev) => prev ?? s.fallStampAlt);
       } else if (!next.fallen) {
         setStampText(null);
       }
@@ -197,7 +197,7 @@ export default function App(): ReactElement {
 
   return (
     <div className="lion-app">
-      <BackToMenu />
+      {screen !== 'title' && <BackToMenu />}
       <GameCanvas
         runId={runId}
         active={canvasActive}
@@ -218,6 +218,9 @@ export default function App(): ReactElement {
         s={s}
         held={hud.legHeld}
         showGetUp={hud.fallen && !hud.finished}
+        combo={hud.combo}
+        onBeatRatio={hud.onBeatRatio}
+        beatPulse={hud.beatPulse}
         onLeg={onLeg}
         onGetUp={onGetUp}
       />
@@ -344,7 +347,7 @@ export default function App(): ReactElement {
       )}
 
       {screen === 'result' && result && rank && (
-        <ResultOverlay
+        <LionResult
           title={s.ranks[rank.id]}
           badge={result.reason === 'finish' ? s.resultFinish : s.resultFail}
           subtitle={

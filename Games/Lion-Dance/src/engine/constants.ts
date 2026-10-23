@@ -8,11 +8,11 @@ export const TIME_LIMIT = 90;
 export const FIXED_DT = 1 / 180;
 export const MAX_FRAME_DT = 0.05;
 
-/** Larger 醒獅 silhouette for side-view framing (~40–50% screen height). */
-export const BODY_HEIGHT = 2.05;
-export const BODY_LENGTH = 3.1;
-export const BODY_WIDTH = 1.15;
-export const LEG_LENGTH = 1.45;
+/** Hip height — raised so jointed legs stay fully visible under the cloth. */
+export const BODY_HEIGHT = 2.15;
+export const BODY_LENGTH = 3.0;
+export const BODY_WIDTH = 1.1;
+export const LEG_LENGTH = 1.5;
 
 /**
  * Fall thresholds — much stricter than v2 so button-mashing fails.
@@ -46,8 +46,8 @@ export const PIXEL_RATIO_CAP = 1.5;
 export const PIXEL_RATIO_REDUCED = 1.2;
 export const GHOST_SAMPLE_DT = 0.1;
 
-/** Seconds of flop before run ends if player does not get up. */
-export const FALL_GRACE = 2.4;
+/** Seconds of flop / flail before run ends if player does not get up. */
+export const FALL_GRACE = 4.0;
 
 export const STORAGE_BEST_1P = 'lion-dance:best-time-1p-v2';
 export const STORAGE_BEST_2P = 'lion-dance:best-time-2p-v2';
