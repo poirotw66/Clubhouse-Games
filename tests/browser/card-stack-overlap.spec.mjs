@@ -20,11 +20,14 @@ function includesGame(folder) {
   return new Set(raw.split(/[\s,]+/).filter(Boolean)).has(folder);
 }
 
-/** Top-left corners in each tableau column; consecutive pairs must not overlap. */
+/**
+ * Top-left corners in each tableau column.
+ * `minClearance` = next.top - prev.bottom (positive = gap; negative = overlap).
+ */
 async function measureCornerOverlap(page) {
   return page.evaluate(() => {
     const cols = [...document.querySelectorAll('[data-tableau-col]')];
-    let worstOverlap = 0;
+    let minClearance = Infinity;
     let pairs = 0;
     const samples = [];
     for (const col of cols) {
@@ -41,21 +44,25 @@ async function measureCornerOverlap(page) {
       for (let i = 0; i < corners.length - 1; i++) {
         const a = corners[i];
         const b = corners[i + 1];
-        const overlap = a.bottom - b.top;
+        const clearance = b.top - a.bottom;
         pairs += 1;
-        if (overlap > worstOverlap) worstOverlap = overlap;
+        if (clearance < minClearance) minClearance = clearance;
         if (samples.length < 4) {
           samples.push({
             a: a.text,
             b: b.text,
-            overlap: Math.round(overlap * 10) / 10,
+            clearance: Math.round(clearance * 10) / 10,
             peek: Math.round((b.top - a.top) * 10) / 10,
             labelH: Math.round(a.height * 10) / 10,
           });
         }
       }
     }
-    return { worstOverlap, pairs, samples };
+    return {
+      minClearance: minClearance === Infinity ? null : minClearance,
+      pairs,
+      samples,
+    };
   });
 }
 
@@ -94,13 +101,13 @@ for (const viewport of VIEWPORTS) {
     expect(peek, 'fan peek metrics').not.toBeNull();
     expect(peek.peekPx, `peek ${peek.peekPx} >= label ${peek.labelH}`).toBeGreaterThanOrEqual(peek.labelH - 0.5);
 
-    const { worstOverlap, pairs, samples } = await measureCornerOverlap(page);
+    const { minClearance, pairs, samples } = await measureCornerOverlap(page);
     expect(pairs, 'stacked corner pairs').toBeGreaterThan(10);
-    // Allow sub-pixel AA; require a clear gap so suit glyphs are not clipped.
+    // Require a clear gap so suit glyphs are not clipped (sub-pixel AA allowed).
     expect(
-      worstOverlap,
-      `overlap ${worstOverlap}px samples=${JSON.stringify(samples)}`,
-    ).toBeLessThanOrEqual(-2);
+      minClearance,
+      `minClearance ${minClearance}px samples=${JSON.stringify(samples)}`,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   test(`klondike fan peek covers corner @${viewport.width}`, async ({ page }) => {
@@ -131,9 +138,9 @@ for (const viewport of VIEWPORTS) {
       const stacked = await measureCornerOverlap(page);
       if (stacked.pairs > 0) {
         expect(
-          stacked.worstOverlap,
-          `klondike overlap ${stacked.worstOverlap} @${viewport.width} samples=${JSON.stringify(stacked.samples)}`,
-        ).toBeLessThanOrEqual(0.5);
+          stacked.minClearance,
+          `klondike minClearance ${stacked.minClearance} @${viewport.width} samples=${JSON.stringify(stacked.samples)}`,
+        ).toBeGreaterThanOrEqual(-0.5);
         break;
       }
     }
