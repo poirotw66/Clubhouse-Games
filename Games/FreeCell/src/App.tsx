@@ -1190,7 +1190,11 @@ export default function App() {
 
         <div className="grid grid-cols-8 gap-1 sm:gap-2 md:gap-4">
           {gameState.tableaus.map((col, colIndex) => (
-            <div key={`tab-${colIndex}`} className="flex flex-col">
+            <div
+              key={`tab-${colIndex}`}
+              className="fc-tableau-col flex flex-col"
+              data-tableau-col={colIndex}
+            >
               {col.length === 0 ? (
                 <PlayingCard
                   card={null}
@@ -1221,7 +1225,14 @@ export default function App() {
                   return (
                     <div
                       key={card.id}
-                      className={cardIndex > 0 ? '-mt-[115%] relative' : 'relative'}
+                      data-tableau-slot={cardIndex}
+                      className={[
+                        'relative',
+                        cardIndex > 0 ? 'fc-tableau-slot--stacked' : '',
+                        !isLast ? 'fc-tableau-slot--covered' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
                       style={{ zIndex: cardIndex }}
                     >
                       <PlayingCard

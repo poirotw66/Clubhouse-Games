@@ -1,5 +1,7 @@
 // ponytail: draw-1/3, scoring, solvable filter, daily streak, challenges.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   applyDraw,
   canAutoComplete,
@@ -25,6 +27,7 @@ import { computeStreak, dailyBaseSeed, dateKey, todaysBest } from './utils/daily
 import { evaluateChallenges, isChallengeCleared } from './utils/challenges.ts';
 import { modeKey, recordGameResult, winRate } from './utils/storage.ts';
 import { buildDailyShareText, dailyRecordToShare } from './utils/share.ts';
+import { KL_FAN } from './layoutFan.mjs';
 
 function card(suit, rank, faceUp = true) {
   const color = suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black';
@@ -271,6 +274,19 @@ function card(suit, rank, faceUp = true) {
     assert.equal(next.wins, 1);
     assert.equal(next.currentStreak, 1);
   }
+}
+
+// —— Fan peek must track corner font (no fixed 20px / 12px regression) ——
+{
+  const cssPath = fileURLToPath(new URL('./index.css', import.meta.url));
+  const css = fs.readFileSync(cssPath, 'utf8');
+  assert.match(css, /--kl-fan-face-up:\s*calc\(var\(--kl-corner-size\)\s*\*\s*2\.35/);
+  assert.match(css, /--kl-waste-fan-x:\s*calc\(var\(--kl-corner-size\)/);
+  assert.equal(KL_FAN.faceUpPeekCss, 'calc(var(--kl-corner-size) * 2.35 + 0.5rem)');
+  const appPath = fileURLToPath(new URL('./App.tsx', import.meta.url));
+  const app = fs.readFileSync(appPath, 'utf8');
+  assert.equal(app.includes('faceUp ? 20 : 10'), false, 'fixed 20/10px tableau fan must stay removed');
+  assert.equal(app.includes('displayIndex * 12'), false, 'fixed 12px waste fan must stay removed');
 }
 
 console.log('check-klondike: ok');

@@ -9,6 +9,46 @@
   --font-serif: "Playfair Display", ui-serif, Georgia, serif;
 }
 
+/*
+  Tableau fan: cards use aspect-ratio 2/3, so height = 150% of column width.
+  Percentage margins are resolved against that same width, therefore
+  margin-top: calc(-150% + peek) leaves exactly `peek` of each covered card
+  visible. Peek is sized from the corner rank+suit font (container query) so
+  phone and desktop stay in sync — the previous fixed negative-margin fan only
+  left ~0.35×width, shorter than two corner lines once sm/md font steps kick in.
+*/
+.fc-tableau-col {
+  container-type: inline-size;
+  container-name: fc-tableau;
+  --fc-corner-size: clamp(0.625rem, 22cqi, 0.9375rem);
+  /* 2 lines + top inset (~0.28em) + air so suit glyphs are not clipped by the next card. */
+  --fc-fan-peek: calc(var(--fc-corner-size) * 2.35 + 0.55rem);
+}
+
+.fc-tableau-slot--stacked {
+  margin-top: calc(-150% + var(--fc-fan-peek));
+}
+
+/* Covered cards only paint/hit-test their fan peek so taps reach the exposed rank+suit. */
+.fc-tableau-slot--covered > .fc-card-face {
+  clip-path: inset(0 0 calc(100% - var(--fc-fan-peek)) 0);
+}
+
+/* Keep the peek strip index-only — center suit art reads as overlap on short peeks. */
+.fc-tableau-slot--covered > .fc-card-face img {
+  visibility: hidden;
+}
+
+.fc-card-face {
+  container-type: inline-size;
+  container-name: fc-card;
+}
+
+.fc-card-corner {
+  font-size: var(--fc-corner-size, clamp(0.625rem, 18cqi, 0.9375rem));
+  line-height: 1;
+}
+
 @keyframes freecell-cascade-fall {
   0% {
     transform: translate3d(0, 0, 0) rotate(var(--cascade-rot, 0deg)) scale(0.9);
@@ -31,5 +71,10 @@
   .freecell-cascade-card {
     animation: none;
     display: none;
+  }
+
+  .fc-card-face {
+    transition: none !important;
+    transform: none !important;
   }
 }
