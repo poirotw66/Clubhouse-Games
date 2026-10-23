@@ -22,6 +22,10 @@ test('lobby mist-neon stage mounts and respects juice fx off', async ({ page }) 
   await page.goto('./');
   await expect(page.locator('#dream-bg')).toBeVisible();
   await expect(page.locator('[data-lobby-sweep]')).toHaveCount(1);
+  await expect(page.locator('[data-lobby-mesh]')).toHaveCount(1);
+  await expect(page.locator('[data-hero-stage]')).toBeVisible();
+  await expect(page.locator('.neon-tube')).toBeVisible();
+  await expect(page.locator('.hero-prop')).toHaveCount(4);
   await expect(page.locator('#lobby-fx')).toHaveCount(1);
   await expect(page.locator('.dream-orb')).toHaveCount(3);
   await expect(page.locator('html')).toHaveAttribute('data-juice-fx', /^(full|low|off)$/);
@@ -33,6 +37,7 @@ test('lobby mist-neon stage mounts and respects juice fx off', async ({ page }) 
   await expect(page.locator('html')).toHaveAttribute('data-juice-fx', 'off');
   // Canvas stays in DOM but CSS hides it when fx is off.
   await expect(page.locator('#lobby-fx')).toBeHidden();
+  await expect(page.locator('.neon-tube')).toBeVisible();
 });
 
 test('lobby mist-neon respects prefers-reduced-motion', async ({ page }) => {
