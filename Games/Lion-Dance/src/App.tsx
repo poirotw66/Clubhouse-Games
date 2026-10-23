@@ -197,7 +197,7 @@ export default function App(): ReactElement {
 
   return (
     <div className="lion-app">
-      {screen !== 'title' && <BackToMenu />}
+      <BackToMenu />
       <GameCanvas
         runId={runId}
         active={canvasActive}
