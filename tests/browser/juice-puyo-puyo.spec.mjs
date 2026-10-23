@@ -40,14 +40,15 @@ test('puyo-puyo: move taps vibrate; mission win shakes field', async ({ page, is
   await page.keyboard.press('ArrowRight');
 
   // First mission: hint + hard drop clears a 2-chain win.
+  // Watch for shake during the chain — it ends before the result dialog stays up.
   await activate(page.getByRole('button', { name: '顯示落點提示', exact: true }), isMobile);
+  const shook = page.locator('.field-frame[data-juice-shake="1"], #p1-field[data-juice-shake="1"]');
+  const shakeSeen = expect(shook.first()).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press(' ');
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#result-title')).toContainText(/成功/);
-
-  const shook = page.locator('.field-frame[data-juice-shake="1"], #p1-field[data-juice-shake="1"]');
-  await expect(shook.first()).toBeVisible({ timeout: 2_000 });
+  await shakeSeen;
   const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
   expect(vibrateCount).toBeGreaterThan(1);
 });
