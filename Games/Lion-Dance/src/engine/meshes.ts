@@ -663,15 +663,15 @@ export function buildStreet(
     scene.add(edge);
   }
 
-  // Quiet far fence (low contrast, won't steal silhouette)
+  // Quiet far fence — start well past the lion so posts never bisect the silhouette
   const fenceMat = mat(0xece6dc, { rough: 0.95 });
-  for (let x = 2; x <= TRACK_LENGTH; x += 6) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.9, 5), fenceMat);
-    post.position.set(x, 0.45, -7.5);
+  for (let x = 16; x <= TRACK_LENGTH; x += 8) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.75, 5), fenceMat);
+    post.position.set(x, 0.38, -9);
     scene.add(post);
   }
-  const rail = new THREE.Mesh(new THREE.BoxGeometry(TRACK_LENGTH + 2, 0.04, 0.04), fenceMat);
-  rail.position.set(TRACK_LENGTH / 2, 0.8, -7.5);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(TRACK_LENGTH - 10, 0.035, 0.035), fenceMat);
+  rail.position.set(TRACK_LENGTH / 2 + 5, 0.7, -9);
   scene.add(rail);
 
   // Sparse muted lanterns — kept far so poles never read behind the lion
