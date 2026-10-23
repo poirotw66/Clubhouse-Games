@@ -463,6 +463,72 @@ test('pick-red: daily table entry and opponent ladder unlock', async ({ page, is
   await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
 });
 
+test('pick-red: juice settings panel on setup', async ({ page }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  await page.goto('./Games/Pick-Red/');
+  const panel = page.locator('[data-juice-settings="1"]');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel('觸覺震動')).toBeVisible();
+  await expect(panel.getByRole('group', { name: '特效強度' })).toBeVisible();
+});
+
+test('pick-red: juice flashy capture shake and vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.addInitScript(() => {
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  // Hard lets the human lead; seed j0 opens with flashy double-red-5 (♥5 takes ♦5).
+  await page.goto('./Games/Pick-Red/');
+  await activate(page.getByRole('button', { name: /困難/ }), isMobile);
+  await page.getByPlaceholder('例如 64aa2bl7').fill('j0');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  const five = hand.getByRole('button', { name: '紅♥5，5 分', exact: true });
+  await expect(five).toBeVisible();
+  await activate(five, isMobile);
+  await activate(five, isMobile);
+  // Assert shake while the short juice window is still active.
+  await expect(page.locator('[data-pr-felt="1"]')).toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+  await expect(page.locator('[data-clubhouse-juice="particles"]')).toHaveCount(1);
+  await expect(hand.getByRole('button')).toHaveCount(11);
+});
+
+test('pick-red: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Pick-Red'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Pick-Red/');
+  await activate(page.getByRole('button', { name: /困難/ }), isMobile);
+  await page.getByPlaceholder('例如 64aa2bl7').fill('j0');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  const five = hand.getByRole('button', { name: '紅♥5，5 分', exact: true });
+  await activate(five, isMobile);
+  await activate(five, isMobile);
+  await expect(hand.getByRole('button')).toHaveCount(11);
+
+  await expect(page.locator('[data-pr-felt="1"]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
+});
+
 test('big-two: seeded opener plays ♣3, then undo after the table updates', async ({ page, isMobile }) => {
   test.skip(!includesGame('Big-Two'), 'selective CI');
   test.setTimeout(45_000);
@@ -507,6 +573,59 @@ test('big-two: default lobby is single without series scoreboard', async ({ page
   await expect(page.getByRole('region', { name: '系列賽計分板' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: '你的手牌' })).toBeVisible();
   await expect(page.getByRole('button', { name: '♣3', exact: true })).toBeVisible();
+});
+
+test('big-two: juice settings and play vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Big-Two'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-big-two-howto-seen', '1');
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Big-Two/');
+  await expect(page.locator('[data-juice-settings="1"]')).toBeVisible();
+  await page.getByPlaceholder(/例如/).fill('abc');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  await activate(hand.getByRole('button', { name: '♣3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '出牌', exact: true }), isMobile);
+  await expect(page.getByRole('region', { name: '檯面' }).getByRole('img', { name: '♣3' })).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(page.locator('[data-bt-felt="1"]')).toBeVisible();
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+});
+
+test('big-two: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Big-Two'), 'selective CI');
+  test.setTimeout(45_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse-big-two-howto-seen', '1');
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Big-Two/');
+  await page.getByPlaceholder(/例如/).fill('abc');
+  await activate(page.getByRole('button', { name: '開始單局', exact: true }), isMobile);
+  const hand = page.getByRole('region', { name: '你的手牌' });
+  await activate(hand.getByRole('button', { name: '♣3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: '出牌', exact: true }), isMobile);
+  await expect(page.getByRole('region', { name: '檯面' }).getByRole('img', { name: '♣3' })).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(page.locator('[data-bt-felt="1"]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
 });
 
 test('fifteen-puzzle: slide a tile, undo, and restart', async ({ page, isMobile }) => {
@@ -592,6 +711,50 @@ test('checkers: puzzle mode unlock ladder and first puzzle board', async ({ page
   // First puzzle: black to jump the lone white man.
   await expect(page.getByRole('button', { name: /black man at/ }).first()).toBeVisible();
   await expect(page.getByText(/已解 0\/10/)).toBeVisible();
+});
+
+test('checkers: juice win shake and vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
+  await page.addInitScript(() => {
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Checkers/');
+  // Puzzle 1 is a forced one-move win — ideal for win juice.
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '謎題', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'black man at C3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'Empty E5', exact: true }), isMobile);
+  const result = page.getByRole('dialog');
+  await expect(result).toBeVisible();
+  await expect(page.locator('[data-ck-board]')).toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+});
+
+test('checkers: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Checkers'), 'selective CI');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Checkers/');
+  await activate(page.getByRole('button', { name: /對戰・|雙人對戰|系列賽|謎題/ }).first(), isMobile);
+  await activate(page.getByRole('button', { name: '謎題', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'black man at C3', exact: true }), isMobile);
+  await activate(page.getByRole('button', { name: 'Empty E5', exact: true }), isMobile);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('[data-ck-board]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
 });
 
 test('dialed-color: single-color round through feedback, overlay, and replay', async ({ page, isMobile }) => {
@@ -824,6 +987,54 @@ test('reversi: two-player completes a round through the result overlay', async (
   await activate(dialog.getByRole('button', { name: '再玩一局' }), isMobile);
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: /可下於/ }).and(page.locator(':enabled')).first()).toBeVisible();
+});
+
+test('reversi: juice win shake and vibrate stub', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Reversi'), 'selective CI');
+  await page.addInitScript(() => {
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
+  const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
+  await expect(corner).toBeVisible();
+  await activate(corner, isMobile);
+  const result = page.getByRole('dialog');
+  await expect(result).toBeVisible({ timeout: 10_000 });
+  await expect(result).toHaveAttribute('aria-label', /謎題完成/);
+  await expect(page.locator('[data-reversi-board]')).toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBeGreaterThan(0);
+  expect(page.__runtimeErrors).toEqual([]);
+});
+
+test('reversi: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Reversi'), 'selective CI');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    localStorage.setItem('clubhouse:juice', JSON.stringify({ haptics: false, fx: 'full' }));
+    window.__vibrateCalls = [];
+    navigator.vibrate = (pattern) => {
+      window.__vibrateCalls.push(pattern);
+      return true;
+    };
+  });
+  await page.goto('./Games/Reversi/');
+  await activate(page.getByRole('button', { name: '殘局謎題' }), isMobile);
+  await activate(page.getByRole('button', { name: /1\. 角地到手/ }), isMobile);
+  const corner = page.getByRole('button', { name: '可下於第 1 列 1 欄', exact: true });
+  await expect(corner).toBeVisible();
+  await activate(corner, isMobile);
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-reversi-board]')).not.toHaveAttribute('data-juice-shake', '1');
+  const vibrateCount = await page.evaluate(() => window.__vibrateCalls.length);
+  expect(vibrateCount).toBe(0);
+  expect(page.__runtimeErrors).toEqual([]);
 });
 
 test('clockwork-keep: place/undo, undefended lose overlay, and replay', async ({ page, isMobile }) => {
