@@ -8,6 +8,7 @@
     "./BackToMenu": "./BackToMenu.tsx",
     "./ResultOverlay": "./ResultOverlay.tsx",
     "./resultOverlayDom": "./resultOverlayDom.ts",
+    "./resultOverlayFx": "./resultOverlayFx.ts",
     "./ScoreFlash": "./ScoreFlash.tsx",
     "./TouchButton": "./TouchButton.tsx",
     "./synthAudio": "./synthAudio.ts",
@@ -43,8 +44,8 @@
   },
   "scripts": {
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts",
-    "check": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts"
+    "test": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts resultOverlayFx.test.ts",
+    "check": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts resultOverlayFx.test.ts"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
