@@ -4,11 +4,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#7C3AED',
-        secondary: '#A78BFA',
-        cta: '#F43F5E',
-        dream: '#0F0F23',
-        dreamCard: 'rgba(30, 27, 75, 0.6)',
+        /* Mist-neon arcade: deep ink + cyan mist (avoid AI violet defaults). */
+        primary: '#2DD4BF',
+        secondary: '#67E8F9',
+        cta: '#FB7185',
+        dream: '#06080F',
+        dreamCard: 'rgba(10, 16, 32, 0.78)',
+        mist: '#A5F3FC',
+        aurora: '#F472B6',
       },
       fontFamily: {
         heading: ['Russo One', 'sans-serif'],
@@ -16,9 +19,9 @@ module.exports = {
         tc: ['Noto Sans TC', 'sans-serif'],
       },
       boxShadow: {
-        glow: '0 0 20px rgba(124, 58, 237, 0.3), 0 0 40px rgba(124, 58, 237, 0.15)',
-        glowHover: '0 0 28px rgba(124, 58, 237, 0.45), 0 0 56px rgba(124, 58, 237, 0.2)',
-        ctaGlow: '0 0 16px rgba(244, 63, 94, 0.4)',
+        glow: '0 0 22px rgba(45, 212, 191, 0.28), 0 0 48px rgba(103, 232, 249, 0.12)',
+        glowHover: '0 0 28px rgba(45, 212, 191, 0.42), 0 0 64px rgba(244, 114, 182, 0.16)',
+        ctaGlow: '0 0 18px rgba(251, 113, 133, 0.42)',
       },
     },
   },

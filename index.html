@@ -6,24 +6,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Clubhouse Games｜遊戲總覽</title>
   <meta name="description" content="Clubhouse Games 遊戲總覽：紙牌、棋盤、牌張、運動機檯、益智與迷你遊戲共 17 款，可直接在瀏覽器開玩，並附完整規格文件。" />
-  <meta name="theme-color" content="#0f0f23" />
+  <meta name="theme-color" content="#06080f" />
   <meta name="color-scheme" content="dark" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Clubhouse Games｜遊戲總覽" />
   <meta property="og:description" content="紙牌、棋盤、運動機檯、益智與迷你遊戲共 17 款，開瀏覽器就能玩。" />
   <meta property="og:image" content="title-image.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f0f23'/%3E%3Cpath d='M9 20a3 3 0 100-6 3 3 0 000 6zm14 0a3 3 0 100-6 3 3 0 000 6z' fill='%23a78bfa'/%3E%3Cpath d='M16 9v14' stroke='%23f43f5e' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2306080f'/%3E%3Cpath d='M9 20a3 3 0 100-6 3 3 0 000 6zm14 0a3 3 0 100-6 3 3 0 000 6z' fill='%232dd4bf'/%3E%3Cpath d='M16 9v14' stroke='%23fb7185' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/menu.css" />
   <link rel="stylesheet" href="assets/fonts/hub.css" />
 </head>
 <body class="antialiased">
   <a href="#main-content" class="skip-link">跳至主要內容</a>
 
-  <div class="dream-bg" aria-hidden="true">
-    <div class="dream-orb dream-orb-1"></div>
-    <div class="dream-orb dream-orb-2"></div>
-    <div class="dream-orb dream-orb-3"></div>
+  <div class="dream-bg" id="dream-bg" aria-hidden="true">
+    <div class="dream-orb-track" data-parallax="0.04"><div class="dream-orb dream-orb-1"></div></div>
+    <div class="dream-orb-track" data-parallax="0.07"><div class="dream-orb dream-orb-2"></div></div>
+    <div class="dream-orb-track" data-parallax="0.025"><div class="dream-orb dream-orb-3"></div></div>
+    <div class="dream-mesh" data-lobby-mesh></div>
+    <div class="dream-floor" data-lobby-floor></div>
+    <div class="dream-sweep" data-lobby-sweep></div>
+    <div class="dream-vignette"></div>
+    <div class="dream-veil"></div>
+    <div class="dream-cursor-glow" id="cursor-glow"></div>
+    <canvas id="lobby-fx" width="1" height="1"></canvas>
   </div>
 
   <header class="site-header">
@@ -52,13 +59,32 @@
   </header>
 
   <main id="main-content" class="page">
-    <!-- Hero -->
-    <section class="hero">
-      <p class="hero-eyebrow font-tc">遊戲總覽</p>
-      <h1 class="hero-title">Clubhouse Games</h1>
+    <!-- Hero — mist-neon arcade stage -->
+    <section class="hero hero-stage" data-hero-stage>
+      <div class="hero-props" aria-hidden="true">
+        <span class="hero-prop hero-prop--card" data-float="0.06">
+          <svg viewBox="0 0 48 64" fill="none"><rect x="4" y="4" width="40" height="56" rx="6" stroke="currentColor" stroke-width="2"/><path d="M16 18h16M16 28h12M16 38h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
+        <span class="hero-prop hero-prop--dice" data-float="0.09">
+          <svg viewBox="0 0 48 48" fill="none"><rect x="6" y="6" width="36" height="36" rx="8" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="2.5" fill="currentColor"/><circle cx="32" cy="16" r="2.5" fill="currentColor"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="16" cy="32" r="2.5" fill="currentColor"/><circle cx="32" cy="32" r="2.5" fill="currentColor"/></svg>
+        </span>
+        <span class="hero-prop hero-prop--pawn" data-float="0.05">
+          <svg viewBox="0 0 40 56" fill="none"><circle cx="20" cy="12" r="8" stroke="currentColor" stroke-width="2"/><path d="M10 48c2-14 6-22 10-22s8 8 10 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 50h24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
+        <span class="hero-prop hero-prop--chip" data-float="0.08">
+          <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="24" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/></svg>
+        </span>
+      </div>
+      <p class="hero-eyebrow font-tc">夜間霓廊 · 開箱即玩</p>
+      <h1 class="hero-title neon-tube" data-text="Clubhouse Games">
+        <span class="neon-tube__glow" aria-hidden="true">Clubhouse Games</span>
+        <span class="neon-tube__text">Clubhouse Games</span>
+        <span class="neon-tube__scan" aria-hidden="true"></span>
+      </h1>
       <p class="hero-sub font-tc">
         搜尋或依分類篩選，點「進入遊戲」就能在瀏覽器直接開玩。
       </p>
+      <a href="#game-search" class="hero-cta font-tc focus-ring">開始瀏覽</a>
       <ul class="hero-stats" aria-label="總覽數字" role="list">
         <li class="stat-badge font-tc"><strong id="game-count-stat">47</strong> 款遊戲</li>
         <li class="stat-badge font-tc"><strong id="category-count-stat">7</strong> 大分類</li>
