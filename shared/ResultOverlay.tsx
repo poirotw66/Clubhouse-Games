@@ -1,4 +1,15 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { resultOverlayChromeCss } from './resultOverlayChrome.ts';
+import {
+  celebrateResultOverlay,
+  countUpStat,
+  formatCountedValue,
+  parseStatValue,
+  resolveEmphasis,
+  splitTitleChars,
+  starCountFor,
+  type ResultOverlayEmphasis,
+} from './resultOverlayFx.ts';
 
 export interface ResultStat {
   label: string;
@@ -16,16 +27,71 @@ interface ResultOverlayProps {
   secondaryLabel?: string;
   onSecondary?: () => void;
   variant?: 'win' | 'lose' | 'neutral';
+  /** Optional; auto-detected from badge/title when omitted (紀錄 / 破紀錄 …). */
+  emphasis?: ResultOverlayEmphasis;
 }
 
-const VARIANT_TITLE: Record<NonNullable<ResultOverlayProps['variant']>, string> = {
-  win: 'text-emerald-300',
-  lose: 'text-red-300',
-  neutral: 'text-slate-100',
-};
-
 const BTN_BASE =
-  'inline-flex items-center justify-center gap-2 w-full min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-colors touch-manipulation';
+  'result-overlay__btn inline-flex items-center justify-center gap-2 w-full min-h-[52px] px-6 py-3 rounded-xl font-bold touch-manipulation';
+
+function StatValue({ value }: { value: string | number }): React.ReactElement {
+  const ref = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handle = countUpStat(el, value);
+    return () => handle.cancel();
+  }, [value]);
+
+  const parsed = parseStatValue(value);
+  const initial =
+    parsed.kind === 'number' ? formatCountedValue(parsed, 0) : String(value);
+
+  return (
+    <dd
+      ref={(node) => {
+        ref.current = node;
+      }}
+      className="result-overlay__stat-value font-extrabold text-white tabular-nums"
+    >
+      {initial}
+    </dd>
+  );
+}
+
+function Billboard({ title }: { title: string }): React.ReactElement {
+  const chars = useMemo(() => splitTitleChars(title), [title]);
+  return (
+    <h2 className="result-overlay__billboard" aria-label={title}>
+      {chars.map((ch, index) => (
+        <span
+          key={`${index}-${ch}`}
+          className="result-overlay__char"
+          style={{ animationDelay: `${60 + index * 55}ms` }}
+        >
+          {ch === ' ' ? '\u00a0' : ch}
+        </span>
+      ))}
+    </h2>
+  );
+}
+
+function Stars({ lit }: { lit: number }): React.ReactElement {
+  return (
+    <div className="result-overlay__stars" aria-hidden="true">
+      {Array.from({ length: 5 }, (_, i) => (
+        <span
+          key={i}
+          className={`result-overlay__star ${i < lit ? 'is-lit' : ''}`}
+          style={{ animationDelay: `${260 + i * 140}ms` }}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function ResultOverlay({
   title,
@@ -37,56 +103,81 @@ export function ResultOverlay({
   secondaryLabel = '回選單',
   onSecondary,
   variant = 'neutral',
+  emphasis: emphasisProp,
 }: ResultOverlayProps): React.ReactElement {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const emphasis = resolveEmphasis({ emphasis: emphasisProp, badge, title });
+  const litStars = starCountFor(variant, emphasis);
+
+  useEffect(() => {
+    celebrateResultOverlay({ variant, emphasis, cardEl: cardRef.current });
+  }, [variant, emphasis, title]);
+
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className={`result-overlay result-overlay--${variant}${
+        emphasis === 'record' ? ' result-overlay--record' : ''
+      }`}
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      data-result-overlay="1"
+      data-variant={variant}
+      data-emphasis={emphasis}
     >
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900/95 p-6 sm:p-8 shadow-2xl text-center">
-        {badge && (
-          <p className="mb-2 text-sm font-semibold tracking-wide text-amber-300 uppercase">
-            {badge}
-          </p>
-        )}
-        <h2 className={`text-2xl sm:text-3xl font-bold mb-2 ${VARIANT_TITLE[variant]}`}>
-          {title}
-        </h2>
-        {subtitle && <p className="text-slate-300 text-sm mb-4">{subtitle}</p>}
-        {stats.length > 0 && (
-          <dl className="mb-6 grid gap-2 text-sm">
-            {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="flex justify-between rounded-lg bg-slate-800/80 px-3 py-2 border border-white/5"
-              >
-                <dt className="text-slate-400">{stat.label}</dt>
-                <dd className="font-mono font-semibold text-white tabular-nums">{stat.value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        <div className={`flex flex-col gap-2 ${stats.length === 0 ? 'mt-4' : ''}`}>
-          <button
-            type="button"
-            onClick={onPrimary}
-            className={`${BTN_BASE} bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700`}
-          >
-            {primaryLabel}
-          </button>
-          {onSecondary && (
-            <button
-              type="button"
-              onClick={onSecondary}
-              className={`${BTN_BASE} bg-slate-700/80 hover:bg-slate-600 active:bg-slate-700 border border-white/10 text-slate-100`}
-            >
-              {secondaryLabel}
-            </button>
+      <div className="result-overlay__aurora" aria-hidden="true" />
+      <div className="result-overlay__rays" aria-hidden="true" />
+      <div className="result-overlay__sparks" aria-hidden="true" />
+      <div className="result-overlay__shockwave" aria-hidden="true" />
+      <div className="result-overlay__shockwave-2" aria-hidden="true" />
+      <div className="result-overlay__scanlines" aria-hidden="true" />
+      <div className="result-overlay__vignette" aria-hidden="true" />
+
+      <div className="result-overlay__stage">
+        <div className="result-overlay__bloom" aria-hidden="true" />
+        {badge && <p className="result-overlay__kicker">{badge}</p>}
+        <Billboard title={title} />
+        {subtitle && <p className="result-overlay__subtitle">{subtitle}</p>}
+
+        <div
+          ref={cardRef}
+          className={`result-overlay__card result-overlay__card--${variant}${
+            emphasis === 'record' ? ' result-overlay__card--record' : ''
+          }`}
+        >
+          <div className="result-overlay__sheen" aria-hidden="true" />
+          <div className="result-overlay__metal" aria-hidden="true" />
+          <Stars lit={litStars} />
+
+          {stats.length > 0 && (
+            <dl className="result-overlay__stats">
+              {stats.map((stat) => (
+                <div key={stat.label} className="result-overlay__stat">
+                  <dt>{stat.label}</dt>
+                  <StatValue value={stat.value} />
+                </div>
+              ))}
+            </dl>
           )}
+
+          <div className={`result-overlay__actions ${stats.length === 0 ? 'is-tight' : ''}`}>
+            <button type="button" onClick={onPrimary} className={`${BTN_BASE} result-overlay__primary`}>
+              <span className="result-overlay__btn-shine" aria-hidden="true" />
+              {primaryLabel}
+            </button>
+            {onSecondary && (
+              <button
+                type="button"
+                onClick={onSecondary}
+                className={`${BTN_BASE} result-overlay__secondary`}
+              >
+                {secondaryLabel}
+              </button>
+            )}
+          </div>
         </div>
       </div>
+      <style>{resultOverlayChromeCss('result-overlay')}</style>
     </div>
   );
 }
