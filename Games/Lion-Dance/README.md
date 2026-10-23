@@ -1,11 +1,12 @@
-# 花花舞獅踩街（Bloom Lion Dance）v2
+# 花花舞獅踩街（Bloom Lion Dance）v3
 
-QWOP-style 4-leg temple-fair lion dance. Sit 花花 on the lion’s head, walk 50 m, plant on the drum beat, and 採青 the hanging red envelope.
+QWOP-style 4-leg temple-fair lion dance. Side-view 醒獅 with colour-coded legs, bright street, hard balance, flop falls, and 採青 at 50 m.
 
 ## Modes
 
 - **單人**：one player, four legs (`Q` `W` `O` `P`)
-- **雙人**：same keyboard — head `Q`/`W`, tail `O`/`P`; mobile splits 獅頭 / 獅尾
+- **雙人**：same keyboard — head `Q`/`W`, tail `O`/`P`
+- **新手輔助**：wider fall thresholds (off by default)
 
 ## Dev
 
@@ -20,21 +21,24 @@ npm run check -w lion-dance
 
 | Input | Action |
 | ----- | ------ |
-| `Q` / `W` | Front-left / front-right |
-| `O` / `P` | Back-left / back-right |
+| `Q` / `W` | Front-left (orange) / front-right (green) |
+| `O` / `P` | Back-left (blue) / back-right (pink) |
 | Release | Plant & push (Perfect within ±100 ms of drum) |
-| `R` | Get up / restart after a fall |
+| `R` | Get up after a fall |
+| Space | Start from title |
 
-## Tuning (v2)
+## Tuning (v3)
 
 | Knobs | Value |
 | ----- | ----- |
 | Drum BPM | 108 |
 | Perfect window | ±100 ms |
-| Perfect impulse | 0.28 |
-| Combo speed | +2.2%/stack, max +16% (8) |
-| Speed cap | 3.15 → 3.75 m/s with combo |
-| Fall thresholds | pitch 0.78 / roll 0.68 rad |
+| Perfect impulse | 0.12 |
+| Combo speed | +1.2%/stack, max +8% (8) |
+| Speed cap | 1.65 → 2.15 m/s with combo |
+| Fall thresholds | pitch 0.48 / roll 0.42 rad |
+| Assist scale | ×1.45 on fall thresholds |
+| Fall grace | 2.4 s before result |
 
 ## Result titles
 

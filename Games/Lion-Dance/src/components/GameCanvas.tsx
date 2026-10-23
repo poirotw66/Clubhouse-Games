@@ -9,7 +9,9 @@ import {
 
 interface GameCanvasProps {
   runId: number;
-  playing: boolean;
+  /** Title attract idle or active play. */
+  active: boolean;
+  attract: boolean;
   config: WorldConfig;
   onHud: (hud: HudSnapshot) => void;
   onRunEnd: (result: RunResult) => void;
@@ -18,7 +20,8 @@ interface GameCanvasProps {
 
 export function GameCanvas({
   runId,
-  playing,
+  active,
+  attract,
   config,
   onHud,
   onRunEnd,
@@ -40,22 +43,31 @@ export function GameCanvas({
     world.onHud((hud) => onHudRef.current(hud));
     world.onRunEnd((result) => onEndRef.current(result));
     world.mount(host);
+    // Kick attract immediately so title shows an idling lion
+    world.start({ ...configRef.current, attract: true });
     return () => {
       world.unmount();
       if (worldRef.current === world) worldRef.current = null;
     };
-  }, [worldRef, runId]);
+  }, [worldRef]);
 
   useEffect(() => {
     const world = worldRef.current;
     if (!world) return;
-    if (playing) world.start(configRef.current);
-    else world.setPaused(true);
-  }, [playing, runId, worldRef]);
+    if (!active) {
+      world.setPaused(true);
+      return;
+    }
+    world.start({ ...configRef.current, attract });
+  }, [active, attract, runId, worldRef]);
 
   useEffect(() => {
     worldRef.current?.setMuted(config.muted);
   }, [config.muted, worldRef]);
+
+  useEffect(() => {
+    worldRef.current?.setAssist(config.assist);
+  }, [config.assist, worldRef]);
 
   return <div ref={hostRef} className="absolute inset-0 z-0" aria-hidden="true" />;
 }

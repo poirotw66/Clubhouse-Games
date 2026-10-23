@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { GameCanvas } from './components/GameCanvas';
@@ -9,10 +9,12 @@ import { formatOnBeatPercent } from './engine/beat';
 import { GAME_PATH, TRACK_LENGTH, type LegId, type PlayMode } from './engine/constants';
 import type { HudSnapshot, LionWorld, RunResult } from './engine/LionWorld';
 import {
+  loadAssist,
   loadBestTime,
   loadLang,
   loadMode,
   loadMute,
+  saveAssist,
   saveBestTime,
   saveGhost,
   saveLang,
@@ -26,8 +28,11 @@ import { formatDistance, formatTime, t } from './i18n';
 
 type Screen = 'title' | 'playing' | 'result';
 
+const EMPTY_HELD: Record<LegId, boolean> = { FL: false, FR: false, BL: false, BR: false };
+
 const EMPTY_HUD: HudSnapshot = {
   distance: 0,
+  distanceToGoal: TRACK_LENGTH,
   timeLeft: 90,
   elapsed: 0,
   fallen: false,
@@ -37,17 +42,21 @@ const EMPTY_HUD: HudSnapshot = {
   roll: 0,
   legLift: { FL: 0, FR: 0, BL: 0, BR: 0 },
   legSwing: { FL: 0, FR: 0, BL: 0, BR: 0 },
+  legHeld: { ...EMPTY_HELD },
   beatPulse: 0,
   combo: 0,
   perfectFlash: 0,
   onBeatRatio: 0,
   speedBonus: 0,
+  fallCount: 0,
+  steps: 0,
 };
 
 export default function App(): ReactElement {
   const [lang, setLang] = useState<Lang>(() => loadLang());
   const [mode, setMode] = useState<PlayMode>(() => loadMode());
   const [muted, setMutedState] = useState(() => loadMute());
+  const [assist, setAssistState] = useState(() => loadAssist());
   const [screen, setScreen] = useState<Screen>('title');
   const [runId, setRunId] = useState(0);
   const [hud, setHud] = useState<HudSnapshot>(EMPTY_HUD);
@@ -57,37 +66,52 @@ export default function App(): ReactElement {
   const [showHowTo, setShowHowTo] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [isNewBest, setIsNewBest] = useState(false);
+  const [stampText, setStampText] = useState<string | null>(null);
   const worldRef = useRef<LionWorld | null>(null);
+  const hintCleared = useRef(false);
   const s = t(lang);
-  const best = mode === '2p' ? best2p : best1p;
 
-  const worldConfig = useMemo(() => ({ mode, muted }), [mode, muted]);
+  const worldConfig = useMemo(() => ({ mode, muted, assist }), [mode, muted, assist]);
 
-  const onHud = useCallback((next: HudSnapshot) => setHud(next), []);
-
-  const onRunEnd = useCallback(
-    (r: RunResult) => {
-      setResult(r);
-      setScreen('result');
-      setShowHint(false);
-      if (r.reason === 'finish') {
-        const saved = saveBestTime(r.mode, r.elapsed);
-        if (r.mode === '2p') setBest2p(loadBestTime('2p'));
-        else setBest1p(loadBestTime('1p'));
-        setIsNewBest(saved === r.elapsed);
-        const samples = worldRef.current?.getGhostSamples() ?? [];
-        if (saved === r.elapsed) saveGhost(r.mode, samples);
-      } else {
-        setIsNewBest(false);
+  const onHud = useCallback(
+    (next: HudSnapshot) => {
+      setHud(next);
+      if (!hintCleared.current && next.steps >= 2 && next.distance > 0.4) {
+        hintCleared.current = true;
+        setShowHint(false);
+      }
+      if (next.fallen && !next.finished) {
+        setStampText((prev) => prev ?? (Math.random() < 0.5 ? s.fallStamp : s.fallStampAlt));
+      } else if (!next.fallen) {
+        setStampText(null);
       }
     },
-    [],
+    [s.fallStamp, s.fallStampAlt],
   );
+
+  const onRunEnd = useCallback((r: RunResult) => {
+    setResult(r);
+    setScreen('result');
+    setShowHint(false);
+    setStampText(null);
+    if (r.reason === 'finish') {
+      const saved = saveBestTime(r.mode, r.elapsed);
+      if (r.mode === '2p') setBest2p(loadBestTime('2p'));
+      else setBest1p(loadBestTime('1p'));
+      setIsNewBest(saved === r.elapsed);
+      const samples = worldRef.current?.getGhostSamples() ?? [];
+      if (saved === r.elapsed) saveGhost(r.mode, samples);
+    } else {
+      setIsNewBest(false);
+    }
+  }, []);
 
   const startRun = useCallback(() => {
     setResult(null);
     setHud(EMPTY_HUD);
     setIsNewBest(false);
+    setStampText(null);
+    hintCleared.current = false;
     setShowHint(true);
     setRunId((n) => n + 1);
     setScreen('playing');
@@ -115,14 +139,48 @@ export default function App(): ReactElement {
     });
   }, []);
 
+  const toggleAssist = useCallback(() => {
+    setAssistState((prev) => {
+      const next = !prev;
+      saveAssist(next);
+      worldRef.current?.setAssist(next);
+      return next;
+    });
+  }, []);
+
   const onLeg = useCallback((id: LegId, held: boolean) => {
     worldRef.current?.setLeg(id, held);
   }, []);
 
   const onGetUp = useCallback(() => {
     worldRef.current?.getUpOrRestart();
+    setStampText(null);
     if (screen === 'result') startRun();
   }, [screen, startRun]);
+
+  const backToTitle = useCallback(() => {
+    setScreen('title');
+    setResult(null);
+    setStampText(null);
+    setShowHint(false);
+    setRunId((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.repeat) return;
+      if (e.code === 'Space' && screen === 'title' && !showHowTo) {
+        e.preventDefault();
+        startRun();
+      }
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        if (screen === 'playing' || screen === 'title') setShowHowTo(true);
+      }
+      if (e.key === 'Escape' && showHowTo) setShowHowTo(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [screen, showHowTo, startRun]);
 
   const rank = useMemo(() => {
     if (!result) return null;
@@ -142,29 +200,68 @@ export default function App(): ReactElement {
     shareToX(text, url);
   }, [result, rank, s, lang]);
 
+  const canvasActive = screen === 'title' || screen === 'playing';
+  const attract = screen === 'title';
+
   return (
     <div className="lion-app">
-      <BackToMenu />
+      {screen !== 'title' && <BackToMenu />}
       <GameCanvas
         runId={runId}
-        playing={screen === 'playing'}
+        active={canvasActive}
+        attract={attract}
         config={worldConfig}
         onHud={onHud}
         onRunEnd={onRunEnd}
         worldRef={worldRef}
       />
 
-      {screen === 'playing' && <Hud hud={hud} s={s} lang={lang} best={best} />}
+      {screen === 'playing' && <Hud hud={hud} s={s} lang={lang} />}
 
-      <HowToHint s={s} visible={screen === 'playing' && showHint} onDismiss={() => setShowHint(false)} />
+      <HowToHint s={s} visible={screen === 'playing' && showHint} />
 
       <TouchPad
         visible={screen === 'playing'}
         mode={mode}
         s={s}
+        held={hud.legHeld}
+        showGetUp={hud.fallen && !hud.finished}
         onLeg={onLeg}
         onGetUp={onGetUp}
       />
+
+      {screen === 'playing' && stampText && hud.fallen && (
+        <div className="lion-fall-stamp" aria-live="assertive">
+          {stampText}
+        </div>
+      )}
+
+      {screen === 'playing' && (
+        <div className="lion-icon-tools">
+          <button type="button" className="lion-icon-btn" onClick={backToTitle} title={s.backMenu} aria-label={s.backMenu}>
+            ←
+          </button>
+          <button
+            type="button"
+            className="lion-icon-btn"
+            onClick={toggleMute}
+            aria-pressed={muted}
+            title={muted ? s.muteOn : s.muteOff}
+            aria-label={muted ? s.muteOn : s.muteOff}
+          >
+            {muted ? '×♪' : '♪'}
+          </button>
+          <button
+            type="button"
+            className="lion-icon-btn"
+            onClick={() => setShowHowTo(true)}
+            title={s.howTo}
+            aria-label={s.howTo}
+          >
+            ?
+          </button>
+        </div>
+      )}
 
       {screen === 'title' && (
         <div className="lion-title-shell">
@@ -172,7 +269,15 @@ export default function App(): ReactElement {
             <p className="lion-eyebrow">Clubhouse Games</p>
             <h1 className="lion-brand">{s.title}</h1>
             <p className="lion-sub">{s.subtitle}</p>
-            <p className="lion-tag">{s.tagline}</p>
+
+            <ol className="lion-rules">
+              {s.rules.map((line, i) => (
+                <li key={line}>
+                  <span className="lion-rule-n">{i + 1}</span>
+                  {line}
+                </li>
+              ))}
+            </ol>
 
             <div className="lion-mode-row" role="group" aria-label="mode">
               <button
@@ -191,6 +296,14 @@ export default function App(): ReactElement {
               </button>
             </div>
             <p className="lion-mode-hint">{mode === '2p' ? s.modeHint2p : s.modeHint1p}</p>
+
+            <label className="lion-assist">
+              <input type="checkbox" checked={assist} onChange={toggleAssist} />
+              <span>
+                {s.assist}
+                <small>{s.assistHint}</small>
+              </span>
+            </label>
 
             <p className="lion-best-line">
               {s.best1p}：{best1p != null ? formatTime(best1p) : s.noBest}
@@ -220,6 +333,15 @@ export default function App(): ReactElement {
         <div className="lion-howto" role="dialog" aria-modal="true" aria-label={s.howTo}>
           <div className="lion-howto-card">
             <h2>{s.howTo}</h2>
+            <div className="howto-diagram" aria-hidden="true">
+              <div className="howto-lion">
+                <span className="howto-key howto-fl">Q</span>
+                <span className="howto-key howto-fr">W</span>
+                <span className="howto-key howto-bl">O</span>
+                <span className="howto-key howto-br">P</span>
+              </div>
+              <p className="howto-rhythm">Q+P ↔ W+O</p>
+            </div>
             <ol>
               {s.howtoBody.map((line) => (
                 <li key={line}>{line}</li>
@@ -252,7 +374,19 @@ export default function App(): ReactElement {
             },
             ...(result.reason === 'finish'
               ? [{ label: lang === 'zh' ? '時間' : 'Time', value: formatTime(result.elapsed) }]
-              : [{ label: s.best, value: best != null ? formatTime(best) : '—' }]),
+              : [
+                  {
+                    label: s.best,
+                    value: (() => {
+                      const b = result.mode === '2p' ? best2p : best1p;
+                      return b != null ? formatTime(b) : '—';
+                    })(),
+                  },
+                ]),
+            {
+              label: s.falls,
+              value: String(result.fallCount),
+            },
             {
               label: s.onBeat,
               value: formatOnBeatPercent(result.onBeatRatio),
@@ -268,18 +402,6 @@ export default function App(): ReactElement {
           onSecondary={share}
           variant={result.reason === 'finish' ? 'win' : 'lose'}
         />
-      )}
-
-      {screen === 'playing' && (
-        <button type="button" className="lion-mute-fab" onClick={toggleMute} aria-pressed={muted}>
-          {muted ? s.muteOn : s.muteOff}
-        </button>
-      )}
-
-      {screen === 'title' && (
-        <div className="lion-desktop-hint hidden md:block" aria-hidden="true">
-          Q W O P · R
-        </div>
       )}
     </div>
   );
