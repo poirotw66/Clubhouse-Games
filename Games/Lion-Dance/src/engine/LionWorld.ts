@@ -647,14 +647,15 @@ export function createLionWorld(): LionWorld {
         touchAction: 'none',
       });
 
-      scene.add(new THREE.HemisphereLight(0xfff6e8, 0xa8d0a0, 1.05));
-      const sun = new THREE.DirectionalLight(0xfff4dc, 1.15);
+      // Soft single-key lighting — lion pops on muted bg (no shadow maps)
+      scene.add(new THREE.HemisphereLight(0xfff4ea, 0xc5d8c0, 0.95));
+      const sun = new THREE.DirectionalLight(0xfff0dc, 0.95);
       sun.position.set(-5, 18, 12);
       scene.add(sun);
-      const fill = new THREE.DirectionalLight(0xc8e4ff, 0.45);
+      const fill = new THREE.DirectionalLight(0xd8e4f0, 0.32);
       fill.position.set(8, 5, 6);
       scene.add(fill);
-      const rim = new THREE.DirectionalLight(0xfff0c8, 0.35);
+      const rim = new THREE.DirectionalLight(0xffe8c8, 0.2);
       rim.position.set(-2, 3, -8);
       scene.add(rim);
 
