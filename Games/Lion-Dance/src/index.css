@@ -302,9 +302,24 @@ body,
   min-width: 9rem;
 }
 
-.lion-hud-left {
-  top: max(3.7rem, calc(env(safe-area-inset-top, 0px) + 3.2rem));
+/* Mute/help sit under the back button (top-left); distance card below them. */
+.lion-hud-left-col {
+  position: absolute;
+  top: max(3.55rem, calc(env(safe-area-inset-top, 0px) + 3.05rem));
   left: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  pointer-events: none;
+  max-width: calc(100% - 12rem);
+}
+
+.lion-hud-left {
+  position: relative;
+  top: auto;
+  left: auto;
+  pointer-events: none;
 }
 
 .lion-hud-right {
@@ -415,15 +430,18 @@ body,
   }
 }
 
-/* ── Icon tools ────────────────────────────────────────────────────── */
+/* ── Icon tools (row under time card — never overlaps HUD cards) ───── */
 
 .lion-icon-tools {
-  display: contents;
+  display: flex;
+  flex-direction: row;
+  gap: 0.4rem;
+  pointer-events: auto;
+  z-index: 9200;
 }
 
 .lion-icon-btn {
-  position: fixed;
-  z-index: 9200;
+  position: static;
   width: 2.6rem;
   height: 2.6rem;
   border-radius: 999px;
@@ -438,15 +456,7 @@ body,
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(59, 36, 22, 0.1);
-  top: max(3.85rem, calc(env(safe-area-inset-top, 0px) + 3.35rem));
-}
-
-.lion-icon-mute {
-  right: 3.6rem;
-}
-
-.lion-icon-help {
-  right: 0.75rem;
+  flex-shrink: 0;
 }
 
 /* ── Bottom hint ───────────────────────────────────────────────────── */

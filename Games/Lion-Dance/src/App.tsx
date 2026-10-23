@@ -208,7 +208,38 @@ export default function App(): ReactElement {
         worldRef={worldRef}
       />
 
-      {screen === 'playing' && <Hud hud={hud} s={s} lang={lang} />}
+      {screen === 'playing' && (
+        <Hud
+          hud={hud}
+          s={s}
+          lang={lang}
+          tools={
+            <>
+              <button
+                type="button"
+                className="lion-icon-btn lion-icon-mute"
+                data-testid="lion-icon-mute"
+                onClick={toggleMute}
+                aria-pressed={muted}
+                title={muted ? s.muteOn : s.muteOff}
+                aria-label={muted ? s.muteOn : s.muteOff}
+              >
+                {muted ? '×♪' : '♪'}
+              </button>
+              <button
+                type="button"
+                className="lion-icon-btn lion-icon-help"
+                data-testid="lion-icon-help"
+                onClick={() => setShowHowTo(true)}
+                title={s.howTo}
+                aria-label={s.howTo}
+              >
+                ?
+              </button>
+            </>
+          }
+        />
+      )}
 
       <HowToHint s={s} visible={screen === 'playing' && showHint} />
 
@@ -228,30 +259,6 @@ export default function App(): ReactElement {
       {screen === 'playing' && stampText && hud.fallen && (
         <div className="lion-fall-stamp" aria-live="assertive">
           {stampText}
-        </div>
-      )}
-
-      {screen === 'playing' && (
-        <div className="lion-icon-tools">
-          <button
-            type="button"
-            className="lion-icon-btn lion-icon-mute"
-            onClick={toggleMute}
-            aria-pressed={muted}
-            title={muted ? s.muteOn : s.muteOff}
-            aria-label={muted ? s.muteOn : s.muteOff}
-          >
-            {muted ? '×♪' : '♪'}
-          </button>
-          <button
-            type="button"
-            className="lion-icon-btn lion-icon-help"
-            onClick={() => setShowHowTo(true)}
-            title={s.howTo}
-            aria-label={s.howTo}
-          >
-            ?
-          </button>
         </div>
       )}
 

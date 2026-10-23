@@ -5,8 +5,8 @@
  */
 import assert from 'node:assert/strict';
 
-const LION_WORLD_HEIGHT = 3.35;
-const LION_WORLD_LENGTH = 4.5;
+const LION_WORLD_HEIGHT = 4.0;
+const LION_WORLD_LENGTH = 5.0;
 const LION_FILL = 0.37;
 const FRAME_MARGIN_NDC = 0.04;
 

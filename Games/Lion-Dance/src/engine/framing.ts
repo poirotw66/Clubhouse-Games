@@ -6,9 +6,9 @@
 import * as THREE from 'three';
 
 /** Approximate upright lion height in world metres (feet→horn). */
-export const LION_WORLD_HEIGHT = 3.35;
+export const LION_WORLD_HEIGHT = 4.0;
 /** Core silhouette length (nose→tail) used for width framing. */
-export const LION_WORLD_LENGTH = 4.5;
+export const LION_WORLD_LENGTH = 5.0;
 
 /** Desired lion height as fraction of viewport height. */
 export const LION_FILL = 0.37;

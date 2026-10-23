@@ -9,10 +9,10 @@ export const FIXED_DT = 1 / 180;
 export const MAX_FRAME_DT = 0.05;
 
 /** Hip height — raised so jointed legs stay fully visible under the cloth. */
-export const BODY_HEIGHT = 2.15;
+export const BODY_HEIGHT = 2.5;
 export const BODY_LENGTH = 3.0;
-export const BODY_WIDTH = 1.1;
-export const LEG_LENGTH = 1.5;
+export const BODY_WIDTH = 1.05;
+export const LEG_LENGTH = 2.0;
 
 /**
  * Fall thresholds — much stricter than v2 so button-mashing fails.
@@ -92,10 +92,11 @@ export const LEG_KEY_LABEL: Record<LegId, string> = {
 
 /** Hip attachment in body-local space (x forward, y up, z right / toward camera). */
 export const LEG_ATTACH: Record<LegId, { x: number; z: number }> = {
-  FL: { x: 1.05, z: -0.42 },
-  FR: { x: 1.05, z: 0.42 },
-  BL: { x: -1.05, z: -0.42 },
-  BR: { x: -1.05, z: 0.42 },
+  // Front legs ahead of chest; back legs behind hips — clears side-camera occlusion.
+  FL: { x: 1.35, z: -0.55 },
+  FR: { x: 1.35, z: 0.58 },
+  BL: { x: -1.35, z: -0.55 },
+  BR: { x: -1.35, z: 0.58 },
 };
 
 export const KEY_TO_LEG: Record<string, LegId> = {
