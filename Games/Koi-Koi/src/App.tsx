@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, Volume2, VolumeX, HelpCircle, Lightbulb, Undo2 } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playCombo,
@@ -56,15 +57,32 @@ import { motion, AnimatePresence } from 'motion/react';
 
 type SfxKind = 'match' | 'yaku' | 'yaku_unlock' | 'win' | 'draw' | 'lose';
 
+/** Tatami table — juice particles / shake anchor (presentation only). */
+const juiceTableRef: { current: HTMLElement | null } = { current: null };
+
 function playSfx(kind: SfxKind): void {
-  if (kind === 'match') playCapture();
-  else if (kind === 'yaku') playGoal();
-  else if (kind === 'yaku_unlock') {
+  const table = juiceTableRef.current;
+  if (kind === 'match') {
+    playCapture();
+    haptic('place');
+    particles('sparkle', { el: table });
+  } else if (kind === 'yaku') {
+    playGoal();
+    haptic('combo');
+    particles('burst', { el: table });
+  } else if (kind === 'yaku_unlock') {
     playGoal();
     playCombo(3);
-  } else if (kind === 'win') playWin();
-  else if (kind === 'lose') playLose();
-  else playMove();
+    particles('confetti', { el: table });
+  } else if (kind === 'win') {
+    playWin();
+    haptic('win');
+    shake(table, 0.95);
+  } else if (kind === 'lose') {
+    playLose();
+  } else {
+    playMove();
+  }
 }
 
 const initialState: GameState = {
@@ -922,6 +940,10 @@ export default function App() {
 
           {/* Field */}
           <div
+            ref={(node) => {
+              juiceTableRef.current = node;
+            }}
+            data-kk-table="1"
             className="tatami-table rounded-2xl flex-1 flex flex-col items-center justify-center relative py-10 sm:py-12 min-h-[200px]"
             style={{
               backgroundImage: [

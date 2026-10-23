@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { haptic } from '@clubhouse/shared/juice';
 import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { AnimatePresence, motion } from 'motion/react';
@@ -409,8 +410,13 @@ export default function ToyBoxing() {
 
   useEffect(() => {
     if (gameState === 'game_over' && prevGameStateRef.current !== 'game_over') {
-      if (winner === 'player') playWin();
-      else if (winner === 'cpu') playLose();
+      if (winner === 'player') {
+        playWin();
+        haptic('win');
+      } else if (winner === 'cpu') {
+        playLose();
+        haptic('error');
+      }
 
       if (winner === 'player' || winner === 'cpu' || winner === 'draw') {
         const outcome: FightOutcome =
@@ -961,6 +967,7 @@ export default function ToyBoxing() {
 
       if (outcome.type === 'parry') {
         playImpact(0.35);
+        haptic('success', 0.85);
         spawnParticles(attackerHandX, hitY, '#60a5fa', true);
         engineRef.current.screenShake = 0.85;
         engineRef.current.hitStop = HIT_STOP_LIGHT;
@@ -993,6 +1000,10 @@ export default function ToyBoxing() {
         if (outcome.blocked && outcome.guardCorrect) playBlock();
         else if (outcome.blocked && outcome.guardCorrect === false) playWrongBlock();
         else playImpact(outcome.isSuper ? 1 : 0.35 + strength);
+
+        if (outcome.isSuper) haptic('impact', 1.15);
+        else if (outcome.blocked) haptic('tap', 0.4);
+        else haptic('impact', 0.55 + strength * 0.35);
 
         const newHealth = Math.max(0, defender.health - outcome.damage);
         const newStun = applyStun(defender.stunMeter, outcome.stunGain);
@@ -1083,6 +1094,7 @@ export default function ToyBoxing() {
     engineRef.current.screenShake = 2.0;
     engineRef.current.hitStop = HIT_STOP_KO;
     playImpact(1);
+    haptic('impact', 1.25);
 
     const { player, cpu } = engineRef.current;
     const koVictim =
