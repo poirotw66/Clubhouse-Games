@@ -11,6 +11,7 @@
   var D = global.PuyoDaily;
   var R = global.PuyoRender;
   var A = global.PuyoAudio;
+  var J = global.PuyoJuice;
   var prefersReducedMotion = !!(
     global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
@@ -930,8 +931,12 @@
     applyBoardTheme();
     ui.resultCareer.hidden = false;
 
-    if (won) A.playWin();
-    else A.playLose();
+    if (won) {
+      A.playWin();
+      if (J) J.onWin(players[0].field);
+    } else {
+      A.playLose();
+    }
     ui.resultTitle.textContent = won
       ? match.mode === 'tutorial'
         ? '教室過關'
@@ -1001,8 +1006,12 @@
       ui.resultCareer.hidden = true;
     }
 
-    if (winner === players[0]) A.playWin();
-    else A.playLose();
+    if (winner === players[0]) {
+      A.playWin();
+      if (J) J.onWin(players[0].field);
+    } else {
+      A.playLose();
+    }
     ui.resultTitle.textContent = winner.label + ' 勝利';
     ui.resultSummary.textContent = summary;
     ui.resultP1Score.textContent = String(players[0].state.score);
@@ -1025,6 +1034,7 @@
     player.state.pair = moved;
     player.state.lockTimer = 0;
     A.playMove();
+    if (J) J.onMove();
     return true;
   }
 
@@ -1035,6 +1045,7 @@
     player.state.pair = rotated;
     player.state.lockTimer = 0;
     A.playRotate();
+    if (J) J.onRotate();
     return true;
   }
 
@@ -1062,6 +1073,7 @@
       updateQuestHud();
     }
     A.playLand();
+    if (J) J.onLand(player.field);
     beginSettle(player);
   }
 
@@ -1100,6 +1112,7 @@
         state.outgoingGarbage += Math.floor(step.score / GARBAGE_RATE);
       }
       A.playPop(state.chain);
+      if (J) J.onPop(state.chain, player.field);
       showPopup(
         player,
         state.chain > 1 ? state.chain + ' 連鎖！' : '消除！',
@@ -1119,6 +1132,7 @@
       }
       A.playAllClear();
       flashAllClear();
+      if (J) J.onAllClear(player.field);
       showPopup(player, '全消！', '+' + L.ALL_CLEAR_BONUS, 5);
     }
 
