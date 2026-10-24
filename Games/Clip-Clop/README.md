@@ -8,6 +8,9 @@ JavaScript module): 240 Hz fixed step, hoof spring struts, velocity-chasing leg 
 traction kicks, contact-count balance springs, tip torques, tumble-and-flail falls,
 aspect-fitting chase camera, and the original 22/32/50 s rank table.
 
+- **Online world leaderboard** (Supabase, optional): append-only board with the battle code attached —
+  every world entry can be loaded as a rival ghost with one click. See `public/leaderboard-config.js`
+  and `public/supabase-setup.sql` for the 5-minute setup; until configured the world tab shows a notice.
 Extras: AI opponents at three levels (a real horse on the same physics — Pony ~68 s and
 tumble-prone, Racehorse ~32 s, Legend ~23 s), local 2-player alternating duels, a slow-motion
 finish replay of the last 3.5 s with a side dolly camera, ghost replay of your best run,

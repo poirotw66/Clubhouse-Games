@@ -111,6 +111,10 @@ canvas{display:block}
 .codeRow input{font-family:monospace;font-size:11px;width:240px;padding:7px 10px;border:2.5px solid #4a2f18;border-radius:10px;background:#fff;color:#4a2f18}
 #codeArea{width:100%;margin-top:12px;font-family:monospace;font-size:12px;padding:10px;border:2.5px solid #4a2f18;border-radius:12px;background:#fff;color:#4a2f18;resize:vertical}
 .codeHint{font-size:12px;opacity:.6;margin-top:8px;font-weight:700}
+/* Leaderboard tabs & world rows */
+.tabRow{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.boardRow .rowGhost{font-family:inherit;font-weight:800;font-size:12px;border:2px solid #4a2f18;border-radius:8px;background:#f5a524;color:#fff;cursor:pointer;padding:3px 8px}
+.boardRow .rowDate{opacity:.5;font-size:11px}
 /* Boot error / repair */
 #bootError{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(60,40,20,.5);pointer-events:auto}
 
@@ -219,7 +223,13 @@ h1{font-size:44px;line-height:1.05}
   <div id="boardScreen" class="screen hidden">
     <div class="card">
       <div class="resultHead" data-i18n="board_title"></div>
+      <div class="tabRow" id="lbTabs">
+        <button class="modeChip sel" data-lb="local" data-i18n="lb_local"></button>
+        <button class="modeChip" data-lb="world" data-i18n="lb_world"></button>
+        <button id="lbRefresh" class="modeChip">↻</button>
+      </div>
       <div id="boardList" class="boardList"></div>
+      <div id="worldList" class="boardList hidden"></div>
       <div class="resultHead achHead" data-i18n="ach_title"></div>
       <div id="achGrid" class="achGrid"></div>
       <button id="boardClose" class="btn" data-i18n="close"></button>
@@ -279,6 +289,9 @@ h1{font-size:44px;line-height:1.05}
       <div id="nameRow" class="nameRow hidden">
         <input id="nameInput" maxlength="10" data-i18n-ph="name_ph">
         <button id="saveScoreBtn" class="btn small" data-i18n="save_score"></button>
+      </div>
+      <div id="uploadRow" class="btnRow hidden" style="margin-top:10px">
+        <button id="uploadBtn" class="btn small alt2">🌐 <span data-i18n="lb_upload"></span></button>
       </div>
       <div id="achToastRow" class="achToastRow"></div>
       <div class="btnRow">
@@ -341,6 +354,7 @@ setTimeout(function(){
 </script>
 
 
+<script src="leaderboard-config.js"></script>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

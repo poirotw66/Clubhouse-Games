@@ -91,6 +91,10 @@ const I18N = {
     code_ph:'貼上 CC1. 開頭的戰報碼…',
     perf_hi:'畫質：高', perf_mid:'畫質：中', perf_lo:'畫質：省電', perf_auto:'畫質：自動',
     perf_auto_drop:'偵測到低幀率，已自動調降畫質',
+    lb_local:'本地', lb_world:'世界', lb_refresh:'重新整理',
+    lb_upload:'上傳世界排行', lb_uploaded:'已上傳世界排行 ✓', lb_upload_fail:'上傳失敗，稍後再試',
+    lb_rate:'太快了，一分鐘後再上傳', lb_need_name:'請先輸入名字',
+    lb_not_configured:'世界排行尚未設定（需 Supabase）', lb_empty:'還沒有任何世界紀錄，去跑一場吧！',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
   },
@@ -133,6 +137,10 @@ const I18N = {
     code_ph:'Paste a code starting with CC1.…',
     perf_hi:'Quality: High', perf_mid:'Quality: Medium', perf_lo:'Quality: Battery', perf_auto:'Quality: Auto',
     perf_auto_drop:'Low framerate — quality lowered automatically',
+    lb_local:'Local', lb_world:'World', lb_refresh:'Refresh',
+    lb_upload:'Upload to world board', lb_uploaded:'Uploaded ✓', lb_upload_fail:'Upload failed, try later',
+    lb_rate:'Too fast — wait a minute between uploads', lb_need_name:'Enter a name first',
+    lb_not_configured:'World board not configured (needs Supabase)', lb_empty:'No world records yet — go run one!',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
   },
@@ -168,6 +176,7 @@ const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hu
       oppRow=$('oppRow'), duelRow=$('duelRow'),
       nameRow=$('nameRow'), nameInput=$('nameInput'), saveScoreBtn=$('saveScoreBtn'),
       achToastRow=$('achToastRow'), shareBtn=$('shareBtn'),
+      uploadRow=$('uploadRow'), uploadBtn=$('uploadBtn'), worldList=$('worldList'),
       rankText=$('rankText'), rankIcon=$('rankIcon'),
       stTime=$('stTime'), stFalls=$('stFalls'), stSteps=$('stSteps'), stSpeed=$('stSpeed'),
       retryBtn=$('retryBtn'), loadingEl=$('loading');
@@ -944,6 +953,124 @@ function rivalPoseFrom(p){
   }
   return frames;
 }
+async function loadRivalCode(code){
+  const p=await parseBattleCode(code);
+  const pose=rivalPoseFrom(p);
+  store.set('cc_rival',{t:p.t,f:p.f,pose});
+  G.ghostData={t:p.t/10,pose};
+  toast(tr('code_loaded')+' '+(p.t/10).toFixed(1)+'s 🐎');
+}
+
+/* ================================================================
+   Online leaderboard (Supabase REST, append-only via RLS).
+   Configure in leaderboard-config.js; UI hides itself until set up.
+================================================================ */
+const LB={
+  get cfg(){return window.CC_LEADERBOARD||null;},
+  ok(){const c=this.cfg;return !!(c&&c.url&&c.key&&c.url.indexOf('YOUR')<0&&c.key.indexOf('YOUR')<0);},
+  cache:null,lastFetch:0,
+  async top(force){
+    if(!this.ok())return null;
+    if(!force&&this.cache&&Date.now()-this.lastFetch<60000)return this.cache;
+    const r=await fetch(this.cfg.url+'/rest/v1/clipclop_scores?select=name,time_ms,falls,code,created_at&order=time_ms.asc&limit=20',{
+      headers:{apikey:this.cfg.key,Authorization:'Bearer '+this.cfg.key},
+    });
+    if(!r.ok)throw new Error('lb fetch '+r.status);
+    this.cache=await r.json();
+    this.lastFetch=Date.now();
+    return this.cache;
+  },
+  async submit(row){
+    const r=await fetch(this.cfg.url+'/rest/v1/clipclop_scores',{
+      method:'POST',
+      headers:{apikey:this.cfg.key,Authorization:'Bearer '+this.cfg.key,
+               'Content-Type':'application/json',Prefer:'return=minimal'},
+      body:JSON.stringify(row),
+    });
+    if(!r.ok&&r.status!==201)throw new Error('lb post '+r.status);
+  },
+};
+function renderWorld(rows){
+  const list=$('worldList');
+  list.innerHTML='';
+  if(!LB.ok()){
+    list.innerHTML='<div class="boardEmpty">'+tr('lb_not_configured')+'</div>';
+    return;
+  }
+  if(!rows||!rows.length){
+    list.innerHTML='<div class="boardEmpty">'+tr('lb_empty')+'</div>';
+    return;
+  }
+  rows.forEach((r,i)=>{
+    const row=document.createElement('div');
+    row.className='boardRow';
+    const d=new Date(r.created_at);
+    const date=(d.getMonth()+1)+'/'+d.getDate();
+    const left=document.createElement('span');
+    left.textContent=(i+1)+'. '+r.name+'　'+(r.time_ms/1000).toFixed(1)+'s · '+r.falls+'♪ · '+date;
+    const btn=document.createElement('button');
+    btn.className='rowGhost';
+    btn.textContent='🐎';
+    btn.title=tr('code_load');
+    btn.addEventListener('click',async()=>{
+      try{await loadRivalCode(r.code);}catch(e){toast(tr('code_invalid'));}
+    });
+    row.appendChild(left);
+    row.appendChild(btn);
+    list.appendChild(row);
+  });
+}
+async function refreshWorld(force){
+  if(!LB.ok()){renderWorld(null);return;}
+  try{
+    renderWorld(await LB.top(force));
+  }catch(e){
+    renderWorld(null);
+    $('worldList').innerHTML='<div class="boardEmpty">'+tr('lb_upload_fail')+'</div>';
+  }
+}
+document.querySelectorAll('#lbTabs [data-lb]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    b.blur();
+    document.querySelectorAll('#lbTabs [data-lb]').forEach(x=>x.classList.toggle('sel',x===b));
+    const world=b.dataset.lb==='world';
+    $('boardList').classList.toggle('hidden',world);
+    $('worldList').classList.toggle('hidden',!world);
+    if(world)refreshWorld(false);
+  });
+});
+$('lbRefresh').addEventListener('click',()=>{$('lbRefresh').blur();refreshWorld(true);});
+
+uploadBtn.addEventListener('click',async()=>{
+  if(!LB.ok())return;
+  const name=(nameInput.value.trim()||store.get('cc_name','')).slice(0,10);
+  if(!name){nameInput.focus();toast(tr('lb_need_name'));return;}
+  const now=Date.now(),last=store.get('cc_last_upload',0);
+  if(now-last<60000){toast(tr('lb_rate'));return;}
+  let p;
+  try{p=await parseBattleCode(codeInput.value);}
+  catch(e){toast(tr('code_invalid'));return;}
+  // integrity: the code must encode this run's time and reach the line
+  if(Math.abs(p.t-Math.round(G.finishTime*10))>2||p.x[p.x.length-1]<480){
+    toast(tr('code_invalid'));
+    return;
+  }
+  try{
+    await LB.submit({
+      name,
+      time_ms:Math.round(G.finishTime*1000),
+      falls:G.falls,
+      steps:G.steps,
+      speed:Math.round(G.topSpeed*36),
+      code:codeInput.value,
+    });
+    store.set('cc_last_upload',now);
+    LB.lastFetch=0;
+    toast(tr('lb_uploaded'));
+  }catch(e){
+    toast(tr('lb_upload_fail'));
+  }
+});
 
 /* ================================================================
    Records, leaderboard, achievements (localStorage)
@@ -1129,6 +1256,7 @@ function showResult(){
   oppRow.classList.add('hidden');
   duelRow.classList.add('hidden');
   codeRow.classList.add('hidden');
+  uploadRow.classList.add('hidden');
   const ranked=!G.dnf&&!G.practice&&!DUEL.on&&!TOUR.on;
 
   if(TOUR.on){
@@ -1208,6 +1336,7 @@ function showResult(){
       codeInput.value=code;
       codeRow.classList.remove('hidden');
     }).catch(()=>{});
+    if(LB.ok())uploadRow.classList.remove('hidden');
   }
 
   // cumulative stats + achievements
@@ -1543,12 +1672,8 @@ codeImportBtn.addEventListener('click',()=>{
 codeCloseBtn.addEventListener('click',()=>{codeCloseBtn.blur();codeScreen.classList.add('hidden');});
 codeLoadBtn.addEventListener('click',async()=>{
   try{
-    const p=await parseBattleCode(codeArea.value);
-    const pose=rivalPoseFrom(p);
-    store.set('cc_rival',{t:p.t,f:p.f,pose});
-    G.ghostData={t:p.t/10,pose};
-    codeHint.textContent=tr('code_loaded')+'：'+(p.t/10).toFixed(1)+'s';
-    toast(tr('code_loaded')+' '+(p.t/10).toFixed(1)+'s 🐎');
+    await loadRivalCode(codeArea.value);
+    codeHint.textContent=tr('code_loaded')+'：'+((JSON.parse(localStorage.getItem('cc_rival')).t)/10).toFixed(1)+'s';
     setTimeout(()=>codeScreen.classList.add('hidden'),900);
   }catch(e){
     toast(tr('code_invalid'));
@@ -1572,7 +1697,7 @@ codeCopyBtn.addEventListener('click',async()=>{
 });
 codeInput.addEventListener('click',()=>codeInput.select());
 
-boardBtn.addEventListener('click',()=>{boardBtn.blur();renderBoard();boardScreen.classList.remove('hidden');});
+boardBtn.addEventListener("click",()=>{boardBtn.blur();renderBoard();boardScreen.classList.remove("hidden");refreshWorld(false);});
 boardClose.addEventListener('click',()=>{boardClose.blur();boardScreen.classList.add('hidden');});
 
 ghostBtn.addEventListener('click',()=>{
