@@ -80,6 +80,9 @@ const I18N = {
     duel:'雙人對戰', duel_next:'換 2P 上場 →', duel_again:'再來一戰！',
     duel_p1win:'1P 獲勝！', duel_p2win:'2P 獲勝！', duel_draw:'平手！',
     replay_skip:'▶ 略過（Space）',
+    share_title:'SHARE · 分享戰報',
+    share_native:'系統分享（含圖卡）', share_copy:'複製戰報', share_download:'下載圖卡',
+    share_x:'分享到 X', share_line:'分享到 LINE',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
   },
@@ -111,6 +114,9 @@ const I18N = {
     duel:'2P Duel', duel_next:"Player 2's turn →", duel_again:'Rematch!',
     duel_p1win:'Player 1 wins!', duel_p2win:'Player 2 wins!', duel_draw:'Draw!',
     replay_skip:'▶ Skip (Space)',
+    share_title:'SHARE YOUR RUN',
+    share_native:'Share (with card)', share_copy:'Copy result', share_download:'Download card',
+    share_x:'Share to X', share_line:'Share to LINE',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
   },
@@ -135,6 +141,9 @@ const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hu
       tipWarnEl=$('tipWarn'), lbTop=$('lbTop'), lbBot=$('lbBot'),
       titleScreen=$('titleScreen'), startBtn=$('startBtn'), practiceBtn=$('practiceBtn'), duelBtn=$('duelBtn'),
       boardBtn=$('boardBtn'), boardScreen=$('boardScreen'), boardClose=$('boardClose'),
+      shareScreen=$('shareScreen'), shareImg=$('shareImg'), shareClose=$('shareClose'),
+      shareCopy=$('shareCopy'), shareDl=$('shareDl'), shareNative=$('shareNative'),
+      shareX=$('shareX'), shareLine=$('shareLine'),
       resultScreen=$('resultScreen'), dnfBadge=$('dnfBadge'), newRecordEl=$('newRecord'),
       oppRow=$('oppRow'), duelRow=$('duelRow'),
       nameRow=$('nameRow'), nameInput=$('nameInput'), saveScoreBtn=$('saveScoreBtn'),
@@ -1271,6 +1280,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR'){ if(!e.repeat)tryGetUp(); return; }
   if(e.code==='KeyM'){ if(!e.repeat)toggleMute(); return; }
   if(e.code==='Escape'&&e.repeat===false){
+    if(!shareScreen.classList.contains('hidden')){shareScreen.classList.add('hidden');return;}
     if(!boardScreen.classList.contains('hidden')){boardScreen.classList.add('hidden');return;}
     if(G.state!=='title')toTitle();
     return;
@@ -1332,17 +1342,141 @@ saveScoreBtn.addEventListener('click',()=>{
   toast(tr('save_score')+' ✓');
 });
 
-shareBtn.addEventListener('click',async()=>{
-  const r=I18N[lang].ranks[rankIndex()];
-  const txt=lang==='zh'
-    ? `達達馬蹄 Clip-Clop｜${G.dnf?'時間到':G.finishTime.toFixed(1)+'s 完賽 50m'}（${r}）跌倒 ${G.falls} 次 👐`
-    : `Clip-Clop horse race｜${G.dnf?"time up":G.finishTime.toFixed(1)+'s for 50 m'} (${r}), ${G.falls} falls 👐`;
-  try{
-    if(navigator.share)await navigator.share({text:txt});
-    else{await navigator.clipboard.writeText(txt);toast(tr('copied'));}
-  }catch(e){
-    try{await navigator.clipboard.writeText(txt);toast(tr('copied'));}catch(_){}
+/* ================================================================
+   Share: mode-aware battle card (live scene + stats) and panel
+================================================================ */
+function shareUrl(){
+  return location.origin+location.pathname;
+}
+function duelWinnerKey(){
+  return DUEL.t1<DUEL.t2?'duel_p1win':(DUEL.t2<DUEL.t1?'duel_p2win':'duel_draw');
+}
+function aiOutcomeKey(){
+  if(G.dnf)return AI.finishTime!=null?'opp_lose':'opp_dnf';
+  if(AI.finishTime==null)return 'opp_win';
+  return G.finishTime<=AI.finishTime?'opp_win':'opp_lose';
+}
+function shareText(){
+  const rank=I18N[lang].ranks[rankIndex()];
+  const zh=lang==='zh';
+  let mode;
+  if(DUEL.on){
+    mode=zh?`1P ${DUEL.t1.toFixed(1)}s vs 2P ${DUEL.t2.toFixed(1)}s（${tr(duelWinnerKey())}）`
+          :`1P ${DUEL.t1.toFixed(1)}s vs 2P ${DUEL.t2.toFixed(1)}s (${tr(duelWinnerKey())})`;
+  }else if(AI.level){
+    const at=AI.finishTime!=null?AI.finishTime.toFixed(1)+'s':'DNF';
+    mode=zh?`vs ${tr('ai_'+AI.level)}（${at}）${tr(aiOutcomeKey())}`
+          :`vs ${tr('ai_'+AI.level)} (${at}) — ${tr(aiOutcomeKey())}`;
+  }else if(G.practice){
+    mode=zh?'練習模式':'practice';
+  }else{
+    mode=zh?`獨跑 · ${rank}`:`solo · ${rank}`;
   }
+  const main=zh
+    ? `達達馬蹄 Clip-Clop｜${G.dnf&&!DUEL.on?'時間到':G.finishTime.toFixed(1)+'s'} · 跌倒 ${G.falls} 次`
+    : `Clip-Clop｜${G.dnf&&!DUEL.on?'time up':G.finishTime.toFixed(1)+'s'} · ${G.falls} falls`;
+  return `${main}｜${mode} 🐎\n${shareUrl()}`;
+}
+
+async function makeShareCard(){
+  const W=1200,H=630;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const c=cv.getContext('2d');
+  // background: the live scene, cover-cropped
+  renderer.render(scene,camera);
+  const src=renderer.domElement;
+  const sc=Math.max(W/src.width,H/src.height);
+  c.drawImage(src,(W-src.width*sc)/2,(H-src.height*sc)/2,src.width*sc,src.height*sc);
+  let gr=c.createLinearGradient(0,0,0,H);
+  gr.addColorStop(0,'rgba(18,12,6,.78)');
+  gr.addColorStop(.42,'rgba(18,12,6,.18)');
+  gr.addColorStop(1,'rgba(18,12,6,.82)');
+  c.fillStyle=gr; c.fillRect(0,0,W,H);
+  try{
+    await Promise.all([
+      document.fonts.load('900 60px "Noto Sans TC"'),
+      document.fonts.load('800 60px "Baloo 2"'),
+    ]);
+  }catch(e){}
+  c.strokeStyle='#f5a524'; c.lineWidth=8;
+  c.strokeRect(22,22,W-44,H-44);
+  c.textBaseline='top';
+  // header
+  c.fillStyle='#fff6e8';
+  c.font='900 44px "Noto Sans TC","Baloo 2"';
+  c.fillText(lang==='zh'?'達達馬蹄':'Clip-Clop',64,58);
+  c.font='800 26px "Baloo 2","Noto Sans TC"';
+  c.fillStyle='#f5a524';
+  c.fillText('CLIP-CLOP HORSE · 50 m / 90 s',66,114);
+  // rank badge (top-right)
+  c.font='96px serif';
+  c.textAlign='right';
+  c.fillText(RANK_ICONS[rankIndex()],W-70,52);
+  c.textAlign='left';
+  // big time
+  c.fillStyle='#f5d90a';
+  c.font='900 170px "Baloo 2","Noto Sans TC"';
+  c.fillText(G.dnf&&!DUEL.on?'DNF':G.finishTime.toFixed(1),64,208);
+  c.font='800 54px "Baloo 2"';
+  c.fillStyle='#fff6e8';
+  const tw=c.measureText(G.dnf&&!DUEL.on?'DNF':G.finishTime.toFixed(1)).width+64+30;
+  c.fillText('s',tw,322);
+  // mode line
+  c.font='900 40px "Noto Sans TC","Baloo 2"';
+  c.fillStyle='#fff';
+  let mode;
+  if(DUEL.on){
+    mode=`1P ${DUEL.t1.toFixed(1)}s vs 2P ${DUEL.t2.toFixed(1)}s — ${tr(duelWinnerKey())}`;
+  }else if(AI.level){
+    const at=AI.finishTime!=null?AI.finishTime.toFixed(1)+'s':'DNF';
+    mode=`vs ${tr('ai_'+AI.level)} ${at}s · ${tr(aiOutcomeKey())}`;
+  }else if(G.practice){
+    mode=tr('practice');
+  }else{
+    mode=I18N[lang].ranks[rankIndex()];
+  }
+  c.fillText(mode,64,412);
+  // stats + url
+  c.font='800 30px "Noto Sans TC","Baloo 2"';
+  c.fillStyle='#e8dcc8';
+  c.fillText(`${tr('st_falls').replace(/[（）(].*$/,'')} ${G.falls}　·　${tr('st_steps').replace(/[（）(].*$/,'')} ${G.steps}　·　${tr('st_speed')} ${(G.topSpeed*3.6).toFixed(1)} km/h`,64,480);
+  c.fillStyle='#f5a524';
+  c.font='700 26px "Baloo 2","Noto Sans TC"';
+  c.fillText(shareUrl().replace(/^https?:\/\//,''),64,546);
+  return cv.toDataURL('image/png');
+}
+
+let shareCardUrl='';
+shareBtn.addEventListener('click',async()=>{
+  shareCardUrl=await makeShareCard();
+  shareImg.src=shareCardUrl;
+  const txt=shareText();
+  shareX.href='https://twitter.com/intent/tweet?text='+encodeURIComponent(txt);
+  shareLine.href='https://social-plugins.line.me/lineit/share?url='+encodeURIComponent(shareUrl())+'&text='+encodeURIComponent(txt.split('\n')[0]);
+  shareScreen.classList.remove('hidden');
+});
+shareClose.addEventListener('click',()=>{shareClose.blur();shareScreen.classList.add('hidden');});
+shareCopy.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(shareText());toast(tr('copied'));}catch(e){}
+});
+shareDl.addEventListener('click',()=>{
+  const a=document.createElement('a');
+  a.href=shareCardUrl;
+  a.download='clip-clop-'+(DUEL.on?'duel':G.dnf?'dnf':G.finishTime.toFixed(1)+'s')+'.png';
+  a.click();
+});
+shareNative.addEventListener('click',async()=>{
+  const text=shareText();
+  try{
+    const blob=await (await fetch(shareCardUrl)).blob();
+    const file=new File([blob],'clip-clop.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({text,files:[file]});
+      return;
+    }
+    if(navigator.share){await navigator.share({text});return;}
+  }catch(e){}
+  try{await navigator.clipboard.writeText(text);toast(tr('copied'));}catch(_){}
 });
 
 function toggleMute(){

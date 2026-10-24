@@ -101,6 +101,10 @@ canvas{display:block}
 #lbBot{bottom:0;pointer-events:auto;cursor:pointer}
 .lbLabel{color:#f5d90a;font-weight:800;letter-spacing:.5em;font-size:15px}
 .lbSkip{color:#fff;opacity:.75;font-weight:700;font-size:13px;text-decoration:underline}
+/* Share panel */
+.shareCard{max-width:640px}
+.shareImg{width:100%;border:3px solid #4a2f18;border-radius:14px;margin-top:12px;display:block;background:#120c06}
+.shareLink{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
 
 /* Screens */
 .screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;background:rgba(60,40,20,.18);backdrop-filter:blur(2px)}
@@ -208,6 +212,23 @@ h1{font-size:44px;line-height:1.05}
       <div class="resultHead achHead" data-i18n="ach_title"></div>
       <div id="achGrid" class="achGrid"></div>
       <button id="boardClose" class="btn" data-i18n="close"></button>
+    </div>
+  </div>
+
+  <div id="shareScreen" class="screen hidden">
+    <div class="card shareCard">
+      <div class="resultHead" data-i18n="share_title"></div>
+      <img id="shareImg" class="shareImg" alt="share card">
+      <div class="btnRow">
+        <button id="shareNative" class="btn">📤 <span data-i18n="share_native"></span></button>
+        <button id="shareCopy" class="btn alt">📋 <span data-i18n="share_copy"></span></button>
+      </div>
+      <div class="btnRow">
+        <button id="shareDl" class="btn small alt2">⬇ <span data-i18n="share_download"></span></button>
+        <a id="shareX" class="btn small shareLink" target="_blank" rel="noopener">𝕏 <span data-i18n="share_x"></span></a>
+        <a id="shareLine" class="btn small alt shareLink" target="_blank" rel="noopener">💚 <span data-i18n="share_line"></span></a>
+      </div>
+      <button id="shareClose" class="linkBtn" data-i18n="close"></button>
     </div>
   </div>
 
