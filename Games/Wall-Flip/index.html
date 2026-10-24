@@ -13,7 +13,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
-<a href="../../" style="position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:30;color:#8fa3b8;text-decoration:none;font:600 12px system-ui,sans-serif;letter-spacing:.05em;">← 返回總覽</a>
+<a href="../../" style="position:fixed;top:3px;left:12px;z-index:30;color:#8fa3b8;text-decoration:none;font:600 11px system-ui,sans-serif;letter-spacing:.05em;">← 返回總覽</a>
 <script>
 (() => {
 'use strict';
@@ -1127,59 +1127,80 @@ function roundRect(x, y, w, h, r) {
 }
 function drawHUD() {
   screenTransform();
-  const m = 12, u = Math.min(W(), H()) / 42;
+  const m = 20, u = Math.min(W(), H()) / 42;
+  const narrow = W() < 920;
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  // left block: name + air
+  // left block: name + air + speed (both layouts)
+  const pw = narrow ? Math.min(W() - m * 2, u * 13) : u * 10.5;
   ctx.fillStyle = 'rgba(10,14,22,.6)';
-  roundRect(m, m, u * 10.5, u * 2.9, 8); ctx.fill();
+  roundRect(m, m, pw, u * 3.5, 8); ctx.fill();
   ctx.font = `700 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#9fb6c9';
-  ctx.fillText('ROADSTER · 空氣 AIR', m + u * 0.4, m + u * 0.25);
+  ctx.fillText('ROADSTER · 空氣 AIR', m + u * 0.4, m + u * 0.3);
   const af = car.air / AIR_MAX;
+  const barW = pw - u * 3.4;
   ctx.fillStyle = 'rgba(255,255,255,.12)';
-  ctx.fillRect(m + u * 0.4, m + u * 1.05, u * 6.4, u * 0.8);
+  ctx.fillRect(m + u * 0.4, m + u * 1.1, barW, u * 0.8);
   ctx.fillStyle = af < 0.25 ? (Math.sin(stateT * 14) > 0 ? '#ff5c5c' : '#a33') : '#5ac8ff';
-  ctx.fillRect(m + u * 0.4, m + u * 1.05, u * 6.4 * af, u * 0.8);
+  ctx.fillRect(m + u * 0.4, m + u * 1.1, barW * af, u * 0.8);
   ctx.font = `800 ${u * 0.72}px ui-monospace, Menlo, monospace`;
   ctx.fillStyle = '#eef4fa';
-  ctx.fillText(fmt(car.air), m + u * 7.2, m + u * 1.02);
+  ctx.fillText(fmt(car.air), m + u * 0.4 + barW + u * 0.3, m + u * 1.07);
   // speed
   const spd = car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy);
   ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#9fb6c9';
-  ctx.fillText('速さ SPEED', m + u * 0.4, m + u * 2.0);
+  ctx.fillText('速さ SPEED', m + u * 0.4, m + u * 2.35);
   ctx.font = `800 ${u * 0.9}px ui-monospace, monospace`;
   ctx.fillStyle = '#eef4fa';
-  ctx.fillText(fmt(spd * 3.6) + ' km/h', m + u * 4.4, m + u * 1.92);
-  // center pair: height / dist
+  ctx.fillText(fmt(spd * 3.6) + ' km/h', m + u * 4.4, m + u * 2.27);
+  // right block: rolls + best (both layouts, top-right)
   ctx.textAlign = 'center';
+  const rw = narrow ? u * 7.5 : u * 4.6, rx = W() - m - rw;
   ctx.fillStyle = 'rgba(10,14,22,.6)';
-  roundRect(W() / 2 - u * 5.2, m, u * 10.4, u * 1.7, 8); ctx.fill();
+  roundRect(rx, m, rw, u * 1.7, 8); ctx.fill();
   ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#9fb6c9';
-  ctx.fillText('高さ HEIGHT', W() / 2 - u * 2.6, m + u * 0.22);
-  ctx.fillText('距離 DIST', W() / 2 + u * 2.6, m + u * 0.22);
-  ctx.font = `800 ${u * 0.8}px ui-monospace, monospace`;
-  ctx.fillStyle = '#eef4fa';
-  ctx.fillText(fmt(Math.max(0, car.y - CAR.H)) + ' m', W() / 2 - u * 2.6, m + u * 0.85);
-  ctx.fillText(fmt(car.mode === 'road' ? Math.max(0, car.u + RUNUP) : Math.abs(car.x - (car.peeled || car.launched || car.mode === 'landed' || car.mode === 'crash' ? launchX : 0))) + ' m', W() / 2 + u * 2.6, m + u * 0.85);
-  // rolls
-  ctx.fillStyle = 'rgba(10,14,22,.6)';
-  roundRect(W() - m - u * 4.6, m, u * 4.6, u * 1.7, 8); ctx.fill();
-  ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#9fb6c9';
-  ctx.textAlign = 'center';
-  ctx.fillText('回転 ROLLS', W() - m - u * 2.3, m + u * 0.22);
+  ctx.fillText('回転 ROLLS', rx + rw / 2, m + u * 0.22);
   ctx.font = `800 ${u * 0.8}px ui-monospace, monospace`;
   ctx.fillStyle = '#eef4fa';
   const rollDisp = car.mode === 'road' ? '0' : fmt(rollsCount(car.phi, car.phiL));
-  ctx.fillText(rollDisp, W() - m - u * 2.3, m + u * 0.85);
-  // best (drawReady draws its own top-right block over this corner)
+  ctx.fillText(rollDisp, rx + rw / 2, m + u * 0.85);
   if (state !== ST.READY) {
     ctx.textAlign = 'right';
     ctx.font = `700 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#9fb6c9';
-    ctx.fillText(`最佳 ${best}`, W() - m, m + u * 2.0);
+    ctx.fillText(`最佳 ${best}`, W() - m, m + u * 2.3);
+  }
+  // height / dist: wide = top-center pair; narrow = compact row under the left panel
+  const statBox = (x, y, w, label, val) => {
+    ctx.fillStyle = 'rgba(10,14,22,.6)';
+    roundRect(x, y, w, u * 1.9, 8); ctx.fill();
+    ctx.font = `600 ${u * 0.5}px system-ui, "Noto Sans TC", sans-serif`;
+    ctx.fillStyle = '#9fb6c9';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + w / 2, y + u * 0.26);
+    ctx.font = `800 ${u * 0.72}px ui-monospace, monospace`;
+    ctx.fillStyle = '#eef4fa';
+    ctx.fillText(val, x + w / 2, y + u * 1.02);
+  };
+  const distVal = fmt(car.mode === 'road' ? Math.max(0, car.u + RUNUP) : Math.abs(car.x - (car.peeled || car.launched || car.mode === 'landed' || car.mode === 'crash' ? launchX : 0))) + ' m';
+  if (!narrow) {
+    ctx.fillStyle = 'rgba(10,14,22,.6)';
+    roundRect(W() / 2 - u * 5.2, m, u * 10.4, u * 1.7, 8); ctx.fill();
+    ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
+    ctx.fillStyle = '#9fb6c9';
+    ctx.fillText('高さ HEIGHT', W() / 2 - u * 2.6, m + u * 0.22);
+    ctx.fillText('距離 DIST', W() / 2 + u * 2.6, m + u * 0.22);
+    ctx.font = `800 ${u * 0.8}px ui-monospace, monospace`;
+    ctx.fillStyle = '#eef4fa';
+    ctx.fillText(fmt(Math.max(0, car.y - CAR.H)) + ' m', W() / 2 - u * 2.6, m + u * 0.85);
+    ctx.fillText(distVal, W() / 2 + u * 2.6, m + u * 0.85);
+  } else {
+    const sw2 = (pw - u * 0.4) / 3, sy2 = m + u * 3.9;
+    statBox(m, sy2, sw2, '高さ', fmt(Math.max(0, car.y - CAR.H)) + ' m');
+    statBox(m + sw2 + u * 0.2, sy2, sw2, '距離', distVal);
+    statBox(m + (sw2 + u * 0.2) * 2, sy2, sw2, '空氣', fmt(car.air) + '%');
   }
   // messages
   ctx.textAlign = 'center';
