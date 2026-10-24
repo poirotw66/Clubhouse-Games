@@ -361,6 +361,26 @@ body,
   animation: lion-pulse 0.8s ease-in-out infinite;
 }
 
+.lion-tipping {
+  position: absolute;
+  left: 50%;
+  bottom: 11.5rem;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: #e04545;
+  box-shadow: 0 4px 0 #9a2020;
+  animation: lion-pulse 0.6s ease-in-out infinite;
+  z-index: 6;
+  pointer-events: none;
+}
+
 .lion-perfect {
   position: absolute;
   left: 50%;
@@ -780,24 +800,28 @@ body,
 }
 
 .howto-fl {
+  /* O — front far pink */
   left: 0.45rem;
   top: -0.55rem;
-  background: #f97316;
+  background: #e356a2;
 }
 .howto-fr {
+  /* P — front near blue */
   right: 0.45rem;
   top: -0.55rem;
-  background: #22c55e;
+  background: #2e91ff;
 }
 .howto-bl {
+  /* Q — rear far orange */
   left: 0.45rem;
   bottom: -0.55rem;
-  background: #3b82f6;
+  background: #e66900;
 }
 .howto-br {
+  /* W — rear near green */
   right: 0.45rem;
   bottom: -0.55rem;
-  background: #ec4899;
+  background: #00b04d;
 }
 
 .howto-rhythm {

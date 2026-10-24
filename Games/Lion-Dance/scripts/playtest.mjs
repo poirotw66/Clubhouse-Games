@@ -1,5 +1,5 @@
 /**
- * Dual-viewport Playwright: framing + HUD non-overlap + evidence screenshots.
+ * Dual-viewport Playwright: framing + HUD + fall-without-end + evidence screenshots.
  * Usage: LION_URL=http://127.0.0.1:4180/ node scripts/playtest.mjs
  */
 import { chromium } from 'playwright';
@@ -24,7 +24,6 @@ async function cropLion(page, label, tag, viewport) {
   const b = frame.bounds;
   const padX = 0.04;
   const padY = 0.03;
-  // Face: upper ~45% of lion AABB; legs: lower ~55%
   const face = {
     x: Math.max(0, (b.minX - padX) * viewport.width),
     y: Math.max(0, (b.minY - padY) * viewport.height),
@@ -50,7 +49,7 @@ async function cropLion(page, label, tag, viewport) {
     clip.height = Math.max(40, Math.floor(clip.height));
     if (clip.x + clip.width > viewport.width) clip.width = viewport.width - clip.x;
     if (clip.y + clip.height > viewport.height) clip.height = viewport.height - clip.y;
-    await page.screenshot({ path: `${OUT}/v5-${label}-${tag}-${name}.png`, clip });
+    await page.screenshot({ path: `${OUT}/v6-${label}-${tag}-${name}.png`, clip });
   }
 }
 
@@ -93,7 +92,7 @@ async function runViewport(browser, label, viewport) {
 
   await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForTimeout(2000);
-  await page.screenshot({ path: `${OUT}/v5-${label}-title.png` });
+  await page.screenshot({ path: `${OUT}/v6-${label}-title.png` });
 
   let frame = await page.evaluate(() => window.__lionWorld?.checkFraming() ?? null);
   console.log(label, 'attract framing', JSON.stringify(frame));
@@ -101,7 +100,7 @@ async function runViewport(browser, label, viewport) {
 
   await page.getByRole('button', { name: /開始踩街/ }).click();
   await page.waitForTimeout(2200);
-  await page.screenshot({ path: `${OUT}/v5-${label}-play.png` });
+  await page.screenshot({ path: `${OUT}/v6-${label}-play.png` });
   await cropLion(page, label, 'play', viewport);
   await assertHudNoOverlap(page, label);
 
@@ -109,36 +108,42 @@ async function runViewport(browser, label, viewport) {
   console.log(label, 'play framing', JSON.stringify(frame));
   if (!frame?.ok) throw new Error(`${label} play framing failed: ${frame?.reasons}`);
 
-  // Mid-step: lift front-left high so thigh/shin knee bend is obvious
+  // Mid-step: Q is hind-left now — lift for lantern-pants pose
   await page.keyboard.down('q');
-  await page.waitForTimeout(700);
-  await page.screenshot({ path: `${OUT}/v5-${label}-step.png` });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/v6-${label}-step.png` });
   await cropLion(page, label, 'step', viewport);
   await page.keyboard.up('q');
-  await page.waitForTimeout(180);
+  await page.waitForTimeout(120);
 
-  // Tip over
+  // Tip with same-side pair (Q+W = both hind) then all four
   await page.keyboard.down('q');
   await page.keyboard.down('w');
+  await page.waitForTimeout(900);
   await page.keyboard.down('o');
   await page.keyboard.down('p');
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(800);
   await page.keyboard.up('q');
   await page.keyboard.up('w');
   await page.keyboard.up('o');
   await page.keyboard.up('p');
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: `${OUT}/v5-${label}-fall.png` });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/v6-${label}-fall.png` });
 
   const stamp = await page.locator('.lion-fall-stamp').count();
   const getUp = await page.locator('.lion-touch-up').count();
   const btns = await page.locator('.lion-leg-btn').count();
-  console.log(label, { stamp, getUp, btns });
+  const resultEarly = await page.locator('.lion-result').count();
+  console.log(label, { stamp, getUp, btns, resultEarly });
   if (stamp < 1 || getUp < 1 || btns < 4) throw new Error(`${label} fall UI missing`);
+  if (resultEarly > 0) throw new Error(`${label} fall must not end the run`);
 
-  await page.waitForTimeout(3500);
-  if ((await page.locator('.lion-result').count()) === 0) await page.waitForTimeout(2000);
-  await page.screenshot({ path: `${OUT}/v5-${label}-result.png` });
+  // Get up — timer continues, still playing
+  await page.keyboard.press('r');
+  await page.waitForTimeout(600);
+  const stillPlaying = await page.locator('.lion-result').count();
+  if (stillPlaying > 0) throw new Error(`${label} get-up should resume, not show result`);
+  await page.screenshot({ path: `${OUT}/v6-${label}-getup.png` });
 
   await page.close();
 }

@@ -9,20 +9,21 @@ import {
   type BeatState,
 } from './beat';
 import {
-  FALL_GRACE,
   FIXED_DT,
   GHOST_SAMPLE_DT,
   KEY_TO_LEG,
+  LION_SCALE,
   MAX_FRAME_DT,
   PIXEL_RATIO_CAP,
   PIXEL_RATIO_REDUCED,
   TIME_LIMIT,
   TRACK_LENGTH,
+  restBodyHeight,
   type LegId,
   type PlayMode,
 } from './constants';
 import {
-  playDrumTap,
+  playDrum,
   playFall,
   playFinishFanfare,
   playMetronomeDrum,
@@ -33,11 +34,15 @@ import {
 import {
   checkLionFramed,
   computeCameraFrame,
+  DIST_FOLLOW_RATE,
+  FOLLOW_RATE,
   projectObjectBounds,
+  type CameraFrame,
   type FrameCheck,
 } from './framing';
 import { applyLegPose, buildGhostMarker, buildLion, buildStreet, type LionMeshes } from './meshes';
 import {
+  beginGetUp,
   createSim,
   getUpInPlace,
   setLegHeld,
@@ -126,8 +131,6 @@ export function createLionWorld(): LionWorld {
   let hudCb: ((hud: HudSnapshot) => void) | null = null;
   let endCb: ((result: RunResult) => void) | null = null;
   let ended = false;
-  let fallEndTimer = 0;
-  let prevHeld: Partial<Record<LegId, boolean>> = {};
   let confettiVel: Float32Array | null = null;
   let sparkVel: Float32Array | null = null;
   let dustVel: Float32Array | null = null;
@@ -139,7 +142,10 @@ export function createLionWorld(): LionWorld {
   let liveGhost: GhostSample[] = [];
   let ghostSampleAcc = 0;
   let camX = 0;
-  let frame = computeCameraFrame(16 / 9);
+  let camDist = 7.5;
+  let frame: CameraFrame = computeCameraFrame(16 / 9);
+  let sun: THREE.DirectionalLight | null = null;
+  let padViewOffset = 0;
   let blinkT = 0;
   let idleT = 0;
   let visibilityPaused = false;
@@ -170,6 +176,8 @@ export function createLionWorld(): LionWorld {
       maxCombo,
       mode,
       fallCount: sim.fallCount,
+      maxSpeed: sim.maxSpeed,
+      steps: sim.stepCount,
     };
   }
 
@@ -181,13 +189,24 @@ export function createLionWorld(): LionWorld {
   }
 
   function applyCameraRig(followX: number): void {
-    if (!camera) return;
-    // Stable horizon: fixed Y / lookY, only X follows — no roll/tilt.
+    if (!camera || !hostEl) return;
     camera.fov = frame.fov;
+    const w = hostEl.clientWidth || window.innerWidth;
+    const h = hostEl.clientHeight || window.innerHeight;
+    // Lift the projection above the touch pad so buttons don't cover the lion
+    const padPx = Math.min(h * 0.42, padViewOffset || h * 0.28);
+    camera.setViewOffset(w, h, 0, -padPx * 0.35, w, h - padPx * 0.15);
     camera.updateProjectionMatrix();
-    camera.position.set(followX, frame.camY, frame.distance);
+    const d = camDist;
+    const ahead = followX + frame.aheadFrac * d;
+    camera.position.set(ahead, frame.camY, d);
     camera.up.set(0, 1, 0);
-    camera.lookAt(followX + frame.lookAhead, frame.lookY, 0);
+    camera.lookAt(followX, frame.lookY, 0);
+    if (sun) {
+      sun.position.set(ahead + 3, frame.lookY + 8, d * 0.15 + 6);
+      sun.target.position.set(followX, frame.lookY, 0);
+      sun.target.updateMatrixWorld();
+    }
   }
 
   function resize(): void {
@@ -197,28 +216,39 @@ export function createLionWorld(): LionWorld {
     const aspect = w / Math.max(1, h);
     camera.aspect = aspect;
     frame = computeCameraFrame(aspect);
+    camDist = frame.distance;
+    padViewOffset = Math.min(220, Math.max(120, h * 0.26));
     camera.fov = frame.fov;
-    camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
     applyCameraRig(camX);
   }
 
-  function triggerDust(): void {
+  function triggerDust(atX: number, impact = 1): void {
     if (!lion?.dust || reduced) return;
     const dust = lion.dust;
     dust.visible = true;
     const mat = dust.material as THREE.PointsMaterial;
-    mat.opacity = 0.85;
+    const power = Math.max(0.35, Math.min(1.2, 0.5 + impact / 1.2));
+    mat.opacity = 0.7 * power;
+    mat.size = 0.12 + 0.2 * power;
     const pos = dust.geometry.getAttribute('position') as THREE.BufferAttribute;
     dustVel = new Float32Array(pos.count * 3);
+    const n = Math.min(pos.count, 12);
     for (let i = 0; i < pos.count; i++) {
-      pos.setXYZ(i, (Math.random() - 0.5) * 0.4, Math.random() * 0.15, (Math.random() - 0.5) * 0.4);
-      dustVel[i * 3] = (Math.random() - 0.5) * 2.5;
-      dustVel[i * 3 + 1] = 1.5 + Math.random() * 2.5;
-      dustVel[i * 3 + 2] = (Math.random() - 0.5) * 2.5;
+      if (i < n) {
+        pos.setXYZ(i, (Math.random() - 0.5) * 0.35, Math.random() * 0.12, (Math.random() - 0.5) * 0.3);
+        dustVel[i * 3] = -0.8 - Math.random() * 1.2;
+        dustVel[i * 3 + 1] = 0.4 + Math.random() * 0.8;
+        dustVel[i * 3 + 2] = (Math.random() - 0.5) * 0.8;
+      } else {
+        pos.setXYZ(i, 0, -10, 0);
+        dustVel[i * 3] = 0;
+        dustVel[i * 3 + 1] = 0;
+        dustVel[i * 3 + 2] = 0;
+      }
     }
     pos.needsUpdate = true;
-    dust.position.set(sim.x, 0.1, 0);
+    dust.position.set(atX, 0.08, 0);
   }
 
   function syncMeshes(dt: number): void {
@@ -298,13 +328,13 @@ export function createLionWorld(): LionWorld {
     if (attract) {
       root.position.set(2.5, sim.y, 0);
       root.rotation.set(0, 0, 0);
-      root.scale.set(1, 1, 1);
+      root.scale.setScalar(LION_SCALE);
       cloth.rotation.set(0, 0, 0);
       cloth.position.set(0, 0, 0);
       for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
         const phase = idleT * 2.2 + (id === 'FL' || id === 'BR' ? 0 : Math.PI);
         sim.legs[id].lift = 0.2 + Math.max(0, Math.sin(phase)) * 0.55;
-        sim.legs[id].swing = Math.sin(phase) * 0.65;
+        sim.legs[id].swing = Math.sin(phase) * 0.45;
       }
       const attractHud = snapshotHudBase(sim, TIME_LIMIT);
       applyLegPose(legs, attractHud.legLift, attractHud.legSwing);
@@ -327,19 +357,18 @@ export function createLionWorld(): LionWorld {
       const land = Math.min(1, sim.fallSpin * 0.7);
       // Squash on impact
       const squash = 1 - 0.14 * Math.sin(Math.min(1, sim.fallBounce) * Math.PI);
-      root.scale.set(1 + (1 - squash) * 0.12, squash, 1 + (1 - squash) * 0.18);
-      // Always roll feet toward the camera (−X) so all four legs stay readable;
-      // fallSide only steers flower / stamp / lean for left-vs-right variety.
-      const roll = -Math.PI / 2;
-      root.position.set(
-        sim.x,
-        Math.max(0.7, 0.7 + sim.y * 0.12 * (1 - land)),
-        -0.15 * land,
+      root.scale.set(
+        LION_SCALE * (1 + (1 - squash) * 0.12),
+        LION_SCALE * squash,
+        LION_SCALE * (1 + (1 - squash) * 0.18),
       );
+      // Physics pitch/roll drive the mesh 1:1; ease toward a readable side flop
+      const showRoll = sim.roll * land + side * (-Math.PI / 2) * Math.min(1, land * 1.1);
+      root.position.set(sim.x, Math.max(0.42, sim.y), sim.lateral * 0.35);
       root.rotation.set(
-        roll * land + Math.sin(sim.fallSpin * 1.5) * 0.1 * (1 - land),
-        side * 0.12 * land,
-        THREE.MathUtils.clamp(sim.pitch * 0.3, -0.4, 0.3) + side * 0.18 * land,
+        showRoll,
+        sim.yaw * 0.5 + side * 0.08 * land,
+        sim.pitch,
       );
       // Cloth drapes / flops over the legs while fallen
       cloth.rotation.z = side * 0.18 * land + Math.sin(sim.fallSpin * 2.2) * 0.08;
@@ -384,7 +413,7 @@ export function createLionWorld(): LionWorld {
         if (mat.opacity <= 0.02) dust.visible = false;
       }
     } else if (sim.finished) {
-      root.scale.set(1, 1, 1);
+      root.scale.setScalar(LION_SCALE);
       flowerDetached = false;
       cloth.rotation.set(0, 0, 0);
       cloth.position.set(0, 0, 0);
@@ -429,16 +458,15 @@ export function createLionWorld(): LionWorld {
         playFinishFanfare();
       }
     } else {
-      root.scale.set(1, 1, 1);
+      root.scale.setScalar(LION_SCALE);
       flowerDetached = false;
-      root.position.set(sim.x, sim.y, 0);
-      // Subtle body lean only — camera horizon stays level
-      root.rotation.set(sim.pitch * 0.75, 0, sim.roll * 0.8);
+      root.position.set(sim.x, sim.y, sim.lateral * 0.2);
+      // Pitch / roll match physics 1:1 (camera horizon stays level)
+      root.rotation.set(sim.roll, sim.yaw * 0.25, sim.pitch);
       cloth.rotation.set(0, 0, 0);
       cloth.position.set(0, 0, 0);
-      // Head tilts forward slightly with each front step
       head.rotation.x = THREE.MathUtils.clamp(
-        -sim.pitch * 0.2 - frontLift * 0.1,
+        -sim.pitch * 0.15 - frontLift * 0.08,
         -0.28,
         0.18,
       );
@@ -449,8 +477,15 @@ export function createLionWorld(): LionWorld {
       applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing);
     }
 
+    // Blob shadow grows / fades with body height
+    const restY = restBodyHeight();
+    const heightFrac = Math.max(0.35, Math.min(1.4, sim.y / Math.max(0.2, restY)));
     shadow.position.set(root.position.x, 0.02, root.position.z);
-    shadow.scale.setScalar(sim.fallen ? 1.55 : 1 + Math.abs(sim.pitch) * 0.15);
+    shadow.scale.setScalar((sim.fallen ? 1.55 : 1) * (0.7 + 0.3 * heightFrac));
+    (shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(
+      0.12,
+      0.45 * (1.6 - 0.6 * heightFrac),
+    );
 
     if (ghostMark) {
       const gx = ghostXAt(ghostSamples, sim.elapsed);
@@ -460,12 +495,13 @@ export function createLionWorld(): LionWorld {
       } else ghostMark.visible = false;
     }
 
-    // Smooth horizontal follow only — small lead on portrait so the long lion isn't cropped.
-    const aspect = camera.aspect || 1.5;
-    const lead = attract ? 0 : aspect < 0.7 ? 0.08 : aspect < 1 ? 0.28 : 0.55;
-    const targetX = sim.x + lead;
-    const follow = reduced ? 1 : 1 - Math.pow(0.00005, dt);
+    // Follow: x + 0.4·s + 0.25·vx, exponential 5/s; distance 4/s
+    const scaleLead = LION_SCALE;
+    const targetX = attract ? 2.5 * LION_SCALE : sim.x + 0.4 * scaleLead + 0.25 * sim.vx;
+    const follow = reduced ? 1 : 1 - Math.exp(-FOLLOW_RATE * dt);
     camX += (targetX - camX) * follow;
+    const distFollow = reduced ? 1 : 1 - Math.exp(-DIST_FOLLOW_RATE * dt);
+    camDist += (frame.distance - camDist) * distFollow;
     applyCameraRig(camX);
 
     if (!reduced && lanterns.length) {
@@ -493,36 +529,37 @@ export function createLionWorld(): LionWorld {
     if (!paused && running && !ended) {
       acc += frameDt;
       let guard = 0;
-      while (acc >= FIXED_DT && guard++ < 12) {
-        if (sim.elapsed + FIXED_DT >= TIME_LIMIT && !sim.finished && !sim.fallen) {
+      const wasFallen = sim.fallen;
+      while (acc >= FIXED_DT && guard++ < 24) {
+        if (sim.elapsed + FIXED_DT >= TIME_LIMIT && !sim.finished) {
           sim.elapsed = TIME_LIMIT;
           endRun('timeout');
           break;
         }
 
-        for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
-          const held = sim.legs[id].held;
-          if (held && !prevHeld[id]) playDrumTap();
-          prevHeld[id] = held;
-        }
-
         const fired = stepBeat(beat, sim.elapsed + FIXED_DT, FIXED_DT);
         if (fired && !sim.fallen && !sim.finished) playMetronomeDrum();
 
-        const speedBonus = comboSpeedBonus(beat.combo);
-        const { end } = stepPhysics(sim, FIXED_DT, {
-          speedBonus,
+        const tractionMul = 1 + comboSpeedBonus(beat.combo);
+        const { end, plantEvents } = stepPhysics(sim, FIXED_DT, {
+          tractionMul,
           assist,
-          onPlant: (_leg, elapsed) => {
+          onPlant: (leg, elapsed, impact) => {
             const r = registerPlant(beat, elapsed);
             if (r.perfect) {
               perfectFlash = 1;
               maxCombo = Math.max(maxCombo, r.combo);
               playPerfect();
             }
-            return { leg: _leg, ...r };
+            // Drum + dust on footfall (impact scales loudness)
+            const power = Math.max(0.35, Math.min(1.4, 0.5 + impact / 1.2));
+            playDrum();
+            if (power > 0.85) playDrum();
+            triggerDust(sim.x + (sim.legs[leg]?.plantX ?? 0) * 0.15, impact);
+            return { leg, perfect: r.perfect, combo: r.combo, impact };
           },
         });
+        void plantEvents;
         acc -= FIXED_DT;
 
         ghostSampleAcc += FIXED_DT;
@@ -531,45 +568,39 @@ export function createLionWorld(): LionWorld {
           liveGhost.push({ t: sim.elapsed, x: sim.x });
         }
 
-        if (end === 'finish') fallEndTimer = 0;
-        else if (end === 'fall') {
-          fallEndTimer = FALL_GRACE;
-          if (!fallFxPlayed) {
-            fallFxPlayed = true;
-            playFall();
-            triggerDust();
-          }
+        if (!wasFallen && sim.fallen && !fallFxPlayed) {
+          fallFxPlayed = true;
+          playFall();
+          triggerDust(sim.x, 1.5);
+        }
+        if (end === 'finish') {
+          /* celebration continues until finishAnim */
         }
       }
 
       if (sim.finished) {
         stepPhysics(sim, Math.min(frameDt, 0.05), {
-          speedBonus: 0,
+          tractionMul: 1,
           assist,
-          onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }),
+          onPlant: (leg, _e, impact) => ({ leg, perfect: false, combo: 0, impact }),
         });
         if (sim.finishAnim >= 0.98) endRun('finish');
-      }
-
-      if (sim.fallen && fallEndTimer > 0) {
-        fallEndTimer -= frameDt;
-        if (fallEndTimer <= 0) endRun('fall');
       }
 
       emitHud();
     } else if (sim.finished && !ended) {
       stepPhysics(sim, Math.min(frameDt, 0.05), {
-        speedBonus: 0,
+        tractionMul: 1,
         assist,
-        onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }),
+        onPlant: (leg, _e, impact) => ({ leg, perfect: false, combo: 0, impact }),
       });
       if (sim.finishAnim >= 0.98) endRun('finish');
       emitHud();
-    } else if (sim.fallen && !ended) {
+    } else if (sim.fallen && !ended && !paused) {
       stepPhysics(sim, Math.min(frameDt, 0.05), {
-        speedBonus: 0,
+        tractionMul: 1,
         assist,
-        onPlant: () => ({ leg: 'FL', perfect: false, combo: 0, bonusImpulse: 0 }),
+        onPlant: (leg, _e, impact) => ({ leg, perfect: false, combo: 0, impact }),
       });
       emitHud();
     }
@@ -621,12 +652,13 @@ export function createLionWorld(): LionWorld {
       hostEl = host;
       reduced = prefersReducedMotion();
       scene = new THREE.Scene();
-      // Soft far fog only — no beige haze / vignette
-      scene.fog = new THREE.Fog(0xd8eef8, 70, 110);
-      scene.background = new THREE.Color(0xb8e4f8);
+      // No fog — matte bright festival look
+      scene.fog = null;
+      scene.background = new THREE.Color(0xf7f1e6);
 
       frame = computeCameraFrame(16 / 9);
-      camera = new THREE.PerspectiveCamera(frame.fov, 1, 0.1, 160);
+      camDist = frame.distance;
+      camera = new THREE.PerspectiveCamera(frame.fov, 1, 0.1, 400);
       applyCameraRig(0);
 
       renderer = new THREE.WebGLRenderer({
@@ -647,20 +679,12 @@ export function createLionWorld(): LionWorld {
         touchAction: 'none',
       });
 
-      // Bright festive lighting — strong camera-side fill so the far flank
-      // never reads as a dark “trunk” glued to the silhouette (no shadow maps).
-      scene.add(new THREE.AmbientLight(0xfff2e8, 0.72));
-      scene.add(new THREE.HemisphereLight(0xfffaf4, 0xe8f0e0, 0.9));
-      const sun = new THREE.DirectionalLight(0xfff6e8, 0.85);
-      sun.position.set(-1, 24, 20);
+      // One hemi sky + one sun (follows camera target) — keep vermilion readable
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x9a8a70, 1.6));
+      sun = new THREE.DirectionalLight(0xffffff, 2.2);
+      sun.position.set(3, 8, 6);
       scene.add(sun);
-      // Key fill from the camera (+Z) — flattens the body into festive toon red
-      const camFill = new THREE.DirectionalLight(0xffece0, 1.35);
-      camFill.position.set(0, 10, 28);
-      scene.add(camFill);
-      const rim = new THREE.DirectionalLight(0xfff4d0, 0.55);
-      rim.position.set(-4, 8, -2);
-      scene.add(rim);
+      scene.add(sun.target);
 
       const street = buildStreet(scene, reduced);
       lanterns = street.lanterns;
@@ -729,11 +753,9 @@ export function createLionWorld(): LionWorld {
       sim = createSim();
       beat = createBeatState();
       ended = false;
-      fallEndTimer = 0;
       finishFxPlayed = false;
       fallFxPlayed = false;
       flowerDetached = false;
-      prevHeld = {};
       perfectFlash = 0;
       maxCombo = 0;
       liveGhost = [{ t: 0, x: 0 }];
@@ -751,7 +773,7 @@ export function createLionWorld(): LionWorld {
           lion.dust.visible = false;
           (lion.dust.material as THREE.PointsMaterial).opacity = 0;
         }
-        lion.root.scale.set(1, 1, 1);
+        lion.root.scale.setScalar(LION_SCALE);
       }
       if (confetti) {
         confetti.visible = false;
@@ -798,23 +820,23 @@ export function createLionWorld(): LionWorld {
         return;
       }
       if (sim.fallen) {
-        getUpInPlace(sim);
-        fallEndTimer = 0;
-        fallFxPlayed = false;
-        flowerDetached = false;
-        if (lion) {
-          lion.flower.position.copy(lion.flowerHome);
-          lion.flower.rotation.set(0, 0, 0);
-          lion.root.scale.set(1, 1, 1);
-          lion.cloth.rotation.set(0, 0, 0);
-          lion.cloth.position.set(0, 0, 0);
-          lion.hem.rotation.z = 0;
-          lion.hem.position.y = 0.02;
-          lion.frontHump.position.y = lion.frontHumpHomeY;
-          lion.rearHump.position.y = lion.rearHumpHomeY;
+        if (beginGetUp(sim)) {
+          fallFxPlayed = false;
+          flowerDetached = false;
+          if (lion) {
+            lion.flower.position.copy(lion.flowerHome);
+            lion.flower.rotation.set(0, 0, 0);
+            lion.root.scale.setScalar(LION_SCALE);
+            lion.cloth.rotation.set(0, 0, 0);
+            lion.cloth.position.set(0, 0, 0);
+            lion.hem.rotation.z = 0;
+            lion.hem.position.y = 0.02;
+            lion.frontHump.position.y = lion.frontHumpHomeY;
+            lion.rearHump.position.y = lion.rearHumpHomeY;
+          }
+          paused = false;
+          emitHud();
         }
-        paused = false;
-        emitHud();
         return;
       }
       this.start({ mode, muted, assist, reducedMotion: reduced });
