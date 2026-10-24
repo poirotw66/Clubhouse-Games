@@ -371,6 +371,7 @@ canvas.addEventListener('pointerdown', e => {
     botOn = false; startRun(); return;
   }
   if (state === ST.RESULT) {
+    if (resultUI.share && hitRect(resultUI.share, px, py)) { sfx.click(); copyResult(); return; }
     if (hitRect(resultUI.board, px, py)) { openRank(); return; }
     reset(false); return;
   }
@@ -473,6 +474,7 @@ function doCrash(reason) {
   smoke(car.x, car.y + .5, 14); fire(car.x, car.y + .4, 14);
   shakeT = 0.5; shakeA = 0.35;
   sfx.crash();
+  vib([60, 40, 60]);
   say(reason === 'fall' ? '剝離墜落！' : reason === 'wall' ? '撞上牆壁！' : reason === 'hard' ? '落地速度過快！' : '著地角度過大！', '#ff6b6b', 2.4);
   stateT = 0;
 }
@@ -483,6 +485,69 @@ function tiltNow() {
 }
 let launchX = 0;
 let slipWordAt = -9;
+
+// ---------- achievements / share / haptics (P4) ----------
+const ACH = [
+  { id: 'land',   label: '初著地' },
+  { id: 'roll1',  label: '初翻滾' },
+  { id: 'roll2',  label: '兩圈' },
+  { id: 'roll3',  label: '三圈' },
+  { id: 'soft30', label: '滿柔軟' },
+  { id: 'legend', label: '傳說' },
+  { id: 'far100', label: '百米' },
+  { id: 'eco',    label: '省氣王' },
+];
+let achUnlocked = new Set();
+try { achUnlocked = new Set(JSON.parse(localStorage.getItem('wallflip2.ach') || '[]')); } catch (e) {}
+function achTest(id, s) {
+  switch (id) {
+    case 'land': return true;
+    case 'roll1': return s.rolls >= 1;
+    case 'roll2': return s.rolls >= 2;
+    case 'roll3': return s.rolls >= 3;
+    case 'soft30': return s.soft >= 30;
+    case 'legend': return s.total >= 140;
+    case 'far100': return s.dist >= 100;
+    case 'eco': return car.air >= 60;
+  }
+  return false;
+}
+function unlockAchievements() {
+  const gained = [];
+  for (const a of ACH) {
+    if (achUnlocked.has(a.id)) continue;
+    if (achTest(a.id, stats)) {
+      achUnlocked.add(a.id);
+      gained.push(a.label);
+      pop(car.x + rand(-1.5, 1.5), car.y + rand(2, 4), '🏆 ' + a.label, '#ffd166');
+    }
+  }
+  if (gained.length) {
+    try { localStorage.setItem('wallflip2.ach', JSON.stringify([...achUnlocked])); } catch (e) {}
+    say(`成就解鎖：${gained.join('、')}`, '#ffd166', 2.6);
+  }
+}
+function vib(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+}
+function copyResult() {
+  const courseName = COURSES[courseIdx].name;
+  let rank = 'GOOD!';
+  for (const [th, name] of RANKS) if (stats.total >= th) { rank = name; break; }
+  const text = `牆上翻滾 Wall Flip（${courseName}）：翻滾 ${stats.rolls} 回 · SOFT ${stats.soft}/30 · LEVEL ${stats.level}/20 → TOTAL ${stats.total} 分 ${rank}！`;
+  const done = () => say('成績已複製到剪貼簿！', '#9fe8ff', 1.8);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  ta.remove();
+}
 
 // ---------- physics: attached (original M) ----------
 function stepRoad(dt) {
@@ -600,6 +665,14 @@ function stepAir(dt) {
   stats.rollPts = 50 * stats.rolls;
   stats.total = Math.round(stats.rollPts + stats.soft + stats.level);
   stats.win = true;
+  stats.time = car.time;
+  const tk = 'wallflip2.time.' + courseIdx;
+  let bestTime = 0;
+  try { bestTime = +localStorage.getItem(tk) || 0; } catch (e) {}
+  stats.newTimeRecord = !bestTime || stats.time < bestTime;
+  if (stats.newTimeRecord) { try { localStorage.setItem(tk, stats.time.toFixed(2)); } catch (e) {} }
+  unlockAchievements();
+  vib(stats.total >= 95 ? [20, 30, 20] : 25);
   const q = (stats.soft + stats.level) / 50;
   sfx.land(q);
   dust(car.x, 0, Math.floor(6 + fall * 2), 1);
@@ -683,6 +756,7 @@ function stepPhysics(dt) {
   if (botOn) botControl();
   // the world keeps simulating behind the result panel (original behavior)
   if (state === ST.RUN || state === ST.RESULT) {
+    car.time += dt;
     if (car.mode === 'road') stepRoad(dt);
     else if (car.mode === 'air') stepAir(dt);
     else if (car.mode === 'landed') stepLanded(dt);
@@ -1186,6 +1260,26 @@ function drawReady() {
   ctx.fillStyle = '#1f9d61';
   ctx.fillText(isTouch ? '—— 點擊畫面開始 ——' : '—— 按 SPACE 開始 ——', cx, H() * 0.86);
   ctx.globalAlpha = 1;
+  // achievement badges (P4)
+  {
+    const bw2 = u * 2.3, gap = u * 0.22, bh2 = u * 0.78;
+    const rowW = ACH.length * bw2 + (ACH.length - 1) * gap;
+    let bx = cx - rowW / 2;
+    const by = H() * 0.72;
+    ctx.font = `600 ${u * 0.46}px system-ui, "Noto Sans TC", sans-serif`;
+    for (const a of ACH) {
+      const on = achUnlocked.has(a.id);
+      ctx.fillStyle = on ? 'rgba(255,209,102,.14)' : 'rgba(255,255,255,.05)';
+      roundRect(bx, by, bw2, bh2, bh2 / 2); ctx.fill();
+      if (on) {
+        ctx.strokeStyle = 'rgba(255,209,102,.55)'; ctx.lineWidth = 1;
+        roundRect(bx, by, bw2, bh2, bh2 / 2); ctx.stroke();
+      }
+      ctx.fillStyle = on ? '#ffd166' : 'rgba(207,227,245,.32)';
+      ctx.fillText(a.label, bx + bw2 / 2, by + bh2 / 2 + u * 0.17);
+      bx += bw2 + gap;
+    }
+  }
   ctx.font = `500 ${u * 0.58}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#6d7f95';
   ctx.fillText('參數逆向自 tsuyatt.com 宙返りロードスター · 自製 2D 復刻', cx, H() * 0.92);
@@ -1209,6 +1303,7 @@ function drawReady() {
 }
 function drawResult() {
   screenTransform();
+  resultUI.share = null;
   const u = Math.min(W(), H()) / 42, cx = W() / 2;
   // world stays visible; a light dim + a panel that slides in from the top
   ctx.fillStyle = `rgba(4,6,12,${0.34 * Math.min(1, stateT / 0.4)})`;
@@ -1234,7 +1329,9 @@ function drawResult() {
     hard: `落地速度 ${fmt(stats.fall)} km/h——要更早用雙鍵減速。`,
     tilt: `以傾斜 ${fmt(stats.tilt, 1)}° 的姿態觸地了。`,
   };
-  ctx.fillText(stats.win ? `翻滾 ${stats.rolls} 回 · 飛行距離 ${fmt(stats.dist)} m` : reasons[stats.reason] || '', cx, iy + u * 1.15);
+  ctx.fillText(stats.win
+    ? `翻滾 ${stats.rolls} 回 · 飛行距離 ${fmt(stats.dist)} m · 完賽 ${fmt(stats.time, 1)} s${stats.newTimeRecord ? ' ★最快' : ''}`
+    : reasons[stats.reason] || '', cx, iy + u * 1.15);
   if (stats.win) {
     let rank = 'GOOD!', rcol = '#cfe3f5';
     for (const [th, name, col] of RANKS) if (stats.total >= th) { rank = name; rcol = col; break; }
@@ -1264,6 +1361,18 @@ function drawResult() {
     ctx.fillText(newBest ? '★ 新紀錄！' : `最佳 ${best}`, cx, y);
   }
   ctx.restore();
+  // share button (P4) — only on successful landings
+  if (stats.win) {
+    const sw = u * 7, sh = u * 1.3, sx = cx - sw / 2, sy2 = py + ph + u * 0.55;
+    ctx.fillStyle = 'rgba(13,18,30,.85)';
+    roundRect(sx, sy2, sw, sh, sh / 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(111,240,208,.45)'; ctx.lineWidth = 1.5;
+    roundRect(sx, sy2, sw, sh, sh / 2); ctx.stroke();
+    ctx.fillStyle = '#6ff0d0';
+    ctx.font = `700 ${u * 0.7}px system-ui, "Noto Sans TC", sans-serif`;
+    ctx.fillText('📋 複製成績', cx, sy2 + sh / 2 + u * 0.25);
+    resultUI.share = { x: sx, y: sy2, w: sw, h: sh };
+  }
   // leaderboard link
   ctx.textAlign = 'center';
   ctx.font = `700 ${u * 0.85}px system-ui, "Noto Sans TC", sans-serif`;
