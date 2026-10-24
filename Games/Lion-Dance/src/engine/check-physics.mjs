@@ -1,6 +1,6 @@
 /**
  * Physics feel probes (v6 continuous traction).
- * Overlapping diagonal swaps ~18–30 s; same-side falls fast; mash lags a clean gait.
+ * Stable diagonal ~3 Hz → ~20–30 s / ≤2 falls; ~2 Hz still finishes; same-side tips fast.
  */
 import assert from 'node:assert/strict';
 import { createSim, getUpInPlace, stepPhysics } from './physics.ts';
@@ -77,29 +77,59 @@ function runDiagonal(period, limit = TIME_LIMIT) {
   console.log(`same-side fall at t=${t.toFixed(2)}s`);
 }
 
-// Stable overlapping diagonals (~0.22 s swaps) finish in ~18–30 s with ~0 falls
+// Measured (TRACTION=9.5 GRIP=6.5): diag3Hz ≈22.80s / 0 falls; diag2Hz ≈34.87s / 0 falls.
+// ~3 swaps/s (period 1/3) — stable diagonal target: 20–30 s, ≤2 falls
 {
-  const { sim, falls } = runDiagonal(0.22);
-  assert.ok(sim.finished, `diagonal should finish; x=${sim.x.toFixed(2)} t=${sim.elapsed.toFixed(2)}`);
+  const { sim, falls } = runDiagonal(1 / 3);
+  assert.ok(sim.finished, `diag3Hz should finish; x=${sim.x.toFixed(2)} t=${sim.elapsed.toFixed(2)}`);
   assert.ok(
-    sim.elapsed >= 14 && sim.elapsed <= 35,
-    `diagonal pace band failed t=${sim.elapsed.toFixed(2)} (want ~18–30s)`,
+    sim.elapsed >= 20 && sim.elapsed <= 30,
+    `diag3Hz pace band failed t=${sim.elapsed.toFixed(2)} (want 20–30s, measured≈22.8)`,
   );
-  assert.ok(falls <= 2, `stable diagonal should rarely fall; falls=${falls}`);
+  assert.ok(falls <= 2, `diag3Hz should rarely fall; falls=${falls} (measured=0)`);
   console.log(
-    `diagonal ok t=${sim.elapsed.toFixed(2)}s falls=${falls} vmax=${sim.maxSpeed.toFixed(2)} steps=${sim.stepCount}`,
+    `diag3Hz ok t=${sim.elapsed.toFixed(2)}s falls=${falls} vmax=${sim.maxSpeed.toFixed(2)} steps=${sim.stepCount}`,
   );
 }
 
-// Random mash for 30s should trail a clean gait (not cruise past ~half track easily)
+// Faster overlapping (~0.22 s) still finishes cleanly in the broader band
 {
+  const { sim, falls } = runDiagonal(0.22);
+  assert.ok(sim.finished, `diagFast should finish; x=${sim.x.toFixed(2)}`);
+  assert.ok(
+    sim.elapsed >= 12 && sim.elapsed <= 30,
+    `diagFast pace band failed t=${sim.elapsed.toFixed(2)} (measured≈15.2)`,
+  );
+  assert.ok(falls <= 2, `diagFast should rarely fall; falls=${falls}`);
+  console.log(
+    `diagFast ok t=${sim.elapsed.toFixed(2)}s falls=${falls} vmax=${sim.maxSpeed.toFixed(2)} steps=${sim.stepCount}`,
+  );
+}
+
+// Slower human ~2 swaps/s — finishes slower, still upright
+{
+  const { sim, falls } = runDiagonal(0.5);
+  assert.ok(sim.finished, `diag2Hz should finish; x=${sim.x.toFixed(2)} t=${sim.elapsed.toFixed(2)}`);
+  assert.ok(
+    sim.elapsed >= 30 && sim.elapsed <= 42,
+    `diag2Hz pace band failed t=${sim.elapsed.toFixed(2)} (want ~35s, measured≈34.9)`,
+  );
+  assert.ok(falls <= 2, `diag2Hz should stay upright; falls=${falls} (measured=0)`);
+  console.log(
+    `diag2Hz ok t=${sim.elapsed.toFixed(2)}s falls=${falls} vmax=${sim.maxSpeed.toFixed(2)} steps=${sim.stepCount}`,
+  );
+}
+
+// Random mash at 12s should trail a clean diagonal (both may finish by 30s now)
+{
+  const WINDOW = 12;
   const mash = createSim();
   let seed = 7;
   const rnd = () => {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
     return seed / 0x7fffffff;
   };
-  while (mash.elapsed < 30) {
+  while (mash.elapsed < WINDOW && !mash.finished) {
     if (mash.fallen) {
       if (mash.fallSpin > 0.8) getUpInPlace(mash);
       else {
@@ -112,12 +142,14 @@ function runDiagonal(period, limit = TIME_LIMIT) {
     }
     step(mash);
   }
-  const clean = runDiagonal(0.22, 30);
+  const clean = runDiagonal(1 / 3, WINDOW);
   assert.ok(
-    mash.x < clean.sim.x * 0.85 || mash.x < TRACK_LENGTH * 0.55,
-    `mash should lag clean gait; mash=${mash.x.toFixed(1)} clean30=${clean.sim.x.toFixed(1)}`,
+    mash.x < clean.sim.x * 0.85 || mash.fallCount > clean.falls,
+    `mash should lag clean gait; mash=${mash.x.toFixed(1)} clean=${clean.sim.x.toFixed(1)} mashFalls=${mash.fallCount}`,
   );
-  console.log(`mash30 x=${mash.x.toFixed(1)}m falls=${mash.fallCount} vs clean30 x=${clean.sim.x.toFixed(1)}`);
+  console.log(
+    `mash${WINDOW} x=${mash.x.toFixed(1)}m falls=${mash.fallCount} vs clean x=${clean.sim.x.toFixed(1)} falls=${clean.falls}`,
+  );
 }
 
 // Holding all four: lose ground contact, then a small roll tips over

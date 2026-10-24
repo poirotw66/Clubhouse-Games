@@ -42,9 +42,15 @@ export const LIFT_RATE = 10;
 /** Ground spring-damper (per unit mass). */
 export const SPRING_K = 70;
 export const SPRING_C = 9;
-export const TRACTION = 9;
+/**
+ * Sweep thrust gain (released grounded foot × footSpeed).
+ * Split from GRIP so a ~3 Hz diagonal finishes ~20–30 s without braking itself.
+ */
+export const TRACTION = 9.5;
+/** Horizontal grip damping (held uses SLIDE; released uses GRIP < TRACTION). */
+export const GRIP = 6.5;
 export const SLIDE = 2.4;
-export const AIR_DRAG = 0.12;
+export const AIR_DRAG = 0.11;
 
 /** Attitude inertias (scaled for longer lion body / wider track). */
 export const I_PITCH = 1.1;
@@ -55,11 +61,11 @@ export const TIP_PITCH = 4;
  * Diagonal 2-support righting — strong enough that a clean swap rhythm
  * almost never tips (same-side still has no righting and falls fast).
  */
-export const BAL2 = 72;
+export const BAL2 = 78;
 export const BALANCE = 90;
 export const BAL4 = 70;
 export const ANG_DAMP = 2.6;
-export const REAR_COUPLE = 0.6;
+export const REAR_COUPLE = 0.5;
 export const LEG_I = 0.02;
 /** COM offset behind body origin (lever uses hip.x − COM_X). */
 export const COM_X = 0.1;

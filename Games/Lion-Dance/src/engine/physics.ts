@@ -32,6 +32,7 @@ import {
   PUSH_RATE,
   REAR_COUPLE,
   RETURN_RATE,
+  GRIP,
   SLIDE,
   SPRING_C,
   SPRING_K,
@@ -467,7 +468,8 @@ export function stepPhysics(
         fx += TRACTION * load * footSpeed * ctx.tractionMul;
       }
 
-      gripDamp += (leg.held ? SLIDE : TRACTION) * load;
+      // Grip damp is separate from thrust gain — released feet still plant, not brake
+      gripDamp += (leg.held ? SLIDE : GRIP) * load;
 
       if (!leg.wasGrounded) {
         const impact = Math.max(0, -hipVy);

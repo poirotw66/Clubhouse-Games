@@ -84,6 +84,20 @@ export interface LionWorld {
   projectFeet(): Record<LegId, { x: number; y: number }> | null;
   /** Playtest helper — FK angles / world hip-knee-foot. */
   debugLegs(): Record<string, unknown> | null;
+  /**
+   * Fast-forward a diagonal gait race (no RAF). Used by Playwright pace asserts.
+   * periodSec = time holding each diagonal pair before swapping (Q+P ↔ W+O).
+   */
+  runDiagonalRace(periodSec: number): {
+    elapsed: number;
+    falls: number;
+    finished: boolean;
+    x: number;
+    vmax: number;
+    steps: number;
+  };
+  /** Same-side L↔R alternate until tip (no RAF). */
+  runSameSideTip(periodSec?: number): { fallen: boolean; elapsed: number };
   onHud(cb: (hud: HudSnapshot) => void): void;
   onRunEnd(cb: (result: RunResult) => void): void;
 }
@@ -914,6 +928,87 @@ export function createLionWorld(): LionWorld {
         };
       }
       return out;
+    },
+
+    runDiagonalRace(periodSec: number) {
+      // Fresh run so framing/screenshot state does not pollute pace probes
+      this.start({ mode: '1p', muted: true, assist: false, reducedMotion: true });
+      paused = true; // freeze RAF; we step physics ourselves
+      attract = false;
+      const pairs: LegId[][] = [
+        ['FL', 'BR'],
+        ['FR', 'BL'],
+      ];
+      let pairIdx = 0;
+      let phaseT = 0;
+      let falls = 0;
+      const period = Math.max(0.08, periodSec);
+      while (!sim.finished && sim.elapsed < TIME_LIMIT) {
+        if (sim.fallen) {
+          falls += 1;
+          getUpInPlace(sim);
+          phaseT = 0;
+          continue;
+        }
+        phaseT += FIXED_DT;
+        const hold = pairs[pairIdx % 2]!;
+        for (const id of LEG_IDS) setLegHeld(sim, id, hold.includes(id));
+        if (phaseT >= period) {
+          phaseT = 0;
+          pairIdx += 1;
+        }
+        stepPhysics(sim, FIXED_DT, {
+          tractionMul: 1,
+          assist: false,
+          onPlant: (_leg, _e, impact) => ({
+            leg: _leg,
+            perfect: false,
+            combo: 0,
+            impact,
+          }),
+        });
+      }
+      return {
+        elapsed: sim.elapsed,
+        falls,
+        finished: sim.finished,
+        x: sim.x,
+        vmax: sim.maxSpeed,
+        steps: sim.stepCount,
+      };
+    },
+
+    /** Same-side L↔R alternate until tip (playtest). Measured ≈0.92 s. */
+    runSameSideTip(periodSec = 0.12) {
+      this.start({ mode: '1p', muted: true, assist: false, reducedMotion: true });
+      paused = true;
+      attract = false;
+      let phase = 0;
+      let phaseT = 0;
+      const period = Math.max(0.05, periodSec);
+      while (!sim.fallen && sim.elapsed < 2.0) {
+        phaseT += FIXED_DT;
+        const left = phase === 0;
+        for (const id of LEG_IDS) {
+          const onLeft = id === 'FL' || id === 'BL';
+          setLegHeld(sim, id, left ? onLeft : !onLeft);
+        }
+        if (phaseT >= period) {
+          phaseT = 0;
+          phase = 1 - phase;
+        }
+        stepPhysics(sim, FIXED_DT, {
+          tractionMul: 1,
+          assist: false,
+          onPlant: (_leg, _e, impact) => ({
+            leg: _leg,
+            perfect: false,
+            combo: 0,
+            impact,
+          }),
+        });
+      }
+      return { fallen: sim.fallen, elapsed: sim.elapsed };
     },
 
     onHud(cb) {

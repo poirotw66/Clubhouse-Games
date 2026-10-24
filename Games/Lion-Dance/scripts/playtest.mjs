@@ -289,8 +289,53 @@ async function runViewport(browser, label, viewport) {
   await page.close();
 }
 
+/**
+ * Pace probes — diagonal Q+P ↔ W+O (FL+BR / FR+BL). No framing/art changes.
+ * Measured (TRACTION=9.5 GRIP=6.5 AIR_DRAG=0.11 BAL2=78):
+ *   diag3Hz ≈22.80s / 0 falls; diag2Hz ≈34.87s / 0 falls; same-side tip ≈0.92s.
+ */
+async function assertPace(browser) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+  await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
+  await page.waitForTimeout(1200);
+  await page.getByRole('button', { name: /開始踩街/ }).click();
+  await page.waitForTimeout(800);
+
+  const diag3 = await page.evaluate(() => window.__lionWorld?.runDiagonalRace?.(1 / 3) ?? null);
+  console.log('pace diag3Hz', diag3);
+  if (!diag3?.finished) throw new Error(`diag3Hz did not finish ${JSON.stringify(diag3)}`);
+  // Measured ≈22.80s / 0 falls — band 20–30s / ≤2
+  if (diag3.elapsed < 20 || diag3.elapsed > 30) {
+    throw new Error(`diag3Hz t=${diag3.elapsed.toFixed(2)} outside 20–30s (measured≈22.80)`);
+  }
+  if (diag3.falls > 2) throw new Error(`diag3Hz falls=${diag3.falls} > 2 (measured=0)`);
+
+  const diag2 = await page.evaluate(() => window.__lionWorld?.runDiagonalRace?.(0.5) ?? null);
+  console.log('pace diag2Hz', diag2);
+  if (!diag2?.finished) throw new Error(`diag2Hz did not finish ${JSON.stringify(diag2)}`);
+  // Measured ≈34.87s / 0 falls — band 30–42s / ≤2
+  if (diag2.elapsed < 30 || diag2.elapsed > 42) {
+    throw new Error(`diag2Hz t=${diag2.elapsed.toFixed(2)} outside 30–42s (measured≈34.87)`);
+  }
+  if (diag2.falls > 2) throw new Error(`diag2Hz falls=${diag2.falls} > 2 (measured=0)`);
+
+  // Measured ≈0.92s — must tip under 1.2s
+  const tip = await page.evaluate(() => window.__lionWorld?.runSameSideTip?.(0.12) ?? null);
+  console.log('pace same-side tip', tip);
+  if (!tip?.fallen) throw new Error(`same-side should tip within 2s ${JSON.stringify(tip)}`);
+  if (tip.elapsed > 1.2) throw new Error(`same-side tip too slow t=${tip.elapsed.toFixed(2)} (measured≈0.92)`);
+
+  await page.close();
+  console.log(
+    `pace ok: diag3Hz t=${diag3.elapsed.toFixed(2)}s falls=${diag3.falls}; ` +
+      `diag2Hz t=${diag2.elapsed.toFixed(2)}s falls=${diag2.falls}; ` +
+      `same-side tip t=${tip.elapsed.toFixed(2)}s`,
+  );
+}
+
 const browser = await chromium.launch({ headless: true });
 await runViewport(browser, 'desk', { width: 1280, height: 720 });
 await runViewport(browser, 'mobile', { width: 390, height: 844 });
+await assertPace(browser);
 await browser.close();
 console.log('playtest: ok');
