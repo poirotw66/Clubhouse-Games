@@ -50,7 +50,7 @@ async function cropLion(page, label, tag, viewport) {
     clip.height = Math.max(40, Math.floor(clip.height));
     if (clip.x + clip.width > viewport.width) clip.width = viewport.width - clip.x;
     if (clip.y + clip.height > viewport.height) clip.height = viewport.height - clip.y;
-    await page.screenshot({ path: `${OUT}/v4-${label}-${tag}-${name}.png`, clip });
+    await page.screenshot({ path: `${OUT}/v5-${label}-${tag}-${name}.png`, clip });
   }
 }
 
@@ -93,7 +93,7 @@ async function runViewport(browser, label, viewport) {
 
   await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForTimeout(2000);
-  await page.screenshot({ path: `${OUT}/v4-${label}-title.png` });
+  await page.screenshot({ path: `${OUT}/v5-${label}-title.png` });
 
   let frame = await page.evaluate(() => window.__lionWorld?.checkFraming() ?? null);
   console.log(label, 'attract framing', JSON.stringify(frame));
@@ -101,7 +101,7 @@ async function runViewport(browser, label, viewport) {
 
   await page.getByRole('button', { name: /開始踩街/ }).click();
   await page.waitForTimeout(2200);
-  await page.screenshot({ path: `${OUT}/v4-${label}-play.png` });
+  await page.screenshot({ path: `${OUT}/v5-${label}-play.png` });
   await cropLion(page, label, 'play', viewport);
   await assertHudNoOverlap(page, label);
 
@@ -112,7 +112,7 @@ async function runViewport(browser, label, viewport) {
   // Mid-step: lift front-left high so thigh/shin knee bend is obvious
   await page.keyboard.down('q');
   await page.waitForTimeout(700);
-  await page.screenshot({ path: `${OUT}/v4-${label}-step.png` });
+  await page.screenshot({ path: `${OUT}/v5-${label}-step.png` });
   await cropLion(page, label, 'step', viewport);
   await page.keyboard.up('q');
   await page.waitForTimeout(180);
@@ -128,7 +128,7 @@ async function runViewport(browser, label, viewport) {
   await page.keyboard.up('o');
   await page.keyboard.up('p');
   await page.waitForTimeout(1000);
-  await page.screenshot({ path: `${OUT}/v4-${label}-fall.png` });
+  await page.screenshot({ path: `${OUT}/v5-${label}-fall.png` });
 
   const stamp = await page.locator('.lion-fall-stamp').count();
   const getUp = await page.locator('.lion-touch-up').count();
@@ -138,7 +138,7 @@ async function runViewport(browser, label, viewport) {
 
   await page.waitForTimeout(3500);
   if ((await page.locator('.lion-result').count()) === 0) await page.waitForTimeout(2000);
-  await page.screenshot({ path: `${OUT}/v4-${label}-result.png` });
+  await page.screenshot({ path: `${OUT}/v5-${label}-result.png` });
 
   await page.close();
 }
