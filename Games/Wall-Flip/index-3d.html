@@ -15,7 +15,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#06080d">
-<title>宙返りロードスター 3D · 牆上翻滾</title>
+<title></title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
 <style>
   :root {
@@ -53,13 +53,14 @@
   .panel b { font: 800 17px/1.1 ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
   .hgroup { display: flex; gap: 8px; }
   .hcol { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  .hrow { display: flex; gap: 6px; justify-content: flex-end; }
   #airmeter { width: 120px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; margin: 4px 0 3px; }
   #airmeter i { display: block; height: 100%; width: 100%; border-radius: 4px; background: var(--cyan);
     transform-origin: left center; transition: transform .12s linear; }
   #airmeter.low i { background: var(--red); animation: blink .5s steps(2) infinite; }
   @keyframes blink { 50% { opacity: .45; } }
   #best { font: 700 12px/1 ui-monospace, monospace; color: var(--gold); text-align: right; padding: 2px 2px; }
-  #mutebtn { pointer-events: auto; cursor: pointer; background: var(--panel); border: 1px solid var(--line);
+  #mutebtn, #langbtn { pointer-events: auto; cursor: pointer; background: var(--panel); border: 1px solid var(--line);
     color: var(--dim); border-radius: 8px; padding: 4px 9px; font-size: 13px; }
   #hint { position: absolute; top: 74px; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 16px;
     text-shadow: 0 2px 8px rgba(0, 0, 0, .8); white-space: nowrap; }
@@ -73,7 +74,6 @@
   #start[hidden] { display: none; }
   #start h1 { margin: 0; font-size: clamp(26px, 6vw, 44px); font-weight: 900; color: var(--gold);
     text-shadow: 0 3px 18px rgba(0, 0, 0, .8); letter-spacing: .02em; }
-  #start h1 span { color: var(--cyan); }
   #start .sub { margin: 6px 0 18px; font-weight: 700; font-size: clamp(12px, 2.6vw, 16px); color: var(--ink); }
   #start ol { list-style: none; margin: 0 0 14px; padding: 0; max-width: 620px; text-align: left; }
   #start ol li { margin: 9px 0; }
@@ -129,7 +129,7 @@
 </style>
 </head>
 <body>
-  <a href="../../" style="position:fixed;top:3px;left:12px;z-index:30;color:#8fa3b8;text-decoration:none;font:600 11px system-ui,sans-serif;letter-spacing:.05em;">← 返回總覽</a>
+  <a href="../../" id="backlink" style="position:fixed;top:3px;left:12px;z-index:30;color:#8fa3b8;text-decoration:none;font:600 11px system-ui,sans-serif;letter-spacing:.05em;"></a>
 <div id="stage"></div>
 <div id="flash"></div>
 <div id="pops"></div>
@@ -138,68 +138,71 @@
   <div class="hudtop">
     <div class="hgroup">
       <div class="panel">
-        <label>空氣 AIR</label>
+        <label id="lblAir"></label>
         <div id="airmeter"><i></i></div>
         <b id="airText">100</b>
       </div>
       <div class="panel">
-        <label>速さ SPEED</label>
+        <label id="lblSpeed"></label>
         <b id="speed">0 km/h</b>
       </div>
     </div>
     <div class="hgroup">
-      <div class="panel"><label>高さ HEIGHT</label><b id="alt">0.0 m</b></div>
-      <div class="panel"><label>距離 DIST</label><b id="dist">0 m</b></div>
+      <div class="panel"><label id="lblHeight"></label><b id="alt">0.0 m</b></div>
+      <div class="panel"><label id="lblDist"></label><b id="dist">0 m</b></div>
     </div>
     <div class="hcol">
-      <div class="panel"><label>回転 ROLLS</label><b id="rolls">0</b></div>
-      <div id="best">最佳 0</div>
-      <button id="mutebtn" title="靜音 (M)">🔊</button>
+      <div class="panel"><label id="lblRolls"></label><b id="rolls">0</b></div>
+      <div id="best"></div>
+      <div class="hrow">
+        <button id="langbtn"></button>
+        <button id="mutebtn">🔊</button>
+      </div>
     </div>
   </div>
   <div id="hint" hidden></div>
 </div>
 
 <div id="start">
-  <h1>宙返りロードスター <span>3D</span></h1>
-  <p class="sub">牆上翻滾 · 開上反翹的牆、倒掛飛出、翻滾著地</p>
+  <h1 id="startTitle"></h1>
+  <p class="sub" id="startSub"></p>
   <ol>
-    <li><b>① すすむ（SPACE／↑）</b><span>一路按住跑上弧牆——半路鬆開會被引擎剎車拖住</span></li>
-    <li><b>② 吸いつく（X／↓）</b><span>反翹段沒按住吸附就會剝離落地</span></li>
-    <li><b>③ 左右スラスター（← →）</b><span>單鍵翻滾、雙鍵向上推；倒掛時雙鍵會推向地面！</span></li>
-    <li><b>④ 輪胎朝下著地</b><span>著地速度 ≤ 18 km/h、迴轉要收乾淨；翻滾一圈 50 分起跳</span></li>
+    <li><b id="s1a"></b><span id="s1b"></span></li>
+    <li><b id="s2a"></b><span id="s2b"></span></li>
+    <li><b id="s3a"></b><span id="s3b"></span></li>
+    <li><b id="s4a"></b><span id="s4b"></span></li>
   </ol>
-  <p class="hintbox">吸附與推進器共用壓縮空氣 · M 靜音 · R 重來</p>
-  <button id="startBtn">—— 按 SPACE 開始 ——</button>
-  <p id="startBest" hidden>BEST 0</p>
+  <p class="hintbox" id="startHint"></p>
+  <button id="startBtn"></button>
+  <p id="startBest" hidden></p>
 </div>
 
 <div id="resultWrap" hidden>
   <div id="result">
-    <h2 id="resTitle">著地成功!!</h2>
+    <h2 id="resTitle"></h2>
     <p id="resReason"></p>
     <div id="resWin">
       <div id="resRank">GOOD!</div>
       <dl id="resRows">
-        <div><dt>翻滾 ROLLS <span id="resRolls">0</span> 回</dt><dd id="resRollPts">+0</dd></div>
-        <div><dt>やわらかさ SOFT</dt><dd id="resSoft">0 / 30</dd></div>
-        <div><dt>姿勢 LEVEL</dt><dd id="resLevel">0 / 20</dd></div>
+        <div><dt><span id="lblRowRolls"></span> <span id="resRolls">0</span> <span id="unitRolls"></span></dt><dd id="resRollPts">+0</dd></div>
+        <div><dt id="lblRowSoft"></dt><dd id="resSoft">0 / 30</dd></div>
+        <div><dt id="lblRowLevel"></dt><dd id="resLevel">0 / 20</dd></div>
       </dl>
-      <div id="resTotal">TOTAL <b>0</b> 點</div>
+      <div id="resTotal">TOTAL <b>0</b> <span id="unitPts"></span></div>
     </div>
     <p id="resBest"></p>
-    <button id="retryBtn">再來一次（SPACE）</button>
+    <button id="retryBtn"></button>
   </div>
 </div>
 
 <div id="pad">
-  <button data-act="suck">吸いつく<small>X／↓</small></button>
-  <button data-act="left">左<small>←</small></button>
-  <button data-act="right">右<small>→</small></button>
-  <button data-act="drive">すすむ<small>SPACE</small></button>
+  <button data-act="suck"><span></span><small>X／↓</small></button>
+  <button data-act="left"><span></span><small>←</small></button>
+  <button data-act="right"><span></span><small>→</small></button>
+  <button data-act="drive"><span></span><small>SPACE</small></button>
 </div>
 
-<div id="credit">參數逆向自 tsuyatt.com 宙返りロードスター · Three.js 3D 復刻</div>
+<div id="credit"></div>
 
 <script type="module">
 import * as THREE from './vendor/three.module.js';
@@ -209,6 +212,83 @@ import * as THREE from './vendor/three.module.js';
    simulation (constants / track / 4 modes / collision / scoring),
    the night 3D scene, and the fit-camera of the original module.
    ============================================================ */
+
+// ---------- i18n (zh-Hant / en) ----------
+const STR = {
+  tc: {
+    title: '牆上翻滾 WALL FLIP', sub: '開上反翹的牆、倒掛飛出、翻滾著地',
+    s1a: '① 油門（SPACE / ↑）', s1b: '一路按住跑上弧牆——半路鬆開會被引擎剎車拖住',
+    s2a: '② 吸附（X / ↓）', s2b: '反翹段沒按住吸附就會剝離落地',
+    s3a: '③ 左右推進器（← →）', s3b: '單鍵翻滾、雙鍵向上推；倒掛時雙鍵會推向地面！',
+    s4a: '④ 輪胎朝下著地', s4b: '著地速度 ≤ 18 km/h、迴轉要收乾淨；翻滾一圈 50 分起跳',
+    hint: '吸附與推進器共用壓縮空氣 · M 靜音 · R 重來',
+    start: '—— 按 SPACE 開始 ——', again: '—— 按 SPACE 再來一次 ——',
+    footer: '參數逆向自 tsuyatt.com 宙返りロードスター · Three.js 3D 復刻',
+    hudAir: '空氣 AIR', hudSpeed: '速度 SPEED', hudHeight: '高度 HEIGHT', hudDist: '距離 DIST', hudRolls: '翻滾 ROLLS', best: '最佳',
+    suckOn: '◉ 吸附中',
+    mLaunch: '起飛！單鍵翻滾、雙鍵減速', mPeel: '剝離墜落！', mStall: '失速了！滑回地面再衝一次', mNoAir: '空氣用盡！', mGrip: '沒按住吸附會剝離！', mSlip: 'SLIP',
+    mLand: (s, l) => `著地！SOFT ${s}/30 · LEVEL ${l}/20`,
+    mAch: (names) => `成就解鎖：${names}`,
+    win: '著地成功!!', lose: '克拉希…',
+    rFall: '從牆上剝離了。反翹段要一直按住吸附。', rWall: '撞上牆壁了。',
+    rHard: (kmh) => `落地速度 ${kmh} km/h——要更早用雙鍵減速。`, rTilt: (deg) => `以傾斜 ${deg}° 的姿態觸地了。`,
+    rowRolls: '翻滾 ROLLS', rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', pts: '點',
+    newRecord: '★ 新紀錄！', bestLabel: '最佳',
+    shareBtn: '📋 複製成績', copied: '成績已複製！',
+    shareText: (n, dist, s, l, total, rank) => `牆上翻滾 Wall Flip：翻滾 ${n} 回 · 飛行 ${dist} m · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} 分 ${rank}！`,
+    boardTitle: '排行榜', colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
+    backLink: '← 返回總覽 Back',
+    padStick: '吸附', padLeft: '左', padRight: '右', padGo: '油門',
+    langBtn: 'EN',
+    // extra keys for strings that only exist in this 3D build
+    muteTitle: '靜音 (M)',
+    popCrash: ['轟隆!!', '碰撞!!', '砰!!'], popPeel: ['剝離了!', '滑掉了!'], popSlip: ['打滑!', '空轉!'],
+    popLaunch: ['起飛!', '咻!'], popLand: ['落地!', '著地!'],
+    rollUnit: (n) => `${n}回轉!`,
+    rWin: (n, d) => `翻滾 ${n} 回 · 飛行距離 ${d} m`,
+    rollsUnit: '回',
+    hintRoll: '單鍵翻滾！', hintBrake: '雙鍵減速！',
+  },
+  en: {
+    title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
+    s1a: '① DRIVE (SPACE / ↑)', s1b: 'Hold it all the way up the wall — release early and engine braking drags you back',
+    s2a: '② STICK (X / ↓)', s2b: 'On the overhang, no Stick means you peel off and fall',
+    s3a: '③ SIDE THRUSTERS (← →)', s3b: 'One key rolls you, both push up; both while inverted push you into the ground!',
+    s4a: '④ LAND ON THE TIRES', s4b: 'Touch down ≤ 18 km/h, settle the spin; 50 pts per full roll and up',
+    hint: 'Stick and thrusters share compressed air · M mute · R restart',
+    start: '—— PRESS SPACE TO START ——', again: '—— PRESS SPACE TO RETRY ——',
+    footer: 'Physics reverse-engineered from tsuyatt.com 宙返りロードスター · Three.js 3D tribute',
+    hudAir: 'AIR', hudSpeed: 'SPEED', hudHeight: 'HEIGHT', hudDist: 'DIST', hudRolls: 'ROLLS', best: 'BEST',
+    suckOn: '◉ STICKING',
+    mLaunch: 'Airborne! ←/→ to roll, both to brake', mPeel: 'Peeled off!', mStall: 'Stalled! Slide back down and retry', mNoAir: 'Out of air!', mGrip: 'Hold Stick or you peel off!', mSlip: 'SLIP',
+    mLand: (s, l) => `Landed! SOFT ${s}/30 · LEVEL ${l}/20`,
+    mAch: (names) => `Achievement: ${names}`,
+    win: 'NAILED IT!!', lose: 'CRASHED…',
+    rFall: 'You peeled off the wall. Keep holding Stick on the overhang.', rWall: 'You hit the wall.',
+    rHard: (kmh) => `You hit the ground at ${kmh} km/h. Brake earlier with both thrusters.`, rTilt: (deg) => `You touched down tilted ${deg}°.`,
+    rowRolls: 'ROLLS', rowSoft: 'SOFT', rowLevel: 'LEVEL', pts: 'pts',
+    newRecord: '★ NEW RECORD!', bestLabel: 'BEST',
+    shareBtn: '📋 Copy result', copied: 'Result copied!',
+    shareText: (n, dist, s, l, total, rank) => `Wall Flip: ${n} roll(s), ${dist} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} pts ${rank}!`,
+    boardTitle: 'LEADERBOARD', colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
+    backLink: '← 返回總覽 Back',
+    padStick: 'STICK', padLeft: '←', padRight: '→', padGo: 'GO',
+    langBtn: '中文',
+    // extra keys for strings that only exist in this 3D build
+    muteTitle: 'Mute (M)',
+    popCrash: ['CRASH!!', 'SMASH!!', 'BAM!!'], popPeel: ['PEELED!', 'SLIPPED!'], popSlip: ['SLIP!', 'SPIN!'],
+    popLaunch: ['LIFTOFF!', 'WHOOSH!'], popLand: ['LANDED!', 'TOUCHDOWN!'],
+    rollUnit: (n) => (n > 1 ? `${n} ROLLS!` : `${n} ROLL!`),
+    rWin: (n, d) => `${n} roll(s) · ${d} m flight`,
+    rollsUnit: '',
+    hintRoll: 'One key to roll!', hintBrake: 'Both keys to brake!',
+  },
+};
+let lang = 'tc';
+try { const l = localStorage.getItem('wallflip3.lang'); if (l === 'en' || l === 'tc') lang = l;
+  else if ((navigator.language || '').startsWith('en')) lang = 'en'; } catch (e) {}
+const t = (k, ...a) => { const v = STR[lang][k] ?? STR.tc[k]; return typeof v === 'function' ? v(...a) : v; };
+function setLang(l) { lang = l; try { localStorage.setItem('wallflip3.lang', l); } catch (e) {} }
 
 // ---------- utils ----------
 const TAU = 6.283185307179586;
@@ -977,7 +1057,53 @@ const el = {
   airMeter: $('airmeter'), airFill: $('airmeter').querySelector('i'), airText: $('airText'),
   speed: $('speed'), alt: $('alt'), dist: $('dist'), rolls: $('rolls'), best: $('best'),
   hint: $('hint'), flash: $('flash'), pops: $('pops'), pad: $('pad'), mutebtn: $('mutebtn'),
+  langbtn: $('langbtn'), backlink: $('backlink'), retryBtn: $('retryBtn'), credit: $('credit'),
+  startBtn: $('startBtn'), startTitle: $('startTitle'), startSub: $('startSub'), startHint: $('startHint'),
+  s1a: $('s1a'), s1b: $('s1b'), s2a: $('s2a'), s2b: $('s2b'), s3a: $('s3a'), s3b: $('s3b'), s4a: $('s4a'), s4b: $('s4b'),
+  lblAir: $('lblAir'), lblSpeed: $('lblSpeed'), lblHeight: $('lblHeight'), lblDist: $('lblDist'), lblRolls: $('lblRolls'),
+  lblRowRolls: $('lblRowRolls'), unitRolls: $('unitRolls'), lblRowSoft: $('lblRowSoft'), lblRowLevel: $('lblRowLevel'), unitPts: $('unitPts'),
 };
+
+// re-render every dictionary-driven DOM text node (init + language toggle)
+function updateAllText() {
+  document.title = t('title');
+  document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+  el.backlink.textContent = t('backLink');
+  el.lblAir.textContent = t('hudAir');
+  el.lblSpeed.textContent = t('hudSpeed');
+  el.lblHeight.textContent = t('hudHeight');
+  el.lblDist.textContent = t('hudDist');
+  el.lblRolls.textContent = t('hudRolls');
+  el.mutebtn.title = t('muteTitle');
+  el.langbtn.textContent = t('langBtn');
+  el.startTitle.textContent = t('title');
+  el.startSub.textContent = t('sub');
+  el.s1a.textContent = t('s1a'); el.s1b.textContent = t('s1b');
+  el.s2a.textContent = t('s2a'); el.s2b.textContent = t('s2b');
+  el.s3a.textContent = t('s3a'); el.s3b.textContent = t('s3b');
+  el.s4a.textContent = t('s4a'); el.s4b.textContent = t('s4b');
+  el.startHint.textContent = t('hint');
+  el.startBtn.textContent = t('start');
+  el.retryBtn.textContent = t('again');
+  el.lblRowRolls.textContent = t('rowRolls');
+  el.unitRolls.textContent = t('rollsUnit');
+  el.lblRowSoft.textContent = t('rowSoft');
+  el.lblRowLevel.textContent = t('rowLevel');
+  el.unitPts.textContent = t('pts');
+  el.credit.textContent = t('footer');
+  const padLabels = { suck: 'padStick', left: 'padLeft', right: 'padRight', drive: 'padGo' };
+  for (const [act, key] of Object.entries(padLabels)) {
+    const lbl = padBtnEls[act] && padBtnEls[act].querySelector('span');
+    if (lbl) lbl.textContent = t(key);
+  }
+  updateBestLabels();
+}
+el.langbtn.addEventListener('click', () => {
+  setLang(lang === 'tc' ? 'en' : 'tc');
+  updateAllText();
+  if (screen === 'result') showResult();
+  el.langbtn.blur();
+});
 function setMeter(val, max) {
   el.airFill.style.transform = `scaleX(${clamp(val / max, 0, 1)})`;
   el.airMeter.classList.toggle('low', val <= max * .3);
@@ -1000,15 +1126,6 @@ function popAt(x, y, z, text, color, big = false) {
   el.pops.appendChild(d);
   setTimeout(() => d.remove(), 900);
 }
-const WORDS = {
-  crash: ['轟隆!!', '碰撞!!', '砰!!'],
-  peel: ['剝離了!', '滑掉了!'],
-  slip: ['打滑!', '空轉!'],
-  launch: ['起飛!', '咻!'],
-  land: ['落地!', '著地!'],
-  rollUnit: '回轉!',
-};
-
 // ---------- input ----------
 const KEYMAP = { KeyX: 'suck', ArrowDown: 'suck', Space: 'drive', ArrowUp: 'drive', ArrowLeft: 'left', ArrowRight: 'right' };
 const keys = new Set(), padPtr = new Map();
@@ -1213,16 +1330,16 @@ function startPress() {
   if (screen === 'start' || screen === 'result') resetRun();
 }
 function updateBestLabels() {
-  el.best.textContent = `最佳 ${best}`;
+  el.best.textContent = `${t('best')} ${best}`;
   el.startBest.hidden = best <= 0;
-  el.startBest.textContent = `BEST ${best}`;
+  el.startBest.textContent = `${t('bestLabel')} ${best}`;
 }
 
 // ---------- event effects ----------
 function crashFx(x, y, z) {
   el.flash.animate([{ opacity: .85 }, { opacity: 0 }], { duration: 500, easing: 'ease-out' });
   game.shake = 1;
-  popAt(x, y + 3, z, pick(WORDS.crash), 'hsl(18 95% 52%)', true);
+  popAt(x, y + 3, z, pick(t('popCrash')), 'hsl(18 95% 52%)', true);
   for (let i = 0; i < 90; i++) {
     const a = rand(0, TAU), spd = rand(2, 14);
     fx.spawn({
@@ -1253,7 +1370,7 @@ function crashFx(x, y, z) {
 }
 function landFx(ev, st) {
   game.score = scoreOf(st.land);
-  popAt(ev.x, 3, st.z, pick(WORDS.land), 'hsl(150 70% 45%)');
+  popAt(ev.x, 3, st.z, pick(t('popLand')), 'hsl(150 70% 45%)');
   const q = (game.score.soft + game.score.level) / 50;
   sfx.land(q);
   sfx.fanfare();
@@ -1273,11 +1390,11 @@ function processEvents() {
     if (ev.type === 'launch' || ev.type === 'detach' || ev.type === 'lift') game.rolls = 0;
     if (ev.type === 'launch') {
       launchX = ev.x;
-      popAt(ev.x, ev.y + 2.5, 0, pick(WORDS.launch), 'hsl(200 90% 55%)');
+      popAt(ev.x, ev.y + 2.5, 0, pick(t('popLaunch')), 'hsl(200 90% 55%)');
       sfx.whoosh();
     } else if (ev.type === 'detach') {
       launchX = ev.x;
-      popAt(ev.x - 1, ev.y + 1.5, 0, pick(WORDS.peel), 'hsl(0 85% 55%)');
+      popAt(ev.x - 1, ev.y + 1.5, 0, pick(t('popPeel')), 'hsl(0 85% 55%)');
       sfx.drop();
     } else if (ev.type === 'crash') {
       crashFx(ev.x, Math.max(ev.y, .3), st.z);
@@ -1291,7 +1408,7 @@ function processEvents() {
     const r = rollsCount(st.roll, st.roll0);
     if (r > game.rolls) {
       game.rolls = r;
-      popAt(st.x, st.y + 2.4, st.z, r + WORDS.rollUnit, 'hsl(45 95% 50%)', true);
+      popAt(st.x, st.y + 2.4, st.z, t('rollUnit', r), 'hsl(45 95% 50%)', true);
       sfx.chime(r);
     }
   }
@@ -1312,7 +1429,7 @@ function showResult() {
   game.endAt = Infinity;
   const st = sim.state;
   const win = st.mode === 'landed' && st.land;
-  el.resTitle.textContent = win ? '著地成功!!' : '克拉希…';
+  el.resTitle.textContent = win ? t('win') : t('lose');
   el.resTitle.className = win ? 'win' : 'lose';
   el.resWin.hidden = !win;
   if (win) {
@@ -1326,7 +1443,7 @@ function showResult() {
     for (const r of RANKS) if (sc.total >= r[0]) { rank = r; rcol = r[2]; break; }
     el.resRank.textContent = rank[1];
     el.resRank.style.color = rcol;
-    el.resReason.textContent = `翻滾 ${land.rolls} 回 · 飛行距離 ${Math.round(Math.abs(st.x - launchX))} m`;
+    el.resReason.textContent = t('rWin', land.rolls, Math.round(Math.abs(st.x - launchX)));
     el.resRolls.textContent = land.rolls;
     el.resRollPts.textContent = `+${Math.round(sc.roll)}`;
     el.resSoft.textContent = `${Math.round(sc.soft)} / 30`;
@@ -1336,14 +1453,14 @@ function showResult() {
     const fall = st.land ? st.land.fall * 3.6 : Math.hypot(st.vx, st.vy) * 3.6;
     const tilt = st.land ? st.land.tilt * 180 / Math.PI : 0;
     const reasons = {
-      fall: '從牆上剝離了。反翹段要一直按住吸附。',
-      wall: '撞上牆壁了。',
-      hard: `落地速度 ${Math.round(fall)} km/h——要更早用雙鍵減速。`,
-      tilt: `以傾斜 ${tilt.toFixed(1)}° 的姿態觸地了。`,
+      fall: t('rFall'),
+      wall: t('rWall'),
+      hard: t('rHard', Math.round(fall)),
+      tilt: t('rTilt', tilt.toFixed(1)),
     };
     el.resReason.textContent = reasons[st.crash] || '';
   }
-  el.resBest.textContent = win && newBest ? '★ 新紀錄！' : `最佳 ${best}`;
+  el.resBest.textContent = win && newBest ? t('newRecord') : `${t('bestLabel')} ${best}`;
   el.resBest.className = win && newBest ? 'newbest' : '';
   updateBestLabels();
   screen = 'result';
@@ -1358,7 +1475,7 @@ const qYaw = new THREE.Quaternion(), qRoll = new THREE.Quaternion(), qPitch = ne
 const downDir = new THREE.Vector3(), gt = new THREE.Vector3();
 const bodyLocal = (x, y, z) => gt.set(x, y, z).applyMatrix4(body.matrixWorld);
 const dm4 = new THREE.Matrix4(), dq = new THREE.Quaternion(), de = new THREE.Euler(), done = new THREE.Vector3(1, 1, 1);
-function updateCar(dt, t) {
+function updateCar(dt, tm) {
   const st = sim.state;
   carRoot.position.set(st.x, st.y, st.z);
   if (st.mode === 'road') carRoot.quaternion.setFromAxisAngle(Z_AXIS, st.th);
@@ -1401,7 +1518,7 @@ function updateCar(dt, t) {
     }
   }
   // suction glow
-  suckGlow.material.opacity += ((st.suck ? .85 + Math.sin(t * 30) * .1 : 0) - suckGlow.material.opacity) * Math.min(1, dt * 14);
+  suckGlow.material.opacity += ((st.suck ? .85 + Math.sin(tm * 30) * .1 : 0) - suckGlow.material.opacity) * Math.min(1, dt * 14);
   // slip smoke + word
   if (st.slip && game.playing) {
     for (const wx of [-CAR.WHEEL_X, CAR.WHEEL_X]) {
@@ -1413,7 +1530,7 @@ function updateCar(dt, t) {
         color: 12567495, end: BG,
       });
     }
-    if (t - slipWordAt > 1.2) { slipWordAt = t; popAt(st.x, st.y + 2, 0, pick(WORDS.slip), 'hsl(35 90% 50%)'); }
+    if (tm - slipWordAt > 1.2) { slipWordAt = tm; popAt(st.x, st.y + 2, 0, pick(t('popSlip')), 'hsl(35 90% 50%)'); }
   }
   // driving dust on the flat
   if (st.mode === 'road' && Math.abs(st.v) > 6 && st.u < 0 && Math.random() < .4) {
@@ -1460,9 +1577,9 @@ function updateCar(dt, t) {
   shadow.material.opacity = .6 * clamp(1 - h / 22, .1, 1);
   shadow.scale.setScalar(1 + h * .04);
   // UFO easter egg
-  ufo.group.position.set(st.x + Math.sin(t * .35) * 55, 2e3 + Math.sin(t * 1.3) * 1.5, -90);
+  ufo.group.position.set(st.x + Math.sin(tm * .35) * 55, 2e3 + Math.sin(tm * 1.3) * 1.5, -90);
   ufo.group.rotation.y += dt * .8;
-  ufo.lights.forEach((m, i) => m.material.color.setHSL((t * .6 + i / 12) % 1, 1, (Math.floor(t * 4) + i) % 2 ? .65 : .4));
+  ufo.lights.forEach((m, i) => m.material.color.setHSL((tm * .6 + i / 12) % 1, 1, (Math.floor(tm * 4) + i) % 2 ? .65 : .4));
 }
 
 // ---------- fit camera (exact port of kn) ----------
@@ -1534,7 +1651,7 @@ function updateCamera(dt) {
 // ---------- HUD ----------
 const padBtnEls = {};
 for (const btn of el.pad.querySelectorAll('button')) padBtnEls[btn.dataset.act] = btn;
-function updateHud(t) {
+function updateHud() {
   const st = sim.state;
   const airMode = st.mode === 'air';
   for (const [act, btn] of Object.entries(padBtnEls)) {
@@ -1553,10 +1670,10 @@ function updateHud(t) {
   const onArc = st.mode === 'road' && st.u > 0 ? trackAt(st.u) : null;
   const level = Math.cos(st.roll) * Math.cos(st.pitch);
   if (game.playing) {
-    if (st.air <= 0 && (airMode || onArc)) hint = ['空氣用完了！', 'bad'];
-    else if (onArc && onArc.phi > 1.2 && st.gripLeft < .35 && !st.suck) hint = ['「吸いつく」沒按住會剝離！', 'warn'];
-    else if (airMode && st.launched && level < -.5 && Math.abs(st.rw) < .6 && st.airTime > .25) hint = ['單鍵翻滾！', 'info'];
-    else if (airMode && level > .85 && st.vy < -5 && !(st.left && st.right)) hint = ['雙鍵減速！', 'good'];
+    if (st.air <= 0 && (airMode || onArc)) hint = [t('mNoAir'), 'bad'];
+    else if (onArc && onArc.phi > 1.2 && st.gripLeft < .35 && !st.suck) hint = [t('mGrip'), 'warn'];
+    else if (airMode && st.launched && level < -.5 && Math.abs(st.rw) < .6 && st.airTime > .25) hint = [t('hintRoll'), 'info'];
+    else if (airMode && level > .85 && st.vy < -5 && !(st.left && st.right)) hint = [t('hintBrake'), 'good'];
   }
   if (hint) {
     el.hint.hidden = false;
@@ -1586,7 +1703,7 @@ sim = createSim({ onAir: onAirHook });
 startX = sim.state.x;
 updatePadVisibility();
 resize();
-updateBestLabels();
+updateAllText();
 if (DEMO) resetRun();
 let last = 0;
 renderer.setAnimationLoop(now => {
@@ -1608,7 +1725,7 @@ renderer.setAnimationLoop(now => {
     game.endAt -= dt;
     if (game.endAt <= 0) showResult();
   }
-  updateHud(t);
+  updateHud();
   updateCar(dt, t);
   updateCamera(dt);
   stars.position.copy(camera.position);

@@ -34,6 +34,86 @@ const DEG = Math.PI / 180;
 const cos = Math.cos, sin = Math.sin;
 const rand = (a, b) => a + Math.random() * (b - a);
 
+// ---------- bilingual strings (TC default, EN toggle; persisted) ----------
+const STR = {
+  tc: {
+    title: '牆上翻滾 WALL FLIP', sub: '開上反翹的牆、倒掛飛出、翻滾著地',
+    s1a: '① 油門（SPACE）', s1b: '一路按住跑上弧牆——半路鬆開會被引擎剎車拖住',
+    s2a: '② 吸附（X）', s2b: '反翹段沒按住吸附就會剝離落地',
+    s3a: '③ 左右推進器（← →）', s3b: '單鍵翻滾、雙鍵向上推；倒掛時雙鍵會推向地面！',
+    s4a: '④ 輪胎朝下著地', s4b: '著地速度 ≤ 18 km/h、迴轉要收乾淨；翻滾一圈 50 分起跳',
+    hint: '吸附與推進器共用壓縮空氣 · M 靜音 · R 重來 · L 排行榜',
+    start: '—— 按 SPACE 開始 ——', again: '—— 按 SPACE 再來一次 ——',
+    tapStart: '—— 點擊畫面開始 ——', tapAgain: '—— 點擊再來一次 ——',
+    footer: '參數逆向自 tsuyatt.com 宙返りロードスター · 自製 2D 復刻',
+    course: '賽道', arc: '弧', radius: '半徑', straight: '直線',
+    hudAir: '空氣 AIR', hudSpeed: '速度 SPEED', hudHeight: '高度 HEIGHT', hudDist: '距離 DIST', hudRolls: '翻滾 ROLLS', best: '最佳',
+    statH: '高度', statD: '距離', statA: '空氣',
+    suckOn: '◉ 吸附中',
+    mLaunch: '起飛！單鍵翻滾、雙鍵減速', mPeel: '剝離墜落！', mStall: '失速了！滑回地面再衝一次', mNoAir: '空氣用盡！', mGrip: '沒按住吸附會剝離！',
+    mLand: (s, l) => `著地！SOFT ${s}/30 · LEVEL ${l}/20`,
+    mAch: (n) => `成就解鎖：${n}`, achJoin: '、', mCopied: '成績已複製到剪貼簿！',
+    win: '著地成功!!', lose: '克拉希…',
+    rFall: '從牆上剝離了。反翹段要一直按住吸附。', rWall: '撞上牆壁了。',
+    rHard: (k) => `落地速度 ${k} km/h——要更早用雙鍵減速。`, rTilt: (d) => `以傾斜 ${d}° 的姿態觸地了。`,
+    rowRolls: (n) => `翻滾 ${n} 回`, rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', pts: '點',
+    subWin: (n, d, t2, rec) => `翻滾 ${n} 回 · 飛行距離 ${d} m · 完賽 ${t2} s${rec ? ' ★最快' : ''}`,
+    newRecord: '★ 新紀錄！', bestLabel: '最佳',
+    shareBtn: '📋 複製成績',
+    shareText: (r, d, s, l, tt, rank, cn) => `牆上翻滾 Wall Flip（${cn}）：翻滾 ${r} 回 · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${tt} 分 ${rank}！`,
+    boardTitle: (cn) => `排行榜 · ${cn}`, colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
+    boardBtn: '排行榜', langBtn: 'EN',
+    padStick: '吸いつく', padLeft: '左', padRight: '右', padGo: 'すすむ',
+    ach_land: '初著地', ach_roll1: '初翻滾', ach_roll2: '兩圈', ach_roll3: '三圈', ach_soft30: '滿柔軟', ach_legend: '傳說', ach_far100: '百米', ach_eco: '省氣王',
+  },
+  en: {
+    title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip, land on the tires',
+    s1a: '① DRIVE (SPACE)', s1b: 'Hold it all the way up the wall — release early and engine braking drags you back',
+    s2a: '② STICK (X)', s2b: 'On the overhang, no Stick means you peel off and fall',
+    s3a: '③ SIDE THRUSTERS (← →)', s3b: 'One key rolls you, both push up; both while inverted push you down!',
+    s4a: '④ LAND ON THE TIRES', s4b: 'Touch down ≤ 18 km/h, settle the spin; 50 pts per full roll and up',
+    hint: 'Stick and thrusters share compressed air · M mute · R restart · L ranking',
+    start: '—— PRESS SPACE TO START ——', again: '—— PRESS SPACE TO RETRY ——',
+    tapStart: '—— TAP TO START ——', tapAgain: '—— TAP TO RETRY ——',
+    footer: 'Physics reverse-engineered from tsuyatt.com 宙返りロードスター · 2D tribute',
+    course: 'COURSE', arc: 'arc', radius: 'radius', straight: 'straight',
+    hudAir: 'AIR', hudSpeed: 'SPEED', hudHeight: 'HEIGHT', hudDist: 'DIST', hudRolls: 'ROLLS', best: 'BEST',
+    statH: 'HEIGHT', statD: 'DIST', statA: 'AIR',
+    suckOn: '◉ STICKING',
+    mLaunch: 'Airborne! ←/→ to roll, both to brake', mPeel: 'Peeled off!', mStall: 'Stalled! Slide back down and retry', mNoAir: 'Out of air!', mGrip: 'Hold Stick or you peel off!',
+    mLand: (s, l) => `Landed! SOFT ${s}/30 · LEVEL ${l}/20`,
+    mAch: (n) => `Achievement unlocked: ${n}`, achJoin: ', ', mCopied: 'Result copied to clipboard!',
+    win: 'NAILED IT!!', lose: 'CRASHED…',
+    rFall: 'You peeled off the wall. Keep holding Stick on the overhang.', rWall: 'You hit the wall.',
+    rHard: (k) => `You hit the ground at ${k} km/h. Brake earlier with both thrusters.`, rTilt: (d) => `You touched down tilted ${d}°.`,
+    rowRolls: (n) => `${n} rolls`, rowSoft: 'SOFT', rowLevel: 'LEVEL', pts: 'pts',
+    subWin: (n, d, t2, rec) => `${n} roll(s) · ${d} m flight · time ${t2} s${rec ? ' ★BEST' : ''}`,
+    newRecord: '★ NEW RECORD!', bestLabel: 'BEST',
+    shareBtn: '📋 COPY RESULT',
+    shareText: (r, d, s, l, tt, rank, cn) => `Wall Flip (${cn}): ${r} roll(s), ${d} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${tt} pts ${rank}!`,
+    boardTitle: (cn) => `LEADERBOARD · ${cn}`, colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
+    boardBtn: 'RANKING', langBtn: '中文',
+    padStick: 'STICK', padLeft: '←', padRight: '→', padGo: 'GO',
+    ach_land: 'First Land', ach_roll1: 'First Flip', ach_roll2: 'Double', ach_roll3: 'Triple', ach_soft30: 'Butter', ach_legend: 'Legend', ach_far100: '100m+', ach_eco: 'Eco',
+  },
+};
+let lang = 'tc';
+try {
+  const saved = localStorage.getItem('wallflip2.lang');
+  if (saved === 'en' || saved === 'tc') lang = saved;
+  else if ((navigator.language || '').startsWith('en')) lang = 'en';
+} catch (e) {}
+const t = (k, ...a) => {
+  const v = (STR[lang] && STR[lang][k]) ?? STR.tc[k];
+  return typeof v === 'function' ? v(...a) : v;
+};
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem('wallflip2.lang', l); } catch (e) {}
+  try { sfx.click(); } catch (e) {}
+}
+const courseName = c => (lang === 'en' && c.nameEn) ? c.nameEn : c.name;
+
 // ---------- canvas ----------
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -83,8 +163,8 @@ const POINTS = [
 ];
 // courses: A 宙返り = the original wall; B 長空 = taller/longer (more airtime, more rolls)
 const COURSES = [
-  { name: '宙返り', arcDeg: 165, arcR: 10.5, straight: 8.8 },
-  { name: '長空', arcDeg: 172, arcR: 11.5, straight: 14 },
+  { name: '宙返り', nameEn: 'Loop', arcDeg: 165, arcR: 10.5, straight: 8.8 },
+  { name: '長空', nameEn: 'Long Sky', arcDeg: 172, arcR: 11.5, straight: 14 },
 ];
 const SAMPLE = 0.05;
 
@@ -352,10 +432,10 @@ function setCourse(idx) {
 function layoutBtns() {
   btns.length = 0;
   const w = W(), h = H(), u = Math.min(w, h) / 9, y0 = h - u * 1.4, bw = u * 2.1, bh = u * 1.15;
-  btns.push({ key: 'stick', x: u * 1.9, y: y0, w: bw, h: bh, label: '吸いつく', sub: 'X' });
-  btns.push({ key: 'left', x: w / 2 - u * 2.4, y: y0, w: bw, h: bh, label: '左', sub: '←' });
-  btns.push({ key: 'right', x: w / 2 + u * 0.1, y: y0, w: bw, h: bh, label: '右', sub: '→' });
-  btns.push({ key: 'drive', x: w - u * 2.1, y: y0, w: bw, h: bh, label: 'すすむ', sub: 'SPACE' });
+  btns.push({ key: 'stick', x: u * 1.9, y: y0, w: bw, h: bh, labelKey: 'padStick', sub: 'X' });
+  btns.push({ key: 'left', x: w / 2 - u * 2.4, y: y0, w: bw, h: bh, labelKey: 'padLeft', sub: '←' });
+  btns.push({ key: 'right', x: w / 2 + u * 0.1, y: y0, w: bw, h: bh, labelKey: 'padRight', sub: '→' });
+  btns.push({ key: 'drive', x: w - u * 2.1, y: y0, w: bw, h: bh, labelKey: 'padGo', sub: 'SPACE' });
 }
 const activePtr = new Map();
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -365,12 +445,14 @@ canvas.addEventListener('pointerdown', e => {
   const r = canvas.getBoundingClientRect();
   const px = e.clientX - r.left, py = e.clientY - r.top;
   if (state === ST.READY) {
+    if (readyUI.lang && hitRect(readyUI.lang, px, py)) { setLang(lang === 'tc' ? 'en' : 'tc'); sfx.click(); return; }
     if (hitRect(readyUI.prev, px, py)) { sfx.click(); setCourse(courseIdx - 1); return; }
     if (hitRect(readyUI.next, px, py)) { sfx.click(); setCourse(courseIdx + 1); return; }
     if (hitRect(readyUI.board, px, py)) { openRank(); return; }
     botOn = false; startRun(); return;
   }
   if (state === ST.RESULT) {
+    if (resultUI.lang && hitRect(resultUI.lang, px, py)) { setLang(lang === 'tc' ? 'en' : 'tc'); sfx.click(); return; }
     if (resultUI.share && hitRect(resultUI.share, px, py)) { sfx.click(); copyResult(); return; }
     if (hitRect(resultUI.board, px, py)) { openRank(); return; }
     reset(false); return;
@@ -458,8 +540,8 @@ function toAir(kind) {
   // bot roll target fixed at launch: next wheels-down angle (+ planned full rolls)
   car.targetPhi = Math.ceil((car.phi - 1e-6) / TAU) * TAU + car.plan * TAU;
   car.clear = false;
-  if (kind === 'launch') sayOnce('launch', '起飛！單鍵翻滾、雙鍵減速', '#9fe8ff');
-  if (kind === 'detach') { say('剝離墜落！', '#ff6b6b', 2.2); sfx.peel(); pop(car.x, car.y + 2, 'PEEL!', '#ff6b6b'); }
+  if (kind === 'launch') sayOnce('launch', t('mLaunch'), '#9fe8ff');
+  if (kind === 'detach') { say(t('mPeel'), '#ff6b6b', 2.2); sfx.peel(); pop(car.x, car.y + 2, 'PEEL!', '#ff6b6b'); }
 }
 function doCrash(reason) {
   if (car.mode === 'crash') return;
@@ -475,7 +557,7 @@ function doCrash(reason) {
   shakeT = 0.5; shakeA = 0.35;
   sfx.crash();
   vib([60, 40, 60]);
-  say(reason === 'fall' ? '剝離墜落！' : reason === 'wall' ? '撞上牆壁！' : reason === 'hard' ? '落地速度過快！' : '著地角度過大！', '#ff6b6b', 2.4);
+  say(reason === 'fall' ? t('mPeel') : reason === 'wall' ? t('rWall') : reason === 'hard' ? t('rHard', fmt(stats.fall)) : t('rTilt', fmt(stats.tilt, 1)), '#ff6b6b', 2.4);
   stateT = 0;
 }
 function tiltNow() {
@@ -488,14 +570,8 @@ let slipWordAt = -9;
 
 // ---------- achievements / share / haptics (P4) ----------
 const ACH = [
-  { id: 'land',   label: '初著地' },
-  { id: 'roll1',  label: '初翻滾' },
-  { id: 'roll2',  label: '兩圈' },
-  { id: 'roll3',  label: '三圈' },
-  { id: 'soft30', label: '滿柔軟' },
-  { id: 'legend', label: '傳說' },
-  { id: 'far100', label: '百米' },
-  { id: 'eco',    label: '省氣王' },
+  { id: 'land' }, { id: 'roll1' }, { id: 'roll2' }, { id: 'roll3' },
+  { id: 'soft30' }, { id: 'legend' }, { id: 'far100' }, { id: 'eco' },
 ];
 let achUnlocked = new Set();
 try { achUnlocked = new Set(JSON.parse(localStorage.getItem('wallflip2.ach') || '[]')); } catch (e) {}
@@ -519,23 +595,23 @@ function unlockAchievements() {
     if (achTest(a.id, stats)) {
       achUnlocked.add(a.id);
       gained.push(a.label);
-      pop(car.x + rand(-1.5, 1.5), car.y + rand(2, 4), '🏆 ' + a.label, '#ffd166');
+      pop(car.x + rand(-1.5, 1.5), car.y + rand(2, 4), '🏆 ' + t('ach_' + a.id), '#ffd166');
     }
   }
   if (gained.length) {
     try { localStorage.setItem('wallflip2.ach', JSON.stringify([...achUnlocked])); } catch (e) {}
-    say(`成就解鎖：${gained.join('、')}`, '#ffd166', 2.6);
+    say(t('mAch', gained.map(id => t('ach_' + id)).join(t('achJoin'))), '#ffd166', 2.6);
   }
 }
 function vib(pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
 }
 function copyResult() {
-  const courseName = COURSES[courseIdx].name;
+  const cn = courseName(COURSES[courseIdx]);
   let rank = 'GOOD!';
   for (const [th, name] of RANKS) if (stats.total >= th) { rank = name; break; }
-  const text = `牆上翻滾 Wall Flip（${courseName}）：翻滾 ${stats.rolls} 回 · SOFT ${stats.soft}/30 · LEVEL ${stats.level}/20 → TOTAL ${stats.total} 分 ${rank}！`;
-  const done = () => say('成績已複製到剪貼簿！', '#9fe8ff', 1.8);
+  const text = t('shareText', stats.rolls, Math.round(stats.dist), stats.soft, stats.level, stats.total, rank, cn);
+  const done = () => say(t('mCopied'), '#9fe8ff', 1.8);
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
   } else fallbackCopy(text, done);
@@ -682,7 +758,7 @@ function stepAir(dt) {
   for (const [th, name, col] of RANKS) if (stats.total >= th) { rank = name; rcol = col; break; }
   pop(car.x, 2.2, `+${stats.total}`, '#ffd166');
   pop(car.x, 0.4, rank, rcol);
-  say(`著地！SOFT ${stats.soft}/30 · LEVEL ${stats.level}/20`, q > 0.75 ? '#ffd166' : '#9fe8ff', 2.4);
+  say(t('mLand', stats.soft, stats.level), q > 0.75 ? '#ffd166' : '#9fe8ff', 2.4);
   stateT = 0;
 }
 
@@ -1136,7 +1212,7 @@ function drawHUD() {
   roundRect(m, m, pw, u * 3.5, 8); ctx.fill();
   ctx.font = `700 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#9fb6c9';
-  ctx.fillText('ROADSTER · 空氣 AIR', m + u * 0.4, m + u * 0.3);
+  ctx.fillText(t('hudAir'), m + u * 0.4, m + u * 0.3);
   const af = car.air / AIR_MAX;
   const barW = pw - u * 3.4;
   ctx.fillStyle = 'rgba(255,255,255,.12)';
@@ -1150,7 +1226,7 @@ function drawHUD() {
   const spd = car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy);
   ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#9fb6c9';
-  ctx.fillText('速さ SPEED', m + u * 0.4, m + u * 2.35);
+  ctx.fillText(t('hudSpeed'), m + u * 0.4, m + u * 2.35);
   ctx.font = `800 ${u * 0.9}px ui-monospace, monospace`;
   ctx.fillStyle = '#eef4fa';
   ctx.fillText(fmt(spd * 3.6) + ' km/h', m + u * 4.4, m + u * 2.27);
@@ -1161,7 +1237,7 @@ function drawHUD() {
   roundRect(rx, m, rw, u * 1.7, 8); ctx.fill();
   ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#9fb6c9';
-  ctx.fillText('回転 ROLLS', rx + rw / 2, m + u * 0.22);
+  ctx.fillText(t('hudRolls'), rx + rw / 2, m + u * 0.22);
   ctx.font = `800 ${u * 0.8}px ui-monospace, monospace`;
   ctx.fillStyle = '#eef4fa';
   const rollDisp = car.mode === 'road' ? '0' : fmt(rollsCount(car.phi, car.phiL));
@@ -1170,7 +1246,7 @@ function drawHUD() {
     ctx.textAlign = 'right';
     ctx.font = `700 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#9fb6c9';
-    ctx.fillText(`最佳 ${best}`, W() - m, m + u * 2.3);
+    ctx.fillText(`${t('best')} ${best}`, W() - m, m + u * 2.3);
   }
   // height / dist: wide = top-center pair; narrow = compact row under the left panel
   const statBox = (x, y, w, label, val) => {
@@ -1190,17 +1266,17 @@ function drawHUD() {
     roundRect(W() / 2 - u * 5.2, m, u * 10.4, u * 1.7, 8); ctx.fill();
     ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#9fb6c9';
-    ctx.fillText('高さ HEIGHT', W() / 2 - u * 2.6, m + u * 0.22);
-    ctx.fillText('距離 DIST', W() / 2 + u * 2.6, m + u * 0.22);
+    ctx.fillText(t('hudHeight'), W() / 2 - u * 2.6, m + u * 0.22);
+    ctx.fillText(t('hudDist'), W() / 2 + u * 2.6, m + u * 0.22);
     ctx.font = `800 ${u * 0.8}px ui-monospace, monospace`;
     ctx.fillStyle = '#eef4fa';
     ctx.fillText(fmt(Math.max(0, car.y - CAR.H)) + ' m', W() / 2 - u * 2.6, m + u * 0.85);
     ctx.fillText(distVal, W() / 2 + u * 2.6, m + u * 0.85);
   } else {
     const sw2 = (pw - u * 0.4) / 3, sy2 = m + u * 3.9;
-    statBox(m, sy2, sw2, '高さ', fmt(Math.max(0, car.y - CAR.H)) + ' m');
-    statBox(m + sw2 + u * 0.2, sy2, sw2, '距離', distVal);
-    statBox(m + (sw2 + u * 0.2) * 2, sy2, sw2, '空氣', fmt(car.air) + '%');
+    statBox(m, sy2, sw2, t('statH'), fmt(Math.max(0, car.y - CAR.H)) + ' m');
+    statBox(m + sw2 + u * 0.2, sy2, sw2, t('statD'), distVal);
+    statBox(m + (sw2 + u * 0.2) * 2, sy2, sw2, t('statA'), fmt(car.air) + '%');
   }
   // messages
   ctx.textAlign = 'center';
@@ -1218,7 +1294,7 @@ function drawHUD() {
   if (car.suck && car.mode === 'road' && car.u > 0) {
     ctx.font = `800 ${u * 0.65}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#6ff0d0';
-    ctx.fillText('◉ 吸附中', W() / 2, H() * 0.1);
+    ctx.fillText(t('suckOn'), W() / 2, H() * 0.1);
   }
   // touch buttons
   if (isTouch || activePtr.size) {
@@ -1231,7 +1307,7 @@ function drawHUD() {
       if (on) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2); ctx.stroke(); }
       ctx.fillStyle = b.key === 'stick' ? '#1f9d61' : '#fff';
       ctx.font = `800 ${b.h * 0.42}px system-ui, "Noto Sans TC", sans-serif`;
-      ctx.fillText(b.label, b.x, b.y - b.h * 0.12);
+      ctx.fillText(t(b.labelKey), b.x, b.y - b.h * 0.12);
       ctx.font = `600 ${b.h * 0.26}px system-ui, sans-serif`;
       ctx.fillText(b.sub, b.x, b.y + b.h * 0.26);
     }
@@ -1248,15 +1324,15 @@ function drawReady() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffd166';
   ctx.font = `900 ${u * 2.6}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText('宙返りロードスター 2D', cx, H() * 0.14);
+  ctx.fillText(t('title'), cx, H() * 0.14);
   ctx.fillStyle = '#eef4fa';
   ctx.font = `700 ${u * 0.95}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText('牆上翻滾 · 開上反翘的牆、倒掛飛出、翻滾著地', cx, H() * 0.14 + u * 1.3);
+  ctx.fillText(t('sub'), cx, H() * 0.14 + u * 1.3);
   const lines = [
-    ['① すすむ（SPACE）', '一路按住跑上弧牆——半路鬆開會被引擎剎車拖住'],
-    ['② 吸いつく（X）', '反翘段沒按住吸附就會剝離落地'],
-    ['③ 左右スラスター（← →）', '單鍵翻滾、雙鍵向上推；倒掛時雙鍵會推向地面！'],
-    ['④ 輪胎朝下著地', '著地速度 ≤ 18 km/h、迴轉要收乾淨；翻滾一圈 50 分起跳'],
+    [t('s1a'), t('s1b')],
+    [t('s2a'), t('s2b')],
+    [t('s3a'), t('s3b')],
+    [t('s4a'), t('s4b')],
   ];
   let y = H() * 0.3;
   for (const [a, b] of lines) {
@@ -1268,7 +1344,7 @@ function drawReady() {
   }
   ctx.font = `500 ${u * 0.62}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#8fa3b8';
-  ctx.fillText('吸附與推進器共用壓縮空氣 · M 靜音 · R 重來 · L 排行榜', cx, y + u * 0.3);
+  ctx.fillText(t('hint'), cx, y + u * 0.3);
   // course selector: ◄ name ► cycling COURSES
   const cc = COURSES[courseIdx], selY = y + u * 2.3, aw = u * 1.9;
   ctx.fillStyle = 'rgba(13,18,30,.85)';
@@ -1281,16 +1357,16 @@ function drawReady() {
   ctx.fillText('►', cx + u * 7, selY + u * 0.36);
   ctx.fillStyle = '#eef4fa';
   ctx.font = `800 ${u * 1.15}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(`賽道 · ${cc.name}`, cx, selY + u * 0.12);
+  ctx.fillText(`${t('course')} · ${courseName(cc)}`, cx, selY + u * 0.12);
   ctx.fillStyle = '#8fa3b8';
   ctx.font = `500 ${u * 0.62}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(`${cc.arcDeg}° 弧 · 半徑 ${cc.arcR} m · 直線 ${cc.straight} m`, cx, selY + u * 1.3);
+  ctx.fillText(`${cc.arcDeg}° ${t('arc')} · ${t('radius')} ${cc.arcR} m · ${t('straight')} ${cc.straight} m`, cx, selY + u * 1.3);
   readyUI.prev = { x: cx - u * 7 - aw / 2, y: selY - aw / 2, w: aw, h: aw };
   readyUI.next = { x: cx + u * 7 - aw / 2, y: selY - aw / 2, w: aw, h: aw };
   ctx.globalAlpha = 0.6 + 0.4 * Math.sin(stateT * 3.5);
   ctx.font = `900 ${u * 1.3}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#1f9d61';
-  ctx.fillText(isTouch ? '—— 點擊畫面開始 ——' : '—— 按 SPACE 開始 ——', cx, H() * 0.86);
+  ctx.fillText(isTouch ? t('tapStart') : t('start'), cx, H() * 0.86);
   ctx.globalAlpha = 1;
   // achievement badges (P4)
   {
@@ -1308,13 +1384,13 @@ function drawReady() {
         roundRect(bx, by, bw2, bh2, bh2 / 2); ctx.stroke();
       }
       ctx.fillStyle = on ? '#ffd166' : 'rgba(207,227,245,.32)';
-      ctx.fillText(a.label, bx + bw2 / 2, by + bh2 / 2 + u * 0.17);
+      ctx.fillText(t('ach_' + a.id), bx + bw2 / 2, by + bh2 / 2 + u * 0.17);
       bx += bw2 + gap;
     }
   }
   ctx.font = `500 ${u * 0.58}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#6d7f95';
-  ctx.fillText('參數逆向自 tsuyatt.com 宙返りロードスター · 自製 2D 復刻', cx, H() * 0.92);
+  ctx.fillText(t('footer'), cx, H() * 0.92);
   // top-right: leaderboard button next to BEST (sized to cover the dimmed rolls HUD box)
   const bw = u * 4.6, bh = u * 1.7, bx = W() - 12 - bw, by = 12;
   ctx.fillStyle = 'rgba(13,18,30,.85)';
@@ -1323,8 +1399,18 @@ function drawReady() {
   roundRect(bx, by, bw, bh, 8); ctx.stroke();
   ctx.fillStyle = '#6ff0d0';
   ctx.font = `700 ${u * 0.78}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText('排行榜', bx + bw / 2, by + bh / 2 + u * 0.28);
+  ctx.fillText(t('boardBtn'), bx + bw / 2, by + bh / 2 + u * 0.28);
   readyUI.board = { x: bx, y: by, w: bw, h: bh };
+  // language toggle pill (top-center, clear of BEST / RANKING)
+  const lw = u * 2.6, lx2 = cx - lw / 2, ly2 = 12, lh2 = u * 1.3;
+  ctx.fillStyle = 'rgba(13,18,30,.85)';
+  roundRect(lx2, ly2, lw, lh2, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(159,182,201,.4)'; ctx.lineWidth = 1.5;
+  roundRect(lx2, ly2, lw, lh2, 6); ctx.stroke();
+  ctx.fillStyle = '#cfe3f5';
+  ctx.font = `700 ${u * 0.66}px system-ui, "Noto Sans TC", sans-serif`;
+  ctx.fillText(t('langBtn'), lx2 + lw / 2, ly2 + lh2 / 2 + u * 0.24);
+  readyUI.lang = { x: lx2, y: ly2, w: lw, h: lh2 };
   if (best > 0) {
     ctx.fillStyle = '#ffd166';
     ctx.font = `800 ${u * 0.85}px ui-monospace, monospace`;
@@ -1352,18 +1438,16 @@ function drawResult() {
   const iy = py + u * 1.6;
   ctx.font = `900 ${u * 2.0}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = stats.win ? '#6ff0d0' : '#8b93a3';
-  ctx.fillText(stats.win ? '著地成功!!' : '克拉希…', cx, iy);
+  ctx.fillText(stats.win ? t('win') : t('lose'), cx, iy);
   ctx.font = `600 ${u * 0.75}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#9fb6c9';
   const reasons = {
-    fall: '從牆上剝離了。反翘段要一直按住吸附。',
+    fall: '從牆上剝離了。反翹段要一直按住吸附。',
     wall: '撞上牆壁了。',
-    hard: `落地速度 ${fmt(stats.fall)} km/h——要更早用雙鍵減速。`,
-    tilt: `以傾斜 ${fmt(stats.tilt, 1)}° 的姿態觸地了。`,
   };
   ctx.fillText(stats.win
-    ? `翻滾 ${stats.rolls} 回 · 飛行距離 ${fmt(stats.dist)} m · 完賽 ${fmt(stats.time, 1)} s${stats.newTimeRecord ? ' ★最快' : ''}`
-    : reasons[stats.reason] || '', cx, iy + u * 1.15);
+    ? t('subWin', stats.rolls, fmt(stats.dist), fmt(stats.time, 1), stats.newTimeRecord)
+    : { fall: t('rFall'), wall: t('rWall'), hard: t('rHard', fmt(stats.fall)), tilt: t('rTilt', fmt(stats.tilt, 1)) }[stats.reason] || '', cx, iy + u * 1.15);
   if (stats.win) {
     let rank = 'GOOD!', rcol = '#cfe3f5';
     for (const [th, name, col] of RANKS) if (stats.total >= th) { rank = name; rcol = col; break; }
@@ -1372,7 +1456,7 @@ function drawResult() {
     ctx.fillText(rank, cx, iy + u * 2.8);
     const rows = [
       [`翻滾 ROLLS ${stats.rolls} 回`, `+${stats.rollPts}`],
-      [`やわらかさ SOFT`, `${stats.soft} / 30`],
+      [t('rowSoft'), `${stats.soft} / 30`],
       [`姿勢 LEVEL`, `${stats.level} / 20`],
     ];
     let y = iy + u * 4.3;
@@ -1386,11 +1470,11 @@ function drawResult() {
     y += u * 0.3;
     ctx.font = `900 ${u * 1.5}px ui-monospace, monospace`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(`TOTAL ${stats.total} 點`, cx, y);
+    ctx.fillText(`${t('pts').toUpperCase()} ${stats.total}`, cx, y);
     y += u * 1.1;
     ctx.font = `700 ${u * 0.7}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = newBest ? '#ffd166' : '#9fb6c9';
-    ctx.fillText(newBest ? '★ 新紀錄！' : `最佳 ${best}`, cx, y);
+    ctx.fillText(newBest ? t('newRecord') : `${t('bestLabel')} ${best}`, cx, y);
   }
   ctx.restore();
   // share button (P4) — only on successful landings
@@ -1402,14 +1486,26 @@ function drawResult() {
     roundRect(sx, sy2, sw, sh, sh / 2); ctx.stroke();
     ctx.fillStyle = '#6ff0d0';
     ctx.font = `700 ${u * 0.7}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillText('📋 複製成績', cx, sy2 + sh / 2 + u * 0.25);
+    ctx.fillText(t('shareBtn'), cx, sy2 + sh / 2 + u * 0.25);
     resultUI.share = { x: sx, y: sy2, w: sw, h: sh };
+  }
+  // language toggle pill (top-right, above the rolls box)
+  {
+    const lw = u * 2.4, lx2 = W() - m - u * 4.6 - u * 0.5 - lw, ly2 = 4, lh2 = u * 1.3;
+    ctx.fillStyle = 'rgba(13,18,30,.85)';
+    roundRect(lx2, ly2, lw, lh2, 6); ctx.fill();
+    ctx.strokeStyle = 'rgba(159,182,201,.4)'; ctx.lineWidth = 1;
+    roundRect(lx2, ly2, lw, lh2, 6); ctx.stroke();
+    ctx.fillStyle = '#cfe3f5';
+    ctx.font = `700 ${u * 0.6}px system-ui, "Noto Sans TC", sans-serif`;
+    ctx.fillText(t('langBtn'), lx2 + lw / 2, ly2 + lh2 / 2 + u * 0.22);
+    resultUI.lang = { x: lx2, y: ly2, w: lw, h: lh2 };
   }
   // leaderboard link
   ctx.textAlign = 'center';
   ctx.font = `700 ${u * 0.85}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#6ff0d0';
-  const bl = '◈ 排行榜';
+  const bl = '◈ ' + t('boardBtn');
   const blw = ctx.measureText(bl).width, blY = H() * 0.8;
   ctx.fillText(bl, cx, blY);
   ctx.strokeStyle = 'rgba(111,240,208,.5)'; ctx.lineWidth = 1;
@@ -1419,7 +1515,7 @@ function drawResult() {
   ctx.font = `800 ${u * 0.95}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
-  ctx.fillText(isTouch ? '—— 點擊再來一次 ——' : '—— 按 SPACE 再來一次 ——', cx, H() * 0.9);
+  ctx.fillText(isTouch ? t('tapAgain') : t('again'), cx, H() * 0.9);
   ctx.globalAlpha = 1;
 }
 
@@ -1437,21 +1533,21 @@ function drawRank() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.font = `900 ${u * 1.5}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#6ff0d0';
-  ctx.fillText(`排行榜 · ${COURSES[courseIdx].name}`, cx, py + u * 2.0);
+  ctx.fillText(t('boardTitle', courseName(COURSES[courseIdx])), cx, py + u * 2.0);
   const cS = px + pw * 0.44, cR = px + pw * 0.63, cD = px + pw - u * 1.2;
   if (!boardView.length) {
     ctx.font = `600 ${u * 0.95}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#8fa3b8';
-    ctx.fillText('暫無紀錄', cx, py + ph / 2 + u * 0.3);
+    ctx.fillText(t('boardEmpty'), cx, py + ph / 2 + u * 0.3);
   } else {
     ctx.textAlign = 'left';
     ctx.font = `600 ${u * 0.6}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#8fa3b8';
-    ctx.fillText('名次', px + u * 1.2, py + u * 3.5);
+    ctx.fillText(t('colRank'), px + u * 1.2, py + u * 3.5);
     ctx.textAlign = 'right';
-    ctx.fillText('總分', cS, py + u * 3.5);
-    ctx.fillText('翻滾', cR, py + u * 3.5);
-    ctx.fillText('日期', cD, py + u * 3.5);
+    ctx.fillText(t('colScore'), cS, py + u * 3.5);
+    ctx.fillText(t('colRolls'), cR, py + u * 3.5);
+    ctx.fillText(t('colDate'), cD, py + u * 3.5);
     let ry = py + u * 5.0;
     for (let i = 0; i < boardView.length; i++) {
       const e = boardView[i], hi = i === rankHi;
@@ -1476,7 +1572,7 @@ function drawRank() {
   ctx.textAlign = 'center';
   ctx.font = `600 ${u * 0.62}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#6d7f95';
-  ctx.fillText('—— 點擊或按 L / SPACE 關閉 ——', cx, py + ph - u * 0.8);
+  ctx.fillText(t('boardClose'), cx, py + ph - u * 0.8);
 }
 
 let shakeT = 0, shakeA = 0;
