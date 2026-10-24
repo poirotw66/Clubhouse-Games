@@ -1,0 +1,14 @@
+{
+  "name": "達達馬蹄 Clip-Clop",
+  "short_name": "Clip-Clop",
+  "description": "一款致敬 tsuyatt《おうまパカパカ》的四腿平衡賽馬遊戲",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#9fd8f5",
+  "theme_color": "#4a2f18",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

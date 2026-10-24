@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>達達馬蹄 Clip-Clop｜Clubhouse Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="manifest" href="./clip-clop.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon.svg">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Baloo 2','Noto Sans TC',system-ui,-apple-system,sans-serif;background:#9fd8f5;color:#4a2f18;-webkit-user-select:none;user-select:none}
+canvas{display:block}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:5}
+.hidden{display:none!important}
+
+/* HUD */
+#hud{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.pill{background:#fff6e8;border:3px solid #4a2f18;border-radius:999px;padding:6px 16px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 0 rgba(74,47,24,.28);min-width:118px;justify-content:center}
+.pill span{font-size:11px;font-weight:800;opacity:.6;letter-spacing:.08em}
+.pill b{font-size:20px;font-variant-numeric:tabular-nums}
+.pill.warn b{color:#d33;animation:pulse .5s infinite alternate}
+@keyframes pulse{to{opacity:.4}}
+
+/* Corner buttons */
+#corner{position:absolute;top:14px;right:14px;display:flex;gap:8px;pointer-events:auto}
+.chip{width:44px;height:44px;border-radius:50%;border:3px solid #4a2f18;background:#fff6e8;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 3px 0 rgba(74,47,24,.28);color:#4a2f18}
+.chip:active{transform:translateY(2px);box-shadow:none}
+
+
+/* Back to clubhouse menu (repo convention) */
+.back-to-menu{position:fixed;top:14px;left:14px;z-index:20;display:inline-flex;align-items:center;gap:6px;
+  background:#fff6e8;border:3px solid #4a2f18;border-radius:999px;padding:7px 16px;font-weight:800;
+  font-size:14px;color:#4a2f18;text-decoration:none;box-shadow:0 3px 0 rgba(74,47,24,.28)}
+.back-to-menu:active{transform:translateY(2px);box-shadow:none}
+@media (max-width:560px){.back-to-menu{padding:5px 12px;font-size:12px}.back-to-menu-label{display:none}}
+
+/* Key pads */
+#keysBar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
+.key{min-width:112px;height:60px;padding:0 18px;border:3px solid #4a2f18;border-radius:999px;background:var(--kc,#ef8b23);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 5px 0 rgba(74,47,24,.5);cursor:pointer;touch-action:none;color:#fff}
+.key span{font-size:21px;font-weight:800;line-height:1}
+.key small{font-size:11px;font-weight:700;opacity:.92}
+.key.down{transform:translateY(4px);box-shadow:0 1px 0 rgba(74,47,24,.5);filter:brightness(.82)}
+.gap{width:14px}
+
+/* Fall prompt */
+#fallPrompt{position:absolute;bottom:112px;left:50%;transform:translateX(-50%);background:#d34a3a;color:#fff;border:3px solid #4a2f18;border-radius:999px;padding:10px 22px;font-weight:800;font-size:18px;white-space:nowrap;box-shadow:0 4px 0 rgba(74,47,24,.3);animation:bounce .55s infinite alternate}
+@keyframes bounce{to{transform:translateX(-50%) translateY(-8px)}}
+
+/* GO banner */
+#goBanner{position:absolute;top:36%;left:50%;transform:translate(-50%,-50%);font-size:92px;font-weight:800;color:#fff;-webkit-text-stroke:4px #4a2f18;text-shadow:0 6px 0 rgba(74,47,24,.35);animation:goPop .85s forwards}
+@keyframes goPop{0%{transform:translate(-50%,-50%) scale(.3);opacity:0}25%{transform:translate(-50%,-50%) scale(1.15);opacity:1}70%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
+
+/* Countdown number */
+#countNum{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);font-size:120px;font-weight:800;color:#fff;-webkit-text-stroke:5px #4a2f18;text-shadow:0 7px 0 rgba(74,47,24,.35)}
+
+/* Tip warning */
+#tipWarn{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:#ff8c32;color:#fff;border:3px solid #4a2f18;border-radius:999px;padding:7px 20px;font-weight:800;font-size:17px;animation:pulse .35s infinite alternate;box-shadow:0 4px 0 rgba(74,47,24,.3)}
+/* Toast */
+#toast{position:absolute;top:120px;left:50%;transform:translateX(-50%);background:#4a2f18;color:#fff;border-radius:12px;padding:8px 18px;font-weight:700;font-size:14px;opacity:.95;transition:opacity .4s}
+/* Buttons rows / variants */
+.btnRow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn.alt{background:#2c6e49}
+.btn.small{font-size:14px;padding:8px 20px;margin-top:0}
+.linkBtn{margin-top:10px;background:none;border:none;font-family:inherit;font-weight:800;font-size:13px;color:#b06a2c;text-decoration:underline;cursor:pointer}
+/* Record badge */
+.record{display:inline-block;background:#f5a524;color:#4a2f18;border-radius:10px;padding:3px 14px;font-weight:900;margin-top:8px;animation:pulse .5s infinite alternate}
+/* Name save row */
+.nameRow{display:flex;gap:8px;justify-content:center;margin-top:14px}
+.nameRow input{font-family:inherit;font-size:15px;font-weight:700;padding:8px 12px;border:3px solid #4a2f18;border-radius:12px;width:150px;background:#fff;color:#4a2f18}
+/* Achievements toast row on result */
+.achToastRow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px;min-height:0}
+.achBadge{background:#fff;border:2.5px solid #4a2f18;border-radius:10px;padding:4px 10px;font-size:13px;font-weight:800}
+/* Board screen */
+.boardList{margin-top:12px;max-height:220px;overflow:auto}
+.boardRow{display:flex;justify-content:space-between;gap:10px;background:#fff;border:2.5px solid #4a2f18;border-radius:10px;padding:6px 14px;margin:5px 0;font-weight:700;font-size:15px}
+.boardRow b{font-variant-numeric:tabular-nums}
+.boardEmpty{opacity:.55;font-size:14px;margin-top:10px}
+.achHead{margin-top:14px}
+.achGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+.achCell{display:flex;align-items:center;gap:8px;background:#fff;border:2.5px solid #4a2f18;border-radius:12px;padding:7px 10px;font-size:13px;font-weight:700;text-align:left}
+.achCell.locked{opacity:.38;filter:grayscale(1)}
+.achCell .ico{font-size:22px}
+
+/* Screens */
+.screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;background:rgba(60,40,20,.18);backdrop-filter:blur(2px)}
+.card{background:#fff6e8;border:3px solid #4a2f18;border-radius:22px;padding:24px 30px;box-shadow:0 10px 0 rgba(74,47,24,.28);max-width:560px;width:calc(100% - 40px);text-align:center;max-height:calc(100% - 28px);overflow:auto}
+h1{font-size:44px;line-height:1.05}
+.subtitle{font-size:14px;font-weight:800;letter-spacing:.3em;color:#b06a2c;margin-top:2px}
+.tagline{margin-top:10px;font-size:15px;opacity:.85}
+.goal{margin-top:12px;font-size:19px;font-weight:800;color:#b0431f}
+.how{list-style:none;margin:14px auto 0;text-align:left;max-width:430px;font-size:14.5px;line-height:1.5}
+.how li{padding-left:20px;position:relative;margin:5px 0}
+.how li::before{content:'▸';position:absolute;left:2px;color:#f5a524;font-weight:800}
+.tip{margin-top:12px;font-size:13.5px;font-weight:700;color:#2c6e49;background:#e7f5ec;border:2px dashed #2c6e49;border-radius:12px;padding:8px 12px}
+.btn{margin-top:16px;font-family:inherit;font-size:19px;font-weight:800;color:#fff;background:#e8862b;border:3px solid #4a2f18;border-radius:999px;padding:12px 36px;cursor:pointer;box-shadow:0 5px 0 rgba(74,47,24,.4)}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(74,47,24,.4)}
+.credit{margin-top:14px;font-size:11.5px;opacity:.55}
+.resultHead{font-size:14px;font-weight:800;letter-spacing:.3em;color:#b06a2c}
+.rankIcon{font-size:60px;margin:4px 0;line-height:1.2}
+.rankRow span{font-size:11px;opacity:.6;font-weight:800;letter-spacing:.22em;display:block}
+#rankText{display:block;font-size:32px;font-weight:800;color:#b0431f;line-height:1.2}
+.dnf{display:inline-block;background:#d34a3a;color:#fff;border-radius:8px;padding:2px 12px;font-weight:800;margin-top:8px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.stats>div{background:#fff;border:2.5px solid #4a2f18;border-radius:14px;padding:9px}
+.stats span{display:block;font-size:11px;font-weight:800;opacity:.6;letter-spacing:.08em}
+.stats b{font-size:20px;font-variant-numeric:tabular-nums}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;background:#9fd8f5;pointer-events:auto}
+@media (max-width:560px){
+  h1{font-size:34px}
+  .key{min-width:86px;height:54px;padding:0 12px}
+  .key span{font-size:18px}
+  .gap{width:8px}
+  .pill{min-width:0;padding:5px 10px}
+  .pill b{font-size:16px}
+  #goBanner{font-size:64px}
+  #countNum{font-size:88px}
+}
+</style>
+</head>
+<body>
+<a class="back-to-menu" href="../../" aria-label="返回總覽"><span aria-hidden="true">←</span><span class="back-to-menu-label">返回總覽</span></a>
+<div id="ui">
+  <div id="hud" class="hidden">
+    <div class="pill"><span data-i18n="hud_time"></span><b id="hudTime">90.0</b></div>
+    <div class="pill"><span data-i18n="hud_dist"></span><b id="hudDist">50.0 m</b></div>
+    <div class="pill" id="fallsPill"><span data-i18n="hud_falls"></span><b id="hudFalls">0</b></div>
+  </div>
+
+  <div id="corner">
+    <button id="ghostBtn" class="chip" title="Ghost">👻</button>
+    <button id="langBtn" class="chip" title="Language">EN</button>
+    <button id="muteBtn" class="chip" title="Sound">🔊</button>
+  </div>
+
+  <div id="tipWarn" class="hidden">⚠ <span data-i18n="tip_warn"></span></div>
+  <div id="toast" class="hidden"></div>
+
+  <div id="fallPrompt" class="hidden"><span data-i18n="fallen"></span></div>
+  <div id="goBanner" class="hidden">GO!</div>
+  <div id="countNum" class="hidden">3</div>
+
+  <div id="keysBar" class="hidden">
+    <div class="key" id="key-KeyQ" style="--kc:#e66900"><span>Q</span><small data-i18n="legQ"></small></div>
+    <div class="key" id="key-KeyW" style="--kc:#00b04d"><span>W</span><small data-i18n="legW"></small></div>
+    <div class="gap"></div>
+    <div class="key" id="key-KeyO" style="--kc:#e356a2"><span>O</span><small data-i18n="legO"></small></div>
+    <div class="key" id="key-KeyP" style="--kc:#2e91ff"><span>P</span><small data-i18n="legP"></small></div>
+  </div>
+
+  <div id="titleScreen" class="screen">
+    <div class="card">
+      <h1 data-i18n="title"></h1>
+      <div class="subtitle" data-i18n="subtitle"></div>
+      <div class="tagline" data-i18n="tagline"></div>
+      <div class="goal" data-i18n="goal"></div>
+      <ul class="how">
+        <li data-i18n="how1"></li>
+        <li data-i18n="how2"></li>
+        <li data-i18n="how3"></li>
+      </ul>
+      <div class="tip" data-i18n="tip"></div>
+      <div class="btnRow">
+        <button id="startBtn" class="btn" data-i18n="start"></button>
+        <button id="practiceBtn" class="btn alt" data-i18n="practice"></button>
+      </div>
+      <button id="boardBtn" class="linkBtn" data-i18n="board"></button>
+      <div class="credit" data-i18n="credit"></div>
+    </div>
+  </div>
+
+  <div id="boardScreen" class="screen hidden">
+    <div class="card">
+      <div class="resultHead" data-i18n="board_title"></div>
+      <div id="boardList" class="boardList"></div>
+      <div class="resultHead achHead" data-i18n="ach_title"></div>
+      <div id="achGrid" class="achGrid"></div>
+      <button id="boardClose" class="btn" data-i18n="close"></button>
+    </div>
+  </div>
+
+  <div id="resultScreen" class="screen hidden">
+    <div class="card">
+      <div class="resultHead" data-i18n="result_title"></div>
+      <div id="rankIcon" class="rankIcon">🏆</div>
+      <div class="rankRow"><span data-i18n="rank_label"></span><b id="rankText"></b></div>
+      <div id="dnfBadge" class="dnf hidden" data-i18n="dnf"></div>
+      <div id="newRecord" class="record hidden" data-i18n="new_record"></div>
+      <div class="stats">
+        <div><span data-i18n="st_time"></span><b id="stTime">–</b></div>
+        <div><span data-i18n="st_falls"></span><b id="stFalls">–</b></div>
+        <div><span data-i18n="st_steps"></span><b id="stSteps">–</b></div>
+        <div><span data-i18n="st_speed"></span><b id="stSpeed">–</b></div>
+      </div>
+      <div id="nameRow" class="nameRow hidden">
+        <input id="nameInput" maxlength="10" data-i18n-ph="name_ph">
+        <button id="saveScoreBtn" class="btn small" data-i18n="save_score"></button>
+      </div>
+      <div id="achToastRow" class="achToastRow"></div>
+      <div class="btnRow">
+        <button id="retryBtn" class="btn" data-i18n="retry"></button>
+        <button id="shareBtn" class="btn alt" data-i18n="share"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading">Loading…</div>
+</div>
+
+
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

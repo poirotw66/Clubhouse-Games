@@ -1,0 +1,10 @@
+{
+  "name": "wall-flip",
+  "private": true,
+  "version": "1.0.0",
+  "description": "牆上翻滾 Wall Flip — 2D Canvas + Three.js 3D physical stunt game (static files; the build step stages them into dist/ for GitHub Pages)",
+  "scripts": {
+    "dev": "npx --yes serve .",
+    "build": "node -e \"const fs=require('node:fs');fs.rmSync('dist',{recursive:true,force:true});fs.cpSync('.','dist',{recursive:true,filter:(s)=>!s.includes('dist')&&!s.includes('node_modules')});\""
+  }
+}
