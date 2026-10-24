@@ -111,6 +111,11 @@ canvas{display:block}
 .codeRow input{font-family:monospace;font-size:11px;width:240px;padding:7px 10px;border:2.5px solid #4a2f18;border-radius:10px;background:#fff;color:#4a2f18}
 #codeArea{width:100%;margin-top:12px;font-family:monospace;font-size:12px;padding:10px;border:2.5px solid #4a2f18;border-radius:12px;background:#fff;color:#4a2f18;resize:vertical}
 .codeHint{font-size:12px;opacity:.6;margin-top:8px;font-weight:700}
+/* Daily challenge */
+.pill.daily b{color:#8a5a00}
+.btn.alt3{background:#c77d1a}
+.dailyInfo{margin-top:10px;font-size:12.5px;font-weight:700;color:#8a5a00;background:#fdf3df;border:2px dashed #c77d1a;border-radius:10px;padding:6px 10px}
+#dailyBanner{position:absolute;top:52%;left:50%;transform:translateX(-50%);background:#fdf3df;border:3px solid #4a2f18;border-radius:14px;padding:8px 20px;font-weight:800;color:#8a5a00;font-size:16px;box-shadow:0 4px 0 rgba(74,47,24,.3);white-space:nowrap}
 /* Leaderboard tabs & world rows */
 .tabRow{display:flex;gap:8px;justify-content:center;margin-top:12px}
 .boardRow .rowGhost{font-family:inherit;font-weight:800;font-size:12px;border:2px solid #4a2f18;border-radius:8px;background:#f5a524;color:#fff;cursor:pointer;padding:3px 8px}
@@ -163,6 +168,7 @@ h1{font-size:44px;line-height:1.05}
     <div class="pill"><span data-i18n="hud_dist"></span><b id="hudDist">50.0 m</b></div>
     <div class="pill" id="fallsPill"><span data-i18n="hud_falls"></span><b id="hudFalls">0</b></div>
     <div class="pill ai" id="aiPill"><span data-i18n="opp"></span><b id="hudAi">—</b></div>
+    <div class="pill daily" id="dayPill"><span>DAILY</span><b id="hudDay"></b></div>
   </div>
 
   <div id="corner">
@@ -181,6 +187,7 @@ h1{font-size:44px;line-height:1.05}
   <div id="fallPrompt" class="hidden"><span data-i18n="fallen"></span></div>
   <div id="goBanner" class="hidden">GO!</div>
   <div id="countNum" class="hidden">3</div>
+  <div id="dailyBanner" class="hidden"></div>
 
   <div id="keysBar" class="hidden">
     <div class="key" id="key-KeyQ" style="--kc:#e66900"><span>Q</span><small data-i18n="legQ"></small></div>
@@ -210,10 +217,12 @@ h1{font-size:44px;line-height:1.05}
       </div>
       <div class="btnRow">
         <button id="startBtn" class="btn" data-i18n="start"></button>
+        <button id="dailyBtn" class="btn alt3" data-i18n="daily"></button>
         <button id="practiceBtn" class="btn alt" data-i18n="practice"></button>
         <button id="duelBtn" class="btn alt2" data-i18n="duel"></button>
         <button id="tourBtn" class="btn alt" data-i18n="tour"></button>
       </div>
+      <div id="dailyInfo" class="dailyInfo"></div>
       <button id="boardBtn" class="linkBtn" data-i18n="board"></button>
       <button id="codeImportBtn" class="linkBtn" data-i18n="code_import"></button>
       <div class="credit" data-i18n="credit"></div>
@@ -225,7 +234,8 @@ h1{font-size:44px;line-height:1.05}
       <div class="resultHead" data-i18n="board_title"></div>
       <div class="tabRow" id="lbTabs">
         <button class="modeChip sel" data-lb="local" data-i18n="lb_local"></button>
-        <button class="modeChip" data-lb="world" data-i18n="lb_world"></button>
+        <button class="modeChip" data-lb="all" data-i18n="lb_all"></button>
+        <button class="modeChip" data-lb="today" data-i18n="lb_today"></button>
         <button id="lbRefresh" class="modeChip">↻</button>
       </div>
       <div id="boardList" class="boardList"></div>

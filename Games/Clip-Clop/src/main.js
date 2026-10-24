@@ -41,6 +41,33 @@ const CFG = {
 };
 const G_GRAV=9.8;
 
+/* ---- daily challenge: deterministic per-date modifiers + weather ---- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function strHash(str){let h=1779033703;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19;}return h>>>0;}
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dailyInfo(dateStr){
+  const rng=mulberry32(strHash(dateStr||todayStr()));
+  const info={
+    date:dateStr||todayStr(),
+    drag:0.7+rng()*0.5,          // wind: DRAG multiplier 0.7–1.2
+    fric:0.85+rng()*0.3,         // ground: TRACTION/SLIDE multiplier
+    slope:(rng()*2-1)*0.28,      // m/s^2 along the track (+ downhill)
+    weather:'day',
+  };
+  const w=rng();
+  info.weather=w<0.62?'day':w<0.87?'dusk':'rain';
+  return info;
+}
+const MOD={drag:1,fric:1,slope:0};   // live modifiers (neutral outside daily)
+function dailyLabels(d){
+  const zh=lang==='zh';
+  const wind=d.drag>1.08?'m_headwind':d.drag<0.92?'m_tailwind':'m_breeze';
+  const gnd=d.fric>1.08?'m_grippy':d.fric<0.92?'m_slick':'m_normalG';
+  const slp=d.slope>0.08?'m_downhill':d.slope<-0.08?'m_uphill':'m_flat';
+  const wname=zh?{day:'晴',dusk:'黃昏',rain:'雨天'}[d.weather]:d.weather;
+  return tr(wind)+' · '+tr(gnd)+' · '+tr(slp)+' · '+wname;
+}
+
 const LEG_CFG = [
   { key:'KeyQ', side:+1, front:false, color:0xe66900, x:-0.55, y:+0.053, z:+0.18, len:1.25 }, // left hind (longer, hip higher)
   { key:'KeyW', side:-1, front:false, color:0x00b04d, x:-0.55, y:+0.053, z:-0.18, len:1.25 }, // right hind
@@ -91,6 +118,11 @@ const I18N = {
     code_ph:'貼上 CC1. 開頭的戰報碼…',
     perf_hi:'畫質：高', perf_mid:'畫質：中', perf_lo:'畫質：省電', perf_auto:'畫質：自動',
     perf_auto_drop:'偵測到低幀率，已自動調降畫質',
+    daily:'每日挑戰', new_daily_best:'★ 今日最佳！',
+    m_headwind:'逆風強', m_breeze:'微風', m_tailwind:'順風',
+    m_grippy:'地面澀', m_normalG:'地面正常', m_slick:'地面滑',
+    m_uphill:'上坡吃力', m_flat:'平路', m_downhill:'下坡助跑',
+    lb_all:'世界', lb_today:'今日',
     lb_local:'本地', lb_world:'世界', lb_refresh:'重新整理',
     lb_upload:'上傳世界排行', lb_uploaded:'已上傳世界排行 ✓', lb_upload_fail:'上傳失敗，稍後再試',
     lb_rate:'太快了，一分鐘後再上傳', lb_need_name:'請先輸入名字',
@@ -137,6 +169,11 @@ const I18N = {
     code_ph:'Paste a code starting with CC1.…',
     perf_hi:'Quality: High', perf_mid:'Quality: Medium', perf_lo:'Quality: Battery', perf_auto:'Quality: Auto',
     perf_auto_drop:'Low framerate — quality lowered automatically',
+    daily:'Daily Race', new_daily_best:"★ Today's best!",
+    m_headwind:'Strong headwind', m_breeze:'Light breeze', m_tailwind:'Tailwind',
+    m_grippy:'Grippy ground', m_normalG:'Normal ground', m_slick:'Slick ground',
+    m_uphill:'Tiring uphill', m_flat:'Flat', m_downhill:'Downhill boost',
+    lb_all:'World', lb_today:'Today',
     lb_local:'Local', lb_world:'World', lb_refresh:'Refresh',
     lb_upload:'Upload to world board', lb_uploaded:'Uploaded ✓', lb_upload_fail:'Upload failed, try later',
     lb_rate:'Too fast — wait a minute between uploads', lb_need_name:'Enter a name first',
@@ -177,6 +214,8 @@ const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hu
       nameRow=$('nameRow'), nameInput=$('nameInput'), saveScoreBtn=$('saveScoreBtn'),
       achToastRow=$('achToastRow'), shareBtn=$('shareBtn'),
       uploadRow=$('uploadRow'), uploadBtn=$('uploadBtn'), worldList=$('worldList'),
+      dayPill=$('dayPill'), hudDay=$('hudDay'), dailyBtn=$('dailyBtn'), dailyInfoEl=$('dailyInfo'),
+      dailyBannerEl=$('dailyBanner'),
       rankText=$('rankText'), rankIcon=$('rankIcon'),
       stTime=$('stTime'), stFalls=$('stFalls'), stSteps=$('stSteps'), stSpeed=$('stSpeed'),
       retryBtn=$('retryBtn'), loadingEl=$('loading');
@@ -236,6 +275,61 @@ class Sfx {
   fanfare(){ if(!this.ok())return;
     [523.25,659.25,783.99,1046.5].forEach((f,i)=>this.tone('triangle',f,f,0.22,0.2,i*0.12));
   }
+  neigh(f0,f1,dur,vol,amRate,when=0){
+    if(!this.ok())return;
+    const c=this.ctx,t=c.currentTime+when;
+    const o=c.createOscillator();o.type='sawtooth';
+    o.frequency.setValueAtTime(f0,t);
+    o.frequency.exponentialRampToValueAtTime(f0*1.35,t+dur*0.22);
+    o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    const vib=c.createOscillator();vib.frequency.value=amRate*1.35;
+    const vg=c.createGain();vg.gain.value=f0*0.09;
+    vib.connect(vg).connect(o.frequency);
+    const am=c.createOscillator();am.frequency.value=amRate;
+    const amg=c.createGain();amg.gain.value=0.45;
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.06);
+    g.gain.setValueAtTime(vol,t+dur*0.7);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    am.connect(amg).connect(g.gain);
+    const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f0*1.6;bp.Q.value=0.9;
+    o.connect(bp).connect(g).connect(c.destination);
+    o.start(t);o.stop(t+dur+0.05);
+    vib.start(t);vib.stop(t+dur+0.05);
+    am.start(t);am.stop(t+dur+0.05);
+  }
+  whinny(){this.neigh(520,300,1.1,0.30,10);}                 // victory whinny
+  sadNeigh(){this.neigh(430,190,0.8,0.22,6);}                // fall complaint
+  crowdStart(){
+    if(!this.ok()||this.crowd)return;
+    const c=this.ctx;
+    const src=c.createBufferSource();src.buffer=this.noiseBuf;src.loop=true;
+    const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=900;bp.Q.value=0.5;
+    const g=c.createGain();g.gain.value=0;
+    src.connect(bp).connect(g).connect(c.destination);
+    src.start();
+    this.crowd={src,g,bp};
+  }
+  crowdSet(v){
+    if(!this.crowd)return;
+    this.crowd.g.gain.setTargetAtTime(v,this.ctx.currentTime,0.4);
+  }
+  crowdBurst(){
+    if(!this.crowd)return;
+    const t=this.ctx.currentTime;
+    this.crowd.bp.frequency.setTargetAtTime(1400,t,0.1);
+    this.crowd.g.gain.cancelScheduledValues(t);
+    this.crowd.g.gain.setTargetAtTime(0.5,t,0.05);
+  }
+  crowdStop(){
+    if(!this.crowd)return;
+    const cr=this.crowd;this.crowd=null;
+    try{
+      cr.g.gain.setTargetAtTime(0,this.ctx.currentTime,0.3);
+      setTimeout(()=>{try{cr.src.stop();}catch(e){}},1500);
+    }catch(e){}
+  }
 }
 const sfx = new Sfx();
 
@@ -271,17 +365,21 @@ scene.add(sun); scene.add(sun.target);
 
 function buildWorld(){
   // grass
+  const groundMat=new THREE.MeshStandardMaterial({color:0x7cab58, roughness:1});
+  groundMatRef=groundMat;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(500,400),
-    new THREE.MeshStandardMaterial({color:0x7cab58, roughness:1}));
+    groundMat);
   ground.rotation.x = -Math.PI/2;
   ground.receiveShadow = true;
   scene.add(ground);
 
   // dirt track
+  const trackMat=new THREE.MeshStandardMaterial({color:0xc09a6a, roughness:1});
+  trackMatRef=trackMat;
   const track = new THREE.Mesh(
     new THREE.BoxGeometry(96,0.06,4.6),
-    new THREE.MeshStandardMaterial({color:0xc09a6a, roughness:1}));
+    trackMat);
   track.position.set(25,0.03,0);
   track.receiveShadow = true;
   scene.add(track);
@@ -969,14 +1067,20 @@ const LB={
   get cfg(){return window.CC_LEADERBOARD||null;},
   ok(){const c=this.cfg;return !!(c&&c.url&&c.key&&c.url.indexOf('YOUR')<0&&c.key.indexOf('YOUR')<0);},
   cache:null,lastFetch:0,
+  tab:'all',
   async top(force){
     if(!this.ok())return null;
-    if(!force&&this.cache&&Date.now()-this.lastFetch<60000)return this.cache;
-    const r=await fetch(this.cfg.url+'/rest/v1/clipclop_scores?select=name,time_ms,falls,code,created_at&order=time_ms.asc&limit=20',{
+    const key=this.tab;
+    if(!force&&this.cache&&this.cacheKey===key&&Date.now()-this.lastFetch<60000)return this.cache;
+    let q='clipclop_scores?select=name,time_ms,falls,code,created_at&order=time_ms.asc&limit=20';
+    if(key==='all')q+='&mode=eq.normal';
+    else if(key==='today')q+='&mode=eq.daily&day=eq.'+encodeURIComponent(todayStr());
+    const r=await fetch(this.cfg.url+'/rest/v1/'+q,{
       headers:{apikey:this.cfg.key,Authorization:'Bearer '+this.cfg.key},
     });
     if(!r.ok)throw new Error('lb fetch '+r.status);
     this.cache=await r.json();
+    this.cacheKey=key;
     this.lastFetch=Date.now();
     return this.cache;
   },
@@ -1033,10 +1137,10 @@ document.querySelectorAll('#lbTabs [data-lb]').forEach(b=>{
   b.addEventListener('click',()=>{
     b.blur();
     document.querySelectorAll('#lbTabs [data-lb]').forEach(x=>x.classList.toggle('sel',x===b));
-    const world=b.dataset.lb==='world';
-    $('boardList').classList.toggle('hidden',world);
-    $('worldList').classList.toggle('hidden',!world);
-    if(world)refreshWorld(false);
+    const isLocal=b.dataset.lb==='local';
+    $('boardList').classList.toggle('hidden',!isLocal);
+    $('worldList').classList.toggle('hidden',isLocal);
+    if(!isLocal){LB.tab=b.dataset.lb;refreshWorld(false);}
   });
 });
 $('lbRefresh').addEventListener('click',()=>{$('lbRefresh').blur();refreshWorld(true);});
@@ -1063,6 +1167,8 @@ uploadBtn.addEventListener('click',async()=>{
       steps:G.steps,
       speed:Math.round(G.topSpeed*36),
       code:codeInput.value,
+      mode:G.daily?'daily':'normal',
+      day:G.daily?G.dailyData.date:null,
     });
     store.set('cc_last_upload',now);
     LB.lastFetch=0;
@@ -1140,7 +1246,7 @@ const G = {
   fallPose:null, simAcc:0,
   doneT:0, finishTime:0, dnf:false, resultShown:false, nPlant:4,
   lastBeepSec:99, countdown:0, lastCount:0,
-  elapsed:0, practice:false, replay:null,
+  elapsed:0, practice:false, replay:null, daily:false, dailyData:null, weather:'day',
   ghostOn:true, ghostData:null, rec:[], recAcc:0,
 };
 const held = {KeyQ:false,KeyW:false,KeyO:false,KeyP:false};
@@ -1155,10 +1261,26 @@ function resetLegsNeutral(){
   }
 }
 
-function startRun(practice){
+function startRun(practice,daily){
   sfx.ensure();
   G.state='run';
   G.practice=!!practice;
+  G.daily=!!daily&&!G.practice;
+  G.dailyData=G.daily?dailyInfo():null;
+  MOD.drag=G.daily?G.dailyData.drag:1;
+  MOD.fric=G.daily?G.dailyData.fric:1;
+  MOD.slope=G.daily?G.dailyData.slope:0;
+  G.weather=G.daily?G.dailyData.weather:(Math.random()<0.85?'day':Math.random()<0.6?'dusk':'rain');
+  applyWeather(G.weather);
+  if(G.daily){
+    hudDay.textContent=G.dailyData.date.slice(5);
+    dayPill.classList.remove('hidden');
+    dailyBannerEl.textContent='📅 '+G.dailyData.date+'　'+dailyLabels(G.dailyData);
+    dailyBannerEl.classList.remove('hidden');
+  }else{
+    dayPill.classList.add('hidden');
+    dailyBannerEl.classList.add('hidden');
+  }
   G.x=0; G.vx=0; G.vy=0; G.y=CFG.bodyY;
   G.pitch=0; G.pitchV=0; G.roll=0; G.rollV=0; G.yaw=0; G.z=0;
   G.falls=0; G.steps=0; G.topSpeed=0; G.timeLeft=CFG.timeLimit;
@@ -1188,6 +1310,11 @@ function toTitle(){
   G.state='title';
   G.x=0; G.vx=0; G.vy=0; G.y=CFG.bodyY; G.pitch=0; G.roll=0; G.yaw=0; G.z=0;
   G.fallPose=null; G.elapsed=0; G.replay=null;
+  G.daily=false; MOD.drag=1; MOD.fric=1; MOD.slope=0;
+  sfx.crowdStop();
+  applyWeather('day');
+  dayPill.classList.add('hidden');
+  dailyBannerEl.classList.add('hidden');
   DUEL.on=false;
   TOUR.on=false; TOUR.leg=0; TOUR.pts=0; TOUR.marks='';
   codeScreen.classList.add('hidden');
@@ -1219,7 +1346,9 @@ function finishRace(){
   G.state='done'; G.doneT=0; G.dnf=false;
   G.finishTime=G.elapsed;
   if(DUEL.on)duelRecord(G.finishTime);
-  sfx.fanfare();
+  sfx.crowdBurst();
+  sfx.whinny();
+  setTimeout(()=>sfx.fanfare(),500);
   buzz([60,50,60,50,180]);
   burstConfetti(G.x,0);
   fallPromptEl.classList.add('hidden');
@@ -1229,6 +1358,8 @@ function timeUp(){
   G.state='done'; G.doneT=0; G.dnf=true;
   G.finishTime=CFG.timeLimit;
   if(DUEL.on)duelRecord(G.finishTime);
+  sfx.crowdStop();
+  sfx.sadNeigh();
   sfx.buzz();
   buzz(300);
   fallPromptEl.classList.add('hidden');
@@ -1257,7 +1388,8 @@ function showResult(){
   duelRow.classList.add('hidden');
   codeRow.classList.add('hidden');
   uploadRow.classList.add('hidden');
-  const ranked=!G.dnf&&!G.practice&&!DUEL.on&&!TOUR.on;
+  const canRace=!G.dnf&&!G.practice&&!DUEL.on&&!TOUR.on;
+  const ranked=canRace&&!G.daily;
 
   if(TOUR.on){
     // championship: leg results, running points, final trophy
@@ -1303,6 +1435,14 @@ function showResult(){
     }
   }
 
+  if(G.daily&&canRace){
+    const db=store.get('cc_daily',null);
+    if(!db||db.date!==G.dailyData.date||G.finishTime<db.t){
+      store.set('cc_daily',{date:G.dailyData.date,t:G.finishTime});
+      newRecordEl.textContent=tr('new_daily_best');
+      newRecordEl.classList.remove('hidden');
+    }
+  }
   if(ranked){
     // personal best
     const best=store.get('cc_best',null);
@@ -1330,14 +1470,18 @@ function showResult(){
     }
     nameRow.classList.remove('hidden');
     nameInput.value=store.get('cc_name','');
+  }
+  if(G.daily&&canRace){
+    nameRow.classList.remove('hidden');
+    nameInput.value=store.get('cc_name','');
     // battle code for this run (paste-friendly, carries a 10 Hz trace)
     makeBattleCode().then(code=>{
       if(G.state!=='done'||G.dnf)return;
       codeInput.value=code;
       codeRow.classList.remove('hidden');
     }).catch(()=>{});
-    if(LB.ok())uploadRow.classList.remove('hidden');
   }
+  if(canRace&&LB.ok())uploadRow.classList.remove('hidden');
 
   // cumulative stats + achievements
   const stats=store.get('cc_stats',{runs:0,falls:0,dist:0});
@@ -1430,7 +1574,8 @@ function simHorse(S,L,inp,dt){
   }
 
   /* ---- linear motion ---- */
-  S.vx+=(thrust-brake*S.vx-CFG.DRAG*S.vx*Math.abs(S.vx))*dt;
+  S.vx+=(thrust-brake*S.vx-CFG.DRAG*MOD.drag*S.vx*Math.abs(S.vx))*dt;
+  S.vx+=MOD.slope*dt;                    // daily hill along the track
   S.vy+=(Fsum-G_GRAV)*dt;
   S.y +=S.vy*dt;
   S.x +=S.vx*dt;
@@ -1540,7 +1685,7 @@ function simStep(dt){
       printAt(e.footX,e.z);
     }else if(e.type==='fall'){
       G.state='fallen'; G.falls++;
-      sfx.fall(); camShake=0.5;
+      sfx.fall(); sfx.sadNeigh(); camShake=0.5;
       buzz([90,50,140]);
       dustAt(G.x,0,4); dustAt(G.x-0.6,0,2); dustAt(G.x+0.6,0,2);
       fallPromptEl.classList.add('hidden');
@@ -1641,6 +1786,8 @@ document.querySelectorAll('#aiRow .modeChip').forEach(b=>{
   b.addEventListener('click',()=>{b.blur();sfx.ensure();aiSel=b.dataset.ai;refreshAiChips();});
 });
 refreshAiChips();
+dailyInfoEl.textContent='📅 '+todayStr()+'　'+dailyLabels(dailyInfo());
+dailyBtn.addEventListener('click',()=>{dailyBtn.blur();startRun(false,true);});
 duelBtn.addEventListener('click',()=>{duelBtn.blur();duelStart();});
 tourBtn.addEventListener('click',()=>{tourBtn.blur();tourStart();});
 lbBot.addEventListener('click',()=>{if(G.replay&&G.replay.active)endReplay();});
@@ -1874,6 +2021,54 @@ applyI18n();
 /* ================================================================
    Visual sync & camera
 ================================================================ */
+/* ---- weather variants (visual only): day / dusk / rain ---- */
+const WEATHER={
+  day: {sky:0x9fd8f5,fog:0xbfe4f7,sun:0xfff1d6,sunI:3.0,hemiSky:0xcfe8ff,hemiGnd:0x7a9b58,ground:0x7cab58,track:0xc09a6a,rain:false},
+  dusk:{sky:0xf2a06a,fog:0xe8b48a,sun:0xff9d5c,sunI:2.4,hemiSky:0xffd0a0,hemiGnd:0x6f6a4a,ground:0x6f9450,track:0xb0865c,rain:false},
+  rain:{sky:0x87999e,fog:0x9aacb0,sun:0xcfd8e0,sunI:1.2,hemiSky:0xaebfc6,hemiGnd:0x5a7050,ground:0x5f8149,track:0x997a58,rain:true},
+};
+let groundMatRef=null, trackMatRef=null, rainLines=null;
+const rainDrops=[];
+function buildRain(){
+  const N=220, pos=new Float32Array(N*6);
+  for(let i=0;i<N;i++){
+    const x=Math.random()*30-15, y=Math.random()*12, z=Math.random()*16-8;
+    rainDrops.push({x,y,z});
+    pos.set([x,y,z,x,y-0.4,z],i*6);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  rainLines=new THREE.LineSegments(geo,
+    new THREE.LineBasicMaterial({color:0xaec4d4,transparent:true,opacity:0.45}));
+  rainLines.visible=false;
+  rainLines.frustumCulled=false;
+  scene.add(rainLines);
+}
+function applyWeather(w){
+  const pa=WEATHER[w]||WEATHER.day;
+  scene.background.setHex(pa.sky);
+  scene.fog.color.setHex(pa.fog);
+  sun.color.setHex(pa.sun); sun.intensity=pa.sunI;
+  hemi.color.setHex(pa.hemiSky); hemi.groundColor.setHex(pa.hemiGnd);
+  if(groundMatRef)groundMatRef.color.setHex(pa.ground);
+  if(trackMatRef)trackMatRef.color.setHex(pa.track);
+  if(rainLines)rainLines.visible=!!pa.rain;
+}
+function updateRain(dt){
+  if(!rainLines||!rainLines.visible)return;
+  const cx=G.x;
+  const pos=rainLines.geometry.attributes.position.array;
+  for(let i=0;i<rainDrops.length;i++){
+    const d=rainDrops[i];
+    d.y-=11*dt; d.x-=2.5*dt;
+    if(d.y<0){d.y=11+Math.random();d.x=cx-15+Math.random()*30;d.z=Math.random()*16-8;}
+    if(d.x<cx-16)d.x+=30;
+    pos[i*6]=d.x;pos[i*6+1]=d.y;pos[i*6+2]=d.z;
+    pos[i*6+3]=d.x-0.08;pos[i*6+4]=d.y-0.42;pos[i*6+5]=d.z;
+  }
+  rainLines.geometry.attributes.position.needsUpdate=true;
+}
+
 function syncVisuals(dt){
   const celebrate=G.state==='done'&&!G.dnf&&!G.replay;
 
@@ -1973,7 +2168,14 @@ function syncVisuals(dt){
   camS.x+=(G.x+0.4+G.vx*0.25-camS.x)*(1-Math.exp(-5*dt));
 
   let px,py,pz,lx,ly,lz;
-  if(G.replay&&G.replay.active&&repF){
+  if(G.state==='run'&&G.countdown>0){
+    // opening shot: orbit the horse once, then settle into the chase cam
+    const t=1-G.countdown/3.0;
+    const e=t*t*(3-2*t);
+    const a=(1-e)*2.4;
+    px=G.x+Math.sin(a)*5.5; py=1.1+1.4*e; pz=Math.cos(a)*5.5;
+    lx=G.x; ly=1.15; lz=0;
+  }else if(G.replay&&G.replay.active&&repF){
     // finish replay: low side dolly tracking the recorded horse
     px=repF[0]-2.4; py=1.15; pz=6.6;
     lx=repF[0]+0.9; ly=1.0; lz=0;
@@ -2008,6 +2210,7 @@ function syncVisuals(dt){
     c.position.x+=dt*0.3;
     if(c.position.x>85)c.position.x=-15;
   }
+  updateRain(dt);
   updateDust(dt);
 }
 
@@ -2044,9 +2247,11 @@ function tick(dt,noRender){
     }
     if(G.countdown<=0){
       countNumEl.classList.add('hidden');
+      dailyBannerEl.classList.add('hidden');
       goBanner.classList.remove('hidden');
       goBanner.style.animation='none'; void goBanner.offsetWidth; goBanner.style.animation='';
       sfx.go();
+      sfx.crowdStart();
       buzz(40);
     }
   }else{
@@ -2088,6 +2293,7 @@ function tick(dt,noRender){
     const warnOn=G.state==='run'&&G.countdown<=0&&(Math.abs(G.roll)>0.32||Math.abs(G.pitch)>0.4);
     tipWarnEl.classList.toggle('hidden',!warnOn);
     if(!G.practice&&G.state==='run'&&G.topSpeed>=2.5)unlock('sprint');
+    sfx.crowdSet(THREE.MathUtils.clamp((G.x-38)/12,0,1)*0.22);
   }
   updateHud();
   perfTick(dt);
@@ -2118,6 +2324,8 @@ buildDust();
 buildHoofprints();
 buildConfetti();
 buildCrowd();
+buildRain();
+applyWeather('day');
 perfInit();
 {
   const rv=store.get('cc_rival',null);
@@ -2133,6 +2341,7 @@ window.__CFG=CFG;
 window.__AI=AI;
 window.__DUEL=DUEL;
 window.__TOUR=TOUR;
+window.__applyWeather=applyWeather;
 window.__tick=tick;    // manual frame pump for automated tests (rAF may be throttled in embedded browsers)
 window.__errs=[];
 addEventListener('error',e=>window.__errs.push(e.message+' @'+(e.filename||'')+':'+e.lineno));
