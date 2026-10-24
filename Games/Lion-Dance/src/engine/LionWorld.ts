@@ -359,13 +359,13 @@ export function createLionWorld(): LionWorld {
 
     if (sim.fallen) {
       const side = sim.fallSide || 1;
-      const land = Math.min(1, Math.max(0.55, sim.fallSpin * 1.4));
-      // Force a clear side-lie toward the camera (~±1.45 rad on X), not a belly flop
+      // Once landed, snap fully to side-lie (~±1.45 rad on X) — never a belly flop
+      const land = sim.fallLanded ? 1 : Math.min(1, Math.max(0.55, sim.fallSpin * 1.4));
       const sideRoll = side * -1.45;
       const showRoll = sim.roll * (1 - land) + sideRoll * land;
       root.scale.setScalar(LION_SCALE);
-      root.position.set(sim.x, Math.max(0.48, sim.y * 0.85 + 0.2), sim.lateral * 0.25);
-      root.rotation.set(showRoll, sim.yaw * 0.2, sim.pitch * 0.35);
+      root.position.set(sim.x, Math.max(0.52, sim.y * 0.7 + 0.28), sim.lateral * 0.2);
+      root.rotation.set(showRoll, sim.yaw * 0.12, sim.pitch * 0.2);
       cloth.rotation.set(0, 0, 0);
       cloth.position.set(0, 0, 0);
       hem.position.y = 0.02;

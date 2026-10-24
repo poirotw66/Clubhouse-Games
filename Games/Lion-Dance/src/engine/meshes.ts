@@ -591,18 +591,20 @@ export function applyLegPose(
     const S = swing[id] ?? 0;
     const attach = LEG_ATTACH_MESH[id];
     if (fallen) {
-      // Side-lie (~1.45 rad on X): fling legs out in a wide star so they read
-      // clearly from the side camera — still driven by swing/lift.
-      const along = id.startsWith('F') ? 1.15 : -1.15;
-      const sidePush = (id.endsWith('L') ? -1 : 1) * fallSide * 0.9;
+      // Side-lie (~±1.45 rad on X): body rolls onto its side; push legs out
+      // along local −Y / ±Z so they read as a wide star from three-quarter cam.
+      // Swing/lift still drive kick amplitude while fallen.
+      const along = id.startsWith('F') ? 1.35 : -1.35;
+      const lat = (id.endsWith('L') ? -1 : 1) * fallSide;
+      const kick = 0.55 + L * 0.85 + Math.abs(S) * 0.35;
       leg.root.position.set(
-        attach.x * 0.35 + along * (0.55 + L * 0.35),
-        -1.15 - L * 0.7 - Math.abs(S) * 0.25,
-        attach.z * 0.4 + sidePush,
+        attach.x * 0.2 + along * (0.7 + L * 0.45),
+        -1.55 - kick,
+        lat * (1.15 + L * 0.55) + S * 0.4,
       );
-      leg.thigh.rotation.set(sidePush * 0.6 + S * 0.35, along * 0.4 + S * 0.5, S * 0.7);
-      leg.shin.rotation.set(0.2, 0, -(0.7 + L * 1.1));
-      leg.foot.rotation.set(0, 0, 0.35 + L * 0.45);
+      leg.thigh.rotation.set(lat * 0.85 + S * 0.45, along * 0.55, S * 0.85);
+      leg.shin.rotation.set(0.15, lat * 0.25, -(0.85 + L * 1.15));
+      leg.foot.rotation.set(0, 0, 0.4 + L * 0.5);
       void flailT;
       continue;
     }

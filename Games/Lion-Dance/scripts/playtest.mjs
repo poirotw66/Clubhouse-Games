@@ -203,14 +203,29 @@ async function runViewport(browser, label, viewport) {
   const getUp = await page.locator('.lion-touch-up').count();
   const btns = await page.locator('.lion-leg-btn').count();
   const resultEarly = await page.locator('.lion-result').count();
-  const roll = await page.evaluate(() => {
-    const d = window.__lionWorld?.debugLegs?.();
-    return d ? true : true;
+  // Get-up must not cover the lion silhouette (desk + mobile)
+  const getUpClear = await page.evaluate(() => {
+    const frame = window.__lionWorld?.checkFraming?.();
+    const el = document.querySelector('.lion-touch-up');
+    if (!frame?.bounds || !el) return { ok: false, reason: 'missing' };
+    const r = el.getBoundingClientRect();
+    const b = frame.bounds;
+    // Convert UV AABB (top-left Y) to pixel rect
+    const lx = b.minX * innerWidth;
+    const rx = b.maxX * innerWidth;
+    const ty = b.minY * innerHeight;
+    const by = b.maxY * innerHeight;
+    const overlap =
+      r.left < rx - 4 && r.right > lx + 4 && r.top < by - 4 && r.bottom > ty + 4;
+    return { ok: !overlap, getUp: { x: r.x, y: r.y, w: r.width, h: r.height }, bounds: b };
   });
-  void roll;
-  console.log(label, { stamp, getUp, btns, resultEarly });
+  console.log(label, { stamp, getUp, btns, resultEarly, getUpClear });
   if (stamp < 1 || getUp < 1 || btns < 4) throw new Error(`${label} fall UI missing`);
   if (resultEarly > 0) throw new Error(`${label} fall must not end the run`);
+  if (!getUpClear.ok) {
+    throw new Error(`${label}: get-up overlaps lion ${JSON.stringify(getUpClear)}`);
+  }
+  await assertFeetClearOfHud(page, label, viewport);
 
   // Kick while fallen — feet should still move
   await page.keyboard.down('q');
