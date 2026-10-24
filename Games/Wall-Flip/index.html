@@ -9,11 +9,47 @@
 <style>
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #06080d; }
   canvas { display: block; touch-action: none; }
+  /* online leaderboard DOM panels (hidden by default) */
+  .wf-panel { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,.62); }
+  .wf-panel.on { display: flex; }
+  .wf-card { width: min(86vw, 430px); box-sizing: border-box; background: #0d121e; border: 2px solid rgba(111,240,208,.35); border-radius: 12px; padding: 18px 20px 16px; color: #eef4fa; font: 500 14px/1.5 system-ui, "Noto Sans TC", sans-serif; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .wf-card h3 { margin: 0 0 10px; font-size: 16px; font-weight: 800; color: #6ff0d0; }
+  .wf-card input { width: 100%; box-sizing: border-box; background: #06080d; border: 1px solid #2a3342; border-radius: 8px; padding: 10px 12px; color: #eef4fa; font: 500 14px ui-monospace, Menlo, monospace; outline: none; }
+  .wf-card input:focus { border-color: #6ff0d0; }
+  .wf-card input.bad { border-color: #ff5c5c; }
+  .wf-hint { margin: 8px 0 0; font-size: 12px; color: #8fa3b8; }
+  .wf-row { display: flex; gap: 10px; margin-top: 14px; }
+  .wf-btn { flex: 1; padding: 10px 0; border-radius: 999px; border: 1px solid rgba(159,182,201,.45); background: transparent; color: #cfe3f5; font: 700 14px system-ui, "Noto Sans TC", sans-serif; cursor: pointer; }
+  .wf-btn.primary { background: #1f9d61; border-color: #1f9d61; color: #fff; }
+  .wf-btn:hover { filter: brightness(1.15); }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <a href="../../" style="position:fixed;top:3px;left:12px;z-index:30;color:#8fa3b8;text-decoration:none;font:600 11px system-ui,sans-serif;letter-spacing:.05em;">← 返回總覽</a>
+<!-- online leaderboard DOM panels: rank API settings + score name entry (hidden by default) -->
+<div id="apiPanel" class="wf-panel">
+  <div class="wf-card">
+    <h3 id="apiTitleEl"></h3>
+    <input id="apiInput" type="url" spellcheck="false" autocomplete="off" autocapitalize="off">
+    <p class="wf-hint" id="apiHintEl"></p>
+    <div class="wf-row">
+      <button id="apiSaveBtn" class="wf-btn primary"></button>
+      <button id="apiCancelBtn" class="wf-btn"></button>
+    </div>
+  </div>
+</div>
+<div id="namePanel" class="wf-panel">
+  <div class="wf-card">
+    <h3 id="nameTitleEl"></h3>
+    <input id="nameInput" maxlength="10" spellcheck="false" autocomplete="off" autocapitalize="off">
+    <p class="wf-hint" id="nameHintEl"></p>
+    <div class="wf-row">
+      <button id="nameSendBtn" class="wf-btn primary"></button>
+      <button id="nameSkipBtn" class="wf-btn"></button>
+    </div>
+  </div>
+</div>
 <script>
 (() => {
 'use strict';
@@ -66,6 +102,15 @@ const STR = {
     ghostBtn: '幽靈', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: '幽靈已更新！', ghostLabel: '幽靈',
     padStick: '吸いつく', padLeft: '左', padRight: '右', padGo: 'すすむ',
     ach_land: '初著地', ach_roll1: '初翻滾', ach_roll2: '兩圈', ach_roll3: '三圈', ach_soft30: '滿柔軟', ach_legend: '傳說', ach_far100: '百米', ach_eco: '省氣王',
+    // online leaderboard
+    tabOnline: '線上', tabLocal: '本機', onlineMark: '線上',
+    submit: '送出', skip: '略過', submitTitle: '上傳成績',
+    nameLabel: '你的名字（10 字內）',
+    submitOk: '已上傳', submitFail: '送出失敗',
+    apiBtn: '⚙', apiTitle: '線上排行 API', apiSave: '儲存', apiCancel: '取消',
+    apiPlaceholder: 'https://your-rank-api.example.com',
+    apiHint: '貼上你的排名 API 網址；留空＝僅本機排行',
+    apiSaved: '已儲存', colTime: '時間',
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip, land on the tires',
@@ -97,6 +142,15 @@ const STR = {
     ghostBtn: 'GHOST', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: 'Ghost updated!', ghostLabel: 'GHOST',
     padStick: 'STICK', padLeft: '←', padRight: '→', padGo: 'GO',
     ach_land: 'First Land', ach_roll1: 'First Flip', ach_roll2: 'Double', ach_roll3: 'Triple', ach_soft30: 'Butter', ach_legend: 'Legend', ach_far100: '100m+', ach_eco: 'Eco',
+    // online leaderboard
+    tabOnline: 'ONLINE', tabLocal: 'LOCAL', onlineMark: 'ONLINE',
+    submit: 'Submit', skip: 'Skip', submitTitle: 'Submit your score',
+    nameLabel: 'Your name (max 10)',
+    submitOk: 'Uploaded', submitFail: 'Submit failed',
+    apiBtn: '⚙', apiTitle: 'Rank API', apiSave: 'Save', apiCancel: 'Cancel',
+    apiPlaceholder: 'https://your-rank-api.example.com',
+    apiHint: 'Paste your rank API URL; empty = local ranking only',
+    apiSaved: 'Saved', colTime: 'TIME',
   },
 };
 let lang = 'tc';
@@ -308,10 +362,187 @@ function boardAdd() {
 function openRank() {
   if (state !== ST.READY && state !== ST.RESULT) return;
   boardView = loadBoard();
+  rankApi = apiBase();
+  rankTab = rankApi ? 'online' : 'local';
+  onlineBoard = null;
+  onlineHi = -1;
   rankOn = true;
+  if (rankApi) fetchOnlineBoard(rankApi);
   sfx.click();
 }
 function closeRank() { rankOn = false; }
+// ---------- online leaderboard (backend-agnostic rank API client) ----------
+// Base URL is configured at runtime (gear button on the ranking overlay) and
+// persisted in localStorage `wallflip2.api`; empty = online off, local board only.
+const LOG_CAP = 12000;                 // max input-log pairs (matches server cap)
+let rankApi = '';                      // cached apiBase() for the ranking overlay
+let rankTab = 'local';                 // overlay tab: 'online' | 'local'
+let onlineBoard = null;                // fetched online top-10 (null = none/failed)
+let onlinePending = false;             // online fetch in flight
+let onlineHi = -1;                     // highlighted index in the online list
+let lastSubmit = null;                 // {n, s} of the entry just submitted
+let inputLog = [];                     // [framesSincePrevChange, inputMask] pairs
+let inputLogFrames = 0;
+let inputLogLast = -1;
+const rankUI = { tabOnline: null, tabLocal: null, gear: null };
+function apiBase() {
+  try {
+    const s = (localStorage.getItem('wallflip2.api') || '').trim();
+    return /^https?:\/\//i.test(s) ? s.replace(/\/+$/, '') : '';
+  } catch (e) { return ''; }
+}
+function submitThrottled() {
+  try { return Date.now() - (+localStorage.getItem('wallflip2.subT') || 0) < 60000; }
+  catch (e) { return false; }
+}
+// per-physics-frame input recording: only CHANGES are logged, each with the
+// frame count since the previous change (the original's re() scheme); physics
+// is deterministic, so the server can replay a run from this log alone
+function logInputFrame() {
+  inputLogFrames++;
+  const mask = (inp.stick ? 1 : 0) | (inp.drive ? 2 : 0) | (inp.left ? 4 : 0) | (inp.right ? 8 : 0);
+  if (mask !== inputLogLast) {
+    if (inputLog.length < LOG_CAP) inputLog.push([inputLogFrames, mask]);
+    inputLogFrames = 0;
+    inputLogLast = mask;
+  }
+}
+// GET {base}/top?c=<courseIdx>; accepts a raw array or {board:[...]}; on
+// failure the online board stays null and the overlay falls back to local
+function fetchOnlineBoard(base) {
+  onlinePending = true;
+  fetch(base + '/top?c=' + courseIdx)
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => {
+      const arr = Array.isArray(j) ? j : (j && Array.isArray(j.board)) ? j.board : null;
+      if (!arr) throw new Error('unexpected payload');
+      onlineBoard = arr
+        .filter(e => e && typeof e.n === 'string' && Number.isFinite(e.s) && Number.isFinite(e.r))
+        .slice(0, 10)
+        .map(e => ({ n: e.n, s: e.s, r: e.r, t: Number.isFinite(e.t) ? e.t : 0 }));
+      if (lastSubmit) onlineHi = onlineBoard.findIndex(e => e.n === lastSubmit.n && e.s === lastSubmit.s);
+      onlinePending = false;
+    })
+    .catch(err => {
+      onlinePending = false;
+      onlineBoard = null;              // silent fallback to the local board
+      console.warn('rank fetch failed:', err);
+    });
+}
+// POST {n, s, r, c, t, log} — sanitized client-side, throttled to 1 per 60 s;
+// bot/demo runs never reach this (guarded here and at the call site)
+function submitScore(name) {
+  const base = apiBase();
+  if (!base || botOn || submitThrottled()) return;
+  const payload = {
+    n: String(name).trim().slice(0, 10),
+    s: clamp(Math.round(stats.total) || 0, 0, 5000),
+    r: clamp(Math.round(stats.rolls) || 0, 0, 99),
+    c: courseIdx,
+    t: Math.round(stats.time * 100) / 100,
+    log: inputLog.slice(0, LOG_CAP),
+  };
+  try { localStorage.setItem('wallflip2.subT', String(Date.now())); } catch (e) {}
+  lastSubmit = { n: payload.n, s: payload.s };
+  fetch(base + '/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => {
+      if (!j || j.ok !== true || !Number.isFinite(j.rank)) throw new Error('unexpected response');
+      say(t('submitOk') + ' #' + j.rank, '#6ff0d0', 2.4);
+    })
+    .catch(err => {
+      lastSubmit = null;
+      console.warn('submit failed:', err);
+      say(t('submitFail'), '#ff6b6b', 2.2);
+    });
+}
+
+// DOM panels: rank API settings + score name entry (canvas text input is not viable)
+const apiPanel = document.getElementById('apiPanel');
+const apiInput = document.getElementById('apiInput');
+const apiTitleEl = document.getElementById('apiTitleEl');
+const apiHintEl = document.getElementById('apiHintEl');
+const apiSaveBtn = document.getElementById('apiSaveBtn');
+const apiCancelBtn = document.getElementById('apiCancelBtn');
+const namePanel = document.getElementById('namePanel');
+const nameInput = document.getElementById('nameInput');
+const nameTitleEl = document.getElementById('nameTitleEl');
+const nameHintEl = document.getElementById('nameHintEl');
+const nameSendBtn = document.getElementById('nameSendBtn');
+const nameSkipBtn = document.getElementById('nameSkipBtn');
+function panelOpen(el) { return el.classList.contains('on'); }
+function openApiPanel() {
+  apiTitleEl.textContent = t('apiTitle');
+  apiHintEl.textContent = t('apiHint');
+  apiSaveBtn.textContent = t('apiSave');
+  apiCancelBtn.textContent = t('apiCancel');
+  apiInput.placeholder = t('apiPlaceholder');
+  try { apiInput.value = localStorage.getItem('wallflip2.api') || ''; } catch (e) { apiInput.value = ''; }
+  apiInput.classList.remove('bad');
+  apiPanel.classList.add('on');
+  inp.drive = inp.stick = inp.left = inp.right = false;
+  apiInput.focus();
+}
+function closeApiPanel() { apiPanel.classList.remove('on'); }
+function saveApi() {
+  const v = apiInput.value.trim();
+  if (v && !/^https?:\/\//i.test(v)) { apiInput.classList.add('bad'); return; } // must start with http(s)
+  try {
+    if (v) localStorage.setItem('wallflip2.api', v.replace(/\/+$/, ''));
+    else localStorage.removeItem('wallflip2.api');
+  } catch (e) {}
+  closeApiPanel();
+  rankApi = apiBase();
+  if (rankOn) {                      // live-refresh the open overlay
+    rankTab = rankApi ? 'online' : 'local';
+    onlineBoard = null;
+    onlineHi = -1;
+    if (rankApi) fetchOnlineBoard(rankApi);
+  }
+  sfx.click();
+  say(t('apiSaved'), '#6ff0d0', 1.8);
+}
+function openNamePanel() {
+  if (state !== ST.RESULT || !stats.win || panelOpen(namePanel)) return;
+  nameTitleEl.textContent = t('submitTitle');
+  nameHintEl.textContent = t('nameLabel');
+  nameSendBtn.textContent = t('submit');
+  nameSkipBtn.textContent = t('skip');
+  nameInput.placeholder = t('nameLabel');
+  try { nameInput.value = localStorage.getItem('wallflip2.name') || ''; } catch (e) { nameInput.value = ''; }
+  namePanel.classList.add('on');
+  inp.drive = inp.stick = inp.left = inp.right = false;
+  nameInput.focus();
+  nameInput.select();
+}
+function closeNamePanel() { namePanel.classList.remove('on'); }
+function confirmName() {
+  const n = nameInput.value.trim().slice(0, 10);
+  if (!n) return;                    // a name is required; Skip is the way out
+  try { localStorage.setItem('wallflip2.name', n); } catch (e) {}
+  closeNamePanel();
+  submitScore(n);
+}
+apiSaveBtn.addEventListener('click', saveApi);
+apiCancelBtn.addEventListener('click', () => { sfx.click(); closeApiPanel(); });
+apiInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveApi();
+  else if (e.key === 'Escape') closeApiPanel();
+});
+nameSendBtn.addEventListener('click', confirmName);
+nameSkipBtn.addEventListener('click', () => { sfx.click(); closeNamePanel(); });
+nameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmName();
+  else if (e.key === 'Escape') closeNamePanel();
+});
+// clicking the dimmed backdrop cancels the panel
+for (const [panel, closeFn] of [[apiPanel, closeApiPanel], [namePanel, closeNamePanel]]) {
+  panel.addEventListener('pointerdown', e => { if (e.target === panel) closeFn(); });
+}
 // ---------- ghost car (best-run replay, visual only) ----------
 const GHOST_CAP = 3000;                // max recorded poses (~25 s at 120 Hz)
 let ghostOn = true;                    // feature toggle (persisted)
@@ -457,8 +688,13 @@ function keySet(e, down) {
   }
   return false;
 }
-addEventListener('keydown', e => { if (keySet(e, true)) e.preventDefault(); });
-addEventListener('keyup', e => { if (keySet(e, false)) e.preventDefault(); });
+// while a DOM panel is open or an input focused, keys belong to the panel
+function domTyping(e) {
+  const tag = e.target && e.target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || apiPanel.classList.contains('on') || namePanel.classList.contains('on');
+}
+addEventListener('keydown', e => { if (domTyping(e)) return; if (keySet(e, true)) e.preventDefault(); });
+addEventListener('keyup', e => { if (domTyping(e)) return; if (keySet(e, false)) e.preventDefault(); });
 function pressStart() {
   sfx.click();
   if (state === ST.READY) { botOn = false; startRun(); }
@@ -489,9 +725,18 @@ const activePtr = new Map();
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 canvas.addEventListener('pointerdown', e => {
   ensureAudio();
-  if (rankOn) { closeRank(); return; }
   const r = canvas.getBoundingClientRect();
   const px = e.clientX - r.left, py = e.clientY - r.top;
+  if (rankOn) {
+    // overlay controls (tabs / gear) take priority; anywhere else closes it
+    if (hitRect(rankUI.gear, px, py)) { sfx.click(); openApiPanel(); return; }
+    if (rankApi) {
+      if (hitRect(rankUI.tabOnline, px, py)) { if (rankTab !== 'online') { rankTab = 'online'; sfx.click(); } return; }
+      if (hitRect(rankUI.tabLocal, px, py)) { if (rankTab !== 'local') { rankTab = 'local'; sfx.click(); } return; }
+    }
+    closeRank();
+    return;
+  }
   if (state === ST.READY) {
     if (readyUI.lang && hitRect(readyUI.lang, px, py)) { setLang(lang === 'tc' ? 'en' : 'tc'); sfx.click(); return; }
     if (hitRect(readyUI.prev, px, py)) { sfx.click(); setCourse(courseIdx - 1); return; }
@@ -573,7 +818,9 @@ function reset(ready) {
   ghostFrame = 0;
   ghostPlay = ghostSavedFrames.length ? ghostSavedFrames : ghostSession;
   ghostPlayStep = ghostSavedFrames.length ? ghostSavedStep : 1;
-  rankOn = false; rankHi = -1;
+  rankOn = false; rankHi = -1; onlineHi = -1; lastSubmit = null;
+  inputLog.length = 0; inputLogFrames = 0; inputLogLast = -1;  // fresh input log per run
+  apiPanel.classList.remove('on'); namePanel.classList.remove('on');
   stats.win = false; stats.reason = '';
   cam.snap = false;
   state = ready ? ST.READY : ST.RUN;
@@ -878,6 +1125,13 @@ function showResult() {
     }
     if (stats.total > 0) boardAdd();
     if (ghostOn && stats.total > ghostBest) saveGhost();
+    // online submit: offer the name-entry panel shortly after the result
+    // settles (never for bot/demo runs, only when a rank API is configured)
+    if (!botOn && apiBase() && !submitThrottled()) {
+      setTimeout(() => {
+        if (!botOn && state === ST.RESULT && stats.win && stats.total > 0) openNamePanel();
+      }, 900);
+    }
   } else {
     stats.soft = 0; stats.level = 0; stats.rollPts = 0; stats.total = 0;
   }
@@ -886,6 +1140,7 @@ function showResult() {
 
 function stepPhysics(dt) {
   if (botOn) botControl();
+  if (state === ST.RUN) logInputFrame(); // input bitmask log (replay verification)
   // the world keeps simulating behind the result panel (original behavior)
   if (state === ST.RUN || state === ST.RESULT) {
     car.time += dt;
@@ -1632,13 +1887,15 @@ function drawResult() {
   ctx.globalAlpha = 1;
 }
 
-// ranking overlay: top 10 of the current course; closes with click / L / Space
+// ranking overlay: online (when a rank API is configured) + local top 10 of
+// the current course; closes with click / L / Space; gear opens the API panel
 function drawRank() {
   screenTransform();
   const u = Math.min(W(), H()) / 42, cx = W() / 2;
   ctx.fillStyle = 'rgba(4,6,12,.78)';
   ctx.fillRect(0, 0, W(), H());
-  const pw = Math.min(W() * 0.9, u * 26), ph = u * 18.5, px = cx - pw / 2, py = H() / 2 - ph / 2;
+  const hasApi = !!rankApi;
+  const pw = Math.min(W() * 0.9, u * 26), ph = u * (hasApi ? 20 : 18.5), px = cx - pw / 2, py = H() / 2 - ph / 2;
   ctx.fillStyle = 'rgba(13,18,30,.94)';
   roundRect(px, py, pw, ph, u * 0.8); ctx.fill();
   ctx.strokeStyle = 'rgba(111,240,208,.35)'; ctx.lineWidth = 2;
@@ -1646,25 +1903,55 @@ function drawRank() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.font = `900 ${u * 1.5}px system-ui, "Noto Sans TC", sans-serif`;
   ctx.fillStyle = '#6ff0d0';
-  ctx.fillText(t('boardTitle', courseName(COURSES[courseIdx])), cx, py + u * 2.0);
+  const showOnline = hasApi && rankTab === 'online' && !!onlineBoard;
+  ctx.fillText(t('boardTitle', courseName(COURSES[courseIdx])) + (showOnline ? ' · ' + t('onlineMark') : ''), cx, py + u * 2.0);
+  // gear button: rank API settings, top-right corner of the panel
+  {
+    const gs = u * 1.4, gx = px + pw - gs - u * 0.7, gy = py + u * 0.55;
+    ctx.fillStyle = '#8fa3b8';
+    ctx.font = `700 ${u * 1.1}px system-ui, sans-serif`;
+    ctx.fillText(t('apiBtn'), gx + gs / 2, gy + gs * 0.86);
+    rankUI.gear = { x: gx, y: gy, w: gs, h: gs };
+  }
+  // tab switch: online (primary) / local — only when an API is configured
+  const headY = py + u * (hasApi ? 4.9 : 3.5);
+  if (hasApi) {
+    const tw = u * 4.6, th = u * 1.05, ty = py + u * 2.9;
+    const pill = (x, on, label, key) => {
+      ctx.fillStyle = on ? 'rgba(111,240,208,.16)' : 'rgba(255,255,255,.05)';
+      roundRect(x, ty, tw, th, th / 2); ctx.fill();
+      ctx.strokeStyle = on ? 'rgba(111,240,208,.55)' : 'rgba(159,182,201,.3)'; ctx.lineWidth = 1;
+      roundRect(x, ty, tw, th, th / 2); ctx.stroke();
+      ctx.fillStyle = on ? '#6ff0d0' : 'rgba(207,227,245,.4)';
+      ctx.font = `700 ${u * 0.6}px system-ui, "Noto Sans TC", sans-serif`;
+      ctx.fillText(label, x + tw / 2, ty + th / 2 + u * 0.21);
+      rankUI[key] = { x, y: ty, w: tw, h: th };
+    };
+    pill(cx - tw - u * 0.2, rankTab === 'online', t('tabOnline'), 'tabOnline');
+    pill(cx + u * 0.2, rankTab === 'local', t('tabLocal'), 'tabLocal');
+  } else {
+    rankUI.tabOnline = rankUI.tabLocal = null;
+  }
+  const list = showOnline ? onlineBoard : boardView;
   const cS = px + pw * 0.44, cR = px + pw * 0.63, cD = px + pw - u * 1.2;
-  if (!boardView.length) {
+  if (!list.length) {
     ctx.font = `600 ${u * 0.95}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#8fa3b8';
-    ctx.fillText(t('boardEmpty'), cx, py + ph / 2 + u * 0.3);
+    ctx.fillText(hasApi && rankTab === 'online' && onlinePending ? '…' : t('boardEmpty'), cx, py + ph / 2 + u * 0.3);
   } else {
     ctx.textAlign = 'left';
     ctx.font = `600 ${u * 0.6}px system-ui, "Noto Sans TC", sans-serif`;
     ctx.fillStyle = '#8fa3b8';
-    ctx.fillText(t('colRank'), px + u * 1.2, py + u * 3.5);
+    ctx.fillText(t('colRank'), px + u * 1.2, headY);
     ctx.textAlign = 'right';
-    ctx.fillText(t('colScore'), cS, py + u * 3.5);
-    ctx.fillText(t('colRolls'), cR, py + u * 3.5);
-    ctx.fillText(t('colDate'), cD, py + u * 3.5);
-    let ry = py + u * 5.0;
-    for (let i = 0; i < boardView.length; i++) {
-      const e = boardView[i], hi = i === rankHi;
-      if (hi) { // the entry just achieved this session
+    ctx.fillText(t('colScore'), cS, headY);
+    ctx.fillText(t('colRolls'), cR, headY);
+    ctx.fillText(showOnline ? t('colTime') : t('colDate'), cD, headY);
+    let ry = headY + u * 1.5;
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      const hi = showOnline ? i === onlineHi : i === rankHi;
+      if (hi) { // the entry just achieved / just submitted
         ctx.fillStyle = 'rgba(255,209,102,.13)';
         ctx.fillRect(px + u * 0.6, ry - u * 1.0, pw - u * 1.2, u * 1.25);
       }
@@ -1672,13 +1959,22 @@ function drawRank() {
       ctx.font = `800 ${u * 0.78}px ui-monospace, monospace`;
       ctx.fillStyle = hi ? '#ffd166' : '#eef4fa';
       ctx.fillText(`${i + 1}.`, px + u * 1.2, ry);
+      if (showOnline) { // online entries carry a player name
+        ctx.font = `700 ${u * 0.72}px system-ui, "Noto Sans TC", sans-serif`;
+        let nm = e.n;
+        while (nm.length > 1 && ctx.measureText(nm).width > cS - (px + u * 3.0)) nm = nm.slice(0, -1);
+        if (nm !== e.n) nm += '…';
+        ctx.fillText(nm, px + u * 2.6, ry);
+      }
       ctx.textAlign = 'right';
+      ctx.font = `800 ${u * 0.78}px ui-monospace, monospace`;
+      ctx.fillStyle = hi ? '#ffd166' : '#eef4fa';
       ctx.fillText(fmt(e.s), cS, ry);
       ctx.fillStyle = hi ? '#ffd166' : '#9fb6c9';
       ctx.fillText(fmt(e.r), cR, ry);
       ctx.font = `500 ${u * 0.66}px ui-monospace, monospace`;
       ctx.fillStyle = hi ? '#ffd166' : '#6d7f95';
-      ctx.fillText(e.t, cD, ry);
+      ctx.fillText(showOnline ? (Number.isFinite(e.t) ? fmt(e.t, 1) + 's' : '') : e.t, cD, ry);
       ry += u * 1.25;
     }
   }
