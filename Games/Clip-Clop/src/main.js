@@ -307,7 +307,11 @@ function buildWorld(){
     const trunks=[],cones=[],balls=[],bushes=[],patches=[];
     for(let i=0;i<30;i++){
       const x=-14+Math.random()*80;
-      const z=(4.8+Math.random()*28)*(Math.random()<0.5?-1:1);
+      // Trees on the camera side (+z) stay beyond the furthest chase-cam distance
+      // (15 m) so they can never block the view of the track; the far side keeps
+      // its close greenery since it only ever shows as background.
+      const side=Math.random()<0.5?-1:1;
+      const z=side<0 ? -(4.8+Math.random()*28) : (16.5+Math.random()*16);
       const s=0.8+Math.random()*0.6;
       trunks.push({x,y:0.6*s,z,s});
       if(Math.random()<0.5)cones.push({x,y:2.2*s,z,s});
