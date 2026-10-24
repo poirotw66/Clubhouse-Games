@@ -1,0 +1,19 @@
+{
+  "name": "clip-clop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "node ../../scripts/lint-js-syntax.mjs",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

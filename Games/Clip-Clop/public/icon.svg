@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#9fd8f5"/>
+  <rect x="40" y="330" width="432" height="26" rx="13" fill="#c09a6a"/>
+  <!-- horse body -->
+  <ellipse cx="240" cy="230" rx="130" ry="72" fill="#dedad0"/>
+  <!-- neck + head -->
+  <path d="M330 190 L400 110 L440 120 L448 152 L420 168 L388 220 Z" fill="#dedad0"/>
+  <rect x="404" y="96" width="70" height="44" rx="14" transform="rotate(18 440 118)" fill="#dedad0"/>
+  <circle cx="452" cy="128" r="7" fill="#1d1410"/>
+  <path d="M414 92 l10 -26 l12 22 Z" fill="#dedad0"/>
+  <path d="M436 96 l10 -26 l12 22 Z" fill="#dedad0"/>
+  <!-- mane -->
+  <path d="M330 190 Q370 130 400 112 L410 132 Q380 156 352 208 Z" fill="#9b958a"/>
+  <!-- tail -->
+  <path d="M114 210 Q70 240 76 300 L96 300 Q94 250 126 226 Z" fill="#9b958a"/>
+  <!-- legs with colored bands: O front-left magenta, P front-right blue, Q hind-left orange, W hind-right green -->
+  <g stroke="#cfc9bd" stroke-width="26" stroke-linecap="round">
+    <line x1="180" y1="288" x2="176" y2="352"/>
+    <line x1="300" y1="288" x2="304" y2="352"/>
+  </g>
+  <rect x="160" y="316" width="34" height="16" rx="8" fill="#e66900" transform="rotate(-3 177 324)"/>
+  <rect x="284" y="316" width="34" height="16" rx="8" fill="#00b04d" transform="rotate(3 301 324)"/>
+  <!-- saddle -->
+  <rect x="196" y="168" width="88" height="26" rx="12" fill="#8c3b2e"/>
+</svg>
