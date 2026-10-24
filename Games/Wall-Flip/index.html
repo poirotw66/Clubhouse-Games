@@ -9,24 +9,30 @@
 <style>
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #06080d; }
   canvas { display: block; touch-action: none; }
+  @font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+  @font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
+  @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+  @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
   /* online leaderboard DOM panels (hidden by default) */
   .wf-panel { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,.62); }
   .wf-panel.on { display: flex; }
-  .wf-card { width: min(86vw, 430px); box-sizing: border-box; background: #0d121e; border: 2px solid rgba(111,240,208,.35); border-radius: 12px; padding: 18px 20px 16px; color: #eef4fa; font: 500 14px/1.5 system-ui, "Noto Sans TC", sans-serif; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
-  .wf-card h3 { margin: 0 0 10px; font-size: 16px; font-weight: 800; color: #6ff0d0; }
-  .wf-card input { width: 100%; box-sizing: border-box; background: #06080d; border: 1px solid #2a3342; border-radius: 8px; padding: 10px 12px; color: #eef4fa; font: 500 14px ui-monospace, Menlo, monospace; outline: none; }
-  .wf-card input:focus { border-color: #6ff0d0; }
-  .wf-card input.bad { border-color: #ff5c5c; }
-  .wf-hint { margin: 8px 0 0; font-size: 12px; color: #8fa3b8; }
-  .wf-row { display: flex; gap: 10px; margin-top: 14px; }
-  .wf-btn { flex: 1; padding: 10px 0; border-radius: 999px; border: 1px solid rgba(159,182,201,.45); background: transparent; color: #cfe3f5; font: 700 14px system-ui, "Noto Sans TC", sans-serif; cursor: pointer; }
-  .wf-btn.primary { background: #1f9d61; border-color: #1f9d61; color: #fff; }
-  .wf-btn:hover { filter: brightness(1.15); }
+  .wf-card { width: min(86vw, 430px); box-sizing: border-box; background: #121820; border: 1px solid #2c3442; border-radius: 8px; padding: 20px 20px 16px; color: #e8edf4; font: 400 14px/1.5 "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; box-shadow: 0 12px 28px rgba(0,0,0,.28); }
+  .wf-card h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #e8edf4; }
+  .wf-card input { width: 100%; box-sizing: border-box; background: #06080d; border: 1px solid #3a4454; border-radius: 6px; padding: 8px 12px; color: #e8edf4; font: 400 14px "IBM Plex Mono", ui-monospace, Menlo, monospace; outline: none; }
+  .wf-card input:focus { border-color: #e8edf4; }
+  .wf-card input.bad { border-color: #e5566f; }
+  .wf-hint { margin: 8px 0 0; font-size: 12px; color: #9aa6b5; }
+  .wf-row { display: flex; gap: 8px; margin-top: 16px; }
+  .wf-btn { flex: 1; height: 32px; padding: 0; border-radius: 6px; border: 1px solid #3a4454; background: transparent; color: #e8edf4; font: 600 14px "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; cursor: pointer; }
+  .wf-btn.primary { background: #e8edf4; border-color: #e8edf4; color: #111318; }
+  .wf-btn:hover { filter: brightness(1.08); }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<a href="../../" style="position:fixed;top:3px;left:12px;z-index:30;color:#8fa3b8;text-decoration:none;font:600 11px system-ui,sans-serif;letter-spacing:.05em;">← 返回總覽</a>
+<a href="../../" style="position:fixed;top:16px;left:20px;z-index:30;color:#9aa6b5;text-decoration:none;font:500 12px 'IBM Plex Sans','Noto Sans TC',system-ui,sans-serif;">← 返回總覽</a>
 <!-- online leaderboard DOM panels: rank API settings + score name entry (hidden by default) -->
 <div id="apiPanel" class="wf-panel">
   <div class="wf-card">
@@ -95,7 +101,7 @@ const STR = {
     rowRolls: (n) => `翻滾 ${n} 回`, rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', pts: '點',
     subWin: (n, d, t2, rec) => `翻滾 ${n} 回 · 飛行距離 ${d} m · 完賽 ${t2} s${rec ? ' ★最快' : ''}`,
     newRecord: '★ 新紀錄！', bestLabel: '最佳',
-    shareBtn: '📋 複製成績',
+    shareBtn: '複製成績',
     shareText: (r, d, s, l, tt, rank, cn) => `牆上翻滾 Wall Flip（${cn}）：翻滾 ${r} 回 · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${tt} 分 ${rank}！`,
     boardTitle: (cn) => `排行榜 · ${cn}`, colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
     boardBtn: '排行榜', langBtn: 'EN',
@@ -135,7 +141,7 @@ const STR = {
     rowRolls: (n) => `${n} rolls`, rowSoft: 'SOFT', rowLevel: 'LEVEL', pts: 'pts',
     subWin: (n, d, t2, rec) => `${n} roll(s) · ${d} m flight · time ${t2} s${rec ? ' ★BEST' : ''}`,
     newRecord: '★ NEW RECORD!', bestLabel: 'BEST',
-    shareBtn: '📋 COPY RESULT',
+    shareBtn: 'COPY RESULT',
     shareText: (r, d, s, l, tt, rank, cn) => `Wall Flip (${cn}): ${r} roll(s), ${d} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${tt} pts ${rank}!`,
     boardTitle: (cn) => `LEADERBOARD · ${cn}`, colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
     boardBtn: 'RANKING', langBtn: '中文',
@@ -181,6 +187,31 @@ function resize() {
   canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
   layoutBtns();
 }
+
+// Night instrument. Framed-sheet (light analytics) was redrawn: this screen is
+// driven at night, and a white sheet would cover the road. Kept from that
+// sheet: one chrome band, IBM Plex Mono figures at 400, labels at 600, and
+// one 2px ink underline on the selected course. Mint is only the air
+// reservoir. Amber is only a record.
+const SANS = '"IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif';
+const MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
+const UI = {
+  text: '#e8edf4',
+  muted: '#9aa6b5',
+  faint: '#7e8b9c',
+  line: '#2c3442',
+  sheet: '#121820',
+  chrome: 'rgba(8,11,18,.94)',
+  accent: '#6ff0d0',
+  record: '#e2b340',
+  danger: '#e5566f',
+  warn: '#ff8c5a',
+};
+try {
+  for (const spec of ['400 16px "IBM Plex Sans"', '500 16px "IBM Plex Sans"', '600 16px "IBM Plex Sans"', '400 18px "IBM Plex Mono"', '500 14px "IBM Plex Mono"', '600 12px "IBM Plex Mono"']) {
+    document.fonts.load(spec).catch(() => {});
+  }
+} catch (e) {}
 
 // ---------- tuning: exact constants from the original module ----------
 const G = 9.8;
@@ -1556,125 +1587,124 @@ function roundRect(x, y, w, h, r) {
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
+function wrapText(text, maxW) {
+  const lines = [];
+  let line = '';
+  for (const ch of String(text)) {
+    const next = line + ch;
+    if (line && ctx.measureText(next).width > maxW) {
+      lines.push(line);
+      line = ch;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 3);
+}
 function drawHUD() {
   screenTransform();
-  const m = 20, u = Math.min(W(), H()) / 42;
-  const narrow = W() < 920;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  // left block: name + air + speed (both layouts)
-  const pw = narrow ? Math.min(W() - m * 2, u * 13) : u * 10.5;
-  ctx.fillStyle = 'rgba(10,14,22,.6)';
-  roundRect(m, m, pw, u * 3.5, 8); ctx.fill();
-  ctx.font = `700 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#9fb6c9';
-  ctx.fillText(t('hudAir'), m + u * 0.4, m + u * 0.3);
-  const af = car.air / AIR_MAX;
-  const barW = pw - u * 3.4;
-  ctx.fillStyle = 'rgba(255,255,255,.12)';
-  ctx.fillRect(m + u * 0.4, m + u * 1.1, barW, u * 0.8);
-  ctx.fillStyle = af < 0.25 ? (Math.sin(stateT * 14) > 0 ? '#ff5c5c' : '#a33') : '#5ac8ff';
-  ctx.fillRect(m + u * 0.4, m + u * 1.1, barW * af, u * 0.8);
-  ctx.font = `800 ${u * 0.72}px ui-monospace, Menlo, monospace`;
-  ctx.fillStyle = '#eef4fa';
-  ctx.fillText(fmt(car.air), m + u * 0.4 + barW + u * 0.3, m + u * 1.07);
-  // speed
+  const narrow = W() < 760;
+  ctx.fillStyle = UI.chrome;
+  ctx.fillRect(0, 0, W(), 48);
+  ctx.textBaseline = 'alphabetic';
+  const airMode = car.mode === 'air';
   const spd = car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy);
-  ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#9fb6c9';
-  ctx.fillText(t('hudSpeed'), m + u * 0.4, m + u * 2.35);
-  ctx.font = `800 ${u * 0.9}px ui-monospace, monospace`;
-  ctx.fillStyle = '#eef4fa';
-  ctx.fillText(fmt(spd * 3.6) + ' km/h', m + u * 4.4, m + u * 2.27);
-  // vertical speed cue (P4 clarity): shows why the speed climbs when thrusting inverted
-  if (car.mode === 'air') {
-    const vs = car.vy * 3.6;
-    const arrow = vs > 3.6 ? '▲' : vs < -3.6 ? '▼' : '—';
-    ctx.font = `700 ${u * 0.6}px ui-monospace, Menlo, monospace`;
-    ctx.fillStyle = vs < -18 ? '#ff8c5a' : vs > 3.6 ? '#6ff0d0' : 'rgba(159,182,201,.9)';
-    ctx.fillText(`${arrow} ${fmt(Math.abs(vs))}`, m + u * 0.4, m + u * 3.15);
-  }
-  // right block: rolls + best (both layouts, top-right)
-  ctx.textAlign = 'center';
-  const rw = narrow ? u * 7.5 : u * 4.6, rx = W() - m - rw;
-  ctx.fillStyle = 'rgba(10,14,22,.6)';
-  roundRect(rx, m, rw, u * 1.7, 8); ctx.fill();
-  ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#9fb6c9';
-  ctx.fillText(t('hudRolls'), rx + rw / 2, m + u * 0.22);
-  ctx.font = `800 ${u * 0.8}px ui-monospace, monospace`;
-  ctx.fillStyle = '#eef4fa';
-  const rollDisp = car.mode === 'road' ? '0' : fmt(rollsCount(car.phi, car.phiL));
-  ctx.fillText(rollDisp, rx + rw / 2, m + u * 0.85);
-  if (state !== ST.READY) {
-    ctx.textAlign = 'right';
-    ctx.font = `700 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#9fb6c9';
-    ctx.fillText(`${t('best')} ${best}`, W() - m, m + u * 2.3);
-  }
-  // height / dist: wide = top-center pair; narrow = compact row under the left panel
-  const statBox = (x, y, w, label, val) => {
-    ctx.fillStyle = 'rgba(10,14,22,.6)';
-    roundRect(x, y, w, u * 1.9, 8); ctx.fill();
-    ctx.font = `600 ${u * 0.5}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#9fb6c9';
-    ctx.textAlign = 'center';
-    ctx.fillText(label, x + w / 2, y + u * 0.26);
-    ctx.font = `800 ${u * 0.72}px ui-monospace, monospace`;
-    ctx.fillStyle = '#eef4fa';
-    ctx.fillText(val, x + w / 2, y + u * 1.02);
-  };
-  const distVal = fmt(car.mode === 'road' ? Math.max(0, car.u + RUNUP) : Math.abs(car.x - (car.peeled || car.launched || car.mode === 'landed' || car.mode === 'crash' ? launchX : 0))) + ' m';
+  const distVal = Math.round(car.mode === 'road' ? Math.max(0, car.u + RUNUP) : Math.abs(car.x - (car.peeled || car.launched || car.mode === 'landed' || car.mode === 'crash' ? launchX : 0)));
+  const rolls = car.mode === 'road' ? '0' : fmt(rollsCount(car.phi, car.phiL));
+  const cols = [];
   if (!narrow) {
-    ctx.fillStyle = 'rgba(10,14,22,.6)';
-    roundRect(W() / 2 - u * 5.2, m, u * 10.4, u * 1.7, 8); ctx.fill();
-    ctx.font = `600 ${u * 0.55}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#9fb6c9';
-    ctx.fillText(t('hudHeight'), W() / 2 - u * 2.6, m + u * 0.22);
-    ctx.fillText(t('hudDist'), W() / 2 + u * 2.6, m + u * 0.22);
-    ctx.font = `800 ${u * 0.8}px ui-monospace, monospace`;
-    ctx.fillStyle = '#eef4fa';
-    ctx.fillText(fmt(Math.max(0, car.y - CAR.H)) + ' m', W() / 2 - u * 2.6, m + u * 0.85);
-    ctx.fillText(distVal, W() / 2 + u * 2.6, m + u * 0.85);
-  } else {
-    const sw2 = (pw - u * 0.4) / 3, sy2 = m + u * 3.9;
-    statBox(m, sy2, sw2, t('statH'), fmt(Math.max(0, car.y - CAR.H)) + ' m');
-    statBox(m + sw2 + u * 0.2, sy2, sw2, t('statD'), distVal);
-    statBox(m + (sw2 + u * 0.2) * 2, sy2, sw2, t('statA'), fmt(car.air) + '%');
+    cols.push([t('hudHeight'), fmt(Math.max(0, car.y - CAR.H)) + ' m']);
+    cols.push([t('hudDist'), distVal + ' m']);
   }
-  // messages
+  if (!narrow && state !== ST.READY) cols.push([t('best'), String(best)]);
+  cols.push([t('hudRolls'), rolls]);
+  const colW = narrow ? 88 : 112;
+  const clusterX = W() - 20 - cols.length * colW;
+  const labelAt = (text, x, align) => {
+    ctx.font = `600 11px ${SANS}`;
+    ctx.fillStyle = UI.muted;
+    ctx.textAlign = align;
+    ctx.fillText(text, x, 16);
+  };
+  const figureAt = (text, x, align, col) => {
+    ctx.font = `400 18px ${MONO}`;
+    ctx.fillStyle = col || UI.text;
+    ctx.textAlign = align;
+    ctx.fillText(text, x, 38);
+  };
+  const airX = 118;
+  labelAt(t('hudAir'), airX, 'left');
+  ctx.fillStyle = 'rgba(255,255,255,.14)';
+  ctx.fillRect(airX, 28, 72, 4);
+  const af = car.air / AIR_MAX;
+  ctx.fillStyle = af < 0.25 ? UI.danger : UI.accent;
+  ctx.fillRect(airX, 28, 72 * af, 4);
+  figureAt(fmt(car.air), airX + 80, 'left', af < 0.25 ? UI.danger : UI.text);
+  const speedX = airX + 156;
+  const speedText = fmt(spd * 3.6) + ' km/h';
+  labelAt(t('hudSpeed'), speedX, 'left');
+  figureAt(speedText, speedX, 'left');
+  if (airMode) {
+    const vs = car.vy * 3.6;
+    const arrow = vs > 3.6 ? '▲' : vs < -3.6 ? '▼' : '–';
+    const cue = arrow + fmt(Math.abs(vs));
+    ctx.font = `400 18px ${MONO}`;
+    const sw = ctx.measureText(speedText).width;
+    ctx.font = `400 13px ${MONO}`;
+    const cueW = ctx.measureText(cue).width;
+    if (speedX + sw + 8 + cueW < clusterX - 12) {
+      ctx.fillStyle = vs < -18 ? UI.warn : UI.muted;
+      ctx.textAlign = 'left';
+      ctx.fillText(cue, speedX + sw + 8, 37);
+    }
+  }
+  let x = clusterX;
+  for (const [lab, val] of cols) {
+    labelAt(lab, x + colW - 4, 'right');
+    figureAt(val, x + colW - 4, 'right');
+    x += colW;
+  }
   ctx.textAlign = 'center';
   let my = H() * 0.18;
   for (const msg of msgs) {
     const a = clamp(msg.t * 5, 0, 1) * clamp((msg.life - msg.t) * 2.5, 0, 1);
     ctx.globalAlpha = a;
-    ctx.font = `800 ${u * 1.0}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.lineWidth = u * 0.16; ctx.strokeStyle = 'rgba(4,6,10,.8)';
+    ctx.font = `600 ${Math.min(W() * 0.028, 18)}px ${SANS}`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(4,6,10,.85)';
     ctx.strokeText(msg.text, W() / 2, my);
-    ctx.fillStyle = msg.color; ctx.fillText(msg.text, W() / 2, my);
-    my += u * 1.4;
+    ctx.fillStyle = msg.color;
+    ctx.fillText(msg.text, W() / 2, my);
+    my += 24;
   }
   ctx.globalAlpha = 1;
   if (car.suck && car.mode === 'road' && car.u > 0) {
-    ctx.font = `800 ${u * 0.65}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#6ff0d0';
-    ctx.fillText(t('suckOn'), W() / 2, H() * 0.1);
+    ctx.font = `600 12px ${SANS}`;
+    ctx.fillStyle = UI.text;
+    ctx.fillText(t('suckOn'), W() / 2, 68);
   }
-  // touch buttons
   if (isTouch || activePtr.size) {
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     for (const b of btns) {
       const on = inp[b.key];
       ctx.globalAlpha = on ? 1 : 0.75;
       ctx.fillStyle = b.key === 'drive' ? '#1f9d61' : b.key === 'stick' ? '#eef4fa' : '#3f8cff';
-      roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2); ctx.fill();
-      if (on) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2); ctx.stroke(); }
+      roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2);
+      ctx.fill();
+      if (on) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2);
+        ctx.stroke();
+      }
       ctx.fillStyle = b.key === 'stick' ? '#1f9d61' : '#fff';
-      ctx.font = `800 ${b.h * 0.42}px system-ui, "Noto Sans TC", sans-serif`;
+      ctx.font = `600 ${b.h * 0.42}px ${SANS}`;
       ctx.fillText(t(b.labelKey), b.x, b.y - b.h * 0.12);
-      ctx.font = `600 ${b.h * 0.26}px system-ui, sans-serif`;
+      ctx.font = `500 ${b.h * 0.26}px ${SANS}`;
       ctx.fillText(b.sub, b.x, b.y + b.h * 0.26);
     }
     ctx.globalAlpha = 1;
+    ctx.textBaseline = 'alphabetic';
   }
 }
 
@@ -1683,313 +1713,405 @@ function drawReady() {
   screenTransform();
   ctx.fillStyle = 'rgba(4,6,12,.72)';
   ctx.fillRect(0, 0, W(), H());
-  const u = Math.min(W(), H()) / 42, cx = W() / 2;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#ffd166';
-  ctx.font = `900 ${u * 2.6}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(t('title'), cx, H() * 0.14);
-  ctx.fillStyle = '#eef4fa';
-  ctx.font = `700 ${u * 0.95}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(t('sub'), cx, H() * 0.14 + u * 1.3);
-  const lines = [
-    [t('s1a'), t('s1b')],
-    [t('s2a'), t('s2b')],
-    [t('s3a'), t('s3b')],
-    [t('s4a'), t('s4b')],
-  ];
-  let y = H() * 0.3;
-  for (const [a, b] of lines) {
-    ctx.font = `800 ${u * 0.85}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#ffd166'; ctx.fillText(a, cx, y);
-    ctx.font = `500 ${u * 0.72}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#cfe3f5'; ctx.fillText(b, cx, y + u * 1.0);
-    y += u * 2.2;
-  }
-  ctx.font = `500 ${u * 0.62}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#8fa3b8';
-  ctx.fillText(t('hint'), cx, y + u * 0.3);
-  // course selector: ◄ name ► cycling COURSES
-  const cc = COURSES[courseIdx], selY = y + u * 2.3, aw = u * 1.9;
-  ctx.fillStyle = 'rgba(13,18,30,.85)';
-  ctx.strokeStyle = 'rgba(111,240,208,.4)'; ctx.lineWidth = 1.5;
-  roundRect(cx - u * 7 - aw / 2, selY - aw / 2, aw, aw, u * 0.5); ctx.fill(); ctx.stroke();
-  roundRect(cx + u * 7 - aw / 2, selY - aw / 2, aw, aw, u * 0.5); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#cfe3f5';
-  ctx.font = `800 ${u * 1.0}px system-ui, sans-serif`;
-  ctx.fillText('◄', cx - u * 7, selY + u * 0.36);
-  ctx.fillText('►', cx + u * 7, selY + u * 0.36);
-  ctx.fillStyle = '#eef4fa';
-  ctx.font = `800 ${u * 1.15}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(`${t('course')} · ${courseName(cc)}`, cx, selY + u * 0.12);
-  ctx.fillStyle = '#8fa3b8';
-  ctx.font = `500 ${u * 0.62}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(`${cc.arcDeg}° ${t('arc')} · ${t('radius')} ${cc.arcR} m · ${t('straight')} ${cc.straight} m`, cx, selY + u * 1.3);
-  readyUI.prev = { x: cx - u * 7 - aw / 2, y: selY - aw / 2, w: aw, h: aw };
-  readyUI.next = { x: cx + u * 7 - aw / 2, y: selY - aw / 2, w: aw, h: aw };
-  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(stateT * 3.5);
-  ctx.font = `900 ${u * 1.3}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#1f9d61';
-  ctx.fillText(isTouch ? t('tapStart') : t('start'), cx, H() * 0.86);
-  ctx.globalAlpha = 1;
-  // achievement badges (P4)
+  const cx = W() / 2;
+  const controlsY = 14;
+  const ch = 28;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.font = `600 13px ${SANS}`;
+  const boardLabel = t('boardBtn');
+  const boardW = ctx.measureText(boardLabel).width + 12;
+  const boardX = W() - 16 - boardW;
+  ctx.fillStyle = UI.text;
+  ctx.fillText(boardLabel, boardX + boardW / 2, controlsY + ch / 2);
+  readyUI.board = { x: boardX, y: controlsY, w: boardW, h: ch };
+  const langLabel = t('langBtn');
+  ctx.font = `600 12px ${SANS}`;
+  const langW = Math.max(44, ctx.measureText(langLabel).width + 18);
+  const langX = boardX - 8 - langW;
+  ctx.strokeStyle = '#3a4454';
+  ctx.lineWidth = 1;
+  roundRect(langX, controlsY, langW, ch, 6);
+  ctx.stroke();
+  ctx.fillStyle = UI.text;
+  ctx.fillText(langLabel, langX + langW / 2, controlsY + ch / 2 + 0.5);
+  readyUI.lang = { x: langX, y: controlsY, w: langW, h: ch };
+  const ghostLabel = t('ghostBtn') + ' ' + (ghostOn ? t('ghostOn') : t('ghostOff'));
+  ctx.font = `600 13px ${SANS}`;
+  const ghostW = ctx.measureText(ghostLabel).width + 12;
+  const ghostX = langX - 10 - ghostW;
+  ctx.fillStyle = ghostOn ? UI.text : UI.faint;
+  ctx.fillText(ghostLabel, ghostX + ghostW / 2, controlsY + ch / 2);
+  readyUI.ghost = { x: ghostX, y: controlsY, w: ghostW, h: ch };
+
+  ctx.textBaseline = 'alphabetic';
+  const titleY = Math.max(96, H() * 0.16);
+  const left = Math.max(28, cx - 240);
   {
-    const bw2 = u * 2.3, gap = u * 0.22, bh2 = u * 0.78;
-    const rowW = ACH.length * bw2 + (ACH.length - 1) * gap;
-    let bx = cx - rowW / 2;
-    const by = H() * 0.72;
-    ctx.font = `600 ${u * 0.46}px system-ui, "Noto Sans TC", sans-serif`;
-    for (const a of ACH) {
-      const on = achUnlocked.has(a.id);
-      ctx.fillStyle = on ? 'rgba(255,209,102,.14)' : 'rgba(255,255,255,.05)';
-      roundRect(bx, by, bw2, bh2, bh2 / 2); ctx.fill();
-      if (on) {
-        ctx.strokeStyle = 'rgba(255,209,102,.55)'; ctx.lineWidth = 1;
-        roundRect(bx, by, bw2, bh2, bh2 / 2); ctx.stroke();
-      }
-      ctx.fillStyle = on ? '#ffd166' : 'rgba(207,227,245,.32)';
-      ctx.fillText(t('ach_' + a.id), bx + bw2 / 2, by + bh2 / 2 + u * 0.17);
-      bx += bw2 + gap;
-    }
-  }
-  // ghost toggle pill (below the achievement badges)
-  {
-    const gw = u * 3.6, gh = u * 0.78, gx = cx - gw / 2, gy = H() * 0.72 + u * 0.78 + u * 0.35;
-    ctx.fillStyle = 'rgba(13,18,30,.85)';
-    roundRect(gx, gy, gw, gh, gh / 2); ctx.fill();
-    ctx.strokeStyle = ghostOn ? 'rgba(111,240,208,.55)' : 'rgba(159,182,201,.35)';
+    ctx.font = `500 12px ${SANS}`;
+    const labels = ACH.map(a => t('ach_' + a.id));
+    const gap = 16;
+    const totalW = labels.reduce((s, lab) => s + ctx.measureText(lab).width, 0) + gap * (labels.length - 1);
+    const achRowsN = totalW > W() - 48 ? 2 : 1;
+    const selW0 = Math.min(320, W() - 48);
+    const top = titleY - 50;
+    const bot = titleY + 356 + achRowsN * 22;
+    const sheetX = Math.max(16, Math.min(left - 28, cx - selW0 / 2 - 20));
+    const sheetR = Math.min(W() - 16, Math.max(cx + (cx - sheetX), cx + selW0 / 2 + 20));
+    ctx.fillStyle = UI.sheet;
+    roundRect(sheetX, top, sheetR - sheetX, bot - top, 8);
+    ctx.fill();
+    ctx.strokeStyle = UI.line;
     ctx.lineWidth = 1;
-    roundRect(gx, gy, gw, gh, gh / 2); ctx.stroke();
-    ctx.fillStyle = ghostOn ? '#6ff0d0' : 'rgba(207,227,245,.4)';
-    ctx.font = `600 ${u * 0.46}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillText(`${t('ghostBtn')} ${ghostOn ? t('ghostOn') : t('ghostOff')}`, cx, gy + gh / 2 + u * 0.17);
-    readyUI.ghost = { x: gx, y: gy, w: gw, h: gh };
+    roundRect(sheetX, top, sheetR - sheetX, bot - top, 8);
+    ctx.stroke();
   }
-  ctx.font = `500 ${u * 0.58}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#6d7f95';
-  ctx.fillText(t('footer'), cx, H() * 0.92);
-  // top-right: leaderboard button next to BEST (sized to cover the dimmed rolls HUD box)
-  const bw = u * 4.6, bh = u * 1.7, bx = W() - 12 - bw, by = 12;
-  ctx.fillStyle = 'rgba(13,18,30,.85)';
-  roundRect(bx, by, bw, bh, 8); ctx.fill();
-  ctx.strokeStyle = 'rgba(111,240,208,.45)'; ctx.lineWidth = 1.5;
-  roundRect(bx, by, bw, bh, 8); ctx.stroke();
-  ctx.fillStyle = '#6ff0d0';
-  ctx.font = `700 ${u * 0.78}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(t('boardBtn'), bx + bw / 2, by + bh / 2 + u * 0.28);
-  readyUI.board = { x: bx, y: by, w: bw, h: bh };
-  // language toggle pill (top-center, clear of BEST / RANKING)
-  const lw = u * 2.6, lx2 = cx - lw / 2, ly2 = 12, lh2 = u * 1.3;
-  ctx.fillStyle = 'rgba(13,18,30,.85)';
-  roundRect(lx2, ly2, lw, lh2, 6); ctx.fill();
-  ctx.strokeStyle = 'rgba(159,182,201,.4)'; ctx.lineWidth = 1.5;
-  roundRect(lx2, ly2, lw, lh2, 6); ctx.stroke();
-  ctx.fillStyle = '#cfe3f5';
-  ctx.font = `700 ${u * 0.66}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillText(t('langBtn'), lx2 + lw / 2, ly2 + lh2 / 2 + u * 0.24);
-  readyUI.lang = { x: lx2, y: ly2, w: lw, h: lh2 };
-  if (best > 0) {
-    ctx.fillStyle = '#ffd166';
-    ctx.font = `800 ${u * 0.85}px ui-monospace, monospace`;
-    ctx.textAlign = 'right';
-    ctx.fillText(`BEST ${best}`, bx - u * 0.6, by + bh / 2 + u * 0.3);
-    ctx.textAlign = 'center';
+  ctx.textAlign = 'center';
+  ctx.font = `500 12px ${MONO}`;
+  ctx.fillStyle = UI.muted;
+  ctx.fillText(lang === 'en' ? 'NIGHT RUN' : 'WALL FLIP', cx, titleY - 28);
+  ctx.font = `600 32px ${SANS}`;
+  ctx.fillStyle = UI.text;
+  ctx.fillText(lang === 'en' ? 'WALL FLIP' : '牆上翻滾', cx, titleY);
+  ctx.font = `400 14px ${SANS}`;
+  ctx.fillStyle = UI.muted;
+  ctx.fillText(t('sub'), cx, titleY + 26);
+
+  const lines = [[t('s1a'), t('s1b')], [t('s2a'), t('s2b')], [t('s3a'), t('s3b')], [t('s4a'), t('s4b')]];
+  let y = titleY + 64;
+  ctx.textAlign = 'left';
+  for (const [head, body] of lines) {
+    ctx.font = `600 15px ${SANS}`;
+    ctx.fillStyle = UI.text;
+    ctx.fillText(head, left, y);
+    ctx.font = `400 13px ${SANS}`;
+    ctx.fillStyle = UI.muted;
+    ctx.fillText(body, left, y + 18);
+    y += 44;
   }
+  ctx.textAlign = 'center';
+  ctx.font = `400 12px ${SANS}`;
+  ctx.fillStyle = UI.faint;
+  ctx.fillText(t('hint'), cx, y + 8);
+
+  const cc = COURSES[courseIdx];
+  const selW = Math.min(320, W() - 48);
+  const selX = cx - selW / 2;
+  const selY = y + 40;
+  ctx.strokeStyle = UI.line;
+  ctx.lineWidth = 1;
+  roundRect(selX, selY - 16, selW, 32, 6);
+  ctx.stroke();
+  ctx.fillStyle = UI.muted;
+  ctx.font = `500 16px ${SANS}`;
+  ctx.fillText('‹', selX + 22, selY + 5);
+  ctx.fillText('›', selX + selW - 22, selY + 5);
+  const cname = `${t('course')} · ${courseName(cc)}`;
+  ctx.font = `600 15px ${SANS}`;
+  ctx.fillStyle = UI.text;
+  ctx.fillText(cname, cx, selY + 5);
+  const nw = ctx.measureText(cname).width;
+  ctx.strokeStyle = UI.text;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - nw / 2 - 8, selY + 12);
+  ctx.lineTo(cx + nw / 2 + 8, selY + 12);
+  ctx.stroke();
+  readyUI.prev = { x: selX, y: selY - 16, w: 44, h: 32 };
+  readyUI.next = { x: selX + selW - 44, y: selY - 16, w: 44, h: 32 };
+  ctx.font = `400 12px ${SANS}`;
+  ctx.fillStyle = UI.faint;
+  ctx.fillText(`${cc.arcDeg}° ${t('arc')} · ${t('radius')} ${cc.arcR} m · ${t('straight')} ${cc.straight} m`, cx, selY + 34);
+
+  ctx.font = `500 12px ${SANS}`;
+  const achLabels = ACH.map(a => t('ach_' + a.id));
+  const gap = 16;
+  const widths = achLabels.map(lab => ctx.measureText(lab).width);
+  const totalW = widths.reduce((s, w) => s + w, 0) + gap * (achLabels.length - 1);
+  const achRows = totalW > W() - 48 ? [achLabels.slice(0, 4), achLabels.slice(4)] : [achLabels];
+  const widthRows = totalW > W() - 48 ? [widths.slice(0, 4), widths.slice(4)] : [widths];
+  let ay = selY + 64;
+  achRows.forEach((row, ri) => {
+    const rowW = widthRows[ri].reduce((s, w) => s + w, 0) + gap * (row.length - 1);
+    let bx = cx - rowW / 2;
+    row.forEach((lab, i) => {
+      const id = ACH[ri * 4 + i].id;
+      ctx.fillStyle = achUnlocked.has(id) ? UI.record : UI.faint;
+      ctx.textAlign = 'left';
+      ctx.fillText(lab, bx, ay);
+      bx += widthRows[ri][i] + gap;
+    });
+    ay += 22;
+  });
+
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = 0.55 + 0.45 * Math.sin(stateT * 3.5);
+  ctx.font = `600 14px ${SANS}`;
+  ctx.fillStyle = UI.text;
+  ctx.fillText(isTouch ? t('tapStart') : t('start'), cx, Math.max(ay + 28, H() * 0.9));
+  ctx.globalAlpha = 1;
+  ctx.font = `400 12px ${SANS}`;
+  ctx.fillStyle = UI.faint;
+  ctx.fillText(t('footer'), cx, Math.max(ay + 52, H() * 0.95));
 }
 function drawResult() {
   screenTransform();
   resultUI.share = null;
-  const u = Math.min(W(), H()) / 42, cx = W() / 2, m = 20;
-  // world stays visible; a light dim + a panel that slides in from the top
-  ctx.fillStyle = `rgba(4,6,12,${0.34 * Math.min(1, stateT / 0.4)})`;
+  const cx = W() / 2;
+  ctx.fillStyle = `rgba(4,6,12,${0.42 * Math.min(1, stateT / 0.4)})`;
   ctx.fillRect(0, 0, W(), H());
-  const slide = 1 - Math.pow(1 - Math.min(1, stateT / 0.55), 3);
-  const pw = Math.min(W() * 0.86, u * 24), ph = u * (stats.win ? 13.5 : 9), px = cx - pw / 2, py = -ph + (H() * 0.12 + ph) * slide;
-  ctx.fillStyle = 'rgba(13,18,30,.92)';
-  roundRect(px, py, pw, ph, u * 0.8); ctx.fill();
-  ctx.strokeStyle = 'rgba(111,240,208,.35)'; ctx.lineWidth = 2;
-  roundRect(px, py, pw, ph, u * 0.8); ctx.stroke();
-  ctx.save();
-  roundRect(px, py, pw, ph, u * 0.8); ctx.clip();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  const iy = py + u * 1.6;
-  ctx.font = `900 ${u * 2.0}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = stats.win ? '#6ff0d0' : '#8b93a3';
-  ctx.fillText(stats.win ? t('win') : t('lose'), cx, iy);
-  ctx.font = `600 ${u * 0.75}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#9fb6c9';
-  const reasons = {
-    fall: '從牆上剝離了。反翹段要一直按住吸附。',
-    wall: '撞上牆壁了。',
-  };
-  ctx.fillText(stats.win
+  const slide = 1 - Math.pow(1 - Math.min(1, stateT / 0.45), 3);
+  const pw = Math.min(W() - 48, 440);
+  const pad = 24;
+  const px = cx - pw / 2;
+  ctx.font = `400 13px ${SANS}`;
+  const sub = stats.win
     ? t('subWin', stats.rolls, fmt(stats.dist), fmt(stats.time, 1), stats.newTimeRecord)
-    : { fall: t('rFall'), wall: t('rWall'), hard: t('rHard', fmt(stats.fall)), tilt: t('rTilt', fmt(stats.tilt, 1)) }[stats.reason] || '', cx, iy + u * 1.15);
+    : { fall: t('rFall'), wall: t('rWall'), hard: t('rHard', fmt(stats.fall)), tilt: t('rTilt', fmt(stats.tilt, 1)) }[stats.reason] || '';
+  const subLines = wrapText(sub, pw - pad * 2);
+  const rows = stats.win ? [
+    [t('rowRolls', stats.rolls), '+' + stats.rollPts],
+    [t('rowSoft'), stats.soft + ' / 30'],
+    [t('rowLevel'), stats.level + ' / 20'],
+  ] : [];
+  const ph = 24 + 28 + subLines.length * 18 + (stats.win ? 36 + 16 + rows.length * 28 + 28 : 56) + 20;
+  const py = -ph + (Math.max(64, H() * 0.12) + ph) * slide;
+  ctx.fillStyle = UI.sheet;
+  roundRect(px, py, pw, ph, 8);
+  ctx.fill();
+  ctx.strokeStyle = UI.line;
+  ctx.lineWidth = 1;
+  roundRect(px, py, pw, ph, 8);
+  ctx.stroke();
+  ctx.save();
+  roundRect(px, py, pw, ph, 8);
+  ctx.clip();
+  ctx.textBaseline = 'alphabetic';
+  let y = py + pad + 6;
+  ctx.font = `600 22px ${SANS}`;
+  ctx.fillStyle = UI.text;
+  ctx.textAlign = 'left';
+  ctx.fillText(stats.win ? t('win') : t('lose'), px + pad, y);
+  y += 26;
+  ctx.font = `400 13px ${SANS}`;
+  ctx.fillStyle = UI.muted;
+  for (const line of subLines) {
+    ctx.fillText(line, px + pad, y);
+    y += 18;
+  }
   if (stats.win) {
-    let rank = 'GOOD!', rcol = '#cfe3f5';
-    for (const [th, name, col] of RANKS) if (stats.total >= th) { rank = name; rcol = col; break; }
-    ctx.font = `900 ${u * 1.5}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = rcol;
-    ctx.fillText(rank, cx, iy + u * 2.8);
-    const rows = [
-      [`翻滾 ROLLS ${stats.rolls} 回`, `+${stats.rollPts}`],
-      [t('rowSoft'), `${stats.soft} / 30`],
-      [`姿勢 LEVEL`, `${stats.level} / 20`],
-    ];
-    let y = iy + u * 4.3;
-    ctx.font = `600 ${u * 0.85}px system-ui, "Noto Sans TC", sans-serif`;
+    y += 18;
+    let rank = 'GOOD!';
+    for (const [th, name] of RANKS) if (stats.total >= th) { rank = name; break; }
+    ctx.font = `400 32px ${MONO}`;
+    ctx.fillStyle = UI.text;
+    ctx.textAlign = 'left';
+    ctx.fillText(String(stats.total), px + pad, y);
+    const numW = ctx.measureText(String(stats.total)).width;
+    ctx.font = `400 13px ${SANS}`;
+    ctx.fillStyle = UI.muted;
+    ctx.fillText(t('pts'), px + pad + numW + 8, y);
+    ctx.font = `600 16px ${SANS}`;
+    ctx.fillStyle = stats.total >= 140 ? UI.record : UI.text;
+    ctx.textAlign = 'right';
+    ctx.fillText(rank, px + pw - pad, y);
+    y += 32;
     for (const [a, b] of rows) {
-      ctx.fillStyle = '#9fb6c9'; ctx.textAlign = 'right'; ctx.fillText(a, cx - u * 0.8, y);
-      ctx.fillStyle = '#eef4fa'; ctx.textAlign = 'left'; ctx.fillText(String(b), cx + u * 0.8, y);
-      y += u * 1.3;
+      ctx.font = `400 14px ${SANS}`;
+      ctx.fillStyle = UI.muted;
+      ctx.textAlign = 'left';
+      ctx.fillText(a, px + pad, y);
+      ctx.font = `400 16px ${MONO}`;
+      ctx.fillStyle = UI.text;
+      ctx.textAlign = 'right';
+      ctx.fillText(String(b), px + pw - pad, y);
+      y += 28;
     }
-    ctx.textAlign = 'center';
-    y += u * 0.3;
-    ctx.font = `900 ${u * 1.5}px ui-monospace, monospace`;
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`${t('pts').toUpperCase()} ${stats.total}`, cx, y);
-    y += u * 1.1;
-    ctx.font = `700 ${u * 0.7}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = newBest ? '#ffd166' : '#9fb6c9';
-    ctx.fillText(newBest ? t('newRecord') : `${t('bestLabel')} ${best}`, cx, y);
+    ctx.font = `500 12px ${SANS}`;
+    ctx.fillStyle = newBest ? UI.record : UI.muted;
+    ctx.textAlign = 'right';
+    ctx.fillText(newBest ? t('newRecord') : `${t('bestLabel')} ${best}`, px + pw - pad, y);
+  } else {
+    y += 28;
+    ctx.font = `400 32px ${MONO}`;
+    ctx.fillStyle = UI.text;
+    ctx.textAlign = 'left';
+    const zeroW = ctx.measureText('0').width;
+    ctx.fillText('0', px + pad, y);
+    ctx.font = `400 13px ${SANS}`;
+    ctx.fillStyle = UI.muted;
+    ctx.fillText(t('pts'), px + pad + zeroW + 8, y);
   }
   ctx.restore();
-  // share button (P4) — only on successful landings
-  if (stats.win) {
-    const sw = u * 7, sh = u * 1.3, sx = cx - sw / 2, sy2 = py + ph + u * 0.55;
-    ctx.fillStyle = 'rgba(13,18,30,.85)';
-    roundRect(sx, sy2, sw, sh, sh / 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(111,240,208,.45)'; ctx.lineWidth = 1.5;
-    roundRect(sx, sy2, sw, sh, sh / 2); ctx.stroke();
-    ctx.fillStyle = '#6ff0d0';
-    ctx.font = `700 ${u * 0.7}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillText(t('shareBtn'), cx, sy2 + sh / 2 + u * 0.25);
-    resultUI.share = { x: sx, y: sy2, w: sw, h: sh };
-  }
-  // language toggle pill (top-right, above the rolls box)
-  {
-    const lw = u * 2.4, lx2 = W() - m - u * 4.6 - u * 0.5 - lw, ly2 = 4, lh2 = u * 1.3;
-    ctx.fillStyle = 'rgba(13,18,30,.85)';
-    roundRect(lx2, ly2, lw, lh2, 6); ctx.fill();
-    ctx.strokeStyle = 'rgba(159,182,201,.4)'; ctx.lineWidth = 1;
-    roundRect(lx2, ly2, lw, lh2, 6); ctx.stroke();
-    ctx.fillStyle = '#cfe3f5';
-    ctx.font = `700 ${u * 0.6}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillText(t('langBtn'), lx2 + lw / 2, ly2 + lh2 / 2 + u * 0.22);
-    resultUI.lang = { x: lx2, y: ly2, w: lw, h: lh2 };
-  }
-  // leaderboard link
-  ctx.textAlign = 'center';
-  ctx.font = `700 ${u * 0.85}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#6ff0d0';
-  const bl = '◈ ' + t('boardBtn');
-  const blw = ctx.measureText(bl).width, blY = H() * 0.8;
-  ctx.fillText(bl, cx, blY);
-  ctx.strokeStyle = 'rgba(111,240,208,.5)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(cx - blw / 2, blY + u * 0.22); ctx.lineTo(cx + blw / 2, blY + u * 0.22); ctx.stroke();
-  resultUI.board = { x: cx - blw / 2 - u * 0.8, y: blY - u * 1.1, w: blw + u * 1.6, h: u * 1.6 };
-  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(stateT * 3.5);
-  ctx.font = `800 ${u * 0.95}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.fillText(isTouch ? t('tapAgain') : t('again'), cx, H() * 0.9);
-  ctx.globalAlpha = 1;
-}
 
-// ranking overlay: online (when a rank API is configured) + local top 10 of
-// the current course; closes with click / L / Space; gear opens the API panel
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  let below = py + ph + 16;
+  if (stats.win) {
+    const sh = 32;
+    const sw = 168;
+    const sx = cx - sw / 2;
+    ctx.strokeStyle = '#3a4454';
+    ctx.lineWidth = 1;
+    roundRect(sx, below, sw, sh, 6);
+    ctx.stroke();
+    ctx.fillStyle = UI.text;
+    ctx.font = `600 13px ${SANS}`;
+    ctx.fillText(t('shareBtn'), cx, below + sh / 2);
+    resultUI.share = { x: sx, y: below, w: sw, h: sh };
+    below += sh + 18;
+  }
+  ctx.font = `600 14px ${SANS}`;
+  ctx.fillStyle = UI.text;
+  const bl = t('boardBtn');
+  const blw = ctx.measureText(bl).width;
+  ctx.fillText(bl, cx, below + 8);
+  ctx.strokeStyle = UI.text;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - blw / 2, below + 18);
+  ctx.lineTo(cx + blw / 2, below + 18);
+  ctx.stroke();
+  resultUI.board = { x: cx - blw / 2 - 12, y: below - 6, w: blw + 24, h: 32 };
+
+  const langLabel = t('langBtn');
+  ctx.font = `600 12px ${SANS}`;
+  const langW = Math.max(44, ctx.measureText(langLabel).width + 18);
+  const langX = W() - 16 - langW;
+  const langY = 14;
+  ctx.strokeStyle = '#3a4454';
+  ctx.lineWidth = 1;
+  roundRect(langX, langY, langW, 28, 6);
+  ctx.stroke();
+  ctx.fillStyle = UI.text;
+  ctx.fillText(langLabel, langX + langW / 2, langY + 14);
+  resultUI.lang = { x: langX, y: langY, w: langW, h: 28 };
+  ctx.textBaseline = 'alphabetic';
+}
 function drawRank() {
   screenTransform();
-  const u = Math.min(W(), H()) / 42, cx = W() / 2;
+  const cx = W() / 2;
   ctx.fillStyle = 'rgba(4,6,12,.78)';
   ctx.fillRect(0, 0, W(), H());
   const hasApi = !!rankApi;
-  const pw = Math.min(W() * 0.9, u * 26), ph = u * (hasApi ? 20 : 18.5), px = cx - pw / 2, py = H() / 2 - ph / 2;
-  ctx.fillStyle = 'rgba(13,18,30,.94)';
-  roundRect(px, py, pw, ph, u * 0.8); ctx.fill();
-  ctx.strokeStyle = 'rgba(111,240,208,.35)'; ctx.lineWidth = 2;
-  roundRect(px, py, pw, ph, u * 0.8); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.font = `900 ${u * 1.5}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#6ff0d0';
   const showOnline = hasApi && rankTab === 'online' && !!onlineBoard;
-  ctx.fillText(t('boardTitle', courseName(COURSES[courseIdx])) + (showOnline ? ' · ' + t('onlineMark') : ''), cx, py + u * 2.0);
-  // gear button: rank API settings, top-right corner of the panel
-  {
-    const gs = u * 1.4, gx = px + pw - gs - u * 0.7, gy = py + u * 0.55;
-    ctx.fillStyle = '#8fa3b8';
-    ctx.font = `700 ${u * 1.1}px system-ui, sans-serif`;
-    ctx.fillText(t('apiBtn'), gx + gs / 2, gy + gs * 0.86);
-    rankUI.gear = { x: gx, y: gy, w: gs, h: gs };
-  }
-  // tab switch: online (primary) / local — only when an API is configured
-  const headY = py + u * (hasApi ? 4.9 : 3.5);
+  const list = showOnline ? onlineBoard : boardView;
+  const rowH = H() < 560 ? 22 : 28;
+  const head = hasApi ? 92 : 64;
+  const bodyRows = Math.max(list.length, 6);
+  const ph = Math.min(H() - 64, head + bodyRows * rowH + 44);
+  const pw = Math.min(W() - 32, 520);
+  const px = cx - pw / 2;
+  const py = Math.max(16, (H() - ph) / 2);
+  ctx.fillStyle = UI.sheet;
+  roundRect(px, py, pw, ph, 8);
+  ctx.fill();
+  ctx.strokeStyle = UI.line;
+  ctx.lineWidth = 1;
+  roundRect(px, py, pw, ph, 8);
+  ctx.stroke();
+  ctx.textBaseline = 'middle';
+  ctx.font = `600 13px ${SANS}`;
+  const apiW = ctx.measureText('API').width + 18;
+  const gx = px + pw - 16 - apiW;
+  const gy = py + 16;
+  ctx.strokeStyle = '#3a4454';
+  roundRect(gx, gy, apiW, 28, 6);
+  ctx.stroke();
+  ctx.fillStyle = UI.muted;
+  ctx.textAlign = 'center';
+  ctx.fillText('API', gx + apiW / 2, gy + 14);
+  rankUI.gear = { x: gx, y: gy, w: apiW, h: 28 };
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.font = `600 16px ${SANS}`;
+  ctx.fillStyle = UI.text;
+  let title = t('boardTitle', courseName(COURSES[courseIdx]));
+  if (showOnline) title += ' · ' + t('onlineMark');
+  const maxTitle = gx - (px + 24) - 12;
+  while (title.length > 1 && ctx.measureText(title).width > maxTitle) title = title.slice(0, -1);
+  if (ctx.measureText(title).width > maxTitle) title = title.slice(0, -1) + '…';
+  ctx.fillText(title, px + 24, py + 36);
+
+  let headY = py + (hasApi ? 84 : 58);
   if (hasApi) {
-    const tw = u * 4.6, th = u * 1.05, ty = py + u * 2.9;
-    const pill = (x, on, label, key) => {
-      ctx.fillStyle = on ? 'rgba(111,240,208,.16)' : 'rgba(255,255,255,.05)';
-      roundRect(x, ty, tw, th, th / 2); ctx.fill();
-      ctx.strokeStyle = on ? 'rgba(111,240,208,.55)' : 'rgba(159,182,201,.3)'; ctx.lineWidth = 1;
-      roundRect(x, ty, tw, th, th / 2); ctx.stroke();
-      ctx.fillStyle = on ? '#6ff0d0' : 'rgba(207,227,245,.4)';
-      ctx.font = `700 ${u * 0.6}px system-ui, "Noto Sans TC", sans-serif`;
-      ctx.fillText(label, x + tw / 2, ty + th / 2 + u * 0.21);
-      rankUI[key] = { x, y: ty, w: tw, h: th };
+    const ty = py + 52;
+    const tab = (x, on, label, key) => {
+      ctx.font = on ? `600 14px ${SANS}` : `400 14px ${SANS}`;
+      ctx.fillStyle = on ? UI.text : UI.muted;
+      ctx.textAlign = 'left';
+      ctx.fillText(label, x, ty + 14);
+      const tw = ctx.measureText(label).width;
+      if (on) {
+        ctx.strokeStyle = UI.text;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - 8, ty + 22);
+        ctx.lineTo(x + tw + 8, ty + 22);
+        ctx.stroke();
+      }
+      rankUI[key] = { x: x - 8, y: ty - 4, w: tw + 16, h: 32 };
+      return tw;
     };
-    pill(cx - tw - u * 0.2, rankTab === 'online', t('tabOnline'), 'tabOnline');
-    pill(cx + u * 0.2, rankTab === 'local', t('tabLocal'), 'tabLocal');
+    const onlineW = tab(px + 24, rankTab === 'online', t('tabOnline'), 'tabOnline');
+    tab(px + 24 + onlineW + 28, rankTab === 'local', t('tabLocal'), 'tabLocal');
   } else {
     rankUI.tabOnline = rankUI.tabLocal = null;
   }
-  const list = showOnline ? onlineBoard : boardView;
-  const cS = px + pw * 0.44, cR = px + pw * 0.63, cD = px + pw - u * 1.2;
+
+  const cS = px + pw * 0.58;
+  const cR = px + pw * 0.74;
+  const cD = px + pw - 24;
   if (!list.length) {
-    ctx.font = `600 ${u * 0.95}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#8fa3b8';
-    ctx.fillText(hasApi && rankTab === 'online' && onlinePending ? '…' : t('boardEmpty'), cx, py + ph / 2 + u * 0.3);
+    ctx.font = `400 14px ${SANS}`;
+    ctx.fillStyle = UI.muted;
+    ctx.textAlign = 'center';
+    ctx.fillText(hasApi && rankTab === 'online' && onlinePending ? '…' : t('boardEmpty'), cx, py + ph / 2);
   } else {
+    ctx.font = `600 11px ${SANS}`;
+    ctx.fillStyle = UI.faint;
     ctx.textAlign = 'left';
-    ctx.font = `600 ${u * 0.6}px system-ui, "Noto Sans TC", sans-serif`;
-    ctx.fillStyle = '#8fa3b8';
-    ctx.fillText(t('colRank'), px + u * 1.2, headY);
+    ctx.fillText(t('colRank'), px + 24, headY);
     ctx.textAlign = 'right';
     ctx.fillText(t('colScore'), cS, headY);
     ctx.fillText(t('colRolls'), cR, headY);
     ctx.fillText(showOnline ? t('colTime') : t('colDate'), cD, headY);
-    let ry = headY + u * 1.5;
+    let ry = headY + rowH;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       const hi = showOnline ? i === onlineHi : i === rankHi;
-      if (hi) { // the entry just achieved / just submitted
-        ctx.fillStyle = 'rgba(255,209,102,.13)';
-        ctx.fillRect(px + u * 0.6, ry - u * 1.0, pw - u * 1.2, u * 1.25);
+      if (hi) {
+        ctx.fillStyle = 'rgba(226,179,64,.10)';
+        ctx.fillRect(px + 12, ry - 16, pw - 24, rowH - 4);
       }
       ctx.textAlign = 'left';
-      ctx.font = `800 ${u * 0.78}px ui-monospace, monospace`;
-      ctx.fillStyle = hi ? '#ffd166' : '#eef4fa';
-      ctx.fillText(`${i + 1}.`, px + u * 1.2, ry);
-      if (showOnline) { // online entries carry a player name
-        ctx.font = `700 ${u * 0.72}px system-ui, "Noto Sans TC", sans-serif`;
+      ctx.font = `400 14px ${MONO}`;
+      ctx.fillStyle = hi ? UI.record : UI.text;
+      ctx.fillText(String(i + 1), px + 24, ry);
+      if (showOnline) {
+        ctx.font = `500 14px ${SANS}`;
         let nm = e.n;
-        while (nm.length > 1 && ctx.measureText(nm).width > cS - (px + u * 3.0)) nm = nm.slice(0, -1);
+        const nameMax = cS - 72 - (px + 52);
+        while (nm.length > 1 && ctx.measureText(nm).width > nameMax) nm = nm.slice(0, -1);
         if (nm !== e.n) nm += '…';
-        ctx.fillText(nm, px + u * 2.6, ry);
+        ctx.fillText(nm, px + 52, ry);
       }
       ctx.textAlign = 'right';
-      ctx.font = `800 ${u * 0.78}px ui-monospace, monospace`;
-      ctx.fillStyle = hi ? '#ffd166' : '#eef4fa';
+      ctx.font = `400 14px ${MONO}`;
+      ctx.fillStyle = hi ? UI.record : UI.text;
       ctx.fillText(fmt(e.s), cS, ry);
-      ctx.fillStyle = hi ? '#ffd166' : '#9fb6c9';
+      ctx.fillStyle = hi ? UI.record : UI.muted;
       ctx.fillText(fmt(e.r), cR, ry);
-      ctx.font = `500 ${u * 0.66}px ui-monospace, monospace`;
-      ctx.fillStyle = hi ? '#ffd166' : '#6d7f95';
-      ctx.fillText(showOnline ? (Number.isFinite(e.t) ? fmt(e.t, 1) + 's' : '') : e.t, cD, ry);
-      ry += u * 1.25;
+      ctx.fillStyle = hi ? UI.record : UI.faint;
+      ctx.fillText(showOnline ? (Number.isFinite(e.t) ? fmt(e.t, 1) + 's' : '–') : e.t, cD, ry);
+      ry += rowH;
     }
   }
   ctx.textAlign = 'center';
-  ctx.font = `600 ${u * 0.62}px system-ui, "Noto Sans TC", sans-serif`;
-  ctx.fillStyle = '#6d7f95';
-  ctx.fillText(t('boardClose'), cx, py + ph - u * 0.8);
+  ctx.font = `400 12px ${SANS}`;
+  ctx.fillStyle = UI.faint;
+  ctx.fillText(t('boardClose'), cx, py + ph - 16);
 }
 
 let shakeT = 0, shakeA = 0;
@@ -2021,7 +2143,7 @@ function render(t) {
   cam.x = ox; cam.y = oy;
   screenTransform();
   drawPops();
-  drawHUD();
+  if (state === ST.RUN) drawHUD();
   if (state === ST.READY) drawReady();
   if (state === ST.RESULT) drawResult();
   if (rankOn) drawRank();
@@ -2054,6 +2176,13 @@ resize();
 if (DEMO) { botOn = true; state = ST.RUN; }
 camSnapSafe();
 requestAnimationFrame(frame);
+// TEMP deterministic render hook (removed before ship)
+window.__wfStep = sec => {
+  const n = Math.min(30000, Math.round(sec / STEP));
+  for (let i = 0; i < n; i++) { stepPhysics(STEP); if (i % 24 === 0) camStep(STEP * 24); }
+  if (state === ST.READY || state === ST.RESULT) stateT += sec;
+  render(performance.now() / 1000);
+};
 function camSnapSafe() {
   const t = camTargets();
   cam.x = t.cx; cam.y = t.cy;
