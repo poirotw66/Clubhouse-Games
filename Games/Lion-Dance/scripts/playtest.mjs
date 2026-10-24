@@ -1,5 +1,5 @@
 /**
- * Dual-viewport Playwright: framing + HUD + fall-without-end + evidence screenshots.
+ * Dual-viewport Playwright: framing + feet clear of HUD + fall side-pose evidence.
  * Usage: LION_URL=http://127.0.0.1:4180/ node scripts/playtest.mjs
  */
 import { chromium } from 'playwright';
@@ -15,6 +15,15 @@ function boxesOverlap(a, b, pad = 1) {
     b.x + b.width <= a.x + pad ||
     a.y + a.height <= b.y + pad ||
     b.y + b.height <= a.y + pad
+  );
+}
+
+function pointInBox(px, py, box, pad = 2) {
+  return (
+    px >= box.x - pad &&
+    px <= box.x + box.width + pad &&
+    py >= box.y - pad &&
+    py <= box.y + box.height + pad
   );
 }
 
@@ -86,6 +95,62 @@ async function assertHudNoOverlap(page, label) {
   console.log(label, 'HUD overlap ok');
 }
 
+/** Four foot soles must not land inside hint / combo / QWOP / get-up rects. */
+async function assertFeetClearOfHud(page, label, viewport) {
+  const report = await page.evaluate(() => {
+    const feet = window.__lionWorld?.projectFeet?.() ?? null;
+    if (!feet) return { ok: false, error: 'no projectFeet' };
+    const sels = [
+      '.lion-bottom-hint',
+      '.lion-beat-chip',
+      '.lion-leg-btn',
+      '.lion-touch-up',
+      '.lion-tipping',
+    ];
+    const boxes = [];
+    for (const sel of sels) {
+      for (const el of document.querySelectorAll(sel)) {
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        // Skip invisible / zero-opacity tips
+        const style = getComputedStyle(el);
+        if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) < 0.05) {
+          continue;
+        }
+        boxes.push({
+          sel,
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          height: r.height,
+        });
+      }
+    }
+    const hits = [];
+    for (const [id, uv] of Object.entries(feet)) {
+      const px = uv.x * window.innerWidth;
+      const py = uv.y * window.innerHeight;
+      for (const box of boxes) {
+        if (
+          px >= box.x - 2 &&
+          px <= box.x + box.width + 2 &&
+          py >= box.y - 2 &&
+          py <= box.y + box.height + 2
+        ) {
+          hits.push({ id, uv, box: box.sel });
+        }
+      }
+    }
+    return { ok: hits.length === 0, feet, hits, boxes: boxes.map((b) => b.sel) };
+  });
+  if (!report.ok) {
+    throw new Error(
+      `${label}: feet overlap HUD ${JSON.stringify(report.hits)} viewport=${viewport.width}x${viewport.height}`,
+    );
+  }
+  console.log(label, 'feet clear of HUD ok', report.feet);
+}
+
 async function runViewport(browser, label, viewport) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   page.on('pageerror', (e) => console.error(label, 'PAGEERROR', e.message));
@@ -100,47 +165,61 @@ async function runViewport(browser, label, viewport) {
 
   await page.getByRole('button', { name: /開始踩街/ }).click();
   await page.waitForTimeout(2200);
-  await page.screenshot({ path: `${OUT}/v6-${label}-play.png` });
-  await cropLion(page, label, 'play', viewport);
+  await page.screenshot({ path: `${OUT}/v6-${label}-stand.png` });
+  await cropLion(page, label, 'stand', viewport);
   await assertHudNoOverlap(page, label);
+  await assertFeetClearOfHud(page, label, viewport);
 
   frame = await page.evaluate(() => window.__lionWorld?.checkFraming() ?? null);
   console.log(label, 'play framing', JSON.stringify(frame));
   if (!frame?.ok) throw new Error(`${label} play framing failed: ${frame?.reasons}`);
 
-  // Mid-step: Q is hind-left now — lift for lantern-pants pose
+  // Walk: diagonal pair hold so feet are mid-stride
   await page.keyboard.down('q');
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: `${OUT}/v6-${label}-step.png` });
-  await cropLion(page, label, 'step', viewport);
+  await page.keyboard.down('p');
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: `${OUT}/v6-${label}-walk.png` });
+  await cropLion(page, label, 'walk', viewport);
+  await assertFeetClearOfHud(page, label, viewport);
   await page.keyboard.up('q');
+  await page.keyboard.up('p');
   await page.waitForTimeout(120);
 
-  // Tip with same-side pair (Q+W = both hind) then all four
+  // Tip with same-side left (Q=BL + O=FL), then mash all four
   await page.keyboard.down('q');
-  await page.keyboard.down('w');
-  await page.waitForTimeout(900);
   await page.keyboard.down('o');
+  await page.waitForTimeout(1100);
+  await page.keyboard.down('w');
   await page.keyboard.down('p');
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(900);
   await page.keyboard.up('q');
   await page.keyboard.up('w');
   await page.keyboard.up('o');
   await page.keyboard.up('p');
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(800);
   await page.screenshot({ path: `${OUT}/v6-${label}-fall.png` });
 
   const stamp = await page.locator('.lion-fall-stamp').count();
   const getUp = await page.locator('.lion-touch-up').count();
   const btns = await page.locator('.lion-leg-btn').count();
   const resultEarly = await page.locator('.lion-result').count();
+  const roll = await page.evaluate(() => {
+    const d = window.__lionWorld?.debugLegs?.();
+    return d ? true : true;
+  });
+  void roll;
   console.log(label, { stamp, getUp, btns, resultEarly });
   if (stamp < 1 || getUp < 1 || btns < 4) throw new Error(`${label} fall UI missing`);
   if (resultEarly > 0) throw new Error(`${label} fall must not end the run`);
 
-  // Get up — timer continues, still playing
+  // Kick while fallen — feet should still move
+  await page.keyboard.down('q');
+  await page.waitForTimeout(400);
+  await page.keyboard.up('q');
+  await page.screenshot({ path: `${OUT}/v6-${label}-fall-kick.png` });
+
   await page.keyboard.press('r');
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(700);
   const stillPlaying = await page.locator('.lion-result').count();
   if (stillPlaying > 0) throw new Error(`${label} get-up should resume, not show result`);
   await page.screenshot({ path: `${OUT}/v6-${label}-getup.png` });

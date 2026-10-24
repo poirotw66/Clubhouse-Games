@@ -362,22 +362,22 @@ body,
 }
 
 .lion-tipping {
-  position: absolute;
+  position: fixed;
   left: 50%;
-  bottom: 11.5rem;
+  bottom: calc(6.4rem + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   margin: 0;
-  padding: 0.35rem 0.9rem;
+  padding: 0.3rem 0.85rem;
   border-radius: 999px;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   letter-spacing: 0.06em;
   color: #fff;
   background: #e04545;
   box-shadow: 0 4px 0 #9a2020;
   animation: lion-pulse 0.6s ease-in-out infinite;
-  z-index: 6;
+  z-index: 8500;
   pointer-events: none;
 }
 
@@ -421,7 +421,7 @@ body,
 .lion-fall-stamp {
   position: fixed;
   left: 50%;
-  top: 36%;
+  top: 14%;
   z-index: 9050;
   transform: translate(-50%, -50%) rotate(-12deg);
   padding: 0.65rem 1.25rem;
@@ -484,15 +484,16 @@ body,
 .lion-bottom-hint {
   position: fixed;
   left: 50%;
-  bottom: calc(7.2rem + env(safe-area-inset-bottom, 0px));
+  /* Glued to the top of the QWOP strip */
+  bottom: calc(3.85rem + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 8500;
   margin: 0;
-  padding: 0.5rem 1rem;
+  padding: 0.35rem 0.75rem;
   border-radius: 999px;
   background: rgba(255, 252, 245, 0.92);
   border: 1.5px solid rgba(240, 193, 75, 0.6);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #5c3d28;
   pointer-events: none;
@@ -537,10 +538,13 @@ body,
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.3rem 0.7rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 999px;
   background: rgba(255, 252, 245, 0.92);
   border: 1.5px solid rgba(240, 193, 75, 0.55);
+  /* Keep glued to the button row so it never floats over the lion */
+  order: 2;
+  margin-top: 0.1rem;
 }
 
 .lion-beat-pulse {
@@ -569,6 +573,7 @@ body,
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem;
   width: 100%;
+  order: 3;
 }
 
 .lion-leg-btn {
@@ -612,15 +617,21 @@ body,
 }
 
 .lion-touch-up {
-  min-width: 9rem !important;
-  min-height: 3.25rem !important;
+  /* Park beside the top-right HUD — clear of the lion mid-frame */
+  position: fixed !important;
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  top: max(5.6rem, env(safe-area-inset-top, 0px) + 5.2rem);
+  left: auto !important;
+  z-index: 8600;
+  min-width: 8.5rem !important;
+  min-height: 2.85rem !important;
   border-radius: 0.85rem !important;
   border: 2.5px solid rgba(34, 160, 90, 0.7) !important;
   background: linear-gradient(180deg, #4ade80, #16a34a) !important;
   color: #052e16 !important;
   font-family: var(--font-display) !important;
   font-weight: 800 !important;
-  font-size: 1.15rem !important;
+  font-size: 1.05rem !important;
   box-shadow: 0 4px 0 rgba(22, 101, 52, 0.45);
   animation: lion-pop 0.35s ease-out both;
 }

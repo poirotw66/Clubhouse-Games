@@ -266,8 +266,10 @@ function approachAngle(current: number, target: number, maxRate: number, dt: num
 }
 
 function approachLift(current: number, target: number, dt: number): number {
+  // Drop faster than raise so a released diagonal re-plants before pitch tips.
+  const rate = target < current ? LIFT_RATE * 1.85 : LIFT_RATE;
   const d = target - current;
-  const step = Math.max(-LIFT_RATE * dt, Math.min(LIFT_RATE * dt, d));
+  const step = Math.max(-rate * dt, Math.min(rate * dt, d));
   return Math.max(0, Math.min(1, current + step));
 }
 
@@ -406,6 +408,8 @@ export function stepPhysics(
   let groundedN = 0;
   let hasLeft = false;
   let hasRight = false;
+  let hasFront = false;
+  let hasHind = false;
   let legRecoil = 0;
 
   let gripDamp = 0;
@@ -445,6 +449,8 @@ export function stepPhysics(
       const z = LEG_ATTACH[id].z;
       if (z < 0) hasLeft = true;
       else hasRight = true;
+      if (LEG_ATTACH[id].x > 0) hasFront = true;
+      else hasHind = true;
 
       const pen = Math.max(0, reach - hipY);
       const N = Math.max(0, SPRING_K * pen - SPRING_C * hipVy);
@@ -492,15 +498,24 @@ export function stepPhysics(
   let alphaPitch = torquePitch / I_PITCH + (REAR_COUPLE * fx * sim.y) / I_PITCH + legRecoil / I_PITCH;
   let alphaRoll = torqueRoll / I_ROLL;
 
-  // Passive tip (angular accel) + roll righting when both sides have a plant
+  // Passive tip (angular accel)
   alphaPitch += TIP_PITCH * Math.sin(sim.pitch);
   alphaRoll += TIP_ROLL * Math.sin(sim.roll);
+  // Roll righting when left+right planted; pitch righting when front+hind planted
+  // (diagonal support has both — same-side / front-only / hind-only still tip).
   if (hasLeft && hasRight) {
     let k = BAL2;
     if (groundedN >= 4) k = BAL4;
     else if (groundedN === 3) k = BALANCE;
     k *= rightingMul;
     alphaRoll += -k * (sim.roll + 0.25 * sim.rollVel);
+  }
+  if (hasFront && hasHind) {
+    let k = BAL2 * 0.85;
+    if (groundedN >= 4) k = BAL4 * 0.85;
+    else if (groundedN === 3) k = BALANCE * 0.85;
+    k *= rightingMul;
+    alphaPitch += -k * (sim.pitch + 0.25 * sim.pitchVel);
   }
 
   sim.pitchVel += alphaPitch * dt;

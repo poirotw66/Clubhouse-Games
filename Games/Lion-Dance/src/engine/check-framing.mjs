@@ -24,14 +24,14 @@ const ok = checkLionFramed({
 assert.ok(ok.ok);
 
 const cropped = checkLionFramed({
-  minX: 0.01,
+  minX: -0.12,
   maxX: 0.5,
   minY: 0.2,
   maxY: 0.5,
   heightFrac: 0.3,
-  widthFrac: 0.49,
+  widthFrac: 0.62,
 });
-assert.ok(!cropped.ok);
+assert.ok(!cropped.ok, 'should fail when AABB spills past side slop');
 
 console.log(
   `check-framing: ok (desk d=${desk.distance.toFixed(2)} portrait d=${portrait.distance.toFixed(2)})`,

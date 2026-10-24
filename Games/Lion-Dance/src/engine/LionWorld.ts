@@ -12,6 +12,7 @@ import {
   FIXED_DT,
   GHOST_SAMPLE_DT,
   KEY_TO_LEG,
+  LEG_IDS,
   LION_SCALE,
   MAX_FRAME_DT,
   PIXEL_RATIO_CAP,
@@ -37,6 +38,7 @@ import {
   DIST_FOLLOW_RATE,
   FOLLOW_RATE,
   projectObjectBounds,
+  projectWorldToUv,
   type CameraFrame,
   type FrameCheck,
 } from './framing';
@@ -78,6 +80,8 @@ export interface LionWorld {
   getGhostSamples(): GhostSample[];
   /** Project lion AABB → screen; used by Playwright framing check. */
   checkFraming(): FrameCheck | null;
+  /** Foot sole UV [0,1] for HUD overlap asserts (top-left Y). */
+  projectFeet(): Record<LegId, { x: number; y: number }> | null;
   /** Playtest helper — FK angles / world hip-knee-foot. */
   debugLegs(): Record<string, unknown> | null;
   onHud(cb: (hud: HudSnapshot) => void): void;
@@ -193,9 +197,10 @@ export function createLionWorld(): LionWorld {
     camera.fov = frame.fov;
     const w = hostEl.clientWidth || window.innerWidth;
     const h = hostEl.clientHeight || window.innerHeight;
-    // Lift the projection above the touch pad so buttons don't cover the lion
-    const padPx = Math.min(h * 0.42, padViewOffset || h * 0.28);
-    camera.setViewOffset(w, h, 0, -padPx * 0.35, w, h - padPx * 0.15);
+    // Taller virtual canvas; viewport is the LOWER band (offsetY = pad) so
+    // world content shifts UP on screen and clears the touch pad.
+    const padPx = Math.max(padViewOffset || h * frame.padFrac, h * frame.padFrac);
+    camera.setViewOffset(w, h + padPx, 0, padPx, w, h);
     camera.updateProjectionMatrix();
     const d = camDist;
     const ahead = followX + frame.aheadFrac * d;
@@ -217,7 +222,7 @@ export function createLionWorld(): LionWorld {
     camera.aspect = aspect;
     frame = computeCameraFrame(aspect);
     camDist = frame.distance;
-    padViewOffset = Math.min(220, Math.max(120, h * 0.26));
+    padViewOffset = Math.min(300, Math.max(160, h * frame.padFrac));
     camera.fov = frame.fov;
     renderer.setSize(w, h, false);
     applyCameraRig(camX);
@@ -347,37 +352,25 @@ export function createLionWorld(): LionWorld {
         flower.scale.setScalar(1.05 + beat.pulse * 0.1);
       }
       shadow.position.set(root.position.x, 0.02, 0);
-      camX += (2.5 - camX) * Math.min(1, dt * 3);
+      camX += (1.2 - camX) * Math.min(1, dt * 3);
       applyCameraRig(camX);
       return;
     }
 
     if (sim.fallen) {
       const side = sim.fallSide || 1;
-      const land = Math.min(1, sim.fallSpin * 0.7);
-      // Squash on impact
-      const squash = 1 - 0.14 * Math.sin(Math.min(1, sim.fallBounce) * Math.PI);
-      root.scale.set(
-        LION_SCALE * (1 + (1 - squash) * 0.12),
-        LION_SCALE * squash,
-        LION_SCALE * (1 + (1 - squash) * 0.18),
-      );
-      // Physics pitch/roll drive the mesh 1:1; ease toward a readable side flop
-      const showRoll = sim.roll * land + side * (-Math.PI / 2) * Math.min(1, land * 1.1);
+      const land = Math.min(1, Math.max(0.35, sim.fallSpin * 1.2));
+      // Side-lie at physics roll (~±1.45 rad) — no belly squash; legs stay readable
+      root.scale.setScalar(LION_SCALE);
       root.position.set(sim.x, Math.max(0.42, sim.y), sim.lateral * 0.35);
-      root.rotation.set(
-        showRoll,
-        sim.yaw * 0.5 + side * 0.08 * land,
-        sim.pitch,
-      );
-      // Cloth drapes / flops over the legs while fallen
-      cloth.rotation.z = side * 0.18 * land + Math.sin(sim.fallSpin * 2.2) * 0.08;
-      cloth.rotation.x = 0.12 * land;
-      cloth.position.y = -0.15 * land;
-      hem.position.y = 0.02 - 0.22 * land;
-      hem.rotation.z = side * 0.25 * land;
-      frontHump.position.y = frontHumpHomeY - 0.25 * land;
-      rearHump.position.y = rearHumpHomeY - 0.2 * land;
+      root.rotation.set(sim.roll, sim.yaw * 0.35, sim.pitch * 0.85);
+      cloth.rotation.z = side * 0.06 * land;
+      cloth.rotation.x = 0;
+      cloth.position.y = 0;
+      hem.position.y = 0.02;
+      hem.rotation.z = side * 0.08 * land;
+      frontHump.position.y = frontHumpHomeY;
+      rearHump.position.y = rearHumpHomeY;
       // 花花 flung in an arc (world-ish local)
       if (!flowerDetached) {
         flowerDetached = true;
@@ -395,9 +388,9 @@ export function createLionWorld(): LionWorld {
       }
       flower.position.copy(flowerWorld);
       flower.rotation.set(sim.fallSpin * 2.1, sim.fallSpin * 1.7, sim.fallSpin);
-      applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing, sim.fallSpin, true);
+      applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing, sim.fallSpin, true, side);
       head.position.y = headHomeY;
-      head.rotation.x = -0.15;
+      head.rotation.x = -0.08;
 
       if (dust && dustVel && dust.visible) {
         const mat = dust.material as THREE.PointsMaterial;
@@ -855,6 +848,22 @@ export function createLionWorld(): LionWorld {
       const core = lion.root.getObjectByName('frameCore') ?? lion.root;
       const bounds = projectObjectBounds(core, camera);
       return checkLionFramed(bounds);
+    },
+
+    projectFeet() {
+      if (!lion || !camera) return null;
+      lion.root.updateWorldMatrix(true, true);
+      camera.updateMatrixWorld(true);
+      const tmp = new THREE.Vector3();
+      const out = {} as Record<LegId, { x: number; y: number }>;
+      for (const id of LEG_IDS) {
+        lion.legs[id].foot.getWorldPosition(tmp);
+        // Sole is slightly below the foot mesh origin
+        tmp.y = Math.min(tmp.y, 0.05);
+        const uv = projectWorldToUv(tmp, camera);
+        out[id] = { x: uv.x, y: uv.y };
+      }
+      return out;
     },
 
     /** Debug helper for playtests — leg FK angles + lifts. */

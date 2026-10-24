@@ -77,14 +77,15 @@ function runDiagonal(period, limit = TIME_LIMIT) {
   console.log(`same-side fall at t=${t.toFixed(2)}s`);
 }
 
-// Fast overlapping diagonals finish in ~18–30 s
+// Stable overlapping diagonals (~0.22 s swaps) finish in ~18–30 s with ~0 falls
 {
-  const { sim, falls } = runDiagonal(0.12);
+  const { sim, falls } = runDiagonal(0.22);
   assert.ok(sim.finished, `diagonal should finish; x=${sim.x.toFixed(2)} t=${sim.elapsed.toFixed(2)}`);
   assert.ok(
     sim.elapsed >= 14 && sim.elapsed <= 35,
     `diagonal pace band failed t=${sim.elapsed.toFixed(2)} (want ~18–30s)`,
   );
+  assert.ok(falls <= 2, `stable diagonal should rarely fall; falls=${falls}`);
   console.log(
     `diagonal ok t=${sim.elapsed.toFixed(2)}s falls=${falls} vmax=${sim.maxSpeed.toFixed(2)} steps=${sim.stepCount}`,
   );
@@ -111,7 +112,7 @@ function runDiagonal(period, limit = TIME_LIMIT) {
     }
     step(mash);
   }
-  const clean = runDiagonal(0.12, 30);
+  const clean = runDiagonal(0.22, 30);
   assert.ok(
     mash.x < clean.sim.x * 0.85 || mash.x < TRACK_LENGTH * 0.55,
     `mash should lag clean gait; mash=${mash.x.toFixed(1)} clean30=${clean.sim.x.toFixed(1)}`,

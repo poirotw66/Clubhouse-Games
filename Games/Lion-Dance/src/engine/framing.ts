@@ -1,6 +1,6 @@
 /**
- * Front three-quarter camera framing (v6 feel).
- * FOV 38°, follow with velocity lead, pad-aware view offset.
+ * Front three-quarter camera framing (v6.1).
+ * FOV 38°, ~2.3–3.5 m half-width at the lion, pad-aware view offset.
  */
 
 import * as THREE from 'three';
@@ -11,13 +11,16 @@ export const LION_WORLD_HEIGHT = 4.2 * LION_SCALE;
 /** Core silhouette length (nose→tail tip). */
 export const LION_WORLD_LENGTH = BODY_LENGTH * 1.55;
 
-/** Desired half-width at the lion (≈ 0.55 × length). */
-export const HALF_WIDTH = Math.max(2.3, LION_WORLD_LENGTH * 0.55);
-export const HALF_WIDTH_PORTRAIT = HALF_WIDTH * (1.9 / 2.3);
+/**
+ * Desired half-width at the lion — leave ~2.3 m+ clear on each side
+ * (reference framing), scaled up slightly for our longer lion.
+ */
+export const HALF_WIDTH = 3.8;
+export const HALF_WIDTH_PORTRAIT = 3.0;
 
 export const CAM_FOV = 38;
-export const DIST_MIN = 7.5;
-export const DIST_MAX = 18;
+export const DIST_MIN = 14;
+export const DIST_MAX = 26;
 export const FOLLOW_RATE = 5;
 export const DIST_FOLLOW_RATE = 4;
 
@@ -32,20 +35,19 @@ export interface CameraFrame {
   /** Ahead along +X for three-quarter (fraction of distance). */
   aheadFrac: number;
   lookAhead: number;
+  /** Extra virtual height (px fraction of viewport) reserved for the touch pad. */
+  padFrac: number;
 }
 
 /** Aspect-adaptive distance so portrait/mobile keeps the lion readable. */
 export function computeCameraFrame(aspect: number): CameraFrame {
-  // Portrait is width-limited for a long side-on lion — use a wider half-width.
-  const halfW =
-    aspect < 0.7 ? HALF_WIDTH * 1.35 : aspect < 0.9 ? HALF_WIDTH * 1.15 : HALF_WIDTH;
+  const halfW = aspect < 0.8 ? HALF_WIDTH_PORTRAIT : HALF_WIDTH;
   const vFov = (CAM_FOV * Math.PI) / 180;
   const halfV = Math.tan(vFov / 2);
   const halfH = halfV * Math.max(0.35, aspect);
   let distance = halfW / halfH;
   distance = Math.max(DIST_MIN, Math.min(DIST_MAX, distance));
-  // Three-quarter ahead offset eats side margin on narrow screens — pull back a bit more.
-  if (aspect < 0.9) distance = Math.min(DIST_MAX, distance * 1.12);
+  if (aspect < 0.9) distance = Math.min(DIST_MAX, distance * 1.08);
 
   const hip = BODY_HEIGHT;
   return {
@@ -53,9 +55,10 @@ export function computeCameraFrame(aspect: number): CameraFrame {
     distance,
     camY: 1.47 * hip + 0.08 * distance,
     lookY: 0.82 * hip,
-    // Portrait: near side-on so the long body fits; desktop keeps three-quarter.
-    aheadFrac: aspect < 0.7 ? 0.02 : aspect < 0.9 ? 0.12 : 0.28,
+    // Desktop: clear three-quarter; portrait: gentler ahead so length fits.
+    aheadFrac: aspect < 0.7 ? 0.1 : aspect < 0.9 ? 0.18 : 0.28,
     lookAhead: 0,
+    padFrac: aspect < 0.8 ? 0.55 : 0.5,
   };
 }
 
@@ -113,6 +116,19 @@ export function projectObjectBounds(
   };
 }
 
+/** Project a world point into viewport UV [0,1] (top-left origin for Y). */
+export function projectWorldToUv(
+  world: THREE.Vector3,
+  camera: THREE.Camera,
+): { x: number; y: number; ndcZ: number } {
+  _v.copy(world).project(camera);
+  return {
+    x: (_v.x + 1) * 0.5,
+    y: (1 - _v.y) * 0.5,
+    ndcZ: _v.z,
+  };
+}
+
 export interface FrameCheck {
   ok: boolean;
   bounds: ScreenBounds;
@@ -121,12 +137,12 @@ export interface FrameCheck {
 
 export function checkLionFramed(bounds: ScreenBounds, margin = FRAME_MARGIN_NDC): FrameCheck {
   const reasons: string[] = [];
-  // Allow a tiny side overhang: long lion + three-quarter camera on portrait.
-  const sideSlop = 0.08;
+  const sideSlop = 0.04;
   if (bounds.minX < -sideSlop) reasons.push(`left ${bounds.minX.toFixed(3)}`);
   if (bounds.maxX > 1 + sideSlop) reasons.push(`right ${bounds.maxX.toFixed(3)}`);
   if (bounds.minY < margin) reasons.push(`top ${bounds.minY.toFixed(3)}`);
-  if (bounds.maxY > 1 - margin) reasons.push(`bottom ${bounds.maxY.toFixed(3)}`);
-  if (bounds.heightFrac > 0.72) reasons.push(`too tall ${bounds.heightFrac.toFixed(3)}`);
+  // Bottom may sit near the pad; allow slightly more than side margin
+  if (bounds.maxY > 1 - margin * 0.5) reasons.push(`bottom ${bounds.maxY.toFixed(3)}`);
+  if (bounds.heightFrac > 0.55) reasons.push(`too tall ${bounds.heightFrac.toFixed(3)}`);
   return { ok: reasons.length === 0, bounds, reasons };
 }

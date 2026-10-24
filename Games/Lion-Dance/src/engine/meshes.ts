@@ -574,7 +574,8 @@ function buildFlower(): THREE.Group {
 
 /**
  * FK pose — hip angle from physics (rad, + forward) drives the thigh;
- * lift bends knee/hock. Mesh proportions stay art-only.
+ * lift bends knee/hock. When fallen (side-lie), legs stick out sideways
+ * and still respond to player swing/lift.
  */
 export function applyLegPose(
   legs: Record<LegId, LegMeshes>,
@@ -582,23 +583,25 @@ export function applyLegPose(
   swing: Record<LegId, number>,
   flailT = 0,
   fallen = false,
+  fallSide = 1,
 ): void {
   for (const id of LEG_IDS) {
     const leg = legs[id];
     const L = Math.min(1, lift[id] ?? 0);
     const S = swing[id] ?? 0;
-    if (fallen && flailT > 0) {
-      // While fallen, swing is still player-driven — show it, plus a little flail
-      const phase = flailT * (3.6 + LEG_ATTACH_MESH[id].x * 0.4) + LEG_ATTACH_MESH[id].z * 7;
-      leg.root.position.y = -0.02 + L * 0.35;
-      leg.thigh.rotation.z = S + Math.sin(phase) * 0.15;
-      leg.thigh.rotation.x = Math.cos(phase * 0.85) * 0.2 * (1 - L);
-      leg.thigh.rotation.y = Math.sin(phase * 0.6) * 0.12;
-      leg.shin.rotation.z = -(0.25 + L * 1.1);
-      leg.shin.rotation.x = 0;
-      leg.foot.rotation.z = L * 0.25;
+    const attach = LEG_ATTACH_MESH[id];
+    if (fallen) {
+      // Body is rolled ~±1.45 about X; stretch legs along local −Y so they
+      // read as sticking out to the side, still kickable via swing/lift.
+      const outward = fallSide * (id.endsWith('L') ? 0.55 : -0.55);
+      leg.root.position.set(attach.x, -0.62 - L * 0.4, attach.z);
+      leg.thigh.rotation.set(outward * 0.4 + L * 0.45, S * 0.3, S * 0.9);
+      leg.shin.rotation.set(0, 0, -(0.4 + L * 0.95));
+      leg.foot.rotation.set(0, 0, L * 0.35);
+      void flailT;
       continue;
     }
+    leg.root.position.set(attach.x, -0.28 + L * 0.45, attach.z);
     leg.thigh.rotation.x = L * 0.06;
     leg.thigh.rotation.y = 0;
     leg.shin.rotation.x = 0;
@@ -606,7 +609,6 @@ export function applyLegPose(
     leg.shin.rotation.z = -(0.2 + L * 1.05);
     leg.foot.rotation.z = L * 0.22;
     leg.foot.rotation.x = 0;
-    leg.root.position.y = -0.28 + L * 0.45;
   }
 }
 
