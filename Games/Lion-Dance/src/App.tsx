@@ -40,6 +40,7 @@ const EMPTY_HUD: HudSnapshot = {
   finishAnim: 0,
   pitch: 0,
   roll: 0,
+  tipping: false,
   legLift: { FL: 0, FR: 0, BL: 0, BR: 0 },
   legSwing: { FL: 0, FR: 0, BL: 0, BR: 0 },
   legHeld: { ...EMPTY_HELD },
@@ -50,6 +51,7 @@ const EMPTY_HUD: HudSnapshot = {
   speedBonus: 0,
   fallCount: 0,
   steps: 0,
+  maxSpeed: 0,
 };
 
 export default function App(): ReactElement {
@@ -335,10 +337,10 @@ export default function App(): ReactElement {
             <h2>{s.howTo}</h2>
             <div className="howto-diagram" aria-hidden="true">
               <div className="howto-lion">
-                <span className="howto-key howto-fl">Q</span>
-                <span className="howto-key howto-fr">W</span>
-                <span className="howto-key howto-bl">O</span>
-                <span className="howto-key howto-br">P</span>
+                <span className="howto-key howto-bl">Q</span>
+                <span className="howto-key howto-br">W</span>
+                <span className="howto-key howto-fl">O</span>
+                <span className="howto-key howto-fr">P</span>
               </div>
               <p className="howto-rhythm">Q+P ↔ W+O</p>
             </div>
@@ -363,9 +365,7 @@ export default function App(): ReactElement {
               ? `${s.modeLabel(result.mode)} · ${formatTime(result.elapsed)}${
                   isNewBest ? (lang === 'zh' ? ' · 新紀錄！' : ' · New best!') : ''
                 }`
-              : result.reason === 'timeout'
-                ? s.timeoutSub
-                : s.fallSub
+              : s.timeoutSub
           }
           stats={[
             {
@@ -383,6 +383,14 @@ export default function App(): ReactElement {
                     })(),
                   },
                 ]),
+            {
+              label: s.topSpeed,
+              value: `${(result.maxSpeed * 3.6).toFixed(1)} km/h`,
+            },
+            {
+              label: s.steps,
+              value: String(result.steps),
+            },
             {
               label: s.falls,
               value: String(result.fallCount),

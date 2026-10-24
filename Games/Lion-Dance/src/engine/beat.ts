@@ -62,6 +62,7 @@ export function onBeatRatio(perfects: number, plants: number): number {
 export function registerPlant(beat: BeatState, elapsed: number): {
   perfect: boolean;
   combo: number;
+  /** @deprecated traction uses comboSpeedBonus; kept for call-site compat. */
   bonusImpulse: number;
 } {
   beat.plants += 1;

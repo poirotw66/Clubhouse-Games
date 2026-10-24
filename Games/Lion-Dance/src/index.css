@@ -361,6 +361,26 @@ body,
   animation: lion-pulse 0.8s ease-in-out infinite;
 }
 
+.lion-tipping {
+  position: fixed;
+  left: 50%;
+  bottom: calc(6.4rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: #e04545;
+  box-shadow: 0 4px 0 #9a2020;
+  animation: lion-pulse 0.6s ease-in-out infinite;
+  z-index: 8500;
+  pointer-events: none;
+}
+
 .lion-perfect {
   position: absolute;
   left: 50%;
@@ -400,33 +420,36 @@ body,
 
 .lion-fall-stamp {
   position: fixed;
+  /* Top-center below the nav/back row — fully on-screen */
   left: 50%;
-  top: 36%;
+  top: max(5.6rem, env(safe-area-inset-top, 0px) + 5rem);
   z-index: 9050;
-  transform: translate(-50%, -50%) rotate(-12deg);
-  padding: 0.65rem 1.25rem;
+  transform: translateX(-50%) rotate(-8deg);
+  padding: 0.55rem 1.15rem;
   border: 4px solid #fff;
   border-radius: 0.4rem;
   background: rgba(226, 58, 46, 0.96);
   color: #fff;
   font-family: var(--font-display);
-  font-size: clamp(1.7rem, 6.5vw, 2.6rem);
+  font-size: clamp(1.35rem, 4.5vw, 2.2rem);
   font-weight: 900;
   letter-spacing: 0.08em;
   box-shadow: 0 8px 0 rgba(90, 16, 10, 0.35);
   animation: stamp-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
   pointer-events: none;
   white-space: nowrap;
+  max-width: calc(100% - 2rem);
+  text-align: center;
 }
 
 @keyframes stamp-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -50%) rotate(-12deg) scale(1.6);
+    transform: translateX(-50%) rotate(-12deg) scale(1.55);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) rotate(-12deg) scale(1);
+    transform: translateX(-50%) rotate(-8deg) scale(1);
   }
 }
 
@@ -464,15 +487,16 @@ body,
 .lion-bottom-hint {
   position: fixed;
   left: 50%;
-  bottom: calc(7.2rem + env(safe-area-inset-bottom, 0px));
+  /* Glued to the top of the QWOP strip */
+  bottom: calc(3.85rem + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 8500;
   margin: 0;
-  padding: 0.5rem 1rem;
+  padding: 0.35rem 0.75rem;
   border-radius: 999px;
   background: rgba(255, 252, 245, 0.92);
   border: 1.5px solid rgba(240, 193, 75, 0.6);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #5c3d28;
   pointer-events: none;
@@ -498,8 +522,10 @@ body,
 .touch-pad {
   position: fixed;
   bottom: max(0.55rem, env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  /* No transform — fixed children (get-up) must stay viewport-fixed */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
   z-index: 8000;
   display: flex;
   flex-direction: column;
@@ -517,10 +543,13 @@ body,
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.3rem 0.7rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 999px;
   background: rgba(255, 252, 245, 0.92);
   border: 1.5px solid rgba(240, 193, 75, 0.55);
+  /* Keep glued to the button row so it never floats over the lion */
+  order: 2;
+  margin-top: 0.1rem;
 }
 
 .lion-beat-pulse {
@@ -549,6 +578,7 @@ body,
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem;
   width: 100%;
+  order: 3;
 }
 
 .lion-leg-btn {
@@ -592,15 +622,21 @@ body,
 }
 
 .lion-touch-up {
-  min-width: 9rem !important;
-  min-height: 3.25rem !important;
+  /* Under the TIME/FALLS card, right edge — not over the lion */
+  position: fixed !important;
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  top: max(8.2rem, env(safe-area-inset-top, 0px) + 7.6rem);
+  left: auto !important;
+  z-index: 8600;
+  min-width: 8.5rem !important;
+  min-height: 2.85rem !important;
   border-radius: 0.85rem !important;
   border: 2.5px solid rgba(34, 160, 90, 0.7) !important;
   background: linear-gradient(180deg, #4ade80, #16a34a) !important;
   color: #052e16 !important;
   font-family: var(--font-display) !important;
   font-weight: 800 !important;
-  font-size: 1.15rem !important;
+  font-size: 1.05rem !important;
   box-shadow: 0 4px 0 rgba(22, 101, 52, 0.45);
   animation: lion-pop 0.35s ease-out both;
 }
@@ -780,24 +816,28 @@ body,
 }
 
 .howto-fl {
+  /* O — front far pink */
   left: 0.45rem;
   top: -0.55rem;
-  background: #f97316;
+  background: #e356a2;
 }
 .howto-fr {
+  /* P — front near blue */
   right: 0.45rem;
   top: -0.55rem;
-  background: #22c55e;
+  background: #2e91ff;
 }
 .howto-bl {
+  /* Q — rear far orange */
   left: 0.45rem;
   bottom: -0.55rem;
-  background: #3b82f6;
+  background: #e66900;
 }
 .howto-br {
+  /* W — rear near green */
   right: 0.45rem;
   bottom: -0.55rem;
-  background: #ec4899;
+  background: #00b04d;
 }
 
 .howto-rhythm {
@@ -895,7 +935,26 @@ body,
   }
 
   .lion-bottom-hint {
-    bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
-    font-size: 0.82rem;
+    bottom: calc(4.2rem + env(safe-area-inset-bottom, 0px));
+    font-size: 0.78rem;
+  }
+
+  .lion-fall-stamp {
+    left: 50%;
+    /* Below top HUD cards (距離/時間), still above the lion */
+    top: max(10.2rem, env(safe-area-inset-top, 0px) + 9.4rem);
+    font-size: 1.05rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  /* Above the QWOP strip on the right — clear of the lion mid-frame */
+  .lion-touch-up {
+    top: auto !important;
+    bottom: calc(5.6rem + env(safe-area-inset-bottom, 0px));
+    right: max(0.4rem, env(safe-area-inset-right, 0px));
+    left: auto !important;
+    min-width: 7.2rem !important;
+    min-height: 2.5rem !important;
+    font-size: 0.95rem !important;
   }
 }

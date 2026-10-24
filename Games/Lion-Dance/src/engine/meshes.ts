@@ -8,9 +8,10 @@ import {
   BODY_HEIGHT,
   BODY_LENGTH,
   BODY_WIDTH,
-  LEG_ATTACH,
+  LEG_ATTACH_MESH,
   LEG_COLOR,
   LEG_IDS,
+  LION_SCALE,
   TRACK_LENGTH,
   type LegId,
 } from './constants';
@@ -121,13 +122,22 @@ export function buildLion(): LionMeshes {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
+  // Mesh is authored in design units, then uniformly scaled to world metres.
+  // Physics BODY_HEIGHT is shorter than design×scale — keep mesh proportions on design 2.9.
+  const DL = BODY_LENGTH / LION_SCALE;
+  const DH = 2.9;
+  const DW = BODY_WIDTH / LION_SCALE;
 
-  // Soft pale ground blob (never a dark arch)
-  const shadow = new THREE.Mesh(new THREE.CircleGeometry(2.6, 32), basic(0x8b5a40, 0.08));
+  // Soft pale ground oval — kept OUT of root so fall roll never stands it up
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.0, 36),
+    basic(0xd4c4a8, 0.18),
+  );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.012;
-  shadow.scale.set(1.55, 1, 0.5);
-  root.add(shadow);
+  shadow.position.y = 0.018;
+  shadow.scale.set(2.4, 1, 1.05);
+  shadow.name = 'groundShadow';
+  shadow.renderOrder = -1;
 
   // ── Body: bright toon layers (lit top / mid / shade skirt) ───────────
   const cloth = new THREE.Group();
@@ -135,7 +145,7 @@ export function buildLion(): LionMeshes {
 
   // Flattened in Z so the far flank doesn't form a dark second silhouette
   const blanket = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.95, BODY_LENGTH * 0.68, 8, 28),
+    new THREE.CapsuleGeometry(0.95, DL * 0.68, 8, 28),
     mat(RED_LIT, { rough: 0.42, emissive: RED_LIT, eInt: 0.22 }),
   );
   blanket.rotation.z = Math.PI / 2;
@@ -145,7 +155,7 @@ export function buildLion(): LionMeshes {
 
   // Lit ridge along the top (clear toon highlight band)
   const litBand = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.32, BODY_LENGTH * 0.55, 4, 12),
+    new THREE.CapsuleGeometry(0.32, DL * 0.55, 4, 12),
     mat(0xff6a4a, { rough: 0.4, emissive: 0xff6a4a, eInt: 0.35 }),
   );
   litBand.rotation.z = Math.PI / 2;
@@ -155,7 +165,7 @@ export function buildLion(): LionMeshes {
   // Front / rear performer peaks
   const frontHumpHomeY = 1.28;
   const frontHump = new THREE.Group();
-  frontHump.position.set(BODY_LENGTH * 0.22, frontHumpHomeY, 0);
+  frontHump.position.set(DL * 0.22, frontHumpHomeY, 0);
   cloth.add(frontHump);
   const fh = new THREE.Mesh(
     new THREE.SphereGeometry(0.9, 22, 18),
@@ -166,7 +176,7 @@ export function buildLion(): LionMeshes {
 
   const rearHumpHomeY = 1.18;
   const rearHump = new THREE.Group();
-  rearHump.position.set(-BODY_LENGTH * 0.22, rearHumpHomeY, 0);
+  rearHump.position.set(-DL * 0.22, rearHumpHomeY, 0);
   cloth.add(rearHump);
   const rh = new THREE.Mesh(
     new THREE.SphereGeometry(0.82, 22, 18),
@@ -188,7 +198,7 @@ export function buildLion(): LionMeshes {
   hem.position.set(0, 0.0, 0);
   cloth.add(hem);
   const skirt = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.5, BODY_LENGTH * 0.64, 8, 28),
+    new THREE.CapsuleGeometry(0.5, DL * 0.64, 8, 28),
     mat(RED, { rough: 0.5, emissive: RED, eInt: 0.14 }),
   );
   skirt.rotation.z = Math.PI / 2;
@@ -197,14 +207,14 @@ export function buildLion(): LionMeshes {
   hem.add(skirt);
   // Bright gold hem roll
   const hemTrim = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.085, BODY_LENGTH * 0.72, 3, 8),
+    new THREE.CapsuleGeometry(0.085, DL * 0.72, 3, 8),
     mat(GOLD, { metal: 0.45, emissive: GOLD, eInt: 0.38 }),
   );
   hemTrim.rotation.z = Math.PI / 2;
   hemTrim.position.set(0, -0.55, 0.72);
   hem.add(hemTrim);
 
-  for (const x of [-BODY_LENGTH * 0.15, BODY_LENGTH * 0.15]) {
+  for (const x of [-DL * 0.15, DL * 0.15]) {
     const motif = new THREE.Mesh(
       new THREE.SphereGeometry(0.2, 10, 8),
       mat(GOLD, { metal: 0.35, emissive: GOLD, eInt: 0.22 }),
@@ -215,7 +225,7 @@ export function buildLion(): LionMeshes {
   }
 
   const tail = new THREE.Group();
-  tail.position.set(-BODY_LENGTH * 0.52, 0.75, 0);
+  tail.position.set(-DL * 0.52, 0.75, 0);
   cloth.add(tail);
   const tailMesh = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.18, 1.35, 4, 12),
@@ -235,7 +245,7 @@ export function buildLion(): LionMeshes {
   // ── Head: large rounded cute 醒獅 (~60% of body height) ──────────────
   const headHomeY = 1.45;
   const head = new THREE.Group();
-  head.position.set(BODY_LENGTH * 0.46, headHomeY, 0.2);
+  head.position.set(DL * 0.46, headHomeY, 0.2);
   head.rotation.y = 0.2;
   body.add(head);
 
@@ -380,7 +390,7 @@ export function buildLion(): LionMeshes {
   const legs = {} as Record<LegId, LegMeshes>;
   for (const id of LEG_IDS) {
     const leg = buildLeg(id);
-    const a = LEG_ATTACH[id];
+    const a = LEG_ATTACH_MESH[id];
     leg.root.position.set(a.x, -0.28, a.z);
     leg.root.renderOrder = 5;
     leg.root.traverse((o) => {
@@ -415,14 +425,16 @@ export function buildLion(): LionMeshes {
     root.add(dust);
   }
 
+  // Feet→horn core (exclude fluffy mane) so framing catches head crop
   const frameCore = new THREE.Mesh(
-    new THREE.BoxGeometry(BODY_LENGTH + 4.2, BODY_HEIGHT + 0.9, BODY_WIDTH + 1.0),
+    new THREE.BoxGeometry(DL + 1.1, DH * 1.55, DW + 0.45),
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   frameCore.name = 'frameCore';
-  frameCore.position.set(0.05, -0.2, 0);
+  frameCore.position.set(0.2, DH * 0.12, 0.08);
   root.add(frameCore);
 
+  root.scale.setScalar(LION_SCALE);
   root.position.y = BODY_HEIGHT;
   return {
     root,
@@ -566,8 +578,9 @@ function buildFlower(): THREE.Group {
 }
 
 /**
- * FK pose — chunky lantern pants that scissor in the side-view plane.
- * Same control feel as v4; mesh proportions are art-only.
+ * FK pose — hip angle from physics (rad, + forward) drives the thigh;
+ * lift bends knee/hock. When fallen (side-lie), legs stick out sideways
+ * and still respond to player swing/lift.
  */
 export function applyLegPose(
   legs: Record<LegId, LegMeshes>,
@@ -575,34 +588,38 @@ export function applyLegPose(
   swing: Record<LegId, number>,
   flailT = 0,
   fallen = false,
+  fallSide = 1,
 ): void {
-  const DEG = Math.PI / 180;
   for (const id of LEG_IDS) {
     const leg = legs[id];
     const L = Math.min(1, lift[id] ?? 0);
     const S = swing[id] ?? 0;
-    if (fallen && flailT > 0) {
-      const phase = flailT * (3.6 + LEG_ATTACH[id].x * 0.4) + LEG_ATTACH[id].z * 7;
-      const kick = 0.55 + 0.7 * Math.abs(Math.sin(phase));
-      leg.root.position.y = -0.02 + Math.abs(Math.sin(phase * 0.8)) * 0.28;
-      leg.thigh.rotation.z = Math.sin(phase) * 0.9;
-      leg.thigh.rotation.x = Math.cos(phase * 0.85) * 0.35;
-      leg.thigh.rotation.y = Math.sin(phase * 0.6) * 0.25;
-      leg.shin.rotation.z = -kick * 1.2;
-      leg.shin.rotation.x = 0;
-      leg.foot.rotation.z = kick * 0.35;
+    const attach = LEG_ATTACH_MESH[id];
+    if (fallen) {
+      // After body roll −1.45 on X, local −Y faces the camera. Star the legs
+      // toward the lens — long enough to read, short enough to clear the HUD.
+      const along = id.startsWith('F') ? 1.4 : -1.4;
+      const lat = id.endsWith('L') ? -1 : 1;
+      const kick = 0.75 + L * 1.05 + Math.abs(S) * 0.45;
+      leg.root.position.set(
+        along * (0.95 + L * 0.45),
+        -2.15 - kick,
+        lat * (0.85 + L * 0.45) + S * 0.5 * fallSide,
+      );
+      leg.thigh.rotation.set(lat * 0.35 + S * 0.5, along * 0.22, lat * 0.95 + S * 0.95);
+      leg.shin.rotation.set(0.12, lat * 0.15, -(1.1 + L * 1.2));
+      leg.foot.rotation.set(0, 0, 0.5 + L * 0.55);
+      void flailT;
       continue;
     }
-    leg.thigh.rotation.x = 0;
+    leg.root.position.set(attach.x, -0.28 + L * 0.45, attach.z);
+    leg.thigh.rotation.x = L * 0.06;
     leg.thigh.rotation.y = 0;
     leg.shin.rotation.x = 0;
-    leg.thigh.rotation.z = S * 0.45 + L * 45 * DEG;
-    leg.shin.rotation.z = -(12 * DEG + L * 70 * DEG);
-    leg.foot.rotation.z = L * 15 * DEG;
+    leg.thigh.rotation.z = S;
+    leg.shin.rotation.z = -(0.2 + L * 1.05);
+    leg.foot.rotation.z = L * 0.22;
     leg.foot.rotation.x = 0;
-    // Slight forward lean while lifting reads as a walking bend
-    leg.root.position.y = -0.28 + L * 0.5;
-    if (!fallen) leg.thigh.rotation.x = L * 0.08;
   }
 }
 
@@ -658,18 +675,19 @@ export function buildStreet(
 
   // 3 soft color blocks: far hill, near hill, ground
   const hills: THREE.Object3D[] = [];
+  // Unlit pale hills — lit spheres previously read as a dark arch behind the lion
   const farHill = new THREE.Mesh(
     new THREE.SphereGeometry(18, 16, 10),
-    mat(HILL_FAR, { rough: 0.98 }),
+    basic(HILL_FAR),
   );
-  farHill.scale.set(2.6, 0.4, 1);
-  farHill.position.set(TRACK_LENGTH * 0.35, 0.5, -22);
+  farHill.scale.set(2.6, 0.35, 1);
+  farHill.position.set(TRACK_LENGTH * 0.35, 0.2, -28);
   scene.add(farHill);
   hills.push(farHill);
 
-  const nearHill = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 10), mat(HILL, { rough: 0.98 }));
-  nearHill.scale.set(2.4, 0.38, 1);
-  nearHill.position.set(TRACK_LENGTH * 0.45, 0.3, -14);
+  const nearHill = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 10), basic(HILL));
+  nearHill.scale.set(2.4, 0.32, 1);
+  nearHill.position.set(TRACK_LENGTH * 0.55, 0.1, -20);
   scene.add(nearHill);
   hills.push(nearHill);
 
@@ -700,16 +718,21 @@ export function buildStreet(
     scene.add(edge);
   }
 
-  // Quiet far fence — start well past the lion so posts never bisect the silhouette
-  const fenceMat = mat(0xece6dc, { rough: 0.95 });
-  for (let x = 16; x <= TRACK_LENGTH; x += 8) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.75, 5), fenceMat);
-    post.position.set(x, 0.38, -9);
+  // Speed-reference fence at z = −2.2 (posts every 2.5 m) — pale so it never eats the silhouette
+  const fenceMat = mat(0xf4f0e8, { rough: 0.95 });
+  for (let x = 2.5; x <= TRACK_LENGTH; x += 2.5) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.9, 6), fenceMat);
+    post.position.set(x, 0.45, -2.2);
     scene.add(post);
   }
-  const rail = new THREE.Mesh(new THREE.BoxGeometry(TRACK_LENGTH - 10, 0.035, 0.035), fenceMat);
-  rail.position.set(TRACK_LENGTH / 2 + 5, 0.7, -9);
-  scene.add(rail);
+  for (const hy of [0.45, 0.82]) {
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(TRACK_LENGTH - 1, 0.035, 0.035),
+      fenceMat,
+    );
+    rail.position.set(TRACK_LENGTH / 2 + 0.5, hy, -2.2);
+    scene.add(rail);
+  }
 
   // Pale distant props only (cream trees + soft lanterns) — never dark trunks behind the lion
   const lanterns: THREE.Object3D[] = [];
@@ -738,11 +761,38 @@ export function buildStreet(
     lanterns.push(lantern);
   }
 
-  // Soft distance ticks
+  // Festival distance boards every 10 m + white track line
   for (let m = 10; m < TRACK_LENGTH; m += 10) {
-    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 2.8), mat(0xd8c4a8, { rough: 0.9 }));
-    tick.position.set(m, 0.03, 0);
-    scene.add(tick);
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.03, 3.0),
+      mat(0xf8f4ec, { rough: 0.85 }),
+    );
+    line.position.set(m, 0.025, 0);
+    scene.add(line);
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.06, 1.1, 6),
+      mat(RED_SHADE, { rough: 0.7 }),
+    );
+    post.position.set(m, 0.55, -1.55);
+    scene.add(post);
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.32, 0.06),
+      mat(CREAM, { rough: 0.75 }),
+    );
+    board.position.set(m, 1.2, -1.55);
+    scene.add(board);
+    const digit = new THREE.Mesh(
+      new THREE.BoxGeometry(0.36, 0.08, 0.04),
+      mat(INK, { rough: 0.9 }),
+    );
+    digit.position.set(m, 1.22, -1.52);
+    scene.add(digit);
+    const lantern = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 10, 8),
+      mat(RED_LIT, { rough: 0.55, emissive: RED, eInt: 0.18 }),
+    );
+    lantern.position.set(m, 1.55, -1.55);
+    scene.add(lantern);
   }
 
   // Quiet temple gate
@@ -827,4 +877,3 @@ export function buildStreet(
   return { lanterns, gate, envelope, confetti, sparkBurst, hills };
 }
 
-void BODY_WIDTH;

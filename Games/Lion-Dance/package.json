@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "check": "node src/engine/check-physics.mjs && node src/engine/check-titles.mjs && node src/engine/check-beat.mjs && node src/engine/check-framing.mjs",
+    "check": "npx --yes tsx src/engine/check-physics.mjs && node src/engine/check-titles.mjs && node src/engine/check-beat.mjs && npx --yes tsx src/engine/check-framing.mjs",
     "playtest": "node scripts/playtest.mjs"
   },
   "dependencies": {

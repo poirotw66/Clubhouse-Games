@@ -3,6 +3,9 @@ import { TouchButton } from '@clubhouse/shared/TouchButton';
 import {
   LEG_COLOR_CSS,
   LEG_KEY_LABEL,
+  PAD_ORDER_1P,
+  PAD_ORDER_HEAD,
+  PAD_ORDER_TAIL,
   type LegId,
   type PlayMode,
 } from '../engine/constants';
@@ -20,10 +23,6 @@ interface TouchPadProps {
   onLeg: (id: LegId, held: boolean) => void;
   onGetUp: () => void;
 }
-
-const ORDER_1P: readonly LegId[] = ['FL', 'FR', 'BL', 'BR'];
-const ORDER_HEAD: readonly LegId[] = ['FL', 'FR'];
-const ORDER_TAIL: readonly LegId[] = ['BL', 'BR'];
 
 function legLabel(s: Strings, id: LegId): string {
   if (id === 'FL') return s.frontLeft;
@@ -97,15 +96,15 @@ export function TouchPad({
         <>
           <div className="touch-half touch-half-head">
             <p className="touch-half-label">{s.headLabel}</p>
-            <div className="touch-half-row">{ORDER_HEAD.map(renderBtn)}</div>
+            <div className="touch-half-row">{PAD_ORDER_HEAD.map(renderBtn)}</div>
           </div>
           <div className="touch-half touch-half-tail">
             <p className="touch-half-label">{s.tailLabel}</p>
-            <div className="touch-half-row">{ORDER_TAIL.map(renderBtn)}</div>
+            <div className="touch-half-row">{PAD_ORDER_TAIL.map(renderBtn)}</div>
           </div>
         </>
       ) : (
-        <div className="touch-row">{ORDER_1P.map(renderBtn)}</div>
+        <div className="touch-row">{PAD_ORDER_1P.map(renderBtn)}</div>
       )}
       <style>{`
         .lion-leg-fl { --leg-c: ${LEG_COLOR_CSS.FL}; }

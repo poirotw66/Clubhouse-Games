@@ -28,8 +28,8 @@ export function Hud({ hud, s, lang, tools }: HudProps): ReactElement {
       <div className="lion-hud-card lion-hud-right" data-testid="lion-hud-right">
         <div className="lion-hud-stack">
           <span className="lion-stat-label">{s.time}</span>
-          <span className={`lion-stat-value ${hud.timeLeft < 15 ? 'is-urgent' : ''}`}>
-            {formatTime(hud.timeLeft)}
+          <span className={`lion-stat-value ${hud.elapsed > 75 ? 'is-urgent' : ''}`}>
+            {formatTime(hud.elapsed)}
           </span>
         </div>
         <div className="lion-hud-stack lion-hud-falls">
@@ -38,6 +38,11 @@ export function Hud({ hud, s, lang, tools }: HudProps): ReactElement {
         </div>
       </div>
 
+      {hud.tipping && !hud.fallen && !hud.finished && (
+        <p className="lion-tipping" aria-live="assertive">
+          {s.tipping}
+        </p>
+      )}
       {hud.perfectFlash > 0.2 && (
         <p className="lion-perfect" aria-live="assertive">
           {s.perfect}
