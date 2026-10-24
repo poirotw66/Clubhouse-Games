@@ -203,6 +203,14 @@
           "gameFolder": "Lion-Dance"
         },
         {
+          "name": "牆上翻滾",
+          "en": "Wall Flip",
+          "desc": "全速衝上反翘的弧形道路，倒掛段靠磁力吸附撐住，唇端倒著飛出後用推進器翻滾回正、輪胎著地。附 2D 與 Three.js 3D 兩個版本。",
+          "players": "1 人",
+          "specPath": "04-sports-arcade/wall-flip.md",
+          "gameFolder": "Wall-Flip"
+        },
+        {
           "name": "達達馬蹄",
           "en": "Clip-Clop",
           "desc": "四鍵分控馬的四條腿：按住抬腿前擺、放開踢地推進，90 秒內走完 50 公尺的高難度平衡賽馬。",
