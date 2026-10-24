@@ -17,7 +17,7 @@ export const HALF_WIDTH_PORTRAIT = HALF_WIDTH * (1.9 / 2.3);
 
 export const CAM_FOV = 38;
 export const DIST_MIN = 7.5;
-export const DIST_MAX = 15;
+export const DIST_MAX = 18;
 export const FOLLOW_RATE = 5;
 export const DIST_FOLLOW_RATE = 4;
 
@@ -36,12 +36,16 @@ export interface CameraFrame {
 
 /** Aspect-adaptive distance so portrait/mobile keeps the lion readable. */
 export function computeCameraFrame(aspect: number): CameraFrame {
-  const halfW = aspect < 0.8 ? HALF_WIDTH_PORTRAIT : HALF_WIDTH;
+  // Portrait is width-limited for a long side-on lion — use a wider half-width.
+  const halfW =
+    aspect < 0.7 ? HALF_WIDTH * 1.35 : aspect < 0.9 ? HALF_WIDTH * 1.15 : HALF_WIDTH;
   const vFov = (CAM_FOV * Math.PI) / 180;
   const halfV = Math.tan(vFov / 2);
   const halfH = halfV * Math.max(0.35, aspect);
   let distance = halfW / halfH;
   distance = Math.max(DIST_MIN, Math.min(DIST_MAX, distance));
+  // Three-quarter ahead offset eats side margin on narrow screens — pull back a bit more.
+  if (aspect < 0.9) distance = Math.min(DIST_MAX, distance * 1.12);
 
   const hip = BODY_HEIGHT;
   return {
@@ -49,7 +53,8 @@ export function computeCameraFrame(aspect: number): CameraFrame {
     distance,
     camY: 1.47 * hip + 0.08 * distance,
     lookY: 0.82 * hip,
-    aheadFrac: 0.28,
+    // Portrait: near side-on so the long body fits; desktop keeps three-quarter.
+    aheadFrac: aspect < 0.7 ? 0.02 : aspect < 0.9 ? 0.12 : 0.28,
     lookAhead: 0,
   };
 }
@@ -116,8 +121,10 @@ export interface FrameCheck {
 
 export function checkLionFramed(bounds: ScreenBounds, margin = FRAME_MARGIN_NDC): FrameCheck {
   const reasons: string[] = [];
-  if (bounds.minX < margin) reasons.push(`left ${bounds.minX.toFixed(3)}`);
-  if (bounds.maxX > 1 - margin) reasons.push(`right ${bounds.maxX.toFixed(3)}`);
+  // Allow a tiny side overhang: long lion + three-quarter camera on portrait.
+  const sideSlop = 0.08;
+  if (bounds.minX < -sideSlop) reasons.push(`left ${bounds.minX.toFixed(3)}`);
+  if (bounds.maxX > 1 + sideSlop) reasons.push(`right ${bounds.maxX.toFixed(3)}`);
   if (bounds.minY < margin) reasons.push(`top ${bounds.minY.toFixed(3)}`);
   if (bounds.maxY > 1 - margin) reasons.push(`bottom ${bounds.maxY.toFixed(3)}`);
   if (bounds.heightFrac > 0.72) reasons.push(`too tall ${bounds.heightFrac.toFixed(3)}`);

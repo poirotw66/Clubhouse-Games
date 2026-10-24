@@ -326,7 +326,7 @@ export function createLionWorld(): LionWorld {
     }
 
     if (attract) {
-      root.position.set(2.5, sim.y, 0);
+      root.position.set(1.2, sim.y, 0);
       root.rotation.set(0, 0, 0);
       root.scale.setScalar(LION_SCALE);
       cloth.rotation.set(0, 0, 0);
@@ -497,7 +497,7 @@ export function createLionWorld(): LionWorld {
 
     // Follow: x + 0.4·s + 0.25·vx, exponential 5/s; distance 4/s
     const scaleLead = LION_SCALE;
-    const targetX = attract ? 2.5 * LION_SCALE : sim.x + 0.4 * scaleLead + 0.25 * sim.vx;
+    const targetX = attract ? 1.2 : sim.x + 0.4 * scaleLead + 0.25 * sim.vx;
     const follow = reduced ? 1 : 1 - Math.exp(-FOLLOW_RATE * dt);
     camX += (targetX - camX) * follow;
     const distFollow = reduced ? 1 : 1 - Math.exp(-DIST_FOLLOW_RATE * dt);

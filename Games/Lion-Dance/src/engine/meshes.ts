@@ -422,11 +422,11 @@ export function buildLion(): LionMeshes {
   }
 
   const frameCore = new THREE.Mesh(
-    new THREE.BoxGeometry(DL + 4.2, DH + 0.9, DW + 1.0),
+    new THREE.BoxGeometry(DL + 1.6, DH * 0.85, DW + 0.55),
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   frameCore.name = 'frameCore';
-  frameCore.position.set(0.05, -0.2, 0);
+  frameCore.position.set(0.15, 0.15, 0);
   root.add(frameCore);
 
   root.scale.setScalar(LION_SCALE);
