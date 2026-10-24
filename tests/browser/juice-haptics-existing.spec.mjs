@@ -1,5 +1,23 @@
 import { test, expect } from '@playwright/test';
 
+/**
+ * Selective PR CI sets CI_GAME_FILTER to a space/comma-separated list of
+ * Games/<folder> names. `__none__` skips per-game loads/deep tests but keeps
+ * site-shell coverage. Unset / empty / `full` / `*` → every workspace game.
+ * (Same helper shape as site.spec.mjs — keep in sync for filter semantics.)
+ */
+function resolveGameFilter() {
+  const raw = (process.env.CI_GAME_FILTER || '').trim();
+  if (!raw || raw === '*' || raw.toLowerCase() === 'full') return null;
+  if (raw === '__none__') return new Set();
+  return new Set(raw.split(/[\s,]+/).filter(Boolean));
+}
+
+const gameFilter = resolveGameFilter();
+function includesGame(folder) {
+  return !gameFilter || gameFilter.has(folder);
+}
+
 function activate(locator, isMobile) {
   return isMobile ? locator.tap() : locator.click();
 }
@@ -21,6 +39,7 @@ async function stubVibrate(page, { haptics = true } = {}) {
 }
 
 test('danmaku-abyss: juice settings on title; bomb vibrates', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Danmaku-Abyss'), 'selective CI');
   test.setTimeout(60_000);
   await stubVibrate(page, { haptics: true });
   await page.goto('./Games/Danmaku-Abyss/');
@@ -42,6 +61,7 @@ test('danmaku-abyss: juice settings on title; bomb vibrates', async ({ page, isM
 });
 
 test('danmaku-abyss: haptics off skips bomb vibrate', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Danmaku-Abyss'), 'selective CI');
   test.setTimeout(60_000);
   await stubVibrate(page, { haptics: false });
   await page.goto('./Games/Danmaku-Abyss/');
@@ -55,6 +75,7 @@ test('danmaku-abyss: haptics off skips bomb vibrate', async ({ page, isMobile })
 });
 
 test('instant-flash: miss vibrates on practice standstill', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Instant-Flash'), 'selective CI');
   test.setTimeout(60_000);
   await stubVibrate(page, { haptics: true });
   await page.goto('./Games/Instant-Flash/');
@@ -72,6 +93,7 @@ test('instant-flash: miss vibrates on practice standstill', async ({ page, isMob
 });
 
 test('instant-flash: haptics off skips miss vibrate', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Instant-Flash'), 'selective CI');
   test.setTimeout(60_000);
   await stubVibrate(page, { haptics: false });
   await page.goto('./Games/Instant-Flash/');
@@ -84,6 +106,7 @@ test('instant-flash: haptics off skips miss vibrate', async ({ page, isMobile })
 });
 
 test('switchpoint-run: juice settings persist under clubhouse:juice', async ({ page }) => {
+  test.skip(!includesGame('Switchpoint-Run'), 'selective CI');
   await page.goto('./Games/Switchpoint-Run/');
   await expect(page.getByRole('heading', { name: /岔道疾走/ })).toBeVisible();
   await expect(page.locator('[data-juice-settings="1"]')).toBeVisible();

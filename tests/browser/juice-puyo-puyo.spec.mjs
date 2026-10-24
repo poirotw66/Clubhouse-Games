@@ -1,10 +1,29 @@
 import { test, expect } from '@playwright/test';
 
+/**
+ * Selective PR CI sets CI_GAME_FILTER to a space/comma-separated list of
+ * Games/<folder> names. `__none__` skips per-game loads/deep tests but keeps
+ * site-shell coverage. Unset / empty / `full` / `*` → every workspace game.
+ * (Same helper shape as site.spec.mjs — keep in sync for filter semantics.)
+ */
+function resolveGameFilter() {
+  const raw = (process.env.CI_GAME_FILTER || '').trim();
+  if (!raw || raw === '*' || raw.toLowerCase() === 'full') return null;
+  if (raw === '__none__') return new Set();
+  return new Set(raw.split(/[\s,]+/).filter(Boolean));
+}
+
+const gameFilter = resolveGameFilter();
+function includesGame(folder) {
+  return !gameFilter || gameFilter.has(folder);
+}
+
 function activate(locator, isMobile) {
   return isMobile ? locator.tap() : locator.click();
 }
 
 test('puyo-puyo: juice settings persist under clubhouse:juice', async ({ page }) => {
+  test.skip(!includesGame('Puyo-Puyo'), 'selective CI');
   await page.goto('./Games/Puyo-Puyo/');
   await expect(page.getByRole('heading', { name: /魔法氣泡/ })).toBeVisible();
   const settings = page.locator('[data-juice-settings="1"]');
@@ -20,6 +39,7 @@ test('puyo-puyo: juice settings persist under clubhouse:juice', async ({ page })
 });
 
 test('puyo-puyo: move taps vibrate; mission win shakes field', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Puyo-Puyo'), 'selective CI');
   test.setTimeout(60_000);
   await page.addInitScript(() => {
     window.__vibrateCalls = [];
@@ -70,6 +90,7 @@ test('puyo-puyo: move taps vibrate; mission win shakes field', async ({ page, is
 });
 
 test('puyo-puyo: juice respects reduced-motion and haptics off', async ({ page, isMobile }) => {
+  test.skip(!includesGame('Puyo-Puyo'), 'selective CI');
   test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(() => {
