@@ -105,6 +105,8 @@ canvas{display:block}
 .shareCard{max-width:640px}
 .shareImg{width:100%;border:3px solid #4a2f18;border-radius:14px;margin-top:12px;display:block;background:#120c06}
 .shareLink{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
+/* Boot error / repair */
+#bootError{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(60,40,20,.5);pointer-events:auto}
 
 /* Screens */
 .screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;background:rgba(60,40,20,.18);backdrop-filter:blur(2px)}
@@ -260,8 +262,56 @@ h1{font-size:44px;line-height:1.05}
   </div>
 
   <div id="loading">Loading…</div>
+
+  <div id="bootError" class="hidden">
+    <div class="card">
+      <h1 style="font-size:26px" id="bootTitle">載入失敗</h1>
+      <p id="bootMsg" style="margin-top:10px;font-size:15px;opacity:.85">遊戲資源載入失敗，可能是瀏覽器快取了舊版本。</p>
+      <button id="bootFix" class="btn">修復並重新整理</button>
+    </div>
+  </div>
 </div>
 
+<script>
+/* Boot watchdog: if the game module never comes up (e.g. a stale service
+   worker served an old index.html whose assets are gone), surface a repair
+   button that wipes caches / SW state and reloads. */
+(function(){
+  var zh=(navigator.language||'').toLowerCase().indexOf('zh')===0;
+  document.getElementById('bootTitle').textContent=zh?'載入失敗':'Failed to load';
+  document.getElementById('bootMsg').textContent=zh
+    ?'遊戲資源載入失敗，可能是瀏覽器快取了舊版本。'
+    :'The game failed to load — your browser may be holding a stale cached copy.';
+  document.getElementById('bootFix').textContent=zh?'修復並重新整理':'Repair & reload';
+  setTimeout(function(){
+    if(!window.__ready){
+      var el=document.getElementById('bootError');
+      if(el)el.classList.remove('hidden');
+    }
+  },7000);
+  document.getElementById('bootFix').onclick=function(){
+    try{
+      if(navigator.serviceWorker){
+        navigator.serviceWorker.getRegistrations().then(function(rs){
+          rs.forEach(function(r){r.unregister();});
+        });
+      }
+      if(window.caches&&caches.keys){
+        caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});
+      }
+    }catch(e){}
+    setTimeout(function(){location.reload();},500);
+  };
+})();
+</script>
+
+<script>
+/* Watchdog: if the module below never boots (e.g. CDN blocked), tell the player. */
+setTimeout(function(){
+  var l=document.getElementById('loading');
+  if(l&&!window.__ready){l.textContent='Failed to load three.js from CDN — please check the network and reload.';}
+},7000);
+</script>
 
 
 <script type="module" src="/src/main.js"></script>
