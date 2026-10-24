@@ -359,16 +359,17 @@ export function createLionWorld(): LionWorld {
 
     if (sim.fallen) {
       const side = sim.fallSide || 1;
-      const land = Math.min(1, Math.max(0.35, sim.fallSpin * 1.2));
-      // Side-lie at physics roll (~±1.45 rad) — no belly squash; legs stay readable
+      const land = Math.min(1, Math.max(0.55, sim.fallSpin * 1.4));
+      // Force a clear side-lie toward the camera (~±1.45 rad on X), not a belly flop
+      const sideRoll = side * -1.45;
+      const showRoll = sim.roll * (1 - land) + sideRoll * land;
       root.scale.setScalar(LION_SCALE);
-      root.position.set(sim.x, Math.max(0.42, sim.y), sim.lateral * 0.35);
-      root.rotation.set(sim.roll, sim.yaw * 0.35, sim.pitch * 0.85);
-      cloth.rotation.z = side * 0.06 * land;
-      cloth.rotation.x = 0;
-      cloth.position.y = 0;
+      root.position.set(sim.x, Math.max(0.48, sim.y * 0.85 + 0.2), sim.lateral * 0.25);
+      root.rotation.set(showRoll, sim.yaw * 0.2, sim.pitch * 0.35);
+      cloth.rotation.set(0, 0, 0);
+      cloth.position.set(0, 0, 0);
       hem.position.y = 0.02;
-      hem.rotation.z = side * 0.08 * land;
+      hem.rotation.z = 0;
       frontHump.position.y = frontHumpHomeY;
       rearHump.position.y = rearHumpHomeY;
       // 花花 flung in an arc (world-ish local)

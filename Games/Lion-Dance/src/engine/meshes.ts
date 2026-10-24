@@ -591,13 +591,18 @@ export function applyLegPose(
     const S = swing[id] ?? 0;
     const attach = LEG_ATTACH_MESH[id];
     if (fallen) {
-      // Body is rolled ~±1.45 about X; stretch legs along local −Y so they
-      // read as sticking out to the side, still kickable via swing/lift.
-      const outward = fallSide * (id.endsWith('L') ? 0.55 : -0.55);
-      leg.root.position.set(attach.x, -0.62 - L * 0.4, attach.z);
-      leg.thigh.rotation.set(outward * 0.4 + L * 0.45, S * 0.3, S * 0.9);
-      leg.shin.rotation.set(0, 0, -(0.4 + L * 0.95));
-      leg.foot.rotation.set(0, 0, L * 0.35);
+      // Side-lie (~1.45 rad on X): fling legs out in a wide star so they read
+      // clearly from the side camera — still driven by swing/lift.
+      const along = id.startsWith('F') ? 1.15 : -1.15;
+      const sidePush = (id.endsWith('L') ? -1 : 1) * fallSide * 0.9;
+      leg.root.position.set(
+        attach.x * 0.35 + along * (0.55 + L * 0.35),
+        -1.15 - L * 0.7 - Math.abs(S) * 0.25,
+        attach.z * 0.4 + sidePush,
+      );
+      leg.thigh.rotation.set(sidePush * 0.6 + S * 0.35, along * 0.4 + S * 0.5, S * 0.7);
+      leg.shin.rotation.set(0.2, 0, -(0.7 + L * 1.1));
+      leg.foot.rotation.set(0, 0, 0.35 + L * 0.45);
       void flailT;
       continue;
     }
