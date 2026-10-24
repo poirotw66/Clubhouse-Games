@@ -105,6 +105,12 @@ canvas{display:block}
 .shareCard{max-width:640px}
 .shareImg{width:100%;border:3px solid #4a2f18;border-radius:14px;margin-top:12px;display:block;background:#120c06}
 .shareLink{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
+/* Battle code */
+.codeRow{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
+.codeRow .codeLabel{font-weight:800;font-size:13px;color:#b06a2c}
+.codeRow input{font-family:monospace;font-size:11px;width:240px;padding:7px 10px;border:2.5px solid #4a2f18;border-radius:10px;background:#fff;color:#4a2f18}
+#codeArea{width:100%;margin-top:12px;font-family:monospace;font-size:12px;padding:10px;border:2.5px solid #4a2f18;border-radius:12px;background:#fff;color:#4a2f18;resize:vertical}
+.codeHint{font-size:12px;opacity:.6;margin-top:8px;font-weight:700}
 /* Boot error / repair */
 #bootError{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(60,40,20,.5);pointer-events:auto}
 
@@ -156,6 +162,7 @@ h1{font-size:44px;line-height:1.05}
   </div>
 
   <div id="corner">
+    <button id="perfBtn" class="chip" title="Performance">⚡</button>
     <button id="ghostBtn" class="chip" title="Ghost">👻</button>
     <button id="langBtn" class="chip" title="Language">EN</button>
     <button id="muteBtn" class="chip" title="Sound">🔊</button>
@@ -201,8 +208,10 @@ h1{font-size:44px;line-height:1.05}
         <button id="startBtn" class="btn" data-i18n="start"></button>
         <button id="practiceBtn" class="btn alt" data-i18n="practice"></button>
         <button id="duelBtn" class="btn alt2" data-i18n="duel"></button>
+        <button id="tourBtn" class="btn alt" data-i18n="tour"></button>
       </div>
       <button id="boardBtn" class="linkBtn" data-i18n="board"></button>
+      <button id="codeImportBtn" class="linkBtn" data-i18n="code_import"></button>
       <div class="credit" data-i18n="credit"></div>
     </div>
   </div>
@@ -234,6 +243,19 @@ h1{font-size:44px;line-height:1.05}
     </div>
   </div>
 
+  <div id="codeScreen" class="screen hidden">
+    <div class="card">
+      <div class="resultHead" data-i18n="code_import"></div>
+      <textarea id="codeArea" rows="5" data-i18n-ph="code_ph"></textarea>
+      <div class="btnRow">
+        <button id="codeLoadBtn" class="btn" data-i18n="code_load"></button>
+        <button id="codeClearBtn" class="btn alt" data-i18n="code_clear"></button>
+      </div>
+      <p id="codeHint" class="codeHint"></p>
+      <button id="codeCloseBtn" class="linkBtn" data-i18n="close"></button>
+    </div>
+  </div>
+
   <div id="resultScreen" class="screen hidden">
     <div class="card">
       <div class="resultHead" data-i18n="result_title"></div>
@@ -243,6 +265,11 @@ h1{font-size:44px;line-height:1.05}
       <div id="newRecord" class="record hidden" data-i18n="new_record"></div>
       <div id="oppRow" class="oppRow hidden"></div>
       <div id="duelRow" class="duelRow hidden"></div>
+      <div id="codeRow" class="codeRow hidden">
+        <span class="codeLabel" data-i18n="code"></span>
+        <input id="codeInput" readonly>
+        <button id="codeCopyBtn" class="btn small" data-i18n="code_copy"></button>
+      </div>
       <div class="stats">
         <div><span data-i18n="st_time"></span><b id="stTime">–</b></div>
         <div><span data-i18n="st_falls"></span><b id="stFalls">–</b></div>

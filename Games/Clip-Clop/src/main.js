@@ -83,6 +83,14 @@ const I18N = {
     share_title:'SHARE · 分享戰報',
     share_native:'系統分享（含圖卡）', share_copy:'複製戰報', share_download:'下載圖卡',
     share_x:'分享到 X', share_line:'分享到 LINE',
+    tour:'錦標賽', next_battle:'下一戰：', pts:'積分',
+    champ9:'🏆 冠軍！', champ6:'🥈 亞軍', champ3:'🥉 季軍', champ0:'再接再厲！',
+    leg_win:'勝', leg_lose:'負',
+    code:'戰報碼', code_copy:'複製', code_import:'輸入戰報碼', code_load:'載入挑戰幽靈',
+    code_clear:'清除挑戰幽靈', code_loaded:'已載入挑戰幽靈', code_invalid:'戰報碼無效或已損毀',
+    code_ph:'貼上 CC1. 開頭的戰報碼…',
+    perf_hi:'畫質：高', perf_mid:'畫質：中', perf_lo:'畫質：省電', perf_auto:'畫質：自動',
+    perf_auto_drop:'偵測到低幀率，已自動調降畫質',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
   },
@@ -117,6 +125,14 @@ const I18N = {
     share_title:'SHARE YOUR RUN',
     share_native:'Share (with card)', share_copy:'Copy result', share_download:'Download card',
     share_x:'Share to X', share_line:'Share to LINE',
+    tour:'Championship', next_battle:'Next: ', pts:'PTS',
+    champ9:'🏆 Champion!', champ6:'🥈 Runner-up', champ3:'🥉 Third', champ0:'Keep trying!',
+    leg_win:'WIN', leg_lose:'LOSS',
+    code:'Battle code', code_copy:'Copy', code_import:'Enter battle code', code_load:'Load rival ghost',
+    code_clear:'Clear rival ghost', code_loaded:'Rival ghost loaded', code_invalid:'Invalid or corrupted code',
+    code_ph:'Paste a code starting with CC1.…',
+    perf_hi:'Quality: High', perf_mid:'Quality: Medium', perf_lo:'Quality: Battery', perf_auto:'Quality: Auto',
+    perf_auto_drop:'Low framerate — quality lowered automatically',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
   },
@@ -141,6 +157,10 @@ const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hu
       tipWarnEl=$('tipWarn'), lbTop=$('lbTop'), lbBot=$('lbBot'),
       titleScreen=$('titleScreen'), startBtn=$('startBtn'), practiceBtn=$('practiceBtn'), duelBtn=$('duelBtn'),
       boardBtn=$('boardBtn'), boardScreen=$('boardScreen'), boardClose=$('boardClose'),
+      perfBtn=$('perfBtn'), tourBtn=$('tourBtn'), codeImportBtn=$('codeImportBtn'),
+      codeRow=$('codeRow'), codeInput=$('codeInput'), codeCopyBtn=$('codeCopyBtn'),
+      codeScreen=$('codeScreen'), codeArea=$('codeArea'), codeLoadBtn=$('codeLoadBtn'),
+      codeClearBtn=$('codeClearBtn'), codeCloseBtn=$('codeCloseBtn'), codeHint=$('codeHint'),
       shareScreen=$('shareScreen'), shareImg=$('shareImg'), shareClose=$('shareClose'),
       shareCopy=$('shareCopy'), shareDl=$('shareDl'), shareNative=$('shareNative'),
       shareX=$('shareX'), shareLine=$('shareLine'),
@@ -781,12 +801,148 @@ function endReplay(){
 const DUEL={on:false,turn:0,t1:0,t2:0};
 function duelStart(){
   DUEL.on=true; DUEL.turn=1; DUEL.t1=0; DUEL.t2=0;
+  TOUR.on=false;
   aiSel='';                       // no AI in duels
   refreshAiChips();
   startRun(false);
 }
 function duelRecord(t){
   if(DUEL.turn===1)DUEL.t1=t; else DUEL.t2=t;
+}
+
+/* ================================================================
+   Championship — three legs against pony → racehorse → legend.
+================================================================ */
+const TOUR_AI=['pony','race','legend'];
+const TOUR={on:false,leg:0,pts:0,marks:''};
+function tourStart(){
+  TOUR.on=true; TOUR.leg=1; TOUR.pts=0; TOUR.marks='';
+  DUEL.on=false;
+  startRun(false);
+}
+function tourLegResult(){
+  const win=!G.dnf&&(AI.finishTime==null||G.finishTime<=AI.finishTime);
+  TOUR.pts+=win?3:0;
+  TOUR.marks+=win?'勝':'負';
+  return win;
+}
+
+/* ================================================================
+   Haptics — best-effort vibration (no-op where unsupported).
+================================================================ */
+function buzz(p){
+  try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}
+}
+
+/* ================================================================
+   Performance guard — auto-degrades render quality when the
+   device can't hold the frame budget; manual override in corner.
+================================================================ */
+const PERF={mode:null,lvl:null,frames:0,secs:0,low:0};
+function perfInit(){   // lazy: `store` is defined further down the module
+  PERF.mode=store.get('cc_perf','auto');
+  PERF.lvl=store.get('cc_perf_lvl',0);
+  applyPerfLevel(PERF.lvl);
+  refreshPerfBtn();
+}
+function applyPerfLevel(lvl){
+  PERF.lvl=lvl;
+  store.set('cc_perf_lvl',lvl);
+  renderer.setPixelRatio(lvl===0?Math.min(devicePixelRatio,2):1);
+  if(lvl<=1){
+    sun.castShadow=true;
+    const size=lvl===0?2048:1024;
+    if(sun.shadow.mapSize.x!==size){
+      sun.shadow.mapSize.set(size,size);
+      if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
+    }
+  }else{
+    sun.castShadow=false;
+  }
+}
+function perfTick(dt){
+  PERF.frames++; PERF.secs+=dt;
+  if(PERF.secs>=1){
+    const fps=PERF.frames/PERF.secs;
+    PERF.frames=0; PERF.secs=0;
+    if(PERF.mode==='auto'&&(G.state==='run'||G.state==='fallen')){
+      if(fps<45)PERF.low++; else PERF.low=0;
+      if(PERF.low>=3&&PERF.lvl<2){
+        applyPerfLevel(PERF.lvl+1);
+        PERF.low=0;
+        toast('⚡ '+tr('perf_auto_drop'));
+      }
+    }
+  }
+}
+
+/* ================================================================
+   Battle code — a paste-friendly record of a solo run: stats plus a
+   10 Hz position trace (deflate + base64url). Importing it loads a
+   challenge ghost to race against.
+================================================================ */
+const b64u={
+  enc:b=>btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+  dec:s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0)),
+};
+async function deflateText(str){
+  if(!window.CompressionStream)return null;
+  const cs=new CompressionStream('deflate-raw');
+  const w=cs.writable.getWriter();
+  w.write(new TextEncoder().encode(str));
+  w.close();
+  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+async function inflateText(bytes){
+  if(!window.DecompressionStream)throw new Error('no-inflate');
+  const ds=new DecompressionStream('deflate-raw');
+  const w=ds.writable.getWriter();
+  w.write(bytes);
+  w.close();
+  return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer());
+}
+async function makeBattleCode(){
+  const xs=[];
+  for(let i=0;i<G.rec.length;i+=3)xs.push(Math.round(G.rec[i][0]*10));   // 10 Hz, 0.1 m units
+  const payload={v:1,t:Math.round(G.finishTime*10),f:G.falls,s:G.steps,
+                 sp:Math.round(G.topSpeed*36),x:xs};
+  const json=JSON.stringify(payload);
+  const def=await deflateText(json);
+  return def?('CC1.'+b64u.enc(def)):('CC0.'+b64u.enc(new TextEncoder().encode(json)));
+}
+async function parseBattleCode(raw){
+  const code=(raw||'').replace(/\s+/g,'');
+  const m=/^CC([01])\.([A-Za-z0-9_-]+)$/.exec(code);
+  if(!m)throw new Error('bad');
+  const bytes=b64u.dec(m[2]);
+  const json=m[1]==='1'?await inflateText(bytes):new TextDecoder().decode(bytes);
+  const p=JSON.parse(json);
+  if(!p||p.v!==1||!(p.x instanceof Array)||p.x.length<10)throw new Error('bad');
+  return p;
+}
+// Rebuild a 30 Hz ghost pose stream from the 10 Hz trace, with a
+// synthesized trot so the challenge ghost visibly runs.
+function rivalPoseFrom(p){
+  const frames=[];
+  const n=p.x.length;
+  let ph=0;
+  for(let i=0;i<n*3;i++){
+    const t10=i/3;
+    const k=Math.floor(t10);
+    const a=p.x[Math.max(0,Math.min(n-1,k-1))], b=p.x[Math.max(0,Math.min(n-1,k))];
+    const c=p.x[Math.max(0,Math.min(n-1,k+1))];
+    const x=((b-a)+(c-a)*(t10-k))*0.05+a*0.1;   // smooth-ish interp in metres
+    const sp=Math.max(0,b-a);                    // 1 unit delta ≈ 1 m/s
+    ph+=sp*5.0/30;
+    const A=0.35*Math.min(1,sp/1.2);
+    const s1=Math.sin(ph), s2=Math.sin(ph+Math.PI);
+    const lift=q=>Math.max(0,Math.min(1,q*1.3));
+    const y=CFG.bodyY+0.03*Math.sin(ph*2);
+    frames.push([Math.round(x*1000)/1000,Math.round(y*1000)/1000,0,0,0,0,
+      s1*A,-s2*A,-s2*A,s1*A,
+      lift(s1*A),lift(-s2*A),lift(-s2*A),lift(s1*A)]);
+  }
+  return frames;
 }
 
 /* ================================================================
@@ -886,7 +1042,9 @@ function startRun(practice){
   G.replay=null;
   lbTop.classList.add('hidden');
   lbBot.classList.add('hidden');
-  aiStart(DUEL.on?null:aiSel);
+  aiStart(DUEL.on||TOUR.on ? (TOUR.on?TOUR_AI[TOUR.leg-1]:null) : aiSel);
+  const rv=store.get('cc_rival',null);
+  G.ghostData=rv?{t:rv.t/10,pose:rv.pose}:store.get('cc_ghost',null);
   resetLegsNeutral();
   titleScreen.classList.add('hidden');
   resultScreen.classList.add('hidden');
@@ -904,6 +1062,9 @@ function toTitle(){
   G.x=0; G.vx=0; G.vy=0; G.y=CFG.bodyY; G.pitch=0; G.roll=0; G.yaw=0; G.z=0;
   G.fallPose=null; G.elapsed=0; G.replay=null;
   DUEL.on=false;
+  TOUR.on=false; TOUR.leg=0; TOUR.pts=0; TOUR.marks='';
+  codeScreen.classList.add('hidden');
+  codeRow.classList.add('hidden');
   aiStart(null);
   lbTop.classList.add('hidden');
   lbBot.classList.add('hidden');
@@ -932,6 +1093,7 @@ function finishRace(){
   G.finishTime=G.elapsed;
   if(DUEL.on)duelRecord(G.finishTime);
   sfx.fanfare();
+  buzz([60,50,60,50,180]);
   burstConfetti(G.x,0);
   fallPromptEl.classList.add('hidden');
   if(!startReplay())G.doneT=0.9;   // no replay (short/DNF) -> result comes sooner
@@ -941,6 +1103,7 @@ function timeUp(){
   G.finishTime=CFG.timeLimit;
   if(DUEL.on)duelRecord(G.finishTime);
   sfx.buzz();
+  buzz(300);
   fallPromptEl.classList.add('hidden');
 }
 
@@ -965,9 +1128,27 @@ function showResult(){
   achToastRow.innerHTML='';
   oppRow.classList.add('hidden');
   duelRow.classList.add('hidden');
-  const ranked=!G.dnf&&!G.practice&&!DUEL.on;
+  codeRow.classList.add('hidden');
+  const ranked=!G.dnf&&!G.practice&&!DUEL.on&&!TOUR.on;
 
-  if(DUEL.on){
+  if(TOUR.on){
+    // championship: leg results, running points, final trophy
+    const win=tourLegResult();
+    if(TOUR.leg<3){
+      rankIcon.textContent=win?'🏅':'💪';
+      rankText.textContent=tr('pts')+' '+TOUR.pts+'/9 · '+TOUR.marks;
+      duelRow.textContent=tr('leg_'+(win?'win':'lose'))+'　·　'+tr('next_battle')+tr('ai_'+TOUR_AI[TOUR.leg]);
+      duelRow.classList.remove('hidden');
+      retryBtn.textContent=tr('next_battle')+tr('ai_'+TOUR_AI[TOUR.leg])+' →';
+    }else{
+      const cup=TOUR.pts>=9?'champ9':TOUR.pts>=6?'champ6':TOUR.pts>=3?'champ3':'champ0';
+      rankIcon.textContent=TOUR.pts>=9?'🏆':TOUR.pts>=6?'🥈':TOUR.pts>=3?'🥉':'🐎';
+      rankText.textContent=tr(cup);
+      duelRow.textContent=TOUR.marks+'　·　'+tr('pts')+' '+TOUR.pts+'/9';
+      duelRow.classList.remove('hidden');
+      retryBtn.textContent=tr('duel_again');
+    }
+  }else if(DUEL.on){
     // alternating duel: turn 1 hands over, turn 2 shows the winner
     if(DUEL.turn===1){
       rankIcon.textContent='1️⃣';
@@ -1021,6 +1202,12 @@ function showResult(){
     }
     nameRow.classList.remove('hidden');
     nameInput.value=store.get('cc_name','');
+    // battle code for this run (paste-friendly, carries a 10 Hz trace)
+    makeBattleCode().then(code=>{
+      if(G.state!=='done'||G.dnf)return;
+      codeInput.value=code;
+      codeRow.classList.remove('hidden');
+    }).catch(()=>{});
   }
 
   // cumulative stats + achievements
@@ -1225,10 +1412,12 @@ function simStep(dt){
     }else if(e.type==='fall'){
       G.state='fallen'; G.falls++;
       sfx.fall(); camShake=0.5;
+      buzz([90,50,140]);
       dustAt(G.x,0,4); dustAt(G.x-0.6,0,2); dustAt(G.x+0.6,0,2);
       fallPromptEl.classList.add('hidden');
     }else if(e.type==='thud'){
       sfx.thud();
+      buzz(50);
     }else if(e.type==='landed'){
       fallPromptEl.classList.remove('hidden');
     }else if(e.type==='up'){
@@ -1263,7 +1452,9 @@ function setHeld(code,v){
 function primaryAction(){
   if(G.state==='title'){startRun(false);return;}
   if(G.state==='done'&&G.resultShown){
-    if(DUEL.on&&DUEL.turn===1){DUEL.turn=2;startRun(false);}
+    if(TOUR.on&&TOUR.leg<3){TOUR.leg++;startRun(false);}
+    else if(TOUR.on)tourStart();
+    else if(DUEL.on&&DUEL.turn===1){DUEL.turn=2;startRun(false);}
     else if(DUEL.on)duelStart();
     else startRun(false);
   }
@@ -1280,6 +1471,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR'){ if(!e.repeat)tryGetUp(); return; }
   if(e.code==='KeyM'){ if(!e.repeat)toggleMute(); return; }
   if(e.code==='Escape'&&e.repeat===false){
+    if(!codeScreen.classList.contains('hidden')){codeScreen.classList.add('hidden');return;}
     if(!shareScreen.classList.contains('hidden')){shareScreen.classList.add('hidden');return;}
     if(!boardScreen.classList.contains('hidden')){boardScreen.classList.add('hidden');return;}
     if(G.state!=='title')toTitle();
@@ -1304,7 +1496,9 @@ startBtn.addEventListener('click',()=>{startBtn.blur();startRun(false);});
 practiceBtn.addEventListener('click',()=>{practiceBtn.blur();startRun(true);});
 retryBtn.addEventListener('click',()=>{
   retryBtn.blur();
-  if(DUEL.on&&DUEL.turn===1){DUEL.turn=2;startRun(false);}
+  if(TOUR.on&&TOUR.leg<3){TOUR.leg++;startRun(false);}
+  else if(TOUR.on)tourStart();
+  else if(DUEL.on&&DUEL.turn===1){DUEL.turn=2;startRun(false);}
   else if(DUEL.on)duelStart();
   else startRun(false);
 });
@@ -1319,7 +1513,64 @@ document.querySelectorAll('#aiRow .modeChip').forEach(b=>{
 });
 refreshAiChips();
 duelBtn.addEventListener('click',()=>{duelBtn.blur();duelStart();});
+tourBtn.addEventListener('click',()=>{tourBtn.blur();tourStart();});
 lbBot.addEventListener('click',()=>{if(G.replay&&G.replay.active)endReplay();});
+
+// performance mode: auto / high / battery
+function refreshPerfBtn(){
+  perfBtn.style.opacity=PERF.mode==='lo'?'0.45':(PERF.mode==='hi'?'1':'0.8');
+}
+perfBtn.addEventListener('click',()=>{
+  perfBtn.blur();
+  PERF.mode=PERF.mode==='auto'?'hi':PERF.mode==='hi'?'lo':'auto';
+  store.set('cc_perf',PERF.mode);
+  if(PERF.mode==='hi')applyPerfLevel(0);
+  else if(PERF.mode==='lo')applyPerfLevel(2);
+  else applyPerfLevel(store.get('cc_perf_lvl',0));
+  refreshPerfBtn();
+  toast(tr(PERF.mode==='auto'?'perf_auto':PERF.mode==='hi'?'perf_hi':'perf_lo'));
+});
+refreshPerfBtn();
+
+// battle code: import / clear rival ghost
+codeImportBtn.addEventListener('click',()=>{
+  codeImportBtn.blur();
+  const rival=store.get('cc_rival',null);
+  codeHint.textContent=rival?tr('code_loaded')+'：'+(rival.t/10).toFixed(1)+'s':'';
+  codeArea.value='';
+  codeScreen.classList.remove('hidden');
+});
+codeCloseBtn.addEventListener('click',()=>{codeCloseBtn.blur();codeScreen.classList.add('hidden');});
+codeLoadBtn.addEventListener('click',async()=>{
+  try{
+    const p=await parseBattleCode(codeArea.value);
+    const pose=rivalPoseFrom(p);
+    store.set('cc_rival',{t:p.t,f:p.f,pose});
+    G.ghostData={t:p.t/10,pose};
+    codeHint.textContent=tr('code_loaded')+'：'+(p.t/10).toFixed(1)+'s';
+    toast(tr('code_loaded')+' '+(p.t/10).toFixed(1)+'s 🐎');
+    setTimeout(()=>codeScreen.classList.add('hidden'),900);
+  }catch(e){
+    toast(tr('code_invalid'));
+  }
+});
+codeClearBtn.addEventListener('click',()=>{
+  store.set('cc_rival',null);
+  G.ghostData=store.get('cc_ghost',null);
+  codeHint.textContent='';
+  toast(tr('code_clear')+' ✓');
+});
+codeCopyBtn.addEventListener('click',async()=>{
+  try{
+    await navigator.clipboard.writeText(codeInput.value);
+    toast(tr('copied'));
+  }catch(e){
+    codeInput.select();
+    if(document.execCommand)document.execCommand('copy');
+    toast(tr('copied'));
+  }
+});
+codeInput.addEventListener('click',()=>codeInput.select());
 
 boardBtn.addEventListener('click',()=>{boardBtn.blur();renderBoard();boardScreen.classList.remove('hidden');});
 boardClose.addEventListener('click',()=>{boardClose.blur();boardScreen.classList.add('hidden');});
@@ -1360,7 +1611,10 @@ function shareText(){
   const rank=I18N[lang].ranks[rankIndex()];
   const zh=lang==='zh';
   let mode;
-  if(DUEL.on){
+  if(TOUR.on){
+    mode=zh?'錦標賽 '+TOUR.marks+' · '+tr('pts')+' '+TOUR.pts+'/9'
+          :'Championship '+TOUR.marks+' · '+TOUR.pts+'/9 pts';
+  }else if(DUEL.on){
     mode=zh?`1P ${DUEL.t1.toFixed(1)}s vs 2P ${DUEL.t2.toFixed(1)}s（${tr(duelWinnerKey())}）`
           :`1P ${DUEL.t1.toFixed(1)}s vs 2P ${DUEL.t2.toFixed(1)}s (${tr(duelWinnerKey())})`;
   }else if(AI.level){
@@ -1425,7 +1679,9 @@ async function makeShareCard(){
   c.font='900 40px "Noto Sans TC","Baloo 2"';
   c.fillStyle='#fff';
   let mode;
-  if(DUEL.on){
+  if(TOUR.on){
+    mode='Championship '+TOUR.marks+' · '+TOUR.pts+'/9';
+  }else if(DUEL.on){
     mode=`1P ${DUEL.t1.toFixed(1)}s vs 2P ${DUEL.t2.toFixed(1)}s — ${tr(duelWinnerKey())}`;
   }else if(AI.level){
     const at=AI.finishTime!=null?AI.finishTime.toFixed(1)+'s':'DNF';
@@ -1666,6 +1922,7 @@ function tick(dt,noRender){
       goBanner.classList.remove('hidden');
       goBanner.style.animation='none'; void goBanner.offsetWidth; goBanner.style.animation='';
       sfx.go();
+      buzz(40);
     }
   }else{
     // fixed-step simulation at 240 Hz, like the original
@@ -1708,6 +1965,7 @@ function tick(dt,noRender){
     if(!G.practice&&G.state==='run'&&G.topSpeed>=2.5)unlock('sprint');
   }
   updateHud();
+  perfTick(dt);
   syncVisuals(dt);
   if(!noRender)renderer.render(scene,camera);
 }
@@ -1735,7 +1993,11 @@ buildDust();
 buildHoofprints();
 buildConfetti();
 buildCrowd();
-G.ghostData=store.get('cc_ghost',null);
+perfInit();
+{
+  const rv=store.get('cc_rival',null);
+  G.ghostData=rv?{t:rv.t/10,pose:rv.pose}:store.get('cc_ghost',null);
+}
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
   navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
@@ -1745,6 +2007,7 @@ window.__legs=legs;
 window.__CFG=CFG;
 window.__AI=AI;
 window.__DUEL=DUEL;
+window.__TOUR=TOUR;
 window.__tick=tick;    // manual frame pump for automated tests (rAF may be throttled in embedded browsers)
 window.__errs=[];
 addEventListener('error',e=>window.__errs.push(e.message+' @'+(e.filename||'')+':'+e.lineno));
