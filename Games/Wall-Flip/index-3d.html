@@ -60,7 +60,7 @@
   #airmeter.low i { background: var(--red); animation: blink .5s steps(2) infinite; }
   @keyframes blink { 50% { opacity: .45; } }
   #best { font: 700 12px/1 ui-monospace, monospace; color: var(--gold); text-align: right; padding: 2px 2px; }
-  #mutebtn, #langbtn { pointer-events: auto; cursor: pointer; background: var(--panel); border: 1px solid var(--line);
+  #mutebtn, #langbtn, #apibtn { pointer-events: auto; cursor: pointer; background: var(--panel); border: 1px solid var(--line);
     color: var(--dim); border-radius: 8px; padding: 4px 9px; font-size: 13px; }
   #hint { position: absolute; top: 74px; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 16px;
     text-shadow: 0 2px 8px rgba(0, 0, 0, .8); white-space: nowrap; }
@@ -123,7 +123,7 @@
   #resTime { text-align: center; font-size: 13px; font-weight: 700; color: var(--dim); margin: 0 0 8px; }
   #resTime.rec { color: var(--gold); }
   #resBtns { display: flex; gap: 8px; justify-content: center; }
-  #retryBtn, #shareBtn { display: block; margin: 0; cursor: pointer; border: 1px solid var(--line); border-radius: 999px;
+  #retryBtn, #shareBtn, #resBoardBtn { display: block; margin: 0; cursor: pointer; border: 1px solid var(--line); border-radius: 999px;
     background: rgba(23, 32, 48, .9); color: var(--ink); font: 800 14px system-ui, sans-serif; padding: 9px 26px; }
   #shareBtn[hidden] { display: none; }
 
@@ -144,6 +144,39 @@
   #credit { position: fixed; left: 10px; bottom: 8px; z-index: 4; pointer-events: none;
     font-size: 10px; color: rgba(159, 182, 201, .55); }
   @media (pointer: coarse) { #credit { bottom: auto; top: 44px; left: 12px; } }
+  /* start-screen online leaderboard button (styled like #dailyBtn) */
+  #boardBtn { pointer-events: auto; cursor: pointer; margin: 0 0 6px; padding: 7px 18px; border-radius: 999px;
+    border: 1px solid rgba(111, 240, 208, .45); background: rgba(10, 15, 24, .55); color: var(--accent);
+    font: 700 13px system-ui, "Noto Sans TC", sans-serif; }
+  /* online leaderboard DOM panels (2D build's #apiPanel styling; hidden by default) */
+  .wf-panel { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+    background: rgba(4, 6, 12, .62); }
+  .wf-panel.on { display: flex; }
+  .wf-card { position: relative; width: min(86vw, 430px); box-sizing: border-box; background: #0d121e;
+    border: 2px solid rgba(111, 240, 208, .35); border-radius: 12px; padding: 18px 20px 16px; color: #eef4fa;
+    font: 500 14px/1.5 system-ui, "Noto Sans TC", sans-serif; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+  .wf-card h3 { margin: 0 0 10px; font-size: 16px; font-weight: 800; color: #6ff0d0; }
+  .wf-card input { width: 100%; box-sizing: border-box; background: #06080d; border: 1px solid #2a3342; border-radius: 8px;
+    padding: 10px 12px; color: #eef4fa; font: 500 14px ui-monospace, Menlo, monospace; outline: none; }
+  .wf-card input:focus { border-color: #6ff0d0; }
+  .wf-card input.bad { border-color: #ff5c5c; }
+  .wf-hint { margin: 8px 0 0; font-size: 12px; color: #8fa3b8; }
+  .wf-row { display: flex; gap: 10px; margin-top: 14px; }
+  .wf-btn { flex: 1; padding: 10px 0; border-radius: 999px; border: 1px solid rgba(159, 182, 201, .45);
+    background: transparent; color: #cfe3f5; font: 700 14px system-ui, "Noto Sans TC", sans-serif; cursor: pointer; }
+  .wf-btn.primary { background: #1f9d61; border-color: #1f9d61; color: #fff; }
+  .wf-btn:hover { filter: brightness(1.15); }
+  #boardGear { position: absolute; top: 12px; right: 12px; cursor: pointer; background: transparent; border: 0;
+    color: #8fa3b8; font: 700 18px system-ui, sans-serif; padding: 2px 6px; }
+  #boardGear:hover { color: #cfe3f5; }
+  .wf-tr { display: grid; grid-template-columns: 2.4em minmax(0, 1fr) 4.6em 3.6em 4.6em; gap: 8px; align-items: baseline;
+    padding: 3px 6px; font: 700 13px ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .wf-tr.head { font: 600 11px system-ui, "Noto Sans TC", sans-serif; color: #8fa3b8; padding-bottom: 5px; }
+  .wf-tr .num { text-align: right; }
+  .wf-tr .nm { font: 700 13px system-ui, "Noto Sans TC", sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wf-tr.hl { background: rgba(255, 209, 102, .13); border-radius: 6px; }
+  .wf-tr.hl span { color: #ffd166; }
+  .wf-empty { margin: 18px 0 10px; text-align: center; font: 600 14px system-ui, "Noto Sans TC", sans-serif; color: #8fa3b8; }
 </style>
 </head>
 <body>
@@ -174,6 +207,7 @@
       <div id="best"></div>
       <div class="hrow">
         <button id="langbtn"></button>
+        <button id="apibtn" type="button"></button>
         <button id="mutebtn">🔊</button>
       </div>
     </div>
@@ -198,6 +232,7 @@
   </div>
   <button id="dailyBtn" type="button"></button>
   <p id="dailyInfo" hidden></p>
+  <button id="boardBtn" type="button"></button>
   <button id="startBtn"></button>
   <p id="startBest" hidden></p>
 </div>
@@ -219,6 +254,7 @@
     <p id="resBest"></p>
     <div id="resBtns">
       <button id="shareBtn" type="button" hidden></button>
+      <button id="resBoardBtn" type="button"></button>
       <button id="retryBtn"></button>
     </div>
   </div>
@@ -232,6 +268,40 @@
 </div>
 
 <div id="credit"></div>
+
+<!-- online leaderboard DOM panels: ranking overlay + rank API settings + score name entry
+     (board first so the settings/name panels stack above it) -->
+<div id="boardPanel" class="wf-panel">
+  <div class="wf-card">
+    <button id="boardGear" type="button"></button>
+    <h3 id="boardTitleEl"></h3>
+    <div id="boardRows"></div>
+    <p class="wf-hint" id="boardNoteEl" hidden></p>
+    <p class="wf-hint" id="boardCloseEl"></p>
+  </div>
+</div>
+<div id="apiPanel" class="wf-panel">
+  <div class="wf-card">
+    <h3 id="apiTitleEl"></h3>
+    <input id="apiInput" type="url" spellcheck="false" autocomplete="off" autocapitalize="off">
+    <p class="wf-hint" id="apiHintEl"></p>
+    <div class="wf-row">
+      <button id="apiSaveBtn" class="wf-btn primary" type="button"></button>
+      <button id="apiCancelBtn" class="wf-btn" type="button"></button>
+    </div>
+  </div>
+</div>
+<div id="namePanel" class="wf-panel">
+  <div class="wf-card">
+    <h3 id="nameTitleEl"></h3>
+    <input id="nameInput" maxlength="10" spellcheck="false" autocomplete="off" autocapitalize="off">
+    <p class="wf-hint" id="nameHintEl"></p>
+    <div class="wf-row">
+      <button id="nameSendBtn" class="wf-btn primary" type="button"></button>
+      <button id="nameSkipBtn" class="wf-btn" type="button"></button>
+    </div>
+  </div>
+</div>
 
 <script type="module">
 import * as THREE from './vendor/three.module.js';
@@ -250,7 +320,7 @@ const STR = {
     s2a: '② 吸附（X / ↓）', s2b: '反翹段沒按住吸附就會剝離落地',
     s3a: '③ 左右推進器（← →）', s3b: '單鍵翻滾、雙鍵向上推；倒掛時雙鍵會推向地面！',
     s4a: '④ 輪胎朝下著地', s4b: '著地速度 ≤ 18 km/h、迴轉要收乾淨；翻滾一圈 50 分起跳',
-    hint: '吸附與推進器共用壓縮空氣 · M 靜音 · R 重來',
+    hint: '吸附與推進器共用壓縮空氣 · M 靜音 · R 重來 · L 排行榜',
     start: '—— 按 SPACE 開始 ——', again: '—— 按 SPACE 再來一次 ——',
     footer: '參數逆向自 tsuyatt.com 宙返りロードスター · Three.js 3D 復刻',
     hudAir: '空氣 AIR', hudSpeed: '速度 SPEED', hudHeight: '高度 HEIGHT', hudDist: '距離 DIST', hudRolls: '翻滾 ROLLS', best: '最佳',
@@ -284,6 +354,17 @@ const STR = {
     daily: '每日挑戰', dailyOn: 'ON', dailyOff: 'OFF',
     dailyMu: '低抓地日', dailyDrag: '強風日', dailyGrav: '重錘日', dailySuck: '弱磁日', dailyMotor: '老引擎日',
     dailyBest: '今日最佳',
+    // online leaderboard (keys ported verbatim from the 2D build)
+    tabOnline: '線上', tabLocal: '本機', onlineMark: '線上',
+    submit: '送出', skip: '略過', submitTitle: '上傳成績',
+    nameLabel: '你的名字（10 字內）',
+    submitOk: '已上傳', submitFail: '送出失敗',
+    apiBtn: '⚙', apiTitle: '線上排行 API', apiSave: '儲存', apiCancel: '取消',
+    apiPlaceholder: 'https://your-rank-api.example.com',
+    apiHint: '貼上你的排名 API 網址；留空＝僅本機排行',
+    apiSaved: '已儲存', colTime: '時間',
+    // 3D-specific
+    boardOffline: '無法連線排名伺服器',
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
@@ -291,7 +372,7 @@ const STR = {
     s2a: '② STICK (X / ↓)', s2b: 'On the overhang, no Stick means you peel off and fall',
     s3a: '③ SIDE THRUSTERS (← →)', s3b: 'One key rolls you, both push up; both while inverted push you into the ground!',
     s4a: '④ LAND ON THE TIRES', s4b: 'Touch down ≤ 18 km/h, settle the spin; 50 pts per full roll and up',
-    hint: 'Stick and thrusters share compressed air · M mute · R restart',
+    hint: 'Stick and thrusters share compressed air · M mute · R restart · L ranking',
     start: '—— PRESS SPACE TO START ——', again: '—— PRESS SPACE TO RETRY ——',
     footer: 'Physics reverse-engineered from tsuyatt.com 宙返りロードスター · Three.js 3D tribute',
     hudAir: 'AIR', hudSpeed: 'SPEED', hudHeight: 'HEIGHT', hudDist: 'DIST', hudRolls: 'ROLLS', best: 'BEST',
@@ -325,6 +406,17 @@ const STR = {
     daily: 'DAILY', dailyOn: 'ON', dailyOff: 'OFF',
     dailyMu: 'Low-Grip Day', dailyDrag: 'Crosswind Day', dailyGrav: 'Heavy Day', dailySuck: 'Weak Magnet Day', dailyMotor: 'Old Engine Day',
     dailyBest: "Today's Best",
+    // online leaderboard (keys ported verbatim from the 2D build)
+    tabOnline: 'ONLINE', tabLocal: 'LOCAL', onlineMark: 'ONLINE',
+    submit: 'Submit', skip: 'Skip', submitTitle: 'Submit your score',
+    nameLabel: 'Your name (max 10)',
+    submitOk: 'Uploaded', submitFail: 'Submit failed',
+    apiBtn: '⚙', apiTitle: 'Rank API', apiSave: 'Save', apiCancel: 'Cancel',
+    apiPlaceholder: 'https://your-rank-api.example.com',
+    apiHint: 'Paste your rank API URL; empty = local ranking only',
+    apiSaved: 'Saved', colTime: 'TIME',
+    // 3D-specific
+    boardOffline: 'Could not reach the rank server',
   },
 };
 let lang = 'tc';
@@ -1105,8 +1197,9 @@ const el = {
   resBest: $('resBest'), resTime: $('resTime'), shareBtn: $('shareBtn'),
   airMeter: $('airmeter'), airFill: $('airmeter').querySelector('i'), airText: $('airText'),
   speed: $('speed'), alt: $('alt'), dist: $('dist'), rolls: $('rolls'), best: $('best'),
-  hint: $('hint'), flash: $('flash'), pops: $('pops'), pad: $('pad'), mutebtn: $('mutebtn'),
+  hint: $('hint'), flash: $('flash'), pops: $('pops'), pad: $('pad'), mutebtn: $('mutebtn'), apibtn: $('apibtn'),
   langbtn: $('langbtn'), backlink: $('backlink'), retryBtn: $('retryBtn'), credit: $('credit'),
+  boardBtn: $('boardBtn'), resBoardBtn: $('resBoardBtn'),
   startBtn: $('startBtn'), startTitle: $('startTitle'), startSub: $('startSub'), startHint: $('startHint'),
   s1a: $('s1a'), s1b: $('s1b'), s2a: $('s2a'), s2b: $('s2b'), s3a: $('s3a'), s3b: $('s3b'), s4a: $('s4a'), s4b: $('s4b'),
   lblAir: $('lblAir'), lblSpeed: $('lblSpeed'), lblHeight: $('lblHeight'), lblDist: $('lblDist'), lblRolls: $('lblRolls'),
@@ -1142,6 +1235,24 @@ function updateAllText() {
   el.lblRowLevel.textContent = t('rowLevel');
   el.unitPts.textContent = t('pts');
   el.credit.textContent = t('footer');
+  // online leaderboard buttons + panels
+  el.apibtn.textContent = t('apiBtn');
+  el.apibtn.title = t('apiTitle');
+  el.boardBtn.textContent = t('boardTitle');
+  el.resBoardBtn.textContent = t('boardTitle');
+  apiTitleEl.textContent = t('apiTitle');
+  apiHintEl.textContent = t('apiHint');
+  apiSaveBtn.textContent = t('apiSave');
+  apiCancelBtn.textContent = t('apiCancel');
+  apiInput.placeholder = t('apiPlaceholder');
+  nameTitleEl.textContent = t('submitTitle');
+  nameHintEl.textContent = t('nameLabel');
+  nameSendBtn.textContent = t('submit');
+  nameSkipBtn.textContent = t('skip');
+  nameInput.placeholder = t('nameLabel');
+  boardGear.textContent = t('apiBtn');
+  boardCloseEl.textContent = t('boardClose');
+  if (boardOn) renderBoard(); // live-re-render the open ranking overlay
   const padLabels = { suck: 'padStick', left: 'padLeft', right: 'padRight', drive: 'padGo' };
   for (const [act, key] of Object.entries(padLabels)) {
     const lbl = padBtnEls[act] && padBtnEls[act].querySelector('span');
@@ -1186,9 +1297,28 @@ const keys = new Set(), padPtr = new Map();
 const keyActive = a => { for (const c of keys) if (KEYMAP[c] === a) return true; return false; };
 const padActive = a => { for (const v of padPtr.values()) if (v === a) return true; return false; };
 const held = a => game.playing && (keyActive(a) || padActive(a));
+// while a DOM panel is open or an input focused, keys belong to the panel
+function domTyping(e) {
+  const tag = e.target && e.target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || apiPanel.classList.contains('on') || namePanel.classList.contains('on');
+}
 addEventListener('keydown', e => {
+  if (domTyping(e)) return;
   if (e.code === 'KeyM') { if (!e.repeat) toggleMute(); e.preventDefault(); return; }
   if (e.code === 'KeyR') { if (!e.repeat && screen !== 'start') { ensureAudio(); resetRun(); } e.preventDefault(); return; }
+  if (e.code === 'KeyL') { // ranking overlay toggle (start / result screens)
+    e.preventDefault();
+    if (e.repeat) return;
+    ensureAudio();
+    if (boardOn) closeBoard();
+    else if (screen === 'start' || screen === 'result') openBoard();
+    return;
+  }
+  if (boardOn) { // ranking overlay open: game keys do nothing, Space closes
+    if (KEYMAP[e.code]) e.preventDefault();
+    if (e.code === 'Space' && !e.repeat) closeBoard();
+    return;
+  }
   const act = KEYMAP[e.code];
   if (!act) return;
   e.preventDefault();
@@ -1198,7 +1328,7 @@ addEventListener('keydown', e => {
   }
   keys.add(e.code);
 });
-addEventListener('keyup', e => { if (KEYMAP[e.code]) { e.preventDefault(); keys.delete(e.code); } });
+addEventListener('keyup', e => { if (domTyping(e)) return; if (KEYMAP[e.code]) { e.preventDefault(); keys.delete(e.code); } });
 addEventListener('blur', () => { keys.clear(); padPtr.clear(); });
 // touch pad buttons
 for (const btn of el.pad.querySelectorAll('button')) {
@@ -1372,6 +1502,9 @@ function resetRun() {
   debris.length = 0; debrisMesh.count = 0;
   bodyMat.color.copy(bodyColor0);
   el.pops.replaceChildren();
+  inputLog.length = 0; inputLogFrames = 0; inputLogLast = -1;  // fresh input log per run
+  lastSubmit = null;
+  closeBoard(); closeApiPanel(); closeNamePanel();
   screen = null;
   el.start.hidden = true;
   el.resultWrap.hidden = true;
@@ -1436,6 +1569,7 @@ let achMsgNames = null, achMsgTimer = 0;
 function showAchMsg(names) {
   achMsgNames = names;
   el.achMsg.textContent = t('mAch', names.join(t('achJoin')));
+  el.achMsg.style.color = ''; // reset any color left by showNetMsg
   el.achMsg.hidden = false;
   clearTimeout(achMsgTimer);
   achMsgTimer = setTimeout(() => { el.achMsg.hidden = true; achMsgNames = null; }, 2600);
@@ -1548,6 +1682,260 @@ el.dailyBtn.addEventListener('click', e => {
   sfx.click();
   setDaily(!dailyOn);
   el.dailyBtn.blur();
+});
+
+// ---------- online leaderboard (rank API client, ported from the 2D build) ----------
+// Base URL is configured at runtime (gear buttons) and persisted in localStorage
+// `wallflip3.api`; empty = online ranking off. Bot/demo runs never submit.
+const LOG_CAP = 12000;                 // max input-log pairs (matches server cap)
+let inputLog = [];                     // [framesSincePrevChange, inputMask] pairs
+let inputLogFrames = 0;
+let inputLogLast = -1;
+let lastSubmit = null;                 // { n, s } of the entry just submitted
+let onlineBoard = null;                // fetched online top-10 (null = none/failed)
+let onlinePending = false;             // online fetch in flight
+let onlineHi = -1;                     // highlighted index in the online list
+let boardOn = false;                   // ranking overlay open
+function apiBase() {
+  try {
+    const s = (localStorage.getItem('wallflip3.api') || '').trim();
+    return /^https?:\/\//i.test(s) ? s.replace(/\/+$/, '') : '';
+  } catch (e) { return ''; }
+}
+function submitThrottled() {
+  try { return Date.now() - (+localStorage.getItem('wallflip3.subT') || 0) < 60000; }
+  catch (e) { return false; }
+}
+// per-physics-frame input recording: only CHANGES are logged, each with the
+// frame count since the previous change (the original's re() scheme); physics
+// is deterministic at 240 Hz, so the server can replay a run from this log
+function logInputFrame(inp) {
+  inputLogFrames++;
+  const mask = (inp.suck ? 1 : 0) | (inp.drive ? 2 : 0) | (inp.left ? 4 : 0) | (inp.right ? 8 : 0);
+  if (mask !== inputLogLast) {
+    if (inputLog.length < LOG_CAP) inputLog.push([inputLogFrames, mask]);
+    inputLogFrames = 0;
+    inputLogLast = mask;
+  }
+}
+// GET {base}/top?c=0; accepts a raw array or { board: [...] }; on failure the
+// overlay shows the empty state plus an offline note
+function fetchOnlineBoard(base) {
+  onlinePending = true;
+  fetch(base + '/top?c=0')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => {
+      const arr = Array.isArray(j) ? j : (j && Array.isArray(j.board)) ? j.board : null;
+      if (!arr) throw new Error('unexpected payload');
+      onlineBoard = arr
+        .filter(e => e && typeof e.n === 'string' && Number.isFinite(e.s) && Number.isFinite(e.r))
+        .slice(0, 10)
+        .map(e => ({ n: e.n, s: e.s, r: e.r, t: Number.isFinite(e.t) ? e.t : 0 }));
+      onlineHi = lastSubmit ? onlineBoard.findIndex(e => e.n === lastSubmit.n && e.s === lastSubmit.s) : -1;
+      onlinePending = false;
+      if (boardOn) renderBoard();
+    })
+    .catch(err => {
+      onlinePending = false;
+      onlineBoard = null;
+      console.warn('rank fetch failed:', err);
+      if (boardOn) renderBoard();
+    });
+}
+// POST {n, s, r, c, t, log} — sanitized client-side, throttled to 1 per 60 s;
+// bot/demo runs never reach this (guarded here and at the call site)
+function submitScore(name) {
+  const base = apiBase();
+  if (!base || DEMO || submitThrottled()) return;
+  const st = sim.state, sc = game.score;
+  if (!sc || !st.land) return;
+  const payload = {
+    n: String(name).trim().slice(0, 10),
+    s: clamp(Math.round(sc.total) || 0, 0, 5000),
+    r: clamp(Math.round(st.land.rolls) || 0, 0, 99),
+    c: 0,
+    t: Math.round(game.runTime * 100) / 100,
+    log: inputLog.slice(0, LOG_CAP),
+  };
+  try { localStorage.setItem('wallflip3.subT', String(Date.now())); } catch (e) {}
+  lastSubmit = { n: payload.n, s: payload.s };
+  fetch(base + '/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => {
+      if (!j || j.ok !== true || !Number.isFinite(j.rank)) throw new Error('unexpected response');
+      showNetMsg(t('submitOk') + ' #' + j.rank, false);
+    })
+    .catch(err => {
+      lastSubmit = null;
+      console.warn('submit failed:', err);
+      showNetMsg(t('submitFail'), true);
+    });
+}
+// top-center status line for submit / API-save feedback (shared #achMsg node)
+let netMsgTimer = 0;
+function showNetMsg(text, bad) {
+  achMsgNames = null;
+  el.achMsg.textContent = text;
+  el.achMsg.style.color = bad ? 'var(--red)' : 'var(--accent)';
+  el.achMsg.hidden = false;
+  clearTimeout(achMsgTimer);
+  clearTimeout(netMsgTimer);
+  netMsgTimer = setTimeout(() => { el.achMsg.hidden = true; }, 2600);
+}
+// DOM panels: rank API settings + score name entry + online ranking overlay
+const apiPanel = $('apiPanel'), apiInput = $('apiInput'),
+  apiTitleEl = $('apiTitleEl'), apiHintEl = $('apiHintEl'),
+  apiSaveBtn = $('apiSaveBtn'), apiCancelBtn = $('apiCancelBtn'),
+  namePanel = $('namePanel'), nameInput = $('nameInput'),
+  nameTitleEl = $('nameTitleEl'), nameHintEl = $('nameHintEl'),
+  nameSendBtn = $('nameSendBtn'), nameSkipBtn = $('nameSkipBtn'),
+  boardPanel = $('boardPanel'), boardTitleEl = $('boardTitleEl'),
+  boardRows = $('boardRows'), boardNoteEl = $('boardNoteEl'),
+  boardCloseEl = $('boardCloseEl'), boardGear = $('boardGear');
+function panelOpen(p) { return p.classList.contains('on'); }
+function openApiPanel() {
+  apiTitleEl.textContent = t('apiTitle');
+  apiHintEl.textContent = t('apiHint');
+  apiSaveBtn.textContent = t('apiSave');
+  apiCancelBtn.textContent = t('apiCancel');
+  apiInput.placeholder = t('apiPlaceholder');
+  try { apiInput.value = localStorage.getItem('wallflip3.api') || ''; } catch (e) { apiInput.value = ''; }
+  apiInput.classList.remove('bad');
+  apiPanel.classList.add('on');
+  keys.clear(); padPtr.clear(); // pressed keys belong to the panel now
+  apiInput.focus();
+}
+function closeApiPanel() { apiPanel.classList.remove('on'); }
+function saveApi() {
+  const v = apiInput.value.trim();
+  if (v && !/^https?:\/\//i.test(v)) { apiInput.classList.add('bad'); return; } // must start with http(s)
+  try {
+    if (v) localStorage.setItem('wallflip3.api', v.replace(/\/+$/, ''));
+    else localStorage.removeItem('wallflip3.api');
+  } catch (e) {}
+  closeApiPanel();
+  if (boardOn) {                      // live-refresh the open overlay
+    onlineBoard = null;
+    onlineHi = -1;
+    const base = apiBase();
+    if (base) fetchOnlineBoard(base); else renderBoard();
+  }
+  sfx.click();
+  showNetMsg(t('apiSaved'), false);
+}
+function openNamePanel() {
+  if (screen !== 'result' || panelOpen(namePanel)) return;
+  nameTitleEl.textContent = t('submitTitle');
+  nameHintEl.textContent = t('nameLabel');
+  nameSendBtn.textContent = t('submit');
+  nameSkipBtn.textContent = t('skip');
+  nameInput.placeholder = t('nameLabel');
+  try { nameInput.value = localStorage.getItem('wallflip3.name') || ''; } catch (e) { nameInput.value = ''; }
+  namePanel.classList.add('on');
+  keys.clear(); padPtr.clear();
+  nameInput.focus();
+  nameInput.select();
+}
+function closeNamePanel() { namePanel.classList.remove('on'); }
+function confirmName() {
+  const n = nameInput.value.trim().slice(0, 10);
+  if (!n) return;                    // a name is required; Skip is the way out
+  try { localStorage.setItem('wallflip3.name', n); } catch (e) {}
+  closeNamePanel();
+  submitScore(n);
+}
+// online ranking overlay (DOM rows: rank / name / score / rolls / time)
+function openBoard() {
+  if (screen !== 'start' && screen !== 'result') return;
+  boardOn = true;
+  onlineBoard = null;
+  onlineHi = -1;
+  renderBoard();
+  boardPanel.classList.add('on');
+  const base = apiBase();
+  if (base) fetchOnlineBoard(base);
+  sfx.click();
+}
+function closeBoard() { boardOn = false; boardPanel.classList.remove('on'); }
+function renderBoard() {
+  boardTitleEl.textContent = t('boardTitle') + (apiBase() ? ' · ' + t('onlineMark') : '');
+  boardCloseEl.textContent = t('boardClose');
+  boardGear.textContent = t('apiBtn');
+  boardNoteEl.hidden = true;
+  boardRows.replaceChildren();
+  const head = document.createElement('div');
+  head.className = 'wf-tr head';
+  [t('colRank'), '', t('colScore'), t('colRolls'), t('colTime')].forEach((txt, j) => {
+    const c = document.createElement('span');
+    if (j === 1) c.className = 'nm';
+    else if (j > 1) c.className = 'num';
+    c.textContent = txt;
+    head.appendChild(c);
+  });
+  boardRows.appendChild(head);
+  if (!onlineBoard || !onlineBoard.length) {
+    const empty = document.createElement('p');
+    empty.className = 'wf-empty';
+    empty.textContent = onlinePending ? '…' : t('boardEmpty');
+    boardRows.appendChild(empty);
+    // offline note: a rank API is configured but the fetch failed / is not done
+    boardNoteEl.hidden = onlinePending || !!onlineBoard || !apiBase();
+    if (!boardNoteEl.hidden) boardNoteEl.textContent = t('boardOffline');
+    return;
+  }
+  for (let i = 0; i < onlineBoard.length; i++) {
+    const e = onlineBoard[i];
+    const row = document.createElement('div');
+    row.className = 'wf-tr' + (i === onlineHi ? ' hl' : '');
+    const cells = [`${i + 1}.`, e.n, String(e.s), String(e.r),
+      Number.isFinite(e.t) ? e.t.toFixed(1) + 's' : ''];
+    cells.forEach((txt, j) => {
+      const c = document.createElement('span');
+      if (j === 1) c.className = 'nm';
+      else if (j > 1) c.className = 'num';
+      c.textContent = txt;
+      row.appendChild(c);
+    });
+    boardRows.appendChild(row);
+  }
+}
+el.apibtn.addEventListener('click', () => { ensureAudio(); sfx.click(); openApiPanel(); el.apibtn.blur(); });
+el.boardBtn.addEventListener('click', e => {
+  e.stopPropagation(); // keep the start-screen click (start) from firing
+  ensureAudio();
+  openBoard();
+  el.boardBtn.blur();
+});
+el.resBoardBtn.addEventListener('click', e => {
+  e.stopPropagation(); // keep the result-wrap click (retry) from firing
+  ensureAudio();
+  openBoard();
+  el.resBoardBtn.blur();
+});
+apiSaveBtn.addEventListener('click', saveApi);
+apiCancelBtn.addEventListener('click', () => { sfx.click(); closeApiPanel(); });
+apiInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveApi();
+  else if (e.key === 'Escape') closeApiPanel();
+});
+nameSendBtn.addEventListener('click', confirmName);
+nameSkipBtn.addEventListener('click', () => { sfx.click(); closeNamePanel(); });
+nameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmName();
+  else if (e.key === 'Escape') closeNamePanel();
+});
+// clicking the dimmed backdrop cancels the panel / closes the overlay
+for (const [panel, closeFn] of [[apiPanel, closeApiPanel], [namePanel, closeNamePanel], [boardPanel, closeBoard]]) {
+  panel.addEventListener('pointerdown', e => { if (e.target === panel) closeFn(); });
+}
+boardGear.addEventListener('click', e => {
+  e.stopPropagation();
+  sfx.click();
+  openApiPanel();
 });
 
 // ---------- event effects ----------
@@ -1677,6 +2065,15 @@ function showResult() {
     el.resTime.hidden = false;
     el.resTime.textContent = t('timeLine', game.runTime.toFixed(1), game.newTimeRec);
     el.resTime.className = game.newTimeRec ? 'rec' : '';
+    // online submit: offer the name-entry panel shortly after the result
+    // settles (never for bot/demo runs, only when a rank API is configured)
+    if (!DEMO && apiBase() && !submitThrottled() && sc.total > 0) {
+      setTimeout(() => {
+        const s2 = sim && sim.state;
+        if (!DEMO && screen === 'result' && s2 && s2.mode === 'landed' && s2.land &&
+            game.score && game.score.total > 0) openNamePanel();
+      }, 900);
+    }
   } else {
     const fall = st.land ? st.land.fall * 3.6 : Math.hypot(st.vx, st.vy) * 3.6;
     const tilt = st.land ? st.land.tilt * 180 / Math.PI : 0;
@@ -1946,7 +2343,9 @@ renderer.setAnimationLoop(now => {
     };
     for (game.acc += dt * TIME_SCALE; game.acc >= BASE.STEP;) {
       game.acc -= BASE.STEP;
-      sim.step(BASE.STEP, DEMO ? botInputs() : human);
+      const inp = DEMO ? botInputs() : human;
+      sim.step(BASE.STEP, inp);
+      if (screen === null) logInputFrame(inp); // input bitmask log (replay verification)
     }
   }
   processEvents();
