@@ -85,6 +85,22 @@ canvas{display:block}
 .achCell{display:flex;align-items:center;gap:8px;background:#fff;border:2.5px solid #4a2f18;border-radius:12px;padding:7px 10px;font-size:13px;font-weight:700;text-align:left}
 .achCell.locked{opacity:.38;filter:grayscale(1)}
 .achCell .ico{font-size:22px}
+/* AI pill */
+.pill.ai b{color:#8c4a2f}
+/* Title mode chips (AI opponent) */
+.modeRow{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.modeChip{font-family:inherit;font-weight:800;font-size:14px;padding:7px 16px;border-radius:999px;border:2.5px solid #4a2f18;background:#fff;color:#4a2f18;cursor:pointer;opacity:.75}
+.modeChip.sel{background:#f5a524;color:#fff;opacity:1;box-shadow:0 3px 0 rgba(74,47,24,.35)}
+.btn.alt2{background:#b03a6e}
+/* Opponent / duel rows on result */
+.oppRow{margin-top:10px;background:#fff;border:2.5px solid #4a2f18;border-radius:12px;padding:8px 14px;font-weight:800;font-size:15px}
+.duelRow{margin-top:10px;background:#fff;border:2.5px solid #4a2f18;border-radius:12px;padding:8px 14px;font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+/* Replay letterbox */
+.lb{position:absolute;left:0;right:0;height:9vh;background:#120c06;z-index:8;pointer-events:none;display:flex;align-items:center;justify-content:center}
+#lbTop{top:0}
+#lbBot{bottom:0;pointer-events:auto;cursor:pointer}
+.lbLabel{color:#f5d90a;font-weight:800;letter-spacing:.5em;font-size:15px}
+.lbSkip{color:#fff;opacity:.75;font-weight:700;font-size:13px;text-decoration:underline}
 
 /* Screens */
 .screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;background:rgba(60,40,20,.18);backdrop-filter:blur(2px)}
@@ -127,9 +143,10 @@ h1{font-size:44px;line-height:1.05}
 <a class="back-to-menu" href="../../" aria-label="返回總覽"><span aria-hidden="true">←</span><span class="back-to-menu-label">返回總覽</span></a>
 <div id="ui">
   <div id="hud" class="hidden">
-    <div class="pill"><span data-i18n="hud_time"></span><b id="hudTime">90.0</b></div>
+    <div class="pill"><span data-i18n="hud_time"></span><b id="hudTime">0.0</b></div>
     <div class="pill"><span data-i18n="hud_dist"></span><b id="hudDist">50.0 m</b></div>
     <div class="pill" id="fallsPill"><span data-i18n="hud_falls"></span><b id="hudFalls">0</b></div>
+    <div class="pill ai" id="aiPill"><span data-i18n="opp"></span><b id="hudAi">—</b></div>
   </div>
 
   <div id="corner">
@@ -140,6 +157,9 @@ h1{font-size:44px;line-height:1.05}
 
   <div id="tipWarn" class="hidden">⚠ <span data-i18n="tip_warn"></span></div>
   <div id="toast" class="hidden"></div>
+
+  <div id="lbTop" class="lb hidden"><span class="lbLabel">REPLAY</span></div>
+  <div id="lbBot" class="lb hidden"><span class="lbSkip" id="lbSkip" data-i18n="replay_skip"></span></div>
 
   <div id="fallPrompt" class="hidden"><span data-i18n="fallen"></span></div>
   <div id="goBanner" class="hidden">GO!</div>
@@ -165,9 +185,16 @@ h1{font-size:44px;line-height:1.05}
         <li data-i18n="how3"></li>
       </ul>
       <div class="tip" data-i18n="tip"></div>
+      <div class="modeRow" id="aiRow">
+        <button class="modeChip sel" data-ai="" data-i18n="ai_solo"></button>
+        <button class="modeChip" data-ai="pony" data-i18n="ai_pony"></button>
+        <button class="modeChip" data-ai="race" data-i18n="ai_race"></button>
+        <button class="modeChip" data-ai="legend" data-i18n="ai_legend"></button>
+      </div>
       <div class="btnRow">
         <button id="startBtn" class="btn" data-i18n="start"></button>
         <button id="practiceBtn" class="btn alt" data-i18n="practice"></button>
+        <button id="duelBtn" class="btn alt2" data-i18n="duel"></button>
       </div>
       <button id="boardBtn" class="linkBtn" data-i18n="board"></button>
       <div class="credit" data-i18n="credit"></div>
@@ -191,6 +218,8 @@ h1{font-size:44px;line-height:1.05}
       <div class="rankRow"><span data-i18n="rank_label"></span><b id="rankText"></b></div>
       <div id="dnfBadge" class="dnf hidden" data-i18n="dnf"></div>
       <div id="newRecord" class="record hidden" data-i18n="new_record"></div>
+      <div id="oppRow" class="oppRow hidden"></div>
+      <div id="duelRow" class="duelRow hidden"></div>
       <div class="stats">
         <div><span data-i18n="st_time"></span><b id="stTime">–</b></div>
         <div><span data-i18n="st_falls"></span><b id="stFalls">–</b></div>

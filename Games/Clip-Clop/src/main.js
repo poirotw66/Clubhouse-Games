@@ -75,6 +75,11 @@ const I18N = {
     save_score:'存入排行', name_ph:'你的名字',
     share:'分享', copied:'已複製戰報！', board_empty:'還沒有任何紀錄，去跑一場吧！',
     practice_note:'練習模式：不計時不計紀錄',
+    ai_solo:'獨跑', ai_pony:'小馬', ai_race:'賽馬', ai_legend:'傳奇',
+    opp:'對手', opp_win:'你贏了！', opp_lose:'對手較快…', opp_dnf:'對手未完賽',
+    duel:'雙人對戰', duel_next:'換 2P 上場 →', duel_again:'再來一戰！',
+    duel_p1win:'1P 獲勝！', duel_p2win:'2P 獲勝！', duel_draw:'平手！',
+    replay_skip:'▶ 略過（Space）',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
   },
@@ -101,6 +106,11 @@ const I18N = {
     save_score:'Save score', name_ph:'Your name',
     share:'Share', copied:'Result copied!', board_empty:'No records yet — go run one!',
     practice_note:'Practice: untimed, unranked',
+    ai_solo:'Solo', ai_pony:'Pony', ai_race:'Racehorse', ai_legend:'Legend',
+    opp:'OPP', opp_win:'You win!', opp_lose:'Opponent was faster…', opp_dnf:'Opponent did not finish',
+    duel:'2P Duel', duel_next:"Player 2's turn →", duel_again:'Rematch!',
+    duel_p1win:'Player 1 wins!', duel_p2win:'Player 2 wins!', duel_draw:'Draw!',
+    replay_skip:'▶ Skip (Space)',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
   },
@@ -119,12 +129,14 @@ function applyI18n(){
 ================================================================ */
 const $ = id => document.getElementById(id);
 const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hudFalls'),
-      fallsPill=$('fallsPill'), langBtn=$('langBtn'), muteBtn=$('muteBtn'), ghostBtn=$('ghostBtn'),
+      fallsPill=$('fallsPill'), aiPill=$('aiPill'), hudAi=$('hudAi'),
+      langBtn=$('langBtn'), muteBtn=$('muteBtn'), ghostBtn=$('ghostBtn'),
       fallPromptEl=$('fallPrompt'), goBanner=$('goBanner'), countNumEl=$('countNum'), keysBar=$('keysBar'),
-      tipWarnEl=$('tipWarn'),
-      titleScreen=$('titleScreen'), startBtn=$('startBtn'), practiceBtn=$('practiceBtn'),
+      tipWarnEl=$('tipWarn'), lbTop=$('lbTop'), lbBot=$('lbBot'),
+      titleScreen=$('titleScreen'), startBtn=$('startBtn'), practiceBtn=$('practiceBtn'), duelBtn=$('duelBtn'),
       boardBtn=$('boardBtn'), boardScreen=$('boardScreen'), boardClose=$('boardClose'),
       resultScreen=$('resultScreen'), dnfBadge=$('dnfBadge'), newRecordEl=$('newRecord'),
+      oppRow=$('oppRow'), duelRow=$('duelRow'),
       nameRow=$('nameRow'), nameInput=$('nameInput'), saveScoreBtn=$('saveScoreBtn'),
       achToastRow=$('achToastRow'), shareBtn=$('shareBtn'),
       rankText=$('rankText'), rankIcon=$('rankIcon'),
@@ -385,14 +397,17 @@ const legs = [];   // {cfg, th, da, lift, on, load, footX}
 let neckRef=null, headRef=null;
 const tailSegs=[]; // segmented tail, reacts to speed like the original
 
-// Builds a complete horse. ghost=true renders a translucent shadow-free copy
-// used for the best-run replay.
-function buildHorseMesh(root, tiltG, ghost){
+// Builds a complete horse. opts.ghost renders a translucent shadow-free copy
+// (best-run replay); opts.coat picks the body color (AI horses are chestnut).
+function buildHorseMesh(root, tiltG, opts){
+  const ghost=!!(opts&&opts.ghost);
+  const coat=(opts&&opts.coat)||0xdedad0;
+  const legCoat=new THREE.Color(coat).multiplyScalar(0.92);
   const M=(color,rough)=>ghost
     ? new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.28,roughness:.8,depthWrite:false})
     : new THREE.MeshStandardMaterial({color,roughness:rough});
-  const bodyMat  = M(0xdedad0,.85);
-  const legMat   = M(0xcfc9bd,.85);
+  const bodyMat  = M(coat,.85);
+  const legMat   = M(legCoat.getHex(),.85);
   const darkMat  = M(0x9b958a,.9);
   const muzzleMat= M(0xe9e4da,.9);
   const eyeMat   = ghost?bodyMat:M(0x1d1410,.4);
@@ -491,7 +506,7 @@ function buildHorseMesh(root, tiltG, ghost){
 
 let horseParts=null;
 function buildHorse(){
-  horseParts=buildHorseMesh(horseRoot,tilt,false);
+  horseParts=buildHorseMesh(horseRoot,tilt,{coat:0xdedad0});
   for(const l of horseParts.legs)legs.push(l);
   neckRef=horseParts.neck; headRef=horseParts.head;
   for(const s of horseParts.tailSegs)tailSegs.push(s);
@@ -636,7 +651,7 @@ ghostRoot.visible=false;
 scene.add(ghostRoot);
 let ghostParts=null;
 function buildGhost(){
-  ghostParts=buildHorseMesh(ghostRoot,ghostTilt,true);
+  ghostParts=buildHorseMesh(ghostRoot,ghostTilt,{ghost:true});
 }
 
 // True hoof sync: knee bend is solved so the leg's visual reach matches the
@@ -650,6 +665,119 @@ function applyLegVisual(leg,th,lift){
   const cosK=THREE.MathUtils.clamp((reach-upper*Math.cos(th))/lower,0,1);
   const lowerAng=-Math.sign(th||1)*Math.acos(cosK);
   leg.knee.rotation.z=lowerAng-th;
+}
+
+/* ================================================================
+   AI opponent — a real horse on the same physics, driven by a
+   rhythm engine with per-level cadence and jitter (and the pony
+   occasionally over-holds a pair and tumbles).
+================================================================ */
+const AI_LEVELS={
+  pony:  {hold:7, gap:4, jit:2, stumble:28},
+  race:  {hold:6, gap:3, jit:2, stumble:0},
+  legend:{hold:6, gap:2, jit:1, stumble:0},
+};
+const AI_LANES={pony:-1.15, race:-1.15, legend:-1.15};
+const aiRoot=new THREE.Group();
+const aiTilt=new THREE.Group();
+aiTilt.position.y=CFG.bodyY;
+aiRoot.add(aiTilt);
+aiRoot.visible=false;
+scene.add(aiRoot);
+let aiParts=null;
+function buildAIHorse(){
+  aiParts=buildHorseMesh(aiRoot,aiTilt,{coat:0xb3855f});
+}
+const AI_NOINPUT=[0,0,0,0,0];
+const AI={S:null,L:null,level:null,acc:0,phase:0,t:0,cycle:0,inp:AI_NOINPUT,finishTime:null,getupAt:0};
+
+function aiStart(level){
+  AI.level=level||null;
+  if(!AI.level){aiRoot.visible=false;return;}
+  AI.S=makeHorseState();
+  AI.L=makeLegStates();
+  AI.acc=0; AI.phase=0; AI.t=0; AI.cycle=0;
+  AI.inp=AI_NOINPUT.slice();
+  AI.finishTime=null; AI.getupAt=0;
+  aiRoot.visible=true;
+}
+
+// Frame-level cadence scheduler; phases: 0 hold O+W, 1 gap, 2 hold P+Q, 3 gap.
+function aiDrive(dt){
+  const cfg=AI_LEVELS[AI.level];
+  if(!cfg)return;
+  // while tumbling, stop the rhythm (paddling would drag the body around)
+  // and just ask to get up once the pose has settled
+  if(!AI.S.fallPose){
+    AI.acc+=dt;
+    while(AI.acc>=1/60){
+      AI.acc-=1/60;
+      AI.t--;
+      if(AI.t<=0){
+        AI.phase=(AI.phase+1)%4;
+        AI.cycle++;
+        const holding=AI.phase===0||AI.phase===2;
+        let dur=Math.max(1,(holding?cfg.hold:cfg.gap)+(cfg.jit?Math.round((Math.random()*2-1)*cfg.jit):0));
+        if(holding&&cfg.stumble&&AI.cycle%cfg.stumble===0)dur=26;   // over-hold -> tumble
+        AI.t=dur;
+        AI.inp=AI_NOINPUT.slice();
+        if(holding){
+          if(AI.phase===0){AI.inp[2]=1;AI.inp[1]=1;}   // O + W
+          else{AI.inp[3]=1;AI.inp[0]=1;}               // P + Q
+        }
+      }
+    }
+  }else{
+    AI.inp=AI_NOINPUT.slice();
+  }
+  const p=AI.S.fallPose;
+  AI.inp[4]=0;
+  if(p&&p.landed&&!p.rise){
+    AI.getupAt+=dt;
+    if(AI.getupAt>0.7){AI.inp[4]=1;AI.getupAt=0;}
+  }else{
+    AI.getupAt=0;
+  }
+}
+
+function aiTick(dt){
+  if(!AI.level||!AI.S)return;
+  const inp=AI.finishTime!=null?AI_NOINPUT:AI.inp;
+  simHorse(AI.S,AI.L,inp,dt);
+  if(AI.finishTime==null&&AI.S.x>=CFG.finishX)AI.finishTime=G.elapsed;
+}
+
+/* ================================================================
+   Finish replay — the recorder's pose stream played back slowly
+   with a low side dolly camera and letterbox bars.
+================================================================ */
+function startReplay(){
+  if(G.dnf||G.rec.length<90)return false;
+  G.replay={active:true,t:0,frames:G.rec.slice(-105)};   // last ~3.5 s
+  lbTop.classList.remove('hidden');
+  lbBot.classList.remove('hidden');
+  return true;
+}
+function endReplay(){
+  if(!G.replay)return;
+  G.replay.active=false;
+  G.doneT=0.9;   // result follows almost immediately
+  lbTop.classList.add('hidden');
+  lbBot.classList.add('hidden');
+}
+
+/* ================================================================
+   Local 2-player duel — alternating timed runs, winner compared.
+================================================================ */
+const DUEL={on:false,turn:0,t1:0,t2:0};
+function duelStart(){
+  DUEL.on=true; DUEL.turn=1; DUEL.t1=0; DUEL.t2=0;
+  aiSel='';                       // no AI in duels
+  refreshAiChips();
+  startRun(false);
+}
+function duelRecord(t){
+  if(DUEL.turn===1)DUEL.t1=t; else DUEL.t2=t;
 }
 
 /* ================================================================
@@ -720,7 +848,7 @@ const G = {
   fallPose:null, simAcc:0,
   doneT:0, finishTime:0, dnf:false, resultShown:false, nPlant:4,
   lastBeepSec:99, countdown:0, lastCount:0,
-  elapsed:0, practice:false,
+  elapsed:0, practice:false, replay:null,
   ghostOn:true, ghostData:null, rec:[], recAcc:0,
 };
 const held = {KeyQ:false,KeyW:false,KeyO:false,KeyP:false};
@@ -746,6 +874,10 @@ function startRun(practice){
   G.resultShown=false; G.lastBeepSec=99; G.dnf=false; G.doneT=0;
   G.countdown=3.0; G.lastCount=0;
   G.elapsed=0; G.rec=[]; G.recAcc=0;
+  G.replay=null;
+  lbTop.classList.add('hidden');
+  lbBot.classList.add('hidden');
+  aiStart(DUEL.on?null:aiSel);
   resetLegsNeutral();
   titleScreen.classList.add('hidden');
   resultScreen.classList.add('hidden');
@@ -761,8 +893,14 @@ function startRun(practice){
 function toTitle(){
   G.state='title';
   G.x=0; G.vx=0; G.vy=0; G.y=CFG.bodyY; G.pitch=0; G.roll=0; G.yaw=0; G.z=0;
-  G.fallPose=null; G.elapsed=0;
+  G.fallPose=null; G.elapsed=0; G.replay=null;
+  DUEL.on=false;
+  aiStart(null);
+  lbTop.classList.add('hidden');
+  lbBot.classList.add('hidden');
+  aiPill.classList.add('hidden');
   resetLegsNeutral();
+  applyI18n();   // resets duel-specific button labels
   hudEl.classList.add('hidden');
   keysBar.classList.add('hidden');
   fallPromptEl.classList.add('hidden');
@@ -770,21 +908,6 @@ function toTitle(){
   countNumEl.classList.add('hidden');
   resultScreen.classList.add('hidden');
   titleScreen.classList.remove('hidden');
-}
-
-function doFall(dir){
-  if(G.state!=='run')return;
-  G.state='fallen'; G.falls++;
-  // hand over to the tumble simulation with the current momentum
-  G.fallPose={
-    roll:G.roll, wr:G.rollV, pitch:G.pitch, wp:G.pitchV,
-    y:G.y+CFG.sag, t:0, landed:false, rise:0, from:null,
-    yaw:0, z:0, vx:G.vx, w:0,
-    legs:legs.map(l=>({th:l.th, lift:l.lift})),
-  };
-  sfx.fall(); camShake=0.5;
-  dustAt(G.x,0,4); dustAt(G.x-0.6,0,2); dustAt(G.x+0.6,0,2);
-  fallPromptEl.classList.add('hidden');
 }
 
 function tryGetUp(){
@@ -798,13 +921,16 @@ function tryGetUp(){
 function finishRace(){
   G.state='done'; G.doneT=0; G.dnf=false;
   G.finishTime=G.elapsed;
+  if(DUEL.on)duelRecord(G.finishTime);
   sfx.fanfare();
   burstConfetti(G.x,0);
   fallPromptEl.classList.add('hidden');
+  if(!startReplay())G.doneT=0.9;   // no replay (short/DNF) -> result comes sooner
 }
 function timeUp(){
   G.state='done'; G.doneT=0; G.dnf=true;
   G.finishTime=CFG.timeLimit;
+  if(DUEL.on)duelRecord(G.finishTime);
   sfx.buzz();
   fallPromptEl.classList.add('hidden');
 }
@@ -828,7 +954,36 @@ function showResult(){
   newRecordEl.classList.add('hidden');
   nameRow.classList.add('hidden');
   achToastRow.innerHTML='';
-  const ranked=!G.dnf&&!G.practice;
+  oppRow.classList.add('hidden');
+  duelRow.classList.add('hidden');
+  const ranked=!G.dnf&&!G.practice&&!DUEL.on;
+
+  if(DUEL.on){
+    // alternating duel: turn 1 hands over, turn 2 shows the winner
+    if(DUEL.turn===1){
+      rankIcon.textContent='1️⃣';
+      rankText.textContent='1P：'+G.finishTime.toFixed(1)+' s';
+      retryBtn.textContent=tr('duel_next');
+    }else{
+      const t1=DUEL.t1,t2=DUEL.t2;
+      rankIcon.textContent=t1<t2?'1️⃣':(t2<t1?'2️⃣':'🤝');
+      rankText.textContent=t1<t2?tr('duel_p1win'):(t2<t1?tr('duel_p2win'):tr('duel_draw'));
+      duelRow.textContent='1P '+t1.toFixed(1)+' s　｜　2P '+t2.toFixed(1)+' s';
+      duelRow.classList.remove('hidden');
+      retryBtn.textContent=tr('duel_again');
+    }
+  }else{
+    retryBtn.textContent=tr('retry');
+    if(AI.level){
+      const at=AI.finishTime;
+      let msg;
+      if(G.dnf)msg=at!=null?tr('opp_lose'):tr('opp_dnf');
+      else if(at==null)msg=tr('opp_win');
+      else msg=G.finishTime<=at?tr('opp_win'):tr('opp_lose');
+      oppRow.textContent=tr('opp')+'（'+tr('ai_'+AI.level)+'）：'+(at!=null?at.toFixed(1)+' s':'—')+'　·　'+msg;
+      oppRow.classList.remove('hidden');
+    }
+  }
 
   if(ranked){
     // personal best
@@ -869,28 +1024,46 @@ function showResult(){
   hudEl.classList.add('hidden');
   keysBar.classList.add('hidden');
   fallPromptEl.classList.add('hidden');
+  aiPill.classList.add('hidden');
   resultScreen.classList.remove('hidden');
 }
 
 /* ================================================================
-   Physics — a faithful port of the original game's simulation
+   Physics — a faithful port of the original game's simulation.
+   Parameterized so the same code drives the player's horse and the
+   AI opponents: simHorse(S, L, inp, dt) is pure except for S/L and
+   returns events for the game layer (sound, dust, UI).
 ================================================================ */
-function simStep(dt){
-  const sinP=Math.sin(G.pitch), cosP=Math.cos(G.pitch);
-  const sinR=Math.sin(G.roll),  cosR=Math.cos(G.roll);
+function makeLegStates(){
+  return LEG_CFG.map(c=>({cfg:c,th:0,da:0,lift:0,on:true,load:0.25,footX:c.x}));
+}
+function makeHorseState(){
+  return {x:0,vx:0,y:CFG.bodyY,vy:0,pitch:0,pitchV:0,roll:0,rollV:0,yaw:0,z:0,
+          steps:0,topSpeed:0,fallPose:null};
+}
+function standUpLegs(S,L){
+  for(const l of L){l.th=0;l.da=0;l.lift=0;l.on=true;l.load=0.25;l.footX=S.x+l.cfg.x;}
+}
+
+// One physics substep. inp = [Q, W, O, P, getup].
+function simHorse(S,L,inp,dt){
+  if(S.fallPose)return fallHorse(S,L,inp,dt);
+  const ev=[];
+  const sinP=Math.sin(S.pitch), cosP=Math.cos(S.pitch);
+  const sinR=Math.sin(S.roll),  cosR=Math.cos(S.roll);
   let thrust=0, brake=0, Fsum=0, pitchT=0, rollT=0, nOn=0, sideMask=0, legReact=0;
 
-  for(const leg of legs){
-    const c=leg.cfg;
-    const keyHeld=!!held[c.key];
+  for(let i=0;i<4;i++){
+    const leg=L[i], c=leg.cfg;
+    const keyHeld=!!inp[i];
 
     // lift eases in/out; a lifted leg shortens, which is what actually lifts the hoof
     leg.lift+=((keyHeld?1:0)-leg.lift)*Math.min(1,CFG.LIFT_RATE*dt);
 
     const reach=(c.len-CFG.LIFT*leg.lift)*Math.cos(leg.th); // vertical leg reach
-    const L=c.x-CFG.COM;                                    // hip x relative to COM
-    const hipH=G.y+c.y+L*sinP-c.z*sinR;                     // hip height above ground
-    const hipV=G.vy+L*cosP*G.pitchV-c.z*cosR*G.rollV;       // hip vertical velocity
+    const off=c.x-CFG.COM;                                  // hip x relative to COM
+    const hipH=S.y+c.y+off*sinP-c.z*sinR;                   // hip height above ground
+    const hipV=S.vy+off*cosP*S.pitchV-c.z*cosR*S.rollV;     // hip vertical velocity
     const wasOn=leg.on;
     leg.on=reach>=hipH;                                     // contact test
 
@@ -914,8 +1087,8 @@ function simStep(dt){
       nOn++;
       sideMask|=c.side>0?1:2;
       Fsum+=g;
-      pitchT+=g*L*cosP;    // fore/aft hooves pitch the body
-      rollT -=g*c.z*cosR;  // one-sided hooves roll the body away
+      pitchT+=g*off*cosP;    // fore/aft hooves pitch the body
+      rollT -=g*c.z*cosR;    // one-sided hooves roll the body away
       const b=Math.min(1.5,leg.load);
       if(keyHeld){
         brake+=CFG.SLIDE*b;                                  // holding a planted hoof makes it slide
@@ -924,56 +1097,59 @@ function simStep(dt){
         brake+=CFG.TRACTION*b;
       }
       if(!wasOn){
-        leg.footX=G.x+c.x+c.len*Math.sin(leg.th);
-        G.steps++;
-        sfx.clop(Math.min(1,Math.max(0,-hipV)/3));
-        dustAt(leg.footX,c.z);
-        printAt(leg.footX,c.z);
+        leg.footX=S.x+c.x+c.len*Math.sin(leg.th);
+        S.steps++;
+        ev.push({type:'step',leg:i,speed:Math.min(1,Math.max(0,-hipV)/3),footX:leg.footX,z:c.z});
       }
     }
   }
-  G.nPlant=nOn;
 
   /* ---- linear motion ---- */
-  G.vx+=(thrust-brake*G.vx-CFG.DRAG*G.vx*Math.abs(G.vx))*dt;
-  G.vy+=(Fsum-G_GRAV)*dt;
-  G.y +=G.vy*dt;
-  G.x +=G.vx*dt;
+  S.vx+=(thrust-brake*S.vx-CFG.DRAG*S.vx*Math.abs(S.vx))*dt;
+  S.vy+=(Fsum-G_GRAV)*dt;
+  S.y +=S.vy*dt;
+  S.x +=S.vx*dt;
 
   /* ---- angular motion ---- */
-  const net=thrust-brake*G.vx;
-  pitchT+=CFG.REAR*net*G.y;                 // thrust pitches the nose up
-  G.pitchV-=CFG.LEG_I*legReact/CFG.I_PITCH; // legs accelerating rocks the body
-  G.pitchV+=(pitchT/CFG.I_PITCH+CFG.TIP_PITCH*sinP-CFG.ANG_DAMP*G.pitchV)*dt;
+  const net=thrust-brake*S.vx;
+  pitchT+=CFG.REAR*net*S.y;                 // thrust pitches the nose up
+  S.pitchV-=CFG.LEG_I*legReact/CFG.I_PITCH; // legs accelerating rocks the body
+  S.pitchV+=(pitchT/CFG.I_PITCH+CFG.TIP_PITCH*sinP-CFG.ANG_DAMP*S.pitchV)*dt;
   const bal=sideMask===3?[0,0,CFG.BAL2,CFG.BALANCE,CFG.BAL4][nOn]:0;
-  G.rollV+=(rollT/CFG.I_ROLL+CFG.TIP*sinR-bal*(G.roll+0.25*G.rollV)-CFG.ANG_DAMP*G.rollV)*dt;
-  G.pitch+=G.pitchV*dt;
-  G.roll +=G.rollV*dt;
+  S.rollV+=(rollT/CFG.I_ROLL+CFG.TIP*sinR-bal*(S.roll+0.25*S.rollV)-CFG.ANG_DAMP*S.rollV)*dt;
+  S.pitch+=S.pitchV*dt;
+  S.roll +=S.rollV*dt;
+  S.topSpeed=Math.max(S.topSpeed,S.vx);
 
   /* ---- falls ---- */
-  if(Math.abs(G.roll)>CFG.FALL_ROLL)      doFall(G.roll>0?'left':'right');
-  else if(Math.abs(G.pitch)>CFG.FALL_PITCH) doFall(G.pitch>0?'back':'nose');
-  if(G.state!=='run')return;
-
-  G.topSpeed=Math.max(G.topSpeed,G.vx);
-  if(G.x>=CFG.finishX){ G.x=CFG.finishX; finishRace(); }
+  if(Math.abs(S.roll)>CFG.FALL_ROLL||Math.abs(S.pitch)>CFG.FALL_PITCH){
+    S.fallPose={
+      roll:S.roll, wr:S.rollV, pitch:S.pitch, wp:S.pitchV,
+      y:S.y+CFG.sag, t:0, landed:false, rise:0, from:null,
+      yaw:0, z:0, vx:S.vx, w:0,
+      legs:L.map(l=>({th:l.th,lift:l.lift})),
+    };
+    ev.push({type:'fall',dir:Math.abs(S.roll)>CFG.FALL_ROLL?(S.roll>0?'left':'right'):(S.pitch>0?'back':'nose')});
+  }
+  return ev;
 }
 
-function updateFallen(dt){
-  const p=G.fallPose;
-  if(!p)return;
+// Tumble, lying flail and rise — runs on the fall pose.
+function fallHorse(S,L,inp,dt){
+  const ev=[];
+  const p=S.fallPose;
 
   // rising back to the feet over RISE_TIME, then resume normal simulation
   if(p.rise>0){
     p.rise=Math.min(1,p.rise+dt/CFG.RISE_TIME);
     if(p.rise>=1){
-      G.state='run'; G.fallPose=null;
-      G.roll=0; G.pitch=0; G.rollV=0; G.pitchV=0;
-      G.vx=0; G.vy=0; G.y=CFG.bodyY; G.yaw=0; G.z=0;
-      resetLegsNeutral();
-      sfx.getup(); dustAt(G.x,0,2);
+      S.roll=0; S.pitch=0; S.rollV=0; S.pitchV=0;
+      S.vx=0; S.vy=0; S.y=CFG.bodyY; S.yaw=0; S.z=0;
+      standUpLegs(S,L);
+      S.fallPose=null;
+      ev.push({type:'up'});
     }
-    return;
+    return ev;
   }
 
   // tumble: gravity spins the body until it settles at the lying pose (with a bounce)
@@ -985,7 +1161,7 @@ function updateFallen(dt){
   p.pitch+=p.wp*dt;
   const bounce=(ang,vel,limit)=>{
     if(Math.abs(ang)<limit)return[ang,vel];
-    if(Math.abs(vel)>1.5&&Math.sign(vel)===Math.sign(ang))sfx.thud();
+    if(Math.abs(vel)>1.5&&Math.sign(vel)===Math.sign(ang))ev.push({type:'thud'});
     return[Math.sign(ang)*limit,Math.sign(vel)===Math.sign(ang)?-vel*0.2:vel];
   };
   [p.roll,p.wr]=bounce(p.roll,p.wr,CFG.ROLL_REST);
@@ -995,7 +1171,7 @@ function updateFallen(dt){
   p.t+=dt;
   if(!p.landed&&(ar>=CFG.ROLL_REST*0.95||Math.abs(p.pitch)>=CFG.PITCH_REST*0.95||p.t>1.2)){
     p.landed=true;
-    fallPromptEl.classList.remove('hidden');
+    ev.push({type:'landed'});
   }
 
   // flail: the keys still paddle the legs while lying down, and once rolled over
@@ -1003,7 +1179,7 @@ function updateFallen(dt){
   const u=Math.sign(p.roll), full=ar>1;
   for(let i=0;i<4;i++){
     const lp=p.legs[i], c=LEG_CFG[i];
-    const heldNow=!!held[c.key];
+    const heldNow=!!inp[i];
     lp.lift+=((heldNow?1:0)-lp.lift)*Math.min(1,10*dt);
     const v=THREE.MathUtils.clamp(((heldNow?0.9:-0.4)-lp.th)/dt,-5,7);
     lp.th+=v*dt;
@@ -1015,12 +1191,51 @@ function updateFallen(dt){
   p.vx*=Math.exp(-2.5*dt);
   p.w*=Math.exp(-2.5*dt);
   p.yaw+=p.w*dt;
-  G.x+=p.vx*Math.cos(p.yaw)*dt;
+  S.x+=p.vx*Math.cos(p.yaw)*dt;
   p.z=THREE.MathUtils.clamp(p.z-p.vx*Math.sin(p.yaw)*dt,-1.5,1.5);
-  G.yaw=p.yaw; G.z=p.z;
+  S.yaw=p.yaw; S.z=p.z;
+
+  // get-up request (player: R key path; AI: driver raises inp[4] once landed)
+  if(inp[4]&&p.landed&&!p.rise){
+    p.rise=1e-6;
+    p.from={roll:p.roll,pitch:p.pitch,y:p.y,yaw:p.yaw,z:p.z};
+    ev.push({type:'getup'});
+  }
+  return ev;
+}
+
+// Player-side adapter: wires the shared simulation to sound/dust/UI and race rules.
+function simStep(dt){
+  const inp=[held.KeyQ,held.KeyW,held.KeyO,held.KeyP,false];
+  const ev=simHorse(G,legs,inp,dt);
+  for(const e of ev){
+    if(e.type==='step'){
+      sfx.clop(e.speed);
+      dustAt(e.footX,e.z);
+      printAt(e.footX,e.z);
+    }else if(e.type==='fall'){
+      G.state='fallen'; G.falls++;
+      sfx.fall(); camShake=0.5;
+      dustAt(G.x,0,4); dustAt(G.x-0.6,0,2); dustAt(G.x+0.6,0,2);
+      fallPromptEl.classList.add('hidden');
+    }else if(e.type==='thud'){
+      sfx.thud();
+    }else if(e.type==='landed'){
+      fallPromptEl.classList.remove('hidden');
+    }else if(e.type==='up'){
+      G.state='run';
+      sfx.getup(); dustAt(G.x,0,2);
+    }
+  }
+  if(G.state==='run'&&!G.fallPose&&G.x>=CFG.finishX){ G.x=CFG.finishX; finishRace(); }
 }
 
 function updateDone(dt){
+  if(G.replay&&G.replay.active){
+    G.replay.t+=dt*0.5;                    // slow motion
+    if(G.replay.t>=3.5)endReplay();
+    return;
+  }
   G.doneT+=dt;
   G.vx*=Math.max(0,1-2.5*dt);
   G.x+=G.vx*dt;
@@ -1037,11 +1252,21 @@ function setHeld(code,v){
   if(el)el.classList.toggle('down',v);
 }
 function primaryAction(){
-  if(G.state==='title')startRun();
-  else if(G.state==='done'&&G.resultShown)startRun();
+  if(G.state==='title'){startRun(false);return;}
+  if(G.state==='done'&&G.resultShown){
+    if(DUEL.on&&DUEL.turn===1){DUEL.turn=2;startRun(false);}
+    else if(DUEL.on)duelStart();
+    else startRun(false);
+  }
 }
 addEventListener('keydown',e=>{
-  if(e.code==='Space'){ e.preventDefault(); if(!e.repeat)primaryAction(); return; }
+  if(e.code==='Space'){
+    e.preventDefault();
+    if(e.repeat)return;
+    if(G.replay&&G.replay.active)endReplay();   // skip the finish replay
+    else primaryAction();
+    return;
+  }
   if(e.code==='Enter'){ if(!e.repeat)primaryAction(); return; }
   if(e.code==='KeyR'){ if(!e.repeat)tryGetUp(); return; }
   if(e.code==='KeyM'){ if(!e.repeat)toggleMute(); return; }
@@ -1067,7 +1292,24 @@ for(const c of LEG_CFG){
 
 startBtn.addEventListener('click',()=>{startBtn.blur();startRun(false);});
 practiceBtn.addEventListener('click',()=>{practiceBtn.blur();startRun(true);});
-retryBtn.addEventListener('click',()=>{retryBtn.blur();startRun(false);});
+retryBtn.addEventListener('click',()=>{
+  retryBtn.blur();
+  if(DUEL.on&&DUEL.turn===1){DUEL.turn=2;startRun(false);}
+  else if(DUEL.on)duelStart();
+  else startRun(false);
+});
+
+// AI opponent level chips + duel entry on the title card
+let aiSel='';
+function refreshAiChips(){
+  document.querySelectorAll('#aiRow .modeChip').forEach(b=>b.classList.toggle('sel',b.dataset.ai===aiSel));
+}
+document.querySelectorAll('#aiRow .modeChip').forEach(b=>{
+  b.addEventListener('click',()=>{b.blur();sfx.ensure();aiSel=b.dataset.ai;refreshAiChips();});
+});
+refreshAiChips();
+duelBtn.addEventListener('click',()=>{duelBtn.blur();duelStart();});
+lbBot.addEventListener('click',()=>{if(G.replay&&G.replay.active)endReplay();});
 
 boardBtn.addEventListener('click',()=>{boardBtn.blur();renderBoard();boardScreen.classList.remove('hidden');});
 boardClose.addEventListener('click',()=>{boardClose.blur();boardScreen.classList.add('hidden');});
@@ -1118,28 +1360,60 @@ applyI18n();
    Visual sync & camera
 ================================================================ */
 function syncVisuals(dt){
-  const celebrate=G.state==='done'&&!G.dnf;
+  const celebrate=G.state==='done'&&!G.dnf&&!G.replay;
+
+  // finish replay: the player's horse is posed from the recorded stream
+  let repF=null;
+  if(G.replay&&G.replay.active){
+    const frames=G.replay.frames;
+    repF=frames[Math.min(frames.length-1,Math.floor(G.replay.t*30))];
+  }
 
   // body pose: live sim state, or the tumble pose while fallen
-  const p=G.fallPose;
+  const p=repF?null:G.fallPose;
   let by=G.y, bro=G.roll, byaw=G.yaw||0, bp=G.pitch, bz=G.z||0;
-  if(p&&p.rise>0){
+  if(repF){
+    by=repF[1]; bro=repF[2]; bp=repF[3]; byaw=repF[4]; bz=repF[5];
+    horseRoot.position.set(repF[0],by-CFG.bodyY,bz);
+  }else if(p&&p.rise>0){
     const s=p.rise*p.rise*(3-2*p.rise), f=p.from, L=(a,b)=>a+(b-a)*s;
     by=L(f.y,CFG.bodyY); bro=L(f.roll,0); byaw=L(f.yaw,0); bp=L(f.pitch,0); bz=L(f.z,0);
+    horseRoot.position.set(G.x,by-CFG.bodyY,bz);
   }else if(p){
     by=p.y; bro=p.roll; byaw=p.yaw; bp=p.pitch; bz=p.z;
+    horseRoot.position.set(G.x,by-CFG.bodyY,bz);
+  }else{
+    horseRoot.position.set(G.x,by-CFG.bodyY,bz);
   }
-  by+=(celebrate?Math.abs(Math.sin(animT*7))*0.12:0);
-  horseRoot.position.set(G.x,by-CFG.bodyY,bz);
   tilt.rotation.set(bro,byaw,bp);
+  if(celebrate)horseRoot.position.y+=Math.abs(Math.sin(animT*7))*0.12;
 
   // legs: true IK sync (visual reach == physics reach); pressed keys light the band
   for(let i=0;i<4;i++){
-    const leg=legs[i], src=p?p.legs[i]:leg;
+    const leg=legs[i];
+    const src=repF?{th:repF[6+i],lift:repF[10+i]}:(p?p.legs[i]:leg);
     applyLegVisual(leg,src.th,src.lift);
     const pressed=!!held[leg.cfg.key]&&G.state!=='done';
     leg.band.material.emissive.setHex(pressed?leg.cfg.color:0x000000);
     leg.band.material.emissiveIntensity=pressed?0.55:0;
+  }
+
+  // AI opponent horse (far lane), same pose rules
+  if(aiRoot.visible&&AI.S&&aiParts){
+    const ap=AI.S.fallPose;
+    let aby=AI.S.y, abro=AI.S.roll, abyaw=AI.S.yaw, abp=AI.S.pitch, abz=AI.S.z;
+    if(ap&&ap.rise>0){
+      const s=ap.rise*ap.rise*(3-2*ap.rise), f=ap.from, L=(a,b)=>a+(b-a)*s;
+      aby=L(f.y,CFG.bodyY); abro=L(f.roll,0); abyaw=L(f.yaw,0); abp=L(f.pitch,0); abz=L(f.z,0);
+    }else if(ap){
+      aby=ap.y; abro=ap.roll; abyaw=ap.yaw; abp=ap.pitch; abz=ap.z;
+    }
+    aiRoot.position.set(AI.S.x,aby-CFG.bodyY,abz+AI_LANES[AI.level]);
+    aiTilt.rotation.set(abro,abyaw,abp);
+    for(let i=0;i<4;i++){
+      const src=ap?ap.legs[i]:AI.L[i];
+      applyLegVisual(aiParts.legs[i],src.th,src.lift);
+    }
   }
 
   // neck bob
@@ -1158,8 +1432,8 @@ function syncVisuals(dt){
     }
   }
 
-  // ghost: replay the best run's recorded pose stream
-  const gOn=G.ghostOn&&G.ghostData&&G.state!=='title'&&ghostParts;
+  // ghost: replay the best run's recorded pose stream (hidden while an AI races)
+  const gOn=G.ghostOn&&!AI.level&&G.ghostData&&G.state!=='title'&&ghostParts;
   ghostRoot.visible=!!gOn;
   if(gOn){
     const frames=G.ghostData.pose;
@@ -1184,7 +1458,11 @@ function syncVisuals(dt){
   camS.x+=(G.x+0.4+G.vx*0.25-camS.x)*(1-Math.exp(-5*dt));
 
   let px,py,pz,lx,ly,lz;
-  if(G.state==='title'){
+  if(G.replay&&G.replay.active&&repF){
+    // finish replay: low side dolly tracking the recorded horse
+    px=repF[0]-2.4; py=1.15; pz=6.6;
+    lx=repF[0]+0.9; ly=1.0; lz=0;
+  }else if(G.state==='title'){
     const a=Math.sin(animT*0.12)*0.4;
     px=G.x-4.6+Math.sin(a)*1.5; py=2.6; pz=8-Math.cos(a)*1.2;
     lx=G.x+3.2; ly=1.3; lz=0;
@@ -1226,6 +1504,13 @@ function updateHud(){
   hudDist.textContent=Math.max(0,CFG.finishX-G.x).toFixed(1)+' m';
   hudFalls.textContent=G.falls;
   hudEl.classList.toggle('warn',!G.practice&&G.timeLeft<10&&G.state!=='title');
+  const aiOn=!!AI.level&&G.state!=='title';
+  aiPill.classList.toggle('hidden',!aiOn);
+  if(aiOn&&AI.S){
+    hudAi.textContent=AI.finishTime!=null
+      ? AI.finishTime.toFixed(1)+'s ✓'
+      : Math.max(0,CFG.finishX-AI.S.x).toFixed(1)+' m';
+  }
 }
 
 const clock=new THREE.Clock();
@@ -1250,6 +1535,7 @@ function tick(dt,noRender){
     }
   }else{
     // fixed-step simulation at 240 Hz, like the original
+    if((G.state==='run'||G.state==='fallen')&&G.countdown<=0&&AI.level)aiDrive(dt);
     G.simAcc=(G.simAcc||0)+dt;
     let guard=0;
     while(G.simAcc>=CFG.STEP&&guard++<40){
@@ -1262,10 +1548,9 @@ function tick(dt,noRender){
           if(sec!==G.lastBeepSec&&sec<=5&&sec>0){G.lastBeepSec=sec;sfx.beep();}
           if(G.timeLeft<=0){G.timeLeft=0;timeUp();}
         }
-      }
-      if(G.state==='run')simStep(CFG.STEP);
-      else if(G.state==='fallen')updateFallen(CFG.STEP);
-      else break;
+        simStep(CFG.STEP);       // routes to the tumble sim automatically once fallen
+        aiTick(CFG.STEP);
+      }else break;
     }
     if(G.state==='done')updateDone(dt);
 
@@ -1311,6 +1596,7 @@ buildWorld();
 buildClouds();
 buildHorse();
 buildGhost();
+buildAIHorse();
 buildDust();
 buildHoofprints();
 buildConfetti();
@@ -1323,6 +1609,8 @@ window.__ready=true;
 window.__game=G;       // debug/testing hook
 window.__legs=legs;
 window.__CFG=CFG;
+window.__AI=AI;
+window.__DUEL=DUEL;
 window.__tick=tick;    // manual frame pump for automated tests (rAF may be throttled in embedded browsers)
 window.__errs=[];
 addEventListener('error',e=>window.__errs.push(e.message+' @'+(e.filename||'')+':'+e.lineno));

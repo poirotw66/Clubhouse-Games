@@ -8,8 +8,11 @@ JavaScript module): 240 Hz fixed step, hoof spring struts, velocity-chasing leg 
 traction kicks, contact-count balance springs, tip torques, tumble-and-flail falls,
 aspect-fitting chase camera, and the original 22/32/50 s rank table.
 
-Extras: ghost replay of your best run, local leaderboard, 7 achievements, practice mode,
-tilt warning, true hoof IK with hoofprints, finish-line crowd and confetti, PWA offline support.
+Extras: AI opponents at three levels (a real horse on the same physics — Pony ~68 s and
+tumble-prone, Racehorse ~32 s, Legend ~23 s), local 2-player alternating duels, a slow-motion
+finish replay of the last 3.5 s with a side dolly camera, ghost replay of your best run,
+local leaderboard, 7 achievements, practice mode, tilt warning, true hoof IK with hoofprints,
+finish-line crowd and confetti, PWA offline support.
 
 - `Q` left hind · `W` right hind · `O` left front · `P` right front (colored bands match)
 - Hold to swing a leg forward, release to kick the ground
