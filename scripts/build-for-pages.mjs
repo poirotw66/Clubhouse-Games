@@ -34,7 +34,6 @@ const STATIC_COPY = [
   '06-minigames',
   '07-astra',
   // Static GPT-6 / Astra one-shots (no Vite build); linked via playPath in games.json.
-  'Games/Wall-Flip', // static single-file game (no Vite build); linked via Games/Wall-Flip/
   'gpt6-astra',
 ];
 
