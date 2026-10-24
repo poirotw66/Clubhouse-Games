@@ -51,6 +51,7 @@
     padding: 6px 12px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   .panel label { display: block; font-size: 10px; letter-spacing: .14em; color: var(--dim); margin-bottom: 2px; }
   .panel b { font: 800 17px/1.1 ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  #vspeed { font: 700 11px/1 ui-monospace, Menlo, monospace; margin-left: 6px; letter-spacing: .04em; }
   .hgroup { display: flex; gap: 8px; }
   .hcol { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
   .hrow { display: flex; gap: 6px; justify-content: flex-end; }
@@ -195,7 +196,7 @@
       </div>
       <div class="panel">
         <label id="lblSpeed"></label>
-        <b id="speed">0 km/h</b>
+        <b id="speed">0 km/h</b> <span id="vspeed" hidden></span>
       </div>
     </div>
     <div class="hgroup">
@@ -1196,7 +1197,7 @@ const el = {
   resSoft: $('resSoft'), resLevel: $('resLevel'), resTotal: $('resTotal').querySelector('b'),
   resBest: $('resBest'), resTime: $('resTime'), shareBtn: $('shareBtn'),
   airMeter: $('airmeter'), airFill: $('airmeter').querySelector('i'), airText: $('airText'),
-  speed: $('speed'), alt: $('alt'), dist: $('dist'), rolls: $('rolls'), best: $('best'),
+  speed: $('speed'), vspeed: $('vspeed'), alt: $('alt'), dist: $('dist'), rolls: $('rolls'), best: $('best'),
   hint: $('hint'), flash: $('flash'), pops: $('pops'), pad: $('pad'), mutebtn: $('mutebtn'), apibtn: $('apibtn'),
   langbtn: $('langbtn'), backlink: $('backlink'), retryBtn: $('retryBtn'), credit: $('credit'),
   boardBtn: $('boardBtn'), resBoardBtn: $('resBoardBtn'),
@@ -2287,6 +2288,12 @@ function updateHud() {
   setMeter(st.air, 100);
   const spd = st.mode === 'road' ? Math.abs(st.v) : Math.hypot(st.vx, st.vy, st.vz);
   el.speed.textContent = `${Math.round(spd * 3.6)} km/h`;
+  if (airMode) {
+    const vs = st.vy * 3.6; // vertical speed, km/h (+ climbing)
+    el.vspeed.hidden = false;
+    el.vspeed.textContent = `${vs > 3.6 ? '▲' : vs < -3.6 ? '▼' : '—'} ${Math.abs(Math.round(vs))}`;
+    el.vspeed.style.color = vs < -18 ? '#ff8c5a' : vs > 3.6 ? '#6ff0d0' : 'rgba(159,182,201,.9)';
+  } else el.vspeed.hidden = true;
   const h = Math.max(0, st.y - CAR.H);
   el.alt.textContent = (h < 100 ? h.toFixed(1) : Math.round(h)) + ' m';
   el.dist.textContent = Math.round(Math.hypot(st.x - startX, st.z)) + ' m';

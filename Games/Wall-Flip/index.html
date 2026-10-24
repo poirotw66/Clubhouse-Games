@@ -1585,6 +1585,14 @@ function drawHUD() {
   ctx.font = `800 ${u * 0.9}px ui-monospace, monospace`;
   ctx.fillStyle = '#eef4fa';
   ctx.fillText(fmt(spd * 3.6) + ' km/h', m + u * 4.4, m + u * 2.27);
+  // vertical speed cue (P4 clarity): shows why the speed climbs when thrusting inverted
+  if (car.mode === 'air') {
+    const vs = car.vy * 3.6;
+    const arrow = vs > 3.6 ? '▲' : vs < -3.6 ? '▼' : '—';
+    ctx.font = `700 ${u * 0.6}px ui-monospace, Menlo, monospace`;
+    ctx.fillStyle = vs < -18 ? '#ff8c5a' : vs > 3.6 ? '#6ff0d0' : 'rgba(159,182,201,.9)';
+    ctx.fillText(`${arrow} ${fmt(Math.abs(vs))}`, m + u * 0.4, m + u * 3.15);
+  }
   // right block: rolls + best (both layouts, top-right)
   ctx.textAlign = 'center';
   const rw = narrow ? u * 7.5 : u * 4.6, rx = W() - m - rw;
