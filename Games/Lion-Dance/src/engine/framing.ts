@@ -1,6 +1,7 @@
 /**
- * Front three-quarter camera framing (v6.1).
- * FOV 38°, ~2.3–3.5 m half-width at the lion, pad-aware view offset.
+ * Front three-quarter camera framing (v6.2).
+ * Lion sits in the playable band between top HUD and bottom pad;
+ * feet ~60–70% screen height, silhouette width ~40–55%.
  */
 
 import * as THREE from 'three';
@@ -12,20 +13,29 @@ export const LION_WORLD_HEIGHT = 4.2 * LION_SCALE;
 export const LION_WORLD_LENGTH = BODY_LENGTH * 1.55;
 
 /**
- * Desired half-width at the lion — leave ~2.3 m+ clear on each side
- * (reference framing), scaled up slightly for our longer lion.
+ * Desired half-width at the lion — ~2.3 m clear each side of a ~3.3 m body
+ * → ~4 m half-span on desk; portrait pulls farther for side margins.
  */
-export const HALF_WIDTH = 3.8;
-export const HALF_WIDTH_PORTRAIT = 3.0;
+export const HALF_WIDTH = 3.15;
+export const HALF_WIDTH_PORTRAIT = 2.3;
 
 export const CAM_FOV = 38;
-export const DIST_MIN = 14;
-export const DIST_MAX = 26;
+export const DIST_MIN = 9.2;
+export const DIST_MAX = 16;
 export const FOLLOW_RATE = 5;
 export const DIST_FOLLOW_RATE = 4;
 
 /** NDC margin that must remain clear around the projected AABB. */
 export const FRAME_MARGIN_NDC = 0.04;
+
+/** Top of lion AABB must sit at or below this UV (top-left origin). */
+export const TOP_SAFE_UV = 0.08;
+/** Lion center Y (top-left UV) must stay in this band. */
+export const CENTER_Y_MIN = 0.35;
+export const CENTER_Y_MAX = 0.6;
+/** Target silhouette width band. */
+export const WIDTH_FRAC_MIN = 0.35;
+export const WIDTH_FRAC_MAX = 0.58;
 
 export interface CameraFrame {
   fov: number;
@@ -35,7 +45,7 @@ export interface CameraFrame {
   /** Ahead along +X for three-quarter (fraction of distance). */
   aheadFrac: number;
   lookAhead: number;
-  /** Extra virtual height (px fraction of viewport) reserved for the touch pad. */
+  /** Extra virtual height (fraction of viewport) reserved for the touch pad. */
   padFrac: number;
 }
 
@@ -47,18 +57,20 @@ export function computeCameraFrame(aspect: number): CameraFrame {
   const halfH = halfV * Math.max(0.35, aspect);
   let distance = halfW / halfH;
   distance = Math.max(DIST_MIN, Math.min(DIST_MAX, distance));
-  if (aspect < 0.9) distance = Math.min(DIST_MAX, distance * 1.08);
 
   const hip = BODY_HEIGHT;
+  const portrait = aspect < 0.8;
   return {
     fov: CAM_FOV,
     distance,
-    camY: 1.47 * hip + 0.08 * distance,
-    lookY: 0.82 * hip,
-    // Desktop: clear three-quarter; portrait: gentler ahead so length fits.
-    aheadFrac: aspect < 0.7 ? 0.1 : aspect < 0.9 ? 0.18 : 0.28,
+    // Lower camera + look so the lion sits in the mid playable band
+    camY: (portrait ? 1.7 : 1.15) * hip + 0.045 * distance,
+    lookY: (portrait ? 0.55 : 0.95) * hip,
+    // Portrait: strongly frontal so the long body fits with side gutters
+    aheadFrac: aspect < 0.7 ? 1.22 : aspect < 0.9 ? 0.55 : 0.22,
     lookAhead: 0,
-    padFrac: aspect < 0.8 ? 0.55 : 0.5,
+    // Desk: light pad clears QWOP without shoving the head into the top crop
+    padFrac: portrait ? 0.04 : 0.12,
   };
 }
 
@@ -137,12 +149,23 @@ export interface FrameCheck {
 
 export function checkLionFramed(bounds: ScreenBounds, margin = FRAME_MARGIN_NDC): FrameCheck {
   const reasons: string[] = [];
-  const sideSlop = 0.04;
+  const sideSlop = 0.02;
   if (bounds.minX < -sideSlop) reasons.push(`left ${bounds.minX.toFixed(3)}`);
   if (bounds.maxX > 1 + sideSlop) reasons.push(`right ${bounds.maxX.toFixed(3)}`);
-  if (bounds.minY < margin) reasons.push(`top ${bounds.minY.toFixed(3)}`);
-  // Bottom may sit near the pad; allow slightly more than side margin
+  // Head / horn must stay fully in frame below top HUD band
+  if (bounds.minY < TOP_SAFE_UV) reasons.push(`top ${bounds.minY.toFixed(3)}`);
+  // Bottom may approach the pad; still keep clear of the very edge
   if (bounds.maxY > 1 - margin * 0.5) reasons.push(`bottom ${bounds.maxY.toFixed(3)}`);
   if (bounds.heightFrac > 0.55) reasons.push(`too tall ${bounds.heightFrac.toFixed(3)}`);
+  if (bounds.heightFrac < 0.16) reasons.push(`too short ${bounds.heightFrac.toFixed(3)}`);
+  if (bounds.widthFrac < WIDTH_FRAC_MIN) reasons.push(`narrow ${bounds.widthFrac.toFixed(3)}`);
+  if (bounds.widthFrac > WIDTH_FRAC_MAX) reasons.push(`wide ${bounds.widthFrac.toFixed(3)}`);
+  // Side margins: silhouette must leave clear gutters (not edge-to-edge)
+  if (bounds.minX < 0.08) reasons.push(`leftGutter ${bounds.minX.toFixed(3)}`);
+  if (bounds.maxX > 0.92) reasons.push(`rightGutter ${bounds.maxX.toFixed(3)}`);
+  const centerY = (bounds.minY + bounds.maxY) * 0.5;
+  if (centerY < CENTER_Y_MIN || centerY > CENTER_Y_MAX) {
+    reasons.push(`centerY ${centerY.toFixed(3)}`);
+  }
   return { ok: reasons.length === 0, bounds, reasons };
 }

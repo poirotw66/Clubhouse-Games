@@ -420,34 +420,36 @@ body,
 
 .lion-fall-stamp {
   position: fixed;
-  /* Park left of center so it doesn't sit on the lion torso */
-  left: max(0.75rem, env(safe-area-inset-left, 0px));
-  top: max(4.6rem, env(safe-area-inset-top, 0px) + 4rem);
+  /* Top-center below the nav/back row — fully on-screen */
+  left: 50%;
+  top: max(5.6rem, env(safe-area-inset-top, 0px) + 5rem);
   z-index: 9050;
-  transform: rotate(-8deg);
-  padding: 0.65rem 1.25rem;
+  transform: translateX(-50%) rotate(-8deg);
+  padding: 0.55rem 1.15rem;
   border: 4px solid #fff;
   border-radius: 0.4rem;
   background: rgba(226, 58, 46, 0.96);
   color: #fff;
   font-family: var(--font-display);
-  font-size: clamp(1.7rem, 6.5vw, 2.6rem);
+  font-size: clamp(1.35rem, 4.5vw, 2.2rem);
   font-weight: 900;
   letter-spacing: 0.08em;
   box-shadow: 0 8px 0 rgba(90, 16, 10, 0.35);
   animation: stamp-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
   pointer-events: none;
   white-space: nowrap;
+  max-width: calc(100% - 2rem);
+  text-align: center;
 }
 
 @keyframes stamp-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -50%) rotate(-12deg) scale(1.6);
+    transform: translateX(-50%) rotate(-12deg) scale(1.55);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) rotate(-12deg) scale(1);
+    transform: translateX(-50%) rotate(-8deg) scale(1);
   }
 }
 
@@ -938,10 +940,11 @@ body,
   }
 
   .lion-fall-stamp {
-    left: max(0.4rem, env(safe-area-inset-left, 0px));
-    top: max(3.6rem, env(safe-area-inset-top, 0px) + 3.2rem);
-    font-size: 0.95rem;
-    padding: 0.45rem 0.85rem;
+    left: 50%;
+    /* Below top HUD cards (距離/時間), still above the lion */
+    top: max(10.2rem, env(safe-area-inset-top, 0px) + 9.4rem);
+    font-size: 1.05rem;
+    padding: 0.4rem 0.75rem;
   }
 
   /* Above the QWOP strip on the right — clear of the lion mid-frame */

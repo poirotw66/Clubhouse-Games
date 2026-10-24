@@ -197,9 +197,8 @@ export function createLionWorld(): LionWorld {
     camera.fov = frame.fov;
     const w = hostEl.clientWidth || window.innerWidth;
     const h = hostEl.clientHeight || window.innerHeight;
-    // Taller virtual canvas; viewport is the LOWER band (offsetY = pad) so
-    // world content shifts UP on screen and clears the touch pad.
-    const padPx = Math.max(padViewOffset || h * frame.padFrac, h * frame.padFrac);
+    // Modest pad: shift content up just enough to clear QWOP, not into the top crop.
+    const padPx = padViewOffset || h * frame.padFrac;
     camera.setViewOffset(w, h + padPx, 0, padPx, w, h);
     camera.updateProjectionMatrix();
     const d = camDist;
@@ -222,7 +221,7 @@ export function createLionWorld(): LionWorld {
     camera.aspect = aspect;
     frame = computeCameraFrame(aspect);
     camDist = frame.distance;
-    padViewOffset = Math.min(300, Math.max(160, h * frame.padFrac));
+    padViewOffset = Math.min(200, Math.max(0, h * frame.padFrac));
     camera.fov = frame.fov;
     renderer.setSize(w, h, false);
     applyCameraRig(camX);
@@ -334,6 +333,7 @@ export function createLionWorld(): LionWorld {
       root.position.set(1.2, sim.y, 0);
       root.rotation.set(0, 0, 0);
       root.scale.setScalar(LION_SCALE);
+      hem.visible = true;
       cloth.rotation.set(0, 0, 0);
       cloth.position.set(0, 0, 0);
       for (const id of ['FL', 'FR', 'BL', 'BR'] as LegId[]) {
@@ -346,12 +346,14 @@ export function createLionWorld(): LionWorld {
       const aFront = (attractHud.legLift.FL + attractHud.legLift.FR) * 0.5;
       head.position.y = headHomeY + aFront * 0.04 + Math.sin(idleT * 4) * 0.03;
       head.rotation.x = Math.sin(idleT * 2.2) * 0.04 - aFront * 0.06;
+      head.rotation.z = 0;
       if (!flowerDetached) {
         flower.position.copy(flowerHome);
         flower.rotation.set(0, idleT * 1.1, 0);
         flower.scale.setScalar(1.05 + beat.pulse * 0.1);
       }
-      shadow.position.set(root.position.x, 0.02, 0);
+      shadow.position.set(root.position.x, 0.018, root.position.z);
+      shadow.rotation.set(-Math.PI / 2, 0, 0);
       camX += (1.2 - camX) * Math.min(1, dt * 3);
       applyCameraRig(camX);
       return;
@@ -359,17 +361,18 @@ export function createLionWorld(): LionWorld {
 
     if (sim.fallen) {
       const side = sim.fallSide || 1;
-      // Once landed, snap fully to side-lie (~±1.45 rad on X) — never a belly flop
-      const land = sim.fallLanded ? 1 : Math.min(1, Math.max(0.55, sim.fallSpin * 1.4));
-      const sideRoll = side * -1.45;
-      const showRoll = sim.roll * (1 - land) + sideRoll * land;
+      // Tip belly+legs toward the camera (+Z). At roll −1.45, local −Y → +Z.
+      const land = sim.fallLanded ? 1 : Math.min(1, Math.max(0.65, sim.fallSpin * 1.5));
+      const towardCam = -1.45;
+      const showRoll = sim.roll * (1 - land) + towardCam * land;
       root.scale.setScalar(LION_SCALE);
-      root.position.set(sim.x, Math.max(0.52, sim.y * 0.7 + 0.28), sim.lateral * 0.2);
-      root.rotation.set(showRoll, sim.yaw * 0.12, sim.pitch * 0.2);
+      // Low on the ground; slight camera nudge so legs read without diving into HUD
+      root.position.set(sim.x, 0.28 + (1 - land) * 0.3, 0.28);
+      root.rotation.set(showRoll, 0.28, sim.pitch * 0.08);
       cloth.rotation.set(0, 0, 0);
       cloth.position.set(0, 0, 0);
-      hem.position.y = 0.02;
-      hem.rotation.z = 0;
+      // Hide skirt/hem — when rolled it becomes the dark standing arch
+      hem.visible = false;
       frontHump.position.y = frontHumpHomeY;
       rearHump.position.y = rearHumpHomeY;
       // 花花 flung in an arc (world-ish local)
@@ -391,7 +394,8 @@ export function createLionWorld(): LionWorld {
       flower.rotation.set(sim.fallSpin * 2.1, sim.fallSpin * 1.7, sim.fallSpin);
       applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing, sim.fallSpin, true, side);
       head.position.y = headHomeY;
-      head.rotation.x = -0.08;
+      head.rotation.x = 0.25;
+      head.rotation.z = 0.15;
 
       if (dust && dustVel && dust.visible) {
         const mat = dust.material as THREE.PointsMaterial;
@@ -409,12 +413,14 @@ export function createLionWorld(): LionWorld {
     } else if (sim.finished) {
       root.scale.setScalar(LION_SCALE);
       flowerDetached = false;
+      hem.visible = true;
       cloth.rotation.set(0, 0, 0);
       cloth.position.set(0, 0, 0);
       const t = sim.finishAnim;
       root.position.set(sim.x, sim.y + Math.sin(t * 10) * 0.08 * (1 - t), 0);
       root.rotation.set(-t * 0.55, 0, 0);
       head.rotation.x = -t * 0.95;
+      head.rotation.z = 0;
       head.position.y = headHomeY + t * 0.45;
       envelope.position.y = 4.0 - t * 2.0;
       envelope.rotation.z = t * 1.2;
@@ -454,6 +460,7 @@ export function createLionWorld(): LionWorld {
     } else {
       root.scale.setScalar(LION_SCALE);
       flowerDetached = false;
+      hem.visible = true;
       root.position.set(sim.x, sim.y, sim.lateral * 0.2);
       // Pitch / roll match physics 1:1 (camera horizon stays level)
       root.rotation.set(sim.roll, sim.yaw * 0.25, sim.pitch);
@@ -464,6 +471,7 @@ export function createLionWorld(): LionWorld {
         -0.28,
         0.18,
       );
+      head.rotation.z = 0;
       head.position.y = headBobY;
       flower.position.copy(flowerHome);
       flower.rotation.set(0, reduced ? 0 : idleT * 1.2, 0);
@@ -471,14 +479,20 @@ export function createLionWorld(): LionWorld {
       applyLegPose(legs, hudSnap.legLift, hudSnap.legSwing);
     }
 
-    // Blob shadow grows / fades with body height
+    // Pale flat oval on the ground — never inherits root fall roll
     const restY = restBodyHeight();
     const heightFrac = Math.max(0.35, Math.min(1.4, sim.y / Math.max(0.2, restY)));
-    shadow.position.set(root.position.x, 0.02, root.position.z);
-    shadow.scale.setScalar((sim.fallen ? 1.55 : 1) * (0.7 + 0.3 * heightFrac));
+    const sFall = sim.fallen ? 1.35 : 1;
+    shadow.position.set(root.position.x, 0.018, root.position.z * 0.4);
+    shadow.rotation.set(-Math.PI / 2, 0, 0);
+    shadow.scale.set(
+      2.2 * LION_SCALE * sFall * (0.8 + 0.15 * heightFrac),
+      1,
+      0.95 * LION_SCALE * sFall * (0.8 + 0.12 * heightFrac),
+    );
     (shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(
-      0.12,
-      0.45 * (1.6 - 0.6 * heightFrac),
+      0.08,
+      0.14 * (1.25 - 0.35 * heightFrac),
     );
 
     if (ghostMark) {
@@ -673,12 +687,17 @@ export function createLionWorld(): LionWorld {
         touchAction: 'none',
       });
 
-      // One hemi sky + one sun (follows camera target) — keep vermilion readable
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x9a8a70, 1.6));
-      sun = new THREE.DirectionalLight(0xffffff, 2.2);
-      sun.position.set(3, 8, 6);
+      // Soft festival light — strong hemi + mild sun so body never paints a dark arch
+      scene.add(new THREE.HemisphereLight(0xfff8ef, 0xc8bba8, 2.15));
+      sun = new THREE.DirectionalLight(0xfff2e0, 0.95);
+      sun.position.set(4, 10, 7);
+      sun.castShadow = false;
       scene.add(sun);
       scene.add(sun.target);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.55);
+      fill.position.set(-2, 5, 8);
+      fill.castShadow = false;
+      scene.add(fill);
 
       const street = buildStreet(scene, reduced);
       lanterns = street.lanterns;
@@ -707,6 +726,9 @@ export function createLionWorld(): LionWorld {
 
       lion = buildLion();
       scene.add(lion.root);
+      // Ground oval lives on the scene (not under root) so fall roll can't stand it up
+      lion.shadow.scale.set(2.6 * LION_SCALE, 1, 1.15 * LION_SCALE);
+      scene.add(lion.shadow);
 
       resize();
       window.addEventListener('resize', resize);

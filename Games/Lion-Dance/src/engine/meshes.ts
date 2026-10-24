@@ -128,12 +128,16 @@ export function buildLion(): LionMeshes {
   const DH = 2.9;
   const DW = BODY_WIDTH / LION_SCALE;
 
-  // Soft pale ground blob (never a dark arch)
-  const shadow = new THREE.Mesh(new THREE.CircleGeometry(2.6, 32), basic(0x8b5a40, 0.08));
+  // Soft pale ground oval — kept OUT of root so fall roll never stands it up
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.0, 36),
+    basic(0xd4c4a8, 0.18),
+  );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.012;
-  shadow.scale.set(1.55, 1, 0.5);
-  root.add(shadow);
+  shadow.position.y = 0.018;
+  shadow.scale.set(2.4, 1, 1.05);
+  shadow.name = 'groundShadow';
+  shadow.renderOrder = -1;
 
   // ── Body: bright toon layers (lit top / mid / shade skirt) ───────────
   const cloth = new THREE.Group();
@@ -421,12 +425,13 @@ export function buildLion(): LionMeshes {
     root.add(dust);
   }
 
+  // Feet→horn core (exclude fluffy mane) so framing catches head crop
   const frameCore = new THREE.Mesh(
-    new THREE.BoxGeometry(DL + 1.6, DH * 0.85, DW + 0.55),
+    new THREE.BoxGeometry(DL + 1.1, DH * 1.55, DW + 0.45),
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   frameCore.name = 'frameCore';
-  frameCore.position.set(0.15, 0.15, 0);
+  frameCore.position.set(0.2, DH * 0.12, 0.08);
   root.add(frameCore);
 
   root.scale.setScalar(LION_SCALE);
@@ -591,20 +596,19 @@ export function applyLegPose(
     const S = swing[id] ?? 0;
     const attach = LEG_ATTACH_MESH[id];
     if (fallen) {
-      // Side-lie (~±1.45 rad on X): body rolls onto its side; push legs out
-      // along local −Y / ±Z so they read as a wide star from three-quarter cam.
-      // Swing/lift still drive kick amplitude while fallen.
-      const along = id.startsWith('F') ? 1.35 : -1.35;
-      const lat = (id.endsWith('L') ? -1 : 1) * fallSide;
-      const kick = 0.55 + L * 0.85 + Math.abs(S) * 0.35;
+      // After body roll −1.45 on X, local −Y faces the camera. Star the legs
+      // toward the lens — long enough to read, short enough to clear the HUD.
+      const along = id.startsWith('F') ? 1.4 : -1.4;
+      const lat = id.endsWith('L') ? -1 : 1;
+      const kick = 0.75 + L * 1.05 + Math.abs(S) * 0.45;
       leg.root.position.set(
-        attach.x * 0.2 + along * (0.7 + L * 0.45),
-        -1.55 - kick,
-        lat * (1.15 + L * 0.55) + S * 0.4,
+        along * (0.95 + L * 0.45),
+        -2.15 - kick,
+        lat * (0.85 + L * 0.45) + S * 0.5 * fallSide,
       );
-      leg.thigh.rotation.set(lat * 0.85 + S * 0.45, along * 0.55, S * 0.85);
-      leg.shin.rotation.set(0.15, lat * 0.25, -(0.85 + L * 1.15));
-      leg.foot.rotation.set(0, 0, 0.4 + L * 0.5);
+      leg.thigh.rotation.set(lat * 0.35 + S * 0.5, along * 0.22, lat * 0.95 + S * 0.95);
+      leg.shin.rotation.set(0.12, lat * 0.15, -(1.1 + L * 1.2));
+      leg.foot.rotation.set(0, 0, 0.5 + L * 0.55);
       void flailT;
       continue;
     }
@@ -671,18 +675,19 @@ export function buildStreet(
 
   // 3 soft color blocks: far hill, near hill, ground
   const hills: THREE.Object3D[] = [];
+  // Unlit pale hills — lit spheres previously read as a dark arch behind the lion
   const farHill = new THREE.Mesh(
     new THREE.SphereGeometry(18, 16, 10),
-    mat(HILL_FAR, { rough: 0.98 }),
+    basic(HILL_FAR),
   );
-  farHill.scale.set(2.6, 0.4, 1);
-  farHill.position.set(TRACK_LENGTH * 0.35, 0.5, -22);
+  farHill.scale.set(2.6, 0.35, 1);
+  farHill.position.set(TRACK_LENGTH * 0.35, 0.2, -28);
   scene.add(farHill);
   hills.push(farHill);
 
-  const nearHill = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 10), mat(HILL, { rough: 0.98 }));
-  nearHill.scale.set(2.4, 0.38, 1);
-  nearHill.position.set(TRACK_LENGTH * 0.45, 0.3, -14);
+  const nearHill = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 10), basic(HILL));
+  nearHill.scale.set(2.4, 0.32, 1);
+  nearHill.position.set(TRACK_LENGTH * 0.55, 0.1, -20);
   scene.add(nearHill);
   hills.push(nearHill);
 

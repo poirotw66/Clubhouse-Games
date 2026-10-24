@@ -173,6 +173,22 @@ async function runViewport(browser, label, viewport) {
   frame = await page.evaluate(() => window.__lionWorld?.checkFraming() ?? null);
   console.log(label, 'play framing', JSON.stringify(frame));
   if (!frame?.ok) throw new Error(`${label} play framing failed: ${frame?.reasons}`);
+  {
+    const b = frame.bounds;
+    const centerY = (b.minY + b.maxY) * 0.5;
+    const feet = await page.evaluate(() => window.__lionWorld?.projectFeet?.() ?? null);
+    const footYs = feet ? Object.values(feet).map((f) => f.y) : [];
+    const footAvg = footYs.length ? footYs.reduce((a, c) => a + c, 0) / footYs.length : 0;
+    console.log(label, 'band', { centerY, footAvg, widthFrac: b.widthFrac, heightFrac: b.heightFrac });
+    if (b.minY < 0.08) throw new Error(`${label}: top cropped minY=${b.minY}`);
+    if (centerY < 0.35 || centerY > 0.6) throw new Error(`${label}: centerY ${centerY} out of 35–60%`);
+    // Desk targets 60–70%; portrait frontal view allows a slightly higher band
+    const footLo = label === 'mobile' ? 0.52 : 0.55;
+    const footHi = label === 'mobile' ? 0.78 : 0.78;
+    if (footAvg < footLo || footAvg > footHi) {
+      throw new Error(`${label}: feet avg y ${footAvg} not near 60–70% band`);
+    }
+  }
 
   // Walk: diagonal pair hold so feet are mid-stride
   await page.keyboard.down('q');
@@ -219,11 +235,42 @@ async function runViewport(browser, label, viewport) {
       r.left < rx - 4 && r.right > lx + 4 && r.top < by - 4 && r.bottom > ty + 4;
     return { ok: !overlap, getUp: { x: r.x, y: r.y, w: r.width, h: r.height }, bounds: b };
   });
-  console.log(label, { stamp, getUp, btns, resultEarly, getUpClear });
+  // Stamp must be top-centered and fully on-screen (not cropped into the back btn)
+  const stampLayout = await page.evaluate(() => {
+    const el = document.querySelector('.lion-fall-stamp');
+    const back = document.querySelector('[data-testid="lion-back"], a[href], button');
+    if (!el) return { ok: false, reason: 'missing stamp' };
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const mid = innerWidth / 2;
+    const fullyOn =
+      r.left >= 4 && r.right <= innerWidth - 4 && r.top >= 4 && r.bottom <= innerHeight - 4;
+    const centered = Math.abs(cx - mid) < innerWidth * 0.12;
+    let clearBack = true;
+    const backEl =
+      document.querySelector('.lion-back') ||
+      [...document.querySelectorAll('button,a')].find((n) => /返回|overview|back/i.test(n.textContent || ''));
+    if (backEl) {
+      const b = backEl.getBoundingClientRect();
+      clearBack = !(r.left < b.right && r.right > b.left && r.top < b.bottom && r.bottom > b.top);
+    }
+    void back;
+    return {
+      ok: fullyOn && centered && clearBack,
+      fullyOn,
+      centered,
+      clearBack,
+      rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+    };
+  });
+  console.log(label, { stamp, getUp, btns, resultEarly, getUpClear, stampLayout });
   if (stamp < 1 || getUp < 1 || btns < 4) throw new Error(`${label} fall UI missing`);
   if (resultEarly > 0) throw new Error(`${label} fall must not end the run`);
   if (!getUpClear.ok) {
     throw new Error(`${label}: get-up overlaps lion ${JSON.stringify(getUpClear)}`);
+  }
+  if (!stampLayout.ok) {
+    throw new Error(`${label}: fall stamp layout bad ${JSON.stringify(stampLayout)}`);
   }
   await assertFeetClearOfHud(page, label, viewport);
 
