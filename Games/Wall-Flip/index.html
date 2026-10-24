@@ -818,7 +818,10 @@ function camTargets() {
 }
 function camStep(dt) {
   const t = camTargets();
-  const k = cam.snap ? Math.min(1, dt * 2.5) : 1;
+  // faster follow while airborne: at 44 m/s a 2.5/s lerp lags ~17m and the car
+  // leaves the frame; the hard clamp below is the guarantee, this is the polish
+  const rate = car.mode === 'road' ? 2.5 : 8;
+  const k = cam.snap ? Math.min(1, dt * rate) : 1;
   cam.x = lerp(cam.x, t.cx, k); cam.y = lerp(cam.y, t.cy, k);
   // fit like the original: NDC x in [-0.94, .94], y in [-0.94, .66], then margin
   const sx = (W() / 2) * 0.94 / Math.max(4, t.w / 2);
@@ -826,6 +829,14 @@ function camStep(dt) {
   const target = clamp(Math.min(sx, sy), 5, 46);
   cam.scale = lerp(cam.scale, target, cam.snap ? Math.min(1, dt * 2.5) : 1);
   cam.snap = true;
+  // hard guarantee: the car stays inside the middle band of the screen
+  const carSx = (car.x - cam.x) * cam.scale + W() / 2;
+  const carSy = H() * 0.6 - (car.y - cam.y) * cam.scale;
+  const mx = W() * 0.18, top = H() * 0.12, bot = H() * 0.84;
+  if (carSx < mx) cam.x -= (mx - carSx) / cam.scale;
+  if (carSx > W() - mx) cam.x += (carSx - (W() - mx)) / cam.scale;
+  if (carSy < top) cam.y += (top - carSy) / cam.scale;
+  if (carSy > bot) cam.y -= (carSy - bot) / cam.scale;
 }
 const w2sX = x => (x - cam.x) * cam.scale + W() / 2;
 const w2sY = y => H() * 0.6 - (y - cam.y) * cam.scale;
