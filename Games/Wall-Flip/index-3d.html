@@ -66,6 +66,9 @@
     text-shadow: 0 2px 8px rgba(0, 0, 0, .8); white-space: nowrap; }
   #hint.warn { color: var(--gold); } #hint.bad { color: var(--red); }
   #hint.info { color: var(--cyan); } #hint.good { color: var(--accent); }
+  #achMsg { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); z-index: 11; pointer-events: none;
+    font-weight: 800; font-size: 15px; color: var(--gold); text-shadow: 0 2px 8px rgba(0, 0, 0, .8); white-space: nowrap; }
+  #achMsg[hidden] { display: none; }
 
   /* start screen */
   #start { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center;
@@ -86,6 +89,17 @@
     padding: 12px 34px; animation: pulse 1.8s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .55; } }
   #startBest { margin: 12px 0 0; font: 800 14px ui-monospace, monospace; color: var(--gold); }
+  #achBox { margin: 0 0 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #achCount { margin: 0; font: 800 12px system-ui, sans-serif; letter-spacing: .14em; color: var(--dim); }
+  #achRow { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 620px; }
+  .achPill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: rgba(255, 255, 255, .04); color: rgba(207, 227, 245, .35); }
+  .achPill.on { color: var(--gold); border-color: rgba(255, 209, 102, .55); background: rgba(255, 209, 102, .12); }
+  #dailyBtn { pointer-events: auto; cursor: pointer; margin: 0 0 6px; padding: 7px 18px; border-radius: 999px;
+    border: 1px solid var(--line); background: rgba(10, 15, 24, .55); color: var(--dim);
+    font: 700 13px system-ui, "Noto Sans TC", sans-serif; }
+  #dailyBtn.on { color: var(--accent); border-color: rgba(111, 240, 208, .55); background: rgba(17, 34, 32, .8); }
+  #dailyInfo { margin: 0 0 14px; font: 800 12px ui-monospace, Menlo, monospace; color: var(--gold); }
 
   /* result panel (bottom-anchored; the camera fit reads its top edge) */
   #resultWrap { position: fixed; inset: 0; z-index: 9; display: flex; align-items: flex-end;
@@ -106,8 +120,12 @@
   #resTotal { text-align: center; font: 900 24px ui-monospace, monospace; margin: 4px 0 2px; }
   #resBest { text-align: center; font-size: 13px; font-weight: 700; color: var(--dim); margin: 2px 0 8px; }
   #resBest.newbest { color: var(--gold); }
-  #retryBtn { display: block; margin: 0 auto; cursor: pointer; border: 1px solid var(--line); border-radius: 999px;
+  #resTime { text-align: center; font-size: 13px; font-weight: 700; color: var(--dim); margin: 0 0 8px; }
+  #resTime.rec { color: var(--gold); }
+  #resBtns { display: flex; gap: 8px; justify-content: center; }
+  #retryBtn, #shareBtn { display: block; margin: 0; cursor: pointer; border: 1px solid var(--line); border-radius: 999px;
     background: rgba(23, 32, 48, .9); color: var(--ink); font: 800 14px system-ui, sans-serif; padding: 9px 26px; }
+  #shareBtn[hidden] { display: none; }
 
   /* touch pad */
   #pad { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; display: none; gap: 8px;
@@ -162,6 +180,7 @@
   </div>
   <div id="hint" hidden></div>
 </div>
+<div id="achMsg" hidden></div>
 
 <div id="start">
   <h1 id="startTitle"></h1>
@@ -173,6 +192,12 @@
     <li><b id="s4a"></b><span id="s4b"></span></li>
   </ol>
   <p class="hintbox" id="startHint"></p>
+  <div id="achBox">
+    <p id="achCount"></p>
+    <div id="achRow"></div>
+  </div>
+  <button id="dailyBtn" type="button"></button>
+  <p id="dailyInfo" hidden></p>
   <button id="startBtn"></button>
   <p id="startBest" hidden></p>
 </div>
@@ -189,9 +214,13 @@
         <div><dt id="lblRowLevel"></dt><dd id="resLevel">0 / 20</dd></div>
       </dl>
       <div id="resTotal">TOTAL <b>0</b> <span id="unitPts"></span></div>
+      <p id="resTime" hidden></p>
     </div>
     <p id="resBest"></p>
-    <button id="retryBtn"></button>
+    <div id="resBtns">
+      <button id="shareBtn" type="button" hidden></button>
+      <button id="retryBtn"></button>
+    </div>
   </div>
 </div>
 
@@ -234,8 +263,8 @@ const STR = {
     rHard: (kmh) => `落地速度 ${kmh} km/h——要更早用雙鍵減速。`, rTilt: (deg) => `以傾斜 ${deg}° 的姿態觸地了。`,
     rowRolls: '翻滾 ROLLS', rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', pts: '點',
     newRecord: '★ 新紀錄！', bestLabel: '最佳',
-    shareBtn: '📋 複製成績', copied: '成績已複製！',
-    shareText: (n, dist, s, l, total, rank) => `牆上翻滾 Wall Flip：翻滾 ${n} 回 · 飛行 ${dist} m · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} 分 ${rank}！`,
+    shareBtn: '📋 複製成績', copied: '已複製',
+    shareText: (n, dist, s, l, total, rank, cn) => `牆上翻滾 Wall Flip（${cn}）：翻滾 ${n} 回 · 飛行 ${dist} m · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} 分 ${rank}！`,
     boardTitle: '排行榜', colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
     backLink: '← 返回總覽 Back',
     padStick: '吸附', padLeft: '左', padRight: '右', padGo: '油門',
@@ -248,6 +277,13 @@ const STR = {
     rWin: (n, d) => `翻滾 ${n} 回 · 飛行距離 ${d} m`,
     rollsUnit: '回',
     hintRoll: '單鍵翻滾！', hintBrake: '雙鍵減速！',
+    ach_land: '初著地', ach_roll1: '初翻滾', ach_roll2: '兩圈', ach_roll3: '三圈',
+    ach_soft30: '滿柔軟', ach_legend: '傳說', ach_far100: '百米', ach_eco: '省氣王',
+    achJoin: '、', achTitle: '成就',
+    timeLine: (s, rec) => `完賽 ${s} s${rec ? ' ★最快' : ''}`,
+    daily: '每日挑戰', dailyOn: 'ON', dailyOff: 'OFF',
+    dailyMu: '低抓地日', dailyDrag: '強風日', dailyGrav: '重錘日', dailySuck: '弱磁日', dailyMotor: '老引擎日',
+    dailyBest: '今日最佳',
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
@@ -268,8 +304,8 @@ const STR = {
     rHard: (kmh) => `You hit the ground at ${kmh} km/h. Brake earlier with both thrusters.`, rTilt: (deg) => `You touched down tilted ${deg}°.`,
     rowRolls: 'ROLLS', rowSoft: 'SOFT', rowLevel: 'LEVEL', pts: 'pts',
     newRecord: '★ NEW RECORD!', bestLabel: 'BEST',
-    shareBtn: '📋 Copy result', copied: 'Result copied!',
-    shareText: (n, dist, s, l, total, rank) => `Wall Flip: ${n} roll(s), ${dist} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} pts ${rank}!`,
+    shareBtn: '📋 Copy result', copied: 'Copied!',
+    shareText: (n, dist, s, l, total, rank, cn) => `Wall Flip (${cn}): ${n} roll(s), ${dist} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} pts ${rank}!`,
     boardTitle: 'LEADERBOARD', colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
     backLink: '← 返回總覽 Back',
     padStick: 'STICK', padLeft: '←', padRight: '→', padGo: 'GO',
@@ -282,6 +318,13 @@ const STR = {
     rWin: (n, d) => `${n} roll(s) · ${d} m flight`,
     rollsUnit: '',
     hintRoll: 'One key to roll!', hintBrake: 'Both keys to brake!',
+    ach_land: 'First Land', ach_roll1: 'First Flip', ach_roll2: 'Double', ach_roll3: 'Triple',
+    ach_soft30: 'Butter', ach_legend: 'Legend', ach_far100: '100m+', ach_eco: 'Eco',
+    achJoin: ', ', achTitle: 'ACHIEVEMENTS',
+    timeLine: (s, rec) => `Time ${s} s${rec ? ' ★BEST' : ''}`,
+    daily: 'DAILY', dailyOn: 'ON', dailyOff: 'OFF',
+    dailyMu: 'Low-Grip Day', dailyDrag: 'Crosswind Day', dailyGrav: 'Heavy Day', dailySuck: 'Weak Magnet Day', dailyMotor: 'Old Engine Day',
+    dailyBest: "Today's Best",
   },
 };
 let lang = 'tc';
@@ -340,7 +383,10 @@ function atan2p(n, t) { // original Ze
 
 // ---------- constants (exact) ----------
 const G0 = 9.8;
-const I = {
+// BASE is the untouched physics constant set; createSim shadows it with an
+// optional patched clone (daily challenge) — the base object is never mutated.
+const BASE = {
+  G0,
   STEP: 1 / 240, RUNUP: 16, VMAX: 90, MOTOR_A: 30, MOTOR_P: 1200, MU: 3.1,
   SUCK: 1.4 * G0, ROLL: .25, DRAG: .003, THRUST: 1.5 * G0, ANG: 16,
   ROLL_DAMP: 7, SPIN_DAMP: .8, LEVEL: 2, LEVEL_CLEAR: 3,
@@ -433,10 +479,13 @@ function closestOnTrack(px, py) { // original oe
   return out;
 }
 
-const rollsCount = (roll, roll0) => Math.floor((Math.abs(roll - roll0) + roll0 + I.LAND_TILT) / TAU); // original en
+const rollsCount = (roll, roll0) => Math.floor((Math.abs(roll - roll0) + roll0 + BASE.LAND_TILT) / TAU); // original en
 
 // ---------- simulation factory (exact port of Kt) ----------
-function createSim(hooks = {}) {
+function createSim(hooks = {}, consts = null) {
+  // shadow the module constants: consts is a patched clone (daily) or BASE
+  const I = consts || BASE;
+  const G0 = I.G0;
   const p0 = bodyPose(0);
   const s = {
     mode: 'road', u: -I.RUNUP, v: 0,
@@ -628,8 +677,8 @@ function createSim(hooks = {}) {
 function scoreOf(land) {
   const c = v => Math.max(0, Math.min(1, v));
   const roll = 50 * land.rolls;
-  const soft = 30 * c(1 - land.fall / I.LAND_SPEED);
-  const level = 20 * c(1 - land.tilt / I.LAND_TILT);
+  const soft = 30 * c(1 - land.fall / BASE.LAND_SPEED);
+  const level = 20 * c(1 - land.tilt / BASE.LAND_TILT);
   return { roll, soft, level, total: Math.round(roll + soft + level) };
 }
 
@@ -1053,7 +1102,7 @@ const el = {
   resultWrap: $('resultWrap'), result: $('result'), resTitle: $('resTitle'), resReason: $('resReason'),
   resWin: $('resWin'), resRank: $('resRank'), resRolls: $('resRolls'), resRollPts: $('resRollPts'),
   resSoft: $('resSoft'), resLevel: $('resLevel'), resTotal: $('resTotal').querySelector('b'),
-  resBest: $('resBest'),
+  resBest: $('resBest'), resTime: $('resTime'), shareBtn: $('shareBtn'),
   airMeter: $('airmeter'), airFill: $('airmeter').querySelector('i'), airText: $('airText'),
   speed: $('speed'), alt: $('alt'), dist: $('dist'), rolls: $('rolls'), best: $('best'),
   hint: $('hint'), flash: $('flash'), pops: $('pops'), pad: $('pad'), mutebtn: $('mutebtn'),
@@ -1062,6 +1111,7 @@ const el = {
   s1a: $('s1a'), s1b: $('s1b'), s2a: $('s2a'), s2b: $('s2b'), s3a: $('s3a'), s3b: $('s3b'), s4a: $('s4a'), s4b: $('s4b'),
   lblAir: $('lblAir'), lblSpeed: $('lblSpeed'), lblHeight: $('lblHeight'), lblDist: $('lblDist'), lblRolls: $('lblRolls'),
   lblRowRolls: $('lblRowRolls'), unitRolls: $('unitRolls'), lblRowSoft: $('lblRowSoft'), lblRowLevel: $('lblRowLevel'), unitPts: $('unitPts'),
+  achRow: $('achRow'), achCount: $('achCount'), achMsg: $('achMsg'), dailyBtn: $('dailyBtn'), dailyInfo: $('dailyInfo'),
 };
 
 // re-render every dictionary-driven DOM text node (init + language toggle)
@@ -1085,6 +1135,7 @@ function updateAllText() {
   el.startHint.textContent = t('hint');
   el.startBtn.textContent = t('start');
   el.retryBtn.textContent = t('again');
+  el.shareBtn.textContent = t('shareBtn');
   el.lblRowRolls.textContent = t('rowRolls');
   el.unitRolls.textContent = t('rollsUnit');
   el.lblRowSoft.textContent = t('rowSoft');
@@ -1096,6 +1147,9 @@ function updateAllText() {
     const lbl = padBtnEls[act] && padBtnEls[act].querySelector('span');
     if (lbl) lbl.textContent = t(key);
   }
+  updateAchUI();
+  updateDailyUI();
+  if (achMsgNames) el.achMsg.textContent = t('mAch', achMsgNames.join(t('achJoin')));
   updateBestLabels();
 }
 el.langbtn.addEventListener('click', () => {
@@ -1296,7 +1350,7 @@ function botInputs() {
     inp.drive = true;
     if (st.u > 0) inp.suck = true;
   } else if (st.mode === 'air') {
-    const err = st.roll + st.rw / I.ROLL_DAMP - bot.target;
+    const err = st.roll + st.rw / BASE.ROLL_DAMP - bot.target;
     if (Math.abs(err) > .06) {
       if (err < 0) { if (st.air > 2) inp.left = true; }
       else if (st.air > 2) inp.right = true;
@@ -1309,9 +1363,9 @@ function botInputs() {
 }
 
 function resetRun() {
-  sim = createSim({ onAir: onAirHook });
+  sim = createSim({ onAir: onAirHook }, dailyConsts());
   startX = sim.state.x;
-  Object.assign(game, { playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0 });
+  Object.assign(game, { playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0, runTime: 0, newTimeRec: false });
   bot.target = 0; bot.plan = 0;
   newBest = false; launchX = 0; retryT = 0;
   fx.clear(); smoke.clear();
@@ -1334,6 +1388,167 @@ function updateBestLabels() {
   el.startBest.hidden = best <= 0;
   el.startBest.textContent = `${t('bestLabel')} ${best}`;
 }
+
+// ---------- achievements / run timer / share / haptics / daily (P4) ----------
+const ACH = [
+  { id: 'land' }, { id: 'roll1' }, { id: 'roll2' }, { id: 'roll3' },
+  { id: 'soft30' }, { id: 'legend' }, { id: 'far100' }, { id: 'eco' },
+];
+let achUnlocked = new Set();
+try { achUnlocked = new Set(JSON.parse(localStorage.getItem('wallflip3.ach') || '[]')); } catch (e) {}
+function achTest(id, s) {
+  switch (id) {
+    case 'land': return true;
+    case 'roll1': return s.rolls >= 1;
+    case 'roll2': return s.rolls >= 2;
+    case 'roll3': return s.rolls >= 3;
+    case 'soft30': return s.soft >= 30;
+    case 'legend': return s.total >= 140;
+    case 'far100': return s.dist >= 100;
+    case 'eco': return s.air >= 60;
+  }
+  return false;
+}
+function unlockAchievements() {
+  const st = sim.state, sc = game.score;
+  if (!sc || !st.land) return;
+  // sim state + score at touchdown
+  const stats = {
+    rolls: st.land.rolls, soft: Math.round(sc.soft), total: sc.total,
+    dist: Math.abs(st.x - launchX), air: st.air,
+  };
+  const gained = [];
+  for (const a of ACH) {
+    if (achUnlocked.has(a.id)) continue;
+    if (achTest(a.id, stats)) {
+      achUnlocked.add(a.id);
+      gained.push(t('ach_' + a.id));
+      popAt(st.x + rand(-1.5, 1.5), st.y + rand(2.5, 4), st.z, '🏆 ' + t('ach_' + a.id), '#ffd166');
+    }
+  }
+  if (gained.length) {
+    try { localStorage.setItem('wallflip3.ach', JSON.stringify([...achUnlocked])); } catch (e) {}
+    showAchMsg(gained);
+    updateAchUI();
+  }
+}
+let achMsgNames = null, achMsgTimer = 0;
+function showAchMsg(names) {
+  achMsgNames = names;
+  el.achMsg.textContent = t('mAch', names.join(t('achJoin')));
+  el.achMsg.hidden = false;
+  clearTimeout(achMsgTimer);
+  achMsgTimer = setTimeout(() => { el.achMsg.hidden = true; achMsgNames = null; }, 2600);
+}
+function updateAchUI() {
+  el.achRow.replaceChildren();
+  for (const a of ACH) {
+    const pill = document.createElement('span');
+    pill.className = 'achPill' + (achUnlocked.has(a.id) ? ' on' : '');
+    pill.textContent = t('ach_' + a.id);
+    el.achRow.appendChild(pill);
+  }
+  el.achCount.textContent = `${t('achTitle')} ${achUnlocked.size}/${ACH.length}`;
+}
+function vib(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+}
+// share: copy the scored result to the clipboard (execCommand fallback)
+const COURSE_LABEL = `${TRACK_DEF[0][0]}°·R${TRACK_DEF[0][1]}`;
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  ta.remove();
+}
+function copyResult() {
+  const st = sim.state, sc = game.score;
+  if (!sc || !st.land) return;
+  let rank = RANKS[RANKS.length - 1][1];
+  for (const r of RANKS) if (sc.total >= r[0]) { rank = r[1]; break; }
+  const text = t('shareText', st.land.rolls, Math.round(Math.abs(st.x - launchX)),
+    Math.round(sc.soft), Math.round(sc.level), sc.total, rank, COURSE_LABEL);
+  const done = () => popAt(st.x, st.y + 2.5, st.z, t('copied'), 'hsl(200 90% 55%)');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+el.shareBtn.addEventListener('click', e => {
+  e.stopPropagation(); // keep the result-wrap click (retry) from firing
+  sfx.click();
+  copyResult();
+  el.shareBtn.blur();
+});
+// daily challenge: one deterministic modifier per local date, applied as a
+// patched clone of BASE passed to createSim (base constants stay untouched)
+function todayStr() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+const DAILY_MODS = [
+  { key: 'dailyMu', patch: c => { c.MU *= .75; } },
+  { key: 'dailyDrag', patch: c => { c.DRAG *= 1.8; } },
+  { key: 'dailyGrav', patch: c => { c.G0 *= 1.1; } },
+  { key: 'dailySuck', patch: c => { c.SUCK *= .75; } },
+  { key: 'dailyMotor', patch: c => { c.MOTOR_A *= .85; c.MOTOR_P *= .85; } },
+];
+const dailyMod = () => DAILY_MODS[hashStr(todayStr()) % DAILY_MODS.length];
+let dailyOn = false;
+try { dailyOn = localStorage.getItem('wallflip3.daily') === '1'; } catch (e) {}
+function dailyDateValid() {
+  try { return localStorage.getItem('wallflip3.dailyDate') === todayStr(); } catch (e) { return false; }
+}
+if (!dailyDateValid()) dailyOn = false; // stored date is not today: toggle resets OFF
+function setDaily(on) {
+  dailyOn = on;
+  try {
+    localStorage.setItem('wallflip3.daily', on ? '1' : '0');
+    localStorage.setItem('wallflip3.dailyDate', on ? todayStr() : '');
+  } catch (e) {}
+  updateDailyUI();
+}
+function dailyConsts() {
+  if (!dailyOn || !dailyDateValid()) return null;
+  const c = { ...BASE }; // clone: the base constants object stays untouched
+  dailyMod().patch(c);
+  return c;
+}
+function dailyBestToday() {
+  try {
+    if (localStorage.getItem('wallflip3.dailyBestDate') === todayStr())
+      return +localStorage.getItem('wallflip3.dailyBest') || 0;
+  } catch (e) {}
+  return 0;
+}
+function updateDailyBest(total) {
+  if (total > dailyBestToday()) {
+    try {
+      localStorage.setItem('wallflip3.dailyBest', String(total));
+      localStorage.setItem('wallflip3.dailyBestDate', todayStr());
+    } catch (e) {}
+  }
+}
+function updateDailyUI() {
+  el.dailyBtn.textContent = `${t('daily')}${lang === 'tc' ? '：' : ': '}${dailyOn ? t('dailyOn') : t('dailyOff')}`;
+  el.dailyBtn.classList.toggle('on', dailyOn);
+  el.dailyInfo.hidden = !dailyOn;
+  if (dailyOn) el.dailyInfo.textContent = `${t(dailyMod().key)} · ${t('dailyBest')} ${dailyBestToday()}`;
+}
+el.dailyBtn.addEventListener('click', e => {
+  e.stopPropagation(); // keep the start-screen click (start) from firing
+  sfx.click();
+  setDaily(!dailyOn);
+  el.dailyBtn.blur();
+});
 
 // ---------- event effects ----------
 function crashFx(x, y, z) {
@@ -1367,9 +1582,19 @@ function crashFx(x, y, z) {
   }
   bodyMat.color.set(2829102);
   sfx.crash();
+  vib([60, 40, 60]);
 }
 function landFx(ev, st) {
   game.score = scoreOf(st.land);
+  // run timer: s.time accumulates from the fresh sim created at resetRun
+  game.runTime = st.time;
+  let bestTime = 0;
+  try { bestTime = +localStorage.getItem('wallflip3.bestTime') || 0; } catch (e) {}
+  game.newTimeRec = !bestTime || game.runTime < bestTime;
+  if (game.newTimeRec) { try { localStorage.setItem('wallflip3.bestTime', game.runTime.toFixed(2)); } catch (e) {} }
+  if (dailyOn && dailyDateValid()) updateDailyBest(game.score.total);
+  unlockAchievements();
+  vib(game.score.total >= 95 ? [20, 30, 20] : 25);
   popAt(ev.x, 3, st.z, pick(t('popLand')), 'hsl(150 70% 45%)');
   const q = (game.score.soft + game.score.level) / 50;
   sfx.land(q);
@@ -1449,6 +1674,9 @@ function showResult() {
     el.resSoft.textContent = `${Math.round(sc.soft)} / 30`;
     el.resLevel.textContent = `${Math.round(sc.level)} / 20`;
     countUp(el.resTotal, sc.total);
+    el.resTime.hidden = false;
+    el.resTime.textContent = t('timeLine', game.runTime.toFixed(1), game.newTimeRec);
+    el.resTime.className = game.newTimeRec ? 'rec' : '';
   } else {
     const fall = st.land ? st.land.fall * 3.6 : Math.hypot(st.vx, st.vy) * 3.6;
     const tilt = st.land ? st.land.tilt * 180 / Math.PI : 0;
@@ -1462,6 +1690,7 @@ function showResult() {
   }
   el.resBest.textContent = win && newBest ? t('newRecord') : `${t('bestLabel')} ${best}`;
   el.resBest.className = win && newBest ? 'newbest' : '';
+  el.shareBtn.hidden = !win;
   updateBestLabels();
   screen = 'result';
   el.resultWrap.hidden = false;
@@ -1699,7 +1928,7 @@ new ResizeObserver(resize).observe(el.pad);
 addEventListener('resize', resize);
 
 // ---------- main loop ----------
-sim = createSim({ onAir: onAirHook });
+sim = createSim({ onAir: onAirHook }, dailyConsts());
 startX = sim.state.x;
 updatePadVisibility();
 resize();
@@ -1715,9 +1944,9 @@ renderer.setAnimationLoop(now => {
     const human = {
       suck: held('suck'), drive: held('drive'), left: held('left'), right: held('right'),
     };
-    for (game.acc += dt * TIME_SCALE; game.acc >= I.STEP;) {
-      game.acc -= I.STEP;
-      sim.step(I.STEP, DEMO ? botInputs() : human);
+    for (game.acc += dt * TIME_SCALE; game.acc >= BASE.STEP;) {
+      game.acc -= BASE.STEP;
+      sim.step(BASE.STEP, DEMO ? botInputs() : human);
     }
   }
   processEvents();
