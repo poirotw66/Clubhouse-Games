@@ -17,6 +17,23 @@
 <meta name="theme-color" content="#06080d">
 <title></title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
+<script>
+/* Bail to 2D when WebGL is missing; remember the fallback for a toast. */
+(function () {
+  function webglOk() {
+    try {
+      var c = document.createElement('canvas');
+      return !!(c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl'));
+    } catch (e) { return false; }
+  }
+  if (webglOk()) return;
+  try {
+    localStorage.setItem('wallflip.viewMode', '2d');
+    sessionStorage.setItem('wallflip.webglFallback', '1');
+  } catch (e) {}
+  location.replace('./' + (location.search || '') + (location.hash || ''));
+})();
+</script>
 <style>
   :root {
     --ink: #eef4fa; --dim: #9fb6c9; --accent: #6ff0d0; --cyan: #5ac8ff;
@@ -182,10 +199,67 @@
   .wf-tab { background: transparent; border: 0; cursor: pointer; padding: 2px 0 1px; color: #8fa3b8;
     font: 600 14px system-ui, "Noto Sans TC", sans-serif; }
   .wf-tab.on { color: #eef4fa; box-shadow: inset 0 -2px 0 #eef4fa; }
+  /* mist-neon 2D / 3D view switch */
+  .wf-view-switch {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    z-index: 28; display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px;
+    border: 1px solid rgba(111, 240, 208, .45); background: rgba(8, 12, 20, .72);
+    box-shadow: 0 0 0 1px rgba(90, 200, 255, .1), 0 10px 36px rgba(0, 0, 0, .45),
+      0 0 28px rgba(111, 240, 208, .22), inset 0 1px 0 rgba(255, 255, 255, .06);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    isolation: isolate; overflow: hidden; pointer-events: auto;
+  }
+  .wf-view-switch::before {
+    content: ""; position: absolute; inset: -40%; z-index: -1; pointer-events: none;
+    background: conic-gradient(from 180deg, #6ff0d0, #5ac8ff, #c084fc, #ff8c5a, #ffd166, #6ff0d0);
+    opacity: .28; animation: wf-view-spin 8s linear infinite; filter: blur(18px);
+  }
+  @keyframes wf-view-spin { to { transform: rotate(360deg); } }
+  .wf-view-switch button {
+    position: relative; min-width: 56px; height: 34px; padding: 0 16px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--dim); cursor: pointer;
+    font: 800 13px/1 system-ui, "Noto Sans TC", sans-serif; letter-spacing: .08em;
+    transition: color .2s, background .2s, box-shadow .25s, text-shadow .25s;
+  }
+  .wf-view-switch button[aria-pressed="true"] {
+    color: #061018; background: linear-gradient(135deg, #6ff0d0, #5ac8ff 55%, #c084fc);
+    box-shadow: 0 0 18px rgba(111, 240, 208, .55), 0 0 4px rgba(90, 200, 255, .8);
+    text-shadow: 0 0 12px rgba(255, 255, 255, .35);
+  }
+  .wf-view-switch button:focus-visible { outline: 2px solid #eef4fa; outline-offset: 2px; }
+  .wf-view-toast {
+    position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(12px); z-index: 35; max-width: min(92vw, 420px);
+    padding: 10px 16px; border-radius: 10px; border: 1px solid rgba(255, 209, 102, .45);
+    background: rgba(13, 18, 30, .94); color: var(--gold); text-align: center;
+    font: 700 13px/1.4 system-ui, "Noto Sans TC", sans-serif;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .45), 0 0 24px rgba(255, 209, 102, .2);
+    opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+  }
+  .wf-view-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .wf-view-switch::before { animation: none; }
+    .wf-view-toast { transition: none; }
+  }
 </style>
 </head>
-<body>
+<body data-view-mode="3d">
   <a href="../../" id="backlink" style="position:fixed;top:3px;left:12px;z-index:30;color:#8fa3b8;text-decoration:none;font:600 11px system-ui,sans-serif;letter-spacing:.05em;"></a>
+<div id="viewSwitch" class="wf-view-switch" data-testid="view-mode-switch" role="group" aria-label="顯示模式">
+  <button type="button" data-view="2d" data-testid="view-mode-2d" aria-pressed="false">2D</button>
+  <button type="button" data-view="3d" data-testid="view-mode-3d" aria-pressed="true">3D</button>
+</div>
+<div id="viewToast" class="wf-view-toast" role="status" aria-live="polite"></div>
+<div id="viewConfirm" class="wf-panel" data-testid="view-mode-confirm">
+  <div class="wf-card">
+    <h3 id="viewConfirmTitle"></h3>
+    <p class="wf-hint" id="viewConfirmHint" style="margin-top:0"></p>
+    <div class="wf-row">
+      <button id="viewConfirmOk" class="wf-btn primary" type="button"></button>
+      <button id="viewConfirmCancel" class="wf-btn" type="button"></button>
+    </div>
+  </div>
+</div>
 <div id="stage"></div>
 <div id="flash"></div>
 <div id="pops"></div>
@@ -373,6 +447,11 @@ const STR = {
     apiSaved: '已儲存', colTime: '時間',
     // 3D-specific
     boardOffline: '無法連線排名伺服器',
+    viewModeLabel: '顯示模式', view2d: '2D', view3d: '3D',
+    viewConfirmTitle: '切換為 2D？',
+    viewConfirmHint: '切換會結束目前這局並重新載入。',
+    viewConfirmOk: '切換', viewConfirmCancel: '取消',
+    webglFallback: '此裝置不支援 WebGL，已改用 2D 模式。',
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
@@ -426,6 +505,11 @@ const STR = {
     apiSaved: 'Saved', colTime: 'TIME',
     // 3D-specific
     boardOffline: 'Could not reach the rank server',
+    viewModeLabel: 'View mode', view2d: '2D', view3d: '3D',
+    viewConfirmTitle: 'Switch to 2D?',
+    viewConfirmHint: 'This ends the current run and reloads the other view.',
+    viewConfirmOk: 'Switch', viewConfirmCancel: 'Cancel',
+    webglFallback: 'WebGL is unavailable on this device — stayed on 2D.',
   },
 };
 let lang = 'tc';
@@ -433,6 +517,83 @@ try { const l = localStorage.getItem('wallflip3.lang'); if (l === 'en' || l === 
   else if ((navigator.language || '').startsWith('en')) lang = 'en'; } catch (e) {}
 const t = (k, ...a) => { const v = STR[lang][k] ?? STR.tc[k]; return typeof v === 'function' ? v(...a) : v; };
 function setLang(l) { lang = l; try { localStorage.setItem('wallflip3.lang', l); } catch (e) {} }
+
+// ---------- 2D / 3D view preference (shared key across both entry pages) ----------
+const VIEW_MODE_KEY = 'wallflip.viewMode';
+const VIEW_HERE = '3d';
+const viewSwitchEl = document.getElementById('viewSwitch');
+const viewToastEl = document.getElementById('viewToast');
+const viewConfirmEl = document.getElementById('viewConfirm');
+const viewConfirmTitleEl = document.getElementById('viewConfirmTitle');
+const viewConfirmHintEl = document.getElementById('viewConfirmHint');
+const viewConfirmOkEl = document.getElementById('viewConfirmOk');
+const viewConfirmCancelEl = document.getElementById('viewConfirmCancel');
+let pendingViewTarget = null;
+let viewToastTimer = 0;
+function writeViewMode(mode) {
+  try { localStorage.setItem(VIEW_MODE_KEY, mode === '3d' ? '3d' : '2d'); } catch (e) {}
+}
+function showViewToast(msg) {
+  if (!viewToastEl) return;
+  viewToastEl.textContent = msg;
+  viewToastEl.classList.add('on');
+  clearTimeout(viewToastTimer);
+  viewToastTimer = setTimeout(() => viewToastEl.classList.remove('on'), 4200);
+}
+function syncViewModeChrome() {
+  if (!viewSwitchEl) return;
+  viewSwitchEl.setAttribute('aria-label', t('viewModeLabel'));
+  for (const btn of viewSwitchEl.querySelectorAll('button[data-view]')) {
+    const mode = btn.getAttribute('data-view');
+    btn.textContent = mode === '3d' ? t('view3d') : t('view2d');
+    btn.setAttribute('aria-pressed', mode === VIEW_HERE ? 'true' : 'false');
+  }
+  if (viewConfirmTitleEl) viewConfirmTitleEl.textContent = t('viewConfirmTitle');
+  if (viewConfirmHintEl) viewConfirmHintEl.textContent = t('viewConfirmHint');
+  if (viewConfirmOkEl) viewConfirmOkEl.textContent = t('viewConfirmOk');
+  if (viewConfirmCancelEl) viewConfirmCancelEl.textContent = t('viewConfirmCancel');
+}
+function navigateToView(mode) {
+  writeViewMode(mode);
+  if (mode === VIEW_HERE) return;
+  const dest = mode === '3d' ? 'index-3d.html' : './';
+  location.href = dest + (location.search || '') + (location.hash || '');
+}
+function closeViewConfirm() {
+  pendingViewTarget = null;
+  if (viewConfirmEl) viewConfirmEl.classList.remove('on');
+}
+function requestViewMode(mode) {
+  if (mode === VIEW_HERE) return;
+  // mid-run (screen === null) needs a confirm; start / result can switch immediately
+  if (screen === null) {
+    pendingViewTarget = mode;
+    syncViewModeChrome();
+    if (viewConfirmEl) viewConfirmEl.classList.add('on');
+    return;
+  }
+  navigateToView(mode);
+}
+if (viewSwitchEl) {
+  viewSwitchEl.addEventListener('pointerdown', e => e.stopPropagation());
+  viewSwitchEl.addEventListener('click', e => {
+    e.stopPropagation();
+    const btn = e.target && e.target.closest && e.target.closest('button[data-view]');
+    if (!btn) return;
+    try { sfx.click(); } catch (err) {}
+    requestViewMode(btn.getAttribute('data-view'));
+  });
+}
+if (viewConfirmOkEl) viewConfirmOkEl.addEventListener('click', () => {
+  const mode = pendingViewTarget; closeViewConfirm(); if (mode) navigateToView(mode);
+});
+if (viewConfirmCancelEl) viewConfirmCancelEl.addEventListener('click', closeViewConfirm);
+if (viewConfirmEl) viewConfirmEl.addEventListener('click', e => {
+  if (e.target === viewConfirmEl) closeViewConfirm();
+});
+// Persist only after the 3D page actually boots (WebGL path succeeded).
+writeViewMode(VIEW_HERE);
+syncViewModeChrome();
 
 // ---------- utils ----------
 const TAU = 6.283185307179586;
@@ -788,7 +949,17 @@ function scoreOf(land) {
 // ============================================================
 const BG = 395277; // #06080d
 const stageEl = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (err) {
+  try {
+    localStorage.setItem('wallflip.viewMode', '2d');
+    sessionStorage.setItem('wallflip.webglFallback', '1');
+  } catch (e) {}
+  location.replace('./' + (location.search || '') + (location.hash || ''));
+  throw err;
+}
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 stageEl.appendChild(renderer.domElement);
 stageEl.addEventListener('contextmenu', e => e.preventDefault());
@@ -1300,6 +1471,7 @@ function updateAllText() {
   updateGhostUI();
   if (achMsgNames) el.achMsg.textContent = t('mAch', achMsgNames.join(t('achJoin')));
   updateBestLabels();
+  syncViewModeChrome();
 }
 el.langbtn.addEventListener('click', () => {
   setLang(lang === 'tc' ? 'en' : 'tc');
@@ -1335,13 +1507,22 @@ const keys = new Set(), padPtr = new Map();
 const keyActive = a => { for (const c of keys) if (KEYMAP[c] === a) return true; return false; };
 const padActive = a => { for (const v of padPtr.values()) if (v === a) return true; return false; };
 const held = a => game.playing && (keyActive(a) || padActive(a));
-// while a DOM panel is open or an input focused, keys belong to the panel
+// while a DOM panel is open or an input / control focused, keys belong to the UI
 function domTyping(e) {
-  const tag = e.target && e.target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || apiPanel.classList.contains('on') || namePanel.classList.contains('on');
+  const el = e.target;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return true;
+  if (el.isContentEditable) return true;
+  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-panel')) return true;
+  return apiPanel.classList.contains('on') || namePanel.classList.contains('on') ||
+    (viewConfirmEl && viewConfirmEl.classList.contains('on'));
 }
 addEventListener('keydown', e => {
   if (domTyping(e)) return;
+  if (e.code === 'Escape' && viewConfirmEl && viewConfirmEl.classList.contains('on')) {
+    closeViewConfirm(); e.preventDefault(); return;
+  }
   if (e.code === 'KeyM') { if (!e.repeat) toggleMute(); e.preventDefault(); return; }
   if (e.code === 'KeyR') { if (!e.repeat && screen !== 'start') { ensureAudio(); resetRun(); } e.preventDefault(); return; }
   if (e.code === 'KeyL') { // ranking overlay toggle (start / result screens)
