@@ -1030,7 +1030,10 @@
   /* ---------- empty state ---------- */
 
   .empty-state {
-    @apply flex flex-col items-center text-center py-14 px-6 rounded-2xl border border-dashed border-cyan-400/25 bg-dreamCard/50;
+    @apply flex flex-col items-center text-center py-14 px-6 border border-dashed border-cyan-400/25 bg-dreamCard/50;
+    border-radius: var(--radius);
+    /* Clear the sticky search toolbar so reset stays actionable on mobile. */
+    scroll-margin-top: calc(var(--header-offset) + 1.5rem);
   }
 
   .empty-state[hidden] {
@@ -1050,7 +1053,10 @@
   }
 
   .btn-reset {
-    @apply inline-flex items-center justify-center min-h-[2.5rem] px-5 rounded-xl text-sm text-secondary border border-secondary/40 bg-secondary/10 cursor-pointer transition-colors duration-200;
+    @apply relative z-[1] inline-flex items-center justify-center min-h-[2.75rem] min-w-[12rem] px-5 text-sm text-secondary border border-secondary/40 bg-secondary/10 cursor-pointer transition-colors duration-200;
+    border-radius: 0.45rem;
+    touch-action: manipulation;
+    box-shadow: 0 0 18px rgba(103, 232, 249, calc(0.2 * var(--fx-mult)));
   }
 
   .btn-reset:hover {

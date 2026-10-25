@@ -164,11 +164,35 @@
     setCategory(pill.dataset.filter === currentCategory ? 'all' : pill.dataset.filter);
   });
 
-  resetButton?.addEventListener('click', () => {
+  function resetFilters() {
     if (searchInput) searchInput.value = '';
     currentQuery = '';
-    setCategory('all');
-    searchInput?.focus();
+    currentCategory = 'all';
+    apply();
+    syncUrl();
+  }
+
+  let lastResetAt = 0;
+  function requestResetFilters() {
+    const now = Date.now();
+    if (now - lastResetAt < 400) return;
+    lastResetAt = now;
+    resetFilters();
+    // preventScroll avoids a sticky-toolbar jump eating the gesture on mobile.
+    searchInput?.focus({ preventScroll: true });
+  }
+
+  resetButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    requestResetFilters();
+  });
+
+  // Touch / stylus: act on pointerup so a layout shift between down/up cannot
+  // drop the synthesized click while the control still looks "active".
+  resetButton?.addEventListener('pointerup', (event) => {
+    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    if (!currentQuery && currentCategory === 'all') return;
+    requestResetFilters();
   });
 
   /* ---------- keyboard shortcuts ---------- */
