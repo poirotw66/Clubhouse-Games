@@ -316,19 +316,6 @@ export default function App(): ReactElement {
         />
       )}
 
-      {screen === 'menu' && (
-        <div
-          className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{
-            backgroundColor: '#050816',
-            backgroundImage: [
-              'linear-gradient(160deg, rgba(5,8,22,0.55) 0%, rgba(5,8,22,0.78) 55%, rgba(59,7,100,0.72) 100%)',
-              `url(${import.meta.env.BASE_URL}menu-bg.jpg)`,
-            ].join(', '),
-          }}
-        />
-      )}
-
       {showBoard && flashOpacity > 0.02 && (
         <div
           className={`feedback-vignette ${hud.fever ? 'is-fever' : ''} ${hud.toast === 'perfect' ? 'is-perfect' : ''}`}
@@ -340,52 +327,79 @@ export default function App(): ReactElement {
       <Scoreboard hud={hud} visible={showBoard} />
 
       {screen === 'menu' && (
-        <div className="menu-shell">
-          <div className="menu-card">
-            <p className="font-display text-xs tracking-[0.35em] text-cyan-300/90 mb-3">
-              CLUBHOUSE ARCADE
-            </p>
-            <h1 className="font-display text-4xl sm:text-5xl font-extrabold neon-text mb-2">
-              霓虹疾馳
-            </h1>
-            <p className="font-display text-sm tracking-[0.28em] text-fuchsia-300/90 mb-4">
-              CYBER NEON RUSH
-            </p>
-            <p className="hint">
-              切道、跳躍、衝刺讀障礙；撿護盾／磁鐵／加倍／慢動作；擦身連擊與近失加速。
-              霓虹幣可升級車庫與解鎖塗裝，每日任務輪換獎勵。
-            </p>
-            <div className="mode-chips" role="group" aria-label="難度">
-              {RUSH_DIFFICULTIES.map((id) => {
-                const selected = difficulty === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`mode-chip${selected ? ' is-active' : ''}`}
-                    aria-pressed={selected}
-                    onClick={() => setDifficulty(id)}
-                  >
-                    {RUSH_DIFFICULTY_LABELS[id]}
-                  </button>
-                );
-              })}
+        <div className="menu-shell" data-ui="cyber-neon-start">
+          <div className="menu-poster">
+            <div className="menu-marquee" aria-hidden="true">
+              <div className="menu-marquee-track">
+                <span>霓虹疾馳 · CYBER NEON RUSH · 切道 · 跳躍 · 衝刺 · 擦身連擊 · 霓虹幣 ·</span>
+                <span>霓虹疾馳 · CYBER NEON RUSH · 切道 · 跳躍 · 衝刺 · 擦身連擊 · 霓虹幣 ·</span>
+              </div>
             </div>
-            <button type="button" className="cta" onClick={startRun}>
-              開始疾馳
-            </button>
-            <button type="button" className="cta-secondary" onClick={() => setPanel('meta')}>
-              車庫與任務{unclaimed > 0 ? `（${unclaimed}）` : ''}
-            </button>
-            <button type="button" className="cta-secondary" onClick={() => setPanel('howto')}>
-              操作教學
-            </button>
-            <p className="hint">
-              ←→ 切道・↑／空白鍵跳・↓／Shift 衝刺・P／Esc 暫停
-              <br />
-              {RUSH_DIFFICULTY_LABELS[difficulty]} ・ 最佳 {modeBest.score || '—'} ・ 最遠{' '}
-              {modeBest.distance || '—'} m ・ 幣 {meta.credits}
-            </p>
+            <div className="menu-waterline">
+              <div className="menu-field-top" />
+              <div className="menu-field-bottom" />
+              <div className="menu-hero-copy">
+                <p className="menu-brand-kicker">Clubhouse Arcade</p>
+                <h1 className="menu-title-stack" aria-label="霓虹疾馳">
+                  <span className="menu-title-line" aria-hidden="true">
+                    <span>霓虹</span>
+                  </span>
+                  <span className="menu-title-line" aria-hidden="true">
+                    <span>疾馳</span>
+                  </span>
+                </h1>
+                <p className="menu-en">Cyber Neon Rush</p>
+                <p className="menu-support">
+                  三線霓虹賽道無限衝刺——切道、跳躍、衝刺讀障礙，擦身連擊把夜色點燃。
+                </p>
+              </div>
+              <div className="menu-sticker" aria-hidden="true">
+                <img
+                  src={`${import.meta.env.BASE_URL}menu-bg.jpg`}
+                  alt=""
+                  width={640}
+                  height={480}
+                  decoding="async"
+                />
+              </div>
+            </div>
+            <div className="menu-actions">
+              <div className="menu-actions-inner">
+                <div className="mode-chips" role="group" aria-label="難度">
+                  {RUSH_DIFFICULTIES.map((id) => {
+                    const selected = difficulty === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`mode-chip${selected ? ' is-active' : ''}`}
+                        aria-pressed={selected}
+                        onClick={() => setDifficulty(id)}
+                      >
+                        {RUSH_DIFFICULTY_LABELS[id]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button type="button" className="cta" onClick={startRun}>
+                  開始疾馳
+                </button>
+                <div className="menu-secondary-row">
+                  <button type="button" className="cta-secondary" onClick={() => setPanel('meta')}>
+                    車庫與任務{unclaimed > 0 ? `（${unclaimed}）` : ''}
+                  </button>
+                  <button type="button" className="cta-secondary" onClick={() => setPanel('howto')}>
+                    操作教學
+                  </button>
+                </div>
+                <p className="hint">
+                  ←→ 切道・↑／空白鍵跳・↓／Shift 衝刺・P／Esc 暫停
+                  <br />
+                  {RUSH_DIFFICULTY_LABELS[difficulty]} ・ 最佳 {modeBest.score || '—'} ・ 最遠{' '}
+                  {modeBest.distance || '—'} m ・ 幣 {meta.credits}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -444,10 +458,12 @@ export default function App(): ReactElement {
       )}
 
       {screen === 'paused' && (
-        <div className="menu-shell" style={{ background: 'rgba(5,8,22,0.55)' }}>
+        <div className="menu-shell is-pause">
           <div className="menu-card">
             <h2 className="font-display text-3xl neon-text mb-2">暫停</h2>
-            <p className="hint">按 P 或 Esc 繼續</p>
+            <p className="hint" style={{ color: '#94a3b8' }}>
+              按 P 或 Esc 繼續
+            </p>
             <div className="mb-4 text-left">
               <JuiceSettingsPanel compact />
             </div>

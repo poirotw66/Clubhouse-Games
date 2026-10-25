@@ -144,17 +144,22 @@ export function createGameWorld(config: RunConfig): GameWorld {
   renderer.shadowMap.enabled = false;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x050816, 0.009);
+  scene.fog = new THREE.FogExp2(0x070b1c, 0.0082);
 
   const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 400);
   const clock = new THREE.Clock();
 
-  scene.add(new THREE.HemisphereLight(0x67e8f9, 0x1e1b4b, 0.75));
-  const key = new THREE.DirectionalLight(0xf0abfc, 1.15);
+  scene.add(new THREE.HemisphereLight(0x67e8f9, 0x1e1b4b, 0.95));
+  const key = new THREE.DirectionalLight(0xf0abfc, 1.45);
   key.position.set(8, 18, 4);
   scene.add(key);
-  const rim = new THREE.PointLight(0x22d3ee, 1.6, 48);
+  const fill = new THREE.DirectionalLight(0x22d3ee, 0.55);
+  fill.position.set(-10, 8, -6);
+  scene.add(fill);
+  const rim = new THREE.PointLight(0x22d3ee, 2.2, 56);
   scene.add(rim);
+  const accent = new THREE.PointLight(0xf472b6, 1.35, 42);
+  scene.add(accent);
 
   const car = createCarMesh(cosmeticId);
   scene.add(car);
@@ -489,40 +494,54 @@ export function createGameWorld(config: RunConfig): GameWorld {
     camera.rotateZ(camRoll);
 
     rim.position.set(ox + laneBody.x, 2.5 + jumpHeight(), z + 2);
-    const flashBoost = score.nearMissFlash * 2.2;
+    accent.position.set(ox - laneBody.x * 0.4, 3.2 + jumpHeight() * 0.5, z - 3);
+    const flashBoost = score.nearMissFlash * 2.8;
     if (isFever(score.combo)) {
       rim.color.setHex(0xf472b6);
-      rim.intensity = 2.4 + flashBoost;
+      rim.intensity = 3.2 + flashBoost;
+      accent.intensity = 2.4 + flashBoost * 0.6;
     } else if (multiplierT > 0) {
       rim.color.setHex(0xf0abfc);
-      rim.intensity = 2.0 + flashBoost;
+      rim.intensity = 2.6 + flashBoost;
+      accent.intensity = 1.8;
     } else if (slowmoT > 0) {
       rim.color.setHex(0xa3e635);
-      rim.intensity = 1.9 + flashBoost;
+      rim.intensity = 2.4 + flashBoost;
+      accent.intensity = 1.4;
+    } else if (dashT > 0 || boostT > 0) {
+      rim.color.setHex(0x67e8f9);
+      rim.intensity = 2.8 + flashBoost;
+      accent.intensity = 1.9;
     } else {
       rim.color.setHex(0x22d3ee);
-      rim.intensity = 1.6 + flashBoost;
+      rim.intensity = 2.1 + flashBoost;
+      accent.intensity = 1.25 + flashBoost * 0.35;
     }
     ground.position.set(ox, -0.05, z);
   }
 
   function spawnTrail(dt: number): void {
     trailAcc += dt;
-    const rate = dashT > 0 || boostT > 0 || isFever(score.combo) ? 0.028 : 0.055;
+    const hot = dashT > 0 || boostT > 0 || isFever(score.combo);
+    const rate = hot ? 0.016 : 0.04;
     if (trailAcc < rate) return;
     trailAcc = 0;
-    const spark = createTrailSpark(trailColor);
+    const burst = hot ? 2 : 1;
     const ox = trackOffset(z);
     const heading = trackHeading(z);
     const lx = Math.cos(heading);
-    spark.position.set(
-      ox + lx * laneBody.x + (Math.random() - 0.5) * 0.35,
-      0.35 + jumpHeight() * 0.4,
-      z - 1.2 - Math.random() * 0.4,
-    );
-    spark.rotation.y = -heading;
-    scene.add(spark);
-    trails.push({ mesh: spark, life: dashT > 0 ? 0.45 : 0.32 });
+    for (let i = 0; i < burst; i++) {
+      const spark = createTrailSpark(trailColor);
+      spark.position.set(
+        ox + lx * laneBody.x + (Math.random() - 0.5) * (hot ? 0.55 : 0.35),
+        0.35 + jumpHeight() * 0.4 + Math.random() * 0.15,
+        z - 1.15 - Math.random() * 0.55,
+      );
+      spark.rotation.y = -heading;
+      spark.scale.setScalar(hot ? 1.15 + Math.random() * 0.35 : 1);
+      scene.add(spark);
+      trails.push({ mesh: spark, life: dashT > 0 ? 0.55 : hot ? 0.42 : 0.32 });
+    }
   }
 
   function updateTrails(dt: number): void {

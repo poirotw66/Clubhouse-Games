@@ -32,7 +32,7 @@ export function createCarMesh(cosmeticId: CosmeticId = 'cyan'): THREE.Group {
       metalness: 0.55,
       roughness: 0.3,
       emissive: cosmetic.emissive,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.7,
     }),
   );
   body.position.y = 0.5;
@@ -57,7 +57,7 @@ export function createCarMesh(cosmeticId: CosmeticId = 'cyan'): THREE.Group {
     new THREE.MeshStandardMaterial({
       color: cosmetic.trail,
       emissive: cosmetic.trail,
-      emissiveIntensity: 2.0,
+      emissiveIntensity: 2.8,
     }),
   );
   stripe.position.set(0, 0.76, 0);
@@ -91,9 +91,9 @@ export function createCarMesh(cosmeticId: CosmeticId = 'cyan'): THREE.Group {
     new THREE.MeshStandardMaterial({
       color: cosmetic.trail,
       emissive: cosmetic.trail,
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 3.1,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.88,
     }),
   );
   trail.position.set(0, 0.38, -1.45);
@@ -124,13 +124,13 @@ export function createCarMesh(cosmeticId: CosmeticId = 'cyan'): THREE.Group {
 
 export function createTrailSpark(color: number): THREE.Mesh {
   const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(0.18, 0.12, 0.55),
+    new THREE.BoxGeometry(0.2, 0.14, 0.7),
     new THREE.MeshStandardMaterial({
       color,
       emissive: color,
-      emissiveIntensity: 2.4,
+      emissiveIntensity: 3.4,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.95,
       depthWrite: false,
     }),
   );
@@ -379,21 +379,38 @@ export function createRoadChunk(fromZ: number, toZ: number): THREE.Group {
   group.add(createLaneStripes(fromZ, toZ));
 
   for (const side of [-1, 1] as const) {
+    const hue = side < 0 ? NEON_CYAN : NEON_MAGENTA;
     const rail = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, 0.4, Math.max(0.5, toZ - fromZ)),
+      new THREE.BoxGeometry(0.18, 0.48, Math.max(0.5, toZ - fromZ)),
       new THREE.MeshStandardMaterial({
-        color: 0x22d3ee,
-        emissive: 0x22d3ee,
-        emissiveIntensity: 1.15,
+        color: hue,
+        emissive: hue,
+        emissiveIntensity: 2.05,
       }),
     );
     const mid = (fromZ + toZ) / 2;
     const ox = trackOffset(mid);
     const heading = trackHeading(mid);
     const lx = Math.cos(heading);
-    rail.position.set(ox + lx * side * 3.85, 0.22, mid);
+    rail.position.set(ox + lx * side * 3.85, 0.24, mid);
     rail.rotation.y = -heading;
     group.add(rail);
+
+    // Outer glow rail — additive-feeling intensity without postprocessing.
+    const glow = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.18, Math.max(0.5, toZ - fromZ)),
+      new THREE.MeshStandardMaterial({
+        color: hue,
+        emissive: hue,
+        emissiveIntensity: 3.2,
+        transparent: true,
+        opacity: 0.75,
+        depthWrite: false,
+      }),
+    );
+    glow.position.set(ox + lx * side * 3.95, 0.52, mid);
+    glow.rotation.y = -heading;
+    group.add(glow);
   }
 
   return group;
@@ -419,10 +436,10 @@ function createTrackRibbon(fromZ: number, toZ: number): THREE.Mesh {
     positions.push(ox - lx * half, y, z - lz * half);
     positions.push(ox + lx * half, y, z + lz * half);
 
-    // Visible asphalt with cyan edge tint
-    const edge = i % 2 === 0 ? 0.12 : 0.18;
-    colors.push(0.08 + edge, 0.14 + edge, 0.28 + edge);
-    colors.push(0.08 + edge, 0.14 + edge, 0.28 + edge);
+    // Visible asphalt with hotter cyan/magenta edge tint
+    const edge = i % 2 === 0 ? 0.16 : 0.24;
+    colors.push(0.1 + edge, 0.12 + edge * 0.7, 0.32 + edge);
+    colors.push(0.14 + edge * 0.6, 0.1 + edge * 0.5, 0.3 + edge);
 
     const v = (z - fromZ) / span;
     uvs.push(0, v, 1, v);
@@ -450,10 +467,10 @@ function createTrackRibbon(fromZ: number, toZ: number): THREE.Mesh {
     new THREE.MeshStandardMaterial({
       map,
       vertexColors: true,
-      metalness: 0.25,
-      roughness: 0.65,
-      emissive: new THREE.Color(0x082f49),
-      emissiveIntensity: 0.45,
+      metalness: 0.32,
+      roughness: 0.55,
+      emissive: new THREE.Color(0x0a3a5c),
+      emissiveIntensity: 0.72,
       side: THREE.FrontSide,
     }),
   );
@@ -464,17 +481,17 @@ function createLaneStripes(fromZ: number, toZ: number): THREE.Group {
   const mat = new THREE.MeshStandardMaterial({
     color: STRIPE,
     emissive: STRIPE,
-    emissiveIntensity: 1.35,
+    emissiveIntensity: 2.15,
   });
-  const step = 3.2;
+  const step = 3.0;
   for (let z = fromZ; z < toZ; z += step) {
     const ox = trackOffset(z);
     const heading = trackHeading(z);
     const lx = Math.cos(heading);
     const lz = Math.sin(heading);
     for (const laneEdge of [-LANE_STRIPE, LANE_STRIPE]) {
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 1.5), mat);
-      stripe.position.set(ox + lx * laneEdge, 0.06, z + lz * laneEdge * 0.02);
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 1.65), mat);
+      stripe.position.set(ox + lx * laneEdge, 0.07, z + lz * laneEdge * 0.02);
       stripe.rotation.y = -heading;
       group.add(stripe);
     }
@@ -497,16 +514,38 @@ export function createCityBlocks(seedZ: number): THREE.Group {
         new THREE.BoxGeometry(w, h, d),
         new THREE.MeshStandardMaterial({
           color: 0x0f172a,
-          metalness: 0.55,
-          roughness: 0.45,
+          metalness: 0.62,
+          roughness: 0.38,
           emissive: hue,
-          emissiveIntensity: 0.2 + rng() * 0.4,
+          emissiveIntensity: 0.35 + rng() * 0.55,
         }),
       );
       const ox = trackOffset(z);
       // Keep skyline clear of the driveable lanes.
       building.position.set(ox + side * (18 + rng() * 12), h / 2, z);
       group.add(building);
+
+      // Window band — denser city neon without extra draw-call heavy meshes.
+      const bandCount = 2 + Math.floor(rng() * 3);
+      for (let b = 0; b < bandCount; b++) {
+        const band = new THREE.Mesh(
+          new THREE.BoxGeometry(w * 0.92, 0.18, d * 0.92),
+          new THREE.MeshStandardMaterial({
+            color: hue,
+            emissive: hue,
+            emissiveIntensity: 2.4 + rng() * 1.2,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+          }),
+        );
+        band.position.set(
+          building.position.x,
+          1.2 + b * Math.max(1.6, h / (bandCount + 1)),
+          building.position.z,
+        );
+        group.add(band);
+      }
     }
   }
   return group;
