@@ -1151,8 +1151,20 @@ uploadBtn.addEventListener('click',async()=>{
   if(!name){nameInput.focus();toast(tr('lb_need_name'));return;}
   const now=Date.now(),last=store.get('cc_last_upload',0);
   if(now-last<60000){toast(tr('lb_rate'));return;}
+  // Code is usually filled asynchronously in showResult; if the player taps
+  // upload before that settles (or a prior race left a stale value), rebuild.
+  let code=(codeInput.value||'').trim();
+  if(!code){
+    try{
+      code=await makeBattleCode();
+      codeInput.value=code;
+    }catch(e){
+      toast(tr('lb_upload_fail'));
+      return;
+    }
+  }
   let p;
-  try{p=await parseBattleCode(codeInput.value);}
+  try{p=await parseBattleCode(code);}
   catch(e){toast(tr('code_invalid'));return;}
   // integrity: the code must encode this run's time and reach the line
   if(Math.abs(p.t-Math.round(G.finishTime*10))>2||p.x[p.x.length-1]<480){
@@ -1166,10 +1178,11 @@ uploadBtn.addEventListener('click',async()=>{
       falls:G.falls,
       steps:G.steps,
       speed:Math.round(G.topSpeed*36),
-      code:codeInput.value,
+      code,
       mode:G.daily?'daily':'normal',
       day:G.daily?G.dailyData.date:null,
     });
+    store.set('cc_name',name);
     store.set('cc_last_upload',now);
     LB.lastFetch=0;
     toast(tr('lb_uploaded'));
@@ -1474,11 +1487,18 @@ function showResult(){
   if(G.daily&&canRace){
     nameRow.classList.remove('hidden');
     nameInput.value=store.get('cc_name','');
-    // battle code for this run (paste-friendly, carries a 10 Hz trace)
+  }
+  // Online upload (and rival ghosts) need a battle code for every uploadable
+  // finish — not only daily. Previously normal races showed the upload button
+  // with an empty codeInput, so submit always failed as "invalid code".
+  if(canRace){
+    codeInput.value='';
     makeBattleCode().then(code=>{
       if(G.state!=='done'||G.dnf)return;
       codeInput.value=code;
-      codeRow.classList.remove('hidden');
+      // Keep the copyable code row for daily (share-friendly); normal races
+      // still stash the code for upload / integrity without cluttering the card.
+      if(G.daily)codeRow.classList.remove('hidden');
     }).catch(()=>{});
   }
   if(canRace&&LB.ok())uploadRow.classList.remove('hidden');
@@ -1733,7 +1753,17 @@ function primaryAction(){
     else startRun(false);
   }
 }
+// Name / code fields need Space, Enter, arrows, letter keys; skip game binds
+// while focus is in a text-entry control (same idea as Wall-Flip's domTyping).
+function isTextEntryTarget(el){
+  if(!el||el===document.body||el===document.documentElement)return false;
+  const tag=(el.tagName||'').toUpperCase();
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return true;
+  if(el.isContentEditable)return true;
+  return !!(el.closest&&el.closest('[contenteditable=""],[contenteditable="true"]'));
+}
 addEventListener('keydown',e=>{
+  if(isTextEntryTarget(e.target)||isTextEntryTarget(document.activeElement))return;
   if(e.code==='Space'){
     e.preventDefault();
     if(e.repeat)return;
@@ -1753,7 +1783,10 @@ addEventListener('keydown',e=>{
   }
   if(!e.repeat)setHeld(e.code,true);
 });
-addEventListener('keyup',e=>setHeld(e.code,false));
+addEventListener('keyup',e=>{
+  if(isTextEntryTarget(e.target)||isTextEntryTarget(document.activeElement))return;
+  setHeld(e.code,false);
+});
 addEventListener('blur',()=>{ for(const k in held)setHeld(k,false); });
 document.addEventListener('visibilitychange',()=>{ if(document.hidden)for(const k in held)setHeld(k,false); });
 
@@ -2344,6 +2377,46 @@ window.__TOUR=TOUR;
 window.__applyWeather=applyWeather;
 window.__tick=tick;    // manual frame pump for automated tests (rAF may be throttled in embedded browsers)
 window.__errs=[];
+/** Playwright / harness: open the result card with a finish that can upload. */
+window.__openResultForUpload=async function(opts){
+  const o=opts||{};
+  const finishTime=o.finishTime!=null?o.finishTime:28.5;
+  const falls=o.falls!=null?o.falls:0;
+  const daily=!!o.daily;
+  G.rec=[];
+  const n=150;
+  for(let i=0;i<n;i++){
+    const x=Math.min(CFG.finishX,(i/(n-1))*CFG.finishX);
+    G.rec.push([x,CFG.bodyY,0,0,0,0,0,0,0,0,0,0,0,0]);
+  }
+  G.state='done';
+  G.dnf=false;
+  G.practice=false;
+  G.daily=daily;
+  G.dailyData=daily?dailyInfo():null;
+  G.finishTime=finishTime;
+  G.falls=falls;
+  G.steps=o.steps!=null?o.steps:120;
+  G.topSpeed=o.topSpeed!=null?o.topSpeed:2.2;
+  G.x=CFG.finishX;
+  G.resultShown=true;
+  G.doneT=2;
+  G.replay=null;
+  AI.level=null;
+  DUEL.on=false;
+  TOUR.on=false;
+  titleScreen.classList.add('hidden');
+  hudEl.classList.add('hidden');
+  keysBar.classList.add('hidden');
+  showResult();
+  // Wait until battle code is ready (or give up after a short poll).
+  const deadline=Date.now()+3000;
+  while(Date.now()<deadline){
+    if((codeInput.value||'').startsWith('CC'))return codeInput.value;
+    await new Promise(r=>setTimeout(r,20));
+  }
+  throw new Error('battle code not ready');
+};
 addEventListener('error',e=>window.__errs.push(e.message+' @'+(e.filename||'')+':'+e.lineno));
 addEventListener('unhandledrejection',e=>window.__errs.push('rejection: '+e.reason));
 loadingEl.remove();

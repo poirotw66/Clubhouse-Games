@@ -9,6 +9,8 @@ create table if not exists public.clipclop_scores (
   steps      integer     not null default 0 check (steps between 0 and 99999),
   speed      integer     not null default 0 check (speed between 0 and 500),  -- 0.1 km/h units
   code       text        not null check (code like 'CC%' and char_length(code) <= 2500),
+  mode       text        not null default 'normal' check (mode in ('normal','daily')),
+  day        text        null,  -- YYYY-MM-DD when mode='daily'
   created_at timestamptz not null default now()
 );
 
@@ -26,3 +28,6 @@ create policy "clipclop insert" on public.clipclop_scores
 -- helpful index for the default view (fastest first)
 create index if not exists clipclop_scores_time_idx
   on public.clipclop_scores (time_ms asc);
+
+create index if not exists clipclop_scores_mode_day_idx
+  on public.clipclop_scores (mode, day, time_ms asc);
