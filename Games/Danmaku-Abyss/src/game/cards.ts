@@ -53,17 +53,48 @@ function em(e: Partial<Emitter>): Emitter {
 
 // ── Midway patterns ──────────────────────────────────────────────────────────
 
+/**
+ * Midway curtains lean into the cover palette (magenta / orange / cyan) with
+ * dual-layer spirals and rings. Speeds stay modest so denser beauty stays fair
+ * against the tiny focus hitbox.
+ */
 const MIDWAY: Emitter[][] = [
-  [em({ count: 3, spread: 0.7, speed: 130, aim: 'aimed', interval: 1.4, hue: 190 })],
-  [em({ count: 6, spread: Math.PI * 2, speed: 80, interval: 1.7, hue: 280 })],
-  [em({ count: 2, spread: 0.28, speed: 165, aim: 'aimed', interval: 1.1, hue: 20, bulletR: 3.4 })],
-  [em({ count: 5, spread: 1.5, speed: 105, waveform: 'accel', interval: 1.6, hue: 320 })],
-  [em({ count: 7, spread: Math.PI * 2, speed: 95, angularVel: 2.1, aim: 'rotating', interval: 0.8, hue: 160 })],
-  [em({ count: 4, spread: 1.1, speed: 120, waveform: 'reverse', interval: 1.8, hue: 45, lifetime: 7 })],
-  // Taught in the midway, alone and slow, before any boss combines it with a
-  // ring. A mechanic first met inside a dense pattern reads as unfair rather
-  // than as a rule.
-  [wall({ speed: 88, interval: 2.8, gap: 4, hue: 210 })],
+  // Aimed needles under a slow cyan ring — readable lanes.
+  [
+    em({ count: 8, spread: Math.PI * 2, speed: 72, angularVel: 1.1, aim: 'rotating', interval: 0.95, hue: 190, bulletR: 3.6 }),
+    em({ count: 3, spread: 0.65, speed: 118, aim: 'aimed', interval: 1.35, delay: 0.15, hue: 310, bulletR: 3.3 }),
+  ],
+  // Magenta flower + amber sparks (cover spiral wings).
+  [
+    em({ count: 10, spread: Math.PI * 2, speed: 68, waveform: 'spiral', angularVel: 0.85, interval: 0.85, hue: 300, bulletR: 3.8 }),
+    em({ count: 6, spread: Math.PI * 2, speed: 78, angularVel: -1.4, aim: 'rotating', interval: 1.1, delay: 0.25, hue: 28, bulletR: 3.4 }),
+  ],
+  // Orange accel fans with a cyan chip curtain.
+  [
+    em({ count: 7, spread: Math.PI * 2, speed: 70, angularVel: 1.6, aim: 'rotating', interval: 0.9, hue: 185, bulletR: 3.5 }),
+    em({ count: 3, spread: 0.4, speed: 140, aim: 'aimed', interval: 1.15, delay: 0.2, hue: 22, bulletR: 3.2 }),
+  ],
+  // Accel magenta bloom.
+  [
+    em({ count: 9, spread: Math.PI * 2, speed: 64, waveform: 'accel', interval: 1.05, hue: 320, bulletR: 3.7 }),
+    em({ count: 5, spread: 1.4, speed: 95, waveform: 'accel', interval: 1.4, delay: 0.35, hue: 40, bulletR: 3.3 }),
+  ],
+  // Counter-rotating cyan / pink rings.
+  [
+    em({ count: 9, spread: Math.PI * 2, speed: 76, angularVel: 2.0, aim: 'rotating', interval: 0.72, hue: 175, bulletR: 3.5 }),
+    em({ count: 9, spread: Math.PI * 2, speed: 76, angularVel: -2.0, aim: 'rotating', interval: 0.72, delay: 0.2, hue: 305, bulletR: 3.5 }),
+  ],
+  // Reverse spray + amber ring.
+  [
+    em({ count: 7, spread: 1.6, speed: 100, waveform: 'reverse', interval: 1.35, hue: 45, lifetime: 7, bulletR: 3.5 }),
+    em({ count: 8, spread: Math.PI * 2, speed: 70, angularVel: 1.2, aim: 'rotating', interval: 1.0, delay: 0.3, hue: 280, bulletR: 3.6 }),
+  ],
+  // Taught wall, alone and slow, before bosses combine it with a ring — now
+  // framed by a soft cyan ring so the cover curtain language still shows up.
+  [
+    wall({ speed: 82, interval: 2.7, gap: 4, hue: 200 }),
+    em({ count: 8, spread: Math.PI * 2, speed: 62, angularVel: 0.9, aim: 'rotating', interval: 1.25, delay: 0.4, hue: 310, bulletR: 3.4 }),
+  ],
 ];
 
 export function midwayCardFor(stage: number, salt: number): SpellCard {
