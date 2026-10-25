@@ -340,15 +340,17 @@
 
   .hero-copy {
     @apply relative z-10 text-left min-w-0;
+    order: 1;
   }
 
   .hero-sticker {
-    @apply relative z-[5] justify-self-center m-0 order-first;
-    width: min(46vw, 15rem);
+    @apply relative z-[5] justify-self-center m-0;
+    order: 2;
+    width: min(42vw, 13.5rem);
     aspect-ratio: 1;
     border-radius: 0.35rem;
     overflow: hidden;
-    transform: rotate(-5deg);
+    transform: rotate(-4deg);
     border: 3px solid #ecfeff;
     box-shadow:
       0 0 0 1px rgba(45, 212, 191, 0.55),
@@ -359,7 +361,6 @@
 
   @media (min-width: 768px) {
     .hero-sticker {
-      order: 2;
       justify-self: end;
       width: min(19vw, 17rem);
       margin-bottom: 0.75rem;
