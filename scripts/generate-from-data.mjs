@@ -29,7 +29,7 @@ const CATEGORY_SVG = {
   astra: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
 };
 
-const DEFAULT_ACCENT = '#a78bfa';
+const DEFAULT_ACCENT = '#2dd4bf';
 
 function escapeHtml(s) {
   return String(s)
@@ -46,8 +46,13 @@ function categoryIconSvg(categoryId) {
     : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${svgContent}" />`;
 }
 
+/** Hub headings omit catalogue index numbers (01 / 02 …) — order is shown by position. */
+function categoryDisplayTitle(title) {
+  return String(title).replace(/^\d+\s+/, '');
+}
+
 function categoryShortLabel(title) {
-  const short = title.replace(/^\d+\s+/, '').replace(/類型$/, '');
+  const short = categoryDisplayTitle(title).replace(/類型$/, '');
   const aliases = {
     運動機檯: '運動',
     串聯拼砌: '益智',
@@ -112,7 +117,7 @@ function generateMenuHtml(categories) {
           <span class="group-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${categoryIconSvg(cat.id)}</svg>
           </span>
-          <h2 class="group-title font-tc" id="${escapeHtml(cat.htmlId)}-title">${escapeHtml(cat.title)}</h2>${hubLink}
+          <h2 class="group-title font-tc" id="${escapeHtml(cat.htmlId)}-title">${escapeHtml(categoryDisplayTitle(cat.title))}</h2>${hubLink}
           <span class="group-count" aria-label="共 ${cat.games.length} 款遊戲">${cat.games.length}</span>
         </div>
         <ul class="game-grid" role="list">`);

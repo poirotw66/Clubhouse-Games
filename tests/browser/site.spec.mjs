@@ -77,6 +77,8 @@ test('menu search, shared URL, categories and responsive covers', async ({ page 
   await page.locator('#game-search').fill('no-such-game-xyz');
   await expect(page.locator('#empty-state')).toBeVisible();
   await page.locator('#reset-filters').click();
+  await expect(page.locator('#game-search')).toHaveValue('');
+  await expect(page.locator('.filter-pill.is-active')).toHaveAttribute('data-filter', 'all');
   await expect(page.locator('.game-tile:visible')).toHaveCount(games.length);
 });
 

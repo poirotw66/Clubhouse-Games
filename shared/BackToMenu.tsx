@@ -19,25 +19,33 @@ const CSS = `
   z-index: 10000;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-height: 44px;
   padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Chakra Petch', 'Noto Sans TC', system-ui, sans-serif;
+  color: #ecfeff;
   text-decoration: none;
-  background: rgba(128, 128, 128, 0.15);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(128, 128, 128, 0.25);
-  border-radius: 999px;
+  background: rgba(4, 12, 22, 0.88);
+  border: 1px solid rgba(45, 212, 191, 0.45);
+  border-radius: 0.45rem;
+  box-shadow:
+    0 0 0 1px rgba(45, 212, 191, 0.12),
+    0 0 22px rgba(45, 212, 191, 0.28),
+    inset 0 1px 0 rgba(165, 243, 252, 0.16);
   touch-action: manipulation;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 .${CLASS}:hover,
 .${CLASS}:focus-visible {
-  background: rgba(128, 128, 128, 0.3);
-  border-color: rgba(128, 128, 128, 0.5);
+  background: rgba(13, 148, 136, 0.35);
+  border-color: rgba(103, 232, 249, 0.75);
+  box-shadow:
+    0 0 0 1px rgba(45, 212, 191, 0.28),
+    0 0 28px rgba(45, 212, 191, 0.45),
+    0 0 48px rgba(244, 114, 182, 0.18);
+  outline: none;
 }
 @media (max-width: 640px) {
   /* Keep the game's own content clear of the pill. The pill itself is excluded

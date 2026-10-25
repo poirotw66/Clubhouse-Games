@@ -494,6 +494,9 @@ export function shake(element: Element | null | undefined, intensity = 1): void 
   const started = performance.now();
   const duration = 280 + 120 * Math.min(1.5, intensity);
   const original = el.style.transform;
+  // Mark immediately so tests/observers that wait on a concurrent flash
+  // (e.g. Memory-Match 「未中」) cannot miss a soft shake that finishes in ~300ms.
+  el.setAttribute('data-juice-shake', '1');
 
   const id = window.setInterval(() => {
     const t = (performance.now() - started) / duration;
@@ -508,7 +511,6 @@ export function shake(element: Element | null | undefined, intensity = 1): void 
     const x = (Math.random() - 0.5) * amp * 2 * decay;
     const y = (Math.random() - 0.5) * amp * 1.4 * decay;
     el.style.transform = `${original} translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`.trim();
-    el.setAttribute('data-juice-shake', '1');
   }, 16);
   shakeTimers.set(element, id);
 }
