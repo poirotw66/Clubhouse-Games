@@ -45,15 +45,20 @@
   .wf-btn { flex: 1; height: 36px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #b4b4b4; font: 600 14px "IBM Plex Sans", "PingFang TC", sans-serif; cursor: pointer; }
   .wf-btn.primary { background: #fff; color: #111; }
   .wf-view-switch {
-    position: fixed; top: 0; right: 12px; z-index: 32;
-    display: flex; align-items: center; height: 48px; gap: 2px;
+    position: fixed; top: 6px; right: 12px; z-index: 32;
+    display: flex; align-items: center; height: 36px; gap: 0;
+    padding: 3px; border-radius: 999px; background: #15171a; border: 1px solid #2a2a2a;
   }
   .wf-view-switch button {
-    height: 32px; padding: 0 8px; border: 0; background: transparent; color: #b4b4b4;
-    cursor: pointer; font: 500 14px/1 "IBM Plex Sans", "PingFang TC", sans-serif;
+    height: 30px; min-width: 40px; padding: 0 12px; border: 0; border-radius: 999px;
+    background: transparent; color: #b4b4b4;
+    cursor: pointer; font: 600 13px/1 "IBM Plex Sans", "PingFang TC", sans-serif;
   }
-  .wf-view-switch button[aria-pressed="true"] { color: #fff; font-weight: 600; }
-  .wf-view-switch button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .wf-view-switch button[aria-pressed="true"] {
+    color: #0c0d0f; background: #6ff0d0;
+    box-shadow: 0 0 16px rgba(111, 240, 208, .45);
+  }
+  .wf-view-switch button:focus-visible { outline: 2px solid #6ff0d0; outline-offset: 2px; }
   .wf-view-toast {
     position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
     transform: translateX(-50%); z-index: 35; max-width: min(92vw, 420px);
@@ -62,6 +67,51 @@
     opacity: 0; pointer-events: none;
   }
   .wf-view-toast.on { opacity: 1; }
+  /* Start-panel 2D / 3D mode cards (DOM over canvas READY sheet) */
+  #startModePick {
+    position: fixed; z-index: 25; left: 50%; top: 0;
+    transform: translateX(-50%); width: min(440px, calc(100vw - 48px));
+    margin: 0; text-align: center; pointer-events: auto;
+  }
+  #startModePick[hidden] { display: none !important; }
+  .wf-mode-pick-label {
+    margin: 0 0 10px; font: 600 11px/1.2 "IBM Plex Sans", "PingFang TC", sans-serif;
+    letter-spacing: .12em; text-transform: uppercase; color: #949494;
+  }
+  .wf-mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .wf-mode-card {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    min-height: 88px; padding: 14px 10px 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,.14);
+    background: rgba(12,13,15,.72); color: #b4b4b4; cursor: pointer;
+    font: 500 13px/1.25 "IBM Plex Sans", "PingFang TC", sans-serif;
+    transition: border-color .2s ease, box-shadow .2s ease, color .2s ease, transform .2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wf-mode-card .ico { font-size: 22px; line-height: 1; filter: grayscale(.35); opacity: .85; }
+  .wf-mode-card .ttl { font: 600 15px/1.2 "IBM Plex Sans", "PingFang TC", sans-serif; color: inherit; }
+  .wf-mode-card .dsc { font: 400 11px/1.35 "IBM Plex Sans", "PingFang TC", sans-serif; color: #949494; }
+  .wf-mode-card[aria-pressed="true"] {
+    color: #fff; border-color: rgba(111,240,208,.9);
+    background: linear-gradient(160deg, rgba(111,240,208,.16), rgba(12,13,15,.85) 55%);
+    box-shadow: 0 0 0 1px rgba(111,240,208,.35), 0 0 28px rgba(111,240,208,.4), inset 0 0 22px rgba(111,240,208,.08);
+    animation: wf-mode-pulse 2.2s ease-in-out infinite;
+  }
+  .wf-mode-card[aria-pressed="true"] .ico { filter: none; opacity: 1; text-shadow: 0 0 12px rgba(111,240,208,.8); }
+  .wf-mode-card[aria-pressed="true"] .dsc { color: #b4b4b4; }
+  .wf-mode-card:hover { border-color: rgba(255,255,255,.28); color: #fff; }
+  .wf-mode-card:focus-visible { outline: 2px solid #6ff0d0; outline-offset: 3px; }
+  @keyframes wf-mode-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(111,240,208,.35), 0 0 22px rgba(111,240,208,.32), inset 0 0 18px rgba(111,240,208,.06); }
+    50% { box-shadow: 0 0 0 1px rgba(111,240,208,.55), 0 0 36px rgba(111,240,208,.55), inset 0 0 26px rgba(111,240,208,.12); }
+  }
+  @media (max-width: 420px) {
+    .wf-mode-card { min-height: 80px; padding: 12px 8px 10px; }
+    .wf-mode-card .ttl { font-size: 14px; }
+    .wf-mode-card .dsc { font-size: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wf-mode-card[aria-pressed="true"] { animation: none; }
+  }
 </style>
 </head>
 <body data-view-mode="2d">
@@ -70,6 +120,21 @@
 <div id="viewSwitch" class="wf-view-switch" data-testid="view-mode-switch" role="group" aria-label="顯示模式">
   <button type="button" data-view="2d" data-testid="view-mode-2d" aria-pressed="true">2D</button>
   <button type="button" data-view="3d" data-testid="view-mode-3d" aria-pressed="false">3D</button>
+</div>
+<div id="startModePick" class="wf-mode-pick" data-testid="start-mode-pick" role="group" aria-label="顯示模式" hidden>
+  <p class="wf-mode-pick-label" id="startModePickLabel"></p>
+  <div class="wf-mode-cards">
+    <button type="button" class="wf-mode-card" data-view="2d" data-testid="start-mode-2d" aria-pressed="true">
+      <span class="ico" aria-hidden="true">▣</span>
+      <span class="ttl" data-role="title"></span>
+      <span class="dsc" data-role="desc"></span>
+    </button>
+    <button type="button" class="wf-mode-card" data-view="3d" data-testid="start-mode-3d" aria-pressed="false">
+      <span class="ico" aria-hidden="true">◈</span>
+      <span class="ttl" data-role="title"></span>
+      <span class="dsc" data-role="desc"></span>
+    </button>
+  </div>
 </div>
 <div id="viewToast" class="wf-view-toast" role="status" aria-live="polite"></div>
 <div id="viewConfirm" class="wf-panel" data-testid="view-mode-confirm">
@@ -167,6 +232,9 @@ const STR = {
     apiHint: '貼上你的排名 API 網址；留空＝僅本機排行',
     apiSaved: '已儲存', colTime: '時間',
     viewModeLabel: '顯示模式', view2d: '2D', view3d: '3D',
+    viewModePickLabel: '選擇顯示模式',
+    view2dTitle: '2D 經典', view2dDesc: '平面畫布 · 輕量流暢',
+    view3dTitle: '3D 立體', view3dDesc: 'Three.js 夜景 · 沉浸感',
     viewConfirmTitle: '切換為 3D？',
     viewConfirmHint: '切換會結束目前這局並重新載入。',
     viewConfirmOk: '切換', viewConfirmCancel: '取消',
@@ -212,6 +280,9 @@ const STR = {
     apiHint: 'Paste your rank API URL; empty = local ranking only',
     apiSaved: 'Saved', colTime: 'TIME',
     viewModeLabel: 'View mode', view2d: '2D', view3d: '3D',
+    viewModePickLabel: 'Choose view mode',
+    view2dTitle: '2D Classic', view2dDesc: 'Flat canvas · light & smooth',
+    view3dTitle: '3D Stereo', view3dDesc: 'Three.js night scene · immersive',
     viewConfirmTitle: 'Switch to 3D?',
     viewConfirmHint: 'This ends the current run and reloads the other view.',
     viewConfirmOk: 'Switch', viewConfirmCancel: 'Cancel',
@@ -238,7 +309,10 @@ function setLang(l) {
 // ---------- 2D / 3D view preference (shared key across both entry pages) ----------
 const VIEW_MODE_KEY = 'wallflip.viewMode';
 const VIEW_HERE = '2d';
+const MODE_PICK_H = 118; // reserved gap in canvas READY sheet for #startModePick
 const viewSwitchEl = document.getElementById('viewSwitch');
+const startModePickEl = document.getElementById('startModePick');
+const startModePickLabelEl = document.getElementById('startModePickLabel');
 const viewToastEl = document.getElementById('viewToast');
 const viewConfirmEl = document.getElementById('viewConfirm');
 const viewConfirmTitleEl = document.getElementById('viewConfirmTitle');
@@ -263,18 +337,45 @@ function showViewToast(msg) {
   clearTimeout(viewToastTimer);
   viewToastTimer = setTimeout(() => viewToastEl.classList.remove('on'), 4200);
 }
-function syncViewModeChrome() {
-  if (!viewSwitchEl) return;
-  viewSwitchEl.setAttribute('aria-label', t('viewModeLabel'));
-  for (const btn of viewSwitchEl.querySelectorAll('button[data-view]')) {
+function syncViewModeButtons(root) {
+  if (!root) return;
+  for (const btn of root.querySelectorAll('button[data-view]')) {
     const mode = btn.getAttribute('data-view');
-    btn.textContent = mode === '3d' ? t('view3d') : t('view2d');
-    btn.setAttribute('aria-pressed', mode === VIEW_HERE ? 'true' : 'false');
+    const on = mode === VIEW_HERE;
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (btn.classList.contains('wf-mode-card')) {
+      const ttl = btn.querySelector('[data-role="title"]');
+      const dsc = btn.querySelector('[data-role="desc"]');
+      if (ttl) ttl.textContent = mode === '3d' ? t('view3dTitle') : t('view2dTitle');
+      if (dsc) dsc.textContent = mode === '3d' ? t('view3dDesc') : t('view2dDesc');
+    } else {
+      btn.textContent = mode === '3d' ? t('view3d') : t('view2d');
+    }
+  }
+}
+function syncViewModeChrome() {
+  if (viewSwitchEl) {
+    viewSwitchEl.setAttribute('aria-label', t('viewModeLabel'));
+    syncViewModeButtons(viewSwitchEl);
+  }
+  if (startModePickEl) {
+    startModePickEl.setAttribute('aria-label', t('viewModeLabel'));
+    if (startModePickLabelEl) startModePickLabelEl.textContent = t('viewModePickLabel');
+    syncViewModeButtons(startModePickEl);
   }
   if (viewConfirmTitleEl) viewConfirmTitleEl.textContent = t('viewConfirmTitle');
   if (viewConfirmHintEl) viewConfirmHintEl.textContent = t('viewConfirmHint');
   if (viewConfirmOkEl) viewConfirmOkEl.textContent = t('viewConfirmOk');
   if (viewConfirmCancelEl) viewConfirmCancelEl.textContent = t('viewConfirmCancel');
+}
+function setStartModePickVisible(on) {
+  if (!startModePickEl) return;
+  if (on) startModePickEl.removeAttribute('hidden');
+  else startModePickEl.setAttribute('hidden', '');
+}
+function layoutStartModePick(topCssPx) {
+  if (!startModePickEl) return;
+  startModePickEl.style.top = Math.round(topCssPx) + 'px';
 }
 function navigateToView(mode) {
   writeViewMode(mode);
@@ -302,16 +403,29 @@ function requestViewMode(mode) {
   }
   navigateToView(mode);
 }
-if (viewSwitchEl) {
-  viewSwitchEl.addEventListener('pointerdown', e => e.stopPropagation());
-  viewSwitchEl.addEventListener('click', e => {
+function bindViewModeGroup(el) {
+  if (!el) return;
+  el.addEventListener('pointerdown', e => e.stopPropagation());
+  el.addEventListener('click', e => {
     e.stopPropagation();
     const btn = e.target && e.target.closest && e.target.closest('button[data-view]');
     if (!btn) return;
     try { sfx.click(); } catch (err) {}
     requestViewMode(btn.getAttribute('data-view'));
   });
+  el.addEventListener('keydown', e => {
+    if (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight' && e.code !== 'ArrowUp' && e.code !== 'ArrowDown') return;
+    const buttons = [...el.querySelectorAll('button[data-view]')];
+    const i = buttons.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = (e.code === 'ArrowRight' || e.code === 'ArrowDown') ? 1 : -1;
+    buttons[(i + dir + buttons.length) % buttons.length].focus();
+  });
 }
+bindViewModeGroup(viewSwitchEl);
+bindViewModeGroup(startModePickEl);
 if (viewConfirmOkEl) viewConfirmOkEl.addEventListener('click', () => {
   const mode = pendingViewTarget; closeViewConfirm(); if (mode) navigateToView(mode);
 });
@@ -899,7 +1013,7 @@ function domTyping(e) {
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return true;
   if (el.isContentEditable) return true;
-  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-panel')) return true;
+  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel')) return true;
   return apiPanel.classList.contains('on') || namePanel.classList.contains('on') ||
     (viewConfirmEl && viewConfirmEl.classList.contains('on'));
 }
@@ -1901,12 +2015,14 @@ function drawReady() {
   const cx = W() / 2;
   const controlsY = 14;
   const ch = 28;
+  // Leave gutter for the mint 2D/3D pill at top-right.
+  const viewGutter = 104;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
   ctx.font = `600 13px ${SANS}`;
   const boardLabel = t('boardBtn');
   const boardW = ctx.measureText(boardLabel).width + 12;
-  const boardX = W() - 16 - 88 - boardW;
+  const boardX = W() - 16 - viewGutter - boardW;
   ctx.fillStyle = UI.text;
   ctx.fillText(boardLabel, boardX + boardW / 2, controlsY + ch / 2);
   readyUI.board = { x: boardX, y: controlsY, w: boardW, h: ch };
@@ -1926,7 +2042,7 @@ function drawReady() {
   readyUI.ghost = { x: ghostX, y: controlsY, w: ghostW, h: ch };
 
   ctx.textBaseline = 'alphabetic';
-  const titleY = Math.max(96, H() * 0.16);
+  const titleY = Math.max(88, Math.min(H() * 0.12, 120));
   const left = Math.max(28, cx - 240);
   {
     ctx.font = `500 12px ${SANS}`;
@@ -1936,7 +2052,7 @@ function drawReady() {
     const achRowsN = totalW > W() - 48 ? 2 : 1;
     const selW0 = Math.min(320, W() - 48);
     const top = titleY - 50;
-    const bot = titleY + 452 + achRowsN * 22;
+    const bot = titleY + 452 + MODE_PICK_H + achRowsN * 22;
     const sheetX = Math.max(16, Math.min(left - 28, cx - selW0 / 2 - 20));
     const sheetR = Math.min(W() - 16, Math.max(cx + (cx - sheetX), cx + selW0 / 2 + 20));
     ctx.fillStyle = UI.sheet;
@@ -2007,6 +2123,11 @@ function drawReady() {
     ay += 22;
   });
 
+  // DOM neon cards sit in this reserved band (between achievements and start CTA).
+  const modePickTop = ay + 10;
+  layoutStartModePick(modePickTop);
+  setStartModePickVisible(true);
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const startLabel = isTouch ? t('tapStart') : t('start');
@@ -2014,7 +2135,7 @@ function drawReady() {
   const pillW = ctx.measureText(startLabel).width + 44;
   const pillH = 36;
   const pillX = cx - pillW / 2;
-  const pillY = ay + 16;
+  const pillY = modePickTop + MODE_PICK_H;
   ctx.fillStyle = '#ffffff';
   roundRect(pillX, pillY, pillW, pillH, 18);
   ctx.fill();
@@ -2282,6 +2403,7 @@ function render(t) {
   cam.x = ox; cam.y = oy;
   screenTransform();
   drawPops();
+  if (state !== ST.READY) setStartModePickVisible(false);
   if (state === ST.RUN) drawHUD();
   if (state === ST.READY) drawReady();
   if (state === ST.RESULT) drawResult();
