@@ -23,7 +23,7 @@ test.describe('Cyber-Neon-Rush taste polish', () => {
   test('start poster, difficulty chips, and in-run HUD stay reachable', async ({ page }) => {
     await page.goto('./Games/Cyber-Neon-Rush/');
     await expect(page.locator('[data-ui="cyber-neon-start"]')).toBeVisible();
-    await expect(page.getByRole('heading', { name: '霓虹疾馳' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /霓虹疾馳/ })).toBeVisible();
     await expect(page.getByRole('button', { name: '開始疾馳' })).toBeVisible();
 
     const hard = page.getByRole('button', { name: '狂飆' });

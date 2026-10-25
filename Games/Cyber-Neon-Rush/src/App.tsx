@@ -340,11 +340,11 @@ export default function App(): ReactElement {
               <div className="menu-field-bottom" />
               <div className="menu-hero-copy">
                 <p className="menu-brand-kicker">Clubhouse Arcade</p>
-                <h1 className="menu-title-stack">
-                  <span className="menu-title-line">
+                <h1 className="menu-title-stack" aria-label="霓虹疾馳">
+                  <span className="menu-title-line" aria-hidden="true">
                     <span>霓虹</span>
                   </span>
-                  <span className="menu-title-line">
+                  <span className="menu-title-line" aria-hidden="true">
                     <span>疾馳</span>
                   </span>
                 </h1>
