@@ -258,6 +258,8 @@ const SAMPLE = 0.05;
 // ---------- track ----------
 const track = [];   // { s, x, y, phi, k } — u<=0 flat approach, then arc + straight
 let T_LEN = 0, T_TOP = null;
+// road strokes, projected once per course so drawRoad allocates nothing per frame
+let roadTop = [], roadBot = [], roadDash = [], roadHazIn = [], roadHazOut = [];
 let courseGeo = null; // truss-tower anchors in drawRoad, derived from the course
 let courseIdx = 0;
 try {
@@ -289,6 +291,26 @@ function buildCourse(idx) {
   // the 0.25R circle around the arc center at 79% of the arc)
   const bTh = c.arcDeg * 0.788 * DEG, bR = c.arcR * 0.25;
   courseGeo = { x1: 13.2, x2: 18.4, topY: arcEnd.y + 3.86, boomX: bR * sin(bTh), boomY: c.arcR - bR * cos(bTh) };
+  // project the ribbon once per course; drawRoad only walks these points
+  const ride = [];
+  for (let rx = -38; rx < 0.01; rx += 1) ride.push({ x: rx, y: 0, phi: 0 });
+  for (let i = 0; i < track.length; i += 2) ride.push(track[i]);
+  ride.push(T_TOP);
+  const flat = [];
+  for (let i = 0; i < ride.length; i++) if (ride[i].x <= 0) flat.push(ride[i]);
+  const project = (pts, d) => {
+    const out = new Array(pts.length);
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      out[i] = [p.x + sin(p.phi) * d, p.y - cos(p.phi) * d];
+    }
+    return out;
+  };
+  roadTop = project(ride, 0);
+  roadBot = project(ride, -1.2);
+  roadDash = project(ride, -0.62);
+  roadHazIn = project(flat, 0.02);
+  roadHazOut = project(flat, -1.25);
 }
 buildCourse(courseIdx);
 
@@ -927,7 +949,7 @@ function unlockAchievements() {
     if (achUnlocked.has(a.id)) continue;
     if (achTest(a.id, stats)) {
       achUnlocked.add(a.id);
-      gained.push(a.label);
+      gained.push(a.id);
       pop(car.x + rand(-1.5, 1.5), car.y + rand(2, 4), '🏆 ' + t('ach_' + a.id), '#ffd166');
     }
   }
@@ -961,7 +983,6 @@ function fallbackCopy(text, done) {
 // ---------- physics: attached (original M) ----------
 function stepRoad(dt) {
   const sm = trackAt(car.u);
-  const pose = bodyPose(car.u);
   const canSuck = inp.stick && car.air > 0;
   if (canSuck) car.air = Math.max(0, car.air - AIR_SUCK * dt);
   const A = canSuck ? SUCK : 0;
@@ -971,7 +992,7 @@ function stepRoad(dt) {
   car.suck = canSuck; car.onWall = car.u > 0;
   let N = car.v * car.v * sm.k + G * cos(sm.phi) - THRUST * Z;
   const grip = car.onWall ? clamp((N + A) / (G * 1.5), 0, 1) : 1;
-  if (car.onWall && sm.phi > 100 * DEG && !canSuck) sayOnce('grip', '「吸いつく」沒按住會剝離！', '#ffd166');
+  if (car.onWall && sm.phi > 100 * DEG && !canSuck) sayOnce('grip', t('mGrip'), '#ffd166');
   if ((car.onWall || Z) && N + A < 0) { toAir('detach'); return; }
   const tract = MU * Math.max(0, N + A);
   let o = 0;
@@ -1075,12 +1096,15 @@ function stepAir(dt) {
   stats.total = Math.round(stats.rollPts + stats.soft + stats.level);
   stats.win = true;
   stats.time = car.time;
-  const tk = 'wallflip2.time.' + courseIdx;
-  let bestTime = 0;
-  try { bestTime = +localStorage.getItem(tk) || 0; } catch (e) {}
-  stats.newTimeRecord = !bestTime || stats.time < bestTime;
-  if (stats.newTimeRecord) { try { localStorage.setItem(tk, stats.time.toFixed(2)); } catch (e) {} }
-  unlockAchievements();
+  stats.newTimeRecord = false;
+  if (!botOn) { // bot/demo runs never touch records or achievements
+    const tk = 'wallflip2.time.' + courseIdx;
+    let bestTime = 0;
+    try { bestTime = +localStorage.getItem(tk) || 0; } catch (e) {}
+    stats.newTimeRecord = !bestTime || stats.time < bestTime;
+    if (stats.newTimeRecord) { try { localStorage.setItem(tk, stats.time.toFixed(2)); } catch (e) {} }
+    unlockAchievements();
+  }
   vib(stats.total >= 95 ? [20, 30, 20] : 25);
   const q = (stats.soft + stats.level) / 50;
   sfx.land(q);
@@ -1149,13 +1173,15 @@ function stepCrash(dt) {
 
 function showResult() {
   if (stats.win) {
-    if (stats.total > best) {
-      best = stats.total; newBest = true;
-      try { localStorage.setItem(bestKey(), best); } catch (e) {}
-      sfx.best();
+    if (!botOn) { // bot/demo runs never write best / board / ghost
+      if (stats.total > best) {
+        best = stats.total; newBest = true;
+        try { localStorage.setItem(bestKey(), best); } catch (e) {}
+        sfx.best();
+      }
+      if (stats.total > 0) boardAdd();
+      if (ghostOn && stats.total > ghostBest) saveGhost();
     }
-    if (stats.total > 0) boardAdd();
-    if (ghostOn && stats.total > ghostBest) saveGhost();
     // online submit: offer the name-entry panel shortly after the result
     // settles (never for bot/demo runs, only when a rank API is configured)
     if (!botOn && apiBase() && !submitThrottled()) {
@@ -1366,34 +1392,29 @@ function drawRoad(t) {
   for (let x = -36; x < -2; x += 4) ctx.fillRect(x, 0.62, 0.22, 0.6);
   ctx.fillStyle = '#e9f0ff';
   for (let x = -34; x < -2; x += 4) ctx.fillRect(x, 0.62, 0.22, 0.6);
-  // road ribbon: the ride polyline is the TOP surface; the asphalt band hangs below it
-  const ride = [];
-  for (let x = -38; x < 0.01; x += 1) ride.push({ x, y: 0, phi: 0 });
-  for (let i = 0; i < track.length; i += 2) ride.push(track[i]);
-  ride.push(T_TOP);
-  const off = (p, d) => [p.x + sin(p.phi) * d, p.y - cos(p.phi) * d];
-  const ribbon = (d0, d1, col) => {
+  // road ribbon: roadTop is the ride surface; roadBot is the asphalt's lower edge
+  const poly = pts => {
     ctx.beginPath();
-    ride.forEach((p, i) => { const [x, y] = off(p, d0); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-    for (let i = ride.length - 1; i >= 0; i--) { const [x, y] = off(ride[i], d1); ctx.lineTo(x, y); }
-    ctx.closePath();
-    ctx.fillStyle = col; ctx.fill();
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+    }
   };
-  const line = (pts, d, w, col, dash) => {
-    ctx.beginPath();
-    pts.forEach((p, i) => { const [x, y] = off(p, d); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  const line = (pts, w, col, dash) => {
+    poly(pts);
     ctx.setLineDash(dash || []);
     ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
     ctx.setLineDash([]);
   };
-  ribbon(0, -1.2, '#8d8b88');                    // asphalt body (top edge = ride surface)
-  line(ride, -1.2, 0.1, '#e9f0ff');              // bottom edge, white
-  line(ride, 0, 0.14, '#ff2a3c');                // red lip line on the ride surface
-  line(ride, -0.62, 0.08, '#d2d0cb', [1.4, 1.8]);// faint center dash
-  // hazard dashes along the approach, both sides
-  const flat = ride.filter(p => p.x <= 0);
-  line(flat, 0.02, 0.1, '#ff2a3c', [1.6, 1.6]);
-  line(flat, -1.25, 0.1, '#ff2a3c', [1.6, 1.6]);
+  poly(roadTop);
+  for (let i = roadBot.length - 1; i >= 0; i--) ctx.lineTo(roadBot[i][0], roadBot[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = '#8d8b88'; ctx.fill();          // asphalt body
+  line(roadBot, 0.1, '#e9f0ff');                  // bottom edge, white
+  line(roadTop, 0.14, '#ff2a3c');                 // red lip line on the ride surface
+  line(roadDash, 0.08, '#d2d0cb', [1.4, 1.8]);    // faint center dash
+  line(roadHazIn, 0.1, '#ff2a3c', [1.6, 1.6]);    // hazard dashes, approach
+  line(roadHazOut, 0.1, '#ff2a3c', [1.6, 1.6]);
   // start marker
   ctx.fillStyle = '#e8edf4'; ctx.fillRect(-RUNUP - 0.15, 0, 0.3, 0.7);
   // course-end checker on the lip

@@ -96,10 +96,10 @@
   .achPill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
     border: 1px solid var(--line); background: rgba(255, 255, 255, .04); color: rgba(207, 227, 245, .35); }
   .achPill.on { color: var(--gold); border-color: rgba(255, 209, 102, .55); background: rgba(255, 209, 102, .12); }
-  #dailyBtn { pointer-events: auto; cursor: pointer; margin: 0 0 6px; padding: 7px 18px; border-radius: 999px;
+  #dailyBtn, #ghostBtn { pointer-events: auto; cursor: pointer; margin: 0 0 6px; padding: 7px 18px; border-radius: 999px;
     border: 1px solid var(--line); background: rgba(10, 15, 24, .55); color: var(--dim);
     font: 700 13px system-ui, "Noto Sans TC", sans-serif; }
-  #dailyBtn.on { color: var(--accent); border-color: rgba(111, 240, 208, .55); background: rgba(17, 34, 32, .8); }
+  #dailyBtn.on, #ghostBtn.on { color: var(--accent); border-color: rgba(111, 240, 208, .55); background: rgba(17, 34, 32, .8); }
   #dailyInfo { margin: 0 0 14px; font: 800 12px ui-monospace, Menlo, monospace; color: var(--gold); }
 
   /* result panel (bottom-anchored; the camera fit reads its top edge) */
@@ -178,6 +178,10 @@
   .wf-tr.hl { background: rgba(255, 209, 102, .13); border-radius: 6px; }
   .wf-tr.hl span { color: #ffd166; }
   .wf-empty { margin: 18px 0 10px; text-align: center; font: 600 14px system-ui, "Noto Sans TC", sans-serif; color: #8fa3b8; }
+  #boardTabs { display: flex; gap: 18px; margin: 2px 0 8px; }
+  .wf-tab { background: transparent; border: 0; cursor: pointer; padding: 2px 0 1px; color: #8fa3b8;
+    font: 600 14px system-ui, "Noto Sans TC", sans-serif; }
+  .wf-tab.on { color: #eef4fa; box-shadow: inset 0 -2px 0 #eef4fa; }
 </style>
 </head>
 <body>
@@ -233,6 +237,7 @@
   </div>
   <button id="dailyBtn" type="button"></button>
   <p id="dailyInfo" hidden></p>
+  <button id="ghostBtn" type="button"></button>
   <button id="boardBtn" type="button"></button>
   <button id="startBtn"></button>
   <p id="startBest" hidden></p>
@@ -276,6 +281,7 @@
   <div class="wf-card">
     <button id="boardGear" type="button"></button>
     <h3 id="boardTitleEl"></h3>
+    <div id="boardTabs"></div>
     <div id="boardRows"></div>
     <p class="wf-hint" id="boardNoteEl" hidden></p>
     <p class="wf-hint" id="boardCloseEl"></p>
@@ -355,6 +361,7 @@ const STR = {
     daily: '每日挑戰', dailyOn: 'ON', dailyOff: 'OFF',
     dailyMu: '低抓地日', dailyDrag: '強風日', dailyGrav: '重錘日', dailySuck: '弱磁日', dailyMotor: '老引擎日',
     dailyBest: '今日最佳',
+    ghostBtn: '幽靈', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: '幽靈已更新！',
     // online leaderboard (keys ported verbatim from the 2D build)
     tabOnline: '線上', tabLocal: '本機', onlineMark: '線上',
     submit: '送出', skip: '略過', submitTitle: '上傳成績',
@@ -407,6 +414,7 @@ const STR = {
     daily: 'DAILY', dailyOn: 'ON', dailyOff: 'OFF',
     dailyMu: 'Low-Grip Day', dailyDrag: 'Crosswind Day', dailyGrav: 'Heavy Day', dailySuck: 'Weak Magnet Day', dailyMotor: 'Old Engine Day',
     dailyBest: "Today's Best",
+    ghostBtn: 'GHOST', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: 'Ghost updated!',
     // online leaderboard (keys ported verbatim from the 2D build)
     tabOnline: 'ONLINE', tabLocal: 'LOCAL', onlineMark: 'ONLINE',
     submit: 'Submit', skip: 'Skip', submitTitle: 'Submit your score',
@@ -848,21 +856,12 @@ scene.add(startRoad);
   addTube(ROAD_W / 2, .05, .06, 15331583);
   addTube(-ROAD_W / 2, .05, .06, 16722492);
 }
-// lattice truss tower behind the wall (original beams)
+// lattice truss tower behind the wall (original beams, batched into one InstancedMesh)
 {
   const beamMat = new THREE.MeshStandardMaterial({ color: 9212828, metalness: .6, roughness: .45 });
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const UP = new THREE.Vector3(0, 1, 0), va = new THREE.Vector3(), vb = new THREE.Vector3(), dir = new THREE.Vector3();
-  const beam = (ax, ay, az, bx, by, bz, th = .12) => {
-    va.set(ax, ay, az); vb.set(bx, by, bz);
-    dir.subVectors(vb, va);
-    const len = dir.length();
-    const m = new THREE.Mesh(boxGeo, beamMat);
-    m.position.copy(va).addScaledVector(dir, .5);
-    m.scale.set(th, len, th);
-    m.quaternion.setFromUnitVectors(UP, dir.normalize());
-    scene.add(m);
-  };
+  const specs = []; // [ax, ay, az, bx, by, bz, thickness]
+  const beam = (ax, ay, az, bx, by, bz, th = .12) => specs.push([ax, ay, az, bx, by, bz, th]);
   const off = p => [p.x + Math.sin(p.phi) * .6, p.y - Math.cos(p.phi) * .6];
   const maxX = Math.max(...A.map(p => p.x));
   const U = maxX + .6 + 1.8;
@@ -888,6 +887,18 @@ scene.add(startRoad);
       else if (cy < topY - 1.6) beam(cx, cy, z, cx, topY - 1.4, z, .1);
     }
   }
+  const beams = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), beamMat, specs.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), sc = new THREE.Vector3();
+  specs.forEach(([ax, ay, az, bx, by, bz, th], i) => {
+    va.set(ax, ay, az); vb.set(bx, by, bz);
+    dir.subVectors(vb, va);
+    const len = dir.length();
+    pos.copy(va).addScaledVector(dir, .5);
+    q.setFromUnitVectors(UP, dir.normalize());
+    m4.compose(pos, q, sc.set(th, len, th));
+    beams.setMatrixAt(i, m4);
+  });
+  scene.add(beams);
 }
 // reflective dashes along both road shoulders
 {
@@ -1131,6 +1142,30 @@ const shadow = new THREE.Mesh(
 shadow.position.y = .08;
 scene.add(shadow);
 
+// ghost car: translucent silhouette replaying the best trajectory (visual only)
+const ghostMat = new THREE.MeshBasicMaterial({ color: 0x9aa3ad, transparent: true, opacity: .3, depthWrite: false });
+const ghostCar = new THREE.Group();
+{
+  const addBox = (w, h, d, x, y, z) => {
+    const m = new THREE.Mesh(unitBox, ghostMat);
+    m.scale.set(w, h, d);
+    m.position.set(x, y, z);
+    ghostCar.add(m);
+  };
+  addBox(4.55, .36, 1.94, 0, -.24, 0);        // lower tub
+  addBox(4.35, .32, 2.0, -.05, .02, 0);       // main hull
+  addBox(1.5, .3, .9, -.55, .34, 0);          // canopy hint
+  for (const wx of [CAR.WHEEL_X, -CAR.WHEEL_X])
+    for (const wz of [-CAR.WHEEL_Z, CAR.WHEEL_Z]) {
+      const w = new THREE.Mesh(
+        new THREE.CylinderGeometry(CAR.WHEEL_R, CAR.WHEEL_R, .3, 12).rotateX(Math.PI / 2), ghostMat);
+      w.position.set(wx, -.3, wz);
+      ghostCar.add(w);
+    }
+  ghostCar.visible = false;
+  scene.add(ghostCar);
+}
+
 // ---------- particle systems (port of the original ge factory) ----------
 function makeParticles(count, blending, opacity) {
   const mesh = new THREE.InstancedMesh(
@@ -1206,6 +1241,7 @@ const el = {
   lblAir: $('lblAir'), lblSpeed: $('lblSpeed'), lblHeight: $('lblHeight'), lblDist: $('lblDist'), lblRolls: $('lblRolls'),
   lblRowRolls: $('lblRowRolls'), unitRolls: $('unitRolls'), lblRowSoft: $('lblRowSoft'), lblRowLevel: $('lblRowLevel'), unitPts: $('unitPts'),
   achRow: $('achRow'), achCount: $('achCount'), achMsg: $('achMsg'), dailyBtn: $('dailyBtn'), dailyInfo: $('dailyInfo'),
+  ghostBtn: $('ghostBtn'),
 };
 
 // re-render every dictionary-driven DOM text node (init + language toggle)
@@ -1261,6 +1297,7 @@ function updateAllText() {
   }
   updateAchUI();
   updateDailyUI();
+  updateGhostUI();
   if (achMsgNames) el.achMsg.textContent = t('mAch', achMsgNames.join(t('achJoin')));
   updateBestLabels();
 }
@@ -1465,7 +1502,7 @@ const DEMO = new URLSearchParams(location.search).has('demo');
 let sim = null, startX = 0, screen = 'start', launchX = 0, newBest = false, retryT = 0, slipWordAt = -9;
 let best = 0;
 try { best = +localStorage.getItem('wallflip3.best') || 0; } catch {}
-const game = { playing: false, endAt: Infinity, shake: 0, wheel: 0, rolls: 0, score: null, acc: 0 };
+const game = { playing: false, endAt: Infinity, shake: 0, wheel: 0, rolls: 0, score: null, acc: 0, squash: 0, squashV: 0 };
 // demo bot: roll target fixed at launch, roll-then-brake sequencing
 const bot = { target: 0, plan: 0 };
 function onAirHook() {
@@ -1496,15 +1533,24 @@ function botInputs() {
 function resetRun() {
   sim = createSim({ onAir: onAirHook }, dailyConsts());
   startX = sim.state.x;
-  Object.assign(game, { playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0, runTime: 0, newTimeRec: false });
+  Object.assign(game, { playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0, runTime: 0, newTimeRec: false, squash: 0, squashV: 0 });
   bot.target = 0; bot.plan = 0;
   newBest = false; launchX = 0; retryT = 0;
   fx.clear(); smoke.clear();
   debris.length = 0; debrisMesh.count = 0;
   bodyMat.color.copy(bodyColor0);
+  body.scale.set(1, 1, 1);
   el.pops.replaceChildren();
   inputLog.length = 0; inputLogFrames = 0; inputLogLast = -1;  // fresh input log per run
   lastSubmit = null;
+  // archive a normal run as the same-session ghost; a daily run uses different
+  // physics, so it must not replace the line the player is trying to beat
+  if (ghostRec.length && !ghostRecDaily) ghostSession = ghostRec;
+  ghostRec = [];
+  ghostFrame = 0;
+  ghostPlay = ghostSavedFrames.length ? ghostSavedFrames : ghostSession;
+  ghostPlayStep = ghostSavedFrames.length ? ghostSavedStep : 1;
+  ghostRecDaily = dailyOn;
   closeBoard(); closeApiPanel(); closeNamePanel();
   screen = null;
   el.start.hidden = true;
@@ -1795,7 +1841,7 @@ const apiPanel = $('apiPanel'), apiInput = $('apiInput'),
   nameTitleEl = $('nameTitleEl'), nameHintEl = $('nameHintEl'),
   nameSendBtn = $('nameSendBtn'), nameSkipBtn = $('nameSkipBtn'),
   boardPanel = $('boardPanel'), boardTitleEl = $('boardTitleEl'),
-  boardRows = $('boardRows'), boardNoteEl = $('boardNoteEl'),
+  boardRows = $('boardRows'), boardNoteEl = $('boardNoteEl'), boardTabsEl = $('boardTabs'),
   boardCloseEl = $('boardCloseEl'), boardGear = $('boardGear');
 function panelOpen(p) { return p.classList.contains('on'); }
 function openApiPanel() {
@@ -1855,6 +1901,8 @@ function openBoard() {
   boardOn = true;
   onlineBoard = null;
   onlineHi = -1;
+  boardTab = apiBase() ? 'online' : 'local';
+  localBoard = loadLocalBoard();
   renderBoard();
   boardPanel.classList.add('on');
   const base = apiBase();
@@ -1863,14 +1911,34 @@ function openBoard() {
 }
 function closeBoard() { boardOn = false; boardPanel.classList.remove('on'); }
 function renderBoard() {
-  boardTitleEl.textContent = t('boardTitle') + (apiBase() ? ' · ' + t('onlineMark') : '');
+  const hasApi = !!apiBase();
+  const showOnline = hasApi && boardTab === 'online';
+  const list = showOnline ? onlineBoard : localBoard;
+  boardTitleEl.textContent = t('boardTitle') + (showOnline ? ' · ' + t('onlineMark') : '');
   boardCloseEl.textContent = t('boardClose');
   boardGear.textContent = t('apiBtn');
   boardNoteEl.hidden = true;
+  // online/local tabs (only when a rank API is configured)
+  boardTabsEl.replaceChildren();
+  if (hasApi) {
+    for (const [key, label] of [['online', t('tabOnline')], ['local', t('tabLocal')]]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'wf-tab' + (boardTab === key ? ' on' : '');
+      b.textContent = label;
+      b.addEventListener('click', () => {
+        if (boardTab === key) return;
+        boardTab = key;
+        if (key === 'online' && !onlineBoard && !onlinePending) fetchOnlineBoard(apiBase());
+        renderBoard();
+      });
+      boardTabsEl.appendChild(b);
+    }
+  }
   boardRows.replaceChildren();
   const head = document.createElement('div');
   head.className = 'wf-tr head';
-  [t('colRank'), '', t('colScore'), t('colRolls'), t('colTime')].forEach((txt, j) => {
+  [t('colRank'), showOnline ? '' : t('colDate'), t('colScore'), t('colRolls'), t('colTime')].forEach((txt, j) => {
     const c = document.createElement('span');
     if (j === 1) c.className = 'nm';
     else if (j > 1) c.className = 'num';
@@ -1878,22 +1946,24 @@ function renderBoard() {
     head.appendChild(c);
   });
   boardRows.appendChild(head);
-  if (!onlineBoard || !onlineBoard.length) {
+  if (!list || !list.length) {
     const empty = document.createElement('p');
     empty.className = 'wf-empty';
-    empty.textContent = onlinePending ? '…' : t('boardEmpty');
+    empty.textContent = showOnline && onlinePending ? '…' : t('boardEmpty');
     boardRows.appendChild(empty);
-    // offline note: a rank API is configured but the fetch failed / is not done
-    boardNoteEl.hidden = onlinePending || !!onlineBoard || !apiBase();
+    // offline note: online tab selected, a rank API is configured, fetch failed / not done
+    boardNoteEl.hidden = !(showOnline && !onlineBoard && !onlinePending);
     if (!boardNoteEl.hidden) boardNoteEl.textContent = t('boardOffline');
     return;
   }
-  for (let i = 0; i < onlineBoard.length; i++) {
-    const e = onlineBoard[i];
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i];
+    const hi = showOnline ? i === onlineHi : i === localHi;
     const row = document.createElement('div');
-    row.className = 'wf-tr' + (i === onlineHi ? ' hl' : '');
-    const cells = [`${i + 1}.`, e.n, String(e.s), String(e.r),
-      Number.isFinite(e.t) ? e.t.toFixed(1) + 's' : ''];
+    row.className = 'wf-tr' + (hi ? ' hl' : '');
+    const cells = showOnline
+      ? [`${i + 1}.`, e.n, String(e.s), String(e.r), Number.isFinite(e.t) ? e.t.toFixed(1) + 's' : '']
+      : [`${i + 1}.`, e.t, String(e.s), String(e.r), Number.isFinite(e.dur) ? e.dur.toFixed(1) + 's' : '—'];
     cells.forEach((txt, j) => {
       const c = document.createElement('span');
       if (j === 1) c.className = 'nm';
@@ -1939,6 +2009,127 @@ boardGear.addEventListener('click', e => {
   openApiPanel();
 });
 
+// ---------- local leaderboard (top 10, localStorage only; ported from the 2D build) ----------
+let boardTab = 'local';   // overlay tab: 'online' | 'local'
+let localBoard = [];      // loaded local top-10
+let localHi = -1;         // highlighted index in the local list
+function loadLocalBoard() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('wallflip3.board') || '[]');
+    if (Array.isArray(raw)) {
+      return raw
+        .filter(e => e && Number.isFinite(e.s) && Number.isFinite(e.r) && typeof e.t === 'string')
+        .map(e => ({ s: e.s, r: e.r, t: e.t, dur: Number.isFinite(e.dur) ? e.dur : null }))
+        .sort((a, b) => b.s - a.s)
+        .slice(0, 10);
+    }
+  } catch (e) {}
+  return [];
+}
+function boardAddLocal() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const entry = {
+    s: game.score.total, r: sim.state.land.rolls,
+    t: `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`,
+    dur: Math.round(game.runTime * 10) / 10,
+  };
+  const b = loadLocalBoard();
+  let i = 0;
+  while (i < b.length && b[i].s >= entry.s) i++;
+  b.splice(i, 0, entry);
+  if (b.length > 10) b.length = 10;
+  try { localStorage.setItem('wallflip3.board', JSON.stringify(b)); } catch (e) {}
+  localHi = i < 10 ? i : -1;
+}
+
+// ---------- ghost car (best-run replay, visual only; ported from the 2D build) ----------
+// Frames are [x, y, z, a, b, c, m]: m=0 road (a = body pitch th),
+// m=1 air (a=roll, b=pitch, c=yaw). Captured every 2nd physics substep (120 Hz).
+const GHOST_CAP = 3000;               // max recorded frames (~25 s at 120 Hz capture)
+let ghostOn = true, ghostBest = 0;
+let ghostSavedFrames = [], ghostSavedStep = 1;
+let ghostSession = [];                // previous run's recording (same-session ghost fallback)
+let ghostRec = [];                    // current run recording (120 Hz)
+let ghostRecDaily = false;            // the recording in ghostRec was a daily-challenge run
+let ghostFrame = 0;                   // physics substeps since run start (playback clock)
+let ghostPlay = [], ghostPlayStep = 1;// trajectory replayed in the current run
+try { ghostOn = localStorage.getItem('wallflip3.ghostOn') !== '0'; } catch (e) {}
+function loadGhost() {
+  try {
+    const g = JSON.parse(localStorage.getItem('wallflip3.ghost') || 'null');
+    if (g && Array.isArray(g.frames) && g.frames.length) {
+      ghostSavedFrames = g.frames;
+      ghostSavedStep = g.step === 2 ? 2 : 1;
+      ghostBest = +g.best || 0;
+    }
+  } catch (e) {}
+}
+loadGhost();
+function saveGhost() {
+  if (!ghostRec.length) return;
+  let step = 1, frames = ghostRec;
+  try {
+    let json = JSON.stringify({ best: game.score.total, step, frames });
+    if (json.length > 60000) {        // quota safety: keep every 2nd point (60 Hz)
+      step = 2;
+      frames = frames.filter((_, i) => (i & 1) === 0);
+      json = JSON.stringify({ best: game.score.total, step, frames });
+    }
+    localStorage.setItem('wallflip3.ghost', json);
+    ghostBest = game.score.total;
+    ghostSavedFrames = frames;
+    ghostSavedStep = step;
+    showNetMsg(t('ghostSaved'), false);
+  } catch (e) {}
+}
+function toggleGhost() {
+  ghostOn = !ghostOn;
+  try { localStorage.setItem('wallflip3.ghostOn', ghostOn ? '1' : '0'); } catch (e) {}
+  updateGhostUI();
+}
+function updateGhostUI() {
+  el.ghostBtn.textContent = `${t('ghostBtn')}${lang === 'tc' ? '：' : ': '}${ghostOn ? t('ghostOn') : t('ghostOff')}`;
+  el.ghostBtn.classList.toggle('on', ghostOn);
+}
+el.ghostBtn.addEventListener('click', e => {
+  e.stopPropagation(); // keep the start-screen click (start) from firing
+  sfx.click();
+  toggleGhost();
+  el.ghostBtn.blur();
+});
+function ghostRecordFrame() {
+  if (!ghostOn) return;               // a hidden ghost does not record or advance the clock
+  ghostFrame++;
+  if ((ghostFrame & 1) === 1 && ghostRec.length < GHOST_CAP) {
+    const st = sim.state;
+    if (st.mode === 'road' || st.mode === 'air') {
+      ghostRec.push(st.mode === 'road'
+        ? [+st.x.toFixed(2), +st.y.toFixed(2), +st.z.toFixed(2), +st.th.toFixed(3), 0, 0, 0]
+        : [+st.x.toFixed(2), +st.y.toFixed(2), +st.z.toFixed(2), +st.roll.toFixed(3), +st.pitch.toFixed(3), +st.yaw.toFixed(3), 1]);
+    }
+  }
+}
+function updateGhost() {
+  if (!ghostOn || screen === 'start' || !ghostPlay.length) { ghostCar.visible = false; return; }
+  const idx = Math.floor(ghostFrame / (2 * ghostPlayStep));
+  const last = ghostPlay.length - 1;
+  let a = .3;
+  if (idx >= last) {                  // recording ended (best run's touchdown): fade out
+    a = .3 * (1 - (idx - last) * ghostPlayStep / 60);
+    if (a <= 0) { ghostCar.visible = false; return; }
+  }
+  const f = ghostPlay[Math.min(idx, last)];
+  ghostMat.opacity = a;
+  ghostCar.visible = true;
+  ghostCar.position.set(f[0], f[1], f[2]);
+  if (f[6]) {
+    qYaw.setFromAxisAngle(Y_AXIS, f[5]);
+    qRoll.setFromAxisAngle(X_AXIS, f[3]);
+    qPitch.setFromAxisAngle(Z_AXIS, f[4]);
+    ghostCar.quaternion.copy(qYaw).multiply(qRoll).multiply(qPitch);
+  } else ghostCar.quaternion.setFromAxisAngle(Z_AXIS, f[3]);
+}
+
 // ---------- event effects ----------
 function crashFx(x, y, z) {
   el.flash.animate([{ opacity: .85 }, { opacity: 0 }], { duration: 500, easing: 'ease-out' });
@@ -1975,14 +2166,19 @@ function crashFx(x, y, z) {
 }
 function landFx(ev, st) {
   game.score = scoreOf(st.land);
+  // touchdown feedback: body squash spring + a small camera jolt on firm landings
+  game.squashV = clamp(st.land.fall / 6, 0, 1.2);
+  if (st.land.fall > 3) game.shake = Math.max(game.shake, .3);
   // run timer: s.time accumulates from the fresh sim created at resetRun
   game.runTime = st.time;
-  let bestTime = 0;
-  try { bestTime = +localStorage.getItem('wallflip3.bestTime') || 0; } catch (e) {}
-  game.newTimeRec = !bestTime || game.runTime < bestTime;
-  if (game.newTimeRec) { try { localStorage.setItem('wallflip3.bestTime', game.runTime.toFixed(2)); } catch (e) {} }
-  if (dailyOn && dailyDateValid()) updateDailyBest(game.score.total);
-  unlockAchievements();
+  if (!DEMO) { // demo runs never touch records / achievements / daily best
+    let bestTime = 0;
+    try { bestTime = +localStorage.getItem('wallflip3.bestTime') || 0; } catch (e) {}
+    game.newTimeRec = !bestTime || game.runTime < bestTime;
+    if (game.newTimeRec) { try { localStorage.setItem('wallflip3.bestTime', game.runTime.toFixed(2)); } catch (e) {} }
+    if (dailyOn && dailyDateValid()) updateDailyBest(game.score.total);
+    unlockAchievements();
+  }
   vib(game.score.total >= 95 ? [20, 30, 20] : 25);
   popAt(ev.x, 3, st.z, pick(t('popLand')), 'hsl(150 70% 45%)');
   const q = (game.score.soft + game.score.level) / 50;
@@ -2048,10 +2244,14 @@ function showResult() {
   el.resWin.hidden = !win;
   if (win) {
     const sc = game.score, land = st.land;
-    if (sc.total > best) {
-      best = sc.total; newBest = true;
-      try { localStorage.setItem('wallflip3.best', String(best)); } catch {}
-      sfx.best();
+    if (!DEMO) { // demo runs never write best / board / ghost
+      if (sc.total > best) {
+        best = sc.total; newBest = true;
+        try { localStorage.setItem('wallflip3.best', String(best)); } catch {}
+        sfx.best();
+      }
+      if (sc.total > 0) boardAddLocal();
+      if (ghostOn && !dailyOn && sc.total > ghostBest) saveGhost();
     }
     let rank = RANKS[RANKS.length - 1], rcol = rank[2];
     for (const r of RANKS) if (sc.total >= r[0]) { rank = r; rcol = r[2]; break; }
@@ -2113,6 +2313,11 @@ function updateCar(dt, tm) {
     carRoot.quaternion.copy(qYaw).multiply(qRoll).multiply(qPitch);
   }
   carRoot.updateMatrixWorld();
+  // touchdown squash spring (visual, same response as the 2D build)
+  game.squashV += -game.squash * 90 * dt - game.squashV * 9 * dt;
+  game.squash += game.squashV * dt;
+  const sq = clamp(game.squash, -.4, .4);
+  body.scale.set(1 + sq * .3, 1 - sq, 1 + sq * .3);
   if (st.mode === 'road') game.wheel = -st.u / CAR.WHEEL_R;
   else if (st.mode === 'landed') game.wheel -= Math.abs(st.vx) * dt / CAR.WHEEL_R;
   else game.wheel -= dt * 18;
@@ -2203,8 +2408,8 @@ function updateCar(dt, tm) {
   shadow.position.set(st.x, .08, st.z);
   shadow.material.opacity = .6 * clamp(1 - h / 22, .1, 1);
   shadow.scale.setScalar(1 + h * .04);
-  // UFO easter egg
-  ufo.group.position.set(st.x + Math.sin(tm * .35) * 55, 2e3 + Math.sin(tm * 1.3) * 1.5, -90);
+  // UFO easter egg (fog disabled on its materials; keep it inside the far plane so it is visible)
+  ufo.group.position.set(st.x + Math.sin(tm * .35) * 55, 55 + Math.sin(tm * 1.3) * 2, -90);
   ufo.group.rotation.y += dt * .8;
   ufo.lights.forEach((m, i) => m.material.color.setHSL((tm * .6 + i / 12) % 1, 1, (Math.floor(tm * 4) + i) % 2 ? .65 : .4));
 }
@@ -2353,6 +2558,7 @@ renderer.setAnimationLoop(now => {
       const inp = DEMO ? botInputs() : human;
       sim.step(BASE.STEP, inp);
       if (screen === null) logInputFrame(inp); // input bitmask log (replay verification)
+      ghostRecordFrame();
     }
   }
   processEvents();
@@ -2362,6 +2568,7 @@ renderer.setAnimationLoop(now => {
   }
   updateHud();
   updateCar(dt, t);
+  updateGhost();
   updateCamera(dt);
   stars.position.copy(camera.position);
   if (game.shake > 0) {
