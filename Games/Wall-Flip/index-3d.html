@@ -83,20 +83,56 @@
   .hudtop { position: absolute; top: 0; left: 0; right: 0; min-height: 48px; height: 48px; display: flex; gap: 20px;
     align-items: center; padding: 0 112px 0 188px; background: var(--ground); border-bottom: 1px solid var(--rule); }
   .wf-view-switch {
-    position: fixed; top: 0; right: 12px; z-index: 32;
-    display: flex; align-items: center; height: 48px; gap: 2px;
+    position: fixed; top: 6px; right: 12px; z-index: 32;
+    display: flex; align-items: center; height: 36px; gap: 0;
+    padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--raised);
   }
   .wf-view-switch button {
-    height: 32px; padding: 0 8px; border: 0; background: transparent; color: var(--muted);
-    cursor: pointer; font: 500 14px/1 var(--sans);
+    height: 30px; min-width: 40px; padding: 0 12px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--muted);
+    cursor: pointer; font: 600 13px/1 var(--sans);
   }
-  .wf-view-switch button[aria-pressed="true"] { color: var(--text); font-weight: 600; }
-  .wf-view-switch button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .wf-view-switch button[aria-pressed="true"] {
+    color: var(--ground); background: var(--mint);
+    box-shadow: 0 0 16px rgba(111, 240, 208, .45);
+  }
+  .wf-view-switch button:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
   .wf-view-toast {
     position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
     transform: translateX(-50%); z-index: 35; max-width: min(92vw, 420px);
     padding: 8px 14px; border-radius: 999px; background: var(--surface); color: var(--text); text-align: center;
     font: 500 14px/1.4 var(--sans); opacity: 0; pointer-events: none;
+  }
+  .wf-mode-pick { margin: 4px 0 18px; text-align: center; }
+  .wf-mode-pick-label {
+    margin: 0 0 10px; font: 600 11px/1.2 var(--sans);
+    letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  }
+  .wf-mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .wf-mode-card {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    min-height: 88px; padding: 14px 10px 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,.14);
+    background: rgba(12,13,15,.55); color: var(--muted); cursor: pointer;
+    font: 500 13px/1.25 var(--sans);
+    transition: border-color .2s ease, box-shadow .2s ease, color .2s ease, transform .2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wf-mode-card .ico { font-size: 22px; line-height: 1; filter: grayscale(.35); opacity: .85; }
+  .wf-mode-card .ttl { font: 600 15px/1.2 var(--sans); color: inherit; }
+  .wf-mode-card .dsc { font: 400 11px/1.35 var(--sans); color: var(--faint); }
+  .wf-mode-card[aria-pressed="true"] {
+    color: var(--text); border-color: rgba(111,240,208,.9);
+    background: linear-gradient(160deg, rgba(111,240,208,.16), rgba(12,13,15,.85) 55%);
+    box-shadow: 0 0 0 1px rgba(111,240,208,.35), 0 0 28px rgba(111,240,208,.4), inset 0 0 22px rgba(111,240,208,.08);
+    animation: wf-mode-pulse 2.2s ease-in-out infinite;
+  }
+  .wf-mode-card[aria-pressed="true"] .ico { filter: none; opacity: 1; text-shadow: 0 0 12px rgba(111,240,208,.8); }
+  .wf-mode-card[aria-pressed="true"] .dsc { color: var(--muted); }
+  .wf-mode-card:hover { border-color: rgba(255,255,255,.28); color: var(--text); }
+  .wf-mode-card:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
+  @keyframes wf-mode-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(111,240,208,.35), 0 0 22px rgba(111,240,208,.32), inset 0 0 18px rgba(111,240,208,.06); }
+    50% { box-shadow: 0 0 0 1px rgba(111,240,208,.55), 0 0 36px rgba(111,240,208,.55), inset 0 0 26px rgba(111,240,208,.12); }
   }
   .wf-view-toast.on { opacity: 1; }
   .panel { display: flex; align-items: center; gap: 8px; background: transparent; border: 0; padding: 0; }
@@ -122,7 +158,7 @@
   @media (max-width: 1100px) { .side { display: none; } }
   @media (max-width: 720px) {
     #backlink { height: 40px; font-size: 13px; }
-    .wf-view-switch { height: 40px; }
+    .wf-view-switch { top: 4px; }
     .hudtop { height: auto; flex-wrap: wrap; margin-top: 40px; padding: 8px 12px; gap: 10px 16px; border-bottom: 0; }
     #best { display: none; }
   }
@@ -220,9 +256,13 @@
   @media (max-width: 420px) {
     #start { padding: 56px 12px 16px; }
     #start .sheet { padding: 20px 16px 16px; }
+    .wf-mode-card { min-height: 80px; padding: 12px 8px 10px; }
+    .wf-mode-card .ttl { font-size: 14px; }
+    .wf-mode-card .dsc { font-size: 10px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .pop, #result { animation: none; }
+    .wf-mode-card[aria-pressed="true"] { animation: none; }
   }
 </style>
 </head>
@@ -297,6 +337,21 @@
   <p id="dailyInfo" hidden></p>
   <button id="ghostBtn" type="button"></button>
   <button id="boardBtn" type="button"></button>
+  <div id="startModePick" class="wf-mode-pick" data-testid="start-mode-pick" role="group" aria-label="顯示模式">
+    <p class="wf-mode-pick-label" id="startModePickLabel"></p>
+    <div class="wf-mode-cards">
+      <button type="button" class="wf-mode-card" data-view="2d" data-testid="start-mode-2d" aria-pressed="false">
+        <span class="ico" aria-hidden="true">▣</span>
+        <span class="ttl" data-role="title"></span>
+        <span class="dsc" data-role="desc"></span>
+      </button>
+      <button type="button" class="wf-mode-card" data-view="3d" data-testid="start-mode-3d" aria-pressed="true">
+        <span class="ico" aria-hidden="true">◈</span>
+        <span class="ttl" data-role="title"></span>
+        <span class="dsc" data-role="desc"></span>
+      </button>
+    </div>
+  </div>
   <button id="startBtn"></button>
   <p id="startBest" hidden></p>
   </div>
@@ -434,6 +489,9 @@ const STR = {
     // 3D-specific
     boardOffline: '無法連線排名伺服器',
     viewModeLabel: '顯示模式', view2d: '2D', view3d: '3D',
+    viewModePickLabel: '選擇顯示模式',
+    view2dTitle: '2D 經典', view2dDesc: '平面畫布 · 輕量流暢',
+    view3dTitle: '3D 立體', view3dDesc: 'Three.js 夜景 · 沉浸感',
     viewConfirmTitle: '切換為 2D？',
     viewConfirmHint: '切換會結束目前這局並重新載入。',
     viewConfirmOk: '切換', viewConfirmCancel: '取消',
@@ -493,6 +551,9 @@ const STR = {
     // 3D-specific
     boardOffline: 'Could not reach the rank server',
     viewModeLabel: 'View mode', view2d: '2D', view3d: '3D',
+    viewModePickLabel: 'Choose view mode',
+    view2dTitle: '2D Classic', view2dDesc: 'Flat canvas · light & smooth',
+    view3dTitle: '3D Stereo', view3dDesc: 'Three.js night scene · immersive',
     viewConfirmTitle: 'Switch to 2D?',
     viewConfirmHint: 'This ends the current run and reloads the other view.',
     viewConfirmOk: 'Switch', viewConfirmCancel: 'Cancel',
@@ -509,6 +570,8 @@ function setLang(l) { lang = l; try { localStorage.setItem('wallflip3.lang', l);
 const VIEW_MODE_KEY = 'wallflip.viewMode';
 const VIEW_HERE = '3d';
 const viewSwitchEl = document.getElementById('viewSwitch');
+const startModePickEl = document.getElementById('startModePick');
+const startModePickLabelEl = document.getElementById('startModePickLabel');
 const viewToastEl = document.getElementById('viewToast');
 const viewConfirmEl = document.getElementById('viewConfirm');
 const viewConfirmTitleEl = document.getElementById('viewConfirmTitle');
@@ -527,13 +590,31 @@ function showViewToast(msg) {
   clearTimeout(viewToastTimer);
   viewToastTimer = setTimeout(() => viewToastEl.classList.remove('on'), 4200);
 }
-function syncViewModeChrome() {
-  if (!viewSwitchEl) return;
-  viewSwitchEl.setAttribute('aria-label', t('viewModeLabel'));
-  for (const btn of viewSwitchEl.querySelectorAll('button[data-view]')) {
+function syncViewModeButtons(root) {
+  if (!root) return;
+  for (const btn of root.querySelectorAll('button[data-view]')) {
     const mode = btn.getAttribute('data-view');
-    btn.textContent = mode === '3d' ? t('view3d') : t('view2d');
-    btn.setAttribute('aria-pressed', mode === VIEW_HERE ? 'true' : 'false');
+    const on = mode === VIEW_HERE;
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (btn.classList.contains('wf-mode-card')) {
+      const ttl = btn.querySelector('[data-role="title"]');
+      const dsc = btn.querySelector('[data-role="desc"]');
+      if (ttl) ttl.textContent = mode === '3d' ? t('view3dTitle') : t('view2dTitle');
+      if (dsc) dsc.textContent = mode === '3d' ? t('view3dDesc') : t('view2dDesc');
+    } else {
+      btn.textContent = mode === '3d' ? t('view3d') : t('view2d');
+    }
+  }
+}
+function syncViewModeChrome() {
+  if (viewSwitchEl) {
+    viewSwitchEl.setAttribute('aria-label', t('viewModeLabel'));
+    syncViewModeButtons(viewSwitchEl);
+  }
+  if (startModePickEl) {
+    startModePickEl.setAttribute('aria-label', t('viewModeLabel'));
+    if (startModePickLabelEl) startModePickLabelEl.textContent = t('viewModePickLabel');
+    syncViewModeButtons(startModePickEl);
   }
   if (viewConfirmTitleEl) viewConfirmTitleEl.textContent = t('viewConfirmTitle');
   if (viewConfirmHintEl) viewConfirmHintEl.textContent = t('viewConfirmHint');
@@ -561,16 +642,29 @@ function requestViewMode(mode) {
   }
   navigateToView(mode);
 }
-if (viewSwitchEl) {
-  viewSwitchEl.addEventListener('pointerdown', e => e.stopPropagation());
-  viewSwitchEl.addEventListener('click', e => {
+function bindViewModeGroup(el) {
+  if (!el) return;
+  el.addEventListener('pointerdown', e => e.stopPropagation());
+  el.addEventListener('click', e => {
     e.stopPropagation();
     const btn = e.target && e.target.closest && e.target.closest('button[data-view]');
     if (!btn) return;
     try { sfx.click(); } catch (err) {}
     requestViewMode(btn.getAttribute('data-view'));
   });
+  el.addEventListener('keydown', e => {
+    if (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight' && e.code !== 'ArrowUp' && e.code !== 'ArrowDown') return;
+    const buttons = [...el.querySelectorAll('button[data-view]')];
+    const i = buttons.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = (e.code === 'ArrowRight' || e.code === 'ArrowDown') ? 1 : -1;
+    buttons[(i + dir + buttons.length) % buttons.length].focus();
+  });
 }
+bindViewModeGroup(viewSwitchEl);
+bindViewModeGroup(startModePickEl);
 if (viewConfirmOkEl) viewConfirmOkEl.addEventListener('click', () => {
   const mode = pendingViewTarget; closeViewConfirm(); if (mode) navigateToView(mode);
 });
@@ -1502,7 +1596,7 @@ function domTyping(e) {
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return true;
   if (el.isContentEditable) return true;
-  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-panel')) return true;
+  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel')) return true;
   return apiPanel.classList.contains('on') || namePanel.classList.contains('on') ||
     (viewConfirmEl && viewConfirmEl.classList.contains('on'));
 }

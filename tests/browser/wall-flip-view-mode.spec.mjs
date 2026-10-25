@@ -34,6 +34,7 @@ async function openWallFlip2d(page) {
   await page.goto('./Games/Wall-Flip/');
   await expect(page.locator('body[data-view-mode="2d"]')).toBeVisible();
   await expect(page.getByTestId('view-mode-switch')).toBeVisible();
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
   await expect(page.locator('canvas#c')).toBeVisible();
 }
 
@@ -62,22 +63,29 @@ test('wall-flip: 2D start screen renders and exposes view switch', async ({ page
   await openWallFlip2d(page);
   await expect(page.getByTestId('view-mode-2d')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('view-mode-3d')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('start-mode-2d')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('start-mode-3d')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('start-mode-2d')).toContainText(/2D/);
+  await expect(page.getByTestId('start-mode-3d')).toContainText(/3D/);
   await expect.poll(() => canvasHasInk(page, 'canvas#c'), { timeout: 8_000 }).toBe(true);
   const stored = await page.evaluate(() => localStorage.getItem('wallflip.viewMode'));
   expect(stored).toBe('2d');
 });
 
-test('wall-flip: can switch to 3D, preference persists, and 3D renders', async ({ page, isMobile }) => {
+test('wall-flip: start-panel mode card switches to 3D and preference persists', async ({ page, isMobile }) => {
   test.skip(!includesGame('Wall-Flip'), 'selective CI');
   await openWallFlip2d(page);
 
-  const threeBtn = page.getByTestId('view-mode-3d');
-  if (isMobile) await threeBtn.tap();
-  else await threeBtn.click();
+  const threeCard = page.getByTestId('start-mode-3d');
+  await expect(threeCard).toBeVisible();
+  if (isMobile) await threeCard.tap();
+  else await threeCard.click();
 
   await expect(page).toHaveURL(/index-3d\.html/);
   await expect(page.locator('body[data-view-mode="3d"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#stage canvas')).toBeVisible();
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
+  await expect(page.getByTestId('start-mode-3d')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('view-mode-3d')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#start')).toBeVisible();
   await expect.poll(async () => {
@@ -94,38 +102,52 @@ test('wall-flip: can switch to 3D, preference persists, and 3D renders', async (
   await page.goto('./Games/Wall-Flip/');
   await expect(page).toHaveURL(/index-3d\.html/);
   await expect(page.locator('body[data-view-mode="3d"]')).toBeVisible();
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
 });
 
-test('wall-flip: switch back to 2D is remembered', async ({ page, isMobile }) => {
+test('wall-flip: start-panel card switches back to 2D and is remembered', async ({ page, isMobile }) => {
   test.skip(!includesGame('Wall-Flip'), 'selective CI');
   await resetViewModeOnce(page, '3d');
   await page.goto('./Games/Wall-Flip/index-3d.html');
   await expect(page.locator('body[data-view-mode="3d"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
 
-  const twoBtn = page.getByTestId('view-mode-2d');
-  if (isMobile) await twoBtn.tap();
-  else await twoBtn.click();
+  const twoCard = page.getByTestId('start-mode-2d');
+  if (isMobile) await twoCard.tap();
+  else await twoCard.click();
 
   await expect(page.locator('body[data-view-mode="2d"]')).toBeVisible({ timeout: 10_000 });
   await expect(page).not.toHaveURL(/index-3d\.html/);
   await expect(page.locator('canvas#c')).toBeVisible();
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
+  await expect(page.getByTestId('start-mode-2d')).toHaveAttribute('aria-pressed', 'true');
   const stored = await page.evaluate(() => localStorage.getItem('wallflip.viewMode'));
   expect(stored).toBe('2d');
 });
 
-test('wall-flip: focused controls do not fire Space start shortcut', async ({ page }) => {
+test('wall-flip: focused start-mode card Space does not start the game', async ({ page }) => {
   test.skip(!includesGame('Wall-Flip'), 'selective CI');
   await openWallFlip2d(page);
-  await page.getByTestId('view-mode-3d').click();
+  await page.getByTestId('start-mode-3d').click();
   await expect(page.locator('#start')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
 
-  // Focus the already-active 3D pill: Space should activate the button (no-op) and
+  // Focus the already-active 3D card: Space should activate the button (no-op) and
   // must NOT be handled as the game "start" shortcut that hides #start.
-  await page.getByTestId('view-mode-3d').focus();
+  await page.getByTestId('start-mode-3d').focus();
   await page.keyboard.press('Space');
   await page.waitForTimeout(200);
   await expect(page.locator('#start')).toBeVisible();
   await expect(page.locator('body[data-view-mode="3d"]')).toBeVisible();
+
+  // Arrow keys move focus between the two start-panel cards.
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByTestId('start-mode-2d')).toBeFocused();
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(200);
+  // Space on the inactive card navigates to 2D — still not a game start.
+  await expect(page.locator('body[data-view-mode="2d"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
 
   // API URL input owns the keyboard while focused (HUD gear is hidden on start).
   await page.evaluate(() => {
@@ -137,8 +159,7 @@ test('wall-flip: focused controls do not fire Space start shortcut', async ({ pa
   await page.keyboard.type(' ');
   await page.keyboard.press('Space');
   await page.waitForTimeout(150);
-  await expect(page.locator('#start')).toBeVisible();
+  await expect(page.getByTestId('start-mode-pick')).toBeVisible();
   await expect(page.locator('#apiPanel')).toHaveClass(/on/);
-  // Space typed into the field — game must not have started.
   await expect(apiInput).toHaveValue(/ /);
 });
