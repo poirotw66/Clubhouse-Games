@@ -527,7 +527,7 @@ export default function App(): React.ReactElement {
             <button
               type="button"
               onClick={startRun}
-              className="cc-cta min-h-[48px] w-full rounded-[0.95rem] px-8 py-3 text-base font-black tracking-wide"
+              className="cc-cta min-h-[52px] w-full rounded-[0.35rem] px-8 py-3.5 text-lg font-black tracking-wide"
             >
               投幣開始
             </button>
