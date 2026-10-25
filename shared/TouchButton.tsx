@@ -4,22 +4,27 @@ const buttonStyle: React.CSSProperties = {
   minWidth: 44,
   minHeight: 44,
   padding: '0 14px',
-  borderRadius: 12,
-  border: 'none',
-  background: '#334155',
-  color: '#fff',
+  borderRadius: 8,
+  border: '1px solid rgba(165, 243, 252, 0.28)',
+  background: '#0f1a2c',
+  color: '#ecfeff',
   fontWeight: 700,
   fontSize: 15,
+  fontFamily: "'Chakra Petch', 'Noto Sans TC', system-ui, sans-serif",
+  boxShadow: '0 0 18px rgba(45, 212, 191, 0.18)',
   touchAction: 'manipulation',
   userSelect: 'none',
   WebkitUserSelect: 'none',
   cursor: 'pointer',
-  transition: 'filter 80ms ease, transform 80ms ease',
+  transition: 'filter 80ms ease, transform 80ms ease, box-shadow 80ms ease',
 };
 
 const accentStyle: React.CSSProperties = {
   ...buttonStyle,
-  background: '#b45309',
+  background: '#2dd4bf',
+  color: '#042f2e',
+  border: '1px solid rgba(165, 243, 252, 0.55)',
+  boxShadow: '0 0 24px rgba(45, 212, 191, 0.45)',
 };
 
 const pressedStyle: React.CSSProperties = {

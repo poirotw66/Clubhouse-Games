@@ -48,20 +48,23 @@ export function JuiceSettingsPanel({
       className={className}
       data-juice-settings="1"
       style={{
-        border: '1px solid rgba(148,163,184,0.35)',
-        borderRadius: 12,
+        border: '1px solid rgba(45,212,191,0.4)',
+        borderRadius: 10,
         padding: compact ? '10px 12px' : '12px 14px',
         margin: 0,
         minWidth: 0,
+        background: 'rgba(4, 12, 22, 0.55)',
+        boxShadow: 'inset 0 0 24px rgba(45,212,191,0.08), 0 0 18px rgba(45,212,191,0.12)',
       }}
     >
       {!hideLegend && (
         <legend
           style={{
             padding: '0 6px',
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'inherit',
+            fontSize: 14,
+            fontWeight: 700,
+            color: '#ecfeff',
+            textShadow: '0 0 12px rgba(45,212,191,0.45)',
           }}
         >
           手感與特效
@@ -119,11 +122,12 @@ export function JuiceSettingsPanel({
                   minHeight: 44,
                   minWidth: 44,
                   padding: '6px 12px',
-                  borderRadius: 999,
+                  borderRadius: 8,
                   border: active
-                    ? '1px solid rgba(56,189,248,0.9)'
+                    ? '1px solid rgba(45,212,191,0.95)'
                     : '1px solid rgba(100,116,139,0.7)',
-                  background: active ? 'rgba(14,165,233,0.25)' : 'transparent',
+                  background: active ? 'rgba(45,212,191,0.28)' : 'rgba(15,23,42,0.45)',
+                  boxShadow: active ? '0 0 18px rgba(45,212,191,0.35)' : 'none',
                   color: 'inherit',
                   cursor: 'pointer',
                   touchAction: 'manipulation',

@@ -3,9 +3,9 @@ import React, { useEffect } from 'react';
 export type ScoreFlashTone = 'good' | 'bad' | 'neutral';
 
 const TONE_CLASS: Record<ScoreFlashTone, string> = {
-  good: 'text-emerald-300 drop-shadow-[0_0_12px_rgba(52,211,153,0.8)]',
-  bad: 'text-red-400 drop-shadow-[0_0_12px_rgba(248,113,113,0.7)]',
-  neutral: 'text-amber-300 drop-shadow-[0_0_12px_rgba(252,211,77,0.7)]',
+  good: 'text-cyan-200 drop-shadow-[0_0_18px_rgba(45,212,191,0.95)]',
+  bad: 'text-rose-300 drop-shadow-[0_0_18px_rgba(251,113,133,0.9)]',
+  neutral: 'text-amber-200 drop-shadow-[0_0_18px_rgba(251,191,36,0.9)]',
 };
 
 interface ScoreFlashProps {
@@ -33,7 +33,7 @@ export function ScoreFlash({
       aria-live="polite"
     >
       <span
-        className={`font-black text-4xl sm:text-5xl tracking-wide animate-score-pop ${TONE_CLASS[tone]}`}
+        className={`font-black text-4xl sm:text-6xl tracking-tight animate-score-pop ${TONE_CLASS[tone]}`}
       >
         {text}
       </span>

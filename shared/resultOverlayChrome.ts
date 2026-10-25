@@ -207,39 +207,39 @@ export function resultOverlayChromeCss(p: string): string {
 .${p}__kicker {
   position: relative;
   z-index: 1;
-  margin: 0 0 0.55rem;
-  font-size: 0.85rem;
+  margin: 0 0 0.65rem;
+  font-size: clamp(1rem, 2.8vw, 1.2rem);
   font-weight: 800;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
+  font-family: 'Chakra Petch', 'Noto Sans TC', system-ui, sans-serif;
+  letter-spacing: 0.04em;
   color: #fde68a;
-  text-shadow: 0 0 22px rgba(251, 191, 36, 0.85), 0 0 40px rgba(251, 191, 36, 0.4);
+  text-shadow: 0 0 22px rgba(251, 191, 36, 0.95), 0 0 48px rgba(251, 191, 36, 0.5);
   animation: ${p}-fade-up 480ms ease both;
 }
 .${p}--record .${p}__kicker {
-  font-size: 0.95rem;
-  letter-spacing: 0.38em;
+  font-size: clamp(1.05rem, 3vw, 1.3rem);
   animation: ${p}-kicker-flash 1.1s ease-in-out infinite alternate;
 }
 .${p}__billboard {
   position: relative;
   z-index: 1;
   margin: 0 0 0.85rem;
-  font-size: clamp(2.4rem, 10vw, 4rem);
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: 0.04em;
+  font-family: 'Russo One', 'Noto Sans TC', system-ui, sans-serif;
+  font-size: clamp(2.7rem, 11vw, 4.4rem);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
   color: #ecfeff;
-  filter: drop-shadow(0 0 22px rgba(45, 212, 191, 0.75));
+  filter: drop-shadow(0 0 26px rgba(45, 212, 191, 0.9));
 }
 .${p}--lose .${p}__billboard {
   color: #ffe4e6;
-  filter: drop-shadow(0 0 22px rgba(244, 63, 94, 0.75));
+  filter: drop-shadow(0 0 26px rgba(244, 63, 94, 0.9));
 }
 .${p}--record .${p}__billboard {
   color: #fffbeb;
-  filter: drop-shadow(0 0 28px rgba(251, 191, 36, 0.9));
-  font-size: clamp(2.6rem, 11vw, 4.25rem);
+  filter: drop-shadow(0 0 34px rgba(251, 191, 36, 1));
+  font-size: clamp(2.9rem, 12vw, 4.7rem);
 }
 .${p}__char {
   display: inline-block;
@@ -281,17 +281,18 @@ export function resultOverlayChromeCss(p: string): string {
   z-index: 1;
   overflow: hidden;
   margin: 0 auto;
-  padding: 1.5rem 1.45rem 1.35rem;
-  border-radius: 1.25rem;
+  padding: 1.6rem 1.5rem 1.4rem;
+  border-radius: 1.75rem;
   border: 1px solid transparent;
   background:
-    linear-gradient(155deg, rgba(22, 34, 58, 0.94), rgba(5, 8, 18, 0.97)) padding-box,
-    linear-gradient(120deg, rgba(45, 212, 191, 0.75), rgba(165, 243, 252, 0.25), rgba(244, 114, 182, 0.65)) border-box;
+    linear-gradient(155deg, rgba(10, 18, 34, 0.96), rgba(3, 6, 14, 0.98)) padding-box,
+    linear-gradient(120deg, rgba(45, 212, 191, 0.9), rgba(165, 243, 252, 0.35), rgba(244, 114, 182, 0.8)) border-box;
   box-shadow:
-    0 32px 70px -16px rgba(0, 0, 0, 0.82),
-    0 0 0 1px rgba(45, 212, 191, 0.18),
-    0 0 60px rgba(45, 212, 191, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    0 32px 70px -16px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(45, 212, 191, 0.28),
+    0 0 72px rgba(45, 212, 191, 0.38),
+    0 0 110px rgba(244, 114, 182, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
   animation: ${p}-card-in 640ms cubic-bezier(0.12, 0.9, 0.2, 1) 60ms both;
   isolation: isolate;
 }
@@ -315,8 +316,8 @@ export function resultOverlayChromeCss(p: string): string {
   content: '';
   position: absolute;
   inset: 2px;
-  border-radius: calc(1.25rem - 2px);
-  background: linear-gradient(155deg, rgba(18, 28, 48, 0.96), rgba(5, 8, 18, 0.98));
+  border-radius: calc(1.75rem - 2px);
+  background: linear-gradient(155deg, rgba(10, 18, 34, 0.97), rgba(3, 6, 14, 0.99));
   z-index: -1;
 }
 .${p}__card--win {
@@ -504,27 +505,31 @@ export function resultOverlayChromeCss(p: string): string {
 }
 .${p}__primary {
   color: #042f2e;
-  background: linear-gradient(120deg, #5eead4 0%, #2dd4bf 35%, #67e8f9 55%, #f472b6 100%);
-  background-size: 220% 100%;
+  border-radius: 0.55rem;
+  background: #2dd4bf;
   box-shadow:
-    0 0 28px rgba(45, 212, 191, 0.55),
+    0 0 0 1px rgba(165, 243, 252, 0.45),
+    0 0 34px rgba(45, 212, 191, 0.7),
+    0 0 64px rgba(244, 114, 182, 0.25),
     0 8px 24px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.45);
-  animation: ${p}-cta-flow 3.2s ease-in-out infinite;
 }
 .${p}--lose .${p}__primary {
   color: #fff;
-  background: linear-gradient(120deg, #fb7185 0%, #e11d48 45%, #be123c 70%, #881337 100%);
+  background: #e11d48;
   box-shadow:
-    0 0 28px rgba(244, 63, 94, 0.55),
+    0 0 0 1px rgba(251, 113, 133, 0.55),
+    0 0 34px rgba(244, 63, 94, 0.7),
     0 8px 24px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .${p}--record .${p}__primary {
   color: #422006;
-  background: linear-gradient(120deg, #fef3c7 0%, #fde68a 30%, #fbbf24 55%, #f472b6 100%);
+  background: #fbbf24;
   box-shadow:
-    0 0 32px rgba(251, 191, 36, 0.65),
+    0 0 0 1px rgba(253, 224, 71, 0.65),
+    0 0 38px rgba(251, 191, 36, 0.8),
+    0 0 70px rgba(244, 114, 182, 0.22),
     0 8px 24px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
@@ -610,8 +615,8 @@ export function resultOverlayChromeCss(p: string): string {
   100% { transform: scale(1); }
 }
 @keyframes ${p}-kicker-flash {
-  from { opacity: 0.75; letter-spacing: 0.32em; }
-  to { opacity: 1; letter-spacing: 0.42em; text-shadow: 0 0 28px rgba(251, 191, 36, 1); }
+  from { opacity: 0.8; filter: brightness(0.95); }
+  to { opacity: 1; filter: brightness(1.15); text-shadow: 0 0 32px rgba(251, 191, 36, 1); }
 }
 @keyframes ${p}-glitch {
   0%, 90%, 100% { transform: none; opacity: 0.4; }
@@ -630,7 +635,6 @@ export function resultOverlayChromeCss(p: string): string {
   .${p}__card,
   .${p}__kicker,
   .${p}__subtitle,
-  .${p}__primary,
   .${p}__btn-shine,
   .${p}__aurora,
   .${p}__sparks,
