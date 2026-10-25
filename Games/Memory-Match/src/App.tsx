@@ -1,9 +1,22 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
-import { haptic, particles, shake } from '@clubhouse/shared/juice';
+import {
+  haptic,
+  loadJuiceSettings,
+  particles,
+  shake,
+  subscribeJuiceSettings,
+} from '@clubhouse/shared/juice';
 import {
   playCapture,
   playCard,
@@ -207,7 +220,7 @@ function FlipCard({
         <span
           className={`mm-face mm-face-front ${card.kind === 'insight' ? 'is-insight' : ''} ${
             card.kind === 'bomb' ? 'is-bomb' : ''
-          } ${hinted ? 'ring-2 ring-amber-400' : ''}`}
+          } ${hinted ? 'mm-face--hint' : ''}`}
           style={cardFaceStyle(card.face, card.kind)}
         >
           {!faceUsesPhoto(card.face) && (
@@ -216,12 +229,12 @@ function FlipCard({
             </span>
           )}
           {card.kind === 'insight' && (
-            <span className="absolute bottom-0.5 right-0.5 rounded bg-amber-500/90 px-1 text-[9px] sm:text-[10px] font-bold text-amber-950">
+            <span className="absolute bottom-0.5 right-0.5 rounded-[0.3rem] bg-amber-400 px-1 text-[9px] sm:text-[10px] font-bold text-amber-950 shadow-[0_0_10px_rgba(251,191,36,0.55)]">
               洞察
             </span>
           )}
           {card.kind === 'bomb' && (
-            <span className="absolute bottom-0.5 right-0.5 rounded bg-rose-600/90 px-1 text-[9px] sm:text-[10px] font-bold text-rose-50">
+            <span className="absolute bottom-0.5 right-0.5 rounded-[0.3rem] bg-rose-500 px-1 text-[9px] sm:text-[10px] font-bold text-rose-50 shadow-[0_0_10px_rgba(244,63,94,0.55)]">
               炸彈
             </span>
           )}
@@ -232,8 +245,37 @@ function FlipCard({
   );
 }
 
+function HudCell({
+  label,
+  value,
+  tone,
+  span,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: 'hot' | 'good';
+  span?: boolean;
+}) {
+  return (
+    <div className={`mm-hud__cell${span ? ' mm-hud__span' : ''}`}>
+      <span className="mm-hud__label">{label}</span>
+      <span className={`mm-hud__value${tone === 'hot' ? ' is-hot' : ''}${tone === 'good' ? ' is-good' : ''}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function starGlyphs(n: number): string {
   return '★'.repeat(Math.max(0, Math.min(3, n))) + '☆'.repeat(Math.max(0, 3 - n));
+}
+
+function syncJuiceFxAttr(fx: 'off' | 'low' | 'full'): void {
+  try {
+    document.documentElement.setAttribute('data-juice-fx', fx);
+  } catch {
+    /* ignore */
+  }
 }
 
 export default function App() {
@@ -521,6 +563,11 @@ export default function App() {
     },
     [roster.unlockedIndex, themeId, pairCount, beginBoard],
   );
+
+  useEffect(() => {
+    syncJuiceFxAttr(loadJuiceSettings().fx);
+    return subscribeJuiceSettings((settings) => syncJuiceFxAttr(settings.fx));
+  }, []);
 
   useEffect(() => {
     if (won || lost || versusOutcome) return;
@@ -932,12 +979,13 @@ export default function App() {
   if (screen === 'campaign') {
     return (
       <div
-        className="min-h-screen flex flex-col items-center p-3 sm:p-4 gap-3 relative"
+        className="mm-shell flex flex-col items-center p-3 sm:p-4 gap-3"
         style={shellBg()}
       >
         <BackToMenu />
-        <h1 className="text-xl sm:text-2xl font-bold tracking-wide mt-1">短戰役</h1>
-        <p className="text-sm text-slate-300 text-center max-w-md">
+        <h1 className="mm-title">短戰役</h1>
+        <p className="mm-title-sub">Campaign</p>
+        <p className="mm-meta max-w-md text-sm !text-slate-300">
           逐關解鎖機制；星數開啟下一章（第二章需 {CHAPTER_STAR_GATES[2]} 星，第三章需{' '}
           {CHAPTER_STAR_GATES[3]} 星）。
         </p>
@@ -946,7 +994,7 @@ export default function App() {
           const chStars = totalStarsInChapter(campaign, chapter);
           return (
             <section key={chapter} className="w-full max-w-xl flex flex-col gap-2">
-              <h2 className="text-base font-semibold text-slate-100">
+              <h2 className="text-base font-bold tracking-wide text-cyan-100">
                 第 {chapter} 章
                 {!unlocked ? ' · 未解鎖' : ` · ${chStars} 星`}
               </h2>
@@ -961,15 +1009,11 @@ export default function App() {
                       type="button"
                       disabled={!open}
                       onClick={() => startCampaignStage(i)}
-                      className={`min-h-[52px] w-full rounded-xl border px-3 py-2 text-left touch-manipulation disabled:opacity-40 ${
-                        open
-                          ? 'border-emerald-500/40 bg-slate-800/80 hover:bg-slate-700/80'
-                          : 'border-slate-700 bg-slate-900/60'
-                      }`}
+                      className="mm-list-card"
                     >
                       <div className="flex justify-between gap-2 items-baseline">
-                        <span className="font-medium text-slate-100">
-                          {i + 1}. {stage.name}
+                        <span className="font-bold text-cyan-50">
+                          {stage.name}
                         </span>
                         <span className="text-amber-300 text-sm tracking-widest" aria-label={`${stars} 星`}>
                           {starGlyphs(stars)}
@@ -983,19 +1027,15 @@ export default function App() {
             </section>
           );
         })}
-        <div className="flex flex-wrap gap-2 justify-center">
+        <div className="mm-actions">
           <button
             type="button"
             onClick={() => startCampaignStage(continueStageIndex(campaign))}
-            className="min-h-[44px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-medium touch-manipulation"
+            className="mm-btn mm-btn--primary"
           >
             繼續挑戰
           </button>
-          <button
-            type="button"
-            onClick={() => setScreen('play')}
-            className="min-h-[44px] px-5 rounded-xl border border-slate-500 bg-slate-800 touch-manipulation"
-          >
+          <button type="button" onClick={() => setScreen('play')} className="mm-btn mm-btn--ghost">
             返回
           </button>
         </div>
@@ -1006,12 +1046,13 @@ export default function App() {
   if (screen === 'roster') {
     return (
       <div
-        className="min-h-screen flex flex-col items-center p-3 sm:p-4 gap-3 relative"
+        className="mm-shell flex flex-col items-center p-3 sm:p-4 gap-3"
         style={shellBg()}
       >
         <BackToMenu />
-        <h1 className="text-xl sm:text-2xl font-bold tracking-wide mt-1">CPU 名冊</h1>
-        <p className="text-sm text-slate-300 text-center max-w-md">
+        <h1 className="mm-title">CPU 名冊</h1>
+        <p className="mm-title-sub">Roster</p>
+        <p className="mm-meta max-w-md text-sm !text-slate-300">
           每位對手打法不同。打贏可解鎖下一位。
         </p>
         <div className="w-full max-w-xl flex flex-col gap-2">
@@ -1024,59 +1065,94 @@ export default function App() {
                 type="button"
                 disabled={!open}
                 onClick={() => startVersusOpponent(opp.id)}
-                className={`min-h-[56px] w-full rounded-xl border px-3 py-2 text-left touch-manipulation disabled:opacity-40 ${
-                  open
-                    ? 'border-rose-400/40 bg-slate-800/80 hover:bg-slate-700/80'
-                    : 'border-slate-700 bg-slate-900/60'
-                }`}
+                className="mm-list-card is-roster"
               >
                 <div className="flex justify-between gap-2">
-                  <span className="font-medium text-slate-100">
+                  <span className="font-bold text-cyan-50">
                     {opp.name}
                     {!open ? ' · 未解鎖' : ''}
                   </span>
                   <span className="text-xs text-slate-400">{opp.tagline}</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">{opp.blurb}</p>
-                {wins > 0 && <p className="text-xs text-emerald-300/90 mt-1">勝場 {wins}</p>}
+                {wins > 0 && <p className="text-xs text-teal-300 mt-1">勝場 {wins}</p>}
               </button>
             );
           })}
         </div>
-        <button
-          type="button"
-          onClick={() => setScreen('play')}
-          className="min-h-[44px] px-5 rounded-xl border border-slate-500 bg-slate-800 touch-manipulation"
-        >
+        <button type="button" onClick={() => setScreen('play')} className="mm-btn mm-btn--ghost">
           返回
         </button>
       </div>
     );
   }
 
+  const hudCells = (() => {
+    if (mode === 'versus') {
+      return (
+        <>
+          <HudCell label="牌組" value={themeLabel} span />
+          <HudCell label="你" value={playerPairs} tone="good" />
+          <HudCell label={activeOpponent.name} value={cpuPairs} tone="hot" />
+          <HudCell
+            label="回合"
+            value={turnOwner === 'player' ? '你的回合' : `${activeOpponent.name}…`}
+            tone={turnOwner === 'cpu' ? 'hot' : 'good'}
+          />
+          {versusWins > 0 ? <HudCell label="勝場" value={versusWins} /> : null}
+        </>
+      );
+    }
+    return (
+      <>
+        <HudCell
+          label="盤面"
+          value={`${themeLabel} · ${faceLike}${flipNeed === 3 ? '組×3' : '對'}`}
+          span
+        />
+        <HudCell label="翻牌" value={moves} />
+        <HudCell label="連擊" value={combo} tone={combo > 0 ? 'good' : undefined} />
+        <HudCell label="分數" value={score} tone="good" />
+        <HudCell label={remain != null ? '剩餘' : '時間'} value={remain != null ? `${remain}s` : `${elapsed}s`} />
+        {mode === 'classic' && bestMoves != null ? (
+          <HudCell label="最佳翻" value={bestMoves} />
+        ) : null}
+        {mode === 'classic' && bestTime != null ? (
+          <HudCell label="最佳時" value={`${bestTime}s`} />
+        ) : null}
+        {mode === 'sprint' && bestSprint != null ? (
+          <HudCell label="最佳" value={`${bestSprint}s`} />
+        ) : null}
+        {mode === 'daily' && todayRecord ? (
+          <HudCell label="今日最佳" value={`${todayRecord.moves}/${todayRecord.elapsedSec}s`} />
+        ) : null}
+        {mode === 'daily' && streak > 0 ? <HudCell label="連續" value={`${streak} 天`} /> : null}
+        {bestScore != null && mode !== 'daily' && mode !== 'campaign' ? (
+          <HudCell label="最高分" value={bestScore} />
+        ) : null}
+        {mode === 'special' ? <HudCell label="洞察" value={`×${peekCharges}`} /> : null}
+        {activeStage?.mechanic === 'swap' ? <HudCell label="機制" value="互換" /> : null}
+        {activeStage?.mechanic === 'bomb' ? <HudCell label="機制" value="炸彈" tone="hot" /> : null}
+      </>
+    );
+  })();
+
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-start sm:justify-center p-3 sm:p-4 gap-2 sm:gap-3 relative"
+      className="mm-shell flex flex-col items-center justify-start sm:justify-center p-3 sm:p-4 gap-2 sm:gap-3"
       style={shellBg()}
     >
       <BackToMenu />
-      <h1 className="text-xl sm:text-2xl font-bold tracking-wide mt-1">記憶配對</h1>
+      <h1 className="mm-title">記憶配對</h1>
+      <p className="mm-title-sub">Memory Match</p>
 
       {showTip && (
-        <div
-          className="w-full max-w-xl rounded-xl border border-sky-500/40 bg-slate-900/85 px-3 py-2 text-sm text-slate-200 flex gap-2 items-start"
-          role="note"
-        >
+        <div className="mm-tip" role="note">
           <p className="flex-1 leading-snug">
             點牌翻開配對。可玩每日盤（同日同局）、短戰役（星數解鎖章節），或挑戰有個性的 CPU
             名冊。大盤面可先收合設定。
           </p>
-          <button
-            type="button"
-            onClick={dismissTip}
-            className="shrink-0 min-h-[36px] px-3 rounded-lg border border-slate-500 text-slate-200 touch-manipulation"
-            aria-label="關閉提示"
-          >
+          <button type="button" onClick={dismissTip} aria-label="關閉提示">
             知道了
           </button>
         </div>
@@ -1086,7 +1162,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setSettingsOpen((o) => !o)}
-          className="min-h-[40px] px-4 rounded-xl border border-slate-500/70 bg-slate-800/80 text-slate-200 text-sm touch-manipulation w-full sm:w-auto"
+          className="mm-settings-toggle"
           aria-expanded={settingsOpen}
           aria-controls="mm-settings"
         >
@@ -1094,9 +1170,9 @@ export default function App() {
         </button>
 
         {settingsOpen && (
-          <div id="mm-settings" className="w-full flex flex-col gap-2 items-center">
+          <div id="mm-settings" className="mm-settings-panel">
             <JuiceSettingsPanel className="w-full max-w-md text-slate-200" />
-            <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="模式">
+            <div className="mm-chip-row" role="group" aria-label="模式">
               {(
                 [
                   { id: 'classic' as const, label: '經典' },
@@ -1116,11 +1192,7 @@ export default function App() {
                     else if (id === 'versus') setScreen('roster');
                     else restart(pairCount, id, themeId, cpuDifficulty);
                   }}
-                  className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-                    mode === id
-                      ? 'border-emerald-400 bg-emerald-500/25 text-emerald-100'
-                      : 'border-slate-600 bg-slate-800/80 text-slate-300'
-                  }`}
+                  className={`mm-chip${mode === id ? ' is-mode' : ''}`}
                 >
                   {label}
                 </button>
@@ -1129,34 +1201,26 @@ export default function App() {
 
             {mode !== 'daily' && mode !== 'campaign' && (
               <>
-                <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="牌組">
+                <div className="mm-chip-row" role="group" aria-label="牌組">
                   {THEME_OPTIONS.map(({ id, label }) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => restart(pairCount, mode, id, cpuDifficulty)}
-                      className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-                        themeId === id
-                          ? 'border-violet-400 bg-violet-500/25 text-violet-100'
-                          : 'border-slate-600 bg-slate-800/80 text-slate-300'
-                      }`}
+                      className={`mm-chip${themeId === id ? ' is-theme' : ''}`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="盤面大小">
+                <div className="mm-chip-row" role="group" aria-label="盤面大小">
                   {pairChoices.map(({ count, label }) => (
                     <button
                       key={count}
                       type="button"
                       onClick={() => restart(count, mode, themeId, cpuDifficulty)}
-                      className={`min-h-[44px] px-4 rounded-full border touch-manipulation text-sm ${
-                        pairCount === count
-                          ? 'border-sky-400 bg-sky-500/25 text-sky-100'
-                          : 'border-slate-600 bg-slate-800/80 text-slate-300'
-                      }`}
+                      className={`mm-chip${pairCount === count ? ' is-size' : ''}`}
                     >
                       {label}
                     </button>
@@ -1166,17 +1230,13 @@ export default function App() {
             )}
 
             {mode === 'versus' && (
-              <button
-                type="button"
-                onClick={() => setScreen('roster')}
-                className="min-h-[44px] px-4 rounded-full border border-rose-400/50 bg-rose-500/15 text-rose-100 text-sm touch-manipulation"
-              >
+              <button type="button" onClick={() => setScreen('roster')} className="mm-chip is-versus">
                 對手：{activeOpponent.name} · 換人
               </button>
             )}
 
             {mode === 'daily' && (
-              <p className="text-xs text-slate-400 text-center">
+              <p className="mm-meta">
                 今日 {today}
                 {streak > 0 ? ` · 連續 ${streak} 天` : ''}
                 {todayRecord
@@ -1186,11 +1246,7 @@ export default function App() {
             )}
 
             {mode === 'campaign' && activeStage && (
-              <button
-                type="button"
-                onClick={() => setScreen('campaign')}
-                className="min-h-[40px] px-4 rounded-full border border-emerald-500/40 text-sm text-emerald-100 touch-manipulation"
-              >
+              <button type="button" onClick={() => setScreen('campaign')} className="mm-chip is-campaign">
                 關卡選單 · {activeStage.name}
               </button>
             )}
@@ -1198,84 +1254,50 @@ export default function App() {
         )}
       </div>
 
-      <p className="text-sm text-slate-300 text-center max-w-xl px-1">
-        {themeLabel} · {faceLike} {flipNeed === 3 ? '組×3' : '對'}
-        {mode === 'versus' ? (
-          <>
-            {' '}
-            · 你 {playerPairs} : {cpuPairs} {activeOpponent.name}
-            {' · '}
-            <span className={turnOwner === 'cpu' ? 'text-rose-300 font-medium' : 'text-emerald-300 font-medium'}>
-              {turnOwner === 'player' ? '你的回合' : `${activeOpponent.name} 思考中…`}
-            </span>
-            {versusWins > 0 ? ` · 勝場 ${versusWins}` : ''}
-          </>
-        ) : (
-          <>
-            {' · '}翻牌 {moves}
-            {' · '}連擊 {combo}
-            {' · '}分數 {score}
-            {remain != null ? ` · 剩餘 ${remain}s` : ` · ${elapsed}s`}
-            {mode === 'classic' && bestMoves != null ? ` · 最佳翻牌 ${bestMoves}` : ''}
-            {mode === 'classic' && bestTime != null ? ` · 最佳時間 ${bestTime}s` : ''}
-            {mode === 'sprint' && bestSprint != null ? ` · 最佳 ${bestSprint}s` : ''}
-            {mode === 'daily' && todayRecord
-              ? ` · 今日最佳 ${todayRecord.moves}／${todayRecord.elapsedSec}s`
-              : ''}
-            {mode === 'daily' && streak > 0 ? ` · 連續 ${streak} 天` : ''}
-            {bestScore != null && mode !== 'daily' && mode !== 'campaign'
-              ? ` · 最高分 ${bestScore}`
-              : ''}
-            {mode === 'special' ? ` · 洞察×${peekCharges}` : ''}
-            {activeStage?.mechanic === 'swap' ? ' · 互換中' : ''}
-            {activeStage?.mechanic === 'bomb' ? ' · 含炸彈' : ''}
-          </>
-        )}
-      </p>
-
-      <div
-        ref={gridRef}
-        data-mm-grid="1"
-        className={`relative grid ${gridColsClass(faceLike)} ${gridGapClass(faceLike)} ${boardWide}`}
-      >
-        {flashText && (
-          <ScoreFlash text={flashText} tone={flashTone} flashKey={flashKey} onDone={() => setFlashText('')} />
-        )}
-        {cards.map((card, i) => {
-          const show =
-            card.matched ||
-            flipped.includes(i) ||
-            hintFlash.includes(i) ||
-            peekFlash.includes(i);
-          return (
-            <FlipCard
-              key={card.id}
-              card={card}
-              show={show}
-              hinted={hintFlash.includes(i) || peekFlash.includes(i)}
-              missPulse={missPulse.includes(i)}
-              matchPulse={matchPulse.includes(i)}
-              dense={faceLike >= 18 || cards.length >= 30}
-              disabled={
-                locks ||
-                hintFlash.length > 0 ||
-                (mode === 'versus' && turnOwner !== 'player') ||
-                (!peekArmed && peekFlash.length > 0)
-              }
-              onClick={() => onCard(i)}
-            />
-          );
-        })}
+      <div className="mm-hud" aria-live="polite">
+        {hudCells}
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className={`mm-board-stage ${boardWide}`}>
+        <div
+          ref={gridRef}
+          data-mm-grid="1"
+          className={`relative grid ${gridColsClass(faceLike)} ${gridGapClass(faceLike)} w-full`}
+        >
+          {flashText && (
+            <ScoreFlash text={flashText} tone={flashTone} flashKey={flashKey} onDone={() => setFlashText('')} />
+          )}
+          {cards.map((card, i) => {
+            const show =
+              card.matched ||
+              flipped.includes(i) ||
+              hintFlash.includes(i) ||
+              peekFlash.includes(i);
+            return (
+              <FlipCard
+                key={card.id}
+                card={card}
+                show={show}
+                hinted={hintFlash.includes(i) || peekFlash.includes(i)}
+                missPulse={missPulse.includes(i)}
+                matchPulse={matchPulse.includes(i)}
+                dense={faceLike >= 18 || cards.length >= 30}
+                disabled={
+                  locks ||
+                  hintFlash.length > 0 ||
+                  (mode === 'versus' && turnOwner !== 'player') ||
+                  (!peekArmed && peekFlash.length > 0)
+                }
+                onClick={() => onCard(i)}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mm-actions">
         {mode !== 'versus' && (
-          <button
-            type="button"
-            onClick={handleHint}
-            disabled={!canHint}
-            className="min-h-[44px] px-5 rounded-xl border border-amber-500/50 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25 disabled:opacity-40 font-medium touch-manipulation"
-          >
+          <button type="button" onClick={handleHint} disabled={!canHint} className="mm-btn mm-btn--hint">
             提示
           </button>
         )}
@@ -1284,50 +1306,34 @@ export default function App() {
             type="button"
             onClick={armPeek}
             disabled={peekCharges <= 0 || peekArmed || locks || won || lost || flipped.length > 0}
-            className={`min-h-[44px] px-5 rounded-xl border font-medium touch-manipulation disabled:opacity-40 ${
-              peekArmed
-                ? 'border-amber-300 bg-amber-400/30 text-amber-50'
-                : 'border-amber-500/50 bg-amber-500/15 text-amber-100'
-            }`}
+            className={`mm-btn mm-btn--peek${peekArmed ? ' is-armed' : ''}`}
           >
             {peekArmed ? '點牌窺視中' : `使用洞察 (${peekCharges})`}
           </button>
         )}
         {mode === 'daily' && todayRecord && (
-          <button
-            type="button"
-            onClick={() => void handleShareDaily()}
-            className="min-h-[44px] px-5 rounded-xl border border-sky-500/50 bg-sky-500/15 text-sky-100 font-medium touch-manipulation"
-          >
+          <button type="button" onClick={() => void handleShareDaily()} className="mm-btn mm-btn--share">
             {shareCopied ? '已複製' : '複製分享'}
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => restart()}
-          className="min-h-[44px] px-5 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium touch-manipulation"
-        >
+        <button type="button" onClick={() => restart()} className="mm-btn">
           重開一局
         </button>
       </div>
 
       {mode === 'special' && (
-        <p className="text-xs text-slate-400 text-center max-w-md">
+        <p className="mm-meta">
           金色「洞察」對配對成功後可窺視任一張背面牌——何時用掉是關鍵決策。
         </p>
       )}
       {mode === 'versus' && (
-        <p className="text-xs text-slate-400 text-center max-w-md">
+        <p className="mm-meta">
           對上 {activeOpponent.name}：{activeOpponent.blurb}
         </p>
       )}
-      {mode === 'campaign' && activeStage && (
-        <p className="text-xs text-slate-400 text-center max-w-md">{activeStage.blurb}</p>
-      )}
+      {mode === 'campaign' && activeStage && <p className="mm-meta">{activeStage.blurb}</p>}
       {mode === 'daily' && (
-        <p className="text-xs text-slate-400 text-center max-w-md">
-          每日盤以日期為種子，全站同日同局。通關後可複製分享文字。
-        </p>
+        <p className="mm-meta">每日盤以日期為種子，全站同日同局。通關後可複製分享文字。</p>
       )}
 
       {overlayOpen && mode !== 'versus' && won && (
@@ -1467,12 +1473,6 @@ function nearestPairCount(faceCount: number): PairCount {
 
 function shellBg(): CSSProperties {
   return {
-    backgroundColor: '#1e293b',
-    backgroundImage: [
-      'linear-gradient(rgba(15,23,42,0.5), rgba(15,23,42,0.72))',
-      `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
-    ].join(', '),
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
+    ['--mm-table-image' as string]: `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
   };
 }
