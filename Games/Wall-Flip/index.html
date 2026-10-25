@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="theme-color" content="#06080d">
+<meta name="theme-color" content="#0c0d0f">
 <title>宙返りロードスター 2D · 牆上翻滾</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
 <script>
@@ -23,7 +23,8 @@
 })();
 </script>
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #06080d; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0c0d0f; color: #fff;
+    font-family: "IBM Plex Sans", "PingFang TC", "Noto Sans TC", sans-serif; }
   canvas { display: block; touch-action: none; }
   @font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
   @font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
@@ -32,65 +33,40 @@
   @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
   @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
   /* online leaderboard DOM panels (hidden by default) */
-  .wf-panel { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,.62); }
+  .wf-panel { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(12,13,15,.78); }
   .wf-panel.on { display: flex; }
-  .wf-card { width: min(86vw, 430px); box-sizing: border-box; background: #121820; border: 1px solid #2c3442; border-radius: 8px; padding: 20px 20px 16px; color: #e8edf4; font: 400 14px/1.5 "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; box-shadow: 0 12px 28px rgba(0,0,0,.28); }
-  .wf-card h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #e8edf4; }
-  .wf-card input { width: 100%; box-sizing: border-box; background: #06080d; border: 1px solid #3a4454; border-radius: 6px; padding: 8px 12px; color: #e8edf4; font: 400 14px "IBM Plex Mono", ui-monospace, Menlo, monospace; outline: none; }
-  .wf-card input:focus { border-color: #e8edf4; }
+  .wf-card { width: min(86vw, 440px); box-sizing: border-box; background: #15171a; border-radius: 20px; padding: 24px 24px 20px; color: #fff; font: 400 14px/1.5 "IBM Plex Sans", "PingFang TC", "Noto Sans TC", sans-serif; }
+  .wf-card h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #fff; }
+  .wf-card input { width: 100%; box-sizing: border-box; background: #0c0d0f; border: 1px solid #444; border-radius: 8px; padding: 10px 12px; color: #fff; font: 400 14px "IBM Plex Mono", ui-monospace, Menlo, monospace; outline: none; }
+  .wf-card input:focus { border-color: #fff; }
   .wf-card input.bad { border-color: #e5566f; }
-  .wf-hint { margin: 8px 0 0; font-size: 12px; color: #9aa6b5; }
-  .wf-row { display: flex; gap: 8px; margin-top: 16px; }
-  .wf-btn { flex: 1; height: 32px; padding: 0; border-radius: 6px; border: 1px solid #3a4454; background: transparent; color: #e8edf4; font: 600 14px "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; cursor: pointer; }
-  .wf-btn.primary { background: #e8edf4; border-color: #e8edf4; color: #111318; }
-  .wf-btn:hover { filter: brightness(1.08); }
-  /* mist-neon 2D / 3D view switch */
+  .wf-hint { margin: 8px 0 0; font-size: 12px; color: #949494; }
+  .wf-row { display: flex; gap: 12px; margin-top: 16px; align-items: center; }
+  .wf-btn { flex: 1; height: 36px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #b4b4b4; font: 600 14px "IBM Plex Sans", "PingFang TC", sans-serif; cursor: pointer; }
+  .wf-btn.primary { background: #fff; color: #111; }
   .wf-view-switch {
-    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
-    z-index: 28; display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px;
-    border: 1px solid rgba(111, 240, 208, .35); background: rgba(8, 12, 20, .72);
-    box-shadow: 0 0 0 1px rgba(90, 200, 255, .08), 0 10px 36px rgba(0, 0, 0, .45),
-      0 0 28px rgba(111, 240, 208, .18), inset 0 1px 0 rgba(255, 255, 255, .06);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    isolation: isolate; overflow: hidden;
+    position: fixed; top: 0; right: 12px; z-index: 32;
+    display: flex; align-items: center; height: 48px; gap: 2px;
   }
-  .wf-view-switch::before {
-    content: ""; position: absolute; inset: -40%; z-index: -1; pointer-events: none;
-    background: conic-gradient(from 180deg, #6ff0d0, #5ac8ff, #c084fc, #ff8c5a, #ffd166, #6ff0d0);
-    opacity: .22; animation: wf-view-spin 8s linear infinite; filter: blur(18px);
-  }
-  @keyframes wf-view-spin { to { transform: rotate(360deg); } }
   .wf-view-switch button {
-    position: relative; min-width: 56px; height: 34px; padding: 0 16px; border: 0; border-radius: 999px;
-    background: transparent; color: #9aa6b5; cursor: pointer;
-    font: 700 13px/1 "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; letter-spacing: .08em;
-    transition: color .2s, background .2s, box-shadow .25s, text-shadow .25s;
+    height: 32px; padding: 0 8px; border: 0; background: transparent; color: #b4b4b4;
+    cursor: pointer; font: 500 14px/1 "IBM Plex Sans", "PingFang TC", sans-serif;
   }
-  .wf-view-switch button[aria-pressed="true"] {
-    color: #061018; background: linear-gradient(135deg, #6ff0d0, #5ac8ff 55%, #c084fc);
-    box-shadow: 0 0 18px rgba(111, 240, 208, .55), 0 0 4px rgba(90, 200, 255, .8);
-    text-shadow: 0 0 12px rgba(255, 255, 255, .35);
-  }
-  .wf-view-switch button:focus-visible { outline: 2px solid #e8edf4; outline-offset: 2px; }
+  .wf-view-switch button[aria-pressed="true"] { color: #fff; font-weight: 600; }
+  .wf-view-switch button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   .wf-view-toast {
     position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
-    transform: translateX(-50%) translateY(12px); z-index: 35; max-width: min(92vw, 420px);
-    padding: 10px 16px; border-radius: 10px; border: 1px solid rgba(255, 209, 102, .45);
-    background: rgba(18, 24, 32, .94); color: #ffd166; text-align: center;
-    font: 600 13px/1.4 "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .45), 0 0 24px rgba(255, 209, 102, .2);
-    opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+    transform: translateX(-50%); z-index: 35; max-width: min(92vw, 420px);
+    padding: 8px 14px; border-radius: 999px; background: #15171a; color: #fff; text-align: center;
+    font: 500 14px/1.4 "IBM Plex Sans", "PingFang TC", sans-serif;
+    opacity: 0; pointer-events: none;
   }
-  .wf-view-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
-  @media (prefers-reduced-motion: reduce) {
-    .wf-view-switch::before { animation: none; }
-    .wf-view-toast { transition: none; }
-  }
+  .wf-view-toast.on { opacity: 1; }
 </style>
 </head>
 <body data-view-mode="2d">
 <canvas id="c"></canvas>
-<a href="../../" style="position:fixed;top:16px;left:20px;z-index:30;color:#9aa6b5;text-decoration:none;font:500 12px 'IBM Plex Sans','Noto Sans TC',system-ui,sans-serif;">← 返回總覽</a>
+<a href="../../" style="position:fixed;top:0;left:16px;z-index:30;height:48px;display:flex;align-items:center;color:#b4b4b4;text-decoration:none;font:500 14px 'IBM Plex Sans','PingFang TC',sans-serif;">← 返回總覽</a>
 <div id="viewSwitch" class="wf-view-switch" data-testid="view-mode-switch" role="group" aria-label="顯示模式">
   <button type="button" data-view="2d" data-testid="view-mode-2d" aria-pressed="true">2D</button>
   <button type="button" data-view="3d" data-testid="view-mode-3d" aria-pressed="false">3D</button>
@@ -172,8 +148,8 @@ const STR = {
     rFall: '從牆上剝離了。反翹段要一直按住吸附。', rWall: '撞上牆壁了。',
     rHard: (k) => `落地速度 ${k} km/h——要更早用雙鍵減速。`, rTilt: (d) => `以傾斜 ${d}° 的姿態觸地了。`,
     rowRolls: (n) => `翻滾 ${n} 回`, rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', pts: '點',
-    subWin: (n, d, t2, rec) => `翻滾 ${n} 回 · 飛行距離 ${d} m · 完賽 ${t2} s${rec ? ' ★最快' : ''}`,
-    newRecord: '★ 新紀錄！', bestLabel: '最佳',
+    subWin: (n, d, t2, rec) => `翻滾 ${n} 回 · 飛行距離 ${d} m · 完賽 ${t2} s${rec ? ' · 最快' : ''}`,
+    newRecord: '新紀錄', bestLabel: '最佳',
     shareBtn: '複製成績',
     shareText: (r, d, s, l, tt, rank, cn) => `牆上翻滾 Wall Flip（${cn}）：翻滾 ${r} 回 · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${tt} 分 ${rank}！`,
     boardTitle: (cn) => `排行榜 · ${cn}`, colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
@@ -186,8 +162,8 @@ const STR = {
     submit: '送出', skip: '略過', submitTitle: '上傳成績',
     nameLabel: '你的名字（10 字內）',
     submitOk: '已上傳', submitFail: '送出失敗',
-    apiBtn: '⚙', apiTitle: '線上排行 API', apiSave: '儲存', apiCancel: '取消',
-    apiPlaceholder: 'https://your-rank-api.example.com',
+    apiBtn: 'API', apiTitle: '線上排行 API', apiSave: '儲存', apiCancel: '取消',
+    apiPlaceholder: 'https://',
     apiHint: '貼上你的排名 API 網址；留空＝僅本機排行',
     apiSaved: '已儲存', colTime: '時間',
     viewModeLabel: '顯示模式', view2d: '2D', view3d: '3D',
@@ -217,8 +193,8 @@ const STR = {
     rFall: 'You peeled off the wall. Keep holding Stick on the overhang.', rWall: 'You hit the wall.',
     rHard: (k) => `You hit the ground at ${k} km/h. Brake earlier with both thrusters.`, rTilt: (d) => `You touched down tilted ${d}°.`,
     rowRolls: (n) => `${n} rolls`, rowSoft: 'SOFT', rowLevel: 'LEVEL', pts: 'pts',
-    subWin: (n, d, t2, rec) => `${n} roll(s) · ${d} m flight · time ${t2} s${rec ? ' ★BEST' : ''}`,
-    newRecord: '★ NEW RECORD!', bestLabel: 'BEST',
+    subWin: (n, d, t2, rec) => `${n} roll(s) · ${d} m flight · time ${t2} s${rec ? ' · best' : ''}`,
+    newRecord: 'New record', bestLabel: 'Best',
     shareBtn: 'COPY RESULT',
     shareText: (r, d, s, l, tt, rank, cn) => `Wall Flip (${cn}): ${r} roll(s), ${d} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${tt} pts ${rank}!`,
     boardTitle: (cn) => `LEADERBOARD · ${cn}`, colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
@@ -231,8 +207,8 @@ const STR = {
     submit: 'Submit', skip: 'Skip', submitTitle: 'Submit your score',
     nameLabel: 'Your name (max 10)',
     submitOk: 'Uploaded', submitFail: 'Submit failed',
-    apiBtn: '⚙', apiTitle: 'Rank API', apiSave: 'Save', apiCancel: 'Cancel',
-    apiPlaceholder: 'https://your-rank-api.example.com',
+    apiBtn: 'API', apiTitle: 'Rank API', apiSave: 'Save', apiCancel: 'Cancel',
+    apiPlaceholder: 'https://',
     apiHint: 'Paste your rank API URL; empty = local ranking only',
     apiSaved: 'Saved', colTime: 'TIME',
     viewModeLabel: 'View mode', view2d: '2D', view3d: '3D',
@@ -277,12 +253,6 @@ function supportsWebGL() {
     return !!(c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl'));
   } catch (e) { return false; }
 }
-function readViewMode() {
-  try {
-    const v = localStorage.getItem(VIEW_MODE_KEY);
-    return v === '3d' ? '3d' : '2d';
-  } catch (e) { return '2d'; }
-}
 function writeViewMode(mode) {
   try { localStorage.setItem(VIEW_MODE_KEY, mode === '3d' ? '3d' : '2d'); } catch (e) {}
 }
@@ -326,10 +296,7 @@ function requestViewMode(mode) {
   if (mode === VIEW_HERE) return;
   if (state === ST.RUN) {
     pendingViewTarget = mode;
-    if (viewConfirmTitleEl) viewConfirmTitleEl.textContent = t('viewConfirmTitle');
-    if (viewConfirmHintEl) viewConfirmHintEl.textContent = t('viewConfirmHint');
-    if (viewConfirmOkEl) viewConfirmOkEl.textContent = t('viewConfirmOk');
-    if (viewConfirmCancelEl) viewConfirmCancelEl.textContent = t('viewConfirmCancel');
+    syncViewModeChrome();
     if (viewConfirmEl) viewConfirmEl.classList.add('on');
     return;
   }
@@ -352,8 +319,7 @@ if (viewConfirmCancelEl) viewConfirmCancelEl.addEventListener('click', closeView
 if (viewConfirmEl) viewConfirmEl.addEventListener('click', e => {
   if (e.target === viewConfirmEl) closeViewConfirm();
 });
-// Do not stamp VIEW_HERE on load — that races the <head> 3D redirect and
-// would clobber a remembered preference before location.replace runs.
+// Do not stamp VIEW_HERE on load — that races the <head> 3D redirect.
 syncViewModeChrome();
 try {
   if (sessionStorage.getItem('wallflip.webglFallback') === '1') {
@@ -375,20 +341,18 @@ function resize() {
   layoutBtns();
 }
 
-// Night instrument. Framed-sheet (light analytics) was redrawn: this screen is
-// driven at night, and a white sheet would cover the road. Kept from that
-// sheet: one chrome band, IBM Plex Mono figures at 400, labels at 600, and
-// one 2px ink underline on the selected course. Mint is only the air
-// reservoir. Amber is only a record.
+// Night instrument on true-black-flat. The road is the picture, so the chrome
+// is one full-bleed bar, not a centred column. Elevation is a lightness step.
+// Mint is only the air reservoir. Amber is only a new record.
 const SANS = '"IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif';
 const MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
 const UI = {
-  text: '#e8edf4',
-  muted: '#9aa6b5',
-  faint: '#7e8b9c',
-  line: '#2c3442',
-  sheet: '#121820',
-  chrome: 'rgba(8,11,18,.94)',
+  text: '#ffffff',
+  muted: '#b4b4b4',
+  faint: '#949494',
+  line: '#1a1a1a',
+  sheet: '#15171a',
+  chrome: '#0c0d0f',
   accent: '#6ff0d0',
   record: '#e2b340',
   danger: '#e5566f',
@@ -928,7 +892,7 @@ function keySet(e, down) {
   }
   return false;
 }
-// while a DOM panel is open or an input / control focused, keys belong to the UI
+// while a DOM panel is open or a control is focused, keys belong to the UI
 function domTyping(e) {
   const el = e.target;
   if (!el) return false;
@@ -1149,7 +1113,7 @@ function unlockAchievements() {
     if (achTest(a.id, stats)) {
       achUnlocked.add(a.id);
       gained.push(a.id);
-      pop(car.x + rand(-1.5, 1.5), car.y + rand(2, 4), '🏆 ' + t('ach_' + a.id), '#ffd166');
+      pop(car.x + rand(-1.5, 1.5), car.y + rand(2, 4), t('ach_' + a.id), '#ffffff');
     }
   }
   if (gained.length) {
@@ -1825,6 +1789,8 @@ function drawHUD() {
   const narrow = W() < 760;
   ctx.fillStyle = UI.chrome;
   ctx.fillRect(0, 0, W(), 48);
+  ctx.fillStyle = UI.line;
+  ctx.fillRect(0, 47, W(), 1);
   ctx.textBaseline = 'alphabetic';
   const airMode = car.mode === 'air';
   const spd = car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy);
@@ -1838,9 +1804,10 @@ function drawHUD() {
   if (!narrow && state !== ST.READY) cols.push([t('best'), String(best)]);
   cols.push([t('hudRolls'), rolls]);
   const colW = narrow ? 88 : 112;
-  const clusterX = W() - 20 - cols.length * colW;
+  const viewGutter = 88;
+  const clusterX = W() - 20 - viewGutter - cols.length * colW;
   const labelAt = (text, x, align) => {
-    ctx.font = `600 11px ${SANS}`;
+    ctx.font = `600 12px ${SANS}`;
     ctx.fillStyle = UI.muted;
     ctx.textAlign = align;
     ctx.fillText(text, x, 16);
@@ -1862,12 +1829,15 @@ function drawHUD() {
   const speedX = airX + 156;
   const speedText = fmt(spd * 3.6) + ' km/h';
   labelAt(t('hudSpeed'), speedX, 'left');
-  figureAt(speedText, speedX, 'left');
+  ctx.font = `400 24px ${MONO}`;
+  ctx.fillStyle = UI.text;
+  ctx.textAlign = 'left';
+  ctx.fillText(speedText, speedX, 40);
   if (airMode) {
     const vs = car.vy * 3.6;
     const arrow = vs > 3.6 ? '▲' : vs < -3.6 ? '▼' : '–';
     const cue = arrow + fmt(Math.abs(vs));
-    ctx.font = `400 18px ${MONO}`;
+    ctx.font = `400 24px ${MONO}`;
     const sw = ctx.measureText(speedText).width;
     ctx.font = `400 13px ${MONO}`;
     const cueW = ctx.measureText(cue).width;
@@ -1907,17 +1877,12 @@ function drawHUD() {
     ctx.textBaseline = 'middle';
     for (const b of btns) {
       const on = inp[b.key];
-      ctx.globalAlpha = on ? 1 : 0.75;
-      ctx.fillStyle = b.key === 'drive' ? '#1f9d61' : b.key === 'stick' ? '#eef4fa' : '#3f8cff';
+      const lit = on || b.key === 'drive';
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = lit ? '#ffffff' : '#2a2a2a';
       roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2);
       ctx.fill();
-      if (on) {
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2);
-        ctx.stroke();
-      }
-      ctx.fillStyle = b.key === 'stick' ? '#1f9d61' : '#fff';
+      ctx.fillStyle = lit ? '#111111' : '#ffffff';
       ctx.font = `600 ${b.h * 0.42}px ${SANS}`;
       ctx.fillText(t(b.labelKey), b.x, b.y - b.h * 0.12);
       ctx.font = `500 ${b.h * 0.26}px ${SANS}`;
@@ -1931,7 +1896,7 @@ function drawHUD() {
 const RANKS = [[140, 'LEGEND!!!', '#ffd166'], [95, 'PERFECT!!', '#ff9f43'], [80, 'GREAT!', '#9fe8ff'], [0, 'GOOD!', '#cfe3f5']];
 function drawReady() {
   screenTransform();
-  ctx.fillStyle = 'rgba(4,6,12,.72)';
+  ctx.fillStyle = 'rgba(12,13,15,.78)';
   ctx.fillRect(0, 0, W(), H());
   const cx = W() / 2;
   const controlsY = 14;
@@ -1941,7 +1906,7 @@ function drawReady() {
   ctx.font = `600 13px ${SANS}`;
   const boardLabel = t('boardBtn');
   const boardW = ctx.measureText(boardLabel).width + 12;
-  const boardX = W() - 16 - boardW;
+  const boardX = W() - 16 - 88 - boardW;
   ctx.fillStyle = UI.text;
   ctx.fillText(boardLabel, boardX + boardW / 2, controlsY + ch / 2);
   readyUI.board = { x: boardX, y: controlsY, w: boardW, h: ch };
@@ -1949,18 +1914,14 @@ function drawReady() {
   ctx.font = `600 12px ${SANS}`;
   const langW = Math.max(44, ctx.measureText(langLabel).width + 18);
   const langX = boardX - 8 - langW;
-  ctx.strokeStyle = '#3a4454';
-  ctx.lineWidth = 1;
-  roundRect(langX, controlsY, langW, ch, 6);
-  ctx.stroke();
-  ctx.fillStyle = UI.text;
+  ctx.fillStyle = UI.muted;
   ctx.fillText(langLabel, langX + langW / 2, controlsY + ch / 2 + 0.5);
   readyUI.lang = { x: langX, y: controlsY, w: langW, h: ch };
   const ghostLabel = t('ghostBtn') + ' ' + (ghostOn ? t('ghostOn') : t('ghostOff'));
   ctx.font = `600 13px ${SANS}`;
   const ghostW = ctx.measureText(ghostLabel).width + 12;
   const ghostX = langX - 10 - ghostW;
-  ctx.fillStyle = ghostOn ? UI.text : UI.faint;
+  ctx.fillStyle = ghostOn ? UI.text : UI.muted;
   ctx.fillText(ghostLabel, ghostX + ghostW / 2, controlsY + ch / 2);
   readyUI.ghost = { x: ghostX, y: controlsY, w: ghostW, h: ch };
 
@@ -1975,22 +1936,15 @@ function drawReady() {
     const achRowsN = totalW > W() - 48 ? 2 : 1;
     const selW0 = Math.min(320, W() - 48);
     const top = titleY - 50;
-    const bot = titleY + 356 + achRowsN * 22;
+    const bot = titleY + 452 + achRowsN * 22;
     const sheetX = Math.max(16, Math.min(left - 28, cx - selW0 / 2 - 20));
     const sheetR = Math.min(W() - 16, Math.max(cx + (cx - sheetX), cx + selW0 / 2 + 20));
     ctx.fillStyle = UI.sheet;
-    roundRect(sheetX, top, sheetR - sheetX, bot - top, 8);
+    roundRect(sheetX, top, sheetR - sheetX, bot - top, 20);
     ctx.fill();
-    ctx.strokeStyle = UI.line;
-    ctx.lineWidth = 1;
-    roundRect(sheetX, top, sheetR - sheetX, bot - top, 8);
-    ctx.stroke();
   }
   ctx.textAlign = 'center';
-  ctx.font = `500 12px ${MONO}`;
-  ctx.fillStyle = UI.muted;
-  ctx.fillText(lang === 'en' ? 'NIGHT RUN' : 'WALL FLIP', cx, titleY - 28);
-  ctx.font = `600 32px ${SANS}`;
+  ctx.font = `600 24px ${SANS}`;
   ctx.fillStyle = UI.text;
   ctx.fillText(lang === 'en' ? 'WALL FLIP' : '牆上翻滾', cx, titleY);
   ctx.font = `400 14px ${SANS}`;
@@ -2018,10 +1972,6 @@ function drawReady() {
   const selW = Math.min(320, W() - 48);
   const selX = cx - selW / 2;
   const selY = y + 40;
-  ctx.strokeStyle = UI.line;
-  ctx.lineWidth = 1;
-  roundRect(selX, selY - 16, selW, 32, 6);
-  ctx.stroke();
   ctx.fillStyle = UI.muted;
   ctx.font = `500 16px ${SANS}`;
   ctx.fillText('‹', selX + 22, selY + 5);
@@ -2030,13 +1980,6 @@ function drawReady() {
   ctx.font = `600 15px ${SANS}`;
   ctx.fillStyle = UI.text;
   ctx.fillText(cname, cx, selY + 5);
-  const nw = ctx.measureText(cname).width;
-  ctx.strokeStyle = UI.text;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx - nw / 2 - 8, selY + 12);
-  ctx.lineTo(cx + nw / 2 + 8, selY + 12);
-  ctx.stroke();
   readyUI.prev = { x: selX, y: selY - 16, w: 44, h: 32 };
   readyUI.next = { x: selX + selW - 44, y: selY - 16, w: 44, h: 32 };
   ctx.font = `400 12px ${SANS}`;
@@ -2056,7 +1999,7 @@ function drawReady() {
     let bx = cx - rowW / 2;
     row.forEach((lab, i) => {
       const id = ACH[ri * 4 + i].id;
-      ctx.fillStyle = achUnlocked.has(id) ? UI.record : UI.faint;
+      ctx.fillStyle = achUnlocked.has(id) ? UI.text : UI.faint;
       ctx.textAlign = 'left';
       ctx.fillText(lab, bx, ay);
       bx += widthRows[ri][i] + gap;
@@ -2065,20 +2008,28 @@ function drawReady() {
   });
 
   ctx.textAlign = 'center';
-  ctx.globalAlpha = 0.55 + 0.45 * Math.sin(stateT * 3.5);
+  ctx.textBaseline = 'middle';
+  const startLabel = isTouch ? t('tapStart') : t('start');
   ctx.font = `600 14px ${SANS}`;
-  ctx.fillStyle = UI.text;
-  ctx.fillText(isTouch ? t('tapStart') : t('start'), cx, Math.max(ay + 28, H() * 0.9));
-  ctx.globalAlpha = 1;
+  const pillW = ctx.measureText(startLabel).width + 44;
+  const pillH = 36;
+  const pillX = cx - pillW / 2;
+  const pillY = ay + 16;
+  ctx.fillStyle = '#ffffff';
+  roundRect(pillX, pillY, pillW, pillH, 18);
+  ctx.fill();
+  ctx.fillStyle = '#111111';
+  ctx.fillText(startLabel, cx, pillY + pillH / 2);
+  ctx.textBaseline = 'alphabetic';
   ctx.font = `400 12px ${SANS}`;
   ctx.fillStyle = UI.faint;
-  ctx.fillText(t('footer'), cx, Math.max(ay + 52, H() * 0.95));
+  ctx.fillText(t('footer'), cx, pillY + pillH + 22);
 }
 function drawResult() {
   screenTransform();
   resultUI.share = null;
   const cx = W() / 2;
-  ctx.fillStyle = `rgba(4,6,12,${0.42 * Math.min(1, stateT / 0.4)})`;
+  ctx.fillStyle = `rgba(12,13,15,${0.55 * Math.min(1, stateT / 0.4)})`;
   ctx.fillRect(0, 0, W(), H());
   const slide = 1 - Math.pow(1 - Math.min(1, stateT / 0.45), 3);
   const pw = Math.min(W() - 48, 440);
@@ -2097,14 +2048,10 @@ function drawResult() {
   const ph = 24 + 28 + subLines.length * 18 + (stats.win ? 36 + 16 + rows.length * 28 + 28 : 56) + 20;
   const py = -ph + (Math.max(64, H() * 0.12) + ph) * slide;
   ctx.fillStyle = UI.sheet;
-  roundRect(px, py, pw, ph, 8);
+  roundRect(px, py, pw, ph, 20);
   ctx.fill();
-  ctx.strokeStyle = UI.line;
-  ctx.lineWidth = 1;
-  roundRect(px, py, pw, ph, 8);
-  ctx.stroke();
   ctx.save();
-  roundRect(px, py, pw, ph, 8);
+  roundRect(px, py, pw, ph, 20);
   ctx.clip();
   ctx.textBaseline = 'alphabetic';
   let y = py + pad + 6;
@@ -2123,7 +2070,7 @@ function drawResult() {
     y += 18;
     let rank = 'GOOD!';
     for (const [th, name] of RANKS) if (stats.total >= th) { rank = name; break; }
-    ctx.font = `400 32px ${MONO}`;
+    ctx.font = `400 24px ${MONO}`;
     ctx.fillStyle = UI.text;
     ctx.textAlign = 'left';
     ctx.fillText(String(stats.total), px + pad, y);
@@ -2132,7 +2079,7 @@ function drawResult() {
     ctx.fillStyle = UI.muted;
     ctx.fillText(t('pts'), px + pad + numW + 8, y);
     ctx.font = `600 16px ${SANS}`;
-    ctx.fillStyle = stats.total >= 140 ? UI.record : UI.text;
+    ctx.fillStyle = UI.text;
     ctx.textAlign = 'right';
     ctx.fillText(rank, px + pw - pad, y);
     y += 32;
@@ -2153,7 +2100,7 @@ function drawResult() {
     ctx.fillText(newBest ? t('newRecord') : `${t('bestLabel')} ${best}`, px + pw - pad, y);
   } else {
     y += 28;
-    ctx.font = `400 32px ${MONO}`;
+    ctx.font = `400 24px ${MONO}`;
     ctx.fillStyle = UI.text;
     ctx.textAlign = 'left';
     const zeroW = ctx.measureText('0').width;
@@ -2169,14 +2116,10 @@ function drawResult() {
   let below = py + ph + 16;
   if (stats.win) {
     const sh = 32;
-    const sw = 168;
+    ctx.font = `600 14px ${SANS}`;
+    const sw = ctx.measureText(t('shareBtn')).width + 24;
     const sx = cx - sw / 2;
-    ctx.strokeStyle = '#3a4454';
-    ctx.lineWidth = 1;
-    roundRect(sx, below, sw, sh, 6);
-    ctx.stroke();
-    ctx.fillStyle = UI.text;
-    ctx.font = `600 13px ${SANS}`;
+    ctx.fillStyle = UI.muted;
     ctx.fillText(t('shareBtn'), cx, below + sh / 2);
     resultUI.share = { x: sx, y: below, w: sw, h: sh };
     below += sh + 18;
@@ -2185,25 +2128,16 @@ function drawResult() {
   ctx.fillStyle = UI.text;
   const bl = t('boardBtn');
   const blw = ctx.measureText(bl).width;
+  ctx.fillStyle = UI.muted;
   ctx.fillText(bl, cx, below + 8);
-  ctx.strokeStyle = UI.text;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(cx - blw / 2, below + 18);
-  ctx.lineTo(cx + blw / 2, below + 18);
-  ctx.stroke();
   resultUI.board = { x: cx - blw / 2 - 12, y: below - 6, w: blw + 24, h: 32 };
 
   const langLabel = t('langBtn');
   ctx.font = `600 12px ${SANS}`;
   const langW = Math.max(44, ctx.measureText(langLabel).width + 18);
-  const langX = W() - 16 - langW;
+  const langX = W() - 16 - 88 - langW;
   const langY = 14;
-  ctx.strokeStyle = '#3a4454';
-  ctx.lineWidth = 1;
-  roundRect(langX, langY, langW, 28, 6);
-  ctx.stroke();
-  ctx.fillStyle = UI.text;
+  ctx.fillStyle = UI.muted;
   ctx.fillText(langLabel, langX + langW / 2, langY + 14);
   resultUI.lang = { x: langX, y: langY, w: langW, h: 28 };
   ctx.textBaseline = 'alphabetic';
@@ -2211,7 +2145,7 @@ function drawResult() {
 function drawRank() {
   screenTransform();
   const cx = W() / 2;
-  ctx.fillStyle = 'rgba(4,6,12,.78)';
+  ctx.fillStyle = 'rgba(12,13,15,.78)';
   ctx.fillRect(0, 0, W(), H());
   const hasApi = !!rankApi;
   const showOnline = hasApi && rankTab === 'online' && !!onlineBoard;
@@ -2224,20 +2158,13 @@ function drawRank() {
   const px = cx - pw / 2;
   const py = Math.max(16, (H() - ph) / 2);
   ctx.fillStyle = UI.sheet;
-  roundRect(px, py, pw, ph, 8);
+  roundRect(px, py, pw, ph, 20);
   ctx.fill();
-  ctx.strokeStyle = UI.line;
-  ctx.lineWidth = 1;
-  roundRect(px, py, pw, ph, 8);
-  ctx.stroke();
   ctx.textBaseline = 'middle';
   ctx.font = `600 13px ${SANS}`;
   const apiW = ctx.measureText('API').width + 18;
   const gx = px + pw - 16 - apiW;
   const gy = py + 16;
-  ctx.strokeStyle = '#3a4454';
-  roundRect(gx, gy, apiW, 28, 6);
-  ctx.stroke();
   ctx.fillStyle = UI.muted;
   ctx.textAlign = 'center';
   ctx.fillText('API', gx + apiW / 2, gy + 14);
@@ -2263,14 +2190,6 @@ function drawRank() {
       ctx.textAlign = 'left';
       ctx.fillText(label, x, ty + 14);
       const tw = ctx.measureText(label).width;
-      if (on) {
-        ctx.strokeStyle = UI.text;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x - 8, ty + 22);
-        ctx.lineTo(x + tw + 8, ty + 22);
-        ctx.stroke();
-      }
       rankUI[key] = { x: x - 8, y: ty - 4, w: tw + 16, h: 32 };
       return tw;
     };
@@ -2289,7 +2208,7 @@ function drawRank() {
     ctx.textAlign = 'center';
     ctx.fillText(hasApi && rankTab === 'online' && onlinePending ? '…' : t('boardEmpty'), cx, py + ph / 2);
   } else {
-    ctx.font = `600 11px ${SANS}`;
+    ctx.font = `600 12px ${SANS}`;
     ctx.fillStyle = UI.faint;
     ctx.textAlign = 'left';
     ctx.fillText(t('colRank'), px + 24, headY);
@@ -2302,12 +2221,12 @@ function drawRank() {
       const e = list[i];
       const hi = showOnline ? i === onlineHi : i === rankHi;
       if (hi) {
-        ctx.fillStyle = 'rgba(226,179,64,.10)';
+        ctx.fillStyle = '#2a2a2a';
         ctx.fillRect(px + 12, ry - 16, pw - 24, rowH - 4);
       }
       ctx.textAlign = 'left';
       ctx.font = `400 14px ${MONO}`;
-      ctx.fillStyle = hi ? UI.record : UI.text;
+      ctx.fillStyle = UI.text;
       ctx.fillText(String(i + 1), px + 24, ry);
       if (showOnline) {
         ctx.font = `500 14px ${SANS}`;
@@ -2319,11 +2238,11 @@ function drawRank() {
       }
       ctx.textAlign = 'right';
       ctx.font = `400 14px ${MONO}`;
-      ctx.fillStyle = hi ? UI.record : UI.text;
+      ctx.fillStyle = UI.text;
       ctx.fillText(fmt(e.s), cS, ry);
-      ctx.fillStyle = hi ? UI.record : UI.muted;
+      ctx.fillStyle = UI.muted;
       ctx.fillText(fmt(e.r), cR, ry);
-      ctx.fillStyle = hi ? UI.record : UI.faint;
+      ctx.fillStyle = UI.faint;
       ctx.fillText(showOnline ? (Number.isFinite(e.t) ? fmt(e.t, 1) + 's' : '–') : e.t, cD, ry);
       ry += rowH;
     }
