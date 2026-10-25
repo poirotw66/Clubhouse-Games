@@ -475,77 +475,101 @@ export default function App(): React.ReactElement {
   // ── Screens ────────────────────────────────────────────────────────────
 
   if (screen === 'menu') {
+    const stickerSrc = `${import.meta.env.BASE_URL}title-bg.jpg`;
+    const marqueeBits = [
+      '沒掉下去的幣就是地形',
+      '連鎖推潮',
+      '完美時機加分',
+      '彩池爆開',
+      '三張主題台面',
+      '潮幣解鎖收藏',
+      '每日種子挑戰',
+    ];
     return (
       <div
-        className="cc-title-shell min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center"
+        className="cc-title-shell min-h-screen flex flex-col items-center justify-center py-6 text-left"
         style={{
-          backgroundImage: [
-            'linear-gradient(rgba(11, 8, 6, 0.55), rgba(11, 8, 6, 0.92))',
-            `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
-          ].join(', '),
+          backgroundImage: `url(${stickerSrc})`,
         }}
       >
         <BackToMenu />
-        <header className="cc-title-hero">
-          <h1 className="cc-display cc-glow-title text-4xl font-extrabold tracking-wide text-amber-200">幣潮</h1>
-          <p className="mt-2 text-slate-400 text-sm">Coin Cascade</p>
-        </header>
-        <div className="cc-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-amber-50">
-          <p className="mb-3 text-amber-200 font-semibold">沒掉下去的幣，就是你自己蓋的地形。</p>
-          <ul className="space-y-1.5 list-disc list-inside">
-            <li>三張主題台面：經典、釘陣、潮汐——機制不同，不只是換皮。</li>
-            <li>點擊檯面投幣；鍵盤 ←→／空白鍵；特殊幣 1–4。</li>
-            <li>賺潮幣解鎖台面、磁吸幣與幣面收藏；每日種子挑戰可刷。</li>
-          </ul>
-        </div>
-        <div className="flex flex-wrap gap-3 justify-center text-sm text-slate-300">
-          {best > 0 && (
-            <span>
-              自由最佳 {best.toLocaleString('zh-Hant')} ・ 連鎖 {bestCascade}
-            </span>
-          )}
-          <span className="text-amber-200/90">潮幣 {meta.tokens}</span>
-          {streak > 0 && <span>每日連勝 {streak}</span>}
-        </div>
-        <p className="text-xs text-slate-400">
-          目前台面：{selectedTableDef.name}・{selectedTableDef.mechanicLabel}
-        </p>
-        <div className="flex flex-col gap-2.5 items-center w-full max-w-md">
-          <button type="button" onClick={startRun} className="cc-cta min-h-[44px] w-full sm:w-auto px-8 py-3 rounded-xl font-semibold">
-            投幣開始
-          </button>
-          <div className="grid grid-cols-2 gap-2 w-full">
-            <button
-              type="button"
-              onClick={() => setMenuPanel('tables')}
-              className="min-h-[44px] rounded-xl font-semibold text-amber-100 border border-amber-400/50 bg-amber-500/15 hover:bg-amber-500/25 px-3 py-2"
-            >
-              主題台面
-            </button>
-            <button
-              type="button"
-              onClick={() => setMenuPanel('daily')}
-              className="min-h-[44px] rounded-xl font-semibold text-teal-100 border border-teal-400/50 bg-teal-500/15 hover:bg-teal-500/25 px-3 py-2"
-            >
-              每日挑戰
-            </button>
-            <button
-              type="button"
-              onClick={() => setMenuPanel('modes')}
-              aria-label={`挑戰／模式包。${packSubtitle}`}
-              className="min-h-[44px] rounded-xl font-semibold text-amber-100 border border-amber-400/50 bg-amber-500/15 hover:bg-amber-500/25 px-3 py-2"
-            >
-              挑戰／模式包
-            </button>
-            <button
-              type="button"
-              onClick={() => setMenuPanel('collection')}
-              className="min-h-[44px] rounded-xl font-semibold text-fuchsia-100 border border-fuchsia-400/40 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 px-3 py-2"
-            >
-              收藏櫃
-            </button>
+        <div className="cc-title-inner flex w-full flex-col">
+          <header className="cc-hero">
+            <div className="cc-hero__type">
+              <h1 className="cc-display cc-glow-title cc-hero__title">幣潮</h1>
+              <p className="cc-hero__sub">Coin Cascade・點擊檯面投幣・←→／空白・特殊幣 1–4</p>
+            </div>
+            <div className="cc-hero__sticker" aria-hidden="true">
+              <img src={stickerSrc} alt="" />
+              <span className="cc-hero__sticker-glow" />
+            </div>
+          </header>
+
+          <div className="cc-claim">
+            <p>沒掉下去的幣，就是你自己蓋的地形。</p>
+            <span>經典／釘陣／潮汐三廳・機制不同，不只換皮</span>
           </div>
-          <p className="text-[11px] text-slate-500">{packSubtitle}</p>
+
+          <div className="cc-stats">
+            {best > 0 && (
+              <span className="cc-stat">
+                自由最佳 {best.toLocaleString('zh-Hant')}・連鎖 {bestCascade}
+              </span>
+            )}
+            <span className="cc-stat">潮幣 {meta.tokens}</span>
+            {streak > 0 && <span className="cc-stat cc-stat--teal">每日連勝 {streak}</span>}
+            <span className="cc-stat cc-stat--pink">
+              {selectedTableDef.name}・{selectedTableDef.mechanicLabel}
+            </span>
+          </div>
+
+          <div className="flex w-full flex-col gap-2.5">
+            <button
+              type="button"
+              onClick={startRun}
+              className="cc-cta min-h-[52px] w-full rounded-[0.35rem] px-8 py-3.5 text-lg font-black tracking-wide"
+            >
+              投幣開始
+            </button>
+            <div className="cc-action-grid">
+              <button type="button" onClick={() => setMenuPanel('tables')} className="cc-sheet cc-sheet--amber">
+                主題台面
+                <small>三廳機制</small>
+              </button>
+              <button type="button" onClick={() => setMenuPanel('daily')} className="cc-sheet cc-sheet--teal">
+                每日挑戰
+                <small>固定種子</small>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMenuPanel('modes')}
+                aria-label={`挑戰／模式包。${packSubtitle}`}
+                className="cc-sheet cc-sheet--rose"
+              >
+                挑戰／模式包
+                <small>{packSubtitle}</small>
+              </button>
+              <button type="button" onClick={() => setMenuPanel('collection')} className="cc-sheet cc-sheet--cyan">
+                收藏櫃
+                <small>幣面與特殊幣</small>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="cc-marquee" aria-hidden="true">
+          <div className="cc-marquee__track">
+            <div className="cc-marquee__chunk">
+              {marqueeBits.map((bit) => (
+                <span key={`a-${bit}`}>{bit}</span>
+              ))}
+            </div>
+            <div className="cc-marquee__chunk">
+              {marqueeBits.map((bit) => (
+                <span key={`b-${bit}`}>{bit}</span>
+              ))}
+            </div>
+          </div>
         </div>
 
         {menuPanel === 'modes' && (
@@ -577,7 +601,7 @@ export default function App(): React.ReactElement {
                       type="button"
                       disabled={!unlocked}
                       onClick={() => startMode(mode.id)}
-                      className="flex min-h-16 w-full flex-col rounded-xl border border-amber-700/40 bg-slate-900/70 px-3 py-3 text-left transition-colors hover:bg-slate-800/80 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="cc-row-btn flex min-h-16 w-full flex-col px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <span className="flex items-center justify-between gap-2">
                         <span className="font-semibold text-amber-50">
@@ -626,10 +650,8 @@ export default function App(): React.ReactElement {
                         setSelectedTable(table.id);
                         setMenuPanel(null);
                       }}
-                      className={`flex min-h-16 w-full flex-col rounded-xl border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                        selected
-                          ? 'border-amber-400 bg-amber-500/20'
-                          : 'border-amber-700/40 bg-slate-900/70 hover:bg-slate-800/80'
+                      className={`cc-row-btn flex min-h-16 w-full flex-col px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-45 ${
+                        selected ? 'is-selected' : ''
                       }`}
                     >
                       <span className="flex items-center justify-between gap-2">
@@ -709,8 +731,8 @@ export default function App(): React.ReactElement {
                           setMeta(next);
                           saveMetaProgress(next);
                         }}
-                        className={`flex w-full flex-col rounded-xl border px-3 py-2 text-left disabled:opacity-45 ${
-                          active ? 'border-fuchsia-400 bg-fuchsia-500/15' : 'border-white/10 bg-slate-900/60'
+                        className={`cc-row-btn is-collection flex w-full flex-col px-3 py-2 text-left disabled:opacity-45 ${
+                          active ? 'is-selected' : ''
                         }`}
                       >
                         <span className="font-semibold text-amber-50">
@@ -806,7 +828,7 @@ export default function App(): React.ReactElement {
   const tableDef = s ? tableById(s.tableId) : selectedTableDef;
 
   return (
-    <div className="h-screen w-screen flex flex-col">
+    <div className="cc-play h-screen w-screen flex flex-col">
       <BackToMenu />
 
       <div className="cc-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-amber-50 flex-wrap gap-1">
@@ -817,10 +839,10 @@ export default function App(): React.ReactElement {
           <span className="cc-hud-chip">
             投幣 <b className="text-amber-200">{s?.creditsRemaining ?? 0}</b>
           </span>
-          <span className="cc-hud-chip">
+          <span className="cc-hud-chip cc-hud-chip--pot">
             彩池 <b className="text-fuchsia-300">{Math.round(s?.pot ?? 0)}</b>
           </span>
-          <span className="cc-hud-chip">
+          <span className="cc-hud-chip cc-hud-chip--cascade">
             連鎖 <b className="text-sky-300">{s?.longestCascade ?? 0}</b>
             {activeMode?.goal.kind === 'cascade' ? (
               <span className="opacity-70">/{activeMode.goal.min}</span>
@@ -838,7 +860,7 @@ export default function App(): React.ReactElement {
           )}
           {winding && <span className="cc-hud-chip text-emerald-200">結算中…</span>}
         </div>
-        <div className="cc-hud-chip cc-display tabular-nums text-base font-semibold text-amber-200">
+        <div className="cc-hud-chip cc-hud-chip--score cc-display tabular-nums text-lg font-extrabold text-amber-200">
           {(s?.score ?? 0).toLocaleString('zh-Hant')}
           {activeMode?.goal.kind === 'score' ? (
             <span className="ml-1 text-xs font-normal opacity-70">/{activeMode.goal.min}</span>
@@ -906,16 +928,16 @@ export default function App(): React.ReactElement {
         />
 
         {paused && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="cc-panel rounded-2xl px-6 py-4 text-center">
-              <p className="text-lg font-semibold mb-1 text-amber-100">暫停</p>
-              <p className="text-slate-400 text-sm">按 P 或 Esc 繼續</p>
+          <div className="cc-pause-scrim absolute inset-0 flex items-center justify-center">
+            <div className="cc-pause-card text-center">
+              <p className="cc-display cc-glow-title mb-1 text-2xl text-amber-200">暫停</p>
+              <p className="text-sm font-semibold text-amber-100/75">按 P 或 Esc 繼續</p>
             </div>
           </div>
         )}
       </div>
 
-      <div className="shrink-0 flex justify-center gap-2 px-3 py-2 flex-wrap">
+      <div className="cc-special-bar shrink-0 flex justify-center gap-2 px-3 py-2.5 flex-wrap">
         {specialButtons.map((k, i) => (
           <button
             key={k}
@@ -926,14 +948,12 @@ export default function App(): React.ReactElement {
               specialRef.current = next;
               setSpecial(next);
             }}
-            className={`cc-special min-h-[44px] min-w-[84px] px-3 rounded-xl font-semibold border text-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800/80 ${
-              special === k
-                ? 'is-on bg-amber-500 border-amber-300 text-amber-950'
-                : 'bg-slate-800/80 border-white/10 text-amber-100 hover:bg-slate-700/80'
+            className={`cc-special min-h-[44px] min-w-[84px] px-3 rounded-xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+              special === k ? 'is-on' : ''
             }`}
           >
             {i + 1}．{SPECIAL_LABEL[k]}
-            <span className="block text-[10px] font-normal opacity-80">{COST[k]} 幣</span>
+            <span className="block text-[10px] font-semibold opacity-80">{COST[k]} 幣</span>
           </button>
         ))}
       </div>
@@ -1011,25 +1031,25 @@ function MenuDialog({
 }): React.ReactElement {
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-[#0b0806]/80 p-4 sm:items-center"
+      className="cc-dialog-scrim fixed inset-0 z-40 flex items-end justify-center p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="cc-panel flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl p-4 text-left"
+        className="cc-dialog-panel flex max-h-[85vh] w-full max-w-lg flex-col p-4 text-left"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-amber-100">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+            <h2 className="cc-display text-xl font-extrabold text-amber-200">{title}</h2>
+            <p className="mt-1 text-xs font-semibold text-amber-100/65">{subtitle}</p>
           </div>
           <button
             type="button"
             aria-label="關閉"
             onClick={onClose}
-            className="shrink-0 rounded-lg border border-amber-700/50 bg-slate-900/80 px-3 py-2 text-xs font-bold text-amber-100"
+            className="shrink-0 rounded-lg border border-amber-400/45 bg-amber-500/15 px-3 py-2 text-xs font-black text-amber-100"
           >
             關閉
           </button>

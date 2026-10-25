@@ -50,11 +50,14 @@ function drawCabinet(
   ctx: CanvasRenderingContext2D,
   shelf: HTMLImageElement | null,
   hue: number,
+  tick: number,
+  reduced: boolean,
 ): void {
+  const pulse = reduced ? 0.7 : 0.55 + 0.45 * Math.sin(tick * 0.045);
   const wood = ctx.createLinearGradient(0, -70, 0, SHELF_LEN);
-  wood.addColorStop(0, `hsl(${hue}, 45%, 18%)`);
-  wood.addColorStop(0.5, `hsl(${hue}, 42%, 28%)`);
-  wood.addColorStop(1, `hsl(${hue}, 40%, 12%)`);
+  wood.addColorStop(0, `hsl(${hue}, 48%, 16%)`);
+  wood.addColorStop(0.5, `hsl(${hue}, 44%, 26%)`);
+  wood.addColorStop(1, `hsl(${hue}, 42%, 10%)`);
   ctx.fillStyle = wood;
   ctx.fillRect(-8, -70, SHELF_W + 16, SHELF_LEN + 78);
 
@@ -69,8 +72,22 @@ function drawCabinet(
     const varnish = ctx.createLinearGradient(0, 0, 0, SHELF_LEN);
     varnish.addColorStop(0, `hsla(${hue}, 40%, 10%, 0.35)`);
     varnish.addColorStop(0.7, `hsla(${hue}, 35%, 8%, 0.15)`);
-    varnish.addColorStop(1, `hsla(${hue}, 70%, 55%, 0.12)`);
+    varnish.addColorStop(1, `hsla(${hue}, 70%, 55%, 0.16)`);
     ctx.fillStyle = varnish;
+    ctx.fillRect(0, 0, SHELF_W, SHELF_LEN);
+    // Mist-neon wash over the playfield (premium, intentional — not flat wood alone).
+    const neonWash = ctx.createRadialGradient(
+      SHELF_W * 0.5,
+      SHELF_LEN * 0.35,
+      20,
+      SHELF_W * 0.5,
+      SHELF_LEN * 0.55,
+      SHELF_W * 0.72,
+    );
+    neonWash.addColorStop(0, `hsla(${hue + 8}, 90%, 60%, ${0.08 * pulse})`);
+    neonWash.addColorStop(0.55, `hsla(320, 80%, 60%, ${0.05 * pulse})`);
+    neonWash.addColorStop(1, 'hsla(180, 80%, 55%, 0)');
+    ctx.fillStyle = neonWash;
     ctx.fillRect(0, 0, SHELF_W, SHELF_LEN);
     ctx.restore();
   } else {
@@ -92,39 +109,43 @@ function drawCabinet(
   ctx.fillStyle = rightWall;
   ctx.fillRect(WALL_X1, 0, SHELF_W - WALL_X1, SHELF_LEN);
 
-  for (let i = 0; i < 7; i++) {
-    const y = 28 + i * ((SHELF_LEN - 56) / 6);
+  for (let i = 0; i < 8; i++) {
+    const y = 22 + i * ((SHELF_LEN - 44) / 7);
     for (const x of [WALL_X0 * 0.45, WALL_X1 + (SHELF_W - WALL_X1) * 0.55]) {
-      const glow = ctx.createRadialGradient(x, y, 1, x, y, 14);
-      glow.addColorStop(0, `hsla(${hue + 20}, 90%, 70%, 0.85)`);
-      glow.addColorStop(0.4, `hsla(${hue + 10}, 85%, 55%, 0.35)`);
-      glow.addColorStop(1, `hsla(${hue}, 80%, 50%, 0)`);
+      const bulbHue = i % 2 === 0 ? hue + 12 : hue + 160 + (i % 3) * 12;
+      const glow = ctx.createRadialGradient(x, y, 1, x, y, 18);
+      glow.addColorStop(0, `hsla(${bulbHue}, 95%, 78%, ${0.95 * pulse})`);
+      glow.addColorStop(0.35, `hsla(${bulbHue}, 90%, 58%, ${0.42 * pulse})`);
+      glow.addColorStop(1, `hsla(${bulbHue}, 80%, 50%, 0)`);
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(x, y, 14, 0, Math.PI * 2);
+      ctx.arc(x, y, 18, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(x, y, 3.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#fef3c7';
+      ctx.arc(x, y, 3.4, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff7e8';
       ctx.fill();
     }
   }
 
-  const edgeGlow = ctx.createLinearGradient(0, SHELF_LEN - 36, 0, SHELF_LEN + 8);
+  const edgeGlow = ctx.createLinearGradient(0, SHELF_LEN - 42, 0, SHELF_LEN + 10);
   edgeGlow.addColorStop(0, `hsla(${hue}, 80%, 55%, 0)`);
-  edgeGlow.addColorStop(0.55, `hsla(${hue}, 80%, 55%, 0.22)`);
-  edgeGlow.addColorStop(1, `hsla(${hue + 15}, 90%, 65%, 0.55)`);
+  edgeGlow.addColorStop(0.45, `hsla(${hue}, 85%, 58%, ${0.28 * pulse})`);
+  edgeGlow.addColorStop(1, `hsla(${hue + 20}, 95%, 68%, ${0.72 * pulse})`);
   ctx.fillStyle = edgeGlow;
-  ctx.fillRect(0, SHELF_LEN - 36, SHELF_W, 44);
+  ctx.fillRect(0, SHELF_LEN - 42, SHELF_W, 52);
 
   ctx.fillStyle = 'rgba(15, 10, 4, 0.55)';
   ctx.fillRect(WALL_X0, SHELF_LEN - 4, WALL_X1 - WALL_X0, 8);
-  ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.65)`;
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = `hsla(${hue}, 90%, 65%, ${0.75 * pulse})`;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = `hsla(${hue}, 90%, 60%, ${0.55 * pulse})`;
+  ctx.shadowBlur = 12;
   ctx.beginPath();
   ctx.moveTo(WALL_X0, SHELF_LEN);
   ctx.lineTo(WALL_X1, SHELF_LEN);
   ctx.stroke();
+  ctx.shadowBlur = 0;
 }
 
 function drawPegs(ctx: CanvasRenderingContext2D, pegs: readonly Peg[]): void {
@@ -349,16 +370,26 @@ function drawCoinFace(
   ctx.fill();
   ctx.restore();
 
+  // Outer neon rim — flashy but cheap (one stroke + soft shadow).
+  ctx.save();
+  ctx.shadowBlur = kind === 'trigger' || set.id === 'neon' ? 10 : 7;
+  ctx.shadowColor =
+    kind === 'trigger'
+      ? 'rgba(251, 113, 133, 0.85)'
+      : set.id === 'neon'
+        ? `hsla(${set.normalHue}, 95%, 65%, 0.9)`
+        : 'rgba(251, 191, 36, 0.55)';
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.strokeStyle =
     kind === 'trigger'
-      ? 'rgba(251, 113, 133, 0.85)'
+      ? 'rgba(251, 113, 133, 0.95)'
       : set.id === 'neon'
-        ? `hsla(${set.normalHue}, 90%, 70%, 0.9)`
-        : 'rgba(120, 53, 15, 0.75)';
-  ctx.lineWidth = kind === 'heavy' ? 2 : 1.3;
+        ? `hsla(${set.normalHue}, 90%, 75%, 0.95)`
+        : 'rgba(253, 224, 71, 0.75)';
+  ctx.lineWidth = kind === 'heavy' ? 2.2 : 1.45;
   ctx.stroke();
+  ctx.restore();
 }
 
 function drawChute(ctx: CanvasRenderingContext2D, chuteX: number, cooling: boolean): void {
@@ -424,6 +455,32 @@ export function GameCanvas({
     let jackpotFlash: JackpotFlash | null = null;
     let lastTeeterIds = new Set<number>();
     let lastJackpotBursts = -1;
+    let lastRecovered = -1;
+    let lastCascadeEventTick = -1;
+
+    const burstSparks = (
+      cx: number,
+      cy: number,
+      count: number,
+      tick: number,
+      hueBase: number,
+      speed = 3.2,
+    ): void => {
+      for (let i = 0; i < count; i++) {
+        const n = ((tick * 1103515245 + i * 12345) >>> 0) / 0xffffffff;
+        const n2 = ((tick * 1664525 + i * 1013904223) >>> 0) / 0xffffffff;
+        const ang = n * Math.PI * 2;
+        sparks.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(ang) * speed * (0.45 + n2),
+          vy: Math.sin(ang) * speed * (0.35 + n) - 1.1,
+          life: 1,
+          hue: hueBase + n * 40,
+          size: 1.6 + n2 * 2.4,
+        });
+      }
+    };
 
     const draw = (): void => {
       rafRef.current = requestAnimationFrame(draw);
@@ -443,12 +500,27 @@ export function GameCanvas({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssW, cssH);
 
+      // Soft stage glow behind the cabinet.
+      const stage = ctx.createRadialGradient(
+        cssW * 0.5,
+        cssH * 0.42,
+        20,
+        cssW * 0.5,
+        cssH * 0.5,
+        Math.max(cssW, cssH) * 0.55,
+      );
+      stage.addColorStop(0, `hsla(${hueRef.current}, 80%, 45%, 0.16)`);
+      stage.addColorStop(0.45, 'hsla(320, 70%, 45%, 0.07)');
+      stage.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = stage;
+      ctx.fillRect(0, 0, cssW, cssH);
+
       ctx.save();
       ctx.translate((cssW - FIELD_W * scale) / 2, (cssH - FIELD_H * scale) / 2);
       ctx.scale(scale, scale);
       ctx.translate(0, 70);
 
-      drawCabinet(ctx, shelfImg, hueRef.current);
+      drawCabinet(ctx, shelfImg, hueRef.current, s.tick, reducedMotion);
       drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
       drawEdgeBonusZones(ctx);
       drawPegs(ctx, s.config.physics.pegs);
@@ -461,22 +533,34 @@ export function GameCanvas({
         const tide = s.events.jackpotTideBonus;
         jackpotFlash = { life: reducedMotion ? 0.55 : 1, amount, tide };
         if (!reducedMotion) {
-          for (let i = 0; i < (tide ? 28 : 18); i++) {
-            const n = ((s.tick * 1103515245 + i * 12345) >>> 0) / 0xffffffff;
-            const n2 = ((s.tick * 1664525 + i * 1013904223) >>> 0) / 0xffffffff;
-            sparks.push({
-              x: SHELF_W * 0.5 + (n - 0.5) * SHELF_W * 0.6,
-              y: SHELF_LEN * 0.55,
-              vx: (n - 0.5) * 4.5,
-              vy: -n2 * 5 - 1.2,
-              life: 1,
-              hue: tide ? 160 + n * 40 : 320 + n * 40,
-              size: 2 + n2 * 2.5,
-            });
-          }
+          burstSparks(SHELF_W * 0.5, SHELF_LEN * 0.52, tide ? 42 : 28, s.tick, tide ? 160 : 320, 5.2);
         }
       }
       lastJackpotBursts = s.jackpotBursts;
+
+      // Coin falls / cascades — louder particle juice without touching sim rules.
+      if (lastRecovered < 0) lastRecovered = s.coinsRecovered;
+      if (!reducedMotion && s.coinsRecovered > lastRecovered) {
+        const n = Math.min(14, s.coinsRecovered - lastRecovered);
+        burstSparks(SHELF_W * 0.5, SHELF_LEN - 8, 4 + n * 2, s.tick, 42, 2.8);
+      }
+      lastRecovered = s.coinsRecovered;
+
+      if (
+        !reducedMotion &&
+        s.events.cascadeFinalized >= 3 &&
+        s.tick > lastCascadeEventTick
+      ) {
+        lastCascadeEventTick = s.tick;
+        burstSparks(
+          SHELF_W * 0.5,
+          SHELF_LEN * 0.62,
+          10 + s.events.cascadeFinalized * 3,
+          s.tick,
+          48,
+          4.4,
+        );
+      }
 
       if (!reducedMotion) {
         const nowTeeter = new Set<number>();
@@ -484,19 +568,7 @@ export function GameCanvas({
           if (c.teeterSince < 0) continue;
           nowTeeter.add(c.id);
           if (!lastTeeterIds.has(c.id)) {
-            for (let i = 0; i < 5; i++) {
-              const n = ((c.id * 1103515245 + i * 12345) >>> 0) / 0xffffffff;
-              const n2 = ((c.id * 1664525 + i * 1013904223) >>> 0) / 0xffffffff;
-              sparks.push({
-                x: c.x,
-                y: c.y,
-                vx: (n - 0.5) * 2.4,
-                vy: -n2 * 2.2 - 0.4,
-                life: 1,
-                hue: c.kind === 'trigger' ? 330 : 45,
-                size: 1.6,
-              });
-            }
+            burstSparks(c.x, c.y, 8, s.tick + c.id, c.kind === 'trigger' ? 330 : 45, 2.6);
           }
         }
         lastTeeterIds = nowTeeter;
@@ -528,28 +600,55 @@ export function GameCanvas({
         }
       }
 
-      for (const sp of sparks) {
+      if (sparks.length > 96) sparks.splice(0, sparks.length - 96);
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const sp = sparks[i]!;
         sp.x += sp.vx;
         sp.y += sp.vy;
         sp.vy += 0.08;
         sp.life -= reducedMotion ? 0.08 : 0.04;
-        if (sp.life <= 0) continue;
+        if (sp.life <= 0) {
+          sparks.splice(i, 1);
+          continue;
+        }
         ctx.beginPath();
-        ctx.arc(sp.x, sp.y, sp.size + (1 - sp.life) * 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${sp.hue}, 95%, 70%, ${sp.life})`;
+        ctx.arc(sp.x, sp.y, sp.size + (1 - sp.life) * 1.4, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${sp.hue}, 95%, 72%, ${sp.life})`;
         ctx.fill();
+        if (sp.life > 0.55) {
+          ctx.beginPath();
+          ctx.arc(sp.x, sp.y, sp.size * 2.2, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${sp.hue}, 100%, 80%, ${sp.life * 0.25})`;
+          ctx.fill();
+        }
       }
-      while (sparks.length > 0 && sparks[0]!.life <= 0) sparks.shift();
 
       if (jackpotFlash) {
         const alpha = jackpotFlash.life * (jackpotFlash.tide ? 0.55 : 0.4);
+        const ring = 1 - jackpotFlash.life;
         ctx.fillStyle = jackpotFlash.tide
           ? `rgba(45, 212, 191, ${alpha})`
           : `rgba(244, 114, 182, ${alpha})`;
         ctx.fillRect(0, 0, SHELF_W, SHELF_LEN);
+        ctx.save();
+        ctx.strokeStyle = jackpotFlash.tide
+          ? `rgba(165, 243, 252, ${jackpotFlash.life})`
+          : `rgba(253, 224, 71, ${jackpotFlash.life})`;
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.beginPath();
+        ctx.arc(SHELF_W / 2, SHELF_LEN * 0.48, 28 + ring * 70, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(SHELF_W / 2, SHELF_LEN * 0.48, 12 + ring * 42, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
         ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, jackpotFlash.life)})`;
         ctx.font = 'bold 22px Orbitron, system-ui, sans-serif';
         ctx.textAlign = 'center';
+        ctx.shadowColor = jackpotFlash.tide ? 'rgba(45,212,191,0.9)' : 'rgba(251,191,36,0.9)';
+        ctx.shadowBlur = 16;
         ctx.fillText(
           jackpotFlash.tide
             ? `潮湧彩池！+${Math.round(jackpotFlash.amount)}`
@@ -557,6 +656,7 @@ export function GameCanvas({
           SHELF_W / 2,
           SHELF_LEN * 0.42,
         );
+        ctx.shadowBlur = 0;
         jackpotFlash.life -= reducedMotion ? 0.06 : 0.025;
         if (jackpotFlash.life <= 0) jackpotFlash = null;
       }
