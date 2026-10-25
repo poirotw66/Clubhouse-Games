@@ -159,13 +159,11 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, t: number, stage: nu
     const pulse = 1 + Math.sin(t * 2.4) * 0.045;
     const sprite = crystalBossSprite(stage);
     // Visual presence matches the cover crystal; collision radius stays e.r.
-    const scale = ((e.r * 4.6) / 128) * pulse;
-    ctx.globalCompositeOperation = 'lighter';
+    const scale = ((e.r * 5.2) / 128) * pulse;
     ctx.beginPath();
-    ctx.arc(0, 0, e.r * 2.8, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${enemyHue(e, stage)}, 100%, 65%, 0.22)`;
+    ctx.arc(0, 0, e.r * 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${enemyHue(e, stage)}, 100%, 55%, 0.16)`;
     ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
     ctx.rotate(spin);
     ctx.drawImage(sprite, -64 * scale, -64 * scale, 128 * scale, 128 * scale);
 

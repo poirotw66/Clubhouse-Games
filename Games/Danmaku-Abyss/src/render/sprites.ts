@@ -196,25 +196,24 @@ export function crystalBossSprite(stage: number): SpriteCanvas {
   const cx = size / 2;
   const cy = size / 2;
 
-  const aura = ctx.createRadialGradient(cx, cy, 8, cx, cy, 60);
-  aura.addColorStop(0, pal.glow);
-  aura.addColorStop(0.55, pal.glow.replace(/[\d.]+\)$/, '0.18)'));
+  const aura = ctx.createRadialGradient(cx, cy, 10, cx, cy, 62);
+  aura.addColorStop(0, pal.glow.replace(/[\d.]+\)$/, '0.35)'));
+  aura.addColorStop(0.55, pal.glow.replace(/[\d.]+\)$/, '0.12)'));
   aura.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = aura;
   ctx.beginPath();
-  ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 62, 0, Math.PI * 2);
   ctx.fill();
 
-  // Outer spike ring.
-  for (let i = 0; i < 8; i++) {
-    const a = (Math.PI * 2 * i) / 8 - Math.PI / 2;
-    const a2 = a + Math.PI / 8;
-    const tipR = 54;
-    const baseR = 28;
+  // Long outer crystal spikes (cover silhouette).
+  for (let i = 0; i < 10; i++) {
+    const a = (Math.PI * 2 * i) / 10 - Math.PI / 2;
+    const tipR = i % 2 === 0 ? 58 : 46;
+    const baseR = 22;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(a) * tipR, cy + Math.sin(a) * tipR);
-    ctx.lineTo(cx + Math.cos(a - 0.22) * baseR, cy + Math.sin(a - 0.22) * baseR);
-    ctx.lineTo(cx + Math.cos(a + 0.22) * baseR, cy + Math.sin(a + 0.22) * baseR);
+    ctx.lineTo(cx + Math.cos(a - 0.18) * baseR, cy + Math.sin(a - 0.18) * baseR);
+    ctx.lineTo(cx + Math.cos(a + 0.18) * baseR, cy + Math.sin(a + 0.18) * baseR);
     ctx.closePath();
     const spike = ctx.createLinearGradient(
       cx,
@@ -222,50 +221,52 @@ export function crystalBossSprite(stage: number): SpriteCanvas {
       cx + Math.cos(a) * tipR,
       cy + Math.sin(a) * tipR,
     );
-    spike.addColorStop(0, pal.mid);
+    spike.addColorStop(0, pal.core);
+    spike.addColorStop(0.45, pal.mid);
     spike.addColorStop(1, pal.tip);
     ctx.fillStyle = spike;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.25;
     ctx.stroke();
-    void a2;
   }
 
-  // Inner diamond facets.
-  const facets: Array<[number, number, number, number, number, number]> = [
-    [0, -34, 22, 0, 0, 8],
-    [0, -34, -22, 0, 0, 8],
-    [22, 0, 0, 34, 0, 8],
-    [-22, 0, 0, 34, 0, 8],
-    [-22, 0, 0, -34, 0, 8],
-    [22, 0, 0, -34, 0, 8],
+  // Hard-edged diamond lattice — reads as faceted crystal, not a soft orb.
+  const facets: Array<[number, number, number, number, number, number, string]> = [
+    [0, -36, 18, -6, 0, 4, pal.core],
+    [0, -36, -18, -6, 0, 4, pal.mid],
+    [18, -6, 28, 10, 6, 8, pal.mid],
+    [-18, -6, -28, 10, -6, 8, pal.core],
+    [28, 10, 14, 30, 0, 10, pal.tip],
+    [-28, 10, -14, 30, 0, 10, pal.mid],
+    [14, 30, 0, 38, 0, 10, pal.core],
+    [-14, 30, 0, 38, 0, 10, pal.tip],
   ];
-  for (let i = 0; i < facets.length; i++) {
-    const [x1, y1, x2, y2, x3, y3] = facets[i];
+  for (const [x1, y1, x2, y2, x3, y3, fill] of facets) {
     ctx.beginPath();
     ctx.moveTo(cx + x1, cy + y1);
     ctx.lineTo(cx + x2, cy + y2);
     ctx.lineTo(cx + x3, cy + y3);
     ctx.closePath();
-    ctx.fillStyle = i % 2 === 0 ? pal.core : pal.mid;
-    ctx.globalAlpha = i % 2 === 0 ? 0.95 : 0.85;
+    ctx.fillStyle = fill;
     ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 1.15;
     ctx.stroke();
   }
 
-  // Bright nucleus.
-  const core = ctx.createRadialGradient(cx - 4, cy - 6, 1, cx, cy, 16);
+  // Bright nucleus with hard rim.
+  const core = ctx.createRadialGradient(cx - 4, cy - 6, 1, cx, cy, 15);
   core.addColorStop(0, '#ffffff');
-  core.addColorStop(0.4, pal.core);
+  core.addColorStop(0.35, pal.core);
   core.addColorStop(1, pal.mid);
   ctx.fillStyle = core;
   ctx.beginPath();
-  ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 13, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
 
   cache.set(key, c);
   return c;
