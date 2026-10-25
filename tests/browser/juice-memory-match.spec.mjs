@@ -99,9 +99,21 @@ async function forceMiss(page, isMobile) {
     await expect(flash).toBeVisible({ timeout: 2_000 });
     const text = (await flash.textContent()) || '';
     if (text.includes('未中')) {
-      await expect(page.locator('[data-mm-grid="1"]')).toHaveAttribute('data-juice-shake', '1', {
-        timeout: 1_000,
-      });
+      // Soft shake is ~300ms; the 「未中」 flash can paint after it ends on slow
+      // mobile CI. Prefer the MutationObserver latch (wired in the caller) and
+      // fall back to a live attribute read.
+      await expect
+        .poll(
+          async () =>
+            page.evaluate(
+              () =>
+                window.__sawGridShake === true ||
+                document.querySelector('[data-mm-grid="1"]')?.getAttribute('data-juice-shake') ===
+                  '1',
+            ),
+          { timeout: 2_000 },
+        )
+        .toBe(true);
       await waitBoardUnlocked(page);
       return true;
     }
