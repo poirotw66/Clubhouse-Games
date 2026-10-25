@@ -300,11 +300,6 @@ body {
   background: rgba(8, 18, 32, 0.98);
 }
 
-.mm-hud__span {
-  background:
-    linear-gradient(90deg, rgba(45, 212, 191, 0.22), rgba(244, 114, 182, 0.14)) !important;
-}
-
 .mm-hud__label {
   font-size: 0.68rem;
   font-weight: 600;
@@ -335,6 +330,8 @@ body {
 
 .mm-hud__span {
   grid-column: 1 / -1;
+  background:
+    linear-gradient(90deg, rgba(45, 212, 191, 0.22), rgba(244, 114, 182, 0.14)) !important;
 }
 
 .mm-hud__span .mm-hud__value {
