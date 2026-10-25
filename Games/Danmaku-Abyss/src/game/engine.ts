@@ -719,9 +719,11 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
     s.midwayLeft -= dt;
     const elapsedMid = MIDWAY_SEC - s.midwayLeft;
     let expected: number;
-    if (elapsedMid < 0.35) expected = 1;
-    else if (elapsedMid < 1.6) expected = 2;
-    else expected = Math.min(7, 2 + Math.floor((elapsedMid - 1.6) / 6.5));
+    // Cover-first impression: open with a small curtain flock, then ramp hard.
+    if (elapsedMid < 0.2) expected = 2;
+    else if (elapsedMid < 0.9) expected = 3;
+    else if (elapsedMid < 2.2) expected = 4;
+    else expected = Math.min(7, 4 + Math.floor((elapsedMid - 2.2) / 5.5));
     const midwayAlive = s.enemies.filter((e) => !e.isBoss).length;
     if (midwayAlive < expected && s.midwayLeft > 4) {
       const r = streamRng(s.seed, `midway:${s.stage}:${s.enemies.length}:${expected}`);

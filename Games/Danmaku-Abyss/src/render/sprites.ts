@@ -33,17 +33,17 @@ export function bulletOrbSprite(hue: number, r: number): SpriteCanvas {
   const hit = cache.get(key);
   if (hit) return hit;
 
-  const pad = br * 2.4;
+  const pad = br * 3.1;
   const size = (br + pad) * 2;
   const c = canvas(size, size);
   const ctx = c.getContext('2d')!;
   const cx = size / 2;
   const cy = size / 2;
 
-  const glow = ctx.createRadialGradient(cx, cy, br * 0.2, cx, cy, br + pad);
-  glow.addColorStop(0, `hsla(${h}, 100%, 78%, 0.55)`);
-  glow.addColorStop(0.35, `hsla(${h}, 95%, 62%, 0.28)`);
-  glow.addColorStop(0.7, `hsla(${h}, 90%, 55%, 0.1)`);
+  const glow = ctx.createRadialGradient(cx, cy, br * 0.15, cx, cy, br + pad);
+  glow.addColorStop(0, `hsla(${h}, 100%, 82%, 0.72)`);
+  glow.addColorStop(0.3, `hsla(${h}, 95%, 64%, 0.38)`);
+  glow.addColorStop(0.65, `hsla(${h}, 90%, 55%, 0.14)`);
   glow.addColorStop(1, `hsla(${h}, 90%, 50%, 0)`);
   ctx.fillStyle = glow;
   ctx.beginPath();
@@ -511,8 +511,8 @@ export function abyssPlateSprite(stage: number): SpriteCanvas {
     const x = (i % 2 === 0 ? 0.15 : 0.85) * W;
     const y = 80 + i * 100;
     const g = ctx.createRadialGradient(x, y, 10, x, y, 160 + i * 20);
-    g.addColorStop(0, `rgba(${p.a}, ${0.14 - i * 0.015})`);
-    g.addColorStop(1, `rgba(${p.a}, 0)`);
+  g.addColorStop(0, `rgba(${p.a}, ${0.22 - i * 0.02})`);
+  g.addColorStop(1, `rgba(${p.a}, 0)`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   }

@@ -156,30 +156,37 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, t: number, stage: nu
 
   if (e.isBoss) {
     const spin = t * 0.45;
-    const pulse = 1 + Math.sin(t * 2.4) * 0.04;
+    const pulse = 1 + Math.sin(t * 2.4) * 0.045;
     const sprite = crystalBossSprite(stage);
-    const scale = ((e.r * 2.35) / 128) * pulse;
+    // Visual presence matches the cover crystal; collision radius stays e.r.
+    const scale = ((e.r * 4.6) / 128) * pulse;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.beginPath();
+    ctx.arc(0, 0, e.r * 2.8, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${enemyHue(e, stage)}, 100%, 65%, 0.22)`;
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
     ctx.rotate(spin);
     ctx.drawImage(sprite, -64 * scale, -64 * scale, 128 * scale, 128 * scale);
 
     // Orbiting shard accents.
     ctx.rotate(-spin);
-    for (let i = 0; i < 4; i++) {
-      const a = t * 1.1 + (Math.PI * 2 * i) / 4;
-      const ox = Math.cos(a) * (e.r * 1.55);
-      const oy = Math.sin(a) * (e.r * 0.85);
+    for (let i = 0; i < 6; i++) {
+      const a = t * 1.15 + (Math.PI * 2 * i) / 6;
+      const ox = Math.cos(a) * (e.r * 2.15);
+      const oy = Math.sin(a) * (e.r * 1.15);
       ctx.beginPath();
-      ctx.moveTo(ox, oy - 5);
-      ctx.lineTo(ox + 4, oy);
-      ctx.lineTo(ox, oy + 5);
-      ctx.lineTo(ox - 4, oy);
+      ctx.moveTo(ox, oy - 6);
+      ctx.lineTo(ox + 5, oy);
+      ctx.lineTo(ox, oy + 6);
+      ctx.lineTo(ox - 5, oy);
       ctx.closePath();
-      ctx.fillStyle = `hsla(${enemyHue(e, stage)}, 95%, 75%, 0.85)`;
+      ctx.fillStyle = `hsla(${enemyHue(e, stage)}, 95%, 78%, 0.9)`;
       ctx.fill();
     }
   } else {
     const sprite = midwaySprite(e.id, enemyHue(e, stage));
-    const scale = (e.r * 2.4) / 64;
+    const scale = (e.r * 3.1) / 64;
     ctx.rotate(t * 0.9 + e.id * 0.7);
     ctx.drawImage(sprite, -32 * scale, -32 * scale, 64 * scale, 64 * scale);
   }
@@ -295,8 +302,17 @@ function drawShip(
   ctx.fillStyle = `hsla(${beamHue}, 95%, 65%, ${0.65 * flicker})`;
   ctx.fill();
 
+  // Soft aura under the craft so it reads as a neon body, not a tiny triangle.
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.beginPath();
+  ctx.arc(px, py, 22, 0, Math.PI * 2);
+  ctx.fillStyle = `hsla(${hullHue}, 100%, 70%, 0.2)`;
+  ctx.fill();
+  ctx.restore();
+
   const spr = shipSprite(craft.id, hullHue, beamHue);
-  const scale = 0.72;
+  const scale = 1.05;
   ctx.drawImage(spr, px - (spr.width * scale) / 2, py - (spr.height * scale) / 2 - 2, spr.width * scale, spr.height * scale);
 }
 
