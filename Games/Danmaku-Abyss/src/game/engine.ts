@@ -713,13 +713,20 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
   }
 
   // 3) Spawn: midway pressure until the timer runs out, then the stage boss.
+  // Open with enemies immediately so the first seconds match the cover's dense
+  // field, then ramp to the same mid-stage cap of 7.
   if (!s.bossSpawned) {
     s.midwayLeft -= dt;
-    const wave = Math.floor((MIDWAY_SEC - s.midwayLeft) / 8);
-    const expected = Math.max(0, Math.min(7, wave));
+    const elapsedMid = MIDWAY_SEC - s.midwayLeft;
+    let expected: number;
+    // Cover-first impression: open with a small curtain flock, then ramp hard.
+    if (elapsedMid < 0.2) expected = 2;
+    else if (elapsedMid < 0.9) expected = 3;
+    else if (elapsedMid < 2.2) expected = 4;
+    else expected = Math.min(7, 4 + Math.floor((elapsedMid - 2.2) / 5.5));
     const midwayAlive = s.enemies.filter((e) => !e.isBoss).length;
     if (midwayAlive < expected && s.midwayLeft > 4) {
-      const r = streamRng(s.seed, `midway:${s.stage}:${s.enemies.length}:${wave}`);
+      const r = streamRng(s.seed, `midway:${s.stage}:${s.enemies.length}:${expected}`);
       const x = 40 + r() * (FIELD_W - 80);
       s.enemies.push(
         makeEnemy(s, x, -20, midwayCardFor(s.stage, Math.floor(r() * 1000)), false, { x, y: 90 + r() * 90 }),
@@ -735,7 +742,9 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
   // 4) Enemies: glide in, then run their card's emitters.
   for (const e of s.enemies) {
     if (e.entryTo && e.entryFrom) {
-      e.entryT = Math.min(1, e.entryT + dt / 1.1);
+      // Snappier entry so curtains open within the first couple of seconds.
+      const entrySec = e.isBoss ? 0.85 : 0.55;
+      e.entryT = Math.min(1, e.entryT + dt / entrySec);
       const t = e.entryT * e.entryT * (3 - 2 * e.entryT); // smoothstep
       e.x = e.entryFrom.x + (e.entryTo.x - e.entryFrom.x) * t;
       e.y = e.entryFrom.y + (e.entryTo.y - e.entryFrom.y) * t;

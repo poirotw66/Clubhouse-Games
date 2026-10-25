@@ -59,10 +59,10 @@ function burst(
       y,
       vx: Math.cos(a) * sp,
       vy: Math.sin(a) * sp,
-      life: 0.35 + (i % 4) * 0.05,
-      maxLife: 0.45,
+      life: 0.38 + (i % 4) * 0.06,
+      maxLife: 0.52,
       hue,
-      r: 2 + (i % 3),
+      r: 2.4 + (i % 4),
     });
   }
 }
@@ -128,23 +128,29 @@ export function observeJuice(
   // Spell capture or timeout banner.
   if (next.lastCardResult && next.lastCardResult !== prev.lastCardResult) {
     if (next.lastCardResult === 'captured') {
-      juice.shake = Math.max(juice.shake, 0.55);
-      juice.hitStop = Math.max(juice.hitStop, 0.05);
-      juice.flash = Math.max(juice.flash, 0.6);
+      juice.shake = Math.max(juice.shake, 0.7);
+      juice.hitStop = Math.max(juice.hitStop, 0.06);
+      juice.flash = Math.max(juice.flash, 0.75);
       const boss = next.enemies.find((e) => e.isBoss) ?? prev.enemies.find((e) => e.isBoss);
-      burst(juice, boss?.x ?? FIELD_CX, boss?.y ?? 120, 300, 20, 135);
+      const bx = boss?.x ?? FIELD_CX;
+      const by = boss?.y ?? 120;
+      burst(juice, bx, by, 300, 28, 160);
+      burst(juice, bx, by, 45, 16, 110);
+      burst(juice, bx, by, 190, 12, 90);
       audio.capture();
     }
   }
 
-  // Boss fully defeated (left the field).
+  // Boss fully defeated (left the field) — screen-wide crystal shatter.
   const prevBoss = prev.enemies.find((e) => e.isBoss);
   const nextBoss = next.enemies.find((e) => e.isBoss);
   if (prevBoss && !nextBoss && next.bossSpawned) {
-    juice.shake = Math.max(juice.shake, 1.35);
-    juice.hitStop = Math.max(juice.hitStop, 0.1);
-    juice.flash = Math.max(juice.flash, 0.85);
-    burst(juice, prevBoss.x, prevBoss.y, 320, 28, 195);
+    juice.shake = Math.max(juice.shake, 1.55);
+    juice.hitStop = Math.max(juice.hitStop, 0.12);
+    juice.flash = Math.max(juice.flash, 0.95);
+    burst(juice, prevBoss.x, prevBoss.y, 320, 36, 220);
+    burst(juice, prevBoss.x, prevBoss.y, 190, 22, 160);
+    burst(juice, prevBoss.x, prevBoss.y, 40, 18, 130);
     audio.impact(1);
   }
 
@@ -153,16 +159,18 @@ export function observeJuice(
     const nextIds = new Set(next.enemies.map((e) => e.id));
     for (const e of prev.enemies) {
       if (e.isBoss || nextIds.has(e.id)) continue;
-      burst(juice, e.x, e.y, 160, 7, 95);
+      burst(juice, e.x, e.y, 200, 11, 115);
+      burst(juice, e.x, e.y, 40, 5, 70);
     }
   }
 
-  // Big hit on boss HP.
+  // Big hit on boss HP — hit sparks.
   if (nextBoss && nextBoss.id === juice.lastBossId) {
     const drop = juice.lastBossHp - nextBoss.hp;
     if (drop >= 180) {
-      juice.hitStop = Math.max(juice.hitStop, 0.04);
-      burst(juice, nextBoss.x, nextBoss.y, 200, 8, 70);
+      juice.hitStop = Math.max(juice.hitStop, 0.045);
+      burst(juice, nextBoss.x, nextBoss.y, 300, 12, 95);
+      burst(juice, nextBoss.x, nextBoss.y, 45, 6, 60);
       audio.impact(0.4);
     }
     juice.lastBossHp = nextBoss.hp;
@@ -174,22 +182,23 @@ export function observeJuice(
     juice.lastBossHp = 0;
   }
 
-  // Per-graze micro sparks (readable feedback without drowning the field).
+  // Per-graze micro sparks + brief cyan flash ring cue.
   const grazeDelta = next.grazeCount - juice.lastGrazeCount;
   if (grazeDelta > 0) {
-    const sparks = Math.min(3, grazeDelta);
+    const sparks = Math.min(4, grazeDelta);
     for (let i = 0; i < sparks; i++) {
       juice.particles.push({
-        x: next.px + (i - 1) * 4,
+        x: next.px + (i - 1.5) * 5,
         y: next.py - 6,
-        vx: (i - 1) * 18,
-        vy: -40 - i * 8,
-        life: 0.18,
-        maxLife: 0.22,
-        hue: 275,
-        r: 1.6,
+        vx: (i - 1.5) * 22,
+        vy: -48 - i * 10,
+        life: 0.2,
+        maxLife: 0.26,
+        hue: 185 + (i % 2) * 100,
+        r: 2.0,
       });
     }
+    juice.flash = Math.max(juice.flash, 0.08);
     juice.lastGrazeCount = next.grazeCount;
   }
 
@@ -197,9 +206,10 @@ export function observeJuice(
   const gained = next.grazeCount - juice.lastGrazePulse;
   if (gained >= 8) {
     juice.lastGrazePulse = next.grazeCount;
-    juice.hitStop = Math.max(juice.hitStop, 0.028);
-    juice.flash = Math.max(juice.flash, 0.2);
-    burst(juice, next.px, next.py, 280, 6, 50);
+    juice.hitStop = Math.max(juice.hitStop, 0.03);
+    juice.flash = Math.max(juice.flash, 0.28);
+    burst(juice, next.px, next.py, 280, 10, 70);
+    burst(juice, next.px, next.py, 190, 6, 50);
     audio.combo(Math.min(8, Math.floor(next.grazeMult)));
   }
 }
@@ -220,7 +230,7 @@ export function tickJuice(juice: JuiceState, dt: number): void {
     p.vy += 40 * dt;
     kept.push(p);
   }
-  juice.particles = kept.length > 140 ? kept.slice(-140) : kept;
+  juice.particles = kept.length > 180 ? kept.slice(-180) : kept;
 }
 
 export function prefersReducedMotion(): boolean {
