@@ -97,7 +97,7 @@ export function observeJuice(
     juice.shake = Math.max(juice.shake, 1.15);
     juice.hitStop = Math.max(juice.hitStop, 0.07);
     juice.flash = Math.max(juice.flash, 0.55);
-    burst(juice, next.px, next.py, 350, 14, 140);
+    burst(juice, next.px, next.py, 350, 18, 155);
     audio.impact(0.85);
   }
 
@@ -106,7 +106,7 @@ export function observeJuice(
     juice.shake = Math.max(juice.shake, 0.95);
     juice.flash = Math.max(juice.flash, 0.7);
     const cleared = Math.max(0, prev.bullets.length - next.bullets.length);
-    burst(juice, next.px, next.py, 45, 18, 160);
+    burst(juice, next.px, next.py, 45, 22, 175);
     if (cleared > 0) {
       const samples = Math.min(12, Math.max(4, Math.floor(cleared / 8)));
       for (let i = 0; i < samples; i++) {
@@ -121,7 +121,7 @@ export function observeJuice(
   if (next.specialCd > prev.specialCd && next.specialLeft > prev.specialLeft) {
     juice.shake = Math.max(juice.shake, 0.4);
     juice.flash = Math.max(juice.flash, 0.35);
-    burst(juice, next.px, next.py, 210, 10, 110);
+    burst(juice, next.px, next.py, 190, 14, 125);
     audio.impact(0.35);
   }
 
@@ -132,7 +132,7 @@ export function observeJuice(
       juice.hitStop = Math.max(juice.hitStop, 0.05);
       juice.flash = Math.max(juice.flash, 0.6);
       const boss = next.enemies.find((e) => e.isBoss) ?? prev.enemies.find((e) => e.isBoss);
-      burst(juice, boss?.x ?? FIELD_CX, boss?.y ?? 120, 300, 16, 120);
+      burst(juice, boss?.x ?? FIELD_CX, boss?.y ?? 120, 300, 20, 135);
       audio.capture();
     }
   }
@@ -144,7 +144,7 @@ export function observeJuice(
     juice.shake = Math.max(juice.shake, 1.35);
     juice.hitStop = Math.max(juice.hitStop, 0.1);
     juice.flash = Math.max(juice.flash, 0.85);
-    burst(juice, prevBoss.x, prevBoss.y, 320, 22, 180);
+    burst(juice, prevBoss.x, prevBoss.y, 320, 28, 195);
     audio.impact(1);
   }
 
@@ -220,7 +220,7 @@ export function tickJuice(juice: JuiceState, dt: number): void {
     p.vy += 40 * dt;
     kept.push(p);
   }
-  juice.particles = kept.length > 100 ? kept.slice(-100) : kept;
+  juice.particles = kept.length > 140 ? kept.slice(-140) : kept;
 }
 
 export function prefersReducedMotion(): boolean {

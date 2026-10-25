@@ -68,10 +68,10 @@ type RunKind = 'free' | 'mode' | 'daily';
 
 const BEST_KEY = 'danmaku-abyss:best';
 
-const RARITY_STYLE: Record<string, string> = {
-  common: 'border-slate-500/50 text-slate-200',
-  rare: 'border-sky-400/60 text-sky-200',
-  epic: 'border-fuchsia-400/70 text-fuchsia-200',
+const RARITY_CLASS: Record<string, string> = {
+  common: 'rarity-common',
+  rare: 'rarity-rare',
+  epic: 'rarity-epic',
 };
 
 const JUICE_AUDIO = {
@@ -536,117 +536,140 @@ export default function App(): React.ReactElement {
 
   if (screen === 'menu') {
     return (
-      <div
-        className="da-title-shell min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center"
-        style={{
-          backgroundImage: [
-            'linear-gradient(rgba(5, 6, 15, 0.55), rgba(5, 6, 15, 0.92))',
-            `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
-          ].join(', '),
-        }}
-      >
+      <div className="da-title-shell">
         <BackToMenu />
         {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
-        <header className="da-title-hero">
-          <h1 className="da-display da-glow-title text-4xl font-extrabold tracking-wide text-fuchsia-200">彈幕深淵</h1>
-          <p className="mt-2 text-slate-400 text-sm">Danmaku Abyss</p>
-        </header>
-        <div className="da-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-slate-300">
-          <p className="mb-3 text-slate-200 font-semibold">靠得越近，打得越痛，也死得越快。</p>
-          <ul className="space-y-1.5 list-disc list-inside">
-            <li>傷害隨距離衰減，擦彈倍率隨距離上升——站哪裡是唯一重要的問題。</li>
-            <li><b>集中模式</b>（Shift／長按）大幅減速並顯示判定點，能穿針但無法換位。</li>
-            <li><b>靈擊</b>（Z）清空子彈換命，但會把擦彈倍率歸零。</li>
-            <li><b>特技</b>（X）為機體專屬冷卻技，不消耗靈擊。</li>
-            <li>死亡扣一條命、掉一級火力，碎片會撒在你死掉的地方。</li>
-            <li>五個階段，每階段結束三選一強化。標題另有模式／關卡包與每日挑戰。</li>
-          </ul>
-          <div className="mt-4">
-            <JuiceSettingsPanel compact />
+        <div className="da-title-stage">
+          <div className="da-title-field">
+            <div className="da-title-copy">
+              <h1 className="da-title-shout da-glow-title">彈幕深淵</h1>
+              <p className="da-title-sub">Danmaku Abyss</p>
+              <p className="da-title-lead">靠得越近，打得越痛，也死得越快。</p>
+            </div>
+            <div
+              className="da-title-sticker"
+              style={{
+                ['--sticker-bg' as string]: `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+              }}
+              aria-hidden="true"
+            >
+              <div className="da-title-sticker__bullets" />
+              <span className="da-title-sticker__label">BULLET FIELD</span>
+            </div>
+          </div>
+          <div className="da-title-band">
+            <p className="da-title-band__text">
+              傷害隨距離衰減，擦彈倍率隨距離上升——站哪裡是唯一重要的問題。
+            </p>
+            <button type="button" onClick={startRun} className="da-cta">
+              潛入深淵
+            </button>
           </div>
         </div>
-        {best > 0 && <p className="text-slate-400 text-sm">自由遊玩最佳 {best.toLocaleString('zh-Hant')}</p>}
-        <p className="text-slate-400 text-sm">
-          機體 <b className="text-sky-200">{selectedCraft.name}</b>
-          <span className="text-slate-500">・特技 {selectedCraft.special.name}</span>
-          {progress.clearCount > 0 ? `・通關 ${progress.clearCount}` : ''}
-          {captureCount > 0 ? `・符卡 ${captureCount}` : ''}
-        </p>
-        <div className="flex flex-col gap-3 items-center w-full max-w-md">
-          <button
-            type="button"
-            onClick={startRun}
-            className="da-cta min-h-[44px] w-full sm:w-auto px-8 py-3 rounded-xl font-semibold text-white"
-          >
-            潛入深淵
-          </button>
-          <button
-            type="button"
-            onClick={startDaily}
-            aria-label={`今日挑戰種子 ${dailySeedCode()}`}
-            className="min-h-[44px] w-full rounded-xl font-semibold text-amber-100 border border-amber-400/50 bg-amber-500/15 hover:bg-amber-500/25 transition-colors touch-manipulation px-6 py-3"
-          >
-            今日挑戰
-          </button>
-          <p className="-mt-1 text-center text-[11px] text-slate-500">
-            種子 {dailySeedCode()}
-            {dailyBest.date === todayKey() && dailyBest.attempts > 0
-              ? `・今日最佳 ${dailyBest.bestScore.toLocaleString('zh-Hant')}${dailyBest.cleared ? '・已通關' : ''}`
-              : '・尚無今日紀錄'}
+
+        <div className="da-title-body">
+          <div className="da-statement-row">
+            <div className="da-tile da-tile--hot">
+              <h2>站到最危險的位置</h2>
+              <p>五個階段構築戰機；擦彈、靈擊與特技決定你能潛多深。</p>
+            </div>
+            <div className="da-tile da-tile--ice">
+              <h3>集中穿針</h3>
+              <p>Shift／長按減速並顯示判定點。</p>
+            </div>
+          </div>
+
+          <div className="da-tile da-tile--amber">
+            <p className="da-runin">
+              <b>靈擊（Z）</b>清空子彈換命，擦彈倍率歸零。
+              <b> 特技（X）</b>為機體專屬冷卻技，不花靈擊。
+              死亡扣一命、掉一級火力，碎片會撒在你倒下的地方。
+            </p>
+          </div>
+
+          <div className="da-actions">
+            <button
+              type="button"
+              onClick={startDaily}
+              aria-label={`今日挑戰種子 ${dailySeedCode()}`}
+              className="da-btn da-btn--daily"
+            >
+              今日挑戰
+            </button>
+            <p className="da-meta">
+              種子 {dailySeedCode()}
+              {dailyBest.date === todayKey() && dailyBest.attempts > 0
+                ? `・今日最佳 ${dailyBest.bestScore.toLocaleString('zh-Hant')}${dailyBest.cleared ? '・已通關' : ''}`
+                : '・尚無今日紀錄'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCrafts(true)}
+              aria-label={`選擇機體。目前 ${selectedCraft.name}`}
+              className="da-btn da-btn--craft"
+            >
+              選擇機體・{selectedCraft.name}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowModes(true)}
+              aria-label={`開啟模式關卡包。${packSubtitle}`}
+              className="da-btn da-btn--mode"
+            >
+              模式／關卡包
+            </button>
+            <p className="da-meta">{packSubtitle}</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCaptures(true)}
+                className="da-btn da-btn--ghost"
+                style={{ width: 'auto', flex: '1 1 8rem' }}
+              >
+                符卡圖鑑
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFirstRun(true)}
+                className="da-btn da-btn--ghost"
+                style={{ width: 'auto', flex: '1 1 8rem' }}
+              >
+                操作教學
+              </button>
+            </div>
+          </div>
+
+          <p className="da-meta">
+            機體 <b>{selectedCraft.name}</b>
+            <span>・特技 {selectedCraft.special.name}</span>
+            {progress.clearCount > 0 ? `・通關 ${progress.clearCount}` : ''}
+            {captureCount > 0 ? `・符卡 ${captureCount}` : ''}
+            {best > 0 ? `・自由最佳 ${best.toLocaleString('zh-Hant')}` : ''}
           </p>
-          <button
-            type="button"
-            onClick={() => setShowCrafts(true)}
-            aria-label={`選擇機體。目前 ${selectedCraft.name}`}
-            className="min-h-[44px] w-full rounded-xl font-semibold text-sky-100 border border-sky-400/50 bg-sky-500/15 hover:bg-sky-500/25 transition-colors touch-manipulation px-6 py-3"
-          >
-            選擇機體・{selectedCraft.name}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowModes(true)}
-            aria-label={`開啟模式關卡包。${packSubtitle}`}
-            className="min-h-[44px] w-full rounded-xl font-semibold text-fuchsia-100 border border-fuchsia-400/50 bg-fuchsia-500/15 hover:bg-fuchsia-500/25 transition-colors touch-manipulation px-6 py-3"
-          >
-            模式／關卡包
-          </button>
-          <p className="-mt-1 text-center text-[11px] text-slate-500">{packSubtitle}</p>
-          <div className="flex flex-wrap gap-2 justify-center w-full">
-            <button
-              type="button"
-              onClick={() => setShowCaptures(true)}
-              className="min-h-[44px] px-5 py-3 rounded-xl font-semibold text-slate-300 border border-slate-600/60 hover:bg-slate-800/60 transition-colors touch-manipulation"
-            >
-              符卡圖鑑
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFirstRun(true)}
-              className="min-h-[44px] px-5 py-3 rounded-xl font-semibold text-slate-300 border border-slate-600/60 hover:bg-slate-800/60 transition-colors touch-manipulation"
-            >
-              操作教學
-            </button>
+
+          <div>
+            <JuiceSettingsPanel compact />
           </div>
         </div>
 
         {showModes && (
           <div
-            className="fixed inset-0 z-40 flex items-end justify-center bg-[#05060f]/80 p-4 sm:items-center"
+            className="da-dialog-scrim fixed inset-0 z-40 flex items-end justify-center p-4 sm:items-center"
             role="dialog"
             aria-modal="true"
             aria-labelledby="da-modes-title"
             onClick={() => setShowModes(false)}
           >
             <div
-              className="da-panel flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl p-4 text-left"
+              className="da-dialog flex max-h-[85vh] w-full max-w-lg flex-col rounded-[16px] p-4 text-left"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 id="da-modes-title" className="text-xl font-bold text-fuchsia-100">
+                  <h2 id="da-modes-title" className="text-xl font-black text-fuchsia-100">
                     模式／關卡包
                   </h2>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-sm text-slate-400">
                     練習關・高難通關・指定符卡・分模式最佳紀錄・進度獨立於自由遊玩
                   </p>
                 </div>
@@ -654,7 +677,7 @@ export default function App(): React.ReactElement {
                   type="button"
                   aria-label="關閉模式關卡包"
                   onClick={() => setShowModes(false)}
-                  className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200"
+                  className="da-close"
                 >
                   關閉
                 </button>
@@ -669,7 +692,7 @@ export default function App(): React.ReactElement {
                   setShowModes(false);
                   startMode(mode.id);
                 }}
-                className="da-cta mt-4 min-h-[44px] w-full rounded-xl px-4 text-sm font-black text-white"
+                className="da-cta da-cta--ice mt-4 w-full"
               >
                 {modeProgress.clearedCount >= packTotal
                   ? '重玩最終關'
@@ -692,20 +715,20 @@ export default function App(): React.ReactElement {
                           setShowModes(false);
                           startMode(mode.id);
                         }}
-                        className="flex min-h-16 w-full flex-col rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-3 text-left transition-colors hover:bg-slate-800/80 disabled:cursor-not-allowed disabled:opacity-45"
+                        className="da-list-item"
                       >
                         <span className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-slate-100">
-                            {index + 1}. {mode.name}
+                          <span className="font-bold text-slate-100">
+                            {mode.name}
                           </span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs text-slate-400">
                             {!unlocked ? '未解鎖' : done ? '已通關' : '挑戰'}
                           </span>
                         </span>
                         {unlocked && (
                           <>
-                            <span className="mt-1 text-xs text-slate-400">{mode.blurb}</span>
-                            <span className="mt-1 text-[11px] text-fuchsia-300/90">
+                            <span className="mt-1 text-sm text-slate-400">{mode.blurb}</span>
+                            <span className="mt-1 text-xs text-fuchsia-300">
                               目標：{mode.goalLabel}
                               {typeof modeBest === 'number' ? `・最佳 ${modeBest.toLocaleString('zh-Hant')}` : ''}
                             </span>
@@ -722,22 +745,22 @@ export default function App(): React.ReactElement {
 
         {showCrafts && (
           <div
-            className="fixed inset-0 z-40 flex items-end justify-center bg-[#05060f]/80 p-4 sm:items-center"
+            className="da-dialog-scrim fixed inset-0 z-40 flex items-end justify-center p-4 sm:items-center"
             role="dialog"
             aria-modal="true"
             aria-labelledby="da-crafts-title"
             onClick={() => setShowCrafts(false)}
           >
             <div
-              className="da-panel flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl p-4 text-left"
+              className="da-dialog flex max-h-[85vh] w-full max-w-lg flex-col rounded-[16px] p-4 text-left"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 id="da-crafts-title" className="text-xl font-bold text-sky-100">
+                  <h2 id="da-crafts-title" className="text-xl font-black text-cyan-100">
                     選擇機體
                   </h2>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-sm text-slate-400">
                     射擊型態／判定／特技各異・通關解鎖・各機體另記最佳分
                   </p>
                 </div>
@@ -745,7 +768,7 @@ export default function App(): React.ReactElement {
                   type="button"
                   aria-label="關閉機體選擇"
                   onClick={() => setShowCrafts(false)}
-                  className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200"
+                  className="da-close"
                 >
                   關閉
                 </button>
@@ -764,15 +787,11 @@ export default function App(): React.ReactElement {
                           selectCraft(craft.id);
                           setShowCrafts(false);
                         }}
-                        className={`flex min-h-16 w-full flex-col rounded-xl border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                          selected
-                            ? 'border-sky-400/70 bg-sky-500/20'
-                            : 'border-slate-600/70 bg-slate-900/70 hover:bg-slate-800/80'
-                        }`}
+                        className={`da-list-item ${selected ? 'da-list-item--selected' : ''}`}
                       >
                         <span className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-slate-100">{craft.name}</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="font-bold text-slate-100">{craft.name}</span>
+                          <span className="text-xs text-slate-400">
                             {!unlocked
                               ? `通關 ${craft.unlockClears} 次解鎖`
                               : selected
@@ -782,12 +801,12 @@ export default function App(): React.ReactElement {
                         </span>
                         {unlocked && (
                           <>
-                            <span className="mt-1 text-xs text-slate-400">{craft.blurb}</span>
-                            <span className="mt-1 text-[11px] text-amber-200/90">
+                            <span className="mt-1 text-sm text-slate-400">{craft.blurb}</span>
+                            <span className="mt-1 text-xs text-amber-200">
                               特技 {craft.special.name}：{craft.special.blurb}
                             </span>
                             {typeof craftBest === 'number' && (
-                              <span className="mt-1 text-[11px] text-sky-300/90">
+                              <span className="mt-1 text-xs text-cyan-300">
                                 最佳 {craftBest.toLocaleString('zh-Hant')}
                               </span>
                             )}
@@ -804,22 +823,22 @@ export default function App(): React.ReactElement {
 
         {showCaptures && (
           <div
-            className="fixed inset-0 z-40 flex items-end justify-center bg-[#05060f]/80 p-4 sm:items-center"
+            className="da-dialog-scrim fixed inset-0 z-40 flex items-end justify-center p-4 sm:items-center"
             role="dialog"
             aria-modal="true"
             aria-labelledby="da-captures-title"
             onClick={() => setShowCaptures(false)}
           >
             <div
-              className="da-panel flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl p-4 text-left"
+              className="da-dialog flex max-h-[85vh] w-full max-w-lg flex-col rounded-[16px] p-4 text-left"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 id="da-captures-title" className="text-xl font-bold text-fuchsia-100">
+                  <h2 id="da-captures-title" className="text-xl font-black text-fuchsia-100">
                     符卡圖鑑
                   </h2>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-sm text-slate-400">
                     已 Capture {captureCount} 張・時限內擊破才計入
                   </p>
                 </div>
@@ -827,7 +846,7 @@ export default function App(): React.ReactElement {
                   type="button"
                   aria-label="關閉符卡圖鑑"
                   onClick={() => setShowCaptures(false)}
-                  className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200"
+                  className="da-close"
                 >
                   關閉
                 </button>
@@ -839,7 +858,7 @@ export default function App(): React.ReactElement {
                   Object.keys(progress.capturedSpells).map((id) => (
                     <li
                       key={id}
-                      className="rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-slate-200"
+                      className="rounded-xl bg-slate-900 px-3 py-2 text-slate-200 shadow-[inset_0_0_0_2px_rgba(232,121,249,0.28)]"
                     >
                       {cardNameById.get(id) ?? id}
                     </li>
@@ -877,36 +896,53 @@ export default function App(): React.ReactElement {
     ? [...activeConditions(s)].filter((c) => watched.has(c))
     : [];
 
+  const specialCd = s?.specialCd ?? 0;
+  const specialLabel =
+    specialCd > 0
+      ? `${activeCraft.special.name} ${Math.ceil(specialCd)}s`
+      : (s?.specialLeft ?? 0) > 0
+        ? `${activeCraft.special.name}!`
+        : activeCraft.special.name;
+
   return (
-    <div className="h-screen w-screen flex flex-col">
+    <div className="da-play">
       <BackToMenu />
 
-      {/* HUD */}
-      <div className="da-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
-        <div className="flex gap-2 flex-wrap">
-          {isDailyRun && <span className="da-hud-chip text-amber-200">每日挑戰</span>}
-          {activeMode && (
-            <span className="da-hud-chip text-fuchsia-200">{activeMode.name}</span>
-          )}
-          <span className="da-hud-chip">機體 <b className="text-sky-200">{activeCraft.name}</b></span>
-          <span className="da-hud-chip">階段 <b className="text-slate-100">{Math.min(s?.stage ?? 1, STAGE_COUNT)}/{s?.config.endStage ?? STAGE_COUNT}</b></span>
-          <span className="da-hud-chip">殘機 <b className="text-rose-300">{'♥'.repeat(Math.max(0, s?.lives ?? 0)) || '—'}</b></span>
-          <span className="da-hud-chip">靈擊 <b className="text-amber-300">{'✦'.repeat(Math.max(0, s?.bombs ?? 0)) || '—'}</b></span>
+      {/* HUD: score + vitals lead; mode/craft/stage stay secondary so the field stays readable. */}
+      <div className="da-hud">
+        <div className="da-hud-vitals">
+          {isDailyRun && <span className="da-hud-chip da-hud-chip--daily">每日挑戰</span>}
+          {activeMode && <span className="da-hud-chip da-hud-chip--mode">{activeMode.name}</span>}
+          <span className="da-hud-vital da-hud-vital--life" aria-label="殘機">
+            殘機 {'♥'.repeat(Math.max(0, s?.lives ?? 0)) || '—'}
+          </span>
+          <span className="da-hud-vital da-hud-vital--bomb" aria-label="靈擊數">
+            靈擊 {'✦'.repeat(Math.max(0, s?.bombs ?? 0)) || '—'}
+          </span>
+          <span
+            className={`da-hud-vital da-hud-vital--special${specialCd > 0 ? ' is-cooling' : ''}`}
+          >
+            特技 {specialLabel}
+          </span>
           <span className="da-hud-chip">
-            特技{' '}
-            <b className={(s?.specialCd ?? 0) > 0 ? 'text-slate-400' : 'text-cyan-300'}>
-              {(s?.specialCd ?? 0) > 0
-                ? `${activeCraft.special.name} ${Math.ceil(s?.specialCd ?? 0)}s`
-                : (s?.specialLeft ?? 0) > 0
-                  ? `${activeCraft.special.name}!`
-                  : activeCraft.special.name}
+            機體 <b className="text-cyan-200">{activeCraft.name}</b>
+          </span>
+          <span className="da-hud-chip">
+            階段{' '}
+            <b className="text-slate-100">
+              {Math.min(s?.stage ?? 1, STAGE_COUNT)}/{s?.config.endStage ?? STAGE_COUNT}
             </b>
           </span>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <span className="da-hud-chip">火力 <b className="text-sky-300">{s?.powerTier ?? 1}</b></span>
-          <span className="da-hud-chip">擦彈 <b className="text-fuchsia-300">×{(s?.grazeMult ?? 1).toFixed(2)}</b></span>
-          <span className="da-hud-chip da-display tabular-nums text-slate-100">{(s?.score ?? 0).toLocaleString('zh-Hant')}</span>
+        <div className="da-hud-meta">
+          <span className="da-hud-chip">
+            火力 <b className="text-cyan-300">{s?.powerTier ?? 1}</b>
+          </span>
+          <span className="da-hud-graze">擦彈 ×{(s?.grazeMult ?? 1).toFixed(2)}</span>
+          <span className="da-hud-score" aria-label={`分數 ${(s?.score ?? 0).toLocaleString('zh-Hant')}`}>
+            <span className="da-hud-score__label">分數</span>
+            {(s?.score ?? 0).toLocaleString('zh-Hant')}
+          </span>
         </div>
       </div>
 
@@ -914,9 +950,9 @@ export default function App(): React.ReactElement {
           conditional upgrade is a decision about how to play, which needs the
           state to be visible — otherwise the bonus is invisible bookkeeping. */}
       {s && liveConditions.length > 0 && (
-        <div className="shrink-0 px-3 pb-1 flex gap-2 flex-wrap text-[11px]">
+        <div className="shrink-0 px-3 pb-1 flex gap-2 flex-wrap">
           {liveConditions.map((c) => (
-            <span key={c} className="px-2 py-0.5 rounded-full border border-fuchsia-400/50 text-fuchsia-200">
+            <span key={c} className="da-condition">
               {CONDITION_TEXT[c]}
             </span>
           ))}
@@ -924,9 +960,11 @@ export default function App(): React.ReactElement {
       )}
 
       {boss?.card && (
-        <div className="da-card-banner shrink-0 px-3 pb-1 flex justify-between text-xs text-fuchsia-200">
+        <div className="da-card-banner shrink-0">
           <span>{boss.card.name}</span>
-          <span className="tabular-nums">{Math.max(0, boss.card.timeLimit - boss.cardElapsed).toFixed(1)}s</span>
+          <span className="tabular-nums">
+            {Math.max(0, boss.card.timeLimit - boss.cardElapsed).toFixed(1)}s
+          </span>
         </div>
       )}
 
@@ -948,17 +986,19 @@ export default function App(): React.ReactElement {
 
         {paused && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="da-panel rounded-2xl px-6 py-4 text-center">
-              <p className="text-lg font-semibold mb-1">暫停</p>
-              <p className="text-slate-400 text-sm">按 P 或 Esc 繼續</p>
+            <div className="da-pause">
+              <p>暫停</p>
+              <p className="mt-1 text-sm text-slate-400">按 P 或 Esc 繼續</p>
             </div>
           </div>
         )}
 
         {s?.phase === 'upgrade' && (
-          <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/70">
+          <div className="da-upgrade-scrim absolute inset-0 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
-              <p className="text-center text-slate-300 mb-3 text-sm">第 {s.stage} 階段結束 — 選擇一項強化</p>
+              <p className="mb-3 text-center text-base font-bold text-fuchsia-100">
+                第 {s.stage} 階段結束 — 選擇一項強化
+              </p>
               <div className="grid gap-2">
                 {s.offered.map((id) => {
                   const u = UPGRADE_BY_ID[id];
@@ -968,12 +1008,12 @@ export default function App(): React.ReactElement {
                       key={id}
                       type="button"
                       onClick={() => pick(id)}
-                      className={`min-h-[44px] w-full text-left px-4 py-3 rounded-xl border bg-slate-900/85 hover:bg-slate-800 ${RARITY_STYLE[u.rarity]}`}
+                      className={`da-upgrade-card ${RARITY_CLASS[u.rarity] ?? 'rarity-common'}`}
                     >
-                      <span className="font-semibold">{u.name}</span>
-                      <span className="block text-slate-400 text-sm mt-0.5">{u.text}</span>
+                      <span className="font-black">{u.name}</span>
+                      <span className="mt-0.5 block text-sm text-slate-400">{u.text}</span>
                       {u.conditional && (
-                        <span className="block mt-1 text-[11px] text-fuchsia-300/80">
+                        <span className="mt-1 block text-xs text-fuchsia-300">
                           條件：{CONDITION_TEXT[u.conditional.when]}
                         </span>
                       )}
@@ -987,7 +1027,7 @@ export default function App(): React.ReactElement {
       </div>
 
       {/* Touch bomb / special: kept off the field so steering never hits them. */}
-      <div className="shrink-0 flex justify-end gap-2 px-3 py-2">
+      <div className="da-touchbar">
         <button
           type="button"
           aria-label={`特技 ${activeCraft.special.name}`}
@@ -995,7 +1035,7 @@ export default function App(): React.ReactElement {
             specialRef.current = true;
           }}
           disabled={!s || s.specialCd > 0}
-          className="min-h-[44px] min-w-[88px] rounded-xl font-semibold bg-cyan-700/80 hover:bg-cyan-600 disabled:opacity-40 text-white"
+          className="da-touch"
         >
           {activeCraft.special.name} X
         </button>
@@ -1006,7 +1046,7 @@ export default function App(): React.ReactElement {
             bombRef.current = true;
           }}
           disabled={!s || s.bombs <= 0}
-          className="min-h-[44px] min-w-[88px] rounded-xl font-semibold bg-amber-600/80 hover:bg-amber-500 disabled:opacity-40 text-white"
+          className="da-touch da-touch--bomb"
         >
           靈擊 Z
         </button>
@@ -1068,13 +1108,13 @@ export default function App(): React.ReactElement {
             onSecondary={() => setScreen('menu')}
           />
           {isDailyRun && (
-            <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 pointer-events-none">
+            <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
               <button
                 type="button"
                 onClick={() => {
                   void shareDailyResult();
                 }}
-                className="pointer-events-auto min-h-[44px] rounded-xl border border-amber-400/50 bg-slate-900/95 px-5 py-2 text-sm font-semibold text-amber-100 shadow-lg"
+                className="da-share pointer-events-auto"
               >
                 {shareCopied ? '已複製分享文案' : '複製今日分享文案'}
               </button>

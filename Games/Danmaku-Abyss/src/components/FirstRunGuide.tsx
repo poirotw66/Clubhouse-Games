@@ -31,48 +31,48 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#05060f]/90 p-4 backdrop-blur-sm"
+      className="da-dialog-scrim fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="danmaku-abyss-first-run-title"
       onClick={dismiss}
     >
       <div
-        className="da-panel w-full max-w-sm rounded-2xl border border-fuchsia-500/25 bg-slate-950/95 p-6 shadow-2xl"
+        className="da-dialog w-full max-w-sm rounded-[16px] p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-center text-xs font-bold tracking-[0.3em] text-fuchsia-300">首局引導</p>
-        <h2 id="danmaku-abyss-first-run-title" className="mt-1 text-center text-2xl font-bold text-fuchsia-100">
+        <h2
+          id="danmaku-abyss-first-run-title"
+          className="text-center text-2xl font-black text-fuchsia-100"
+        >
           三步上手
         </h2>
-        <p className="mt-2 text-center text-sm text-slate-400">先記住這三件事，標題頁還有完整說明</p>
+        <p className="mt-2 text-center text-sm font-bold text-cyan-200">
+          先記住這三件事，標題頁還有完整說明
+        </p>
 
         <ul className="mt-5 space-y-3 text-sm text-slate-200">
-          <li className="rounded-xl border border-white/5 bg-slate-900/80 px-3 py-2.5">
-            <p className="font-bold text-fuchsia-300">站位決定一切</p>
+          <li className="da-tile da-tile--hot !min-h-0 !rounded-[12px]">
+            <p className="font-black text-fuchsia-200">站位決定一切</p>
             <p className="mt-0.5 text-slate-400">
               靠得越近傷害越高、擦彈倍率也升得越快——但前面彈幕最密。
             </p>
           </li>
-          <li className="rounded-xl border border-white/5 bg-slate-900/80 px-3 py-2.5">
-            <p className="font-bold text-fuchsia-300">移動與集中</p>
+          <li className="da-tile da-tile--ice !min-h-0 !rounded-[12px]">
+            <p className="font-black text-cyan-200">移動與集中</p>
             <p className="mt-0.5 text-slate-400">
               方向鍵／WASD 或拖曳移動；Shift／長按進入集中模式，減速並顯示判定點。
             </p>
           </li>
-          <li className="rounded-xl border border-white/5 bg-slate-900/80 px-3 py-2.5">
-            <p className="font-bold text-fuchsia-300">靈擊與特技</p>
+          <li className="da-tile da-tile--amber !min-h-0 !rounded-[12px]">
+            <p className="font-black text-amber-200">靈擊與特技</p>
             <p className="mt-0.5 text-slate-400">
               Z／「靈擊」清彈換命（擦彈倍率歸零）；X／「特技」是機體專屬冷卻技，不花靈擊。
             </p>
           </li>
         </ul>
 
-        <button
-          type="button"
-          onClick={dismiss}
-          className="mt-6 w-full rounded-xl bg-fuchsia-600 py-3 font-bold text-white transition hover:bg-fuchsia-500 min-h-[44px] touch-manipulation"
-        >
+        <button type="button" onClick={dismiss} className="da-cta mt-6 w-full">
           知道了
         </button>
       </div>

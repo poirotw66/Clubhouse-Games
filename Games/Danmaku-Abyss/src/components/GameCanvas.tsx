@@ -49,42 +49,77 @@ function buildStars(count: number): Star[] {
 
 function drawAbyss(ctx: CanvasRenderingContext2D, elapsed: number, stars: Star[]): void {
   const bg = ctx.createLinearGradient(0, 0, 0, FIELD_H);
-  bg.addColorStop(0, '#07061a');
-  bg.addColorStop(0.45, '#100d2e');
-  bg.addColorStop(1, '#1a1040');
+  bg.addColorStop(0, '#040510');
+  bg.addColorStop(0.35, '#0c0a24');
+  bg.addColorStop(0.7, '#141036');
+  bg.addColorStop(1, '#1c1248');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, FIELD_W, FIELD_H);
 
-  const nebula = ctx.createRadialGradient(FIELD_W * 0.3, FIELD_H * 0.2, 10, FIELD_W * 0.3, FIELD_H * 0.2, 220);
-  nebula.addColorStop(0, 'rgba(168, 85, 247, 0.16)');
-  nebula.addColorStop(1, 'rgba(168, 85, 247, 0)');
+  const pulse = 0.5 + 0.5 * Math.sin(elapsed * 0.7);
+  const nebula = ctx.createRadialGradient(
+    FIELD_W * 0.28,
+    FIELD_H * 0.18,
+    8,
+    FIELD_W * 0.28,
+    FIELD_H * 0.18,
+    240,
+  );
+  nebula.addColorStop(0, `rgba(232, 121, 249, ${0.2 + pulse * 0.08})`);
+  nebula.addColorStop(1, 'rgba(232, 121, 249, 0)');
   ctx.fillStyle = nebula;
   ctx.fillRect(0, 0, FIELD_W, FIELD_H);
 
-  const nebula2 = ctx.createRadialGradient(FIELD_W * 0.75, FIELD_H * 0.55, 8, FIELD_W * 0.75, FIELD_H * 0.55, 200);
-  nebula2.addColorStop(0, 'rgba(56, 189, 248, 0.10)');
-  nebula2.addColorStop(1, 'rgba(56, 189, 248, 0)');
+  const nebula2 = ctx.createRadialGradient(
+    FIELD_W * 0.78,
+    FIELD_H * 0.58,
+    6,
+    FIELD_W * 0.78,
+    FIELD_H * 0.58,
+    230,
+  );
+  nebula2.addColorStop(0, `rgba(45, 212, 191, ${0.14 + (1 - pulse) * 0.06})`);
+  nebula2.addColorStop(1, 'rgba(45, 212, 191, 0)');
   ctx.fillStyle = nebula2;
+  ctx.fillRect(0, 0, FIELD_W, FIELD_H);
+
+  const veil = ctx.createRadialGradient(
+    FIELD_W * 0.5,
+    FIELD_H * 0.92,
+    20,
+    FIELD_W * 0.5,
+    FIELD_H * 0.92,
+    280,
+  );
+  veil.addColorStop(0, 'rgba(251, 113, 133, 0.12)');
+  veil.addColorStop(1, 'rgba(251, 113, 133, 0)');
+  ctx.fillStyle = veil;
   ctx.fillRect(0, 0, FIELD_W, FIELD_H);
 
   for (const star of stars) {
     const y = (star.y + elapsed * star.speed) % FIELD_H;
+    const twinkle = 0.75 + 0.25 * Math.sin(elapsed * 3 + star.x);
     ctx.beginPath();
     ctx.arc(star.x, y, star.r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(226, 232, 240, ${star.a})`;
+    ctx.fillStyle = `rgba(226, 232, 240, ${star.a * twinkle})`;
     ctx.fill();
   }
 
-  const left = ctx.createLinearGradient(0, 0, 28, 0);
-  left.addColorStop(0, 'rgba(2, 4, 16, 0.55)');
+  const left = ctx.createLinearGradient(0, 0, 32, 0);
+  left.addColorStop(0, 'rgba(2, 4, 16, 0.72)');
   left.addColorStop(1, 'rgba(2, 4, 16, 0)');
   ctx.fillStyle = left;
-  ctx.fillRect(0, 0, 28, FIELD_H);
-  const right = ctx.createLinearGradient(FIELD_W, 0, FIELD_W - 28, 0);
-  right.addColorStop(0, 'rgba(2, 4, 16, 0.55)');
+  ctx.fillRect(0, 0, 32, FIELD_H);
+  const right = ctx.createLinearGradient(FIELD_W, 0, FIELD_W - 32, 0);
+  right.addColorStop(0, 'rgba(2, 4, 16, 0.72)');
   right.addColorStop(1, 'rgba(2, 4, 16, 0)');
   ctx.fillStyle = right;
-  ctx.fillRect(FIELD_W - 28, 0, 28, FIELD_H);
+  ctx.fillRect(FIELD_W - 32, 0, 32, FIELD_H);
+
+  // Soft field rim so the canvas reads as a framed abyss against HUD chrome.
+  ctx.strokeStyle = 'rgba(125, 211, 252, 0.18)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, FIELD_W - 2, FIELD_H - 2);
 }
 
 function drawFragment(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, armed: boolean): void {
@@ -198,13 +233,23 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
     const hue = key - (isWall ? 1000 : 0);
 
     if (!isWall) {
+      // Soft bloom halo — premium field density without changing hit sizes.
+      ctx.beginPath();
+      for (const b of list) {
+        const r = b.r * 2.15;
+        ctx.moveTo(b.x + r, b.y);
+        ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      }
+      ctx.fillStyle = `hsla(${hue}, 100%, 62%, 0.16)`;
+      ctx.fill();
+
       ctx.beginPath();
       for (const b of list) {
         const r = b.r * 1.55;
         ctx.moveTo(b.x + r, b.y);
         ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
       }
-      ctx.fillStyle = `hsla(${hue}, 95%, 65%, 0.22)`;
+      ctx.fillStyle = `hsla(${hue}, 95%, 68%, 0.28)`;
       ctx.fill();
     }
 
@@ -217,10 +262,10 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
         ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
       }
     }
-    ctx.fillStyle = isWall ? `hsla(${hue}, 95%, 80%, 0.98)` : `hsla(${hue}, 90%, 72%, 0.95)`;
+    ctx.fillStyle = isWall ? `hsla(${hue}, 95%, 82%, 0.98)` : `hsla(${hue}, 92%, 74%, 0.96)`;
     ctx.fill();
-    ctx.lineWidth = isWall ? 2 : 1.2;
-    ctx.strokeStyle = `hsla(${hue}, 100%, ${isWall ? 96 : 92}%, ${isWall ? 1 : 0.85})`;
+    ctx.lineWidth = isWall ? 2.2 : 1.35;
+    ctx.strokeStyle = `hsla(${hue}, 100%, ${isWall ? 97 : 94}%, ${isWall ? 1 : 0.9})`;
     ctx.stroke();
 
     if (!isWall) {
@@ -230,7 +275,7 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
         ctx.moveTo(b.x + r, b.y);
         ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
       }
-      ctx.fillStyle = `hsla(${hue}, 100%, 92%, 0.95)`;
+      ctx.fillStyle = `hsla(${hue}, 100%, 94%, 0.98)`;
       ctx.fill();
     }
   }
@@ -239,9 +284,14 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
 function drawParticles(ctx: CanvasRenderingContext2D, juice: JuiceState): void {
   for (const p of juice.particles) {
     const t = Math.max(0, p.life / p.maxLife);
+    const glow = p.r * t * 2.2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, glow, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${p.hue}, 95%, 68%, ${0.28 * t})`;
+    ctx.fill();
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.r * t, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${p.hue}, 90%, 70%, ${0.85 * t})`;
+    ctx.fillStyle = `hsla(${p.hue}, 95%, 78%, ${0.92 * t})`;
     ctx.fill();
   }
 }
@@ -404,30 +454,39 @@ export function GameCanvas({ stateRef, juiceRef, paused, reduceMotion }: Props):
       }
 
       if (s.focus) {
+        const gr = grazeRadius(s);
         ctx.beginPath();
-        ctx.arc(s.px, s.py, grazeRadius(s), 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(125,211,252,0.4)';
+        ctx.arc(s.px, s.py, gr, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(125,211,252,0.22)';
+        ctx.lineWidth = 3.2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(s.px, s.py, gr, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(165,243,252,0.55)';
         ctx.lineWidth = 1.2;
         ctx.stroke();
       }
       ctx.beginPath();
       ctx.arc(s.px, s.py, hitboxRadius(s), 0, Math.PI * 2);
-      ctx.fillStyle = s.focus ? '#f472b6' : 'rgba(244,114,182,0.55)';
+      ctx.fillStyle = s.focus ? '#f472b6' : 'rgba(244,114,182,0.6)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 0.9;
       ctx.stroke();
 
       ctx.restore();
 
       // Full-field flash after bomb / capture / boss kill (gated by reduceMotion).
       if (!reduceMotion && juice.flash > 0) {
-        ctx.fillStyle = `rgba(255, 248, 240, ${Math.min(0.55, juice.flash * 0.55)})`;
+        const flash = Math.min(0.62, juice.flash * 0.62);
+        ctx.fillStyle = `rgba(236, 254, 255, ${flash * 0.55})`;
+        ctx.fillRect(0, 0, cssW, cssH);
+        ctx.fillStyle = `rgba(244, 114, 182, ${flash * 0.22})`;
         ctx.fillRect(0, 0, cssW, cssH);
       }
 
       if (paused) {
-        ctx.fillStyle = 'rgba(4,6,20,0.6)';
+        ctx.fillStyle = 'rgba(4,6,20,0.62)';
         ctx.fillRect(0, 0, cssW, cssH);
       }
     };
