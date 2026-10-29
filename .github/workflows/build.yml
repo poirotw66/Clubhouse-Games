@@ -6,15 +6,23 @@ on:
   # Any PR base (including stacked feature branches) so juice follow-ups get CI.
   pull_request:
   workflow_dispatch:
+    inputs:
+      validation_profile:
+        description: Validation depth (manual runs never deploy)
+        type: choice
+        required: true
+        default: full
+        options: [full, quick]
 
 permissions:
   contents: read
 
 concurrency:
-  group: site-${{ github.ref }}
+  group: site-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  CLUBHOUSE_TEST_PROFILE: ${{ github.event_name == 'workflow_dispatch' && (inputs.validation_profile || 'full') || 'quick' }}
   # GitHub-hosted runners are 2-vCPU; scale out with matrix shards. BUILD_JOBS
   # can exceed vCPU count — Vite game builds are mostly independent processes.
   CHECK_JOBS: "2"
@@ -29,8 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       full: ${{ steps.scope.outputs.full }}
+      test_profile: ${{ steps.scope.outputs.test_profile }}
       games: ${{ steps.scope.outputs.games }}
       astra: ${{ steps.scope.outputs.astra }}
+      astra_games: ${{ steps.scope.outputs.astra_games }}
       reason: ${{ steps.scope.outputs.reason }}
       lint_matrix: ${{ steps.scope.outputs.lint_matrix }}
       check_matrix: ${{ steps.scope.outputs.check_matrix }}
@@ -41,6 +51,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Verify CI scope and game runner
+        run: npm run check:tooling
+
       - name: Resolve CI scope
         id: scope
         env:
@@ -49,14 +67,24 @@ jobs:
         run: node scripts/ci-changed-scope.mjs
 
       - name: Summary
+        env:
+          SCOPE_FULL: ${{ steps.scope.outputs.full }}
+          SCOPE_GAMES: ${{ steps.scope.outputs.games }}
+          SCOPE_ASTRA_GAMES: ${{ steps.scope.outputs.astra_games }}
+          SCOPE_REASON: ${{ steps.scope.outputs.reason }}
+          TEST_PROFILE: ${{ steps.scope.outputs.test_profile }}
+          LINT_MATRIX: ${{ steps.scope.outputs.lint_matrix }}
+          CHECK_MATRIX: ${{ steps.scope.outputs.check_matrix }}
+          TEST_MATRIX: ${{ steps.scope.outputs.test_matrix }}
         run: |
-          echo "full=${{ steps.scope.outputs.full }}"
-          echo "games=${{ steps.scope.outputs.games }}"
-          echo "astra=${{ steps.scope.outputs.astra }}"
-          echo "reason=${{ steps.scope.outputs.reason }}"
-          echo "lint_matrix=${{ steps.scope.outputs.lint_matrix }}"
-          echo "check_matrix=${{ steps.scope.outputs.check_matrix }}"
-          echo "test_matrix=${{ steps.scope.outputs.test_matrix }}"
+          echo "full=$SCOPE_FULL"
+          echo "test_profile=$TEST_PROFILE"
+          echo "games=$SCOPE_GAMES"
+          echo "astra_games=$SCOPE_ASTRA_GAMES"
+          echo "reason=$SCOPE_REASON"
+          echo "lint_matrix=$LINT_MATRIX"
+          echo "check_matrix=$CHECK_MATRIX"
+          echo "test_matrix=$TEST_MATRIX"
 
   # ---------------------------------------------------------------------------
   # Typecheck (lint) — parallel across games; shard when running the full set.
@@ -97,10 +125,12 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Logic checks — full runs isolate Coin-Cascade (CPU-heavy) on its own runner.
+  # Quick core checks use one runner; manual full isolates long simulations.
   # ---------------------------------------------------------------------------
   check:
     needs: changes
+    env:
+      CLUBHOUSE_TEST_PROFILE: ${{ needs.changes.outputs.test_profile }}
     runs-on: ubuntu-latest
     name: check (${{ matrix.id }})
     strategy:
@@ -119,20 +149,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify browser profile selection
+        if: matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick'
+        run: npm run check:browser-profile
+
       - name: Verify game dependency versions
-        if: matrix.id == 'rest-1' || matrix.id == 'selective'
+        if: matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick'
         run: node scripts/check-game-versions.mjs
 
       - name: Verify shared styles
-        if: matrix.id == 'rest-1' || matrix.id == 'selective'
+        if: matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick'
         run: npm run check:shared-styles
 
       - name: Shared MatchSession / opponentLadder checks
-        if: matrix.id == 'rest-1' || matrix.id == 'selective'
+        if: matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick'
         run: npm run check:shared
 
       - name: Verify local dev server MIME types
-        if: matrix.id == 'rest-1' || matrix.id == 'selective'
+        if: matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick'
         run: npm run check:dev-server-mime
 
       - name: Run game logic checks
@@ -147,7 +181,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$SCOPE_FULL" = "true" ]; then
-            if [ "$CHECK_MODE" = "solo" ]; then
+            if [ "$CHECK_MODE" = "quick" ]; then
+              node scripts/run-in-games.mjs check
+            elif [ "$CHECK_MODE" = "solo" ]; then
               node scripts/run-in-games.mjs check --jobs 1 Coin-Cascade
             else
               node scripts/run-in-games.mjs check --exclude Coin-Cascade --shard "${SHARD}/${SHARD_TOTAL}"
@@ -160,43 +196,43 @@ jobs:
           fi
 
       - name: Run Astra Endless Train logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'train')
         run: npm run check:astra-train
 
       - name: Run Astra Stillshot Archer logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'archer')
         run: npm run check:astra-archer
 
       - name: Run Astra Borderland logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'borderland')
         run: npm run check:astra-borderland
 
       - name: Run Astra Fill the Void logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), '3d-fill-the-void')
         run: npm run check:astra-fill-void
 
       - name: Run Astra Windward (3D Sailing) logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), '3d-sailing')
         run: npm run check:astra-sailing
 
       - name: Run Astra Rubik's Cube Academy logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'webmcp-rubiks-cube')
         run: npm run check:astra-rubiks
 
       - name: Run Astra Escape Room logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'webmcp-escape-room')
         run: npm run check:astra-escape-room
 
       - name: Run Astra Mini Tactical Dungeon logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'webmcp-mini-tactical-dungeon')
         run: npm run check:astra-tactical
 
       - name: Run Astra WebMCP Mini Factory logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'webmcp-mini-factory')
         run: npm run check:astra-factory
 
       - name: Run Astra Cinder Circuit (Loop Hero) logic check
-        if: (matrix.id == 'rest-1' || matrix.id == 'selective') && needs.changes.outputs.astra == 'true'
+        if: (matrix.id == 'rest-1' || matrix.id == 'selective' || matrix.id == 'quick') && contains(fromJSON(needs.changes.outputs.astra_games), 'loop-hero')
         run: npm run check:astra-loop-hero
 
   # ---------------------------------------------------------------------------
@@ -250,44 +286,18 @@ jobs:
           retention-days: 1
 
       - name: Upload verified Pages artifact
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   # ---------------------------------------------------------------------------
-  # Warm Playwright browser cache while Pages build runs (critical-path overlap).
-  # ---------------------------------------------------------------------------
-  test-prep:
-    needs: changes
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
-      - name: Install browser
-        run: npx playwright install --with-deps --only-shell chromium
-
-  # ---------------------------------------------------------------------------
   # Playwright — download built dist; shard desktop+mobile suite; cache browsers.
   # ---------------------------------------------------------------------------
   test:
-    needs: [changes, build-pages, test-prep]
+    needs: [changes, build-pages]
+    env:
+      CLUBHOUSE_TEST_PROFILE: ${{ needs.changes.outputs.test_profile }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -311,7 +321,6 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # Cache should be warm from test-prep; --with-deps still ensures OS libs.
       - name: Install browser
         run: npx playwright install --with-deps --only-shell chromium
 
@@ -323,11 +332,12 @@ jobs:
 
       - name: Test Pages artifact in desktop and mobile browsers
         env:
+          CI_ASTRA_FILTER: ${{ needs.changes.outputs.astra_games }}
           REPO_NAME: ${{ github.event.repository.name }}
           SCOPE_FULL: ${{ needs.changes.outputs.full }}
           SCOPE_GAMES: ${{ needs.changes.outputs.games }}
           SHARD: ${{ matrix.shard }}
-          SHARD_TOTAL: ${{ needs.changes.outputs.full == 'true' && '4' || '1' }}
+          SHARD_TOTAL: ${{ needs.changes.outputs.full == 'true' && needs.changes.outputs.test_profile == 'full' && '4' || '1' }}
         run: |
           set -euo pipefail
           if [ "$SCOPE_FULL" = "true" ]; then
@@ -352,7 +362,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     if: always()
-    needs: [changes, lint, check, build-pages, test-prep, test]
+    needs: [changes, lint, check, build-pages, test]
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate CI results
@@ -362,14 +372,12 @@ jobs:
           echo "lint=${{ needs.lint.result }}"
           echo "check=${{ needs.check.result }}"
           echo "build-pages=${{ needs.build-pages.result }}"
-          echo "test-prep=${{ needs.test-prep.result }}"
           echo "test=${{ needs.test.result }}"
           for result in \
             "${{ needs.changes.result }}" \
             "${{ needs.lint.result }}" \
             "${{ needs.check.result }}" \
             "${{ needs.build-pages.result }}" \
-            "${{ needs.test-prep.result }}" \
             "${{ needs.test.result }}"
           do
             if [ "$result" != "success" ]; then
@@ -380,7 +388,7 @@ jobs:
           echo "All required jobs succeeded."
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [build, build-pages]
     runs-on: ubuntu-latest
     permissions:

@@ -27,5 +27,6 @@ Games/*/package-lock.json
 
 # Generated responsive covers and browser diagnostics.
 assets/covers/optimized/
+assets/fonts/optimized/
 test-results/
 playwright-report/

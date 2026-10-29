@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { includesAstra } from './astra-filter.mjs';
 
 test.describe('Astra Rubik\'s Cube Academy', () => {
+  test.skip(!includesAstra('webmcp-rubiks-cube'), 'selective CI');
   test('lesson path + practice smoke', async ({ page }) => {
     await page.goto('gpt6-astra/webmcp-rubiks-cube/');
     await expect(page.getByRole('heading', { name: '魔術方塊學院' })).toBeVisible();

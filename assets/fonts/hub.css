@@ -46,7 +46,7 @@
   src: url("./files/russo-one-latin-400-normal.woff2") format("woff2");
 }
 
-/* Noto Sans TC — latin + chinese-traditional */
+/* Noto Sans TC — Latin faces plus generated hub CJK subsets. */
 @font-face {
   font-family: "Noto Sans TC";
   font-style: normal;
@@ -82,22 +82,25 @@
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("./files/noto-sans-tc-chinese-traditional-400-normal.woff2")
+  src: url("./optimized/noto-sans-tc-hub-400.woff2")
     format("woff2");
+  unicode-range: U+0100-10FFFF;
 }
 @font-face {
   font-family: "Noto Sans TC";
   font-style: normal;
   font-display: swap;
   font-weight: 500;
-  src: url("./files/noto-sans-tc-chinese-traditional-500-normal.woff2")
+  src: url("./optimized/noto-sans-tc-hub-500.woff2")
     format("woff2");
+  unicode-range: U+0100-10FFFF;
 }
 @font-face {
   font-family: "Noto Sans TC";
   font-style: normal;
   font-display: swap;
   font-weight: 600;
-  src: url("./files/noto-sans-tc-chinese-traditional-600-normal.woff2")
+  src: url("./optimized/noto-sans-tc-hub-600.woff2")
     format("woff2");
+  unicode-range: U+0100-10FFFF;
 }

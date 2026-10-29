@@ -40,7 +40,7 @@ test('lobby mist-neon stage mounts and respects juice fx off', async ({ page }) 
   await expect(page.locator('.neon-tube')).toBeVisible();
 });
 
-test('lobby mist-neon respects prefers-reduced-motion', async ({ page }) => {
+test('lobby mist-neon respects prefers-reduced-motion', { tag: '@mobile-smoke' }, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('./');
   await expect(page.locator('html')).toHaveAttribute('data-juice-fx', 'off');

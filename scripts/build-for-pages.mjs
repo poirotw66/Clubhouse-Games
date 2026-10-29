@@ -81,6 +81,14 @@ function cpRecursive(src, dest) {
       cpRecursive(path.join(src, name), path.join(dest, name));
     }
   } else {
+    // Full CJK sources stay in the repository; only generated hub subsets ship.
+    if (path.dirname(src) === path.join(root, 'assets', 'fonts', 'files')
+      && /^noto-sans-tc-chinese-traditional-(400|500|600)-normal\.woff2$/.test(path.basename(src))) {
+      const weight = path.basename(src).split('-').at(-2);
+      const subset = path.join(root, 'assets', 'fonts', 'optimized', `noto-sans-tc-hub-${weight}.woff2`);
+      if (!fs.existsSync(subset)) throw new Error('Missing hub CJK subsets. Run npm run generate first.');
+      return;
+    }
     // Original cover masters stay in the repository; the site uses derivatives.
     if (path.dirname(src) === path.join(root, 'assets', 'covers') && src.endsWith('.jpg')) {
       const derivative = path.join(path.dirname(src), 'optimized', `${path.basename(src, '.jpg')}-640.jpg`);

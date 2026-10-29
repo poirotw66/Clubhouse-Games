@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { includesAstra } from './astra-filter.mjs';
 
 const GAME = 'gpt6-astra/3d-sailing/?test=1';
 
 test.describe('Astra Windward (3D Sailing)', () => {
+  test.skip(!includesAstra('3d-sailing'), 'selective CI');
   test('lobby shows expanded courses + daily panel', async ({ page }) => {
     await page.goto(GAME);
     await expect(page.getByRole('heading', { name: /fair wind/i })).toBeVisible({

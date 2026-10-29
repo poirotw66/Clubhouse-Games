@@ -82,6 +82,12 @@ import type {
   StraightRule,
 } from '../src/game/types.js';
 
+const TEST_PROFILE = process.env.CLUBHOUSE_TEST_PROFILE || 'full';
+if (TEST_PROFILE !== 'quick' && TEST_PROFILE !== 'full') {
+  throw new Error(`Invalid CLUBHOUSE_TEST_PROFILE: ${JSON.stringify(TEST_PROFILE)} (expected quick or full)`);
+}
+console.log(`Test profile: ${TEST_PROFILE}`);
+
 const TIERS: DifficultyId[] = ['easy', 'normal', 'hard'];
 const RULE_SETS: StraightRule[] = ['topCard', 'sequence'];
 
@@ -956,6 +962,56 @@ function expectNamedOpponentLadder(): void {
   assert.ok(seats[3]);
 }
 
+/** Bounded scripted turns exercise replay and state contracts without AI search. */
+function expectQuickStateContracts(): void {
+  const replay = (): GameState => {
+    let state = deal('quick-replay', 'normal', rules());
+    for (let turn = 0; turn < 12 && state.phase === 'playing'; turn++) {
+      const before = JSON.stringify(state);
+      const options = playsFor(state);
+      const move = options[0];
+      const next = move ? play(state, move.cards) : pass(state);
+      assert.notEqual(next, state, 'a legal scripted action must advance the state');
+      assert.equal(JSON.stringify(state), before, 'actions must not mutate prior states');
+      assert.equal(allCards(next).length + countPlayed(next), 52, 'a scripted action lost a card');
+      assert.equal(new Set(allCards(next).map((c) => c.id)).size, allCards(next).length);
+      state = next;
+    }
+    return state;
+  };
+  assert.deepEqual(replay(), replay(), 'same seed and scripted actions must reproduce the state');
+  assert.notDeepEqual(deal('quick-a', 'normal').hands, deal('quick-b', 'normal').hands);
+
+  const config = dailyMatchConfig('2026-10-22');
+  assert.equal(config.seedCode, dailySeedCode('2026-10-22'));
+  assert.equal(config.mode, 'daily');
+  assert.equal(DAILY_HANDS, 5);
+  assert.deepEqual(dealHand(createMatch(config)), dealHand(createMatch(config)));
+  assert.equal(decideMatchWinner(config, [10, -5, -3, -2], DAILY_HANDS - 1), null);
+  assert.equal(decideMatchWinner(config, [10, -5, -3, -2], DAILY_HANDS), HUMAN);
+  const score = (seat: number): SeatScore => ({ seat, remaining: 1, base: 1, deuces: 0, penalty: 1 });
+  const result = { winner: HUMAN, scores: [{ ...score(HUMAN), remaining: 0, base: 0, penalty: 0 }, score(1), score(2), score(3)], pot: 3 };
+  assert.equal(handDeltas(result).reduce((a, b) => a + b, 0), 0);
+  const match = applyHandResult(createMatch(config), result, config.seedCode);
+  assert.equal(match.phase, 'handOver');
+  assert.equal(match.handIndex, 1);
+  assert.equal(match.history.length, 1);
+  assert.equal(taipeiDateKey(new Date('2026-10-21T16:00:00Z')), '2026-10-22');
+  let daily = recordDailyResult({ records: [] }, '2026-10-22', 20, true);
+  daily = recordDailyResult(daily, '2026-10-22', 12, true);
+  assert.equal(daily.records[0].bestChips, 20);
+  assert.equal(daily.records[0].attempts, 2);
+  const streak = computeDailyStreak(daily.records, '2026-10-22');
+  assert.equal(streak, 1);
+  assert.ok(buildDailyShareText({ date: '2026-10-22', seedCode: config.seedCode,
+    chips: 12, bestChips: 20, streak, completed: true }).includes(config.seedCode));
+  const single = applyHandResult(createMatch({ ...config, mode: 'single' }), result, config.seedCode);
+  assert.equal(single.phase, 'matchOver');
+  const stats = recordMatchResult(EMPTY_STATS, true, single.balances[HUMAN], single.config);
+  assert.equal(stats.formats.single.played, 1);
+  assert.equal(stats.matches, 0, 'single results must not inflate series totals');
+}
+
 const CHECKS: [string, () => void][] = [
   ['card order (2 is highest)', expectCardOrder],
   ['play detection', expectPlayDetection],
@@ -984,8 +1040,23 @@ const CHECKS: [string, () => void][] = [
   ['named opponent ladder', expectNamedOpponentLadder],
 ];
 
+const QUICK_CORE = new Set([
+  expectCardOrder, expectPlayDetection, expectFiveCardTypeOrder, expectStraightConventions,
+  expectSizeMustMatch, expectOpeningRule, expectTrickResolution, expectScoring,
+  expectDealIsSound, expectTurnsToEmpty, expectStatsTracking, expectPersonalities,
+  expectCardMemory, expectNamedOpponentLadder,
+]);
+const selectedChecks: [string, () => void][] = TEST_PROFILE === 'quick'
+  ? [...CHECKS.filter(([, check]) => QUICK_CORE.has(check)), ['bounded replay and match contracts', expectQuickStateContracts]]
+  : CHECKS;
+if (TEST_PROFILE === 'quick') {
+  for (const [name] of CHECKS.filter(([, check]) => !QUICK_CORE.has(check))) {
+    console.log(`  DEFERRED (full profile): ${name}`);
+  }
+}
+
 let failed = 0;
-for (const [name, check] of CHECKS) {
+for (const [name, check] of selectedChecks) {
   try {
     check();
     console.log(`  ok   ${name}`);
@@ -995,5 +1066,5 @@ for (const [name, check] of CHECKS) {
   }
 }
 
-console.log(`\ncheck-big-two: ${CHECKS.length - failed}/${CHECKS.length} passed`);
+console.log(`\ncheck-big-two: ${selectedChecks.length - failed}/${selectedChecks.length} passed (${TEST_PROFILE} profile)`);
 if (failed > 0) process.exit(1);

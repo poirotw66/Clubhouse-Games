@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
+import { includesAstra } from './astra-filter.mjs';
 
 const { categories } = JSON.parse(fs.readFileSync(new URL('../../data/games.json', import.meta.url)));
 const games = categories.flatMap((category) => category.games);
@@ -53,14 +54,14 @@ test.afterEach(async ({ page }) => {
   expect(page.__runtimeErrors, 'browser runtime / asset errors').toEqual([]);
 });
 
-test('artifact preview returns real 404s and survives malformed paths', async ({ request }) => {
+test('artifact preview returns real 404s and survives malformed paths', { tag: '@smoke' }, async ({ request }) => {
   expect((await request.get('./Games/missing-game/')).status()).toBe(404);
   expect((await request.get('./Games/Memory-Match/missing.js')).status()).toBe(404);
   expect((await request.get('./%ZZ')).status()).toBe(400);
   expect((await request.get('./')).status()).toBe(200);
 });
 
-test('menu search, shared URL, categories and responsive covers', async ({ page }) => {
+test('menu search, shared URL, categories and responsive covers', { tag: ['@smoke', '@mobile-smoke'] }, async ({ page }) => {
   await page.goto('./');
   await expect(page.locator('.game-tile')).toHaveCount(games.length);
   await page.locator('#game-search').fill('記憶配對');
@@ -83,7 +84,7 @@ test('menu search, shared URL, categories and responsive covers', async ({ page 
 });
 
 for (const game of workspaceGames) {
-  test(`${game.gameFolder}: loads from the menu and returns`, async ({ page }) => {
+  test(`${game.gameFolder}: loads from the menu and returns`, { tag: '@smoke' }, async ({ page }) => {
     // Sailing boots a WebGL title loop; mobile CI needs headroom beyond the 30s default.
     if (game.gameFolder === 'Sailing') test.setTimeout(60_000);
     await page.goto('./');
@@ -105,7 +106,23 @@ for (const game of workspaceGames) {
   });
 }
 
-test('Astra playPath tiles are listed and point at gpt6-astra/', async ({ page }) => {
+// Every affected static demo gets a navigation/runtime smoke check, including
+// demos that do not yet have dedicated interaction specs.
+for (const game of games.filter((game) => game.playPath
+  && includesAstra(game.playPath.split('/')[1]))) {
+  test(`${game.gameFolder}: static demo loads from the menu`, { tag: '@smoke' }, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.goto('./');
+    await page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`).click();
+    await expect(page).toHaveURL(new RegExp(`/${game.playPath}$`));
+    await expect(page.locator('h1:visible, canvas:visible, main:visible').first()).toBeVisible();
+    await expect(page).not.toHaveTitle('');
+    await page.goBack();
+    await expect(page.locator('#game-search')).toBeVisible();
+  });
+}
+
+test('Astra playPath tiles are listed and point at gpt6-astra/', { tag: '@smoke' }, async ({ page }) => {
   const astra = games.filter((game) => game.playPath);
   expect(astra.length).toBeGreaterThan(0);
   await page.goto('./');
@@ -116,7 +133,7 @@ test('Astra playPath tiles are listed and point at gpt6-astra/', async ({ page }
   await expect(tile.locator('.tile-play')).toHaveAttribute('href', first.playPath);
 });
 
-test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
+test('homepage Astra zone and nav reach the gallery hub', { tag: ['@smoke', '@mobile-smoke'] }, async ({ page }) => {
   await page.goto('./');
   const navAstra = page.locator('.site-nav a[href="gpt6-astra/"]');
   await expect(navAstra).toBeVisible();
@@ -130,7 +147,7 @@ test('homepage Astra zone and nav reach the gallery hub', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });
 
-test('memory match: touch/click cards, change difficulty and restart', async ({ page, isMobile }) => {
+test('memory match: touch/click cards, change difficulty and restart', { tag: includesGame('Memory-Match') ? '@mobile-smoke' : [] }, async ({ page, isMobile }) => {
   test.skip(!includesGame('Memory-Match'), 'selective CI');
   await page.goto('./Games/Memory-Match/');
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
@@ -146,7 +163,7 @@ test('memory match: touch/click cards, change difficulty and restart', async ({ 
   await expect(page.getByText(/翻牌\s*0/)).toBeVisible();
 });
 
-test('connect four: play a win and use the result overlay to restart', async ({ page, isMobile }) => {
+test('connect four: play a win and use the result overlay to restart', { tag: includesGame('Connect-Four') ? '@mobile-smoke' : [] }, async ({ page, isMobile }) => {
   test.skip(!includesGame('Connect-Four'), 'selective CI');
   await page.goto('./Games/Connect-Four/');
   const activateBtn = (locator) => (isMobile ? locator.tap() : locator.click());

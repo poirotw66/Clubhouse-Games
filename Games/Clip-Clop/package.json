@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "node ../../scripts/lint-js-syntax.mjs",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "check": "node src/check-physics.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

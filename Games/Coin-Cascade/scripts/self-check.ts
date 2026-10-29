@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   COIN_R,
+  COST,
   DROP_COOLDOWN_TICKS,
   CASCADE_MIN,
   FIXED_DT,
@@ -51,6 +52,12 @@ import { TABLE_PACK, assertTablePackShape, tableById } from '../src/game/tables.
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
 
+const TEST_PROFILE = process.env.CLUBHOUSE_TEST_PROFILE || 'full';
+if (TEST_PROFILE !== 'quick' && TEST_PROFILE !== 'full') {
+  throw new Error(`Invalid CLUBHOUSE_TEST_PROFILE: ${JSON.stringify(TEST_PROFILE)} (expected quick or full)`);
+}
+console.log(`Test profile: ${TEST_PROFILE}`);
+
 let passed = 0;
 function ok(label: string): void {
   passed += 1;
@@ -58,18 +65,10 @@ function ok(label: string): void {
 }
 
 /**
- * Seed / tick budgets. Default is the CI set: same *kinds* of invariants
- * (determinism, bounds, two-sided RTP band, no-lane-landslide, pot
- * reachability + near-parity, termination, cascades) with fewer full
- * sessions, justified by how wide the bands already are relative to
- * per-session noise (see comments on each reduced check).
- *
- * Full sessions dominate wall time (~100s+ locally, ~150s+ on GitHub-hosted
- * 2-vCPU runners). The default trims sample size further so PR CI can stay
- * under a few minutes without dropping any assertion class; bands widen with
- * 1/√n as noted below.
- *
- * COIN_CASCADE_CHECK_HEAVY=1 restores denser counts for balance retunes.
+ * Full-profile seed/tick budgets retain the original simulations and thresholds.
+ * Quick uses separate bounded mechanism fixtures and explicitly defers these
+ * session/balance claims. Unset or full still runs every original assertion.
+ * COIN_CASCADE_CHECK_HEAVY=1 restores denser full-profile balance samples.
  */
 const HEAVY = process.env.COIN_CASCADE_CHECK_HEAVY === '1';
 /** Shared across RTP + lane-dominance: heavy restores the original 8-seed RTP pool. */
@@ -115,6 +114,176 @@ function pooledRtp(sessions: RunState[]): number {
     spent += s.creditsSpent;
   }
   return recovered / spent;
+}
+
+/** Bounded mechanism checks; long-run balance claims belong to the full profile. */
+function runQuickChecks(): void {
+  const initial = createRun('QUICK-CORE');
+  let a = initial;
+  let b = createRun('QUICK-CORE');
+  assert.equal(JSON.stringify(a), JSON.stringify(b));
+  assert.notEqual(createRun('QUICK-OTHER').seed, initial.seed);
+  assert.ok(initial.coins.length > 40, 'opening shelf must contain a real packed layout');
+  const specials: PlayerInput['special'][] = ['normal', 'heavy', 'ball', 'vibrate', 'magnet'];
+  const rng = mulberry32(77);
+  for (let i = 0; i < 240; i++) {
+    const input = {
+      dropX: WALL_X0 + rng() * (WALL_X1 - WALL_X0),
+      drop: i % 45 === 0,
+      special: specials[Math.floor(i / 45) % specials.length],
+    };
+    const before = JSON.stringify(a);
+    const next = step(a, input, FIXED_DT);
+    assert.equal(JSON.stringify(a), before, 'step must not mutate its input or coin objects');
+    a = next;
+    b = step(b, input, FIXED_DT);
+    assert.equal(JSON.stringify(a), JSON.stringify(b), 'same seed/actions must replay exactly');
+    assert.ok(a.creditsRemaining >= 0);
+    assert.equal(a.creditsRemaining + a.creditsSpent, STARTING_CREDITS);
+    for (const coin of a.coins) {
+      const radius = coinRadius(coin.kind);
+      assert.ok(coin.x >= radius - 1e-6 && coin.x <= 420 - radius + 1e-6);
+      assert.ok(coin.y >= radius - 1e-6 && coin.y <= SHELF_LEN);
+      const front = pusherFrontY(a.tick, a.config.physics);
+      const back = front - a.config.physics.pusherThick;
+      assert.ok(!(coin.y - radius > back + 0.05 && coin.y + radius < front - 0.05), 'coin tunnelled into pusher');
+    }
+  }
+  ok('240 mixed-action ticks preserve seed replay, immutable state, credits, bounds and pusher exclusion');
+
+  for (const special of specials) {
+    const cost = COST[special];
+    const ready = { ...initial, cooldown: 0, creditsRemaining: cost, creditsSpent: STARTING_CREDITS - cost };
+    const spent = step(ready, { ...IDLE, drop: true, special }, FIXED_DT);
+    assert.equal(spent.creditsRemaining, 0, `${special} must spend its exact cost`);
+    assert.equal(spent.creditsSpent, STARTING_CREDITS);
+    assert.equal(spent.cooldown, DROP_COOLDOWN_TICKS);
+    assert.equal(isWindingDown(spent), true);
+    const remainder = step({ ...ready, creditsRemaining: 1, creditsSpent: STARTING_CREDITS - 1 },
+      { ...IDLE, drop: true, special }, FIXED_DT);
+    assert.equal(remainder.creditsRemaining, 0, `${special} must fall back to an affordable plain coin`);
+  }
+  const blocked = step({ ...initial, cooldown: 2 }, { ...IDLE, drop: true }, FIXED_DT);
+  assert.equal(blocked.events.rejectedDrop, true);
+  assert.equal(blocked.creditsRemaining, initial.creditsRemaining);
+  const ended = step({ ...initial, creditsRemaining: 0, ticksSinceLastDrop: SETTLE_GRACE_TICKS - 1 }, IDLE, FIXED_DT);
+  assert.equal(ended.phase, 'ended');
+  const idle = step(initial, IDLE, FIXED_DT);
+  assert.equal(idle.phase, 'playing');
+  assert.equal(idle.creditsRemaining, STARTING_CREDITS);
+  ok('all special costs, cooldown rejection, last-credit fallback and settle-end boundary');
+
+  assertModePackShape();
+  assertTablePackShape();
+  assert.equal(modeCount(), MODE_PACK.length);
+  assert.equal(isModeUnlocked(0, 0), true);
+  assert.equal(isModeUnlocked(1, 0), false);
+  assert.equal(continueModeIndex(MODE_PACK.length), MODE_PACK.length - 1);
+  const novice = MODE_PACK[0];
+  const modeRun = createRun(novice.seedCode, modeCreateOptions(novice));
+  assert.equal(modeRun.modeId, novice.id);
+  assert.equal(modeRun.config.clearScore, 70);
+  const cleared = { ...modeRun, phase: 'ended' as const, score: 70 };
+  assert.equal(evaluateModeGoal(novice, cleared), true);
+  assert.equal(evaluateModeGoal(novice, { ...cleared, score: 69 }), false);
+  const progress = applyModeResult(EMPTY_MODE_PROGRESS, 0, cleared);
+  assert.equal(progress.clearedCount, 1);
+  assert.equal(progress.bestScore[novice.id], 70);
+  const early = step({ ...modeRun, score: 70, ticksSinceLastDrop: SETTLE_GRACE_TICKS }, { ...IDLE, drop: true }, FIXED_DT);
+  assert.equal(early.events.rejectedDrop, true);
+  assert.equal(early.phase, 'ended');
+  const deadline = step({ ...initial, config: { ...initial.config, deadlineTick: initial.tick + 1 },
+    ticksSinceLastDrop: SETTLE_GRACE_TICKS }, IDLE, FIXED_DT);
+  assert.equal(isWindingDown(deadline), true);
+  assert.equal(deadline.phase, 'ended');
+  ok('mode unlock, score-goal thresholds, progress, early-clear and deadline boundaries');
+
+  const edgeCoins = [100, 210, 320].map((x, i) => ({
+    id: i + 1, kind: 'normal' as const, x, y: SHELF_LEN - 0.001, teeterSince: -1,
+  }));
+  const edge = step({ ...initial, tick: initial.config.physics.pusherPeriodTicks / 2,
+    coins: edgeCoins, strokeWasForward: true, strokeFallen: 0, score: 0 }, IDLE, FIXED_DT);
+  assert.equal(edge.events.fallen.length, 3);
+  assert.equal(edge.events.cascadeFinalized, CASCADE_MIN);
+  assert.equal(edge.longestCascade, CASCADE_MIN);
+  assert.equal(edge.cascadeCount, initial.cascadeCount + 1);
+  assert.ok(edge.score > 0);
+  const trigger = step({ ...initial, coins: [{ ...edgeCoins[0], kind: 'trigger' as const }], pot: 12,
+    jackpotBursts: 0, potAwarded: 0, score: 0 }, IDLE, FIXED_DT);
+  assert.equal(trigger.events.jackpotBurst, 12);
+  assert.equal(trigger.potAwarded, 12);
+  assert.equal(trigger.jackpotBursts, 1);
+  assert.equal(trigger.coins.filter((coin) => coin.kind === 'trigger').length, 1);
+  assert.equal(isTeetering(edgeCoins[0]), true);
+  assert.equal(isTeetering({ ...edgeCoins[0], y: SHELF_LEN * 0.4 }), false);
+  assert.equal(isTeetering({ ...edgeCoins[0], y: SHELF_LEN + 1 }), false);
+  assert.notEqual(pusherFrontY(0), pusherFrontY(40));
+  assert.equal(triangleWave(0), 0);
+  ok('edge geometry, real cascade finalization, jackpot payout and trigger replacement');
+
+  for (const table of TABLE_PACK) {
+    const run = createRun('QUICK-TABLE', { tableId: table.id });
+    assert.equal(run.tableId, table.id);
+    assert.deepEqual(run.config.physics.pegs, table.physics.pegs);
+    assert.equal(run.config.physics.pusherPeriodTicks, table.physics.pusherPeriodTicks);
+  }
+  assert.ok(tableById('peg-alley')!.physics.pegs.length > 0);
+  assert.notEqual(tableById('classic')!.physics.pusherPeriodTicks, tableById('spring-tide')!.physics.pusherPeriodTicks);
+  ok('all table configurations preserve authored pegs and pusher rhythms');
+
+  const malformed = parseMetaProgress({ tokens: 'nope', unlockedTables: [1, 'classic', 'bogus'], activeCoinSet: 'jade' });
+  assert.equal(malformed.tokens, 0);
+  assert.deepEqual(malformed.unlockedTables, ['classic']);
+  assert.equal(malformed.activeCoinSet, 'classic');
+  const rewardRun = { ...initial, phase: 'ended' as const, score: 40, cascadeCount: 2, jackpotBursts: 1 };
+  const earned = tokensFromRun(rewardRun);
+  const rewarded = applyRunToMeta(EMPTY_META, rewardRun, 0);
+  assert.ok(earned > 0);
+  assert.equal(rewarded.meta.tokens, earned);
+  assert.equal(rewarded.meta.lifetimeTokens, earned);
+  const daily = dailyChallengeFor('2026-10-20');
+  assert.deepEqual(daily, dailyChallengeFor('2026-10-20'));
+  assert.notEqual(daily.seedCode, dailyChallengeFor('2026-10-21').seedCode);
+  const dailyRun = createRun(daily.seedCode, { tableId: daily.tableId,
+    startingCredits: daily.startingCredits, clearScore: daily.targetScore, isDaily: true });
+  assert.equal(dailyRun.config.isDaily, true);
+  assert.equal(dailyRun.config.clearScore, daily.targetScore);
+  assert.equal(dailyRun.tableId, daily.tableId);
+  const dailyWin = { ...dailyRun, phase: 'ended' as const, score: daily.targetScore };
+  assert.equal(evaluateDailyClear(daily, dailyWin), true);
+  assert.equal(evaluateDailyClear(daily, { ...dailyWin, score: daily.targetScore - 1 }), false);
+  const recorded = recordDailyAttempt({ records: [] }, daily, dailyWin);
+  assert.equal(recorded.records[0].bestScore, daily.targetScore);
+  assert.equal(recorded.records[0].cleared, true);
+  assert.equal(parseDailyProgress({ records: [...recorded.records, { dateKey: 'bad' }] }).records.length, 1);
+  ok('meta persistence validation/rewards and daily seed, clear and record contracts');
+
+  assert.equal(hashString('abc'), hashString('abc'));
+  const values = [1, 2, 3, 4];
+  assert.deepEqual(shuffle(values, mulberry32(7)).sort((x, y) => x - y), values);
+  assert.deepEqual(values, [1, 2, 3, 4]);
+  assert.notEqual(streamRng(1234, 'a')(), streamRng(1234, 'b')());
+  for (const file of ['rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts', 'tables.ts', 'progress.ts', 'daily.ts']) {
+    const source = readFileSync(resolve(__dirname, '..', '..', 'src', 'game', file), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    if (file !== 'rng.ts') assert.ok(!source.includes('Math.random'), `${file} must use seeded RNG`);
+    assert.ok(!/sort\(\s*\(\)\s*=>/.test(source), `${file} must not shuffle with an inconsistent comparator`);
+  }
+  ok('seeded RNG stream separation, nonmutating shuffle and source hygiene');
+}
+
+if (TEST_PROFILE === 'quick') {
+  runQuickChecks();
+  for (const label of [
+    'full-session RTP and lane-dominance balance pools',
+    'packed-shelf lock stress and long randomized bounds soak',
+    'complete-session termination for every special and long idle run',
+    'multi-seed pile-width and jackpot aiming/policy balance comparisons',
+    'full-session cascade/near-miss reachability',
+    'long timed-mode simulation and per-table RTP/magnet sessions',
+  ]) console.log(`  DEFERRED (full profile): ${label}`);
+  console.log(`\nself-check: ok (${passed} checks, quick profile; full balance/session coverage deferred)`);
+  process.exit(0);
 }
 
 // ── 1) Determinism — the entire premise ──────────────────────────────────

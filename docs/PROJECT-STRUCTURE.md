@@ -38,6 +38,8 @@ Clubhouse-Games/
 - **npm workspaces**：根目錄 `package.json` 以 `"workspaces": ["Games/*", "shared"]` 管理各遊戲與共用套件 `@clubhouse/shared`；執行一次 `npm run setup`（根目錄 `npm ci`）即可，不必再進每個 `Games/<名>/` 各自安裝。唯一的 lockfile 是根目錄 `package-lock.json`，Node 版本由 `.nvmrc` 指定。各遊戲透過 Vite alias helper（`@clubhouse/shared/vite-alias`）與 `tsconfig` paths 解析 `@clubhouse/shared/<module>` 匯入。
 - **Tailwind／CSS**：總覽選單固定用根目錄 **Tailwind v3**（`styles/menu.input.css` → `assets/menu.css`）。遊戲可維持既有 v3（`tailwind.config.js`）或 v4（`@tailwindcss/vite`）；凡匯入依賴 utility class 的 shared 元件（目前 `ResultOverlay`／`ScoreFlash`），必須透過套件助手掃描 `shared/`——v3 用 `clubhouseSharedTailwindContent()`，v4 用 `@import '…/shared/tailwind-source.css'`。`npm run check:shared-styles` 會擋下未掃描的情況。新遊戲優先採 v4 + `tailwind-source.css`；不要求一次遷移全部既有 v3 遊戲。無 React 的 Vite 遊戲可用 `@clubhouse/shared/resultOverlayDom`（自帶 CSS，不需 Tailwind 掃描）。
 - **本地單一服務**：根目錄執行 `npm run dev` 只會啟動 **一個** Node 伺服器（`server.mjs`），提供選單與靜態檔；各遊戲從 `Games/<名>/dist/` 提供（需先 `npm run build:game <名>`）。Astra 靜態頁可直接由根目錄路徑提供，無需建置。
+  預設只監聽 `127.0.0.1`；區域網路測試須明確設定 `HOST=0.0.0.0`。
+  公開路徑採白名單，缺少資產回傳 404，儲存庫設定、隱藏檔與遊戲原始碼不對外提供。
 
 ---
 

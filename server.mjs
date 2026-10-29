@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const REPO_NAME = process.env.REPO_NAME || 'Clubhouse-Games';
+export const HOST = process.env.HOST || '127.0.0.1';
 
 /** Exported so scripts/check-dev-server-mime.mjs can lock the table without spinning npm run dev. */
 export const MIME = {
@@ -46,109 +47,104 @@ function send(res, status, body, contentType = 'text/html') {
   res.end(body);
 }
 
-function serveFile(res, filePath) {
-  if (!fs.existsSync(filePath)) {
-    send(res, 404, 'Not Found', 'text/plain');
-    return;
-  }
+function serveFile(req, res, filePath) {
   const ext = path.extname(filePath);
   let type = MIME[ext] || 'application/octet-stream';
   if (TEXT_EXTENSIONS.has(ext)) {
     type += '; charset=utf-8';
   }
-  const stream = fs.createReadStream(filePath);
-  stream.on('error', () => { try { res.end(); } catch (_) {} });
   res.writeHead(200, { 'Content-Type': type });
-  stream.pipe(res);
+  if (req.method === 'HEAD') return res.end();
+  fs.createReadStream(filePath).on('error', () => res.destroy()).pipe(res);
 }
 
-function serveGameDist(res, gameDir, reqPath) {
-  const distDir = path.join(__dirname, 'Games', gameDir, 'dist');
-  const normalized = reqPath === '/' || reqPath === '' ? '/index.html' : reqPath;
-  const filePath = path.join(distDir, normalized.replace(/^\//, '').replace(/\/$/, '') || 'index.html');
-  const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(distDir))) {
-    send(res, 404, 'Not Found', 'text/plain');
-    return;
-  }
-  if (!fs.existsSync(resolved)) {
-    if (fs.existsSync(path.join(distDir, 'index.html'))) {
-      serveFile(res, path.join(distDir, 'index.html'));
+function isWithin(root, target) {
+  const relative = path.relative(root, target);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+const PUBLIC_DIRECTORIES = new Set([
+  'assets', 'docs', 'gpt6-astra', '01-cards', '02-board', '03-tiles-dice',
+  '04-sports-arcade', '05-puzzle', '06-minigames', '07-astra',
+]);
+const PUBLIC_FILES = new Set(['index.html', 'README.md', 'README_tw.md', 'title-image.jpg', 'data/games.json']);
+
+/** A configurable root lets the regression check use isolated, non-secret fixtures. */
+export function createRequestListener(rootDirectory = __dirname, repoName = REPO_NAME) {
+  const root = fs.realpathSync(rootDirectory);
+  return (req, res) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.setHeader('Allow', 'GET, HEAD');
+      return send(res, 405, 'Method Not Allowed', 'text/plain');
+    }
+    let rawPath;
+    const target = req.url || '/';
+    try {
+      if (!target.startsWith('/') || target.startsWith('//')) throw new URIError('Invalid request target');
+      // Decode before normalization so encoded dot segments cannot bypass the guard.
+      rawPath = decodeURIComponent(target.split('?')[0]);
+      if (/[\u0000-\u001f\u007f\\]/.test(rawPath)) throw new URIError('Invalid path');
+    } catch {
+      return send(res, 400, 'Bad Request', 'text/plain');
+    }
+    if (rawPath.split('/').some((segment) => segment.startsWith('.') || segment === 'node_modules')) {
+      return send(res, 404, 'Not Found', 'text/plain');
+    }
+    const repoPrefix = `/${repoName}`;
+    const hasRepoPrefix = rawPath === repoPrefix || rawPath.startsWith(`${repoPrefix}/`);
+    const reqPath = hasRepoPrefix ? rawPath.slice(repoPrefix.length) || '/' : rawPath;
+    const relativePath = reqPath.slice(1) || 'index.html';
+    const segments = relativePath.split('/');
+    let mount;
+    let file;
+    if (segments[0] === 'Games' && segments[1]) {
+      mount = path.join(root, 'Games', segments[1], 'dist');
+      file = path.resolve(mount, segments.slice(2).join('/') || 'index.html');
+    } else if (PUBLIC_DIRECTORIES.has(segments[0])) {
+      mount = path.join(root, segments[0]);
+      file = path.resolve(root, relativePath);
+    } else if (PUBLIC_FILES.has(relativePath)) {
+      mount = root;
+      file = path.join(root, relativePath);
     } else {
-      send(res, 404, 'Game not built. Run: npm run build:game ' + gameDir, 'text/plain');
+      return send(res, 404, 'Not Found', 'text/plain');
     }
-    return;
-  }
-  if (fs.statSync(resolved).isDirectory()) {
-    serveFile(res, path.join(resolved, 'index.html'));
-    return;
-  }
-  serveFile(res, resolved);
+    try {
+      if (!isWithin(mount, file) || fs.realpathSync(mount) !== mount) {
+        return send(res, 404, 'Not Found', 'text/plain');
+      }
+      const isDirectory = fs.statSync(file).isDirectory();
+      if (isDirectory) file = path.join(file, 'index.html');
+      const realFile = fs.realpathSync(file);
+      if (!isWithin(mount, realFile) || !isWithin(root, realFile)
+        || path.relative(root, realFile).split(path.sep).some((part) => part.startsWith('.') || part === 'node_modules')
+        || (mount === root && realFile !== file) || !fs.statSync(realFile).isFile()) {
+        return send(res, 404, 'Not Found', 'text/plain');
+      }
+      // Every app uses root files or hash routes; missing files must remain 404s.
+      const gameRoot = segments[0] === 'Games' && segments.length === 2;
+      if ((isDirectory || gameRoot) && !rawPath.endsWith('/')) {
+        const query = target.includes('?') ? target.slice(target.indexOf('?')) : '';
+        const locationPath = rawPath.split('/').map(encodeURIComponent).join('/');
+        res.writeHead(301, { Location: `${locationPath}/${query}` });
+        return res.end();
+      }
+      serveFile(req, res, realFile);
+    } catch {
+      send(res, 404, 'Not Found', 'text/plain');
+    }
+  };
 }
 
-export const requestListener = (req, res) => {
-  const url = new URL(req.url || '/', `http://localhost:${PORT}`);
-  const rawPath = decodeURIComponent(url.pathname);
-
-  const repoPrefix = `/${REPO_NAME}`;
-  const hasRepoPrefix = rawPath === repoPrefix || rawPath.startsWith(repoPrefix + '/');
-  const reqPath = hasRepoPrefix ? rawPath.slice(repoPrefix.length) || '/' : rawPath;
-
-  if (reqPath.startsWith('/Games/')) {
-    const rest = reqPath.slice('/Games/'.length);
-    const gameDir = rest.split('/')[0];
-    if (gameDir) {
-      const subPath = rest.slice(gameDir.length) || '/';
-      // Redirect /Games/Blackjack-main -> /Games/Blackjack-main/ so relative paths (./assets/...) resolve correctly
-      if (subPath === '/' && !reqPath.endsWith('/')) {
-        const distIndex = path.join(__dirname, 'Games', gameDir, 'dist', 'index.html');
-        if (fs.existsSync(distIndex)) {
-          const prefix = hasRepoPrefix ? repoPrefix : '';
-          res.writeHead(301, { Location: prefix + reqPath + '/' });
-          res.end();
-          return;
-        }
-      }
-      serveGameDist(res, gameDir, subPath);
-      return;
-    }
-  }
-
-  const rootPath = path.join(__dirname, reqPath === '/' ? 'index.html' : reqPath.replace(/^\//, ''));
-  const resolved = path.resolve(rootPath);
-  const rootResolved = path.resolve(__dirname);
-  if (!resolved.startsWith(rootResolved) || resolved === rootResolved) {
-    const index = path.join(rootResolved, 'index.html');
-    if (fs.existsSync(index)) {
-      serveFile(res, index);
-      return;
-    }
-    send(res, 404, 'Not Found', 'text/plain');
-    return;
-  }
-  if (!fs.existsSync(resolved)) {
-    send(res, 404, 'Not Found', 'text/plain');
-    return;
-  }
-  if (fs.statSync(resolved).isDirectory()) {
-    const index = path.join(resolved, 'index.html');
-    if (fs.existsSync(index)) {
-      serveFile(res, index);
-      return;
-    }
-    send(res, 404, 'Not Found', 'text/plain');
-    return;
-  }
-  serveFile(res, resolved);
-};
+export const requestListener = createRequestListener();
 
 const isMain =
   process.argv[1] != null && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 
 if (isMain) {
   const server = http.createServer(requestListener);
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Clubhouse Games: http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Clubhouse Games: http://${HOST}:${PORT}`);
     console.log('  Menu & specs from root; games from Games/<name>/dist/ (build with: npm run build:game <name>)');
   });
 }

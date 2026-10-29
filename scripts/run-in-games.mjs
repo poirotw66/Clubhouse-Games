@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Run an npm script in every game that defines it, and fail if any of them do.
- * Games without the script are skipped, not treated as failures — not every
- * game has a typecheck or a logic check.
+ * lint/check are required for every selected game. Missing optional scripts
+ * are reported as skips, so full and selective runs expose the same coverage.
  *
  * Runs with bounded concurrency (default: CPU count). Output is buffered per
  * game so parallel runs stay readable. By default every matching game runs and
@@ -29,6 +29,11 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
+const testProfile = process.env.CLUBHOUSE_TEST_PROFILE || 'full';
+if (testProfile !== 'quick' && testProfile !== 'full') {
+  console.error('CLUBHOUSE_TEST_PROFILE must be quick or full.');
+  process.exit(1);
+}
 
 function cpuCount() {
   if (typeof os.availableParallelism === 'function') {
@@ -198,15 +203,17 @@ if (!fs.existsSync(gamesDir)) {
   process.exit(0);
 }
 
+const packages = new Map();
 let games = fs.readdirSync(gamesDir).filter((name) => {
   const pkgPath = path.join(gamesDir, name, 'package.json');
   if (!fs.existsSync(pkgPath)) return false;
   try {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    return Boolean(pkg.scripts?.[scriptName]);
-  } catch {
-    return false;
+    packages.set(name, JSON.parse(fs.readFileSync(pkgPath, 'utf8')));
+  } catch (error) {
+    console.error(`Invalid package.json in ${name}: ${error.message}`);
+    process.exit(1);
   }
+  return true;
 });
 
 if (filters.length > 0) {
@@ -216,7 +223,7 @@ if (filters.length > 0) {
   });
   if (games.length === 0) {
     console.error(
-      `No game with "${scriptName}" matched filter(s): ${filters.join(', ')}`,
+      `No game matched filter(s): ${filters.join(', ')}`,
     );
     process.exit(1);
   }
@@ -241,12 +248,25 @@ if (shard) {
   }
 }
 
+const missing = games.filter((name) => !packages.get(name).scripts?.[scriptName]);
+if (missing.length > 0) {
+  const required = scriptName === 'lint' || scriptName === 'check';
+  const message = `Missing npm "${scriptName}" script in: ${missing.join(', ')}`;
+  if (required) {
+    console.error(message);
+    process.exit(1);
+  }
+  console.log(`Skipped (optional script): ${missing.join(', ')}`);
+  games = games.filter((name) => !missing.includes(name));
+}
+
 if (games.length === 0) {
-  console.log(`No game defines an npm "${scriptName}" script.`);
+  console.log(`No selected game defines an npm "${scriptName}" script.`);
   process.exit(0);
 }
 
 const concurrency = Math.min(jobs, games.length);
+if (scriptName === 'check') console.log(`Game check profile: ${testProfile}`);
 const shardLabel = shard ? `, shard ${shard.index}/${shard.total}` : '';
 console.log(
   `Running "${scriptName}" in ${games.length} game(s) with ${concurrency} job(s)` +

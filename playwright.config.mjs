@@ -1,6 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = `http://127.0.0.1:4173/${process.env.REPO_NAME || 'Clubhouse-Games'}/`;
+// CI opts into smoke coverage; local and manual runs retain the complete suite.
+const profile = process.env.CLUBHOUSE_TEST_PROFILE ?? 'full';
+if (profile !== 'quick' && profile !== 'full') {
+  throw new Error(`Invalid CLUBHOUSE_TEST_PROFILE: ${profile}. Expected quick or full.`);
+}
+const quick = profile === 'quick';
 
 function resolveWorkers() {
   const raw = process.env.PLAYWRIGHT_WORKERS;
@@ -8,9 +14,8 @@ function resolveWorkers() {
     const parsed = Number.parseInt(raw, 10);
     if (Number.isInteger(parsed) && parsed >= 1) return parsed;
   }
-  // CI shards already parallelize across runners; keep each shard on 2 workers
-  // to match typical 2-vCPU GitHub-hosted machines.
-  return process.env.CI ? 2 : undefined;
+  // Bound WebGL contention in quick local runs as well as on CI runners.
+  return process.env.CI || quick ? 2 : undefined;
 }
 
 export default defineConfig({
@@ -23,8 +28,8 @@ export default defineConfig({
   reporter: 'list',
   use: { baseURL, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, ...(quick ? { grep: /@smoke\b/ } : {}) },
+    { name: 'mobile', use: { ...devices['Pixel 7'] }, ...(quick ? { grep: /@mobile-smoke\b/ } : {}) },
   ],
   webServer: {
     command: 'node scripts/preview-pages.mjs',

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { includesAstra } from './astra-filter.mjs';
 
 const LOOP_HERO = 'gpt6-astra/loop-hero/';
 
@@ -11,6 +12,7 @@ async function dismissHowto(page) {
 }
 
 test.describe('Astra Cinder Circuit (Loop Hero)', () => {
+  test.skip(!includesAstra('loop-hero'), 'selective CI');
   test('camp shows daily panel, routes, and daily share text', async ({ page }) => {
     await page.goto(LOOP_HERO);
     await expect(page.getByRole('heading', { name: 'CINDER CIRCUIT' })).toBeVisible();

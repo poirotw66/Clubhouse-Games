@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { includesAstra } from './astra-filter.mjs';
 
 test.describe('Astra WebMCP Mini Factory', () => {
+  test.skip(!includesAstra('webmcp-mini-factory'), 'selective CI');
   test('campaign boots with levels, research, and daily controls', async ({ page }) => {
     await page.goto('gpt6-astra/webmcp-mini-factory/');
     await expect(page.getByRole('heading', { name: 'WebMCP Mini Factory' })).toBeVisible();

@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * Decide CI scope for pull_request vs full runs.
+ * Decide affected coverage independently from quick/full validation depth.
  *
  * Outputs GitHub Actions-style key=value lines (and a JSON summary) describing:
- *   full=true|false     — run every game / full Playwright suite
+ *   full=true|false     — build/typecheck/check every game
+ *   test_profile=...    — quick automatic checks or full manual validation
  *   games=...           — space-separated game folder names (empty when full)
- *   astra=true|false    — run gpt6-astra logic checks
+ *   astra=true|false    — whether any gpt6-astra demos are affected
+ *   astra_games=[...]   — JSON array of affected Astra directory names
  *   reason=...          — why this scope was chosen
  *
  * Full scope when:
@@ -21,7 +23,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
@@ -42,23 +44,37 @@ function listGameFolders() {
     .sort((a, b) => a.localeCompare(b));
 }
 
+function listAstraGames() {
+  const { categories } = JSON.parse(fs.readFileSync(path.join(root, 'data/games.json'), 'utf8'));
+  return categories.flatMap((category) => category.games)
+    .map((game) => /^gpt6-astra\/([^/]+)\/$/.exec(game.playPath || '')?.[1])
+    .filter(Boolean)
+    .sort();
+}
+
 function gitDiffNames(baseRef) {
   const mergeBase = execFileSync('git', ['merge-base', 'HEAD', baseRef], {
     cwd: root,
     encoding: 'utf8',
   }).trim();
-  const out = execFileSync('git', ['diff', '--name-only', `${mergeBase}...HEAD`], {
+  // Treat moves as deletion + addition so both dependent demos/games are checked.
+  const out = execFileSync('git', ['diff', '--no-renames', '--name-only', '-z', `${mergeBase}...HEAD`], {
     cwd: root,
     encoding: 'utf8',
   });
   return out
-    .split('\n')
-    .map((line) => line.trim())
+    .split('\0')
     .filter(Boolean);
 }
 
 /** Paths that invalidate selective CI — shared infra / site shell / tooling. */
-function isSharedInfra(filePath) {
+function isSharedInfra(filePath, allAstraGames) {
+  // Only registered demos are isolated. Gallery files, vendor/shared assets,
+  // and unknown paths conservatively invalidate the whole site.
+  if (filePath.startsWith('gpt6-astra/')) {
+    const demo = /^gpt6-astra\/([^/]+)\//.exec(filePath)?.[1];
+    return !allAstraGames.includes(demo);
+  }
   const patterns = [
     /^\.github\//,
     /^shared\//,
@@ -67,7 +83,6 @@ function isSharedInfra(filePath) {
     /^data\//,
     /^styles\//,
     /^assets\//,
-    /^gpt6-astra\//,
     /^package\.json$/,
     /^package-lock\.json$/,
     /^\.nvmrc$/,
@@ -95,10 +110,15 @@ function matrixJson(shards) {
  * runner with CHECK_JOBS=1 so it is not contended by sibling games. Remaining
  * games split across three shards.
  */
-function checkMatrixJson(scope) {
+function checkMatrixJson(scope, profile) {
   if (!scope.full) {
     return JSON.stringify({
       include: [{ id: 'selective', mode: 'filter', shard: '1', total: '1' }],
+    });
+  }
+  if (profile === 'quick') {
+    return JSON.stringify({
+      include: [{ id: 'quick', mode: 'quick', shard: '1', total: '1' }],
     });
   }
   return JSON.stringify({
@@ -111,17 +131,28 @@ function checkMatrixJson(scope) {
   });
 }
 
+export function resolveTestProfile(raw = process.env.CLUBHOUSE_TEST_PROFILE, forceFull = FORCE_FULL) {
+  const profile = raw || 'full';
+  if (profile !== 'quick' && profile !== 'full') {
+    throw new Error('CLUBHOUSE_TEST_PROFILE must be quick or full.');
+  }
+  return forceFull ? 'full' : profile;
+}
+
 function writeOutput(scope) {
-  // Full runs shard across runners; selective PRs keep a single shard.
+  const profile = resolveTestProfile();
+  // Coverage can include every game while validation remains a quick smoke run.
   const lintMatrix = matrixJson(scope.full ? [1, 2] : [1]);
-  const checkMatrix = checkMatrixJson(scope);
-  const testMatrix = matrixJson(scope.full ? [1, 2, 3, 4] : [1]);
+  const checkMatrix = checkMatrixJson(scope, profile);
+  const testMatrix = matrixJson(scope.full && profile === 'full' ? [1, 2, 3, 4] : [1]);
 
   const lines = [
     `full=${scope.full}`,
+    `test_profile=${profile}`,
     `games=${scope.games.join(' ')}`,
     `astra=${scope.astra}`,
-    `reason=${scope.reason}`,
+    `astra_games=${JSON.stringify(scope.astraGames)}`,
+    `reason=${scope.reason.replace(/[\r\n]/g, ' ')}`,
     `lint_matrix=${lintMatrix}`,
     `check_matrix=${checkMatrix}`,
     `test_matrix=${testMatrix}`,
@@ -129,7 +160,7 @@ function writeOutput(scope) {
   for (const line of lines) {
     console.log(line);
   }
-  console.log(`scope_json=${JSON.stringify({ ...scope, lintMatrix, checkMatrix, testMatrix })}`);
+  console.log(`scope_json=${JSON.stringify({ ...scope, testProfile: profile, lintMatrix, checkMatrix, testMatrix })}`);
 
   const githubOutput = process.env.GITHUB_OUTPUT;
   if (githubOutput) {
@@ -137,16 +168,43 @@ function writeOutput(scope) {
   }
 }
 
+export function resolveChangedScope(changed, allGames, allAstraGames) {
+  const full = (reason) => ({
+    full: true, games: allGames, astra: true, astraGames: allAstraGames, reason,
+  });
+  if (changed.length === 0) return full('no-diff');
+  const sharedHit = changed.find((filePath) => isSharedInfra(filePath, allAstraGames));
+  if (sharedHit) return full(`shared:${sharedHit}`);
+
+  const gameSet = new Set();
+  const astraSet = new Set();
+  for (const filePath of changed) {
+    const astraGame = /^gpt6-astra\/([^/]+)\//.exec(filePath)?.[1];
+    if (astraGame) astraSet.add(astraGame);
+    const game = gameFromPath(filePath);
+    // Deleted or unregistered workspace folders need the full consistency checks.
+    if (game && !allGames.includes(game)) return full(`unknown-game:${game}`);
+    if (game) gameSet.add(game);
+  }
+  const games = [...gameSet].sort((a, b) => a.localeCompare(b));
+  const astraGames = [...astraSet].sort();
+  return {
+    full: false,
+    games,
+    astra: astraGames.length > 0,
+    astraGames,
+    reason: games.length > 0 || astraGames.length > 0 ? 'selective' : 'no-game-paths',
+  };
+}
+
 function main() {
   const allGames = listGameFolders();
-
+  const allAstraGames = listAstraGames();
+  const writeFull = (reason) => writeOutput({
+    full: true, games: allGames, astra: true, astraGames: allAstraGames, reason,
+  });
   if (FORCE_FULL || EVENT_NAME !== 'pull_request') {
-    writeOutput({
-      full: true,
-      games: allGames,
-      astra: true,
-      reason: FORCE_FULL ? 'CI_FORCE_FULL' : `event:${EVENT_NAME || 'local'}`,
-    });
+    writeFull(FORCE_FULL ? 'CI_FORCE_FULL' : `event:${EVENT_NAME || 'local'}`);
     return;
   }
 
@@ -155,12 +213,7 @@ function main() {
     baseRef = `origin/${baseRef}`;
   }
   if (!baseRef) {
-    writeOutput({
-      full: true,
-      games: allGames,
-      astra: true,
-      reason: 'missing-base-ref',
-    });
+    writeFull('missing-base-ref');
     return;
   }
 
@@ -168,56 +221,13 @@ function main() {
   try {
     changed = gitDiffNames(baseRef);
   } catch (error) {
-    writeOutput({
-      full: true,
-      games: allGames,
-      astra: true,
-      reason: `diff-failed:${error.message}`,
-    });
+    writeFull(`diff-failed:${error.message}`);
     return;
   }
 
-  if (changed.length === 0) {
-    writeOutput({
-      full: true,
-      games: allGames,
-      astra: true,
-      reason: 'no-diff',
-    });
-    return;
-  }
-
-  const sharedHit = changed.find((filePath) => isSharedInfra(filePath));
-  if (sharedHit) {
-    writeOutput({
-      full: true,
-      games: allGames,
-      astra: true,
-      reason: `shared:${sharedHit}`,
-    });
-    return;
-  }
-
-  const gameSet = new Set();
-  let astra = false;
-  for (const filePath of changed) {
-    if (filePath.startsWith('gpt6-astra/')) {
-      astra = true;
-      continue;
-    }
-    const game = gameFromPath(filePath);
-    if (game && allGames.includes(game)) {
-      gameSet.add(game);
-    }
-  }
-
-  const games = [...gameSet].sort((a, b) => a.localeCompare(b));
-  writeOutput({
-    full: false,
-    games,
-    astra,
-    reason: games.length > 0 || astra ? 'selective' : 'no-game-paths',
-  });
+  writeOutput(resolveChangedScope(changed, allGames, allAstraGames));
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main();
+}

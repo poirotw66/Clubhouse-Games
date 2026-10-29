@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { includesAstra } from './astra-filter.mjs';
 
 /**
  * Astra Dust Riot / Borderland — daily mutation + meta unlocks.
@@ -6,6 +7,7 @@ import { test, expect } from '@playwright/test';
  * Three.js boot is slow on CI shards; keep generous timeouts.
  */
 test.describe('Astra Borderland (Dust Riot)', () => {
+  test.skip(!includesAstra('borderland'), 'selective CI');
   test.beforeEach(async ({ page }) => {
     test.setTimeout(60_000);
   });
