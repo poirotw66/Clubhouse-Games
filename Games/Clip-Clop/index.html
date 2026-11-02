@@ -40,12 +40,68 @@ canvas{display:block}
 @media (max-width:560px){.back-to-menu{padding:5px 12px;font-size:12px}.back-to-menu-label{display:none}}
 
 /* Key pads */
-#keysBar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
-.key{min-width:112px;height:60px;padding:0 18px;border:3px solid #4a2f18;border-radius:999px;background:var(--kc,#ef8b23);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 5px 0 rgba(74,47,24,.5);cursor:pointer;touch-action:none;color:#fff}
+#keysBar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto;align-items:center}
+.key{min-width:112px;height:60px;padding:0 18px;border:3px solid #4a2f18;border-radius:999px;background:var(--kc,#ef8b23);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 5px 0 rgba(74,47,24,.5);cursor:pointer;touch-action:none;color:#fff;position:relative;transition:box-shadow .15s,filter .15s}
 .key span{font-size:21px;font-weight:800;line-height:1}
 .key small{font-size:11px;font-weight:700;opacity:.92}
 .key.down{transform:translateY(4px);box-shadow:0 1px 0 rgba(74,47,24,.5);filter:brightness(.82)}
-.gap{width:14px}
+.gap{display:flex;align-items:center;justify-content:center}
+
+/* Diagonal pair badges on keys */
+.pair-badge{position:absolute;top:-8px;right:-4px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:900;border:2px solid #4a2f18;box-shadow:0 2px 0 rgba(74,47,24,.3);color:#fff;letter-spacing:.04em;line-height:1.2}
+.pair-a-badge{background:#e8862b}
+.pair-b-badge{background:#2c6e49}
+.key.pair-suggest{box-shadow:0 0 16px 4px rgba(255,230,0,.85), 0 5px 0 rgba(74,47,24,.5);filter:brightness(1.15);animation:suggestPulse .4s infinite alternate}
+@keyframes suggestPulse{from{transform:translateY(0)}to{transform:translateY(-2px)}}
+
+/* Rhythm Dock between W and O */
+.rhythm-dock{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff6e8;border:3px solid #4a2f18;border-radius:16px;padding:4px 8px;box-shadow:0 4px 0 rgba(74,47,24,.3);min-width:64px;height:60px}
+.cadence-title{font-size:9.5px;font-weight:900;opacity:.7;letter-spacing:.06em;line-height:1}
+.beat-dots{display:flex;align-items:center;gap:4px;margin-top:4px}
+.beat-node{width:22px;height:22px;border-radius:50%;border:2px solid #4a2f18;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;background:#ede2cf;color:#785a3a;transition:all .15s}
+.beat-node.active{background:#f5a524;color:#fff;transform:scale(1.16);box-shadow:0 0 10px rgba(245,165,36,.85)}
+.beat-arrow{font-size:11px;font-weight:900;color:#9b7a5a}
+
+/* Speedometer pill & dynamic gait badge */
+.pill.speed{background:#fffbf2;border-color:#4a2f18;position:relative;overflow:hidden;gap:6px}
+.pill.speed .speed-unit{font-size:10px;font-weight:800;opacity:.7;margin-left:1px}
+.gait-badge{font-size:10.5px;font-weight:900;padding:2px 8px;border-radius:999px;border:1.5px solid #4a2f18;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3);letter-spacing:.04em;transition:all .2s ease}
+.gait-badge.walk{background:#8c7562}
+.gait-badge.trot{background:#1ea858;box-shadow:0 0 8px rgba(30,168,88,.5)}
+.gait-badge.gallop{background:#e86e10;box-shadow:0 0 10px rgba(232,110,16,.6)}
+.gait-badge.fever{background:linear-gradient(90deg,#ff4500,#ffaa00);animation:feverGlow .4s infinite alternate;box-shadow:0 0 14px #ff8c00}
+@keyframes feverGlow{to{filter:brightness(1.25);transform:scale(1.06)}}
+
+/* Balance meter (gyro) */
+#balanceMeter{position:absolute;top:66px;left:50%;transform:translateX(-50%);background:#fff6e8;border:2.5px solid #4a2f18;border-radius:999px;padding:3px 14px;display:flex;align-items:center;gap:8px;box-shadow:0 3px 0 rgba(74,47,24,.25);z-index:6;pointer-events:none}
+.gyro-track{width:92px;height:12px;background:#e2d2bc;border-radius:999px;position:relative;display:flex;align-items:center;justify-content:center;border:1.5px solid #7d5e42;overflow:hidden}
+.gyro-safe{position:absolute;width:34px;height:100%;background:rgba(30,168,88,.3);border-left:1px dashed #1ea858;border-right:1px dashed #1ea858}
+.gyro-bubble{width:10px;height:10px;border-radius:50%;background:#1ea858;border:1.5px solid #144d28;position:absolute;left:calc(50% - 5px);transition:transform .06s linear,background .2s;box-shadow:0 0 4px rgba(0,0,0,.3)}
+.gyro-bubble.warn{background:#f59e0b;border-color:#78350f}
+.gyro-bubble.danger{background:#ef4444;border-color:#7f1d1d;animation:pulse .2s infinite alternate}
+.gyro-label{font-size:10.5px;font-weight:900;opacity:.7;letter-spacing:.05em}
+
+/* Rhythm Cadence Floating Banner */
+#cadenceBanner{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:900;color:#fff;background:#4a2f18;border:3px solid #f5d90a;border-radius:999px;padding:6px 22px;box-shadow:0 6px 0 rgba(0,0,0,.35);display:flex;align-items:center;gap:10px;pointer-events:none;transition:opacity .2s,transform .2s;z-index:7;white-space:nowrap}
+#cadenceBanner.pop{animation:cadencePop .5s ease-out forwards}
+@keyframes cadencePop{0%{transform:translate(-50%,-50%) scale(.6);opacity:0}30%{transform:translate(-50%,-50%) scale(1.15);opacity:1}75%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) translateY(-14px);opacity:0}}
+#cadenceBanner b{font-size:24px;color:#f5d90a;line-height:1}
+
+/* Cadence Infobox on Title Screen */
+.cadence-infobox{margin-top:14px;background:#fdf6e9;border:2.5px dashed #b06a2c;border-radius:16px;padding:12px 14px;text-align:center}
+.cadence-infotitle{font-size:14px;font-weight:900;color:#934516;letter-spacing:.06em}
+.cadence-flow{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.cadence-step{background:#fff;border:2px solid #4a2f18;border-radius:12px;padding:6px 12px;display:flex;flex-direction:column;align-items:center;gap:3px;box-shadow:0 3px 0 rgba(74,47,24,.2)}
+.step-badge{font-size:10px;font-weight:900;background:#4a2f18;color:#fff;border-radius:999px;padding:1px 7px}
+.step-keys{display:flex;align-items:center;gap:4px;margin:2px 0}
+.step-key{font-size:12px;font-weight:900;padding:2px 8px;border-radius:8px;color:#fff;border:1.5px solid #4a2f18}
+.step-key.q{background:#e66900}
+.step-key.p{background:#2e91ff}
+.step-key.w{background:#00b04d}
+.step-key.o{background:#e356a2}
+.step-plus{font-weight:900;font-size:12px;color:#4a2f18}
+.step-note{font-size:11px;font-weight:800;color:#6b4d32}
+.cadence-arrow{font-size:18px;font-weight:900;color:#b06a2c}
 
 /* Fall prompt */
 #fallPrompt{position:absolute;bottom:112px;left:50%;transform:translateX(-50%);background:#d34a3a;color:#fff;border:3px solid #4a2f18;border-radius:999px;padding:10px 22px;font-weight:800;font-size:18px;white-space:nowrap;box-shadow:0 4px 0 rgba(74,47,24,.3);animation:bounce .55s infinite alternate}
@@ -150,13 +206,17 @@ h1{font-size:44px;line-height:1.05}
 #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;background:#9fd8f5;pointer-events:auto}
 @media (max-width:560px){
   h1{font-size:34px}
-  .key{min-width:86px;height:54px;padding:0 12px}
-  .key span{font-size:18px}
-  .gap{width:8px}
-  .pill{min-width:0;padding:5px 10px}
-  .pill b{font-size:16px}
+  .key{min-width:76px;height:52px;padding:0 8px}
+  .key span{font-size:17px}
+  .rhythm-dock{min-width:44px;height:52px;padding:2px 4px}
+  .beat-node{width:18px;height:18px;font-size:9.5px}
+  .cadence-title{font-size:8px}
+  .pill{min-width:0;padding:4px 8px}
+  .pill b{font-size:15px}
   #goBanner{font-size:64px}
   #countNum{font-size:88px}
+  .cadence-flow{gap:4px}
+  .cadence-step{padding:4px 8px}
 }
 </style>
 </head>
@@ -166,10 +226,21 @@ h1{font-size:44px;line-height:1.05}
   <div id="hud" class="hidden">
     <div class="pill"><span data-i18n="hud_time"></span><b id="hudTime">0.0</b></div>
     <div class="pill"><span data-i18n="hud_dist"></span><b id="hudDist">50.0 m</b></div>
+    <div class="pill speed" id="speedPill"><span data-i18n="hud_speed"></span><b id="hudSpeed">0.0</b><span class="speed-unit">km/h</span><span id="gaitBadge" class="gait-badge walk" data-i18n="gait_walk"></span></div>
     <div class="pill" id="fallsPill"><span data-i18n="hud_falls"></span><b id="hudFalls">0</b></div>
     <div class="pill ai" id="aiPill"><span data-i18n="opp"></span><b id="hudAi">—</b></div>
     <div class="pill daily" id="dayPill"><span>DAILY</span><b id="hudDay"></b></div>
   </div>
+
+  <div id="balanceMeter" class="hidden">
+    <span class="gyro-label" data-i18n="balance_label">平衡</span>
+    <div class="gyro-track">
+      <div class="gyro-safe"></div>
+      <div id="gyroBubble" class="gyro-bubble"></div>
+    </div>
+  </div>
+
+  <div id="cadenceBanner" class="hidden"><span id="cadenceText">PERFECT TROT!</span><b id="cadenceCombo">x3</b></div>
 
   <div id="corner">
     <button id="perfBtn" class="chip" title="Performance">⚡</button>
@@ -190,11 +261,36 @@ h1{font-size:44px;line-height:1.05}
   <div id="dailyBanner" class="hidden"></div>
 
   <div id="keysBar" class="hidden">
-    <div class="key" id="key-KeyQ" style="--kc:#e66900"><span>Q</span><small data-i18n="legQ"></small></div>
-    <div class="key" id="key-KeyW" style="--kc:#00b04d"><span>W</span><small data-i18n="legW"></small></div>
-    <div class="gap"></div>
-    <div class="key" id="key-KeyO" style="--kc:#e356a2"><span>O</span><small data-i18n="legO"></small></div>
-    <div class="key" id="key-KeyP" style="--kc:#2e91ff"><span>P</span><small data-i18n="legP"></small></div>
+    <div class="key" id="key-KeyQ" style="--kc:#e66900">
+      <span class="pair-badge pair-a-badge" data-i18n="pair_a_badge">A組</span>
+      <span>Q</span>
+      <small data-i18n="legQ"></small>
+    </div>
+    <div class="key" id="key-KeyW" style="--kc:#00b04d">
+      <span class="pair-badge pair-b-badge" data-i18n="pair_b_badge">B組</span>
+      <span>W</span>
+      <small data-i18n="legW"></small>
+    </div>
+    <div class="gap">
+      <div class="rhythm-dock" id="rhythmDock" title="對角步態節奏引導">
+        <div class="cadence-title" data-i18n="cadence_dock_title">步態節奏</div>
+        <div class="beat-dots">
+          <div class="beat-node active" id="beatA">A</div>
+          <div class="beat-arrow">⇄</div>
+          <div class="beat-node" id="beatB">B</div>
+        </div>
+      </div>
+    </div>
+    <div class="key" id="key-KeyO" style="--kc:#e356a2">
+      <span class="pair-badge pair-b-badge" data-i18n="pair_b_badge">B組</span>
+      <span>O</span>
+      <small data-i18n="legO"></small>
+    </div>
+    <div class="key" id="key-KeyP" style="--kc:#2e91ff">
+      <span class="pair-badge pair-a-badge" data-i18n="pair_a_badge">A組</span>
+      <span>P</span>
+      <small data-i18n="legP"></small>
+    </div>
   </div>
 
   <div id="titleScreen" class="screen">
@@ -209,6 +305,31 @@ h1{font-size:44px;line-height:1.05}
         <li data-i18n="how3"></li>
       </ul>
       <div class="tip" data-i18n="tip"></div>
+
+      <div class="cadence-infobox">
+        <div class="cadence-infotitle" data-i18n="cadence_info_title"></div>
+        <div class="cadence-flow">
+          <div class="cadence-step step-a">
+            <span class="step-badge" data-i18n="cadence_step1">第 1 拍</span>
+            <div class="step-keys">
+              <span class="step-key q">Q 左後</span>
+              <span class="step-plus">+</span>
+              <span class="step-key p">P 右前</span>
+            </div>
+            <span class="step-note" data-i18n="cadence_note1">對角 A 組踢地推進</span>
+          </div>
+          <div class="cadence-arrow">⇄</div>
+          <div class="cadence-step step-b">
+            <span class="step-badge" data-i18n="cadence_step2">第 2 拍</span>
+            <div class="step-keys">
+              <span class="step-key w">W 右後</span>
+              <span class="step-plus">+</span>
+              <span class="step-key o">O 左前</span>
+            </div>
+            <span class="step-note" data-i18n="cadence_note2">對角 B 組交替推進</span>
+          </div>
+        </div>
+      </div>
       <div class="modeRow" id="aiRow">
         <button class="modeChip sel" data-ai="" data-i18n="ai_solo"></button>
         <button class="modeChip" data-ai="pony" data-i18n="ai_pony"></button>

@@ -65,6 +65,13 @@ const I18N = {
     lb_upload:'上傳世界排行', lb_uploaded:'已上傳世界排行 ✓', lb_upload_fail:'上傳失敗，稍後再試',
     lb_rate:'太快了，一分鐘後再上傳', lb_need_name:'請先輸入名字',
     lb_not_configured:'世界排行尚未設定（需 Supabase）', lb_empty:'還沒有任何世界紀錄，去跑一場吧！',
+    hud_speed:'時速', gait_walk:'慢步', gait_trot:'快步', gait_gallop:'疾馳', gait_fever:'極速奔馳',
+    balance_label:'平衡', pair_a_badge:'A組', pair_b_badge:'B組',
+    cadence_dock_title:'步態節奏',
+    cadence_info_title:'【 核心步態訣竅 】',
+    cadence_step1:'第 1 拍', cadence_step2:'第 2 拍',
+    cadence_note1:'對角 A 組踢地推進', cadence_note2:'對角 B 組交替推進',
+    combo_trot:'完美快步！', combo_gallop:'疾馳連擊！', combo_fever:'🔥 極速狂飆！',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
   },
@@ -116,6 +123,13 @@ const I18N = {
     lb_upload:'Upload to world board', lb_uploaded:'Uploaded ✓', lb_upload_fail:'Upload failed, try later',
     lb_rate:'Too fast — wait a minute between uploads', lb_need_name:'Enter a name first',
     lb_not_configured:'World board not configured (needs Supabase)', lb_empty:'No world records yet — go run one!',
+    hud_speed:'SPEED', gait_walk:'WALK', gait_trot:'TROT', gait_gallop:'GALLOP', gait_fever:'OVERDRIVE',
+    balance_label:'BALANCE', pair_a_badge:'Pair A', pair_b_badge:'Pair B',
+    cadence_dock_title:'CADENCE',
+    cadence_info_title:'【 CORE GAIT SECRET 】',
+    cadence_step1:'BEAT 1', cadence_step2:'BEAT 2',
+    cadence_note1:'Diagonal Pair A stamps down', cadence_note2:'Diagonal Pair B alternates',
+    combo_trot:'PERFECT TROT!', combo_gallop:'GALLOP COMBO!', combo_fever:'🔥 OVERDRIVE!',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
   },
@@ -134,6 +148,11 @@ function applyI18n(){
 ================================================================ */
 const $ = id => document.getElementById(id);
 const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hudFalls'),
+      hudSpeed=$('hudSpeed'), gaitBadge=$('gaitBadge'),
+      balanceMeter=$('balanceMeter'), gyroBubble=$('gyroBubble'),
+      cadenceBanner=$('cadenceBanner'), cadenceText=$('cadenceText'), cadenceCombo=$('cadenceCombo'),
+      beatA=$('beatA'), beatB=$('beatB'),
+      keyQ=$('key-KeyQ'), keyW=$('key-KeyW'), keyO=$('key-KeyO'), keyP=$('key-KeyP'),
       fallsPill=$('fallsPill'), aiPill=$('aiPill'), hudAi=$('hudAi'),
       langBtn=$('langBtn'), muteBtn=$('muteBtn'), ghostBtn=$('ghostBtn'),
       fallPromptEl=$('fallPrompt'), goBanner=$('goBanner'), countNumEl=$('countNum'), keysBar=$('keysBar'),
@@ -212,6 +231,12 @@ class Sfx {
   buzz(){ if(!this.ok())return; this.tone('square',150,110,0.6,0.2); }
   fanfare(){ if(!this.ok())return;
     [523.25,659.25,783.99,1046.5].forEach((f,i)=>this.tone('triangle',f,f,0.22,0.2,i*0.12));
+  }
+  cadenceChime(combo=1){
+    if(!this.ok())return;
+    const notes=[523.25,659.25,783.99,1046.5,1318.5];
+    const f=notes[Math.min(notes.length-1,Math.max(0,combo-2))];
+    this.tone('triangle',f,f*1.04,0.11,0.12);
   }
   neigh(f0,f1,dur,vol,amRate,when=0){
     if(!this.ok())return;
@@ -459,6 +484,123 @@ function buildClouds(){
 }
 
 /* ================================================================
+   Festive track pennants & distant hills
+================================================================ */
+function buildPennants(){
+  const colors = [0xe66900, 0x2e91ff, 0x00b04d, 0xe356a2, 0xf5a524, 0xffffff];
+  const flagMat = new THREE.MeshBasicMaterial({side: THREE.DoubleSide});
+  const dummy = new THREE.Object3D();
+  const flags = [];
+  for(const zs of [-2.75, 2.75]){
+    for(let x = -10; x <= 58; x += 1.33){
+      const c = colors[Math.floor(Math.abs(x * 3 + zs) % colors.length)];
+      flags.push({x, y: 0.60, z: zs, color: c});
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  const verts = new Float32Array([
+    -0.18, 0, 0,
+     0.18, 0, 0,
+     0, -0.24, 0
+  ]);
+  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  
+  const im = new THREE.InstancedMesh(geo, flagMat, flags.length);
+  flags.forEach((f, i) => {
+    dummy.position.set(f.x, f.y, f.z);
+    dummy.updateMatrix();
+    im.setMatrixAt(i, dummy.matrix);
+    im.setColorAt(i, new THREE.Color(f.color));
+  });
+  im.instanceMatrix.needsUpdate = true;
+  if(im.instanceColor) im.instanceColor.needsUpdate = true;
+  scene.add(im);
+}
+
+function buildHills(){
+  const hillMat = new THREE.MeshStandardMaterial({color: 0x689b48, roughness: 1});
+  const hillGroup = new THREE.Group();
+  for(let i = 0; i < 9; i++){
+    const r = 24 + Math.random() * 18;
+    const h = 5 + Math.random() * 4;
+    const hill = new THREE.Mesh(new THREE.ConeGeometry(r, h, 14), hillMat);
+    hill.position.set(-20 + i * 16, h * 0.45 - 2, -45 + (i % 2) * 8);
+    hill.scale.set(1.4, 0.5, 0.8);
+    hillGroup.add(hill);
+  }
+  scene.add(hillGroup);
+}
+
+/* ================================================================
+   Speed lines & dynamic wind streaks
+================================================================ */
+const speedLines = [];
+let speedLinesGroup = null;
+
+function buildSpeedLines(){
+  speedLinesGroup = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const count = 40;
+  for(let i = 0; i < count; i++){
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(6);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const line = new THREE.Line(geo, mat.clone());
+    line.visible = false;
+    speedLinesGroup.add(line);
+    speedLines.push({
+      line,
+      relX: Math.random() * 16 - 4,
+      relY: 0.2 + Math.random() * 2.8,
+      relZ: (Math.random() - 0.5) * 5.2,
+      len: 1.4 + Math.random() * 2.0,
+      spd: 14 + Math.random() * 14,
+    });
+  }
+  scene.add(speedLinesGroup);
+}
+
+function updateSpeedLines(dt){
+  if(!speedLinesGroup) return;
+  const active = G.state === 'run' && !G.fallPose && G.vx > 1.1;
+  const speedRatio = THREE.MathUtils.clamp((G.vx - 1.1) / 1.6, 0, 1);
+  const targetOpacity = active ? 0.25 + speedRatio * 0.55 : 0;
+  const isFever = G.vx >= 2.4;
+
+  for(const sl of speedLines){
+    if(!active && sl.line.material.opacity <= 0.01){
+      sl.line.visible = false;
+      continue;
+    }
+    sl.line.visible = true;
+    sl.line.material.opacity += (targetOpacity - sl.line.material.opacity) * Math.min(1, 8 * dt);
+    if(isFever){
+      sl.line.material.color.setHex(Math.random() < 0.5 ? 0xffea44 : 0x66e0ff);
+    } else {
+      sl.line.material.color.setHex(0xffffff);
+    }
+    sl.relX -= sl.spd * dt * Math.max(1, G.vx * 0.8);
+    if(sl.relX < -5.5){
+      sl.relX = 12 + Math.random() * 6;
+      sl.relY = 0.2 + Math.random() * 2.8;
+      sl.relZ = (Math.random() - 0.5) * 5.2;
+    }
+    const arr = sl.line.geometry.attributes.position.array;
+    const x0 = G.x + sl.relX;
+    const x1 = x0 + sl.len * (1 + speedRatio);
+    arr[0] = x0; arr[1] = sl.relY; arr[2] = sl.relZ;
+    arr[3] = x1; arr[4] = sl.relY; arr[5] = sl.relZ;
+    sl.line.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
+/* ================================================================
    Horse
 ================================================================ */
 const horseRoot = new THREE.Group();
@@ -604,21 +746,23 @@ function buildDust(){
     dustPool.push({s, age:0, life:0});
   }
 }
-function dustAt(x,z,n=1){
+function dustAt(x,z,n=1,spark=false){
   for(let i=0;i<n;i++){
     const d=dustPool.find(d=>!d.s.visible); if(!d)return;
     d.s.visible=true; d.age=0; d.life=0.4+Math.random()*0.15;
+    d.spark=spark;
     d.s.position.set(x+(Math.random()-0.5)*0.3, 0.08, z+(Math.random()-0.5)*0.3);
+    d.s.material.color.setHex(spark?0xffe066:0xffffff);
   }
 }
 function updateDust(dt){
   for(const d of dustPool){
     if(!d.s.visible)continue;
     d.age+=dt;
-    if(d.age>=d.life){ d.s.visible=false; continue; }
-    const k=d.age/d.life, sc=0.28+k*1.15;
+    if(d.age>=d.life){ d.s.visible=false; d.s.material.color.setHex(0xffffff); continue; }
+    const k=d.age/d.life, sc=(d.spark?0.35:0.28)+k*(d.spark?1.35:1.15);
     d.s.scale.set(sc,sc,1);
-    d.s.material.opacity=0.55*(1-k);
+    d.s.material.opacity=(d.spark?0.85:0.55)*(1-k);
     d.s.position.y=0.08+k*0.35;
   }
 }
@@ -1240,6 +1384,8 @@ function startRun(practice,daily){
   G.countdown=3.0; G.lastCount=0;
   G.elapsed=0; G.rec=[]; G.recAcc=0;
   G.replay=null;
+  G.cadenceCombo=0; G.lastStepPair=null; G.lastStepTime=0; G.suggestedPair='A';
+  hideCadenceBanner();
   lbTop.classList.add('hidden');
   lbBot.classList.add('hidden');
   aiStart(DUEL.on||TOUR.on ? (TOUR.on?TOUR_AI[TOUR.leg-1]:null) : aiSel);
@@ -1262,6 +1408,13 @@ function toTitle(){
   G.x=0; G.vx=0; G.vy=0; G.y=CFG.bodyY; G.pitch=0; G.roll=0; G.yaw=0; G.z=0;
   G.fallPose=null; G.elapsed=0; G.replay=null;
   G.daily=false; MOD.drag=1; MOD.fric=1; MOD.slope=0;
+  G.cadenceCombo=0;
+  hideCadenceBanner();
+  if(balanceMeter)balanceMeter.classList.add('hidden');
+  if(keyQ)keyQ.classList.remove('pair-suggest');
+  if(keyW)keyW.classList.remove('pair-suggest');
+  if(keyO)keyO.classList.remove('pair-suggest');
+  if(keyP)keyP.classList.remove('pair-suggest');
   sfx.crowdStop();
   applyWeather('day');
   dayPill.classList.add('hidden');
@@ -1297,6 +1450,12 @@ function finishRace(){
   G.state='done'; G.doneT=0; G.dnf=false;
   G.finishTime=G.elapsed;
   if(DUEL.on)duelRecord(G.finishTime);
+  hideCadenceBanner();
+  if(balanceMeter)balanceMeter.classList.add('hidden');
+  if(keyQ)keyQ.classList.remove('pair-suggest');
+  if(keyW)keyW.classList.remove('pair-suggest');
+  if(keyO)keyO.classList.remove('pair-suggest');
+  if(keyP)keyP.classList.remove('pair-suggest');
   sfx.crowdBurst();
   sfx.whinny();
   setTimeout(()=>sfx.fanfare(),500);
@@ -1309,6 +1468,12 @@ function timeUp(){
   G.state='done'; G.doneT=0; G.dnf=true;
   G.finishTime=CFG.timeLimit;
   if(DUEL.on)duelRecord(G.finishTime);
+  hideCadenceBanner();
+  if(balanceMeter)balanceMeter.classList.add('hidden');
+  if(keyQ)keyQ.classList.remove('pair-suggest');
+  if(keyW)keyW.classList.remove('pair-suggest');
+  if(keyO)keyO.classList.remove('pair-suggest');
+  if(keyP)keyP.classList.remove('pair-suggest');
   sfx.crowdStop();
   sfx.sadNeigh();
   sfx.buzz();
@@ -1458,16 +1623,66 @@ function showResult(){
 /* ================================================================
    Simulation adapter — sound, dust, UI and race rules.
 ================================================================ */
+let cadenceBannerTimer = null;
+function triggerCadenceHit(combo){
+  if(combo < 2) return;
+  sfx.cadenceChime(combo);
+
+  let label = tr('combo_trot');
+  if(combo >= 8){
+    label = tr('combo_fever');
+  } else if(combo >= 4){
+    label = tr('combo_gallop');
+  }
+
+  if(cadenceText && cadenceCombo && cadenceBanner){
+    cadenceText.textContent = label;
+    cadenceCombo.textContent = 'x' + combo;
+    cadenceBanner.classList.remove('hidden', 'pop');
+    void cadenceBanner.offsetWidth; // trigger reflow
+    cadenceBanner.classList.add('pop');
+
+    clearTimeout(cadenceBannerTimer);
+    cadenceBannerTimer = setTimeout(() => {
+      cadenceBanner.classList.add('hidden');
+    }, 950);
+  }
+}
+
+function hideCadenceBanner(){
+  clearTimeout(cadenceBannerTimer);
+  if(cadenceBanner) cadenceBanner.classList.add('hidden');
+}
+
 function simStep(dt){
   const inp=[held.KeyQ,held.KeyW,held.KeyO,held.KeyP,false];
   const ev=simHorse(G,legs,inp,dt);
   for(const e of ev){
     if(e.type==='step'){
       sfx.clop(e.speed);
-      dustAt(e.footX,e.z);
-      printAt(e.footX,e.z);
+      const isHighCombo = (G.cadenceCombo || 0) >= 4;
+      dustAt(e.footX, e.z, isHighCombo ? 2 : 1, isHighCombo);
+      printAt(e.footX, e.z);
+
+      const pair = (e.leg === 0 || e.leg === 3) ? 'A' : 'B';
+      const dtStep = G.elapsed - (G.lastStepTime || 0);
+
+      if(G.lastStepPair && G.lastStepPair !== pair && dtStep > 0.08 && dtStep < 0.85){
+        G.cadenceCombo = (G.cadenceCombo || 0) + 1;
+        G.suggestedPair = pair === 'A' ? 'B' : 'A';
+        triggerCadenceHit(G.cadenceCombo);
+      } else if(dtStep >= 0.85){
+        G.cadenceCombo = 1;
+        G.suggestedPair = pair === 'A' ? 'B' : 'A';
+      }
+      G.lastStepPair = pair;
+      G.lastStepTime = G.elapsed;
     }else if(e.type==='fall'){
       G.state='fallen'; G.falls++;
+      G.cadenceCombo = 0;
+      G.lastStepPair = null;
+      G.suggestedPair = 'A';
+      hideCadenceBanner();
       sfx.fall(); sfx.sadNeigh(); camShake=0.5;
       buzz([90,50,140]);
       dustAt(G.x,0,4); dustAt(G.x-0.6,0,2); dustAt(G.x+0.6,0,2);
@@ -1479,6 +1694,7 @@ function simStep(dt){
       fallPromptEl.classList.remove('hidden');
     }else if(e.type==='up'){
       G.state='run';
+      G.suggestedPair = 'A';
       sfx.getup(); dustAt(G.x,0,2);
     }
   }
@@ -1954,6 +2170,11 @@ function syncVisuals(dt){
 
   updateConfetti(dt);
   updateCrowd(dt, G.state!=='title'&&CFG.finishX-G.x<6&&G.x>40);
+  updateSpeedLines(dt);
+
+  const targetFov = 55 + THREE.MathUtils.clamp(((G.state==='run'&&!G.fallPose?G.vx:0) - 1.0) * 4.5, 0, 9);
+  camera.fov += (targetFov - camera.fov) * Math.min(1, 4 * dt);
+  camera.updateProjectionMatrix();
 
   // chase camera: distance auto-fits the horse to the screen and leads ahead by
   // speed, with a low 3/4 offset — the original game's framing
@@ -2018,6 +2239,66 @@ function updateHud(){
   hudDist.textContent=Math.max(0,CFG.finishX-G.x).toFixed(1)+' m';
   hudFalls.textContent=G.falls;
   hudEl.classList.toggle('warn',!G.practice&&G.timeLeft<10&&G.state!=='title');
+
+  // Speedometer in km/h (1 m/s = 3.6 km/h)
+  const speedKmh = Math.max(0, (G.fallPose ? 0 : G.vx) * 3.6);
+  if(hudSpeed) hudSpeed.textContent = speedKmh.toFixed(1);
+
+  // Dynamic gait badge
+  if(gaitBadge){
+    gaitBadge.className = 'gait-badge';
+    if(speedKmh >= 9.2){
+      gaitBadge.textContent = tr('gait_fever');
+      gaitBadge.classList.add('fever');
+    } else if(speedKmh >= 6.0){
+      gaitBadge.textContent = tr('gait_gallop');
+      gaitBadge.classList.add('gallop');
+    } else if(speedKmh >= 2.5){
+      gaitBadge.textContent = tr('gait_trot');
+      gaitBadge.classList.add('trot');
+    } else {
+      gaitBadge.textContent = tr('gait_walk');
+      gaitBadge.classList.add('walk');
+    }
+  }
+
+  // Artificial horizon / balance gyro
+  if(balanceMeter && gyroBubble){
+    const inGame = G.state === 'run' && G.countdown <= 0 && !G.fallPose;
+    balanceMeter.classList.toggle('hidden', !inGame);
+    if(inGame){
+      const rollFrac = THREE.MathUtils.clamp(G.roll / 0.6, -1, 1);
+      const pitchFrac = THREE.MathUtils.clamp(G.pitch / 0.62, -1, 1);
+      gyroBubble.style.transform = `translateX(${rollFrac * 38}px) translateY(${pitchFrac * 4}px)`;
+
+      const absRoll = Math.abs(G.roll);
+      const absPitch = Math.abs(G.pitch);
+      gyroBubble.classList.remove('warn', 'danger');
+      if(absRoll >= 0.35 || absPitch >= 0.38){
+        gyroBubble.classList.add('danger');
+      } else if(absRoll >= 0.22 || absPitch >= 0.25){
+        gyroBubble.classList.add('warn');
+      }
+    }
+  }
+
+  // Rhythm dock & key suggestion
+  if(beatA && beatB){
+    const targetA = G.suggestedPair !== 'B';
+    beatA.classList.toggle('active', targetA);
+    beatB.classList.toggle('active', !targetA);
+
+    const isRunning = G.state === 'run' && !G.fallPose && G.countdown <= 0;
+    if(keyQ && keyP) {
+      keyQ.classList.toggle('pair-suggest', isRunning && targetA);
+      keyP.classList.toggle('pair-suggest', isRunning && targetA);
+    }
+    if(keyW && keyO) {
+      keyW.classList.toggle('pair-suggest', isRunning && !targetA);
+      keyO.classList.toggle('pair-suggest', isRunning && !targetA);
+    }
+  }
+
   const aiOn=!!AI.level&&G.state!=='title';
   aiPill.classList.toggle('hidden',!aiOn);
   if(aiOn&&AI.S){
@@ -2112,6 +2393,9 @@ addEventListener('resize',()=>{
    Boot
 ================================================================ */
 buildWorld();
+buildHills();
+buildPennants();
+buildSpeedLines();
 buildClouds();
 buildHorse();
 buildGhost();
