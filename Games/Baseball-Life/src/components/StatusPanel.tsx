@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ATTR_LABELS,
   LEAGUES,
@@ -14,7 +14,13 @@ import { chapterShort, chapterById } from '../game/chapters';
 import { coachStyleInfo, teamChemistry } from '../game/people';
 import { pitchInfo } from '../game/pitches';
 import { traitById } from '../game/traits';
-import type { GameState } from '../game/types';
+import type { AttrKey, GameState } from '../game/types';
+import { ScoutRadar } from './ScoutRadar';
+
+interface StatusPanelProps {
+  state: GameState;
+  highlightKeys?: AttrKey[];
+}
 
 /**
  * Fatigue runs the other way to every other number on this panel: the grade
@@ -44,15 +50,38 @@ function Bar({ value }: { value: number }): React.ReactElement {
   );
 }
 
-export function StatusPanel({ state }: { state: GameState }): React.ReactElement {
+export function StatusPanel({ state, highlightKeys = [] }: StatusPanelProps): React.ReactElement {
+  const [viewMode, setViewMode] = useState<'radar' | 'bars'>('radar');
   const keys = attrsForPosition(state.position);
   const rating = overall(state.attrs, state.position);
   const league = LEAGUES[state.league];
 
   return (
     <section className="bl-card p-4">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-bold text-slate-200">能力</h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold text-slate-200">能力</h2>
+          <div className="flex rounded-md bg-slate-900/90 p-0.5 border border-slate-700/60 text-[10px]">
+            <button
+              type="button"
+              onClick={() => setViewMode('radar')}
+              className={`rounded px-1.5 py-0.5 font-bold transition ${
+                viewMode === 'radar' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              雷達
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('bars')}
+              className={`rounded px-1.5 py-0.5 font-bold transition ${
+                viewMode === 'bars' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              列表
+            </button>
+          </div>
+        </div>
         <p className="text-xs text-slate-400">
           綜合{' '}
           <span className="text-base font-black" style={{ color: gradeColor(rating) }}>
@@ -62,22 +91,48 @@ export function StatusPanel({ state }: { state: GameState }): React.ReactElement
         </p>
       </div>
 
-      <dl className="mt-3 space-y-2">
-        {keys.map((key) => (
-          <div key={key} className="grid grid-cols-[3.5rem_1fr_2.5rem] items-center gap-2">
-            <dt className="text-xs text-slate-400">{ATTR_LABELS[key]}</dt>
-            <dd>
-              <Bar value={state.attrs[key]} />
-            </dd>
-            <dd className="text-right">
-              <span className="text-sm font-bold" style={{ color: gradeColor(state.attrs[key]) }}>
-                {grade(state.attrs[key])}
-              </span>
-              <span className="ml-1 font-mono text-[10px] text-slate-500">{state.attrs[key]}</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {viewMode === 'radar' ? (
+        <div className="mt-2 flex flex-col items-center">
+          <ScoutRadar
+            attrs={state.attrs}
+            position={state.position}
+            highlightKeys={highlightKeys}
+            size={220}
+          />
+          {highlightKeys.length > 0 && (
+            <p className="mt-1 text-[11px] font-semibold text-emerald-300 animate-pulse text-center">
+              預計提升：{highlightKeys.map((k) => ATTR_LABELS[k]).join('、')}
+            </p>
+          )}
+        </div>
+      ) : (
+        <dl className="mt-3 space-y-2">
+          {keys.map((key) => {
+            const isHighlighted = highlightKeys.includes(key);
+            return (
+              <div
+                key={key}
+                className={`grid grid-cols-[3.5rem_1fr_2.5rem] items-center gap-2 rounded px-1.5 py-0.5 transition ${
+                  isHighlighted ? 'bg-emerald-500/15 border border-emerald-400/40' : ''
+                }`}
+              >
+                <dt className={`text-xs ${isHighlighted ? 'font-bold text-emerald-300' : 'text-slate-400'}`}>
+                  {ATTR_LABELS[key]}
+                </dt>
+                <dd>
+                  <Bar value={state.attrs[key]} />
+                </dd>
+                <dd className="text-right">
+                  <span className="text-sm font-bold" style={{ color: gradeColor(state.attrs[key]) }}>
+                    {grade(state.attrs[key])}
+                  </span>
+                  <span className="ml-1 font-mono text-[10px] text-slate-500">{state.attrs[key]}</span>
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
 
       <div className="mt-4 grid grid-cols-5 gap-1.5 border-t border-slate-700/60 pt-3 text-center">
         {(['body', 'mind', 'fame', 'fatigue', 'motivation'] as const).map((key) => (

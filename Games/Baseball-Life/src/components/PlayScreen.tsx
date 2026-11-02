@@ -9,7 +9,9 @@ import { abilityById } from '../game/abilities';
 import { traitById } from '../game/traits';
 import type { AttrKey, GameState, TurnReport } from '../game/types';
 import { CareerTable } from './CareerTable';
+import { CareerTimeline } from './CareerTimeline';
 import { DiceRoll } from './DiceRoll';
+import { StadiumDiamond } from './StadiumDiamond';
 import { StatusPanel } from './StatusPanel';
 
 const TONE_RING: Record<TurnReport['tone'], string> = {
@@ -59,9 +61,13 @@ export function PlayScreen({
   onQuit,
 }: Props): React.ReactElement {
   const [showCareer, setShowCareer] = useState(false);
+  const [hoveredOptionId, setHoveredOptionId] = useState<string | null>(null);
   // Whether the next training / destiny-boosted situation choice pours 天命.
   const [useDestiny, setUseDestiny] = useState(false);
   const { report, decision } = state;
+
+  const hoveredOption = decision?.options.find((o) => o.id === hoveredOptionId);
+  const highlightKeys = hoveredOption?.focus ?? [];
   const situationDestiny =
     decision?.kind === 'event' && state.pendingSituation
       ? situationById(state.pendingSituation)
@@ -153,10 +159,19 @@ export function PlayScreen({
         />
       </header>
 
+      <div className="mb-4">
+        <CareerTimeline state={state} />
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start">
-        <StatusPanel state={state} />
+        <StatusPanel state={state} highlightKeys={highlightKeys} />
 
         <div className="flex flex-col gap-4">
+          <StadiumDiamond
+            state={state}
+            isClutch={decision?.kind === 'clutch'}
+            clutchPrompt={decision?.prompt}
+          />
           {report && (
             <section
               className={`bl-card p-4 ${report.clutchMoment ? 'bl-clutch-hit' : ''}`}
@@ -324,7 +339,11 @@ export function PlayScreen({
                       type="button"
                       disabled={option.disabled}
                       onClick={() => onChoose(option.id, destinyArmed)}
-                      className="bl-choice min-h-16 px-4 py-3 text-left"
+                      onMouseEnter={() => setHoveredOptionId(option.id)}
+                      onMouseLeave={() => setHoveredOptionId(null)}
+                      onFocus={() => setHoveredOptionId(option.id)}
+                      onBlur={() => setHoveredOptionId(null)}
+                      className="bl-choice min-h-16 px-4 py-3 text-left transition"
                     >
                       <span className="flex items-baseline gap-2">
                         {hotkey >= 0 && (
