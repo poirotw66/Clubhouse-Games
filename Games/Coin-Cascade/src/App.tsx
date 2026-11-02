@@ -278,6 +278,11 @@ export default function App(): React.ReactElement {
         setPaused((p) => !p);
         return;
       }
+      if (e.code === 'KeyM') {
+        e.preventDefault();
+        audio.setMuted(!audio.isMuted());
+        return;
+      }
       if (e.code === 'ArrowLeft') {
         e.preventDefault();
         chuteXRef.current = Math.max(WALL_X0, chuteXRef.current - 14);
@@ -827,6 +832,15 @@ export default function App(): React.ReactElement {
   const winding = s ? isWindingDown(s) && s.phase === 'playing' : false;
   const tableDef = s ? tableById(s.tableId) : selectedTableDef;
 
+  const totalCoins = s?.coins.length ?? 0;
+  const leftCoins = s ? s.coins.filter((c) => c.x < SHELF_W / 3).length : 0;
+  const midCoins = s ? s.coins.filter((c) => c.x >= SHELF_W / 3 && c.x <= (SHELF_W * 2) / 3).length : 0;
+  const rightCoins = s ? s.coins.filter((c) => c.x > (SHELF_W * 2) / 3).length : 0;
+  const teeterCount = s ? s.coins.filter((c) => c.teeterSince >= 0).length : 0;
+  const triggerCoin = s ? s.coins.find((c) => c.kind === 'trigger') : undefined;
+  const triggerDist = triggerCoin ? Math.max(0, SHELF_LEN - triggerCoin.y) : null;
+  const liveRtp = s && s.creditsSpent > 0 ? ((s.coinsRecovered / s.creditsSpent) * 100).toFixed(0) : '100';
+
   return (
     <div className="cc-play h-screen w-screen flex flex-col">
       <BackToMenu />
@@ -917,24 +931,258 @@ export default function App(): React.ReactElement {
         </div>
       )}
 
-      <div ref={surfaceRef} className="flex-1 min-h-0 relative" onPointerDown={onPointerDown}>
-        <GameCanvas
-          stateRef={stateRef}
-          chuteXRef={chuteXRef}
-          paused={paused}
-          reducedMotion={reducedMotion}
-          coinSet={activeCoinSet}
-          cabinetHue={tableDef?.cabinetHue ?? 38}
-        />
+      <div className="cc-cabinet-shell flex-1 min-h-0 flex items-stretch justify-center gap-3 sm:gap-5 px-2 sm:px-4 py-1 overflow-hidden relative">
+        {/* Left Wing: 機台動態儀 (Desktop Only) */}
+        <aside className="cc-wing cc-wing--left hidden lg:flex flex-col justify-between w-64 xl:w-72 p-3.5 rounded-2xl border border-amber-500/25 bg-slate-950/85 backdrop-blur-md shadow-2xl shrink-0 select-none overflow-y-auto">
+          <div>
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-amber-500/20">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-bold text-amber-300 tracking-wider">機台動態儀</span>
+              </div>
+              <span className="text-[10px] text-amber-200/60 font-mono">TELEMETRY</span>
+            </div>
 
-        {paused && (
-          <div className="cc-pause-scrim absolute inset-0 flex items-center justify-center">
-            <div className="cc-pause-card text-center">
-              <p className="cc-display cc-glow-title mb-1 text-2xl text-amber-200">暫停</p>
-              <p className="text-sm font-semibold text-amber-100/75">按 P 或 Esc 繼續</p>
+            {/* Pusher Rhythm Oscilloscope */}
+            <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
+              <div className="flex items-center justify-between text-[11px] mb-1.5">
+                <span className="text-amber-200/80 font-medium">推板動能波形</span>
+                <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
+                  timing === 'perfect'
+                    ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40'
+                    : timing === 'good'
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30'
+                    : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {timing === 'perfect' ? '✨ 完美時機' : timing === 'good' ? '尚可' : '推程中'}
+                </span>
+              </div>
+              <div className="relative h-7 rounded-lg bg-slate-950/90 border border-slate-800 overflow-hidden flex items-center px-2">
+                <div
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500/30 to-amber-500/20 transition-all duration-75"
+                  style={{ width: `${(pusherWave * 100).toFixed(0)}%` }}
+                />
+                <div
+                  className="absolute top-1 bottom-1 w-1 bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] transition-all duration-75"
+                  style={{ left: `calc(${(pusherWave * 100).toFixed(0)}% - 2px)` }}
+                />
+                <div className="relative z-10 w-full flex justify-between text-[9px] font-mono text-amber-200/50">
+                  <span>後退蓄力 (0%)</span>
+                  <span className="text-emerald-400/80 font-bold">甜蜜點</span>
+                  <span>前進推擠 (100%)</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-amber-200/60 mt-1.5 leading-relaxed">
+                推板至最深處時投幣，金幣順著推板全行程推進，爆發最大推力！
+              </p>
+            </div>
+
+            {/* Shelf Terrain Heatmap */}
+            <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
+              <div className="flex items-center justify-between text-[11px] mb-2">
+                <span className="text-amber-200/80 font-medium">台面三道地形密度</span>
+                <span className="font-mono text-[10px] text-amber-300 font-bold">
+                  共 {totalCoins} 枚
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-center">
+                <div className="p-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80">
+                  <div className="text-[10px] text-slate-400 mb-0.5">左道</div>
+                  <div className="font-bold text-amber-200 text-xs font-mono">{leftCoins}</div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full mt-1 overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400 transition-all duration-200"
+                      style={{ width: totalCoins > 0 ? `${(leftCoins / totalCoins) * 100}%` : '0%' }}
+                    />
+                  </div>
+                </div>
+                <div className="p-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80">
+                  <div className="text-[10px] text-slate-400 mb-0.5">中道 (熱區)</div>
+                  <div className="font-bold text-amber-200 text-xs font-mono">{midCoins}</div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full mt-1 overflow-hidden">
+                    <div
+                      className="h-full bg-amber-400 transition-all duration-200"
+                      style={{ width: totalCoins > 0 ? `${(midCoins / totalCoins) * 100}%` : '0%' }}
+                    />
+                  </div>
+                </div>
+                <div className="p-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80">
+                  <div className="text-[10px] text-slate-400 mb-0.5">右道</div>
+                  <div className="font-bold text-amber-200 text-xs font-mono">{rightCoins}</div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full mt-1 overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400 transition-all duration-200"
+                      style={{ width: totalCoins > 0 ? `${(rightCoins / totalCoins) * 100}%` : '0%' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Special Coin Tactics */}
+            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
+              <div className="text-[11px] font-medium text-amber-200/80 mb-1.5">特殊幣戰術指引</div>
+              <div className="space-y-1.5 text-[10px] text-amber-100/70">
+                <div className="flex items-start gap-1.5">
+                  <span className="text-amber-400 font-bold shrink-0">🪙 重幣:</span>
+                  <span>2x質量穿透硬幣堆，破除前端卡死瓶頸</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-sky-400 font-bold shrink-0">🔮 滾珠:</span>
+                  <span>高彈性穿透力，引發混亂斜向推擠</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-indigo-400 font-bold shrink-0">⚡ 磁吸:</span>
+                  <span>聚集分散硬幣形成緻密波浪，集中傾洩</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-rose-400 font-bold shrink-0">📳 震動:</span>
+                  <span>機台微震促使懸垂硬幣突破靜摩擦力落下</span>
+                </div>
+              </div>
             </div>
           </div>
-        )}
+
+          <div className="pt-2 border-t border-amber-500/15 text-[10px] text-amber-200/50 flex items-center justify-between">
+            <span>操作: 左右鍵瞄準・空白鍵投幣</span>
+            <span>數字 1-4 選幣</span>
+          </div>
+        </aside>
+
+        {/* Center Cabinet Playfield */}
+        <div ref={surfaceRef} className="flex-1 h-full max-w-lg min-w-0 relative flex items-center justify-center" onPointerDown={onPointerDown}>
+          <GameCanvas
+            stateRef={stateRef}
+            chuteXRef={chuteXRef}
+            paused={paused}
+            reducedMotion={reducedMotion}
+            coinSet={activeCoinSet}
+            cabinetHue={tableDef?.cabinetHue ?? 38}
+            special={special}
+          />
+
+          {paused && (
+            <div className="cc-pause-scrim absolute inset-0 flex items-center justify-center">
+              <div className="cc-pause-card text-center">
+                <p className="cc-display cc-glow-title mb-1 text-2xl text-amber-200">暫停</p>
+                <p className="text-sm font-semibold text-amber-100/75">按 P 或 Esc 繼續</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Wing: 彩池與金流 (Desktop Only) */}
+        <aside className="cc-wing cc-wing--right hidden lg:flex flex-col justify-between w-64 xl:w-72 p-3.5 rounded-2xl border border-amber-500/25 bg-slate-950/85 backdrop-blur-md shadow-2xl shrink-0 select-none overflow-y-auto">
+          <div>
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-amber-500/20">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse" />
+                <span className="text-xs font-bold text-amber-300 tracking-wider">彩池與金流</span>
+              </div>
+              <span className="text-[10px] text-amber-200/60 font-mono">JACKPOT VAULT</span>
+            </div>
+
+            {/* Glowing Jackpot Vault Card */}
+            <div className="mb-3.5 p-3 rounded-xl bg-gradient-to-b from-fuchsia-950/40 to-slate-900/90 border border-fuchsia-500/30 text-center relative overflow-hidden">
+              <div className="text-[10px] font-bold text-fuchsia-300 tracking-wider mb-0.5">
+                大獎彩池累積額
+              </div>
+              <div className="font-extrabold text-2xl font-mono text-fuchsia-200 drop-shadow-[0_0_12px_rgba(217,70,239,0.7)]">
+                {Math.round(s?.pot ?? 0)}
+              </div>
+              <div className="mt-2 pt-2 border-t border-fuchsia-500/20 flex items-center justify-between text-[10px]">
+                <span className="text-fuchsia-200/70">觸發幣狀態:</span>
+                {triggerDist !== null ? (
+                  <span className="font-bold text-fuchsia-300 animate-pulse">
+                    ⚡ 距落崖 {Math.round(triggerDist)}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">尚未在台面</span>
+                )}
+              </div>
+            </div>
+
+            {/* Near-Miss Alert Banner */}
+            {teeterCount > 0 && (
+              <div className="mb-3.5 p-2 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-center animate-pulse">
+                <div className="text-[11px] font-bold flex items-center justify-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>邊緣懸垂危機</span>
+                </div>
+                <div className="text-[10px] text-amber-100/80 mt-0.5">
+                  已有 <b className="text-amber-300 font-mono">{teeterCount}</b> 枚硬幣懸於落崖邊緣！
+                </div>
+              </div>
+            )}
+
+            {/* Live Run Telemetry */}
+            <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
+              <div className="text-[11px] font-medium text-amber-200/80 mb-2">本局即時數據</div>
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                  <div className="text-[10px] text-slate-400 mb-0.5">即時回報率</div>
+                  <div className={`font-extrabold text-sm font-mono ${
+                    Number(liveRtp) >= 100 ? 'text-emerald-400' : 'text-amber-300'
+                  }`}>
+                    {liveRtp}%
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                  <div className="text-[10px] text-slate-400 mb-0.5">最長連鎖</div>
+                  <div className="font-extrabold text-sm font-mono text-sky-400">
+                    {s?.longestCascade ?? 0}
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                  <div className="text-[10px] text-slate-400 mb-0.5">已投金幣</div>
+                  <div className="font-bold text-xs font-mono text-amber-200">
+                    {s?.creditsSpent ?? 0}
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                  <div className="text-[10px] text-slate-400 mb-0.5">已落袋回收</div>
+                  <div className="font-bold text-xs font-mono text-emerald-300">
+                    {s?.coinsRecovered ?? 0}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions / Shortcuts */}
+            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
+              <div className="text-[11px] font-medium text-amber-200/80 mb-1.5">快捷戰術投擲</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {specialButtons.map((k, i) => (
+                  <button
+                    key={k}
+                    type="button"
+                    disabled={COST[k] > (s?.creditsRemaining ?? 0)}
+                    onClick={() => {
+                      const next = specialRef.current === k ? 'normal' : k;
+                      specialRef.current = next;
+                      setSpecial(next);
+                    }}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border ${
+                      special === k
+                        ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                        : 'bg-slate-950/80 text-amber-100/90 border-slate-800 hover:border-amber-500/40 disabled:opacity-40 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    <span>{SPECIAL_LABEL[k]}</span>
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-black/40 font-mono">
+                      {COST[k]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-amber-500/15 text-[10px] text-amber-200/50 flex items-center justify-between">
+            <span>靜音: M 鍵</span>
+            <span>暫停: P / Esc</span>
+          </div>
+        </aside>
       </div>
 
       <div className="cc-special-bar shrink-0 flex justify-center gap-2 px-3 py-2.5 flex-wrap">

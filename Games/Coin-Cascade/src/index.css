@@ -718,6 +718,54 @@ body {
   }
 }
 
+/* ── Desktop Arcade Cabinet Shell & Twin Wings ─────────────────────────── */
+
+.cc-cabinet-shell {
+  perspective: 1200px;
+}
+
+.cc-wing {
+  position: relative;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.88) 0%, rgba(10, 6, 2, 0.94) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  box-shadow:
+    0 10px 30px -5px rgba(0, 0, 0, 0.8),
+    0 0 20px -3px rgba(245, 158, 11, 0.12),
+    inset 0 1px 0 rgba(254, 243, 199, 0.1);
+  transition: border-color 0.2s ease;
+}
+
+.cc-wing:hover {
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.cc-wing--left {
+  box-shadow:
+    -10px 0 35px -10px rgba(16, 185, 129, 0.15),
+    0 10px 30px -5px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(167, 243, 208, 0.15);
+}
+
+.cc-wing--right {
+  box-shadow:
+    10px 0 35px -10px rgba(217, 70, 239, 0.15),
+    0 10px 30px -5px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(244, 114, 182, 0.15);
+}
+
+.cc-wing::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cc-wing::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cc-wing::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.3);
+  border-radius: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cc-jackpot-flash,
   .cc-cascade-banner,

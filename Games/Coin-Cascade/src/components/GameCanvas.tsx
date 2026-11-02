@@ -9,10 +9,10 @@ import {
   WALL_X0,
   WALL_X1,
 } from '../game/constants';
-import { coinRadius, pusherFrontY } from '../game/engine';
+import { coinRadius, dropTimingQuality, pusherFrontY } from '../game/engine';
 import type { CoinSetDef } from '../game/progress';
 import type { Peg } from '../game/tables';
-import type { Coin, CoinKind, RunState } from '../game/types';
+import type { Coin, CoinKind, PlayerInput, RunState } from '../game/types';
 
 interface Props {
   stateRef: React.MutableRefObject<RunState | null>;
@@ -21,6 +21,7 @@ interface Props {
   reducedMotion: boolean;
   coinSet: CoinSetDef;
   cabinetHue: number;
+  special?: PlayerInput['special'];
 }
 
 interface Spark {
@@ -31,6 +32,14 @@ interface Spark {
   life: number;
   hue: number;
   size: number;
+}
+
+interface FloatingText {
+  x: number;
+  y: number;
+  text: string;
+  life: number;
+  color: string;
 }
 
 interface JackpotFlash {
@@ -392,15 +401,47 @@ function drawCoinFace(
   ctx.restore();
 }
 
-function drawChute(ctx: CanvasRenderingContext2D, chuteX: number, cooling: boolean): void {
+function drawChute(
+  ctx: CanvasRenderingContext2D,
+  chuteX: number,
+  cooling: boolean,
+  physics?: RunState['config']['physics'],
+  tick = 0,
+  special: PlayerInput['special'] = 'normal',
+): void {
+  const isPerfect = physics ? dropTimingQuality(tick, physics) === 'perfect' : false;
+
   ctx.fillStyle = 'rgba(15, 10, 4, 0.65)';
   ctx.fillRect(WALL_X0, -52, WALL_X1 - WALL_X0, 14);
-  ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
+  ctx.strokeStyle = isPerfect ? 'rgba(52, 211, 153, 0.65)' : 'rgba(251, 191, 36, 0.35)';
+  ctx.lineWidth = isPerfect ? 1.6 : 1;
   ctx.strokeRect(WALL_X0, -52, WALL_X1 - WALL_X0, 14);
 
+  // Perfect timing nozzle aura
+  if (isPerfect && !cooling) {
+    const halo = ctx.createRadialGradient(chuteX, -4, 2, chuteX, -4, 26);
+    halo.addColorStop(0, 'rgba(52, 211, 153, 0.85)');
+    halo.addColorStop(0.45, 'rgba(253, 224, 71, 0.4)');
+    halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(chuteX, -4, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = 'bold 9px Orbitron, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('PERFECT', chuteX, -56);
+  }
+
   const body = ctx.createLinearGradient(chuteX, -48, chuteX, -4);
-  body.addColorStop(0, cooling ? '#94a3b8' : '#fde68a');
-  body.addColorStop(1, cooling ? '#64748b' : '#f59e0b');
+  if (isPerfect && !cooling) {
+    body.addColorStop(0, '#a7f3d0');
+    body.addColorStop(1, '#10b981');
+  } else {
+    body.addColorStop(0, cooling ? '#94a3b8' : '#fde68a');
+    body.addColorStop(1, cooling ? '#64748b' : '#f59e0b');
+  }
   ctx.beginPath();
   ctx.moveTo(chuteX - 12, -46);
   ctx.lineTo(chuteX + 12, -46);
@@ -410,17 +451,63 @@ function drawChute(ctx: CanvasRenderingContext2D, chuteX: number, cooling: boole
   ctx.closePath();
   ctx.fillStyle = body;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  ctx.strokeStyle = cooling ? 'rgba(148,163,184,0.25)' : 'rgba(251,191,36,0.28)';
-  ctx.setLineDash([4, 6]);
-  ctx.beginPath();
-  ctx.moveTo(chuteX, 0);
-  ctx.lineTo(chuteX, SHELF_LEN);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // Trajectory laser
+  if (isPerfect && !cooling) {
+    ctx.strokeStyle = 'rgba(52, 211, 153, 0.65)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(chuteX, 0);
+    ctx.lineTo(chuteX, SHELF_LEN);
+    ctx.stroke();
+
+    // Traveling photon pulse
+    const pulseT = ((tick * 4) % 100) / 100;
+    const py = pulseT * SHELF_LEN;
+    ctx.beginPath();
+    ctx.arc(chuteX, py, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fef08a';
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = cooling ? 'rgba(148,163,184,0.25)' : 'rgba(251,191,36,0.32)';
+    ctx.setLineDash([4, 6]);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(chuteX, 0);
+    ctx.lineTo(chuteX, SHELF_LEN);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Ghost coin landing target on pusher
+  if (physics && special !== 'vibrate') {
+    const frontY = pusherFrontY(tick, physics);
+    const landingY = Math.max(frontY - 14, 12);
+    const r = coinRadius(special);
+
+    ctx.save();
+    ctx.strokeStyle = isPerfect ? 'rgba(52, 211, 153, 0.85)' : 'rgba(253, 224, 71, 0.45)';
+    ctx.setLineDash([3, 4]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(chuteX, landingY, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Target crosshair
+    ctx.strokeStyle = isPerfect ? 'rgba(52, 211, 153, 0.65)' : 'rgba(253, 224, 71, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(chuteX - 4, landingY);
+    ctx.lineTo(chuteX + 4, landingY);
+    ctx.moveTo(chuteX, landingY - 4);
+    ctx.lineTo(chuteX, landingY + 4);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 /**
@@ -434,13 +521,16 @@ export function GameCanvas({
   reducedMotion,
   coinSet,
   cabinetHue,
+  special = 'normal',
 }: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
   const coinSetRef = useRef(coinSet);
   const hueRef = useRef(cabinetHue);
+  const specialRef = useRef(special);
   coinSetRef.current = coinSet;
   hueRef.current = cabinetHue;
+  specialRef.current = special;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -452,6 +542,7 @@ export function GameCanvas({
     const metalImg = loadImage('metal.jpg');
     const goldImg = loadImage('coin-gold.jpg');
     const sparks: Spark[] = [];
+    const floatingTexts: FloatingText[] = [];
     let jackpotFlash: JackpotFlash | null = null;
     let lastTeeterIds = new Set<number>();
     let lastJackpotBursts = -1;
@@ -532,6 +623,13 @@ export function GameCanvas({
         const amount = s.events.jackpotBurst;
         const tide = s.events.jackpotTideBonus;
         jackpotFlash = { life: reducedMotion ? 0.55 : 1, amount, tide };
+        floatingTexts.push({
+          x: SHELF_W * 0.5,
+          y: SHELF_LEN * 0.52,
+          text: tide ? `潮湧 +${Math.round(amount)}` : `彩池 +${Math.round(amount)}`,
+          life: 1.3,
+          color: tide ? '#5eead4' : '#f472b6',
+        });
         if (!reducedMotion) {
           burstSparks(SHELF_W * 0.5, SHELF_LEN * 0.52, tide ? 42 : 28, s.tick, tide ? 160 : 320, 5.2);
         }
@@ -543,6 +641,13 @@ export function GameCanvas({
       if (!reducedMotion && s.coinsRecovered > lastRecovered) {
         const n = Math.min(14, s.coinsRecovered - lastRecovered);
         burstSparks(SHELF_W * 0.5, SHELF_LEN - 8, 4 + n * 2, s.tick, 42, 2.8);
+        floatingTexts.push({
+          x: SHELF_W * 0.5 + (Math.sin(s.tick) * 35),
+          y: SHELF_LEN - 10,
+          text: `+${s.coinsRecovered - lastRecovered}`,
+          life: 1.0,
+          color: '#fef08a',
+        });
       }
       lastRecovered = s.coinsRecovered;
 
@@ -577,6 +682,18 @@ export function GameCanvas({
       const ordered = [...s.coins].sort((a, b) => a.y - b.y);
       for (const coin of ordered) {
         drawCoinFace(ctx, coin, goldImg, s.tick, coinSetRef.current);
+        if (coin.kind === 'trigger') {
+          const pulse = reducedMotion ? 0.8 : 0.5 + 0.5 * Math.sin(s.tick * 0.2);
+          const r = coinRadius('trigger') + 4 + pulse * 3;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(coin.x, coin.y, r, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(244, 114, 182, ${0.45 + 0.35 * pulse})`;
+          ctx.lineWidth = 1.8;
+          ctx.setLineDash([3, 3]);
+          ctx.stroke();
+          ctx.restore();
+        }
         if (coin.wellTimed) {
           const r = coinRadius(coin.kind) + 3;
           ctx.beginPath();
@@ -623,6 +740,26 @@ export function GameCanvas({
         }
       }
 
+      // Render floating reward texts
+      for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i]!;
+        ft.y -= 0.6;
+        ft.life -= reducedMotion ? 0.05 : 0.025;
+        if (ft.life <= 0) {
+          floatingTexts.splice(i, 1);
+          continue;
+        }
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, ft.life);
+        ctx.font = 'bold 13px Orbitron, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = ft.color;
+        ctx.shadowColor = 'rgba(0,0,0,0.85)';
+        ctx.shadowBlur = 6;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+      }
+
       if (jackpotFlash) {
         const alpha = jackpotFlash.life * (jackpotFlash.tide ? 0.55 : 0.4);
         const ring = 1 - jackpotFlash.life;
@@ -661,7 +798,7 @@ export function GameCanvas({
         if (jackpotFlash.life <= 0) jackpotFlash = null;
       }
 
-      drawChute(ctx, chuteXRef.current, s.cooldown > 0);
+      drawChute(ctx, chuteXRef.current, s.cooldown > 0, s.config.physics, s.tick, specialRef.current);
 
       ctx.restore();
 
