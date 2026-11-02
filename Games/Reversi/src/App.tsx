@@ -1,13 +1,17 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playFlip, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
-import { RefreshCw, BookOpen, Undo2, Lightbulb } from 'lucide-react';
+import { RefreshCw, BookOpen, Undo2, Lightbulb, Keyboard, Eye, EyeOff } from 'lucide-react';
 import { BoardGrid } from './components/BoardGrid';
 import { MenuScreen, type MenuView } from './components/MenuScreen';
+import { TacticalLeftWing } from './components/TacticalLeftWing';
+import { TacticalRightWing } from './components/TacticalRightWing';
+import { TacticalCapsuleBar } from './components/TacticalCapsuleBar';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import type { Board, Piece, Difficulty } from './utils/reversiLogic';
 import {
   createInitialBoard,
@@ -54,6 +58,7 @@ import {
   saveSeriesLength,
   writeStoredInt,
 } from './utils/storage';
+import { calculateFlipsMap, getCellRiskType, toAlgebraic } from './utils/tactics';
 
 const BOT_DELAY_MS = 480;
 const FLIP_MS = 380;
@@ -147,6 +152,11 @@ export default function App() {
 
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [tacticalVision, setTacticalVision] = useState(false);
+  const [cursorCell, setCursorCell] = useState<[number, number] | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<[number, number] | null>(null);
+
   const [lastMove, setLastMove] = useState<[number, number] | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [hintCell, setHintCell] = useState<[number, number] | null>(null);
@@ -185,6 +195,11 @@ export default function App() {
   const legalSet = new Set(legalMoves.map(([r, c]) => `${r},${c}`));
   const { black, white } = countPieces(state.board);
 
+  const flipsMap = useMemo(
+    () => calculateFlipsMap(state.board, state.currentTurn),
+    [state.board, state.currentTurn],
+  );
+
   const cpuColor: Piece = playerSide === 'black' ? 'white' : 'black';
   const puzzleOpp: Piece | null =
     playMode === 'puzzle' && puzzle ? (puzzle.side === 'black' ? 'white' : 'black') : null;
@@ -194,6 +209,27 @@ export default function App() {
     !puzzleFailed &&
     !puzzleSolved &&
     state.currentTurn === (puzzleOpp ?? cpuColor);
+
+  const humanSide = playMode === 'puzzle' && puzzle ? puzzle.side : playerSide;
+  const isHumanTurn =
+    playMode === 'two' ||
+    ((playMode === 'bot' || playMode === 'ladder' || playMode === 'puzzle') &&
+      state.currentTurn === humanSide);
+  const humanCanClick =
+    state.phase === 'playing' && isHumanTurn && !isBotTurn && !puzzleFailed;
+  const showLegalHints = humanCanClick;
+  const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
+  const canHint = humanCanClick && legalMoves.length > 0;
+
+  const activeFocusCell = hoveredCell ?? cursorCell;
+
+  const previewFlips = useMemo(() => {
+    if (!activeFocusCell || !humanCanClick) return new Set<string>();
+    const [r, c] = activeFocusCell;
+    if (!legalSet.has(`${r},${c}`)) return new Set<string>();
+    const flips = getFlips(state.board, r, c, state.currentTurn);
+    return new Set(flips.map(([fr, fc]) => `${fr},${fc}`));
+  }, [activeFocusCell, humanCanClick, legalSet, state.board, state.currentTurn]);
 
   const teach =
     state.phase === 'playing' && playMode !== 'puzzle'
@@ -486,6 +522,7 @@ export default function App() {
       placePieceFx(r, c);
       triggerFlips(flips);
       setLastMove([r, c]);
+      setCursorCell([r, c]);
       setReviewLog((log) => appendReviewMove(log, state.board, color, [r, c], true));
 
       if (playMode === 'puzzle' && puzzle) {
@@ -621,13 +658,17 @@ export default function App() {
       const solved = solveExact(state.board, puzzle.side);
       if (solved.bestMove) {
         setHintCell(solved.bestMove);
+        setCursorCell(solved.bestMove);
         setPuzzleUsedHint(true);
       }
       return;
     }
     if (legalMoves.length === 0) return;
     const best = getBestMove(state.board, state.currentTurn, 'hard');
-    if (best) setHintCell(best);
+    if (best) {
+      setHintCell(best);
+      setCursorCell(best);
+    }
   }, [state.phase, state.board, state.currentTurn, isBotTurn, playMode, playerSide, puzzle, legalMoves.length]);
 
   const backToMenu = useCallback(() => {
@@ -637,6 +678,8 @@ export default function App() {
     setSeries(null);
     setState(getInitialState());
     setLastMove(null);
+    setCursorCell(null);
+    setHoveredCell(null);
     setHistory([]);
     setHintCell(null);
     setFlipCells(new Set());
@@ -659,6 +702,8 @@ export default function App() {
     setState(getInitialState());
     setHistory([]);
     setHintCell(null);
+    setCursorCell(null);
+    setHoveredCell(null);
     setLastMove(null);
     setReviewLog([]);
     setReview(null);
@@ -674,6 +719,8 @@ export default function App() {
       setState(getInitialState());
       setHistory([]);
       setHintCell(null);
+      setCursorCell(null);
+      setHoveredCell(null);
       setLastMove(null);
       setReviewLog([]);
       setReview(null);
@@ -693,6 +740,8 @@ export default function App() {
       setState(getInitialState());
       setHistory([]);
       setHintCell(null);
+      setCursorCell(null);
+      setHoveredCell(null);
       setLastMove(null);
       setReviewLog([]);
       setReview(null);
@@ -707,7 +756,6 @@ export default function App() {
     (index: number) => {
       const p = getPuzzle(index);
       if (!p) return;
-      // Prefer live React state; fall back to storage after a just-saved unlock.
       if (!isPuzzleUnlocked(index, ladder) && !isPuzzleUnlocked(index, loadLadder())) return;
       setPlayMode('puzzle');
       setPuzzle(p);
@@ -722,6 +770,8 @@ export default function App() {
       setState(getInitialState(p.board, p.side));
       setHistory([]);
       setHintCell(null);
+      setCursorCell(null);
+      setHoveredCell(null);
       setLastMove(null);
       setReviewLog([]);
       setReview(null);
@@ -739,6 +789,8 @@ export default function App() {
     setReviewLog([]);
     setHistory([]);
     setHintCell(null);
+    setCursorCell(null);
+    setHoveredCell(null);
     setLastMove(null);
     setFlipCells(new Set());
     botScheduled.current = false;
@@ -760,6 +812,164 @@ export default function App() {
 
     setState(getInitialState());
   }, [playMode, puzzle, series]);
+
+  // Physical Keyboard Matrix Navigation & Hotkeys
+  useEffect(() => {
+    if (playMode === null) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showRules || showShortcutsModal) {
+        if (e.key === 'Escape') {
+          setShowRules(false);
+          setShowShortcutsModal(false);
+        }
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.key === '?' || e.key === '/') {
+        e.preventDefault();
+        setShowShortcutsModal((prev) => !prev);
+        return;
+      }
+
+      if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        setTacticalVision((v) => !v);
+        return;
+      }
+
+      if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        if (canHint) handleHint();
+        return;
+      }
+
+      if (e.key === 'z' || e.key === 'Z' || e.key === 'u' || e.key === 'U') {
+        e.preventDefault();
+        if (canUndo) handleUndo();
+        return;
+      }
+
+      if (e.key === 'p' || e.key === 'P') {
+        if (humanCanClick && legalMoves.length === 0) {
+          e.preventDefault();
+          handlePass();
+        }
+        return;
+      }
+
+      // WASD / Arrow Navigation
+      const isArrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
+      const isWASD = ['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(e.key);
+
+      if (isArrow || isWASD) {
+        e.preventDefault();
+        setCursorCell((curr) => {
+          let r = curr ? curr[0] : 3;
+          let c = curr ? curr[1] : 3;
+          if (!curr && legalMoves.length > 0) {
+            return legalMoves[0];
+          }
+          if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+            r = (r - 1 + 8) % 8;
+          } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+            r = (r + 1) % 8;
+          } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            c = (c - 1 + 8) % 8;
+          } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            c = (c + 1) % 8;
+          }
+          return [r, c];
+        });
+        return;
+      }
+
+      if (e.key === ' ' || e.key === 'Enter') {
+        if (cursorCell && humanCanClick && legalSet.has(`${cursorCell[0]},${cursorCell[1]}`)) {
+          e.preventDefault();
+          handleCellClick(cursorCell[0], cursorCell[1]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    playMode,
+    showRules,
+    showShortcutsModal,
+    canHint,
+    handleHint,
+    canUndo,
+    handleUndo,
+    humanCanClick,
+    legalMoves.length,
+    handlePass,
+    cursorCell,
+    legalSet,
+    handleCellClick,
+  ]);
+
+  // Reticle coordinate badge & tactical explanation
+  const reticleReadout = useMemo(() => {
+    if (!activeFocusCell) return null;
+    const [r, c] = activeFocusCell;
+    const alg = toAlgebraic(r, c);
+    const cell = state.board[r][c];
+    const isLegal = legalSet.has(`${r},${c}`);
+    const flips = flipsMap.get(`${r},${c}`);
+    const risk = getCellRiskType(state.board, r, c);
+
+    if (cell) {
+      return {
+        alg,
+        text: cell === 'black' ? '黑子佔有' : '白子佔有',
+        color: 'border-stone-700 bg-stone-900/80 text-stone-400',
+      };
+    }
+
+    if (isLegal) {
+      const riskNote =
+        risk === 'corner'
+          ? ' · ★永久角地！'
+          : risk === 'x-square'
+            ? ' · ⚠️陷阱 X 格'
+            : risk === 'c-square'
+              ? ' · 慎防 C 格'
+              : '';
+      return {
+        alg,
+        text: `可下子 · 翻轉 ${flips} 枚${riskNote}`,
+        color:
+          risk === 'corner'
+            ? 'border-amber-500 bg-amber-950/80 text-amber-200'
+            : risk === 'x-square'
+              ? 'border-rose-500 bg-rose-950/80 text-rose-200'
+              : 'border-emerald-500 bg-emerald-950/80 text-emerald-200',
+      };
+    }
+
+    return {
+      alg,
+      text:
+        risk === 'corner'
+          ? '角地要塞（目前無法下子）'
+          : risk === 'x-square'
+            ? '危險 X 格（目前無翻子線）'
+            : '空格（目前無合法翻子路徑）',
+      color: 'border-stone-800 bg-stone-950/60 text-stone-500',
+    };
+  }, [activeFocusCell, state.board, legalSet, flipsMap]);
 
   if (playMode === null) {
     return (
@@ -784,17 +994,6 @@ export default function App() {
       />
     );
   }
-
-  const humanSide = playMode === 'puzzle' && puzzle ? puzzle.side : playerSide;
-  const isHumanTurn =
-    playMode === 'two' ||
-    ((playMode === 'bot' || playMode === 'ladder' || playMode === 'puzzle') &&
-      state.currentTurn === humanSide);
-  const humanCanClick =
-    state.phase === 'playing' && isHumanTurn && !isBotTurn && !puzzleFailed;
-  const showLegalHints = humanCanClick;
-  const canUndo = history.length > 0 && !isBotTurn && state.phase === 'playing';
-  const canHint = humanCanClick && legalMoves.length > 0;
 
   let statusMessage = state.message;
   if (playMode === 'puzzle' && puzzle) {
@@ -844,49 +1043,77 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen text-white flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
+      className="min-h-screen text-white flex flex-col items-center p-3 sm:p-4 min-w-0 bg-cover bg-center overflow-x-hidden"
       style={shellStyle}
     >
       <BackToMenu />
-      <header className="w-full max-w-lg flex justify-between items-center mb-3">
+
+      {/* Cockpit Top Navigation Header */}
+      <header className="w-full max-w-6xl flex justify-between items-center mb-2.5">
         <div className="flex items-baseline gap-2 min-w-0">
-          <h1 className="text-xl font-bold tracking-tight">黑白棋</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">黑白棋</h1>
           {playMode === 'bot' && (
-            <span className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-800/60 border border-emerald-600/50 text-xs text-emerald-100">
+            <span className="shrink-0 px-2.5 py-0.5 rounded-full bg-emerald-800/60 border border-emerald-600/50 text-xs text-emerald-100 font-medium">
               電腦・{DIFFICULTY_LABELS[difficulty]}
             </span>
           )}
           {playMode === 'ladder' && activeOpponent && (
             <span
-              className="shrink-0 px-2 py-0.5 rounded-md border text-xs"
+              className="shrink-0 px-2.5 py-0.5 rounded-full border text-xs font-semibold"
               style={{ borderColor: activeOpponent.accent, color: activeOpponent.accent }}
             >
               {activeOpponent.name}
             </span>
           )}
           {playMode === 'puzzle' && puzzle && (
-            <span className="shrink-0 px-2 py-0.5 rounded-md bg-sky-900/70 border border-sky-500/50 text-xs">
-              謎題 {puzzle.index + 1}
+            <span className="shrink-0 px-2.5 py-0.5 rounded-full bg-sky-900/70 border border-sky-500/50 text-xs font-medium">
+              殘局謎題 {puzzle.index + 1}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Tactical Vision quick toggle */}
+          <TouchButton
+            label={
+              tacticalVision ? (
+                <Eye className="w-5 h-5 text-emerald-300" />
+              ) : (
+                <EyeOff className="w-5 h-5 text-stone-300" />
+              )
+            }
+            ariaLabel="戰術透視"
+            title="戰術透視熱圖 (按 T)"
+            onClick={() => setTacticalVision((v) => !v)}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          {/* Keyboard shortcuts */}
+          <TouchButton
+            label={<Keyboard className="w-5 h-5" />}
+            ariaLabel="快捷鍵指南"
+            title="快捷鍵指南 (按 ?)"
+            onClick={() => setShowShortcutsModal(true)}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
+          />
+          {/* Undo */}
           <TouchButton
             label={<Undo2 className="w-5 h-5" />}
             ariaLabel="悔棋"
-            title="悔棋"
+            title="悔棋 (按 Z)"
             disabled={!canUndo}
             onClick={handleUndo}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
+          {/* Hint */}
           <TouchButton
             label={<Lightbulb className="w-5 h-5" />}
             ariaLabel="提示"
-            title="提示"
+            title="提示 (按 H)"
             disabled={!canHint}
             onClick={handleHint}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
+          {/* Rules */}
           <TouchButton
             label={<BookOpen className="w-5 h-5" />}
             ariaLabel="規則"
@@ -894,18 +1121,42 @@ export default function App() {
             onClick={() => setShowRules(true)}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
+          {/* Restart */}
           <TouchButton
             label={<RefreshCw className="w-5 h-5" />}
-            ariaLabel="新對局"
-            title="新對局"
+            ariaLabel="回選單"
+            title="回選單"
             onClick={backToMenu}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
         </div>
       </header>
 
+      {/* Mobile/Tablet Tactical Capsule Bar */}
+      <TacticalCapsuleBar
+        board={state.board}
+        currentTurn={state.currentTurn}
+        blackCount={black}
+        whiteCount={white}
+        tacticalVision={tacticalVision}
+        onToggleTacticalVision={() => setTacticalVision((v) => !v)}
+        playMode={playMode}
+        playerSide={playerSide}
+        difficulty={difficulty}
+        activeOpponent={activeOpponent}
+        series={series}
+        puzzle={puzzle}
+        puzzlePlies={puzzlePlies}
+        onOpenShortcuts={() => setShowShortcutsModal(true)}
+      />
+
+      {/* Difficulty selection pills for Bot mode */}
       {playMode === 'bot' && (
-        <div className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs" role="group" aria-label="電腦難度">
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-2 text-xs"
+          role="group"
+          aria-label="電腦難度"
+        >
           <span className="text-stone-400">難度</span>
           {DIFFICULTIES.map((id) => (
             <button
@@ -916,7 +1167,7 @@ export default function App() {
               title={DIFFICULTY_BLURBS[id]}
               className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation transition-colors ${
                 difficulty === id
-                  ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100'
+                  ? 'border-emerald-400 bg-emerald-700/40 text-emerald-100 font-semibold'
                   : 'border-stone-600 bg-stone-800 text-stone-300 hover:bg-stone-700'
               }`}
             >
@@ -926,12 +1177,7 @@ export default function App() {
         </div>
       )}
 
-      {playMode === 'ladder' && activeOpponent && (
-        <p className="text-xs text-stone-400 mb-2 text-center max-w-sm">
-          「{activeOpponent.catchphrases.intro}」· {activeOpponent.blurb}
-        </p>
-      )}
-
+      {/* Series status */}
       {series && series.length > 1 && (
         <p className="text-amber-200/90 text-xs mb-2">
           {seriesLabel(series.length)} · {seriesScoreLine(series)}
@@ -945,84 +1191,131 @@ export default function App() {
         </p>
       )}
 
-      <div className="flex items-center justify-center gap-6 mb-2 text-sm">
-        <div
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-            state.phase === 'playing' && state.currentTurn === 'black'
-              ? 'bg-amber-600/30 ring-2 ring-amber-400'
-              : 'bg-stone-800/50'
-          }`}
-        >
-          <span
-            className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-stone-600"
-            style={{
-              backgroundColor: '#1c1917',
-              backgroundImage: `url(${import.meta.env.BASE_URL}piece-black.jpg)`,
-            }}
+      {/* Cockpit Command Center Layout: Left Wing - Center Stage - Right Wing */}
+      <div className="w-full max-w-6xl flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 lg:gap-6">
+        {/* Left Wing (Tactical Telemetry) on Desktop */}
+        <TacticalLeftWing
+          board={state.board}
+          currentTurn={state.currentTurn}
+          blackCount={black}
+          whiteCount={white}
+          tacticalVision={tacticalVision}
+          onToggleTacticalVision={() => setTacticalVision((v) => !v)}
+          className="hidden lg:flex w-64 xl:w-72 shrink-0"
+        />
+
+        {/* Center Stage: Score / Board / Reticle Readout */}
+        <main className="flex flex-col items-center w-full max-w-md">
+          {/* Turn & Score indicators */}
+          <div className="flex items-center justify-center gap-4 sm:gap-6 mb-2 text-sm w-full">
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                state.phase === 'playing' && state.currentTurn === 'black'
+                  ? 'bg-amber-600/35 ring-2 ring-amber-400 shadow-md scale-105'
+                  : 'bg-stone-900/60 border border-stone-800'
+              }`}
+            >
+              <span
+                className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-stone-600 shadow"
+                style={{
+                  backgroundColor: '#1c1917',
+                  backgroundImage: `url(${import.meta.env.BASE_URL}piece-black.jpg)`,
+                }}
+              />
+              <span className="font-semibold">
+                {playMode !== 'two' && humanSide === 'black' ? '你 (黑)' : '黑方'} {black}
+              </span>
+            </div>
+
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                state.phase === 'playing' && state.currentTurn === 'white'
+                  ? 'bg-amber-600/35 ring-2 ring-amber-400 shadow-md scale-105'
+                  : 'bg-stone-900/60 border border-stone-800'
+              }`}
+            >
+              <span
+                className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-stone-400 shadow"
+                style={{
+                  backgroundColor: '#f8fafc',
+                  backgroundImage: `url(${import.meta.env.BASE_URL}piece-white.jpg)`,
+                }}
+              />
+              <span className="font-semibold">
+                {playMode !== 'two' && humanSide === 'white' ? '你 (白)' : '白方'} {white}
+              </span>
+            </div>
+          </div>
+
+          {/* Contextual Tactical Tip / Puzzle Tip */}
+          {teach && state.phase === 'playing' && (
+            <div className="teach-banner w-full mb-2 rounded-xl border border-amber-500/50 bg-amber-950/50 px-3.5 py-2 text-center shadow-md">
+              <p className="text-amber-200 text-xs font-bold">{teach.title}</p>
+              <p className="text-amber-100/85 text-xs mt-0.5">{teach.detail}</p>
+            </div>
+          )}
+
+          {/* Target Reticle / Active Focus Coordinate Readout */}
+          <div className="w-full flex items-center justify-between px-3 py-1.5 mb-2 bg-stone-900/70 border border-stone-800 rounded-xl text-xs">
+            <span className="text-stone-400 font-mono text-[11px]">
+              {statusMessage}
+            </span>
+            {reticleReadout && (
+              <span
+                className={`font-mono text-[11px] px-2 py-0.5 rounded-md border font-semibold ${reticleReadout.color}`}
+              >
+                {reticleReadout.alg} · {reticleReadout.text}
+              </span>
+            )}
+          </div>
+
+          {/* Main 8x8 Board Grid with algebraic coordinates & flip preview */}
+          <BoardGrid
+            board={state.board}
+            legalSet={legalSet}
+            lastMove={lastMove}
+            hintCell={hintCell}
+            cursorCell={cursorCell}
+            flipCells={flipCells}
+            previewFlips={previewFlips}
+            teachCells={teachCells}
+            showLegalHints={showLegalHints}
+            humanCanClick={humanCanClick}
+            phasePlaying={state.phase === 'playing'}
+            tacticalVision={tacticalVision}
+            flipsMap={flipsMap}
+            onCellClick={handleCellClick}
+            onCellHover={(r, c) => setHoveredCell(r !== null && c !== null ? [r, c] : null)}
+            shellRef={boardShellRef}
           />
-          <span>
-            {playMode !== 'two' && humanSide === 'black' ? '你' : '黑'} {black}
-          </span>
-        </div>
-        <div
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-            state.phase === 'playing' && state.currentTurn === 'white'
-              ? 'bg-amber-600/30 ring-2 ring-amber-400'
-              : 'bg-stone-800/50'
-          }`}
-        >
-          <span
-            className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-stone-400"
-            style={{
-              backgroundColor: '#f8fafc',
-              backgroundImage: `url(${import.meta.env.BASE_URL}piece-white.jpg)`,
-            }}
-          />
-          <span>
-            {playMode !== 'two' && humanSide === 'white' ? '你' : '白'} {white}
-          </span>
-        </div>
+
+          {/* Pass button when no moves */}
+          {state.phase === 'playing' && humanCanClick && legalMoves.length === 0 && (
+            <button
+              type="button"
+              onClick={handlePass}
+              className="mt-4 px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold transition-all shadow-lg animate-bounce"
+            >
+              Pass（放棄本回合，按 P）
+            </button>
+          )}
+        </main>
+
+        {/* Right Wing (Opponent Dossier & Tactical Arsenal) on Desktop */}
+        <TacticalRightWing
+          playMode={playMode}
+          playerSide={playerSide}
+          difficulty={difficulty}
+          activeOpponent={activeOpponent}
+          series={series}
+          puzzle={puzzle}
+          puzzlePlies={puzzlePlies}
+          onOpenShortcuts={() => setShowShortcutsModal(true)}
+          className="hidden lg:flex w-72 xl:w-80 shrink-0"
+        />
       </div>
 
-      {playMode !== 'two' && playMode !== 'puzzle' && (
-        <p className="text-stone-500 text-xs mb-1">
-          連勝 {winStreak} · 最佳連勝 {bestStreak} · 最佳勝差 {bestMargin}
-        </p>
-      )}
-
-      {teach && state.phase === 'playing' && (
-        <div className="teach-banner max-w-sm mb-2 rounded-lg border border-amber-500/40 bg-amber-950/40 px-3 py-2 text-center">
-          <p className="text-amber-200 text-xs font-semibold">{teach.title}</p>
-          <p className="text-amber-100/80 text-xs">{teach.detail}</p>
-        </div>
-      )}
-
-      <p className="text-emerald-200 text-sm mb-3">{statusMessage}</p>
-
-      <BoardGrid
-        board={state.board}
-        legalSet={legalSet}
-        lastMove={lastMove}
-        hintCell={hintCell}
-        flipCells={flipCells}
-        teachCells={teachCells}
-        showLegalHints={showLegalHints}
-        humanCanClick={humanCanClick}
-        phasePlaying={state.phase === 'playing'}
-        onCellClick={handleCellClick}
-        shellRef={boardShellRef}
-      />
-
-      {state.phase === 'playing' && humanCanClick && legalMoves.length === 0 && (
-        <button
-          type="button"
-          onClick={handlePass}
-          className="mt-6 px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium transition-colors"
-        >
-          Pass（放棄本回合）
-        </button>
-      )}
-
+      {/* Result Overlay when Game is Over */}
       {state.phase === 'over' && (
         <ResultOverlay
           title={gameOverMessage}
@@ -1094,6 +1387,7 @@ export default function App() {
         />
       )}
 
+      {/* Review Box on Game Over */}
       {state.phase === 'over' && review && review.lessons.length > 0 && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(92vw,24rem)] pointer-events-none">
           <div className="rounded-xl border border-stone-600 bg-stone-950/90 p-3 text-left text-xs text-stone-300 shadow-lg pointer-events-auto">
@@ -1112,6 +1406,13 @@ export default function App() {
         </div>
       )}
 
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
+
+      {/* Rules Modal */}
       {showRules && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
