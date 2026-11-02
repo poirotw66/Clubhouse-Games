@@ -13,7 +13,8 @@ import {
 } from './game/achievements';
 import { DAILY_DIFFICULTY, dailySeed, dateKey, formatDuration, summarise } from './game/daily';
 import { DIFFICULTIES, DIFFICULTY_ORDER, generate } from './game/generate';
-import { colOf, playableCount, rowOf, wallKey } from './game/grid';
+import { analyzeCircuit } from './game/circuit';
+import { buildNeighbours, colOf, playableCount, rowOf, wallKey } from './game/grid';
 import { HINT_SEQUENCE, computeHint } from './game/hint';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import {
@@ -91,6 +92,16 @@ export default function App(): React.ReactElement {
   const complete = puzzle !== null && path.length === total && path.length > 0;
   /** Filling the board only counts as solving it if the player was not shown the answer. */
   const solved = complete && !gaveUp;
+
+  const neighbours = useMemo(() => {
+    if (!puzzle) return [];
+    return buildNeighbours(puzzle.size, puzzle.walls, puzzle.blocked);
+  }, [puzzle]);
+
+  const circuit = useMemo(() => {
+    if (!puzzle) return null;
+    return analyzeCircuit(puzzle.size, neighbours, path, puzzle.checkpoints, puzzle.blocked);
+  }, [puzzle, neighbours, path]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -278,9 +289,16 @@ export default function App(): React.ReactElement {
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
 
-      if (event.key === 'Backspace') {
+      if (event.key === 'Backspace' || event.key === 'z' || event.key === 'Z') {
         event.preventDefault();
         setPath((p) => p.slice(0, -1));
+        return;
+      }
+      if (event.key === 'r' || event.key === 'R') {
+        event.preventDefault();
+        setPath([]);
+        setRevealed([]);
+        setHintMessage(null);
         return;
       }
       if (event.key === 'h' || event.key === 'H') {
@@ -604,99 +622,269 @@ export default function App(): React.ReactElement {
   return (
     <>
       <BackToMenu />
-      <div className="mx-auto w-full max-w-xl px-4 pb-16 pt-14">
-        <header className="mt-3 mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <div>
-            <h1 className="text-lg font-black text-slate-100">
-              {modeLabel()}
-              <span className="ml-2 font-mono text-xs font-normal text-slate-400">
-                {formatDuration(elapsedMs)}
-              </span>
-            </h1>
-            <p className="text-[11px] text-slate-500">
-              種子碼 <span className="font-mono text-violet-300/80">{puzzle.seedCode}</span>
-              {puzzle.blocked.length > 0 && (
-                <span className="ml-2 text-pink-300/80">缺口 {puzzle.blocked.length}</span>
-              )}
-            </p>
+      <div className="ec-cockpit-shell min-h-screen flex flex-col justify-start px-2 sm:px-4 pb-12 pt-14 w-full max-w-7xl mx-auto">
+        {/* Top Header Row */}
+        <header className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-violet-500/20 pb-3">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+            <div>
+              <h1 className="text-lg sm:text-xl font-black text-slate-100 flex items-center gap-2">
+                <span>{modeLabel()}</span>
+                <span className="font-mono text-xs font-bold text-violet-300 bg-violet-950/80 border border-violet-500/30 px-2 py-0.5 rounded-full">
+                  {formatDuration(elapsedMs)}
+                </span>
+              </h1>
+              <p className="text-[11px] text-slate-400">
+                電路種子碼 <span className="font-mono text-violet-300">{puzzle.seedCode}</span>
+                {puzzle.blocked.length > 0 && (
+                  <span className="ml-2 text-rose-300">缺口孔洞 {puzzle.blocked.length}</span>
+                )}
+              </p>
+            </div>
           </div>
-          <TouchButton
-            label="回選單"
-            ariaLabel="回到選單"
-            onClick={() => setScreen('title')}
-            className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 text-xs font-semibold text-slate-400"
-          />
+          <div className="flex items-center gap-2">
+            <TouchButton
+              label="回選單"
+              ariaLabel="回到選單"
+              onClick={() => setScreen('title')}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
+            />
+          </div>
         </header>
 
-        <div className="ec-card p-3">
-          <Board
-            puzzle={puzzle}
-            path={path}
-            revealed={revealed}
-            onPathChange={(next) => {
-              if (next.length > path.length) playMove();
-              setPath(next);
-              setRevealed([]);
-            }}
-            solved={solved}
-            onTraceComplete={onTraceComplete}
-          />
-        </div>
+        {/* 3-Column Cockpit Layout on Desktop (Collapse to 1 col on mobile) */}
+        <div className="flex-1 flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 lg:gap-6 overflow-hidden">
+          {/* Left Wing: 線路拓撲遙測 (Desktop Only) */}
+          <aside className="ec-wing ec-wing--left hidden lg:flex flex-col justify-between w-64 xl:w-72 p-3.5 rounded-2xl border border-violet-500/25 bg-slate-950/85 backdrop-blur-md shadow-2xl shrink-0 select-none overflow-y-auto">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-violet-500/20">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-xs font-bold text-violet-200 tracking-wider">線路拓撲遙測</span>
+                </div>
+                <span className="text-[10px] text-violet-300/60 font-mono">TELEMETRY</span>
+              </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <p className="text-xs text-slate-400">
-            已走 <span className="font-mono text-slate-200">{path.length}</span> / {total} 格
-            {puzzle.blocked.length > 0 && (
-              <span className="ml-2 text-slate-500">空洞 {puzzle.blocked.length}</span>
+              {/* Conductivity Gauge */}
+              <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
+                <div className="flex items-center justify-between text-[11px] mb-1">
+                  <span className="text-violet-200/80 font-medium">電路導通率</span>
+                  <span className="font-mono font-extrabold text-sm text-cyan-300">
+                    {circuit?.conductedPct ?? 0}%
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-slate-800/90 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
+                  <div
+                    className="h-full bg-gradient-to-r from-violet-500 via-cyan-400 to-emerald-400 rounded-full transition-all duration-200"
+                    style={{ width: `${circuit?.conductedPct ?? 0}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-1.5">
+                  <span>已通電: <b className="text-violet-200">{path.length}</b> 格</span>
+                  <span>總需求: <b className="text-slate-200">{total}</b> 格</span>
+                </div>
+              </div>
+
+              {/* Dead-End Isolation Detector */}
+              <div className={`mb-3.5 p-2.5 rounded-xl border transition-all ${
+                circuit?.hasDeadEnd
+                  ? 'bg-rose-950/40 border-rose-500/50 text-rose-200 animate-pulse'
+                  : 'bg-slate-900/80 border-emerald-500/30 text-emerald-300'
+              }`}>
+                <div className="flex items-center justify-between text-[11px] font-bold mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <span>{circuit?.hasDeadEnd ? '⚠️' : '⚡'}</span>
+                    <span>孤島斷路診斷</span>
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                    circuit?.hasDeadEnd ? 'bg-rose-500/30 text-rose-200' : 'bg-emerald-500/20 text-emerald-300'
+                  }`}>
+                    {circuit?.hasDeadEnd ? 'CIRCUIT BREAK' : 'ALL CLEAR'}
+                  </span>
+                </div>
+                <p className="text-[10px] leading-relaxed opacity-85">
+                  {circuit?.hasDeadEnd
+                    ? `警告：已有 ${circuit.isolatedCells.size} 格遭封閉形成斷路孤島！無法從當前線頭抵達，請往回倒退。`
+                    : '目前全盤所有未走格子均可連通，迴路通暢無阻。'}
+                </p>
+              </div>
+
+              {/* Distance to Next Checkpoint Target */}
+              <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
+                <div className="flex items-center justify-between text-[11px] mb-1">
+                  <span className="text-violet-200/80 font-medium">目標繼電器</span>
+                  <span className="font-bold text-amber-300 font-mono text-xs">
+                    #{circuit?.nextCheckpointNumber ?? 1}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>線頭至目標距離:</span>
+                  <span className="font-mono text-amber-200 font-bold">
+                    {circuit?.distanceToNext ?? 0} 格
+                  </span>
+                </div>
+              </div>
+
+              {/* Board Topology Specs */}
+              <div className="p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
+                <div className="text-[11px] font-medium text-violet-200/80 mb-1.5">電路板規格</div>
+                <div className="grid grid-cols-2 gap-1.5 text-center text-[10px]">
+                  <div className="p-1.5 rounded-lg bg-slate-950/70 border border-slate-800">
+                    <span className="text-slate-400 block">網格矩陣</span>
+                    <span className="font-mono font-bold text-slate-200">{puzzle.size.rows} × {puzzle.size.cols}</span>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-slate-950/70 border border-slate-800">
+                    <span className="text-slate-400 block">阻隔雷射牆</span>
+                    <span className="font-mono font-bold text-rose-300">{puzzle.walls.length} 道</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-violet-500/20 text-[10px] text-slate-400 flex items-center justify-between">
+              <span>快捷: Z 復原・R 重畫</span>
+              <span>H 提示</span>
+            </div>
+          </aside>
+
+          {/* Center Column: 核心電路板 */}
+          <div className="flex-1 w-full max-w-lg flex flex-col justify-center">
+            <div className="ec-card p-3 shadow-2xl relative border border-violet-500/30">
+              <Board
+                puzzle={puzzle}
+                path={path}
+                revealed={revealed}
+                onPathChange={(next) => {
+                  if (next.length > path.length) playMove();
+                  setPath(next);
+                  setRevealed([]);
+                }}
+                solved={solved}
+                onTraceComplete={onTraceComplete}
+                isolatedCells={circuit?.isolatedCells}
+                targetCheckpointCell={circuit?.nextCheckpointCell}
+              />
+            </div>
+
+            {/* Mobile / Quick Status Row below Board */}
+            <div className="mt-3 flex items-center justify-between gap-2 flex-wrap text-xs">
+              <p className="text-slate-400">
+                導通 <span className="font-mono text-cyan-300 font-bold">{path.length}</span> / {total} 格
+                <span className="ml-2 font-mono text-violet-300">({circuit?.conductedPct ?? 0}%)</span>
+                {circuit?.hasDeadEnd && (
+                  <span className="ml-2 text-rose-400 font-bold animate-pulse">⚠️ 孤島斷路</span>
+                )}
+                {hintsUsed > 0 && <span className="ml-2 text-slate-500">提示 {hintsUsed} 次</span>}
+              </p>
+              <div className="flex gap-1.5 sm:gap-2">
+                <TouchButton
+                  label="退一步"
+                  ariaLabel="退回上一步"
+                  onClick={() => setPath((p) => p.slice(0, -1))}
+                  disabled={path.length === 0 || complete}
+                  className="rounded-lg border border-slate-600 bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-200"
+                />
+                <TouchButton
+                  label="重畫"
+                  ariaLabel="清空路線重畫"
+                  onClick={() => {
+                    setPath([]);
+                    setRevealed([]);
+                    setHintMessage(null);
+                  }}
+                  disabled={complete}
+                  className="rounded-lg border border-slate-600 bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-200"
+                />
+                <TouchButton
+                  label="提示"
+                  ariaLabel="給我提示"
+                  onClick={useHint}
+                  disabled={complete}
+                  className="rounded-lg border border-amber-500/50 bg-amber-500/15 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-amber-200"
+                />
+                <TouchButton
+                  label="看答案"
+                  ariaLabel="放棄並看答案"
+                  onClick={() => {
+                    setGaveUp(true);
+                    setPath(puzzle.solution);
+                    setRevealed([]);
+                    setHintMessage(null);
+                  }}
+                  disabled={complete}
+                  className="rounded-lg border border-slate-600 bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-400"
+                />
+              </div>
+            </div>
+
+            {hintMessage && !complete && (
+              <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                {hintMessage}
+              </p>
             )}
-            {hintsUsed > 0 && <span className="ml-2 text-slate-500">提示 {hintsUsed} 次</span>}
-          </p>
-          <div className="flex gap-2">
-            <TouchButton
-              label="退一步"
-              ariaLabel="退回上一步"
-              onClick={() => setPath((p) => p.slice(0, -1))}
-              disabled={path.length === 0 || complete}
-              className="rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-200"
-            />
-            <TouchButton
-              label="重畫"
-              ariaLabel="清空路線重畫"
-              onClick={() => {
-                setPath([]);
-                setRevealed([]);
-                setHintMessage(null);
-              }}
-              disabled={complete}
-              className="rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-200"
-            />
-            <TouchButton
-              label="提示"
-              ariaLabel="給我提示"
-              onClick={useHint}
-              disabled={complete}
-              className="rounded-lg border border-amber-500/50 bg-amber-500/15 px-3 text-xs font-bold text-amber-200"
-            />
-            <TouchButton
-              label="看答案"
-              ariaLabel="放棄並看答案"
-              onClick={() => {
-                setGaveUp(true);
-                setPath(puzzle.solution);
-                setRevealed([]);
-                setHintMessage(null);
-              }}
-              disabled={complete}
-              className="rounded-lg border border-slate-600 bg-slate-800 px-3 text-xs font-bold text-slate-400"
-            />
           </div>
-        </div>
 
-        {hintMessage && !complete && (
-          <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            {hintMessage}
-          </p>
-        )}
+          {/* Right Wing: 繼電節點與指令 (Desktop Only) */}
+          <aside className="ec-wing ec-wing--right hidden lg:flex flex-col justify-between w-64 xl:w-72 p-3.5 rounded-2xl border border-violet-500/25 bg-slate-950/85 backdrop-blur-md shadow-2xl shrink-0 select-none overflow-y-auto">
+            <div>
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-violet-500/20">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-xs font-bold text-violet-200 tracking-wider">繼電節點矩陣</span>
+                </div>
+                <span className="text-[10px] text-violet-300/60 font-mono">RELAY MATRIX</span>
+              </div>
+
+              {/* Checkpoint Sequence Nodes */}
+              <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
+                <div className="text-[11px] font-medium text-violet-200/80 mb-2">節點導通清單</div>
+                <div className="grid grid-cols-4 gap-1.5 text-center">
+                  {circuit?.checkpointStatus.map((cp) => (
+                    <div
+                      key={cp.number}
+                      className={`p-1.5 rounded-lg border text-xs font-bold font-mono transition-all ${
+                        cp.reached
+                          ? 'bg-violet-900/40 border-violet-400 text-violet-200 shadow-[0_0_8px_rgba(167,139,250,0.3)]'
+                          : cp.isCurrentTarget
+                          ? 'bg-amber-950/60 border-amber-400 text-amber-300 animate-pulse'
+                          : 'bg-slate-950/70 border-slate-800 text-slate-500'
+                      }`}
+                    >
+                      <span>#{cp.number}</span>
+                      <span className="block text-[9px] font-normal opacity-80">
+                        {cp.reached ? '已導通' : cp.isCurrentTarget ? '目標' : '待連接'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Operations & Tactics Guide */}
+              <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
+                <div className="text-[11px] font-medium text-violet-200/80 mb-1.5">通電操作秘笈</div>
+                <div className="space-y-1.5 text-[10px] text-slate-300/80 leading-relaxed">
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-cyan-400 font-bold shrink-0">🖱️ 拖曳連線:</span>
+                    <span>單指或滑鼠連續劃過格子，往回拖可即時擦除。</span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-amber-400 font-bold shrink-0">🎯 數字倒帶:</span>
+                    <span>點擊任何已連線的數字，路線自動倒帶至該處！</span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-rose-400 font-bold shrink-0">⚠️ 避免死路:</span>
+                    <span>永遠留出一條通往下一目標與殘餘邊角的活路。</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-violet-500/20 text-[10px] text-slate-400 flex items-center justify-between">
+              <span>方向鍵可延伸電路</span>
+              <span>已通電: {circuit?.conductedPct ?? 0}%</span>
+            </div>
+          </aside>
+        </div>
 
         {gaveUp && showResult && (
           <ResultOverlay
@@ -758,7 +946,7 @@ export default function App(): React.ReactElement {
         )}
 
         <p className="mt-4 hidden text-center text-[10px] text-slate-500 sm:block">
-          拖曳畫線・往回拖可擦除・方向鍵延伸・Backspace 退一步・H 提示
+          拖曳畫線・往回拖可擦除・方向鍵延伸・Backspace/Z 退一步・R 重畫・H 提示
         </p>
       </div>
       <AchievementToast ids={toastIds} onDismiss={() => setToastIds([])} />

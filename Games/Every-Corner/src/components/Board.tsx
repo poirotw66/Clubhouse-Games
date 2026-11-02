@@ -10,6 +10,8 @@ interface Props {
   solved: boolean;
   /** Fires once the completion path-trace finishes (or immediately if reduced motion). */
   onTraceComplete?: () => void;
+  isolatedCells?: Set<CellId>;
+  targetCheckpointCell?: CellId | null;
 }
 
 const GAP = 4;
@@ -34,6 +36,8 @@ export function Board({
   onPathChange,
   solved,
   onTraceComplete,
+  isolatedCells,
+  targetCheckpointCell,
 }: Props): React.ReactElement {
   const { size } = puzzle;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -236,117 +240,253 @@ export function Board({
         extend(cell);
       }}
     >
+      <defs>
+        {/* Glow filter for conducting lines */}
+        <filter id="ec-neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
+        {/* Hazard pattern for isolated dead-end cells */}
+        <pattern id="ec-hazard-pattern" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="8" height="16" fill="rgba(239, 68, 68, 0.32)" />
+          <rect x="8" width="8" height="16" fill="rgba(30, 27, 75, 0.75)" />
+        </pattern>
+
+        {/* Target checkpoint beacon radial glow */}
+        <radialGradient id="ec-target-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#fef08a" stopOpacity="0.85" />
+          <stop offset="55%" stopColor="#eab308" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#ca8a04" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
       {Array.from({ length: size.rows * size.cols }, (_, cell) => {
         const x = colOf(size, cell) * cellSize;
         const y = rowOf(size, cell) * cellSize;
         if (holeSet.has(cell)) {
           return (
+            <g key={cell}>
+              <rect
+                x={x + GAP / 2}
+                y={y + GAP / 2}
+                width={cellSize - GAP}
+                height={cellSize - GAP}
+                rx={12}
+                fill="rgba(10, 8, 20, 0.95)"
+                stroke="rgba(244, 63, 94, 0.45)"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+              />
+              <circle cx={x + cellSize / 2} cy={y + cellSize / 2} r={3} fill="rgba(244, 63, 94, 0.6)" />
+            </g>
+          );
+        }
+
+        const onPath = path.includes(cell);
+        const isIsolated = isolatedCells?.has(cell);
+        const isRevealed = revealed.includes(cell);
+
+        if (isIsolated) {
+          return (
+            <g key={cell}>
+              <rect
+                x={x + GAP / 2}
+                y={y + GAP / 2}
+                width={cellSize - GAP}
+                height={cellSize - GAP}
+                rx={12}
+                fill="url(#ec-hazard-pattern)"
+                stroke="#ef4444"
+                strokeWidth={2.5}
+                className="animate-pulse"
+              />
+              <text
+                x={x + cellSize / 2}
+                y={y + cellSize / 2}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize={cellSize * 0.24}
+                fill="#fca5a5"
+                opacity={0.9}
+              >
+                ⚠️
+              </text>
+            </g>
+          );
+        }
+
+        return (
+          <g key={cell}>
             <rect
-              key={cell}
               x={x + GAP / 2}
               y={y + GAP / 2}
               width={cellSize - GAP}
               height={cellSize - GAP}
               rx={12}
-              fill="rgba(15, 11, 28, 0.95)"
-              stroke="rgba(244, 114, 182, 0.35)"
-              strokeWidth={3}
-              strokeDasharray="6 6"
+              fill={onPath ? (solved ? 'rgba(16, 185, 129, 0.22)' : 'rgba(147, 51, 234, 0.22)') : 'rgba(15, 23, 42, 0.6)'}
+              stroke={
+                isRevealed
+                  ? '#fbbf24'
+                  : onPath
+                  ? (solved ? 'rgba(52, 211, 153, 0.6)' : 'rgba(168, 85, 247, 0.5)')
+                  : 'rgba(71, 85, 105, 0.35)'
+              }
+              strokeWidth={isRevealed ? 4 : onPath ? 1.5 : 1}
             />
-          );
-        }
-        const onPath = path.includes(cell);
-        return (
-          <rect
-            key={cell}
-            x={x + GAP / 2}
-            y={y + GAP / 2}
-            width={cellSize - GAP}
-            height={cellSize - GAP}
-            rx={12}
-            fill={onPath ? 'rgba(167,139,250,0.14)' : 'rgba(148,163,184,0.08)'}
-            stroke={revealed.includes(cell) ? '#fbbf24' : 'transparent'}
-            strokeWidth={revealed.includes(cell) ? 5 : 0}
-          />
+            {/* PCB via corner solder points */}
+            <circle cx={x + 10} cy={y + 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
+            <circle cx={x + cellSize - 10} cy={y + 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
+            <circle cx={x + 10} cy={y + cellSize - 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
+            <circle cx={x + cellSize - 10} cy={y + cellSize - 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
+          </g>
         );
       })}
 
+      {/* Conducting Polyline: 3-Layer Superconducting Neon */}
       {points.length > 1 && (
-        <polyline
-          points={polyline}
-          fill="none"
-          stroke={solved ? '#4ade80' : '#a78bfa'}
-          strokeWidth={cellSize * 0.3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={0.85}
-          className={solved ? 'ec-path-trace' : undefined}
-          style={
-            solved && pathLength > 0
-              ? {
-                  strokeDasharray: pathLength,
-                  strokeDashoffset: pathLength * (1 - traceProgress),
-                }
-              : undefined
-          }
-        />
-      )}
-      {points.length > 0 && (
-        <circle
-          cx={points[points.length - 1].x}
-          cy={points[points.length - 1].y}
-          r={cellSize * 0.17}
-          fill={solved ? '#4ade80' : '#c4b5fd'}
-          className={solved ? 'ec-path-head' : undefined}
-        />
+        <>
+          {/* Layer 1: Ambient Neon Glow */}
+          <polyline
+            points={polyline}
+            fill="none"
+            stroke={solved ? '#10b981' : '#c084fc'}
+            strokeWidth={cellSize * 0.38}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={0.35}
+            filter="url(#ec-neon-glow)"
+          />
+          {/* Layer 2: Core Superconductor */}
+          <polyline
+            points={polyline}
+            fill="none"
+            stroke={solved ? '#34d399' : '#a855f7'}
+            strokeWidth={cellSize * 0.24}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={0.92}
+            className={solved ? 'ec-path-trace' : undefined}
+            style={
+              solved && pathLength > 0
+                ? {
+                    strokeDasharray: pathLength,
+                    strokeDashoffset: pathLength * (1 - traceProgress),
+                  }
+                : undefined
+            }
+          />
+          {/* Layer 3: Central High-Voltage Core Spine */}
+          <polyline
+            points={polyline}
+            fill="none"
+            stroke={solved ? '#ecfdf5' : '#f5d0fe'}
+            strokeWidth={cellSize * 0.08}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={0.9}
+          />
+        </>
       )}
 
-      {/* Walls sit on the seam between two cells. */}
+      {/* Quantum Energy Probe (Path Head) */}
+      {points.length > 0 && (
+        <g>
+          <circle
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
+            r={cellSize * 0.24}
+            fill="none"
+            stroke={solved ? '#34d399' : '#38bdf8'}
+            strokeWidth={2}
+            opacity={0.7}
+          />
+          <circle
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
+            r={cellSize * 0.17}
+            fill={solved ? '#34d399' : '#0284c7'}
+            className={solved ? 'ec-path-head' : undefined}
+          />
+          <circle
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
+            r={cellSize * 0.07}
+            fill="#ffffff"
+          />
+        </g>
+      )}
+
+      {/* Walls (High-Energy Laser Barriers with Anchor Studs) */}
       {puzzle.walls.map((wall) => {
         const [a, b] = wall.split(':').map(Number);
         const ca = centre(a);
         const cb = centre(b);
         const mx = (ca.x + cb.x) / 2;
         const my = (ca.y + cb.y) / 2;
-        // Cells side by side are separated by a *vertical* wall, and vice
-        // versa — so the flag describes the cells, not the line.
         const sideBySide = rowOf(size, a) === rowOf(size, b);
+        const x1 = sideBySide ? mx : mx - cellSize / 2 + GAP / 2;
+        const y1 = sideBySide ? my - cellSize / 2 + GAP / 2 : my;
+        const x2 = sideBySide ? mx : mx + cellSize / 2 - GAP / 2;
+        const y2 = sideBySide ? my + cellSize / 2 - GAP / 2 : my;
+
         return (
-          <line
-            key={wall}
-            x1={sideBySide ? mx : mx - cellSize / 2 + GAP / 2}
-            y1={sideBySide ? my - cellSize / 2 + GAP / 2 : my}
-            x2={sideBySide ? mx : mx + cellSize / 2 - GAP / 2}
-            y2={sideBySide ? my + cellSize / 2 - GAP / 2 : my}
-            stroke="#f472b6"
-            strokeWidth={7}
-            strokeLinecap="round"
-          />
+          <g key={wall}>
+            <line
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="#f43f5e"
+              strokeWidth={7}
+              strokeLinecap="round"
+            />
+            <circle cx={x1} cy={y1} r={4.5} fill="#fda4af" stroke="#e11d48" strokeWidth={1.5} />
+            <circle cx={x2} cy={y2} r={4.5} fill="#fda4af" stroke="#e11d48" strokeWidth={1.5} />
+          </g>
         );
       })}
 
+      {/* Checkpoints (Relay Cores with Target Beacons) */}
       {Object.entries(puzzle.checkpoints).map(([cellKey, number]) => {
         const cell = Number(cellKey);
         const { x, y } = centre(cell);
         const reached = path.includes(cell);
+        const isTarget = targetCheckpointCell === cell;
+
         return (
           <g key={cell}>
+            {/* Target Beacon Pulse */}
+            {isTarget && !reached && (
+              <>
+                <circle cx={x} cy={y} r={cellSize * 0.44} fill="url(#ec-target-glow)" className="ec-beacon-pulse" />
+                <circle cx={x} cy={y} r={cellSize * 0.38} fill="none" stroke="#facc15" strokeWidth={2} strokeDasharray="4 4" />
+              </>
+            )}
+
+            {/* Checkpoint Outer Alloy Rim */}
             <circle
               cx={x}
               cy={y}
               r={cellSize * 0.3}
-              fill={reached ? '#a78bfa' : '#1e1b34'}
-              stroke={reached ? '#ddd6fe' : '#a78bfa'}
-              strokeWidth={4}
+              fill={reached ? (solved ? '#065f46' : '#581c87') : '#0f172a'}
+              stroke={reached ? (solved ? '#34d399' : '#c084fc') : isTarget ? '#facc15' : '#64748b'}
+              strokeWidth={isTarget ? 3.5 : 2.5}
             />
+
+            {/* Checkpoint Number */}
             <text
               x={x}
               y={y}
               textAnchor="middle"
               dominantBaseline="central"
-              fontSize={cellSize * 0.36}
-              fontWeight="800"
-              fill={reached ? '#1e1b34' : '#ddd6fe'}
+              fontSize={cellSize * 0.34}
+              fontWeight="900"
+              fontFamily="system-ui, sans-serif"
+              fill={reached ? '#f5d0fe' : isTarget ? '#fef08a' : '#cbd5e1'}
             >
               {number}
             </text>
