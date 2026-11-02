@@ -69,6 +69,10 @@ import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
 } from './components/FirstRunGuide';
+import { CockpitLeftWing } from './components/CockpitLeftWing';
+import { CockpitRightWing } from './components/CockpitRightWing';
+import { MobileCockpitDrawer } from './components/MobileCockpitDrawer';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import {
   RefreshCw,
   BookOpen,
@@ -78,6 +82,7 @@ import {
   Lightbulb,
   CalendarDays,
   UserRound,
+  Keyboard,
 } from 'lucide-react';
 
 function playerCountFor(mode: GameMode): PlayerCount {
@@ -171,6 +176,7 @@ export default function App() {
     null,
   );
   const [roundBanner, setRoundBanner] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef(state.phase);
   const matchRecordedRef = useRef(false);
@@ -389,6 +395,28 @@ export default function App() {
     [state, selectedTileId, gameMode, pushHistory, flashScore, placeTileFx],
   );
 
+  const handleCockpitPlay = useCallback(
+    (tileId: number, end: EndId) => {
+      if (state.phase !== 'playing') return;
+      if (gameMode !== 'two' && state.currentPlayer !== humanSeat) return;
+      const actor = state.currentPlayer;
+      const next = playTile(state, actor, tileId, end);
+      if (next) {
+        pushHistory();
+        playMove();
+        placeTileFx();
+        setLastPlacedId(tileId);
+        if (next.lastPlayScore > 0 && next.phase === 'playing') {
+          flashScore(next.lastPlayScore);
+        }
+        setState(next);
+        setSelectedTileId(null);
+        setHintMove(null);
+      }
+    },
+    [state, gameMode, pushHistory, flashScore, placeTileFx],
+  );
+
   const handleDraw = useCallback(() => {
     if (state.phase !== 'playing' || canPlayAny) return;
     if (state.ruleVariant === 'block' || state.boneyard.length <= 2) return;
@@ -577,6 +605,186 @@ export default function App() {
     [state.hands, state.currentPlayer, state.board, state.ruleVariant],
   );
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (showShortcuts) {
+          setShowShortcuts(false);
+          return;
+        }
+        if (showRules) {
+          setShowRules(false);
+          return;
+        }
+        if (selectedTileId !== null) {
+          setSelectedTileId(null);
+          return;
+        }
+      }
+
+      if (
+        showShortcuts ||
+        showRules ||
+        showFirstRun ||
+        roundBanner ||
+        match.matchOver
+      ) {
+        return;
+      }
+
+      if (!humanCanAct) return;
+
+      const actorHand = gameMode === 'two' ? currentHand : state.hands[0];
+      const playableTiles = getPlayableTiles(actorHand, state.board);
+
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        if (playableTiles.length === 0) return;
+        e.preventDefault();
+        if (selectedTileId === null) {
+          setSelectedTileId(playableTiles[0].id);
+        } else {
+          const idx = playableTiles.findIndex((t) => t.id === selectedTileId);
+          const nextIdx = idx <= 0 ? playableTiles.length - 1 : idx - 1;
+          setSelectedTileId(playableTiles[nextIdx].id);
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        if (canPlayAny && playableTiles.length > 0) {
+          e.preventDefault();
+          if (selectedTileId === null) {
+            setSelectedTileId(playableTiles[0].id);
+          } else {
+            const idx = playableTiles.findIndex((t) => t.id === selectedTileId);
+            const nextIdx = (idx + 1) % playableTiles.length;
+            setSelectedTileId(playableTiles[nextIdx].id);
+          }
+          return;
+        }
+        if (!canPlayAny && ruleVariant !== 'block' && state.boneyard.length > 2) {
+          e.preventDefault();
+          handleDraw();
+          return;
+        }
+      }
+
+      if (e.key === 'p' || e.key === 'P') {
+        if (!canPlayAny && (ruleVariant === 'block' || state.boneyard.length <= 2)) {
+          e.preventDefault();
+          handlePass();
+          return;
+        }
+      }
+
+      if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        handleHint();
+        return;
+      }
+
+      if (e.key === 'z' || e.key === 'Z' || e.key === 'u' || e.key === 'U') {
+        if (canUndo) {
+          e.preventDefault();
+          handleUndo();
+          return;
+        }
+      }
+
+      if (selectedTileId !== null) {
+        if (
+          (e.key === '1' || e.key === 'l' || e.key === 'L') &&
+          isValidEnd(selectedTileId, 'left')
+        ) {
+          e.preventDefault();
+          handlePlayAt('left');
+          return;
+        }
+        if (
+          (e.key === '2' || e.key === 'r' || e.key === 'R') &&
+          isValidEnd(selectedTileId, 'right')
+        ) {
+          e.preventDefault();
+          handlePlayAt('right');
+          return;
+        }
+        if (
+          (e.key === '3' || e.key === 'u' || e.key === 'U') &&
+          isValidEnd(selectedTileId, 'up')
+        ) {
+          e.preventDefault();
+          handlePlayAt('up');
+          return;
+        }
+        if (e.key === '4' && isValidEnd(selectedTileId, 'down')) {
+          e.preventDefault();
+          handlePlayAt('down');
+          return;
+        }
+
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          const validEnds = playableEndIds.filter((end) =>
+            isValidEnd(selectedTileId, end),
+          );
+          if (validEnds.length === 1) {
+            handlePlayAt(validEnds[0]);
+          } else if (validEnds.length > 1) {
+            if (
+              hintMove &&
+              hintMove.tileId === selectedTileId &&
+              validEnds.includes(hintMove.end)
+            ) {
+              handlePlayAt(hintMove.end);
+            } else {
+              handlePlayAt(validEnds[0]);
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    showShortcuts,
+    showRules,
+    showFirstRun,
+    roundBanner,
+    match.matchOver,
+    humanCanAct,
+    gameMode,
+    currentHand,
+    state.hands,
+    state.board,
+    state.boneyard.length,
+    selectedTileId,
+    canPlayAny,
+    ruleVariant,
+    canUndo,
+    playableEndIds,
+    hintMove,
+    handleDraw,
+    handlePass,
+    handleHint,
+    handleUndo,
+    handlePlayAt,
+    isValidEnd,
+  ]);
+
   const roundTeams = useMemo(
     () => teamHandScores(state.handScores, state.playerCount),
     [state.handScores, state.playerCount],
@@ -671,7 +879,7 @@ export default function App() {
         />
       )}
 
-      <header className="w-full max-w-2xl flex justify-between items-center mb-2 sm:mb-3 gap-2">
+      <header className="w-full max-w-7xl flex justify-between items-center mb-2 sm:mb-3 gap-2 px-1">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
           <h1 className="text-lg sm:text-xl font-bold tracking-tight">西洋骨牌</h1>
           <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
@@ -697,7 +905,7 @@ export default function App() {
             onClick={handleUndo}
             disabled={!canUndo}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation inline-flex items-center justify-center"
-            title="悔棋"
+            title="悔棋 (Z)"
             aria-label="悔棋"
           >
             <Undo2 className="w-5 h-5" />
@@ -707,10 +915,19 @@ export default function App() {
             onClick={handleHint}
             disabled={!humanCanAct || !canPlayAny}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation inline-flex items-center justify-center"
-            title="提示"
+            title="提示 (H)"
             aria-label="提示"
           >
             <Lightbulb className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowShortcuts(true)}
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center text-amber-300 hover:text-amber-200"
+            title="快捷鍵指南 (?)"
+            aria-label="快捷鍵指南"
+          >
+            <Keyboard className="w-5 h-5" />
           </button>
           <button
             type="button"
@@ -733,6 +950,33 @@ export default function App() {
         </div>
       </header>
 
+      <div className="w-full max-w-7xl flex flex-col items-center">
+        {/* Mobile Cockpit Drawer Capsule */}
+        <MobileCockpitDrawer
+          state={state}
+          match={match}
+          gameMode={gameMode}
+          difficulty={effectiveDifficulty}
+          ruleVariant={ruleVariant}
+          streak={stats.streak}
+          onSelectPlay={handleCockpitPlay}
+          selectedTileId={selectedTileId}
+        />
+
+        {/* 3-column / 1-column responsive layout */}
+        <div className="w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 lg:gap-6">
+          {/* Left Wing (desktop) */}
+          <div className="hidden lg:block shrink-0 sticky top-4">
+            <CockpitLeftWing
+              state={state}
+              ruleVariant={ruleVariant}
+              onSelectPlay={handleCockpitPlay}
+              selectedTileId={selectedTileId}
+            />
+          </div>
+
+          {/* Center Table */}
+          <main className="w-full max-w-2xl flex flex-col items-center">
       <div className="w-full max-w-md mb-2 sm:mb-3 rounded-xl border border-white/10 bg-slate-900/70 px-3 sm:px-4 py-2.5 sm:py-3">
         <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 mb-1">
           <span>
@@ -1128,6 +1372,40 @@ export default function App() {
           </button>
         )}
 
+            {/* Keyboard shortcut hint bar */}
+            <div className="hidden sm:flex items-center justify-center gap-3 text-[11px] text-slate-400 mt-3 py-1.5 px-4 rounded-full bg-slate-900/60 border border-slate-800 backdrop-blur-sm">
+              <span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-[10px] font-bold border border-slate-700">A</kbd>
+                /
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-[10px] font-bold border border-slate-700">D</kbd> 選牌
+              </span>
+              <span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-sky-300 font-mono text-[10px] font-bold border border-slate-700">1</kbd>
+                /
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-sky-300 font-mono text-[10px] font-bold border border-slate-700">2</kbd> 接端
+              </span>
+              <span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300 font-mono text-[10px] font-bold border border-slate-700">Enter</kbd> 出牌
+              </span>
+              <span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] font-bold border border-slate-700">?</kbd> 快捷鍵
+              </span>
+            </div>
+          </main>
+
+          {/* Right Wing (desktop) */}
+          <div className="hidden lg:block shrink-0 sticky top-4">
+            <CockpitRightWing
+              state={state}
+              match={match}
+              gameMode={gameMode}
+              difficulty={effectiveDifficulty}
+              streak={stats.streak}
+            />
+          </div>
+        </div>
+      </div>
+
       {roundBanner && state.phase === 'roundOver' && !match.matchOver && (
         <ResultOverlay
           title={
@@ -1280,6 +1558,10 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {showShortcuts && (
+        <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />
       )}
     </div>
   );

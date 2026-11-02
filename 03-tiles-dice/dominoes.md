@@ -71,7 +71,17 @@
 路徑：[Games/Dominoes/](../Games/Dominoes/)
 
 - 雙人／對電腦；**五倍數／摸牌制／封鎖制**；整場先達 61／100／150；三級 AI（Hard 會算即時得分、留下的端點危險、與對手疑似缺門）、Hint、Undo。
+- **雙翼戰情駕駛艙（Dual-wing Table Cockpit）**：
+  - **左翼（牌局情資雷達）**：28 張骨牌池透視矩陣（Boneyard Matrix）、點數存量進度條（0～6 點各 7 張）、開放端點存量與斷門死端警報、阻塞點數結算預演、五倍數（All Fives）即時得分試算表（點擊直接出牌）。
+  - **右翼（對手戰情檔案）**：對手推論缺門（Suspected Voids）、實戰壓制戰術建議、系列賽動能進度、殘局牌術錦囊（重牌出清、斷門牽制、五倍數控和、阻塞決勝）。
+  - **行動端戰術膠囊（Mobile Cockpit Capsule）**：窄螢幕專屬抽屜面板，一鍵展開情報雷達與對手檔案。
+- **實體鍵盤操作快捷鍵**：
+  - <kbd>←</kbd>／<kbd>→</kbd> 或 <kbd>A</kbd>／<kbd>D</kbd>：循環切換選取手牌
+  - <kbd>1</kbd>／<kbd>2</kbd>／<kbd>3</kbd>／<kbd>4</kbd> 或 <kbd>L</kbd>／<kbd>R</kbd>／<kbd>U</kbd>／<kbd>D</kbd>：選擇開放端點（左／右／上／下）
+  - <kbd>Space</kbd>／<kbd>Enter</kbd>：確認出牌
+  - <kbd>P</kbd>／<kbd>D</kbd>：跳過／抽牌
+  - <kbd>H</kbd>：提示、<kbd>Z</kbd>／<kbd>U</kbd>：悔棋、<kbd>?</kbd>：快捷鍵指南面板
 - 戰績：`clubhouse-dominoes-stats`（勝敗、連勝）；進行中比賽：`clubhouse-dominoes-match`。
 - 回饋：出牌動畫、得分 callout（`ScoreFlash` + `playScore`）、勝負音效。
 - **首局引導**：首次開啟三步上手疊層（`clubhouse-dominoes-howto-seen`）。
-- Check：`npm run check` → vitest（含五倍數計分、轉軸、賽制、難度）。
+- Check：`npm run check` → vitest（53 tests，含五倍數計分、轉軸、賽制、難度、以及牌局情資雷達與矩陣分析單元測試）。
