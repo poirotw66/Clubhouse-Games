@@ -53,7 +53,7 @@
     width: 100%;
     max-height: 100%;
     overflow: auto;
-    padding: 25px 20px;
+    padding: 18px 16px;
     border: 1px solid #88d9ce50;
     border-radius: 25px;
     background: linear-gradient(150deg, #214b56, #122f42);
@@ -66,24 +66,24 @@
     color: #83e8cc;
     font-weight: 800;
   }
-  h1 { margin: 8px 0; font-size: 35px; letter-spacing: 2px; }
-  h2 { margin: 8px 0 14px; font-size: 25px; }
-  p { color: #bfd6df; font-size: 13px; line-height: 1.8; }
+  h1 { margin: 4px 0; font-size: 32px; letter-spacing: 2px; }
+  h2 { margin: 6px 0 10px; font-size: 23px; }
+  p { color: #bfd6df; font-size: 13px; line-height: 1.6; }
   .rule {
-    margin: 20px 0;
-    padding: 14px 8px;
+    margin: 10px 0;
+    padding: 9px 8px;
     background: #071f3166;
     border-radius: 14px;
     color: #fff2af;
     font-weight: 800;
-    line-height: 1.8;
+    line-height: 1.6;
   }
   button {
     width: 100%;
     border: 0;
     border-radius: 13px;
-    padding: 14px;
-    margin-top: 10px;
+    padding: 12px 14px;
+    margin-top: 8px;
     font: inherit;
     font-size: 14px;
     font-weight: 800;
@@ -116,28 +116,28 @@
     line-height: 1.5;
   }
   .meta {
-    margin-top: 18px;
-    padding-top: 14px;
+    margin-top: 14px;
+    padding-top: 10px;
     border-top: 1px solid #ffffff16;
     font-size: 12px;
     color: #bfd6df;
   }
   .row { display: flex; gap: 8px; }
-  .row button { font-size: 11px; padding: 11px 5px; }
+  .row button { font-size: 11px; padding: 9px 5px; }
   .gold { color: #ffe392; }
   .tiny { font-size: 11px; color: #8eafba; }
 
   .modes {
     display: grid;
-    gap: 8px;
-    margin: 14px 0 8px;
+    gap: 6px;
+    margin: 10px 0 6px;
     text-align: left;
   }
   button.mode {
     width: 100%;
     margin-top: 0;
-    padding: 12px 14px;
-    border-radius: 14px;
+    padding: 9px 12px;
+    border-radius: 12px;
     border: 1px solid #ffffff22;
     background: #ffffff0c;
     color: #eefaff;
@@ -237,15 +237,377 @@
     @media (max-width: 500px) {
       #game { border: 0; border-radius: 0; }
     }
+
+    /* --- Desktop Cockpit & Tactical Wings --- */
+    #cockpit-shell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      height: 100dvh;
+      max-height: 100dvh;
+      width: 100vw;
+      padding: 12px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .cockpit-wing {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      width: 270px;
+      height: min(100dvh - 24px, 860px);
+      background: linear-gradient(165deg, rgba(20, 48, 62, 0.90), rgba(9, 24, 35, 0.95));
+      border: 1px solid rgba(138, 224, 206, 0.22);
+      border-radius: 22px;
+      box-shadow: 0 16px 44px rgba(0, 0, 0, 0.4), inset 0 1px rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      padding: 16px 14px;
+      overflow-y: auto;
+      color: #eefaff;
+      user-select: none;
+    }
+    @media (min-width: 990px) {
+      .cockpit-wing { display: flex; }
+    }
+    .wing-header {
+      margin-bottom: 2px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .wing-eyebrow {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #83e8cc;
+      font-weight: 800;
+    }
+    .wing-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #eaf8f5;
+      margin-top: 2px;
+    }
+    .wing-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .wing-card.flex-fill {
+      flex: 1;
+      min-height: 110px;
+      overflow: hidden;
+    }
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: #a7d9ce;
+    }
+    .tiny-count {
+      font-size: 11px;
+      color: #80a9b3;
+      font-weight: 600;
+    }
+    .focus-meter-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .focus-meter-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #75f0b6, #ffe082);
+      border-radius: 999px;
+      transition: width 0.12s linear;
+    }
+    .focus-meter-fill.overdrive {
+      background: linear-gradient(90deg, #ffe082, #ff8c5a);
+      box-shadow: 0 0 10px rgba(255, 224, 130, 0.85);
+    }
+    .focus-tip {
+      font-size: 11px;
+      color: #a4c7cf;
+      line-height: 1.35;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .stat-pill {
+      background: rgba(0, 0, 0, 0.22);
+      border-radius: 8px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .stat-label {
+      font-size: 10px;
+      color: #8bb0b9;
+    }
+    .stat-val {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+    .build-matrix-scroll, .threat-list-scroll {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 2px;
+    }
+    .matrix-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+    .matrix-item .m-icon {
+      font-size: 16px;
+      min-width: 20px;
+      text-align: center;
+    }
+    .matrix-item .m-name {
+      font-weight: 700;
+      color: #e5f6f2;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .matrix-item .m-badge {
+      font-size: 10px;
+      font-weight: 800;
+      background: rgba(142, 239, 186, 0.18);
+      color: #92ffd1;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(142, 239, 186, 0.3);
+    }
+    .room-track-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      margin-top: 4px;
+    }
+    .room-pip-box {
+      aspect-ratio: 1;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #6d8e96;
+      transition: all 0.2s;
+    }
+    .room-pip-box.cleared {
+      background: rgba(118, 222, 177, 0.16);
+      border-color: rgba(118, 222, 177, 0.35);
+      color: #9affd5;
+    }
+    .room-pip-box.current {
+      background: rgba(255, 230, 140, 0.25);
+      border-color: #ffe392;
+      color: #fff4ba;
+      box-shadow: 0 0 10px rgba(255, 227, 146, 0.45);
+      transform: scale(1.06);
+    }
+    .room-pip-box.boss {
+      border-color: rgba(255, 110, 140, 0.4);
+    }
+    .room-pip-box.boss.current {
+      border-color: #ff6e8c;
+      box-shadow: 0 0 12px rgba(255, 110, 140, 0.6);
+    }
+    .threat-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
+    .threat-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .threat-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .threat-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: #eefaff;
+      display: flex;
+      justify-content: space-between;
+    }
+    .threat-hp-track {
+      width: 100%;
+      height: 4px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .threat-hp-fill {
+      height: 100%;
+      background: #ff7d8b;
+      border-radius: 2px;
+    }
+    .actions-row {
+      display: flex;
+      gap: 8px;
+    }
+    .wing-btn {
+      flex: 1;
+      margin-top: 0;
+      padding: 8px 10px;
+      font-size: 12px;
+      border-radius: 10px;
+    }
+    .empty-hint {
+      font-size: 11px;
+      color: #6a8c96;
+      text-align: center;
+      padding: 16px 0;
+    }
   
 </style>
 </head>
 <body>
 
+<div id="cockpit-shell">
+  <!-- Left Wing: Tactical Matrix & Combat Telemetry -->
+  <aside id="wing-left" class="cockpit-wing" aria-label="戰術情報與被動裝備">
+    <div class="wing-header">
+      <div class="wing-eyebrow">TACTICAL MATRIX</div>
+      <div class="wing-title">戰術矩陣 · 裝備庫</div>
+    </div>
 
-<div id="game">
-  <canvas id="canvas" width="420" height="720"></canvas>
-  <div id="overlay"></div>
+    <!-- Focus Overdrive Status Meter -->
+    <div class="wing-card focus-card">
+      <div class="card-title">
+        <span>專注蓄力超載</span>
+        <span id="focus-tier-badge" class="badge">待機</span>
+      </div>
+      <div class="focus-meter-track">
+        <div id="focus-meter-bar" class="focus-meter-fill" style="width: 0%"></div>
+      </div>
+      <div class="focus-tip" id="focus-tip">停步聚氣 1.2 秒觸發「專注超載」</div>
+    </div>
+
+    <!-- Live Combat Telemetry -->
+    <div class="wing-card">
+      <div class="card-title">即時戰術數值</div>
+      <div class="stats-grid">
+        <div class="stat-pill">
+          <span class="stat-label">攻擊力</span>
+          <span class="stat-val" id="stat-val-dmg">13</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">射擊頻率</span>
+          <span class="stat-val" id="stat-val-rate">1.6/s</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">暴擊率</span>
+          <span class="stat-val" id="stat-val-crit">5%</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">移動速度</span>
+          <span class="stat-val" id="stat-val-spd">190</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">減傷防護</span>
+          <span class="stat-val" id="stat-val-armor">0%</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">完全閃避</span>
+          <span class="stat-val" id="stat-val-dodge">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acquired Perks Matrix -->
+    <div class="wing-card flex-fill">
+      <div class="card-title">
+        <span>已習得力量</span>
+        <span class="tiny-count" id="build-count">0 項</span>
+      </div>
+      <div id="build-matrix-list" class="build-matrix-scroll">
+        <div class="empty-hint">尚未習得能力 · 升級時選擇</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Central Game Viewport -->
+  <div id="game">
+    <canvas id="canvas" width="420" height="720"></canvas>
+    <div id="overlay"></div>
+  </div>
+
+  <!-- Right Wing: Expedition Radar & Threat Assessment -->
+  <aside id="wing-right" class="cockpit-wing" aria-label="探險雷達與威脅情報">
+    <div class="wing-header">
+      <div class="wing-eyebrow">EXPEDITION RADAR</div>
+      <div class="wing-title">探險雷達 · 戰況</div>
+    </div>
+
+    <!-- Room Progression Timeline -->
+    <div class="wing-card">
+      <div class="card-title">
+        <span id="route-title">標準 · 第 1/15 房</span>
+        <span class="badge gold" id="run-gold-badge">◆ 0</span>
+      </div>
+      <div id="room-track" class="room-track-grid">
+        <!-- Room pips rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Detected Threats in Room -->
+    <div class="wing-card flex-fill">
+      <div class="card-title">
+        <span>現場敵情偵測</span>
+        <span class="tiny-count" id="threat-count">0 體</span>
+      </div>
+      <div id="threat-list" class="threat-list-scroll">
+        <div class="empty-hint">無敵情目標</div>
+      </div>
+    </div>
+
+    <!-- Tactical Quick Actions -->
+    <div class="wing-card actions-card">
+      <div class="actions-row">
+        <button type="button" id="wing-mute-btn" class="secondary wing-btn">音效：開</button>
+        <button type="button" id="wing-pause-btn" class="secondary wing-btn">暫停 (Esc)</button>
+      </div>
+    </div>
+  </aside>
 </div>
 
 
@@ -347,6 +709,7 @@ let stats = {};
 let build = {};
 let enemies = [], bullets = [], hazards = [], particles = [], texts = [], arcs = [];
 let room = 1, cleared = false, clearTime = 0, time = 0;
+let roomTime = 0;
 let uid = 0, level = 1, xp = 0, xpNeed = 21, pendingLevels = 0;
 let runGold = 0, kills = 0, settled = false;
 let shotCD = 0, followShots = 0, followCD = 0, specialCD = 6;
@@ -551,10 +914,11 @@ function startRun(modeId = selectedMode) {
     hp: stats.maxHP, inv: 0, moving: false,
     aim: -Math.PI / 2,
     shield: n("shield") > 0 ? 1 : 0,
-    shieldTime: 0
+    shieldTime: 0,
+    stillTime: 0
   };
   level = 1; xp = 0; xpNeed = 21; pendingLevels = 0;
-  room = 1; runGold = 0; kills = 0; time = 0;
+  room = 1; runGold = 0; kills = 0; time = 0; roomTime = 0;
   settled = false; shotCD = .2; followShots = 0; specialCD = 6;
   particles = []; texts = []; arcs = []; shake = 0;
   state = "play";
@@ -574,7 +938,7 @@ function enterRoom() {
   particles = [];
   arcs = [];
   texts = [];
-  cleared = false; clearTime = 0;
+  cleared = false; clearTime = 0; roomTime = 0;
   followShots = 0; shotCD = .35;
   player.x = W / 2; player.y = 559;
   player.inv = 1;
@@ -1160,6 +1524,7 @@ function updateBullets(dt) {
 
 function update(dt) {
   time += dt;
+  roomTime += dt;
   bannerTime = Math.max(0, bannerTime - dt);
   shake = Math.max(0, shake - dt * 20);
   player.inv = Math.max(0, player.inv - dt);
@@ -1183,6 +1548,22 @@ function update(dt) {
     followShots = 0;
     // 放手即可射擊；不保留移動前的攻擊冷卻。
     shotCD = 0;
+    player.stillTime = 0;
+  } else if (!cleared) {
+    player.stillTime = (player.stillTime || 0) + dt;
+    if (player.stillTime > 0.6 && Math.random() < 0.35) {
+      const a = Math.random() * TAU;
+      const d = 34 + Math.random() * 16;
+      particles.push({
+        x: player.x + Math.cos(a) * d,
+        y: player.y + Math.sin(a) * d,
+        vx: -Math.cos(a) * 45,
+        vy: -Math.sin(a) * 45,
+        r: rand(1.2, 2.4),
+        life: 0.3, maxLife: 0.3,
+        color: player.stillTime >= 1.2 ? "#ffe68a" : "#75f2c2"
+      });
+    }
   }
 
   if (n("shield") && !player.shield) {
@@ -1245,6 +1626,19 @@ function update(dt) {
   }
 
   updateBullets(dt);
+
+  // Friendly arrow comet spark trails
+  for (const b of bullets) {
+    if (b.friendly && Math.random() < 0.4) {
+      particles.push({
+        x: b.x - (b.vx / 370) * 10 + rand(-2, 2),
+        y: b.y - (b.vy / 370) * 10 + rand(-2, 2),
+        vx: rand(-12, 12), vy: rand(-12, 12),
+        r: rand(1, 2.2), life: rand(0.12, 0.22), maxLife: 0.22,
+        color: n("lightning") ? "#e8ffb1" : n("fire") ? "#ffaa55" : n("ice") ? "#b5f5ff" : n("poison") ? "#b9ffa2" : "#fff2a8"
+      });
+    }
+  }
 
   for (const h of hazards) {
     h.age += dt;
@@ -1614,6 +2008,77 @@ let drawHUD = function() {
   }
 };
 
+function drawAimLine(p) {
+  if (!p || cleared) return;
+  const target = nearest(p);
+  if (!target) return;
+  const still = p.stillTime || 0;
+  const isOverdrive = still >= 1.2;
+
+  ctx.save();
+  if (p.moving) {
+    ctx.strokeStyle = "rgba(160, 240, 220, 0.32)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 6]);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = isOverdrive ? "rgba(255, 235, 140, 0.72)" : "rgba(120, 245, 205, 0.48)";
+    ctx.lineWidth = isOverdrive ? 2.6 : 1.6;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+
+    const t = (time * 3.5) % 1;
+    const px = p.x + (target.x - p.x) * t;
+    const py = p.y + (target.y - p.y) * t;
+    circle(px, py, isOverdrive ? 3.5 : 2.5, isOverdrive ? "#fff8be" : "#dcfff5");
+  }
+  ctx.restore();
+}
+
+function drawTargetLockReticle(e) {
+  if (!e || e.dead || !player) return;
+  const r = e.r;
+  const isWind = e.mode === "wind";
+  const retColor = isWind ? "#ff4d6d" : (player.stillTime >= 1.2 ? "#ffe68a" : "#71f5c6");
+  const bracketSize = r + 8;
+  const cornerLen = 6;
+  const pulse = Math.sin(time * 8) * 1.5;
+
+  ctx.save();
+  ctx.translate(e.x, e.y);
+
+  const b = bracketSize + pulse;
+  line(-b, -b + cornerLen, -b, -b, retColor, 2);
+  line(-b, -b, -b + cornerLen, -b, retColor, 2);
+  line(b - cornerLen, -b, b, -b, retColor, 2);
+  line(b, -b, b, -b + cornerLen, retColor, 2);
+  line(-b, b - cornerLen, -b, b, retColor, 2);
+  line(-b, b, -b + cornerLen, b, retColor, 2);
+  line(b - cornerLen, b, b, b, retColor, 2);
+  line(b, b, b, b - cornerLen, retColor, 2);
+
+  circle(0, 0, 1.8, retColor);
+
+  const d = Math.round(dist(player, e));
+  const hpPct = Math.round((e.hp / e.maxHP) * 100);
+  const tagText = isWind ? `⚠️ 敵襲 ${d}px` : e.type === "boss" ? `👑 守門者 ${d}px` : `🎯 鎖定 ${hpPct}%`;
+
+  const tagW = tagText.length * 7 + 12;
+  roundRect(-tagW / 2, -b - 18, tagW, 14, 4, isWind ? "#781828" : "#123b44");
+  ctx.strokeStyle = retColor;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-tagW / 2, -b - 18, tagW, 14);
+  label(tagText, 0, -b - 11, 8.5, isWind ? "#ffdae2" : "#e6fffa");
+
+  ctx.restore();
+}
+
 function draw() {
   ctx.clearRect(0,0,W,H);
   ctx.save();
@@ -1624,10 +2089,28 @@ function draw() {
     for(const e of enemies) drawTelegraph(e);
     for(const h of hazards) drawHazard(h);
 
+    if (!cleared) drawAimLine(player);
+
     const actors = enemies.filter(e=>!e.dead).map(e=>({y:e.y,e}));
     actors.push({y:player.y,p:true});
     actors.sort((a,b)=>a.y-b.y);
     for(const a of actors) a.p ? drawPlayer() : drawEnemy(a.e);
+
+    const lockedTarget = nearest(player);
+    if (lockedTarget && !cleared) drawTargetLockReticle(lockedTarget);
+
+    if (state === "play" && !cleared && roomTime < 2.5 && enemies.some(e => e.type === "boss")) {
+      const alpha = Math.min(1, Math.sin((roomTime / 2.5) * Math.PI) * 1.4);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      roundRect(24, 185, 372, 46, 10, "rgba(160, 20, 45, 0.94)");
+      ctx.strokeStyle = "#ff9bb0";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(24, 185, 372, 46);
+      label("⚠️ WARNING · 區域守門者降臨 ⚠️", 210, 201, 13, "#ffffff");
+      label("注意閃避大範圍覆蓋與衝刺！", 210, 218, 10, "#ffe0e8");
+      ctx.restore();
+    }
 
     for(const b of bullets) if(b.friendly) drawBullet(b);
 
@@ -1739,11 +2222,17 @@ document.addEventListener("visibilitychange",()=>{
 });
 
 let last=performance.now();
+let cockpitUpdateTimer = 0;
 function frame(now) {
   const dt=Math.min(.033,Math.max(0,(now-last)/1000));
   last=now;
   if(state==="play") update(dt);
   draw();
+  cockpitUpdateTimer += dt;
+  if (cockpitUpdateTimer >= 0.08) {
+    cockpitUpdateTimer = 0;
+    if (typeof updateCockpitWings === "function") updateCockpitWings();
+  }
   requestAnimationFrame(frame);
 }
 // --- art upgrade (same-module overrides) ---
@@ -2010,11 +2499,61 @@ function frame(now) {
     C.translate(p.x,p.y);
     oval(0,13,15,5,"#143c4940");
 
-    if(!p.moving&&!cleared) {
-      ring(0,3,22+Math.sin(time*4),"#edffd87a",1.5);
-      for(let i=0;i<3;i++) {
-        const a=time*.8+i*Math.PI*2/3;
-        dot(Math.cos(a)*23,3+Math.sin(a)*23,1.8,"#f3ffdc");
+    if (!p.moving && !cleared) {
+      const still = p.stillTime || 0;
+      const isCharging = still >= 0.6;
+      const isOverdrive = still >= 1.2;
+
+      if (isOverdrive) {
+        // Tier 2: Focus Overdrive - Radiant Solar Runic Seal
+        const pulse = Math.sin(time * 6) * 2;
+        glow(0, 3, 38 + pulse, "rgba(255, 225, 120, 0.28)");
+
+        // Outer rotating runic wheel with solar spikes
+        C.save();
+        C.rotate(time * 1.8);
+        ring(0, 3, 27 + pulse, "#ffe68a", 2);
+        for (let i = 0; i < 6; i++) {
+          const a = i * Math.PI / 3;
+          stroke([[Math.cos(a) * 23, 3 + Math.sin(a) * 23], [Math.cos(a) * 31, 3 + Math.sin(a) * 31]], "#ffe899", 2);
+        }
+        C.restore();
+
+        // Inner counter-rotating cyan ring
+        C.save();
+        C.rotate(-time * 2.2);
+        ring(0, 3, 19, "#75f2c2", 1.8);
+        for (let i = 0; i < 4; i++) {
+          const a = i * Math.PI / 2;
+          dot(Math.cos(a) * 19, 3 + Math.sin(a) * 19, 2.2, "#ffffff");
+        }
+        C.restore();
+
+        // Overdrive text badge
+        text("FOCUS MAX!", 0, -29, 9, "#fff494");
+      } else if (isCharging) {
+        // Tier 1: Focus Charging (0.6s - 1.2s)
+        const pulse = Math.sin(time * 5) * 1.5;
+        ring(0, 3, 24 + pulse, "#8dffd8aa", 1.8);
+        C.save();
+        C.rotate(time * 2);
+        for (let i = 0; i < 4; i++) {
+          const a = i * Math.PI / 2;
+          stroke([[Math.cos(a) * 21, 3 + Math.sin(a) * 21], [Math.cos(a) * 27, 3 + Math.sin(a) * 27]], "#baffeb", 1.5);
+        }
+        C.restore();
+        for (let i = 0; i < 3; i++) {
+          const a = time * 1.2 + i * Math.PI * 2 / 3;
+          dot(Math.cos(a) * 24, 3 + Math.sin(a) * 24, 2, "#eaffd4");
+        }
+        text("專注充能", 0, -26, 8, "#b9ffd6");
+      } else {
+        // Base stillness ring
+        ring(0, 3, 22 + Math.sin(time * 4), "#edffd87a", 1.5);
+        for (let i = 0; i < 3; i++) {
+          const a = time * 0.8 + i * Math.PI * 2 / 3;
+          dot(Math.cos(a) * 23, 3 + Math.sin(a) * 23, 1.8, "#f3ffdc");
+        }
       }
     }
 
@@ -2256,12 +2795,17 @@ function frame(now) {
       C.rotate(a);
 
       // 特效維持窄尾跡，不遮住敵方彈道。
-      stroke([[-17,0],[-2,0]],color+"55",b.r*1.5);
+      const trailLen = b.critical ? 26 : 18;
+      stroke([[-trailLen,0],[-2,0]],color+"66",b.r*(b.critical?2:1.5));
       stroke([[-10,0],[3,0]],"#735a41",2);
       stroke([[-9,-.7],[3,-.7]],"#f4d9a0",1);
       shape([[0,-b.r],[7,0],[0,b.r]],color,"#627d82");
       shape([[-10,0],[-14,-3],[-8,-2]],"#ecffec");
       shape([[-10,0],[-14,3],[-8,2]],"#c3e6d5");
+
+      if (b.critical) {
+        dot(0, 0, b.r + 2, "rgba(255, 230, 140, 0.5)");
+      }
       C.restore();
     } else {
       // 深外框、珊瑚紅彈體、亮核心：保持危險物辨識。
@@ -2296,8 +2840,199 @@ function frame(now) {
         dot(x,97,current?2.6:1.8,color);
       }
     }
+
+    // 區域守門者血條華麗外框
+    const boss = enemies.find(e => e.type === "boss" && !e.dead);
+    if (boss) {
+      rr(60, 134, 300, 32, 9, "rgba(25, 20, 36, 0.94)");
+      C.strokeStyle = boss.phase === 2 ? "#ff4d6d" : "#e6b34d";
+      C.lineWidth = 1.8;
+      C.strokeRect(60, 134, 300, 32);
+
+      const hpRatio = clamp(boss.hp / boss.maxHP, 0, 1);
+      rr(68, 151, 284, 7, 3.5, "#151526");
+      if (hpRatio > 0) {
+        const fillGrad = C.createLinearGradient(68, 151, 68 + 284 * hpRatio, 151);
+        fillGrad.addColorStop(0, "#ff507f");
+        fillGrad.addColorStop(1, boss.phase === 2 ? "#ff9bb0" : "#ffd182");
+        rr(68, 151, 284 * hpRatio, 7, 3.5, fillGrad);
+      }
+      text(
+        `👑 區域守門者 · ${boss.phase === 2 ? "狂怒超頻 (Phase 2)" : "警戒巡獵 (Phase 1)"}`,
+        210, 142, 10.5, "#fff2dc"
+      );
+    }
+
     C.restore();
   };
+
+  function updateCockpitWings() {
+    // 1. Stats
+    const dmgEl = document.getElementById("stat-val-dmg");
+    if (dmgEl && stats) {
+      dmgEl.textContent = Math.round(stats.damage || 13);
+      const rateEl = document.getElementById("stat-val-rate");
+      if (rateEl) rateEl.textContent = `${(1 / (stats.interval || 0.62)).toFixed(1)}/s`;
+      const critEl = document.getElementById("stat-val-crit");
+      if (critEl) critEl.textContent = `${Math.round((stats.crit || 0.05) * 100)}%`;
+      const spdEl = document.getElementById("stat-val-spd");
+      if (spdEl) spdEl.textContent = Math.round(stats.speed || 190);
+      const armEl = document.getElementById("stat-val-armor");
+      if (armEl) armEl.textContent = `${Math.round((stats.armor || 0) * 100)}%`;
+      const ddgEl = document.getElementById("stat-val-dodge");
+      if (ddgEl) ddgEl.textContent = `${Math.round((stats.dodge || 0) * 100)}%`;
+    }
+
+    // 2. Focus Overdrive Meter
+    const focusBar = document.getElementById("focus-meter-bar");
+    const focusBadge = document.getElementById("focus-tier-badge");
+    const focusTip = document.getElementById("focus-tip");
+    if (focusBar && focusBadge && focusTip) {
+      if (player && !player.moving && state === "play" && !cleared) {
+        const still = player.stillTime || 0;
+        const pct = Math.min(100, Math.round((still / 1.2) * 100));
+        focusBar.style.width = `${pct}%`;
+        if (still >= 1.2) {
+          focusBar.classList.add("overdrive");
+          focusBadge.className = "badge gold";
+          focusBadge.textContent = "專注超載 MAX";
+          focusTip.textContent = "★ 專注超載已激活！射擊威力與彈道特效最大化";
+        } else if (still >= 0.6) {
+          focusBar.classList.remove("overdrive");
+          focusBadge.className = "badge good";
+          focusBadge.textContent = "符文聚氣中";
+          focusTip.textContent = "蓄力中 · 即將解鎖專注超載";
+        } else {
+          focusBar.classList.remove("overdrive");
+          focusBadge.className = "badge";
+          focusBadge.textContent = "鎖定瞄準中";
+          focusTip.textContent = "停步聚氣 1.2 秒觸發「專注超載」";
+        }
+      } else {
+        focusBar.style.width = "0%";
+        focusBar.classList.remove("overdrive");
+        focusBadge.className = "badge";
+        focusBadge.textContent = player?.moving ? "移動走位中" : "待機";
+        focusTip.textContent = "停步即可自動射擊並累積專注蓄力";
+      }
+    }
+
+    // 3. Acquired Abilities Matrix
+    const buildList = document.getElementById("build-matrix-list");
+    const buildCount = document.getElementById("build-count");
+    if (buildList && buildCount) {
+      const activeAbilities = abilities.filter(a => n(a.id) > 0);
+      buildCount.textContent = `${activeAbilities.length} 項`;
+      if (activeAbilities.length === 0) {
+        buildList.innerHTML = `<div class="empty-hint">尚未習得能力 · 升級時選擇</div>`;
+      } else {
+        buildList.innerHTML = activeAbilities.map(a => `
+          <div class="matrix-item" title="${a.desc}">
+            <span class="m-icon">${a.icon}</span>
+            <span class="m-name">${a.name}</span>
+            <span class="m-badge">Lv.${n(a.id)}</span>
+          </div>
+        `).join("");
+      }
+    }
+
+    // 4. Room Track Progression
+    const roomTrack = document.getElementById("room-track");
+    const routeTitle = document.getElementById("route-title");
+    const goldBadge = document.getElementById("run-gold-badge");
+    if (roomTrack && routeTitle) {
+      const mode = getMode(runMode);
+      const cap = mode.roomCap;
+      routeTitle.textContent = `${mode.label} · 第 ${room}/${cap} 房`;
+      if (goldBadge) goldBadge.textContent = `◆ ${runGold}`;
+
+      let html = "";
+      for (let i = 1; i <= cap; i++) {
+        const isCleared = i < room;
+        const isCurrent = i === room;
+        const isBoss = (i % 5 === 0);
+        const isElite = (i % 5 === 4);
+        const isHeal = isHealRoom(i, runMode, meta);
+
+        let cls = "room-pip-box";
+        if (isCleared) cls += " cleared";
+        if (isCurrent) cls += " current";
+        if (isBoss) cls += " boss";
+
+        let icon = `${i}`;
+        if (isCleared) icon = "✓";
+        else if (isBoss) icon = "👑";
+        else if (isElite) icon = "⚔️";
+        else if (isHeal) icon = "💧";
+
+        html += `<div class="${cls}" title="第 ${i} 房">${icon}</div>`;
+      }
+      roomTrack.innerHTML = html;
+    }
+
+    // 5. Threat Radar
+    const threatList = document.getElementById("threat-list");
+    const threatCount = document.getElementById("threat-count");
+    if (threatList && threatCount) {
+      const liveEnemies = enemies.filter(e => !e.dead);
+      threatCount.textContent = `${liveEnemies.length} 體`;
+      if (liveEnemies.length === 0) {
+        threatList.innerHTML = `<div class="empty-hint">${cleared ? "房間已淨空 · 前往上方出口" : "無敵情目標"}</div>`;
+      } else {
+        const typeLabels = {
+          chaser: "近戰追擊者",
+          shooter: "魔導射手",
+          spread: "散彈術士",
+          dash: "疾風刺客",
+          aoe: "落區祭司",
+          fast: "迅捷獵犬",
+          elite: "精英守衛",
+          boss: "區域守門者"
+        };
+        threatList.innerHTML = liveEnemies.slice(0, 7).map(e => {
+          const hpPct = Math.round((e.hp / e.maxHP) * 100);
+          const name = typeLabels[e.type] || "未知敵人";
+          const isWind = e.mode === "wind";
+          return `
+            <div class="threat-pill">
+              <span class="threat-dot" style="background:${e.color}"></span>
+              <div class="threat-info">
+                <div class="threat-name">
+                  <span>${name}</span>
+                  <span style="font-size:10px;color:${isWind ? '#ff6b8b' : '#a2d5cf'}">${isWind ? '⚠️ 蓄力' : `${hpPct}%`}</span>
+                </div>
+                <div class="threat-hp-track">
+                  <div class="threat-hp-fill" style="width:${hpPct}%;background:${isWind ? '#ff4d6d' : '#85e8b4'}"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("") + (liveEnemies.length > 7 ? `<div class="tiny" style="text-align:center;color:#80a9b3">+${liveEnemies.length - 7} 名其他敵人</div>` : "");
+      }
+    }
+
+    // 6. Quick Action buttons
+    const muteBtn = document.getElementById("wing-mute-btn");
+    if (muteBtn) {
+      muteBtn.textContent = isSfxMuted() ? "音效：關" : "音效：開";
+    }
+  }
+
+  // Bind quick actions on cockpit wings
+  const wingMuteBtn = document.getElementById("wing-mute-btn");
+  if (wingMuteBtn) {
+    wingMuteBtn.onclick = () => {
+      toggleSfxMuted();
+      updateCockpitWings();
+    };
+  }
+  const wingPauseBtn = document.getElementById("wing-pause-btn");
+  if (wingPauseBtn) {
+    wingPauseBtn.onclick = () => {
+      if (state === "play") pause();
+      else if (state === "pause") resume();
+    };
+  }
 
 
 window.__ASTRA_ARCHER__ = {
