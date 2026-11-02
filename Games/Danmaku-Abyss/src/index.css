@@ -741,6 +741,14 @@ body {
   background: linear-gradient(0deg, rgba(5, 6, 15, 0.92), rgba(5, 6, 15, 0.35));
 }
 
+@media (min-width: 1024px) {
+  .da-touchbar {
+    justify-content: center;
+    background: transparent;
+    padding: 0.35rem 0.75rem 0.65rem;
+  }
+}
+
 .da-touch {
   min-height: 48px;
   min-width: 96px;

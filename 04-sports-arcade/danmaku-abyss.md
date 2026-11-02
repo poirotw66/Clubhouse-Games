@@ -128,11 +128,27 @@
 
 受擊、靈擊、特技、王擊破、道中擊破會觸發畫面震動／闃光與粒子；擦彈有微粒回饋，連段或對王的重擊有短暫 hit-stop，並以 `synthAudio`（`playImpact`／`playCombo`／`playCapture`）配音。`prefers-reduced-motion: reduce` 時關閉震動、hit-stop、粒子與閃光，模擬層不受影響。
 
+### 戰術抬頭顯示與機庫視覺革新（HUD & Visual Overhaul）
+
+1. **貼身動態戰術光弧（Tactical Proximity Arc）**：
+   - 即時計算戰機與最近敵方目標的歐氏距離，將核心規則「距離越近、傷害越高」視覺化為動態光弧。
+   - **極限貼臉區（距離 < 135px）**：繪製赤金高亮戰術弧圈與 `POINT-BLANK / ×2.20 MAX` 增傷徽標，給予玩家極致的近身搏命正回饋。
+   - **中距離戰術區（135–260px）**：繪製電青色環狀標記與當前增傷倍率（如 `×1.50`）。
+   - **遠距離衰減區（> 260px）**：淡化漸層標記，提示玩家往前站位獲取火力優勢。
+2. **街機框體副螢幕（Arcade Cabinet Wings，寬度 ≥ 1024px）**：
+   - **左翼戰術監控儀**：顯示機體藍圖規格、精準判定半徑（3.2px）與擦彈半徑（26px）、特技冷卻計，以及**本局已啟動的 Roguelike 強化甲板**，支援懸浮詞條說明與稀有度光階。
+   - **右翼首領威脅雷達**：王戰時動態展開血條、符卡名、Capture 倒數計時與 50,000 PTS 獎勵儀，配備擦彈超載倍率儀（Graze Overdrive 1.00x–4.00x）與全套鍵盤操作手冊。
+3. **行動端強化抽屜（Mobile Upgrades Drawer）**：
+   - 手機版畫面上方設有動態強化晶片（如「強化 3」），點擊即可滑出半透明毛玻璃抽屜，隨時盤點本局裝備構築。
+4. **深淵機庫展示室（Craft Hangar Showcase）**：
+   - 全新升級「選擇機體」為沈浸式機庫介面，具備機體向量輪廓投影、扇型射程分佈、判定精確度量測儀與專屬特技數值展示。
+
 ## 備註
 
 - 以 2D Canvas 繪製，不使用 3D 引擎；子彈為程式繪製的簡單圖形，不含任何第三方美術資源。
 - 全部彈幕與敵機行為皆為決定性，相同種子碼與相同輸入序列會重現完全相同的一趟。
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`danmaku-abyss:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「潛入深淵」衝突。
-- **機體／圖鑑**：`src/game/crafts.ts`；標題「選擇機體」「符卡圖鑑」。
+- **機體／圖鑑**：`src/game/crafts.ts`、`src/components/CraftHangarModal.tsx`；標題「選擇機體」「符卡圖鑑」。
+- **街機框體**：`src/components/CabinetWings.tsx`；桌面端大螢幕展示。
 - **每日挑戰**：`src/game/daily.ts`；標題「今日挑戰」、結算分享文案。
-- 實作路徑：`Games/Danmaku-Abyss/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`；核心：`src/game/`。
+- 實作路徑：`Games/Danmaku-Abyss/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`、`src/components/CabinetWings.tsx`、`src/components/CraftHangarModal.tsx`；核心：`src/game/`。

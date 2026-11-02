@@ -11,6 +11,8 @@ import {
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
+import { CabinetLeftWing, CabinetRightWing } from './components/CabinetWings';
+import { CraftHangarModal } from './components/CraftHangarModal';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
@@ -121,6 +123,7 @@ export default function App(): React.ReactElement {
   const [reduceMotion, setReduceMotion] = useState(() => prefersReducedMotion());
   const [dailyBest, setDailyBest] = useState<DailyBestRecord>(() => loadDailyBest());
   const [shareCopied, setShareCopied] = useState(false);
+  const [showLoadout, setShowLoadout] = useState(false);
   /** Mirrors the simulation for the HUD only; the canvas reads the ref directly. */
   const [hud, setHud] = useState<RunState | null>(null);
   /** Mode id for the active run; null = free play / daily. Kept so retry restarts the same mode. */
@@ -744,81 +747,11 @@ export default function App(): React.ReactElement {
         )}
 
         {showCrafts && (
-          <div
-            className="da-dialog-scrim fixed inset-0 z-40 flex items-end justify-center p-4 sm:items-center"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="da-crafts-title"
-            onClick={() => setShowCrafts(false)}
-          >
-            <div
-              className="da-dialog flex max-h-[85vh] w-full max-w-lg flex-col rounded-[16px] p-4 text-left"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 id="da-crafts-title" className="text-xl font-black text-cyan-100">
-                    選擇機體
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    射擊型態／判定／特技各異・通關解鎖・各機體另記最佳分
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="關閉機體選擇"
-                  onClick={() => setShowCrafts(false)}
-                  className="da-close"
-                >
-                  關閉
-                </button>
-              </div>
-              <ul className="mt-3 space-y-2 overflow-y-auto pr-1">
-                {CRAFTS.map((craft) => {
-                  const unlocked = isCraftUnlocked(craft, progress.clearCount);
-                  const selected = progress.selectedCraftId === craft.id;
-                  const craftBest = progress.craftBest[craft.id];
-                  return (
-                    <li key={craft.id}>
-                      <button
-                        type="button"
-                        disabled={!unlocked}
-                        onClick={() => {
-                          selectCraft(craft.id);
-                          setShowCrafts(false);
-                        }}
-                        className={`da-list-item ${selected ? 'da-list-item--selected' : ''}`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-slate-100">{craft.name}</span>
-                          <span className="text-xs text-slate-400">
-                            {!unlocked
-                              ? `通關 ${craft.unlockClears} 次解鎖`
-                              : selected
-                                ? '使用中'
-                                : '可選'}
-                          </span>
-                        </span>
-                        {unlocked && (
-                          <>
-                            <span className="mt-1 text-sm text-slate-400">{craft.blurb}</span>
-                            <span className="mt-1 text-xs text-amber-200">
-                              特技 {craft.special.name}：{craft.special.blurb}
-                            </span>
-                            {typeof craftBest === 'number' && (
-                              <span className="mt-1 text-xs text-cyan-300">
-                                最佳 {craftBest.toLocaleString('zh-Hant')}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          </div>
+          <CraftHangarModal
+            progress={progress}
+            onSelectCraft={selectCraft}
+            onClose={() => setShowCrafts(false)}
+          />
         )}
 
         {showCaptures && (
@@ -935,6 +868,16 @@ export default function App(): React.ReactElement {
           </span>
         </div>
         <div className="da-hud-meta">
+          {s && s.upgrades.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowLoadout(true)}
+              className="da-hud-chip text-fuchsia-300 border border-fuchsia-500/40 hover:bg-fuchsia-950/60 transition-all font-bold lg:hidden"
+              aria-label={`檢視本局強化 (${s.upgrades.length})`}
+            >
+              強化 {s.upgrades.length}
+            </button>
+          )}
           <span className="da-hud-chip">
             火力 <b className="text-cyan-300">{s?.powerTier ?? 1}</b>
           </span>
@@ -960,7 +903,7 @@ export default function App(): React.ReactElement {
       )}
 
       {boss?.card && (
-        <div className="da-card-banner shrink-0">
+        <div className="da-card-banner shrink-0 lg:hidden">
           <span>{boss.card.name}</span>
           <span className="tabular-nums">
             {Math.max(0, boss.card.timeLimit - boss.cardElapsed).toFixed(1)}s
@@ -968,63 +911,128 @@ export default function App(): React.ReactElement {
         </div>
       )}
 
-      {/* Field */}
-      <div
-        ref={surfaceRef}
-        className="flex-1 min-h-0 relative"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endPointer}
-        onPointerCancel={endPointer}
-      >
-        <GameCanvas
-          stateRef={stateRef}
-          juiceRef={juiceRef}
-          paused={paused}
-          reduceMotion={reduceMotion}
-        />
+      {/* Field with Cabinet Wings on desktop */}
+      <div className="flex-1 min-h-0 flex justify-center relative overflow-hidden">
+        {/* Left Wing (Desktop) */}
+        <CabinetLeftWing hud={s} />
 
-        {paused && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="da-pause">
-              <p>暫停</p>
-              <p className="mt-1 text-sm text-slate-400">按 P 或 Esc 繼續</p>
-            </div>
-          </div>
-        )}
+        {/* Center Battle Field Container */}
+        <div
+          ref={surfaceRef}
+          className="flex-1 max-w-[480px] min-h-0 relative h-full flex flex-col"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endPointer}
+          onPointerCancel={endPointer}
+        >
+          <GameCanvas
+            stateRef={stateRef}
+            juiceRef={juiceRef}
+            paused={paused}
+            reduceMotion={reduceMotion}
+          />
 
-        {s?.phase === 'upgrade' && (
-          <div className="da-upgrade-scrim absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
-              <p className="mb-3 text-center text-base font-bold text-fuchsia-100">
-                第 {s.stage} 階段結束 — 選擇一項強化
-              </p>
-              <div className="grid gap-2">
-                {s.offered.map((id) => {
-                  const u = UPGRADE_BY_ID[id];
-                  if (!u) return null;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => pick(id)}
-                      className={`da-upgrade-card ${RARITY_CLASS[u.rarity] ?? 'rarity-common'}`}
-                    >
-                      <span className="font-black">{u.name}</span>
-                      <span className="mt-0.5 block text-sm text-slate-400">{u.text}</span>
-                      {u.conditional && (
-                        <span className="mt-1 block text-xs text-fuchsia-300">
-                          條件：{CONDITION_TEXT[u.conditional.when]}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+          {paused && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="da-pause">
+                <p>暫停</p>
+                <p className="mt-1 text-sm text-slate-400">按 P 或 Esc 繼續</p>
               </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {s?.phase === 'upgrade' && (
+            <div className="da-upgrade-scrim absolute inset-0 flex items-center justify-center p-4">
+              <div className="w-full max-w-md">
+                <p className="mb-3 text-center text-base font-bold text-fuchsia-100">
+                  第 {s.stage} 階段結束 — 選擇一項強化
+                </p>
+                <div className="grid gap-2">
+                  {s.offered.map((id) => {
+                    const u = UPGRADE_BY_ID[id];
+                    if (!u) return null;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => pick(id)}
+                        className={`da-upgrade-card ${RARITY_CLASS[u.rarity] ?? 'rarity-common'}`}
+                      >
+                        <span className="font-black">{u.name}</span>
+                        <span className="mt-0.5 block text-sm text-slate-400">{u.text}</span>
+                        {u.conditional && (
+                          <span className="mt-1 block text-xs text-fuchsia-300">
+                            條件：{CONDITION_TEXT[u.conditional.when]}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Wing (Desktop) */}
+        <CabinetRightWing
+          hud={s}
+          best={best}
+          dailyBest={dailyBest}
+          isDailyRun={isDailyRun}
+          activeMode={activeMode}
+        />
       </div>
+
+      {/* Mobile Active Upgrades Sheet */}
+      {showLoadout && s && (
+        <div
+          className="da-dialog-scrim fixed inset-0 z-50 flex items-center justify-center p-4 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="本局強化裝備庫"
+          onClick={() => setShowLoadout(false)}
+        >
+          <div
+            className="da-dialog flex max-h-[85vh] w-full max-w-md flex-col rounded-[20px] p-4 text-left border border-fuchsia-500/40 bg-[#0e0c24]/95 shadow-[0_0_36px_rgba(232,121,249,0.25)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-fuchsia-500/20 pb-2 mb-3">
+              <h3 className="font-display text-base font-bold text-fuchsia-200">
+                本局強化裝備 ({s.upgrades.length})
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowLoadout(false)}
+                className="da-close text-xs"
+              >
+                關閉
+              </button>
+            </div>
+            <ul className="space-y-2 overflow-y-auto max-h-[60vh] pr-1 text-xs">
+              {s.upgrades.map((id, idx) => {
+                const u = UPGRADE_BY_ID[id];
+                if (!u) return null;
+                const rarityClass = RARITY_CLASS[u.rarity] ?? 'rarity-common';
+                return (
+                  <li key={`${id}-${idx}`} className={`rounded-xl border p-2.5 ${rarityClass}`}>
+                    <div className="flex items-center justify-between font-bold">
+                      <span>{u.name}</span>
+                      <span className="text-[10px] uppercase font-mono">{u.rarity}</span>
+                    </div>
+                    <p className="text-slate-300 mt-1">{u.text}</p>
+                    {u.conditional && (
+                      <span className="text-amber-300 block mt-1 text-[11px]">
+                        條件：{CONDITION_TEXT[u.conditional.when]}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Touch bomb / special: kept off the field so steering never hits them. */}
       <div className="da-touchbar">

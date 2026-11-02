@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { FIELD_H, FIELD_W, FRAGMENT_ARM_SEC } from '../game/constants';
 import { craftById, DEFAULT_CRAFT_ID } from '../game/crafts';
-import { grazeRadius, hitboxRadius } from '../game/engine';
+import { grazeRadius, hitboxRadius, rangeDamageMult } from '../game/engine';
 import type { JuiceState } from '../game/juice';
 import type { Bullet, Enemy, RunState } from '../game/types';
 
@@ -384,6 +384,68 @@ function drawShip(
   ctx.fill();
 }
 
+/** Draws the tactical proximity reticle indicating damage falloff vs point-blank burst. */
+function drawProximityArc(ctx: CanvasRenderingContext2D, s: RunState): void {
+  if (s.enemies.length === 0) return;
+
+  // Find nearest enemy or boss
+  let nearestDist = 9999;
+  for (const e of s.enemies) {
+    const d = Math.hypot(e.x - s.px, e.y - s.py);
+    if (e.isBoss) {
+      nearestDist = d;
+      break;
+    }
+    if (d < nearestDist) {
+      nearestDist = d;
+    }
+  }
+
+  const mult = rangeDamageMult(s, nearestDist);
+  const isPointBlank = nearestDist <= 135 || mult >= 1.8;
+  const isMid = nearestDist <= 260 && !isPointBlank;
+
+  const arcRadius = 24;
+  const startAngle = -Math.PI * 0.78;
+  const endAngle = -Math.PI * 0.22;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(s.px, s.py, arcRadius, startAngle, endAngle);
+
+  if (isPointBlank) {
+    const pulse = 0.75 + 0.25 * Math.sin(performance.now() / 55);
+    ctx.strokeStyle = `rgba(251, 113, 133, ${pulse})`;
+    ctx.lineWidth = 3.2;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(s.px, s.py, arcRadius + 2.5, startAngle, endAngle);
+    ctx.strokeStyle = `rgba(251, 191, 36, ${pulse * 0.9})`;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    ctx.font = '800 9px Orbitron, sans-serif';
+    ctx.fillStyle = '#fef08a';
+    ctx.textAlign = 'center';
+    ctx.fillText(`×${mult.toFixed(2)} MAX`, s.px, s.py - arcRadius - 4);
+  } else if (isMid) {
+    ctx.strokeStyle = 'rgba(45, 212, 191, 0.75)';
+    ctx.lineWidth = 2.0;
+    ctx.stroke();
+
+    ctx.font = '700 8px Orbitron, sans-serif';
+    ctx.fillStyle = '#a5f3fc';
+    ctx.textAlign = 'center';
+    ctx.fillText(`×${mult.toFixed(2)}`, s.px, s.py - arcRadius - 3);
+  } else {
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /**
  * Draws the field every animation frame straight from the simulation snapshot.
  * Juice (shake / particles) is presentation-only and never feeds back into step().
@@ -451,6 +513,7 @@ export function GameCanvas({ stateRef, juiceRef, paused, reduceMotion }: Props):
       const blinking = s.invuln > 0 && Math.floor(s.invuln * 12) % 2 === 0;
       if (!blinking) {
         drawShip(ctx, s.px, s.py, s.focus, s.powerTier, trail, s.craftId);
+        drawProximityArc(ctx, s);
       }
 
       if (s.focus) {
