@@ -4,7 +4,8 @@ export type GameState =
   | 'guessing'
   | 'feedback'
   | 'results'
-  | 'stats';
+  | 'stats'
+  | 'matrix';
 
 export type GameMode =
   | 'single'
