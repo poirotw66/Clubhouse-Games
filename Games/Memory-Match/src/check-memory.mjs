@@ -6,6 +6,7 @@ import {
   PAIR_OPTIONS,
   THEME_OPTIONS,
   allMatched,
+  analyzeMemoryState,
   bestStorageSlot,
   buildDeck,
   clampPairCount,
@@ -373,5 +374,52 @@ assert.equal(fox.style, 'adventurous');
 const styled = styleFromOpponent(fox);
 assert.equal(styled.difficulty, fox.difficulty);
 assert.equal(styled.style, 'adventurous');
+
+// --- Cognitive Radar & analyzeMemoryState ---
+const testDeck = [
+  { id: 'star-0', face: 'star', matched: false, kind: 'normal' },
+  { id: 'moon-1', face: 'moon', matched: false, kind: 'normal' },
+  { id: 'star-2', face: 'star', matched: false, kind: 'normal' },
+  { id: 'moon-3', face: 'moon', matched: false, kind: 'normal' },
+];
+
+const initAnalysis = analyzeMemoryState(testDeck, new Set(), 0, 0);
+assert.equal(initAnalysis.totalCards, 4);
+assert.equal(initAnalysis.matchedCards, 0);
+assert.equal(initAnalysis.remainingCards, 4);
+assert.equal(initAnalysis.seenCount, 0);
+assert.equal(initAnalysis.explorationPct, 0);
+assert.equal(initAnalysis.knownReadyPairs, 0);
+assert.equal(initAnalysis.accuracyPct, 100);
+assert.equal(initAnalysis.comboLevel, 0);
+
+// Reveal only index 0 (star) and index 1 (moon)
+const seenPartial = new Set([0, 1]);
+const partialAnalysis = analyzeMemoryState(testDeck, seenPartial, 1, 0);
+assert.equal(partialAnalysis.seenCount, 2);
+assert.equal(partialAnalysis.explorationPct, 50);
+assert.equal(partialAnalysis.knownReadyPairs, 0, 'no pair has both cards seen yet');
+
+// Now reveal index 2 (the second star)
+const seenStarPair = new Set([0, 1, 2]);
+const starReadyAnalysis = analyzeMemoryState(testDeck, seenStarPair, 2, 0);
+assert.equal(starReadyAnalysis.knownReadyPairs, 1, 'both star cards are seen in memory');
+assert.deepEqual(starReadyAnalysis.knownReadyIndices.sort(), [0, 2]);
+assert.ok(starReadyAnalysis.cognitiveStatus.includes('鎖定 1 組'));
+
+// Mark star pair as matched
+const matchedDeck = [
+  { id: 'star-0', face: 'star', matched: true, kind: 'normal' },
+  { id: 'moon-1', face: 'moon', matched: false, kind: 'normal' },
+  { id: 'star-2', face: 'star', matched: true, kind: 'normal' },
+  { id: 'moon-3', face: 'moon', matched: false, kind: 'normal' },
+];
+const matchedAnalysis = analyzeMemoryState(matchedDeck, seenStarPair, 3, 2);
+assert.equal(matchedAnalysis.matchedCards, 2);
+assert.equal(matchedAnalysis.remainingCards, 2);
+assert.equal(matchedAnalysis.knownReadyPairs, 0, 'already matched cards do not count as ready in memory');
+assert.equal(matchedAnalysis.comboLevel, 2);
+assert.equal(matchedAnalysis.comboMultiplier, 2);
+assert.equal(matchedAnalysis.comboLabel, '雙重超頻');
 
 console.log('memory-match check ok');

@@ -597,3 +597,105 @@ export function saveVersusWin(
 export function faceUsesPhoto(face: FaceId): boolean {
   return (PHOTO_FACE_IDS as readonly string[]).includes(face);
 }
+
+export interface MemoryRadarAnalysis {
+  totalCards: number;
+  matchedCards: number;
+  remainingCards: number;
+  seenCount: number;
+  explorationPct: number;
+  knownReadyPairs: number;
+  knownReadyIndices: number[];
+  accuracyPct: number;
+  comboLevel: number;
+  comboLabel: string;
+  comboMultiplier: number;
+  cognitiveStatus: string;
+}
+
+/**
+ * Computes live cognitive radar telemetry:
+ * - exploration progress across the board
+ * - working memory pairs already discovered but not yet matched
+ * - move accuracy ratio
+ * - synaptic combo resonance multiplier
+ */
+export function analyzeMemoryState(
+  cards: readonly MemoryCard[],
+  seenIndices: ReadonlySet<number> | readonly number[],
+  moves: number,
+  combo: number,
+  flipNeed: number = 2,
+): MemoryRadarAnalysis {
+  const seenSet = seenIndices instanceof Set ? seenIndices : new Set(seenIndices);
+  const totalCards = cards.length;
+  let matchedCards = 0;
+
+  const unmatchedByFace = new Map<FaceId, number[]>();
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    if (card.matched) {
+      matchedCards += 1;
+      continue;
+    }
+    const list = unmatchedByFace.get(card.face) ?? [];
+    list.push(i);
+    unmatchedByFace.set(card.face, list);
+  }
+
+  const remainingCards = totalCards - matchedCards;
+  const seenCount = Math.min(totalCards, seenSet.size);
+  const explorationPct = totalCards > 0 ? Math.round((seenCount / totalCards) * 100) : 0;
+
+  let knownReadyPairs = 0;
+  const knownReadyIndices: number[] = [];
+  for (const indices of unmatchedByFace.values()) {
+    if (indices.length >= flipNeed && indices.every((idx) => seenSet.has(idx))) {
+      knownReadyPairs += 1;
+      knownReadyIndices.push(...indices);
+    }
+  }
+
+  const matchedGroups = Math.floor(matchedCards / Math.max(1, flipNeed));
+  const accuracyPct = moves <= 0 ? 100 : Math.min(100, Math.max(0, Math.round((matchedGroups / moves) * 100)));
+
+  const comboLevel = combo;
+  const comboMultiplier = Math.max(1, Math.min(5, combo));
+  const comboLabel =
+    combo === 0
+      ? '冷卻蓄能'
+      : combo === 1
+        ? '突觸共振'
+        : combo === 2
+          ? '雙重超頻'
+          : combo === 3
+            ? '三重狂熱'
+            : combo === 4
+              ? '神經超感'
+              : '思維極限';
+
+  let cognitiveStatus = '🧠 記憶矩陣分析就緒';
+  if (knownReadyPairs > 0) {
+    cognitiveStatus = `⚡ 鎖定 ${knownReadyPairs} 組已知配對待翻！`;
+  } else if (explorationPct < 35 && remainingCards > 0) {
+    cognitiveStatus = '🔍 探索未知牌區中...';
+  } else if (combo >= 2) {
+    cognitiveStatus = '🔥 神經超頻共振中！';
+  }
+
+  return {
+    totalCards,
+    matchedCards,
+    remainingCards,
+    seenCount,
+    explorationPct,
+    knownReadyPairs,
+    knownReadyIndices,
+    accuracyPct,
+    comboLevel,
+    comboLabel,
+    comboMultiplier,
+    cognitiveStatus,
+  };
+}
+

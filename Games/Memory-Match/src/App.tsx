@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -63,8 +64,10 @@ import {
   PAIR_OPTIONS,
   THEME_OPTIONS,
   allMatched,
+  analyzeMemoryState,
   buildDeck,
   clampPairCount,
+  cpuCapacityFor,
   faceUsesPhoto,
   gridColsClass,
   gridGapClass,
@@ -182,6 +185,9 @@ function FlipCard({
   matchPulse,
   disabled,
   dense,
+  focused,
+  echoSeen,
+  echoReady,
   onClick,
 }: {
   card: MemoryCard;
@@ -192,6 +198,9 @@ function FlipCard({
   disabled: boolean;
   /** Large boards use squarer cards on phones to cut scroll height. */
   dense?: boolean;
+  focused?: boolean;
+  echoSeen?: boolean;
+  echoReady?: boolean;
   onClick: () => void;
 }) {
   const classNames = [
@@ -200,6 +209,7 @@ function FlipCard({
     card.matched ? 'is-matched' : '',
     missPulse ? 'is-miss' : '',
     matchPulse ? 'is-match-pop' : '',
+    focused ? 'is-focused' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -216,7 +226,15 @@ function FlipCard({
         <span
           className="mm-face mm-face-back"
           style={{ backgroundImage: `url(${import.meta.env.BASE_URL}card-back.jpg)` }}
-        />
+        >
+          {echoSeen && !card.matched && !show && (
+            <span
+              className={`mm-echo-pip${echoReady ? ' mm-echo-pip--ready' : ''}`}
+              aria-hidden
+              title={echoReady ? '已記住完整配對！' : '曾翻開過'}
+            />
+          )}
+        </span>
         <span
           className={`mm-face mm-face-front ${card.kind === 'insight' ? 'is-insight' : ''} ${
             card.kind === 'bomb' ? 'is-bomb' : ''
@@ -328,6 +346,13 @@ export default function App() {
   const [timeLimitSec, setTimeLimitSec] = useState<number | null>(null);
   const [swapEverySec, setSwapEverySec] = useState<number | null>(null);
   const [bombPenaltySec, setBombPenaltySec] = useState(0);
+  const [seenIndices, setSeenIndices] = useState<Set<number>>(() => new Set());
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+
+  const radar = useMemo(
+    () => analyzeMemoryState(cards, seenIndices, moves, combo, flipNeed),
+    [cards, seenIndices, moves, combo, flipNeed],
+  );
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const turnRef = useRef(0);
@@ -385,6 +410,8 @@ export default function App() {
     setCpuMemory(emptyCpuMemory());
     setLastStars(null);
     setShareCopied(false);
+    setSeenIndices(new Set());
+    setFocusedIndex(null);
     turnRef.current = 0;
     resolvingRef.current = false;
     cpuScheduledRef.current = false;
@@ -837,6 +864,11 @@ export default function App() {
         playCard();
         haptic('tap');
         setFlipped([i]);
+        setSeenIndices((prev) => {
+          const next = new Set(prev);
+          next.add(i);
+          return next;
+        });
         if (cpuSecondFlipRef.current != null) {
           window.clearTimeout(cpuSecondFlipRef.current);
         }
@@ -845,6 +877,11 @@ export default function App() {
           playCard();
           haptic('tap');
           setFlipped([i, j]);
+          setSeenIndices((prev) => {
+            const next = new Set(prev);
+            next.add(j);
+            return next;
+          });
         }, CPU_SECOND_FLIP_MS);
       } catch {
         cpuScheduledRef.current = false;
@@ -881,6 +918,11 @@ export default function App() {
       setPeekArmed(false);
       setPeekCharges((c) => Math.max(0, c - 1));
       setPeekFlash([index]);
+      setSeenIndices((prev) => {
+        const next = new Set(prev);
+        next.add(index);
+        return next;
+      });
       setCpuMemory((mem) =>
         rememberRevealed(mem, cards, [index], turnRef.current, cpuDifficulty, pairCount),
       );
@@ -895,6 +937,11 @@ export default function App() {
     playCard();
     haptic('tap');
     setFlipped((f) => [...f, index]);
+    setSeenIndices((prev) => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
   };
 
   const handleHint = () => {
@@ -903,6 +950,11 @@ export default function App() {
     const group = hintPairIndices(cards, flipNeed);
     if (!group) return;
     setHintFlash(group);
+    setSeenIndices((prev) => {
+      const next = new Set(prev);
+      for (const g of group) next.add(g);
+      return next;
+    });
     setCpuMemory((mem) =>
       rememberRevealed(mem, cards, group, turnRef.current, cpuDifficulty, pairCount),
     );
@@ -975,6 +1027,87 @@ export default function App() {
   ]
     .filter(Boolean)
     .join(' · ');
+
+  useEffect(() => {
+    if (screen !== 'play') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const key = e.key;
+
+      if (key === 'h' || key === 'H') {
+        if (canHint) {
+          e.preventDefault();
+          handleHint();
+        }
+        return;
+      }
+      if (key === 'p' || key === 'P') {
+        if (mode === 'special' && peekCharges > 0 && !peekArmed) {
+          e.preventDefault();
+          armPeek();
+        }
+        return;
+      }
+      if (key === 'r' || key === 'R') {
+        e.preventDefault();
+        restart();
+        return;
+      }
+
+      const total = cards.length;
+      if (total === 0) return;
+
+      let cols = 4;
+      if (gridRef.current) {
+        const gridComputed = window.getComputedStyle(gridRef.current);
+        const colTemplate = gridComputed.getPropertyValue('grid-template-columns');
+        const countCols = colTemplate.split(' ').filter(Boolean).length;
+        if (countCols > 0) cols = countCols;
+      }
+
+      let nextIndex = focusedIndex ?? 0;
+      if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
+        e.preventDefault();
+        nextIndex = (nextIndex - 1 + total) % total;
+        setFocusedIndex(nextIndex);
+      } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
+        e.preventDefault();
+        nextIndex = (nextIndex + 1) % total;
+        setFocusedIndex(nextIndex);
+      } else if (key === 'ArrowUp' || key === 'w' || key === 'W') {
+        e.preventDefault();
+        nextIndex = (nextIndex - cols + total) % total;
+        setFocusedIndex(nextIndex);
+      } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+        e.preventDefault();
+        nextIndex = (nextIndex + cols) % total;
+        setFocusedIndex(nextIndex);
+      } else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        if (focusedIndex !== null && focusedIndex >= 0 && focusedIndex < total) {
+          onCard(focusedIndex);
+        } else if (total > 0) {
+          setFocusedIndex(0);
+          onCard(0);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    screen,
+    cards.length,
+    focusedIndex,
+    canHint,
+    mode,
+    peekCharges,
+    peekArmed,
+    locks,
+    won,
+    lost,
+    restart,
+  ]);
 
   if (screen === 'campaign') {
     return (
@@ -1139,24 +1272,135 @@ export default function App() {
 
   return (
     <div
-      className="mm-shell flex flex-col items-center justify-start sm:justify-center p-3 sm:p-4 gap-2 sm:gap-3"
+      className="mm-shell flex flex-col items-center justify-start p-3 sm:p-4 gap-2 sm:gap-3"
       style={shellBg()}
     >
       <BackToMenu />
       <h1 className="mm-title">記憶配對</h1>
       <p className="mm-title-sub">Memory Match</p>
 
-      {showTip && (
-        <div className="mm-tip" role="note">
-          <p className="flex-1 leading-snug">
-            點牌翻開配對。可玩每日盤（同日同局）、短戰役（星數解鎖章節），或挑戰有個性的 CPU
-            名冊。大盤面可先收合設定。
-          </p>
-          <button type="button" onClick={dismissTip} aria-label="關閉提示">
-            知道了
-          </button>
-        </div>
-      )}
+      <div className="mm-cockpit-shell">
+        {/* Left Wing: Brain Telemetry & Synergy Radar */}
+        <aside className="mm-wing mm-wing--left" aria-label="腦力遙測與記憶矩陣">
+          <div className="mm-wing__title">
+            <span className="text-teal-400">⚡</span>
+            <span>腦力遙測與記憶矩陣</span>
+          </div>
+
+          <div className="mm-wing__card">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">記憶精準率</span>
+              <span className="mm-wing__value text-teal-300">{radar.accuracyPct}%</span>
+            </div>
+            <div className="mm-bar-track">
+              <div
+                className="mm-bar-fill bg-gradient-to-r from-teal-400 to-emerald-400"
+                style={{ width: `${radar.accuracyPct}%` }}
+              />
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>步數效率</span>
+              <span>
+                {moves} 步 / {Math.floor(radar.matchedCards / Math.max(1, flipNeed))} 組
+              </span>
+            </div>
+          </div>
+
+          <div className="mm-wing__card">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">連擊超頻儀</span>
+              <span className="mm-wing__value text-amber-300">×{radar.comboMultiplier}</span>
+            </div>
+            <div className="mm-bar-track">
+              <div
+                className="mm-bar-fill bg-gradient-to-r from-amber-400 to-rose-400"
+                style={{ width: `${Math.min(100, (radar.comboLevel / 5) * 100)}%` }}
+              />
+            </div>
+            <div className="mm-wing__row text-xs">
+              <span className="text-slate-400">狀態階層</span>
+              <span className="text-amber-200 font-bold">{radar.comboLabel}</span>
+            </div>
+          </div>
+
+          <div className="mm-wing__card">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">盤面探勘進度</span>
+              <span className="mm-wing__value text-sky-300">{radar.explorationPct}%</span>
+            </div>
+            <div className="mm-bar-track">
+              <div
+                className="mm-bar-fill bg-gradient-to-r from-sky-400 to-indigo-400"
+                style={{ width: `${radar.explorationPct}%` }}
+              />
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>已探明牌數</span>
+              <span>
+                {radar.seenCount} / {radar.totalCards} 張
+              </span>
+            </div>
+          </div>
+
+          <div
+            className={
+              radar.knownReadyPairs > 0
+                ? 'mm-intel-alert mm-intel-alert--alert'
+                : 'mm-intel-alert'
+            }
+          >
+            <div className="font-bold">{radar.cognitiveStatus}</div>
+            <div className="text-xs mt-1 text-slate-300 leading-snug">
+              {radar.knownReadyPairs > 0
+                ? '大腦已探明雙子位置，金色回音標記已浮現，可直接收牌！'
+                : '翻牌後牌面將保留微光記憶回音，持續擴充工作記憶。'}
+            </div>
+          </div>
+
+          <div className="mm-wing__card">
+            <span className="text-xs font-bold text-slate-300 tracking-wider">鍵盤極速操控</span>
+            <div className="mm-key-guide-grid">
+              <div className="mm-key-item">
+                <kbd className="mm-key-badge">WASD</kbd>
+                <span>移標</span>
+              </div>
+              <div className="mm-key-item">
+                <kbd className="mm-key-badge">Space</kbd>
+                <span>翻牌</span>
+              </div>
+              <div className="mm-key-item">
+                <kbd className="mm-key-badge">H</kbd>
+                <span>提示</span>
+              </div>
+              <div className="mm-key-item">
+                <kbd className="mm-key-badge">P</kbd>
+                <span>洞察</span>
+              </div>
+              <div className="mm-key-item">
+                <kbd className="mm-key-badge">R</kbd>
+                <span>重開</span>
+              </div>
+              <div className="mm-key-item">
+                <kbd className="mm-key-badge">↑↓←→</kbd>
+                <span>方向</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Center Stage: Grid Board & Controls */}
+        <main className="mm-board-center">
+          {showTip && (
+            <div className="mm-tip" role="note">
+              <p className="flex-1 leading-snug">
+                點牌翻開配對。可玩每日盤（同日同局）、短戰役（星數解鎖章節），或挑戰有個性的 CPU
+                名冊。大盤面可先收合設定。
+              </p>
+              <button type="button" onClick={dismissTip} aria-label="關閉提示">
+                知道了
+              </button>
+            </div>
+          )}
 
       <div className="w-full max-w-xl flex flex-col gap-2 items-center">
         <button
@@ -1258,6 +1502,25 @@ export default function App() {
         {hudCells}
       </div>
 
+      {/* Mobile tactical summary bar */}
+      <div className="mm-mobile-tactical" role="status" aria-label="記憶雷達概況">
+        <span className="font-bold text-teal-300">精準率 {radar.accuracyPct}%</span>
+        <span className="text-slate-400">·</span>
+        <span
+          className={radar.knownReadyPairs > 0 ? 'text-amber-300 font-bold' : 'text-slate-300'}
+        >
+          {radar.knownReadyPairs > 0
+            ? `⚡ 鎖定 ${radar.knownReadyPairs} 組待收`
+            : `探勘 ${radar.explorationPct}%`}
+        </span>
+        <span className="text-slate-400">·</span>
+        <span className="text-sky-300">
+          {radar.comboMultiplier > 1
+            ? `×${radar.comboMultiplier} 超頻`
+            : `${radar.seenCount}/${cards.length} 張`}
+        </span>
+      </div>
+
       <div className={`mm-board-stage ${boardWide}`}>
         <div
           ref={gridRef}
@@ -1282,13 +1545,19 @@ export default function App() {
                 missPulse={missPulse.includes(i)}
                 matchPulse={matchPulse.includes(i)}
                 dense={faceLike >= 18 || cards.length >= 30}
+                focused={focusedIndex === i}
+                echoSeen={seenIndices.has(i)}
+                echoReady={radar.knownReadyIndices.includes(i)}
                 disabled={
                   locks ||
                   hintFlash.length > 0 ||
                   (mode === 'versus' && turnOwner !== 'player') ||
                   (!peekArmed && peekFlash.length > 0)
                 }
-                onClick={() => onCard(i)}
+                onClick={() => {
+                  setFocusedIndex(i);
+                  onCard(i);
+                }}
               />
             );
           })}
@@ -1335,6 +1604,152 @@ export default function App() {
       {mode === 'daily' && (
         <p className="mm-meta">每日盤以日期為種子，全站同日同局。通關後可複製分享文字。</p>
       )}
+    </main>
+
+    {/* Right Wing: Opponent Archive & Vault */}
+    <aside className="mm-wing mm-wing--right" aria-label="戰情檔案與榮譽智庫">
+      <div className="mm-wing__title">
+        <span className="text-pink-400">🏆</span>
+        <span>戰情檔案與榮譽智庫</span>
+      </div>
+
+      <div className="mm-wing__card">
+        <span className="text-xs font-bold text-pink-300">當前模式戰況</span>
+        {mode === 'versus' ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">對手</span>
+              <span className="mm-wing__value text-pink-200">{activeOpponent.name}</span>
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>風格</span>
+              <span>{activeOpponent.tagline}</span>
+            </div>
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">比分</span>
+              <span className="mm-wing__value text-amber-300 font-bold">
+                {playerPairs} : {cpuPairs}
+              </span>
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>AI 記性容量</span>
+              <span>{cpuCapacityFor(activeOpponent.difficulty, pairCount)} 格</span>
+            </div>
+          </div>
+        ) : mode === 'campaign' ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">關卡</span>
+              <span className="mm-wing__value text-pink-200">
+                {activeStage?.name ?? '戰役中'}
+              </span>
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>目標</span>
+              <span>3★ ≤ {activeStage?.starMoves[0] ?? 10} 步</span>
+            </div>
+            {activeStage?.timeLimitSec ? (
+              <div className="mm-wing__row text-xs text-slate-400">
+                <span>時限</span>
+                <span>{activeStage.timeLimitSec}s</span>
+              </div>
+            ) : null}
+          </div>
+        ) : mode === 'sprint' ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">衝刺時限</span>
+              <span className="mm-wing__value text-amber-300">{sprintLimit} 秒</span>
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>剩餘倒數</span>
+              <span className="font-bold text-rose-300">
+                {remain != null ? `${remain}s` : '--'}
+              </span>
+            </div>
+          </div>
+        ) : mode === 'daily' ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">今日日期</span>
+              <span className="mm-wing__value text-sky-200">{today}</span>
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>連續紀錄</span>
+              <span>{streak > 0 ? `連續 ${streak} 天` : '今日開局'}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">主題盤面</span>
+              <span className="mm-wing__value text-teal-200">
+                {themeLabel} · {pairCount} 對
+              </span>
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>挑戰目的</span>
+              <span>極少步數完成配對</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mm-wing__card">
+        <span className="text-xs font-bold text-slate-300 tracking-wider">個人殿堂紀錄</span>
+        <div className="flex flex-col gap-1 mt-1 text-xs">
+          <div className="mm-wing__row">
+            <span className="mm-wing__label">經典最佳步數</span>
+            <span className="mm-wing__value">
+              {bestMoves != null ? `${bestMoves} 步` : '未記錄'}
+            </span>
+          </div>
+          <div className="mm-wing__row">
+            <span className="mm-wing__label">最佳秒數</span>
+            <span className="mm-wing__value">
+              {bestTime != null ? `${bestTime}s` : '未記錄'}
+            </span>
+          </div>
+          <div className="mm-wing__row">
+            <span className="mm-wing__label">衝刺最佳</span>
+            <span className="mm-wing__value">
+              {bestSprint != null ? `${bestSprint}s` : '未記錄'}
+            </span>
+          </div>
+          <div className="mm-wing__row">
+            <span className="mm-wing__label">最高分數</span>
+            <span className="mm-wing__value text-amber-300">
+              {bestScore != null ? `${bestScore} 分` : '未記錄'}
+            </span>
+          </div>
+          {versusWins > 0 && (
+            <div className="mm-wing__row">
+              <span className="mm-wing__label">對戰勝場</span>
+              <span className="mm-wing__value text-emerald-300">{versusWins} 勝</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mm-wing__card">
+        <span className="text-xs font-bold text-cyan-300 tracking-wider">大師記憶心法</span>
+        <div className="flex flex-col gap-2 mt-1 text-[11px] leading-relaxed text-slate-300">
+          <div>
+            <strong className="text-cyan-200">📐 四角錨定術：</strong>
+            優先翻開邊角牌建立空間坐標系。
+          </div>
+          <div>
+            <strong className="text-teal-200">🧭 區域網格掃描：</strong>
+            橫向逐排翻開，未記牢前不盲動。
+          </div>
+          <div>
+            <strong className="text-amber-200">🎯 先探後收法則：</strong>
+            遇新牌留印象，已知雙子一口氣連擊！
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
 
       {overlayOpen && mode !== 'versus' && won && (
         <ResultOverlay

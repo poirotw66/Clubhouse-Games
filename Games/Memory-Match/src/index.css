@@ -736,6 +736,259 @@ body {
   }
 }
 
+/* ---------- Cockpit Battle Station Wings & Radar ---------- */
+
+.mm-cockpit-shell {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .mm-cockpit-shell {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1.5rem;
+    padding-top: 0.5rem;
+  }
+}
+
+.mm-board-center {
+  flex: 1 1 0;
+  max-width: 760px;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mm-wing {
+  display: none;
+  width: 275px;
+  flex-shrink: 0;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  background: rgba(8, 16, 28, 0.88);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(165, 243, 252, 0.15),
+    0 0 20px rgba(45, 212, 191, 0.08);
+  padding: 1.1rem;
+  flex-direction: column;
+  gap: 0.95rem;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  z-index: 2;
+}
+
+@media (min-width: 1024px) {
+  .mm-wing {
+    display: flex;
+  }
+}
+
+.mm-wing--left {
+  border-color: rgba(45, 212, 191, 0.35);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(165, 243, 252, 0.18),
+    -4px 0 24px rgba(45, 212, 191, 0.12);
+}
+
+.mm-wing--right {
+  border-color: rgba(244, 114, 182, 0.32);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(244, 114, 182, 0.18),
+    4px 0 24px rgba(244, 114, 182, 0.12);
+}
+
+.mm-wing__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Russo One', 'Noto Sans TC', system-ui, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ecfeff;
+  border-bottom: 1px solid rgba(165, 243, 252, 0.15);
+  padding-bottom: 0.55rem;
+}
+
+.mm-wing__card {
+  background: rgba(4, 10, 20, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.mm-wing__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.mm-wing__label {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.mm-wing__value {
+  color: #f8fafc;
+  font-weight: 700;
+  font-family: 'Chakra Petch', monospace, sans-serif;
+}
+
+.mm-bar-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-top: 0.15rem;
+}
+
+.mm-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 300ms ease;
+}
+
+.mm-intel-alert {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.55rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  font-weight: 600;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  background: rgba(45, 212, 191, 0.1);
+  color: #ccfbf1;
+}
+
+.mm-intel-alert--alert {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fef08a;
+  animation: mm-intel-pulse 2s ease-in-out infinite;
+}
+
+@keyframes mm-intel-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(251, 191, 36, 0);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(251, 191, 36, 0.4);
+  }
+}
+
+.mm-key-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+
+.mm-key-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+}
+
+.mm-key-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 0.35rem;
+  border-radius: 0.3rem;
+  background: rgba(15, 26, 44, 0.95);
+  border: 1px solid rgba(165, 243, 252, 0.35);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  font-family: 'Chakra Petch', monospace, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+/* Card keyboard focus reticle */
+.mm-card.is-focused {
+  outline: none !important;
+  box-shadow:
+    0 0 0 3px #2dd4bf,
+    0 0 22px rgba(45, 212, 191, 0.8) !important;
+  transform: scale(1.05) translateZ(0);
+  z-index: 12;
+}
+
+/* Memory Echo pip on card back */
+.mm-echo-pip {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2dd4bf;
+  box-shadow: 0 0 8px #2dd4bf, 0 0 12px rgba(45, 212, 191, 0.6);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.mm-echo-pip--ready {
+  background: #fbbf24;
+  box-shadow: 0 0 10px #fbbf24, 0 0 18px rgba(251, 191, 36, 0.8);
+  animation: mm-pip-pulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes mm-pip-pulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+}
+
+/* Mobile tactical summary */
+.mm-mobile-tactical {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 36rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(8, 16, 28, 0.85);
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  border-radius: 0.55rem;
+  font-size: 0.8rem;
+  color: #e2e8f0;
+}
+
+@media (min-width: 1024px) {
+  .mm-mobile-tactical {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mm-shell::before,
   .mm-title,
