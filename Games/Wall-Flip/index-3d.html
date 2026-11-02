@@ -264,6 +264,147 @@
     .pop, #result { animation: none; }
     .wf-mode-card[aria-pressed="true"] { animation: none; }
   }
+
+  /* Speed Warp Streaks Overlay */
+  #speedWarp {
+    position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    opacity: 0; transition: opacity 0.1s ease;
+    background: radial-gradient(circle at center, transparent 40%, rgba(111, 240, 208, 0.08) 75%, rgba(0, 255, 200, 0.22) 100%);
+    mix-blend-mode: screen;
+  }
+
+  /* Stunt Flight Telemetry & Attitude Director */
+  .wf-flight-director {
+    position: fixed; top: 58px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 14px;
+    padding: 8px 18px; border-radius: 16px;
+    background: rgba(8, 11, 16, 0.9); backdrop-filter: blur(12px);
+    border: 1px solid rgba(111, 240, 208, 0.35);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 16px rgba(111, 240, 208, 0.15);
+    z-index: 12; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .wf-flight-director[hidden] {
+    opacity: 0; transform: translateX(-50%) translateY(-10px); pointer-events: none; display: none;
+  }
+  .wf-fd-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .wf-fd-header {
+    display: flex; justify-content: space-between; width: 100%; gap: 8px;
+    font: 600 11px var(--sans); color: var(--muted);
+  }
+  .wf-fd-header b {
+    font: 600 12px var(--mono); color: var(--text);
+  }
+  .wf-fd-badge {
+    margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+    font: 700 11px/1.3 var(--sans); text-align: center; white-space: nowrap;
+    background: rgba(255, 255, 255, 0.08); color: var(--muted);
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .wf-fd-badge.safe {
+    background: rgba(111, 240, 208, 0.25); color: #6ff0d0;
+    box-shadow: 0 0 10px rgba(111, 240, 208, 0.4);
+  }
+  .wf-fd-badge.warn {
+    background: rgba(255, 170, 0, 0.25); color: #ffaa00;
+  }
+  .wf-fd-badge.danger {
+    background: rgba(255, 60, 60, 0.35); color: #ff5555;
+    animation: fdPulse 0.4s infinite alternate;
+  }
+  @keyframes fdPulse { from { opacity: 0.7; } to { opacity: 1; } }
+
+  /* VVI vertical speed track */
+  .wf-fd-vvi { width: 104px; }
+  .wf-fd-vvi-track {
+    position: relative; width: 100%; height: 8px; border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1); margin: 6px 0 2px; overflow: hidden;
+  }
+  .wf-fd-vvi-safe {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 33%;
+    background: rgba(111, 240, 208, 0.35); border-right: 1px dashed rgba(111, 240, 208, 0.8);
+  }
+  .wf-fd-vvi-bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    background: var(--mint); border-radius: 4px; transition: width 0.08s linear;
+  }
+  .wf-fd-vvi-bar.warn { background: #ffaa00; }
+  .wf-fd-vvi-bar.danger { background: #ff4444; box-shadow: 0 0 8px #ff4444; }
+
+  /* Attitude Horizon Gimbal */
+  .wf-fd-horizon-card { min-width: 110px; padding: 0 8px; }
+  .wf-fd-gimbal {
+    position: relative; width: 68px; height: 68px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2); overflow: hidden;
+    background: #0d121c; margin-bottom: 2px;
+  }
+  .wf-fd-dial {
+    position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none;
+  }
+  .wf-fd-horizon-ball {
+    position: absolute; inset: -15px; border-radius: 50%; z-index: 1;
+    transform-origin: center center; will-change: transform;
+  }
+  .wf-fd-sky { height: 50%; background: linear-gradient(180deg, #103254 0%, #1d5f99 100%); }
+  .wf-fd-line { height: 2px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 4px #fff; }
+  .wf-fd-ground { height: 50%; background: linear-gradient(180deg, #5c3a21 0%, #2e1a0b 100%); }
+  .wf-fd-reticle {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    z-index: 4; pointer-events: none;
+  }
+  .wf-fd-wing { width: 16px; height: 2px; background: #6ff0d0; box-shadow: 0 0 6px #6ff0d0; }
+  .wf-fd-pip { width: 6px; height: 6px; border-radius: 50%; background: #6ff0d0; margin: 0 4px; box-shadow: 0 0 6px #6ff0d0; }
+
+  /* Spin progress track */
+  .wf-fd-spin { width: 104px; }
+  .wf-fd-spin-track {
+    position: relative; width: 100%; height: 8px; border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1); margin: 6px 0 2px; overflow: hidden;
+  }
+  .wf-fd-spin-bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    background: linear-gradient(90deg, #6ff0d0, #ffd166); border-radius: 4px;
+    transition: width 0.08s linear;
+  }
+
+  /* Kinetic Stunt Milestone Banner */
+  .wf-stunt-banner {
+    position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+    z-index: 25; pointer-events: none;
+  }
+  .wf-stunt-banner[hidden] { display: none; }
+  .wf-stunt-banner.anim {
+    animation: stuntPop 1.6s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+  }
+  .wf-stunt-inner {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 24px; border-radius: 999px;
+    background: linear-gradient(135deg, rgba(20, 24, 35, 0.94), rgba(10, 12, 18, 0.98));
+    border: 2px solid #ffd166;
+    box-shadow: 0 0 30px rgba(255, 209, 102, 0.6), inset 0 0 16px rgba(255, 209, 102, 0.2);
+  }
+  .wf-stunt-stars { font-size: 14px; letter-spacing: 4px; color: #ffd166; }
+  .wf-stunt-text {
+    font: 900 20px/1.2 var(--sans); letter-spacing: 1px; color: #fff;
+    text-shadow: 0 0 12px rgba(255, 209, 102, 0.8);
+  }
+  @keyframes stuntPop {
+    0% { opacity: 0; transform: translate(-50%, 20px) scale(0.6); }
+    15% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+    25% { transform: translate(-50%, 0) scale(1); }
+    80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -30px) scale(0.9); }
+  }
+
+  @media (max-width: 720px) {
+    .wf-flight-director {
+      top: 88px; padding: 6px 10px; gap: 8px; transform: translateX(-50%) scale(0.85);
+      transform-origin: top center;
+    }
+    .wf-fd-vvi, .wf-fd-spin { width: 80px; }
+  }
 </style>
 </head>
 <body data-view-mode="3d">
@@ -315,6 +456,64 @@
     </div>
   </div>
   <div id="hint" hidden></div>
+  <div id="speedWarp"></div>
+  <div id="flightDirector" class="wf-flight-director" hidden>
+    <!-- Left Telemetry: Descent / Vertical Speed Radar -->
+    <div class="wf-fd-card wf-fd-vvi">
+      <div class="wf-fd-header">
+        <span id="lblVvi">垂直降速</span>
+        <b id="vviVal">0 km/h</b>
+      </div>
+      <div class="wf-fd-vvi-track">
+        <div class="wf-fd-vvi-safe" title="Soft Landing ≤ 18 km/h"></div>
+        <div id="vviBar" class="wf-fd-vvi-bar"></div>
+      </div>
+      <div id="vviStatus" class="wf-fd-badge">SOFT ZONE</div>
+    </div>
+
+    <!-- Center: Flight Attitude Horizon Gimbal -->
+    <div class="wf-fd-card wf-fd-horizon-card">
+      <div class="wf-fd-gimbal">
+        <svg class="wf-fd-dial" viewBox="-40 -40 80 80">
+          <path class="wf-fd-safe-cone" d="M -15 -36 A 39 39 0 0 1 15 -36 L 0 0 Z" fill="rgba(111,240,208,0.2)" stroke="rgba(111,240,208,0.7)" stroke-width="1.2" />
+          <circle cx="0" cy="0" r="36" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1" />
+          <line x1="-36" y1="0" x2="-28" y2="0" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+          <line x1="28" y1="0" x2="36" y2="0" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+          <line x1="0" y1="-36" x2="0" y2="-28" stroke="rgba(111,240,208,0.9)" stroke-width="2" />
+        </svg>
+        <div id="fdHorizonBall" class="wf-fd-horizon-ball">
+          <div class="wf-fd-sky"></div>
+          <div class="wf-fd-line"></div>
+          <div class="wf-fd-ground"></div>
+        </div>
+        <div class="wf-fd-reticle">
+          <span class="wf-fd-wing l"></span>
+          <span class="wf-fd-pip"></span>
+          <span class="wf-fd-wing r"></span>
+        </div>
+      </div>
+      <div id="fdAttitudeBadge" class="wf-fd-badge">ALIGN SAFE</div>
+    </div>
+
+    <!-- Right Telemetry: Stunt Spin Progress & Degrees -->
+    <div class="wf-fd-card wf-fd-spin">
+      <div class="wf-fd-header">
+        <span id="lblSpin">空中特技</span>
+        <b id="spinVal">0°</b>
+      </div>
+      <div class="wf-fd-spin-track">
+        <div id="spinBar" class="wf-fd-spin-bar"></div>
+      </div>
+      <div id="spinBadge" class="wf-fd-badge">0 FLIPS</div>
+    </div>
+  </div>
+
+  <div id="stuntBanner" class="wf-stunt-banner" hidden>
+    <div class="wf-stunt-inner">
+      <span id="stuntStars" class="wf-stunt-stars">★★★</span>
+      <span id="stuntText" class="wf-stunt-text">360° SINGLE FLIP! +50</span>
+    </div>
+  </div>
 </div>
 <div id="achMsg" hidden></div>
 
@@ -496,6 +695,10 @@ const STR = {
     viewConfirmHint: '切換會結束目前這局並重新載入。',
     viewConfirmOk: '切換', viewConfirmCancel: '取消',
     webglFallback: '此裝置不支援 WebGL，已改用 2D 模式。',
+    fdVvi: '垂直降速', fdSpin: '空中特技',
+    alignSafe: '姿態對齊（安全）', alignInverted: '倒掛翻滾中', alignWarn: '姿態傾角過大',
+    vviSoft: '柔軟著地 (+30)', vviHard: '速度偏快', vviHazard: '墜毀危險！(雙鍵減速)',
+    stuntMilestone: (n) => n === 1 ? '360° 空中翻滾！+50' : n === 2 ? '720° 雙重翻滾！+150' : n === 3 ? '1080° 三重特技！+300' : `${n * 360}° 極限特技！+${n * 150}`,
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
@@ -558,6 +761,10 @@ const STR = {
     viewConfirmHint: 'This ends the current run and reloads the other view.',
     viewConfirmOk: 'Switch', viewConfirmCancel: 'Cancel',
     webglFallback: 'WebGL is unavailable on this device — stayed on 2D.',
+    fdVvi: 'V-SPEED', fdSpin: 'STUNT',
+    alignSafe: 'ALIGN SAFE', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
+    vviSoft: 'SOFT ZONE (+30)', vviHard: 'FIRM DESCENT', vviHazard: 'CRASH HAZARD! (BRAKE)',
+    stuntMilestone: (n) => n === 1 ? '360° SINGLE FLIP! +50' : n === 2 ? '720° DOUBLE FLIP! +150' : n === 3 ? '1080° TRIPLE FLIP! +300' : `${n * 360}° STUNT MASTER! +${n * 150}`,
   },
 };
 let lang = 'tc';
@@ -1494,6 +1701,11 @@ const el = {
   lblRowRolls: $('lblRowRolls'), unitRolls: $('unitRolls'), lblRowSoft: $('lblRowSoft'), lblRowLevel: $('lblRowLevel'), unitPts: $('unitPts'),
   achRow: $('achRow'), achCount: $('achCount'), achMsg: $('achMsg'), dailyBtn: $('dailyBtn'), dailyInfo: $('dailyInfo'),
   ghostBtn: $('ghostBtn'),
+  speedWarp: $('speedWarp'), flightDirector: $('flightDirector'),
+  lblVvi: $('lblVvi'), vviVal: $('vviVal'), vviBar: $('vviBar'), vviStatus: $('vviStatus'),
+  fdHorizonBall: $('fdHorizonBall'), fdAttitudeBadge: $('fdAttitudeBadge'),
+  lblSpin: $('lblSpin'), spinVal: $('spinVal'), spinBar: $('spinBar'), spinBadge: $('spinBadge'),
+  stuntBanner: $('stuntBanner'), stuntStars: $('stuntStars'), stuntText: $('stuntText'),
 };
 
 // re-render every dictionary-driven DOM text node (init + language toggle)
@@ -1506,6 +1718,8 @@ function updateAllText() {
   el.lblHeight.textContent = t('hudHeight');
   el.lblDist.textContent = t('hudDist');
   el.lblRolls.textContent = t('hudRolls');
+  if (el.lblVvi) el.lblVvi.textContent = t('fdVvi');
+  if (el.lblSpin) el.lblSpin.textContent = t('fdSpin');
   el.mutebtn.title = t('muteTitle');
   el.mutebtn.textContent = muted ? t('muteOff') : t('muteOn');
   el.langbtn.textContent = t('langBtn');
@@ -1819,6 +2033,9 @@ function resetRun() {
   el.start.hidden = true;
   el.resultWrap.hidden = true;
   el.hud.hidden = false;
+  if (el.flightDirector) el.flightDirector.hidden = true;
+  if (el.stuntBanner) el.stuntBanner.hidden = true;
+  if (el.speedWarp) el.speedWarp.style.opacity = '0';
   updateBestLabels();
   camState.init = false; // snap the camera like the original
 }
@@ -2458,10 +2675,29 @@ function landFx(ev, st) {
     });
   }
 }
+let stuntBannerTimer = null;
+function triggerStuntBanner(r) {
+  if (!el.stuntBanner) return;
+  const stars = '★'.repeat(Math.min(r, 5));
+  el.stuntStars.textContent = stars;
+  el.stuntText.textContent = t('stuntMilestone', r);
+  el.stuntBanner.hidden = false;
+  el.stuntBanner.classList.remove('anim');
+  void el.stuntBanner.offsetWidth;
+  el.stuntBanner.classList.add('anim');
+  clearTimeout(stuntBannerTimer);
+  stuntBannerTimer = setTimeout(() => {
+    if (el.stuntBanner) el.stuntBanner.hidden = true;
+  }, 1600);
+}
+
 function processEvents() {
   const st = sim.state;
   for (const ev of st.events) {
-    if (ev.type === 'launch' || ev.type === 'detach' || ev.type === 'lift') game.rolls = 0;
+    if (ev.type === 'launch' || ev.type === 'detach' || ev.type === 'lift') {
+      game.rolls = 0;
+      if (el.stuntBanner) el.stuntBanner.hidden = true;
+    }
     if (ev.type === 'launch') {
       launchX = ev.x;
       popAt(ev.x, ev.y + 2.5, 0, pick(t('popLaunch')), 'hsl(200 90% 55%)');
@@ -2484,6 +2720,7 @@ function processEvents() {
       game.rolls = r;
       popAt(st.x, st.y + 2.4, st.z, t('rollUnit', r), 'hsl(45 95% 50%)', true);
       sfx.chime(r);
+      triggerStuntBanner(r);
     }
   }
 }
@@ -2613,8 +2850,16 @@ function updateCar(dt, tm) {
       }
     }
   }
-  // suction glow
+  // suction glow + magnetic rail sparks
   suckGlow.material.opacity += ((st.suck ? .85 + Math.sin(tm * 30) * .1 : 0) - suckGlow.material.opacity) * Math.min(1, dt * 14);
+  if (st.suck && st.mode === 'road' && st.u > 0 && Math.random() < 0.6) {
+    fx.spawn({
+      x: st.x + rand(-0.8, 0.8), y: st.y + rand(-0.2, 0.3), z: rand(-1.2, 1.2),
+      vx: rand(-1.5, 1.5), vy: rand(-1, 1), vz: rand(-1.5, 1.5),
+      drag: 3, life: rand(0.15, 0.35), size: rand(0.4, 0.8), grow: 1.5,
+      color: 7336144, end: 65535,
+    });
+  }
   // slip smoke + word
   if (st.slip && game.playing) {
     for (const wx of [-CAR.WHEEL_X, CAR.WHEEL_X]) {
@@ -2756,13 +3001,64 @@ function updateHud() {
   }
   setMeter(st.air, 100);
   const spd = st.mode === 'road' ? Math.abs(st.v) : Math.hypot(st.vx, st.vy, st.vz);
-  el.speed.textContent = `${Math.round(spd * 3.6)} km/h`;
+  const speedKmh = Math.round(spd * 3.6);
+  el.speed.textContent = `${speedKmh} km/h`;
+
+  if (el.speedWarp) {
+    const warpAlpha = clamp((speedKmh - 110) / 45, 0, 0.75);
+    el.speedWarp.style.opacity = String(warpAlpha);
+  }
+
   if (airMode) {
     const vs = st.vy * 3.6; // vertical speed, km/h (+ climbing)
     el.vspeed.hidden = false;
     el.vspeed.textContent = `${vs > 3.6 ? '▲' : vs < -3.6 ? '▼' : '—'} ${Math.abs(Math.round(vs))}`;
     el.vspeed.style.color = vs < -18 ? '#ff8c5a' : '#b4b4b4';
-  } else el.vspeed.hidden = true;
+
+    if (el.flightDirector) {
+      el.flightDirector.hidden = false;
+
+      // 1. Vertical Descent Rate (VVI)
+      const descentSpeed = Math.max(0, -vs);
+      el.vviVal.textContent = `${Math.round(descentSpeed)} km/h`;
+      const vviPct = clamp((descentSpeed / 55) * 100, 0, 100);
+      el.vviBar.style.width = `${vviPct}%`;
+      el.vviBar.className = 'wf-fd-vvi-bar' + (descentSpeed > 35 ? ' danger' : descentSpeed > 18 ? ' warn' : '');
+      el.vviStatus.className = 'wf-fd-badge ' + (descentSpeed <= 18 ? 'safe' : descentSpeed <= 35 ? 'warn' : 'danger');
+      el.vviStatus.textContent = descentSpeed <= 18 ? t('vviSoft') : descentSpeed <= 35 ? t('vviHard') : t('vviHazard');
+
+      // 2. Flight Attitude Horizon Gimbal
+      const level = Math.cos(st.roll) * Math.cos(st.pitch);
+      const tiltDeg = Math.acos(clamp(level, -1, 1)) * 180 / Math.PI;
+      const rollDeg = (st.roll * 180 / Math.PI) % 360;
+      const pitchOffset = clamp(st.pitch * 30, -22, 22);
+      el.fdHorizonBall.style.transform = `rotate(${-rollDeg}deg) translateY(${pitchOffset}px)`;
+
+      if (tiltDeg <= 25) {
+        el.fdAttitudeBadge.className = 'wf-fd-badge safe';
+        el.fdAttitudeBadge.textContent = t('alignSafe');
+      } else if (tiltDeg <= 75) {
+        el.fdAttitudeBadge.className = 'wf-fd-badge warn';
+        el.fdAttitudeBadge.textContent = t('alignWarn');
+      } else {
+        el.fdAttitudeBadge.className = 'wf-fd-badge danger';
+        el.fdAttitudeBadge.textContent = t('alignInverted');
+      }
+
+      // 3. Aerial Spin Progress
+      const rotTotal = Math.abs(st.roll - st.roll0);
+      const rotDeg = Math.round(rotTotal * 180 / Math.PI);
+      el.spinVal.textContent = `${rotDeg}°`;
+      const currentRollCount = rollsCount(st.roll, st.roll0);
+      const nextRollProgress = ((rotTotal % (2 * Math.PI)) / (2 * Math.PI)) * 100;
+      el.spinBar.style.width = `${nextRollProgress}%`;
+      el.spinBadge.className = 'wf-fd-badge' + (currentRollCount > 0 ? ' safe' : '');
+      el.spinBadge.textContent = currentRollCount > 0 ? `${currentRollCount} ${t('rollUnit', currentRollCount)}` : `${rotDeg}°`;
+    }
+  } else {
+    el.vspeed.hidden = true;
+    if (el.flightDirector) el.flightDirector.hidden = true;
+  }
   const h = Math.max(0, st.y - CAR.H);
   el.alt.textContent = (h < 100 ? h.toFixed(1) : Math.round(h)) + ' m';
   el.dist.textContent = Math.round(Math.hypot(st.x - startX, st.z)) + ' m';

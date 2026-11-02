@@ -239,6 +239,9 @@ const STR = {
     viewConfirmHint: '切換會結束目前這局並重新載入。',
     viewConfirmOk: '切換', viewConfirmCancel: '取消',
     webglFallback: '此裝置不支援 WebGL，已改用 2D 模式。',
+    alignSafe: '姿態對齊（安全）', alignInverted: '倒掛特技中', alignWarn: '傾角過大',
+    vviSoft: '柔軟著地 (+30)', vviHard: '減速不足', vviHazard: '墜毀預警 (雙鍵減速)',
+    stuntMilestone: (n) => n === 1 ? '360° 空中翻滾！+50' : n === 2 ? '720° 雙重翻滾！+150' : n === 3 ? '1080° 三重特技！+300' : `${n * 360}° 極限特技！+${n * 150}`,
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip, land on the tires',
@@ -287,6 +290,9 @@ const STR = {
     viewConfirmHint: 'This ends the current run and reloads the other view.',
     viewConfirmOk: 'Switch', viewConfirmCancel: 'Cancel',
     webglFallback: 'WebGL is unavailable on this device — stayed on 2D.',
+    alignSafe: 'ALIGN SAFE', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
+    vviSoft: 'SOFT ZONE (+30)', vviHard: 'FIRM DESCENT', vviHazard: 'CRASH HAZARD (BRAKE)',
+    stuntMilestone: (n) => n === 1 ? '360° SINGLE FLIP! +50' : n === 2 ? '720° DOUBLE FLIP! +150' : n === 3 ? '1080° TRIPLE FLIP! +300' : `${n * 360}° STUNT MASTER! +${n * 150}`,
   },
 };
 let lang = 'tc';
@@ -1165,7 +1171,7 @@ function toAir(kind) {
   const k = trackAt(car.u);
   car.mode = 'air'; car.airTime = 0;
   car.vx = cos(k.phi) * car.v; car.vy = sin(k.phi) * car.v;
-  car.phi = k.phi; car.phiL = k.phi; car.rw = 0;
+  car.phi = k.phi; car.phiL = k.phi; car.rw = 0; car.stuntRolls = 0;
   launchX = car.x;
   car.peeled = kind === 'detach'; car.lifted = kind === 'lift'; car.launched = kind === 'launch';
   car.plan = botOn && car.air > 50 ? 1 : 0;
@@ -1323,6 +1329,12 @@ function stepAir(dt) {
   car.phi += car.rw * dt;
   car.od = (car.od || 0) - Math.hypot(car.vx, car.vy) * dt / CAR.WHEEL_R;
   car.left = jL; car.right = jR; car.suck = false; car.drive = false;
+  const curRolls = rollsCount(car.phi, car.phiL);
+  if (curRolls > (car.stuntRolls || 0)) {
+    car.stuntRolls = curRolls;
+    say(t('stuntMilestone', curRolls), '#ffd166', 2.4);
+    try { sfx.fanfare(); } catch (e) {}
+  }
   if (!car.clear) {
     const S = closestOnTrack(car.x, car.y);
     car.clear = !S || Math.abs(S.n) > LEVEL_CLEAR;
@@ -1764,6 +1776,11 @@ function drawCar(t) {
     for (const wx of [-CAR.WHEEL_X, CAR.WHEEL_X]) {
       const px = car.x + c * wx, py = car.y + s * wx - CAR.H * 0.55;
       ctx.beginPath(); ctx.arc(px, py - 0.2, 0.55, 0, TAU); ctx.stroke();
+      if (car.u > 0) {
+        ctx.strokeStyle = '#6ff0d0'; ctx.lineWidth = 0.04;
+        const sparkAng = t * 45 + wx;
+        ctx.beginPath(); ctx.moveTo(px, py - 0.2); ctx.lineTo(px + cos(sparkAng) * 0.35, py - 0.2 + sin(sparkAng) * 0.35); ctx.stroke();
+      }
     }
   }
   ctx.save();
@@ -1985,6 +2002,43 @@ function drawHUD() {
     ctx.font = `600 12px ${SANS}`;
     ctx.fillStyle = UI.text;
     ctx.fillText(t('suckOn'), W() / 2, 68);
+  }
+  if (airMode) {
+    const gX = W() / 2, gY = 66;
+    const gR = 24;
+    ctx.save();
+    ctx.translate(gX, gY);
+    ctx.fillStyle = 'rgba(8, 12, 18, 0.85)';
+    ctx.beginPath(); ctx.arc(0, 0, gR, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(111, 240, 208, 0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.fillStyle = 'rgba(111, 240, 208, 0.22)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, gR - 2, -Math.PI / 2 - 25 * DEG, -Math.PI / 2 + 25 * DEG);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.save();
+    ctx.rotate(-car.phi);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(-gR + 3, 0); ctx.lineTo(gR - 3, 0); ctx.stroke();
+    ctx.restore();
+
+    ctx.strokeStyle = '#6ff0d0'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-11, 0); ctx.lineTo(-4, 0);
+    ctx.moveTo(4, 0); ctx.lineTo(11, 0);
+    ctx.stroke();
+    ctx.fillStyle = '#6ff0d0'; ctx.beginPath(); ctx.arc(0, 0, 2, 0, TAU); ctx.fill();
+
+    const tilt = tiltNow();
+    const isSafe = tilt <= LAND_TILT;
+    ctx.font = `700 11px ${SANS}`;
+    ctx.fillStyle = isSafe ? '#6ff0d0' : tilt > Math.PI / 2 ? '#ff5c5c' : '#ffaa00';
+    ctx.textAlign = 'center';
+    ctx.fillText(isSafe ? t('alignSafe') : tilt > Math.PI / 2 ? t('alignInverted') : t('alignWarn'), 0, gR + 15);
+    ctx.restore();
   }
   if (isTouch || activePtr.size) {
     ctx.textAlign = 'center';
