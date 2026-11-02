@@ -97,8 +97,27 @@ import { Card } from './components/Card';
 import { ShoeMeter } from './components/ShoeMeter';
 import { RulesPanel } from './components/RulesPanel';
 import { ModesPanel } from './components/ModesPanel';
+import {
+  ShoeCountRadarWing,
+  TacticalOddsWing,
+  MobileTelemetryCapsule,
+} from './components/TelemetryCockpit';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { useKeyboardControls } from './hooks/useKeyboardControls';
+import { getStreakPrestige } from './utils/telemetry';
 import { motion, AnimatePresence, useReducedMotion, MotionConfig } from 'motion/react';
-import { Coins, RotateCcw, Play, Undo2, Lightbulb, Settings2, BarChart3, Trophy } from 'lucide-react';
+import {
+  Coins,
+  RotateCcw,
+  Play,
+  Undo2,
+  Lightbulb,
+  Settings2,
+  BarChart3,
+  Trophy,
+  Keyboard,
+  Flame,
+} from 'lucide-react';
 
 type TableMode = 'career' | 'daily' | 'tournament';
 
@@ -162,6 +181,8 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showModes, setShowModes] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [handVerdicts, setHandVerdicts] = useState<DecisionVerdict[]>([]);
   const [runningHiLo, setRunningHiLo] = useState(0);
   const [dealKey, setDealKey] = useState(0);
@@ -1268,6 +1289,45 @@ export default function App() {
         ? `錫標 ${tinHandsPlayed}/${TIN_HANDS}`
         : null;
 
+  const streakPrestige = getStreakPrestige(stats.streak);
+
+  useKeyboardControls({
+    onHit: hit,
+    onStand: stand,
+    onDouble: doubleDown,
+    onSplit: split,
+    onSurrender: surrender,
+    onDeal: deal,
+    onResetRound: resetRoundToBetting,
+    onClearBet: clearBet,
+    onMinBet: setMinBet,
+    onUndoBet: handleUndo,
+    onHint: handleHint,
+    onPlaceChipIndex: idx => {
+      const val = table.chipValues[idx];
+      if (val != null) placeBet(val);
+    },
+    onTakeInsurance: takeInsurance,
+    onDeclineInsurance: declineInsurance,
+    onTakeEvenMoney: takeEvenMoney,
+    onDeclineEvenMoney: declineEvenMoney,
+    onToggleShortcuts: () => setShowShortcuts(prev => !prev),
+    canHit: gameState === 'playing' && !playerHands[activeHandIndex]?.fromSplitAces,
+    canStand: gameState === 'playing',
+    canDouble: canDoubleActive(),
+    canSplit: canSplitActive(),
+    canSurrender: canSurrenderNow(),
+    canDeal:
+      currentBet >= table.minBet &&
+      currentBet + (sideBetsAllowed ? sideBet : 0) <= balance &&
+      !sessionResult,
+    canResetRound: gameState === 'gameOver',
+    canUndoBet,
+    canHint: !!canHint,
+    gameState,
+    hasOpenModal: showRules || showStats || showModes || showShortcuts || !!sessionResult,
+  });
+
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
     <div
@@ -1303,7 +1363,18 @@ export default function App() {
             </div>
           </div>
           <div className="text-center px-1">
-            <h1 className="text-sm sm:text-base font-black tracking-widest text-white/90">二十一點</h1>
+            <div className="flex items-center justify-center gap-1.5">
+              <h1 className="text-sm sm:text-base font-black tracking-widest text-white/90">二十一點</h1>
+              {stats.streak >= 2 && (
+                <div
+                  className="flex items-center gap-0.5 bg-amber-500/20 border border-amber-400/40 text-amber-300 px-1.5 py-0.5 rounded-full text-[9px] font-black animate-pulse"
+                  title={`${stats.streak} 連勝 · ${streakPrestige.title}`}
+                >
+                  <Flame className="w-3 h-3 text-amber-400" />
+                  <span>{stats.streak}連勝</span>
+                </div>
+              )}
+            </div>
             <div className="text-[9px] sm:text-[10px] text-white/45 tracking-wider">
               {tableMode === 'career'
                 ? `${rules.dealerRule} · ${rules.deckCount}副 · BJ ${blackjackPayoutLabel(rules.bjPayout)}`
@@ -1313,25 +1384,35 @@ export default function App() {
           <div className="flex items-center gap-1">
             <button
               type="button"
+              onClick={() => setShowShortcuts(true)}
+              className="min-h-[44px] min-w-[44px] px-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 touch-manipulation flex flex-col items-center justify-center gap-0.5"
+              title="實體鍵盤戰術熱鍵 [K]"
+              aria-label="快速鍵"
+            >
+              <Keyboard className="w-4 h-4 text-amber-300" />
+              <span className="text-[8px] font-bold tracking-wider">熱鍵 [K]</span>
+            </button>
+            <button
+              type="button"
               onClick={handleUndo}
               disabled={!canUndoBet}
               className="min-h-[44px] min-w-[44px] px-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-40 touch-manipulation flex flex-col items-center justify-center gap-0.5"
-              title="復原下注（僅下注階段）"
+              title="復原下注（僅下注階段）[Z]"
               aria-label="復原下注"
             >
               <Undo2 className="w-4 h-4" />
-              <span className="text-[8px] font-bold tracking-wider">復原</span>
+              <span className="text-[8px] font-bold tracking-wider">復原 [Z]</span>
             </button>
             <button
               type="button"
               onClick={handleHint}
               disabled={!canHint}
               className="min-h-[44px] min-w-[44px] px-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-40 touch-manipulation flex flex-col items-center justify-center gap-0.5"
-              title="基本策略提示"
+              title="基本策略提示 [T]"
               aria-label="提示"
             >
               <Lightbulb className={`w-4 h-4 ${hintLabel ? 'text-amber-300' : ''}`} />
-              <span className="text-[8px] font-bold tracking-wider">提示</span>
+              <span className="text-[8px] font-bold tracking-wider">提示 [T]</span>
             </button>
             <button
               type="button"
@@ -1407,396 +1488,446 @@ export default function App() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="flex-1 min-h-0 w-full max-w-xl flex flex-col items-center justify-center gap-2 sm:gap-3 py-1 relative z-10 overflow-hidden">
-        <div className="flex flex-col items-center gap-1 shrink-0 min-h-0">
-          <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">
-            莊家
-          </div>
-          <div className="flex -space-x-4 sm:-space-x-5 md:-space-x-6">
-            <AnimatePresence>
-              {dealerCards.map((card, i) => (
+      {/* Battle Station VIP Cockpit & Table */}
+      <div className="flex-1 w-full max-w-7xl flex items-center justify-center gap-3 xl:gap-5 min-h-0 relative z-10 overflow-hidden">
+        {/* Left Wing (Shoe & Count Radar) */}
+        <ShoeCountRadarWing
+          shoe={shoe}
+          runningHiLo={runningHiLo}
+          trueCountVal={tc}
+          showCountSetting={settings.mode === 'counting' && settings.showCount}
+        />
+
+        {/* Center Column: Mobile Capsule + Table + Controls */}
+        <div className="w-full max-w-xl h-full flex flex-col items-center justify-between gap-1.5 min-h-0">
+          <MobileTelemetryCapsule
+            shoe={shoe}
+            dealerCards={dealerCards}
+            playerHands={playerHands}
+            activeHandIndex={activeHandIndex}
+            gameState={gameState}
+            showCountSetting={settings.mode === 'counting' && settings.showCount}
+            trueCountVal={tc}
+            mobileDrawerOpen={mobileDrawerOpen}
+            canDouble={canDoubleActive()}
+            canSplit={canSplitActive()}
+            canSurrender={canSurrenderNow()}
+            onToggleMobileDrawer={() => setMobileDrawerOpen(prev => !prev)}
+            onOpenShortcuts={() => setShowShortcuts(true)}
+          />
+
+          {/* Table */}
+          <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center gap-2 sm:gap-3 py-1 relative z-10 overflow-hidden">
+            <div className="flex flex-col items-center gap-1 shrink-0 min-h-0">
+              <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">
+                莊家
+              </div>
+              <div className="flex -space-x-4 sm:-space-x-5 md:-space-x-6">
+                <AnimatePresence>
+                  {dealerCards.map((card, i) => (
+                    <motion.div
+                      key={`${dealKey}-d-${i}-${card.rank}-${card.suit}`}
+                      initial={{ opacity: 0, y: -48, x: 40, rotate: 12, scale: 0.85 }}
+                      animate={{ opacity: 1, y: 0, x: 0, rotate: 0, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 320, damping: 22, delay: i * 0.12 }}
+                    >
+                      <Card card={card} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+              {gameState !== 'betting' && dealerCards.length > 0 && !dealerCards[1]?.isHidden && (
                 <motion.div
-                  key={`${dealKey}-d-${i}-${card.rank}-${card.suit}`}
-                  initial={{ opacity: 0, y: -48, x: 40, rotate: 12, scale: 0.85 }}
-                  animate={{ opacity: 1, y: 0, x: 0, rotate: 0, scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 320, damping: 22, delay: i * 0.12 }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-black/60 px-2.5 py-1 rounded-full text-xs font-bold border border-white/10"
                 >
-                  <Card card={card} />
+                  {formatHandTotal(dealerCards)}
                 </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-          {gameState !== 'betting' && dealerCards.length > 0 && !dealerCards[1]?.isHidden && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-black/60 px-2.5 py-1 rounded-full text-xs font-bold border border-white/10"
-            >
-              {formatHandTotal(dealerCards)}
-            </motion.div>
-          )}
-        </div>
-
-        <div className="min-h-8 sm:min-h-10 flex flex-col items-center justify-center shrink-0 px-2">
-          <AnimatePresence mode="wait">
-            {message && (
-              <motion.div
-                key={message}
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="text-sm sm:text-xl md:text-2xl font-black text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)] tracking-wide text-center"
-              >
-                {message}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          {gameState === 'gameOver' && settings.feedbackEnabled && handVerdicts.length > 0 && (
-            <div
-              className={`mt-1 text-[11px] sm:text-xs font-bold text-center ${
-                feedbackSummary.correct === feedbackSummary.total
-                  ? 'text-emerald-300'
-                  : 'text-sky-200/90'
-              }`}
-            >
-              {feedbackSummary.headline}
-              {feedbackSummary.lines.length === 1 ? ` — ${feedbackSummary.lines[0]}` : null}
+              )}
             </div>
-          )}
-        </div>
 
-        <div className="flex flex-col items-center gap-1 min-h-0 w-full overflow-x-auto overflow-y-hidden pb-1">
-          <div className="flex gap-3 sm:gap-6 justify-center min-w-max px-2">
-            <AnimatePresence>
-              {playerHands.map((hand, i) => (
-                <motion.div
-                  key={hand.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex flex-col items-center gap-1 transition-all duration-300 ${
-                    activeHandIndex === i && gameState === 'playing' ? 'scale-105' : 'opacity-90'
+            <div className="min-h-8 sm:min-h-10 flex flex-col items-center justify-center shrink-0 px-2">
+              <AnimatePresence mode="wait">
+                {message && (
+                  <motion.div
+                    key={message}
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    className="text-sm sm:text-xl md:text-2xl font-black text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)] tracking-wide text-center"
+                  >
+                    {message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {gameState === 'gameOver' && settings.feedbackEnabled && handVerdicts.length > 0 && (
+                <div
+                  className={`mt-1 text-[11px] sm:text-xs font-bold text-center ${
+                    feedbackSummary.correct === feedbackSummary.total
+                      ? 'text-emerald-300'
+                      : 'text-sky-200/90'
                   }`}
                 >
-                  <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">
-                    玩家 {playerHands.length > 1 ? i + 1 : ''}
-                  </div>
-                  <div className="relative">
-                    {activeHandIndex === i && gameState === 'playing' && (
-                      <div className="absolute -inset-2 border-2 border-amber-400/50 rounded-xl animate-pulse"></div>
-                    )}
-                    <div className="flex -space-x-4 sm:-space-x-5 md:-space-x-6 relative z-10">
-                      {hand.cards.map((card, j) => (
-                        <motion.div
-                          key={`${dealKey}-${hand.id}-${j}-${card.rank}`}
-                          initial={{ opacity: 0, y: -40, x: -36, rotate: -10, scale: 0.85 }}
-                          animate={{ opacity: 1, y: 0, x: 0, rotate: 0, scale: 1 }}
-                          transition={{
-                            type: 'spring',
-                            stiffness: 320,
-                            damping: 22,
-                            delay: j * 0.1,
-                          }}
-                        >
-                          <Card card={card} />
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap justify-center items-center gap-1.5 mt-0.5">
-                    <div className="bg-black/60 px-2 py-1 rounded-full text-xs font-bold border border-white/10">
-                      {formatHandTotal(hand.cards)}
-                    </div>
-                    <div className="bg-amber-500/10 text-amber-400 px-2 py-1 rounded-full text-xs font-bold border border-amber-500/30">
-                      ${hand.bet}
-                    </div>
-                    {hand.status !== 'playing' && (
-                      <div
-                        className={`px-2 py-1 rounded-full text-xs font-bold tracking-wider ${
-                          hand.status === 'won' || hand.status === 'blackjack'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
-                            : hand.status === 'lost' ||
-                                hand.status === 'busted' ||
-                                hand.status === 'surrendered'
-                              ? 'bg-red-500/20 text-red-400 border border-red-500/50'
-                              : 'bg-gray-500/20 text-gray-300 border border-gray-500/50'
-                        }`}
-                      >
-                        {statusLabel(hand.status)}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="w-full max-w-xl bg-black/40 p-3 sm:p-4 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg z-10 shrink-0">
-        {isBankrupt ? (
-          <div className="flex flex-col items-center gap-3 py-2">
-            <p className="text-red-400 font-bold tracking-widest text-sm">籌碼不足（破產）</p>
-            {tableMode === 'career' ? (
-              <>
-                <p className="text-white/50 text-xs text-center">
-                  {table.name}下限 ${table.minBet}。已用救濟 {stats.recoveriesUsed}/{MAX_RECOVERIES}{' '}
-                  次。
-                </p>
-                {stats.recoveriesUsed < MAX_RECOVERIES ? (
-                  <button
-                    type="button"
-                    onClick={tryRecovery}
-                    className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
-                  >
-                    <Coins className="w-5 h-5" />
-                    領取救濟籌碼
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={doHardReset}
-                    className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
-                  >
-                    <RotateCcw className="w-5 h-5" />
-                    重置進度（${DEFAULT_BALANCE}）
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="text-white/50 text-xs text-center">
-                  {tableMode === 'tournament'
-                    ? '錫標賽不可領取救濟，本場以目前籌碼結算。'
-                    : '每日牌靴以目前結餘記錄成績。'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (tableMode === 'daily') finishDailyRun(balance, false);
-                    else finishTournament(balance);
-                  }}
-                  className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg touch-manipulation"
-                >
-                  查看結算
-                </button>
-              </>
-            )}
-          </div>
-        ) : gameState === 'betting' ? (
-          <div className="flex flex-col items-center gap-2 sm:gap-3">
-            {tableMode === 'career' && (
-              <div className="w-full flex gap-1.5 overflow-x-auto pb-1">
-                {TABLES.map(t => {
-                  const unlocked = isTableUnlocked(t.id, stats.peakBankroll);
-                  const active = t.id === stats.tableId;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      disabled={!unlocked}
-                      onClick={() => switchTable(t.id)}
-                      className={`shrink-0 px-2.5 py-2 min-h-[40px] rounded-lg text-[11px] font-bold border touch-manipulation ${
-                        active
-                          ? 'bg-amber-500/25 border-amber-400/60 text-amber-200'
-                          : unlocked
-                            ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                            : 'bg-black/30 border-white/5 text-white/25 cursor-not-allowed'
-                      }`}
-                      title={
-                        unlocked ? `下限 $${t.minBet}` : `峰值籌碼達 $${t.unlockPeak} 解鎖`
-                      }
-                    >
-                      {t.name}
-                      {!unlocked && ' 🔒'}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <div className="text-white/50 text-xs font-bold tracking-widest">
-              主注（下限 ${table.minBet}）
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-              {table.chipValues.map(amount => (
-                <button
-                  key={amount}
-                  type="button"
-                  onClick={() => placeBet(amount)}
-                  disabled={
-                    currentBet + sideBet + amount > balance ||
-                    currentBet + amount > table.maxBet
-                  }
-                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-amber-300 to-amber-600 border-2 border-amber-200 shadow-lg text-amber-950 font-black text-sm flex items-center justify-center hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-30 disabled:cursor-not-allowed transition-all touch-manipulation"
-                >
-                  ${amount}
-                </button>
-              ))}
-            </div>
-            {sideBetsAllowed && (
-              <div className="w-full flex flex-col items-center gap-1.5">
-                <div className="text-white/45 text-[11px] font-bold tracking-wider">
-                  Perfect Pairs 邊注（最多主注一半）· 目前 ${sideBet}
+                  {feedbackSummary.headline}
+                  {feedbackSummary.lines.length === 1 ? ` — ${feedbackSummary.lines[0]}` : null}
                 </div>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {[10, 25, 50].map(amount => (
-                    <button
-                      key={`pp-${amount}`}
-                      type="button"
-                      onClick={() => placeSideBet(amount)}
-                      disabled={
-                        currentBet < table.minBet ||
-                        sideBet + amount >
-                          maxPerfectPairsBet(currentBet, balance - currentBet) ||
-                        currentBet + sideBet + amount > balance
-                      }
-                      className="min-h-[40px] px-3 rounded-lg bg-sky-600/80 hover:bg-sky-500 text-white text-xs font-black tracking-wider disabled:opacity-30 touch-manipulation"
+              )}
+            </div>
+
+            <div className="flex flex-col items-center gap-1 min-h-0 w-full overflow-x-auto overflow-y-hidden pb-1">
+              <div className="flex gap-3 sm:gap-6 justify-center min-w-max px-2">
+                <AnimatePresence>
+                  {playerHands.map((hand, i) => (
+                    <motion.div
+                      key={hand.id}
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex flex-col items-center gap-1 transition-all duration-300 ${
+                        activeHandIndex === i && gameState === 'playing' ? 'scale-105' : 'opacity-90'
+                      }`}
                     >
-                      邊注 +${amount}
+                      <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">
+                        玩家 {playerHands.length > 1 ? i + 1 : ''}
+                      </div>
+                      <div className="relative">
+                        {activeHandIndex === i && gameState === 'playing' && (
+                          <div className="absolute -inset-2 border-2 border-amber-400/50 rounded-xl animate-pulse"></div>
+                        )}
+                        <div className="flex -space-x-4 sm:-space-x-5 md:-space-x-6 relative z-10">
+                          {hand.cards.map((card, j) => (
+                            <motion.div
+                              key={`${dealKey}-${hand.id}-${j}-${card.rank}`}
+                              initial={{ opacity: 0, y: -40, x: -36, rotate: -10, scale: 0.85 }}
+                              animate={{ opacity: 1, y: 0, x: 0, rotate: 0, scale: 1 }}
+                              transition={{
+                                type: 'spring',
+                                stiffness: 320,
+                                damping: 22,
+                                delay: j * 0.1,
+                              }}
+                            >
+                              <Card card={card} />
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap justify-center items-center gap-1.5 mt-0.5">
+                        <div className="bg-black/60 px-2 py-1 rounded-full text-xs font-bold border border-white/10">
+                          {formatHandTotal(hand.cards)}
+                        </div>
+                        <div className="bg-amber-500/10 text-amber-400 px-2 py-1 rounded-full text-xs font-bold border border-amber-500/30">
+                          ${hand.bet}
+                        </div>
+                        {hand.status !== 'playing' && (
+                          <div
+                            className={`px-2 py-1 rounded-full text-xs font-bold tracking-wider ${
+                              hand.status === 'won' || hand.status === 'blackjack'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
+                                : hand.status === 'lost' ||
+                                    hand.status === 'busted' ||
+                                    hand.status === 'surrendered'
+                                  ? 'bg-red-500/20 text-red-400 border border-red-500/50'
+                                  : 'bg-gray-500/20 text-gray-300 border border-gray-500/50'
+                            }`}
+                          >
+                            {statusLabel(hand.status)}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="w-full bg-black/40 p-3 sm:p-4 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg z-10 shrink-0">
+            {isBankrupt ? (
+              <div className="flex flex-col items-center gap-3 py-2">
+                <p className="text-red-400 font-bold tracking-widest text-sm">籌碼不足（破產）</p>
+                {tableMode === 'career' ? (
+                  <>
+                    <p className="text-white/50 text-xs text-center">
+                      {table.name}下限 ${table.minBet}。已用救濟 {stats.recoveriesUsed}/{MAX_RECOVERIES}{' '}
+                      次。
+                    </p>
+                    {stats.recoveriesUsed < MAX_RECOVERIES ? (
+                      <button
+                        type="button"
+                        onClick={tryRecovery}
+                        className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
+                      >
+                        <Coins className="w-5 h-5" />
+                        領取救濟籌碼
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={doHardReset}
+                        className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
+                      >
+                        <RotateCcw className="w-5 h-5" />
+                        重置進度（${DEFAULT_BALANCE}）
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-white/50 text-xs text-center">
+                      {tableMode === 'tournament'
+                        ? '錫標賽不可領取救濟，本場以目前籌碼結算。'
+                        : '每日牌靴以目前結餘記錄成績。'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (tableMode === 'daily') finishDailyRun(balance, false);
+                        else finishTournament(balance);
+                      }}
+                      className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg touch-manipulation"
+                    >
+                      查看結算
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : gameState === 'betting' ? (
+              <div className="flex flex-col items-center gap-2 sm:gap-3">
+                {tableMode === 'career' && (
+                  <div className="w-full flex gap-1.5 overflow-x-auto pb-1">
+                    {TABLES.map(t => {
+                      const unlocked = isTableUnlocked(t.id, stats.peakBankroll);
+                      const active = t.id === stats.tableId;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          disabled={!unlocked}
+                          onClick={() => switchTable(t.id)}
+                          className={`shrink-0 px-2.5 py-2 min-h-[40px] rounded-lg text-[11px] font-bold border touch-manipulation ${
+                            active
+                              ? 'bg-amber-500/25 border-amber-400/60 text-amber-200'
+                              : unlocked
+                                ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                                : 'bg-black/30 border-white/5 text-white/25 cursor-not-allowed'
+                          }`}
+                          title={
+                            unlocked ? `下限 $${t.minBet}` : `峰值籌碼達 $${t.unlockPeak} 解鎖`
+                          }
+                        >
+                          {t.name}
+                          {!unlocked && ' 🔒'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="text-white/50 text-xs font-bold tracking-widest">
+                  主注（下限 ${table.minBet}）
+                </div>
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                  {table.chipValues.map((amount, idx) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => placeBet(amount)}
+                      disabled={
+                        currentBet + sideBet + amount > balance ||
+                        currentBet + amount > table.maxBet
+                      }
+                      className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-amber-300 to-amber-600 border-2 border-amber-200 shadow-lg text-amber-950 font-black text-sm flex items-center justify-center hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-30 disabled:cursor-not-allowed transition-all touch-manipulation"
+                    >
+                      ${amount}
+                      {idx < 5 && (
+                        <span className="absolute -top-1 -right-1 text-[9px] px-1 bg-black/70 rounded-full font-mono text-amber-300 border border-white/10 hidden sm:inline">
+                          {idx + 1}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
+                {sideBetsAllowed && (
+                  <div className="w-full flex flex-col items-center gap-1.5">
+                    <div className="text-white/45 text-[11px] font-bold tracking-wider">
+                      Perfect Pairs 邊注（最多主注一半）· 目前 ${sideBet}
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {[10, 25, 50].map(amount => (
+                        <button
+                          key={`pp-${amount}`}
+                          type="button"
+                          onClick={() => placeSideBet(amount)}
+                          disabled={
+                            currentBet < table.minBet ||
+                            sideBet + amount >
+                              maxPerfectPairsBet(currentBet, balance - currentBet) ||
+                            currentBet + sideBet + amount > balance
+                          }
+                          className="min-h-[40px] px-3 rounded-lg bg-sky-600/80 hover:bg-sky-500 text-white text-xs font-black tracking-wider disabled:opacity-30 touch-manipulation"
+                        >
+                          邊注 +${amount}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex justify-center gap-2 w-full max-w-sm mt-1">
+                  <button
+                    type="button"
+                    onClick={clearBet}
+                    className="flex-1 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors flex items-center justify-center gap-1.5 touch-manipulation"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    清除 <kbd className="text-[10px] opacity-60 font-mono hidden sm:inline">C</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={setMinBet}
+                    className="flex-1 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors touch-manipulation"
+                  >
+                    下限 <kbd className="text-[10px] opacity-60 font-mono hidden sm:inline">M</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deal}
+                    disabled={
+                      currentBet < table.minBet || currentBet + sideBet > balance || !!sessionResult
+                    }
+                    className="flex-[2] py-2.5 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 touch-manipulation"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    發牌 <kbd className="ml-1 text-[10px] opacity-75 font-mono hidden sm:inline">Space</kbd>
+                  </button>
+                </div>
+              </div>
+            ) : gameState === 'evenMoney' ? (
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={takeEvenMoney}
+                  className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '均分 1:1' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                >
+                  均分 1:1 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">Y</kbd>
+                </button>
+                <button
+                  type="button"
+                  onClick={declineEvenMoney}
+                  className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '繼續比牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                >
+                  繼續比牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">N</kbd>
+                </button>
+              </div>
+            ) : gameState === 'insurance' ? (
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={takeInsurance}
+                  disabled={balance < insuranceCost}
+                  className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '買保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                >
+                  保險 ${insuranceCost} <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">I</kbd>
+                </button>
+                <button
+                  type="button"
+                  onClick={declineInsurance}
+                  className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '不保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                >
+                  不保險 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">N</kbd>
+                </button>
+                {canSurrenderNow() && (
+                  <button
+                    type="button"
+                    onClick={surrender}
+                    className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                  >
+                    投降 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">R</kbd>
+                  </button>
+                )}
+              </div>
+            ) : gameState === 'playing' ? (
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={hit}
+                  disabled={!!playerHands[activeHandIndex]?.fromSplitAces}
+                  className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation disabled:opacity-30 ${hintLabel === '要牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                >
+                  要牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">H</kbd>
+                </button>
+                <button
+                  type="button"
+                  onClick={stand}
+                  className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '停牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                >
+                  停牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">S</kbd>
+                </button>
+                <button
+                  type="button"
+                  onClick={doubleDown}
+                  disabled={!canDoubleActive()}
+                  className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '加倍' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                >
+                  加倍 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">D</kbd>
+                </button>
+                {canSplitActive() && (
+                  <button
+                    type="button"
+                    onClick={split}
+                    className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '分牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                  >
+                    分牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">P</kbd>
+                  </button>
+                )}
+                {canSurrenderNow() && (
+                  <button
+                    type="button"
+                    onClick={surrender}
+                    className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
+                  >
+                    投降 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">R</kbd>
+                  </button>
+                )}
+              </div>
+            ) : gameState === 'gameOver' ? (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={resetRoundToBetting}
+                  className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 touch-manipulation"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  再下一局 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">Space</kbd>
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-center items-center h-12">
+                <div className="flex items-center gap-2 text-white/60 font-bold tracking-widest text-sm">
+                  <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  <span className="ml-1">莊家回合</span>
+                </div>
               </div>
             )}
-            <div className="flex justify-center gap-2 w-full max-w-sm mt-1">
-              <button
-                type="button"
-                onClick={clearBet}
-                className="flex-1 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors flex items-center justify-center gap-1.5 touch-manipulation"
-              >
-                <RotateCcw className="w-4 h-4" />
-                清除
-              </button>
-              <button
-                type="button"
-                onClick={setMinBet}
-                className="flex-1 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors touch-manipulation"
-              >
-                下限
-              </button>
-              <button
-                type="button"
-                onClick={deal}
-                disabled={
-                  currentBet < table.minBet || currentBet + sideBet > balance || !!sessionResult
-                }
-                className="flex-[2] py-2.5 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 touch-manipulation"
-              >
-                <Play className="w-5 h-5 fill-current" />
-                發牌
-              </button>
-            </div>
           </div>
-        ) : gameState === 'evenMoney' ? (
-          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={takeEvenMoney}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '均分 1:1' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-            >
-              均分 1:1
-            </button>
-            <button
-              type="button"
-              onClick={declineEvenMoney}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '繼續比牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-            >
-              繼續比牌
-            </button>
-          </div>
-        ) : gameState === 'insurance' ? (
-          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={takeInsurance}
-              disabled={balance < insuranceCost}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '買保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-            >
-              保險 ${insuranceCost}
-            </button>
-            <button
-              type="button"
-              onClick={declineInsurance}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '不保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-            >
-              不保險
-            </button>
-            {canSurrenderNow() && (
-              <button
-                type="button"
-                onClick={surrender}
-                className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-              >
-                投降
-              </button>
-            )}
-          </div>
-        ) : gameState === 'playing' ? (
-          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={hit}
-              disabled={!!playerHands[activeHandIndex]?.fromSplitAces}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation disabled:opacity-30 ${hintLabel === '要牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-            >
-              要牌
-            </button>
-            <button
-              type="button"
-              onClick={stand}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '停牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-            >
-              停牌
-            </button>
-            <button
-              type="button"
-              onClick={doubleDown}
-              disabled={!canDoubleActive()}
-              className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '加倍' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-            >
-              加倍
-            </button>
-            {canSplitActive() && (
-              <button
-                type="button"
-                onClick={split}
-                className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '分牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-              >
-                分牌
-              </button>
-            )}
-            {canSurrenderNow() && (
-              <button
-                type="button"
-                onClick={surrender}
-                className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
-              >
-                投降
-              </button>
-            )}
-          </div>
-        ) : gameState === 'gameOver' ? (
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={resetRoundToBetting}
-              className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 touch-manipulation"
-            >
-              <RotateCcw className="w-5 h-5" />
-              再下一局
-            </button>
-          </div>
-        ) : (
-          <div className="flex justify-center items-center h-12">
-            <div className="flex items-center gap-2 text-white/60 font-bold tracking-widest text-sm">
-              <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-              <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-              <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              <span className="ml-1">莊家回合</span>
-            </div>
-          </div>
-        )}
+        </div>
+
+        {/* Right Wing (Tactical Odds Wing) */}
+        <TacticalOddsWing
+          shoe={shoe}
+          dealerCards={dealerCards}
+          playerHands={playerHands}
+          activeHandIndex={activeHandIndex}
+          gameState={gameState}
+          streak={stats.streak}
+          trueCountVal={tc}
+          canDouble={canDoubleActive()}
+          canSplit={canSplitActive()}
+          canSurrender={canSurrenderNow()}
+          onOpenShortcuts={() => setShowShortcuts(true)}
+        />
       </div>
 
       {gameState === 'gameOver' && resultPrompt && !sessionResult && (
@@ -1926,6 +2057,11 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <KeyboardShortcutsModal
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
     </div>
     </MotionConfig>
   );

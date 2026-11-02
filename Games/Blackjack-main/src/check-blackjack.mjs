@@ -60,6 +60,13 @@ import {
 } from './utils/tournament.ts';
 import { simulateRound } from './utils/simulateRound.ts';
 import { hashString } from './utils/rng.ts';
+import {
+  calculateBustProbability,
+  getDealerBustProbability,
+  calculatePlayerEdge,
+  calculateShoeDensity,
+  getStreakPrestige,
+} from './utils/telemetry.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -375,5 +382,41 @@ const simShoe = createSeededShoe(2, 99, 0.9);
 const sim = simulateRound(simShoe, 25, 1000, TIN_SIM_RULES);
 assert(typeof sim.profit === 'number', 'sim returns profit');
 assert(sim.shoe.cards.length < simShoe.cards.length, 'sim consumes cards');
+
+// --- VIP Cockpit & Telemetry Tests ---
+assert(calculateBustProbability(hand(['A', '6']), []) === 0, 'soft 17 bust chance is 0');
+assert(calculateBustProbability(hand(['5', '6']), []) === 0, '11 or lower bust chance is 0');
+assert(calculateBustProbability(hand(['10', 'K', 'A']), []) === 100, '21 or over bust chance is 100');
+const hard12Bust = calculateBustProbability(hand(['10', '2']), []);
+assert(Math.abs(hard12Bust - 30.8) <= 0.2, `hard 12 bust chance approx 30.8%, got ${hard12Bust}`);
+const hard16Bust = calculateBustProbability(hand(['10', '6']), []);
+assert(Math.abs(hard16Bust - 61.5) <= 0.2, `hard 16 bust chance approx 61.5%, got ${hard16Bust}`);
+
+const miniShoe = [card('10'), card('K'), card('2'), card('3')];
+assert(calculateBustProbability(hand(['10', '2']), miniShoe) === 50, 'hard 12 on mini shoe: 10 & K bust (2/4 = 50%)');
+
+const dBust5 = getDealerBustProbability(card('5'), 0);
+const dBust10 = getDealerBustProbability(card('10'), 0);
+assert(dBust5 > dBust10, 'dealer 5 bust rate higher than 10');
+assert(getDealerBustProbability(card('5'), 3) > dBust5, 'high TC raises dealer 5 bust rate');
+
+const edgeZero = calculatePlayerEdge(0);
+assert(edgeZero.edge === -0.5 && edgeZero.tone === 'neutral', 'TC 0 base house edge -0.5%');
+const edgeHigh = calculatePlayerEdge(3);
+assert(edgeHigh.edge === 1.0 && edgeHigh.tone === 'player', 'TC +3 player edge 1.0%');
+const edgeLow = calculatePlayerEdge(-3);
+assert(edgeLow.edge === -2.0 && edgeLow.tone === 'house', 'TC -3 house edge 2.0%');
+
+const fullDeck = createSeededDeck(1, 123);
+const density = calculateShoeDensity(fullDeck);
+assert(density.high === 20 && density.total === 52, 'single deck high cards: 4 of each 10,J,Q,K,A = 20');
+assert(density.highPct === 38.5, 'high card pct in standard deck is 38.5%');
+
+const streak0 = getStreakPrestige(0);
+assert(streak0.level === 0 && streak0.multiplierLabel === '1.0x', 'streak 0 prestige');
+const streak3 = getStreakPrestige(3);
+assert(streak3.level === 3 && streak3.title.includes('三連勝'), 'streak 3 prestige');
+const streak6 = getStreakPrestige(6);
+assert(streak6.level === 6 && streak6.title.includes('傳奇'), 'streak 6 prestige');
 
 console.log('check-blackjack: ok');
