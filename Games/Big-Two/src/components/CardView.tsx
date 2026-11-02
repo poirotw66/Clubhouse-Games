@@ -7,6 +7,7 @@ interface Props {
   size?: 'sm' | 'md';
   selected?: boolean;
   hinted?: boolean;
+  focused?: boolean;
   onClick?: () => void;
 }
 
@@ -25,7 +26,7 @@ function faceBackgroundFor(red: boolean): string {
     : 'linear-gradient(rgba(226, 232, 240, 0.75), rgba(148, 163, 184, 0.05)), url(face-plate.jpg)';
 }
 
-export function CardView({ card, size = 'md', selected, hinted, onClick }: Props): React.ReactElement {
+export function CardView({ card, size = 'md', selected, hinted, focused, onClick }: Props): React.ReactElement {
   const red = card.suit === 'hearts' || card.suit === 'diamonds';
   const suitIcon = suitIconUrl(card);
   const className = [
@@ -35,6 +36,8 @@ export function CardView({ card, size = 'md', selected, hinted, onClick }: Props
     red ? 'text-rose-600' : 'text-slate-800',
     selected ? 'bt-card-selected border-amber-400 ring-2 ring-amber-400' : 'border-stone-400/60',
     hinted && !selected ? 'ring-2 ring-sky-400' : '',
+    focused && !selected ? 'ring-2 ring-amber-300 ring-offset-2 ring-offset-slate-900 shadow-lg' : '',
+    focused && selected ? 'ring-3 ring-amber-300 ring-offset-2 ring-offset-slate-900' : '',
     onClick ? 'cursor-pointer' : 'cursor-default',
   ]
     .filter(Boolean)

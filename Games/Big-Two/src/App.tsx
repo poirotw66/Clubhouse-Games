@@ -19,6 +19,9 @@ import {
 } from './components/FirstRunGuide';
 import { HandReviewPanel } from './components/HandReviewPanel';
 import { MatchScoreboard } from './components/MatchScoreboard';
+import { OpponentDossierPanel } from './components/OpponentDossierPanel';
+import { TacticalMobileBar } from './components/TacticalMobileBar';
+import { TacticalRadarPanel } from './components/TacticalRadarPanel';
 import { LOWEST_CARD_ID } from './game/cards';
 import {
   DIFFICULTIES,
@@ -64,6 +67,7 @@ import {
   opponentByIndex,
 } from './game/opponents';
 import { TYPE_LABEL, detectPlay } from './game/plays';
+import { computeTacticalRadar } from './game/tactics';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
 import { buildHandReview, isFlashyPlay } from './game/review';
 import type { HandReview } from './game/review';
@@ -121,6 +125,7 @@ export default function App(): React.ReactElement {
   const [state, setState] = useState<GameState | null>(null);
   const [history, setHistory] = useState<GameState[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  const [cursorIndex, setCursorIndex] = useState(0);
   const [hintReason, setHintReason] = useState<string | null>(null);
   const [hintPass, setHintPass] = useState(false);
   const [hintCards, setHintCards] = useState<string[]>([]);
@@ -189,6 +194,7 @@ export default function App(): React.ReactElement {
     setState(dealt);
     setHistory([]);
     setSelected([]);
+    setCursorIndex(0);
     setHintReason(null);
     setHintPass(false);
     setHintCards([]);
@@ -536,6 +542,84 @@ export default function App(): React.ReactElement {
     [match, state],
   );
 
+  const radar = useMemo(() => {
+    if (!state) return null;
+    const names = [0, 1, 2, 3].map(seatLabel);
+    return computeTacticalRadar(state, names);
+  }, [state, seatLabel]);
+
+  useEffect(() => {
+    if (!state) return;
+    const len = state.hands[HUMAN].length;
+    setCursorIndex((prev) => (len === 0 ? 0 : Math.min(prev, len - 1)));
+  }, [state?.hands]);
+
+  useEffect(() => {
+    if (screen !== 'game' || !state || state.phase !== 'playing' || state.turn !== HUMAN) {
+      return;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const hand = state.hands[HUMAN];
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        setCursorIndex((idx) => Math.max(0, idx - 1));
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        setCursorIndex((idx) => Math.min(hand.length - 1, idx + 1));
+      } else if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        const card = hand[cursorIndex];
+        if (card) toggle(card);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (playable) submit();
+      } else if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        if (canPass(state)) doPass();
+      } else if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        showHint();
+      } else if (e.key === 'c' || e.key === 'C' || e.key === 'Escape') {
+        e.preventDefault();
+        setSelected([]);
+        setHintReason(null);
+        setHintPass(false);
+        setHintCards([]);
+      } else if (e.key === 'u' || e.key === 'U' || e.key === 'z' || e.key === 'Z') {
+        if (canUndo) {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if (e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key, 10) - 1;
+        if (hand[idx]) {
+          e.preventDefault();
+          setCursorIndex(idx);
+          toggle(hand[idx]);
+        }
+      } else if (e.key === '0' && hand[9]) {
+        e.preventDefault();
+        setCursorIndex(9);
+        toggle(hand[9]);
+      } else if (e.key === '-' && hand[10]) {
+        e.preventDefault();
+        setCursorIndex(10);
+        toggle(hand[10]);
+      } else if (e.key === '=' && hand[11]) {
+        e.preventDefault();
+        setCursorIndex(11);
+        toggle(hand[11]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [screen, state, playable, canUndo, cursorIndex, toggle, submit, doPass, showHint, handleUndo]);
+
   if (screen === 'setup') {
     return (
       <>
@@ -572,127 +656,191 @@ export default function App(): React.ReactElement {
     : null;
 
   return (
-    <div className="min-h-screen flex flex-col items-center px-3 pb-4 pt-14 sm:pt-4">
+    <div className="min-h-screen flex flex-col items-center px-3 pb-8 pt-14 sm:pt-4">
       <BackToMenu />
 
-      <div className="relative w-full max-w-2xl flex flex-col gap-3">
-        <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
-
-        {ladderOpp && (
-          <p className="text-center text-xs text-amber-200/70">
-            挑戰 {ladderOpp.name} · {MEMORY_STYLE_LABEL[ladderOpp.style]}
-          </p>
+      <div className="w-full max-w-7xl flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4">
+        {/* Left Wing: Tactical Radar Panel (hidden on mobile, sticky on lg+) */}
+        {state && radar && (
+          <TacticalRadarPanel
+            radar={radar}
+            seatLabel={seatLabel}
+            className="hidden lg:flex w-72 shrink-0 sticky top-4"
+          />
         )}
 
-        {state && (
-          <>
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 2, 3].map((seat) => {
-                const person = personalityForSeat(seat, state.seatPersonalities);
-                const name =
-                  ladderOpp && seat === 1 ? ladderOpp.name : SEAT_NAMES[seat];
-                return (
-                  <Opponent
-                    key={seat}
-                    name={name}
-                    personality={person?.name ?? ''}
-                    count={state.hands[seat].length}
-                    active={state.turn === seat && state.phase === 'playing'}
-                    passed={state.passed.includes(seat)}
-                  />
-                );
-              })}
-            </div>
+        {/* Center Column: Table & Play Arena */}
+        <div className="relative w-full max-w-2xl flex flex-col gap-3">
+          <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
 
-            <Table state={state} seatLabel={seatLabel} feltRef={feltRef} />
+          {ladderOpp && (
+            <p className="text-center text-xs text-amber-200/70">
+              挑戰 {ladderOpp.name} · {MEMORY_STYLE_LABEL[ladderOpp.style]}
+            </p>
+          )}
 
-            {callout && (
-              <ScoreFlash
-                text={callout.text}
-                tone="good"
-                flashKey={callout.key}
-                onDone={() => setCallout(null)}
+          {/* Mobile Tactical Bar (visible only below lg) */}
+          {state && radar && (
+            <div className="lg:hidden">
+              <TacticalMobileBar
+                radar={radar}
+                match={match}
+                seatLabel={seatLabel}
               />
-            )}
-
-            <Status
-              state={state}
-              candidate={candidate}
-              playable={playable}
-              opening={opening}
-              hintReason={hintReason}
-              seatLabel={seatLabel}
-            />
-
-            <section aria-label="你的手牌">
-              <div className="bt-hand flex justify-center px-2 pt-3">
-                {state.hands[HUMAN].map((card) => (
-                  <CardView
-                    key={card.id}
-                    card={card}
-                    selected={selected.includes(card.id)}
-                    hinted={hintCards.includes(card.id)}
-                    onClick={myTurn ? () => toggle(card) : undefined}
-                  />
-                ))}
-              </div>
-            </section>
-
-            <div className="flex gap-2 justify-center">
-              <button
-                type="button"
-                onClick={submit}
-                disabled={!playable}
-                className="flex-1 min-h-[48px] rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 font-black touch-manipulation"
-              >
-                出牌
-              </button>
-              <button
-                type="button"
-                onClick={doPass}
-                disabled={!myTurn || !canPass(state)}
-                className={`min-h-[48px] px-5 rounded-xl border font-bold disabled:opacity-40 touch-manipulation ${
-                  hintPass
-                    ? 'border-sky-400 bg-sky-500/15 text-sky-200'
-                    : 'border-slate-600 hover:bg-slate-800'
-                }`}
-              >
-                Pass
-              </button>
-              <button
-                type="button"
-                onClick={handleUndo}
-                disabled={!canUndo}
-                className="min-h-[48px] px-3 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:opacity-40 text-sm touch-manipulation"
-                title="復原"
-              >
-                復原
-              </button>
-              <button
-                type="button"
-                onClick={showHint}
-                disabled={!myTurn}
-                className="min-h-[48px] px-4 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:opacity-40 text-sm touch-manipulation"
-              >
-                提示
-              </button>
             </div>
+          )}
 
-            {selected.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelected([]);
-                  setHintReason(null);
-                  setHintPass(false);
-                  setHintCards([]);
-                }}
-                className="mx-auto text-xs text-slate-400 underline min-h-[44px] touch-manipulation"
-              >
-                清除選取
-              </button>
-            )}
-          </>
+          {state && (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3].map((seat) => {
+                  const person = personalityForSeat(seat, state.seatPersonalities);
+                  const name =
+                    ladderOpp && seat === 1 ? ladderOpp.name : SEAT_NAMES[seat];
+                  return (
+                    <Opponent
+                      key={seat}
+                      name={name}
+                      personality={person?.name ?? ''}
+                      count={state.hands[seat].length}
+                      active={state.turn === seat && state.phase === 'playing'}
+                      passed={state.passed.includes(seat)}
+                    />
+                  );
+                })}
+              </div>
+
+              <Table state={state} seatLabel={seatLabel} feltRef={feltRef} />
+
+              {callout && (
+                <ScoreFlash
+                  text={callout.text}
+                  tone="good"
+                  flashKey={callout.key}
+                  onDone={() => setCallout(null)}
+                />
+              )}
+
+              <Status
+                state={state}
+                candidate={candidate}
+                playable={playable}
+                opening={opening}
+                hintReason={hintReason}
+                seatLabel={seatLabel}
+              />
+
+              <section aria-label="你的手牌">
+                <div className="bt-hand flex justify-center px-2 pt-3">
+                  {state.hands[HUMAN].map((card, idx) => (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      selected={selected.includes(card.id)}
+                      hinted={hintCards.includes(card.id)}
+                      focused={myTurn && cursorIndex === idx}
+                      onClick={
+                        myTurn
+                          ? () => {
+                              setCursorIndex(idx);
+                              toggle(card);
+                            }
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+
+              <div className="flex gap-2 justify-center">
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={!playable}
+                  className="flex-1 min-h-[48px] rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 font-black touch-manipulation"
+                >
+                  出牌
+                </button>
+                <button
+                  type="button"
+                  onClick={doPass}
+                  disabled={!myTurn || !canPass(state)}
+                  className={`min-h-[48px] px-5 rounded-xl border font-bold disabled:opacity-40 touch-manipulation ${
+                    hintPass
+                      ? 'border-sky-400 bg-sky-500/15 text-sky-200'
+                      : 'border-slate-600 hover:bg-slate-800'
+                  }`}
+                >
+                  Pass
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  className="min-h-[48px] px-3 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:opacity-40 text-sm touch-manipulation"
+                  title="復原"
+                >
+                  復原
+                </button>
+                <button
+                  type="button"
+                  onClick={showHint}
+                  disabled={!myTurn}
+                  className="min-h-[48px] px-4 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:opacity-40 text-sm touch-manipulation"
+                >
+                  提示
+                </button>
+              </div>
+
+              {selected.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelected([]);
+                    setHintReason(null);
+                    setHintPass(false);
+                    setHintCards([]);
+                  }}
+                  className="mx-auto text-xs text-slate-400 underline min-h-[44px] touch-manipulation"
+                >
+                  清除選取
+                </button>
+              )}
+
+              {/* Physical Keyboard Navigation HUD */}
+              <div className="hidden sm:flex items-center justify-center gap-1.5 text-[11px] text-indigo-200/60 pt-1 flex-wrap select-none">
+                <span className="text-indigo-300 font-semibold">實體鍵盤導航：</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-indigo-200">A</kbd>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-indigo-200">D</kbd>
+                <span>左右游標</span>
+                <span className="text-slate-600">·</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-indigo-200">Space</kbd>
+                <span>彈起</span>
+                <span className="text-slate-600">·</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-indigo-200">Enter</kbd>
+                <span>出牌</span>
+                <span className="text-slate-600">·</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-indigo-200">P</kbd>
+                <span>過牌</span>
+                <span className="text-slate-600">·</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-indigo-200">H</kbd>
+                <span>提示</span>
+                <span className="text-slate-600">·</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-indigo-200">C</kbd>
+                <span>清除</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Right Wing: Opponent Dossier & Master Advisory (hidden on mobile, sticky on lg+) */}
+        {state && radar && (
+          <OpponentDossierPanel
+            radar={radar}
+            match={match}
+            seatLabel={seatLabel}
+            className="hidden lg:flex w-72 shrink-0 sticky top-4"
+          />
         )}
       </div>
 
@@ -736,23 +884,41 @@ function Opponent({
   active: boolean;
   passed: boolean;
 }): React.ReactElement {
+  const isCritical = count === 1;
+  const isThreat = count <= 3 && count > 0;
+
   return (
     <div
       className={`rounded-xl px-2 py-2 text-center text-xs transition-transform duration-200 ${
-        active
-          ? 'bg-indigo-500/15 ring-1 ring-indigo-400/50 scale-[1.02]'
-          : 'bg-slate-900/50'
-      } ${count <= 3 && count > 0 ? 'bt-threat' : ''}`}
+        isCritical
+          ? 'bg-rose-950/40 ring-2 ring-rose-500 scale-[1.03] shadow-lg shadow-rose-950/50'
+          : active
+            ? 'bg-indigo-500/15 ring-1 ring-indigo-400/50 scale-[1.02]'
+            : 'bg-slate-900/50'
+      } ${isThreat ? 'bt-threat' : ''}`}
     >
-      <div className="font-bold">
-        {name}
-        {passed && <span className="text-slate-500 font-normal"> · pass</span>}
+      <div className="font-bold flex items-center justify-center gap-1">
+        <span>{name}</span>
+        {passed && <span className="text-slate-500 font-normal">· pass</span>}
       </div>
       {personality && (
         <div className="text-[10px] text-indigo-200/50 truncate">{personality}</div>
       )}
-      <div className={`tabular-nums ${count <= 3 ? 'text-amber-300 font-black' : 'text-slate-400'}`}>
-        {count} 張
+      <div
+        className={`tabular-nums mt-0.5 ${
+          isCritical
+            ? 'text-rose-400 font-black flex items-center justify-center gap-1'
+            : count <= 3
+              ? 'text-amber-300 font-black'
+              : 'text-slate-400'
+        }`}
+      >
+        <span>{count} 張</span>
+        {isCritical && (
+          <span className="text-[9px] px-1 rounded bg-rose-500/30 text-rose-200 border border-rose-500/40 animate-pulse">
+            頂大戒備
+          </span>
+        )}
       </div>
     </div>
   );

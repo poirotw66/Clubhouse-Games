@@ -62,6 +62,13 @@ import {
 } from '../src/game/opponents.js';
 import { buildHandReview } from '../src/game/review.js';
 import {
+  computeTacticalRadar,
+  dangerLevelForCount,
+  evaluateMonsterThreat,
+  inferPasses,
+  trackDeuces,
+} from '../src/game/tactics.js';
+import {
   EMPTY_STATS,
   applyLadderResult,
   recordDailyResult,
@@ -1012,6 +1019,52 @@ function expectQuickStateContracts(): void {
   assert.equal(stats.matches, 0, 'single results must not inflate series totals');
 }
 
+function expectTacticalRadar(): void {
+  const state = deal('tactics-test-seed', 'normal');
+  const radar = computeTacticalRadar(state);
+
+  // Four deuces must be accounted for
+  assert.equal(radar.deuces.length, 4);
+  const suits = new Set(radar.deuces.map((d) => d.suit));
+  assert.equal(suits.size, 4);
+
+  // Danger levels
+  assert.equal(dangerLevelForCount(1), 'critical');
+  assert.equal(dangerLevelForCount(3), 'high');
+  assert.equal(dangerLevelForCount(7), 'moderate');
+  assert.equal(dangerLevelForCount(13), 'safe');
+
+  // Verify critical alert when next seat has 1 card
+  const mockState: GameState = {
+    ...state,
+    hands: [
+      state.hands[0],
+      [state.hands[1][0]], // seat 1 has 1 card
+      state.hands[2],
+      state.hands[3],
+    ],
+  };
+  const criticalRadar = computeTacticalRadar(mockState);
+  assert.equal(criticalRadar.isNextSeatCritical, true);
+  assert.equal(criticalRadar.strategyLabel, '頂大防守戒備');
+  assert.ok(criticalRadar.masterTip.includes('頂大防禦戒備'));
+
+  // Pass inference check
+  const stateWithLog: GameState = {
+    ...state,
+    log: [
+      {
+        seat: 0,
+        play: { type: 'single', cards: [{ id: 'hearts-9', suit: 'hearts', rank: 9 }], key: 24 },
+      },
+      { seat: 1, play: null }, // seat 1 passed on single 9
+    ],
+  };
+  const passInferences = inferPasses(stateWithLog);
+  const seat1Passes = passInferences.get(1) ?? [];
+  assert.ok(seat1Passes.some((p) => p.includes('單張 9')));
+}
+
 const CHECKS: [string, () => void][] = [
   ['card order (2 is highest)', expectCardOrder],
   ['play detection', expectPlayDetection],
@@ -1038,13 +1091,14 @@ const CHECKS: [string, () => void][] = [
   ['single mode and format stats', expectSingleModeAndFormats],
   ['match MVP stats', expectMatchMvp],
   ['named opponent ladder', expectNamedOpponentLadder],
+  ['tactical radar and danger detection', expectTacticalRadar],
 ];
 
 const QUICK_CORE = new Set([
   expectCardOrder, expectPlayDetection, expectFiveCardTypeOrder, expectStraightConventions,
   expectSizeMustMatch, expectOpeningRule, expectTrickResolution, expectScoring,
   expectDealIsSound, expectTurnsToEmpty, expectStatsTracking, expectPersonalities,
-  expectCardMemory, expectNamedOpponentLadder,
+  expectCardMemory, expectNamedOpponentLadder, expectTacticalRadar,
 ]);
 const selectedChecks: [string, () => void][] = TEST_PROFILE === 'quick'
   ? [...CHECKS.filter(([, check]) => QUICK_CORE.has(check)), ['bounded replay and match contracts', expectQuickStateContracts]]
