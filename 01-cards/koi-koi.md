@@ -20,6 +20,16 @@
 ## 所需器材與操作
 
 - 花札牌面、場牌區、手牌與取牌區；觸控或滑鼠點選出牌／配對。
+- **和風雙翼戰術座艙（Dual-wing Tatami Cockpit）**：
+  - **左翼：役種進聽即時雷達（Yaku Radar）與殘牌透視（Card X-Ray）**：即時追蹤全部 12 種役種進聽狀態（聽牌／一向聽／進行中／已成役／已阻斷）。每張關鍵牌標註分佈狀態（我方已得、手牌中、場上現存、對手截獲、未現山札／對手手牌）。遭對手阻斷之役種即時警示，防止盲目追牌。
+  - **右翼：對手威脅推論與「來來（Koi-Koi）」博弈天秤（Risk Scale & Opponent Threat）**：精算對手成役威脅率（低／警戒／高危／絕凶 四級與 0–100% 威脅指數），即時預警對手粕牌速攻（如 9/10）、短冊、酒牌威脅；博弈天秤即時評估加碼來來之得失期望值，提供策士建議（穩健勝負／大膽來來／加碼博弈）。
+  - **行動端戰術速報條**：小螢幕提供輕量化浮動速報條與自適應抽屜彈窗，支援完整雙翼情報切換。
+- **實體鍵盤快速選牌出牌系統（Physical Keyboard Controls & HUD）**：
+  - <kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 切換手牌選取游標。
+  - <kbd>1</kbd> ~ <kbd>8</kbd> 數字鍵直選手牌（牌面左上角配備和風金色鍵盤標籤）。
+  - <kbd>Space</kbd> / <kbd>Enter</kbd> 出牌或確認場牌配對。
+  - <kbd>K</kbd> 喊 Koi-Koi 繼續；<kbd>S</kbd> 勝負結算。
+  - <kbd>H</kbd> 提示；<kbd>U</kbd> 悔棋；<kbd>R</kbd> 快速切換雙翼收合。
 - **提示（Hint）**：高亮建議的手牌與可配場牌（金環樣式，與一般可配高亮區分）。
 - **悔棋（Undo）**：在對手回合、整場合計／結束以外，可回到「你出手前」快照（含對手剛回的那手）；動畫中悔棋會取消未完成的排程。成役後的 Koi-Koi／勝負選擇亦可悔回出手前。
 - **首局引導**：首次開啟顯示三步上手疊層（`clubhouse-koi-koi-howto-seen`）；之後可從規則按鈕複習細節。
@@ -87,14 +97,14 @@
 
 | 項目 | 本實作 |
 |------|--------|
-| 模式／變體 | 三難度 AI × 三檔勝分；玩家／對手角色；對手個性 |
-| Replay hook | 勝敗與連勝（`winStreak`）；役種圖鑑 |
-| 對手 AI | 三級可分辨 + 角色個性；**Hint** + **Undo** |
-| Feedback | `ResultOverlay` + `synthAudio` + BGM；成役動畫；首局引導 |
-| Touch | 出牌／配對／悔棋／圖鑑可觸控 |
-| Check | `npm run check` → `vitest run`（`gameLogic`／`botAi`／`yakuCodex` 等） |
+| 模式／變體 | 三難度 AI × 三檔勝分；玩家／對手角色；對手個性；和風雙翼戰術座艙 |
+| Replay hook | 勝敗與連勝（`winStreak`）；役種圖鑑；進聽聽牌雷達；博弈期望值天秤 |
+| 對手 AI | 三級可分辨 + 角色個性；**Hint** + **Undo**；對手成役威脅即時推論 |
+| Feedback | `ResultOverlay` + `synthAudio` + BGM；成役動畫；首局引導；鍵盤操作 HUD |
+| Touch & Keyboard | 出牌／配對／悔棋／圖鑑觸控與實體鍵盤快捷（A/D/1-8/Space/K/S/H/U/R） |
+| Check | `npm run check` → `vitest run`（`gameLogic`／`botAi`／`yakuCodex`／`tacticalRadar` 等） |
 
 ## 實作
 
 - 專案路徑：[Games/Koi-Koi/](../Games/Koi-Koi/)
-- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/personalities.ts`、`src/utils/yakuCodex.ts`、`src/utils/stats.ts`；UI：`src/App.tsx`、`src/components/YakuCodexModal.tsx`、`src/components/FirstRunGuide.tsx`
+- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/personalities.ts`、`src/utils/yakuCodex.ts`、`src/utils/stats.ts`、`src/utils/tacticalRadar.ts`；UI：`src/App.tsx`、`src/components/TacticalRadarLeftWing.tsx`、`src/components/TacticalRadarRightWing.tsx`、`src/components/TacticalMobileBrief.tsx`、`src/components/KeyboardHud.tsx`、`src/components/YakuCodexModal.tsx`、`src/components/FirstRunGuide.tsx`

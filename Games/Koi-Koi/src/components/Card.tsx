@@ -11,9 +11,20 @@ interface Props {
   hint?: boolean;
   hidden?: boolean;
   className?: string;
+  /** Optional keyboard hotkey number (1-8) badge displayed on top-left */
+  hotkeyIndex?: number;
 }
 
-export const Card: React.FC<Props> = ({card, onClick, selected, highlighted, hint, hidden, className = ''}) => {
+export const Card: React.FC<Props> = ({
+  card,
+  onClick,
+  selected,
+  highlighted,
+  hint,
+  hidden,
+  className = '',
+  hotkeyIndex,
+}) => {
   const [imageFailed, setImageFailed] = useState(false);
 
   if (hidden) {
@@ -45,6 +56,14 @@ export const Card: React.FC<Props> = ({card, onClick, selected, highlighted, hin
         ${className}
       `}
     >
+      {hotkeyIndex !== undefined && (
+        <span
+          className="absolute top-0.5 left-0.5 z-10 px-1 py-0.2 rounded text-[9px] bg-black/80 text-gold font-mono font-bold border border-gold/40 shadow-xs pointer-events-none"
+          title={`快捷鍵 ${hotkeyIndex}`}
+        >
+          {hotkeyIndex}
+        </span>
+      )}
       {imageFailed ? (
         <div className="flex h-full w-full flex-col items-center justify-center p-1 text-center text-[10px] font-bold leading-tight text-gray-700">
           <span>{card.month}月</span>

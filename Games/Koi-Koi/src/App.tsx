@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, Volume2, VolumeX, HelpCircle, Lightbulb, Undo2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { BookOpen, Volume2, VolumeX, HelpCircle, Lightbulb, Undo2, Sliders } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
@@ -23,6 +23,11 @@ import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
 } from './components/FirstRunGuide';
+import { TacticalRadarLeftWing } from './components/TacticalRadarLeftWing';
+import { TacticalRadarRightWing } from './components/TacticalRadarRightWing';
+import { TacticalMobileBrief } from './components/TacticalMobileBrief';
+import { KeyboardHud } from './components/KeyboardHud';
+import { analyzeTacticalRadar } from './utils/tacticalRadar';
 import { getCharacterImageUrl } from './characters';
 import { useBgm } from './hooks/useBgm';
 import { useCharacterSelection } from './hooks/useCharacterSelection';
@@ -121,6 +126,10 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
   const [winScore, setWinScore] = useState<WinScore>(() => loadStats().lastWinScore);
   const [hint, setHint] = useState<HintChoice | null>(null);
+  const [leftWingCollapsed, setLeftWingCollapsed] = useState(false);
+  const [rightWingCollapsed, setRightWingCollapsed] = useState(false);
+  const [cursorIndex, setCursorIndex] = useState(0);
+  const [cursorMatchIndex, setCursorMatchIndex] = useState(0);
   const lockRef = useRef(false);
   const statsRecordedRef = useRef(false);
   const actionGenRef = useRef(0);
@@ -218,6 +227,8 @@ export default function App() {
     bumpActionGen();
     setHint(null);
     clearHistory();
+    setCursorIndex(0);
+    setCursorMatchIndex(0);
     if (resetMatch || !isNextRound) statsRecordedRef.current = false;
     const { deck, playerHand, botHand, field } = deal();
     setState(s => {
@@ -696,6 +707,169 @@ export default function App() {
   ].includes(state.phase);
   const isBotActive = state.phase === 'bot_turn';
 
+  const tacticalRadar = useMemo(() => {
+    if (state.phase === 'idle') return null;
+    return analyzeTacticalRadar(
+      state.playerCaptured,
+      state.playerHand,
+      state.field,
+      state.botCaptured,
+      state.playerPoints,
+      state.botHand.length,
+      state.koiKoiCount.player,
+      state.botScore,
+      winScoreRef.current,
+    );
+  }, [
+    state.phase,
+    state.playerCaptured,
+    state.playerHand,
+    state.field,
+    state.botCaptured,
+    state.playerPoints,
+    state.botHand.length,
+    state.koiKoiCount.player,
+    state.botScore,
+    winScore,
+  ]);
+
+  useEffect(() => {
+    if (cursorIndex >= state.playerHand.length && state.playerHand.length > 0) {
+      setCursorIndex(state.playerHand.length - 1);
+    }
+  }, [state.playerHand.length, cursorIndex]);
+
+  useEffect(() => {
+    if (cursorMatchIndex >= state.matchingFieldCards.length && state.matchingFieldCards.length > 0) {
+      setCursorMatchIndex(state.matchingFieldCards.length - 1);
+    }
+  }, [state.matchingFieldCards.length, cursorMatchIndex]);
+
+  const handlersRef = useRef({
+    handleHandCardClick,
+    handleFieldCardClick,
+    handleKoiKoi,
+    handleAgari,
+    handleHint,
+    handleUndo,
+    canHint,
+    canUndo,
+    state,
+    cursorIndex,
+    cursorMatchIndex,
+  });
+  handlersRef.current = {
+    handleHandCardClick,
+    handleFieldCardClick,
+    handleKoiKoi,
+    handleAgari,
+    handleHint,
+    handleUndo,
+    canHint,
+    canUndo,
+    state,
+    cursorIndex,
+    cursorMatchIndex,
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      const {
+        handleHandCardClick: doHandClick,
+        handleFieldCardClick: doFieldClick,
+        handleKoiKoi: doKoiKoi,
+        handleAgari: doAgari,
+        handleHint: doHint,
+        handleUndo: doUndo,
+        canHint: okHint,
+        canUndo: okUndo,
+        state: curState,
+        cursorIndex: curIdx,
+        cursorMatchIndex: curMatchIdx,
+      } = handlersRef.current;
+
+      const key = e.key;
+
+      if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
+        if (curState.phase === 'player_turn_hand' && curState.playerHand.length > 0) {
+          e.preventDefault();
+          setCursorIndex(prev => (prev - 1 + curState.playerHand.length) % curState.playerHand.length);
+          playMove();
+        } else if (
+          (curState.phase === 'player_turn_hand_match' || curState.phase === 'player_turn_draw_match') &&
+          curState.matchingFieldCards.length > 0
+        ) {
+          e.preventDefault();
+          setCursorMatchIndex(prev => (prev - 1 + curState.matchingFieldCards.length) % curState.matchingFieldCards.length);
+          playMove();
+        }
+      } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
+        if (curState.phase === 'player_turn_hand' && curState.playerHand.length > 0) {
+          e.preventDefault();
+          setCursorIndex(prev => (prev + 1) % curState.playerHand.length);
+          playMove();
+        } else if (
+          (curState.phase === 'player_turn_hand_match' || curState.phase === 'player_turn_draw_match') &&
+          curState.matchingFieldCards.length > 0
+        ) {
+          e.preventDefault();
+          setCursorMatchIndex(prev => (prev + 1) % curState.matchingFieldCards.length);
+          playMove();
+        }
+      } else if (key >= '1' && key <= '8') {
+        const num = parseInt(key, 10) - 1;
+        if (curState.phase === 'player_turn_hand' && num < curState.playerHand.length) {
+          e.preventDefault();
+          setCursorIndex(num);
+          playMove();
+        }
+      } else if (key === ' ' || key === 'Enter') {
+        if (curState.phase === 'player_turn_hand' && curState.playerHand[curIdx]) {
+          e.preventDefault();
+          doHandClick(curState.playerHand[curIdx]);
+        } else if (
+          (curState.phase === 'player_turn_hand_match' || curState.phase === 'player_turn_draw_match') &&
+          curState.matchingFieldCards[curMatchIdx]
+        ) {
+          e.preventDefault();
+          doFieldClick(curState.matchingFieldCards[curMatchIdx]);
+        }
+      } else if (key === 'k' || key === 'K') {
+        if (curState.phase === 'player_koi_koi') {
+          e.preventDefault();
+          doKoiKoi();
+        }
+      } else if (key === 's' || key === 'S') {
+        if (curState.phase === 'player_koi_koi') {
+          e.preventDefault();
+          doAgari();
+        }
+      } else if (key === 'h' || key === 'H') {
+        if (okHint) {
+          e.preventDefault();
+          doHint();
+        }
+      } else if (key === 'u' || key === 'U') {
+        if (okUndo) {
+          e.preventDefault();
+          doUndo();
+        }
+      } else if (key === 'r' || key === 'R') {
+        if (curState.phase !== 'idle') {
+          e.preventDefault();
+          setLeftWingCollapsed(prev => !prev);
+          setRightWingCollapsed(prev => !prev);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div
       className="min-h-screen flex flex-col items-center py-4 px-2 sm:px-6 pb-8 bg-cover bg-center"
@@ -712,8 +886,20 @@ export default function App() {
         <FirstRunGuide onClose={() => setShowFirstRun(false)} />
       )}
       {/* Header */}
-      <header className="w-full max-w-6xl mb-4">
+      <header className="w-full max-w-[1600px] mb-4">
         <div className="wafu-panel rounded-2xl px-4 sm:px-6 py-4 relative overflow-hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setLeftWingCollapsed(p => !p);
+              setRightWingCollapsed(p => !p);
+            }}
+            className="absolute top-3 right-[9.5rem] z-20 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors touch-manipulation"
+            aria-label="切換戰術座艙 (R)"
+            title="切換戰術座艙雷達 (快捷鍵 R)"
+          >
+            <Sliders size={18} />
+          </button>
           <button
             type="button"
             onClick={() => setShowCodex(true)}
@@ -907,152 +1093,215 @@ export default function App() {
 
       {/* Game board */}
       {state.phase !== 'idle' && (
-        <div className="w-full max-w-6xl flex flex-col gap-3 flex-1">
-          {/* Opponent */}
-          <div className="wafu-panel rounded-2xl p-3 sm:p-4">
-            <div className="flex gap-3 sm:gap-4 items-start">
-              <div className="hidden sm:block shrink-0 pt-1">
-                <PlayerAvatar
-                  role="bot"
-                  name={opponent.name}
-                  score={state.botScore}
-                  roundPoints={state.botPoints}
-                  isActive={isBotActive}
-                  isDealer={state.dealer === 'bot'}
-                  koiKoi={state.koiKoiCount.bot > 0}
-                  avatarSrc={opponentAvatarUrl}
+        <div className="w-full max-w-[1600px] flex flex-col gap-3 flex-1">
+          {/* Mobile / Compact Tactical Brief Bar (< xl) */}
+          {tacticalRadar && (
+            <div className="xl:hidden w-full flex justify-center">
+              <TacticalMobileBrief
+                radar={tacticalRadar}
+                opponent={opponent}
+                personality={personality}
+                botHandCount={state.botHand.length}
+              />
+            </div>
+          )}
+
+          {/* Dual-wing Japanese Hanafuda Tatami Cockpit layout */}
+          <div className="flex gap-3 items-start justify-center w-full">
+            {/* Left Wing (Yaku Radar) on Desktop (xl+) */}
+            {tacticalRadar && (
+              <div className="hidden xl:block shrink-0 sticky top-4">
+                <TacticalRadarLeftWing
+                  radar={tacticalRadar}
+                  collapsed={leftWingCollapsed}
+                  onToggleCollapse={() => setLeftWingCollapsed(prev => !prev)}
                 />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-cream/50 mb-2 sm:hidden">{opponent.name} · 手牌 {state.botHand.length}</p>
-                <p className="text-xs text-gold/70 mb-2 hidden sm:block">手牌 ({state.botHand.length})</p>
-                <div className="flex gap-1 sm:gap-2 flex-wrap">
-                  {state.botHand.map(c => (
-                    <CardComponent key={c.id} card={c} hidden />
-                  ))}
-                </div>
-              </div>
-              <div className="w-36 sm:w-52 shrink-0 pl-3 border-l border-gold/20">
-                <CapturedPanel captured={state.botCaptured} />
-              </div>
-            </div>
-          </div>
+            )}
 
-          {/* Field */}
-          <div
-            ref={(node) => {
-              juiceTableRef.current = node;
-            }}
-            data-kk-table="1"
-            className="tatami-table rounded-2xl flex-1 flex flex-col items-center justify-center relative py-10 sm:py-12 min-h-[200px]"
-            style={{
-              backgroundImage: [
-                'linear-gradient(rgba(45,66,40,0.82), rgba(35,52,32,0.9))',
-                `url(${import.meta.env.BASE_URL}textures/tatami.jpg)`,
-              ].join(', '),
-            }}
-          >
-            <div className="corner-ornament corner-ornament-tl" />
-            <div className="corner-ornament corner-ornament-tr" />
-            <div className="corner-ornament corner-ornament-bl" />
-            <div className="corner-ornament corner-ornament-br" />
-
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[92%] max-w-lg z-20">
-              <div className="speech-bubble rounded-xl px-4 py-2.5 text-center">
-                <p className="font-display text-sm sm:text-base font-semibold text-indigo-deep leading-snug">
-                  {state.message}
-                </p>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {state.drawnCard && (
-                <motion.div
-                  initial={{ opacity: 0, y: -50, scale: 0.5 }}
-                  animate={{ opacity: 1, y: 0, scale: 1.15 }}
-                  exit={{ opacity: 0, scale: 0.5 }}
-                  className="absolute z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-                >
-                  <p className="text-center mb-2 font-display text-sm font-bold text-gold drop-shadow-md">山札</p>
-                  <CardComponent card={state.drawnCard} className="shadow-2xl ring-2 ring-gold" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-3 max-w-4xl mt-10 px-2">
-              {state.field.map(c => (
-                <CardComponent
-                  key={c.id}
-                  card={c}
-                  onClick={() => handleFieldCardClick(c)}
-                  highlighted={state.matchingFieldCards.some(mc => mc.id === c.id)}
-                  hint={hint?.fieldCardId === c.id}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Player */}
-          <div className="wafu-panel rounded-2xl p-3 sm:p-4">
-            <div className="flex gap-3 sm:gap-4 items-end">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-xs text-gold/70">你的手牌</p>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={handleUndo}
-                      disabled={!canUndo}
-                      className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-35 disabled:hover:text-cream/60 disabled:hover:bg-transparent touch-manipulation min-h-[36px]"
-                      aria-label="悔棋"
-                      title="悔棋（回到出手前）"
-                    >
-                      <Undo2 size={14} />
-                      悔棋
-                    </button>
-                    {canHint && (
-                      <button
-                        type="button"
-                        onClick={handleHint}
-                        className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors touch-manipulation min-h-[36px]"
-                        aria-label="提示"
-                        title="提示"
-                      >
-                        <Lightbulb size={14} />
-                        提示
-                      </button>
-                    )}
+            {/* Center Table Column */}
+            <div className="flex-1 max-w-5xl flex flex-col gap-3 min-w-0">
+              {/* Opponent */}
+              <div className="wafu-panel rounded-2xl p-3 sm:p-4">
+                <div className="flex gap-3 sm:gap-4 items-start">
+                  <div className="hidden sm:block shrink-0 pt-1">
+                    <PlayerAvatar
+                      role="bot"
+                      name={opponent.name}
+                      score={state.botScore}
+                      roundPoints={state.botPoints}
+                      isActive={isBotActive}
+                      isDealer={state.dealer === 'bot'}
+                      koiKoi={state.koiKoiCount.bot > 0}
+                      avatarSrc={opponentAvatarUrl}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-cream/50 mb-2 sm:hidden">{opponent.name} · 手牌 {state.botHand.length}</p>
+                    <p className="text-xs text-gold/70 mb-2 hidden sm:block">手牌 ({state.botHand.length})</p>
+                    <div className="flex gap-1 sm:gap-2 flex-wrap">
+                      {state.botHand.map(c => (
+                        <CardComponent key={c.id} card={c} hidden />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="w-36 sm:w-52 shrink-0 pl-3 border-l border-gold/20">
+                    <CapturedPanel captured={state.botCaptured} />
                   </div>
                 </div>
-                <div className="flex gap-1 sm:gap-2 flex-wrap">
-                  {state.playerHand.map(c => (
-                    <CardComponent
-                      key={c.id}
-                      card={c}
-                      onClick={() => handleHandCardClick(c)}
-                      selected={state.selectedHandCard?.id === c.id}
-                      hint={hint?.handCardId === c.id}
-                      className={state.phase === 'player_turn_hand' ? 'hover:-translate-y-2' : ''}
-                    />
-                  ))}
+              </div>
+
+              {/* Field */}
+              <div
+                ref={(node) => {
+                  juiceTableRef.current = node;
+                }}
+                data-kk-table="1"
+                className="tatami-table rounded-2xl flex-1 flex flex-col items-center justify-center relative py-10 sm:py-12 min-h-[200px]"
+                style={{
+                  backgroundImage: [
+                    'linear-gradient(rgba(45,66,40,0.82), rgba(35,52,32,0.9))',
+                    `url(${import.meta.env.BASE_URL}textures/tatami.jpg)`,
+                  ].join(', '),
+                }}
+              >
+                <div className="corner-ornament corner-ornament-tl" />
+                <div className="corner-ornament corner-ornament-tr" />
+                <div className="corner-ornament corner-ornament-bl" />
+                <div className="corner-ornament corner-ornament-br" />
+
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[92%] max-w-lg z-20">
+                  <div className="speech-bubble rounded-xl px-4 py-2.5 text-center">
+                    <p className="font-display text-sm sm:text-base font-semibold text-indigo-deep leading-snug">
+                      {state.message}
+                    </p>
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {state.drawnCard && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -50, scale: 0.5 }}
+                      animate={{ opacity: 1, y: 0, scale: 1.15 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      className="absolute z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                    >
+                      <p className="text-center mb-2 font-display text-sm font-bold text-gold drop-shadow-md">山札</p>
+                      <CardComponent card={state.drawnCard} className="shadow-2xl ring-2 ring-gold" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-3 max-w-4xl mt-10 px-2">
+                  {state.field.map(c => {
+                    const isMatchCard = state.matchingFieldCards.some(mc => mc.id === c.id);
+                    const matchIdx = state.matchingFieldCards.findIndex(mc => mc.id === c.id);
+                    const isCursorMatch = isMatchCard && matchIdx === cursorMatchIndex;
+
+                    return (
+                      <CardComponent
+                        key={c.id}
+                        card={c}
+                        onClick={() => handleFieldCardClick(c)}
+                        highlighted={isMatchCard}
+                        selected={isCursorMatch}
+                        hint={hint?.fieldCardId === c.id}
+                      />
+                    );
+                  })}
                 </div>
               </div>
-              <div className="w-36 sm:w-52 shrink-0 pl-3 border-l border-gold/20">
-                <CapturedPanel captured={state.playerCaptured} />
+
+              {/* Player */}
+              <div className="wafu-panel rounded-2xl p-3 sm:p-4">
+                <div className="flex gap-3 sm:gap-4 items-end">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-xs text-gold/70">你的手牌</p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={handleUndo}
+                          disabled={!canUndo}
+                          className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-35 disabled:hover:text-cream/60 disabled:hover:bg-transparent touch-manipulation min-h-[36px]"
+                          aria-label="悔棋"
+                          title="悔棋（回到出手前，快捷鍵 U）"
+                        >
+                          <Undo2 size={14} />
+                          悔棋
+                        </button>
+                        {canHint && (
+                          <button
+                            type="button"
+                            onClick={handleHint}
+                            className="inline-flex items-center gap-1 text-xs text-cream/60 hover:text-gold px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors touch-manipulation min-h-[36px]"
+                            aria-label="提示"
+                            title="提示（快捷鍵 H）"
+                          >
+                            <Lightbulb size={14} />
+                            提示
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 sm:gap-2 flex-wrap">
+                      {state.playerHand.map((c, index) => (
+                        <CardComponent
+                          key={c.id}
+                          card={c}
+                          onClick={() => {
+                            setCursorIndex(index);
+                            handleHandCardClick(c);
+                          }}
+                          selected={
+                            state.selectedHandCard?.id === c.id ||
+                            (state.phase === 'player_turn_hand' && cursorIndex === index)
+                          }
+                          hint={hint?.handCardId === c.id}
+                          hotkeyIndex={index + 1}
+                          className={state.phase === 'player_turn_hand' ? 'hover:-translate-y-2' : ''}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="w-36 sm:w-52 shrink-0 pl-3 border-l border-gold/20">
+                    <CapturedPanel captured={state.playerCaptured} />
+                  </div>
+                  <div className="hidden sm:block shrink-0 pb-1">
+                    <PlayerAvatar
+                      role="player"
+                      name={character.name}
+                      score={state.playerScore}
+                      roundPoints={state.playerPoints}
+                      isActive={isPlayerActive}
+                      isDealer={state.dealer === 'player'}
+                      koiKoi={state.koiKoiCount.player > 0}
+                      avatarSrc={playerAvatarUrl}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="hidden sm:block shrink-0 pb-1">
-                <PlayerAvatar
-                  role="player"
-                  name={character.name}
-                  score={state.playerScore}
-                  roundPoints={state.playerPoints}
-                  isActive={isPlayerActive}
-                  isDealer={state.dealer === 'player'}
-                  koiKoi={state.koiKoiCount.player > 0}
-                  avatarSrc={playerAvatarUrl}
+
+              {/* Physical Keyboard Shortcuts HUD */}
+              <KeyboardHud
+                className="mt-1 justify-center hidden sm:flex"
+                isKoiKoiPhase={state.phase === 'player_koi_koi'}
+              />
+            </div>
+
+            {/* Right Wing (Risk & Opponent Threat) on Desktop (xl+) */}
+            {tacticalRadar && (
+              <div className="hidden xl:block shrink-0 sticky top-4">
+                <TacticalRadarRightWing
+                  radar={tacticalRadar}
+                  collapsed={rightWingCollapsed}
+                  onToggleCollapse={() => setRightWingCollapsed(prev => !prev)}
+                  opponent={opponent}
+                  personality={personality}
+                  botHandCount={state.botHand.length}
                 />
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1084,15 +1333,46 @@ export default function App() {
             </div>
             <h2 className="font-display text-3xl font-bold text-gold mb-2">組成役！</h2>
             <p className="text-xl text-cream mb-2">目前獲得 {state.playerPoints} 分</p>
-            <p className="text-sm text-cream/60 mb-8">
+            <p className="text-sm text-cream/60 mb-6">
               {state.playerYaku.map(y => `${y.name}（${y.points}分）`).join(' ＋ ')}
             </p>
+
+            {/* Strategic advice card right in Koi-Koi modal */}
+            {tacticalRadar && (
+              <div className="mb-6 p-2.5 rounded-xl border border-gold/30 bg-black/40 text-left text-xs">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-gold font-semibold flex items-center gap-1">
+                    <Sliders size={12} />
+                    策士建議
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-gold/20 text-gold font-bold">
+                    {tacticalRadar.koiKoiRisk.recommendationLabel}
+                  </span>
+                </div>
+                <p className="text-[11px] text-cream/80 leading-relaxed">
+                  {tacticalRadar.koiKoiRisk.advice}
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button onClick={handleAgari} className="wafu-btn-secondary px-6 py-3 rounded-xl">
-                勝負（結算）
+              <button
+                onClick={handleAgari}
+                className="wafu-btn-secondary px-6 py-3 rounded-xl flex items-center justify-center gap-2"
+              >
+                <span>勝負（結算）</span>
+                <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 border border-white/20 font-mono font-bold">
+                  S
+                </kbd>
               </button>
-              <button onClick={handleKoiKoi} className="wafu-btn-gold px-6 py-3 rounded-xl">
-                Koi-Koi（繼續）
+              <button
+                onClick={handleKoiKoi}
+                className="wafu-btn-gold px-6 py-3 rounded-xl flex items-center justify-center gap-2"
+              >
+                <span>Koi-Koi（繼續）</span>
+                <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/20 border border-black/30 font-mono font-bold text-indigo-deep">
+                  K
+                </kbd>
               </button>
             </div>
             {canUndo && (
@@ -1102,7 +1382,7 @@ export default function App() {
                 className="mt-4 inline-flex items-center justify-center gap-1 text-sm text-cream/50 hover:text-gold transition-colors touch-manipulation min-h-[44px]"
               >
                 <Undo2 size={14} />
-                悔棋（回到出手前）
+                悔棋（回到出手前，快捷鍵 U）
               </button>
             )}
           </motion.div>
@@ -1157,7 +1437,7 @@ export default function App() {
       {showRules && <RulesModal winScore={winScore} onClose={() => setShowRules(false)} />}
       {showCodex && <YakuCodexModal codex={codex} onClose={() => setShowCodex(false)} />}
 
-      <footer className="mt-6 max-w-6xl text-center text-[10px] text-cream/40 px-4">
+      <footer className="mt-6 max-w-[1600px] text-center text-[10px] text-cream/40 px-4">
         牌面圖素材：Louie Mantia ·{' '}
         <a
           href="https://commons.wikimedia.org/wiki/Category:SVG_Hanafuda_with_traditional_colors_(black_border)"
