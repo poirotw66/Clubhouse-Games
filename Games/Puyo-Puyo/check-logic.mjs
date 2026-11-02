@@ -11,10 +11,12 @@ function loadScript(relPath, context) {
 
 const context = { window: {}, console };
 loadScript('src/js/logic.js', context);
+loadScript('src/js/tactics.js', context);
 loadScript('src/js/missions.js', context);
 loadScript('src/js/daily.js', context);
 
 const L = context.window.PuyoLogic;
+const T = context.window.PuyoTactics;
 const M = context.window.PuyoMissions;
 const D = context.window.PuyoDaily;
 
@@ -332,6 +334,76 @@ function runTests() {
     s = L.withBoardTheme(s, 'candy');
     assert.equal(s.boardTheme, 'candy');
     assert.ok(L.VALID_MODES.daily, 'daily mode registered');
+  }
+
+  // PuyoTactics suite: damage matrix, counter estimation, board heatmap, drop simulation, and strategies.
+  assert.ok(T, 'PuyoTactics loaded');
+  {
+    const matrix = T.getChainDamageMatrix();
+    assert.equal(matrix.length, 7, 'matrix covers 1 to 7+ chains');
+    assert.equal(matrix[0].chain, 1);
+    assert.equal(matrix[0].garbage, 0, '1-chain gives 0 garbage');
+    assert.ok(matrix[1].garbage > 0, '2-chain sends garbage');
+    assert.ok(matrix[6].garbage >= 350, '7-chain tier has 350+ garbage');
+
+    const strats = T.getClassicStrategies();
+    assert.equal(strats.length, 3, 'stairs, sandwich, gtr');
+    assert.equal(strats[0].id, 'stairs');
+    assert.equal(strats[1].id, 'sandwich');
+    assert.equal(strats[2].id, 'gtr');
+    strats.forEach(function (strat) {
+      assert.ok(strat.blueprint.length === 6, strat.id + ' blueprint has 6 rows');
+      assert.ok(strat.blueprint[0].length === 6, strat.id + ' blueprint has 6 cols');
+      assert.ok(strat.steps.length >= 3, strat.id + ' has detailed steps');
+    });
+
+    const safeCounter = T.counterChainNeeded(0);
+    assert.equal(safeCounter.requiredChain, 0);
+    assert.equal(safeCounter.status, 'safe');
+
+    const minorThreat = T.counterChainNeeded(8);
+    assert.equal(minorThreat.requiredChain, 2);
+    assert.equal(minorThreat.status, 'warning');
+
+    const mediumThreat = T.counterChainNeeded(25);
+    assert.equal(mediumThreat.requiredChain, 3);
+    assert.equal(mediumThreat.status, 'danger');
+
+    const heavyThreat = T.counterChainNeeded(60);
+    assert.equal(heavyThreat.requiredChain, 4);
+
+    const board = L.createBoard();
+    board[12][0] = 'red';
+    board[12][1] = 'red';
+    board[12][2] = 'red';
+    board[12][3] = 'blue';
+    board[11][3] = 'blue';
+    board[10][3] = 'blue';
+    board[12][4] = L.GARBAGE;
+
+    const analysis = T.analyzeBoardColors(board, 4);
+    assert.equal(analysis.counts.red, 3);
+    assert.equal(analysis.counts.blue, 3);
+    assert.equal(analysis.counts.garbage, 1);
+    assert.equal(analysis.totalSettled, 7);
+    assert.ok(analysis.fuses.length >= 1, '3-connected clusters with open air are detected as fuses');
+
+    const pair = {
+      row: L.HIDDEN_ROWS,
+      col: 0,
+      rot: 0,
+      axis: 'red',
+      child: 'green',
+    };
+    const evalCurrent = T.evaluateCurrentDrop(board, pair);
+    assert.ok(evalCurrent, 'current drop evaluated');
+    assert.equal(evalCurrent.chain, 1, 'dropping fourth red triggers 1 chain');
+    assert.ok(evalCurrent.cleared >= 4);
+
+    const optimal = T.findOptimalPlacement(board, pair);
+    assert.ok(optimal, 'optimal search completed');
+    assert.ok(optimal.maxChain >= 1);
+    assert.ok(optimal.bestSetupPlacement !== null);
   }
 }
 

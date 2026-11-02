@@ -7,6 +7,7 @@
   'use strict';
 
   var L = global.PuyoLogic;
+  var T = global.PuyoTactics;
   var M = global.PuyoMissions;
   var D = global.PuyoDaily;
   var R = global.PuyoRender;
@@ -814,6 +815,7 @@
     updateMatchStatus();
     refreshAssistButtons();
     maybeAutoQuestHint();
+    if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
   }
 
   function spawnNext(player) {
@@ -964,6 +966,7 @@
     ui.overlay.hidden = false;
     updateMatchStatus();
     refreshAssistButtons();
+    if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
   }
 
   function questGoalReached(player, finishedChain) {
@@ -1021,6 +1024,7 @@
     ui.overlay.hidden = false;
     updateMatchStatus();
     refreshAssistButtons();
+    if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
   }
 
   function canControl(player) {
@@ -1301,6 +1305,7 @@
     players.forEach(updateStats);
     updateMatchStatus();
     refreshAssistButtons();
+    if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
   }
 
   function toggleMute() {
@@ -1583,6 +1588,7 @@
   function update(dt) {
     if (match.over || match.paused) {
       refreshAssistButtons();
+      if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
       return;
     }
 
@@ -1627,6 +1633,7 @@
     });
     updateMatchStatus();
     refreshAssistButtons();
+    if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
   }
 
   function easeOutQuad(t) {
@@ -1778,6 +1785,7 @@
     if (HANDLED_KEYS[key]) event.preventDefault();
     if (keysDown[key] && key !== 'ArrowDown' && key !== 's' && key !== 'S') return;
     keysDown[key] = true;
+    updateKeyHudVisual(key, true);
 
     if (key === 'ArrowLeft') startDas(0, -1);
     else if (key === 'ArrowRight') startDas(0, 1);
@@ -1800,6 +1808,7 @@
   document.addEventListener('keyup', function (event) {
     var key = event.key;
     keysDown[key] = false;
+    updateKeyHudVisual(key, false);
     if (key === 'ArrowLeft') stopDas(0, -1);
     else if (key === 'ArrowRight') stopDas(0, 1);
     else if (key === 'ArrowDown') players[0].state.softDrop = false;
@@ -1830,6 +1839,377 @@
   bindTouch('touch-drop', function () { hardDrop(players[0]); });
   bindTouch('touch-undo', function () { undoLast(); });
   bindTouch('touch-hint', function () { showHint(); });
+
+  // --- Dual-Wing Tactical Station & Strategy Handbook ---
+  var tactical = {
+    radarChainBadge: document.getElementById('radar-chain-badge'),
+    radarChainNum: document.getElementById('radar-chain-num'),
+    radarScoreEst: document.getElementById('radar-score-est'),
+    radarGarbageEst: document.getElementById('radar-garbage-est'),
+    radarChainGauge: document.getElementById('radar-chain-gauge'),
+    radarChainTip: document.getElementById('radar-chain-tip'),
+    radarProbeChain: document.getElementById('radar-probe-chain'),
+    radarProbeCol: document.getElementById('radar-probe-col'),
+    radarColorBars: document.getElementById('radar-color-bars'),
+    radarTotalPuyos: document.getElementById('radar-total-puyos'),
+    radarFuseBox: document.getElementById('radar-fuse-box'),
+    radarFuseText: document.getElementById('radar-fuse-text'),
+    radarIncomingGarbage: document.getElementById('radar-incoming-garbage'),
+    radarCounterDesc: document.getElementById('radar-counter-desc'),
+    radarThreatTag: document.getElementById('radar-threat-tag'),
+    mobileChainVal: document.getElementById('mobile-chain-val'),
+    mobileCounterVal: document.getElementById('mobile-counter-val'),
+    mobileProbeVal: document.getElementById('mobile-probe-val'),
+    btnOpenHandbook: document.getElementById('btn-open-handbook'),
+    strategyDetailPane: document.getElementById('strategy-detail-pane'),
+    damageTableBody: document.getElementById('damage-table-body'),
+    strategyModal: document.getElementById('strategy-modal'),
+    modalStrategyDetailPane: document.getElementById('modal-strategy-detail-pane'),
+    modalDamageTableBody: document.getElementById('modal-damage-table-body'),
+    btnHandbookClose: document.getElementById('btn-handbook-close'),
+    btnHandbookDone: document.getElementById('btn-handbook-done'),
+  };
+
+  var activeStrategyId = 'stairs';
+  var lastTacticalTelemetryTime = 0;
+
+  var COLOR_NAMES = {
+    red: '紅色',
+    green: '綠色',
+    blue: '藍色',
+    yellow: '黃色',
+    purple: '紫色',
+    garbage: '垃圾',
+  };
+
+  function updateKeyHudVisual(key, isPressed) {
+    var keyMap = {
+      ArrowLeft: 'ArrowLeft',
+      ArrowRight: 'ArrowRight',
+      ArrowDown: 'ArrowDown',
+      ArrowUp: 'ArrowUp',
+      z: 'z',
+      Z: 'z',
+      x: 'x',
+      X: 'x',
+      ' ': ' ',
+    };
+    var mapped = keyMap[key];
+    if (!mapped) return;
+    var el = document.querySelector('.arcade-key[data-key="' + mapped + '"]');
+    if (!el) return;
+    if (isPressed) el.classList.add('active-pressed');
+    else el.classList.remove('active-pressed');
+  }
+
+  function renderStrategyDetail(container, stratId) {
+    if (!container || !T) return;
+    var strategies = T.getClassicStrategies();
+    var strat = null;
+    for (var i = 0; i < strategies.length; i += 1) {
+      if (strategies[i].id === stratId) {
+        strat = strategies[i];
+        break;
+      }
+    }
+    if (!strat) strat = strategies[0];
+
+    var html = [];
+    html.push('<div class="strat-hero">');
+    html.push('<h3 class="strat-title">' + strat.name + ' <small>(' + strat.subtitle + ')</small></h3>');
+    html.push('<span class="strat-tag">' + strat.tag + '</span>');
+    html.push('</div>');
+    html.push('<p class="strat-motto">' + strat.motto + '</p>');
+
+    html.push('<div class="blueprint-wrap">');
+    html.push('<div class="blueprint-grid" role="img" aria-label="' + strat.name + ' 擺放藍圖">');
+    for (var r = 0; r < 6; r += 1) {
+      for (var c = 0; c < 6; c += 1) {
+        var cellColor = strat.blueprint[r][c];
+        var isTrigger = false;
+        if (strat.id === 'stairs' && r === 3 && c === 0) isTrigger = true;
+        else if (strat.id === 'sandwich' && r === 3 && c === 0) isTrigger = true;
+        else if (strat.id === 'gtr' && r === 2 && c === 0) isTrigger = true;
+        var classes = ['blueprint-cell', 'puyo-' + cellColor];
+        if (isTrigger) classes.push('trigger-cell');
+        html.push('<div class="' + classes.join(' ') + '" title="' + (isTrigger ? '點火引信落點' : cellColor) + '"></div>');
+      }
+    }
+    html.push('</div></div>');
+
+    html.push('<p class="radar-tip"><strong>構造心法：</strong>' + strat.keyRule + '</p>');
+    html.push('<ol class="strat-steps-list">');
+    strat.steps.forEach(function (step) {
+      html.push('<li>' + step + '</li>');
+    });
+    html.push('</ol>');
+
+    container.innerHTML = html.join('');
+  }
+
+  function renderDamageTable(tbody, activeChain) {
+    if (!tbody || !T) return;
+    var matrix = T.getChainDamageMatrix();
+    var html = [];
+    matrix.forEach(function (row) {
+      var isActive = activeChain === row.chain;
+      html.push('<tr class="' + (isActive ? 'tier-active' : '') + '">');
+      html.push('<td><span class="damage-badge ' + row.threatClass + '">' + row.chain + 'L</span></td>');
+      html.push('<td>×' + row.multiplier + '</td>');
+      html.push('<td>' + row.baseScore.toLocaleString() + '</td>');
+      html.push('<td>' + (row.garbage > 0 ? (row.garbage + '顆') : '-') + '</td>');
+      html.push('<td>' + row.badge + '</td>');
+      html.push('</tr>');
+    });
+    tbody.innerHTML = html.join('');
+  }
+
+  function updateTacticalTelemetry(state) {
+    if (!T || !state) return;
+
+    var now = global.performance.now();
+    if (now - lastTacticalTelemetryTime < 35) return;
+    lastTacticalTelemetryTime = now;
+
+    var drop = null;
+    if (state.pair && state.phase === 'control' && !match.over) {
+      drop = T.evaluateCurrentDrop(state.board, state.pair);
+    }
+
+    var activeChain = 0;
+    if (drop && drop.chain > 0) {
+      activeChain = drop.chain;
+    } else if (state.phase === 'pop' || state.phase === 'settle') {
+      activeChain = state.chain;
+    }
+
+    if (tactical.radarChainGauge) {
+      var steps = tactical.radarChainGauge.querySelectorAll('.gauge-step');
+      steps.forEach(function (stepEl) {
+        var stepNum = parseInt(stepEl.getAttribute('data-step'), 10);
+        if (activeChain >= stepNum) {
+          stepEl.classList.add('active');
+        } else {
+          stepEl.classList.remove('active');
+        }
+      });
+    }
+
+    if (tactical.radarChainNum) {
+      tactical.radarChainNum.textContent = activeChain;
+    }
+    if (tactical.radarScoreEst) {
+      tactical.radarScoreEst.textContent = drop ? drop.score.toLocaleString() : '0';
+    }
+    if (tactical.radarGarbageEst) {
+      tactical.radarGarbageEst.textContent = drop ? (drop.attack + ' 顆') : '0 顆';
+    }
+
+    if (tactical.radarChainBadge && tactical.radarChainTip) {
+      if (drop && drop.chain >= 2) {
+        tactical.radarChainBadge.textContent = '🔥 ' + drop.chain + '連鎖預備';
+        tactical.radarChainBadge.style.color = '#ffc41f';
+        tactical.radarChainTip.textContent = '第 ' + (drop.landing.col + 1) + ' 列著地：即刻引爆 ' + drop.chain + ' 連鎖，預估送出 ' + drop.attack + ' 顆垃圾！';
+        if (tactical.mobileChainVal) {
+          tactical.mobileChainVal.textContent = '🔥 ' + drop.chain + '連鎖預備 (送' + drop.attack + '顆)';
+        }
+      } else if (drop && drop.chain === 1) {
+        if (drop.setup >= 40) {
+          tactical.radarChainBadge.textContent = '⚠️ 誤爆警報';
+          tactical.radarChainBadge.style.color = '#ff4d5e';
+          tactical.radarChainTip.textContent = '落點將過早引發 1 連鎖，破壞已成型的連鎖地基！建議移往他列。';
+          if (tactical.mobileChainVal) {
+            tactical.mobileChainVal.textContent = '⚠️ 1消中斷地基';
+          }
+        } else {
+          tactical.radarChainBadge.textContent = '整地微調';
+          tactical.radarChainBadge.style.color = '#a6eeae';
+          tactical.radarChainTip.textContent = '單組消除，可用於清空多餘雜色或微調高度。';
+          if (tactical.mobileChainVal) {
+            tactical.mobileChainVal.textContent = '單消整地';
+          }
+        }
+      } else {
+        tactical.radarChainBadge.textContent = '蓄力中';
+        tactical.radarChainBadge.style.color = '#a8a2c8';
+        tactical.radarChainTip.textContent = '目前落點不會引發消除，正在蓄積盤面地基。';
+        if (tactical.mobileChainVal) {
+          tactical.mobileChainVal.textContent = '平穩蓄力中 (0連鎖)';
+        }
+      }
+    }
+
+    if (tactical.radarProbeChain && tactical.radarProbeCol) {
+      if (state.pair && !match.over) {
+        var probe = T.findOptimalPlacement(state.board, state.pair);
+        if (probe && probe.maxChain >= 2) {
+          tactical.radarProbeChain.textContent = probe.maxChain + ' 連鎖 (' + probe.bestChainScore + '分)';
+          tactical.radarProbeCol.textContent = '第 ' + (probe.bestChainPlacement.col + 1) + ' 列 (旋轉' + probe.bestChainPlacement.rot + ')';
+          if (tactical.mobileProbeVal) {
+            tactical.mobileProbeVal.textContent = '第' + (probe.bestChainPlacement.col + 1) + '列 ' + probe.maxChain + '連鎖';
+          }
+        } else if (probe) {
+          tactical.radarProbeChain.textContent = '蓄勢佈局 (評分 +' + Math.max(0, Math.round(probe.maxSetupScore)) + ')';
+          var bestCol = probe.bestSetupPlacement ? probe.bestSetupPlacement.col + 1 : 3;
+          tactical.radarProbeCol.textContent = '第 ' + bestCol + ' 列最佳地基';
+          if (tactical.mobileProbeVal) {
+            tactical.mobileProbeVal.textContent = '第' + bestCol + '列地基最優';
+          }
+        }
+      } else {
+        tactical.radarProbeChain.textContent = '等待出塊';
+        tactical.radarProbeCol.textContent = '-';
+      }
+    }
+
+    var analysis = T.analyzeBoardColors(state.board, state.colorCount);
+    if (tactical.radarTotalPuyos) {
+      tactical.radarTotalPuyos.textContent = analysis.totalSettled + ' 顆';
+    }
+    if (tactical.radarColorBars) {
+      var colors = ['red', 'green', 'blue', 'yellow'];
+      if (state.colorCount >= 5) colors.push('purple');
+      if (analysis.counts.garbage > 0) colors.push('garbage');
+
+      var barsHtml = [];
+      colors.forEach(function (color) {
+        var count = analysis.counts[color] || 0;
+        var pct = analysis.percentages[color] || 0;
+        barsHtml.push('<div class="color-bar-row">');
+        barsHtml.push('<span class="color-dot ' + color + '"></span>');
+        barsHtml.push('<span class="color-label">' + (COLOR_NAMES[color] || color) + '</span>');
+        barsHtml.push('<div class="color-track"><div class="color-fill ' + color + '" style="width: ' + pct + '%"></div></div>');
+        barsHtml.push('<span class="color-count">' + count + '</span>');
+        barsHtml.push('</div>');
+      });
+      tactical.radarColorBars.innerHTML = barsHtml.join('');
+    }
+
+    if (tactical.radarFuseBox && tactical.radarFuseText) {
+      if (analysis.fuses && analysis.fuses.length > 0) {
+        var fuseNames = analysis.fuses.map(function (f) {
+          return COLOR_NAMES[f.color] || f.color;
+        }).filter(function (val, idx, self) {
+          return self.indexOf(val) === idx;
+        }).join('、');
+        tactical.radarFuseText.textContent = '點火引信警報：' + fuseNames + '已有 3 顆相連！';
+        tactical.radarFuseBox.hidden = false;
+      } else {
+        tactical.radarFuseBox.hidden = true;
+      }
+    }
+
+    var counter = T.counterChainNeeded(state.incomingGarbage);
+    if (tactical.radarIncomingGarbage) {
+      tactical.radarIncomingGarbage.textContent = state.incomingGarbage + ' 顆';
+    }
+    if (tactical.radarCounterDesc) {
+      tactical.radarCounterDesc.textContent = counter.description;
+    }
+    if (tactical.radarThreatTag) {
+      tactical.radarThreatTag.textContent = counter.status === 'safe' ? '安全' : (counter.status === 'warning' ? '需防' : '危急');
+      tactical.radarThreatTag.className = 'threat-status-tag ' + counter.status;
+    }
+    if (tactical.mobileCounterVal) {
+      tactical.mobileCounterVal.textContent = state.incomingGarbage > 0
+        ? (state.incomingGarbage + '顆 (需' + counter.requiredChain + '連鎖)')
+        : '安全無待降';
+    }
+
+    if (tactical.damageTableBody) {
+      var rows = tactical.damageTableBody.querySelectorAll('tr');
+      rows.forEach(function (tr, index) {
+        if (index + 1 === activeChain) {
+          tr.classList.add('tier-active');
+        } else {
+          tr.classList.remove('tier-active');
+        }
+      });
+    }
+    if (tactical.modalDamageTableBody) {
+      var mRows = tactical.modalDamageTableBody.querySelectorAll('tr');
+      mRows.forEach(function (tr, index) {
+        if (index + 1 === activeChain) {
+          tr.classList.add('tier-active');
+        } else {
+          tr.classList.remove('tier-active');
+        }
+      });
+    }
+  }
+
+  function setupStrategyTabs(selector, container) {
+    var tabs = document.querySelectorAll(selector);
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) {
+          t.classList.remove('active');
+          t.setAttribute('aria-selected', 'false');
+        });
+        tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
+        activeStrategyId = tab.getAttribute('data-strat');
+        renderStrategyDetail(container, activeStrategyId);
+      });
+    });
+  }
+
+  function closeHandbook() {
+    if (tactical.strategyModal) {
+      tactical.strategyModal.hidden = true;
+    }
+  }
+
+  // Setup strategy tabs in wing and modal
+  setupStrategyTabs('.strat-tab', tactical.strategyDetailPane);
+  setupStrategyTabs('.modal-strat-tab', tactical.modalStrategyDetailPane);
+
+  // Setup arcade HUD key clicking
+  document.querySelectorAll('.arcade-key').forEach(function (btn) {
+    btn.addEventListener('pointerdown', function (event) {
+      event.preventDefault();
+      var key = btn.getAttribute('data-key');
+      btn.classList.add('active-pressed');
+      if (key === 'ArrowLeft') startDas(0, -1);
+      else if (key === 'ArrowRight') startDas(0, 1);
+      else if (key === 'ArrowDown') players[0].state.softDrop = true;
+      else if (key === 'ArrowUp' || key === 'x') rotate(players[0], 1);
+      else if (key === 'z') rotate(players[0], -1);
+      else if (key === ' ') hardDrop(players[0]);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (name) {
+      btn.addEventListener(name, function () {
+        var key = btn.getAttribute('data-key');
+        btn.classList.remove('active-pressed');
+        if (key === 'ArrowLeft') stopDas(0, -1);
+        else if (key === 'ArrowRight') stopDas(0, 1);
+        else if (key === 'ArrowDown') players[0].state.softDrop = false;
+      });
+    });
+  });
+
+  // Modal handbook toggle
+  if (tactical.btnOpenHandbook) {
+    tactical.btnOpenHandbook.addEventListener('click', function () {
+      if (tactical.strategyModal) {
+        tactical.strategyModal.hidden = false;
+        renderStrategyDetail(tactical.modalStrategyDetailPane, activeStrategyId);
+        renderDamageTable(tactical.modalDamageTableBody, 0);
+      }
+    });
+  }
+  if (tactical.btnHandbookClose) tactical.btnHandbookClose.addEventListener('click', closeHandbook);
+  if (tactical.btnHandbookDone) tactical.btnHandbookDone.addEventListener('click', closeHandbook);
+  if (tactical.strategyModal) {
+    tactical.strategyModal.addEventListener('click', function (event) {
+      if (event.target === tactical.strategyModal) closeHandbook();
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && tactical.strategyModal && !tactical.strategyModal.hidden) {
+      closeHandbook();
+    }
+  });
 
   function advanceTutorialOrReset() {
     if (match.mode === 'tutorial' && match.winner) {
@@ -1923,6 +2303,8 @@
   refreshThemeSelect();
   applyBoardTheme();
   refreshCareerUi();
+  renderStrategyDetail(tactical.strategyDetailPane, activeStrategyId);
+  renderDamageTable(tactical.damageTableBody, 0);
   resetMatch();
   global.requestAnimationFrame(frame);
 })(window);

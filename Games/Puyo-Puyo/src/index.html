@@ -79,6 +79,35 @@
 
       <p class="career-stats" id="career-stats" aria-live="polite">對 CPU：0 勝 · 0 敗 · 連勝 0 · 最高連鎖 0</p>
       <p class="match-status" id="match-status">你使用方向鍵移動、Z/X 旋轉、Space 落下；CPU 會自動思考並反擊。</p>
+
+      <!-- Mobile Tactical Strip: Swift real-time telemetry on smaller displays -->
+      <section class="tactical-quick-strip" id="tactical-quick-strip" aria-label="即時戰術速報">
+        <div class="quick-strip-card">
+          <span class="quick-strip-icon">🎯</span>
+          <div class="quick-strip-body">
+            <span class="quick-strip-tag">當前落點連鎖</span>
+            <span class="quick-strip-val" id="mobile-chain-val">平穩蓄力 (0連鎖)</span>
+          </div>
+        </div>
+        <div class="quick-strip-card">
+          <span class="quick-strip-icon">🛡️</span>
+          <div class="quick-strip-body">
+            <span class="quick-strip-tag">相殺需防</span>
+            <span class="quick-strip-val" id="mobile-counter-val">安全無待降</span>
+          </div>
+        </div>
+        <div class="quick-strip-card highlight">
+          <span class="quick-strip-icon">💡</span>
+          <div class="quick-strip-body">
+            <span class="quick-strip-tag">最優落點推薦</span>
+            <span class="quick-strip-val" id="mobile-probe-val">推算中...</span>
+          </div>
+        </div>
+        <button type="button" class="quick-handbook-btn" id="btn-open-handbook" aria-haspopup="dialog">
+          📖 戰術錦囊
+        </button>
+      </section>
+
       <section class="panel quest-panel" id="quest-panel" hidden>
         <div class="quest-head">
           <h2 id="quest-title">任務</h2>
@@ -93,7 +122,98 @@
         <p id="daily-meta" class="daily-meta" hidden aria-live="polite"></p>
       </section>
 
-      <main class="versus-layout" id="versus-layout">
+      <!-- Dual-Wing Arcade Station Layout -->
+      <div class="arcade-station" id="arcade-station">
+        <!-- Left Wing: Chain Simulator & Tactical Radar -->
+        <aside class="arcade-wing arcade-wing-left" id="arcade-radar-wing" aria-label="即時連鎖預測雷達與盤面探針">
+          <div class="wing-header">
+            <div class="wing-title">
+              <span class="wing-icon">📡</span>
+              <h2>連鎖預測雷達</h2>
+            </div>
+            <span class="wing-badge live-indicator">LIVE</span>
+          </div>
+
+          <!-- Active Pair Chain Simulation -->
+          <div class="radar-card radar-chain-card">
+            <div class="radar-subhead">
+              <span>落點即時推算</span>
+              <span class="chain-potency-tag" id="radar-chain-badge">蓄力中</span>
+            </div>
+            <div class="radar-chain-display">
+              <div class="chain-num-group">
+                <span class="chain-num" id="radar-chain-num">0</span>
+                <span class="chain-unit">連鎖</span>
+              </div>
+              <div class="chain-impact-group">
+                <div class="impact-stat"><span>得分預估</span><strong id="radar-score-est" class="mono">0</strong></div>
+                <div class="impact-stat"><span>送出垃圾</span><strong id="radar-garbage-est" class="mono">0 顆</strong></div>
+              </div>
+            </div>
+            <!-- Chain gauge meter (1 to 7) -->
+            <div class="chain-gauge-bar" id="radar-chain-gauge">
+              <span class="gauge-step" data-step="1">1</span>
+              <span class="gauge-step" data-step="2">2</span>
+              <span class="gauge-step" data-step="3">3</span>
+              <span class="gauge-step" data-step="4">4</span>
+              <span class="gauge-step" data-step="5">5</span>
+              <span class="gauge-step" data-step="6">6</span>
+              <span class="gauge-step" data-step="7">7+</span>
+            </div>
+            <p class="radar-tip" id="radar-chain-tip">目前落點不會引發消除，正在蓄積盤面地基。</p>
+          </div>
+
+          <!-- Board Best Placement Probe -->
+          <div class="radar-card radar-probe-card">
+            <div class="radar-subhead">
+              <span>全盤潛力探針</span>
+              <span class="radar-tag">AI 掃描</span>
+            </div>
+            <div class="probe-content" id="radar-probe-content">
+              <div class="probe-row">
+                <span class="probe-label">最高可達：</span>
+                <span class="probe-value" id="radar-probe-chain">推算中...</span>
+              </div>
+              <div class="probe-row">
+                <span class="probe-label">推薦落點：</span>
+                <span class="probe-value" id="radar-probe-col">第 3 列</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Color Distribution & Fuse Heatmap -->
+          <div class="radar-card radar-colors-card">
+            <div class="radar-subhead">
+              <span>盤面氣泡存量熱圖</span>
+              <span class="radar-tag" id="radar-total-puyos">0 顆</span>
+            </div>
+            <div class="color-bars-container" id="radar-color-bars">
+              <!-- Dynamically rendered -->
+            </div>
+            <div class="fuse-warning-box" id="radar-fuse-box" hidden>
+              <span class="fuse-icon">⚡</span>
+              <span class="fuse-text" id="radar-fuse-text">點火引信警報：已有 3 顆相連！</span>
+            </div>
+          </div>
+
+          <!-- Incoming Garbage Threat & Counter Calculator -->
+          <div class="radar-card radar-threat-card">
+            <div class="radar-subhead">
+              <span>垃圾相殺防禦</span>
+              <span class="threat-status-tag" id="radar-threat-tag">安全</span>
+            </div>
+            <div class="threat-meter">
+              <div class="threat-stat-row">
+                <span>待降垃圾量</span>
+                <strong id="radar-incoming-garbage" class="mono">0 顆</strong>
+              </div>
+              <p class="threat-desc" id="radar-counter-desc">場上安全 · 暫無待降垃圾威脅</p>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Central Battle Arena -->
+        <main class="versus-layout" id="versus-layout">
         <section class="player-card player-card-p1">
           <div class="player-card-header">
             <div>
@@ -157,6 +277,77 @@
         </section>
       </main>
 
+      <!-- Right Wing: Pro Strategy Matrix & Arcade HUD -->
+      <aside class="arcade-wing arcade-wing-right" id="arcade-strategy-wing" aria-label="傳奇連鎖構築秘笈與傷害算盤">
+        <div class="wing-header">
+          <div class="wing-title">
+            <span class="wing-icon">📜</span>
+            <h2>連鎖構築秘笈</h2>
+          </div>
+          <span class="wing-badge pro-badge">PRO GUIDE</span>
+        </div>
+
+        <!-- Classic Architecture Selector & Blueprint View -->
+        <div class="strategy-card">
+          <div class="strategy-tabs" role="tablist" aria-label="經典土台切換">
+            <button type="button" class="strat-tab active" data-strat="stairs" role="tab" aria-selected="true">🪜 階梯消</button>
+            <button type="button" class="strat-tab" data-strat="sandwich" role="tab" aria-selected="false">🥪 夾消</button>
+            <button type="button" class="strat-tab" data-strat="gtr" role="tab" aria-selected="false">🔄 GTR 轉向</button>
+          </div>
+          <div class="strategy-detail-pane" id="strategy-detail-pane">
+            <!-- Dynamically populated blueprint grid and tactical breakdown -->
+          </div>
+        </div>
+
+        <!-- Chain Damage & Nuisance Table -->
+        <div class="damage-matrix-card">
+          <div class="radar-subhead">
+            <span>連鎖威力傷害算盤</span>
+            <span class="radar-tag">70分 = 1垃圾</span>
+          </div>
+          <div class="damage-table-wrap">
+            <table class="damage-table" id="damage-matrix-table">
+              <thead>
+                <tr>
+                  <th>連鎖</th>
+                  <th>倍率</th>
+                  <th>得分</th>
+                  <th>垃圾</th>
+                  <th>定位</th>
+                </tr>
+              </thead>
+              <tbody id="damage-table-body">
+                <!-- Dynamically populated 1 to 7+ tiers -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Arcade Keyboard HUD -->
+        <div class="arcade-hud-card">
+          <div class="radar-subhead">
+            <span>實體鍵盤即時 HUD</span>
+            <span class="hud-indicator" id="hud-keyboard-state">READY</span>
+          </div>
+          <div class="arcade-key-hud">
+            <div class="key-cluster move-cluster">
+              <span class="arcade-key" data-key="ArrowLeft" id="hud-key-left">←</span>
+              <span class="arcade-key" data-key="ArrowDown" id="hud-key-down">↓</span>
+              <span class="arcade-key" data-key="ArrowRight" id="hud-key-right">→</span>
+            </div>
+            <div class="key-cluster rot-cluster">
+              <span class="arcade-key" data-key="z" id="hud-key-z">Z 逆旋</span>
+              <span class="arcade-key" data-key="x" id="hud-key-x">X 順旋</span>
+              <span class="arcade-key" data-key="ArrowUp" id="hud-key-up">↑</span>
+            </div>
+            <div class="key-cluster drop-cluster">
+              <span class="arcade-key space-key" data-key=" " id="hud-key-space">SPACE 瞬間落下</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div><!-- End .arcade-station -->
+
       <section class="panel controls-panel">
         <h2>操作</h2>
         <div class="controls-grid">
@@ -208,6 +399,52 @@
       </p>
     </div>
 
+    <!-- Mobile & Fullscreen Strategy Handbook Modal -->
+    <div id="strategy-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="經典連鎖錦囊與傷害算盤" hidden>
+      <div class="modal-card strategy-modal-card">
+        <div class="modal-header">
+          <div class="title-group">
+            <span class="wing-icon">📖</span>
+            <h2>魔法氣泡 傳奇戰術錦囊與傷害算盤</h2>
+          </div>
+          <button type="button" id="btn-handbook-close" class="ghost-button modal-close" aria-label="關閉錦囊">✕</button>
+        </div>
+
+        <div class="strategy-modal-body">
+          <section class="modal-section">
+            <div class="strategy-tabs" role="tablist" aria-label="彈窗土台切換">
+              <button type="button" class="modal-strat-tab active" data-strat="stairs" role="tab" aria-selected="true">🪜 階梯消</button>
+              <button type="button" class="modal-strat-tab" data-strat="sandwich" role="tab" aria-selected="false">🥪 夾消</button>
+              <button type="button" class="modal-strat-tab" data-strat="gtr" role="tab" aria-selected="false">🔄 GTR 轉向構造</button>
+            </div>
+            <div class="strategy-detail-pane modal-pane" id="modal-strategy-detail-pane"></div>
+          </section>
+
+          <section class="modal-section">
+            <h3>連鎖威力傷害算盤（70 分 = 1 顆垃圾）</h3>
+            <div class="damage-table-wrap">
+              <table class="damage-table" id="modal-damage-matrix-table">
+                <thead>
+                  <tr>
+                    <th>連鎖</th>
+                    <th>倍率</th>
+                    <th>得分</th>
+                    <th>預估垃圾</th>
+                    <th>戰術定位</th>
+                  </tr>
+                </thead>
+                <tbody id="modal-damage-table-body"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btn-handbook-done" class="primary-button">關閉返回對局</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Permanent ～: static/no React; mirrors ResultOverlay contract (see GAME-QUALITY-BAR). -->
     <div id="result-overlay" class="result-overlay" role="dialog" aria-modal="true" aria-label="對戰結束" hidden>
       <div class="result-card">
@@ -227,6 +464,7 @@
     <script src="js/clubhouse-synth-audio.js"></script>
     <script src="js/clubhouse-juice.js"></script>
     <script src="js/logic.js"></script>
+    <script src="js/tactics.js"></script>
     <script src="js/missions.js"></script>
     <script src="js/daily.js"></script>
     <script src="js/audio.js"></script>
