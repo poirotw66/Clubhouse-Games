@@ -270,6 +270,271 @@ body,
   padding: 0.35rem;
 }
 
+@media (min-width: 768px) and (pointer: fine) {
+  .touch-bar {
+    display: none !important;
+  }
+}
+
+/* ——— Cockpit Instrument Console & Holographic Gauges ——— */
+
+.cockpit-console {
+  position: fixed;
+  bottom: max(0.65rem, env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 1.25rem;
+  pointer-events: none;
+  z-index: 8500;
+}
+
+@media (max-width: 767px) {
+  .cockpit-console {
+    bottom: max(9.6rem, calc(env(safe-area-inset-bottom, 0px) + 9.2rem));
+    justify-content: center;
+    padding: 0;
+  }
+  .nitro-pod {
+    display: none;
+  }
+}
+
+.speedometer-cluster {
+  position: relative;
+  width: 160px;
+  height: 85px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 0 16px rgba(5, 8, 22, 0.9));
+}
+
+.tachometer-arc {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.speedometer-center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.15rem;
+  z-index: 2;
+}
+
+.speed-gear {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #67e8f9;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.85);
+  margin-bottom: -0.15rem;
+}
+
+.speed-digits-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.speed-number {
+  font-size: 2.15rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-shadow: 0 0 16px currentColor;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-unit {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+  opacity: 0.85;
+}
+
+.console-pod {
+  background: rgba(7, 17, 31, 0.88);
+  border: 1.5px solid rgba(34, 211, 238, 0.45);
+  border-radius: var(--radius-poster);
+  padding: 0.5rem 0.75rem;
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.12),
+    0 0 20px rgba(34, 211, 238, 0.2);
+}
+
+.nitro-pod {
+  min-width: 200px;
+}
+
+.pod-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.pod-tag {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: #67e8f9;
+  opacity: 0.85;
+}
+
+.nitro-state {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+.nitro-state.is-ready {
+  color: #22d3ee;
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.95);
+  animation: pulse-glow 1s infinite alternate;
+}
+
+.nitro-meter-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+}
+
+.nitro-meter-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #0891b2, #22d3ee);
+  transition: width 120ms linear;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.7);
+}
+
+.nitro-meter-bar.is-full {
+  background: linear-gradient(90deg, #22d3ee, #a3e635);
+  box-shadow: 0 0 14px rgba(163, 230, 53, 0.9);
+}
+
+.nitro-hint {
+  display: block;
+  font-size: 0.62rem;
+  color: #67e8f9;
+  margin-top: 0.25rem;
+  letter-spacing: 0.05em;
+}
+
+.key-deck {
+  min-width: 220px;
+}
+
+.key-ready-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #a3e635;
+  text-shadow: 0 0 8px rgba(163, 230, 53, 0.8);
+}
+
+.key-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.key-badge {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.key-badge kbd {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 3px;
+  padding: 0.15rem 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.25);
+}
+
+.key-badge.key-ready kbd {
+  border-color: #22d3ee;
+  background: rgba(34, 211, 238, 0.25);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.75);
+}
+
+/* ——— Holographic Floaties ——— */
+
+.holo-floater {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.35rem 0.95rem;
+  background: rgba(5, 8, 22, 0.85);
+  border-width: 2px;
+  border-style: solid;
+  border-radius: var(--radius-poster);
+  backdrop-filter: blur(8px);
+  animation: holo-float-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.holo-floater-badge {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.holo-floater-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: 0.1em;
+}
+
+@keyframes holo-float-up {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.85);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1.12);
+  }
+  30% {
+    transform: translateY(-4px) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-12px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.92);
+  }
+}
+
+.cosmetic-chip.is-preview {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
 .touch-btn {
   min-width: 5.25rem;
   min-height: 5.25rem;

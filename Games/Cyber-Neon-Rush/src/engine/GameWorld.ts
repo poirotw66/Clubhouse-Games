@@ -433,6 +433,8 @@ export function createGameWorld(config: RunConfig): GameWorld {
     trailAcc = 0;
     camX = trackOffset(0);
     camRoll = 0;
+    camera.fov = 62;
+    camera.updateProjectionMatrix();
     tickErrorLogged = false;
     shieldMesh.visible = shieldCharges > 0;
 
@@ -492,6 +494,17 @@ export function createGameWorld(config: RunConfig): GameWorld {
       camera.rotateZ(Math.PI);
     }
     camera.rotateZ(camRoll);
+
+    // Dynamic camera FOV warp interpolation for high-speed immersion
+    const targetFov =
+      62 +
+      (boostT > 0 ? 8 : 0) +
+      (dashT > 0 ? 9 : 0) +
+      (isFever(score.combo) ? 4 : 0);
+    if (Math.abs(camera.fov - targetFov) > 0.05) {
+      camera.fov += (targetFov - camera.fov) * Math.min(1, 12 * dt);
+      camera.updateProjectionMatrix();
+    }
 
     rim.position.set(ox + laneBody.x, 2.5 + jumpHeight(), z + 2);
     accent.position.set(ox - laneBody.x * 0.4, 3.2 + jumpHeight() * 0.5, z - 3);

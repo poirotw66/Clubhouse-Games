@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import {
   COSMETIC_CATALOG,
   UPGRADE_COST,
@@ -8,6 +8,7 @@ import {
   type MetaSave,
   type UpgradeId,
 } from '../engine/progress';
+import { CarPreviewCanvas } from './CarPreviewCanvas';
 
 const UPGRADE_ORDER: UpgradeId[] = [
   'powerDuration',
@@ -36,6 +37,8 @@ export function MetaHub({
   onClaimMission,
   onClose,
 }: MetaHubProps): ReactElement {
+  const [previewCosmetic, setPreviewCosmetic] = useState<CosmeticId>(meta.equippedCosmetic);
+
   return (
     <div
       className="howto-shell"
@@ -52,39 +55,62 @@ export function MetaHub({
           </p>
         </div>
 
-        <section className="meta-section" aria-label="每日任務">
-          <h3 className="meta-section-title">今日任務</h3>
-          <ul className="mission-list">
-            {meta.missions.map((m) => {
-              const done = m.progress >= m.target;
+        {/* 3D Holographic vehicle turntable preview & paint selection */}
+        <section className="meta-section car-preview-section" aria-label="3D 車體全息展示與塗裝">
+          <div className="flex items-center justify-between mb-1.5 px-0.5">
+            <span className="font-display text-xs tracking-wider text-cyan-400">
+              全息車型：{COSMETIC_CATALOG[previewCosmetic].name}
+            </span>
+            <span className="font-display text-xs text-muted">
+              {previewCosmetic === meta.equippedCosmetic
+                ? '裝備中'
+                : meta.unlockedCosmetics.includes(previewCosmetic)
+                  ? '已解鎖'
+                  : `解鎖需 ${COSMETIC_CATALOG[previewCosmetic].cost} 幣`}
+            </span>
+          </div>
+
+          <CarPreviewCanvas cosmeticId={previewCosmetic} />
+
+          <div className="cosmetic-grid mt-3">
+            {COSMETIC_ORDER.map((id) => {
+              const cat = COSMETIC_CATALOG[id];
+              const unlocked = meta.unlockedCosmetics.includes(id);
+              const equipped = meta.equippedCosmetic === id;
+              const isSelected = previewCosmetic === id;
               return (
-                <li key={m.id} className="mission-row">
-                  <div className="mission-info">
-                    <div className="mission-label">{m.label}</div>
-                    <div className="mission-bar">
-                      <div
-                        className="mission-fill"
-                        style={{ width: `${Math.min(100, (m.progress / m.target) * 100)}%` }}
-                      />
-                    </div>
-                    <div className="mission-meta">
-                      {Math.min(m.progress, m.target)} / {m.target} ・ 獎勵 {m.reward}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="mission-claim"
-                    disabled={!done || m.claimed}
-                    onClick={() => onClaimMission(m.id)}
-                  >
-                    {m.claimed ? '已領' : done ? '領取' : '進行中'}
-                  </button>
-                </li>
+                <button
+                  key={id}
+                  type="button"
+                  className={`cosmetic-chip${equipped ? ' is-equipped' : ''}${isSelected ? ' is-preview' : ''}${unlocked ? '' : ' is-locked'}`}
+                  style={{
+                    borderColor: `#${cat.emissive.toString(16).padStart(6, '0')}`,
+                    boxShadow:
+                      equipped || isSelected
+                        ? `0 0 16px #${cat.trail.toString(16).padStart(6, '0')}88`
+                        : undefined,
+                  }}
+                  onClick={() => {
+                    setPreviewCosmetic(id);
+                    if (unlocked) onEquipCosmetic(id);
+                    else onBuyCosmetic(id);
+                  }}
+                >
+                  <span
+                    className="cosmetic-swatch"
+                    style={{ background: `#${cat.emissive.toString(16).padStart(6, '0')}` }}
+                  />
+                  <span className="cosmetic-name">{cat.name}</span>
+                  <span className="cosmetic-cost">
+                    {equipped ? '裝備中' : unlocked ? '裝備' : `${cat.cost} 幣`}
+                  </span>
+                </button>
               );
             })}
-          </ul>
+          </div>
         </section>
 
+        {/* Permanent Upgrades */}
         <section className="meta-section" aria-label="永久升級">
           <h3 className="meta-section-title">永久升級</h3>
           <ul className="upgrade-list">
@@ -120,38 +146,38 @@ export function MetaHub({
           </ul>
         </section>
 
-        <section className="meta-section" aria-label="塗裝解鎖">
-          <h3 className="meta-section-title">車體塗裝</h3>
-          <div className="cosmetic-grid">
-            {COSMETIC_ORDER.map((id) => {
-              const cat = COSMETIC_CATALOG[id];
-              const unlocked = meta.unlockedCosmetics.includes(id);
-              const equipped = meta.equippedCosmetic === id;
+        {/* Daily Missions */}
+        <section className="meta-section" aria-label="每日任務">
+          <h3 className="meta-section-title">今日任務</h3>
+          <ul className="mission-list">
+            {meta.missions.map((m) => {
+              const done = m.progress >= m.target;
               return (
-                <button
-                  key={id}
-                  type="button"
-                  className={`cosmetic-chip${equipped ? ' is-equipped' : ''}${unlocked ? '' : ' is-locked'}`}
-                  style={{
-                    borderColor: `#${cat.emissive.toString(16).padStart(6, '0')}`,
-                    boxShadow: equipped
-                      ? `0 0 16px #${cat.trail.toString(16).padStart(6, '0')}88`
-                      : undefined,
-                  }}
-                  onClick={() => {
-                    if (unlocked) onEquipCosmetic(id);
-                    else onBuyCosmetic(id);
-                  }}
-                >
-                  <span className="cosmetic-swatch" style={{ background: `#${cat.emissive.toString(16).padStart(6, '0')}` }} />
-                  <span className="cosmetic-name">{cat.name}</span>
-                  <span className="cosmetic-cost">
-                    {equipped ? '裝備中' : unlocked ? '裝備' : `${cat.cost} 幣`}
-                  </span>
-                </button>
+                <li key={m.id} className="mission-row">
+                  <div className="mission-info">
+                    <div className="mission-label">{m.label}</div>
+                    <div className="mission-bar">
+                      <div
+                        className="mission-fill"
+                        style={{ width: `${Math.min(100, (m.progress / m.target) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="mission-meta">
+                      {Math.min(m.progress, m.target)} / {m.target} ・ 獎勵 {m.reward}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="mission-claim"
+                    disabled={!done || m.claimed}
+                    onClick={() => onClaimMission(m.id)}
+                  >
+                    {m.claimed ? '已領' : done ? '領取' : '進行中'}
+                  </button>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </section>
 
         <button type="button" className="cta" onClick={onClose}>
