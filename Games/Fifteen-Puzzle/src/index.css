@@ -9,3 +9,59 @@ body {
   background: #0f172a;
   color: #e2e8f0;
 }
+
+/* Fifteen Puzzle Battle Station / Cockpit Layout */
+.fp-cockpit-shell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.fp-board-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 auto;
+  max-width: 500px;
+}
+
+.fp-wing {
+  display: none;
+  flex: 0 0 270px;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  box-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.6);
+}
+
+.fp-wing--left {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.fp-wing--right {
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+@media (min-width: 1024px) {
+  .fp-wing {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Subtle in-place pulse animation */
+@keyframes fp-inplace-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+.fp-inplace-highlight {
+  animation: fp-inplace-pulse 300ms ease-out;
+}

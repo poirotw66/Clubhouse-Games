@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import {
   BOARD_SIZES,
+  canMultiSlide,
+  countInPlace,
   emptyIndex,
+  harmonyPct,
   hintTileIndex,
   isSolvable,
   isSolved,
   manhattanSum,
+  multiSlide,
   neighborsOfEmpty,
   parGrade,
   scrambleBoard,
@@ -44,6 +48,19 @@ for (const size of BOARD_SIZES) {
   const back = slideByDirection(one, size, 'left');
   assert.ok(back);
   assert.ok(isSolved(back, size));
+
+  // In-place counting & harmony percentage
+  assert.equal(countInPlace(solved, size), size * size - 1);
+  assert.equal(harmonyPct(solved, size), 100);
+  assert.equal(countInPlace(one, size), size * size - 2);
+
+  // Multi-slide capability: tile sharing same row/column can slide toward empty
+  assert.equal(canMultiSlide(one, size * size - 2, size), false); // empty itself cannot slide
+  const farLeftInBottomRow = (size - 1) * size;
+  assert.equal(canMultiSlide(one, farLeftInBottomRow, size), true);
+  const multiRes = multiSlide(solved, (size - 1) * size, size);
+  assert.ok(multiRes);
+  assert.equal(multiRes.movedCount, size - 1);
 }
 
 // —— Seeded scramble determinism ——

@@ -95,6 +95,93 @@ export function slideByDirection(board: Board, size: BoardSize, dir: SlideDir): 
   return slide(board, tile, size);
 }
 
+export type MultiSlideResult = {
+  nextBoard: Board;
+  movedCount: number;
+  movedIndices: number[];
+};
+
+/**
+ * Check if a tile can slide into empty, either directly or as part of a multi-tile
+ * line push (sharing the same row or column as the empty space).
+ */
+export function canMultiSlide(board: Board, tileIndex: number, size: BoardSize): boolean {
+  const e = emptyIndex(board);
+  if (tileIndex === e || tileIndex < 0 || tileIndex >= board.length) return false;
+  const rEmpty = Math.floor(e / size);
+  const cEmpty = e % size;
+  const rTile = Math.floor(tileIndex / size);
+  const cTile = tileIndex % size;
+  return rEmpty === rTile || cEmpty === cTile;
+}
+
+/**
+ * Push an entire row or column segment toward the empty space in a single fluid action.
+ * Allows multi-tile train slides for speed-solving and tactile comfort.
+ */
+export function multiSlide(
+  board: Board,
+  tileIndex: number,
+  size: BoardSize,
+): MultiSlideResult | null {
+  if (!canMultiSlide(board, tileIndex, size)) return null;
+  const e = emptyIndex(board);
+  const rEmpty = Math.floor(e / size);
+  const cEmpty = e % size;
+  const rTile = Math.floor(tileIndex / size);
+  const cTile = tileIndex % size;
+
+  const next = board.slice();
+  const movedIndices: number[] = [];
+
+  if (rEmpty === rTile) {
+    const step = cTile < cEmpty ? 1 : -1;
+    for (let c = cEmpty; c !== cTile; c -= step) {
+      const targetCol = c;
+      const sourceCol = c - step;
+      const targetIdx = rEmpty * size + targetCol;
+      const sourceIdx = rEmpty * size + sourceCol;
+      next[targetIdx] = next[sourceIdx];
+      movedIndices.push(sourceIdx);
+    }
+    next[rEmpty * size + cTile] = null;
+  } else {
+    const step = rTile < rEmpty ? 1 : -1;
+    for (let r = rEmpty; r !== rTile; r -= step) {
+      const targetRow = r;
+      const sourceRow = r - step;
+      const targetIdx = targetRow * size + cEmpty;
+      const sourceIdx = sourceRow * size + cEmpty;
+      next[targetIdx] = next[sourceIdx];
+      movedIndices.push(sourceIdx);
+    }
+    next[rTile * size + cEmpty] = null;
+  }
+
+  return {
+    nextBoard: next,
+    movedCount: movedIndices.length,
+    movedIndices,
+  };
+}
+
+/** Count tiles currently occupying their solved home index (tile === i + 1). */
+export function countInPlace(board: Board, size: BoardSize): number {
+  let count = 0;
+  const n = cellCount(size);
+  for (let i = 0; i < n - 1; i++) {
+    if (board[i] === i + 1) count++;
+  }
+  return count;
+}
+
+/** Percentage of tiles currently in their solved home position (0% - 100%). */
+export function harmonyPct(board: Board, size: BoardSize): number {
+  const total = cellCount(size) - 1;
+  if (total <= 0) return 100;
+  return Math.round((countInPlace(board, size) / total) * 100);
+}
+
 /** Goal index for tile `n` (1…N²−1); empty belongs at the last cell. */
 export function goalIndex(tile: number): number {
   return tile - 1;

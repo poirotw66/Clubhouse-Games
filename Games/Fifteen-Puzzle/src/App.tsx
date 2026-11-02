@@ -23,16 +23,22 @@ import {
   BOARD_SIZES,
   PAR_LABEL,
   SPRINT_LIMIT_SEC,
+  cellCount,
+  countInPlace,
+  harmonyPct,
   hintTileIndex,
   isSolved,
+  manhattanSum,
   parGrade,
   scrambleFromSeed,
   sizeLabel,
+  slideByDirection,
   type Board,
   type BoardSize,
   type ParGrade,
   type PlayMode,
   type ScrambleTier,
+  type SlideDir,
   type VisualStyle,
 } from './fifteenLogic.ts';
 import { PuzzleBoard } from './PuzzleBoard.tsx';
@@ -115,7 +121,7 @@ export default function App() {
   const [style, setStyle] = useState<VisualStyle>('number');
   const [session, setSession] = useState<Session | null>(null);
   const [board, setBoard] = useState<Board>(() => scrambleFromSeed(4, 'normal', 1).board);
-  const [history, setHistory] = useState<Board[]>([]);
+  const [history, setHistory] = useState<{ board: Board; moves: number }[]>([]);
   const [moves, setMoves] = useState(0);
   const [won, setWon] = useState(false);
   const [lost, setLost] = useState(false);
@@ -125,6 +131,7 @@ export default function App() {
   const [bestSprint, setBestSprint] = useState<number | null>(() => loadBestSprintSec(4, 'normal'));
   const [newRecord, setNewRecord] = useState(false);
   const [hintIndex, setHintIndex] = useState<number | null>(null);
+  const [showGhost, setShowGhost] = useState(false);
   const [grade, setGrade] = useState<ParGrade | null>(null);
   const [dailyRecords, setDailyRecords] = useState<DailyRecord[]>(() => loadDaily());
   const [campaign, setCampaign] = useState<CampaignProgress>(() => loadCampaignProgress());
@@ -271,41 +278,90 @@ export default function App() {
     }
   }, [board, won, lost, moves, elapsed, session, screen, today]);
 
-  const onSlide = (next: Board, _tileIndex: number) => {
-    if (!session || won || lost) return;
-    playScore();
-    setHistory((h) => [...h, board]);
-    const nextMoves = moves + 1;
-    setBoard(next);
-    setMoves(nextMoves);
-    setHintIndex(null);
-    if (
-      session.moveLimit != null &&
-      nextMoves >= session.moveLimit &&
-      !isSolved(next, session.size)
-    ) {
-      setLost(true);
-      setLoseReason('moves');
-      playLose();
-    }
-  };
+  const onSlide = useCallback(
+    (next: Board, _tileIndex: number, movedCount = 1) => {
+      if (!session || won || lost) return;
+      playScore();
+      setHistory((h) => [...h, { board, moves }]);
+      const nextMoves = moves + movedCount;
+      setBoard(next);
+      setMoves(nextMoves);
+      setHintIndex(null);
+      if (
+        session.moveLimit != null &&
+        nextMoves >= session.moveLimit &&
+        !isSolved(next, session.size)
+      ) {
+        setLost(true);
+        setLoseReason('moves');
+        playLose();
+      }
+    },
+    [board, moves, session, won, lost],
+  );
 
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (won || lost || history.length === 0) return;
     const prev = history[history.length - 1];
     setHistory((h) => h.slice(0, -1));
-    setBoard(prev);
-    setMoves((m) => Math.max(0, m - 1));
+    setBoard(prev.board);
+    setMoves(prev.moves);
     setHintIndex(null);
     playMove();
-  };
+  }, [history, won, lost]);
 
-  const handleHint = () => {
+  const slideDir = useCallback(
+    (dir: SlideDir) => {
+      if (won || lost || !session) return;
+      const next = slideByDirection(board, session.size, dir);
+      if (!next) return;
+      onSlide(next, -1, 1);
+    },
+    [board, onSlide, session, won, lost],
+  );
+
+  const handleHint = useCallback(() => {
     if (!session || won || lost) return;
     const idx = hintTileIndex(board, session.size);
     setHintIndex(idx);
     if (idx != null) playMove();
-  };
+  }, [board, session, won, lost]);
+
+  useEffect(() => {
+    if (screen !== 'play' || !session || won || lost) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        slideDir('up');
+      } else if (e.key === 'ArrowDown' || e.code === 'KeyS') {
+        e.preventDefault();
+        slideDir('down');
+      } else if (e.key === 'ArrowLeft' || e.code === 'KeyA') {
+        e.preventDefault();
+        slideDir('left');
+      } else if (e.key === 'ArrowRight' || e.code === 'KeyD') {
+        e.preventDefault();
+        slideDir('right');
+      } else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        handleHint();
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        restartSame();
+      } else if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault();
+        setShowGhost((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [screen, session, won, lost, slideDir, handleUndo, handleHint]);
 
   const canUndo = !won && !lost && history.length > 0;
   const remain =
@@ -455,48 +511,273 @@ export default function App() {
   // play
   const s = session!;
   const optimalLabel = s.optimalExact ? String(s.optimal) : `≤${s.optimal}`;
+  const totalTiles = cellCount(s.size) - 1;
+  const inPlaceCount = countInPlace(board, s.size);
+  const harmony = harmonyPct(board, s.size);
+  const manhattan = manhattanSum(board, s.size);
+  const liveGrade = parGrade(moves, s.optimal);
+  const parDelta = moves - s.optimal;
 
   return (
     <Shell>
-      <h1 className="text-xl font-bold tracking-wide">數字推盤</h1>
-      <p className="text-xs text-slate-400">
-        {modeLabel(s.mode)}
-        {s.stageIndex != null ? `・${CAMPAIGN_STAGES[s.stageIndex]?.name}` : ''}
-        ・{sizeLabel(s.size)}
-        ・{s.style === 'picture' ? '圖片' : '數字'}
-      </p>
-      <p className="text-sm text-slate-300">
-        步數：{moves}
-        {s.moveLimit != null ? ` / ${s.moveLimit}` : ''}
-        {remain != null ? ` · 剩餘 ${remain}s` : ''}
-        {' · '}標準桿 {optimalLabel}
-        {s.mode === 'classic' && bestMoves != null ? ` · 最佳 ${bestMoves}` : ''}
-        {s.mode === 'sprint' && bestSprint != null ? ` · 最佳 ${bestSprint}s` : ''}
-      </p>
+      <div className="w-full flex flex-col items-center gap-3">
+        {/* Header Title & Tag */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold uppercase tracking-wider mb-1">
+            <span>{modeLabel(s.mode)}</span>
+            <span>•</span>
+            <span>{sizeLabel(s.size)}</span>
+            <span>•</span>
+            <span>{s.style === 'picture' ? '圖片拼圖' : '數字推盤'}</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-wide text-white drop-shadow-sm">
+            {s.stageIndex != null ? CAMPAIGN_STAGES[s.stageIndex]?.name : '數字推盤'}
+          </h1>
+        </div>
 
-      <PuzzleBoard
-        board={board}
-        size={s.size}
-        style={s.style}
-        hintIndex={hintIndex}
-        disabled={won || lost}
-        onSlide={onSlide}
-        pictureUrl={s.style === 'picture' ? pictureUrl : tileFaceUrl}
-      />
+        {/* Cockpit Layout */}
+        <div className="fp-cockpit-shell">
+          {/* Left Wing: PUZZLE TELEMETRY */}
+          <aside className="fp-wing fp-wing--left">
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-emerald-500/20">
+              <span className="text-xs font-bold text-emerald-300 tracking-wider uppercase flex items-center gap-1.5">
+                <span>🧭</span>
+                <span>解謎拓撲導航</span>
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                TELEMETRY
+              </span>
+            </div>
 
-      <div className="flex flex-wrap justify-center gap-2">
-        <button type="button" onClick={handleUndo} disabled={!canUndo} className={toolBtn}>
-          復原
-        </button>
-        <button type="button" onClick={handleHint} disabled={won || lost} className={toolBtnAmber}>
-          提示
-        </button>
-        <button type="button" onClick={restartSame} className={toolBtn}>
-          重開
-        </button>
-        <button type="button" onClick={() => setScreen('title')} className={toolBtn}>
-          選單
-        </button>
+            {/* Harmony Progress Gauge */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-300 font-medium">全盤歸位和諧度</span>
+                <span className="font-bold text-emerald-400 font-mono text-sm">
+                  {harmony}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-950/80 rounded-full h-2 overflow-hidden border border-slate-800 mb-1.5">
+                <div
+                  className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${harmony}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <span>已歸位方塊</span>
+                <span className="font-mono text-emerald-300">
+                  {inPlaceCount} / {totalTiles} 格
+                </span>
+              </div>
+            </div>
+
+            {/* Predicted Par Grade */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-300 font-medium">預測通關評等</span>
+                <span className="px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  {liveGrade}（{PAR_LABEL[liveGrade]}）
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400 leading-snug">
+                {parDelta <= 0
+                  ? `🔥 步數保持在標準桿內（領先 ${Math.abs(parDelta)} 步）`
+                  : `⚠️ 超出最佳標準桿 ${parDelta} 步`}
+              </div>
+            </div>
+
+            {/* Manhattan Distance Sum */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-slate-300 font-medium">曼哈頓總偏差距</span>
+                <span className="font-mono text-amber-300 font-bold text-xs">
+                  {manhattan} 步
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                全盤所有方塊距目標位置之總偏離格數，歸零即宣告通關。
+              </p>
+            </div>
+
+            {/* Tactical Shortcuts Guide */}
+            <div className="mt-auto pt-2 border-t border-slate-800 text-[10px] text-slate-400 space-y-1">
+              <div className="flex items-center justify-between">
+                <span>方向鍵 / WASD</span>
+                <span className="text-slate-300 font-mono">推動方塊</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Z / Backspace</span>
+                <span className="text-slate-300 font-mono">復原上步</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>H / G</span>
+                <span className="text-slate-300 font-mono">提示 / 透視</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>R 鍵</span>
+                <span className="text-slate-300 font-mono">重新開局</span>
+              </div>
+            </div>
+          </aside>
+
+          {/* Center Main Board */}
+          <main className="fp-board-center">
+            {/* Quick status bar */}
+            <div className="flex items-center justify-between w-full max-w-[440px] px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/60 text-xs mb-3">
+              <span className="text-slate-300">
+                步數: <strong className="text-emerald-400 font-mono text-sm">{moves}</strong>
+                {s.moveLimit != null ? ` / ${s.moveLimit}` : ''}
+              </span>
+              {remain != null && (
+                <span className="text-amber-300 font-mono">
+                  ⏱️ 剩餘 {remain}s
+                </span>
+              )}
+              <span className="text-slate-400">
+                標準桿: <strong className="text-slate-200 font-mono">{optimalLabel}</strong>
+              </span>
+              <span className="text-emerald-400/90 font-mono">
+                ✓ {inPlaceCount}/{totalTiles}
+              </span>
+            </div>
+
+            {/* Board */}
+            <PuzzleBoard
+              board={board}
+              size={s.size}
+              style={s.style}
+              hintIndex={hintIndex}
+              disabled={won || lost}
+              onSlide={onSlide}
+              pictureUrl={s.style === 'picture' ? pictureUrl : tileFaceUrl}
+              showGhost={showGhost}
+            />
+
+            {/* Tool buttons */}
+            <div className="flex flex-wrap justify-center gap-2 mt-3.5">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={!canUndo}
+                className={toolBtn}
+                title="鍵盤快捷鍵: Z"
+              >
+                復原 (Z)
+              </button>
+              <button
+                type="button"
+                onClick={handleHint}
+                disabled={won || lost}
+                className={toolBtnAmber}
+                title="鍵盤快捷鍵: H"
+              >
+                提示 (H)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowGhost((g) => !g)}
+                className={`min-h-[44px] px-3.5 rounded-xl font-medium touch-manipulation border transition-colors ${
+                  showGhost
+                    ? 'border-emerald-400/80 bg-emerald-500/25 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                    : 'border-slate-600 bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
+                }`}
+                title="鍵盤快捷鍵: G"
+              >
+                {showGhost ? '👁️ 關閉透視' : '👻 目標透視 (G)'}
+              </button>
+              <button
+                type="button"
+                onClick={restartSame}
+                className={toolBtn}
+                title="鍵盤快捷鍵: R"
+              >
+                重開 (R)
+              </button>
+              <button
+                type="button"
+                onClick={() => setScreen('title')}
+                className={toolBtn}
+              >
+                選單
+              </button>
+            </div>
+          </main>
+
+          {/* Right Wing: BLUEPRINT & WORKSHOP */}
+          <aside className="fp-wing fp-wing--right">
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-sky-500/20">
+              <span className="text-xs font-bold text-sky-300 tracking-wider uppercase flex items-center gap-1.5">
+                <span>📐</span>
+                <span>目標藍圖與工坊</span>
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">
+                BLUEPRINT
+              </span>
+            </div>
+
+            {/* Mini-Map Preview */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-sky-500/20 flex flex-col items-center">
+              <div className="text-[11px] text-slate-300 font-medium mb-2 w-full flex justify-between">
+                <span>目標完成陣列縮圖</span>
+                <span className="text-emerald-400 font-mono text-[10px]">
+                  綠點代表已到位
+                </span>
+              </div>
+              <div
+                className="grid gap-1 p-1.5 rounded-lg bg-slate-950 border border-slate-800"
+                style={{
+                  gridTemplateColumns: `repeat(${s.size}, minmax(0, 1fr))`,
+                  width: '140px',
+                  height: '140px',
+                }}
+              >
+                {Array.from({ length: s.size * s.size }).map((_, slot) => {
+                  const targetNum = slot + 1;
+                  const isLast = slot === s.size * s.size - 1;
+                  const isLocked = board[slot] === targetNum;
+                  return (
+                    <div
+                      key={`mini-${slot}`}
+                      className={`rounded flex items-center justify-center text-[9px] font-mono transition-colors ${
+                        isLast
+                          ? 'border border-dashed border-amber-500/30 bg-slate-900/40 text-amber-500/40'
+                          : isLocked
+                            ? 'bg-emerald-500/40 border border-emerald-400/80 text-emerald-200 font-bold'
+                            : 'bg-slate-900/60 border border-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {isLast ? '•' : isLocked ? '✓' : targetNum}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Multi-Slide Tactics */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-sky-500/20 text-[11px] space-y-1 text-slate-300">
+              <span className="font-bold text-sky-300 block mb-1">⚡ 整排連動推盤秘笈</span>
+              <p className="text-slate-400 text-[10px] leading-relaxed">
+                點擊同列或同行之任一方塊，中間整排方塊將一次滑入空格！善用連動推動，極速縮短還原時間。
+              </p>
+            </div>
+
+            {/* Personal Records Box */}
+            <div className="mt-auto pt-2 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
+              <div className="flex items-center justify-between">
+                <span>經典最佳步數</span>
+                <span className="text-emerald-300 font-mono font-bold">
+                  {bestMoves != null ? `${bestMoves} 步` : '--'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>最速衝刺用時</span>
+                <span className="text-sky-300 font-mono font-bold">
+                  {bestSprint != null ? `${bestSprint}s` : '--'}
+                </span>
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
 
       {won && (
