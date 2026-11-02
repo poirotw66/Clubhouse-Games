@@ -97,6 +97,17 @@ body {
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
+/* Tea pavilion salon atmosphere */
+.pr-salon-banner {
+  background: linear-gradient(135deg, rgba(20, 50, 38, 0.7) 0%, rgba(10, 25, 20, 0.85) 100%);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 /* Collapsible 「更多賽制」: hide the default disclosure marker. */
 .pr-more-modes > summary::-webkit-details-marker {
   display: none;

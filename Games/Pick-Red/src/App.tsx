@@ -15,6 +15,9 @@ import {
 import { CardBack, CardView } from './components/CardView';
 import { HandReviewPanel } from './components/HandReviewPanel';
 import { MatchScoreboard } from './components/MatchScoreboard';
+import { TacticalLeftWing } from './components/TacticalLeftWing';
+import { TacticalRightWing } from './components/TacticalRightWing';
+import { TacticalMobileTicker } from './components/TacticalMobileTicker';
 import { feltBackgroundStyle, titleBackgroundStyle } from './artBackground';
 import {
   BLACK_ACE_POINTS,
@@ -23,6 +26,7 @@ import {
   cardLabel,
   isRed,
   parScore,
+  pointsOf,
   sumPoints,
 } from './game/cards';
 import {
@@ -35,6 +39,13 @@ import {
   isFlashyDiscard,
   personalityForSeat,
 } from './game/cpu';
+import {
+  analyzeKeyCardsRadar,
+  analyzeOpponentThreats,
+  analyzeScoreLeverage,
+  getGrandmasterWisdom,
+  projectHandOptions,
+} from './game/tactics';
 import {
   buildDailyShareText,
   computeDailyStreak,
@@ -132,6 +143,7 @@ export default function App(): React.ReactElement {
   const [combo, setCombo] = useState(0);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [captureBurst, setCaptureBurst] = useState(0);
+  const [showWings, setShowWings] = useState(true);
   const [setupTab, setSetupTab] = useState<SetupTab>('play');
   const [ladder, setLadder] = useState<LadderProgress>(EMPTY_LADDER);
   const [dailyProgress, setDailyProgress] = useState(EMPTY_DAILY);
@@ -606,6 +618,188 @@ export default function App(): React.ReactElement {
     return () => clearTimeout(timer);
   }, [callout]);
 
+  const tacticalRadar = useMemo(
+    () => (state ? analyzeKeyCardsRadar(state) : []),
+    [state],
+  );
+
+  const scoreLeverage = useMemo(
+    () => (state ? analyzeScoreLeverage(state) : null),
+    [state],
+  );
+
+  const handProjections = useMemo(
+    () => (state ? projectHandOptions(state) : []),
+    [state],
+  );
+
+  const opponentThreats = useMemo(
+    () => (state ? analyzeOpponentThreats(state, match, seatNames) : []),
+    [state, match, seatNames],
+  );
+
+  const grandmasterWisdom = useMemo(
+    () => (state && scoreLeverage ? getGrandmasterWisdom(state, scoreLeverage) : null),
+    [state, scoreLeverage],
+  );
+
+  useEffect(() => {
+    if (screen !== 'game' || !state || !waitingOnHuman) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+
+      // Hand card navigation: A / ArrowLeft / D / ArrowRight
+      if (key === 'a' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const hand = state.hands[HUMAN];
+        if (hand.length === 0) return;
+        if (!selected) {
+          setSelected(hand[0]);
+          return;
+        }
+        const currentIndex = hand.findIndex((c) => c.id === selected.id);
+        const nextIndex = currentIndex <= 0 ? hand.length - 1 : currentIndex - 1;
+        setSelected(hand[nextIndex]);
+        setHint(null);
+        return;
+      }
+
+      if (key === 'd' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const hand = state.hands[HUMAN];
+        if (hand.length === 0) return;
+        if (!selected) {
+          setSelected(hand[0]);
+          return;
+        }
+        const currentIndex = hand.findIndex((c) => c.id === selected.id);
+        const nextIndex = currentIndex >= hand.length - 1 ? 0 : currentIndex + 1;
+        setSelected(hand[nextIndex]);
+        setHint(null);
+        return;
+      }
+
+      // Space / Enter to commit or pick
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        if (pickPending) {
+          const options = capturableBy(state.pending!, state.table);
+          if (options.length > 0) {
+            const best = [...options].sort(
+              (a, b) =>
+                pointsOf(b, state.rules.blackAces) -
+                pointsOf(a, state.rules.blackAces),
+            )[0];
+            pushHistory(state);
+            setState((current) => (current ? choosePick(current, best.id) : current));
+            setSelected(null);
+            setHint(null);
+          }
+          return;
+        }
+
+        if (state.phase === 'play') {
+          if (selected) {
+            const options = capturableBy(selected, state.table);
+            if (options.length === 1) {
+              commit(selected, options[0]);
+            } else if (options.length === 0) {
+              commit(selected);
+            } else {
+              setCallout({ text: '請按 1～4 鍵或點選桌上吃牌目標', key: Date.now() });
+            }
+          } else {
+            const hand = state.hands[HUMAN];
+            if (hand.length > 0) setSelected(hand[0]);
+          }
+          return;
+        }
+      }
+
+      // 1 ~ 9
+      const num = parseInt(e.key, 10);
+      if (!isNaN(num) && num >= 1 && num <= 9) {
+        if (pickPending) {
+          const options = capturableBy(state.pending!, state.table);
+          const target = options[num - 1];
+          if (target) {
+            e.preventDefault();
+            pushHistory(state);
+            setState((current) => (current ? choosePick(current, target.id) : current));
+            setSelected(null);
+            setHint(null);
+          }
+          return;
+        }
+
+        if (selected && targets.length > 1) {
+          const target = targets[num - 1];
+          if (target) {
+            e.preventDefault();
+            commit(selected, target);
+          }
+          return;
+        }
+
+        const hand = state.hands[HUMAN];
+        const card = hand[num - 1];
+        if (card && state.phase === 'play') {
+          e.preventDefault();
+          onHandCard(card);
+        }
+        return;
+      }
+
+      // Hint: H or ?
+      if (key === 'h' || e.key === '?') {
+        e.preventDefault();
+        handleHint();
+        return;
+      }
+
+      // Undo: Z or U
+      if (key === 'z' || key === 'u') {
+        if (canUndo) {
+          e.preventDefault();
+          handleUndo();
+        }
+        return;
+      }
+
+      // Deselect: Escape
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSelected(null);
+        setHint(null);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    canUndo,
+    commit,
+    handleHint,
+    handleUndo,
+    onHandCard,
+    pickPending,
+    pushHistory,
+    screen,
+    selected,
+    state,
+    targets,
+    waitingOnHuman,
+  ]);
+
   if (screen === 'setup') {
     return (
       <Setup
@@ -644,156 +838,237 @@ export default function App(): React.ReactElement {
     : null;
 
   return (
-    <div className="min-h-screen flex flex-col items-center px-3 pb-6 pt-14 sm:pt-4">
+    <div className="min-h-screen flex flex-col items-center px-2 sm:px-4 pb-8 pt-14 sm:pt-4">
       <BackToMenu />
 
-      <div className="w-full max-w-2xl flex flex-col gap-3">
-        {ladderOpp && (
-          <p className="text-center text-xs text-emerald-200/70">
-            挑戰 {ladderOpp.name} · {PLAY_STYLE_LABEL[ladderOpp.style]}
-          </p>
-        )}
-        <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
-
-        {state && (
-          <>
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <ScoreBar state={state} par={par} deckTotal={deckTotal} seatNames={seatNames} />
-              </div>
-              <div className="flex gap-1 shrink-0 pt-0.5">
-                <button
-                  type="button"
-                  onClick={handleUndo}
-                  disabled={!canUndo}
-                  className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold"
-                  title="復原"
-                >
-                  復原
-                </button>
-                <button
-                  type="button"
-                  onClick={handleHint}
-                  disabled={!waitingOnHuman}
-                  className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold"
-                  title="提示"
-                >
-                  提示
-                </button>
-              </div>
+      <div className="w-full max-w-7xl flex flex-col items-center">
+        {/* 茶閣頂部標題列 */}
+        <header className="w-full max-w-6xl flex items-center justify-between py-2 px-3 sm:px-4 mb-3 rounded-2xl pr-salon-banner">
+          <div className="flex items-center gap-2">
+            <span className="text-xl" role="img" aria-label="茶館">🍵</span>
+            <div>
+              <h2 className="text-xs sm:text-sm font-black text-emerald-100 leading-tight">
+                撿紅點 · 雙翼推弈沙龍
+              </h2>
+              <span className="text-[10px] text-emerald-300/70 hidden sm:inline">
+                雅緻茶閣 · 實時牌情透視 · 鍵盤快捷行牌
+              </span>
             </div>
-
-            {state.hands.map((_, seat) =>
-              seat === HUMAN ? null : (
-                <Pile
-                  key={seat}
-                  name={seatNames[seat] ?? SEAT_NAMES[seat]}
-                  personality={
-                    ladderOpp && seat === 1
-                      ? ladderOpp.tagline
-                      : seatHintBlurb(state, seat)
-                  }
-                  cards={state.captured[seat]}
-                  count={state.hands[seat].length}
-                  blackAces={state.rules.blackAces}
-                  active={state.turn === seat && state.phase !== 'over'}
-                />
-              ),
-            )}
-
-            <section
-              ref={feltRef}
-              data-pr-felt="1"
-              className={`pr-felt rounded-2xl p-3 sm:p-4 relative ${captureBurst ? 'pr-felt-flash' : ''}`}
-              style={feltBackgroundStyle()}
-              aria-label="桌面"
-              key={`felt-${captureBurst}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowWings((prev) => !prev)}
+              className="hidden lg:flex items-center gap-1 px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/40 hover:bg-emerald-900/50 text-xs font-bold text-emerald-200 transition-colors"
             >
-              {callout && (
-                <div key={callout.key} className="pr-callout pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
-                  <span className="rounded-full bg-amber-400/95 px-4 py-1 text-sm font-black text-slate-900 shadow-lg">
-                    {callout.text}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center justify-between mb-2 text-xs text-emerald-200/70">
-                <span>桌面 {state.table.length} 張</span>
-                <span className="flex items-center gap-2">
-                  牌庫 {state.pile.length}
-                  <CardBack size="sm" />
-                </span>
-              </div>
+              <span>{showWings ? '收合雙翼' : '展開雙翼'}</span>
+            </button>
+          </div>
+        </header>
 
-              <div className="flex flex-wrap gap-2 justify-center min-h-[5rem]">
-                {state.table.length === 0 && (
-                  <p className="text-emerald-200/40 text-sm self-center py-6">桌面已清空</p>
-                )}
-                {state.table.map((card) => {
-                  const isTarget = humanTurn && targets.some((t) => t.id === card.id);
-                  const isHinted = hint?.tableId === card.id;
-                  return (
-                    <CardView
-                      key={card.id}
-                      card={card}
-                      blackAces={state.rules.blackAces}
-                      target={isTarget}
-                      hinted={isHinted}
-                      landed={state.spotlight.includes(card.id)}
-                      dimmed={(Boolean(selected) || pickPending) && !isTarget}
-                      onClick={isTarget ? () => onTableCard(card) : undefined}
-                    />
-                  );
-                })}
-              </div>
-            </section>
+        {/* 雙翼響應式佈局主容器 */}
+        <div className="w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 xl:gap-6">
+          {/* 左翼：勝勢天秤與牌情雷達 (Desktop) */}
+          {showWings && scoreLeverage && (
+            <div className="hidden lg:block">
+              <TacticalLeftWing
+                leverage={scoreLeverage}
+                radar={tacticalRadar}
+                projections={handProjections}
+                selectedCard={selected}
+                onSelectHandCard={onHandCard}
+                onTargetClick={onTableCard}
+              />
+            </div>
+          )}
 
-            <Status
-              state={state}
-              selected={selected}
-              targets={targets}
-              last={state.log[state.log.length - 1]}
-              humanTurn={humanTurn}
-              hintReason={hint?.reason ?? null}
-              difficultyLabel={info.label}
-              seatNames={seatNames}
-            />
+          {/* 中央主牌桌 */}
+          <main className="w-full max-w-2xl flex flex-col gap-3">
+            {ladderOpp && (
+              <p className="text-center text-xs text-emerald-200/70">
+                挑戰 {ladderOpp.name} · {PLAY_STYLE_LABEL[ladderOpp.style]}
+              </p>
+            )}
+            <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
 
-            <section aria-label="你的手牌">
-              <div className="flex flex-wrap gap-1.5 justify-center">
-                {state.hands[HUMAN].map((card) => (
-                  <CardView
-                    key={card.id}
-                    card={card}
-                    blackAces={state.rules.blackAces}
-                    selected={selected?.id === card.id}
-                    hinted={hint?.handId === card.id}
-                    dimmed={pickPending}
-                    onClick={waitingOnHuman && !pickPending ? () => onHandCard(card) : undefined}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {selected && targets.length === 0 && humanTurn && state.phase === 'play' && (
-              <button
-                type="button"
-                onClick={() => commit(selected)}
-                className="mx-auto min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 px-5 font-bold"
-              >
-                打出 {cardLabel(selected)}（撿不到，留在桌上）
-              </button>
+            {/* 行動端戰術速報條 (Mobile) */}
+            {scoreLeverage && grandmasterWisdom && (
+              <TacticalMobileTicker
+                leverage={scoreLeverage}
+                radar={tacticalRadar}
+                projections={handProjections}
+                threats={opponentThreats}
+                wisdom={grandmasterWisdom}
+                match={match}
+                selectedCard={selected}
+                onSelectHandCard={onHandCard}
+                onTargetClick={onTableCard}
+              />
             )}
 
-            <Pile
-              name={seatNames[HUMAN]}
-              personality=""
-              cards={state.captured[HUMAN]}
-              count={state.hands[HUMAN].length}
-              blackAces={state.rules.blackAces}
-              active={humanTurn && state.phase !== 'over'}
-            />
-          </>
-        )}
+            {state && (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <ScoreBar state={state} par={par} deckTotal={deckTotal} seatNames={seatNames} />
+                  </div>
+                  <div className="flex gap-1 shrink-0 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleUndo}
+                      disabled={!canUndo}
+                      className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold flex items-center gap-1"
+                      title="復原 (Z)"
+                    >
+                      <span>復原</span>
+                      <kbd className="text-[10px] text-slate-400 font-mono hidden sm:inline">Z</kbd>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleHint}
+                      disabled={!waitingOnHuman}
+                      className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold flex items-center gap-1"
+                      title="提示 (H)"
+                    >
+                      <span>提示</span>
+                      <kbd className="text-[10px] text-slate-400 font-mono hidden sm:inline">H</kbd>
+                    </button>
+                  </div>
+                </div>
+
+                {state.hands.map((_, seat) =>
+                  seat === HUMAN ? null : (
+                    <Pile
+                      key={seat}
+                      name={seatNames[seat] ?? SEAT_NAMES[seat]}
+                      personality={
+                        ladderOpp && seat === 1
+                          ? ladderOpp.tagline
+                          : seatHintBlurb(state, seat)
+                      }
+                      cards={state.captured[seat]}
+                      count={state.hands[seat].length}
+                      blackAces={state.rules.blackAces}
+                      active={state.turn === seat && state.phase !== 'over'}
+                    />
+                  ),
+                )}
+
+                <section
+                  ref={feltRef}
+                  data-pr-felt="1"
+                  className={`pr-felt rounded-2xl p-3 sm:p-4 relative ${captureBurst ? 'pr-felt-flash' : ''}`}
+                  style={feltBackgroundStyle()}
+                  aria-label="桌面"
+                  key={`felt-${captureBurst}`}
+                >
+                  {callout && (
+                    <div key={callout.key} className="pr-callout pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
+                      <span className="rounded-full bg-amber-400/95 px-4 py-1 text-sm font-black text-slate-900 shadow-lg">
+                        {callout.text}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mb-2 text-xs text-emerald-200/70">
+                    <span>桌面 {state.table.length} 張</span>
+                    <span className="flex items-center gap-2">
+                      牌庫 {state.pile.length}
+                      <CardBack size="sm" />
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 justify-center min-h-[5rem]">
+                    {state.table.length === 0 && (
+                      <p className="text-emerald-200/40 text-sm self-center py-6">桌面已清空</p>
+                    )}
+                    {state.table.map((card) => {
+                      const isTarget = humanTurn && targets.some((t) => t.id === card.id);
+                      const targetIndex = isTarget ? targets.findIndex((t) => t.id === card.id) + 1 : undefined;
+                      const isHinted = hint?.tableId === card.id;
+                      return (
+                        <CardView
+                          key={card.id}
+                          card={card}
+                          blackAces={state.rules.blackAces}
+                          target={isTarget}
+                          targetIndex={targets.length > 1 ? targetIndex : undefined}
+                          hinted={isHinted}
+                          landed={state.spotlight.includes(card.id)}
+                          dimmed={(Boolean(selected) || pickPending) && !isTarget}
+                          onClick={isTarget ? () => onTableCard(card) : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <Status
+                  state={state}
+                  selected={selected}
+                  targets={targets}
+                  last={state.log[state.log.length - 1]}
+                  humanTurn={humanTurn}
+                  hintReason={hint?.reason ?? null}
+                  difficultyLabel={info.label}
+                  seatNames={seatNames}
+                />
+
+                <section aria-label="你的手牌" className="relative">
+                  <div className="flex flex-wrap gap-1.5 justify-center">
+                    {state.hands[HUMAN].map((card, idx) => (
+                      <CardView
+                        key={card.id}
+                        card={card}
+                        blackAces={state.rules.blackAces}
+                        selected={selected?.id === card.id}
+                        hinted={hint?.handId === card.id}
+                        dimmed={pickPending}
+                        hotkeyBadge={idx < 9 ? `${idx + 1}` : undefined}
+                        onClick={waitingOnHuman && !pickPending ? () => onHandCard(card) : undefined}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-1 flex items-center justify-center gap-2 text-[10px] text-slate-400">
+                    <span>導航：<kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-300">A</kbd> <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-300">D</kbd> 切換</span>
+                    <span>·</span>
+                    <span>出牌：<kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-300">Space</kbd></span>
+                  </div>
+                </section>
+
+                {selected && targets.length === 0 && humanTurn && state.phase === 'play' && (
+                  <button
+                    type="button"
+                    onClick={() => commit(selected)}
+                    className="mx-auto min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 px-5 font-bold shadow-lg flex items-center gap-2"
+                  >
+                    <span>打出 {cardLabel(selected)}（撿不到，留在桌上）</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-amber-700/80 text-amber-100 text-xs font-mono">Space</kbd>
+                  </button>
+                )}
+
+                <Pile
+                  name={seatNames[HUMAN]}
+                  personality=""
+                  cards={state.captured[HUMAN]}
+                  count={state.hands[HUMAN].length}
+                  blackAces={state.rules.blackAces}
+                  active={humanTurn && state.phase !== 'over'}
+                />
+              </>
+            )}
+          </main>
+
+          {/* 右翼：對手戰情與大師錦囊 (Desktop) */}
+          {showWings && grandmasterWisdom && (
+            <div className="hidden lg:block">
+              <TacticalRightWing
+                threats={opponentThreats}
+                wisdom={grandmasterWisdom}
+                match={match}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {showReview && review && (
@@ -926,19 +1201,19 @@ function Status({
   else if ((state.phase === 'pick_play' || state.phase === 'pick_flip') && humanTurn) {
     message =
       state.phase === 'pick_flip'
-        ? `翻到 ${cardLabel(state.pending!)}，選一張要撿走的`
-        : `選一張要撿走的（${targets.length} 張可撿）`;
+        ? `翻到 ${cardLabel(state.pending!)}，按 1～${targets.length} 鍵或點選要撿走的一張`
+        : `選一張要撿走的（可按 1～${targets.length} 鍵或點選桌上目標）`;
   } else if (!humanTurn) {
     const person = personalityForSeat(state.turn, state.seatPersonalities);
     message = person
       ? `${nameOf(state.turn)}（${person.name}）思考中…`
       : `${nameOf(state.turn)}思考中…`;
   } else if (selected && targets.length > 1)
-    message = `${cardLabel(selected)} 可以撿 ${targets.length} 張，選一張`;
+    message = `${cardLabel(selected)} 可吃 ${targets.length} 張，按 1～${targets.length} 鍵或點選目標`;
   else if (selected && targets.length === 1)
-    message = `再點一次 ${cardLabel(selected)} 撿走 ${cardLabel(targets[0])}`;
-  else if (selected) message = `${cardLabel(selected)} 撿不到任何牌`;
-  else message = '點一張手牌';
+    message = `再點一次或按 Space 鍵吃進 ${cardLabel(targets[0])}`;
+  else if (selected) message = `${cardLabel(selected)} 撿不到牌，按 Space 鍵打入底牌`;
+  else message = '點選手牌（或使用 A / D 與數字鍵快速選擇）';
 
   return (
     <div className="text-center text-sm min-h-[2.5rem] flex flex-col justify-center">

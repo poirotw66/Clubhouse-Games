@@ -70,6 +70,13 @@ import {
 } from '../src/game/opponents.js';
 import { buildHandReview } from '../src/game/review.js';
 import {
+  analyzeKeyCardsRadar,
+  analyzeOpponentThreats,
+  analyzeScoreLeverage,
+  getGrandmasterWisdom,
+  projectHandOptions,
+} from '../src/game/tactics.js';
+import {
   EMPTY_STATS,
   applyLadderResult,
   recordDailyResult,
@@ -1049,6 +1056,49 @@ function expectDoubleRedFiveDetection(): void {
   assert.equal(findDoubleRedFive(off), null);
 }
 
+function expectTacticalAnalysis(): void {
+  const dealt = deal('tactics-test-seed', 'normal', rules(2, false));
+  const radar = analyzeKeyCardsRadar(dealt);
+  assert.equal(radar.length, 14); // 14 key cards when blackAces is false
+  const aceHearts = radar.find((r) => r.id === 'hearts-1');
+  assert.ok(aceHearts);
+  assert.equal(aceHearts.points, 20);
+  assert.equal(aceHearts.matchingRank, 9);
+
+  // Black Aces variant
+  const dealtBlackAces = deal('tactics-ba-seed', 'normal', rules(2, true));
+  const radarBA = analyzeKeyCardsRadar(dealtBlackAces);
+  assert.equal(radarBA.length, 16);
+  const aceSpades = radarBA.find((r) => r.id === 'spades-1');
+  assert.ok(aceSpades);
+  assert.equal(aceSpades.points, 30);
+
+  // Score leverage
+  const leverage = analyzeScoreLeverage(dealt);
+  assert.equal(leverage.par, 105);
+  assert.equal(leverage.deckTotal, 210);
+  assert.equal(typeof leverage.statusLabel, 'string');
+  assert.ok(leverage.statusDesc.length > 0);
+
+  // Hand projections
+  const projections = projectHandOptions(dealt);
+  assert.equal(projections.length, dealt.hands[HUMAN].length);
+  for (const proj of projections) {
+    assert.ok(['safe', 'caution', 'danger'].includes(proj.discardSafety));
+  }
+
+  // Opponent threats
+  const threats = analyzeOpponentThreats(dealt, null, ['你', '對家甲']);
+  assert.equal(threats.length, 1);
+  assert.equal(threats[0].seat, 1);
+  assert.ok(threats[0].threatDeduction.length > 0);
+
+  // Grandmaster wisdom
+  const wisdom = getGrandmasterWisdom(dealt, leverage);
+  assert.ok(wisdom.title.length > 0);
+  assert.ok(wisdom.blurb.length > 0);
+}
+
 const CHECKS: [string, () => void][] = [
   ['matching rule', expectMatchingRule],
   ['scoring table (210, red 9 = 10)', expectScoringTable],
@@ -1073,6 +1123,7 @@ const CHECKS: [string, () => void][] = [
   ['daily table (Taipei seed)', expectDailyTable],
   ['single mode and format stats', expectSingleModeAndFormats],
   ['named opponent ladder', expectNamedOpponentLadder],
+  ['tactical analysis and radar', expectTacticalAnalysis],
 ];
 
 let failed = 0;

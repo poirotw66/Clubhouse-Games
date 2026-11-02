@@ -13,6 +13,8 @@ interface Props {
   blackAces?: boolean;
   onClick?: () => void;
   label?: string;
+  targetIndex?: number;
+  hotkeyBadge?: string;
 }
 
 const SIZES = {
@@ -48,6 +50,8 @@ export function CardView({
   blackAces = false,
   onClick,
   label,
+  targetIndex,
+  hotkeyBadge,
 }: Props): React.ReactElement {
   const red = isRed(card);
   const points = pointsOf(card, blackAces);
@@ -90,6 +94,16 @@ export function CardView({
       {points > 0 && (
         <span className="absolute top-0.5 right-1 text-[10px] font-black text-rose-500/90">
           {points}
+        </span>
+      )}
+      {targetIndex !== undefined && targetIndex > 0 && (
+        <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black shadow-md border border-amber-200">
+          {targetIndex}
+        </span>
+      )}
+      {hotkeyBadge && (
+        <span className="absolute bottom-0.5 left-1 text-[9px] font-bold text-slate-600/80">
+          {hotkeyBadge}
         </span>
       )}
     </>
