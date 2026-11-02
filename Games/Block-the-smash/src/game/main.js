@@ -13,6 +13,8 @@ import {
   HIT_STOP_GOOD,
   HIT_STOP_PERFECT,
   IMPACT_Z,
+  POS_GOOD,
+  POS_PERFECT,
   aimZoneFromMouse,
   combineContact,
   etaToImpact,
@@ -136,6 +138,19 @@ const AudioSys = {
       g2.connect(this.ctx.destination);
       osc2.start();
       osc2.stop(t + 0.22);
+
+      // Deep sub-bass punch for satisfying physical impact.
+      const subOsc = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      subOsc.type = 'sine';
+      subOsc.frequency.setValueAtTime(80, t);
+      subOsc.frequency.exponentialRampToValueAtTime(32, t + 0.15);
+      subGain.gain.setValueAtTime(0.75, t);
+      subGain.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
+      subOsc.connect(subGain);
+      subGain.connect(this.ctx.destination);
+      subOsc.start();
+      subOsc.stop(t + 0.2);
     } else if (kind === 'good' || kind === 'smash') {
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(800, t);
@@ -341,13 +356,65 @@ const gridHelper = new THREE.GridHelper(200, 20, CONFIG.colors.lines, 0x225533);
 gridHelper.position.y = -5;
 scene.add(gridHelper);
 
-const netGeo = new THREE.BoxGeometry(60, 5, 0.1);
-const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, wireframe: true });
+function createNetTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.strokeStyle = 'rgba(235, 235, 235, 0.55)';
+  ctx.lineWidth = 2.5;
+  const step = 16;
+  for (let i = 0; i <= 128; i += step) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, 128);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(128, i);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(30, 3);
+  return tex;
+}
+
+const netGeo = new THREE.BoxGeometry(60, 5, 0.08);
+const netMat = new THREE.MeshStandardMaterial({
+  map: createNetTexture(),
+  transparent: true,
+  opacity: 0.82,
+  roughness: 0.6,
+  metalness: 0.05,
+  side: THREE.DoubleSide,
+});
 const net = new THREE.Mesh(netGeo, netMat);
 net.position.set(0, -1, -40);
-const tape = new THREE.Mesh(new THREE.BoxGeometry(60, 0.2, 0.15), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+
+const tape = new THREE.Mesh(
+  new THREE.BoxGeometry(60.4, 0.28, 0.16),
+  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }),
+);
 tape.position.y = 2.5;
 net.add(tape);
+
+const postGeo = new THREE.CylinderGeometry(0.35, 0.35, 5.4, 16);
+const postMat = new THREE.MeshStandardMaterial({
+  color: 0xcca010,
+  metalness: 0.6,
+  roughness: 0.35,
+});
+const leftPost = new THREE.Mesh(postGeo, postMat);
+leftPost.position.set(-30.1, 0, 0);
+net.add(leftPost);
+
+const rightPost = new THREE.Mesh(postGeo, postMat);
+rightPost.position.set(30.1, 0, 0);
+net.add(rightPost);
+
 scene.add(net);
 
 // Opponent tell figure (far court)
@@ -555,6 +622,132 @@ const particlePool = new Pool(() => {
   mesh.userData = { velocity: new THREE.Vector3(), life: 0 };
   return mesh;
 }, 150);
+
+function createReticleMesh() {
+  const group = new THREE.Group();
+
+  const innerMat = new THREE.MeshBasicMaterial({
+    color: 0x00e5ff,
+    transparent: true,
+    opacity: 0.75,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const innerRing = new THREE.Mesh(new THREE.RingGeometry(1.22, 1.38, 36), innerMat);
+  group.add(innerRing);
+
+  const dotMat = new THREE.MeshBasicMaterial({
+    color: 0x00e5ff,
+    transparent: true,
+    opacity: 0.85,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const centerDot = new THREE.Mesh(new THREE.CircleGeometry(0.2, 16), dotMat);
+  group.add(centerDot);
+
+  const tickMat = new THREE.MeshBasicMaterial({
+    color: 0x00e5ff,
+    transparent: true,
+    opacity: 0.75,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const tickGeo = new THREE.PlaneGeometry(0.12, 0.45);
+  const tickTop = new THREE.Mesh(tickGeo, tickMat);
+  tickTop.position.y = 1.7;
+  group.add(tickTop);
+
+  const tickBottom = new THREE.Mesh(tickGeo, tickMat);
+  tickBottom.position.y = -1.7;
+  group.add(tickBottom);
+
+  const tickLeft = new THREE.Mesh(tickGeo, tickMat);
+  tickLeft.position.x = -1.7;
+  tickLeft.rotation.z = Math.PI / 2;
+  group.add(tickLeft);
+
+  const tickRight = new THREE.Mesh(tickGeo, tickMat);
+  tickRight.position.x = 1.7;
+  tickRight.rotation.z = Math.PI / 2;
+  group.add(tickRight);
+
+  const timingMat = new THREE.MeshBasicMaterial({
+    color: 0x00e5ff,
+    transparent: true,
+    opacity: 0.85,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const timingRing = new THREE.Mesh(new THREE.RingGeometry(1.28, 1.44, 36), timingMat);
+  group.add(timingRing);
+
+  const materials = [innerMat, dotMat, tickMat, timingMat];
+
+  function setReticleColor(hex, opacity = 0.8) {
+    for (const m of materials) {
+      m.color.setHex(hex);
+      m.opacity = opacity;
+    }
+  }
+
+  group.userData = {
+    innerRing,
+    timingRing,
+    setReticleColor,
+  };
+
+  group.visible = false;
+  scene.add(group);
+  return group;
+}
+
+const reticles = [
+  createReticleMesh(),
+  createReticleMesh(),
+  createReticleMesh(),
+  createReticleMesh(),
+];
+
+const shockwavePool = new Pool(() => {
+  const geo = new THREE.RingGeometry(0.25, 0.55, 36);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData = { life: 0, maxLife: 0.3, maxRadius: 3.5 };
+  return mesh;
+}, 12);
+
+function createShockwave(pos, grade) {
+  const sw = shockwavePool.get();
+  if (!sw) return;
+  sw.position.set(pos.x, pos.y, IMPACT_Z);
+  sw.rotation.set(0, 0, (Math.random() - 0.5) * 0.5);
+  const isPerfect = grade === 'perfect';
+  sw.material.color.setHex(isPerfect ? 0xffea00 : 0x00e5ff);
+  sw.userData.life = isPerfect ? 0.35 : 0.24;
+  sw.userData.maxLife = sw.userData.life;
+  sw.userData.maxRadius = isPerfect ? 4.5 : 2.8;
+  sw.scale.setScalar(0.4);
+}
+
+function formatTimingOffset(etaAtStart, swingDuration) {
+  if (etaAtStart == null || !Number.isFinite(etaAtStart)) return '';
+  const peak = swingDuration * 0.45;
+  const diffMs = Math.round((etaAtStart - peak) * 1000);
+  const sign = diffMs >= 0 ? '+' : '';
+  return ` (${sign}${diffMs}ms)`;
+}
 
 // --- INPUT ---
 function updatePointer(clientX, clientY) {
@@ -903,6 +1096,12 @@ function endVersusGame(playerWonGame) {
     if (s.userData.trail) s.userData.trail.visible = false;
     if (s.userData.shadow) s.userData.shadow.visible = false;
   });
+  shockwavePool.reset();
+  reticles.forEach((r) => {
+    r.visible = false;
+  });
+  strings.material.color.setHex(CONFIG.colors.racketString);
+  strings.material.opacity = 0.7;
   hideCounterUi();
   showToast(`第 ${state.gameInSeries} 局`, 'good');
   state.isRunning = false;
@@ -980,6 +1179,12 @@ function startMatch(opts = {}) {
     if (s.userData.shadow) s.userData.shadow.visible = false;
   });
   particlePool.reset();
+  shockwavePool.reset();
+  reticles.forEach((r) => {
+    r.visible = false;
+  });
+  strings.material.color.setHex(CONFIG.colors.racketString);
+  strings.material.opacity = 0.7;
   AudioSys.init();
 
   runCountdown(() => {
@@ -1247,6 +1452,8 @@ function applyContactResult(s, grade) {
   s.userData.returning = true;
   const aimZone = aimZoneFromMouse(state.mouse.x);
   const style = opponentStyle();
+  const offsetStr = formatTimingOffset(state.swingEtaAtStart, state.swingDuration);
+  createShockwave(s.position, grade);
 
   if (grade === 'perfect') {
     state.perfects += 1;
@@ -1263,7 +1470,7 @@ function applyContactResult(s, grade) {
       state.flash = 1;
       state.hitStop = HIT_STOP_PERFECT;
     }
-    showToast('完美! 回殺', 'perfect');
+    showToast(`完美! 回殺${offsetStr}`, 'perfect');
     state.waitingForNextSmash = true;
     beginCounterPhase(s);
     updateScoreHud();
@@ -1283,7 +1490,7 @@ function applyContactResult(s, grade) {
       state.flash = 0.6;
       state.hitStop = HIT_STOP_GOOD;
     }
-    showToast('擋下!', 'good');
+    showToast(`擋下!${offsetStr}`, 'good');
 
     if (state.mode === 'scoreAttack' || state.mode === 'daily') {
       state.score += scoreForContact('good', state.combo - 1, aimZone);
@@ -1322,7 +1529,7 @@ function applyContactResult(s, grade) {
     createFeatherExplosion(s.position, 3);
     s.userData.velocity.set((state.rng() - 0.5) * 8, 5, 5);
     AudioSys.playHit('block');
-    showToast('輕擋', 'good');
+    showToast(`輕擋${offsetStr}`, 'good');
     if (state.mode === 'scoreAttack' || state.mode === 'daily') {
       state.score += scoreForContact('block', 0, 'center');
       state.clearedBalls += 1;
@@ -1362,6 +1569,11 @@ function setStatLabels(hitLabel, accLabel, bestLabel) {
 function finishMatch() {
   state.isRunning = false;
   state.windup = null;
+  reticles.forEach((r) => {
+    r.visible = false;
+  });
+  strings.material.color.setHex(CONFIG.colors.racketString);
+  strings.material.opacity = 0.7;
   hideCounterUi();
   resetOpponentPose();
 
@@ -1693,8 +1905,48 @@ function animate() {
     const sweetSpot = new THREE.Vector3();
     strings.getWorldPosition(sweetSpot);
 
+    reticles.forEach((r) => {
+      r.visible = false;
+    });
+    let reticleIdx = 0;
+    let isSweetSpotLocked = false;
+
     for (let i = shuttlePool.active.length - 1; i >= 0; i--) {
       const s = shuttlePool.active[i];
+
+      if (!s.userData.returning && s.position.z < IMPACT_Z && s.position.z > -120) {
+        const eta = etaToImpact(s.position, s.userData.velocity);
+        if (eta != null && eta > 0 && eta < 1.6 && reticleIdx < reticles.length) {
+          const r = reticles[reticleIdx++];
+          r.visible = true;
+
+          const dropOffset = (s.userData.dropRate || 0) * 60 * eta * eta;
+          const targetX = s.position.x + s.userData.velocity.x * eta;
+          const targetY = s.position.y + s.userData.velocity.y * eta - dropOffset;
+          r.position.set(targetX, targetY, IMPACT_Z - 0.05);
+
+          const peak = state.swingDuration * 0.45;
+          const etaDiff = eta - peak;
+          const ringScale = Math.max(0.65, 1.0 + Math.max(0, etaDiff) * 3.6);
+          r.userData.timingRing.scale.set(ringScale, ringScale, 1);
+
+          const dist = sweetSpot.distanceTo(r.position);
+          const isLocked = dist <= POS_PERFECT;
+          const isClose = dist <= POS_GOOD;
+
+          const smashDef = SMASH_DEFS[s.userData.smashType];
+          const typeColor = smashDef?.trailColor ?? 0x00e5ff;
+
+          if (isLocked) {
+            r.userData.setReticleColor(0x39ff14, 0.95);
+            isSweetSpotLocked = true;
+          } else if (isClose) {
+            r.userData.setReticleColor(0x00e5ff, 0.85);
+          } else {
+            r.userData.setReticleColor(typeColor, 0.65);
+          }
+        }
+      }
 
       if (!s.userData.returning) {
         const speed = s.userData.velocity.length();
@@ -1781,6 +2033,27 @@ function animate() {
         shuttlePool.release(s);
         if (s.userData.trail) s.userData.trail.visible = false;
         if (s.userData.shadow) s.userData.shadow.visible = false;
+      }
+    }
+
+    if (isSweetSpotLocked) {
+      strings.material.color.setHex(0x39ff14);
+      strings.material.opacity = 0.95;
+    } else {
+      strings.material.color.setHex(CONFIG.colors.racketString);
+      strings.material.opacity = 0.7;
+    }
+
+    for (let i = shockwavePool.active.length - 1; i >= 0; i--) {
+      const sw = shockwavePool.active[i];
+      sw.userData.life -= delta;
+      if (sw.userData.life <= 0) {
+        shockwavePool.release(sw);
+      } else {
+        const progress = 1 - sw.userData.life / sw.userData.maxLife;
+        const currentScale = 0.4 + progress * (sw.userData.maxRadius - 0.4);
+        sw.scale.setScalar(currentScale);
+        sw.material.opacity = (1 - progress) * 0.9;
       }
     }
 
