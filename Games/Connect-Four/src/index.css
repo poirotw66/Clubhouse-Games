@@ -85,3 +85,63 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
     transition: none;
   }
 }
+
+/* Connect Four Battle Station / Cockpit Layout */
+.c4-cockpit-shell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1260px;
+  margin: 0 auto;
+}
+
+.c4-board-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 auto;
+  max-width: 520px;
+}
+
+.c4-wing {
+  display: none;
+  flex: 0 0 280px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  box-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.65);
+}
+
+.c4-wing--left {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.c4-wing--right {
+  border-color: rgba(250, 204, 21, 0.3);
+}
+
+@media (min-width: 1024px) {
+  .c4-wing {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@keyframes c4-threat-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+}
+
+.c4-threat-badge {
+  animation: c4-threat-pulse 1.2s infinite ease-in-out;
+}

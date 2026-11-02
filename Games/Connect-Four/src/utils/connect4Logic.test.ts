@@ -6,6 +6,7 @@ import {
   PERSONALITIES,
   PERSONALITY_IDS,
   RULE_VARIANTS,
+  analyzeTactics,
   applyMove,
   buildRules,
   createInitialBoard,
@@ -452,5 +453,39 @@ describe('storage helpers', () => {
     expect(getModeStats(stats, 'classic', '7x6', 'easy').losses).toBe(1);
     expect(modeKey('five', '9x7', 'normal')).toBe('five:9x7:normal');
     expect(modeStatsLabel('five', '9x7', 'normal')).toContain('五子勝');
+  });
+
+  describe('analyzeTactics (live threat radar & evaluation)', () => {
+    it('detects immediate winning drops and opponent threats', () => {
+      let board = createInitialBoard(classic);
+      for (const c of [0, 1, 2]) {
+        board = dropPiece(board, c, 'red', classic)!;
+      }
+      board = dropPiece(board, 6, 'yellow', classic)!;
+
+      const tacticsRed = analyzeTactics(board, 'red', classic);
+      expect(tacticsRed.ownThreats).toContain(3);
+      expect(tacticsRed.oppThreats.length).toBe(0);
+
+      const tacticsYellow = analyzeTactics(board, 'yellow', classic);
+      expect(tacticsYellow.oppThreats).toContain(3);
+      expect(tacticsYellow.ownThreats.length).toBe(0);
+    });
+
+    it('detects blunder gift drops that allow immediate opponent win on top', () => {
+      let board = createInitialBoard(classic);
+      // Row 5: red on cols 0, 1, 2
+      board = dropPiece(board, 0, 'red', classic)!;
+      board = dropPiece(board, 1, 'red', classic)!;
+      board = dropPiece(board, 2, 'red', classic)!;
+      // Row 4: yellow on cols 0, 1, 2
+      board = dropPiece(board, 0, 'yellow', classic)!;
+      board = dropPiece(board, 1, 'yellow', classic)!;
+      board = dropPiece(board, 2, 'yellow', classic)!;
+
+      // Col 3 row 5 is empty. If red drops there, yellow gets row 4 col 3 and wins!
+      const tactics = analyzeTactics(board, 'red', classic);
+      expect(tactics.blunderDrops).toContain(3);
+    });
   });
 });

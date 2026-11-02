@@ -664,3 +664,98 @@ export function pickBotColumn(
 export function moveKey(move: Move): string {
   return `${move.kind}:${move.col}`;
 }
+
+export type TacticalAnalysis = {
+  evalScore: number;
+  redAdvantagePct: number;
+  ownThreats: number[];
+  oppThreats: number[];
+  blunderDrops: number[];
+  redCount: number;
+  yellowCount: number;
+  centerRed: number;
+  centerYellow: number;
+};
+
+/**
+ * Perform rapid tactical analysis of current board:
+ * - Detects immediate winning drops for the current turn (ownThreats)
+ * - Detects immediate winning drops for the opponent if unblocked (oppThreats)
+ * - Detects blunder moves that set up an immediate winning drop on top for the opponent (blunderDrops)
+ * - Computes board control and red advantage percentage (5% - 95%)
+ */
+export function analyzeTactics(
+  board: Board,
+  turn: PieceColor,
+  rules: RulesConfig,
+): TacticalAnalysis {
+  const opp = opponent(turn);
+  const ownThreats: number[] = [];
+  const oppThreats: number[] = [];
+  const blunderDrops: number[] = [];
+
+  const legalCols = getLegalDropColumns(board, rules);
+
+  for (const c of legalCols) {
+    const r = getDropRow(board, c, rules);
+    if (r === null) continue;
+
+    // Check if dropping gives turn an immediate win
+    const nextOwn = dropPiece(board, c, turn, rules);
+    if (nextOwn && hasWonAt(nextOwn, r, c, turn, rules)) {
+      ownThreats.push(c);
+    }
+
+    // Check if opponent dropping here would be an immediate win
+    const nextOpp = dropPiece(board, c, opp, rules);
+    if (nextOpp && hasWonAt(nextOpp, r, c, opp, rules)) {
+      oppThreats.push(c);
+    }
+
+    // Check for blunder: if turn drops in c, does opponent get an immediate win at r - 1?
+    if (nextOwn && r > 0) {
+      const oppDropRow = r - 1;
+      const afterBoth = dropPiece(nextOwn, c, opp, rules);
+      if (afterBoth && hasWonAt(afterBoth, oppDropRow, c, opp, rules)) {
+        blunderDrops.push(c);
+      }
+    }
+  }
+
+  let redCount = 0;
+  let yellowCount = 0;
+  let centerRed = 0;
+  let centerYellow = 0;
+  const centerStart = Math.max(0, Math.floor(rules.cols / 2) - 1);
+  const centerEnd = Math.min(rules.cols - 1, Math.floor(rules.cols / 2) + 1);
+
+  for (let r = 0; r < rules.rows; r++) {
+    for (let c = 0; c < rules.cols; c++) {
+      const piece = board[r][c];
+      if (piece === 'red') {
+        redCount++;
+        if (c >= centerStart && c <= centerEnd) centerRed++;
+      } else if (piece === 'yellow') {
+        yellowCount++;
+        if (c >= centerStart && c <= centerEnd) centerYellow++;
+      }
+    }
+  }
+
+  const rawRedEval = evaluateBoard(board, 'red', rules, PERSONALITIES.architect);
+  const scaled = rawRedEval / 180;
+  const sigmoid = 1 / (1 + Math.exp(-scaled));
+  const redAdvantagePct = Math.round(Math.min(95, Math.max(5, sigmoid * 100)));
+
+  return {
+    evalScore: rawRedEval,
+    redAdvantagePct,
+    ownThreats,
+    oppThreats,
+    blunderDrops,
+    redCount,
+    yellowCount,
+    centerRed,
+    centerYellow,
+  };
+}

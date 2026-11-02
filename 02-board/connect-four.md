@@ -74,6 +74,18 @@ Clubhouse 數位版在標準 7×6／連四之外，加入 **PopOut**、**五子�
   - **衝刺手**：偏中路與進攻。
   - **鐵壁**：優先擋殺。
   - **佈局師**：重雙殺，PopOut 時更愛重組。
+- **作戰座艙與戰情雷達（Cockpit Battle Station & Tactical Radar）**：
+  - **左翼戰情雷達**：動態評估紅黃優勢比（Advantage Meter %）、即時盤面威脅情報（絕殺點、敵方聽牌警戒、誘敵陷阱提示）、中央縱列控制度統計與即時落子計數。
+  - **誘敵陷阱預警（Blunder Detection）**：當在某列落子會立即替對手墊出上方一格的絕殺致勝點時，按鈕標記「⚠️ 誘敵」，雷達同步警示避免低級失誤。
+  - **落點 Ghost 幽靈預覽**：懸停於各列投子鈕時，棋盤底層目標空格即時浮現半透明虛影，精準指引落點位置。
+  - **右翼戰情檔案**：對手個性與棋風戰術解說、系列賽累積大比分計分板、當前模式連勝紀錄、大師對弈錦囊（奇偶行控制法則、雙殺 7 字陷阱）。
+- **實體鍵盤快捷支援**：
+  - <kbd>1</kbd>～<kbd>7</kbd>／<kbd>9</kbd>：直接投子至對應直列。
+  - <kbd>←</kbd>／<kbd>→</kbd> + <kbd>Space</kbd>／<kbd>Enter</kbd>：切換選列並落子。
+  - <kbd>Z</kbd>／<kbd>Backspace</kbd>：悔棋。
+  - <kbd>H</kbd>：提示。
+  - <kbd>P</kbd>：切換 PopOut 模式。
+  - <kbd>R</kbd>：重新開局。
 - **悔棋**、**提示**（以困難＋佈局師建議）。
 - 手感：落子彈跳動畫、勝線高亮脈動；音效使用 `@clubhouse/shared/synthAudio`（`playMove`／`playCapture`／`playWin`／`playLose`）。
 

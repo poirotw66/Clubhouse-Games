@@ -34,6 +34,7 @@ import {
   PERSONALITY_IDS,
   DIFFICULTY_LABELS,
   DIFFICULTY_BLURBS,
+  analyzeTactics,
   applyMove,
   createInitialBoard,
   getDropRow,
@@ -204,6 +205,14 @@ export default function App() {
       ? getPopOutColumns(state.board, state.currentTurn, rules)
       : [];
   const popSet = new Set(popCols);
+
+  const tactics = useMemo(
+    () => analyzeTactics(state.board, state.currentTurn, rules),
+    [state.board, state.currentTurn, rules],
+  );
+  const ownThreatSet = useMemo(() => new Set(tactics.ownThreats), [tactics.ownThreats]);
+  const oppThreatSet = useMemo(() => new Set(tactics.oppThreats), [tactics.oppThreats]);
+  const blunderSet = useMemo(() => new Set(tactics.blunderDrops), [tactics.blunderDrops]);
 
   const isBotTurn =
     screen === 'play' &&
@@ -567,6 +576,94 @@ export default function App() {
     void r;
   }, []);
 
+  useEffect(() => {
+    if (state.phase !== 'playing' || !humanCanAct) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+
+      const num = parseInt(e.key, 10);
+      if (!Number.isNaN(num) && num >= 1 && num <= rules.cols) {
+        e.preventDefault();
+        const col = num - 1;
+        if (actionMode === 'drop' && legalDropSet.has(col)) {
+          commitMove({ kind: 'drop', col }, true);
+        } else if (actionMode === 'pop' && rules.allowPopOut && popSet.has(col)) {
+          commitMove({ kind: 'pop', col }, true);
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' || e.code === 'KeyA') {
+        e.preventDefault();
+        setHoverCol((prev) => {
+          const curr = prev ?? Math.floor(rules.cols / 2);
+          return Math.max(0, curr - 1);
+        });
+      } else if (e.key === 'ArrowRight' || e.code === 'KeyD') {
+        e.preventDefault();
+        setHoverCol((prev) => {
+          const curr = prev ?? Math.floor(rules.cols / 2);
+          return Math.min(rules.cols - 1, curr + 1);
+        });
+      } else if (
+        e.key === 'Enter' ||
+        e.key === ' ' ||
+        e.key === 'ArrowDown' ||
+        e.code === 'KeyS'
+      ) {
+        e.preventDefault();
+        const col = hoverCol ?? Math.floor(rules.cols / 2);
+        if (actionMode === 'drop' && legalDropSet.has(col)) {
+          commitMove({ kind: 'drop', col }, true);
+        } else if (actionMode === 'pop' && rules.allowPopOut && popSet.has(col)) {
+          commitMove({ kind: 'pop', col }, true);
+        }
+      } else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        handleHint();
+      } else if (e.key === 'p' || e.key === 'P') {
+        if (rules.allowPopOut) {
+          e.preventDefault();
+          setActionMode((prev) => (prev === 'drop' ? 'pop' : 'drop'));
+        }
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (screen === 'puzzles' && activePuzzle) openPuzzle(activePuzzle);
+        else if (series.seriesOver) startNewSeries();
+        else resetBoard();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    state.phase,
+    humanCanAct,
+    rules.cols,
+    rules.allowPopOut,
+    actionMode,
+    legalDropSet,
+    popSet,
+    hoverCol,
+    commitMove,
+    handleUndo,
+    handleHint,
+    screen,
+    activePuzzle,
+    openPuzzle,
+    series.seriesOver,
+    startNewSeries,
+    resetBoard,
+  ]);
+
   const statusMessage =
     screen === 'puzzles' && activePuzzle
       ? puzzleStatus === 'won'
@@ -629,7 +726,7 @@ export default function App() {
           : 'neutral';
 
   const boardMaxWidth =
-    rules.cols >= 9 ? 'min(96vw, 420px)' : rules.cols >= 8 ? 'min(94vw, 390px)' : 'min(92vw, 360px)';
+    rules.cols >= 9 ? 'min(96vw, 490px)' : rules.cols >= 8 ? 'min(94vw, 460px)' : 'min(92vw, 430px)';
 
   const modeStats = getModeStats(stats, variant, preset, difficulty);
   const modeLabel = modeStatsLabel(variant, preset, difficulty);
@@ -989,213 +1086,455 @@ export default function App() {
       )}
 
       {(screen === 'play' || activePuzzle) && (
-        <>
-          <div className="flex items-center justify-center gap-6 mb-2 text-sm">
-            <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                state.phase === 'playing' && state.currentTurn === 'red'
-                  ? 'bg-red-600/30 ring-2 ring-red-400'
-                  : 'bg-slate-700/50'
-              }`}
-            >
-              <span
-                className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-red-400"
-                style={{
-                  backgroundColor: '#ef4444',
-                  backgroundImage: `url(${import.meta.env.BASE_URL}piece-red.jpg)`,
-                }}
-              />
-              <span>紅</span>
+        <div className="c4-cockpit-shell">
+          {/* Left Wing: TACTICAL RADAR & TELEMETRY */}
+          <aside className="c4-wing c4-wing--left">
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-red-500/20">
+              <span className="text-xs font-bold text-red-400 tracking-wider uppercase flex items-center gap-1.5">
+                <span>📡</span>
+                <span>戰情雷達與局勢</span>
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-mono">
+                RADAR
+              </span>
             </div>
-            <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                state.phase === 'playing' && state.currentTurn === 'yellow'
-                  ? 'bg-yellow-500/30 ring-2 ring-yellow-400'
-                  : 'bg-slate-700/50'
-              }`}
-            >
-              <span
-                className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-yellow-300"
-                style={{
-                  backgroundColor: '#facc15',
-                  backgroundImage: `url(${import.meta.env.BASE_URL}piece-yellow.jpg)`,
-                }}
-              />
-              <span>黃</span>
-            </div>
-          </div>
 
-          <p className="text-slate-200 text-sm mb-2">{statusMessage}</p>
-          {rules.allowPopOut && humanCanAct && (
-            <div
-              className="flex items-center gap-2 mb-2 text-xs"
-              role="group"
-              aria-label="行動模式"
-            >
-              <button
-                type="button"
-                onClick={() => setActionMode('drop')}
-                aria-pressed={actionMode === 'drop'}
-                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
-                  actionMode === 'drop'
-                    ? 'border-emerald-400 bg-emerald-500/20'
-                    : 'border-slate-600 bg-slate-800'
+            {/* Advantage Bar */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-300 font-medium">盤面優勢評估</span>
+                <span className="font-bold font-mono text-xs text-slate-200">
+                  紅 {tactics.redAdvantagePct}% · 黃 {100 - tactics.redAdvantagePct}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-950/80 rounded-full h-2.5 overflow-hidden border border-slate-800 flex">
+                <div
+                  className="bg-red-500 h-full transition-all duration-300"
+                  style={{ width: `${tactics.redAdvantagePct}%` }}
+                />
+                <div
+                  className="bg-yellow-400 h-full transition-all duration-300"
+                  style={{ width: `${100 - tactics.redAdvantagePct}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5 leading-snug">
+                {tactics.redAdvantagePct > 55
+                  ? '🔥 紅方掌控開局節奏與威脅主導權'
+                  : tactics.redAdvantagePct < 45
+                    ? '⚡ 黃方建立有效反擊網，局面佔優'
+                    : '⚖️ 雙方攻防勢均力敵，中路拉鋸中'}
+              </p>
+            </div>
+
+            {/* Threat Intelligence Box */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60">
+              <span className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center gap-1">
+                <span>⚡</span>
+                <span>即時絕殺與威脅情報</span>
+              </span>
+              {tactics.oppThreats.length > 0 ? (
+                <div className="p-2 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed c4-threat-badge">
+                  ⚠️ 敵方聽牌！在第 {tactics.oppThreats.map((c) => c + 1).join('、')} 欄有絕殺點，務必立刻防守！
+                </div>
+              ) : tactics.ownThreats.length > 0 ? (
+                <div className="p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs font-semibold leading-relaxed">
+                  ⚡ 己方聽牌已成！第 {tactics.ownThreats.map((c) => c + 1).join('、')} 欄為絕殺勝著！
+                </div>
+              ) : tactics.blunderDrops.length > 0 ? (
+                <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs leading-relaxed">
+                  ⚠️ 誘敵陷阱：第 {tactics.blunderDrops.map((c) => c + 1).join('、')} 欄若落子會給對手墊出絕殺點！
+                </div>
+              ) : (
+                <div className="p-2 rounded-lg bg-slate-800/60 text-slate-400 text-xs leading-relaxed">
+                  🛡️ 局勢平穩，暫無即時單步致命威脅。
+                </div>
+              )}
+            </div>
+
+            {/* Center Control & Piece Stats */}
+            <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/60 text-[11px] space-y-1 text-slate-300">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">中路核心控制</span>
+                <span className="font-mono text-slate-200">紅 {tactics.centerRed} 格 · 黃 {tactics.centerYellow} 格</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">盤面落子總數</span>
+                <span className="font-mono text-slate-200">紅 {tactics.redCount} 枚 · 黃 {tactics.yellowCount} 枚</span>
+              </div>
+            </div>
+
+            {/* Keyboard shortcuts */}
+            <div className="mt-auto pt-2 border-t border-slate-800 text-[10px] text-slate-400 space-y-1">
+              <div className="flex items-center justify-between">
+                <span>1 ~ {rules.cols} 鍵</span>
+                <span className="text-slate-300 font-mono">直接落子</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>← → 鍵 + 空格</span>
+                <span className="text-slate-300 font-mono">移動並投入</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Z / H 鍵</span>
+                <span className="text-slate-300 font-mono">悔棋 / 提示</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>P / R 鍵</span>
+                <span className="text-slate-300 font-mono">PopOut / 重開</span>
+              </div>
+            </div>
+          </aside>
+
+          {/* Center Main Board */}
+          <main className="c4-board-center">
+            {/* Mobile compact threat banner */}
+            <div className="w-full max-w-md px-3 py-1.5 rounded-lg text-xs flex items-center justify-between mb-2 bg-slate-900/80 border border-slate-700/60 lg:hidden">
+              <span className="flex items-center gap-1 font-medium">
+                <span>優勢:</span>
+                <span className="text-red-400 font-bold">{tactics.redAdvantagePct}% 紅</span>
+                <span>:</span>
+                <span className="text-yellow-400 font-bold">{100 - tactics.redAdvantagePct}% 黃</span>
+              </span>
+              {tactics.oppThreats.length > 0 ? (
+                <span className="text-rose-400 font-bold animate-pulse">
+                  ⚠️ 防守: 第 {tactics.oppThreats.map((c) => c + 1).join(',')} 欄
+                </span>
+              ) : tactics.ownThreats.length > 0 ? (
+                <span className="text-emerald-400 font-bold">
+                  ⚡ 絕殺: 第 {tactics.ownThreats.map((c) => c + 1).join(',')} 欄
+                </span>
+              ) : (
+                <span className="text-slate-400">中路平穩</span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center gap-6 mb-2 text-sm">
+              <div
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                  state.phase === 'playing' && state.currentTurn === 'red'
+                    ? 'bg-red-600/30 ring-2 ring-red-400'
+                    : 'bg-slate-700/50'
                 }`}
               >
-                投下
-              </button>
-              <button
-                type="button"
-                onClick={() => setActionMode('pop')}
-                aria-pressed={actionMode === 'pop'}
-                disabled={popCols.length === 0}
-                className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation disabled:opacity-40 ${
-                  actionMode === 'pop'
-                    ? 'border-rose-400 bg-rose-500/20'
-                    : 'border-slate-600 bg-slate-800'
+                <span
+                  className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-red-400"
+                  style={{
+                    backgroundColor: '#ef4444',
+                    backgroundImage: `url(${import.meta.env.BASE_URL}piece-red.jpg)`,
+                  }}
+                />
+                <span>紅</span>
+              </div>
+              <div
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                  state.phase === 'playing' && state.currentTurn === 'yellow'
+                    ? 'bg-yellow-500/30 ring-2 ring-yellow-400'
+                    : 'bg-slate-700/50'
                 }`}
               >
-                PopOut 取出
-              </button>
+                <span
+                  className="w-4 h-4 rounded-full bg-cover bg-center ring-2 ring-yellow-300"
+                  style={{
+                    backgroundColor: '#facc15',
+                    backgroundImage: `url(${import.meta.env.BASE_URL}piece-yellow.jpg)`,
+                  }}
+                />
+                <span>黃</span>
+              </div>
             </div>
-          )}
-          <p className="text-slate-400 text-xs mb-2 md:hidden">
-            {actionMode === 'pop' ? '點選底格己子欄位取出' : '點選上方欄位落子'}
-          </p>
 
-          <div
-            ref={boardShellRef}
-            data-c4-board
-            className="inline-block p-3 rounded-xl shadow-lg w-full bg-cover bg-center"
-            style={{
-              maxWidth: boardMaxWidth,
-              backgroundColor: '#1e3a8a',
-              backgroundImage: [
-                'linear-gradient(rgba(30,58,138,0.55), rgba(30,58,138,0.7))',
-                `url(${import.meta.env.BASE_URL}frame.jpg)`,
-              ].join(', '),
-            }}
-          >
+            <p className="text-slate-200 text-sm mb-2">{statusMessage}</p>
+            {rules.allowPopOut && humanCanAct && (
+              <div
+                className="flex items-center gap-2 mb-2 text-xs"
+                role="group"
+                aria-label="行動模式"
+              >
+                <button
+                  type="button"
+                  onClick={() => setActionMode('drop')}
+                  aria-pressed={actionMode === 'drop'}
+                  className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation ${
+                    actionMode === 'drop'
+                      ? 'border-emerald-400 bg-emerald-500/20'
+                      : 'border-slate-600 bg-slate-800'
+                  }`}
+                >
+                  投下
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActionMode('pop')}
+                  aria-pressed={actionMode === 'pop'}
+                  disabled={popCols.length === 0}
+                  className={`px-3 py-1.5 min-h-[44px] rounded-full border touch-manipulation disabled:opacity-40 ${
+                    actionMode === 'pop'
+                      ? 'border-rose-400 bg-rose-500/20'
+                      : 'border-slate-600 bg-slate-800'
+                  }`}
+                >
+                  PopOut 取出
+                </button>
+              </div>
+            )}
+            <p className="text-slate-400 text-xs mb-2 md:hidden">
+              {actionMode === 'pop' ? '點選底格己子欄位取出' : '點選上方欄位落子'}
+            </p>
+
             <div
-              className="grid gap-1 mb-1"
-              style={{ gridTemplateColumns: `repeat(${rules.cols}, 1fr)` }}
-            >
-              {Array.from({ length: rules.cols }, (_, c) => {
-                const dropOk = legalDropSet.has(c) && actionMode === 'drop';
-                const popOk = popSet.has(c) && actionMode === 'pop';
-                const enabled = humanCanAct && (dropOk || popOk);
-                const isHint = hintMove?.col === c;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => handleColumnClick(c)}
-                    onMouseEnter={() => setHoverCol(c)}
-                    onMouseLeave={() => setHoverCol(null)}
-                    disabled={!enabled}
-                    className={`
-                      h-12 min-h-[48px] rounded-t-lg flex items-center justify-center transition-colors touch-manipulation
-                      ${enabled ? 'bg-slate-600 hover:bg-slate-500' : 'bg-slate-800 cursor-not-allowed'}
-                      ${hoverCol === c && enabled ? 'ring-2 ring-white/50' : ''}
-                      ${isHint ? 'ring-2 ring-emerald-400 bg-emerald-600/40' : ''}
-                      ${popOk ? 'ring-1 ring-rose-300/50' : ''}
-                    `}
-                    aria-label={
-                      actionMode === 'pop'
-                        ? `取出第 ${c + 1} 欄底子`
-                        : `投入第 ${c + 1} 欄`
-                    }
-                  >
-                    {enabled && actionMode === 'drop' && (
-                      <span
-                        className="w-6 h-6 rounded-full bg-cover bg-center opacity-80"
-                        style={{
-                          backgroundColor:
-                            state.currentTurn === 'red' ? '#ef4444' : '#facc15',
-                          backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
-                        }}
-                      />
-                    )}
-                    {enabled && actionMode === 'pop' && (
-                      <span className="text-[10px] text-rose-200">取出</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <div
-              className="grid gap-1 rounded-b-lg overflow-hidden p-1 bg-cover bg-center"
+              ref={boardShellRef}
+              data-c4-board
+              className="inline-block p-3 rounded-xl shadow-2xl w-full bg-cover bg-center border border-blue-900/40"
               style={{
-                gridTemplateColumns: `repeat(${rules.cols}, 1fr)`,
-                gridTemplateRows: `repeat(${rules.rows}, 1fr)`,
-                aspectRatio: `${rules.cols}/${rules.rows}`,
-                backgroundColor: '#1e40af',
+                maxWidth: boardMaxWidth,
+                backgroundColor: '#1e3a8a',
                 backgroundImage: [
-                  'linear-gradient(rgba(30,64,175,0.5), rgba(30,64,175,0.65))',
+                  'linear-gradient(rgba(30,58,138,0.55), rgba(30,58,138,0.7))',
                   `url(${import.meta.env.BASE_URL}frame.jpg)`,
                 ].join(', '),
               }}
             >
-              {Array.from({ length: rules.rows * rules.cols }, (_, i) => {
-                const row = Math.floor(i / rules.cols);
-                const col = i % rules.cols;
-                const cell = state.board[row][col];
-                const isWinning = winningCells?.has(`${row},${col}`);
-                const hintDropRow =
-                  hintMove?.kind === 'drop'
-                    ? getDropRow(state.board, hintMove.col, rules)
-                    : null;
-                const isHintCell =
-                  hintMove?.kind === 'drop' &&
-                  hintMove.col === col &&
-                  hintDropRow === row;
-                const isDropAnim =
-                  dropFx && dropFx.row === row && dropFx.col === col;
-                const dropFrom = isDropAnim
-                  ? `-${(row + 1) * 100}%`
-                  : undefined;
-                return (
-                  <div
-                    key={`${row}-${col}`}
-                    data-c4-cell={`${row},${col}`}
-                    className={`rounded-full bg-slate-800 flex items-center justify-center aspect-square max-w-full ${
-                      isWinning
-                        ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-blue-800'
-                        : ''
-                    } ${isHintCell ? 'ring-2 ring-emerald-400' : ''}`}
-                    style={{ minHeight: 0 }}
-                  >
-                    {cell && (
-                      <span
-                        key={isDropAnim ? dropFx.key : `${row}-${col}-${cell}`}
-                        className={`w-[90%] h-[90%] rounded-full bg-cover bg-center ${
-                          cell === 'red' ? 'ring-2 ring-red-400' : 'ring-2 ring-yellow-300'
-                        } ${isWinning ? 'c4-win-glow' : ''} ${
-                          isDropAnim ? 'c4-piece-drop' : ''
-                        }`}
-                        style={{
-                          backgroundColor: cell === 'red' ? '#ef4444' : '#facc15',
-                          backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
-                          ...(dropFrom ? { ['--c4-drop-from']: dropFrom } : {}),
-                        }}
-                      />
-                    )}
-                    {!cell && isHintCell && (
-                      <span
-                        className="w-[70%] h-[70%] rounded-full opacity-50 bg-cover bg-center"
-                        style={{
-                          backgroundColor:
-                            state.currentTurn === 'red' ? '#ef4444' : '#facc15',
-                          backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
+              <div
+                className="grid gap-1 mb-1"
+                style={{ gridTemplateColumns: `repeat(${rules.cols}, 1fr)` }}
+              >
+                {Array.from({ length: rules.cols }, (_, c) => {
+                  const dropOk = legalDropSet.has(c) && actionMode === 'drop';
+                  const popOk = popSet.has(c) && actionMode === 'pop';
+                  const enabled = humanCanAct && (dropOk || popOk);
+                  const isHint = hintMove?.col === c;
+                  const isOwnThreat = ownThreatSet.has(c);
+                  const isOppThreat = oppThreatSet.has(c);
+                  const isBlunder = blunderSet.has(c) && !isOwnThreat;
+
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => handleColumnClick(c)}
+                      onMouseEnter={() => setHoverCol(c)}
+                      onMouseLeave={() => setHoverCol(null)}
+                      disabled={!enabled}
+                      className={`
+                        relative h-12 min-h-[48px] rounded-t-lg flex items-center justify-center transition-colors touch-manipulation
+                        ${enabled ? 'bg-slate-600 hover:bg-slate-500' : 'bg-slate-800 cursor-not-allowed'}
+                        ${hoverCol === c && enabled ? 'ring-2 ring-white/50 bg-slate-500' : ''}
+                        ${isHint ? 'ring-2 ring-emerald-400 bg-emerald-600/40' : ''}
+                        ${popOk ? 'ring-1 ring-rose-300/50' : ''}
+                      `}
+                      aria-label={
+                        actionMode === 'pop'
+                          ? `取出第 ${c + 1} 欄底子`
+                          : `投入第 ${c + 1} 欄`
+                      }
+                    >
+                      {/* Threat or Blunder Badge */}
+                      {enabled && isOwnThreat && (
+                        <span className="absolute -top-3 px-1 py-0.2 rounded bg-emerald-500 text-slate-950 font-bold text-[9px] shadow-sm animate-bounce z-10 leading-tight">
+                          ⚡ 絕殺
+                        </span>
+                      )}
+                      {enabled && !isOwnThreat && isOppThreat && (
+                        <span className="absolute -top-3 px-1 py-0.2 rounded bg-rose-600 text-white font-bold text-[9px] shadow-sm c4-threat-badge z-10 leading-tight">
+                          🛡️ 擋殺
+                        </span>
+                      )}
+                      {enabled && !isOwnThreat && !isOppThreat && isBlunder && (
+                        <span className="absolute -top-3 px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-bold text-[9px] shadow-sm z-10 leading-tight">
+                          ⚠️ 誘敵
+                        </span>
+                      )}
+
+                      {/* Drop piece icon */}
+                      {enabled && actionMode === 'drop' && (
+                        <span
+                          className="w-6 h-6 rounded-full bg-cover bg-center opacity-85 shadow-sm"
+                          style={{
+                            backgroundColor:
+                              state.currentTurn === 'red' ? '#ef4444' : '#facc15',
+                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
+                          }}
+                        />
+                      )}
+                      {enabled && actionMode === 'pop' && (
+                        <span className="text-[10px] text-rose-200 font-bold">取出</span>
+                      )}
+
+                      {/* Column number index */}
+                      <span className="absolute bottom-0.5 right-1 text-[8px] text-slate-300/60 font-mono">
+                        {c + 1}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
+                className="grid gap-1 rounded-b-lg overflow-hidden p-1 bg-cover bg-center"
+                style={{
+                  gridTemplateColumns: `repeat(${rules.cols}, 1fr)`,
+                  gridTemplateRows: `repeat(${rules.rows}, 1fr)`,
+                  aspectRatio: `${rules.cols}/${rules.rows}`,
+                  backgroundColor: '#1e40af',
+                  backgroundImage: [
+                    'linear-gradient(rgba(30,64,175,0.5), rgba(30,64,175,0.65))',
+                    `url(${import.meta.env.BASE_URL}frame.jpg)`,
+                  ].join(', '),
+                }}
+              >
+                {Array.from({ length: rules.rows * rules.cols }, (_, i) => {
+                  const row = Math.floor(i / rules.cols);
+                  const col = i % rules.cols;
+                  const cell = state.board[row][col];
+                  const isWinning = winningCells?.has(`${row},${col}`);
+                  const hintDropRow =
+                    hintMove?.kind === 'drop'
+                      ? getDropRow(state.board, hintMove.col, rules)
+                      : null;
+                  const isHintCell =
+                    hintMove?.kind === 'drop' &&
+                    hintMove.col === col &&
+                    hintDropRow === row;
+                  const isDropAnim =
+                    dropFx && dropFx.row === row && dropFx.col === col;
+                  const dropFrom = isDropAnim
+                    ? `-${(row + 1) * 100}%`
+                    : undefined;
+                  const isHoverLanding =
+                    hoverCol === col &&
+                    cell === null &&
+                    row === getDropRow(state.board, col, rules) &&
+                    humanCanAct &&
+                    actionMode === 'drop';
+
+                  return (
+                    <div
+                      key={`${row}-${col}`}
+                      data-c4-cell={`${row},${col}`}
+                      className={`rounded-full bg-slate-900/90 flex items-center justify-center aspect-square max-w-full relative shadow-inner ${
+                        isWinning
+                          ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-blue-800'
+                          : ''
+                      } ${isHintCell ? 'ring-2 ring-emerald-400' : ''}`}
+                      style={{ minHeight: 0 }}
+                    >
+                      {cell && (
+                        <span
+                          key={isDropAnim ? dropFx.key : `${row}-${col}-${cell}`}
+                          className={`w-[90%] h-[90%] rounded-full bg-cover bg-center ${
+                            cell === 'red' ? 'ring-2 ring-red-400' : 'ring-2 ring-yellow-300'
+                          } ${isWinning ? 'c4-win-glow' : ''} ${
+                            isDropAnim ? 'c4-piece-drop' : ''
+                          }`}
+                          style={{
+                            backgroundColor: cell === 'red' ? '#ef4444' : '#facc15',
+                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
+                            ...(dropFrom ? { ['--c4-drop-from']: dropFrom } : {}),
+                          }}
+                        />
+                      )}
+                      {!cell && isHintCell && (
+                        <span
+                          className="w-[70%] h-[70%] rounded-full opacity-50 bg-cover bg-center"
+                          style={{
+                            backgroundColor:
+                              state.currentTurn === 'red' ? '#ef4444' : '#facc15',
+                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
+                          }}
+                        />
+                      )}
+                      {!cell && isHoverLanding && !isHintCell && (
+                        <span
+                          className="w-[85%] h-[85%] rounded-full opacity-40 bg-cover bg-center ring-2 ring-white/50 animate-pulse"
+                          style={{
+                            backgroundColor:
+                              state.currentTurn === 'red' ? '#ef4444' : '#facc15',
+                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </>
+          </main>
+
+          {/* Right Wing: OPPONENT DOSSIER & WORKSHOP */}
+          <aside className="c4-wing c4-wing--right">
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-yellow-500/20">
+              <span className="text-xs font-bold text-yellow-400 tracking-wider uppercase flex items-center gap-1.5">
+                <span>🎯</span>
+                <span>對手戰情與工坊</span>
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 font-mono">
+                DOSSIER
+              </span>
+            </div>
+
+            {/* Opponent Profile */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="font-bold text-slate-200">
+                  {gameMode === 'bot' ? PERSONALITIES[personality].name : '人類對手'}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {gameMode === 'bot' ? DIFFICULTY_LABELS[difficulty] : '雙人'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                {gameMode === 'bot' ? PERSONALITIES[personality].blurb : '本機雙人輪流落子攻防'}
+              </p>
+            </div>
+
+            {/* Series Scoreboard if series */}
+            {!isSingleTarget(series.target) && (
+              <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60">
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="text-slate-300 font-medium">系列賽比分</span>
+                  <span className="font-mono text-amber-300 font-bold">先取 {series.target} 勝</span>
+                </div>
+                <div className="flex items-center justify-around py-1">
+                  <div className="text-center">
+                    <span className="text-xs text-red-400 font-bold block">紅方</span>
+                    <span className="text-2xl font-bold font-mono text-red-400">{series.scores[0]}</span>
+                  </div>
+                  <span className="text-slate-600 font-bold text-lg">:</span>
+                  <div className="text-center">
+                    <span className="text-xs text-yellow-400 font-bold block">黃方</span>
+                    <span className="text-2xl font-bold font-mono text-yellow-400">{series.scores[1]}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Grandmaster Tactics */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60 text-[11px] space-y-1.5 text-slate-300">
+              <span className="font-bold text-amber-300 block mb-1">💡 四子棋大師心法</span>
+              <p className="text-slate-400 text-[10px] leading-relaxed">
+                <strong className="text-slate-200">奇偶行法則：</strong> 先手方在奇數列建立威脅最具殺傷力；後手方則應專注在偶數列反制。
+              </p>
+              <p className="text-slate-400 text-[10px] leading-relaxed">
+                <strong className="text-slate-200">雙殺陷阱（Seven Trap）：</strong> 在同一欄不同高度製造兩條獨立連線，使對手無論如何防堵皆必有一路被貫穿。
+              </p>
+            </div>
+
+            {/* Mode Stats */}
+            <div className="mt-auto pt-2 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
+              <div className="flex items-center justify-between">
+                <span>連勝紀錄</span>
+                <span className="text-emerald-300 font-mono font-bold">
+                  {modeStats.streak} 連勝（最佳 {modeStats.bestStreak}）
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>本模式總計</span>
+                <span className="text-slate-300 font-mono">
+                  {modeStats.wins}勝 {modeStats.losses}敗 {modeStats.draws}和
+                </span>
+              </div>
+            </div>
+          </aside>
+        </div>
       )}
 
       {showOverlay && (
