@@ -20,6 +20,7 @@ import {
   BEST_TIME_KEY_PREFIX,
   BEST_WAVE_KEY_PREFIX,
   DIFFICULTIES,
+  ENTRANCE,
   FIXED_DT,
   MAP_ROCKS,
   MAP_UNLOCK_CLEARS,
@@ -47,7 +48,9 @@ import {
   sharedUpgradeCost,
 } from './game/economy';
 import {
+  buildOccupancy,
   createInitialState,
+  isCellFree,
   overlapOffer,
   placeTower,
   sellTower,
@@ -59,6 +62,7 @@ import {
   type CommandResult,
   type RunModifiers,
 } from './game/engine';
+import { cloneOccupancy, pathLength, wouldSealExit } from './game/pathfinding';
 import {
   MISSION_PACK,
   applyMissionResult,
@@ -136,6 +140,13 @@ export default function App(): ReactElement {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+
+  const [gameSpeed, setGameSpeed] = useState<1 | 2 | 3>(1);
+  const speedRef = useRef<1 | 2 | 3>(1);
+  speedRef.current = gameSpeed;
+  const toggleSpeed = useCallback(() => {
+    setGameSpeed((s) => (s === 1 ? 2 : s === 2 ? 3 : 1));
+  }, []);
 
   const [selectedTowerType, setSelectedTowerType] = useState<TowerType | null>(null);
   const [selectedTowerId, setSelectedTowerId] = useState<number | null>(null);
@@ -298,10 +309,10 @@ export default function App(): ReactElement {
       if (pausedRef.current) return;
       const cur = stateRef.current;
       if (!cur || cur.phase === 'won' || cur.phase === 'lost') return;
-      acc += dtReal;
+      acc += dtReal * speedRef.current;
       let next = cur;
       let iterations = 0;
-      while (acc >= FIXED_DT && iterations < 12) {
+      while (acc >= FIXED_DT && iterations < 36) {
         next = step(next, FIXED_DT);
         acc -= FIXED_DT;
         iterations += 1;
@@ -457,6 +468,11 @@ export default function App(): ReactElement {
         setSelectedTowerId(null);
         return;
       }
+      if (e.code === 'Tab' || e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        toggleSpeed();
+        return;
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         handleStartWave();
@@ -474,7 +490,7 @@ export default function App(): ReactElement {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [screen, handleStartWave, handleUndo, togglePause, flashMessage]);
+  }, [screen, handleStartWave, handleUndo, togglePause, toggleSpeed, flashMessage]);
 
   // ── Setup screen ─────────────────────────────────────────────────────────
   if (screen === 'setup' || !state) {
@@ -631,6 +647,7 @@ export default function App(): ReactElement {
               <li>點擊已放置的塔可升級或售出</li>
               <li>空白鍵：戰鬥中按下可「強行加壓」——把下一波直接疊上來，依場上未解決的敵人數換取金幣</li>
               <li>Z：撤銷本波尚未開始前的最後一次放置／升級</li>
+              <li>Tab / T：切換 1x / 2x / 3x 倍速</li>
               <li>P／Esc：暫停</li>
             </ul>
           </details>
@@ -745,6 +762,34 @@ export default function App(): ReactElement {
     activeMission && state.phase === 'won' ? evaluateMissionGoal(activeMission, state) : false;
   const isDailyRun = Boolean(state.dailyDate);
 
+  // ── Maze Path Telemetry ──────────────────────────────────────────────────
+  const occupancy = state ? buildOccupancy(state) : null;
+  const primaryEntrance = state?.entrances[0] ?? ENTRANCE;
+  const currentPathLen =
+    occupancy && state ? pathLength(occupancy, state.gridW, state.gridH, primaryEntrance, state.exit) : 0;
+  let previewPathLen: number | null = null;
+  let isSealed = false;
+  let previewDelta: number | null = null;
+  if (state && occupancy && hoverCell && selectedTowerType && isCellFree(state, hoverCell.x, hoverCell.y)) {
+    isSealed = wouldSealExit(
+      occupancy,
+      hoverCell.x,
+      hoverCell.y,
+      state.gridW,
+      state.gridH,
+      state.entrances,
+      state.exit,
+    );
+    if (!isSealed) {
+      const trial = cloneOccupancy(occupancy);
+      trial[hoverCell.y][hoverCell.x] = true;
+      previewPathLen = pathLength(trial, state.gridW, state.gridH, primaryEntrance, state.exit);
+      if (previewPathLen !== Infinity && currentPathLen !== Infinity) {
+        previewDelta = previewPathLen - currentPathLen;
+      }
+    }
+  }
+
   return (
     <div
       className={`min-h-screen bg-[#120c06] text-amber-50 flex flex-col items-center p-3 pb-8 min-w-0 ${shakeClass}`}
@@ -766,6 +811,15 @@ export default function App(): ReactElement {
           <span className="text-sky-300">★ {Math.round(state.score)}</span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleSpeed}
+            className="min-h-[44px] px-2.5 rounded-lg bg-amber-950/40 border border-amber-700/50 hover:bg-amber-900/50 active:scale-95 text-amber-300 font-mono text-xs font-bold transition-all touch-manipulation inline-flex items-center justify-center gap-1 shadow-sm"
+            aria-label={`切換遊戲速度（目前 ${gameSpeed}x）`}
+            title="倍速 (Tab 或 T)"
+          >
+            ⚡ {gameSpeed}x
+          </button>
           <button
             type="button"
             onClick={handleUndo}
@@ -808,6 +862,48 @@ export default function App(): ReactElement {
         </div>
       )}
 
+      {/* Maze Path Telemetry Bar */}
+      <div className="w-full max-w-3xl mb-2 py-1.5 px-3 rounded-xl bg-[#1c1409]/90 border border-amber-900/50 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 font-semibold text-amber-200">
+            <span className="text-amber-400">⚙</span> 迷宮步數：
+            <span className="font-mono text-sm text-amber-100 font-bold">
+              {currentPathLen === Infinity ? '—' : currentPathLen}
+            </span> 格
+          </span>
+          {selectedTowerType && hoverCell && (
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono font-bold text-xs ${
+                isSealed
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  : previewDelta && previewDelta > 0
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
+                  : previewDelta && previewDelta < 0
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-white/10 text-amber-200/70 border border-white/10'
+              }`}
+            >
+              {isSealed ? (
+                '⛔ 封路警告：無路可通'
+              ) : previewDelta != null ? (
+                <>
+                  預覽 {previewPathLen} 格 ({previewDelta >= 0 ? `+${previewDelta}` : previewDelta} 步)
+                </>
+              ) : (
+                '已佔用'
+              )}
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-amber-200/60 font-sans hidden sm:block">
+          {isSealed
+            ? '此放置將使入口無法到達出口，依規則無效'
+            : previewDelta && previewDelta > 0
+            ? '✨ 成功拉長行進路線，大幅增加防守射程！'
+            : '擺塔改寫最短路，拉長步數最大化火力'}
+        </div>
+      </div>
+
       <Battlefield
         state={state}
         hoverCell={hoverCell}
@@ -815,6 +911,8 @@ export default function App(): ReactElement {
         selectedTowerId={selectedTowerId}
         onCellHover={setHoverCell}
         onCellClick={handleCellClick}
+        previewDelta={previewDelta}
+        isSealed={isSealed}
       />
 
       {/* Prep / wave status bar */}

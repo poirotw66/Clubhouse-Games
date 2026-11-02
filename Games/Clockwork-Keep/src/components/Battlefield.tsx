@@ -10,10 +10,17 @@ import {
   towerSprite,
 } from '../game/sprites';
 import type { Cell, Enemy, GameState } from '../game/types';
+import {
+  CELL,
+  createVfxManager,
+  drawVfx,
+  spawnCombatVfx,
+  updateVfx,
+  type VfxManager,
+} from './battlefieldVfx';
 
 preloadBattlefieldSprites();
 
-const CELL = 64;
 const BOARD_W = GRID_W * CELL;
 const BOARD_H = GRID_H * CELL;
 
@@ -44,6 +51,8 @@ interface BattlefieldProps {
   selectedTowerId: number | null;
   onCellHover: (cell: Cell | null) => void;
   onCellClick: (x: number, y: number) => void;
+  previewDelta?: number | null;
+  isSealed?: boolean;
 }
 
 function buildOccupancyFrom(state: GameState) {
@@ -57,14 +66,23 @@ function isEntranceCell(state: GameState, x: number, y: number): boolean {
   return state.entrances.some((e) => e.x === x && e.y === y);
 }
 
-function drawPathLine(ctx: CanvasRenderingContext2D, path: Cell[], color: string, dashed: boolean): void {
+function drawPathLine(
+  ctx: CanvasRenderingContext2D,
+  path: Cell[],
+  color: string,
+  dashed: boolean,
+  dashOffset = 0,
+): void {
   if (path.length < 2) return;
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (dashed) ctx.setLineDash([10, 8]);
+  if (dashed) {
+    ctx.setLineDash([12, 8]);
+    ctx.lineDashOffset = -dashOffset;
+  }
   ctx.beginPath();
   path.forEach((c, i) => {
     const px = c.x * CELL + CELL / 2;
@@ -73,6 +91,29 @@ function drawPathLine(ctx: CanvasRenderingContext2D, path: Cell[], color: string
     else ctx.lineTo(px, py);
   });
   ctx.stroke();
+
+  if (dashed && path.length > 2) {
+    ctx.setLineDash([]);
+    for (let i = 0; i < path.length - 1; i += 2) {
+      const c1 = path[i];
+      const c2 = path[i + 1];
+      const mx = ((c1.x + c2.x) / 2) * CELL + CELL / 2;
+      const my = ((c1.y + c2.y) / 2) * CELL + CELL / 2;
+      const angle = Math.atan2(c2.y - c1.y, c2.x - c1.x);
+      ctx.save();
+      ctx.translate(mx, my);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(-3, -4);
+      ctx.lineTo(3, 0);
+      ctx.lineTo(-3, 4);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   ctx.restore();
 }
 
@@ -82,6 +123,9 @@ function draw(
   hoverCell: Cell | null,
   selectedTowerType: TowerType | null,
   selectedTowerId: number | null,
+  previewDelta?: number | null,
+  dashOffset = 0,
+  vfx?: VfxManager,
 ): void {
   ctx.clearRect(0, 0, BOARD_W, BOARD_H);
 
@@ -144,7 +188,7 @@ function draw(
   // Draw a guide path from each entrance (dual maps show both lanes).
   for (const portal of state.entrances) {
     const currentPath = reconstructPath(occupancy, state.gridW, state.gridH, portal, state.exit);
-    if (currentPath) drawPathLine(ctx, currentPath, 'rgba(250, 204, 21, 0.45)', true);
+    if (currentPath) drawPathLine(ctx, currentPath, 'rgba(250, 204, 21, 0.55)', true, dashOffset);
   }
 
   let previewLegal: boolean | null = null;
@@ -165,7 +209,7 @@ function draw(
         trial[y][x] = true;
         for (const portal of state.entrances) {
           const newPath = reconstructPath(trial, state.gridW, state.gridH, portal, state.exit);
-          if (newPath) drawPathLine(ctx, newPath, 'rgba(74, 222, 128, 0.75)', false);
+          if (newPath) drawPathLine(ctx, newPath, 'rgba(74, 222, 128, 0.85)', true, dashOffset);
         }
       }
       const def = TOWER_DEFS[selectedTowerType];
@@ -181,7 +225,36 @@ function draw(
       previewLegal = false;
     }
     ctx.fillStyle = previewLegal ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.25)';
-    if (inBounds) ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+    if (inBounds) {
+      ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+
+      // Floating telemetry pill on hover
+      if (!occupied) {
+        const badgeY = y * CELL - 10;
+        const badgeX = x * CELL + CELL / 2;
+        ctx.save();
+        ctx.font = 'bold 11px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (previewLegal === false) {
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.92)';
+          ctx.beginPath();
+          ctx.roundRect(badgeX - 30, badgeY - 10, 60, 20, 10);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText('⛔ 封路', badgeX, badgeY);
+        } else if (previewDelta != null && previewDelta !== 0) {
+          const text = previewDelta > 0 ? `+${previewDelta} 步` : `${previewDelta} 步`;
+          ctx.fillStyle = previewDelta > 0 ? 'rgba(16, 185, 129, 0.92)' : 'rgba(245, 158, 11, 0.92)';
+          ctx.beginPath();
+          ctx.roundRect(badgeX - 26, badgeY - 10, 52, 20, 10);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(text, badgeX, badgeY);
+        }
+        ctx.restore();
+      }
+    }
   }
 
   for (const t of state.towers) {
@@ -264,6 +337,9 @@ function draw(
     ctx.fillStyle = pct > 0.4 ? '#4ade80' : '#f87171';
     ctx.fillRect(cx - barW / 2, cy - r - 9, barW * pct, 4);
   }
+
+  // Draw combat visual effects
+  if (vfx) drawVfx(ctx, vfx);
 }
 
 export function Battlefield({
@@ -273,9 +349,28 @@ export function Battlefield({
   selectedTowerId,
   onCellHover,
   onCellClick,
+  previewDelta,
+  isSealed,
 }: BattlefieldProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [spritesTick, setSpritesTick] = useState(0);
+  const [, setSpritesTick] = useState(0);
+
+  const vfxRef = useRef<VfxManager>(createVfxManager());
+  const prevTowersRef = useRef<Map<number, number>>(new Map());
+  const prevEnemiesRef = useRef<Map<number, number>>(new Map());
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const hoverCellRef = useRef(hoverCell);
+  hoverCellRef.current = hoverCell;
+  const selectedTowerTypeRef = useRef(selectedTowerType);
+  selectedTowerTypeRef.current = selectedTowerType;
+  const selectedTowerIdRef = useRef(selectedTowerId);
+  selectedTowerIdRef.current = selectedTowerId;
+  const previewDeltaRef = useRef(previewDelta);
+  previewDeltaRef.current = previewDelta;
+  const isSealedRef = useRef(isSealed);
+  isSealedRef.current = isSealed;
 
   useEffect(() => {
     preloadBattlefieldSprites();
@@ -294,19 +389,63 @@ export function Battlefield({
     };
   }, []);
 
+  // Detect combat events when state updates
+  useEffect(() => {
+    const vfx = vfxRef.current;
+    const prevT = prevTowersRef.current;
+    const prevE = prevEnemiesRef.current;
+
+    spawnCombatVfx(vfx, state, prevT, prevE);
+
+    const nextT = new Map<number, number>();
+    for (const t of state.towers) nextT.set(t.id, t.cooldown);
+    prevTowersRef.current = nextT;
+
+    const nextE = new Map<number, number>();
+    for (const e of state.enemies) nextE.set(e.id, e.hp);
+    prevEnemiesRef.current = nextE;
+  }, [state]);
+
+  // Continuous animation loop for VFX and path pulses
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (canvas.width !== BOARD_W * dpr || canvas.height !== BOARD_H * dpr) {
-      canvas.width = BOARD_W * dpr;
-      canvas.height = BOARD_H * dpr;
-    }
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx, state, hoverCell, selectedTowerType, selectedTowerId);
-  }, [state, hoverCell, selectedTowerType, selectedTowerId, spritesTick]);
+    let raf = 0;
+    let lastTime = performance.now();
+
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      const dt = Math.min(0.1, (now - lastTime) / 1000);
+      lastTime = now;
+
+      const vfx = vfxRef.current;
+      updateVfx(vfx, dt);
+
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      if (canvas.width !== BOARD_W * dpr || canvas.height !== BOARD_H * dpr) {
+        canvas.width = BOARD_W * dpr;
+        canvas.height = BOARD_H * dpr;
+      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const dashOffset = (now / 35) % 20;
+      draw(
+        ctx,
+        stateRef.current,
+        hoverCellRef.current,
+        selectedTowerTypeRef.current,
+        selectedTowerIdRef.current,
+        previewDeltaRef.current,
+        dashOffset,
+        vfx,
+      );
+    };
+
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   function cellFromEvent(e: { clientX: number; clientY: number }): Cell | null {
     const canvas = canvasRef.current;
