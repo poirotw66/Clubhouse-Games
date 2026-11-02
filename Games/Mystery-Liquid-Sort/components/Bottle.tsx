@@ -1,5 +1,6 @@
 import React from 'react';
-import { BottleData, type BottleSkinId, type LiquidSkinId } from '../types';
+import type { BottleData, BottleSkinId, LiquidSkinId } from '../types.ts';
+import type { PourPreview } from '../utils/pourPreview.ts';
 
 interface BottleProps {
   bottle: BottleData;
@@ -18,6 +19,10 @@ interface BottleProps {
   isPouringTarget?: boolean;
   /** Tilt direction for the pouring source. */
   pourTilt?: 'left' | 'right' | null;
+  /** Color of liquid being poured. */
+  pourStreamColor?: string;
+  /** Live pour projection preview if this bottle is a valid target. */
+  preview?: PourPreview | null;
   /** Brief seal celebration when a bottle just completed. */
   isCelebrating?: boolean;
   /** Skip transform animations (prefers-reduced-motion). */
@@ -29,9 +34,9 @@ interface BottleProps {
 
 function frameClass(skin: BottleSkinId | undefined, isValidTarget: boolean, isMixTarget: boolean): string {
   const border = isValidTarget && isMixTarget
-    ? 'border-amber-400/60'
+    ? 'border-amber-400/80 shadow-[0_0_15px_rgba(251,191,36,0.45)]'
     : isValidTarget
-      ? 'border-emerald-400/50'
+      ? 'border-emerald-400/80 shadow-[0_0_15px_rgba(52,211,153,0.45)]'
       : 'border-white/20';
   switch (skin) {
     case 'amber':
@@ -66,6 +71,8 @@ export const Bottle: React.FC<BottleProps> = ({
   isPouringSource = false,
   isPouringTarget = false,
   pourTilt = null,
+  pourStreamColor,
+  preview = null,
   isCelebrating = false,
   reduceMotion = false,
   bottleSkin = 'classic',
@@ -79,9 +86,14 @@ export const Bottle: React.FC<BottleProps> = ({
   const tiltTransform = (() => {
     if (reduceMotion || !isPouringSource || !pourTilt) return undefined;
     return pourTilt === 'left'
-      ? 'rotate(-28deg) translateY(-8px)'
-      : 'rotate(28deg) translateY(-8px)';
+      ? 'rotate(-55deg) translateY(-24px) translateX(-12px)'
+      : 'rotate(55deg) translateY(-24px) translateX(12px)';
   })();
+
+  const previewLayersCount = preview
+    ? Math.min(preview.movedCount, bottle.capacity - bottle.layers.length)
+    : 0;
+  const previewHeight = (previewLayersCount * 100) / bottle.capacity;
 
   return (
     <div
@@ -92,8 +104,8 @@ export const Bottle: React.FC<BottleProps> = ({
         ${isFlying ? 'z-50 pointer-events-none' : ''}
         ${isCapped && !isFlying ? 'cursor-not-allowed opacity-90' : isBlocked ? 'cursor-not-allowed' : 'cursor-pointer'}
         ${isSelected && !isCapped && !isFlying && !isBlocked ? '-translate-y-4 md:-translate-y-6 scale-105 drop-shadow-[0_20px_20px_rgba(0,0,0,0.5)]' : ''}
-        ${isValidTarget && !isSelected && isMixTarget ? 'ring-2 md:ring-4 ring-amber-400/70 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]' : ''}
-        ${isValidTarget && !isSelected && !isMixTarget ? 'ring-2 md:ring-4 ring-emerald-400/60 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]' : ''}
+        ${isValidTarget && !isSelected && isMixTarget ? 'ring-2 md:ring-4 ring-amber-400/80 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]' : ''}
+        ${isValidTarget && !isSelected && !isMixTarget ? 'ring-2 md:ring-4 ring-emerald-400/70 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e] scale-[1.02]' : ''}
         ${isHinted && !isSelected ? 'ring-2 md:ring-4 ring-sky-400/80 ring-offset-2 md:ring-offset-4 ring-offset-[#1a1a2e]' : ''}
         ${isMixingFlash && !reduceMotion ? 'animate-mix-flash' : ''}
         ${isCelebrating && !reduceMotion ? 'animate-bottle-celebrate' : ''}
@@ -101,10 +113,10 @@ export const Bottle: React.FC<BottleProps> = ({
         ${isPouringSource ? 'z-40' : ''}
       `}
       style={{
-        width: '72px',
-        height: '200px',
-        minWidth: '72px',
-        minHeight: '200px',
+        width: '68px',
+        height: '185px',
+        minWidth: '68px',
+        minHeight: '185px',
         transform: isFlying
           ? 'translateY(-60vh) scale(0.3)'
           : tiltTransform,
@@ -113,29 +125,66 @@ export const Bottle: React.FC<BottleProps> = ({
       }}
       aria-disabled={isBlocked || isCapped}
     >
+      {/* Selected Indicator */}
       {isSelected && !isCapped && !isFlying && !isBlocked && (
-        <div className={`absolute -top-12 flex flex-col items-center z-50 ${reduceMotion ? '' : 'animate-bounce'}`}>
-          <div className="w-4 h-4 bg-yellow-400 rounded-full shadow-[0_0_10px_#facc15]"></div>
-          <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] border-t-yellow-400 mt-1"></div>
+        <div className={`absolute -top-10 flex flex-col items-center z-50 ${reduceMotion ? '' : 'animate-bounce'}`}>
+          <div className="w-4 h-4 bg-yellow-400 rounded-full shadow-[0_0_10px_#facc15]" />
+          <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] border-t-yellow-400 mt-1" />
         </div>
       )}
 
-      {isValidTarget && (
-        <div className={`absolute -top-10 flex flex-col items-center z-50 opacity-80 ${reduceMotion ? '' : 'animate-bounce'}`}>
-           <div className={`w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] ${isMixTarget ? 'border-t-amber-400' : 'border-t-emerald-400'}`}></div>
+      {/* Target Preview Badge */}
+      {preview && !isCapped && !isBlocked && (
+        <div className={`absolute -top-10 z-50 flex flex-col items-center whitespace-nowrap pointer-events-none ${reduceMotion ? '' : 'animate-bounce-short'}`}>
+          {preview.willComplete ? (
+            <div className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-900 font-black text-[10px] shadow-lg border border-white/40">
+              ⭐ 滿瓶交單！
+            </div>
+          ) : preview.isMix ? (
+            <div className="px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white font-bold text-[10px] shadow-lg border border-white/30">
+              ✨ 混色：{preview.mixFormula}
+            </div>
+          ) : (
+            <div className="px-2 py-0.5 rounded-full bg-emerald-500 text-white font-bold text-[10px] shadow-md border border-white/30">
+              +{preview.movedCount} 格
+            </div>
+          )}
+          <div className={`w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[8px] mt-0.5 ${
+            preview.willComplete ? 'border-t-yellow-400' : preview.isMix ? 'border-t-pink-500' : 'border-t-emerald-400'
+          }`} />
         </div>
       )}
-      {isMixingFlash && !reduceMotion && (
-        <div className="absolute inset-0 z-30 pointer-events-none mix-spark" aria-hidden />
+
+      {/* Target fallback indicator when no preview object */}
+      {isValidTarget && !preview && (
+        <div className={`absolute -top-10 flex flex-col items-center z-50 opacity-80 ${reduceMotion ? '' : 'animate-bounce'}`}>
+          <div className={`w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] ${isMixTarget ? 'border-t-amber-400' : 'border-t-emerald-400'}`} />
+        </div>
       )}
+
+      {/* Mix reaction particles and sparkles */}
+      {isMixingFlash && !reduceMotion && (
+        <>
+          <div className="alchemy-swirl" aria-hidden />
+          <div className="absolute inset-0 z-30 pointer-events-none mix-spark" aria-hidden />
+        </>
+      )}
+
       {isCelebrating && !reduceMotion && (
         <div className="absolute inset-0 z-30 pointer-events-none bottle-celebrate-burst" aria-hidden />
       )}
 
       {/* Pour stream into target */}
       {isPouringTarget && !reduceMotion && (
-        <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none" aria-hidden>
-          <div className="pour-stream" />
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex flex-col items-center" aria-hidden>
+          <div
+            className="pour-stream"
+            style={{
+              background: `linear-gradient(180deg, #ffffff, ${pourStreamColor || '#38bdf8'})`,
+              boxShadow: `0 0 14px ${pourStreamColor || '#38bdf8'}`,
+            }}
+          />
+          <div className="splash-ripple" style={{ borderColor: pourStreamColor || '#38bdf8' }} />
         </div>
       )}
 
@@ -149,16 +198,17 @@ export const Bottle: React.FC<BottleProps> = ({
 
       {isCapped && (
         <div className={`absolute -top-5 z-40 w-full flex justify-center ${reduceMotion ? '' : 'animate-drop-in'}`}>
-           <div className="w-14 h-8 bg-gradient-to-r from-[#5c4a35] via-[#796248] to-[#5c4a35] rounded-t-sm rounded-b-lg shadow-xl border-t border-white/20 flex items-center justify-center relative">
-              <div className="absolute top-2 w-10 h-[1px] bg-black/20"></div>
-              <div className="absolute bottom-2 w-8 h-[1px] bg-white/10"></div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#d4c5a9] drop-shadow-md" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-           </div>
+          <div className="w-14 h-8 bg-gradient-to-r from-[#5c4a35] via-[#796248] to-[#5c4a35] rounded-t-sm rounded-b-lg shadow-xl border-t border-white/20 flex items-center justify-center relative">
+            <div className="absolute top-2 w-10 h-[1px] bg-black/20" />
+            <div className="absolute bottom-2 w-8 h-[1px] bg-white/10" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#d4c5a9] drop-shadow-md" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+            </svg>
+          </div>
         </div>
       )}
 
+      {/* Main Glass Bottle Cylinder */}
       <div
         className={`
           relative w-full h-full overflow-hidden flex flex-col-reverse shadow-2xl backdrop-blur-sm z-10
@@ -167,51 +217,87 @@ export const Bottle: React.FC<BottleProps> = ({
           ${frameClass(bottleSkin, isValidTarget, isMixTarget)}
         `}
       >
-        {bottle.layers.map((layer) => (
+        {/* Existing Liquid Layers */}
+        {bottle.layers.map((layer, index) => {
+          const isTopLayer = index === bottle.layers.length - 1;
+          return (
+            <div
+              key={layer.id}
+              className={`w-full relative border-b border-black/5 ${reduceMotion ? '' : 'transition-all duration-500 ease-in-out'} ${liquidSkin === 'shimmer' && !layer.isHidden && !reduceMotion ? 'liquid-shimmer' : ''}`}
+              style={{
+                height: `${layerHeight}%`,
+                background: layer.isHidden
+                  ? '#374151'
+                  : liquidBackground(layer.color, liquidSkin),
+              }}
+            >
+              {/* Dynamic Meniscus Wave on Top Layer */}
+              {isTopLayer && !layer.isHidden && (
+                <div className="absolute -top-1.5 inset-x-0 h-3 overflow-hidden pointer-events-none z-10">
+                  <svg viewBox="0 0 72 12" className="w-full h-full fill-current" style={{ color: layer.color }}>
+                    <path d="M0,6 Q18,2 36,6 T72,6 L72,12 L0,12 Z" className={reduceMotion ? '' : 'animate-liquid-wave'} />
+                  </svg>
+                  <div className="absolute top-1 inset-x-2 h-[1.5px] bg-white/40 rounded-full blur-[0.5px]" />
+                </div>
+              )}
+
+              {/* Rising Air Micro-Bubbles */}
+              {!layer.isHidden && !reduceMotion && (
+                <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-40">
+                  <span className="absolute bottom-1 left-3 w-1.5 h-1.5 rounded-full bg-white/70 animate-bubble-1" />
+                  <span className="absolute bottom-2 right-4 w-1 h-1 rounded-full bg-white/60 animate-bubble-2" />
+                  <span className="absolute bottom-0 left-8 w-1 h-1 rounded-full bg-white/50 animate-bubble-3" />
+                </div>
+              )}
+
+              {/* Hidden Layer Pattern */}
+              {layer.isHidden && (
+                <div className="w-full h-full relative overflow-hidden bg-gray-700">
+                  <div
+                    className="absolute inset-0 opacity-10"
+                    style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 10px, transparent 10px, transparent 20px)' }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-gray-400 font-bold text-2xl opacity-40 select-none font-mono">?</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Ghost Projection Preview Layer */}
+        {preview && previewLayersCount > 0 && !isCapped && !isBlocked && (
           <div
-            key={layer.id}
-            className={`w-full relative border-b border-black/5 ${reduceMotion ? '' : 'transition-all duration-500 ease-in-out'} ${liquidSkin === 'shimmer' && !layer.isHidden && !reduceMotion ? 'liquid-shimmer' : ''}`}
+            className={`w-full relative border-2 border-dashed border-white/80 animate-ghost-pulse pointer-events-none z-15 ${reduceMotion ? '' : 'transition-all duration-300'}`}
             style={{
-              height: `${layerHeight}%`,
-              background: layer.isHidden
-                ? '#374151'
-                : liquidBackground(layer.color, liquidSkin),
+              height: `${previewHeight}%`,
+              background: `linear-gradient(180deg, ${preview.resultingColor}88 0%, ${preview.resultingColor}33 100%)`,
+              boxShadow: `0 0 16px ${preview.resultingColor}80`,
             }}
           >
-            {!layer.isHidden && (
-              <div className="absolute top-0 w-full h-[3px] bg-white/40 blur-[1px]"></div>
-            )}
-
-            {!layer.isHidden && (
-                <div className="absolute inset-0 opacity-20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8Y2lyY2xlIGN4PSIyIiBjeT0iMiIgcj0iMSIgZmlsbD0id2hpdGUiIC8+Cjwvc3ZnPg==')]"></div>
-            )}
-
-            {layer.isHidden && (
-              <div className="w-full h-full relative overflow-hidden bg-gray-700">
-                <div className="absolute inset-0 opacity-10"
-                     style={{backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 10px, transparent 10px, transparent 20px)'}}>
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-gray-400 font-bold text-2xl opacity-40 select-none font-mono">?</span>
-                </div>
-              </div>
-            )}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-[10px] font-black text-white/95 drop-shadow">
+                {preview.isMix ? '✨' : `+${preview.movedCount}`}
+              </span>
+            </div>
           </div>
-        ))}
+        )}
 
-        <div className="absolute inset-0 rounded-b-[2.5rem] shadow-[inset_0_-10px_20px_rgba(0,0,0,0.2)] pointer-events-none"></div>
+        <div className="absolute inset-0 rounded-b-[2.5rem] shadow-[inset_0_-10px_20px_rgba(0,0,0,0.2)] pointer-events-none" />
 
         {isCapped && (
-            <div className="absolute inset-0 bg-black/20 pointer-events-none z-20"></div>
+          <div className="absolute inset-0 bg-black/20 pointer-events-none z-20" />
         )}
         {isBlocked && (
-            <div className="absolute inset-0 z-25 pointer-events-none bg-[repeating-linear-gradient(-45deg,rgba(0,0,0,0.35)_0,rgba(0,0,0,0.35)_6px,transparent_6px,transparent_12px)]" />
+          <div className="absolute inset-0 z-25 pointer-events-none bg-[repeating-linear-gradient(-45deg,rgba(0,0,0,0.35)_0,rgba(0,0,0,0.35)_6px,transparent_6px,transparent_12px)]" />
         )}
       </div>
 
-      <div className="absolute top-2 left-2 w-2 h-[92%] bg-gradient-to-b from-white/40 via-white/10 to-transparent rounded-full pointer-events-none z-20 blur-[2px]"></div>
-      <div className="absolute top-2 right-1.5 w-1 h-[92%] bg-gradient-to-b from-white/20 to-transparent rounded-full pointer-events-none z-20 blur-[1px]"></div>
-      <div className="absolute bottom-2 left-4 right-4 h-4 bg-gradient-to-t from-white/20 to-transparent rounded-full pointer-events-none z-20 blur-md"></div>
+      {/* Glass Reflections and Cylindrical Highlights */}
+      <div className="absolute top-2 left-2 w-2 h-[92%] bg-gradient-to-b from-white/40 via-white/10 to-transparent rounded-full pointer-events-none z-20 blur-[2px]" />
+      <div className="absolute top-2 right-1.5 w-1 h-[92%] bg-gradient-to-b from-white/20 to-transparent rounded-full pointer-events-none z-20 blur-[1px]" />
+      <div className="absolute bottom-2 left-4 right-4 h-4 bg-gradient-to-t from-white/20 to-transparent rounded-full pointer-events-none z-20 blur-md" />
     </div>
   );
 };

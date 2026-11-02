@@ -8,11 +8,11 @@ interface TargetAreaProps {
 
 export const TargetArea: React.FC<TargetAreaProps> = ({ orders }) => {
   return (
-    <div className="w-full flex flex-col items-center mb-4 md:mb-6 px-3 md:px-4">
+    <div className="w-full flex flex-col items-center mb-2 md:mb-3 px-3 md:px-4">
       {/* Header - Unified Card Style */}
-      <div className="w-full max-w-lg flex justify-between items-center mb-3 bg-white/10 backdrop-blur-xl rounded-2xl px-4 py-2.5 border border-white/20 shadow-lg">
+      <div className="w-full max-w-lg flex justify-between items-center mb-1.5 bg-white/10 backdrop-blur-xl rounded-xl px-3.5 py-1.5 border border-white/20 shadow-md">
         <span className="text-white/90 text-xs md:text-sm font-bold tracking-wider drop-shadow-md">顧客訂單</span>
-        <div className="flex items-center gap-2 bg-white/10 rounded-xl px-2.5 py-1 border border-white/20">
+        <div className="flex items-center gap-2 bg-white/10 rounded-lg px-2 py-0.5 border border-white/20">
           <span className="text-white/90 font-mono text-xs md:text-sm tabular-nums">
             {orders.filter(o => o.isCompleted).length} / {orders.length}
           </span>
@@ -20,8 +20,8 @@ export const TargetArea: React.FC<TargetAreaProps> = ({ orders }) => {
       </div>
 
       {/* Orders Shelf - Unified Card Design */}
-      <div className="w-full max-w-lg bg-white/10 backdrop-blur-xl rounded-2xl p-4 md:p-5 border border-white/20 shadow-lg">
-        <div className="flex justify-center items-center gap-2.5 md:gap-3 min-h-[4.5rem] md:min-h-[5.5rem]">
+      <div className="w-full max-w-lg bg-white/10 backdrop-blur-xl rounded-xl p-2.5 md:p-3 border border-white/20 shadow-md">
+        <div className="flex justify-center items-center gap-2.5 md:gap-3 min-h-[3.8rem] md:min-h-[4.5rem]">
           {orders.map((order) => {
             return (
               <div key={order.id} className="relative group">
@@ -74,11 +74,16 @@ export const TargetArea: React.FC<TargetAreaProps> = ({ orders }) => {
                   />
                 </div>
 
-                {/* Checkmark Overlay */}
+                {/* Checkmark Overlay & Star Burst */}
                 {order.isCompleted && (
-                  <div className="absolute -bottom-1.5 -right-1.5 md:-bottom-2 md:-right-2 bg-green-500 rounded-full text-white shadow-lg z-20 animate-bounce-short border-2 border-white/20">
-                    <CheckCircle2 size={14} className="md:w-4 md:h-4" fill="white" />
-                  </div>
+                  <>
+                    <div className="absolute -top-2 -right-1 text-xs select-none pointer-events-none animate-bounce-short z-20">
+                      ✨
+                    </div>
+                    <div className="absolute -bottom-1.5 -right-1.5 md:-bottom-2 md:-right-2 bg-emerald-500 rounded-full text-white shadow-lg z-20 animate-bounce-short border-2 border-white/20">
+                      <CheckCircle2 size={14} className="md:w-4 md:h-4" fill="white" />
+                    </div>
+                  </>
                 )}
               </div>
             );

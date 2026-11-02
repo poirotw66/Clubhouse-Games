@@ -62,6 +62,8 @@ import { useDailyMissions } from '../hooks/useDailyMissions';
 import { useDailyMissionsModal } from '../hooks/useDailyMissionsModal';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { Bottle } from './Bottle';
+import { TestTubeRack } from './TestTubeRack';
+import { calculatePourPreview, partitionBottlesIntoRows, type PourPreview } from '../utils/pourPreview';
 import { TopBar } from './TopBar';
 import { TargetArea } from './TargetArea';
 import { BottomControls } from './BottomControls';
@@ -260,6 +262,7 @@ export default function Game() {
       sourceId: string;
       targetId: string;
       tilt: 'left' | 'right';
+      streamColor?: string;
     } | null>(null);
     const [mechStars, setMechStars] = useState<number | null>(null);
     const [showMixGuidance, setShowMixGuidance] = useState(() => {
@@ -459,32 +462,49 @@ export default function Game() {
         }
     };
 
+    const selectedBottle = useMemo(() => {
+        if (!gameState.selectedBottleId) return null;
+        return gameState.bottles.find(b => b.id === gameState.selectedBottleId) || null;
+    }, [gameState.selectedBottleId, gameState.bottles]);
+
     // --- CALCULATE VALID TARGETS ---
     const validTargets = useMemo(() => {
-        if (!gameState.selectedBottleId) return new Set<string>();
-
-        const source = gameState.bottles.find(b => b.id === gameState.selectedBottleId);
-        if (!source) return new Set<string>();
+        if (!selectedBottle) return new Set<string>();
 
         const targets = new Set<string>();
         gameState.bottles.forEach(target => {
-            if (canPour(source, target)) {
+            if (canPour(selectedBottle, target)) {
                 targets.add(target.id);
             }
         });
         return targets;
-    }, [gameState.selectedBottleId, gameState.bottles]);
+    }, [selectedBottle, gameState.bottles]);
 
     const mixTargets = useMemo(() => {
-        if (!gameState.selectedBottleId) return new Set<string>();
-        const source = gameState.bottles.find(b => b.id === gameState.selectedBottleId);
-        if (!source) return new Set<string>();
+        if (!selectedBottle) return new Set<string>();
         const targets = new Set<string>();
         gameState.bottles.forEach(target => {
-            if (isMixingPour(source, target)) targets.add(target.id);
+            if (isMixingPour(selectedBottle, target)) targets.add(target.id);
         });
         return targets;
-    }, [gameState.selectedBottleId, gameState.bottles]);
+    }, [selectedBottle, gameState.bottles]);
+
+    const pourPreviews = useMemo(() => {
+        if (!selectedBottle) return new Map<string, PourPreview>();
+        const map = new Map<string, PourPreview>();
+        gameState.bottles.forEach(target => {
+            if (target.id === selectedBottle.id) return;
+            const preview = calculatePourPreview(selectedBottle, target);
+            if (preview) {
+                map.set(target.id, preview);
+            }
+        });
+        return map;
+    }, [selectedBottle, gameState.bottles]);
+
+    const bottleRows = useMemo(() => {
+        return partitionBottlesIntoRows(gameState.bottles);
+    }, [gameState.bottles]);
 
     // --- CHECK DEADLOCK & LOOPS ---
     useEffect(() => {
@@ -904,7 +924,13 @@ export default function Game() {
             }
 
             const tilt: 'left' | 'right' = sourceIndex < targetIndex ? 'right' : 'left';
-            setPourAnim({ sourceId: source.id, targetId: target.id, tilt });
+            const sourceTop = source.layers[source.layers.length - 1];
+            setPourAnim({
+                sourceId: source.id,
+                targetId: target.id,
+                tilt,
+                streamColor: sourceTop?.color,
+            });
             if (pourTimerRef.current != null) window.clearTimeout(pourTimerRef.current);
             pourTimerRef.current = window.setTimeout(runPour, POUR_ANIM_MS);
             return;
@@ -1188,32 +1214,36 @@ export default function Game() {
                     </div>
                 )}
 
-                <div className="w-full flex-1 flex items-end pb-4 md:pb-8 relative overflow-y-auto no-scrollbar">
-                    <div className="w-full flex flex-wrap justify-center gap-x-4 gap-y-6 md:gap-x-6 md:gap-y-8 content-end">
-                        {gameState.bottles.map(bottle => (
-                            <Bottle
-                                key={bottle.id}
-                                bottle={bottle}
-                                isSelected={gameState.selectedBottleId === bottle.id}
-                                isValidTarget={validTargets.has(bottle.id)}
-                                isMixTarget={mixTargets.has(bottle.id)}
-                                isMixingFlash={mixFlashId === bottle.id}
-                                isHinted={
-                                  hintIds != null &&
-                                  (hintIds.sourceId === bottle.id || hintIds.targetId === bottle.id)
-                                }
-                                isFlying={processingMatch?.bottleId === bottle.id}
-                                isPouringSource={pourAnim?.sourceId === bottle.id}
-                                isPouringTarget={pourAnim?.targetId === bottle.id}
-                                pourTilt={pourAnim?.sourceId === bottle.id ? pourAnim.tilt : null}
-                                isCelebrating={celebrateId === bottle.id}
-                                reduceMotion={reduceMotion}
-                                bottleSkin={cosmetics.equippedBottle}
-                                liquidSkin={cosmetics.equippedLiquid}
-                                onClick={() => handleBottleClick(bottle.id)}
-                            />
-                        ))}
-                    </div>
+                <div className="w-full flex-1 flex flex-col justify-center items-center py-4 md:py-6 relative overflow-y-auto no-scrollbar gap-y-4 md:gap-y-6">
+                    {bottleRows.map((row, rowIndex) => (
+                        <TestTubeRack key={`rack-row-${rowIndex}`}>
+                            {row.map(bottle => (
+                                <Bottle
+                                    key={bottle.id}
+                                    bottle={bottle}
+                                    isSelected={gameState.selectedBottleId === bottle.id}
+                                    isValidTarget={validTargets.has(bottle.id)}
+                                    isMixTarget={mixTargets.has(bottle.id)}
+                                    isMixingFlash={mixFlashId === bottle.id}
+                                    isHinted={
+                                      hintIds != null &&
+                                      (hintIds.sourceId === bottle.id || hintIds.targetId === bottle.id)
+                                    }
+                                    isFlying={processingMatch?.bottleId === bottle.id}
+                                    isPouringSource={pourAnim?.sourceId === bottle.id}
+                                    isPouringTarget={pourAnim?.targetId === bottle.id}
+                                    pourTilt={pourAnim?.sourceId === bottle.id ? pourAnim.tilt : null}
+                                    pourStreamColor={pourAnim?.streamColor}
+                                    preview={pourPreviews.get(bottle.id)}
+                                    isCelebrating={celebrateId === bottle.id}
+                                    reduceMotion={reduceMotion}
+                                    bottleSkin={cosmetics.equippedBottle}
+                                    liquidSkin={cosmetics.equippedLiquid}
+                                    onClick={() => handleBottleClick(bottle.id)}
+                                />
+                            ))}
+                        </TestTubeRack>
+                    ))}
                 </div>
             </div>
 

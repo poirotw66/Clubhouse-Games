@@ -36,11 +36,11 @@
 }
 
 .pour-stream {
-  width: 8px;
-  height: 28px;
+  width: 10px;
+  height: 48px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(125, 211, 252, 0.75));
-  box-shadow: 0 0 10px rgba(125, 211, 252, 0.55);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(125, 211, 252, 0.8));
+  box-shadow: 0 0 12px rgba(125, 211, 252, 0.65);
   animation: pourStream 0.4s ease-in forwards;
   transform-origin: top center;
 }
@@ -48,7 +48,82 @@
 @keyframes pourStream {
   0% { opacity: 0; transform: scaleY(0.2); }
   35% { opacity: 1; transform: scaleY(1); }
-  100% { opacity: 0.35; transform: scaleY(1.05); }
+  85% { opacity: 0.95; transform: scaleY(1); }
+  100% { opacity: 0; transform: scaleY(1.05); }
+}
+
+.animate-liquid-wave {
+  animation: liquidWave 3s ease-in-out infinite alternate;
+}
+
+@keyframes liquidWave {
+  0% { transform: translateX(-3px); }
+  100% { transform: translateX(3px); }
+}
+
+.animate-bubble-1 {
+  animation: bubbleRise 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-bubble-2 {
+  animation: bubbleRise 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite 0.7s;
+}
+
+.animate-bubble-3 {
+  animation: bubbleRise 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite 1.4s;
+}
+
+@keyframes bubbleRise {
+  0% { transform: translateY(8px) scale(0.5); opacity: 0; }
+  30% { opacity: 0.75; }
+  80% { opacity: 0.45; }
+  100% { transform: translateY(-28px) scale(1.1); opacity: 0; }
+}
+
+.animate-ghost-pulse {
+  animation: ghostPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ghostPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.85; }
+}
+
+.splash-ripple {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 32px;
+  height: 8px;
+  margin-left: -16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  animation: splashRipple 0.45s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes splashRipple {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.alchemy-swirl {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48px;
+  height: 48px;
+  margin-top: -24px;
+  margin-left: -24px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.8) 0%, rgba(168, 85, 247, 0.6) 40%, transparent 70%);
+  animation: alchemySwirl 0.6s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes alchemySwirl {
+  0% { transform: rotate(0deg) scale(0.6); opacity: 0.95; }
+  50% { transform: rotate(180deg) scale(1.25); opacity: 1; filter: brightness(1.4); }
+  100% { transform: rotate(360deg) scale(1.5); opacity: 0; }
 }
 
 .liquid-shimmer {
@@ -71,7 +146,14 @@
   .animate-bounce,
   .animate-bounce-short,
   .animate-float,
-  .animate-drop-in {
+  .animate-drop-in,
+  .animate-liquid-wave,
+  .animate-bubble-1,
+  .animate-bubble-2,
+  .animate-bubble-3,
+  .animate-ghost-pulse,
+  .splash-ripple,
+  .alchemy-swirl {
     animation: none !important;
   }
 }
