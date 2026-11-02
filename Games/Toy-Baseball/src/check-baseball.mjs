@@ -55,6 +55,15 @@ import {
   saveSeason,
 } from './season.ts';
 import { createHitFeelBurst, updateHitParticles } from './hitFeel.ts';
+import {
+  calculateHitTelemetry,
+  calculatePitchTelemetry,
+  getStrikeZoneCoords,
+} from './telemetry.ts';
+import {
+  computeBuntLaunch,
+  resolveStealAttempt,
+} from './tactics.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -506,6 +515,79 @@ assert(getTeam(PLAYER_TEAM_ID).id === 'tigers', 'player team is tigers');
   assert(stepped.length <= perfect.particles.length, 'particles only shrink');
   const drained = updateHitParticles(perfect.particles, 10);
   assert(drained.length === 0, 'long dt clears particles');
+}
+
+// --- StatCast Telemetry & Strike Zone Grid ---
+{
+  const fastTel = calculatePitchTelemetry('fastball', 'center', 0.5);
+  const curveTel = calculatePitchTelemetry('curve', 'left', 0.5);
+  assert(fastTel.speedKmh > curveTel.speedKmh, 'fastball velo > curve velo');
+  assert(curveTel.spinRpm > fastTel.spinRpm, 'curve spin > fastball spin');
+  assert(typeof fastTel.breakCmX === 'number' && typeof fastTel.breakCmZ === 'number', 'movement metrics');
+
+  const barrel = calculateHitTelemetry(0.95, { x: 0, y: -400, z: 200 }, false);
+  assert(barrel.barrelGrade === 'barrel', `expected barrel grade, got ${barrel.barrelGrade}`);
+  assert(barrel.exitVeloKmh >= 150, `expected high exit velo, got ${barrel.exitVeloKmh}`);
+  assert(barrel.launchAngleDeg > 20 && barrel.launchAngleDeg < 38, 'barrel launch angle window');
+
+  const weakHit = calculateHitTelemetry(0.2, { x: 0, y: -200, z: 50 }, false);
+  assert(weakHit.barrelGrade === 'weak', 'low quality → weak');
+
+  const buntHit = calculateHitTelemetry(0.7, { x: 0, y: -190, z: 20 }, true);
+  assert(buntHit.launchAngleDeg <= 0, 'bunt should produce ground angle');
+  assert(buntHit.barrelLabel === '觸擊滾地', 'bunt label');
+
+  const leftCoord = getStrikeZoneCoords('left', true, 0.5);
+  const rightCoord = getStrikeZoneCoords('right', true, 0.5);
+  assert(leftCoord.xPercent < rightCoord.xPercent, 'left zone x < right zone x');
+  assert(leftCoord.xPercent >= 0 && leftCoord.xPercent <= 100, 'x bounds');
+  assert(leftCoord.yPercent >= 0 && leftCoord.yPercent <= 100, 'y bounds');
+}
+
+// --- Tactical Bunt & Steal Systems ---
+{
+  const bunt = computeBuntLaunch({
+    swingDir: 'left',
+    pitchLoc: 'center',
+    rng: createRng(10),
+  });
+  assert(bunt.vel.y < -150, 'bunt should roll toward infield');
+  assert(bunt.vel.x < 0, 'left swingDir should steer bunt toward 3B line');
+  assert(bunt.peakZ <= 25, 'bunt stays low to the ground');
+
+  // Stealing: 1st base runner stealing 2nd
+  let curveSteals = 0;
+  let fastSteals = 0;
+  for (let i = 0; i < 200; i++) {
+    const sCurve = resolveStealAttempt({
+      bases: [true, false, false],
+      pitchType: 'curve',
+      pitchLoc: 'left',
+      difficulty: 'normal',
+      rng: createRng(100 + i),
+    });
+    if (sCurve?.success) curveSteals += 1;
+
+    const sFast = resolveStealAttempt({
+      bases: [true, false, false],
+      pitchType: 'fastball',
+      pitchLoc: 'center',
+      difficulty: 'normal',
+      rng: createRng(100 + i),
+    });
+    if (sFast?.success) fastSteals += 1;
+  }
+  assert(curveSteals > fastSteals, `slow curve should be easier to steal than heat (curve=${curveSteals}, fast=${fastSteals})`);
+
+  // Steal resolution with no runners
+  const emptyBases = resolveStealAttempt({
+    bases: [false, false, false],
+    pitchType: 'curve',
+    pitchLoc: 'center',
+    difficulty: 'normal',
+    rng: createRng(1),
+  });
+  assert(emptyBases === null, 'cannot steal with empty bases');
 }
 
 console.log('check-baseball: ok');

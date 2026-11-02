@@ -108,14 +108,36 @@ import {
   updateHitParticles,
   type HitParticle,
 } from './hitFeel';
+import {
+  calculateHitTelemetry,
+  calculatePitchTelemetry,
+  getStrikeZoneCoords,
+  type HitTelemetry,
+  type PitchTelemetry,
+  type StrikeZonePitch,
+} from './telemetry';
+import {
+  computeBuntLaunch,
+  resolveStealAttempt,
+} from './tactics';
+import { TelemetryWing } from './components/TelemetryWing';
+import { DossierWing } from './components/DossierWing';
+import { TacticalHudBar } from './components/TacticalHudBar';
 
 function resultFlashTone(text: string): ScoreFlashTone {
-  if (text.includes('全壘打') || text.includes('安打') || text.includes('保送') || text.includes('完美')) {
+  if (
+    text.includes('全壘打')
+    || text.includes('安打')
+    || text.includes('保送')
+    || text.includes('完美')
+    || text.includes('盜壘成功')
+  ) {
     return 'good';
   }
   if (
     text.includes('OUT')
     || text.includes('三振')
+    || text.includes('阻殺')
     || text.includes('軟弱')
     || text.includes('太早')
     || text.includes('太晚')
@@ -308,6 +330,12 @@ interface GameState {
   hitStop: number;
   hitParticles: HitParticle[];
   reducedMotion: boolean;
+  pitchTelemetry: PitchTelemetry | null;
+  hitTelemetry: HitTelemetry | null;
+  strikeZonePitches: StrikeZonePitch[];
+  currentStrikeZonePitch: StrikeZonePitch | null;
+  isBunting: boolean;
+  stealAttempt: boolean;
 }
 
 // --- Game Engine ---
@@ -386,6 +414,12 @@ class GameEngine {
       hitStop: 0,
       hitParticles: [],
       reducedMotion: prefersReducedMotion(),
+      pitchTelemetry: null,
+      hitTelemetry: null,
+      strikeZonePitches: [],
+      currentStrikeZonePitch: null,
+      isBunting: false,
+      stealAttempt: false,
     };
   }
 
@@ -545,6 +579,10 @@ class GameEngine {
     this.state.strikes = 0;
     this.state.balls = 0;
     this.state.atBatOver = false;
+    this.state.isBunting = false;
+    this.state.stealAttempt = false;
+    this.state.strikeZonePitches = [];
+    this.state.currentStrikeZonePitch = null;
     this.refreshDefense();
     this.readyNextPitch();
   }
@@ -565,6 +603,8 @@ class GameEngine {
     this.state.cpuWillSwing = false;
     this.state.contactQuality = 0.5;
     this.state.peakZ = 0;
+    this.state.isBunting = false;
+    this.state.stealAttempt = false;
   }
 
   get isPlayerBatting() {
@@ -579,6 +619,19 @@ class GameEngine {
 
   setSteerDir(dir: -1 | 0 | 1) {
     this.state.steerDir = dir;
+  }
+
+  toggleBunt() {
+    if (this.state.ballState !== 'idle' || !this.isPlayerBatting) return;
+    this.state.isBunting = !this.state.isBunting;
+    this.onStateChange(this.state);
+  }
+
+  triggerSteal() {
+    if (this.state.mode !== 'playing' || !this.isPlayerBatting) return;
+    if (!this.state.bases[0] && !this.state.bases[1]) return;
+    this.state.stealAttempt = !this.state.stealAttempt;
+    this.onStateChange(this.state);
   }
 
   handlePitch(type: PitchType, loc: PitchLoc) {
@@ -599,6 +652,13 @@ class GameEngine {
     this.state.cpuSwingTargetY = null;
     this.state.cpuWillSwing = false;
     this.state.ballTrail = [];
+
+    // Calculate pitch telemetry for cockpit displays
+    this.state.pitchTelemetry = calculatePitchTelemetry(
+      type,
+      loc,
+      this.nextRoll(`tel:${this.pitchIndex}`),
+    );
 
     this.onStateChange(this.state);
   }
@@ -797,26 +857,68 @@ class GameEngine {
     this.state.hitEffect = 1.0;
 
     // Plate-relative timing: 0 at the plate, early < 0, late > 0.
-    // (Bat swingTime countdown is only for the bat animation.)
     const ballY = this.state.ballPos?.y ?? 450;
     const timingError = (ballY - 450) / 90;
 
-    const launch = computeHitLaunch({
-      swingTime: timingError,
-      swingDir: this.state.swingDir,
-      pitchLoc: this.state.pitchLoc,
-      rng: () => this.nextRoll(`hit:${this.hitIndex++}`),
-    });
+    if (this.state.isBunting) {
+      const bunt = computeBuntLaunch({
+        swingDir: this.state.swingDir,
+        pitchLoc: this.state.pitchLoc,
+        rng: () => this.nextRoll(`bunt:${this.hitIndex++}`),
+      });
 
-    this.state.ballVel = launch.vel;
-    this.state.contactQuality = launch.contactQuality;
-    this.state.contactGrade = gradeContact(launch.contactQuality);
-    this.state.contactFlash = 1.2;
-    this.state.peakZ = launch.peakZ;
-    this.state.crowdPulse = launch.contactQuality >= 0.85 ? 1.4 : launch.contactQuality >= 0.65 ? 0.8 : 0.35;
+      this.state.ballVel = bunt.vel;
+      this.state.contactQuality = bunt.contactQuality;
+      this.state.contactGrade = 'ok';
+      this.state.contactFlash = 1.0;
+      this.state.peakZ = bunt.peakZ;
+      this.state.crowdPulse = 0.6;
+      this.state.hitTelemetry = calculateHitTelemetry(bunt.contactQuality, bunt.vel, true);
+
+      const coords = getStrikeZoneCoords(this.state.pitchLoc ?? 'center', true, this.nextRoll('szCoords'));
+      const newPitch: StrikeZonePitch = {
+        id: this.state.strikeZonePitches.length + 1,
+        pitchType: this.state.pitchType ?? 'fastball',
+        loc: this.state.pitchLoc ?? 'center',
+        isStrike: true,
+        result: '觸擊擊球',
+        xPercent: coords.xPercent,
+        yPercent: coords.yPercent,
+      };
+      this.state.strikeZonePitches.push(newPitch);
+      this.state.currentStrikeZonePitch = newPitch;
+    } else {
+      const launch = computeHitLaunch({
+        swingTime: timingError,
+        swingDir: this.state.swingDir,
+        pitchLoc: this.state.pitchLoc,
+        rng: () => this.nextRoll(`hit:${this.hitIndex++}`),
+      });
+
+      this.state.ballVel = launch.vel;
+      this.state.contactQuality = launch.contactQuality;
+      this.state.contactGrade = gradeContact(launch.contactQuality);
+      this.state.contactFlash = 1.2;
+      this.state.peakZ = launch.peakZ;
+      this.state.crowdPulse = launch.contactQuality >= 0.85 ? 1.4 : launch.contactQuality >= 0.65 ? 0.8 : 0.35;
+      this.state.hitTelemetry = calculateHitTelemetry(launch.contactQuality, launch.vel, false);
+
+      const coords = getStrikeZoneCoords(this.state.pitchLoc ?? 'center', true, this.nextRoll('szCoords'));
+      const newPitch: StrikeZonePitch = {
+        id: this.state.strikeZonePitches.length + 1,
+        pitchType: this.state.pitchType ?? 'fastball',
+        loc: this.state.pitchLoc ?? 'center',
+        isStrike: true,
+        result: '擊球',
+        xPercent: coords.xPercent,
+        yPercent: coords.yPercent,
+      };
+      this.state.strikeZonePitches.push(newPitch);
+      this.state.currentStrikeZonePitch = newPitch;
+    }
 
     const feel = createHitFeelBurst(
-      this.state.contactGrade,
+      this.state.contactGrade ?? 'ok',
       this.state.ballPos?.x ?? 400,
       (this.state.ballPos?.y ?? 450) - (this.state.ballPos?.z ?? 0),
       () => this.nextRoll(`feel:${this.hitIndex}`),
@@ -832,7 +934,7 @@ class GameEngine {
     if (this.state.contactGrade === 'perfect') {
       haptic('win');
     } else {
-      haptic('impact', 0.35 + launch.contactQuality * 0.85);
+      haptic('impact', 0.35 + (this.state.contactQuality ?? 0.5) * 0.85);
     }
 
     this.onStateChange(this.state);
@@ -849,38 +951,102 @@ class GameEngine {
     const quality = this.state.contactQuality;
     const foul = isFoulTerritory(x, y);
     const fence = this.state.parkFenceDist || FENCE_DIST;
-    const clearedFence =
-      !foul
-      && (
-        (type === 'HR' && quality >= 0.58 && this.state.peakZ > 95)
-        || (dist >= fence && quality >= 0.58 && this.state.peakZ > 95)
-      );
 
-    if (clearedFence) {
-      result = '全壘打！';
-      bases = 4;
-      hitType = 'fair';
-      this.state.lastLanding = { x, y: Math.min(y, 40) };
-      this.state.lastFielderId = null;
-      haptic('win');
-      if (this.state.playMode === 'derby') {
-        this.state.derbyHrs += 1;
-        this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
-      }
-    } else if (type === 'HR' || (!foul && dist >= fence * 0.92 && this.state.peakZ > 70)) {
+    if (this.state.isBunting) {
+      this.state.isBunting = false;
       if (foul) {
         result = '界外球 (FOUL)';
         hitType = 'foul';
         this.state.strikes = Math.min(2, this.state.strikes + 1);
         this.state.lastLanding = { x, y };
         this.state.lastFielderId = null;
+      } else if (quality >= 0.78) {
+        result = '突襲短打安打！(BUNT SINGLE)';
+        bases = 1;
+        hitType = 'fair';
+        this.state.lastLanding = { x, y };
+        this.state.lastFielderId = '3B';
+        this.advanceRunners(1);
+        haptic('win');
       } else {
+        result = '犧牲短打推進！(SAC BUNT)';
+        hitType = 'fair';
+        this.state.lastLanding = { x, y };
+        this.state.lastFielderId = '1B';
+        this.state.outs++;
+        this.advanceRunnersOnSacrifice();
+        haptic('impact', 0.5);
+      }
+    } else {
+      const clearedFence =
+        !foul
+        && (
+          (type === 'HR' && quality >= 0.58 && this.state.peakZ > 95)
+          || (dist >= fence && quality >= 0.58 && this.state.peakZ > 95)
+        );
+
+      if (clearedFence) {
+        result = '全壘打！';
+        bases = 4;
+        hitType = 'fair';
+        this.state.lastLanding = { x, y: Math.min(y, 40) };
+        this.state.lastFielderId = null;
+        haptic('win');
+        if (this.state.playMode === 'derby') {
+          this.state.derbyHrs += 1;
+          this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
+        }
+      } else if (type === 'HR' || (!foul && dist >= fence * 0.92 && this.state.peakZ > 70)) {
+        if (foul) {
+          result = '界外球 (FOUL)';
+          hitType = 'foul';
+          this.state.strikes = Math.min(2, this.state.strikes + 1);
+          this.state.lastLanding = { x, y };
+          this.state.lastFielderId = null;
+        } else {
+          const graded = resolveFairBall({
+            landingX: x,
+            landingY: Math.min(y, 55),
+            peakZ: this.state.peakZ,
+            quality,
+            flightTime: estimateFlightTime(this.state.ballVel?.z ?? 0, this.state.peakZ),
+            alignment: this.state.defenseAlignment,
+            cfg: this.cfg,
+            fenceDist: fence,
+            gapMul: this.state.parkGapMul,
+          });
+          result = graded.result;
+          bases = graded.bases;
+          hitType = 'fair';
+          this.state.lastLanding = { x: graded.landingX, y: graded.landingY };
+          this.state.lastFielderId = graded.fielderId;
+          if (bases === 0) this.state.outs++;
+          if (bases === 4 && this.state.playMode === 'derby') {
+            this.state.derbyHrs += 1;
+            this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
+          }
+          if (this.state.playMode === 'derby') {
+            this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
+          }
+        }
+      } else if (foul) {
+        result = '界外球 (FOUL)';
+        hitType = 'foul';
+        this.state.strikes = Math.min(2, this.state.strikes + 1);
+        this.state.lastLanding = { x, y };
+        this.state.lastFielderId = null;
+      } else {
+        hitType = 'fair';
+        const flightTime = estimateFlightTime(
+          Math.abs(this.state.ballVel?.z ?? 120),
+          this.state.peakZ,
+        );
         const graded = resolveFairBall({
           landingX: x,
-          landingY: Math.min(y, 55),
+          landingY: y,
           peakZ: this.state.peakZ,
           quality,
-          flightTime: estimateFlightTime(this.state.ballVel?.z ?? 0, this.state.peakZ),
+          flightTime,
           alignment: this.state.defenseAlignment,
           cfg: this.cfg,
           fenceDist: fence,
@@ -888,52 +1054,16 @@ class GameEngine {
         });
         result = graded.result;
         bases = graded.bases;
-        hitType = 'fair';
         this.state.lastLanding = { x: graded.landingX, y: graded.landingY };
         this.state.lastFielderId = graded.fielderId;
         if (bases === 0) this.state.outs++;
-        if (bases === 4 && this.state.playMode === 'derby') {
-          this.state.derbyHrs += 1;
-          this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
-        }
         if (this.state.playMode === 'derby') {
           this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
         }
       }
-    } else if (foul) {
-      result = '界外球 (FOUL)';
-      hitType = 'foul';
-      this.state.strikes = Math.min(2, this.state.strikes + 1);
-      this.state.lastLanding = { x, y };
-      this.state.lastFielderId = null;
-    } else {
-      hitType = 'fair';
-      const flightTime = estimateFlightTime(
-        Math.abs(this.state.ballVel?.z ?? 120),
-        this.state.peakZ,
-      );
-      const graded = resolveFairBall({
-        landingX: x,
-        landingY: y,
-        peakZ: this.state.peakZ,
-        quality,
-        flightTime,
-        alignment: this.state.defenseAlignment,
-        cfg: this.cfg,
-        fenceDist: fence,
-        gapMul: this.state.parkGapMul,
-      });
-      result = graded.result;
-      bases = graded.bases;
-      this.state.lastLanding = { x: graded.landingX, y: graded.landingY };
-      this.state.lastFielderId = graded.fielderId;
-      if (bases === 0) this.state.outs++;
-      if (this.state.playMode === 'derby') {
-        this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
-      }
-    }
 
-    if (bases > 0) this.advanceRunners(bases);
+      if (bases > 0) this.advanceRunners(bases);
+    }
 
     this.state.ballPos = null;
     this.state.ballVel = null;
@@ -982,6 +1112,51 @@ class GameEngine {
       this.state.resultText = '壞球 (BALL)';
     }
 
+    // Strike zone tracking
+    const coords = getStrikeZoneCoords(loc ?? 'center', isStrike, this.nextRoll('szMiss'));
+    const newPitch: StrikeZonePitch = {
+      id: this.state.strikeZonePitches.length + 1,
+      pitchType: this.state.pitchType ?? 'fastball',
+      loc: loc ?? 'center',
+      isStrike,
+      result: this.state.resultText,
+      xPercent: coords.xPercent,
+      yPercent: coords.yPercent,
+    };
+    this.state.strikeZonePitches.push(newPitch);
+    this.state.currentStrikeZonePitch = newPitch;
+
+    // Handle Steal Attempt if active
+    if (this.state.stealAttempt && (this.state.bases[0] || this.state.bases[1])) {
+      const stealRes = resolveStealAttempt({
+        bases: this.state.bases,
+        pitchType: this.state.pitchType ?? 'fastball',
+        pitchLoc: this.state.pitchLoc,
+        difficulty: this.state.difficulty,
+        rng: () => this.nextRoll('stealRes'),
+      });
+      if (stealRes) {
+        if (stealRes.success) {
+          const nextBases = [...this.state.bases] as [boolean, boolean, boolean];
+          nextBases[stealRes.leadBaseIndex] = false;
+          nextBases[stealRes.targetBaseIndex] = true;
+          this.state.bases = nextBases;
+          this.state.resultText = `${this.state.resultText} · ${stealRes.blurb}`;
+          haptic('win');
+          playScore();
+        } else {
+          const nextBases = [...this.state.bases] as [boolean, boolean, boolean];
+          nextBases[stealRes.leadBaseIndex] = false;
+          this.state.bases = nextBases;
+          this.state.outs++;
+          this.state.resultText = `${this.state.resultText} · ${stealRes.blurb}`;
+          haptic('error', 0.5);
+          playCapture();
+        }
+      }
+      this.state.stealAttempt = false;
+    }
+
     if (this.state.playMode === 'derby') {
       this.state.derbySwingsLeft = Math.max(0, this.state.derbySwingsLeft - 1);
       this.state.strikes = 0;
@@ -992,6 +1167,7 @@ class GameEngine {
       this.state.ballState = 'idle';
       this.state.isPitching = false;
       this.state.atBatOver = true;
+      this.state.isBunting = false;
       if (this.state.derbySwingsLeft <= 0) this.state.mode = 'gameOver';
       return;
     }
@@ -1003,12 +1179,14 @@ class GameEngine {
       this.state.strikes = 0;
       this.state.balls = 0;
       this.state.atBatOver = true;
+      this.state.isBunting = false;
     } else if (this.state.balls >= 4) {
       this.advanceRunners(1);
       this.state.resultText = '四壞保送 (WALK)';
       this.state.strikes = 0;
       this.state.balls = 0;
       this.state.atBatOver = true;
+      this.state.isBunting = false;
     }
 
     this.state.resultTimer = 1.5;
@@ -1018,6 +1196,35 @@ class GameEngine {
     this.state.isPitching = false;
     this.checkWalkOff();
     this.checkInningEnd();
+  }
+
+  advanceRunnersOnSacrifice() {
+    const currentRunners = [...this.state.bases];
+    const newBases: [boolean, boolean, boolean] = [false, false, false];
+    let runs = 0;
+
+    if (currentRunners[2]) {
+      runs += 1;
+    }
+    if (currentRunners[1]) {
+      newBases[2] = true;
+    }
+    if (currentRunners[0]) {
+      newBases[1] = true;
+    }
+
+    if (runs > 0) {
+      const idx = Math.min(this.state.inning, this.state.inningsLength) - 1;
+      if (this.state.halfInning === 0) {
+        this.state.score.away += runs;
+        this.state.lineScore.away[idx] = (this.state.lineScore.away[idx] ?? 0) + runs;
+      } else {
+        this.state.score.home += runs;
+        this.state.lineScore.home[idx] = (this.state.lineScore.home[idx] ?? 0) + runs;
+      }
+      this.state.crowdPulse = Math.max(this.state.crowdPulse, 1.2);
+    }
+    this.state.bases = newBases;
   }
 
   advanceRunners(num: number) {
@@ -1265,7 +1472,7 @@ class GameEngine {
       ctx.stroke();
     }
 
-    const drawBase = (bx: number, by: number, active: boolean) => {
+    const drawBase = (bx: number, by: number, active: boolean, isStealing: boolean = false) => {
       ctx.save();
       ctx.translate(bx, by);
       ctx.rotate(Math.PI / 4);
@@ -1273,13 +1480,18 @@ class GameEngine {
       ctx.shadowBlur = active ? 15 : 2;
       ctx.shadowColor = active ? '#fbbf24' : 'rgba(0,0,0,0.3)';
       ctx.fillRect(-10, -10, 20, 20);
+      if (active && isStealing) {
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(-14, -14, 28, 28);
+      }
       ctx.restore();
     };
 
     drawBase(400, 450, false);
-    drawBase(550, 300, this.state.bases[0]);
-    drawBase(400, 150, this.state.bases[1]);
-    drawBase(250, 300, this.state.bases[2]);
+    drawBase(550, 300, this.state.bases[0], this.state.stealAttempt && this.state.bases[0]);
+    drawBase(400, 150, this.state.bases[1], this.state.stealAttempt && this.state.bases[1]);
+    drawBase(250, 300, this.state.bases[2], false);
 
     if (!drawPitcherSprite(ctx, 400, 250, 32)) {
       ctx.fillStyle = '#ef4444';
@@ -1306,7 +1518,9 @@ class GameEngine {
     ctx.save();
     ctx.translate(batPivotX, batPivotY);
     let batAngle = this.state.handedness === 'right' ? -Math.PI / 8 : -Math.PI * 7 / 8;
-    if (this.state.swingTime !== null) {
+    if (this.state.isBunting) {
+      batAngle = this.state.handedness === 'right' ? -Math.PI * 0.45 : -Math.PI * 0.55;
+    } else if (this.state.swingTime !== null) {
       const progress = (0.18 - this.state.swingTime) / 0.36;
       if (this.state.handedness === 'right') {
         batAngle = -Math.PI / 8 - progress * Math.PI * 1.1;
@@ -1578,6 +1792,14 @@ export default function App() {
         if (engine.state.mode === 'playing' && engine.isPlayerBatting) {
           engine.handleSwing();
         }
+      } else if (e.code === 'KeyB') {
+        if (engine.state.mode === 'playing' && engine.isPlayerBatting && engine.state.ballState === 'idle') {
+          engine.toggleBunt();
+        }
+      } else if (e.code === 'KeyS') {
+        if (engine.state.mode === 'playing' && engine.isPlayerBatting) {
+          engine.triggerSteal();
+        }
       } else if (e.code === 'ArrowLeft') {
         if (engine.state.mode !== 'playing') return;
         if (engine.isPlayerBatting) {
@@ -1742,11 +1964,60 @@ export default function App() {
     }
   };
 
+  const canBunt =
+    gameState.mode === 'playing'
+    && isPlayerBatting
+    && gameState.ballState === 'idle'
+    && gameState.resultTimer <= 0;
+
+  const canSteal =
+    gameState.mode === 'playing'
+    && isPlayerBatting
+    && (gameState.bases[0] || gameState.bases[1])
+    && gameState.resultTimer <= 0;
+
+  const handleToggleBunt = () => {
+    engineRef.current?.toggleBunt();
+  };
+
+  const handleTriggerSteal = () => {
+    engineRef.current?.triggerSteal();
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-zinc-950 overflow-x-hidden w-full">
+    <div className="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-zinc-950 overflow-x-hidden w-full">
       <BackToMenu />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
-      <div className="w-full max-w-[800px] flex flex-col gap-3">
+      <div className="w-full max-w-[1440px] flex flex-col items-center gap-3">
+        {/* Cockpit Status Header */}
+        <div className="flex items-center justify-between w-full max-w-[800px] lg:max-w-none px-2 text-zinc-400">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+            <span className="text-xs font-bold tracking-widest text-zinc-200">
+              TABLETOP BALLPARK COCKPIT · 復古球場雙翼座艙
+            </span>
+          </div>
+          <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
+            STATCAST &amp; DUGOUT HUD READY
+          </span>
+        </div>
+
+        {/* Dual-Wing Cockpit Layout */}
+        <div className="w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4">
+          {/* Left Wing (Telemetry) on desktop */}
+          <div className="hidden lg:block shrink-0 sticky top-4">
+            <TelemetryWing
+              pitchTelemetry={gameState.pitchTelemetry}
+              hitTelemetry={gameState.hitTelemetry}
+              strikeZonePitches={gameState.strikeZonePitches}
+              currentPitch={gameState.currentStrikeZonePitch}
+              activePitchType={gameState.pitchType}
+              isPlayerBatting={isPlayerBatting}
+            />
+          </div>
+
+          {/* Center Stadium Column */}
+          <div className="w-full max-w-[800px] flex flex-col gap-3">
         <div className="relative w-full bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-white/10">
           <div className="absolute top-0 left-0 right-0 p-3 sm:p-5 bg-gradient-to-b from-black/85 via-black/50 to-transparent z-10 flex justify-between items-start gap-2 pointer-events-none">
             {gameState.playMode === 'derby' ? (
@@ -2298,6 +2569,32 @@ export default function App() {
         </div>
 
         {gameState.mode === 'playing' && (
+          <TacticalHudBar
+            isPlayerBatting={isPlayerBatting}
+            pitchTelemetry={gameState.pitchTelemetry}
+            hitTelemetry={gameState.hitTelemetry}
+            strikeZonePitches={gameState.strikeZonePitches}
+            currentPitch={gameState.currentStrikeZonePitch}
+            activePitchType={gameState.pitchType}
+            pitcherProfile={opponentTeam?.pitcher ?? null}
+            defenseAlignment={gameState.defenseAlignment}
+            bases={gameState.bases}
+            outs={gameState.outs}
+            strikes={gameState.strikes}
+            balls={gameState.balls}
+            parkFenceDist={gameState.parkFenceDist}
+            parkGapMul={gameState.parkGapMul}
+            parkName={opponentTeam?.parkName}
+            isBunting={gameState.isBunting}
+            onToggleBunt={handleToggleBunt}
+            canBunt={canBunt}
+            stealAttempt={gameState.stealAttempt}
+            onTriggerSteal={handleTriggerSteal}
+            canSteal={canSteal}
+          />
+        )}
+
+        {gameState.mode === 'playing' && (
           <motion.div
             initial={{ y: 12, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -2325,14 +2622,14 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Direction + swing on one row so 揮棒 stays above the fold on phones. */}
-                <div className="flex justify-center items-stretch gap-2 w-full max-w-md mx-auto">
+                {/* Direction + Bunt + Swing on one row */}
+                <div className="flex justify-center items-stretch gap-1.5 sm:gap-2 w-full max-w-md mx-auto">
                   {(['left', 'center', 'right'] as const).map((dir) => (
                     <button
                       key={dir}
                       type="button"
                       onClick={() => setSwingDirection(dir)}
-                      className={`flex-1 min-h-[48px] rounded-xl font-bold text-sm transition-all touch-manipulation ${
+                      className={`flex-1 min-h-[48px] rounded-xl font-bold text-xs sm:text-sm transition-all touch-manipulation ${
                         gameState.swingDir === dir
                           ? 'bg-blue-500/25 border border-blue-400/50 text-blue-200'
                           : 'bg-zinc-800 border border-white/10 text-zinc-400'
@@ -2341,6 +2638,20 @@ export default function App() {
                       {dir === 'left' ? '← 拉' : dir === 'center' ? '中' : '推 →'}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    disabled={!canBunt}
+                    onClick={handleToggleBunt}
+                    className={`min-h-[48px] px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all touch-manipulation ${
+                      !canBunt
+                        ? 'bg-zinc-900/40 border-white/5 text-zinc-600 cursor-not-allowed'
+                        : gameState.isBunting
+                          ? 'bg-amber-500/30 border-amber-400 text-amber-200 ring-1 ring-amber-400'
+                          : 'bg-zinc-800 border-white/10 text-zinc-300 hover:text-amber-200'
+                    }`}
+                  >
+                    {gameState.isBunting ? '短打中' : '短打'}
+                  </button>
                   <TouchButton label="揮棒" ariaLabel="揮棒" accent onClick={handleBattingSwing} />
                 </div>
               </>
@@ -2441,6 +2752,30 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Right Wing (Dossier) on desktop */}
+      <div className="hidden lg:block shrink-0 sticky top-4">
+        <DossierWing
+          pitcherProfile={opponentTeam?.pitcher ?? null}
+          defenseAlignment={gameState.defenseAlignment}
+          bases={gameState.bases}
+          outs={gameState.outs}
+          strikes={gameState.strikes}
+          balls={gameState.balls}
+          parkFenceDist={gameState.parkFenceDist}
+          parkGapMul={gameState.parkGapMul}
+          parkName={opponentTeam?.parkName}
+          isBunting={gameState.isBunting}
+          onToggleBunt={handleToggleBunt}
+          canBunt={canBunt}
+          stealAttempt={gameState.stealAttempt}
+          onTriggerSteal={handleTriggerSteal}
+          canSteal={canSteal}
+          isPlayerBatting={isPlayerBatting}
+        />
+      </div>
     </div>
+  </div>
+</div>
   );
 }
