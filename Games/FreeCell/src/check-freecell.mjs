@@ -24,6 +24,12 @@ import {
 } from './utils/scoring.ts';
 import { modeKey, recordGameResult, winRate } from './utils/storage.ts';
 import { FC_FAN } from './layoutFan.mjs';
+import {
+  evaluateTactics,
+  getSupermoveCapacity,
+  LEGENDARY_DEALS,
+  MASTER_TIPS,
+} from './utils/tactics.ts';
 
 function card(suit, rank) {
   const color = suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black';
@@ -277,6 +283,96 @@ function emptyState(overrides = {}) {
   assert.equal(FC_FAN.stackedMarginCss, 'calc(-150% + var(--fc-fan-peek))');
   const app = fs.readFileSync(fileURLToPath(new URL('./App.tsx', import.meta.url)), 'utf8');
   assert.equal(app.includes('-mt-[115%]'), false, 'legacy fixed tableau fan class must stay removed');
+}
+
+// —— Tactical cockpit: Supermove capacity formula & status ——
+{
+  const cap4_0 = getSupermoveCapacity(4, 0);
+  assert.equal(cap4_0.capacityToTableau, 5);
+  assert.equal(cap4_0.capacityToEmptyTableau, 5);
+  assert.equal(cap4_0.statusLevel, 'high');
+  assert.equal(cap4_0.statusLabel, '靈活中轉');
+
+  const cap4_1 = getSupermoveCapacity(4, 1);
+  assert.equal(cap4_1.capacityToTableau, 10);
+  assert.equal(cap4_1.capacityToEmptyTableau, 5);
+  assert.equal(cap4_1.statusLevel, 'ultra');
+  assert.equal(cap4_1.statusLabel, '極致超能');
+
+  const cap1_0 = getSupermoveCapacity(1, 0);
+  assert.equal(cap1_0.capacityToTableau, 2);
+  assert.equal(cap1_0.statusLevel, 'dual');
+
+  const cap0_0 = getSupermoveCapacity(0, 0);
+  assert.equal(cap0_0.capacityToTableau, 1);
+  assert.equal(cap0_0.statusLevel, 'single');
+}
+
+// —— Tactical cockpit: Situational assessment & radar ——
+{
+  const stateDeadlock = emptyState({
+    freeCells: [card('spades', 13), card('hearts', 13), card('diamonds', 13), card('clubs', 13)],
+    tableaus: [
+      [card('spades', 13)],
+      [card('hearts', 13)],
+      [card('diamonds', 13)],
+      [card('clubs', 13)],
+      [card('spades', 13)],
+      [card('hearts', 13)],
+      [card('diamonds', 13)],
+      [card('clubs', 13)],
+    ],
+  });
+  const evalDeadlock = evaluateTactics(stateDeadlock, 4);
+  assert.equal(evalDeadlock.mobilityLevel, 'deadlock');
+
+  const stateSafeAce = emptyState({
+    freeCells: [card('spades', 1), null, null, null],
+  });
+  const evalSafe = evaluateTactics(stateSafeAce, 4);
+  assert.equal(evalSafe.hasSafeFoundationMove, true);
+  assert.equal(evalSafe.mobilityLevel, 'safe_ready');
+}
+
+// —— Legendary Deals & Master Tips ——
+{
+  assert.equal(LEGENDARY_DEALS.length, 5);
+  assert.ok(LEGENDARY_DEALS.some((d) => d.seed === 11982));
+  assert.ok(LEGENDARY_DEALS.some((d) => d.seed === 617));
+  assert.ok(LEGENDARY_DEALS.some((d) => d.seed === 1));
+  assert.equal(MASTER_TIPS.length, 5);
+}
+
+// —— Strict Traditional Chinese compliance (Zero Simplified Chinese) ——
+{
+  // Unicode escapes for common simplified Chinese characters to avoid raw SC in source code:
+  const scStrict = [
+    '\u5f20', '\u95e8', '\u5173', '\u8fd9', '\u4e3a', '\u4e66', '\u957f', '\u89c1',
+    '\u5b66', '\u56fd', '\u4f53', '\u5199', '\u5355', '\u4ec5', '\u4ece', '\u4e0e',
+    '\u5bf9', '\u6b22', '\u753b', '\u7ebf', '\u8fde', '\u5b9e', '\u65f6', '\u8ba1', '\u52a8',
+  ];
+  const filesToCheck = [
+    fileURLToPath(new URL('./App.tsx', import.meta.url)),
+    fileURLToPath(new URL('./utils/tactics.ts', import.meta.url)),
+    fileURLToPath(new URL('./components/TacticalLeftWing.tsx', import.meta.url)),
+    fileURLToPath(new URL('./components/TacticalRightWing.tsx', import.meta.url)),
+    fileURLToPath(new URL('./components/TacticalMobileBar.tsx', import.meta.url)),
+    fileURLToPath(new URL('./components/KeyboardShortcutsModal.tsx', import.meta.url)),
+    fileURLToPath(new URL('../../../01-cards/freecell.md', import.meta.url)),
+  ];
+
+  for (const filePath of filesToCheck) {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      for (const sc of scStrict) {
+        assert.equal(
+          content.includes(sc),
+          false,
+          `File ${filePath} contains simplified Chinese character "${sc}"`,
+        );
+      }
+    }
+  }
 }
 
 console.log('check-freecell: ok');

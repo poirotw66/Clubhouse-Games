@@ -15,6 +15,7 @@ import {
   Bot,
   Calendar,
   Info,
+  Keyboard,
   Lightbulb,
   Loader2,
   RefreshCw,
@@ -26,6 +27,10 @@ import { RulesModal } from './components/RulesModal';
 import { StatsPanel } from './components/StatsPanel';
 import { CardFlyLayer, type FlyCard } from './components/CardFlyLayer';
 import { WinCascade } from './components/WinCascade';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { TacticalLeftWing } from './components/TacticalLeftWing';
+import { TacticalRightWing } from './components/TacticalRightWing';
+import { TacticalMobileBar } from './components/TacticalMobileBar';
 import type { Card, GameState, Position, Suit } from './types';
 import { dealDaily, dealForDifficulty, dealGame, rateDeal, SUITS } from './utils/deck';
 import {
@@ -141,6 +146,8 @@ export default function App() {
   const [timedOut, setTimedOut] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false);
+  const [showKeyboardBadges, setShowKeyboardBadges] = useState(true);
   const [isBotPlaying, setIsBotPlaying] = useState(false);
   const [isSolving, setIsSolving] = useState(false);
   const [solutionPath, setSolutionPath] = useState<{ source: Position; dest: Position }[] | null>(
@@ -440,6 +447,43 @@ export default function App() {
     if (!move) playError();
     else playGoal();
   };
+
+  const triggerSafeAutoMove = useCallback(() => {
+    if (inputLocked) return;
+    const safeMove = getSafeFoundationMoves(gameState);
+    if (safeMove) {
+      const card = resolveCardAt(gameState, safeMove.source);
+      if (card) {
+        const suitIdx = SUITS.indexOf(card.suit);
+        if (suitIdx >= 0) {
+          const sourceEl =
+            safeMove.source.zone === 'freeCell'
+              ? freeCellRefs.current[safeMove.source.index]
+              : null;
+          spawnFlyToFoundation(card, suitIdx, sourceEl);
+        }
+      }
+      handleMove(safeMove.source, safeMove.dest);
+      clearBotState();
+    } else {
+      playError();
+      setFlash({ text: '暫無安全收牌', tone: 'neutral', key: Date.now() });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputLocked, gameState]);
+
+  const handleSelectDeal = useCallback(
+    (seed: number) => {
+      if (settings.playDaily) {
+        persistSettings({ ...settings, playDaily: false, difficulty: 'any' });
+      }
+      const deal = dealGame(seed);
+      resetBoard({ ...deal, parMoves: null, difficulty: 'any' });
+      setSeedDraft(String(seed));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings],
+  );
 
   const isSourceHinted = (pos: Position, cardIndex?: number): boolean => {
     if (!hint) return false;
@@ -801,6 +845,174 @@ export default function App() {
     solutionPath,
   ]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (isKeyboardHelpOpen) {
+          setIsKeyboardHelpOpen(false);
+          return;
+        }
+        if (isRulesOpen) {
+          setIsRulesOpen(false);
+          return;
+        }
+        if (isStatsOpen) {
+          setIsStatsOpen(false);
+          return;
+        }
+        if (selectedPos) {
+          setSelectedPos(null);
+          return;
+        }
+      }
+
+      if (inputLocked) return;
+
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        setIsKeyboardHelpOpen((prev) => !prev);
+        return;
+      }
+
+      // 1 to 8: Tableau columns
+      if (e.key >= '1' && e.key <= '8') {
+        e.preventDefault();
+        const colIdx = parseInt(e.key, 10) - 1;
+        const col = gameState.tableaus[colIdx];
+
+        if (!selectedPos) {
+          if (col && col.length > 0) {
+            let startIdx = col.length - 1;
+            while (startIdx > 0) {
+              const candidate = col.slice(startIdx - 1);
+              if (isValidSequence(candidate)) {
+                startIdx--;
+              } else {
+                break;
+              }
+            }
+            setSelectedPos({ zone: 'tableau', index: colIdx, cardIndex: startIdx });
+            playCard();
+          }
+        } else {
+          if (selectedPos.zone === 'tableau' && selectedPos.index === colIdx) {
+            setSelectedPos(null);
+          } else {
+            const dest: Position = { zone: 'tableau', index: colIdx };
+            if (canMoveRespectingSlots(selectedPos, dest)) {
+              handleMove(selectedPos, dest);
+              setSelectedPos(null);
+              clearBotState();
+            } else {
+              if (col && col.length > 0) {
+                let startIdx = col.length - 1;
+                while (startIdx > 0) {
+                  const candidate = col.slice(startIdx - 1);
+                  if (isValidSequence(candidate)) {
+                    startIdx--;
+                  } else {
+                    break;
+                  }
+                }
+                setSelectedPos({ zone: 'tableau', index: colIdx, cardIndex: startIdx });
+                playCard();
+              } else {
+                playError();
+              }
+            }
+          }
+        }
+        return;
+      }
+
+      // Q, W, E, R: FreeCells
+      const keyLower = e.key.toLowerCase();
+      const fcMap: Record<string, number> = { q: 0, w: 1, e: 2, r: 3 };
+      if (keyLower in fcMap) {
+        e.preventDefault();
+        const fcIdx = fcMap[keyLower]!;
+        if (isFreeCellLocked(fcIdx)) {
+          playError();
+          return;
+        }
+
+        if (!selectedPos) {
+          if (gameState.freeCells[fcIdx]) {
+            setSelectedPos({ zone: 'freeCell', index: fcIdx });
+            playCard();
+          }
+        } else {
+          if (selectedPos.zone === 'freeCell' && selectedPos.index === fcIdx) {
+            setSelectedPos(null);
+          } else {
+            const dest: Position = { zone: 'freeCell', index: fcIdx };
+            if (canMoveRespectingSlots(selectedPos, dest)) {
+              handleMove(selectedPos, dest);
+              setSelectedPos(null);
+              clearBotState();
+            } else {
+              if (gameState.freeCells[fcIdx]) {
+                setSelectedPos(dest);
+                playCard();
+              } else {
+                playError();
+              }
+            }
+          }
+        }
+        return;
+      }
+
+      if (keyLower === 'a') {
+        e.preventDefault();
+        triggerSafeAutoMove();
+        return;
+      }
+
+      if (keyLower === 'h') {
+        e.preventDefault();
+        showHint();
+        return;
+      }
+
+      if (keyLower === 'z' || keyLower === 'u') {
+        e.preventDefault();
+        undo();
+        return;
+      }
+
+      if (keyLower === 'n') {
+        e.preventDefault();
+        startNewGame();
+        return;
+      }
+
+      if (keyLower === 'd') {
+        e.preventDefault();
+        redealSame();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    gameState,
+    selectedPos,
+    inputLocked,
+    isKeyboardHelpOpen,
+    isRulesOpen,
+    isStatsOpen,
+    freeCellSlots,
+    triggerSafeAutoMove,
+    startNewGame,
+  ]);
+
   const suitSymbols: Record<Suit, string> = {
     spades: '♠',
     hearts: '♥',
@@ -820,7 +1032,7 @@ export default function App() {
       }}
     >
       <BackToMenu />
-      <div className="max-w-6xl mx-auto relative">
+      <div className="max-w-[1720px] mx-auto relative">
         {flash && (
           <div className="absolute left-1/2 top-20 -translate-x-1/2 z-30 w-40 h-20">
             <ScoreFlash
@@ -997,6 +1209,16 @@ export default function App() {
             </button>
             <button
               type="button"
+              onClick={() => setIsKeyboardHelpOpen(true)}
+              className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 shadow-sm flex items-center justify-center gap-2 touch-manipulation"
+              aria-label="快捷鍵"
+              title="實體鍵盤極速操控指南（?）"
+            >
+              <Keyboard size={16} />
+              <span className="hidden sm:inline">快捷鍵</span>
+            </button>
+            <button
+              type="button"
               onClick={showHint}
               disabled={inputLocked}
               className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-40 shadow-sm flex items-center justify-center gap-2 touch-manipulation"
@@ -1111,155 +1333,212 @@ export default function App() {
           />
         )}
 
-        <div className="flex justify-between mb-8">
-          <div className="flex gap-1 sm:gap-2 md:gap-4 w-[48%]">
-            {gameState.freeCells.map((card, i) => {
-              const locked = isFreeCellLocked(i);
-              const pos: Position = { zone: 'freeCell', index: i };
-              return (
-                <div
-                  key={`fc-${i}`}
-                  className={`flex-1 ${locked ? 'opacity-35' : ''}`}
-                  ref={(el) => {
-                    freeCellRefs.current[i] = el;
-                  }}
-                >
-                  <PlayingCard
-                    card={locked ? null : card}
-                    placeholder={locked ? '鎖' : undefined}
-                    isSelected={!locked && selectedPos?.zone === 'freeCell' && selectedPos.index === i}
-                    isSelectable={!locked && !!card}
-                    isHinted={
-                      !locked && (isSourceHinted(pos) || (!card && isDestHinted(pos)))
-                    }
-                    onClick={() =>
-                      !locked &&
-                      handleCardClick(pos, !!card, freeCellRefs.current[i] ?? undefined)
-                    }
-                    onDoubleClick={() =>
-                      !locked &&
-                      card &&
-                      handleDoubleClick(pos, freeCellRefs.current[i] ?? undefined)
-                    }
-                    draggable={false}
-                    onDragStart={(e) => !locked && handleDragStart(e, pos)}
-                    onDragOver={(e) => !locked && handleDragOver(e, pos)}
-                    onDrop={(e) => !locked && handleDrop(e, pos)}
-                  />
-                </div>
-              );
-            })}
+        <TacticalMobileBar
+          gameState={gameState}
+          freeCellSlots={freeCellSlots}
+          currentSeed={dealSeed}
+          onSelectDeal={handleSelectDeal}
+          onSafeAutoMove={triggerSafeAutoMove}
+          onOpenKeyboardGuide={() => setIsKeyboardHelpOpen(true)}
+          disabled={inputLocked}
+        />
+
+        <div className="flex flex-col xl:flex-row gap-5 items-start justify-center">
+          {/* Left Wing on Desktop */}
+          <div className="hidden xl:block w-72 shrink-0 sticky top-4">
+            <TacticalLeftWing
+              gameState={gameState}
+              freeCellSlots={freeCellSlots}
+              onSafeAutoMove={triggerSafeAutoMove}
+              disabled={inputLocked}
+            />
           </div>
 
-          <div className="flex gap-1 sm:gap-2 md:gap-4 w-[48%] justify-end">
-            {SUITS.map((suit, i) => {
-              const rank = gameState.foundations[suit];
-              const card =
-                rank > 0
-                  ? ({
-                      id: `f-${suit}-${rank}`,
-                      suit,
-                      rank,
-                      color: suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black',
-                    } as Card)
-                  : null;
-              const pos: Position = { zone: 'foundation', index: i };
-              return (
-                <div
-                  key={`fd-${suit}`}
-                  className="flex-1"
-                  ref={(el) => {
-                    foundationRefs.current[i] = el;
-                  }}
-                >
-                  <PlayingCard
-                    card={card}
-                    placeholder={suitSymbols[suit]}
-                    isHinted={isDestHinted(pos)}
-                    onClick={() =>
-                      handleCardClick(pos, false, foundationRefs.current[i] ?? undefined)
-                    }
-                    onDragOver={(e) => handleDragOver(e, pos)}
-                    onDrop={(e) => handleDrop(e, pos)}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-8 gap-1 sm:gap-2 md:gap-4">
-          {gameState.tableaus.map((col, colIndex) => (
-            <div
-              key={`tab-${colIndex}`}
-              className="fc-tableau-col flex flex-col"
-              data-tableau-col={colIndex}
-            >
-              {col.length === 0 ? (
-                <PlayingCard
-                  card={null}
-                  isHinted={isDestHinted({ zone: 'tableau', index: colIndex })}
-                  onClick={() =>
-                    handleCardClick({ zone: 'tableau', index: colIndex, cardIndex: 0 }, false)
-                  }
-                  onDragOver={(e) =>
-                    handleDragOver(e, { zone: 'tableau', index: colIndex, cardIndex: 0 })
-                  }
-                  onDrop={(e) =>
-                    handleDrop(e, { zone: 'tableau', index: colIndex, cardIndex: 0 })
-                  }
-                />
-              ) : (
-                col.map((card, cardIndex) => {
-                  const isSelected =
-                    selectedPos?.zone === 'tableau' &&
-                    selectedPos.index === colIndex &&
-                    cardIndex >= selectedPos.cardIndex!;
-                  const isSelectable = isValidSequence(col.slice(cardIndex));
-                  const pos: Position = {
-                    zone: 'tableau',
-                    index: colIndex,
-                    cardIndex,
-                  };
-                  const isLast = cardIndex === col.length - 1;
+          {/* Center Arena */}
+          <div className="flex-1 min-w-0 max-w-5xl w-full">
+            <div className="flex justify-between mb-8">
+              <div className="flex gap-1 sm:gap-2 md:gap-4 w-[48%]">
+                {gameState.freeCells.map((card, i) => {
+                  const locked = isFreeCellLocked(i);
+                  const pos: Position = { zone: 'freeCell', index: i };
+                  const keyLetter = ['Q', 'W', 'E', 'R'][i];
                   return (
                     <div
-                      key={card.id}
-                      data-tableau-slot={cardIndex}
-                      className={[
-                        'relative',
-                        cardIndex > 0 ? 'fc-tableau-slot--stacked' : '',
-                        !isLast ? 'fc-tableau-slot--covered' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{ zIndex: cardIndex }}
+                      key={`fc-${i}`}
+                      className={`flex-1 flex flex-col ${locked ? 'opacity-35' : ''}`}
+                      ref={(el) => {
+                        freeCellRefs.current[i] = el;
+                      }}
                     >
+                      <div className="flex items-center justify-between px-1 mb-1 text-[10px] sm:text-[11px] font-mono text-stone-400">
+                        <span className="hidden sm:inline">暫存{i + 1}</span>
+                        {showKeyboardBadges && !locked && (
+                          <kbd className="px-1.5 py-0.2 rounded bg-stone-100 text-stone-600 font-bold border border-stone-200 shadow-sm text-[10px]">
+                            {keyLetter}
+                          </kbd>
+                        )}
+                      </div>
                       <PlayingCard
-                        card={card}
-                        isSelected={isSelected}
-                        isSelectable={isSelectable}
+                        card={locked ? null : card}
+                        placeholder={locked ? '鎖' : undefined}
+                        isSelected={!locked && selectedPos?.zone === 'freeCell' && selectedPos.index === i}
+                        isSelectable={!locked && !!card}
                         isHinted={
-                          isSourceHinted(pos, cardIndex) ||
-                          (isLast && isDestHinted({ zone: 'tableau', index: colIndex }))
+                          !locked && (isSourceHinted(pos) || (!card && isDestHinted(pos)))
                         }
-                        onClick={(e) =>
-                          handleCardClick(pos, true, e.currentTarget as HTMLElement)
+                        onClick={() =>
+                          !locked &&
+                          handleCardClick(pos, !!card, freeCellRefs.current[i] ?? undefined)
                         }
-                        onDoubleClick={(e) =>
-                          handleDoubleClick(pos, e.currentTarget as HTMLElement)
+                        onDoubleClick={() =>
+                          !locked &&
+                          card &&
+                          handleDoubleClick(pos, freeCellRefs.current[i] ?? undefined)
                         }
                         draggable={false}
-                        onDragStart={(e) => handleDragStart(e, pos)}
+                        onDragStart={(e) => !locked && handleDragStart(e, pos)}
+                        onDragOver={(e) => !locked && handleDragOver(e, pos)}
+                        onDrop={(e) => !locked && handleDrop(e, pos)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-1 sm:gap-2 md:gap-4 w-[48%] justify-end">
+                {SUITS.map((suit, i) => {
+                  const rank = gameState.foundations[suit];
+                  const card =
+                    rank > 0
+                      ? ({
+                          id: `f-${suit}-${rank}`,
+                          suit,
+                          rank,
+                          color: suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black',
+                        } as Card)
+                      : null;
+                  const pos: Position = { zone: 'foundation', index: i };
+                  return (
+                    <div
+                      key={`fd-${suit}`}
+                      className="flex-1 flex flex-col"
+                      ref={(el) => {
+                        foundationRefs.current[i] = el;
+                      }}
+                    >
+                      <div className="flex items-center justify-between px-1 mb-1 text-[10px] sm:text-[11px] font-mono text-stone-400">
+                        <span className="hidden sm:inline">{['黑桃', '紅心', '方塊', '梅花'][i]}</span>
+                        <span className="tabular-nums font-bold text-stone-600 text-[10px]">
+                          {rank}/13
+                        </span>
+                      </div>
+                      <PlayingCard
+                        card={card}
+                        placeholder={suitSymbols[suit]}
+                        isHinted={isDestHinted(pos)}
+                        onClick={() =>
+                          handleCardClick(pos, false, foundationRefs.current[i] ?? undefined)
+                        }
                         onDragOver={(e) => handleDragOver(e, pos)}
                         onDrop={(e) => handleDrop(e, pos)}
                       />
                     </div>
                   );
-                })
-              )}
+                })}
+              </div>
             </div>
-          ))}
+
+            <div className="grid grid-cols-8 gap-1 sm:gap-2 md:gap-4">
+              {gameState.tableaus.map((col, colIndex) => (
+                <div
+                  key={`tab-${colIndex}`}
+                  className="fc-tableau-col flex flex-col"
+                  data-tableau-col={colIndex}
+                >
+                  <div className="flex items-center justify-between px-1 mb-1 text-[10px] sm:text-[11px] font-mono">
+                    <span className="text-stone-400 hidden sm:inline">列{colIndex + 1}</span>
+                    {showKeyboardBadges && (
+                      <kbd className="px-1.5 py-0.2 rounded bg-stone-100 text-stone-700 font-bold border border-stone-200 shadow-sm text-[10px]">
+                        {colIndex + 1}
+                      </kbd>
+                    )}
+                  </div>
+                  {col.length === 0 ? (
+                    <PlayingCard
+                      card={null}
+                      isHinted={isDestHinted({ zone: 'tableau', index: colIndex })}
+                      onClick={() =>
+                        handleCardClick({ zone: 'tableau', index: colIndex, cardIndex: 0 }, false)
+                      }
+                      onDragOver={(e) =>
+                        handleDragOver(e, { zone: 'tableau', index: colIndex, cardIndex: 0 })
+                      }
+                      onDrop={(e) =>
+                        handleDrop(e, { zone: 'tableau', index: colIndex, cardIndex: 0 })
+                      }
+                    />
+                  ) : (
+                    col.map((card, cardIndex) => {
+                      const isSelected =
+                        selectedPos?.zone === 'tableau' &&
+                        selectedPos.index === colIndex &&
+                        cardIndex >= selectedPos.cardIndex!;
+                      const isSelectable = isValidSequence(col.slice(cardIndex));
+                      const pos: Position = {
+                        zone: 'tableau',
+                        index: colIndex,
+                        cardIndex,
+                      };
+                      const isLast = cardIndex === col.length - 1;
+                      return (
+                        <div
+                          key={card.id}
+                          data-tableau-slot={cardIndex}
+                          className={[
+                            'relative',
+                            cardIndex > 0 ? 'fc-tableau-slot--stacked' : '',
+                            !isLast ? 'fc-tableau-slot--covered' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          style={{ zIndex: cardIndex }}
+                        >
+                          <PlayingCard
+                            card={card}
+                            isSelected={isSelected}
+                            isSelectable={isSelectable}
+                            isHinted={
+                              isSourceHinted(pos, cardIndex) ||
+                              (isLast && isDestHinted({ zone: 'tableau', index: colIndex }))
+                            }
+                            onClick={(e) =>
+                              handleCardClick(pos, true, e.currentTarget as HTMLElement)
+                            }
+                            onDoubleClick={(e) =>
+                              handleDoubleClick(pos, e.currentTarget as HTMLElement)
+                            }
+                            draggable={false}
+                            onDragStart={(e) => handleDragStart(e, pos)}
+                            onDragOver={(e) => handleDragOver(e, pos)}
+                            onDrop={(e) => handleDrop(e, pos)}
+                          />
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right Wing on Desktop */}
+          <div className="hidden xl:block w-72 shrink-0 sticky top-4">
+            <TacticalRightWing
+              currentSeed={dealSeed}
+              onSelectDeal={handleSelectDeal}
+              disabled={inputLocked}
+            />
+          </div>
         </div>
       </div>
 
@@ -1270,6 +1549,10 @@ export default function App() {
       <WinCascade active={hasWon} foundations={gameState.foundations} />
 
       <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
+      <KeyboardShortcutsModal
+        isOpen={isKeyboardHelpOpen}
+        onClose={() => setIsKeyboardHelpOpen(false)}
+      />
       <StatsPanel
         open={isStatsOpen}
         onClose={() => setIsStatsOpen(false)}
