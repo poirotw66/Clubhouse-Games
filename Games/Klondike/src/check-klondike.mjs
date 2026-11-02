@@ -29,6 +29,15 @@ import { modeKey, recordGameResult, winRate } from './utils/storage.ts';
 import { buildDailyShareText, dailyRecordToShare } from './utils/share.ts';
 import { KL_FAN } from './layoutFan.mjs';
 
+import {
+  getStockTelemetry,
+  getHiddenCardsTelemetry,
+  getFoundationTelemetry,
+  computeMovableAnalysis,
+  getVegasYieldTelemetry,
+  getMasterAdvice,
+} from './utils/cockpitAnalysis.ts';
+
 function card(suit, rank, faceUp = true) {
   const color = suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black';
   return { id: `${suit}-${rank}`, suit, rank, color, faceUp };
@@ -287,6 +296,85 @@ function card(suit, rank, faceUp = true) {
   const app = fs.readFileSync(appPath, 'utf8');
   assert.equal(app.includes('faceUp ? 20 : 10'), false, 'fixed 20/10px tableau fan must stay removed');
   assert.equal(app.includes('displayIndex * 12'), false, 'fixed 12px waste fan must stay removed');
+}
+
+// —— Dual-wing Royal Cockpit Analysis Telemetry ——
+{
+  const testState = {
+    tableau: [
+      [card('spades', 'K')],
+      [card('hearts', 'Q', false), card('hearts', 'J')],
+      [],
+      [],
+      [],
+      [],
+      [],
+    ],
+    foundation: [[card('spades', 'A'), card('spades', '2')], [], [], []],
+    stock: [card('clubs', '3'), card('clubs', '4')],
+    waste: [card('hearts', 'A')],
+    history: [],
+    seed: 1234,
+  };
+
+  // Stock telemetry
+  const stockVegas1 = getStockTelemetry(testState, 'vegas', 1, 0);
+  assert.equal(stockVegas1.stockCount, 2);
+  assert.equal(stockVegas1.wasteCount, 1);
+  assert.equal(stockVegas1.passesAllowed, 1);
+  assert.equal(stockVegas1.passesRemaining, 1);
+
+  const stockVegas3 = getStockTelemetry(testState, 'vegas', 3, 1);
+  assert.equal(stockVegas3.passesAllowed, 3);
+  assert.equal(stockVegas3.passesRemaining, 2);
+
+  const stockStd = getStockTelemetry(testState, 'standard', 1, 0);
+  assert.equal(stockStd.passesAllowed, 'infinite');
+  assert.equal(stockStd.passesRemaining, 'infinite');
+
+  // Hidden cards telemetry
+  const hidden = getHiddenCardsTelemetry(testState.tableau);
+  assert.equal(hidden.totalHidden, 1);
+  assert.equal(hidden.deepestColIndex, 1);
+  assert.equal(hidden.deepestColCount, 1);
+  assert.equal(hidden.isAllRevealed, false);
+
+  const hiddenClear = getHiddenCardsTelemetry([[card('spades', 'A')], [card('hearts', '2')]]);
+  assert.equal(hiddenClear.totalHidden, 0);
+  assert.equal(hiddenClear.isAllRevealed, true);
+
+  // Foundation telemetry
+  const fTel = getFoundationTelemetry(testState.foundation);
+  assert.equal(fTel.totalCards, 2);
+  assert.equal(fTel.minCount, 0);
+  assert.equal(fTel.maxCount, 2);
+  assert.equal(fTel.isBalanced, true); // 2 - 0 = 2 <= 2
+
+  // Movable cards analysis
+  const mov = computeMovableAnalysis(testState);
+  assert.equal(mov.wasteMovable, true, 'waste Ace can move to foundation');
+  assert.ok(mov.movableCardIds.has('hearts-A'));
+
+  // Vegas yield telemetry
+  const v1 = getVegasYieldTelemetry(testState.foundation, -42, {
+    plays: 1,
+    wins: 1,
+    currentStreak: 2,
+    bestStreak: 2,
+    vegasBankroll: 100,
+    byMode: {},
+    challengesCleared: {},
+  });
+  assert.equal(v1.dealCost, 52);
+  assert.equal(v1.payout, 10);
+  assert.equal(v1.netProfit, -42);
+  assert.equal(v1.breakEvenCardsNeeded, 9);
+  assert.equal(v1.streakFeverMultiplier, 1.5);
+
+  // Master tactical advice
+  const advice = getMasterAdvice(testState, hidden, fTel, stockVegas1, mov.totalMovableCount);
+  assert.ok(advice.title.length > 0);
+  assert.ok(advice.detail.length > 0);
 }
 
 console.log('check-klondike: ok');

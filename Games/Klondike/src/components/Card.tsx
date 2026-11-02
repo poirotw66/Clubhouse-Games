@@ -8,6 +8,7 @@ interface CardProps {
   isSelected?: boolean;
   isHinted?: boolean;
   isPlayableToFoundation?: boolean;
+  isTacticalMovable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   onDoubleClick?: (el: HTMLElement) => void;
@@ -16,7 +17,7 @@ interface CardProps {
   faceDown?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSelected, isHinted, isPlayableToFoundation, onDragStart, onDragEnd, onDoubleClick, onClick, className = '', faceDown }) => {
+export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSelected, isHinted, isPlayableToFoundation, isTacticalMovable, onDragStart, onDragEnd, onDoubleClick, onClick, className = '', faceDown }) => {
   // Face-down / stock back
   if (!card || faceDown || !card.faceUp) {
     return (
@@ -61,7 +62,7 @@ export const Card: React.FC<CardProps> = ({ card, isDraggable, isDragging, isSel
         onClick?.(e.currentTarget);
       }}
       role={onClick ? 'button' : undefined}
-      className={`kl-card-face w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-gray-300 flex flex-col justify-between p-[0.35em] shadow-md touch-manipulation relative overflow-hidden bg-cover bg-center ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400' : ''} ${isRed ? 'text-red-600' : 'text-gray-900'} ${isPlayableToFoundation && !isDragging && !isSelected && !isHinted ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]' : ''} ${isHinted && !isSelected ? 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.7)] z-40' : ''} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 shadow-2xl z-50' : ''} ${isDragging ? 'opacity-50' : ''} ${className}`}
+      className={`kl-card-face w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-gray-300 flex flex-col justify-between p-[0.35em] shadow-md touch-manipulation relative overflow-hidden bg-cover bg-center ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400' : ''} ${isRed ? 'text-red-600' : 'text-gray-900'} ${isPlayableToFoundation && !isDragging && !isSelected && !isHinted ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]' : ''} ${isTacticalMovable && !isDragging && !isSelected && !isHinted && !isPlayableToFoundation ? 'ring-2 ring-amber-400/90 shadow-[0_0_12px_rgba(251,191,36,0.65)]' : ''} ${isHinted && !isSelected ? 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.7)] z-40' : ''} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 shadow-2xl z-50' : ''} ${isDragging ? 'opacity-50' : ''} ${className}`}
       style={faceStyle}
     >
       {/* 左上角 */}

@@ -67,7 +67,20 @@ import {
   BarChart3,
   Calendar,
   Share2,
+  Eye,
+  Zap,
 } from 'lucide-react';
+import { CockpitLeftWing } from './components/CockpitLeftWing';
+import { CockpitRightWing } from './components/CockpitRightWing';
+import { MobileTacticalStrip } from './components/MobileTacticalStrip';
+import {
+  getStockTelemetry,
+  getHiddenCardsTelemetry,
+  getFoundationTelemetry,
+  computeMovableAnalysis,
+  getVegasYieldTelemetry,
+  getMasterAdvice,
+} from './utils/cockpitAnalysis';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -123,6 +136,8 @@ export default function App() {
   const [clearedThisWin, setClearedThisWin] = useState<ChallengeId[]>([]);
   const [resultRecorded, setResultRecorded] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [tacticalHighlight, setTacticalHighlight] = useState(true);
+  const [lastKeyPressed, setLastKeyPressed] = useState<string | null>(null);
 
   const noProgressCount = useRef(0);
   const autoCompleteIdle = useRef(0);
@@ -427,6 +442,24 @@ export default function App() {
     attemptMove(selectedSource, { type: 'tableau', index: colIndex });
     setSelectedSource(null);
   };
+
+  const handleAutoCollect = useCallback(() => {
+    if (isBusy || isGameWon) return;
+    clearHint();
+    if (canAutoComplete(gameState.tableau)) {
+      setIsAutoCompleting(true);
+      setFlash({ text: '全解自動收牌中', tone: 'good', key: Date.now() });
+      return;
+    }
+    const move = findFoundationAutoMove(gameState);
+    if (move) {
+      executeMove(move.source, { type: 'foundation', index: move.foundationIndex }, move.cards);
+      setFlash({ text: '自動收牌 +1', tone: 'good', key: Date.now() });
+    } else {
+      playError();
+      setFlash({ text: '暫無可收進基座之牌', tone: 'neutral', key: Date.now() });
+    }
+  }, [isBusy, isGameWon, gameState, scoreMode]);
 
   const handleDragStart = (e: React.DragEvent, source: DragSource) => {
     e.dataTransfer.setData('application/json', JSON.stringify(source));
@@ -963,6 +996,133 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isAutoPlaying, gameState, isGameWon, isAutoCompleting]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.repeat) return;
+
+      const notifyKey = (name: string) => {
+        setLastKeyPressed(name);
+        window.setTimeout(() => setLastKeyPressed(null), 1200);
+      };
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (gameState.stock.length > 0) {
+          drawCard();
+          notifyKey('Space (翻牌)');
+        } else if (gameState.waste.length > 0) {
+          recycleWaste();
+          notifyKey('Space (循環)');
+        }
+        return;
+      }
+
+      if (e.key >= '1' && e.key <= '7') {
+        const colIdx = Number(e.key) - 1;
+        if (selectedSource) {
+          attemptMove(selectedSource, { type: 'tableau', index: colIdx });
+          setSelectedSource(null);
+          notifyKey(`${e.key} (移至列 ${e.key})`);
+        } else {
+          const col = gameState.tableau[colIdx];
+          if (col.length > 0) {
+            const firstFaceUp = col.findIndex((c) => c.faceUp);
+            const cardIdx =
+              firstFaceUp >= 0 && isValidTableauStack(col, firstFaceUp)
+                ? firstFaceUp
+                : col.length - 1;
+            setSelectedSource({ type: 'tableau', colIndex: colIdx, cardIndex: cardIdx });
+            notifyKey(`${e.key} (選取列 ${e.key})`);
+          }
+        }
+        return;
+      }
+
+      if (e.key === '0' || e.code === 'KeyW') {
+        if (gameState.waste.length > 0) {
+          if (selectedSource?.type === 'waste') {
+            setSelectedSource(null);
+          } else {
+            setSelectedSource({ type: 'waste' });
+            notifyKey('W (選取廢牌)');
+          }
+        }
+        return;
+      }
+
+      if (e.code === 'KeyA') {
+        e.preventDefault();
+        handleAutoCollect();
+        notifyKey('A (自動收牌)');
+        return;
+      }
+
+      if (e.code === 'KeyH') {
+        e.preventDefault();
+        showHint();
+        notifyKey('H (提示)');
+        return;
+      }
+
+      if (e.code === 'KeyZ') {
+        e.preventDefault();
+        undo();
+        notifyKey('Z (復原)');
+        return;
+      }
+
+      if (e.code === 'KeyV') {
+        e.preventDefault();
+        setTacticalHighlight((prev) => !prev);
+        notifyKey('V (戰術高亮)');
+        return;
+      }
+
+      if (e.code === 'KeyN') {
+        e.preventDefault();
+        startNewGame();
+        notifyKey('N (新局)');
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    gameState,
+    selectedSource,
+    isBusy,
+    isGameWon,
+    handleAutoCollect,
+    startNewGame,
+  ]);
+
+  const stockTel = getStockTelemetry(gameState, scoreMode, drawCount, recycleCount);
+  const hiddenTel = getHiddenCardsTelemetry(gameState.tableau);
+  const foundationTel = getFoundationTelemetry(gameState.foundation);
+  const movableAnalysis = computeMovableAnalysis(gameState);
+  const vegasTel = getVegasYieldTelemetry(gameState.foundation, score, stats);
+  const masterAdvice = getMasterAdvice(
+    gameState,
+    hiddenTel,
+    foundationTel,
+    stockTel,
+    movableAnalysis.totalMovableCount,
+  );
+  const canAutoCollect = Boolean(
+    !isBusy &&
+      !isGameWon &&
+      (canAutoComplete(gameState.tableau) || findFoundationAutoMove(gameState)),
+  );
+
   const modeBest = stats.byMode[`${drawCount}-${scoreMode}`];
 
   return (
@@ -977,7 +1137,7 @@ export default function App() {
       }}
     >
       <BackToMenu />
-      <div className="max-w-5xl mx-auto relative">
+      <div className="max-w-[1540px] mx-auto relative">
         {flash && (
           <div className="absolute left-1/2 top-24 -translate-x-1/2 z-30 w-40 h-20">
             <ScoreFlash
@@ -1114,6 +1274,35 @@ export default function App() {
             </button>
             <button
               type="button"
+              onClick={() => setTacticalHighlight((prev) => !prev)}
+              className={`flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-lg text-sm touch-manipulation ${
+                tacticalHighlight
+                  ? 'bg-amber-400/90 text-emerald-950 font-semibold shadow-md'
+                  : 'bg-black/20 hover:bg-black/30'
+              }`}
+              aria-label="切換可動牌高亮"
+              title="切換戰術視野高亮 (快捷鍵: V)"
+            >
+              <Eye size={18} />
+              <span className="hidden sm:inline">高亮</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleAutoCollect}
+              disabled={!canAutoCollect}
+              className={`flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-lg text-sm touch-manipulation disabled:opacity-50 ${
+                canAutoCollect
+                  ? 'bg-emerald-500/80 hover:bg-emerald-500 text-white font-semibold'
+                  : 'bg-black/20'
+              }`}
+              aria-label="一鍵自動收牌"
+              title="一鍵自動收牌 (快捷鍵: A)"
+            >
+              <Zap size={18} />
+              <span className="hidden sm:inline">收牌</span>
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setIsAutoPlaying(!isAutoPlaying);
                 setIsAutoCompleting(false);
@@ -1182,161 +1371,226 @@ export default function App() {
           )}
         </div>
 
-        {isAutoCompleting && !isGameWon && (
-          <p className="mb-4 text-sm text-emerald-200/90">自動完成中…</p>
-        )}
+        {/* Mobile Tactical Strip (< xl) */}
+        <MobileTacticalStrip
+          className="block xl:hidden mb-4"
+          stockTel={stockTel}
+          hiddenTel={hiddenTel}
+          foundationTel={foundationTel}
+          vegasTel={vegasTel}
+          scoreMode={scoreMode}
+          score={score}
+          elapsedSec={elapsedSec}
+          tacticalHighlight={tacticalHighlight}
+          onToggleTacticalHighlight={() => setTacticalHighlight((prev) => !prev)}
+          onAutoCollect={handleAutoCollect}
+          canAutoCollect={canAutoCollect}
+          movableCount={movableAnalysis.totalMovableCount}
+          onShowHint={showHint}
+          isBusy={isBusy}
+          isGameWon={isGameWon}
+          masterAdvice={masterAdvice}
+          lastKeyPressed={lastKeyPressed}
+        />
 
-        <div className="flex justify-between mb-12 gap-4 overflow-x-auto pb-4">
-          <div className="flex gap-4 shrink-0">
-            <div
-              onClick={() => {
-                if (isBusy) return;
-                if (gameState.stock.length > 0) drawCard();
-                else recycleWaste();
-              }}
-              className={`cursor-pointer shrink-0 ${hint?.kind === 'draw' || hint?.kind === 'recycle' ? 'ring-4 ring-sky-400 rounded-xl' : ''}`}
-            >
-              {gameState.stock.length > 0 ? (
-                <Card faceDown isHinted={hint?.kind === 'draw'} />
-              ) : (
-                <div className="w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-black/20 flex items-center justify-center hover:bg-black/10 touch-manipulation">
-                  <RotateCcw className="text-black/30" size={32} />
+        {/* Dual-wing Cockpit Container */}
+        <div className="flex flex-col xl:flex-row items-start justify-center gap-6">
+          {/* Left Wing (xl+) */}
+          <div className="hidden xl:block w-72 shrink-0 sticky top-6">
+            <CockpitLeftWing
+              stockTel={stockTel}
+              hiddenTel={hiddenTel}
+              foundationTel={foundationTel}
+              scoreMode={scoreMode}
+              tacticalHighlight={tacticalHighlight}
+              onToggleTacticalHighlight={() => setTacticalHighlight((prev) => !prev)}
+              onAutoCollect={handleAutoCollect}
+              canAutoCollect={canAutoCollect}
+              movableCount={movableAnalysis.totalMovableCount}
+            />
+          </div>
+
+          {/* Center Table */}
+          <div className="flex-1 max-w-4xl w-full">
+            {isAutoCompleting && !isGameWon && (
+              <p className="mb-4 text-sm text-emerald-200/90 font-medium">自動完成中…</p>
+            )}
+
+            <div className="flex justify-between mb-12 gap-4 overflow-x-auto pb-4">
+              <div className="flex gap-4 shrink-0">
+                <div
+                  onClick={() => {
+                    if (isBusy) return;
+                    if (gameState.stock.length > 0) drawCard();
+                    else recycleWaste();
+                  }}
+                  className={`cursor-pointer shrink-0 ${hint?.kind === 'draw' || hint?.kind === 'recycle' ? 'ring-4 ring-sky-400 rounded-xl' : ''}`}
+                >
+                  {gameState.stock.length > 0 ? (
+                    <Card faceDown isHinted={hint?.kind === 'draw'} />
+                  ) : (
+                    <div className="w-16 h-24 sm:w-24 sm:h-36 rounded-xl border-2 border-black/20 flex items-center justify-center hover:bg-black/10 touch-manipulation">
+                      <RotateCcw className="text-black/30" size={32} />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="kl-waste-fan relative w-16 h-24 sm:w-24 sm:h-36 shrink-0">
-              {gameState.waste.length === 0 ? (
-                <EmptySlot />
-              ) : (
-                gameState.waste.map((card, index) => {
-                  if (index < gameState.waste.length - 3) return null;
-                  const displayIndex = index - Math.max(0, gameState.waste.length - 3);
-                  const isTop = index === gameState.waste.length - 1;
-                  const wasteSource: DragSource = { type: 'waste' };
-                  return (
-                    <div
-                      key={card.id}
-                      className="absolute top-0 left-0"
-                      data-waste-fan={displayIndex}
-                      style={{
-                        transform: `translateX(calc(${displayIndex} * var(--kl-waste-fan-x)))`,
-                      }}
-                    >
-                      <Card
-                        card={card}
-                        isDraggable={isTop && !isBusy}
-                        isDragging={draggingSource?.type === 'waste' && isTop}
-                        isSelected={selectedSource?.type === 'waste' && isTop}
-                        isHinted={isTop && isSourceHinted(wasteSource)}
-                        isPlayableToFoundation={isTop && checkCanMoveToFoundation(card)}
-                        onDragStart={(e) => isTop && !isBusy && handleDragStart(e, wasteSource)}
-                        onDragEnd={handleDragEnd}
-                        onClick={(el) => isTop && handleCardTap(wasteSource, el)}
-                        onDoubleClick={(el) => isTop && handleDoubleClick(wasteSource, el)}
-                      />
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-4 shrink-0 ml-auto">
-            {gameState.foundation.map((pile, index) => (
-              <div
-                key={`foundation-${index}`}
-                ref={(el) => {
-                  foundationRefs.current[index] = el;
-                }}
-                className={`relative w-16 h-24 sm:w-24 sm:h-36 shrink-0 ${isTargetHinted('foundation', index) ? 'ring-4 ring-sky-400 rounded-xl' : ''}`}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDropOnFoundation(e, index)}
-                onClick={() => handleFoundationZoneTap(index)}
-              >
-                <EmptySlot />
-                {pile.map((card, cardIndex) => {
-                  const isTop = cardIndex === pile.length - 1;
-                  const foundationSource: DragSource = { type: 'foundation', pileIndex: index };
-                  return (
-                    <div key={card.id} className="absolute top-0 left-0">
-                      <Card
-                        card={card}
-                        isDraggable={isTop && !isBusy}
-                        isDragging={
-                          draggingSource?.type === 'foundation' &&
-                          draggingSource.pileIndex === index &&
-                          isTop
-                        }
-                        isSelected={
-                          selectedSource?.type === 'foundation' &&
-                          selectedSource.pileIndex === index &&
-                          isTop
-                        }
-                        onDragStart={(e) => handleDragStart(e, foundationSource)}
-                        onDragEnd={handleDragEnd}
-                        onClick={() => isTop && handleCardTap(foundationSource)}
-                      />
-                    </div>
-                  );
-                })}
+                <div className="kl-waste-fan relative w-16 h-24 sm:w-24 sm:h-36 shrink-0">
+                  {gameState.waste.length === 0 ? (
+                    <EmptySlot />
+                  ) : (
+                    gameState.waste.map((card, index) => {
+                      if (index < gameState.waste.length - 3) return null;
+                      const displayIndex = index - Math.max(0, gameState.waste.length - 3);
+                      const isTop = index === gameState.waste.length - 1;
+                      const wasteSource: DragSource = { type: 'waste' };
+                      return (
+                        <div
+                          key={card.id}
+                          className="absolute top-0 left-0"
+                          data-waste-fan={displayIndex}
+                          style={{
+                            transform: `translateX(calc(${displayIndex} * var(--kl-waste-fan-x)))`,
+                          }}
+                        >
+                          <Card
+                            card={card}
+                            isDraggable={isTop && !isBusy}
+                            isDragging={draggingSource?.type === 'waste' && isTop}
+                            isSelected={selectedSource?.type === 'waste' && isTop}
+                            isHinted={isTop && isSourceHinted(wasteSource)}
+                            isPlayableToFoundation={isTop && checkCanMoveToFoundation(card)}
+                            isTacticalMovable={
+                              tacticalHighlight &&
+                              isTop &&
+                              movableAnalysis.movableCardIds.has(card.id)
+                            }
+                            onDragStart={(e) => isTop && !isBusy && handleDragStart(e, wasteSource)}
+                            onDragEnd={handleDragEnd}
+                            onClick={(el) => isTop && handleCardTap(wasteSource, el)}
+                            onDoubleClick={(el) => isTop && handleDoubleClick(wasteSource, el)}
+                          />
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="flex justify-between gap-2 sm:gap-4 overflow-x-auto pb-8">
-          {gameState.tableau.map((col, colIndex) => (
-            <div
-              key={`tableau-${colIndex}`}
-              data-tableau-col={colIndex}
-              className={`kl-tableau-col relative w-16 sm:w-24 min-h-[50vh] shrink-0 ${isTargetHinted('tableau', colIndex) ? 'ring-4 ring-sky-400/80 rounded-xl' : ''}`}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDropOnTableau(e, colIndex)}
-              onClick={() => col.length === 0 && handleTableauZoneTap(colIndex)}
-            >
-              {col.length === 0 && <EmptySlot onClick={() => handleTableauZoneTap(colIndex)} />}
-              {col.map((card, cardIndex) => {
-                const isBottom = cardIndex === col.length - 1;
-                const tableauSource: DragSource = { type: 'tableau', colIndex, cardIndex };
-                const isSelected =
-                  selectedSource?.type === 'tableau' &&
-                  selectedSource.colIndex === colIndex &&
-                  cardIndex >= selectedSource.cardIndex;
-                const above = col.slice(0, cardIndex);
-                const faceDownAbove = above.filter((c) => !c.faceUp).length;
-                const faceUpAbove = above.filter((c) => c.faceUp).length;
-                return (
+              <div className="flex gap-4 shrink-0 ml-auto">
+                {gameState.foundation.map((pile, index) => (
                   <div
-                    key={card.id}
-                    data-tableau-slot={cardIndex}
-                    data-face-up={card.faceUp ? 'true' : 'false'}
-                    className="absolute top-0 left-0"
-                    style={{
-                      top: `calc(${faceDownAbove} * var(--kl-fan-face-down) + ${faceUpAbove} * var(--kl-fan-face-up))`,
+                    key={`foundation-${index}`}
+                    ref={(el) => {
+                      foundationRefs.current[index] = el;
                     }}
+                    className={`relative w-16 h-24 sm:w-24 sm:h-36 shrink-0 ${isTargetHinted('foundation', index) ? 'ring-4 ring-sky-400 rounded-xl' : ''}`}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDropOnFoundation(e, index)}
+                    onClick={() => handleFoundationZoneTap(index)}
                   >
-                    <Card
-                      card={card}
-                      isDraggable={card.faceUp && !isBusy}
-                      isDragging={
-                        draggingSource?.type === 'tableau' &&
-                        draggingSource.colIndex === colIndex &&
-                        cardIndex >= draggingSource.cardIndex
-                      }
-                      isSelected={isSelected}
-                      isHinted={isSourceHinted(tableauSource)}
-                      isPlayableToFoundation={isBottom && checkCanMoveToFoundation(card)}
-                      onDragStart={(e) => card.faceUp && handleDragStart(e, tableauSource)}
-                      onDragEnd={handleDragEnd}
-                      onClick={(el) => card.faceUp && handleCardTap(tableauSource, el)}
-                      onDoubleClick={(el) => card.faceUp && handleDoubleClick(tableauSource, el)}
-                    />
+                    <EmptySlot />
+                    {pile.map((card, cardIndex) => {
+                      const isTop = cardIndex === pile.length - 1;
+                      const foundationSource: DragSource = { type: 'foundation', pileIndex: index };
+                      return (
+                        <div key={card.id} className="absolute top-0 left-0">
+                          <Card
+                            card={card}
+                            isDraggable={isTop && !isBusy}
+                            isDragging={
+                              draggingSource?.type === 'foundation' &&
+                              draggingSource.pileIndex === index &&
+                              isTop
+                            }
+                            isSelected={
+                              selectedSource?.type === 'foundation' &&
+                              selectedSource.pileIndex === index &&
+                              isTop
+                            }
+                            onDragStart={(e) => handleDragStart(e, foundationSource)}
+                            onDragEnd={handleDragEnd}
+                            onClick={() => isTop && handleCardTap(foundationSource)}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          ))}
+
+            <div className="flex justify-between gap-2 sm:gap-4 overflow-x-auto pb-8">
+              {gameState.tableau.map((col, colIndex) => (
+                <div
+                  key={`tableau-${colIndex}`}
+                  data-tableau-col={colIndex}
+                  className={`kl-tableau-col relative w-16 sm:w-24 min-h-[50vh] shrink-0 ${isTargetHinted('tableau', colIndex) ? 'ring-4 ring-sky-400/80 rounded-xl' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDropOnTableau(e, colIndex)}
+                  onClick={() => col.length === 0 && handleTableauZoneTap(colIndex)}
+                >
+                  {col.length === 0 && <EmptySlot onClick={() => handleTableauZoneTap(colIndex)} />}
+                  {col.map((card, cardIndex) => {
+                    const isBottom = cardIndex === col.length - 1;
+                    const tableauSource: DragSource = { type: 'tableau', colIndex, cardIndex };
+                    const isSelected =
+                      selectedSource?.type === 'tableau' &&
+                      selectedSource.colIndex === colIndex &&
+                      cardIndex >= selectedSource.cardIndex;
+                    const above = col.slice(0, cardIndex);
+                    const faceDownAbove = above.filter((c) => !c.faceUp).length;
+                    const faceUpAbove = above.filter((c) => c.faceUp).length;
+                    return (
+                      <div
+                        key={card.id}
+                        data-tableau-slot={cardIndex}
+                        data-face-up={card.faceUp ? 'true' : 'false'}
+                        className="absolute top-0 left-0"
+                        style={{
+                          top: `calc(${faceDownAbove} * var(--kl-fan-face-down) + ${faceUpAbove} * var(--kl-fan-face-up))`,
+                        }}
+                      >
+                        <Card
+                          card={card}
+                          isDraggable={card.faceUp && !isBusy}
+                          isDragging={
+                            draggingSource?.type === 'tableau' &&
+                            draggingSource.colIndex === colIndex &&
+                            cardIndex >= draggingSource.cardIndex
+                          }
+                          isSelected={isSelected}
+                          isHinted={isSourceHinted(tableauSource)}
+                          isPlayableToFoundation={isBottom && checkCanMoveToFoundation(card)}
+                          isTacticalMovable={
+                            tacticalHighlight &&
+                            card.faceUp &&
+                            movableAnalysis.movableCardIds.has(card.id)
+                          }
+                          onDragStart={(e) => card.faceUp && handleDragStart(e, tableauSource)}
+                          onDragEnd={handleDragEnd}
+                          onClick={(el) => card.faceUp && handleCardTap(tableauSource, el)}
+                          onDoubleClick={(el) => card.faceUp && handleDoubleClick(tableauSource, el)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right Wing (xl+) */}
+          <div className="hidden xl:block w-72 shrink-0 sticky top-6">
+            <CockpitRightWing
+              scoreMode={scoreMode}
+              vegasTel={vegasTel}
+              score={score}
+              elapsedSec={elapsedSec}
+              masterAdvice={masterAdvice}
+              lastKeyPressed={lastKeyPressed}
+            />
+          </div>
         </div>
       </div>
 
