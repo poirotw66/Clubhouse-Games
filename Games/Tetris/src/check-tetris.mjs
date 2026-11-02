@@ -584,4 +584,52 @@ function fillRow(board, row, type = 'I') {
   assert.ok(CPU_STYLES.tspin.unlockWins >= 5);
 }
 
+// Telemetry & Cockpit analytics checks.
+{
+  const {
+    computeStackTelemetry,
+    computeBagDistribution,
+    computeCombatStats,
+    createInitialClearStats,
+    recordClearStats,
+  } = await import('./utils/telemetry.ts');
+
+  const board = createEmptyBoard();
+  // Stack 4 blocks in column 0, leaving hole at row 19 col 0.
+  board[BOARD_SIZE.rows - 2][0] = 'I';
+  board[BOARD_SIZE.rows - 3][0] = 'I';
+  const tele = computeStackTelemetry(board);
+  assert.equal(tele.colHeights[0], 3);
+  assert.equal(tele.peakHeight, 3);
+  assert.equal(tele.holesCount, 1, 'empty cell under block must count as hole');
+  assert.equal(tele.dangerZone, 'safe');
+
+  // Danger zone warning / critical.
+  const dangerBoard = createEmptyBoard();
+  for (let r = BOARD_SIZE.rows - 16; r < BOARD_SIZE.rows; r++) {
+    dangerBoard[r][5] = 'O';
+  }
+  const dangerTele = computeStackTelemetry(dangerBoard);
+  assert.equal(dangerTele.peakHeight, 16);
+  assert.equal(dangerTele.dangerZone, 'critical');
+
+  // Bag distribution status.
+  const bag = computeBagDistribution('T', ['I', 'J', 'O', 'L']);
+  const tPiece = bag.find((p) => p.type === 'T');
+  const iPiece = bag.find((p) => p.type === 'I');
+  const zPiece = bag.find((p) => p.type === 'Z');
+  assert.equal(tPiece?.status, 'active');
+  assert.equal(iPiece?.status, 'next');
+  assert.equal(zPiece?.status, 'pool');
+
+  // Combat stats (Tetris Rate, Fever).
+  let clearStats = createInitialClearStats();
+  clearStats = recordClearStats(clearStats, 4, false, 4);
+  clearStats = recordClearStats(clearStats, 4, false, 4);
+  const combat = computeCombatStats(clearStats, 8, 12, 10000, 3);
+  assert.equal(combat.tetrisRate, 100, 'two tetrises should give 100% tetris rate');
+  assert.equal(combat.feverTier, 'ignited');
+  assert.ok(combat.linesPerMinute > 0);
+}
+
 console.log('check-tetris: ok');

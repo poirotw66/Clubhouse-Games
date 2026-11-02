@@ -6,10 +6,21 @@ import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import { playGoal, playImpact, playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { RefreshCw, Pause, Play, RotateCw, ChevronLeft, CircleHelp, X } from 'lucide-react';
+import { RefreshCw, Pause, Play, CircleHelp, X } from 'lucide-react';
 import { BoardWell } from './components/BoardWell';
-import { PieceIcon } from './components/PieceIcon';
-import type { Difficulty, Mode, ScoreBreakdown, TetrominoType } from './utils/tetrisLogic';
+import { CockpitLeftWing } from './components/CockpitLeftWing';
+import { CockpitRightWing } from './components/CockpitRightWing';
+import { EsportsKeyboardHud } from './components/EsportsKeyboardHud';
+import { TacticalTicker } from './components/TacticalTicker';
+import {
+  computeStackTelemetry,
+  computeBagDistribution,
+  computeCombatStats,
+  createInitialClearStats,
+  recordClearStats,
+  type ClearRecordStats,
+} from './utils/telemetry';
+import type { Difficulty, Mode, ScoreBreakdown } from './utils/tetrisLogic';
 import {
   BOARD_SIZE,
   MODES,
@@ -263,6 +274,8 @@ export default function App() {
   const [puzzleIndex, setPuzzleIndex] = useState(0);
   const [shareCopied, setShareCopied] = useState(false);
   const [lastStars, setLastStars] = useState(0);
+  const [clearStats, setClearStats] = useState<ClearRecordStats>(createInitialClearStats);
+  const [pressedKeys, setPressedKeys] = useState<Set<string>>(() => new Set());
   const cheeseAttemptRef = useRef(0);
   const dailyRecordedRef = useRef(false);
   const practiceRecordedRef = useRef(false);
@@ -370,6 +383,7 @@ export default function App() {
       setVersusWinner(null);
       setShareCopied(false);
       setLastStars(0);
+      setClearStats(createInitialClearStats());
       versusSettledRef.current = false;
       dailyRecordedRef.current = false;
       practiceRecordedRef.current = false;
@@ -707,6 +721,14 @@ export default function App() {
       );
       if (outcome.breakdown && outcome.linesCleared > 0) {
         showPlayerFlash(outcome.breakdown);
+        setClearStats((prevStats) =>
+          recordClearStats(
+            prevStats,
+            outcome.linesCleared,
+            outcome.breakdown?.label.includes('T-SPIN') ?? false,
+            outcome.attack,
+          ),
+        );
       }
       if (outcome.attack > 0) {
         queueMicrotask(() => deliverAttack('player', outcome.attack));
@@ -819,6 +841,13 @@ export default function App() {
       if (!handled) return;
       event.preventDefault();
 
+      setPressedKeys((prev) => {
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+
       if (key === 'p' || key === 'P') {
         setPlayer((prev) => (prev.gameOver ? prev : { ...prev, paused: !prev.paused }));
         return;
@@ -848,6 +877,12 @@ export default function App() {
 
     const handleKeyUp = (event: KeyboardEvent) => {
       const key = event.key;
+      setPressedKeys((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
       if (key === 'ArrowLeft') {
         held.current.left = false;
         if (shift.current.dir === -1) {
@@ -868,6 +903,7 @@ export default function App() {
     const clearHeld = () => {
       held.current = { left: false, right: false, down: false };
       shift.current.dir = 0;
+      setPressedKeys(new Set());
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -958,6 +994,14 @@ export default function App() {
           const outcome = lockPiece(prev, mode, 0, soft);
           if (outcome.breakdown && outcome.linesCleared > 0) {
             showPlayerFlash(outcome.breakdown);
+            setClearStats((prevStats) =>
+              recordClearStats(
+                prevStats,
+                outcome.linesCleared,
+                outcome.breakdown?.label.includes('T-SPIN') ?? false,
+                outcome.attack,
+              ),
+            );
           }
           if (outcome.attack > 0) {
             queueMicrotask(() => deliverAttack('player', outcome.attack));
@@ -1154,6 +1198,20 @@ export default function App() {
 
   const wellWidth = isVersus ? (narrow ? 148 : 240) : narrow ? 280 : 320;
   const nextPreviewCount = isVersus || narrow ? 3 : 5;
+
+  const playerTelemetry = computeStackTelemetry(player.board);
+  const playerBagStatus = computeBagDistribution(
+    player.active?.type ?? null,
+    player.queue,
+  );
+  const playerCombat = computeCombatStats(
+    clearStats,
+    player.lines,
+    player.locks,
+    player.elapsedMs,
+    player.combo,
+  );
+  const cpuTelemetry = computeStackTelemetry(cpu.board);
 
   const dailyBar =
     dailyKind === null
@@ -1487,275 +1545,161 @@ export default function App() {
         )}
       </header>
 
-      <div
-        className={`w-full max-w-6xl flex flex-col ${
-          isVersus ? 'lg:flex-row' : 'sm:flex-row'
-        } gap-3 sm:gap-4`}
-      >
-        <aside
-          className={`${narrow ? 'w-full order-2' : 'sm:w-40'} flex flex-col gap-3 text-xs sm:text-sm`}
-        >
-          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
-            <h2 className="text-xs font-semibold text-slate-300 mb-1">狀態</h2>
-            <p className="text-slate-200 leading-snug">{statusText}</p>
-          </div>
-          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 space-y-1">
-            <div className="flex justify-between">
-              <span>分數</span>
-              <span className="font-mono">{player.score}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>行數</span>
-              <span className="font-mono">{player.lines}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>等級</span>
-              <span className="font-mono">{player.level}</span>
-            </div>
-            {player.combo > 0 && (
-              <div className="flex justify-between text-amber-200">
-                <span>連擊</span>
-                <span className="font-mono">{player.combo}</span>
-              </div>
-            )}
-            {player.backToBackReady && (
-              <div className="text-[10px] text-sky-300 tracking-wide tetris-b2b-ready">
-                B2B READY
-              </div>
-            )}
-            {!isVersus && (
-              <>
-                <div className="flex justify-between">
-                  <span>{MODES[mode].timeLimitMs !== null ? '剩餘時間' : '用時'}</span>
-                  <span className="font-mono tabular-nums">
-                    {formatTime(
-                      MODES[mode].timeLimitMs !== null
-                        ? MODES[mode].timeLimitMs! - player.elapsedMs
-                        : player.elapsedMs,
-                    )}
-                  </span>
-                </div>
-                {MODES[mode].lineGoal !== null && (
-                  <div className="flex justify-between">
-                    <span>剩餘行數</span>
-                    <span className="font-mono tabular-nums">
-                      {Math.max(0, MODES[mode].lineGoal! - player.lines)}
-                    </span>
-                  </div>
-                )}
-                {isDaily && dailyBar && (
-                  <div className="pt-2 space-y-1">
-                    <div className="flex justify-between text-emerald-200/90 text-[11px]">
-                      <span>今日進度</span>
-                      <span>連勝 {dailyStreak} 天</span>
-                    </div>
-                    <div
-                      className="relative h-2 rounded-full bg-slate-800 overflow-hidden"
-                      role="progressbar"
-                      aria-valuenow={Math.round(dailyBar.current * 100)}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label="每日挑戰進度"
-                    >
-                      <div
-                        className="absolute inset-y-0 left-0 bg-emerald-500/70 tetris-daily-fill"
-                        style={{ width: `${dailyBar.current * 100}%` }}
-                      />
-                      {dailyBar.ghost !== null && (
-                        <div
-                          className="absolute inset-y-0 w-0.5 bg-white/50"
-                          style={{ left: `${dailyBar.ghost * 100}%` }}
-                          title="今日最佳"
-                          aria-hidden
-                        />
-                      )}
-                    </div>
-                    <div className="flex justify-between text-slate-400 text-[11px]">
-                      <span>
-                        今日最佳
-                        {todayKindBest
-                          ? dailyKind === 'sprint'
-                            ? todayKindBest.cleared
-                              ? ` ${formatShareTime(todayKindBest.value)}`
-                              : ` ${todayKindBest.lines} 行`
-                            : ` ${todayKindBest.value} 分`
-                          : ' —'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {mode === 'cheese' && (
-                  <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
-                    <span>Cheese 星級</span>
-                    <span className="font-mono">{starsLabel(practiceMeta.cheeseBestStars)}</span>
-                  </div>
-                )}
-                {mode === 'tspin' && (
-                  <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
-                    <span>本題最佳</span>
-                    <span className="font-mono">
-                      {starsLabel(practiceMeta.tspinStars[activePuzzle.id] ?? 0)}
-                    </span>
-                  </div>
-                )}
-                {!isDaily && !isPractice && (
-                  <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
-                    <span>最佳</span>
-                    <span className="font-mono tabular-nums">
-                      {classicBest === undefined
-                        ? '—'
-                        : MODES[mode].recordKind === 'time'
-                          ? formatTime(classicBest)
-                          : classicBest}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-            {isVersus && (
-              <>
-                <div className="flex justify-between text-rose-300">
-                  <span>垃圾佇列</span>
-                  <span className="font-mono">{player.incomingGarbage}</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-800 pt-1 mt-1 text-slate-400">
-                  <span>戰績</span>
-                  <span className="font-mono tabular-nums">
-                    {versusStats.wins}勝 {versusStats.losses}敗
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>連勝</span>
-                  <span className="font-mono">{versusStats.streak}</span>
-                </div>
-                {versusMeta.bo3 && (
-                  <div className="flex justify-between text-rose-200">
-                    <span>BO3</span>
-                    <span className="font-mono">
-                      {versusMeta.seriesPlayer}–{versusMeta.seriesCpu}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
-            <h2 className="text-xs font-semibold text-slate-300 mb-2">暫存</h2>
-            <div
-              className={`w-full aspect-square bg-slate-800 rounded-lg flex items-center justify-center transition-opacity ${
-                player.canHold ? '' : 'opacity-40'
-              }`}
-            >
-              {player.hold ? (
-                <PieceIcon type={player.hold} cell={14} />
-              ) : (
-                <span className="text-[10px] text-slate-400">尚未暫存</span>
-              )}
-            </div>
-          </div>
-        </aside>
+      <div className="w-full max-w-7xl flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4">
+        {/* 左翼戰術遙測座艙 */}
+        <CockpitLeftWing
+          statusText={statusText}
+          score={player.score}
+          lines={player.lines}
+          level={player.level}
+          combo={player.combo}
+          backToBackReady={player.backToBackReady}
+          hold={player.hold}
+          canHold={player.canHold}
+          holdEnabled={player.holdEnabled}
+          isVersus={isVersus}
+          timeDisplay={formatTime(
+            MODES[mode].timeLimitMs !== null
+              ? MODES[mode].timeLimitMs! - player.elapsedMs
+              : player.elapsedMs,
+          )}
+          timeLabel={MODES[mode].timeLimitMs !== null ? '剩餘時間' : '用時'}
+          remainingLines={
+            MODES[mode].lineGoal !== null
+              ? Math.max(0, MODES[mode].lineGoal! - player.lines)
+              : undefined
+          }
+          isDaily={isDaily}
+          dailyBar={dailyBar}
+          dailyStreak={dailyStreak}
+          todayBestText={
+            todayKindBest
+              ? dailyKind === 'sprint'
+                ? todayKindBest.cleared
+                  ? formatShareTime(todayKindBest.value)
+                  : `${todayKindBest.lines} 行`
+                : `${todayKindBest.value} 分`
+              : undefined
+          }
+          practiceStarsText={
+            mode === 'cheese'
+              ? starsLabel(practiceMeta.cheeseBestStars)
+              : mode === 'tspin'
+                ? starsLabel(practiceMeta.tspinStars[activePuzzle.id] ?? 0)
+                : undefined
+          }
+          classicBestText={
+            classicBest === undefined
+              ? undefined
+              : MODES[mode].recordKind === 'time'
+                ? formatTime(classicBest)
+                : String(classicBest)
+          }
+          versusStats={isVersus ? versusStats : undefined}
+          versusMeta={isVersus ? versusMeta : undefined}
+          incomingGarbage={player.incomingGarbage}
+          telemetry={playerTelemetry}
+          bagStatus={playerBagStatus}
+          className={narrow ? 'w-full order-2' : 'w-full lg:w-64 shrink-0 order-2 lg:order-1'}
+        />
 
+        {/* 中央戰鬥主場 */}
         <main
-          className={`flex-1 flex flex-wrap justify-center gap-2 sm:gap-4 relative ${
-            narrow ? 'order-1' : ''
-          } ${isVersus && narrow ? 'flex-nowrap' : ''}`}
+          className={`flex-1 flex flex-col items-center gap-3 w-full max-w-2xl ${
+            narrow ? 'order-1' : 'order-1 lg:order-2'
+          }`}
         >
-          <div
-            ref={boardShellRef}
-            data-tetris-board="1"
-            className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm"
-          >
-            <div className="text-center text-xs text-slate-300 mb-1 font-semibold">
-              玩家
-              {player.incomingGarbage > 0 && (
-                <span className="ml-2 text-rose-300">↓{player.incomingGarbage}</span>
-              )}
-            </div>
-            {flash && (
-              <ScoreFlash
-                text={flash.text}
-                tone={flash.tone}
-                flashKey={flash.key}
-                onDone={() => setFlash(null)}
-              />
-            )}
-            <BoardWell
-              board={player.board}
-              active={player.active}
-              clearing={player.clearing}
-              widthPx={wellWidth}
-            />
-            {!isVersus && !narrow && (
-              <>
-                <div className="mt-3 flex justify-center gap-3 text-xs text-slate-400">
-                  <div className="flex items-center gap-1">
-                    <ChevronLeft className="w-3 h-3" />
-                    <span>左右：平移</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <RotateCw className="w-3 h-3" />
-                    <span>↑ / Z / X：旋轉</span>
-                  </div>
-                </div>
-                <div className="mt-1 flex justify-center gap-3 text-xs text-slate-400">
-                  <span>↓：加速落下</span>
-                  <span>空白鍵：瞬間落下</span>
-                  <span>C：暫存</span>
-                </div>
-              </>
-            )}
-          </div>
+          {/* 行動端頂部戰術速報條 */}
+          <TacticalTicker
+            telemetry={playerTelemetry}
+            combatStats={playerCombat}
+            bagStatus={playerBagStatus}
+            backToBackReady={player.backToBackReady}
+            combo={player.combo}
+          />
 
-          {isVersus && (
-            <div className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm">
-              <div className="text-center text-xs text-slate-300 mb-1 font-semibold">
-                CPU · {preset.label}
-                {cpu.incomingGarbage > 0 && (
-                  <span className="ml-2 text-rose-300">↓{cpu.incomingGarbage}</span>
+          <div
+            className={`flex flex-wrap justify-center gap-2 sm:gap-4 relative w-full ${
+              isVersus && narrow ? 'flex-nowrap' : ''
+            }`}
+          >
+            <div
+              ref={boardShellRef}
+              data-tetris-board="1"
+              className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm"
+            >
+              <div className="text-center text-xs text-slate-300 mb-1 font-semibold flex items-center justify-center gap-2">
+                <span>玩家陣地</span>
+                {player.incomingGarbage > 0 && (
+                  <span className="text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/30 text-[10px]">
+                    ↓ 垃圾 {player.incomingGarbage}
+                  </span>
                 )}
               </div>
-              {cpuFlash && (
+              {flash && (
                 <ScoreFlash
-                  text={cpuFlash.text}
-                  tone={cpuFlash.tone}
-                  flashKey={cpuFlash.key}
-                  onDone={() => setCpuFlash(null)}
+                  text={flash.text}
+                  tone={flash.tone}
+                  flashKey={flash.key}
+                  onDone={() => setFlash(null)}
                 />
               )}
               <BoardWell
-                board={cpu.board}
-                active={cpu.active}
-                clearing={cpu.clearing}
+                board={player.board}
+                active={player.active}
+                clearing={player.clearing}
                 widthPx={wellWidth}
-                showGhost={false}
+                dangerZone={playerTelemetry.dangerZone}
+                showDangerLine={true}
               />
-              <div className="mt-2 text-center text-[10px] text-slate-500 font-mono">
-                {cpu.lines} 行
-                {cpu.incomingGarbage > 0 ? ` · 佇列 ${cpu.incomingGarbage}` : ''}
-              </div>
             </div>
-          )}
+
+            {isVersus && (
+              <div className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm">
+                <div className="text-center text-xs text-slate-300 mb-1 font-semibold flex items-center justify-center gap-2">
+                  <span>CPU · {preset.label}</span>
+                  {cpu.incomingGarbage > 0 && (
+                    <span className="text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/30 text-[10px]">
+                      ↓ 垃圾 {cpu.incomingGarbage}
+                    </span>
+                  )}
+                </div>
+                {cpuFlash && (
+                  <ScoreFlash
+                    text={cpuFlash.text}
+                    tone={cpuFlash.tone}
+                    flashKey={cpuFlash.key}
+                    onDone={() => setCpuFlash(null)}
+                  />
+                )}
+                <BoardWell
+                  board={cpu.board}
+                  active={cpu.active}
+                  clearing={cpu.clearing}
+                  widthPx={wellWidth}
+                  showGhost={false}
+                  dangerZone={cpuTelemetry.dangerZone}
+                  showDangerLine={true}
+                />
+                <div className="mt-2 text-center text-[10px] text-slate-500 font-mono">
+                  {cpu.lines} 行
+                  {cpu.incomingGarbage > 0 ? ` · 佇列 ${cpu.incomingGarbage}` : ''}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 電競級鍵盤操作指南 HUD (桌面端即時高亮反饋) */}
+          <EsportsKeyboardHud pressedKeys={pressedKeys} />
         </main>
 
-        <aside
-          className={`${narrow ? 'w-full order-3' : 'sm:w-32'} flex flex-col gap-3 text-xs sm:text-sm`}
-        >
-          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
-            <h2 className="text-xs font-semibold text-slate-300 mb-2">下一個</h2>
-            <div className={`gap-2 ${narrow ? 'flex flex-row justify-center' : 'space-y-2'}`}>
-              {player.queue.slice(0, nextPreviewCount).map((t: TetrominoType, index: number) => (
-                <div
-                  key={`${t}-${index}`}
-                  className={`${
-                    narrow ? 'w-16' : 'w-full'
-                  } aspect-[4/3] bg-slate-800 rounded-lg flex items-center justify-center p-1`}
-                >
-                  <PieceIcon type={t} cell={index === 0 ? 12 : 9} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
+        {/* 右翼戰鬥狂熱與大師錦囊座艙 */}
+        <CockpitRightWing
+          queue={player.queue}
+          previewCount={nextPreviewCount}
+          combatStats={playerCombat}
+          className={narrow ? 'w-full order-3' : 'w-full lg:w-64 shrink-0 order-3'}
+        />
       </div>
 
       {/* Spacer so fixed mobile controls do not cover the wells. */}
