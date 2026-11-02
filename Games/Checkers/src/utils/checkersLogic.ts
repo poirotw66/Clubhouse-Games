@@ -631,3 +631,174 @@ export function placePieces(
   }
   return board;
 }
+
+export interface CheckersTacticalAnalysis {
+  /** Piece breakdown */
+  blackMen: number;
+  blackKings: number;
+  whiteMen: number;
+  whiteKings: number;
+  totalBlack: number;
+  totalWhite: number;
+
+  /** Advantage percentage for Black (5% to 95%) */
+  blackAdvantagePct: number;
+  evaluationText: string;
+
+  /** Mandatory capture status */
+  isCaptureMandatory: boolean;
+  maxJumpHops: number;
+  canMultiJump: boolean;
+
+  /** Opponent counter-threats */
+  oppCanCapture: boolean;
+  oppMaxJumpHops: number;
+
+  /** Baseline guard counts (defensive rank pieces) */
+  blackBackRankGuard: number;
+  whiteBackRankGuard: number;
+
+  /** Center control (pieces in center squares) */
+  blackCenterControl: number;
+  whiteCenterControl: number;
+
+  /** Closest man to promotion (rows from kinging) */
+  blackClosestPromotion: number | null;
+  whiteClosestPromotion: number | null;
+
+  /** Threat intel alert string */
+  threatAlert: string;
+}
+
+export function analyzeCheckersTactics(
+  board: Board,
+  currentTurn: PieceColor,
+  ruleset: RulesetId = 'american',
+): CheckersTacticalAnalysis {
+  const size = board.length;
+  const rules = RULESETS[ruleset];
+  const kingValue = rules.flyingKings ? 3.2 : 2.5;
+
+  let blackMen = 0;
+  let blackKings = 0;
+  let whiteMen = 0;
+  let whiteKings = 0;
+  let blackBackRankGuard = 0;
+  let whiteBackRankGuard = 0;
+  let blackCenterControl = 0;
+  let whiteCenterControl = 0;
+  let blackClosestPromotion: number | null = null;
+  let whiteClosestPromotion: number | null = null;
+
+  const midMin = Math.floor(size / 2) - 1;
+  const midMax = Math.floor(size / 2);
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+
+      const isCenter = r >= midMin && r <= midMax && c >= midMin && c <= midMax;
+
+      if (piece.color === 'black') {
+        if (piece.king) {
+          blackKings++;
+        } else {
+          blackMen++;
+          const dist = r; // Black moves toward r=0
+          if (blackClosestPromotion === null || dist < blackClosestPromotion) {
+            blackClosestPromotion = dist;
+          }
+        }
+        if (r === size - 1) blackBackRankGuard++;
+        if (isCenter) blackCenterControl++;
+      } else {
+        if (piece.king) {
+          whiteKings++;
+        } else {
+          whiteMen++;
+          const dist = size - 1 - r; // White moves toward r=size-1
+          if (whiteClosestPromotion === null || dist < whiteClosestPromotion) {
+            whiteClosestPromotion = dist;
+          }
+        }
+        if (r === 0) whiteBackRankGuard++;
+        if (isCenter) whiteCenterControl++;
+      }
+    }
+  }
+
+  const totalBlack = blackMen + blackKings;
+  const totalWhite = whiteMen + whiteKings;
+
+  // Compute material & positional evaluation
+  const blackScore = blackMen * 1 + blackKings * kingValue + blackCenterControl * 0.25 + blackBackRankGuard * 0.15;
+  const whiteScore = whiteMen * 1 + whiteKings * kingValue + whiteCenterControl * 0.25 + whiteBackRankGuard * 0.15;
+  const scoreDiff = blackScore - whiteScore;
+
+  let blackAdvantagePct = 50;
+  if (totalBlack === 0) {
+    blackAdvantagePct = 5;
+  } else if (totalWhite === 0) {
+    blackAdvantagePct = 95;
+  } else {
+    blackAdvantagePct = Math.max(5, Math.min(95, Math.round(50 + scoreDiff * 8)));
+  }
+
+  let evaluationText = '勢均力敵';
+  if (blackAdvantagePct >= 75) evaluationText = '黑方大優';
+  else if (blackAdvantagePct >= 58) evaluationText = '黑方微優';
+  else if (blackAdvantagePct <= 25) evaluationText = '白方大優';
+  else if (blackAdvantagePct <= 42) evaluationText = '白方微優';
+
+  // Analyze legal moves for current player
+  const legalMoves = getLegalMoves(board, currentTurn, ruleset);
+  const isCaptureMandatory = legalMoves.some((m) => isCaptureMove(m));
+  const maxJumpHops = legalMoves.reduce((max, m) => Math.max(max, captureHopCount(m)), 0);
+  const canMultiJump = maxJumpHops >= 2;
+
+  // Analyze counter-threats for opponent
+  const oppColor = opponent(currentTurn);
+  const oppMoves = getLegalMoves(board, oppColor, ruleset);
+  const oppCanCapture = oppMoves.some((m) => isCaptureMove(m));
+  const oppMaxJumpHops = oppMoves.reduce((max, m) => Math.max(max, captureHopCount(m)), 0);
+
+  let threatAlert = '盤面穩健對峙中，推進控制大斜線';
+  if (isCaptureMandatory && canMultiJump) {
+    threatAlert = `⚡ 絕殺連跳：當前有 ${maxJumpHops} 連跳吃子殺局！`;
+  } else if (isCaptureMandatory) {
+    threatAlert = '⚔️ 強制吃子：規則要求必須跳吃，鎖定路徑！';
+  } else if (oppCanCapture && oppMaxJumpHops >= 2) {
+    threatAlert = `⚠️ 危機預警：敵方下步擁有 ${oppMaxJumpHops} 連跳殺局，請謹慎防守！`;
+  } else if (oppCanCapture) {
+    threatAlert = '🛡️ 防守警戒：敵方下步可跳吃己方子，注意走位！';
+  } else if (currentTurn === 'black' && blackClosestPromotion === 1) {
+    threatAlert = '👑 升王前鋒：一步之遙即刻封王！';
+  } else if (currentTurn === 'white' && whiteClosestPromotion === 1) {
+    threatAlert = '👑 升王前鋒：一步之遙即刻封王！';
+  }
+
+  return {
+    blackMen,
+    blackKings,
+    whiteMen,
+    whiteKings,
+    totalBlack,
+    totalWhite,
+    blackAdvantagePct,
+    evaluationText,
+    isCaptureMandatory,
+    maxJumpHops,
+    canMultiJump,
+    oppCanCapture,
+    oppMaxJumpHops,
+    blackBackRankGuard,
+    whiteBackRankGuard,
+    blackCenterControl,
+    whiteCenterControl,
+    blackClosestPromotion,
+    whiteClosestPromotion,
+    threatAlert,
+  };
+}
+

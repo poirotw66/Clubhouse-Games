@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
@@ -13,6 +13,7 @@ import {
 } from '@clubhouse/shared/synthAudio';
 import type { Board, BotStyle, PieceColor, Move, RulesetId } from './utils/checkersLogic';
 import {
+  analyzeCheckersTactics,
   createInitialBoard,
   getLegalMoves,
   getLegalMovesFrom,
@@ -252,6 +253,7 @@ export default function App() {
   const [puzzleHintsUsed, setPuzzleHintsUsed] = useState(0);
   const [puzzleUndosUsed, setPuzzleUndosUsed] = useState(0);
   const [earnedStars, setEarnedStars] = useState<PuzzleStar | null>(null);
+  const [focusedSquare, setFocusedSquare] = useState<[number, number] | null>(null);
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
   const statsRecordedRef = useRef(false);
@@ -270,6 +272,11 @@ export default function App() {
   const { black, white } = countPieces(state.board);
   const blackCaptured = piecesPerSide - white;
   const whiteCaptured = piecesPerSide - black;
+
+  const tactics = useMemo(
+    () => analyzeCheckersTactics(state.board, state.currentTurn, ruleset),
+    [state.board, state.currentTurn, ruleset],
+  );
 
   const isBotTurn =
     state.phase === 'playing' &&
@@ -741,6 +748,82 @@ export default function App() {
     }
   }, [canHint, state.board, state.currentTurn, state.continuationFrom, ruleset, gameMode]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const key = e.key;
+
+      if (key === 'h' || key === 'H') {
+        if (canHint) {
+          e.preventDefault();
+          handleHint();
+        }
+        return;
+      }
+      if (key === 'z' || key === 'Z' || key === 'Backspace') {
+        if (canUndo) {
+          e.preventDefault();
+          handleUndo();
+        }
+        return;
+      }
+      if (key === 'r' || key === 'R') {
+        e.preventDefault();
+        resetGame();
+        return;
+      }
+      if (key === 'Escape') {
+        e.preventDefault();
+        setSelected(null);
+        return;
+      }
+
+      const cur =
+        focusedSquare ??
+        (selected ? [selected[0], selected[1]] : [Math.floor(size / 2), Math.floor(size / 2)]);
+      let [r, c] = cur;
+
+      if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
+        e.preventDefault();
+        c = (c - 1 + size) % size;
+        setFocusedSquare([r, c]);
+      } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
+        e.preventDefault();
+        c = (c + 1) % size;
+        setFocusedSquare([r, c]);
+      } else if (key === 'ArrowUp' || key === 'w' || key === 'W') {
+        e.preventDefault();
+        r = (r - 1 + size) % size;
+        setFocusedSquare([r, c]);
+      } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+        e.preventDefault();
+        r = (r + 1) % size;
+        setFocusedSquare([r, c]);
+      } else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        if (focusedSquare) {
+          handleCellClick(focusedSquare[0], focusedSquare[1]);
+        } else {
+          setFocusedSquare([r, c]);
+          handleCellClick(r, c);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    focusedSquare,
+    selected,
+    size,
+    canHint,
+    canUndo,
+    handleHint,
+    handleUndo,
+    resetGame,
+    handleCellClick,
+  ]);
+
   const hintPathSet = hintMove
     ? new Set(hintMove.path.map(([r, c]) => sq(r, c)))
     : new Set<string>();
@@ -845,7 +928,119 @@ export default function App() {
     >
       <BackToMenu />
 
-      <header className="w-full max-w-[480px] flex justify-between items-center mb-3 mt-1">
+      <div className="ck-cockpit-shell">
+        {/* Left Wing: Tactical Radar & Telemetry */}
+        <aside className="ck-wing ck-wing--left" aria-label="戰情雷達與局勢分析">
+          <div className="ck-wing__title">
+            <span className="text-amber-400">⚡</span>
+            <span>戰情雷達與局勢分析</span>
+          </div>
+
+          <div className="ck-wing__card">
+            <div className="ck-wing__row">
+              <span className="ck-wing__label">黑方勢力比</span>
+              <span className="ck-wing__value text-amber-300">{tactics.blackAdvantagePct}%</span>
+            </div>
+            <div className="ck-bar-track">
+              <div
+                className="ck-bar-fill bg-gradient-to-r from-amber-500 via-yellow-400 to-emerald-400"
+                style={{ width: `${tactics.blackAdvantagePct}%` }}
+              />
+            </div>
+            <div className="ck-wing__row text-xs text-stone-300">
+              <span>局勢評估</span>
+              <span className="font-bold text-amber-200">{tactics.evaluationText}</span>
+            </div>
+          </div>
+
+          <div className="ck-wing__card">
+            <span className="text-xs font-bold text-amber-200">兵力與封王</span>
+            <div className="flex flex-col gap-1 mt-0.5 text-xs">
+              <div className="ck-wing__row">
+                <span className="ck-wing__label">黑方子力</span>
+                <span className="ck-wing__value text-amber-300">
+                  {tactics.blackMen} 兵 {tactics.blackKings > 0 ? `· ${tactics.blackKings} 王` : ''}
+                </span>
+              </div>
+              <div className="ck-wing__row">
+                <span className="ck-wing__label">白方子力</span>
+                <span className="ck-wing__value text-stone-300">
+                  {tactics.whiteMen} 兵 {tactics.whiteKings > 0 ? `· ${tactics.whiteKings} 王` : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="ck-wing__card">
+            <span className="text-xs font-bold text-amber-200">防守與中路控制</span>
+            <div className="flex flex-col gap-1 mt-0.5 text-xs">
+              <div className="ck-wing__row">
+                <span className="ck-wing__label">黑方底線鐵壁</span>
+                <span className="ck-wing__value">{tactics.blackBackRankGuard} 子固守</span>
+              </div>
+              <div className="ck-wing__row">
+                <span className="ck-wing__label">白方底線鐵壁</span>
+                <span className="ck-wing__value">{tactics.whiteBackRankGuard} 子固守</span>
+              </div>
+              <div className="ck-wing__row">
+                <span className="ck-wing__label">中心格控制</span>
+                <span className="ck-wing__value text-emerald-300">
+                  黑 {tactics.blackCenterControl} vs 白 {tactics.whiteCenterControl}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className={
+              tactics.isCaptureMandatory ||
+              (tactics.oppCanCapture && tactics.oppMaxJumpHops >= 2)
+                ? 'ck-intel-alert ck-intel-alert--alert'
+                : 'ck-intel-alert'
+            }
+          >
+            <div className="font-bold">{tactics.threatAlert}</div>
+            <div className="text-xs mt-1 text-stone-300 leading-snug">
+              {tactics.isCaptureMandatory
+                ? '根據西洋跳棋規則，遇跳吃機會必須強制執行！'
+                : '保護好後排底線，避免敵方兵力偷渡封王。'}
+            </div>
+          </div>
+
+          <div className="ck-wing__card">
+            <span className="text-xs font-bold text-stone-300 tracking-wider">實體鍵盤對弈</span>
+            <div className="ck-key-guide-grid">
+              <div className="ck-key-item">
+                <kbd className="ck-key-badge">WASD</kbd>
+                <span>移標</span>
+              </div>
+              <div className="ck-key-item">
+                <kbd className="ck-key-badge">Space</kbd>
+                <span>走子</span>
+              </div>
+              <div className="ck-key-item">
+                <kbd className="ck-key-badge">Z</kbd>
+                <span>悔棋</span>
+              </div>
+              <div className="ck-key-item">
+                <kbd className="ck-key-badge">H</kbd>
+                <span>提示</span>
+              </div>
+              <div className="ck-key-item">
+                <kbd className="ck-key-badge">R</kbd>
+                <span>重開</span>
+              </div>
+              <div className="ck-key-item">
+                <kbd className="ck-key-badge">Esc</kbd>
+                <span>取消</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Center Stage: Board & Controls */}
+        <main className="ck-board-center">
+          <header className="w-full flex justify-between items-center mb-2 mt-1">
         <div>
           <h1 className="text-lg font-bold tracking-tight">西洋跳棋</h1>
           <p className="text-[11px] text-amber-200/70">{rules.label} · {modeLabel}</p>
@@ -985,6 +1180,25 @@ export default function App() {
         </div>
       )}
 
+      {/* Mobile Tactical Bar */}
+      <div className="ck-mobile-tactical mb-2" role="status" aria-label="西洋跳棋戰情">
+        <span className="font-bold text-amber-300">黑方勢力 {tactics.blackAdvantagePct}%</span>
+        <span className="text-stone-500">·</span>
+        <span
+          className={
+            tactics.isCaptureMandatory ? 'text-rose-300 font-bold' : 'text-stone-300'
+          }
+        >
+          {tactics.isCaptureMandatory
+            ? `⚔️ 強制跳吃 (${tactics.maxJumpHops} 連跳)`
+            : tactics.evaluationText}
+        </span>
+        <span className="text-stone-500">·</span>
+        <span className="text-emerald-300 font-medium">
+          {tactics.blackKings > 0 ? `黑 ${tactics.blackKings} 王` : '前鋒推進中'}
+        </span>
+      </div>
+
       {/* Board */}
       <div className="w-full max-w-[480px]">
         <div
@@ -1031,6 +1245,8 @@ export default function App() {
                 const piece = state.board[r][c];
                 const cellKey = sq(r, c);
                 const isSelected = selected !== null && selected[0] === r && selected[1] === c;
+                const isFocused =
+                  focusedSquare !== null && focusedSquare[0] === r && focusedSquare[1] === c;
                 const isLanding = dark && landingSet.has(cellKey);
                 const isCapturer = mustCapture && originSet.has(cellKey);
                 const isPath = dark && !isLanding && !isSelected && pathSet.has(cellKey);
@@ -1061,8 +1277,13 @@ export default function App() {
                     key={cellKey}
                     type="button"
                     data-ck-cell={`${r},${c}`}
-                    onClick={() => handleCellClick(r, c)}
-                    className="relative flex items-center justify-center touch-manipulation transition-colors duration-100 bg-cover bg-center"
+                    onClick={() => {
+                      setFocusedSquare([r, c]);
+                      handleCellClick(r, c);
+                    }}
+                    className={`relative flex items-center justify-center touch-manipulation transition-colors duration-100 bg-cover bg-center ${
+                      isFocused ? 'ck-square-focused' : ''
+                    }`}
                     style={{
                       minWidth: 0,
                       minHeight: 0,
@@ -1383,6 +1604,125 @@ export default function App() {
           </div>
         )}
       </div>
+    </main>
+
+    {/* Right Wing: Opponent Dossier & Workshop */}
+    <aside className="ck-wing ck-wing--right" aria-label="對手戰情與系列賽工坊">
+      <div className="ck-wing__title">
+        <span className="text-rose-400">🏆</span>
+        <span>對手戰情與工坊</span>
+      </div>
+
+      <div className="ck-wing__card">
+        <span className="text-xs font-bold text-rose-300">當前對弈模式</span>
+        {gameMode === 'series' ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="ck-wing__row">
+              <span className="ck-wing__label">系列賽目標</span>
+              <span className="ck-wing__value text-amber-300 font-bold">
+                搶 {matchTarget} 勝
+              </span>
+            </div>
+            <div className="ck-wing__row">
+              <span className="ck-wing__label">大比分</span>
+              <span className="ck-wing__value text-emerald-300 font-bold">
+                黑 {match.scoreA} : 白 {match.scoreB}
+              </span>
+            </div>
+            <div className="ck-wing__row text-xs text-stone-400">
+              <span>進行場次</span>
+              <span>第 {match.gameIndex} 局</span>
+            </div>
+          </div>
+        ) : gameMode === 'puzzle' ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="ck-wing__row">
+              <span className="ck-wing__label">殘局謎題</span>
+              <span className="ck-wing__value text-amber-200">{activePuzzle.name}</span>
+            </div>
+            <div className="ck-wing__row text-xs text-stone-400">
+              <span>目標步數</span>
+              <span>{activePuzzle.winIn} 步內必勝</span>
+            </div>
+            <div className="ck-wing__row text-xs text-stone-400">
+              <span>已走步數</span>
+              <span>{puzzleMoves} 步</span>
+            </div>
+          </div>
+        ) : gameMode === 'bot' ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="ck-wing__row">
+              <span className="ck-wing__label">對手</span>
+              <span className="ck-wing__value text-rose-200 font-bold">{opponent.name}</span>
+            </div>
+            <div className="ck-wing__row text-xs text-stone-400">
+              <span>風格</span>
+              <span>{opponent.tagline}</span>
+            </div>
+            <div className="ck-wing__row text-xs text-stone-400">
+              <span>開場口頭禪</span>
+              <span className="text-right leading-tight text-amber-200">
+                「{opponent.catchphrase.intro}」
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="ck-wing__row">
+              <span className="ck-wing__label">同機雙人對弈</span>
+              <span className="ck-wing__value text-amber-200">自由對抗</span>
+            </div>
+            <div className="ck-wing__row text-xs text-stone-400">
+              <span>回合交換</span>
+              <span>輪流執子</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="ck-wing__card">
+        <span className="text-xs font-bold text-stone-300 tracking-wider">個人榮譽紀錄</span>
+        <div className="flex flex-col gap-1 mt-1 text-xs">
+          <div className="ck-wing__row">
+            <span className="ck-wing__label">當前連勝</span>
+            <span className="ck-wing__value text-amber-300">{progress.winStreak} 勝</span>
+          </div>
+          <div className="ck-wing__row">
+            <span className="ck-wing__label">歷史最佳連勝</span>
+            <span className="ck-wing__value">{progress.bestStreak} 勝</span>
+          </div>
+          <div className="ck-wing__row">
+            <span className="ck-wing__label">系列賽勝場</span>
+            <span className="ck-wing__value text-emerald-300">{progress.seriesWins} 場</span>
+          </div>
+          <div className="ck-wing__row">
+            <span className="ck-wing__label">已解鎖對手</span>
+            <span className="ck-wing__value">
+              {progress.beatenOpponents.length + 1} / {OPPONENTS.length}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="ck-wing__card">
+        <span className="text-xs font-bold text-amber-300 tracking-wider">大師對弈錦囊</span>
+        <div className="flex flex-col gap-2 mt-1 text-[11px] leading-relaxed text-stone-300">
+          <div>
+            <strong className="text-amber-200">🛡️ 底線鐵壁法則：</strong>
+            未到勝負關鍵切勿移動底線四子，阻止敵方偷渡封王。
+          </div>
+          <div>
+            <strong className="text-rose-200">🎯 誘餌雙殺陷阱：</strong>
+            主動棄一子誘敵深入，隨後連跳反殺逆轉全局！
+          </div>
+          <div>
+            <strong className="text-emerald-200">👑 中央王霸權：</strong>
+            成王後第一時間壓制中央大斜線，封鎖對手活動半徑。
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
 
       {/* Result */}
       {state.phase === 'over' && !showReview && (

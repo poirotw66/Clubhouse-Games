@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  analyzeCheckersTactics,
   applyMove,
   countPieces,
   createInitialBoard,
@@ -209,5 +210,55 @@ describe('difficulty tiers', () => {
     // but the tiers stay policy-apart via blunderRate (pinned above). What we
     // require here is that hard returns a legal quiet move.
     expect(legal.some((m) => moveKey(m) === moveKey(hardMove!))).toBe(true);
+  });
+});
+
+describe('analyzeCheckersTactics', () => {
+  it('computes balanced evaluation on initial board', () => {
+    const board = createInitialBoard();
+    const analysis = analyzeCheckersTactics(board, 'black', 'american');
+    expect(analysis.blackMen).toBe(12);
+    expect(analysis.whiteMen).toBe(12);
+    expect(analysis.blackKings).toBe(0);
+    expect(analysis.whiteKings).toBe(0);
+    expect(analysis.blackBackRankGuard).toBe(4);
+    expect(analysis.whiteBackRankGuard).toBe(4);
+    expect(analysis.blackAdvantagePct).toBe(50);
+    expect(analysis.evaluationText).toBe('勢均力敵');
+    expect(analysis.isCaptureMandatory).toBe(false);
+    expect(analysis.canMultiJump).toBe(false);
+  });
+
+  it('detects mandatory capture and double jump opportunities', () => {
+    // Setup a double jump scenario for black:
+    // Black man at (5, 2) jumps white at (4, 3) to (3, 4), then jumps white at (2, 5) to (1, 6)
+    let board = emptyBoard();
+    board = place(board, [
+      [5, 2, { color: 'black', king: false }],
+      [4, 3, { color: 'white', king: false }],
+      [2, 5, { color: 'white', king: false }],
+    ]);
+
+    const analysis = analyzeCheckersTactics(board, 'black', 'american');
+    expect(analysis.isCaptureMandatory).toBe(true);
+    expect(analysis.maxJumpHops).toBe(2);
+    expect(analysis.canMultiJump).toBe(true);
+    expect(analysis.threatAlert).toContain('⚡ 絕殺連跳');
+  });
+
+  it('detects opponent counter threats', () => {
+    // White at (3, 4) threatens to jump black at (4, 5) landing on (5, 6).
+    // Black at (4, 5) cannot jump backward or into blocked (2, 3) where another piece sits.
+    let board = emptyBoard();
+    board = place(board, [
+      [3, 4, { color: 'white', king: false }],
+      [4, 5, { color: 'black', king: false }],
+      [2, 3, { color: 'black', king: false }], // blocks black from jumping white
+    ]);
+
+    const analysis = analyzeCheckersTactics(board, 'black', 'american');
+    expect(analysis.isCaptureMandatory).toBe(false);
+    expect(analysis.oppCanCapture).toBe(true);
+    expect(analysis.threatAlert).toContain('防守警戒');
   });
 });
