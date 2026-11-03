@@ -61,9 +61,9 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
             </p>
           </li>
           <li className="rounded-xl border border-emerald-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-emerald-300">點選與復原</p>
+            <p className="font-bold text-emerald-300">點選、審批與沙盤</p>
             <p className="mt-0.5 text-emerald-200/60">
-              點選項或按 1–9；報告顯示在下一個決策上方。Backspace 可復原誤點；R 開關名單。
+              點選項或按 1–9；Backspace 可復原；按 W 隨時呼叫十年戰略作戰沙盤；按 R 開關名單。
             </p>
           </li>
         </ul>
