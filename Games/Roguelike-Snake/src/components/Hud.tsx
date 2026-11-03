@@ -1,7 +1,8 @@
-import { Coins, Heart, Layers, Zap } from 'lucide-react';
+import { Coins, Compass, Heart, Layers, Zap } from 'lucide-react';
 import { relicImageUrl } from '../artUrls';
+import type { DirectionClearance, RiskLevel } from '../game/radar';
 import { RELIC_BY_ID } from '../game/relics';
-import type { Phase, RelicId } from '../game/types';
+import type { Dir, Phase, RelicId } from '../game/types';
 
 export interface HudSnapshot {
   phase: Phase;
@@ -17,15 +18,27 @@ export interface HudSnapshot {
   eaten: number;
   quota: number;
   length: number;
+  growth: number;
   relics: RelicId[];
   bossHp: number;
   bossMaxHp: number;
   exitOpen: boolean;
   dashReady: boolean;
+  pulseReady: boolean;
   endless: boolean;
   ironsnake: boolean;
   daily: boolean;
   buildName: string;
+  speedMs: number;
+  stepsPerSecond: number;
+  evolutionTier: string;
+  evolutionColor: string;
+  riskLevel: RiskLevel;
+  reachableTiles: number;
+  clearance: DirectionClearance;
+  archetypeName: string;
+  archetypeBadge: string;
+  currentDir: Dir;
 }
 
 interface HudProps {
@@ -41,6 +54,13 @@ export function Hud({ hud, seedLabel }: HudProps) {
       ? '出口已開啟'
       : `果實 ${Math.min(hud.eaten, hud.quota)}/${hud.quota}`;
 
+  const riskBadge =
+    hud.riskLevel === 'safe'
+      ? { text: '安全', color: 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300' }
+      : hud.riskLevel === 'warning'
+        ? { text: '緊縮', color: 'border-amber-500/50 bg-amber-950/50 text-amber-300' }
+        : { text: '死角！', color: 'border-rose-500/70 bg-rose-950/70 text-rose-200 animate-pulse' };
+
   return (
     <div className="w-full max-w-xl mx-auto space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
@@ -53,6 +73,9 @@ export function Hud({ hud, seedLabel }: HudProps) {
           </span>
           <span className="text-xs text-slate-400">{hud.layoutName}</span>
           <span className="text-xs text-emerald-300/80">{hud.buildName}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${riskBadge.color}`}>
+            {riskBadge.text}
+          </span>
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="flex items-center gap-1">
@@ -111,7 +134,7 @@ export function Hud({ hud, seedLabel }: HudProps) {
       </div>
 
       {hud.relics.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 lg:hidden">
           {hud.relics.map((id) => (
             <span
               key={id}

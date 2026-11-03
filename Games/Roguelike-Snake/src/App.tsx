@@ -12,10 +12,14 @@ import {
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
-import { Copy, Home, Pause, Play, RefreshCw, Trophy } from 'lucide-react';
+import { Copy, Home, Pause, Play, RefreshCw, Trophy, X } from 'lucide-react';
 import { Arena, type ArenaHandle } from './components/Arena';
+import { CockpitLeftWing } from './components/CockpitLeftWing';
+import { CockpitRightWing } from './components/CockpitRightWing';
 import { Hud, type HudSnapshot } from './components/Hud';
+import { KeyboardHud } from './components/KeyboardHud';
 import { RelicPicker } from './components/RelicPicker';
+import { TacticalTicker } from './components/TacticalTicker';
 import { TitleScreen, type StartOptions } from './components/TitleScreen';
 import { achievementById } from './game/achievements';
 import { DEFAULT_BUILD_ID, buildById } from './game/builds';
@@ -38,11 +42,14 @@ import {
   continueEndless,
   createRun,
   dash,
+  PULSE_COST,
   queueDir,
   rerollRelics,
   tick,
+  venomPulse,
 } from './game/engine';
 import { LAYOUT_NAME, type LayoutId } from './game/level';
+import { getRadarTelemetry } from './game/radar';
 import { parseSeed } from './game/rng';
 import {
   loadChallengeProgress,
@@ -74,6 +81,7 @@ function prefersReducedMotion(): boolean {
 
 function snapshot(state: GameState): HudSnapshot {
   const build = buildById(state.buildId);
+  const telemetry = getRadarTelemetry(state);
   return {
     phase: state.phase,
     floor: state.floor,
@@ -88,15 +96,27 @@ function snapshot(state: GameState): HudSnapshot {
     eaten: state.eaten,
     quota: state.quota,
     length: state.snake.length,
+    growth: state.growth,
     relics: state.relics,
     bossHp: state.boss?.hp ?? 0,
     bossMaxHp: state.boss?.maxHp ?? 0,
     exitOpen: state.exit !== null,
     dashReady: state.time >= state.dashReadyAt,
+    pulseReady: state.time >= state.pulseReadyAt && state.energy >= PULSE_COST,
     endless: state.endless,
     ironsnake: state.ironsnake,
     daily: state.daily,
     buildName: build?.name ?? state.buildId,
+    speedMs: telemetry.speedMs,
+    stepsPerSecond: telemetry.stepsPerSecond,
+    evolutionTier: telemetry.evolutionTier,
+    evolutionColor: telemetry.evolutionColor,
+    riskLevel: telemetry.riskLevel,
+    reachableTiles: telemetry.reachableTiles,
+    clearance: telemetry.clearance,
+    archetypeName: telemetry.archetypeName,
+    archetypeBadge: telemetry.archetypeBadge,
+    currentDir: state.dir,
   };
 }
 
@@ -113,14 +133,21 @@ function signatureOf(hud: HudSnapshot): string {
     hud.eaten,
     hud.quota,
     hud.length,
+    hud.growth,
     hud.relics.length,
     hud.bossHp,
     hud.exitOpen,
     hud.dashReady,
+    hud.pulseReady,
     hud.endless,
     hud.ironsnake,
     hud.daily,
     hud.buildName,
+    hud.riskLevel,
+    hud.clearance.ahead,
+    hud.clearance.left,
+    hud.clearance.right,
+    hud.currentDir,
   ].join('|');
 }
 
@@ -153,6 +180,7 @@ export default function App() {
     null,
   );
   const [shareCopied, setShareCopied] = useState(false);
+  const [mobileDossierOpen, setMobileDossierOpen] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -294,6 +322,12 @@ export default function App() {
           case 'kill':
             playCapture();
             break;
+          case 'pulse':
+            playCapture();
+            if (event.text) {
+              setFlash({ text: event.text, tone: 'good', key: Date.now() });
+            }
+            break;
           case 'hurt':
             playError();
             if (state.ironsnake) {
@@ -415,6 +449,11 @@ export default function App() {
       if (key === ' ' || event.code === 'Space') {
         event.preventDefault();
         if (!pausedRef.current) dash(state);
+        return;
+      }
+      if (key === 'e') {
+        event.preventDefault();
+        if (!pausedRef.current) venomPulse(state);
         return;
       }
       if (key === 'p' || key === 'escape') {
@@ -549,102 +588,234 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-3 pt-14 sm:pt-4">
       <BackToMenu />
 
-      <header className="w-full max-w-xl flex items-center justify-between gap-2 mb-3">
-        <h1 className="text-lg font-bold tracking-tight">
-          蛇窟迴廊
-          <span className="ml-2 text-xs font-normal text-slate-400">Roguelike Snake</span>
-        </h1>
-        <div className="flex items-center gap-1.5 text-xs">
-          <button
-            type="button"
-            onClick={() => setPaused((value) => !value)}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
-          >
-            {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-            {paused ? '繼續' : '暫停'}
-          </button>
-          <button
-            type="button"
-            onClick={retryRun}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            新的一局
-          </button>
-          <button
-            type="button"
-            onClick={returnToTitle}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
-          >
-            <Home className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </header>
-
-      {challengeBanner && (
-        <p
-          className={`mb-2 w-full max-w-xl rounded-xl border px-3 py-2 text-center text-xs ${
-            hud.ironsnake && !activeChallenge
-              ? 'border-rose-700/50 bg-rose-950/50 text-rose-100'
-              : hud.daily && !activeChallenge
-                ? 'border-emerald-700/50 bg-emerald-950/50 text-emerald-100'
-                : 'border-sky-700/50 bg-sky-950/50 text-sky-100'
-          }`}
-        >
-          {challengeBanner}
-        </p>
-      )}
-
-      <Hud hud={hud} seedLabel={seedLabel} />
-
-      <div
-        className={`relative mt-3 w-full max-w-xl ${floorPulse ? 'snake-floor-pulse' : ''}`}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-      >
-        <Arena ref={arenaRef} />
-        {flash && (
-          <ScoreFlash
-            text={flash.text}
-            tone={flash.tone}
-            flashKey={flash.key}
-            onDone={() => setFlash(null)}
+      {/* Dual-wing Cockpit Layout: Left Wing (lg) + Center Bay + Right Wing (lg) */}
+      <div className="w-full max-w-7xl flex justify-center items-start gap-4">
+        {/* Left Wing (Tactical Bio-Telemetry & Danger Radar) */}
+        <div className="hidden lg:block shrink-0">
+          <CockpitLeftWing
+            length={hud.length}
+            growth={hud.growth}
+            speedMs={hud.speedMs}
+            stepsPerSecond={hud.stepsPerSecond}
+            evolutionTier={hud.evolutionTier}
+            evolutionColor={hud.evolutionColor}
+            riskLevel={hud.riskLevel}
+            reachableTiles={hud.reachableTiles}
+            clearance={hud.clearance}
+            dashReady={hud.dashReady}
+            pulseReady={hud.pulseReady}
+            energy={hud.energy}
+            maxEnergy={hud.maxEnergy}
+            onDash={withState(dash)}
+            onPulse={withState(venomPulse)}
           />
-        )}
-        {paused && hud.phase === 'playing' && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-slate-950/80">
-            <p className="text-xl font-bold">暫停中（P 繼續）</p>
+        </div>
+
+        {/* Center Cockpit Column */}
+        <div className="w-full max-w-xl flex flex-col items-center">
+          <header className="w-full flex items-center justify-between gap-2 mb-2">
+            <h1 className="text-lg font-bold tracking-tight">
+              蛇窟迴廊
+              <span className="ml-2 text-xs font-normal text-slate-400">Roguelike Snake</span>
+            </h1>
+            <div className="flex items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setPaused((value) => !value)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
+              >
+                {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                {paused ? '繼續' : '暫停'}
+              </button>
+              <button
+                type="button"
+                onClick={retryRun}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                新的一局
+              </button>
+              <button
+                type="button"
+                onClick={returnToTitle}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 hover:bg-slate-700"
+              >
+                <Home className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </header>
+
+          {challengeBanner && (
+            <p
+              className={`mb-2 w-full rounded-xl border px-3 py-2 text-center text-xs ${
+                hud.ironsnake && !activeChallenge
+                  ? 'border-rose-700/50 bg-rose-950/50 text-rose-100'
+                  : hud.daily && !activeChallenge
+                    ? 'border-emerald-700/50 bg-emerald-950/50 text-emerald-100'
+                    : 'border-sky-700/50 bg-sky-950/50 text-sky-100'
+              }`}
+            >
+              {challengeBanner}
+            </p>
+          )}
+
+          {/* Mobile Top Tactical Ticker */}
+          <div className="w-full mb-2 lg:hidden">
+            <TacticalTicker
+              floor={hud.floor}
+              layoutName={hud.layoutName}
+              riskLevel={hud.riskLevel}
+              reachableTiles={hud.reachableTiles}
+              objective={
+                hud.bossMaxHp > 0
+                  ? `首領 ${hud.bossHp}/${hud.bossMaxHp}`
+                  : hud.exitOpen
+                    ? '出口開啟'
+                    : `${Math.min(hud.eaten, hud.quota)}/${hud.quota}`
+              }
+              pulseReady={hud.pulseReady}
+              onPulse={withState(venomPulse)}
+              onOpenDossier={() => setMobileDossierOpen(true)}
+              endless={hud.endless}
+              ironsnake={hud.ironsnake}
+              daily={hud.daily}
+            />
           </div>
-        )}
+
+          <Hud hud={hud} seedLabel={seedLabel} />
+
+          <div
+            className={`relative mt-3 w-full ${floorPulse ? 'snake-floor-pulse' : ''}`}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+          >
+            <Arena ref={arenaRef} />
+            {flash && (
+              <ScoreFlash
+                text={flash.text}
+                tone={flash.tone}
+                flashKey={flash.key}
+                onDone={() => setFlash(null)}
+              />
+            )}
+            {paused && hud.phase === 'playing' && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-slate-950/80">
+                <p className="text-xl font-bold">暫停中（P 繼續）</p>
+              </div>
+            )}
+          </div>
+
+          {/* eSports Keyboard & Telemetry HUD */}
+          <KeyboardHud
+            currentDir={hud.currentDir}
+            energy={hud.energy}
+            maxEnergy={hud.maxEnergy}
+            dashReady={hud.dashReady}
+            pulseReady={hud.pulseReady}
+            onDash={withState(dash)}
+            onPulse={withState(venomPulse)}
+          />
+
+          {/* Mobile touch controls */}
+          <div className={touchControlsWrapClass}>
+            <div className="flex w-full justify-center">
+              <TouchButton label="↑" ariaLabel="向上" onClick={withState((s) => queueDir(s, 'up'))} />
+            </div>
+            <div className="flex w-full justify-center gap-2">
+              <TouchButton label="←" ariaLabel="向左" onClick={withState((s) => queueDir(s, 'left'))} />
+              <TouchButton label="衝刺" ariaLabel="衝刺" accent onClick={withState((s) => dash(s))} />
+              <TouchButton label="脈衝" ariaLabel="猛毒脈衝" onClick={withState((s) => venomPulse(s))} />
+              <TouchButton label="→" ariaLabel="向右" onClick={withState((s) => queueDir(s, 'right'))} />
+            </div>
+            <div className="flex w-full justify-center">
+              <TouchButton label="↓" ariaLabel="向下" onClick={withState((s) => queueDir(s, 'down'))} />
+            </div>
+          </div>
+
+          <p className="mt-3 text-center text-xs text-slate-500">
+            方向鍵／WASD 轉向 · Space 衝刺 · E 猛毒脈衝 · P 暫停 ·{' '}
+            <span className="md:hidden">畫面滑動轉向、輕點衝刺</span>
+            <span className="hidden md:inline">
+              {activeChallenge
+                ? `目標：${activeChallenge.goalLabel}`
+                : hud.ironsnake
+                  ? '硬派：一擊即死'
+                  : hud.daily
+                    ? '今日挑戰・同種子可比'
+                    : `目標：抵達第 ${MAX_FLOOR} 層並擊敗首領`}
+            </span>
+          </p>
+        </div>
+
+        {/* Right Wing (Relic Matrix & Boss Dossier) */}
+        <div className="hidden lg:block shrink-0">
+          <CockpitRightWing
+            floor={hud.floor}
+            relics={hud.relics}
+            bossHp={hud.bossHp}
+            bossMaxHp={hud.bossMaxHp}
+            exitOpen={hud.exitOpen}
+            archetypeName={hud.archetypeName}
+            archetypeBadge={hud.archetypeBadge}
+            energy={hud.energy}
+            hp={hud.hp}
+            isBossActive={hud.bossMaxHp > 0}
+          />
+        </div>
       </div>
 
-      <div className={touchControlsWrapClass}>
-        <div className="flex w-full justify-center">
-          <TouchButton label="↑" ariaLabel="向上" onClick={withState((s) => queueDir(s, 'up'))} />
+      {/* Mobile Dossier & Telemetry Modal */}
+      {mobileDossierOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm lg:hidden"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+              <h3 className="font-bold text-slate-100 text-sm">戰術生體情報儀</h3>
+              <button
+                type="button"
+                onClick={() => setMobileDossierOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <CockpitLeftWing
+                length={hud.length}
+                growth={hud.growth}
+                speedMs={hud.speedMs}
+                stepsPerSecond={hud.stepsPerSecond}
+                evolutionTier={hud.evolutionTier}
+                evolutionColor={hud.evolutionColor}
+                riskLevel={hud.riskLevel}
+                reachableTiles={hud.reachableTiles}
+                clearance={hud.clearance}
+                dashReady={hud.dashReady}
+                pulseReady={hud.pulseReady}
+                energy={hud.energy}
+                maxEnergy={hud.maxEnergy}
+                onDash={withState(dash)}
+                onPulse={withState(venomPulse)}
+              />
+              <CockpitRightWing
+                floor={hud.floor}
+                relics={hud.relics}
+                bossHp={hud.bossHp}
+                bossMaxHp={hud.bossMaxHp}
+                exitOpen={hud.exitOpen}
+                archetypeName={hud.archetypeName}
+                archetypeBadge={hud.archetypeBadge}
+                energy={hud.energy}
+                hp={hud.hp}
+                isBossActive={hud.bossMaxHp > 0}
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex w-full justify-center gap-2">
-          <TouchButton label="←" ariaLabel="向左" onClick={withState((s) => queueDir(s, 'left'))} />
-          <TouchButton label="衝刺" ariaLabel="衝刺" accent onClick={withState((s) => dash(s))} />
-          <TouchButton label="→" ariaLabel="向右" onClick={withState((s) => queueDir(s, 'right'))} />
-        </div>
-        <div className="flex w-full justify-center">
-          <TouchButton label="↓" ariaLabel="向下" onClick={withState((s) => queueDir(s, 'down'))} />
-        </div>
-      </div>
-
-      <p className="mt-3 text-center text-xs text-slate-500">
-        方向鍵／WASD 轉向 · Space 衝刺 · P 暫停 ·{' '}
-        <span className="md:hidden">畫面滑動轉向、輕點衝刺</span>
-        <span className="hidden md:inline">
-          {activeChallenge
-            ? `目標：${activeChallenge.goalLabel}`
-            : hud.ironsnake
-              ? '硬派：一擊即死'
-              : hud.daily
-                ? '今日挑戰・同種子可比'
-                : `目標：抵達第 ${MAX_FLOOR} 層並擊敗首領`}
-        </span>
-      </p>
+      )}
 
       {hud.phase === 'relic' && state && (
         <RelicPicker

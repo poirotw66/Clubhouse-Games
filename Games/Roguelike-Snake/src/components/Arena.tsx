@@ -50,10 +50,17 @@ export const Arena = forwardRef<ArenaHandle>(function Arena(_props, ref) {
 
   return (
     <div ref={wrapRef} className="w-full flex justify-center">
-      <canvas
-        ref={canvasRef}
-        className="rounded-2xl border border-slate-700/70 shadow-[0_0_40px_rgba(15,118,110,0.15)] touch-none"
-      />
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          className="rounded-2xl border border-slate-700/70 shadow-[0_0_40px_rgba(15,118,110,0.15)] touch-none"
+        />
+        {/* Holographic sci-fi corner brackets */}
+        <div className="pointer-events-none absolute top-1.5 left-1.5 w-3.5 h-3.5 border-t-2 border-l-2 border-cyan-400/80 rounded-tl-sm" />
+        <div className="pointer-events-none absolute top-1.5 right-1.5 w-3.5 h-3.5 border-t-2 border-r-2 border-cyan-400/80 rounded-tr-sm" />
+        <div className="pointer-events-none absolute bottom-1.5 left-1.5 w-3.5 h-3.5 border-b-2 border-l-2 border-cyan-400/80 rounded-bl-sm" />
+        <div className="pointer-events-none absolute bottom-1.5 right-1.5 w-3.5 h-3.5 border-b-2 border-r-2 border-cyan-400/80 rounded-br-sm" />
+      </div>
     </div>
   );
 });

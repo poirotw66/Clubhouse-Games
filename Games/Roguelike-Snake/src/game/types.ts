@@ -60,6 +60,7 @@ export type GameEventType =
   | 'hurt'
   | 'kill'
   | 'dash'
+  | 'pulse'
   | 'bossHit'
   | 'bossDown'
   | 'exit'
@@ -129,6 +130,7 @@ export interface GameState {
   invulnUntil: number;
   dashReadyAt: number;
   dashUntil: number;
+  pulseReadyAt: number;
   ghostUsed: boolean;
   echoCount: number;
   dashCount: number;

@@ -32,9 +32,13 @@ import {
   createRun,
   dash,
   enforceIronsnakeHp,
+  PULSE_COST,
+  PULSE_COOLDOWN_MS,
   relicOfferCount,
   tick,
+  venomPulse,
 } from '../src/game/engine.js';
+import { getRadarTelemetry } from '../src/game/radar.js';
 import {
   RELICS,
   isIronsnakeDeadRelic,
@@ -510,6 +514,69 @@ function expectDailyShareText(): void {
   assert.equal(failed.includes('身分'), false);
 }
 
+function expectVenomPulseMechanics(): void {
+  const state = createEmptyState();
+  setSnake(
+    state,
+    [
+      { x: 10, y: 10 },
+      { x: 9, y: 10 },
+      { x: 8, y: 10 },
+      { x: 7, y: 10 },
+    ],
+    'right',
+  );
+
+  state.energy = 20;
+  assert.equal(venomPulse(state), false, 'Pulse should fail with < 40 energy');
+  assert.equal(state.energy, 20);
+
+  state.energy = 60;
+  state.projectiles = [
+    { id: 1, pos: { x: 11, y: 10 }, prev: { x: 12, y: 10 }, dir: 'left' },
+    { id: 2, pos: { x: 2, y: 2 }, prev: { x: 2, y: 2 }, dir: 'left' },
+  ];
+  state.enemies = [
+    { id: 101, type: 'wisp', pos: { x: 11, y: 11 }, prev: { x: 11, y: 11 }, offset: 0 },
+    { id: 102, type: 'wisp', pos: { x: 1, y: 1 }, prev: { x: 1, y: 1 }, offset: 0 },
+  ];
+
+  const ok = venomPulse(state);
+  assert.equal(ok, true, 'Pulse should succeed with >= 40 energy');
+  assert.equal(state.energy, 20, 'Pulse should consume 40 energy');
+  assert.equal(state.projectiles.length, 1, 'Near projectile should be destroyed');
+  assert.equal(state.projectiles[0].id, 2, 'Far projectile should remain');
+  assert.equal(state.enemies.length, 1, 'Near enemy should be defeated');
+  assert.equal(state.enemies[0].id, 102, 'Far enemy should remain');
+  assert.ok(state.events.some((e) => e.type === 'pulse'), 'Pulse event should be pushed');
+
+  state.energy = 80;
+  assert.equal(venomPulse(state), false, 'Pulse should be on cooldown');
+}
+
+function expectRadarTelemetryLogic(): void {
+  const state = createEmptyState();
+  setSnake(
+    state,
+    [
+      { x: 10, y: 10 },
+      { x: 9, y: 10 },
+      { x: 8, y: 10 },
+      { x: 7, y: 10 },
+    ],
+    'right',
+  );
+  state.relics = ['swift', 'tide'];
+
+  const tel = getRadarTelemetry(state);
+  assert.equal(tel.riskLevel, 'safe', 'Open room should be safe');
+  assert.ok(tel.clearance.ahead > 0, 'Clearance ahead should be positive');
+  assert.ok(tel.clearance.left > 0, 'Clearance left should be positive');
+  assert.ok(tel.clearance.right > 0, 'Clearance right should be positive');
+  assert.equal(tel.evolutionTier.includes('幼生體'), true);
+  assert.equal(tel.archetypeName, '疾風衝刺流');
+}
+
 expectSpitterOnlyFiresWhenAligned();
 expectCursedFruitUsesFlatScore();
 expectBloodDashOnlyCostsHp();
@@ -521,5 +588,7 @@ expectIronsnakeRules();
 expectStartingBuilds();
 expectDailyStreakMath();
 expectDailyShareText();
+expectVenomPulseMechanics();
+expectRadarTelemetryLogic();
 
 console.log('Roguelike Snake logic self-check passed.');

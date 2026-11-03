@@ -401,6 +401,7 @@ export function createRun(seed: number, options: CreateRunOptions = {}): GameSta
     invulnUntil: 0,
     dashReadyAt: 0,
     dashUntil: 0,
+    pulseReadyAt: 0,
     ghostUsed: false,
     echoCount: 0,
     dashCount: 0,
@@ -878,6 +879,48 @@ export function dash(state: GameState): void {
       return;
     }
   }
+}
+
+export const PULSE_COST = 40;
+export const PULSE_COOLDOWN_MS = 2500;
+export const PULSE_RADIUS = 3;
+
+export function venomPulse(state: GameState): boolean {
+  if (state.phase !== 'playing') return false;
+  if (state.time < state.pulseReadyAt) return false;
+  if (state.energy < PULSE_COST) return false;
+
+  state.energy -= PULSE_COST;
+  state.pulseReadyAt = state.time + PULSE_COOLDOWN_MS;
+
+  const head = state.snake[0];
+  if (!head) return false;
+
+  addEffect(state, 'ring', head, '#10b981', PULSE_RADIUS, 380);
+  addEffect(state, 'burst', head, '#06b6d4', PULSE_RADIUS, 300);
+
+  const prevProj = state.projectiles.length;
+  state.projectiles = state.projectiles.filter((p) => chebyshev(p.pos, head) > PULSE_RADIUS + 1);
+  const clearedProj = prevProj - state.projectiles.length;
+
+  let killed = 0;
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const enemy = state.enemies[i];
+    if (chebyshev(enemy.pos, head) <= PULSE_RADIUS) {
+      removeEnemy(state, i, true);
+      killed += 1;
+    }
+  }
+
+  if (state.boss && chebyshev(state.boss.pos, head) <= PULSE_RADIUS + 1) {
+    damageBoss(state);
+  }
+
+  state.events.push({
+    type: 'pulse',
+    text: killed > 0 || clearedProj > 0 ? `猛毒脈衝！淨化 ${killed} 敵 · 破除 ${clearedProj} 毒液` : '猛毒脈衝！',
+  });
+  return true;
 }
 
 function applyRelic(state: GameState, id: RelicId): void {
