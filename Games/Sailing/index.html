@@ -60,6 +60,7 @@
         <div class="stat"><span class="label">航速</span><span id="hud-speed">0.0 kn</span></div>
         <div class="stat"><span class="label">航向</span><span id="hud-point">—</span></div>
       </div>
+      <div id="tactical-ticker" class="tactical-ticker">航速 0.0 kn · VMG 0.0 kn · 起航準備</div>
       <div class="top-actions">
         <button type="button" id="btn-easy" class="btn ghost active" aria-pressed="true">簡單模式</button>
         <button type="button" id="btn-autotrim" class="btn ghost active" aria-pressed="true">自動調帆</button>
@@ -68,67 +69,187 @@
       </div>
     </header>
 
-    <aside class="race-panel" aria-live="polite">
-      <div class="stat"><span class="label">下一門</span><span id="hud-mark">—</span></div>
-      <div class="stat"><span class="label">距離</span><span id="hud-dist">—</span></div>
-      <div class="stat"><span class="label">進度</span><span id="hud-progress">0 / 5</span></div>
-      <div class="stat"><span class="label">時間</span><span id="hud-time">0:00.0</span></div>
-      <div class="stat"><span class="label">最佳</span><span id="hud-best">—</span></div>
-      <ol id="hud-splits" class="splits"></ol>
-    </aside>
-
-    <div class="nav-stack">
-      <div class="cp-compass" title="白色＝閘門方向；綠色＝建議航向（上方為船首）">
-        <div class="rose-ring small">
-          <span class="rose-n">船首</span>
-          <div id="cp-arrow" class="cp-arrow"></div>
-          <div id="cp-guide" class="cp-guide" hidden></div>
+    <!-- 美洲盃雙翼電競戰術駕駛艙 (Americas Cup Dual-Wing Tactical Racing Cockpit) -->
+    <div id="cockpit" class="cockpit-container">
+      <!-- 左翼：極限風向羅盤雷達、視風/真風向量、VMG 實效速度折線圖與帆索效率儀 -->
+      <aside id="cockpit-left" class="cockpit-wing left-wing" aria-label="飛行遙測與風向儀表">
+        <div class="wing-header">
+          <span class="wing-title"><span class="wing-icon">⎈</span> 飛行遙測 · 極限風向羅盤</span>
+          <span class="cockpit-badge">AC-75 TELEMETRY</span>
         </div>
-        <span class="rose-label">下一門</span>
-        <span id="hud-guide" class="guide-tip" hidden>—</span>
-      </div>
 
-      <div class="wind-rose" title="箭頭指向風吹來的方向；紅區＝頂風無法前進">
-        <div class="rose-ring wind">
-          <span class="rose-n">船首 ▲</span>
-          <span class="rose-hint left">左</span>
-          <span class="rose-hint right">右</span>
-          <div id="wind-needle" class="wind-needle">
-            <span class="wind-from-tag">風</span>
+        <div class="polar-radar-card">
+          <div class="cp-compass" title="白色＝閘門方向；綠色＝建議航向（上方為船首）">
+            <div class="rose-ring small">
+              <span class="rose-n">船首</span>
+              <div id="cp-arrow" class="cp-arrow"></div>
+              <div id="cp-guide" class="cp-guide" hidden></div>
+            </div>
+            <span class="rose-label">下一門</span>
+            <span id="hud-guide" class="guide-tip" hidden>—</span>
           </div>
-          <div class="boat-pip"></div>
-        </div>
-        <div class="wind-meta">
-          <span id="hud-awa">相對風 —°</span>
-          <span id="hud-wind">— m/s</span>
-          <span id="hud-wind-tip" class="wind-tip">—</span>
-        </div>
-      </div>
 
-      <div class="trim-panel">
-        <div class="trim-head">
-          <span>帆角</span>
-          <span id="hud-trim">—</span>
+          <div class="wind-rose" title="橙色＝真風；青色＝視風；紅區＝頂風無法前進">
+            <div class="rose-ring wind">
+              <span class="rose-n">船首 ▲</span>
+              <span class="rose-hint left">左</span>
+              <span class="rose-hint right">右</span>
+              <!-- True wind needle (Orange) -->
+              <div id="wind-needle" class="wind-needle" title="真風來向">
+                <span class="wind-from-tag">真風</span>
+              </div>
+              <!-- Apparent wind needle (Cyan) -->
+              <div id="wind-app-needle" class="wind-app-needle" title="視風來向">
+                <span class="wind-app-tag">視風</span>
+              </div>
+              <div class="boat-pip"></div>
+            </div>
+            <div class="wind-meta">
+              <div class="wind-vector-chips">
+                <span id="hud-twa-badge" class="vector-badge twa">真風 TWA —°</span>
+                <span id="hud-awa-badge" class="vector-badge awa">視風 AWA —°</span>
+              </div>
+              <span id="hud-wind" class="wind-val">— m/s</span>
+              <span id="hud-awa" hidden>相對風 —°</span>
+              <span id="hud-wind-tip" class="wind-tip">—</span>
+            </div>
+          </div>
         </div>
-        <div class="trim-track" aria-hidden="true">
-          <div id="trim-ideal" class="trim-ideal"></div>
-          <div id="trim-fill" class="trim-fill"></div>
-        </div>
-        <div class="trim-keys">
-          <span><kbd>Z</kbd> 收帆</span>
-          <span><kbd>X</kbd> 放帆</span>
-          <span><kbd>C</kbd> 自動</span>
-        </div>
-      </div>
 
-      <canvas id="minimap" width="344" height="344" aria-label="航線小地圖"></canvas>
+        <!-- VMG Velocity Made Good 航速折線圖與效能儀 -->
+        <div class="vmg-card">
+          <div class="vmg-head">
+            <span class="vmg-title">最佳迎風速度 VMG</span>
+            <span id="hud-vmg-val" class="vmg-val">0.0 kn</span>
+          </div>
+          <div class="vmg-sub">
+            <span id="hud-vmg-eff" class="vmg-eff">0% 迎風效率</span>
+            <span class="vmg-legend-mini">
+              <span class="leg-dot spd"></span> 航速
+              <span class="leg-dot vmg"></span> VMG
+            </span>
+          </div>
+          <canvas id="vmg-canvas" width="220" height="48" aria-label="航速與 VMG 實時折線圖"></canvas>
+        </div>
+
+        <!-- 帆索鬆緊度與攻角效率儀 -->
+        <div class="trim-panel">
+          <div class="trim-head">
+            <span>帆索張角</span>
+            <span id="cockpit-trim-mode" class="trim-mode-badge auto">自動調帆</span>
+            <span id="hud-trim">—</span>
+          </div>
+          <div class="trim-track" aria-hidden="true">
+            <div id="trim-ideal" class="trim-ideal"></div>
+            <div id="trim-fill" class="trim-fill"></div>
+          </div>
+          <div class="trim-keys">
+            <span><kbd>Z</kbd> 收帆</span>
+            <span><kbd>X</kbd> 放帆</span>
+            <span><kbd>C</kbd> 自動</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 右翼：航海大師海圖導航、對手浮標秒差 Delta、風湧洋流戰術錦囊 -->
+      <aside id="cockpit-right" class="cockpit-wing right-wing" aria-label="航海大師海圖與戰術指揮">
+        <div class="wing-header">
+          <span class="wing-title"><span class="wing-icon">◈</span> 航海大師 · 戰術競技中心</span>
+          <span class="cockpit-badge">RACE COMMAND</span>
+        </div>
+
+        <!-- 高精海圖導航雷達 -->
+        <div class="chart-radar-card">
+          <canvas id="minimap" width="344" height="344" aria-label="航線海圖導航雷達"></canvas>
+        </div>
+
+        <!-- 航標進度與對手/幽靈船秒差 Delta -->
+        <div class="race-panel" aria-live="polite">
+          <div class="race-panel-header">
+            <span class="panel-tag">航標計時</span>
+            <div id="hud-delta-badge" class="delta-badge neutral">計時競速 · 挑戰自我</div>
+          </div>
+          <div class="race-stats-grid">
+            <div class="stat"><span class="label">下一門</span><span id="hud-mark">—</span></div>
+            <div class="stat"><span class="label">距離</span><span id="hud-dist">—</span></div>
+            <div class="stat"><span class="label">進度</span><span id="hud-progress">0 / 5</span></div>
+            <div class="stat"><span class="label">時間</span><span id="hud-time">0:00.0</span></div>
+            <div class="stat"><span class="label">最佳</span><span id="hud-best">—</span></div>
+          </div>
+          <ol id="hud-splits" class="splits"></ol>
+        </div>
+
+        <!-- 戰術導航錦囊 -->
+        <div class="tactical-playbook-card">
+          <div class="playbook-head">
+            <span class="playbook-title">航海戰術錦囊</span>
+            <span class="playbook-hint">點擊查看戰術指引</span>
+          </div>
+          <div class="tactical-grid">
+            <button type="button" class="tactic-card active" data-tactic="reach" title="橫風疾馳：推力最高">
+              <span class="tactic-icon">⚡</span>
+              <span class="tactic-text">
+                <span class="tactic-name">橫風疾馳</span>
+                <span class="tactic-sub">極速衝刺</span>
+              </span>
+            </button>
+            <button type="button" class="tactic-card" data-tactic="tack" title="搶風轉向：沿 Layline 走 Z 字迎風">
+              <span class="tactic-icon">🌀</span>
+              <span class="tactic-text">
+                <span class="tactic-name">搶風轉向</span>
+                <span class="tactic-sub">換舷迎風</span>
+              </span>
+            </button>
+            <button type="button" class="tactic-card" data-tactic="nogo" title="頂風死角：小於 32° 推力歸零">
+              <span class="tactic-icon">🛑</span>
+              <span class="tactic-text">
+                <span class="tactic-name">頂風死角</span>
+                <span class="tactic-sub">轉舵脫離</span>
+              </span>
+            </button>
+            <button type="button" class="tactic-card" data-tactic="run" title="順風放帆：放鬆帆索捕獲最大推力">
+              <span class="tactic-icon">💨</span>
+              <span class="tactic-text">
+                <span class="tactic-name">順風放帆</span>
+                <span class="tactic-sub">順水推舟</span>
+              </span>
+            </button>
+          </div>
+          <div id="hud-tactical-tip" class="tactical-tip-banner">⚡ 建議戰術：橫風疾馳 · 氣動推力最高</div>
+        </div>
+      </aside>
     </div>
 
-    <div class="key-strip" aria-hidden="true">
-      <span class="key-go"><kbd>↑</kbd> 加速</span>
-      <span><kbd>←</kbd><kbd>→</kbd> 轉彎</span>
-      <span><kbd>空白</kbd> 換舷</span>
-      <span><kbd>R</kbd> 重開</span>
+    <!-- 電競鍵盤操作指南 HUD (Esports Controls HUD) -->
+    <div class="cockpit-controls key-strip" id="cockpit-controls" aria-label="電競鍵盤操作指南">
+      <div class="key-capsule">
+        <kbd class="key-cap" data-code="KeyA">A</kbd>
+        <kbd class="key-cap" data-code="KeyD">D</kbd>
+        <span class="key-label">轉舵</span>
+      </div>
+      <div class="key-capsule key-go">
+        <kbd class="key-cap" data-code="KeyW">W</kbd>
+        <kbd class="key-cap" data-code="ArrowUp">↑</kbd>
+        <span class="key-label">加速</span>
+      </div>
+      <div class="key-capsule">
+        <kbd class="key-cap" data-code="KeyS">S</kbd>
+        <kbd class="key-cap" data-code="KeyZ">Z</kbd>
+        <kbd class="key-cap" data-code="KeyX">X</kbd>
+        <span class="key-label">調帆</span>
+      </div>
+      <div class="key-capsule">
+        <kbd class="key-cap" data-code="Space">空白</kbd>
+        <span class="key-label">搶風換舷</span>
+      </div>
+      <div class="key-capsule">
+        <kbd class="key-cap" data-code="KeyC">C</kbd>
+        <span class="key-label">自動</span>
+      </div>
+      <div class="key-capsule">
+        <kbd class="key-cap" data-code="KeyR">R</kbd>
+        <span class="key-label">重開</span>
+      </div>
     </div>
 
     <!-- Bow cues: green = recommended forward course, orange = wind flow. -->

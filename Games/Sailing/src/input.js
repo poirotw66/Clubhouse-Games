@@ -8,12 +8,15 @@ export function createInput(root) {
 
   // ArrowUp / W = hold course (easy-mode forward assist), not trim — beginners
   // reach for ↑ expecting "go", and binding it to sheet-in was the opposite.
-  const STEER = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyW', 'KeyZ', 'KeyX']);
+  const STEER = new Set([
+    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space',
+    'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyZ', 'KeyX', 'KeyQ', 'KeyE', 'KeyC',
+  ]);
 
   const onKey = (e, down) => {
     if (e.repeat && down) return;
     keys[down ? 'add' : 'delete'](e.code);
-    if (STEER.has(e.code) || e.code === 'KeyA' || e.code === 'KeyD' || e.code === 'KeyQ' || e.code === 'KeyE') {
+    if (STEER.has(e.code)) {
       e.preventDefault();
     }
   };
@@ -174,6 +177,9 @@ export function createInput(root) {
       keys.delete(code);
       return true;
     },
+    isPressed(code) {
+      return keys.has(code);
+    },
     sample(dt) {
       if (!dragging) lookYaw *= Math.exp(-2.2 * dt);
 
@@ -192,6 +198,7 @@ export function createInput(root) {
       if (
         keys.has('KeyE') || keys.has('KeyX')
         || keys.has('BracketRight') || keys.has('Period') || held.trimOut
+        || keys.has('KeyS')
       ) {
         trimDelta += 1;
       }

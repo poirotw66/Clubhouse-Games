@@ -33,6 +33,7 @@ import {
 } from './progress.js';
 import { createGhostPlayback, createGhostRecorder, loadGhost, saveGhost } from './ghost.js';
 import { createRival, pickRaceRivals } from './rivals.js';
+import { createCockpit } from './cockpit.js';
 
 const WAVE_AMP = 1.0;
 const WAVE_AMP_EASY = 0.45;
@@ -219,6 +220,14 @@ function startGame(gl, canvas) {
     return input.easy ? 'easy' : 'pro';
   }
 
+  function showToast(text) {
+    hud.toast.textContent = text;
+    hud.toast.classList.add('show');
+    toastTimer = 2.2;
+  }
+
+  const cockpit = createCockpit(document.body, { showToast });
+
   function syncEasyUi() {
     const easy = input.easy;
     document.body.classList.toggle('easy-mode', easy);
@@ -230,17 +239,7 @@ function startGame(gl, canvas) {
     document.querySelectorAll('[data-hold="trimIn"], [data-hold="trimOut"]').forEach((el) => {
       el.hidden = easy;
     });
-    const trimPanel = document.querySelector('.trim-panel');
-    if (trimPanel) trimPanel.hidden = easy;
-    if (hud.auto) hud.auto.hidden = easy;
-    const windRose = document.querySelector('.wind-rose');
-    if (windRose) windRose.hidden = easy;
-  }
-
-  function showToast(text) {
-    hud.toast.textContent = text;
-    hud.toast.classList.add('show');
-    toastTimer = 2.2;
+    cockpit.syncMode(easy);
   }
 
   if (input.easy) input.autoTrim = true;
@@ -321,6 +320,9 @@ function startGame(gl, canvas) {
   }
 
   function beginRaceSession() {
+    $('#cockpit')?.classList.remove('hidden');
+    $('#cockpit-controls')?.classList.remove('hidden');
+    $('#tactical-ticker')?.classList.remove('hidden');
     if (playMode === 'regatta') {
       regattaQueue = listCourses().map((c) => c.id);
       regattaIndex = 0;
@@ -552,6 +554,7 @@ function startGame(gl, canvas) {
     for (const rival of rivals) rival.reset(course.start, wind);
     camera.snap(boat);
     resultOverlay.hide();
+    cockpit.reset();
     hud.countdown.hidden = false;
     hud.countdown.textContent = '3';
     lastTrimSweet = false;
@@ -831,6 +834,17 @@ function startGame(gl, canvas) {
     updateGuide();
     drawMinimap();
     updateStandings();
+    cockpit.update({
+      boat,
+      wind,
+      marks,
+      rivals,
+      ghostPlayback,
+      raceTime,
+      playMode,
+      easy: input.easy,
+      dt,
+    });
   }
 
   function updateCoach(dt) {
@@ -997,6 +1011,9 @@ function startGame(gl, canvas) {
     resultOverlay.hide();
     hud.countdown.hidden = true;
     if (hud.raceStandings) hud.raceStandings.hidden = true;
+    $('#cockpit')?.classList.add('hidden');
+    $('#cockpit-controls')?.classList.add('hidden');
+    $('#tactical-ticker')?.classList.add('hidden');
     const overlay = $('#title-overlay');
     if (overlay) {
       overlay.classList.remove('hidden');
@@ -1294,6 +1311,9 @@ function startGame(gl, canvas) {
   });
 
   refreshMenuMeta();
+  $('#cockpit')?.classList.add('hidden');
+  $('#cockpit-controls')?.classList.add('hidden');
+  $('#tactical-ticker')?.classList.add('hidden');
   phase = 'menu';
   requestAnimationFrame(frame);
 }

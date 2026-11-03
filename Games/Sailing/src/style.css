@@ -378,20 +378,526 @@ body {
   border-color: rgba(44, 181, 168, 0.7);
 }
 
-.race-panel {
+/* ==========================================================================
+   美洲盃雙翼電競戰術駕駛艙 (Americas Cup Dual-Wing Tactical Racing Cockpit)
+   ========================================================================== */
+
+.cockpit-container {
   position: fixed;
-  top: 4.5rem;
-  left: 1rem;
+  inset: 0;
+  pointer-events: none;
   z-index: 10;
-  display: grid;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.cockpit-container.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.cockpit-wing {
+  position: fixed;
+  top: 4.25rem;
+  width: 250px;
+  max-height: calc(100vh - 5.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  background: rgba(6, 22, 34, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(44, 181, 168, 0.28);
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  pointer-events: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  z-index: 11;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.cockpit-wing::-webkit-scrollbar {
+  display: none;
+}
+
+.cockpit-wing.left-wing {
+  left: 1rem;
+}
+
+.cockpit-wing.right-wing {
+  right: 1rem;
+}
+
+.wing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(232, 244, 246, 0.12);
+}
+
+.wing-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #e8f4f6;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  letter-spacing: 0.04em;
+}
+
+.wing-icon {
+  color: #2cb5a8;
+  font-size: 0.95rem;
+}
+
+.cockpit-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(44, 181, 168, 0.2);
+  border: 1px solid rgba(44, 181, 168, 0.6);
+  color: #8ef7d2;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 6px rgba(44, 181, 168, 0.5);
+}
+
+/* Polar radar & compass */
+.polar-radar-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 0.45rem;
-  padding: 0.85rem 1rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  backdrop-filter: blur(10px);
-  min-width: 12rem;
-  max-width: 15rem;
+  background: rgba(7, 24, 36, 0.55);
+  border: 1px solid rgba(232, 244, 246, 0.1);
+  border-radius: 12px;
+  padding: 0.6rem;
+}
+
+.wind-app-needle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 38px;
+  margin-left: -1.5px;
+  margin-top: -38px;
+  transform-origin: 50% 100%;
+  border-radius: 2px 2px 0 0;
+  z-index: 3;
+  background: linear-gradient(180deg, #8ef7d2, #2cb5a8);
+  box-shadow: 0 0 10px rgba(44, 181, 168, 0.85);
+}
+
+.wind-app-needle .wind-app-tag {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #071824;
+  background: #2cb5a8;
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+  line-height: 1.2;
+}
+
+.wind-vector-chips {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.vector-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.vector-badge.twa {
+  background: rgba(240, 122, 42, 0.16);
+  border: 1px solid rgba(240, 122, 42, 0.45);
+  color: #ffb47a;
+}
+
+.vector-badge.awa {
+  background: rgba(44, 181, 168, 0.16);
+  border: 1px solid rgba(44, 181, 168, 0.45);
+  color: #8ef7d2;
+}
+
+/* VMG card & sparkline */
+.vmg-card {
+  background: rgba(7, 24, 36, 0.55);
+  border: 1px solid rgba(232, 244, 246, 0.1);
+  border-radius: 12px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vmg-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.vmg-title {
+  font-size: 0.72rem;
+  color: rgba(232, 244, 246, 0.75);
+  font-weight: 600;
+}
+
+.vmg-val {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #f5a623;
+  text-shadow: 0 0 10px rgba(245, 166, 35, 0.5);
+}
+
+.vmg-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.68rem;
+  color: #8ef7d2;
+}
+
+.vmg-eff {
+  font-weight: 700;
+}
+
+.vmg-legend-mini {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.65rem;
+  color: rgba(232, 244, 246, 0.65);
+}
+
+.leg-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.leg-dot.spd {
+  background: #2cb5a8;
+  box-shadow: 0 0 4px #2cb5a8;
+}
+
+.leg-dot.vmg {
+  background: #f5a623;
+  box-shadow: 0 0 4px #f5a623;
+}
+
+#vmg-canvas {
+  width: 100%;
+  height: 48px;
+  border-radius: 6px;
+  background: rgba(4, 16, 24, 0.75);
+  border: 1px solid rgba(44, 181, 168, 0.2);
+  display: block;
+}
+
+/* Trim panel inside left wing */
+.cockpit-wing .trim-panel {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 244, 246, 0.1);
+  background: rgba(7, 24, 36, 0.55);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.trim-mode-badge {
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  background: rgba(232, 244, 246, 0.1);
+  color: rgba(232, 244, 246, 0.75);
+  border: 1px solid rgba(232, 244, 246, 0.2);
+}
+
+.trim-mode-badge.auto {
+  background: rgba(44, 181, 168, 0.2);
+  color: #8ef7d2;
+  border-color: rgba(44, 181, 168, 0.5);
+}
+
+/* Right wing chart radar card */
+.chart-radar-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(7, 24, 36, 0.55);
+  border: 1px solid rgba(44, 181, 168, 0.25);
+  position: relative;
+  padding: 0.35rem;
+}
+
+.chart-radar-card #minimap {
+  width: 100%;
+  height: auto;
+  max-height: 160px;
+  border-radius: 8px;
+  display: block;
+}
+
+/* Race panel inside right wing */
+.cockpit-wing .race-panel {
+  position: static;
+  top: auto;
+  left: auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  background: rgba(7, 24, 36, 0.55);
+  border: 1px solid rgba(232, 244, 246, 0.1);
+  border-radius: 12px;
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.race-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.panel-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(232, 244, 246, 0.75);
+}
+
+.delta-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.delta-badge.ahead {
+  background: rgba(44, 181, 168, 0.25);
+  border: 1px solid #2cb5a8;
+  color: #8ef7d2;
+  text-shadow: 0 0 6px rgba(44, 181, 168, 0.5);
+}
+
+.delta-badge.behind {
+  background: rgba(240, 122, 42, 0.25);
+  border: 1px solid #f07a2a;
+  color: #ffb47a;
+}
+
+.delta-badge.neutral {
+  background: rgba(232, 244, 246, 0.1);
+  border: 1px solid rgba(232, 244, 246, 0.2);
+  color: rgba(232, 244, 246, 0.7);
+}
+
+.race-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* Tactical Sailing Playbook */
+.tactical-playbook-card {
+  background: rgba(7, 24, 36, 0.55);
+  border: 1px solid rgba(232, 244, 246, 0.1);
+  border-radius: 12px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.playbook-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.playbook-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #e8f4f6;
+}
+
+.playbook-hint {
+  font-size: 0.62rem;
+  color: rgba(232, 244, 246, 0.5);
+}
+
+.tactical-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.tactic-card {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(6, 22, 34, 0.6);
+  border: 1px solid rgba(232, 244, 246, 0.12);
+  border-radius: 8px;
+  padding: 0.35rem 0.45rem;
+  color: var(--foam);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.tactic-card:hover {
+  background: rgba(44, 181, 168, 0.15);
+  border-color: rgba(44, 181, 168, 0.4);
+}
+
+.tactic-card.active {
+  background: rgba(44, 181, 168, 0.22);
+  border-color: #2cb5a8;
+  box-shadow: 0 0 10px rgba(44, 181, 168, 0.35), inset 0 0 0 1px #2cb5a8;
+}
+
+.tactic-card[data-tactic="nogo"].active {
+  background: rgba(255, 90, 70, 0.22);
+  border-color: #ff5a46;
+  box-shadow: 0 0 10px rgba(255, 90, 70, 0.4), inset 0 0 0 1px #ff5a46;
+}
+
+.tactic-icon {
+  font-size: 1rem;
+}
+
+.tactic-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.tactic-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.tactic-sub {
+  font-size: 0.58rem;
+  color: rgba(232, 244, 246, 0.6);
+}
+
+.tactical-tip-banner {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(12, 58, 74, 0.65);
+  border: 1px solid rgba(44, 181, 168, 0.3);
+  color: #8ef7d2;
+}
+
+/* Esports Controls HUD */
+.cockpit-controls {
+  position: fixed;
+  bottom: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+  justify-content: center;
+  align-items: center;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(6, 22, 34, 0.82);
+  border: 1px solid rgba(44, 181, 168, 0.3);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.42);
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.cockpit-controls.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.key-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: rgba(232, 244, 246, 0.85);
+}
+
+.key-cap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #8ef7d2;
+  background: rgba(7, 24, 36, 0.9);
+  border: 1px solid rgba(44, 181, 168, 0.45);
+  border-radius: 4px;
+  box-shadow: 0 2px 0 rgba(44, 181, 168, 0.35);
+  transition: all 0.1s ease;
+}
+
+.key-cap.pressed {
+  transform: translateY(2px);
+  box-shadow: 0 0 8px #2cb5a8;
+  background: #2cb5a8;
+  color: #071824;
+}
+
+.key-label {
+  font-size: 0.7rem;
+  color: rgba(232, 244, 246, 0.85);
+}
+
+/* Tactical Ticker */
+.tactical-ticker {
+  display: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8ef7d2;
+  background: rgba(6, 22, 34, 0.65);
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(44, 181, 168, 0.3);
+  white-space: nowrap;
+}
+
+.tactical-ticker.hidden {
+  display: none !important;
 }
 
 .splits {
@@ -418,16 +924,6 @@ body {
 
 .splits li.done {
   color: rgba(232, 244, 246, 0.8);
-}
-
-.nav-stack {
-  position: fixed;
-  top: 4.5rem;
-  right: 1rem;
-  z-index: 10;
-  display: grid;
-  gap: 0.65rem;
-  justify-items: end;
 }
 
 .wind-rose,
@@ -1496,5 +1992,43 @@ body {
 
   .guide-tip {
     max-width: 92px;
+  }
+
+  .cockpit-wing {
+    width: min(180px, 46vw);
+    padding: 0.45rem;
+    max-height: 48vh;
+    font-size: 0.85em;
+  }
+
+  .cockpit-wing.left-wing {
+    left: 0.5rem;
+    top: 3.8rem;
+  }
+
+  .cockpit-wing.right-wing {
+    right: 0.5rem;
+    top: 3.8rem;
+  }
+
+  .chart-radar-card #minimap {
+    max-height: 110px;
+  }
+
+  .tactical-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tactical-ticker {
+    display: block;
+  }
+}
+
+@media (max-width: 900px) {
+  .cockpit-wing {
+    width: min(220px, 44vw);
+  }
+  .tactical-ticker {
+    display: block;
   }
 }
