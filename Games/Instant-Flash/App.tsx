@@ -31,9 +31,11 @@ import {
 import { OPPONENTS, opponentByIndex, type OpponentDef } from './opponents';
 import { dateKey, dailyOpponentIndex, dailySeedNumber } from './daily';
 import { RANK_LABELS } from './ranks';
-import { Sword, Info, Users, Calendar, Swords } from 'lucide-react';
+import { Sword, Info, Users, Calendar, Swords, Award } from 'lucide-react';
+import { computeDanRankStatus } from './danRank';
+import { DanRankBadge } from './components/DanRankBadge';
 
-type MenuView = 'home' | 'ladder' | 'practice';
+type MenuView = 'home' | 'ladder' | 'practice' | 'dan';
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -54,6 +56,7 @@ export default function App() {
   const dailyIdx = dailyOpponentIndex(today);
   const dailyOpp = opponentByIndex(dailyIdx);
   const todayDaily = ladder.dailyRecords.find((r) => r.date === today);
+  const danRankStatus = computeDanRankStatus(best, ladder, lastStats);
 
   const selectScenario = (id: PracticeScenario) => {
     setPracticeScenario(id);
@@ -279,9 +282,24 @@ export default function App() {
             <h1 className="text-5xl md:text-6xl font-display font-black text-transparent bg-clip-text bg-gradient-to-br from-emerald-300 to-cyan-500 mb-2 drop-shadow-sm">
               剎那一閃
             </h1>
-            <p className="text-slate-300 font-display tracking-[0.3em] mb-6 text-sm">
+            <p className="text-slate-300 font-display tracking-[0.3em] mb-4 text-sm">
               武士反應訓練
             </p>
+
+            {/* 9-Dan Rank badge preview */}
+            <div className="mb-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setMenuView('dan')}
+                className="group focus:outline-none"
+              >
+                <DanRankBadge
+                  status={danRankStatus}
+                  compact
+                  className="group-hover:scale-105 transition-transform"
+                />
+              </button>
+            </div>
 
             {(best.highScore > 0 || best.maxCombo > 0 || streak > 0) && (
               <p className="mb-4 text-xs text-slate-400 font-display tracking-wider">
@@ -311,6 +329,15 @@ export default function App() {
                 >
                   <Swords size={22} />
                   對決階梯
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMenuView('dan')}
+                  className="w-full px-8 py-3 bg-slate-800/90 text-amber-300 font-display font-bold text-lg tracking-wider border border-amber-500/40 hover:bg-slate-700/90 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Award size={18} />
+                  九段拔刀段位
                 </button>
 
                 <button
@@ -490,6 +517,81 @@ export default function App() {
               </div>
             )}
 
+            {menuView === 'dan' && (
+              <div className="space-y-3 text-left">
+                <button
+                  type="button"
+                  onClick={() => setMenuView('home')}
+                  className="text-sm text-slate-400 hover:text-slate-200 font-display tracking-wider"
+                >
+                  ← 返回
+                </button>
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                  <div>
+                    <h2 className="text-base font-bold font-display text-white">
+                      九段拔刀段位晉階榜
+                    </h2>
+                    <p className="text-slate-400 text-[11px] font-display tracking-wider">
+                      初段青竹至皆傳神速，以反應與劍技證道
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 font-display">當前段位</span>
+                    <div
+                      className="text-sm font-bold font-display"
+                      style={{ color: danRankStatus.currentRank.accent }}
+                    >
+                      {danRankStatus.currentRank.name}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 cockpit-scroll">
+                  {danRankStatus.allRanks.map((r) => (
+                    <div
+                      key={r.level}
+                      className={`rounded-lg border p-3 transition-all ${
+                        r.unlocked
+                          ? 'bg-slate-900/80 border-slate-700'
+                          : 'bg-slate-950/60 border-slate-800/80 opacity-60'
+                      }`}
+                      style={r.unlocked ? { borderColor: `${r.accent}66` } : undefined}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full"
+                            style={{ backgroundColor: r.unlocked ? r.accent : '#475569' }}
+                          />
+                          <span
+                            className="font-display font-bold text-sm md:text-base"
+                            style={{ color: r.unlocked ? r.accent : '#94a3b8' }}
+                          >
+                            {r.name}
+                          </span>
+                          <span className="text-xs text-slate-400 font-display hidden sm:inline">
+                            【{r.title}】
+                          </span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-display font-bold px-1.5 py-0.5 rounded border ${
+                            r.unlocked
+                              ? 'border-emerald-500/50 text-emerald-300 bg-emerald-950/50'
+                              : 'border-slate-800 text-slate-500 bg-slate-900/50'
+                          }`}
+                        >
+                          {r.unlocked ? '已達成' : '未解鎖'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-300 leading-snug">
+                        {r.requirement}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mt-8 text-left bg-slate-900/85 p-5 rounded-lg border border-slate-600/60 text-sm text-slate-300 leading-relaxed shadow-xl">
               <div className="flex items-center gap-2 mb-2 text-emerald-400 font-bold uppercase">
                 <Info size={16} /> 玩法說明
@@ -497,7 +599,7 @@ export default function App() {
               <ol className="list-decimal pl-5 space-y-2">
                 <li>
                   按住 <strong className="text-cyan-300">左半／A</strong> 或{' '}
-                  <strong className="text-amber-300">右半／D</strong> 進入拔刀待機。
+                  <strong className="text-amber-300">右半／D</strong> 進入拔刀待機（亦可按 <strong className="text-emerald-300">Space／J</strong> 快速引刀）。
                 </li>
                 <li>
                   看敵人暗器路線：<span className="text-cyan-300">上偏＝左斬</span>、
@@ -510,7 +612,7 @@ export default function App() {
                   <strong className="text-rose-300">佯攻</strong>
                   ：紅閃後暗器消失——不要放開，看破得分。
                 </li>
-                <li>太早放開／錯邊＝受罰；太晚＝受傷。</li>
+                <li>太早放開／錯邊＝受罰；太晚＝受傷。按 <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-300 text-xs font-mono">R</kbd> 可快速再戰。</li>
               </ol>
               <p className="md:hidden text-emerald-400/90 text-xs mt-4 text-center">
                 觸控：按住左或右半螢幕待機，放開即反擊
@@ -537,6 +639,12 @@ export default function App() {
           opponent={activeOpponent}
           seed={runSeed}
           onGameOver={handleGameOver}
+          onRestart={restartSame}
+          onBackToMenu={() => {
+            setGameState(GameState.MENU);
+            setMenuView('home');
+            setLastStats(null);
+          }}
         />
       )}
 
@@ -567,6 +675,7 @@ export default function App() {
             ...(lastStats.rank
               ? [{ label: '評價', value: RANK_LABELS[lastStats.rank] }]
               : []),
+            { label: '居合段位', value: danRankStatus.currentRank.name },
             ...(playMode === 'practice'
               ? [
                   { label: '練習劇本', value: SCENARIO_LABELS[practiceScenario] },
