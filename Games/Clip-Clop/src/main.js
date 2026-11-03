@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CFG, LEG_CFG, MOD, dailyInfo, todayStr, makeLegStates, makeHorseState, simHorse } from './physics.js';
+import { SteeplechaseManager } from './steeplechase.js';
+import { CockpitManager } from './cockpit.js';
 
 /* ================================================================
    Daily challenge display
@@ -72,6 +74,31 @@ const I18N = {
     cadence_step1:'第 1 拍', cadence_step2:'第 2 拍',
     cadence_note1:'對角 A 組踢地推進', cadence_note2:'對角 B 組交替推進',
     combo_trot:'完美快步！', combo_gallop:'疾馳連擊！', combo_fever:'🔥 極速狂飆！',
+    cockpit_left_title:'遙測與體徵儀表',
+    cockpit_right_title:'戰術雷達與賽事情報',
+    telemetry_cadence:'馬匹步態頻率 (RPM)',
+    gait_idle:'靜止',
+    rhythm_bar_title:'最佳跨欄節奏引導條',
+    rhythm_ready:'對角交替蓄力中',
+    radar_title:'障礙賽道等高線雷達',
+    delta_title:'領先差距秒數 Delta',
+    delta_lead:'領先',
+    delta_lag:'落後',
+    weather_title:'天氣與破風遙測儀',
+    telem_wind:'風向風阻',
+    telem_ground:'賽道抓地',
+    telem_aero:'破風係數 Cd',
+    tips_title:'騎術大師錦囊',
+    mat_shift:'壓身破風',
+    mat_jump:'節奏跨欄',
+    mat_trim_l:'左傾重心',
+    mat_trim_r:'右傾重心',
+    mat_reset:'起身重整',
+    mob_btn_aero:'破風',
+    mob_btn_jump:'跨欄',
+    perfect_hurdle:'★ PERFECT HURDLE 完美跨欄！',
+    great_hurdle:'順利跨欄！',
+    hurdle_clatter:'💥 撞倒障礙欄架！',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
   },
@@ -130,6 +157,31 @@ const I18N = {
     cadence_step1:'BEAT 1', cadence_step2:'BEAT 2',
     cadence_note1:'Diagonal Pair A stamps down', cadence_note2:'Diagonal Pair B alternates',
     combo_trot:'PERFECT TROT!', combo_gallop:'GALLOP COMBO!', combo_fever:'🔥 OVERDRIVE!',
+    cockpit_left_title:'TELEMETRY & VITALS',
+    cockpit_right_title:'TACTICAL RADAR & INTEL',
+    telemetry_cadence:'STRIDE CADENCE (RPM)',
+    gait_idle:'IDLE',
+    rhythm_bar_title:'RHYTHM PERFECT BAR',
+    rhythm_ready:'READY FOR CADENCE',
+    radar_title:'ELEVATION & STEEPLECHASE',
+    delta_title:'RIVAL DELTA TIME',
+    delta_lead:'LEAD',
+    delta_lag:'LAG',
+    weather_title:'WEATHER & AERO TELEMETRY',
+    telem_wind:'WIND & DRAG',
+    telem_ground:'TRACK GRIP',
+    telem_aero:'DRAG COEFF Cd',
+    tips_title:'MASTER JOCKEY TIPS',
+    mat_shift:'AERO SPRINT',
+    mat_jump:'HURDLE JUMP',
+    mat_trim_l:'TRIM LEFT',
+    mat_trim_r:'TRIM RIGHT',
+    mat_reset:'GET UP',
+    mob_btn_aero:'AERO',
+    mob_btn_jump:'JUMP',
+    perfect_hurdle:'★ PERFECT HURDLE!',
+    great_hurdle:'GREAT HURDLE!',
+    hurdle_clatter:'💥 HURDLE HIT!',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
   },
@@ -141,6 +193,7 @@ function applyI18n(){
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = tr(el.dataset.i18nPh); });
   document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
   langBtn.textContent = lang === 'zh' ? 'EN' : '中';
+  if(typeof cockpit !== 'undefined' && cockpit) cockpit.tr = tr;
 }
 
 /* ================================================================
@@ -237,6 +290,23 @@ class Sfx {
     const notes=[523.25,659.25,783.99,1046.5,1318.5];
     const f=notes[Math.min(notes.length-1,Math.max(0,combo-2))];
     this.tone('triangle',f,f*1.04,0.11,0.12);
+  }
+  jumpWhoosh(){
+    if(!this.ok())return;
+    this.noise(1200, 1.2, 0.18, 0.18);
+    this.tone('sine', 220, 520, 0.22, 0.25);
+  }
+  jumpPerfect(){
+    if(!this.ok())return;
+    this.jumpWhoosh();
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
+      this.tone('triangle', f, f * 1.03, 0.14, 0.18, i * 0.05);
+    });
+  }
+  hurdleClatter(){
+    if(!this.ok())return;
+    this.noise(450, 0.8, 0.16, 0.35);
+    this.tone('sawtooth', 140, 50, 0.22, 0.4);
   }
   neigh(f0,f1,dur,vol,amRate,when=0){
     if(!this.ok())return;
@@ -580,8 +650,8 @@ function updateSpeedLines(dt){
     }
     sl.line.visible = true;
     sl.line.material.opacity += (targetOpacity - sl.line.material.opacity) * Math.min(1, 8 * dt);
-    if(isFever){
-      sl.line.material.color.setHex(Math.random() < 0.5 ? 0xffea44 : 0x66e0ff);
+    if(isFever || (typeof cockpit !== 'undefined' && cockpit && cockpit.aeroActive)){
+      sl.line.material.color.setHex((typeof cockpit !== 'undefined' && cockpit && cockpit.aeroActive) ? 0x06b6d4 : (Math.random() < 0.5 ? 0xffea44 : 0x66e0ff));
     } else {
       sl.line.material.color.setHex(0xffffff);
     }
@@ -1344,7 +1414,38 @@ const G = {
   elapsed:0, practice:false, replay:null, daily:false, dailyData:null, weather:'day',
   ghostOn:true, ghostData:null, rec:[], recAcc:0,
 };
-const held = {KeyQ:false,KeyW:false,KeyO:false,KeyP:false};
+const held = {
+  KeyQ:false, KeyW:false, KeyO:false, KeyP:false,
+  ShiftLeft:false, ShiftRight:false,
+  ArrowLeft:false, ArrowRight:false, KeyA:false, KeyD:false,
+  Space:false, KeyR:false
+};
+const steeplechase = new SteeplechaseManager();
+const cockpit = new CockpitManager({ tr });
+
+function triggerHurdleJump(){
+  if(G.state!=='run'||G.fallPose)return;
+  if(G.y < 1.35){
+    G.vy += 2.85;
+    const res = steeplechase.triggerJump(G);
+    if(res.grade === 'perfect'){
+      G.vx += res.boost || 0.9;
+      sfx.jumpPerfect();
+      camShake = 0.28;
+      cockpit.restoreStamina(15);
+      triggerCadenceHit((G.cadenceCombo || 0) + 2);
+      toast(tr('perfect_hurdle'));
+    }else if(res.grade === 'great'){
+      G.vx += res.boost || 0.45;
+      sfx.jumpWhoosh();
+      cockpit.restoreStamina(8);
+      toast(tr('great_hurdle'));
+    }else{
+      sfx.jumpWhoosh();
+      cockpit.consumeStamina(6);
+    }
+  }
+}
 let animT=0, camShake=0;
 const lookCur=new THREE.Vector3(2,1.4,0);
 const camS={dist:8,x:0};   // chase-camera state (zoom + look-ahead)
@@ -1397,6 +1498,9 @@ function startRun(practice,daily){
   boardScreen.classList.add('hidden');
   hudEl.classList.remove('hidden');
   keysBar.classList.remove('hidden');
+  steeplechase.reset();
+  cockpit.reset();
+  cockpit.show();
   fallPromptEl.classList.add('hidden');
   goBanner.classList.add('hidden');
   countNumEl.textContent='3';
@@ -1410,6 +1514,8 @@ function toTitle(){
   G.daily=false; MOD.drag=1; MOD.fric=1; MOD.slope=0;
   G.cadenceCombo=0;
   hideCadenceBanner();
+  cockpit.hide();
+  steeplechase.reset();
   if(balanceMeter)balanceMeter.classList.add('hidden');
   if(keyQ)keyQ.classList.remove('pair-suggest');
   if(keyW)keyW.classList.remove('pair-suggest');
@@ -1615,6 +1721,7 @@ function showResult(){
 
   hudEl.classList.add('hidden');
   keysBar.classList.add('hidden');
+  cockpit.hide();
   fallPromptEl.classList.add('hidden');
   aiPill.classList.add('hidden');
   resultScreen.classList.remove('hidden');
@@ -1655,11 +1762,37 @@ function hideCadenceBanner(){
 }
 
 function simStep(dt){
+  const isAero = (held.ShiftLeft || held.ShiftRight || cockpit.aeroActive) && cockpit.stamina > 2;
+  cockpit.aeroActive = isAero;
+  if(isAero){
+    G.vx += 0.82 * dt;
+    if(Math.random() < 0.25) dustAt(G.x, (Math.random()-0.5)*0.5, 1, true);
+  }
+
+  if(held.ArrowLeft || held.KeyA || cockpit.trimRoll < 0){
+    G.rollV -= 2.6 * dt;
+  }
+  if(held.ArrowRight || held.KeyD || cockpit.trimRoll > 0){
+    G.rollV += 2.6 * dt;
+  }
+
+  const hurdleCol = steeplechase.checkPassing(G);
+  if(hurdleCol && hurdleCol.hit){
+    G.vx = Math.max(0.2, G.vx * 0.52);
+    G.pitchV -= 0.85;
+    sfx.hurdleClatter();
+    camShake = 0.5;
+    buzz([80, 50, 80]);
+    cockpit.consumeStamina(15);
+    toast(tr('hurdle_clatter'));
+  }
+
   const inp=[held.KeyQ,held.KeyW,held.KeyO,held.KeyP,false];
   const ev=simHorse(G,legs,inp,dt);
   for(const e of ev){
     if(e.type==='step'){
       sfx.clop(e.speed);
+      cockpit.recordStep(G.elapsed);
       const isHighCombo = (G.cadenceCombo || 0) >= 4;
       dustAt(e.footX, e.z, isHighCombo ? 2 : 1, isHighCombo);
       printAt(e.footX, e.z);
@@ -1746,12 +1879,22 @@ addEventListener('keydown',e=>{
   if(e.code==='Space'){
     e.preventDefault();
     if(e.repeat)return;
+    setHeld('Space', true);
     if(G.replay&&G.replay.active)endReplay();   // skip the finish replay
+    else if(G.state==='run'&&!G.fallPose)triggerHurdleJump();
+    else if(G.state==='run'&&G.fallPose)tryGetUp();
     else primaryAction();
     return;
   }
   if(e.code==='Enter'){ if(!e.repeat)primaryAction(); return; }
-  if(e.code==='KeyR'){ if(!e.repeat)tryGetUp(); return; }
+  if(e.code==='KeyR'){
+    if(!e.repeat){
+      setHeld('KeyR', true);
+      if(G.fallPose)tryGetUp();
+      else if(G.state==='run')startRun(G.practice, G.daily);
+    }
+    return;
+  }
   if(e.code==='KeyM'){ if(!e.repeat)toggleMute(); return; }
   if(e.code==='Escape'&&e.repeat===false){
     if(!codeScreen.classList.contains('hidden')){codeScreen.classList.add('hidden');return;}
@@ -1776,6 +1919,52 @@ for(const c of LEG_CFG){
   el.addEventListener('pointercancel',()=>setHeld(c.key,false));
   el.addEventListener('pointerleave',()=>setHeld(c.key,false));
   el.addEventListener('contextmenu',e=>e.preventDefault());
+}
+
+function setupMobileCockpitTouch(){
+  const btnAero = $('touchAero');
+  const btnJump = $('touchJump');
+  const btnTrimL = $('touchTrimL');
+  const btnTrimR = $('touchTrimR');
+
+  if(btnAero){
+    const onAeroStart = e => { e.preventDefault(); sfx.ensure(); cockpit.aeroActive = true; };
+    const onAeroEnd = () => { cockpit.aeroActive = false; };
+    btnAero.addEventListener('pointerdown', onAeroStart);
+    btnAero.addEventListener('pointerup', onAeroEnd);
+    btnAero.addEventListener('pointercancel', onAeroEnd);
+    btnAero.addEventListener('pointerleave', onAeroEnd);
+    btnAero.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  if(btnJump){
+    btnJump.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      sfx.ensure();
+      triggerHurdleJump();
+    });
+    btnJump.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  if(btnTrimL){
+    const onTrimLStart = e => { e.preventDefault(); sfx.ensure(); cockpit.trimRoll = -1; };
+    const onTrimLEnd = () => { cockpit.trimRoll = 0; };
+    btnTrimL.addEventListener('pointerdown', onTrimLStart);
+    btnTrimL.addEventListener('pointerup', onTrimLEnd);
+    btnTrimL.addEventListener('pointercancel', onTrimLEnd);
+    btnTrimL.addEventListener('pointerleave', onTrimLEnd);
+    btnTrimL.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  if(btnTrimR){
+    const onTrimRStart = e => { e.preventDefault(); sfx.ensure(); cockpit.trimRoll = 1; };
+    const onTrimREnd = () => { cockpit.trimRoll = 0; };
+    btnTrimR.addEventListener('pointerdown', onTrimRStart);
+    btnTrimR.addEventListener('pointerup', onTrimREnd);
+    btnTrimR.addEventListener('pointercancel', onTrimREnd);
+    btnTrimR.addEventListener('pointerleave', onTrimREnd);
+    btnTrimR.addEventListener('contextmenu', e => e.preventDefault());
+  }
 }
 
 startBtn.addEventListener('click',()=>{startBtn.blur();startRun(false);});
@@ -2373,6 +2562,18 @@ function tick(dt,noRender){
     sfx.crowdSet(THREE.MathUtils.clamp((G.x-38)/12,0,1)*0.22);
   }
   updateHud();
+  steeplechase.update(dt);
+  if(G.state==='run'||G.state==='fallen'){
+    cockpit.update({
+      game: G,
+      dt,
+      heldKeys: held,
+      steeplechase,
+      aiState: AI,
+      ghostState: G.ghostData ? { x: G.x } : null,
+      weatherMod: MOD
+    });
+  }
   perfTick(dt);
   syncVisuals(dt);
   if(!noRender)renderer.render(scene,camera);
@@ -2406,6 +2607,9 @@ buildConfetti();
 buildCrowd();
 buildRain();
 applyWeather('day');
+steeplechase.init(scene);
+cockpit.mount(document.getElementById('ui'));
+setupMobileCockpitTouch();
 perfInit();
 {
   const rv=store.get('cc_rival',null);

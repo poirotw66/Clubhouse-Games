@@ -204,6 +204,649 @@ h1{font-size:44px;line-height:1.05}
 .stats span{display:block;font-size:11px;font-weight:800;opacity:.6;letter-spacing:.08em}
 .stats b{font-size:20px;font-variant-numeric:tabular-nums}
 #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;background:#9fd8f5;pointer-events:auto}
+
+/* ================================================================
+   Dual-wing Royal Derby Equestrian Cockpit (皇家德比雙翼賽馬座艙)
+================================================================ */
+.cockpit-wing {
+  position: absolute;
+  top: 70px;
+  bottom: 86px;
+  width: 236px;
+  max-height: calc(100vh - 156px);
+  z-index: 6;
+  pointer-events: none;
+  transition: transform .3s cubic-bezier(0.16, 1, 0.3, 1), opacity .3s ease;
+}
+.cockpit-left { left: 16px; }
+.cockpit-right { right: 16px; }
+
+.cockpit-card {
+  background: rgba(26, 16, 10, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 2.5px solid #d4af37;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.55), inset 0 0 20px rgba(212,175,55,0.12);
+  color: #fff6e8;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #d4af37 transparent;
+}
+.cockpit-card::-webkit-scrollbar { width: 4px; }
+.cockpit-card::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 4px; }
+
+.cockpit-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1.5px solid rgba(212,175,55,0.4);
+}
+.royal-crest {
+  color: #d4af37;
+  font-size: 14px;
+  text-shadow: 0 0 6px rgba(212,175,55,0.6);
+}
+.cockpit-title {
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  color: #fce79f;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+.cockpit-section {
+  background: rgba(15, 9, 5, 0.65);
+  border: 1.5px solid rgba(212,175,55,0.25);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.section-label {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  color: #d4af37;
+  opacity: .9;
+  text-transform: uppercase;
+}
+
+/* Cadence Tachometer */
+.tach-gauge {
+  position: relative;
+  width: 100%;
+  max-width: 130px;
+  margin: 0 auto;
+}
+.tach-svg {
+  width: 100%;
+  display: block;
+}
+.gauge-track {
+  fill: none;
+  stroke: rgba(255,255,255,0.15);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+.gauge-zone.walk { fill: none; stroke: #8c7562; stroke-width: 8; }
+.gauge-zone.trot { fill: none; stroke: #10b981; stroke-width: 8; }
+.gauge-zone.gallop { fill: none; stroke: #f59e0b; stroke-width: 8; }
+.gauge-needle {
+  stroke: #ef4444;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: transform .12s cubic-bezier(0.1, 0.9, 0.2, 1);
+  filter: drop-shadow(0 0 3px rgba(239,68,68,0.8));
+}
+.gauge-pin { fill: #d4af37; }
+.tach-readout {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  line-height: 1;
+}
+.tach-readout b {
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.tach-readout small {
+  font-size: 9px;
+  font-weight: 800;
+  opacity: .7;
+  margin-left: 2px;
+}
+.cadence-status {
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
+}
+.cockpit-badge {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.3);
+  letter-spacing: .04em;
+  color: #fff;
+}
+.gait-idle { background: #554433; }
+.gait-walk { background: #8c7562; }
+.gait-trot { background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+.gait-gallop { background: #f59e0b; box-shadow: 0 0 10px rgba(245,158,11,0.6); }
+.gait-fever { background: linear-gradient(90deg, #ef4444, #f59e0b); animation: feverGlow .4s infinite alternate; }
+
+/* Stamina & Vitals */
+.vitals-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.hr-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.hr-heart {
+  color: #ef4444;
+  font-size: 14px;
+  animation: heartPulse .8s infinite alternate;
+  display: inline-block;
+}
+@keyframes heartPulse {
+  0% { transform: scale(0.9); }
+  100% { transform: scale(1.22); filter: drop-shadow(0 0 5px rgba(239,68,68,0.8)); }
+}
+.hr-display b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.hr-display small { font-size: 9px; opacity: .7; }
+.stamina-percent {
+  font-size: 13px;
+  font-weight: 900;
+  color: #34d399;
+  font-variant-numeric: tabular-nums;
+}
+.stamina-track {
+  width: 100%;
+  height: 9px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.5);
+}
+.stamina-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 999px;
+  transition: width .15s ease, background .3s;
+}
+.ecg-line-wrap {
+  width: 100%;
+  height: 16px;
+  margin-top: 1px;
+}
+.ecg-svg {
+  width: 100%;
+  height: 100%;
+}
+.ecg-path {
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 1.5;
+  stroke-dasharray: 120;
+  animation: ecgFlow 1.6s linear infinite;
+  opacity: .85;
+}
+@keyframes ecgFlow {
+  from { stroke-dashoffset: 240; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Speedometer */
+.speed-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.speed-readout b {
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.speed-readout small { font-size: 10px; font-weight: 800; opacity: .7; }
+.speed-bar-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.speed-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #06b6d4, #10b981);
+  border-radius: 999px;
+  transition: width .1s linear;
+}
+
+/* Rhythm Perfect Bar */
+.rhythm-timing-bar {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  background: rgba(0,0,0,0.45);
+  border: 1.5px solid #d4af37;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 3px;
+}
+.rhythm-zone-safe {
+  position: absolute;
+  left: 20%;
+  width: 60%;
+  height: 100%;
+  background: rgba(16,185,129,0.15);
+  border-left: 1px dashed rgba(16,185,129,0.4);
+  border-right: 1px dashed rgba(16,185,129,0.4);
+}
+.rhythm-zone-perfect {
+  position: absolute;
+  left: 40%;
+  width: 20%;
+  height: 100%;
+  background: rgba(245,158,11,0.3);
+  border: 1.5px solid #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.perfect-hint {
+  font-size: 8px;
+  font-weight: 900;
+  color: #fce79f;
+  letter-spacing: .08em;
+}
+.rhythm-cursor {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 6px;
+  background: #fff;
+  border-radius: 3px;
+  transform: translateX(-50%);
+  box-shadow: 0 0 8px rgba(255,255,255,0.9);
+  transition: left .08s linear;
+}
+.rhythm-cursor.perfect-hit {
+  background: #f59e0b;
+  box-shadow: 0 0 14px #f59e0b, 0 0 6px #fff;
+}
+.rhythm-cursor.great-hit {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+}
+.rhythm-status-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+  color: #fff6e8;
+  margin-top: 2px;
+}
+
+/* Radar & Steeplechase */
+.radar-box {
+  background: rgba(0,0,0,0.45);
+  border: 1.5px solid rgba(212,175,55,0.3);
+  border-radius: 10px;
+  padding: 6px;
+}
+.radar-svg { width: 100%; display: block; }
+.radar-track-line {
+  fill: none;
+  stroke: rgba(255,255,255,0.25);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.hurdle-pin { stroke: #ef4444; stroke-width: 1.5; }
+.hurdle-flag { fill: #ef4444; }
+.hurdle-text { font-size: 6px; font-weight: 900; fill: #fce79f; }
+.radar-finish-line { stroke: #d4af37; stroke-width: 2; stroke-dasharray: 2 2; }
+.finish-flag { font-size: 8px; }
+.radar-dot { transition: cx .1s linear; }
+.player-dot { fill: #10b981; stroke: #fff; stroke-width: 1.5; filter: drop-shadow(0 0 4px #10b981); }
+.player-icon { font-size: 8px; pointer-events: none; }
+.rival-dot { fill: #ef4444; stroke: #fff; stroke-width: 1; }
+.ghost-dot { fill: #38bdf8; stroke: #fff; stroke-width: 1; opacity: .7; }
+.radar-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.6);
+  margin-top: 2px;
+}
+.radar-next-hint { color: #f59e0b; font-weight: 900; }
+
+/* Delta */
+.delta-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+}
+.delta-badge {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+}
+.delta-badge.lead { background: #10b981; }
+.delta-badge.lag { background: #f59e0b; }
+.delta-box b {
+  font-size: 19px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Weather & Aero Telemetry */
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 2px;
+}
+.telem-item {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(212,175,55,0.2);
+  border-radius: 8px;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+}
+.telem-full { grid-column: span 2; }
+.telem-label {
+  font-size: 8.5px;
+  font-weight: 800;
+  opacity: .7;
+  color: #d4af37;
+}
+.telem-item b {
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 1px;
+}
+.cd-badge {
+  color: #fce79f;
+  transition: all .2s ease;
+}
+.cd-badge.active {
+  color: #06b6d4;
+  text-shadow: 0 0 8px rgba(6,182,212,0.8);
+  animation: aeroGlow .4s infinite alternate;
+}
+@keyframes aeroGlow {
+  to { filter: brightness(1.3); }
+}
+
+/* Master Jockey Tips */
+.jockey-tip-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  background: rgba(212,175,55,0.08);
+  border: 1px dashed #d4af37;
+  border-radius: 8px;
+  padding: 6px 8px;
+  min-height: 44px;
+}
+.tip-icon { font-size: 14px; line-height: 1.2; }
+.tip-content {
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #fff6e8;
+}
+
+/* Esports Keyboard Matrix Guide */
+.cockpit-matrix {
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  pointer-events: none;
+}
+.matrix-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(26, 16, 10, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 2px solid #d4af37;
+  border-radius: 14px;
+  padding: 6px 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.matrix-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(212,175,55,0.35);
+  margin: 0 2px;
+}
+.matrix-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 38px;
+  padding: 0 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(212,175,55,0.4);
+  border-radius: 8px;
+  color: #fff6e8;
+  transition: all .15s ease;
+}
+.matrix-key .k-cap {
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+.matrix-key .k-desc {
+  font-size: 8px;
+  font-weight: 800;
+  opacity: .75;
+  margin-top: 1px;
+}
+.matrix-key.center-jump {
+  min-width: 68px;
+  border-color: #f59e0b;
+}
+.matrix-key.active {
+  background: #f59e0b;
+  border-color: #fff;
+  color: #1a100a;
+  transform: translateY(2px);
+  box-shadow: 0 0 12px rgba(245,158,11,0.9);
+}
+.matrix-key.suggest {
+  border-color: #f59e0b;
+  box-shadow: 0 0 10px rgba(245,158,11,0.7);
+  animation: matrixSuggestPulse .4s infinite alternate;
+}
+@keyframes matrixSuggestPulse {
+  to { transform: scale(1.08); }
+}
+.matrix-arrows {
+  display: flex;
+  gap: 3px;
+}
+.matrix-key.small-arrow {
+  min-width: 32px;
+}
+
+/* Mobile Top Tactical Ticker */
+.mobile-cockpit-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  gap: 8px;
+  align-items: center;
+  background: rgba(26, 16, 10, 0.9);
+  border: 2px solid #d4af37;
+  border-radius: 999px;
+  padding: 4px 12px;
+  z-index: 8;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.mob-item {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.mob-k {
+  font-size: 8px;
+  font-weight: 900;
+  color: #d4af37;
+}
+.mob-item b {
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.mob-cockpit-btn {
+  background: #d4af37;
+  color: #1a100a;
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.3);
+}
+.mob-cockpit-btn.active {
+  background: #f59e0b;
+  color: #fff;
+}
+
+/* Mobile Action Touch Dock */
+.mobile-action-dock {
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  gap: 8px;
+  align-items: center;
+  z-index: 7;
+  pointer-events: auto;
+}
+.action-pill {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 2.5px solid #4a2f18;
+  font-family: inherit;
+  font-weight: 900;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(74,47,24,0.4);
+  touch-action: none;
+}
+.aero-pill {
+  background: #0284c7;
+}
+.aero-pill:active {
+  background: #0369a1;
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(74,47,24,0.4);
+}
+.jump-pill {
+  background: #f59e0b;
+}
+.jump-pill:active {
+  background: #d97706;
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(74,47,24,0.4);
+}
+.trim-group {
+  display: flex;
+  gap: 4px;
+}
+.trim-pill {
+  width: 40px;
+  height: 48px;
+  border-radius: 12px;
+  border: 2.5px solid #4a2f18;
+  background: #fff6e8;
+  color: #4a2f18;
+  font-size: 14px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(74,47,24,0.3);
+  touch-action: none;
+}
+.trim-pill:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* Responsive Adaptation */
+@media (max-width: 1040px) {
+  .cockpit-wing {
+    width: 200px;
+  }
+}
+@media (max-width: 860px) {
+  .cockpit-wing {
+    display: none;
+    position: fixed;
+    top: 60px;
+    bottom: 80px;
+    width: 260px;
+    z-index: 25;
+  }
+  .cockpit-wing.mobile-open {
+    display: flex;
+  }
+  .cockpit-left { left: 10px; }
+  .cockpit-right { right: 10px; }
+  .mobile-cockpit-bar { display: flex; }
+  .mobile-action-dock { display: flex; }
+  .cockpit-matrix { display: none; }
+}
+
 @media (max-width:560px){
   h1{font-size:34px}
   .key{min-width:76px;height:52px;padding:0 8px}
