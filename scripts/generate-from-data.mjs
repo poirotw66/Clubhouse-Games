@@ -69,11 +69,20 @@ function playHref(game) {
   return '';
 }
 
-/** Filter buttons: an "all" pill plus one per category. */
+/** Filter buttons: an "all" pill, a "cockpit" highlight pill, plus one per category. */
 function generateCategoryNavHtml(categories) {
   const total = categories.reduce((sum, cat) => sum + cat.games.length, 0);
+  let cockpitTotal = 0;
+  for (const cat of categories) {
+    for (const game of cat.games) {
+      if (!game.playPath && game.gameFolder) cockpitTotal++;
+    }
+  }
   const all = `        <button type="button" class="filter-pill is-active" data-filter="all" aria-pressed="true">
           全部<span class="filter-pill-count">${total}</span>
+        </button>`;
+  const cockpit = `        <button type="button" class="filter-pill filter-pill--cockpit" data-filter="cockpit" aria-pressed="false" style="--accent: #2dd4bf">
+          🔥 雙翼座艙<span class="filter-pill-count">${cockpitTotal}</span>
         </button>`;
   const rest = categories.map(
     (cat) =>
@@ -81,7 +90,7 @@ function generateCategoryNavHtml(categories) {
           ${escapeHtml(categoryShortLabel(cat.title))}<span class="filter-pill-count">${cat.games.length}</span>
         </button>`
   );
-  return [all, ...rest].join('\n');
+  return [all, cockpit, ...rest].join('\n');
 }
 
 /** Quiet Astra hub row (below toolbar): gallery + in-page jump. Empty when no astra category. */
@@ -125,11 +134,13 @@ function generateMenuHtml(categories) {
     for (const game of cat.games) {
       const href = playHref(game);
       const hasPlay = !!href;
+      const isCockpit = Boolean(!game.playPath && game.gameFolder);
       const folderKey = game.gameFolder || href.replace(/\/$/, '').split('/').pop();
       const searchTerms = [
         game.name,
         game.en,
         shortLabel,
+        isCockpit ? '雙翼座艙 cockpit pro 戰術雷達 遙測' : '',
         game.gameFolder,
         game.playPath,
         game.specPath.split('/').pop()?.replace('.md', ''),
@@ -144,6 +155,10 @@ function generateMenuHtml(categories) {
                 <span class="sr-only">：${escapeHtml(game.name)}</span>
               </a>`
         : '<span class="tile-play is-disabled">尚未實作</span>';
+
+      const cockpitBadge = isCockpit
+        ? `<span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>`
+        : '';
 
       const players = game.players
         ? `<span class="tile-players font-tc" aria-label="遊玩人數 ${escapeHtml(game.players)}">${escapeHtml(game.players)}</span>`
@@ -163,7 +178,7 @@ function generateMenuHtml(categories) {
             </div>`
         : '';
 
-      out.push(`          <li class="game-tile${hasPlay ? '' : ' is-todo'}${hasCover ? ' has-cover' : ''}" data-search="${escapeHtml(searchTerms)}" data-name="${escapeHtml(game.name)}"${folderKey ? ` data-folder="${escapeHtml(folderKey)}"` : ''}>
+      out.push(`          <li class="game-tile${hasPlay ? '' : ' is-todo'}${hasCover ? ' has-cover' : ''}${isCockpit ? ' is-cockpit' : ''}" data-search="${escapeHtml(searchTerms)}" data-name="${escapeHtml(game.name)}"${folderKey ? ` data-folder="${escapeHtml(folderKey)}"` : ''}${isCockpit ? ' data-cockpit="true"' : ''}>
             ${cover}
             <div class="tile-head">
               <span class="tile-icon" aria-hidden="true">
@@ -173,7 +188,10 @@ function generateMenuHtml(categories) {
                 <h3 class="tile-name font-tc">${escapeHtml(game.name)}</h3>
                 ${game.en ? `<p class="tile-en">${escapeHtml(game.en)}</p>` : ''}
               </div>
-              ${players}
+              <div class="tile-meta-badges">
+                ${cockpitBadge}
+                ${players}
+              </div>
             </div>
             ${game.desc ? `<p class="tile-desc font-tc">${escapeHtml(game.desc)}</p>` : ''}
             <div class="tile-foot">

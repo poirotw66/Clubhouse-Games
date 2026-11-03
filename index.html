@@ -76,12 +76,50 @@
         </span>
       </div>
       <div class="hero-poster">
-        <figure class="hero-sticker" aria-hidden="true">
-          <picture>
-            <source type="image/webp" srcset="assets/covers/optimized/Cyber-Neon-Rush-320.webp 320w, assets/covers/optimized/Cyber-Neon-Rush-640.webp 640w" sizes="(min-width: 640px) 19vw, 46vw" />
-            <img src="assets/covers/optimized/Cyber-Neon-Rush-640.jpg" alt="" width="640" height="480" decoding="async" />
-          </picture>
-        </figure>
+        <div class="hero-spotlight" id="hero-spotlight" aria-label="旗艦焦點遊戲展示">
+          <div class="spotlight-deck">
+            <div class="spotlight-card is-active" id="spotlight-active-card">
+              <div class="spotlight-media">
+                <picture class="block h-full">
+                  <source id="spotlight-img-webp" type="image/webp" srcset="assets/covers/optimized/Blackjack-main-320.webp 320w, assets/covers/optimized/Blackjack-main-640.webp 640w" sizes="(min-width: 768px) 380px, 90vw" />
+                  <img id="spotlight-img" src="assets/covers/optimized/Blackjack-main-640.jpg" alt="二十一點 Blackjack VIP" width="640" height="480" decoding="async" />
+                </picture>
+                <div class="spotlight-overlay" aria-hidden="true"></div>
+                <div class="spotlight-badge font-tc">
+                  <span class="badge-pulse" aria-hidden="true"></span>
+                  <span id="spotlight-badge-text">🔥 旗艦焦點 · 雙翼座艙</span>
+                </div>
+              </div>
+              <div class="spotlight-body">
+                <div class="spotlight-meta">
+                  <h2 class="spotlight-title font-heading" id="spotlight-title">二十一點 VIP</h2>
+                  <p class="spotlight-subtitle" id="spotlight-sub">Blackjack Pro Cockpit</p>
+                  <p class="spotlight-desc font-tc" id="spotlight-desc">高額賭桌戰情室：即時牌靴真數與莊家爆牌率雷達，支援全鍵盤快捷發牌。</p>
+                  <div class="spotlight-tags font-tc" id="spotlight-tags">
+                    <span class="spotlight-tag">⚡ 算牌雷達</span>
+                    <span class="spotlight-tag">📊 勝率遙測</span>
+                    <span class="spotlight-tag">⌨️ 鍵盤矩陣</span>
+                  </div>
+                </div>
+                <div class="spotlight-actions">
+                  <a href="Games/Blackjack-main/" class="spotlight-play font-tc focus-ring" id="spotlight-play-link">
+                    立即開局
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-4 h-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5-5 5M6 12h12" /></svg>
+                  </a>
+                  <div class="spotlight-nav">
+                    <button type="button" class="spotlight-nav-btn spotlight-prev focus-ring" id="spotlight-prev" aria-label="上一款焦點遊戲">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <div class="spotlight-pips" id="spotlight-pips" role="tablist" aria-label="焦點分頁"></div>
+                    <button type="button" class="spotlight-nav-btn spotlight-next focus-ring" id="spotlight-next" aria-label="下一款焦點遊戲">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="hero-copy">
           <h1 class="hero-title neon-tube" data-text="Clubhouse Games">
             <span class="neon-tube__glow" aria-hidden="true">Clubhouse Games</span>
@@ -89,9 +127,16 @@
             <span class="neon-tube__scan" aria-hidden="true"></span>
           </h1>
           <p class="hero-sub font-tc">
-            夜間霓廊開箱即玩：搜尋或依分類篩選，點「進入遊戲」就能在瀏覽器直接開玩。
+            夜間霓廊開箱即玩：49 款無縫暢遊，全面升級雙翼電競座艙、即時戰況雷達與全鍵盤矩陣。
           </p>
-          <a href="#game-search" class="hero-cta font-tc focus-ring">開始瀏覽</a>
+          <div class="hero-actions">
+            <button type="button" id="hero-lucky-btn" class="hero-btn-lucky font-tc focus-ring">
+              <span class="btn-dice-icon" aria-hidden="true">🎲</span>
+              好手氣開局
+              <span class="btn-hotkey-chip" aria-hidden="true">R</span>
+            </button>
+            <a href="#game-search" class="hero-cta font-tc focus-ring">探索全部遊戲</a>
+          </div>
         </div>
       </div>
     </section>
@@ -118,27 +163,36 @@
 
     <!-- Search + category filter -->
     <section class="menu-toolbar" aria-label="搜尋與篩選">
-      <div class="search-field">
-        <label for="game-search" class="sr-only">搜尋遊戲</label>
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-        <input
-          type="search"
-          id="game-search"
-          class="search-input font-tc"
-          placeholder="搜尋遊戲名稱、英文名或玩法…"
-          autocomplete="off"
-          enterkeyhint="search"
-          aria-describedby="search-status"
-        />
-        <kbd class="search-kbd" aria-hidden="true">/</kbd>
-        <button type="button" id="search-clear" class="search-clear focus-ring" hidden aria-label="清除搜尋">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+      <div class="toolbar-search-row">
+        <div class="search-field">
+          <label for="game-search" class="sr-only">搜尋遊戲</label>
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+          <input
+            type="search"
+            id="game-search"
+            class="search-input font-tc"
+            placeholder="搜尋遊戲名稱、英文名或玩法…"
+            autocomplete="off"
+            enterkeyhint="search"
+            aria-describedby="search-status"
+          />
+          <kbd class="search-kbd" aria-hidden="true">/</kbd>
+          <button type="button" id="search-clear" class="search-clear focus-ring" hidden aria-label="清除搜尋">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <button type="button" id="toolbar-lucky-btn" class="toolbar-lucky-btn font-tc focus-ring" title="隨機挑選遊戲開玩 (R)">
+          <span aria-hidden="true">🎲</span>
+          <span>好手氣</span>
         </button>
       </div>
       <div id="category-nav" class="category-nav font-tc" role="group" aria-label="依分類篩選">
         <!-- GENERATED_CATEGORY_NAV -->
         <button type="button" class="filter-pill is-active" data-filter="all" aria-pressed="true">
           全部<span class="filter-pill-count">49</span>
+        </button>
+        <button type="button" class="filter-pill filter-pill--cockpit" data-filter="cockpit" aria-pressed="false" style="--accent: #2dd4bf">
+          🔥 雙翼座艙<span class="filter-pill-count">34</span>
         </button>
         <button type="button" class="filter-pill" data-filter="cards" aria-pressed="false" style="--accent: #f59e0b">
           紙牌<span class="filter-pill-count">6</span>
@@ -192,7 +246,7 @@
         </div>
         <ul class="game-grid" role="list">
 
-          <li class="game-tile has-cover" data-search="二十一點 Blackjack 紙牌 Blackjack-main blackjack" data-name="二十一點" data-folder="Blackjack-main">
+          <li class="game-tile has-cover is-cockpit" data-search="二十一點 Blackjack 紙牌 雙翼座艙 cockpit pro 戰術雷達 遙測 Blackjack-main blackjack" data-name="二十一點" data-folder="Blackjack-main" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Blackjack-main-320.webp 320w, assets/covers/optimized/Blackjack-main-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -207,7 +261,10 @@
                 <h3 class="tile-name font-tc">二十一點</h3>
                 <p class="tile-en">Blackjack</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">讓手牌點數逼近 21 又不爆牌，跟莊家比大小的經典賭桌牌戲。</p>
             <div class="tile-foot">
@@ -220,7 +277,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="連環新接龍（FreeCell） FreeCell 紙牌 FreeCell freecell" data-name="連環新接龍（FreeCell）" data-folder="FreeCell">
+          <li class="game-tile has-cover is-cockpit" data-search="連環新接龍（FreeCell） FreeCell 紙牌 雙翼座艙 cockpit pro 戰術雷達 遙測 FreeCell freecell" data-name="連環新接龍（FreeCell）" data-folder="FreeCell" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/FreeCell-320.webp 320w, assets/covers/optimized/FreeCell-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -235,7 +292,10 @@
                 <h3 class="tile-name font-tc">連環新接龍（FreeCell）</h3>
                 <p class="tile-en">FreeCell</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">四個暫存格、全部攤開的牌面，幾乎每一局都有解的純策略接龍。</p>
             <div class="tile-foot">
@@ -248,7 +308,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="克朗代克接龍 Klondike 紙牌 Klondike klondike" data-name="克朗代克接龍" data-folder="Klondike">
+          <li class="game-tile has-cover is-cockpit" data-search="克朗代克接龍 Klondike 紙牌 雙翼座艙 cockpit pro 戰術雷達 遙測 Klondike klondike" data-name="克朗代克接龍" data-folder="Klondike" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Klondike-320.webp 320w, assets/covers/optimized/Klondike-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -263,7 +323,10 @@
                 <h3 class="tile-name font-tc">克朗代克接龍</h3>
                 <p class="tile-en">Klondike</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">紅黑交替遞減接龍，把 52 張牌依花色全數收上 foundation。</p>
             <div class="tile-foot">
@@ -276,7 +339,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="花牌 Koi-Koi Koi-Koi 紙牌 Koi-Koi koi-koi" data-name="花牌 Koi-Koi" data-folder="Koi-Koi">
+          <li class="game-tile has-cover is-cockpit" data-search="花牌 Koi-Koi Koi-Koi 紙牌 雙翼座艙 cockpit pro 戰術雷達 遙測 Koi-Koi koi-koi" data-name="花牌 Koi-Koi" data-folder="Koi-Koi" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Koi-Koi-320.webp 320w, assets/covers/optimized/Koi-Koi-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -291,7 +354,10 @@
                 <h3 class="tile-name font-tc">花牌 Koi-Koi</h3>
                 <p class="tile-en">Koi-Koi</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">日本花札對戰：配對取牌、組成役得分，可喊 Koi-Koi 繼續博更高分。</p>
             <div class="tile-foot">
@@ -304,7 +370,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="撿紅點 Pick Red 紙牌 Pick-Red pick-red" data-name="撿紅點" data-folder="Pick-Red">
+          <li class="game-tile has-cover is-cockpit" data-search="撿紅點 Pick Red 紙牌 雙翼座艙 cockpit pro 戰術雷達 遙測 Pick-Red pick-red" data-name="撿紅點" data-folder="Pick-Red" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Pick-Red-320.webp 320w, assets/covers/optimized/Pick-Red-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -319,7 +385,10 @@
                 <h3 class="tile-name font-tc">撿紅點</h3>
                 <p class="tile-en">Pick Red</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">湊十撿牌的台灣傳統紙牌：黑牌一分不值，只是拿來換紅牌的工具。2～4 人。</p>
             <div class="tile-foot">
@@ -332,7 +401,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="大老二 Big Two 紙牌 Big-Two big-two" data-name="大老二" data-folder="Big-Two">
+          <li class="game-tile has-cover is-cockpit" data-search="大老二 Big Two 紙牌 雙翼座艙 cockpit pro 戰術雷達 遙測 Big-Two big-two" data-name="大老二" data-folder="Big-Two" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Big-Two-320.webp 320w, assets/covers/optimized/Big-Two-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -347,7 +416,10 @@
                 <h3 class="tile-name font-tc">大老二</h3>
                 <p class="tile-en">Big Two</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">2 最大、3 最小的四人出牌競速：張數要跟檯面一樣，所以領出權才是真正的資源。</p>
             <div class="tile-foot">
@@ -373,7 +445,7 @@
         </div>
         <ul class="game-grid" role="list">
 
-          <li class="game-tile has-cover" data-search="黑白棋 Reversi 棋盤 Reversi reversi" data-name="黑白棋" data-folder="Reversi">
+          <li class="game-tile has-cover is-cockpit" data-search="黑白棋 Reversi 棋盤 雙翼座艙 cockpit pro 戰術雷達 遙測 Reversi reversi" data-name="黑白棋" data-folder="Reversi" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Reversi-320.webp 320w, assets/covers/optimized/Reversi-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -388,7 +460,10 @@
                 <h3 class="tile-name font-tc">黑白棋</h3>
                 <p class="tile-en">Reversi</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 2 人">2 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 2 人">2 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">在 8×8 盤上夾住對手棋子翻面，可選三段電腦難度對戰。</p>
             <div class="tile-foot">
@@ -401,7 +476,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="西洋跳棋 Checkers 棋盤 Checkers checkers" data-name="西洋跳棋" data-folder="Checkers">
+          <li class="game-tile has-cover is-cockpit" data-search="西洋跳棋 Checkers 棋盤 雙翼座艙 cockpit pro 戰術雷達 遙測 Checkers checkers" data-name="西洋跳棋" data-folder="Checkers" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Checkers-320.webp 320w, assets/covers/optimized/Checkers-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -416,7 +491,10 @@
                 <h3 class="tile-name font-tc">西洋跳棋</h3>
                 <p class="tile-en">Checkers</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 2 人">2 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 2 人">2 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">斜向跳吃、能連跳就必須連跳，可選三段電腦難度對戰。</p>
             <div class="tile-foot">
@@ -429,7 +507,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="四子棋 Connect Four 棋盤 Connect-Four connect-four" data-name="四子棋" data-folder="Connect-Four">
+          <li class="game-tile has-cover is-cockpit" data-search="四子棋 Connect Four 棋盤 雙翼座艙 cockpit pro 戰術雷達 遙測 Connect-Four connect-four" data-name="四子棋" data-folder="Connect-Four" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Connect-Four-320.webp 320w, assets/covers/optimized/Connect-Four-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -444,7 +522,10 @@
                 <h3 class="tile-name font-tc">四子棋</h3>
                 <p class="tile-en">Connect Four</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 2 人">2 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 2 人">2 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">輪流投子先連成四顆者勝，可選三段電腦難度對戰。</p>
             <div class="tile-foot">
@@ -470,7 +551,7 @@
         </div>
         <ul class="game-grid" role="list">
 
-          <li class="game-tile has-cover" data-search="西洋骨牌 Dominoes 牌張 Dominoes dominoes" data-name="西洋骨牌" data-folder="Dominoes">
+          <li class="game-tile has-cover is-cockpit" data-search="西洋骨牌 Dominoes 牌張 雙翼座艙 cockpit pro 戰術雷達 遙測 Dominoes dominoes" data-name="西洋骨牌" data-folder="Dominoes" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Dominoes-320.webp 320w, assets/covers/optimized/Dominoes-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -485,7 +566,10 @@
                 <h3 class="tile-name font-tc">西洋骨牌</h3>
                 <p class="tile-en">Dominoes</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 2–4 人">2–4 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 2–4 人">2–4 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">把點數相同的一端接上牌線，先出完手牌或比總點數計分。</p>
             <div class="tile-foot">
@@ -511,7 +595,7 @@
         </div>
         <ul class="game-grid" role="list">
 
-          <li class="game-tile has-cover" data-search="玩具拳擊 Toy Boxing 運動 Toy-Boxing toy-boxing" data-name="玩具拳擊" data-folder="Toy-Boxing">
+          <li class="game-tile has-cover is-cockpit" data-search="玩具拳擊 Toy Boxing 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Toy-Boxing toy-boxing" data-name="玩具拳擊" data-folder="Toy-Boxing" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Toy-Boxing-320.webp 320w, assets/covers/optimized/Toy-Boxing-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -526,7 +610,10 @@
                 <h3 class="tile-name font-tc">玩具拳擊</h3>
                 <p class="tile-en">Toy Boxing</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">刺拳勾拳搭配閃避與格擋，先清空對手體力條的一方獲勝。</p>
             <div class="tile-foot">
@@ -539,7 +626,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="玩具棒球 Toy Baseball 運動 Toy-Baseball toy-baseball" data-name="玩具棒球" data-folder="Toy-Baseball">
+          <li class="game-tile has-cover is-cockpit" data-search="玩具棒球 Toy Baseball 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Toy-Baseball toy-baseball" data-name="玩具棒球" data-folder="Toy-Baseball" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Toy-Baseball-320.webp 320w, assets/covers/optimized/Toy-Baseball-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -554,7 +641,10 @@
                 <h3 class="tile-name font-tc">玩具棒球</h3>
                 <p class="tile-en">Toy Baseball</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">抓準揮棒時機擊出安打或全壘打，打完約定局數比得分。</p>
             <div class="tile-foot">
@@ -567,7 +657,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="羽毛球接殺訓練 Block the Smash 運動 Block-the-smash badminton-smash" data-name="羽毛球接殺訓練" data-folder="Block-the-smash">
+          <li class="game-tile has-cover is-cockpit" data-search="羽毛球接殺訓練 Block the Smash 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Block-the-smash badminton-smash" data-name="羽毛球接殺訓練" data-folder="Block-the-smash" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Block-the-smash-320.webp 320w, assets/covers/optimized/Block-the-smash-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -582,7 +672,10 @@
                 <h3 class="tile-name font-tc">羽毛球接殺訓練</h3>
                 <p class="tile-en">Block the Smash</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">對手殺球來襲時移動球拍精準擋下，鍛鍊反應與判斷。</p>
             <div class="tile-foot">
@@ -595,7 +688,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="積木賽車 Brick Kart Racing 運動 Brick-Kart-Racing brick-kart-racing" data-name="積木賽車" data-folder="Brick-Kart-Racing">
+          <li class="game-tile has-cover is-cockpit" data-search="積木賽車 Brick Kart Racing 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Brick-Kart-Racing brick-kart-racing" data-name="積木賽車" data-folder="Brick-Kart-Racing" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Brick-Kart-Racing-320.webp 320w, assets/covers/optimized/Brick-Kart-Racing-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -610,7 +703,10 @@
                 <h3 class="tile-name font-tc">積木賽車</h3>
                 <p class="tile-en">Brick Kart Racing</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">Mode-7 偽 3D 積木卡丁車，靠飄移蓄力與道具磚競速三圈。</p>
             <div class="tile-foot">
@@ -623,7 +719,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="海灣帆航 Sailing 運動 Sailing sailing" data-name="海灣帆航" data-folder="Sailing">
+          <li class="game-tile has-cover is-cockpit" data-search="海灣帆航 Sailing 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Sailing sailing" data-name="海灣帆航" data-folder="Sailing" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Sailing-320.webp 320w, assets/covers/optimized/Sailing-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -638,7 +734,10 @@
                 <h3 class="tile-name font-tc">海灣帆航</h3>
                 <p class="tile-en">Sailing</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">在 WebGL2 海面上依相對風調帆操舵，依序繞過浮標完成賽程。</p>
             <div class="tile-foot">
@@ -651,7 +750,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="霓虹疾馳 Cyber Neon Rush 運動 Cyber-Neon-Rush cyber-neon-rush" data-name="霓虹疾馳" data-folder="Cyber-Neon-Rush">
+          <li class="game-tile has-cover is-cockpit" data-search="霓虹疾馳 Cyber Neon Rush 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Cyber-Neon-Rush cyber-neon-rush" data-name="霓虹疾馳" data-folder="Cyber-Neon-Rush" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Cyber-Neon-Rush-320.webp 320w, assets/covers/optimized/Cyber-Neon-Rush-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -666,7 +765,10 @@
                 <h3 class="tile-name font-tc">霓虹疾馳</h3>
                 <p class="tile-en">Cyber Neon Rush</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">3D 賽博龐克無限跑酷：彎曲霓虹賽道、靈敏切道避障與頂部動態計分板。</p>
             <div class="tile-foot">
@@ -679,7 +781,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="棒球人生 Baseball Life 運動 Baseball-Life baseball-life" data-name="棒球人生" data-folder="Baseball-Life">
+          <li class="game-tile has-cover is-cockpit" data-search="棒球人生 Baseball Life 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Baseball-Life baseball-life" data-name="棒球人生" data-folder="Baseball-Life" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Baseball-Life-320.webp 320w, assets/covers/optimized/Baseball-Life-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -694,7 +796,10 @@
                 <h3 class="tile-name font-tc">棒球人生</h3>
                 <p class="tile-en">Baseball Life</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">從高一春天到引退的文字型棒球生涯模擬，用骰子與選擇養成球員，種子碼可分享同一個世界。</p>
             <div class="tile-foot">
@@ -707,7 +812,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="球團王朝 Dynasty 運動 Dynasty dynasty" data-name="球團王朝" data-folder="Dynasty">
+          <li class="game-tile has-cover is-cockpit" data-search="球團王朝 Dynasty 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Dynasty dynasty" data-name="球團王朝" data-folder="Dynasty" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Dynasty-320.webp 320w, assets/covers/optimized/Dynasty-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -722,7 +827,10 @@
                 <h3 class="tile-name font-tc">球團王朝</h3>
                 <p class="tile-en">Dynasty</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">中職球團經營：十年任期內與董事會協商期望、靠模糊的球探報告下注選秀，在薪資帽與球迷熱度之間建立王朝。</p>
             <div class="tile-foot">
@@ -735,7 +843,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="彈幕深淵 Danmaku Abyss 運動 Danmaku-Abyss danmaku-abyss" data-name="彈幕深淵" data-folder="Danmaku-Abyss">
+          <li class="game-tile has-cover is-cockpit" data-search="彈幕深淵 Danmaku Abyss 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Danmaku-Abyss danmaku-abyss" data-name="彈幕深淵" data-folder="Danmaku-Abyss" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Danmaku-Abyss-320.webp 320w, assets/covers/optimized/Danmaku-Abyss-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -750,7 +858,10 @@
                 <h3 class="tile-name font-tc">彈幕深淵</h3>
                 <p class="tile-en">Danmaku Abyss</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">Roguelike 縱捲彈幕射擊：傷害與擦彈都隨距離上升，逼你站到最危險的位置；五個階段逐步構築戰機，敵方彈幕沿一條連續的強度曲線越來越變態。</p>
             <div class="tile-foot">
@@ -763,7 +874,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="岔道疾走 Switchpoint Run 運動 Switchpoint-Run switchpoint-run" data-name="岔道疾走" data-folder="Switchpoint-Run">
+          <li class="game-tile has-cover is-cockpit" data-search="岔道疾走 Switchpoint Run 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Switchpoint-Run switchpoint-run" data-name="岔道疾走" data-folder="Switchpoint-Run" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Switchpoint-Run-320.webp 320w, assets/covers/optimized/Switchpoint-Run-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -778,7 +889,10 @@
                 <h3 class="tile-name font-tc">岔道疾走</h3>
                 <p class="tile-en">Switchpoint Run</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">鐵道路線抉擇跑酷：每個道岔的支線內容都提前預覽，速度與收益都要用密度換，後方列車只在你選錯或執行差時才追上來。</p>
             <div class="tile-foot">
@@ -791,7 +905,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="花花舞獅踩街 Bloom Lion Dance 運動 Lion-Dance lion-dance" data-name="花花舞獅踩街" data-folder="Lion-Dance">
+          <li class="game-tile has-cover is-cockpit" data-search="花花舞獅踩街 Bloom Lion Dance 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Lion-Dance lion-dance" data-name="花花舞獅踩街" data-folder="Lion-Dance" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Lion-Dance-320.webp 320w, assets/covers/optimized/Lion-Dance-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -806,7 +920,10 @@
                 <h3 class="tile-name font-tc">花花舞獅踩街</h3>
                 <p class="tile-en">Bloom Lion Dance</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">QWOP 式四腳舞獅踩街 v4：拉開側視、可愛醒獅關節腳、明亮街景與採青；單人／雙人合作。</p>
             <div class="tile-foot">
@@ -819,7 +936,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="牆上翻滾 Wall Flip 運動 Wall-Flip wall-flip" data-name="牆上翻滾" data-folder="Wall-Flip">
+          <li class="game-tile has-cover is-cockpit" data-search="牆上翻滾 Wall Flip 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Wall-Flip wall-flip" data-name="牆上翻滾" data-folder="Wall-Flip" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Wall-Flip-320.webp 320w, assets/covers/optimized/Wall-Flip-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -834,7 +951,10 @@
                 <h3 class="tile-name font-tc">牆上翻滾</h3>
                 <p class="tile-en">Wall Flip</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">全速衝上反翘的弧形道路，倒掛段靠磁力吸附撐住，唇端倒著飛出後用推進器翻滾回正、輪胎著地。附 2D 與 Three.js 3D 兩個版本。</p>
             <div class="tile-foot">
@@ -847,7 +967,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="達達馬蹄 Clip-Clop 運動 Clip-Clop clip-clop" data-name="達達馬蹄" data-folder="Clip-Clop">
+          <li class="game-tile has-cover is-cockpit" data-search="達達馬蹄 Clip-Clop 運動 雙翼座艙 cockpit pro 戰術雷達 遙測 Clip-Clop clip-clop" data-name="達達馬蹄" data-folder="Clip-Clop" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Clip-Clop-320.webp 320w, assets/covers/optimized/Clip-Clop-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -862,7 +982,10 @@
                 <h3 class="tile-name font-tc">達達馬蹄</h3>
                 <p class="tile-en">Clip-Clop</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">四鍵分控馬的四條腿：按住抬腿前擺、放開踢地推進，90 秒內走完 50 公尺的高難度平衡賽馬。</p>
             <div class="tile-foot">
@@ -888,7 +1011,7 @@
         </div>
         <ul class="game-grid" role="list">
 
-          <li class="game-tile has-cover" data-search="神秘液體排序 Mystery Liquid Sort 益智 Mystery-Liquid-Sort mystery-liquid-sort" data-name="神秘液體排序" data-folder="Mystery-Liquid-Sort">
+          <li class="game-tile has-cover is-cockpit" data-search="神秘液體排序 Mystery Liquid Sort 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Mystery-Liquid-Sort mystery-liquid-sort" data-name="神秘液體排序" data-folder="Mystery-Liquid-Sort" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Mystery-Liquid-Sort-320.webp 320w, assets/covers/optimized/Mystery-Liquid-Sort-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -903,7 +1026,10 @@
                 <h3 class="tile-name font-tc">神秘液體排序</h3>
                 <p class="tile-en">Mystery Liquid Sort</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">在瓶子之間傾倒彩色液體，讓每個瓶子只剩下單一顏色。</p>
             <div class="tile-foot">
@@ -916,7 +1042,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="俄羅斯方塊 Tetris 益智 Tetris tetris" data-name="俄羅斯方塊" data-folder="Tetris">
+          <li class="game-tile has-cover is-cockpit" data-search="俄羅斯方塊 Tetris 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Tetris tetris" data-name="俄羅斯方塊" data-folder="Tetris" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Tetris-320.webp 320w, assets/covers/optimized/Tetris-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -931,7 +1057,10 @@
                 <h3 class="tile-name font-tc">俄羅斯方塊</h3>
                 <p class="tile-en">Tetris</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">SRS 旋轉搭配 Hold 與 Next，另有衝刺 40 行與限時兩分模式。</p>
             <div class="tile-foot">
@@ -944,7 +1073,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="蛇窟迴廊（Roguelike 貪吃蛇） Roguelike Snake 益智 Roguelike-Snake roguelike-snake" data-name="蛇窟迴廊（Roguelike 貪吃蛇）" data-folder="Roguelike-Snake">
+          <li class="game-tile has-cover is-cockpit" data-search="蛇窟迴廊（Roguelike 貪吃蛇） Roguelike Snake 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Roguelike-Snake roguelike-snake" data-name="蛇窟迴廊（Roguelike 貪吃蛇）" data-folder="Roguelike-Snake" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Roguelike-Snake-320.webp 320w, assets/covers/optimized/Roguelike-Snake-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -959,7 +1088,10 @@
                 <h3 class="tile-name font-tc">蛇窟迴廊（Roguelike 貪吃蛇）</h3>
                 <p class="tile-en">Roguelike Snake</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">貪吃蛇融合 Roguelike 遺物構築，一路深入十五層地窟。</p>
             <div class="tile-foot">
@@ -972,7 +1104,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="魔法氣泡 Puyo Puyo 益智 Puyo-Puyo puyo-puyo" data-name="魔法氣泡" data-folder="Puyo-Puyo">
+          <li class="game-tile has-cover is-cockpit" data-search="魔法氣泡 Puyo Puyo 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Puyo-Puyo puyo-puyo" data-name="魔法氣泡" data-folder="Puyo-Puyo" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Puyo-Puyo-320.webp 320w, assets/covers/optimized/Puyo-Puyo-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -987,7 +1119,10 @@
                 <h3 class="tile-name font-tc">魔法氣泡</h3>
                 <p class="tile-en">Puyo Puyo</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1–2 人">1–2 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">任務梯與連鎖教室、CPU 達人難度；同色四顆消除並引爆長連鎖。</p>
             <div class="tile-foot">
@@ -1000,7 +1135,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="發條守城 Clockwork Keep 益智 Clockwork-Keep clockwork-keep" data-name="發條守城" data-folder="Clockwork-Keep">
+          <li class="game-tile has-cover is-cockpit" data-search="發條守城 Clockwork Keep 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Clockwork-Keep clockwork-keep" data-name="發條守城" data-folder="Clockwork-Keep" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Clockwork-Keep-320.webp 320w, assets/covers/optimized/Clockwork-Keep-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -1015,7 +1150,10 @@
                 <h3 class="tile-name font-tc">發條守城</h3>
                 <p class="tile-en">Clockwork Keep</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">塔就是牆的築迷宮塔防：改寫敵人最短路，但不得封死出口。</p>
             <div class="tile-foot">
@@ -1028,7 +1166,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="數字推盤 Fifteen Puzzle 益智 Fifteen-Puzzle fifteen-puzzle" data-name="數字推盤" data-folder="Fifteen-Puzzle">
+          <li class="game-tile has-cover is-cockpit" data-search="數字推盤 Fifteen Puzzle 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Fifteen-Puzzle fifteen-puzzle" data-name="數字推盤" data-folder="Fifteen-Puzzle" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Fifteen-Puzzle-320.webp 320w, assets/covers/optimized/Fifteen-Puzzle-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -1043,7 +1181,10 @@
                 <h3 class="tile-name font-tc">數字推盤</h3>
                 <p class="tile-en">Fifteen Puzzle</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">經典 4×4 滑塊推盤，將數字 1–15 排回正確順序。</p>
             <div class="tile-foot">
@@ -1056,7 +1197,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="記憶配對 Memory Match 益智 Memory-Match memory-match" data-name="記憶配對" data-folder="Memory-Match">
+          <li class="game-tile has-cover is-cockpit" data-search="記憶配對 Memory Match 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Memory-Match memory-match" data-name="記憶配對" data-folder="Memory-Match" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Memory-Match-320.webp 320w, assets/covers/optimized/Memory-Match-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -1071,7 +1212,10 @@
                 <h3 class="tile-name font-tc">記憶配對</h3>
                 <p class="tile-en">Memory Match</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">翻開兩張卡配對圖案，全部配對即過關。</p>
             <div class="tile-foot">
@@ -1084,7 +1228,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="走透透 Every Corner 益智 Every-Corner every-corner" data-name="走透透" data-folder="Every-Corner">
+          <li class="game-tile has-cover is-cockpit" data-search="走透透 Every Corner 益智 雙翼座艙 cockpit pro 戰術雷達 遙測 Every-Corner every-corner" data-name="走透透" data-folder="Every-Corner" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Every-Corner-320.webp 320w, assets/covers/optimized/Every-Corner-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -1099,7 +1243,10 @@
                 <h3 class="tile-name font-tc">走透透</h3>
                 <p class="tile-en">Every Corner</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">依序經過每個數字並走滿整個盤面的單筆路徑解謎，題目即時生成且保證唯一解，另有每日挑戰。</p>
             <div class="tile-foot">
@@ -1125,7 +1272,7 @@
         </div>
         <ul class="game-grid" role="list">
 
-          <li class="game-tile has-cover" data-search="武士反應訓練 Instant Flash 迷你 Instant-Flash instant-flash" data-name="武士反應訓練" data-folder="Instant-Flash">
+          <li class="game-tile has-cover is-cockpit" data-search="武士反應訓練 Instant Flash 迷你 雙翼座艙 cockpit pro 戰術雷達 遙測 Instant-Flash instant-flash" data-name="武士反應訓練" data-folder="Instant-Flash" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Instant-Flash-320.webp 320w, assets/covers/optimized/Instant-Flash-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -1140,7 +1287,10 @@
                 <h3 class="tile-name font-tc">武士反應訓練</h3>
                 <p class="tile-en">Instant Flash</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">提示閃現的瞬間出刀，考驗居合一閃般的極限反應。</p>
             <div class="tile-foot">
@@ -1153,7 +1303,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="色感記憶 Dialed Color 迷你 Dialed-Color dialed-color" data-name="色感記憶" data-folder="Dialed-Color">
+          <li class="game-tile has-cover is-cockpit" data-search="色感記憶 Dialed Color 迷你 雙翼座艙 cockpit pro 戰術雷達 遙測 Dialed-Color dialed-color" data-name="色感記憶" data-folder="Dialed-Color" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Dialed-Color-320.webp 320w, assets/covers/optimized/Dialed-Color-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -1168,7 +1318,10 @@
                 <h3 class="tile-name font-tc">色感記憶</h3>
                 <p class="tile-en">Dialed Color</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">每日種子色、混色／互補／閃擊／生存等多模式；記色後以 HSL 滑桿重現，可分享結果。</p>
             <div class="tile-foot">
@@ -1181,7 +1334,7 @@
             </div>
           </li>
 
-          <li class="game-tile has-cover" data-search="幣潮 Coin Cascade 迷你 Coin-Cascade coin-cascade" data-name="幣潮" data-folder="Coin-Cascade">
+          <li class="game-tile has-cover is-cockpit" data-search="幣潮 Coin Cascade 迷你 雙翼座艙 cockpit pro 戰術雷達 遙測 Coin-Cascade coin-cascade" data-name="幣潮" data-folder="Coin-Cascade" data-cockpit="true">
             <div class="tile-cover" aria-hidden="true">
               <picture class="block h-full">
                 <source type="image/webp" srcset="assets/covers/optimized/Coin-Cascade-320.webp 320w, assets/covers/optimized/Coin-Cascade-640.webp 640w" sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -1196,7 +1349,10 @@
                 <h3 class="tile-name font-tc">幣潮</h3>
                 <p class="tile-en">Coin Cascade</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                <span class="tile-badge-cockpit font-tc" title="已搭載雙翼電競座艙與即時戰況遙測"><span class="badge-dot" aria-hidden="true"></span>雙翼座艙</span>
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">推幣機：沒掉下去的幣會留在台面上成為之後要被推的地形，投在哪裡是佈局而非隨機動作，彩池觸發區與連鎖雪崩都要自己安排。</p>
             <div class="tile-foot">
@@ -1238,7 +1394,10 @@
                 <h3 class="tile-name font-tc">AI 智慧家庭</h3>
                 <p class="tile-en">AI Smart Home</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">人機共用同一 SmartHome 狀態；WebMCP tools 直接驅動裝置。</p>
             <div class="tile-foot">
@@ -1266,7 +1425,10 @@
                 <h3 class="tile-name font-tc">迷你電商</h3>
                 <p class="tile-en">Mini Amazon</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">電商目錄、購物車與訂單流程，AI 透過結構化 tools 操作。</p>
             <div class="tile-foot">
@@ -1294,7 +1456,10 @@
                 <h3 class="tile-name font-tc">迷你戰術地牢</h3>
                 <p class="tile-en">Mini Tactical Dungeon</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">戰術地牢 demo：UI 與 agent 共用遊戲能力層。</p>
             <div class="tile-foot">
@@ -1322,7 +1487,10 @@
                 <h3 class="tile-name font-tc">迷你工廠</h3>
                 <p class="tile-en">Mini Factory</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">工廠產線控制面板，展示 WebMCP 對應用狀態的雙向控制。</p>
             <div class="tile-foot">
@@ -1350,7 +1518,10 @@
                 <h3 class="tile-name font-tc">密室逃脫</h3>
                 <p class="tile-en">Escape Room</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">密室逃脫互動；agent 用 tools 調查與解謎，不靠點擊模擬。</p>
             <div class="tile-foot">
@@ -1378,7 +1549,10 @@
                 <h3 class="tile-name font-tc">Agent 看板</h3>
                 <p class="tile-en">Agent Trello</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">看板式任務板，人與 AI 共用同一套卡片／列表操作。</p>
             <div class="tile-foot">
@@ -1406,7 +1580,10 @@
                 <h3 class="tile-name font-tc">披薩／漢堡組裝</h3>
                 <p class="tile-en">Pizza / Burger Builder</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">食物組裝器：UI 與 WebMCP tools 同步同一份配方狀態。</p>
             <div class="tile-foot">
@@ -1434,7 +1611,10 @@
                 <h3 class="tile-name font-tc">魔術方塊學院</h3>
                 <p class="tile-en">Rubik’s Cube Academy</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">新手層層法學習站：課程進度、公式播放、計時練習與 WebMCP AI 導師工具。</p>
             <div class="tile-foot">
@@ -1462,7 +1642,10 @@
                 <h3 class="tile-name font-tc">循環之路</h3>
                 <p class="tile-en">Loop Hero</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">循環路線建造式 Roguelike 風格 one-shot 遊戲。</p>
             <div class="tile-foot">
@@ -1490,7 +1673,10 @@
                 <h3 class="tile-name font-tc">弓箭手</h3>
                 <p class="tile-en">Archer</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">射箭／瞄準互動遊戲 one-shot 產出。</p>
             <div class="tile-foot">
@@ -1518,7 +1704,10 @@
                 <h3 class="tile-name font-tc">動力雕塑展</h3>
                 <p class="tile-en">Exhibition Web</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">當代動力雕塑展網站，含捲動驅動的機械節奏互動。</p>
             <div class="tile-foot">
@@ -1546,7 +1735,10 @@
                 <h3 class="tile-name font-tc">3D 航行</h3>
                 <p class="tile-en">3D Sailing</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">Windward：三航線計時、PB 與幽靈船；本機 Three.js，支援觸控。</p>
             <div class="tile-foot">
@@ -1574,7 +1766,10 @@
                 <h3 class="tile-name font-tc">無盡火車</h3>
                 <p class="tile-en">Endless Train</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">永不停止的火車：採集、鋪軌、趕在出軌前前進。</p>
             <div class="tile-foot">
@@ -1602,7 +1797,10 @@
                 <h3 class="tile-name font-tc">3D 填空</h3>
                 <p class="tile-en">3D Fill the Void</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">3D 空間填補／建造類互動小品（執行期依賴 Three.js CDN）。</p>
             <div class="tile-foot">
@@ -1630,7 +1828,10 @@
                 <h3 class="tile-name font-tc">邊疆</h3>
                 <p class="tile-en">Borderland</p>
               </div>
-              <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              <div class="tile-meta-badges">
+                
+                <span class="tile-players font-tc" aria-label="遊玩人數 1 人">1 人</span>
+              </div>
             </div>
             <p class="tile-desc font-tc">邊疆主題 3D 射擊小品（執行期依賴 Three.js CDN）。</p>
             <div class="tile-foot">
@@ -1661,9 +1862,60 @@
         規格文件與架構說明：<a href="README.md" class="footer-link focus-ring">README</a>
         · <a href="docs/PROJECT-STRUCTURE.md" class="footer-link focus-ring">專案架構與部署指南</a>
       </p>
-      <p class="footer-hint">小技巧：按 <kbd>/</kbd> 快速搜尋、按 <kbd>Esc</kbd> 清除。</p>
+      <p class="footer-hint">小技巧：按 <kbd>R</kbd> 隨機開局、按 <kbd>/</kbd> 快速搜尋、按方向鍵導航卡片。</p>
     </footer>
   </main>
+
+  <!-- Feeling Lucky Arcade Roulette Dialog -->
+  <dialog id="roulette-dialog" class="roulette-dialog font-tc" aria-labelledby="roulette-title">
+    <div class="roulette-panel">
+      <div class="roulette-header">
+        <div class="roulette-title-wrap">
+          <span class="roulette-icon" aria-hidden="true">🎲</span>
+          <h2 id="roulette-title" class="roulette-title font-heading">街機幸運輪盤 · 隨機開局</h2>
+        </div>
+        <button type="button" id="roulette-close" class="roulette-close focus-ring" aria-label="關閉輪盤">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-5 h-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+
+      <div class="roulette-stage">
+        <div class="roulette-scanline" aria-hidden="true"></div>
+        <div class="roulette-reel-container" id="roulette-reel">
+          <!-- Dynamic rotating card -->
+        </div>
+        <div class="roulette-target-reticle" aria-hidden="true"></div>
+      </div>
+
+      <div class="roulette-result" id="roulette-result" hidden>
+        <div class="roulette-result-badge font-tc" id="roulette-result-badge">🔥 命中推薦</div>
+        <p class="text-xs text-slate-300 font-tc" id="roulette-result-hint">即將為您啟動遊戲…</p>
+      </div>
+
+      <div class="roulette-footer">
+        <button type="button" id="roulette-reroll-btn" class="roulette-btn-reroll focus-ring font-tc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-4 h-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          再抽一次 (<kbd>R</kbd>)
+        </button>
+        <a href="#" id="roulette-launch-btn" class="roulette-btn-launch focus-ring font-tc is-disabled">
+          <span class="launch-spinner" id="roulette-countdown-ring" aria-hidden="true"></span>
+          <span id="roulette-launch-text">立即啟動 (<span id="roulette-countdown-num">3</span>s)</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-5 h-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5-5 5M6 12h12" /></svg>
+        </a>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Keyboard Matrix Navigation Strip -->
+  <aside class="lobby-hotkeys" id="lobby-hotkeys" aria-label="全鍵盤操作提示">
+    <div class="lobby-hotkeys__inner font-tc">
+      <span class="hotkey-item"><kbd>R</kbd> 隨機開局</span>
+      <span class="hotkey-item"><kbd>/</kbd> 搜尋</span>
+      <span class="hotkey-item"><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><kbd>←</kbd> 矩陣導航</span>
+      <span class="hotkey-item"><kbd>Enter</kbd> 啟動</span>
+      <span class="hotkey-item"><kbd>Esc</kbd> 重設</span>
+    </div>
+  </aside>
 
   <button type="button" id="back-to-top" class="back-to-top focus-ring" aria-label="回到頁面頂端" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>

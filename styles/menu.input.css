@@ -332,15 +332,175 @@
 
   @media (min-width: 768px) {
     .hero-poster {
-      grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.7fr);
-      gap: 1.25rem 2rem;
-      align-items: end;
+      grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.95fr);
+      gap: 1.5rem 2.5rem;
+      align-items: center;
     }
   }
 
   .hero-copy {
     @apply relative z-10 text-left min-w-0;
     order: 1;
+  }
+
+  .hero-actions {
+    @apply relative z-10 flex flex-wrap items-center gap-3 sm:gap-4 mb-2;
+  }
+
+  .hero-btn-lucky {
+    @apply inline-flex items-center justify-center gap-2 min-h-[3rem] px-6 text-base font-bold text-white cursor-pointer;
+    border-radius: 0.45rem;
+    background: linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #f472b6 100%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow:
+      0 0 0 2px rgba(251, 113, 133, 0.4),
+      0 0 30px rgba(244, 63, 94, calc(0.55 * var(--fx-mult))),
+      0 0 55px rgba(244, 114, 182, calc(0.35 * var(--fx-mult)));
+    transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  .hero-btn-lucky:hover {
+    filter: brightness(1.15);
+    transform: translateY(calc(-2px * var(--fx-mult))) scale(1.02);
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.6),
+      0 0 40px rgba(244, 63, 94, calc(0.75 * var(--fx-mult))),
+      0 0 70px rgba(244, 114, 182, calc(0.5 * var(--fx-mult)));
+  }
+
+  .btn-dice-icon {
+    font-size: 1.25rem;
+    animation: prop-float 4s ease-in-out infinite;
+  }
+
+  .btn-hotkey-chip {
+    @apply hidden sm:inline-flex items-center justify-center px-1.5 py-0.5 ml-1 text-xs font-mono font-bold text-rose-200 bg-black/40 border border-rose-300/30 rounded;
+  }
+
+  /* ---------- hero spotlight showcase ---------- */
+
+  .hero-spotlight {
+    @apply relative z-10 w-full;
+    order: 2;
+  }
+
+  @media (min-width: 768px) {
+    .hero-spotlight {
+      width: 100%;
+      max-width: 460px;
+      justify-self: end;
+    }
+  }
+
+  .spotlight-deck {
+    @apply relative w-full;
+  }
+
+  .spotlight-card {
+    @apply relative rounded-2xl overflow-hidden border border-cyan-400/30 bg-[#07101c]/95;
+    box-shadow:
+      0 0 0 1px rgba(45, 212, 191, 0.2),
+      0 0 35px rgba(45, 212, 191, calc(0.25 * var(--fx-mult))),
+      0 20px 50px rgba(0, 0, 0, 0.7);
+    transition: border-color 220ms ease, box-shadow 220ms ease;
+  }
+
+  .spotlight-card:hover {
+    border-color: rgba(45, 212, 191, 0.6);
+    box-shadow:
+      0 0 0 1px rgba(45, 212, 191, 0.4),
+      0 0 45px rgba(45, 212, 191, calc(0.4 * var(--fx-mult))),
+      0 25px 60px rgba(0, 0, 0, 0.8);
+  }
+
+  .spotlight-media {
+    @apply relative w-full overflow-hidden;
+    aspect-ratio: 16 / 9;
+    background: #020617;
+  }
+
+  .spotlight-media img {
+    @apply block w-full h-full object-cover transition-transform duration-500;
+  }
+
+  .spotlight-card:hover .spotlight-media img {
+    transform: scale(1.04);
+  }
+
+  .spotlight-overlay {
+    @apply absolute inset-0 pointer-events-none;
+    background: linear-gradient(180deg, rgba(6, 8, 15, 0.1) 0%, rgba(6, 8, 15, 0.35) 45%, rgba(6, 8, 15, 0.95) 100%);
+  }
+
+  .spotlight-badge {
+    @apply absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-emerald-200 border border-emerald-400/40 bg-emerald-950/80 backdrop-blur-md;
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.35);
+  }
+
+  .spotlight-badge .badge-pulse {
+    @apply w-2 h-2 rounded-full bg-emerald-400 animate-ping;
+  }
+
+  .spotlight-body {
+    @apply p-4 sm:p-5 relative z-10;
+  }
+
+  .spotlight-title {
+    @apply font-heading text-lg sm:text-xl text-white tracking-wide;
+    text-shadow: 0 0 12px rgba(45, 212, 191, calc(0.4 * var(--fx-mult)));
+  }
+
+  .spotlight-subtitle {
+    @apply text-xs text-cyan-300 font-mono tracking-wider mt-0.5;
+  }
+
+  .spotlight-desc {
+    @apply text-xs sm:text-sm text-slate-300 line-clamp-2 mt-1.5 leading-relaxed;
+  }
+
+  .spotlight-tags {
+    @apply flex flex-wrap gap-1.5 mt-2.5;
+  }
+
+  .spotlight-tag {
+    @apply inline-flex items-center px-2 py-0.5 text-[0.7rem] rounded-md text-cyan-200 border border-cyan-400/20 bg-cyan-950/50;
+  }
+
+  .spotlight-actions {
+    @apply flex items-center justify-between gap-3 mt-4 pt-3 border-t border-cyan-400/15;
+  }
+
+  .spotlight-play {
+    @apply inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-rose-500 hover:bg-rose-400 transition-all duration-200 cursor-pointer shadow-[0_0_16px_rgba(244,63,94,0.4)];
+  }
+
+  .spotlight-play:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 24px rgba(244, 63, 94, 0.6);
+  }
+
+  .spotlight-nav {
+    @apply flex items-center gap-1.5;
+  }
+
+  .spotlight-nav-btn {
+    @apply inline-flex items-center justify-center w-7 h-7 rounded-md border border-cyan-400/25 bg-cyan-950/40 text-slate-300 hover:text-white hover:border-cyan-400/60 hover:bg-cyan-900/60 transition-all duration-150 cursor-pointer;
+  }
+
+  .spotlight-nav-btn svg {
+    @apply w-4 h-4;
+  }
+
+  .spotlight-pips {
+    @apply flex items-center gap-1.5 px-1;
+  }
+
+  .spotlight-pip {
+    @apply w-2 h-2 rounded-full bg-slate-600 transition-all duration-200 cursor-pointer border-none p-0;
+  }
+
+  .spotlight-pip.is-active {
+    @apply w-5 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(45,212,191,0.8)];
   }
 
   .hero-sticker {
@@ -618,6 +778,14 @@
     @apply relative w-full;
   }
 
+  .toolbar-search-row {
+    @apply flex items-center gap-2 w-full;
+  }
+
+  .toolbar-lucky-btn {
+    @apply shrink-0 inline-flex items-center justify-center gap-1.5 h-[3.25rem] px-3.5 sm:px-4 text-xs sm:text-sm font-bold text-rose-200 bg-rose-950/70 border border-rose-500/40 rounded-xl cursor-pointer transition-all duration-200 hover:bg-rose-900 hover:text-white hover:border-rose-400 hover:shadow-[0_0_18px_rgba(244,63,94,0.45)];
+  }
+
   .search-icon {
     @apply absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none;
   }
@@ -708,6 +876,24 @@
 
   .filter-pill.is-active .filter-pill-count {
     @apply text-white bg-black/35;
+  }
+
+  .filter-pill--cockpit {
+    border-color: rgba(45, 212, 191, 0.45);
+    background-color: rgba(13, 148, 136, 0.2);
+    box-shadow: 0 0 15px rgba(45, 212, 191, 0.2);
+  }
+
+  .filter-pill--cockpit:hover {
+    border-color: rgba(45, 212, 191, 0.8);
+    background-color: rgba(13, 148, 136, 0.35);
+    box-shadow: 0 0 25px rgba(45, 212, 191, 0.4);
+  }
+
+  .filter-pill--cockpit.is-active {
+    border-color: #2dd4bf;
+    background-color: rgba(13, 148, 136, 0.5);
+    box-shadow: 0 0 0 1px #2dd4bf, 0 0 30px rgba(45, 212, 191, 0.6);
   }
 
   .search-status {
@@ -968,8 +1154,30 @@
     @apply text-xs text-slate-300 tracking-wide mt-0.5;
   }
 
+  .tile-meta-badges {
+    @apply ml-auto shrink-0 flex items-center gap-1.5 flex-wrap justify-end;
+  }
+
+  .tile-badge-cockpit {
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.65rem] font-semibold text-cyan-200 border border-cyan-400/40 bg-cyan-950/80 shadow-[0_0_8px_rgba(45,212,191,0.25)] whitespace-nowrap;
+  }
+
+  .tile-badge-cockpit .badge-dot {
+    @apply w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse;
+  }
+
   .tile-players {
-    @apply ml-auto shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[0.7rem] text-slate-400 border border-white/10 bg-black/25 whitespace-nowrap;
+    @apply shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[0.7rem] text-slate-400 border border-white/10 bg-black/25 whitespace-nowrap;
+  }
+
+  .game-tile.is-matrix-focused {
+    border-color: #2dd4bf !important;
+    box-shadow:
+      0 0 0 2px #2dd4bf,
+      0 0 32px rgba(45, 212, 191, 0.65),
+      0 0 60px rgba(103, 232, 249, 0.35) !important;
+    transform: perspective(900px) scale(1.025) translateY(-4px) !important;
+    z-index: 10;
   }
 
   .tile-desc {
@@ -1094,6 +1302,180 @@
 
   .back-to-top[hidden] {
     display: none;
+  }
+
+  /* ---------- roulette dialog ---------- */
+
+  .roulette-dialog {
+    @apply fixed inset-0 z-50 p-0 m-auto bg-transparent border-none max-w-lg w-[92vw] overflow-visible;
+  }
+
+  .roulette-dialog::backdrop {
+    background: rgba(4, 6, 12, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .roulette-panel {
+    @apply relative rounded-2xl overflow-hidden border border-cyan-400/40 bg-[#07101c] p-5 sm:p-6 text-white shadow-2xl;
+    box-shadow:
+      0 0 0 1px rgba(45, 212, 191, 0.3),
+      0 0 50px rgba(45, 212, 191, 0.3),
+      0 0 80px rgba(244, 63, 94, 0.25),
+      0 25px 60px rgba(0, 0, 0, 0.85);
+  }
+
+  .roulette-header {
+    @apply flex items-center justify-between pb-3 mb-4 border-b border-cyan-400/20;
+  }
+
+  .roulette-title-wrap {
+    @apply flex items-center gap-2;
+  }
+
+  .roulette-icon {
+    font-size: 1.5rem;
+    animation: prop-float 3s ease-in-out infinite;
+  }
+
+  .roulette-title {
+    @apply text-lg sm:text-xl font-heading text-white tracking-wide;
+    text-shadow: 0 0 14px rgba(45, 212, 191, 0.5);
+  }
+
+  .roulette-close {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer;
+  }
+
+  .roulette-stage {
+    @apply relative rounded-xl overflow-hidden border border-cyan-400/30 bg-[#030712] my-4;
+    height: 180px;
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+  }
+
+  .roulette-scanline {
+    @apply absolute inset-0 pointer-events-none z-10;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(45, 212, 191, 0.04) 2px, rgba(45, 212, 191, 0.04) 4px);
+  }
+
+  .roulette-target-reticle {
+    @apply absolute inset-x-0 top-1/2 -translate-y-1/2 h-28 pointer-events-none z-20 border-y-2 border-rose-500/80;
+    background: linear-gradient(90deg, rgba(244, 63, 94, 0.08), rgba(244, 63, 94, 0.16) 50%, rgba(244, 63, 94, 0.08));
+    box-shadow:
+      0 0 20px rgba(244, 63, 94, 0.4),
+      inset 0 0 15px rgba(244, 63, 94, 0.2);
+  }
+
+  .roulette-target-reticle::before,
+  .roulette-target-reticle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-style: solid;
+  }
+
+  .roulette-target-reticle::before {
+    left: 4px;
+    border-width: 8px 0 8px 12px;
+    border-color: transparent transparent transparent #f43f5e;
+  }
+
+  .roulette-target-reticle::after {
+    right: 4px;
+    border-width: 8px 12px 8px 0;
+    border-color: transparent #f43f5e transparent transparent;
+  }
+
+  .roulette-reel-container {
+    @apply flex items-center justify-center w-full h-full;
+  }
+
+  .roulette-card-active {
+    @apply flex items-center gap-4 p-4 w-full h-full;
+  }
+
+  .roulette-card-thumb {
+    @apply w-28 h-28 rounded-lg overflow-hidden shrink-0 border border-cyan-400/40 relative shadow-lg bg-black;
+  }
+
+  .roulette-card-thumb img {
+    @apply w-full h-full object-cover;
+  }
+
+  .roulette-card-info {
+    @apply flex-1 min-w-0;
+  }
+
+  .roulette-card-category {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded text-cyan-300 bg-cyan-950/70 border border-cyan-400/30;
+  }
+
+  .roulette-card-name {
+    @apply text-xl font-heading text-white truncate mt-1;
+    text-shadow: 0 0 10px rgba(45, 212, 191, 0.6);
+  }
+
+  .roulette-card-en {
+    @apply text-xs text-slate-400 font-mono truncate;
+  }
+
+  .roulette-card-desc {
+    @apply text-xs text-slate-300 line-clamp-2 mt-1.5;
+  }
+
+  .roulette-result {
+    @apply p-3 rounded-lg border border-emerald-400/30 bg-emerald-950/40 mt-3 text-center;
+  }
+
+  .roulette-result-badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-bold text-emerald-300 bg-emerald-900/60 rounded-full border border-emerald-400/40 mb-1;
+  }
+
+  .roulette-footer {
+    @apply flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 mt-5 pt-3 border-t border-cyan-400/15;
+  }
+
+  .roulette-btn-reroll {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-cyan-400/30 bg-cyan-950/50 text-slate-200 hover:text-white hover:bg-cyan-900/60 hover:border-cyan-400/60 transition-all cursor-pointer text-sm;
+  }
+
+  .roulette-btn-launch {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-rose-500 hover:bg-rose-400 transition-all shadow-[0_0_20px_rgba(244,63,94,0.5)] cursor-pointer;
+  }
+
+  .roulette-btn-launch.is-disabled {
+    @apply opacity-50 pointer-events-none cursor-not-allowed shadow-none;
+  }
+
+  .launch-spinner {
+    @apply inline-block w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin;
+  }
+
+  /* ---------- keyboard matrix HUD strip ---------- */
+
+  .lobby-hotkeys {
+    @apply fixed bottom-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto;
+    max-width: 92vw;
+  }
+
+  .lobby-hotkeys__inner {
+    @apply flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 rounded-full border border-cyan-400/30 bg-[#060b16]/90 backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.6),0_0_15px_rgba(45,212,191,0.2)] text-[0.7rem] sm:text-[0.75rem] text-slate-300 whitespace-nowrap overflow-x-auto;
+    scrollbar-width: none;
+  }
+
+  .lobby-hotkeys__inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hotkey-item {
+    @apply inline-flex items-center gap-1.5 shrink-0;
+  }
+
+  .hotkey-item kbd {
+    @apply text-[0.65rem] px-1 py-0.5 rounded bg-cyan-950 border border-cyan-400/30 text-cyan-200 font-mono font-semibold;
   }
 }
 

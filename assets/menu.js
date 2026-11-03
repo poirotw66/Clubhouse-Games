@@ -74,15 +74,17 @@
 
   function apply() {
     const needle = currentQuery.trim().toLowerCase();
+    const isCockpitFilter = currentCategory === 'cockpit';
     let visible = 0;
 
     groups.forEach((group) => {
-      const inCategory = currentCategory === 'all' || group.dataset.category === currentCategory;
+      const inCategory = currentCategory === 'all' || isCockpitFilter || group.dataset.category === currentCategory;
       let groupHasMatch = false;
 
       group.querySelectorAll('.game-tile').forEach((tile) => {
+        const matchesCategory = isCockpitFilter ? tile.dataset.cockpit === 'true' : inCategory;
         const haystack = (tile.dataset.search || '').toLowerCase();
-        const show = inCategory && (!needle || haystack.includes(needle));
+        const show = matchesCategory && (!needle || haystack.includes(needle));
         tile.hidden = !show;
         if (show) {
           groupHasMatch = true;
@@ -195,7 +197,361 @@
     requestResetFilters();
   });
 
-  /* ---------- keyboard shortcuts ---------- */
+  /* ---------- flagship spotlight showcase ---------- */
+
+  const SPOTLIGHT_GAMES = [
+    {
+      name: '二十一點 VIP',
+      en: 'Blackjack Pro Cockpit',
+      desc: '高額賭桌戰情室：即時牌靴真數與莊家爆牌率雷達，支援全鍵盤快捷發牌。',
+      tags: ['⚡ 算牌雷達', '📊 勝率遙測', '⌨️ 鍵盤矩陣'],
+      badge: '🔥 旗艦焦點 · 雙翼座艙',
+      folder: 'Blackjack-main',
+      href: 'Games/Blackjack-main/',
+    },
+    {
+      name: '俄羅斯方塊',
+      en: 'Tetris Grandmaster HUD',
+      desc: '電競指法硬降極限：左翼即時消行速度與攻防曲線，右翼完整次塊投影矩陣。',
+      tags: ['⚡ PPS 消行遙測', '🧩 7-Bag 投影', '⌨️ 硬降瞬移'],
+      badge: '🔥 旗艦焦點 · 雙翼座艙',
+      folder: 'Tetris',
+      href: 'Games/Tetris/',
+    },
+    {
+      name: '玩具棒球',
+      en: 'Toy Baseball StatCast',
+      desc: '昭和復古彈珠球場：左右翼即時擊球仰角與擊球初速雷達，九宮格落點遙測！',
+      tags: ['⚡ 擊球初速 StatCast', '⚾ 彈珠控球', '📊 落點熱區'],
+      badge: '🔥 旗艦焦點 · 雙翼座艙',
+      folder: 'Toy-Baseball',
+      href: 'Games/Toy-Baseball/',
+    },
+    {
+      name: '西洋跳棋',
+      en: 'Checkers Tactical Radar',
+      desc: '國際跳棋戰術雷達：左翼強制跳吃多重路徑推演，右翼兵力差與升王線壓制力。',
+      tags: ['⚡ 強制連跳預判', '👑 升王壓制力', '🧠 AI 三段深度'],
+      badge: '🔥 旗艦焦點 · 雙翼座艙',
+      folder: 'Checkers',
+      href: 'Games/Checkers/',
+    },
+    {
+      name: '積木賽車',
+      en: 'Brick Kart Telemetry',
+      desc: '頂尖積木卡丁車大獎賽：左右翼即時轉速表與漂移角感測，全賽道遙測分析。',
+      tags: ['⚡ G 值感測', '🏎️ 賽道分段計時', '⌨️ 雙翼儀表'],
+      badge: '🔥 旗艦焦點 · 雙翼座艙',
+      folder: 'Brick-Kart-Racing',
+      href: 'Games/Brick-Kart-Racing/',
+    },
+  ];
+
+  const heroSpotlight = document.getElementById('hero-spotlight');
+  const spotlightActiveCard = document.getElementById('spotlight-active-card');
+  const spotlightImgWebp = document.getElementById('spotlight-img-webp');
+  const spotlightImg = document.getElementById('spotlight-img');
+  const spotlightBadgeText = document.getElementById('spotlight-badge-text');
+  const spotlightTitle = document.getElementById('spotlight-title');
+  const spotlightSub = document.getElementById('spotlight-sub');
+  const spotlightDesc = document.getElementById('spotlight-desc');
+  const spotlightTags = document.getElementById('spotlight-tags');
+  const spotlightPlayLink = document.getElementById('spotlight-play-link');
+  const spotlightPrev = document.getElementById('spotlight-prev');
+  const spotlightNext = document.getElementById('spotlight-next');
+  const spotlightPips = document.getElementById('spotlight-pips');
+
+  let currentSpotlightIndex = 0;
+  let spotlightAutoTimer = null;
+
+  function renderSpotlightPips() {
+    if (!spotlightPips) return;
+    spotlightPips.textContent = '';
+    SPOTLIGHT_GAMES.forEach((_, idx) => {
+      const pip = document.createElement('button');
+      pip.type = 'button';
+      pip.className = `spotlight-pip${idx === currentSpotlightIndex ? ' is-active' : ''}`;
+      pip.setAttribute('aria-label', `焦點項目 ${idx + 1}`);
+      pip.setAttribute('role', 'tab');
+      pip.setAttribute('aria-selected', String(idx === currentSpotlightIndex));
+      pip.addEventListener('click', () => {
+        setSpotlight(idx);
+        restartSpotlightTimer();
+      });
+      spotlightPips.appendChild(pip);
+    });
+  }
+
+  function setSpotlight(index) {
+    if (index < 0) index = SPOTLIGHT_GAMES.length - 1;
+    if (index >= SPOTLIGHT_GAMES.length) index = 0;
+    currentSpotlightIndex = index;
+    const item = SPOTLIGHT_GAMES[index];
+
+    if (spotlightActiveCard) {
+      spotlightActiveCard.style.opacity = '0.7';
+      spotlightActiveCard.style.transform = 'scale(0.98)';
+      setTimeout(() => {
+        if (spotlightImgWebp) {
+          spotlightImgWebp.srcset = `assets/covers/optimized/${item.folder}-320.webp 320w, assets/covers/optimized/${item.folder}-640.webp 640w`;
+        }
+        if (spotlightImg) {
+          spotlightImg.src = `assets/covers/optimized/${item.folder}-640.jpg`;
+          spotlightImg.alt = `${item.name} ${item.en}`;
+        }
+        if (spotlightBadgeText) spotlightBadgeText.textContent = item.badge;
+        if (spotlightTitle) spotlightTitle.textContent = item.name;
+        if (spotlightSub) spotlightSub.textContent = item.en;
+        if (spotlightDesc) spotlightDesc.textContent = item.desc;
+        if (spotlightPlayLink) spotlightPlayLink.href = item.href;
+
+        if (spotlightTags) {
+          spotlightTags.textContent = '';
+          item.tags.forEach((tag) => {
+            const span = document.createElement('span');
+            span.className = 'spotlight-tag';
+            span.textContent = tag;
+            spotlightTags.appendChild(span);
+          });
+        }
+
+        renderSpotlightPips();
+        spotlightActiveCard.style.opacity = '1';
+        spotlightActiveCard.style.transform = 'none';
+      }, 120);
+    }
+  }
+
+  function restartSpotlightTimer() {
+    if (spotlightAutoTimer) clearInterval(spotlightAutoTimer);
+    if (!prefersReducedMotion()) {
+      spotlightAutoTimer = setInterval(() => {
+        setSpotlight(currentSpotlightIndex + 1);
+      }, 6000);
+    }
+  }
+
+  spotlightPrev?.addEventListener('click', () => {
+    setSpotlight(currentSpotlightIndex - 1);
+    restartSpotlightTimer();
+  });
+
+  spotlightNext?.addEventListener('click', () => {
+    setSpotlight(currentSpotlightIndex + 1);
+    restartSpotlightTimer();
+  });
+
+  heroSpotlight?.addEventListener('mouseenter', () => {
+    if (spotlightAutoTimer) clearInterval(spotlightAutoTimer);
+  });
+
+  heroSpotlight?.addEventListener('mouseleave', () => {
+    restartSpotlightTimer();
+  });
+
+  renderSpotlightPips();
+  restartSpotlightTimer();
+
+  /* ---------- feeling lucky arcade roulette ---------- */
+
+  const rouletteDialog = document.getElementById('roulette-dialog');
+  const rouletteClose = document.getElementById('roulette-close');
+  const rouletteReel = document.getElementById('roulette-reel');
+  const rouletteResult = document.getElementById('roulette-result');
+  const rouletteResultBadge = document.getElementById('roulette-result-badge');
+  const rouletteResultHint = document.getElementById('roulette-result-hint');
+  const rouletteRerollBtn = document.getElementById('roulette-reroll-btn');
+  const rouletteLaunchBtn = document.getElementById('roulette-launch-btn');
+  const rouletteCountdownNum = document.getElementById('roulette-countdown-num');
+  const heroLuckyBtn = document.getElementById('hero-lucky-btn');
+  const toolbarLuckyBtn = document.getElementById('toolbar-lucky-btn');
+
+  let rouletteTimer = null;
+  let rouletteCountdownTimer = null;
+  let isRouletteSpinning = false;
+  let chosenRouletteGame = null;
+
+  function isRouletteOpen() {
+    return rouletteDialog && (rouletteDialog.open || rouletteDialog.hasAttribute('open'));
+  }
+
+  function getPlayableCandidates() {
+    const visibleTiles = tiles.filter((t) => !t.hidden && t.querySelector('a.tile-play'));
+    if (visibleTiles.length >= 3) return visibleTiles;
+    // Fallback to all playable tiles
+    return tiles.filter((t) => t.querySelector('a.tile-play'));
+  }
+
+  function openRoulette() {
+    if (!rouletteDialog) return;
+    if (typeof rouletteDialog.showModal === 'function') {
+      try {
+        rouletteDialog.showModal();
+      } catch {
+        rouletteDialog.setAttribute('open', '');
+      }
+    } else {
+      rouletteDialog.setAttribute('open', '');
+    }
+    spinRoulette();
+  }
+
+  function closeRoulette() {
+    if (!rouletteDialog) return;
+    if (rouletteTimer) clearTimeout(rouletteTimer);
+    if (rouletteCountdownTimer) clearInterval(rouletteCountdownTimer);
+    isRouletteSpinning = false;
+    if (typeof rouletteDialog.close === 'function') {
+      rouletteDialog.close();
+    } else {
+      rouletteDialog.removeAttribute('open');
+    }
+  }
+
+  function renderRouletteCard(tile) {
+    if (!rouletteReel || !tile) return;
+    const name = tile.dataset.name || '精選遊戲';
+    const folder = tile.dataset.folder || '';
+    const en = tile.querySelector('.tile-en')?.textContent || '';
+    const desc = tile.querySelector('.tile-desc')?.textContent || '';
+    const isCockpit = tile.dataset.cockpit === 'true';
+
+    rouletteReel.innerHTML = `
+      <div class="roulette-card-active font-tc">
+        <div class="roulette-card-thumb">
+          <img src="assets/covers/optimized/${folder ? `${folder}-320.webp` : 'Cyber-Neon-Rush-320.webp'}" alt="${name}" onerror="this.src='assets/covers/optimized/Cyber-Neon-Rush-640.jpg'" />
+        </div>
+        <div class="roulette-card-info">
+          <span class="roulette-card-category">${isCockpit ? '🔥 雙翼座艙' : '精選休閒'}</span>
+          <div class="roulette-card-name font-heading">${name}</div>
+          <div class="roulette-card-en">${en}</div>
+          <p class="roulette-card-desc">${desc}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function spinRoulette() {
+    if (isRouletteSpinning) return;
+    if (rouletteCountdownTimer) clearInterval(rouletteCountdownTimer);
+
+    const candidates = getPlayableCandidates();
+    if (candidates.length === 0) return;
+
+    isRouletteSpinning = true;
+    if (rouletteResult) rouletteResult.hidden = true;
+    if (rouletteLaunchBtn) rouletteLaunchBtn.classList.add('is-disabled');
+
+    const totalSteps = 20;
+    let step = 0;
+    let delay = 40;
+
+    // Pick random target winner
+    const winnerIndex = Math.floor(Math.random() * candidates.length);
+    const winnerTile = candidates[winnerIndex];
+    chosenRouletteGame = winnerTile;
+
+    function stepSpin() {
+      step++;
+      const currentCandidate = candidates[Math.floor(Math.random() * candidates.length)];
+      renderRouletteCard(currentCandidate);
+
+      if (step < totalSteps) {
+        if (step > 10) delay += 15;
+        if (step > 16) delay += 35;
+        rouletteTimer = setTimeout(stepSpin, delay);
+      } else {
+        renderRouletteCard(winnerTile);
+        finishSpin(winnerTile);
+      }
+    }
+
+    stepSpin();
+  }
+
+  function finishSpin(winnerTile) {
+    isRouletteSpinning = false;
+    const name = winnerTile.dataset.name || '';
+    const playLink = winnerTile.querySelector('a.tile-play');
+    const href = playLink?.getAttribute('href') || '#';
+
+    if (rouletteResult) {
+      rouletteResult.hidden = false;
+      if (rouletteResultBadge) {
+        rouletteResultBadge.textContent = winnerTile.dataset.cockpit === 'true' ? '🔥 雙翼座艙特選' : '🎲 幸運命中';
+      }
+      if (rouletteResultHint) {
+        rouletteResultHint.textContent = `命中《${name}》，準備進入！`;
+      }
+    }
+
+    if (rouletteLaunchBtn) {
+      rouletteLaunchBtn.classList.remove('is-disabled');
+      rouletteLaunchBtn.href = href;
+    }
+
+    // Start 3 second auto-countdown launch
+    let secondsLeft = 3;
+    if (rouletteCountdownNum) rouletteCountdownNum.textContent = String(secondsLeft);
+
+    rouletteCountdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (rouletteCountdownNum) rouletteCountdownNum.textContent = String(secondsLeft);
+      if (secondsLeft <= 0) {
+        clearInterval(rouletteCountdownTimer);
+        rememberGame(name, href);
+        window.location.href = href;
+      }
+    }, 1000);
+  }
+
+  heroLuckyBtn?.addEventListener('click', openRoulette);
+  toolbarLuckyBtn?.addEventListener('click', openRoulette);
+  rouletteClose?.addEventListener('click', closeRoulette);
+  rouletteRerollBtn?.addEventListener('click', spinRoulette);
+
+  rouletteLaunchBtn?.addEventListener('click', () => {
+    if (chosenRouletteGame) {
+      const name = chosenRouletteGame.dataset.name || '';
+      const playLink = chosenRouletteGame.querySelector('a.tile-play');
+      const href = playLink?.getAttribute('href') || '#';
+      rememberGame(name, href);
+    }
+  });
+
+  rouletteDialog?.addEventListener('click', (event) => {
+    if (event.target === rouletteDialog) {
+      closeRoulette();
+    }
+  });
+
+  /* ---------- keyboard shortcuts & matrix navigation ---------- */
+
+  let focusedTileIndex = -1;
+
+  function getVisibleTiles() {
+    return tiles.filter((tile) => !tile.hidden);
+  }
+
+  function setMatrixFocus(index) {
+    const visibleTiles = getVisibleTiles();
+    if (visibleTiles.length === 0) return;
+    if (index < 0) index = 0;
+    if (index >= visibleTiles.length) index = visibleTiles.length - 1;
+    focusedTileIndex = index;
+
+    tiles.forEach((t) => t.classList.remove('is-matrix-focused'));
+    const targetTile = visibleTiles[focusedTileIndex];
+    if (targetTile) {
+      targetTile.classList.add('is-matrix-focused');
+      targetTile.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
+    }
+  }
+
+  function clearMatrixFocus() {
+    focusedTileIndex = -1;
+    tiles.forEach((t) => t.classList.remove('is-matrix-focused'));
+  }
 
   document.addEventListener('keydown', (event) => {
     const target = event.target;
@@ -203,11 +559,63 @@
       target instanceof HTMLElement &&
       (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
+    // If roulette modal is open, handle its keys
+    if (isRouletteOpen()) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRoulette();
+      } else if ((event.key === 'r' || event.key === 'R' || event.key === ' ') && !typing) {
+        event.preventDefault();
+        spinRoulette();
+      }
+      return;
+    }
+
     const isFindShortcut = (event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey);
     if (isFindShortcut || (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey && !event.altKey)) {
       event.preventDefault();
       searchInput?.focus();
       searchInput?.select();
+      return;
+    }
+
+    if (!typing && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      // Hotkey 'R' opens Lucky Draw
+      if (event.key === 'r' || event.key === 'R') {
+        event.preventDefault();
+        openRoulette();
+        return;
+      }
+
+      // Matrix navigation keys
+      const visibleTiles = getVisibleTiles();
+      if (visibleTiles.length === 0) return;
+
+      if (event.key === 'ArrowDown' || event.key === 'j' || event.key === 'J') {
+        event.preventDefault();
+        setMatrixFocus(focusedTileIndex === -1 ? 0 : focusedTileIndex + 1);
+      } else if (event.key === 'ArrowUp' || event.key === 'k' || event.key === 'K') {
+        event.preventDefault();
+        setMatrixFocus(focusedTileIndex === -1 ? 0 : focusedTileIndex - 1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        setMatrixFocus(focusedTileIndex === -1 ? 0 : focusedTileIndex + 1);
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setMatrixFocus(focusedTileIndex === -1 ? 0 : focusedTileIndex - 1);
+      } else if (event.key === 'Enter' && focusedTileIndex >= 0 && focusedTileIndex < visibleTiles.length) {
+        const activeTile = visibleTiles[focusedTileIndex];
+        const playLink = activeTile?.querySelector('a.tile-play');
+        if (playLink && playLink.getAttribute('href')) {
+          event.preventDefault();
+          playLink.click();
+        }
+      } else if (event.key === 'Escape') {
+        if (focusedTileIndex !== -1) {
+          event.preventDefault();
+          clearMatrixFocus();
+        }
+      }
     }
   });
 
