@@ -46,7 +46,7 @@ export const PLAYER_Y = FIELD_H - 100;
 // train's, meaning simply never taking a risk was enough to win by default —
 // the balance harness measured a "safest" (lowest-density) policy surviving
 // past 1,100 seconds and 450,000 distance on an execution pilot that still
-// makes mistakes 5% of the time. That is the opposite of "速度只能從危险的
+// makes mistakes 5% of the time. That is the opposite of "速度只能從危險的
 // 分支拿": it made SAFETY free instead of making SPEED earned. With the gap
 // closed, only 'accel' branches (density-taxed, per DENSITY_FLOOR) pay out a
 // real surplus, and 'decel' branches are a real, compounding cost — matching

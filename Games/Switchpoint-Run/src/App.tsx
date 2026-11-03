@@ -11,8 +11,16 @@ import {
   playScore,
   playWin,
 } from '@clubhouse/shared/synthAudio';
+import { DispatchDrawer } from './components/DispatchDrawer';
+import { DispatchLeftWing } from './components/DispatchLeftWing';
+import {
+  DispatchRightWing,
+  type BlackboxLogEntry,
+} from './components/DispatchRightWing';
 import { GameCanvas } from './components/GameCanvas';
 import { GaragePanel } from './components/GaragePanel';
+import { MobileControlsOverlay } from './components/MobileControlsOverlay';
+import { MobileTacticalRibbon } from './components/MobileTacticalRibbon';
 import {
   RUN_CHALLENGES,
   applyChallengeResult,
@@ -43,6 +51,7 @@ import {
 } from './game/juice';
 import { MODIFIERS, type ModifierId } from './game/modifiers';
 import {
+  boltsFromRun,
   buyRunner,
   buyTheme,
   dailyStatus,
@@ -54,12 +63,18 @@ import {
   type MetaProgress,
   type RunMode,
 } from './game/progress';
-import { type RunnerId } from './game/profiles';
+import { RUNNERS, type RunnerId } from './game/profiles';
 import { randomSeedCode } from './game/rng';
-import { type ThemeId } from './game/themes';
+import { THEMES, type ThemeId } from './game/themes';
 import type { PlayerInput, RunConfig, RunState } from './game/types';
 
 type Screen = 'menu' | 'playing';
+
+function formatTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>('menu');
@@ -81,6 +96,15 @@ export default function App(): React.ReactElement {
   const [lastNewBest, setLastNewBest] = useState(false);
   const [hud, setHud] = useState<RunState | null>(null);
   const [comboFlash, setComboFlash] = useState(0);
+  const [activeKeys, setActiveKeys] = useState({
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+  });
+  const [blackboxLogs, setBlackboxLogs] = useState<BlackboxLogEntry[]>([]);
+  const [showMobileControls, setShowMobileControls] = useState(true);
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
 
   const stateRef = useRef<RunState | null>(null);
   const fxRef = useRef<FxState>(createFx());
@@ -168,6 +192,21 @@ export default function App(): React.ReactElement {
     [],
   );
 
+  const addLog = useCallback(
+    (text: string, kind: BlackboxLogEntry['kind'], timeSec: number) => {
+      setBlackboxLogs((prev) => [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          time: formatTime(timeSec),
+          text,
+          kind,
+        },
+        ...prev.slice(0, 19),
+      ]);
+    },
+    [],
+  );
+
   const startRun = useCallback(
     (
       seedCode?: string,
@@ -197,6 +236,14 @@ export default function App(): React.ReactElement {
       setActiveChallenge(challenge);
       setRunMode(mode);
       setDailyDate(date);
+      setBlackboxLogs([
+        {
+          id: 'init-0',
+          time: '00:00',
+          text: `調度指揮中心發車授權確認・種子 ${code}・全線運轉開始`,
+          kind: 'switch',
+        },
+      ]);
       setScreen('playing');
     },
     [seedInput, buildConfig],
@@ -238,19 +285,38 @@ export default function App(): React.ReactElement {
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
         e.preventDefault();
         laneStepRef.current = -1;
+        setActiveKeys((k) => ({ ...k, left: true }));
       } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
         e.preventDefault();
         laneStepRef.current = 1;
+        setActiveKeys((k) => ({ ...k, right: true }));
       } else if (e.code === 'ArrowUp' || e.code === 'KeyW') {
         e.preventDefault();
         jumpRef.current = true;
+        setActiveKeys((k) => ({ ...k, up: true }));
       } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
         e.preventDefault();
         slideRef.current = true;
+        setActiveKeys((k) => ({ ...k, down: true }));
+      }
+    };
+    const up = (e: KeyboardEvent): void => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        setActiveKeys((k) => ({ ...k, left: false }));
+      } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        setActiveKeys((k) => ({ ...k, right: false }));
+      } else if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+        setActiveKeys((k) => ({ ...k, up: false }));
+      } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+        setActiveKeys((k) => ({ ...k, down: false }));
       }
     };
     window.addEventListener('keydown', down);
-    return () => window.removeEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
   }, [screen]);
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -298,6 +364,11 @@ export default function App(): React.ReactElement {
       triggerHit(fx, px, py);
       playError();
       haptic('impact');
+      addLog(
+        `障礙擦撞制動！速度衰減至 ${Math.round(next.playerSpeed)} km/h`,
+        'hazard',
+        next.elapsed,
+      );
     }
     if (next.branchesCleared > prev.branches) {
       playScore();
@@ -307,17 +378,34 @@ export default function App(): React.ReactElement {
       triggerSwitch(fx, px, py - 40, '#34d399');
       playMove();
       haptic('place', 0.85);
+      const glyph =
+        next.activeBranch.speedMult > 1.05
+          ? '加速 ▲'
+          : next.activeBranch.speedMult < 0.95
+            ? '減速 ▼'
+            : '維持 ▬';
+      addLog(
+        `道岔鎖定：進入 ${next.activeBranch.lane + 1} 股道・${next.activeBranch.name} (${glyph})`,
+        'switch',
+        next.elapsed,
+      );
     }
     if (next.scoreMult > prev.scoreMult) {
       triggerPickup(fx, px, py - 20, 'score');
       playScore();
       haptic('success', 0.55);
+      addLog(
+        `路線評價提升！倍率升至 ×${next.scoreMult.toFixed(2)}`,
+        'score',
+        next.elapsed,
+      );
     }
     if (next.buffer > prev.buffer + 20 && next.hitsTotal === prev.hits) {
       // Supply pickup (buffer jump without a hit).
       triggerPickup(fx, px, py - 20, 'supply');
       playScore();
       haptic('tap', 0.6);
+      addLog('捕獲緊急物資節點！緩衝大幅回復 (+20%)', 'supply', next.elapsed);
     }
     if (resolvedObs > prev.resolvedObs && next.hitsTotal === prev.hits) {
       triggerNearMiss(fx, px, py);
@@ -328,6 +416,7 @@ export default function App(): React.ReactElement {
       setComboFlash(next.noHitStreak);
       playCombo(next.noHitStreak);
       haptic('combo', Math.min(1.2, 0.45 + next.noHitStreak * 0.08));
+      addLog(`連續零擦撞達成 ×${next.noHitStreak}！`, 'combo', next.elapsed);
     }
 
     juiceSnap.current = {
@@ -339,7 +428,7 @@ export default function App(): React.ReactElement {
       active: Boolean(next.activeBranch),
       resolvedObs,
     };
-  }, []);
+  }, [addLog]);
 
   useEffect(() => {
     if (screen !== 'playing') return;
@@ -477,99 +566,281 @@ export default function App(): React.ReactElement {
   const daily = dailyStatus(meta);
   const bestDistance = meta.free.bestDistance;
   const bestScore = meta.free.bestScore;
+  const selectedRunner =
+    RUNNERS.find((r) => r.id === meta.selectedRunnerId) ?? RUNNERS[0];
+  const selectedTheme =
+    THEMES.find((t) => t.id === meta.selectedThemeId) ?? THEMES[0];
 
   if (screen === 'menu') {
     return (
       <div
-        className="sr-title-shell min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center"
+        className="sr-title-shell min-h-screen flex flex-col items-center justify-start gap-4 p-4 sm:p-6 text-center overflow-y-auto"
         style={{
           backgroundImage: [
-            'linear-gradient(rgba(5, 9, 10, 0.55), rgba(5, 9, 10, 0.92))',
+            'linear-gradient(rgba(5, 9, 10, 0.65), rgba(5, 9, 10, 0.94))',
             `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
           ].join(', '),
         }}
       >
         <BackToMenu />
-        <header className="sr-title-hero">
-          <h1 className="sr-display sr-glow-title text-4xl font-extrabold tracking-wide text-emerald-200">
+
+        {/* Dispatch Operations Center Header */}
+        <header className="sr-title-hero w-full max-w-3xl mt-12 sm:mt-8">
+          <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-[11px] font-mono tracking-widest text-emerald-300 uppercase">
+                中央鐵道調度所 · 即時運轉監控中心
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">DISPATCH-HQ</span>
+          </div>
+
+          <h1 className="sr-display sr-glow-title text-3xl sm:text-5xl font-black tracking-wider text-emerald-200">
             岔道疾走
           </h1>
-          <p className="mt-2 text-slate-400 text-sm">Switchpoint Run</p>
+          <p className="mt-1 text-slate-400 text-xs sm:text-sm font-sans tracking-wide">
+            SWITCHPOINT RUN · 鐵道路線抉擇與追越逃逸系統
+          </p>
+          <div className="mt-3 flex justify-center">
+            <span className="text-xs text-emerald-300/90 font-medium bg-emerald-950/60 border border-emerald-500/30 rounded-full py-1 px-4 shadow-[0_0_12px_rgba(52,211,153,0.15)]">
+              「距離不是靠跑，是靠選對路線。」
+            </span>
+          </div>
         </header>
-        <div className="sr-panel rounded-2xl p-5 max-w-md text-left text-sm leading-relaxed text-slate-300">
-          <p className="mb-3 text-slate-200 font-semibold">距離不是靠跑，是靠選對路線。</p>
-          <ul className="space-y-1.5 list-disc list-inside">
-            <li>
-              每個道岔的支線內容都<b>提前預覽</b>：速度、障礙密度、有無補給一目瞭然。
-            </li>
-            <li>
-              <b>沒有一條支線是全面最優</b>——速度與收益都要用密度（更多障礙）來換。
-            </li>
-            <li>撞到障礙不會立即結束，而是大幅降速，讓後方列車更接近。</li>
-            <li>← → 換股道／扳道，↑ 跳過低欄，↓ 滑過高架，P／Esc 暫停。</li>
-            <li>觸控：左右滑動換道、上滑跳躍、下滑滑行。</li>
-          </ul>
-          <div className="mt-4">
-            <JuiceSettingsPanel compact />
+
+        {/* Fleet & Resource Telemetry Bar */}
+        <div className="sr-panel rounded-2xl px-5 py-3.5 w-full max-w-3xl flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div>
+              <span className="text-slate-400 text-[10px] block">儲備鐵道螺栓</span>
+              <span className="font-mono font-bold text-amber-300 text-base">
+                {meta.bolts.toLocaleString('zh-Hant')}{' '}
+                <span className="text-xs text-amber-400/80">螺栓</span>
+              </span>
+            </div>
+            <div className="border-l border-white/10 pl-4 sm:pl-6">
+              <span className="text-slate-400 text-[10px] block">自由最佳紀錄</span>
+              <span className="font-mono text-slate-200">
+                {bestDistance > 0 || bestScore > 0 ? (
+                  <>
+                    <b className="text-emerald-400">{bestDistance.toLocaleString('zh-Hant')}m</b>
+                    {' / '}
+                    <b className="text-sky-300">{bestScore.toLocaleString('zh-Hant')}分</b>
+                  </>
+                ) : (
+                  '尚未發車'
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold">
+              車輛：{selectedRunner.name}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[11px] font-semibold">
+              主題：{selectedTheme.name}
+            </span>
+            {meta.equippedModifiers.length > 0 && (
+              <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
+                修飾：{meta.equippedModifiers.length} 項作用中
+              </span>
+            )}
           </div>
         </div>
-        <p className="text-slate-400 text-sm">
-          鐵道螺栓 <b className="text-amber-300">{meta.bolts.toLocaleString('zh-Hant')}</b>
-          {(bestDistance > 0 || bestScore > 0) && (
-            <>
-              {' '}
-              ・ 最佳距離 {bestDistance.toLocaleString('zh-Hant')} ・ 最佳分數{' '}
-              {bestScore.toLocaleString('zh-Hant')}
-            </>
-          )}
-        </p>
-        <div className="flex flex-col items-center gap-2">
-          <input
-            value={seedInput}
-            onChange={(e) => setSeedInput(e.target.value)}
-            placeholder="種子碼（留空隨機）"
-            maxLength={8}
-            className="min-h-[40px] w-48 rounded-lg border border-white/15 bg-slate-900/70 px-3 text-center text-sm tracking-widest text-slate-100 uppercase placeholder:text-slate-500 placeholder:normal-case"
-          />
-          <button
-            type="button"
-            onClick={() => startRun()}
-            className="sr-cta min-h-[44px] px-8 py-3 rounded-xl font-semibold text-white"
-          >
-            扳道出發
-          </button>
-          <button
-            type="button"
-            onClick={startDaily}
-            className="min-h-[44px] px-8 py-3 rounded-xl border border-amber-500/50 bg-amber-500/15 font-semibold text-amber-100"
-            aria-label={`今日挑戰種子 ${daily.seedCode}`}
-          >
-            今日挑戰
-          </button>
-          <p className="text-[11px] text-slate-500">
-            種子 {daily.seedCode}
-            {daily.best
-              ? `・今日最佳 ${daily.best.bestDistance.toLocaleString('zh-Hant')} / ${daily.best.bestScore.toLocaleString('zh-Hant')}`
-              : '・尚無今日紀錄'}
-          </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowGarage(true)}
-              className="min-h-[44px] px-6 py-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-semibold text-emerald-100"
-            >
-              車庫與解鎖
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowChallenges(true)}
-              className="min-h-[44px] px-6 py-3 rounded-xl border border-sky-500/50 bg-sky-500/15 font-semibold text-sky-100"
-              aria-label={`開啟挑戰種子包。${packSubtitle}`}
-            >
-              挑戰種子包
-            </button>
+
+        {/* Main Command Mode Cards (2x2 grid) */}
+        <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-3.5 text-left">
+          {/* Card 1: Free Dispatch Run */}
+          <div className="sr-panel rounded-2xl p-4 flex flex-col justify-between border-emerald-500/30 bg-gradient-to-br from-emerald-950/20 via-slate-900/60 to-slate-950/80">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-bold text-emerald-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                  自由特快調度
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">FREE RUN</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                全線開放無盡跑道，自由選擇道岔避開追越列車，賺取鐵道螺栓與刷新個人紀錄。
+              </p>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10 flex flex-col gap-2">
+              <div className="flex gap-2">
+                <input
+                  value={seedInput}
+                  onChange={(e) => setSeedInput(e.target.value)}
+                  placeholder="自訂種子（留空隨機）"
+                  maxLength={8}
+                  className="min-h-[40px] flex-1 rounded-xl border border-white/15 bg-slate-900/80 px-3 text-center text-xs tracking-widest text-slate-100 uppercase placeholder:text-slate-500 placeholder:normal-case font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSeedInput(randomSeedCode())}
+                  className="px-3 rounded-xl border border-white/15 bg-slate-800 text-xs text-slate-300 hover:bg-slate-700"
+                  title="產生隨機種子碼"
+                >
+                  隨機
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => startRun()}
+                className="sr-cta min-h-[44px] w-full rounded-xl font-bold text-white text-sm tracking-wide shadow-lg shadow-emerald-950/50"
+              >
+                扳道出發・開始調度
+              </button>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500">{packSubtitle}</p>
+
+          {/* Card 2: Daily Mission */}
+          <div className="sr-panel rounded-2xl p-4 flex flex-col justify-between border-amber-500/30 bg-gradient-to-br from-amber-950/20 via-slate-900/60 to-slate-950/80">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-bold text-amber-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]" />
+                  今日官方排程
+                </span>
+                <span className="text-[10px] font-mono text-amber-400/90">{daily.seedCode}</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                由全球統一曆日種子生成，所有調度員同一賽道競技，當日最佳紀錄獨立結算保存。
+              </p>
+              <div className="mt-2 text-[11px] text-amber-200/90 bg-amber-950/40 border border-amber-500/20 rounded-lg p-2 font-mono">
+                {daily.best ? (
+                  <>
+                    今日最佳：{daily.best.bestDistance.toLocaleString('zh-Hant')}m · {daily.best.bestScore.toLocaleString('zh-Hant')}分
+                  </>
+                ) : (
+                  '今日尚無調度紀錄，等待你的首航！'
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={startDaily}
+                className="min-h-[44px] w-full rounded-xl border border-amber-500/60 bg-amber-500/20 font-bold text-amber-200 text-sm hover:bg-amber-500/30 transition-colors shadow-lg shadow-amber-950/40"
+              >
+                挑戰今日排程・發車
+              </button>
+            </div>
+          </div>
+
+          {/* Card 3: Challenge Seed Pack */}
+          <div className="sr-panel rounded-2xl p-4 flex flex-col justify-between border-sky-500/30 bg-gradient-to-br from-sky-950/20 via-slate-900/60 to-slate-950/80">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-bold text-sky-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
+                  調度員檢定包
+                </span>
+                <span className="text-[10px] font-mono text-sky-400">
+                  {challengeProgress.clearedCount}/{packTotal} 關
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                固定種子的高難度檢定關卡，達成目標距離或分數即可通關解鎖下一關。
+              </p>
+              <div className="mt-2 text-[11px] text-sky-200/90 bg-sky-950/40 border border-sky-500/20 rounded-lg p-2">
+                進度：{packSubtitle}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowChallenges(true)}
+                className="min-h-[44px] w-full rounded-xl border border-sky-500/60 bg-sky-500/20 font-bold text-sky-200 text-sm hover:bg-sky-500/30 transition-colors shadow-lg shadow-sky-950/40"
+              >
+                檢視關卡包與出發
+              </button>
+            </div>
+          </div>
+
+          {/* Card 4: Fleet Garage */}
+          <div className="sr-panel rounded-2xl p-4 flex flex-col justify-between border-slate-700/60 bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-950/80">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                  調度車庫與改裝整備
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">GARAGE</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                以鐵道螺栓解鎖 4 款扳道車特性、4 款路線主題環境與特殊里程碑修飾規則。
+              </p>
+              <div className="mt-2 text-[11px] text-slate-300 bg-slate-950/50 border border-white/10 rounded-lg p-2 flex justify-between">
+                <span>配屬：{selectedRunner.name}</span>
+                <span className="text-amber-300">餘額：{meta.bolts} 螺栓</span>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowGarage(true)}
+                className="min-h-[44px] w-full rounded-xl border border-white/20 bg-slate-800/80 font-bold text-slate-100 text-sm hover:bg-slate-750 transition-colors"
+              >
+                開啟車庫整備面板
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Operational Heuristics & Control Protocol */}
+        <div className="sr-panel rounded-2xl p-5 w-full max-w-3xl text-left text-xs leading-relaxed text-slate-300 space-y-4">
+          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <span className="font-bold text-sm text-slate-100 flex items-center gap-2">
+              <span className="text-emerald-400">❖</span>
+              調度運轉規範與核心法則
+            </span>
+            <span className="text-[10px] font-mono text-slate-500">OPERATIONAL RULES</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-900/60 rounded-xl p-3 border border-white/5 space-y-1">
+              <span className="font-bold text-emerald-300 block text-xs">① 預覽抉擇</span>
+              <p className="text-slate-400 text-[11px] leading-relaxed">
+                前方道岔支線提前於雷達與上方簡圖預告。速度、障礙密度、補給一目瞭然，永遠在已知資訊下決策。
+              </p>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3 border border-white/5 space-y-1">
+              <span className="font-bold text-amber-300 block text-xs">② 代價守則</span>
+              <p className="text-slate-400 text-[11px] leading-relaxed">
+                沒有一條支線是全面最優的！加速與收益必須由密集障礙支付，安全支線速度必定衰減。
+              </p>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3 border border-white/5 space-y-1">
+              <span className="font-bold text-sky-300 block text-xs">③ 追越防線</span>
+              <p className="text-slate-400 text-[11px] leading-relaxed">
+                撞擊障礙不會立即出局，而是大幅降速讓後方列車逼近。緩衝歸零才會被追及結束。
+              </p>
+            </div>
+          </div>
+
+          {/* Interactive Keymap Display */}
+          <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-slate-400">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-slate-200 font-semibold">電競控制盤：</span>
+              <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">A</kbd> <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">D</kbd> 或 <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">←</kbd> <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">→</kbd> 換股道</span>
+              <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">W</kbd> 或 <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">↑</kbd> 跳躍</span>
+              <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">S</kbd> 或 <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">↓</kbd> 鏟滑</span>
+              <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-200 font-mono">P</kbd> 暫停</span>
+            </div>
+            <span className="text-[11px] text-slate-500">觸控：支援手勢滑動與螢幕虛擬按鈕</span>
+          </div>
+
+          <div className="pt-2">
+            <JuiceSettingsPanel compact />
+          </div>
         </div>
 
         {showGarage && (
@@ -733,6 +1004,7 @@ export default function App(): React.ReactElement {
   const ended = s?.phase === 'caught' || challengeWon;
   const maxBuf = s?.maxBuffer ?? 430;
   const bufferPct = s ? Math.max(0, Math.min(100, (s.buffer / maxBuf) * 100)) : 0;
+  const isEmergency = bufferPct < 22;
   const bufferTone =
     bufferPct < 22 ? 'text-red-400' : bufferPct < 50 ? 'text-amber-300' : 'text-emerald-400';
   const bufferFill =
@@ -740,18 +1012,22 @@ export default function App(): React.ReactElement {
 
   const modeLabel =
     runMode === 'daily' ? '每日挑戰' : runMode === 'challenge' ? '挑戰包' : '自由遊玩';
+  const estBolts = s ? boltsFromRun(s, runMode) : 0;
 
   return (
     <div
-      className={`h-screen w-screen flex flex-col${fxRef.current.shake > 4 ? ' sr-shake-hard' : fxRef.current.shake > 1.5 ? ' sr-shake' : ''}`}
+      className={`h-screen w-screen flex flex-col bg-slate-950 overflow-hidden ${
+        isEmergency ? 'sr-alarm-border' : ''
+      }${fxRef.current.shake > 4 ? ' sr-shake-hard' : fxRef.current.shake > 1.5 ? ' sr-shake' : ''}`}
     >
       <BackToMenu />
 
-      <div className="sr-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
-        <div className="flex gap-2 flex-wrap">
+      {/* Top HUD Command Strip */}
+      <div className="sr-hud shrink-0 px-3 pt-12 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
+        <div className="flex gap-2 flex-wrap items-center">
           <span className="sr-hud-chip">
             距離{' '}
-            <b className="text-slate-100 tabular-nums">{Math.round(s?.distance ?? 0)}</b>
+            <b className="text-slate-100 tabular-nums">{Math.round(s?.distance ?? 0)}m</b>
           </span>
           <span className="sr-hud-chip">
             分數 <b className="text-emerald-300 tabular-nums">{s ? finalScore(s) : 0}</b>
@@ -764,19 +1040,23 @@ export default function App(): React.ReactElement {
             </span>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap justify-end items-center">
           <span className="sr-hud-chip">
             倍率 <b className="text-amber-300">×{(s?.scoreMult ?? 1).toFixed(2)}</b>
           </span>
           <span className={`sr-hud-chip${comboFlash > 0 ? ' sr-combo-pop' : ''}`}>
             連擊 <b className="text-sky-300 tabular-nums">{s?.noHitStreak ?? 0}</b>
           </span>
+          <span className="sr-hud-chip hidden sm:inline-flex text-amber-300 font-mono">
+            +{estBolts} 螺栓
+          </span>
         </div>
       </div>
 
-      <div className="shrink-0 px-3 pb-2">
-        <div className="mb-1 flex justify-between text-[10px] text-slate-500">
-          <span>與列車間距</span>
+      {/* Top Buffer Indicator Bar */}
+      <div className="shrink-0 px-3 pb-1.5 bg-slate-950/70">
+        <div className="mb-0.5 flex justify-between text-[10px] text-slate-400">
+          <span className="font-semibold">後方列車追越緩衝</span>
           <span className={bufferTone}>{Math.round(bufferPct)}%</span>
         </div>
         <div className="sr-buffer">
@@ -787,28 +1067,73 @@ export default function App(): React.ReactElement {
         </div>
       </div>
 
-      <div
-        className="flex-1 min-h-0 relative"
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-      >
-        <GameCanvas stateRef={stateRef} fxRef={fxRef} paused={paused || challengeWon} />
+      {/* Mobile Tactical Ribbon (< lg) */}
+      <MobileTacticalRibbon
+        state={hud}
+        onOpenDrawer={() => setShowMobileDrawer(true)}
+      />
 
-        {comboFlash >= 2 && (
-          <div className="sr-combo-banner pointer-events-none absolute left-1/2 top-8 -translate-x-1/2">
-            連擊 ×{comboFlash}
-          </div>
-        )}
+      {/* Main Center Area: Left Wing + Center Track + Right Wing */}
+      <div className="flex-1 flex min-h-0 min-w-0 justify-center items-stretch relative overflow-hidden">
+        {/* Left Wing (Cockpit Radar & Upcoming Branches) */}
+        <DispatchLeftWing state={hud} />
 
-        {paused && !ended && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="sr-panel rounded-2xl px-6 py-4 text-center">
-              <p className="text-lg font-semibold mb-1">暫停</p>
-              <p className="text-slate-400 text-sm">按 P 或 Esc 繼續</p>
+        {/* Central Track Canvas Container */}
+        <div
+          className="flex-1 max-w-[500px] h-full relative flex items-center justify-center bg-slate-950/60"
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+        >
+          <GameCanvas stateRef={stateRef} fxRef={fxRef} paused={paused || challengeWon} />
+
+          {comboFlash >= 2 && (
+            <div className="sr-combo-banner pointer-events-none absolute left-1/2 top-8 -translate-x-1/2">
+              連擊 ×{comboFlash}
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Virtual On-Screen Controls for Mobile */}
+          <MobileControlsOverlay
+            onLaneStep={(step) => {
+              laneStepRef.current = step;
+            }}
+            onJump={() => {
+              jumpRef.current = true;
+            }}
+            onSlide={() => {
+              slideRef.current = true;
+            }}
+            visible={showMobileControls}
+            onToggleVisible={() => setShowMobileControls((v) => !v)}
+          />
+
+          {paused && !ended && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-30">
+              <div className="sr-panel rounded-2xl px-6 py-4 text-center">
+                <p className="text-lg font-semibold mb-1 text-slate-100">調度運轉暫停</p>
+                <p className="text-slate-400 text-sm">按 P 或 Esc 繼續</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Wing (Blackbox Flight Recorder & Multiplier Matrix) */}
+        <DispatchRightWing
+          state={hud}
+          logs={blackboxLogs}
+          activeKeys={activeKeys}
+          estimatedBolts={estBolts}
+        />
       </div>
+
+      {/* Mobile Drawer */}
+      {showMobileDrawer && (
+        <DispatchDrawer
+          state={hud}
+          logs={blackboxLogs}
+          onClose={() => setShowMobileDrawer(false)}
+        />
+      )}
 
       {ended && s && challengeWon && activeChallenge && (
         <ResultOverlay
