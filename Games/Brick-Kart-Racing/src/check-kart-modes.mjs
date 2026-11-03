@@ -33,6 +33,12 @@ import {
   isLastCupRace,
   playerOverallPlace,
 } from './engine/cupSession.ts';
+import {
+  calculateLateralG,
+  calculateRpmAndGear,
+  INITIAL_TIRES,
+  updateTires,
+} from './engine/telemetry.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -216,6 +222,41 @@ assert(rivalForChar('blue').id === 'brawler', 'blue is brawler');
   assert(!worse.stored, 'reject slower ghost');
   const better = maybeStoreGhost(stored.progress, {...ghost, duration: 35});
   assert(better.stored, 'accept faster ghost');
+}
+
+// --- Telemetry & Cockpit tests --------------------------------------------
+{
+  const idle = calculateRpmAndGear(0, false, false);
+  assert(idle.rpm < 1200 && idle.gear === '1檔', 'idle rpm');
+
+  const boost = calculateRpmAndGear(350, true, false);
+  assert(boost.rpm >= 8400 && boost.gear.includes('BOOST'), 'boost rpm');
+
+  const drift = calculateRpmAndGear(250, false, true);
+  assert(drift.rpm >= 7200 && drift.gear.includes('DRIFT'), 'drift rpm');
+
+  const latZero = calculateLateralG(0, 200, false, 0);
+  assert(latZero === 0, 'zero lateral G');
+
+  const latDrift = calculateLateralG(0, 200, true, 1);
+  assert(latDrift > 1.0, 'drift lateral G');
+
+  const mockPlayer = {
+    speed: 280,
+    drifting: false,
+    driftDir: 0,
+    driftCharge: 0,
+  };
+
+  const grassTires = updateTires(INITIAL_TIRES, mockPlayer, false, 0, false, 0.1);
+  assert(grassTires.gripPct === 52, 'grass grip 52%');
+  assert(grassTires.status === 'offroad', 'grass status offroad');
+
+  const steerLeft = updateTires(INITIAL_TIRES, mockPlayer, true, -1, false, 0.5);
+  assert(steerLeft.frTemp > steerLeft.flTemp, 'turning left loads right tire');
+
+  const braking = updateTires(INITIAL_TIRES, mockPlayer, true, 0, true, 0.5);
+  assert(braking.flTemp > INITIAL_TIRES.flTemp, 'braking loads front tire');
 }
 
 console.log('check-kart-modes: ok');

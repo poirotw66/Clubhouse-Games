@@ -42,29 +42,35 @@ export function HowToOverlay({itemsEnabled, onClose}: Props) {
           轉向、飄移、尾流——先記這幾件事
         </p>
 
-        <ul className="mt-5 space-y-3 text-sm text-slate-200">
-          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">轉向</p>
-            <p className="mt-0.5 text-slate-400">← → 或觸控左右鍵。放開油門會自然減速。</p>
+        <ul className="mt-5 space-y-2.5 text-sm text-slate-200">
+          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2">
+            <p className="font-bold text-amber-300">轉向與油門</p>
+            <p className="mt-0.5 text-xs text-slate-400">方向鍵、WASD 或觸控鍵。放開油門會自然減速。</p>
           </li>
-          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
+          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2">
             <p className="font-bold text-amber-300">飄移小噴</p>
-            <p className="mt-0.5 text-slate-400">
-              加速中按住 Shift／飄移並轉向；蓄力藍→橘→紫後放開，觸發小噴射。
+            <p className="mt-0.5 text-xs text-slate-400">
+              加速中按住 Shift / C 或觸控「飄移」並轉向；蓄力藍→橘→紫放開觸發小噴射。
             </p>
           </li>
-          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
+          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2">
             <p className="font-bold text-amber-300">尾流加速</p>
-            <p className="mt-0.5 text-slate-400">
+            <p className="mt-0.5 text-xs text-slate-400">
               貼在前車正後方可吸入尾流，短暫提高極速與加速。
             </p>
           </li>
-          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">道具</p>
-            <p className="mt-0.5 text-slate-400">
+          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2">
+            <p className="font-bold text-amber-300">道具發射</p>
+            <p className="mt-0.5 text-xs text-slate-400">
               {itemsEnabled
-                ? '碾過道具磚取得一件；空白鍵或觸控「道具」發射。同時只能持有一件。'
+                ? '碾過道具磚取得一件；空白鍵、E 鍵或觸控「道具」發射。同時只能持有一件。'
                 : '本模式關閉道具，專心練駕駛與單圈；計時賽會重播你的最佳圈幽靈車。'}
+            </p>
+          </li>
+          <li className="rounded-xl border border-white/5 bg-slate-800/80 px-3 py-2">
+            <p className="font-bold text-amber-300">雙翼遙測座艙</p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              左翼監控時速、轉速、四輪胎溫與渦輪槽；右翼掌握車隊情資、車距秒差與持武雷達！
             </p>
           </li>
         </ul>

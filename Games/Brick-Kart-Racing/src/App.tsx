@@ -5,6 +5,18 @@ import {MainMenu} from './components/MainMenu';
 import {ResultScreen} from './components/ResultScreen';
 import {CupStandingsOverlay} from './components/CupStandings';
 import {TouchControls, type ControlKey} from './components/TouchControls';
+import {
+  TelemetryLeftWing,
+  PitWallRightWing,
+  EsportsKeyboardHud,
+  MobileTacticalBar,
+} from './components/TelemetryCockpit';
+import {
+  computeTelemetry,
+  INITIAL_TIRES,
+  type TelemetryData,
+  type TireTelemetry,
+} from './engine/telemetry';
 import {CHARACTERS, type DifficultyId} from './data/characters';
 import {cupById, pointsForPlace} from './data/cups';
 import {TRACKS} from './data/tracks';
@@ -18,7 +30,7 @@ import {
   stopEngine,
   updateEngine,
 } from './engine/audio';
-import {LAP_TOTAL} from './engine/constants';
+import {LAP_TOTAL, SURFACE_GRASS} from './engine/constants';
 import {
   applyRacePlaces,
   createCupSession,
@@ -59,7 +71,7 @@ import {
   renderFrame,
   updateCamera,
 } from './engine/renderer';
-import {preloadTrackArt} from './engine/trackAssets';
+import {preloadTrackArt, surfaceAt} from './engine/trackAssets';
 
 const BEST_KEY = 'brick-kart-racing:best-laps';
 
@@ -74,6 +86,21 @@ function loadBestTimes(): Record<string, number> {
     return {};
   }
 }
+
+const INITIAL_TELEMETRY: TelemetryData = {
+  rpm: 950,
+  gear: '1檔',
+  lateralG: 0,
+  onRoad: true,
+  tires: INITIAL_TIRES,
+  racers: [],
+  gapAhead: null,
+  gapBehind: null,
+  aheadRacerName: null,
+  behindRacerName: null,
+  spotterMessage: '🚦 引擎暖機待命！緊盯倒數信號，起步立即全油門推進！',
+  spotterUrgent: false,
+};
 
 const EMPTY_HUD: HudSnapshot = {
   place: 1,
@@ -97,6 +124,7 @@ const EMPTY_HUD: HudSnapshot = {
   slipstream: 0,
   cupLabel: '',
   ghostDelta: null,
+  telemetry: INITIAL_TELEMETRY,
 };
 
 type CupOverlay = {
@@ -128,6 +156,8 @@ export default function App() {
   } | null>(null);
   const [cupSession, setCupSession] = useState<CupSession | null>(null);
   const [cupOverlay, setCupOverlay] = useState<CupOverlay | null>(null);
+  const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set());
+  const [showMobileDossier, setShowMobileDossier] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const minimapRef = useRef<HTMLCanvasElement>(null);
@@ -152,6 +182,7 @@ export default function App() {
   const trackIdRef = useRef(trackId);
   const charIdRef = useRef(charId);
   const difficultyRef = useRef(difficulty);
+  const tiresRef = useRef<TireTelemetry>(INITIAL_TIRES);
 
   pausedRef.current = paused || result !== null || cupOverlay !== null;
   cupSessionRef.current = cupSession;
@@ -180,12 +211,14 @@ export default function App() {
       const k = e.key.toLowerCase();
       if (
         ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'shift'].includes(k) ||
-        k === 'z'
+        k === 'z' || k === 'w' || k === 's' || k === 'a' || k === 'd' || k === 'e' || k === 'c'
       ) {
         e.preventDefault();
       }
-      if (k === ' ' && !keysRef.current.has(' ')) itemQueuedRef.current = true;
-      if (k === 'p') setPaused((p) => !p);
+      if ((k === ' ' || k === 'e' || k === 'enter') && !keysRef.current.has(k)) {
+        itemQueuedRef.current = true;
+      }
+      if (k === 'p' || k === 'escape') setPaused((p) => !p);
       if (k === 'm') {
         setMutedState((m) => {
           setMuted(!m);
@@ -193,9 +226,16 @@ export default function App() {
         });
       }
       keysRef.current.add(k);
+      setActiveKeys(new Set(keysRef.current));
     };
-    const up = (e: KeyboardEvent) => keysRef.current.delete(e.key.toLowerCase());
-    const blur = () => keysRef.current.clear();
+    const up = (e: KeyboardEvent) => {
+      keysRef.current.delete(e.key.toLowerCase());
+      setActiveKeys(new Set(keysRef.current));
+    };
+    const blur = () => {
+      keysRef.current.clear();
+      setActiveKeys(new Set());
+    };
 
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -205,6 +245,7 @@ export default function App() {
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
       keysRef.current.clear();
+      setActiveKeys(new Set());
     };
   }, [screen]);
 
@@ -251,6 +292,8 @@ export default function App() {
     let hudTimer = 0;
     let nextTick = 3;
     let finishedHandled = false;
+    let lastSteer = 0;
+    let lastBrake = false;
     const recordKey = bestLapKey(tid, opts, diff);
     const cup = session ? cupDef(session) : null;
     const cupLabel =
@@ -268,13 +311,18 @@ export default function App() {
         const touch = touchRef.current;
         const left = keys.has('arrowleft') || keys.has('a') || touch.left;
         const right = keys.has('arrowright') || keys.has('d') || touch.right;
+        const throttle = keys.has('arrowup') || keys.has('z') || keys.has('w') || touch.throttle;
+        const brake = keys.has('arrowdown') || keys.has('s') || touch.brake;
+        const drift = keys.has('shift') || keys.has('c') || touch.drift;
         const input: RaceInput = {
           steer: (left ? -1 : 0) + (right ? 1 : 0),
-          throttle: keys.has('arrowup') || keys.has('z') || keys.has('w') || touch.throttle,
-          brake: keys.has('arrowdown') || keys.has('s') || touch.brake,
-          drift: keys.has('shift') || touch.drift,
+          throttle,
+          brake,
+          drift,
           useItem: itemQueuedRef.current,
         };
+        lastSteer = input.steer;
+        lastBrake = input.brake;
         itemQueuedRef.current = false;
 
         const beforeCountdown = state.countdown;
@@ -437,6 +485,19 @@ export default function App() {
       if (hudTimer > 0.06) {
         hudTimer = 0;
         const player = state.racers[state.playerIndex];
+        const surf = surfaceAt(state.assets, player.x, player.y);
+        const onRoad = surf !== SURFACE_GRASS;
+        const telem = computeTelemetry(
+          state,
+          state.playerIndex,
+          tiresRef.current,
+          lastSteer,
+          lastBrake,
+          onRoad,
+          0.06,
+        );
+        tiresRef.current = telem.tires;
+
         const laps = player.lapTimes.filter((t) => t > 0);
         let ghostDelta: number | null = null;
         if (state.ghostLap && state.phase === 'racing') {
@@ -468,6 +529,7 @@ export default function App() {
           slipstream: player.slipstream,
           cupLabel,
           ghostDelta: state.ghostLap && state.phase === 'racing' ? ghostDelta : null,
+          telemetry: telem,
         });
         const mini = minimapRef.current;
         if (mini) drawMinimap(mini.getContext('2d')!, state, mini.width);
@@ -483,6 +545,8 @@ export default function App() {
   }, [screen, loading, trackId, charId, difficulty, raceOptions, cupSession?.raceIndex]);
 
   const startRace = useCallback(() => {
+    tiresRef.current = INITIAL_TIRES;
+    setShowMobileDossier(false);
     setResult(null);
     setCupOverlay(null);
     setPaused(false);
@@ -582,94 +646,161 @@ export default function App() {
   }
 
   return (
-    <div className="grid h-full w-full place-items-center bg-slate-950">
-      <div className="relative aspect-video max-h-full w-full max-w-[min(100vw,177.78vh)]">
-        <canvas
-          ref={canvasRef}
-          className="h-full w-full"
-          style={{imageRendering: 'pixelated', display: 'block'}}
-        />
+    <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden bg-slate-950 p-1 lg:p-3 select-none">
+      <div className="flex h-full w-full max-w-[1720px] items-center justify-center gap-3">
+        {/* Left Cockpit Wing: Telemetry */}
+        <aside className="hidden lg:flex w-64 xl:w-72 2xl:w-80 h-[min(88vh,720px)] shrink-0">
+          <TelemetryLeftWing
+            speed={hud.speed}
+            telemetry={hud.telemetry}
+            driftFill={hud.driftFill}
+            driftLevel={hud.driftLevel}
+            boosting={hud.boosting}
+          />
+        </aside>
 
-        {loading ? (
-          <div className="absolute inset-0 grid place-items-center bg-slate-950 text-slate-300">
-            <div className="text-center">
-              <p className="text-lg font-bold">正在拼砌賽道…</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {TRACKS.find((t) => t.id === trackId)?.name}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <>
-            <Hud
-              snap={hud}
-              minimapRef={minimapRef}
-              muted={muted}
-              onPause={() => setPaused((p) => !p)}
-              onMute={toggleMute}
+        {/* Center Area: Game Viewport + Esports Keyboard HUD */}
+        <main className="flex h-full flex-1 flex-col items-center justify-center max-h-[min(94vh,780px)] w-full max-w-[min(100vw,177.78vh)] lg:max-w-[min(65vw,1120px)] gap-1.5">
+          {/* Mobile Tactical Bar */}
+          <MobileTacticalBar
+            place={hud.place}
+            lap={hud.lap}
+            laps={hud.laps}
+            telemetry={hud.telemetry}
+            onOpenDossier={() => setShowMobileDossier(true)}
+          />
+
+          {/* 16:9 Canvas Frame */}
+          <div className="relative aspect-video w-full max-h-full overflow-hidden rounded-xl border border-white/10 shadow-2xl bg-black">
+            <canvas
+              ref={canvasRef}
+              className="h-full w-full"
+              style={{imageRendering: 'pixelated', display: 'block'}}
             />
-            <TouchControls onHold={handleHold} showItem={hud.itemsEnabled} />
-          </>
-        )}
 
-        {paused && !result && !cupOverlay && (
-          <div
-            className="absolute inset-0 z-20 grid place-items-center bg-slate-950/80 backdrop-blur-sm"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="kart-pause-title"
-          >
-            <div className="w-full max-w-xs rounded-2xl border border-white/10 bg-slate-900 p-6 text-center">
-              <h2 id="kart-pause-title" className="mb-4 text-2xl font-black text-white">
-                暫停
-              </h2>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setPaused(false)}
-                  className="w-full min-h-[44px] rounded-xl bg-amber-400 py-3 font-black text-slate-950 touch-manipulation"
-                >
-                  繼續比賽
-                </button>
-                <button
-                  type="button"
-                  onClick={backToMenu}
-                  className="w-full min-h-[44px] rounded-xl border border-white/15 bg-slate-800 py-3 font-bold text-slate-200 touch-manipulation"
-                >
-                  回選單
-                </button>
+            {loading ? (
+              <div className="absolute inset-0 grid place-items-center bg-slate-950 text-slate-300">
+                <div className="text-center">
+                  <p className="text-lg font-bold">正在拼砌賽道…</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {TRACKS.find((t) => t.id === trackId)?.name}
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <Hud
+                  snap={hud}
+                  minimapRef={minimapRef}
+                  muted={muted}
+                  onPause={() => setPaused((p) => !p)}
+                  onMute={toggleMute}
+                />
+                <TouchControls onHold={handleHold} showItem={hud.itemsEnabled} />
+              </>
+            )}
+
+            {paused && !result && !cupOverlay && (
+              <div
+                className="absolute inset-0 z-20 grid place-items-center bg-slate-950/80 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="kart-pause-title"
+              >
+                <div className="w-full max-w-xs rounded-2xl border border-white/10 bg-slate-900 p-6 text-center">
+                  <h2 id="kart-pause-title" className="mb-4 text-2xl font-black text-white">
+                    暫停
+                  </h2>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaused(false)}
+                      className="w-full min-h-[44px] rounded-xl bg-amber-400 py-3 font-black text-slate-950 touch-manipulation"
+                    >
+                      繼續比賽
+                    </button>
+                    <button
+                      type="button"
+                      onClick={backToMenu}
+                      className="w-full min-h-[44px] rounded-xl border border-white/15 bg-slate-800 py-3 font-bold text-slate-200 touch-manipulation"
+                    >
+                      回選單
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cupOverlay && (
+              <CupStandingsOverlay
+                session={cupOverlay.session}
+                lastRacePlaces={cupOverlay.lastRacePlaces}
+                unlockedMessages={cupOverlay.unlockedMessages}
+                final={cupOverlay.final}
+                onContinue={continueCup}
+                onMenu={backToMenu}
+              />
+            )}
+
+            {result && !cupOverlay && (
+              <ResultScreen
+                racers={result.state.racers}
+                playerIndex={result.state.playerIndex}
+                trackId={trackId}
+                bestLap={result.bestLap}
+                isNewRecord={result.record}
+                timeTrial={result.state.mode === 'timeTrial'}
+                mirror={result.state.mirror}
+                itemsEnabled={result.state.itemsEnabled}
+                ghostSaved={result.ghostSaved}
+                onRetry={startRace}
+                onMenu={backToMenu}
+              />
+            )}
           </div>
-        )}
 
-        {cupOverlay && (
-          <CupStandingsOverlay
-            session={cupOverlay.session}
-            lastRacePlaces={cupOverlay.lastRacePlaces}
-            unlockedMessages={cupOverlay.unlockedMessages}
-            final={cupOverlay.final}
-            onContinue={continueCup}
-            onMenu={backToMenu}
-          />
-        )}
+          {/* Esports Keyboard HUD */}
+          <div className="w-full">
+            <EsportsKeyboardHud activeKeys={activeKeys} />
+          </div>
+        </main>
 
-        {result && !cupOverlay && (
-          <ResultScreen
-            racers={result.state.racers}
-            playerIndex={result.state.playerIndex}
-            trackId={trackId}
-            bestLap={result.bestLap}
-            isNewRecord={result.record}
-            timeTrial={result.state.mode === 'timeTrial'}
-            mirror={result.state.mirror}
-            itemsEnabled={result.state.itemsEnabled}
-            ghostSaved={result.ghostSaved}
-            onRetry={startRace}
-            onMenu={backToMenu}
+        {/* Right Cockpit Wing: Pit Wall Dossier */}
+        <aside className="hidden lg:flex w-72 xl:w-80 2xl:w-88 h-[min(88vh,720px)] shrink-0">
+          <PitWallRightWing
+            telemetry={hud.telemetry}
+            time={hud.time}
+            bestLap={hud.bestLap}
+            ghostDelta={hud.ghostDelta}
           />
-        )}
+        </aside>
       </div>
+
+      {/* Mobile Pit Wall Dossier Modal Drawer */}
+      {showMobileDossier && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/85 p-3 backdrop-blur-md lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="車隊情資檔案"
+        >
+          <div className="relative flex max-h-[90vh] w-full max-w-sm flex-col overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setShowMobileDossier(false)}
+              className="mb-2 self-end rounded-xl border border-white/20 bg-slate-800 px-3 py-1.5 text-xs font-bold text-white touch-manipulation"
+            >
+              關閉情資 ✕
+            </button>
+            <PitWallRightWing
+              telemetry={hud.telemetry}
+              time={hud.time}
+              bestLap={hud.bestLap}
+              ghostDelta={hud.ghostDelta}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

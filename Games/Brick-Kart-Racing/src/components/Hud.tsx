@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef} from 'react';
 import {itemIconBricks} from '../engine/models';
 import {formatTime, type ItemId} from '../engine/race';
+import type {TelemetryData} from '../engine/telemetry';
 import {BrickPreview} from './BrickPreview';
 
 export interface HudSnapshot {
@@ -30,6 +31,8 @@ export interface HudSnapshot {
   cupLabel: string;
   /** Signed delta vs ghost lap time (negative = ahead). */
   ghostDelta: number | null;
+  /** Dual-wing F1 telemetry and pit wall dossier data. */
+  telemetry: TelemetryData;
 }
 
 const ITEM_LABEL: Record<ItemId, string> = {
