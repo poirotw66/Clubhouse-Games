@@ -40,12 +40,34 @@
 | 項目 | 本實作 |
 |------|--------|
 | 對戰 | 固定 1P vs CPU（無雙人同機） |
+| 環場座艙 | 雙翼冠軍拳擊環場座艙（Ring Cockpit）：左翼紅角打擊遙測、右翼藍角對手檔案、電競雙手鍵盤 HUD、行動端戰術速報條 |
 | 聯賽 | 六位對手階梯；打贏解鎖下一位（`league.ts`，`clubhouse-toy-boxing-league`） |
 | 自由對戰 | 三角難度 × 四造型 |
 | 回合 | 最多 3 回合，每回合 60 秒；回合間恢復約 30% 體力、部分暈眩 |
 | 勝負 | 體力或暈眩ＫＯ立即結束；否則比累計分數；同分為和 |
 | 角色 | 藍拳機器人／紅絨熊仔／閃電兔／鐵拳恐龍（各有招牌拳名） |
 | 戰績 | 分難度勝／負／和與連勝（`stats.ts`）＋聯賽進度 |
+
+### 雙翼冠軍拳擊環場座艙（Championship Ring Cockpit）
+
+為營造國際錦標賽轉播級的臨場感，畫面整合雙翼競技座艙與電競操控 HUD：
+
+1. **左翼：紅角打擊與體能遙測儀（Red Corner Telemetry）**
+   - **出拳衝擊力 G-Force 儀表**：動態測算即時瞬間 G 值、峰值紀錄、初速（m/s）與評級（S／A／B／C），每次刺拳、勾拳與招牌拳均具備實體物理遙測反饋。
+   - **反擊時機窗口（Counter Window）**：對手起手預備（Wind-up）時亮起金色警示，引導抓準空檔截擊中斷對手。
+   - **破防暈眩警戒（Stun Alert）**：暈眩值突破 70% 時觸發紅色警戒信號。
+   - **體能回充心率儀**：即時回充百分比與腹部疲勞（Body Fatigue）負擔監測。
+   - **打擊遙測軌跡**：紀錄最近 4 次攻擊的命中（Hit）、反擊（Counter）、撥招（Parry）、格擋（Blocked）與傷害數據。
+2. **右翼：藍角情報檔案與戰術雷達（Blue Corner Dossier）**
+   - **戰力風格徽章與四維雷達**：侵略壓迫、防禦格擋、步法速度與拳質威力全向評估。
+   - **招牌絕招預警偵測**：顯示對手招牌拳名稱、預備起手前兆與破招對策（如「無法格擋，按 W 閃避」或「提早以 I 鍵撥招」）。
+   - **拳王大師即時錦囊（Master Coach Hints）**：依據雙方耐力、暈眩、段位與硬直動態給予實戰教練指引。
+   - **聯賽金腰帶天梯**：六階對手挑戰進度視覺化進度條。
+3. **電競級雙手實體操控 HUD（Esports Keypad HUD）**
+   - 左手步法防禦區（A 閃步、D 壓迫、S 抱架、W 閃避、↓/C 下段）與右手打擊重砲區（J 刺拳、K 勾拳、I 撥招、L 招牌拳）。
+   - 按鍵具備即時發光與機械下壓觸感回饋；手機端亦同步連動。
+4. **行動端戰術速報條（Mobile Tactical Ticker）**
+   - 在行動裝置與小螢幕上自適應收納為頂部戰術快報，完整傳遞衝擊力、Counter 窗口與大師錦囊。
 
 ### 戰鬥深度（`combat.ts`）
 
@@ -78,11 +100,12 @@
 | 項目 | 本實作 |
 |------|--------|
 | 模式／變體 | 聯賽階梯＋自由對戰三角難度 |
+| 競技座艙 | 雙翼冠軍拳擊環場座艙（Red Corner Telemetry + Blue Corner Dossier） |
 | Replay hook | 分難度生涯＋聯賽解鎖進度 |
-| Undo／Hint | 不適用（即時對戰） |
-| Feedback | `ResultOverlay` + `synthAudio`／`boxingAudio`（hit-stop、震動、打擊音） |
-| Touch | 對戰觸控列（含下段） |
-| Check | `npm run check` → cpu／stats／combat／league |
+| Undo／Hint | 拳王大師即時錦囊（Master Coach Hints 動態提示對戰破綻與反制時機） |
+| Feedback | `ResultOverlay` + `synthAudio`／`boxingAudio`（hit-stop、震動、打擊音、G-Force 儀表、機械按鍵 HUD） |
+| Touch | 對戰觸控列（含下段）＋行動端戰術速報條 |
+| Check | `npm run check` → cpu／stats／combat／league／balance／telemetry |
 | 首局引導 | `FirstRunGuide`（可關閉，可再開） |
 
 ## 規則說明（本館）

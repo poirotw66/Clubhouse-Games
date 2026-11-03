@@ -77,6 +77,18 @@ import {
   type CareerStats,
   type FightOutcome,
 } from './stats';
+import { RedCornerTelemetry } from './components/RedCornerTelemetry';
+import { BlueCornerDossier } from './components/BlueCornerDossier';
+import { EsportsKeypadHud } from './components/EsportsKeypadHud';
+import { MobileTacticalTicker } from './components/MobileTacticalTicker';
+import { RingCockpit } from './components/RingCockpit';
+import {
+  calculatePunchGForce,
+  getLiveMasterCoachHint,
+  getOpponentTacticalIntel,
+  type GForceTelemetry,
+  type StrikeRecord,
+} from './telemetry';
 
 preloadFighterBodies();
 
@@ -277,6 +289,19 @@ export default function ToyBoxing() {
     round: 1,
   });
 
+  const [telemetryState, setTelemetryState] = useState<GForceTelemetry>({
+    currentGForce: 0,
+    peakGForce: 0,
+    strikeSpeedMs: 0,
+    lastPunchKind: null,
+    lastPunchHeight: null,
+    kineticRating: '-',
+  });
+  const telemetryRef = useRef<GForceTelemetry>({ ...telemetryState });
+  const [recentStrikes, setRecentStrikes] = useState<StrikeRecord[]>([]);
+  const [counterWindowActive, setCounterWindowActive] = useState(false);
+  const [activeKeySet, setActiveKeySet] = useState<Set<string>>(new Set());
+
   const keysPressed = useRef<Set<string>>(new Set());
   const gameStateRef = useRef(gameState);
   const countdownRef = useRef(countdown);
@@ -295,8 +320,12 @@ export default function ToyBoxing() {
         e.preventDefault();
       }
       keysPressed.current.add(e.code);
+      setActiveKeySet(new Set(keysPressed.current));
     };
-    const handleKeyUp = (e: KeyboardEvent) => keysPressed.current.delete(e.code);
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.code);
+      setActiveKeySet(new Set(keysPressed.current));
+    };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     return () => {
@@ -315,6 +344,9 @@ export default function ToyBoxing() {
       if (!force && now - lastUiSync < 80) return;
       lastUiSync = now;
       const eng = engineRef.current;
+      const isCpuWindup = eng.cpu.attack !== null && eng.cpu.attack.phase === 'windup';
+      setCounterWindowActive(isCpuWindup);
+      setTelemetryState({ ...telemetryRef.current });
       setUiState({
         playerHealth: eng.player.health,
         playerMaxHealth: eng.player.maxHealth,
@@ -361,6 +393,12 @@ export default function ToyBoxing() {
         }
 
         if (eng.screenShake > 0) eng.screenShake -= deltaTime * 5;
+        if (telemetryRef.current.currentGForce > 0) {
+          telemetryRef.current.currentGForce = Math.max(
+            0,
+            telemetryRef.current.currentGForce - deltaTime * 24,
+          );
+        }
 
         eng.player = updateBoxerLogic(eng.player, eng.cpu, keysPressed.current, deltaTime);
         eng.cpu = updateCpuLogic(
@@ -543,6 +581,17 @@ export default function ToyBoxing() {
       timeLeft: ROUND_TIME,
       round: 1,
     });
+    telemetryRef.current = {
+      currentGForce: 0,
+      peakGForce: 0,
+      strikeSpeedMs: 0,
+      lastPunchKind: null,
+      lastPunchHeight: null,
+      kineticRating: '-',
+    };
+    setTelemetryState({ ...telemetryRef.current });
+    setRecentStrikes([]);
+    setCounterWindowActive(false);
     setWinner(null);
     setFightTip(tip);
     startCountdown();
@@ -959,6 +1008,20 @@ export default function ToyBoxing() {
       if (outcome.type === 'dodged') {
         playDodge();
         pushFloat(defender.x + BOXER_WIDTH / 2, hitY, '閃！', '#86efac');
+        if (defender.id === 'player') {
+          setRecentStrikes((prev) => [
+            {
+              id: `${Date.now()}-${Math.random()}`,
+              timestamp: Date.now(),
+              kind: attacker.attack?.kind ?? 'jab',
+              height: attacker.attack?.height ?? 'high',
+              outcome: 'dodged',
+              gForce: 0,
+              damage: 0,
+            },
+            ...prev.slice(0, 3),
+          ]);
+        }
         return {
           attackerUpdate: { attack: markedAttack },
           defenderUpdate: {},
@@ -978,6 +1041,20 @@ export default function ToyBoxing() {
           text: '撥招！',
         };
         pushFloat(defender.x + BOXER_WIDTH / 2, hitY - 10, '撥招', '#93c5fd');
+        if (defender.id === 'player') {
+          setRecentStrikes((prev) => [
+            {
+              id: `${Date.now()}-${Math.random()}`,
+              timestamp: Date.now(),
+              kind: attacker.attack?.kind ?? 'jab',
+              height: attacker.attack?.height ?? 'high',
+              outcome: 'parry',
+              gForce: 0,
+              damage: 0,
+            },
+            ...prev.slice(0, 3),
+          ]);
+        }
         return {
           attackerUpdate: {
             attack: null,
@@ -996,6 +1073,42 @@ export default function ToyBoxing() {
       }
 
       if (outcome.type === 'hit') {
+        const gResult = calculatePunchGForce(
+          attacker.attack.kind,
+          attacker.power,
+          attacker.attack.isSuper,
+          outcome.isCounter,
+        );
+
+        if (attacker.id === 'player') {
+          telemetryRef.current = {
+            currentGForce: gResult.gForce,
+            peakGForce: Math.max(telemetryRef.current.peakGForce, gResult.gForce),
+            strikeSpeedMs: gResult.speedMs,
+            lastPunchKind: attacker.attack.kind,
+            lastPunchHeight: attacker.attack.height,
+            kineticRating: gResult.rating,
+          };
+          setRecentStrikes((prev) => [
+            {
+              id: `${Date.now()}-${Math.random()}`,
+              timestamp: Date.now(),
+              kind: attacker.attack?.kind ?? 'jab',
+              height: attacker.attack?.height ?? 'high',
+              outcome: outcome.isCounter
+                ? 'counter'
+                : outcome.blocked
+                  ? outcome.guardCorrect === false
+                    ? 'wrong_guard'
+                    : 'blocked'
+                  : 'hit',
+              gForce: gResult.gForce,
+              damage: outcome.damage,
+            },
+            ...prev.slice(0, 3),
+          ]);
+        }
+
         const strength = Math.min(1, outcome.damage / 18);
         if (outcome.blocked && outcome.guardCorrect) playBlock();
         else if (outcome.blocked && outcome.guardCorrect === false) playWrongBlock();
@@ -1286,11 +1399,39 @@ export default function ToyBoxing() {
           ? '判定勝'
           : null;
 
+  const opponentIntel = getOpponentTacticalIntel(
+    playMode === 'league' ? activeOpponent.id : null,
+    cpuCharId,
+  );
+
+  const coachHint = getLiveMasterCoachHint({
+    playerHealth: uiState.playerHealth,
+    playerMaxHealth: uiState.playerMaxHealth,
+    playerStamina: uiState.playerStamina,
+    playerStun: uiState.playerStun,
+    playerSuper: uiState.playerSuper,
+    playerBodyFatigue: engineRef.current.player.bodyFatigue,
+    cpuHealth: uiState.cpuHealth,
+    cpuMaxHealth: uiState.cpuMaxHealth,
+    cpuStamina: uiState.cpuStamina,
+    cpuStun: uiState.cpuStun,
+    cpuSuper: uiState.cpuSuper,
+    cpuIsWindup: counterWindowActive,
+    cpuIsSignature: Boolean(
+      engineRef.current.cpu.attack &&
+        engineRef.current.cpu.attack.isSuper &&
+        engineRef.current.cpu.attack.phase === 'windup',
+    ),
+    cpuHeight: uiState.cpuHeight,
+    cpuStaggered: engineRef.current.cpu.action === Action.STAGGER,
+    opponentIntel,
+  });
+
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30 overflow-x-hidden">
       <BackToMenu />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
-      <header className="max-w-5xl mx-auto p-4 sm:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center border-b border-white/10">
+      <header className="max-w-7xl mx-auto p-4 sm:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center border-b border-white/10">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
           <img
             src={characterPortraitUrl(playerCharId)}
@@ -1410,8 +1551,37 @@ export default function ToyBoxing() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto mt-4 sm:mt-8 px-2 sm:px-0 relative w-full">
-        <div className="relative bg-neutral-900 rounded-3xl overflow-hidden border border-white/10 shadow-2xl w-full">
+      <main className="w-full mt-4 sm:mt-6 px-1 sm:px-4 relative">
+        <RingCockpit
+          inBout={gameState === 'playing'}
+          leftWing={
+            <RedCornerTelemetry
+              telemetry={telemetryState}
+              stamina={uiState.playerStamina}
+              bodyFatigue={engineRef.current.player.bodyFatigue}
+              stun={uiState.playerStun}
+              counterWindowActive={counterWindowActive}
+              recentStrikes={recentStrikes}
+            />
+          }
+          rightWing={
+            <BlueCornerDossier
+              intel={opponentIntel}
+              coachHint={coachHint}
+              leagueCount={league.clearedCount}
+              totalOpponents={OPPONENTS.length}
+              playMode={playMode}
+            />
+          }
+          mobileTicker={
+            <MobileTacticalTicker
+              telemetry={telemetryState}
+              counterWindowActive={counterWindowActive}
+              coachHint={coachHint}
+            />
+          }
+          keypadHud={<EsportsKeypadHud activeKeys={activeKeySet} />}
+        >
           <canvas
             ref={canvasRef}
             width={CANVAS_WIDTH}
@@ -1711,7 +1881,7 @@ export default function ToyBoxing() {
               />
             )}
           </AnimatePresence>
-        </div>
+        </RingCockpit>
 
         {gameState === 'playing' && (
           <div className={`${touchControlsWrapClass} mt-4`}>
@@ -1719,81 +1889,122 @@ export default function ToyBoxing() {
               <TouchButton
                 label="←"
                 ariaLabel="向左"
-                onPress={() => keysPressed.current.add('KeyA')}
-                onRelease={() => keysPressed.current.delete('KeyA')}
+                onPress={() => {
+                  keysPressed.current.add('KeyA');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyA');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
               />
               <TouchButton
                 label="→"
                 ariaLabel="向右"
-                onPress={() => keysPressed.current.add('KeyD')}
-                onRelease={() => keysPressed.current.delete('KeyD')}
+                onPress={() => {
+                  keysPressed.current.add('KeyD');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyD');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
               />
               <TouchButton
                 label="下段"
                 ariaLabel="下段（按住）"
-                onPress={() => keysPressed.current.add('ArrowDown')}
-                onRelease={() => keysPressed.current.delete('ArrowDown')}
+                onPress={() => {
+                  keysPressed.current.add('ArrowDown');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('ArrowDown');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
                 accent
               />
             </div>
             <div className="flex flex-wrap gap-2 justify-center w-full">
-              <TouchButton label="刺拳" ariaLabel="刺拳" onPress={() => keysPressed.current.add('KeyJ')} onRelease={() => keysPressed.current.delete('KeyJ')} />
-              <TouchButton label="勾拳" ariaLabel="勾拳" onPress={() => keysPressed.current.add('KeyK')} onRelease={() => keysPressed.current.delete('KeyK')} />
-              <TouchButton label="格擋" ariaLabel="格擋（依段）" onPress={() => keysPressed.current.add('KeyS')} onRelease={() => keysPressed.current.delete('KeyS')} />
-              <TouchButton label="閃避" ariaLabel="閃避" onPress={() => keysPressed.current.add('KeyW')} onRelease={() => keysPressed.current.delete('KeyW')} />
-              <TouchButton label="撥招" ariaLabel="撥招（須對段）" onPress={() => keysPressed.current.add('KeyI')} onRelease={() => keysPressed.current.delete('KeyI')} />
-              <TouchButton label="招牌" ariaLabel="招牌拳" onPress={() => keysPressed.current.add('KeyL')} onRelease={() => keysPressed.current.delete('KeyL')} accent />
+              <TouchButton
+                label="刺拳"
+                ariaLabel="刺拳"
+                onPress={() => {
+                  keysPressed.current.add('KeyJ');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyJ');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+              />
+              <TouchButton
+                label="勾拳"
+                ariaLabel="勾拳"
+                onPress={() => {
+                  keysPressed.current.add('KeyK');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyK');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+              />
+              <TouchButton
+                label="格擋"
+                ariaLabel="格擋（依段）"
+                onPress={() => {
+                  keysPressed.current.add('KeyS');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyS');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+              />
+              <TouchButton
+                label="閃避"
+                ariaLabel="閃避"
+                onPress={() => {
+                  keysPressed.current.add('KeyW');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyW');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+              />
+              <TouchButton
+                label="撥招"
+                ariaLabel="撥招（須對段）"
+                onPress={() => {
+                  keysPressed.current.add('KeyI');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyI');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+              />
+              <TouchButton
+                label="招牌"
+                ariaLabel="招牌拳"
+                onPress={() => {
+                  keysPressed.current.add('KeyL');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                onRelease={() => {
+                  keysPressed.current.delete('KeyL');
+                  setActiveKeySet(new Set(keysPressed.current));
+                }}
+                accent
+              />
             </div>
           </div>
         )}
-
-        <div
-          className={cn(
-            'mt-8 grid grid-cols-1 md:grid-cols-3 gap-6',
-            // On phones during a bout, touch buttons already teach — hide the tall kbd panels.
-            gameState === 'playing' && 'hidden sm:grid',
-          )}
-        >
-          <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
-            <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Zap className="w-4 h-4" /> 移動・段位
-            </h3>
-            <div className="flex gap-2 flex-wrap">
-              <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">A</kbd>
-              <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">D</kbd>
-              <kbd className="px-3 py-2 bg-orange-900/40 border-orange-500/40 rounded-lg border font-mono text-sm text-orange-300">↓/C</kbd>
-              <span className="text-sm text-neutral-400 ml-2 self-center">左右・下段</span>
-            </div>
-          </div>
-          <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
-            <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Shield className="w-4 h-4" /> 防禦
-            </h3>
-            <div className="flex gap-2 flex-wrap">
-              <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">S</kbd>
-              <kbd className="px-3 py-2 bg-neutral-800 rounded-lg border border-white/10 font-mono text-sm">W</kbd>
-              <kbd className="px-3 py-2 bg-blue-900/50 border-blue-500/50 rounded-lg border font-mono text-sm text-blue-400">I</kbd>
-              <span className="text-sm text-neutral-400 ml-2 self-center">格擋（依段）／閃／撥</span>
-            </div>
-          </div>
-          <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
-            <h3 className="text-xs font-bold tracking-widest text-neutral-500 mb-4 flex items-center gap-2">
-              <Heart className="w-4 h-4" /> 攻擊路線
-            </h3>
-            <div className="flex flex-col gap-2 text-sm text-neutral-300">
-              <p>Ｊ／Ｋ：刺拳／勾拳（搭配 ↓ 打腹）</p>
-              <p>打臉累積暈眩 → 頭擊ＫＯ；打腹削耐力回復</p>
-              <p>
-                <kbd className="px-2 py-1 bg-neutral-800 rounded border border-white/10 font-mono text-xs">L</kbd>
-                {' '}招牌拳：長預備、無法格擋、可閃避
-              </p>
-            </div>
-          </div>
-        </div>
       </main>
 
       <footer className="max-w-5xl mx-auto mt-12 pb-12 text-center text-neutral-600 text-xs tracking-[0.2em]">
-        玩具拳擊 · 聯賽階梯・上／下段心機戰
+        玩具拳擊 · 雙翼冠軍拳擊環場座艙 · 聯賽金腰帶天梯
       </footer>
     </div>
   );
