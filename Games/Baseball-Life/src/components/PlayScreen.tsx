@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import type { CareerChallenge } from '../game/challenges';
 import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
@@ -11,8 +11,17 @@ import type { AttrKey, GameState, TurnReport } from '../game/types';
 import { CareerTable } from './CareerTable';
 import { CareerTimeline } from './CareerTimeline';
 import { DiceRoll } from './DiceRoll';
+import { DraftShowcase } from './DraftShowcase';
 import { StadiumDiamond } from './StadiumDiamond';
 import { StatusPanel } from './StatusPanel';
+import {
+  isAudioMuted,
+  playBatCrack,
+  playDestinySurge,
+  playMittCatch,
+  playStadiumRoar,
+  toggleAudioMuted,
+} from '../game/baseballAudio';
 
 const TONE_RING: Record<TurnReport['tone'], string> = {
   normal: 'rgba(148,163,184,0.35)',
@@ -61,9 +70,11 @@ export function PlayScreen({
   onQuit,
 }: Props): React.ReactElement {
   const [showCareer, setShowCareer] = useState(false);
+  const [showDraftShowcase, setShowDraftShowcase] = useState(false);
+  const [muted, setMuted] = useState(() => isAudioMuted());
   const [hoveredOptionId, setHoveredOptionId] = useState<string | null>(null);
-  // Whether the next training / destiny-boosted situation choice pours 天命.
   const [useDestiny, setUseDestiny] = useState(false);
+  const lastDraftReportKey = useRef<string | null>(null);
   const { report, decision } = state;
 
   const hoveredOption = decision?.options.find((o) => o.id === hoveredOptionId);
@@ -75,8 +86,6 @@ export function PlayScreen({
           .some((option) => option.destinyBoost)
       : false;
   const destinyCost = decision?.kind === 'event' ? DESTINY_SITUATION_COST : DESTINY_COST;
-  // Destiny only arms when a dice roll is about to happen — the high-school
-  // primary slot merely stashes a choice, so pouring 天命 there would be wasted.
   const trainingRollsDice =
     decision?.kind === 'training' &&
     (state.pendingPrimaryId != null || !decision.title.includes('・主課'));
@@ -91,18 +100,73 @@ export function PlayScreen({
     decision?.kind !== 'story' &&
     ((decision?.kind === 'training' && trainingRollsDice) || Boolean(situationDestiny));
 
-  // A fresh decision starts with 天命 disarmed, so the toggle never silently
-  // carries over from a turn the player already resolved.
+  // Reset 天命 toggle on fresh turn
   useEffect(() => {
     setUseDestiny(false);
   }, [state.choices.length, state.turnIndex]);
 
-  // The report is the outcome of the last choice and sits *above* the next
-  // decision rather than in front of it. It used to be a separate screen with
-  // a 繼續 button, which cost one dismissal click per decision — about half of
-  // all the clicking across a full career.
+  // Auto-trigger Draft Showcase modal when draft resolution report arrives
+  useEffect(() => {
+    if (!report) return;
+    const isDraftHeadline =
+      report.headline.includes('指名') || report.headline.includes('選秀落選');
+    if (isDraftHeadline) {
+      const draftKey = `${state.turnIndex}-${state.team}-${state.pendingDraftRank}-${report.headline}`;
+      if (lastDraftReportKey.current !== draftKey) {
+        lastDraftReportKey.current = draftKey;
+        setShowDraftShowcase(true);
+      }
+    }
+  }, [report, state.turnIndex, state.team, state.pendingDraftRank]);
+
+  // Tactical SFX audio juice when reports land
+  useEffect(() => {
+    if (!report) return;
+    if (report.clutchMoment) {
+      if (report.tone === 'great' || report.tone === 'good') {
+        playBatCrack('sweet');
+        playStadiumRoar(1.0);
+      } else if (report.tone === 'bad') {
+        playMittCatch();
+      }
+    }
+  }, [report]);
+
+  const toggleDestiny = () => {
+    setUseDestiny((prev) => {
+      const next = !prev;
+      if (next && canAffordDestiny) {
+        playDestinySurge();
+      }
+      return next;
+    });
+  };
+
+  const handleChooseOption = (optionId: string) => {
+    if (decision?.kind === 'clutch') {
+      const opt = decision.options.find((o) => o.id === optionId);
+      if (
+        opt &&
+        (opt.label.includes('打') ||
+          opt.label.includes('擊') ||
+          opt.label.includes('速球') ||
+          opt.label.includes('變化球') ||
+          opt.label.includes('長打'))
+      ) {
+        playBatCrack('solid');
+      } else {
+        playMittCatch();
+      }
+    } else if (decision?.kind === 'training') {
+      playMittCatch();
+    }
+    onChoose(optionId, destinyArmed);
+  };
+
   const ended = state.retired;
   const pickable = ended ? [] : (decision?.options ?? []).filter((o) => !o.disabled);
+
+  // Keyboard navigation & hotkeys
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -114,6 +178,28 @@ export function PlayScreen({
         onUndo();
         return;
       }
+
+      if (event.key === 'm' || event.key === 'M') {
+        event.preventDefault();
+        const nextMuted = toggleAudioMuted();
+        setMuted(nextMuted);
+        return;
+      }
+
+      if (event.key === 'h' || event.key === 'H') {
+        event.preventDefault();
+        setShowCareer((v) => !v);
+        return;
+      }
+
+      if (event.key === 'd' || event.key === 'D') {
+        if (showDestinyToggle && canAffordDestiny) {
+          event.preventDefault();
+          toggleDestiny();
+          return;
+        }
+      }
+
       if (ended) {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
@@ -121,19 +207,35 @@ export function PlayScreen({
         }
         return;
       }
+
       const index = Number(event.key) - 1;
       if (Number.isInteger(index) && index >= 0 && index < pickable.length) {
         event.preventDefault();
-        onChoose(pickable[index].id, destinyArmed);
+        handleChooseOption(pickable[index].id);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo, destinyArmed]);
+  }, [
+    ended,
+    pickable,
+    canUndo,
+    showDestinyToggle,
+    canAffordDestiny,
+    destinyArmed,
+    onAcknowledge,
+    onUndo,
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-14">
-      <header className="mt-3 mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      {/* Draft Showcase Broadcast Modal */}
+      {showDraftShowcase && (
+        <DraftShowcase state={state} onDismiss={() => setShowDraftShowcase(false)} />
+      )}
+
+      {/* Header Bar */}
+      <header className="mt-3 mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div>
           <h1 className="text-xl font-black text-slate-100">
             {state.name}
@@ -151,12 +253,43 @@ export function PlayScreen({
             </p>
           )}
         </div>
-        <TouchButton
-          label="放棄這段人生"
-          ariaLabel="放棄目前進度並回到標題"
-          onClick={onQuit}
-          className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 text-xs font-semibold text-slate-400"
-        />
+
+        {/* Quick Toolbar Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          {state.pendingDraftRank !== null && (
+            <button
+              type="button"
+              onClick={() => setShowDraftShowcase(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300 transition hover:bg-amber-500/25"
+            >
+              <span>📋</span>
+              <span>選秀現場實況</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              const nextMuted = toggleAudioMuted();
+              setMuted(nextMuted);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
+            aria-label={muted ? '開啟音效 (快捷鍵 M)' : '靜音 (快捷鍵 M)'}
+          >
+            <span>{muted ? '🔇' : '🔊'}</span>
+            <span className="hidden sm:inline">{muted ? '靜音' : '音效'}</span>
+            <kbd className="hidden rounded bg-slate-900 px-1 font-mono text-[9px] text-slate-400 sm:inline">
+              M
+            </kbd>
+          </button>
+
+          <TouchButton
+            label="放棄這段人生"
+            ariaLabel="放棄目前進度並回到標題"
+            onClick={onQuit}
+            className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 text-xs font-semibold text-slate-400"
+          />
+        </div>
       </header>
 
       <div className="mb-4">
@@ -172,6 +305,7 @@ export function PlayScreen({
             isClutch={decision?.kind === 'clutch'}
             clutchPrompt={decision?.prompt}
           />
+
           {report && (
             <section
               className={`bl-card p-4 ${report.clutchMoment ? 'bl-clutch-hit' : ''}`}
@@ -268,77 +402,79 @@ export function PlayScreen({
             </section>
           )}
 
-          {!ended &&
-            decision && (
-              <section className="bl-card p-4">
-                <p className="text-[11px] tracking-wider text-slate-500">
-                  {decision.kind === 'event'
-                    ? '高風險抉擇'
-                    : decision.kind === 'clutch'
-                      ? '比賽關鍵局面'
-                      : decision.kind === 'chapter'
-                        ? '生涯章節'
-                        : decision.kind === 'story'
-                          ? '人際事件'
-                          : decision.title}
-                </p>
-                {decision.kind === 'event' && (
-                  <p className="mt-1 text-xs font-bold text-rose-300/90">{decision.title}</p>
-                )}
-                {decision.kind === 'clutch' && (
-                  <p className="mt-1 text-xs font-bold text-amber-300/90">{decision.title}</p>
-                )}
-                {decision.kind === 'chapter' && (
-                  <p className="mt-1 text-xs font-bold text-sky-300/90">{decision.title}</p>
-                )}
-                {decision.kind === 'story' && (
-                  <p className="mt-1 text-xs font-bold text-emerald-300/90">{decision.title}</p>
-                )}
-                <h2 className="mt-1 whitespace-pre-line text-base leading-relaxed text-slate-200">
-                  {decision.prompt}
-                </h2>
+          {!ended && decision && (
+            <section className="bl-card p-4">
+              <p className="text-[11px] tracking-wider text-slate-500">
+                {decision.kind === 'event'
+                  ? '高風險抉擇'
+                  : decision.kind === 'clutch'
+                    ? '比賽關鍵局面'
+                    : decision.kind === 'chapter'
+                      ? '生涯章節'
+                      : decision.kind === 'story'
+                        ? '人際事件'
+                        : decision.title}
+              </p>
+              {decision.kind === 'event' && (
+                <p className="mt-1 text-xs font-bold text-rose-300/90">{decision.title}</p>
+              )}
+              {decision.kind === 'clutch' && (
+                <p className="mt-1 text-xs font-bold text-amber-300/90">{decision.title}</p>
+              )}
+              {decision.kind === 'chapter' && (
+                <p className="mt-1 text-xs font-bold text-sky-300/90">{decision.title}</p>
+              )}
+              {decision.kind === 'story' && (
+                <p className="mt-1 text-xs font-bold text-emerald-300/90">{decision.title}</p>
+              )}
+              <h2 className="mt-1 whitespace-pre-line text-base leading-relaxed text-slate-200">
+                {decision.prompt}
+              </h2>
 
-                {showDestinyToggle && (
-                  <button
-                    type="button"
-                    onClick={() => setUseDestiny((v) => !v)}
-                    disabled={!canAffordDestiny}
-                    aria-pressed={destinyArmed}
-                    className={`mt-3 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${
-                      destinyArmed
-                        ? 'border-amber-400 bg-amber-500/15 shadow-[0_0_18px_rgba(251,191,36,0.35)]'
-                        : 'border-slate-700 bg-slate-900/50'
-                    }`}
-                  >
-                    <span className="flex flex-col">
-                      <span className="text-sm font-bold text-amber-200">
-                        傾注天命{destinyArmed ? '　已啟動' : ''}
-                      </span>
-                      <span className="mt-0.5 text-[11px] leading-snug text-slate-400">
-                        {decision?.kind === 'event'
-                          ? canAffordDestiny
-                            ? `消耗約 ${destinyCost} 天命：壓過代價或翻倍報酬（失敗仍可能受傷）；僅標示天命的選項生效`
-                            : `天命不足：需約 ${destinyCost}，目前 ${state.meta.destiny}`
-                          : canAffordDestiny
-                            ? `消耗 ${DESTINY_COST} 天命，強行讓這次訓練骰出 6（大成功）`
-                            : `天命不足：需 ${DESTINY_COST}，目前 ${state.meta.destiny}`}
-                      </span>
+              {showDestinyToggle && (
+                <button
+                  type="button"
+                  onClick={toggleDestiny}
+                  disabled={!canAffordDestiny}
+                  aria-pressed={destinyArmed}
+                  className={`mt-3 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                    destinyArmed
+                      ? 'border-amber-400 bg-amber-500/15 shadow-[0_0_18px_rgba(251,191,36,0.35)]'
+                      : 'border-slate-700 bg-slate-900/50'
+                  }`}
+                >
+                  <span className="flex flex-col">
+                    <span className="text-sm font-bold text-amber-200 flex items-center gap-1.5">
+                      <span>傾注天命{destinyArmed ? '　已啟動' : ''}</span>
+                      <kbd className="hidden rounded bg-slate-800 px-1 font-mono text-[9px] text-amber-300 sm:inline">
+                        D
+                      </kbd>
                     </span>
-                    <span className="shrink-0 font-mono text-xs font-bold text-amber-300">
-                      天命 {state.meta.destiny}
+                    <span className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                      {decision?.kind === 'event'
+                        ? canAffordDestiny
+                          ? `消耗約 ${destinyCost} 天命：壓過代價或翻倍報酬（失敗仍可能受傷）；僅標示天命的選項生效`
+                          : `天命不足：需約 ${destinyCost}，目前 ${state.meta.destiny}`
+                        : canAffordDestiny
+                          ? `消耗 ${DESTINY_COST} 天命，強行讓這次訓練骰出 6（大成功）`
+                          : `天命不足：需 ${DESTINY_COST}，目前 ${state.meta.destiny}`}
                     </span>
-                  </button>
-                )}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs font-bold text-amber-300">
+                    天命 {state.meta.destiny}
+                  </span>
+                </button>
+              )}
 
-                <div className="mt-4 flex flex-col gap-2">
-                  {decision.options.map((option) => {
-                    const hotkey = pickable.findIndex((o) => o.id === option.id);
-                    return (
+              <div className="mt-4 flex flex-col gap-2">
+                {decision.options.map((option) => {
+                  const hotkey = pickable.findIndex((o) => o.id === option.id);
+                  return (
                     <button
                       key={option.id}
                       type="button"
                       disabled={option.disabled}
-                      onClick={() => onChoose(option.id, destinyArmed)}
+                      onClick={() => handleChooseOption(option.id)}
                       onMouseEnter={() => setHoveredOptionId(option.id)}
                       onMouseLeave={() => setHoveredOptionId(null)}
                       onFocus={() => setHoveredOptionId(option.id)}
@@ -371,25 +507,25 @@ export function PlayScreen({
                         </span>
                       )}
                     </button>
-                    );
-                  })}
-                </div>
+                  );
+                })}
+              </div>
 
-                <div className="mt-3 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    className="min-h-11 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-35"
-                  >
-                    ← 上一步
-                  </button>
-                  <p className="hidden text-right text-[10px] text-slate-500 sm:block">
-                    按 1–{Math.min(pickable.length, 9)} 選擇・Backspace 上一步
-                  </p>
-                </div>
-              </section>
-            )}
+              <div className="mt-3 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={onUndo}
+                  disabled={!canUndo}
+                  className="min-h-11 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-35"
+                >
+                  ← 上一步
+                </button>
+                <p className="hidden text-right text-[10px] text-slate-500 sm:block">
+                  按 1–{Math.min(pickable.length, 9)} 選擇・D 傾注天命・H 成績・M 靜音・Backspace 上一步
+                </p>
+              </div>
+            </section>
+          )}
 
           <section className="bl-card p-4">
             <button
