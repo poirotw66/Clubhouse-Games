@@ -216,15 +216,15 @@ h1{font-size:44px;line-height:1.05}
   max-height: calc(100vh - 156px);
   z-index: 6;
   pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
   transition: transform .3s cubic-bezier(0.16, 1, 0.3, 1), opacity .3s ease;
 }
 .cockpit-left { left: 16px; }
 .cockpit-right { right: 16px; }
 
 .cockpit-card {
-  background: rgba(26, 16, 10, 0.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(24, 15, 9, 0.94);
   border: 2.5px solid #d4af37;
   border-radius: 18px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.55), inset 0 0 20px rgba(212,175,55,0.12);
@@ -239,6 +239,7 @@ h1{font-size:44px;line-height:1.05}
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: #d4af37 transparent;
+  transform: translateZ(0);
 }
 .cockpit-card::-webkit-scrollbar { width: 4px; }
 .cockpit-card::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 4px; }

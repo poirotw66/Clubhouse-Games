@@ -46,6 +46,42 @@ export class CockpitManager {
     this.elGripText = null;
     this.elCdText = null;
     this.elJockeyTip = null;
+    this.elNextHurdleHint = null;
+    this.elMobSpeed = null;
+    this.elMobRpm = null;
+    this.elMobStamina = null;
+    this.elMobHurdle = null;
+    this.matrixKeyEls = {};
+    this.matrixKeyStates = {};
+
+    // Dirty-check tracking to minimize DOM reflows
+    this._lastRpm = -1;
+    this._lastNeedleAngle = null;
+    this._lastGaitCls = '';
+    this._lastHr = -1;
+    this._lastHrAnim = -1;
+    this._lastStaminaPct = -1;
+    this._lastSpeedStr = '';
+    this._lastSpeedBarPct = -1;
+    this._lastRhythmMarkerLeft = '';
+    this._lastRhythmLabelText = '';
+    this._lastRhythmGrade = null;
+    this._lastRhythmDistLabel = '';
+    this._rhythmHurdleMode = false;
+    this._lastPlayerPx10 = -1;
+    this._lastRivalPx10 = -1;
+    this._lastGhostPx10 = -1;
+    this._rivalVisible = false;
+    this._ghostVisible = false;
+    this._lastHurdleHintText = '';
+    this._lastDeltaStr = '';
+    this._lastWindStr = '';
+    this._lastGripStr = '';
+    this._lastCdStr = '';
+    this._lastMobSpeedStr = '';
+    this._lastMobRpm = -1;
+    this._lastMobStaminaStr = '';
+    this._lastMobHurdleStr = '';
 
     this.tipCooldown = 0;
     this.currentTipKey = '';
@@ -353,6 +389,12 @@ export class CockpitManager {
     this.elGripText = document.getElementById('gripText');
     this.elCdText = document.getElementById('cdText');
     this.elJockeyTip = document.getElementById('jockeyTipText');
+    this.elNextHurdleHint = document.getElementById('nextHurdleHint');
+
+    this.elMobSpeed = document.getElementById('mobSpeed');
+    this.elMobRpm = document.getElementById('mobRpm');
+    this.elMobStamina = document.getElementById('mobStamina');
+    this.elMobHurdle = document.getElementById('mobHurdle');
   }
 
   bindEvents() {
@@ -393,6 +435,34 @@ export class CockpitManager {
     this.lastStepCount = 0;
     this.currentTipKey = '';
     this.tipCooldown = 0;
+
+    this._lastRpm = -1;
+    this._lastNeedleAngle = null;
+    this._lastGaitCls = '';
+    this._lastHr = -1;
+    this._lastHrAnim = -1;
+    this._lastStaminaPct = -1;
+    this._lastSpeedStr = '';
+    this._lastSpeedBarPct = -1;
+    this._lastRhythmMarkerLeft = '';
+    this._lastRhythmLabelText = '';
+    this._lastRhythmGrade = null;
+    this._lastRhythmDistLabel = '';
+    this._rhythmHurdleMode = false;
+    this._lastPlayerPx10 = -1;
+    this._lastRivalPx10 = -1;
+    this._lastGhostPx10 = -1;
+    this._rivalVisible = false;
+    this._ghostVisible = false;
+    this._lastHurdleHintText = '';
+    this._lastDeltaStr = '';
+    this._lastWindStr = '';
+    this._lastGripStr = '';
+    this._lastCdStr = '';
+    this._lastMobSpeedStr = '';
+    this._lastMobRpm = -1;
+    this._lastMobStaminaStr = '';
+    this._lastMobHurdleStr = '';
   }
 
   consumeStamina(amount) {
@@ -451,39 +521,59 @@ export class CockpitManager {
       this.heartRate += (targetHr - this.heartRate) * dt * 0.6;
     }
 
-    // 4. Update Left Wing DOM
-    if (this.elRpmValue) this.elRpmValue.textContent = displayRpm;
+    // 4. Update Left Wing DOM with dirty checking
+    if (this.elRpmValue && displayRpm !== this._lastRpm) {
+      this.elRpmValue.textContent = displayRpm;
+      this._lastRpm = displayRpm;
+    }
     if (this.elRpmNeedle) {
-      // Needle rotates from -60deg (0 RPM) to +60deg (240 RPM)
       const fraction = Math.min(1, displayRpm / 240);
-      const angle = -60 + fraction * 120;
-      this.elRpmNeedle.style.transform = `rotate(${angle}deg)`;
-      this.elRpmNeedle.style.transformOrigin = '60px 60px';
+      const angle = Math.round(-60 + fraction * 120);
+      if (angle !== this._lastNeedleAngle) {
+        this.elRpmNeedle.style.transform = `rotate(${angle}deg)`;
+        this.elRpmNeedle.style.transformOrigin = '60px 60px';
+        this._lastNeedleAngle = angle;
+      }
     }
     if (this.elRpmGait) {
       this.updateGaitBadge(speedKmh, displayRpm);
     }
-    if (this.elHrValue) this.elHrValue.textContent = Math.round(this.heartRate);
-    if (this.elHrHeart) {
+    const hrRounded = Math.round(this.heartRate);
+    if (this.elHrValue && hrRounded !== this._lastHr) {
+      this.elHrValue.textContent = hrRounded;
+      this._lastHr = hrRounded;
+    }
+    if (this.elHrHeart && Math.abs(this.heartRate - this._lastHrAnim) > 4) {
       const beatDur = Math.max(0.3, 60 / this.heartRate);
       this.elHrHeart.style.animationDuration = `${beatDur.toFixed(2)}s`;
+      this._lastHrAnim = this.heartRate;
     }
     if (this.elStaminaFill) {
       const pct = Math.round(this.stamina);
-      this.elStaminaFill.style.width = `${pct}%`;
-      if (pct > 50) {
-        this.elStaminaFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
-      } else if (pct > 25) {
-        this.elStaminaFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
-      } else {
-        this.elStaminaFill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+      if (pct !== this._lastStaminaPct) {
+        this.elStaminaFill.style.width = `${pct}%`;
+        if (pct > 50) {
+          this.elStaminaFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+        } else if (pct > 25) {
+          this.elStaminaFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+        } else {
+          this.elStaminaFill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+        }
+        if (this.elStaminaText) this.elStaminaText.textContent = `${pct}%`;
+        this._lastStaminaPct = pct;
       }
-      if (this.elStaminaText) this.elStaminaText.textContent = `${pct}%`;
     }
-    if (this.elSpeedValue) this.elSpeedValue.textContent = speedKmh.toFixed(1);
+    const speedStr = speedKmh.toFixed(1);
+    if (this.elSpeedValue && speedStr !== this._lastSpeedStr) {
+      this.elSpeedValue.textContent = speedStr;
+      this._lastSpeedStr = speedStr;
+    }
     if (this.elSpeedBar) {
-      const speedPct = Math.min(100, (speedKmh / 12.0) * 100);
-      this.elSpeedBar.style.width = `${speedPct}%`;
+      const speedPct = Math.round(Math.min(100, (speedKmh / 12.0) * 100));
+      if (speedPct !== this._lastSpeedBarPct) {
+        this.elSpeedBar.style.width = `${speedPct}%`;
+        this._lastSpeedBarPct = speedPct;
+      }
     }
 
     // 5. Rhythm Perfect Bar vs Steeplechase Approach
@@ -528,47 +618,75 @@ export class CockpitManager {
       text = this.tr('gait_idle');
       cls = 'gait-idle';
     }
-    this.elRpmGait.textContent = text;
-    this.elRpmGait.className = `cockpit-badge ${cls}`;
+    if (cls !== this._lastGaitCls) {
+      this.elRpmGait.textContent = text;
+      this.elRpmGait.className = `cockpit-badge ${cls}`;
+      this._lastGaitCls = cls;
+    }
   }
-
   updateRhythmBar(approach, game) {
     if (!this.elRhythmBar || !this.elRhythmMarker) return;
 
     if (approach && approach.active) {
-      // Steeplechase hurdle incoming: cursor sweeps across the bar
-      this.elRhythmBar.classList.add('hurdle-mode');
-      const cursorPct = THREE.MathUtils.clamp(approach.frac * 100, 0, 100);
-      this.elRhythmMarker.style.left = `${cursorPct}%`;
+      if (!this._rhythmHurdleMode) {
+        this.elRhythmBar.classList.add('hurdle-mode');
+        this._rhythmHurdleMode = true;
+      }
+      const cursorPct = Math.min(100, Math.max(0, approach.frac * 100));
+      const leftStr = `${cursorPct.toFixed(1)}%`;
+      if (leftStr !== this._lastRhythmMarkerLeft) {
+        this.elRhythmMarker.style.left = leftStr;
+        this._lastRhythmMarkerLeft = leftStr;
+      }
 
       if (approach.inPerfectZone) {
-        this.elRhythmMarker.className = 'rhythm-cursor perfect-hit';
-        if (this.elRhythmLabel) {
-          this.elRhythmLabel.textContent = '★ PERFECT! 按 SPACE 起跳！';
-          this.elRhythmLabel.style.color = '#f59e0b';
+        if (this._lastRhythmGrade !== 'perfect') {
+          this.elRhythmMarker.className = 'rhythm-cursor perfect-hit';
+          if (this.elRhythmLabel) {
+            this.elRhythmLabel.textContent = '★ PERFECT! 按 SPACE 起跳！';
+            this.elRhythmLabel.style.color = '#f59e0b';
+          }
+          this._lastRhythmGrade = 'perfect';
         }
       } else if (approach.inGreatZone) {
-        this.elRhythmMarker.className = 'rhythm-cursor great-hit';
-        if (this.elRhythmLabel) {
-          this.elRhythmLabel.textContent = '起跳視窗！按 SPACE 躍過！';
-          this.elRhythmLabel.style.color = '#10b981';
+        if (this._lastRhythmGrade !== 'great') {
+          this.elRhythmMarker.className = 'rhythm-cursor great-hit';
+          if (this.elRhythmLabel) {
+            this.elRhythmLabel.textContent = '起跳視窗！按 SPACE 躍過！';
+            this.elRhythmLabel.style.color = '#10b981';
+          }
+          this._lastRhythmGrade = 'great';
         }
       } else {
-        this.elRhythmMarker.className = 'rhythm-cursor';
-        if (this.elRhythmLabel) {
-          this.elRhythmLabel.textContent = `距障礙 ${approach.dist.toFixed(1)}m — 準備起跳`;
-          this.elRhythmLabel.style.color = '#fff6e8';
+        const label = `距障礙 ${approach.dist.toFixed(1)}m — 準備起跳`;
+        if (this._lastRhythmGrade !== 'approach' || this._lastRhythmDistLabel !== label) {
+          this.elRhythmMarker.className = 'rhythm-cursor';
+          if (this.elRhythmLabel) {
+            this.elRhythmLabel.textContent = label;
+            this.elRhythmLabel.style.color = '#fff6e8';
+          }
+          this._lastRhythmGrade = 'approach';
+          this._lastRhythmDistLabel = label;
         }
       }
     } else {
-      // Normal stride rhythm mode
-      this.elRhythmBar.classList.remove('hurdle-mode');
+      if (this._rhythmHurdleMode) {
+        this.elRhythmBar.classList.remove('hurdle-mode');
+        this._rhythmHurdleMode = false;
+        this._lastRhythmGrade = null;
+      }
       const isPairA = game.suggestedPair === 'A';
-      this.elRhythmMarker.style.left = isPairA ? '30%' : '70%';
-      this.elRhythmMarker.className = 'rhythm-cursor';
-      if (this.elRhythmLabel) {
-        this.elRhythmLabel.textContent = isPairA ? '對角 A 組 (Q+P) 推進' : '對角 B 組 (W+O) 推進';
+      const targetLeft = isPairA ? '30%' : '70%';
+      if (this._lastRhythmMarkerLeft !== targetLeft) {
+        this.elRhythmMarker.style.left = targetLeft;
+        this.elRhythmMarker.className = 'rhythm-cursor';
+        this._lastRhythmMarkerLeft = targetLeft;
+      }
+      const text = isPairA ? '對角 A 組 (Q+P) 推進' : '對角 B 組 (W+O) 推進';
+      if (this.elRhythmLabel && this._lastRhythmLabelText !== text) {
+        this.elRhythmLabel.textContent = text;
         this.elRhythmLabel.style.color = '#fff6e8';
+        this._lastRhythmLabelText = text;
       }
     }
   }
@@ -580,37 +698,55 @@ export class CockpitManager {
     const mapX = x => trackStartX + Math.min(1, Math.max(0, x / totalDist)) * (trackEndX - trackStartX);
 
     if (this.elRadarPlayer) {
-      const px = mapX(game.x);
-      this.elRadarPlayer.setAttribute('transform', `translate(${px}, 35)`);
+      const px = Math.round(mapX(game.x) * 10) / 10;
+      if (px !== this._lastPlayerPx10) {
+        this.elRadarPlayer.setAttribute('transform', `translate(${px}, 35)`);
+        this._lastPlayerPx10 = px;
+      }
     }
 
     if (this.elRadarRival) {
       if (aiState && aiState.S) {
-        this.elRadarRival.classList.remove('hidden');
-        const rx = mapX(aiState.S.x);
-        this.elRadarRival.setAttribute('cx', rx);
-      } else {
+        if (!this._rivalVisible) {
+          this.elRadarRival.classList.remove('hidden');
+          this._rivalVisible = true;
+        }
+        const rx = Math.round(mapX(aiState.S.x) * 10) / 10;
+        if (rx !== this._lastRivalPx10) {
+          this.elRadarRival.setAttribute('cx', rx);
+          this._lastRivalPx10 = rx;
+        }
+      } else if (this._rivalVisible) {
         this.elRadarRival.classList.add('hidden');
+        this._rivalVisible = false;
       }
     }
 
     if (this.elRadarGhost) {
       if (ghostState && ghostState.x != null) {
-        this.elRadarGhost.classList.remove('hidden');
-        const gx = mapX(ghostState.x);
-        this.elRadarGhost.setAttribute('cx', gx);
-      } else {
+        if (!this._ghostVisible) {
+          this.elRadarGhost.classList.remove('hidden');
+          this._ghostVisible = true;
+        }
+        const gx = Math.round(mapX(ghostState.x) * 10) / 10;
+        if (gx !== this._lastGhostPx10) {
+          this.elRadarGhost.setAttribute('cx', gx);
+          this._lastGhostPx10 = gx;
+        }
+      } else if (this._ghostVisible) {
         this.elRadarGhost.classList.add('hidden');
+        this._ghostVisible = false;
       }
     }
 
-    const nextHurdleHint = document.getElementById('nextHurdleHint');
-    if (nextHurdleHint && steeplechase) {
+    if (this.elNextHurdleHint && steeplechase) {
       const next = steeplechase.getNextHurdle(game.x);
-      if (next) {
-        nextHurdleHint.textContent = `下一欄：${next.x}m (剩 ${(next.x - game.x).toFixed(1)}m)`;
-      } else {
-        nextHurdleHint.textContent = '終點直線衝刺！';
+      const text = next
+        ? `下一欄：${next.x}m (剩 ${(next.x - game.x).toFixed(1)}m)`
+        : '終點直線衝刺！';
+      if (text !== this._lastHurdleHintText) {
+        this.elNextHurdleHint.textContent = text;
+        this._lastHurdleHintText = text;
       }
     }
   }
@@ -622,19 +758,16 @@ export class CockpitManager {
     let rivalName = '';
 
     if (aiState && aiState.S) {
-      // Comparison with AI rival
       const diffDist = game.x - aiState.S.x;
       const refSpeed = Math.max(1.5, game.vx);
       deltaSec = diffDist / refSpeed;
       rivalName = aiState.level === 'legend' ? '傳奇' : aiState.level === 'race' ? '賽馬' : '小馬';
     } else if (ghostState && ghostState.t != null && game.elapsed > 0) {
-      // Comparison with ghost
       const diffDist = game.x - (ghostState.x || 0);
       const refSpeed = Math.max(1.5, game.vx);
       deltaSec = diffDist / refSpeed;
       rivalName = '幽靈';
     } else {
-      // Solo pace delta against 32.0s Racehorse benchmark (1.56 m/s)
       const benchmarkX = (game.elapsed / 32.0) * 50.0;
       const diffDist = game.x - benchmarkX;
       deltaSec = diffDist / 1.56;
@@ -643,16 +776,21 @@ export class CockpitManager {
 
     if (deltaSec != null) {
       const absVal = Math.abs(deltaSec).toFixed(2);
-      if (deltaSec >= 0) {
-        this.elDeltaBadge.textContent = `領先 ${rivalName}`;
-        this.elDeltaBadge.className = 'delta-badge lead';
-        this.elDeltaValue.textContent = `+${absVal}s`;
-        this.elDeltaValue.style.color = '#10b981';
-      } else {
-        this.elDeltaBadge.textContent = `落後 ${rivalName}`;
-        this.elDeltaBadge.className = 'delta-badge lag';
-        this.elDeltaValue.textContent = `-${absVal}s`;
-        this.elDeltaValue.style.color = '#f59e0b';
+      const isLead = deltaSec >= 0;
+      const key = `${isLead ? '+' : '-'}${absVal}_${rivalName}`;
+      if (key !== this._lastDeltaStr) {
+        if (isLead) {
+          this.elDeltaBadge.textContent = `領先 ${rivalName}`;
+          this.elDeltaBadge.className = 'delta-badge lead';
+          this.elDeltaValue.textContent = `+${absVal}s`;
+          this.elDeltaValue.style.color = '#10b981';
+        } else {
+          this.elDeltaBadge.textContent = `落後 ${rivalName}`;
+          this.elDeltaBadge.className = 'delta-badge lag';
+          this.elDeltaValue.textContent = `-${absVal}s`;
+          this.elDeltaValue.style.color = '#f59e0b';
+        }
+        this._lastDeltaStr = key;
       }
     }
   }
@@ -660,36 +798,44 @@ export class CockpitManager {
   updateWeatherTelemetry(weatherMod) {
     if (this.elWindText) {
       const drag = weatherMod.drag || 1.0;
+      let text = '微風 1.0x';
+      let color = '#fff6e8';
       if (drag < 0.9) {
-        this.elWindText.textContent = `順風 +${Math.round((1 - drag) * 100)}%`;
-        this.elWindText.style.color = '#10b981';
+        text = `順風 +${Math.round((1 - drag) * 100)}%`;
+        color = '#10b981';
       } else if (drag > 1.1) {
-        this.elWindText.textContent = `逆風 -${Math.round((drag - 1) * 100)}%`;
-        this.elWindText.style.color = '#ef4444';
-      } else {
-        this.elWindText.textContent = '微風 1.0x';
-        this.elWindText.style.color = '#fff6e8';
+        text = `逆風 -${Math.round((drag - 1) * 100)}%`;
+        color = '#ef4444';
+      }
+      if (text !== this._lastWindStr) {
+        this.elWindText.textContent = text;
+        this.elWindText.style.color = color;
+        this._lastWindStr = text;
       }
     }
 
     if (this.elGripText) {
       const fric = weatherMod.fric || 1.0;
+      let text = `抓地 ${Math.round(fric * 100)}%`;
+      let color = '#10b981';
       if (fric < 0.95) {
-        this.elGripText.textContent = `濕滑 ${Math.round(fric * 100)}%`;
-        this.elGripText.style.color = '#f59e0b';
-      } else {
-        this.elGripText.textContent = `抓地 ${Math.round(fric * 100)}%`;
-        this.elGripText.style.color = '#10b981';
+        text = `濕滑 ${Math.round(fric * 100)}%`;
+        color = '#f59e0b';
+      }
+      if (text !== this._lastGripStr) {
+        this.elGripText.textContent = text;
+        this.elGripText.style.color = color;
+        this._lastGripStr = text;
       }
     }
 
     if (this.elCdText) {
-      if (this.aeroActive) {
-        this.elCdText.textContent = 'Cd 0.60x ⚡ 壓身';
-        this.elCdText.className = 'cd-badge active';
-      } else {
-        this.elCdText.textContent = 'Cd 1.00x 標準';
-        this.elCdText.className = 'cd-badge';
+      const text = this.aeroActive ? 'Cd 0.60x ⚡ 壓身' : 'Cd 1.00x 標準';
+      const cls = this.aeroActive ? 'cd-badge active' : 'cd-badge';
+      if (text !== this._lastCdStr) {
+        this.elCdText.textContent = text;
+        this.elCdText.className = cls;
+        this._lastCdStr = text;
       }
     }
   }
@@ -728,40 +874,54 @@ export class CockpitManager {
   updateKeyboardMatrix(heldKeys, game, approach) {
     if (!this.keyboardMatrix) return;
 
-    const toggleKey = (id, active, suggest = false) => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.classList.toggle('active', active);
-        el.classList.toggle('suggest', suggest);
-      }
-    };
+    const keys = [
+      ['matKeyShift', !!heldKeys.ShiftLeft || !!heldKeys.ShiftRight || this.aeroActive, false],
+      ['matKeyQ', !!heldKeys.KeyQ, game.suggestedPair === 'A'],
+      ['matKeyW', !!heldKeys.KeyW, game.suggestedPair === 'B'],
+      ['matKeyO', !!heldKeys.KeyO, game.suggestedPair === 'B'],
+      ['matKeyP', !!heldKeys.KeyP, game.suggestedPair === 'A'],
+      ['matKeySpace', !!heldKeys.Space, !!(approach && approach.inPerfectZone)],
+      ['matKeyLeft', !!heldKeys.ArrowLeft || !!heldKeys.KeyA, false],
+      ['matKeyRight', !!heldKeys.ArrowRight || !!heldKeys.KeyD, false],
+      ['matKeyR', !!heldKeys.KeyR, !!game.fallPose],
+    ];
 
-    toggleKey('matKeyShift', !!heldKeys.ShiftLeft || !!heldKeys.ShiftRight || this.aeroActive);
-    toggleKey('matKeyQ', !!heldKeys.KeyQ, game.suggestedPair === 'A');
-    toggleKey('matKeyW', !!heldKeys.KeyW, game.suggestedPair === 'B');
-    toggleKey('matKeyO', !!heldKeys.KeyO, game.suggestedPair === 'B');
-    toggleKey('matKeyP', !!heldKeys.KeyP, game.suggestedPair === 'A');
-    toggleKey('matKeySpace', !!heldKeys.Space, approach && approach.inPerfectZone);
-    toggleKey('matKeyLeft', !!heldKeys.ArrowLeft || !!heldKeys.KeyA);
-    toggleKey('matKeyRight', !!heldKeys.ArrowRight || !!heldKeys.KeyD);
-    toggleKey('matKeyR', !!heldKeys.KeyR, !!game.fallPose);
+    for (let i = 0; i < keys.length; i++) {
+      const [id, active, suggest] = keys[i];
+      const prev = this.matrixKeyStates[id];
+      if (!prev || prev.active !== active || prev.suggest !== suggest) {
+        const el = this.matrixKeyEls[id] || (this.matrixKeyEls[id] = document.getElementById(id));
+        if (el) {
+          el.classList.toggle('active', active);
+          el.classList.toggle('suggest', suggest);
+        }
+        this.matrixKeyStates[id] = { active, suggest };
+      }
+    }
   }
 
   updateMobileTicker(speedKmh, rpm, approach) {
-    const mobSpeed = document.getElementById('mobSpeed');
-    const mobRpm = document.getElementById('mobRpm');
-    const mobStamina = document.getElementById('mobStamina');
-    const mobHurdle = document.getElementById('mobHurdle');
-
-    if (mobSpeed) mobSpeed.textContent = speedKmh.toFixed(1);
-    if (mobRpm) mobRpm.textContent = rpm;
-    if (mobStamina) mobStamina.textContent = `${Math.round(this.stamina)}%`;
-    if (mobHurdle) {
-      if (approach && approach.hurdle) {
-        mobHurdle.textContent = `${Math.max(0, approach.dist).toFixed(1)}m`;
-      } else {
-        mobHurdle.textContent = '—';
-      }
+    if (!this.elMobSpeed) return;
+    const speedStr = speedKmh.toFixed(1);
+    if (speedStr !== this._lastMobSpeedStr) {
+      this.elMobSpeed.textContent = speedStr;
+      this._lastMobSpeedStr = speedStr;
+    }
+    if (rpm !== this._lastMobRpm) {
+      this.elMobRpm.textContent = rpm;
+      this._lastMobRpm = rpm;
+    }
+    const stStr = `${Math.round(this.stamina)}%`;
+    if (stStr !== this._lastMobStaminaStr) {
+      this.elMobStamina.textContent = stStr;
+      this._lastMobStaminaStr = stStr;
+    }
+    const hText = (approach && approach.hurdle)
+      ? `${Math.max(0, approach.dist).toFixed(1)}m`
+      : '—';
+    if (hText !== this._lastMobHurdleStr) {
+      this.elMobHurdle.textContent = hText;
+      this._lastMobHurdleStr = hText;
     }
   }
 }

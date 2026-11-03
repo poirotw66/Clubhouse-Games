@@ -2369,9 +2369,12 @@ function syncVisuals(dt){
   // speed, with a low 3/4 offset — the original game's framing
   const hFov=2*Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*camera.aspect);
   const fitW=camera.aspect<0.8?1.9:2.3;
-  const dT=THREE.MathUtils.clamp(fitW/Math.tan(hFov/2),7.5,15);
-  camS.dist+=(dT-camS.dist)*(1-Math.exp(-4*dt));
-  camS.x+=(G.x+0.4+G.vx*0.25-camS.x)*(1-Math.exp(-5*dt));
+  const dT=THREE.MathUtils.clamp(fitW/Math.tan(hFov/2),7.5,14);
+  camS.dist+=(dT-camS.dist)*(1-Math.exp(-6*dt));
+
+  // Responsive lead tracking: camera stays smoothly locked to horse position
+  const targetLead = G.x + 0.35 + Math.min(1.2, Math.max(0, G.vx * 0.16));
+  camS.x+=(targetLead-camS.x)*(1-Math.exp(-9*dt));
 
   let px,py,pz,lx,ly,lz;
   if(G.state==='run'&&G.countdown>0){
@@ -2394,7 +2397,8 @@ function syncVisuals(dt){
     px=G.x+Math.sin(a)*6.5; py=2.4; pz=Math.cos(a)*6.5;
     lx=G.x; ly=1.25; lz=0;
   }else{
-    px=camS.x+camS.dist*0.28; py=1.7+camS.dist*0.08; pz=camS.dist;
+    // Balanced chase framing: horse stays centered between cockpit wings
+    px=camS.x+camS.dist*0.14; py=1.7+camS.dist*0.08; pz=camS.dist;
     lx=camS.x; ly=0.95; lz=0;
   }
   if(camShake>0){
@@ -2402,7 +2406,7 @@ function syncVisuals(dt){
     px+=(Math.random()-0.5)*camShake*0.5;
     py+=(Math.random()-0.5)*camShake*0.5;
   }
-  const kl=1-Math.exp(-4*dt);
+  const kl=1-Math.exp(-9*dt);
   camera.position.lerp(new THREE.Vector3(px,py,pz),kl);
   lookCur.lerp(new THREE.Vector3(lx,ly,lz),kl);
   camera.lookAt(lookCur);
@@ -2581,7 +2585,7 @@ function tick(dt,noRender){
 function loop(){
   requestAnimationFrame(loop);
   if(window.__manual)return;   // test harness drives ticks itself
-  tick(Math.min(clock.getDelta(),0.033));
+  tick(Math.min(clock.getDelta(),0.05));
 }
 
 addEventListener('resize',()=>{
