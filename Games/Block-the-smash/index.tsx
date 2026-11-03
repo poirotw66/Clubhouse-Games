@@ -594,7 +594,28 @@ function App() {
               <JuiceSettingsPanel />
             </div>
 
-            <p style={{ margin: '16px 0 0', color: '#777', fontSize: 12 }}>
+            <div
+              style={{
+                marginTop: 14,
+                padding: '10px 14px',
+                borderRadius: '12px',
+                background: 'rgba(0, 255, 170, 0.08)',
+                border: '1px solid rgba(0, 255, 170, 0.25)',
+                fontSize: 12,
+                color: '#c9e2d5',
+                lineHeight: 1.5,
+              }}
+            >
+              <div style={{ fontWeight: 700, color: '#00ffaa', marginBottom: 4 }}>
+                ⚡ 雙翼接殺電競座艙控制說明
+              </div>
+              <div>• 左右步法：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4, color: '#00e5ff' }}>A</kbd> <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4, color: '#00e5ff' }}>D</kbd> 左右橫移步法（或滑鼠／觸控拖曳）</div>
+              <div>• 魚躍撲救：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4, color: '#ffe566' }}>Space</kbd> 極限撲救（消耗體能 30%）</div>
+              <div>• 拍面角度：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>W</kbd> 封網上揚 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>S</kbd> 下沉挑球</div>
+              <div>• 回殺落點：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>1</kbd> 左路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>2</kbd> 中路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>3</kbd> 右路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>R</kbd> 快速重置</div>
+            </div>
+
+            <p style={{ margin: '14px 0 0', color: '#777', fontSize: 12 }}>
               生涯完美 {stats.careerPerfects} · 回殺 {stats.careerCounters} · 最高連擋{' '}
               {stats.careerMaxCombo} · 場次 {stats.careerPlays}
             </p>

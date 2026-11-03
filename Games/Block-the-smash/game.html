@@ -1,28 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BADMINTON SMASH DEFENSE</title>
-    <!-- Loaded without blocking rendering: the drill must come up even when
-         the font host is slow or unreachable. -->
+    <title>羽毛球接殺訓練 — 雙翼電競座艙</title>
+    <!-- Loaded without blocking rendering -->
     <link rel="stylesheet" media="print" onload="this.media='all'"
-          href="https://fonts.googleapis.com/css2?family=Teko:wght@400;600;700&display=swap">
+          href="https://fonts.googleapis.com/css2?family=Teko:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
     <style>
         :root {
             --court-green: #1a472a;
             --court-line: #ffffff;
             --shuttle-cork: #e0e0e0;
             --shuttle-skirt: #ffffff;
+            --neon-green: #00ffaa;
+            --neon-yellow: #ffe566;
+            --neon-cyan: #00e5ff;
+            --neon-red: #ff3366;
+            --neon-orange: #ff9900;
+            --cockpit-bg: rgba(6, 20, 14, 0.86);
+            --cockpit-border: rgba(0, 255, 170, 0.28);
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
         }
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #0d2b1a;
-            font-family: 'Teko', 'Oswald', 'Arial Narrow', system-ui, sans-serif;
+            background-color: #06150c;
+            font-family: 'Teko', 'Noto Sans TC', 'JetBrains Mono', system-ui, sans-serif;
             touch-action: none;
-            user-select: none;
-            cursor: none; /* Hide default cursor */
+            cursor: crosshair;
         }
         #canvas-container {
             position: absolute;
@@ -39,46 +49,588 @@
             width: 100%;
             height: 100%;
             z-index: 10;
-            pointer-events: none; 
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
-        /* HUD */
+
+        /* --- Top Bar & Esport Telemetry Ticker --- */
+        #cockpit-top-bar {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 24px;
+            background: linear-gradient(180deg, rgba(3, 15, 10, 0.92) 0%, rgba(6, 22, 16, 0.6) 80%, transparent 100%);
+            border-bottom: 1px solid rgba(0, 255, 170, 0.18);
+            pointer-events: auto;
+            backdrop-filter: blur(6px);
+            z-index: 20;
+        }
         #score-board {
-            position: absolute;
-            top: 20px;
-            left: 30px;
             color: #fff;
-            font-size: 32px;
-            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-shadow: 0 0 12px rgba(0, 255, 170, 0.4);
+        }
+        .score-pill {
+            background: rgba(0, 255, 170, 0.12);
+            border: 1px solid rgba(0, 255, 170, 0.3);
+            border-radius: 6px;
+            padding: 2px 10px;
+            color: var(--neon-green);
+        }
+        #phase-banner {
+            padding: 4px 18px;
+            border-radius: 999px;
+            background: rgba(0, 255, 170, 0.15);
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            box-shadow: 0 0 16px rgba(0, 255, 170, 0.25);
+            animation: pulse-border 2.5s infinite;
+        }
+        #versus-score {
+            display: none;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 17px;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-shadow: 0 0 8px rgba(255, 229, 102, 0.5);
+        }
+
+        /* --- Dual-Wing Cockpit Panels --- */
+        .cockpit-wings-container {
+            position: absolute;
+            top: 72px;
+            bottom: 120px;
+            left: 18px;
+            right: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            pointer-events: none;
+            z-index: 15;
+        }
+        .cockpit-wing {
+            width: 250px;
+            max-width: 32vw;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        .cockpit-card {
+            background: var(--cockpit-bg);
+            border: 1px solid var(--cockpit-border);
+            border-radius: 12px;
+            padding: 10px 14px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), inset 0 0 12px rgba(0, 255, 170, 0.05);
+            backdrop-filter: blur(8px);
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .cockpit-card:hover {
+            border-color: rgba(0, 255, 170, 0.6);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: 700;
+            color: #8bb7a0;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        .card-header .badge {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: rgba(0, 255, 170, 0.15);
+            color: var(--neon-green);
+            border: 1px solid rgba(0, 255, 170, 0.3);
+        }
+
+        /* Speed Gauge (StatCast) */
+        #speed-display {
+            display: flex;
+            flex-direction: column;
+        }
+        .speed-main {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+        .speed-value {
+            color: var(--neon-red);
+            font-size: 54px;
+            font-weight: 800;
+            line-height: 0.85;
+            text-shadow: 0 0 20px rgba(255, 51, 102, 0.65);
+            font-family: 'Teko', monospace;
+        }
+        .speed-unit {
+            font-size: 20px;
+            color: #fff;
+            font-weight: 700;
+        }
+        .speed-track {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 6px;
+            position: relative;
+        }
+        .speed-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ffaa, #ffe566 60%, #ff3366 90%);
+            transition: width 0.15s ease-out;
+            box-shadow: 0 0 8px rgba(0, 255, 170, 0.8);
+        }
+        .speed-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+            font-family: 'Noto Sans TC', sans-serif;
+            margin-top: 5px;
+        }
+        .speed-tier-badge {
+            font-weight: 700;
+            color: var(--neon-yellow);
+        }
+
+        /* Reaction Latency Sparkline */
+        #latency-sparkline-wrap {
+            position: relative;
+            width: 100%;
+            height: 52px;
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+        #latency-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .latency-readout {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-family: 'Noto Sans TC', monospace;
+            font-size: 13px;
+        }
+        .latency-avg {
+            color: var(--neon-cyan);
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        /* Parry Streak Multiplier */
+        .multiplier-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .multiplier-val {
+            font-size: 40px;
+            font-weight: 800;
+            color: var(--neon-yellow);
+            text-shadow: 0 0 16px rgba(255, 229, 102, 0.6);
+            line-height: 1;
+        }
+        .multiplier-streak {
+            text-align: right;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 13px;
+            color: #ddd;
+        }
+        .streak-count {
+            color: var(--neon-green);
+            font-size: 18px;
             font-weight: 700;
         }
 
-        #speed-display {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-            text-align: right;
-            transform-origin: right top;
-            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        /* Defense Stamina */
+        .stamina-track {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 6px 0 4px;
+            border: 1px solid rgba(0, 255, 170, 0.2);
         }
-        .speed-label {
+        .stamina-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #ff3366 0%, #ffe566 40%, #00ffaa 80%);
+            border-radius: 999px;
+            transition: width 0.12s ease-out, background-color 0.2s;
+            box-shadow: 0 0 10px rgba(0, 255, 170, 0.7);
+        }
+        .stamina-fill.low {
+            animation: pulse-stamina 0.6s infinite alternate;
+        }
+        .stamina-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-family: 'Noto Sans TC', sans-serif;
             color: #aaa;
-            font-size: 16px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: -5px;
         }
-        .speed-value {
-            color: #ff3333; /* Red for danger/speed */
-            font-size: 64px;
+
+        /* --- Right Wing: Tactical Heatmap & Alerts --- */
+        #heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            width: 100%;
+            height: 94px;
+            background: rgba(0, 30, 16, 0.7);
+            padding: 4px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 255, 170, 0.25);
+            position: relative;
+        }
+        .heatmap-cell {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 10px;
+            color: #8bb7a0;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+        .heatmap-cell.active-target {
+            border-color: var(--neon-red);
+            box-shadow: 0 0 12px rgba(255, 51, 102, 0.75), inset 0 0 8px rgba(255, 51, 102, 0.4);
+            animation: target-ping 0.8s infinite;
+        }
+        .heatmap-cell.hot-1 { background: rgba(0, 255, 170, 0.2); color: #fff; }
+        .heatmap-cell.hot-2 { background: rgba(255, 229, 102, 0.28); color: #fff; }
+        .heatmap-cell.hot-3 { background: rgba(255, 51, 102, 0.35); color: #fff; font-weight: 700; }
+        .heatmap-cell .cell-count {
+            font-size: 12px;
             font-weight: 700;
-            line-height: 0.9;
-            text-shadow: 0 0 15px rgba(255, 50, 50, 0.6);
-            display: inline-block;
+            font-family: 'Teko', monospace;
+            line-height: 1;
         }
-        .speed-unit {
+
+        /* Threat Alert */
+        #threat-alert-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(40, 10, 10, 0.6);
+            border: 1px solid rgba(255, 51, 102, 0.35);
+            border-radius: 8px;
+            padding: 8px 10px;
+            transition: all 0.25s;
+        }
+        #threat-alert-box.threat-high {
+            background: rgba(70, 10, 20, 0.85);
+            border-color: var(--neon-red);
+            box-shadow: 0 0 16px rgba(255, 51, 102, 0.4);
+            animation: pulse-border 1.2s infinite;
+        }
+        .threat-icon {
             font-size: 24px;
+            line-height: 1;
+        }
+        .threat-content {
+            flex: 1;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .threat-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--neon-red);
+            letter-spacing: 0.05em;
+        }
+        .threat-desc {
+            font-size: 11px;
+            color: #ddd;
+            line-height: 1.25;
+        }
+
+        /* Tactical Master Card */
+        #tactical-playbook {
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #c9e2d5;
+        }
+        .tactic-tag {
+            font-weight: 700;
+            color: var(--neon-green);
+            display: inline-block;
+            margin-bottom: 2px;
+        }
+        .tactic-advice {
+            color: #e2ede7;
+        }
+
+        /* --- Center Alerts & Notifications --- */
+        #tell-banner {
+            position: absolute;
+            top: 76px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.92);
+            padding: 6px 20px;
+            border-radius: 8px;
+            background: rgba(3, 16, 10, 0.78);
+            border: 1px solid rgba(0, 255, 170, 0.35);
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            opacity: 0;
+            transition: opacity 0.12s ease, transform 0.12s ease;
+            text-transform: uppercase;
+            z-index: 25;
+            backdrop-filter: blur(6px);
+        }
+        #tell-banner.show {
+            opacity: 1;
+            transform: translateX(-50%) scale(1);
+        }
+        #tell-banner.fake {
+            border-style: dashed;
+            border-color: var(--neon-yellow);
+            letter-spacing: 0.18em;
+        }
+
+        #hit-toast {
+            position: absolute;
+            top: 42%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            font-size: 58px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            opacity: 0;
+            pointer-events: none;
+            text-transform: uppercase;
+            white-space: nowrap;
+            transition: opacity 0.12s ease, transform 0.12s ease;
+            z-index: 30;
+        }
+        #hit-toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        #hit-toast.good { color: var(--neon-green); text-shadow: 0 0 24px rgba(0,255,170,0.7); }
+        #hit-toast.bad { color: var(--neon-red); text-shadow: 0 0 24px rgba(255,51,102,0.7); }
+        #hit-toast.perfect { color: var(--neon-yellow); text-shadow: 0 0 32px rgba(255,229,102,0.85); }
+
+        #combo-hud {
+            display: none; /* Replaced by Cockpit Multiplier */
+        }
+        #lives-hud {
+            display: none;
+        }
+
+        /* --- Counter Panel (Perfect Parry) --- */
+        #counter-panel {
+            display: none;
+            position: absolute;
+            left: 50%;
+            bottom: 22%;
+            transform: translateX(-50%);
+            width: min(440px, 92vw);
+            padding: 16px 20px;
+            border-radius: 16px;
+            background: rgba(4, 24, 14, 0.94);
+            border: 2px solid var(--neon-yellow);
+            box-shadow: 0 0 35px rgba(255, 229, 102, 0.35);
+            pointer-events: auto;
+            text-align: center;
+            z-index: 40;
+            backdrop-filter: blur(10px);
+        }
+        #counter-panel.show { display: block; }
+        #counter-hint {
+            color: var(--neon-yellow);
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        #counter-timer-track {
+            height: 6px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+        #counter-timer {
+            height: 100%;
+            width: 100%;
+            transform-origin: left center;
+            transform: scaleX(1);
+            background: linear-gradient(90deg, #ffe566, #00ffaa);
+        }
+        #counter-choices {
+            display: flex;
+            gap: 10px;
+        }
+        #counter-choices button {
+            flex: 1;
+            font-size: 22px;
+            padding: 12px 10px;
+            min-height: 48px;
+            touch-action: manipulation;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
             color: #fff;
-            margin-left: 5px;
+            transition: all 0.15s ease;
+        }
+        #counter-choices button:hover {
+            background: var(--neon-yellow);
+            color: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 0 16px rgba(255, 229, 102, 0.6);
+        }
+
+        /* --- Esport Keyboard Matrix HUD --- */
+        #cockpit-keyboard-hud {
+            position: absolute;
+            bottom: 34px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(5, 20, 14, 0.88);
+            border: 1px solid rgba(0, 255, 170, 0.25);
+            border-radius: 14px;
+            padding: 8px 16px;
+            pointer-events: auto;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            z-index: 22;
+        }
+        .hud-key-cluster {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .hud-key {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            min-width: 46px;
+            min-height: 44px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            touch-action: manipulation;
+        }
+        .hud-key kbd {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--neon-cyan);
+            line-height: 1;
+        }
+        .hud-key span {
+            font-size: 11px;
+            font-family: 'Noto Sans TC', sans-serif;
+            color: #9eb8aa;
+            margin-top: 2px;
+            white-space: nowrap;
+        }
+        .hud-key.hud-key-wide {
+            min-width: 96px;
+            padding: 6px 14px;
+        }
+        .hud-key.hud-key-wide kbd {
+            color: var(--neon-yellow);
+        }
+        .hud-key.active, .hud-key:active {
+            background: rgba(0, 255, 170, 0.25);
+            border-color: var(--neon-green);
+            transform: scale(0.94);
+            box-shadow: 0 0 14px rgba(0, 255, 170, 0.6);
+        }
+        .hud-key.hud-key-wide.active {
+            background: rgba(255, 229, 102, 0.28);
+            border-color: var(--neon-yellow);
+            box-shadow: 0 0 16px rgba(255, 229, 102, 0.7);
+        }
+
+        /* Mobile Touch Deck */
+        #mobile-touch-bar {
+            display: none;
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 94%;
+            max-width: 480px;
+            justify-content: space-between;
+            gap: 8px;
+            z-index: 25;
+            pointer-events: auto;
+        }
+        .mobile-touch-btn {
+            flex: 1;
+            padding: 12px 6px;
+            min-height: 52px;
+            font-size: 18px;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: 700;
+            background: rgba(8, 30, 20, 0.92);
+            border: 1px solid var(--neon-green);
+            border-radius: 10px;
+            color: #fff;
+            touch-action: manipulation;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        }
+        .mobile-touch-btn.dive {
+            flex: 1.4;
+            background: rgba(40, 32, 10, 0.92);
+            border-color: var(--neon-yellow);
+            color: var(--neon-yellow);
+        }
+        .mobile-touch-btn:active {
+            transform: scale(0.95);
+            background: var(--neon-green);
+            color: #000;
+        }
+        .mobile-touch-btn.dive:active {
+            background: var(--neon-yellow);
+            color: #000;
         }
 
         #countdown {
@@ -86,15 +638,16 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 120px;
+            font-size: 130px;
             color: #fff;
             font-weight: 800;
-            text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+            text-shadow: 0 0 35px rgba(0, 255, 170, 0.9);
             opacity: 0;
             pointer-events: none;
+            z-index: 50;
         }
-        
-        /* Game Over Screen */
+
+        /* --- Esport Telemetry Debrief (Game Over) --- */
         #game-over {
             display: none;
             position: absolute;
@@ -103,258 +656,181 @@
             transform: translate(-50%, -50%);
             text-align: center;
             pointer-events: auto;
-            background: rgba(0, 40, 0, 0.9);
-            padding: 40px;
-            border: 2px solid #fff;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-            border-radius: 8px;
+            background: rgba(4, 20, 14, 0.95);
+            padding: 34px 40px;
+            border: 2px solid var(--neon-green);
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(0, 255, 170, 0.3);
+            border-radius: 20px;
+            z-index: 60;
+            width: min(540px, 94vw);
+            backdrop-filter: blur(14px);
         }
-        h1 {
+        #grade-banner {
+            font-size: 84px;
+            font-weight: 800;
+            line-height: 0.9;
+            margin: 0 0 4px 0;
+            letter-spacing: 0.08em;
+            text-shadow: 0 0 30px rgba(255, 220, 80, 0.55);
+        }
+        #grade-banner.grade-s { color: #ffe566; text-shadow: 0 0 35px rgba(255, 229, 102, 0.7); }
+        #grade-banner.grade-a { color: #00ffaa; text-shadow: 0 0 35px rgba(0, 255, 170, 0.7); }
+        #grade-banner.grade-b { color: #00e5ff; text-shadow: 0 0 35px rgba(0, 229, 255, 0.7); }
+        #grade-banner.grade-c { color: #ff9900; text-shadow: 0 0 35px rgba(255, 153, 0, 0.7); }
+        #grade-banner.grade-d { color: #ff3366; text-shadow: 0 0 35px rgba(255, 51, 102, 0.7); }
+        #result-title {
             color: #fff;
-            font-size: 64px;
-            margin: 0 0 20px 0;
+            font-size: 32px;
+            margin: 0 0 12px 0;
             text-transform: uppercase;
-            line-height: 1;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: 700;
+        }
+        #new-record {
+            display: none;
+            color: var(--neon-yellow);
+            font-size: 18px;
+            font-family: 'Noto Sans TC', sans-serif;
+            letter-spacing: 0.12em;
+            margin-bottom: 12px;
+            font-weight: 700;
         }
         #stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 10px;
             margin-bottom: 20px;
         }
         .stat-box {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 10px;
-            border-radius: 4px;
+            border-radius: 8px;
         }
         .stat-box.wide {
             grid-column: 1 / -1;
         }
         .stat-val {
-            font-size: 36px;
+            font-size: 32px;
             color: #fff;
             line-height: 1;
+            font-family: 'Teko', monospace;
         }
         .stat-label {
-            font-size: 14px;
+            font-size: 13px;
             color: #aaa;
-            text-transform: uppercase;
-        }
-        #grade-banner {
-            font-size: 72px;
-            font-weight: 800;
-            line-height: 1;
-            margin: 0 0 4px 0;
-            letter-spacing: 0.08em;
-            text-shadow: 0 0 24px rgba(255, 220, 80, 0.45);
-        }
-        #grade-banner.grade-s { color: #ffe566; }
-        #grade-banner.grade-a { color: #7dffb3; }
-        #grade-banner.grade-b { color: #7ec8ff; }
-        #grade-banner.grade-c { color: #ffb86b; }
-        #grade-banner.grade-d { color: #ff7a7a; }
-        #result-title {
-            color: #fff;
-            font-size: 36px;
-            margin: 0 0 16px 0;
-            text-transform: uppercase;
-            line-height: 1.1;
-        }
-        #new-record {
-            display: none;
-            color: #ffe566;
-            font-size: 18px;
-            letter-spacing: 0.12em;
-            margin-bottom: 12px;
-            text-transform: uppercase;
+            font-family: 'Noto Sans TC', sans-serif;
+            margin-top: 2px;
         }
         #end-actions {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 12px;
             justify-content: center;
+        }
+        button {
+            background: var(--neon-green);
+            border: none;
+            color: #03150c;
+            padding: 10px 28px;
+            font-size: 24px;
+            font-family: 'Noto Sans TC', system-ui, sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 8px;
+            touch-action: manipulation;
+        }
+        button:hover {
+            transform: scale(1.04);
+            box-shadow: 0 0 20px rgba(0, 255, 170, 0.6);
         }
         #end-actions button.secondary {
             background: transparent;
             color: #fff;
-            border: 2px solid rgba(255,255,255,0.55);
+            border: 2px solid rgba(255, 255, 255, 0.4);
         }
-        #phase-banner {
+        #end-actions button.secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #fff;
+        }
+
+        #instructions {
             position: absolute;
-            top: 88px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 4px 16px;
-            border-radius: 999px;
-            background: rgba(0,0,0,0.45);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: #b8ffe0;
-            font-size: 20px;
-            letter-spacing: 0.16em;
-            text-transform: uppercase;
-            opacity: 0.9;
-        }
-        #hit-toast {
-            position: absolute;
-            top: 42%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.8);
-            font-size: 56px;
-            font-weight: 800;
-            letter-spacing: 0.06em;
-            opacity: 0;
-            pointer-events: none;
-            text-transform: uppercase;
-            white-space: nowrap;
-            transition: opacity 0.12s ease, transform 0.12s ease;
-        }
-        #hit-toast.show {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-        }
-        #hit-toast.good { color: #7dffb3; text-shadow: 0 0 20px rgba(125,255,179,0.55); }
-        #hit-toast.bad { color: #ff6b6b; text-shadow: 0 0 20px rgba(255,80,80,0.55); }
-        #hit-toast.perfect { color: #ffe566; text-shadow: 0 0 28px rgba(255,220,80,0.75); }
-        #combo-hud {
-            position: absolute;
-            bottom: 70px;
-            right: 28px;
-            text-align: right;
-            color: #ffe566;
-            font-size: 28px;
-            font-weight: 700;
-            text-shadow: 0 0 12px rgba(255,220,80,0.4);
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        #combo-hud.active { opacity: 1; }
-        #tell-banner {
-            position: absolute;
-            top: 128px;
-            left: 50%;
-            transform: translateX(-50%) scale(0.92);
-            padding: 6px 18px;
-            border-radius: 8px;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.25);
-            font-size: 26px;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            opacity: 0;
-            transition: opacity 0.12s ease, transform 0.12s ease;
-            text-transform: uppercase;
-        }
-        #tell-banner.show {
-            opacity: 1;
-            transform: translateX(-50%) scale(1);
-        }
-        #tell-banner.fake {
-            border-style: dashed;
-            letter-spacing: 0.2em;
-        }
-        #lives-hud {
-            display: none;
-            position: absolute;
-            bottom: 70px;
-            left: 28px;
-            color: #ff8a8a;
-            font-size: 26px;
-            font-weight: 700;
-        }
-        #versus-score {
-            display: none;
-            position: absolute;
-            top: 168px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: rgba(255,255,255,0.75);
-            font-size: 18px;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-        }
-        #counter-panel {
-            display: none;
-            position: absolute;
-            left: 50%;
-            bottom: 18%;
-            transform: translateX(-50%);
-            width: min(420px, 92vw);
-            padding: 14px 16px 16px;
-            border-radius: 12px;
-            background: rgba(0, 24, 12, 0.88);
-            border: 1px solid rgba(255, 229, 102, 0.45);
-            pointer-events: auto;
-            text-align: center;
-            z-index: 30;
-        }
-        #counter-panel.show { display: block; }
-        #counter-hint {
-            color: #ffe566;
-            font-size: 22px;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-        #counter-timer-track {
-            height: 4px;
-            background: rgba(255,255,255,0.15);
-            border-radius: 999px;
-            overflow: hidden;
-            margin-bottom: 12px;
-        }
-        #counter-timer {
-            height: 100%;
+            bottom: 8px;
             width: 100%;
-            transform-origin: left center;
-            transform: scaleX(1);
-            background: linear-gradient(90deg, #ffe566, #7dffb3);
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            font-family: 'Noto Sans TC', sans-serif;
+            pointer-events: none;
+            letter-spacing: 1px;
+            z-index: 10;
         }
-        #counter-choices {
-            display: flex;
-            gap: 8px;
+
+        /* --- Animations --- */
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 8px rgba(0, 255, 170, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 170, 0.6); }
+            100% { box-shadow: 0 0 8px rgba(0, 255, 170, 0.2); }
         }
-        #counter-choices button {
-            flex: 1;
-            font-size: 22px;
-            padding: 12px 8px;
-            min-height: 48px;
-            touch-action: manipulation;
+        @keyframes pulse-stamina {
+            0% { background: #ff3366; box-shadow: 0 0 6px #ff3366; }
+            100% { background: #ff9900; box-shadow: 0 0 16px #ff3366; }
         }
+        @keyframes target-ping {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+
+        /* --- Responsive Styles --- */
+        @media (max-width: 900px) {
+            .cockpit-wing {
+                width: 200px;
+            }
+            .speed-value {
+                font-size: 42px;
+            }
+            #cockpit-keyboard-hud {
+                display: none; /* Replaced by Mobile Touch Deck on narrow screens */
+            }
+            #mobile-touch-bar {
+                display: flex;
+            }
+            #instructions {
+                bottom: 74px;
+                font-size: 12px;
+            }
+        }
+        @media (max-width: 680px) {
+            .cockpit-wings-container {
+                flex-direction: column;
+                justify-content: flex-start;
+                gap: 8px;
+                bottom: 80px;
+                overflow-y: auto;
+                pointer-events: none;
+            }
+            .cockpit-wing {
+                width: 100%;
+                max-width: 100%;
+                pointer-events: auto;
+            }
+            #cockpit-wing-right {
+                display: none; /* Clean viewport on small phones; core telemetry stays on left */
+            }
+            #cockpit-top-bar {
+                padding: 6px 12px;
+            }
+        }
+
         @media (prefers-reduced-motion: reduce) {
-            #hit-toast, #tell-banner, #countdown, #counter-panel {
+            #hit-toast, #tell-banner, #countdown, #counter-panel, .cockpit-card, .speed-bar-fill, .stamina-fill {
                 transition: none !important;
                 animation: none !important;
             }
             #counter-timer { transition: none; }
-        }
-        button {
-            background: #fff;
-            border: none;
-            color: #004d00;
-            padding: 10px 28px;
-            font-size: 28px;
-            font-family: 'Teko', 'Oswald', 'Arial Narrow', system-ui, sans-serif;
-            font-weight: 700;
-            cursor: pointer;
-            text-transform: uppercase;
-            transition: all 0.2s;
-            border-radius: 4px;
-        }
-        button:hover {
-            transform: scale(1.05);
-            background: #e6e6e6;
-        }
-        
-        #instructions {
-            position: absolute;
-            bottom: 30px;
-            width: 100%;
-            text-align: center;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 20px;
-            pointer-events: none;
-            text-transform: uppercase;
-            letter-spacing: 2px;
         }
     </style>
 </head>
@@ -363,40 +839,207 @@
     <div id="canvas-container"></div>
 
     <div id="ui-layer">
-        <div id="score-board">
-            <span id="score-label">擋下</span>: <span id="score-val">0</span> / <span id="max-val">25</span>
-            <span style="margin-left:12px;color:#ff8a8a;font-size:0.75em">漏接 <span id="miss-val">0</span></span>
-        </div>
-
-        <div id="phase-banner">熱身</div>
-        <div id="tell-banner"></div>
-        <div id="versus-score">先至 5 分</div>
-
-        <div id="speed-display">
-            <div class="speed-label">來球</div>
-            <div>
-                <span class="speed-value" id="speed-val">0</span>
-                <span class="speed-unit">KM/H</span>
+        <!-- Top Bar & Esport Telemetry Ticker -->
+        <header id="cockpit-top-bar">
+            <div id="score-board">
+                <span id="score-label">擋下</span>
+                <span class="score-pill"><span id="score-val">0</span> / <span id="max-val">25</span></span>
+                <span style="color:var(--neon-red);font-size:0.75em;margin-left:6px">漏接 <span id="miss-val">0</span></span>
             </div>
+
+            <div id="phase-banner">熱身</div>
+            <div id="versus-score">先至 5 分</div>
+        </header>
+
+        <!-- Center In-Game Alerts -->
+        <div id="tell-banner"></div>
+        <div id="hit-toast"></div>
+        <div id="countdown"></div>
+
+        <!-- Dual-Wing Cockpit HUD -->
+        <div class="cockpit-wings-container">
+            <!-- Left Wing: StatCast Telemetry, Latency, Multiplier, Stamina -->
+            <aside id="cockpit-wing-left" class="cockpit-wing" aria-label="遙測左翼">
+                <!-- StatCast Speed -->
+                <div class="cockpit-card" id="speed-display">
+                    <div class="card-header">
+                        <span>扣殺初速遙測</span>
+                        <span class="badge" id="cockpit-speed-badge">STATCAST</span>
+                    </div>
+                    <div class="speed-main">
+                        <span class="speed-value" id="speed-val">0</span>
+                        <span class="speed-unit">KM/H</span>
+                    </div>
+                    <div class="speed-track">
+                        <div class="speed-bar-fill" id="speed-bar"></div>
+                    </div>
+                    <div class="speed-meta">
+                        <span id="cockpit-peak-speed">峰值 0 KM/H</span>
+                        <span class="speed-tier-badge" id="cockpit-speed-tier">準備發球</span>
+                    </div>
+                </div>
+
+                <!-- Reaction Latency Sparkline -->
+                <div class="cockpit-card">
+                    <div class="card-header">
+                        <span>反應延遲即時線圖</span>
+                        <span class="badge" id="cockpit-last-offset">±0ms</span>
+                    </div>
+                    <div id="latency-sparkline-wrap">
+                        <svg id="latency-svg" viewBox="0 0 200 52" preserveAspectRatio="none">
+                            <line x1="0" y1="26" x2="200" y2="26" stroke="rgba(255,255,255,0.2)" stroke-dasharray="3,3" stroke-width="1" />
+                            <rect x="0" y="16" width="200" height="20" fill="rgba(0, 255, 170, 0.08)" />
+                            <path id="latency-path" d="" fill="none" stroke="var(--neon-green)" stroke-width="2" />
+                            <g id="latency-dots"></g>
+                        </svg>
+                    </div>
+                    <div class="latency-readout">
+                        <span style="color:#aaa">平均誤差</span>
+                        <span class="latency-avg" id="cockpit-avg-latency">0ms (完美窗)</span>
+                    </div>
+                </div>
+
+                <!-- Parry Streak Multiplier -->
+                <div class="cockpit-card">
+                    <div class="card-header">
+                        <span>防守連擊倍率</span>
+                        <span class="badge" id="cockpit-parry-tier">PARRY</span>
+                    </div>
+                    <div class="multiplier-box">
+                        <div class="multiplier-val" id="cockpit-multiplier-val">x1.0</div>
+                        <div class="multiplier-streak">
+                            <div>完美連擊</div>
+                            <div class="streak-count"><span id="cockpit-streak-val">0</span> 次</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Defense Stamina -->
+                <div class="cockpit-card">
+                    <div class="card-header">
+                        <span>體能耐力儲備</span>
+                        <span class="badge" id="cockpit-stamina-state">充沛</span>
+                    </div>
+                    <div class="stamina-track">
+                        <div class="stamina-fill" id="cockpit-stamina-bar" style="width: 100%;"></div>
+                    </div>
+                    <div class="stamina-labels">
+                        <span>魚躍撲救消耗 30%</span>
+                        <span id="cockpit-stamina-pct">100%</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Right Wing: Tactical Heatmap, Threat Radar, Master Playbook -->
+            <aside id="cockpit-wing-right" class="cockpit-wing" aria-label="戰術右翼">
+                <!-- 3x3 Defense Zone Heatmap -->
+                <div class="cockpit-card">
+                    <div class="card-header">
+                        <span>九宮格落點熱區</span>
+                        <span class="badge" id="heatmap-coverage-badge">覆蓋 0%</span>
+                    </div>
+                    <div id="heatmap-grid">
+                        <div class="heatmap-cell" data-cell="0"><span>左前</span><span class="cell-count" id="cell-cnt-0">0</span></div>
+                        <div class="heatmap-cell" data-cell="1"><span>中前</span><span class="cell-count" id="cell-cnt-1">0</span></div>
+                        <div class="heatmap-cell" data-cell="2"><span>右前</span><span class="cell-count" id="cell-cnt-2">0</span></div>
+                        <div class="heatmap-cell" data-cell="3"><span>左中</span><span class="cell-count" id="cell-cnt-3">0</span></div>
+                        <div class="heatmap-cell" data-cell="4"><span>正中</span><span class="cell-count" id="cell-cnt-4">0</span></div>
+                        <div class="heatmap-cell" data-cell="5"><span>右中</span><span class="cell-count" id="cell-cnt-5">0</span></div>
+                        <div class="heatmap-cell" data-cell="6"><span>左後</span><span class="cell-count" id="cell-cnt-6">0</span></div>
+                        <div class="heatmap-cell" data-cell="7"><span>中後</span><span class="cell-count" id="cell-cnt-7">0</span></div>
+                        <div class="heatmap-cell" data-cell="8"><span>右後</span><span class="cell-count" id="cell-cnt-8">0</span></div>
+                    </div>
+                </div>
+
+                <!-- Threat & Danger Alert -->
+                <div class="cockpit-card">
+                    <div class="card-header">
+                        <span>防守失誤預警</span>
+                        <span class="badge" id="threat-level-badge">NORMAL</span>
+                    </div>
+                    <div id="threat-alert-box">
+                        <div class="threat-icon" id="threat-icon">🛡️</div>
+                        <div class="threat-content">
+                            <div class="threat-title" id="threat-title">常規防禦姿態</div>
+                            <div class="threat-desc" id="threat-desc">維持中央站位，緊盯對手引拍動作。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Master Tactical Playbook -->
+                <div class="cockpit-card">
+                    <div class="card-header">
+                        <span>防守大師錦囊</span>
+                        <span class="badge">TACTICS</span>
+                    </div>
+                    <div id="tactical-playbook">
+                        <div class="tactic-tag" id="tactic-title">【反手抽擋】</div>
+                        <div class="tactic-advice" id="tactic-desc">迎擊斜線重殺時平抽推向兩側無人空檔，瞬間化被動為主動。</div>
+                    </div>
+                </div>
+            </aside>
         </div>
 
-        <div id="lives-hud">生命 <span id="lives-val">3</span></div>
-        <div id="combo-hud">連擋 <span id="combo-val">0</span></div>
-        <div id="hit-toast"></div>
-
+        <!-- Perfect Parry Return Lane Selection -->
         <div id="counter-panel" aria-hidden="true">
             <div id="counter-hint">選擇回球落點</div>
             <div id="counter-timer-track"><div id="counter-timer"></div></div>
             <div id="counter-choices">
-                <button type="button" data-counter-zone="left">左路</button>
-                <button type="button" data-counter-zone="center">中路</button>
-                <button type="button" data-counter-zone="right">右路</button>
+                <button type="button" data-counter-zone="left">左路 [1]</button>
+                <button type="button" data-counter-zone="center">中路 [2]</button>
+                <button type="button" data-counter-zone="right">右路 [3]</button>
             </div>
         </div>
-        
-        <div id="countdown"></div>
 
-        <div id="game-over">
+        <!-- Esport Keyboard Matrix HUD -->
+        <nav id="cockpit-keyboard-hud" aria-label="鍵盤矩陣控制">
+            <div class="hud-key-cluster">
+                <button type="button" class="hud-key" data-key="KeyW">
+                    <kbd>W</kbd>
+                    <span>封網上揚</span>
+                </button>
+            </div>
+            <div class="hud-key-cluster">
+                <button type="button" class="hud-key" data-key="KeyA">
+                    <kbd>A</kbd>
+                    <span>橫移左步</span>
+                </button>
+                <button type="button" class="hud-key" data-key="KeyS">
+                    <kbd>S</kbd>
+                    <span>下沉挑球</span>
+                </button>
+                <button type="button" class="hud-key" data-key="KeyD">
+                    <kbd>D</kbd>
+                    <span>橫移右步</span>
+                </button>
+            </div>
+            <div class="hud-key-cluster">
+                <button type="button" class="hud-key hud-key-wide" data-key="Space">
+                    <kbd>Space</kbd>
+                    <span>魚躍撲救 ⚡</span>
+                </button>
+                <button type="button" class="hud-key" data-key="KeyR">
+                    <kbd>R</kbd>
+                    <span>重新訓練</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Mobile Touch Deck -->
+        <div id="mobile-touch-bar" aria-label="觸控防守按鍵">
+            <button type="button" class="mobile-touch-btn" id="touch-left">◀ 步法</button>
+            <button type="button" class="mobile-touch-btn dive" id="touch-dive">⚡ 魚躍撲救</button>
+            <button type="button" class="mobile-touch-btn" id="touch-right">步法 ▶</button>
+            <button type="button" class="mobile-touch-btn" id="touch-angle-up">⯅ 截擊</button>
+            <button type="button" class="mobile-touch-btn" id="touch-angle-down">⯆ 挑球</button>
+        </div>
+
+        <!-- Hidden legacy tags for script compatibility -->
+        <div id="combo-hud"><span id="combo-val">0</span></div>
+        <div id="lives-hud"><span id="lives-val">3</span></div>
+
+        <!-- Telemetry Debrief (Game Over Screen) -->
+        <section id="game-over" role="dialog" aria-modal="true" aria-labelledby="result-title">
             <div id="grade-banner" class="grade-b">B</div>
             <h1 id="result-title">訓練結束</h1>
             <div id="new-record">新紀錄！</div>
@@ -407,15 +1050,23 @@
                 </div>
                 <div class="stat-box">
                     <div class="stat-val" id="final-misses">0</div>
-                    <div class="stat-label">漏接</div>
+                    <div class="stat-label">漏接次數</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-val" id="final-accuracy">0%</div>
-                    <div class="stat-label">成功率</div>
+                    <div class="stat-label">防守成功率</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-val" id="final-combo">0</div>
-                    <div class="stat-label">最高連擋</div>
+                    <div class="stat-label">最高連擊</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="final-peak-speed">0 KM/H</div>
+                    <div class="stat-label">最高防禦球速</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="final-avg-latency">0ms</div>
+                    <div class="stat-label">平均反應延遲</div>
                 </div>
                 <div class="stat-box wide">
                     <div class="stat-val" id="final-best">—</div>
@@ -423,12 +1074,12 @@
                 </div>
             </div>
             <div id="end-actions">
-                <button type="button" id="restart-btn">再練一場</button>
+                <button type="button" id="restart-btn">再練一場 (R)</button>
                 <button type="button" id="menu-btn" class="secondary">換設定</button>
             </div>
-        </div>
+        </section>
 
-        <div id="instructions">鎖定預判光環 · 縮圈合一時揮拍 · 完美後主動回殺</div>
+        <div id="instructions">電競全鍵盤矩陣：A/D 橫移步法 · Space 魚躍撲救 · W/S 拍角切換 · 1/2/3 回殺落點</div>
     </div>
 
     <script type="module" src="/src/game/main.js"></script>

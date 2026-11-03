@@ -201,6 +201,86 @@ const AudioSys = {
     osc.start();
     osc.stop(t + 0.16);
   },
+
+  playDive() {
+    if (this.muted || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(280, t);
+    osc.frequency.exponentialRampToValueAtTime(70, t + 0.25);
+    gain.gain.setValueAtTime(0.55, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.28);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(t + 0.3);
+  },
+
+  playSonicBoom() {
+    if (this.muted || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(680, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.14);
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.16);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(t + 0.18);
+  },
+
+  playParryStreak(step = 1) {
+    if (this.muted || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const n = Math.max(1, Math.min(8, Math.floor(step)));
+    const freq = 440 * Math.pow(2, (n - 1) / 12);
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(t + 0.18);
+  },
+
+  playStaminaWarning() {
+    if (this.muted || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(120, t);
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(t + 0.12);
+  },
+
+  playAngleSwitch() {
+    if (this.muted || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.05);
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.06);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(t + 0.08);
+  },
 };
 
 let lastOut = 0;
@@ -264,6 +344,30 @@ let state = {
   dailyScript: /** @type {import('./daily.js').DailyShot[] | null} */ (null),
   dailyIndex: 0,
   rng: createRng(Date.now() >>> 0),
+
+  // Dual-wing cockpit telemetry & controls
+  currentKmh: 0,
+  peakKmh: 0,
+  latencyHistory: [], // array of { offsetMs, grade, time }
+  latencyDirty: true,
+  stamina: 100,
+  staminaWarnCooldown: 0,
+  isDiving: false,
+  diveTime: 0,
+  diveDir: 0,
+  angleBias: 0,
+  targetAngleTilt: 0,
+  currentAngleTilt: 0,
+  heatmap: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  targetHeatmapCell: -1,
+  heatmapDirty: true,
+  threatLevel: 'NORMAL',
+  threatTitle: '常規防禦姿態',
+  threatDesc: '維持中央站位，緊盯對手引拍動作。',
+  tacticTitle: '【反手抽擋】',
+  tacticDesc: '迎擊斜線重殺時平抽推向兩側無人空檔，瞬間化被動為主動。',
+  threatDirty: true,
+  keysPressed: {},
 };
 
 function storage() {
@@ -749,7 +853,7 @@ function formatTimingOffset(etaAtStart, swingDuration) {
   return ` (${sign}${diffMs}ms)`;
 }
 
-// --- INPUT ---
+// --- INPUT & COCKPIT CONTROLS ---
 function updatePointer(clientX, clientY) {
   state.mouse.x = (clientX / window.innerWidth) * 2 - 1;
   state.mouse.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -773,6 +877,54 @@ function trySwing() {
   }
 }
 
+function triggerPowerDive(forcedDir = null) {
+  AudioSys.init();
+  if (!state.isRunning || state.isPaused || state.hitStop > 0 || state.isDiving) return;
+  if (state.stamina < 25) {
+    showToast('體能不足！無法撲救', 'bad');
+    AudioSys.playStaminaWarning();
+    notifyParentHaptic('error');
+    return;
+  }
+  state.stamina = Math.max(0, state.stamina - 30);
+  state.isDiving = true;
+  state.diveTime = 0;
+
+  if (forcedDir != null) {
+    state.diveDir = forcedDir;
+  } else if (state.keysPressed['KeyA'] || state.keysPressed['ArrowLeft']) {
+    state.diveDir = -1;
+  } else if (state.keysPressed['KeyD'] || state.keysPressed['ArrowRight']) {
+    state.diveDir = 1;
+  } else {
+    let targetX = 0;
+    let minDist = Infinity;
+    for (const s of shuttlePool.active) {
+      if (!s.userData.returning) {
+        const dist = Math.abs(s.position.z - IMPACT_Z);
+        if (dist < minDist) {
+          minDist = dist;
+          targetX = s.position.x;
+        }
+      }
+    }
+    state.diveDir = targetX < playerGroup.position.x ? -1 : 1;
+  }
+
+  AudioSys.playDive();
+  notifyParentHaptic('impact');
+  createFeatherExplosion(playerGroup.position, 12);
+  trySwing();
+  updateCockpitTelemetry();
+}
+
+function setRacketAngle(bias) {
+  state.angleBias = bias;
+  state.targetAngleTilt = bias * 0.28;
+  AudioSys.playAngleSwitch();
+  updateCockpitTelemetry();
+}
+
 window.addEventListener('pointermove', (e) => updatePointer(e.clientX, e.clientY));
 window.addEventListener(
   'pointerdown',
@@ -785,6 +937,277 @@ window.addEventListener(
 );
 window.addEventListener('mousemove', (e) => updatePointer(e.clientX, e.clientY));
 window.addEventListener('mousedown', () => trySwing());
+
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  state.keysPressed[e.code] = true;
+
+  const hudKey = document.querySelector(`.hud-key[data-key="${e.code}"]`);
+  if (hudKey) hudKey.classList.add('active');
+
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+    setRacketAngle(1);
+  } else if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+    setRacketAngle(-1);
+  } else if (e.code === 'Space') {
+    e.preventDefault();
+    triggerPowerDive();
+  } else if (e.code === 'KeyR') {
+    replayDrill();
+  } else if (e.code === 'Digit1') {
+    if (state.counter) completeCounter('left');
+  } else if (e.code === 'Digit2') {
+    if (state.counter) completeCounter('center');
+  } else if (e.code === 'Digit3') {
+    if (state.counter) completeCounter('right');
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  state.keysPressed[e.code] = false;
+  const hudKey = document.querySelector(`.hud-key[data-key="${e.code}"]`);
+  if (hudKey) hudKey.classList.remove('active');
+
+  if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'KeyS' || e.code === 'ArrowDown') {
+    if (!state.keysPressed['KeyW'] && !state.keysPressed['ArrowUp'] && !state.keysPressed['KeyS'] && !state.keysPressed['ArrowDown']) {
+      setRacketAngle(0);
+    }
+  }
+});
+
+// Setup HUD Keys and Touch controls
+setTimeout(() => {
+  document.querySelectorAll('.hud-key').forEach((btn) => {
+    const code = btn.getAttribute('data-key');
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      btn.classList.add('active');
+      if (code === 'KeyW') setRacketAngle(1);
+      else if (code === 'KeyS') setRacketAngle(-1);
+      else if (code === 'KeyA') state.mouse.x = Math.max(-1, state.mouse.x - 0.25);
+      else if (code === 'KeyD') state.mouse.x = Math.min(1, state.mouse.x + 0.25);
+      else if (code === 'Space') triggerPowerDive();
+      else if (code === 'KeyR') replayDrill();
+    });
+    btn.addEventListener('pointerup', () => {
+      btn.classList.remove('active');
+      if (code === 'KeyW' || code === 'KeyS') setRacketAngle(0);
+    });
+    btn.addEventListener('pointerleave', () => {
+      btn.classList.remove('active');
+    });
+  });
+
+  const mLeft = document.getElementById('touch-left');
+  const mRight = document.getElementById('touch-right');
+  const mDive = document.getElementById('touch-dive');
+  const mAngleUp = document.getElementById('touch-angle-up');
+  const mAngleDown = document.getElementById('touch-angle-down');
+
+  if (mLeft) {
+    mLeft.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      state.mouse.x = Math.max(-1, state.mouse.x - 0.35);
+      trySwing();
+    });
+  }
+  if (mRight) {
+    mRight.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      state.mouse.x = Math.min(1, state.mouse.x + 0.35);
+      trySwing();
+    });
+  }
+  if (mDive) {
+    mDive.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      triggerPowerDive();
+    });
+  }
+  if (mAngleUp) {
+    mAngleUp.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      setRacketAngle(1);
+    });
+    mAngleUp.addEventListener('pointerup', () => setRacketAngle(0));
+  }
+  if (mAngleDown) {
+    mAngleDown.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      setRacketAngle(-1);
+    });
+    mAngleDown.addEventListener('pointerup', () => setRacketAngle(0));
+  }
+}, 50);
+
+// --- COCKPIT TELEMETRY LOGIC ---
+function getParryMultiplier(combo) {
+  if (combo <= 0) return 1.0;
+  if (combo === 1) return 1.2;
+  if (combo === 2) return 1.5;
+  if (combo === 3) return 2.0;
+  if (combo <= 5) return 2.5;
+  if (combo <= 8) return 3.5;
+  return 5.0;
+}
+
+function renderLatencySparkline() {
+  const pathEl = document.getElementById('latency-path');
+  const dotsEl = document.getElementById('latency-dots');
+  const avgEl = document.getElementById('cockpit-avg-latency');
+  const lastOffsetEl = document.getElementById('cockpit-last-offset');
+  if (!pathEl || !dotsEl) return;
+
+  const history = state.latencyHistory;
+  if (!history || history.length === 0) {
+    pathEl.setAttribute('d', '');
+    dotsEl.innerHTML = '';
+    if (avgEl) avgEl.textContent = '0ms (完美窗)';
+    if (lastOffsetEl) lastOffsetEl.textContent = '±0ms';
+    return;
+  }
+
+  const count = history.length;
+  const width = 200;
+  const midY = 26;
+  const maxRangeMs = 80;
+
+  let sumAbs = 0;
+  let d = '';
+  let dotsHtml = '';
+
+  history.forEach((rec, idx) => {
+    sumAbs += Math.abs(rec.offsetMs);
+    const x = count === 1 ? width / 2 : (idx / (count - 1)) * (width - 16) + 8;
+    const clampedOffset = Math.max(-maxRangeMs, Math.min(maxRangeMs, rec.offsetMs));
+    const y = midY - (clampedOffset / maxRangeMs) * 20;
+
+    d += (idx === 0 ? `M ${x.toFixed(1)},${y.toFixed(1)}` : ` L ${x.toFixed(1)},${y.toFixed(1)}`);
+
+    const dotColor =
+      rec.grade === 'perfect' ? '#ffe566' : rec.grade === 'good' ? '#00ffaa' : '#ff3366';
+    const r = idx === count - 1 ? 3.5 : 2.2;
+    dotsHtml += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${dotColor}" />`;
+  });
+
+  pathEl.setAttribute('d', d);
+  dotsEl.innerHTML = dotsHtml;
+
+  const avg = Math.round(sumAbs / count);
+  if (avgEl) {
+    const windowName = avg <= 35 ? '完美窗' : avg <= 75 ? '良好窗' : '需微調';
+    avgEl.textContent = `±${avg}ms (${windowName})`;
+  }
+  if (lastOffsetEl) {
+    const last = history[history.length - 1];
+    const sign = last.offsetMs >= 0 ? '+' : '';
+    lastOffsetEl.textContent = `${sign}${last.offsetMs}ms`;
+    lastOffsetEl.style.color =
+      last.grade === 'perfect' ? 'var(--neon-yellow)' : last.grade === 'good' ? 'var(--neon-green)' : 'var(--neon-red)';
+  }
+}
+
+function updateHeatmapGrid() {
+  let hitCells = 0;
+  for (let i = 0; i < 9; i++) {
+    const cnt = state.heatmap[i] || 0;
+    if (cnt > 0) hitCells++;
+    const cntEl = document.getElementById(`cell-cnt-${i}`);
+    if (cntEl) cntEl.textContent = String(cnt);
+    const cellEl = document.querySelector(`.heatmap-cell[data-cell="${i}"]`);
+    if (cellEl) {
+      cellEl.classList.remove('hot-1', 'hot-2', 'hot-3', 'active-target');
+      if (cnt >= 5) cellEl.classList.add('hot-3');
+      else if (cnt >= 3) cellEl.classList.add('hot-2');
+      else if (cnt >= 1) cellEl.classList.add('hot-1');
+      if (state.targetHeatmapCell === i) {
+        cellEl.classList.add('active-target');
+      }
+    }
+  }
+  const coverageEl = document.getElementById('heatmap-coverage-badge');
+  if (coverageEl) {
+    const pct = Math.round((hitCells / 9) * 100);
+    coverageEl.textContent = `覆蓋 ${pct}%`;
+  }
+}
+
+function updateThreatAndTactics() {
+  const badge = document.getElementById('threat-level-badge');
+  const icon = document.getElementById('threat-icon');
+  const title = document.getElementById('threat-title');
+  const desc = document.getElementById('threat-desc');
+  const box = document.getElementById('threat-alert-box');
+
+  if (badge) {
+    badge.textContent = state.threatLevel;
+    badge.style.color =
+      state.threatLevel === 'CRITICAL' ? 'var(--neon-red)' : state.threatLevel === 'CAUTION' ? 'var(--neon-yellow)' : 'var(--neon-green)';
+  }
+  if (icon) {
+    icon.textContent = state.threatLevel === 'CRITICAL' ? '⚠️' : state.threatLevel === 'CAUTION' ? '⚡' : '🛡️';
+  }
+  if (title) title.textContent = state.threatTitle;
+  if (desc) desc.textContent = state.threatDesc;
+  if (box) {
+    box.classList.toggle('threat-high', state.threatLevel === 'CRITICAL');
+  }
+
+  const tacTitle = document.getElementById('tactic-title');
+  const tacDesc = document.getElementById('tactic-desc');
+  if (tacTitle) tacTitle.textContent = state.tacticTitle;
+  if (tacDesc) tacDesc.textContent = state.tacticDesc;
+}
+
+function updateCockpitTelemetry() {
+  const kmh = state.currentKmh || 0;
+  const speedBar = document.getElementById('speed-bar');
+  if (speedBar) {
+    const pct = Math.min(100, Math.max(0, ((kmh - DISPLAY_SPEED_MIN) / (DISPLAY_SPEED_MAX - DISPLAY_SPEED_MIN)) * 100));
+    speedBar.style.width = `${pct}%`;
+  }
+  const peakSpeedEl = document.getElementById('cockpit-peak-speed');
+  if (peakSpeedEl) peakSpeedEl.textContent = `峰值 ${state.peakKmh || 0} KM/H`;
+  const speedTierEl = document.getElementById('cockpit-speed-tier');
+  const speedBadge = document.getElementById('cockpit-speed-badge');
+  if (speedTierEl) {
+    speedTierEl.textContent =
+      kmh >= 450 ? '超音速重殺' : kmh >= 380 ? '重殺壓迫' : kmh > 0 ? '常規殺球' : '準備發球';
+    speedTierEl.style.color = kmh >= 450 ? 'var(--neon-red)' : kmh >= 380 ? 'var(--neon-orange)' : 'var(--neon-yellow)';
+  }
+  if (speedBadge) {
+    speedBadge.textContent = kmh >= 450 ? 'SUPERSONIC' : kmh >= 380 ? 'HEAVY' : 'STATCAST';
+  }
+
+  renderLatencySparkline();
+
+  const mult = getParryMultiplier(state.combo);
+  const multValEl = document.getElementById('cockpit-multiplier-val');
+  if (multValEl) multValEl.textContent = `x${mult.toFixed(1)}`;
+  const streakValEl = document.getElementById('cockpit-streak-val');
+  if (streakValEl) streakValEl.textContent = String(state.combo);
+  const parryTierEl = document.getElementById('cockpit-parry-tier');
+  if (parryTierEl) {
+    parryTierEl.textContent = state.combo >= 8 ? 'GODLIKE' : state.combo >= 5 ? 'SURGE' : state.combo >= 3 ? 'HYPER' : 'PARRY';
+  }
+
+  const staminaPct = Math.round(state.stamina);
+  const staminaBar = document.getElementById('cockpit-stamina-bar');
+  const staminaPctEl = document.getElementById('cockpit-stamina-pct');
+  const staminaStateEl = document.getElementById('cockpit-stamina-state');
+  if (staminaBar) {
+    staminaBar.style.width = `${staminaPct}%`;
+    staminaBar.classList.toggle('low', staminaPct < 25);
+  }
+  if (staminaPctEl) staminaPctEl.textContent = `${staminaPct}%`;
+  if (staminaStateEl) {
+    staminaStateEl.textContent = staminaPct < 25 ? '體能警戒' : staminaPct < 55 ? '體能中等' : '充沛';
+    staminaStateEl.style.color = staminaPct < 25 ? 'var(--neon-red)' : staminaPct < 55 ? 'var(--neon-orange)' : 'var(--neon-green)';
+  }
+
+  updateHeatmapGrid();
+  updateThreatAndTactics();
+}
 
 // --- HUD helpers ---
 function diffCfg() {
@@ -1165,11 +1588,27 @@ function startMatch(opts = {}) {
   state.versusStreak = 0;
   state.countersLanded = 0;
   state.habitTempoFlip = false;
+  state.currentKmh = 0;
+  state.latencyHistory = [];
+  state.stamina = 100;
+  state.isDiving = false;
+  state.diveTime = 0;
+  state.angleBias = 0;
+  state.currentAngleTilt = 0;
+  state.targetAngleTilt = 0;
+  state.heatmap = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  state.targetHeatmapCell = -1;
+  state.threatLevel = 'NORMAL';
+  state.threatTitle = '常規防禦姿態';
+  state.threatDesc = '維持中央站位，緊盯對手引拍動作。';
+  state.tacticTitle = '【反手抽擋】';
+  state.tacticDesc = '迎擊斜線重殺時平抽推向兩側無人空檔，瞬間化被動為主動。';
   hideCounterUi();
 
   document.getElementById('game-over').style.display = 'none';
   document.getElementById('speed-val').innerText = '0';
   updateScoreHud();
+  updateCockpitTelemetry();
   document.body.style.cursor = 'none';
   resetOpponentPose();
 
@@ -1296,6 +1735,39 @@ function queueWindup() {
     isFake: pick.isFake,
     sideSign,
   };
+
+  if (pick.isFake) {
+    state.threatLevel = 'CRITICAL';
+    state.threatTitle = '假動作切吊警戒';
+    state.threatDesc = '對手引拍動作與球路不符，切忌盲目提早揮拍！';
+    state.tacticTitle = '【沉著抓延遲】';
+    state.tacticDesc = '壓低重心，待縮圈與全像靶心精準重合之際再行揮拍。';
+  } else if (pick.real === 'cross') {
+    state.threatLevel = 'CAUTION';
+    state.threatTitle = '大角度邊線斜殺';
+    state.threatDesc = '球路撕扯大邊角，準備橫移步法或魚躍撲救！';
+    state.tacticTitle = '【反手推抽對角】';
+    state.tacticDesc = '迎球平抽直推對手反手死角，瞬間化被動為主動得分。';
+  } else if (pick.real === 'drop') {
+    state.threatLevel = 'CAUTION';
+    state.threatTitle = '網前切吊落點急墜';
+    state.threatDesc = '球速大幅減速提早下墜，需注意拍面角度封網！';
+    state.tacticTitle = '【網前輕放小球】';
+    state.tacticDesc = '稍仰拍面卸除來球衝力，反放貼網死角迫使對手挑起高球。';
+  } else if (pick.real === 'body') {
+    state.threatLevel = 'CAUTION';
+    state.threatTitle = '貼身胸口平抽壓迫';
+    state.threatDesc = '直追球員身體死角，縮減揮拍反應時間！';
+    state.tacticTitle = '【近身側身彈擊】';
+    state.tacticDesc = '側轉身軀為球拍爭取揮擊空間，以寸勁手腕爆發力抽擋回擊。';
+  } else {
+    state.threatLevel = 'NORMAL';
+    state.threatTitle = '中路直線重殺轟炸';
+    state.threatDesc = '球速極快且直奔中央甜區，集中精神鎖定縮圈時機。';
+    state.tacticTitle = '【後場挑高防守】';
+    state.tacticDesc = '若連擊累積或體能偏低，大仰角挑至後場深區爭取回防回血。';
+  }
+  updateCockpitTelemetry();
   AudioSys.playTell();
 }
 
@@ -1358,12 +1830,28 @@ function spawnShuttleFromPlan(plan) {
       DISPLAY_SPEED_MIN + (DISPLAY_SPEED_MAX - DISPLAY_SPEED_MIN) * ramp * speedFeel,
     ),
   );
+  state.currentKmh = kmh;
+  state.peakKmh = Math.max(state.peakKmh || 0, kmh);
+
+  const col = targetX < -4 ? 0 : targetX > 4 ? 2 : 1;
+  const row = plan.real === 'drop' ? 0 : plan.real === 'cross' ? 2 : 1;
+  state.targetHeatmapCell = row * 3 + col;
+
+  if (kmh >= 450) {
+    AudioSys.playSonicBoom();
+    state.threatLevel = 'CRITICAL';
+    state.threatTitle = '超音速極限重殺！';
+    state.threatDesc = `時速高達 ${kmh} KM/H，需以毫秒級甜區精準卡位！`;
+  }
+
   document.getElementById('speed-val').innerText = String(kmh);
   const speedDisplay = document.getElementById('speed-display');
   speedDisplay.style.transform = 'scale(1.3)';
   setTimeout(() => {
     speedDisplay.style.transform = 'scale(1)';
   }, 100);
+
+  updateCockpitTelemetry();
 
   setTellBanner(def.label, def.trailColor, false);
   setTimeout(() => setTellBanner('', 0, false), 450);
@@ -1412,7 +1900,14 @@ function registerMiss(s) {
   state.misses += 1;
   state.combo = 0;
   state.rallyPressure = 0;
+  state.stamina = Math.max(0, state.stamina - 10);
+  state.latencyHistory.push({ offsetMs: 80, grade: 'miss', time: Date.now() });
+  if (state.latencyHistory.length > 14) state.latencyHistory.shift();
+  if (state.targetHeatmapCell >= 0 && state.targetHeatmapCell < 9) {
+    state.heatmap[state.targetHeatmapCell] += 1;
+  }
   updateComboHud();
+  updateCockpitTelemetry();
 
   if (state.mode === 'scoreAttack') {
     state.lives -= 1;
@@ -1454,6 +1949,28 @@ function applyContactResult(s, grade) {
   const style = opponentStyle();
   const offsetStr = formatTimingOffset(state.swingEtaAtStart, state.swingDuration);
   createShockwave(s.position, grade);
+
+  const peak = state.swingDuration * 0.45;
+  const diffMs = state.swingEtaAtStart != null && Number.isFinite(state.swingEtaAtStart)
+    ? Math.round((state.swingEtaAtStart - peak) * 1000)
+    : 0;
+  state.latencyHistory.push({ offsetMs: diffMs, grade, time: Date.now() });
+  if (state.latencyHistory.length > 14) state.latencyHistory.shift();
+
+  if (state.targetHeatmapCell >= 0 && state.targetHeatmapCell < 9) {
+    state.heatmap[state.targetHeatmapCell] += 1;
+  }
+
+  if (grade === 'perfect') {
+    state.stamina = Math.min(100, state.stamina + 25);
+    AudioSys.playParryStreak(state.combo + 1);
+  } else if (grade === 'good') {
+    state.stamina = Math.min(100, state.stamina + 12);
+    if (state.combo >= 2) AudioSys.playParryStreak(state.combo + 1);
+  } else {
+    state.stamina = Math.min(100, state.stamina + 5);
+  }
+  updateCockpitTelemetry();
 
   if (grade === 'perfect') {
     state.perfects += 1;
@@ -1695,6 +2212,20 @@ function finishMatch() {
   document.getElementById('game-over').style.display = 'block';
   document.body.style.cursor = 'auto';
 
+  const peakSpeedEl = document.getElementById('final-peak-speed');
+  if (peakSpeedEl) peakSpeedEl.textContent = `${state.peakKmh || 400} KM/H`;
+
+  const avgLatencyEl = document.getElementById('final-avg-latency');
+  if (avgLatencyEl) {
+    if (state.latencyHistory.length > 0) {
+      const sum = state.latencyHistory.reduce((acc, h) => acc + Math.abs(h.offsetMs), 0);
+      const avg = Math.round(sum / state.latencyHistory.length);
+      avgLatencyEl.textContent = `±${avg}ms`;
+    } else {
+      avgLatencyEl.textContent = '±0ms';
+    }
+  }
+
   const accPayload =
     state.mode === 'drill' || state.mode === 'daily'
       ? drillAccuracy({
@@ -1857,29 +2388,69 @@ function animate() {
       finishMatch();
     }
 
+    // Lateral footwork from keyboard
+    if (state.keysPressed['KeyA'] || state.keysPressed['ArrowLeft']) {
+      state.mouse.x = Math.max(-1, state.mouse.x - delta * 2.8);
+    }
+    if (state.keysPressed['KeyD'] || state.keysPressed['ArrowRight']) {
+      state.mouse.x = Math.min(1, state.mouse.x + delta * 2.8);
+    }
+
+    // Stamina recovery & low stamina audio pulse
+    if (!state.isDiving && state.stamina < 100) {
+      state.stamina = Math.min(100, state.stamina + delta * 18);
+    }
+    if (state.stamina < 25) {
+      state.staminaWarnCooldown -= delta;
+      if (state.staminaWarnCooldown <= 0) {
+        state.staminaWarnCooldown = 2.5;
+        AudioSys.playStaminaWarning();
+      }
+    }
+
+    // Angle tilt interpolation
+    state.currentAngleTilt += (state.targetAngleTilt - state.currentAngleTilt) * 0.2;
+
     const rangeX = 14;
     const rangeY = 6;
     const centerX = state.handedness === 'right' ? 4 : -4;
-    const targetX = centerX + state.mouse.x * rangeX;
-    const targetY = -2 + state.mouse.y * rangeY;
+    let targetX = centerX + state.mouse.x * rangeX;
+    let targetY = -2 + state.mouse.y * rangeY + state.currentAngleTilt * 3;
+
+    // Power Dive interpolation
+    if (state.isDiving) {
+      state.diveTime += delta;
+      const diveProgress = state.diveTime / 0.35;
+      if (diveProgress < 1) {
+        const diveCurve = Math.sin(diveProgress * Math.PI);
+        targetX += state.diveDir * diveCurve * 8;
+        targetY -= diveCurve * 1.5;
+        playerGroup.rotation.z = -state.diveDir * diveCurve * 0.45;
+      } else {
+        state.isDiving = false;
+        state.diveTime = 0;
+      }
+    } else {
+      playerGroup.rotation.z = (playerGroup.position.x - targetX) * 0.05;
+    }
+
     playerGroup.position.x += (targetX - playerGroup.position.x) * 0.25;
     playerGroup.position.y += (targetY - playerGroup.position.y) * 0.25;
-    playerGroup.rotation.z = (playerGroup.position.x - targetX) * 0.05;
 
     if (state.swinging) {
       state.swingTime += delta;
       const progress = state.swingTime / state.swingDuration;
       if (progress < 1) {
         const snap = Math.sin(progress * Math.PI);
-        wristPivot.rotation.x = -snap * 0.8;
+        wristPivot.rotation.x = -snap * 0.8 + state.currentAngleTilt;
         playerGroup.position.z = 4 - snap * 2.5;
       } else {
         state.swinging = false;
-        wristPivot.rotation.x = 0;
+        wristPivot.rotation.x = state.currentAngleTilt;
         playerGroup.position.z = 4;
       }
     } else {
-      wristPivot.rotation.x = Math.sin(now * 4) * 0.05;
+      wristPivot.rotation.x = Math.sin(now * 4) * 0.05 + state.currentAngleTilt;
     }
 
     // Spawn pacing (drill / score-attack / daily). Versus uses point callbacks.
@@ -2072,6 +2643,7 @@ function animate() {
   }
 
   composer.render();
+  updateCockpitTelemetry();
 }
 
 window.addEventListener('resize', () => {
