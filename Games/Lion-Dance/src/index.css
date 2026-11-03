@@ -958,3 +958,820 @@ body,
     font-size: 0.95rem !important;
   }
 }
+
+/* ── Dual-wing Festival Pavilion Cockpit ────────────────────────────── */
+
+.lion-cockpit-wing {
+  position: fixed;
+  z-index: 8400;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.lion-cockpit-left {
+  left: 0.75rem;
+  top: max(8.8rem, calc(env(safe-area-inset-top, 0px) + 8.2rem));
+  width: 14.5rem;
+}
+
+.lion-cockpit-right {
+  right: 0.75rem;
+  top: max(5.2rem, calc(env(safe-area-inset-top, 0px) + 4.8rem));
+  width: 15rem;
+}
+
+.lion-wing-card {
+  background: rgba(255, 252, 245, 0.95);
+  border: 2px solid rgba(240, 193, 75, 0.7);
+  border-radius: 1rem;
+  padding: 0.65rem 0.75rem;
+  box-shadow: 0 8px 24px rgba(59, 36, 22, 0.12);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  backdrop-filter: blur(6px);
+}
+
+.lion-wing-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.lion-wing-eyebrow {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--red-deep);
+  font-weight: 700;
+}
+
+.lion-wing-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lion-gyro-status-chip {
+  align-self: flex-start;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-top: 0.1rem;
+}
+
+.lion-gyro-status-chip.is-stable {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.lion-gyro-status-chip.is-tilted {
+  background: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fde047;
+}
+
+.lion-gyro-status-chip.is-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  animation: lion-pulse 0.7s infinite;
+}
+
+.lion-gyro-visual-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.2rem;
+}
+
+.lion-gyro-dial {
+  flex-shrink: 0;
+  background: radial-gradient(circle, #fbf7ee 0%, #ece0cb 100%);
+  border-radius: 50%;
+  box-shadow: inset 0 2px 5px rgba(59, 36, 22, 0.15);
+}
+
+.lion-gyro-ring {
+  fill: none;
+  stroke: rgba(240, 193, 75, 0.8);
+  stroke-width: 2.5;
+}
+
+.lion-gyro-safe-ring {
+  fill: none;
+  stroke: rgba(34, 197, 94, 0.45);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.lion-gyro-horizon {
+  stroke: #e23a2e;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.lion-gyro-bubble {
+  fill: radial-gradient(circle at 35% 35%, #ffe28a, #d97706);
+  stroke: #78350f;
+  stroke-width: 1.5;
+  box-shadow: 0 0 6px rgba(217, 119, 6, 0.5);
+}
+
+.lion-gyro-crosshair {
+  stroke: rgba(59, 36, 22, 0.3);
+  stroke-width: 1.5;
+}
+
+.lion-gyro-readouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 0.5rem;
+  flex: 1;
+}
+
+.lion-readout-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.lion-readout-k {
+  font-size: 0.65rem;
+  color: #8c6a52;
+  font-weight: 700;
+}
+
+.lion-readout-v {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.lion-readout-v.is-air {
+  color: #2563eb;
+  animation: lion-pulse 0.5s infinite;
+}
+
+/* Foot balance bar */
+.lion-foot-balance-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.1rem;
+}
+
+.lion-foot-balance-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #6b452e;
+}
+
+.lion-foot-balance-track {
+  display: flex;
+  height: 6px;
+  background: #e6dac6;
+  border-radius: 999px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.lion-foot-balance-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.1s ease-out;
+}
+
+.lion-foot-balance-fill.is-left {
+  background: linear-gradient(90deg, #e66900, #f0c14b);
+}
+
+.lion-foot-balance-fill.is-right {
+  background: linear-gradient(90deg, #00b04d, #2e91ff);
+}
+
+/* Gold fever & cadence */
+.lion-fever-banner {
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.6rem;
+  background: rgba(243, 230, 200, 0.45);
+  border: 1px solid rgba(240, 193, 75, 0.4);
+}
+
+.lion-fever-banner.is-fever-active {
+  background: linear-gradient(135deg, #fef08a 0%, #fde047 100%);
+  border-color: #eab308;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.65);
+  animation: lion-pulse 0.7s infinite;
+}
+
+.lion-fever-badge {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #854d0e;
+}
+
+.lion-fever-bar {
+  height: 4px;
+  background: rgba(133, 77, 14, 0.2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.2rem;
+}
+
+.lion-fever-progress {
+  height: 100%;
+  background: #ca8a04;
+  border-radius: 999px;
+  transition: width 0.1s linear;
+}
+
+.lion-cadence-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lion-cadence-label {
+  font-size: 0.72rem;
+  color: #6b452e;
+  font-weight: 700;
+}
+
+.lion-cadence-streak {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--red-deep);
+}
+
+.lion-cadence-hint {
+  font-size: 0.65rem;
+  color: #8c6a52;
+  font-weight: 400;
+}
+
+/* ── Auspicious Spirit & Archive (Right Wing) ───────────────────────── */
+
+.lion-spirit-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lion-spirit-num {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--red);
+  font-variant-numeric: tabular-nums;
+}
+
+.lion-spirit-meter {
+  position: relative;
+  height: 12px;
+  background: #e8dcc7;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.lion-spirit-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f0c14b 0%, #e23a2e 70%, #ffd700 100%);
+  border-radius: 999px;
+  transition: width 0.25s ease-out;
+  box-shadow: 0 0 8px rgba(226, 58, 46, 0.4);
+}
+
+.lion-spirit-milestones {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0.35rem;
+  pointer-events: none;
+}
+
+.lion-milestone-pip {
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: #78350f;
+  line-height: 1;
+}
+
+.lion-milestone-pip.is-reached {
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+.lion-fortune-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.lion-fortune-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0.35rem;
+  border-radius: 0.55rem;
+  background: rgba(243, 230, 200, 0.45);
+  border: 1px solid rgba(240, 193, 75, 0.35);
+  text-align: center;
+}
+
+.lion-stat-k {
+  font-size: 0.62rem;
+  color: #8c6a52;
+  font-weight: 700;
+}
+
+.lion-stat-v {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tactical action hot-buttons */
+.lion-tactical-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.lion-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.65rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  border: none;
+}
+
+.lion-btn-ribbon {
+  background: linear-gradient(180deg, #e23a2e 0%, #b02820 100%);
+  color: #fff;
+  box-shadow: 0 3px 0 rgba(110, 18, 12, 0.4);
+}
+
+.lion-btn-ribbon:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(110, 18, 12, 0.4);
+}
+
+.lion-btn-kbd {
+  font-size: 0.68rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+  font-family: monospace;
+}
+
+.lion-trim-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.lion-btn-trim {
+  background: rgba(255, 252, 245, 0.9);
+  border: 1.5px solid rgba(240, 193, 75, 0.65);
+  color: #5c3d28;
+  font-size: 0.75rem;
+}
+
+.lion-btn-trim:active {
+  background: #fef08a;
+}
+
+.lion-btn-leap {
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  color: #fff;
+  box-shadow: 0 3px 0 rgba(22, 101, 52, 0.4);
+}
+
+.lion-btn-leap:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(22, 101, 52, 0.4);
+}
+
+/* Master Tactics Trigger */
+.lion-tactics-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.65rem;
+  border: 1.5px dashed rgba(226, 58, 46, 0.45);
+  background: rgba(255, 248, 238, 0.8);
+  color: var(--red-deep);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-tactics-trigger:hover {
+  background: rgba(255, 248, 238, 1);
+  border-color: var(--red);
+}
+
+/* ── Blessing Calligraphy Toast ─────────────────────────────────────── */
+
+.lion-blessing-toast {
+  position: fixed;
+  top: max(5.2rem, calc(env(safe-area-inset-top, 0px) + 4.8rem));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9300;
+  padding: 0.45rem 1.4rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #e23a2e, #b02820);
+  color: #ffe28a;
+  border: 2px solid #ffd700;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: 0.12em;
+  box-shadow: 0 8px 24px rgba(176, 40, 32, 0.4);
+  animation: lion-pop 0.4s ease-out both;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lion-blessing-symbol {
+  color: #ffd700;
+  font-size: 0.95rem;
+}
+
+/* ── Mobile Tactical Bar ────────────────────────────────────────────── */
+
+.lion-mobile-tactical-bar {
+  position: fixed;
+  top: max(4.2rem, calc(env(safe-area-inset-top, 0px) + 3.8rem));
+  left: 0.75rem;
+  right: 0.75rem;
+  height: 2.35rem;
+  z-index: 8900;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  background: rgba(255, 252, 245, 0.96);
+  border: 1.5px solid rgba(240, 193, 75, 0.7);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  box-shadow: 0 4px 14px rgba(59, 36, 22, 0.12);
+  pointer-events: auto;
+}
+
+.lion-mobile-gyro-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-family: var(--font-display);
+}
+
+.lion-m-gyro-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.lion-mobile-gyro-pill.is-stable {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.lion-mobile-gyro-pill.is-tilted {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.lion-mobile-gyro-pill.is-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.lion-mobile-spirit-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  max-width: 9rem;
+}
+
+.lion-m-spirit-track {
+  flex: 1;
+  height: 6px;
+  background: #e6dac6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lion-m-spirit-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f0c14b, #e23a2e);
+  border-radius: 999px;
+}
+
+.lion-m-spirit-num {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--red);
+}
+
+.lion-mobile-fever-badge {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #854d0e;
+  background: #fef08a;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid #eab308;
+}
+
+.lion-mobile-combo-badge {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--red-deep);
+}
+
+.lion-mobile-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  height: 1.85rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.75rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lion-m-btn-ribbon {
+  background: linear-gradient(180deg, #e23a2e, #b02820);
+  color: #fff;
+}
+
+.lion-m-btn-tactics {
+  background: rgba(240, 193, 75, 0.35);
+  color: var(--ink);
+  padding: 0 0.45rem;
+}
+
+/* ── Esports Key Guide HUD ─────────────────────────────────────────── */
+
+.lion-esports-key-guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 252, 245, 0.94);
+  border: 1.5px solid rgba(240, 193, 75, 0.55);
+  font-size: 0.75rem;
+  color: #5c3d28;
+  order: 1;
+  margin-bottom: 0.1rem;
+}
+
+.lion-guide-badge {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--red);
+  background: rgba(226, 58, 46, 0.1);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+}
+
+.lion-guide-items {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lion-guide-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.lion-guide-item kbd {
+  font-size: 0.7rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  background: #f0e6d6;
+  border: 1px solid #d4c4af;
+  color: var(--ink);
+  font-weight: 800;
+  font-family: monospace;
+}
+
+.lion-guide-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6b452e;
+}
+
+.lion-guide-sep {
+  opacity: 0.4;
+}
+
+/* ── Master Tactics Modal ──────────────────────────────────────────── */
+
+.lion-tactics-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(59, 36, 22, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.lion-tactics-card {
+  width: min(30rem, 100%);
+  max-height: calc(100% - 2rem);
+  overflow: auto;
+  padding: 1.5rem 1.35rem 1.25rem;
+  border-radius: 1.25rem;
+  border: 2.5px solid rgba(240, 193, 75, 0.85);
+  background: rgba(255, 252, 245, 0.98);
+  box-shadow: 0 18px 40px rgba(59, 36, 22, 0.2);
+  animation: lion-rise 0.4s ease-out both;
+}
+
+.lion-tactics-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.lion-tactics-tag {
+  font-size: 0.68rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--red-deep);
+  font-weight: 800;
+}
+
+.lion-tactics-header h2 {
+  margin: 0.25rem 0 0.15rem;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  color: var(--red);
+}
+
+.lion-tactics-sub {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  color: #6b452e;
+}
+
+.lion-tactics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lion-tactic-item {
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.85rem;
+  background: rgba(243, 230, 200, 0.4);
+  border: 1.5px solid rgba(240, 193, 75, 0.45);
+}
+
+.lion-tactic-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 0.3rem;
+}
+
+.lion-tactic-badge.is-step {
+  background: #ea580c;
+}
+
+.lion-tactic-badge.is-balance {
+  background: #0284c7;
+}
+
+.lion-tactic-badge.is-ribbon {
+  background: #b91c1c;
+}
+
+.lion-tactic-item h3 {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.lion-tactic-text {
+  margin: 0 0 0.45rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #5c3d28;
+}
+
+.lion-tactic-keys {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.lion-k-chip {
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.35rem;
+  background: #fff;
+  border: 1px solid #d4c4af;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: var(--red-deep);
+}
+
+.lion-k-sep {
+  color: #8c6a52;
+  font-size: 0.75rem;
+}
+
+.lion-tactic-tip {
+  font-size: 0.75rem;
+  color: #8c6a52;
+  font-weight: 600;
+}
+
+.lion-tactics-close {
+  margin-top: 1rem;
+}
+
+/* ── Responsive rules ──────────────────────────────────────────────── */
+
+@media (min-width: 769px) {
+  .lion-mobile-tactical-bar {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .lion-cockpit-wing {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .lion-esports-key-guide {
+    display: none !important;
+  }
+}

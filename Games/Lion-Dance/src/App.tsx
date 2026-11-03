@@ -4,6 +4,7 @@ import { GameCanvas } from './components/GameCanvas';
 import { HowToHint } from './components/HowToHint';
 import { Hud } from './components/Hud';
 import { LionResult } from './components/LionResult';
+import { MasterTacticsModal } from './components/MasterTacticsModal';
 import { TouchPad } from './components/TouchPad';
 import { formatOnBeatPercent } from './engine/beat';
 import { GAME_PATH, TRACK_LENGTH, type LegId, type PlayMode } from './engine/constants';
@@ -52,6 +53,15 @@ const EMPTY_HUD: HudSnapshot = {
   fallCount: 0,
   steps: 0,
   maxSpeed: 0,
+  stiltHeight: 1.05,
+  airTime: 0,
+  leftLoad: 0.5,
+  rightLoad: 0.5,
+  goldFever: false,
+  goldFeverTimer: 0,
+  auspiciousSpirit: 0,
+  fortuneTitle: null,
+  ribbonActive: 0,
 };
 
 export default function App(): ReactElement {
@@ -66,6 +76,7 @@ export default function App(): ReactElement {
   const [best2p, setBest2p] = useState<number | null>(() => loadBestTime('2p'));
   const [result, setResult] = useState<RunResult | null>(null);
   const [showHowTo, setShowHowTo] = useState(false);
+  const [showTactics, setShowTactics] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [isNewBest, setIsNewBest] = useState(false);
   const [stampText, setStampText] = useState<string | null>(null);
@@ -160,6 +171,26 @@ export default function App(): ReactElement {
     if (screen === 'result') startRun();
   }, [screen, startRun]);
 
+  const onSpitRibbon = useCallback(() => {
+    worldRef.current?.spitRibbon();
+  }, []);
+
+  const onTrimLeft = useCallback(() => {
+    worldRef.current?.microTrim(-1);
+  }, []);
+
+  const onTrimRight = useCallback(() => {
+    worldRef.current?.microTrim(1);
+  }, []);
+
+  const onLeap = useCallback(() => {
+    worldRef.current?.leapHop();
+  }, []);
+
+  const onOpenTactics = useCallback(() => {
+    setShowTactics(true);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.repeat) return;
@@ -216,6 +247,11 @@ export default function App(): ReactElement {
           hud={hud}
           s={s}
           lang={lang}
+          onSpitRibbon={onSpitRibbon}
+          onTrimLeft={onTrimLeft}
+          onTrimRight={onTrimRight}
+          onLeap={onLeap}
+          onOpenTactics={onOpenTactics}
           tools={
             <>
               <button
@@ -243,6 +279,8 @@ export default function App(): ReactElement {
           }
         />
       )}
+
+      <MasterTacticsModal open={showTactics} onClose={() => setShowTactics(false)} s={s} />
 
       <HowToHint s={s} visible={screen === 'playing' && showHint} />
 

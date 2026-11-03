@@ -115,6 +115,15 @@ export interface HudSnapshot {
   fallCount: number;
   steps: number;
   maxSpeed: number;
+  stiltHeight: number;
+  airTime: number;
+  leftLoad: number;
+  rightLoad: number;
+  goldFever: boolean;
+  goldFeverTimer: number;
+  auspiciousSpirit: number;
+  fortuneTitle: string | null;
+  ribbonActive: number;
 }
 
 export type RunEndReason = 'finish' | 'timeout';
@@ -558,17 +567,37 @@ export function stepPhysics(
 
 export function snapshotHudBase(sim: SimState, timeLimit: number): Omit<
   HudSnapshot,
-  'beatPulse' | 'combo' | 'perfectFlash' | 'onBeatRatio' | 'speedBonus'
+  | 'beatPulse'
+  | 'combo'
+  | 'perfectFlash'
+  | 'onBeatRatio'
+  | 'speedBonus'
+  | 'goldFever'
+  | 'goldFeverTimer'
+  | 'auspiciousSpirit'
+  | 'fortuneTitle'
+  | 'ribbonActive'
 > {
   const legLift = {} as Record<LegId, number>;
   const legSwing = {} as Record<LegId, number>;
   const legHeld = {} as Record<LegId, boolean>;
+  let groundedCount = 0;
+  let leftGrounded = 0;
+  let rightGrounded = 0;
   for (const id of LEG_IDS) {
-    legLift[id] = sim.legs[id].lift;
-    legSwing[id] = sim.legs[id].swing;
-    legHeld[id] = sim.legs[id].held;
+    const leg = sim.legs[id];
+    legLift[id] = leg.lift;
+    legSwing[id] = leg.swing;
+    legHeld[id] = leg.held;
+    if (leg.grounded) {
+      groundedCount++;
+      if (id === 'FL' || id === 'BL') leftGrounded++;
+      else rightGrounded++;
+    }
   }
   const distance = Math.min(TRACK_LENGTH, Math.max(0, sim.x));
+  const leftLoad = groundedCount > 0 ? leftGrounded / groundedCount : 0.5;
+  const rightLoad = groundedCount > 0 ? rightGrounded / groundedCount : 0.5;
   return {
     distance,
     distanceToGoal: Math.max(0, TRACK_LENGTH - distance),
@@ -586,5 +615,9 @@ export function snapshotHudBase(sim: SimState, timeLimit: number): Omit<
     fallCount: sim.fallCount,
     steps: sim.stepCount,
     maxSpeed: sim.maxSpeed,
+    stiltHeight: Math.max(0, sim.y),
+    airTime: groundedCount === 0 && !sim.fallen ? 0.18 : 0,
+    leftLoad,
+    rightLoad,
   };
 }

@@ -130,6 +130,37 @@ export function playFall(): void {
   tone(120, 'triangle', 0.2, 0.15, 0.04);
 }
 
+/** Auspicious ribbon spurt chime with festive high tones. */
+export function playRibbonSpurt(): void {
+  tone(523.25, 'triangle', 0.14, 0, 0.08); // C5
+  tone(659.25, 'sine', 0.16, 0.04, 0.07); // E5
+  tone(783.99, 'triangle', 0.18, 0.08, 0.07); // G5
+  tone(1046.5, 'sine', 0.24, 0.12, 0.06); // C6
+  noiseBurst(0.12, 0.02, 0.025, 2800);
+}
+
+/** Gold Fever activation brass chime fanfare. */
+export function playGoldFever(): void {
+  tone(440, 'triangle', 0.16, 0, 0.09); // A4
+  tone(554.37, 'sine', 0.18, 0.06, 0.08); // C#5
+  tone(659.25, 'triangle', 0.2, 0.12, 0.08); // E5
+  tone(880, 'sine', 0.35, 0.18, 0.09); // A5
+  noiseBurst(0.2, 0.18, 0.035, 3400);
+}
+
+/** Leap / spring step woodblock tone. */
+export function playLeapHop(): void {
+  tone(320, 'sine', 0.08, 0, 0.07);
+  tone(480, 'triangle', 0.06, 0.02, 0.05);
+}
+
+/** Blessing milestone bell chime. */
+export function playBlessingBell(): void {
+  tone(587.33, 'triangle', 0.25, 0, 0.07); // D5
+  tone(880, 'sine', 0.3, 0.05, 0.06); // A5
+  tone(1174.66, 'sine', 0.35, 0.1, 0.05); // D6
+}
+
 export function playFinishFanfare(): void {
   playGong();
   playCymbal();

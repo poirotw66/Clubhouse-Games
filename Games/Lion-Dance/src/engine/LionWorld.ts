@@ -24,11 +24,16 @@ import {
   type PlayMode,
 } from './constants';
 import {
+  playBlessingBell,
   playDrum,
+  playDrumTap,
   playFall,
   playFinishFanfare,
+  playGoldFever,
+  playLeapHop,
   playMetronomeDrum,
   playPerfect,
+  playRibbonSpurt,
   setMuted as setAudioMuted,
   unlockAudio,
 } from './audio';
@@ -100,6 +105,9 @@ export interface LionWorld {
   runSameSideTip(periodSec?: number): { fallen: boolean; elapsed: number };
   onHud(cb: (hud: HudSnapshot) => void): void;
   onRunEnd(cb: (result: RunResult) => void): void;
+  spitRibbon(): void;
+  microTrim(direction: -1 | 1): void;
+  leapHop(): void;
 }
 
 function prefersReducedMotion(): boolean {
@@ -170,6 +178,51 @@ export function createLionWorld(): LionWorld {
   let flowerWorld = new THREE.Vector3();
   let flowerVel = new THREE.Vector3();
   let flowerDetached = false;
+  let goldFeverActive = false;
+  let goldFeverTimer = 0;
+  let auspiciousSpirit = 0;
+  let ribbonActiveTimer = 0;
+  let recentBlessing = '';
+  let blessingTimer = 0;
+  let spiritMilestone = 0;
+  let ribbonBurst: THREE.Points | null = null;
+  let ribbonVel: Float32Array | null = null;
+  let goldAura: THREE.Points | null = null;
+
+  function triggerRibbonBurst(originX: number): void {
+    if (!ribbonBurst || !ribbonVel) return;
+    const pos = ribbonBurst.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const count = pos.count;
+    for (let i = 0; i < count; i++) {
+      pos.setX(i, originX + 0.8 + (Math.random() - 0.5) * 0.3);
+      pos.setY(i, 1.2 + (Math.random() - 0.5) * 0.3);
+      pos.setZ(i, (Math.random() - 0.5) * 0.6);
+      const angle = (Math.random() - 0.2) * 0.8;
+      const speed = 3.5 + Math.random() * 5.5;
+      ribbonVel[i * 3] = Math.cos(angle) * speed;
+      ribbonVel[i * 3 + 1] = 1.8 + Math.random() * 4.2;
+      ribbonVel[i * 3 + 2] = (Math.random() - 0.5) * 3.5;
+    }
+    pos.needsUpdate = true;
+    ribbonBurst.visible = true;
+    (ribbonBurst.material as THREE.PointsMaterial).opacity = 1;
+  }
+
+  function checkSpiritMilestones(): void {
+    const current = Math.floor(auspiciousSpirit / 25);
+    if (current > spiritMilestone && current <= 4) {
+      spiritMilestone = current;
+      playBlessingBell();
+      if (current === 1) recentBlessing = '吉星高照';
+      else if (current === 2) recentBlessing = '步步高升';
+      else if (current === 3) recentBlessing = '金玉滿堂';
+      else if (current >= 4) {
+        recentBlessing = '祥獅獻瑞';
+        triggerRibbonBurst(sim.x);
+      }
+      blessingTimer = 2.8;
+    }
+  }
 
   function emitHud(): void {
     const base = snapshotHudBase(sim, TIME_LIMIT);
@@ -180,6 +233,11 @@ export function createLionWorld(): LionWorld {
       perfectFlash,
       onBeatRatio: onBeatRatio(beat.perfects, beat.plants),
       speedBonus: comboSpeedBonus(beat.combo),
+      goldFever: goldFeverActive,
+      goldFeverTimer: Math.max(0, goldFeverTimer),
+      auspiciousSpirit: Math.min(100, Math.round(auspiciousSpirit)),
+      fortuneTitle: recentBlessing || null,
+      ribbonActive: Math.max(0, ribbonActiveTimer),
     });
   }
 
@@ -532,6 +590,44 @@ export function createLionWorld(): LionWorld {
         lanterns[i]!.rotation.z = Math.sin(t * 1.1 + i) * 0.08;
       }
     }
+
+    if (ribbonBurst && ribbonVel && ribbonBurst.visible) {
+      const pos = ribbonBurst.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const mat = ribbonBurst.material as THREE.PointsMaterial;
+      mat.opacity = Math.max(0, mat.opacity - dt * 0.85);
+      if (mat.opacity <= 0.02) {
+        ribbonBurst.visible = false;
+      } else {
+        for (let i = 0; i < pos.count; i++) {
+          pos.setX(i, pos.getX(i) + ribbonVel[i * 3]! * dt);
+          pos.setY(i, pos.getY(i) + ribbonVel[i * 3 + 1]! * dt);
+          pos.setZ(i, pos.getZ(i) + ribbonVel[i * 3 + 2]! * dt);
+          ribbonVel[i * 3 + 1]! -= 9.8 * dt;
+        }
+        pos.needsUpdate = true;
+      }
+    }
+
+    if (goldAura) {
+      if (goldFeverActive && !sim.fallen && !reduced) {
+        goldAura.visible = true;
+        const mat = goldAura.material as THREE.PointsMaterial;
+        mat.opacity = 0.85;
+        const pos = goldAura.geometry.getAttribute('position') as THREE.BufferAttribute;
+        const t = performance.now() * 0.004;
+        for (let i = 0; i < pos.count; i++) {
+          const angle = t + (i * Math.PI * 2) / pos.count;
+          const radius = 0.9 + 0.3 * Math.sin(t * 2 + i);
+          pos.setX(i, sim.x + Math.cos(angle) * radius);
+          pos.setY(i, sim.y + 0.3 + Math.sin(angle * 2) * 0.4);
+          pos.setZ(i, Math.sin(angle) * 0.8);
+        }
+        pos.needsUpdate = true;
+      } else {
+        goldAura.visible = false;
+        (goldAura.material as THREE.PointsMaterial).opacity = 0;
+      }
+    }
   }
 
   function tick(now: number): void {
@@ -540,6 +636,20 @@ export function createLionWorld(): LionWorld {
     const frameDt = Math.min(MAX_FRAME_DT, (now - lastT) / 1000 || FIXED_DT);
     lastT = now;
     perfectFlash = Math.max(0, perfectFlash - frameDt * 2.8);
+
+    if (goldFeverTimer > 0) {
+      goldFeverTimer -= frameDt;
+      if (goldFeverTimer <= 0 && beat.combo < 4) {
+        goldFeverActive = false;
+      }
+    }
+    if (ribbonActiveTimer > 0) {
+      ribbonActiveTimer -= frameDt;
+    }
+    if (blessingTimer > 0) {
+      blessingTimer -= frameDt;
+      if (blessingTimer <= 0) recentBlessing = '';
+    }
 
     if (attract) {
       stepBeat(beat, idleT, frameDt);
@@ -562,7 +672,8 @@ export function createLionWorld(): LionWorld {
         const fired = stepBeat(beat, sim.elapsed + FIXED_DT, FIXED_DT);
         if (fired && !sim.fallen && !sim.finished) playMetronomeDrum();
 
-        const tractionMul = 1 + comboSpeedBonus(beat.combo);
+        const feverBonus = goldFeverActive ? 0.25 : 0;
+        const tractionMul = 1 + comboSpeedBonus(beat.combo) + feverBonus;
         const { end, plantEvents } = stepPhysics(sim, FIXED_DT, {
           tractionMul,
           assist,
@@ -572,6 +683,18 @@ export function createLionWorld(): LionWorld {
               perfectFlash = 1;
               maxCombo = Math.max(maxCombo, r.combo);
               playPerfect();
+              auspiciousSpirit = Math.min(100, auspiciousSpirit + 6);
+              checkSpiritMilestones();
+              if (r.combo >= 4) {
+                if (!goldFeverActive) {
+                  goldFeverActive = true;
+                  playGoldFever();
+                }
+                goldFeverTimer = 4.5;
+              }
+            } else {
+              auspiciousSpirit = Math.min(100, auspiciousSpirit + 2);
+              checkSpiritMilestones();
             }
             // Drum + dust on footfall (impact scales loudness)
             const power = Math.max(0.35, Math.min(1.4, 0.5 + impact / 1.2));
@@ -582,6 +705,10 @@ export function createLionWorld(): LionWorld {
           },
         });
         void plantEvents;
+        if (!sim.fallen && !sim.finished && Math.abs(sim.roll) < 0.12 && Math.abs(sim.pitch) < 0.12) {
+          auspiciousSpirit = Math.min(100, auspiciousSpirit + 1.2 * FIXED_DT);
+          checkSpiritMilestones();
+        }
         acc -= FIXED_DT;
 
         ghostSampleAcc += FIXED_DT;
@@ -638,6 +765,28 @@ export function createLionWorld(): LionWorld {
       e.preventDefault();
       unlockAudio();
       api.getUpOrRestart();
+      return;
+    }
+    if (key === 'b') {
+      e.preventDefault();
+      api.spitRibbon();
+      return;
+    }
+    if (e.code === 'Space' || e.key === 'ArrowUp') {
+      if (!sim.fallen && !sim.finished && running) {
+        e.preventDefault();
+        api.leapHop();
+        return;
+      }
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      api.microTrim(-1);
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      api.microTrim(1);
       return;
     }
     const leg = KEY_TO_LEG[key];
@@ -744,6 +893,52 @@ export function createLionWorld(): LionWorld {
       lion.shadow.scale.set(2.6 * LION_SCALE, 1, 1.15 * LION_SCALE);
       scene.add(lion.shadow);
 
+      // Ribbon streamer particles for spitRibbon()
+      const ribbonN = 64;
+      const rPos = new Float32Array(ribbonN * 3);
+      const rCol = new Float32Array(ribbonN * 3);
+      ribbonVel = new Float32Array(ribbonN * 3);
+      const palette = [0xe23a2e, 0xf0c14b, 0xff5c8a, 0x00b04d, 0x2e91ff];
+      const tmpCol = new THREE.Color();
+      for (let i = 0; i < ribbonN; i++) {
+        rPos[i * 3] = 0;
+        rPos[i * 3 + 1] = -10;
+        rPos[i * 3 + 2] = 0;
+        tmpCol.setHex(palette[i % palette.length]!);
+        rCol[i * 3] = tmpCol.r;
+        rCol[i * 3 + 1] = tmpCol.g;
+        rCol[i * 3 + 2] = tmpCol.b;
+      }
+      const rGeo = new THREE.BufferGeometry();
+      rGeo.setAttribute('position', new THREE.BufferAttribute(rPos, 3));
+      rGeo.setAttribute('color', new THREE.BufferAttribute(rCol, 3));
+      ribbonBurst = new THREE.Points(
+        rGeo,
+        new THREE.PointsMaterial({ size: 0.14, vertexColors: true, transparent: true, opacity: 0 }),
+      );
+      scene.add(ribbonBurst);
+
+      // Gold aura particles for Gold Fever mode
+      const auraN = 36;
+      const aPos = new Float32Array(auraN * 3);
+      const aCol = new Float32Array(auraN * 3);
+      for (let i = 0; i < auraN; i++) {
+        aPos[i * 3] = 0;
+        aPos[i * 3 + 1] = -10;
+        aPos[i * 3 + 2] = 0;
+        aCol[i * 3] = 1;
+        aCol[i * 3 + 1] = 0.88;
+        aCol[i * 3 + 2] = 0.25;
+      }
+      const aGeo = new THREE.BufferGeometry();
+      aGeo.setAttribute('position', new THREE.BufferAttribute(aPos, 3));
+      aGeo.setAttribute('color', new THREE.BufferAttribute(aCol, 3));
+      goldAura = new THREE.Points(
+        aGeo,
+        new THREE.PointsMaterial({ size: 0.12, vertexColors: true, transparent: true, opacity: 0 }),
+      );
+      scene.add(goldAura);
+
       resize();
       window.addEventListener('resize', resize);
       window.addEventListener('keydown', onKeyDown);
@@ -791,6 +986,21 @@ export function createLionWorld(): LionWorld {
       liveGhost = [{ t: 0, x: 0 }];
       ghostSampleAcc = 0;
       ghostSamples = attract ? [] : loadGhost(mode) ?? [];
+      goldFeverActive = false;
+      goldFeverTimer = 0;
+      auspiciousSpirit = 0;
+      ribbonActiveTimer = 0;
+      recentBlessing = '';
+      blessingTimer = 0;
+      spiritMilestone = 0;
+      if (ribbonBurst) {
+        ribbonBurst.visible = false;
+        (ribbonBurst.material as THREE.PointsMaterial).opacity = 0;
+      }
+      if (goldAura) {
+        goldAura.visible = false;
+        (goldAura.material as THREE.PointsMaterial).opacity = 0;
+      }
       paused = attract ? true : false;
       running = !attract;
       visibilityPaused = false;
@@ -1017,6 +1227,45 @@ export function createLionWorld(): LionWorld {
 
     onRunEnd(cb) {
       endCb = cb;
+    },
+
+    spitRibbon() {
+      if (attract || ended || sim.fallen || sim.finished) return;
+      unlockAudio();
+      playRibbonSpurt();
+      ribbonActiveTimer = 1.2;
+      auspiciousSpirit = Math.min(100, auspiciousSpirit + 15);
+      checkSpiritMilestones();
+      sim.rollVel *= 0.55;
+      sim.pitchVel *= 0.55;
+      triggerRibbonBurst(sim.x);
+      emitHud();
+    },
+
+    microTrim(direction) {
+      if (attract || ended || sim.fallen || sim.finished) return;
+      unlockAudio();
+      playDrumTap();
+      sim.rollVel -= direction * 1.6;
+      sim.rollVel *= 0.88;
+      emitHud();
+    },
+
+    leapHop() {
+      if (attract || ended || sim.fallen || sim.finished) return;
+      let groundedCount = 0;
+      for (const id of LEG_IDS) {
+        if (sim.legs[id].grounded) groundedCount++;
+      }
+      if (groundedCount >= 1) {
+        unlockAudio();
+        playLeapHop();
+        sim.vy = Math.max(sim.vy, 1.25);
+        sim.vx = Math.min(3.8, sim.vx + 0.35);
+        sim.pitchVel += 0.15;
+        triggerDust(sim.x, 1.2);
+        emitHud();
+      }
     },
   };
 

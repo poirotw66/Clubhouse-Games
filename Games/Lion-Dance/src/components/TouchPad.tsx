@@ -10,6 +10,7 @@ import {
   type PlayMode,
 } from '../engine/constants';
 import type { Strings } from '../i18n';
+import { EsportsKeyGuide } from './EsportsKeyGuide';
 
 interface TouchPadProps {
   visible: boolean;
@@ -82,6 +83,7 @@ export function TouchPad({
           {s.onBeat} {Math.round(onBeatRatio * 100)}%
         </span>
       </div>
+      <EsportsKeyGuide s={s} />
 
       {showGetUp && (
         <TouchButton

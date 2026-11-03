@@ -2,6 +2,8 @@ import type { ReactElement, ReactNode } from 'react';
 import type { HudSnapshot } from '../engine/LionWorld';
 import { formatDistance, formatTime, type Strings } from '../i18n';
 import type { Lang } from '../engine/storage';
+import { MobileTacticalBar } from './MobileTacticalBar';
+import { PavilionCockpit } from './PavilionCockpit';
 
 interface HudProps {
   hud: HudSnapshot;
@@ -9,9 +11,25 @@ interface HudProps {
   lang: Lang;
   /** Mute / help icons — top-left under the back button (never overlapping HUD cards). */
   tools?: ReactNode;
+  onSpitRibbon?: () => void;
+  onTrimLeft?: () => void;
+  onTrimRight?: () => void;
+  onLeap?: () => void;
+  onOpenTactics?: () => void;
 }
 
-export function Hud({ hud, s, lang, tools }: HudProps): ReactElement {
+export function Hud({
+  hud,
+  s,
+  lang,
+  tools,
+  onSpitRibbon,
+  onTrimLeft,
+  onTrimRight,
+  onLeap,
+  onOpenTactics,
+}: HudProps): ReactElement {
+  const dummyFn = () => {};
   return (
     <header className="lion-hud" aria-live="polite">
       <div className="lion-hud-left-col">
@@ -37,6 +55,26 @@ export function Hud({ hud, s, lang, tools }: HudProps): ReactElement {
           <span className="lion-stat-value">{hud.fallCount}</span>
         </div>
       </div>
+
+      {/* Mobile Top Tactical Bar */}
+      <MobileTacticalBar
+        hud={hud}
+        s={s}
+        onSpitRibbon={onSpitRibbon ?? dummyFn}
+        onOpenTactics={onOpenTactics ?? dummyFn}
+      />
+
+      {/* Dual-wing Festival Pavilion Cockpit */}
+      <PavilionCockpit
+        hud={hud}
+        s={s}
+        lang={lang}
+        onSpitRibbon={onSpitRibbon ?? dummyFn}
+        onTrimLeft={onTrimLeft ?? dummyFn}
+        onTrimRight={onTrimRight ?? dummyFn}
+        onLeap={onLeap ?? dummyFn}
+        onOpenTactics={onOpenTactics ?? dummyFn}
+      />
 
       {hud.tipping && !hud.fallen && !hud.finished && (
         <p className="lion-tipping" aria-live="assertive">
