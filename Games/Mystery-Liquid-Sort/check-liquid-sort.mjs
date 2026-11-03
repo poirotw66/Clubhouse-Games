@@ -16,6 +16,14 @@ import {
   unlockNextBlockedBottle,
 } from './services/gameLogic.ts';
 import {
+  calculateLabPurity,
+  calculateLegalPours,
+  calculateBufferTubes,
+  calculateParSteps,
+  calculateStepRating,
+  getTubeQuickStatus,
+} from './utils/cockpitMetrics.ts';
+import {
   getCapacityForLevel,
   COST_HINT,
   HOWTO_STORAGE_KEY,
@@ -824,6 +832,62 @@ function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
   );
   assert.equal(rich.ok, true);
   assert.ok(rich.state.unlockedBottles.includes(paid.id));
+}
+
+// Cockpit metrics: purity spectrometer, deadlock radar, par compass, and tube status
+{
+  const b1 = bottle('1', [layer(Color.RED), layer(Color.RED)]);
+  const b2 = bottle('2', [layer(Color.BLUE), layer(Color.BLUE)]);
+  const b3 = bottle('3', []);
+  const bBlocked = { ...bottle('4', [layer(Color.YELLOW)]), isBlocked: true };
+  const bCompleted = bottle('5', [layer(Color.GREEN), layer(Color.GREEN), layer(Color.GREEN), layer(Color.GREEN)], 4, true);
+
+  const testBottles = [b1, b2, b3, bBlocked, bCompleted];
+  const testOrders = [
+    { id: 'o1', color: Color.RED, isCompleted: false, isLocked: false },
+    { id: 'o2', color: Color.GREEN, isCompleted: true, isLocked: false },
+  ];
+
+  // Purity calculation
+  const purity = calculateLabPurity(testBottles, testOrders);
+  assert.ok(purity.overallPurityPct >= 0 && purity.overallPurityPct <= 100);
+  assert.equal(purity.totalPureBottles, 1, 'only bCompleted is completed pure bottle');
+  assert.ok(purity.metrics.length > 0);
+
+  // Legal pours radar
+  const legal = calculateLegalPours(testBottles);
+  assert.ok(legal.count > 0, 'can pour into empty buffer tube b3');
+  assert.ok(legal.pairs.some(([src, tgt]) => src === '1' && tgt === '3'));
+
+  // Buffer tubes
+  const buffers = calculateBufferTubes(testBottles);
+  assert.equal(buffers.emptyCount, 1);
+  assert.equal(buffers.emptyTubeIds[0], '3');
+
+  // Par steps & efficiency rating
+  const par = calculateParSteps(testBottles, testOrders, 8);
+  assert.equal(par, 8, 'respects explicit mechMinSteps');
+
+  const ratingS = calculateStepRating(7, 8);
+  assert.equal(ratingS.rating, 'S');
+
+  const ratingA = calculateStepRating(9, 8);
+  assert.equal(ratingA.rating, 'A');
+
+  const ratingB = calculateStepRating(12, 8);
+  assert.equal(ratingB.rating, 'B');
+
+  const ratingC = calculateStepRating(20, 8);
+  assert.equal(ratingC.rating, 'C');
+
+  // Tube quick matrix status
+  assert.equal(getTubeQuickStatus(bCompleted).status, 'sealed');
+  assert.equal(getTubeQuickStatus(b3).status, 'empty');
+  assert.equal(getTubeQuickStatus(bBlocked).status, 'blocked');
+  assert.equal(getTubeQuickStatus(b1).status, 'pure');
+
+  const bMixed = bottle('m', [layer(Color.RED), layer(Color.BLUE)]);
+  assert.equal(getTubeQuickStatus(bMixed).status, 'mixed');
 }
 
 console.log('check-liquid-sort: ok');

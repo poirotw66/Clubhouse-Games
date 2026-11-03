@@ -29,6 +29,8 @@ interface BottleProps {
   reduceMotion?: boolean;
   bottleSkin?: BottleSkinId;
   liquidSkin?: LiquidSkinId;
+  /** Numeric keyboard shortcut index (1-based, e.g. 1..9). */
+  tubeNumber?: number;
   onClick: () => void;
 }
 
@@ -77,6 +79,7 @@ export const Bottle: React.FC<BottleProps> = ({
   reduceMotion = false,
   bottleSkin = 'classic',
   liquidSkin = 'plain',
+  tubeNumber,
   onClick,
 }) => {
   const layerHeight = 100 / bottle.capacity;
@@ -298,6 +301,30 @@ export const Bottle: React.FC<BottleProps> = ({
       <div className="absolute top-2 left-2 w-2 h-[92%] bg-gradient-to-b from-white/40 via-white/10 to-transparent rounded-full pointer-events-none z-20 blur-[2px]" />
       <div className="absolute top-2 right-1.5 w-1 h-[92%] bg-gradient-to-b from-white/20 to-transparent rounded-full pointer-events-none z-20 blur-[1px]" />
       <div className="absolute bottom-2 left-4 right-4 h-4 bg-gradient-to-t from-white/20 to-transparent rounded-full pointer-events-none z-20 blur-md" />
+
+      {/* Numeric Shortcut Key Badge */}
+      {tubeNumber != null && (
+        <div className="absolute -bottom-5 z-20 flex items-center justify-center pointer-events-none">
+          <span
+            className={`
+              px-1.5 py-0.5 rounded-full font-mono text-[9px] font-black border transition-all duration-200
+              ${
+                isSelected
+                  ? 'bg-yellow-400 text-slate-900 border-white shadow-[0_0_10px_rgba(250,204,21,0.9)] scale-110'
+                  : isValidTarget
+                    ? isMixTarget
+                      ? 'bg-amber-500 text-white border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.8)] scale-105'
+                      : 'bg-emerald-500 text-white border-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.8)] scale-105'
+                    : isHinted
+                      ? 'bg-sky-500 text-white border-sky-300 shadow-[0_0_8px_rgba(56,189,248,0.8)] scale-105'
+                      : 'bg-black/60 text-white/80 border-white/20'
+              }
+            `}
+          >
+            {tubeNumber}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

@@ -94,6 +94,26 @@ Home「機制挑戰」入口；6 關新手感機制：
 - **每日一題**：依日期輪替手編盤面；可複製分享文字；通關計入 **連續天數**。
 - **外觀商店**：代幣解鎖瓶子／液體造型（`mls-cosmetics-v1`）。
 
+## 化學合成實驗室雙翼座艙（Chemical Synthesis Cockpit）
+
+將傳統液體排序遊戲躍升為高科技化學鍊金座艙體驗：
+
+- **左翼座艙（純度光譜儀與最優導航羅盤）**：
+  - **試管顏色純度光譜儀（Color Purity Spectrometer）**：即時分析全場液體（緋紅、湛藍、翠綠、澄黃、紫晶、暖橙、青碧），展示各色純化進度條與全場綜合純化指數（Overall Lab Purity Index）。
+  - **最優步數導航指針（Par Steps Compass）**：依據基準步數（Par Steps）與關卡極限動態偏轉導航指針，即時計算當前步數效率評級（S級卓越、A級精準、B級平穩、C級冗餘）。
+- **右翼座艙（態勢雷達與化學錦囊）**：
+  - **可行操作與死局過載雷達（Deadlock & Invalid Pour Radar）**：實時計算全場可行倒水航道組數；當航道歸零時觸發「死局過載警報」，並追蹤「可用緩衝管」餘裕。
+  - **試管狀態快檢矩陣（Tube Status Quick Matrix）**：高密度監控矩陣呈現各試管編號、即時狀態（純淨封裝 🔒、同色匯整 💧、混雜待析 🧪、緩衝空管 ⚪、封鎖 🧊）與容量，支援滑鼠與觸控直接選管。
+  - **化學大師通關錦囊（Chemistry Master Tips）**：內建四大核心調配戰術（空試管保留策略、同色匯流優先級、層級逆向推演、鍊金不可逆配方）。
+- **全鍵盤數字直選倒水（Keypad Pour Matrix）**：
+  - 鍵盤數字鍵與九宮格數字鍵 <kbd>1</kbd>～<kbd>9</kbd> 秒速選定來源管與目標管，試管底部常駐高對比鍵位指示徽章，大幅縮短操作延遲。
+  - 輔助快捷鍵：<kbd>U</kbd> 悔棋復原、<kbd>R</kbd> 重新開始、<kbd>H</kbd> 智能提示、<kbd>Esc</kbd> 取消選取。
+- **感官反饋升級**：
+  - 接入 `@clubhouse/shared/synthAudio` 之 Web Audio 物理合成注水汩汩聲（Bubbling Pour）、滿瓶昇華金色晶瑩和弦（Sublimation Chime）與鍊金混色反應音。
+  - 接入 `@clubhouse/shared/juice` 微物理微粒噴濺（sparkle / burst / confetti）與觸覺回饋（haptics）。
+- **行動端頂部緊湊戰術速報條（Tactical Quick Strip）**：
+  - 行動版頂部整合戰術微型速報條，支援一鍵開啟左翼光譜儀與右翼錦囊抽屜，兼顧觸控舒適度與決策深度。
+
 ## 參考來源
 
 - 本專案實作：`Games/Mystery-Liquid-Sort/`

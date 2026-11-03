@@ -71,10 +71,21 @@ import { DailyMissions } from './DailyMissions';
 import { Settings } from './Settings';
 import { Background } from './Background';
 import { RecipeHud } from './RecipeHud';
+import { CockpitLeftWing } from './CockpitLeftWing';
+import { CockpitRightWing } from './CockpitRightWing';
+import { TacticalStrip } from './TacticalStrip';
+import {
+  calculateLabPurity,
+  calculateLegalPours,
+  calculateBufferTubes,
+  calculateParSteps,
+  calculateStepRating,
+} from '../utils/cockpitMetrics';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { sounds } from '../utils/sound';
+import { juice } from '@clubhouse/shared/juice';
 import { getBackgroundByLevel, getSavedBackground } from '../utils/backgrounds';
-import { AlertTriangle, Home, RotateCcw, Repeat, ClipboardList } from 'lucide-react';
+import { AlertTriangle, Home, RotateCcw, Repeat, ClipboardList, X, Keyboard } from 'lucide-react';
 
 const POUR_ANIM_MS = 380;
 
@@ -281,6 +292,9 @@ export default function Game() {
     const [timeLeftSec, setTimeLeftSec] = useState<number | null>(
       initialQpVariant === 'timed' && initialTimeLimitSec ? initialTimeLimitSec : null,
     );
+    const [showLeftWingModal, setShowLeftWingModal] = useState(false);
+    const [showRightWingModal, setShowRightWingModal] = useState(false);
+    const [showKeypadGuide, setShowKeypadGuide] = useState(false);
 
     const packStageName = useMemo(() => {
         if (gameState.mode === 'puzzle_pack') return getPackStage(gameState.level)?.name;
@@ -392,6 +406,8 @@ export default function Game() {
     useEffect(() => {
         if (gameState.isWin && !celebratedWin) {
             sounds.win();
+            juice.haptic('win');
+            juice.particles('confetti', { count: 48, strength: 1.5 });
             setCelebratedWin(true);
             if (gameState.mode === 'quick_play' && gameState.difficultyLabel) {
               const moves = gameState.history.length;
@@ -833,6 +849,11 @@ export default function Game() {
             const { newSource, newTarget } = pourLiquid(source, target);
             if (mixing) {
                 setMixFlashId(newTarget.id);
+                juice.haptic('combo');
+                juice.particles('burst', { colors: ['#f59e0b', '#ec4899', '#8b5cf6'], count: 20 });
+            } else {
+                juice.haptic('place');
+                juice.particles('sparkle', { count: 8, strength: 0.6 });
             }
 
             let currentBottles = [...prev.bottles];
@@ -843,6 +864,8 @@ export default function Game() {
             if (isTargetNewlyCompleted) {
                 setCelebrateId(newTarget.id);
                 sounds.bottleComplete();
+                juice.haptic('win');
+                juice.particles('confetti', { count: 28, strength: 1.2 });
             }
 
             const isWin = checkLevelComplete(currentBottles, prev.orders);
@@ -942,6 +965,8 @@ export default function Game() {
             return;
         }
         sounds.error();
+        juice.haptic('error');
+        juice.shake(document.getElementById('cockpit-stage'), 0.5);
         setGameState(prev => ({ ...prev, selectedBottleId: null }));
     };
 
@@ -1127,6 +1152,109 @@ export default function Game() {
           ? mechStageCount()
           : packStageCount();
 
+    const puritySummary = useMemo(
+      () => calculateLabPurity(gameState.bottles, gameState.orders),
+      [gameState.bottles, gameState.orders],
+    );
+
+    const legalPours = useMemo(
+      () => calculateLegalPours(gameState.bottles),
+      [gameState.bottles],
+    );
+
+    const bufferTubes = useMemo(
+      () => calculateBufferTubes(gameState.bottles),
+      [gameState.bottles],
+    );
+
+    const parSteps = useMemo(
+      () => calculateParSteps(gameState.bottles, gameState.orders, mechMinSteps),
+      [gameState.bottles, gameState.orders, mechMinSteps],
+    );
+
+    const stepRating = useMemo(
+      () => calculateStepRating(gameState.history.length, parSteps),
+      [gameState.history.length, parSteps],
+    );
+
+    // Full Keyboard Numeric Direct Pouring & Tactical Hotkeys
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+            if (isMissionModalOpen || showSettingsModal || showLeftWingModal || showRightWingModal || showKeypadGuide) {
+                if (e.key === 'Escape') {
+                    setShowLeftWingModal(false);
+                    setShowRightWingModal(false);
+                    setShowKeypadGuide(false);
+                }
+                return;
+            }
+            if (gameState.isWin || isLose || processingMatch) return;
+
+            const key = e.key;
+
+            if (key === 'u' || key === 'U') {
+                e.preventDefault();
+                handleUndo();
+                return;
+            }
+            if (key === 'r' || key === 'R') {
+                e.preventDefault();
+                handleRestart();
+                return;
+            }
+            if (key === 'h' || key === 'H') {
+                e.preventDefault();
+                handleHint();
+                return;
+            }
+            if (key === 'Escape') {
+                e.preventDefault();
+                if (gameState.selectedBottleId) {
+                    sounds.pop();
+                    setGameState(prev => ({ ...prev, selectedBottleId: null }));
+                }
+                return;
+            }
+
+            // Numeric keys 1-9 (main keyboard row or numpad)
+            let tubeNum: number | null = null;
+            if (/^[1-9]$/.test(key)) {
+                tubeNum = parseInt(key, 10);
+            } else if (e.code.startsWith('Numpad') && /^[1-9]$/.test(e.code.slice(6))) {
+                tubeNum = parseInt(e.code.slice(6), 10);
+            }
+
+            if (tubeNum != null) {
+                const targetIdx = tubeNum - 1;
+                if (targetIdx >= 0 && targetIdx < gameState.bottles.length) {
+                    e.preventDefault();
+                    handleBottleClick(gameState.bottles[targetIdx].id);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [
+        gameState.bottles,
+        gameState.selectedBottleId,
+        gameState.isWin,
+        isLose,
+        processingMatch,
+        isMissionModalOpen,
+        showSettingsModal,
+        showLeftWingModal,
+        showRightWingModal,
+        showKeypadGuide,
+        handleUndo,
+        handleRestart,
+        handleHint,
+        handleBottleClick,
+    ]);
+
     return (
         <div className="relative w-full h-screen flex flex-col items-center justify-between text-white overflow-hidden font-sans">
 
@@ -1185,65 +1313,104 @@ export default function Game() {
                 </div>
             </div>
 
-            <div className="flex-1 w-full max-w-lg flex flex-col items-center justify-start z-10 px-3 md:px-4 safe-left safe-right pt-2 md:pt-0 overflow-hidden">
+            {/* Dual-Wing Chemical Synthesis Laboratory Cockpit */}
+            <div id="cockpit-stage" className="flex-1 w-full max-w-7xl flex items-center justify-center z-10 px-2 md:px-4 safe-left safe-right pt-1 pb-1 overflow-hidden gap-x-4 xl:gap-x-6">
+                {/* Left Wing Cockpit: Spectrometer & Par Steps Compass */}
+                <div className="hidden lg:flex flex-col justify-center h-full max-h-[82vh]">
+                    <CockpitLeftWing
+                        purity={puritySummary}
+                        moves={gameState.history.length}
+                        parSteps={parSteps}
+                        rating={stepRating}
+                    />
+                </div>
 
-                <TargetArea
-                    orders={gameState.orders}
-                />
+                {/* Center Core: Reactor Racks & Controls */}
+                <div className="flex-1 w-full max-w-lg flex flex-col items-center justify-start h-full overflow-hidden">
+                    <TargetArea orders={gameState.orders} />
 
-                {mixingOnBoard && (
-                  <RecipeHud showIrreversibleWarning={showMixGuidance} />
-                )}
+                    {mixingOnBoard && (
+                      <RecipeHud showIrreversibleWarning={showMixGuidance} />
+                    )}
 
-                {mixTip && (
-                  <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/30 text-amber-100 text-[11px] md:text-xs font-bold text-center max-w-md">
-                    {mixTip}
-                  </div>
-                )}
+                    {mixTip && (
+                      <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/30 text-amber-100 text-[11px] md:text-xs font-bold text-center max-w-md">
+                        {mixTip}
+                      </div>
+                    )}
 
-                {/* DYNAMIC HINT NOTIFICATION - Unified Card Style */}
-                {warningState.type && !gameState.isWin && !isLose && (
-                    <div className={`
-                    animate-bounce-short mb-3 md:mb-4 backdrop-blur-xl border px-4 py-2.5 rounded-2xl flex items-center gap-2.5 shadow-lg transition-all mx-2
-                    ${warningState.type === 'deadlock'
-                            ? 'bg-red-500/20 border-red-500/30 text-red-100'
-                            : 'bg-yellow-500/20 border-yellow-500/30 text-yellow-100'}
-                `}>
-                        {warningState.type === 'deadlock' ? <AlertTriangle size={20} className="md:w-5 md:h-5" /> : <Repeat size={20} className="md:w-5 md:h-5" />}
-                        <span className="text-xs md:text-sm font-bold">{warningState.message}</span>
+                    {/* Mobile & Tactical Quick Strip */}
+                    <TacticalStrip
+                        purity={puritySummary}
+                        legalMovesCount={legalPours.count}
+                        bufferTubesCount={bufferTubes.emptyCount}
+                        moves={gameState.history.length}
+                        parSteps={parSteps}
+                        rating={stepRating}
+                        onOpenLeftWing={() => setShowLeftWingModal(true)}
+                        onOpenRightWing={() => setShowRightWingModal(true)}
+                        onOpenKeypadGuide={() => setShowKeypadGuide(true)}
+                    />
+
+                    {/* Dynamic Hint / Warning Notification */}
+                    {warningState.type && !gameState.isWin && !isLose && (
+                        <div className={`
+                        animate-bounce-short mb-2 backdrop-blur-xl border px-3 py-2 rounded-2xl flex items-center gap-2 shadow-lg transition-all mx-2
+                        ${warningState.type === 'deadlock'
+                                ? 'bg-red-500/25 border-red-500/40 text-red-100'
+                                : 'bg-yellow-500/25 border-yellow-500/40 text-yellow-100'}
+                    `}>
+                            {warningState.type === 'deadlock' ? <AlertTriangle size={18} className="md:w-5 md:h-5 text-red-300" /> : <Repeat size={18} className="md:w-5 md:h-5 text-yellow-300" />}
+                            <span className="text-xs font-bold">{warningState.message}</span>
+                        </div>
+                    )}
+
+                    <div className="w-full flex-1 flex flex-col justify-center items-center py-2 md:py-4 relative overflow-y-auto no-scrollbar gap-y-4 md:gap-y-6">
+                        {bottleRows.map((row, rowIndex) => (
+                            <TestTubeRack key={`rack-row-${rowIndex}`}>
+                                {row.map(bottle => {
+                                    const tubeNumber = gameState.bottles.findIndex(b => b.id === bottle.id) + 1;
+                                    return (
+                                        <Bottle
+                                            key={bottle.id}
+                                            tubeNumber={tubeNumber}
+                                            bottle={bottle}
+                                            isSelected={gameState.selectedBottleId === bottle.id}
+                                            isValidTarget={validTargets.has(bottle.id)}
+                                            isMixTarget={mixTargets.has(bottle.id)}
+                                            isMixingFlash={mixFlashId === bottle.id}
+                                            isHinted={
+                                              hintIds != null &&
+                                              (hintIds.sourceId === bottle.id || hintIds.targetId === bottle.id)
+                                            }
+                                            isFlying={processingMatch?.bottleId === bottle.id}
+                                            isPouringSource={pourAnim?.sourceId === bottle.id}
+                                            isPouringTarget={pourAnim?.targetId === bottle.id}
+                                            pourTilt={pourAnim?.sourceId === bottle.id ? pourAnim.tilt : null}
+                                            pourStreamColor={pourAnim?.streamColor}
+                                            preview={pourPreviews.get(bottle.id)}
+                                            isCelebrating={celebrateId === bottle.id}
+                                            reduceMotion={reduceMotion}
+                                            bottleSkin={cosmetics.equippedBottle}
+                                            liquidSkin={cosmetics.equippedLiquid}
+                                            onClick={() => handleBottleClick(bottle.id)}
+                                        />
+                                    );
+                                })}
+                            </TestTubeRack>
+                        ))}
                     </div>
-                )}
+                </div>
 
-                <div className="w-full flex-1 flex flex-col justify-center items-center py-4 md:py-6 relative overflow-y-auto no-scrollbar gap-y-4 md:gap-y-6">
-                    {bottleRows.map((row, rowIndex) => (
-                        <TestTubeRack key={`rack-row-${rowIndex}`}>
-                            {row.map(bottle => (
-                                <Bottle
-                                    key={bottle.id}
-                                    bottle={bottle}
-                                    isSelected={gameState.selectedBottleId === bottle.id}
-                                    isValidTarget={validTargets.has(bottle.id)}
-                                    isMixTarget={mixTargets.has(bottle.id)}
-                                    isMixingFlash={mixFlashId === bottle.id}
-                                    isHinted={
-                                      hintIds != null &&
-                                      (hintIds.sourceId === bottle.id || hintIds.targetId === bottle.id)
-                                    }
-                                    isFlying={processingMatch?.bottleId === bottle.id}
-                                    isPouringSource={pourAnim?.sourceId === bottle.id}
-                                    isPouringTarget={pourAnim?.targetId === bottle.id}
-                                    pourTilt={pourAnim?.sourceId === bottle.id ? pourAnim.tilt : null}
-                                    pourStreamColor={pourAnim?.streamColor}
-                                    preview={pourPreviews.get(bottle.id)}
-                                    isCelebrating={celebrateId === bottle.id}
-                                    reduceMotion={reduceMotion}
-                                    bottleSkin={cosmetics.equippedBottle}
-                                    liquidSkin={cosmetics.equippedLiquid}
-                                    onClick={() => handleBottleClick(bottle.id)}
-                                />
-                            ))}
-                        </TestTubeRack>
-                    ))}
+                {/* Right Wing Cockpit: Feasibility Radar & Chemistry Tips */}
+                <div className="hidden lg:flex flex-col justify-center h-full max-h-[82vh]">
+                    <CockpitRightWing
+                        bottles={gameState.bottles}
+                        selectedBottleId={gameState.selectedBottleId}
+                        legalMovesCount={legalPours.count}
+                        bufferTubesCount={bufferTubes.emptyCount}
+                        onSelectTube={handleBottleClick}
+                    />
                 </div>
             </div>
 
@@ -1286,6 +1453,118 @@ export default function Game() {
                 isOpen={showSettingsModal}
                 onClose={() => setShowSettingsModal(false)}
             />
+
+            {/* Mobile Left Wing Modal (Spectrometer) */}
+            {showLeftWingModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+                    <div className="relative w-full max-w-sm max-h-[85vh] overflow-y-auto no-scrollbar rounded-2xl">
+                        <button
+                            type="button"
+                            onClick={() => setShowLeftWingModal(false)}
+                            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all"
+                            aria-label="關閉光譜儀"
+                        >
+                            <X size={16} />
+                        </button>
+                        <CockpitLeftWing
+                            purity={puritySummary}
+                            moves={gameState.history.length}
+                            parSteps={parSteps}
+                            rating={stepRating}
+                            isCompact
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Mobile Right Wing Modal (Radar & Master Tips) */}
+            {showRightWingModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+                    <div className="relative w-full max-w-sm max-h-[85vh] overflow-y-auto no-scrollbar rounded-2xl">
+                        <button
+                            type="button"
+                            onClick={() => setShowRightWingModal(false)}
+                            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all"
+                            aria-label="關閉態勢錦囊"
+                        >
+                            <X size={16} />
+                        </button>
+                        <CockpitRightWing
+                            bottles={gameState.bottles}
+                            selectedBottleId={gameState.selectedBottleId}
+                            legalMovesCount={legalPours.count}
+                            bufferTubesCount={bufferTubes.emptyCount}
+                            onSelectTube={(id) => {
+                                handleBottleClick(id);
+                                setShowRightWingModal(false);
+                            }}
+                            isCompact
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Keypad Guide Modal */}
+            {showKeypadGuide && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+                    <div className="relative w-full max-w-sm rounded-2xl bg-slate-900/95 border border-amber-400/30 p-5 shadow-2xl text-white">
+                        <button
+                            type="button"
+                            onClick={() => setShowKeypadGuide(false)}
+                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+                            aria-label="關閉說明"
+                        >
+                            <X size={16} />
+                        </button>
+                        <div className="flex items-center gap-2.5 mb-3">
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center justify-center">
+                                <Keyboard size={18} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black text-amber-300">化學實驗室座艙快捷指引</h3>
+                                <p className="text-[10px] text-white/50">全鍵盤直選與極速傾倒</p>
+                            </div>
+                        </div>
+                        <div className="space-y-2 text-xs text-white/80 leading-relaxed">
+                            <div className="flex items-start gap-2 bg-white/5 p-2 rounded-xl">
+                                <span className="font-mono px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 font-bold flex-shrink-0">1 ~ 9</span>
+                                <div>
+                                    <span className="font-bold text-white">數字鍵秒選試管</span>
+                                    <p className="text-[11px] text-white/60">第一按鎖定來源管，第二按直接注入目標管，無需滑鼠逐格拖曳！</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2 bg-white/5 p-2 rounded-xl">
+                                <span className="font-mono px-1.5 py-0.5 rounded bg-orange-400/20 text-orange-300 font-bold flex-shrink-0">U</span>
+                                <div>
+                                    <span className="font-bold text-white">悔棋復原</span>
+                                    <p className="text-[11px] text-white/60">還原上一步倒水或調配操作。</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2 bg-white/5 p-2 rounded-xl">
+                                <span className="font-mono px-1.5 py-0.5 rounded bg-sky-400/20 text-sky-300 font-bold flex-shrink-0">H</span>
+                                <div>
+                                    <span className="font-bold text-white">智能提示</span>
+                                    <p className="text-[11px] text-white/60">指示下一步破局關鍵倒液。</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2 bg-white/5 p-2 rounded-xl">
+                                <span className="font-mono px-1.5 py-0.5 rounded bg-rose-400/20 text-rose-300 font-bold flex-shrink-0">R</span>
+                                <div>
+                                    <span className="font-bold text-white">重新開始</span>
+                                    <p className="text-[11px] text-white/60">重設盤面為初始實驗狀態。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowKeypadGuide(false)}
+                            className="mt-4 w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 font-bold text-slate-950 text-xs shadow-lg active:scale-95 transition-transform"
+                        >
+                            開始實驗調配
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {gameState.isWin && (
                 <ResultOverlay
