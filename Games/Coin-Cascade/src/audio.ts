@@ -273,3 +273,51 @@ export function playUnlock(): void {
     osc.stop(when + 0.22);
   }
 }
+
+/**
+ * Low-frequency resonant roar that triggers on massive coin cascades (>= 4 coins).
+ * Produces tactile arcade physical cabinet vibration.
+ */
+export function playAvalancheRoar(scale = 1): void {
+  if (muted || reducedMotion) return;
+  const c = ac();
+  if (!c) return;
+  const when = c.currentTime;
+  const clampedScale = Math.min(2.5, Math.max(1, scale));
+
+  const osc = c.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(95, when);
+  osc.frequency.exponentialRampToValueAtTime(38, when + 0.35);
+
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.12 * clampedScale, when);
+  gain.gain.exponentialRampToValueAtTime(0.001, when + 0.38);
+
+  osc.connect(gain);
+  gain.connect(c.destination);
+  osc.start(when);
+  osc.stop(when + 0.4);
+}
+
+/** High-tech tactical sonar ping when coins overhang the edge dangerously. */
+export function playEdgeDangerAlert(): void {
+  if (muted || reducedMotion) return;
+  const c = ac();
+  if (!c) return;
+  const when = c.currentTime;
+  for (const [i, freq] of [1760, 2200].entries()) {
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0, when + i * 0.045);
+    gain.gain.linearRampToValueAtTime(0.05, when + i * 0.045 + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + i * 0.045 + 0.08);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(when + i * 0.045);
+    osc.stop(when + i * 0.045 + 0.09);
+  }
+}
+

@@ -22,6 +22,9 @@ interface Props {
   coinSet: CoinSetDef;
   cabinetHue: number;
   special?: PlayerInput['special'];
+  feverActive?: boolean;
+  feverRemainingSec?: number;
+  feverRatio?: number;
 }
 
 interface Spark {
@@ -61,12 +64,18 @@ function drawCabinet(
   hue: number,
   tick: number,
   reduced: boolean,
+  feverActive = false,
 ): void {
-  const pulse = reduced ? 0.7 : 0.55 + 0.45 * Math.sin(tick * 0.045);
+  const activeHue = feverActive ? (tick * 4) % 360 : hue;
+  const pulse = reduced
+    ? 0.7
+    : feverActive
+    ? 0.8 + 0.2 * Math.sin(tick * 0.18)
+    : 0.55 + 0.45 * Math.sin(tick * 0.045);
   const wood = ctx.createLinearGradient(0, -70, 0, SHELF_LEN);
-  wood.addColorStop(0, `hsl(${hue}, 48%, 16%)`);
-  wood.addColorStop(0.5, `hsl(${hue}, 44%, 26%)`);
-  wood.addColorStop(1, `hsl(${hue}, 42%, 10%)`);
+  wood.addColorStop(0, `hsl(${activeHue}, 48%, 16%)`);
+  wood.addColorStop(0.5, `hsl(${activeHue}, 44%, 26%)`);
+  wood.addColorStop(1, `hsl(${activeHue}, 42%, 10%)`);
   ctx.fillStyle = wood;
   ctx.fillRect(-8, -70, SHELF_W + 16, SHELF_LEN + 78);
 
@@ -79,9 +88,9 @@ function drawCabinet(
     ctx.drawImage(shelf, 0, 0, SHELF_W, SHELF_LEN);
     ctx.globalAlpha = 1;
     const varnish = ctx.createLinearGradient(0, 0, 0, SHELF_LEN);
-    varnish.addColorStop(0, `hsla(${hue}, 40%, 10%, 0.35)`);
-    varnish.addColorStop(0.7, `hsla(${hue}, 35%, 8%, 0.15)`);
-    varnish.addColorStop(1, `hsla(${hue}, 70%, 55%, 0.16)`);
+    varnish.addColorStop(0, `hsla(${activeHue}, 40%, 10%, 0.35)`);
+    varnish.addColorStop(0.7, `hsla(${activeHue}, 35%, 8%, 0.15)`);
+    varnish.addColorStop(1, `hsla(${activeHue}, 70%, 55%, 0.16)`);
     ctx.fillStyle = varnish;
     ctx.fillRect(0, 0, SHELF_W, SHELF_LEN);
     // Mist-neon wash over the playfield (premium, intentional — not flat wood alone).
@@ -93,35 +102,61 @@ function drawCabinet(
       SHELF_LEN * 0.55,
       SHELF_W * 0.72,
     );
-    neonWash.addColorStop(0, `hsla(${hue + 8}, 90%, 60%, ${0.08 * pulse})`);
-    neonWash.addColorStop(0.55, `hsla(320, 80%, 60%, ${0.05 * pulse})`);
-    neonWash.addColorStop(1, 'hsla(180, 80%, 55%, 0)');
+    if (feverActive) {
+      neonWash.addColorStop(0, `hsla(${activeHue}, 95%, 65%, ${0.22 * pulse})`);
+      neonWash.addColorStop(0.5, `hsla(${(activeHue + 60) % 360}, 90%, 60%, ${0.14 * pulse})`);
+      neonWash.addColorStop(1, 'hsla(45, 95%, 60%, 0)');
+    } else {
+      neonWash.addColorStop(0, `hsla(${hue + 8}, 90%, 60%, ${0.08 * pulse})`);
+      neonWash.addColorStop(0.55, `hsla(320, 80%, 60%, ${0.05 * pulse})`);
+      neonWash.addColorStop(1, 'hsla(180, 80%, 55%, 0)');
+    }
     ctx.fillStyle = neonWash;
     ctx.fillRect(0, 0, SHELF_W, SHELF_LEN);
+
+    // Dynamic Fever golden laser trails streaming down the playfield
+    if (feverActive && !reduced) {
+      for (let i = 0; i < 4; i++) {
+        const streamX = WALL_X0 + 20 + i * ((WALL_X1 - WALL_X0 - 40) / 3);
+        const streamProgress = ((tick * 3.5 + i * 45) % 180) / 180;
+        const streamY = streamProgress * SHELF_LEN;
+        const streamGrad = ctx.createLinearGradient(streamX, streamY - 24, streamX, streamY + 24);
+        streamGrad.addColorStop(0, 'rgba(250, 204, 21, 0)');
+        streamGrad.addColorStop(0.5, 'rgba(250, 204, 21, 0.45)');
+        streamGrad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+        ctx.fillStyle = streamGrad;
+        ctx.fillRect(streamX - 2, streamY - 24, 4, 48);
+      }
+    }
+
     ctx.restore();
   } else {
     const bg = ctx.createLinearGradient(0, 0, 0, SHELF_LEN);
-    bg.addColorStop(0, `hsl(${hue}, 30%, 12%)`);
-    bg.addColorStop(1, `hsl(${hue}, 35%, 18%)`);
+    bg.addColorStop(0, `hsl(${activeHue}, 30%, 12%)`);
+    bg.addColorStop(1, `hsl(${activeHue}, 35%, 18%)`);
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, SHELF_W, SHELF_LEN);
   }
 
   const leftWall = ctx.createLinearGradient(0, 0, WALL_X0, 0);
-  leftWall.addColorStop(0, `hsl(${hue}, 35%, 8%)`);
-  leftWall.addColorStop(1, `hsl(${hue}, 40%, 22%)`);
+  leftWall.addColorStop(0, `hsl(${activeHue}, 35%, 8%)`);
+  leftWall.addColorStop(1, `hsl(${activeHue}, 40%, 22%)`);
   ctx.fillStyle = leftWall;
   ctx.fillRect(0, 0, WALL_X0, SHELF_LEN);
   const rightWall = ctx.createLinearGradient(WALL_X1, 0, SHELF_W, 0);
-  rightWall.addColorStop(0, `hsl(${hue}, 40%, 22%)`);
-  rightWall.addColorStop(1, `hsl(${hue}, 35%, 8%)`);
+  rightWall.addColorStop(0, `hsl(${activeHue}, 40%, 22%)`);
+  rightWall.addColorStop(1, `hsl(${activeHue}, 35%, 8%)`);
   ctx.fillStyle = rightWall;
   ctx.fillRect(WALL_X1, 0, SHELF_W - WALL_X1, SHELF_LEN);
 
   for (let i = 0; i < 8; i++) {
     const y = 22 + i * ((SHELF_LEN - 44) / 7);
     for (const x of [WALL_X0 * 0.45, WALL_X1 + (SHELF_W - WALL_X1) * 0.55]) {
-      const bulbHue = i % 2 === 0 ? hue + 12 : hue + 160 + (i % 3) * 12;
+      const bulbHue = feverActive
+        ? (activeHue + i * 45) % 360
+        : i % 2 === 0
+        ? hue + 12
+        : hue + 160 + (i % 3) * 12;
       const glow = ctx.createRadialGradient(x, y, 1, x, y, 18);
       glow.addColorStop(0, `hsla(${bulbHue}, 95%, 78%, ${0.95 * pulse})`);
       glow.addColorStop(0.35, `hsla(${bulbHue}, 90%, 58%, ${0.42 * pulse})`);
@@ -138,17 +173,17 @@ function drawCabinet(
   }
 
   const edgeGlow = ctx.createLinearGradient(0, SHELF_LEN - 42, 0, SHELF_LEN + 10);
-  edgeGlow.addColorStop(0, `hsla(${hue}, 80%, 55%, 0)`);
-  edgeGlow.addColorStop(0.45, `hsla(${hue}, 85%, 58%, ${0.28 * pulse})`);
-  edgeGlow.addColorStop(1, `hsla(${hue + 20}, 95%, 68%, ${0.72 * pulse})`);
+  edgeGlow.addColorStop(0, `hsla(${activeHue}, 80%, 55%, 0)`);
+  edgeGlow.addColorStop(0.45, `hsla(${activeHue}, 85%, 58%, ${0.28 * pulse})`);
+  edgeGlow.addColorStop(1, `hsla(${activeHue + 20}, 95%, 68%, ${0.72 * pulse})`);
   ctx.fillStyle = edgeGlow;
   ctx.fillRect(0, SHELF_LEN - 42, SHELF_W, 52);
 
   ctx.fillStyle = 'rgba(15, 10, 4, 0.55)';
   ctx.fillRect(WALL_X0, SHELF_LEN - 4, WALL_X1 - WALL_X0, 8);
-  ctx.strokeStyle = `hsla(${hue}, 90%, 65%, ${0.75 * pulse})`;
+  ctx.strokeStyle = `hsla(${activeHue}, 90%, 65%, ${0.75 * pulse})`;
   ctx.lineWidth = 2;
-  ctx.shadowColor = `hsla(${hue}, 90%, 60%, ${0.55 * pulse})`;
+  ctx.shadowColor = `hsla(${activeHue}, 90%, 60%, ${0.55 * pulse})`;
   ctx.shadowBlur = 12;
   ctx.beginPath();
   ctx.moveTo(WALL_X0, SHELF_LEN);
@@ -408,34 +443,49 @@ function drawChute(
   physics?: RunState['config']['physics'],
   tick = 0,
   special: PlayerInput['special'] = 'normal',
+  feverActive = false,
 ): void {
   const isPerfect = physics ? dropTimingQuality(tick, physics) === 'perfect' : false;
 
   ctx.fillStyle = 'rgba(15, 10, 4, 0.65)';
   ctx.fillRect(WALL_X0, -52, WALL_X1 - WALL_X0, 14);
-  ctx.strokeStyle = isPerfect ? 'rgba(52, 211, 153, 0.65)' : 'rgba(251, 191, 36, 0.35)';
-  ctx.lineWidth = isPerfect ? 1.6 : 1;
+  ctx.strokeStyle = feverActive
+    ? 'rgba(250, 204, 21, 0.85)'
+    : isPerfect
+    ? 'rgba(52, 211, 153, 0.65)'
+    : 'rgba(251, 191, 36, 0.35)';
+  ctx.lineWidth = feverActive || isPerfect ? 1.8 : 1;
   ctx.strokeRect(WALL_X0, -52, WALL_X1 - WALL_X0, 14);
 
-  // Perfect timing nozzle aura
-  if (isPerfect && !cooling) {
-    const halo = ctx.createRadialGradient(chuteX, -4, 2, chuteX, -4, 26);
-    halo.addColorStop(0, 'rgba(52, 211, 153, 0.85)');
-    halo.addColorStop(0.45, 'rgba(253, 224, 71, 0.4)');
-    halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  // Perfect timing or Fever nozzle aura
+  if ((isPerfect || feverActive) && !cooling) {
+    const halo = ctx.createRadialGradient(chuteX, -4, 2, chuteX, -4, 28);
+    if (feverActive) {
+      halo.addColorStop(0, 'rgba(250, 204, 21, 0.95)');
+      halo.addColorStop(0.45, 'rgba(244, 114, 182, 0.55)');
+      halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    } else {
+      halo.addColorStop(0, 'rgba(52, 211, 153, 0.85)');
+      halo.addColorStop(0.45, 'rgba(253, 224, 71, 0.4)');
+      halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    }
     ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(chuteX, -4, 26, 0, Math.PI * 2);
+    ctx.arc(chuteX, -4, 28, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#6ee7b7';
+    ctx.fillStyle = feverActive ? '#fef08a' : '#6ee7b7';
     ctx.font = 'bold 9px Orbitron, system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('PERFECT', chuteX, -56);
+    ctx.fillText(feverActive ? 'FEVER 2X' : 'PERFECT', chuteX, -56);
   }
 
   const body = ctx.createLinearGradient(chuteX, -48, chuteX, -4);
-  if (isPerfect && !cooling) {
+  if (feverActive && !cooling) {
+    body.addColorStop(0, '#fef08a');
+    body.addColorStop(0.5, '#f59e0b');
+    body.addColorStop(1, '#ec4899');
+  } else if (isPerfect && !cooling) {
     body.addColorStop(0, '#a7f3d0');
     body.addColorStop(1, '#10b981');
   } else {
@@ -456,7 +506,33 @@ function drawChute(
   ctx.stroke();
 
   // Trajectory laser
-  if (isPerfect && !cooling) {
+  if (feverActive && !cooling) {
+    // Tri-beam golden fever targeting laser
+    ctx.save();
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.85)';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(chuteX, 0);
+    ctx.lineTo(chuteX, SHELF_LEN);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(chuteX - 7, 0);
+    ctx.lineTo(chuteX - 7, SHELF_LEN);
+    ctx.moveTo(chuteX + 7, 0);
+    ctx.lineTo(chuteX + 7, SHELF_LEN);
+    ctx.stroke();
+
+    const pulseT = ((tick * 5) % 100) / 100;
+    const py = pulseT * SHELF_LEN;
+    ctx.beginPath();
+    ctx.arc(chuteX, py, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#fef08a';
+    ctx.fill();
+    ctx.restore();
+  } else if (isPerfect && !cooling) {
     ctx.strokeStyle = 'rgba(52, 211, 153, 0.65)';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
@@ -522,15 +598,25 @@ export function GameCanvas({
   coinSet,
   cabinetHue,
   special = 'normal',
+  feverActive = false,
+  feverRemainingSec = 0,
+  feverRatio = 0,
 }: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
   const coinSetRef = useRef(coinSet);
   const hueRef = useRef(cabinetHue);
   const specialRef = useRef(special);
+  const feverActiveRef = useRef(feverActive);
+  const feverRemainingSecRef = useRef(feverRemainingSec);
+  const feverRatioRef = useRef(feverRatio);
+
   coinSetRef.current = coinSet;
   hueRef.current = cabinetHue;
   specialRef.current = special;
+  feverActiveRef.current = feverActive;
+  feverRemainingSecRef.current = feverRemainingSec;
+  feverRatioRef.current = feverRatio;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -548,6 +634,8 @@ export function GameCanvas({
     let lastJackpotBursts = -1;
     let lastRecovered = -1;
     let lastCascadeEventTick = -1;
+    let shakeAmount = 0;
+    let prevFever = false;
 
     const burstSparks = (
       cx: number,
@@ -591,6 +679,13 @@ export function GameCanvas({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssW, cssH);
 
+      const feverOn = feverActiveRef.current;
+      const feverSec = feverRemainingSecRef.current;
+      if (feverOn && !prevFever) {
+        shakeAmount = 14;
+      }
+      prevFever = feverOn;
+
       // Soft stage glow behind the cabinet.
       const stage = ctx.createRadialGradient(
         cssW * 0.5,
@@ -600,8 +695,8 @@ export function GameCanvas({
         cssH * 0.5,
         Math.max(cssW, cssH) * 0.55,
       );
-      stage.addColorStop(0, `hsla(${hueRef.current}, 80%, 45%, 0.16)`);
-      stage.addColorStop(0.45, 'hsla(320, 70%, 45%, 0.07)');
+      stage.addColorStop(0, feverOn ? 'rgba(250, 204, 21, 0.28)' : `hsla(${hueRef.current}, 80%, 45%, 0.16)`);
+      stage.addColorStop(0.45, feverOn ? 'rgba(244, 114, 182, 0.15)' : 'hsla(320, 70%, 45%, 0.07)');
       stage.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = stage;
       ctx.fillRect(0, 0, cssW, cssH);
@@ -611,15 +706,48 @@ export function GameCanvas({
       ctx.scale(scale, scale);
       ctx.translate(0, 70);
 
-      drawCabinet(ctx, shelfImg, hueRef.current, s.tick, reducedMotion);
+      // Camera micro-shake recoil
+      if (!reducedMotion && shakeAmount > 0.05) {
+        shakeAmount *= 0.88;
+        const sx = Math.sin(s.tick * 1.8) * shakeAmount;
+        const sy = Math.cos(s.tick * 2.3) * shakeAmount * 0.6;
+        ctx.translate(sx, sy);
+      }
+
+      drawCabinet(ctx, shelfImg, hueRef.current, s.tick, reducedMotion, feverOn);
       drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
       drawEdgeBonusZones(ctx);
       drawPegs(ctx, s.config.physics.pegs);
       drawPusher(ctx, s.tick, metalImg, s.config.physics);
 
+      // Holographic Fever Overdrive HUD
+      if (feverOn) {
+        ctx.save();
+        const bannerY = 22;
+        const pulse = 0.8 + 0.2 * Math.sin(s.tick * 0.15);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.beginPath();
+        ctx.roundRect(SHELF_W * 0.5 - 82, bannerY - 14, 164, 28, 8);
+        ctx.fill();
+
+        ctx.strokeStyle = `hsla(${(s.tick * 4) % 360}, 95%, 65%, ${pulse})`;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(250, 204, 21, 0.85)';
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+
+        ctx.font = 'bold 11px Orbitron, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fef08a';
+        ctx.shadowBlur = 4;
+        ctx.fillText(`⚡ 狂熱超頻 2X (${feverSec.toFixed(1)}s)`, SHELF_W * 0.5, bannerY + 4);
+        ctx.restore();
+      }
+
       // Jackpot celebration: detect burst count rise (render-only).
       if (lastJackpotBursts < 0) lastJackpotBursts = s.jackpotBursts;
       if (s.jackpotBursts > lastJackpotBursts) {
+        shakeAmount = 18;
         const amount = s.events.jackpotBurst;
         const tide = s.events.jackpotTideBonus;
         jackpotFlash = { life: reducedMotion ? 0.55 : 1, amount, tide };
@@ -639,14 +767,23 @@ export function GameCanvas({
       // Coin falls / cascades — louder particle juice without touching sim rules.
       if (lastRecovered < 0) lastRecovered = s.coinsRecovered;
       if (!reducedMotion && s.coinsRecovered > lastRecovered) {
-        const n = Math.min(14, s.coinsRecovered - lastRecovered);
-        burstSparks(SHELF_W * 0.5, SHELF_LEN - 8, 4 + n * 2, s.tick, 42, 2.8);
+        const diff = s.coinsRecovered - lastRecovered;
+        const n = Math.min(14, diff);
+        shakeAmount = Math.min(15, shakeAmount + n * 1.5);
+        burstSparks(
+          SHELF_W * 0.5,
+          SHELF_LEN - 8,
+          (feverOn ? 8 : 4) + n * 2,
+          s.tick,
+          feverOn ? 48 : 42,
+          feverOn ? 3.8 : 2.8,
+        );
         floatingTexts.push({
-          x: SHELF_W * 0.5 + (Math.sin(s.tick) * 35),
+          x: SHELF_W * 0.5 + Math.sin(s.tick) * 35,
           y: SHELF_LEN - 10,
-          text: `+${s.coinsRecovered - lastRecovered}`,
+          text: feverOn ? `+${diff * 2} 狂熱雙倍` : `+${diff}`,
           life: 1.0,
-          color: '#fef08a',
+          color: feverOn ? '#fde047' : '#fef08a',
         });
       }
       lastRecovered = s.coinsRecovered;
@@ -657,13 +794,14 @@ export function GameCanvas({
         s.tick > lastCascadeEventTick
       ) {
         lastCascadeEventTick = s.tick;
+        shakeAmount = Math.min(16, shakeAmount + s.events.cascadeFinalized * 2);
         burstSparks(
           SHELF_W * 0.5,
           SHELF_LEN * 0.62,
-          10 + s.events.cascadeFinalized * 3,
+          10 + s.events.cascadeFinalized * (feverOn ? 5 : 3),
           s.tick,
-          48,
-          4.4,
+          feverOn ? 55 : 48,
+          feverOn ? 5.2 : 4.4,
         );
       }
 
@@ -798,7 +936,15 @@ export function GameCanvas({
         if (jackpotFlash.life <= 0) jackpotFlash = null;
       }
 
-      drawChute(ctx, chuteXRef.current, s.cooldown > 0, s.config.physics, s.tick, specialRef.current);
+      drawChute(
+        ctx,
+        chuteXRef.current,
+        s.cooldown > 0,
+        s.config.physics,
+        s.tick,
+        specialRef.current,
+        feverOn,
+      );
 
       ctx.restore();
 

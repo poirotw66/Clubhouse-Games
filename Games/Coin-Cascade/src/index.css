@@ -766,6 +766,37 @@ body {
   border-radius: 4px;
 }
 
+/* ── Sonar Radar Sweep Animation & Fever Glow ───────────────────────────── */
+
+@keyframes cc-sonar-sweep {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+.cc-fever-chip {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18) 0%, rgba(244, 114, 182, 0.15) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
+}
+
+.cc-fever-chip.is-active {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.35) 0%, rgba(244, 114, 182, 0.3) 100%);
+  border-color: rgba(250, 204, 21, 0.8);
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.6);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cc-jackpot-flash,
   .cc-cascade-banner,

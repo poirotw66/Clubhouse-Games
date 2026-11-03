@@ -70,6 +70,16 @@ import {
 } from './game/tables';
 import type { PlayerInput, RunState } from './game/types';
 import * as audio from './audio';
+import {
+  INITIAL_FEVER_STATE,
+  FEVER_DURATION_SEC,
+  addFeverCharge,
+  activateFever,
+  stepFeverState,
+  computeCliffDanger,
+  type FeverState,
+} from './game/fever';
+import * as feverAudio from './feverAudio';
 
 type Screen = 'menu' | 'playing';
 type Special = PlayerInput['special'];
@@ -148,6 +158,7 @@ export default function App(): React.ReactElement {
   const [selectedTable, setSelectedTable] = useState<TableId>('classic');
   const [special, setSpecial] = useState<Special>('normal');
   const [hud, setHud] = useState<RunState | null>(null);
+  const [fever, setFever] = useState<FeverState>(INITIAL_FEVER_STATE);
   const [banner, setBanner] = useState<{ text: string; key: number } | null>(null);
   const [earnToast, setEarnToast] = useState<string | null>(null);
 
@@ -161,6 +172,8 @@ export default function App(): React.ReactElement {
   const activeDailyRef = useRef<DailyChallenge | null>(null);
   const modeResultAppliedRef = useRef<string | null>(null);
   const specialRef = useRef<Special>('normal');
+  const feverRef = useRef<FeverState>(INITIAL_FEVER_STATE);
+  const lastDangerTeeterRef = useRef(0);
   const chuteXRef = useRef<number>(SHELF_W / 2);
   const dropRequestRef = useRef(false);
   const rafRef = useRef(0);
@@ -172,6 +185,24 @@ export default function App(): React.ReactElement {
   const todayChallenge = useMemo(() => dailyChallengeFor(today), [today]);
   const todayRecord = dailyProgress.records.find((r) => r.dateKey === today);
   const streak = dailyStreak(dailyProgress, today);
+
+  const triggerFeverManually = useCallback(() => {
+    if (feverRef.current.charge >= 100 && !feverRef.current.active) {
+      feverRef.current = activateFever(feverRef.current);
+      feverAudio.playFeverFanfare();
+      feverAudio.startFeverMusic();
+      setBanner({ text: '⚡ 狂熱超頻啟動！2X 雙倍狂潮 ⚡', key: performance.now() });
+      setFever({ ...feverRef.current });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (paused) {
+      feverAudio.stopFeverMusic();
+    } else if (feverRef.current.active && screen === 'playing') {
+      feverAudio.startFeverMusic();
+    }
+  }, [paused, screen]);
 
   useEffect(() => {
     setBest(readBestScore());
@@ -198,6 +229,10 @@ export default function App(): React.ReactElement {
     modeResultAppliedRef.current = null;
     stateRef.current = state;
     setHud(state);
+    feverRef.current = INITIAL_FEVER_STATE;
+    setFever(INITIAL_FEVER_STATE);
+    feverAudio.stopFeverMusic();
+    lastDangerTeeterRef.current = 0;
     setSpecial('normal');
     specialRef.current = 'normal';
     chuteXRef.current = SHELF_W / 2;
@@ -280,7 +315,14 @@ export default function App(): React.ReactElement {
       }
       if (e.code === 'KeyM') {
         e.preventDefault();
-        audio.setMuted(!audio.isMuted());
+        const nextMute = !audio.isMuted();
+        audio.setMuted(nextMute);
+        feverAudio.setFeverAudioMuted(nextMute);
+        return;
+      }
+      if (e.code === 'KeyF') {
+        e.preventDefault();
+        triggerFeverManually();
         return;
       }
       if (e.code === 'ArrowLeft') {
@@ -304,7 +346,7 @@ export default function App(): React.ReactElement {
     };
     window.addEventListener('keydown', down);
     return () => window.removeEventListener('keydown', down);
-  }, [screen, meta]);
+  }, [screen, meta, triggerFeverManually]);
 
   // ── Fixed-timestep loop ───────────────────────────────────────────────────
 
@@ -344,17 +386,42 @@ export default function App(): React.ReactElement {
         next = step(next, input, FIXED_DT);
 
         const ev = next.events;
-        if (wantedDrop && !ev.rejectedDrop && !ev.shook) audio.playDrop();
+        if (wantedDrop && !ev.rejectedDrop && !ev.shook) {
+          audio.playDrop();
+          const q = dropTimingQuality(next.tick, next.config.physics);
+          if (q === 'perfect') {
+            feverRef.current = addFeverCharge(feverRef.current, 15);
+          } else if (q === 'good') {
+            feverRef.current = addFeverCharge(feverRef.current, 5);
+          }
+        }
         if (ev.fallen.length > 0) {
           const simultaneous = ev.fallen.filter((f) => f.kind !== 'trigger').length;
           if (simultaneous > 0) audio.playCoinFall(simultaneous);
         }
         if (ev.cascadeFinalized >= CASCADE_MIN) {
           audio.playCascade(ev.cascadeFinalized);
-          setBanner({ text: cascadeLabel(ev.cascadeFinalized), key: next.tick });
+          if (ev.cascadeFinalized >= 4) audio.playAvalancheRoar(ev.cascadeFinalized / 4);
+          feverRef.current = addFeverCharge(
+            feverRef.current,
+            16 + (ev.cascadeFinalized - 3) * 6,
+          );
+          if (feverRef.current.active) {
+            feverRef.current = {
+              ...feverRef.current,
+              feverCascades: feverRef.current.feverCascades + 1,
+            };
+          }
+          setBanner({
+            text: feverRef.current.active
+              ? `${cascadeLabel(ev.cascadeFinalized)} (狂熱 2X)`
+              : cascadeLabel(ev.cascadeFinalized),
+            key: next.tick,
+          });
         }
         if (ev.jackpotBurst > 0) {
           audio.playJackpot(ev.jackpotTideBonus);
+          feverRef.current = addFeverCharge(feverRef.current, 100);
           setBanner({
             text: ev.jackpotTideBonus
               ? `潮湧彩池！+${Math.round(ev.jackpotBurst)}`
@@ -364,12 +431,36 @@ export default function App(): React.ReactElement {
         }
         if (ev.timingBonuses > 0) {
           audio.playBonus();
+          feverRef.current = addFeverCharge(feverRef.current, 10);
           setBanner({ text: `完美時機 +${ev.timingBonuses}`, key: next.tick + 0.25 });
         }
         if (ev.shook) audio.playShake();
         if (ev.rejectedDrop) audio.playReject();
 
-        if (next.phase !== 'playing') break;
+        if (anyTeetering) {
+          feverRef.current = addFeverCharge(feverRef.current, 0.15);
+        }
+
+        // Auto-trigger Fever when full
+        if (feverRef.current.charge >= 100 && !feverRef.current.active) {
+          feverRef.current = activateFever(feverRef.current);
+          feverAudio.playFeverFanfare();
+          feverAudio.startFeverMusic();
+          setBanner({ text: '⚡ 狂熱超頻啟動！2X 雙倍狂潮 ⚡', key: next.tick + 0.75 });
+        }
+
+        if (feverRef.current.active) {
+          const wasActive = feverRef.current.active;
+          feverRef.current = stepFeverState(feverRef.current, FIXED_DT);
+          if (wasActive && !feverRef.current.active) {
+            feverAudio.stopFeverMusic();
+          }
+        }
+
+        if (next.phase !== 'playing') {
+          feverAudio.stopFeverMusic();
+          break;
+        }
       }
       stateRef.current = next;
 
@@ -377,10 +468,14 @@ export default function App(): React.ReactElement {
       if (hudClock > 0.1 || next.phase !== 'playing') {
         hudClock = 0;
         setHud(next);
+        setFever({ ...feverRef.current });
       }
     };
     rafRef.current = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      feverAudio.stopFeverMusic();
+    };
   }, [screen, paused, reducedMotion]);
 
   useEffect(() => {
@@ -440,9 +535,22 @@ export default function App(): React.ReactElement {
 
     setMeta((prev) => {
       const clears = modeProgress.clearedCount;
-      const { meta: next, earned, newlyUnlocked } = applyRunToMeta(prev, hud, clears);
+      const { meta: baseNext, earned, newlyUnlocked } = applyRunToMeta(prev, hud, clears);
+      const feverBonus = Math.floor(feverRef.current.feverCascades * 3);
+      const next: MetaProgress =
+        feverBonus > 0
+          ? {
+              ...baseNext,
+              tokens: baseNext.tokens + feverBonus,
+              lifetimeTokens: baseNext.lifetimeTokens + feverBonus,
+            }
+          : baseNext;
       saveMetaProgress(next);
-      const bits = [`+${earned} 潮幣`];
+      const bits = [
+        feverBonus > 0
+          ? `+${earned + feverBonus} 潮幣（含狂熱 +${feverBonus}）`
+          : `+${earned} 潮幣`,
+      ];
       if (newlyUnlocked.length > 0) {
         bits.push(`解鎖 ${newlyUnlocked.slice(0, 3).join('、')}`);
         audio.playUnlock();
@@ -841,6 +949,15 @@ export default function App(): React.ReactElement {
   const triggerDist = triggerCoin ? Math.max(0, SHELF_LEN - triggerCoin.y) : null;
   const liveRtp = s && s.creditsSpent > 0 ? ((s.coinsRecovered / s.creditsSpent) * 100).toFixed(0) : '100';
 
+  const cliffDanger = useMemo(() => computeCliffDanger(s?.coins ?? []), [s?.coins]);
+
+  useEffect(() => {
+    if (cliffDanger.teeterCount > lastDangerTeeterRef.current && cliffDanger.teeterCount >= 2) {
+      audio.playEdgeDangerAlert();
+    }
+    lastDangerTeeterRef.current = cliffDanger.teeterCount;
+  }, [cliffDanger.teeterCount]);
+
   return (
     <div className="cc-play h-screen w-screen flex flex-col">
       <BackToMenu />
@@ -862,6 +979,39 @@ export default function App(): React.ReactElement {
               <span className="opacity-70">/{activeMode.goal.min}</span>
             ) : null}
           </span>
+          {/* Fever Chip */}
+          <div
+            className={`cc-hud-chip cc-fever-chip flex items-center gap-1.5 cursor-pointer select-none transition-all ${
+              fever.active ? 'is-active animate-pulse' : ''
+            }`}
+            onClick={triggerFeverManually}
+            title={
+              fever.charge >= 100 && !fever.active
+                ? '點擊或按 F 鍵啟動狂熱超頻！'
+                : '狂熱能量槽：蓄滿觸發 2X 狂潮'
+            }
+          >
+            <span className="text-[10px] font-bold text-amber-200">狂熱</span>
+            <div className="w-12 h-2 rounded-full bg-slate-800 overflow-hidden relative">
+              <div
+                className={`h-full transition-all duration-150 ${
+                  fever.active
+                    ? 'bg-gradient-to-r from-amber-400 via-pink-500 to-cyan-400'
+                    : 'bg-amber-400'
+                }`}
+                style={{
+                  width: `${
+                    fever.active ? (fever.remainingSec / FEVER_DURATION_SEC) * 100 : fever.charge
+                  }%`,
+                }}
+              />
+            </div>
+            <span className="font-mono text-xs font-bold text-amber-300">
+              {fever.active
+                ? `${fever.remainingSec.toFixed(1)}s`
+                : `${Math.round(fever.charge)}%`}
+            </span>
+          </div>
           {timeLeftSec !== null && (
             <span className={`cc-hud-chip ${timeLeftSec <= 10 ? 'text-rose-300' : ''}`}>
               剩餘 <b>{formatClock(timeLeftSec)}</b>
@@ -1019,6 +1169,69 @@ export default function App(): React.ReactElement {
               </div>
             </div>
 
+            {/* Cliff Edge Danger Radar */}
+            <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
+              <div className="flex items-center justify-between text-[11px] mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                  <span className="text-amber-200/90 font-bold">懸崖落崖動態聲納</span>
+                </div>
+                <span
+                  className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    cliffDanger.dangerIndex >= 65
+                      ? 'bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse'
+                      : cliffDanger.dangerIndex >= 35
+                      ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  {cliffDanger.dangerIndex}% 崩落指數
+                </span>
+              </div>
+
+              {/* Realtime Cliff Sonar Visualizer */}
+              <div className="relative h-9 rounded-lg bg-slate-950/90 border border-slate-800/80 p-1 flex items-end overflow-hidden">
+                <div className="absolute inset-y-0 w-1 bg-cyan-400/50 blur-[1px] animate-[cc-sonar-sweep_2s_linear_infinite]" />
+                <div className="absolute bottom-1 inset-x-2 h-0.5 bg-gradient-to-r from-emerald-500/40 via-amber-400/60 to-emerald-500/40" />
+
+                {cliffDanger.cliffCoins.slice(0, 16).map((cc) => {
+                  const leftPct = ((cc.x - WALL_X0) / (WALL_X1 - WALL_X0)) * 100;
+                  const bottomPx = 4 + (1 - cc.distToCliff / 35) * 20;
+                  return (
+                    <div
+                      key={`cliff-${cc.id}`}
+                      className={`absolute w-2 h-2 rounded-full transition-all duration-100 ${
+                        cc.isTeeter
+                          ? 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.9)] animate-ping'
+                          : 'bg-amber-300 shadow-[0_0_4px_rgba(251,191,36,0.6)]'
+                      }`}
+                      style={{
+                        left: `calc(${Math.max(4, Math.min(94, leftPct))}% - 4px)`,
+                        bottom: `${bottomPx}px`,
+                      }}
+                      title={cc.isTeeter ? '危急懸垂！' : '接近落崖'}
+                    />
+                  );
+                })}
+                <div className="relative z-10 w-full flex justify-between text-[8px] font-mono text-slate-500 px-1">
+                  <span>左</span>
+                  <span className={cliffDanger.hottestLane === 'mid' ? 'text-amber-400 font-bold' : ''}>
+                    中道熱區
+                  </span>
+                  <span>右</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-amber-200/70 mt-1.5">
+                <span>
+                  臨崖: <b className="text-amber-300 font-mono">{cliffDanger.nearEdgeCount}</b> 枚
+                </span>
+                <span>
+                  懸垂: <b className="text-rose-400 font-mono">{cliffDanger.teeterCount}</b> 枚
+                </span>
+              </div>
+            </div>
+
             {/* Special Coin Tactics */}
             <div className="p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
               <div className="text-[11px] font-medium text-amber-200/80 mb-1.5">特殊幣戰術指引</div>
@@ -1044,7 +1257,7 @@ export default function App(): React.ReactElement {
           </div>
 
           <div className="pt-2 border-t border-amber-500/15 text-[10px] text-amber-200/50 flex items-center justify-between">
-            <span>操作: 左右鍵瞄準・空白鍵投幣</span>
+            <span>操作: 左右鍵・空白鍵・F 狂熱</span>
             <span>數字 1-4 選幣</span>
           </div>
         </aside>
@@ -1059,6 +1272,9 @@ export default function App(): React.ReactElement {
             coinSet={activeCoinSet}
             cabinetHue={tableDef?.cabinetHue ?? 38}
             special={special}
+            feverActive={fever.active}
+            feverRemainingSec={fever.remainingSec}
+            feverRatio={fever.charge / 100}
           />
 
           {paused && (
@@ -1080,6 +1296,55 @@ export default function App(): React.ReactElement {
                 <span className="text-xs font-bold text-amber-300 tracking-wider">彩池與金流</span>
               </div>
               <span className="text-[10px] text-amber-200/60 font-mono">JACKPOT VAULT</span>
+            </div>
+
+            {/* Glowing Fever Overdrive Engine Card */}
+            <div
+              className={`mb-3.5 p-3 rounded-xl border text-center transition-all ${
+                fever.active
+                  ? 'bg-gradient-to-b from-amber-950/60 via-purple-950/60 to-slate-900/90 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.35)]'
+                  : fever.charge >= 100
+                  ? 'bg-gradient-to-b from-amber-950/50 to-slate-900/90 border-amber-400/80 animate-pulse'
+                  : 'bg-gradient-to-b from-slate-900/90 to-slate-950/90 border-amber-500/20'
+              }`}
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                <span className="text-amber-300 tracking-wider">狂熱超頻引擎</span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px] border border-amber-500/30">
+                  2X 狂潮
+                </span>
+              </div>
+              <div className="font-extrabold text-2xl font-mono text-amber-200 drop-shadow-[0_0_12px_rgba(251,191,36,0.7)]">
+                {fever.active ? `${fever.remainingSec.toFixed(1)}s` : `${Math.round(fever.charge)}%`}
+              </div>
+              <div className="h-1.5 w-full bg-slate-800 rounded-full mt-2 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-150 ${
+                    fever.active
+                      ? 'bg-gradient-to-r from-amber-400 via-pink-500 to-cyan-400'
+                      : 'bg-amber-400'
+                  }`}
+                  style={{
+                    width: `${
+                      fever.active ? (fever.remainingSec / FEVER_DURATION_SEC) * 100 : fever.charge
+                    }%`,
+                  }}
+                />
+              </div>
+              {fever.charge >= 100 && !fever.active ? (
+                <button
+                  type="button"
+                  onClick={triggerFeverManually}
+                  className="mt-2 w-full py-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs shadow-[0_0_12px_rgba(251,191,36,0.8)] cursor-pointer"
+                >
+                  ⚡ 立即引爆狂熱 (按 F 鍵)
+                </button>
+              ) : (
+                <div className="mt-2 text-[9px] text-amber-200/60 text-left space-y-0.5">
+                  <div>• 完美時機投幣: +15% 能量</div>
+                  <div>• 連鎖雪崩: +25% 能量</div>
+                </div>
+              )}
             </div>
 
             {/* Glowing Jackpot Vault Card */}
@@ -1179,8 +1444,8 @@ export default function App(): React.ReactElement {
           </div>
 
           <div className="pt-2 border-t border-amber-500/15 text-[10px] text-amber-200/50 flex items-center justify-between">
-            <span>靜音: M 鍵</span>
-            <span>暫停: P / Esc</span>
+            <span>靜音: M 鍵・暫停: P</span>
+            <span>特殊幣: 1-4 鍵</span>
           </div>
         </aside>
       </div>
@@ -1252,6 +1517,9 @@ export default function App(): React.ReactElement {
             { label: '回收幣數', value: s.coinsRecovered },
             { label: '彩池爆開', value: `${s.jackpotBursts} 次 / +${Math.round(s.potAwarded)}` },
             { label: '最長連鎖', value: `${s.longestCascade} 枚` },
+            ...(fever.feverCascades > 0
+              ? [{ label: '狂熱連鎖', value: `${fever.feverCascades} 次` }]
+              : []),
             { label: '時機加分', value: s.timingBonusCount },
             { label: '近失次數', value: s.nearMissCount },
             { label: '種子碼', value: s.seedCode },
