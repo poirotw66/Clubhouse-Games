@@ -81,7 +81,46 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ck-shake-soft,
   .ck-shake-wave,
-  .ck-shake-boss {
+  .ck-shake-boss,
+  .ck-gear-spin,
+  .ck-gear-spin-fast,
+  .ck-steam-pulse {
     animation: none;
   }
+}
+
+@keyframes ck-gear-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ck-steam-vent {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 0.4;
+    transform: scale(0.96);
+  }
+}
+
+.ck-gear-spin {
+  animation: ck-gear-spin 8s linear infinite;
+}
+
+.ck-gear-spin-fast {
+  animation: ck-gear-spin 2.5s linear infinite;
+}
+
+.ck-steam-pulse {
+  animation: ck-steam-vent 1.5s ease-in-out infinite;
 }

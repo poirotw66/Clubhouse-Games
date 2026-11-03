@@ -4,7 +4,7 @@
  * - Tesla coil lightning chain arcs, frost mist pulses, hammer smash shockwaves
  * - Dynamic hit particles and floating kill reward text (+XX⚙)
  */
-import { CHAIN_RADIUS, TOWER_DEFS } from '../game/constants';
+import { CHAIN_RADIUS, GRID_H, GRID_W, TOWER_DEFS } from '../game/constants';
 import { chainTargets, enemiesInRange, selectPrimaryTarget } from '../game/combat';
 import { resolveTowerStats } from '../game/economy';
 import type { GameState } from '../game/types';
@@ -83,7 +83,10 @@ export function spawnCombatVfx(
   state: GameState,
   prevTowers: Map<number, number>,
   prevEnemies: Map<number, number>,
+  prevCombo = 0,
 ): void {
+  const isOverdrive = state.overdriveRemaining > 0;
+
   // 1. Detect newly fired towers
   for (const t of state.towers) {
     const prevCooldown = prevTowers.get(t.id);
@@ -96,6 +99,24 @@ export function spawnCombatVfx(
       const targetsAir = stats.targetsAir ?? def.targetsAir;
       const inRange = enemiesInRange(state.enemies, t.x + 0.5, t.y + 0.5, stats.range, targetsAir);
       const primary = selectPrimaryTarget(inRange);
+
+      // Steam exhaust puff on fire during Overdrive
+      if (isOverdrive) {
+        for (let s = 0; s < 3; s++) {
+          const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
+          const spd = 40 + Math.random() * 50;
+          vfx.particles.push({
+            x: cx,
+            y: cy - 10,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            color: '#fbbf24',
+            size: 3.5,
+            life: 0.35,
+            maxLife: 0.35,
+          });
+        }
+      }
 
       if (t.type === 'frost') {
         vfx.beams.push({
@@ -114,15 +135,15 @@ export function spawnCombatVfx(
         vfx.beams.push({
           id: vfx.nextId++,
           points: [{ x: cx, y: cy }],
-          color: '#fb923c',
-          width: 2,
+          color: isOverdrive ? '#f59e0b' : '#fb923c',
+          width: isOverdrive ? 3 : 2,
           life: 0.22,
           maxLife: 0.22,
           type: 'grinder',
           cx,
           cy,
         });
-        for (let k = 0; k < 6; k++) {
+        for (let k = 0; k < (isOverdrive ? 10 : 6); k++) {
           const ang = Math.random() * Math.PI * 2;
           const spd = 60 + Math.random() * 80;
           vfx.particles.push({
@@ -130,8 +151,8 @@ export function spawnCombatVfx(
             y: cy,
             vx: Math.cos(ang) * spd,
             vy: Math.sin(ang) * spd,
-            color: '#f97316',
-            size: 2.5,
+            color: isOverdrive ? '#fde047' : '#f97316',
+            size: 2.8,
             life: 0.25,
             maxLife: 0.25,
           });
@@ -150,9 +171,9 @@ export function spawnCombatVfx(
             targetX: tx,
             targetY: ty,
             progress: 0,
-            speed: 5.2,
+            speed: isOverdrive ? 7.0 : 5.2,
             type: 'crossbow',
-            color: '#fbbf24',
+            color: isOverdrive ? '#fef08a' : '#fbbf24',
           });
         } else if (t.type === 'mortar') {
           const splashR = (stats.splashRadius ?? def.splashRadius ?? 1.5) * CELL;
@@ -165,9 +186,9 @@ export function spawnCombatVfx(
             targetX: tx,
             targetY: ty,
             progress: 0,
-            speed: 1.9,
+            speed: isOverdrive ? 2.6 : 1.9,
             type: 'mortar',
-            color: '#ea580c',
+            color: isOverdrive ? '#f97316' : '#ea580c',
             splashRadius: splashR,
           });
         } else if (t.type === 'coil') {
@@ -180,8 +201,8 @@ export function spawnCombatVfx(
           vfx.beams.push({
             id: vfx.nextId++,
             points: pts,
-            color: '#a78bfa',
-            width: 3,
+            color: isOverdrive ? '#c084fc' : '#a78bfa',
+            width: isOverdrive ? 4 : 3,
             life: 0.22,
             maxLife: 0.22,
             type: 'coil',
@@ -191,7 +212,7 @@ export function spawnCombatVfx(
             id: vfx.nextId++,
             points: [{ x: tx, y: ty }],
             color: '#c45c26',
-            width: 3,
+            width: isOverdrive ? 4.5 : 3,
             life: 0.25,
             maxLife: 0.25,
             type: 'hammer',
@@ -209,7 +230,8 @@ export function spawnCombatVfx(
     const ex = e.worldX * CELL;
     const ey = e.worldY * CELL;
     if (prevHp !== undefined && e.hp < prevHp) {
-      for (let k = 0; k < 3; k++) {
+      const sparkCount = isOverdrive ? 5 : 3;
+      for (let k = 0; k < sparkCount; k++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 30 + Math.random() * 50;
         vfx.particles.push({
@@ -217,7 +239,7 @@ export function spawnCombatVfx(
           y: ey,
           vx: Math.cos(ang) * spd,
           vy: Math.sin(ang) * spd,
-          color: '#fde047',
+          color: isOverdrive ? '#fef08a' : '#fde047',
           size: 2,
           life: 0.2,
           maxLife: 0.2,
@@ -229,12 +251,12 @@ export function spawnCombatVfx(
         id: vfx.nextId++,
         x: ex,
         y: ey - 12,
-        text: `+${e.killReward}⚙`,
-        color: '#facc15',
+        text: isOverdrive ? `+${e.killReward}⚙ 🔥` : `+${e.killReward}⚙`,
+        color: isOverdrive ? '#fef08a' : '#facc15',
         life: 0.85,
         maxLife: 0.85,
       });
-      for (let k = 0; k < 6; k++) {
+      for (let k = 0; k < (isOverdrive ? 10 : 6); k++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 40 + Math.random() * 60;
         vfx.particles.push({
@@ -242,7 +264,7 @@ export function spawnCombatVfx(
           y: ey,
           vx: Math.cos(ang) * spd,
           vy: Math.sin(ang) * spd,
-          color: '#fbbf24',
+          color: isOverdrive ? '#fbbf24' : '#f59e0b',
           size: 3,
           life: 0.35,
           maxLife: 0.35,
@@ -250,6 +272,74 @@ export function spawnCombatVfx(
       }
     }
   }
+
+  // 3. Detect kill combo milestone
+  if (state.currentCombo >= 3 && state.currentCombo > prevCombo && state.enemies.length > 0) {
+    const lead = state.enemies[0];
+    const lx = lead ? lead.worldX * CELL : (GRID_W * CELL) / 2;
+    const ly = lead ? lead.worldY * CELL - 28 : (GRID_H * CELL) / 2;
+    const comboLabel =
+      state.currentCombo >= 10
+        ? `🔥 ${state.currentCombo}x 發條狂暴!`
+        : state.currentCombo >= 5
+          ? `⚡ ${state.currentCombo}x 連擊!`
+          : `${state.currentCombo}x 連擊`;
+    vfx.floatingTexts.push({
+      id: vfx.nextId++,
+      x: lx,
+      y: ly,
+      text: comboLabel,
+      color: state.currentCombo >= 10 ? '#f43f5e' : state.currentCombo >= 5 ? '#f97316' : '#38bdf8',
+      life: 0.95,
+      maxLife: 0.95,
+    });
+  }
+}
+
+/**
+ * Spawns an energetic burst of golden steam and flying cogs when Overdrive is triggered.
+ */
+export function spawnOverdriveVfx(vfx: VfxManager, state: GameState): void {
+  for (const t of state.towers) {
+    const cx = t.x * CELL + CELL / 2;
+    const cy = t.y * CELL + CELL / 2;
+    vfx.beams.push({
+      id: vfx.nextId++,
+      points: [{ x: cx, y: cy }],
+      color: '#f59e0b',
+      width: 4,
+      life: 0.5,
+      maxLife: 0.5,
+      type: 'hammer',
+      cx,
+      cy,
+    });
+    for (let i = 0; i < 12; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 60 + Math.random() * 90;
+      vfx.particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        color: i % 2 === 0 ? '#fde047' : '#ea580c',
+        size: 3.5,
+        life: 0.45,
+        maxLife: 0.45,
+      });
+    }
+  }
+
+  // Floating Overdrive announcement banner text
+  vfx.floatingTexts.push({
+    id: vfx.nextId++,
+    x: (GRID_W * CELL) / 2,
+    y: (GRID_H * CELL) / 2 - 30,
+    text: '⚙️🔥 發條超頻全開！ 🔥⚙️',
+    color: '#fbbf24',
+    life: 1.4,
+    maxLife: 1.4,
+  });
 }
 
 export function updateVfx(vfx: VfxManager, dt: number): void {

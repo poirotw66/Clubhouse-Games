@@ -125,6 +125,13 @@ export function createInitialState(
     lastReversible: null,
     elapsedTime: 0,
     kills: 0,
+    steamPressure: 0,
+    overdriveRemaining: 0,
+    overdriveCount: 0,
+    totalWindings: 0,
+    currentCombo: 0,
+    comboTimer: 0,
+    maxCombo: 0,
   };
 }
 
@@ -610,8 +617,21 @@ export function step(state: GameState, dt: number): GameState {
     return next;
   }
 
+  // Overdrive and combo countdowns
+  if (next.overdriveRemaining > 0) {
+    next.overdriveRemaining = Math.max(0, next.overdriveRemaining - dt);
+  }
+  if (next.comboTimer > 0) {
+    next.comboTimer = Math.max(0, next.comboTimer - dt);
+    if (next.comboTimer <= 0) {
+      next.currentCombo = 0;
+    }
+  }
+
   // 4) Towers fire using the freshly-updated positions/targets.
-  for (const t of next.towers) fireTower(t, next.enemies, dt);
+  // Overdrive accelerates mechanical gear rotation and fire rate by 1.6x.
+  const towerDt = next.overdriveRemaining > 0 ? dt * 1.6 : dt;
+  for (const t of next.towers) fireTower(t, next.enemies, towerDt);
 
   // 5) Cleanup: remove dead enemies, crediting kill reward only for damage kills.
   const survivors: Enemy[] = [];
@@ -626,8 +646,21 @@ export function step(state: GameState, dt: number): GameState {
       // killing things paid points and no money. The score multiplier is
       // deliberately *not* applied here — it multiplies score, not income.
       next.gold += e.killReward;
-      next.killScore += e.killReward * next.waveScoreMult;
+      const overdriveScoreBonus = next.overdriveRemaining > 0 ? 1.5 : 1;
+      next.killScore += e.killReward * next.waveScoreMult * overdriveScoreBonus;
       next.kills += 1;
+
+      // Combo streak tracking
+      next.currentCombo += 1;
+      if (next.currentCombo > next.maxCombo) {
+        next.maxCombo = next.currentCombo;
+      }
+      next.comboTimer = 2.5;
+
+      // Steam pressure builds from crushed clockwork enemies (capped at 100%)
+      if (next.overdriveRemaining <= 0) {
+        next.steamPressure = Math.min(100, next.steamPressure + 3.5);
+      }
     }
   }
   next.enemies = survivors;
@@ -650,4 +683,48 @@ export function step(state: GameState, dt: number): GameState {
 
   next.score = calculateScore({ killScore: next.killScore, lives: next.lives, unspentGold: next.gold });
   return next;
+}
+
+/**
+ * Triggers Clockwork Steam Overdrive. Requires full steam pressure (100%).
+ * Boosts tower attack speed by 60% and awards +50% score bonus for 8 seconds.
+ */
+export function triggerOverdrive(state: GameState): CommandResult {
+  if (state.phase !== 'prep' && state.phase !== 'wave') {
+    return { state, ok: false, reason: '遊戲已結束' };
+  }
+  if (state.overdriveRemaining > 0) {
+    return { state, ok: false, reason: '發條超頻已在運轉中' };
+  }
+  if (state.steamPressure < 100) {
+    return {
+      state,
+      ok: false,
+      reason: `發條蒸氣壓力尚未蓄滿（目前 ${Math.floor(state.steamPressure)}%，需 100%）`,
+    };
+  }
+  const next = cloneState(state);
+  next.steamPressure = 0;
+  next.overdriveRemaining = 8.0;
+  next.overdriveCount = (next.overdriveCount || 0) + 1;
+  return { state: next, ok: true };
+}
+
+/**
+ * Manually winds the clockwork mainspring to build steam pressure (+15% tension per wind).
+ */
+export function windMainspring(state: GameState): CommandResult {
+  if (state.phase !== 'prep' && state.phase !== 'wave') {
+    return { state, ok: false, reason: '遊戲已結束' };
+  }
+  if (state.overdriveRemaining > 0) {
+    return { state, ok: false, reason: '發條超頻高速運轉中！' };
+  }
+  if (state.steamPressure >= 100) {
+    return { state, ok: false, reason: '發條壓力已達極限，隨時可啟動超頻（按 F 鍵）！' };
+  }
+  const next = cloneState(state);
+  next.steamPressure = Math.min(100, (next.steamPressure || 0) + 15);
+  next.totalWindings = (next.totalWindings || 0) + 1;
+  return { state: next, ok: true };
 }

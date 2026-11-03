@@ -15,6 +15,7 @@ import {
   createVfxManager,
   drawVfx,
   spawnCombatVfx,
+  spawnOverdriveVfx,
   updateVfx,
   type VfxManager,
 } from './battlefieldVfx';
@@ -114,6 +115,54 @@ function drawPathLine(
     }
   }
 
+  ctx.restore();
+}
+
+function drawBrassGear(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  teeth: number,
+  angle: number,
+  fillColor: string,
+  strokeColor: string,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  const toothDepth = radius * 0.24;
+  const innerRadius = radius - toothDepth;
+  const step = (Math.PI * 2) / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a1 = i * step;
+    const a2 = a1 + step * 0.25;
+    const a3 = a1 + step * 0.5;
+    const a4 = a1 + step * 0.75;
+    ctx.lineTo(Math.cos(a1) * innerRadius, Math.sin(a1) * innerRadius);
+    ctx.lineTo(Math.cos(a2) * radius, Math.sin(a2) * radius);
+    ctx.lineTo(Math.cos(a3) * radius, Math.sin(a3) * radius);
+    ctx.lineTo(Math.cos(a4) * innerRadius, Math.sin(a4) * innerRadius);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  // Axle hole
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.3, 0, Math.PI * 2);
+  ctx.fillStyle = '#1c1409';
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = strokeColor;
+  ctx.fill();
   ctx.restore();
 }
 
@@ -285,6 +334,20 @@ function draw(
     ctx.stroke();
     ctx.restore();
 
+    // Overdrive clockwork aura
+    if (state.overdriveRemaining > 0) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(dashOffset * 0.15 * (t.id % 2 === 0 ? 1 : -1));
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.65, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     for (let i = 0; i <= t.level; i++) {
       ctx.fillStyle = '#fff';
       ctx.beginPath();
@@ -340,6 +403,26 @@ function draw(
 
   // Draw combat visual effects
   if (vfx) drawVfx(ctx, vfx);
+
+  // Steampunk Corner Gears
+  const gearSpeed = state.overdriveRemaining > 0 ? 3.0 : 1.0;
+  const gearAng = dashOffset * 0.12 * gearSpeed;
+  // Top-left interlocking pair
+  drawBrassGear(ctx, 22, 22, 16, 10, gearAng, 'rgba(146, 64, 14, 0.85)', '#f59e0b');
+  drawBrassGear(ctx, 45, 30, 11, 8, -gearAng * 1.45, 'rgba(120, 53, 15, 0.85)', '#d97706');
+  // Top-right interlocking pair
+  drawBrassGear(ctx, BOARD_W - 22, 22, 16, 10, -gearAng, 'rgba(146, 64, 14, 0.85)', '#f59e0b');
+  drawBrassGear(ctx, BOARD_W - 45, 30, 11, 8, gearAng * 1.45, 'rgba(120, 53, 15, 0.85)', '#d97706');
+
+  // Overdrive fiery energetic border
+  if (state.overdriveRemaining > 0) {
+    ctx.save();
+    const pulse = 0.5 + 0.5 * Math.sin(dashOffset * 0.5);
+    ctx.strokeStyle = `rgba(245, 158, 11, ${0.45 + pulse * 0.4})`;
+    ctx.lineWidth = 5;
+    ctx.strokeRect(2.5, 2.5, BOARD_W - 5, BOARD_H - 5);
+    ctx.restore();
+  }
 }
 
 export function Battlefield({
@@ -358,6 +441,8 @@ export function Battlefield({
   const vfxRef = useRef<VfxManager>(createVfxManager());
   const prevTowersRef = useRef<Map<number, number>>(new Map());
   const prevEnemiesRef = useRef<Map<number, number>>(new Map());
+  const prevComboRef = useRef(0);
+  const prevOverdriveRef = useRef(0);
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -395,7 +480,13 @@ export function Battlefield({
     const prevT = prevTowersRef.current;
     const prevE = prevEnemiesRef.current;
 
-    spawnCombatVfx(vfx, state, prevT, prevE);
+    spawnCombatVfx(vfx, state, prevT, prevE, prevComboRef.current);
+
+    if (state.overdriveRemaining > 0 && prevOverdriveRef.current <= 0) {
+      spawnOverdriveVfx(vfx, state);
+    }
+    prevOverdriveRef.current = state.overdriveRemaining;
+    prevComboRef.current = state.currentCombo;
 
     const nextT = new Map<number, number>();
     for (const t of state.towers) nextT.set(t.id, t.cooldown);

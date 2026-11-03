@@ -11,6 +11,10 @@ import {
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import { Battlefield } from './components/Battlefield';
+import { ClockworkOverdriveGauge } from './components/ClockworkOverdriveGauge';
+import { WaveThreatRadar } from './components/WaveThreatRadar';
+import { EnemyCodexModal } from './components/EnemyCodexModal';
+import { HotkeysCheatsheetModal } from './components/HotkeysCheatsheetModal';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
@@ -56,8 +60,10 @@ import {
   sellTower,
   startNextWave,
   step,
+  triggerOverdrive,
   undoLast,
   upgradeTower,
+  windMainspring,
   withRocks,
   type CommandResult,
   type RunModifiers,
@@ -162,6 +168,8 @@ export default function App(): ReactElement {
   const [bestScore, setBestScore] = useState(0);
   const [bestTime, setBestTime] = useState(0);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [showCodex, setShowCodex] = useState(false);
+  const [showHotkeys, setShowHotkeys] = useState(false);
 
   const [showMissions, setShowMissions] = useState(false);
   const [missionProgress, setMissionProgress] = useState<MissionProgress>(() => loadMissionProgress());
@@ -444,6 +452,33 @@ export default function App(): ReactElement {
     if (boss) playImpact(0.8);
   }, [applyResult]);
 
+  const handleTriggerOverdrive = useCallback(() => {
+    const cur = stateRef.current;
+    if (!cur) return;
+    const ok = applyResult(
+      triggerOverdrive(cur),
+      () => {
+        playImpact(0.85);
+        playCard();
+      },
+      'boss',
+    );
+    if (ok) {
+      flashMessage('🔥 全城發條超頻啟動！全塔攻速 +60%、得分 +50%！');
+    }
+  }, [applyResult, flashMessage]);
+
+  const handleWindMainspring = useCallback(() => {
+    const cur = stateRef.current;
+    if (!cur) return;
+    const ok = applyResult(windMainspring(cur), playCard);
+    if (ok) {
+      if ((cur.steamPressure || 0) + 15 >= 100) {
+        flashMessage('⚙️ 發條蒸氣蓄滿！按 F 鍵即可啟動超頻！');
+      }
+    }
+  }, [applyResult, flashMessage]);
+
   const togglePause = useCallback(() => setPaused((p) => !p), []);
 
   const retryMission = useCallback(() => {
@@ -483,6 +518,41 @@ export default function App(): ReactElement {
         handleUndo();
         return;
       }
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        handleTriggerOverdrive();
+        return;
+      }
+      if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        handleWindMainspring();
+        return;
+      }
+      if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault();
+        handleUpgrade();
+        return;
+      }
+      if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        handleUpgrade('a');
+        return;
+      }
+      if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        handleUpgrade('b');
+        return;
+      }
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        handleSell();
+        return;
+      }
+      if (e.key === '?' || e.key === '/') {
+        e.preventDefault();
+        setShowHotkeys((s) => !s);
+        return;
+      }
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
         togglePause();
@@ -490,7 +560,18 @@ export default function App(): ReactElement {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [screen, handleStartWave, handleUndo, togglePause, toggleSpeed, flashMessage]);
+  }, [
+    screen,
+    handleStartWave,
+    handleUndo,
+    handleTriggerOverdrive,
+    handleWindMainspring,
+    handleUpgrade,
+    handleSell,
+    togglePause,
+    toggleSpeed,
+    flashMessage,
+  ]);
 
   // ── Setup screen ─────────────────────────────────────────────────────────
   if (screen === 'setup' || !state) {
@@ -515,10 +596,28 @@ export default function App(): ReactElement {
           <button
             type="button"
             onClick={() => setShowFirstRun(true)}
-            className="mb-3 w-full py-2 rounded-lg border border-amber-900/50 bg-black/20 text-sm font-medium text-amber-200/80 hover:bg-black/30 transition-colors min-h-[44px] touch-manipulation"
+            className="mb-2 w-full py-2 rounded-lg border border-amber-900/50 bg-black/20 text-sm font-medium text-amber-200/80 hover:bg-black/30 transition-colors min-h-[44px] touch-manipulation"
           >
             操作教學
           </button>
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setShowCodex(true)}
+              className="flex-1 py-2 rounded-lg border border-amber-900/50 bg-black/20 text-xs font-semibold text-amber-200/85 hover:bg-black/30 transition-colors min-h-[44px] touch-manipulation flex items-center justify-center gap-1.5"
+            >
+              <span>📖</span>
+              <span>敵軍圖鑑</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHotkeys(true)}
+              className="flex-1 py-2 rounded-lg border border-amber-900/50 bg-black/20 text-xs font-semibold text-amber-200/85 hover:bg-black/30 transition-colors min-h-[44px] touch-manipulation flex items-center justify-center gap-1.5"
+            >
+              <span>⌨️</span>
+              <span>快捷鍵指南</span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setShowMissions(true)}
@@ -839,6 +938,24 @@ export default function App(): ReactElement {
           >
             {paused ? '▶' : '⏸'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowHotkeys(true)}
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center text-amber-300"
+            aria-label="快捷鍵小抄"
+            title="快捷鍵小抄 (?)"
+          >
+            ⌨️
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCodex(true)}
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center text-amber-300"
+            aria-label="敵軍圖鑑"
+            title="敵軍圖鑑"
+          >
+            📖
+          </button>
         </div>
       </header>
 
@@ -861,6 +978,24 @@ export default function App(): ReactElement {
           {message}
         </div>
       )}
+
+      {/* Wave Threat Radar */}
+      <WaveThreatRadar
+        currentWave={state.wave}
+        totalWaves={winWave}
+        phase={state.phase}
+        onOpenCodex={() => setShowCodex(true)}
+        onOpenHotkeys={() => setShowHotkeys(true)}
+      />
+
+      {/* Clockwork Steam Overdrive Gauge */}
+      <ClockworkOverdriveGauge
+        steamPressure={state.steamPressure}
+        overdriveRemaining={state.overdriveRemaining}
+        currentCombo={state.currentCombo}
+        onTriggerOverdrive={handleTriggerOverdrive}
+        onWindMainspring={handleWindMainspring}
+      />
 
       {/* Maze Path Telemetry Bar */}
       <div className="w-full max-w-3xl mb-2 py-1.5 px-3 rounded-xl bg-[#1c1409]/90 border border-amber-900/50 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg backdrop-blur-sm">
@@ -1120,6 +1255,17 @@ export default function App(): ReactElement {
             ...(activeMission ? [{ label: '任務', value: activeMission.name }] : []),
             ...(isDailyRun ? [{ label: '日期', value: state.dailyDate ?? '' }] : []),
             {
+              label: '工匠稱號',
+              value:
+                state.score >= 7500 || (state.phase === 'won' && (winWave == null || state.wave >= winWave))
+                  ? '傳奇發條主宰 👑'
+                  : state.score >= 5000
+                    ? '皇家蒸氣工匠 🎖️'
+                    : state.score >= 3000
+                      ? '熟練機械守衛 ⚙️'
+                      : '學徒機關手 🔧',
+            },
+            {
               label: '波次',
               value:
                 state.phase === 'won'
@@ -1127,6 +1273,9 @@ export default function App(): ReactElement {
                   : state.wave,
             },
             { label: '擊殺數', value: state.kills },
+            { label: '最高連擊', value: `${state.maxCombo || 0} 連殺` },
+            { label: '超頻爆發', value: `${state.overdriveCount || 0} 次` },
+            { label: '手動上發條', value: `${state.totalWindings || 0} 週` },
             { label: '剩餘生命', value: state.lives },
             { label: '未花費金幣', value: state.gold },
             { label: '分數', value: Math.round(state.score) },
@@ -1155,6 +1304,9 @@ export default function App(): ReactElement {
           onSecondary={backToSetup}
         />
       )}
+
+      {showCodex && <EnemyCodexModal onClose={() => setShowCodex(false)} />}
+      {showHotkeys && <HotkeysCheatsheetModal onClose={() => setShowHotkeys(false)} />}
     </div>
   );
 }

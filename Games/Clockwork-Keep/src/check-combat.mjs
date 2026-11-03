@@ -17,6 +17,11 @@ import {
   enemiesInRange,
   selectPrimaryTarget,
 } from './game/combat.ts';
+import {
+  createInitialState,
+  triggerOverdrive,
+  windMainspring,
+} from './game/engine.ts';
 
 let nextId = 1;
 function makeEnemy(overrides = {}) {
@@ -157,6 +162,37 @@ function makeEnemy(overrides = {}) {
   );
   const inRangeAntiAir = enemiesInRange([ground, flyer, outOfRange], 0, 0, 2, true);
   assert.equal(inRangeAntiAir.length, 2, 'an anti-air tower should see both the ground and flying target in range');
+}
+
+// ── 5) Clockwork Overdrive & Mainspring Winding ─────────────────────────────
+{
+  const s = createInitialState('standard', 'open', false);
+  assert.equal(s.steamPressure, 0);
+  assert.equal(s.overdriveRemaining, 0);
+
+  // Overdrive rejected if steam pressure < 100
+  const earlyOverdrive = triggerOverdrive(s);
+  assert.equal(earlyOverdrive.ok, false);
+
+  // Manual winding increases tension by 15%
+  const wind1 = windMainspring(s);
+  assert.equal(wind1.ok, true);
+  assert.equal(wind1.state.steamPressure, 15);
+  assert.equal(wind1.state.totalWindings, 1);
+
+  // Wind 6 more times to reach 100% (caps at 100)
+  let fullState = wind1.state;
+  for (let i = 0; i < 6; i++) {
+    fullState = windMainspring(fullState).state;
+  }
+  assert.equal(fullState.steamPressure, 100);
+
+  // Now Overdrive activates successfully
+  const activated = triggerOverdrive(fullState);
+  assert.equal(activated.ok, true);
+  assert.equal(activated.state.overdriveRemaining, 8.0);
+  assert.equal(activated.state.steamPressure, 0);
+  assert.equal(activated.state.overdriveCount, 1);
 }
 
 console.log('check-combat: ok');

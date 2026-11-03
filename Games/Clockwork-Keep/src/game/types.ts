@@ -149,4 +149,19 @@ export interface GameState {
 
   elapsedTime: number; // total sim time, for best-time record
   kills: number;
+
+  /** Clockwork steam pressure reservoir: 0..100. Builds on kills and manual winding. */
+  steamPressure: number;
+  /** Seconds remaining of active Overdrive; 0 when inactive. */
+  overdriveRemaining: number;
+  /** Total number of Overdrive activations this run. */
+  overdriveCount: number;
+  /** Total manual clockwork spring windings. */
+  totalWindings: number;
+  /** Current active kill streak combo within comboTimer. */
+  currentCombo: number;
+  /** Seconds before active kill combo drops back to zero. */
+  comboTimer: number;
+  /** Highest kill combo reached in this run. */
+  maxCombo: number;
 }
