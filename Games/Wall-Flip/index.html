@@ -242,6 +242,30 @@ const STR = {
     alignSafe: '姿態對齊（安全）', alignInverted: '倒掛特技中', alignWarn: '傾角過大',
     vviSoft: '柔軟著地 (+30)', vviHard: '減速不足', vviHazard: '墜毀預警 (雙鍵減速)',
     stuntMilestone: (n) => n === 1 ? '360° 空中翻滾！+50' : n === 2 ? '720° 雙重翻滾！+150' : n === 3 ? '1080° 三重特技！+300' : `${n * 360}° 極限特技！+${n * 150}`,
+    cockpitLeftTag: 'L-WING AVIONICS',
+    cockpitLeftTitle: '姿態儀與過載遙測',
+    cockpitRightTag: 'R-WING RADAR',
+    cockpitRightTitle: '特技連擊與預測',
+    lblPitch: 'PITCH 俯仰',
+    lblRoll: 'ROLL 滾轉',
+    lblGMeter: 'G-METER 加速度',
+    stallAlert: '⚠️ STALL 臨界失速',
+    pullUpAlert: '⚠️ PULL UP 減速拉起',
+    comboTitle: 'COMBO 連擊',
+    spinDeg: '空中翻滾',
+    stuntSkim: '⚡ 貼地極限掠過 (+0.5x)',
+    stuntInvert: '🔄 反重力倒飛 (+0.4x)',
+    vviText: '垂直降速 VVI',
+    stabForecast: '著陸平穩預測',
+    stabLegend: 'LEGEND 滿分預測',
+    stabPerfect: 'PERFECT 穩健著陸',
+    stabWarn: 'HARD IMPACT 劇烈衝擊',
+    stabCrash: 'CRASH HAZARD 墜毀預警',
+    keyDrive: '推進',
+    keyRollL: '左滾',
+    keySuck: '磁吸',
+    keyRollR: '右滾',
+    keyReset: '重飛',
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip, land on the tires',
@@ -293,6 +317,30 @@ const STR = {
     alignSafe: 'ALIGN SAFE', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
     vviSoft: 'SOFT ZONE (+30)', vviHard: 'FIRM DESCENT', vviHazard: 'CRASH HAZARD (BRAKE)',
     stuntMilestone: (n) => n === 1 ? '360° SINGLE FLIP! +50' : n === 2 ? '720° DOUBLE FLIP! +150' : n === 3 ? '1080° TRIPLE FLIP! +300' : `${n * 360}° STUNT MASTER! +${n * 150}`,
+    cockpitLeftTag: 'L-WING AVIONICS',
+    cockpitLeftTitle: 'Attitude & G-Force',
+    cockpitRightTag: 'R-WING RADAR',
+    cockpitRightTitle: 'Stunts & Stability',
+    lblPitch: 'PITCH',
+    lblRoll: 'ROLL',
+    lblGMeter: 'G-METER',
+    stallAlert: '⚠️ STALL CRITICAL',
+    pullUpAlert: '⚠️ PULL UP BRAKE',
+    comboTitle: 'COMBO MULT',
+    spinDeg: 'SPIN DEG',
+    stuntSkim: '⚡ DECK SKIM (+0.5x)',
+    stuntInvert: '🔄 INVERTED FLIGHT (+0.4x)',
+    vviText: 'VVI DESCENT',
+    stabForecast: 'TOUCHDOWN STABILITY',
+    stabLegend: 'LEGEND PREDICTED',
+    stabPerfect: 'PERFECT TOUCHDOWN',
+    stabWarn: 'FIRM IMPACT WARN',
+    stabCrash: 'CRASH HAZARD',
+    keyDrive: 'THRUST',
+    keyRollL: 'ROLL L',
+    keySuck: 'MAGNET',
+    keyRollR: 'ROLL R',
+    keyReset: 'RETRY',
   },
 };
 let lang = 'tc';
@@ -978,6 +1026,29 @@ const sfx = {
   peel: () => { noiseBurst(0.25, 0.3, 700); beep(300, 0.3, 'sawtooth', 0.12, 90); },
   click: () => beep(700, 0.06, 'square', 0.1),
   best: () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'triangle', 0.16), i * 110)),
+  stuntWhoosh: (combo = 1) => {
+    if (!AC || muted) return;
+    try {
+      const f0 = 240 * Math.min(combo, 2.5);
+      beep(f0, 0.42, 'triangle', 0.2, f0 * 1.8);
+      noiseBurst(0.35, 0.22, 1800 + combo * 300);
+    } catch (e) {}
+  },
+  tireTouchdown: (firmness = 1) => {
+    if (!AC || muted) return;
+    try {
+      noiseBurst(0.16, 0.26 + firmness * 0.15, 2200);
+      beep(1600, 0.08, 'sawtooth', 0.18, 700);
+      beep(80, 0.22, 'sine', 0.32, 36);
+    } catch (e) {}
+  },
+  stallWarning: () => {
+    if (!AC || muted) return;
+    try {
+      beep(980, 0.08, 'sawtooth', 0.16);
+      setTimeout(() => beep(740, 0.08, 'sawtooth', 0.16), 90);
+    } catch (e) {}
+  },
 };
 function audioFrame() {
   if (!AC) return;
@@ -1002,10 +1073,10 @@ function audioFrame() {
 // ---------- input ----------
 function keySet(e, down) {
   switch (e.code) {
-    case 'Space': case 'ArrowUp': if (!e.repeat) { ensureAudio(); if (down) { if (rankOn) closeRank(); else pressStart(); } } inp.drive = down; return true;
-    case 'KeyX': case 'ArrowDown': inp.stick = down; return true;
-    case 'ArrowLeft': inp.left = down; return true;
-    case 'ArrowRight': inp.right = down; return true;
+    case 'Space': case 'ArrowUp': case 'KeyW': if (!e.repeat) { ensureAudio(); if (down) { if (rankOn) closeRank(); else pressStart(); } } inp.drive = down; return true;
+    case 'KeyX': case 'ArrowDown': case 'KeyS': inp.stick = down; return true;
+    case 'ArrowLeft': case 'KeyA': inp.left = down; return true;
+    case 'ArrowRight': case 'KeyD': inp.right = down; return true;
     case 'KeyM': if (down) muted = !muted; return true;
     case 'KeyL': if (down) { ensureAudio(); if (state === ST.READY || state === ST.RESULT) { if (rankOn) closeRank(); else openRank(); } } return true;
     case 'KeyR': if (down && state !== ST.READY) reset(false); return true;
@@ -1140,6 +1211,9 @@ function reset(ready) {
   car.x = p0.x - RUNUP; car.y = p0.y; car.th = 0;
   car.phi = 0; car.phiL = 0; car.rw = 0;
   car.vx = car.vy = 0;
+  car.peakG = 1.0; car.gForce = 1.0; car.prevV = 0;
+  car.comboMult = 1.0; car.hasSkimmed = false; car.skimTime = 0;
+  car.hasInverted = false; car.invertTime = 0; car.stallWarn = false;
   car.air = AIR_MAX; car.airTime = 0; car.time = 0;
   car.suck = car.drive = car.slip = car.onWall = false;
   car.clear = false; car.peeled = car.lifted = car.launched = false;
@@ -1274,6 +1348,10 @@ function stepRoad(dt) {
   if (Z) car.air = Math.max(0, car.air - AIR_JET * Z * dt);
   car.suck = canSuck; car.onWall = car.u > 0;
   let N = car.v * car.v * sm.k + G * cos(sm.phi) - THRUST * Z;
+  const aT = (car.v - (car.prevV || 0)) / dt;
+  car.prevV = car.v;
+  car.gForce = clamp(Math.hypot(N, aT) / G, 0, 9.9);
+  car.peakG = Math.max(car.peakG || 1.0, car.gForce);
   const grip = car.onWall ? clamp((N + A) / (G * 1.5), 0, 1) : 1;
   if (car.onWall && sm.phi > 100 * DEG && !canSuck) sayOnce('grip', t('mGrip'), '#ffd166');
   if ((car.onWall || Z) && N + A < 0) { toAir('detach'); return; }
@@ -1329,12 +1407,42 @@ function stepAir(dt) {
   car.phi += car.rw * dt;
   car.od = (car.od || 0) - Math.hypot(car.vx, car.vy) * dt / CAR.WHEEL_R;
   car.left = jL; car.right = jR; car.suck = false; car.drive = false;
+  car.gForce = Z > 0 ? (Z * THRUST) / G : 0.05;
+  car.peakG = Math.max(car.peakG || 1.0, car.gForce);
   const curRolls = rollsCount(car.phi, car.phiL);
   if (curRolls > (car.stuntRolls || 0)) {
     car.stuntRolls = curRolls;
     say(t('stuntMilestone', curRolls), '#ffd166', 2.4);
-    try { sfx.fanfare(); } catch (e) {}
+    try { sfx.stuntWhoosh(car.comboMult || 1); } catch (e) {}
+    shakeT = 0.25; shakeA = 0.22;
   }
+  // Deck skim & Inverted checks
+  const altM = Math.max(0, car.y - CAR.H);
+  const forwardSpd = Math.hypot(car.vx, car.vy);
+  if (altM <= 2.2 && forwardSpd >= 16.5) {
+    car.skimTime = (car.skimTime || 0) + dt;
+    if (car.skimTime >= 0.12 && !car.hasSkimmed) {
+      car.hasSkimmed = true;
+      pop(car.x, car.y + 1.2, t('stuntSkim'), '#ffd166');
+      try { sfx.stuntWhoosh(2.0); } catch (e) {}
+      shakeT = 0.15; shakeA = 0.15;
+    }
+  }
+  const levelCos = cos(car.phi);
+  if (levelCos <= -0.55 && altM > 3.0) {
+    car.invertTime = (car.invertTime || 0) + dt;
+    if (car.invertTime >= 0.35 && !car.hasInverted) {
+      car.hasInverted = true;
+      pop(car.x, car.y + 1.2, t('stuntInvert'), '#ffd166');
+      try { sfx.stuntWhoosh(1.8); } catch (e) {}
+      shakeT = 0.15; shakeA = 0.15;
+    }
+  }
+  let mult = 1.0 + curRolls * 0.4;
+  if (Math.abs(car.phi - car.phiL) >= 1260 * DEG) mult = Math.max(mult, 3.0);
+  if (car.hasSkimmed) mult += 0.5;
+  if (car.hasInverted) mult += 0.4;
+  car.comboMult = mult;
   if (!car.clear) {
     const S = closestOnTrack(car.x, car.y);
     car.clear = !S || Math.abs(S.n) > LEVEL_CLEAR;
@@ -2003,42 +2111,189 @@ function drawHUD() {
     ctx.fillStyle = UI.text;
     ctx.fillText(t('suckOn'), W() / 2, 68);
   }
-  if (airMode) {
-    const gX = W() / 2, gY = 66;
-    const gR = 24;
+
+  // Dual-wing Aerobatic Stunt Cockpit Telemetry (2D Canvas edition)
+  const showCockpit = state === ST.RUN || airMode;
+  if (showCockpit && W() >= 640) {
+    // Left Wing Avionics Card
+    const lwX = 16, lwY = 56, lwW = 210, lwH = 110;
+    ctx.fillStyle = 'rgba(10, 14, 22, 0.88)';
+    ctx.strokeStyle = 'rgba(111, 240, 208, 0.35)';
+    ctx.lineWidth = 1;
+    roundRect(lwX, lwY, lwW, lwH, 12);
+    ctx.fill(); ctx.stroke();
+
+    // Left Wing Header
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = `700 9px ${MONO}`; ctx.fillStyle = '#6ff0d0';
+    ctx.fillText('L-WING AVIONICS', lwX + 10, lwY + 14);
+    ctx.font = `600 10px ${SANS}`; ctx.fillStyle = UI.muted;
+    ctx.fillText(t('cockpitLeftTitle'), lwX + 110, lwY + 14);
+
+    // ADI Sphere Dial
+    const gX = lwX + 42, gY = lwY + 54, gR = 26;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(gX, gY, gR, 0, TAU); ctx.clip();
+    // Sky
+    ctx.fillStyle = '#103864'; ctx.fillRect(gX - gR, gY - gR, gR * 2, gR * 2);
+    // Horizon rotated
     ctx.save();
     ctx.translate(gX, gY);
-    ctx.fillStyle = 'rgba(8, 12, 18, 0.85)';
-    ctx.beginPath(); ctx.arc(0, 0, gR, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(111, 240, 208, 0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
-
-    ctx.fillStyle = 'rgba(111, 240, 208, 0.22)';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, gR - 2, -Math.PI / 2 - 25 * DEG, -Math.PI / 2 + 25 * DEG);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.save();
     ctx.rotate(-car.phi);
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.moveTo(-gR + 3, 0); ctx.lineTo(gR - 3, 0); ctx.stroke();
+    // Ground
+    ctx.fillStyle = '#5c3818'; ctx.fillRect(-gR, 0, gR * 2, gR * 2);
+    // Horizon line
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(-gR, -1, gR * 2, 2);
+    // Pitch lines
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillRect(-8, -12, 16, 1);
+    ctx.fillRect(-8, 12, 16, 1);
+    ctx.restore();
+    // Safe cone
+    ctx.fillStyle = 'rgba(111, 240, 208, 0.22)';
+    ctx.beginPath(); ctx.moveTo(gX, gY);
+    ctx.arc(gX, gY, gR - 2, -Math.PI / 2 - 25 * DEG, -Math.PI / 2 + 25 * DEG);
+    ctx.closePath(); ctx.fill();
     ctx.restore();
 
+    // Dial border & Reticle
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(gX, gY, gR, 0, TAU); ctx.stroke();
     ctx.strokeStyle = '#6ff0d0'; ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(-11, 0); ctx.lineTo(-4, 0);
-    ctx.moveTo(4, 0); ctx.lineTo(11, 0);
+    ctx.moveTo(gX - 12, gY); ctx.lineTo(gX - 4, gY);
+    ctx.moveTo(gX + 4, gY); ctx.lineTo(gX + 12, gY);
     ctx.stroke();
-    ctx.fillStyle = '#6ff0d0'; ctx.beginPath(); ctx.arc(0, 0, 2, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#6ff0d0'; ctx.beginPath(); ctx.arc(gX, gY, 2, 0, TAU); ctx.fill();
 
+    // Telemetry text
     const tilt = tiltNow();
+    const tiltDeg = (tilt / DEG).toFixed(0);
     const isSafe = tilt <= LAND_TILT;
-    ctx.font = `700 11px ${SANS}`;
-    ctx.fillStyle = isSafe ? '#6ff0d0' : tilt > Math.PI / 2 ? '#ff5c5c' : '#ffaa00';
+    ctx.font = `600 10px ${MONO}`; ctx.fillStyle = UI.muted; ctx.textAlign = 'left';
+    ctx.fillText(`ROLL ${tiltDeg}°`, lwX + 78, lwY + 38);
+    ctx.font = `700 11px ${MONO}`; ctx.fillStyle = UI.text;
+    ctx.fillText(`G: ${(car.gForce || 1.0).toFixed(1)}G`, lwX + 78, lwY + 54);
+    ctx.font = `500 9px ${MONO}`; ctx.fillStyle = UI.faint;
+    ctx.fillText(`PEAK: ${(car.peakG || 1.0).toFixed(1)}G`, lwX + 135, lwY + 54);
+
+    // G-meter track
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(lwX + 78, lwY + 62, 116, 4);
+    const gPct = clamp(((car.gForce || 1.0) / 6), 0, 1);
+    ctx.fillStyle = gPct > 0.7 ? '#ff4444' : gPct > 0.4 ? '#ffd166' : '#6ff0d0';
+    ctx.fillRect(lwX + 78, lwY + 62, 116 * gPct, 4);
+
+    // Attitude badge or Stall warning
+    const vs = car.vy * 3.6;
+    const isPullUp = airMode && vs < -35;
+    const isStall = airMode && cos(car.phi) < -0.55 && vs < -20;
+    if (isPullUp || isStall) {
+      ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+      ctx.strokeStyle = '#ff4444';
+      roundRect(lwX + 10, lwY + 84, lwW - 20, 18, 9);
+      ctx.fill(); ctx.stroke();
+      ctx.font = `700 10px ${SANS}`; ctx.fillStyle = '#ff5555'; ctx.textAlign = 'center';
+      ctx.fillText(isPullUp ? t('pullUpAlert') : t('stallAlert'), lwX + lwW / 2, lwY + 93);
+    } else {
+      ctx.fillStyle = isSafe ? 'rgba(111,240,208,0.22)' : tilt > Math.PI / 2 ? 'rgba(255,68,68,0.25)' : 'rgba(255,170,0,0.22)';
+      ctx.strokeStyle = isSafe ? '#6ff0d0' : tilt > Math.PI / 2 ? '#ff5555' : '#ffaa00';
+      roundRect(lwX + 10, lwY + 84, lwW - 20, 18, 9);
+      ctx.fill(); ctx.stroke();
+      ctx.font = `700 10px ${SANS}`; ctx.fillStyle = isSafe ? '#6ff0d0' : tilt > Math.PI / 2 ? '#ff5555' : '#ffaa00'; ctx.textAlign = 'center';
+      ctx.fillText(isSafe ? t('alignSafe') : tilt > Math.PI / 2 ? t('alignInverted') : t('alignWarn'), lwX + lwW / 2, lwY + 93);
+    }
+
+    // Right Wing Radar Card
+    const rwX = W() - 226, rwY = 56, rwW = 210, rwH = 110;
+    ctx.fillStyle = 'rgba(10, 14, 22, 0.88)';
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.35)';
+    ctx.lineWidth = 1;
+    roundRect(rwX, rwY, rwW, rwH, 12);
+    ctx.fill(); ctx.stroke();
+
+    // Right Wing Header
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = `700 9px ${MONO}`; ctx.fillStyle = '#ffd166';
+    ctx.fillText('R-WING RADAR', rwX + 10, rwY + 14);
+    ctx.font = `600 10px ${SANS}`; ctx.fillStyle = UI.muted;
+    ctx.fillText(t('cockpitRightTitle'), rwX + 110, rwY + 14);
+
+    // Stunt combo
+    ctx.font = `900 18px ${MONO}`; ctx.fillStyle = '#ffd166';
+    ctx.fillText(`x${(car.comboMult || 1.0).toFixed(1)}`, rwX + 12, rwY + 38);
+    const rotDeg = Math.round(Math.abs(car.phi - car.phiL) * 180 / Math.PI);
+    ctx.font = `500 10px ${MONO}`; ctx.fillStyle = UI.muted; ctx.textAlign = 'right';
+    ctx.fillText(`FLIP ${rotDeg}°`, rwX + rwW - 12, rwY + 38);
+
+    // Combo progress bar
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(rwX + 12, rwY + 47, rwW - 24, 4);
+    const flipPct = ((Math.abs(car.phi - car.phiL) % TAU) / TAU);
+    ctx.fillStyle = '#ffd166';
+    ctx.fillRect(rwX + 12, rwY + 47, (rwW - 24) * flipPct, 4);
+
+    // Stability calculation & VVI
+    const descentSpd = Math.max(0, -vs);
+    const fDesc = clamp(1 - (descentSpd / 40), 0, 1);
+    const fTilt = clamp(1 - (tilt / (35 * DEG)), 0, 1);
+    const fSpin = clamp(1 - (Math.abs(car.rw) / 5), 0, 1);
+    const stabPct = airMode ? Math.round(fDesc * fTilt * fSpin * 100) : 100;
+
+    ctx.textAlign = 'left';
+    ctx.font = `600 10px ${SANS}`; ctx.fillStyle = UI.faint;
+    ctx.fillText(t('stabForecast'), rwX + 12, rwY + 65);
+    ctx.textAlign = 'right';
+    ctx.font = `700 10px ${MONO}`; ctx.fillStyle = UI.text;
+    ctx.fillText(`${stabPct}%`, rwX + rwW - 12, rwY + 65);
+
+    // Stability bar
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(rwX + 12, rwY + 72, rwW - 24, 4);
+    ctx.fillStyle = stabPct >= 80 ? '#6ff0d0' : stabPct >= 50 ? '#ffd166' : '#ff4444';
+    ctx.fillRect(rwX + 12, rwY + 72, (rwW - 24) * (stabPct / 100), 4);
+
+    // Predict badge
+    ctx.fillStyle = (descentSpd > 35 || tilt > LAND_TILT) ? 'rgba(255,68,68,0.25)' : stabPct >= 80 ? 'rgba(111,240,208,0.22)' : 'rgba(255,170,0,0.22)';
+    ctx.strokeStyle = (descentSpd > 35 || tilt > LAND_TILT) ? '#ff5555' : stabPct >= 80 ? '#6ff0d0' : '#ffaa00';
+    roundRect(rwX + 10, rwY + 84, rwW - 20, 18, 9);
+    ctx.fill(); ctx.stroke();
+    ctx.font = `700 10px ${SANS}`;
+    ctx.fillStyle = (descentSpd > 35 || tilt > LAND_TILT) ? '#ff5555' : stabPct >= 80 ? '#6ff0d0' : '#ffaa00';
     ctx.textAlign = 'center';
-    ctx.fillText(isSafe ? t('alignSafe') : tilt > Math.PI / 2 ? t('alignInverted') : t('alignWarn'), 0, gR + 15);
-    ctx.restore();
+    ctx.fillText((descentSpd > 35 || tilt > LAND_TILT) ? t('stabCrash') : stabPct >= 80 ? t('stabLegend') : t('stabPerfect'), rwX + rwW / 2, rwY + 93);
+  }
+
+  // Esports Key Matrix Guide HUD (desktop only)
+  if (!isTouch && !activePtr.size && W() >= 640) {
+    const kmX = W() / 2, kmY = H() - 24;
+    const keys = [
+      { key: 'W', act: inp.drive, lbl: '推進' },
+      { key: 'A', act: inp.left, lbl: '左滾' },
+      { key: 'S', act: inp.stick, lbl: '磁吸' },
+      { key: 'D', act: inp.right, lbl: '右滾' },
+      { key: 'SPACE', act: inp.drive, lbl: '' },
+      { key: 'R', act: false, lbl: '重飛' },
+    ];
+    let totalW = 0;
+    for (const k of keys) totalW += (k.key === 'SPACE' ? 52 : 28) + (k.lbl ? 32 : 6);
+    let curX = kmX - totalW / 2;
+    ctx.textBaseline = 'middle';
+    for (const k of keys) {
+      const capW = k.key === 'SPACE' ? 46 : 24;
+      ctx.fillStyle = k.act ? '#6ff0d0' : 'rgba(255,255,255,0.1)';
+      ctx.strokeStyle = k.act ? '#6ff0d0' : 'rgba(255,255,255,0.25)';
+      roundRect(curX, kmY - 10, capW, 20, 4);
+      ctx.fill(); ctx.stroke();
+      ctx.font = `700 10px ${MONO}`; ctx.fillStyle = k.act ? '#0c0d0f' : '#ffffff'; ctx.textAlign = 'center';
+      ctx.fillText(k.key, curX + capW / 2, kmY);
+      curX += capW + 4;
+      if (k.lbl) {
+        ctx.font = `500 10px ${SANS}`; ctx.fillStyle = k.act ? '#6ff0d0' : UI.faint; ctx.textAlign = 'left';
+        ctx.fillText(k.lbl, curX, kmY);
+        curX += 28;
+      }
+    }
   }
   if (isTouch || activePtr.size) {
     ctx.textAlign = 'center';

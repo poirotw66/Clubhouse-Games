@@ -273,100 +273,330 @@
     mix-blend-mode: screen;
   }
 
-  /* Stunt Flight Telemetry & Attitude Director */
-  .wf-flight-director {
-    position: fixed; top: 58px; left: 50%; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 14px;
-    padding: 8px 18px; border-radius: 16px;
-    background: rgba(8, 11, 16, 0.9); backdrop-filter: blur(12px);
+  /* ============================================================
+     Dual-wing Aerobatic Stunt Cockpit (雙翼特技飛行航空座艙)
+     ============================================================ */
+  .wf-cockpit {
+    position: fixed; inset: 0; pointer-events: none; z-index: 12;
+    transition: opacity 0.25s ease;
+  }
+  .wf-cockpit[hidden] { display: none !important; }
+
+  /* Left & Right Avionics Wings */
+  .wf-cockpit-wing {
+    position: fixed;
+    display: flex; flex-direction: column; gap: 7px;
+    padding: 10px 14px; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(10, 14, 22, 0.90), rgba(6, 8, 14, 0.95));
+    backdrop-filter: blur(14px);
     border: 1px solid rgba(111, 240, 208, 0.35);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 16px rgba(111, 240, 208, 0.15);
-    z-index: 12; pointer-events: none;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.72), 0 0 22px rgba(111, 240, 208, 0.12);
+    pointer-events: auto;
+    transition: transform 0.2s ease, opacity 0.2s ease;
   }
-  .wf-flight-director[hidden] {
-    opacity: 0; transform: translateX(-50%) translateY(-10px); pointer-events: none; display: none;
+  .wf-wing-left {
+    top: 56px; left: 16px; width: 236px;
   }
-  .wf-fd-card {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  .wf-wing-right {
+    top: 56px; right: 16px; width: 252px;
   }
-  .wf-fd-header {
-    display: flex; justify-content: space-between; width: 100%; gap: 8px;
-    font: 600 11px var(--sans); color: var(--muted);
+  .wf-wing-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12); padding-bottom: 4px; margin-bottom: 2px;
   }
-  .wf-fd-header b {
-    font: 600 12px var(--mono); color: var(--text);
+  .wf-wing-tag {
+    font: 700 10px/1 var(--mono); letter-spacing: 0.12em; color: var(--mint);
   }
-  .wf-fd-badge {
-    margin-top: 4px; padding: 2px 8px; border-radius: 999px;
-    font: 700 11px/1.3 var(--sans); text-align: center; white-space: nowrap;
-    background: rgba(255, 255, 255, 0.08); color: var(--muted);
-    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  .wf-wing-title {
+    font: 600 11px/1 var(--sans); color: var(--muted);
   }
-  .wf-fd-badge.safe {
-    background: rgba(111, 240, 208, 0.25); color: #6ff0d0;
-    box-shadow: 0 0 10px rgba(111, 240, 208, 0.4);
-  }
-  .wf-fd-badge.warn {
-    background: rgba(255, 170, 0, 0.25); color: #ffaa00;
-  }
-  .wf-fd-badge.danger {
-    background: rgba(255, 60, 60, 0.35); color: #ff5555;
-    animation: fdPulse 0.4s infinite alternate;
-  }
-  @keyframes fdPulse { from { opacity: 0.7; } to { opacity: 1; } }
 
-  /* VVI vertical speed track */
-  .wf-fd-vvi { width: 104px; }
-  .wf-fd-vvi-track {
-    position: relative; width: 100%; height: 8px; border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1); margin: 6px 0 2px; overflow: hidden;
+  /* 3D Attitude Director Indicator (ADI) */
+  .wf-adi-box {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
   }
-  .wf-fd-vvi-safe {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 33%;
-    background: rgba(111, 240, 208, 0.35); border-right: 1px dashed rgba(111, 240, 208, 0.8);
+  .wf-adi-dial {
+    position: relative; width: 84px; height: 84px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.24); overflow: hidden;
+    background: #080d16; box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.85);
   }
-  .wf-fd-vvi-bar {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
-    background: var(--mint); border-radius: 4px; transition: width 0.08s linear;
-  }
-  .wf-fd-vvi-bar.warn { background: #ffaa00; }
-  .wf-fd-vvi-bar.danger { background: #ff4444; box-shadow: 0 0 8px #ff4444; }
-
-  /* Attitude Horizon Gimbal */
-  .wf-fd-horizon-card { min-width: 110px; padding: 0 8px; }
-  .wf-fd-gimbal {
-    position: relative; width: 68px; height: 68px; border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.2); overflow: hidden;
-    background: #0d121c; margin-bottom: 2px;
-  }
-  .wf-fd-dial {
+  .wf-adi-ring {
     position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none;
   }
-  .wf-fd-horizon-ball {
-    position: absolute; inset: -15px; border-radius: 50%; z-index: 1;
+  .wf-adi-safe-cone {
+    fill: rgba(111, 240, 208, 0.22); stroke: rgba(111, 240, 208, 0.8); stroke-width: 1.2;
+  }
+  .wf-adi-sphere {
+    position: absolute; inset: -22px; border-radius: 50%; z-index: 1;
     transform-origin: center center; will-change: transform;
   }
-  .wf-fd-sky { height: 50%; background: linear-gradient(180deg, #103254 0%, #1d5f99 100%); }
-  .wf-fd-line { height: 2px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 4px #fff; }
-  .wf-fd-ground { height: 50%; background: linear-gradient(180deg, #5c3a21 0%, #2e1a0b 100%); }
-  .wf-fd-reticle {
+  .wf-adi-sky {
+    position: relative; height: 50%;
+    background: linear-gradient(180deg, #0e3b68 0%, #1e6bb8 100%);
+  }
+  .wf-adi-horizon-line {
+    height: 2px; background: #ffffff; box-shadow: 0 0 6px #ffffff;
+  }
+  .wf-adi-ground {
+    position: relative; height: 50%;
+    background: linear-gradient(180deg, #5c3818 0%, #2c1a0a 100%);
+  }
+  .wf-adi-pitch-line {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    width: 24px; height: 1px; background: rgba(255, 255, 255, 0.55);
+    display: flex; justify-content: center;
+  }
+  .wf-adi-pitch-line span {
+    position: absolute; top: -7px; font: 600 7px var(--mono); color: rgba(255, 255, 255, 0.85);
+  }
+  .wf-adi-pitch-line.p20 { top: 22%; width: 28px; }
+  .wf-adi-pitch-line.p10 { top: 58%; width: 18px; }
+  .wf-adi-pitch-line.n10 { top: 28%; width: 18px; }
+  .wf-adi-pitch-line.n20 { top: 64%; width: 28px; }
+
+  .wf-adi-reticle {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     z-index: 4; pointer-events: none;
   }
-  .wf-fd-wing { width: 16px; height: 2px; background: #6ff0d0; box-shadow: 0 0 6px #6ff0d0; }
-  .wf-fd-pip { width: 6px; height: 6px; border-radius: 50%; background: #6ff0d0; margin: 0 4px; box-shadow: 0 0 6px #6ff0d0; }
-
-  /* Spin progress track */
-  .wf-fd-spin { width: 104px; }
-  .wf-fd-spin-track {
-    position: relative; width: 100%; height: 8px; border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1); margin: 6px 0 2px; overflow: hidden;
+  .wf-reticle-wing {
+    width: 18px; height: 2.5px; background: #6ff0d0; box-shadow: 0 0 8px #6ff0d0; border-radius: 1px;
   }
-  .wf-fd-spin-bar {
+  .wf-reticle-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #6ff0d0; margin: 0 4px; box-shadow: 0 0 8px #6ff0d0;
+  }
+
+  .wf-telemetry-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%;
+  }
+  .wf-tele-item {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 3px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.04);
+  }
+  .wf-tele-label {
+    font: 600 9px var(--mono); color: var(--faint); text-transform: uppercase;
+  }
+  .wf-tele-item b {
+    font: 600 13px/1.2 var(--mono); color: var(--text); font-variant-numeric: tabular-nums;
+  }
+
+  .wf-cockpit-badge {
+    padding: 3px 10px; border-radius: 999px;
+    font: 700 10.5px/1.3 var(--sans); text-align: center; white-space: nowrap; width: 100%;
+    background: rgba(255, 255, 255, 0.08); color: var(--muted);
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .wf-cockpit-badge.safe {
+    background: rgba(111, 240, 208, 0.22); color: #6ff0d0;
+    box-shadow: 0 0 10px rgba(111, 240, 208, 0.35); border: 1px solid rgba(111, 240, 208, 0.4);
+  }
+  .wf-cockpit-badge.warn {
+    background: rgba(255, 170, 0, 0.22); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.4);
+  }
+  .wf-cockpit-badge.danger {
+    background: rgba(255, 68, 68, 0.3); color: #ff5555; border: 1px solid rgba(255, 68, 68, 0.5);
+    animation: wfPulse 0.4s infinite alternate;
+  }
+  @keyframes wfPulse { from { opacity: 0.7; } to { opacity: 1; } }
+
+  /* G-Force Meter & Stall Beacon */
+  .wf-gmeter-box {
+    margin-top: 2px; padding: 6px 8px; border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .wf-gmeter-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font: 600 10px var(--sans); color: var(--faint);
+  }
+  .wf-gmeter-head b {
+    font: 700 13px var(--mono); color: var(--text); font-variant-numeric: tabular-nums;
+  }
+  .wf-gmeter-track {
+    position: relative; width: 100%; height: 7px; border-radius: 3.5px;
+    background: rgba(255, 255, 255, 0.09); margin: 5px 0 3px; overflow: hidden;
+  }
+  .wf-gmeter-bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 20%;
+    background: linear-gradient(90deg, #6ff0d0 0%, #ffd166 65%, #ff4444 100%);
+    border-radius: 3.5px; transition: width 0.06s linear;
+  }
+  .wf-gmeter-marks {
+    display: flex; justify-content: space-between; font: 500 8.5px var(--mono); color: var(--faint);
+  }
+  .wf-gmeter-sub {
+    display: flex; justify-content: space-between; align-items: center; margin-top: 4px;
+    font: 500 10px var(--mono); color: var(--muted);
+  }
+  .wf-stall-beacon {
+    padding: 2px 6px; border-radius: 4px; font: 700 9.5px var(--sans);
+    background: rgba(255, 40, 40, 0.35); color: #ff5555; border: 1px solid #ff4444;
+    animation: wfPulse 0.3s infinite alternate;
+  }
+
+  /* Right Wing Stunts & Radar */
+  .wf-stunt-combo-card {
+    padding: 6px 10px; border-radius: 10px;
+    background: rgba(255, 209, 102, 0.06); border: 1px solid rgba(255, 209, 102, 0.22);
+  }
+  .wf-combo-hero {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .wf-combo-title {
+    font: 700 10px var(--mono); color: #ffd166; letter-spacing: 0.1em;
+  }
+  .wf-combo-mult {
+    font: 900 20px/1 var(--mono); color: #ffd166; text-shadow: 0 0 10px rgba(255, 209, 102, 0.6);
+  }
+  .wf-combo-track {
+    position: relative; width: 100%; height: 6px; border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08); margin: 6px 0 4px; overflow: hidden;
+  }
+  .wf-combo-bar {
     position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
-    background: linear-gradient(90deg, #6ff0d0, #ffd166); border-radius: 4px;
+    background: linear-gradient(90deg, #6ff0d0, #ffd166); border-radius: 3px;
     transition: width 0.08s linear;
+  }
+  .wf-stunt-tags {
+    display: flex; flex-direction: column; gap: 3px; margin-top: 4px;
+  }
+  .wf-stunt-pill {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 2px 6px; border-radius: 4px; font: 600 9.5px var(--sans);
+    background: rgba(255, 255, 255, 0.05); color: var(--faint);
+    transition: background 0.15s, color 0.15s;
+  }
+  .wf-stunt-pill.active {
+    background: rgba(255, 209, 102, 0.22); color: #ffd166;
+    border: 1px solid rgba(255, 209, 102, 0.45); text-shadow: 0 0 6px rgba(255, 209, 102, 0.4);
+  }
+
+  /* Landing Stability Forecast */
+  .wf-landing-forecast-card {
+    padding: 6px 10px; border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .wf-forecast-vvi-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font: 600 10px var(--sans); color: var(--muted);
+  }
+  .wf-forecast-vvi-row b {
+    font: 600 13px var(--mono); color: var(--text); font-variant-numeric: tabular-nums;
+  }
+  .wf-forecast-vvi-track {
+    position: relative; width: 100%; height: 6px; border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08); margin: 5px 0 4px; overflow: hidden;
+  }
+  .wf-forecast-vvi-safe {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 33%;
+    background: rgba(111, 240, 208, 0.35); border-right: 1px dashed rgba(111, 240, 208, 0.8);
+  }
+  .wf-forecast-vvi-bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    background: var(--mint); border-radius: 3px; transition: width 0.08s linear;
+  }
+  .wf-forecast-vvi-bar.warn { background: #ffaa00; }
+  .wf-forecast-vvi-bar.danger { background: #ff4444; box-shadow: 0 0 8px #ff4444; }
+
+  .wf-stab-meter-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 4px 0 6px;
+    font: 500 10px var(--sans); color: var(--faint);
+  }
+  .wf-stab-track {
+    flex: 1; height: 5px; border-radius: 2.5px; background: rgba(255, 255, 255, 0.08); overflow: hidden;
+  }
+  .wf-stab-bar {
+    height: 100%; width: 100%; background: linear-gradient(90deg, #ff4444 0%, #ffd166 50%, #6ff0d0 100%);
+    border-radius: 2.5px; transition: width 0.1s linear;
+  }
+  .wf-stab-val {
+    font: 600 11px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; min-width: 32px; text-align: right;
+  }
+
+  /* Master Manual Toggle Button */
+  .wf-manual-toggle-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.05); color: var(--muted);
+    font: 600 11px var(--sans); cursor: pointer; pointer-events: auto;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .wf-manual-toggle-btn:hover {
+    background: rgba(111, 240, 208, 0.15); color: #fff; border-color: rgba(111, 240, 208, 0.4);
+  }
+
+  /* Esports Key Matrix Guide HUD */
+  .wf-cockpit-key-matrix {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; align-items: center;
+    padding: 6px 14px; border-radius: 999px;
+    background: rgba(10, 14, 22, 0.88); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
+    z-index: 12; pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .wf-key-item {
+    display: flex; align-items: center; gap: 5px;
+  }
+  .wf-key-cap {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 24px; padding: 0 6px; border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+    font: 700 11px var(--mono); color: var(--text);
+    transition: background 0.08s, color 0.08s, transform 0.08s, box-shadow 0.08s;
+  }
+  .wf-key-item.active .wf-key-cap {
+    background: #6ff0d0; color: #0c0d0f; border-color: #6ff0d0;
+    box-shadow: 0 0 12px rgba(111, 240, 208, 0.8); transform: translateY(1px);
+  }
+  .wf-key-desc {
+    font: 500 11px var(--sans); color: var(--faint);
+  }
+  .wf-key-item.active .wf-key-desc { color: #fff; }
+
+  /* Tactical Stunt Manual Drawer Modal */
+  .wf-manual-modal {
+    position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center;
+    background: rgba(10, 12, 18, 0.82); backdrop-filter: blur(12px); pointer-events: auto;
+  }
+  .wf-manual-modal[hidden] { display: none !important; }
+  .wf-manual-card {
+    width: min(92vw, 560px); max-height: 85vh; overflow-y: auto;
+    background: #141822; border: 1px solid rgba(111, 240, 208, 0.35); border-radius: 20px;
+    padding: 22px 24px 20px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(111, 240, 208, 0.15);
+  }
+  .wf-manual-head {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 10px;
+  }
+  .wf-manual-head h3 {
+    margin: 0; font: 700 16px/1.3 var(--sans); color: #fff; display: flex; align-items: center; gap: 8px;
+  }
+  .wf-manual-close {
+    background: transparent; border: 0; cursor: pointer; color: var(--muted);
+    font: 600 18px/1 var(--sans); padding: 4px 8px; border-radius: 50%;
+  }
+  .wf-manual-close:hover { color: #fff; }
+  .wf-manual-grid {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .wf-manual-step {
+    display: flex; gap: 12px; padding: 10px 14px; border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .wf-manual-step .ico {
+    font-size: 24px; line-height: 1; flex-shrink: 0;
+  }
+  .wf-manual-step h4 {
+    margin: 0 0 4px; font: 600 14px var(--sans); color: var(--mint);
+  }
+  .wf-manual-step p {
+    margin: 0; font: 400 12.5px/1.45 var(--sans); color: var(--muted);
+  }
+  .wf-manual-step kbd {
+    display: inline-block; padding: 1px 5px; border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.22);
+    font: 600 11px var(--mono); color: #fff;
   }
 
   /* Kinetic Stunt Milestone Banner */
@@ -398,12 +628,28 @@
     100% { opacity: 0; transform: translate(-50%, -30px) scale(0.9); }
   }
 
-  @media (max-width: 720px) {
-    .wf-flight-director {
-      top: 88px; padding: 6px 10px; gap: 8px; transform: translateX(-50%) scale(0.85);
-      transform-origin: top center;
+  /* Responsive Mobile Tactical Quick-Bar */
+  @media (max-width: 860px) {
+    .wf-wing-left { width: 190px; left: 10px; padding: 8px 10px; }
+    .wf-wing-right { width: 200px; right: 10px; padding: 8px 10px; }
+    .wf-adi-dial { width: 68px; height: 68px; }
+  }
+  @media (max-width: 680px) {
+    .wf-cockpit {
+      position: fixed; top: 48px; left: 0; right: 0; pointer-events: none;
+      display: flex; flex-direction: column; gap: 4px; padding: 4px 8px;
     }
-    .wf-fd-vvi, .wf-fd-spin { width: 80px; }
+    .wf-cockpit-wing {
+      position: static; width: auto; flex-direction: row; align-items: center; justify-content: space-between;
+      padding: 6px 10px; border-radius: 12px; gap: 8px;
+    }
+    .wf-wing-left, .wf-wing-right { width: 100%; }
+    .wf-adi-box { flex-direction: row; gap: 8px; }
+    .wf-adi-dial { width: 44px; height: 44px; }
+    .wf-telemetry-grid { display: none; }
+    .wf-gmeter-box { padding: 2px 6px; }
+    .wf-stunt-tags { display: none; }
+    .wf-cockpit-key-matrix { display: none; }
   }
 </style>
 </head>
@@ -457,54 +703,195 @@
   </div>
   <div id="hint" hidden></div>
   <div id="speedWarp"></div>
-  <div id="flightDirector" class="wf-flight-director" hidden>
-    <!-- Left Telemetry: Descent / Vertical Speed Radar -->
-    <div class="wf-fd-card wf-fd-vvi">
-      <div class="wf-fd-header">
-        <span id="lblVvi">垂直降速</span>
-        <b id="vviVal">0 km/h</b>
+  <div id="stuntCockpit" class="wf-cockpit" hidden>
+    <!-- Left Wing Cockpit: 3D ADI Horizon & G-Meter Telemetry & Stall Alert -->
+    <aside class="wf-cockpit-wing wf-wing-left">
+      <div class="wf-wing-header">
+        <span class="wf-wing-tag" id="tagLeftWing">L-WING AVIONICS</span>
+        <span class="wf-wing-title" id="lblLeftWing">姿態儀與過載遙測</span>
       </div>
-      <div class="wf-fd-vvi-track">
-        <div class="wf-fd-vvi-safe" title="Soft Landing ≤ 18 km/h"></div>
-        <div id="vviBar" class="wf-fd-vvi-bar"></div>
+
+      <!-- 3D Attitude Director Indicator (ADI) -->
+      <div class="wf-adi-box">
+        <div class="wf-adi-dial">
+          <svg class="wf-adi-ring" viewBox="-45 -45 90 90">
+            <path class="wf-adi-safe-cone" d="M -16 -40 A 43 43 0 0 1 16 -40 L 0 0 Z" />
+            <circle cx="0" cy="0" r="41" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" />
+            <line x1="0" y1="-41" x2="0" y2="-33" stroke="#6ff0d0" stroke-width="2.5" />
+            <line x1="-35.5" y1="-20.5" x2="-29" y2="-17" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" />
+            <line x1="35.5" y1="-20.5" x2="29" y2="-17" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" />
+            <line x1="-41" y1="0" x2="-33" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" />
+            <line x1="41" y1="0" x2="33" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" />
+          </svg>
+          <div id="adiSphere" class="wf-adi-sphere">
+            <div class="wf-adi-sky">
+              <div class="wf-adi-pitch-line p20"><span>+20°</span></div>
+              <div class="wf-adi-pitch-line p10"><span>+10°</span></div>
+            </div>
+            <div class="wf-adi-horizon-line"></div>
+            <div class="wf-adi-ground">
+              <div class="wf-adi-pitch-line n10"><span>-10°</span></div>
+              <div class="wf-adi-pitch-line n20"><span>-20°</span></div>
+            </div>
+          </div>
+          <div class="wf-adi-reticle">
+            <span class="wf-reticle-wing"></span>
+            <span class="wf-reticle-dot"></span>
+            <span class="wf-reticle-wing"></span>
+          </div>
+        </div>
+        <div class="wf-telemetry-grid">
+          <div class="wf-tele-item">
+            <span class="wf-tele-label" id="lblPitch">PITCH 俯仰</span>
+            <b id="telePitch">+0.0°</b>
+          </div>
+          <div class="wf-tele-item">
+            <span class="wf-tele-label" id="lblRoll">ROLL 滾轉</span>
+            <b id="teleRoll">0.0°</b>
+          </div>
+        </div>
+        <div id="attitudeBadge" class="wf-cockpit-badge safe">ALIGN SAFE 姿態對齊</div>
       </div>
-      <div id="vviStatus" class="wf-fd-badge">SOFT ZONE</div>
+
+      <!-- G-Force Meter -->
+      <div class="wf-gmeter-box">
+        <div class="wf-gmeter-head">
+          <span id="lblGMeter">G-METER 加速度</span>
+          <b id="gVal">1.0 G</b>
+        </div>
+        <div class="wf-gmeter-track">
+          <div id="gBar" class="wf-gmeter-bar" style="width: 16%;"></div>
+        </div>
+        <div class="wf-gmeter-marks">
+          <span>0G</span>
+          <span>1G</span>
+          <span>3G</span>
+          <span>5G+</span>
+        </div>
+        <div class="wf-gmeter-sub">
+          <span>PEAK: <b id="gPeak">1.0 G</b></span>
+          <span id="stallAlert" class="wf-stall-beacon" hidden>STALL 臨界失速</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Esports Key Matrix Guide HUD -->
+    <div class="wf-cockpit-key-matrix">
+      <div class="wf-key-item" data-code="KeyW" data-alt="Space">
+        <span class="wf-key-cap">W</span>
+        <span class="wf-key-desc" id="lblKeyDrive">推進</span>
+      </div>
+      <div class="wf-key-item" data-code="KeyA" data-alt="ArrowLeft">
+        <span class="wf-key-cap">A</span>
+        <span class="wf-key-desc" id="lblKeyRollL">左滾</span>
+      </div>
+      <div class="wf-key-item" data-code="KeyS" data-alt="KeyX">
+        <span class="wf-key-cap">S</span>
+        <span class="wf-key-desc" id="lblKeySuck">磁吸</span>
+      </div>
+      <div class="wf-key-item" data-code="KeyD" data-alt="ArrowRight">
+        <span class="wf-key-cap">D</span>
+        <span class="wf-key-desc" id="lblKeyRollR">右滾</span>
+      </div>
+      <div class="wf-key-item" data-code="Space">
+        <span class="wf-key-cap">SPACE</span>
+      </div>
+      <div class="wf-key-item" data-code="KeyR">
+        <span class="wf-key-cap">R</span>
+        <span class="wf-key-desc" id="lblKeyReset">重飛</span>
+      </div>
     </div>
 
-    <!-- Center: Flight Attitude Horizon Gimbal -->
-    <div class="wf-fd-card wf-fd-horizon-card">
-      <div class="wf-fd-gimbal">
-        <svg class="wf-fd-dial" viewBox="-40 -40 80 80">
-          <path class="wf-fd-safe-cone" d="M -15 -36 A 39 39 0 0 1 15 -36 L 0 0 Z" fill="rgba(111,240,208,0.2)" stroke="rgba(111,240,208,0.7)" stroke-width="1.2" />
-          <circle cx="0" cy="0" r="36" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1" />
-          <line x1="-36" y1="0" x2="-28" y2="0" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
-          <line x1="28" y1="0" x2="36" y2="0" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
-          <line x1="0" y1="-36" x2="0" y2="-28" stroke="rgba(111,240,208,0.9)" stroke-width="2" />
-        </svg>
-        <div id="fdHorizonBall" class="wf-fd-horizon-ball">
-          <div class="wf-fd-sky"></div>
-          <div class="wf-fd-line"></div>
-          <div class="wf-fd-ground"></div>
-        </div>
-        <div class="wf-fd-reticle">
-          <span class="wf-fd-wing l"></span>
-          <span class="wf-fd-pip"></span>
-          <span class="wf-fd-wing r"></span>
-        </div>
+    <!-- Right Wing Radar & Stunts -->
+    <aside class="wf-cockpit-wing wf-wing-right">
+      <div class="wf-wing-header">
+        <span class="wf-wing-tag" id="tagRightWing">R-WING RADAR</span>
+        <span class="wf-wing-title" id="lblRightWing">特技連擊與預測</span>
       </div>
-      <div id="fdAttitudeBadge" class="wf-fd-badge">ALIGN SAFE</div>
-    </div>
 
-    <!-- Right Telemetry: Stunt Spin Progress & Degrees -->
-    <div class="wf-fd-card wf-fd-spin">
-      <div class="wf-fd-header">
-        <span id="lblSpin">空中特技</span>
-        <b id="spinVal">0°</b>
+      <!-- Stunt Combo Multiplier -->
+      <div class="wf-stunt-combo-card">
+        <div class="wf-combo-hero">
+          <span class="wf-combo-title" id="lblComboTitle">COMBO 連擊</span>
+          <b id="comboMult" class="wf-combo-mult">x1.0</b>
+        </div>
+        <div class="wf-forecast-vvi-row" style="margin-top: 4px;">
+          <span id="lblSpinDeg">空中翻滾</span>
+          <b id="spinDeg">0°</b>
+        </div>
+        <div class="wf-combo-track">
+          <div id="comboBar" class="wf-combo-bar" style="width: 0%;"></div>
+        </div>
+        <div class="wf-stunt-tags">
+          <div id="tagDeckSkim" class="wf-stunt-pill">
+            <span id="lblStuntSkim">⚡ 貼地極限掠過</span>
+            <span>+0.5x</span>
+          </div>
+          <div id="tagInvertFlight" class="wf-stunt-pill">
+            <span id="lblStuntInvert">🔄 反重力倒飛</span>
+            <span>+0.4x</span>
+          </div>
+        </div>
       </div>
-      <div class="wf-fd-spin-track">
-        <div id="spinBar" class="wf-fd-spin-bar"></div>
+
+      <!-- Landing Stability Forecast -->
+      <div class="wf-landing-forecast-card">
+        <div class="wf-forecast-vvi-row">
+          <span id="lblVviText">垂直降速 VVI</span>
+          <b id="cockpitVvi">0 km/h</b>
+        </div>
+        <div class="wf-forecast-vvi-track">
+          <div class="wf-forecast-vvi-safe" title="Soft ≤18 km/h"></div>
+          <div id="vviCockpitBar" class="wf-forecast-vvi-bar" style="width: 0%;"></div>
+        </div>
+        <div class="wf-stab-meter-row">
+          <span id="lblStabForecast">著陸平穩度</span>
+          <div class="wf-stab-track">
+            <div id="stabBar" class="wf-stab-bar" style="width: 100%;"></div>
+          </div>
+          <b id="stabVal" class="wf-stab-val">100%</b>
+        </div>
+        <div id="landingPredictBadge" class="wf-cockpit-badge safe">LEGEND 滿分預測</div>
       </div>
-      <div id="spinBadge" class="wf-fd-badge">0 FLIPS</div>
+
+      <!-- Master Manual Toggle Button -->
+      <button type="button" id="manualToggleBtn" class="wf-manual-toggle-btn">
+        <span>💡</span>
+        <span id="lblManualBtn">特技大師錦囊</span>
+      </button>
+    </aside>
+
+    <!-- Master Tactical Stunt Manual Modal -->
+    <div id="manualModal" class="wf-manual-modal" hidden>
+      <div class="wf-manual-card">
+        <div class="wf-manual-head">
+          <h3 id="lblManualModalTitle">💡 特技大師飛行錦囊 · 航太操縱指南</h3>
+          <button type="button" id="manualCloseBtn" class="wf-manual-close" aria-label="關閉">✕</button>
+        </div>
+        <div class="wf-manual-grid">
+          <div class="wf-manual-step">
+            <span class="ico">🚀</span>
+            <div>
+              <h4 id="lblM1Title">1. 蹬牆反彈角度力學</h4>
+              <p id="lblM1Desc">起跑線全力按住 <kbd>SPACE</kbd> / <kbd>W</kbd> 衝刺突破 110 km/h！在 165° 反翘弧牆頂部利用強大慣性與切線角離唇騰空，避免過早鬆開油門導致引擎剎車拖速。</p>
+            </div>
+          </div>
+          <div class="wf-manual-step">
+            <span class="ico">🔄</span>
+            <div>
+              <h4 id="lblM2Title">2. 空中翻滾姿態修正</h4>
+              <p id="lblM2Desc">離地後用 <kbd>A</kbd>/<kbd>D</kbd> 快速空翻累積連擊；接近地面時同時按住左右噴射鍵（雙鍵推力）觸發逆向減速煞車，將俯仰與滾轉拉平回正。</p>
+            </div>
+          </div>
+          <div class="wf-manual-step">
+            <span class="ico">🛬</span>
+            <div>
+              <h4 id="lblM3Title">3. 安全著陸開傘對策</h4>
+              <p id="lblM3Desc">著地瞬間保持車身處於 ±25° 翠綠安全錐內，垂直下墜速度壓制在 18 km/h 以下，以輪胎柔和接地觸發 SOFT+LEVEL 滿分！</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -699,6 +1086,38 @@ const STR = {
     alignSafe: '姿態對齊（安全）', alignInverted: '倒掛翻滾中', alignWarn: '姿態傾角過大',
     vviSoft: '柔軟著地 (+30)', vviHard: '速度偏快', vviHazard: '墜毀危險！(雙鍵減速)',
     stuntMilestone: (n) => n === 1 ? '360° 空中翻滾！+50' : n === 2 ? '720° 雙重翻滾！+150' : n === 3 ? '1080° 三重特技！+300' : `${n * 360}° 極限特技！+${n * 150}`,
+    cockpitLeftTag: 'L-WING AVIONICS',
+    cockpitLeftTitle: '姿態儀與過載遙測',
+    cockpitRightTag: 'R-WING RADAR',
+    cockpitRightTitle: '特技連擊與預測',
+    lblPitch: 'PITCH 俯仰',
+    lblRoll: 'ROLL 滾轉',
+    lblGMeter: 'G-METER 加速度',
+    stallAlert: '⚠️ STALL 臨界失速',
+    pullUpAlert: '⚠️ PULL UP 減速拉起',
+    comboTitle: 'COMBO 連擊',
+    spinDeg: '空中翻滾',
+    stuntSkim: '⚡ 貼地極限掠過 (+0.5x)',
+    stuntInvert: '🔄 反重力倒飛 (+0.4x)',
+    vviText: '垂直降速 VVI',
+    stabForecast: '著陸平穩預測',
+    stabLegend: 'LEGEND 滿分預測',
+    stabPerfect: 'PERFECT 穩健著陸',
+    stabWarn: 'HARD IMPACT 劇烈衝擊',
+    stabCrash: 'CRASH HAZARD 墜毀預警',
+    manualBtn: '特技大師錦囊',
+    manualModalTitle: '💡 特技大師飛行錦囊 · 航太操縱指南',
+    m1Title: '1. 蹬牆反彈角度力學',
+    m1Desc: '起跑線全力按住 SPACE / W 衝刺突破 110 km/h！在 165° 反翘弧牆頂部利用強大慣性與切線角離唇騰空，避免過早鬆開油門導致引擎剎車拖速。',
+    m2Title: '2. 空中翻滾姿態修正',
+    m2Desc: '離地後用 A/D 快速空翻累積連擊；接近地面時同時按住左右噴射鍵（雙鍵推力）觸發逆向減速煞車，將俯仰與滾轉拉平回正。',
+    m3Title: '3. 安全著陸開傘對策',
+    m3Desc: '著地瞬間保持車身處於 ±25° 翠綠安全錐內，垂直下墜速度壓制在 18 km/h 以下，以輪胎柔和接地觸發 SOFT+LEVEL 滿分！',
+    keyDrive: '推進',
+    keyRollL: '左滾',
+    keySuck: '磁吸',
+    keyRollR: '右滾',
+    keyReset: '重飛',
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
@@ -765,6 +1184,38 @@ const STR = {
     alignSafe: 'ALIGN SAFE', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
     vviSoft: 'SOFT ZONE (+30)', vviHard: 'FIRM DESCENT', vviHazard: 'CRASH HAZARD! (BRAKE)',
     stuntMilestone: (n) => n === 1 ? '360° SINGLE FLIP! +50' : n === 2 ? '720° DOUBLE FLIP! +150' : n === 3 ? '1080° TRIPLE FLIP! +300' : `${n * 360}° STUNT MASTER! +${n * 150}`,
+    cockpitLeftTag: 'L-WING AVIONICS',
+    cockpitLeftTitle: 'Attitude & G-Force',
+    cockpitRightTag: 'R-WING RADAR',
+    cockpitRightTitle: 'Stunts & Stability',
+    lblPitch: 'PITCH',
+    lblRoll: 'ROLL',
+    lblGMeter: 'G-METER',
+    stallAlert: '⚠️ STALL CRITICAL',
+    pullUpAlert: '⚠️ PULL UP BRAKE',
+    comboTitle: 'COMBO MULT',
+    spinDeg: 'SPIN DEG',
+    stuntSkim: '⚡ DECK SKIM (+0.5x)',
+    stuntInvert: '🔄 INVERTED FLIGHT (+0.4x)',
+    vviText: 'VVI DESCENT',
+    stabForecast: 'TOUCHDOWN STABILITY',
+    stabLegend: 'LEGEND PREDICTED',
+    stabPerfect: 'PERFECT TOUCHDOWN',
+    stabWarn: 'FIRM IMPACT WARN',
+    stabCrash: 'CRASH HAZARD',
+    manualBtn: 'Stunt Master Manual',
+    manualModalTitle: '💡 Stunt Master Flight Manual · Tactical Guide',
+    m1Title: '1. Wall Launch Dynamics',
+    m1Desc: 'Sprint down the runway holding SPACE/W to break 110 km/h! Carry full momentum over the 165° lip without releasing throttle prematurely.',
+    m2Title: '2. In-Flight Attitude Correction',
+    m2Desc: 'Use A/D in mid-air to build flip combos; when closing with the ground, hold both thrusters for retrograde braking and level pitch.',
+    m3Title: '3. Soft Touchdown Protocol',
+    m3Desc: 'Lock attitude within the ±25° green safe cone and damp descent below 18 km/h to land squarely on wheels for maximum score!',
+    keyDrive: 'THRUST',
+    keyRollL: 'ROLL L',
+    keySuck: 'MAGNET',
+    keyRollR: 'ROLL R',
+    keyReset: 'RETRY',
   },
 };
 let lang = 'tc';
@@ -1701,10 +2152,33 @@ const el = {
   lblRowRolls: $('lblRowRolls'), unitRolls: $('unitRolls'), lblRowSoft: $('lblRowSoft'), lblRowLevel: $('lblRowLevel'), unitPts: $('unitPts'),
   achRow: $('achRow'), achCount: $('achCount'), achMsg: $('achMsg'), dailyBtn: $('dailyBtn'), dailyInfo: $('dailyInfo'),
   ghostBtn: $('ghostBtn'),
-  speedWarp: $('speedWarp'), flightDirector: $('flightDirector'),
-  lblVvi: $('lblVvi'), vviVal: $('vviVal'), vviBar: $('vviBar'), vviStatus: $('vviStatus'),
-  fdHorizonBall: $('fdHorizonBall'), fdAttitudeBadge: $('fdAttitudeBadge'),
-  lblSpin: $('lblSpin'), spinVal: $('spinVal'), spinBar: $('spinBar'), spinBadge: $('spinBadge'),
+  speedWarp: $('speedWarp'), stuntCockpit: $('stuntCockpit'), flightDirector: $('stuntCockpit'),
+  tagLeftWing: $('tagLeftWing'), lblLeftWing: $('lblLeftWing'),
+  adiSphere: $('adiSphere'), fdHorizonBall: $('adiSphere'),
+  telePitch: $('telePitch'), teleRoll: $('teleRoll'),
+  attitudeBadge: $('attitudeBadge'), fdAttitudeBadge: $('attitudeBadge'),
+  lblPitch: $('lblPitch'), lblRoll: $('lblRoll'),
+  lblGMeter: $('lblGMeter'), gVal: $('gVal'), gPeak: $('gPeak'), gBar: $('gBar'),
+  stallAlert: $('stallAlert'),
+  tagRightWing: $('tagRightWing'), lblRightWing: $('lblRightWing'),
+  lblComboTitle: $('lblComboTitle'), comboMult: $('comboMult'), spinBadge: $('comboMult'),
+  lblSpinDeg: $('lblSpinDeg'), spinDeg: $('spinDeg'), spinVal: $('spinDeg'),
+  comboBar: $('comboBar'), spinBar: $('comboBar'),
+  tagDeckSkim: $('tagDeckSkim'), lblStuntSkim: $('lblStuntSkim'),
+  tagInvertFlight: $('tagInvertFlight'), lblStuntInvert: $('lblStuntInvert'),
+  lblVviText: $('lblVviText'), lblVvi: $('lblVviText'),
+  cockpitVvi: $('cockpitVvi'), vviVal: $('cockpitVvi'),
+  vviCockpitBar: $('vviCockpitBar'), vviBar: $('vviCockpitBar'),
+  lblStabForecast: $('lblStabForecast'), stabBar: $('stabBar'), stabVal: $('stabVal'),
+  landingPredictBadge: $('landingPredictBadge'), vviStatus: $('landingPredictBadge'),
+  manualToggleBtn: $('manualToggleBtn'), lblManualBtn: $('lblManualBtn'),
+  manualModal: $('manualModal'), manualCloseBtn: $('manualCloseBtn'),
+  lblManualModalTitle: $('lblManualModalTitle'),
+  lblM1Title: $('lblM1Title'), lblM1Desc: $('lblM1Desc'),
+  lblM2Title: $('lblM2Title'), lblM2Desc: $('lblM2Desc'),
+  lblM3Title: $('lblM3Title'), lblM3Desc: $('lblM3Desc'),
+  lblKeyDrive: $('lblKeyDrive'), lblKeyRollL: $('lblKeyRollL'),
+  lblKeySuck: $('lblKeySuck'), lblKeyRollR: $('lblKeyRollR'), lblKeyReset: $('lblKeyReset'),
   stuntBanner: $('stuntBanner'), stuntStars: $('stuntStars'), stuntText: $('stuntText'),
 };
 
@@ -1718,8 +2192,32 @@ function updateAllText() {
   el.lblHeight.textContent = t('hudHeight');
   el.lblDist.textContent = t('hudDist');
   el.lblRolls.textContent = t('hudRolls');
-  if (el.lblVvi) el.lblVvi.textContent = t('fdVvi');
-  if (el.lblSpin) el.lblSpin.textContent = t('fdSpin');
+  if (el.tagLeftWing) el.tagLeftWing.textContent = t('cockpitLeftTag');
+  if (el.lblLeftWing) el.lblLeftWing.textContent = t('cockpitLeftTitle');
+  if (el.lblPitch) el.lblPitch.textContent = t('lblPitch');
+  if (el.lblRoll) el.lblRoll.textContent = t('lblRoll');
+  if (el.lblGMeter) el.lblGMeter.textContent = t('lblGMeter');
+  if (el.tagRightWing) el.tagRightWing.textContent = t('cockpitRightTag');
+  if (el.lblRightWing) el.lblRightWing.textContent = t('cockpitRightTitle');
+  if (el.lblComboTitle) el.lblComboTitle.textContent = t('comboTitle');
+  if (el.lblSpinDeg) el.lblSpinDeg.textContent = t('spinDeg');
+  if (el.lblStuntSkim) el.lblStuntSkim.textContent = t('stuntSkim');
+  if (el.lblStuntInvert) el.lblStuntInvert.textContent = t('stuntInvert');
+  if (el.lblVviText) el.lblVviText.textContent = t('vviText');
+  if (el.lblStabForecast) el.lblStabForecast.textContent = t('stabForecast');
+  if (el.lblManualBtn) el.lblManualBtn.textContent = t('manualBtn');
+  if (el.lblManualModalTitle) el.lblManualModalTitle.textContent = t('manualModalTitle');
+  if (el.lblM1Title) el.lblM1Title.textContent = t('m1Title');
+  if (el.lblM1Desc) el.lblM1Desc.innerHTML = t('m1Desc');
+  if (el.lblM2Title) el.lblM2Title.textContent = t('m2Title');
+  if (el.lblM2Desc) el.lblM2Desc.innerHTML = t('m2Desc');
+  if (el.lblM3Title) el.lblM3Title.textContent = t('m3Title');
+  if (el.lblM3Desc) el.lblM3Desc.innerHTML = t('m3Desc');
+  if (el.lblKeyDrive) el.lblKeyDrive.textContent = t('keyDrive');
+  if (el.lblKeyRollL) el.lblKeyRollL.textContent = t('keyRollL');
+  if (el.lblKeySuck) el.lblKeySuck.textContent = t('keySuck');
+  if (el.lblKeyRollR) el.lblKeyRollR.textContent = t('keyRollR');
+  if (el.lblKeyReset) el.lblKeyReset.textContent = t('keyReset');
   el.mutebtn.title = t('muteTitle');
   el.mutebtn.textContent = muted ? t('muteOff') : t('muteOn');
   el.langbtn.textContent = t('langBtn');
@@ -1798,11 +2296,27 @@ function popAt(x, y, z, text, color, big = false) {
   setTimeout(() => d.remove(), 900);
 }
 // ---------- input ----------
-const KEYMAP = { KeyX: 'suck', ArrowDown: 'suck', Space: 'drive', ArrowUp: 'drive', ArrowLeft: 'left', ArrowRight: 'right' };
+const KEYMAP = {
+  KeyX: 'suck', ArrowDown: 'suck', KeyS: 'suck',
+  Space: 'drive', ArrowUp: 'drive', KeyW: 'drive',
+  ArrowLeft: 'left', KeyA: 'left',
+  ArrowRight: 'right', KeyD: 'right',
+};
 const keys = new Set(), padPtr = new Map();
 const keyActive = a => { for (const c of keys) if (KEYMAP[c] === a) return true; return false; };
 const padActive = a => { for (const v of padPtr.values()) if (v === a) return true; return false; };
 const held = a => game.playing && (keyActive(a) || padActive(a));
+function updateKeyMatrix() {
+  const items = document.querySelectorAll('.wf-key-item');
+  if (!items.length) return;
+  for (const item of items) {
+    const code = item.dataset.code;
+    const alt = item.dataset.alt;
+    const act = KEYMAP[code];
+    const active = keys.has(code) || (alt && keys.has(alt)) || (act && padActive(act));
+    item.classList.toggle('active', !!active);
+  }
+}
 // while a DOM panel is open or a control is focused, keys belong to the UI
 function domTyping(e) {
   const el = e.target;
@@ -1943,6 +2457,30 @@ function noiseBurst(dur, vol, freq, delay = 0) {
 const sfx = {
   click: () => beep(700, .06, 'square', .1),
   whoosh: () => { noiseBurst(.5, .3, 1200); beep(160, .5, 'sawtooth', .09, 420); },
+  stuntWhoosh: (combo = 1) => {
+    if (!AC || muted) return;
+    try {
+      const f0 = 240 * Math.min(combo, 2.5);
+      beep(f0, 0.45, 'triangle', 0.2, f0 * 1.8);
+      beep(f0 * 1.4, 0.35, 'sine', 0.12, f0 * 2.4, 0.04);
+      noiseBurst(0.38, 0.22, 1800 + combo * 300);
+    } catch {}
+  },
+  stallWarning: () => {
+    if (!AC || muted) return;
+    try {
+      beep(980, 0.08, 'sawtooth', 0.16);
+      beep(740, 0.08, 'sawtooth', 0.16, 0, 0.09);
+    } catch {}
+  },
+  tireTouchdown: (firmness = 1) => {
+    if (!AC || muted) return;
+    try {
+      noiseBurst(0.18, 0.28 + firmness * 0.15, 2400);
+      beep(1800, 0.08, 'sawtooth', 0.18, 750);
+      beep(80, 0.22, 'sine', 0.35, 36);
+    } catch {}
+  },
   drop: () => { noiseBurst(.25, .28, 700); beep(300, .3, 'sawtooth', .1, 90); },
   peel: () => { noiseBurst(.18, .24, 900); beep(220, .12, 'sine', .18, 760); },
   land: q => { noiseBurst(.18, .22 + q * .18, 500); beep(90, .22, 'sine', .28, 45); },
@@ -2010,7 +2548,11 @@ function botInputs() {
 function resetRun() {
   sim = createSim({ onAir: onAirHook }, dailyConsts());
   startX = sim.state.x;
-  Object.assign(game, { playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0, runTime: 0, newTimeRec: false, squash: 0, squashV: 0 });
+  Object.assign(game, {
+    playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0, runTime: 0, newTimeRec: false, squash: 0, squashV: 0,
+    peakG: 1.0, currentG: 1.0, comboMult: 1.0, skimTime: 0, hasSkimmed: false,
+    invertTime: 0, hasInverted: false, stability: 100, stallWarningActive: false, prevV: 0,
+  });
   bot.target = 0; bot.plan = 0;
   newBest = false; launchX = 0; retryT = 0;
   fx.clear(); smoke.clear();
@@ -2033,11 +2575,38 @@ function resetRun() {
   el.start.hidden = true;
   el.resultWrap.hidden = true;
   el.hud.hidden = false;
-  if (el.flightDirector) el.flightDirector.hidden = true;
+  if (el.stuntCockpit) el.stuntCockpit.hidden = false;
+  if (el.flightDirector) el.flightDirector.hidden = false;
   if (el.stuntBanner) el.stuntBanner.hidden = true;
   if (el.speedWarp) el.speedWarp.style.opacity = '0';
+  if (el.manualModal) el.manualModal.hidden = true;
+  if (el.tagDeckSkim) el.tagDeckSkim.classList.remove('active');
+  if (el.tagInvertFlight) el.tagInvertFlight.classList.remove('active');
   updateBestLabels();
   camState.init = false; // snap the camera like the original
+}
+if (el.manualToggleBtn && el.manualModal) {
+  el.manualToggleBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    ensureAudio();
+    sfx.click();
+    el.manualModal.hidden = false;
+  });
+}
+if (el.manualCloseBtn && el.manualModal) {
+  el.manualCloseBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    sfx.click();
+    el.manualModal.hidden = true;
+  });
+}
+if (el.manualModal) {
+  el.manualModal.addEventListener('click', e => {
+    if (e.target === el.manualModal) {
+      sfx.click();
+      el.manualModal.hidden = true;
+    }
+  });
 }
 function startPress() {
   sfx.click();
@@ -2645,11 +3214,48 @@ function crashFx(x, y, z) {
   sfx.crash();
   vib([60, 40, 60]);
 }
+
+function touchdownFx(x, y, z, q) {
+  for (let i = 0; i < 30; i++) {
+    const a = rand(0, TAU), spd = rand(2, 7);
+    smoke.spawn({
+      x: x + rand(-1.4, 1.4), y: y + 0.15, z: z + rand(-1, 1),
+      vx: Math.cos(a) * spd, vy: rand(0.4, 2.2), vz: Math.sin(a) * spd,
+      drag: 2.2, life: rand(0.7, 1.4), size: rand(0.9, 2), grow: 2.4,
+      color: 0xcccccc, end: BG,
+    });
+  }
+  for (let i = 0; i < 20; i++) {
+    const a = rand(-Math.PI, 0), spd = rand(3, 9);
+    fx.spawn({
+      x: x + rand(-0.8, 0.8), y: y + 0.1, z: z + rand(-0.8, 0.8),
+      vx: Math.cos(a) * spd, vy: rand(1, 3.5), vz: Math.sin(a) * spd,
+      drag: 2.6, life: rand(0.3, 0.6), size: rand(0.6, 1.4), grow: 1.4,
+      color: pick([0xffd166, 0xff9f43, 0xffffff]), end: 0xff3300,
+    });
+  }
+}
+
+function burstStuntGold(x, y, z, count = 45) {
+  for (let i = 0; i < count; i++) {
+    const a = rand(0, TAU), elv = rand(-1.2, 1.2), spd = rand(3, 13);
+    fx.spawn({
+      x: x + rand(-0.4, 0.4), y: y + rand(-0.4, 0.4), z: z + rand(-0.4, 0.4),
+      vx: Math.cos(a) * Math.cos(elv) * spd,
+      vy: Math.sin(elv) * spd + rand(1, 3.5),
+      vz: Math.sin(a) * Math.cos(elv) * spd,
+      drag: 1.8, life: rand(0.6, 1.3), size: rand(1.2, 2.4), grow: 1.6,
+      color: pick([0xffd166, 0xffea85, 0x6ff0d0, 0xffffff]),
+      end: 0x8a6d10,
+    });
+  }
+}
+
 function landFx(ev, st) {
   game.score = scoreOf(st.land);
-  // touchdown feedback: body squash spring + a small camera jolt on firm landings
+  // touchdown feedback: body squash spring + firm landing camera jolt
   game.squashV = clamp(st.land.fall / 6, 0, 1.2);
-  if (st.land.fall > 3) game.shake = Math.max(game.shake, .3);
+  game.shake = Math.max(game.shake, clamp(st.land.fall / 9, 0.28, 0.65));
   // run timer: s.time accumulates from the fresh sim created at resetRun
   game.runTime = st.time;
   if (!DEMO) { // demo runs never touch records / achievements / daily best
@@ -2664,16 +3270,9 @@ function landFx(ev, st) {
   popAt(ev.x, 3, st.z, pick(t('popLand')), 'hsl(150 70% 45%)');
   const q = (game.score.soft + game.score.level) / 50;
   sfx.land(q);
+  sfx.tireTouchdown(q);
   sfx.fanfare();
-  for (let i = 0; i < 40; i++) {
-    const a = rand(0, TAU);
-    smoke.spawn({
-      x: ev.x + rand(-2, 2), y: .3, z: st.z + rand(-1.2, 1.2),
-      vx: Math.cos(a) * rand(2, 6), vy: rand(.3, 1.5), vz: Math.sin(a) * rand(2, 5),
-      drag: 2.5, life: rand(1, 1.8), size: rand(.8, 1.6), grow: 2.5,
-      color: 9079432, end: BG,
-    });
-  }
+  touchdownFx(ev.x, 0.1, st.z, q);
 }
 let stuntBannerTimer = null;
 function triggerStuntBanner(r) {
@@ -2720,6 +3319,9 @@ function processEvents() {
       game.rolls = r;
       popAt(st.x, st.y + 2.4, st.z, t('rollUnit', r), 'hsl(45 95% 50%)', true);
       sfx.chime(r);
+      sfx.stuntWhoosh(game.comboMult || 1);
+      burstStuntGold(st.x, st.y + 1.2, st.z, 40);
+      game.shake = Math.max(game.shake, 0.22);
       triggerStuntBanner(r);
     }
   }
@@ -2792,6 +3394,8 @@ function showResult() {
   el.shareBtn.hidden = !win;
   updateBestLabels();
   screen = 'result';
+  if (el.stuntCockpit) el.stuntCockpit.hidden = true;
+  if (el.manualModal) el.manualModal.hidden = true;
   el.resultWrap.hidden = false;
 }
 el.resultWrap.addEventListener('click', () => { if (screen === 'result') { ensureAudio(); resetRun(); } });
@@ -3009,61 +3613,183 @@ function updateHud() {
     el.speedWarp.style.opacity = String(warpAlpha);
   }
 
+  // Update live Esports Key Matrix Guide HUD
+  updateKeyMatrix();
+
+  // Dual-wing Cockpit visibility & update
+  const showCockpit = game.playing || airMode;
+  if (el.stuntCockpit) el.stuntCockpit.hidden = !showCockpit;
+
+  if (showCockpit) {
+    // 1. G-Force calculation
+    let gForce = 1.0;
+    if (st.mode === 'road') {
+      const sm = trackAt(st.u);
+      const Z = (st.left ? 1 : 0) + (st.right ? 1 : 0);
+      const N = st.v * st.v * sm.k + BASE.G0 * tcos(sm.phi) - BASE.THRUST * Z;
+      const aT = (st.v - (game.prevV || 0)) / BASE.STEP;
+      game.prevV = st.v;
+      gForce = Math.hypot(N, aT) / BASE.G0;
+    } else if (airMode) {
+      const Z = (st.left ? 1 : 0) + (st.right ? 1 : 0);
+      gForce = Z > 0 ? (Z * BASE.THRUST) / BASE.G0 : 0.05;
+    }
+    gForce = clamp(gForce, 0, 9.9);
+    game.currentG = gForce;
+    game.peakG = Math.max(game.peakG || 1.0, gForce);
+
+    if (el.gVal) el.gVal.textContent = `${gForce.toFixed(1)} G`;
+    if (el.gPeak) el.gPeak.textContent = `${(game.peakG || 1.0).toFixed(1)} G`;
+    if (el.gBar) {
+      const gPct = clamp((gForce / 6) * 100, 0, 100);
+      el.gBar.style.width = `${gPct}%`;
+    }
+
+    // 2. 3D ADI Gimbal (Attitude Director Indicator)
+    const level = Math.cos(st.roll) * Math.cos(st.pitch);
+    const tiltDeg = Math.acos(clamp(level, -1, 1)) * 180 / Math.PI;
+    const rollDeg = (st.roll * 180 / Math.PI) % 360;
+    const pitchDeg = st.pitch * 180 / Math.PI;
+    const pitchOffset = clamp(st.pitch * 32, -26, 26);
+
+    if (el.adiSphere) {
+      el.adiSphere.style.transform = `rotate(${-rollDeg}deg) translateY(${pitchOffset}px)`;
+    }
+    if (el.telePitch) {
+      el.telePitch.textContent = `${pitchDeg >= 0 ? '+' : ''}${pitchDeg.toFixed(1)}°`;
+    }
+    if (el.teleRoll) {
+      el.teleRoll.textContent = `${Math.abs(rollDeg).toFixed(1)}°`;
+    }
+    if (el.attitudeBadge) {
+      if (tiltDeg <= 25) {
+        el.attitudeBadge.className = 'wf-cockpit-badge safe';
+        el.attitudeBadge.textContent = t('alignSafe');
+      } else if (tiltDeg <= 75) {
+        el.attitudeBadge.className = 'wf-cockpit-badge warn';
+        el.attitudeBadge.textContent = t('alignWarn');
+      } else {
+        el.attitudeBadge.className = 'wf-cockpit-badge danger';
+        el.attitudeBadge.textContent = t('alignInverted');
+      }
+    }
+
+    // 3. Stall & Pull-Up Alert
+    const isStall = airMode && level < -0.55 && st.vy < -6.5;
+    const isPullUp = airMode && st.vy < -9.7; // > 35 km/h downward speed
+    if (el.stallAlert) {
+      if (isPullUp) {
+        el.stallAlert.hidden = false;
+        el.stallAlert.textContent = t('pullUpAlert');
+        if (!game.stallWarningActive) {
+          game.stallWarningActive = true;
+          sfx.stallWarning();
+        }
+      } else if (isStall) {
+        el.stallAlert.hidden = false;
+        el.stallAlert.textContent = t('stallAlert');
+        if (!game.stallWarningActive) {
+          game.stallWarningActive = true;
+          sfx.stallWarning();
+        }
+      } else {
+        el.stallAlert.hidden = true;
+        game.stallWarningActive = false;
+      }
+    }
+
+    // 4. Stunt Combo Multiplier & Radar
+    const rotTotal = Math.abs(st.roll - st.roll0);
+    const rotDeg = Math.round(rotTotal * 180 / Math.PI);
+    const curRolls = rollsCount(st.roll, st.roll0);
+    let mult = 1.0 + curRolls * 0.4;
+    if (rotDeg >= 1260) mult = Math.max(mult, 3.0); // 3.5+ rolls
+
+    // Deck Skim
+    const altM = Math.max(0, st.y - CAR.H);
+    const forwardSpd = Math.hypot(st.vx, st.vy);
+    if (airMode && altM <= 2.2 && forwardSpd >= 16.5) {
+      game.skimTime = (game.skimTime || 0) + 0.016;
+      if (game.skimTime >= 0.12 && !game.hasSkimmed) {
+        game.hasSkimmed = true;
+        popAt(st.x, st.y + 1.2, st.z, t('stuntSkim'), '#ffd166', true);
+        burstStuntGold(st.x, st.y, st.z, 25);
+        sfx.stuntWhoosh(2.0);
+      }
+    }
+    if (game.hasSkimmed) mult += 0.5;
+
+    // Inverted flight
+    if (airMode && level <= -0.55 && altM > 3.0) {
+      game.invertTime = (game.invertTime || 0) + 0.016;
+      if (game.invertTime >= 0.35 && !game.hasInverted) {
+        game.hasInverted = true;
+        popAt(st.x, st.y + 1.2, st.z, t('stuntInvert'), '#ffd166', true);
+        burstStuntGold(st.x, st.y, st.z, 25);
+        sfx.stuntWhoosh(1.8);
+      }
+    }
+    if (game.hasInverted) mult += 0.4;
+
+    game.comboMult = mult;
+    if (el.comboMult) el.comboMult.textContent = `x${mult.toFixed(1)}`;
+    if (el.spinDeg) el.spinDeg.textContent = `${rotDeg}°`;
+    if (el.comboBar) {
+      const nextRollPct = ((rotTotal % (2 * Math.PI)) / (2 * Math.PI)) * 100;
+      el.comboBar.style.width = `${nextRollPct}%`;
+    }
+    if (el.tagDeckSkim) el.tagDeckSkim.classList.toggle('active', !!game.hasSkimmed);
+    if (el.tagInvertFlight) el.tagInvertFlight.classList.toggle('active', !!game.hasInverted);
+
+    // 5. Landing Stability Forecast (Touchdown Predictor)
+    const vs = st.vy * 3.6;
+    const descentSpeed = Math.max(0, -vs);
+    if (el.cockpitVvi) el.cockpitVvi.textContent = `${Math.round(descentSpeed)} km/h`;
+    if (el.vviCockpitBar) {
+      const vviPct = clamp((descentSpeed / 55) * 100, 0, 100);
+      el.vviCockpitBar.style.width = `${vviPct}%`;
+      el.vviCockpitBar.className = 'wf-forecast-vvi-bar' + (descentSpeed > 35 ? ' danger' : descentSpeed > 18 ? ' warn' : '');
+    }
+
+    const fDescent = clamp(1 - (descentSpeed / 42), 0, 1);
+    const fTilt = clamp(1 - (tiltDeg / 35), 0, 1);
+    const fSpin = clamp(1 - (Math.abs(st.rw) / 5), 0, 1);
+    const stabilityPct = airMode ? Math.round(fDescent * fTilt * fSpin * 100) : 100;
+
+    if (el.stabBar) el.stabBar.style.width = `${stabilityPct}%`;
+    if (el.stabVal) el.stabVal.textContent = `${stabilityPct}%`;
+    if (el.landingPredictBadge) {
+      if (descentSpeed > 35 || tiltDeg > 25) {
+        el.landingPredictBadge.className = 'wf-cockpit-badge danger';
+        el.landingPredictBadge.textContent = t('stabCrash');
+      } else if (stabilityPct >= 80) {
+        el.landingPredictBadge.className = 'wf-cockpit-badge safe';
+        el.landingPredictBadge.textContent = t('stabLegend');
+      } else if (stabilityPct >= 50) {
+        el.landingPredictBadge.className = 'wf-cockpit-badge warn';
+        el.landingPredictBadge.textContent = t('stabPerfect');
+      } else {
+        el.landingPredictBadge.className = 'wf-cockpit-badge warn';
+        el.landingPredictBadge.textContent = t('stabWarn');
+      }
+    }
+  }
+
   if (airMode) {
-    const vs = st.vy * 3.6; // vertical speed, km/h (+ climbing)
+    const vs = st.vy * 3.6;
     el.vspeed.hidden = false;
     el.vspeed.textContent = `${vs > 3.6 ? '▲' : vs < -3.6 ? '▼' : '—'} ${Math.abs(Math.round(vs))}`;
     el.vspeed.style.color = vs < -18 ? '#ff8c5a' : '#b4b4b4';
-
-    if (el.flightDirector) {
-      el.flightDirector.hidden = false;
-
-      // 1. Vertical Descent Rate (VVI)
-      const descentSpeed = Math.max(0, -vs);
-      el.vviVal.textContent = `${Math.round(descentSpeed)} km/h`;
-      const vviPct = clamp((descentSpeed / 55) * 100, 0, 100);
-      el.vviBar.style.width = `${vviPct}%`;
-      el.vviBar.className = 'wf-fd-vvi-bar' + (descentSpeed > 35 ? ' danger' : descentSpeed > 18 ? ' warn' : '');
-      el.vviStatus.className = 'wf-fd-badge ' + (descentSpeed <= 18 ? 'safe' : descentSpeed <= 35 ? 'warn' : 'danger');
-      el.vviStatus.textContent = descentSpeed <= 18 ? t('vviSoft') : descentSpeed <= 35 ? t('vviHard') : t('vviHazard');
-
-      // 2. Flight Attitude Horizon Gimbal
-      const level = Math.cos(st.roll) * Math.cos(st.pitch);
-      const tiltDeg = Math.acos(clamp(level, -1, 1)) * 180 / Math.PI;
-      const rollDeg = (st.roll * 180 / Math.PI) % 360;
-      const pitchOffset = clamp(st.pitch * 30, -22, 22);
-      el.fdHorizonBall.style.transform = `rotate(${-rollDeg}deg) translateY(${pitchOffset}px)`;
-
-      if (tiltDeg <= 25) {
-        el.fdAttitudeBadge.className = 'wf-fd-badge safe';
-        el.fdAttitudeBadge.textContent = t('alignSafe');
-      } else if (tiltDeg <= 75) {
-        el.fdAttitudeBadge.className = 'wf-fd-badge warn';
-        el.fdAttitudeBadge.textContent = t('alignWarn');
-      } else {
-        el.fdAttitudeBadge.className = 'wf-fd-badge danger';
-        el.fdAttitudeBadge.textContent = t('alignInverted');
-      }
-
-      // 3. Aerial Spin Progress
-      const rotTotal = Math.abs(st.roll - st.roll0);
-      const rotDeg = Math.round(rotTotal * 180 / Math.PI);
-      el.spinVal.textContent = `${rotDeg}°`;
-      const currentRollCount = rollsCount(st.roll, st.roll0);
-      const nextRollProgress = ((rotTotal % (2 * Math.PI)) / (2 * Math.PI)) * 100;
-      el.spinBar.style.width = `${nextRollProgress}%`;
-      el.spinBadge.className = 'wf-fd-badge' + (currentRollCount > 0 ? ' safe' : '');
-      el.spinBadge.textContent = currentRollCount > 0 ? `${currentRollCount} ${t('rollUnit', currentRollCount)}` : `${rotDeg}°`;
-    }
   } else {
     el.vspeed.hidden = true;
-    if (el.flightDirector) el.flightDirector.hidden = true;
   }
+
   const h = Math.max(0, st.y - CAR.H);
   el.alt.textContent = (h < 100 ? h.toFixed(1) : Math.round(h)) + ' m';
   el.dist.textContent = Math.round(Math.hypot(st.x - startX, st.z)) + ' m';
   el.rolls.textContent = game.rolls;
-  // contextual hint (original conditions)
+
+  // contextual hint
   let hint = null;
   const onArc = st.mode === 'road' && st.u > 0 ? trackAt(st.u) : null;
   const level = Math.cos(st.roll) * Math.cos(st.pitch);
