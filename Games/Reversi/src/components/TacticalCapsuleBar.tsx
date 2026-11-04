@@ -1,10 +1,15 @@
 import { useState, type ReactElement } from 'react';
-import { Activity, Compass, Eye, EyeOff, Sparkles, X } from 'lucide-react';
+import { Activity, Compass, Eye, EyeOff, Shield, Sparkles, X } from 'lucide-react';
 import type { Board, Piece, Difficulty } from '../utils/reversiLogic';
 import type { SeriesMatch } from '../utils/match';
 import type { OpponentDef } from '../utils/opponents';
 import type { PuzzleRuntime } from '../utils/puzzles';
-import { calculateCornerControl, calculateMobility } from '../utils/tactics';
+import {
+  calculateCornerControl,
+  calculateMobility,
+  calculateStability,
+  type StabilityAnalysis,
+} from '../utils/tactics';
 import { TacticalLeftWing } from './TacticalLeftWing';
 import { TacticalRightWing } from './TacticalRightWing';
 
@@ -22,6 +27,7 @@ export interface TacticalCapsuleBarProps {
   series: SeriesMatch | null;
   puzzle: PuzzleRuntime | null;
   puzzlePlies: number;
+  stabilityAnalysis?: StabilityAnalysis;
   onOpenShortcuts: () => void;
 }
 
@@ -39,11 +45,13 @@ export function TacticalCapsuleBar({
   series,
   puzzle,
   puzzlePlies,
+  stabilityAnalysis,
   onOpenShortcuts,
 }: TacticalCapsuleBarProps): ReactElement {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const corners = calculateCornerControl(board);
   const mobility = calculateMobility(board, currentTurn);
+  const stability = stabilityAnalysis ?? calculateStability(board);
 
   return (
     <>
@@ -61,17 +69,19 @@ export function TacticalCapsuleBar({
         {/* Corners Pill */}
         <div className="flex items-center gap-1 px-2 py-1 bg-stone-950/80 rounded-lg border border-stone-800 text-[11px] text-amber-300">
           <Compass className="w-3.5 h-3.5 text-amber-400" />
-          <span className="font-mono">
-            角 {corners.black + corners.white}/4
-          </span>
+          <span className="font-mono">角 {corners.black + corners.white}/4</span>
+        </div>
+
+        {/* Stable Discs Pill */}
+        <div className="flex items-center gap-1 px-2 py-1 bg-stone-950/80 rounded-lg border border-stone-800 text-[11px] text-emerald-300">
+          <Shield className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="font-mono">安定 {stability.blackStable + stability.whiteStable}</span>
         </div>
 
         {/* Mobility Pill */}
         <div className="flex items-center gap-1 px-2 py-1 bg-stone-950/80 rounded-lg border border-stone-800 text-[11px] text-sky-300">
           <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-          <span className="font-mono">
-            機動 {mobility.currentLegalCount}
-          </span>
+          <span className="font-mono">機動 {mobility.currentLegalCount}</span>
         </div>
 
         {/* Quick Tactical Vision Toggle */}
@@ -136,6 +146,7 @@ export function TacticalCapsuleBar({
                 whiteCount={whiteCount}
                 tacticalVision={tacticalVision}
                 onToggleTacticalVision={onToggleTacticalVision}
+                stabilityAnalysis={stability}
               />
 
               <TacticalRightWing

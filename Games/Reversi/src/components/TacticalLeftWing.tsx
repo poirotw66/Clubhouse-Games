@@ -1,12 +1,14 @@
 import type { ReactElement } from 'react';
-import { Activity, Compass, Eye, EyeOff, ShieldAlert, Sparkles } from 'lucide-react';
+import { Activity, Compass, Eye, EyeOff, Shield, ShieldAlert, Sparkles } from 'lucide-react';
 import type { Board, Piece } from '../utils/reversiLogic';
 import {
   calculateCornerControl,
   calculateMobility,
+  calculateStability,
   getGameStage,
   type GameStage,
   type MobilityPressureStatus,
+  type StabilityAnalysis,
 } from '../utils/tactics';
 
 export interface TacticalLeftWingProps {
@@ -16,6 +18,7 @@ export interface TacticalLeftWingProps {
   whiteCount: number;
   tacticalVision: boolean;
   onToggleTacticalVision: () => void;
+  stabilityAnalysis?: StabilityAnalysis;
   className?: string;
 }
 
@@ -25,7 +28,10 @@ const STAGE_LABELS: Record<GameStage, { label: string; color: string }> = {
   endgame: { label: '終局收官', color: 'bg-rose-800/60 text-rose-200 border-rose-600/50' },
 };
 
-const PRESSURE_LABELS: Record<MobilityPressureStatus, { label: string; desc: string; badgeClass: string }> = {
+const PRESSURE_LABELS: Record<
+  MobilityPressureStatus,
+  { label: string; desc: string; badgeClass: string }
+> = {
   squeeze: {
     label: '逼迫 PASS 警戒！',
     desc: '對手已無退路，即將被強迫跳過回合',
@@ -55,6 +61,7 @@ export function TacticalLeftWing({
   whiteCount,
   tacticalVision,
   onToggleTacticalVision,
+  stabilityAnalysis,
   className = '',
 }: TacticalLeftWingProps): ReactElement {
   const totalPieces = blackCount + whiteCount;
@@ -66,10 +73,11 @@ export function TacticalLeftWing({
   const corners = calculateCornerControl(board);
   const mobility = calculateMobility(board, currentTurn);
   const pressure = PRESSURE_LABELS[mobility.pressure];
+  const stability = stabilityAnalysis ?? calculateStability(board);
 
   return (
     <aside
-      className={`flex flex-col gap-3.5 bg-stone-900/85 backdrop-blur-md border border-emerald-800/50 rounded-2xl p-4 shadow-xl text-left text-stone-200 ${className}`}
+      className={`flex flex-col gap-3 bg-stone-900/85 backdrop-blur-md border border-emerald-800/50 rounded-2xl p-4 shadow-xl text-left text-stone-200 ${className}`}
       aria-label="戰術情報與局勢天秤"
     >
       {/* Header */}
@@ -119,7 +127,7 @@ export function TacticalLeftWing({
         </div>
       </div>
 
-      {/* 2. 角地掌控儀 (Corner Dominance Radar) */}
+      {/* 2. 四角要塞掌控儀 (Corner Dominance Radar) */}
       <div className="bg-stone-950/70 border border-stone-800 rounded-xl p-2.5 space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-amber-300 flex items-center gap-1">
@@ -139,11 +147,65 @@ export function TacticalLeftWing({
           <CornerBadge pos="H8 (右下)" cell={corners.br} />
         </div>
         <p className="text-[10px] text-stone-400 leading-tight">
-          ★ 角地為不可逆的永久安全子，佔角率直接決定殘局勝率。
+          ★ 角地為不可逆的永久安全要塞，一旦鎖定即可築起防禦陣線。
         </p>
       </div>
 
-      {/* 3. 行動力壓制儀 (Mobility Suppression Index) */}
+      {/* 3. 穩定度與前線暴露分析 (Stability & Frontier Telemetry) */}
+      <div className="bg-stone-950/70 border border-stone-800 rounded-xl p-2.5 space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-emerald-300 flex items-center gap-1">
+            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            盤面穩定度遙測
+          </span>
+          <span className="text-[10px] text-stone-400">
+            {stage === 'opening' ? '開局控損' : stage === 'midgame' ? '前線攻防' : '收官決算'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {/* Stable Discs */}
+          <div className="bg-stone-900/70 p-2 rounded-lg border border-stone-800">
+            <div className="flex items-center justify-between text-[11px] text-amber-200">
+              <span>🛡️ 永久安定子</span>
+            </div>
+            <div className="mt-1 flex items-baseline justify-between font-mono">
+              <span className="text-stone-300 text-xs">黑 {stability.blackStable}</span>
+              <span className="text-stone-300 text-xs">白 {stability.whiteStable}</span>
+            </div>
+          </div>
+
+          {/* Frontier Exposure */}
+          <div className="bg-stone-900/70 p-2 rounded-lg border border-stone-800">
+            <div className="flex items-center justify-between text-[11px] text-sky-200">
+              <span>⚡ 前線暴露率</span>
+            </div>
+            <div className="mt-1 flex items-baseline justify-between font-mono text-xs">
+              <span
+                className={
+                  stability.blackFrontierRate > 70 ? 'text-amber-400 font-bold' : 'text-stone-300'
+                }
+              >
+                黑 {stability.blackFrontierRate}%
+              </span>
+              <span
+                className={
+                  stability.whiteFrontierRate > 70 ? 'text-amber-400 font-bold' : 'text-stone-300'
+                }
+              >
+                白 {stability.whiteFrontierRate}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-between text-[10px] text-stone-400 px-0.5">
+          <span>內部核心子：黑 {stability.blackInterior} 枚</span>
+          <span>白 {stability.whiteInterior} 枚</span>
+        </div>
+      </div>
+
+      {/* 4. 行動力壓制儀 (Mobility Suppression Index) */}
       <div className="bg-stone-950/70 border border-stone-800 rounded-xl p-2.5 space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-sky-300 flex items-center gap-1">
@@ -181,12 +243,12 @@ export function TacticalLeftWing({
         </div>
       </div>
 
-      {/* 4. 戰術透視開關 (Tactical Vision Overlay Toggle) */}
+      {/* 5. 戰術透視開關 (Tactical Vision Overlay Toggle) */}
       <button
         type="button"
         onClick={onToggleTacticalVision}
         aria-pressed={tacticalVision}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-medium transition-all ${
+        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-medium transition-all ${
           tacticalVision
             ? 'bg-emerald-700/50 border-emerald-400 text-emerald-100 shadow-sm'
             : 'bg-stone-800 border-stone-600 text-stone-300 hover:bg-stone-700'
@@ -198,7 +260,7 @@ export function TacticalLeftWing({
           ) : (
             <EyeOff className="w-4 h-4 text-stone-400" />
           )}
-          <span>戰術透視（熱圖與危險位）</span>
+          <span>戰術透視（熱圖・安定子・危險位）</span>
         </span>
         <kbd className="px-1.5 py-0.5 text-[10px] bg-stone-900/80 rounded border border-stone-600 text-stone-300 font-mono">
           T
@@ -209,15 +271,41 @@ export function TacticalLeftWing({
 }
 
 function CornerBadge({ pos, cell }: { pos: string; cell: Piece | null }): ReactElement {
+  const isClaimed = cell !== null;
   return (
-    <div className="flex items-center justify-between px-2 py-1 bg-stone-800/80 rounded border border-stone-700/60 text-[11px]">
-      <span className="text-stone-300 font-mono text-[10px]">{pos}</span>
+    <div
+      className={`flex items-center justify-between px-2 py-1 rounded border text-[11px] ${
+        isClaimed
+          ? 'bg-amber-950/40 border-amber-500/70 shadow-[0_0_6px_rgba(251,191,36,0.3)]'
+          : 'bg-stone-800/80 border-stone-700/60'
+      }`}
+    >
+      <span
+        className={`font-mono text-[10px] ${isClaimed ? 'text-amber-300 font-bold' : 'text-stone-300'}`}
+      >
+        {pos}
+      </span>
       {cell === 'black' ? (
-        <span className="w-3.5 h-3.5 rounded-full bg-stone-950 border border-stone-500 shadow-sm" title="黑方佔領" />
+        <span className="flex items-center gap-1">
+          <span
+            className="w-3.5 h-3.5 rounded-full bg-stone-950 border border-stone-500 shadow-sm"
+            title="黑方佔領要塞"
+          />
+          <span className="text-[9px] text-amber-300 font-black">★</span>
+        </span>
       ) : cell === 'white' ? (
-        <span className="w-3.5 h-3.5 rounded-full bg-white border border-stone-300 shadow-sm" title="白方佔領" />
+        <span className="flex items-center gap-1">
+          <span
+            className="w-3.5 h-3.5 rounded-full bg-white border border-stone-300 shadow-sm"
+            title="白方佔領要塞"
+          />
+          <span className="text-[9px] text-amber-300 font-black">★</span>
+        </span>
       ) : (
-        <span className="w-3 h-3 rounded-full border border-dashed border-stone-500" title="尚未佔領" />
+        <span
+          className="w-3 h-3 rounded-full border border-dashed border-stone-500"
+          title="尚未佔領"
+        />
       )}
     </div>
   );

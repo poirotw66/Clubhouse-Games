@@ -4,7 +4,7 @@ import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
-import { playFlip, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
+import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { RefreshCw, BookOpen, Undo2, Lightbulb, Keyboard, Eye, EyeOff } from 'lucide-react';
 import { BoardGrid } from './components/BoardGrid';
 import { MenuScreen, type MenuView } from './components/MenuScreen';
@@ -58,9 +58,22 @@ import {
   saveSeriesLength,
   writeStoredInt,
 } from './utils/storage';
-import { calculateFlipsMap, getCellRiskType, toAlgebraic } from './utils/tactics';
+import {
+  calculateCascadeWave,
+  calculateFlipsMap,
+  calculateStability,
+  getCellRiskType,
+  toAlgebraic,
+  type CascadeStep,
+} from './utils/tactics';
+import {
+  playCascadeComboFanfare,
+  playCascadeNote,
+  playGoldenFortressChime,
+  playTactileDrop,
+} from './utils/reversiAudio';
 
-const BOT_DELAY_MS = 480;
+const BOT_DELAY_MS = 560;
 const FLIP_MS = 380;
 const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
@@ -161,6 +174,9 @@ export default function App() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [hintCell, setHintCell] = useState<[number, number] | null>(null);
   const [flipCells, setFlipCells] = useState<Set<string>>(new Set());
+  const [cascadeMap, setCascadeMap] = useState<Map<string, CascadeStep>>(new Map());
+  const [recentCornerLocked, setRecentCornerLocked] = useState<string | null>(null);
+  const [comboBanner, setComboBanner] = useState<string | null>(null);
   const [reviewLog, setReviewLog] = useState<PlacedMove[]>([]);
   const [review, setReview] = useState<GameReview | null>(null);
 
@@ -172,7 +188,20 @@ export default function App() {
   const prevPhaseRef = useRef<GamePhase>('playing');
   const statsRecordedRef = useRef(false);
   const flipTimer = useRef<number | null>(null);
+  const cornerTimer = useRef<number | null>(null);
+  const comboTimer = useRef<number | null>(null);
+  const cascadeAudioTimers = useRef<number[]>([]);
   const boardShellRef = useRef<HTMLDivElement | null>(null);
+
+  // Clean up all timers on unmount
+  useEffect(() => {
+    return () => {
+      if (flipTimer.current) window.clearTimeout(flipTimer.current);
+      if (cornerTimer.current) window.clearTimeout(cornerTimer.current);
+      if (comboTimer.current) window.clearTimeout(comboTimer.current);
+      for (const t of cascadeAudioTimers.current) window.clearTimeout(t);
+    };
+  }, []);
 
   const placePieceFx = useCallback((r: number, c: number) => {
     const cell = boardShellRef.current?.querySelector(`[data-reversi-cell="${r},${c}"]`);
@@ -198,6 +227,11 @@ export default function App() {
   const flipsMap = useMemo(
     () => calculateFlipsMap(state.board, state.currentTurn),
     [state.board, state.currentTurn],
+  );
+
+  const stabilityAnalysis = useMemo(
+    () => calculateStability(state.board),
+    [state.board],
   );
 
   const cpuColor: Piece = playerSide === 'black' ? 'white' : 'black';
@@ -239,19 +273,82 @@ export default function App() {
         : null;
   const teachCells = new Set((teach?.cells ?? []).map(([r, c]) => `${r},${c}`));
 
-  const triggerFlips = useCallback((cells: [number, number][]) => {
-    if (cells.length === 0) return;
-    const keys = new Set(cells.map(([r, c]) => `${r},${c}`));
-    setFlipCells(keys);
-    playFlip();
-    haptic('tap');
-    for (const [r, c] of cells) {
-      const el = boardShellRef.current?.querySelector(`[data-reversi-cell="${r},${c}"]`);
-      particles('sparkle', { el: el ?? boardShellRef.current, strength: 0.35 });
-    }
-    if (flipTimer.current) window.clearTimeout(flipTimer.current);
-    flipTimer.current = window.setTimeout(() => setFlipCells(new Set()), FLIP_MS);
-  }, []);
+  const executeCascadeMove = useCallback(
+    (r: number, c: number, color: Piece): Board => {
+      const wave = calculateCascadeWave(state.board, r, c, color);
+      const nextBoard = applyMove(state.board, r, c, color);
+      const isCorner = wave.isCorner;
+
+      // 1. Tactile Drop Impact Audio & Particle Juice
+      playTactileDrop(isCorner);
+      placePieceFx(r, c);
+
+      // 2. Corner Golden Fortress Lock
+      if (isCorner) {
+        playGoldenFortressChime();
+        setRecentCornerLocked(`${r},${c}`);
+        if (cornerTimer.current) window.clearTimeout(cornerTimer.current);
+        cornerTimer.current = window.setTimeout(() => setRecentCornerLocked(null), 850);
+        const cellEl = boardShellRef.current?.querySelector(`[data-reversi-cell="${r},${c}"]`);
+        particles('confetti', { el: cellEl ?? boardShellRef.current, strength: 0.85 });
+        shake(boardShellRef.current, 0.6);
+      }
+
+      // 3. Domino Cascade Wave Flips
+      if (wave.items.length > 0) {
+        const stepMap = new Map<string, CascadeStep>();
+        const flipKeys = new Set<string>();
+        for (const item of wave.items) {
+          stepMap.set(item.key, { stepIndex: item.stepIndex, delayMs: item.delayMs });
+          flipKeys.add(item.key);
+        }
+        setCascadeMap(stepMap);
+        setFlipCells(flipKeys);
+
+        // Cancel previous wave audio timers
+        for (const t of cascadeAudioTimers.current) window.clearTimeout(t);
+        cascadeAudioTimers.current = [];
+
+        // Sequential ascending musical pitch & sparkle wave
+        wave.itemsByStep.forEach((stepItems, s) => {
+          const timer = window.setTimeout(() => {
+            playCascadeNote(s, wave.maxStep + 1);
+            haptic('tap');
+            for (const item of stepItems) {
+              const el = boardShellRef.current?.querySelector(
+                `[data-reversi-cell="${item.r},${item.c}"]`,
+              );
+              particles('sparkle', { el: el ?? boardShellRef.current, strength: 0.35 });
+            }
+          }, s * 70);
+          cascadeAudioTimers.current.push(timer);
+        });
+
+        // Combo title announcement & fanfare
+        if (wave.comboTitle) {
+          setComboBanner(wave.comboTitle);
+          if (comboTimer.current) window.clearTimeout(comboTimer.current);
+          comboTimer.current = window.setTimeout(() => setComboBanner(null), 1800);
+          if (wave.totalFlips >= 5) {
+            const fanfareTimer = window.setTimeout(() => {
+              playCascadeComboFanfare(wave.totalFlips);
+            }, wave.maxStep * 70 + 80);
+            cascadeAudioTimers.current.push(fanfareTimer);
+          }
+        }
+
+        const totalDuration = wave.maxStep * 70 + FLIP_MS;
+        if (flipTimer.current) window.clearTimeout(flipTimer.current);
+        flipTimer.current = window.setTimeout(() => {
+          setFlipCells(new Set());
+          setCascadeMap(new Map());
+        }, totalDuration);
+      }
+
+      return nextBoard;
+    },
+    [state.board, placePieceFx],
+  );
 
   const pushHistory = useCallback(() => {
     setHistory((h) => [...h, { state, lastMove, reviewLog, puzzlePlies }]);
@@ -366,11 +463,7 @@ export default function App() {
         return;
       }
       const [r, c] = best;
-      const flips = getFlips(state.board, r, c, botColor);
-      const nextBoard = applyMove(state.board, r, c, botColor);
-      playMove();
-      placePieceFx(r, c);
-      triggerFlips(flips);
+      const nextBoard = executeCascadeMove(r, c, botColor);
       setLastMove([r, c]);
       setReviewLog((log) => appendReviewMove(log, state.board, botColor, [r, c], false));
       const nextTurn: Piece = botColor === 'black' ? 'white' : 'black';
@@ -398,8 +491,7 @@ export default function App() {
     botStyle,
     playerSide,
     applyMoveAndAdvance,
-    triggerFlips,
-    placePieceFx,
+    executeCascadeMove,
   ]);
 
   // End-of-game: audio, streaks, ladder, series, review
@@ -501,11 +593,7 @@ export default function App() {
         const ok = isOptimalMove(state.board, puzzle.side, [r, c], puzzle.goal);
         if (!ok) {
           pushHistory();
-          const flips = getFlips(state.board, r, c, puzzle.side);
-          const nextBoard = applyMove(state.board, r, c, puzzle.side);
-          playMove();
-          placePieceFx(r, c);
-          triggerFlips(flips);
+          const nextBoard = executeCascadeMove(r, c, puzzle.side);
           setLastMove([r, c]);
           failPuzzle('這手無法達成目標。再試一次！');
           setState((s) => ({ ...s, board: nextBoard }));
@@ -516,11 +604,7 @@ export default function App() {
       pushHistory();
       setHintCell(null);
       const color = state.currentTurn;
-      const flips = getFlips(state.board, r, c, color);
-      const nextBoard = applyMove(state.board, r, c, color);
-      playMove();
-      placePieceFx(r, c);
-      triggerFlips(flips);
+      const nextBoard = executeCascadeMove(r, c, color);
       setLastMove([r, c]);
       setCursorCell([r, c]);
       setReviewLog((log) => appendReviewMove(log, state.board, color, [r, c], true));
@@ -586,8 +670,7 @@ export default function App() {
       legalSet,
       applyMoveAndAdvance,
       pushHistory,
-      triggerFlips,
-      placePieceFx,
+      executeCascadeMove,
       failPuzzle,
       finishPuzzleSuccess,
     ],
@@ -646,6 +729,15 @@ export default function App() {
     if (playMode === 'puzzle') setPuzzleUsedUndo(true);
     setHintCell(null);
     setReview(null);
+    setFlipCells(new Set());
+    setCascadeMap(new Map());
+    setRecentCornerLocked(null);
+    setComboBanner(null);
+    if (flipTimer.current) window.clearTimeout(flipTimer.current);
+    if (cornerTimer.current) window.clearTimeout(cornerTimer.current);
+    if (comboTimer.current) window.clearTimeout(comboTimer.current);
+    for (const t of cascadeAudioTimers.current) window.clearTimeout(t);
+    cascadeAudioTimers.current = [];
     botScheduled.current = false;
     statsRecordedRef.current = false;
     prevPhaseRef.current = 'playing';
@@ -1147,6 +1239,7 @@ export default function App() {
         series={series}
         puzzle={puzzle}
         puzzlePlies={puzzlePlies}
+        stabilityAnalysis={stabilityAnalysis}
         onOpenShortcuts={() => setShowShortcutsModal(true)}
       />
 
@@ -1201,6 +1294,7 @@ export default function App() {
           whiteCount={white}
           tacticalVision={tacticalVision}
           onToggleTacticalVision={() => setTacticalVision((v) => !v)}
+          stabilityAnalysis={stabilityAnalysis}
           className="hidden lg:flex w-64 xl:w-72 shrink-0"
         />
 
@@ -1255,6 +1349,13 @@ export default function App() {
             </div>
           )}
 
+          {/* Combo Cascade Wave Callout Banner */}
+          {comboBanner && (
+            <div className="w-full mb-2 py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-stone-950 text-xs font-black tracking-wide text-center shadow-lg border border-amber-300 animate-bounce select-none">
+              {comboBanner}
+            </div>
+          )}
+
           {/* Target Reticle / Active Focus Coordinate Readout */}
           <div className="w-full flex items-center justify-between px-3 py-1.5 mb-2 bg-stone-900/70 border border-stone-800 rounded-xl text-xs">
             <span className="text-stone-400 font-mono text-[11px]">
@@ -1277,6 +1378,7 @@ export default function App() {
             hintCell={hintCell}
             cursorCell={cursorCell}
             flipCells={flipCells}
+            cascadeMap={cascadeMap}
             previewFlips={previewFlips}
             teachCells={teachCells}
             showLegalHints={showLegalHints}
@@ -1284,6 +1386,8 @@ export default function App() {
             phasePlaying={state.phase === 'playing'}
             tacticalVision={tacticalVision}
             flipsMap={flipsMap}
+            recentCornerLocked={recentCornerLocked}
+            stabilityAnalysis={stabilityAnalysis}
             onCellClick={handleCellClick}
             onCellHover={(r, c) => setHoveredCell(r !== null && c !== null ? [r, c] : null)}
             shellRef={boardShellRef}
