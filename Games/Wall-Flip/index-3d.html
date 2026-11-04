@@ -846,6 +846,10 @@
             <span id="lblStuntInvert">🔄 反重力倒飛</span>
             <span>+0.4x</span>
           </div>
+          <div id="tagSwitchSpin" class="wf-stunt-pill">
+            <span id="lblStuntSwitch">🔀 雙向翻滾反轉</span>
+            <span>+0.3x</span>
+          </div>
         </div>
       </div>
 
@@ -1124,6 +1128,7 @@ const STR = {
     spinDeg: '空中翻滾',
     stuntSkim: '⚡ 貼地極限掠過 (+0.5x)',
     stuntInvert: '🔄 反重力倒飛 (+0.4x)',
+    stuntSwitch: '🔀 雙向翻滾反轉 (+0.3x)',
     vviText: '垂直降速 VVI',
     stabForecast: '著陸平穩預測',
     stabLegend: 'LEGEND 滿分預測',
@@ -1226,6 +1231,7 @@ const STR = {
     spinDeg: 'SPIN DEG',
     stuntSkim: '⚡ DECK SKIM (+0.5x)',
     stuntInvert: '🔄 INVERTED FLIGHT (+0.4x)',
+    stuntSwitch: '🔀 DUAL-DIRECTION SWITCH (+0.3x)',
     vviText: 'VVI DESCENT',
     stabForecast: 'TOUCHDOWN STABILITY',
     stabLegend: 'LEGEND PREDICTED',
@@ -1531,6 +1537,8 @@ function createSim(hooks = {}, consts = null) {
     gripLeft: 1, clear: false, peeled: false, lifted: false, launched: false,
     launchV: 0, pw: 0, landRoll: 0, land: null, crash: null,
     events: [],
+    spinTotal: 0, rollsAccum: 0, spinRight: 0, spinLeft: 0,
+    hasSwitchedDir: false, phase: 'upright',
   };
   const snap = () => { const q = bodyPose(s.u); s.x = q.x; s.y = q.y; s.th = q.th; };
   const toAir = kind => {
@@ -1544,6 +1552,9 @@ function createSim(hooks = {}, consts = null) {
     s.roll = s.roll0 = over ? Math.PI : 0;
     s.pitch = over ? s.th - Math.PI : s.th;
     s.rw = 0; s.launchV = s.v;
+    s.spinTotal = 0; s.rollsAccum = 0; s.spinRight = 0; s.spinLeft = 0;
+    s.hasSwitchedDir = false;
+    s.phase = over ? 'inverted' : 'upright';
     s.launched = kind === 'launch'; s.peeled = kind === 'detach'; s.lifted = kind === 'lift';
     s.clear = false;
     s.events.push({ type: kind, x: s.x, y: s.y });
@@ -1605,7 +1616,31 @@ function createSim(hooks = {}, consts = null) {
     s.vz += roof[2] * I.THRUST * Z * dt;
     const damp = jL !== jR ? I.SPIN_DAMP : I.ROLL_DAMP;
     s.rw += (((jL ? 1 : 0) - (jR ? 1 : 0)) * I.ANG - s.rw * damp) * dt;
-    s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt; s.roll += s.rw * dt;
+    const dRoll = s.rw * dt;
+    s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt; s.roll += dRoll;
+    const absDRoll = Math.abs(dRoll);
+    s.spinTotal = (s.spinTotal || 0) + absDRoll;
+    if (dRoll < 0) s.spinRight = (s.spinRight || 0) - dRoll;
+    else if (dRoll > 0) s.spinLeft = (s.spinLeft || 0) + dRoll;
+
+    // Track full revolution milestones (inverted -> upright transitions)
+    const tiltRoll = Math.abs(s.roll - Math.round(s.roll / TAU) * TAU);
+    if (s.phase === 'inverted') {
+      if (tiltRoll <= I.LAND_TILT) {
+        s.rollsAccum = (s.rollsAccum || 0) + 1;
+        s.phase = 'upright';
+        hooks.onRollMilestone?.(s.rollsAccum);
+      }
+    } else {
+      if (tiltRoll >= Math.PI - 0.55) {
+        s.phase = 'inverted';
+      }
+    }
+
+    if (!s.hasSwitchedDir && s.spinRight >= Math.PI - 0.35 && s.spinLeft >= Math.PI - 0.35) {
+      s.hasSwitchedDir = true;
+      hooks.onDirSwitch?.();
+    }
     if (Math.abs(s.x) > I.WORLD_X) { s.x = Math.sign(s.x) * I.WORLD_X; s.vx = 0; }
     if (Math.abs(s.z) > I.WORLD_X) { s.z = Math.sign(s.z) * I.WORLD_X; s.vz = 0; }
     if (s.y > I.WORLD_Y) { s.y = I.WORLD_Y; s.vy = Math.min(0, s.vy); }
@@ -1639,13 +1674,16 @@ function createSim(hooks = {}, consts = null) {
     const [lx, ly, lz] = low.pt;
     const ky = tsin(s.pitch) * lx + tcos(s.pitch) * ly;
     const fall = -(s.vy + s.rw * (-ky * tsin(s.roll) - lz * tcos(s.roll)));
-    s.land = { x: s.x, z: s.z, fall, tilt, spin: Math.abs(s.rw), rolls: rollsCount(s.roll, s.roll0), vx: s.vx };
+    const completedRolls = Math.max(rollsCount(s.roll, s.roll0), s.rollsAccum || 0);
+    s.land = { x: s.x, z: s.z, fall, tilt, spin: Math.abs(s.rw), rolls: completedRolls, vx: s.vx };
     if (low.pt[3] !== 'wheel' || tilt > I.LAND_TILT) { doCrash('tilt', low.w[0], 0); return; }
     if (fall > I.LAND_SPEED || Math.abs(s.rw) > I.LAND_SPIN) { doCrash('hard', low.w[0], 0); return; }
     if (s.lifted && s.x <= 0 && Math.abs(s.z) < ROAD_W / 2) {
       s.land = null; s.mode = 'road';
       s.u = Math.max(-I.RUNUP, s.x); s.v = s.vx * tcos(s.yaw);
       s.z = 0; s.vz = 0; s.rw = 0;
+      s.spinTotal = 0; s.rollsAccum = 0; s.spinRight = 0; s.spinLeft = 0;
+      s.hasSwitchedDir = false; s.phase = 'upright';
       snap();
       s.events.push({ type: 'touch', x: s.x, y: 0 });
       return;
@@ -2477,6 +2515,7 @@ const el = {
   comboBar: $('comboBar'), spinBar: $('comboBar'),
   tagDeckSkim: $('tagDeckSkim'), lblStuntSkim: $('lblStuntSkim'),
   tagInvertFlight: $('tagInvertFlight'), lblStuntInvert: $('lblStuntInvert'),
+  tagSwitchSpin: $('tagSwitchSpin'), lblStuntSwitch: $('lblStuntSwitch'),
   lblVviText: $('lblVviText'), lblVvi: $('lblVviText'),
   cockpitVvi: $('cockpitVvi'), vviVal: $('cockpitVvi'),
   vviCockpitBar: $('vviCockpitBar'), vviBar: $('vviCockpitBar'),
@@ -2516,6 +2555,7 @@ function updateAllText() {
   if (el.lblSpinDeg) el.lblSpinDeg.textContent = t('spinDeg');
   if (el.lblStuntSkim) el.lblStuntSkim.textContent = t('stuntSkim');
   if (el.lblStuntInvert) el.lblStuntInvert.textContent = t('stuntInvert');
+  if (el.lblStuntSwitch) el.lblStuntSwitch.textContent = t('stuntSwitch');
   if (el.lblVviText) el.lblVviText.textContent = t('vviText');
   if (el.lblStabForecast) el.lblStabForecast.textContent = t('stabForecast');
   if (el.lblManualBtn) el.lblManualBtn.textContent = t('manualBtn');
@@ -2901,13 +2941,38 @@ function botInputs() {
   return inp;
 }
 
+function makeSimHooks() {
+  return {
+    onAir: onAirHook,
+    onRollMilestone: r => {
+      if (r > game.rolls) {
+        game.rolls = r;
+        popAt(sim.state.x, sim.state.y + 2.4, sim.state.z, t('rollUnit', r), 'hsl(45 95% 50%)', true);
+        sfx.chime(r);
+        sfx.stuntWhoosh(game.comboMult || 1);
+        burstStuntGold(sim.state.x, sim.state.y + 1.2, sim.state.z, 40);
+        game.shake = Math.max(game.shake, 0.22);
+        triggerStuntBanner(r);
+      }
+    },
+    onDirSwitch: () => {
+      game.hasSwitchedDir = true;
+      popAt(sim.state.x, sim.state.y + 1.5, sim.state.z, t('stuntSwitch'), '#38ef7d', true);
+      burstStuntGold(sim.state.x, sim.state.y + 1.0, sim.state.z, 30);
+      sfx.stuntWhoosh(2.2);
+      game.shake = Math.max(game.shake, 0.2);
+    },
+  };
+}
+
 function resetRun() {
-  sim = createSim({ onAir: onAirHook }, dailyConsts());
+  sim = createSim(makeSimHooks(), dailyConsts());
   startX = sim.state.x;
   Object.assign(game, {
     playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0, runTime: 0, newTimeRec: false, squash: 0, squashV: 0,
     peakG: 1.0, currentG: 1.0, comboMult: 1.0, skimTime: 0, hasSkimmed: false,
     invertTime: 0, hasInverted: false, stability: 100, stallWarningActive: false, prevV: 0,
+    hasSwitchedDir: false,
   });
   bot.target = 0; bot.plan = 0;
   newBest = false; launchX = 0; retryT = 0;
@@ -2938,6 +3003,7 @@ function resetRun() {
   if (el.manualModal) el.manualModal.hidden = true;
   if (el.tagDeckSkim) el.tagDeckSkim.classList.remove('active');
   if (el.tagInvertFlight) el.tagInvertFlight.classList.remove('active');
+  if (el.tagSwitchSpin) el.tagSwitchSpin.classList.remove('active');
   updateBestLabels();
   camState.init = false; // snap the camera like the original
 }
@@ -3769,7 +3835,7 @@ function processEvents() {
   }
   st.events.length = 0;
   if (st.mode === 'air') {
-    const r = rollsCount(st.roll, st.roll0);
+    const r = Math.max(rollsCount(st.roll, st.roll0), st.rollsAccum || 0);
     if (r > game.rolls) {
       game.rolls = r;
       popAt(st.x, st.y + 2.4, st.z, t('rollUnit', r), 'hsl(45 95% 50%)', true);
@@ -4351,11 +4417,12 @@ function updateHud() {
     }
 
     // 4. Stunt Combo Multiplier & Radar
-    const rotTotal = Math.abs(st.roll - st.roll0);
+    const rotTotal = Math.max(Math.abs(st.roll - st.roll0), st.spinTotal || 0);
     const rotDeg = Math.round(rotTotal * 180 / Math.PI);
-    const curRolls = rollsCount(st.roll, st.roll0);
+    const curRolls = Math.max(rollsCount(st.roll, st.roll0), st.rollsAccum || 0);
     let mult = 1.0 + curRolls * 0.4;
     if (rotDeg >= 1260) mult = Math.max(mult, 3.0); // 3.5+ rolls
+    if (st.hasSwitchedDir || game.hasSwitchedDir) mult += 0.3;
 
     // Deck Skim
     const altM = Math.max(0, st.y - CAR.H);
@@ -4392,6 +4459,7 @@ function updateHud() {
     }
     if (el.tagDeckSkim) el.tagDeckSkim.classList.toggle('active', !!game.hasSkimmed);
     if (el.tagInvertFlight) el.tagInvertFlight.classList.toggle('active', !!game.hasInverted);
+    if (el.tagSwitchSpin) el.tagSwitchSpin.classList.toggle('active', !!(st.hasSwitchedDir || game.hasSwitchedDir));
 
     // 5. Landing Stability Forecast (Touchdown Predictor)
     const vs = st.vy * 3.6;
@@ -4481,7 +4549,7 @@ new ResizeObserver(resize).observe(el.pad);
 addEventListener('resize', resize);
 
 // ---------- main loop ----------
-sim = createSim({ onAir: onAirHook }, dailyConsts());
+sim = createSim(makeSimHooks(), dailyConsts());
 startX = sim.state.x;
 updatePadVisibility();
 resize();

@@ -44,6 +44,20 @@ function simulate() {
 }
 assert.equal(simulate(), simulate());
 
+// Bidirectional rolling accumulation preserves rolls and accumulates rotation without subtraction.
+{
+  const bidi = createSim();
+  for (let i = 0; i < 450; i++) bidi.step(BASE.STEP, { drive: true, suck: false, left: false, right: false });
+  assert.equal(bidi.state.mode, 'air');
+  for (let i = 0; i < 180; i++) bidi.step(BASE.STEP, { drive: false, suck: false, left: false, right: true });
+  const rightSpin = bidi.state.spinRight;
+  assert.ok(rightSpin > Math.PI, 'Right roll accumulated at least one half-turn');
+  for (let i = 0; i < 320; i++) bidi.step(BASE.STEP, { drive: false, suck: false, left: true, right: false });
+  assert.ok(bidi.state.spinLeft > Math.PI, 'Left roll accumulated at least one half-turn');
+  assert.ok(bidi.state.spinTotal > rightSpin, 'Total spin strictly accumulated across direction changes');
+  assert.equal(bidi.state.hasSwitchedDir, true, 'Dual-direction reversal stunt correctly detected');
+}
+
 // Landing score boundaries preserve the 50-point roll and bounded quality bonuses.
 assert.equal(scoreOf({ rolls: 0, fall: 0, tilt: 0 }).total, 50);
 assert.equal(scoreOf({ rolls: 2, fall: 0, tilt: 0 }).total, 150);

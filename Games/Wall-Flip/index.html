@@ -256,6 +256,7 @@ const STR = {
     spinDeg: '空中翻滾',
     stuntSkim: '⚡ 貼地極限掠過 (+0.5x)',
     stuntInvert: '🔄 反重力倒飛 (+0.4x)',
+    stuntSwitch: '🔀 雙向翻滾反轉 (+0.3x)',
     vviText: '垂直降速 VVI',
     stabForecast: '著陸平穩預測',
     stabLegend: 'LEGEND 滿分預測',
@@ -331,6 +332,7 @@ const STR = {
     spinDeg: 'SPIN DEG',
     stuntSkim: '⚡ DECK SKIM (+0.5x)',
     stuntInvert: '🔄 INVERTED FLIGHT (+0.4x)',
+    stuntSwitch: '🔀 DUAL-DIRECTION SWITCH (+0.3x)',
     vviText: 'VVI DESCENT',
     stabForecast: 'TOUCHDOWN STABILITY',
     stabLegend: 'LEGEND PREDICTED',
@@ -685,6 +687,8 @@ const car = {
   clear: false, peeled: false, lifted: false, launched: false,
   land: null, crash: null, pw: 0, flipT: 1, squash: 0, squashV: 0,
   events: [],
+  spinTotal: 0, rollsAccum: 0, spinRight: 0, spinLeft: 0,
+  hasSwitchedDir: false, phase: 'upright',
 };
 const inp = { drive: false, stick: false, left: false, right: false };
 const stats = { rolls: 0, soft: 0, level: 0, total: 0, fall: 0, tilt: 0, dist: 0, reason: '', win: false };
@@ -1303,6 +1307,8 @@ function reset(ready) {
   car.mode = 'road'; car.u = -RUNUP; car.v = 0;
   car.x = p0.x - RUNUP; car.y = p0.y; car.th = 0;
   car.phi = 0; car.phiL = 0; car.rw = 0;
+  car.spinTotal = 0; car.rollsAccum = 0; car.spinRight = 0; car.spinLeft = 0;
+  car.hasSwitchedDir = false; car.phase = 'upright';
   car.vx = car.vy = 0;
   car.peakG = 1.0; car.gForce = 1.0; car.prevV = 0;
   car.comboMult = 1.0; car.hasSkimmed = false; car.skimTime = 0;
@@ -1338,7 +1344,11 @@ function toAir(kind) {
   const k = trackAt(car.u);
   car.mode = 'air'; car.airTime = 0;
   car.vx = cos(k.phi) * car.v; car.vy = sin(k.phi) * car.v;
+  const over = car.th > Math.PI / 2;
   car.phi = k.phi; car.phiL = k.phi; car.rw = 0; car.stuntRolls = 0;
+  car.spinTotal = 0; car.rollsAccum = 0; car.spinRight = 0; car.spinLeft = 0;
+  car.hasSwitchedDir = false;
+  car.phase = over ? 'inverted' : 'upright';
   launchX = car.x;
   car.peeled = kind === 'detach'; car.lifted = kind === 'lift'; car.launched = kind === 'launch';
   car.plan = botOn && car.air > 50 ? 1 : 0;
@@ -1357,7 +1367,7 @@ function doCrash(reason) {
   stats.fall = Math.hypot(car.vx, car.vy) * 3.6;
   stats.tilt = tiltNow() / DEG;
   stats.dist = Math.abs(car.x - launchX);
-  stats.rolls = rollsCount(car.phi, car.phiL);
+  stats.rolls = Math.max(rollsCount(car.phi, car.phiL), car.rollsAccum || 0);
   smoke(car.x, car.y + .5, 14); fire(car.x, car.y + .4, 14);
   shakeT = 0.5; shakeA = 0.35;
   sfx.crash();
@@ -1496,13 +1506,40 @@ function stepAir(dt) {
   car.vy += (ry * THRUST * Z - G * AIR_G) * dt;
   const damp = (jL !== jR) ? SPIN_DAMP : ROLL_DAMP;
   car.rw += (((jL ? 1 : 0) - (jR ? 1 : 0)) * ANG - car.rw * damp) * dt;
+  const dPhi = car.rw * dt;
   car.x += car.vx * dt; car.y += car.vy * dt;
-  car.phi += car.rw * dt;
+  car.phi += dPhi;
+  const absDPhi = Math.abs(dPhi);
+  car.spinTotal = (car.spinTotal || 0) + absDPhi;
+  if (dPhi < 0) car.spinRight = (car.spinRight || 0) - dPhi;
+  else if (dPhi > 0) car.spinLeft = (car.spinLeft || 0) + dPhi;
+
+  // Track full revolution milestones (inverted -> upright transitions)
+  const dev = Math.min(((car.phi % TAU) + TAU) % TAU, TAU - (((car.phi % TAU) + TAU) % TAU));
+  if (car.phase === 'inverted') {
+    if (dev <= LAND_TILT) {
+      car.rollsAccum = (car.rollsAccum || 0) + 1;
+      car.phase = 'upright';
+    }
+  } else {
+    if (dev >= Math.PI - 0.55) {
+      car.phase = 'inverted';
+    }
+  }
+
+  // Bidirectional stunt switch
+  if (!car.hasSwitchedDir && car.spinRight >= Math.PI - 0.35 && car.spinLeft >= Math.PI - 0.35) {
+    car.hasSwitchedDir = true;
+    pop(car.x, car.y + 1.2, t('stuntSwitch'), '#38ef7d');
+    try { sfx.stuntWhoosh(2.2); } catch (e) {}
+    shakeT = 0.2; shakeA = 0.2;
+  }
+
   car.od = (car.od || 0) - Math.hypot(car.vx, car.vy) * dt / CAR.WHEEL_R;
   car.left = jL; car.right = jR; car.suck = false; car.drive = false;
   car.gForce = Z > 0 ? (Z * THRUST) / G : 0.05;
   car.peakG = Math.max(car.peakG || 1.0, car.gForce);
-  const curRolls = rollsCount(car.phi, car.phiL);
+  const curRolls = Math.max(rollsCount(car.phi, car.phiL), car.rollsAccum || 0);
   if (curRolls > (car.stuntRolls || 0)) {
     car.stuntRolls = curRolls;
     say(t('stuntMilestone', curRolls), '#ffd166', 2.4);
@@ -1531,10 +1568,12 @@ function stepAir(dt) {
       shakeT = 0.15; shakeA = 0.15;
     }
   }
+  const rotTotal = Math.max(Math.abs(car.phi - car.phiL), car.spinTotal || 0);
   let mult = 1.0 + curRolls * 0.4;
-  if (Math.abs(car.phi - car.phiL) >= 1260 * DEG) mult = Math.max(mult, 3.0);
+  if (rotTotal >= 1260 * DEG) mult = Math.max(mult, 3.0);
   if (car.hasSkimmed) mult += 0.5;
   if (car.hasInverted) mult += 0.4;
+  if (car.hasSwitchedDir) mult += 0.3;
   car.comboMult = mult;
   if (!car.clear) {
     const S = closestOnTrack(car.x, car.y);
@@ -1568,6 +1607,8 @@ function stepAir(dt) {
   if (fall > LAND_SPEED || Math.abs(car.rw) > LAND_SPIN) { doCrash('hard'); return; }
   if (car.lifted && car.x <= 0) { // soft re-touch after a ground hop
     car.mode = 'road'; car.u = Math.max(-RUNUP, car.x); car.v = car.vx; car.rw = 0;
+    car.spinTotal = 0; car.rollsAccum = 0; car.spinRight = 0; car.spinLeft = 0;
+    car.hasSwitchedDir = false; car.phase = 'upright';
     const p2 = bodyPose(car.u);
     car.x = p2.x; car.y = p2.y; car.th = p2.th;
     return;
@@ -1576,7 +1617,7 @@ function stepAir(dt) {
   car.landPhi = Math.round(car.phi / Math.PI) * Math.PI; // snap to wheels-down
   car.flipT = 0;
   car.squashV = clamp(fall / 6, 0, 1.4);
-  stats.rolls = rollsCount(car.phi, car.phiL);
+  stats.rolls = Math.max(rollsCount(car.phi, car.phiL), car.rollsAccum || 0);
   stats.fall = fall * 3.6;
   stats.tilt = tilt / DEG;
   stats.dist = Math.abs(car.x - launchX);
@@ -2199,7 +2240,8 @@ function drawHUD() {
   const airMode = car.mode === 'air';
   const spd = car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy);
   const distVal = Math.round(car.mode === 'road' ? Math.max(0, car.u + RUNUP) : Math.abs(car.x - (car.peeled || car.launched || car.mode === 'landed' || car.mode === 'crash' ? launchX : 0)));
-  const rolls = car.mode === 'road' ? '0' : fmt(rollsCount(car.phi, car.phiL));
+  const curRolls = car.mode === 'road' ? 0 : Math.max(rollsCount(car.phi, car.phiL), car.rollsAccum || 0);
+  const rolls = car.mode === 'road' ? '0' : fmt(curRolls);
   const cols = [];
   if (!narrow) {
     cols.push([t('hudHeight'), fmt(Math.max(0, car.y - CAR.H)) + ' m']);
@@ -2387,14 +2429,15 @@ function drawHUD() {
     // Stunt combo
     ctx.font = `900 18px ${MONO}`; ctx.fillStyle = '#ffd166';
     ctx.fillText(`x${(car.comboMult || 1.0).toFixed(1)}`, rwX + 12, rwY + 38);
-    const rotDeg = Math.round(Math.abs(car.phi - car.phiL) * 180 / Math.PI);
+    const rotTotal = Math.max(Math.abs(car.phi - car.phiL), car.spinTotal || 0);
+    const rotDeg = Math.round(rotTotal * 180 / Math.PI);
     ctx.font = `500 10px ${MONO}`; ctx.fillStyle = UI.muted; ctx.textAlign = 'right';
     ctx.fillText(`FLIP ${rotDeg}°`, rwX + rwW - 12, rwY + 38);
 
     // Combo progress bar
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(rwX + 12, rwY + 47, rwW - 24, 4);
-    const flipPct = ((Math.abs(car.phi - car.phiL) % TAU) / TAU);
+    const flipPct = ((rotTotal % TAU) / TAU);
     ctx.fillStyle = '#ffd166';
     ctx.fillRect(rwX + 12, rwY + 47, (rwW - 24) * flipPct, 4);
 
