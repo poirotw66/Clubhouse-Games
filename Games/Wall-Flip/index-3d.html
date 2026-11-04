@@ -873,6 +873,13 @@
           <h3 id="lblManualModalTitle">💡 特技大師飛行錦囊 · 航太操縱指南</h3>
           <button type="button" id="manualCloseBtn" class="wf-manual-close" aria-label="關閉">✕</button>
         </div>
+        <div class="wf-manual-hero-banner" style="width: 100%; height: 110px; border-radius: 12px; margin-bottom: 14px; background: url('assets/hero-banner.webp') center/cover no-repeat, url('assets/hero-banner.jpg') center/cover no-repeat; border: 1px solid rgba(111,240,208,0.3); position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: 10px 14px; box-sizing: border-box;">
+          <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,14,22,0.92) 0%, rgba(10,14,22,0.2) 60%, transparent 100%); pointer-events: none;"></div>
+          <div style="position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            <span style="font-size: 11px; font-weight: 700; color: #6ff0d0; letter-spacing: 0.08em; text-transform: uppercase;">WALL-FLIP STUNT AEROBATICS</span>
+            <img src="assets/stunt-badge.webp" onerror="this.src='assets/stunt-badge.png'" alt="Stunt Emblem" style="width: 36px; height: 36px; filter: drop-shadow(0 2px 6px rgba(111,240,208,0.5));">
+          </div>
+        </div>
         <div class="wf-manual-grid">
           <div class="wf-manual-step">
             <span class="ico">🚀</span>
@@ -911,7 +918,10 @@
 
 <div id="start">
   <div class="sheet">
-  <h1 id="startTitle"></h1>
+  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;">
+    <img src="assets/stunt-badge.webp" onerror="this.src='assets/stunt-badge.png'" alt="Stunt Badge" style="width:38px;height:38px;filter:drop-shadow(0 2px 8px rgba(111,240,208,0.45));">
+    <h1 id="startTitle" style="margin:0;"></h1>
+  </div>
   <p class="sub" id="startSub"></p>
   <ol>
     <li><b id="s1a"></b><span id="s1b"></span></li>
@@ -1732,6 +1742,28 @@ const grass = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color: 1448222, roughness: 1 }));
 grass.position.set(-110, .02, -6);
 scene.add(grass);
+
+// panoramic cyberpunk skyline backdrop
+try {
+  const texLoader = new THREE.TextureLoader();
+  texLoader.load('assets/sky-backdrop.webp', (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const panoGeo = new THREE.CylinderGeometry(280, 280, 160, 48, 1, true, -Math.PI * 0.9, Math.PI * 1.8);
+    const panoMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false });
+    const pano = new THREE.Mesh(panoGeo, panoMat);
+    pano.position.set(0, 35, -40);
+    scene.add(pano);
+  }, undefined, () => {
+    texLoader.load('assets/sky-backdrop.jpg', (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const panoGeo = new THREE.CylinderGeometry(280, 280, 160, 48, 1, true, -Math.PI * 0.9, Math.PI * 1.8);
+      const panoMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false });
+      const pano = new THREE.Mesh(panoGeo, panoMat);
+      pano.position.set(0, 35, -40);
+      scene.add(pano);
+    });
+  });
+} catch (e) {}
 
 // road material + starter patch + extruded wall slab
 const roadMat = new THREE.MeshStandardMaterial({ color: 13816011, roughness: .85, emissive: 2894632 });

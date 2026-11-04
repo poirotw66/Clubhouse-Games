@@ -1811,7 +1811,22 @@ function worldTransform() {
 }
 function screenTransform() { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
 
-// ---------- scenery ----------
+// ---------- scenery & game assets ----------
+const ASSETS = {
+  hero: new Image(),
+  sky: new Image(),
+  car: new Image(),
+  badge: new Image(),
+};
+ASSETS.hero.src = 'assets/hero-banner.webp';
+ASSETS.hero.onerror = () => { if (ASSETS.hero.src.endsWith('.webp')) ASSETS.hero.src = 'assets/hero-banner.jpg'; };
+ASSETS.sky.src = 'assets/sky-backdrop.webp';
+ASSETS.sky.onerror = () => { if (ASSETS.sky.src.endsWith('.webp')) ASSETS.sky.src = 'assets/sky-backdrop.jpg'; };
+ASSETS.car.src = 'assets/roadster-chassis.webp';
+ASSETS.car.onerror = () => { if (ASSETS.car.src.endsWith('.webp')) ASSETS.car.src = 'assets/roadster-chassis.png'; };
+ASSETS.badge.src = 'assets/stunt-badge.webp';
+ASSETS.badge.onerror = () => { if (ASSETS.badge.src.endsWith('.webp')) ASSETS.badge.src = 'assets/stunt-badge.png'; };
+
 const trees = [], poles = [], stars = [];
 for (let i = 0; i < 60; i++) trees.push({ x: rand(-260, 320), z: rand(-140, -6), s: rand(4, 12), h: rand(.28, .36), l: rand(.08, .2) });
 for (let x = -270; x <= 320; x += 45) poles.push(x);
@@ -1822,6 +1837,31 @@ function drawSky(t) {
   screenTransform();
   ctx.fillStyle = '#06080d';
   ctx.fillRect(0, 0, W(), H());
+
+  // Parallax panoramic cyberpunk skyline backdrop
+  const sky = ASSETS.sky;
+  if (sky && sky.complete && sky.naturalWidth > 0) {
+    ctx.save();
+    const aspect = sky.naturalWidth / sky.naturalHeight;
+    const bgH = Math.max(H(), W() / aspect);
+    const bgW = bgH * aspect;
+    const px = (-(cam.x * 2.8) % bgW) - bgW * 0.1;
+    const py = clamp(-(cam.y - 12) * 2.2, -bgH * 0.45, 0);
+
+    for (let offset = -bgW; offset < W() + bgW; offset += bgW) {
+      ctx.drawImage(sky, px + offset, py, bgW, bgH);
+    }
+    // Atmospheric dark gradient overlay
+    const grad = ctx.createLinearGradient(0, 0, 0, H());
+    grad.addColorStop(0, 'rgba(6, 8, 13, 0.7)');
+    grad.addColorStop(0.25, 'rgba(6, 8, 13, 0.15)');
+    grad.addColorStop(0.75, 'rgba(6, 8, 13, 0.3)');
+    grad.addColorStop(1, 'rgba(6, 8, 13, 0.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W(), H());
+    ctx.restore();
+  }
+
   for (const s of stars) {
     ctx.globalAlpha = (0.3 + 0.3 * Math.sin(t * 1.5 + s.tw)) * (1 - s.y / 0.55);
     ctx.fillStyle = '#dfe8ff';
@@ -2045,28 +2085,41 @@ function drawCar(t) {
     ctx.stroke();
     ctx.restore();
   }
-  // body: low-slung silver Roadster (body center = origin)
-  const bg = ctx.createLinearGradient(0, -0.2, 0, 0.6);
-  bg.addColorStop(0, '#f6f8fa'); bg.addColorStop(0.45, '#dfe2e6'); bg.addColorStop(1, '#a9aeb6');
-  ctx.fillStyle = bg;
-  bodyPath();
-  ctx.fill();
-  ctx.fillStyle = '#2a2d32';
-  ctx.beginPath();
-  ctx.moveTo(-0.5, 0.5);
-  ctx.lineTo(-0.3, 0.62);
-  ctx.lineTo(0.28, 0.6);
-  ctx.lineTo(0.62, 0.3);
-  ctx.lineTo(-0.4, 0.3);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#8f949b';
-  ctx.fillRect(-2.3, 0.34, 0.36, 0.07);       // spoiler
-  ctx.fillRect(-2.06, 0.22, 0.1, 0.14);       // spoiler stalk
-  ctx.strokeStyle = 'rgba(70,78,88,.5)'; ctx.lineWidth = 0.03;
-  ctx.beginPath(); ctx.moveTo(-0.05, -0.14); ctx.lineTo(0.02, 0.28); ctx.stroke();
-  ctx.fillStyle = '#ffe9a8'; ctx.fillRect(2.02, 0.06, 0.16, 0.09);
-  ctx.fillStyle = '#ff5c5c'; ctx.fillRect(-2.26, 0.12, 0.1, 0.1);
-  ctx.fillStyle = '#20242c'; ctx.fillRect(-2.0, -0.28, 4.0, 0.12);
+  // body: high-res painted Roadster sprite with glowing cyan highlights
+  if (ASSETS.car && ASSETS.car.complete && ASSETS.car.naturalWidth > 0) {
+    ctx.save();
+    const curSpd = (car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy)) * 3.6;
+    if (curSpd > 85) {
+      ctx.shadowColor = '#6ff0d0';
+      ctx.shadowBlur = Math.min(16, (curSpd - 85) * 0.4);
+    }
+    // Flip Y because canvas worldTransform has inverted scale(cam.scale, -cam.scale)
+    ctx.scale(1, -1);
+    ctx.drawImage(ASSETS.car, -2.32, -0.62, 4.64, 1.28);
+    ctx.restore();
+  } else {
+    const bg = ctx.createLinearGradient(0, -0.2, 0, 0.6);
+    bg.addColorStop(0, '#f6f8fa'); bg.addColorStop(0.45, '#dfe2e6'); bg.addColorStop(1, '#a9aeb6');
+    ctx.fillStyle = bg;
+    bodyPath();
+    ctx.fill();
+    ctx.fillStyle = '#2a2d32';
+    ctx.beginPath();
+    ctx.moveTo(-0.5, 0.5);
+    ctx.lineTo(-0.3, 0.62);
+    ctx.lineTo(0.28, 0.6);
+    ctx.lineTo(0.62, 0.3);
+    ctx.lineTo(-0.4, 0.3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#8f949b';
+    ctx.fillRect(-2.3, 0.34, 0.36, 0.07);       // spoiler
+    ctx.fillRect(-2.06, 0.22, 0.1, 0.14);       // spoiler stalk
+    ctx.strokeStyle = 'rgba(70,78,88,.5)'; ctx.lineWidth = 0.03;
+    ctx.beginPath(); ctx.moveTo(-0.05, -0.14); ctx.lineTo(0.02, 0.28); ctx.stroke();
+    ctx.fillStyle = '#ffe9a8'; ctx.fillRect(2.02, 0.06, 0.16, 0.09);
+    ctx.fillStyle = '#ff5c5c'; ctx.fillRect(-2.26, 0.12, 0.1, 0.1);
+    ctx.fillStyle = '#20242c'; ctx.fillRect(-2.0, -0.28, 4.0, 0.12);
+  }
   ctx.restore();
 }
 
@@ -2431,8 +2484,25 @@ function drawHUD() {
 const RANKS = [[140, 'LEGEND!!!', '#ffd166'], [95, 'PERFECT!!', '#ff9f43'], [80, 'GREAT!', '#9fe8ff'], [0, 'GOOD!', '#cfe3f5']];
 function drawReady() {
   screenTransform();
-  ctx.fillStyle = 'rgba(12,13,15,.78)';
-  ctx.fillRect(0, 0, W(), H());
+  // Cinematic action hero background poster on ready screen
+  if (ASSETS.hero && ASSETS.hero.complete && ASSETS.hero.naturalWidth > 0) {
+    ctx.save();
+    const aspect = ASSETS.hero.naturalWidth / ASSETS.hero.naturalHeight;
+    const hW = Math.max(W(), H() * aspect);
+    const hH = hW / aspect;
+    ctx.drawImage(ASSETS.hero, (W() - hW) / 2, (H() - hH) / 2, hW, hH);
+    const grad = ctx.createLinearGradient(0, 0, 0, H());
+    grad.addColorStop(0, 'rgba(10, 12, 16, 0.85)');
+    grad.addColorStop(0.35, 'rgba(10, 12, 16, 0.72)');
+    grad.addColorStop(0.75, 'rgba(10, 12, 16, 0.90)');
+    grad.addColorStop(1, 'rgba(10, 12, 16, 0.98)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W(), H());
+    ctx.restore();
+  } else {
+    ctx.fillStyle = 'rgba(12,13,15,.78)';
+    ctx.fillRect(0, 0, W(), H());
+  }
   const cx = W() / 2;
   const controlsY = 14;
   const ch = 28;
@@ -2483,7 +2553,15 @@ function drawReady() {
   ctx.textAlign = 'center';
   ctx.font = `600 24px ${SANS}`;
   ctx.fillStyle = UI.text;
-  ctx.fillText(lang === 'en' ? 'WALL FLIP' : '牆上翻滾', cx, titleY);
+  const titleText = lang === 'en' ? 'WALL FLIP' : '牆上翻滾';
+  ctx.fillText(titleText, cx, titleY);
+
+  if (ASSETS.badge && ASSETS.badge.complete && ASSETS.badge.naturalWidth > 0) {
+    const badgeSize = Math.min(42, Math.max(30, titleY * 0.4));
+    const titleW = ctx.measureText(titleText).width;
+    ctx.drawImage(ASSETS.badge, cx - titleW / 2 - badgeSize - 10, titleY - badgeSize * 0.72, badgeSize, badgeSize);
+  }
+
   ctx.font = `400 14px ${SANS}`;
   ctx.fillStyle = UI.muted;
   ctx.fillText(t('sub'), cx, titleY + 26);
@@ -2612,6 +2690,10 @@ function drawResult() {
     y += 18;
     let rank = 'GOOD!';
     for (const [th, name] of RANKS) if (stats.total >= th) { rank = name; break; }
+    if (ASSETS.badge && ASSETS.badge.complete && ASSETS.badge.naturalWidth > 0) {
+      const bSize = 42;
+      ctx.drawImage(ASSETS.badge, px + pw - pad - bSize, py + pad - 2, bSize, bSize);
+    }
     ctx.font = `400 24px ${MONO}`;
     ctx.fillStyle = UI.text;
     ctx.textAlign = 'left';
