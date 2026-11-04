@@ -15,6 +15,8 @@ interface Props {
   label?: string;
   targetIndex?: number;
   hotkeyBadge?: string;
+  dangerType?: 'ace' | 'nine' | 'red_five' | null;
+  resonance?: boolean;
 }
 
 const SIZES = {
@@ -52,6 +54,8 @@ export function CardView({
   label,
   targetIndex,
   hotkeyBadge,
+  dangerType,
+  resonance = false,
 }: Props): React.ReactElement {
   const red = isRed(card);
   const points = pointsOf(card, blackAces);
@@ -66,6 +70,8 @@ export function CardView({
     selected ? 'pr-card-selected ring-4 ring-emerald-400' : '',
     hinted && !selected ? 'ring-4 ring-sky-400' : '',
     target ? 'pr-card-target ring-4 ring-amber-300' : '',
+    dangerType ? 'pr-card-danger' : '',
+    resonance && !selected && !target ? 'pr-card-resonance ring-2 ring-amber-400' : '',
     landed ? 'pr-land' : '',
     dimmed ? 'opacity-40' : '',
     interactive ? 'cursor-pointer' : 'cursor-default',
@@ -82,8 +88,25 @@ export function CardView({
     points > 0 ? `，${points} 分` : ''
   }`;
 
+  const dangerBadgeText =
+    dangerType === 'ace'
+      ? `👑 ${points}分天王`
+      : dangerType === 'nine'
+        ? '🔑 吃A金鑰'
+        : dangerType === 'red_five'
+          ? '⚡ 過紅五'
+          : null;
+
   const content = (
     <>
+      {/* Danger Sonar Waves if on table */}
+      {dangerType && (
+        <>
+          <span className="pr-sonar-ring" aria-hidden="true" />
+          <span className="pr-sonar-ring pr-sonar-ring-delayed" aria-hidden="true" />
+        </>
+      )}
+
       <span className="leading-none">{rankLabel(card.rank)}</span>
       <img
         src={suitIcon}
@@ -104,6 +127,28 @@ export function CardView({
       {hotkeyBadge && (
         <span className="absolute bottom-0.5 left-1 text-[9px] font-bold text-slate-600/80">
           {hotkeyBadge}
+        </span>
+      )}
+
+      {/* Danger Sonar Badge for table prize cards */}
+      {dangerBadgeText && size === 'md' && (
+        <span
+          className={`absolute -bottom-2 z-10 px-1.5 py-0.2 rounded-full text-[8px] font-black tracking-tight border shadow-md whitespace-nowrap pointer-events-none ${
+            dangerType === 'ace'
+              ? 'bg-rose-600 text-amber-100 border-rose-300'
+              : dangerType === 'nine'
+                ? 'bg-amber-600 text-amber-100 border-amber-300'
+                : 'bg-red-600 text-amber-100 border-orange-300'
+          }`}
+        >
+          {dangerBadgeText}
+        </span>
+      )}
+
+      {/* Resonance Link tag for hand cards that match a table prize */}
+      {resonance && !selected && !target && size === 'md' && (
+        <span className="absolute -top-2 z-10 px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[8px] font-black border border-amber-200 shadow-md animate-pulse whitespace-nowrap pointer-events-none">
+          ✨可合十
         </span>
       )}
     </>

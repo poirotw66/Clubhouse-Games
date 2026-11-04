@@ -54,6 +54,7 @@ import {
   createMatch,
   dealHand,
   decideMatchWinner,
+  defaultMatchConfig,
   formatKeyFor,
   handDeltas,
   handSeed,
@@ -73,7 +74,11 @@ import {
   analyzeKeyCardsRadar,
   analyzeOpponentThreats,
   analyzeScoreLeverage,
+  computeMomentumMetrics,
+  getDangerCardType,
   getGrandmasterWisdom,
+  hasResonanceWithTable,
+  isDangerCard,
   projectHandOptions,
 } from '../src/game/tactics.js';
 import {
@@ -1099,6 +1104,39 @@ function expectTacticalAnalysis(): void {
   assert.ok(wisdom.blurb.length > 0);
 }
 
+function expectDangerCardsAndMomentum(): void {
+  const redAce: Card = { id: 'hearts-1', suit: 'hearts', rank: 1 };
+  const redNine: Card = { id: 'diamonds-9', suit: 'diamonds', rank: 9 };
+  const redFive: Card = { id: 'hearts-5', suit: 'hearts', rank: 5 };
+  const blackAce: Card = { id: 'spades-1', suit: 'spades', rank: 1 };
+  const blackNine: Card = { id: 'spades-9', suit: 'spades', rank: 9 };
+
+  assert.equal(getDangerCardType(redAce), 'ace');
+  assert.equal(getDangerCardType(redNine), 'nine');
+  assert.equal(getDangerCardType(redFive), 'red_five');
+  assert.equal(getDangerCardType(blackNine), null);
+  assert.equal(getDangerCardType(blackAce, false), null);
+  assert.equal(getDangerCardType(blackAce, true), 'ace');
+
+  assert.equal(isDangerCard(redAce), true);
+  assert.equal(isDangerCard(blackNine), false);
+
+  // Resonance match: 9 resonates with Red Ace on table
+  const table = [redAce, blackNine];
+  assert.equal(hasResonanceWithTable(blackNine, table), true);
+  assert.equal(hasResonanceWithTable({ id: 'clubs-2', suit: 'clubs', rank: 2 }, table), false);
+
+  // Momentum metrics calculation
+  const match = createMatch(defaultMatchConfig());
+  const state = dealHand(match);
+  const leverage = analyzeScoreLeverage(state);
+  const momentum = computeMomentumMetrics(state, leverage);
+
+  assert.equal(momentum.points.length, 7);
+  assert.equal(momentum.doubleScoreTarget >= leverage.par, true);
+  assert.equal(momentum.winProbability >= 0 && momentum.winProbability <= 100, true);
+}
+
 const CHECKS: [string, () => void][] = [
   ['matching rule', expectMatchingRule],
   ['scoring table (210, red 9 = 10)', expectScoringTable],
@@ -1124,6 +1162,7 @@ const CHECKS: [string, () => void][] = [
   ['single mode and format stats', expectSingleModeAndFormats],
   ['named opponent ladder', expectNamedOpponentLadder],
   ['tactical analysis and radar', expectTacticalAnalysis],
+  ['danger cards and momentum oscilloscope', expectDangerCardsAndMomentum],
 ];
 
 let failed = 0;

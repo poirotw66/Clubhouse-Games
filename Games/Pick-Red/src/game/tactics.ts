@@ -29,6 +29,26 @@ export interface KeyCardInfo {
   categoryLabel: string;
 }
 
+export type DangerCardType = 'ace' | 'nine' | 'red_five';
+
+export interface MomentumWavePoint {
+  x: number;
+  y: number;
+  label?: string;
+}
+
+export interface MomentumMetrics {
+  trend: 'surging' | 'steady' | 'critical';
+  trendLabel: string;
+  leadVelocity: number;
+  winProbability: number;
+  doubleScoreTarget: number;
+  doubleScoreRemaining: number;
+  hasDoubleScoreAchieved: boolean;
+  zeroScoreAlert: boolean;
+  points: MomentumWavePoint[];
+}
+
 export interface ScoreLeverage {
   myScore: number;
   par: number;
@@ -39,6 +59,8 @@ export interface ScoreLeverage {
   opponentsTotalScore: number;
   maxOpponentScore: number;
   remainingUnknownRedPoints: number;
+  dangerCardsOnTable: number;
+  hasResonantOpportunity: boolean;
   status: 'safe_lead' | 'qualified' | 'striking_distance' | 'trailing' | 'unreachable';
   statusLabel: string;
   statusDesc: string;
@@ -97,6 +119,41 @@ const KEY_CARD_SPECS: Array<{
   { suit: 'hearts', rank: 13, category: 'face', categoryLabel: '紅花牌' },
   { suit: 'diamonds', rank: 13, category: 'face', categoryLabel: '紅花牌' },
 ];
+
+/**
+ * Identifies high-value strategic target cards on the table.
+ * - Ace: 20 points (hearts/diamonds) or 30/40 points under black-ace house rule.
+ * - Red Five: 5 points + core for the Double Red Five 20-chip penalty.
+ * - Red Nine: 10 points and the exclusive pairing key to capturing Red Ace.
+ */
+export function getDangerCardType(card: Card, blackAces = false): DangerCardType | null {
+  if ((isRed(card) && card.rank === 1) || (blackAces && card.rank === 1)) {
+    return 'ace';
+  }
+  if (isRed(card) && card.rank === 5) {
+    return 'red_five';
+  }
+  if (isRed(card) && card.rank === 9) {
+    return 'nine';
+  }
+  return null;
+}
+
+export function isDangerCard(card: Card, blackAces = false): boolean {
+  return getDangerCardType(card, blackAces) !== null;
+}
+
+/**
+ * Checks if a hand card has a direct 湊十 resonance pairing with any high-value target on table.
+ */
+export function hasResonanceWithTable(
+  handCard: Card,
+  table: readonly Card[],
+  blackAces = false,
+): boolean {
+  const targets = capturableBy(handCard, table);
+  return targets.some((t) => isDangerCard(t, blackAces) || isDangerCard(handCard, blackAces));
+}
 
 /**
  * Calculates the partner rank that can capture this card under 湊十 rules.
@@ -224,6 +281,10 @@ export function analyzeScoreLeverage(state: GameState): ScoreLeverage {
     statusDesc = `距合格尚差 ${(par - myScore).toFixed(0)} 分，緊盯紅 A 與大分牌。`;
   }
 
+  const dangerCardsOnTable = state.table.filter((c) => isDangerCard(c, blackAces)).length;
+  const myHand = state.hands[HUMAN] ?? [];
+  const hasResonantOpportunity = myHand.some((hc) => hasResonanceWithTable(hc, state.table, blackAces));
+
   return {
     myScore,
     par,
@@ -234,6 +295,8 @@ export function analyzeScoreLeverage(state: GameState): ScoreLeverage {
     opponentsTotalScore,
     maxOpponentScore,
     remainingUnknownRedPoints,
+    dangerCardsOnTable,
+    hasResonantOpportunity,
     status,
     statusLabel,
     statusDesc,
@@ -453,5 +516,86 @@ export function getGrandmasterWisdom(
     title: '推弈有道 · 算子為先',
     blurb: '出牌前先算下家能否吃牌。無可吃時，丟黑桃或梅花 0 分牌永遠比丟紅牌安全。',
     tag: 'tactics',
+  };
+}
+
+/**
+ * Computes momentum metrics and dynamic waveform coordinates for the Red Point Oscilloscope.
+ */
+export function computeMomentumMetrics(
+  state: GameState,
+  leverage: ScoreLeverage,
+): MomentumMetrics {
+  const { myScore, par, deckTotal, margin, tableRedPoints, remainingUnknownRedPoints } = leverage;
+  const players = state.rules.players;
+
+  // Double score milestone (e.g. 140 for 2P, 90 for 3P, 70 for 4P)
+  const doubleScoreTarget = Math.round(par * 1.333);
+  const doubleScoreRemaining = Math.max(0, doubleScoreTarget - myScore);
+  const hasDoubleScoreAchieved = myScore >= doubleScoreTarget;
+
+  // Win probability estimation
+  let winProbability: number;
+  if (myScore >= par) {
+    winProbability = Math.min(99, Math.round(68 + (myScore - par) * 1.4));
+  } else {
+    const accessible = tableRedPoints + remainingUnknownRedPoints;
+    const needed = par - myScore;
+    if (accessible < needed) {
+      winProbability = 5;
+    } else {
+      const ratio = needed / Math.max(1, accessible);
+      winProbability = Math.max(10, Math.min(65, Math.round(65 - ratio * 45)));
+    }
+  }
+
+  // Trend determination
+  let trend: MomentumMetrics['trend'];
+  let trendLabel: string;
+  if (margin >= 15 || hasDoubleScoreAchieved) {
+    trend = 'surging';
+    trendLabel = '勝勢狂飆 · 壓制全場';
+  } else if (margin >= 0) {
+    trend = 'steady';
+    trendLabel = '達標推進 · 步步為營';
+  } else {
+    trend = 'critical';
+    trendLabel = '緊咬反擊 · 伺機大分';
+  }
+
+  // Zero score threat (Taiwanese house rule bonus/penalty)
+  const zeroScoreAlert =
+    state.rules.zeroScoreBonus &&
+    state.pile.length <= 6 &&
+    state.captured.some((pile, seat) => seat !== HUMAN && pile.length > 0 && pile.reduce((sum, c) => sum + pointsOf(c, state.rules.blackAces), 0) === 0);
+
+  // Generate smooth waveform points based on log history and current leverage
+  const totalTurnsExpected = Math.max(1, 24);
+  const turnsElapsed = Math.min(24, state.log.length / Math.max(1, players));
+  const progressRatio = turnsElapsed / totalTurnsExpected;
+
+  const points: MomentumWavePoint[] = [];
+  const nodeCount = 7;
+  for (let i = 0; i < nodeCount; i++) {
+    const x = Math.round((i / (nodeCount - 1)) * 100);
+    const progressAtNode = (i / (nodeCount - 1)) * progressRatio;
+    const scoreAtNode = progressAtNode * myScore;
+    const parAtNode = progressAtNode * par;
+    const delta = scoreAtNode - parAtNode;
+
+    const clampedY = Math.max(12, Math.min(88, Math.round(50 - (delta / (deckTotal * 0.4)) * 40)));
+    points.push({ x, y: clampedY });
+  }
+
+  return {
+    trend,
+    trendLabel,
+    leadVelocity: margin,
+    winProbability,
+    doubleScoreTarget,
+    doubleScoreRemaining,
+    hasDoubleScoreAchieved,
+    zeroScoreAlert,
+    points,
   };
 }

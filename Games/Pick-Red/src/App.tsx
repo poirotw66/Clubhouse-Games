@@ -18,6 +18,8 @@ import { MatchScoreboard } from './components/MatchScoreboard';
 import { TacticalLeftWing } from './components/TacticalLeftWing';
 import { TacticalRightWing } from './components/TacticalRightWing';
 import { TacticalMobileTicker } from './components/TacticalMobileTicker';
+import { Match10StrikeOverlay } from './components/Match10StrikeOverlay';
+import type { StrikeData } from './components/Match10StrikeOverlay';
 import { feltBackgroundStyle, titleBackgroundStyle } from './artBackground';
 import {
   BLACK_ACE_POINTS,
@@ -43,9 +45,17 @@ import {
   analyzeKeyCardsRadar,
   analyzeOpponentThreats,
   analyzeScoreLeverage,
+  computeMomentumMetrics,
+  getDangerCardType,
   getGrandmasterWisdom,
+  hasResonanceWithTable,
   projectHandOptions,
 } from './game/tactics';
+import {
+  playCardSlide,
+  playDangerSonar,
+  playResonancePing,
+} from './game/audio';
 import {
   buildDailyShareText,
   computeDailyStreak,
@@ -144,6 +154,7 @@ export default function App(): React.ReactElement {
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [captureBurst, setCaptureBurst] = useState(0);
   const [showWings, setShowWings] = useState(true);
+  const [activeStrike, setActiveStrike] = useState<StrikeData | null>(null);
   const [setupTab, setSetupTab] = useState<SetupTab>('play');
   const [ladder, setLadder] = useState<LadderProgress>(EMPTY_LADDER);
   const [dailyProgress, setDailyProgress] = useState(EMPTY_DAILY);
@@ -157,6 +168,15 @@ export default function App(): React.ReactElement {
   const feltRef = useRef<HTMLElement | null>(null);
   /** Shake intensity queued until after `.pr-felt` remounts on captureBurst. */
   const pendingFeltShake = useRef(0);
+
+  const seatNames = useMemo(() => {
+    const names = [...SEAT_NAMES];
+    if (match?.config.ladderOpponentId) {
+      const opp = opponentById(match.config.ladderOpponentId);
+      if (opp) names[1] = opp.name;
+    }
+    return names;
+  }, [match]);
 
   useEffect(() => {
     const saved = loadStats();
@@ -213,6 +233,7 @@ export default function App(): React.ReactElement {
     setSelected(null);
     setHint(null);
     setReview(null);
+    setActiveStrike(null);
     setCombo(0);
     comboRef.current = 0;
     setCallout(null);
@@ -344,6 +365,33 @@ export default function App(): React.ReactElement {
       setCaptureBurst((n) => n + 1);
       const pts = last.points;
       const flashy = isFlashyCapture(last.played, last.taken, state.rules.blackAces);
+      const isAce = last.played.rank === 1 || last.taken.rank === 1;
+      const isRedFive =
+        (isRed(last.played) && last.played.rank === 5) ||
+        (isRed(last.taken) && last.taken.rank === 5);
+      const isToolConversion =
+        pointsOf(last.played, state.rules.blackAces) === 0 &&
+        pointsOf(last.taken, state.rules.blackAces) > 0;
+
+      comboRef.current += 1;
+      const nextCombo = comboRef.current;
+      setCombo(nextCombo);
+
+      // Trigger Match-10 Collision Strike
+      setActiveStrike({
+        id: Date.now(),
+        played: last.played,
+        target: last.taken,
+        points: pts,
+        by: last.by,
+        byName: seatNames[last.by] ?? SEAT_NAMES[last.by],
+        isAce,
+        isRedFive,
+        combo: nextCombo,
+        isToolConversion,
+        blackAces: state.rules.blackAces,
+      });
+
       if (flashy) {
         const label =
           last.played.rank === 1 || last.taken.rank === 1
@@ -358,9 +406,6 @@ export default function App(): React.ReactElement {
       } else {
         playCapture();
       }
-      comboRef.current += 1;
-      const nextCombo = comboRef.current;
-      setCombo(nextCombo);
       if (nextCombo >= 2) {
         playCombo(nextCombo);
         if (nextCombo >= 3) setCallout({ text: `${nextCombo} 連撿！`, key: Date.now() });
@@ -383,6 +428,7 @@ export default function App(): React.ReactElement {
         setCallout({ text: `丟出 ${cardLabel(last.played)}`, key: Date.now() });
       }
       playCard();
+      playCardSlide();
       haptic('tap');
       particles('dust', { el: feltEl() });
     }
@@ -504,6 +550,10 @@ export default function App(): React.ReactElement {
   const onHandCard = useCallback(
     (card: Card) => {
       if (!state || state.phase !== 'play' || !humanTurn) return;
+      playCardSlide();
+      if (hasResonanceWithTable(card, state.table, state.rules.blackAces)) {
+        playResonancePing();
+      }
       const options = capturableBy(card, state.table);
       setHint(null);
 
@@ -521,6 +571,7 @@ export default function App(): React.ReactElement {
     (card: Card) => {
       if (!state || !humanTurn) return;
       if (!targets.some((t) => t.id === card.id)) return;
+      playCardSlide();
       if (pickPending) {
         pushHistory(state);
         setState((current) => (current ? choosePick(current, card.id) : current));
@@ -603,15 +654,6 @@ export default function App(): React.ReactElement {
     setShareCopied(ok);
   }, [dailyProgress, dailyDate, match]);
 
-  const seatNames = useMemo(() => {
-    const names = [...SEAT_NAMES];
-    if (match?.config.ladderOpponentId) {
-      const opp = opponentById(match.config.ladderOpponentId);
-      if (opp) names[1] = opp.name;
-    }
-    return names;
-  }, [match]);
-
   useEffect(() => {
     if (!callout) return;
     const timer = setTimeout(() => setCallout(null), 1200);
@@ -642,6 +684,18 @@ export default function App(): React.ReactElement {
     () => (state && scoreLeverage ? getGrandmasterWisdom(state, scoreLeverage) : null),
     [state, scoreLeverage],
   );
+
+  const momentum = useMemo(
+    () => (state && scoreLeverage ? computeMomentumMetrics(state, scoreLeverage) : null),
+    [state, scoreLeverage],
+  );
+
+  // Danger Sonar: pulse low-frequency sonar when high-value cards exist on table
+  useEffect(() => {
+    if (state && scoreLeverage && scoreLeverage.dangerCardsOnTable > 0 && state.phase !== 'over') {
+      playDangerSonar();
+    }
+  }, [state, scoreLeverage]);
 
   useEffect(() => {
     if (screen !== 'game' || !state || !waitingOnHuman) return;
@@ -878,6 +932,7 @@ export default function App(): React.ReactElement {
                 selectedCard={selected}
                 onSelectHandCard={onHandCard}
                 onTargetClick={onTableCard}
+                momentum={momentum}
               />
             </div>
           )}
@@ -903,6 +958,7 @@ export default function App(): React.ReactElement {
                 selectedCard={selected}
                 onSelectHandCard={onHandCard}
                 onTargetClick={onTableCard}
+                momentum={momentum}
               />
             )}
 
@@ -985,6 +1041,10 @@ export default function App(): React.ReactElement {
                       const isTarget = humanTurn && targets.some((t) => t.id === card.id);
                       const targetIndex = isTarget ? targets.findIndex((t) => t.id === card.id) + 1 : undefined;
                       const isHinted = hint?.tableId === card.id;
+                      const dangerType = getDangerCardType(card, state.rules.blackAces);
+                      const hasResonance = state.hands[HUMAN].some((hc) =>
+                        hasResonanceWithTable(hc, [card], state.rules.blackAces),
+                      );
                       return (
                         <CardView
                           key={card.id}
@@ -993,6 +1053,8 @@ export default function App(): React.ReactElement {
                           target={isTarget}
                           targetIndex={targets.length > 1 ? targetIndex : undefined}
                           hinted={isHinted}
+                          dangerType={dangerType}
+                          resonance={hasResonance}
                           landed={state.spotlight.includes(card.id)}
                           dimmed={(Boolean(selected) || pickPending) && !isTarget}
                           onClick={isTarget ? () => onTableCard(card) : undefined}
@@ -1015,18 +1077,22 @@ export default function App(): React.ReactElement {
 
                 <section aria-label="你的手牌" className="relative">
                   <div className="flex flex-wrap gap-1.5 justify-center">
-                    {state.hands[HUMAN].map((card, idx) => (
-                      <CardView
-                        key={card.id}
-                        card={card}
-                        blackAces={state.rules.blackAces}
-                        selected={selected?.id === card.id}
-                        hinted={hint?.handId === card.id}
-                        dimmed={pickPending}
-                        hotkeyBadge={idx < 9 ? `${idx + 1}` : undefined}
-                        onClick={waitingOnHuman && !pickPending ? () => onHandCard(card) : undefined}
-                      />
-                    ))}
+                    {state.hands[HUMAN].map((card, idx) => {
+                      const hasResonance = hasResonanceWithTable(card, state.table, state.rules.blackAces);
+                      return (
+                        <CardView
+                          key={card.id}
+                          card={card}
+                          blackAces={state.rules.blackAces}
+                          selected={selected?.id === card.id}
+                          hinted={hint?.handId === card.id}
+                          resonance={hasResonance}
+                          dimmed={pickPending}
+                          hotkeyBadge={idx < 9 ? `${idx + 1}` : undefined}
+                          onClick={waitingOnHuman && !pickPending ? () => onHandCard(card) : undefined}
+                        />
+                      );
+                    })}
                   </div>
                   <div className="mt-1 flex items-center justify-center gap-2 text-[10px] text-slate-400">
                     <span>導航：<kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-300">A</kbd> <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-300">D</kbd> 切換</span>
@@ -1090,6 +1156,13 @@ export default function App(): React.ReactElement {
           }
           onShare={match.config.mode === 'daily' ? handleDailyShare : null}
           seatNames={seatNames}
+        />
+      )}
+
+      {activeStrike && (
+        <Match10StrikeOverlay
+          strike={activeStrike}
+          onComplete={() => setActiveStrike(null)}
         />
       )}
     </div>

@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Card } from '../game/types';
 import type {
   KeyCardInfo,
+  MomentumMetrics,
   ScoreLeverage,
   TableProjectionOption,
 } from '../game/tactics';
+import { ScoreOscilloscope } from './ScoreOscilloscope';
 
 interface Props {
   leverage: ScoreLeverage;
@@ -14,6 +16,7 @@ interface Props {
   onSelectHandCard: (card: Card) => void;
   onTargetClick?: (card: Card) => void;
   isMobileDrawer?: boolean;
+  momentum?: MomentumMetrics | null;
 }
 
 const LOCATION_STYLES: Record<
@@ -60,7 +63,10 @@ export function TacticalLeftWing({
   onSelectHandCard,
   onTargetClick,
   isMobileDrawer = false,
+  momentum,
 }: Props): React.ReactElement {
+  const [radarFilter, setRadarFilter] = useState<'all' | 'ace' | 'red_five' | 'nine' | 'face'>('all');
+
   const {
     myScore,
     par,
@@ -69,6 +75,8 @@ export function TacticalLeftWing({
     tableRedPoints,
     opponentsTotalScore,
     remainingUnknownRedPoints,
+    dangerCardsOnTable,
+    hasResonantOpportunity,
     statusLabel,
     statusDesc,
   } = leverage;
@@ -77,6 +85,12 @@ export function TacticalLeftWing({
   const oppPct = Math.min(100, Math.max(0, (opponentsTotalScore / deckTotal) * 100));
   const tablePct = Math.min(100, Math.max(0, (tableRedPoints / deckTotal) * 100));
   const unknownPct = Math.max(0, 100 - myPct - oppPct - tablePct);
+
+  const filteredRadar = radar.filter((card) => {
+    if (radarFilter === 'all') return true;
+    if (radarFilter === 'face') return card.category === 'ten' || card.category === 'face';
+    return card.category === radarFilter;
+  });
 
   return (
     <aside
@@ -87,6 +101,11 @@ export function TacticalLeftWing({
       }`}
       aria-label="左翼：勝勢天秤與牌情雷達"
     >
+      {/* 紅點勝負心電儀 (Tactical Momentum Oscilloscope) */}
+      {momentum && (
+        <ScoreOscilloscope metrics={momentum} myScore={myScore} par={par} />
+      )}
+
       {/* 勝勢天秤區塊 */}
       <section className="rounded-2xl border border-emerald-500/25 bg-slate-900/80 p-3.5 backdrop-blur-md shadow-lg shadow-emerald-950/20">
         <div className="flex items-center justify-between pb-2 border-b border-emerald-500/15">
@@ -165,10 +184,17 @@ export function TacticalLeftWing({
           </div>
         </div>
 
-        {/* 局勢研判摘要 */}
-        <div className="mt-3 rounded-xl bg-emerald-950/40 border border-emerald-500/20 p-2 text-[11px]">
-          <div className="font-bold text-emerald-200">{statusLabel}</div>
-          <div className="text-emerald-300/80 text-[10px] mt-0.5 leading-relaxed">
+        {/* 局勢研判與共振即時標籤 */}
+        <div className="mt-3 rounded-xl bg-emerald-950/40 border border-emerald-500/20 p-2 text-[11px] flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-emerald-200">{statusLabel}</span>
+            {hasResonantOpportunity && (
+              <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-400/90 text-slate-950 animate-pulse">
+                ✨合十共振
+              </span>
+            )}
+          </div>
+          <div className="text-emerald-300/80 text-[10px] leading-relaxed">
             {statusDesc}
           </div>
         </div>
@@ -181,12 +207,45 @@ export function TacticalLeftWing({
             <span className="text-base" role="img" aria-label="雷達">🎯</span>
             <span className="text-xs font-black tracking-wide text-emerald-100">大分牌透視雷達</span>
           </div>
-          <span className="text-[10px] text-slate-400">公開催牌統計</span>
+          <div className="flex items-center gap-1">
+            {dangerCardsOnTable > 0 && (
+              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-rose-950 border border-rose-500/60 text-rose-300 animate-pulse">
+                池有 {dangerCardsOnTable} 張天王牌
+              </span>
+            )}
+            <span className="text-[10px] text-slate-400">公開催牌</span>
+          </div>
+        </div>
+
+        {/* 分類篩選標籤 */}
+        <div className="mt-2 flex gap-1 text-[10px]">
+          {(
+            [
+              ['all', '全部'],
+              ['ace', '👑天王A'],
+              ['red_five', '⚡過紅5'],
+              ['nine', '🔑金鑰9'],
+              ['face', '💎10/花'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setRadarFilter(key)}
+              className={`flex-1 py-1 rounded-md font-bold transition-colors ${
+                radarFilter === key
+                  ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-200'
+                  : 'bg-slate-800/60 border border-slate-700/60 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* 關鍵大分網格 */}
-        <div className="mt-2.5 grid grid-cols-4 gap-1.5">
-          {radar.map((card) => {
+        <div className="mt-2 grid grid-cols-4 gap-1.5">
+          {filteredRadar.map((card) => {
             const loc = LOCATION_STYLES[card.location];
             const isClickable = card.location === 'on_table' && onTargetClick;
             return (

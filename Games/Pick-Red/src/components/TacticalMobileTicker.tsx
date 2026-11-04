@@ -3,6 +3,7 @@ import type { Card, MatchState } from '../game/types';
 import type {
   GrandmasterWisdom,
   KeyCardInfo,
+  MomentumMetrics,
   OpponentThreatProfile,
   ScoreLeverage,
   TableProjectionOption,
@@ -20,6 +21,7 @@ interface Props {
   selectedCard: Card | null;
   onSelectHandCard: (card: Card) => void;
   onTargetClick?: (card: Card) => void;
+  momentum?: MomentumMetrics | null;
 }
 
 export function TacticalMobileTicker({
@@ -32,10 +34,12 @@ export function TacticalMobileTicker({
   selectedCard,
   onSelectHandCard,
   onTargetClick,
+  momentum,
 }: Props): React.ReactElement {
   const [activeDrawer, setActiveDrawer] = useState<'left' | 'right' | null>(null);
 
   const tableCardsCount = radar.filter((r) => r.location === 'on_table').length;
+  const dangerCardsCount = leverage.dangerCardsOnTable;
 
   return (
     <div className="w-full lg:hidden flex flex-col gap-2">
@@ -52,13 +56,23 @@ export function TacticalMobileTicker({
             {leverage.margin >= 0 ? `+${leverage.margin.toFixed(0)}分達標` : `差${Math.abs(leverage.margin).toFixed(0)}分`}
           </span>
 
-          {tableCardsCount > 0 ? (
+          {dangerCardsCount > 0 ? (
+            <span className="text-rose-400 font-black text-[11px] truncate flex items-center gap-1 animate-pulse">
+              👑 池有天王牌 ({dangerCardsCount}張)
+            </span>
+          ) : tableCardsCount > 0 ? (
             <span className="text-amber-300 font-bold text-[11px] truncate">
               🎯 池有 {tableCardsCount} 張大分
             </span>
           ) : (
             <span className="text-slate-400 text-[11px] truncate">
               {wisdom.title}
+            </span>
+          )}
+
+          {momentum && (
+            <span className="hidden sm:inline-block font-mono text-[10px] text-emerald-300/80 bg-emerald-950/60 px-1.5 py-0.5 rounded">
+              勝率 {momentum.winProbability}%
             </span>
           )}
         </div>
@@ -123,6 +137,7 @@ export function TacticalMobileTicker({
                   }
                 }}
                 isMobileDrawer={true}
+                momentum={momentum}
               />
             ) : (
               <TacticalRightWing
