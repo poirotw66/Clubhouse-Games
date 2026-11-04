@@ -1597,9 +1597,7 @@ export default function App() {
                   }
                 }}
                 onTouchEnd={() => {
-                  if (hoverCol !== null && humanCanAct) {
-                    handleColumnClick(hoverCol);
-                  }
+                  setHoverCol(null);
                 }}
                 className="w-full p-2.5 bg-slate-900 border-x border-slate-700/80 shadow-2xl relative select-none"
                 style={{
@@ -1965,7 +1963,7 @@ export default function App() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
-                {gameMode === 'bot' ? PERSONALITIES[personality].blurb : '本機雙人輪流落子攻防'}
+                {gameMode === 'bot' ? `戰術風格：${PERSONALITIES[personality].name}` : '本機雙人輪流落子攻防'}
               </p>
             </div>
 

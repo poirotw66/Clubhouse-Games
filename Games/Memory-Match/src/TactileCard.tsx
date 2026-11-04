@@ -88,7 +88,7 @@ export const TactileCard = memo(function TactileCard({
         onClick={onClick}
         disabled={disabled || card.matched}
         className={`${cardClasses} w-full h-full touch-manipulation disabled:cursor-default`}
-        aria-label={isRevealed ? `${card.face} (${coordinate})` : `背面牌 ${coordinate}`}
+        aria-label={isRevealed ? card.face : '背面牌'}
       >
         {/* Physical 3D thickness bevel */}
         <span className="mm-card-bevel" aria-hidden />

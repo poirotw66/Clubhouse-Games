@@ -260,6 +260,25 @@ export default function App() {
   const [showMobileTelemetry, setShowMobileTelemetry] = useState(false);
   const lastActionTimeRef = useRef<number>(Date.now());
 
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const turnRef = useRef(0);
+  const resolvingRef = useRef(false);
+  const cpuScheduledRef = useRef(false);
+  const cpuSecondFlipRef = useRef<number | null>(null);
+  const playerPairsRef = useRef(0);
+  const cpuPairsRef = useRef(0);
+  const comboRef = useRef(0);
+  const scoreRef = useRef(0);
+  const movesRef = useRef(0);
+  const endedRef = useRef(false);
+  const elapsedRef = useRef(0);
+  const pairCountRef = useRef(pairCount);
+  pairCountRef.current = pairCount;
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+  const flippedRef = useRef(flipped);
+  flippedRef.current = flipped;
+
   const radar = useMemo(
     () => analyzeMemoryState(cards, seenIndices, moves, combo, flipNeed),
     [cards, seenIndices, moves, combo, flipNeed],
@@ -300,25 +319,6 @@ export default function App() {
       ),
     [radar.accuracyPct, radar.comboLevel, retentionPct, radar.explorationPct],
   );
-
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const turnRef = useRef(0);
-  const resolvingRef = useRef(false);
-  const cpuScheduledRef = useRef(false);
-  const cpuSecondFlipRef = useRef<number | null>(null);
-  const playerPairsRef = useRef(0);
-  const cpuPairsRef = useRef(0);
-  const comboRef = useRef(0);
-  const scoreRef = useRef(0);
-  const movesRef = useRef(0);
-  const endedRef = useRef(false);
-  const elapsedRef = useRef(0);
-  const pairCountRef = useRef(pairCount);
-  pairCountRef.current = pairCount;
-  const cardsRef = useRef(cards);
-  cardsRef.current = cards;
-  const flippedRef = useRef(flipped);
-  flippedRef.current = flipped;
 
   const today = dateKey();
   const streak = computeStreak(dailyRecords, today);
