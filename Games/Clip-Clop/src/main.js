@@ -103,6 +103,10 @@ const I18N = {
     hurdle_clatter:'💥 撞倒障礙欄架！',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
+    vol_high:'🔊 音量：100%（標準）',
+    vol_comfort:'🔉 音量：50%（舒適推薦）',
+    vol_soft:'🔈 音量：25%（輕柔）',
+    vol_mute:'🔇 已靜音（Mute）',
   },
   en: {
     title:'Clip-Clop', subtitle:'CLIP-CLOP HORSE',
@@ -188,6 +192,10 @@ const I18N = {
     hurdle_clatter:'💥 HURDLE HIT!',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
+    vol_high:'🔊 Volume: 100% (Full)',
+    vol_comfort:'🔉 Volume: 50% (Comfort)',
+    vol_soft:'🔈 Volume: 25% (Soft)',
+    vol_mute:'🔇 Muted',
   },
 };
 let lang = localStorage.getItem('cc_lang') || 'zh';
@@ -198,6 +206,7 @@ function applyI18n(){
   document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
   langBtn.textContent = lang === 'zh' ? 'EN' : '中';
   if(typeof cockpit !== 'undefined' && cockpit) cockpit.tr = tr;
+  if(typeof updateMuteBtnUI === 'function') updateMuteBtnUI();
 }
 
 /* ================================================================
@@ -238,133 +247,378 @@ const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hu
    Sound (WebAudio, fully synthesized)
 ================================================================ */
 class Sfx {
-  constructor(){ this.ctx=null; this.muted = localStorage.getItem('cc_mute')==='1'; this.noiseBuf=null; }
+  constructor(){
+    this.ctx = null;
+    this.masterGain = null;
+    this.noiseBuf = null;
+    this.lastClopTime = 0;
+
+    const savedVol = localStorage.getItem('cc_volume');
+    if(savedVol !== null && ['0', '1', '2', '3'].includes(savedVol)){
+      this.volumeLevel = parseInt(savedVol, 10);
+    } else if(localStorage.getItem('cc_mute') === '1'){
+      this.volumeLevel = 0;
+    } else {
+      this.volumeLevel = 2; // Default to 50% Comfort
+    }
+    this.muted = this.volumeLevel === 0;
+    this.prevVolumeLevel = this.volumeLevel > 0 ? this.volumeLevel : 2;
+  }
+
+  getGain(){
+    switch(this.volumeLevel){
+      case 0: return 0.0;
+      case 1: return 0.25;
+      case 2: return 0.50;
+      case 3: return 1.00;
+      default: return 0.50;
+    }
+  }
+
+  setVolume(lvl){
+    this.volumeLevel = Math.max(0, Math.min(3, lvl));
+    this.muted = this.volumeLevel === 0;
+    localStorage.setItem('cc_volume', String(this.volumeLevel));
+    localStorage.setItem('cc_mute', this.muted ? '1' : '0');
+    if(this.masterGain && this.ctx){
+      this.masterGain.gain.setTargetAtTime(this.getGain(), this.ctx.currentTime, 0.02);
+    }
+    return this.volumeLevel;
+  }
+
+  cycleVolume(){
+    const next = (this.volumeLevel + 1) % 4;
+    return this.setVolume(next);
+  }
+
   ensure(){
     if(!this.ctx){
       try{
-        this.ctx = new (window.AudioContext||window.webkitAudioContext)();
-        const len = this.ctx.sampleRate*0.5, buf = this.ctx.createBuffer(1,len,this.ctx.sampleRate);
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(this.getGain(), this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+
+        // Generate 2.5s high-quality pink noise buffer for natural foley & crowd
+        const len = Math.floor(this.ctx.sampleRate * 2.5);
+        const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for(let i = 0; i < len; i++){
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+          b6 = white * 0.115926;
+        }
         this.noiseBuf = buf;
-      }catch(e){ this.ctx=null; }
+      }catch(e){
+        this.ctx = null;
+      }
     }
-    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+    if(this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
+
   ok(){ return this.ctx && !this.muted; }
-  tone(type,f0,f1,dur,vol,when=0){
-    const c=this.ctx, t=c.currentTime+when;
-    const o=c.createOscillator(), g=c.createGain();
-    o.type=type; o.frequency.setValueAtTime(f0,t);
-    if(f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t+dur);
-    g.gain.setValueAtTime(vol,t);
-    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    o.connect(g).connect(c.destination);
-    o.start(t); o.stop(t+dur+0.02);
+
+  tone(type, f0, f1, dur, vol, when = 0){
+    if(!this.ok()) return;
+    const c = this.ctx, t = c.currentTime + when;
+    const dest = this.masterGain || c.destination;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if(f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(dest);
+    o.start(t);
+    o.stop(t + dur + 0.02);
   }
-  noise(freq,q,dur,vol,when=0){
-    const c=this.ctx, t=c.currentTime+when;
-    const s=c.createBufferSource(); s.buffer=this.noiseBuf;
-    const f=c.createBiquadFilter(); f.type='bandpass'; f.frequency.value=freq; f.Q.value=q;
-    const g=c.createGain();
-    g.gain.setValueAtTime(vol,t);
-    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    s.connect(f).connect(g).connect(c.destination);
-    s.start(t); s.stop(t+dur+0.02);
+
+  noise(freq, q, dur, vol, when = 0){
+    if(!this.ok() || !this.noiseBuf) return;
+    const c = this.ctx, t = c.currentTime + when;
+    const dest = this.masterGain || c.destination;
+    const s = c.createBufferSource();
+    s.buffer = this.noiseBuf;
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = c.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f).connect(g).connect(dest);
+    s.start(t);
+    s.stop(t + dur + 0.02);
   }
-  clop(p=1){ if(!this.ok())return;
-    this.noise(1600+Math.random()*700, 1.4, 0.05, 0.20*p);
-    this.tone('sine', 150+60*p, 65, 0.09, 0.35*p);
+
+  // Organic coconut / wood-block acoustic horse hoof Foley
+  clop(leg = 0, p = 1){
+    if(!this.ok()) return;
+    if(typeof p !== 'number'){
+      p = typeof leg === 'number' ? leg : 1;
+      leg = 0;
+    }
+    p = Math.max(0.15, Math.min(1.2, p));
+
+    const now = this.ctx.currentTime;
+    // De-clash: dampen rapid overlapping footsteps under 28ms
+    const isClash = (now - this.lastClopTime) < 0.028;
+    this.lastClopTime = now;
+    const clashMul = isClash ? 0.65 : 1.0;
+
+    const c = this.ctx;
+    const dest = this.masterGain || c.destination;
+
+    // Front legs (0, 1): crisp hollow snap; Hind legs (2, 3): deeper body resonance
+    const isHind = (leg === 2 || leg === 3);
+    const baseFreq = isHind ? (235 + Math.random() * 25) : (310 + Math.random() * 30);
+    const dropFreq = isHind ? 125 : 165;
+    const dur = isHind ? 0.065 : 0.052;
+    const vol = (isHind ? 0.088 : 0.082) * p * clashMul;
+
+    // Resonant acoustic cavity
+    const osc = c.createOscillator();
+    const oscGain = c.createGain();
+    const filter = c.createBiquadFilter();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(baseFreq * 1.08, now);
+    osc.frequency.exponentialRampToValueAtTime(dropFreq, now + dur);
+
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(baseFreq * 1.35, now);
+    filter.Q.value = 2.6;
+
+    oscGain.gain.setValueAtTime(vol, now);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+    osc.connect(filter).connect(oscGain).connect(dest);
+    osc.start(now);
+    osc.stop(now + dur + 0.015);
+
+    // Warm turf / grass friction (low-frequency pink noise, non-piercing)
+    if(this.noiseBuf){
+      const src = c.createBufferSource();
+      src.buffer = this.noiseBuf;
+      const nFilter = c.createBiquadFilter();
+      nFilter.type = 'bandpass';
+      nFilter.frequency.value = isHind ? 580 : 720;
+      nFilter.Q.value = 1.1;
+
+      const nGain = c.createGain();
+      const nVol = 0.022 * p * clashMul;
+      nGain.gain.setValueAtTime(nVol, now);
+      nGain.gain.exponentialRampToValueAtTime(0.0005, now + 0.038);
+
+      src.connect(nFilter).connect(nGain).connect(dest);
+      src.start(now);
+      src.stop(now + 0.045);
+    }
   }
-  thud(){ if(!this.ok())return; this.tone('sine',95,40,0.25,0.55); this.noise(300,0.8,0.12,0.25); }
-  fall(){ if(!this.ok())return;
-    this.tone('sawtooth',260,70,0.35,0.22);
-    this.tone('sine',95,40,0.3,0.5,0.28);
-    this.noise(500,0.7,0.2,0.3,0.28);
+
+  thud(){
+    if(!this.ok()) return;
+    this.tone('sine', 80, 35, 0.22, 0.25);
+    this.noise(260, 0.8, 0.10, 0.12);
   }
-  getup(){ if(!this.ok())return; this.clop(0.6); this.clop(0.8); }
-  go(){ if(!this.ok())return; this.tone('square',660,660,0.08,0.14); this.tone('square',880,880,0.14,0.14,0.1); }
-  beep(){ if(!this.ok())return; this.tone('square',880,880,0.07,0.13); }
-  buzz(){ if(!this.ok())return; this.tone('square',150,110,0.6,0.2); }
-  fanfare(){ if(!this.ok())return;
-    [523.25,659.25,783.99,1046.5].forEach((f,i)=>this.tone('triangle',f,f,0.22,0.2,i*0.12));
+
+  fall(){
+    if(!this.ok()) return;
+    this.tone('triangle', 240, 60, 0.32, 0.18);
+    this.tone('sine', 85, 35, 0.25, 0.24, 0.2);
+    this.noise(400, 0.7, 0.15, 0.15, 0.2);
   }
-  cadenceChime(combo=1){
-    if(!this.ok())return;
-    const notes=[523.25,659.25,783.99,1046.5,1318.5];
-    const f=notes[Math.min(notes.length-1,Math.max(0,combo-2))];
-    this.tone('triangle',f,f*1.04,0.11,0.12);
+
+  getup(){
+    if(!this.ok()) return;
+    this.clop(0, 0.6);
+    setTimeout(() => this.clop(2, 0.75), 90);
   }
-  jumpWhoosh(){
-    if(!this.ok())return;
-    this.noise(1200, 1.2, 0.18, 0.18);
-    this.tone('sine', 220, 520, 0.22, 0.25);
-  }
-  jumpPerfect(){
-    if(!this.ok())return;
-    this.jumpWhoosh();
-    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
-      this.tone('triangle', f, f * 1.03, 0.14, 0.18, i * 0.05);
+
+  // Graceful stadium countdown chimes
+  go(){
+    if(!this.ok()) return;
+    const c = this.ctx, t = c.currentTime;
+    const dest = this.masterGain || c.destination;
+    [783.99, 1046.5].forEach((f, i) => {
+      const o = c.createOscillator(), g = c.createGain();
+      const st = t + i * 0.08;
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f, st);
+      g.gain.setValueAtTime(0.001, st);
+      g.gain.linearRampToValueAtTime(0.11, st + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, st + 0.22);
+      o.connect(g).connect(dest);
+      o.start(st);
+      o.stop(st + 0.24);
     });
   }
+
+  beep(){
+    if(!this.ok()) return;
+    const c = this.ctx, t = c.currentTime;
+    const dest = this.masterGain || c.destination;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(587.33, t); // D5 stadium tone
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    o.connect(g).connect(dest);
+    o.start(t);
+    o.stop(t + 0.11);
+  }
+
+  buzz(){
+    if(!this.ok()) return;
+    this.tone('sawtooth', 120, 90, 0.45, 0.12);
+  }
+
+  fanfare(){
+    if(!this.ok()) return;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone('triangle', f, f, 0.22, 0.14, i * 0.12));
+  }
+
+  // Soft musical celeste chime only on milestone gait promotions
+  cadenceChime(combo = 4){
+    if(!this.ok()) return;
+    const c = this.ctx;
+    const now = c.currentTime;
+    const dest = this.masterGain || c.destination;
+
+    const chords = {
+      4: [523.25, 659.25],          // C5, E5 (Trot / Gallop promotion)
+      8: [659.25, 783.99, 1046.5],  // E5, G5, C6 (Fever mode promotion)
+      16: [783.99, 1046.5, 1318.5], // G5, C6, E6 (Super Fever)
+    };
+    const notes = chords[combo] || [523.25, 659.25, 783.99];
+    notes.forEach((freq, idx) => {
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+      g.gain.setValueAtTime(0.0001, now + idx * 0.04);
+      g.gain.linearRampToValueAtTime(0.065, now + idx * 0.04 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 0.28);
+      osc.connect(g).connect(dest);
+      osc.start(now + idx * 0.04);
+      osc.stop(now + idx * 0.04 + 0.3);
+    });
+  }
+
+  jumpWhoosh(){
+    if(!this.ok()) return;
+    this.noise(850, 1.0, 0.16, 0.12);
+    this.tone('sine', 220, 480, 0.20, 0.14);
+  }
+
+  jumpPerfect(){
+    if(!this.ok()) return;
+    this.jumpWhoosh();
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
+      this.tone('triangle', f, f * 1.02, 0.14, 0.11, i * 0.05);
+    });
+  }
+
   hurdleClatter(){
-    if(!this.ok())return;
-    this.noise(450, 0.8, 0.16, 0.35);
-    this.tone('sawtooth', 140, 50, 0.22, 0.4);
+    if(!this.ok()) return;
+    this.noise(450, 0.8, 0.14, 0.22);
+    this.tone('triangle', 140, 50, 0.18, 0.22);
   }
-  neigh(f0,f1,dur,vol,amRate,when=0){
-    if(!this.ok())return;
-    const c=this.ctx,t=c.currentTime+when;
-    const o=c.createOscillator();o.type='sawtooth';
-    o.frequency.setValueAtTime(f0,t);
-    o.frequency.exponentialRampToValueAtTime(f0*1.35,t+dur*0.22);
-    o.frequency.exponentialRampToValueAtTime(f1,t+dur);
-    const vib=c.createOscillator();vib.frequency.value=amRate*1.35;
-    const vg=c.createGain();vg.gain.value=f0*0.09;
+
+  neigh(f0, f1, dur, vol, amRate, when = 0){
+    if(!this.ok()) return;
+    const c = this.ctx, t = c.currentTime + when;
+    const dest = this.masterGain || c.destination;
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f0 * 1.35, t + dur * 0.22);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+
+    const vib = c.createOscillator();
+    vib.frequency.value = amRate * 1.35;
+    const vg = c.createGain();
+    vg.gain.value = f0 * 0.09;
     vib.connect(vg).connect(o.frequency);
-    const am=c.createOscillator();am.frequency.value=amRate;
-    const amg=c.createGain();amg.gain.value=0.45;
-    const g=c.createGain();
-    g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(vol,t+0.06);
-    g.gain.setValueAtTime(vol,t+dur*0.7);
-    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+
+    const am = c.createOscillator();
+    am.frequency.value = amRate;
+    const amg = c.createGain();
+    amg.gain.value = 0.45;
+
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol * 0.7, t + 0.06);
+    g.gain.setValueAtTime(vol * 0.7, t + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     am.connect(amg).connect(g.gain);
-    const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f0*1.6;bp.Q.value=0.9;
-    o.connect(bp).connect(g).connect(c.destination);
-    o.start(t);o.stop(t+dur+0.05);
-    vib.start(t);vib.stop(t+dur+0.05);
-    am.start(t);am.stop(t+dur+0.05);
+
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1200; // smooth harsh high frequencies
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f0 * 1.5;
+    bp.Q.value = 0.9;
+
+    o.connect(bp).connect(lp).connect(g).connect(dest);
+    o.start(t); o.stop(t + dur + 0.05);
+    vib.start(t); vib.stop(t + dur + 0.05);
+    am.start(t); am.stop(t + dur + 0.05);
   }
-  whinny(){this.neigh(520,300,1.1,0.30,10);}                 // victory whinny
-  sadNeigh(){this.neigh(430,190,0.8,0.22,6);}                // fall complaint
+
+  whinny(){ this.neigh(520, 300, 1.1, 0.22, 10); } // victory whinny
+  sadNeigh(){ this.neigh(430, 190, 0.8, 0.16, 6); } // fall complaint
+
   crowdStart(){
-    if(!this.ok()||this.crowd)return;
-    const c=this.ctx;
-    const src=c.createBufferSource();src.buffer=this.noiseBuf;src.loop=true;
-    const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=900;bp.Q.value=0.5;
-    const g=c.createGain();g.gain.value=0;
-    src.connect(bp).connect(g).connect(c.destination);
+    if(!this.ok() || this.crowd || !this.noiseBuf) return;
+    const c = this.ctx;
+    const dest = this.masterGain || c.destination;
+    const src = c.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 550;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 420;
+    bp.Q.value = 0.7;
+    const g = c.createGain();
+    g.gain.value = 0;
+    src.connect(bp).connect(lp).connect(g).connect(dest);
     src.start();
-    this.crowd={src,g,bp};
+    this.crowd = { src, g, bp, lp };
   }
+
   crowdSet(v){
-    if(!this.crowd)return;
-    this.crowd.g.gain.setTargetAtTime(v,this.ctx.currentTime,0.4);
+    if(!this.crowd) return;
+    this.crowd.g.gain.setTargetAtTime(v * 0.35, this.ctx.currentTime, 0.4);
   }
+
   crowdBurst(){
-    if(!this.crowd)return;
-    const t=this.ctx.currentTime;
-    this.crowd.bp.frequency.setTargetAtTime(1400,t,0.1);
+    if(!this.crowd) return;
+    const t = this.ctx.currentTime;
+    this.crowd.bp.frequency.setTargetAtTime(750, t, 0.1);
     this.crowd.g.gain.cancelScheduledValues(t);
-    this.crowd.g.gain.setTargetAtTime(0.5,t,0.05);
+    this.crowd.g.gain.setTargetAtTime(0.18, t, 0.05);
   }
+
   crowdStop(){
-    if(!this.crowd)return;
-    const cr=this.crowd;this.crowd=null;
+    if(!this.crowd) return;
+    const cr = this.crowd;
+    this.crowd = null;
     try{
-      cr.g.gain.setTargetAtTime(0,this.ctx.currentTime,0.3);
-      setTimeout(()=>{try{cr.src.stop();}catch(e){}},1500);
+      cr.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3);
+      setTimeout(() => { try{ cr.src.stop(); }catch(e){} }, 1500);
     }catch(e){}
   }
 }
@@ -1741,7 +1995,10 @@ function showResult(){
 let cadenceBannerTimer = null;
 function triggerCadenceHit(combo){
   if(combo < 2) return;
-  sfx.cadenceChime(combo);
+  // Soft musical chime only on milestone gait promotions to keep rhythm pure and uncluttered
+  if(combo === 4 || combo === 8 || combo === 16 || (combo > 16 && combo % 10 === 0)){
+    sfx.cadenceChime(combo);
+  }
 
   let label = tr('combo_trot');
   if(combo >= 8){
@@ -1799,7 +2056,7 @@ function simStep(dt){
   const ev=simHorse(G,legs,inp,dt);
   for(const e of ev){
     if(e.type==='step'){
-      sfx.clop(e.speed);
+      sfx.clop(e.leg, e.speed);
       cockpit.recordStep(G.elapsed);
       const isHighCombo = (G.cadenceCombo || 0) >= 4;
       dustAt(e.footX, e.z, isHighCombo ? 2 : 1, isHighCombo);
@@ -2284,13 +2541,39 @@ shareNative.addEventListener('click',async()=>{
   try{await navigator.clipboard.writeText(text);toast(tr('copied'));}catch(_){}
 });
 
-function toggleMute(){
-  sfx.muted=!sfx.muted;
-  localStorage.setItem('cc_mute',sfx.muted?'1':'0');
-  muteBtn.textContent=sfx.muted?'🔇':'🔊';
+function updateMuteBtnUI(){
+  if(!muteBtn) return;
+  const icons = ['🔇', '🔈', '🔉', '🔊'];
+  const icon = icons[sfx.volumeLevel] ?? '🔉';
+  muteBtn.textContent = icon;
+  const keys = ['vol_mute', 'vol_soft', 'vol_comfort', 'vol_high'];
+  const desc = tr(keys[sfx.volumeLevel] || 'vol_comfort');
+  muteBtn.title = desc;
+  muteBtn.setAttribute('aria-label', desc);
 }
-muteBtn.addEventListener('click',()=>{muteBtn.blur();sfx.ensure();toggleMute();});
-muteBtn.textContent=sfx.muted?'🔇':'🔊';
+
+function toggleMute(){
+  sfx.ensure();
+  if(sfx.volumeLevel > 0){
+    sfx.prevVolumeLevel = sfx.volumeLevel;
+    sfx.setVolume(0);
+  }else{
+    sfx.setVolume(sfx.prevVolumeLevel || 2);
+  }
+  updateMuteBtnUI();
+  const keys = ['vol_mute', 'vol_soft', 'vol_comfort', 'vol_high'];
+  toast(tr(keys[sfx.volumeLevel]));
+}
+
+muteBtn.addEventListener('click', () => {
+  muteBtn.blur();
+  sfx.ensure();
+  const lvl = sfx.cycleVolume();
+  updateMuteBtnUI();
+  const keys = ['vol_mute', 'vol_soft', 'vol_comfort', 'vol_high'];
+  toast(tr(keys[lvl]));
+});
+updateMuteBtnUI();
 
 langBtn.addEventListener('click',()=>{langBtn.blur();lang=lang==='zh'?'en':'zh';localStorage.setItem('cc_lang',lang);applyI18n();});
 applyI18n();
