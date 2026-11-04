@@ -224,7 +224,7 @@ const STR = {
     padStick: '吸いつく', padLeft: '左', padRight: '右', padGo: 'すすむ',
     ach_land: '初著地', ach_roll1: '初翻滾', ach_roll2: '兩圈', ach_roll3: '三圈', ach_soft30: '滿柔軟', ach_legend: '傳說', ach_far100: '百米', ach_eco: '省氣王',
     // online leaderboard
-    tabOnline: '線上', tabLocal: '本機', onlineMark: '線上',
+    tabOnline: '世界排行', tabLocal: '本機紀錄', onlineMark: '世界排行',
     submit: '送出', skip: '略過', submitTitle: '上傳成績',
     nameLabel: '你的名字（10 字內）',
     submitOk: '已上傳', submitFail: '送出失敗',
@@ -299,7 +299,7 @@ const STR = {
     padStick: 'STICK', padLeft: '←', padRight: '→', padGo: 'GO',
     ach_land: 'First Land', ach_roll1: 'First Flip', ach_roll2: 'Double', ach_roll3: 'Triple', ach_soft30: 'Butter', ach_legend: 'Legend', ach_far100: '100m+', ach_eco: 'Eco',
     // online leaderboard
-    tabOnline: 'ONLINE', tabLocal: 'LOCAL', onlineMark: 'ONLINE',
+    tabOnline: 'WORLD', tabLocal: 'LOCAL', onlineMark: 'WORLD',
     submit: 'Submit', skip: 'Skip', submitTitle: 'Submit your score',
     nameLabel: 'Your name (max 10)',
     submitOk: 'Uploaded', submitFail: 'Submit failed',
@@ -2874,6 +2874,8 @@ function camSnapSafe() {
 window.__ready = true;
 window.__submitScore = submitScore;
 window.__stats = stats;
+window.__openRank = openRank;
+window.__getRankState = () => ({ rankOn, rankTab, onlineBoard, rankApi });
 })();
 </script>
 </body>
