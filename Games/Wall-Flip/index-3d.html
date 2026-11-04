@@ -700,6 +700,8 @@
       <div class="panel"><label id="lblRolls"></label><b id="rolls">0</b></div>
       <div id="best"></div>
       <div class="hrow">
+        <button id="camBtn" type="button" title="切換 3D 視角 (C)">📹 視角</button>
+        <button id="ufoBtn" type="button" title="召喚飛碟彩蛋 (U)">🛸 彩蛋</button>
         <button id="langbtn"></button>
         <button id="apibtn" type="button"></button>
         <button id="mutebtn">靜音</button>
@@ -804,6 +806,14 @@
       <div class="wf-key-item" data-code="KeyR">
         <span class="wf-key-cap">R</span>
         <span class="wf-key-desc" id="lblKeyReset">重飛</span>
+      </div>
+      <div class="wf-key-item" data-code="KeyC">
+        <span class="wf-key-cap">C</span>
+        <span class="wf-key-desc" id="lblKeyCam">視角</span>
+      </div>
+      <div class="wf-key-item" data-code="KeyU">
+        <span class="wf-key-cap">U</span>
+        <span class="wf-key-desc" id="lblKeyUfo">飛碟</span>
       </div>
     </div>
 
@@ -1133,6 +1143,10 @@ const STR = {
     keySuck: '磁吸',
     keyRollR: '右滾',
     keyReset: '重飛',
+    keyCam: '視角',
+    keyUfo: '飛碟',
+    camBtn: '📹 視角',
+    ufoBtn: '🛸 彩蛋',
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
@@ -1231,6 +1245,10 @@ const STR = {
     keySuck: 'MAGNET',
     keyRollR: 'ROLL R',
     keyReset: 'RETRY',
+    keyCam: 'CAM',
+    keyUfo: 'UFO',
+    camBtn: '📹 CAM',
+    ufoBtn: '🛸 EGG',
   },
 };
 let lang = 'tc';
@@ -1969,7 +1987,168 @@ const stars = (() => {
   wgeo.setAttribute('position', new THREE.Float32BufferAttribute(wirePts, 3));
   scene.add(new THREE.LineSegments(wgeo, new THREE.LineBasicMaterial({ color: 2764339 })));
 }
-// UFO easter egg (port of the original F: follows the car at z = -90)
+// overhead speed gantries along the straightaway (x = -140, -80, -25)
+const gantries = [];
+{
+  const gantryMat = new THREE.MeshStandardMaterial({ color: 0x222a36, metalness: 0.8, roughness: 0.3 });
+  const neonMint = new THREE.MeshBasicMaterial({ color: 0x6ff0d0 });
+  const chevronGeo = new THREE.ConeGeometry(0.35, 0.8, 3).rotateZ(-Math.PI / 2);
+
+  for (const gx of [-140, -80, -25]) {
+    const group = new THREE.Group();
+    const colGeo = new THREE.BoxGeometry(0.4, 7, 0.4);
+    const colL = new THREE.Mesh(colGeo, gantryMat); colL.position.set(0, 3.5, ROAD_W / 2 + 1.2);
+    const colR = new THREE.Mesh(colGeo, gantryMat); colR.position.set(0, 3.5, -ROAD_W / 2 - 1.2);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, ROAD_W + 3), gantryMat);
+    bar.position.set(0, 6.8, 0);
+
+    const stripGeo = new THREE.BoxGeometry(0.52, 0.08, ROAD_W + 2.8);
+    const topStrip = new THREE.Mesh(stripGeo, neonMint); topStrip.position.set(0, 7.15, 0);
+    const botStrip = new THREE.Mesh(stripGeo, neonMint); botStrip.position.set(0, 6.45, 0);
+
+    const chevrons = [];
+    for (let ci = -1.5; ci <= 1.5; ci += 1.0) {
+      const ch = new THREE.Mesh(chevronGeo, neonMint.clone());
+      ch.position.set(0.26, 6.8, ci);
+      group.add(ch);
+      chevrons.push(ch);
+    }
+
+    group.add(colL, colR, bar, topStrip, botStrip);
+    group.position.set(gx, 0, 0);
+    scene.add(group);
+    gantries.push({ group, chevrons, x: gx });
+  }
+}
+
+// holographic marquee portal at entrance to the curve (x = 0) & apex halo
+{
+  const archMat = new THREE.MeshStandardMaterial({ color: 0x1a2332, metalness: 0.85, roughness: 0.2 });
+  const portal = new THREE.Group();
+  const pillarGeo = new THREE.BoxGeometry(0.8, 12, 0.8);
+  const pL = new THREE.Mesh(pillarGeo, archMat); pL.position.set(0, 6, ROAD_W / 2 + 1.4);
+  const pR = new THREE.Mesh(pillarGeo, archMat); pR.position.set(0, 6, -ROAD_W / 2 - 1.4);
+  const archTop = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, ROAD_W + 3.8), archMat);
+  archTop.position.set(0, 12, 0);
+
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#060a12';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.strokeStyle = '#6ff0d0';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, 500, 116);
+  ctx.font = '900 38px sans-serif';
+  ctx.fillStyle = '#6ff0d0';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#00f2fe';
+  ctx.shadowBlur = 16;
+  ctx.fillText('⚡ 165° WALL-FLIP ⚡', 256, 46);
+  ctx.font = '700 20px sans-serif';
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText('AEROBATIC STUNT ZONE', 256, 90);
+  const holoTex = new THREE.CanvasTexture(cv);
+  holoTex.colorSpace = THREE.SRGBColorSpace;
+  const holoSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(ROAD_W + 2.6, 1.8),
+    new THREE.MeshBasicMaterial({ map: holoTex, side: THREE.DoubleSide, transparent: true, opacity: 0.92 })
+  );
+  holoSign.position.set(0, 12, 0);
+
+  portal.add(pL, pR, archTop, holoSign);
+  portal.position.set(0, 0, 0);
+  scene.add(portal);
+
+  // neon halo ring encircling the loop apex
+  const haloGeo = new THREE.TorusGeometry(ROAD_W / 2 + 1.2, 0.09, 12, 48);
+  const halo1 = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0x6ff0d0 }));
+  halo1.position.set(track.top.x, track.top.y, 0);
+  halo1.rotation.y = Math.PI / 2;
+  scene.add(halo1);
+}
+
+// 2 aerial stunt camera drones
+const drones = [];
+{
+  const bodyGeo = new THREE.SphereGeometry(0.45, 16, 12);
+  const ringGeo = new THREE.TorusGeometry(0.7, 0.035, 8, 24);
+  const droneMat = new THREE.MeshStandardMaterial({ color: 0x22262e, metalness: 0.9, roughness: 0.2 });
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x6ff0d0 });
+  const recMat = new THREE.MeshBasicMaterial({ color: 0xff2244 });
+
+  for (let i = 0; i < 2; i++) {
+    const dg = new THREE.Group();
+    const db = new THREE.Mesh(bodyGeo, droneMat);
+    const ring1 = new THREE.Mesh(ringGeo, ringMat);
+    ring1.rotation.x = Math.PI / 2;
+    const recLed = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), recMat);
+    recLed.position.set(0.42, 0, 0);
+    dg.add(db, ring1, recLed);
+
+    const spot = new THREE.SpotLight(0x6fead0, 1.6, 32, Math.PI / 6, 0.5);
+    spot.position.set(0, -0.2, 0);
+    dg.add(spot);
+    const target = new THREE.Object3D();
+    target.position.set(0, -10, 0);
+    dg.add(target);
+    spot.target = target;
+
+    dg.position.set(i === 0 ? 12 : -40, i === 0 ? 25 : 14, i === 0 ? 10 : -8);
+    scene.add(dg);
+    drones.push({ group: dg, ring: ring1, recLed, spot, target, id: i });
+  }
+}
+
+// Lucky Cyber Cat Mascot atop observation tower
+const cyberCat = (() => {
+  const g = new THREE.Group();
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.85, roughness: 0.18 });
+  const visorMat = new THREE.MeshBasicMaterial({ color: 0x6ff0d0 });
+  const bellMat = new THREE.MeshBasicMaterial({ color: 0xff3355 });
+
+  const catBody = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.65, 1.1, 12), goldMat);
+  catBody.position.y = 0.55;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 14), goldMat);
+  head.position.y = 1.45;
+  const earGeo = new THREE.ConeGeometry(0.2, 0.35, 4);
+  const earL = new THREE.Mesh(earGeo, goldMat); earL.position.set(-0.3, 1.95, 0); earL.rotation.z = 0.25;
+  const earR = new THREE.Mesh(earGeo, goldMat); earR.position.set(0.3, 1.95, 0); earR.rotation.z = -0.25;
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.14, 0.2), visorMat);
+  visor.position.set(0, 1.48, 0.48);
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 10), bellMat);
+  bell.position.set(0, 1.05, 0.52);
+
+  const pawPivot = new THREE.Group();
+  pawPivot.position.set(0.48, 0.95, 0.2);
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.6, 8).translate(0, 0.25, 0), goldMat);
+  arm.rotation.z = -Math.PI / 4;
+  pawPivot.add(arm);
+
+  g.add(catBody, head, earL, earR, visor, bell, pawPivot);
+  g.scale.setScalar(1.3);
+  g.position.set(20.5, 24.2, -ROAD_W / 2 - 2.5);
+  scene.add(g);
+  return { group: g, pawPivot, celebrating: 0 };
+})();
+
+// dynamic shooting stars across the night sky
+const shootingStars = [];
+{
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, -20, -5, 0], 3));
+  for (let i = 0; i < 3; i++) {
+    const starMat = new THREE.LineBasicMaterial({
+      color: 0x6fead0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, fog: false
+    });
+    const line = new THREE.Line(starGeo, starMat);
+    scene.add(line);
+    shootingStars.push({ line, life: 0, delay: rand(2, 6), vx: 0, vy: 0 });
+  }
+}
+
+// UFO easter egg (port of the original F: follows the car at z = -90, swoops on easter egg trigger)
 const ufo = (() => {
   const g = new THREE.Group();
   const disc = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 12),
@@ -1987,10 +2166,19 @@ const ufo = (() => {
     g.add(b);
     lights.push(b);
   }
+  // Volumetric tractor abduction beam
+  const beamGeo = new THREE.ConeGeometry(14, 55, 32, 1, true).rotateX(Math.PI).translate(0, -27.5, 0);
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0x38ef7d, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide, depthWrite: false, fog: false,
+  });
+  const beam = new THREE.Mesh(beamGeo, beamMat);
+  g.add(beam);
+
   g.scale.setScalar(1.2);
   g.traverse(o => { if (o.material) o.material.fog = false; });
   scene.add(g);
-  return { group: g, lights };
+  return { group: g, lights, beam, activeT: 0 };
 })();
 
 // ---------- the car ----------
@@ -2302,6 +2490,8 @@ const el = {
   lblM3Title: $('lblM3Title'), lblM3Desc: $('lblM3Desc'),
   lblKeyDrive: $('lblKeyDrive'), lblKeyRollL: $('lblKeyRollL'),
   lblKeySuck: $('lblKeySuck'), lblKeyRollR: $('lblKeyRollR'), lblKeyReset: $('lblKeyReset'),
+  camBtn: $('camBtn'), ufoBtn: $('ufoBtn'),
+  lblKeyCam: $('lblKeyCam'), lblKeyUfo: $('lblKeyUfo'),
   stuntBanner: $('stuntBanner'), stuntStars: $('stuntStars'), stuntText: $('stuntText'),
 };
 
@@ -2341,6 +2531,10 @@ function updateAllText() {
   if (el.lblKeySuck) el.lblKeySuck.textContent = t('keySuck');
   if (el.lblKeyRollR) el.lblKeyRollR.textContent = t('keyRollR');
   if (el.lblKeyReset) el.lblKeyReset.textContent = t('keyReset');
+  if (el.lblKeyCam) el.lblKeyCam.textContent = t('keyCam');
+  if (el.lblKeyUfo) el.lblKeyUfo.textContent = t('keyUfo');
+  if (el.camBtn) el.camBtn.textContent = t('camBtn');
+  if (el.ufoBtn) el.ufoBtn.textContent = t('ufoBtn');
   el.mutebtn.title = t('muteTitle');
   el.mutebtn.textContent = muted ? t('muteOff') : t('muteOn');
   el.langbtn.textContent = t('langBtn');
@@ -2458,6 +2652,8 @@ addEventListener('keydown', e => {
   }
   if (e.code === 'KeyM') { if (!e.repeat) toggleMute(); e.preventDefault(); return; }
   if (e.code === 'KeyR') { if (!e.repeat && screen !== 'start') { ensureAudio(); resetRun(); } e.preventDefault(); return; }
+  if (e.code === 'KeyC') { if (!e.repeat) { ensureAudio(); cycleCameraMode(); } e.preventDefault(); return; }
+  if (e.code === 'KeyU') { if (!e.repeat) { ensureAudio(); triggerUfoEasterEgg(); } e.preventDefault(); return; }
   if (e.code === 'KeyL') { // ranking overlay toggle (start / result screens)
     e.preventDefault();
     if (e.repeat) return;
@@ -2613,6 +2809,26 @@ const sfx = {
     beep(p, .18, 'triangle', .2, p * 1.5);
     beep(p * 2, .25, 'sine', .07, p * 3, .03);
   },
+  ufoArp: () => {
+    if (!AC || muted) return;
+    try {
+      [587, 880, 1174, 1760, 2349].forEach((f, i) => beep(f, 0.22, 'sine', 0.12, f * 1.05, i * 0.08));
+    } catch {}
+  },
+  warp88: () => {
+    if (!AC || muted) return;
+    try {
+      beep(150, 0.6, 'sawtooth', 0.22, 1200);
+      noiseBurst(0.5, 0.35, 3200);
+      beep(880, 0.4, 'triangle', 0.18, 220, 0.15);
+    } catch {}
+  },
+  catCoin: () => {
+    if (!AC || muted) return;
+    try {
+      [1046, 1318, 1567, 2093].forEach((f, i) => beep(f, 0.18, 'triangle', 0.14, 0, i * 0.07));
+    } catch {}
+  },
   crash: () => { noiseBurst(.7, .5, 300); beep(70, .5, 'sawtooth', .28, 30); noiseBurst(.3, .3, 2400, .05); },
   best: () => [660, 880, 1100].forEach((f, i) => beep(f, .15, 'triangle', .14, 0, i * .09)),
 };
@@ -2638,6 +2854,23 @@ const DELAYS = { landed: 1.8, crash: 2.2 }; // original Fn
 const TIME_SCALE = 1;                        // original Un
 const DEMO = new URLSearchParams(location.search).has('demo');
 let sim = null, startX = 0, screen = 'start', launchX = 0, newBest = false, retryT = 0, slipWordAt = -9;
+let lastWarpPopAt = -9, lastRainbowPopAt = -9;
+let cameraMode = 0; // 0: Standard, 1: Cinematic Low, 2: FPV Cockpit
+const CAM_MODE_NAMES = ['標準動態', '電影貼地特寫', '第一人稱引擎蓋'];
+function cycleCameraMode() {
+  cameraMode = (cameraMode + 1) % 3;
+  showViewToast('📹 3D 視角：' + CAM_MODE_NAMES[cameraMode]);
+}
+function triggerUfoEasterEgg() {
+  ensureAudio();
+  if (ufo.activeT <= 0) {
+    popAt(sim.state.x, sim.state.y + 3, sim.state.z, '🛸 外星特技巡航！[UFO FLYBY]', '#38ef7d', true);
+    sfx.ufoArp();
+  }
+  ufo.activeT = 7.0;
+}
+if (el.camBtn) el.camBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); sfx.click(); cycleCameraMode(); });
+if (el.ufoBtn) el.ufoBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); triggerUfoEasterEgg(); });
 let best = 0;
 try { best = +localStorage.getItem('wallflip3.best') || 0; } catch {}
 const game = { playing: false, endAt: Infinity, shake: 0, wheel: 0, rolls: 0, score: null, acc: 0, squash: 0, squashV: 0 };
@@ -3490,6 +3723,11 @@ function landFx(ev, st) {
   sfx.tireTouchdown(q);
   sfx.fanfare();
   touchdownFx(ev.x, 0.1, st.z, q);
+  if (game.score.soft >= 25 && cyberCat) {
+    cyberCat.celebrating = 4.0;
+    popAt(ev.x, 3.8, st.z, '🐾 [LUCKY CAT] 招財金貓為你狂賀！大吉大利', '#ffd700', true);
+    sfx.catCoin();
+  }
 }
 let stuntBannerTimer = null;
 function triggerStuntBanner(r) {
@@ -3746,10 +3984,144 @@ function updateCar(dt, tm) {
   shadow.position.set(st.x, .08, st.z);
   shadow.material.opacity = .6 * clamp(1 - h / 22, .1, 1);
   shadow.scale.setScalar(1 + h * .04);
+  // 88 MPH Fire Tire Tracks Easter Egg (Back to the Future tribute)
+  const curKmh = Math.abs(st.v || st.vx || 0) * 3.6;
+  if (curKmh >= 141.6) {
+    if (tm - lastWarpPopAt > 2.5) {
+      lastWarpPopAt = tm;
+      popAt(st.x, st.y + 2.5, st.z, '🔥 88 MPH! OUTATIME 時空穿越！', '#ff7700', true);
+      sfx.warp88();
+    }
+    for (const wz of [-CAR.WHEEL_Z, CAR.WHEEL_Z]) {
+      fx.spawn({
+        x: st.x - 1.2, y: Math.max(0.08, st.y - 0.4), z: st.z + wz,
+        vx: -st.vx * 0.15 + rand(-1, 1), vy: rand(1.5, 4.0), vz: rand(-1, 1),
+        drag: 2.2, life: rand(0.4, 0.8), size: rand(0.9, 1.8), grow: 2.2,
+        color: 0xff5500, end: 0xffe600,
+      });
+      smoke.spawn({
+        x: st.x - 1.4, y: Math.max(0.12, st.y - 0.3), z: st.z + wz,
+        vx: rand(-1, 1), vy: rand(1, 2.5), vz: rand(-1, 1),
+        drag: 1.5, life: rand(0.8, 1.4), size: rand(0.7, 1.5), grow: 2.8,
+        color: 0x333333, end: BG,
+      });
+    }
+  }
+
+  // Rainbow Hyperdrive Mode Easter Egg (hold A + D + S in air)
+  const isRainbowHyperdrive = st.mode === 'air' && st.left && st.right && st.suck;
+  if (isRainbowHyperdrive) {
+    if (tm - lastRainbowPopAt > 3.0) {
+      lastRainbowPopAt = tm;
+      popAt(st.x, st.y + 2.0, st.z, '🌈 RAINBOW HYPERDRIVE 超光速推進！', 'hsl(' + ((tm * 180) % 360) + ' 100% 60%)', true);
+    }
+    for (const side of ['left', 'right']) {
+      for (const flame of jets[side]) {
+        flame.material.color.setHSL((tm * 2.5 + (side === 'left' ? 0 : 0.5)) % 1, 1, 0.6);
+        flame.scale.set(1.4, 3.8, 1.4);
+      }
+    }
+    fx.spawn({
+      x: st.x + rand(-1, 1), y: st.y + rand(-0.5, 0.5), z: st.z + rand(-1, 1),
+      vx: rand(-2, 2), vy: rand(-2, 2), vz: rand(-2, 2),
+      drag: 3, life: rand(0.3, 0.6), size: rand(0.6, 1.2), grow: 2,
+      color: (new THREE.Color()).setHSL((tm * 3) % 1, 1, 0.6).getHex(), end: 0xffffff,
+    });
+  }
+
   // UFO easter egg (fog disabled on its materials; keep it inside the far plane so it is visible)
-  ufo.group.position.set(st.x + Math.sin(tm * .35) * 55, 55 + Math.sin(tm * 1.3) * 2, -90);
-  ufo.group.rotation.y += dt * .8;
-  ufo.lights.forEach((m, i) => m.material.color.setHSL((tm * .6 + i / 12) % 1, 1, (Math.floor(tm * 4) + i) % 2 ? .65 : .4));
+  const ufoActive = ufo.activeT > 0 || (st.mode === 'air' && st.y > 36);
+  if (ufo.activeT > 0) ufo.activeT -= dt;
+  const targetUfoY = ufoActive ? 32 + Math.sin(tm * 2) * 2 : 55 + Math.sin(tm * 1.3) * 2;
+  const targetUfoZ = ufoActive ? -36 : -90;
+  ufo.group.position.x += (st.x + (ufoActive ? 0 : Math.sin(tm * .35) * 55) - ufo.group.position.x) * Math.min(1, dt * 3);
+  ufo.group.position.y += (targetUfoY - ufo.group.position.y) * Math.min(1, dt * 2.5);
+  ufo.group.position.z += (targetUfoZ - ufo.group.position.z) * Math.min(1, dt * 2.5);
+  ufo.group.rotation.y += dt * (ufoActive ? 2.8 : 0.8);
+  const targetBeamOp = ufoActive ? 0.35 + Math.sin(tm * 12) * 0.12 : 0;
+  ufo.beam.material.opacity += (targetBeamOp - ufo.beam.material.opacity) * Math.min(1, dt * 6);
+  ufo.lights.forEach((m, i) => m.material.color.setHSL((tm * (ufoActive ? 2.5 : .6) + i / 12) % 1, 1, (Math.floor(tm * (ufoActive ? 12 : 4)) + i) % 2 ? .8 : .3));
+  if (ufoActive && Math.random() < 0.4) {
+    fx.spawn({
+      x: ufo.group.position.x + rand(-6, 6),
+      y: ufo.group.position.y - rand(2, 28),
+      z: ufo.group.position.z + rand(-6, 6),
+      vx: rand(-1, 1), vy: rand(2, 5), vz: rand(-1, 1),
+      drag: 1, life: rand(0.4, 0.9), size: rand(0.6, 1.2), grow: 1.5,
+      color: 0x38ef7d, end: 0x00f2fe,
+    });
+  }
+
+  // Drones tracking & scanning
+  if (drones && drones.length) {
+    const d0 = drones[0];
+    const a0 = tm * 0.75;
+    d0.group.position.set(track.top.x + Math.cos(a0) * 8, track.top.y + 4 + Math.sin(a0 * 1.5) * 2, Math.sin(a0) * 9);
+    d0.ring.rotation.z += dt * 16;
+    d0.target.position.set(track.top.x, track.top.y - 2, 0);
+    d0.recLed.visible = Math.sin(tm * 6) > 0;
+
+    const d1 = drones[1];
+    d1.group.position.x += (st.x + 8 - d1.group.position.x) * Math.min(1, dt * 2.5);
+    d1.group.position.y += (Math.max(6, st.y + 5) - d1.group.position.y) * Math.min(1, dt * 2.5);
+    d1.group.position.z += (ROAD_W / 2 + 5 - d1.group.position.z) * Math.min(1, dt * 2.5);
+    d1.ring.rotation.z += dt * 18;
+    d1.target.position.copy(carRoot.position);
+    d1.recLed.visible = Math.sin(tm * 8) > 0;
+  }
+
+  // Gantries sequential chevron pulsing
+  if (gantries && gantries.length) {
+    const pulseIdx = Math.floor(tm * 8) % 4;
+    for (const g of gantries) {
+      const near = Math.abs(st.x - g.x) < 35;
+      for (let ci = 0; ci < g.chevrons.length; ci++) {
+        const active = ci === pulseIdx;
+        g.chevrons[ci].material.color.setHex(near ? (active ? 0x00f2fe : 0x6ff0d0) : (active ? 0xffea85 : 0x446666));
+        g.chevrons[ci].scale.setScalar(active ? 1.25 : 1.0);
+      }
+    }
+  }
+
+  // Cyber Cat waving paw
+  if (cyberCat) {
+    if (cyberCat.celebrating > 0) {
+      cyberCat.celebrating -= dt;
+      cyberCat.pawPivot.rotation.z = Math.sin(tm * 20) * 0.65;
+      if (Math.random() < 0.35) {
+        fx.spawn({
+          x: cyberCat.group.position.x + rand(-1, 1),
+          y: cyberCat.group.position.y + 2 + rand(0, 1),
+          z: cyberCat.group.position.z + rand(-1, 1),
+          vx: rand(-3, 3), vy: rand(4, 8), vz: rand(-3, 3),
+          drag: 1.2, life: rand(0.6, 1.2), size: rand(0.8, 1.5), grow: 1.2,
+          color: 0xffd700, end: 0xff4488,
+        });
+      }
+    } else {
+      cyberCat.pawPivot.rotation.z = Math.sin(tm * 3.5) * 0.35;
+    }
+  }
+
+  // Dynamic shooting stars across the night sky
+  for (const ss of shootingStars) {
+    if (ss.life > 0) {
+      ss.life -= dt;
+      ss.line.position.x += ss.vx * dt;
+      ss.line.position.y += ss.vy * dt;
+      ss.line.material.opacity = Math.max(0, ss.life * 1.5);
+    } else {
+      ss.delay -= dt;
+      if (ss.delay <= 0) {
+        ss.delay = rand(4, 9);
+        ss.life = rand(0.5, 0.9);
+        ss.line.position.set(camera.position.x + rand(-60, 60), camera.position.y + rand(35, 75), rand(-80, -140));
+        ss.vx = rand(80, 160);
+        ss.vy = rand(-30, -60);
+        ss.line.material.color.setHSL(rand(0.45, 0.58), 1, 0.7);
+      }
+    }
+  }
 }
 
 // ---------- fit camera (exact port of kn) ----------
@@ -3776,6 +4148,30 @@ function camFits(dist) {
 }
 function updateCamera(dt) {
   const st = sim.state;
+  if (cameraMode === 1) {
+    // Cinematic Trackside Camera: low dramatic view looking up
+    const camX = st.mode === 'road' ? st.x - 7 : (st.x < 10 ? -2 : st.x - 7);
+    const camY = Math.max(0.6, st.y * 0.25 + 0.4);
+    const camZ = ROAD_W / 2 + 3.8;
+    camera.position.set(camX, camY, camZ);
+    camera.lookAt(st.x + 3.5, Math.max(1.2, st.y + 0.8), 0);
+    camera.up.set(0, 1, 0);
+    camera.updateMatrixWorld();
+    camState.init = true;
+    return;
+  }
+  if (cameraMode === 2) {
+    // FPV Cockpit Hood Camera: riding on the front hood
+    const hoodPos = (new THREE.Vector3(1.2, 0.45, 0)).applyMatrix4(body.matrixWorld);
+    const forwardPos = (new THREE.Vector3(25, 0.3, 0)).applyMatrix4(body.matrixWorld);
+    camera.position.copy(hoodPos);
+    camera.lookAt(forwardPos);
+    camera.up.set(0, 1, 0).applyQuaternion(carRoot.quaternion);
+    camera.updateMatrixWorld();
+    camState.init = true;
+    return;
+  }
+  camera.up.set(0, 1, 0);
   const isMobile = window.innerWidth <= 768 || camera.aspect < 1.0;
 
   if (isMobile) {

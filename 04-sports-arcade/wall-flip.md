@@ -95,7 +95,18 @@
   - 特技里程碑爆發金色五角星與光芒粒子。
   - 著地衝擊時依下墜速率觸發動態鏡頭震顫（Screen Shake）與車輪著地白煙塵環。
   - 弧牆倒掛段迸發青藍電磁電弧火花，高速衝刺（> 110 km/h）呈現放射狀極速光絲。
-- **生圖模型次世代美術素材（Next-Gen Art Asset Overhaul）**：
+- **3D 賽道場景豐富度升級（Enriched 3D World & Atmosphere）**：
+  - **起跑加速光門拱架（Overhead Speed Gantries）**：於起跑直線段設置三座高科技碳纖光門，搭載隨車速動態序列脈衝的青綠導光箭頭（Sequential Chevrons）。
+  - **165° 反翹全息迎賓拱門與頂端光環（Holographic Stunt Portal & Apex Halo）**：於入牆口設置「⚡ 165° WALL-FLIP ⚡」全息動態發光門牌，並於弧牆頂點環繞高亮度霓虹光環。
+  - **空中自主追焦無人機（Autonomous Camera Drones）**：兩架特技無人機在賽道上空與弧牆頂點動態盤旋，配備旋轉發光環、紅色錄影閃燈與地面探照掃描燈。
+  - **吉祥物「賽博招財金貓」（Cyber Lucky Cat Mascot）**：進駐於觀賽鐵塔頂端，頭戴青綠電競護目鏡，右臂持續揮動招財機械爪。
+  - **夜空動態流星（Dynamic Shooting Stars）**：深邃星空中不定期掠過超高速青綠與紫羅蘭色流星光絲。
+- **五大精彩遊戲彩蛋系統（Stunt Easter Eggs & Multi-Cam）**：
+  - **彩蛋一：外星飛碟密接牽引光束（UFO Tractor Beam）**：按 <kbd>U</kbd> 鍵或點擊抬頭「🛸 彩蛋」按鈕（或空中騰空高度超過 36m 時），外星飛碟會俯衝降臨並開啟巨大的半透明發光牽引光束（Tractor Beam），閃爍七彩迪斯可陣列燈與宇宙星芒，伴隨復古科幻合成琶音。
+  - **彩蛋二：88 MPH 烈焰車痕時空穿越（Back to the Future Tribute）**：車速突破 88 mph（141.6 km/h）瞬間觸發 `🔥 88 MPH! OUTATIME` 時空穿越特效，雙後輪在路面燃燒出熊熊烈焰車痕與滾滾濃煙。
+  - **彩蛋三：賽博金貓著陸應援（Cyber Cat Mascot Blessing）**：當玩家完成高水準柔軟著地（SOFT ≥ 25）時，塔頂的金貓會狂熱揮手，並向天空爆發大面積金幣與慶祝彩花（`🐾 [LUCKY CAT] 招財金貓為你狂賀！大吉大利`）。
+  - **彩蛋四：超光速彩虹推進（Rainbow Hyperdrive Mode）**：空中同時按住左滾（A）、右滾（D）與磁吸（S）三鍵，推進器焰火轉換為絢麗流動的七彩光譜光束，並拖曳彩虹星芒尾跡。
+  - **彩蛋五：三維視角自由切換（Cinematic Camera Switcher）**：按 <kbd>C</kbd> 鍵或點擊抬頭「📹 視角」按鈕，可於「標準動態追焦」、「電影級貼地特寫」與「駕駛艙第一人稱引擎蓋（FPV Hood Cam）」三種視角間無縫切換，身歷其境體驗倒掛 165° 翻滾快感。
   - **賽事英雄主視覺海報（Hero Action Banner）**：呈現極限夜間倒掛騰空、尾噴焰火與磁暴電弧的電影級賽事海報，應用於 2D/3D 開局準備畫面與特技大師錦囊手冊。
   - **賽道全景夜空天際線（Panoramic Cyberpunk Sky Backdrop）**：深藍星空、紫紅極光星雲與遠方賽博巨塔天際線，於 2D 畫布實現視差滾動（Parallax Scrolling），於 3D 場景打造環場全景穹頂。
   - **特技跑車精緻側影（Aerobatic Stunt Roadster Sprite）**：高畫質鈦銀空氣力學車體與電光青綠 LED 導光線條，精準套用車體座標與旋轉，時速超標時激發動態空氣光暈。
