@@ -59,8 +59,6 @@ import {
   dateKey,
 } from './daily';
 import {
-  FACE_EMOJI,
-  FACE_TINT,
   PAIR_OPTIONS,
   THEME_OPTIONS,
   allMatched,
@@ -68,7 +66,6 @@ import {
   buildDeck,
   clampPairCount,
   cpuCapacityFor,
-  faceUsesPhoto,
   gridColsClass,
   gridGapClass,
   hintPairIndices,
@@ -108,6 +105,18 @@ import {
   type DailyRecord,
   type RosterProgress,
 } from './storage';
+import {
+  computeCognitiveRank,
+  computeFeverState,
+  computePhosphorCells,
+  computeReactionStats,
+  computeWorkingMemoryRetention,
+  getBoardCols,
+} from './brainTelemetry';
+import { BrainTelemetryWing } from './BrainTelemetryWing';
+import { FeverBanner } from './FeverBanner';
+import { playFeverChord, playTactileFlip } from './feverAudio';
+import { TactileCard } from './TactileCard';
 
 const HINT_PEEK_MS = 900;
 const INSIGHT_PEEK_MS = 1200;
@@ -125,22 +134,6 @@ const TIPS_KEY = 'clubhouse-memory-match-tips';
 
 type TurnOwner = 'player' | 'cpu';
 type Screen = 'play' | 'campaign' | 'roster';
-
-function cardFaceStyle(face: MemoryCard['face'], kind: MemoryCard['kind']): CSSProperties {
-  if (faceUsesPhoto(face)) {
-    return {
-      backgroundColor: '#f8fafc',
-      backgroundImage: [
-        'linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.22))',
-        `url(${import.meta.env.BASE_URL}faces/${face}.jpg)`,
-      ].join(', '),
-    };
-  }
-  return {
-    backgroundColor:
-      kind === 'insight' ? '#fff7ed' : kind === 'bomb' ? '#fee2e2' : FACE_TINT[face] ?? '#f8fafc',
-  };
-}
 
 function loadTipsDismissed(): boolean {
   try {
@@ -175,92 +168,6 @@ function modeLabel(mode: PlayMode, sprintLimit: number): string {
     default:
       return mode;
   }
-}
-
-function FlipCard({
-  card,
-  show,
-  hinted,
-  missPulse,
-  matchPulse,
-  disabled,
-  dense,
-  focused,
-  echoSeen,
-  echoReady,
-  onClick,
-}: {
-  card: MemoryCard;
-  show: boolean;
-  hinted: boolean;
-  missPulse: boolean;
-  matchPulse: boolean;
-  disabled: boolean;
-  /** Large boards use squarer cards on phones to cut scroll height. */
-  dense?: boolean;
-  focused?: boolean;
-  echoSeen?: boolean;
-  echoReady?: boolean;
-  onClick: () => void;
-}) {
-  const classNames = [
-    'mm-card',
-    show || card.matched ? 'is-flipped' : '',
-    card.matched ? 'is-matched' : '',
-    missPulse ? 'is-miss' : '',
-    matchPulse ? 'is-match-pop' : '',
-    focused ? 'is-focused' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  return (
-    <div className={`mm-scene ${dense ? 'aspect-square sm:aspect-[3/4]' : 'aspect-[3/4]'}`}>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled || card.matched}
-        className={`${classNames} w-full h-full touch-manipulation active:scale-[0.98] disabled:cursor-default`}
-        aria-label={show || card.matched ? card.face : '背面牌'}
-      >
-        <span
-          className="mm-face mm-face-back"
-          style={{ backgroundImage: `url(${import.meta.env.BASE_URL}card-back.jpg)` }}
-        >
-          {echoSeen && !card.matched && !show && (
-            <span
-              className={`mm-echo-pip${echoReady ? ' mm-echo-pip--ready' : ''}`}
-              aria-hidden
-              title={echoReady ? '已記住完整配對！' : '曾翻開過'}
-            />
-          )}
-        </span>
-        <span
-          className={`mm-face mm-face-front ${card.kind === 'insight' ? 'is-insight' : ''} ${
-            card.kind === 'bomb' ? 'is-bomb' : ''
-          } ${hinted ? 'mm-face--hint' : ''}`}
-          style={cardFaceStyle(card.face, card.kind)}
-        >
-          {!faceUsesPhoto(card.face) && (
-            <span className="mm-emoji" aria-hidden>
-              {FACE_EMOJI[card.face]}
-            </span>
-          )}
-          {card.kind === 'insight' && (
-            <span className="absolute bottom-0.5 right-0.5 rounded-[0.3rem] bg-amber-400 px-1 text-[9px] sm:text-[10px] font-bold text-amber-950 shadow-[0_0_10px_rgba(251,191,36,0.55)]">
-              洞察
-            </span>
-          )}
-          {card.kind === 'bomb' && (
-            <span className="absolute bottom-0.5 right-0.5 rounded-[0.3rem] bg-rose-500 px-1 text-[9px] sm:text-[10px] font-bold text-rose-50 shadow-[0_0_10px_rgba(244,63,94,0.55)]">
-              炸彈
-            </span>
-          )}
-        </span>
-        {matchPulse && <span className="mm-burst" aria-hidden />}
-      </button>
-    </div>
-  );
 }
 
 function HudCell({
@@ -348,10 +255,50 @@ export default function App() {
   const [bombPenaltySec, setBombPenaltySec] = useState(0);
   const [seenIndices, setSeenIndices] = useState<Set<number>>(() => new Set());
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [sightings, setSightings] = useState<Map<number, number>>(() => new Map());
+  const [reactionSamples, setReactionSamples] = useState<number[]>([]);
+  const [showMobileTelemetry, setShowMobileTelemetry] = useState(false);
+  const lastActionTimeRef = useRef<number>(Date.now());
 
   const radar = useMemo(
     () => analyzeMemoryState(cards, seenIndices, moves, combo, flipNeed),
     [cards, seenIndices, moves, combo, flipNeed],
+  );
+
+  const feverState = useMemo(() => computeFeverState(combo), [combo]);
+  const cols = useMemo(() => getBoardCols(cards.length), [cards.length]);
+
+  const phosphorCells = useMemo(
+    () =>
+      computePhosphorCells(
+        cards,
+        sightings,
+        turnRef.current,
+        radar.knownReadyIndices,
+        cols,
+      ),
+    [cards, sightings, radar.knownReadyIndices, cols],
+  );
+
+  const retentionPct = useMemo(
+    () => computeWorkingMemoryRetention(phosphorCells),
+    [phosphorCells],
+  );
+
+  const reactionStats = useMemo(
+    () => computeReactionStats(reactionSamples),
+    [reactionSamples],
+  );
+
+  const cognitiveRank = useMemo(
+    () =>
+      computeCognitiveRank(
+        radar.accuracyPct,
+        radar.comboLevel,
+        retentionPct,
+        radar.explorationPct,
+      ),
+    [radar.accuracyPct, radar.comboLevel, retentionPct, radar.explorationPct],
   );
 
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -411,6 +358,10 @@ export default function App() {
     setLastStars(null);
     setShareCopied(false);
     setSeenIndices(new Set());
+    setSightings(new Map());
+    setReactionSamples([]);
+    setShowMobileTelemetry(false);
+    lastActionTimeRef.current = performance.now();
     setFocusedIndex(null);
     turnRef.current = 0;
     resolvingRef.current = false;
@@ -765,17 +716,24 @@ export default function App() {
       if (match) {
         playScore();
         const newCombo = nextCombo(comboRef.current, true);
-        if (newCombo >= 2) playCapture();
+        if (newCombo >= 2) {
+          playCapture();
+          playFeverChord(newCombo);
+        }
         // Juice: match → success+sparkle; combo match → combo+sparkle
         haptic(newCombo >= 2 ? 'combo' : 'success');
-        particles('sparkle', { el: gridRef.current });
+        particles(newCombo >= 3 ? 'confetti' : 'sparkle', {
+          el: gridRef.current,
+          strength: newCombo >= 3 ? 1.2 : 0.8,
+        });
         setMatchPulse(indices);
         const gained = scoreForMatch(newCombo);
         comboRef.current = newCombo;
         scoreRef.current += gained;
         setCombo(newCombo);
         setScore(scoreRef.current);
-        if (newCombo >= 2) showFlash(`${newCombo} 連擊！+${gained}`, 'good');
+        if (newCombo >= 3) showFlash(`🔥 狂熱超頻 ×${newCombo}！+${gained}`, 'good');
+        else if (newCombo === 2) showFlash(`⚡ 突觸共振 ×2！+${gained}`, 'good');
         else showFlash(`配對 +${gained}`, 'good');
 
         const insightBonus = indices.some((i) => cards[i].kind === 'insight');
@@ -817,6 +775,7 @@ export default function App() {
       }
       setFlipped([]);
       setLocks(false);
+      lastActionTimeRef.current = performance.now();
       resolvingRef.current = false;
       cpuScheduledRef.current = false;
 
@@ -862,11 +821,17 @@ export default function App() {
           ...styleOpts,
         });
         playCard();
+        playTactileFlip();
         haptic('tap');
         setFlipped([i]);
         setSeenIndices((prev) => {
           const next = new Set(prev);
           next.add(i);
+          return next;
+        });
+        setSightings((prev) => {
+          const next = new Map(prev);
+          next.set(i, turnRef.current);
           return next;
         });
         if (cpuSecondFlipRef.current != null) {
@@ -875,11 +840,17 @@ export default function App() {
         cpuSecondFlipRef.current = window.setTimeout(() => {
           cpuSecondFlipRef.current = null;
           playCard();
+          playTactileFlip();
           haptic('tap');
           setFlipped([i, j]);
           setSeenIndices((prev) => {
             const next = new Set(prev);
             next.add(j);
+            return next;
+          });
+          setSightings((prev) => {
+            const next = new Map(prev);
+            next.set(j, turnRef.current);
             return next;
           });
         }, CPU_SECOND_FLIP_MS);
@@ -912,6 +883,16 @@ export default function App() {
     if (hintFlash.length > 0 || peekFlash.length > 0) return;
     if (mode === 'versus' && turnOwner !== 'player') return;
 
+    // Track decision reaction time for human player
+    const now = performance.now();
+    if (lastActionTimeRef.current > 0) {
+      const delta = Math.round(now - lastActionTimeRef.current);
+      if (delta >= 120 && delta <= 30000) {
+        setReactionSamples((prev) => [...prev.slice(-15), delta]);
+      }
+    }
+    lastActionTimeRef.current = now;
+
     if (peekArmed && mode === 'special') {
       const card = cards[index];
       if (card.matched) return;
@@ -921,6 +902,11 @@ export default function App() {
       setSeenIndices((prev) => {
         const next = new Set(prev);
         next.add(index);
+        return next;
+      });
+      setSightings((prev) => {
+        const next = new Map(prev);
+        next.set(index, turnRef.current);
         return next;
       });
       setCpuMemory((mem) =>
@@ -935,11 +921,17 @@ export default function App() {
     if (card.matched || flipped.includes(index)) return;
     if (flipped.length >= flipNeed) return;
     playCard();
+    playTactileFlip();
     haptic('tap');
     setFlipped((f) => [...f, index]);
     setSeenIndices((prev) => {
       const next = new Set(prev);
       next.add(index);
+      return next;
+    });
+    setSightings((prev) => {
+      const next = new Map(prev);
+      next.set(index, turnRef.current);
       return next;
     });
   };
@@ -953,6 +945,11 @@ export default function App() {
     setSeenIndices((prev) => {
       const next = new Set(prev);
       for (const g of group) next.add(g);
+      return next;
+    });
+    setSightings((prev) => {
+      const next = new Map(prev);
+      for (const g of group) next.set(g, turnRef.current);
       return next;
     });
     setCpuMemory((mem) =>
@@ -1054,6 +1051,29 @@ export default function App() {
         return;
       }
 
+      if (mode !== 'daily' && mode !== 'campaign') {
+        if (key === '1') {
+          e.preventDefault();
+          restart(6, mode, themeId, cpuDifficulty);
+          return;
+        }
+        if (key === '2') {
+          e.preventDefault();
+          restart(12, mode, themeId, cpuDifficulty);
+          return;
+        }
+        if (key === '3') {
+          e.preventDefault();
+          restart(18, mode, themeId, cpuDifficulty);
+          return;
+        }
+        if (key === '4') {
+          e.preventDefault();
+          restart(24, mode, themeId, cpuDifficulty);
+          return;
+        }
+      }
+
       const total = cards.length;
       if (total === 0) return;
 
@@ -1107,6 +1127,8 @@ export default function App() {
     won,
     lost,
     restart,
+    themeId,
+    cpuDifficulty,
   ]);
 
   if (screen === 'campaign') {
@@ -1274,119 +1296,32 @@ export default function App() {
     <div
       className="mm-shell flex flex-col items-center justify-start p-3 sm:p-4 gap-2 sm:gap-3"
       style={shellBg()}
+      data-fever={feverState.tier > 1 ? feverState.tier : undefined}
     >
       <BackToMenu />
       <h1 className="mm-title">記憶配對</h1>
       <p className="mm-title-sub">Memory Match</p>
 
       <div className="mm-cockpit-shell">
-        {/* Left Wing: Brain Telemetry & Synergy Radar */}
-        <aside className="mm-wing mm-wing--left" aria-label="腦力遙測與記憶矩陣">
-          <div className="mm-wing__title">
-            <span className="text-teal-400">⚡</span>
-            <span>腦力遙測與記憶矩陣</span>
-          </div>
-
-          <div className="mm-wing__card">
-            <div className="mm-wing__row">
-              <span className="mm-wing__label">記憶精準率</span>
-              <span className="mm-wing__value text-teal-300">{radar.accuracyPct}%</span>
-            </div>
-            <div className="mm-bar-track">
-              <div
-                className="mm-bar-fill bg-gradient-to-r from-teal-400 to-emerald-400"
-                style={{ width: `${radar.accuracyPct}%` }}
-              />
-            </div>
-            <div className="mm-wing__row text-xs text-slate-400">
-              <span>步數效率</span>
-              <span>
-                {moves} 步 / {Math.floor(radar.matchedCards / Math.max(1, flipNeed))} 組
-              </span>
-            </div>
-          </div>
-
-          <div className="mm-wing__card">
-            <div className="mm-wing__row">
-              <span className="mm-wing__label">連擊超頻儀</span>
-              <span className="mm-wing__value text-amber-300">×{radar.comboMultiplier}</span>
-            </div>
-            <div className="mm-bar-track">
-              <div
-                className="mm-bar-fill bg-gradient-to-r from-amber-400 to-rose-400"
-                style={{ width: `${Math.min(100, (radar.comboLevel / 5) * 100)}%` }}
-              />
-            </div>
-            <div className="mm-wing__row text-xs">
-              <span className="text-slate-400">狀態階層</span>
-              <span className="text-amber-200 font-bold">{radar.comboLabel}</span>
-            </div>
-          </div>
-
-          <div className="mm-wing__card">
-            <div className="mm-wing__row">
-              <span className="mm-wing__label">盤面探勘進度</span>
-              <span className="mm-wing__value text-sky-300">{radar.explorationPct}%</span>
-            </div>
-            <div className="mm-bar-track">
-              <div
-                className="mm-bar-fill bg-gradient-to-r from-sky-400 to-indigo-400"
-                style={{ width: `${radar.explorationPct}%` }}
-              />
-            </div>
-            <div className="mm-wing__row text-xs text-slate-400">
-              <span>已探明牌數</span>
-              <span>
-                {radar.seenCount} / {radar.totalCards} 張
-              </span>
-            </div>
-          </div>
-
-          <div
-            className={
-              radar.knownReadyPairs > 0
-                ? 'mm-intel-alert mm-intel-alert--alert'
-                : 'mm-intel-alert'
-            }
-          >
-            <div className="font-bold">{radar.cognitiveStatus}</div>
-            <div className="text-xs mt-1 text-slate-300 leading-snug">
-              {radar.knownReadyPairs > 0
-                ? '大腦已探明雙子位置，金色回音標記已浮現，可直接收牌！'
-                : '翻牌後牌面將保留微光記憶回音，持續擴充工作記憶。'}
-            </div>
-          </div>
-
-          <div className="mm-wing__card">
-            <span className="text-xs font-bold text-slate-300 tracking-wider">鍵盤極速操控</span>
-            <div className="mm-key-guide-grid">
-              <div className="mm-key-item">
-                <kbd className="mm-key-badge">WASD</kbd>
-                <span>移標</span>
-              </div>
-              <div className="mm-key-item">
-                <kbd className="mm-key-badge">Space</kbd>
-                <span>翻牌</span>
-              </div>
-              <div className="mm-key-item">
-                <kbd className="mm-key-badge">H</kbd>
-                <span>提示</span>
-              </div>
-              <div className="mm-key-item">
-                <kbd className="mm-key-badge">P</kbd>
-                <span>洞察</span>
-              </div>
-              <div className="mm-key-item">
-                <kbd className="mm-key-badge">R</kbd>
-                <span>重開</span>
-              </div>
-              <div className="mm-key-item">
-                <kbd className="mm-key-badge">↑↓←→</kbd>
-                <span>方向</span>
-              </div>
-            </div>
-          </div>
-        </aside>
+        {/* Left Wing: Brain Telemetry Radar Cockpit */}
+        <BrainTelemetryWing
+          accuracyPct={radar.accuracyPct}
+          explorationPct={radar.explorationPct}
+          retentionPct={retentionPct}
+          reactionStats={reactionStats}
+          cognitiveRank={cognitiveRank}
+          phosphorCells={phosphorCells}
+          cols={cols}
+          comboLevel={radar.comboLevel}
+          feverMultiplier={feverState.multiplier}
+          feverLabel={feverState.label}
+          knownReadyPairs={radar.knownReadyPairs}
+          focusedIndex={focusedIndex}
+          onSelectCell={(idx) => {
+            setFocusedIndex(idx);
+            onCard(idx);
+          }}
+        />
 
         {/* Center Stage: Grid Board & Controls */}
         <main className="mm-board-center">
@@ -1502,26 +1437,80 @@ export default function App() {
         {hudCells}
       </div>
 
-      {/* Mobile tactical summary bar */}
+      {/* Dynamic Combo Fever Overdrive Banner */}
+      <FeverBanner
+        combo={radar.comboLevel}
+        multiplier={feverState.multiplier}
+        label={feverState.label}
+      />
+
+      {/* Mobile tactical summary bar with Brain Telemetry launcher */}
       <div className="mm-mobile-tactical" role="status" aria-label="記憶雷達概況">
-        <span className="font-bold text-teal-300">精準率 {radar.accuracyPct}%</span>
+        <span className="font-bold text-teal-300">精準 {radar.accuracyPct}%</span>
+        <span className="text-slate-400">·</span>
+        <span className="text-sky-300 font-bold">留存 {retentionPct}%</span>
         <span className="text-slate-400">·</span>
         <span
-          className={radar.knownReadyPairs > 0 ? 'text-amber-300 font-bold' : 'text-slate-300'}
+          className={radar.knownReadyPairs > 0 ? 'text-amber-300 font-bold animate-pulse' : 'text-slate-300'}
         >
           {radar.knownReadyPairs > 0
-            ? `⚡ 鎖定 ${radar.knownReadyPairs} 組待收`
+            ? `⚡ 鎖定 ${radar.knownReadyPairs} 組`
             : `探勘 ${radar.explorationPct}%`}
         </span>
         <span className="text-slate-400">·</span>
-        <span className="text-sky-300">
-          {radar.comboMultiplier > 1
-            ? `×${radar.comboMultiplier} 超頻`
-            : `${radar.seenCount}/${cards.length} 張`}
-        </span>
+        <button
+          type="button"
+          onClick={() => setShowMobileTelemetry(true)}
+          className="px-2 py-0.5 rounded bg-teal-500/25 border border-teal-400/50 text-teal-200 text-xs font-bold active:scale-95"
+        >
+          腦波儀 📊
+        </button>
       </div>
 
-      <div className={`mm-board-stage ${boardWide}`}>
+      {/* Mobile Telemetry Modal Sheet */}
+      {showMobileTelemetry && (
+        <div
+          className="mm-telemetry-sheet-backdrop"
+          onClick={() => setShowMobileTelemetry(false)}
+        >
+          <div
+            className="mm-telemetry-sheet"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-700">
+              <span className="font-bold text-base text-teal-300">🧠 大腦神經遙測與記憶殿堂</span>
+              <button
+                type="button"
+                onClick={() => setShowMobileTelemetry(false)}
+                className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs font-bold"
+              >
+                關閉 ✕
+              </button>
+            </div>
+            <BrainTelemetryWing
+              accuracyPct={radar.accuracyPct}
+              explorationPct={radar.explorationPct}
+              retentionPct={retentionPct}
+              reactionStats={reactionStats}
+              cognitiveRank={cognitiveRank}
+              phosphorCells={phosphorCells}
+              cols={cols}
+              comboLevel={radar.comboLevel}
+              feverMultiplier={feverState.multiplier}
+              feverLabel={feverState.label}
+              knownReadyPairs={radar.knownReadyPairs}
+              focusedIndex={focusedIndex}
+              onSelectCell={(idx) => {
+                setFocusedIndex(idx);
+                setShowMobileTelemetry(false);
+                onCard(idx);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className={`mm-board-stage ${boardWide}${feverState.tier >= 2 ? ' is-fever' : ''}`}>
         <div
           ref={gridRef}
           data-mm-grid="1"
@@ -1536,17 +1525,20 @@ export default function App() {
               flipped.includes(i) ||
               hintFlash.includes(i) ||
               peekFlash.includes(i);
+            const cell = phosphorCells[i];
             return (
-              <FlipCard
+              <TactileCard
                 key={card.id}
                 card={card}
+                index={i}
                 show={show}
                 hinted={hintFlash.includes(i) || peekFlash.includes(i)}
                 missPulse={missPulse.includes(i)}
                 matchPulse={matchPulse.includes(i)}
                 dense={faceLike >= 18 || cards.length >= 30}
                 focused={focusedIndex === i}
-                echoSeen={seenIndices.has(i)}
+                coordinate={cell?.coordinate ?? `C${i + 1}`}
+                phosphorLevel={cell?.level ?? 0}
                 echoReady={radar.knownReadyIndices.includes(i)}
                 disabled={
                   locks ||

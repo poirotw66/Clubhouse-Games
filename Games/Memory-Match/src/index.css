@@ -486,7 +486,8 @@ body {
 
 /* --- 3D card flip --- */
 .mm-scene {
-  perspective: 980px;
+  perspective: 1100px;
+  transform-style: preserve-3d;
 }
 
 .mm-card {
@@ -495,17 +496,42 @@ body {
   height: 100%;
   min-width: 0;
   transform-style: preserve-3d;
-  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 320ms cubic-bezier(0.34, 1.25, 0.64, 1), box-shadow 240ms ease;
   border-radius: var(--mm-radius);
 }
 
+/* 3D Tactile Slab Thickness Bevel */
+.mm-card-bevel {
+  position: absolute;
+  inset: -1px;
+  border-radius: calc(var(--mm-radius) + 1px);
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(45, 212, 191, 0.25), rgba(15, 23, 42, 0.9));
+  box-shadow:
+    0 2px 0 1px rgba(15, 23, 42, 0.85),
+    0 5px 12px -2px rgba(0, 0, 0, 0.7);
+  z-index: 0;
+  transform: translateZ(-2px);
+  transition: opacity 200ms ease;
+}
+
+/* Tactile pushdown spring feedback */
+.mm-card.mm-tactile-slab:active:not(:disabled) {
+  transform: scale(0.97) translateZ(-6px);
+  transition-duration: 60ms;
+}
+
 .mm-card.is-flipped {
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(8px);
 }
 
 .mm-card.is-matched {
-  transform: rotateY(180deg) scale(0.96);
+  transform: rotateY(180deg) scale(0.96) translateZ(0);
   filter: saturate(1.25) brightness(1.08);
+}
+
+.mm-card.is-matched .mm-card-bevel {
+  opacity: 0.35;
 }
 
 .mm-card.is-miss {
@@ -522,7 +548,7 @@ body {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border-radius: var(--mm-radius);
-  border: 1px solid rgba(165, 243, 252, 0.28);
+  border: 1.5px solid rgba(165, 243, 252, 0.28);
   box-shadow:
     0 0 calc(14px * var(--mm-fx)) rgba(45, 212, 191, 0.22),
     0 6px 18px rgba(0, 0, 0, 0.45);
@@ -564,6 +590,51 @@ body {
   mix-blend-mode: screen;
   opacity: 0.95;
   z-index: 2;
+}
+
+/* Specular Sheen sweep */
+.mm-specular-sheen {
+  position: absolute;
+  inset: -100%;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.16) 45%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 55%
+  );
+  transform: translateX(-100%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  z-index: 5;
+}
+
+.mm-card:hover .mm-specular-sheen {
+  opacity: 1;
+  transform: translateX(100%);
+  transition: transform 700ms ease, opacity 200ms ease;
+}
+
+/* Spatial Memory Coordinate Badge */
+.mm-coord-badge {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-family: 'Chakra Petch', monospace, sans-serif;
+  font-size: clamp(0.55rem, 1.4vw, 0.68rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(165, 243, 252, 0.7);
+  pointer-events: none;
+  z-index: 6;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  line-height: 1;
+}
+
+.mm-coord-badge--front {
+  color: rgba(15, 23, 42, 0.45);
+  text-shadow: none;
 }
 
 .mm-face-front {
@@ -966,6 +1037,316 @@ body {
     transform: scale(1.35);
     opacity: 1;
   }
+}
+
+/* Memory Palace Decaying Phosphor Indicator */
+.mm-phosphor {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.mm-phosphor-core {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transition: all 300ms ease;
+}
+
+.mm-phosphor-halo {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  opacity: 0.55;
+  filter: blur(2px);
+  animation: mm-phosphor-breathe 2.4s ease-in-out infinite alternate;
+}
+
+/* Level 3: Fresh Synaptic Trace (Emerald / Bright Cyan) */
+.mm-phosphor--l3 .mm-phosphor-core {
+  background: #2dd4bf;
+  box-shadow: 0 0 8px #2dd4bf, 0 0 14px rgba(45, 212, 191, 0.85);
+}
+.mm-phosphor--l3 .mm-phosphor-halo {
+  background: rgba(45, 212, 191, 0.6);
+}
+
+/* Level 2: Warm Working Memory (Sky Cyan) */
+.mm-phosphor--l2 .mm-phosphor-core {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+.mm-phosphor--l2 .mm-phosphor-halo {
+  background: rgba(56, 189, 248, 0.45);
+}
+
+/* Level 1: Ghost Ember (Violet / Indigo) */
+.mm-phosphor--l1 .mm-phosphor-core {
+  background: #a855f7;
+  opacity: 0.75;
+  box-shadow: 0 0 4px #a855f7;
+}
+.mm-phosphor--l1 .mm-phosphor-halo {
+  background: rgba(168, 85, 247, 0.3);
+}
+
+/* Ready Dual Synergy Echo (Golden Resonance) */
+.mm-phosphor.is-ready .mm-phosphor-core {
+  background: #fbbf24;
+  box-shadow: 0 0 12px #fbbf24, 0 0 20px rgba(251, 191, 36, 0.95);
+  transform: scale(1.15);
+}
+.mm-phosphor.is-ready .mm-phosphor-halo {
+  background: rgba(251, 191, 36, 0.8);
+  animation: mm-phosphor-surge 1.2s ease-in-out infinite alternate;
+}
+
+.mm-phosphor-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(251, 191, 36, 0.9);
+  animation: mm-ring-spin 6s linear infinite;
+}
+
+/* Ready twin card aura */
+.mm-card.is-echo-ready .mm-face-back {
+  border-color: rgba(251, 191, 36, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.6),
+    0 0 calc(24px * var(--mm-fx)) rgba(251, 191, 36, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes mm-phosphor-breathe {
+  0% { transform: scale(0.9); opacity: 0.4; }
+  100% { transform: scale(1.3); opacity: 0.75; }
+}
+
+@keyframes mm-phosphor-surge {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.6); opacity: 0.95; }
+}
+
+@keyframes mm-ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* --- Combo Fever Overdrive System --- */
+.mm-fever-banner {
+  position: relative;
+  width: 100%;
+  max-width: 36rem;
+  overflow: hidden;
+  border-radius: var(--mm-radius);
+  background: linear-gradient(90deg, rgba(244, 63, 94, 0.92), rgba(251, 191, 36, 0.92), rgba(236, 72, 153, 0.92));
+  background-size: 200% 200%;
+  animation: mm-fever-gradient 3s ease infinite;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.3),
+    0 0 calc(30px * var(--mm-fx)) rgba(244, 63, 94, 0.6),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+  padding: 0.45rem 0.85rem;
+}
+
+.mm-fever-banner.is-hyperdrive {
+  background: linear-gradient(90deg, #f43f5e, #ec4899, #8b5cf6, #3b82f6, #f59e0b);
+  background-size: 300% 300%;
+  animation: mm-fever-gradient 1.8s ease infinite;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.5),
+    0 0 calc(42px * var(--mm-fx)) rgba(236, 72, 153, 0.85),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.mm-fever-banner__content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  z-index: 2;
+}
+
+.mm-fever-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.mm-fever-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+@keyframes mm-fever-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Reactive shell atmosphere when fever is active */
+.mm-shell[data-fever='2'] {
+  background-image:
+    radial-gradient(90% 55% at 50% -8%, rgba(244, 63, 94, calc(0.35 * var(--mm-fx))), transparent 55%),
+    radial-gradient(70% 45% at 100% 18%, rgba(251, 191, 36, calc(0.28 * var(--mm-fx))), transparent 52%),
+    radial-gradient(60% 40% at 0% 85%, rgba(236, 72, 153, calc(0.24 * var(--mm-fx))), transparent 50%),
+    linear-gradient(180deg, rgba(8, 6, 14, 0.75), rgba(8, 6, 14, 0.9)),
+    var(--mm-table-image, none);
+}
+
+.mm-shell[data-fever='3'] {
+  background-image:
+    radial-gradient(90% 55% at 50% -8%, rgba(236, 72, 153, calc(0.45 * var(--mm-fx))), transparent 55%),
+    radial-gradient(70% 45% at 100% 18%, rgba(139, 92, 246, calc(0.35 * var(--mm-fx))), transparent 52%),
+    radial-gradient(60% 40% at 0% 85%, rgba(251, 191, 36, calc(0.32 * var(--mm-fx))), transparent 50%),
+    linear-gradient(180deg, rgba(12, 6, 18, 0.72), rgba(12, 6, 18, 0.92)),
+    var(--mm-table-image, none);
+}
+
+.mm-board-stage.is-fever {
+  box-shadow:
+    0 0 0 2px rgba(244, 63, 94, 0.65),
+    0 0 calc(44px * var(--mm-fx)) rgba(244, 63, 94, 0.45),
+    0 0 calc(70px * var(--mm-fx)) rgba(251, 191, 36, 0.28),
+    inset 0 0 45px rgba(244, 63, 94, 0.15);
+  animation: mm-board-fever-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes mm-board-fever-pulse {
+  0% { filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.3)); }
+  100% { filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.5)); }
+}
+
+/* --- Neural Matrix Heatmap Grid --- */
+.mm-heatmap-grid {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+}
+
+.mm-heatmap-cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.8);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.mm-heatmap-cell:hover {
+  transform: scale(1.15);
+  z-index: 5;
+}
+
+.mm-heatmap-coord {
+  font-family: 'Chakra Petch', monospace, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+  line-height: 1;
+}
+
+.mm-heatmap-cell.is-unexplored {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.mm-heatmap-cell.is-fresh {
+  background: rgba(45, 212, 191, 0.35);
+  border-color: #2dd4bf;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.6);
+}
+
+.mm-heatmap-cell.is-warm {
+  background: rgba(56, 189, 248, 0.3);
+  border-color: #38bdf8;
+}
+
+.mm-heatmap-cell.is-ember {
+  background: rgba(168, 85, 247, 0.25);
+  border-color: #a855f7;
+}
+
+.mm-heatmap-cell.is-ready {
+  background: rgba(251, 191, 36, 0.45);
+  border-color: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.85);
+  animation: mm-heatmap-ready-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.mm-heatmap-cell.is-matched {
+  background: rgba(30, 41, 59, 0.4);
+  border-color: rgba(100, 116, 139, 0.2);
+  opacity: 0.35;
+}
+
+.mm-heatmap-cell.is-focused {
+  border-color: #ffffff;
+  box-shadow: 0 0 10px #ffffff;
+  transform: scale(1.2);
+  z-index: 6;
+}
+
+@keyframes mm-heatmap-ready-pulse {
+  0% { transform: scale(0.96); opacity: 0.85; }
+  100% { transform: scale(1.08); opacity: 1; }
+}
+
+.mm-fever-card-active {
+  border-color: rgba(244, 63, 94, 0.4) !important;
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.15) !important;
+}
+
+/* Mobile Telemetry Modal Overlay */
+.mm-telemetry-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: mm-fade-in 200ms ease;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.mm-telemetry-sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85svh;
+  overflow-y: auto;
+  background: #081220;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@keyframes mm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Mobile tactical summary */

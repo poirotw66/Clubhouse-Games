@@ -57,6 +57,16 @@ import { OPPONENTS, isOpponentUnlocked, opponentById } from './opponents.ts';
 import { createRng, hashString } from './rng.ts';
 import { EMPTY_CAMPAIGN } from './storage.ts';
 
+import {
+  computeCognitiveRank,
+  computeFeverState,
+  computePhosphorCells,
+  computeReactionStats,
+  computeWorkingMemoryRetention,
+  getBoardCols,
+  getGridCoordinate,
+} from './brainTelemetry.ts';
+
 assert.ok(FACE_IDS.length >= 24, `need ≥24 faces, got ${FACE_IDS.length}`);
 assert.equal(new Set(FACE_IDS).size, FACE_IDS.length, 'FACE_IDS must be unique');
 assert.equal(THEME_OPTIONS.length, 4);
@@ -421,5 +431,77 @@ assert.equal(matchedAnalysis.knownReadyPairs, 0, 'already matched cards do not c
 assert.equal(matchedAnalysis.comboLevel, 2);
 assert.equal(matchedAnalysis.comboMultiplier, 2);
 assert.equal(matchedAnalysis.comboLabel, '雙重超頻');
+
+// --- Brain Telemetry & Phosphor Decay ---
+assert.equal(getBoardCols(12), 4);
+assert.equal(getBoardCols(24), 6);
+assert.equal(getBoardCols(48), 8);
+assert.equal(getGridCoordinate(0, 4), 'A1');
+assert.equal(getGridCoordinate(3, 4), 'A4');
+assert.equal(getGridCoordinate(4, 4), 'B1');
+assert.equal(getGridCoordinate(7, 4), 'B4');
+
+const sightingsMap = new Map([
+  [0, 5], // seen at turn 5 (1 turn ago at turn 6) -> Level 3
+  [1, 3], // seen at turn 3 (3 turns ago at turn 6) -> Level 2
+  [2, 1], // seen at turn 1 (5 turns ago at turn 6) -> Level 1
+]);
+
+const phosphorTestDeck = [
+  { id: 'c0', face: 'star', matched: false, kind: 'normal' },
+  { id: 'c1', face: 'moon', matched: false, kind: 'normal' },
+  { id: 'c2', face: 'star', matched: false, kind: 'normal' },
+  { id: 'c3', face: 'sun', matched: false, kind: 'normal' },
+  { id: 'c4', face: 'sun', matched: true, kind: 'normal' },
+];
+
+const cells = computePhosphorCells(phosphorTestDeck, sightingsMap, 6, [0, 2], 4);
+assert.equal(cells.length, 5);
+assert.equal(cells[0].level, 3, 'turn 5 vs 6 is fresh (Level 3)');
+assert.equal(cells[0].isReady, true, 'index 0 is ready pair');
+assert.equal(cells[1].level, 2, 'turn 3 vs 6 is warm (Level 2)');
+assert.equal(cells[2].level, 1, 'turn 1 vs 6 is ember (Level 1)');
+assert.equal(cells[2].isReady, true, 'index 2 is ready pair');
+assert.equal(cells[3].level, 0, 'unseen card is Level 0');
+assert.equal(cells[4].level, 0, 'matched card is Level 0');
+assert.equal(cells[4].matched, true);
+
+const retention = computeWorkingMemoryRetention(cells);
+assert.ok(retention >= 70 && retention <= 100, `retention was ${retention}`);
+
+// Reaction stats
+const reactionTest = computeReactionStats([1200, 950, 800, 750]);
+assert.equal(reactionTest.sampleCount, 4);
+assert.equal(reactionTest.latestMs, 750);
+assert.ok(reactionTest.averageMs < 1000);
+assert.ok(['閃電神經', '敏捷專注'].includes(reactionTest.speedRating));
+
+// Cognitive rank
+const rankS = computeCognitiveRank(85, 3, 80, 70);
+assert.equal(rankS.grade, 'S');
+assert.equal(rankS.title, '神經先知');
+
+const rankA = computeCognitiveRank(70, 2, 60, 50);
+assert.equal(rankA.grade, 'A');
+assert.equal(rankA.title, '超感知者');
+
+// Fever overdrive
+const fever0 = computeFeverState(0);
+assert.equal(fever0.tier, 0);
+assert.equal(fever0.multiplier, 1);
+
+const fever2 = computeFeverState(2);
+assert.equal(fever2.tier, 1);
+assert.equal(fever2.multiplier, 2);
+
+const fever3 = computeFeverState(3);
+assert.equal(fever3.tier, 2);
+assert.equal(fever3.multiplier, 3);
+assert.ok(fever3.label.includes('狂熱超頻'));
+
+const fever5 = computeFeverState(5);
+assert.equal(fever5.tier, 3);
+assert.equal(fever5.multiplier, 5);
+assert.ok(fever5.label.includes('思維極限'));
 
 console.log('memory-match check ok');
