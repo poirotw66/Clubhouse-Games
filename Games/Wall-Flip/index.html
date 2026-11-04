@@ -1791,9 +1791,14 @@ function camTargets() {
     add(Math.min(car.x - 3, -4), 0); add(1, 0);
   } else if (car.mode === 'crash') {
     add(car.x - 6, 0); add(car.x + 6, car.y + 4);
+  } else if (car.mode === 'air') {
+    // Airborne stunt framing: keep vehicle focused and clearly visible without excessive zoom-out
+    add(car.x - 3.8, car.y - 1.8);
+    add(car.x + 3.8, car.y + 2.2);
+    if (car.y < 4.0) add(car.x, 0);
   } else if (car.y < 45) {
-    add(car.x - 3, 0); add(car.x + 3, 0);
-    add(car.x, Math.max(3, car.y + 2)); // keep the airborne car framed too
+    add(car.x - 3.5, Math.max(0, car.y - 2.5));
+    add(car.x + 3.5, car.y + 2.5);
   } else {
     add(car.x - 5, car.y - 7); add(car.x + 5, car.y + 4);
   }
@@ -1841,7 +1846,7 @@ function camStep(dt) {
   if (carSy < top) cam.y += (top - carSy) / cam.scale;
   if (carSy > bot) cam.y -= (carSy - bot) / cam.scale;
 }
-const getMidY = () => (W() <= 768 || W() / H() < 1.0) ? (H() - (padShown ? 68 : 0)) / 2 : H() * 0.6;
+const getMidY = () => (W() <= 768 || W() / H() < 1.0) ? (H() - (((isTouch || activePtr.size > 0) && state === ST.RUN) ? 68 : 0)) / 2 : H() * 0.6;
 const w2sX = x => (x - cam.x) * cam.scale + W() / 2;
 const w2sY = y => getMidY() - (y - cam.y) * cam.scale;
 function worldTransform() {

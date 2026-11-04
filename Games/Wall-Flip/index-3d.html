@@ -83,6 +83,48 @@
   #hud[hidden] { display: none; }
   .hudtop { position: absolute; top: 0; left: 0; right: 0; min-height: 48px; height: 48px; display: flex; gap: 20px;
     align-items: center; padding: 0 112px 0 188px; background: var(--ground); border-bottom: 1px solid var(--rule); }
+  .wf-cam-selector {
+    position: fixed; top: 6px; right: 110px; z-index: 32;
+    display: inline-flex; align-items: center; height: 36px; gap: 3px;
+    padding: 3px; border-radius: 999px; background: rgba(18, 22, 28, 0.92);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(111, 240, 208, 0.28);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  }
+  .wf-cam-selector button.wf-cam-pill {
+    height: 30px; padding: 0 11px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--muted);
+    cursor: pointer; font: 600 12px/1 var(--sans);
+    display: inline-flex; align-items: center; gap: 4px;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap; user-select: none;
+  }
+  .wf-cam-selector button.wf-cam-pill:hover {
+    color: var(--text); background: rgba(255, 255, 255, 0.08);
+  }
+  .wf-cam-selector button.wf-cam-pill[aria-pressed="true"] {
+    color: var(--ground); background: var(--mint);
+    box-shadow: 0 0 14px rgba(111, 240, 208, 0.55);
+    font-weight: 700;
+  }
+  .wf-cam-selector button.wf-cam-pill:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+  @media (max-width: 960px) {
+    .wf-cam-selector { right: 104px; gap: 2px; padding: 2px; }
+    .wf-cam-selector button.wf-cam-pill { padding: 0 8px; font-size: 11px; }
+  }
+  @media (max-width: 720px) {
+    .wf-cam-selector { top: 44px; right: 8px; height: 32px; padding: 2px; gap: 2px; }
+    .wf-cam-selector button.wf-cam-pill { height: 26px; padding: 0 7px; font-size: 10px; }
+  }
+  @media (max-width: 480px) {
+    .wf-cam-selector { top: 44px; right: 6px; }
+    .wf-cam-selector button.wf-cam-pill { padding: 0 5px; font-size: 9.5px; }
+    .wf-cam-selector button.wf-cam-pill .wf-cam-txt { display: none; }
+    .wf-cam-selector button.wf-cam-pill .wf-cam-short { display: inline; }
+  }
+  @media (min-width: 481px) {
+    .wf-cam-selector button.wf-cam-pill .wf-cam-short { display: none; }
+  }
   .wf-view-switch {
     position: fixed; top: 6px; right: 12px; z-index: 32;
     display: flex; align-items: center; height: 36px; gap: 0;
@@ -660,6 +702,20 @@
 </head>
 <body data-view-mode="3d">
   <a href="../../" id="backlink"></a>
+<div id="camSelector" class="wf-cam-selector" data-testid="cam-selector" role="group" aria-label="3D 視角選擇">
+  <button type="button" class="wf-cam-pill" data-cam="0" aria-pressed="true" title="動態特技追焦 (按 C 切換)">
+    <span class="wf-cam-ico" aria-hidden="true">📹</span><span class="wf-cam-txt" data-role="label">動態追焦</span><span class="wf-cam-short" data-role="short">追焦</span>
+  </button>
+  <button type="button" class="wf-cam-pill" data-cam="1" aria-pressed="false" title="側向精準轉播 (按 C 切換)">
+    <span class="wf-cam-ico" aria-hidden="true">📐</span><span class="wf-cam-txt" data-role="label">側向轉播</span><span class="wf-cam-short" data-role="short">轉播</span>
+  </button>
+  <button type="button" class="wf-cam-pill" data-cam="2" aria-pressed="false" title="車尾極速追隨 (按 C 切換)">
+    <span class="wf-cam-ico" aria-hidden="true">🏎️</span><span class="wf-cam-txt" data-role="label">車尾追隨</span><span class="wf-cam-short" data-role="short">車尾</span>
+  </button>
+  <button type="button" class="wf-cam-pill" data-cam="3" aria-pressed="false" title="第一人稱座艙 (按 C 切換)">
+    <span class="wf-cam-ico" aria-hidden="true">👁️</span><span class="wf-cam-txt" data-role="label">駕駛座艙</span><span class="wf-cam-short" data-role="short">座艙</span>
+  </button>
+</div>
 <div id="viewSwitch" class="wf-view-switch" data-testid="view-mode-switch" role="group" aria-label="顯示模式">
   <button type="button" data-view="2d" data-testid="view-mode-2d" aria-pressed="false">2D</button>
   <button type="button" data-view="3d" data-testid="view-mode-3d" aria-pressed="true">3D</button>
@@ -1152,6 +1208,19 @@ const STR = {
     keyUfo: '飛碟',
     camBtn: '📹 視角',
     ufoBtn: '🛸 彩蛋',
+    camMode0: '動態追焦',
+    camMode0Short: '追焦',
+    camMode0Title: '動態特技追焦 (按 C 切換)',
+    camMode1: '側向轉播',
+    camMode1Short: '轉播',
+    camMode1Title: '側向精準轉播 (按 C 切換)',
+    camMode2: '車尾追隨',
+    camMode2Short: '車尾',
+    camMode2Title: '車尾極速追隨 (按 C 切換)',
+    camMode3: '駕駛座艙',
+    camMode3Short: '座艙',
+    camMode3Title: '第一人稱座艙 (按 C 切換)',
+    camToast: (n) => `📹 3D 特技視角：${n}`,
   },
   en: {
     title: 'WALL FLIP', sub: 'Climb the curled wall, launch inverted, flip and land on the tires',
@@ -1255,6 +1324,19 @@ const STR = {
     keyUfo: 'UFO',
     camBtn: '📹 CAM',
     ufoBtn: '🛸 EGG',
+    camMode0: 'Dynamic Action',
+    camMode0Short: 'Action',
+    camMode0Title: 'Dynamic Action Cam (Press C)',
+    camMode1: 'Side Broadcast',
+    camMode1Short: 'Side',
+    camMode1Title: 'Side Broadcast 2.5D (Press C)',
+    camMode2: 'Rear Chase',
+    camMode2Short: 'Chase',
+    camMode2Title: 'Rear Chase Cam (Press C)',
+    camMode3: 'Cockpit FPV',
+    camMode3Short: 'Cockpit',
+    camMode3Title: 'FPV Cockpit (Press C)',
+    camToast: (n) => `📹 3D Stunt Cam: ${n}`,
   },
 };
 let lang = 'tc';
@@ -1778,7 +1860,7 @@ stageEl.addEventListener('contextmenu', e => e.preventDefault());
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(BG);
 scene.fog = new THREE.Fog(BG, 220, 1500);
-const camera = new THREE.PerspectiveCamera(38, 1, .5, 2500);
+const camera = new THREE.PerspectiveCamera(46, 1, .5, 2500);
 
 scene.add(new THREE.HemisphereLight(0xa5c4e8, 0x0a1017, .85));
 const sun = new THREE.DirectionalLight(0xf2f7ff, 2.7); sun.position.set(-14, 18, 22);
@@ -2744,6 +2826,7 @@ function updateAllText() {
   if (achMsgNames) el.achMsg.textContent = t('mAch', achMsgNames.join(t('achJoin')));
   updateBestLabels();
   syncViewModeChrome();
+  updateCamSelectorUI();
 }
 el.langbtn.addEventListener('click', () => {
   setLang(lang === 'tc' ? 'en' : 'tc');
@@ -3016,12 +3099,52 @@ const TIME_SCALE = 1;                        // original Un
 const DEMO = new URLSearchParams(location.search).has('demo');
 let sim = null, startX = 0, screen = 'start', launchX = 0, newBest = false, retryT = 0, slipWordAt = -9;
 let lastWarpPopAt = -9, lastRainbowPopAt = -9;
-let cameraMode = 0; // 0: Standard, 1: Cinematic Low, 2: FPV Cockpit
-const CAM_MODE_NAMES = ['標準動態', '電影貼地特寫', '第一人稱引擎蓋'];
-function cycleCameraMode() {
-  cameraMode = (cameraMode + 1) % 3;
-  showViewToast('📹 3D 視角：' + CAM_MODE_NAMES[cameraMode]);
+let cameraMode = 0; // 0: Dynamic Action, 1: Side Broadcast, 2: Rear Chase, 3: Cockpit FPV
+const CAM_MODE_NAMES = ['動態特技追焦', '側向精準轉播', '車尾極速追隨', '第一人稱座艙'];
+const CAM_MODE_NAMES_EN = ['Dynamic Action', 'Side Broadcast', 'Rear Chase', 'Cockpit FPV'];
+try {
+  const savedCam = parseInt(localStorage.getItem('wallflip3.camMode'), 10);
+  if (!isNaN(savedCam) && savedCam >= 0 && savedCam <= 3) cameraMode = savedCam;
+} catch {}
+
+function updateCamSelectorUI() {
+  const pills = document.querySelectorAll('.wf-cam-pill');
+  pills.forEach((p) => {
+    const m = parseInt(p.dataset.cam, 10);
+    p.setAttribute('aria-pressed', m === cameraMode ? 'true' : 'false');
+    const lbl = p.querySelector('[data-role="label"]');
+    const s = p.querySelector('[data-role="short"]');
+    if (lbl) lbl.textContent = t(`camMode${m}`);
+    if (s) s.textContent = t(`camMode${m}Short`);
+    p.setAttribute('title', t(`camMode${m}Title`));
+  });
+  if (el.camBtn) {
+    const shortNames = lang === 'en' ? ['📹 ACTION', '📐 SIDE', '🏎️ CHASE', '👁️ COCKPIT'] : ['📹 追焦', '📐 轉播', '🏎️ 車尾', '👁️ 座艙'];
+    el.camBtn.textContent = shortNames[cameraMode] || t('camBtn');
+  }
 }
+
+function setCameraMode(idx) {
+  cameraMode = ((idx % 4) + 4) % 4;
+  try { localStorage.setItem('wallflip3.camMode', cameraMode); } catch {}
+  updateCamSelectorUI();
+  const name = (lang === 'en' ? CAM_MODE_NAMES_EN : CAM_MODE_NAMES)[cameraMode];
+  showViewToast(t('camToast', name));
+  camState.init = false;
+}
+function cycleCameraMode() {
+  setCameraMode(cameraMode + 1);
+}
+document.querySelectorAll('.wf-cam-pill').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    ensureAudio();
+    sfx.click();
+    const mode = parseInt(btn.dataset.cam, 10);
+    setCameraMode(mode);
+    btn.blur();
+  });
+});
 function triggerUfoEasterEgg() {
   ensureAudio();
   if (ufo.activeT <= 0) {
@@ -3030,8 +3153,8 @@ function triggerUfoEasterEgg() {
   }
   ufo.activeT = 7.0;
 }
-if (el.camBtn) el.camBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); sfx.click(); cycleCameraMode(); });
-if (el.ufoBtn) el.ufoBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); triggerUfoEasterEgg(); });
+if (el.camBtn) el.camBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); sfx.click(); cycleCameraMode(); el.camBtn.blur(); });
+if (el.ufoBtn) el.ufoBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); triggerUfoEasterEgg(); el.ufoBtn.blur(); });
 let best = 0;
 try { best = +localStorage.getItem('wallflip3.best') || 0; } catch {}
 const game = { playing: false, endAt: Infinity, shake: 0, wheel: 0, rolls: 0, score: null, acc: 0, squash: 0, squashV: 0 };
@@ -4336,99 +4459,100 @@ function camFits(dist) {
 function updateCamera(dt) {
   const st = sim.state;
   if (cameraMode === 1) {
-    // Cinematic Trackside Camera: low dramatic view looking up
-    const camX = st.mode === 'road' ? st.x - 7 : (st.x < 10 ? -2 : st.x - 7);
-    const camY = Math.max(0.6, st.y * 0.25 + 0.4);
-    const camZ = ROAD_W / 2 + 3.8;
-    camera.position.set(camX, camY, camZ);
-    camera.lookAt(st.x + 3.5, Math.max(1.2, st.y + 0.8), 0);
+    // Mode 1: Side Broadcast 2.5D Cam (orthogonal side stunt broadcast)
+    const targetLead = st.mode === 'road' ? 1.4 : clamp(st.vx * 0.06, -3.5, 2.2);
+    const targetX = st.x + targetLead;
+    const targetY = Math.max(1.2, st.y + 0.6);
+    const k = camState.init ? Math.min(1, dt * 5.0) : 1;
+    camState.look.x += (targetX - camState.look.x) * k;
+    camState.look.y += (targetY - camState.look.y) * k;
+    camState.look.z = 0;
+
+    const sideDist = ROAD_W / 2 + 18.5;
+    camera.position.set(camState.look.x, Math.max(1.6, camState.look.y + 0.45), sideDist);
+    camera.lookAt(camState.look.x, camState.look.y, 0);
     camera.up.set(0, 1, 0);
     camera.updateMatrixWorld();
     camState.init = true;
     return;
   }
   if (cameraMode === 2) {
-    // FPV Cockpit Hood Camera: riding on the front hood
-    const hoodPos = (new THREE.Vector3(1.2, 0.45, 0)).applyMatrix4(body.matrixWorld);
-    const forwardPos = (new THREE.Vector3(25, 0.3, 0)).applyMatrix4(body.matrixWorld);
+    // Mode 2: Rear Chase Cam (over-the-shoulder track follower)
+    const k = camState.init ? Math.min(1, dt * 5.5) : 1;
+    let targetCamPos, targetLookAt;
+    if (st.mode === 'road') {
+      // Heading +X towards the curved wall
+      targetCamPos = new THREE.Vector3(st.x - 9.0, Math.max(1.5, st.y + 2.3), (st.z || 0) * 0.4);
+      targetLookAt = new THREE.Vector3(st.x + 16.0, Math.max(1.0, st.y + 1.6), 0);
+    } else {
+      // In air / runway landing: heading -X down the long runway
+      targetCamPos = new THREE.Vector3(st.x + 10.5, Math.max(1.8, st.y + 2.8), (st.z || 0) * 0.4);
+      targetLookAt = new THREE.Vector3(st.x - 22.0, Math.max(0.6, st.y - 0.6), 0);
+    }
+    if (!camState.rearPos) camState.rearPos = targetCamPos.clone();
+    camState.rearPos.lerp(targetCamPos, k);
+    camState.look.lerp(targetLookAt, k);
+
+    camera.position.copy(camState.rearPos);
+    camera.lookAt(camState.look);
+    camera.up.set(0, 1, 0);
+    camera.updateMatrixWorld();
+    camState.init = true;
+    return;
+  }
+  if (cameraMode === 3) {
+    // Mode 3: FPV Cockpit Cam with Horizon Gyro Stabilization
+    const hoodPos = (new THREE.Vector3(1.18, 0.46, 0)).applyMatrix4(body.matrixWorld);
+    const forwardPos = (new THREE.Vector3(25, 0.25, 0)).applyMatrix4(body.matrixWorld);
     camera.position.copy(hoodPos);
     camera.lookAt(forwardPos);
-    camera.up.set(0, 1, 0).applyQuaternion(carRoot.quaternion);
+
+    // Gyro horizon stabilization: damp vertical 360-degree flip inversion
+    const carUp = (new THREE.Vector3(0, 1, 0)).applyQuaternion(carRoot.quaternion);
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    // 22% roll tilt for authentic stunt feeling, 78% upright horizon stability
+    const stabilizedUp = worldUp.clone().lerp(carUp, 0.22).normalize();
+    camera.up.copy(stabilizedUp);
     camera.updateMatrixWorld();
     camState.init = true;
     return;
   }
+
+  // Mode 0: Dynamic Stunt Action Cam (Default, 3/4 heroic chase with dynamic framing)
   camera.up.set(0, 1, 0);
-  const isMobile = window.innerWidth <= 768 || camera.aspect < 1.0;
 
-  if (isMobile) {
-    // Mobile mode: keep car firmly focused in the middle of the screen
-    const targetLead = st.mode === 'road' ? 1.5 : (st.mode === 'air' ? Math.min(2.5, Math.max(-1.5, st.vx * 0.08)) : 0);
-    center.set(st.x + targetLead, st.y + 0.5, st.z || 0);
+  // Focus directly around the car with smooth look-ahead
+  const targetLeadX = st.mode === 'road' ? 1.6 : (st.mode === 'air' ? clamp(st.vx * 0.05, -3.2, 2.5) : 0);
+  const targetLeadY = st.mode === 'road' ? 0.35 : (st.mode === 'air' ? clamp(st.vy * 0.04, -1.6, 2.0) : 0);
+  center.set(
+    st.x + targetLeadX,
+    Math.max(1.0, st.y + 0.6 + targetLeadY),
+    (st.z || 0) * 0.35
+  );
 
-    const k = camState.init ? Math.min(1, dt * 5.5) : 1;
-    camState.look.lerp(center, k);
+  const lookK = camState.init ? Math.min(1, dt * 5.2) : 1;
+  camState.look.lerp(center, lookK);
 
-    // Comfortable mobile distance: prominent, detailed car in screen center
-    let targetDist = 18;
-    if (screen === 'result') {
-      targetDist = 14;
-    } else if (st.mode === 'road') {
-      targetDist = 17;
-    } else if (st.mode === 'air') {
-      const spd = Math.hypot(st.vx, st.vy);
-      targetDist = Math.min(28, 17 + spd * 0.2);
-    } else if (st.mode === 'crash') {
-      targetDist = 20;
-    }
-    camState.dist += (targetDist - camState.dist) * (camState.init ? Math.min(1, dt * 3.5) : 1);
-    camera.position.copy(camState.look).addScaledVector(camDir, camState.dist);
-    camera.lookAt(camState.look);
-    camera.updateMatrixWorld();
-    camState.init = true;
-    return;
-  }
-
-  // Desktop landscape mode: wide fit framing
-  NDC.bottom = bottomBound();
-  fitPts.length = 0;
-  const add = (x, y, z = st.z) => fitPts.push(new THREE.Vector3(x, y, z));
-  add(st.x - 3.2, st.y - 1.5);
-  add(st.x + 3.2, st.y + 2);
+  // Clear, close-up stunt distance (no artificial pull-back to 75m)
+  let targetDist = 18.0;
   if (screen === 'result') {
-    fitPts.length = 0;
-    add(st.x - 3.4, Math.max(0, st.y - 1.2));
-    add(st.x + 3.4, st.y + 1.6);
+    targetDist = 13.5; // Heroic close-up victory frame
   } else if (st.mode === 'road') {
-    add(track.top.x - 2, track.top.y + 2.5, 0);
-    add(Math.min(st.x - 3, -4), 0, 0);
-    add(maxRideX + 1, 0, 0);
+    targetDist = 17.5;
+  } else if (st.mode === 'air') {
+    const spd = Math.hypot(st.vx, st.vy, st.vz || 0);
+    targetDist = clamp(17.5 + spd * 0.08, 17.0, 22.5);
   } else if (st.mode === 'crash') {
-    add(st.x - 6, 0);
-    add(st.x + 6, st.y + 4);
-  } else if (st.y < 45) {
-    add(st.x - 3, 0);
-    add(st.x + 3, 0);
-  } else {
-    add(st.x - 5, st.y - 7);
-    add(st.x + 5, st.y + 4);
+    targetDist = 19.5;
   }
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-  for (const p of fitPts) {
-    x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
-    y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
-    z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z);
-  }
-  center.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
-  const k = camState.init ? Math.min(1, dt * 2.5) : 1;
-  camState.look.lerp(center, k);
-  let lo = 4, hi = 200;
-  for (let i = 0; i < 16; i++) {
-    const mid = (lo + hi) / 2;
-    if (camFits(mid)) hi = mid; else lo = mid;
-  }
-  camState.dist += (hi - camState.dist) * k;
-  camFits(camState.dist);
+
+  const distK = camState.init ? Math.min(1, dt * 3.8) : 1;
+  camState.dist += (targetDist - camState.dist) * distK;
+
+  camDir.set(-0.42, 0.24, 0.88).normalize();
+  camera.position.copy(camState.look).addScaledVector(camDir, camState.dist);
+  camera.lookAt(camState.look);
+  camera.updateMatrixWorld();
   camState.init = true;
 }
 
@@ -4727,6 +4851,8 @@ window.__submitScore = submitScore;
 window.__openBoard = openBoard;
 window.__game = game;
 window.__sim = sim;
+window.__setCameraMode = setCameraMode;
+window.__getCameraMode = () => cameraMode;
 </script>
 </body>
 </html>
