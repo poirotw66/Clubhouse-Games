@@ -5,16 +5,24 @@
 
 body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
 
-/* Drop from above the board, settle with a short bounce. */
-@keyframes c4-drop {
+/* Physical gravity drop with elastic rebound and micro-bounce */
+@keyframes c4-physical-drop {
   0% {
-    transform: translateY(var(--c4-drop-from, -280%));
+    transform: translateY(var(--c4-drop-from, -340%));
+    opacity: 0.85;
   }
-  72% {
-    transform: translateY(10%);
+  64% {
+    transform: translateY(0);
+    opacity: 1;
   }
-  86% {
-    transform: translateY(-5%);
+  78% {
+    transform: translateY(-14%);
+  }
+  88% {
+    transform: translateY(0);
+  }
+  94% {
+    transform: translateY(-4%);
   }
   100% {
     transform: translateY(0);
@@ -24,12 +32,14 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
 @keyframes c4-win-pulse {
   0%,
   100% {
-    box-shadow: 0 0 8px rgba(251, 191, 36, 0.65);
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.7);
     filter: brightness(1);
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 18px rgba(251, 191, 36, 1);
-    filter: brightness(1.15);
+    box-shadow: 0 0 24px rgba(251, 191, 36, 1);
+    filter: brightness(1.22);
+    transform: scale(1.05);
   }
 }
 
@@ -39,31 +49,159 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
     opacity: 1;
   }
   100% {
-    transform: translateY(40%) scale(0.7);
+    transform: translateY(50%) scale(0.65);
     opacity: 0;
   }
 }
 
+/* Bottom gate cascade animation: all tokens fall out into the tray */
+@keyframes c4-gate-cascade {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  40% {
+    transform: translateY(40%) scale(0.95);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(320%) scale(0.6) rotate(15deg);
+    opacity: 0;
+  }
+}
+
+/* Threat ray laser animations */
+@keyframes c4-laser-pulse {
+  0%, 100% {
+    opacity: 0.82;
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 14px currentColor);
+  }
+}
+
+@keyframes c4-crosshair-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes c4-overdrive-beam {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px #f59e0b) drop-shadow(0 0 16px #fbbf24);
+    opacity: 0.88;
+  }
+  50% {
+    filter: drop-shadow(0 0 16px #f59e0b) drop-shadow(0 0 32px #fef08a);
+    opacity: 1;
+  }
+}
+
+/* Dynamic move feedback floating combo badge */
+@keyframes c4-badge-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.82);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1.08);
+  }
+  32% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -8px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -28px) scale(0.9);
+  }
+}
+
+/* Oscilloscope sweeping wave */
+@keyframes c4-scope-sweep {
+  0% {
+    stroke-dashoffset: 160;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes c4-threat-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
 .c4-piece-drop {
-  animation: c4-drop 0.38s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+  animation: c4-physical-drop 0.44s cubic-bezier(0.25, 1.3, 0.38, 1) both;
+}
+
+.c4-piece-gate-drop {
+  animation: c4-gate-cascade 0.52s ease-in forwards;
 }
 
 .c4-win-glow {
-  animation: c4-win-pulse 0.9s ease-in-out infinite;
+  animation: c4-win-pulse 1s ease-in-out infinite;
 }
 
 .c4-piece-pop {
   animation: c4-pop-out 0.28s ease-in forwards;
 }
 
+.c4-threat-badge {
+  animation: c4-threat-pulse 1.2s infinite ease-in-out;
+}
+
+.c4-threat-laser {
+  animation: c4-laser-pulse 0.9s ease-in-out infinite;
+}
+
+.c4-overdrive-path {
+  animation: c4-overdrive-beam 1.1s ease-in-out infinite;
+}
+
+.c4-crosshair {
+  transform-origin: center;
+  animation: c4-crosshair-spin 8s linear infinite;
+}
+
+.c4-move-badge {
+  animation: c4-badge-float 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+.c4-scope-path {
+  stroke-dasharray: 80 4;
+  animation: c4-scope-sweep 3s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .c4-piece-drop,
+  .c4-piece-gate-drop,
   .c4-win-glow,
-  .c4-piece-pop {
+  .c4-piece-pop,
+  .c4-threat-laser,
+  .c4-overdrive-path,
+  .c4-crosshair,
+  .c4-move-badge,
+  .c4-scope-path {
     animation: none;
   }
 }
-
 
 /* Collapsible series options */
 .cf-more-modes > summary::-webkit-details-marker {
@@ -86,7 +224,7 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
   }
 }
 
-/* Connect Four Battle Station / Cockpit Layout */
+/* Connect Four Cockpit Layout */
 .c4-cockpit-shell {
   display: flex;
   align-items: flex-start;
@@ -102,13 +240,13 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
   flex-direction: column;
   align-items: center;
   flex: 1 1 auto;
-  max-width: 520px;
+  max-width: 530px;
 }
 
 .c4-wing {
   display: none;
-  flex: 0 0 280px;
-  background: rgba(15, 23, 42, 0.82);
+  flex: 0 0 285px;
+  background: rgba(15, 23, 42, 0.86);
   backdrop-filter: blur(14px);
   border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 1.25rem;
@@ -131,17 +269,44 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
   }
 }
 
-@keyframes c4-threat-pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-  }
-  50% {
-    transform: scale(1.04);
-    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
-  }
+/* Arcade Cabinet Themes */
+.c4-theme-cyber {
+  --c4-chassis-bg: linear-gradient(180deg, #090d16 0%, #0d1527 50%, #080c14 100%);
+  --c4-chassis-border: rgba(6, 182, 212, 0.55);
+  --c4-plate-bg: linear-gradient(145deg, rgba(14, 165, 233, 0.28) 0%, rgba(30, 58, 138, 0.45) 100%);
+  --c4-glow: 0 0 25px rgba(6, 182, 212, 0.35);
+  --c4-accent: #06b6d4;
 }
 
-.c4-threat-badge {
-  animation: c4-threat-pulse 1.2s infinite ease-in-out;
+.c4-theme-acrylic {
+  --c4-chassis-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.88) 0%, rgba(15, 23, 42, 0.94) 100%);
+  --c4-chassis-border: rgba(226, 232, 240, 0.45);
+  --c4-plate-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(51, 65, 85, 0.35) 100%);
+  --c4-glow: 0 16px 36px -4px rgba(0, 0, 0, 0.7);
+  --c4-accent: #38bdf8;
+}
+
+.c4-theme-classic {
+  --c4-chassis-bg: linear-gradient(180deg, #1e3a8a 0%, #172554 100%);
+  --c4-chassis-border: rgba(96, 165, 250, 0.45);
+  --c4-plate-bg: linear-gradient(145deg, rgba(30, 64, 175, 0.6) 0%, rgba(30, 58, 138, 0.75) 100%);
+  --c4-glow: 0 10px 28px rgba(30, 58, 138, 0.6);
+  --c4-accent: #60a5fa;
+}
+
+/* Token Styling with coin ridges */
+.c4-token-red {
+  background: radial-gradient(circle at 35% 30%, #f87171 0%, #dc2626 55%, #991b1b 100%);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.4), inset 0 -3px 6px rgba(0, 0, 0, 0.6), 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.c4-token-yellow {
+  background: radial-gradient(circle at 35% 30%, #fef08a 0%, #eab308 55%, #a16207 100%);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.6), inset 0 -3px 6px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Realistic Inset Circular Slot Wells */
+.c4-slot-well {
+  background: radial-gradient(circle at 50% 50%, #020617 30%, #0f172a 85%, #1e293b 100%);
+  box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.95), 0 1px 2px rgba(255, 255, 255, 0.08);
 }

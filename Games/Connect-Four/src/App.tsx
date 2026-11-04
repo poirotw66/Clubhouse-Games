@@ -4,12 +4,11 @@ import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
-  playMove,
-  playCapture,
   playWin,
   playLose,
   playScore,
 } from '@clubhouse/shared/synthAudio';
+import { arcadeAudio } from './utils/audioFx';
 import type {
   Board,
   BoardPresetId,
@@ -37,6 +36,7 @@ import {
   analyzeTactics,
   applyMove,
   createInitialBoard,
+  evaluateMoveQuality,
   getDropRow,
   getLegalDropColumns,
   getPopOutColumns,
@@ -44,6 +44,7 @@ import {
   isBoardFull,
   pickBotMove,
   resolveWinnerAfterMove,
+  type MoveEvaluation,
 } from './utils/connect4Logic';
 import {
   applyGameToSeries,
@@ -83,6 +84,11 @@ import {
   Lightbulb,
   Bot,
   Puzzle,
+  Volume2,
+  VolumeX,
+  Palette,
+  Crosshair,
+  Zap,
 } from 'lucide-react';
 
 type GamePhase = 'playing' | 'over';
@@ -191,6 +197,63 @@ export default function App() {
     'playing' | 'won' | 'failed'
   >('playing');
 
+  type ChassisTheme = 'cyber' | 'acrylic' | 'classic';
+  type ThreatRayMode = 'all' | 'immediate' | 'off';
+
+  const [theme, setTheme] = useState<ChassisTheme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('clubhouse:connect-four:theme');
+      if (saved === 'cyber' || saved === 'acrylic' || saved === 'classic') {
+        return saved;
+      }
+    }
+    return 'cyber';
+  });
+
+  const [threatRayMode, setThreatRayMode] = useState<ThreatRayMode>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('clubhouse:connect-four:threat-ray');
+      if (saved === 'all' || saved === 'immediate' || saved === 'off') {
+        return saved;
+      }
+    }
+    return 'all';
+  });
+
+  const [isMuted, setIsMuted] = useState<boolean>(() => arcadeAudio.getMuted());
+  const [isGateOpen, setIsGateOpen] = useState(false);
+  const [activeMoveEval, setActiveMoveEval] = useState<{
+    eval: MoveEvaluation;
+    col: number;
+    key: number;
+  } | null>(null);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      arcadeAudio.setMuted(next);
+      return next;
+    });
+  }, []);
+
+  const cycleTheme = useCallback(() => {
+    setTheme((curr) => {
+      const next: ChassisTheme =
+        curr === 'cyber' ? 'acrylic' : curr === 'acrylic' ? 'classic' : 'cyber';
+      localStorage.setItem('clubhouse:connect-four:theme', next);
+      return next;
+    });
+  }, []);
+
+  const cycleThreatRayMode = useCallback(() => {
+    setThreatRayMode((curr) => {
+      const next: ThreatRayMode =
+        curr === 'all' ? 'immediate' : curr === 'immediate' ? 'off' : 'all';
+      localStorage.setItem('clubhouse:connect-four:threat-ray', next);
+      return next;
+    });
+  }, []);
+
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
   const seriesRecordedRef = useRef(false);
@@ -213,6 +276,40 @@ export default function App() {
   const ownThreatSet = useMemo(() => new Set(tactics.ownThreats), [tactics.ownThreats]);
   const oppThreatSet = useMemo(() => new Set(tactics.oppThreats), [tactics.oppThreats]);
   const blunderSet = useMemo(() => new Set(tactics.blunderDrops), [tactics.blunderDrops]);
+
+  // Dynamic Oscilloscope sine wave path calculated from live advantage %
+  const scopeWavePath = useMemo(() => {
+    const adv = tactics.redAdvantagePct;
+    const imbalance = (adv - 50) / 50;
+    const midY = 24;
+    const amp = 7 + Math.abs(imbalance) * 9;
+    const freq = 0.05 + Math.abs(imbalance) * 0.03;
+    const phaseShift = imbalance * Math.PI;
+
+    const points: string[] = [];
+    for (let x = 0; x <= 200; x += 10) {
+      const y = midY - Math.sin(x * freq + phaseShift) * amp * (imbalance >= 0 ? 1 : -1);
+      points.push(`${x === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`);
+    }
+    return points.join(' ');
+  }, [tactics.redAdvantagePct]);
+
+  // Heartbeat pulse when immediate threats are active
+  useEffect(() => {
+    if (state.phase !== 'playing' || screen !== 'play') {
+      arcadeAudio.stopHeartbeat();
+      return;
+    }
+    const hasImmediate = tactics.threatSegments.some((s) => s.isImmediate);
+    if (hasImmediate) {
+      arcadeAudio.startHeartbeat();
+    } else {
+      arcadeAudio.stopHeartbeat();
+    }
+    return () => {
+      arcadeAudio.stopHeartbeat();
+    };
+  }, [state.phase, screen, tactics.threatSegments]);
 
   const isBotTurn =
     screen === 'play' &&
@@ -265,7 +362,7 @@ export default function App() {
           }
         }
         setDropFx({ row: dropRow, col: move.col, key: Date.now() });
-        playMove();
+        arcadeAudio.playChuteDrop(dropRow, rules.rows);
         const cell = boardShellRef.current?.querySelector(
           `[data-c4-cell="${dropRow},${move.col}"]`,
         );
@@ -277,7 +374,7 @@ export default function App() {
           shake(boardShellRef.current, 0.95);
         }
       } else {
-        playCapture();
+        arcadeAudio.playPopOut();
         setDropFx(null);
         haptic('tap');
         if (won) {
@@ -317,6 +414,18 @@ export default function App() {
       }
       setHintMove(null);
       playMoveFx(nextBoard, move, color, Boolean(winner));
+
+      // Dynamic move quality evaluation & combat fanfare
+      const moveEval = evaluateMoveQuality(
+        state.board,
+        nextBoard,
+        move,
+        color,
+        rules,
+        Boolean(winner),
+      );
+      setActiveMoveEval({ eval: moveEval, col: move.col, key: Date.now() });
+      arcadeAudio.playMoveQualityFanfare(moveEval.quality);
 
       const nextState: GameState = {
         board: nextBoard,
@@ -388,6 +497,18 @@ export default function App() {
       );
       const full = !winner && isBoardFull(nextBoard, rules);
       playMoveFx(nextBoard, move, botColor, Boolean(winner));
+
+      const moveEval = evaluateMoveQuality(
+        state.board,
+        nextBoard,
+        move,
+        botColor,
+        rules,
+        Boolean(winner),
+      );
+      setActiveMoveEval({ eval: moveEval, col: move.col, key: Date.now() });
+      arcadeAudio.playMoveQualityFanfare(moveEval.quality);
+
       setState({
         board: nextBoard,
         currentTurn: botColor === 'red' ? 'yellow' : 'red',
@@ -506,6 +627,19 @@ export default function App() {
     [state.phase, state.winner, state.board, rules],
   );
 
+  const winningPoints = useMemo(() => {
+    if (!winningCells || winningCells.size === 0) return null;
+    const coords = Array.from(winningCells).map((key) => {
+      const [r, c] = key.split(',').map(Number);
+      return { row: r, col: c };
+    });
+    coords.sort((a, b) => (a.col !== b.col ? a.col - b.col : a.row - b.row));
+    const pointsStr = coords
+      .map((pt) => `${pt.col * 100 + 50},${pt.row * 100 + 50}`)
+      .join(' ');
+    return { coords, pointsStr };
+  }, [winningCells]);
+
   const canUndo =
     history.length > 0 &&
     !isBotTurn &&
@@ -576,6 +710,17 @@ export default function App() {
     void r;
   }, []);
 
+  const handleGateRelease = useCallback(() => {
+    setIsGateOpen(true);
+    arcadeAudio.playGateReleaseCascade();
+    setTimeout(() => {
+      if (screen === 'puzzles' && activePuzzle) openPuzzle(activePuzzle);
+      else if (series.seriesOver) startNewSeries();
+      else resetBoard();
+      setIsGateOpen(false);
+    }, 520);
+  }, [screen, activePuzzle, series.seriesOver, openPuzzle, startNewSeries, resetBoard]);
+
   useEffect(() => {
     if (state.phase !== 'playing' || !humanCanAct) return;
 
@@ -639,6 +784,12 @@ export default function App() {
         if (screen === 'puzzles' && activePuzzle) openPuzzle(activePuzzle);
         else if (series.seriesOver) startNewSeries();
         else resetBoard();
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        cycleTheme();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        toggleMute();
       }
     };
 
@@ -662,6 +813,8 @@ export default function App() {
     series.seriesOver,
     startNewSeries,
     resetBoard,
+    cycleTheme,
+    toggleMute,
   ]);
 
   const statusMessage =
@@ -773,10 +926,43 @@ export default function App() {
         <div className="flex items-center gap-1 sm:gap-2">
           <button
             type="button"
+            onClick={cycleTheme}
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center text-cyan-300"
+            title={`主題: ${theme === 'cyber' ? '賽博霓虹' : theme === 'acrylic' ? '晶透壓克力' : '經典錦標賽'} (T鍵)`}
+            aria-label="切換主題"
+          >
+            <Palette className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={cycleThreatRayMode}
+            className={`min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center ${
+              threatRayMode !== 'off' ? 'text-amber-400' : 'text-slate-500'
+            }`}
+            title={`致命殺局雷射: ${threatRayMode === 'all' ? '全開' : threatRayMode === 'immediate' ? '僅致命' : '關閉'}`}
+            aria-label="切換殺局雷射"
+          >
+            <Crosshair className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
+            title={isMuted ? '解除靜音 (M鍵)' : '靜音 (M鍵)'}
+            aria-label="音效切換"
+          >
+            {isMuted ? (
+              <VolumeX className="w-5 h-5 text-rose-400" />
+            ) : (
+              <Volume2 className="w-5 h-5 text-emerald-400" />
+            )}
+          </button>
+          <button
+            type="button"
             onClick={handleUndo}
             disabled={!canUndo}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation inline-flex items-center justify-center"
-            title="悔棋"
+            title="悔棋 (Z鍵)"
             aria-label="悔棋"
           >
             <Undo2 className="w-5 h-5" />
@@ -786,7 +972,7 @@ export default function App() {
             onClick={handleHint}
             disabled={!humanCanAct}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation inline-flex items-center justify-center"
-            title="提示"
+            title="提示 (H鍵)"
             aria-label="提示"
           >
             <Lightbulb className="w-5 h-5" />
@@ -802,14 +988,10 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (screen === 'puzzles' && activePuzzle) openPuzzle(activePuzzle);
-              else if (series.seriesOver) startNewSeries();
-              else resetBoard();
-            }}
+            onClick={handleGateRelease}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
-            title="新局"
-            aria-label="新局"
+            title="開閘新局 (R鍵)"
+            aria-label="開閘新局"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
@@ -1099,15 +1281,44 @@ export default function App() {
               </span>
             </div>
 
-            {/* Advantage Bar */}
-            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60">
+            {/* Advantage Oscilloscope (優勢波形示波器) */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/90 border border-slate-700/60 shadow-inner">
               <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-slate-300 font-medium">盤面優勢評估</span>
-                <span className="font-bold font-mono text-xs text-slate-200">
-                  紅 {tactics.redAdvantagePct}% · 黃 {100 - tactics.redAdvantagePct}%
+                <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>優勢示波器</span>
+                </span>
+                <span className="font-mono text-[11px] font-bold text-sky-300">
+                  {tactics.redAdvantagePct}% 紅 : {100 - tactics.redAdvantagePct}% 黃
                 </span>
               </div>
-              <div className="w-full bg-slate-950/80 rounded-full h-2.5 overflow-hidden border border-slate-800 flex">
+
+              {/* Animated Scope Wave */}
+              <div className="relative h-11 w-full rounded-lg bg-slate-950/80 border border-cyan-500/30 overflow-hidden flex items-center justify-center mb-2">
+                <svg className="w-full h-full" viewBox="0 0 200 48" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="scope-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8" />
+                      <stop offset="50%" stopColor="#38bdf8" stopOpacity="1" />
+                      <stop offset="100%" stopColor="#eab308" stopOpacity="0.8" />
+                    </linearGradient>
+                  </defs>
+                  <line x1="0" y1="24" x2="200" y2="24" stroke="rgba(56,189,248,0.2)" strokeDasharray="4 4" />
+                  <path
+                    d={scopeWavePath}
+                    fill="none"
+                    stroke="url(#scope-grad)"
+                    strokeWidth="2.5"
+                    className="c4-scope-path"
+                  />
+                </svg>
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-cyan-400 shadow-[0_0_8px_#38bdf8] transition-all duration-500"
+                  style={{ left: `${tactics.redAdvantagePct}%` }}
+                />
+              </div>
+
+              <div className="w-full bg-slate-950/80 rounded-full h-2 overflow-hidden border border-slate-800 flex">
                 <div
                   className="bg-red-500 h-full transition-all duration-300"
                   style={{ width: `${tactics.redAdvantagePct}%` }}
@@ -1179,7 +1390,11 @@ export default function App() {
               </div>
               <div className="flex items-center justify-between">
                 <span>P / R 鍵</span>
-                <span className="text-slate-300 font-mono">PopOut / 重開</span>
+                <span className="text-slate-300 font-mono">PopOut / 開閘重開</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>T / M 鍵</span>
+                <span className="text-slate-300 font-mono">立架主題 / 靜音</span>
               </div>
             </div>
           </aside>
@@ -1280,181 +1495,449 @@ export default function App() {
               {actionMode === 'pop' ? '點選底格己子欄位取出' : '點選上方欄位落子'}
             </p>
 
+            {/* Cabinet Outer Wrapper with Theme Class */}
             <div
-              ref={boardShellRef}
-              data-c4-board
-              className="inline-block p-3 rounded-xl shadow-2xl w-full bg-cover bg-center border border-blue-900/40"
-              style={{
-                maxWidth: boardMaxWidth,
-                backgroundColor: '#1e3a8a',
-                backgroundImage: [
-                  'linear-gradient(rgba(30,58,138,0.55), rgba(30,58,138,0.7))',
-                  `url(${import.meta.env.BASE_URL}frame.jpg)`,
-                ].join(', '),
-              }}
+              className={`c4-theme-${theme} relative w-full flex flex-col items-center`}
+              style={{ maxWidth: boardMaxWidth }}
             >
-              <div
-                className="grid gap-1 mb-1"
-                style={{ gridTemplateColumns: `repeat(${rules.cols}, 1fr)` }}
-              >
-                {Array.from({ length: rules.cols }, (_, c) => {
-                  const dropOk = legalDropSet.has(c) && actionMode === 'drop';
-                  const popOk = popSet.has(c) && actionMode === 'pop';
-                  const enabled = humanCanAct && (dropOk || popOk);
-                  const isHint = hintMove?.col === c;
-                  const isOwnThreat = ownThreatSet.has(c);
-                  const isOppThreat = oppThreatSet.has(c);
-                  const isBlunder = blunderSet.has(c) && !isOwnThreat;
+              {/* Floating Move Evaluation Badge */}
+              {activeMoveEval && (
+                <div
+                  key={activeMoveEval.key}
+                  className="absolute -top-14 z-30 c4-move-badge flex flex-col items-center pointer-events-none"
+                  style={{
+                    left: `${((activeMoveEval.col + 0.5) / rules.cols) * 100}%`,
+                  }}
+                >
+                  <div
+                    className={`px-3 py-1 rounded-full text-xs font-black tracking-wide shadow-2xl border flex items-center gap-1.5 whitespace-nowrap ${
+                      activeMoveEval.eval.quality === 'win'
+                        ? 'bg-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-300'
+                        : activeMoveEval.eval.quality === 'brilliant'
+                          ? 'bg-violet-600 text-white border-violet-400 shadow-violet-500/50 ring-2 ring-violet-300'
+                          : activeMoveEval.eval.quality === 'defense'
+                            ? 'bg-sky-600 text-white border-sky-400 shadow-sky-500/50 ring-2 ring-sky-300'
+                            : activeMoveEval.eval.quality === 'strong'
+                              ? 'bg-emerald-600 text-white border-emerald-400 shadow-emerald-500/50 ring-2 ring-emerald-300'
+                              : activeMoveEval.eval.quality === 'blunder'
+                                ? 'bg-rose-600 text-white border-rose-400 shadow-rose-500/50 ring-2 ring-rose-300'
+                                : 'bg-slate-800 text-slate-200 border-slate-600'
+                    }`}
+                  >
+                    <span>
+                      {activeMoveEval.eval.quality === 'win'
+                        ? '🏆'
+                        : activeMoveEval.eval.quality === 'brilliant'
+                          ? '🌟'
+                          : activeMoveEval.eval.quality === 'defense'
+                            ? '🛡️'
+                            : activeMoveEval.eval.quality === 'strong'
+                              ? '⚡'
+                              : activeMoveEval.eval.quality === 'blunder'
+                                ? '💀'
+                                : '🎯'}
+                    </span>
+                    <span>{activeMoveEval.eval.label}</span>
+                  </div>
+                  <span className="text-[10px] text-white font-medium drop-shadow bg-black/75 px-2 py-0.5 rounded-full mt-1 border border-white/10 whitespace-nowrap">
+                    {activeMoveEval.eval.subtext}
+                  </span>
+                </div>
+              )}
 
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => handleColumnClick(c)}
-                      onMouseEnter={() => setHoverCol(c)}
-                      onMouseLeave={() => setHoverCol(null)}
-                      disabled={!enabled}
-                      className={`
-                        relative h-12 min-h-[48px] rounded-t-lg flex items-center justify-center transition-colors touch-manipulation
-                        ${enabled ? 'bg-slate-600 hover:bg-slate-500' : 'bg-slate-800 cursor-not-allowed'}
-                        ${hoverCol === c && enabled ? 'ring-2 ring-white/50 bg-slate-500' : ''}
-                        ${isHint ? 'ring-2 ring-emerald-400 bg-emerald-600/40' : ''}
-                        ${popOk ? 'ring-1 ring-rose-300/50' : ''}
-                      `}
-                      aria-label={
-                        actionMode === 'pop'
-                          ? `取出第 ${c + 1} 欄底子`
-                          : `投入第 ${c + 1} 欄`
-                      }
-                    >
-                      {/* Threat or Blunder Badge */}
-                      {enabled && isOwnThreat && (
-                        <span className="absolute -top-3 px-1 py-0.2 rounded bg-emerald-500 text-slate-950 font-bold text-[9px] shadow-sm animate-bounce z-10 leading-tight">
-                          ⚡ 絕殺
-                        </span>
-                      )}
-                      {enabled && !isOwnThreat && isOppThreat && (
-                        <span className="absolute -top-3 px-1 py-0.2 rounded bg-rose-600 text-white font-bold text-[9px] shadow-sm c4-threat-badge z-10 leading-tight">
-                          🛡️ 擋殺
-                        </span>
-                      )}
-                      {enabled && !isOwnThreat && !isOppThreat && isBlunder && (
-                        <span className="absolute -top-3 px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-bold text-[9px] shadow-sm z-10 leading-tight">
-                          ⚠️ 誘敵
-                        </span>
-                      )}
-
-                      {/* Drop piece icon */}
-                      {enabled && actionMode === 'drop' && (
-                        <span
-                          className="w-6 h-6 rounded-full bg-cover bg-center opacity-85 shadow-sm"
-                          style={{
-                            backgroundColor:
-                              state.currentTurn === 'red' ? '#ef4444' : '#facc15',
-                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
-                          }}
-                        />
-                      )}
-                      {enabled && actionMode === 'pop' && (
-                        <span className="text-[10px] text-rose-200 font-bold">取出</span>
-                      )}
-
-                      {/* Column number index */}
-                      <span className="absolute bottom-0.5 right-1 text-[8px] text-slate-300/60 font-mono">
-                        {c + 1}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* Arcade Canopy / Top Marquee Bar */}
+              <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-t-xl bg-slate-950/90 border-t border-x border-slate-700/80 text-[11px] font-mono shadow-md">
+                <div className="flex items-center gap-1.5 text-slate-300">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-bold text-sky-300">GRAVITY CHASSIS</span>
+                  <span className="text-slate-600">|</span>
+                  <button
+                    type="button"
+                    onClick={cycleTheme}
+                    className="hover:text-cyan-300 transition-colors cursor-pointer text-slate-300 flex items-center gap-1"
+                    title="點擊切換立架主題 (T鍵)"
+                  >
+                    <Palette className="w-3 h-3 text-cyan-400" />
+                    <span>{theme === 'cyber' ? '賽博街機' : theme === 'acrylic' ? '晶透壓克力' : '經典錦標賽'}</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={cycleThreatRayMode}
+                    className="flex items-center gap-1 text-slate-300 hover:text-amber-300 transition-colors cursor-pointer"
+                    title="點擊切換殺局雷射模式"
+                  >
+                    <Crosshair className={`w-3 h-3 ${threatRayMode !== 'off' ? 'text-amber-400' : 'text-slate-500'}`} />
+                    <span className="text-[10px]">{threatRayMode === 'all' ? '雷射:全開' : threatRayMode === 'immediate' ? '雷射:致命' : '雷射:關閉'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    title={isMuted ? '解除靜音 (M鍵)' : '靜音 (M鍵)'}
+                  >
+                    {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+                </div>
               </div>
 
+              {/* Main Board Shell */}
               <div
-                className="grid gap-1 rounded-b-lg overflow-hidden p-1 bg-cover bg-center"
+                ref={boardShellRef}
+                data-c4-board
+                onTouchMove={(e) => {
+                  if (!humanCanAct || !boardShellRef.current) return;
+                  const touch = e.touches[0];
+                  const rect = boardShellRef.current.getBoundingClientRect();
+                  const relX = touch.clientX - rect.left;
+                  const col = Math.floor((relX / rect.width) * rules.cols);
+                  if (col >= 0 && col < rules.cols) {
+                    setHoverCol(col);
+                  }
+                }}
+                onTouchEnd={() => {
+                  if (hoverCol !== null && humanCanAct) {
+                    handleColumnClick(hoverCol);
+                  }
+                }}
+                className="w-full p-2.5 bg-slate-900 border-x border-slate-700/80 shadow-2xl relative select-none"
                 style={{
-                  gridTemplateColumns: `repeat(${rules.cols}, 1fr)`,
-                  gridTemplateRows: `repeat(${rules.rows}, 1fr)`,
-                  aspectRatio: `${rules.cols}/${rules.rows}`,
-                  backgroundColor: '#1e40af',
-                  backgroundImage: [
-                    'linear-gradient(rgba(30,64,175,0.5), rgba(30,64,175,0.65))',
-                    `url(${import.meta.env.BASE_URL}frame.jpg)`,
-                  ].join(', '),
+                  background: 'var(--c4-chassis-bg)',
+                  borderColor: 'var(--c4-chassis-border)',
+                  boxShadow: 'var(--c4-glow)',
                 }}
               >
-                {Array.from({ length: rules.rows * rules.cols }, (_, i) => {
-                  const row = Math.floor(i / rules.cols);
-                  const col = i % rules.cols;
-                  const cell = state.board[row][col];
-                  const isWinning = winningCells?.has(`${row},${col}`);
-                  const hintDropRow =
-                    hintMove?.kind === 'drop'
-                      ? getDropRow(state.board, hintMove.col, rules)
-                      : null;
-                  const isHintCell =
-                    hintMove?.kind === 'drop' &&
-                    hintMove.col === col &&
-                    hintDropRow === row;
-                  const isDropAnim =
-                    dropFx && dropFx.row === row && dropFx.col === col;
-                  const dropFrom = isDropAnim
-                    ? `-${(row + 1) * 100}%`
-                    : undefined;
-                  const isHoverLanding =
-                    hoverCol === col &&
-                    cell === null &&
-                    row === getDropRow(state.board, col, rules) &&
-                    humanCanAct &&
-                    actionMode === 'drop';
+                {/* Column Dropper Chute Buttons */}
+                <div
+                  className="grid gap-1 mb-1.5"
+                  style={{ gridTemplateColumns: `repeat(${rules.cols}, 1fr)` }}
+                >
+                  {Array.from({ length: rules.cols }, (_, c) => {
+                    const dropOk = legalDropSet.has(c) && actionMode === 'drop';
+                    const popOk = popSet.has(c) && actionMode === 'pop';
+                    const enabled = humanCanAct && (dropOk || popOk);
+                    const isHint = hintMove?.col === c;
+                    const isOwnThreat = ownThreatSet.has(c);
+                    const isOppThreat = oppThreatSet.has(c);
+                    const isBlunder = blunderSet.has(c) && !isOwnThreat;
+                    const isHovered = hoverCol === c && enabled;
 
-                  return (
-                    <div
-                      key={`${row}-${col}`}
-                      data-c4-cell={`${row},${col}`}
-                      className={`rounded-full bg-slate-900/90 flex items-center justify-center aspect-square max-w-full relative shadow-inner ${
-                        isWinning
-                          ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-blue-800'
-                          : ''
-                      } ${isHintCell ? 'ring-2 ring-emerald-400' : ''}`}
-                      style={{ minHeight: 0 }}
-                    >
-                      {cell && (
-                        <span
-                          key={isDropAnim ? dropFx.key : `${row}-${col}-${cell}`}
-                          className={`w-[90%] h-[90%] rounded-full bg-cover bg-center ${
-                            cell === 'red' ? 'ring-2 ring-red-400' : 'ring-2 ring-yellow-300'
-                          } ${isWinning ? 'c4-win-glow' : ''} ${
-                            isDropAnim ? 'c4-piece-drop' : ''
-                          }`}
-                          style={{
-                            backgroundColor: cell === 'red' ? '#ef4444' : '#facc15',
-                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
-                            ...(dropFrom ? { ['--c4-drop-from']: dropFrom } : {}),
-                          }}
-                        />
-                      )}
-                      {!cell && isHintCell && (
-                        <span
-                          className="w-[70%] h-[70%] rounded-full opacity-50 bg-cover bg-center"
-                          style={{
-                            backgroundColor:
-                              state.currentTurn === 'red' ? '#ef4444' : '#facc15',
-                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
-                          }}
-                        />
-                      )}
-                      {!cell && isHoverLanding && !isHintCell && (
-                        <span
-                          className="w-[85%] h-[85%] rounded-full opacity-40 bg-cover bg-center ring-2 ring-white/50 animate-pulse"
-                          style={{
-                            backgroundColor:
-                              state.currentTurn === 'red' ? '#ef4444' : '#facc15',
-                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
-                          }}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => handleColumnClick(c)}
+                        onMouseEnter={() => setHoverCol(c)}
+                        onMouseLeave={() => setHoverCol(null)}
+                        disabled={!enabled}
+                        className={`
+                          relative h-12 min-h-[48px] rounded-t-lg flex flex-col items-center justify-center transition-all touch-manipulation border-t border-x
+                          ${enabled ? 'bg-slate-800/90 hover:bg-slate-700/90 border-slate-600/70 cursor-pointer' : 'bg-slate-950/70 border-slate-800/60 cursor-not-allowed opacity-50'}
+                          ${isHovered ? 'ring-2 ring-cyan-400 bg-slate-700 shadow-md' : ''}
+                          ${isHint ? 'ring-2 ring-emerald-400 bg-emerald-700/30' : ''}
+                          ${popOk ? 'ring-1 ring-rose-300/50' : ''}
+                        `}
+                        aria-label={
+                          actionMode === 'pop'
+                            ? `取出第 ${c + 1} 欄底子`
+                            : `投入第 ${c + 1} 欄`
+                        }
+                      >
+                        {/* Threat or Blunder Badges */}
+                        {enabled && isOwnThreat && (
+                          <span className="absolute -top-3.5 px-1 py-0.2 rounded bg-emerald-500 text-slate-950 font-bold text-[9px] shadow-md animate-bounce z-10 leading-tight">
+                            ⚡ 絕殺
+                          </span>
+                        )}
+                        {enabled && !isOwnThreat && isOppThreat && (
+                          <span className="absolute -top-3.5 px-1 py-0.2 rounded bg-rose-600 text-white font-bold text-[9px] shadow-md c4-threat-badge z-10 leading-tight">
+                            🛡️ 擋殺
+                          </span>
+                        )}
+                        {enabled && !isOwnThreat && !isOppThreat && isBlunder && (
+                          <span className="absolute -top-3.5 px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-bold text-[9px] shadow-md z-10 leading-tight">
+                            ⚠️ 誘敵
+                          </span>
+                        )}
+
+                        {/* Top Token Poised at Chute Slot */}
+                        {enabled && actionMode === 'drop' && (
+                          <span
+                            className={`w-6 h-6 rounded-full ring-2 transition-transform ${
+                              state.currentTurn === 'red'
+                                ? 'c4-token-red ring-red-400'
+                                : 'c4-token-yellow ring-yellow-300'
+                            } ${isHovered ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.7)]' : 'opacity-85'}`}
+                          />
+                        )}
+                        {enabled && actionMode === 'pop' && (
+                          <span className="text-[10px] text-rose-200 font-bold">取出</span>
+                        )}
+
+                        {/* Column number index & LED status dot */}
+                        <div className="absolute bottom-0.5 inset-x-1 flex items-center justify-between text-[8px] text-slate-400/80 font-mono">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              !enabled
+                                ? 'bg-slate-700'
+                                : isOwnThreat
+                                  ? 'bg-emerald-400 animate-ping'
+                                  : isOppThreat
+                                    ? 'bg-rose-500 animate-ping'
+                                    : isBlunder
+                                      ? 'bg-amber-400'
+                                      : 'bg-cyan-400'
+                            }`}
+                          />
+                          <span>{c + 1}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 3D Acrylic Board Faceplate Grid */}
+                <div
+                  className="relative grid gap-1.5 rounded-b-lg p-2 overflow-hidden shadow-2xl border"
+                  style={{
+                    gridTemplateColumns: `repeat(${rules.cols}, 1fr)`,
+                    gridTemplateRows: `repeat(${rules.rows}, 1fr)`,
+                    aspectRatio: `${rules.cols}/${rules.rows}`,
+                    background: 'var(--c4-plate-bg)',
+                    borderColor: 'var(--c4-chassis-border)',
+                  }}
+                >
+                  {/* SVG Overlay for Threat Ray Laser & Overdrive Beam */}
+                  <svg
+                    className="absolute inset-0 pointer-events-none w-full h-full z-20"
+                    viewBox={`0 0 ${rules.cols * 100} ${rules.rows * 100}`}
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <filter id="c4-laser-glow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="4" result="glow" />
+                        <feMerge>
+                          <feMergeNode in="glow" />
+                          <feMergeNode in="glow" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                      <filter id="c4-overdrive-glow" x="-30%" y="-30%" width="160%" height="160%">
+                        <feGaussianBlur stdDeviation="6" result="glow" />
+                        <feMerge>
+                          <feMergeNode in="glow" />
+                          <feMergeNode in="glow" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+
+                    {/* Vertical Drop Guide Beam */}
+                    {hoverCol !== null && humanCanAct && actionMode === 'drop' && (
+                      (() => {
+                        const hoverRow = getDropRow(state.board, hoverCol, rules);
+                        if (hoverRow === null) return null;
+                        const x = hoverCol * 100 + 50;
+                        const y = hoverRow * 100 + 50;
+                        return (
+                          <line
+                            x1={x}
+                            y1={0}
+                            x2={x}
+                            y2={y}
+                            stroke={state.currentTurn === 'red' ? '#ef4444' : '#facc15'}
+                            strokeWidth="2.5"
+                            strokeDasharray="6 4"
+                            opacity="0.75"
+                          />
+                        );
+                      })()
+                    )}
+
+                    {/* Threat Rays (3-in-a-row tactical laser lines) */}
+                    {threatRayMode !== 'off' &&
+                      tactics.threatSegments.map((seg, idx) => {
+                        if (threatRayMode === 'immediate' && !seg.isImmediate) return null;
+                        const startX = seg.cells[0].col * 100 + 50;
+                        const startY = seg.cells[0].row * 100 + 50;
+                        const targetX = seg.targetCell.col * 100 + 50;
+                        const targetY = seg.targetCell.row * 100 + 50;
+                        const strokeColor = seg.color === 'red' ? '#f43f5e' : '#facc15';
+
+                        return (
+                          <g key={`threat-${idx}`}>
+                            {/* Glowing laser ray connecting the threat */}
+                            <line
+                              x1={startX}
+                              y1={startY}
+                              x2={targetX}
+                              y2={targetY}
+                              stroke={strokeColor}
+                              strokeWidth={seg.isImmediate ? 5 : 3}
+                              strokeDasharray={seg.isImmediate ? '8 4' : '4 4'}
+                              className="c4-threat-laser"
+                              filter="url(#c4-laser-glow)"
+                            />
+                            {/* Crosshair target reticle on the winning completion cell */}
+                            <circle
+                              cx={targetX}
+                              cy={targetY}
+                              r="36"
+                              fill="none"
+                              stroke={strokeColor}
+                              strokeWidth="3"
+                              className={seg.isImmediate ? 'c4-crosshair' : ''}
+                            />
+                            <line
+                              x1={targetX - 22}
+                              y1={targetY}
+                              x2={targetX + 22}
+                              y2={targetY}
+                              stroke={strokeColor}
+                              strokeWidth="2"
+                              opacity="0.8"
+                            />
+                            <line
+                              x1={targetX}
+                              y1={targetY - 22}
+                              x2={targetX}
+                              y2={targetY + 22}
+                              stroke={strokeColor}
+                              strokeWidth="2"
+                              opacity="0.8"
+                            />
+                            {seg.isImmediate && (
+                              <circle
+                                cx={targetX}
+                                cy={targetY}
+                                r="18"
+                                fill={strokeColor}
+                                fillOpacity="0.25"
+                                className="animate-ping"
+                              />
+                            )}
+                          </g>
+                        );
+                      })}
+
+                    {/* Winning Overdrive Laser Beam */}
+                    {winningPoints && (
+                      <polyline
+                        points={winningPoints.pointsStr}
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="c4-overdrive-path"
+                        filter="url(#c4-overdrive-glow)"
+                      />
+                    )}
+                  </svg>
+
+                  {/* Circular Hole Slots */}
+                  {Array.from({ length: rules.rows * rules.cols }, (_, i) => {
+                    const row = Math.floor(i / rules.cols);
+                    const col = i % rules.cols;
+                    const cell = state.board[row][col];
+                    const isWinning = winningCells?.has(`${row},${col}`);
+                    const hintDropRow =
+                      hintMove?.kind === 'drop'
+                        ? getDropRow(state.board, hintMove.col, rules)
+                        : null;
+                    const isHintCell =
+                      hintMove?.kind === 'drop' &&
+                      hintMove.col === col &&
+                      hintDropRow === row;
+                    const isDropAnim =
+                      dropFx && dropFx.row === row && dropFx.col === col;
+                    const dropFrom = isDropAnim
+                      ? `-${(row + 1) * 110}%`
+                      : undefined;
+                    const isHoverLanding =
+                      hoverCol === col &&
+                      cell === null &&
+                      row === getDropRow(state.board, col, rules) &&
+                      humanCanAct &&
+                      actionMode === 'drop';
+
+                    return (
+                      <div
+                        key={`${row}-${col}`}
+                        data-c4-cell={`${row},${col}`}
+                        className={`c4-slot-well rounded-full flex items-center justify-center aspect-square max-w-full relative shadow-inner ${
+                          isWinning
+                            ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-blue-900 shadow-[0_0_16px_#fbbf24]'
+                            : ''
+                        } ${isHintCell ? 'ring-2 ring-emerald-400' : ''}`}
+                        style={{ minHeight: 0 }}
+                      >
+                        {cell && (
+                          <span
+                            key={isDropAnim ? dropFx.key : `${row}-${col}-${cell}`}
+                            className={`w-[90%] h-[90%] rounded-full ${
+                              cell === 'red'
+                                ? 'c4-token-red ring-1 ring-red-300'
+                                : 'c4-token-yellow ring-1 ring-yellow-200'
+                            } ${isWinning ? 'c4-win-glow' : ''} ${
+                              isDropAnim ? 'c4-piece-drop' : ''
+                            } ${isGateOpen ? 'c4-piece-gate-drop' : ''}`}
+                            style={{
+                              ...(dropFrom ? { ['--c4-drop-from']: dropFrom } : {}),
+                              ...(isGateOpen ? { animationDelay: `${col * 40}ms` } : {}),
+                            }}
+                          />
+                        )}
+                        {!cell && isHintCell && (
+                          <span
+                            className={`w-[70%] h-[70%] rounded-full opacity-60 ${
+                              state.currentTurn === 'red'
+                                ? 'c4-token-red'
+                                : 'c4-token-yellow'
+                            }`}
+                          />
+                        )}
+                        {!cell && isHoverLanding && !isHintCell && (
+                          <span
+                            className={`w-[85%] h-[85%] rounded-full opacity-40 ring-2 ring-white/60 animate-pulse ${
+                              state.currentTurn === 'red'
+                                ? 'c4-token-red'
+                                : 'c4-token-yellow'
+                            }`}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Bottom Catch Trough with Mechanical Release Lever */}
+              <div className="w-full flex items-center justify-between px-3 py-2 rounded-b-xl bg-slate-950/95 border-b border-x border-slate-700/80 shadow-2xl">
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isGateOpen ? 'bg-rose-500 animate-ping' : 'bg-emerald-400'
+                    }`}
+                  />
+                  <span className="text-[11px] font-mono text-slate-300">
+                    {isGateOpen ? '閘門開啟中…' : '底部物理落子槽'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGateRelease}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 touch-manipulation cursor-pointer ${
+                    state.phase === 'over'
+                      ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-lg shadow-amber-500/40 animate-pulse'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-600'
+                  }`}
+                  title="開閘清盤 (清空棋子重力槽，重新開局)"
+                >
+                  <span>⚙️</span>
+                  <span>開閘清盤</span>
+                </button>
               </div>
             </div>
           </main>
@@ -1484,6 +1967,60 @@ export default function App() {
               <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
                 {gameMode === 'bot' ? PERSONALITIES[personality].blurb : '本機雙人輪流落子攻防'}
               </p>
+            </div>
+
+            {/* Chassis Theme Switcher */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60">
+              <span className="text-xs font-semibold text-slate-300 block mb-2 flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5 text-cyan-400" />
+                <span>立架壓克力主題</span>
+              </span>
+              <div className="grid grid-cols-3 gap-1.5 text-xs">
+                {(['cyber', 'acrylic', 'classic'] as ChassisTheme[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setTheme(t);
+                      localStorage.setItem('clubhouse:connect-four:theme', t);
+                    }}
+                    className={`px-1.5 py-1.5 rounded-lg border text-[11px] font-medium transition-all cursor-pointer ${
+                      theme === t
+                        ? 'border-cyan-400 bg-cyan-500/20 text-cyan-200 shadow-sm'
+                        : 'border-slate-700 bg-slate-800/80 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {t === 'cyber' ? '賽博街機' : t === 'acrylic' ? '晶透壓克力' : '經典錦標'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Threat Ray Laser Settings */}
+            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-700/60">
+              <span className="text-xs font-semibold text-slate-300 block mb-2 flex items-center gap-1.5">
+                <Crosshair className="w-3.5 h-3.5 text-amber-400" />
+                <span>致命殺局雷射模式</span>
+              </span>
+              <div className="grid grid-cols-3 gap-1.5 text-xs">
+                {(['all', 'immediate', 'off'] as ThreatRayMode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => {
+                      setThreatRayMode(m);
+                      localStorage.setItem('clubhouse:connect-four:threat-ray', m);
+                    }}
+                    className={`px-1.5 py-1.5 rounded-lg border text-[11px] font-medium transition-all cursor-pointer ${
+                      threatRayMode === m
+                        ? 'border-amber-400 bg-amber-500/20 text-amber-200 shadow-sm'
+                        : 'border-slate-700 bg-slate-800/80 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {m === 'all' ? '全時雷射' : m === 'immediate' ? '僅致命點' : '關閉雷射'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Series Scoreboard if series */}

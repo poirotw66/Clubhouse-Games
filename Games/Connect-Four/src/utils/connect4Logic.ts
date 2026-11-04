@@ -665,6 +665,36 @@ export function moveKey(move: Move): string {
   return `${move.kind}:${move.col}`;
 }
 
+export type ThreatDirection =
+  | 'horizontal'
+  | 'vertical'
+  | 'diagonal-asc'
+  | 'diagonal-desc';
+
+export interface ThreatSegment {
+  color: PieceColor;
+  cells: Array<{ row: number; col: number }>;
+  targetCell: { row: number; col: number };
+  isImmediate: boolean;
+  direction: ThreatDirection;
+}
+
+export type MoveQuality =
+  | 'win'
+  | 'defense'
+  | 'brilliant'
+  | 'strong'
+  | 'inaccuracy'
+  | 'blunder'
+  | 'normal';
+
+export interface MoveEvaluation {
+  quality: MoveQuality;
+  label: string;
+  subtext: string;
+  deltaEval: number;
+}
+
 export type TacticalAnalysis = {
   evalScore: number;
   redAdvantagePct: number;
@@ -675,13 +705,93 @@ export type TacticalAnalysis = {
   yellowCount: number;
   centerRed: number;
   centerYellow: number;
+  threatSegments: ThreatSegment[];
 };
+
+/**
+ * Scan board for any connectN window having (connectN - 1) tokens of one color
+ * and exactly one empty slot (a threat).
+ */
+export function detectThreatSegments(board: Board, rules: RulesConfig): ThreatSegment[] {
+  const segments: ThreatSegment[] = [];
+  const visitedKeys = new Set<string>();
+
+  const directions: Array<{ dr: number; dc: number; dir: ThreatDirection }> = [
+    { dr: 0, dc: 1, dir: 'horizontal' },
+    { dr: 1, dc: 0, dir: 'vertical' },
+    { dr: 1, dc: 1, dir: 'diagonal-desc' },
+    { dr: -1, dc: 1, dir: 'diagonal-asc' },
+  ];
+
+  const n = rules.connectN;
+
+  for (let r = 0; r < rules.rows; r++) {
+    for (let c = 0; c < rules.cols; c++) {
+      for (const { dr, dc, dir } of directions) {
+        const endR = r + (n - 1) * dr;
+        const endC = c + (n - 1) * dc;
+        if (endR < 0 || endR >= rules.rows || endC < 0 || endC >= rules.cols) {
+          continue;
+        }
+
+        let redCount = 0;
+        let yellowCount = 0;
+        let emptyCount = 0;
+        let emptyR = -1;
+        let emptyC = -1;
+        const cellList: Array<{ row: number; col: number }> = [];
+
+        for (let i = 0; i < n; i++) {
+          const currR = r + i * dr;
+          const currC = c + i * dc;
+          const val = board[currR][currC];
+          if (val === 'red') {
+            redCount++;
+            cellList.push({ row: currR, col: currC });
+          } else if (val === 'yellow') {
+            yellowCount++;
+            cellList.push({ row: currR, col: currC });
+          } else {
+            emptyCount++;
+            emptyR = currR;
+            emptyC = currC;
+          }
+        }
+
+        if (emptyCount === 1) {
+          let threatColor: PieceColor | null = null;
+          if (redCount === n - 1 && yellowCount === 0) threatColor = 'red';
+          else if (yellowCount === n - 1 && redCount === 0) threatColor = 'yellow';
+
+          if (threatColor) {
+            const key = `${threatColor}:${dir}:${r},${c}:${endR},${endC}`;
+            if (!visitedKeys.has(key)) {
+              visitedKeys.add(key);
+              const dropRow = getDropRow(board, emptyC, rules);
+              const isImmediate = dropRow === emptyR;
+              segments.push({
+                color: threatColor,
+                cells: cellList,
+                targetCell: { row: emptyR, col: emptyC },
+                isImmediate,
+                direction: dir,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return segments;
+}
 
 /**
  * Perform rapid tactical analysis of current board:
  * - Detects immediate winning drops for the current turn (ownThreats)
  * - Detects immediate winning drops for the opponent if unblocked (oppThreats)
  * - Detects blunder moves that set up an immediate winning drop on top for the opponent (blunderDrops)
+ * - Detects threat line segments with full coordinate geometry for Threat Ray display
  * - Computes board control and red advantage percentage (5% - 95%)
  */
 export function analyzeTactics(
@@ -747,6 +857,8 @@ export function analyzeTactics(
   const sigmoid = 1 / (1 + Math.exp(-scaled));
   const redAdvantagePct = Math.round(Math.min(95, Math.max(5, sigmoid * 100)));
 
+  const threatSegments = detectThreatSegments(board, rules);
+
   return {
     evalScore: rawRedEval,
     redAdvantagePct,
@@ -757,5 +869,106 @@ export function analyzeTactics(
     yellowCount,
     centerRed,
     centerYellow,
+    threatSegments,
+  };
+}
+
+/**
+ * Evaluate move quality in real-time, assigning arcade combat badge and tactical summary.
+ */
+export function evaluateMoveQuality(
+  prevBoard: Board,
+  nextBoard: Board,
+  move: Move,
+  moverColor: PieceColor,
+  rules: RulesConfig,
+  won: boolean,
+): MoveEvaluation {
+  if (won) {
+    return {
+      quality: 'win',
+      label: '絕殺勝勢',
+      subtext: '完成連線，直取勝利！',
+      deltaEval: 100,
+    };
+  }
+
+  const prevTactics = analyzeTactics(prevBoard, moverColor, rules);
+  const nextTactics = analyzeTactics(nextBoard, opponent(moverColor), rules);
+
+  // 1. Critical defense: mover blocked an immediate opponent threat
+  if (move.kind === 'drop' && prevTactics.oppThreats.includes(move.col)) {
+    return {
+      quality: 'defense',
+      label: '關鍵鐵壁',
+      subtext: '精準識破殺局，成功封鎖敵方絕殺！',
+      deltaEval: 35,
+    };
+  }
+
+  // 2. Fatal blunder: move set up an immediate winning drop on top for opponent
+  if (move.kind === 'drop' && prevTactics.blunderDrops.includes(move.col)) {
+    return {
+      quality: 'blunder',
+      label: '致命失誤',
+      subtext: '注意！此手替對手鋪成了即殺支架！',
+      deltaEval: -50,
+    };
+  }
+
+  // 3. Brilliant fork: opponent now has 2 or more separate threats to block
+  if (nextTactics.oppThreats.length >= 2) {
+    return {
+      quality: 'brilliant',
+      label: '雙殺神之一手',
+      subtext: '雙向合圍！創造無法同時防堵的必勝殺局！',
+      deltaEval: 45,
+    };
+  }
+
+  const nextMoverTactics = analyzeTactics(nextBoard, moverColor, rules);
+  const prevAdv =
+    moverColor === 'red'
+      ? prevTactics.redAdvantagePct
+      : 100 - prevTactics.redAdvantagePct;
+  const nextAdv =
+    moverColor === 'red'
+      ? nextMoverTactics.redAdvantagePct
+      : 100 - nextMoverTactics.redAdvantagePct;
+  const delta = nextAdv - prevAdv;
+
+  // 4. Strong move: opened an immediate threat for self
+  if (nextMoverTactics.ownThreats.length > 0) {
+    return {
+      quality: 'strong',
+      label: '先機銳攻',
+      subtext: '製造聽牌絕殺點，逼迫對手進入防守！',
+      deltaEval: delta,
+    };
+  }
+
+  if (delta >= 12) {
+    return {
+      quality: 'strong',
+      label: '積極拓展',
+      subtext: '搶佔關鍵要道，局面優勢顯著上升！',
+      deltaEval: delta,
+    };
+  }
+
+  if (delta <= -18) {
+    return {
+      quality: 'inaccuracy',
+      label: '緩手失位',
+      subtext: '交出主動權，未能給予對手足夠壓力。',
+      deltaEval: delta,
+    };
+  }
+
+  return {
+    quality: 'normal',
+    label: '穩健推進',
+    subtext: '厚積薄發，步步為營。',
+    deltaEval: delta,
   };
 }

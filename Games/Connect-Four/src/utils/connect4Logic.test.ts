@@ -26,6 +26,8 @@ import {
   popOutPiece,
   resolveWinnerAfterMove,
   DIFFICULTY_BLURBS,
+  detectThreatSegments,
+  evaluateMoveQuality,
   type Board,
   type PieceColor,
   type RulesConfig,
@@ -486,6 +488,83 @@ describe('storage helpers', () => {
       // Col 3 row 5 is empty. If red drops there, yellow gets row 4 col 3 and wins!
       const tactics = analyzeTactics(board, 'red', classic);
       expect(tactics.blunderDrops).toContain(3);
+    });
+
+    it('detects threat segments with accurate geometry and distinguishes immediate threats', () => {
+      let board = createInitialBoard(classic);
+      // Create horizontal threat on bottom row 5 (cols 1, 2, 3 red)
+      board = dropPiece(board, 1, 'red', classic)!;
+      board = dropPiece(board, 2, 'red', classic)!;
+      board = dropPiece(board, 3, 'red', classic)!;
+
+      const segments = detectThreatSegments(board, classic);
+      const redHorizontal = segments.filter(
+        (s) => s.color === 'red' && s.direction === 'horizontal',
+      );
+      expect(redHorizontal.length).toBeGreaterThan(0);
+      // Col 0 or Col 4 should be target cells and marked as isImmediate=true (row 5 is lowest empty row)
+      const immediateTargetCols = redHorizontal
+        .filter((s) => s.isImmediate)
+        .map((s) => s.targetCell.col);
+      expect(immediateTargetCols).toContain(0);
+      expect(immediateTargetCols).toContain(4);
+    });
+
+    it('evaluates move quality correctly: win, defense, blunder, and brilliant fork', () => {
+      let board = createInitialBoard(classic);
+      // Red has 3 in a row
+      board = dropPiece(board, 0, 'red', classic)!;
+      board = dropPiece(board, 1, 'red', classic)!;
+      board = dropPiece(board, 2, 'red', classic)!;
+
+      // 1. Red drops at 3 to win
+      const winBoard = dropPiece(board, 3, 'red', classic)!;
+      const winEval = evaluateMoveQuality(
+        board,
+        winBoard,
+        { kind: 'drop', col: 3 },
+        'red',
+        classic,
+        true,
+      );
+      expect(winEval.quality).toBe('win');
+      expect(winEval.label).toBe('絕殺勝勢');
+
+      // 2. Yellow blocks col 3
+      const defBoard = dropPiece(board, 3, 'yellow', classic)!;
+      const defEval = evaluateMoveQuality(
+        board,
+        defBoard,
+        { kind: 'drop', col: 3 },
+        'yellow',
+        classic,
+        false,
+      );
+      expect(defEval.quality).toBe('defense');
+      expect(defEval.label).toBe('關鍵鐵壁');
+
+      // 3. Blunder gift drop
+      let blunderSetup = createInitialBoard(classic);
+      // Row 5: red on 0, 1, 2
+      blunderSetup = dropPiece(blunderSetup, 0, 'red', classic)!;
+      blunderSetup = dropPiece(blunderSetup, 1, 'red', classic)!;
+      blunderSetup = dropPiece(blunderSetup, 2, 'red', classic)!;
+      // Row 4: yellow on 0, 1, 2
+      blunderSetup = dropPiece(blunderSetup, 0, 'yellow', classic)!;
+      blunderSetup = dropPiece(blunderSetup, 1, 'yellow', classic)!;
+      blunderSetup = dropPiece(blunderSetup, 2, 'yellow', classic)!;
+
+      const afterBlunder = dropPiece(blunderSetup, 3, 'red', classic)!;
+      const blunderEval = evaluateMoveQuality(
+        blunderSetup,
+        afterBlunder,
+        { kind: 'drop', col: 3 },
+        'red',
+        classic,
+        false,
+      );
+      expect(blunderEval.quality).toBe('blunder');
+      expect(blunderEval.label).toBe('致命失誤');
     });
   });
 });
