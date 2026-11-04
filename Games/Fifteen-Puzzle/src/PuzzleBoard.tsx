@@ -12,24 +12,39 @@ import {
   emptyIndex,
   multiSlide,
   slideByDirection,
+  tileManhattan,
   type Board,
   type BoardSize,
   type SlideDir,
+  type ThemeId,
   type VisualStyle,
 } from './fifteenLogic.ts';
 
-const SLIDE_MS = 160;
-const SWIPE_PX = 28;
+const SLIDE_MS = 170;
+const SWIPE_PX = 24;
+
+type SparkParticle = {
+  id: string;
+  xPct: number;
+  yPct: number;
+  dx: number;
+  dy: number;
+  color: string;
+};
 
 type Props = {
   board: Board;
   size: BoardSize;
   style: VisualStyle;
+  theme?: ThemeId;
+  showHeatmap?: boolean;
+  highlightedTile?: number | null;
   hintIndex: number | null;
   disabled: boolean;
   onSlide: (next: Board, tileIndex: number, movedCount?: number) => void;
   pictureUrl: string;
   showGhost?: boolean;
+  onTileHover?: (tile: number | null) => void;
 };
 
 function prefersReducedMotion(): boolean {
@@ -44,20 +59,84 @@ export function PuzzleBoard({
   board,
   size,
   style,
+  theme = 'walnut',
+  showHeatmap = false,
+  highlightedTile = null,
   hintIndex,
   disabled,
   onSlide,
   pictureUrl,
   showGhost = false,
+  onTileHover,
 }: Props): ReactElement {
   const boardRef = useRef<HTMLDivElement>(null);
   const [animating, setAnimating] = useState(false);
   const pointerStart = useRef<{ x: number; y: number; index: number | null } | null>(null);
   const reduced = useRef(false);
 
+  // Spark burst particles for tile lock
+  const [particles, setParticles] = useState<SparkParticle[]>([]);
+  const prevBoardRef = useRef<Board>(board);
+  const [snappedTiles, setSnappedTiles] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     reduced.current = prefersReducedMotion();
   }, []);
+
+  // Detect newly in-place tiles to trigger lock particle burst & gear snap animation
+  useEffect(() => {
+    const prev = prevBoardRef.current;
+    prevBoardRef.current = board;
+    if (reduced.current) return;
+
+    const newlyLocked: { tile: number; index: number }[] = [];
+    for (let i = 0; i < board.length; i++) {
+      const tile = board[i];
+      if (tile !== null && tile === i + 1) {
+        const prevTileAtSlot = prev[i];
+        if (prevTileAtSlot !== tile) {
+          newlyLocked.push({ tile, index: i });
+        }
+      }
+    }
+
+    if (newlyLocked.length > 0) {
+      const newSnapped = new Set<number>();
+      const newParticles: SparkParticle[] = [];
+
+      for (const item of newlyLocked) {
+        newSnapped.add(item.tile);
+        const row = Math.floor(item.index / size);
+        const col = item.index % size;
+        const xPct = ((col + 0.5) / size) * 100;
+        const yPct = ((row + 0.5) / size) * 100;
+
+        // 8 radiating micro spark particles
+        for (let p = 0; p < 8; p++) {
+          const angle = (p * 45 * Math.PI) / 180;
+          const dist = 22 + (p % 2) * 10;
+          newParticles.push({
+            id: `spark-${item.tile}-${p}-${Date.now()}`,
+            xPct,
+            yPct,
+            dx: Math.round(Math.cos(angle) * dist),
+            dy: Math.round(Math.sin(angle) * dist),
+            color: theme === 'cyber' ? '#38bdf8' : '#34d399',
+          });
+        }
+      }
+
+      setSnappedTiles(newSnapped);
+      setParticles((curr) => [...curr, ...newParticles]);
+
+      const clearTimer = window.setTimeout(() => {
+        setSnappedTiles(new Set());
+        setParticles((curr) => curr.filter((p) => !newParticles.includes(p)));
+      }, 500);
+
+      return () => window.clearTimeout(clearTimer);
+    }
+  }, [board, size, theme]);
 
   const trySlideTile = useCallback(
     (tileIndex: number) => {
@@ -81,7 +160,6 @@ export function PuzzleBoard({
       const next = slideByDirection(board, size, dir);
       if (!next) return;
       const e = emptyIndex(board);
-      // Tile that moved into empty is the former empty neighbor opposite to dir.
       let tileIndex = -1;
       if (dir === 'up') tileIndex = e + size;
       else if (dir === 'down') tileIndex = e - size;
@@ -118,26 +196,35 @@ export function PuzzleBoard({
       return;
     }
 
-    // Board-level swipe: move empty opposite to finger (tile slides with finger).
     if (absX > absY) trySlideDir(dx > 0 ? 'right' : 'left');
     else trySlideDir(dy > 0 ? 'down' : 'up');
   };
 
-  const gap = size >= 5 ? 3 : 6;
+  const gap = size >= 5 ? 4 : 7;
   const duration = reduced.current ? '0ms' : `${SLIDE_MS}ms`;
   const cell = `calc((100% - ${(size - 1) * gap}px) / ${size})`;
   const eIdx = emptyIndex(board);
   const eRow = Math.floor(eIdx / size);
   const eCol = eIdx % size;
 
+  const themeClass =
+    theme === 'obsidian'
+      ? 'fp-theme-obsidian'
+      : theme === 'cyber'
+        ? 'fp-theme-cyber'
+        : 'fp-theme-walnut';
+
+  const rivetColor =
+    theme === 'obsidian'
+      ? 'bg-amber-500/40 border-amber-400/50'
+      : theme === 'cyber'
+        ? 'bg-sky-400/40 border-sky-300/50'
+        : 'bg-amber-600/50 border-amber-300/60';
+
   return (
     <div
       ref={boardRef}
-      className="relative w-[min(92vw,440px)] aspect-square rounded-2xl p-2.5 touch-none select-none shadow-2xl border border-slate-700/60 transition-all"
-      style={{
-        background: 'linear-gradient(145deg, rgba(15,23,42,0.85), rgba(30,41,59,0.95))',
-        boxShadow: '0 20px 40px -15px rgba(0,0,0,0.7), inset 0 1px 1px rgba(255,255,255,0.1)',
-      }}
+      className={`relative w-[min(92vw,440px)] aspect-square rounded-2xl p-2.5 touch-none select-none transition-all ${themeClass}`}
       onPointerDown={(ev) => {
         if (disabled) return;
         if (pointerStart.current == null) {
@@ -149,9 +236,27 @@ export function PuzzleBoard({
         pointerStart.current = null;
       }}
       role="grid"
-      aria-label={`${size} 乘 ${size} 推盤`}
+      aria-label={`${size} 乘 ${size} 機械推盤`}
     >
-      {/* Background Recessed Slots & Blueprint Overlay */}
+      {/* Decorative Corner Rivets */}
+      <span
+        aria-hidden="true"
+        className={`absolute top-1.5 left-1.5 w-2 h-2 rounded-full border shadow-sm ${rivetColor}`}
+      />
+      <span
+        aria-hidden="true"
+        className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border shadow-sm ${rivetColor}`}
+      />
+      <span
+        aria-hidden="true"
+        className={`absolute bottom-1.5 left-1.5 w-2 h-2 rounded-full border shadow-sm ${rivetColor}`}
+      />
+      <span
+        aria-hidden="true"
+        className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border shadow-sm ${rivetColor}`}
+      />
+
+      {/* Recessed Slots & Blueprint Ghost Coordinates */}
       {Array.from({ length: size * size }).map((_, slotIdx) => {
         const sRow = Math.floor(slotIdx / size);
         const sCol = slotIdx % size;
@@ -163,22 +268,21 @@ export function PuzzleBoard({
         return (
           <div
             key={`slot-${slotIdx}`}
-            className="absolute rounded-xl border border-slate-800/80 bg-slate-950/40 flex items-center justify-center pointer-events-none select-none transition-all"
+            className="fp-slot absolute rounded-xl flex items-center justify-center pointer-events-none select-none transition-all"
             style={{
               width: cell,
               height: cell,
               left: sLeft,
               top: sTop,
-              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
             }}
           >
             {showGhost && !isGoalLast && (
-              <span className="text-emerald-400/25 font-bold font-mono text-xs sm:text-sm tracking-wider">
+              <span className="text-emerald-400/35 font-bold font-mono text-xs sm:text-sm tracking-wider">
                 #{targetNum}
               </span>
             )}
             {showGhost && isGoalLast && (
-              <span className="text-amber-400/30 font-semibold font-mono text-[10px] tracking-widest">
+              <span className="text-amber-400/40 font-semibold font-mono text-[10px] tracking-widest">
                 TARGET
               </span>
             )}
@@ -200,6 +304,22 @@ export function PuzzleBoard({
         const canMove = canMultiSlide(board, i, size);
         const isInPlace = tile === i + 1;
         const isMultiPush = canMove && (Math.abs(row - eRow) > 1 || Math.abs(col - eCol) > 1);
+        const isSpotlight = highlightedTile === tile;
+        const dist = tileManhattan(tile, i, size);
+        const isSnapped = snappedTiles.has(tile);
+
+        // Heatmap class
+        const heatClass = showHeatmap
+          ? dist === 0
+            ? 'fp-heat-0'
+            : dist === 1
+              ? 'fp-heat-1'
+              : dist === 2
+                ? 'fp-heat-2'
+                : ''
+          : isInPlace
+            ? 'fp-heat-0'
+            : '';
 
         const pictureStyle: CSSProperties =
           style === 'picture'
@@ -209,15 +329,7 @@ export function PuzzleBoard({
                 backgroundPosition: `${(gCol / Math.max(1, size - 1)) * 100}% ${(gRow / Math.max(1, size - 1)) * 100}%`,
                 backgroundRepeat: 'no-repeat',
               }
-            : {
-                backgroundColor: '#cbd5e1',
-                backgroundImage: [
-                  'linear-gradient(rgba(248,250,252,0.65), rgba(248,250,252,0.85))',
-                  `url(${pictureUrl})`,
-                ].join(', '),
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              };
+            : {};
 
         return (
           <button
@@ -226,56 +338,99 @@ export function PuzzleBoard({
             role="gridcell"
             disabled={!canMove || disabled || animating}
             onPointerDown={(ev) => onPointerDown(i, ev)}
-            className={`absolute rounded-xl font-bold touch-manipulation border shadow-md overflow-hidden transition-shadow ${
+            onPointerEnter={() => onTileHover?.(tile)}
+            onPointerLeave={() => onTileHover?.(null)}
+            className={`absolute rounded-xl font-bold touch-manipulation border overflow-hidden transition-all ${
+              style === 'picture' ? 'fp-tile-picture text-white' : 'fp-tile-num'
+            } ${
               size <= 3 ? 'text-2xl sm:text-3xl' : size === 4 ? 'text-xl sm:text-2xl' : 'text-sm sm:text-base'
             } ${
-              isHint
-                ? 'border-amber-300 ring-4 ring-amber-400/80 z-20 animate-pulse'
-                : isInPlace
-                  ? 'border-emerald-400/70 ring-1 ring-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-                  : 'border-white/25'
-            } ${canMove ? 'hover:brightness-110 cursor-pointer active:scale-95' : 'opacity-95'}`}
+              isSpotlight
+                ? 'fp-spotlight-active'
+                : isHint
+                  ? 'border-amber-300 ring-4 ring-amber-400/90 z-20 animate-pulse'
+                  : heatClass
+            } ${isSnapped ? 'fp-gear-snapped z-20' : ''} ${
+              canMove ? 'hover:brightness-110 cursor-pointer active:scale-95' : 'opacity-95'
+            }`}
             style={{
               width: cell,
               height: cell,
               left,
               top,
-              color: style === 'picture' ? '#f8fafc' : '#0f172a',
               transitionProperty: 'left, top, transform, box-shadow, filter',
               transitionDuration: duration,
               transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
-              textShadow: style === 'picture' ? '0 1px 3px rgba(0,0,0,0.9)' : undefined,
+              textShadow:
+                style === 'picture'
+                  ? '0 1px 3px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.8)'
+                  : undefined,
               ...pictureStyle,
             }}
             aria-label={`第 ${tile} 格${isInPlace ? '（已歸位）' : ''}${isHint ? '（建議）' : ''}`}
           >
-            {/* Solved In-Place Indicator Dot */}
+            {/* Solved Latch Lock / In-Place Indicator */}
             {isInPlace && (
               <span
-                className="absolute top-1 right-1.5 flex h-2 w-2"
-                title="已歸位"
+                className="absolute top-1 right-1.5 flex h-2.5 w-2.5"
+                title="已歸位鎖定"
               >
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-sm" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 border border-emerald-200/60 shadow-sm" />
+              </span>
+            )}
+
+            {/* Heatmap Distance Badge */}
+            {showHeatmap && !isInPlace && (
+              <span
+                className={`absolute top-1 right-1 px-1 py-0.2 rounded text-[9px] font-mono font-bold leading-none ${
+                  dist === 1
+                    ? 'bg-amber-500/80 text-black'
+                    : dist === 2
+                      ? 'bg-orange-500/70 text-white'
+                      : 'bg-slate-800/80 text-slate-300'
+                }`}
+                title={`距目標 ${dist} 步`}
+              >
+                +{dist}
               </span>
             )}
 
             {/* Multi-slide train indicator on distant tiles */}
             {isMultiPush && canMove && (
-              <span className="absolute bottom-1 left-1.5 text-[9px] font-mono text-emerald-800/80 bg-emerald-300/60 rounded px-1 py-0.2 leading-none font-semibold">
+              <span className="absolute bottom-1 left-1.5 text-[9px] font-mono text-emerald-950 bg-emerald-300/80 rounded px-1 py-0.2 leading-none font-bold shadow-sm">
                 連動
               </span>
             )}
 
+            {/* Tile Number Display */}
             {style === 'number' ? (
-              tile
+              <span className="drop-shadow-sm">{tile}</span>
             ) : (
-              <span className="absolute bottom-0.5 right-1 text-[10px] sm:text-xs font-semibold opacity-95 bg-black/40 px-1 rounded">
+              <span className="absolute bottom-1 right-1 text-[10px] sm:text-xs font-mono font-bold bg-black/60 px-1 py-0.5 rounded shadow">
                 {tile}
               </span>
             )}
           </button>
         );
       })}
+
+      {/* Micro Spark Burst Particles */}
+      {particles.map((p) => (
+        <span
+          key={p.id}
+          className="fp-spark-particle absolute pointer-events-none select-none rounded-full w-1.5 h-1.5 shadow"
+          style={
+            {
+              left: `${p.xPct}%`,
+              top: `${p.yPct}%`,
+              backgroundColor: p.color,
+              boxShadow: `0 0 6px ${p.color}`,
+              '--dx': `${p.dx}px`,
+              '--dy': `${p.dy}px`,
+            } as CSSProperties
+          }
+        />
+      ))}
     </div>
   );
 }

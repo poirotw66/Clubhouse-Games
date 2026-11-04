@@ -19,6 +19,8 @@ import {
   slideByDirection,
   shuffledBoard,
   solvedBoard,
+  THEME_CONFIGS,
+  tileManhattan,
 } from './fifteenLogic.ts';
 import { applyPath, heuristic, linearConflict, optimalMoves, solvePuzzle } from './solver.ts';
 import { CAMPAIGN_STAGES, applyStageClear, isStageUnlocked, moveLimitFor } from './campaign.ts';
@@ -193,5 +195,14 @@ for (const stage of CAMPAIGN_STAGES) {
     assert.ok(opt.moves <= scrambleMoves, stage.id);
   }
 }
+
+// —— Theme configurations & tile Manhattan distance ——
+assert.equal(THEME_CONFIGS.walnut.id, 'walnut');
+assert.equal(THEME_CONFIGS.obsidian.id, 'obsidian');
+assert.equal(THEME_CONFIGS.cyber.id, 'cyber');
+assert.equal(tileManhattan(1, 0, 4), 0); // home slot
+assert.equal(tileManhattan(1, 1, 4), 1); // 1 col away
+assert.equal(tileManhattan(1, 5, 4), 2); // 1 col + 1 row away
+assert.equal(tileManhattan(16, 15, 4), 0);
 
 console.log('fifteen-puzzle check ok');

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import {
   CAMPAIGN_STAGES,
   clearStageAndPersist,
@@ -23,6 +23,7 @@ import {
   BOARD_SIZES,
   PAR_LABEL,
   SPRINT_LIMIT_SEC,
+  THEME_CONFIGS,
   cellCount,
   countInPlace,
   harmonyPct,
@@ -33,14 +34,26 @@ import {
   scrambleFromSeed,
   sizeLabel,
   slideByDirection,
+  tileManhattan,
   type Board,
   type BoardSize,
   type ParGrade,
   type PlayMode,
   type ScrambleTier,
   type SlideDir,
+  type ThemeId,
   type VisualStyle,
 } from './fifteenLogic.ts';
+import {
+  isHapticsEnabled,
+  isSoundEnabled,
+  playGearLatchLock,
+  playMechanicalSlide,
+  playSpeedCombo,
+  setHapticsEnabled,
+  setSoundEnabled,
+  triggerHaptic,
+} from './mechanicalAudio.ts';
 import { PuzzleBoard } from './PuzzleBoard.tsx';
 import { hashString } from './rng.ts';
 import { optimalMoves } from './solver.ts';
@@ -48,9 +61,15 @@ import {
   loadBestMoves,
   loadBestSprintSec,
   loadDaily,
+  loadHeatmapEnabled,
+  loadMaxSps,
+  loadUserTheme,
   recordDaily,
   saveBestMoves,
   saveBestSprintSec,
+  saveHeatmapEnabled,
+  saveMaxSps,
+  saveUserTheme,
   type DailyRecord,
 } from './storage.ts';
 
@@ -59,6 +78,8 @@ const TIER_OPTIONS: { id: ScrambleTier; label: string }[] = [
   { id: 'normal', label: '普通' },
   { id: 'hard', label: '困難' },
 ];
+
+const THEME_CYCLE: ThemeId[] = ['walnut', 'obsidian', 'cyber'];
 
 type Screen = 'title' | 'play' | 'campaign';
 
@@ -119,6 +140,20 @@ export default function App() {
   const [size, setSize] = useState<BoardSize>(4);
   const [tier, setTier] = useState<ScrambleTier>('normal');
   const [style, setStyle] = useState<VisualStyle>('number');
+  const [theme, setTheme] = useState<ThemeId>(() => loadUserTheme());
+  const [showHeatmap, setShowHeatmap] = useState<boolean>(() => loadHeatmapEnabled());
+  const [highlightedTile, setHighlightedTile] = useState<number | null>(null);
+  const [soundOn, setSoundOn] = useState<boolean>(() => isSoundEnabled());
+  const [hapticsOn, setHapticsOn] = useState<boolean>(() => isHapticsEnabled());
+  const [mobileHudOpen, setMobileHudOpen] = useState(false);
+
+  // Speedometer Telemetry
+  const recentSlideTimes = useRef<number[]>([]);
+  const lastSlideTime = useRef<number>(0);
+  const [currentSps, setCurrentSps] = useState(0);
+  const [maxSps, setMaxSps] = useState<number>(() => loadMaxSps());
+  const [comboCount, setComboCount] = useState(0);
+
   const [session, setSession] = useState<Session | null>(null);
   const [board, setBoard] = useState<Board>(() => scrambleFromSeed(4, 'normal', 1).board);
   const [history, setHistory] = useState<{ board: Board; moves: number }[]>([]);
@@ -140,7 +175,6 @@ export default function App() {
   const today = dateKey();
   const streak = computeStreak(dailyRecords, today);
   const todayDone = dailyRecords.some((r) => r.date === today);
-  /** Number mode uses the wood tile face; picture mode mosaics a dedicated art plate. */
   const tileFaceUrl = `${import.meta.env.BASE_URL}tile-face.jpg`;
   const pictureUrl = `${import.meta.env.BASE_URL}puzzle-art.jpg`;
 
@@ -148,6 +182,31 @@ export default function App() {
     setBestMoves(loadBestMoves(size, tier));
     setBestSprint(loadBestSprintSec(size, tier));
   }, [size, tier]);
+
+  const handleSetTheme = (nextTheme: ThemeId) => {
+    setTheme(nextTheme);
+    saveUserTheme(nextTheme);
+  };
+
+  const handleToggleHeatmap = () => {
+    setShowHeatmap((prev) => {
+      const next = !prev;
+      saveHeatmapEnabled(next);
+      return next;
+    });
+  };
+
+  const handleToggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+  };
+
+  const handleToggleHaptics = () => {
+    const next = !hapticsOn;
+    setHapticsOn(next);
+    setHapticsEnabled(next);
+  };
 
   const begin = useCallback((next: Session) => {
     settleRef.current = false;
@@ -161,8 +220,14 @@ export default function App() {
     setNewRecord(false);
     setHintIndex(null);
     setGrade(null);
+    setHighlightedTile(null);
+    recentSlideTimes.current = [];
+    lastSlideTime.current = 0;
+    setCurrentSps(0);
+    setComboCount(0);
     setBestMoves(loadBestMoves(next.size, next.tier));
     setBestSprint(loadBestSprintSec(next.size, next.tier));
+    setMaxSps(loadMaxSps());
     setScreen('play');
   }, []);
 
@@ -233,7 +298,20 @@ export default function App() {
     if (screen !== 'play' || won || lost) return;
     const id = window.setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => window.clearInterval(id);
-  }, [screen, won, lost, board]);
+  }, [screen, won, lost]);
+
+  // Periodic SPS decay when idle
+  useEffect(() => {
+    if (screen !== 'play' || won || lost) return;
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      if (now - lastSlideTime.current > 1200) {
+        setCurrentSps((s) => (s > 0 ? Math.max(0, Math.round((s * 0.5) * 10) / 10) : 0));
+        setComboCount(0);
+      }
+    }, 600);
+    return () => window.clearInterval(id);
+  }, [screen, won, lost]);
 
   useEffect(() => {
     if (screen !== 'play' || !session || won || lost) return;
@@ -242,16 +320,19 @@ export default function App() {
       setLost(true);
       setLoseReason('time');
       playLose();
+      triggerHaptic([40, 60, 40]);
     }
   }, [elapsed, session, won, lost, screen]);
 
   useEffect(() => {
     if (screen !== 'play' || !session || won || lost || settleRef.current) return;
     if (!isSolved(board, session.size)) return;
+
     settleRef.current = true;
     setWon(true);
     setHintIndex(null);
     playWin();
+    triggerHaptic([30, 50, 40, 60, 50]);
     const g = parGrade(moves, session.optimal);
     setGrade(g);
 
@@ -281,12 +362,49 @@ export default function App() {
   const onSlide = useCallback(
     (next: Board, _tileIndex: number, movedCount = 1) => {
       if (!session || won || lost) return;
-      playScore();
+
+      const prevInPlace = countInPlace(board, session.size);
+      const nextInPlace = countInPlace(next, session.size);
+
+      // Play rich mechanical audio & haptics
+      playMechanicalSlide(movedCount);
+      if (nextInPlace > prevInPlace) {
+        playGearLatchLock();
+      }
+
+      // Calculate sliding speed & combo
+      const now = Date.now();
+      const times = recentSlideTimes.current;
+      times.push(now);
+      while (times.length > 0 && now - times[0] > 2400) {
+        times.shift();
+      }
+      const durationSec = Math.max(0.6, (now - times[0]) / 1000);
+      const spsVal = Math.round((times.length / durationSec) * 10) / 10;
+      setCurrentSps(spsVal);
+
+      const savedMax = saveMaxSps(spsVal);
+      setMaxSps(savedMax);
+
+      const delta = now - lastSlideTime.current;
+      lastSlideTime.current = now;
+      let nextCombo = 1;
+      if (delta < 950) {
+        nextCombo = comboCount + 1;
+        setComboCount(nextCombo);
+        if (nextCombo >= 3) {
+          playSpeedCombo(nextCombo);
+        }
+      } else {
+        setComboCount(1);
+      }
+
       setHistory((h) => [...h, { board, moves }]);
       const nextMoves = moves + movedCount;
       setBoard(next);
       setMoves(nextMoves);
       setHintIndex(null);
+
       if (
         session.moveLimit != null &&
         nextMoves >= session.moveLimit &&
@@ -295,9 +413,10 @@ export default function App() {
         setLost(true);
         setLoseReason('moves');
         playLose();
+        triggerHaptic([40, 60, 40]);
       }
     },
-    [board, moves, session, won, lost],
+    [board, comboCount, moves, session, won, lost],
   );
 
   const handleUndo = useCallback(() => {
@@ -307,7 +426,7 @@ export default function App() {
     setBoard(prev.board);
     setMoves(prev.moves);
     setHintIndex(null);
-    playMove();
+    playMechanicalSlide(1);
   }, [history, won, lost]);
 
   const slideDir = useCallback(
@@ -324,7 +443,10 @@ export default function App() {
     if (!session || won || lost) return;
     const idx = hintTileIndex(board, session.size);
     setHintIndex(idx);
-    if (idx != null) playMove();
+    if (idx != null) {
+      playSpeedCombo(1);
+      triggerHaptic(12);
+    }
   }, [board, session, won, lost]);
 
   useEffect(() => {
@@ -356,12 +478,20 @@ export default function App() {
       } else if (e.key === 'g' || e.key === 'G') {
         e.preventDefault();
         setShowGhost((prev) => !prev);
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        handleToggleHeatmap();
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        const curIdx = THEME_CYCLE.indexOf(theme);
+        const next = THEME_CYCLE[(curIdx + 1) % THEME_CYCLE.length];
+        handleSetTheme(next);
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [screen, session, won, lost, slideDir, handleUndo, handleHint]);
+  }, [screen, session, won, lost, slideDir, handleUndo, handleHint, theme]);
 
   const canUndo = !won && !lost && history.length > 0;
   const remain =
@@ -371,13 +501,51 @@ export default function App() {
     const cfg = dailyConfig(today);
     return (
       <Shell>
-        <h1 className="text-3xl font-bold tracking-wide">數字推盤</h1>
-        <p className="text-sm text-slate-300 text-center max-w-sm">
-          多種盤面與圖片拼圖・對照最佳解評等・每日挑戰與闖關階梯
-        </p>
+        <div className="text-center">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-semibold uppercase tracking-wider mb-2">
+            <span>⚙️ 奢華典藏機械推盤</span>
+            <span>•</span>
+            <span>{THEME_CONFIGS[theme].name}</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-wide text-white drop-shadow-md">
+            數字推盤
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-300 text-center max-w-md mt-1">
+            立體機械雕刻・曼哈頓熱力光暈・滑動衝刺波與即時時速儀表
+          </p>
+        </div>
 
-        <section className="w-full max-w-md flex flex-col gap-3">
-          <h2 className="text-xs uppercase tracking-wider text-slate-400">盤面與樣式</h2>
+        {/* Board & Theme Settings */}
+        <section className="w-full max-w-md flex flex-col gap-3 p-4 rounded-2xl bg-slate-900/80 border border-slate-700/60 shadow-xl">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <h2 className="text-xs uppercase tracking-wider text-slate-400 font-bold">
+              工坊工藝材質
+            </h2>
+            <span className="text-[11px] text-amber-300/90 font-mono">
+              {THEME_CONFIGS[theme].desc}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="材質主題">
+            {THEME_CYCLE.map((tid) => (
+              <button
+                key={tid}
+                type="button"
+                onClick={() => handleSetTheme(tid)}
+                className={`min-h-[44px] px-3.5 py-1.5 rounded-xl border text-xs font-semibold touch-manipulation transition-all ${
+                  theme === tid
+                    ? 'border-amber-400 bg-amber-500/25 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                    : 'border-slate-700 bg-slate-800/80 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {THEME_CONFIGS[tid].name}
+              </button>
+            ))}
+          </div>
+
+          <h2 className="text-xs uppercase tracking-wider text-slate-400 font-bold mt-1">
+            盤面大小與打亂難度
+          </h2>
           <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="盤面大小">
             {BOARD_SIZES.map((s) => (
               <button
@@ -402,11 +570,15 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          <h2 className="text-xs uppercase tracking-wider text-slate-400 font-bold mt-1">
+            展示風格
+          </h2>
           <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="樣式">
             {(
               [
-                { id: 'number' as const, label: '數字' },
-                { id: 'picture' as const, label: '圖片拼圖' },
+                { id: 'number' as const, label: '刻字數字' },
+                { id: 'picture' as const, label: '名畫拼圖' },
               ] as const
             ).map(({ id, label }) => (
               <button
@@ -421,35 +593,45 @@ export default function App() {
           </div>
         </section>
 
-        <div className="flex flex-col gap-2 w-full max-w-sm">
-          <button type="button" className={primaryBtn} onClick={() => startClassicOrSprint('classic')}>
-            經典模式
+        {/* Play Modes */}
+        <div className="flex flex-col gap-2.5 w-full max-w-sm">
+          <button
+            type="button"
+            className="w-full min-h-[46px] px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-bold text-white shadow-lg touch-manipulation transition-all"
+            onClick={() => startClassicOrSprint('classic')}
+          >
+            經典挑戰
           </button>
-          <button type="button" className={secondaryBtn} onClick={() => startClassicOrSprint('sprint')}>
-            衝刺 {SPRINT_LIMIT_SEC}s
+          <button
+            type="button"
+            className={secondaryBtn}
+            onClick={() => startClassicOrSprint('sprint')}
+          >
+            ⏱️ 衝刺限時 {SPRINT_LIMIT_SEC}s
           </button>
           <button type="button" className={secondaryBtn} onClick={startDaily}>
-            每日挑戰
+            📅 每日挑戰
             <span className="block text-xs font-normal text-slate-300 mt-0.5">
-              {sizeLabel(cfg.size)}・{cfg.style === 'picture' ? '圖片' : '數字'}
+              {sizeLabel(cfg.size)}・{cfg.style === 'picture' ? '名畫' : '數字'}
               {todayDone ? '・今日已完成' : ''}
               {streak > 0 ? `・連續 ${streak} 天` : ''}
             </span>
           </button>
           <button type="button" className={secondaryBtn} onClick={() => setScreen('campaign')}>
-            闖關階梯
+            🪜 闖關階梯
             <span className="block text-xs font-normal text-slate-300 mt-0.5">
               進度 {campaign.clearedCount}/{CAMPAIGN_STAGES.length}
             </span>
           </button>
         </div>
 
-        {(bestMoves != null || bestSprint != null) && (
-          <p className="text-xs text-slate-400">
-            本機 {sizeLabel(size)}／{TIER_OPTIONS.find((t) => t.id === tier)?.label}：
-            {bestMoves != null ? ` 最佳 ${bestMoves} 步` : ''}
-            {bestSprint != null ? ` ・衝刺 ${bestSprint}s` : ''}
-          </p>
+        {(bestMoves != null || bestSprint != null || maxSps > 0) && (
+          <div className="text-xs text-slate-400 bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-800 text-center">
+            <span>本機紀錄（{sizeLabel(size)}／{TIER_OPTIONS.find((t) => t.id === tier)?.label}）：</span>
+            {bestMoves != null && <span className="text-emerald-300 font-mono ml-1">最佳 {bestMoves} 步</span>}
+            {bestSprint != null && <span className="text-sky-300 font-mono ml-2">衝刺 {bestSprint}s</span>}
+            {maxSps > 0 && <span className="text-amber-300 font-mono ml-2">最速 {maxSps} SPS</span>}
+          </div>
         )}
       </Shell>
     );
@@ -508,7 +690,7 @@ export default function App() {
     );
   }
 
-  // play
+  // Play Screen
   const s = session!;
   const optimalLabel = s.optimalExact ? String(s.optimal) : `≤${s.optimal}`;
   const totalTiles = cellCount(s.size) - 1;
@@ -528,11 +710,84 @@ export default function App() {
             <span>•</span>
             <span>{sizeLabel(s.size)}</span>
             <span>•</span>
-            <span>{s.style === 'picture' ? '圖片拼圖' : '數字推盤'}</span>
+            <span>{s.style === 'picture' ? '名畫拼圖' : '數字推盤'}</span>
+            <span>•</span>
+            <span className="text-amber-300">{THEME_CONFIGS[theme].name}</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-wide text-white drop-shadow-sm">
             {s.stageIndex != null ? CAMPAIGN_STAGES[s.stageIndex]?.name : '數字推盤'}
           </h1>
+        </div>
+
+        {/* Mobile HUD Toggle & Bar (Visible under 1024px) */}
+        <div className="lg:hidden w-full max-w-[440px] flex flex-col gap-2">
+          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-slate-300">
+                步數: <strong className="text-emerald-400 font-mono text-sm">{moves}</strong>
+              </span>
+              <span className="text-amber-300 font-mono font-bold">
+                ⚡ {currentSps} SPS
+              </span>
+              {comboCount >= 2 && (
+                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold animate-pulse">
+                  {comboCount}x 連推
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileHudOpen((v) => !v)}
+              className="px-2.5 py-1 rounded-lg border border-slate-600 bg-slate-800 text-[11px] text-slate-200 font-medium touch-manipulation"
+            >
+              {mobileHudOpen ? '收起戰術盤 ▲' : '戰術儀表 ▼'}
+            </button>
+          </div>
+
+          {/* Collapsible Mobile Drawer */}
+          {mobileHudOpen && (
+            <div className="p-3.5 rounded-xl bg-slate-950/95 border border-emerald-500/30 shadow-2xl flex flex-col gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                  <span className="text-slate-400 block text-[10px]">歸位和諧度</span>
+                  <span className="text-emerald-400 font-bold font-mono text-sm">{harmony}%</span>
+                  <span className="text-slate-500 text-[10px] ml-1">({inPlaceCount}/{totalTiles})</span>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                  <span className="text-slate-400 block text-[10px]">預測評等</span>
+                  <span className="text-amber-400 font-bold font-mono text-sm">
+                    {liveGrade}（{PAR_LABEL[liveGrade]}）
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                <span className="text-slate-400">曼哈頓總偏距</span>
+                <span className="text-amber-300 font-bold font-mono">{manhattan} 步</span>
+              </div>
+
+              {/* Theme & Heatmap Quick Toggles */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                <span className="text-slate-400 text-[11px]">材質主題</span>
+                <div className="flex gap-1">
+                  {THEME_CYCLE.map((tid) => (
+                    <button
+                      key={tid}
+                      type="button"
+                      onClick={() => handleSetTheme(tid)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                        theme === tid
+                          ? 'border-amber-400 bg-amber-500/25 text-amber-200'
+                          : 'border-slate-700 bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {THEME_CONFIGS[tid].name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Cockpit Layout */}
@@ -550,7 +805,7 @@ export default function App() {
             </div>
 
             {/* Harmony Progress Gauge */}
-            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+            <div className="mb-3 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-300 font-medium">全盤歸位和諧度</span>
                 <span className="font-bold text-emerald-400 font-mono text-sm">
@@ -571,8 +826,31 @@ export default function App() {
               </div>
             </div>
 
+            {/* Real-Time Speedometer (SPS & Combo) */}
+            <div className="mb-3 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-slate-300 font-medium flex items-center gap-1">
+                  <span>⚡</span>
+                  <span>即時推盤時速</span>
+                </span>
+                <span className="font-mono text-amber-300 font-bold text-sm">
+                  {currentSps} SPS
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <span>連擊動態</span>
+                <span className="font-mono font-bold text-emerald-300">
+                  {comboCount >= 2 ? `🔥 ${comboCount}x COMBO` : '平穩推移'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+                <span>最高時速紀錄</span>
+                <span className="font-mono">{maxSps} 次/秒</span>
+              </div>
+            </div>
+
             {/* Predicted Par Grade */}
-            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+            <div className="mb-3 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-300 font-medium">預測通關評等</span>
                 <span className="px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -587,7 +865,7 @@ export default function App() {
             </div>
 
             {/* Manhattan Distance Sum */}
-            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
+            <div className="mb-3 p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="text-slate-300 font-medium">曼哈頓總偏差距</span>
                 <span className="font-mono text-amber-300 font-bold text-xs">
@@ -612,6 +890,10 @@ export default function App() {
               <div className="flex items-center justify-between">
                 <span>H / G</span>
                 <span className="text-slate-300 font-mono">提示 / 透視</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>M / T</span>
+                <span className="text-slate-300 font-mono">熱力 / 主題</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>R 鍵</span>
@@ -641,20 +923,65 @@ export default function App() {
               </span>
             </div>
 
-            {/* Board */}
+            {/* Luxury Mechanical Board */}
             <PuzzleBoard
               board={board}
               size={s.size}
               style={s.style}
+              theme={theme}
+              showHeatmap={showHeatmap}
+              highlightedTile={highlightedTile}
               hintIndex={hintIndex}
               disabled={won || lost}
               onSlide={onSlide}
               pictureUrl={s.style === 'picture' ? pictureUrl : tileFaceUrl}
               showGhost={showGhost}
+              onTileHover={(t) => setHighlightedTile(t)}
             />
 
-            {/* Tool buttons */}
-            <div className="flex flex-wrap justify-center gap-2 mt-3.5">
+            {/* Quick Feature Chips (Ghost & Heatmap & Theme) */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-3 w-full max-w-[440px]">
+              <button
+                type="button"
+                onClick={() => setShowGhost((g) => !g)}
+                className={`min-h-[40px] px-3 rounded-xl text-xs font-semibold touch-manipulation border transition-all ${
+                  showGhost
+                    ? 'border-emerald-400/90 bg-emerald-500/25 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                    : 'border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
+                }`}
+                title="鍵盤快捷鍵: G"
+              >
+                {showGhost ? '👁️ 關閉透視' : '👻 目標透視 (G)'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleHeatmap}
+                className={`min-h-[40px] px-3 rounded-xl text-xs font-semibold touch-manipulation border transition-all ${
+                  showHeatmap
+                    ? 'border-amber-400/90 bg-amber-500/25 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                    : 'border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
+                }`}
+                title="鍵盤快捷鍵: M"
+              >
+                {showHeatmap ? '🔥 關閉熱力' : '🔥 熱力光暈 (M)'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const curIdx = THEME_CYCLE.indexOf(theme);
+                  handleSetTheme(THEME_CYCLE[(curIdx + 1) % THEME_CYCLE.length]);
+                }}
+                className="min-h-[40px] px-3 rounded-xl text-xs font-semibold touch-manipulation border border-slate-700 bg-slate-800/80 text-amber-300 hover:bg-slate-700/80"
+                title="鍵盤快捷鍵: T"
+              >
+                🎨 {THEME_CONFIGS[theme].name}
+              </button>
+            </div>
+
+            {/* Primary Action Buttons */}
+            <div className="flex flex-wrap justify-center gap-2 mt-2.5">
               <button
                 type="button"
                 onClick={handleUndo}
@@ -672,18 +999,6 @@ export default function App() {
                 title="鍵盤快捷鍵: H"
               >
                 提示 (H)
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowGhost((g) => !g)}
-                className={`min-h-[44px] px-3.5 rounded-xl font-medium touch-manipulation border transition-colors ${
-                  showGhost
-                    ? 'border-emerald-400/80 bg-emerald-500/25 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-                    : 'border-slate-600 bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
-                }`}
-                title="鍵盤快捷鍵: G"
-              >
-                {showGhost ? '👁️ 關閉透視' : '👻 目標透視 (G)'}
               </button>
               <button
                 type="button"
@@ -711,54 +1026,106 @@ export default function App() {
                 <span>目標藍圖與工坊</span>
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">
-                BLUEPRINT
+                WORKSHOP
               </span>
             </div>
 
-            {/* Mini-Map Preview */}
+            {/* Interactive Blueprint Mini-Map */}
             <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-sky-500/20 flex flex-col items-center">
               <div className="text-[11px] text-slate-300 font-medium mb-2 w-full flex justify-between">
                 <span>目標完成陣列縮圖</span>
-                <span className="text-emerald-400 font-mono text-[10px]">
-                  綠點代表已到位
+                <span className="text-amber-300 font-mono text-[10px]">
+                  懸停高亮方塊
                 </span>
               </div>
               <div
                 className="grid gap-1 p-1.5 rounded-lg bg-slate-950 border border-slate-800"
                 style={{
                   gridTemplateColumns: `repeat(${s.size}, minmax(0, 1fr))`,
-                  width: '140px',
-                  height: '140px',
+                  width: '144px',
+                  height: '144px',
                 }}
               >
                 {Array.from({ length: s.size * s.size }).map((_, slot) => {
                   const targetNum = slot + 1;
                   const isLast = slot === s.size * s.size - 1;
                   const isLocked = board[slot] === targetNum;
+                  const isHovered = highlightedTile === targetNum;
+                  const dist = !isLast ? tileManhattan(targetNum, board.indexOf(targetNum), s.size) : 0;
+
                   return (
-                    <div
+                    <button
                       key={`mini-${slot}`}
-                      className={`rounded flex items-center justify-center text-[9px] font-mono transition-colors ${
+                      type="button"
+                      onMouseEnter={() => !isLast && setHighlightedTile(targetNum)}
+                      onMouseLeave={() => setHighlightedTile(null)}
+                      onClick={() => !isLast && setHighlightedTile(targetNum)}
+                      className={`rounded flex items-center justify-center text-[10px] font-mono transition-all ${
                         isLast
                           ? 'border border-dashed border-amber-500/30 bg-slate-900/40 text-amber-500/40'
-                          : isLocked
-                            ? 'bg-emerald-500/40 border border-emerald-400/80 text-emerald-200 font-bold'
-                            : 'bg-slate-900/60 border border-slate-800 text-slate-500'
+                          : isHovered
+                            ? 'bg-amber-500 text-black font-bold ring-2 ring-amber-300 scale-105 z-10'
+                            : isLocked
+                              ? 'bg-emerald-500/40 border border-emerald-400/80 text-emerald-200 font-bold'
+                              : 'bg-slate-900/60 border border-slate-800 text-slate-400 hover:border-slate-600'
                       }`}
+                      title={!isLast ? `第 ${targetNum} 格（距目標 ${dist} 步）` : '終點空格'}
                     >
                       {isLast ? '•' : isLocked ? '✓' : targetNum}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Multi-Slide Tactics */}
-            <div className="mb-3.5 p-3 rounded-xl bg-slate-900/80 border border-sky-500/20 text-[11px] space-y-1 text-slate-300">
-              <span className="font-bold text-sky-300 block mb-1">⚡ 整排連動推盤秘笈</span>
-              <p className="text-slate-400 text-[10px] leading-relaxed">
-                點擊同列或同行之任一方塊，中間整排方塊將一次滑入空格！善用連動推動，極速縮短還原時間。
-              </p>
+            {/* Workshop Theme Selector */}
+            <div className="mb-3 p-3 rounded-xl bg-slate-900/80 border border-sky-500/20 text-xs">
+              <span className="font-bold text-sky-300 block mb-2">🎨 工坊材質切換</span>
+              <div className="grid grid-cols-1 gap-1.5">
+                {THEME_CYCLE.map((tid) => (
+                  <button
+                    key={tid}
+                    type="button"
+                    onClick={() => handleSetTheme(tid)}
+                    className={`px-3 py-1.5 rounded-lg border text-left text-[11px] font-semibold transition-all ${
+                      theme === tid
+                        ? 'border-amber-400 bg-amber-500/20 text-amber-200 shadow-sm'
+                        : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span>{THEME_CONFIGS[tid].name}</span>
+                      {theme === tid && <span className="text-amber-400 text-[10px]">啟用中</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Audio & Haptic Controls */}
+            <div className="mb-3 p-2.5 rounded-xl bg-slate-900/80 border border-sky-500/20 flex items-center justify-around text-xs">
+              <button
+                type="button"
+                onClick={handleToggleSound}
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                  soundOn
+                    ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                    : 'border-slate-700 bg-slate-800/80 text-slate-400'
+                }`}
+              >
+                {soundOn ? '🔊 機械音效' : '🔇 靜音模式'}
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleHaptics}
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                  hapticsOn
+                    ? 'border-sky-500/50 bg-sky-500/20 text-sky-200'
+                    : 'border-slate-700 bg-slate-800/80 text-slate-400'
+                }`}
+              >
+                {hapticsOn ? '📳 觸覺震動' : '📴 關閉震動'}
+              </button>
             </div>
 
             {/* Personal Records Box */}
@@ -773,6 +1140,12 @@ export default function App() {
                 <span>最速衝刺用時</span>
                 <span className="text-sky-300 font-mono font-bold">
                   {bestSprint != null ? `${bestSprint}s` : '--'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>最高推盤時速</span>
+                <span className="text-amber-300 font-mono font-bold">
+                  {maxSps > 0 ? `${maxSps} SPS` : '--'}
                 </span>
               </div>
             </div>
@@ -796,6 +1169,7 @@ export default function App() {
             { label: '步數', value: moves },
             { label: '標準桿', value: optimalLabel },
             { label: '用時', value: `${elapsed}s` },
+            { label: '最高時速', value: `${maxSps} SPS` },
             ...(grade ? [{ label: '評等', value: `${grade}（${PAR_LABEL[grade]}）` }] : []),
           ]}
           primaryLabel={s.mode === 'campaign' ? '下一關' : '再玩一局'}
@@ -842,9 +1216,9 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
     <div
       className="min-h-screen flex flex-col items-center justify-center p-4 gap-4"
       style={{
-        backgroundColor: '#1e293b',
+        backgroundColor: '#0f172a',
         backgroundImage: [
-          'linear-gradient(rgba(15,23,42,0.55), rgba(15,23,42,0.75))',
+          'linear-gradient(rgba(15,23,42,0.65), rgba(15,23,42,0.85))',
           `url(${import.meta.env.BASE_URL}board-bg.jpg)`,
         ].join(', '),
         backgroundSize: 'cover',

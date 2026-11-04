@@ -9,6 +9,36 @@ export type Board = (number | null)[];
 
 export type VisualStyle = 'number' | 'picture';
 
+export type ThemeId = 'walnut' | 'obsidian' | 'cyber';
+
+export type ThemeConfig = {
+  id: ThemeId;
+  name: string;
+  desc: string;
+  accentColor: string;
+};
+
+export const THEME_CONFIGS: Record<ThemeId, ThemeConfig> = {
+  walnut: {
+    id: 'walnut',
+    name: '胡桃木黃銅',
+    desc: '典藏深色胡桃木刻槽與拉絲黃銅方塊',
+    accentColor: '#d4af37',
+  },
+  obsidian: {
+    id: 'obsidian',
+    name: '黑曜石金箔',
+    desc: '火山黑曜石啞光底盤與鍍金雕刻文字',
+    accentColor: '#f59e0b',
+  },
+  cyber: {
+    id: 'cyber',
+    name: '賽博鈦金',
+    desc: '航太鈦合金導軌與霓虹量子鎖定刻線',
+    accentColor: '#38bdf8',
+  },
+};
+
 export type ScrambleTier = 'easy' | 'normal' | 'hard';
 
 export type PlayMode = 'classic' | 'sprint' | 'daily' | 'campaign';
@@ -185,6 +215,19 @@ export function harmonyPct(board: Board, size: BoardSize): number {
 /** Goal index for tile `n` (1…N²−1); empty belongs at the last cell. */
 export function goalIndex(tile: number): number {
   return tile - 1;
+}
+
+/**
+ * Manhattan distance of a tile at `currentIndex` to its solved goal position.
+ * Returns 0 if the tile is in its solved home slot.
+ */
+export function tileManhattan(tile: number, currentIndex: number, size: BoardSize): number {
+  const goal = goalIndex(tile);
+  const curRow = Math.floor(currentIndex / size);
+  const curCol = currentIndex % size;
+  const goalRow = Math.floor(goal / size);
+  const goalCol = goal % size;
+  return Math.abs(curRow - goalRow) + Math.abs(curCol - goalCol);
 }
 
 export function manhattanSum(board: Board, size: BoardSize): number {

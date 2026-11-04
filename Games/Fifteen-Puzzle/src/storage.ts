@@ -3,13 +3,16 @@
  * Keys follow the `clubhouse:fifteen-puzzle:*` namespace used by recent puzzles.
  */
 
-import type { BoardSize, ScrambleTier } from './fifteenLogic.ts';
+import type { BoardSize, ScrambleTier, ThemeId } from './fifteenLogic.ts';
 
 const BEST_KEY = 'clubhouse:fifteen-puzzle:best';
 /** Legacy key from the fixed 4×4 build — migrated on first read. */
 const LEGACY_BEST_KEY = 'clubhouse-fifteen-best';
 const DAILY_KEY = 'clubhouse:fifteen-puzzle:daily';
 const CAMPAIGN_KEY = 'clubhouse:fifteen-puzzle:campaign';
+const THEME_KEY = 'clubhouse:fifteen-puzzle:theme';
+const HEATMAP_KEY = 'clubhouse:fifteen-puzzle:heatmap';
+const MAX_SPS_KEY = 'clubhouse:fifteen-puzzle:max-sps';
 
 export type BestMap = Record<string, number>;
 
@@ -177,5 +180,66 @@ export function saveCampaignProgress(progress: CampaignProgress): void {
     localStorage.setItem(CAMPAIGN_KEY, JSON.stringify(progress));
   } catch {
     /* ignore */
+  }
+}
+
+// —— Workshop Settings & Speed Telemetry ——
+
+export function loadUserTheme(): ThemeId {
+  try {
+    const raw = localStorage.getItem(THEME_KEY);
+    if (raw === 'walnut' || raw === 'obsidian' || raw === 'cyber') return raw;
+  } catch {
+    /* ignore */
+  }
+  return 'walnut';
+}
+
+export function saveUserTheme(theme: ThemeId): void {
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadHeatmapEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem(HEATMAP_KEY);
+    if (raw !== null) return raw === 'true';
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+export function saveHeatmapEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(HEATMAP_KEY, String(enabled));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadMaxSps(): number {
+  try {
+    const raw = localStorage.getItem(MAX_SPS_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function saveMaxSps(sps: number): number {
+  try {
+    const prev = loadMaxSps();
+    if (sps > prev) {
+      localStorage.setItem(MAX_SPS_KEY, sps.toFixed(1));
+      return sps;
+    }
+    return prev;
+  } catch {
+    return sps;
   }
 }
