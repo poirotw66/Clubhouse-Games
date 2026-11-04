@@ -636,20 +636,24 @@
   }
   @media (max-width: 680px) {
     .wf-cockpit {
-      position: fixed; top: 48px; left: 0; right: 0; pointer-events: none;
-      display: flex; flex-direction: column; gap: 4px; padding: 4px 8px;
+      position: fixed; top: 44px; left: 0; right: 0; pointer-events: none;
+      display: flex; flex-direction: row; justify-content: space-between;
+      padding: 4px 8px; gap: 8px;
     }
     .wf-cockpit-wing {
-      position: static; width: auto; flex-direction: row; align-items: center; justify-content: space-between;
-      padding: 6px 10px; border-radius: 12px; gap: 8px;
+      position: static; flex: 1; flex-direction: row; align-items: center; justify-content: space-between;
+      padding: 4px 8px; border-radius: 10px; gap: 6px; max-height: 48px;
+      backdrop-filter: none; background: rgba(10, 14, 22, 0.88);
     }
-    .wf-wing-left, .wf-wing-right { width: 100%; }
-    .wf-adi-box { flex-direction: row; gap: 8px; }
-    .wf-adi-dial { width: 44px; height: 44px; }
+    .wf-wing-title-bar { display: none; }
+    .wf-adi-box { flex-direction: row; gap: 6px; align-items: center; }
+    .wf-adi-dial { width: 36px; height: 36px; }
     .wf-telemetry-grid { display: none; }
-    .wf-gmeter-box { padding: 2px 6px; }
+    .wf-gmeter-box { padding: 2px 4px; }
     .wf-stunt-tags { display: none; }
     .wf-cockpit-key-matrix { display: none; }
+    .wf-radar-hud { display: none; }
+    .wf-master-tip-box { display: none; }
   }
 </style>
 </head>
@@ -3551,6 +3555,37 @@ function camFits(dist) {
 }
 function updateCamera(dt) {
   const st = sim.state;
+  const isMobile = window.innerWidth <= 768 || camera.aspect < 1.0;
+
+  if (isMobile) {
+    // Mobile mode: keep car firmly focused in the middle of the screen
+    const targetLead = st.mode === 'road' ? 1.5 : (st.mode === 'air' ? Math.min(2.5, Math.max(-1.5, st.vx * 0.08)) : 0);
+    center.set(st.x + targetLead, st.y + 0.5, st.z || 0);
+
+    const k = camState.init ? Math.min(1, dt * 5.5) : 1;
+    camState.look.lerp(center, k);
+
+    // Comfortable mobile distance: prominent, detailed car in screen center
+    let targetDist = 18;
+    if (screen === 'result') {
+      targetDist = 14;
+    } else if (st.mode === 'road') {
+      targetDist = 17;
+    } else if (st.mode === 'air') {
+      const spd = Math.hypot(st.vx, st.vy);
+      targetDist = Math.min(28, 17 + spd * 0.2);
+    } else if (st.mode === 'crash') {
+      targetDist = 20;
+    }
+    camState.dist += (targetDist - camState.dist) * (camState.init ? Math.min(1, dt * 3.5) : 1);
+    camera.position.copy(camState.look).addScaledVector(camDir, camState.dist);
+    camera.lookAt(camState.look);
+    camera.updateMatrixWorld();
+    camState.init = true;
+    return;
+  }
+
+  // Desktop landscape mode: wide fit framing
   NDC.bottom = bottomBound();
   fitPts.length = 0;
   const add = (x, y, z = st.z) => fitPts.push(new THREE.Vector3(x, y, z));
@@ -3812,10 +3847,16 @@ function resize() {
   if (!w || !h) return;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(w, h, false);
-  const padH = Math.min(padShown ? el.pad.offsetHeight : 0, h / 2);
-  camera.aspect = w / (h + padH);
-  if (padH) camera.setViewOffset(w, h + padH, 0, padH, w, h);
-  else camera.clearViewOffset();
+  const isMobile = w <= 768 || w < h;
+  if (isMobile) {
+    camera.clearViewOffset();
+    camera.aspect = w / h;
+  } else {
+    const padH = Math.min(padShown ? el.pad.offsetHeight : 0, h / 2);
+    camera.aspect = w / (h + padH);
+    if (padH) camera.setViewOffset(w, h + padH, 0, padH, w, h);
+    else camera.clearViewOffset();
+  }
   camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stageEl);
