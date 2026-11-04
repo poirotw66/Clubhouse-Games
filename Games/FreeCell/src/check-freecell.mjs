@@ -26,10 +26,14 @@ import { modeKey, recordGameResult, winRate } from './utils/storage.ts';
 import { FC_FAN } from './layoutFan.mjs';
 import {
   evaluateTactics,
+  getAllSafeFoundationCards,
+  getSolutionRouteTelemetry,
   getSupermoveCapacity,
+  getTrappedKeyCards,
   LEGENDARY_DEALS,
   MASTER_TIPS,
 } from './utils/tactics.ts';
+import { getNextTheme, WORKSHOP_THEMES } from './utils/theme.ts';
 
 function card(suit, rank) {
   const color = suit === 'hearts' || suit === 'diamonds' ? 'red' : 'black';
@@ -343,6 +347,47 @@ function emptyState(overrides = {}) {
   assert.equal(MASTER_TIPS.length, 5);
 }
 
+// —— Safe Radar & Solution Route Telemetry ——
+{
+  const stateWithSafeCards = emptyState({
+    freeCells: [card('spades', 1), null, null, null],
+    tableaus: [
+      [card('hearts', 13), card('spades', 2)],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+    ],
+  });
+  const safeCards = getAllSafeFoundationCards(stateWithSafeCards, 4);
+  assert.ok(safeCards.length >= 1);
+  assert.equal(safeCards[0].card.suit, 'spades');
+  assert.equal(safeCards[0].card.rank, 1);
+
+  const trapped = getTrappedKeyCards(stateWithSafeCards);
+  assert.ok(Array.isArray(trapped));
+
+  const telemetry = getSolutionRouteTelemetry(stateWithSafeCards, 4);
+  assert.ok(telemetry.supermove);
+  assert.ok(telemetry.mobilityPercent >= 0);
+  assert.ok(telemetry.riskIndex >= 0);
+  assert.ok(typeof telemetry.recommendedRoute === 'string');
+  assert.ok(telemetry.recommendedRoute.length > 0);
+}
+
+// —— Luxury Workshop Themes ——
+{
+  assert.ok(WORKSHOP_THEMES['royal-velvet']);
+  assert.ok(WORKSHOP_THEMES['obsidian-gold']);
+  assert.ok(WORKSHOP_THEMES['cyber-neon']);
+  assert.equal(getNextTheme('royal-velvet'), 'obsidian-gold');
+  assert.equal(getNextTheme('obsidian-gold'), 'cyber-neon');
+  assert.equal(getNextTheme('cyber-neon'), 'royal-velvet');
+}
+
 // —— Strict Traditional Chinese compliance (Zero Simplified Chinese) ——
 {
   // Unicode escapes for common simplified Chinese characters to avoid raw SC in source code:
@@ -354,6 +399,10 @@ function emptyState(overrides = {}) {
   const filesToCheck = [
     fileURLToPath(new URL('./App.tsx', import.meta.url)),
     fileURLToPath(new URL('./utils/tactics.ts', import.meta.url)),
+    fileURLToPath(new URL('./utils/theme.ts', import.meta.url)),
+    fileURLToPath(new URL('./utils/soundEffects.ts', import.meta.url)),
+    fileURLToPath(new URL('./components/SupermoveWaveBanner.tsx', import.meta.url)),
+    fileURLToPath(new URL('./components/PlayingCard.tsx', import.meta.url)),
     fileURLToPath(new URL('./components/TacticalLeftWing.tsx', import.meta.url)),
     fileURLToPath(new URL('./components/TacticalRightWing.tsx', import.meta.url)),
     fileURLToPath(new URL('./components/TacticalMobileBar.tsx', import.meta.url)),

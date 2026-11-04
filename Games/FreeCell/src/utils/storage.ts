@@ -6,6 +6,7 @@
 import type { ChallengeId } from './challenges.ts';
 import type { DailyRecord } from './daily.ts';
 import type { PlayMode } from './scoring.ts';
+import type { WorkshopTheme } from './theme.ts';
 
 const STATS_KEY = 'clubhouse:freecell:stats:v2';
 const LEGACY_STATS_KEY = 'clubhouse-freecell-stats';
@@ -43,6 +44,8 @@ export interface FreeCellSettings {
   playDaily: boolean;
   difficulty: Difficulty;
   freeCellSlots: FreeCellSlots;
+  theme: WorkshopTheme;
+  soundEnabled: boolean;
 }
 
 function emptyMode(): ModeStats {
@@ -226,12 +229,18 @@ export function loadSettings(): FreeCellSettings {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<FreeCellSettings>;
+      const theme: WorkshopTheme =
+        parsed.theme === 'obsidian-gold' || parsed.theme === 'cyber-neon'
+          ? parsed.theme
+          : 'royal-velvet';
       return {
         playMode: parsed.playMode === 'timed' ? 'timed' : 'classic',
         autoMove: parsed.autoMove !== false,
         playDaily: Boolean(parsed.playDaily),
         difficulty: normalizeDifficulty(parsed.difficulty),
         freeCellSlots: parsed.freeCellSlots === 2 ? 2 : 4,
+        theme,
+        soundEnabled: parsed.soundEnabled !== false,
       };
     }
   } catch {
@@ -245,6 +254,8 @@ export function loadSettings(): FreeCellSettings {
     playDaily: false,
     difficulty: 'any',
     freeCellSlots: 4,
+    theme: 'royal-velvet',
+    soundEnabled: true,
   };
 }
 

@@ -3,20 +3,24 @@ import {
   AlertTriangle,
   Award,
   CheckCircle2,
+  Compass,
   Layers,
+  Radio,
+  ShieldAlert,
   Sparkles,
   Zap,
 } from 'lucide-react';
 import type { GameState, Suit } from '../types.ts';
 import type { FreeCellSlots } from '../utils/storage.ts';
+import type { WorkshopTheme } from '../utils/theme.ts';
 import {
-  evaluateTactics,
-  getSupermoveCapacity,
+  getSolutionRouteTelemetry,
 } from '../utils/tactics.ts';
 
 interface TacticalLeftWingProps {
   gameState: GameState;
   freeCellSlots: FreeCellSlots;
+  theme?: WorkshopTheme;
   onSafeAutoMove: () => void;
   disabled?: boolean;
 }
@@ -31,18 +35,19 @@ const SUIT_DATA: { suit: Suit; symbol: string; label: string; colorClass: string
 export const TacticalLeftWing: React.FC<TacticalLeftWingProps> = ({
   gameState,
   freeCellSlots,
+  theme = 'royal-velvet',
   onSafeAutoMove,
   disabled = false,
 }) => {
+  const telemetry = getSolutionRouteTelemetry(gameState, freeCellSlots);
+  const { supermove, assessment, safeCards, trappedKeyCards, riskIndex, riskLevel, riskLabel, recommendedRoute } = telemetry;
+
   const isSlotLocked = (idx: number) => freeCellSlots === 2 && idx >= 2;
   const emptyFreeCells = gameState.freeCells.filter(
     (c, idx) => c === null && !isSlotLocked(idx),
   ).length;
   const unlockedTotal = freeCellSlots === 2 ? 2 : 4;
   const emptyTableaus = gameState.tableaus.filter((col) => col.length === 0).length;
-
-  const supermove = getSupermoveCapacity(emptyFreeCells, emptyTableaus);
-  const tactics = evaluateTactics(gameState, freeCellSlots);
 
   const totalReclaimed =
     gameState.foundations.spades +
@@ -51,81 +56,90 @@ export const TacticalLeftWing: React.FC<TacticalLeftWingProps> = ({
     gameState.foundations.clubs;
   const foundationPct = Math.round((totalReclaimed / 52) * 100);
 
-  const statusBadgeTheme = {
-    ultra: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    high: 'bg-sky-100 text-sky-800 border-sky-200',
-    dual: 'bg-amber-100 text-amber-800 border-amber-200',
-    single: 'bg-rose-100 text-rose-800 border-rose-200',
-  }[supermove.statusLevel];
+  const containerTheme = {
+    'royal-velvet': 'bg-emerald-950/80 border-emerald-700/40 text-emerald-100 shadow-[0_8px_32px_rgba(0,0,0,0.5)]',
+    'obsidian-gold': 'bg-neutral-950/85 border-amber-500/35 text-amber-100 shadow-[0_8px_32px_rgba(0,0,0,0.65)]',
+    'cyber-neon': 'bg-slate-950/85 border-cyan-500/40 text-cyan-100 shadow-[0_8px_32px_rgba(6,182,212,0.25)]',
+  }[theme];
 
-  const radarBg = {
-    deadlock: 'bg-rose-50 border-rose-200 text-rose-800',
-    critical: 'bg-amber-50 border-amber-200 text-amber-800',
-    safe_ready: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-    fluid: 'bg-sky-50 border-sky-200 text-sky-800',
-  }[tactics.mobilityLevel];
+  const cardPanelTheme = {
+    'royal-velvet': 'bg-emerald-900/60 border-emerald-700/40 text-emerald-100',
+    'obsidian-gold': 'bg-neutral-900/80 border-amber-600/30 text-amber-100',
+    'cyber-neon': 'bg-slate-900/75 border-cyan-600/35 text-cyan-100',
+  }[theme];
+
+  const subBoxTheme = {
+    'royal-velvet': 'bg-emerald-950/60 border-emerald-800/40 text-emerald-200',
+    'obsidian-gold': 'bg-neutral-950/70 border-amber-700/30 text-amber-200',
+    'cyber-neon': 'bg-slate-950/70 border-cyan-700/40 text-cyan-200',
+  }[theme];
+
+  const riskColor = {
+    low: 'text-emerald-400 bg-emerald-950/80 border-emerald-500/40',
+    medium: 'text-amber-400 bg-amber-950/80 border-amber-500/40',
+    high: 'text-orange-400 bg-orange-950/80 border-orange-500/40',
+    critical: 'text-rose-400 bg-rose-950/80 border-rose-500/40 animate-pulse',
+  }[riskLevel];
 
   return (
     <aside
       aria-label="戰術動能儀表板"
-      className="flex flex-col gap-3.5 w-full bg-white/90 backdrop-blur-md rounded-2xl border border-stone-200/90 shadow-sm p-4 text-stone-800 transition-all select-none"
+      className={`flex flex-col gap-3.5 w-full rounded-2xl border backdrop-blur-md p-4 transition-all select-none ${containerTheme}`}
     >
       {/* Cockpit Header */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-stone-100">
+      <div className="flex items-center justify-between pb-2.5 border-b border-white/10">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600">
+          <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
             <Zap size={18} className="animate-pulse" />
           </div>
           <div>
-            <h2 className="text-sm font-bold tracking-tight text-stone-900">戰術動能儀</h2>
-            <p className="text-[11px] text-stone-400">Supermove 即時計算法則</p>
+            <h2 className="text-sm font-bold tracking-tight">戰術動能儀</h2>
+            <p className="text-[11px] opacity-70">Supermove 即時計算法則</p>
           </div>
         </div>
-        <span
-          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${statusBadgeTheme}`}
-        >
+        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-white/10 border-white/20">
           {supermove.statusLabel}
         </span>
       </div>
 
       {/* Supermove Capacity Engine */}
-      <div className="rounded-xl bg-stone-50/90 border border-stone-200/80 p-3 flex flex-col gap-2">
+      <div className={`rounded-xl border p-3 flex flex-col gap-2 ${cardPanelTheme}`}>
         <div className="flex items-baseline justify-between">
-          <span className="text-xs font-medium text-stone-500">連鎖移牌上限</span>
+          <span className="text-xs font-medium opacity-80">連鎖移牌上限</span>
           <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-black tabular-nums text-stone-900">
+            <span className="text-2xl font-black tabular-nums text-amber-400">
               {supermove.capacityToTableau}
             </span>
-            <span className="text-xs font-semibold text-stone-500">張一串</span>
+            <span className="text-xs font-semibold opacity-80">張一串</span>
           </div>
         </div>
 
         {/* Dynamic Formula Display */}
-        <div className="bg-white rounded-lg px-2.5 py-1.5 border border-stone-200 text-center font-mono text-[11px] text-stone-700 tabular-nums">
-          <span className="text-stone-400 mr-1.5">(1 + 空格) × 2^空列:</span>
-          <span className="font-bold text-amber-700">
+        <div className={`rounded-lg px-2.5 py-1.5 border text-center font-mono text-[11px] tabular-nums ${subBoxTheme}`}>
+          <span className="opacity-70 mr-1.5">(1 + 空格) × 2^空列:</span>
+          <span className="font-bold text-amber-400">
             (1 + {emptyFreeCells}) × 2^{emptyTableaus} = {supermove.capacityToTableau}
           </span>
         </div>
 
         {/* Tactical Sub-metrics */}
         <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
-          <div className="bg-white rounded-md p-1.5 border border-stone-150 flex flex-col">
-            <span className="text-stone-400">移至空列上限</span>
-            <span className="font-semibold text-stone-800 tabular-nums">
+          <div className={`rounded-md p-1.5 border flex flex-col ${subBoxTheme}`}>
+            <span className="opacity-70">移至空列上限</span>
+            <span className="font-semibold tabular-nums">
               {supermove.capacityToEmptyTableau} 張
             </span>
           </div>
-          <div className="bg-white rounded-md p-1.5 border border-stone-150 flex flex-col">
-            <span className="text-stone-400">空置暫存格</span>
-            <span className="font-semibold text-stone-800 tabular-nums">
+          <div className={`rounded-md p-1.5 border flex flex-col ${subBoxTheme}`}>
+            <span className="opacity-70">空置暫存格</span>
+            <span className="font-semibold tabular-nums">
               {emptyFreeCells} / {unlockedTotal} 格
             </span>
           </div>
-          <div className="bg-white rounded-md p-1.5 border border-stone-150 flex flex-col col-span-2">
+          <div className={`rounded-md p-1.5 border flex flex-col col-span-2 ${subBoxTheme}`}>
             <div className="flex justify-between items-center">
-              <span className="text-stone-400">可用空牌列</span>
-              <span className="font-semibold text-stone-800 tabular-nums">
+              <span className="opacity-70">可用空牌列</span>
+              <span className="font-semibold tabular-nums">
                 {emptyTableaus} / 8 列（{emptyTableaus > 0 ? `動能放大 ${Math.pow(2, emptyTableaus)} 倍` : '無倍增'}）
               </span>
             </div>
@@ -133,45 +147,92 @@ export const TacticalLeftWing: React.FC<TacticalLeftWingProps> = ({
         </div>
       </div>
 
-      {/* Foundation Balance Scale */}
-      <div className="rounded-xl bg-stone-50/90 border border-stone-200/80 p-3 flex flex-col gap-2.5">
+      {/* Solution Route & Dead-End Risk Telemetry */}
+      <div className={`rounded-xl border p-3 flex flex-col gap-2 ${cardPanelTheme}`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-stone-700">
-            <Award size={15} className="text-stone-500" />
+          <div className="flex items-center gap-1.5 text-xs font-medium">
+            <Radio size={15} className="text-sky-400 animate-pulse" />
+            <span>局勢遙測與死局預警</span>
+          </div>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${riskColor}`}>
+            {riskLabel} ({riskIndex}%)
+          </span>
+        </div>
+
+        {/* Risk meter bar */}
+        <div className="w-full h-1.5 rounded-full bg-black/40 overflow-hidden">
+          <div
+            className={`h-full transition-all duration-300 ${
+              riskIndex >= 80 ? 'bg-rose-500' : riskIndex >= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+            }`}
+            style={{ width: `${riskIndex}%` }}
+          />
+        </div>
+
+        {/* Tactical Route Guidance */}
+        <div className={`rounded-lg p-2 border text-xs leading-relaxed flex items-start gap-1.5 ${subBoxTheme}`}>
+          <Compass size={14} className="shrink-0 mt-0.5 text-amber-400" />
+          <span>{recommendedRoute}</span>
+        </div>
+
+        {/* Trapped Key Cards Tracker */}
+        {trappedKeyCards.length > 0 && (
+          <div className="flex flex-col gap-1 pt-1 text-[11px]">
+            <span className="text-[10px] opacity-70">深埋關鍵牌預警（A 與 2）：</span>
+            <div className="flex flex-wrap gap-1">
+              {trappedKeyCards.slice(0, 3).map((item, idx) => (
+                <span
+                  key={idx}
+                  className="px-1.5 py-0.5 rounded bg-black/30 border border-white/10 text-[10px] tabular-nums"
+                >
+                  {item.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Foundation Balance Scale */}
+      <div className={`rounded-xl border p-3 flex flex-col gap-2.5 ${cardPanelTheme}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-medium">
+            <Award size={15} className="text-amber-400" />
             <span>回收進度天秤</span>
           </div>
-          <span className="text-xs font-bold tabular-nums text-stone-900">
-            {totalReclaimed} / 52 <span className="text-stone-400 text-[11px]">({foundationPct}%)</span>
+          <span className="text-xs font-bold tabular-nums">
+            {totalReclaimed} / 52 <span className="opacity-70 text-[11px]">({foundationPct}%)</span>
           </span>
         </div>
 
         {/* Global Progress Bar */}
-        <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
+        <div className="w-full h-2 rounded-full bg-black/40 overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-amber-500 via-rose-500 to-emerald-600 transition-all duration-300"
+            className="h-full bg-gradient-to-r from-amber-500 via-rose-500 to-emerald-500 transition-all duration-300"
             style={{ width: `${foundationPct}%` }}
           />
         </div>
 
         {/* 4 Suits Breakdown */}
         <div className="grid grid-cols-2 gap-1.5">
-          {SUIT_DATA.map(({ suit, symbol, label, colorClass, barClass }) => {
+          {SUIT_DATA.map(({ suit, symbol, label, barClass }) => {
             const rank = gameState.foundations[suit];
             const pct = Math.round((rank / 13) * 100);
+            const isRed = suit === 'hearts' || suit === 'diamonds';
             return (
               <div
                 key={suit}
-                className="bg-white rounded-lg p-1.5 border border-stone-200 flex flex-col gap-1"
+                className={`rounded-lg p-1.5 border flex flex-col gap-1 ${subBoxTheme}`}
               >
                 <div className="flex items-center justify-between text-xs">
-                  <span className={`font-serif font-bold ${colorClass}`}>
+                  <span className={`font-serif font-bold ${isRed ? 'text-rose-400' : 'text-stone-200'}`}>
                     {symbol} {label}
                   </span>
-                  <span className="text-[11px] font-semibold tabular-nums text-stone-700">
+                  <span className="text-[11px] font-semibold tabular-nums opacity-85">
                     {rank} / 13
                   </span>
                 </div>
-                <div className="w-full h-1 rounded-full bg-stone-100 overflow-hidden">
+                <div className="w-full h-1 rounded-full bg-black/30 overflow-hidden">
                   <div
                     className={`h-full ${barClass} transition-all duration-300`}
                     style={{ width: `${pct}%` }}
@@ -183,18 +244,20 @@ export const TacticalLeftWing: React.FC<TacticalLeftWingProps> = ({
         </div>
       </div>
 
-      {/* Tactical Radar & Situational Alert */}
-      <div className={`rounded-xl border p-3 flex flex-col gap-2 ${radarBg}`}>
+      {/* Safe Auto-Move Radar Action */}
+      <div className={`rounded-xl border p-3 flex flex-col gap-2 ${cardPanelTheme}`}>
         <div className="flex items-start gap-2">
-          {tactics.mobilityLevel === 'deadlock' ? (
-            <AlertTriangle size={16} className="text-rose-600 shrink-0 mt-0.5" />
-          ) : tactics.mobilityLevel === 'safe_ready' ? (
-            <Sparkles size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+          {assessment.mobilityLevel === 'deadlock' ? (
+            <AlertTriangle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+          ) : safeCards.length > 0 ? (
+            <Sparkles size={16} className="text-emerald-400 shrink-0 mt-0.5 animate-pulse" />
           ) : (
-            <CheckCircle2 size={16} className="text-sky-600 shrink-0 mt-0.5" />
+            <CheckCircle2 size={16} className="text-sky-400 shrink-0 mt-0.5" />
           )}
           <div className="text-xs leading-relaxed font-medium">
-            {tactics.message}
+            {safeCards.length > 0
+              ? `安全雷達鎖定：偵測到 ${safeCards.length} 張牌可絕對安全收牌`
+              : assessment.message}
           </div>
         </div>
 
@@ -202,29 +265,30 @@ export const TacticalLeftWing: React.FC<TacticalLeftWingProps> = ({
         <button
           type="button"
           onClick={onSafeAutoMove}
-          disabled={disabled || !tactics.hasSafeFoundationMove}
+          disabled={disabled || safeCards.length === 0}
           className={`mt-1 w-full min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm touch-manipulation ${
-            tactics.hasSafeFoundationMove && !disabled
-              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer ring-2 ring-emerald-400/40 animate-pulse'
-              : 'bg-stone-200/70 text-stone-400 cursor-not-allowed'
+            safeCards.length > 0 && !disabled
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer ring-2 ring-emerald-400/50 animate-pulse shadow-[0_0_16px_rgba(16,185,129,0.4)]'
+              : 'bg-white/10 text-white/30 cursor-not-allowed border border-white/5'
           }`}
           title="自動將所有符合安全條件的卡牌移至回收區（快捷鍵 A）"
         >
           <Layers size={14} />
-          <span>一鍵安全收牌</span>
-          <kbd className="ml-1 px-1 py-0.2 rounded bg-black/20 text-[10px] font-mono">A</kbd>
+          <span>一鍵安全收牌 {safeCards.length > 0 ? `(${safeCards.length})` : ''}</span>
+          <kbd className="ml-1 px-1 py-0.2 rounded bg-black/30 text-[10px] font-mono">A</kbd>
         </button>
       </div>
 
       {/* Quick Keyboard Cue Footer */}
-      <div className="pt-1 text-[11px] text-stone-500 flex flex-wrap items-center justify-between gap-1 border-t border-stone-100">
+      <div className="pt-1 text-[11px] opacity-70 flex flex-wrap items-center justify-between gap-1 border-t border-white/10">
         <span>實體快捷</span>
         <div className="flex gap-1.5 font-mono text-[10px]">
-          <span className="bg-stone-100 px-1 rounded border border-stone-200">1~8</span>
-          <span className="bg-stone-100 px-1 rounded border border-stone-200">QWER</span>
-          <span className="bg-stone-100 px-1 rounded border border-stone-200">A</span>
-          <span className="bg-stone-100 px-1 rounded border border-stone-200">H</span>
-          <span className="bg-stone-100 px-1 rounded border border-stone-200">Z</span>
+          <span className="bg-white/10 px-1 rounded border border-white/15">1~8</span>
+          <span className="bg-white/10 px-1 rounded border border-white/15">QWER</span>
+          <span className="bg-white/10 px-1 rounded border border-white/15">A</span>
+          <span className="bg-white/10 px-1 rounded border border-white/15">T</span>
+          <span className="bg-white/10 px-1 rounded border border-white/15">M</span>
+          <span className="bg-white/10 px-1 rounded border border-white/15">Z</span>
         </div>
       </div>
     </aside>

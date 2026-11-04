@@ -67,6 +67,32 @@
   animation: freecell-cascade-fall 1.6s ease-in forwards;
 }
 
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+@keyframes supermove-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.7);
+  }
+}
+
+.animate-supermove-glow {
+  animation: supermove-glow 1.5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .freecell-cascade-card {
     animation: none;

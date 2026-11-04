@@ -18,9 +18,12 @@ import {
   Keyboard,
   Lightbulb,
   Loader2,
+  Palette,
   RefreshCw,
   RotateCcw,
   Undo2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { PlayingCard } from './components/PlayingCard';
 import { RulesModal } from './components/RulesModal';
@@ -31,6 +34,18 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { TacticalLeftWing } from './components/TacticalLeftWing';
 import { TacticalRightWing } from './components/TacticalRightWing';
 import { TacticalMobileBar } from './components/TacticalMobileBar';
+import { SupermoveWaveBanner } from './components/SupermoveWaveBanner';
+import { WORKSHOP_THEMES, getNextTheme, type WorkshopTheme } from './utils/theme';
+import {
+  playCardGlide,
+  playCardSnap,
+  playFoundationBell,
+  playRadarPulse,
+  playSupermoveWave,
+  playUndoSound,
+  playVictoryFanfare,
+  setSoundEnabled as setSoundEffectsEnabled,
+} from './utils/soundEffects';
 import type { Card, GameState, Position, Suit } from './types';
 import { dealDaily, dealForDifficulty, dealGame, rateDeal, SUITS } from './utils/deck';
 import {
@@ -157,6 +172,7 @@ export default function App() {
     null,
   );
   const [flights, setFlights] = useState<FlyCard[]>([]);
+  const [supermoveWaveCount, setSupermoveWaveCount] = useState<number | null>(null);
   const [clearedThisWin, setClearedThisWin] = useState<ChallengeId[]>([]);
   const [resultRecorded, setResultRecorded] = useState(false);
 
@@ -211,6 +227,39 @@ export default function App() {
     // Intentionally keyed only on dealSeed — rate the layout that was just dealt.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealSeed]);
+
+  useEffect(() => {
+    setSoundEffectsEnabled(settings.soundEnabled);
+  }, [settings.soundEnabled]);
+
+  const handleCycleTheme = useCallback(() => {
+    setSettings((prev) => {
+      const nextTheme = getNextTheme(prev.theme);
+      const updated = { ...prev, theme: nextTheme };
+      saveSettings(updated);
+      setFlash({
+        text: WORKSHOP_THEMES[nextTheme].name,
+        tone: 'good',
+        key: Date.now(),
+      });
+      return updated;
+    });
+  }, []);
+
+  const handleToggleSound = useCallback(() => {
+    setSettings((prev) => {
+      const nextSound = !prev.soundEnabled;
+      const updated = { ...prev, soundEnabled: nextSound };
+      saveSettings(updated);
+      setSoundEffectsEnabled(nextSound);
+      setFlash({
+        text: nextSound ? '音效已開啟' : '音效已靜音',
+        tone: nextSound ? 'good' : 'bad',
+        key: Date.now(),
+      });
+      return updated;
+    });
+  }, []);
 
   const bumpScore = useCallback((delta: number) => {
     if (delta === 0) return;
@@ -371,6 +420,12 @@ export default function App() {
     const toFoundation = dest.zone === 'foundation';
     const card = resolveCardAt(gameState, source);
 
+    const movingCards =
+      source.zone === 'tableau' && source.cardIndex != null
+        ? gameState.tableaus[source.index].slice(source.cardIndex)
+        : [];
+    const isSupermove = movingCards.length >= 2;
+
     if (toFoundation && card && sourceEl) {
       const suitIndex = SUITS.indexOf(card.suit);
       if (suitIndex >= 0) spawnFlyToFoundation(card, suitIndex, sourceEl);
@@ -396,7 +451,13 @@ export default function App() {
     if (toFoundation) {
       bumpScore(pointsToFoundation());
       playScore();
+      if (card) playFoundationBell(card.rank);
+    } else if (isSupermove) {
+      setSupermoveWaveCount(movingCards.length);
+      playSupermoveWave(movingCards.length);
     } else {
+      playCardGlide();
+      playCardSnap();
       playCard();
       playMove();
     }
@@ -404,6 +465,7 @@ export default function App() {
 
   const undo = () => {
     if (inputLocked) return;
+    playUndoSound();
     clearHint();
     setGameState((prev) => {
       if (prev.history.length === 0) return prev;
@@ -452,6 +514,7 @@ export default function App() {
     if (inputLocked) return;
     const safeMove = getSafeFoundationMoves(gameState);
     if (safeMove) {
+      playRadarPulse();
       const card = resolveCardAt(gameState, safeMove.source);
       if (card) {
         const suitIdx = SUITS.indexOf(card.suit);
@@ -657,7 +720,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (hasWon && !prevWonRef.current) playWin();
+    if (hasWon && !prevWonRef.current) {
+      playWin();
+      playVictoryFanfare();
+    }
     if ((hasLost || timedOut) && !prevLostRef.current && !hasWon) playError();
     prevWonRef.current = hasWon;
     prevLostRef.current = hasLost || timedOut;
@@ -986,6 +1052,18 @@ export default function App() {
         return;
       }
 
+      if (keyLower === 't') {
+        e.preventDefault();
+        handleCycleTheme();
+        return;
+      }
+
+      if (keyLower === 'm') {
+        e.preventDefault();
+        handleToggleSound();
+        return;
+      }
+
       if (keyLower === 'n') {
         e.preventDefault();
         startNewGame();
@@ -1010,6 +1088,8 @@ export default function App() {
     isStatsOpen,
     freeCellSlots,
     triggerSafeAutoMove,
+    handleCycleTheme,
+    handleToggleSound,
     startNewGame,
   ]);
 
@@ -1020,16 +1100,12 @@ export default function App() {
     clubs: '♣',
   };
 
+  const activeTheme = WORKSHOP_THEMES[settings.theme] ?? WORKSHOP_THEMES['royal-velvet'];
+
   return (
     <div
-      className="min-h-screen text-stone-800 p-2 pt-14 sm:p-4 sm:pt-16 md:p-8 md:pt-14 font-sans select-none overflow-x-hidden bg-cover bg-center"
-      style={{
-        backgroundColor: '#FDFCF8',
-        backgroundImage: [
-          'linear-gradient(rgba(253,252,248,0.88), rgba(253,252,248,0.94))',
-          `url(${import.meta.env.BASE_URL}table-bg.jpg)`,
-        ].join(', '),
-      }}
+      className={`min-h-screen p-2 pt-14 sm:p-4 sm:pt-16 md:p-8 md:pt-14 font-sans select-none overflow-x-hidden bg-cover bg-center transition-colors duration-300 ${activeTheme.bgClass}`}
+      style={activeTheme.feltStyle}
     >
       <BackToMenu />
       <div className="max-w-[1720px] mx-auto relative">
@@ -1044,12 +1120,25 @@ export default function App() {
           </div>
         )}
 
+        {supermoveWaveCount !== null && (
+          <SupermoveWaveBanner
+            waveCount={supermoveWaveCount}
+            theme={settings.theme}
+            onDismiss={() => setSupermoveWaveCount(null)}
+          />
+        )}
+
         <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight text-stone-900">
-              空當接龍
-            </h1>
-            <p className="text-sm text-stone-500 mt-1 tabular-nums">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight">
+                空當接龍
+              </h1>
+              <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border backdrop-blur-md opacity-90 border-white/20 bg-white/10">
+                {activeTheme.name}
+              </span>
+            </div>
+            <p className="text-sm mt-1 tabular-nums opacity-80">
               分數 {score}
               {' · '}
               {scoreSummaryLabel(parMoves, moveCount)}
@@ -1060,7 +1149,7 @@ export default function App() {
                 ? `剩餘 ${formatTime(Math.max(0, TIMED_LIMIT_SEC - elapsedSec))}`
                 : `時間 ${formatTime(elapsedSec)}`}
             </p>
-            <p className="text-xs text-stone-400 mt-0.5 tabular-nums">
+            <p className="text-xs mt-0.5 tabular-nums opacity-65">
               局號 {dealSeed}
               {' · '}
               {difficultyLabel(dealDifficulty)}
@@ -1073,6 +1162,33 @@ export default function App() {
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3 items-center">
+            {/* Luxury Workshop Theme & Audio Switcher */}
+            <div className="flex rounded-full overflow-hidden border border-white/20 bg-black/30 backdrop-blur-md shadow-sm">
+              <button
+                type="button"
+                onClick={handleCycleTheme}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-semibold transition-colors hover:bg-white/15 touch-manipulation cursor-pointer text-amber-300"
+                title="循環切換三大奢華工坊主題（快捷鍵 T）"
+              >
+                <Palette size={15} className="text-amber-400" />
+                <span>{activeTheme.name}</span>
+                <kbd className="hidden md:inline px-1.5 py-0.2 rounded bg-white/10 text-[10px] font-mono text-white/70">T</kbd>
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleSound}
+                className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm font-semibold transition-colors hover:bg-white/15 border-l border-white/15 touch-manipulation cursor-pointer text-white"
+                title={settings.soundEnabled ? '音效已開啟（快捷鍵 M 靜音）' : '已靜音（快捷鍵 M 開啟）'}
+              >
+                {settings.soundEnabled ? (
+                  <Volume2 size={15} className="text-emerald-400" />
+                ) : (
+                  <VolumeX size={15} className="opacity-40" />
+                )}
+                <span className="hidden sm:inline">{settings.soundEnabled ? '音效' : '靜音'}</span>
+                <kbd className="hidden md:inline px-1.5 py-0.2 rounded bg-white/10 text-[10px] font-mono text-white/70">M</kbd>
+              </button>
+            </div>
             <div className="flex rounded-full overflow-hidden border border-stone-200 bg-white shadow-sm">
               <button
                 type="button"
@@ -1336,6 +1452,10 @@ export default function App() {
         <TacticalMobileBar
           gameState={gameState}
           freeCellSlots={freeCellSlots}
+          theme={settings.theme}
+          soundEnabled={settings.soundEnabled}
+          onToggleTheme={handleCycleTheme}
+          onToggleSound={handleToggleSound}
           currentSeed={dealSeed}
           onSelectDeal={handleSelectDeal}
           onSafeAutoMove={triggerSafeAutoMove}
@@ -1349,6 +1469,7 @@ export default function App() {
             <TacticalLeftWing
               gameState={gameState}
               freeCellSlots={freeCellSlots}
+              theme={settings.theme}
               onSafeAutoMove={triggerSafeAutoMove}
               disabled={inputLocked}
             />
@@ -1381,6 +1502,7 @@ export default function App() {
                       <PlayingCard
                         card={locked ? null : card}
                         placeholder={locked ? '鎖' : undefined}
+                        theme={settings.theme}
                         isSelected={!locked && selectedPos?.zone === 'freeCell' && selectedPos.index === i}
                         isSelectable={!locked && !!card}
                         isHinted={
@@ -1435,6 +1557,7 @@ export default function App() {
                       <PlayingCard
                         card={card}
                         placeholder={suitSymbols[suit]}
+                        theme={settings.theme}
                         isHinted={isDestHinted(pos)}
                         onClick={() =>
                           handleCardClick(pos, false, foundationRefs.current[i] ?? undefined)
@@ -1466,6 +1589,7 @@ export default function App() {
                   {col.length === 0 ? (
                     <PlayingCard
                       card={null}
+                      theme={settings.theme}
                       isHinted={isDestHinted({ zone: 'tableau', index: colIndex })}
                       onClick={() =>
                         handleCardClick({ zone: 'tableau', index: colIndex, cardIndex: 0 }, false)
@@ -1490,6 +1614,10 @@ export default function App() {
                         cardIndex,
                       };
                       const isLast = cardIndex === col.length - 1;
+                      const seqLength = isSelected && selectedPos?.cardIndex != null ? col.length - selectedPos.cardIndex : 1;
+                      const waveIndex = isSelected && selectedPos?.cardIndex != null ? cardIndex - selectedPos.cardIndex : undefined;
+                      const waveTotal = isSelected && seqLength > 1 ? seqLength : undefined;
+
                       return (
                         <div
                           key={card.id}
@@ -1507,6 +1635,9 @@ export default function App() {
                             card={card}
                             isSelected={isSelected}
                             isSelectable={isSelectable}
+                            theme={settings.theme}
+                            waveIndex={waveIndex}
+                            waveTotal={waveTotal}
                             isHinted={
                               isSourceHinted(pos, cardIndex) ||
                               (isLast && isDestHinted({ zone: 'tableau', index: colIndex }))
@@ -1535,6 +1666,7 @@ export default function App() {
           <div className="hidden xl:block w-72 shrink-0 sticky top-4">
             <TacticalRightWing
               currentSeed={dealSeed}
+              theme={settings.theme}
               onSelectDeal={handleSelectDeal}
               disabled={inputLocked}
             />

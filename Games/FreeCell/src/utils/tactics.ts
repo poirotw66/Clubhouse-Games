@@ -1,4 +1,4 @@
-import type { GameState, Position } from '../types.ts';
+import type { GameState, Position, Suit } from '../types.ts';
 import type { FreeCellSlots } from './storage.ts';
 import { canMove, getSafeFoundationMoves, isValidSequence } from './gameLogic.ts';
 
@@ -145,6 +145,218 @@ export function evaluateTactics(
     hasSafeFoundationMove,
     mobilityLevel: 'fluid',
     message: `動能充裕：有 ${legalMovesCount} 種可行移動，穩步推進中`,
+  };
+}
+
+export interface SafeCardItem {
+  card: { id: string; suit: Suit; rank: number; color: 'red' | 'black' };
+  source: Position;
+  label: string;
+}
+
+export interface TrappedKeyCard {
+  suit: Suit;
+  rank: number;
+  columnIndex: number;
+  depth: number;
+  symbol: string;
+  label: string;
+}
+
+export interface SolutionRouteTelemetry {
+  supermove: SupermoveCapacity;
+  assessment: TacticalAssessment;
+  safeCards: SafeCardItem[];
+  trappedKeyCards: TrappedKeyCard[];
+  mobilityPercent: number;
+  riskIndex: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  riskLabel: string;
+  recommendedRoute: string;
+}
+
+const SUIT_GLYPHS: Record<Suit, string> = {
+  spades: '♠',
+  hearts: '♥',
+  diamonds: '♦',
+  clubs: '♣',
+};
+
+const SUIT_NAMES: Record<Suit, string> = {
+  spades: '黑桃',
+  hearts: '紅心',
+  diamonds: '方塊',
+  clubs: '梅花',
+};
+
+export function getAllSafeFoundationCards(
+  state: GameState,
+  freeCellSlots: FreeCellSlots = 4,
+): SafeCardItem[] {
+  const isSlotLocked = (idx: number) => freeCellSlots === 2 && idx >= 2;
+  const safeList: SafeCardItem[] = [];
+
+  const getMinOppositeRank = (color: 'red' | 'black') => {
+    if (color === 'red') {
+      return Math.min(state.foundations.spades, state.foundations.clubs);
+    } else {
+      return Math.min(state.foundations.hearts, state.foundations.diamonds);
+    }
+  };
+
+  const isSafe = (card: { suit: Suit; rank: number; color: 'red' | 'black' }) => {
+    if (card.rank === state.foundations[card.suit] + 1) {
+      return card.rank <= getMinOppositeRank(card.color) + 1 || card.rank <= 2;
+    }
+    return false;
+  };
+
+  // Check free cells
+  for (let i = 0; i < 4; i++) {
+    if (isSlotLocked(i)) continue;
+    const card = state.freeCells[i];
+    if (card && isSafe(card)) {
+      safeList.push({
+        card,
+        source: { zone: 'freeCell', index: i },
+        label: `暫存${i + 1} ${SUIT_GLYPHS[card.suit]}${card.rank === 1 ? 'A' : card.rank}`,
+      });
+    }
+  }
+
+  // Check tableau tops
+  for (let t = 0; t < 8; t++) {
+    const col = state.tableaus[t];
+    if (!col || col.length === 0) continue;
+    const topIdx = col.length - 1;
+    const topCard = col[topIdx];
+    if (topCard && isSafe(topCard)) {
+      safeList.push({
+        card: topCard,
+        source: { zone: 'tableau', index: t, cardIndex: topIdx },
+        label: `第${t + 1}列 ${SUIT_GLYPHS[topCard.suit]}${topCard.rank === 1 ? 'A' : topCard.rank}`,
+      });
+    }
+  }
+
+  return safeList;
+}
+
+export function getTrappedKeyCards(state: GameState): TrappedKeyCard[] {
+  const trapped: TrappedKeyCard[] = [];
+  const suits: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
+
+  for (const suit of suits) {
+    const targetRanks = [1, 2].filter((r) => state.foundations[suit] < r);
+    for (const rank of targetRanks) {
+      for (let t = 0; t < 8; t++) {
+        const col = state.tableaus[t];
+        if (!col) continue;
+        const cardIndex = col.findIndex((c) => c.suit === suit && c.rank === rank);
+        if (cardIndex >= 0) {
+          const depth = col.length - 1 - cardIndex;
+          if (depth > 0) {
+            trapped.push({
+              suit,
+              rank,
+              columnIndex: t,
+              depth,
+              symbol: SUIT_GLYPHS[suit],
+              label: `${SUIT_NAMES[suit]} ${rank === 1 ? 'A' : '2'}（列${t + 1} 壓 ${depth} 張）`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return trapped.sort((a, b) => b.depth - a.depth);
+}
+
+export function getSolutionRouteTelemetry(
+  state: GameState,
+  freeCellSlots: FreeCellSlots = 4,
+): SolutionRouteTelemetry {
+  const isSlotLocked = (idx: number) => freeCellSlots === 2 && idx >= 2;
+  const emptyFreeCells = state.freeCells.filter(
+    (c, idx) => c === null && !isSlotLocked(idx),
+  ).length;
+  const emptyTableaus = state.tableaus.filter((col) => col.length === 0).length;
+
+  const supermove = getSupermoveCapacity(emptyFreeCells, emptyTableaus);
+  const assessment = evaluateTactics(state, freeCellSlots);
+  const safeCards = getAllSafeFoundationCards(state, freeCellSlots);
+  const trappedKeyCards = getTrappedKeyCards(state);
+
+  // Mobility percentage: baseline calibrated to 10 moves = 100%
+  const mobilityPercent = Math.min(100, Math.round((assessment.legalMovesCount / 10) * 100));
+
+  // Risk computation
+  let riskIndex = 15;
+  if (assessment.mobilityLevel === 'deadlock') {
+    riskIndex = 100;
+  } else if (assessment.mobilityLevel === 'critical') {
+    riskIndex = 80;
+  } else {
+    if (emptyFreeCells === 0) riskIndex += 35;
+    else if (emptyFreeCells === 1) riskIndex += 18;
+
+    if (emptyTableaus === 0) riskIndex += 20;
+
+    const severeTrapped = trappedKeyCards.filter((t) => t.depth >= 4).length;
+    riskIndex += severeTrapped * 6;
+  }
+  riskIndex = Math.min(100, Math.max(5, riskIndex));
+
+  let riskLevel: SolutionRouteTelemetry['riskLevel'] = 'low';
+  let riskLabel = '暢行無阻';
+  if (riskIndex >= 85) {
+    riskLevel = 'critical';
+    riskLabel = '極限險局';
+  } else if (riskIndex >= 60) {
+    riskLevel = 'high';
+    riskLabel = '空間緊縮';
+  } else if (riskIndex >= 35) {
+    riskLevel = 'medium';
+    riskLabel = '謹慎借位';
+  }
+
+  // Recommended route
+  let recommendedRoute = '穩步推進：尋找長串交替接牌機會';
+  if (assessment.mobilityLevel === 'deadlock') {
+    recommendedRoute = '死局警報：無合法步數，請按 Z 悔棋';
+  } else if (safeCards.length > 0) {
+    recommendedRoute = `安全雷達：可直收 ${safeCards.length} 張牌至回收區（按 A 一鍵收牌）`;
+  } else if (emptyTableaus === 0) {
+    // Find column closest to being cleared
+    let minColIdx = -1;
+    let minLen = 999;
+    state.tableaus.forEach((col, idx) => {
+      if (col.length > 0 && col.length < minLen) {
+        minLen = col.length;
+        minColIdx = idx;
+      }
+    });
+    if (minColIdx >= 0 && minLen <= 3) {
+      recommendedRoute = `空列倍增：優先清空第 ${minColIdx + 1} 列（僅剩 ${minLen} 張），解鎖 2 倍 Supermove 連鎖動能`;
+    }
+  } else if (trappedKeyCards.length > 0) {
+    const deepest = trappedKeyCards[0];
+    if (deepest && deepest.depth >= 3) {
+      recommendedRoute = `破局進攻：聚焦打通第 ${deepest.columnIndex + 1} 列，解救深埋之 ${deepest.label}`;
+    }
+  }
+
+  return {
+    supermove,
+    assessment,
+    safeCards,
+    trappedKeyCards,
+    mobilityPercent,
+    riskIndex,
+    riskLevel,
+    riskLabel,
+    recommendedRoute,
   };
 }
 

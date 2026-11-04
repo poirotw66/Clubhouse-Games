@@ -46,6 +46,14 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           desc: '復原悔棋（退回上一步驟）',
         },
         {
+          keys: ['T'],
+          desc: '循環切換三大奢華工坊主題（古典宮廷綠絨 / 黑曜黑金 / 未來霓虹）',
+        },
+        {
+          keys: ['M'],
+          desc: '開啟或靜音真實物理滑牌、連鎖落牌與編鐘音效',
+        },
+        {
           keys: ['D'],
           desc: '同局重新發牌（相同局號重新佈局）',
         },
