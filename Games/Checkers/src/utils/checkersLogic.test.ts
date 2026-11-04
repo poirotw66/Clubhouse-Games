@@ -4,12 +4,14 @@ import {
   applyMove,
   countPieces,
   createInitialBoard,
+  getCapturedSquaresForMove,
+  getDifficultyConfig,
+  getHopSteps,
   getLegalMoves,
   getLegalMovesFrom,
   getWinner,
   isDarkSquare,
   pickBotMove,
-  getDifficultyConfig,
   DIFFICULTY_BLURBS,
   type Board,
   type Move,
@@ -260,5 +262,57 @@ describe('analyzeCheckersTactics', () => {
     expect(analysis.isCaptureMandatory).toBe(false);
     expect(analysis.oppCanCapture).toBe(true);
     expect(analysis.threatAlert).toContain('防守警戒');
+    expect(analysis.threatenedPieces).toEqual([[4, 5]]);
+    expect(analysis.oppLandingThreats).toEqual([[5, 6]]);
+  });
+
+  it('tracks keystone baseline defenders', () => {
+    const board = createInitialBoard();
+    const analysis = analyzeCheckersTactics(board, 'black', 'american');
+    expect(analysis.keystoneGuards).toHaveLength(4);
+    for (const [r, c] of analysis.keystoneGuards) {
+      expect(r).toBe(7);
+      expect(isDarkSquare(r, c)).toBe(true);
+    }
   });
 });
+
+describe('getHopSteps and getCapturedSquaresForMove', () => {
+  it('extracts multi-hop segments and jumped coordinates', () => {
+    let board = emptyBoard();
+    board = place(board, [
+      [5, 2, { color: 'black', king: false }],
+      [4, 3, { color: 'white', king: false }],
+      [2, 5, { color: 'white', king: false }],
+    ]);
+
+    const move: Move = {
+      from: [5, 2],
+      path: [
+        [5, 2],
+        [3, 4],
+        [1, 6],
+      ],
+    };
+
+    const steps = getHopSteps(board, move);
+    expect(steps).toHaveLength(2);
+    expect(steps[0]).toEqual({
+      from: [5, 2],
+      to: [3, 4],
+      captured: [4, 3],
+    });
+    expect(steps[1]).toEqual({
+      from: [3, 4],
+      to: [1, 6],
+      captured: [2, 5],
+    });
+
+    const captured = getCapturedSquaresForMove(board, move);
+    expect(captured).toEqual([
+      [4, 3],
+      [2, 5],
+    ]);
+  });
+});
+

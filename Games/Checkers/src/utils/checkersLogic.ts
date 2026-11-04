@@ -124,7 +124,7 @@ function captureCount(move: Move): number {
   return Math.max(0, move.path.length - 1);
 }
 
-function findCapturedOnHop(
+export function findCapturedOnHop(
   board: Board,
   fromR: number,
   fromC: number,
@@ -150,6 +150,40 @@ function findCapturedOnHop(
     c += dc;
   }
   return found;
+}
+
+export interface HopStep {
+  from: [number, number];
+  to: [number, number];
+  captured: [number, number] | null;
+}
+
+export function getHopSteps(board: Board, move: Move): HopStep[] {
+  const steps: HopStep[] = [];
+  const next = cloneBoard(board);
+  const [fromR, fromC] = move.from;
+  const piece = next[fromR][fromC];
+  if (!piece) return steps;
+
+  for (let i = 1; i < move.path.length; i++) {
+    const from = move.path[i - 1];
+    const to = move.path[i];
+    const cap = findCapturedOnHop(next, from[0], from[1], to[0], to[1], piece.color);
+    if (cap) {
+      next[cap[0]][cap[1]] = null;
+    }
+    steps.push({ from, to, captured: cap });
+  }
+  return steps;
+}
+
+export function getCapturedSquaresForMove(board: Board, move: Move): [number, number][] {
+  const steps = getHopSteps(board, move);
+  const captured: [number, number][] = [];
+  for (const s of steps) {
+    if (s.captured) captured.push(s.captured);
+  }
+  return captured;
 }
 
 /** Apply a completed move (full path). Removes jumped pieces between hops. */
@@ -668,6 +702,15 @@ export interface CheckersTacticalAnalysis {
 
   /** Threat intel alert string */
   threatAlert: string;
+
+  /** Coordinates of friendly pieces currently threatened by opponent jump */
+  threatenedPieces: [number, number][];
+
+  /** Opponent jump landing threat squares */
+  oppLandingThreats: [number, number][];
+
+  /** Friendly keystone guard pieces (solid back rank pieces) */
+  keystoneGuards: [number, number][];
 }
 
 export function analyzeCheckersTactics(
@@ -778,6 +821,34 @@ export function analyzeCheckersTactics(
     threatAlert = '👑 升王前鋒：一步之遙即刻封王！';
   }
 
+  // Analyze opponent capture threats to find threatened friendly pieces and landing squares
+  const threatenedPiecesMap = new Map<string, [number, number]>();
+  const oppLandingThreatsMap = new Map<string, [number, number]>();
+
+  for (const m of oppMoves) {
+    if (isCaptureMove(m)) {
+      const caps = getCapturedSquaresForMove(board, m);
+      for (const cap of caps) {
+        threatenedPiecesMap.set(`${cap[0]},${cap[1]}`, cap);
+      }
+      const landing = m.path[m.path.length - 1];
+      oppLandingThreatsMap.set(`${landing[0]},${landing[1]}`, landing);
+    }
+  }
+
+  const threatenedPieces = Array.from(threatenedPiecesMap.values());
+  const oppLandingThreats = Array.from(oppLandingThreatsMap.values());
+
+  // Friendly keystone guards: pieces on the defensive back rank
+  const keystoneGuards: [number, number][] = [];
+  const guardRow = currentTurn === 'black' ? size - 1 : 0;
+  for (let c = 0; c < size; c++) {
+    const p = board[guardRow][c];
+    if (p && p.color === currentTurn) {
+      keystoneGuards.push([guardRow, c]);
+    }
+  }
+
   return {
     blackMen,
     blackKings,
@@ -799,6 +870,9 @@ export function analyzeCheckersTactics(
     blackClosestPromotion,
     whiteClosestPromotion,
     threatAlert,
+    threatenedPieces,
+    oppLandingThreats,
+    keystoneGuards,
   };
 }
 

@@ -303,3 +303,333 @@ body {
   }
 }
 
+/* ==========================================================================
+   3D Isometric Luxury Hardwood Board & Tactile Pieces
+   ========================================================================== */
+
+.ck-board-stage {
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+.ck-board-stage--3d {
+  padding: 1.25rem 0.5rem 2rem 0.5rem;
+}
+
+.ck-board-stage--2d {
+  padding: 0.25rem 0;
+}
+
+.ck-board-plinth {
+  transform-style: preserve-3d;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.ck-board-plinth--3d {
+  transform: rotateX(24deg) rotateZ(0deg) translateY(-8px) scale(0.96);
+  box-shadow:
+    0 35px 65px -15px rgba(0, 0, 0, 0.85),
+    0 18px 30px -8px rgba(0, 0, 0, 0.75),
+    0 0 25px rgba(217, 119, 6, 0.15),
+    inset 0 2px 4px rgba(255, 255, 255, 0.2);
+}
+
+.ck-board-plinth--2d {
+  transform: rotateX(0deg) rotateZ(0deg) translateY(0);
+}
+
+/* Brass Corner Filigree */
+.ck-brass-corner {
+  position: absolute;
+  font-size: 13px;
+  line-height: 1;
+  color: #fbbf24;
+  opacity: 0.85;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  pointer-events: none;
+  z-index: 15;
+  user-select: none;
+}
+
+.ck-brass-corner--tl { top: 6px; left: 6px; }
+.ck-brass-corner--tr { top: 6px; right: 6px; }
+.ck-brass-corner--bl { bottom: 6px; left: 6px; }
+.ck-brass-corner--br { bottom: 6px; right: 6px; }
+
+/* Square Styles */
+.ck-square-dark {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+
+.ck-square-light {
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+.ck-square-landing {
+  position: relative;
+  box-shadow:
+    inset 0 0 0 2px rgba(52, 211, 153, 0.8),
+    inset 0 0 14px rgba(16, 185, 129, 0.4) !important;
+}
+
+.ck-square-selected {
+  position: relative;
+  box-shadow:
+    inset 0 0 0 3px rgba(251, 191, 36, 0.9),
+    0 0 16px rgba(245, 158, 11, 0.6) !important;
+}
+
+/* Landing Beacon Glow */
+.ck-landing-beacon {
+  width: 36%;
+  height: 36%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #34d399 30%, rgba(5, 150, 105, 0.8) 70%, transparent 100%);
+  box-shadow: 0 0 12px #10b981;
+  pointer-events: none;
+  animation: ck-beacon-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ck-beacon-pulse {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+    box-shadow: 0 0 18px #34d399;
+  }
+}
+
+/* Danger Crosshair */
+.ck-danger-crosshair {
+  font-size: 16px;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.9));
+  animation: ck-danger-pulse 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ck-danger-pulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+}
+
+/* Tactile 3D Pieces */
+.ck-piece--3d {
+  transform: translateZ(6px);
+}
+
+.ck-piece--selected.ck-piece--3d {
+  transform: translateY(-8px) translateZ(26px) scale(1.08);
+}
+
+.ck-piece--hopping.ck-piece--3d {
+  animation: ck-3d-hop 280ms ease-in-out;
+}
+
+@keyframes ck-3d-hop {
+  0% {
+    transform: translateY(0) translateZ(6px) scale(1);
+  }
+  50% {
+    transform: translateY(-22px) translateZ(48px) scale(1.16);
+  }
+  100% {
+    transform: translateY(0) translateZ(6px) scale(1);
+  }
+}
+
+/* ==========================================================================
+   Multi-Hop Shatter Physics & Hit-Stop Strike FX
+   ========================================================================== */
+
+.ck-shatter-splinter {
+  transform-origin: center center;
+  animation: ck-splinter-burst 460ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes ck-splinter-burst {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(0.35);
+    opacity: 0;
+  }
+}
+
+.ck-shockwave-ring {
+  animation: ck-shockwave 420ms ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes ck-shockwave {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.75);
+    opacity: 0;
+  }
+}
+
+.ck-combo-stamp {
+  animation: ck-combo-pop 650ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  pointer-events: none;
+  z-index: 35;
+}
+
+@keyframes ck-combo-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  80% {
+    transform: translate(-50%, -65%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -85%) scale(0.85);
+    opacity: 0;
+  }
+}
+
+/* ==========================================================================
+   Golden Coronation Ceremony FX
+   ========================================================================== */
+
+.ck-coronation-beam {
+  width: 70px;
+  background: linear-gradient(
+    180deg,
+    rgba(254, 240, 138, 0.95) 0%,
+    rgba(251, 191, 36, 0.75) 50%,
+    rgba(217, 119, 6, 0.2) 100%
+  );
+  filter: blur(4px);
+  box-shadow: 0 0 35px rgba(251, 191, 36, 0.95);
+  animation: ck-beam-descend 1.4s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes ck-beam-descend {
+  0% {
+    transform: translateX(-50%) scaleY(0);
+    opacity: 0;
+  }
+  25% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 1;
+  }
+  75% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 0;
+  }
+}
+
+.ck-coronation-halo {
+  border: 3px solid #fbbf24;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.45) 0%, transparent 70%);
+  box-shadow: 0 0 25px rgba(251, 191, 36, 0.8);
+  animation: ck-halo-pulse 1.4s ease-out forwards;
+}
+
+@keyframes ck-halo-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+    opacity: 0;
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(1.1) rotate(90deg);
+    opacity: 1;
+  }
+  80% {
+    transform: translate(-50%, -50%) scale(1.25) rotate(180deg);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.4) rotate(240deg);
+    opacity: 0;
+  }
+}
+
+.ck-descending-crown {
+  animation: ck-crown-drop 1.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ck-crown-drop {
+  0% {
+    transform: translate(-50%, -240%) scale(1.8);
+    opacity: 0;
+  }
+  45% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 1;
+  }
+  65% {
+    transform: translate(-50%, -60%) scale(1);
+    opacity: 1;
+  }
+  80% {
+    transform: translate(-50%, -50%) scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0;
+  }
+}
+
+.ck-coronation-toast {
+  animation: ck-toast-float 1.5s ease-out forwards;
+  z-index: 40;
+}
+
+@keyframes ck-toast-float {
+  0% {
+    transform: translate(-50%, -20px) scale(0.9);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+  80% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -15px) scale(0.95);
+    opacity: 0;
+  }
+}
+
+

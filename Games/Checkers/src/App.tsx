@@ -24,10 +24,28 @@ import {
   pickBotMove,
   isCaptureMove,
   captureHopCount,
+  getHopSteps,
+  getCapturedSquaresForMove,
   RULESETS,
   RULESET_IDS,
   colLabels,
 } from './utils/checkersLogic';
+import { Board3D } from './components/Board3D';
+import {
+  ThreatRadarLeft,
+  ThreatRadarRight,
+  MobileTacticalBar,
+} from './components/ThreatRadar';
+import { BOARD_THEMES, type BoardThemeId } from './types/checkersThemes';
+import {
+  playHardwoodClack,
+  playShatterStrike,
+  playCoronationFanfare,
+  playThreatSonar,
+  playTactileClick,
+} from './utils/checkersAudio';
+import { createShatterEvent, type ShatterEvent } from './components/ShatterFx';
+import { type CoronationEvent } from './components/CoronationOverlay';
 import { getHint } from './utils/hints';
 import {
   PUZZLES,
@@ -160,49 +178,7 @@ function sq(r: number, c: number): string {
   return `${r},${c}`;
 }
 
-// ── Piece ────────────────────────────────────────────────────────────────────
-
-interface PieceProps {
-  color: PieceColor;
-  king: boolean;
-  selected: boolean;
-  capturer: boolean;
-  lastMoveDest: boolean;
-  hopping: boolean;
-}
-
-function Piece({ color, king, selected, capturer, lastMoveDest, hopping }: PieceProps) {
-  const ring = selected
-    ? 'ring-4 ring-amber-300 ring-offset-1 ring-offset-transparent'
-    : lastMoveDest
-      ? 'ring-3 ring-yellow-400/80 ring-offset-1 ring-offset-transparent'
-      : capturer
-        ? 'ring-3 ring-rose-400 ring-offset-1 ring-offset-transparent'
-        : color === 'black'
-          ? 'ring-2 ring-stone-500'
-          : 'ring-2 ring-amber-400';
-
-  const textColor = color === 'black' ? 'text-amber-200' : 'text-stone-700';
-
-  return (
-    <span
-      className={`
-        w-[80%] h-[80%] rounded-full flex items-center justify-center
-        font-bold select-none bg-cover bg-center shadow-inner ${ring} ${textColor}
-        ${capturer && !selected ? 'animate-pulse' : ''}
-        ${hopping ? 'checkers-piece-hop' : 'checkers-piece-enter'}
-        transition-all duration-150
-      `}
-      style={{
-        fontSize: 'clamp(8px, 2vw, 14px)',
-        backgroundColor: color === 'black' ? '#44403c' : '#fef3c7',
-        backgroundImage: `url(${import.meta.env.BASE_URL}piece-${color}.jpg)`,
-      }}
-    >
-      {king ? '♔' : ''}
-    </span>
-  );
-}
+// ── Captured Piece Row ────────────────────────────────────────────────────────
 
 function CapturedRow({ color, count }: { color: PieceColor; count: number }) {
   if (count === 0) return null;
@@ -254,11 +230,20 @@ export default function App() {
   const [puzzleUndosUsed, setPuzzleUndosUsed] = useState(0);
   const [earnedStars, setEarnedStars] = useState<PuzzleStar | null>(null);
   const [focusedSquare, setFocusedSquare] = useState<[number, number] | null>(null);
+  const [is3D, setIs3D] = useState(true);
+  const [themeId, setThemeId] = useState<BoardThemeId>('walnut');
+  const [showThreatLens, setShowThreatLens] = useState(true);
+  const [activeMove, setActiveMove] = useState<Move | null>(null);
+  const [shatterEvents, setShatterEvents] = useState<ShatterEvent[]>([]);
+  const [coronationEvent, setCoronationEvent] = useState<CoronationEvent | null>(null);
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef<GamePhase>('playing');
+  const prevAlertRef = useRef('');
   const statsRecordedRef = useRef(false);
   const animLock = useRef(false);
   const boardShellRef = useRef<HTMLDivElement | null>(null);
+
+  const theme = BOARD_THEMES[themeId];
 
   const rules = RULESETS[ruleset];
   const size = rules.size;
@@ -321,34 +306,57 @@ export default function App() {
       : null;
 
   const playMoveJuice = useCallback(
-    (move: Move, opts: { won?: boolean; promoted?: boolean } = {}) => {
+    (boardBefore: Board, move: Move, opts: { won?: boolean; promoted?: boolean } = {}) => {
       const hops = captureHopCount(move);
       const boardEl = boardShellRef.current;
       const [lr, lc] = move.path[move.path.length - 1];
       const destEl =
         boardEl?.querySelector(`[data-ck-cell="${lr},${lc}"]`) ?? null;
 
+      setActiveMove(move);
+      window.setTimeout(() => setActiveMove(null), Math.max(hops * 240, ANIM_MS));
+
       if (hops > 0) {
         playCapture();
-        if (hops >= 2) playScore();
+        const movingPiece = boardBefore[move.from[0]][move.from[1]];
+        const victimColor: PieceColor = movingPiece?.color === 'black' ? 'white' : 'black';
+        const steps = getHopSteps(boardBefore, move);
+
+        const newEvents: ShatterEvent[] = [];
+        steps.forEach((step, idx) => {
+          if (step.captured) {
+            newEvents.push(
+              createShatterEvent(step.captured[0], step.captured[1], victimColor, idx + 1),
+            );
+            playShatterStrike(idx + 1);
+          }
+        });
+
+        if (newEvents.length > 0) {
+          setShatterEvents((prev) => [...prev, ...newEvents]);
+          window.setTimeout(() => {
+            setShatterEvents((prev) =>
+              prev.filter((ev) => !newEvents.some((ne) => ne.id === ev.id)),
+            );
+          }, 650);
+        }
+
+        playHardwoodClack(1.3, hops);
+
         const fx = new Set<string>();
-        for (let i = 1; i < move.path.length; i++) {
-          const [pr, pc] = move.path[i - 1];
-          const [r, c] = move.path[i];
-          const midR = (pr + r) >> 1;
-          const midC = (pc + c) >> 1;
-          // For flying kings mid isn't halfway — flash both ends of hop.
-          if (Math.abs(r - pr) === 2) fx.add(sq(midR, midC));
-          else fx.add(sq(r, c));
+        const capturedCoords = getCapturedSquaresForMove(boardBefore, move);
+        for (const cap of capturedCoords) {
+          fx.add(sq(cap[0], cap[1]));
         }
         setCaptureFx(fx);
         window.setTimeout(() => setCaptureFx(new Set()), 420);
 
         if (hops >= 2) {
           haptic('combo');
-          shake(boardEl, 0.75);
+          shake(boardEl, 0.85);
         } else {
           haptic('impact');
+          shake(boardEl, 0.5);
         }
         for (const key of fx) {
           const [cr, cc] = key.split(',').map(Number);
@@ -356,10 +364,11 @@ export default function App() {
             boardEl?.querySelector(`[data-ck-cell="${cr},${cc}"]`) ?? null;
           particles(hops >= 2 ? 'burst' : 'dust', {
             el: cell ?? destEl ?? boardEl,
-            strength: hops >= 2 ? 1.05 : 0.9,
+            strength: hops >= 2 ? 1.15 : 0.9,
           });
         }
       } else {
+        playHardwoodClack(0.9, 1);
         playMove();
         haptic('place');
         particles('dust', { el: destEl ?? boardEl, strength: 0.55 });
@@ -368,18 +377,44 @@ export default function App() {
       setHopDest(sq(lr, lc));
       window.setTimeout(() => setHopDest(null), ANIM_MS);
 
-      // Win juice only on game-over path; promote gets confetti without board shake.
-      if (opts.won) {
+      // Golden Coronation Ceremony
+      if (opts.promoted) {
+        const piece = boardBefore[move.from[0]][move.from[1]];
+        const cColor = piece?.color ?? 'black';
+        setCoronationEvent({ r: lr, c: lc, color: cColor });
+        playCoronationFanfare();
         haptic('win');
-        particles('confetti', { el: boardEl, strength: 1.15 });
+        particles('confetti', { el: destEl ?? boardEl, strength: 1.15 });
+        shake(boardEl, 0.6);
+        window.setTimeout(() => setCoronationEvent(null), 1800);
+      } else if (opts.won) {
+        haptic('win');
+        particles('confetti', { el: boardEl, strength: 1.25 });
         shake(boardEl, 1);
-      } else if (opts.promoted) {
-        haptic('win');
-        particles('confetti', { el: boardEl ?? destEl, strength: 0.9 });
       }
     },
     [],
   );
+
+  useEffect(() => {
+    if (
+      state.phase === 'playing' &&
+      state.currentTurn === playerSide &&
+      tactics.oppCanCapture &&
+      tactics.oppMaxJumpHops >= 2 &&
+      prevAlertRef.current !== tactics.threatAlert
+    ) {
+      playThreatSonar();
+    }
+    prevAlertRef.current = tactics.threatAlert;
+  }, [
+    state.phase,
+    state.currentTurn,
+    playerSide,
+    tactics.oppCanCapture,
+    tactics.oppMaxJumpHops,
+    tactics.threatAlert,
+  ]);
 
   useEffect(() => {
     if (state.phase !== 'playing' || !humanCanPlay || isBotTurn || !autoSelectKey) return;
@@ -418,7 +453,7 @@ export default function App() {
       );
       setPlies((p) => [...p, { color: botColor, move, boardBefore }]);
       if (moreCaptures.length > 0) {
-        playMoveJuice(move, { promoted });
+        playMoveJuice(boardBefore, move, { promoted });
         setState({
           board: nextBoard,
           currentTurn: botColor,
@@ -429,7 +464,7 @@ export default function App() {
       } else {
         const nextTurn: PieceColor = botColor === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn, ruleset);
-        playMoveJuice(move, { won: winner != null, promoted });
+        playMoveJuice(boardBefore, move, { won: winner != null, promoted });
         setState({
           board: nextBoard,
           currentTurn: nextTurn,
@@ -560,7 +595,7 @@ export default function App() {
         setPuzzleMoves((n) => n + 1);
       }
       if (moreCaptures.length > 0) {
-        playMoveJuice(move, { promoted });
+        playMoveJuice(boardBefore, move, { promoted });
         setState({
           board: nextBoard,
           currentTurn: state.currentTurn,
@@ -571,7 +606,7 @@ export default function App() {
       } else {
         const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
         const winner = getWinner(nextBoard, nextTurn, ruleset);
-        playMoveJuice(move, { won: winner != null, promoted });
+        playMoveJuice(boardBefore, move, { won: winner != null, promoted });
         setState({
           board: nextBoard,
           currentTurn: nextTurn,
@@ -615,6 +650,7 @@ export default function App() {
         }
         const hasMoves = originSet.has(cellKey);
         if (hasMoves) {
+          playTactileClick();
           if (mustCapture && selected?.[0] === r && selected?.[1] === c) return;
           setHintMove(null);
           setHintReason(null);
@@ -777,6 +813,16 @@ export default function App() {
         setSelected(null);
         return;
       }
+      if (key === 'v' || key === 'V') {
+        e.preventDefault();
+        setIs3D((val) => !val);
+        return;
+      }
+      if (key === 't' || key === 'T') {
+        e.preventDefault();
+        setShowThreatLens((val) => !val);
+        return;
+      }
 
       const cur =
         focusedSquare ??
@@ -930,113 +976,15 @@ export default function App() {
 
       <div className="ck-cockpit-shell">
         {/* Left Wing: Tactical Radar & Telemetry */}
-        <aside className="ck-wing ck-wing--left" aria-label="戰情雷達與局勢分析">
-          <div className="ck-wing__title">
-            <span className="text-amber-400">⚡</span>
-            <span>戰情雷達與局勢分析</span>
-          </div>
-
-          <div className="ck-wing__card">
-            <div className="ck-wing__row">
-              <span className="ck-wing__label">黑方勢力比</span>
-              <span className="ck-wing__value text-amber-300">{tactics.blackAdvantagePct}%</span>
-            </div>
-            <div className="ck-bar-track">
-              <div
-                className="ck-bar-fill bg-gradient-to-r from-amber-500 via-yellow-400 to-emerald-400"
-                style={{ width: `${tactics.blackAdvantagePct}%` }}
-              />
-            </div>
-            <div className="ck-wing__row text-xs text-stone-300">
-              <span>局勢評估</span>
-              <span className="font-bold text-amber-200">{tactics.evaluationText}</span>
-            </div>
-          </div>
-
-          <div className="ck-wing__card">
-            <span className="text-xs font-bold text-amber-200">兵力與封王</span>
-            <div className="flex flex-col gap-1 mt-0.5 text-xs">
-              <div className="ck-wing__row">
-                <span className="ck-wing__label">黑方子力</span>
-                <span className="ck-wing__value text-amber-300">
-                  {tactics.blackMen} 兵 {tactics.blackKings > 0 ? `· ${tactics.blackKings} 王` : ''}
-                </span>
-              </div>
-              <div className="ck-wing__row">
-                <span className="ck-wing__label">白方子力</span>
-                <span className="ck-wing__value text-stone-300">
-                  {tactics.whiteMen} 兵 {tactics.whiteKings > 0 ? `· ${tactics.whiteKings} 王` : ''}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="ck-wing__card">
-            <span className="text-xs font-bold text-amber-200">防守與中路控制</span>
-            <div className="flex flex-col gap-1 mt-0.5 text-xs">
-              <div className="ck-wing__row">
-                <span className="ck-wing__label">黑方底線鐵壁</span>
-                <span className="ck-wing__value">{tactics.blackBackRankGuard} 子固守</span>
-              </div>
-              <div className="ck-wing__row">
-                <span className="ck-wing__label">白方底線鐵壁</span>
-                <span className="ck-wing__value">{tactics.whiteBackRankGuard} 子固守</span>
-              </div>
-              <div className="ck-wing__row">
-                <span className="ck-wing__label">中心格控制</span>
-                <span className="ck-wing__value text-emerald-300">
-                  黑 {tactics.blackCenterControl} vs 白 {tactics.whiteCenterControl}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div
-            className={
-              tactics.isCaptureMandatory ||
-              (tactics.oppCanCapture && tactics.oppMaxJumpHops >= 2)
-                ? 'ck-intel-alert ck-intel-alert--alert'
-                : 'ck-intel-alert'
-            }
-          >
-            <div className="font-bold">{tactics.threatAlert}</div>
-            <div className="text-xs mt-1 text-stone-300 leading-snug">
-              {tactics.isCaptureMandatory
-                ? '根據西洋跳棋規則，遇跳吃機會必須強制執行！'
-                : '保護好後排底線，避免敵方兵力偷渡封王。'}
-            </div>
-          </div>
-
-          <div className="ck-wing__card">
-            <span className="text-xs font-bold text-stone-300 tracking-wider">實體鍵盤對弈</span>
-            <div className="ck-key-guide-grid">
-              <div className="ck-key-item">
-                <kbd className="ck-key-badge">WASD</kbd>
-                <span>移標</span>
-              </div>
-              <div className="ck-key-item">
-                <kbd className="ck-key-badge">Space</kbd>
-                <span>走子</span>
-              </div>
-              <div className="ck-key-item">
-                <kbd className="ck-key-badge">Z</kbd>
-                <span>悔棋</span>
-              </div>
-              <div className="ck-key-item">
-                <kbd className="ck-key-badge">H</kbd>
-                <span>提示</span>
-              </div>
-              <div className="ck-key-item">
-                <kbd className="ck-key-badge">R</kbd>
-                <span>重開</span>
-              </div>
-              <div className="ck-key-item">
-                <kbd className="ck-key-badge">Esc</kbd>
-                <span>取消</span>
-              </div>
-            </div>
-          </div>
-        </aside>
+        <ThreatRadarLeft
+          tactics={tactics}
+          is3D={is3D}
+          onToggle3D={() => setIs3D((v) => !v)}
+          showThreatLens={showThreatLens}
+          onToggleThreatLens={() => setShowThreatLens((v) => !v)}
+          currentThemeId={themeId}
+          onSelectTheme={setThemeId}
+        />
 
         {/* Center Stage: Board & Controls */}
         <main className="ck-board-center">
@@ -1181,167 +1129,43 @@ export default function App() {
       )}
 
       {/* Mobile Tactical Bar */}
-      <div className="ck-mobile-tactical mb-2" role="status" aria-label="西洋跳棋戰情">
-        <span className="font-bold text-amber-300">黑方勢力 {tactics.blackAdvantagePct}%</span>
-        <span className="text-stone-500">·</span>
-        <span
-          className={
-            tactics.isCaptureMandatory ? 'text-rose-300 font-bold' : 'text-stone-300'
-          }
-        >
-          {tactics.isCaptureMandatory
-            ? `⚔️ 強制跳吃 (${tactics.maxJumpHops} 連跳)`
-            : tactics.evaluationText}
-        </span>
-        <span className="text-stone-500">·</span>
-        <span className="text-emerald-300 font-medium">
-          {tactics.blackKings > 0 ? `黑 ${tactics.blackKings} 王` : '前鋒推進中'}
-        </span>
-      </div>
+      <MobileTacticalBar
+        tactics={tactics}
+        is3D={is3D}
+        onToggle3D={() => setIs3D((v) => !v)}
+        showThreatLens={showThreatLens}
+        onToggleThreatLens={() => setShowThreatLens((v) => !v)}
+      />
 
-      {/* Board */}
-      <div className="w-full max-w-[480px]">
-        <div
-          className="grid mb-0.5 pl-5 pr-1"
-          style={{ gridTemplateColumns: `repeat(${size}, 1fr)` }}
-        >
-          {labels.map((l) => (
-            <span
-              key={l}
-              className="text-center text-[9px] text-amber-500/60 font-mono select-none"
-            >
-              {l}
-            </span>
-          ))}
-        </div>
-        <div className="flex">
-          <div className="flex flex-col justify-around pr-1 w-4 flex-shrink-0">
-            {Array.from({ length: size }, (_, r) => (
-              <span
-                key={r}
-                className="text-[9px] text-amber-500/60 font-mono select-none text-right leading-none"
-              >
-                {size - r}
-              </span>
-            ))}
-          </div>
-          <div
-            ref={boardShellRef}
-            data-ck-board
-            className="flex-1 rounded-xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.5)] border border-amber-900/60"
-            style={{ aspectRatio: '1' }}
-          >
-            <div
-              className="grid w-full h-full"
-              style={{
-                gridTemplateColumns: `repeat(${size}, 1fr)`,
-                gridTemplateRows: `repeat(${size}, 1fr)`,
-              }}
-            >
-              {Array.from({ length: size * size }, (_, i) => {
-                const r = Math.floor(i / size);
-                const c = i % size;
-                const dark = isDarkSquare(r, c);
-                const piece = state.board[r][c];
-                const cellKey = sq(r, c);
-                const isSelected = selected !== null && selected[0] === r && selected[1] === c;
-                const isFocused =
-                  focusedSquare !== null && focusedSquare[0] === r && focusedSquare[1] === c;
-                const isLanding = dark && landingSet.has(cellKey);
-                const isCapturer = mustCapture && originSet.has(cellKey);
-                const isPath = dark && !isLanding && !isSelected && pathSet.has(cellKey);
-                const isLastMovePath = !isSelected && !isLanding && lastMovePathSet.has(cellKey);
-                const isPieceDest = lastMoveDest === cellKey;
-                const isHintPath = hintPathSet.has(cellKey);
-                const isHintDest = hintDest === cellKey;
-                const showFx = captureFx.has(cellKey);
-
-                const tint = isSelected
-                  ? 'linear-gradient(rgba(217,119,6,0.7), rgba(217,119,6,0.75))'
-                  : isLanding
-                    ? 'linear-gradient(rgba(4,120,87,0.7), rgba(5,150,105,0.75))'
-                    : isHintDest
-                      ? 'linear-gradient(rgba(2,132,199,0.55), rgba(14,165,233,0.6))'
-                      : isHintPath
-                        ? 'linear-gradient(rgba(7,89,133,0.45), rgba(7,89,133,0.5))'
-                        : isPath
-                          ? 'linear-gradient(rgba(180,83,9,0.5), rgba(180,83,9,0.55))'
-                          : isLastMovePath
-                            ? 'linear-gradient(rgba(133,77,14,0.4), rgba(133,77,14,0.45))'
-                            : dark
-                              ? 'linear-gradient(rgba(146,64,14,0.35), rgba(120,53,15,0.45))'
-                              : 'linear-gradient(rgba(255,251,235,0.85), rgba(254,243,199,0.9))';
-
-                return (
-                  <button
-                    key={cellKey}
-                    type="button"
-                    data-ck-cell={`${r},${c}`}
-                    onClick={() => {
-                      setFocusedSquare([r, c]);
-                      handleCellClick(r, c);
-                    }}
-                    className={`relative flex items-center justify-center touch-manipulation transition-colors duration-100 bg-cover bg-center ${
-                      isFocused ? 'ck-square-focused' : ''
-                    }`}
-                    style={{
-                      minWidth: 0,
-                      minHeight: 0,
-                      backgroundColor: dark ? '#92400e' : '#fef3c7',
-                      backgroundImage: dark
-                        ? [tint, `url(${import.meta.env.BASE_URL}square-dark.jpg)`].join(', ')
-                        : [tint, `url(${import.meta.env.BASE_URL}square-light.jpg)`].join(', '),
-                    }}
-                    aria-label={
-                      piece
-                        ? `${piece.color} ${piece.king ? 'king' : 'man'} at ${labels[c]}${size - r}`
-                        : dark
-                          ? `Empty ${labels[c]}${size - r}`
-                          : 'Light square'
-                    }
-                  >
-                    {isLanding && !piece && (
-                      <span
-                        className="absolute w-[35%] h-[35%] rounded-full bg-emerald-300/80 pointer-events-none"
-                        aria-hidden
-                      />
-                    )}
-                    {isPath && !piece && (
-                      <span
-                        className="absolute w-[20%] h-[20%] rounded-full bg-amber-300/60 pointer-events-none"
-                        aria-hidden
-                      />
-                    )}
-                    {showFx && <span className="checkers-capture-fx" aria-hidden />}
-                    {dark && piece && (
-                      <Piece
-                        color={piece.color}
-                        king={piece.king}
-                        selected={isSelected}
-                        capturer={isCapturer && !isSelected}
-                        lastMoveDest={isPieceDest && !isSelected}
-                        hopping={hopDest === cellKey}
-                      />
-                    )}
-                    {isHintDest && !isSelected && (
-                      <span
-                        className="absolute inset-0 ring-2 ring-sky-300 ring-inset pointer-events-none rounded-[1px]"
-                        aria-hidden
-                      />
-                    )}
-                    {isSelected && (
-                      <span
-                        className="absolute inset-0 ring-2 ring-amber-300 ring-inset pointer-events-none rounded-[1px]"
-                        aria-hidden
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 3D Isometric Luxury Hardwood Board */}
+      <Board3D
+        board={state.board}
+        size={size}
+        labels={labels}
+        selected={selected}
+        focusedSquare={focusedSquare}
+        landingSet={landingSet}
+        pathSet={pathSet}
+        originSet={originSet}
+        lastMovePathSet={lastMovePathSet}
+        lastMoveDest={lastMoveDest}
+        hintPathSet={hintPathSet}
+        hintDest={hintDest}
+        captureFx={captureFx}
+        hopDest={hopDest}
+        mustCapture={mustCapture}
+        is3D={is3D}
+        theme={theme}
+        showThreatLens={showThreatLens}
+        tactics={tactics}
+        activeMove={activeMove}
+        candidateMoves={selected ? movesFromSelected : mustCapture ? moves : []}
+        shatterEvents={shatterEvents}
+        coronationEvent={coronationEvent}
+        onCellClick={handleCellClick}
+        onCellFocus={(r, c) => setFocusedSquare([r, c])}
+        boardRef={boardShellRef}
+      />
 
       {/* Settings */}
       <div className="w-full max-w-[480px] mt-4">
@@ -1607,121 +1431,16 @@ export default function App() {
     </main>
 
     {/* Right Wing: Opponent Dossier & Workshop */}
-    <aside className="ck-wing ck-wing--right" aria-label="對手戰情與系列賽工坊">
-      <div className="ck-wing__title">
-        <span className="text-rose-400">🏆</span>
-        <span>對手戰情與工坊</span>
-      </div>
-
-      <div className="ck-wing__card">
-        <span className="text-xs font-bold text-rose-300">當前對弈模式</span>
-        {gameMode === 'series' ? (
-          <div className="flex flex-col gap-1.5 mt-1">
-            <div className="ck-wing__row">
-              <span className="ck-wing__label">系列賽目標</span>
-              <span className="ck-wing__value text-amber-300 font-bold">
-                搶 {matchTarget} 勝
-              </span>
-            </div>
-            <div className="ck-wing__row">
-              <span className="ck-wing__label">大比分</span>
-              <span className="ck-wing__value text-emerald-300 font-bold">
-                黑 {match.scoreA} : 白 {match.scoreB}
-              </span>
-            </div>
-            <div className="ck-wing__row text-xs text-stone-400">
-              <span>進行場次</span>
-              <span>第 {match.gameIndex} 局</span>
-            </div>
-          </div>
-        ) : gameMode === 'puzzle' ? (
-          <div className="flex flex-col gap-1.5 mt-1">
-            <div className="ck-wing__row">
-              <span className="ck-wing__label">殘局謎題</span>
-              <span className="ck-wing__value text-amber-200">{activePuzzle.name}</span>
-            </div>
-            <div className="ck-wing__row text-xs text-stone-400">
-              <span>目標步數</span>
-              <span>{activePuzzle.winIn} 步內必勝</span>
-            </div>
-            <div className="ck-wing__row text-xs text-stone-400">
-              <span>已走步數</span>
-              <span>{puzzleMoves} 步</span>
-            </div>
-          </div>
-        ) : gameMode === 'bot' ? (
-          <div className="flex flex-col gap-1.5 mt-1">
-            <div className="ck-wing__row">
-              <span className="ck-wing__label">對手</span>
-              <span className="ck-wing__value text-rose-200 font-bold">{opponent.name}</span>
-            </div>
-            <div className="ck-wing__row text-xs text-stone-400">
-              <span>風格</span>
-              <span>{opponent.tagline}</span>
-            </div>
-            <div className="ck-wing__row text-xs text-stone-400">
-              <span>開場口頭禪</span>
-              <span className="text-right leading-tight text-amber-200">
-                「{opponent.catchphrase.intro}」
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1.5 mt-1">
-            <div className="ck-wing__row">
-              <span className="ck-wing__label">同機雙人對弈</span>
-              <span className="ck-wing__value text-amber-200">自由對抗</span>
-            </div>
-            <div className="ck-wing__row text-xs text-stone-400">
-              <span>回合交換</span>
-              <span>輪流執子</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="ck-wing__card">
-        <span className="text-xs font-bold text-stone-300 tracking-wider">個人榮譽紀錄</span>
-        <div className="flex flex-col gap-1 mt-1 text-xs">
-          <div className="ck-wing__row">
-            <span className="ck-wing__label">當前連勝</span>
-            <span className="ck-wing__value text-amber-300">{progress.winStreak} 勝</span>
-          </div>
-          <div className="ck-wing__row">
-            <span className="ck-wing__label">歷史最佳連勝</span>
-            <span className="ck-wing__value">{progress.bestStreak} 勝</span>
-          </div>
-          <div className="ck-wing__row">
-            <span className="ck-wing__label">系列賽勝場</span>
-            <span className="ck-wing__value text-emerald-300">{progress.seriesWins} 場</span>
-          </div>
-          <div className="ck-wing__row">
-            <span className="ck-wing__label">已解鎖對手</span>
-            <span className="ck-wing__value">
-              {progress.beatenOpponents.length + 1} / {OPPONENTS.length}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="ck-wing__card">
-        <span className="text-xs font-bold text-amber-300 tracking-wider">大師對弈錦囊</span>
-        <div className="flex flex-col gap-2 mt-1 text-[11px] leading-relaxed text-stone-300">
-          <div>
-            <strong className="text-amber-200">🛡️ 底線鐵壁法則：</strong>
-            未到勝負關鍵切勿移動底線四子，阻止敵方偷渡封王。
-          </div>
-          <div>
-            <strong className="text-rose-200">🎯 誘餌雙殺陷阱：</strong>
-            主動棄一子誘敵深入，隨後連跳反殺逆轉全局！
-          </div>
-          <div>
-            <strong className="text-emerald-200">👑 中央王霸權：</strong>
-            成王後第一時間壓制中央大斜線，封鎖對手活動半徑。
-          </div>
-        </div>
-      </div>
-    </aside>
+    <ThreatRadarRight
+      gameMode={gameMode}
+      opponent={opponent}
+      matchTarget={matchTarget}
+      match={match}
+      activePuzzle={activePuzzle}
+      puzzleMoves={puzzleMoves}
+      progress={progress}
+      totalOpponents={OPPONENTS.length}
+    />
   </div>
 
       {/* Result */}
