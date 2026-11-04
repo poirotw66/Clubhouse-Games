@@ -885,7 +885,7 @@
             <span class="ico">🚀</span>
             <div>
               <h4 id="lblM1Title">1. 蹬牆反彈角度力學</h4>
-              <p id="lblM1Desc">起跑線全力按住 <kbd>SPACE</kbd> / <kbd>W</kbd> 衝刺突破 110 km/h！在 165° 反翘弧牆頂部利用強大慣性與切線角離唇騰空，避免過早鬆開油門導致引擎剎車拖速。</p>
+              <p id="lblM1Desc">起跑線全力按住 <kbd>SPACE</kbd> / <kbd>W</kbd> 衝刺突破 110 km/h！在 165° 反翹弧牆頂部利用強大慣性與切線角離唇騰空，避免過早鬆開油門導致引擎剎車拖速。</p>
             </div>
           </div>
           <div class="wf-manual-step">
@@ -1123,7 +1123,7 @@ const STR = {
     manualBtn: '特技大師錦囊',
     manualModalTitle: '💡 特技大師飛行錦囊 · 航太操縱指南',
     m1Title: '1. 蹬牆反彈角度力學',
-    m1Desc: '起跑線全力按住 SPACE / W 衝刺突破 110 km/h！在 165° 反翘弧牆頂部利用強大慣性與切線角離唇騰空，避免過早鬆開油門導致引擎剎車拖速。',
+    m1Desc: '起跑線全力按住 SPACE / W 衝刺突破 110 km/h！在 165° 反翹弧牆頂部利用強大慣性與切線角離唇騰空，避免過早鬆開油門導致引擎剎車拖速。',
     m2Title: '2. 空中翻滾姿態修正',
     m2Desc: '離地後用 A/D 快速空翻累積連擊；接近地面時同時按住左右噴射鍵（雙鍵推力）觸發逆向減速煞車，將俯仰與滾轉拉平回正。',
     m3Title: '3. 安全著陸開傘對策',
@@ -1723,19 +1723,38 @@ scene.background = new THREE.Color(BG);
 scene.fog = new THREE.Fog(BG, 90, 260);
 const camera = new THREE.PerspectiveCamera(38, 1, .5, 600);
 
-scene.add(new THREE.HemisphereLight(10466512, 724240, .75));
-const sun = new THREE.DirectionalLight(16777215, 2.4); sun.position.set(-14, 16, 22);
-const fill = new THREE.DirectionalLight(10139903, .7); fill.position.set(12, 6, -10);
-const bounce = new THREE.DirectionalLight(16769736, .5); bounce.position.set(-4, -6, 8);
+scene.add(new THREE.HemisphereLight(0xa5c4e8, 0x0a1017, .85));
+const sun = new THREE.DirectionalLight(0xf2f7ff, 2.7); sun.position.set(-14, 18, 22);
+const fill = new THREE.DirectionalLight(0x6fead0, 1.0); fill.position.set(14, 8, -12);
+const bounce = new THREE.DirectionalLight(0xffbe76, .65); bounce.position.set(-5, -6, 10);
 scene.add(sun, fill, bounce);
 
+const texLoader = new THREE.TextureLoader();
+function loadTex(webpUrl, jpgUrl, cb) {
+  texLoader.load(webpUrl, cb, undefined, () => {
+    texLoader.load(jpgUrl, cb);
+  });
+}
+
 const WORLD_EXT = 3e3;
-// ground plane far behind the road
+// ground plane with futuristic tarmac grid texture
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x445566, roughness: .85, metalness: .25 });
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(WORLD_EXT * 2 + 400, 2200).rotateX(-Math.PI / 2),
-  new THREE.MeshStandardMaterial({ color: 1450006, roughness: 1 }));
+  groundMat);
 ground.position.set(0, 0, -800);
 scene.add(ground);
+try {
+  loadTex('assets/ground-grid.webp', 'assets/ground-grid.jpg', (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(120, 44);
+    groundMat.map = tex;
+    groundMat.needsUpdate = true;
+  });
+} catch (e) {}
+
 // dark grass strip beside the approach
 const grass = new THREE.Mesh(
   new THREE.PlaneGeometry(280, 50).rotateX(-Math.PI / 2),
@@ -1745,28 +1764,33 @@ scene.add(grass);
 
 // panoramic cyberpunk skyline backdrop
 try {
-  const texLoader = new THREE.TextureLoader();
-  texLoader.load('assets/sky-backdrop.webp', (tex) => {
+  loadTex('assets/sky-backdrop.webp', 'assets/sky-backdrop.jpg', (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
     const panoGeo = new THREE.CylinderGeometry(280, 280, 160, 48, 1, true, -Math.PI * 0.9, Math.PI * 1.8);
     const panoMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false });
     const pano = new THREE.Mesh(panoGeo, panoMat);
     pano.position.set(0, 35, -40);
     scene.add(pano);
-  }, undefined, () => {
-    texLoader.load('assets/sky-backdrop.jpg', (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const panoGeo = new THREE.CylinderGeometry(280, 280, 160, 48, 1, true, -Math.PI * 0.9, Math.PI * 1.8);
-      const panoMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false });
-      const pano = new THREE.Mesh(panoGeo, panoMat);
-      pano.position.set(0, 35, -40);
-      scene.add(pano);
-    });
   });
 } catch (e) {}
 
 // road material + starter patch + extruded wall slab
-const roadMat = new THREE.MeshStandardMaterial({ color: 13816011, roughness: .85, emissive: 2894632 });
+const roadMat = new THREE.MeshStandardMaterial({
+  color: 0xd8dde4,
+  roughness: .76,
+  metalness: .2,
+  emissive: 0x161a22,
+});
+try {
+  loadTex('assets/track-asphalt.webp', 'assets/track-asphalt.jpg', (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(8, 2);
+    roadMat.map = tex;
+    roadMat.needsUpdate = true;
+  });
+} catch (e) {}
 const startRoad = new THREE.Mesh(new THREE.PlaneGeometry(40, ROAD_W).rotateX(-Math.PI / 2), roadMat);
 startRoad.position.set(-20, .05, 0);
 scene.add(startRoad);
@@ -1973,12 +1997,41 @@ const ufo = (() => {
 const carRoot = new THREE.Group(); // original tt
 const body = new THREE.Group();    // original ot
 carRoot.add(body);
-const bodyMat = new THREE.MeshStandardMaterial({ color: 14672614, metalness: .25, roughness: .42, flatShading: true });
-const darkMat = new THREE.MeshStandardMaterial({ color: 2764082, metalness: .3, roughness: .6, flatShading: true });
-const glassMat = new THREE.MeshStandardMaterial({ color: 3877924, metalness: .8, roughness: .12, flatShading: true });
+const bodyMat = new THREE.MeshStandardMaterial({
+  color: 0xdfdfdf,
+  metalness: .82,
+  roughness: .22,
+  flatShading: true,
+});
+const darkMat = new THREE.MeshStandardMaterial({
+  color: 0x363d47,
+  metalness: .65,
+  roughness: .28,
+  flatShading: true,
+});
+try {
+  loadTex('assets/carbon-fiber.webp', 'assets/carbon-fiber.jpg', (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(4, 4);
+    darkMat.map = tex;
+    darkMat.needsUpdate = true;
+  });
+} catch (e) {}
+
+const glassMat = new THREE.MeshStandardMaterial({
+  color: 0x162432,
+  metalness: .94,
+  roughness: .06,
+  transparent: true,
+  opacity: .9,
+  flatShading: true,
+});
 const rubberMat = new THREE.MeshStandardMaterial({ color: 1382170, roughness: .6 });
 const tireMat = new THREE.MeshStandardMaterial({ color: 1776929, roughness: .85 });
 const chromeMat = new THREE.MeshStandardMaterial({ color: 10988981, metalness: .7, roughness: .3 });
+const neonCyanMat = new THREE.MeshBasicMaterial({ color: 0x6ff0d0 });
 const bodyColor0 = bodyMat.color.clone();
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 function box(w, h, d, mat, x, y, z, rz = 0, ry = 0) {
@@ -2007,6 +2060,15 @@ box(.08, .18, .08, darkMat, -2.18, .2, .55);
 box(.08, .18, .08, darkMat, -2.18, .2, -.55);
 box(.28, .14, 1.55, rubberMat, 2.35, -.28, 0);    // front bumper
 box(.2, .16, 1.6, rubberMat, -2.34, -.3, 0);      // rear bumper
+
+// aerodynamic neon cyan racing livery lines & carbon shark fin
+box(3.02, .035, .04, neonCyanMat, 0, -.36, 1.01);   // side neon strip R
+box(3.02, .035, .04, neonCyanMat, 0, -.36, -1.01);  // side neon strip L
+box(.36, .025, 1.54, neonCyanMat, -2.28, .34, 0);    // rear wing edge neon
+box(.08, .04, 1.42, neonCyanMat, 2.38, -.26, 0);     // front chin splitter neon
+box(.45, .2, .03, darkMat, -1.75, .36, 0);          // central dorsal shark fin (carbon)
+box(.46, .025, .035, neonCyanMat, -1.75, .47, 0);   // dorsal fin neon ridge
+
 // lights (original parts)
 const whiteMat = new THREE.MeshBasicMaterial({ color: 16777215 });
 const redMat = new THREE.MeshBasicMaterial({ color: 16722492 });
@@ -2022,6 +2084,30 @@ const redMat = new THREE.MeshBasicMaterial({ color: 16722492 });
   const tail = new THREE.Mesh(new THREE.BoxGeometry(.05, .035, 1.6), redMat);
   tail.position.set(-2.33, .05, 0); body.add(tail);
 }
+// forward projector spotlight & twin volumetric beams
+const headLight = new THREE.SpotLight(0xaef6eb, 2.8, 50, Math.PI / 5.5, 0.45, 1.1);
+headLight.position.set(2.35, -.1, 0);
+const headLightTarget = new THREE.Object3D();
+headLightTarget.position.set(25, -.2, 0);
+body.add(headLightTarget);
+headLight.target = headLightTarget;
+body.add(headLight);
+
+const beamMat = new THREE.MeshBasicMaterial({
+  color: 0x8ef5e4, transparent: true, opacity: .12, blending: THREE.AdditiveBlending,
+  side: THREE.DoubleSide, depthWrite: false,
+});
+const beamGeo = new THREE.ConeGeometry(1.6, 12, 12, 1, true).rotateZ(-Math.PI / 2).translate(6, 0, 0);
+for (const z of [-.6, .6]) {
+  const beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.position.set(2.2, .07, z);
+  body.add(beam);
+}
+
+// chassis underglow neon light
+const underglow = new THREE.PointLight(0x6ff0d0, 1.2, 8, 1.8);
+underglow.position.set(0, -.45, 0);
+body.add(underglow);
 // exhaust tips
 {
   const tipGeo = new THREE.CylinderGeometry(.06, .07, .12, 10).rotateZ(Math.PI / 2);
@@ -3585,8 +3671,16 @@ function updateCar(dt, tm) {
       }
     }
   }
-  // suction glow + magnetic rail sparks
+  // suction glow + magnetic rail sparks + dynamic chassis underglow
   suckGlow.material.opacity += ((st.suck ? .85 + Math.sin(tm * 30) * .1 : 0) - suckGlow.material.opacity) * Math.min(1, dt * 14);
+  const spd = Math.min(1, Math.abs(st.v || st.vx || 0) / 25);
+  if (st.mode === 'crash') {
+    underglow.intensity = Math.random() < 0.25 ? 1.6 : 0.05;
+    underglow.color.setHex(0xff3344);
+  } else {
+    underglow.intensity = (st.suck ? 2.6 : 1.1) + spd * 0.7 + Math.sin(tm * 8) * 0.15;
+    underglow.color.setHex(st.suck ? 0x00f2fe : 0x6ff0d0);
+  }
   if (st.suck && st.mode === 'road' && st.u > 0 && Math.random() < 0.6) {
     fx.spawn({
       x: st.x + rand(-0.8, 0.8), y: st.y + rand(-0.2, 0.3), z: rand(-1.2, 1.2),
