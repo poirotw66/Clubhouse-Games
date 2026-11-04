@@ -30,7 +30,7 @@ const I18N = {
     start:'按 Space 起跑！',
     credit:'靈感致敬：tsuyatt《おうまパカパカ Clip-Clop》',
     hud_time:'時間', hud_dist:'剩餘', hud_falls:'跌倒',
-    fallen:'跌倒了！按 R 起身',
+    fallen:'跌倒了！點擊或按 R 起身',
     result_title:'RESULT · 比賽結果', rank_label:'RANK · 稱號',
     st_time:'用時（秒）', st_falls:'跌倒次數', st_steps:'總步數', st_speed:'最高時速',
     dnf:'時間到！', retry:'按 Space 再跑一次',
@@ -96,6 +96,8 @@ const I18N = {
     mat_reset:'起身重整',
     mob_btn_aero:'破風',
     mob_btn_jump:'跨欄',
+    mob_btn_reset:'重整 (R)',
+    mob_btn_getup:'起身 (R)',
     perfect_hurdle:'★ PERFECT HURDLE 完美跨欄！',
     great_hurdle:'順利跨欄！',
     hurdle_clatter:'💥 撞倒障礙欄架！',
@@ -113,7 +115,7 @@ const I18N = {
     start:'Press SPACE to start!',
     credit:'Homage to "Clip-Clop / Oumapakapaka" by tsuyatt',
     hud_time:'TIME', hud_dist:'TO GO', hud_falls:'FALLS',
-    fallen:'Whoops! Press R to get up',
+    fallen:'Whoops! Tap or press R to get up',
     result_title:'RESULT', rank_label:'RANK',
     st_time:'Time (s)', st_falls:'Falls', st_steps:'Steps', st_speed:'Top speed',
     dnf:"TIME'S UP!", retry:'Press SPACE to run again',
@@ -179,6 +181,8 @@ const I18N = {
     mat_reset:'GET UP',
     mob_btn_aero:'AERO',
     mob_btn_jump:'JUMP',
+    mob_btn_reset:'Reset (R)',
+    mob_btn_getup:'Get Up (R)',
     perfect_hurdle:'★ PERFECT HURDLE!',
     great_hurdle:'GREAT HURDLE!',
     hurdle_clatter:'💥 HURDLE HIT!',
@@ -1546,7 +1550,11 @@ function toTitle(){
 
 function tryGetUp(){
   const p=G.fallPose;
-  if(G.state!=='fallen'||!p||!p.landed||p.rise>0)return;
+  if(!p||p.rise>0)return;
+  if(!p.landed){
+    p.wantsRise=true;
+    return;
+  }
   p.rise=1e-6;
   p.from={roll:p.roll,pitch:p.pitch,y:p.y,yaw:p.yaw,z:p.z};
   fallPromptEl.classList.add('hidden');
@@ -1825,6 +1833,9 @@ function simStep(dt){
       buzz(50);
     }else if(e.type==='landed'){
       fallPromptEl.classList.remove('hidden');
+      if(G.fallPose&&G.fallPose.wantsRise){
+        tryGetUp();
+      }
     }else if(e.type==='up'){
       G.state='run';
       G.suggestedPair = 'A';
@@ -1881,8 +1892,8 @@ addEventListener('keydown',e=>{
     if(e.repeat)return;
     setHeld('Space', true);
     if(G.replay&&G.replay.active)endReplay();   // skip the finish replay
-    else if(G.state==='run'&&!G.fallPose)triggerHurdleJump();
-    else if(G.state==='run'&&G.fallPose)tryGetUp();
+    else if(G.state==='fallen'||G.fallPose)tryGetUp();
+    else if(G.state==='run')triggerHurdleJump();
     else primaryAction();
     return;
   }
@@ -1890,7 +1901,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR'){
     if(!e.repeat){
       setHeld('KeyR', true);
-      if(G.fallPose)tryGetUp();
+      if(G.fallPose||G.state==='fallen')tryGetUp();
       else if(G.state==='run')startRun(G.practice, G.daily);
     }
     return;
@@ -1921,9 +1932,41 @@ for(const c of LEG_CFG){
   el.addEventListener('contextmenu',e=>e.preventDefault());
 }
 
+window.__handleMatrixKeyDown = function(code){
+  sfx.ensure();
+  setHeld(code, true);
+  if(code === 'KeyR'){
+    if(G.fallPose || G.state === 'fallen'){
+      tryGetUp();
+    } else if(G.state === 'run'){
+      startRun(G.practice, G.daily);
+    }
+  } else if(code === 'Space'){
+    if(G.replay && G.replay.active) endReplay();
+    else if(G.state === 'fallen' || G.fallPose) tryGetUp();
+    else if(G.state === 'run') triggerHurdleJump();
+    else primaryAction();
+  } else if(code === 'ShiftLeft' || code === 'ShiftRight'){
+    cockpit.aeroActive = true;
+  } else if(code === 'ArrowLeft'){
+    cockpit.trimRoll = -1;
+  } else if(code === 'ArrowRight'){
+    cockpit.trimRoll = 1;
+  }
+};
+window.__handleMatrixKeyUp = function(code){
+  setHeld(code, false);
+  if(code === 'ShiftLeft' || code === 'ShiftRight'){
+    cockpit.aeroActive = false;
+  } else if(code === 'ArrowLeft' || code === 'ArrowRight'){
+    cockpit.trimRoll = 0;
+  }
+};
+
 function setupMobileCockpitTouch(){
   const btnAero = $('touchAero');
   const btnJump = $('touchJump');
+  const btnReset = $('touchReset');
   const btnTrimL = $('touchTrimL');
   const btnTrimR = $('touchTrimR');
 
@@ -1941,9 +1984,30 @@ function setupMobileCockpitTouch(){
     btnJump.addEventListener('pointerdown', e => {
       e.preventDefault();
       sfx.ensure();
-      triggerHurdleJump();
+      if(G.state === 'fallen' || G.fallPose){
+        tryGetUp();
+      } else {
+        triggerHurdleJump();
+      }
     });
     btnJump.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  if(btnReset){
+    btnReset.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      sfx.ensure();
+      setHeld('KeyR', true);
+      if(G.fallPose || G.state === 'fallen'){
+        tryGetUp();
+      } else if(G.state === 'run'){
+        startRun(G.practice, G.daily);
+      }
+    });
+    btnReset.addEventListener('pointerup', () => setHeld('KeyR', false));
+    btnReset.addEventListener('pointercancel', () => setHeld('KeyR', false));
+    btnReset.addEventListener('pointerleave', () => setHeld('KeyR', false));
+    btnReset.addEventListener('contextmenu', e => e.preventDefault());
   }
 
   if(btnTrimL){
@@ -1964,6 +2028,18 @@ function setupMobileCockpitTouch(){
     btnTrimR.addEventListener('pointercancel', onTrimREnd);
     btnTrimR.addEventListener('pointerleave', onTrimREnd);
     btnTrimR.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  if(fallPromptEl){
+    fallPromptEl.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      sfx.ensure();
+      tryGetUp();
+    });
+    fallPromptEl.addEventListener('click', e => {
+      e.preventDefault();
+      tryGetUp();
+    });
   }
 }
 
@@ -2630,6 +2706,8 @@ window.__AI=AI;
 window.__DUEL=DUEL;
 window.__TOUR=TOUR;
 window.__applyWeather=applyWeather;
+window.__tryGetUp=tryGetUp;
+window.__cockpit=cockpit;
 window.__tick=tick;    // manual frame pump for automated tests (rAF may be throttled in embedded browsers)
 window.__errs=[];
 /** Playwright / harness: open the result card with a finish that can upload. */

@@ -51,6 +51,11 @@ export class CockpitManager {
     this.elMobRpm = null;
     this.elMobStamina = null;
     this.elMobHurdle = null;
+    this.elTouchReset = null;
+    this.elTouchResetIcon = null;
+    this.elTouchResetText = null;
+    this.elMobHurdleWrap = null;
+    this.elBackdrop = null;
     this.matrixKeyEls = {};
     this.matrixKeyStates = {};
 
@@ -82,6 +87,7 @@ export class CockpitManager {
     this._lastMobRpm = -1;
     this._lastMobStaminaStr = '';
     this._lastMobHurdleStr = '';
+    this._lastTouchResetAlert = null;
 
     this.tipCooldown = 0;
     this.currentTipKey = '';
@@ -103,6 +109,7 @@ export class CockpitManager {
     leftWing.setAttribute('aria-label', '遙測與體徵儀表');
     leftWing.innerHTML = `
       <div class="cockpit-card">
+        <button class="cockpit-close-btn" id="cockpitCloseLeft" aria-label="關閉座艙">✕</button>
         <div class="cockpit-header">
           <span class="royal-crest">⚜</span>
           <span class="cockpit-title" data-i18n="cockpit_left_title">遙測與體徵儀表</span>
@@ -185,6 +192,7 @@ export class CockpitManager {
     rightWing.setAttribute('aria-label', '戰術雷達與賽事情報');
     rightWing.innerHTML = `
       <div class="cockpit-card">
+        <button class="cockpit-close-btn" id="cockpitCloseRight" aria-label="關閉座艙">✕</button>
         <div class="cockpit-header">
           <span class="royal-crest">⚜</span>
           <span class="cockpit-title" data-i18n="cockpit_right_title">戰術雷達與賽事情報</span>
@@ -327,14 +335,14 @@ export class CockpitManager {
     mobileBar.id = 'mobileCockpitBar';
     mobileBar.className = 'mobile-cockpit-bar hidden';
     mobileBar.innerHTML = `
-      <div class="mob-item"><span class="mob-k">SPD</span><b id="mobSpeed">0.0</b></div>
-      <div class="mob-item"><span class="mob-k">RPM</span><b id="mobRpm">0</b></div>
-      <div class="mob-item"><span class="mob-k">STM</span><b id="mobStamina">100%</b></div>
-      <div class="mob-item"><span class="mob-k">NEXT</span><b id="mobHurdle">15m</b></div>
+      <div class="mob-item"><span class="mob-icon">⚡</span><span class="mob-k">SPD</span><b id="mobSpeed">0.0</b></div>
+      <div class="mob-item"><span class="mob-icon">🔄</span><span class="mob-k">RPM</span><b id="mobRpm">0</b></div>
+      <div class="mob-item"><span class="mob-icon">💚</span><span class="mob-k">STM</span><b id="mobStamina">100%</b></div>
+      <div class="mob-item" id="mobHurdleWrap"><span class="mob-icon">🏇</span><span class="mob-k">NEXT</span><b id="mobHurdle">15m</b></div>
       <button id="mobCockpitToggle" class="mob-cockpit-btn" aria-label="切換座艙儀表">📊 儀表</button>
     `;
 
-    // 5. Mobile Action Touch Dock (行動端延伸操作按鈕：破風、跨欄、重心平衡)
+    // 5. Mobile Action Touch Dock (行動端延伸操作按鈕：破風、跨欄、起身重整、重心平衡)
     const mobileDock = document.createElement('div');
     mobileDock.id = 'mobileActionDock';
     mobileDock.className = 'mobile-action-dock hidden';
@@ -347,23 +355,34 @@ export class CockpitManager {
         <span class="pill-icon">🏇</span>
         <span class="pill-text" data-i18n="mob_btn_jump">跨欄</span>
       </button>
+      <button id="touchReset" class="action-pill reset-pill" aria-label="起身重整">
+        <span class="pill-icon" id="touchResetIcon">🔄</span>
+        <span class="pill-text" id="touchResetText" data-i18n="mob_btn_reset">重整 (R)</span>
+      </button>
       <div class="trim-group">
         <button id="touchTrimL" class="trim-pill" aria-label="左傾重心">◀</button>
         <button id="touchTrimR" class="trim-pill" aria-label="右傾重心">▶</button>
       </div>
     `;
 
+    // 6. Mobile Backdrop for drawer dismiss
+    const backdrop = document.createElement('div');
+    backdrop.id = 'cockpitBackdrop';
+    backdrop.className = 'cockpit-backdrop hidden';
+
     this.uiRoot.appendChild(leftWing);
     this.uiRoot.appendChild(rightWing);
     this.uiRoot.appendChild(keyboardMatrix);
     this.uiRoot.appendChild(mobileBar);
     this.uiRoot.appendChild(mobileDock);
+    this.uiRoot.appendChild(backdrop);
 
     this.leftWing = leftWing;
     this.rightWing = rightWing;
     this.keyboardMatrix = keyboardMatrix;
     this.mobileBar = mobileBar;
     this.mobileDock = mobileDock;
+    this.elBackdrop = backdrop;
 
     // Cache elements
     this.elRpmValue = document.getElementById('rpmValue');
@@ -395,16 +414,56 @@ export class CockpitManager {
     this.elMobRpm = document.getElementById('mobRpm');
     this.elMobStamina = document.getElementById('mobStamina');
     this.elMobHurdle = document.getElementById('mobHurdle');
+    this.elTouchReset = document.getElementById('touchReset');
+    this.elTouchResetIcon = document.getElementById('touchResetIcon');
+    this.elTouchResetText = document.getElementById('touchResetText');
+    this.elMobHurdleWrap = document.getElementById('mobHurdleWrap');
   }
 
   bindEvents() {
     const toggleBtn = document.getElementById('mobCockpitToggle');
+    const closeLeft = document.getElementById('cockpitCloseLeft');
+    const closeRight = document.getElementById('cockpitCloseRight');
+
+    const setMobileOpen = (open) => {
+      this.mobileOpen = open;
+      if (this.leftWing) this.leftWing.classList.toggle('mobile-open', open);
+      if (toggleBtn) toggleBtn.classList.toggle('active', open);
+      if (this.elBackdrop) this.elBackdrop.classList.toggle('hidden', !open);
+    };
+
     if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
-        this.mobileOpen = !this.mobileOpen;
-        this.leftWing.classList.toggle('mobile-open', this.mobileOpen);
-        this.rightWing.classList.toggle('mobile-open', this.mobileOpen);
-        toggleBtn.classList.toggle('active', this.mobileOpen);
+      toggleBtn.addEventListener('click', () => setMobileOpen(!this.mobileOpen));
+    }
+    if (closeLeft) closeLeft.addEventListener('click', () => setMobileOpen(false));
+    if (closeRight) closeRight.addEventListener('click', () => setMobileOpen(false));
+    if (this.elBackdrop) {
+      this.elBackdrop.addEventListener('click', () => setMobileOpen(false));
+    }
+
+    // Matrix keys interactive touch/pointer support
+    if (this.keyboardMatrix) {
+      const keys = this.keyboardMatrix.querySelectorAll('.matrix-key');
+      keys.forEach((keyEl) => {
+        const code = keyEl.dataset.key;
+        if (!code) return;
+        const onDown = (e) => {
+          e.preventDefault();
+          if (typeof window !== 'undefined' && window.__handleMatrixKeyDown) {
+            window.__handleMatrixKeyDown(code);
+          }
+        };
+        const onUp = (e) => {
+          e.preventDefault();
+          if (typeof window !== 'undefined' && window.__handleMatrixKeyUp) {
+            window.__handleMatrixKeyUp(code);
+          }
+        };
+        keyEl.addEventListener('pointerdown', onDown);
+        keyEl.addEventListener('pointerup', onUp);
+        keyEl.addEventListener('pointerleave', onUp);
+        keyEl.addEventListener('pointercancel', onUp);
+        keyEl.addEventListener('contextmenu', (e) => e.preventDefault());
       });
     }
   }
@@ -418,11 +477,21 @@ export class CockpitManager {
   }
 
   hide() {
-    if (this.leftWing) this.leftWing.classList.add('hidden');
-    if (this.rightWing) this.rightWing.classList.add('hidden');
+    this.mobileOpen = false;
+    if (this.leftWing) {
+      this.leftWing.classList.add('hidden');
+      this.leftWing.classList.remove('mobile-open');
+    }
+    if (this.rightWing) {
+      this.rightWing.classList.add('hidden');
+      this.rightWing.classList.remove('mobile-open');
+    }
     if (this.keyboardMatrix) this.keyboardMatrix.classList.add('hidden');
     if (this.mobileBar) this.mobileBar.classList.add('hidden');
     if (this.mobileDock) this.mobileDock.classList.add('hidden');
+    if (this.elBackdrop) this.elBackdrop.classList.add('hidden');
+    const toggleBtn = document.getElementById('mobCockpitToggle');
+    if (toggleBtn) toggleBtn.classList.remove('active');
   }
 
   reset() {
@@ -463,6 +532,7 @@ export class CockpitManager {
     this._lastMobRpm = -1;
     this._lastMobStaminaStr = '';
     this._lastMobHurdleStr = '';
+    this._lastTouchResetAlert = null;
   }
 
   consumeStamina(amount) {
@@ -600,6 +670,21 @@ export class CockpitManager {
 
     // 11. Mobile Ticker
     this.updateMobileTicker(speedKmh, displayRpm, approach);
+
+    // 12. Dynamic Mobile Reset / Get-up button
+    const isFallen = !!(game.fallPose || game.state === 'fallen');
+    if (this.elTouchReset && this._lastTouchResetAlert !== isFallen) {
+      this.elTouchReset.classList.toggle('fall-alert', isFallen);
+      if (this.elTouchResetIcon) {
+        this.elTouchResetIcon.textContent = isFallen ? '⚡' : '🔄';
+      }
+      if (this.elTouchResetText) {
+        this.elTouchResetText.textContent = isFallen
+          ? (this.tr('mob_btn_getup') || '起身 (R)')
+          : (this.tr('mob_btn_reset') || '重整 (R)');
+      }
+      this._lastTouchResetAlert = isFallen;
+    }
   }
 
   updateGaitBadge(speedKmh, rpm) {
@@ -922,6 +1007,10 @@ export class CockpitManager {
     if (hText !== this._lastMobHurdleStr) {
       this.elMobHurdle.textContent = hText;
       this._lastMobHurdleStr = hText;
+    }
+    if (this.elMobHurdleWrap) {
+      const isClose = !!(approach && approach.hurdle && approach.dist < 6.0);
+      this.elMobHurdleWrap.classList.toggle('hurdle-close', isClose);
     }
   }
 }
