@@ -9,6 +9,7 @@ import type {
 import type { GameMode } from '../utils/storage';
 import { CockpitLeftWing } from './CockpitLeftWing';
 import { CockpitRightWing } from './CockpitRightWing';
+import type { PipDisplayMode, TileCraftTheme } from './DominoTile';
 import {
   Activity,
   UserCheck,
@@ -24,6 +25,12 @@ interface MobileCockpitDrawerProps {
   streak: number;
   onSelectPlay?: (tileId: number, end: EndId) => void;
   selectedTileId: number | null;
+  craft?: TileCraftTheme;
+  onChangeCraft?: (craft: TileCraftTheme) => void;
+  pipMode?: PipDisplayMode;
+  onChangePipMode?: (mode: PipDisplayMode) => void;
+  isMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
 type MobileTab = 'radar' | 'dossier';
@@ -37,6 +44,12 @@ export function MobileCockpitDrawer({
   streak,
   onSelectPlay,
   selectedTileId,
+  craft,
+  onChangeCraft,
+  pipMode,
+  onChangePipMode,
+  isMuted,
+  onToggleMute,
 }: MobileCockpitDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<MobileTab>('radar');
@@ -131,6 +144,12 @@ export function MobileCockpitDrawer({
                   ruleVariant={ruleVariant}
                   onSelectPlay={handleSelectPlayInDrawer}
                   selectedTileId={selectedTileId}
+                  craft={craft}
+                  onChangeCraft={onChangeCraft}
+                  pipMode={pipMode}
+                  onChangePipMode={onChangePipMode}
+                  isMuted={isMuted}
+                  onToggleMute={onToggleMute}
                 />
               ) : (
                 <CockpitRightWing

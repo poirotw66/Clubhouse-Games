@@ -64,7 +64,22 @@ import {
   todayRecord,
   type DailyProgress,
 } from './utils/daily';
-import { DominoTile, PlacedDominoTile } from './components/DominoTile';
+import {
+  DominoTile,
+  PlacedDominoTile,
+  type PipDisplayMode,
+  type TileCraftTheme,
+} from './components/DominoTile';
+import {
+  isAcousticsMuted,
+  playAllFivesArpeggio,
+  playBoneClatter,
+  playBoneDraw,
+  playBoneyardShuffle,
+  playTableSlam,
+  playTileTap,
+  setAcousticsMuted,
+} from './utils/dominoAcoustics';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
@@ -83,6 +98,9 @@ import {
   CalendarDays,
   UserRound,
   Keyboard,
+  Palette,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 function playerCountFor(mode: GameMode): PlayerCount {
@@ -177,14 +195,55 @@ export default function App() {
   );
   const [roundBanner, setRoundBanner] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [craft, setCraft] = useState<TileCraftTheme>(() => {
+    try {
+      const savedCraft = localStorage.getItem('clubhouse-dominoes-craft');
+      if (savedCraft === 'obsidian' || savedCraft === 'walnut') return savedCraft;
+    } catch {}
+    return 'ivory';
+  });
+  const [pipMode, setPipMode] = useState<PipDisplayMode>(() => {
+    try {
+      const savedMode = localStorage.getItem('clubhouse-dominoes-pipmode');
+      if (savedMode === 'numerals' || savedMode === 'both') return savedMode;
+    } catch {}
+    return 'pips';
+  });
+  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(() => isAcousticsMuted());
+
+  const handleCraftChange = useCallback((newCraft: TileCraftTheme) => {
+    setCraft(newCraft);
+    try {
+      localStorage.setItem('clubhouse-dominoes-craft', newCraft);
+    } catch {}
+  }, []);
+
+  const handlePipModeChange = useCallback((newMode: PipDisplayMode) => {
+    setPipMode(newMode);
+    try {
+      localStorage.setItem('clubhouse-dominoes-pipmode', newMode);
+    } catch {}
+  }, []);
+
+  const handleToggleAudio = useCallback(() => {
+    const next = !isAudioMuted;
+    setIsAudioMuted(next);
+    setAcousticsMuted(next);
+  }, [isAudioMuted]);
+
   const botScheduled = useRef(false);
   const prevPhaseRef = useRef(state.phase);
   const matchRecordedRef = useRef(false);
   const boardShellRef = useRef<HTMLDivElement | null>(null);
 
-  const placeTileFx = useCallback(() => {
+  const placeTileFx = useCallback((isDouble?: boolean) => {
     haptic('place');
     particles('dust', { el: boardShellRef.current });
+    if (isDouble) {
+      playTableSlam();
+    } else {
+      playBoneClatter({ intensity: 1.0 });
+    }
   }, []);
 
   const isPartners = gameMode === 'partners';
@@ -220,6 +279,7 @@ export default function App() {
 
   const flashScore = useCallback((points: number) => {
     if (points <= 0) return;
+    playAllFivesArpeggio(points);
     playScore();
     haptic('success');
     particles('sparkle', { el: boardShellRef.current, strength: 0.85 });
@@ -256,10 +316,11 @@ export default function App() {
           deterministic: isDaily,
         });
         if (move) {
+          const playedTile = hand.find((t) => t.id === move.tileId);
           const next = playTile(state, seat, move.tileId, move.end);
           if (next) {
             playMove();
-            placeTileFx();
+            placeTileFx(playedTile ? playedTile.left === playedTile.right : false);
             setLastPlacedId(move.tileId);
             if (next.lastPlayScore > 0 && next.phase === 'playing') {
               flashScore(next.lastPlayScore);
@@ -271,6 +332,7 @@ export default function App() {
         const next = pass(state, seat);
         if (next) setState(next);
       } else {
+        playBoneDraw();
         setState(drawTiles(state, seat));
       }
       botScheduled.current = false;
@@ -378,11 +440,13 @@ export default function App() {
       if (state.phase !== 'playing' || !selectedTileId) return;
       if (gameMode !== 'two' && state.currentPlayer !== humanSeat) return;
       const actor = state.currentPlayer;
+      const hand = state.hands[actor] ?? [];
+      const playedTile = hand.find((t) => t.id === selectedTileId);
       const next = playTile(state, actor, selectedTileId, end);
       if (next) {
         pushHistory();
         playMove();
-        placeTileFx();
+        placeTileFx(playedTile ? playedTile.left === playedTile.right : false);
         setLastPlacedId(selectedTileId);
         if (next.lastPlayScore > 0 && next.phase === 'playing') {
           flashScore(next.lastPlayScore);
@@ -400,11 +464,13 @@ export default function App() {
       if (state.phase !== 'playing') return;
       if (gameMode !== 'two' && state.currentPlayer !== humanSeat) return;
       const actor = state.currentPlayer;
+      const hand = state.hands[actor] ?? [];
+      const playedTile = hand.find((t) => t.id === tileId);
       const next = playTile(state, actor, tileId, end);
       if (next) {
         pushHistory();
         playMove();
-        placeTileFx();
+        placeTileFx(playedTile ? playedTile.left === playedTile.right : false);
         setLastPlacedId(tileId);
         if (next.lastPlayScore > 0 && next.phase === 'playing') {
           flashScore(next.lastPlayScore);
@@ -422,6 +488,7 @@ export default function App() {
     if (state.ruleVariant === 'block' || state.boneyard.length <= 2) return;
     if (gameMode !== 'two' && state.currentPlayer !== humanSeat) return;
     pushHistory();
+    playBoneDraw();
     setHintMove(null);
     setState(drawTiles(state, state.currentPlayer));
   }, [state, canPlayAny, gameMode, pushHistory]);
@@ -504,6 +571,7 @@ export default function App() {
       setMatchTarget(target);
       setGameMode(mode);
       setDifficulty(diff);
+      playBoneyardShuffle();
       const nextMatch = createMatchState(target, count);
       setMatch(nextMatch);
       setState(
@@ -547,6 +615,7 @@ export default function App() {
       });
       return next;
     });
+    playBoneyardShuffle();
     setState(
       createInitialState(ruleVariant, {
         playerCount: match.playerCount,
@@ -693,6 +762,20 @@ export default function App() {
       if (e.key === 'h' || e.key === 'H') {
         e.preventDefault();
         handleHint();
+        return;
+      }
+
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        const next: TileCraftTheme =
+          craft === 'ivory' ? 'obsidian' : craft === 'obsidian' ? 'walnut' : 'ivory';
+        handleCraftChange(next);
+        return;
+      }
+
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        handleToggleAudio();
         return;
       }
 
@@ -902,6 +985,35 @@ export default function App() {
         <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
           <button
             type="button"
+            onClick={() => {
+              const next: TileCraftTheme =
+                craft === 'ivory' ? 'obsidian' : craft === 'obsidian' ? 'walnut' : 'ivory';
+              handleCraftChange(next);
+            }}
+            className="min-h-[44px] px-2 sm:px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700 transition-colors touch-manipulation inline-flex items-center gap-1 text-xs font-semibold text-amber-200"
+            title={`骨牌工藝：${craft === 'ivory' ? '典藏象牙' : craft === 'obsidian' ? '皇家黑曜' : '古董胡桃'}`}
+            aria-label="切換骨牌工藝"
+          >
+            <Palette className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">
+              {craft === 'ivory' ? '象牙' : craft === 'obsidian' ? '黑曜' : '胡桃'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleAudio}
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center text-slate-300"
+            title={isAudioMuted ? '音效已靜音（點擊開啟）' : '音效開啟（點擊靜音）'}
+            aria-label={isAudioMuted ? '開啟音效' : '靜音'}
+          >
+            {isAudioMuted ? (
+              <VolumeX className="w-5 h-5 text-rose-400" />
+            ) : (
+              <Volume2 className="w-5 h-5 text-emerald-400" />
+            )}
+          </button>
+          <button
+            type="button"
             onClick={handleUndo}
             disabled={!canUndo}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:pointer-events-none touch-manipulation inline-flex items-center justify-center"
@@ -961,6 +1073,12 @@ export default function App() {
           streak={stats.streak}
           onSelectPlay={handleCockpitPlay}
           selectedTileId={selectedTileId}
+          craft={craft}
+          onChangeCraft={handleCraftChange}
+          pipMode={pipMode}
+          onChangePipMode={handlePipModeChange}
+          isMuted={isAudioMuted}
+          onToggleMute={handleToggleAudio}
         />
 
         {/* 3-column / 1-column responsive layout */}
@@ -972,6 +1090,12 @@ export default function App() {
               ruleVariant={ruleVariant}
               onSelectPlay={handleCockpitPlay}
               selectedTileId={selectedTileId}
+              craft={craft}
+              onChangeCraft={handleCraftChange}
+              pipMode={pipMode}
+              onChangePipMode={handlePipModeChange}
+              isMuted={isAudioMuted}
+              onToggleMute={handleToggleAudio}
             />
           </div>
 
@@ -1178,7 +1302,7 @@ export default function App() {
       <div
         ref={boardShellRef}
         data-dominoes-board="1"
-        className="w-full max-w-2xl overflow-x-auto py-2 sm:py-3 relative"
+        className="w-full max-w-2xl overflow-x-auto py-2 sm:py-3 relative domino-felt-table rounded-2xl border border-slate-700/60 p-2 sm:p-4 my-2"
       >
         {showSpinnerCross ? (
           <div className="flex flex-col items-center gap-1 min-h-[7rem] sm:min-h-[8rem]">
@@ -1193,7 +1317,9 @@ export default function App() {
                       displayLeft: p.outward,
                       displayRight: p.inward,
                     }}
-                    vertical
+                    armAxis="vertical"
+                    craft={craft}
+                    pipMode={pipMode}
                     justPlaced={p.tile.id === lastPlacedId}
                   />
                 ))}
@@ -1210,6 +1336,9 @@ export default function App() {
                       displayLeft: p.outward,
                       displayRight: p.inward,
                     }}
+                    armAxis="horizontal"
+                    craft={craft}
+                    pipMode={pipMode}
                     justPlaced={p.tile.id === lastPlacedId}
                   />
                 ))}
@@ -1217,6 +1346,8 @@ export default function App() {
                   <PlacedDominoTile
                     placed={state.board.hub}
                     spinner
+                    craft={craft}
+                    pipMode={pipMode}
                     justPlaced={state.board.hub.tile.id === lastPlacedId}
                   />
                 )}
@@ -1228,6 +1359,9 @@ export default function App() {
                       displayLeft: p.inward,
                       displayRight: p.outward,
                     }}
+                    armAxis="horizontal"
+                    craft={craft}
+                    pipMode={pipMode}
                     justPlaced={p.tile.id === lastPlacedId}
                   />
                 ))}
@@ -1244,7 +1378,9 @@ export default function App() {
                       displayLeft: p.inward,
                       displayRight: p.outward,
                     }}
-                    vertical
+                    armAxis="vertical"
+                    craft={craft}
+                    pipMode={pipMode}
                     justPlaced={p.tile.id === lastPlacedId}
                   />
                 ))}
@@ -1260,6 +1396,9 @@ export default function App() {
                 <PlacedDominoTile
                   key={placed.tile.id}
                   placed={placed}
+                  armAxis="horizontal"
+                  craft={craft}
+                  pipMode={pipMode}
                   justPlaced={placed.tile.id === lastPlacedId}
                   spinner={
                     state.board.spinnerActive &&
@@ -1320,7 +1459,9 @@ export default function App() {
                 <DominoTile
                   key={t.id}
                   tile={t}
-                  vertical={false}
+                  vertical={true}
+                  craft={craft}
+                  pipMode={pipMode}
                   highlight={selectable && selectedTileId === t.id}
                   hint={
                     humanCanAct &&
@@ -1335,6 +1476,7 @@ export default function App() {
                   size="normal"
                   onClick={() => {
                     if (!selectable) return;
+                    playTileTap();
                     setSelectedTileId(selectedTileId === t.id ? null : t.id);
                     if (hintMove && hintMove.tileId !== t.id) setHintMove(null);
                   }}

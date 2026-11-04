@@ -43,6 +43,16 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
       desc: '快速展開或收合左右戰情駕駛艙與骨牌矩陣',
     },
     {
+      keys: ['C'],
+      label: '切換骨牌工藝',
+      desc: '在典藏象牙、皇家黑曜、古董胡桃三種 3D 材質間切換',
+    },
+    {
+      keys: ['S'],
+      label: '音效開關',
+      desc: '開啟或關閉原生骨牌物理碰撞與鐘鳴音效',
+    },
+    {
       keys: ['?'],
       label: '快捷鍵說明',
       desc: '隨時叫出此鍵盤快捷鍵指南面板',

@@ -33,6 +33,20 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
 }
 
 
+@keyframes domino-spinner-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(251, 191, 36, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.8); }
+  50% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.9), inset 0 1px 1px rgba(255, 255, 255, 1); }
+}
+
+.domino-spinner-glow {
+  animation: domino-spinner-glow 2s ease-in-out infinite;
+}
+
+.domino-felt-table {
+  background: radial-gradient(circle at 50% 35%, #1e293b 0%, #0f172a 75%, #080d1a 100%);
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.6);
+}
+
 .dm-more-modes > summary::-webkit-details-marker { display: none; }
 .dm-more-modes > summary::after {
   content: '▸';

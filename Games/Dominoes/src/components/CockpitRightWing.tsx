@@ -5,7 +5,10 @@ import type {
   MatchState,
 } from '../utils/dominoesLogic';
 import type { GameMode } from '../utils/storage';
-import { getOpponentDossiers } from '../utils/intelligence';
+import {
+  calculateOpponentLackProbabilities,
+  getOpponentDossiers,
+} from '../utils/intelligence';
 import {
   BookMarked,
   ChevronDown,
@@ -13,6 +16,7 @@ import {
   Cpu,
   Flame,
   Lightbulb,
+  Radar,
   Trophy,
 } from 'lucide-react';
 
@@ -129,6 +133,42 @@ export function CockpitRightWing({
                   </p>
                 ))}
               </div>
+
+              {/* Opponent Holding Probability Analyzer */}
+              {(() => {
+                const lackProbs = calculateOpponentLackProbabilities(state, 0, dos.seat);
+                return (
+                  <div className="flex flex-col gap-1 pt-1 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Radar className="w-3 h-3 text-sky-400" />
+                        持牌機率雷達 (0～6 點)
+                      </span>
+                      <span className="text-[10px] text-slate-400">0% = 斷門</span>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {lackProbs.map((lp) => (
+                        <div
+                          key={lp.pip}
+                          className={`p-1 rounded border text-[10px] ${
+                            lp.isConfirmedLack
+                              ? 'border-rose-800 bg-rose-950/60 text-rose-300 font-bold'
+                              : lp.threatLevel === 'high'
+                                ? 'border-amber-600/60 bg-amber-950/30 text-amber-300'
+                                : 'border-slate-800 bg-slate-900/60 text-slate-300'
+                          }`}
+                          title={`點數 ${lp.pip}：對手持有機率 ${lp.probability}% (未現身 ${lp.unseenSuitCount} 張)`}
+                        >
+                          <div className="text-[11px] font-bold">{lp.pip}點</div>
+                          <div className="text-[9px] tabular-nums mt-0.5">
+                            {lp.isConfirmedLack ? '斷門' : `${lp.probability}%`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Tactical Tip */}
               <div className="text-[11px] bg-slate-900/90 rounded p-2 text-amber-200/90 border border-amber-900/40 flex items-start gap-1.5 leading-relaxed">

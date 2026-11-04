@@ -71,17 +71,38 @@
 路徑：[Games/Dominoes/](../Games/Dominoes/)
 
 - 雙人／對電腦；**五倍數／摸牌制／封鎖制**；整場先達 61／100／150；三級 AI（Hard 會算即時得分、留下的端點危險、與對手疑似缺門）、Hint、Undo。
+- **3D 奢華骨牌工藝與古典雙張排版（Luxury Bone Tile Craft）**：
+  - **三種精工材質**：
+    - **典藏象牙（Imperial Ivory）**：溫潤骨白質感、沉香黑曜凹雕點數、微倒角拋光陰影。
+    - **皇家黑曜（Royal Obsidian）**：火山玄石暗面、24K 閃耀黃金點數與金屬微光。
+    - **古董胡桃（Antique Walnut）**：頂級深色木紋、珠光古銅嵌點與陳年原木質感。
+  - **黃銅中孔轉軸鉚釘（Brass Spinner Rivet）**：完整重現古典骨牌中央防磨金屬鉚釘；在五倍數模式激活時具備專屬光芒。
+  - **正統橫向雙張排版（Transverse Doubles）**：水平鏈上的雙張骨牌垂直橫置、垂直臂上的雙張骨牌水平橫置，真實還原百年骨牌排面美學。
+  - **點數呈現模式**：支援「經典點數 (Pips)」、「數字標籤 (Numerals)」與「雙模並存 (Hybrid)」隨心切換。
+- **原生 Web Audio 物理聲學合成引擎（Acoustic Clatter & Bell Synthesis）**：
+  - **骨牌微彈碰撞（Bone Clatter）**：雙陶瓷共振頻段與 20ms 微反彈物理微敲擊。
+  - **沉重桌面扣牌（Table Slam）**：出雙張與絕殺牌時觸發實木重低音轟鳴與脆響。
+  - **牌堆洗牌聲（Boneyard Shuffle）**：開局與摸牌時多骨牌於桌布翻滾滑動音效。
+  - **五倍數和弦鐘鳴（All-Fives Arpeggios）**：依 5/10/15/20/25+ 得分檔位動態演奏純律五聲音階水晶鐘琴琶音。
 - **雙翼戰情駕駛艙（Dual-wing Table Cockpit）**：
-  - **左翼（牌局情資雷達）**：28 張骨牌池透視矩陣（Boneyard Matrix）、點數存量進度條（0～6 點各 7 張）、開放端點存量與斷門死端警報、阻塞點數結算預演、五倍數（All Fives）即時得分試算表（點擊直接出牌）。
-  - **右翼（對手戰情檔案）**：對手推論缺門（Suspected Voids）、實戰壓制戰術建議、系列賽動能進度、殘局牌術錦囊（重牌出清、斷門牽制、五倍數控和、阻塞決勝）。
+  - **左翼（牌局情資雷達）**：
+    - **端點走向與戰術引導**：分析各開放端點剩餘流通量、對手斷門牽制點與敵方高發端點。
+    - **28 張骨牌池透視矩陣（Boneyard Matrix）**：已出、手牌、未現身分色矩陣。
+    - **點數存量進度條**：0～6 點各 7 張動態存量。
+    - **五倍數即時試算與回防評級**：評定 S/A/B/C 戰術等級，防範送分給對手。
+    - **工藝音效面板**：即時切換材質、點數模式與音效試聽。
+  - **右翼（對手戰情檔案）**：
+    - **對手持牌機率透視雷達（Hypergeometric Probability Analyzer）**：即時計算對手持有 0～6 點的超幾何機率百分比（0% 確鑿斷門、高危牌組）。
+    - **實戰壓制戰術建議**、系列賽動能進度、殘局牌術錦囊。
   - **行動端戰術膠囊（Mobile Cockpit Capsule）**：窄螢幕專屬抽屜面板，一鍵展開情報雷達與對手檔案。
 - **實體鍵盤操作快捷鍵**：
   - <kbd>←</kbd>／<kbd>→</kbd> 或 <kbd>A</kbd>／<kbd>D</kbd>：循環切換選取手牌
   - <kbd>1</kbd>／<kbd>2</kbd>／<kbd>3</kbd>／<kbd>4</kbd> 或 <kbd>L</kbd>／<kbd>R</kbd>／<kbd>U</kbd>／<kbd>D</kbd>：選擇開放端點（左／右／上／下）
   - <kbd>Space</kbd>／<kbd>Enter</kbd>：確認出牌
   - <kbd>P</kbd>／<kbd>D</kbd>：跳過／抽牌
+  - <kbd>C</kbd>：切換骨牌材質工藝
+  - <kbd>S</kbd>：切換原生聲學音效
   - <kbd>H</kbd>：提示、<kbd>Z</kbd>／<kbd>U</kbd>：悔棋、<kbd>?</kbd>：快捷鍵指南面板
 - 戰績：`clubhouse-dominoes-stats`（勝敗、連勝）；進行中比賽：`clubhouse-dominoes-match`。
-- 回饋：出牌動畫、得分 callout（`ScoreFlash` + `playScore`）、勝負音效。
-- **首局引導**：首次開啟三步上手疊層（`clubhouse-dominoes-howto-seen`）。
-- Check：`npm run check` → vitest（53 tests，含五倍數計分、轉軸、賽制、難度、以及牌局情資雷達與矩陣分析單元測試）。
+- 首局引導：首次開啟三步上手疊層（`clubhouse-dominoes-howto-seen`）。
+- Check：`npm run check` → vitest（56 tests，含五倍數計分、超幾何持牌機率分析、端點走向走向與戰術引導單元測試）。

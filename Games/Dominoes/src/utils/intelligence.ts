@@ -45,6 +45,26 @@ export interface MoveScoreSimulation {
   resultingSum: number;
   score: number;
   isScoring: boolean;
+  counterRiskScore?: number;
+  tacticalGrade?: 'S' | 'A' | 'B' | 'C';
+}
+
+export interface OpponentLackProbability {
+  pip: number;
+  probability: number; // 0 to 100
+  unseenSuitCount: number;
+  isConfirmedLack: boolean;
+  threatLevel: 'void' | 'low' | 'medium' | 'high';
+}
+
+export interface EndTrajectoryAnalysis {
+  end: EndId;
+  pip: number;
+  unseenMatchingCount: number;
+  isOpponentConfirmedLack: boolean;
+  playerMatchingCount: number;
+  tacticalStatus: 'exploit' | 'secure' | 'danger' | 'exhausted';
+  recommendation: string;
 }
 
 export interface EndRadarStatus {
@@ -166,6 +186,20 @@ export function simulateAllFivesScores(
       const sum = sumOpenEnds(nextBoard);
       const score = scoreOpenEnds(nextBoard);
 
+      // Estimate counter-risk score: check how exposed the resulting open ends are
+      const resultingEnds = getPlayableEnds(nextBoard);
+      let riskScore = 0;
+      for (const re of resultingEnds) {
+        const p = getEndPip(nextBoard, re);
+        if (p !== null && (p === 0 || p === 5)) riskScore += 2; // High probability of opponent scoring multiples of 5
+      }
+
+      let tacticalGrade: 'S' | 'A' | 'B' | 'C' = 'B';
+      if (score >= 10 && riskScore <= 2) tacticalGrade = 'S';
+      else if (score > 0) tacticalGrade = 'A';
+      else if (riskScore <= 2) tacticalGrade = 'B';
+      else tacticalGrade = 'C';
+
       simulations.push({
         tileId: tile.id,
         tile,
@@ -174,6 +208,8 @@ export function simulateAllFivesScores(
         resultingSum: sum,
         score,
         isScoring: score > 0,
+        counterRiskScore: riskScore,
+        tacticalGrade,
       });
     }
   }
@@ -297,6 +333,135 @@ export function getOpponentDossiers(
       suspectedLacks,
       lackExplanations,
       tacticalTip,
+    };
+  });
+}
+
+/**
+ * Calculates exact hypergeometric probability (0-100%) that the target opponent
+ * holds at least one tile of each pip (0-6).
+ * If the opponent has passed/drawn on a pip, probability is 0 (confirmed lack).
+ */
+export function calculateOpponentLackProbabilities(
+  state: DominoesState,
+  viewerSeat: SeatId = 0,
+  targetSeat?: SeatId,
+): OpponentLackProbability[] {
+  const oppSeats = opponentSeats(viewerSeat, state.playerCount);
+  const actualTargetSeat = targetSeat ?? oppSeats[0] ?? 1;
+  const oppHand = state.hands[actualTargetSeat] ?? [];
+  const oppHandSize = oppHand.length;
+  const suspectedLacks = new Set(state.suspectedLack[actualTargetSeat] ?? []);
+
+  const matrix = getTileMatrix(state, viewerSeat);
+  const unseenTiles = matrix.filter((m) => m.status === 'unseen');
+  const totalUnseen = unseenTiles.length;
+
+  const results: OpponentLackProbability[] = [];
+
+  for (let pip = 0; pip <= 6; pip++) {
+    const isConfirmedLack = suspectedLacks.has(pip);
+    const suitUnseenTiles = unseenTiles.filter(
+      (m) => m.tile.left === pip || m.tile.right === pip,
+    );
+    const unseenSuitCount = suitUnseenTiles.length;
+
+    if (isConfirmedLack || unseenSuitCount === 0 || oppHandSize === 0 || totalUnseen === 0) {
+      results.push({
+        pip,
+        probability: 0,
+        unseenSuitCount,
+        isConfirmedLack,
+        threatLevel: isConfirmedLack ? 'void' : 'low',
+      });
+      continue;
+    }
+
+    if (totalUnseen - unseenSuitCount < oppHandSize) {
+      results.push({
+        pip,
+        probability: 100,
+        unseenSuitCount,
+        isConfirmedLack: false,
+        threatLevel: 'high',
+      });
+      continue;
+    }
+
+    let probNone = 1.0;
+    for (let i = 0; i < oppHandSize; i++) {
+      probNone *= (totalUnseen - unseenSuitCount - i) / (totalUnseen - i);
+    }
+    const probAtLeastOne = Math.max(0, Math.min(1, 1 - probNone));
+    const probability = Math.round(probAtLeastOne * 100);
+
+    let threatLevel: 'void' | 'low' | 'medium' | 'high' = 'low';
+    if (probability >= 70) threatLevel = 'high';
+    else if (probability >= 35) threatLevel = 'medium';
+
+    results.push({
+      pip,
+      probability,
+      unseenSuitCount,
+      isConfirmedLack: false,
+      threatLevel,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Analyzes open end trajectory, remaining unseen counters, opponent voids,
+ * and outputs actionable tactical steering guidance.
+ */
+export function analyzeChainEndsTrajectory(
+  state: DominoesState,
+  viewerSeat: SeatId = 0,
+): EndTrajectoryAnalysis[] {
+  const playableEnds = getPlayableEnds(state.board);
+  const playerHand = state.hands[viewerSeat] ?? [];
+  const matrix = getTileMatrix(state, viewerSeat);
+  const oppSeats = opponentSeats(viewerSeat, state.playerCount);
+  const primaryOppSeat = oppSeats[0] ?? 1;
+  const oppLacks = new Set(state.suspectedLack[primaryOppSeat] ?? []);
+
+  return playableEnds.map((end) => {
+    const pip = getEndPip(state.board, end) ?? 0;
+    const unseenMatchingCount = matrix.filter(
+      (m) =>
+        m.status === 'unseen' &&
+        (m.tile.left === pip || m.tile.right === pip),
+    ).length;
+
+    const isOpponentConfirmedLack = oppLacks.has(pip);
+    const playerMatchingCount = playerHand.filter((t) => canAttachToEnd(t, pip)).length;
+
+    let tacticalStatus: 'exploit' | 'secure' | 'danger' | 'exhausted' = 'secure';
+    let recommendation = '盤面端點穩定，可伺機進攻。';
+
+    if (unseenMatchingCount === 0 && playerMatchingCount === 0) {
+      tacticalStatus = 'exhausted';
+      recommendation = `牌池已無 ${pip} 點，此端點已成為永久封鎖死端。`;
+    } else if (isOpponentConfirmedLack) {
+      tacticalStatus = 'exploit';
+      recommendation = `對手確無 ${pip} 點！保留此端點可令對手無法出牌連續跳過。`;
+    } else if (playerMatchingCount > 0 && unseenMatchingCount <= 2) {
+      tacticalStatus = 'secure';
+      recommendation = `我方掌握 ${pip} 點主控權，敵方難以接續。`;
+    } else if (unseenMatchingCount >= 4) {
+      tacticalStatus = 'danger';
+      recommendation = `流通 ${pip} 點多，對手反撲機率高，宜速轉換端點。`;
+    }
+
+    return {
+      end,
+      pip,
+      unseenMatchingCount,
+      isOpponentConfirmedLack,
+      playerMatchingCount,
+      tacticalStatus,
+      recommendation,
     };
   });
 }

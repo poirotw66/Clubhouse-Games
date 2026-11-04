@@ -3,6 +3,8 @@ import { emptyBoard, placeFirstTile, placeTile } from './board';
 import { createInitialState } from './dominoesLogic';
 import {
   analyzeBlockadeThreat,
+  calculateOpponentLackProbabilities,
+  analyzeChainEndsTrajectory,
   getOpponentDossiers,
   getPipSuitAnalysis,
   getTileMatrix,
@@ -127,6 +129,43 @@ describe('intelligence utilities', () => {
       expect(dossiers).toHaveLength(2);
       expect(dossiers[0].seat).toBe(1);
       expect(dossiers[1].seat).toBe(3);
+    });
+  });
+
+  describe('calculateOpponentLackProbabilities', () => {
+    it('returns probabilities for pips 0 through 6', () => {
+      const state = createInitialState('draw', { playerCount: 2 });
+      const probs = calculateOpponentLackProbabilities(state, 0, 1);
+      expect(probs).toHaveLength(7);
+      for (let p = 0; p <= 6; p++) {
+        expect(probs[p].pip).toBe(p);
+        expect(probs[p].probability).toBeGreaterThanOrEqual(0);
+        expect(probs[p].probability).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it('identifies confirmed lack with 0 probability and void threat level', () => {
+      const state = createInitialState('draw', { playerCount: 2 });
+      state.suspectedLack[1] = [3];
+      const probs = calculateOpponentLackProbabilities(state, 0, 1);
+      const pip3 = probs.find((x) => x.pip === 3);
+      expect(pip3).toBeDefined();
+      expect(pip3?.probability).toBe(0);
+      expect(pip3?.isConfirmedLack).toBe(true);
+      expect(pip3?.threatLevel).toBe('void');
+    });
+  });
+
+  describe('analyzeChainEndsTrajectory', () => {
+    it('provides trajectory and tactical status for each open end', () => {
+      const state = createInitialState('fives', { playerCount: 2 });
+      const trajectory = analyzeChainEndsTrajectory(state, 0);
+      expect(trajectory.length).toBeGreaterThan(0);
+      for (const item of trajectory) {
+        expect(['exploit', 'secure', 'danger', 'exhausted']).toContain(item.tacticalStatus);
+        expect(item.recommendation).toBeTruthy();
+        expect(typeof item.pip).toBe('number');
+      }
     });
   });
 });
