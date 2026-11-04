@@ -10,14 +10,22 @@ export interface CircuitTelemetry {
   nextCheckpointCell: CellId | null;
   /** Manhattan distance from path head to next checkpoint (or 0 if at it or empty). */
   distanceToNext: number;
+  /** Direction from path head to next checkpoint (e.g. '東北 ↗', '南 ↓', or '已抵達 ⚡'). */
+  directionToNext: string;
   /** Total count of playable cells. */
   totalPlayable: number;
   /** Number of cells conducted so far (path.length). */
   conductedCount: number;
   /** Percentage conducted (0 to 100). */
   conductedPct: number;
+  /** Number of 90-degree corner turns in current path. */
+  turnsCount: number;
+  /** Line impedance in Ohms (Ω) based on path length and inductive turns. */
+  impedanceOhms: number;
   /** Whether the circuit is currently in a fatal dead-end (isolatedCells.size > 0). */
   hasDeadEnd: boolean;
+  /** The prefix length to rollback to for clearing dead-end isolation (or null if safe). */
+  safeRollbackLength: number | null;
   /** Ordered list of all checkpoints with their status. */
   checkpointStatus: {
     number: number;
@@ -27,10 +35,42 @@ export interface CircuitTelemetry {
   }[];
 }
 
+function findIsolatedCells(
+  neighbours: CellId[][],
+  subpath: CellId[],
+  blockedSet: Set<CellId>,
+  totalCells: number,
+): Set<CellId> {
+  const isolated = new Set<CellId>();
+  if (subpath.length === 0) return isolated;
+
+  const visited = new Set(subpath);
+  const head = subpath[subpath.length - 1];
+  const reachable = new Set<CellId>([head]);
+  const queue: CellId[] = [head];
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    for (const n of neighbours[cur] ?? []) {
+      if (!visited.has(n) && !blockedSet.has(n) && !reachable.has(n)) {
+        reachable.add(n);
+        queue.push(n);
+      }
+    }
+  }
+
+  for (let c = 0; c < totalCells; c++) {
+    if (!blockedSet.has(c) && !visited.has(c) && !reachable.has(c)) {
+      isolated.add(c);
+    }
+  }
+  return isolated;
+}
+
 /**
  * Pure analysis of current path on the circuit board:
  * Detects unreachable isolated cells (dead-end traps), target checkpoints,
- * distance, and conductivity percentage.
+ * distance, direction, conductivity percentage, impedance, and safe rollback length.
  */
 export function analyzeCircuit(
   size: Size,
@@ -68,53 +108,86 @@ export function analyzeCircuit(
   }));
 
   // 2. Dead-end island detection
-  const isolatedCells = new Set<CellId>();
+  const isolatedCells = findIsolatedCells(neighbours, path, blockedSet, totalCells);
+  const hasDeadEnd = isolatedCells.size > 0;
 
-  if (path.length > 0) {
-    const head = path[path.length - 1];
-    const reachable = new Set<CellId>([head]);
-    const queue: CellId[] = [head];
-
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      for (const n of neighbours[cur] ?? []) {
-        if (!visitedSet.has(n) && !blockedSet.has(n) && !reachable.has(n)) {
-          reachable.add(n);
-          queue.push(n);
-        }
+  // 3. Calculate safe rollback length if in a dead-end
+  let safeRollbackLength: number | null = null;
+  if (hasDeadEnd && path.length > 1) {
+    for (let len = path.length - 1; len >= 1; len--) {
+      const prefix = path.slice(0, len);
+      const prefixIsolated = findIsolatedCells(neighbours, prefix, blockedSet, totalCells);
+      if (prefixIsolated.size === 0) {
+        safeRollbackLength = len;
+        break;
       }
     }
-
-    for (let c = 0; c < totalCells; c++) {
-      if (!blockedSet.has(c) && !visitedSet.has(c) && !reachable.has(c)) {
-        isolatedCells.add(c);
-      }
+    if (safeRollbackLength === null) {
+      safeRollbackLength = 1;
     }
   }
 
-  // 3. Distance to next checkpoint
+  // 4. Distance and Direction to next checkpoint
   let distanceToNext = 0;
-  if (path.length > 0 && nextCheckpointCell !== null) {
-    const head = path[path.length - 1];
-    distanceToNext =
-      Math.abs(rowOf(size, head) - rowOf(size, nextCheckpointCell)) +
-      Math.abs(colOf(size, head) - colOf(size, nextCheckpointCell));
-  } else if (path.length === 0 && nextCheckpointCell !== null) {
-    distanceToNext = 0;
+  let directionToNext = '待定';
+
+  if (nextCheckpointCell !== null) {
+    if (path.length > 0) {
+      const head = path[path.length - 1];
+      const dr = rowOf(size, nextCheckpointCell) - rowOf(size, head);
+      const dc = colOf(size, nextCheckpointCell) - colOf(size, head);
+      distanceToNext = Math.abs(dr) + Math.abs(dc);
+
+      if (dr === 0 && dc === 0) directionToNext = '已抵達 ⚡';
+      else if (dr < 0 && dc === 0) directionToNext = '北 ↑';
+      else if (dr > 0 && dc === 0) directionToNext = '南 ↓';
+      else if (dr === 0 && dc > 0) directionToNext = '東 →';
+      else if (dr === 0 && dc < 0) directionToNext = '西 ←';
+      else if (dr < 0 && dc > 0) directionToNext = '東北 ↗';
+      else if (dr < 0 && dc < 0) directionToNext = '西北 ↖';
+      else if (dr > 0 && dc > 0) directionToNext = '東南 ↘';
+      else if (dr > 0 && dc < 0) directionToNext = '西南 ↙';
+    } else {
+      distanceToNext = 0;
+      directionToNext = '起點 1';
+    }
+  }
+
+  // 5. Turns count & Line Impedance
+  let turnsCount = 0;
+  if (path.length >= 3) {
+    for (let i = 1; i < path.length - 1; i++) {
+      const prev = path[i - 1];
+      const cur = path[i];
+      const next = path[i + 1];
+      const dr1 = rowOf(size, cur) - rowOf(size, prev);
+      const dc1 = colOf(size, cur) - colOf(size, prev);
+      const dr2 = rowOf(size, next) - rowOf(size, cur);
+      const dc2 = colOf(size, next) - colOf(size, cur);
+      if (dr1 !== dr2 || dc1 !== dc2) {
+        turnsCount++;
+      }
+    }
   }
 
   const conductedCount = path.length;
   const conductedPct = totalPlayable > 0 ? Math.round((conductedCount / totalPlayable) * 100) : 0;
+  // 48Ω baseline + 6Ω per conducted node + 14Ω inductive resistance per 90-degree corner
+  const impedanceOhms = 48 + conductedCount * 6 + turnsCount * 14;
 
   return {
     isolatedCells,
     nextCheckpointNumber,
     nextCheckpointCell,
     distanceToNext,
+    directionToNext,
     totalPlayable,
     conductedCount,
     conductedPct,
-    hasDeadEnd: isolatedCells.size > 0,
+    turnsCount,
+    impedanceOhms,
+    hasDeadEnd,
+    safeRollbackLength,
     checkpointStatus,
   };
 }

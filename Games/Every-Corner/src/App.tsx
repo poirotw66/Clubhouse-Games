@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { playGoal, playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import { playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { AchievementToast } from './components/AchievementToast';
 import { Board } from './components/Board';
@@ -11,6 +11,15 @@ import {
   markWeeklyCompletion,
   sizeKeyOf,
 } from './game/achievements';
+import {
+  isAudioMuted,
+  playCircuitExtend,
+  playCircuitRetract,
+  playFullGridDischarge,
+  playOverloadAlarm,
+  playSafeRollback,
+  setAudioMuted,
+} from './game/circuitAudio';
 import { DAILY_DIFFICULTY, dailySeed, dateKey, formatDuration, summarise } from './game/daily';
 import { DIFFICULTIES, DIFFICULTY_ORDER, generate } from './game/generate';
 import { analyzeCircuit } from './game/circuit';
@@ -82,11 +91,13 @@ export default function App(): React.ReactElement {
   const [resumable, setResumable] = useState(() => loadGame());
   const [toastIds, setToastIds] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(false);
+  const [muted, setMuted] = useState(isAudioMuted);
 
   const today = dateKey();
   const currentWeek = weekKey();
   const dailyStats = useMemo(() => summarise(dailyRecords, today), [dailyRecords, today]);
   const startedAt = useRef<number>(0);
+  const prevDeadEnd = useRef(false);
 
   const total = puzzle ? playableCount(puzzle.size, puzzle.blocked) : 0;
   const complete = puzzle !== null && path.length === total && path.length > 0;
@@ -102,6 +113,45 @@ export default function App(): React.ReactElement {
     if (!puzzle) return null;
     return analyzeCircuit(puzzle.size, neighbours, path, puzzle.checkpoints, puzzle.blocked);
   }, [puzzle, neighbours, path]);
+
+  // Audio mute toggle
+  const toggleAudio = useCallback(() => {
+    const next = !muted;
+    setAudioMuted(next);
+    setMuted(next);
+  }, [muted]);
+
+  // Trigger dead-end isolation overload buzzer on the exact step a trap occurs
+  useEffect(() => {
+    if (!circuit || complete) return;
+    if (circuit.hasDeadEnd && !prevDeadEnd.current) {
+      playOverloadAlarm();
+    }
+    prevDeadEnd.current = circuit.hasDeadEnd;
+  }, [circuit?.hasDeadEnd, complete]);
+
+  // Safe Rollback: 1-click rescue to last known safe prefix before isolation
+  const rollbackToSafe = useCallback(() => {
+    if (!circuit || circuit.safeRollbackLength === null) return;
+    playSafeRollback();
+    setPath((current) => current.slice(0, circuit.safeRollbackLength!));
+    setRevealed([]);
+    setHintMessage(null);
+  }, [circuit]);
+
+  // Rewind path directly to any reached checkpoint
+  const rewindToCheckpoint = useCallback(
+    (cell: CellId) => {
+      const idx = path.indexOf(cell);
+      if (idx !== -1 && idx < path.length - 1) {
+        playCircuitRetract();
+        setPath((current) => current.slice(0, idx + 1));
+        setRevealed([]);
+        setHintMessage(null);
+      }
+    },
+    [path],
+  );
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -221,11 +271,11 @@ export default function App(): React.ReactElement {
       return;
     }
     sfxDone.current = true;
-    playGoal();
+    playFullGridDischarge();
     window.setTimeout(() => {
       playWin();
       setShowResult(true);
-    }, 180);
+    }, 220);
   }, []);
 
   const open = useCallback(
@@ -257,6 +307,7 @@ export default function App(): React.ReactElement {
       setShowResult(false);
       recorded.current = false;
       sfxDone.current = false;
+      prevDeadEnd.current = false;
       setSeedCode(code);
       setDifficulty(level);
       setIsDaily(Boolean(options.daily));
@@ -291,11 +342,13 @@ export default function App(): React.ReactElement {
 
       if (event.key === 'Backspace' || event.key === 'z' || event.key === 'Z') {
         event.preventDefault();
+        playCircuitRetract();
         setPath((p) => p.slice(0, -1));
         return;
       }
       if (event.key === 'r' || event.key === 'R') {
         event.preventDefault();
+        playCircuitRetract();
         setPath([]);
         setRevealed([]);
         setHintMessage(null);
@@ -319,7 +372,12 @@ export default function App(): React.ReactElement {
       setPath((current) => {
         if (current.length === 0) {
           const start = Object.entries(puzzle.checkpoints).find(([, n]) => n === 1);
-          return start ? [Number(start[0])] : current;
+          if (start) {
+            const startCell = Number(start[0]);
+            playCircuitExtend(1, true);
+            return [startCell];
+          }
+          return current;
         }
         const last = current[current.length - 1];
         const row = rowOf(puzzle.size, last) + delta[0];
@@ -327,9 +385,15 @@ export default function App(): React.ReactElement {
         if (row < 0 || col < 0 || row >= puzzle.size.rows || col >= puzzle.size.cols) return current;
         const next = row * puzzle.size.cols + col;
         if (holes.has(next)) return current;
-        if (current.length >= 2 && next === current[current.length - 2]) return current.slice(0, -1);
+        if (current.length >= 2 && next === current[current.length - 2]) {
+          playCircuitRetract();
+          return current.slice(0, -1);
+        }
         if (current.includes(next)) return current;
         if (puzzle.walls.includes(wallKey(last, next))) return current;
+
+        const isCp = puzzle.checkpoints[next] !== undefined;
+        playCircuitExtend(current.length + 1, isCp);
         return [...current, next];
       });
     };
@@ -474,7 +538,7 @@ export default function App(): React.ReactElement {
         <BackToMenu />
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 pb-16 pt-14">
           <header className="ec-title-hero mt-3 text-center">
-            <p className="text-sm tracking-[0.4em] text-slate-400">EVERY CORNER</p>
+            <p className="text-sm tracking-[0.4em] text-cyan-400 font-mono">CYBER CIRCUIT OVERDRIVE</p>
             <h1 className="mt-2 text-4xl font-black text-violet-300 sm:text-5xl">走透透</h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-300">
               從 1 開始畫一條線，依序經過每個數字，
@@ -644,6 +708,16 @@ export default function App(): React.ReactElement {
           </div>
           <div className="flex items-center gap-2">
             <TouchButton
+              label={muted ? '🔇 靜音' : '🔊 音效'}
+              ariaLabel={muted ? '開啟電路音效' : '關閉電路音效'}
+              onClick={toggleAudio}
+              className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                muted
+                  ? 'border-slate-700 bg-slate-900/80 text-slate-500'
+                  : 'border-cyan-500/50 bg-cyan-950/40 text-cyan-200'
+              }`}
+            />
+            <TouchButton
               label="回選單"
               ariaLabel="回到選單"
               onClick={() => setScreen('title')}
@@ -685,10 +759,32 @@ export default function App(): React.ReactElement {
                 </div>
               </div>
 
-              {/* Dead-End Isolation Detector */}
+              {/* Line Impedance & Corner Turns */}
+              <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
+                <div className="flex items-center justify-between text-[11px] mb-1">
+                  <span className="text-violet-200/80 font-medium">走線等效阻抗</span>
+                  <span className="font-mono font-bold text-xs text-violet-300">
+                    {circuit?.impedanceOhms ?? 48} Ω
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>90° 轉折節點:</span>
+                  <span className="font-mono text-slate-300 font-semibold">
+                    {circuit?.turnsCount ?? 0} 次
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[9px]">
+                  <span className="text-slate-500">超導狀態:</span>
+                  <span className="px-1.5 py-0.5 rounded font-mono text-emerald-300 bg-emerald-500/15">
+                    {(circuit?.impedanceOhms ?? 48) < 180 ? '超導良好' : '高負載迴路'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Dead-End Isolation Detector with 1-Click Rescue */}
               <div className={`mb-3.5 p-2.5 rounded-xl border transition-all ${
                 circuit?.hasDeadEnd
-                  ? 'bg-rose-950/40 border-rose-500/50 text-rose-200 animate-pulse'
+                  ? 'bg-rose-950/50 border-rose-500/60 text-rose-200 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
                   : 'bg-slate-900/80 border-emerald-500/30 text-emerald-300'
               }`}>
                 <div className="flex items-center justify-between text-[11px] font-bold mb-1">
@@ -697,19 +793,30 @@ export default function App(): React.ReactElement {
                     <span>孤島斷路診斷</span>
                   </span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                    circuit?.hasDeadEnd ? 'bg-rose-500/30 text-rose-200' : 'bg-emerald-500/20 text-emerald-300'
+                    circuit?.hasDeadEnd ? 'bg-rose-500/30 text-rose-200 animate-pulse' : 'bg-emerald-500/20 text-emerald-300'
                   }`}>
                     {circuit?.hasDeadEnd ? 'CIRCUIT BREAK' : 'ALL CLEAR'}
                   </span>
                 </div>
                 <p className="text-[10px] leading-relaxed opacity-85">
                   {circuit?.hasDeadEnd
-                    ? `警告：已有 ${circuit.isolatedCells.size} 格遭封閉形成斷路孤島！無法從當前線頭抵達，請往回倒退。`
+                    ? `警告：已有 ${circuit.isolatedCells.size} 格遭封閉形成斷路！線頭無法抵達。`
                     : '目前全盤所有未走格子均可連通，迴路通暢無阻。'}
                 </p>
+
+                {circuit?.hasDeadEnd && circuit.safeRollbackLength !== null && (
+                  <button
+                    type="button"
+                    onClick={rollbackToSafe}
+                    className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 font-black text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all cursor-pointer animate-pulse"
+                  >
+                    <span>⚡</span>
+                    <span>解除警報：倒回安全點</span>
+                  </button>
+                )}
               </div>
 
-              {/* Distance to Next Checkpoint Target */}
+              {/* Distance & Compass Direction to Next Checkpoint Target */}
               <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
                 <div className="flex items-center justify-between text-[11px] mb-1">
                   <span className="text-violet-200/80 font-medium">目標繼電器</span>
@@ -718,8 +825,14 @@ export default function App(): React.ReactElement {
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>線頭至目標距離:</span>
+                  <span>方位雷達:</span>
                   <span className="font-mono text-amber-200 font-bold">
+                    {circuit?.directionToNext ?? '起點'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                  <span>線頭至目標距離:</span>
+                  <span className="font-mono text-amber-300 font-bold">
                     {circuit?.distanceToNext ?? 0} 格
                   </span>
                 </div>
@@ -747,15 +860,56 @@ export default function App(): React.ReactElement {
             </div>
           </aside>
 
-          {/* Center Column: 核心電路板 */}
+          {/* Center Column: 核心電路板與行動端戰術條 */}
           <div className="flex-1 w-full max-w-lg flex flex-col justify-center">
+            {/* Mobile Tactical Telemetry Strip (Visible on mobile/tablet) */}
+            <div className="lg:hidden mb-2.5 flex items-center justify-between gap-1.5 text-[11px] bg-slate-950/80 border border-violet-500/25 px-3 py-1.5 rounded-xl shadow-lg">
+              <div className="flex items-center gap-1.5">
+                <span className="text-violet-300 font-medium">導通:</span>
+                <span className="font-mono font-extrabold text-cyan-300">{circuit?.conductedPct ?? 0}%</span>
+              </div>
+              <div className="flex items-center gap-1 font-mono text-slate-400">
+                <span>阻抗:</span>
+                <span className="text-violet-200 font-bold">{circuit?.impedanceOhms ?? 48}Ω</span>
+              </div>
+              <div className="flex items-center gap-1 font-mono">
+                <span className="text-slate-400">目標:</span>
+                <span className="text-amber-300 font-bold">#{circuit?.nextCheckpointNumber}</span>
+                <span className="text-amber-200/80 text-[10px]">({circuit?.directionToNext})</span>
+              </div>
+            </div>
+
+            {/* Mobile Dead-end Warning Banner with 1-Click Rescue */}
+            {circuit?.hasDeadEnd && (
+              <div className="lg:hidden mb-2.5 flex items-center justify-between gap-2 p-2 rounded-xl bg-rose-950/80 border border-rose-500/70 text-rose-200 animate-pulse shadow-lg">
+                <div className="flex items-center gap-1.5 text-xs font-bold min-w-0">
+                  <span>⚠️</span>
+                  <span className="truncate">斷路：{circuit.isolatedCells.size} 格遭隔離</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={rollbackToSafe}
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-xs active:scale-95 transition-all shadow"
+                >
+                  ⚡ 倒回安全點
+                </button>
+              </div>
+            )}
+
+            {/* Board Container */}
             <div className="ec-card p-3 shadow-2xl relative border border-violet-500/30">
               <Board
                 puzzle={puzzle}
                 path={path}
                 revealed={revealed}
                 onPathChange={(next) => {
-                  if (next.length > path.length) playMove();
+                  if (next.length > path.length) {
+                    const lastCell = next[next.length - 1];
+                    const isCp = puzzle.checkpoints[lastCell] !== undefined;
+                    playCircuitExtend(next.length, isCp);
+                  } else if (next.length < path.length) {
+                    playCircuitRetract();
+                  }
                   setPath(next);
                   setRevealed([]);
                 }}
@@ -766,7 +920,7 @@ export default function App(): React.ReactElement {
               />
             </div>
 
-            {/* Mobile / Quick Status Row below Board */}
+            {/* Status & Control Row below Board */}
             <div className="mt-3 flex items-center justify-between gap-2 flex-wrap text-xs">
               <p className="text-slate-400">
                 導通 <span className="font-mono text-cyan-300 font-bold">{path.length}</span> / {total} 格
@@ -777,30 +931,42 @@ export default function App(): React.ReactElement {
                 {hintsUsed > 0 && <span className="ml-2 text-slate-500">提示 {hintsUsed} 次</span>}
               </p>
               <div className="flex gap-1.5 sm:gap-2">
+                {circuit?.hasDeadEnd && circuit.safeRollbackLength !== null && (
+                  <TouchButton
+                    label="倒回安全"
+                    ariaLabel="倒退回無斷路的安全點"
+                    onClick={rollbackToSafe}
+                    className="rounded-lg border border-amber-500/60 bg-amber-500/20 px-2 sm:px-2.5 py-1.5 text-xs font-black text-amber-200 animate-pulse"
+                  />
+                )}
                 <TouchButton
                   label="退一步"
                   ariaLabel="退回上一步"
-                  onClick={() => setPath((p) => p.slice(0, -1))}
+                  onClick={() => {
+                    playCircuitRetract();
+                    setPath((p) => p.slice(0, -1));
+                  }}
                   disabled={path.length === 0 || complete}
-                  className="rounded-lg border border-slate-600 bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-200"
+                  className="rounded-lg border border-slate-600 bg-slate-800 px-2 sm:px-3 py-1.5 text-xs font-bold text-slate-200"
                 />
                 <TouchButton
                   label="重畫"
                   ariaLabel="清空路線重畫"
                   onClick={() => {
+                    playCircuitRetract();
                     setPath([]);
                     setRevealed([]);
                     setHintMessage(null);
                   }}
                   disabled={complete}
-                  className="rounded-lg border border-slate-600 bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-200"
+                  className="rounded-lg border border-slate-600 bg-slate-800 px-2 sm:px-3 py-1.5 text-xs font-bold text-slate-200"
                 />
                 <TouchButton
                   label="提示"
                   ariaLabel="給我提示"
                   onClick={useHint}
                   disabled={complete}
-                  className="rounded-lg border border-amber-500/50 bg-amber-500/15 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-amber-200"
+                  className="rounded-lg border border-amber-500/50 bg-amber-500/15 px-2 sm:px-3 py-1.5 text-xs font-bold text-amber-200"
                 />
                 <TouchButton
                   label="看答案"
@@ -812,7 +978,7 @@ export default function App(): React.ReactElement {
                     setHintMessage(null);
                   }}
                   disabled={complete}
-                  className="rounded-lg border border-slate-600 bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-400"
+                  className="rounded-lg border border-slate-600 bg-slate-800 px-2 sm:px-3 py-1.5 text-xs font-bold text-slate-400"
                 />
               </div>
             </div>
@@ -835,26 +1001,33 @@ export default function App(): React.ReactElement {
                 <span className="text-[10px] text-violet-300/60 font-mono">RELAY MATRIX</span>
               </div>
 
-              {/* Checkpoint Sequence Nodes */}
+              {/* Checkpoint Sequence Nodes (Interactive rewinding) */}
               <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
-                <div className="text-[11px] font-medium text-violet-200/80 mb-2">節點導通清單</div>
+                <div className="flex items-center justify-between text-[11px] font-medium text-violet-200/80 mb-2">
+                  <span>節點導通清單</span>
+                  <span className="text-[10px] text-slate-400">可點擊已導通節點倒帶</span>
+                </div>
                 <div className="grid grid-cols-4 gap-1.5 text-center">
                   {circuit?.checkpointStatus.map((cp) => (
-                    <div
+                    <button
                       key={cp.number}
-                      className={`p-1.5 rounded-lg border text-xs font-bold font-mono transition-all ${
+                      type="button"
+                      disabled={!cp.reached}
+                      onClick={() => rewindToCheckpoint(cp.cell)}
+                      title={cp.reached ? '點擊倒帶至此節點' : undefined}
+                      className={`p-1.5 rounded-lg border text-xs font-bold font-mono transition-all text-center ${
                         cp.reached
-                          ? 'bg-violet-900/40 border-violet-400 text-violet-200 shadow-[0_0_8px_rgba(167,139,250,0.3)]'
+                          ? 'bg-violet-900/50 border-violet-400 text-violet-200 shadow-[0_0_8px_rgba(167,139,250,0.3)] hover:brightness-125 cursor-pointer active:scale-95'
                           : cp.isCurrentTarget
-                          ? 'bg-amber-950/60 border-amber-400 text-amber-300 animate-pulse'
-                          : 'bg-slate-950/70 border-slate-800 text-slate-500'
+                          ? 'bg-amber-950/60 border-amber-400 text-amber-300 animate-pulse cursor-default'
+                          : 'bg-slate-950/70 border-slate-800 text-slate-500 cursor-default'
                       }`}
                     >
                       <span>#{cp.number}</span>
                       <span className="block text-[9px] font-normal opacity-80">
                         {cp.reached ? '已導通' : cp.isCurrentTarget ? '目標' : '待連接'}
                       </span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -872,8 +1045,8 @@ export default function App(): React.ReactElement {
                     <span>點擊任何已連線的數字，路線自動倒帶至該處！</span>
                   </div>
                   <div className="flex items-start gap-1.5">
-                    <span className="text-rose-400 font-bold shrink-0">⚠️ 避免死路:</span>
-                    <span>永遠留出一條通往下一目標與殘餘邊角的活路。</span>
+                    <span className="text-emerald-400 font-bold shrink-0">⚡ 安全急救:</span>
+                    <span>觸發斷路警報時，點擊「倒回安全點」秒解死局。</span>
                   </div>
                 </div>
               </div>
@@ -924,12 +1097,13 @@ export default function App(): React.ReactElement {
                   ? `連續 ${dailyStats.streak} 天完成每日挑戰`
                   : hintsUsed > 0
                     ? `用了 ${hintsUsed} 次提示`
-                    : '沒有用提示'
+                    : '沒有用提示・完美閉環！'
             }
             variant="win"
             stats={[
               { label: '用時', value: formatDuration(elapsedMs) },
               { label: '提示', value: hintsUsed },
+              { label: '阻抗', value: `${circuit?.impedanceOhms ?? 48} Ω` },
               { label: '難度', value: modeLabel() },
             ]}
             primaryLabel={isWeekly ? '回本週挑戰' : '換一題'}
@@ -946,7 +1120,7 @@ export default function App(): React.ReactElement {
         )}
 
         <p className="mt-4 hidden text-center text-[10px] text-slate-500 sm:block">
-          拖曳畫線・往回拖可擦除・方向鍵延伸・Backspace/Z 退一步・R 重畫・H 提示
+          拖曳畫線・往回拖可擦除・方向鍵延伸・Backspace/Z 退一步・R 重畫・H 提示・⚡ 孤島斷路可一鍵倒回安全點
         </p>
       </div>
       <AchievementToast ids={toastIds} onDismiss={() => setToastIds([])} />

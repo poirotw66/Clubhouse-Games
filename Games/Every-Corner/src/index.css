@@ -148,6 +148,23 @@ body {
   border-radius: 4px;
 }
 
+/* ── Cyber Circuit Animations ─────────────────────────────────────────── */
+
+/* 1. High-Speed Energy Current flowing through copper traces */
+@keyframes ec-energy-flow {
+  0% {
+    stroke-dashoffset: 48;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.ec-energy-pulse {
+  animation: ec-energy-flow 1.1s linear infinite;
+}
+
+/* 2. Beacon Target Pulse */
 @keyframes ec-pulse-beacon {
   0% {
     opacity: 0.85;
@@ -168,11 +185,96 @@ body {
   transform-origin: center;
 }
 
+/* 3. Dead-End Hazard Strobe */
+@keyframes ec-hazard-strobe {
+  0%, 100% {
+    stroke: #ef4444;
+    filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.8));
+  }
+  50% {
+    stroke: #b91c1c;
+    filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.3));
+  }
+}
+
+.ec-hazard-cell {
+  animation: ec-hazard-strobe 0.8s ease-in-out infinite;
+}
+
+/* 4. Full Grid Discharge Overdrive Celebrations */
+@keyframes ec-board-discharge {
+  0% {
+    filter: drop-shadow(0 0 15px rgba(52, 211, 153, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 35px rgba(52, 211, 153, 0.85)) drop-shadow(0 0 60px rgba(6, 182, 212, 0.5));
+  }
+  100% {
+    filter: drop-shadow(0 0 15px rgba(52, 211, 153, 0.35));
+  }
+}
+
+.ec-board-overdrive {
+  animation: ec-board-discharge 2.2s ease-in-out infinite;
+}
+
+/* Expanding ripple shockwave ring on victory */
+@keyframes ec-shockwave-expand {
+  0% {
+    r: 10px;
+    opacity: 0.95;
+    stroke-width: 6px;
+  }
+  100% {
+    r: 380px;
+    opacity: 0;
+    stroke-width: 0.5px;
+  }
+}
+
+.ec-discharge-shockwave-1 {
+  animation: ec-shockwave-expand 2s cubic-bezier(0.1, 0.8, 0.25, 1) infinite;
+  transform-origin: center;
+}
+
+.ec-discharge-shockwave-2 {
+  animation: ec-shockwave-expand 2s cubic-bezier(0.1, 0.8, 0.25, 1) infinite 0.65s;
+  transform-origin: center;
+}
+
+/* Rotating quantum radar rings */
+@keyframes ec-radar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ec-radar-spin-slow {
+  animation: ec-radar-spin 10s linear infinite;
+  transform-origin: center;
+}
+
+.ec-radar-spin-reverse {
+  animation: ec-radar-spin 7s linear infinite reverse;
+  transform-origin: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ec-die { animation: none; }
   .ec-choice:not(:disabled):hover { transform: none; }
   .ec-toast { animation: none; }
   .ec-path-head { filter: none; }
+  .ec-energy-pulse { animation: none; }
+  .ec-beacon-pulse { animation: none; }
+  .ec-hazard-cell { animation: none; }
+  .ec-board-overdrive { animation: none; }
+  .ec-discharge-shockwave-1 { animation: none; display: none; }
+  .ec-discharge-shockwave-2 { animation: none; display: none; }
+  .ec-radar-spin-slow { animation: none; }
+  .ec-radar-spin-reverse { animation: none; }
 }
 
 /* Scrollable career table on narrow screens without moving the page itself. */

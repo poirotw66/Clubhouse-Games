@@ -215,7 +215,9 @@ export function Board({
     <svg
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
-      className={`ec-board w-full touch-none select-none${solved ? ' ec-board-solved' : ''}`}
+      className={`ec-board w-full touch-none select-none transition-all duration-300${
+        solved ? ' ec-board-solved ec-board-overdrive' : ''
+      }`}
       role="img"
       aria-label={`${size.rows} 乘 ${size.cols} 的盤面，已走 ${path.length} 格，共 ${totalPlayable} 格${
         puzzle.blocked.length > 0 ? `，缺口 ${puzzle.blocked.length} 格` : ''
@@ -250,20 +252,30 @@ export function Board({
           </feMerge>
         </filter>
 
+        {/* Stronger discharge glow filter on completion */}
+        <filter id="ec-discharge-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
         {/* Hazard pattern for isolated dead-end cells */}
         <pattern id="ec-hazard-pattern" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="8" height="16" fill="rgba(239, 68, 68, 0.32)" />
-          <rect x="8" width="8" height="16" fill="rgba(30, 27, 75, 0.75)" />
+          <rect width="8" height="16" fill="rgba(239, 68, 68, 0.38)" />
+          <rect x="8" width="8" height="16" fill="rgba(30, 27, 75, 0.85)" />
         </pattern>
 
         {/* Target checkpoint beacon radial glow */}
         <radialGradient id="ec-target-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#fef08a" stopOpacity="0.85" />
-          <stop offset="55%" stopColor="#eab308" stopOpacity="0.4" />
+          <stop offset="0%" stopColor="#fef08a" stopOpacity="0.88" />
+          <stop offset="55%" stopColor="#eab308" stopOpacity="0.45" />
           <stop offset="100%" stopColor="#ca8a04" stopOpacity="0" />
         </radialGradient>
       </defs>
 
+      {/* Grid Cells: PCB substrate & via anchors */}
       {Array.from({ length: size.rows * size.cols }, (_, cell) => {
         const x = colOf(size, cell) * cellSize;
         const y = rowOf(size, cell) * cellSize;
@@ -281,7 +293,7 @@ export function Board({
                 strokeWidth={2}
                 strokeDasharray="5 5"
               />
-              <circle cx={x + cellSize / 2} cy={y + cellSize / 2} r={3} fill="rgba(244, 63, 94, 0.6)" />
+              <circle cx={x + cellSize / 2} cy={y + cellSize / 2} r={3.5} fill="rgba(244, 63, 94, 0.65)" />
             </g>
           );
         }
@@ -301,17 +313,18 @@ export function Board({
                 rx={12}
                 fill="url(#ec-hazard-pattern)"
                 stroke="#ef4444"
-                strokeWidth={2.5}
-                className="animate-pulse"
+                strokeWidth={3}
+                className="ec-hazard-cell"
               />
+              <circle cx={x + cellSize / 2} cy={y + cellSize / 2} r={cellSize * 0.28} fill="rgba(239, 68, 68, 0.2)" />
               <text
                 x={x + cellSize / 2}
                 y={y + cellSize / 2}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize={cellSize * 0.24}
+                fontSize={cellSize * 0.28}
                 fill="#fca5a5"
-                opacity={0.9}
+                opacity={0.95}
               >
                 ⚠️
               </text>
@@ -327,26 +340,74 @@ export function Board({
               width={cellSize - GAP}
               height={cellSize - GAP}
               rx={12}
-              fill={onPath ? (solved ? 'rgba(16, 185, 129, 0.22)' : 'rgba(147, 51, 234, 0.22)') : 'rgba(15, 23, 42, 0.6)'}
+              fill={
+                onPath
+                  ? solved
+                    ? 'rgba(16, 185, 129, 0.26)'
+                    : 'rgba(147, 51, 234, 0.24)'
+                  : 'rgba(15, 23, 42, 0.6)'
+              }
               stroke={
                 isRevealed
                   ? '#fbbf24'
                   : onPath
-                  ? (solved ? 'rgba(52, 211, 153, 0.6)' : 'rgba(168, 85, 247, 0.5)')
+                  ? solved
+                    ? 'rgba(52, 211, 153, 0.75)'
+                    : 'rgba(168, 85, 247, 0.55)'
                   : 'rgba(71, 85, 105, 0.35)'
               }
               strokeWidth={isRevealed ? 4 : onPath ? 1.5 : 1}
             />
             {/* PCB via corner solder points */}
-            <circle cx={x + 10} cy={y + 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
-            <circle cx={x + cellSize - 10} cy={y + 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
-            <circle cx={x + 10} cy={y + cellSize - 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
-            <circle cx={x + cellSize - 10} cy={y + cellSize - 10} r={1.6} fill={onPath ? 'rgba(192, 132, 252, 0.7)' : 'rgba(100, 116, 139, 0.35)'} />
+            <circle
+              cx={x + 10}
+              cy={y + 10}
+              r={1.8}
+              fill={onPath ? (solved ? '#34d399' : 'rgba(192, 132, 252, 0.8)') : 'rgba(100, 116, 139, 0.35)'}
+            />
+            <circle
+              cx={x + cellSize - 10}
+              cy={y + 10}
+              r={1.8}
+              fill={onPath ? (solved ? '#34d399' : 'rgba(192, 132, 252, 0.8)') : 'rgba(100, 116, 139, 0.35)'}
+            />
+            <circle
+              cx={x + 10}
+              cy={y + cellSize - 10}
+              r={1.8}
+              fill={onPath ? (solved ? '#34d399' : 'rgba(192, 132, 252, 0.8)') : 'rgba(100, 116, 139, 0.35)'}
+            />
+            <circle
+              cx={x + cellSize - 10}
+              cy={y + cellSize - 10}
+              r={1.8}
+              fill={onPath ? (solved ? '#34d399' : 'rgba(192, 132, 252, 0.8)') : 'rgba(100, 116, 139, 0.35)'}
+            />
           </g>
         );
       })}
 
-      {/* Conducting Polyline: 3-Layer Superconducting Neon */}
+      {/* Full Grid Overdrive Shockwaves on Completion */}
+      {solved && points.length > 0 && (
+        <g pointerEvents="none">
+          <circle
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
+            fill="none"
+            stroke="#34d399"
+            className="ec-discharge-shockwave-1"
+          />
+          <circle
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
+            fill="none"
+            stroke="#38bdf8"
+            className="ec-discharge-shockwave-2"
+          />
+        </g>
+      )}
+
+      {/* Conducting Polyline: 4-Layer High-Voltage Cyber Circuit */}
       {points.length > 1 && (
         <>
           {/* Layer 1: Ambient Neon Glow */}
@@ -354,11 +415,11 @@ export function Board({
             points={polyline}
             fill="none"
             stroke={solved ? '#10b981' : '#c084fc'}
-            strokeWidth={cellSize * 0.38}
+            strokeWidth={cellSize * 0.42}
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity={0.35}
-            filter="url(#ec-neon-glow)"
+            opacity={solved ? 0.55 : 0.35}
+            filter={solved ? 'url(#ec-discharge-glow)' : 'url(#ec-neon-glow)'}
           />
           {/* Layer 2: Core Superconductor */}
           <polyline
@@ -387,34 +448,57 @@ export function Board({
             strokeWidth={cellSize * 0.08}
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity={0.9}
+            opacity={0.92}
+          />
+          {/* Layer 4: High-Velocity Moving Energy Stream */}
+          <polyline
+            points={polyline}
+            fill="none"
+            stroke={solved ? '#a7f3d0' : '#e0e7ff'}
+            strokeWidth={cellSize * 0.12}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="14 24"
+            className="ec-energy-pulse"
+            opacity={solved ? 0.95 : 0.8}
           />
         </>
       )}
 
-      {/* Quantum Energy Probe (Path Head) */}
+      {/* Quantum Energy Probe (Path Head with Rotating Sensor Rings) */}
       {points.length > 0 && (
-        <g>
+        <g pointerEvents="none">
           <circle
             cx={points[points.length - 1].x}
             cy={points[points.length - 1].y}
-            r={cellSize * 0.24}
+            r={cellSize * 0.28}
             fill="none"
             stroke={solved ? '#34d399' : '#38bdf8'}
+            strokeWidth={1.5}
+            strokeDasharray="4 6"
+            className="ec-radar-spin-slow"
+            opacity={0.75}
+          />
+          <circle
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
+            r={cellSize * 0.2}
+            fill="none"
+            stroke={solved ? '#6ee7b7' : '#0284c7'}
             strokeWidth={2}
             opacity={0.7}
           />
           <circle
             cx={points[points.length - 1].x}
             cy={points[points.length - 1].y}
-            r={cellSize * 0.17}
+            r={cellSize * 0.15}
             fill={solved ? '#34d399' : '#0284c7'}
             className={solved ? 'ec-path-head' : undefined}
           />
           <circle
             cx={points[points.length - 1].x}
             cy={points[points.length - 1].y}
-            r={cellSize * 0.07}
+            r={cellSize * 0.065}
             fill="#ffffff"
           />
         </g>
@@ -463,11 +547,32 @@ export function Board({
             {isTarget && !reached && (
               <>
                 <circle cx={x} cy={y} r={cellSize * 0.44} fill="url(#ec-target-glow)" className="ec-beacon-pulse" />
-                <circle cx={x} cy={y} r={cellSize * 0.38} fill="none" stroke="#facc15" strokeWidth={2} strokeDasharray="4 4" />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={cellSize * 0.38}
+                  fill="none"
+                  stroke="#facc15"
+                  strokeWidth={2}
+                  strokeDasharray="6 6"
+                  className="ec-radar-spin-slow"
+                />
               </>
             )}
 
-            {/* Checkpoint Outer Alloy Rim */}
+            {/* Checkpoint Outer Alloy Rim & Core Reactor Ring */}
+            {reached && (
+              <circle
+                cx={x}
+                cy={y}
+                r={cellSize * 0.34}
+                fill="none"
+                stroke={solved ? '#34d399' : '#c084fc'}
+                strokeWidth={1.5}
+                opacity={0.65}
+              />
+            )}
+
             <circle
               cx={x}
               cy={y}
