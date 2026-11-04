@@ -1614,6 +1614,7 @@ function createSim(hooks = {}, consts = null) {
     s.vx += roof[0] * I.THRUST * Z * dt;
     s.vy += (roof[1] * I.THRUST * Z - G0 * I.AIR_G) * dt;
     s.vz += roof[2] * I.THRUST * Z * dt;
+    s.vz *= 1 - Math.min(1, dt * 2.8);
     const damp = jL !== jR ? I.SPIN_DAMP : I.ROLL_DAMP;
     s.rw += (((jL ? 1 : 0) - (jR ? 1 : 0)) * I.ANG - s.rw * damp) * dt;
     const dRoll = s.rw * dt;
@@ -1642,7 +1643,7 @@ function createSim(hooks = {}, consts = null) {
       hooks.onDirSwitch?.();
     }
     if (Math.abs(s.x) > I.WORLD_X) { s.x = Math.sign(s.x) * I.WORLD_X; s.vx = 0; }
-    if (Math.abs(s.z) > I.WORLD_X) { s.z = Math.sign(s.z) * I.WORLD_X; s.vz = 0; }
+    if (Math.abs(s.z) > 18) { s.z = Math.sign(s.z) * 18; s.vz = 0; }
     if (s.y > I.WORLD_Y) { s.y = I.WORLD_Y; s.vy = Math.min(0, s.vy); }
     if (!s.clear) {
       const cp = closestOnTrack(s.x, s.y);
@@ -1776,8 +1777,8 @@ stageEl.addEventListener('contextmenu', e => e.preventDefault());
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(BG);
-scene.fog = new THREE.Fog(BG, 90, 260);
-const camera = new THREE.PerspectiveCamera(38, 1, .5, 600);
+scene.fog = new THREE.Fog(BG, 220, 1500);
+const camera = new THREE.PerspectiveCamera(38, 1, .5, 2500);
 
 scene.add(new THREE.HemisphereLight(0xa5c4e8, 0x0a1017, .85));
 const sun = new THREE.DirectionalLight(0xf2f7ff, 2.7); sun.position.set(-14, 18, 22);
@@ -1793,44 +1794,48 @@ function loadTex(webpUrl, jpgUrl, cb) {
 }
 
 const WORLD_EXT = 3e3;
-// ground plane with futuristic tarmac grid texture
+// ground plane with futuristic tarmac grid texture centered on the runway
 const groundMat = new THREE.MeshStandardMaterial({ color: 0x445566, roughness: .85, metalness: .25 });
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(WORLD_EXT * 2 + 400, 2200).rotateX(-Math.PI / 2),
+  new THREE.PlaneGeometry(WORLD_EXT * 2 + 400, 2600).rotateX(-Math.PI / 2),
   groundMat);
-ground.position.set(0, 0, -800);
+ground.position.set(-600, 0, 0);
 scene.add(ground);
 try {
   loadTex('assets/ground-grid.webp', 'assets/ground-grid.jpg', (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(120, 44);
+    tex.repeat.set(160, 48);
     groundMat.map = tex;
     groundMat.needsUpdate = true;
   });
 } catch (e) {}
 
-// dark grass strip beside the approach
-const grass = new THREE.Mesh(
-  new THREE.PlaneGeometry(280, 50).rotateX(-Math.PI / 2),
-  new THREE.MeshStandardMaterial({ color: 1448222, roughness: 1 }));
-grass.position.set(-110, .02, -6);
-scene.add(grass);
+// dark grass strips flanking both sides of the approach and runway
+const grassMat = new THREE.MeshStandardMaterial({ color: 1448222, roughness: 1 });
+const grassL = new THREE.Mesh(new THREE.PlaneGeometry(1600, 40).rotateX(-Math.PI / 2), grassMat);
+grassL.position.set(-690, .02, -26);
+const grassR = new THREE.Mesh(new THREE.PlaneGeometry(1600, 40).rotateX(-Math.PI / 2), grassMat);
+grassR.position.set(-690, .02, 26);
+scene.add(grassL, grassR);
 
-// panoramic cyberpunk skyline backdrop
+// panoramic cyberpunk skyline backdrop (full 360-deg seamless dome, follows camera in X)
+let panoMesh = null;
 try {
   loadTex('assets/sky-backdrop.webp', 'assets/sky-backdrop.jpg', (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
-    const panoGeo = new THREE.CylinderGeometry(280, 280, 160, 48, 1, true, -Math.PI * 0.9, Math.PI * 1.8);
-    const panoMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false });
-    const pano = new THREE.Mesh(panoGeo, panoMat);
-    pano.position.set(0, 35, -40);
-    scene.add(pano);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.repeat.set(2, 1);
+    const panoGeo = new THREE.CylinderGeometry(1600, 1600, 500, 64, 1, true, 0, Math.PI * 2);
+    const panoMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false });
+    panoMesh = new THREE.Mesh(panoGeo, panoMat);
+    panoMesh.position.set(0, 230, 0);
+    scene.add(panoMesh);
   });
 } catch (e) {}
 
-// road material + starter patch + extruded wall slab
+// road material + extended mega stunt runway + safety shoulder apron
 const roadMat = new THREE.MeshStandardMaterial({
   color: 0xd8dde4,
   roughness: .76,
@@ -1842,14 +1847,31 @@ try {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(8, 2);
+    tex.repeat.set(280, 2);
     roadMat.map = tex;
     roadMat.needsUpdate = true;
   });
 } catch (e) {}
-const startRoad = new THREE.Mesh(new THREE.PlaneGeometry(40, ROAD_W).rotateX(-Math.PI / 2), roadMat);
-startRoad.position.set(-20, .05, 0);
+
+const RUNWAY_MIN_X = -1400;
+const RUNWAY_MAX_X = 20;
+const RUNWAY_TOTAL_LEN = RUNWAY_MAX_X - RUNWAY_MIN_X; // 1420m
+const RUNWAY_MID_X = (RUNWAY_MAX_X + RUNWAY_MIN_X) / 2; // -690m
+
+// 1. Central main runway (ROAD_W = 4.6m)
+const startRoad = new THREE.Mesh(new THREE.PlaneGeometry(RUNWAY_TOTAL_LEN, ROAD_W).rotateX(-Math.PI / 2), roadMat);
+startRoad.position.set(RUNWAY_MID_X, .05, 0);
 scene.add(startRoad);
+
+// 2. Wide stunt apron / safety run-off shoulder tarmac (total width 24m)
+const apronMat = new THREE.MeshStandardMaterial({
+  color: 0x141a22,
+  roughness: 0.92,
+  metalness: 0.15,
+});
+const apronRoad = new THREE.Mesh(new THREE.PlaneGeometry(RUNWAY_TOTAL_LEN, 24).rotateX(-Math.PI / 2), apronMat);
+apronRoad.position.set(RUNWAY_MID_X, .03, 0);
+scene.add(apronRoad);
 {
   const off = (p, d) => [p.x + Math.sin(p.phi) * d, p.y - Math.cos(p.phi) * d];
   const shape = new THREE.Shape();
@@ -1863,7 +1885,7 @@ scene.add(startRoad);
   geo.translate(0, 0, -ROAD_W / 2);
   scene.add(new THREE.Mesh(geo, roadMat));
 }
-// edge tubes: lane lines + road edges (original Q)
+// edge tubes: lane lines + road edges (original Q) + extended runway straight rails
 {
   const curveOf = (z, off) => {
     const pts = [];
@@ -1882,6 +1904,24 @@ scene.add(startRoad);
   addTube(-.75, .07, .035, 15922423);
   addTube(ROAD_W / 2, .05, .06, 15331583);
   addTube(-ROAD_W / 2, .05, .06, 16722492);
+
+  // Extend continuous straight neon rails down the mega runway to RUNWAY_MIN_X (-1400)
+  const straightLen = -38 - RUNWAY_MIN_X; // 1362m
+  const straightMid = (RUNWAY_MIN_X - 38) / 2; // -719m
+  const boxRailL = new THREE.Mesh(new THREE.BoxGeometry(straightLen, 0.08, 0.08), new THREE.MeshBasicMaterial({ color: 15331583 }));
+  boxRailL.position.set(straightMid, 0.08, ROAD_W / 2);
+  const boxRailR = new THREE.Mesh(new THREE.BoxGeometry(straightLen, 0.08, 0.08), new THREE.MeshBasicMaterial({ color: 16722492 }));
+  boxRailR.position.set(straightMid, 0.08, -ROAD_W / 2);
+  const boxInnerL = new THREE.Mesh(new THREE.BoxGeometry(straightLen, 0.06, 0.06), new THREE.MeshBasicMaterial({ color: 15922423 }));
+  boxInnerL.position.set(straightMid, 0.08, 0.75);
+  const boxInnerR = new THREE.Mesh(new THREE.BoxGeometry(straightLen, 0.06, 0.06), new THREE.MeshBasicMaterial({ color: 15922423 }));
+  boxInnerR.position.set(straightMid, 0.08, -0.75);
+  // Outer runway edge guides (z = +-12)
+  const apronBorderL = new THREE.Mesh(new THREE.BoxGeometry(RUNWAY_TOTAL_LEN, 0.07, 0.14), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+  apronBorderL.position.set(RUNWAY_MID_X, 0.07, 12);
+  const apronBorderR = new THREE.Mesh(new THREE.BoxGeometry(RUNWAY_TOTAL_LEN, 0.07, 0.14), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+  apronBorderR.position.set(RUNWAY_MID_X, 0.07, -12);
+  scene.add(boxRailL, boxRailR, boxInnerL, boxInnerR, apronBorderL, apronBorderR);
 }
 // lattice truss tower behind the wall (original beams, batched into one InstancedMesh)
 {
@@ -1927,21 +1967,102 @@ scene.add(startRoad);
   });
   scene.add(beams);
 }
-// reflective dashes along both road shoulders
+// reflective dashes and center runway markings
 {
   const dashes = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(.5, .08, .12), new THREE.MeshBasicMaterial({ color: 16724804 }), 260);
+    new THREE.BoxGeometry(1.4, .08, .12), new THREE.MeshBasicMaterial({ color: 16724804 }), 900);
   const m4 = new THREE.Matrix4();
   let n = 0;
-  for (let x = -200; x < -1 && n < 260; x += 1.6) {
+  for (let x = -1380; x < -1 && n < 890; x += 3.2) {
     m4.makeTranslation(x, .08, ROAD_W / 2 + 1.2); dashes.setMatrixAt(n++, m4);
     m4.makeTranslation(x, .08, -ROAD_W / 2 - 1.2); dashes.setMatrixAt(n++, m4);
   }
   dashes.count = n;
   scene.add(dashes);
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(200, .06, .12), new THREE.MeshBasicMaterial({ color: 16719920 }));
-  strip.position.set(-110, .08, -18);
-  scene.add(strip);
+
+  // Center dashed runway guide line
+  const centerDashes = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1.8, .07, .14), new THREE.MeshBasicMaterial({ color: 0xe2e8f0 }), 450);
+  let cn = 0;
+  for (let x = -1380; x < -1 && cn < 450; x += 3.2) {
+    m4.makeTranslation(x, .07, 0); centerDashes.setMatrixAt(cn++, m4);
+  }
+  centerDashes.count = cn;
+  scene.add(centerDashes);
+}
+
+// High-tech distance milestone markers along the extended runway
+function makeSignTex(text, sub = '') {
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#0b0f19';
+  ctx.fillRect(0, 0, 256, 128);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(4, 4, 248, 120);
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 50px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, sub ? 48 : 64);
+  if (sub) {
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(sub, 128, 94);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const MILESTONES = [
+  { d: 50, label: '50 M', sub: '' },
+  { d: 100, label: '100 M', sub: 'FLIGHT' },
+  { d: 150, label: '150 M', sub: '' },
+  { d: 200, label: '200 M', sub: 'BOOST' },
+  { d: 250, label: '250 M', sub: '' },
+  { d: 300, label: '300 M', sub: 'TURBO' },
+  { d: 400, label: '400 M', sub: 'PRO ZONE' },
+  { d: 500, label: '500 M', sub: 'EPIC AIR' },
+  { d: 600, label: '600 M', sub: 'SUPER' },
+  { d: 800, label: '800 M', sub: 'HYPER' },
+  { d: 1000, label: '1000 M', sub: 'ORBITAL' },
+  { d: 1200, label: '1200 M', sub: 'LEGEND' },
+];
+
+{
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.8, roughness: 0.3 });
+  const postGeo = new THREE.BoxGeometry(0.18, 1.6, 0.18);
+  const boardGeo = new THREE.PlaneGeometry(2.0, 1.0);
+  const beaconGeo = new THREE.SphereGeometry(0.12, 10, 8);
+  const beaconMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+  for (const m of MILESTONES) {
+    const mx = -16 - m.d; // distance relative to start position (x = -16)
+    const col = m.d >= 500 ? 0xff007f : (m.d >= 300 ? 0xffbe0b : 0x00f0ff);
+    
+    // Transverse laser line across runway
+    const lineMesh = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, ROAD_W), new THREE.MeshBasicMaterial({ color: col }));
+    lineMesh.position.set(mx, 0.08, 0);
+    scene.add(lineMesh);
+
+    // Twin milestone sign boards (left and right shoulders)
+    const signMat = new THREE.MeshBasicMaterial({ map: makeSignTex(m.label, m.sub), side: THREE.DoubleSide });
+    for (const side of [1, -1]) {
+      const pylon = new THREE.Group();
+      const pMesh = new THREE.Mesh(postGeo, postMat);
+      pMesh.position.y = 0.8;
+      const bMesh = new THREE.Mesh(boardGeo, signMat);
+      bMesh.position.set(0, 1.4, 0);
+      bMesh.rotation.y = side > 0 ? Math.PI / 2 + 0.15 : Math.PI / 2 - 0.15;
+      const lMesh = new THREE.Mesh(beaconGeo, beaconMat);
+      lMesh.position.set(0, 2.0, 0);
+      pylon.add(pMesh, bMesh, lMesh);
+      pylon.position.set(mx, 0, side * (ROAD_W / 2 + 1.4));
+      scene.add(pylon);
+    }
+  }
 }
 // shared radial glow texture
 const glowTex = (() => {
@@ -2034,20 +2155,20 @@ const gantries = [];
 
   for (const gx of [-140, -80, -25]) {
     const group = new THREE.Group();
-    const colGeo = new THREE.BoxGeometry(0.4, 7, 0.4);
-    const colL = new THREE.Mesh(colGeo, gantryMat); colL.position.set(0, 3.5, ROAD_W / 2 + 1.2);
-    const colR = new THREE.Mesh(colGeo, gantryMat); colR.position.set(0, 3.5, -ROAD_W / 2 - 1.2);
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, ROAD_W + 3), gantryMat);
-    bar.position.set(0, 6.8, 0);
+    const colGeo = new THREE.BoxGeometry(0.4, 14, 0.4);
+    const colL = new THREE.Mesh(colGeo, gantryMat); colL.position.set(0, 7, ROAD_W / 2 + 1.8);
+    const colR = new THREE.Mesh(colGeo, gantryMat); colR.position.set(0, 7, -ROAD_W / 2 - 1.8);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, ROAD_W + 4.2), gantryMat);
+    bar.position.set(0, 13.8, 0);
 
-    const stripGeo = new THREE.BoxGeometry(0.52, 0.08, ROAD_W + 2.8);
-    const topStrip = new THREE.Mesh(stripGeo, neonMint); topStrip.position.set(0, 7.15, 0);
-    const botStrip = new THREE.Mesh(stripGeo, neonMint); botStrip.position.set(0, 6.45, 0);
+    const stripGeo = new THREE.BoxGeometry(0.52, 0.08, ROAD_W + 4.0);
+    const topStrip = new THREE.Mesh(stripGeo, neonMint); topStrip.position.set(0, 14.15, 0);
+    const botStrip = new THREE.Mesh(stripGeo, neonMint); botStrip.position.set(0, 13.45, 0);
 
     const chevrons = [];
     for (let ci = -1.5; ci <= 1.5; ci += 1.0) {
       const ch = new THREE.Mesh(chevronGeo, neonMint.clone());
-      ch.position.set(0.26, 6.8, ci);
+      ch.position.set(0.26, 13.8, ci);
       group.add(ch);
       chevrons.push(ch);
     }
@@ -4583,6 +4704,11 @@ renderer.setAnimationLoop(now => {
   updateGhost();
   updateCamera(dt);
   stars.position.copy(camera.position);
+  if (panoMesh) {
+    panoMesh.position.x = camera.position.x;
+    panoMesh.position.y = 230;
+    panoMesh.position.z = camera.position.z * 0.2;
+  }
   if (game.shake > 0) {
     game.shake = Math.max(0, game.shake - dt * 1.6);
     camera.position.x += rand(-1, 1) * game.shake * .5;

@@ -615,7 +615,7 @@ function buildCourse(idx) {
   courseGeo = { x1: 13.2, x2: 18.4, topY: arcEnd.y + 3.86, boomX: bR * sin(bTh), boomY: c.arcR - bR * cos(bTh) };
   // project the ribbon once per course; drawRoad only walks these points
   const ride = [];
-  for (let rx = -38; rx < 0.01; rx += 1) ride.push({ x: rx, y: 0, phi: 0 });
+  for (let rx = -700; rx < 0.01; rx += 2) ride.push({ x: rx, y: 0, phi: 0 });
   for (let i = 0; i < track.length; i += 2) ride.push(track[i]);
   ride.push(T_TOP);
   const flat = [];
@@ -1977,11 +1977,22 @@ function drawRoad(t) {
   ctx.moveTo(g.x2, g.topY); ctx.lineTo(g.boomX, g.boomY); // boom to the wall top
   ctx.moveTo(g.x1, g.topY); ctx.lineTo(g.x2, g.topY);
   ctx.stroke();
-  // boundary posts along the approach road (far side)
-  ctx.fillStyle = '#ff2a3c';
-  for (let x = -36; x < -2; x += 4) ctx.fillRect(x, 0.62, 0.22, 0.6);
-  ctx.fillStyle = '#e9f0ff';
-  for (let x = -34; x < -2; x += 4) ctx.fillRect(x, 0.62, 0.22, 0.6);
+  // boundary posts along the runway and approach road (far side)
+  for (let x = -680; x < -2; x += 8) {
+    ctx.fillStyle = '#ff2a3c'; ctx.fillRect(x, 0.62, 0.22, 0.6);
+    ctx.fillStyle = '#e9f0ff'; ctx.fillRect(x + 2, 0.62, 0.22, 0.6);
+  }
+  // distance milestone markers along the extended landing runway
+  ctx.save();
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 0.45px monospace';
+  ctx.textAlign = 'center';
+  for (let d = 50; d <= 650; d += 50) {
+    const mx = -RUNUP - d;
+    ctx.fillRect(mx - 0.08, 0, 0.16, 0.9);
+    ctx.fillText(`${d}m`, mx, 1.4);
+  }
+  ctx.restore();
   // road ribbon: roadTop is the ride surface; roadBot is the asphalt's lower edge
   const poly = pts => {
     ctx.beginPath();
