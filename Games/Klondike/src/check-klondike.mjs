@@ -36,6 +36,9 @@ import {
   computeMovableAnalysis,
   getVegasYieldTelemetry,
   getMasterAdvice,
+  getStockXRayTelemetry,
+  getFoundationVelocityTelemetry,
+  getStepEfficiencyTelemetry,
 } from './utils/cockpitAnalysis.ts';
 
 function card(suit, rank, faceUp = true) {
@@ -375,6 +378,26 @@ function card(suit, rank, faceUp = true) {
   const advice = getMasterAdvice(testState, hidden, fTel, stockVegas1, mov.totalMovableCount);
   assert.ok(advice.title.length > 0);
   assert.ok(advice.detail.length > 0);
+
+  // Stock X-Ray distribution radar
+  const xray = getStockXRayTelemetry(testState);
+  assert.equal(xray.redCount, 1, 'waste has hearts-A');
+  assert.equal(xray.blackCount, 2, 'stock has clubs-3, clubs-4');
+  assert.equal(xray.suitCounts.clubs, 2);
+  assert.equal(xray.suitCounts.hearts, 1);
+  assert.equal(xray.targets.length, 4);
+
+  // Foundation velocity meter
+  const vel = getFoundationVelocityTelemetry(12, 60);
+  assert.equal(vel.progressPercent, 23);
+  assert.ok(vel.ratePerMinute > 0);
+  assert.ok(['charging', 'steady', 'rush'].includes(vel.tier));
+
+  // Step efficiency telemetry
+  const eff = getStepEfficiencyTelemetry(50, 10, 10);
+  assert.equal(eff.parMoves, 80);
+  assert.ok(eff.efficiencyPercent > 0);
+  assert.ok(['S', 'A', 'B', 'C'].includes(eff.rating));
 }
 
 console.log('check-klondike: ok');

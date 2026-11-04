@@ -80,7 +80,11 @@ import {
   computeMovableAnalysis,
   getVegasYieldTelemetry,
   getMasterAdvice,
+  getStockXRayTelemetry,
+  getFoundationVelocityTelemetry,
+  getStepEfficiencyTelemetry,
 } from './utils/cockpitAnalysis';
+import { klondikeAudio } from './utils/klondikeAudio';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -181,6 +185,7 @@ export default function App() {
   const clearHint = () => setHint(null);
 
   const resetRuntime = (next: GameState, mode: ScoreMode = scoreMode) => {
+    klondikeAudio.playRiffleShuffle();
     setGameState(next);
     setSeedDraft(String(next.seed));
     setScore(initialScore(mode));
@@ -367,8 +372,14 @@ export default function App() {
     });
     setMoveCount((m) => m + 1);
     bumpScore(moveBonus + revealBonus);
-    if (target.type === 'foundation') playScore();
-    else playMove();
+    if (target.type === 'foundation') {
+      const currentFoundationCards = gameState.foundation.reduce((a, b) => a + b.length, 0);
+      klondikeAudio.playFoundationAscent(currentFoundationCards + cardsToMove.length);
+      playScore();
+    } else {
+      klondikeAudio.playCardSnap();
+      playMove();
+    }
   };
 
   const attemptMove = (
@@ -532,6 +543,7 @@ export default function App() {
       recycles: recycleRef.current,
     });
     setMoveCount((m) => m + 1);
+    klondikeAudio.playCardFlick();
     playCard();
   };
 
@@ -560,6 +572,7 @@ export default function App() {
     setRecycleCount((c) => c + 1);
     setMoveCount((m) => m + 1);
     bumpScore(penalty);
+    klondikeAudio.playCardFlick();
     playCard();
   };
 
@@ -1110,6 +1123,13 @@ export default function App() {
   const foundationTel = getFoundationTelemetry(gameState.foundation);
   const movableAnalysis = computeMovableAnalysis(gameState);
   const vegasTel = getVegasYieldTelemetry(gameState.foundation, score, stats);
+  const xrayTel = getStockXRayTelemetry(gameState);
+  const velocityTel = getFoundationVelocityTelemetry(foundationTel.totalCards, elapsedSec);
+  const stepEfficiency = getStepEfficiencyTelemetry(
+    moveCount,
+    foundationTel.totalCards,
+    hiddenTel.revealedCount,
+  );
   const masterAdvice = getMasterAdvice(
     gameState,
     hiddenTel,
@@ -1129,9 +1149,10 @@ export default function App() {
     <div
       className="min-h-screen text-white p-4 md:p-8 font-sans select-none bg-cover bg-center"
       style={{
-        backgroundColor: '#065f46',
+        backgroundColor: '#064e3b',
         backgroundImage: [
-          'linear-gradient(rgba(6,95,70,0.55), rgba(6,78,59,0.75))',
+          'radial-gradient(ellipse at 50% 25%, rgba(16,185,129,0.24) 0%, rgba(4,47,36,0.88) 75%)',
+          'linear-gradient(rgba(4,47,36,0.5), rgba(4,47,36,0.72))',
           `url(${import.meta.env.BASE_URL}felt.jpg)`,
         ].join(', '),
       }}
@@ -1378,6 +1399,9 @@ export default function App() {
           hiddenTel={hiddenTel}
           foundationTel={foundationTel}
           vegasTel={vegasTel}
+          xrayTel={xrayTel}
+          velocityTel={velocityTel}
+          stepEfficiency={stepEfficiency}
           scoreMode={scoreMode}
           score={score}
           elapsedSec={elapsedSec}
@@ -1401,6 +1425,8 @@ export default function App() {
               stockTel={stockTel}
               hiddenTel={hiddenTel}
               foundationTel={foundationTel}
+              xrayTel={xrayTel}
+              velocityTel={velocityTel}
               scoreMode={scoreMode}
               tacticalHighlight={tacticalHighlight}
               onToggleTacticalHighlight={() => setTacticalHighlight((prev) => !prev)}
@@ -1585,6 +1611,7 @@ export default function App() {
             <CockpitRightWing
               scoreMode={scoreMode}
               vegasTel={vegasTel}
+              stepEfficiency={stepEfficiency}
               score={score}
               elapsedSec={elapsedSec}
               masterAdvice={masterAdvice}

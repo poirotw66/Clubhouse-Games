@@ -62,6 +62,42 @@ export interface VegasYieldTelemetry {
   streakFeverTitle: string;
 }
 
+export interface FoundationTargetCard {
+  suit: 'spades' | 'hearts' | 'clubs' | 'diamonds';
+  symbol: string;
+  rank: Rank;
+  inStockOrWaste: boolean;
+  location: 'stock' | 'waste' | 'tableau' | 'done';
+}
+
+export interface StockXRayTelemetry {
+  redCount: number;
+  blackCount: number;
+  suitCounts: {
+    spades: number;
+    hearts: number;
+    clubs: number;
+    diamonds: number;
+  };
+  foundationTargetsInStock: number;
+  targets: FoundationTargetCard[];
+}
+
+export interface FoundationVelocityTelemetry {
+  ratePerMinute: number;
+  tier: 'charging' | 'steady' | 'rush';
+  tierLabel: string;
+  progressPercent: number;
+}
+
+export interface StepEfficiencyTelemetry {
+  parMoves: number;
+  efficiencyPercent: number;
+  rating: 'S' | 'A' | 'B' | 'C';
+  ratingTitle: string;
+  moveCount: number;
+}
+
 export interface MovableAnalysis {
   movableCardIds: Set<string>;
   totalMovableCount: number;
@@ -387,3 +423,172 @@ export function getMasterAdvice(
     tone: 'blue',
   };
 }
+
+const ORDERED_RANKS: Rank[] = [
+  'A',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  'J',
+  'Q',
+  'K',
+];
+
+export function getStockXRayTelemetry(gameState: GameState): StockXRayTelemetry {
+  const pool = [...gameState.stock, ...gameState.waste];
+  let redCount = 0;
+  let blackCount = 0;
+  const suitCounts = { spades: 0, hearts: 0, clubs: 0, diamonds: 0 };
+
+  for (const c of pool) {
+    if (c.color === 'red') redCount++;
+    else blackCount++;
+    if (c.suit in suitCounts) {
+      suitCounts[c.suit as keyof typeof suitCounts]++;
+    }
+  }
+
+  const suitsMeta: {
+    suit: 'spades' | 'hearts' | 'clubs' | 'diamonds';
+    symbol: string;
+  }[] = [
+    { suit: 'spades', symbol: '♠' },
+    { suit: 'hearts', symbol: '♥' },
+    { suit: 'clubs', symbol: '♣' },
+    { suit: 'diamonds', symbol: '♦' },
+  ];
+
+  const targets: FoundationTargetCard[] = [];
+  let foundationTargetsInStock = 0;
+
+  for (const meta of suitsMeta) {
+    // Find foundation pile for this suit
+    let pileCards: CardType[] = [];
+    for (const pile of gameState.foundation) {
+      if (pile.length > 0 && pile[0].suit === meta.suit) {
+        pileCards = pile;
+        break;
+      }
+    }
+
+    if (pileCards.length >= 13) {
+      targets.push({
+        suit: meta.suit,
+        symbol: meta.symbol,
+        rank: 'K',
+        inStockOrWaste: false,
+        location: 'done',
+      });
+      continue;
+    }
+
+    const nextRank = ORDERED_RANKS[pileCards.length];
+    // Find where nextRank is located
+    let location: 'stock' | 'waste' | 'tableau' | 'done' = 'tableau';
+    let inStockOrWaste = false;
+
+    if (gameState.stock.some((c) => c.suit === meta.suit && c.rank === nextRank)) {
+      location = 'stock';
+      inStockOrWaste = true;
+      foundationTargetsInStock++;
+    } else if (gameState.waste.some((c) => c.suit === meta.suit && c.rank === nextRank)) {
+      location = 'waste';
+      inStockOrWaste = true;
+      foundationTargetsInStock++;
+    }
+
+    targets.push({
+      suit: meta.suit,
+      symbol: meta.symbol,
+      rank: nextRank,
+      inStockOrWaste,
+      location,
+    });
+  }
+
+  return {
+    redCount,
+    blackCount,
+    suitCounts,
+    foundationTargetsInStock,
+    targets,
+  };
+}
+
+export function getFoundationVelocityTelemetry(
+  totalFoundationCards: number,
+  elapsedSec: number,
+): FoundationVelocityTelemetry {
+  const safeSec = Math.max(1, elapsedSec);
+  const ratePerMinute = Math.round((totalFoundationCards / safeSec) * 60 * 10) / 10;
+  const progressPercent = Math.min(100, Math.round((totalFoundationCards / 52) * 100));
+
+  let tier: 'charging' | 'steady' | 'rush' = 'charging';
+  let tierLabel = '蓄力中';
+
+  if (ratePerMinute >= 12 || (totalFoundationCards >= 20 && safeSec <= 90)) {
+    tier = 'rush';
+    tierLabel = '極速連收';
+  } else if (ratePerMinute >= 4 || totalFoundationCards >= 6) {
+    tier = 'steady';
+    tierLabel = '穩定推進';
+  }
+
+  return {
+    ratePerMinute,
+    tier,
+    tierLabel,
+    progressPercent,
+  };
+}
+
+export function getStepEfficiencyTelemetry(
+  moveCount: number,
+  totalFoundationCards: number,
+  hiddenRevealed: number,
+): StepEfficiencyTelemetry {
+  const parMoves = 80;
+  // Progress metric: combination of foundation progress and hidden revealed
+  const progressWeight = totalFoundationCards * 1.5 + hiddenRevealed * 2.5; // up to ~130
+  const expectedMovesForProgress = Math.max(1, Math.round((progressWeight / 130) * parMoves));
+
+  let efficiencyPercent = 100;
+  if (moveCount > 0) {
+    efficiencyPercent = Math.min(
+      100,
+      Math.max(30, Math.round((expectedMovesForProgress / Math.max(1, moveCount)) * 100)),
+    );
+  }
+
+  let rating: 'S' | 'A' | 'B' | 'C' = 'B';
+  let ratingTitle = 'B級 穩健前行';
+
+  if (efficiencyPercent >= 90 || (moveCount <= 40 && totalFoundationCards >= 16)) {
+    rating = 'S';
+    ratingTitle = 'S級 傳奇指揮';
+  } else if (efficiencyPercent >= 75 || moveCount <= 75) {
+    rating = 'A';
+    ratingTitle = 'A級 精準調度';
+  } else if (efficiencyPercent >= 55) {
+    rating = 'B';
+    ratingTitle = 'B級 穩健前行';
+  } else {
+    rating = 'C';
+    ratingTitle = 'C級 迂迴摸索';
+  }
+
+  return {
+    parMoves,
+    efficiencyPercent,
+    rating,
+    ratingTitle,
+    moveCount,
+  };
+}
+

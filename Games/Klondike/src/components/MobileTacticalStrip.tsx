@@ -4,6 +4,9 @@ import type {
   HiddenCardsTelemetry,
   FoundationTelemetry,
   VegasYieldTelemetry,
+  StockXRayTelemetry,
+  FoundationVelocityTelemetry,
+  StepEfficiencyTelemetry,
 } from '../utils/cockpitAnalysis.ts';
 import type { ScoreMode } from '../utils/scoring.ts';
 import { CockpitLeftWing } from './CockpitLeftWing.tsx';
@@ -18,6 +21,8 @@ import {
   X,
   Eye,
   Lightbulb,
+  Gauge,
+  Activity,
 } from 'lucide-react';
 
 interface MobileTacticalStripProps {
@@ -25,6 +30,9 @@ interface MobileTacticalStripProps {
   hiddenTel: HiddenCardsTelemetry;
   foundationTel: FoundationTelemetry;
   vegasTel: VegasYieldTelemetry;
+  xrayTel?: StockXRayTelemetry;
+  velocityTel?: FoundationVelocityTelemetry;
+  stepEfficiency?: StepEfficiencyTelemetry;
   scoreMode: ScoreMode;
   score: number;
   elapsedSec: number;
@@ -51,6 +59,9 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
   hiddenTel,
   foundationTel,
   vegasTel,
+  xrayTel,
+  velocityTel,
+  stepEfficiency,
   scoreMode,
   score,
   elapsedSec,
@@ -72,7 +83,7 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
   return (
     <div className={`w-full ${className}`}>
       {/* Compact strip */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 rounded-xl bg-black/40 backdrop-blur-md border border-emerald-500/30 text-xs shadow-md">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 rounded-xl bg-black/45 backdrop-blur-md border border-emerald-500/30 text-xs shadow-md">
         {/* Quick status chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
           {/* Hidden cards */}
@@ -97,6 +108,21 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
             </span>
           </div>
 
+          {/* Foundation Velocity Chip */}
+          {velocityTel && (
+            <div
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg border font-mono text-[11px] font-semibold ${
+                velocityTel.tier === 'rush'
+                  ? 'bg-purple-950/70 border-purple-400/50 text-purple-200 animate-pulse'
+                  : 'bg-emerald-950/60 border-emerald-500/20 text-emerald-200'
+              }`}
+              title="收牌推進速度"
+            >
+              <Gauge size={12} className="text-emerald-400" />
+              <span>{velocityTel.ratePerMinute} 張/分</span>
+            </div>
+          )}
+
           {/* Mode Yield / Score */}
           {scoreMode === 'vegas' ? (
             <div
@@ -108,7 +134,9 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
               title="維加斯淨盈虧"
             >
               <Coins size={12} />
-              <span>{vegasTel.netProfit >= 0 ? `+$${vegasTel.netProfit}` : `-$${Math.abs(vegasTel.netProfit)}`}</span>
+              <span>
+                {vegasTel.netProfit >= 0 ? `+$${vegasTel.netProfit}` : `-$${Math.abs(vegasTel.netProfit)}`}
+              </span>
             </div>
           ) : (
             <div
@@ -118,6 +146,19 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
               <Scale size={12} className="text-emerald-400" />
               <span className="font-mono text-[11px] font-semibold">
                 基座 {foundationTel.totalCards}/52
+              </span>
+            </div>
+          )}
+
+          {/* Step Efficiency Chip */}
+          {stepEfficiency && (
+            <div
+              className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-950/60 border border-sky-400/30 text-sky-200"
+              title="步數效率"
+            >
+              <Activity size={12} className="text-sky-300" />
+              <span className="font-mono text-[11px] font-semibold">
+                {stepEfficiency.rating} ({stepEfficiency.efficiencyPercent}%)
               </span>
             </div>
           )}
@@ -159,24 +200,27 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
             type="button"
             onClick={onShowHint}
             disabled={isBusy || isGameWon}
-            className="min-h-[36px] px-2 py-1 rounded-lg bg-black/30 border border-white/10 text-[11px] text-white/80 flex items-center gap-1 touch-manipulation hover:bg-white/10"
-            title="提示"
+            className="min-h-[36px] px-2.5 py-1 rounded-lg border border-white/10 bg-black/30 hover:bg-white/10 text-white/80 text-[11px] flex items-center gap-1 touch-manipulation disabled:opacity-50"
+            title="查看提示"
           >
             <Lightbulb size={12} />
+            <span className="hidden xs:inline">提示</span>
           </button>
 
+          {/* Drawer opener */}
           <button
             type="button"
             onClick={() => setIsDrawerOpen(true)}
-            className="min-h-[36px] px-2.5 py-1 rounded-lg bg-emerald-900/60 border border-emerald-500/40 text-[11px] text-emerald-200 font-medium flex items-center gap-1 touch-manipulation"
+            className="min-h-[36px] px-2.5 py-1 rounded-lg bg-emerald-600/40 hover:bg-emerald-600/60 border border-emerald-400/40 text-emerald-200 text-[11px] font-semibold flex items-center gap-1 touch-manipulation"
+            aria-label="打開戰術抽屜"
           >
             <span>儀表</span>
-            <ChevronDown size={12} />
+            <ChevronDown size={13} />
           </button>
         </div>
       </div>
 
-      {/* Expandable full tactical drawer */}
+      {/* Slide-over Drawer / Modal */}
       {isDrawerOpen && (
         <div
           role="dialog"
@@ -238,6 +282,8 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
                   stockTel={stockTel}
                   hiddenTel={hiddenTel}
                   foundationTel={foundationTel}
+                  xrayTel={xrayTel}
+                  velocityTel={velocityTel}
                   scoreMode={scoreMode}
                   tacticalHighlight={tacticalHighlight}
                   onToggleTacticalHighlight={onToggleTacticalHighlight}
@@ -249,6 +295,7 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
                 <CockpitRightWing
                   scoreMode={scoreMode}
                   vegasTel={vegasTel}
+                  stepEfficiency={stepEfficiency}
                   score={score}
                   elapsedSec={elapsedSec}
                   masterAdvice={masterAdvice}

@@ -1,5 +1,8 @@
 import React from 'react';
-import type { VegasYieldTelemetry } from '../utils/cockpitAnalysis.ts';
+import type {
+  VegasYieldTelemetry,
+  StepEfficiencyTelemetry,
+} from '../utils/cockpitAnalysis.ts';
 import type { ScoreMode } from '../utils/scoring.ts';
 import {
   Coins,
@@ -9,12 +12,14 @@ import {
   TrendingUp,
   Timer,
   Trophy,
-  Lightbulb,
+  Activity,
+  Award,
 } from 'lucide-react';
 
 interface CockpitRightWingProps {
   scoreMode: ScoreMode;
   vegasTel: VegasYieldTelemetry;
+  stepEfficiency?: StepEfficiencyTelemetry;
   score: number;
   elapsedSec: number;
   masterAdvice: {
@@ -30,6 +35,7 @@ interface CockpitRightWingProps {
 export const CockpitRightWing: React.FC<CockpitRightWingProps> = ({
   scoreMode,
   vegasTel,
+  stepEfficiency,
   score,
   elapsedSec,
   masterAdvice,
@@ -49,7 +55,7 @@ export const CockpitRightWing: React.FC<CockpitRightWingProps> = ({
 
   return (
     <aside
-      className={`flex flex-col gap-3 p-4 rounded-2xl bg-black/40 backdrop-blur-md border border-emerald-500/30 shadow-2xl text-white select-none ${className}`}
+      className={`flex flex-col gap-3 p-4 rounded-2xl bg-black/45 backdrop-blur-md border border-emerald-500/30 shadow-2xl text-white select-none ${className}`}
       aria-label="右翼破局大師與收益儀"
     >
       {/* Header */}
@@ -161,7 +167,46 @@ export const CockpitRightWing: React.FC<CockpitRightWingProps> = ({
         </div>
       )}
 
-      {/* 2. 破局大師動態錦囊 */}
+      {/* 2. 可解步數效率儀 (Step Efficiency Gauge) */}
+      {stepEfficiency && (
+        <div className="p-3 rounded-xl bg-black/25 border border-white/10">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-sky-300 flex items-center gap-1">
+              <Activity size={14} />
+              <span>解局步數效率儀</span>
+            </span>
+            <span
+              className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                stepEfficiency.rating === 'S'
+                  ? 'bg-amber-950/80 border-amber-400/60 text-amber-200'
+                  : stepEfficiency.rating === 'A'
+                    ? 'bg-emerald-950/80 border-emerald-400/60 text-emerald-200'
+                    : 'bg-blue-950/80 border-blue-400/60 text-blue-200'
+              }`}
+            >
+              {stepEfficiency.ratingTitle}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] mb-1">
+            <span className="text-white/60">步數效率指標</span>
+            <span className="font-mono font-bold text-sky-200">
+              {stepEfficiency.efficiencyPercent}%
+            </span>
+          </div>
+          <div className="w-full h-1.5 rounded-full bg-black/50 overflow-hidden mb-1.5">
+            <div
+              className="h-full bg-gradient-to-r from-sky-400 to-indigo-400 transition-all duration-300"
+              style={{ width: `${stepEfficiency.efficiencyPercent}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] text-white/50">
+            <span>累計步數: {stepEfficiency.moveCount}</span>
+            <span>基準參考: ~{stepEfficiency.parMoves} 步</span>
+          </div>
+        </div>
+      )}
+
+      {/* 3. 破局大師動態錦囊 */}
       <div className={`p-3 rounded-xl border ${adviceToneClasses}`}>
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1.5 text-xs font-bold">
@@ -180,7 +225,7 @@ export const CockpitRightWing: React.FC<CockpitRightWingProps> = ({
         </p>
       </div>
 
-      {/* 3. 鍵盤指揮官快捷鍵系統 */}
+      {/* 4. 鍵盤指揮官快捷鍵系統 */}
       <div className="p-3 rounded-xl bg-black/25 border border-white/10 mt-auto">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-white/80">

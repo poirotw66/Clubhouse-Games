@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "test": "npm run check",
     "check": "node --experimental-strip-types src/check-klondike.mjs"
   },
   "dependencies": {

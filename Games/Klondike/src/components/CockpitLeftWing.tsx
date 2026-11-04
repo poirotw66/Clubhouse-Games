@@ -3,23 +3,29 @@ import type {
   StockTelemetry,
   HiddenCardsTelemetry,
   FoundationTelemetry,
+  StockXRayTelemetry,
+  FoundationVelocityTelemetry,
 } from '../utils/cockpitAnalysis.ts';
 import type { ScoreMode } from '../utils/scoring.ts';
 import {
   Layers,
   Eye,
   Scale,
-  Sparkles,
   Zap,
   Target,
   AlertTriangle,
   CheckCircle2,
+  Gauge,
+  Sparkles,
+  Search,
 } from 'lucide-react';
 
 interface CockpitLeftWingProps {
   stockTel: StockTelemetry;
   hiddenTel: HiddenCardsTelemetry;
   foundationTel: FoundationTelemetry;
+  xrayTel?: StockXRayTelemetry;
+  velocityTel?: FoundationVelocityTelemetry;
   scoreMode: ScoreMode;
   tacticalHighlight: boolean;
   onToggleTacticalHighlight: () => void;
@@ -33,6 +39,8 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
   stockTel,
   hiddenTel,
   foundationTel,
+  xrayTel,
+  velocityTel,
   scoreMode,
   tacticalHighlight,
   onToggleTacticalHighlight,
@@ -43,7 +51,7 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
 }) => {
   return (
     <aside
-      className={`flex flex-col gap-3 p-4 rounded-2xl bg-black/40 backdrop-blur-md border border-emerald-500/30 shadow-2xl text-white select-none ${className}`}
+      className={`flex flex-col gap-3 p-4 rounded-2xl bg-black/45 backdrop-blur-md border border-emerald-500/30 shadow-2xl text-white select-none ${className}`}
       aria-label="左翼戰術情報雷達"
     >
       {/* Header */}
@@ -60,12 +68,12 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
         </span>
       </div>
 
-      {/* 1. 牌庫與廢牌透視 */}
+      {/* 1. 牌庫循環透視與 X-Ray 雷達 */}
       <div className="p-3 rounded-xl bg-black/25 border border-white/10">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
             <Layers size={14} />
-            <span>牌庫循環透視</span>
+            <span>牌庫循環與透視</span>
           </div>
           {scoreMode === 'vegas' ? (
             <span
@@ -84,7 +92,7 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center mb-2">
           <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/20">
             <div className="text-[10px] text-white/60">未翻牌庫</div>
             <div className="text-lg font-bold font-mono text-emerald-200">
@@ -100,6 +108,86 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
             </div>
           </div>
         </div>
+
+        {/* X-Ray Pool Distribution */}
+        {xrayTel && (stockTel.stockCount > 0 || stockTel.wasteCount > 0) && (
+          <div className="pt-2 border-t border-white/10">
+            <div className="flex items-center justify-between text-[10px] text-white/70 mb-1">
+              <span className="flex items-center gap-1">
+                <Search size={11} className="text-cyan-300" />
+                <span>牌庫色系透視</span>
+              </span>
+              <span className="font-mono">
+                <span className="text-red-400 font-semibold">{xrayTel.redCount} 紅</span>
+                <span className="text-white/40 mx-1">/</span>
+                <span className="text-slate-200 font-semibold">{xrayTel.blackCount} 黑</span>
+              </span>
+            </div>
+            {/* Color balance bar */}
+            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
+              <div
+                className="bg-red-500 h-full transition-all duration-300"
+                style={{
+                  width: `${(xrayTel.redCount / Math.max(1, xrayTel.redCount + xrayTel.blackCount)) * 100}%`,
+                }}
+              />
+              <div
+                className="bg-slate-400 h-full transition-all duration-300"
+                style={{
+                  width: `${(xrayTel.blackCount / Math.max(1, xrayTel.redCount + xrayTel.blackCount)) * 100}%`,
+                }}
+              />
+            </div>
+
+            {/* Key Targets in Stock */}
+            <div className="mt-2 text-[10px]">
+              <div className="flex items-center justify-between text-white/60 mb-1">
+                <span>基座關鍵牌雷達</span>
+                <span className="text-amber-300 font-mono">
+                  {xrayTel.foundationTargetsInStock > 0
+                    ? `庫存待掘 ${xrayTel.foundationTargetsInStock} 張`
+                    : '均在桌面上'}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1">
+                {xrayTel.targets.map((tgt) => (
+                  <div
+                    key={tgt.suit}
+                    className={`py-0.5 px-1 rounded text-center border font-mono ${
+                      tgt.location === 'done'
+                        ? 'bg-white/5 border-white/10 text-white/30'
+                        : tgt.inStockOrWaste
+                          ? 'bg-amber-950/70 border-amber-400/60 text-amber-200 shadow-[0_0_6px_rgba(251,191,36,0.3)]'
+                          : 'bg-black/30 border-white/10 text-white/70'
+                    }`}
+                    title={`${tgt.symbol} ${tgt.rank} - 位置: ${
+                      tgt.location === 'stock'
+                        ? '牌庫'
+                        : tgt.location === 'waste'
+                          ? '廢牌'
+                          : tgt.location === 'tableau'
+                            ? '牌列'
+                            : '已完成'
+                    }`}
+                  >
+                    <span
+                      className={`font-semibold mr-0.5 ${
+                        tgt.suit === 'hearts' || tgt.suit === 'diamonds'
+                          ? 'text-red-400'
+                          : 'text-slate-200'
+                      }`}
+                    >
+                      {tgt.symbol}
+                    </span>
+                    <span className="text-[11px] font-bold">
+                      {tgt.location === 'done' ? '✓' : tgt.rank}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {scoreMode === 'standard' && stockTel.recycleCount > 0 && (
           <div className="mt-2 text-[10px] text-amber-300/80 flex items-center justify-between">
@@ -172,7 +260,7 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
         )}
       </div>
 
-      {/* 3. 四色回收天秤 */}
+      {/* 3. 四色回收天秤與收牌速度儀 */}
       <div className="p-3 rounded-xl bg-black/25 border border-white/10">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
@@ -199,6 +287,42 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
             )}
           </span>
         </div>
+
+        {/* Foundation Velocity Meter */}
+        {velocityTel && (
+          <div className="mb-2 p-2 rounded-lg bg-black/30 border border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Gauge
+                size={13}
+                className={
+                  velocityTel.tier === 'rush'
+                    ? 'text-purple-400 animate-spin'
+                    : velocityTel.tier === 'steady'
+                      ? 'text-emerald-400'
+                      : 'text-blue-400'
+                }
+              />
+              <span className="text-[10px] text-white/70">收牌推進</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-white">
+                {velocityTel.ratePerMinute}{' '}
+                <span className="text-[9px] text-white/50 font-normal">張/分</span>
+              </span>
+              <span
+                className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                  velocityTel.tier === 'rush'
+                    ? 'bg-purple-950/80 border-purple-400/50 text-purple-200 animate-pulse'
+                    : velocityTel.tier === 'steady'
+                      ? 'bg-emerald-950/80 border-emerald-400/40 text-emerald-300'
+                      : 'bg-blue-950/80 border-blue-400/40 text-blue-300'
+                }`}
+              >
+                {velocityTel.tierLabel}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           {foundationTel.suits.map((suitItem) => (
