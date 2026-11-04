@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0c0d0f">
 <title>宙返りロードスター 2D · 牆上翻滾</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
+<script src="leaderboard-config.js"></script>
 <script>
 /* Prefer 3D when remembered and WebGL is available (hub entry lands here). */
 (function () {
@@ -757,11 +758,23 @@ let inputLog = [];                     // [framesSincePrevChange, inputMask] pai
 let inputLogFrames = 0;
 let inputLogLast = -1;
 const rankUI = { tabOnline: null, tabLocal: null, gear: null };
+function getLeaderboardConfig() {
+  const cfg = window.WF_LEADERBOARD;
+  if (cfg && cfg.url && cfg.key) return cfg;
+  return null;
+}
 function apiBase() {
   try {
     const s = (localStorage.getItem('wallflip2.api') || '').trim();
-    return /^https?:\/\//i.test(s) ? s.replace(/\/+$/, '') : '';
-  } catch (e) { return ''; }
+    if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '');
+  } catch (e) {}
+  const cfg = getLeaderboardConfig();
+  return cfg ? cfg.url.replace(/\/+$/, '') : '';
+}
+function isSupabaseApi(base) {
+  const cfg = getLeaderboardConfig();
+  if (cfg && base.startsWith(cfg.url.replace(/\/+$/, ''))) return true;
+  return base.includes('.supabase.co');
 }
 function submitThrottled() {
   try { return Date.now() - (+localStorage.getItem('wallflip2.subT') || 0) < 60000; }
@@ -779,10 +792,38 @@ function logInputFrame() {
     inputLogLast = mask;
   }
 }
-// GET {base}/top?c=<courseIdx>; accepts a raw array or {board:[...]}; on
+// GET {base}/top?c=<courseIdx> (or Supabase REST); accepts a raw array or {board:[...]}; on
 // failure the online board stays null and the overlay falls back to local
 function fetchOnlineBoard(base) {
   onlinePending = true;
+  const cfg = getLeaderboardConfig();
+  if (isSupabaseApi(base) && cfg) {
+    const table = cfg.table || 'wallflip_scores';
+    const q = base + '/rest/v1/' + table + '?select=name,score,rolls,time_sec,created_at&course=eq.' + courseIdx + '&order=score.desc,time_sec.asc&limit=10';
+    fetch(q, {
+      headers: {
+        'apikey': cfg.key,
+        'Authorization': 'Bearer ' + cfg.key
+      }
+    })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(arr => {
+        if (!Array.isArray(arr)) throw new Error('unexpected payload');
+        onlineBoard = arr
+          .filter(e => e && typeof e.name === 'string' && Number.isFinite(e.score))
+          .slice(0, 10)
+          .map(e => ({ n: e.name, s: e.score, r: Number.isFinite(e.rolls) ? e.rolls : 0, t: Number.isFinite(Number(e.time_sec)) ? Number(e.time_sec) : 0 }));
+        if (lastSubmit) onlineHi = onlineBoard.findIndex(e => e.n === lastSubmit.n && e.s === lastSubmit.s);
+        onlinePending = false;
+      })
+      .catch(err => {
+        onlinePending = false;
+        onlineBoard = null;
+        console.warn('supabase rank fetch failed:', err);
+      });
+    return;
+  }
+
   fetch(base + '/top?c=' + courseIdx)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(j => {
@@ -816,6 +857,57 @@ function submitScore(name) {
   };
   try { localStorage.setItem('wallflip2.subT', String(Date.now())); } catch (e) {}
   lastSubmit = { n: payload.n, s: payload.s };
+
+  const cfg = getLeaderboardConfig();
+  if (isSupabaseApi(base) && cfg) {
+    const table = cfg.table || 'wallflip_scores';
+    fetch(base + '/rest/v1/' + table, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': cfg.key,
+        'Authorization': 'Bearer ' + cfg.key,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        name: payload.n,
+        score: payload.s,
+        rolls: payload.r,
+        course: payload.c,
+        time_sec: payload.t
+      }),
+    })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(async () => {
+        let rank = 1;
+        try {
+          const rankRes = await fetch(
+            base + '/rest/v1/' + table + '?course=eq.' + payload.c + '&or=(score.gt.' + payload.s + ',and(score.eq.' + payload.s + ',time_sec.lt.' + payload.t + '))&select=id',
+            {
+              headers: {
+                'apikey': cfg.key,
+                'Authorization': 'Bearer ' + cfg.key,
+                'Prefer': 'count=exact',
+                'Range': '0-0'
+              }
+            }
+          );
+          if (rankRes.ok) {
+            const cr = rankRes.headers.get('content-range') || '';
+            const match = /\/(\d+)$/.exec(cr);
+            if (match) rank = Number(match[1]) + 1;
+          }
+        } catch (_) {}
+        say(t('submitOk') + ' #' + rank, '#6ff0d0', 2.4);
+      })
+      .catch(err => {
+        lastSubmit = null;
+        console.warn('supabase submit failed:', err);
+        say(t('submitFail'), '#ff6b6b', 2.2);
+      });
+    return;
+  }
+
   fetch(base + '/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -852,7 +944,8 @@ function openApiPanel() {
   apiHintEl.textContent = t('apiHint');
   apiSaveBtn.textContent = t('apiSave');
   apiCancelBtn.textContent = t('apiCancel');
-  apiInput.placeholder = t('apiPlaceholder');
+  const cfg = getLeaderboardConfig();
+  apiInput.placeholder = cfg ? cfg.url + ' (已預設 Supabase)' : t('apiPlaceholder');
   try { apiInput.value = localStorage.getItem('wallflip2.api') || ''; } catch (e) { apiInput.value = ''; }
   apiInput.classList.remove('bad');
   apiPanel.classList.add('on');
@@ -2778,6 +2871,9 @@ function camSnapSafe() {
   cam.scale = clamp(Math.min((W() / 2) * 0.94 / Math.max(4, t.w / 2), (H() / 2) * 0.8 / Math.max(4, t.h / 2)), 5, 46);
   cam.snap = true;
 }
+window.__ready = true;
+window.__submitScore = submitScore;
+window.__stats = stats;
 })();
 </script>
 </body>
