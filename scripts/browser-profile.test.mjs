@@ -54,7 +54,7 @@ test('unset and explicit full profiles preserve the same complete inventory', ()
   assert.ok(fullTests.some((entry) => entry.title.includes('focused start-mode card Space')));
 });
 
-test('quick covers every registered game once on desktop and six mobile scenarios', () => {
+test('quick covers every registered game and three playable Coin Cascade entry paths', () => {
   const quick = selected({ profile: 'quick' });
   const desktop = quick.filter((entry) => entry.project === 'desktop');
   const mobile = quick.filter((entry) => entry.project === 'mobile');
@@ -63,8 +63,15 @@ test('quick covers every registered game once on desktop and six mobile scenario
     assert.ok(desktop.some((entry) => entry.title === `${game.gameFolder}: ${suffix}`), game.gameFolder);
   }
   // Four shell checks plus the font budget complement the per-game desktop checks.
-  assert.equal(desktop.length, games.filter((game) => game.gameFolder).length + 5);
-  assert.equal(mobile.length, 6);
+  // A visible title screen did not catch Coin Cascade's start-game hook crash.
+  // Keep free, daily and challenge startup covered on both device profiles.
+  for (const entry of ['free', 'daily', 'mode']) {
+    for (const inventory of [desktop, mobile]) {
+      assert.equal(inventory.filter((test) => test.title.startsWith(`coin-cascade ${entry}:`)).length, 1);
+    }
+  }
+  assert.equal(desktop.length, games.filter((game) => game.gameFolder).length + 5 + 3);
+  assert.equal(mobile.length, 9);
   assert.ok(mobile.some((entry) => entry.title.startsWith('memory match:')));
   assert.ok(mobile.some((entry) => entry.title.startsWith('connect four:')));
   assert.ok(mobile.some((entry) => entry.title.startsWith('hub fonts')));

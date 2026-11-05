@@ -585,6 +585,16 @@ export default function App(): React.ReactElement {
     ? ['heavy', 'ball', 'vibrate', 'magnet']
     : ['heavy', 'ball', 'vibrate'];
 
+  // Hooks must run on both the menu and playing screens.
+  const cliffDanger = useMemo(() => computeCliffDanger(hud?.coins ?? []), [hud?.coins]);
+
+  useEffect(() => {
+    if (cliffDanger.teeterCount > lastDangerTeeterRef.current && cliffDanger.teeterCount >= 2) {
+      audio.playEdgeDangerAlert();
+    }
+    lastDangerTeeterRef.current = cliffDanger.teeterCount;
+  }, [cliffDanger.teeterCount]);
+
   // ── Screens ────────────────────────────────────────────────────────────
 
   if (screen === 'menu') {
@@ -948,15 +958,6 @@ export default function App(): React.ReactElement {
   const triggerCoin = s ? s.coins.find((c) => c.kind === 'trigger') : undefined;
   const triggerDist = triggerCoin ? Math.max(0, SHELF_LEN - triggerCoin.y) : null;
   const liveRtp = s && s.creditsSpent > 0 ? ((s.coinsRecovered / s.creditsSpent) * 100).toFixed(0) : '100';
-
-  const cliffDanger = useMemo(() => computeCliffDanger(s?.coins ?? []), [s?.coins]);
-
-  useEffect(() => {
-    if (cliffDanger.teeterCount > lastDangerTeeterRef.current && cliffDanger.teeterCount >= 2) {
-      audio.playEdgeDangerAlert();
-    }
-    lastDangerTeeterRef.current = cliffDanger.teeterCount;
-  }, [cliffDanger.teeterCount]);
 
   return (
     <div className="cc-play h-screen w-screen flex flex-col">
