@@ -113,3 +113,138 @@ body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* An invitation to a career, with the stadium as the opening scene. */
+.bl-title-shell:has(.bl-career-home) { background-size: auto 830px; background-position: center top; }
+.bl-career-home { max-width: 1180px; margin: 0 auto; padding: 104px 32px 48px; }
+.bl-invitation { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr); align-items: center; gap: 64px; min-height: 490px; }
+.bl-eyebrow { display: flex; align-items: center; gap: 9px; color: #f3bd68; font-size: 11px; font-weight: 800; letter-spacing: .12em; margin: 0; }
+.bl-eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: #f3bd68; box-shadow: 0 0 16px #f3bd6870; }
+.bl-wordmark { margin: 34px 0 12px; color: #a6b7be; font-size: 10px; letter-spacing: .2em; }
+.bl-story h1 { margin: 0; color: #fff8e9; font-size: clamp(44px, 5.5vw, 72px); line-height: 1.1; font-weight: 950; letter-spacing: -.04em; }
+.bl-story h1 > span { display: block; margin-top: 19px; font-size: clamp(27px, 3.3vw, 43px); line-height: 1.3; letter-spacing: -.03em; }
+.bl-story-copy { margin: 23px 0 0; color: #bcc9cf; font-size: 14px; line-height: 1.95; }
+.bl-story-facts { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 24px; color: #a7b9c2; font-size: 11px; }
+.bl-story-facts span::before { content: '✦'; color: #eab676; margin-right: 7px; }
+.bl-entry-ticket { position: relative; padding: 25px; border: 1px solid #b8945c55; border-radius: 3px 3px 22px 22px; background: linear-gradient(145deg, #11232bed, #09141deb); box-shadow: 0 25px 75px #0007; }
+.bl-ticket-top { display: flex; justify-content: space-between; gap: 10px; padding-bottom: 16px; border-bottom: 1px dashed #899a9f50; font-size: 9px; color: #b6c5c8; letter-spacing: .12em; }
+.bl-ticket-diamond { height: 65px; width: 65px; margin: 28px auto; display: grid; place-items: center; transform: rotate(45deg); border: 1px solid #d4ad6e; box-shadow: inset 0 0 0 5px #d4ad6e16, 0 0 30px #d4ad6e0d; }
+.bl-ticket-diamond span { transform: rotate(-45deg); color: #f4cd91; font-size: 23px; font-weight: 900; letter-spacing: -.07em; }
+.bl-ticket-kicker { text-align: center; margin: 0 0 8px; color: #e7bd7d; font-size: 10px; letter-spacing: .12em; }
+.bl-entry-ticket h2 { text-align: center; margin: 0; font-size: 21px; font-weight: 800; color: #f6f2e9; }
+.bl-ticket-description { margin: 10px 0 22px; text-align: center; color: #abbdc3; font-size: 12px; line-height: 1.6; }
+.bl-career-cta { display: flex; width: 100%; min-height: 54px; justify-content: center; align-items: center; padding: 10px 16px; border: 1px solid #ffd18b; border-radius: 9px; color: #292114; background: #f3c17b; box-shadow: 0 6px 23px #e3a85920; font-size: 15px; font-weight: 900; cursor: pointer; transition: background .15s, transform .15s; }
+.bl-career-cta:hover { background: #ffdaa0; transform: translateY(-2px); }
+.bl-career-secondary { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 12px; border: 1px solid #4b636d; border-radius: 8px; color: #dbe6e9; background: #12232d; font-size: 12px; font-weight: 700; cursor: pointer; }
+.bl-entry-ticket > .bl-career-secondary { width: 100%; margin-top: 9px; }
+.bl-ticket-note { text-align: center; margin: 11px 0; color: #a8bac0; font-size: 10px; line-height: 1.6; }
+.bl-legacy-note { color: #f3c17b; }
+.bl-seed-settings { margin-top: 21px; border-top: 1px dashed #899a9f50; padding-top: 17px; }
+.bl-seed-settings summary { display: flex; align-items: center; justify-content: space-between; min-height: 30px; gap: 8px; list-style: none; cursor: pointer; color: #c3cfd2; font-size: 10px; }
+.bl-seed-settings summary::-webkit-details-marker { display: none; }
+.bl-seed-settings summary span { color: #e7bd7d; }
+.bl-seed-settings label { display: block; margin: 13px 0 5px; color: #d2e0e4; font-size: 11px; }
+.bl-seed-settings p { margin: 0 0 8px; font-size: 10px; color: #a8bac0; }
+.bl-seed-row { display: flex; gap: 7px; }
+.bl-seed-row input { width: 100%; min-width: 0; border: 1px solid #4b636d; border-radius: 8px; background: #060f17; padding: 10px; color: #f5d6a2; font-family: monospace; font-size: 16px; }
+.bl-seed-row button { flex-shrink: 0; }
+.bl-career-road { margin-top: 44px; }
+.bl-road-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 15px; }
+.bl-road-heading > span { color: #8fa5af; font-size: 10px; }
+.bl-chapter-tabs { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.bl-chapter-tabs button { display: flex; align-items: center; gap: 16px; padding: 17px 20px; min-height: 83px; border: 1px solid #33454f; border-radius: 9px; background: #0d1b26de; color: #cad6da; text-align: left; cursor: pointer; }
+.bl-chapter-tabs button[aria-selected='true'] { border-color: #d7ad6a; background: #d7ad6a12; color: #f3cd94; }
+.bl-chapter-tabs small { display: block; font-size: 10px; color: #96a9b3; margin-top: 5px; }
+.bl-chapter-age { font-size: 27px; font-weight: 800; letter-spacing: -.06em; line-height: 1; }
+.bl-chapter-age small { display: inline; font-size: 9px; font-weight: 400; margin-left: 3px; letter-spacing: 0; }
+.bl-chapter-arrow { margin-left: auto; color: #718791; }
+.bl-chapter-panel { padding: 19px 2px 23px; border-bottom: 1px solid #31434c; }
+.bl-chapter-panel h2 { font-size: 14px; font-weight: 700; margin: 0 0 8px; color: #e4ecec; }
+.bl-chapter-panel p { margin: 0; color: #96acb6; font-size: 12px; line-height: 1.75; }
+.bl-career-extras { display: flex; gap: 20px; margin: 24px 0; flex-wrap: wrap; }
+.bl-career-extras button { flex: 1; display: flex; align-items: center; gap: 13px; text-align: left; padding: 15px 0; min-width: 200px; min-height: 65px; color: #dbe4e9; cursor: pointer; }
+.bl-extra-icon { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #39505b; border-radius: 50%; color: #b3c8cf; font-size: 17px; }
+.bl-career-extras strong { display: block; font-size: 13px; }
+.bl-career-extras small { display: block; margin-top: 3px; color: #94a9b3; font-size: 10px; }
+.bl-career-extras button > span:last-child { margin-left: auto; color: #e2bc80; }
+.bl-home-collection { display: grid; gap: 16px; }
+.bl-career-home :is(button, input, summary, [role='tabpanel']):focus-visible { outline: 2px solid #ffd994; outline-offset: 5px; }
+@media (max-width: 760px) {
+  .bl-title-shell:has(.bl-career-home) { background-size: auto 690px; background-position: 40% top; }
+  .bl-career-home { padding: 86px 20px 32px; }
+  .bl-invitation { grid-template-columns: 1fr; gap: 25px; min-height: auto; }
+  .bl-wordmark { margin-top: 20px; font-size: 9px; letter-spacing: .12em; }
+  .bl-story h1 { font-size: 47px; }
+  .bl-story h1 > span { font-size: 30px; margin-top: 12px; }
+  .bl-story-copy { font-size: 12px; margin-top: 15px; line-height: 1.85; }
+  .bl-story-facts { margin-top: 17px; gap: 16px; font-size: 10px; }
+  .bl-entry-ticket { padding: 19px; }
+  .bl-ticket-diamond { display: none; }
+  .bl-ticket-kicker { margin-top: 17px; }
+  .bl-entry-ticket h2 { font-size: 20px; }
+  .bl-ticket-description { margin-bottom: 16px; }
+  .bl-ticket-note { font-size: 10px; }
+  .bl-seed-settings { margin-top: 15px; padding-top: 10px; }
+  .bl-career-road { margin-top: 30px; }
+  .bl-road-heading > span { display: none; }
+  .bl-chapter-tabs { gap: 6px; }
+  .bl-chapter-tabs button { flex-direction: column; align-items: flex-start; padding: 13px 10px; gap: 10px; }
+  .bl-chapter-tabs small { font-size: 9px; }
+  .bl-chapter-age { font-size: 25px; }
+  .bl-chapter-arrow { display: none; }
+  .bl-chapter-panel { min-height: 120px; }
+  .bl-career-extras { gap: 0; margin: 14px 0; }
+  .bl-career-extras button { flex: 1 1 100%; border-bottom: 1px solid #20343f; }
+}
+@media (prefers-reduced-motion: reduce) { .bl-career-cta { transition: none; } .bl-career-cta:hover { transform: none; } }
+
+/* Live training workbench: compare a plan before spending a career turn. */
+.bl-training-workbench, .bl-report-panel { scroll-margin-top: 24px; }
+.bl-training-plan { margin-top: 18px; border: 1px solid #355566; border-radius: 12px; background: #091824; padding: 15px; }
+.bl-plan-heading { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; font-weight: 800; color: #e8c68f; }
+.bl-plan-heading > span:last-child { color: #b3c9d4; font-weight: 500; }
+.bl-condition-note { font-size: 11px; color: #a6b9c6; line-height: 1.65; margin: 9px 0 0; }
+.bl-condition-note.is-warning { color: #f0ba80; }
+.bl-plan-empty { margin: 16px 0 0; font-size: 13px; color: #d8e8ed; line-height: 1.9; }
+.bl-plan-empty span { font-size: 11px; color: #96acba; }
+.bl-plan-cards { list-style: none; padding: 0; margin: 14px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.bl-plan-cards li { border: 1px solid #365265; border-radius: 8px; padding: 11px; background: #132837; }
+.bl-plan-cards li > span { display: block; font-size: 10px; color: #8db5c5; margin-bottom: 5px; }
+.bl-plan-cards strong { display: block; font-size: 12px; color: #f0e6d1; }
+.bl-plan-cards small { display: block; font-size: 10px; color: #99b1bd; line-height: 1.6; margin-top: 6px; }
+.bl-plan-cards .bl-plan-next { border-style: dashed; background: transparent; }
+.bl-plan-costs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.bl-plan-costs > div { border-left: 2px solid #46697b; padding-left: 10px; }
+.bl-plan-costs > div > span { display: block; font-size: 11px; color: #a4bdc9; }
+.bl-plan-costs b { font-weight: 700; margin-left: 4px; }
+.bl-plan-costs strong { display: block; font-size: 21px; font-variant-numeric: tabular-nums; color: #f4f1e8; margin-top: 3px; }
+.bl-plan-costs strong span { font-size: 14px; color: #8da9b8; }
+.bl-plan-caveat { font-size: 10px; color: #92aab8; margin: 12px 0; line-height: 1.6; }
+.bl-plan-confirm { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 48px; background: #f3c17b; color: #292114; border: 1px solid #ffd18b; border-radius: 8px; font-size: 13px; font-weight: 850; cursor: pointer; }
+.bl-plan-confirm:hover { background: #ffdaa0; }
+.bl-plan-confirm kbd { font-size: 10px; font-weight: 500; border: 1px solid #6e542950; border-radius: 3px; padding: 1px 4px; }
+.bl-training-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bl-training-options .bl-choice { padding: 13px; }
+.bl-training-options .bl-choice[aria-pressed='true'] { border-color: #e5b76e; background: #70502135; box-shadow: inset 0 0 0 1px #e5b76e50; }
+.bl-training-options .bl-choice > span:first-child > span { font-size: 13px; }
+.bl-card-load { display: flex; align-items: center; gap: 5px; margin-top: 9px; color: #a4bdc9; font-size: 10px; }
+.bl-card-load > span { margin-left: auto; color: #cbb58e; }
+.bl-cost-up { color: #f6ad9b; }
+.bl-cost-down { color: #8cd8b3; }
+.bl-training-payoff { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; padding: 13px 0; margin-top: 12px; border-block: 1px solid #365265; }
+.bl-training-payoff span { display: block; color: #a3bdca; font-size: 10px; }
+.bl-training-payoff strong { font-size: 22px; color: #dce9eb; font-variant-numeric: tabular-nums; }
+.bl-training-payoff .bl-cost-up { color: #f6ad9b; }
+.bl-training-payoff .bl-cost-down { color: #8cd8b3; }
+.bl-training-workbench :is(button, [tabindex]):focus-visible { outline: 2px solid #f3c17b; outline-offset: 3px; }
+@media (max-width: 1023px) {
+  .bl-live-column { order: -1; }
+  .bl-scouting-column { order: 1; }
+}
+@media (max-width: 480px) {
+  .bl-training-options { grid-template-columns: 1fr; }
+  .bl-training-options .bl-choice { min-height: 80px; }
+  .bl-plan-heading { font-size: 10px; }
+  .bl-plan-cards { grid-template-columns: 1fr; }
+  .bl-plan-confirm kbd { display: none; }
+}

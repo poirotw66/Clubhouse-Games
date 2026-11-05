@@ -832,6 +832,44 @@ function secondaryOptions(state: GameState, primaryId: string): TrainingOption[]
   return [...drills, ...recovery];
 }
 
+/** Public, non-random cost view for the training workbench. No roll, event,
+ * hidden potential, or mutable game-state reference escapes this projection. */
+export interface TrainingPlanPreview {
+  cards: { id: string; label: string; focus: AttrKey[]; recovery: boolean }[];
+  fatigueChange: number;
+  motivationChange: number;
+  fatigueAfterCards: number;
+  motivationAfterCards: number;
+  needsSecondary: boolean;
+}
+
+export function previewTrainingPlan(state: GameState, optionId: string): TrainingPlanPreview | null {
+  if (state.decision?.kind !== 'training') return null;
+  const choice = state.decision.options.find((o) => o.id === optionId && !o.disabled);
+  if (!choice || !('fatigue' in choice) || !('power' in choice)) return null;
+  const option = choice as TrainingOption;
+  const primary = state.pendingPrimaryId ? findTrainingOption(state, state.pendingPrimaryId) : null;
+  const cards = primary ? [primary, option] : [option];
+  const scale = proTurnScale(state);
+  const effects = abilityEffects(state.abilities);
+  let fatigueChange = 0;
+  let motivationChange = 0;
+  for (const card of cards) {
+    fatigueChange += round(card.fatigue * scale) + round((card.meta?.fatigue ?? 0) * scale);
+    motivationChange += round((card.motivation ?? 0) * scale) + round((card.meta?.motivation ?? 0) * scale);
+    if (card.rest && effects.restMotivation > 0) motivationChange += effects.restMotivation;
+    motivationChange += effects.motivationDrift ?? 0;
+  }
+  return {
+    cards: cards.map((card) => ({ id: card.id, label: card.label.replace(/^副課・/, ''), focus: [...card.focus], recovery: Boolean(card.rest) })),
+    fatigueChange,
+    motivationChange,
+    fatigueAfterCards: clamp(state.meta.fatigue + fatigueChange, 0, 100),
+    motivationAfterCards: clamp(state.meta.motivation + motivationChange, 0, 100),
+    needsSecondary: isHsDualSlotTurn(state) && !state.pendingPrimaryId,
+  };
+}
+
 /** True when this high-school turn uses the dual-slot (main + secondary) flow. */
 function isHsDualSlotTurn(state: GameState): boolean {
   if (state.stage !== 'highschool' || state.turnIndex >= HS_TURNS) return false;

@@ -690,13 +690,13 @@ export class CockpitManager {
   updateGaitBadge(speedKmh, rpm) {
     let text = this.tr('gait_walk');
     let cls = 'gait-walk';
-    if (speedKmh >= 9.2 || rpm >= 180) {
+    if (speedKmh >= 9.2) {
       text = this.tr('gait_fever');
       cls = 'gait-fever';
-    } else if (speedKmh >= 6.0 || rpm >= 140) {
+    } else if (speedKmh >= 6.0) {
       text = this.tr('gait_gallop');
       cls = 'gait-gallop';
-    } else if (speedKmh >= 2.5 || rpm >= 90) {
+    } else if (speedKmh >= 2.5) {
       text = this.tr('gait_trot');
       cls = 'gait-trot';
     } else if (speedKmh < 0.2) {

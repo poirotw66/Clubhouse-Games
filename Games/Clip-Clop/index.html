@@ -1011,6 +1011,8 @@ h1{font-size:44px;line-height:1.05}
   .mob-item b { font-size: 10.5px; }
 }
 </style>
+<link rel="stylesheet" href="./src/paddock.css">
+<link rel="stylesheet" href="./src/stride-coach.css">
 </head>
 <body>
 <a class="back-to-menu" href="../../" aria-label="返回總覽"><span aria-hidden="true">←</span><span class="back-to-menu-label">返回總覽</span></a>
@@ -1032,6 +1034,15 @@ h1{font-size:44px;line-height:1.05}
     </div>
   </div>
 
+  <section id="strideCoach" class="hidden" aria-labelledby="coachTitle">
+    <div class="coach-heading"><span><i class="coach-beat-dot" aria-hidden="true"></i><span id="coachTitle"></span></span><span id="coachStreak"></span></div>
+    <p id="coachCue"></p><div class="coach-hold" aria-hidden="true"><span id="coachHoldFill"></span></div>
+    <div id="coachPractice" class="hidden">
+      <div class="coach-drill-heading"><span id="coachDrillStatus" role="status" aria-live="polite"></span><div class="coach-drill-dots" aria-hidden="true"><span data-coach-drill="0"></span><span data-coach-drill="1"></span><span data-coach-drill="2"></span></div></div>
+      <div class="coach-drill-row"><span id="coachDrillTitle"></span><span id="coachDrillValue"></span></div>
+      <button id="coachRaceBtn" type="button" class="hidden"></button>
+    </div>
+  </section>
   <div id="cadenceBanner" class="hidden"><span id="cadenceText">PERFECT TROT!</span><b id="cadenceCombo">x3</b></div>
 
   <div id="corner">
@@ -1047,7 +1058,7 @@ h1{font-size:44px;line-height:1.05}
   <div id="lbTop" class="lb hidden"><span class="lbLabel">REPLAY</span></div>
   <div id="lbBot" class="lb hidden"><span class="lbSkip" id="lbSkip" data-i18n="replay_skip"></span></div>
 
-  <div id="fallPrompt" class="hidden"><span data-i18n="fallen"></span></div>
+  <div id="fallPrompt" class="hidden" role="button" tabindex="0"><span data-i18n="fallen"></span></div>
   <div id="goBanner" class="hidden">GO!</div>
   <div id="countNum" class="hidden">3</div>
   <div id="dailyBanner" class="hidden"></div>
@@ -1086,59 +1097,74 @@ h1{font-size:44px;line-height:1.05}
   </div>
 
   <div id="titleScreen" class="screen">
-    <div class="card">
-      <h1 data-i18n="title"></h1>
-      <div class="subtitle" data-i18n="subtitle"></div>
-      <div class="tagline" data-i18n="tagline"></div>
-      <div class="goal" data-i18n="goal"></div>
-      <ul class="how">
-        <li data-i18n="how1"></li>
-        <li data-i18n="how2"></li>
-        <li data-i18n="how3"></li>
-      </ul>
-      <div class="tip" data-i18n="tip"></div>
-
-      <div class="cadence-infobox">
-        <div class="cadence-infotitle" data-i18n="cadence_info_title"></div>
-        <div class="cadence-flow">
-          <div class="cadence-step step-a">
-            <span class="step-badge" data-i18n="cadence_step1">第 1 拍</span>
-            <div class="step-keys">
-              <span class="step-key q">Q 左後</span>
-              <span class="step-plus">+</span>
-              <span class="step-key p">P 右前</span>
-            </div>
-            <span class="step-note" data-i18n="cadence_note1">對角 A 組踢地推進</span>
-          </div>
-          <div class="cadence-arrow">⇄</div>
-          <div class="cadence-step step-b">
-            <span class="step-badge" data-i18n="cadence_step2">第 2 拍</span>
-            <div class="step-keys">
-              <span class="step-key w">W 右後</span>
-              <span class="step-plus">+</span>
-              <span class="step-key o">O 左前</span>
-            </div>
-            <span class="step-note" data-i18n="cadence_note2">對角 B 組交替推進</span>
+    <div class="card paddock-card">
+      <section class="paddock-hero" aria-labelledby="paddockTitle">
+        <div class="paddock-eyebrow"><span class="paddock-live" aria-hidden="true"></span> <span data-i18n="paddock_eyebrow">草地開放賽 · 隨時起跑</span><span class="paddock-edition">NO. 01</span></div>
+        <div class="subtitle">CLIP–CLOP / THE PADDOCK</div>
+        <h1 id="paddockTitle" data-i18n="title">達達馬蹄</h1>
+        <p class="paddock-headline" data-i18n="paddock_headline">四隻腳，一場不太優雅的衝刺。</p>
+        <p class="paddock-description" data-i18n="paddock_description">不用先學會跑。找到兩拍節奏，跌倒了再笑著站起來。</p>
+        <div class="paddock-racefacts">
+          <div><strong>50<span>m</span></strong><span data-i18n="paddock_distance">到終點的距離</span></div>
+          <div><strong>90<span>s</span></strong><span data-i18n="paddock_time">你的挑戰時間</span></div>
+          <div class="paddock-race-symbol" aria-hidden="true">↗</div>
+        </div>
+        <div class="paddock-start-area">
+          <button id="startBtn" class="btn paddock-start"><span data-i18n="start">衝向終點</span><span aria-hidden="true">↗</span></button>
+          <div class="paddock-shortcut"><kbd>Space</kbd> <span data-i18n="paddock_shortcut">隨時起跑 · 也能直接點擊</span></div>
+        </div>
+        <div class="paddock-opponents">
+          <span class="paddock-label" data-i18n="paddock_opponent">選個對手</span>
+          <div class="modeRow" id="aiRow" role="group" aria-label="Opponent">
+            <button class="modeChip sel" data-ai="" data-i18n="ai_solo" aria-pressed="true"></button>
+            <button class="modeChip" data-ai="pony" data-i18n="ai_pony" aria-pressed="false"></button>
+            <button class="modeChip" data-ai="race" data-i18n="ai_race" aria-pressed="false"></button>
+            <button class="modeChip" data-ai="legend" data-i18n="ai_legend" aria-pressed="false"></button>
           </div>
         </div>
-      </div>
-      <div class="modeRow" id="aiRow">
-        <button class="modeChip sel" data-ai="" data-i18n="ai_solo"></button>
-        <button class="modeChip" data-ai="pony" data-i18n="ai_pony"></button>
-        <button class="modeChip" data-ai="race" data-i18n="ai_race"></button>
-        <button class="modeChip" data-ai="legend" data-i18n="ai_legend"></button>
-      </div>
-      <div class="btnRow">
-        <button id="startBtn" class="btn" data-i18n="start"></button>
-        <button id="dailyBtn" class="btn alt3" data-i18n="daily"></button>
-        <button id="practiceBtn" class="btn alt" data-i18n="practice"></button>
-        <button id="duelBtn" class="btn alt2" data-i18n="duel"></button>
-        <button id="tourBtn" class="btn alt" data-i18n="tour"></button>
-      </div>
-      <div id="dailyInfo" class="dailyInfo"></div>
-      <button id="boardBtn" class="linkBtn" data-i18n="board"></button>
-      <button id="codeImportBtn" class="linkBtn" data-i18n="code_import"></button>
-      <div class="credit" data-i18n="credit"></div>
+      </section>
+      <section class="paddock-school" aria-labelledby="paddockSchoolTitle">
+        <div class="paddock-school-top"><span class="paddock-label" data-i18n="paddock_school_label">起跑前，試一下</span><span class="paddock-school-count" id="gaitProgress">0 / 2</span></div>
+        <h2 id="paddockSchoolTitle" data-i18n="paddock_school_title">跑起來，只要兩拍。</h2>
+        <p class="paddock-school-copy" data-i18n="paddock_school_copy">點擊下方蹄印，或按住對角按鍵再放開。</p>
+        <div class="paddock-horse-stage" id="gaitStage" data-pair="">
+          <span class="paddock-stage-label">THE TWO-BEAT CLUB</span>
+          <svg class="paddock-horse" viewBox="0 0 420 210" aria-hidden="true">
+            <defs><pattern id="paddockTrack" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M0 30L30 0" stroke="#fff" stroke-opacity=".055"/></pattern></defs>
+            <rect width="420" height="210" fill="url(#paddockTrack)"/>
+            <ellipse cx="222" cy="174" rx="126" ry="9" fill="#102e25" opacity=".6"/>
+            <path d="M36 173H384M36 181H384" fill="none" stroke="#cee0ae" stroke-opacity=".2"/>
+            <path class="horse-leg horse-leg-b" d="M179 117L167 141L155 168" fill="none" stroke="#b5713a" stroke-width="14" stroke-linecap="round"/>
+            <path class="horse-leg horse-leg-a" d="M270 117L281 142L294 168" fill="none" stroke="#b5713a" stroke-width="14" stroke-linecap="round"/>
+            <path d="M162 88Q119 67 113 116Q103 130 102 144Q124 138 130 110L164 115" fill="#322c25"/>
+            <path d="M158 91Q187 75 218 87Q238 92 259 78L280 44L302 43L312 64L332 73Q344 82 330 96L300 94L285 116Q263 140 225 131L177 130Q149 123 158 91" fill="#e9ab65"/>
+            <path d="M258 79L278 43L291 44L279 76L272 102" fill="#533a2d"/>
+            <path d="M283 47L280 25L295 39M299 44L306 27L309 55" fill="#e9ab65"/>
+            <path d="M202 87L239 88L244 115L205 116Z" fill="#f9f1d8"/>
+            <path d="M207 90L235 91L238 109L210 110Z" fill="#d66b37"/>
+            <text x="222" y="106" text-anchor="middle" fill="#fff2d5" font-size="16" font-weight="900">01</text>
+            <circle cx="306" cy="65" r="3.5" fill="#302b23"/>
+            <path d="M312 88L329 86M291 56L298 92L312 98" fill="none" stroke="#69492e" stroke-width="3"/>
+            <path class="horse-leg horse-leg-a" d="M177 120L191 145L180 169" fill="none" stroke="#e9ab65" stroke-width="15" stroke-linecap="round"/>
+            <path class="horse-leg horse-leg-b" d="M260 120L245 144L253 169" fill="none" stroke="#e9ab65" stroke-width="15" stroke-linecap="round"/>
+            <path class="horse-hoof horse-leg-a" d="M174 169H185M288 168H300" stroke="#332d26" stroke-width="8" stroke-linecap="round"/>
+            <path class="horse-hoof horse-leg-b" d="M149 168H161M248 169H260" stroke="#332d26" stroke-width="8" stroke-linecap="round"/>
+          </svg>
+          <div class="paddock-hoof-mark hoof-a" aria-hidden="true">A</div><div class="paddock-hoof-mark hoof-b" aria-hidden="true">B</div>
+        </div>
+        <div class="paddock-beats" role="group" aria-labelledby="paddockSchoolTitle">
+          <button class="paddock-beat" id="gaitBeatA" type="button" aria-pressed="false"><span class="paddock-beat-number">01</span><span class="paddock-beat-keys"><kbd>Q</kbd><span>+</span><kbd>P</kbd></span><span data-i18n="paddock_pair_a">左後＋右前</span></button>
+          <span class="paddock-beat-swap" aria-hidden="true">⇄</span>
+          <button class="paddock-beat" id="gaitBeatB" type="button" aria-pressed="false"><span class="paddock-beat-number">02</span><span class="paddock-beat-keys"><kbd>W</kbd><span>+</span><kbd>O</kbd></span><span data-i18n="paddock_pair_b">右後＋左前</span></button>
+        </div>
+        <p id="gaitFeedback" class="paddock-feedback" role="status" aria-live="polite" data-i18n="paddock_gait_ready">先試第 1 拍，再換第 2 拍。隨時可以直接起跑。</p>
+        <details class="paddock-controls"><summary data-i18n="paddock_controls">完整操作與小訣竅</summary><ul class="how"><li data-i18n="how1"></li><li data-i18n="how2"></li><li data-i18n="how3"></li></ul><p class="tip" data-i18n="tip"></p></details>
+      </section>
+      <footer class="paddock-footer">
+        <div class="paddock-modes"><span class="paddock-label" data-i18n="paddock_more">換個玩法</span><div class="btnRow"><button id="practiceBtn" class="btn small alt" data-i18n="practice"></button><button id="dailyBtn" class="btn small alt3" data-i18n="daily"></button><button id="duelBtn" class="btn small alt2" data-i18n="duel"></button><button id="tourBtn" class="btn small alt" data-i18n="tour"></button></div></div>
+        <div class="paddock-bottom"><div id="dailyInfo" class="dailyInfo"></div><div class="paddock-links"><button id="boardBtn" class="linkBtn" data-i18n="board"></button><button id="codeImportBtn" class="linkBtn" data-i18n="code_import"></button></div></div>
+        <div class="credit" data-i18n="credit"></div>
+      </footer>
     </div>
   </div>
 

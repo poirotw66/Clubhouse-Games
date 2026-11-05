@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 
 const HOWTO_KEY = 'clubhouse:baseball-life:howto-seen';
@@ -24,6 +25,24 @@ interface Props {
 
 /** Soft first-session overlay: enough to create a player and pick a training. */
 export function FirstRunGuide({ onClose }: Props): ReactElement {
+  const panel = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const button = panel.current?.querySelector<HTMLButtonElement>('button');
+    button?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        markFirstRunGuideSeen();
+        close.current();
+      }
+      // The guide has one action; keep keyboard focus inside its modal.
+      if (event.key === 'Tab') { event.preventDefault(); button?.focus(); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => { window.removeEventListener('keydown', handleKey); previous?.focus(); };
+  }, []);
   const dismiss = () => {
     markFirstRunGuideSeen();
     onClose();
@@ -38,6 +57,7 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
       onClick={dismiss}
     >
       <div
+        ref={panel}
         className="w-full max-w-sm rounded-2xl border border-amber-900/40 bg-[#0c1420] p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >

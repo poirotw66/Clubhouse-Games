@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import type { CareerChallenge } from '../game/challenges';
 import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
-import { DESTINY_COST, deltaLabel } from '../game/engine';
+import { DESTINY_COST, deltaLabel, previewTrainingPlan } from '../game/engine';
+import { TrainingPayoff, TrainingPlan, signed } from './TrainingPlan';
 import { DESTINY_SITUATION_COST, situationById } from '../game/situations';
 import { describeLine } from '../game/season';
 import { abilityById } from '../game/abilities';
@@ -39,7 +40,7 @@ function DeltaList({ deltas }: { deltas: TurnReport['deltas'] }): React.ReactEle
         <li
           key={key}
           className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${
-            value > 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
+            (key === 'fatigue' ? value < 0 : value > 0) ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
           }`}
         >
           {deltaLabel(key)} {value > 0 ? '+' : ''}
@@ -75,10 +76,16 @@ export function PlayScreen({
   const [hoveredOptionId, setHoveredOptionId] = useState<string | null>(null);
   const [useDestiny, setUseDestiny] = useState(false);
   const lastDraftReportKey = useRef<string | null>(null);
+  const [trainingSelection, setTrainingSelection] = useState<{ state: GameState; id: string } | null>(null);
+  const selectedTrainingId = trainingSelection?.state === state ? trainingSelection.id : null;
+  const decisionPanel = useRef<HTMLElement>(null);
+  const reportPanel = useRef<HTMLElement>(null);
+  const lastCommit = useRef<GameState | null>(null);
+  useEffect(() => { lastCommit.current = null; }, [state]);
   const { report, decision } = state;
 
   const hoveredOption = decision?.options.find((o) => o.id === hoveredOptionId);
-  const highlightKeys = hoveredOption?.focus ?? [];
+  const highlightKeys = decision?.options.find((option) => option.id === selectedTrainingId)?.focus ?? hoveredOption?.focus ?? [];
   const situationDestiny =
     decision?.kind === 'event' && state.pendingSituation
       ? situationById(state.pendingSituation)
@@ -142,7 +149,10 @@ export function PlayScreen({
     });
   };
 
-  const handleChooseOption = (optionId: string) => {
+  const commitOption = (optionId: string) => {
+    // A held key or Enter's native button click must never execute two choices.
+    if (lastCommit.current === state) return;
+    lastCommit.current = state;
     if (decision?.kind === 'clutch') {
       const opt = decision.options.find((o) => o.id === optionId);
       if (
@@ -161,6 +171,25 @@ export function PlayScreen({
       playMittCatch();
     }
     onChoose(optionId, destinyArmed);
+    if (decision?.kind === 'training') {
+      const choosingPrimary = state.stage === 'highschool' && !state.pendingPrimaryId && decision.title.endsWith('・主課');
+      requestAnimationFrame(() => {
+        const panel = choosingPrimary ? decisionPanel.current : reportPanel.current;
+        panel?.scrollIntoView({ block: 'start' });
+        panel?.focus({ preventScroll: true });
+      });
+    }
+  };
+
+  const handleChooseOption = (optionId: string) => {
+    if (decision?.kind === 'training') {
+      if (previewTrainingPlan(state, optionId)) {
+        setTrainingSelection({ state, id: optionId });
+        requestAnimationFrame(() => decisionPanel.current?.querySelector('[data-training-workspace]')?.scrollIntoView({ block: 'nearest' }));
+      }
+      return;
+    }
+    commitOption(optionId);
   };
 
   const ended = state.retired;
@@ -169,9 +198,13 @@ export function PlayScreen({
   // Keyboard navigation & hotkeys
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || showDraftShowcase) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.repeat && /^(?:[1-9]|Enter|Backspace|[dDhHmM])$/.test(event.key)) {
+        event.preventDefault();
+        return;
+      }
 
       if (event.key === 'Backspace' && canUndo) {
         event.preventDefault();
@@ -208,6 +241,23 @@ export function PlayScreen({
         return;
       }
 
+      if (event.key === 'Enter' && decision?.kind === 'training') {
+        const optionButton = target?.closest<HTMLElement>('[data-training-option]');
+        if (optionButton) {
+          event.preventDefault();
+          const id = optionButton.dataset.trainingOption;
+          if (id && id === selectedTrainingId) commitOption(id);
+          else if (id) handleChooseOption(id);
+          return;
+        }
+        if (target?.closest('button') && !target.closest('[data-training-confirm]')) return;
+        if (selectedTrainingId) {
+          event.preventDefault();
+          commitOption(selectedTrainingId);
+          return;
+        }
+      }
+
       const index = Number(event.key) - 1;
       if (Number.isInteger(index) && index >= 0 && index < pickable.length) {
         event.preventDefault();
@@ -219,6 +269,8 @@ export function PlayScreen({
   }, [
     ended,
     pickable,
+    showDraftShowcase,
+    selectedTrainingId,
     canUndo,
     showDestinyToggle,
     canAffordDestiny,
@@ -297,9 +349,9 @@ export function PlayScreen({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start">
-        <StatusPanel state={state} highlightKeys={highlightKeys} />
+        <div className="bl-scouting-column"><StatusPanel state={state} highlightKeys={highlightKeys} /></div>
 
-        <div className="flex flex-col gap-4">
+        <div className="bl-live-column flex flex-col gap-4">
           <StadiumDiamond
             state={state}
             isClutch={decision?.kind === 'clutch'}
@@ -308,7 +360,9 @@ export function PlayScreen({
 
           {report && (
             <section
-              className={`bl-card p-4 ${report.clutchMoment ? 'bl-clutch-hit' : ''}`}
+              ref={reportPanel}
+              tabIndex={-1}
+              className={`bl-card bl-report-panel p-4 ${report.clutchMoment ? 'bl-clutch-hit' : ''}`}
               style={{ borderColor: TONE_RING[report.tone] }}
               aria-live="polite"
             >
@@ -325,6 +379,8 @@ export function PlayScreen({
                 )}
                 <h2 className="text-lg font-bold text-slate-100">{report.headline}</h2>
               </div>
+
+              {report.dice !== null && <TrainingPayoff report={report} />}
 
               <div className="mt-3 space-y-2">
                 {report.lines.map((line, index) => (
@@ -403,7 +459,7 @@ export function PlayScreen({
           )}
 
           {!ended && decision && (
-            <section className="bl-card p-4">
+            <section ref={decisionPanel} tabIndex={-1} className={`bl-card bl-decision-panel p-4 ${decision.kind === 'training' ? 'bl-training-workbench' : ''}`} data-decision-kind={decision.kind}>
               <p className="text-[11px] tracking-wider text-slate-500">
                 {decision.kind === 'event'
                   ? '高風險抉擇'
@@ -466,14 +522,19 @@ export function PlayScreen({
                 </button>
               )}
 
-              <div className="mt-4 flex flex-col gap-2">
+              {decision.kind === 'training' && <TrainingPlan state={state} optionId={selectedTrainingId} onConfirm={() => { if (selectedTrainingId) commitOption(selectedTrainingId); }} />}
+
+              <div className={`mt-4 gap-2 ${decision.kind === 'training' ? 'bl-training-options' : 'flex flex-col'}`}>
                 {decision.options.map((option) => {
                   const hotkey = pickable.findIndex((o) => o.id === option.id);
+                  const trainingCost = decision.kind === 'training' ? previewTrainingPlan(state, option.id) : null;
                   return (
                     <button
                       key={option.id}
                       type="button"
                       disabled={option.disabled}
+                      data-training-option={trainingCost ? option.id : undefined}
+                      aria-pressed={trainingCost ? selectedTrainingId === option.id : undefined}
                       onClick={() => handleChooseOption(option.id)}
                       onMouseEnter={() => setHoveredOptionId(option.id)}
                       onMouseLeave={() => setHoveredOptionId(null)}
@@ -494,6 +555,7 @@ export function PlayScreen({
                           ? `${option.hint}（${option.disabledReason}）`
                           : option.hint}
                       </span>
+                      {trainingCost && <span className="bl-card-load">{state.pendingPrimaryId ? '合計課表' : '本課'}疲勞 <b className={trainingCost.fatigueChange > 0 ? 'bl-cost-up' : 'bl-cost-down'}>{signed(trainingCost.fatigueChange)}</b><span>{selectedTrainingId === option.id ? '預覽中 ✓' : '點選預覽'}</span></span>}
                       {option.focus && option.focus.length > 0 && (
                         <span className="mt-1.5 flex flex-wrap gap-1">
                           {option.focus.map((key: AttrKey) => (
@@ -521,7 +583,7 @@ export function PlayScreen({
                   ← 上一步
                 </button>
                 <p className="hidden text-right text-[10px] text-slate-500 sm:block">
-                  按 1–{Math.min(pickable.length, 9)} 選擇・D 傾注天命・H 成績・M 靜音・Backspace 上一步
+                  按 1–{Math.min(pickable.length, 9)} {decision.kind === 'training' ? '預覽・Enter 確認' : '選擇'}・D 傾注天命・H 成績・M 靜音・Backspace 上一步
                 </p>
               </div>
             </section>

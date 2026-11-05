@@ -114,6 +114,10 @@
     .wf-mode-card[aria-pressed="true"] { animation: none; }
   }
 </style>
+<link rel="stylesheet" href="launch-screen.css">
+<script src="launch-screen.js"></script>
+<link rel="stylesheet" href="flight-coach.css">
+<script src="flight-coach.js"></script>
 </head>
 <body data-view-mode="2d">
 <canvas id="c"></canvas>
@@ -137,6 +141,7 @@
     </button>
   </div>
 </div>
+<main id="wfLaunch" aria-label="Wall Flip launch"></main>
 <div id="viewToast" class="wf-view-toast" role="status" aria-live="polite"></div>
 <div id="viewConfirm" class="wf-panel" data-testid="view-mode-confirm">
   <div class="wf-card">
@@ -240,13 +245,13 @@ const STR = {
     viewConfirmHint: '切換會結束目前這局並重新載入。',
     viewConfirmOk: '切換', viewConfirmCancel: '取消',
     webglFallback: '此裝置不支援 WebGL，已改用 2D 模式。',
-    alignSafe: '姿態對齊（安全）', alignInverted: '倒掛特技中', alignWarn: '傾角過大',
+    alignSafe: '姿態對齊', alignInverted: '倒掛特技中', alignWarn: '傾角過大',
     vviSoft: '柔軟著地 (+30)', vviHard: '減速不足', vviHazard: '墜毀預警 (雙鍵減速)',
     stuntMilestone: (n) => n === 1 ? '360° 空中翻滾！+50' : n === 2 ? '720° 雙重翻滾！+150' : n === 3 ? '1080° 三重特技！+300' : `${n * 360}° 極限特技！+${n * 150}`,
     cockpitLeftTag: 'L-WING AVIONICS',
     cockpitLeftTitle: '姿態儀與過載遙測',
     cockpitRightTag: 'R-WING RADAR',
-    cockpitRightTitle: '特技連擊與預測',
+    cockpitRightTitle: '特技與即時狀態',
     lblPitch: 'PITCH 俯仰',
     lblRoll: 'ROLL 滾轉',
     lblGMeter: 'G-METER 加速度',
@@ -258,9 +263,9 @@ const STR = {
     stuntInvert: '🔄 反重力倒飛 (+0.4x)',
     stuntSwitch: '🔀 雙向翻滾反轉 (+0.3x)',
     vviText: '垂直降速 VVI',
-    stabForecast: '著陸平穩預測',
-    stabLegend: 'LEGEND 滿分預測',
-    stabPerfect: 'PERFECT 穩健著陸',
+    stabForecast: '即時穩定指標', stabPending: '尚未起飛',
+    stabLegend: '姿態平穩',
+    stabPerfect: '留意下墜與轉速',
     stabWarn: 'HARD IMPACT 劇烈衝擊',
     stabCrash: 'CRASH HAZARD 墜毀預警',
     keyDrive: '推進',
@@ -316,7 +321,7 @@ const STR = {
     viewConfirmHint: 'This ends the current run and reloads the other view.',
     viewConfirmOk: 'Switch', viewConfirmCancel: 'Cancel',
     webglFallback: 'WebGL is unavailable on this device — stayed on 2D.',
-    alignSafe: 'ALIGN SAFE', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
+    alignSafe: 'ALIGNED', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
     vviSoft: 'SOFT ZONE (+30)', vviHard: 'FIRM DESCENT', vviHazard: 'CRASH HAZARD (BRAKE)',
     stuntMilestone: (n) => n === 1 ? '360° SINGLE FLIP! +50' : n === 2 ? '720° DOUBLE FLIP! +150' : n === 3 ? '1080° TRIPLE FLIP! +300' : `${n * 360}° STUNT MASTER! +${n * 150}`,
     cockpitLeftTag: 'L-WING AVIONICS',
@@ -334,9 +339,9 @@ const STR = {
     stuntInvert: '🔄 INVERTED FLIGHT (+0.4x)',
     stuntSwitch: '🔀 DUAL-DIRECTION SWITCH (+0.3x)',
     vviText: 'VVI DESCENT',
-    stabForecast: 'TOUCHDOWN STABILITY',
-    stabLegend: 'LEGEND PREDICTED',
-    stabPerfect: 'PERFECT TOUCHDOWN',
+    stabForecast: 'CURRENT STABILITY', stabPending: 'NOT AIRBORNE',
+    stabLegend: 'STABLE NOW',
+    stabPerfect: 'CHECK DESCENT',
     stabWarn: 'FIRM IMPACT WARN',
     stabCrash: 'CRASH HAZARD',
     keyDrive: 'THRUST',
@@ -350,7 +355,6 @@ let lang = 'tc';
 try {
   const saved = localStorage.getItem('wallflip2.lang');
   if (saved === 'en' || saved === 'tc') lang = saved;
-  else if ((navigator.language || '').startsWith('en')) lang = 'en';
 } catch (e) {}
 const t = (k, ...a) => {
   const v = (STR[lang] && STR[lang][k]) ?? STR.tc[k];
@@ -534,6 +538,8 @@ try {
     document.fonts.load(spec).catch(() => {});
   }
 } catch (e) {}
+
+const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '2d', onRetry: () => { ensureAudio(); reset(false); }});
 
 // ---------- tuning: exact constants from the original module ----------
 const G = 9.8;
@@ -1185,7 +1191,7 @@ function domTyping(e) {
   const el = e.target;
   if (!el) return false;
   const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return true;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'SUMMARY') return true;
   if (el.isContentEditable) return true;
   if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel')) return true;
   return apiPanel.classList.contains('on') || namePanel.classList.contains('on') ||
@@ -1198,7 +1204,10 @@ addEventListener('keydown', e => {
   }
   if (keySet(e, true)) e.preventDefault();
 });
-addEventListener('keyup', e => { if (domTyping(e)) return; if (keySet(e, false)) e.preventDefault(); });
+addEventListener('keyup', e => { const ui = domTyping(e); if (keySet(e, false) && !ui) e.preventDefault(); });
+function clearDrivingInputs() { for (const key in inp) inp[key] = false; activePtr.clear(); }
+addEventListener('blur', clearDrivingInputs);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearDrivingInputs(); });
 function pressStart() {
   sfx.click();
   if (state === ST.READY) { botOn = false; startRun(); }
@@ -1332,6 +1341,7 @@ function reset(ready) {
   apiPanel.classList.remove('on'); namePanel.classList.remove('on');
   stats.win = false; stats.reason = '';
   cam.snap = false;
+  if (!ready) flightCoach.begin();
   state = ready ? ST.READY : ST.RUN;
   stateT = 0;
 }
@@ -1723,6 +1733,7 @@ function showResult() {
   } else {
     stats.soft = 0; stats.level = 0; stats.rollPts = 0; stats.total = 0;
   }
+  flightCoach.finish(stats, !botOn);
   state = ST.RESULT; stateT = 0;
 }
 
@@ -2462,14 +2473,14 @@ function drawHUD() {
     const fDesc = clamp(1 - (descentSpd / 40), 0, 1);
     const fTilt = clamp(1 - (tilt / (35 * DEG)), 0, 1);
     const fSpin = clamp(1 - (Math.abs(car.rw) / 5), 0, 1);
-    const stabPct = airMode ? Math.round(fDesc * fTilt * fSpin * 100) : 100;
+    const stabPct = airMode ? Math.round(fDesc * fTilt * fSpin * 100) : 0;
 
     ctx.textAlign = 'left';
     ctx.font = `600 10px ${SANS}`; ctx.fillStyle = UI.faint;
     ctx.fillText(t('stabForecast'), rwX + 12, rwY + 65);
     ctx.textAlign = 'right';
     ctx.font = `700 10px ${MONO}`; ctx.fillStyle = UI.text;
-    ctx.fillText(`${stabPct}%`, rwX + rwW - 12, rwY + 65);
+    ctx.fillText(airMode ? `${stabPct}%` : '—', rwX + rwW - 12, rwY + 65);
 
     // Stability bar
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
@@ -2485,7 +2496,7 @@ function drawHUD() {
     ctx.font = `700 10px ${SANS}`;
     ctx.fillStyle = (descentSpd > 35 || tilt > LAND_TILT) ? '#ff5555' : stabPct >= 80 ? '#6ff0d0' : '#ffaa00';
     ctx.textAlign = 'center';
-    ctx.fillText((descentSpd > 35 || tilt > LAND_TILT) ? t('stabCrash') : stabPct >= 80 ? t('stabLegend') : t('stabPerfect'), rwX + rwW / 2, rwY + 93);
+    ctx.fillText(!airMode ? t('stabPending') : (descentSpd > 35 || tilt > LAND_TILT) ? t('stabCrash') : stabPct >= 80 ? t('stabLegend') : t('stabPerfect'), rwX + rwW / 2, rwY + 93);
   }
 
   // Esports Key Matrix Guide HUD (desktop only)
@@ -2541,169 +2552,23 @@ function drawHUD() {
 }
 
 const RANKS = [[140, 'LEGEND!!!', '#ffd166'], [95, 'PERFECT!!', '#ff9f43'], [80, 'GREAT!', '#9fe8ff'], [0, 'GOOD!', '#cfe3f5']];
+const launchHost = document.getElementById('wfLaunch');
+const launchScreen = window.WallFlipLaunch.mount({
+  host: launchHost, mode: '2d', onStart: () => { ensureAudio(); pressStart(); },
+  onLanguage: () => setLang(lang === 'tc' ? 'en' : 'tc'),
+  onCourse: (delta) => setCourse(courseIdx + delta),
+  onBoard: () => { openRank(); },
+  onGhost: () => { toggleGhost(); },
+});
 function drawReady() {
   screenTransform();
-  // Cinematic action hero background poster on ready screen
-  if (ASSETS.hero && ASSETS.hero.complete && ASSETS.hero.naturalWidth > 0) {
-    ctx.save();
-    const aspect = ASSETS.hero.naturalWidth / ASSETS.hero.naturalHeight;
-    const hW = Math.max(W(), H() * aspect);
-    const hH = hW / aspect;
-    ctx.drawImage(ASSETS.hero, (W() - hW) / 2, (H() - hH) / 2, hW, hH);
-    const grad = ctx.createLinearGradient(0, 0, 0, H());
-    grad.addColorStop(0, 'rgba(10, 12, 16, 0.85)');
-    grad.addColorStop(0.35, 'rgba(10, 12, 16, 0.72)');
-    grad.addColorStop(0.75, 'rgba(10, 12, 16, 0.90)');
-    grad.addColorStop(1, 'rgba(10, 12, 16, 0.98)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W(), H());
-    ctx.restore();
-  } else {
-    ctx.fillStyle = 'rgba(12,13,15,.78)';
-    ctx.fillRect(0, 0, W(), H());
-  }
-  const cx = W() / 2;
-  const controlsY = 14;
-  const ch = 28;
-  // Leave gutter for the mint 2D/3D pill at top-right.
-  const viewGutter = 104;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'center';
-  ctx.font = `600 13px ${SANS}`;
-  const boardLabel = t('boardBtn');
-  const boardW = ctx.measureText(boardLabel).width + 12;
-  const boardX = W() - 16 - viewGutter - boardW;
-  ctx.fillStyle = UI.text;
-  ctx.fillText(boardLabel, boardX + boardW / 2, controlsY + ch / 2);
-  readyUI.board = { x: boardX, y: controlsY, w: boardW, h: ch };
-  const langLabel = t('langBtn');
-  ctx.font = `600 12px ${SANS}`;
-  const langW = Math.max(44, ctx.measureText(langLabel).width + 18);
-  const langX = boardX - 8 - langW;
-  ctx.fillStyle = UI.muted;
-  ctx.fillText(langLabel, langX + langW / 2, controlsY + ch / 2 + 0.5);
-  readyUI.lang = { x: langX, y: controlsY, w: langW, h: ch };
-  const ghostLabel = t('ghostBtn') + ' ' + (ghostOn ? t('ghostOn') : t('ghostOff'));
-  ctx.font = `600 13px ${SANS}`;
-  const ghostW = ctx.measureText(ghostLabel).width + 12;
-  const ghostX = langX - 10 - ghostW;
-  ctx.fillStyle = ghostOn ? UI.text : UI.muted;
-  ctx.fillText(ghostLabel, ghostX + ghostW / 2, controlsY + ch / 2);
-  readyUI.ghost = { x: ghostX, y: controlsY, w: ghostW, h: ch };
-
-  ctx.textBaseline = 'alphabetic';
-  const titleY = Math.max(88, Math.min(H() * 0.12, 120));
-  const left = Math.max(28, cx - 240);
-  {
-    ctx.font = `500 12px ${SANS}`;
-    const labels = ACH.map(a => t('ach_' + a.id));
-    const gap = 16;
-    const totalW = labels.reduce((s, lab) => s + ctx.measureText(lab).width, 0) + gap * (labels.length - 1);
-    const achRowsN = totalW > W() - 48 ? 2 : 1;
-    const selW0 = Math.min(320, W() - 48);
-    const top = titleY - 50;
-    const bot = titleY + 452 + MODE_PICK_H + achRowsN * 22;
-    const sheetX = Math.max(16, Math.min(left - 28, cx - selW0 / 2 - 20));
-    const sheetR = Math.min(W() - 16, Math.max(cx + (cx - sheetX), cx + selW0 / 2 + 20));
-    ctx.fillStyle = UI.sheet;
-    roundRect(sheetX, top, sheetR - sheetX, bot - top, 20);
-    ctx.fill();
-  }
-  ctx.textAlign = 'center';
-  ctx.font = `600 24px ${SANS}`;
-  ctx.fillStyle = UI.text;
-  const titleText = lang === 'en' ? 'WALL FLIP' : '牆上翻滾';
-  ctx.fillText(titleText, cx, titleY);
-
-  if (ASSETS.badge && ASSETS.badge.complete && ASSETS.badge.naturalWidth > 0) {
-    const badgeSize = Math.min(42, Math.max(30, titleY * 0.4));
-    const titleW = ctx.measureText(titleText).width;
-    ctx.drawImage(ASSETS.badge, cx - titleW / 2 - badgeSize - 10, titleY - badgeSize * 0.72, badgeSize, badgeSize);
-  }
-
-  ctx.font = `400 14px ${SANS}`;
-  ctx.fillStyle = UI.muted;
-  ctx.fillText(t('sub'), cx, titleY + 26);
-
-  const lines = [[t('s1a'), t('s1b')], [t('s2a'), t('s2b')], [t('s3a'), t('s3b')], [t('s4a'), t('s4b')]];
-  let y = titleY + 64;
-  ctx.textAlign = 'left';
-  for (const [head, body] of lines) {
-    ctx.font = `600 15px ${SANS}`;
-    ctx.fillStyle = UI.text;
-    ctx.fillText(head, left, y);
-    ctx.font = `400 13px ${SANS}`;
-    ctx.fillStyle = UI.muted;
-    ctx.fillText(body, left, y + 18);
-    y += 44;
-  }
-  ctx.textAlign = 'center';
-  ctx.font = `400 12px ${SANS}`;
-  ctx.fillStyle = UI.faint;
-  ctx.fillText(t('hint'), cx, y + 8);
-
-  const cc = COURSES[courseIdx];
-  const selW = Math.min(320, W() - 48);
-  const selX = cx - selW / 2;
-  const selY = y + 40;
-  ctx.fillStyle = UI.muted;
-  ctx.font = `500 16px ${SANS}`;
-  ctx.fillText('‹', selX + 22, selY + 5);
-  ctx.fillText('›', selX + selW - 22, selY + 5);
-  const cname = `${t('course')} · ${courseName(cc)}`;
-  ctx.font = `600 15px ${SANS}`;
-  ctx.fillStyle = UI.text;
-  ctx.fillText(cname, cx, selY + 5);
-  readyUI.prev = { x: selX, y: selY - 16, w: 44, h: 32 };
-  readyUI.next = { x: selX + selW - 44, y: selY - 16, w: 44, h: 32 };
-  ctx.font = `400 12px ${SANS}`;
-  ctx.fillStyle = UI.faint;
-  ctx.fillText(`${cc.arcDeg}° ${t('arc')} · ${t('radius')} ${cc.arcR} m · ${t('straight')} ${cc.straight} m`, cx, selY + 34);
-
-  ctx.font = `500 12px ${SANS}`;
-  const achLabels = ACH.map(a => t('ach_' + a.id));
-  const gap = 16;
-  const widths = achLabels.map(lab => ctx.measureText(lab).width);
-  const totalW = widths.reduce((s, w) => s + w, 0) + gap * (achLabels.length - 1);
-  const achRows = totalW > W() - 48 ? [achLabels.slice(0, 4), achLabels.slice(4)] : [achLabels];
-  const widthRows = totalW > W() - 48 ? [widths.slice(0, 4), widths.slice(4)] : [widths];
-  let ay = selY + 64;
-  achRows.forEach((row, ri) => {
-    const rowW = widthRows[ri].reduce((s, w) => s + w, 0) + gap * (row.length - 1);
-    let bx = cx - rowW / 2;
-    row.forEach((lab, i) => {
-      const id = ACH[ri * 4 + i].id;
-      ctx.fillStyle = achUnlocked.has(id) ? UI.text : UI.faint;
-      ctx.textAlign = 'left';
-      ctx.fillText(lab, bx, ay);
-      bx += widthRows[ri][i] + gap;
-    });
-    ay += 22;
-  });
-
-  // DOM neon cards sit in this reserved band (between achievements and start CTA).
-  const modePickTop = ay + 10;
-  layoutStartModePick(modePickTop);
+  ctx.fillStyle = 'rgba(7,14,22,.8)';
+  ctx.fillRect(0, 0, W(), H());
   setStartModePickVisible(true);
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const startLabel = isTouch ? t('tapStart') : t('start');
-  ctx.font = `600 14px ${SANS}`;
-  const pillW = ctx.measureText(startLabel).width + 44;
-  const pillH = 36;
-  const pillX = cx - pillW / 2;
-  const pillY = modePickTop + MODE_PICK_H;
-  ctx.fillStyle = '#ffffff';
-  roundRect(pillX, pillY, pillW, pillH, 18);
-  ctx.fill();
-  ctx.fillStyle = '#111111';
-  ctx.fillText(startLabel, cx, pillY + pillH / 2);
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = `400 12px ${SANS}`;
-  ctx.fillStyle = UI.faint;
-  ctx.fillText(t('footer'), cx, pillY + pillH + 22);
+  launchHost.hidden = rankOn;
+  launchScreen.update(lang, courseName(COURSES[courseIdx]), ghostOn, ACH.map(a => (achUnlocked.has(a.id) ? '✓ ' : '○ ') + t('ach_' + a.id)));
 }
+
 function drawResult() {
   screenTransform();
   resultUI.share = null;
@@ -2965,10 +2830,11 @@ function render(t) {
   cam.x = ox; cam.y = oy;
   screenTransform();
   drawPops();
-  if (state !== ST.READY) setStartModePickVisible(false);
+  if (state !== ST.READY) { setStartModePickVisible(false); launchHost.hidden = true; }
   if (state === ST.RUN) drawHUD();
   if (state === ST.READY) drawReady();
   if (state === ST.RESULT) drawResult();
+  flightCoach.render({mode:car.mode,u:car.u,th:car.th,tilt:tiltNow(),vy:car.vy,rw:car.rw,air:car.air,reason:car.crash}, {active:state===ST.RUN,reviewing:state===ST.RESULT,blocked:rankOn || apiPanel.classList.contains('on') || namePanel.classList.contains('on')});
   if (rankOn) drawRank();
 }
 

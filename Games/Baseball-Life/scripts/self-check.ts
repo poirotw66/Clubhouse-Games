@@ -1,5 +1,5 @@
 import * as assert from 'node:assert/strict';
-import { acknowledge, createGame, resolve, rollOrigins } from '../src/game/engine.js';
+import { acknowledge, createGame, resolve, rollOrigins, previewTrainingPlan } from '../src/game/engine.js';
 import { EVENTS } from '../src/game/events.js';
 import { ACHIEVEMENTS, EMPTY_PROGRESS, evaluate, progressOf } from '../src/game/achievements.js';
 import {
@@ -1359,7 +1359,72 @@ function expectOverseasFollowUpsAppear(): void {
   assert.ok(sawClause, 'no career reached the clause / AAA-push follow-up');
 }
 
+/** Viewing costs must not consume seed streams, change a save, or change a roll. */
+function expectTrainingPreviewIsReadOnly(): void {
+  for (const position of ['P', 'OF', 'TW'] as Position[]) {
+    const seedCode = `preview-${position}`;
+    let state = createGame({ seedCode, name: '課表測試', position, originId: rollOrigins(seedCode)[0].id });
+    for (let step = 0; step < 12 && state.decision?.kind !== 'training'; step++) {
+      state = acknowledge(resolve(state, enabled(state.decision!)[0]));
+    }
+    assert.equal(state.decision?.kind, 'training');
+    const before = JSON.stringify(state);
+    const first = enabled(state.decision!)[0];
+    const expected = acknowledge(resolve(state, first));
+    for (const option of state.decision!.options) {
+      const preview = previewTrainingPlan(state, option.id);
+      assert.ok(preview);
+      assert.equal(preview.cards.length, 1);
+      assert.equal(preview.needsSecondary, true);
+      // The returned display model must not leak mutable arrays from a save.
+      preview.cards[0].focus.length = 0;
+    }
+    assert.equal(JSON.stringify(state), before);
+    assert.deepEqual(acknowledge(resolve(state, first)), expected);
+    assert.equal(previewTrainingPlan(state, 'not-a-card'), null);
+
+    state = expected;
+    const secondaryBefore = JSON.stringify(state);
+    assert.ok(state.pendingPrimaryId);
+    const primaryCost = previewTrainingPlan(JSON.parse(before), first)!.fatigueChange;
+    for (const option of state.decision!.options) {
+      const preview = previewTrainingPlan(state, option.id)!;
+      assert.equal(preview.cards.length, 2);
+      assert.equal(preview.needsSecondary, false);
+      const optionFatigue = (option as typeof option & { fatigue: number }).fatigue;
+      assert.equal(preview.fatigueChange, primaryCost + optionFatigue);
+      assert.equal(preview.fatigueAfterCards, Math.max(0, Math.min(100, state.meta.fatigue + preview.fatigueChange)));
+    }
+    assert.equal(JSON.stringify(state), secondaryBefore);
+    const chosen = enabled(state.decision!)[0];
+    const resolved = acknowledge(resolve(state, chosen));
+    for (let i = 0; i < 20; i++) previewTrainingPlan(state, chosen);
+    assert.deepEqual(acknowledge(resolve(state, chosen)), resolved);
+  }
+}
+
+/** Workload visibility must respect signed recovery and a capped fatigue pool. */
+function expectTrainingPreviewRecovery(): void {
+  const seedCode = 'preview-recovery';
+  let state = createGame({ seedCode, name: '恢復測試', position: 'OF', originId: rollOrigins(seedCode)[0].id });
+  while (state.decision?.kind !== 'training') state = acknowledge(resolve(state, enabled(state.decision!)[0]));
+  state = acknowledge(resolve(state, 'weight'));
+  state.meta.fatigue = 98;
+  const hard = previewTrainingPlan(state, 'swing')!;
+  const rest = previewTrainingPlan(state, 'rest')!;
+  assert.equal(hard.fatigueAfterCards, 100, 'hard plan should show the fatigue cap');
+  assert.ok(rest.fatigueChange < 0, 'recovery must cancel more than the main workload');
+  assert.ok(rest.fatigueAfterCards < hard.fatigueAfterCards);
+  assert.ok(rest.motivationChange > hard.motivationChange);
+  state.meta.fatigue = 0;
+  assert.equal(previewTrainingPlan(state, 'rest')!.fatigueAfterCards, 0, 'recovery must not project negative fatigue');
+  state.decision = { kind: 'story', title: '人際', prompt: 'test', options: [] };
+  assert.equal(previewTrainingPlan(state, 'rest'), null);
+}
+
 const checks: [string, () => void][] = [
+  ['training previews are read-only', expectTrainingPreviewIsReadOnly],
+  ['training preview recovery tradeoffs', expectTrainingPreviewRecovery],
   ['deterministic runs', expectDeterministicRuns],
   ['seeds diverge', expectSeedsDiverge],
   ['choices matter', expectChoicesMatter],

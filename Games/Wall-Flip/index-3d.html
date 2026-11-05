@@ -699,6 +699,10 @@
     .wf-master-tip-box { display: none; }
   }
 </style>
+<link rel="stylesheet" href="launch-screen.css">
+<script src="launch-screen.js"></script>
+<link rel="stylesheet" href="flight-coach.css">
+<script src="flight-coach.js"></script>
 </head>
 <body data-view-mode="3d">
   <a href="../../" id="backlink"></a>
@@ -1168,13 +1172,13 @@ const STR = {
     viewConfirmOk: '切換', viewConfirmCancel: '取消',
     webglFallback: '此裝置不支援 WebGL，已改用 2D 模式。',
     fdVvi: '垂直降速', fdSpin: '空中特技',
-    alignSafe: '姿態對齊（安全）', alignInverted: '倒掛翻滾中', alignWarn: '姿態傾角過大',
+    alignSafe: '姿態對齊', alignInverted: '倒掛翻滾中', alignWarn: '姿態傾角過大',
     vviSoft: '柔軟著地 (+30)', vviHard: '速度偏快', vviHazard: '墜毀危險！(雙鍵減速)',
     stuntMilestone: (n) => n === 1 ? '360° 空中翻滾！+50' : n === 2 ? '720° 雙重翻滾！+150' : n === 3 ? '1080° 三重特技！+300' : `${n * 360}° 極限特技！+${n * 150}`,
     cockpitLeftTag: 'L-WING AVIONICS',
     cockpitLeftTitle: '姿態儀與過載遙測',
     cockpitRightTag: 'R-WING RADAR',
-    cockpitRightTitle: '特技連擊與預測',
+    cockpitRightTitle: '特技與即時狀態',
     lblPitch: 'PITCH 俯仰',
     lblRoll: 'ROLL 滾轉',
     lblGMeter: 'G-METER 加速度',
@@ -1186,9 +1190,9 @@ const STR = {
     stuntInvert: '🔄 反重力倒飛 (+0.4x)',
     stuntSwitch: '🔀 雙向翻滾反轉 (+0.3x)',
     vviText: '垂直降速 VVI',
-    stabForecast: '著陸平穩預測',
-    stabLegend: 'LEGEND 滿分預測',
-    stabPerfect: 'PERFECT 穩健著陸',
+    stabForecast: '即時穩定指標', stabPending: '尚未起飛',
+    stabLegend: '姿態平穩',
+    stabPerfect: '留意下墜與轉速',
     stabWarn: 'HARD IMPACT 劇烈衝擊',
     stabCrash: 'CRASH HAZARD 墜毀預警',
     manualBtn: '特技大師錦囊',
@@ -1284,7 +1288,7 @@ const STR = {
     viewConfirmOk: 'Switch', viewConfirmCancel: 'Cancel',
     webglFallback: 'WebGL is unavailable on this device — stayed on 2D.',
     fdVvi: 'V-SPEED', fdSpin: 'STUNT',
-    alignSafe: 'ALIGN SAFE', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
+    alignSafe: 'ALIGNED', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
     vviSoft: 'SOFT ZONE (+30)', vviHard: 'FIRM DESCENT', vviHazard: 'CRASH HAZARD! (BRAKE)',
     stuntMilestone: (n) => n === 1 ? '360° SINGLE FLIP! +50' : n === 2 ? '720° DOUBLE FLIP! +150' : n === 3 ? '1080° TRIPLE FLIP! +300' : `${n * 360}° STUNT MASTER! +${n * 150}`,
     cockpitLeftTag: 'L-WING AVIONICS',
@@ -1302,9 +1306,9 @@ const STR = {
     stuntInvert: '🔄 INVERTED FLIGHT (+0.4x)',
     stuntSwitch: '🔀 DUAL-DIRECTION SWITCH (+0.3x)',
     vviText: 'VVI DESCENT',
-    stabForecast: 'TOUCHDOWN STABILITY',
-    stabLegend: 'LEGEND PREDICTED',
-    stabPerfect: 'PERFECT TOUCHDOWN',
+    stabForecast: 'CURRENT STABILITY', stabPending: 'NOT AIRBORNE',
+    stabLegend: 'STABLE NOW',
+    stabPerfect: 'CHECK DESCENT',
     stabWarn: 'FIRM IMPACT WARN',
     stabCrash: 'CRASH HAZARD',
     manualBtn: 'Stunt Master Manual',
@@ -1341,7 +1345,7 @@ const STR = {
 };
 let lang = 'tc';
 try { const l = localStorage.getItem('wallflip3.lang'); if (l === 'en' || l === 'tc') lang = l;
-  else if ((navigator.language || '').startsWith('en')) lang = 'en'; } catch (e) {}
+  } catch (e) {}
 const t = (k, ...a) => { const v = STR[lang][k] ?? STR.tc[k]; return typeof v === 'function' ? v(...a) : v; };
 function setLang(l) { lang = l; try { localStorage.setItem('wallflip3.lang', l); } catch (e) {} }
 
@@ -2827,6 +2831,7 @@ function updateAllText() {
   updateBestLabels();
   syncViewModeChrome();
   updateCamSelectorUI();
+  window.wallFlipLaunchScreen?.update(lang);
 }
 el.langbtn.addEventListener('click', () => {
   setLang(lang === 'tc' ? 'en' : 'tc');
@@ -2883,7 +2888,7 @@ function domTyping(e) {
   const el = e.target;
   if (!el) return false;
   const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return true;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'SUMMARY') return true;
   if (el.isContentEditable) return true;
   if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel')) return true;
   return apiPanel.classList.contains('on') || namePanel.classList.contains('on') ||
@@ -2920,8 +2925,10 @@ addEventListener('keydown', e => {
   }
   keys.add(e.code);
 });
-addEventListener('keyup', e => { if (domTyping(e)) return; if (KEYMAP[e.code]) { e.preventDefault(); keys.delete(e.code); } });
-addEventListener('blur', () => { keys.clear(); padPtr.clear(); });
+addEventListener('keyup', e => { if (KEYMAP[e.code]) { keys.delete(e.code); if (!domTyping(e)) e.preventDefault(); } });
+function clearDrivingInputs() { keys.clear(); padPtr.clear(); }
+addEventListener('blur', clearDrivingInputs);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearDrivingInputs(); });
 // touch pad buttons
 for (const btn of el.pad.querySelectorAll('button')) {
   const act = btn.dataset.act;
@@ -3209,7 +3216,10 @@ function makeSimHooks() {
   };
 }
 
+const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '3d', onRetry: () => { ensureAudio(); resetRun(); }});
+
 function resetRun() {
+  flightCoach.begin();
   sim = createSim(makeSimHooks(), dailyConsts());
   startX = sim.state.x;
   Object.assign(game, {
@@ -4158,6 +4168,7 @@ function showResult() {
   el.resBest.className = win && newBest ? 'newbest' : '';
   el.shareBtn.hidden = !win;
   updateBestLabels();
+  flightCoach.finish({win:!!win,reason:st.crash,rolls:st.land?.rolls || 0,soft:Math.round(game.score?.soft || 0),level:Math.round(game.score?.level || 0)}, !DEMO);
   screen = 'result';
   if (el.stuntCockpit) el.stuntCockpit.hidden = true;
   if (el.manualModal) el.manualModal.hidden = true;
@@ -4562,6 +4573,7 @@ for (const btn of el.pad.querySelectorAll('button')) padBtnEls[btn.dataset.act] 
 function updateHud() {
   const st = sim.state;
   const airMode = st.mode === 'air';
+  flightCoach.render({mode:st.mode,u:st.u,th:st.th,tilt:window.WallFlipFlight.tiltOf(st.roll,st.pitch),vy:st.vy,rw:st.rw,air:st.air,reason:st.crash}, {active:screen===null,reviewing:screen==='result',blocked:boardOn || apiPanel.classList.contains('on') || namePanel.classList.contains('on')});
   for (const [act, btn] of Object.entries(padBtnEls)) {
     btn.classList.toggle('on', game.playing && (keyActive(act) || padActive(act)));
     if (act === 'suck' || act === 'drive') btn.classList.toggle('wait', game.playing && airMode);
@@ -4719,12 +4731,15 @@ function updateHud() {
     const fDescent = clamp(1 - (descentSpeed / 42), 0, 1);
     const fTilt = clamp(1 - (tiltDeg / 35), 0, 1);
     const fSpin = clamp(1 - (Math.abs(st.rw) / 5), 0, 1);
-    const stabilityPct = airMode ? Math.round(fDescent * fTilt * fSpin * 100) : 100;
+    const stabilityPct = airMode ? Math.round(fDescent * fTilt * fSpin * 100) : 0;
 
     if (el.stabBar) el.stabBar.style.width = `${stabilityPct}%`;
-    if (el.stabVal) el.stabVal.textContent = `${stabilityPct}%`;
+    if (el.stabVal) el.stabVal.textContent = airMode ? `${stabilityPct}%` : '—';
     if (el.landingPredictBadge) {
-      if (descentSpeed > 35 || tiltDeg > 25) {
+      if (!airMode) {
+        el.landingPredictBadge.className = 'wf-cockpit-badge';
+        el.landingPredictBadge.textContent = t('stabPending');
+      } else if (descentSpeed > 35 || tiltDeg > 25) {
         el.landingPredictBadge.className = 'wf-cockpit-badge danger';
         el.landingPredictBadge.textContent = t('stabCrash');
       } else if (stabilityPct >= 80) {
@@ -4846,11 +4861,17 @@ renderer.setAnimationLoop(now => {
   renderer.render(scene, camera);
 });
 
+const launchScreen = window.WallFlipLaunch.mount({
+  host: el.start, mode: '3d', onStart: () => { ensureAudio(); startPress(); },
+  onLanguage: () => { setLang(lang === 'tc' ? 'en' : 'tc'); updateAllText(); launchScreen.update(lang); },
+});
+launchScreen.update(lang);
+window.wallFlipLaunchScreen = launchScreen;
 window.__ready = true;
 window.__submitScore = submitScore;
 window.__openBoard = openBoard;
 window.__game = game;
-window.__sim = sim;
+Object.defineProperty(window, '__sim', {get: () => sim, configurable:true});
 window.__setCameraMode = setCameraMode;
 window.__getCameraMode = () => cameraMode;
 </script>

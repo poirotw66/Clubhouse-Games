@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { setupPaddock } from './paddock.js';
+import { StrideCoach, mountStrideCoach } from './stride-coach.js';
 import { CFG, LEG_CFG, MOD, dailyInfo, todayStr, makeLegStates, makeHorseState, simHorse } from './physics.js';
 import { SteeplechaseManager } from './steeplechase.js';
 import { CockpitManager } from './cockpit.js';
@@ -20,6 +22,42 @@ function dailyLabels(d){
 ================================================================ */
 const I18N = {
   zh: {
+    coach_title:"實蹄節奏",
+    coach_practice:"步態練習 · 不計時、不上榜",
+    coach_clean:"連續 {n} 拍",
+    coach_next:"下一拍：按住 {pair} 抬蹄",
+    coach_lift:"抬蹄中 · 準備放開 {pair}",
+    coach_release:"現在放開 {pair}，踢地推進！",
+    coach_release_all:"先放開！別讓四腳同時離地。",
+    coach_diagonal:"改用對角：Q＋P 或 W＋O。",
+    coach_add_partner:"補上同組另一腳：{pair}",
+    coach_progress:"已完成 {n} / 3 項 · 跌倒不清除進度",
+    coach_drill_0:"第一課 · 對角交替兩拍",
+    coach_drill_1:"第二課 · 連續六拍不斷奏",
+    coach_drill_2:"第三課 · 累積前進 5 公尺",
+    coach_drill_3:"練習完成！繼續練，或正式開跑。",
+    coach_race:"把節奏帶上賽道 →",
+    coach_tumble:"翻滾中 · 點擊或按 R 預約起身",
+    coach_queued:"已預約起身 · 落地後自動站起",
+    paddock_eyebrow:"草地開放賽 · 隨時起跑",
+    paddock_headline:"四隻腳，一場不太優雅的衝刺。",
+    paddock_description:"不用先學會跑。找到兩拍節奏，跌倒了再笑著站起來。",
+    paddock_distance:"到終點的距離",
+    paddock_time:"你的挑戰時間",
+    paddock_shortcut:"隨時起跑 · 也能直接點擊",
+    paddock_opponent:"選個對手",
+    paddock_school_label:"起跑前，試一下",
+    paddock_school_title:"跑起來，只要兩拍。",
+    paddock_school_copy:"點擊下方蹄印，或按住對角按鍵再放開。",
+    paddock_pair_a:"左後＋右前",
+    paddock_pair_b:"右後＋左前",
+    paddock_gait_ready:"先試第 1 拍，再換第 2 拍。隨時可以直接起跑。",
+    paddock_gait_next:"漂亮！放開第 1 拍，接著換 W＋O 的第 2 拍。",
+    paddock_gait_done:"抓到節奏了！交替兩拍，讓馬蹄帶你衝向終點。",
+    paddock_gait_first:"先從 Q＋P 的第 1 拍開始，再換另一組對角。",
+    paddock_gait_four:"先放開這一組，再換另一組。四腳離地可會跌倒！",
+    paddock_controls:"完整操作與小訣竅",
+    paddock_more:"換個玩法",
     title:'達達馬蹄', subtitle:'CLIP-CLOP HORSE',
     tagline:'一款令人又氣又笑的四腿平衡賽馬遊戲',
     goal:'在 90 秒內跑完 50 公尺！',
@@ -27,7 +65,7 @@ const I18N = {
     how2:'放開按鍵：馬腿落地，順勢向後踢地推進',
     how3:'身體傾斜過頭就會跌倒，按 R 起身',
     tip:'訣竅：對角線兩腳快速輪替，千萬別四腳同時離地！',
-    start:'按 Space 起跑！',
+    start:'衝向終點',
     credit:'靈感致敬：tsuyatt《おうまパカパカ Clip-Clop》',
     hud_time:'時間', hud_dist:'剩餘', hud_falls:'跌倒',
     fallen:'跌倒了！點擊或按 R 起身',
@@ -109,6 +147,42 @@ const I18N = {
     vol_mute:'🔇 已靜音（Mute）',
   },
   en: {
+    coach_title:"HOOFBEAT COACH",
+    coach_practice:"GAIT SCHOOL · UNTIMED & UNRANKED",
+    coach_clean:"{n} clean beats",
+    coach_next:"Next: hold {pair} to lift",
+    coach_lift:"Hooves up · get ready to release {pair}",
+    coach_release:"Release {pair} now. Kick forward!",
+    coach_release_all:"Release! Keep a pair on the ground.",
+    coach_diagonal:"Use diagonals: Q + P or W + O.",
+    coach_add_partner:"Add the other hoof: {pair}",
+    coach_progress:"{n} / 3 drills · falls keep your progress",
+    coach_drill_0:"Drill 1 · Alternate two diagonal beats",
+    coach_drill_1:"Drill 2 · Land six clean beats in a row",
+    coach_drill_2:"Drill 3 · Travel 5 m",
+    coach_drill_3:"Ready to race! Keep practicing or go for it.",
+    coach_race:"Take your rhythm to the race →",
+    coach_tumble:"Tumbling · tap or press R to queue recovery",
+    coach_queued:"Recovery queued · stand up on landing",
+    paddock_eyebrow:"OPEN PADDOCK · READY WHEN YOU ARE",
+    paddock_headline:"Four legs. One gloriously wobbly race.",
+    paddock_description:"Find your two-beat rhythm. Take a tumble. Get up laughing and go again.",
+    paddock_distance:"TO THE FINISH",
+    paddock_time:"ON THE CLOCK",
+    paddock_shortcut:"to start · or tap the button",
+    paddock_opponent:"YOUR RIVAL",
+    paddock_school_label:"TRY BEFORE YOU TROT",
+    paddock_school_title:"Two beats. That’s your stride.",
+    paddock_school_copy:"Tap a hoof pair, or hold the diagonal keys and release.",
+    paddock_pair_a:"Left hind + right front",
+    paddock_pair_b:"Right hind + left front",
+    paddock_gait_ready:"Try beat 1, then beat 2. Or jump straight into the race.",
+    paddock_gait_next:"Nice! Release beat 1, then switch to W + O for beat 2.",
+    paddock_gait_done:"You’ve got the rhythm! Alternate the pairs and chase the finish.",
+    paddock_gait_first:"Start with Q + P for beat 1, then switch diagonals.",
+    paddock_gait_four:"Release one pair before the next. Four hooves up means a tumble!",
+    paddock_controls:"All controls & a few good tips",
+    paddock_more:"MORE WAYS TO PLAY",
     title:'Clip-Clop', subtitle:'CLIP-CLOP HORSE',
     tagline:'A maddening four-leg balancing race',
     goal:'Gallop 50 m within 90 seconds!',
@@ -116,7 +190,7 @@ const I18N = {
     how2:'Release the key: the hoof stamps down and kicks back',
     how3:'Tilt too far and you fall — press R to get up',
     tip:'Tip: swap diagonal pairs quickly. Never lift all four legs at once!',
-    start:'Press SPACE to start!',
+    start:'Let’s race',
     credit:'Homage to "Clip-Clop / Oumapakapaka" by tsuyatt',
     hud_time:'TIME', hud_dist:'TO GO', hud_falls:'FALLS',
     fallen:'Whoops! Tap or press R to get up',
@@ -199,6 +273,7 @@ const I18N = {
   },
 };
 let lang = localStorage.getItem('cc_lang') || 'zh';
+let refreshPaddock = () => {};
 const tr = k => (I18N[lang] && I18N[lang][k]) || I18N.zh[k] || k;
 function applyI18n(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
@@ -207,6 +282,7 @@ function applyI18n(){
   langBtn.textContent = lang === 'zh' ? 'EN' : '中';
   if(typeof cockpit !== 'undefined' && cockpit) cockpit.tr = tr;
   if(typeof updateMuteBtnUI === 'function') updateMuteBtnUI();
+  refreshPaddock();
 }
 
 /* ================================================================
@@ -1680,6 +1756,8 @@ const held = {
 };
 const steeplechase = new SteeplechaseManager();
 const cockpit = new CockpitManager({ tr });
+const strideCoach = new StrideCoach();
+const drawStrideCoach = mountStrideCoach({ tr, onRace: () => startRun(false) });
 
 function triggerHurdleJump(){
   if(G.state!=='run'||G.fallPose)return;
@@ -1744,6 +1822,7 @@ function startRun(practice,daily){
   G.elapsed=0; G.rec=[]; G.recAcc=0;
   G.replay=null;
   G.cadenceCombo=0; G.lastStepPair=null; G.lastStepTime=0; G.suggestedPair='A';
+  strideCoach.reset();
   hideCadenceBanner();
   lbTop.classList.add('hidden');
   lbBot.classList.add('hidden');
@@ -1771,6 +1850,7 @@ function toTitle(){
   G.fallPose=null; G.elapsed=0; G.replay=null;
   G.daily=false; MOD.drag=1; MOD.fric=1; MOD.slope=0;
   G.cadenceCombo=0;
+  strideCoach.reset();
   hideCadenceBanner();
   cockpit.hide();
   steeplechase.reset();
@@ -2057,26 +2137,20 @@ function simStep(dt){
   for(const e of ev){
     if(e.type==='step'){
       sfx.clop(e.leg, e.speed);
-      cockpit.recordStep(G.elapsed);
       const isHighCombo = (G.cadenceCombo || 0) >= 4;
       dustAt(e.footX, e.z, isHighCombo ? 2 : 1, isHighCombo);
       printAt(e.footX, e.z);
 
-      const pair = (e.leg === 0 || e.leg === 3) ? 'A' : 'B';
-      const dtStep = G.elapsed - (G.lastStepTime || 0);
-
-      if(G.lastStepPair && G.lastStepPair !== pair && dtStep > 0.08 && dtStep < 0.85){
-        G.cadenceCombo = (G.cadenceCombo || 0) + 1;
-        G.suggestedPair = pair === 'A' ? 'B' : 'A';
-        triggerCadenceHit(G.cadenceCombo);
-      } else if(dtStep >= 0.85){
-        G.cadenceCombo = 1;
-        G.suggestedPair = pair === 'A' ? 'B' : 'A';
+      const beat = strideCoach.recordStep(e.leg, G.elapsed, G.x);
+      if(beat){
+        cockpit.recordStep(G.elapsed); // actual diagonal beats, not individual hoof chatter
+        G.cadenceCombo = beat.streak;
+        G.suggestedPair = strideCoach.nextPair;
+        triggerCadenceHit(beat.streak);
       }
-      G.lastStepPair = pair;
-      G.lastStepTime = G.elapsed;
     }else if(e.type==='fall'){
       G.state='fallen'; G.falls++;
+      strideCoach.breakStride();
       G.cadenceCombo = 0;
       G.lastStepPair = null;
       G.suggestedPair = 'A';
@@ -2098,6 +2172,10 @@ function simStep(dt){
       G.suggestedPair = 'A';
       sfx.getup(); dustAt(G.x,0,2);
     }
+  }
+  if(!G.fallPose){
+    strideCoach.advance(G.elapsed, G.x);
+    G.cadenceCombo = strideCoach.streak;
   }
   if(G.state==='run'&&!G.fallPose&&G.x>=CFG.finishX){ G.x=CFG.finishX; finishRace(); }
 }
@@ -2288,6 +2366,9 @@ function setupMobileCockpitTouch(){
   }
 
   if(fallPromptEl){
+    fallPromptEl.addEventListener('keydown', e => {
+      if(e.code === 'Enter'){ e.preventDefault(); e.stopPropagation(); tryGetUp(); }
+    });
     fallPromptEl.addEventListener('pointerdown', e => {
       e.preventDefault();
       sfx.ensure();
@@ -2314,7 +2395,11 @@ retryBtn.addEventListener('click',()=>{
 // AI opponent level chips + duel entry on the title card
 let aiSel='';
 function refreshAiChips(){
-  document.querySelectorAll('#aiRow .modeChip').forEach(b=>b.classList.toggle('sel',b.dataset.ai===aiSel));
+  document.querySelectorAll('#aiRow .modeChip').forEach(b=>{
+    const selected = b.dataset.ai===aiSel;
+    b.classList.toggle('sel', selected);
+    b.setAttribute('aria-pressed', String(selected));
+  });
 }
 document.querySelectorAll('#aiRow .modeChip').forEach(b=>{
   b.addEventListener('click',()=>{b.blur();sfx.ensure();aiSel=b.dataset.ai;refreshAiChips();});
@@ -2575,7 +2660,14 @@ muteBtn.addEventListener('click', () => {
 });
 updateMuteBtnUI();
 
-langBtn.addEventListener('click',()=>{langBtn.blur();lang=lang==='zh'?'en':'zh';localStorage.setItem('cc_lang',lang);applyI18n();});
+refreshPaddock = setupPaddock({
+  tr,
+  isActive: () => G.state === 'title' && !titleScreen.classList.contains('hidden')
+    && boardScreen.classList.contains('hidden') && codeScreen.classList.contains('hidden'),
+});
+langBtn.addEventListener('click',()=>{langBtn.blur();lang=lang==='zh'?'en':'zh';localStorage.setItem('cc_lang',lang);applyI18n();
+  dailyInfoEl.textContent='📅 '+todayStr()+'　'+dailyLabels(dailyInfo());
+});
 applyI18n();
 
 /* ================================================================
@@ -2787,6 +2879,14 @@ function syncVisuals(dt){
    HUD & main loop
 ================================================================ */
 function updateHud(){
+  drawStrideCoach(strideCoach, G, held);
+  const recovering = (G.state === 'run' || G.state === 'fallen') && G.fallPose && G.fallPose.rise <= 0;
+  fallPromptEl.classList.toggle('hidden', !recovering);
+  if(recovering){
+    const pose = G.fallPose;
+    fallPromptEl.dataset.recovery = pose.wantsRise ? 'queued' : pose.landed ? 'landed' : 'tumbling';
+    fallPromptEl.firstElementChild.textContent = tr(pose.wantsRise ? 'coach_queued' : pose.landed ? 'fallen' : 'coach_tumble');
+  }
   hudTime.textContent=G.elapsed.toFixed(1);
   hudDist.textContent=Math.max(0,CFG.finishX-G.x).toFixed(1)+' m';
   hudFalls.textContent=G.falls;

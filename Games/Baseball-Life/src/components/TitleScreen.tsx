@@ -50,6 +50,13 @@ export function TitleScreen({
   onContinue,
 }: Props): React.ReactElement {
   const [seed, setSeed] = useState(initialSeed);
+  const [chapter, setChapter] = useState(0);
+  const chapters = [
+    { age: '16', label: '高中篇', title: '一副手套，一個還沒被看見的夢。', detail: '從高中棒球部出發。安排訓練與休息，在全國賽讓球探記住你的名字。', tag: '養成 × 全國賽' },
+    { age: '18', label: '選秀篇', title: '電話響起的那一刻，未來開始改變。', detail: '三年的每次選擇都會留下痕跡。帶著你的能力與成績，迎接職業球團的選擇。', tag: '成績 × 命運' },
+    { age: '20+', label: '職業篇', title: '從一名新人，打成被記住的名字。', detail: '在漫長職業生涯裡追逐紀錄。引退後，將這一代的故事與傳承留給下一位球員。', tag: '紀錄 × 傳承' },
+  ];
+  const selectedChapter = chapters[chapter];
   const [showAchievements, setShowAchievements] = useState(false);
   const [showEncyclopedia, setShowEncyclopedia] = useState(false);
   const [showChallenges, setShowChallenges] = useState(false);
@@ -80,99 +87,61 @@ export function TitleScreen({
       className="bl-title-shell"
       style={{
         backgroundImage: [
-          'linear-gradient(rgba(7, 13, 23, 0.55), rgba(7, 13, 23, 0.92))',
+          'linear-gradient(90deg, rgba(7, 13, 23, 0.94) 5%, rgba(7, 13, 23, 0.72) 48%, rgba(7, 13, 23, 0.25)), linear-gradient(0deg, #070d17 5%, transparent 90%)',
           `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
         ].join(', '),
       }}
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 px-4 py-14">
-      <header className="bl-title-hero text-center">
-        <p className="text-sm tracking-[0.4em] text-slate-300">BASEBALL LIFE</p>
-        <h1 className="mt-2 text-4xl font-black text-amber-300 sm:text-5xl">棒球人生</h1>
-        <p className="mt-3 text-sm leading-relaxed text-slate-200">
-          16 歲的春天，你走進高中棒球部。
-          <br />
-          三年的練習、四場全國賽、一次選秀，決定接下來的二十年。
-        </p>
-      </header>
+      <main className="bl-career-home">
+        <section className="bl-invitation" aria-labelledby="bl-invitation-title">
+          <div className="bl-story">
+            <p className="bl-eyebrow"><span /> 一個選擇，一段棒球人生</p>
+            <p className="bl-wordmark">BASEBALL LIFE / CAREER SIMULATION</p>
+            <h1 id="bl-invitation-title">棒球人生<span>你的名字，<br />值得出現在球場上。</span></h1>
+            <p className="bl-story-copy">16 歲的春天，你走進高中棒球部。<br />從第一次練習，到最後一次站上打擊區——<br className="bl-wide-break" />這段生涯，由你決定。</p>
+            <div className="bl-story-facts" aria-label="遊戲特色"><span>單人・生涯養成</span><span>每回合自動存檔</span></div>
+          </div>
 
-      <section className="bl-card p-4">
-        <label className="block text-xs font-semibold tracking-wider text-slate-400" htmlFor="seed-input">
-          世界種子碼
-        </label>
-        <p className="mt-1 text-xs text-slate-500">
-          相同種子碼 ＋ 相同選擇 ＝ 相同人生。把種子碼傳給朋友，比比看誰走得更遠。
-        </p>
-        <div className="mt-3 flex gap-2">
-          <input
-            id="seed-input"
-            value={seed}
-            onChange={(e) => setSeed(e.target.value)}
-            spellCheck={false}
-            autoComplete="off"
-            className="min-h-11 w-full rounded-xl border border-slate-600 bg-slate-900/70 px-3 font-mono text-base text-amber-200 outline-none focus:border-amber-400"
-            placeholder="例如 64aa2bl7"
-          />
-          <TouchButton
-            label="重骰"
-            ariaLabel="隨機產生新的種子碼"
-            onClick={() => setSeed(randomSeedCode())}
-            className="shrink-0 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-200"
-          />
-        </div>
-      </section>
+          <section className="bl-entry-ticket" aria-label="生涯入場券">
+            <div className="bl-ticket-top"><span>CAREER PASS</span><span>01 / 新的篇章</span></div>
+            <div className="bl-ticket-diamond" aria-hidden="true"><span>BL</span></div>
+            <p className="bl-ticket-kicker">球場已經準備好了</p>
+            <h2>{hasSave ? '你的故事，還沒結束。' : '下一位傳奇，會是你嗎？'}</h2>
+            <p className="bl-ticket-description">選擇位置與出身，走進你的第一個賽季。</p>
+            {hasSave && <TouchButton label="繼續上次的人生" ariaLabel="繼續上次的人生" onClick={onContinue} className="bl-career-cta" />}
+            <TouchButton label={hasSave ? '開始新的棒球人生' : '開始新的棒球人生 →'} ariaLabel="開始新的棒球人生" onClick={() => onStart(normalizeSeedCode(seed))} className={hasSave ? 'bl-career-secondary' : 'bl-career-cta'} />
+            {hasSave && <p className="bl-ticket-note">建立新球員後將取代目前的進度。</p>}
+            <p className="bl-ticket-note">不用先懂規則。從選一個位置開始。</p>
+            <details className="bl-seed-settings">
+              <summary>與朋友開啟相同世界 <span>種子設定 ＋</span></summary>
+              <label htmlFor="seed-input">世界種子碼</label>
+              <p>相同種子碼 ＋ 相同選擇 ＝ 相同人生。</p>
+              <div className="bl-seed-row">
+                <input id="seed-input" value={seed} onChange={(e) => setSeed(e.target.value)} spellCheck={false} autoComplete="off" placeholder="例如 64aa2bl7" />
+                <TouchButton label="重骰" ariaLabel="隨機產生新的種子碼" onClick={() => setSeed(randomSeedCode())} className="bl-career-secondary" />
+              </div>
+            </details>
+            {pendingLegacy && <p className="bl-ticket-note bl-legacy-note">來自 {pendingLegacy.fromName} 的遺產，等待你繼承。</p>}
+          </section>
+        </section>
 
-      {pendingLegacy && (
-        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-100">
-          遺產待繼承：來自 {pendingLegacy.fromName}。開始新人生時可選擇傳承。
-        </p>
-      )}
+        <section className="bl-career-road" aria-labelledby="bl-road-title">
+          <div className="bl-road-heading"><p className="bl-eyebrow" id="bl-road-title">你將走過的三個篇章</p><span>每一次選擇，都算數。</span></div>
+          <div className="bl-chapter-tabs" role="tablist" aria-label="預覽生涯篇章">
+            {chapters.map((item, index) => <button key={item.label} id={`bl-chapter-${index}`} type="button" role="tab" aria-selected={chapter === index} aria-controls="bl-chapter-panel" tabIndex={chapter === index ? 0 : -1} onClick={() => setChapter(index)} onKeyDown={(event) => {
+              const next = event.key === 'ArrowRight' ? (index + 1) % chapters.length : event.key === 'ArrowLeft' ? (index + chapters.length - 1) % chapters.length : event.key === 'Home' ? 0 : event.key === 'End' ? chapters.length - 1 : null;
+              if (next !== null) { event.preventDefault(); setChapter(next); document.getElementById(`bl-chapter-${next}`)?.focus(); }
+            }}><span className="bl-chapter-age">{item.age}<small>歲</small></span><span>{item.label}<small>{item.tag}</small></span><span className="bl-chapter-arrow" aria-hidden="true">↗</span></button>)}
+          </div>
+          <div id="bl-chapter-panel" role="tabpanel" aria-labelledby={`bl-chapter-${chapter}`} className="bl-chapter-panel" tabIndex={0}><h2>{selectedChapter.title}</h2><p>{selectedChapter.detail}</p></div>
+        </section>
 
-      <div className="flex flex-col gap-3">
-        <TouchButton
-          label="開始新的棒球人生"
-          ariaLabel="開始新的棒球人生"
-          onClick={() => onStart(normalizeSeedCode(seed))}
-          className="w-full rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
-        />
-        <TouchButton
-          label="生涯挑戰"
-          ariaLabel={`開啟生涯挑戰。${packSubtitle}`}
-          onClick={() => setShowChallenges(true)}
-          className="w-full rounded-xl border border-sky-500/50 bg-sky-500/15 px-4 text-base font-bold text-sky-100"
-        />
-        <p className="-mt-1 text-center text-[11px] text-slate-500">{packSubtitle}</p>
-        {showRecordsCta && (
-          <>
-            <TouchButton
-              label="紀錄牆"
-              ariaLabel={`開啟紀錄牆。位置最佳 ${bestFilled}/5・里程碑 ${milestoneTotal}`}
-              onClick={() => setShowRecords(true)}
-              className="w-full rounded-xl border border-amber-500/45 bg-amber-500/10 px-4 text-base font-bold text-amber-100"
-            />
-            <p className="-mt-1 text-center text-[11px] text-slate-500">
-              位置最佳 {bestFilled}/5
-              {milestoneTotal > 0 && `・通算里程碑 ${milestoneTotal}`}
-              {archive.length > 0 && `・歷代 ${Math.min(archive.length, 20)}`}
-            </p>
-          </>
-        )}
-        <TouchButton
-          label="操作教學"
-          ariaLabel="開啟操作教學"
-          onClick={onShowHowTo}
-          className="w-full rounded-xl border border-slate-600 bg-slate-800/80 px-4 text-base font-bold text-slate-200"
-        />
-        {hasSave && (
-          <TouchButton
-            label="繼續上次的人生"
-            ariaLabel="繼續上次的人生"
-            onClick={onContinue}
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 text-base font-bold text-slate-100"
-          />
-        )}
-      </div>
-
+        <nav className="bl-career-extras" aria-label="更多玩法與教學">
+          <button type="button" onClick={() => setShowChallenges(true)}><span className="bl-extra-icon" aria-hidden="true">↗</span><span><strong>生涯挑戰</strong><small>{packSubtitle}</small></span><span aria-hidden="true">→</span></button>
+          <button type="button" onClick={onShowHowTo}><span className="bl-extra-icon" aria-hidden="true">?</span><span><strong>第一次當球員？</strong><small>三步上手・操作教學</small></span><span aria-hidden="true">→</span></button>
+          {showRecordsCta && <button type="button" onClick={() => setShowRecords(true)}><span className="bl-extra-icon" aria-hidden="true">★</span><span><strong>紀錄牆</strong><small>位置最佳 {bestFilled}/5・里程碑 {milestoneTotal}</small></span><span aria-hidden="true">→</span></button>}
+        </nav>
+        <div className="bl-home-collection">
       <section className="bl-card p-4">
         <button
           type="button"
@@ -334,7 +303,8 @@ export function TitleScreen({
           </ul>
         </section>
       )}
-      </div>
+        </div>
+      </main>
 
       {showChallenges && (
         <div

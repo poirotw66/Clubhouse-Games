@@ -43,10 +43,7 @@ import { applyCareerToRecords } from './game/records';
 import type { PersonalRecords } from './game/records';
 import type { GameState, Position } from './game/types';
 import { CreateScreen } from './components/CreateScreen';
-import {
-  FirstRunGuide,
-  hasSeenFirstRunGuide,
-} from './components/FirstRunGuide';
+import { FirstRunGuide } from './components/FirstRunGuide';
 import { PlayScreen } from './components/PlayScreen';
 import { SummaryScreen } from './components/SummaryScreen';
 import { TitleScreen } from './components/TitleScreen';
@@ -86,7 +83,8 @@ export default function App(): React.ReactElement {
   );
   const [challengeResult, setChallengeResult] = useState<boolean | null>(null);
   const [justUnlocked, setJustUnlocked] = useState<Achievement[]>([]);
-  const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  // The career invitation teaches progressively; full instructions stay opt-in.
+  const [showFirstRun, setShowFirstRun] = useState(false);
   const summarySfxKey = useRef<string | null>(null);
 
   const activeChallenge: CareerChallenge | null = activeChallengeId
