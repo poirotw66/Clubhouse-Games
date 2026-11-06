@@ -7,6 +7,11 @@
     const wrapped = ((angle % TAU) + TAU) % TAU;
     return Math.max(Math.min(wrapped, TAU - wrapped), Math.abs(pitch));
   }
+  function orientation(state) {
+    const roll = state.mode === 'road' ? 0 : state.roll;
+    const pitch = state.mode === 'road' ? state.th : state.pitch;
+    return {roll, pitch, tilt:tiltOf(roll,pitch), level:Math.cos(roll)*Math.cos(pitch)};
+  }
   function advance(completed, result) {
     const level = Math.max(0, Math.min(3, Math.floor(Number(completed) || 0)));
     if (!result.win || level === 3) return level;
@@ -44,26 +49,26 @@
       label:'飛行駕照', goals:['01 安全著陸','02 翻滾著陸','03 精準著陸','飛行駕照已完成'],
       targets:['用輪胎成功落地','翻滾至少 1 圈，並成功落地','落地柔軟 ≥20/30、水平 ≥15/20','自由挑戰：把三項技巧串成一趟'],
       stages:{runup:'01 加速助跑',wall:'02 攀上弧牆',climb:'03 起飛翻滾',descent:'04 準備落地',landed:'著陸成功',crash:'這次先記住一件事'},
-      actions:{drive:'按住油門一路上牆，先別用噴射器。',prepare:'繼續油門；彎過頭頂前準備按住吸附。',stick:'反翹段：油門＋吸附一起按住，直到離牆。',level:'用單側噴射把車身轉正；接近水平就放開。',damp:'停止單側翻滾，讓轉速收住；先求穩再求圈數。',brake:'輪胎已朝下：雙鍵噴射減緩下墜，留意空氣。',coast:'姿態已扶正；還在上升，放開噴射保留空氣。',hold:'保持輪胎朝下，放開單側噴射，穩住迎接地面。',empty:'空氣用盡：放開噴射；下一輪少做一次修正。',landed:'漂亮！你的落地已由原始物理判定通過。',fall:'下次先練吸附：反翹段持續按住 X，再追翻滾。',wall:'下次先留出離牆距離，再開始翻滾。',tilt:'下次提早轉正，輪胎朝下後放開單側噴射。',hard:'下次更早扶正，再用雙鍵噴射減速；別等到貼地。'},
-      keys:{drive:'SPACE / W',prepare:'SPACE ＋ 準備 X',stick:'SPACE ＋ X',level:'← 或 → / A 或 D',damp:'放開 ← →',brake:'← ＋ → / A ＋ D',coast:'放開 ← →',hold:'保持姿態',empty:'重新規劃用氣'},
-      tilt:'姿態',descent:'下墜',spin:'轉速',live:'目前狀態，不代表落地保證',fold:'收起教練',unfold:'展開教練',passed:'駕照任務通過',retry:'帶著這個提示再試 →',continue:'挑戰下一項 →',practice:'本輪練習重點',next:'下一項',mastered:'三項技巧完成；接著挑戰更好的原始分數。',checkpoint:'助跑 → 上牆 → 起飛 → 落地',
+      actions:{drive:'按住油門一路上牆，先別用噴射器。',prepare:'繼續油門；彎過頭頂前準備按住吸附。',stick:'反翹段：油門＋吸附一起按住，直到離牆。',level:'用單側噴射把車身轉正；接近水平就放開。',damp:'停止單側翻滾，讓轉速收住；先求穩再求圈數。',brake:'輪胎已朝下：按 B 或雙鍵噴射減緩下墜，留意空氣。',coast:'姿態已扶正；還在上升，放開噴射保留空氣。',hold:'保持輪胎朝下，放開單側噴射，穩住迎接地面。',empty:'空氣用盡：放開噴射；下一輪少做一次修正。',landed:'漂亮落地。下一趟試著收得更穩。',fall:'下次先練吸附：反翹段持續按住 X，再追翻滾。',wall:'下次先留出離牆距離，再開始翻滾。',tilt:'下次提早轉正，輪胎朝下後放開單側噴射。',hard:'下次更早扶正，再用雙鍵噴射減速；別等到貼地。'},
+      keys:{drive:'SPACE / W',prepare:'SPACE ＋ 準備 X',stick:'SPACE ＋ X',level:'← 或 → / A 或 D',damp:'放開 ← →',brake:'B / ← ＋ →',coast:'放開 ← →',hold:'保持姿態',empty:'重新規劃用氣'},
+      tilt:'姿態',descent:'下墜',spin:'轉速',live:'目前狀態，不代表落地保證',fold:'收起教練',unfold:'展開教練',passed:'駕照任務通過',retry:'帶著這個提示再試 →',continue:'挑戰下一項 →',practice:'本輪練習重點',next:'下一項',mastered:'三項技巧完成，接著挑戰更高分。',checkpoint:'助跑 → 上牆 → 起飛 → 落地',
     },
     en: {
       label:'FLIGHT LICENSE',goals:['01 Clean landing','02 Flip & land','03 Precision landing','Flight license complete'],
       targets:['Land successfully on your tires','Complete at least one roll and land','Land with SOFT ≥20/30 and LEVEL ≥15/20','Free flight: link all three skills in one run'],
       stages:{runup:'01 Build speed',wall:'02 Climb the wall',climb:'03 Airborne',descent:'04 Landing approach',landed:'Touchdown confirmed',crash:'One thing to try next'},
-      actions:{drive:'Hold the throttle all the way up. Save the jets for flight.',prepare:'Keep driving. Get ready to hold suction over the overhang.',stick:'Overhang: hold throttle + suction until you leave the wall.',level:'Use one jet to roll upright. Release it as you reach level.',damp:'Release the single jet to settle rotation. Stability before rolls.',brake:'Tires down: use both jets to slow descent. Watch your air.',coast:'Aligned and still climbing. Release the jets to save air.',hold:'Keep tires down. Release the single jet and settle for touchdown.',empty:'Out of air. Next run, make fewer corrections.',landed:'Touchdown passed the original physics checks.',fall:'Next run: hold suction over the entire overhang before chasing rolls.',wall:'Next run: clear the wall before starting a roll.',tilt:'Next run: level out earlier and release the single jet when upright.',hard:'Next run: level out earlier, then use both jets to slow descent.'},
-      keys:{drive:'SPACE / W',prepare:'SPACE + prepare X',stick:'SPACE + X',level:'← or → / A or D',damp:'Release ← →',brake:'← + → / A + D',coast:'Release ← →',hold:'Keep level',empty:'Plan your air'},
-      tilt:'Tilt',descent:'Descent',spin:'Spin',live:'Current state, not an impact prediction',fold:'Minimize coach',unfold:'Expand coach',passed:'License objective cleared',retry:'Try that adjustment →',continue:'Try the next skill →',practice:'This run’s practice target',next:'Next skill',mastered:'All three skills cleared. Chase a better original score.',checkpoint:'Run-up → Wall → Launch → Land',
+      actions:{drive:'Hold the throttle all the way up. Save the jets for flight.',prepare:'Keep driving. Get ready to hold suction over the overhang.',stick:'Overhang: hold throttle + suction until you leave the wall.',level:'Use one jet to roll upright. Release it as you reach level.',damp:'Release the single jet to settle rotation. Stability before rolls.',brake:'Tires down: hold B or both jets to slow descent. Watch your air.',coast:'Aligned and still climbing. Release the jets to save air.',hold:'Keep tires down. Release the single jet and settle for touchdown.',empty:'Out of air. Next run, make fewer corrections.',landed:'Clean touchdown. Try a softer, flatter landing next run.',fall:'Next run: hold suction over the entire overhang before chasing rolls.',wall:'Next run: clear the wall before starting a roll.',tilt:'Next run: level out earlier and release the single jet when upright.',hard:'Next run: level out earlier, then hold B or both jets to slow descent.'},
+      keys:{drive:'SPACE / W',prepare:'SPACE + prepare X',stick:'SPACE + X',level:'← or → / A or D',damp:'Release ← →',brake:'B / ← + →',coast:'Release ← →',hold:'Keep level',empty:'Plan your air'},
+      tilt:'Tilt',descent:'Descent',spin:'Spin',live:'Current state, not an impact prediction',fold:'Minimize coach',unfold:'Expand coach',passed:'License objective cleared',retry:'Try that adjustment →',continue:'Try the next skill →',practice:'This run’s practice target',next:'Next skill',mastered:'All three skills cleared. Chase a higher score.',checkpoint:'Run-up → Wall → Launch → Land',
     }
   };
-  function mount({ language, onRetry, mode, club, garage }) {
+  function mount({ language, onRetry, mode, club, garage, onUpload, canUpload = () => false }) {
     const key = 'wallflip.flightLicense.v1';
     let completed = 0;
     try { completed = Math.max(0, Math.min(3, Math.floor(Number(localStorage.getItem(key)) || 0))); } catch (_) {}
-    let target = completed, result = null, unlocked = false, compact = false;
+    let target = completed, result = null, unlocked = false, compact = true;
     const root = document.createElement('section');
-    root.className = 'wf-flight-coach'; root.hidden = true; root.dataset.testid = 'flight-coach';
+    root.className = 'wf-flight-coach compact'; root.hidden = true; root.dataset.testid = 'flight-coach';
     root.setAttribute('aria-label','Flight coach');
     root.innerHTML = '<header><span data-flight-license></span><button type="button" data-flight-toggle aria-expanded="true">−</button></header><div class="wf-flight-body"><div class="wf-flight-target"></div><p class="wf-flight-target-detail"></p><div class="wf-flight-checkpoints" aria-hidden="true"></div><div class="wf-flight-instruction" aria-live="polite"><strong data-flight-stage></strong><p data-flight-action></p></div><kbd data-flight-keys></kbd><div class="wf-flight-metrics"><span data-coach-metric="tilt"></span><span data-coach-metric="descent"></span><span data-coach-metric="spin"></span></div><small data-flight-caveat></small></div>';
     document.body.append(root);
@@ -71,6 +76,10 @@
     review.innerHTML='<span data-review-label></span><strong data-review-title></strong><p data-review-tip></p><button type="button" data-coach-retry></button>';
     const reviewContainer = mode === '3d' ? document.getElementById('result') : document.body;
     reviewContainer.append(review);
+    const upload = document.createElement('button');
+    upload.type='button'; upload.className='wf-upload-score'; upload.hidden=true; upload.dataset.testid='upload-score';
+    upload.addEventListener('click', () => onUpload?.());
+    review.append(upload);
     club?.attachCoach(root.querySelector('.wf-flight-body'), review);
     garage?.attachCoach(root.querySelector('.wf-flight-body'));
     garage?.attach(review, true);
@@ -95,6 +104,8 @@
     function render(state, { active, reviewing, blocked=false } = {}) {
       root.hidden=!active || blocked; review.hidden=!reviewing || blocked || !result;
       const w=strings();
+      upload.hidden=!result?.win || !canUpload();
+      upload.textContent=language()==='en' ? 'Upload this score' : '上傳這次成績';
       club?.render(state);
       garage?.refresh();
       if (!root.hidden) {
@@ -109,6 +120,7 @@
         const values=[['tilt',a.tilt*180/Math.PI,25,'°',a.aligned],['descent',a.descent*3.6,18,' km/h',a.slow],['spin',a.spin,2.5,' rad/s',a.settled]];
         for(const [name,value,limit,unit,ok] of values){const el=$('[data-coach-metric="'+name+'"]');text(el,w[name]+' '+value.toFixed(name==='spin'?1:0)+unit+' / '+limit+unit);el.classList.toggle('within',ok);}
         text($('[data-flight-caveat]'),w.live);
+        $('[data-flight-toggle]').setAttribute('aria-expanded',String(!compact));
         text($('[data-flight-toggle]'),compact?'+':'−'); $('[data-flight-toggle]').setAttribute('aria-label',compact?w.unfold:w.fold);
       }
       if (!review.hidden) {
@@ -127,5 +139,5 @@
     }
     return {begin,finish,render};
   }
-  global.WallFlipFlight=Object.freeze({tiltOf,analyse,advance,limits,mount});
+  global.WallFlipFlight=Object.freeze({tiltOf,orientation,analyse,advance,limits,mount});
 })(globalThis);

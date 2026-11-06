@@ -122,6 +122,8 @@
 <script src="stunt-club.js"></script>
 <link rel="stylesheet" href="vehicle-garage.css">
 <script src="vehicle-garage.js"></script>
+<script src="cyber-city.js"></script>
+<link rel="stylesheet" href="experience.css">
 </head>
 <body data-view-mode="2d">
 <canvas id="c"></canvas>
@@ -219,7 +221,7 @@ const STR = {
     mLaunch: '起飛！單鍵翻滾、雙鍵減速', mPeel: '剝離墜落！', mStall: '失速了！滑回地面再衝一次', mNoAir: '空氣用盡！', mGrip: '沒按住吸附會剝離！',
     mLand: (s, l) => `著地！SOFT ${s}/30 · LEVEL ${l}/20`,
     mAch: (n) => `成就解鎖：${n}`, achJoin: '、', mCopied: '成績已複製到剪貼簿！',
-    win: '著地成功!!', lose: '克拉希…',
+    win: '著陸成功', lose: '克拉希…',
     rFall: '從牆上剝離了。反翹段要一直按住吸附。', rWall: '撞上牆壁了。',
     rHard: (k) => `落地速度 ${k} km/h——要更早用雙鍵減速。`, rTilt: (d) => `以傾斜 ${d}° 的姿態觸地了。`,
     rowRolls: (n) => `翻滾 ${n} 回`, rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', pts: '點',
@@ -230,7 +232,7 @@ const STR = {
     boardTitle: (cn) => `排行榜 · ${cn}`, colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
     boardBtn: '排行榜', langBtn: 'EN',
     ghostBtn: '幽靈', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: '幽靈已更新！', ghostLabel: '幽靈',
-    padStick: '吸いつく', padLeft: '左', padRight: '右', padGo: 'すすむ',
+    padStick: '吸附', padLeft: '左', padRight: '右', padBrake: '煞降', padGo: '油門',
     ach_land: '初著地', ach_roll1: '初翻滾', ach_roll2: '兩圈', ach_roll3: '三圈', ach_soft30: '滿柔軟', ach_legend: '傳說', ach_far100: '百米', ach_eco: '省氣王',
     // online leaderboard
     tabOnline: '世界排行', tabLocal: '本機紀錄', onlineMark: '世界排行',
@@ -251,7 +253,7 @@ const STR = {
     webglFallback: '此裝置不支援 WebGL，已改用 2D 模式。',
     alignSafe: '姿態對齊', alignInverted: '倒掛特技中', alignWarn: '傾角過大',
     vviSoft: '柔軟著地 (+30)', vviHard: '減速不足', vviHazard: '墜毀預警 (雙鍵減速)',
-    stuntMilestone: (n) => n === 1 ? '360° 空中翻滾！+50' : n === 2 ? '720° 雙重翻滾！+150' : n === 3 ? '1080° 三重特技！+300' : `${n * 360}° 極限特技！+${n * 150}`,
+    stuntMilestone: (n) => `翻滾 ×${n} · 落地可得 ${n * 50} 基礎分`,
     cockpitLeftTag: 'L-WING AVIONICS',
     cockpitLeftTitle: '姿態儀與過載遙測',
     cockpitRightTag: 'R-WING RADAR',
@@ -261,11 +263,11 @@ const STR = {
     lblGMeter: 'G-METER 加速度',
     stallAlert: '⚠️ STALL 臨界失速',
     pullUpAlert: '⚠️ PULL UP 減速拉起',
-    comboTitle: 'COMBO 連擊',
+    comboTitle: '特技種類',
     spinDeg: '空中翻滾',
-    stuntSkim: '⚡ 貼地極限掠過 (+0.5x)',
-    stuntInvert: '🔄 反重力倒飛 (+0.4x)',
-    stuntSwitch: '🔀 雙向翻滾反轉 (+0.3x)',
+    stuntSkim: '⚡ 貼地極限掠過',
+    stuntInvert: '🔄 反重力倒飛',
+    stuntSwitch: '🔀 雙向翻滾反轉',
     vviText: '垂直降速 VVI',
     stabForecast: '即時穩定指標', stabPending: '尚未起飛',
     stabLegend: '姿態平穩',
@@ -306,7 +308,7 @@ const STR = {
     boardTitle: (cn) => `LEADERBOARD · ${cn}`, colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
     boardBtn: 'RANKING', langBtn: '中文',
     ghostBtn: 'GHOST', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: 'Ghost updated!', ghostLabel: 'GHOST',
-    padStick: 'STICK', padLeft: '←', padRight: '→', padGo: 'GO',
+    padStick: 'STICK', padLeft: '←', padRight: '→', padBrake: 'BRAKE', padGo: 'GO',
     ach_land: 'First Land', ach_roll1: 'First Flip', ach_roll2: 'Double', ach_roll3: 'Triple', ach_soft30: 'Butter', ach_legend: 'Legend', ach_far100: '100m+', ach_eco: 'Eco',
     // online leaderboard
     tabOnline: 'WORLD', tabLocal: 'LOCAL', onlineMark: 'WORLD',
@@ -327,7 +329,7 @@ const STR = {
     webglFallback: 'WebGL is unavailable on this device — stayed on 2D.',
     alignSafe: 'ALIGNED', alignInverted: 'INVERTED', alignWarn: 'TILT WARNING',
     vviSoft: 'SOFT ZONE (+30)', vviHard: 'FIRM DESCENT', vviHazard: 'CRASH HAZARD (BRAKE)',
-    stuntMilestone: (n) => n === 1 ? '360° SINGLE FLIP! +50' : n === 2 ? '720° DOUBLE FLIP! +150' : n === 3 ? '1080° TRIPLE FLIP! +300' : `${n * 360}° STUNT MASTER! +${n * 150}`,
+    stuntMilestone: (n) => `FLIP ×${n} · LAND TO BANK ${n * 50}`,
     cockpitLeftTag: 'L-WING AVIONICS',
     cockpitLeftTitle: 'Attitude & G-Force',
     cockpitRightTag: 'R-WING RADAR',
@@ -337,11 +339,11 @@ const STR = {
     lblGMeter: 'G-METER',
     stallAlert: '⚠️ STALL CRITICAL',
     pullUpAlert: '⚠️ PULL UP BRAKE',
-    comboTitle: 'COMBO MULT',
+    comboTitle: 'STUNT VARIETY',
     spinDeg: 'SPIN DEG',
-    stuntSkim: '⚡ DECK SKIM (+0.5x)',
-    stuntInvert: '🔄 INVERTED FLIGHT (+0.4x)',
-    stuntSwitch: '🔀 DUAL-DIRECTION SWITCH (+0.3x)',
+    stuntSkim: '⚡ DECK SKIM',
+    stuntInvert: '🔄 INVERTED FLIGHT',
+    stuntSwitch: '🔀 DUAL-DIRECTION SWITCH',
     vviText: 'VVI DESCENT',
     stabForecast: 'CURRENT STABILITY', stabPending: 'NOT AIRBORNE',
     stabLegend: 'STABLE NOW',
@@ -517,7 +519,6 @@ function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = Math.floor(innerWidth * DPR); canvas.height = Math.floor(innerHeight * DPR);
   canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
-  layoutBtns();
 }
 
 // Night instrument on true-black-flat. The road is the picture, so the chrome
@@ -547,7 +548,11 @@ const garage = window.WallFlipGarage.mount({language: () => lang, onChange: () =
 document.body.dataset.vehicle = garage.active.id;
 let clubPaint = window.WallFlipClub.paints[0];
 const stuntClub = window.WallFlipClub.mount({language: () => lang, onPaint: paint => { clubPaint = paint; }});
-const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '2d', club: stuntClub, garage, onRetry: () => { ensureAudio(); reset(false); }});
+const toolsBar=document.createElement('div');toolsBar.className='wf-2d-tools';
+const telemetryButton=document.createElement('button');telemetryButton.type='button';telemetryButton.textContent='儀表';telemetryButton.setAttribute('aria-pressed','false');
+telemetryButton.addEventListener('click',()=>{const open=document.body.dataset.telemetry!=='open';document.body.dataset.telemetry=open?'open':'closed';telemetryButton.setAttribute('aria-pressed',String(open));telemetryButton.blur();});
+toolsBar.append(telemetryButton);document.body.append(toolsBar);
+const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '2d', club: stuntClub, garage, onUpload: () => openNamePanel(), canUpload: () => !botOn && !!apiBase() && !submitThrottled(), onRetry: () => { ensureAudio(); reset(false); }});
 
 // ---------- tuning: original baseline, with per-run vehicle modifiers ----------
 const G = 9.8;
@@ -705,7 +710,7 @@ const car = {
   spinTotal: 0, rollsAccum: 0, spinRight: 0, spinLeft: 0,
   hasSwitchedDir: false, phase: 'upright',
 };
-const inp = { drive: false, stick: false, left: false, right: false };
+const inp = { drive: false, stick: false, left: false, right: false, brake:false };
 const stats = { rolls: 0, soft: 0, level: 0, total: 0, fall: 0, tilt: 0, dist: 0, reason: '', win: false };
 let best = 0, rankOn = false, rankHi = -1, boardView = [];
 function bestKey() { return vehicleRecordKey('wallflip2.best.' + (courseIdx === 0 ? 'A' : 'B')); }
@@ -805,7 +810,7 @@ function submitThrottled() {
 // is deterministic, so the server can replay a run from this log alone
 function logInputFrame() {
   inputLogFrames++;
-  const mask = (inp.stick ? 1 : 0) | (inp.drive ? 2 : 0) | (inp.left ? 4 : 0) | (inp.right ? 8 : 0);
+  const mask = (inp.stick ? 1 : 0) | (inp.drive ? 2 : 0) | ((inp.left || inp.brake) ? 4 : 0) | ((inp.right || inp.brake) ? 8 : 0);
   if (mask !== inputLogLast) {
     if (inputLog.length < LOG_CAP) inputLog.push([inputLogFrames, mask]);
     inputLogFrames = 0;
@@ -1198,6 +1203,7 @@ function keySet(e, down) {
     case 'KeyX': case 'ArrowDown': case 'KeyS': inp.stick = down; return true;
     case 'ArrowLeft': case 'KeyA': inp.left = down; return true;
     case 'ArrowRight': case 'KeyD': inp.right = down; return true;
+    case 'KeyB': inp.brake = down; return true;
     case 'KeyM': if (down) muted = !muted; return true;
     case 'KeyL': if (down) { ensureAudio(); if (state === ST.READY || state === ST.RESULT) { if (rankOn) closeRank(); else openRank(); } } return true;
     case 'KeyR': if (down && state !== ST.READY) reset(false); return true;
@@ -1231,7 +1237,6 @@ function pressStart() {
   if (state === ST.READY) { botOn = false; startRun(); }
   else if (state === ST.RESULT) reset(false);
 }
-const btns = [];
 const readyUI = { prev: null, next: null, board: null }; // start-screen hit rects
 const resultUI = { board: null };                        // result-screen hit rect
 function hitRect(rc, px, py) { return !!rc && px >= rc.x && px <= rc.x + rc.w && py >= rc.y && py <= rc.y + rc.h; }
@@ -1243,14 +1248,6 @@ function setCourse(idx) {
   loadBest();
   rankHi = -1;
   if (state === ST.READY) { reset(true); camSnapSafe(); }
-}
-function layoutBtns() {
-  btns.length = 0;
-  const w = W(), h = H(), u = Math.min(w, h) / 9, y0 = h - u * 1.4, bw = u * 2.1, bh = u * 1.15;
-  btns.push({ key: 'stick', x: u * 1.9, y: y0, w: bw, h: bh, labelKey: 'padStick', sub: 'X' });
-  btns.push({ key: 'left', x: w / 2 - u * 2.4, y: y0, w: bw, h: bh, labelKey: 'padLeft', sub: '←' });
-  btns.push({ key: 'right', x: w / 2 + u * 0.1, y: y0, w: bw, h: bh, labelKey: 'padRight', sub: '→' });
-  btns.push({ key: 'drive', x: w - u * 2.1, y: y0, w: bw, h: bh, labelKey: 'padGo', sub: 'SPACE' });
 }
 const activePtr = new Map();
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -1282,16 +1279,28 @@ canvas.addEventListener('pointerdown', e => {
     if (hitRect(resultUI.board, px, py)) { openRank(); return; }
     reset(false); return;
   }
-  for (const b of btns) {
-    if (Math.abs(px - b.x) < b.w / 1.7 && Math.abs(py - b.y) < b.h / 1.4) { activePtr.set(e.pointerId, b.key); inp[b.key] = true; return; }
-  }
+
 });
 function ptrEnd(e) {
   const k = activePtr.get(e.pointerId);
-  if (k) { inp[k] = false; activePtr.delete(e.pointerId); }
+  if (k) { activePtr.delete(e.pointerId); inp[k] = [...activePtr.values()].includes(k); }
 }
 addEventListener('pointerup', ptrEnd);
 addEventListener('pointercancel', ptrEnd);
+const translatePad=key=>t(key);
+const touchPad=document.createElement('div');touchPad.id='pad';touchPad.className='show';touchPad.hidden=true;
+const touchControls=[['stick','padStick','X'],['left','padLeft','←'],['brake','padBrake','B'],['right','padRight','→'],['drive','padGo','W']];
+for(const [action,label,key] of touchControls) {
+  const button=document.createElement('button');button.type='button';button.dataset.act=action;button.dataset.label=label;
+  button.innerHTML='<span></span><small>'+key+'</small>';
+  button.addEventListener('pointerdown',event=>{
+    event.preventDefault();ensureAudio();button.setPointerCapture(event.pointerId);
+    activePtr.set(event.pointerId,action);inp[action]=true;
+  });
+  touchPad.append(button);
+}
+document.body.append(touchPad);
+
 
 // ---------- particles ----------
 function dust(x, y, n, pw) {
@@ -1476,7 +1485,7 @@ function stepRoad(dt) {
   const canSuck = inp.stick && car.air > 0;
   if (canSuck) car.air = Math.max(0, car.air - AIR_SUCK * dt);
   const A = canSuck ? SUCK : 0;
-  const jetL = inp.left && car.air > 0, jetR = inp.right && car.air > 0;
+  const jetL = (inp.left || inp.brake) && car.air > 0, jetR = (inp.right || inp.brake) && car.air > 0;
   const Z = (jetL ? 1 : 0) + (jetR ? 1 : 0);
   if (Z) car.air = Math.max(0, car.air - AIR_JET * Z * dt);
   car.suck = canSuck; car.onWall = car.u > 0;
@@ -1528,7 +1537,7 @@ function localPoint(pt) {
 }
 function stepAir(dt) {
   car.airTime += dt;
-  const jL = inp.left && car.air > 0, jR = inp.right && car.air > 0;
+  const jL = (inp.left || inp.brake) && car.air > 0, jR = (inp.right || inp.brake) && car.air > 0;
   const Z = (jL ? 1 : 0) + (jR ? 1 : 0);
   if (Z) car.air = Math.max(0, car.air - AIR_JET * Z * dt);
   const rx = -sin(car.phi), ry = cos(car.phi); // roof direction
@@ -1743,13 +1752,7 @@ function showResult() {
       if (stats.total > 0) boardAdd();
       if (ghostOn && stats.total > ghostBest) saveGhost();
     }
-    // online submit: offer the name-entry panel shortly after the result
-    // settles (never for bot/demo runs, only when a rank API is configured)
-    if (!botOn && apiBase() && !submitThrottled()) {
-      setTimeout(() => {
-        if (!botOn && state === ST.RESULT && stats.win && stats.total > 0) openNamePanel();
-      }, 900);
-    }
+
   } else {
     stats.soft = 0; stats.level = 0; stats.rollPts = 0; stats.total = 0;
   }
@@ -1890,122 +1893,23 @@ function screenTransform() { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
 
 // ---------- scenery & game assets ----------
 const ASSETS = {
-  sky: new Image(),
-  car: new Image(),
   badge: new Image(),
 };
-ASSETS.sky.src = 'assets/sky-backdrop.webp';
-ASSETS.sky.onerror = () => { if (ASSETS.sky.src.endsWith('.webp')) ASSETS.sky.src = 'assets/sky-backdrop.jpg'; };
-const paintedCars = new Map();
-function paintedCar() {
-  if (!paintedCars.has(clubPaint.id)) {
-    const sprite = document.createElement('canvas');
-    sprite.width = ASSETS.car.naturalWidth; sprite.height = ASSETS.car.naturalHeight;
-    const paint = sprite.getContext('2d');
-    paint.drawImage(ASSETS.car, 0, 0);
-    paint.globalCompositeOperation = 'multiply'; paint.fillStyle = clubPaint.color;
-    paint.fillRect(0, 0, sprite.width, sprite.height);
-    paint.globalCompositeOperation = 'destination-in'; paint.drawImage(ASSETS.car, 0, 0);
-    paintedCars.set(clubPaint.id, sprite);
-  }
-  return paintedCars.get(clubPaint.id);
-}
-ASSETS.car.src = 'assets/roadster-chassis.webp';
-ASSETS.car.onerror = () => { if (ASSETS.car.src.endsWith('.webp')) ASSETS.car.src = 'assets/roadster-chassis.png'; };
 ASSETS.badge.src = 'assets/stunt-badge.webp';
 ASSETS.badge.onerror = () => { if (ASSETS.badge.src.endsWith('.webp')) ASSETS.badge.src = 'assets/stunt-badge.png'; };
 
-const trees = [], poles = [], stars = [];
-for (let i = 0; i < 60; i++) trees.push({ x: rand(-260, 320), z: rand(-140, -6), s: rand(4, 12), h: rand(.28, .36), l: rand(.08, .2) });
-for (let x = -270; x <= 320; x += 45) poles.push(x);
-for (let i = 0; i < 80; i++) stars.push({ x: Math.random(), y: Math.random() * 0.5, r: rand(0.5, 1.4), tw: rand(0, TAU) });
-const ufo = { x: 0, y: 60, ph: rand(0, TAU) };
-
-function drawSky(t) {
+function drawSky() {
   screenTransform();
-  ctx.fillStyle = '#06080d';
-  ctx.fillRect(0, 0, W(), H());
-
-  // Parallax panoramic cyberpunk skyline backdrop
-  const sky = ASSETS.sky;
-  if (sky && sky.complete && sky.naturalWidth > 0) {
-    ctx.save();
-    const aspect = sky.naturalWidth / sky.naturalHeight;
-    const bgH = Math.max(H(), W() / aspect);
-    const bgW = bgH * aspect;
-    const px = (-(cam.x * 2.8) % bgW) - bgW * 0.1;
-    const py = clamp(-(cam.y - 12) * 2.2, -bgH * 0.45, 0);
-
-    for (let offset = -bgW; offset < W() + bgW; offset += bgW) {
-      ctx.drawImage(sky, px + offset, py, bgW, bgH);
-    }
-    // Atmospheric dark gradient overlay
-    const grad = ctx.createLinearGradient(0, 0, 0, H());
-    grad.addColorStop(0, 'rgba(6, 8, 13, 0.7)');
-    grad.addColorStop(0.25, 'rgba(6, 8, 13, 0.15)');
-    grad.addColorStop(0.75, 'rgba(6, 8, 13, 0.3)');
-    grad.addColorStop(1, 'rgba(6, 8, 13, 0.85)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W(), H());
-    ctx.restore();
-  }
-
-  for (const s of stars) {
-    ctx.globalAlpha = (0.3 + 0.3 * Math.sin(t * 1.5 + s.tw)) * (1 - s.y / 0.55);
-    ctx.fillStyle = '#dfe8ff';
-    ctx.fillRect(s.x * W(), s.y * H(), s.r, s.r);
-  }
-  ctx.globalAlpha = 1;
-  // UFO easter egg
-  const ux = W() * (0.5 + 0.32 * Math.sin(t * 0.11 + ufo.ph)), uy = H() * 0.16 + Math.sin(t * 0.9) * 6;
-  ctx.fillStyle = '#9aa3ad';
-  ctx.beginPath(); ctx.ellipse(ux, uy, 26, 6, 0, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#6ff0d0';
-  ctx.beginPath(); ctx.ellipse(ux, uy - 4, 12, 7, 0, Math.PI, 0); ctx.fill();
-  for (let i = 0; i < 8; i++) {
-    ctx.fillStyle = `hsl(${(t * 60 + i * 45) % 360} 80% ${(Math.floor(t * 4) + i) % 2 ? 65 : 40}%)`;
-    ctx.fillRect(ux - 20 + i * 5.4, uy + 1, 2.4, 2.4);
-  }
+  window.WallFlipCity.draw2d(ctx,W(),H(),cam.x,cam.y);
 }
-function drawScenery(t) {
+function drawScenery() {
   worldTransform();
-  const vl = cam.x - W() / cam.scale, vr = cam.x + W() / cam.scale;
-  // ground
-  ctx.fillStyle = '#162016';
-  ctx.fillRect(vl, -60, vr - vl, 60);
-  ctx.fillStyle = '#16191e';
-  ctx.fillRect(vl, -2.2, vr - vl, 2.2);
-  // poles + sagging wires (far z, dimmed)
-  ctx.strokeStyle = '#2a2e33'; ctx.lineWidth = 0.12;
-  ctx.beginPath();
-  let prevTop = null;
-  for (const px of poles) {
-    if (px < vl - 10 || px > vr + 10) { prevTop = null; continue; }
-    ctx.moveTo(px, 0); ctx.lineTo(px, 11);
-    if (prevTop !== null) {
-      for (let i = 0; i < 6; i++) {
-        const a = i / 6, b = (i + 1) / 6;
-        ctx.moveTo(lerp(prevTop[0], px, a), prevTop[1] - Math.sin(Math.PI * a) * 0.9);
-        ctx.lineTo(lerp(prevTop[0], px, b), prevTop[1] - Math.sin(Math.PI * b) * 0.9);
-      }
-    }
-    prevTop = [px, 10.4];
-  }
-  ctx.stroke();
-  // trees (parallax by fake z: size + dim only, all rooted at y=0)
-  for (const tr of trees) {
-    if (tr.x < vl - 12 || tr.x > vr + 12) continue;
-    const dep = clamp(1 + tr.z / 160, 0.35, 1); // far trees smaller & dimmer
-    const sc = 0.5 + dep * 0.7;
-    const hgt = tr.s * tr.h * 2.6 * sc;
-    ctx.fillStyle = `rgba(58,44,34,${0.85 * dep})`;
-    ctx.fillRect(tr.x - 0.14 * sc, 0, 0.28 * sc, hgt * 0.35);
-    ctx.fillStyle = `hsl(130 14% ${4 + tr.l * 60 * dep}%)`;
-    ctx.beginPath();
-    ctx.moveTo(tr.x, hgt);
-    ctx.lineTo(tr.x - tr.s * 0.3 * sc, hgt * 0.3);
-    ctx.lineTo(tr.x + tr.s * 0.3 * sc, hgt * 0.3);
-    ctx.closePath(); ctx.fill();
+  const vl=cam.x-W()/cam.scale,vr=cam.x+W()/cam.scale;
+  ctx.fillStyle='#0c1220';ctx.fillRect(vl,-60,vr-vl,60);
+  ctx.fillStyle='#131d2e';ctx.fillRect(vl,-2.2,vr-vl,2.2);
+  for(let x=Math.floor(vl/18)*18;x<vr;x+=18) {
+    ctx.fillStyle='#28d4ef';ctx.globalAlpha=.12;ctx.fillRect(x,-1,4,.4);
+    ctx.fillStyle='#ee368c';ctx.fillRect(x+7,-1.6,2,.3);ctx.globalAlpha=1;
   }
 }
 function drawRoad(t) {
@@ -2110,21 +2014,6 @@ function drawParts() {
     }
   }
 }
-// body outline path in the body-center frame (shared by the real car and the ghost)
-function bodyPath() {
-  ctx.beginPath();
-  ctx.moveTo(-2.2, -0.2);
-  ctx.lineTo(-2.26, 0.12);
-  ctx.lineTo(-2.0, 0.3);
-  ctx.lineTo(-1.4, 0.3);
-  ctx.lineTo(-0.5, 0.55);
-  ctx.lineTo(0.2, 0.54);
-  ctx.lineTo(0.75, 0.24);
-  ctx.lineTo(2.06, 0.16);
-  ctx.lineTo(2.22, -0.04);
-  ctx.lineTo(2.22, -0.2);
-  ctx.closePath();
-}
 function drawCar(t) {
   worldTransform();
   // suction glow under the wheels
@@ -2165,62 +2054,12 @@ function drawCar(t) {
     ctx.closePath(); ctx.fill();
   }
   const jetsOn = car.air > 0 && (car.mode === 'air' || car.mode === 'road');
-  if (jetsOn && inp.left && !inp.right) flame(-hw + 0.3, axle + 0.1, 1.6 + 0.3 * Math.sin(t * 40), 0.3);
-  if (jetsOn && inp.right && !inp.left) flame(hw - 0.3, axle + 0.1, 1.6 + 0.3 * Math.sin(t * 40 + 2), 0.3);
-  if (jetsOn && inp.left && inp.right) { flame(-0.8, axle - 0.05, 2 + 0.4 * Math.sin(t * 42), 0.34); flame(0.8, axle - 0.05, 2 + 0.4 * Math.sin(t * 42 + 1), 0.34); }
+  if (jetsOn && inp.left && !inp.right && !inp.brake) flame(-hw + 0.3, axle + 0.1, 1.6 + 0.3 * Math.sin(t * 40), 0.3);
+  if (jetsOn && inp.right && !inp.left && !inp.brake) flame(hw - 0.3, axle + 0.1, 1.6 + 0.3 * Math.sin(t * 40 + 2), 0.3);
+  if (jetsOn && ((inp.left && inp.right) || inp.brake)) { flame(-0.8, axle - 0.05, 2 + 0.4 * Math.sin(t * 42), 0.34); flame(0.8, axle - 0.05, 2 + 0.4 * Math.sin(t * 42 + 1), 0.34); }
 
-  // wheels (rolling by traveled distance)
-  for (const wx of [-CAR.WHEEL_X, CAR.WHEEL_X]) {
-    ctx.fillStyle = '#15181e';
-    ctx.beginPath(); ctx.arc(wx, axle, wr, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#c9ced6';
-    ctx.beginPath(); ctx.arc(wx, axle, wr * 0.52, 0, TAU); ctx.fill();
-    ctx.save();
-    ctx.translate(wx, axle);
-    ctx.rotate(car.od || 0);
-    ctx.strokeStyle = '#565d66'; ctx.lineWidth = 0.045;
-    ctx.beginPath();
-    for (let i = 0; i < 4; i++) { ctx.rotate(Math.PI / 2); ctx.moveTo(0, 0); ctx.lineTo(wr * 0.48, 0); }
-    ctx.stroke();
-    ctx.restore();
-  }
-  // Vehicle-specific shells share the original collision chassis and wheelbase.
-  if (garage.active.id !== 'roadster') {
-    window.WallFlipGarage.draw2d(ctx, garage.active, clubPaint.color);
-  } else if (ASSETS.car && ASSETS.car.complete && ASSETS.car.naturalWidth > 0) {
-    ctx.save();
-    const curSpd = (car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy)) * 3.6;
-    if (curSpd > 85) {
-      ctx.shadowColor = '#6ff0d0';
-      ctx.shadowBlur = Math.min(16, (curSpd - 85) * 0.4);
-    }
-    // Flip Y because canvas worldTransform has inverted scale(cam.scale, -cam.scale)
-    ctx.scale(1, -1);
-    ctx.drawImage(paintedCar(), -2.32, -0.62, 4.64, 1.28);
-    ctx.restore();
-  } else {
-    const bg = ctx.createLinearGradient(0, -0.2, 0, 0.6);
-    bg.addColorStop(0, '#f6f8fa'); bg.addColorStop(0.45, clubPaint.color); bg.addColorStop(1, '#58736e');
-    ctx.fillStyle = bg;
-    bodyPath();
-    ctx.fill();
-    ctx.fillStyle = '#2a2d32';
-    ctx.beginPath();
-    ctx.moveTo(-0.5, 0.5);
-    ctx.lineTo(-0.3, 0.62);
-    ctx.lineTo(0.28, 0.6);
-    ctx.lineTo(0.62, 0.3);
-    ctx.lineTo(-0.4, 0.3);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#8f949b';
-    ctx.fillRect(-2.3, 0.34, 0.36, 0.07);       // spoiler
-    ctx.fillRect(-2.06, 0.22, 0.1, 0.14);       // spoiler stalk
-    ctx.strokeStyle = 'rgba(70,78,88,.5)'; ctx.lineWidth = 0.03;
-    ctx.beginPath(); ctx.moveTo(-0.05, -0.14); ctx.lineTo(0.02, 0.28); ctx.stroke();
-    ctx.fillStyle = '#ffe9a8'; ctx.fillRect(2.02, 0.06, 0.16, 0.09);
-    ctx.fillStyle = '#ff5c5c'; ctx.fillRect(-2.26, 0.12, 0.1, 0.1);
-    ctx.fillStyle = '#20242c'; ctx.fillRect(-2.0, -0.28, 4.0, 0.12);
-  }
+  for(const wx of [-CAR.WHEEL_X,CAR.WHEEL_X])window.WallFlipGarage.drawWheel2d(ctx,wx,axle,wr,car.od||0);
+  window.WallFlipGarage.draw2d(ctx, garage.active, clubPaint.color);
   ctx.restore();
 }
 
@@ -2247,9 +2086,7 @@ function drawGhost() {
   for (const wx of [-CAR.WHEEL_X, CAR.WHEEL_X]) {
     ctx.beginPath(); ctx.arc(wx, axle, CAR.WHEEL_R, 0, TAU); ctx.fill();
   }
-  if (garage.active.id === 'roadster') {
-    bodyPath(); ctx.fillStyle = '#c9ced6'; ctx.fill();
-  } else window.WallFlipGarage.draw2d(ctx,garage.active,'#c9ced6');
+  window.WallFlipGarage.draw2d(ctx,garage.active,'#c9ced6');
   ctx.restore();
 }
 
@@ -2292,6 +2129,7 @@ function wrapText(text, maxW) {
 function drawHUD() {
   screenTransform();
   const narrow = W() < 760;
+  if(narrow) ctx.translate(0,42);
   ctx.fillStyle = UI.chrome;
   ctx.fillRect(0, 0, W(), 48);
   ctx.fillStyle = UI.line;
@@ -2303,15 +2141,15 @@ function drawHUD() {
   const curRolls = car.mode === 'road' ? 0 : Math.max(rollsCount(car.phi, car.phiL), car.rollsAccum || 0);
   const rolls = car.mode === 'road' ? '0' : fmt(curRolls);
   const cols = [];
-  if (!narrow) {
+  if (!narrow && document.body.dataset.telemetry === 'open') {
     cols.push([t('hudHeight'), fmt(Math.max(0, car.y - CAR.H)) + ' m']);
     cols.push([t('hudDist'), distVal + ' m']);
   }
-  if (!narrow && state !== ST.READY) cols.push([t('best'), String(best)]);
+  if (!narrow && document.body.dataset.telemetry === 'open' && state !== ST.READY) cols.push([t('best'), String(best)]);
   cols.push([t('hudRolls'), rolls]);
   const colW = narrow ? 88 : 112;
   const viewGutter = 88;
-  const clusterX = W() - 20 - viewGutter - cols.length * colW;
+  const clusterX = narrow ? W()-92 : W() - 20 - viewGutter - cols.length * colW;
   const labelAt = (text, x, align) => {
     ctx.font = `600 12px ${SANS}`;
     ctx.fillStyle = UI.muted;
@@ -2324,7 +2162,7 @@ function drawHUD() {
     ctx.textAlign = align;
     ctx.fillText(text, x, 38);
   };
-  const airX = 118;
+  const airX = narrow ? 16 : 118;
   labelAt(t('hudAir'), airX, 'left');
   ctx.fillStyle = 'rgba(255,255,255,.14)';
   ctx.fillRect(airX, 28, 72, 4);
@@ -2332,7 +2170,7 @@ function drawHUD() {
   ctx.fillStyle = af < 0.25 ? UI.danger : UI.accent;
   ctx.fillRect(airX, 28, 72 * af, 4);
   figureAt(fmt(car.air), airX + 80, 'left', af < 0.25 ? UI.danger : UI.text);
-  const speedX = airX + 156;
+  const speedX = airX + (narrow ? 116 : 156);
   const speedText = fmt(spd * 3.6) + ' km/h';
   labelAt(t('hudSpeed'), speedX, 'left');
   ctx.font = `400 24px ${MONO}`;
@@ -2359,6 +2197,7 @@ function drawHUD() {
     figureAt(val, x + colW - 4, 'right');
     x += colW;
   }
+  if(narrow) ctx.translate(0,-42);
   ctx.textAlign = 'center';
   let my = H() * 0.18;
   for (const msg of msgs) {
@@ -2380,7 +2219,7 @@ function drawHUD() {
   }
 
   // Dual-wing Aerobatic Stunt Cockpit Telemetry (2D Canvas edition)
-  const showCockpit = state === ST.RUN || airMode;
+  const showCockpit = document.body.dataset.telemetry === 'open' && (state === ST.RUN || airMode);
   if (showCockpit && W() >= 640) {
     // Left Wing Avionics Card
     const lwX = 16, lwY = 56, lwW = 210, lwH = 110;
@@ -2488,7 +2327,7 @@ function drawHUD() {
 
     // Stunt combo
     ctx.font = `900 18px ${MONO}`; ctx.fillStyle = '#ffd166';
-    ctx.fillText(`x${(car.comboMult || 1.0).toFixed(1)}`, rwX + 12, rwY + 38);
+    ctx.fillText(String(Number(curRolls>0)+Number(!!car.hasSkimmed)+Number(!!car.hasInverted)+Number(!!car.hasSwitchedDir)), rwX + 12, rwY + 38);
     const rotTotal = Math.max(Math.abs(car.phi - car.phiL), car.spinTotal || 0);
     const rotDeg = Math.round(rotTotal * 180 / Math.PI);
     ctx.font = `500 10px ${MONO}`; ctx.fillStyle = UI.muted; ctx.textAlign = 'right';
@@ -2533,7 +2372,7 @@ function drawHUD() {
   }
 
   // Esports Key Matrix Guide HUD (desktop only)
-  if (!isTouch && !activePtr.size && W() >= 640) {
+  if (!isTouch && !activePtr.size && W() >= 640 && document.body.dataset.telemetry==='open') {
     const kmX = W() / 2, kmY = H() - 24;
     const keys = [
       { key: 'W', act: inp.drive, lbl: '推進' },
@@ -2563,25 +2402,7 @@ function drawHUD() {
       }
     }
   }
-  if (isTouch || activePtr.size) {
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (const b of btns) {
-      const on = inp[b.key];
-      const lit = on || b.key === 'drive';
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = lit ? '#ffffff' : '#2a2a2a';
-      roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, b.h / 2);
-      ctx.fill();
-      ctx.fillStyle = lit ? '#111111' : '#ffffff';
-      ctx.font = `600 ${b.h * 0.42}px ${SANS}`;
-      ctx.fillText(t(b.labelKey), b.x, b.y - b.h * 0.12);
-      ctx.font = `500 ${b.h * 0.26}px ${SANS}`;
-      ctx.fillText(b.sub, b.x, b.y + b.h * 0.26);
-    }
-    ctx.globalAlpha = 1;
-    ctx.textBaseline = 'alphabetic';
-  }
+
 }
 
 const RANKS = [[140, 'LEGEND!!!', '#ffd166'], [95, 'PERFECT!!', '#ff9f43'], [80, 'GREAT!', '#9fe8ff'], [0, 'GOOD!', '#cfe3f5']];
@@ -2836,10 +2657,17 @@ function drawRank() {
 
 let shakeT = 0, shakeA = 0;
 function render(t) {
-  drawSky(t);
+  touchPad.hidden=!(isTouch && state===ST.RUN && !rankOn && !apiPanel.classList.contains('on') && !namePanel.classList.contains('on'));
+  for(const button of touchPad.children) {
+    const text=translatePad(button.dataset.label);
+    if(button.firstElementChild.textContent!==text)button.firstElementChild.textContent=text;
+    button.classList.toggle('on',!!inp[button.dataset.act]);
+  }
+  telemetryButton.textContent=lang==='en'?'Instruments':'儀表';
+  drawSky();
   const ox = cam.x, oy = cam.y;
   if (shakeT > 0) { cam.x += shakeA * shakeT * Math.sin(t * 63); cam.y += shakeA * shakeT * Math.sin(t * 71); }
-  drawScenery(t);
+  drawScenery();
   drawRoad(t);
   drawSkids();
   drawGhost();

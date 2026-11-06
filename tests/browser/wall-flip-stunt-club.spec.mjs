@@ -51,12 +51,20 @@ test('wall-flip club: a real landing banks medals once, unlocks paint and a cras
     return { mode: sim.state.mode, land: sim.state.land };
   });
   expect(landing.mode).toBe('landed');
-  await page.locator('#nameSkipBtn').click({ timeout: 10000 });
+  await expect(page.getByTestId('flight-review')).toBeVisible();
+  await page.waitForTimeout(1100); // Regression: the old upload modal interrupted the result after 900 ms.
+  await expect(page.locator('#namePanel')).not.toHaveClass(/on/);
+  await page.getByTestId('upload-score').click();
+  await page.locator('#nameSkipBtn').click();
   await expect(page.getByTestId('flight-review')).toBeVisible();
   await expect(page.locator('.wf-club-outcome')).toContainText('★★★', { timeout: 10000 });
   const earned = await profile(page);
   expect(earned.medals.precision).toBe(3);
   expect(earned.streak).toBe(1);
+  const savedBoard=await page.evaluate(()=>localStorage.getItem('wallflip3.board'));
+  await page.locator('#langbtn').click();
+  await page.locator('#langbtn').click();
+  expect(await page.evaluate(()=>localStorage.getItem('wallflip3.board'))).toBe(savedBoard);
   await page.locator('.wf-club-next summary').click();
   const totalBox = await page.locator('#resTotal').boundingBox();
   const reviewBox = await page.getByTestId('flight-review').boundingBox();

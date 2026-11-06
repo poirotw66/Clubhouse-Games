@@ -36,6 +36,7 @@ test('wall-flip garage: actual 3D runtime spends the selected car’s air budget
   await expect(page.locator('#startBtn')).toBeVisible({timeout:15000});
   await garage(page).locator('summary').click();
   await garage(page).locator('button[data-vehicle="atlas"]').click();
+  await expect(page.locator('.wf-launch-caption')).toContainText('ATLAS');
   await garage(page).locator('summary').click();
   await page.locator('#startBtn').click();
   const used=await page.evaluate(()=>{

@@ -1,0 +1,59 @@
+/* Keep the stunt visible. Detailed instruments are an explicit player choice. */
+:root{--wf-cyan:#58def2;--wf-pink:#ef4c98;--wf-surface:#0d1425;}
+#camSelector,#stuntCockpit{display:none!important;}
+body[data-telemetry=open] #stuntCockpit:not([hidden]){display:flex!important;}
+body[data-telemetry=open][data-screen=play] #camSelector{display:flex!important;}
+#credit,#speedWarp,#hint,#retryBtn{display:none!important;}
+#ufoBtn,#apibtn,.hudtop>.hgroup:nth-child(2),.hudtop #best{display:none;}
+body[data-telemetry=open] #ufoBtn,body[data-telemetry=open] #apibtn{display:inline-block;}
+.hudtop{height:68px;min-height:68px;margin:0;padding:0 340px 0 124px;gap:28px;background:#10222ceb;border-bottom:1px solid #3b565f88;}
+.hudtop .hgroup{gap:25px;}.hudtop .panel{gap:8px;}.hudtop label{font:500 9px 'IBM Plex Mono',monospace;color:#8daeba;}.hudtop b{font:500 20px 'IBM Plex Mono',monospace;color:#e3f1ed;white-space:nowrap;}.hudtop #airText{font-size:14px;}.hudtop .hcol{margin:0;display:flex;align-items:center;gap:10px;}.hudtop .hrow{position:fixed;right:116px;top:14px;display:flex;align-items:center;gap:5px;}
+.hudtop .hrow button,.wf-2d-tools button{pointer-events:auto;min-height:32px;padding:0 9px;border:1px solid #405965;border-radius:7px;background:#172c37;color:#bed2da;font:500 11px 'IBM Plex Sans','PingFang TC',sans-serif;cursor:pointer;}.hudtop .hrow button[aria-pressed=true]{border-color:#58def2;color:#58def2;}
+.wf-2d-tools{position:fixed;z-index:27;top:7px;right:114px;}
+.wf-flight-coach{top:84px;left:22px;transform:none;width:320px;padding:12px 14px;background:#0d1425e8;border:1px solid #526e7588;border-radius:11px;box-shadow:0 7px 25px #07182330;}
+.wf-flight-coach header{font-size:9px;letter-spacing:.06em;color:#91a9c8;}.wf-flight-coach header button{min-height:24px;min-width:26px;background:transparent;border:1px solid #58717b;font-size:14px;}
+.wf-flight-coach.compact{width:320px;min-width:0;}.wf-flight-coach.compact .wf-flight-body{display:block;}.wf-flight-coach.compact .wf-flight-target,.wf-flight-coach.compact .wf-flight-target-detail,.wf-flight-coach.compact .wf-flight-checkpoints,.wf-flight-coach.compact .wf-club-live,.wf-flight-coach.compact .wf-vehicle-live,.wf-flight-coach.compact [data-flight-caveat]{display:none!important;}
+.wf-flight-coach .wf-flight-instruction{margin-top:9px;border-left:0;padding:0;}.wf-flight-instruction strong{font-size:14px;letter-spacing:.01em;color:#e0f4ff;}.wf-flight-instruction p{font-size:12px;line-height:1.6;color:#b5ccd6;margin:5px 0 8px;}.wf-flight-coach kbd{font-size:10px;background:#2b474a;color:#8ae5f3;}.wf-flight-metrics{gap:4px;}.wf-flight-metrics span{font-size:8px;padding:4px;}
+.wf-flight-review{border-color:#52747a;background:#0d1425f5;border-radius:13px;}.wf-flight-review>strong{font-size:16px;color:#e3f1ed;}.wf-flight-review>p{line-height:1.7;font-size:12px;}.wf-flight-review>[data-coach-retry]{background:#58def2;border-color:#a2f3ff;color:#081622;border-radius:8px;font-size:14px;min-height:46px;}.wf-flight-review>.wf-upload-score{min-height:32px;margin-top:9px;background:transparent;color:#b8d2dc;border:1px solid #48626e;font-size:11px;}.wf-upload-score[hidden]{display:none!important;}
+#resultWrap{background:#0a1821a6;}#result{background:#132630;border:1px solid #41616b;box-shadow:0 18px 60px #05172066;}#resTitle{font-size:24px;letter-spacing:-.02em;}#resRank{font-size:12px;color:#a5d8c6;}#resTotal{font-size:32px;color:#e1eee7;}#resTotal b{font-weight:600;}#resRows dt{font-size:12px;}#resRows dd{font-size:14px;}#resBtns{justify-content:flex-start;}
+#pad{position:fixed;left:0;right:0;bottom:0;z-index:15;display:none;gap:8px;padding:10px 14px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#0d202acc);}
+#pad.show{display:flex;}#pad[hidden]{display:none!important;}
+#pad button{flex:1;pointer-events:auto;touch-action:none;user-select:none;min-height:54px;border:1px solid #597984;border-radius:10px;background:#121e35eb;color:#c6dbef;font:500 13px 'IBM Plex Sans','PingFang TC',sans-serif;}#pad button[data-act=drive]{background:#58def2;border-color:#a2f3ff;color:#081622;}#pad button[data-act=brake]{background:#342035;border-color:#d75392;color:#f1b5d4;}#pad button small{font-size:9px;color:#a6bdc7;}#pad button[data-act=drive] small{color:#335b49;}#pad button.on{transform:translateY(2px);background:#a5dfc6;color:#081622;}
+#viewSwitch{top:10px;right:12px;}.wf-view-switch{box-shadow:none;}.wf-cam-selector{top:72px!important;z-index:28;}
+@media(max-width:760px){.hudtop{margin-top:44px;height:54px;min-height:54px;padding:0 14px;justify-content:space-between;gap:8px;}.hudtop .hgroup{gap:16px;}.hudtop label{font-size:8px;}.hudtop b{font-size:17px;}.hudtop #airText{font-size:12px;}.hudtop #airmeter{width:48px;}.hudtop .hrow{top:7px;right:112px;}.hudtop #langbtn,.hudtop #camBtn{display:none;}.hudtop .hrow button{font-size:10px;min-height:29px;padding:0 7px;}.wf-flight-coach,.wf-flight-coach.compact{left:12px;top:112px;width:min(300px,calc(100vw - 24px));padding:9px 12px;}.wf-flight-instruction strong{font-size:12px;}.wf-flight-instruction p{font-size:11px;}.wf-flight-coach.compact.airborne .wf-flight-metrics{display:none;}.wf-flight-review{max-height:calc(100dvh - 90px);}#pad{gap:5px;padding:8px 9px calc(12px + env(safe-area-inset-bottom));}#pad button{font-size:11px;min-height:52px;}.wf-2d-tools{top:7px;right:112px;}.wf-2d-tools button{font-size:10px;min-height:29px;}#viewSwitch{top:5px;}.wf-view-switch button{min-width:34px;}}
+@media(max-height:580px) and (min-width:761px){.wf-flight-coach,.wf-flight-coach.compact{top:76px;width:280px;}.wf-flight-instruction p{font-size:11px;}.wf-flight-coach.compact .wf-flight-metrics{display:none;}}
+@media(prefers-reduced-motion:reduce){#pad button,.wf-flight-review button{transition:none;}}
+@media(max-width:760px){body[data-screen=result] .hudtop #langbtn{display:inline-block;}}
+
+/* Night district: restrained instrument surfaces, cyan guidance and pink warning lights. */
+.wf-launch-console{background:linear-gradient(145deg,#12192cf5,#0b1020f5);border-color:#33435e;border-top:2px solid var(--wf-cyan);border-radius:4px;box-shadow:0 20px 70px #03061399,inset 0 1px #8fecff22;}
+.wf-launch-eyebrow{color:var(--wf-cyan);letter-spacing:.16em;}
+.wf-launch h1{text-shadow:2px 0 #ef4c9833,-1px 0 #58def233;}
+.wf-launch-caption{border-color:#58def24a;}
+.wf-launch-caption>span{color:var(--wf-cyan);}
+.wf-launch-caption strong:before{content:'';display:inline-block;width:6px;height:6px;margin:0 9px 1px 0;background:var(--wf-pink);box-shadow:0 0 12px #ef4c9877;}
+.wf-launch-primary{background:var(--wf-surface);border-color:#35405a;}
+.wf-launch-action button{border-radius:3px!important;box-shadow:0 3px #236b8c,0 0 23px #58def21c!important;letter-spacing:.04em;}
+.wf-launch-action button:hover{background:#9aeeff!important;box-shadow:0 3px #236b8c,0 0 28px #58def238!important;}
+.wf-launch .wf-mode-card,.wf-garage,.wf-garage-grid button,.wf-flight-coach,.wf-flight-review{border-radius:4px;}
+.wf-garage{background:#0a1120;border-color:#33405b;}
+.wf-garage-grid button{background:#111c30;}.wf-garage-grid button[aria-pressed=true]{border-color:var(--wf-cyan);box-shadow:inset 2px 0 var(--wf-cyan);}
+.wf-contracts button{background:#101a2b;border-color:#344057;border-radius:4px;}
+.wf-contracts button[aria-pressed=true],.wf-flight-review .wf-contracts button[aria-pressed=true]{background:#162b40;border-color:var(--wf-cyan);}
+.wf-contract-mark{color:var(--wf-cyan);}
+.wf-paints button{border-radius:3px;}
+.hudtop{background:#090f20ed;border-color:#58def22b;}
+.hudtop .hrow button,.wf-2d-tools button{background:#111c30;border-radius:3px;border-color:#33435e;}
+.wf-flight-coach{background:#0b1224e8;border-color:#34405b;border-left:2px solid var(--wf-cyan);}
+.wf-flight-coach kbd{background:#173145;color:#9debf8;}
+.wf-flight-review{background:#0d1425f7;border-color:#455576;border-top:2px solid var(--wf-cyan);}
+#pad{background:linear-gradient(transparent,#090f20dd);}
+#pad button{border-radius:4px;border-color:#3a4b67;background:#101d34eb;}
+#pad button[data-act=drive]{background:var(--wf-cyan);color:#081622;border-color:#9aeeff;}
+#pad button[data-act=brake]{background:#302038;border-color:#b54a85;}
+#viewSwitch.wf-view-switch{border-radius:4px;background:#0d1425;border-color:#34435e;}
+#viewSwitch button{border-radius:3px;}
+#viewSwitch button[aria-pressed=true]{background:var(--wf-cyan);box-shadow:0 0 14px #58def228;color:#081622;}
+#result{background:var(--wf-surface);border-color:#3f506c;border-radius:5px;}
+#stuntBanner{border-color:var(--wf-cyan);background:#0b1528e8;box-shadow:0 0 18px #58def22e;border-radius:4px;}
+@media(max-width:760px){.wf-launch-console{border-radius:4px;}.wf-launch-intro{max-width:245px;}.wf-launch-caption{border-top:0;}}

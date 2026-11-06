@@ -126,6 +126,7 @@
     }
     applyPaint();
     return { begin, finish, render, refresh,
+      get paint() { return paints.find(p => p.id === profile.paint); },
       attachLaunch(host) { selectionHost = document.createElement('section'); selectionHost.className = 'wf-club'; selectionHost.setAttribute('aria-label', 'Stunt club'); host.append(selectionHost); refresh(); },
       attachCoach(live, review) { liveHost = document.createElement('div'); liveHost.className = 'wf-club-live'; live.append(liveHost); reviewHost = document.createElement('div'); reviewHost.className = 'wf-club-review'; review.append(reviewHost); },
     };

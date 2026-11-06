@@ -6,6 +6,13 @@ const sandbox = {};
 vm.runInNewContext(fs.readFileSync(new URL('../flight-coach.js', import.meta.url), 'utf8'), sandbox);
 const { analyse, advance, tiltOf, limits } = sandbox.WallFlipFlight;
 
+test('road orientation follows the track instead of the uninitialized airborne roll', () => {
+  const {orientation}=sandbox.WallFlipFlight;
+  assert.equal(orientation({mode:'road',th:0,roll:Math.PI,pitch:0}).tilt,0);
+  assert.equal(orientation({mode:'road',th:Math.PI/2,roll:Math.PI,pitch:0}).pitch,Math.PI/2);
+  assert.equal(orientation({mode:'air',th:0,roll:Math.PI,pitch:0}).tilt,Math.PI);
+});
+
 test('wheels-down angle preserves full-turn parity and includes 3D pitch', () => {
   for (const angle of [0, Math.PI * 2, -Math.PI * 4]) assert.ok(tiltOf(angle) < 1e-8);
   assert.ok(Math.abs(tiltOf(Math.PI) - Math.PI) < 1e-8);
