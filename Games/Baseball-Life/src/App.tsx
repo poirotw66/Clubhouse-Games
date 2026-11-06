@@ -330,7 +330,11 @@ export default function App(): React.ReactElement {
             setState(saved);
             setHistory([]);
             setSeedCode(saved.seedCode);
-            setActiveChallengeId(loadActiveChallengeId());
+            // The saved career owns its challenge, even if another challenge
+            // was previewed and cancelled on the title screen.
+            const savedChallengeId = saved.challengeId ?? null;
+            saveActiveChallengeId(savedChallengeId);
+            setActiveChallengeId(savedChallengeId);
             setChallengeResult(null);
             setScreen('play');
           }}

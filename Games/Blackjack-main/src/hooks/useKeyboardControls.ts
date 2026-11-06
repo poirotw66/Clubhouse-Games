@@ -35,6 +35,11 @@ export interface KeyboardActions {
 export function useKeyboardControls(actions: KeyboardActions) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // One physical press performs one action; browser shortcuts keep their native behavior.
+      if (e.defaultPrevented || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const shortcutTarget = e.target instanceof HTMLElement ? e.target : null;
+      if (shortcutTarget?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+      if ((e.key === ' ' || e.key === 'Enter') && shortcutTarget?.closest('button, a, [role="button"]')) return;
       // Ignore if user is typing in an input or contenteditable element
       const target = e.target as HTMLElement | null;
       if (

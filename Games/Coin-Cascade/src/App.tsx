@@ -187,6 +187,7 @@ export default function App(): React.ReactElement {
   const streak = dailyStreak(dailyProgress, today);
 
   const triggerFeverManually = useCallback(() => {
+    if (paused) return;
     if (feverRef.current.charge >= 100 && !feverRef.current.active) {
       feverRef.current = activateFever(feverRef.current);
       feverAudio.playFeverFanfare();
@@ -194,7 +195,7 @@ export default function App(): React.ReactElement {
       setBanner({ text: '⚡ 狂熱超頻啟動！2X 雙倍狂潮 ⚡', key: performance.now() });
       setFever({ ...feverRef.current });
     }
-  }, []);
+  }, [paused]);
 
   useEffect(() => {
     if (paused) {
@@ -299,6 +300,29 @@ export default function App(): React.ReactElement {
   // ── Keyboard ───────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (!paused) return;
+    dropRequestRef.current = false;
+  }, [paused]);
+
+  // Leaving the game is a pause, never an invitation to spend a life offscreen.
+  useEffect(() => {
+    if (screen !== 'playing') return;
+    const pauseAway = () => {
+      dropRequestRef.current = false;
+      setPaused(true);
+    };
+    const onVisibility = () => {
+      if (document.hidden) pauseAway();
+    };
+    window.addEventListener('blur', pauseAway);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', pauseAway);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [screen]);
+
+  useEffect(() => {
     if (screen !== 'playing') return;
     const toggleSpecial = (s: Special): void => {
       if (s === 'magnet' && !isSpecialUnlocked('magnet', meta)) return;
@@ -308,11 +332,16 @@ export default function App(): React.ReactElement {
       setSpecial(next);
     };
     const down = (e: KeyboardEvent): void => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button') && (e.code === 'Space' || e.code === 'Enter')) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || target?.isContentEditable ||
+          (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
-        setPaused((p) => !p);
+        if (!e.repeat) setPaused((p) => !p);
         return;
       }
+      if (paused) return;
       if (e.code === 'KeyM') {
         e.preventDefault();
         const nextMute = !audio.isMuted();
@@ -346,7 +375,7 @@ export default function App(): React.ReactElement {
     };
     window.addEventListener('keydown', down);
     return () => window.removeEventListener('keydown', down);
-  }, [screen, meta, triggerFeverManually]);
+  }, [screen, meta, triggerFeverManually, paused]);
 
   // ── Fixed-timestep loop ───────────────────────────────────────────────────
 
@@ -574,11 +603,12 @@ export default function App(): React.ReactElement {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (paused) return;
       const x = toShelfX(e.clientX);
       chuteXRef.current = x;
       dropRequestRef.current = true;
     },
-    [toShelfX],
+    [toShelfX, paused],
   );
 
   const specialButtons: Special[] = isSpecialUnlocked('magnet', meta)
@@ -1283,6 +1313,14 @@ export default function App(): React.ReactElement {
               <div className="cc-pause-card text-center">
                 <p className="cc-display cc-glow-title mb-1 text-2xl text-amber-200">暫停</p>
                 <p className="text-sm font-semibold text-amber-100/75">按 P 或 Esc 繼續</p>
+                <button
+                  type="button"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={() => setPaused(false)}
+                  className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                >
+                  繼續遊戲
+                </button>
               </div>
             </div>
           )}

@@ -74,6 +74,18 @@ export function createInput(root) {
     el.addEventListener('lostpointercapture', () => set(false));
   });
 
+  // A released finger/key may never deliver its up event after switching apps.
+  const releaseControls = () => {
+    keys.clear();
+    dragging = false;
+    for (const key of Object.keys(held)) held[key] = false;
+    root.querySelectorAll('.holding').forEach((el) => el.classList.remove('holding'));
+  };
+  window.addEventListener('blur', releaseControls);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) releaseControls();
+  });
+
   const syncAutoBtn = () => {
     const btn = root.querySelector('#btn-autotrim');
     if (!btn) return;

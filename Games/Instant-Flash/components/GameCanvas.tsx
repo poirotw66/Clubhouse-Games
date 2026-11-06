@@ -613,6 +613,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Keyboard
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (['ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
       if (e.repeat) return;
       if (e.code === 'KeyR') {
         e.preventDefault();

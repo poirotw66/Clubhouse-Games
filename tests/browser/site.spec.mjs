@@ -153,13 +153,13 @@ test('memory match: touch/click cards, change difficulty and restart', { tag: in
   const activate = (locator) => isMobile ? locator.tap() : locator.click();
   // PAIR_OPTIONS start at 6 pairs (depth update); HUD copy is "翻牌 N".
   await activate(page.getByRole('button', { name: '簡單 · 6 對' }));
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
-  await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(11);
-  await activate(page.getByRole('button', { name: '背面牌', exact: true }).first());
+  await expect(page.getByRole('button', { name: /，背面牌$/ })).toHaveCount(12);
+  await activate(page.getByRole('button', { name: /，背面牌$/ }).first());
+  await expect(page.getByRole('button', { name: /，背面牌$/ })).toHaveCount(11);
+  await activate(page.getByRole('button', { name: /，背面牌$/ }).first());
   await expect(page.getByText(/翻牌\s*1/)).toBeVisible();
   await activate(page.getByRole('button', { name: '重開一局', exact: true }));
-  await expect(page.getByRole('button', { name: '背面牌', exact: true })).toHaveCount(12);
+  await expect(page.getByRole('button', { name: /，背面牌$/ })).toHaveCount(12);
   await expect(page.getByText(/翻牌\s*0/)).toBeVisible();
 });
 

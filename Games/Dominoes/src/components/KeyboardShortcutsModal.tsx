@@ -13,9 +13,9 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
     },
     {
       keys: ['1', '2', '3', '4'],
-      altKeys: ['L', 'R', 'U', 'D'],
+      altKeys: ['L', 'R', 'U'],
       label: '選擇開放端點',
-      desc: '依序對應 左端(1/L)、右端(2/R)、上端(3/U)、下端(4/D)',
+      desc: '依序對應 左端(1/L)、右端(2/R)、上端(3/U)、下端(4)',
     },
     {
       keys: ['Space', 'Enter'],
@@ -25,7 +25,7 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
     {
       keys: ['P', 'D'],
       label: '過牌 / 摸牌',
-      desc: '無牌可出時，自動對應當前規則的抽牌或跳過回合',
+      desc: '無牌可出時按 D 摸牌；無法再摸或封鎖規則時按 P 過牌',
     },
     {
       keys: ['H'],
@@ -33,14 +33,9 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
       desc: '由專家 AI 試算並標示當前局勢最佳落子位置',
     },
     {
-      keys: ['Z', 'U'],
+      keys: ['Z'],
       label: '悔棋',
       desc: '撤銷上一步動作並回復至己方決策狀態',
-    },
-    {
-      keys: ['M', 'Tab'],
-      label: '切換情資面板',
-      desc: '快速展開或收合左右戰情駕駛艙與骨牌矩陣',
     },
     {
       keys: ['C'],

@@ -175,6 +175,7 @@ export function createLionWorld(): LionWorld {
   let blinkT = 0;
   let idleT = 0;
   let visibilityPaused = false;
+  let manuallyPaused = false;
   let flowerWorld = new THREE.Vector3();
   let flowerVel = new THREE.Vector3();
   let flowerDetached = false;
@@ -759,7 +760,7 @@ export function createLionWorld(): LionWorld {
   }
 
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.repeat || attract) return;
+    if (e.repeat || attract || paused) return;
     const key = e.key.toLowerCase();
     if (key === 'r') {
       e.preventDefault();
@@ -806,13 +807,18 @@ export function createLionWorld(): LionWorld {
     }
   };
 
+  const clearHeldLegs = (): void => {
+    for (const id of LEG_IDS) setLegHeld(sim, id, false);
+  };
+
   const onVisibility = (): void => {
     if (document.hidden) {
+      clearHeldLegs();
       visibilityPaused = true;
       paused = true;
     } else if (visibilityPaused && running && !ended) {
       visibilityPaused = false;
-      paused = false;
+      paused = manuallyPaused;
       lastT = performance.now();
       acc = 0;
     }
@@ -943,6 +949,7 @@ export function createLionWorld(): LionWorld {
       window.addEventListener('resize', resize);
       window.addEventListener('keydown', onKeyDown);
       window.addEventListener('keyup', onKeyUp);
+      window.addEventListener('blur', clearHeldLegs);
       document.addEventListener('visibilitychange', onVisibility);
       lastT = performance.now();
       raf = requestAnimationFrame(tick);
@@ -954,6 +961,7 @@ export function createLionWorld(): LionWorld {
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', clearHeldLegs);
       document.removeEventListener('visibilitychange', onVisibility);
       if (renderer) {
         renderer.dispose();
@@ -1001,6 +1009,7 @@ export function createLionWorld(): LionWorld {
         goldAura.visible = false;
         (goldAura.material as THREE.PointsMaterial).opacity = 0;
       }
+      manuallyPaused = false;
       paused = attract ? true : false;
       running = !attract;
       visibilityPaused = false;
@@ -1032,7 +1041,9 @@ export function createLionWorld(): LionWorld {
 
     setPaused(p) {
       if (attract) return;
+      manuallyPaused = p;
       paused = p || visibilityPaused;
+      if (paused) clearHeldLegs();
     },
 
     setMuted(m) {

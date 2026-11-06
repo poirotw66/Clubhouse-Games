@@ -453,7 +453,11 @@ export default function App() {
     if (screen !== 'play' || !session || won || lost) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Preserve browser shortcuts and native form/button keyboard controls.
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if ((e.key === 'Enter' || e.key === ' ') && target?.closest('button, a, [role="button"]')) return;
       if (e.key === 'ArrowUp' || e.code === 'KeyW') {
         e.preventDefault();
         slideDir('up');

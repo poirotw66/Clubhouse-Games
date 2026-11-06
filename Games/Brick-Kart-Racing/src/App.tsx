@@ -218,8 +218,8 @@ export default function App() {
       if ((k === ' ' || k === 'e' || k === 'enter') && !keysRef.current.has(k)) {
         itemQueuedRef.current = true;
       }
-      if (k === 'p' || k === 'escape') setPaused((p) => !p);
-      if (k === 'm') {
+      if (!e.repeat && (k === 'p' || k === 'escape')) setPaused((p) => !p);
+      if (k === 'm' && !e.repeat) {
         setMutedState((m) => {
           setMuted(!m);
           return !m;
@@ -235,8 +235,12 @@ export default function App() {
     const blur = () => {
       keysRef.current.clear();
       setActiveKeys(new Set());
+      for (const key of Object.keys(touchRef.current) as ControlKey[]) touchRef.current[key] = false;
+      itemQueuedRef.current = false;
     };
+    const visibility = () => { if (document.hidden) blur(); };
 
+    document.addEventListener('visibilitychange', visibility);
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', blur);
@@ -244,6 +248,7 @@ export default function App() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
+      document.removeEventListener('visibilitychange', visibility);
       keysRef.current.clear();
       setActiveKeys(new Set());
     };

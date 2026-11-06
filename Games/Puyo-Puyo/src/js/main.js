@@ -1781,6 +1781,10 @@
   }
 
   document.addEventListener('keydown', function (event) {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.defaultPrevented) return;
+    var target = event.target;
+    if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (event.key === ' ' && target && target.closest && target.closest('button, a, [role="button"]')) return;
     var key = event.key;
     if (HANDLED_KEYS[key]) event.preventDefault();
     if (keysDown[key] && key !== 'ArrowDown' && key !== 's' && key !== 'S') return;
@@ -1815,6 +1819,23 @@
     else if (key === 'a' || key === 'A') stopDas(1, -1);
     else if (key === 'd' || key === 'D') stopDas(1, 1);
     else if (key === 's' || key === 'S') players[1].state.softDrop = false;
+  });
+
+  // Release both players' held inputs before pausing an unattended match.
+  function pauseOnLeave() {
+    Object.keys(keysDown).forEach(function (key) {
+      keysDown[key] = false;
+      updateKeyHudVisual(key, false);
+    });
+    das.forEach(function (entry) { entry.direction = 0; entry.timer = 0; });
+    players.forEach(function (player) {
+      if (player.state) player.state.softDrop = false;
+    });
+    if (!match.over && !match.paused) togglePause();
+  }
+  global.addEventListener('blur', pauseOnLeave);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) pauseOnLeave();
   });
 
   function bindTouch(id, onPress, onRelease) {

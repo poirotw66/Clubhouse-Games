@@ -47,7 +47,7 @@ import {
   setSoundEnabled as setSoundEffectsEnabled,
 } from './utils/soundEffects';
 import type { Card, GameState, Position, Suit } from './types';
-import { dealDaily, dealForDifficulty, dealGame, rateDeal, SUITS } from './utils/deck';
+import { dealDaily, dealForDifficulty, dealGame, SUITS } from './utils/deck';
 import {
   canMove,
   checkLoss,
@@ -143,6 +143,7 @@ export default function App() {
     emptyGame(initial.tableaus, loadSettings().freeCellSlots),
   );
   const [dealSeed, setDealSeed] = useState(initial.seed);
+  const [dealRevision, setDealRevision] = useState(0);
   const [parMoves, setParMoves] = useState<number | null>(initial.parMoves);
   const [dealDifficulty, setDealDifficulty] = useState<Difficulty>(initial.difficulty);
   const [seedDraft, setSeedDraft] = useState(String(initial.seed));
@@ -212,21 +213,32 @@ export default function App() {
 
   // Rate par off the click path so deals stay snappy (CI smoke + touch).
   useEffect(() => {
+    // Solver search can take seconds: keep the board responsive while rating the deal.
+    setParMoves(null);
+    setDealDifficulty('any');
+    let worker: Worker | undefined;
     let cancelled = false;
-    const tableaus = gameState.tableaus.map((col) => col.map((c) => ({ ...c })));
-    const timer = window.setTimeout(() => {
-      const rated = rateDeal(tableaus);
-      if (cancelled) return;
-      setParMoves(rated.parMoves);
-      setDealDifficulty(rated.difficulty);
-    }, 0);
+    try {
+      worker = new Worker(new URL('./utils/rateDeal.worker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = (event: MessageEvent<{ parMoves: number | null; difficulty: Difficulty }>) => {
+        if (cancelled) return;
+        setParMoves(event.data.parMoves);
+        setDealDifficulty(event.data.difficulty);
+        worker?.terminate();
+      };
+      worker.onerror = () => worker?.terminate();
+      worker.postMessage(gameState.tableaus);
+    } catch {
+      // Restricted browsers can disable workers; an unrated deal remains fully playable.
+      worker?.terminate();
+    }
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      worker?.terminate();
     };
-    // Intentionally keyed only on dealSeed — rate the layout that was just dealt.
+    // Rate only on deals, including same-seed redeals, rather than on individual moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dealSeed]);
+  }, [dealSeed, dealRevision]);
 
   useEffect(() => {
     setSoundEffectsEnabled(settings.soundEnabled);
@@ -279,6 +291,7 @@ export default function App() {
   };
 
   const resetBoard = (bundle: DealBundle, nextSettings: FreeCellSettings = settings) => {
+    setDealRevision((revision) => revision + 1);
     setGameState(emptyGame(bundle.tableaus, nextSettings.freeCellSlots));
     setDealSeed(bundle.seed);
     setParMoves(bundle.parMoves);
@@ -913,6 +926,11 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // One physical press performs one action; browser shortcuts keep their native behavior.
+      if (e.defaultPrevented || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const shortcutTarget = e.target instanceof HTMLElement ? e.target : null;
+      if (shortcutTarget?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+      if ((e.key === ' ' || e.key === 'Enter') && shortcutTarget?.closest('button, a, [role="button"]')) return;
       const activeEl = document.activeElement;
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
         return;
@@ -937,7 +955,7 @@ export default function App() {
         }
       }
 
-      if (inputLocked) return;
+      if (inputLocked || isKeyboardHelpOpen || isRulesOpen || isStatsOpen) return;
 
       if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
         e.preventDefault();

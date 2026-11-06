@@ -166,9 +166,28 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     if (screen !== 'play' || complete) return;
     startedAt.current = Date.now() - elapsedMs;
-    const tick = () => setElapsedMs(Date.now() - startedAt.current);
+    let hiddenAt = document.hidden ? Date.now() : null;
+    const tick = () => {
+      if (hiddenAt === null) setElapsedMs(Date.now() - startedAt.current);
+    };
+    const onVisibility = () => {
+      const now = Date.now();
+      if (document.hidden) {
+        if (hiddenAt === null) {
+          setElapsedMs(now - startedAt.current);
+          hiddenAt = now;
+        }
+      } else if (hiddenAt !== null) {
+        startedAt.current += now - hiddenAt;
+        hiddenAt = null;
+      }
+    };
     const id = window.setInterval(tick, 250);
-    return () => window.clearInterval(id);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, complete]);
 

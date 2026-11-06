@@ -181,6 +181,8 @@ export function resultOverlayChromeCss(p: string): string {
   z-index: 2;
   width: 100%;
   max-width: 30rem;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   text-align: center;
 }
 .${p}__bloom {

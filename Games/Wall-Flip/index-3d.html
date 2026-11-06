@@ -2895,10 +2895,10 @@ function domTyping(e) {
     (viewConfirmEl && viewConfirmEl.classList.contains('on'));
 }
 addEventListener('keydown', e => {
-  if (domTyping(e)) return;
   if (e.code === 'Escape' && viewConfirmEl && viewConfirmEl.classList.contains('on')) {
     closeViewConfirm(); e.preventDefault(); return;
   }
+  if (domTyping(e)) return;
   if (e.code === 'KeyM') { if (!e.repeat) toggleMute(); e.preventDefault(); return; }
   if (e.code === 'KeyR') { if (!e.repeat && screen !== 'start') { ensureAudio(); resetRun(); } e.preventDefault(); return; }
   if (e.code === 'KeyC') { if (!e.repeat) { ensureAudio(); cycleCameraMode(); } e.preventDefault(); return; }

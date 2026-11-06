@@ -252,6 +252,18 @@ export default function App(): ReactElement {
     return () => window.removeEventListener('keydown', onKey);
   }, [screen, nudge, jump, dash, panel, showTip, dismissTip, difficulty]);
 
+  // Keep the run paused until the player explicitly resumes after leaving the tab.
+  useEffect(() => {
+    const pauseWhenHidden = () => {
+      if (!document.hidden) return;
+      swipeStart.current = null;
+      worldRef.current?.setPaused(true);
+      setScreen((current) => current === 'playing' ? 'paused' : current);
+    };
+    document.addEventListener('visibilitychange', pauseWhenHidden);
+    return () => document.removeEventListener('visibilitychange', pauseWhenHidden);
+  }, []);
+
   const handleBuyUpgrade = (id: UpgradeId) => {
     setMeta((prev) => {
       const next = buyUpgrade(prev, id);

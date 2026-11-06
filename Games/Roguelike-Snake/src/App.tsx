@@ -382,6 +382,25 @@ export default function App() {
     [settleChallenge, settleMeta],
   );
 
+  // Leaving the game is a pause, never an invitation to spend a life offscreen.
+  useEffect(() => {
+    if (screen !== 'run') return;
+    const pauseAway = () => {
+      pausedRef.current = true;
+      swipeRef.current = null;
+      setPaused(true);
+    };
+    const onVisibility = () => {
+      if (document.hidden) pauseAway();
+    };
+    window.addEventListener('blur', pauseAway);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', pauseAway);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [screen]);
+
   useEffect(() => {
     if (screen !== 'run') return;
 
@@ -437,6 +456,10 @@ export default function App() {
     if (screen !== 'run') return;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('button') && (event.code === 'Space' || event.code === 'Enter')) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || target?.isContentEditable ||
+          (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       const state = stateRef.current;
       if (!state) return;
       const key = event.key.toLowerCase();
@@ -458,7 +481,7 @@ export default function App() {
       }
       if (key === 'p' || key === 'escape') {
         event.preventDefault();
-        if (state.phase === 'playing') setPaused((value) => !value);
+        if (!event.repeat && state.phase === 'playing') setPaused((value) => !value);
         return;
       }
       if (key === 'r' && (state.phase === 'dead' || state.phase === 'won')) {
@@ -499,7 +522,7 @@ export default function App() {
 
   const withState = (action: (state: GameState) => void) => () => {
     const state = stateRef.current;
-    if (state) action(state);
+    if (state && !(pausedRef.current && state.phase === 'playing')) action(state);
   };
 
   const handleChoose = (id: RelicId) => {
@@ -700,7 +723,17 @@ export default function App() {
             )}
             {paused && hud.phase === 'playing' && (
               <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-slate-950/80">
-                <p className="text-xl font-bold">暫停中（P 繼續）</p>
+                <div className="text-center">
+                  <p className="text-xl font-bold">暫停中（P 繼續）</p>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setPaused(false)}
+                    className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                  >
+                    繼續遊戲
+                  </button>
+                </div>
               </div>
             )}
           </div>

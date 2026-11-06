@@ -111,9 +111,10 @@ export function PlayScreen({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
+      if (showWarRoomModal) return;
       const target = event.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (target?.isContentEditable || (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
 
       if (event.key === 'r' || event.key === 'R') {
         event.preventDefault();
@@ -145,7 +146,7 @@ export function PlayScreen({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo]);
+  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo, showWarRoomModal]);
 
   return (
     <div className={`mx-auto w-full px-3 sm:px-4 pb-16 pt-12 transition-all ${viewMode === 'dual' ? 'max-w-[100rem]' : 'max-w-5xl'}`}>

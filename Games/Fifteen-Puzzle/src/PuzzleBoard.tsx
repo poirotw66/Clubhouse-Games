@@ -338,6 +338,10 @@ export function PuzzleBoard({
             role="gridcell"
             disabled={!canMove || disabled || animating}
             onPointerDown={(ev) => onPointerDown(i, ev)}
+            onClick={(ev) => {
+              // Pointer taps are handled on release; keyboard/assistive clicks have no pointer.
+              if (ev.detail === 0) trySlideTile(i);
+            }}
             onPointerEnter={() => onTileHover?.(tile)}
             onPointerLeave={() => onTileHover?.(null)}
             className={`absolute rounded-xl font-bold touch-manipulation border overflow-hidden transition-all ${

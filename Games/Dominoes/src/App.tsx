@@ -676,6 +676,11 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // One physical press performs one action; browser shortcuts keep their native behavior.
+      if (e.defaultPrevented || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const shortcutTarget = e.target instanceof HTMLElement ? e.target : null;
+      if (shortcutTarget?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+      if ((e.key === ' ' || e.key === 'Enter') && shortcutTarget?.closest('button, a, [role="button"]')) return;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -779,7 +784,7 @@ export default function App() {
         return;
       }
 
-      if (e.key === 'z' || e.key === 'Z' || e.key === 'u' || e.key === 'U') {
+      if (e.key === 'z' || e.key === 'Z') {
         if (canUndo) {
           e.preventDefault();
           handleUndo();

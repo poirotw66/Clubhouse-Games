@@ -1787,6 +1787,8 @@ export default function App() {
     animationFrameId = requestAnimationFrame(loop);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (engine.state.mode === 'playing' && e.code.startsWith('Arrow')) e.preventDefault();
+      if (e.repeat && ['Space', 'KeyB', 'KeyS'].includes(e.code)) return;
       if (e.code === 'Space') {
         e.preventDefault();
         if (engine.state.mode === 'playing' && engine.isPlayerBatting) {
@@ -1832,11 +1834,17 @@ export default function App() {
       }
     };
 
+    const releaseSteering = () => engine.setSteerDir(0);
+    const handleVisibility = () => { if (document.hidden) releaseSteering(); };
+    window.addEventListener('blur', releaseSteering);
+    document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('blur', releaseSteering);
+      document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
@@ -2629,6 +2637,7 @@ export default function App() {
                       key={dir}
                       type="button"
                       onClick={() => setSwingDirection(dir)}
+                      aria-pressed={gameState.swingDir === dir}
                       className={`flex-1 min-h-[48px] rounded-xl font-bold text-xs sm:text-sm transition-all touch-manipulation ${
                         gameState.swingDir === dir
                           ? 'bg-blue-500/25 border border-blue-400/50 text-blue-200'
@@ -2641,6 +2650,7 @@ export default function App() {
                   <button
                     type="button"
                     disabled={!canBunt}
+                    aria-pressed={gameState.isBunting}
                     onClick={handleToggleBunt}
                     className={`min-h-[48px] px-3 rounded-xl font-bold text-xs sm:text-sm border transition-all touch-manipulation ${
                       !canBunt
@@ -2663,6 +2673,7 @@ export default function App() {
                       type="button"
                       onPointerDown={() => engineRef.current?.setSteerDir(-1)}
                       onPointerUp={() => engineRef.current?.setSteerDir(0)}
+                      onPointerCancel={() => engineRef.current?.setSteerDir(0)}
                       onPointerLeave={() => engineRef.current?.setSteerDir(0)}
                       className="flex-1 max-w-[160px] min-h-[48px] rounded-xl font-bold bg-sky-600/30 border border-sky-400/50 text-sky-100 touch-manipulation"
                     >
@@ -2672,6 +2683,7 @@ export default function App() {
                       type="button"
                       onPointerDown={() => engineRef.current?.setSteerDir(1)}
                       onPointerUp={() => engineRef.current?.setSteerDir(0)}
+                      onPointerCancel={() => engineRef.current?.setSteerDir(0)}
                       onPointerLeave={() => engineRef.current?.setSteerDir(0)}
                       className="flex-1 max-w-[160px] min-h-[48px] rounded-xl font-bold bg-sky-600/30 border border-sky-400/50 text-sky-100 touch-manipulation"
                     >

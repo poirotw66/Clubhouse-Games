@@ -2252,7 +2252,7 @@ addEventListener('keydown',e=>{
   if(!e.repeat)setHeld(e.code,true);
 });
 addEventListener('keyup',e=>{
-  if(isTextEntryTarget(e.target)||isTextEntryTarget(document.activeElement))return;
+  // Always release: focus can move into a text field while a leg is held.
   setHeld(e.code,false);
 });
 addEventListener('blur',()=>{ for(const k in held)setHeld(k,false); });

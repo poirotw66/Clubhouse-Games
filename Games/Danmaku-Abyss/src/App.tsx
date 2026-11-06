@@ -278,21 +278,55 @@ export default function App(): React.ReactElement {
   }, []);
 
   useEffect(() => {
+    if (!paused) return;
+    keysRef.current.clear();
+    pointerRef.current = null;
+    bombRef.current = false;
+    specialRef.current = false;
+  }, [paused]);
+
+  // Leaving the game is a pause, never an invitation to spend a life offscreen.
+  useEffect(() => {
+    if (screen !== 'playing') return;
+    const pauseAway = () => {
+      keysRef.current.clear();
+      pointerRef.current = null;
+      bombRef.current = false;
+      specialRef.current = false;
+      setPaused(true);
+    };
+    const onVisibility = () => {
+      if (document.hidden) pauseAway();
+    };
+    window.addEventListener('blur', pauseAway);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', pauseAway);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [screen]);
+
+  useEffect(() => {
     if (screen !== 'playing') return;
     const down = (e: KeyboardEvent): void => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button') && (e.code === 'Space' || e.code === 'Enter')) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || target?.isContentEditable ||
+          (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
-        setPaused((p) => !p);
+        if (!e.repeat) setPaused((p) => !p);
         return;
       }
+      if (paused) return;
       if (e.code === 'KeyZ') {
         e.preventDefault();
-        bombRef.current = true;
+        if (!e.repeat) bombRef.current = true;
         return;
       }
       if (e.code === 'KeyX') {
         e.preventDefault();
-        specialRef.current = true;
+        if (!e.repeat) specialRef.current = true;
         return;
       }
       if (e.code.startsWith('Arrow') || e.code.startsWith('Shift') || 'KeyAKeyDKeyWKeyS'.includes(e.code)) {
@@ -309,7 +343,7 @@ export default function App(): React.ReactElement {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [screen]);
+  }, [screen, paused]);
 
   // ── Fixed-timestep loop ────────────────────────────────────────────────────
 
@@ -508,6 +542,7 @@ export default function App(): React.ReactElement {
   const holdTimer = useRef<number | null>(null);
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (paused) return;
       const p = toField(e.clientX, e.clientY);
       pointerRef.current = { active: true, x: p.x, y: p.y, focus: false };
       (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -516,7 +551,7 @@ export default function App(): React.ReactElement {
         if (pointerRef.current) pointerRef.current.focus = true;
       }, 220);
     },
-    [toField],
+    [toField, paused],
   );
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -552,7 +587,7 @@ export default function App(): React.ReactElement {
             <div
               className="da-title-sticker"
               style={{
-                ['--sticker-bg' as string]: `url(${import.meta.env.BASE_URL}title-bg.jpg)`,
+                ['--sticker-bg' as string]: `url(${new URL(`${import.meta.env.BASE_URL}title-bg.jpg`, document.baseURI).href})`,
               }}
               aria-hidden="true"
             >
@@ -937,6 +972,14 @@ export default function App(): React.ReactElement {
               <div className="da-pause">
                 <p>暫停</p>
                 <p className="mt-1 text-sm text-slate-400">按 P 或 Esc 繼續</p>
+                <button
+                  type="button"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={() => setPaused(false)}
+                  className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                >
+                  繼續遊戲
+                </button>
               </div>
             </div>
           )}

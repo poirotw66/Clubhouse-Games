@@ -821,6 +821,10 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.key === ' ' && target?.closest('button, a, [role="button"]')) return;
       const key = event.key;
       const handled = [
         'ArrowLeft',
@@ -849,6 +853,7 @@ export default function App() {
       });
 
       if (key === 'p' || key === 'P') {
+        if (event.repeat) return;
         setPlayer((prev) => (prev.gameOver ? prev : { ...prev, paused: !prev.paused }));
         return;
       }
@@ -906,13 +911,22 @@ export default function App() {
       setPressedKeys(new Set());
     };
 
+    const pauseOnLeave = () => {
+      clearHeld();
+      setPlayer((prev) => (prev.gameOver || prev.paused ? prev : { ...prev, paused: true }));
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) pauseOnLeave();
+    };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', clearHeld);
+    window.addEventListener('blur', pauseOnLeave);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', clearHeld);
+      window.removeEventListener('blur', pauseOnLeave);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [startShift, applyMove, applyRotate, hardDrop, holdPiece]);
 

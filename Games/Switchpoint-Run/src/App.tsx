@@ -274,13 +274,46 @@ export default function App(): React.ReactElement {
   }, []);
 
   useEffect(() => {
+    if (!paused) return;
+    laneStepRef.current = 0;
+    jumpRef.current = false;
+    slideRef.current = false;
+  }, [paused]);
+
+  // Leaving the game is a pause, never an invitation to spend a life offscreen.
+  useEffect(() => {
+    if (screen !== 'playing') return;
+    const pauseAway = () => {
+      laneStepRef.current = 0;
+      jumpRef.current = false;
+      slideRef.current = false;
+      setActiveKeys({ left: false, right: false, up: false, down: false });
+      setPaused(true);
+    };
+    const onVisibility = () => {
+      if (document.hidden) pauseAway();
+    };
+    window.addEventListener('blur', pauseAway);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', pauseAway);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [screen]);
+
+  useEffect(() => {
     if (screen !== 'playing') return;
     const down = (e: KeyboardEvent): void => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button') && (e.code === 'Space' || e.code === 'Enter')) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || target?.isContentEditable ||
+          (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
-        setPaused((p) => !p);
+        if (!e.repeat) setPaused((p) => !p);
         return;
       }
+      if (paused) return;
       if (e.repeat) return;
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
         e.preventDefault();
@@ -317,16 +350,17 @@ export default function App(): React.ReactElement {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [screen]);
+  }, [screen, paused]);
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (paused) return;
     touchStart.current = { x: e.clientX, y: e.clientY };
-  }, []);
+  }, [paused]);
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     const start = touchStart.current;
     touchStart.current = null;
-    if (!start) return;
+    if (!start || paused) return;
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     const THRESH = 28;
@@ -336,7 +370,7 @@ export default function App(): React.ReactElement {
       if (dy < 0) jumpRef.current = true;
       else slideRef.current = true;
     }
-  }, []);
+  }, [paused]);
 
   // Juice: compare snapshots after HUD updates.
   const applyJuice = useCallback((prev: typeof juiceSnap.current, next: RunState) => {
@@ -1083,6 +1117,7 @@ export default function App(): React.ReactElement {
           className="flex-1 max-w-[500px] h-full relative flex items-center justify-center bg-slate-950/60"
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
+          onPointerCancel={() => { touchStart.current = null; }}
         >
           <GameCanvas stateRef={stateRef} fxRef={fxRef} paused={paused || challengeWon} />
 
@@ -1112,6 +1147,14 @@ export default function App(): React.ReactElement {
               <div className="sr-panel rounded-2xl px-6 py-4 text-center">
                 <p className="text-lg font-semibold mb-1 text-slate-100">調度運轉暫停</p>
                 <p className="text-slate-400 text-sm">按 P 或 Esc 繼續</p>
+                <button
+                  type="button"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={() => setPaused(false)}
+                  className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                >
+                  繼續遊戲
+                </button>
               </div>
             </div>
           )}

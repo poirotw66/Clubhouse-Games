@@ -716,7 +716,9 @@
   function onSpaceTimer(e) {
     if (state.mode !== "timer") return;
     if (e.code !== "Space") return;
+    if (e.target.closest('button,a,[role="button"],[role="tab"]')) return;
     e.preventDefault();
+    if (e.repeat) return;
     if (state.timer.phase === "idle" || state.timer.phase === "stopped") startInspect();
     else if (state.timer.phase === "inspect") beginTiming();
     else if (state.timer.phase === "running") finishTimerManual();
@@ -1240,7 +1242,7 @@
       KeyB: "B",
     };
     window.addEventListener("keydown", (e) => {
-      if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target?.closest('input,textarea,select,[contenteditable="true"]')) return;
       onSpaceTimer(e);
       if (state.mode !== "learn" && state.mode !== "freeplay" && state.mode !== "drill") return;
       const face = faceKeys[e.code];

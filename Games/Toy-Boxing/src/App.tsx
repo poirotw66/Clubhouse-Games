@@ -326,9 +326,18 @@ export default function ToyBoxing() {
       keysPressed.current.delete(e.code);
       setActiveKeySet(new Set(keysPressed.current));
     };
+    const releaseControls = () => {
+      keysPressed.current.clear();
+      setActiveKeySet(new Set());
+    };
+    const handleVisibility = () => { if (document.hidden) releaseControls(); };
+    window.addEventListener('blur', releaseControls);
+    document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     return () => {
+      window.removeEventListener('blur', releaseControls);
+      document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { focusResultOverlay } from './resultOverlayFocus.ts';
 import { resultOverlayChromeCss } from './resultOverlayChrome.ts';
 import {
   celebrateResultOverlay,
@@ -106,6 +107,11 @@ export function ResultOverlay({
   emphasis: emphasisProp,
 }: ResultOverlayProps): React.ReactElement {
   const cardRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (rootRef.current) return focusResultOverlay(rootRef.current);
+  }, []);
   const emphasis = resolveEmphasis({ emphasis: emphasisProp, badge, title });
   const litStars = starCountFor(variant, emphasis);
 
@@ -115,6 +121,7 @@ export function ResultOverlay({
 
   return (
     <div
+      ref={rootRef}
       className={`result-overlay result-overlay--${variant}${
         emphasis === 'record' ? ' result-overlay--record' : ''
       }`}

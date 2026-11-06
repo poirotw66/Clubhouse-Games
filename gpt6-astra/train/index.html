@@ -939,7 +939,14 @@ document.addEventListener("visibilitychange",()=>{
 });
 
 window.addEventListener("keydown",e=>{
+  if(e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
   const k=e.key.toLowerCase();
+  // Menus retain native Enter/Space activation; gameplay owns movement keys.
+  if(state!=="playing") {
+    if((k==="p" || k==="escape") && !e.repeat && state==="paused") togglePause();
+    return;
+  }
+  if(e.target.closest('button, a') && (k===" " || k==="enter")) return;
   if(["arrowup","arrowdown","arrowleft","arrowright","enter","/"," ","."].includes(k))
     e.preventDefault();
   keys.add(k);

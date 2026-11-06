@@ -1198,10 +1198,10 @@ function domTyping(e) {
     (viewConfirmEl && viewConfirmEl.classList.contains('on'));
 }
 addEventListener('keydown', e => {
-  if (domTyping(e)) return;
   if (e.code === 'Escape' && viewConfirmEl && viewConfirmEl.classList.contains('on')) {
     closeViewConfirm(); e.preventDefault(); return;
   }
+  if (domTyping(e)) return;
   if (keySet(e, true)) e.preventDefault();
 });
 addEventListener('keyup', e => { const ui = domTyping(e); if (keySet(e, false) && !ui) e.preventDefault(); });

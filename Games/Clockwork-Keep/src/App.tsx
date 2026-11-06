@@ -335,6 +335,17 @@ export default function App(): ReactElement {
     return () => cancelAnimationFrame(raf);
   }, [screen]);
 
+  useEffect(() => {
+    if (screen !== 'playing') return;
+    const pauseWhenHidden = () => {
+      if (!document.hidden) return;
+      pausedRef.current = true;
+      setPaused(true);
+    };
+    document.addEventListener('visibilitychange', pauseWhenHidden);
+    return () => document.removeEventListener('visibilitychange', pauseWhenHidden);
+  }, [screen]);
+
   // ── Win/lose bookkeeping ─────────────────────────────────────────────────
   useEffect(() => {
     if (!state) return;

@@ -78,7 +78,17 @@ export const Card: React.FC<CardProps> = ({
         onClick?.(e.currentTarget);
       }}
       role={onClick ? 'button' : undefined}
-      className={`kl-card-face kl-card-3d kl-card-gilded w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-amber-200/40 flex flex-col justify-between p-[0.35em] touch-manipulation relative overflow-hidden bg-cover bg-center ${
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={`${{ spades: '黑桃', hearts: '紅心', diamonds: '方塊', clubs: '梅花' }[card.suit]} ${card.rank}`}
+      aria-pressed={onClick ? Boolean(isSelected) : undefined}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!e.repeat) onClick(e.currentTarget);
+        }
+      }}
+      className={`focus-visible:outline focus-visible:outline-4 focus-visible:outline-sky-300 kl-card-face kl-card-3d kl-card-gilded w-16 h-24 sm:w-24 sm:h-36 rounded-xl border border-amber-200/40 flex flex-col justify-between p-[0.35em] touch-manipulation relative overflow-hidden bg-cover bg-center ${
         isDraggable
           ? 'cursor-grab active:cursor-grabbing hover:-translate-y-1 hover:scale-[1.025] hover:shadow-[0_12px_22px_-4px_rgba(0,0,0,0.5),0_4px_8px_-2px_rgba(0,0,0,0.25)] hover:ring-2 hover:ring-blue-400'
           : ''

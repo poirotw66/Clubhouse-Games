@@ -939,6 +939,7 @@ window.addEventListener('mousemove', (e) => updatePointer(e.clientX, e.clientY))
 window.addEventListener('mousedown', () => trySwing());
 
 window.addEventListener('keydown', (e) => {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
   state.keysPressed[e.code] = true;
 
@@ -975,12 +976,24 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
+function releaseControls() {
+  state.keysPressed = {};
+  document.querySelectorAll('.hud-key.active').forEach((el) => el.classList.remove('active'));
+  setRacketAngle(0);
+}
+window.addEventListener('blur', releaseControls);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) releaseControls();
+});
+
 // Setup HUD Keys and Touch controls
 setTimeout(() => {
   document.querySelectorAll('.hud-key').forEach((btn) => {
     const code = btn.getAttribute('data-key');
     btn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      btn.setPointerCapture(e.pointerId);
       btn.classList.add('active');
       if (code === 'KeyW') setRacketAngle(1);
       else if (code === 'KeyS') setRacketAngle(-1);
@@ -989,13 +1002,13 @@ setTimeout(() => {
       else if (code === 'Space') triggerPowerDive();
       else if (code === 'KeyR') replayDrill();
     });
-    btn.addEventListener('pointerup', () => {
+    const release = () => {
       btn.classList.remove('active');
       if (code === 'KeyW' || code === 'KeyS') setRacketAngle(0);
-    });
-    btn.addEventListener('pointerleave', () => {
-      btn.classList.remove('active');
-    });
+    };
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('lostpointercapture', release);
   });
 
   const mLeft = document.getElementById('touch-left');

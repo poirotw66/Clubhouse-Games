@@ -92,3 +92,19 @@ for (let i = 0; i < two.COURSES.length; i++) {
 assert.equal(two.rollsCount(0, 0), 0);
 assert.equal(two.rollsCount(Math.PI * 2, 0), 1);
 console.log('check-logic: ok (2D courses, 3D simulation, resources and landing scores)');
+
+// Escape must close the display-switch dialog even when its button has focus.
+for (const name of ['index.html', 'index-3d.html']) {
+  const source = fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+  let listener;
+  let closed = false;
+  let prevented = false;
+  vm.runInNewContext(block(source, "\naddEventListener('keydown', e => {", "\naddEventListener('keyup'"), {
+    addEventListener: (_type, callback) => { listener = callback; },
+    domTyping: () => true,
+    viewConfirmEl: { classList: { contains: () => true } },
+    closeViewConfirm: () => { closed = true; },
+  });
+  listener({ code: 'Escape', preventDefault: () => { prevented = true; } });
+  assert.ok(closed && prevented, `${name}: focused dialog closes with Escape`);
+}
