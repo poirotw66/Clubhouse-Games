@@ -1139,7 +1139,7 @@ const STR = {
     shareText: (n, dist, s, l, total, rank, cn) => `牆上翻滾 Wall Flip（${cn}）：翻滾 ${n} 回 · 飛行 ${dist} m · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} 分 ${rank}！`,
     boardTitle: '排行榜', colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
     backLink: '← 返回總覽 Back',
-    padStick: '吸附', padLeft: '左', padRight: '右', padBrake: '煞降', padGo: '油門',
+    padStick: '吸附', padDescend:'快降', padLeft: '左', padRight: '右', padBrake: '煞降', padGo: '油門',
     langBtn: 'EN',
     // extra keys for strings that only exist in this 3D build
     muteTitle: '靜音 (M)',
@@ -1255,7 +1255,7 @@ const STR = {
     shareText: (n, dist, s, l, total, rank, cn) => `Wall Flip (${cn}): ${n} roll(s), ${dist} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} pts ${rank}!`,
     boardTitle: 'LEADERBOARD', colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
     backLink: '← 返回總覽 Back',
-    padStick: 'STICK', padLeft: '←', padRight: '→', padBrake: 'BRAKE', padGo: 'GO',
+    padStick: 'STICK', padDescend:'DESCEND', padLeft: '←', padRight: '→', padBrake: 'BRAKE', padGo: 'GO',
     langBtn: '中文',
     // extra keys for strings that only exist in this 3D build
     muteTitle: 'Mute (M)',
@@ -1664,7 +1664,8 @@ function createSim(hooks = {}, consts = null) {
     const sucking = inp.suck && s.air > 0;
     if (sucking) s.air = Math.max(0, s.air - I.AIR_SUCK * dt);
     const A2 = sucking ? I.SUCK : 0;
-    const jL = inp.left && s.air > 0, jR = inp.right && s.air > 0;
+    const braking=I.LANDING_ASSIST&&inp.left&&inp.right;
+    const jL = !braking&&inp.left&&s.air>0, jR = !braking&&inp.right&&s.air>0;
     const Z = (jL ? 1 : 0) + (jR ? 1 : 0);
     if (Z) s.air = Math.max(0, s.air - I.AIR_JET * Z * dt);
     s.left = jL; s.right = jR;
@@ -1699,7 +1700,8 @@ function createSim(hooks = {}, consts = null) {
   // air mode (original b)
   const stepAir = (dt, inp) => {
     s.airTime += dt;
-    const jL = inp.left && s.air > 0, jR = inp.right && s.air > 0;
+    const control=I.LANDING_ASSIST?window.WallFlipGarage.airControl({angle:s.roll,pitch:s.pitch,spin:s.rw,y:s.y,vy:s.vy,air:s.air,clear:s.clear},inp,{damping:I.ROLL_DAMP,thrust:I.THRUST,gravity:G0*I.AIR_G}):inp;
+    const jL = control.left && s.air > 0, jR = control.right && s.air > 0;
     const Z = (jL ? 1 : 0) + (jR ? 1 : 0);
     if (Z) s.air = Math.max(0, s.air - I.AIR_JET * Z * dt);
     const roof = localToWorld(s.roll, s.pitch, 0, 1, 0, s.yaw);
@@ -2421,11 +2423,18 @@ const glassMat = new THREE.MeshPhysicalMaterial({
 });
 const tireMat = new THREE.MeshStandardMaterial({color:0x10121a,roughness:.85});
 const chromeMat = new THREE.MeshStandardMaterial({color:0x8fa4b8,metalness:.95,roughness:.24,envMap:vehicleEnvironment});
+const roverBodyMat=new THREE.MeshPhysicalMaterial({color:0xe4e0cf,metalness:.55,roughness:.24,clearcoat:1,clearcoatRoughness:.18,envMap:vehicleEnvironment});
+const roverTrimMat=new THREE.MeshStandardMaterial({color:0xd6af65,metalness:.9,roughness:.23,envMap:vehicleEnvironment});
+const roverGlassMat=glassMat.clone();roverGlassMat.color.set(0x17334d);roverGlassMat.opacity=.72;
+loadTex('assets/mars-royale-surface.webp','assets/mars-royale-surface.png',texture=>{
+  texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  roverBodyMat.map=texture;roverBodyMat.needsUpdate=true;
+});
 const seamMat = new THREE.MeshStandardMaterial({color:0x030810,roughness:.65});
 const ledMat = new THREE.MeshBasicMaterial({color:0x86edff});
 const tailMat = new THREE.MeshBasicMaterial({color:0xff368a});
 const bodyColor0 = bodyMat.color.clone();
-const shellMaterials={body:bodyMat,dark:darkMat,glass:glassMat,trim:chromeMat,seam:seamMat,led:ledMat,tail:tailMat};
+const shellMaterials={body:bodyMat,dark:darkMat,glass:glassMat,trim:chromeMat,seam:seamMat,led:ledMat,tail:tailMat,roverBody:roverBodyMat,roverTrim:roverTrimMat,roverGlass:roverGlassMat};
 const vehicleShells=Object.fromEntries(window.WallFlipGarage.vehicles.map(vehicle=>{
   const shell=window.WallFlipMesh.build(THREE,vehicle,shellMaterials);body.add(shell);return [vehicle.id,shell];
 }));
@@ -2448,6 +2457,10 @@ const wheels=[];
 for(const wx of [CAR.WHEEL_X,-CAR.WHEEL_X])for(const wz of [-CAR.WHEEL_Z,CAR.WHEEL_Z]) {
   const wheel=window.WallFlipMesh.wheel(THREE,CAR.WHEEL_R,Math.sign(wz),{tire:tireMat,dark:darkMat,trim:chromeMat,led:ledMat});
   wheel.position.set(wx,-.3,wz);carRoot.add(wheel);wheels.push(wheel);
+}
+for(const x of [-CAR.WHEEL_X,0,CAR.WHEEL_X])for(const z of [-CAR.WHEEL_Z,CAR.WHEEL_Z]) {
+  const wheel=window.WallFlipMesh.wheel(THREE,CAR.WHEEL_R,Math.sign(z),{tire:tireMat,dark:darkMat,trim:roverTrimMat,led:ledMat},'rover');
+  wheel.position.set(x,-.3,z);wheel.userData.roverOnly=true;carRoot.add(wheel);wheels.push(wheel);
 }
 // air jets: nozzles + additive flame cones (original parts)
 const jets = { left: [], right: [] };
@@ -2499,6 +2512,12 @@ for(const wx of [CAR.WHEEL_X,-CAR.WHEEL_X])for(const wz of [-CAR.WHEEL_Z,CAR.WHE
   const wheel=new THREE.Mesh(new THREE.CylinderGeometry(CAR.WHEEL_R,CAR.WHEEL_R,.3,12).rotateX(Math.PI/2),ghostMat);
   wheel.position.set(wx,-.3,wz);ghostCar.add(wheel);
 }
+const roverGhostWheels=new THREE.Group();
+for(const z of [-CAR.WHEEL_Z,CAR.WHEEL_Z]) {
+  const wheel=new THREE.Mesh(new THREE.CylinderGeometry(CAR.WHEEL_R,CAR.WHEEL_R,.3,12).rotateX(Math.PI/2),ghostMat);
+  wheel.position.set(0,-.3,z);roverGhostWheels.add(wheel);
+}
+ghostCar.add(roverGhostWheels);
 ghostCar.visible=false;scene.add(ghostCar);
 
 const garage = window.WallFlipGarage.mount({language: () => lang, onChange: () => changeVehicle()});
@@ -2508,6 +2527,8 @@ function showVehicleShell() {
   document.body.dataset.vehicle = garage.active.id;
   for (const [id, shell] of Object.entries(vehicleShells)) shell.visible = id === garage.active.id;
   for (const [id, shell] of Object.entries(ghostShells)) shell.visible = id === garage.active.id;
+  for(const wheel of wheels)wheel.visible=wheel.userData.roverOnly?garage.active.id==='mars':garage.active.id!=='mars';
+  roverGhostWheels.visible=garage.active.id==='mars';
 }
 function changeVehicle() {
   showVehicleShell();
@@ -3114,7 +3135,10 @@ function makeSimHooks() {
   };
 }
 
-const stuntClub = window.WallFlipClub.mount({language: () => lang, onPaint: paint => { bodyColor0.set(paint.color).multiplyScalar(.48); bodyMat.color.copy(bodyColor0); }});
+const stuntClub = window.WallFlipClub.mount({language: () => lang, onPaint: paint => {
+  bodyColor0.set(paint.color).multiplyScalar(.48);bodyMat.color.copy(bodyColor0);
+  roverBodyMat.color.set(0xe4e0cf).lerp(new THREE.Color(paint.color),.2);
+}});
 const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '3d', club: stuntClub, garage, onUpload: () => openNamePanel(), canUpload: () => !DEMO && !!apiBase() && !submitThrottled(), onRetry: () => { ensureAudio(); resetRun(); }});
 
 function resetRun() {
@@ -4486,7 +4510,11 @@ function updateHud() {
   flightCoach.render({mode:st.mode,u:st.u,th:st.th,tilt:window.WallFlipFlight.orientation(st).tilt,vy:st.vy,rw:st.rw,air:st.air,reason:st.crash,rolls:Math.max(rollsCount(st.roll,st.roll0),st.rollsAccum || 0)}, {active:screen===null,reviewing:screen==='result',blocked:boardOn || apiPanel.classList.contains('on') || namePanel.classList.contains('on')});
   for (const [act, btn] of Object.entries(padBtnEls)) {
     btn.classList.toggle('on', game.playing && (keyActive(act) || padActive(act)));
-    if (act === 'suck' || act === 'drive') btn.classList.toggle('wait', game.playing && airMode);
+    if (act === 'suck' || act === 'drive') btn.classList.toggle('wait', game.playing && airMode && !(act==='suck'&&runTuning.LANDING_ASSIST));
+    if(act==='suck') {
+      const label=t(airMode&&runTuning.LANDING_ASSIST?'padDescend':'padStick'),span=btn.querySelector('span');
+      if(span.textContent!==label)span.textContent=label;
+    }
   }
   setMeter(st.air, 100);
   const spd = st.mode === 'road' ? Math.abs(st.v) : Math.hypot(st.vx, st.vy, st.vz);

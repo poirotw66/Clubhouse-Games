@@ -5,13 +5,13 @@ const included=!filter || filter==='*' || filter.toLowerCase()==='full' || filte
 test.beforeEach(() => test.skip(!included,'selective CI'));
 const garage=page=>page.getByTestId('vehicle-garage');
 
-test('wall-flip garage: all four shells select, localize and persist between rendering modes', async ({page}) => {
+test('wall-flip garage: all five shells select, localize and persist between rendering modes', async ({page}) => {
   const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>localStorage.setItem('wallflip.viewMode','2d'));
   await page.goto('./Games/Wall-Flip/');
   await garage(page).locator('summary').click();
-  for(const id of ['sparrow','atlas','nova','roadster']) {
+  for(const id of ['sparrow','atlas','nova','mars','roadster']) {
     await garage(page).locator('button[data-vehicle="'+id+'"]').click();
     await expect(page.locator('body')).toHaveAttribute('data-vehicle',id);
     await expect(garage(page).locator('button[data-vehicle="'+id+'"]')).toBeFocused();

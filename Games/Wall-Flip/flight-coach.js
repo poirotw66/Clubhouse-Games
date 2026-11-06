@@ -116,6 +116,10 @@
         text($('.wf-flight-checkpoints'),w.checkpoint);
         text($('[data-flight-stage]'),w.stages[a.stage]);text($('[data-flight-action]'),w.actions[a.action] || w.actions.tilt);
         text($('[data-flight-keys]'),w.keys[a.action] || '');
+        if(garage?.active.handling.landingAssist&&state.mode==='air'&&a.action!=='empty') {
+          text($('[data-flight-action]'),language()==='en'?'Release roll to level out. Hold X / ↓ for fast descent, or B / both jets for a gentle descent. Braking slows you near the ground.':'放開翻滾先回正；按 X／↓ 快降，B／雙鍵穩降，近地面會自動減速。');
+          text($('[data-flight-keys]'),language()==='en'?'X / ↓ descend · B land':'X / ↓ 快降 · B 穩降');
+        }
         const airborne=state.mode==='air'; root.classList.toggle('airborne',airborne);
         const values=[['tilt',a.tilt*180/Math.PI,25,'°',a.aligned],['descent',a.descent*3.6,18,' km/h',a.slow],['spin',a.spin,2.5,' rad/s',a.settled]];
         for(const [name,value,limit,unit,ok] of values){const el=$('[data-coach-metric="'+name+'"]');text(el,w[name]+' '+value.toFixed(name==='spin'?1:0)+unit+' / '+limit+unit);el.classList.toggle('within',ok);}

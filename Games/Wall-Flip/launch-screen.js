@@ -66,7 +66,7 @@ window.WallFlipLaunch = {
       update(lang, course, ghost, achievements = []) {
         club?.refresh();
         garage?.refresh();
-        const key = [lang, course, ghost, garage?.active.id, club?.paint.id, ...achievements].join('|'); if (key === current) return; current = key;
+        const key = [lang, course, ghost, garage?.active.id, garage?.surfaceReady, club?.paint.id, ...achievements].join('|'); if (key === current) return; current = key;
         const en = lang === 'en';
         const copy = en ? {
           brand:'NIGHT DISTRICT / WALL FLIP', headline:'Wall Flip.', intro:'Neon streets below. Open sky above. Make the landing count.', mission:'Your first clean landing starts here.', ready:'● READY FOR TAKEOFF', title:'Ready to fly?', description:'Hold the throttle. Stick to the wall. Level out and brake before touchdown.', keyHint:'W / SPACE throttle · X suction · ← → roll · B brake', guide:'The 30-second flight guide', credit:'Inspired by tsuyatt.com 宙返りロードスター · Independent recreation.', achievements:'My stunt collection', ranking:'Leaderboard ↗', ghost:'Ghost ' + (ghost ? 'ON' : 'OFF'), start:'Launch this run →'
@@ -75,6 +75,10 @@ window.WallFlipLaunch = {
         };
         launch.querySelector('#launchHeadline').textContent=copy.headline;
         launch.querySelectorAll('[data-copy]').forEach(el => { if (copy[el.dataset.copy]) el.textContent=copy[el.dataset.copy]; });
+        if(garage?.active.handling.landingAssist) {
+          launch.querySelector('[data-copy="description"]').textContent=en?'Use throttle and suction up the wall, then one jet for stunts. Release to level out. X / ↓ descends faster; B lands gently.':'油門與吸附一起上牆，單側噴射做特技。放開先回正，X／↓ 快降，B 穩降，近地面自動減速。';
+          launch.querySelector('[data-copy="keyHint"]').textContent=en?'W throttle · X suction / air descent · ← → stunt · B land':'W 油門 · X 吸附／空中快降 · ← → 特技 · B 穩降';
+        }
         start.textContent=copy.start;
         launch.querySelector('.wf-launch-caption strong').textContent=garage ? garage.active.name+' / '+garage.active[en?'en':'tc'].title : copy.mission;
         const preview=launch.querySelector('.wf-showroom-2d');
@@ -83,13 +87,18 @@ window.WallFlipLaunch = {
           const ctx=preview.getContext('2d'); ctx.clearRect(0,0,800,400);
           ctx.save(); ctx.translate(400,225);ctx.scale(135,-135);
           ctx.fillStyle='#030b1655';ctx.beginPath();ctx.ellipse(0,-.72,2.4,.1,0,0,Math.PI*2);ctx.fill();
-          for(const x of [-1.38,1.38])window.WallFlipGarage.drawWheel2d(ctx,x,-.3,.36);
-          window.WallFlipGarage.draw2d(ctx,garage.active,club?.paint.color || '#a4e8d3');ctx.restore();
+          if(garage.active.id!=='mars')for(const x of [-1.38,1.38])window.WallFlipGarage.drawWheel2d(ctx,x,-.3,.36);
+          window.WallFlipGarage.draw2d(ctx,garage.active,club?.paint.color || '#a4e8d3');
+          if(garage.active.id==='mars')for(const x of [-1.38,0,1.38])window.WallFlipGarage.drawWheel2d(ctx,x,-.3,.36,0,'rover');
+          ctx.restore();
         }
         launch.querySelector('.wf-launch-lang').textContent=en ? '中文' : 'EN';
+        const descentGuide=en?'Release roll to level out. X / down descends fast; B / both jets descend gently, with automatic braking near the ground.':'放開翻滾先回正。X／↓ 快降，B／雙鍵穩降，近地面會自動減速。';
+        if(mode==='3d')guide.querySelector('#s3b').textContent=garage?.active.handling.landingAssist?descentGuide:(en?'One jet rolls you; both push toward the roof. Inverted jets push you toward the ground.':'單側噴射翻滾，雙鍵向車頂方向推；倒掛時雙鍵會往地面推。');
         if (mode === '2d') {
           launch.querySelector('.wf-launch-course span').textContent=(en ? 'COURSE / ' : '賽道 / ') + course;
           const steps=en ? ['SPACE — Hold the throttle all the way up.', 'X — Hold suction on the overhang.', '← / → — One jet rolls; both push you upward (downward while inverted).', 'Land level on your tires, below 18 km/h.'] : ['SPACE — 油門一路按住，衝上弧牆。', 'X — 反翹段按住吸附，避免剝離。', '← / → — 單鍵翻滾；扶正後按 B 或雙鍵噴射減緩下墜。', '輪胎朝下、車身扶正，以低於 18 km/h 的速度著地。'];
+          if(garage?.active.handling.landingAssist)steps[2]=descentGuide;
           launch.querySelector('.wf-launch-achievement-body').textContent = achievements.join(' · ');
           guide.querySelector('ol').replaceChildren(...steps.map(text => { const li=document.createElement('li');li.textContent=text;return li; }));
         }

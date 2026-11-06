@@ -1,0 +1,21 @@
+{
+  "generator": "Built-in image_gen",
+  "assets": [
+    {
+      "file": "mars-royale-concept.webp",
+      "role": "Design reference for the native 3D mesh and 2D silhouette. The game renders the native vehicle, not this image.",
+      "reference": "Existing Mars Royale showroom screenshot. Only the vehicle proportions and palette were used.",
+      "prompt": "Use case: stylized-concept. Asset type: production design reference for a real-time 3D stunt game vehicle. Reference image: use ONLY the six-wheel vehicle on the left as the proportion and palette reference, ignore every part of the UI, road and background. Create a new premium MARS ROYALE luxury reconnaissance rover, a meaningful redesign with coherent automotive surfacing rather than decorations on a flat slab. Six identical wheels in three axles, three visible near-side wheels; short chunky all-terrain tires with precise chevron treads, champagne gold machined wheel centers. Very low planted silhouette, approximate dimensions length 4.4m width 2.0m total height 1.2m, with wheels diameter .72m. Sculpted pearl ivory ceramic armor with separate raised wheel arches, titanium underbody, restrained champagne gold panel edges, a low faceted panoramic smoked blue glass cockpit integrated into a thin floating ivory roof, recessed cyan corner LED headlights, small turbine housings integrated into the rear quarters, discreet flush solar cells on the rear deck, visible mechanical suspension links. Cyberpunk luxury and aerospace industrial design, highly detailed believable construction, no excessive random greebles, no upright roof rack or railings, no bubble fishbowl canopy, no big hood radiator grille. Single vehicle in front three-quarter view facing right, filling a horizontal frame with comfortable margin, dark graphite studio backdrop and soft white key light plus subtle cyan/magenta rim light. Sharp premium game art render. No text, no logo, no watermark, no collage, no UI. This is a design reference, not a screenshot edit."
+    },
+    {
+      "file": "mars-royale-surface.webp",
+      "fallback": "mars-royale-surface.png",
+      "role": "Base-color armor material on the 3D hull, roof and fenders, and a clipped surface overlay in the 2D body.",
+      "runtime_size": [
+        1024,
+        1024
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: seamless square base-color texture tile for the exterior ceramic armor of a luxury Mars rover in a real-time 3D game. Fill the ENTIRE square image edge to edge with a single flat pearl ivory aerospace ceramic / satin titanium composite material, viewed exactly perpendicular, absolutely even neutral diffuse lighting. Fine pale ceramic pearlescent grain, extremely subtle brushed microstructure, delicate shallow etched technical channels, sparse thin champagne gold conductive inlays and tiny precise graphite fastener dots. Luxurious, clean, close-up manufacturing detail, contemporary premium hard-surface material. Mostly pale ivory/off-white, gold is less than 3 percent of the surface, etched grey lines are low contrast. No large dark panels, no raised objects, no visible perspective, no bevel lighting, no cast shadows or specular hotspots, no baked reflections, no text, no letters, no words, no logos, no frame. Texture continues across all four image edges and tiles seamlessly. Uniform small-scale detail suitable to wrap around a moving vehicle without dominating its silhouette. Render a square high resolution texture sheet, not a vehicle or a material sphere."
+    }
+  ]
+}
