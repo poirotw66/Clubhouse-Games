@@ -87,9 +87,8 @@ window.WallFlipLaunch = {
           const ctx=preview.getContext('2d'); ctx.clearRect(0,0,800,400);
           ctx.save(); ctx.translate(400,225);ctx.scale(135,-135);
           ctx.fillStyle='#030b1655';ctx.beginPath();ctx.ellipse(0,-.72,2.4,.1,0,0,Math.PI*2);ctx.fill();
-          if(garage.active.id!=='mars')for(const x of [-1.38,1.38])window.WallFlipGarage.drawWheel2d(ctx,x,-.3,.36);
-          window.WallFlipGarage.draw2d(ctx,garage.active,club?.paint.color || '#a4e8d3');
-          if(garage.active.id==='mars')for(const x of [-1.38,0,1.38])window.WallFlipGarage.drawWheel2d(ctx,x,-.3,.36,0,'rover');
+          window.WallFlipGarage.draw2d(ctx,garage.active,window.WallFlipGarage.paintColor(garage.active,club?.paint));
+          for(const x of (garage.active.id==='mars'?[-1.38,0,1.38]:[-1.38,1.38]))window.WallFlipGarage.drawWheel2d(ctx,x,-.3,.36,0,garage.active.finish.wheel);
           ctx.restore();
         }
         launch.querySelector('.wf-launch-lang').textContent=en ? '中文' : 'EN';

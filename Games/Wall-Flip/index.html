@@ -2065,9 +2065,8 @@ function drawCar(t) {
   if (jetsOn && jetRight && !jetLeft) flame(hw - 0.3, axle + 0.1, 1.6 + 0.3 * Math.sin(t * 40 + 2), 0.3);
   if (jetsOn && jetLeft && jetRight) { flame(-0.8, axle - 0.05, 2 + 0.4 * Math.sin(t * 42), 0.34); flame(0.8, axle - 0.05, 2 + 0.4 * Math.sin(t * 42 + 1), 0.34); }
 
-  if(garage.active.id!=='mars')for(const wx of [-CAR.WHEEL_X,CAR.WHEEL_X])window.WallFlipGarage.drawWheel2d(ctx,wx,axle,wr,car.od||0);
-  window.WallFlipGarage.draw2d(ctx, garage.active, clubPaint.color);
-  if(garage.active.id==='mars')for(const wx of [-CAR.WHEEL_X,0,CAR.WHEEL_X])window.WallFlipGarage.drawWheel2d(ctx,wx,axle,wr,car.od||0,'rover');
+  window.WallFlipGarage.draw2d(ctx, garage.active, window.WallFlipGarage.paintColor(garage.active,clubPaint));
+  for(const wx of (garage.active.id==='mars'?[-CAR.WHEEL_X,0,CAR.WHEEL_X]:[-CAR.WHEEL_X,CAR.WHEEL_X]))window.WallFlipGarage.drawWheel2d(ctx,wx,axle,wr,car.od||0,garage.active.finish.wheel);
   ctx.restore();
 }
 

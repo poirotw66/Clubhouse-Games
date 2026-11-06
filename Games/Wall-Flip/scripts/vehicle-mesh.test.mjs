@@ -23,9 +23,9 @@ test('sculpted vehicle shells face outward and fit inside the stunt chassis',()=
 });
 
 test('detailed cars stay within the mobile geometry and draw budgets',()=>{
-  const materials=Object.fromEntries(['body','glass','dark','trim','seam','led','tail','tire','roverBody','roverGlass','roverTrim'].map(key=>[key,new THREE.MeshStandardMaterial()]));
+  const materials=Object.fromEntries(['body','glass','dark','trim','seam','led','tail','tire','accent'].map(key=>[key,new THREE.MeshStandardMaterial()]));
   const triangleCount=group=>group.children.reduce((n,mesh)=>n+mesh.geometry.getAttribute('position').count/3,0);
-  const styles=Object.fromEntries(['road','rover'].map(style=>[style,[-1,1].map(side=>context.WallFlipMesh.wheel(THREE,.36,side,materials,style))]));
+  const styles=Object.fromEntries(['touring','formula','rally','turbine','rover'].map(style=>[style,[-1,1].map(side=>context.WallFlipMesh.wheel(THREE,.36,side,materials,style))]));
   for(const wheel of Object.values(styles).flat()) {
     const bounds=new THREE.Box3().setFromObject(wheel);
     assert.ok(bounds.min.x>=-.361&&bounds.max.x<=.361,'Tire radius remains unchanged');
@@ -35,7 +35,7 @@ test('detailed cars stay within the mobile geometry and draw budgets',()=>{
   for(const vehicle of context.WallFlipGarage.vehicles) {
     const shell=context.WallFlipMesh.build(THREE,vehicle,materials);
     const wheelCount=vehicle.id==='mars'?6:4;
-    const wheels=styles[vehicle.id==='mars'?'rover':'road'];
+    const wheels=styles[vehicle.finish.wheel];
     assert.ok(shell.children.length+wheelCount*wheels[0].children.length<=(wheelCount===6?32:24),vehicle.id+' draw budget');
     assert.ok(triangleCount(shell)+wheelCount*triangleCount(wheels[0])<(wheelCount===6?44000:32000),vehicle.id+' triangle budget');
     shell.traverse(mesh=>{
@@ -43,7 +43,7 @@ test('detailed cars stay within the mobile geometry and draw budgets',()=>{
       for(const name of ['position','normal','uv'])for(const value of mesh.geometry.getAttribute(name).array)assert.ok(Number.isFinite(value),vehicle.id+' finite '+name);
     });
     if(vehicle.id==='mars') {
-      const hull=shell.children.find(mesh=>mesh.material===materials.roverBody);
+      const hull=shell.children.find(mesh=>mesh.material===materials.body);
       const uv=hull.geometry.getAttribute('uv');
       assert.ok(uv.array.some(value=>value>.9),'Generated armor material has usable texture coordinates');
     }

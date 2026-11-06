@@ -77,8 +77,7 @@
     return group;
   }
   function build(THREE,vehicle,materials) {
-    const m={...materials,led:materials.led||materials.trim,tail:materials.tail||materials.trim,seam:materials.seam||materials.dark};
-    if(vehicle.id==='mars') {m.body=materials.roverBody||m.body;m.trim=materials.roverTrim||m.trim;m.glass=materials.roverGlass||m.glass;}
+    const m={...materials,led:materials.led||materials.trim,tail:materials.tail||materials.trim,seam:materials.seam||materials.dark,accent:materials.accent||materials.trim};
     const group=new THREE.Group();group.name='vehicle-'+vehicle.id;
     const skin=new THREE.Mesh(hull(THREE,vehicle),m.body);group.add(skin);
     if(vehicle.roof)group.add(new THREE.Mesh(hull(THREE,{id:vehicle.id+'-roof',hull:vehicle.roof}),m.body));
@@ -94,17 +93,17 @@
       if(material==='glass'&&vehicle.canopy) {
         group.add(new THREE.Mesh(hull(THREE,{id:vehicle.id+'-canopy',hull:vehicle.canopy}),m.glass));continue;
       }
-      let geometry;
-      if(material==='glass' && ['nova','sparrow','mars'].includes(vehicle.id)) {
-        const key='canopy:'+vehicle.id;
-        if(!geometryCache.has(key)) {
-          const canopy=new THREE.SphereGeometry(1,24,12);canopy.scale(w/2,h/2,d/2);geometryCache.set(key,canopy);
-        }
-        geometry=geometryCache.get(key);
-      } else geometry=roundedBox(THREE,w,h,d);
+      const geometry=roundedBox(THREE,w,h,d);
       const mesh=new THREE.Mesh(geometry,m[material]);
       mesh.position.set(x,y,z);mesh.rotation.z=rz;group.add(mesh);
     }
+    const loft=(name,stations,material)=>{
+      const mesh=new THREE.Mesh(hull(THREE,{id:vehicle.id+'-'+name,hull:stations}),m[material]);group.add(mesh);return mesh;
+    };
+    const cylinder=(r,length,x,y,z,material)=>{
+      const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,length,20).rotateZ(Math.PI/2),m[material]);
+      mesh.position.set(x,y,z);group.add(mesh);return mesh;
+    };
     const narrow=vehicle.id==='sparrow', width=narrow?.55:.96;
     // Splitters, battery tray, fasteners, door shut lines and illuminated sill rails.
     box(3.4,.12,width*1.85,0,-.38,0,'dark');
@@ -118,14 +117,28 @@
       if(!narrow) {
         // The wheel arches stay inside the original collision envelope.
         if(vehicle.id!=='mars')for(const x of [-1.38,1.38]) {
-          const arch=new THREE.Mesh(new THREE.TorusGeometry(.395,.045,6,28,Math.PI),m.dark);
+          const key='fender:'+vehicle.id;
+          if(!geometryCache.has(key)) {
+            const profile=new THREE.Shape(),outer=vehicle.id==='atlas'?.46:.43;
+            profile.absarc(0,0,outer,0,Math.PI,false);profile.lineTo(-.375,0);profile.absarc(0,0,.375,Math.PI,0,true);profile.closePath();
+            const arch=new THREE.ExtrudeGeometry(profile,{depth:.12,bevelEnabled:true,bevelSize:.012,bevelThickness:.012,bevelSegments:1,curveSegments:12,steps:1});
+            arch.translate(0,0,-.06);geometryCache.set(key,arch);
+          }
+          const arch=new THREE.Mesh(geometryCache.get(key),vehicle.id==='atlas'?m.dark:m.body);
           arch.position.set(x,-.3,side*.94);group.add(arch);
-          box(.19,.035,.055,x+.12,.12,side*.94,side===1?'led':'tail');
+          const edge=new THREE.Mesh(new THREE.TorusGeometry(vehicle.id==='atlas'?.448:.421,.007,4,24,Math.PI),m.trim);
+          edge.position.set(x,-.3,side*1.015);group.add(edge);
+          if(vehicle.id==='atlas')for(let i=1;i<5;i++) {
+            const a=i*Math.PI/5;
+            box(.023,.023,.012,x+Math.cos(a)*.44,-.3+Math.sin(a)*.44,side*1.022,'accent');
+          }
         }
         box(.2,.07,.14,.64,.15,side*.95,'dark');
         box(.15,.024,.06,.64,.19,side*.95,'trim');
       } else {
-        for(const x of [-1.38,1.38])tube([[x,-.27,side*.38],[x-.18,-.22,side*.82]],.022,'trim');
+        for(const x of [-1.38,1.38])for(const y of [-.18,-.32]) {
+          tube([[x-.3,y,side*.25],[x,y-.03,side*.82],[x+.2,y,side*.32]],.018,'trim');
+        }
       }
     }
     const nose=vehicle.hull.at(-1),rear=vehicle.hull[0];
@@ -144,31 +157,72 @@
     }
     for(let i=-2;i<=2;i++)box(.36,.07,.025,-1.93,-.35,i*.18,'dark');
     for(const x of [-1.38,1.38])for(const side of [-1,1])box(.09,.16,.04,x+.13,-.26,side*.975,'tail');
-    // Bonnet panels, cooling slats and an offset racing stripe.
-    if(vehicle.id!=='mars') {
-      box(.98,.018,width*.72,1.12,.085,0,'dark',-.045);
-      for(let i=0;i<6;i++)box(.045,.022,width*.57,.76+i*.11,.102-i*.004,0,'trim');
-    }
-    box(.7,.018,.065,-1.47,.145, width*.55,'led');
     if(vehicle.id==='roadster') {
+      loft('bonnet',[[.52,.68,.065,.115],[.95,.75,.04,.13],[1.65,.69,.01,.08],[2.06,.45,-.035,-.01]],'body');
+      box(1.39,.012,.065,1.22,.109,0,'trim',-.04);
       box(1.28,.04,1.14,-.27,.14,0,'seam');
       for(const side of [-1,1]) {
-        box(.35,.22,.4,-.58,.24,side*.31,'dark');
-        box(.13,.28,.4,-.78,.35,side*.31,'dark',-.16);
-        box(.13,.055,.18,-.8,.51,side*.31,'dark');
-        tube([[-.94,.15,side*.55],[-1.01,.45,side*.55],[-.9,.52,side*.4]],.025,'trim');
+        const fairing=loft('fairing-'+side,[[-1.65,.2,.1,.14],[-1.16,.24,.11,.3],[-.84,.2,.11,.38]],'body');
+        fairing.position.z=side*.33;
+        box(.43,.11,.39,-.5,.19,side*.31,'accent');
+        box(.12,.25,.38,-.76,.32,side*.31,'accent',-.16);
+        box(.1,.055,.19,-.8,.49,side*.31,'accent');
+        for(let i=0;i<4;i++)box(.012,.015,.32,-.66+i*.07,.25,side*.31,'trim');
+        tube([[-.95,.16,side*.55],[-1,.43,side*.55],[-.95,.51,side*.4],[-.9,.43,side*.2]],.02,'trim');
+        tube([[-.82,.3,side*.5],[-.72,.44,side*.5]],.006,'trim');
+        box(.3,.02,.02,-.34,.16,side*.71,'trim');
+        for(let i=0;i<4;i++)box(.024,.065,.025,1.05+i*.085,.02,side*.84,'seam',-.3);
       }
-      box(.15,.1,1.12,.32,.22,0,'dark',-.1);
-      box(.015,.055,.23,.22,.28,.25,'led',-.15);
-      const steering=new THREE.Mesh(new THREE.TorusGeometry(.115,.015,6,20).rotateY(Math.PI/2),m.dark);
+      box(.16,.1,1.1,.32,.22,0,'accent',-.1);
+      box(.015,.06,.22,.22,.28,.25,'led',-.15);
+      box(.52,.07,.12,-.28,.18,0,'dark');
+      cylinder(.026,.04,-.23,.29,0,'trim');
+      const steering=new THREE.Mesh(new THREE.TorusGeometry(.115,.015,6,20).rotateY(Math.PI/2),m.accent);
       steering.position.set(.04,.3,.31);group.add(steering);
-      tube([[.48,.12,-.65],[.38,.47,-.65],[.38,.48,.65],[.48,.12,.65]],.018,'trim');
+      tube([[.48,.12,-.65],[.38,.43,-.65],[.38,.44,.65],[.48,.12,.65]],.014,'trim');
+      box(.2,.04,1.5,-1.97,.22,0,'trim');
+    } else if(vehicle.id==='sparrow') {
+      for(const side of [-1,1]) {
+        const pod=loft('sidepod-'+side,[[-1.33,.17,-.25,.03],[-.8,.22,-.25,.15],[.1,.2,-.25,.1],[.46,.13,-.21,-.02]],'dark');pod.position.z=side*.49;
+        box(.045,.13,.3,.45,-.035,side*.49,'seam');
+        box(.055,.017,.29,.48,.045,side*.49,'accent');
+        for(let i=0;i<5;i++)box(.035,.016,.22,-1.1+i*.11,.17,side*.49,'trim',-.05);
+        box(.36,.19,.035,-1.91,.4,side*.98,'accent');
+        box(.29,.14,.035,2,-.21,side*.98,'accent');
+        tube([[-.75,.21,side*.31],[-.43,.46,side*.34],[.22,.4,side*.28],[.49,.22,0]],.025,'trim');
+        box(.17,.025,.065,-.24,.4,side*.34,'accent');
+        box(.16,.08,.04,.46,.2,side*.55,'body');
+      }
+      box(.35,.05,.35,-.27,.19,0,'dark');
+      box(.09,.19,.32,-.6,.29,0,'dark',-.18);
+      box(.023,.19,.06,-.56,.32,.11,'accent',-.18);
+      box(.023,.19,.06,-.56,.32,-.11,'accent',-.18);
+      tube([[.16,.21,0],[.25,.39,0]],.022,'trim');
+      loft('nose-stripe',[[.62,.055,-.015,.002],[1.41,.04,-.065,-.05],[2.07,.025,-.12,-.105]],'accent');
+      box(.12,.04,.14,-.83,.49,0,'accent');
     } else if(vehicle.id==='atlas') {
       for(const side of [-1,1]) {
-        box(.065,.24,.035,-.31,.31,side*.845,'dark');
-        box(1.55,.018,.025,-.24,.45,side*.855,'trim');
-        tube([[-1.1,.45,side*.63],[-1.08,.535,side*.63],[.51,.535,side*.63],[.59,.46,side*.63]],.018,'trim');
+        tube([[-1.61,.22,side*.68],[-1.3,.47,side*.79],[.32,.47,side*.76],[.94,.17,side*.59]],.025,'body');
+        box(.058,.31,.035,-.37,.3,side*.8,'dark');
+        tube([[-.98,.14,side*.78],[-.98,.45,side*.8]],.024,'dark');
+        box(1.4,.018,.025,-.24,.47,side*.79,'trim');
+        tube([[-.94,.49,side*.62],[-.85,.532,side*.62],[.22,.532,side*.62],[.3,.49,side*.62]],.016,'trim');
+        for(const x of [-1.38,1.38])box(.08,.23,.035,x-.33,-.39,side*.94,'dark');
+        box(.65,.04,.08,1.13,.12,side*.42,'dark',-.07);
+        for(let i=0;i<4;i++)box(.025,.015,.07,.91+i*.13,.148-i*.009,side*.42,'accent');
+        const tow=new THREE.Mesh(new THREE.TorusGeometry(.053,.012,5,12).rotateY(Math.PI/2),m.accent);
+        tow.position.set(2.19,-.23,side*.54);group.add(tow);
+        tube([[2.15,-.23,side*.78],[2.23,-.08,side*.76],[2.23,-.02,side*.53]],.035,'trim');
+        for(const z of [side*.18,side*.43]) {
+          cylinder(.09,.04,2.18,.07,z,'dark');cylinder(.066,.045,2.205,.07,z,'led');
+          box(.025,.12,.01,2.23,.07,z,'trim');
+        }
+        box(.03,.3,.04,-1.66,.25,side*.78,'tail',-.25);
       }
+      box(.26,.035,1.35,1.99,-.29,0,'trim',.17);
+      box(.045,.19,1.1,2.16,-.06,0,'seam');
+      for(let i=-3;i<=3;i++)box(.055,.14,.015,2.19,-.06,i*.14,'trim');
+      for(const x of [-.6,.05])box(.04,.02,1.25,x,.535,0,'dark');
     } else if(vehicle.id==='mars') {
       const archKey='mars-fender';
       if(!geometryCache.has(archKey)) {
@@ -211,26 +265,38 @@
       for(let i=0;i<5;i++)box(.012,.008,1.05,-1.76+i*.14,.275,0,'led');
       for(const z of [-.35,0,.35])box(.62,.008,.009,-1.48,.275,z,'trim');
       box(.22,.04,.15,-1.96,.22,0,'dark');box(.06,.012,.07,-1.96,.246,0,'led');
-    } else {
-      tube([[-.78,.19,0],[-.45,.38,0],[.38,.3,0],[.69,.13,0]],.018,'trim');
-      if(vehicle.id==='nova')for(const side of [-1,1]) {
-        box(.7,.15,.3,-1.35,.16,side*.65,'dark');
-        for(let i=0;i<5;i++)box(.045,.024,.27,-1.62+i*.1,.245,side*.65,'trim');
-        box(.45,.022,.035,-1.38,.26,side*.65,'led');
+    } else if(vehicle.id==='nova') {
+      tube([[-1,.16,0],[-.56,.42,0],[.16,.39,0],[.83,.1,0]],.014,'trim');
+      for(const side of [-1,1]) {
+        tube([[-1,.15,side*.31],[-.56,.41,side*.48],[.16,.38,side*.4],[.83,.1,side*.12]],.012,'accent');
+        const pod=loft('engine-'+side,[[-1.99,.19,-.06,.2],[-1.65,.25,-.06,.31],[-.94,.24,-.05,.28],[-.69,.14,-.04,.14]],'body');pod.position.z=side*.67;
+        cylinder(.177,.05,-2.025,.085,side*.67,'trim');
+        cylinder(.147,.058,-2.058,.085,side*.67,'seam');
+        cylinder(.075,.06,-2.062,.085,side*.67,'led');
+        for(let i=0;i<9;i++) {
+          const a=i*Math.PI*2/9;
+          box(.02,.06,.018,-2.095,.085+Math.cos(a)*.11,side*.67+Math.sin(a)*.11,'accent',a);
+        }
+        for(let i=0;i<5;i++)box(.045,.017,.3,-1.67+i*.12,.32,side*.67,'trim',.035);
+        box(.5,.014,.025,-1.45,.34,side*.66,'led');
+        const fin=loft('fin-'+side,[[-1.94,.023,.16,.22],[-1.6,.023,.21,.51],[-1.3,.023,.21,.32]],'accent');fin.position.z=side*.84;
+        box(.78,.025,.06,.91,-.09,side*.65,'accent',-.08);
+        box(.3,.1,.027,.18,-.035,side*.85,'seam',-.25);
       }
+      loft('nose-ridge',[[.52,.08,.04,.06],[1.22,.06,-.005,.02],[2.04,.025,-.055,-.035]],'accent');
     }
     return bake(THREE,group);
   }
   function wheel(THREE,radius,side,materials,style='road') {
     const group=new THREE.Group();
-    const rover=style==='rover';
+    const rover=style==='rover',rally=style==='rally',treaded=rover||rally;
     const add=(geometry,material,z=0)=>{
       const mesh=new THREE.Mesh(geometry,material);mesh.position.z=z;group.add(mesh);return mesh;
     };
-    const ring=(r,tube,material,z)=>add(new THREE.TorusGeometry(r,tube,rover?6:8,rover?28:40),material,z);
-    add(new THREE.CylinderGeometry(rover?radius-.025:radius,rover?radius-.025:radius,.28,48).rotateX(Math.PI/2),materials.tire);
+    const ring=(r,tube,material,z)=>add(new THREE.TorusGeometry(r,tube,6,28),material,z);
+    add(new THREE.CylinderGeometry(treaded?radius-.025:radius,treaded?radius-.025:radius,.28,rover?48:40).rotateX(Math.PI/2),materials.tire);
     for(const z of [-.135,.135]) {
-      ring(radius-(rover?.06:.055),rover?.035:.05,materials.tire,z);
+      ring(radius-(treaded?.06:.055),treaded?.035:.05,materials.tire,z);
       ring(.271,.013,materials.trim,z+side*.01);
     }
     const face=side*.158;
@@ -242,14 +308,17 @@
       hole.position.x=Math.cos(a)*.2;hole.position.y=Math.sin(a)*.2;
       if(side<0)hole.rotation.y=Math.PI;
     }
-    for(let i=0;i<10;i++) {
-      const a=i*Math.PI/5;
-      const spoke=add(roundedBox(THREE,.032,.19,.025),materials.trim,face);
-      spoke.position.x=Math.sin(a)*.15;spoke.position.y=Math.cos(a)*.15;spoke.rotation.z=-a-.2;
+    const spokes=style==='formula'||rally?6:style==='turbine'?12:10;
+    if(style==='turbine')add(new THREE.CylinderGeometry(.225,.225,.015,32).rotateX(Math.PI/2),materials.trim,face-side*.018);
+    for(let i=0;i<spokes;i++) {
+      const a=style==='touring'?(Math.floor(i/2)*Math.PI*2/5+(i%2-.5)*.17):i*Math.PI*2/spokes;
+      const spoke=add(roundedBox(THREE,style==='turbine'?.042:rally?.05:rover?.032:.026,rover?.19:.18,rover?.025:.02),style==='turbine'?materials.dark:materials.trim,face);
+      spoke.position.x=Math.sin(a)*.155;spoke.position.y=Math.cos(a)*.155;
+      spoke.rotation.z=-a+(style==='turbine'?.55:style==='touring'?(i%2?.08:-.18):rover?-.2:-.13);
     }
     add(new THREE.CylinderGeometry(.065,.065,.035,20).rotateX(Math.PI/2),materials.dark,face);
     ring(.045,.008,materials.led||materials.trim,face+side*.019);
-    if(rover) {
+    if(treaded) {
       for(let i=0;i<32;i++)for(const lane of [-1,1]) {
         const a=i*Math.PI/16;
         const tread=add(roundedBox(THREE,.065,.025,.12),materials.tire,lane*.067);
@@ -260,8 +329,8 @@
         const a=i*Math.PI/4,bolt=add(new THREE.CylinderGeometry(.011,.011,.02,6).rotateX(Math.PI/2),materials.dark,face+side*.016);
         bolt.position.x=Math.cos(a)*.091;bolt.position.y=Math.sin(a)*.091;
       }
-    } else for(let i=0;i<32;i++) {
-      const a=i*Math.PI/16;
+    } else if(style!=='formula')for(let i=0;i<24;i++) {
+      const a=i*Math.PI/12;
       const rib=add(roundedBox(THREE,.016,.045,.019),materials.dark,side*.148);
       rib.position.x=Math.sin(a)*(radius-.038);rib.position.y=Math.cos(a)*(radius-.038);rib.rotation.z=-a+.25;
     }

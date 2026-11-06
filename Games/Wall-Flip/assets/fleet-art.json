@@ -1,0 +1,34 @@
+{
+  "generator": "Built-in image_gen",
+  "reference": "mars-royale-concept.webp",
+  "assets": [
+    {
+      "id": "roadster",
+      "file": "roadster-concept.webp",
+      "original": "/Users/cfh00896102/.codex/generated_images/01a1af05-5448-7123-bc75-e0a58943cbc5/exec-4605a12f-f70f-4daf-8d8b-8d4ba766269a.png",
+      "role": "Design reference for the native 2D and 3D vehicle. Not loaded as a gameplay sprite.",
+      "prompt": "Create one premium game vehicle design reference, landscape 3:2, no text or logos. Retro-futurist open-top grand touring roadster. Deep petrol teal lacquer, warm cognac stitched twin bucket seats, restrained champagne metal trim and a narrow ivory bonnet stripe. Long sculpted bonnet, muscular flowing wheel arches, swept frameless windshield, two rear headrest fairings and slim integrated roll hoops. Low ducktail, fine recessed warm white LED headlights, five split-spoke machined touring wheels on road tires, brake discs and door shut lines. Elegant and mechanical, not a formula racer, not a spaceship. The open cockpit and leather upholstery must be clearly visible. Exactly four wheels on two axles. Full vehicle entirely visible, front three-quarter view facing right, eye-level slightly above wheels, dark neutral studio background, polished hard-surface game art, believable scale, precise panel seams, rich materials, small mechanical details. Match the craftsmanship and restrained cyberpunk luxury of the referenced Mars rover, but use the specified distinct vehicle silhouette and colors; do not copy its six-wheel rover design. Soft cyan edge lighting, neutral key light, no bloom obscuring details. This is a design reference for a small native WebGL model."
+    },
+    {
+      "id": "sparrow",
+      "file": "sparrow-concept.webp",
+      "original": "/Users/cfh00896102/.codex/generated_images/01a1af05-5448-7123-bc75-e0a58943cbc5/exec-16552d45-1b07-430b-a396-5211af594cb0.png",
+      "role": "Design reference for the native 2D and 3D vehicle. Not loaded as a gameplay sprite.",
+      "prompt": "Create one premium game vehicle design reference, landscape 3:2, no text or logos. Lightweight futuristic open-wheel formula racer. Pale ice white body, signal orange aero tips and safety markings, graphite carbon sidepods and titanium suspension. Narrow pointed nose and waist, four fully exposed slick tires, visible double wishbones, low open single-seat cockpit with titanium Halo protective hoop, a precise two-element front wing and high rear wing with orange endplates. Small six-spoke center-lock racing wheels. No roof, no enclosed glass canopy, no fenders. Distinct nimble motorsport silhouette. Exactly four wheels on two axles. Full vehicle entirely visible, front three-quarter view facing right, eye-level slightly above wheels, dark neutral studio background, polished hard-surface game art, believable scale, precise panel seams, rich materials, small mechanical details. Match the craftsmanship and restrained cyberpunk luxury of the referenced Mars rover, but use the specified distinct vehicle silhouette and colors; do not copy its six-wheel rover design. Soft cyan edge lighting, neutral key light, no bloom obscuring details. This is a design reference for a small native WebGL model."
+    },
+    {
+      "id": "atlas",
+      "file": "atlas-concept.webp",
+      "original": "/Users/cfh00896102/.codex/generated_images/01a1af05-5448-7123-bc75-e0a58943cbc5/exec-c5e1556c-640c-430a-bd7e-4aa5bd253df7.png",
+      "role": "Design reference for the native 2D and 3D vehicle. Not loaded as a gameplay sprite.",
+      "prompt": "Create one premium game vehicle design reference, landscape 3:2, no text or logos. Rugged cyberpunk rally hatchback, visibly a compact closed-cabin four-wheel hatchback, not a sedan or a military truck. Satin slate olive body, warm amber fog lights and copper accents, dark titanium bumper guards, square sculpted wheel arches, four chunky treaded rally tires with strong six-spoke wheels. Faceted upright panoramic side windows with black pillars, a short roof with low equipment rails, a small rear spoiler, a detailed grille with round rally spotlights, exposed skid plate, tow eyes and mud flaps. Stable, purposeful and refined industrial construction. Exactly four wheels on two axles. Full vehicle entirely visible, front three-quarter view facing right, eye-level slightly above wheels, dark neutral studio background, polished hard-surface game art, believable scale, precise panel seams, rich materials, small mechanical details. Match the craftsmanship and restrained cyberpunk luxury of the referenced Mars rover, but use the specified distinct vehicle silhouette and colors; do not copy its six-wheel rover design. Soft cyan edge lighting, neutral key light, no bloom obscuring details. This is a design reference for a small native WebGL model."
+    },
+    {
+      "id": "nova",
+      "file": "nova-concept.webp",
+      "original": "/Users/cfh00896102/.codex/generated_images/01a1af05-5448-7123-bc75-e0a58943cbc5/exec-69aee3fe-9a13-4ea0-9280-c467e46afc8d.png",
+      "role": "Design reference for the native 2D and 3D vehicle. Not loaded as a gameplay sprite.",
+      "prompt": "Create one premium game vehicle design reference, landscape 3:2, no text or logos. Sleek cyberpunk twin-jet stunt prototype with exactly four functional wheels, not a hovering vehicle. Midnight blue satin metallic body, electric violet accents, ice cyan thin LED light signatures, a low enclosed smoked-blue teardrop canopy, sculpted delta side surfaces and integrated rear twin turbine engine cowls. Precisely machined round exhaust throats, segmented cooling vents, compact swept stabilizer fins, a low front splitter and sculpted diffuser. Distinct aero-disc turbine wheels with luminous cyan edge details. Futuristic aerospace precision with a very low fast silhouette. Exactly four wheels on two axles. Full vehicle entirely visible, front three-quarter view facing right, eye-level slightly above wheels, dark neutral studio background, polished hard-surface game art, believable scale, precise panel seams, rich materials, small mechanical details. Match the craftsmanship and restrained cyberpunk luxury of the referenced Mars rover, but use the specified distinct vehicle silhouette and colors; do not copy its six-wheel rover design. Soft cyan edge lighting, neutral key light, no bloom obscuring details. This is a design reference for a small native WebGL model."
+    }
+  ]
+}

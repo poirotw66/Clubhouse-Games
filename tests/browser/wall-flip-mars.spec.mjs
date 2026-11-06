@@ -25,27 +25,29 @@ for(const mode of ['2d','3d'])test(`wall-flip Mars rover: ${mode} selects and la
   await page.screenshot({path:testInfo.outputPath('mars-rover-garage-'+mode+'.png')});
   await page.locator(mode==='3d'?'#startBtn':'#launchStart').click();
   if(mode==='3d') {
-    await page.evaluate(()=>{
+    // Launch and stunt in one task so live animation cannot move the takeoff
+    // between fixed-step input and an asynchronous UI assertion.
+    const stunt=await page.evaluate(()=>{
       const sim=window.__sim;
-      for(let i=0;i<2000;i++) {
-        if(sim.state.mode==='air'&&sim.state.clear)break;
-        sim.step(1/240,{drive:true,suck:true,left:false,right:false});
+      let duration=0;
+      for(let i=0;i<2400;i++) {
+        const s=sim.state;
+        if(s.mode==='landed'||s.mode==='crash'||duration>=.7)break;
+        const input={drive:s.mode==='road',suck:s.mode==='road'&&s.u>0,left:false,right:false};
+        if(s.mode==='air'&&s.clear){input.left=true;duration+=1/240;}
+        sim.step(1/240,input);
       }
+      return {mode:sim.state.mode,duration};
     });
+    expect(stunt.mode).toBe('air');expect(stunt.duration).toBeGreaterThanOrEqual(.7);
     await expect(page.locator('[data-flight-keys]')).toContainText('快降');
     if(isMobile)await expect(page.locator('#pad [data-act="suck"] span')).toHaveText('快降');
     const result=await page.evaluate(()=>{
       const sim=window.__sim;
-      let stunt=0;
       for(let i=0;i<10000;i++) {
         const s=sim.state;
         if(s.mode==='landed'||s.mode==='crash')break;
-        const input={drive:s.mode==='road',suck:s.mode==='road'&&s.u>0,left:false,right:false};
-        if(s.mode==='air'&&s.clear) {
-          if(stunt<.7){input.left=true;stunt+=1/240;}
-          else {input.left=input.right=true;input.suck=true;}
-        }
-        sim.step(1/240,input);
+        sim.step(1/240,{drive:false,suck:true,left:true,right:true});
       }
       return {mode:sim.state.mode,air:sim.state.air};
     });

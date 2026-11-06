@@ -2407,9 +2407,6 @@ const ufo = (() => {
 const carRoot = new THREE.Group(); // original tt
 const body = new THREE.Group();    // original ot
 carRoot.add(body);
-const bodyMat = new THREE.MeshPhysicalMaterial({
-  color:0x386d7b,metalness:.72,roughness:.26,clearcoat:.9,clearcoatRoughness:.2,envMap:vehicleEnvironment,envMapIntensity:1.3,
-});
 const darkMat = new THREE.MeshStandardMaterial({color:0x111623,metalness:.55,roughness:.38,envMap:vehicleEnvironment});
 try {
   loadTex('assets/carbon-fiber.webp','assets/carbon-fiber.jpg',tex=>{
@@ -2417,26 +2414,28 @@ try {
     darkMat.map=tex;darkMat.needsUpdate=true;
   });
 } catch(e) {}
-const glassMat = new THREE.MeshPhysicalMaterial({
-  color:0x123f59,metalness:.25,roughness:.08,clearcoat:1,envMap:vehicleEnvironment,envMapIntensity:1.8,
-  transparent:true,opacity:.78,depthWrite:false,
-});
 const tireMat = new THREE.MeshStandardMaterial({color:0x10121a,roughness:.85});
-const chromeMat = new THREE.MeshStandardMaterial({color:0x8fa4b8,metalness:.95,roughness:.24,envMap:vehicleEnvironment});
-const roverBodyMat=new THREE.MeshPhysicalMaterial({color:0xe4e0cf,metalness:.55,roughness:.24,clearcoat:1,clearcoatRoughness:.18,envMap:vehicleEnvironment});
-const roverTrimMat=new THREE.MeshStandardMaterial({color:0xd6af65,metalness:.9,roughness:.23,envMap:vehicleEnvironment});
-const roverGlassMat=glassMat.clone();roverGlassMat.color.set(0x17334d);roverGlassMat.opacity=.72;
+const seamMat = new THREE.MeshStandardMaterial({color:0x030810,roughness:.65});
+const tailMat = new THREE.MeshBasicMaterial({color:0xff368a});
+const vehicleMaterials=Object.fromEntries(window.WallFlipGarage.vehicles.map(vehicle=>{
+  const f=vehicle.finish;
+  return [vehicle.id,{
+    body:new THREE.MeshPhysicalMaterial({color:f.body,metalness:vehicle.id==='mars'?.55:vehicle.id==='atlas'?.35:.68,roughness:f.roughness,clearcoat:1,clearcoatRoughness:.2,envMap:vehicleEnvironment,envMapIntensity:1.3}),
+    glass:new THREE.MeshPhysicalMaterial({color:f.glass,metalness:.25,roughness:.08,clearcoat:1,envMap:vehicleEnvironment,envMapIntensity:1.8,transparent:true,opacity:vehicle.id==='roadster'?.42:vehicle.id==='mars'?.72:.86,depthWrite:false}),
+    trim:new THREE.MeshStandardMaterial({color:f.trim,metalness:.9,roughness:.25,envMap:vehicleEnvironment}),
+    accent:new THREE.MeshStandardMaterial({color:f.accent,metalness:vehicle.id==='roadster'?.05:.65,roughness:vehicle.id==='roadster'?.65:.3,envMap:vehicleEnvironment}),
+    led:new THREE.MeshBasicMaterial({color:f.light}),dark:darkMat,seam:seamMat,tail:tailMat,tire:tireMat,
+  }];
+}));
 loadTex('assets/mars-royale-surface.webp','assets/mars-royale-surface.png',texture=>{
   texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-  roverBodyMat.map=texture;roverBodyMat.needsUpdate=true;
+  vehicleMaterials.mars.body.map=texture;vehicleMaterials.mars.body.needsUpdate=true;
 });
-const seamMat = new THREE.MeshStandardMaterial({color:0x030810,roughness:.65});
-const ledMat = new THREE.MeshBasicMaterial({color:0x86edff});
-const tailMat = new THREE.MeshBasicMaterial({color:0xff368a});
-const bodyColor0 = bodyMat.color.clone();
-const shellMaterials={body:bodyMat,dark:darkMat,glass:glassMat,trim:chromeMat,seam:seamMat,led:ledMat,tail:tailMat,roverBody:roverBodyMat,roverTrim:roverTrimMat,roverGlass:roverGlassMat};
+let currentPaint=window.WallFlipClub.paints[0];
+let bodyMat=vehicleMaterials[window.WallFlipGarage.readSelection().id].body;
+const bodyColor0=bodyMat.color.clone();
 const vehicleShells=Object.fromEntries(window.WallFlipGarage.vehicles.map(vehicle=>{
-  const shell=window.WallFlipMesh.build(THREE,vehicle,shellMaterials);body.add(shell);return [vehicle.id,shell];
+  const shell=window.WallFlipMesh.build(THREE,vehicle,vehicleMaterials[vehicle.id]);body.add(shell);return [vehicle.id,shell];
 }));
 
 // The projectors illuminate the road; emissive housings are part of each shell.
@@ -2454,13 +2453,12 @@ underglow.position.set(0, -.45, 0);
 body.add(underglow);
 // Detailed wheel assemblies rotate with the original simulation travel.
 const wheels=[];
-for(const wx of [CAR.WHEEL_X,-CAR.WHEEL_X])for(const wz of [-CAR.WHEEL_Z,CAR.WHEEL_Z]) {
-  const wheel=window.WallFlipMesh.wheel(THREE,CAR.WHEEL_R,Math.sign(wz),{tire:tireMat,dark:darkMat,trim:chromeMat,led:ledMat});
-  wheel.position.set(wx,-.3,wz);carRoot.add(wheel);wheels.push(wheel);
-}
-for(const x of [-CAR.WHEEL_X,0,CAR.WHEEL_X])for(const z of [-CAR.WHEEL_Z,CAR.WHEEL_Z]) {
-  const wheel=window.WallFlipMesh.wheel(THREE,CAR.WHEEL_R,Math.sign(z),{tire:tireMat,dark:darkMat,trim:roverTrimMat,led:ledMat},'rover');
-  wheel.position.set(x,-.3,z);wheel.userData.roverOnly=true;carRoot.add(wheel);wheels.push(wheel);
+for(const vehicle of window.WallFlipGarage.vehicles)for(const side of [-1,1]) {
+  const prototype=window.WallFlipMesh.wheel(THREE,CAR.WHEEL_R,side,vehicleMaterials[vehicle.id],vehicle.finish.wheel);
+  for(const x of (vehicle.id==='mars'?[-CAR.WHEEL_X,0,CAR.WHEEL_X]:[-CAR.WHEEL_X,CAR.WHEEL_X])) {
+    const wheel=prototype.clone();wheel.position.set(x,-.3,side*CAR.WHEEL_Z);
+    wheel.userData.vehicle=vehicle.id;carRoot.add(wheel);wheels.push(wheel);
+  }
 }
 // air jets: nozzles + additive flame cones (original parts)
 const jets = { left: [], right: [] };
@@ -2527,7 +2525,10 @@ function showVehicleShell() {
   document.body.dataset.vehicle = garage.active.id;
   for (const [id, shell] of Object.entries(vehicleShells)) shell.visible = id === garage.active.id;
   for (const [id, shell] of Object.entries(ghostShells)) shell.visible = id === garage.active.id;
-  for(const wheel of wheels)wheel.visible=wheel.userData.roverOnly?garage.active.id==='mars':garage.active.id!=='mars';
+  for(const wheel of wheels)wheel.visible=wheel.userData.vehicle===garage.active.id;
+  bodyMat=vehicleMaterials[garage.active.id].body;
+  bodyColor0.set(window.WallFlipGarage.paintColor(garage.active,currentPaint));bodyMat.color.copy(bodyColor0);
+  headLight.color.set(garage.active.finish.light);underglow.color.set(garage.active.finish.light);
   roverGhostWheels.visible=garage.active.id==='mars';
 }
 function changeVehicle() {
@@ -3136,8 +3137,9 @@ function makeSimHooks() {
 }
 
 const stuntClub = window.WallFlipClub.mount({language: () => lang, onPaint: paint => {
-  bodyColor0.set(paint.color).multiplyScalar(.48);bodyMat.color.copy(bodyColor0);
-  roverBodyMat.color.set(0xe4e0cf).lerp(new THREE.Color(paint.color),.2);
+  currentPaint=paint;
+  for(const vehicle of window.WallFlipGarage.vehicles)vehicleMaterials[vehicle.id].body.color.set(window.WallFlipGarage.paintColor(vehicle,paint));
+  bodyColor0.copy(bodyMat.color);
 }});
 const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '3d', club: stuntClub, garage, onUpload: () => openNamePanel(), canUpload: () => !DEMO && !!apiBase() && !submitThrottled(), onRetry: () => { ensureAudio(); resetRun(); }});
 
@@ -4391,7 +4393,7 @@ function updateCamera(dt) {
   const st = sim.state;
   if(screen==='start') {
     camera.up.set(0,1,0);
-    const showroomScale=camera.aspect<1?Math.max(1,.8/camera.aspect):1;
+    const showroomScale=camera.aspect<1?Math.max(1,.95/camera.aspect):1;
     camera.position.set(st.x+5.8*showroomScale,st.y+(camera.aspect<1?2.3:2.6)*showroomScale,st.z+6.6*showroomScale);
     camera.lookAt(st.x,st.y+.05,st.z);
     camera.updateMatrixWorld();
@@ -4734,7 +4736,7 @@ function resize() {
   const isMobile = w <= 768 || w < h;
   if(screen==='start') {
     camera.aspect=w/h;
-    camera.setViewOffset(w,h,w>760?w*.235:0,w>760?0:h*.215,w,h);
+    camera.setViewOffset(w,h,w>760?w*.235:0,w>760?0:h*.235,w,h);
   } else if (isMobile) {
     camera.clearViewOffset();
     camera.aspect = w / h;
