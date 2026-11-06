@@ -703,6 +703,10 @@
 <script src="launch-screen.js"></script>
 <link rel="stylesheet" href="flight-coach.css">
 <script src="flight-coach.js"></script>
+<link rel="stylesheet" href="stunt-club.css">
+<script src="stunt-club.js"></script>
+<link rel="stylesheet" href="vehicle-garage.css">
+<script src="vehicle-garage.js"></script>
 </head>
 <body data-view-mode="3d">
   <a href="../../" id="backlink"></a>
@@ -947,7 +951,7 @@
           <h3 id="lblManualModalTitle">💡 特技大師飛行錦囊 · 航太操縱指南</h3>
           <button type="button" id="manualCloseBtn" class="wf-manual-close" aria-label="關閉">✕</button>
         </div>
-        <div class="wf-manual-hero-banner" style="width: 100%; height: 110px; border-radius: 12px; margin-bottom: 14px; background: url('assets/hero-banner.webp') center/cover no-repeat, url('assets/hero-banner.jpg') center/cover no-repeat; border: 1px solid rgba(111,240,208,0.3); position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: 10px 14px; box-sizing: border-box;">
+        <div class="wf-manual-hero-banner" style="width: 100%; height: 110px; border-radius: 12px; margin-bottom: 14px; background: url('assets/stunt-club-hero.webp') center/cover no-repeat, url('assets/hero-banner.jpg') center/cover no-repeat; border: 1px solid rgba(111,240,208,0.3); position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: 10px 14px; box-sizing: border-box;">
           <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,14,22,0.92) 0%, rgba(10,14,22,0.2) 60%, transparent 100%); pointer-events: none;"></div>
           <div style="position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; width: 100%;">
             <span style="font-size: 11px; font-weight: 700; color: #6ff0d0; letter-spacing: 0.08em; text-transform: uppercase;">WALL-FLIP STUNT AEROBATICS</span>
@@ -1510,7 +1514,7 @@ function atan2p(n, t) { // original Ze
 // ---------- constants (exact) ----------
 const G0 = 9.8;
 // BASE is the untouched physics constant set; createSim shadows it with an
-// optional patched clone (daily challenge) — the base object is never mutated.
+// optional vehicle/daily clone — the base object is never mutated.
 const BASE = {
   G0,
   STEP: 1 / 240, RUNUP: 16, VMAX: 90, MOTOR_A: 30, MOTOR_P: 1200, MU: 3.1,
@@ -2467,13 +2471,15 @@ const chromeMat = new THREE.MeshStandardMaterial({ color: 10988981, metalness: .
 const neonCyanMat = new THREE.MeshBasicMaterial({ color: 0x6ff0d0 });
 const bodyColor0 = bodyMat.color.clone();
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
+const vehicleShells = Object.fromEntries(window.WallFlipGarage.vehicles.map(v => [v.id, new THREE.Group()]));
+for (const [id, shell] of Object.entries(vehicleShells)) { shell.name = 'vehicle-' + id; body.add(shell); }
 function box(w, h, d, mat, x, y, z, rz = 0, ry = 0) {
   const m = new THREE.Mesh(unitBox, mat);
   m.scale.set(w, h, d);
   m.position.set(x, y, z);
   if (rz) m.rotation.z = rz;
   if (ry) m.rotation.y = ry;
-  body.add(m);
+  vehicleShells.roadster.add(m);
   return m;
 }
 // low-poly body shell (approximates the original lofted hull)
@@ -2501,6 +2507,16 @@ box(.36, .025, 1.54, neonCyanMat, -2.28, .34, 0);    // rear wing edge neon
 box(.08, .04, 1.42, neonCyanMat, 2.38, -.26, 0);     // front chin splitter neon
 box(.45, .2, .03, darkMat, -1.75, .36, 0);          // central dorsal shark fin (carbon)
 box(.46, .025, .035, neonCyanMat, -1.75, .47, 0);   // dorsal fin neon ridge
+
+// Distinct native meshes, built once and switched without allocating on retry.
+for (const vehicle of window.WallFlipGarage.vehicles.slice(1)) {
+  const materials = {body:bodyMat, dark:darkMat, glass:glassMat};
+  for (const [w,h,d,x,y,z,material,rz=0] of vehicle.parts) {
+    const mesh = new THREE.Mesh(unitBox, materials[material]);
+    mesh.scale.set(w,h,d); mesh.position.set(x,y,z); mesh.rotation.z=rz;
+    vehicleShells[vehicle.id].add(mesh);
+  }
+}
 
 // lights (original parts)
 const whiteMat = new THREE.MeshBasicMaterial({ color: 16777215 });
@@ -2611,12 +2627,14 @@ scene.add(shadow);
 // ghost car: translucent silhouette replaying the best trajectory (visual only)
 const ghostMat = new THREE.MeshBasicMaterial({ color: 0x9aa3ad, transparent: true, opacity: .3, depthWrite: false });
 const ghostCar = new THREE.Group();
+const ghostShells = Object.fromEntries(window.WallFlipGarage.vehicles.map(v => [v.id,new THREE.Group()]));
+for (const shell of Object.values(ghostShells)) ghostCar.add(shell);
 {
   const addBox = (w, h, d, x, y, z) => {
     const m = new THREE.Mesh(unitBox, ghostMat);
     m.scale.set(w, h, d);
     m.position.set(x, y, z);
-    ghostCar.add(m);
+    ghostShells.roadster.add(m);
   };
   addBox(4.55, .36, 1.94, 0, -.24, 0);        // lower tub
   addBox(4.35, .32, 2.0, -.05, .02, 0);       // main hull
@@ -2628,9 +2646,36 @@ const ghostCar = new THREE.Group();
       w.position.set(wx, -.3, wz);
       ghostCar.add(w);
     }
+  for (const vehicle of window.WallFlipGarage.vehicles.slice(1)) {
+    for (const [w,h,d,x,y,z,,rz=0] of vehicle.parts) {
+      const mesh=new THREE.Mesh(unitBox,ghostMat);
+      mesh.scale.set(w,h,d);mesh.position.set(x,y,z);mesh.rotation.z=rz;
+      ghostShells[vehicle.id].add(mesh);
+    }
+  }
   ghostCar.visible = false;
   scene.add(ghostCar);
 }
+
+const garage = window.WallFlipGarage.mount({language: () => lang, onChange: () => changeVehicle()});
+let runTuning;
+function vehicleRecordKey(base) { return window.WallFlipGarage.recordKey(base, garage.active.id); }
+function showVehicleShell() {
+  document.body.dataset.vehicle = garage.active.id;
+  for (const [id, shell] of Object.entries(vehicleShells)) shell.visible = id === garage.active.id;
+  for (const [id, shell] of Object.entries(ghostShells)) shell.visible = id === garage.active.id;
+}
+function changeVehicle() {
+  showVehicleShell();
+  best = 0;
+  try { best = +localStorage.getItem(vehicleRecordKey('wallflip3.best')) || 0; } catch (_) {}
+  ghostBest = 0; ghostSavedFrames = []; ghostSavedStep = 1;
+  ghostSession = []; ghostRec = []; ghostPlay = [];
+  loadGhost();
+  ghostCar.visible = false;
+  updateBestLabels(); updateDailyUI();
+}
+showVehicleShell();
 
 // ---------- particle systems (port of the original ge factory) ----------
 function makeParticles(count, blending, opacity) {
@@ -3163,7 +3208,7 @@ function triggerUfoEasterEgg() {
 if (el.camBtn) el.camBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); sfx.click(); cycleCameraMode(); el.camBtn.blur(); });
 if (el.ufoBtn) el.ufoBtn.addEventListener('click', e => { e.stopPropagation(); ensureAudio(); triggerUfoEasterEgg(); el.ufoBtn.blur(); });
 let best = 0;
-try { best = +localStorage.getItem('wallflip3.best') || 0; } catch {}
+try { best = +localStorage.getItem(vehicleRecordKey('wallflip3.best')) || 0; } catch {}
 const game = { playing: false, endAt: Infinity, shake: 0, wheel: 0, rolls: 0, score: null, acc: 0, squash: 0, squashV: 0 };
 // demo bot: roll target fixed at launch, roll-then-brake sequencing
 const bot = { target: 0, plan: 0 };
@@ -3180,7 +3225,7 @@ function botInputs() {
     inp.drive = true;
     if (st.u > 0) inp.suck = true;
   } else if (st.mode === 'air') {
-    const err = st.roll + st.rw / BASE.ROLL_DAMP - bot.target;
+    const err = st.roll + st.rw / runTuning.ROLL_DAMP - bot.target;
     if (Math.abs(err) > .06) {
       if (err < 0) { if (st.air > 2) inp.left = true; }
       else if (st.air > 2) inp.right = true;
@@ -3216,11 +3261,14 @@ function makeSimHooks() {
   };
 }
 
-const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '3d', onRetry: () => { ensureAudio(); resetRun(); }});
+const stuntClub = window.WallFlipClub.mount({language: () => lang, onPaint: paint => { bodyColor0.set(paint.color); bodyMat.color.copy(bodyColor0); }});
+const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '3d', club: stuntClub, garage, onRetry: () => { ensureAudio(); resetRun(); }});
 
 function resetRun() {
-  flightCoach.begin();
-  sim = createSim(makeSimHooks(), dailyConsts());
+  garage.begin();
+  flightCoach.begin(!DEMO);
+  runTuning = runConsts();
+  sim = createSim(makeSimHooks(), runTuning);
   startX = sim.state.x;
   Object.assign(game, {
     playing: true, endAt: Infinity, shake: 0, rolls: 0, score: null, acc: 0, runTime: 0, newTimeRec: false, squash: 0, squashV: 0,
@@ -3378,7 +3426,7 @@ function copyResult() {
   let rank = RANKS[RANKS.length - 1][1];
   for (const r of RANKS) if (sc.total >= r[0]) { rank = r[1]; break; }
   const text = t('shareText', st.land.rolls, Math.round(Math.abs(st.x - launchX)),
-    Math.round(sc.soft), Math.round(sc.level), sc.total, rank, COURSE_LABEL);
+    Math.round(sc.soft), Math.round(sc.level), sc.total, rank, COURSE_LABEL + ' / ' + garage.active.name);
   const done = () => popAt(st.x, st.y + 2.5, st.z, t('copied'), 'hsl(200 90% 55%)');
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
@@ -3423,24 +3471,23 @@ function setDaily(on) {
   } catch (e) {}
   updateDailyUI();
 }
-function dailyConsts() {
-  if (!dailyOn || !dailyDateValid()) return null;
-  const c = { ...BASE }; // clone: the base constants object stays untouched
-  dailyMod().patch(c);
+function runConsts() {
+  const c = window.WallFlipGarage.tune(BASE, garage.active.id);
+  if (dailyOn && dailyDateValid()) dailyMod().patch(c);
   return c;
 }
 function dailyBestToday() {
   try {
-    if (localStorage.getItem('wallflip3.dailyBestDate') === todayStr())
-      return +localStorage.getItem('wallflip3.dailyBest') || 0;
+    if (localStorage.getItem(vehicleRecordKey('wallflip3.dailyBestDate')) === todayStr())
+      return +localStorage.getItem(vehicleRecordKey('wallflip3.dailyBest')) || 0;
   } catch (e) {}
   return 0;
 }
 function updateDailyBest(total) {
   if (total > dailyBestToday()) {
     try {
-      localStorage.setItem('wallflip3.dailyBest', String(total));
-      localStorage.setItem('wallflip3.dailyBestDate', todayStr());
+      localStorage.setItem(vehicleRecordKey('wallflip3.dailyBest'), String(total));
+      localStorage.setItem(vehicleRecordKey('wallflip3.dailyBestDate'), todayStr());
     } catch (e) {}
   }
 }
@@ -3475,6 +3522,7 @@ function getLeaderboardConfig() {
   return null;
 }
 function apiBase() {
+  if (garage.active.id !== 'roadster') return '';
   try {
     const s = (localStorage.getItem('wallflip3.api') || '').trim();
     if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '');
@@ -3734,7 +3782,7 @@ function renderBoard() {
   const hasApi = !!apiBase();
   const showOnline = hasApi && boardTab === 'online';
   const list = showOnline ? onlineBoard : localBoard;
-  boardTitleEl.textContent = t('boardTitle') + (showOnline ? ' · ' + t('onlineMark') : '');
+  boardTitleEl.textContent = t('boardTitle') + ' / ' + garage.active.name + (showOnline ? ' · ' + t('onlineMark') : '');
   boardCloseEl.textContent = t('boardClose');
   boardGear.textContent = t('apiBtn');
   boardNoteEl.hidden = true;
@@ -3835,7 +3883,7 @@ let localBoard = [];      // loaded local top-10
 let localHi = -1;         // highlighted index in the local list
 function loadLocalBoard() {
   try {
-    const raw = JSON.parse(localStorage.getItem('wallflip3.board') || '[]');
+    const raw = JSON.parse(localStorage.getItem(vehicleRecordKey('wallflip3.board')) || '[]');
     if (Array.isArray(raw)) {
       return raw
         .filter(e => e && Number.isFinite(e.s) && Number.isFinite(e.r) && typeof e.t === 'string')
@@ -3858,7 +3906,7 @@ function boardAddLocal() {
   while (i < b.length && b[i].s >= entry.s) i++;
   b.splice(i, 0, entry);
   if (b.length > 10) b.length = 10;
-  try { localStorage.setItem('wallflip3.board', JSON.stringify(b)); } catch (e) {}
+  try { localStorage.setItem(vehicleRecordKey('wallflip3.board'), JSON.stringify(b)); } catch (e) {}
   localHi = i < 10 ? i : -1;
 }
 
@@ -3876,7 +3924,7 @@ let ghostPlay = [], ghostPlayStep = 1;// trajectory replayed in the current run
 try { ghostOn = localStorage.getItem('wallflip3.ghostOn') !== '0'; } catch (e) {}
 function loadGhost() {
   try {
-    const g = JSON.parse(localStorage.getItem('wallflip3.ghost') || 'null');
+    const g = JSON.parse(localStorage.getItem(vehicleRecordKey('wallflip3.ghost')) || 'null');
     if (g && Array.isArray(g.frames) && g.frames.length) {
       ghostSavedFrames = g.frames;
       ghostSavedStep = g.step === 2 ? 2 : 1;
@@ -3895,7 +3943,7 @@ function saveGhost() {
       frames = frames.filter((_, i) => (i & 1) === 0);
       json = JSON.stringify({ best: game.score.total, step, frames });
     }
-    localStorage.setItem('wallflip3.ghost', json);
+    localStorage.setItem(vehicleRecordKey('wallflip3.ghost'), json);
     ghostBest = game.score.total;
     ghostSavedFrames = frames;
     ghostSavedStep = step;
@@ -4030,9 +4078,9 @@ function landFx(ev, st) {
   game.runTime = st.time;
   if (!DEMO) { // demo runs never touch records / achievements / daily best
     let bestTime = 0;
-    try { bestTime = +localStorage.getItem('wallflip3.bestTime') || 0; } catch (e) {}
+    try { bestTime = +localStorage.getItem(vehicleRecordKey('wallflip3.bestTime')) || 0; } catch (e) {}
     game.newTimeRec = !bestTime || game.runTime < bestTime;
-    if (game.newTimeRec) { try { localStorage.setItem('wallflip3.bestTime', game.runTime.toFixed(2)); } catch (e) {} }
+    if (game.newTimeRec) { try { localStorage.setItem(vehicleRecordKey('wallflip3.bestTime'), game.runTime.toFixed(2)); } catch (e) {} }
     if (dailyOn && dailyDateValid()) updateDailyBest(game.score.total);
     unlockAchievements();
   }
@@ -4125,7 +4173,7 @@ function showResult() {
     if (!DEMO) { // demo runs never write best / board / ghost
       if (sc.total > best) {
         best = sc.total; newBest = true;
-        try { localStorage.setItem('wallflip3.best', String(best)); } catch {}
+        try { localStorage.setItem(vehicleRecordKey('wallflip3.best'), String(best)); } catch {}
         sfx.best();
       }
       if (sc.total > 0) boardAddLocal();
@@ -4168,7 +4216,7 @@ function showResult() {
   el.resBest.className = win && newBest ? 'newbest' : '';
   el.shareBtn.hidden = !win;
   updateBestLabels();
-  flightCoach.finish({win:!!win,reason:st.crash,rolls:st.land?.rolls || 0,soft:Math.round(game.score?.soft || 0),level:Math.round(game.score?.level || 0)}, !DEMO);
+  flightCoach.finish({win:!!win,reason:st.crash,rolls:st.land?.rolls || 0,soft:Math.round(game.score?.soft || 0),level:Math.round(game.score?.level || 0),air:st.air}, !DEMO);
   screen = 'result';
   if (el.stuntCockpit) el.stuntCockpit.hidden = true;
   if (el.manualModal) el.manualModal.hidden = true;
@@ -4573,7 +4621,7 @@ for (const btn of el.pad.querySelectorAll('button')) padBtnEls[btn.dataset.act] 
 function updateHud() {
   const st = sim.state;
   const airMode = st.mode === 'air';
-  flightCoach.render({mode:st.mode,u:st.u,th:st.th,tilt:window.WallFlipFlight.tiltOf(st.roll,st.pitch),vy:st.vy,rw:st.rw,air:st.air,reason:st.crash}, {active:screen===null,reviewing:screen==='result',blocked:boardOn || apiPanel.classList.contains('on') || namePanel.classList.contains('on')});
+  flightCoach.render({mode:st.mode,u:st.u,th:st.th,tilt:window.WallFlipFlight.tiltOf(st.roll,st.pitch),vy:st.vy,rw:st.rw,air:st.air,reason:st.crash,rolls:Math.max(rollsCount(st.roll,st.roll0),st.rollsAccum || 0)}, {active:screen===null,reviewing:screen==='result',blocked:boardOn || apiPanel.classList.contains('on') || namePanel.classList.contains('on')});
   for (const [act, btn] of Object.entries(padBtnEls)) {
     btn.classList.toggle('on', game.playing && (keyActive(act) || padActive(act)));
     if (act === 'suck' || act === 'drive') btn.classList.toggle('wait', game.playing && airMode);
@@ -4601,13 +4649,13 @@ function updateHud() {
     if (st.mode === 'road') {
       const sm = trackAt(st.u);
       const Z = (st.left ? 1 : 0) + (st.right ? 1 : 0);
-      const N = st.v * st.v * sm.k + BASE.G0 * tcos(sm.phi) - BASE.THRUST * Z;
+      const N = st.v * st.v * sm.k + BASE.G0 * tcos(sm.phi) - runTuning.THRUST * Z;
       const aT = (st.v - (game.prevV || 0)) / BASE.STEP;
       game.prevV = st.v;
       gForce = Math.hypot(N, aT) / BASE.G0;
     } else if (airMode) {
       const Z = (st.left ? 1 : 0) + (st.right ? 1 : 0);
-      gForce = Z > 0 ? (Z * BASE.THRUST) / BASE.G0 : 0.05;
+      gForce = Z > 0 ? (Z * runTuning.THRUST) / BASE.G0 : 0.05;
     }
     gForce = clamp(gForce, 0, 9.9);
     game.currentG = gForce;
@@ -4809,7 +4857,8 @@ new ResizeObserver(resize).observe(el.pad);
 addEventListener('resize', resize);
 
 // ---------- main loop ----------
-sim = createSim(makeSimHooks(), dailyConsts());
+runTuning = runConsts();
+sim = createSim(makeSimHooks(), runTuning);
 startX = sim.state.x;
 updatePadVisibility();
 resize();
@@ -4862,7 +4911,7 @@ renderer.setAnimationLoop(now => {
 });
 
 const launchScreen = window.WallFlipLaunch.mount({
-  host: el.start, mode: '3d', onStart: () => { ensureAudio(); startPress(); },
+  host: el.start, mode: '3d', club: stuntClub, garage, onStart: () => { ensureAudio(); startPress(); },
   onLanguage: () => { setLang(lang === 'tc' ? 'en' : 'tc'); updateAllText(); launchScreen.update(lang); },
 });
 launchScreen.update(lang);

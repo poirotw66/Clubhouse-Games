@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import './flight-coach.test.mjs';
+import './stunt-club.test.mjs';
+import './vehicle-garage.test.mjs';
 
 function block(source, from, to) {
   const start = source.indexOf(from);

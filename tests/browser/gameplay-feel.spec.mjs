@@ -14,10 +14,10 @@ if (includes('Wall-Flip')) {
     await page.locator('#launchStart').click();
     await page.keyboard.down('Space');
     await page.keyboard.down('x');
-    await page.evaluate(() => window.__wfStep(1));
+    await page.evaluate(() => window.__wfStep(2));
     const coach = page.getByTestId('flight-coach');
     await expect(coach).toBeVisible();
-    await expect(coach).toHaveAttribute('data-flight-stage', /runup|wall|climb|descent/);
+    await expect(coach).toHaveAttribute('data-flight-stage', /climb|descent/);
     await page.keyboard.up('Space');
     await page.keyboard.up('x');
     await page.evaluate(() => window.__wfStep(12));

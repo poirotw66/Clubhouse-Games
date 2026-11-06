@@ -57,7 +57,7 @@
       tilt:'Tilt',descent:'Descent',spin:'Spin',live:'Current state, not an impact prediction',fold:'Minimize coach',unfold:'Expand coach',passed:'License objective cleared',retry:'Try that adjustment →',continue:'Try the next skill →',practice:'This run’s practice target',next:'Next skill',mastered:'All three skills cleared. Chase a better original score.',checkpoint:'Run-up → Wall → Launch → Land',
     }
   };
-  function mount({ language, onRetry, mode }) {
+  function mount({ language, onRetry, mode, club, garage }) {
     const key = 'wallflip.flightLicense.v1';
     let completed = 0;
     try { completed = Math.max(0, Math.min(3, Math.floor(Number(localStorage.getItem(key)) || 0))); } catch (_) {}
@@ -69,7 +69,11 @@
     document.body.append(root);
     const review = document.createElement('aside'); review.className='wf-flight-review'; review.hidden=true; review.dataset.testid='flight-review';
     review.innerHTML='<span data-review-label></span><strong data-review-title></strong><p data-review-tip></p><button type="button" data-coach-retry></button>';
-    document.body.append(review);
+    const reviewContainer = mode === '3d' ? document.getElementById('result') : document.body;
+    reviewContainer.append(review);
+    club?.attachCoach(root.querySelector('.wf-flight-body'), review);
+    garage?.attachCoach(root.querySelector('.wf-flight-body'));
+    garage?.attach(review, true);
     const $ = selector => root.querySelector(selector);
     const text = (el, value) => { if (el.textContent !== value) el.textContent = value; };
     const strings = () => words[language() === 'en' ? 'en' : 'tc'];
@@ -79,10 +83,11 @@
     });
     review.addEventListener('click', event => event.stopPropagation());
     review.querySelector('button').addEventListener('click', () => { onRetry(); review.querySelector('button').blur(); });
-    function begin() { target=completed;result=null;unlocked=false;review.hidden=true; }
+    function begin(record=true) { club?.begin(record); target=completed;result=null;unlocked=false;review.hidden=true; }
     function finish(outcome, record=true) {
       if (result) return;
       result = { ...outcome };
+      club?.finish(result, record);
       const next = record ? advance(completed,result) : completed;
       unlocked = next > completed; completed=next;
       if (unlocked) { try { localStorage.setItem(key,String(completed)); } catch (_) {} }
@@ -90,6 +95,8 @@
     function render(state, { active, reviewing, blocked=false } = {}) {
       root.hidden=!active || blocked; review.hidden=!reviewing || blocked || !result;
       const w=strings();
+      club?.render(state);
+      garage?.refresh();
       if (!root.hidden) {
         const a=analyse(state), level=Math.min(target,3);
         root.dataset.flightStage=a.stage; root.dataset.missionLevel=String(level); root.dataset.mode=mode;

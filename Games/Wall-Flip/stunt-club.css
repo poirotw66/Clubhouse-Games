@@ -1,0 +1,22 @@
+.wf-club{margin:0 0 18px;padding-top:14px;border-top:1px solid #34464e;}
+.wf-club-heading{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#b6cdd7;margin-bottom:10px;}.wf-club-heading strong{color:#ffd18b;font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+.wf-contracts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.wf-contracts button{appearance:none;display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;padding:11px 9px;border:1px solid #3b4c58;border-radius:9px;background:#0c1721;color:#c4d7e0;text-align:left;cursor:pointer;font-family:inherit;transition:border-color .15s,background .15s;}
+.wf-contracts button[aria-pressed=true]{background:#263b37;border-color:#a3e8c9;color:#edfff6;}.wf-contracts button:hover{border-color:#d8e7d0;}.wf-contracts strong{font-size:12px;}.wf-contracts small{font-size:10px;line-height:1.5;color:#a2b8c3;}.wf-contract-mark{font:24px/1 'IBM Plex Mono',monospace;color:#a5ecd3;}.wf-contract-stars{font-size:13px;letter-spacing:2px;color:#ffd18b;}.wf-club-bank{font-size:10px!important;line-height:1.5;color:#9db3be;margin:8px 0 10px!important;}
+.wf-paints{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:10px;color:#a9c0cb;}.wf-paints>span{margin-right:auto;}.wf-paints button{display:flex;align-items:center;gap:5px;padding:6px 7px;min-height:32px;border:1px solid #405460;border-radius:6px;background:#14212b;color:#c5dae3;font:inherit;}.wf-paints button:before{content:'';width:9px;height:9px;border-radius:50%;background:var(--paint);}.wf-paints button[aria-pressed=true]{border-color:var(--paint);}.wf-paints button:disabled{opacity:.5;cursor:default;}
+.wf-club-live{margin-top:9px;padding-top:7px;border-top:1px solid #34505a;color:#ffd18b;font-size:10px;line-height:1.6;}.wf-club-outcome{display:flex;align-items:center;gap:10px;padding:12px 0 9px;border-top:1px solid #40505c;margin-top:12px;}.wf-club-outcome img{width:48px;height:48px;object-fit:contain;}.wf-club-outcome small{color:#a7bdc7;font-size:10px;}.wf-club-outcome strong{display:block;font-size:14px;}.wf-club-outcome strong span{color:#ffd18b;}.wf-club-outcome p{font-size:10px;margin:3px 0!important;}.wf-club-next .wf-club-bank{margin-bottom:0!important;}
+.wf-flight-review .wf-contracts button{width:auto;min-height:42px;padding:7px;box-shadow:none;font-weight:400;color:#cee2e9;background:#10222d;}.wf-flight-review .wf-contracts button[aria-pressed=true]{background:#284739;border-color:#9cebd6;}.wf-flight-review .wf-contract-mark,.wf-flight-review .wf-contracts small,.wf-flight-review .wf-contract-stars{display:none;}.wf-flight-review .wf-contracts strong{font-size:11px;}
+.wf-club button:focus-visible,.wf-club-review button:focus-visible{outline:3px solid #ffda96;outline-offset:3px;}
+@media(max-width:760px){.wf-contracts button{padding:9px 7px;}.wf-contracts strong{font-size:11px;}.wf-contracts small{font-size:9px;}.wf-club-live{font-size:9px;}.wf-club-outcome{padding:7px 0;margin-top:8px;}.wf-club-outcome img{width:36px;height:36px;}.wf-club-outcome p{font-size:9px;}}
+@media(max-height:650px){.wf-flight-review .wf-club-outcome{padding:5px 0 0;margin-top:6px;}.wf-club-outcome img{width:30px;height:30px;}}
+@media(prefers-reduced-motion:reduce){.wf-contracts button{transition:none;}}
+
+.wf-club-outcome img{filter:grayscale(1);opacity:.5;}.wf-club-outcome.banked img{filter:none;opacity:1;}
+.wf-flight-review .wf-paints{margin-top:9px;}.wf-flight-review .wf-paints button{width:auto;min-height:30px;padding:5px 7px;background:#14212b;color:#c5dae3;font-size:10px;font-weight:400;}
+
+.wf-club-next summary{cursor:pointer;color:#c6dfd8;font-size:11px;padding:7px 0;}.wf-club-next[open] summary{margin-bottom:5px;}.wf-club-next .wf-club-heading>span{display:none;}.wf-club-next .wf-club-heading{justify-content:flex-end;}
+.wf-flight-review{max-height:calc(100dvh - 80px);overflow-y:auto;}
+body[data-view-mode="3d"] #resultWrap{overflow-y:auto;align-items:flex-start;padding:64px 0 20px;box-sizing:border-box;}
+body[data-view-mode="3d"] #result{box-sizing:border-box;width:min(92vw,520px);margin-block:auto;}
+#result>.wf-flight-review{position:static;transform:none;width:100%;margin-top:18px;padding:14px 0 0;border:0;border-top:1px solid #476574;border-radius:0;box-shadow:none;background:transparent;max-height:none;overflow:visible;}
+@media(min-width:761px){body[data-view-mode="2d"] .wf-flight-review{left:auto;right:24px;transform:none;width:min(450px,44vw);}}

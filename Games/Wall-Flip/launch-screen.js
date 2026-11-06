@@ -1,6 +1,6 @@
 /* Shared, keyboard-accessible launch experience for both rendering modes. */
 window.WallFlipLaunch = {
-  mount({ host, mode, onStart, onLanguage, onCourse, onBoard, onGhost }) {
+  mount({ host, mode, onStart, onLanguage, onCourse, onBoard, onGhost, club, garage }) {
     const old = mode === '3d' ? host.querySelector('.sheet') : null;
     const modes = document.getElementById('startModePick');
     const launch = document.createElement('div');
@@ -15,7 +15,6 @@ window.WallFlipLaunch = {
       <section class="wf-launch-console" aria-label="Launch controls">
         <div class="wf-launch-console-top"><span data-copy="ready"></span><button type="button" class="wf-launch-lang"></button></div>
         <h2 data-copy="title"></h2><p class="wf-launch-description" data-copy="description"></p>
-        <div class="wf-launch-mission"><span>01</span><div><strong data-copy="goal"></strong><p data-copy="goalHint"></p></div></div>
         <div class="wf-launch-modes"></div>
         <div class="wf-launch-course"></div>
         <div class="wf-launch-action"></div><p class="wf-launch-keyhint" data-copy="keyHint"></p>
@@ -25,6 +24,16 @@ window.WallFlipLaunch = {
     host.append(launch);
     launch.querySelector('.wf-launch-modes').append(modes);
     modes.hidden = false;
+    if (garage) {
+      const slot = document.createElement('div');
+      launch.querySelector('.wf-launch-modes').before(slot);
+      garage.attach(slot);
+    }
+    if (club) {
+      const slot = document.createElement('div');
+      launch.querySelector('.wf-launch-action').before(slot);
+      club.attachLaunch(slot);
+    }
     const action = launch.querySelector('.wf-launch-action');
     const guide = launch.querySelector('.wf-launch-guide-body');
     const extras = launch.querySelector('.wf-launch-extras');
@@ -55,12 +64,14 @@ window.WallFlipLaunch = {
     let current = '';
     return {
       update(lang, course, ghost, achievements = []) {
+        club?.refresh();
+        garage?.refresh();
         const key = [lang, course, ghost, ...achievements].join('|'); if (key === current) return; current = key;
         const en = lang === 'en';
         const copy = en ? {
-          brand:'WALL FLIP / STUNT CLUB', headline:'Leave gravity behind.', intro:'Climb the wall. Own the sky. Stick the landing.', mission:'Your first clean landing starts here.', ready:'● READY FOR TAKEOFF', title:'One wall. One bold leap.', description:'Start with a safe landing. Chase the perfect flip next.', goal:'MISSION / LAND ON YOUR TIRES', goalHint:'Keep driving up the wall. Hold X on the overhang. Level out before touchdown.', keyHint:'SPACE to start · Touch controls on mobile', guide:'The 30-second flight guide', credit:'Inspired by tsuyatt.com 宙返りロードスター · Independent recreation.', achievements:'My stunt collection', ranking:'Leaderboard ↗', ghost:'Ghost ' + (ghost ? 'ON' : 'OFF'), start:'Launch my first run →'
+          brand:'WALL FLIP / STUNT CLUB', headline:'Leave gravity behind.', intro:'Climb the wall. Own the sky. Stick the landing.', mission:'Your first clean landing starts here.', ready:'● READY FOR TAKEOFF', title:'One wall. One bold leap.', description:'Start with a safe landing. Chase the perfect flip next.', keyHint:'SPACE to start · Touch controls on mobile', guide:'The 30-second flight guide', credit:'Inspired by tsuyatt.com 宙返りロードスター · Independent recreation.', achievements:'My stunt collection', ranking:'Leaderboard ↗', ghost:'Ghost ' + (ghost ? 'ON' : 'OFF'), start:'Launch this run →'
         } : {
-          brand:'牆上翻滾 / WALL FLIP', headline:'把地心引力，甩在身後。', intro:'衝上弧牆，翻過夜空。這次，用輪胎漂亮落地。', mission:'你的第一次完美著陸，從這裡開始。', ready:'● 發車準備完成', title:'一面牆，一次大膽起飛。', description:'先挑戰安全落地，再把下一次翻滾交給直覺。', goal:'首輪任務 / 用輪胎落地', goalHint:'油門一路按住，反翹時按 X 吸附；快落地時把車身扶正。', keyHint:'SPACE 開始 · 手機可用觸控操作', guide:'30 秒飛行指南', credit:'靈感致敬：tsuyatt.com 宙返りロードスター · 自製復刻', achievements:'我的特技成就', ranking:'排行榜 ↗', ghost:'幽靈 ' + (ghost ? '開啟' : '關閉'), start:'開始我的第一次起飛 →'
+          brand:'牆上翻滾 / WALL FLIP', headline:'把地心引力，\n甩在身後。', intro:'衝上弧牆，翻過夜空。這次，用輪胎漂亮落地。', mission:'你的第一次完美著陸，從這裡開始。', ready:'● 發車準備完成', title:'一面牆，一次大膽起飛。', description:'先挑戰安全落地，再把下一次翻滾交給直覺。', keyHint:'SPACE 開始 · 手機可用觸控操作', guide:'30 秒飛行指南', credit:'靈感致敬：tsuyatt.com 宙返りロードスター · 自製復刻', achievements:'我的特技成就', ranking:'排行榜 ↗', ghost:'幽靈 ' + (ghost ? '開啟' : '關閉'), start:'帶著挑戰起飛 →'
         };
         launch.querySelector('#launchHeadline').textContent=copy.headline;
         launch.querySelectorAll('[data-copy]').forEach(el => { if (copy[el.dataset.copy]) el.textContent=copy[el.dataset.copy]; });

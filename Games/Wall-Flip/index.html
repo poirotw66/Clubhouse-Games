@@ -118,6 +118,10 @@
 <script src="launch-screen.js"></script>
 <link rel="stylesheet" href="flight-coach.css">
 <script src="flight-coach.js"></script>
+<link rel="stylesheet" href="stunt-club.css">
+<script src="stunt-club.js"></script>
+<link rel="stylesheet" href="vehicle-garage.css">
+<script src="vehicle-garage.js"></script>
 </head>
 <body data-view-mode="2d">
 <canvas id="c"></canvas>
@@ -539,27 +543,31 @@ try {
   }
 } catch (e) {}
 
-const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '2d', onRetry: () => { ensureAudio(); reset(false); }});
+const garage = window.WallFlipGarage.mount({language: () => lang, onChange: () => refreshVehicleRecords()});
+document.body.dataset.vehicle = garage.active.id;
+let clubPaint = window.WallFlipClub.paints[0];
+const stuntClub = window.WallFlipClub.mount({language: () => lang, onPaint: paint => { clubPaint = paint; }});
+const flightCoach = window.WallFlipFlight.mount({language: () => lang, mode: '2d', club: stuntClub, garage, onRetry: () => { ensureAudio(); reset(false); }});
 
-// ---------- tuning: exact constants from the original module ----------
+// ---------- tuning: original baseline, with per-run vehicle modifiers ----------
 const G = 9.8;
 const STEP = 1 / 240;
 const RUNUP = 16;          // flat approach length behind the track start
 const VMAX = 90;           // m/s
-const MOTOR_A = 30;        // engine accel cap
-const MOTOR_P = 1200;      // engine power (a = MOTOR_P / v)
+let MOTOR_A = 30;        // engine accel cap
+let MOTOR_P = 1200;      // engine power (a = MOTOR_P / v)
 const MU = 3.1;            // tire friction coefficient
 const SUCK = 1.4 * G;      // stick suction accel
 const ROLL_RES = 0.25;     // rolling resistance
 const DRAG = 0.003;        // quadratic drag
-const THRUST = 1.5 * G;    // per thruster accel
-const ANG = 16;            // spin accel rad/s^2
-const ROLL_DAMP = 7;       // spin damping when 0 or 2 jets fire
-const SPIN_DAMP = 0.8;     // spin damping with a single jet
+let THRUST = 1.5 * G;    // per thruster accel
+let ANG = 16;            // spin accel rad/s^2
+let ROLL_DAMP = 7;       // spin damping when 0 or 2 jets fire
+let SPIN_DAMP = 0.8;     // spin damping with a single jet
 const LEVEL_T = 2, LEVEL_CLEAR = 3;
 const AIR_G = 1.25;        // air gravity multiplier
-const AIR_SUCK = 8;        // air/s while sucking
-const AIR_JET = 5;         // air/s per thruster
+let AIR_SUCK = 8;        // air/s while sucking
+let AIR_JET = 5;         // air/s per thruster
 const COAST = 20;          // engine braking when throttle released
 const CREEP = 5;           // rollback speed cap on the arc
 const WALL_CRASH = 9;      // impact into structure that destroys the car
@@ -569,6 +577,7 @@ const LAND_SPEED = 5;      // max impact speed (m/s) at the contact point
 const LAND_SPIN = 2.5;     // max spin rate at touchdown
 const AIR_MAX = 100;
 const CAR = { LEN: 4.4, H: 0.66, WHEEL_X: 1.38, WHEEL_R: 0.36 };
+const STOCK_TUNING = Object.freeze({MOTOR_A, MOTOR_P, THRUST, ANG, ROLL_DAMP, SPIN_DAMP, AIR_SUCK, AIR_JET});
 // 2D collision/silhouette points (x, y) local, wheel flag
 const POINTS = [
   [CAR.WHEEL_X, -CAR.H, 1], [CAR.WHEEL_X + .12, -CAR.H, 1],
@@ -699,8 +708,8 @@ const car = {
 const inp = { drive: false, stick: false, left: false, right: false };
 const stats = { rolls: 0, soft: 0, level: 0, total: 0, fall: 0, tilt: 0, dist: 0, reason: '', win: false };
 let best = 0, rankOn = false, rankHi = -1, boardView = [];
-function bestKey() { return 'wallflip2.best.' + (courseIdx === 0 ? 'A' : 'B'); }
-function boardKey() { return 'wallflip2.board.' + (courseIdx === 0 ? 'A' : 'B'); }
+function bestKey() { return vehicleRecordKey('wallflip2.best.' + (courseIdx === 0 ? 'A' : 'B')); }
+function boardKey() { return vehicleRecordKey('wallflip2.board.' + (courseIdx === 0 ? 'A' : 'B')); }
 function loadBest() {
   best = 0;
   try { best = +localStorage.getItem(bestKey()) || 0; } catch (e) {}
@@ -774,6 +783,7 @@ function getLeaderboardConfig() {
   return null;
 }
 function apiBase() {
+  if (garage.active.id !== 'roadster') return '';
   try {
     const s = (localStorage.getItem('wallflip2.api') || '').trim();
     if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '');
@@ -1021,6 +1031,14 @@ for (const [panel, closeFn] of [[apiPanel, closeApiPanel], [namePanel, closeName
 // ---------- ghost car (best-run replay, visual only) ----------
 const GHOST_CAP = 3000;                // max recorded poses (~25 s at 120 Hz)
 let ghostOn = true;                    // feature toggle (persisted)
+function vehicleRecordKey(base) { return window.WallFlipGarage.recordKey(base, garage.active.id); }
+function refreshVehicleRecords() {
+  document.body.dataset.vehicle = garage.active.id;
+  loadBest();
+  ghostBest = 0; ghostSavedFrames = []; ghostSavedStep = 1;
+  ghostSession = []; ghostRec = []; ghostPlay = [];
+  loadGhost();
+}
 let ghostBest = 0;                     // best total that has a saved ghost
 let ghostSavedFrames = [];             // saved best trajectory [[x,y,ang],...] at 120 Hz
 let ghostSavedStep = 1;                // saved cadence in recording steps (2 when thinned)
@@ -1031,14 +1049,14 @@ let ghostPlay = [], ghostPlayStep = 1; // trajectory replayed in the current run
 try { ghostOn = localStorage.getItem('wallflip2.ghostOn') !== '0'; } catch (e) {}
 function loadGhost() {
   try {
-    const g = JSON.parse(localStorage.getItem('wallflip2.ghost') || 'null');
+    const g = JSON.parse(localStorage.getItem(vehicleRecordKey('wallflip2.ghost')) || 'null');
     if (g && Array.isArray(g.frames) && g.frames.length) {
       ghostSavedFrames = g.frames;
       ghostSavedStep = g.step === 2 ? 2 : 1;
       ghostBest = +g.best || 0;
     }
   } catch (e) {}
-  try { ghostBest = +localStorage.getItem('wallflip2.ghostBest') || ghostBest; } catch (e) {}
+  try { ghostBest = +localStorage.getItem(vehicleRecordKey('wallflip2.ghostBest')) || ghostBest; } catch (e) {}
 }
 loadGhost();
 function toggleGhost() {
@@ -1056,8 +1074,8 @@ function saveGhost() {
       frames = frames.filter((_, i) => (i & 1) === 0);
       json = JSON.stringify({ best: stats.total, step, frames });
     }
-    localStorage.setItem('wallflip2.ghost', json);
-    localStorage.setItem('wallflip2.ghostBest', String(stats.total));
+    localStorage.setItem(vehicleRecordKey('wallflip2.ghost'), json);
+    localStorage.setItem(vehicleRecordKey('wallflip2.ghostBest'), String(stats.total));
     ghostBest = stats.total;
     ghostSavedFrames = frames;
     ghostSavedStep = step;
@@ -1311,6 +1329,8 @@ function stepParts(dt) {
 
 // ---------- flow ----------
 function reset(ready) {
+  garage.begin();
+  ({MOTOR_A, MOTOR_P, THRUST, ANG, ROLL_DAMP, SPIN_DAMP, AIR_SUCK, AIR_JET} = window.WallFlipGarage.tune(STOCK_TUNING, garage.active.id));
   buildCourse(courseIdx); // rebuild course-derived state (cheap; guards course switches)
   const p0 = bodyPose(0);
   car.mode = 'road'; car.u = -RUNUP; car.v = 0;
@@ -1341,7 +1361,7 @@ function reset(ready) {
   apiPanel.classList.remove('on'); namePanel.classList.remove('on');
   stats.win = false; stats.reason = '';
   cam.snap = false;
-  if (!ready) flightCoach.begin();
+  if (!ready) flightCoach.begin(!botOn);
   state = ready ? ST.READY : ST.RUN;
   stateT = 0;
 }
@@ -1432,7 +1452,7 @@ function vib(pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
 }
 function copyResult() {
-  const cn = courseName(COURSES[courseIdx]);
+  const cn = courseName(COURSES[courseIdx]) + ' / ' + garage.active.name;
   let rank = 'GOOD!';
   for (const [th, name] of RANKS) if (stats.total >= th) { rank = name; break; }
   const text = t('shareText', stats.rolls, Math.round(stats.dist), stats.soft, stats.level, stats.total, rank, cn);
@@ -1639,7 +1659,7 @@ function stepAir(dt) {
   stats.time = car.time;
   stats.newTimeRecord = false;
   if (!botOn) { // bot/demo runs never touch records or achievements
-    const tk = 'wallflip2.time.' + courseIdx;
+    const tk = vehicleRecordKey('wallflip2.time.' + courseIdx);
     let bestTime = 0;
     try { bestTime = +localStorage.getItem(tk) || 0; } catch (e) {}
     stats.newTimeRecord = !bestTime || stats.time < bestTime;
@@ -1733,7 +1753,7 @@ function showResult() {
   } else {
     stats.soft = 0; stats.level = 0; stats.rollPts = 0; stats.total = 0;
   }
-  flightCoach.finish(stats, !botOn);
+  flightCoach.finish({...stats, air:car.air}, !botOn);
   state = ST.RESULT; stateT = 0;
 }
 
@@ -1870,15 +1890,26 @@ function screenTransform() { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
 
 // ---------- scenery & game assets ----------
 const ASSETS = {
-  hero: new Image(),
   sky: new Image(),
   car: new Image(),
   badge: new Image(),
 };
-ASSETS.hero.src = 'assets/hero-banner.webp';
-ASSETS.hero.onerror = () => { if (ASSETS.hero.src.endsWith('.webp')) ASSETS.hero.src = 'assets/hero-banner.jpg'; };
 ASSETS.sky.src = 'assets/sky-backdrop.webp';
 ASSETS.sky.onerror = () => { if (ASSETS.sky.src.endsWith('.webp')) ASSETS.sky.src = 'assets/sky-backdrop.jpg'; };
+const paintedCars = new Map();
+function paintedCar() {
+  if (!paintedCars.has(clubPaint.id)) {
+    const sprite = document.createElement('canvas');
+    sprite.width = ASSETS.car.naturalWidth; sprite.height = ASSETS.car.naturalHeight;
+    const paint = sprite.getContext('2d');
+    paint.drawImage(ASSETS.car, 0, 0);
+    paint.globalCompositeOperation = 'multiply'; paint.fillStyle = clubPaint.color;
+    paint.fillRect(0, 0, sprite.width, sprite.height);
+    paint.globalCompositeOperation = 'destination-in'; paint.drawImage(ASSETS.car, 0, 0);
+    paintedCars.set(clubPaint.id, sprite);
+  }
+  return paintedCars.get(clubPaint.id);
+}
 ASSETS.car.src = 'assets/roadster-chassis.webp';
 ASSETS.car.onerror = () => { if (ASSETS.car.src.endsWith('.webp')) ASSETS.car.src = 'assets/roadster-chassis.png'; };
 ASSETS.badge.src = 'assets/stunt-badge.webp';
@@ -2153,8 +2184,10 @@ function drawCar(t) {
     ctx.stroke();
     ctx.restore();
   }
-  // body: high-res painted Roadster sprite with glowing cyan highlights
-  if (ASSETS.car && ASSETS.car.complete && ASSETS.car.naturalWidth > 0) {
+  // Vehicle-specific shells share the original collision chassis and wheelbase.
+  if (garage.active.id !== 'roadster') {
+    window.WallFlipGarage.draw2d(ctx, garage.active, clubPaint.color);
+  } else if (ASSETS.car && ASSETS.car.complete && ASSETS.car.naturalWidth > 0) {
     ctx.save();
     const curSpd = (car.mode === 'road' ? Math.abs(car.v) : Math.hypot(car.vx, car.vy)) * 3.6;
     if (curSpd > 85) {
@@ -2163,11 +2196,11 @@ function drawCar(t) {
     }
     // Flip Y because canvas worldTransform has inverted scale(cam.scale, -cam.scale)
     ctx.scale(1, -1);
-    ctx.drawImage(ASSETS.car, -2.32, -0.62, 4.64, 1.28);
+    ctx.drawImage(paintedCar(), -2.32, -0.62, 4.64, 1.28);
     ctx.restore();
   } else {
     const bg = ctx.createLinearGradient(0, -0.2, 0, 0.6);
-    bg.addColorStop(0, '#f6f8fa'); bg.addColorStop(0.45, '#dfe2e6'); bg.addColorStop(1, '#a9aeb6');
+    bg.addColorStop(0, '#f6f8fa'); bg.addColorStop(0.45, clubPaint.color); bg.addColorStop(1, '#58736e');
     ctx.fillStyle = bg;
     bodyPath();
     ctx.fill();
@@ -2214,9 +2247,9 @@ function drawGhost() {
   for (const wx of [-CAR.WHEEL_X, CAR.WHEEL_X]) {
     ctx.beginPath(); ctx.arc(wx, axle, CAR.WHEEL_R, 0, TAU); ctx.fill();
   }
-  bodyPath();
-  ctx.fillStyle = '#c9ced6';
-  ctx.fill();
+  if (garage.active.id === 'roadster') {
+    bodyPath(); ctx.fillStyle = '#c9ced6'; ctx.fill();
+  } else window.WallFlipGarage.draw2d(ctx,garage.active,'#c9ced6');
   ctx.restore();
 }
 
@@ -2554,7 +2587,7 @@ function drawHUD() {
 const RANKS = [[140, 'LEGEND!!!', '#ffd166'], [95, 'PERFECT!!', '#ff9f43'], [80, 'GREAT!', '#9fe8ff'], [0, 'GOOD!', '#cfe3f5']];
 const launchHost = document.getElementById('wfLaunch');
 const launchScreen = window.WallFlipLaunch.mount({
-  host: launchHost, mode: '2d', onStart: () => { ensureAudio(); pressStart(); },
+  host: launchHost, mode: '2d', club: stuntClub, garage, onStart: () => { ensureAudio(); pressStart(); },
   onLanguage: () => setLang(lang === 'tc' ? 'en' : 'tc'),
   onCourse: (delta) => setCourse(courseIdx + delta),
   onBoard: () => { openRank(); },
@@ -2572,11 +2605,11 @@ function drawReady() {
 function drawResult() {
   screenTransform();
   resultUI.share = null;
-  const cx = W() / 2;
+  const cx = W() > 760 ? W() * 0.26 : W() / 2;
   ctx.fillStyle = `rgba(12,13,15,${0.55 * Math.min(1, stateT / 0.4)})`;
   ctx.fillRect(0, 0, W(), H());
   const slide = 1 - Math.pow(1 - Math.min(1, stateT / 0.45), 3);
-  const pw = Math.min(W() - 48, 440);
+  const pw = Math.min(W() > 760 ? W() * 0.44 : W() - 48, 440);
   const pad = 24;
   const px = cx - pw / 2;
   ctx.font = `400 13px ${SANS}`;
@@ -2722,7 +2755,7 @@ function drawRank() {
   ctx.textAlign = 'left';
   ctx.font = `600 16px ${SANS}`;
   ctx.fillStyle = UI.text;
-  let title = t('boardTitle', courseName(COURSES[courseIdx]));
+  let title = t('boardTitle', courseName(COURSES[courseIdx])) + ' / ' + garage.active.name;
   if (showOnline) title += ' · ' + t('onlineMark');
   const maxTitle = gx - (px + 24) - 12;
   while (title.length > 1 && ctx.measureText(title).width > maxTitle) title = title.slice(0, -1);
@@ -2834,7 +2867,7 @@ function render(t) {
   if (state === ST.RUN) drawHUD();
   if (state === ST.READY) drawReady();
   if (state === ST.RESULT) drawResult();
-  flightCoach.render({mode:car.mode,u:car.u,th:car.th,tilt:tiltNow(),vy:car.vy,rw:car.rw,air:car.air,reason:car.crash}, {active:state===ST.RUN,reviewing:state===ST.RESULT,blocked:rankOn || apiPanel.classList.contains('on') || namePanel.classList.contains('on')});
+  flightCoach.render({mode:car.mode,u:car.u,th:car.th,tilt:tiltNow(),vy:car.vy,rw:car.rw,air:car.air,reason:car.crash,rolls:Math.max(rollsCount(car.phi,car.phiL),car.rollsAccum || 0)}, {active:state===ST.RUN,reviewing:state===ST.RESULT,blocked:rankOn || apiPanel.classList.contains('on') || namePanel.classList.contains('on')});
   if (rankOn) drawRank();
 }
 
@@ -2862,7 +2895,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 resize();
-if (DEMO) { botOn = true; state = ST.RUN; }
+if (DEMO) { botOn = true; reset(false); }
 camSnapSafe();
 requestAnimationFrame(frame);
 // TEMP deterministic render hook (removed before ship)

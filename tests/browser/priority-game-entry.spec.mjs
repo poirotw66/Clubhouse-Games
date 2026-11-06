@@ -21,7 +21,7 @@ if (includes('Wall-Flip')) {
     await expect(guide).toHaveAttribute('open', '');
     await expect(launch).toBeVisible();
     await page.locator('.wf-launch-lang').click();
-    await expect(page.locator('#launchStart')).toHaveText('Launch my first run →');
+    await expect(page.locator('#launchStart')).toHaveText('Launch this run →');
     await page.locator('#launchStart').click();
     await expect(launch).toBeHidden();
     await expect(page.locator('canvas#c')).toBeVisible();
